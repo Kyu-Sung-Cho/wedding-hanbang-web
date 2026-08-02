@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AmoraPrivacyContextError,
   assertAmoraPrivacyContextSnapshotCurrent,
+  getAmoraPrivacyEpoch,
   getAmoraMemoryEnablement,
   getAmoraPrivacyContextSnapshot,
   type AmoraPrivacyContextSnapshot,
@@ -12,7 +13,8 @@ function snapshot(
   overrides: Partial<AmoraPrivacyContextSnapshot> = {},
 ): AmoraPrivacyContextSnapshot {
   return {
-    version: 1,
+    version: 2,
+    privacyEpoch: 7,
     actorRole: "bride",
     rosterFingerprint: "a".repeat(32),
     memory: {
@@ -54,7 +56,8 @@ describe("Amora memory enablement", () => {
     vi.stubEnv("AMORA_AUXILIARY_MEMORY_ENABLED", "true");
     const rpc = vi.fn(async () => ({
       data: {
-        version: 1,
+        version: 2,
+        privacyEpoch: 11,
         actorRole: "bride",
         rosterFingerprint: "b".repeat(32),
         memory: {
@@ -86,7 +89,8 @@ describe("Amora memory enablement", () => {
       },
     );
     expect(result).toEqual({
-      version: 1,
+      version: 2,
+      privacyEpoch: 11,
       actorRole: "bride",
       rosterFingerprint: "b".repeat(32),
       memory: {
@@ -108,7 +112,8 @@ describe("Amora memory enablement", () => {
     vi.stubEnv("AMORA_AUXILIARY_MEMORY_ENABLED", "false");
     const rpc = vi.fn(async () => ({
       data: {
-        version: 1,
+        version: 2,
+        privacyEpoch: 12,
         actorRole: "bride",
         rosterFingerprint: "c".repeat(32),
         memory: {
@@ -132,6 +137,39 @@ describe("Amora memory enablement", () => {
       enabled: false,
       resetAt: "2026-07-31T03:00:00.000Z",
     });
+  });
+
+  it("reads only the actor-bound scalar epoch for a minimized-context turn", async () => {
+    const rpc = vi.fn(async () => ({ data: 19, error: null }));
+
+    await expect(getAmoraPrivacyEpoch(
+      "10000000-0000-4000-8000-000000000001",
+      "bride_private",
+      { rpc } as unknown as SupabaseClient,
+    )).resolves.toBe(19);
+    expect(rpc).toHaveBeenCalledWith("get_own_amora_privacy_epoch", {
+      p_couple_id: "10000000-0000-4000-8000-000000000001",
+      p_visibility: "bride_private",
+    });
+  });
+
+  it.each([
+    { data: 0, error: null },
+    { data: 1.5, error: null },
+    { data: null, error: { code: "42501", message: "SECRET detail" } },
+  ])("fails closed on an unavailable scalar privacy epoch: %j", async (response) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const rpc = vi.fn(async () => response);
+
+    await expect(getAmoraPrivacyEpoch(
+      "10000000-0000-4000-8000-000000000001",
+      "shared",
+      { rpc } as unknown as SupabaseClient,
+    )).rejects.toEqual(expect.objectContaining({
+      code: "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
+    }));
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("SECRET");
+    errorSpy.mockRestore();
   });
 
   it("allows a scope that was initially disabled to become enabled", () => {
@@ -163,6 +201,10 @@ describe("Amora memory enablement", () => {
   });
 
   it.each([
+    [
+      "privacy epoch change",
+      snapshot({ privacyEpoch: 8 }),
+    ],
     [
       "consent withdrawal",
       snapshot({
@@ -233,7 +275,8 @@ describe("Amora memory enablement", () => {
       label: "malformed payload",
       response: {
         data: {
-          version: 1,
+          version: 2,
+          privacyEpoch: 13,
           actorRole: "bride",
           rosterFingerprint: "not-a-fingerprint",
           memory: {},

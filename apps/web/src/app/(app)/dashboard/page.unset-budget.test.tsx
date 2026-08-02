@@ -76,9 +76,9 @@ describe("Dashboard total-budget trust boundary", () => {
       root.render(<DashboardPage />);
     });
 
-    expect(container.textContent).toContain("예산 사용미입력");
+    expect(container.textContent).toContain("기록 지출 비율미입력");
     expect(container.textContent).toContain(
-      "사용 100만원 · 총 예산 입력 전",
+      "기록 지출 100만원 · 총 예산 입력 전",
     );
     expect(container.textContent).toContain("계산 전");
     expect(container.textContent).toContain("총 예산 미입력");

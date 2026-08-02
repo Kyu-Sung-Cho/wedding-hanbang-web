@@ -200,6 +200,78 @@
     {
       "file": "20260731192000_chat_feedback_account_delete_cascade.sql",
       "sha256": "006650056787fbaa49fc4fa35fe53e6d4c94cd841e3e4edaa3c732fc9c02e75f"
+    },
+    {
+      "file": "20260801090000_amora_chat_delivery_safety.sql",
+      "sha256": "d65db3bb8f89c8806683244aea5aabe9239d289de8a0dbb71df2d71cb3905a36"
+    },
+    {
+      "file": "20260801100000_amora_conversation_segments.sql",
+      "sha256": "03f2b4ac8100af621912831f286f92a4ca5984b5a219500a09b85bfe3d722075"
+    },
+    {
+      "file": "20260802090000_amora_moment_care_source_revision.sql",
+      "sha256": "92aab48ceee3cdef5eb577b8afde40adb34f439834c5db66ed5c7ff118ee719d"
+    },
+    {
+      "file": "20260802100000_amora_shared_schedule_decision_receipts.sql",
+      "sha256": "df1d499c14474ac54a6021f983498d29ef554fafe5f56a2c0bbc81e4804a7d1e"
+    },
+    {
+      "file": "20260802110000_amora_shared_schedule_approval_policy.sql",
+      "sha256": "a6a79c7c4bed55be85c02595ac4764492ce8d57665b3a1e5744d18bd0561dca6"
+    },
+    {
+      "file": "20260802120000_amora_conversation_segment_dual_write.sql",
+      "sha256": "12cd3386ca80087fc8ff9dfa73e92f1cc9da2e80d05b49eb5cbb47ad1255b6bc"
+    },
+    {
+      "file": "20260802130000_amora_in_app_today_one.sql",
+      "sha256": "56cf25d5b8441c1d282e0ca8721e60c8ca3c05ca0a41d641720e33038b50be2a"
+    },
+    {
+      "file": "20260802140000_amora_manual_schedule_fairness.sql",
+      "sha256": "2e003f2772551d3d22b7d8b24344f815062152cd105a42c8f0606f2d9b226198"
+    },
+    {
+      "file": "20260802150000_amora_today_one_budget_guardrails.sql",
+      "sha256": "30b50a0ab2994758fbc5e025f213ee7b7757b620f43f43b3636f0d2da2b5ab91"
+    },
+    {
+      "file": "20260802160000_booking_quote_spend_soft_cancel.sql",
+      "sha256": "e2c3b5b95d5993ba217feb5ec743357dbdd0ddd8580bddfeae8fc98b200a5afb"
+    },
+    {
+      "file": "20260802170000_amora_shared_action_roster_binding.sql",
+      "sha256": "b1e212984f4ecb99095042b38ca877b0b593d0c490986e03edb24280d0804a80"
+    },
+    {
+      "file": "20260802180000_community_cohort_assignment_atomic.sql",
+      "sha256": "ba6bd8223d857ea0baa4b8647c95953b892071bfacbbb501c0e131784ef01689"
+    },
+    {
+      "file": "20260802190000_community_idempotent_writes.sql",
+      "sha256": "741d967d43a369d770f83b121eb501ffe623e0a9b861c7228e8be684ca5dc9b3"
+    },
+    {
+      "file": "20260802200000_journey_budget_progress_integrity.sql",
+      "sha256": "62e5655627fbc9dc4f7e41347404311a3c9091f7741f2007fb38862fd7fef665"
+    },
+    {
+      "file": "20260802210000_amora_conversation_segment_roster_repair.sql",
+      "sha256": "433248852f800553c94dec00ed9616b3854acd5cbc5e8cebd3bec465a82e4cf2"
+    },
+    {
+      "file": "20260802220000_amora_memory_enqueue_repair.sql",
+      "sha256": "4dff9c7545446dc6b459089c2a52b28c2c57f2834fb658af1ec541012b0e7db7"
+    },
+    {
+      "file": "20260802230000_amora_atomic_privacy_epoch.sql",
+      "sha256": "79e824442deb0f20582d1659e05a05c23ec564c249a3bdab0b3f1e8a9a1fb490"
+    },
+    {
+      "file": "20260802240000_amora_memory_job_recovery.sql",
+      "sha256": "f673b63550bbce8561ccd23fc7e5ec161627b5dc0ddbed8fed49a049adc7f0d4"
     }
   ],
   "deploymentEvidence": {

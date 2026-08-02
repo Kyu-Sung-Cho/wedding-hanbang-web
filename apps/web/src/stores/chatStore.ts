@@ -5,6 +5,10 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import { prepareChatAttachmentPayload } from "@/lib/chat/attachments";
+import {
+  createChatImageObjectPath,
+  isExistingChatImageUploadError,
+} from "@/lib/chat/attachmentStorage";
 import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
 
 /**
@@ -13,6 +17,10 @@ import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
  * 같은 채널 인스턴스로 broadcast 송신 (별개 채널 인스턴스는 send 안 됨).
  */
 const activeChatChannels = new Map<string, RealtimeChannel>();
+const typingStates = new Map<
+  string,
+  { state: "start" | "stop"; timer: ReturnType<typeof setTimeout> | null }
+>();
 let chatLifecycleEpoch = 0;
 import type {
   ChatMessage,
@@ -21,13 +29,17 @@ import type {
   ChatMessageMetadata,
   ChatMessageTarget,
 } from "@/types/database.types";
-import type { SSEEvent, WeddingContext } from "@/types/chat.types";
+import type { ChatSendOutcome, SSEEvent, WeddingContext } from "@/types/chat.types";
 import { determineStage } from "@/lib/ai/stage-router";
 import {
   EPHEMERAL_PLACE_SEARCH_TOOL,
   getPersistableToolResults,
 } from "@/lib/ai/placeSearchResultPolicy";
 import type { AmoraActionItem } from "@/lib/amora/actions";
+import {
+  buildUnmatchedAmoraCrisisRecoveryCard,
+  isAmoraCrisisRecoveryCardId,
+} from "@hanbang/shared/amora-crisis-recovery";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
 
@@ -167,6 +179,8 @@ interface ChatStoreState {
   streamingContent: string;
   streamingToolResults: ToolExecutionResult[];
   suggestions: string[];
+  /** Privacy scope for transient streaming, suggestion, quota, and error UI. */
+  artifactVisibility: ChatVisibility | null;
   error: string | null;
   initialLoadDone: boolean;
 
@@ -201,8 +215,10 @@ interface ChatStoreState {
     images?: Array<{ base64: string; mediaType: string; previewUrl: string; fileName?: string }>;
     target?: ChatMessageTarget;
     visibility?: "shared" | "bride_private" | "groom_private";
+    partnerRecipientId?: string;
     confirmedActionId?: string;
-  }) => Promise<void>;
+    clientRequestId?: string;
+  }) => Promise<ChatSendOutcome>;
   retryFailedMessage: () => Promise<void>;
   dismissFailedMessageRetry: () => void;
   requestInitialGreeting: (params: {
@@ -236,6 +252,7 @@ interface ChatStoreState {
 
   /** 입력창에서 호출 — 디바운스된 typing broadcast (자동 stop 포함) */
   notifyTyping: (params: { coupleId: string; userId: string; senderRole: "bride" | "groom" }) => void;
+  stopTyping: (params: { coupleId: string; userId: string; senderRole: "bride" | "groom" }) => void;
 
   reset: () => void;
 }
@@ -245,7 +262,7 @@ interface ChatStoreState {
 const PROGRESS_AFFECTING_TOOLS = new Set<string>(MUTATING_TOOL_NAMES);
 
 // 도구 결과를 authStore에 반영
-function syncToolResult(result: ToolExecutionResult) {
+export function syncToolResult(result: ToolExecutionResult) {
   if (!result.success) return;
   const authStore = useAuthStore.getState();
 
@@ -402,29 +419,26 @@ function syncToolResult(result: ToolExecutionResult) {
       });
       break;
     }
-    case "update_schedule_event": {
+    case "update_schedule_event":
+    case "cancel_schedule_event":
+    case "restore_schedule_event": {
       const currentP2 = authStore.journey?.progress ?? {};
       const curEvents2 = ((currentP2 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-      const evtId2 = result.toolInput.event_id as string;
-      const evtUpdates = result.toolOutput.updates as Record<string, unknown>;
+      const event = result.toolOutput.event as ({ id: string } & Record<string, unknown>) | undefined;
+      if (!event?.id || !curEvents2.some((candidate) => candidate.id === event.id)) break;
       authStore.updateJourneyLocal({
         progress: {
           ...currentP2,
-          __events: curEvents2.map((e) => e.id === evtId2 ? { ...e, ...evtUpdates, updatedAt: new Date().toISOString() } : e),
+          __events: curEvents2.map((candidate) =>
+            candidate.id === event.id ? event : candidate
+          ),
         } as unknown as typeof currentP2,
       });
       break;
     }
     case "delete_schedule_event": {
-      const currentP3 = authStore.journey?.progress ?? {};
-      const curEvents3 = ((currentP3 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-      const evtId3 = result.toolInput.event_id as string;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentP3,
-          __events: curEvents3.filter((e) => e.id !== evtId3),
-        } as unknown as typeof currentP3,
-      });
+      // Historical receipts may still contain this name. Deletion is now a
+      // permanent no-op; only cancel/restore may change a schedule event.
       break;
     }
     case "toggle_checklist_item": {
@@ -472,10 +486,8 @@ function syncToolResult(result: ToolExecutionResult) {
       break;
     }
     case "create_booking": {
-      // 예약 성공 시 server 가 wedding_journeys.progress 에 event 추가 + spent 누적.
-      // client authStore 도 같이 갱신 안 하면 /schedule, /budget 페이지가 새로고침
-      // 전까지 stale. toolOutput 에 syncedEvent / syncedCategoryKey / syncedNewSpent
-      // 가 server commit 성공 시 채워져 옴 — 그대로 merge.
+      // 예약 요청 금액은 견적이다. 일정은 즉시 동기화하되, 실제 지출이
+      // 별도로 기록된 경우에만 server가 보낸 최종 spent 값을 반영한다.
       if (!result.success) break;
       const syncedEvent = result.toolOutput.syncedEvent as
         | { id: string; date: string; title: string; memo?: string; categoryKey?: string; createdAt: string; updatedAt: string }
@@ -491,9 +503,11 @@ function syncToolResult(result: ToolExecutionResult) {
       // 1) __events 에 새 event 추가 (id 로 중복 방지 — 같은 booking 두 번 들어가지 않게)
       if (syncedEvent) {
         const events = ((nextProgress as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-        if (!events.some((e) => e.id === syncedEvent.id)) {
-          (nextProgress as Record<string, unknown>).__events = [...events, syncedEvent];
-        }
+        (nextProgress as Record<string, unknown>).__events = events.some(
+          (event) => event.id === syncedEvent.id,
+        )
+          ? events.map((event) => event.id === syncedEvent.id ? syncedEvent : event)
+          : [...events, syncedEvent];
       }
 
       // 2) 카테고리 spent 갱신 (server 가 누적한 최종값 그대로 덮어쓰기)
@@ -515,25 +529,34 @@ function syncToolResult(result: ToolExecutionResult) {
       break;
     }
     case "cancel_booking": {
-      // create_booking 의 역연산 — server 가 progress 에서 event 제거 + spent 차감.
-      // toolOutput 에 syncedEventIdRemoved / syncedCategoryKey / syncedNewSpent 가
-      // server commit 성공 시 채워져 옴.
+      // 취소는 역연산/환불이 아니다. 안정 ID의 일정을 취소 상태로 바꾸고,
+      // 실제 지출은 보존한다. syncedNewSpent는 식별 가능한 과거 견적 오기록
+      // 정정 또는 별도 actual 보정이 있을 때만 전달된다.
       if (!result.success) break;
-      const eventIdRemoved = result.toolOutput.syncedEventIdRemoved as string | null | undefined;
+      const cancelledEvent = result.toolOutput.syncedEvent as
+        | ({ id: string } & Record<string, unknown>)
+        | null
+        | undefined;
       const cancelCategoryKey = result.toolOutput.syncedCategoryKey as string | null | undefined;
       const cancelNewSpent = result.toolOutput.syncedNewSpent as number | null | undefined;
-      if (!eventIdRemoved && !cancelCategoryKey) break;
+      if (!cancelledEvent && !cancelCategoryKey) break;
 
       const cancelCurrent = authStore.journey?.progress ?? {};
       const cancelNext: Record<string, unknown> = { ...cancelCurrent };
 
-      // 1) __events 에서 해당 booking event 제거
-      if (eventIdRemoved) {
+      // 1) __events에서 안정 ID를 유지한 채 취소 감사 정보까지 교체
+      if (cancelledEvent) {
         const events = ((cancelNext as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-        (cancelNext as Record<string, unknown>).__events = events.filter((e) => e.id !== eventIdRemoved);
+        (cancelNext as Record<string, unknown>).__events = events.some(
+          (event) => event.id === cancelledEvent.id,
+        )
+          ? events.map((event) =>
+              event.id === cancelledEvent.id ? cancelledEvent : event
+            )
+          : [...events, cancelledEvent];
       }
 
-      // 2) 카테고리 spent 를 server 가 차감한 최종값으로 덮어쓰기
+      // 2) server가 명시적으로 보낸 보정 결과만 적용. null이면 기존 지출 보존.
       if (cancelCategoryKey && typeof cancelNewSpent === "number") {
         const existingCat = (cancelNext[cancelCategoryKey] ?? {
           category: cancelCategoryKey,
@@ -564,7 +587,7 @@ async function parseSSEStream(
     onSuggestions: (suggestions: string[]) => void;
     onQuota?: (remaining: number) => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
-    onError: (message: string) => void;
+    onError: (error: Extract<SSEEvent, { type: "error" }>) => void;
   }
 ) {
   if (!res.body) throw new Error("AI 응답 스트림이 비어 있습니다.");
@@ -614,7 +637,7 @@ async function parseSSEStream(
           // the parser as a client-side invariant even if the server also sends
           // text_clear, so older servers/proxies cannot leave stale prose behind.
           callbacks.onTextClear?.();
-          callbacks.onError(event.message);
+          callbacks.onError(event);
           return true;
       }
     } catch (e) {
@@ -672,6 +695,107 @@ function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
     visibility,
     created_at: row.created_at as string,
   };
+}
+
+export function reconcileAmoraCrisisRecoveryMessages(
+  messages: readonly ChatMessage[],
+  coupleId: string,
+): ChatMessage[] {
+  const canonicalMessages = messages.filter(
+    (message) => !isAmoraCrisisRecoveryCardId(message.id),
+  );
+  const profile = useAuthStore.getState().profile;
+  if (
+    !profile
+    || profile.id.length === 0
+    || profile.couple_id !== coupleId
+    || (profile.role !== "bride" && profile.role !== "groom")
+  ) {
+    return [...canonicalMessages];
+  }
+
+  const card = buildUnmatchedAmoraCrisisRecoveryCard(
+    canonicalMessages.map((message) => ({
+      id: message.id,
+      coupleId: message.couple_id,
+      senderId: message.sender_id,
+      senderRole: message.sender_role,
+      role: message.sender_role === "ai" ? "assistant" : "user",
+      content: message.content,
+      visibility: message.visibility,
+      target: message.metadata?.target === "partner"
+        ? "partner"
+        : message.metadata?.target === "ai"
+          ? "ai"
+          : null,
+      createdAt: message.created_at,
+      inReplyToUserMessageId:
+        message.metadata?.in_reply_to_user_message_id ?? null,
+    })),
+    {
+      coupleId,
+      userId: profile.id,
+      role: profile.role,
+    },
+  );
+  if (!card) return [...canonicalMessages];
+
+  return [
+    ...canonicalMessages,
+    {
+      id: card.id,
+      couple_id: coupleId,
+      sender_id: null,
+      sender_role: "ai",
+      content: card.content,
+      metadata: card.metadata as ChatMessageMetadata,
+      visibility: card.visibility,
+      created_at: card.createdAt,
+    },
+  ];
+}
+
+function isBoundUserMessageRow(
+  row: Record<string, unknown>,
+  expected: {
+    coupleId: string;
+    senderId: string;
+    senderRole: MessageSenderRole;
+    content: string;
+    visibility: ChatVisibility;
+    target: ChatMessageTarget;
+    partnerRecipientId: string | null;
+    confirmedActionId: string | null;
+    clientRequestId: string;
+  },
+): boolean {
+  if (
+    typeof row.id !== "string"
+    || row.couple_id !== expected.coupleId
+    || row.sender_id !== expected.senderId
+    || row.sender_type !== expected.senderRole
+    || row.role !== "user"
+    || row.content !== expected.content
+    || row.visibility !== expected.visibility
+  ) {
+    return false;
+  }
+  const metadata = row.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+  const record = metadata as Record<string, unknown>;
+  const rowTarget = record.target === "partner" ? "partner" : "ai";
+  const rowConfirmation = typeof record.confirmed_amora_action_id === "string"
+    ? record.confirmed_amora_action_id
+    : null;
+  const rowPartnerRecipientId = typeof record.partner_recipient_id === "string"
+    ? record.partner_recipient_id.toLowerCase()
+    : null;
+  return record.client_request_id === expected.clientRequestId
+    && rowTarget === expected.target
+    && rowPartnerRecipientId === (expected.partnerRecipientId?.toLowerCase() ?? null)
+    && rowConfirmation === expected.confirmedActionId;
 }
 
 // AI 메시지를 로컬 state에 먼저 추가, 그 다음 DB 저장 시도
@@ -838,31 +962,56 @@ class ChatProviderRequestError extends Error {
   }
 }
 
-function parseChatHttpError(text: string): { message: string | null; code: string | null } {
+interface ParsedChatHttpError {
+  message: string | null;
+  code: string | null;
+  retryable: boolean | null;
+  retryPolicy: "same_request" | "new_message" | null;
+}
+
+function parseChatHttpError(text: string): ParsedChatHttpError {
+  const failClosed: ParsedChatHttpError = {
+    message: null,
+    code: null,
+    retryable: null,
+    retryPolicy: null,
+  };
+  if (!text || text.length > 4_096) return failClosed;
   try {
     const value = JSON.parse(text) as unknown;
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { message: null, code: null };
+      return failClosed;
     }
     const record = value as Record<string, unknown>;
+    const retryPolicy = record.retryPolicy === "same_request"
+      || record.retryPolicy === "new_message"
+      ? record.retryPolicy
+      : null;
     return {
       message: typeof record.error === "string" && record.error.trim()
         ? record.error.trim()
         : null,
-      code: typeof record.code === "string" && record.code.trim()
-        ? record.code.trim()
+      code: typeof record.code === "string" && /^[A-Z0-9_]{1,96}$/.test(record.code)
+        ? record.code
         : null,
+      retryable: typeof record.retryable === "boolean" ? record.retryable : null,
+      retryPolicy,
     };
   } catch {
-    return { message: null, code: null };
+    return failClosed;
   }
 }
 
-function isRetryableChatHttpError(status: number, code: string | null): boolean {
-  if (status >= 500 || status === 408 || status === 425 || status === 429) return true;
-  if (status !== 409) return false;
-  return code === "CHAT_REQUEST_IN_PROGRESS"
-    || code === "USER_MESSAGE_NOT_PERSISTED";
+function isUserFacingChatHttpMessage(message: string | null): message is string {
+  if (!message || message.length > 240 || !/[가-힣]/.test(message)) return false;
+  return !message.includes("_")
+    && !/\b(?:api|http|stack|exception|undefined|null)\b/i.test(message);
+}
+
+function isRetryableChatHttpError(error: ParsedChatHttpError): boolean {
+  if (error.retryPolicy === "same_request") return true;
+  if (error.retryPolicy === "new_message") return false;
+  return error.retryable === true;
 }
 
 function withRetryAvailability(
@@ -876,6 +1025,7 @@ function withRetryAvailability(
   // corrected request.
   return {
     ...request,
+    content: "",
     attachmentCount: 0,
     canRetry: false,
     unavailableReason: unavailableReason ?? PERMANENT_REQUEST_RETRY_UNAVAILABLE,
@@ -904,6 +1054,7 @@ async function executeChatProviderRequest(
     streamingContent: "",
     streamingToolResults: [],
     suggestions: [],
+    artifactVisibility: request.visibility,
     error: null,
     quotaRemaining: null,
   });
@@ -927,16 +1078,26 @@ async function executeChatProviderRequest(
         code: parsed.code,
         message: `HTTP ${res.status}`,
       });
-      const retryable = isRetryableChatHttpError(res.status, parsed.code);
-      const fallbackMessage = res.status === 429
+      const previewStubDisabled = parsed.message === "preview_stub_api_disabled"
+        || parsed.code === "PREVIEW_STUB_API_DISABLED";
+      const retryable = previewStubDisabled
+        ? false
+        : isRetryableChatHttpError(parsed);
+      const fallbackMessage = previewStubDisabled
+        ? "현재 미리보기에서는 AI 답변을 생성하지 않아요. 입력한 내용은 계정의 준비 기록에 남지 않았어요."
+        : res.status === 429
         ? "지금은 잠시 쉬어가고 있어요. 잠시 후 다시 시도해주세요."
         : retryable
           ? "AI 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요."
           : "요청 내용을 처리할 수 없어요. 입력이나 첨부파일을 확인해주세요.";
       throw new ChatProviderRequestError(
-        parsed.message ?? fallbackMessage,
+        isUserFacingChatHttpMessage(parsed.message) ? parsed.message : fallbackMessage,
         retryable,
-        retryable ? null : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
+        retryable
+          ? null
+          : previewStubDisabled
+            ? "현재 미리보기에서는 같은 요청을 재시도할 수 없어요."
+            : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
       );
     }
 
@@ -944,6 +1105,9 @@ async function executeChatProviderRequest(
     let finalMetadata: ChatMessageMetadata | null = null;
     let gotDone = false;
     let progressTouched = false;
+    const terminalStream = {
+      error: null as Extract<SSEEvent, { type: "error" }> | null,
+    };
 
     await parseSSEStream(res, {
       onTextDelta: (content) => {
@@ -975,8 +1139,9 @@ async function executeChatProviderRequest(
         finalMetadata = metadata;
         gotDone = true;
       },
-      onError: (message) => {
-        if (isCurrentLifecycle()) set({ error: message });
+      onError: (streamError) => {
+        terminalStream.error = streamError;
+        if (isCurrentLifecycle()) set({ error: streamError.message });
       },
     });
     if (!isCurrentLifecycle()) return;
@@ -989,8 +1154,22 @@ async function executeChatProviderRequest(
     // 말은 없는 빈 말풍선이 남았다. 단 장소 검색 결과는 클라이언트에만 존재해
     // 저장하지 않으면 사라지므로, 그 경우에만 텍스트 없이도 저장한다.
     if (!gotDone || (!fullContent.trim() && ephemeralPlaceResults.length === 0)) {
+      const terminalStreamError = terminalStream.error;
+      const retryable = terminalStreamError
+        ? terminalStreamError.retryPolicy === "same_request"
+          ? true
+          : terminalStreamError.retryPolicy === "new_message"
+            ? false
+            : terminalStreamError.retryable === true
+        : true;
       set({
-        failedRequest: request,
+        failedRequest: terminalStreamError
+          ? withRetryAvailability(
+              request,
+              retryable,
+              retryable ? null : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
+            )
+          : request,
         error: get().error ?? "AI 응답이 중단되었습니다. 다시 시도해주세요.",
         streamingContent: "",
       });
@@ -1000,6 +1179,11 @@ async function executeChatProviderRequest(
     const completedMetadata = finalMetadata as ChatMessageMetadata | null;
     const aiMetadata: ChatMessageMetadata = {
       ...(completedMetadata ?? {}),
+      ...(completedMetadata?.response_origin === "deterministic_crisis_safety"
+        && request.userMessageId
+        && !completedMetadata.in_reply_to_user_message_id
+        ? { in_reply_to_user_message_id: request.userMessageId }
+        : {}),
       ...(ephemeralPlaceResults.length > 0
         ? {
             toolResults: [
@@ -1065,6 +1249,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   streamingContent: "",
   streamingToolResults: [],
   suggestions: [],
+  artifactVisibility: null,
   error: null,
   initialLoadDone: false,
   quotaRemaining: null,
@@ -1079,7 +1264,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   loadMessages: async (coupleId: string) => {
     if (get().isStreaming) return;
 
-    set({ isLoading: true, error: null, initialLoadDone: false });
+    set({
+      isLoading: true,
+      error: null,
+      initialLoadDone: false,
+      suggestions: [],
+      artifactVisibility: get().failedRequest?.visibility ?? null,
+    });
     try {
       const supabase = createClient();
 
@@ -1159,9 +1350,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         ? null
         : buildConfirmedActionRecoveryRequest(allMessages, coupleId);
       set({
-        messages: allMessages,
+        messages: reconcileAmoraCrisisRecoveryMessages(allMessages, coupleId),
         sharedClearedAt,
         privateClearedAt,
+        suggestions: [],
+        artifactVisibility:
+          recoveryRequest?.visibility ?? get().failedRequest?.visibility ?? null,
         ...(recoveryRequest
           ? {
               failedRequest: recoveryRequest,
@@ -1184,7 +1378,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const state = get();
     if (!state.initialLoadDone) return; // 최초 로드 완료 전엔 스킵
 
-    const lastMsg = state.messages[state.messages.length - 1];
+    const lastMsg = [...state.messages]
+      .reverse()
+      .find((message) => !isAmoraCrisisRecoveryCardId(message.id));
     const since = lastMsg?.created_at ?? "1970-01-01T00:00:00Z";
 
     try {
@@ -1218,7 +1414,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           return true;
         });
         if (toAdd.length === 0) return s;
-        return { messages: [...s.messages, ...toAdd] };
+        return {
+          messages: reconcileAmoraCrisisRecoveryMessages(
+            [...s.messages, ...toAdd],
+            coupleId,
+          ),
+        };
       });
     } catch (err) {
       // 폴링 실패는 silent — 다음 tick에 재시도
@@ -1230,14 +1431,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   sendMessage: async ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
-    confirmedActionId,
+    confirmedActionId, clientRequestId: requestedClientRequestId, partnerRecipientId,
   }) => {
+    const finalVisibility = visibility ?? "shared";
+    const normalizedPartnerRecipientId = typeof partnerRecipientId === "string"
+      ? partnerRecipientId.trim()
+      : null;
     // 중복 발사 가드 (모바일 더블탭, 짧은 시간 내 재시도 방지)
     if (get().isStreaming || get().isSending) {
       if (process.env.NODE_ENV !== "production") {
         console.warn("[sendMessage] 이미 스트리밍 중 — 무시");
       }
-      return;
+      return {
+        userMessage: "not_persisted",
+        reason: "busy",
+        ...(requestedClientRequestId ? { clientRequestId: requestedClientRequestId } : {}),
+      };
     }
     if (
       confirmedActionId !== undefined
@@ -1247,46 +1456,148 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         || (visibility ?? "shared") !== "shared"
       )
     ) {
-      set({ error: "이 변경 확인 요청은 사용할 수 없어요. 아모라에게 다시 제안해 달라고 해주세요." });
-      return;
+      set({
+        error: "이 변경 확인 요청은 사용할 수 없어요. 아모라에게 다시 제안해 달라고 해주세요.",
+        artifactVisibility: finalVisibility,
+      });
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
+    if (
+      requestedClientRequestId !== undefined
+      && !EXPLICIT_ACTION_ID_PATTERN.test(requestedClientRequestId)
+    ) {
+      set({
+        error: "이전 전송 상태를 안전하게 확인할 수 없어요. 새 메시지로 다시 작성해주세요.",
+        artifactVisibility: finalVisibility,
+      });
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
+    const invalidPartnerDelivery = target === "partner"
+      ? finalVisibility !== "shared"
+        || normalizedPartnerRecipientId === null
+        || !EXPLICIT_ACTION_ID_PATTERN.test(normalizedPartnerRecipientId)
+        || normalizedPartnerRecipientId.toLowerCase() === senderId.trim().toLowerCase()
+      : partnerRecipientId !== undefined;
+    if (invalidPartnerDelivery) {
+      set({
+        error: "상대방 연결 정보를 안전하게 확인하지 못했어요. 메시지는 보내지 않았어요.",
+        artifactVisibility: finalVisibility,
+      });
+      return { userMessage: "not_persisted", reason: "validation" };
     }
     const preparedAttachments = prepareChatAttachmentPayload(images);
     if (!preparedAttachments.ok) {
-      set({ error: preparedAttachments.error });
-      return;
+      set({ error: preparedAttachments.error, artifactVisibility: finalVisibility });
+      return { userMessage: "not_persisted", reason: "validation" };
     }
-    const uniqueImages = preparedAttachments.attachments;
-    set({ isSending: true });
+    const attachments = preparedAttachments.attachments;
+    if (
+      target === "partner"
+      && attachments.some((attachment) => !attachment.mediaType.startsWith("image/"))
+    ) {
+      set({
+        error: "파트너에게 보내는 첨부파일은 이미지 형식만 지원해요.",
+        artifactVisibility: finalVisibility,
+      });
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
+
+    let activeClientRequestId = requestedClientRequestId ?? null;
+    let persistedUserMessageId: string | null = null;
+    let demoUserMessageId: string | null = null;
+
+    set({
+      isSending: true,
+      failedRequest: null,
+      isRetrying: false,
+      error: null,
+      suggestions: [],
+      artifactVisibility: finalVisibility,
+    });
 
     try {
-
-    // A genuinely new send supersedes any old provider-only retry material.
-    set({ failedRequest: null, isRetrying: false, error: null });
     captureEvent("chat_message_sent", { target });
 
     const supabase = createClient();
     const isDemo = document.cookie.includes("demo_mode=true");
 
-    // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
-    const msgMetadata: ChatMessageMetadata | null =
-      target === "partner"
-        ? { target: "partner" }
-        : confirmedActionId
-          ? { confirmed_amora_action_id: confirmedActionId }
-          : null;
+    // The same idempotency key binds the user row and provider phase. The DB
+    // has a per-couple unique index on metadata->>'client_request_id'.
+    const clientRequestId = requestedClientRequestId ?? createClientRequestId();
+    activeClientRequestId = clientRequestId;
 
-    // Idempotency용 UUID — 같은 sendMessage 호출의 모든 fetch (browser retry 포함)는
-    // 동일한 ID를 사용. 서버는 이걸로 chat_messages dedup.
-    const clientRequestId = createClientRequestId();
-    let persistedUserMessageId: string | null = null;
+    // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
+    const msgMetadata: ChatMessageMetadata = {
+      client_request_id: clientRequestId,
+      ...(target === "partner"
+        ? {
+            target: "partner" as const,
+            partner_recipient_id: normalizedPartnerRecipientId as string,
+          }
+        : {}),
+      ...(confirmedActionId
+        ? { confirmed_amora_action_id: confirmedActionId }
+        : {}),
+    };
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
+    const expectedRow = {
+      coupleId,
+      senderId,
+      senderRole,
+      content,
+      visibility: finalVisibility,
+      target,
+      partnerRecipientId: target === "partner" ? normalizedPartnerRecipientId : null,
+      confirmedActionId: confirmedActionId ?? null,
+      clientRequestId,
+    };
+    let preReconciledRow: Record<string, unknown> | null = null;
+
+    // A retry after an unknown persistence result must reconcile before any
+    // upload or INSERT, otherwise one click can create duplicate side effects.
+    if (!isDemo && requestedClientRequestId) {
+      try {
+        const { data: reconciled, error: reconcileError } = await supabase
+          .from("chat_messages")
+          .select("*")
+          .eq("couple_id", coupleId)
+          .eq("metadata->>client_request_id", clientRequestId)
+          .maybeSingle();
+        if (reconcileError) {
+          logChatDiagnostic("메시지 저장 상태 사전 확인 실패", reconcileError);
+          set({ error: "이전 전송 상태를 확인하지 못했어요. 잠시 후 같은 메시지를 다시 시도해 주세요." });
+          return { userMessage: "persistence_unknown", clientRequestId };
+        }
+        if (reconciled) {
+          const row = reconciled as Record<string, unknown>;
+          if (!isBoundUserMessageRow(row, expectedRow)) {
+            set({ error: "이전 전송 정보와 현재 메시지가 일치하지 않아요. 새 메시지로 다시 작성해 주세요." });
+            return { userMessage: "not_persisted", reason: "validation" };
+          }
+          preReconciledRow = row;
+        }
+      } catch (reconcileError) {
+        logChatDiagnostic("메시지 저장 상태 사전 확인 중 예외", reconcileError);
+        set({ error: "이전 전송 상태를 확인하지 못했어요. 잠시 후 같은 메시지를 다시 시도해 주세요." });
+        return { userMessage: "persistence_unknown", clientRequestId };
+      }
+    }
+
     const imagePaths: string[] = [];
-    if (uniqueImages.length > 0 && !isDemo) {
-      for (const img of uniqueImages) {
+    if (!isDemo && !preReconciledRow) {
+      for (const [attachmentIndex, img] of attachments.entries()) {
+        const objectPath = await createChatImageObjectPath({
+          coupleId,
+          senderId,
+          clientRequestId,
+          attachmentIndex,
+          mediaType: img.mediaType,
+          base64: img.base64,
+        });
+        // PDF/DOCX are provider-only and never become chat-image objects.
+        if (!objectPath) continue;
         try {
-          const ext = img.mediaType.split("/")[1] || "jpg";
-          const fileName = `${coupleId}/${senderId}/${createClientRequestId()}.${ext}`;
           const byteChars = atob(img.base64);
           const byteArray = new Uint8Array(byteChars.length);
           for (let i = 0; i < byteChars.length; i++) {
@@ -1295,75 +1606,117 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           const blob = new Blob([byteArray], { type: img.mediaType });
           const { error: uploadErr } = await supabase.storage
             .from("chat-image")
-            .upload(fileName, blob, { contentType: img.mediaType });
-          if (!uploadErr) {
-            imagePaths.push(fileName);
-          } else {
+            .upload(objectPath, blob, { contentType: img.mediaType, upsert: false });
+          if (uploadErr && !isExistingChatImageUploadError(uploadErr)) {
             logChatDiagnostic("채팅 이미지 저장 실패", uploadErr);
+            set({ error: "이미지를 안전하게 저장하지 못했어요. 같은 메시지로 다시 시도해 주세요." });
+            return { userMessage: "not_persisted", reason: "storage", clientRequestId };
           }
+          imagePaths.push(objectPath);
         } catch (err) {
           logChatDiagnostic("채팅 이미지 저장 중 예외", err);
+          set({ error: "이미지를 안전하게 저장하지 못했어요. 같은 메시지로 다시 시도해 주세요." });
+          return { userMessage: "not_persisted", reason: "storage", clientRequestId };
         }
       }
     }
 
     // 이미지 storage path가 있으면 메타데이터에 추가
-    const finalMetadata = imagePaths.length > 0
+    const finalMetadata: ChatMessageMetadata = imagePaths.length > 0
       ? { ...msgMetadata, imagePaths }
       : msgMetadata;
 
     // visibility 결정: 명시 없으면 senderRole 기반 추론 (private mode면 자기 role의 private)
     // 기본은 'shared' — 사용자가 명시적으로 private 모드 선택 시에만 다른 값
-    const finalVisibility = visibility ?? "shared";
-
     if (!isDemo) {
       // D3: 클라이언트 측 stage_tag 계산 (wedding_date 기반 순수 함수)
       const userStageTag = determineStage(weddingContext?.weddingDate ?? null);
 
-      let { data: inserted, error: insertErr } = await supabase
-        .from("chat_messages")
-        .insert({
-          couple_id: coupleId,
-          sender_id: senderId,
-          sender_type: senderRole,
-          role: "user",
-          content,
-          metadata: finalMetadata,
-          stage_tag: userStageTag,
-          visibility: finalVisibility,
-        })
-        .select()
-        .single();
+      let inserted: Record<string, unknown> | null = preReconciledRow;
+      let insertErr: unknown = null;
+      if (!inserted) {
+        try {
+          const insertResult = await supabase
+            .from("chat_messages")
+            .insert({
+              couple_id: coupleId,
+              sender_id: senderId,
+              sender_type: senderRole,
+              role: "user",
+              content,
+              metadata: finalMetadata,
+              stage_tag: userStageTag,
+              visibility: finalVisibility,
+            })
+            .select()
+            .single();
+          inserted = insertResult.data as Record<string, unknown> | null;
+          insertErr = insertResult.error;
+          if (!inserted && !insertErr) {
+            insertErr = new Error("메시지 저장 결과가 비어 있습니다.");
+          }
+        } catch (error) {
+          insertErr = error;
+        }
+      }
+      let persistenceConfirmedAbsent = false;
 
-      // A network error can hide a committed INSERT. Confirmation rows are
-      // uniquely bound by action/actor at the database boundary, so reconcile
-      // that exact durable row before ever asking the user to insert again.
-      if (insertErr && confirmedActionId) {
-        const { data: reconciled, error: reconcileErr } = await supabase
-          .from("chat_messages")
-          .select("*")
-          .eq("couple_id", coupleId)
-          .eq("sender_id", senderId)
-          .eq("role", "user")
-          .eq("visibility", "shared")
-          .eq("metadata->>confirmed_amora_action_id", confirmedActionId)
-          .maybeSingle();
-        if (!reconcileErr && reconciled) {
-          inserted = reconciled;
-          insertErr = null;
+      // A network error can hide a committed INSERT. Every user row carries
+      // the same request key as the provider phase and the DB enforces it as a
+      // per-couple unique key, so reconcile before ever inviting a duplicate.
+      if (insertErr) {
+        try {
+          const { data: reconciled, error: reconcileErr } = await supabase
+            .from("chat_messages")
+            .select("*")
+            .eq("couple_id", coupleId)
+            .eq("metadata->>client_request_id", clientRequestId)
+            .maybeSingle();
+          if (!reconcileErr && reconciled) {
+            const row = reconciled as Record<string, unknown>;
+            if (!isBoundUserMessageRow(row, expectedRow)) {
+              set({ error: "저장된 메시지와 현재 전송 정보가 일치하지 않아요. 새 메시지로 다시 작성해 주세요." });
+              return { userMessage: "not_persisted", reason: "validation" };
+            }
+            inserted = row;
+            insertErr = null;
+          } else if (!reconcileErr) {
+            persistenceConfirmedAbsent = true;
+          }
+        } catch (reconcileError) {
+          logChatDiagnostic("메시지 저장 결과 재확인 실패", reconcileError);
         }
       }
 
       if (insertErr) {
+        if (!persistenceConfirmedAbsent) {
+          logChatDiagnostic("메시지 저장 여부 확인 실패", insertErr);
+          set({
+            error: "메시지가 전송됐는지 확인할 수 없어요. 대화 내역을 확인한 뒤 다시 시도해주세요.",
+          });
+          return { userMessage: "persistence_unknown", clientRequestId };
+        }
         logChatDiagnostic("메시지 저장 실패", insertErr);
         set({ error: "메시지 전송에 실패했습니다." });
-        return;
+        return { userMessage: "not_persisted", reason: "database", clientRequestId };
       }
-      persistedUserMessageId = inserted.id as string;
+      if (!inserted || typeof inserted.id !== "string") {
+        set({
+          error: "메시지가 전송됐는지 확인할 수 없어요. 대화 내역을 확인한 뒤 다시 시도해주세요.",
+        });
+        return { userMessage: "persistence_unknown", clientRequestId };
+      }
+      persistedUserMessageId = inserted.id;
 
-      set((s) => ({
-        messages: [...s.messages, dbRowToMessage(inserted as Record<string, unknown>)],
-      }));
+      set((state) => {
+        if (state.messages.some((message) => message.id === inserted.id)) return {};
+        const nextMessage = dbRowToMessage(inserted);
+        return {
+          messages: [...state.messages, nextMessage].sort(
+            (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
+          ),
+        };
+      });
     } else {
       const demoMsg: ChatMessage = {
         id: `demo-${Date.now()}`,
@@ -1375,24 +1728,30 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         metadata: finalMetadata,
         created_at: new Date().toISOString(),
       };
+      demoUserMessageId = demoMsg.id;
       set((s) => ({ messages: [...s.messages, demoMsg] }));
     }
+
+    const acceptedOutcome: ChatSendOutcome = isDemo
+      ? { userMessage: "ephemeral_demo", userMessageId: demoUserMessageId as string }
+      : { userMessage: "persisted", userMessageId: persistedUserMessageId as string };
 
     // 상대방에게 보내는 메시지는 명시적 커플 동의 없이 AI 제공자에게
     // 전달하지 않는다. 자동 중재는 별도 동의 계약/UI가 준비될 때까지 중단한다.
     if (target === "partner") {
-      return;
+      return acceptedOutcome;
     }
 
     // 프라이버시 critical: visibility별로 컨텍스트 격리. This snapshot is
     // serialized once and reused byte-for-byte if the provider phase fails.
     const allMessages = get().messages;
-    const scopedMessages =
+    const scopedMessages = (
       finalVisibility === "shared"
         ? allMessages.filter((message) => message.visibility === "shared")
         : allMessages.filter(
             (message) => message.visibility === "shared" || message.visibility === finalVisibility
-          );
+          )
+    ).filter((message) => message.metadata?.target !== "partner");
     const recentMessages = scopedMessages.slice(-20).map((message) => {
       if (message.sender_role === "ai") {
         return { role: "assistant" as const, content: message.content };
@@ -1404,7 +1763,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     });
 
     // The primitive-only snapshot was validated before any side effect.
-    const attachmentPayload = uniqueImages;
+    const attachmentPayload = attachments;
 
     let requestBody: string;
     try {
@@ -1424,7 +1783,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     } catch (error) {
       logChatDiagnostic("AI 요청 정보 준비 실패", error);
       set({ error: "요청 정보를 안전하게 준비하지 못했습니다. 새 메시지로 다시 보내주세요." });
-      return;
+      return acceptedOutcome;
     }
 
     const failedRequest: FailedChatRequest = {
@@ -1434,7 +1793,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       content,
       visibility: finalVisibility,
       confirmedActionId: confirmedActionId ?? null,
-      attachmentCount: uniqueImages.length,
+      attachmentCount: attachments.length,
       canRetry: true,
       unavailableReason: null,
       requestBody,
@@ -1442,6 +1801,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     };
 
     await executeChatProviderRequest(set, get, failedRequest, false);
+    return acceptedOutcome;
+    } catch (unexpectedError) {
+      logChatDiagnostic("메시지 전송 중 예상하지 못한 오류", unexpectedError);
+      set({ error: "전송 상태를 안전하게 확인하지 못했어요. 같은 메시지로 다시 시도해 주세요." });
+      if (persistedUserMessageId) {
+        return { userMessage: "persisted", userMessageId: persistedUserMessageId };
+      }
+      if (demoUserMessageId) {
+        return { userMessage: "ephemeral_demo", userMessageId: demoUserMessageId };
+      }
+      if (activeClientRequestId) {
+        return { userMessage: "persistence_unknown", clientRequestId: activeClientRequestId };
+      }
+      return { userMessage: "not_persisted", reason: "unexpected" };
     } finally {
       set({ isSending: false });
     }
@@ -1459,22 +1832,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   dismissFailedMessageRetry: () => {
     if (get().isStreaming || get().isRetrying) return;
-    set({ failedRequest: null, error: null });
+    set({ failedRequest: null, error: null, artifactVisibility: null });
   },
 
   // 첫 진입 시 AI 인사 (타임아웃 + gotDone 체크 추가)
   requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
-    if (get().isStreaming) return;
+    if (get().isStreaming || get().isSending) return;
 
     set({
       isStreaming: true,
       streamingContent: "",
       streamingToolResults: [],
       suggestions: [],
+      artifactVisibility: "shared",
       error: null,
       quotaRemaining: null,
       failedRequest: null,
-      isSending: false,
       isRetrying: false,
     });
 
@@ -1518,7 +1891,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         onSuggestions: (sug) => set({ suggestions: sug }),
         onQuota: (remaining) => set({ quotaRemaining: remaining }),
         onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
-        onError: (msg) => set({ error: msg }),
+        onError: (streamError) => set({ error: streamError.message }),
       });
 
       // 스트림이 done 없이 끊긴 경우 에러 표시
@@ -1547,7 +1920,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 갈등 중재: 사용자가 명시적으로 요청한 구조화 초안
   requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
-    if (get().isStreaming) return;
+    if (get().isStreaming || get().isSending) return;
 
     const requesterSummary = conflictContext.trim().slice(0, 600);
     if (requesterSummary.length < 4) {
@@ -1560,6 +1933,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       streamingContent: "",
       streamingToolResults: [],
       suggestions: [],
+      artifactVisibility: "shared",
       error: null,
       quotaRemaining: null,
       failedRequest: null,
@@ -1618,7 +1992,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         onSuggestions: (sug) => set({ suggestions: sug }),
         onQuota: (remaining) => set({ quotaRemaining: remaining }),
         onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
-        onError: (msg) => set({ error: msg }),
+        onError: (streamError) => set({ error: streamError.message }),
       });
 
       if (!gotDone && !fullContent && !get().error) {
@@ -1683,7 +2057,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         }
         return true;
       });
-      const next: Partial<ChatStoreState> = { messages: filtered, suggestions: [] };
+      const next: Partial<ChatStoreState> = {
+        messages: filtered,
+        suggestions: [],
+        artifactVisibility: null,
+      };
       if (mode === "view_reset_shared" || mode === "delete_shared") {
         next.sharedClearedAt = nowIso;
       }
@@ -1808,10 +2186,18 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
               const incomingFromPartnerTyping =
                 s.presence.partnerTyping &&
                 newMsg.sender_id === s.presence.partnerTyping.user_id;
+              const nextMessages = reconcileAmoraCrisisRecoveryMessages(
+                [...s.messages, newMsg],
+                coupleId,
+              );
 
               return {
-                messages: [...s.messages, newMsg],
-                ...(newMsg.sender_role !== "ai" ? { suggestions: [] } : {}),
+                messages: nextMessages,
+                ...(newMsg.sender_role !== "ai"
+                  && newMsg.metadata?.target !== "partner"
+                  && s.artifactVisibility === newMsg.visibility
+                  ? { suggestions: [], artifactVisibility: null }
+                  : {}),
                 ...(incomingFromPartnerTyping
                   ? { presence: { ...s.presence, partnerTyping: null } }
                   : {}),
@@ -1858,7 +2244,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
                 });
                 return { messages: filtered, sharedClearedAt: clearedAt };
               }
-              return { messages: nextMessages };
+              return {
+                messages: reconcileAmoraCrisisRecoveryMessages(
+                  nextMessages,
+                  coupleId,
+                ),
+              };
             });
           }
         )
@@ -1921,40 +2312,49 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // typing 브로드캐스트 — 마지막 입력 후 3초간 유지, 그 다음 자동 stop 발송.
   // 같은 채널 인스턴스로 send해야 broadcast가 도달함 → activeChatChannels에서 lookup.
-  notifyTyping: (() => {
-    let lastSentState: "start" | "stop" = "stop";
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
-
-    return ({ coupleId, userId, senderRole }) => {
-      const sendBroadcast = (state: "start" | "stop") => {
-        const channel = activeChatChannels.get(coupleId);
-        // 아직 구독 전이거나 끊긴 상태 → 조용히 스킵 (다음 입력 때 다시 시도)
-        if (!channel) return;
-        void channel.send({
-          type: "broadcast",
-          event: "typing",
-          payload: { sender_role: senderRole, user_id: userId, state },
-        });
-      };
-
-      // 첫 입력일 때만 "start" 발송 (불필요한 broadcast 폭주 방지)
-      if (lastSentState !== "start") {
-        sendBroadcast("start");
-        lastSentState = "start";
-      }
-
-      // 마지막 입력 후 3초 뒤 자동 stop
-      if (stopTimer) clearTimeout(stopTimer);
-      stopTimer = setTimeout(() => {
-        sendBroadcast("stop");
-        lastSentState = "stop";
-        stopTimer = null;
-      }, 3000);
+  notifyTyping: ({ coupleId, userId, senderRole }) => {
+    const key = `${coupleId}:${userId}`;
+    const current = typingStates.get(key) ?? { state: "stop" as const, timer: null };
+    const channel = activeChatChannels.get(coupleId);
+    const sendBroadcast = (state: "start" | "stop") => {
+      if (!channel) return;
+      void channel.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { sender_role: senderRole, user_id: userId, state },
+      });
     };
-  })(),
+
+    if (current.state !== "start") sendBroadcast("start");
+    if (current.timer) clearTimeout(current.timer);
+    const timer = setTimeout(() => {
+      sendBroadcast("stop");
+      typingStates.delete(key);
+    }, 3000);
+    typingStates.set(key, { state: "start", timer });
+  },
+
+  stopTyping: ({ coupleId, userId, senderRole }) => {
+    const key = `${coupleId}:${userId}`;
+    const current = typingStates.get(key);
+    if (current?.timer) clearTimeout(current.timer);
+    typingStates.delete(key);
+    if (current?.state !== "start") return;
+    const channel = activeChatChannels.get(coupleId);
+    if (!channel) return;
+    void channel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { sender_role: senderRole, user_id: userId, state: "stop" },
+    });
+  },
 
   reset: () => {
     chatLifecycleEpoch += 1;
+    for (const entry of typingStates.values()) {
+      if (entry.timer) clearTimeout(entry.timer);
+    }
+    typingStates.clear();
     set({
       messages: [],
       isLoading: false,
@@ -1962,10 +2362,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       streamingContent: "",
       streamingToolResults: [],
       suggestions: [],
+      artifactVisibility: null,
       error: null,
       initialLoadDone: false,
       quotaRemaining: null,
       failedRequest: null,
+      isSending: false,
       isRetrying: false,
       sharedClearedAt: null,
       privateClearedAt: null,

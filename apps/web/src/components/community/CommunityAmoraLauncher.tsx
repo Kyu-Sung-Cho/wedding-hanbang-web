@@ -22,6 +22,7 @@ export default function CommunityAmoraLauncher() {
   const [checkingAuth, setCheckingAuth] = useState(false);
   const communityPath = stripWeddingBasePath(pathname);
   const isLauncherSuppressedRoute =
+    communityPath === "/start-here" ||
     communityPath === "/community/post/write" ||
     communityPath === "/community/quote-check";
   const loginPromptRef = useAccessibleModal({

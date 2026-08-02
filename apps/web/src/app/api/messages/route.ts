@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { messageRowToMessage } from "@/lib/utils/vendorMapper";
 import { loadOwnedVendorWithServiceRole } from "@/lib/vendors/serverOwnership";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import {
   cleanOptionalText,
   isBodyTooLarge,
@@ -91,6 +92,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    if (!isTrustedMutationRequest(req)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 

@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai/amoraProfileProjection";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 
@@ -219,6 +220,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 커요." }, { status: 413 });
     }

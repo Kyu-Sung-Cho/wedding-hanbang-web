@@ -47,10 +47,29 @@ export async function GET(req: NextRequest) {
 
     // contracts/payments 조인은 제거됨 — 결제층 삭제(Week 1 수술)로 두 테이블 모두
     // 0행이고 소비처(bookings 페이지·BudgetContent)도 해당 필드를 읽지 않는다 (감사 2.2).
-    const bookings = (bookingRows ?? []).map((row) => ({
-      ...bookingRowToBooking(row),
-      vendorName: vendorMap[row.vendor_id] ?? "",
-    }));
+    const bookings = (bookingRows ?? []).map((row) => {
+      const intent = row as typeof row & {
+        vendor_delivery_status?: unknown;
+        intent_vendor_name_snapshot?: unknown;
+        intent_product_name_snapshot?: unknown;
+      };
+      const isInternalIntent = intent.vendor_delivery_status === "not_sent";
+      const vendorNameSnapshot = typeof intent.intent_vendor_name_snapshot === "string"
+        ? intent.intent_vendor_name_snapshot
+        : "";
+      const productNameSnapshot = typeof intent.intent_product_name_snapshot === "string"
+        ? intent.intent_product_name_snapshot
+        : undefined;
+      return {
+        ...bookingRowToBooking({
+          ...row,
+          ...(isInternalIntent ? { product_name: productNameSnapshot } : {}),
+        }),
+        vendorName: isInternalIntent
+          ? vendorNameSnapshot
+          : vendorMap[row.vendor_id] ?? "",
+      };
+    });
 
     return NextResponse.json({ bookings });
   } catch (err) {

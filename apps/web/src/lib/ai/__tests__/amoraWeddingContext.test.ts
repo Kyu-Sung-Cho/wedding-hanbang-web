@@ -126,6 +126,40 @@ describe("resolveAmoraWeddingContext", () => {
     expect(JSON.stringify(result.scheduleEvents)).not.toContain("018f4dc8");
   });
 
+  it("does not expose cancelled schedules to the model as active wedding context", () => {
+    const result = resolveAmoraWeddingContext({
+      canonicalJourney: {
+        progress: {
+          __events: [
+            {
+              id: "018f4dc8-3f4b-7d29-a271-0e27a7ea4cb7",
+              date: "2027-05-03",
+              title: "취소한 드레스 피팅",
+              status: "cancelled",
+              cancellation: {
+                cancelledAt: "2026-08-02T03:00:00.000Z",
+                cancelledByProfileId: "018f4dc8-3f4b-7d29-a271-0e27a7ea4cb8",
+              },
+            },
+            {
+              id: "018f4dc8-3f4b-7d29-a271-0e27a7ea4cb9",
+              date: "2027-05-10",
+              title: "진행할 드레스 피팅",
+              status: "planned",
+            },
+          ],
+        },
+      },
+      clientContext: null,
+      allowClientContext: false,
+    });
+
+    expect(result.scheduleEvents).toEqual([
+      { date: "2027-05-10", title: "진행할 드레스 피팅" },
+    ]);
+    expect(JSON.stringify(result.scheduleEvents)).not.toContain("취소한 드레스 피팅");
+  });
+
   it("uses the same 10억원 product ceiling as every wedding budget write path", () => {
     expect(resolveAmoraWeddingContext({
       canonicalJourney: { total_budget: 1_000_000_000, progress: {} },

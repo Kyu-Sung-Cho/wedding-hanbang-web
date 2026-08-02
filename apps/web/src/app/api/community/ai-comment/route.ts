@@ -4,6 +4,7 @@ import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 // 아모라 서비스 계정 ID (환경변수 또는 고정값)
 const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
@@ -64,6 +65,12 @@ const SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 '아모라'입니다.
 - 확실하지 않은 내용은 확실하지 않다고 말하기`;
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { authorized, userId } = await verifyAdmin(req);
     if (!authorized) {

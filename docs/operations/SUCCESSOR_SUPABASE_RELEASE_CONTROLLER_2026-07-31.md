@@ -1,6 +1,7 @@
 # Successor Supabase release controller contract
 
 Date: 2026-07-31  
+Contract sync: 2026-08-02
 Release: `vendor-disclosure-v2-20260718`  
 Current decision: **NO-GO**
 
@@ -8,6 +9,14 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
+The ordered successor manifest now contains 66 migrations and ends at
+`20260802240000_amora_memory_job_recovery.sql`. The 2026-08-01 and
+2026-08-02 migrations have repository contracts only and have not been applied
+to hosted Supabase. No current hosted pending-set query or apply receipt was
+created by this sync. The normalized manifest SHA-256 is
+`7019565f14ab03b60a033ddb5dd56a9c7cd3b4a810aa2fdb9aa9448431fb8cad` and the
+ordered migration-version digest is
+`96bc9d77687b502482f3bc361a5bce8c01f450d6ffd1f77488094221fee78360`.
 The work described here adds a fail-closed successor path to the Supabase
 release controller, static/remote fence and exact-owner finalizer. It does not
 change the manifest to `controller_ready`, create hosted evidence, run a remote
@@ -104,8 +113,17 @@ table must be present in the ordered post-expand backup/table contract; a
 self-consistent count and digest that omits a newly created table still fails
 closed. This includes `couple_plan_change_requests` and
 `couple_plan_change_acceptances` from the final plan-change write-boundary
-migration. Existing account-deletion tables remain inherited from the
-predecessor post-expand baseline.
+migration, plus `conversation_segments` from the additive segment foundation.
+It also includes the ID-only
+`amora_memory_enqueue_repair_candidates` transactional outbox, its ID-only
+`amora_memory_enqueue_repair_dead_letters` terminal audit, and the
+`amora_privacy_context_epochs` commit-fence table; omitting any of these tables
+from post-expand backup/restore evidence is a hard failure.
+Existing account-deletion tables remain inherited from the predecessor
+post-expand baseline. `chat_messages` and `chat_summaries` remain existing
+baseline tables, so their new nullable `segment_id` columns and scope foreign
+keys are verified by the successor postcheck rather than counted as new backup
+tables.
 
 ## Postchecks, rollback and finalization
 
@@ -122,6 +140,11 @@ and the exact successor migration head. It must also return
 `chat_feedback_user_id_fkey` Auth `ON DELETE CASCADE`, and
 `payment_ledger_fk_contract_count=3` for the exact payment-ledger couple
 `CASCADE` plus `created_by`/`updated_by` profile `SET NULL` constraints.
+It must additionally prove exactly one partner-recipient insert policy, select
+policy and enforcement trigger; two conversation-segment scope foreign keys;
+three one-active-scope indexes; one segment SELECT RLS policy; and one exact
+authenticated start-RPC ACL contract. These checks protect altered existing
+tables and privileges that a new-table-only backup count cannot see.
 Omitting any of these evidence fields prevents `controller_ready`.
 
 Database migration rollback is prohibited after an ambiguous or completed
@@ -131,6 +154,7 @@ all of the following controls in a fresh private receipt:
 - `AMORA_AUXILIARY_MEMORY_ENABLED=false`
 - `AMORA_CARE_OUTBOUND_ENABLED=false`
 - `AMORA_COMMUNITY_AI_COMMENT_ENABLED=false`
+- `AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false`
 - `AMORA_OPENAI_ENABLED=false`
 - `AMORA_PROACTIVE_CHAT_ENABLED=false`
 - `AMORA_COST_GUARD_ENABLED=true`
@@ -139,6 +163,15 @@ all of the following controls in a fresh private receipt:
 - database and storage write fences still held
 - Auth signup still disabled
 - web write fence still enabled
+- partner-recipient trigger/RLS boundary still held
+- conversation-segment scope/RLS/RPC boundary still held
+
+The segment flag controls only the future provider read switch. Forward-fix
+rollback preserves already-written nullable `segment_id` audit data and never
+removes the partner-recipient security boundary. The flag is also required by
+the production environment gate, `.env.example`, local QA environment and
+Turbo build inputs; exact `false` is mandatory for this additive expand
+release.
 
 The exact-owner finalizer selects the same successor controller contract. It
 must not use the predecessor's fixed table or migration digests. SQL rendering,

@@ -3,6 +3,7 @@ import Footer from "@/components/landing/Footer";
 import BetaForm from "./BetaForm";
 import { Check } from "lucide-react";
 import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+import { BETA_COUPLE_ROLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
 // 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
@@ -21,7 +22,7 @@ const BENEFITS = [
 
 const CONDITIONS = [
   "현재 결혼을 준비 중인 본인",
-  "신부·신랑 또는 커플 모두 신청 가능",
+  ...BETA_COUPLE_ROLE_SUPPORT_NOTICES,
   "사용 중 발견한 불편이나 오류를 전달할 수 있는 분",
 ];
 

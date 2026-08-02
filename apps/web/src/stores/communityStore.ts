@@ -466,7 +466,17 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   toggleBookmark: async (postId) => {
     try {
-      const res = await fetch(`/api/community/posts/${postId}/bookmark`, { method: "POST" });
+      const state = get();
+      const visiblePost = state.currentPost?.id === postId
+        ? state.currentPost
+        : state.posts.find((post) => post.id === postId);
+      if (!visiblePost) return;
+      const desiredBookmarked = !visiblePost.user_bookmarked;
+      const res = await fetch(`/api/community/posts/${postId}/bookmark`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookmarked: desiredBookmarked }),
+      });
       if (!res.ok) return;
       const data = await res.json();
       set((s) => ({
@@ -607,10 +617,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   fetchProfile: async () => {
     try {
-      const res = await fetch("/api/community/profile");
+      let res = await fetch("/api/community/profile", { cache: "no-store" });
       if (!res.ok) return;
-      const data = await res.json();
-      set({ communityProfile: data });
+      let data = (await res.json()) as { profile?: CommunityProfile | null };
+      if (!data.profile) {
+        res = await fetch("/api/community/profile", { method: "POST" });
+        if (!res.ok) return;
+        data = (await res.json()) as { profile?: CommunityProfile | null };
+      }
+      if (data.profile) set({ communityProfile: data.profile });
     } catch { /* ignore */ }
   },
 

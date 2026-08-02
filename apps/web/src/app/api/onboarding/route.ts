@@ -17,6 +17,7 @@ import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
   getEvents,
+  getScheduleEventStatus,
   inspectScheduleEvents,
   upsertMomentEvent,
 } from "@/utils/scheduleEvents";
@@ -239,7 +240,11 @@ function getAuthoritativeSanggyeonryeDate(
   const dates = [
     ...new Set(
       getEvents(progress)
-        .filter((event) => event.momentType === "sanggyeonrye")
+        .filter(
+          (event) =>
+            getScheduleEventStatus(event) !== "cancelled"
+            && event.momentType === "sanggyeonrye",
+        )
         .map((event) => event.date),
     ),
   ];
@@ -574,7 +579,11 @@ function buildSanggyeonryeProgressPatch(
   const existingDates = [
     ...new Set(
       inspection.events
-        .filter((event) => event.momentType === "sanggyeonrye")
+        .filter(
+          (event) =>
+            getScheduleEventStatus(event) !== "cancelled"
+            && event.momentType === "sanggyeonrye",
+        )
         .map((event) => event.date),
     ),
   ];

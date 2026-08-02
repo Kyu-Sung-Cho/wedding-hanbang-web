@@ -191,6 +191,149 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     );
   });
 
+  it("passes the exact server-derived schedule date/time summary through to the UI contract", async () => {
+    const serverSummary =
+      "일정 수정: 드레스 최종 피팅 · 날짜: 2027-03-01 → 2027-03-02 · 시간: 14:00 → 없음";
+    const previousEvent = {
+      id: "event-dress-fitting",
+      date: "2027-03-01",
+      time: "14:00",
+      title: "드레스 최종 피팅",
+      status: "planned",
+      createdAt: "2026-08-01T01:00:00.000Z",
+      updatedAt: "2026-08-01T01:00:00.000Z",
+    };
+    const updatedEvent = {
+      ...previousEvent,
+      date: "2027-03-02",
+      time: null,
+      updatedAt: "2026-08-02T01:00:00.000Z",
+    };
+    mocks.currentJourney = {
+      progress: { __events: [previousEvent] },
+      state_revision: 7,
+    };
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        requestId: REQUEST_ID,
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        summary: serverSummary,
+        surface: "/schedule",
+        journey: null,
+      },
+      error: null,
+    });
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: { __events: [updatedEvent] },
+    }));
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "pending_partner",
+      summary: serverSummary,
+      surface: "/schedule",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_couple_plan_change",
+      expect.objectContaining({
+        p_changes: { progress_patch: { __events: [updatedEvent] } },
+        p_surface: "/schedule",
+        p_summary: "진행 상황: 1개 수정",
+      }),
+    );
+  });
+
+  it("returns only the database-canonical schedule event when a client submits a future audit clock", async () => {
+    const forgedFutureAt = "2099-12-31T23:59:59.999Z";
+    const canonicalServerAt = "2026-08-02T05:40:00.000Z";
+    const clientEvent = {
+      id: "event-clock-boundary",
+      date: "2027-03-01",
+      time: "14:00",
+      title: "드레스 최종 피팅",
+      status: "cancelled",
+      createdAt: "2026-08-01T01:00:00.000Z",
+      updatedAt: forgedFutureAt,
+      cancellation: {
+        cancelledAt: forgedFutureAt,
+        cancelledByProfileId: USER_ID,
+      },
+    };
+    const canonicalEvent = {
+      ...clientEvent,
+      updatedAt: canonicalServerAt,
+      cancellation: {
+        ...clientEvent.cancellation,
+        cancelledAt: canonicalServerAt,
+      },
+    };
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        requestId: REQUEST_ID,
+        status: "applied",
+        requiredCount: 1,
+        acceptedCount: 1,
+        summary:
+          "일정 취소: 드레스 최종 피팅 · 날짜: 2027-03-01 → 2027-03-01 · 시간: 14:00 → 14:00",
+        surface: "/schedule",
+        journey: {
+          ...journey(),
+          progress: { __events: [canonicalEvent] },
+        },
+      },
+      error: null,
+    });
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: { __events: [clientEvent] },
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.journey.progress.__events).toEqual([canonicalEvent]);
+    expect(body.journey.progress.__events[0].updatedAt).not.toBe(
+      forgedFutureAt,
+    );
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_couple_plan_change",
+      expect.objectContaining({
+        p_changes: { progress_patch: { __events: [clientEvent] } },
+      }),
+    );
+  });
+
+  it("accepts 301 valid schedule events while the request remains within 128KB", async () => {
+    const events = Array.from({ length: 301 }, (_, index) => ({
+      id: `event-${index}`,
+      date: "2027-03-01",
+      title: "일정",
+      status: "planned",
+    }));
+    const body = {
+      expected_revision: 7,
+      progress_patch: { __events: events },
+    };
+    expect(new TextEncoder().encode(JSON.stringify(body)).byteLength).toBeLessThan(
+      128 * 1024,
+    );
+
+    const response = await PATCH(request(body));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_couple_plan_change",
+      expect.objectContaining({
+        p_changes: { progress_patch: { __events: events } },
+        p_surface: "/schedule",
+      }),
+    );
+  });
+
   it("strictly normalizes progress patch/remove changes without silently dropping keys", async () => {
     const response = await PATCH(request({
       expected_revision: 7,
@@ -231,7 +374,7 @@ describe("/api/journey PATCH couple plan-change contract", () => {
         venue: {
           category: "venue",
           budget: 20_000_000,
-          payer: "both",
+          payer: "both_parents",
         },
       },
     }));
@@ -243,6 +386,161 @@ describe("/api/journey PATCH couple plan-change contract", () => {
         p_surface: "/budget",
       }),
     );
+  });
+
+  it("returns the database-exact spent summary without an optimistic journey while partner approval is pending", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        requestId: REQUEST_ID,
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        summary: "예식장 지출: 1000000원 → 2000000원",
+        surface: "/budget",
+        journey: null,
+      },
+      error: null,
+    });
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          label: "예식장",
+          budget: 10_000_000,
+          spent: 2_000_000,
+          payer: "couple",
+        },
+      },
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body).toEqual({
+      requestId: REQUEST_ID,
+      status: "pending_partner",
+      requiredCount: 2,
+      acceptedCount: 1,
+      summary: "예식장 지출: 1000000원 → 2000000원",
+      surface: "/budget",
+    });
+    expect(body).not.toHaveProperty("journey");
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_couple_plan_change",
+      expect.objectContaining({
+        p_surface: "/budget",
+        p_summary: "진행 상황: 1개 수정",
+      }),
+    );
+  });
+
+  it("rejects an invalid category spent amount before the service RPC", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          spent: -1,
+          payer: "couple",
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid category budget amount before the service RPC", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          budget: 1.5,
+          payer: "couple",
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-canonical payer on a new budget patch", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          budget: 10_000_000,
+          payer: "bride",
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a budget item whose category does not match its progress key", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "studio",
+          budget: 10_000_000,
+          payer: "couple",
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty budget item label", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          label: "   ",
+          budget: 10_000_000,
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires a known budget category patch to be a record", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: 10_000_000,
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not let a legacy whole-progress replacement bypass budget validation", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress: {
+        venue: {
+          category: "venue",
+          spent: 1_000_000_001,
+          payer: "couple",
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("converts a legacy whole-progress replacement into an exact patch/remove contract", async () => {

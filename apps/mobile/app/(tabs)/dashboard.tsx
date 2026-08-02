@@ -10,7 +10,9 @@ import {
   calculateChecklistProgress,
   formatLocalDateKey,
 } from "@/lib/dashboardExperience.mjs";
+import { isActiveScheduleEvent } from "@/lib/scheduleMutation.mjs";
 import ErrorRetry from "@/components/ErrorRetry";
+import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
 import WeddingHomeExperience, {
   type WeddingHomeData,
 } from "@/components/dashboard/WeddingHomeExperience";
@@ -287,6 +289,7 @@ export default function DashboardScreen() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [careRefreshVersion, setCareRefreshVersion] = useState(0);
   const [error, setError] = useState(false);
   const coupleIdRef = useRef<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -343,16 +346,11 @@ export default function DashboardScreen() {
         CATEGORY_CHECKLISTS,
       );
       const todayKey = formatLocalDateKey();
-      const events =
-        (progress.__events as
-          | Array<{
-              date: string;
-              title: string;
-              categoryKey?: string;
-            }>
-          | undefined) ?? [];
+      const events = Array.isArray(progress.__events)
+        ? progress.__events
+        : [];
       const todayTasks = events
-        .filter((event) => event.date === todayKey)
+        .filter((event) => isActiveScheduleEvent(event) && event.date === todayKey)
         .map((event) => ({
           title: event.title,
           categoryKey: event.categoryKey ?? "",
@@ -444,9 +442,10 @@ export default function DashboardScreen() {
     };
   }, [loadData]);
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadData();
+    await loadData();
+    setCareRefreshVersion((version) => version + 1);
   }, [loadData]);
 
   if (error && !data) {
@@ -470,6 +469,7 @@ export default function DashboardScreen() {
         loading={loading}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
       />
     </SafeAreaView>
   );

@@ -104,16 +104,30 @@ export default function MyPostsPage() {
   useEffect(() => {
     if (!userId) return;
     const controller = new AbortController();
-    fetch("/api/community/profile", { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+    const loadProfile = async () => {
+      let response = await fetch("/api/community/profile", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!response.ok) return;
+      let data = await response.json();
+      if (!data?.profile) {
+        response = await fetch("/api/community/profile", {
+          method: "POST",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        data = await response.json();
+      }
+      if (!controller.signal.aborted) {
         const nextProfile = data?.profile as CommunityProfile | undefined;
         if (!nextProfile) return;
         setProfile(nextProfile);
         setNicknameInput(nextProfile.nickname);
         setAvatarInput(nextProfile.avatar_url);
-      })
-      .catch((err) => {
+      }
+    };
+    void loadProfile().catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
       });
     return () => controller.abort();

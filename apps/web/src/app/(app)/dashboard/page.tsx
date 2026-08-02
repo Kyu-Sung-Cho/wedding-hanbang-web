@@ -31,6 +31,7 @@ import { CHECKLIST_MAP } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
 import ServiceGuide from "@/components/app/ServiceGuide";
+import TodayOneCard from "@/components/app/TodayOneCard";
 import WeeklyCard from "@/components/app/WeeklyCard";
 import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { useAuthStore } from "@/stores/authStore";
@@ -45,8 +46,9 @@ import {
 } from "@/lib/amora/dashboardCompanion";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 type Status = "not_started" | "in_progress" | "completed";
 
@@ -189,8 +191,11 @@ function getStatusSummary(progress: Record<string, ProgressItem>) {
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
     if (key.startsWith("__")) return sum;
-    const value = item.spent ?? item.cost ?? 0;
-    return sum + value;
+    // 명시적으로 기록한 지출만 합산한다. 이전 cost 값은 용도가
+    // 확인되지 않았으므로 예산 사용이나 결제 완료로 승격하지 않는다.
+    const value = isValidWeddingWonAmount(item.spent) ? item.spent : 0;
+    const next = sum + value;
+    return Number.isSafeInteger(next) ? next : sum;
   }, 0);
 }
 
@@ -219,13 +224,14 @@ export default function DashboardPage() {
   const spentBudget = useMemo(() => getSpent(progress), [progress]);
   const hasTotalBudget = totalBudget > 0;
   const budgetPercent = hasTotalBudget
-    ? Math.min(100, Math.round((spentBudget / totalBudget) * 100))
+    ? Math.round((spentBudget / totalBudget) * 100)
     : 0;
+  const budgetBarPercent = Math.min(100, Math.max(0, budgetPercent));
   const budgetUsageValue = hasTotalBudget ? `${budgetPercent}%` : "미입력";
   const budgetUsageNote = hasTotalBudget
-    ? `${formatWon(spentBudget)} / ${formatWon(totalBudget)}`
+    ? `${formatWon(spentBudget)} 기록 / ${formatWon(totalBudget)} · 결제 확인과 별도`
     : spentBudget > 0
-      ? `사용 ${formatWon(spentBudget)} · 총 예산 입력 전`
+      ? `기록 지출 ${formatWon(spentBudget)} · 총 예산 입력 전`
       : "총 예산을 입력해주세요";
   const dday = getDday(journey?.wedding_date);
   const summary = useMemo(() => getStatusSummary(progress), [progress]);
@@ -234,7 +240,11 @@ export default function DashboardPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return getEvents(progress as Record<string, unknown>)
-      .filter((event) => new Date(event.date) >= today)
+      .filter(
+        (event) =>
+          getScheduleEventStatus(event) === "planned"
+          && new Date(event.date) >= today,
+      )
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 3);
   }, [progress]);
@@ -335,7 +345,7 @@ export default function DashboardPage() {
     },
     {
       icon: Wallet,
-      label: "예산 사용",
+      label: "기록 지출 비율",
       value: budgetUsageValue,
       note: budgetUsageNote,
       href: "/budget",
@@ -453,6 +463,8 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {!isDemo && <TodayOneCard />}
+
       {/* 결혼식 날짜가 없으면 첫 행동 하나를, 있으면 이번 주 내용을 보여준다. */}
       {!journey?.wedding_date ? (
         <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
@@ -506,7 +518,7 @@ export default function DashboardPage() {
           <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
             <MetricCard label="결혼식 날짜" value={ddayLabel} note={formatDate(journey?.wedding_date)} />
             <MetricCard label="체크 진행" value={`${progressPercent}%`} note={`${summary.doneItems}/${summary.totalItems}개 직접 체크`} />
-            <MetricCard label="예산 사용" value={budgetUsageValue} note={budgetUsageNote} />
+            <MetricCard label="기록 지출 비율" value={budgetUsageValue} note={budgetUsageNote} />
           </div>
         </div>
 
@@ -645,7 +657,7 @@ export default function DashboardPage() {
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
-                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">지출 흐름</h2>
+                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">기록 지출 흐름</h2>
               </div>
               <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="예산 관리로 이동">
                 <Wallet className="h-4 w-4" />
@@ -654,7 +666,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-semibold text-[#7a8290]">사용 금액</p>
+                  <p className="text-[11px] font-semibold text-[#7a8290]">기록 지출</p>
                   <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
                 </div>
                 <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
@@ -662,8 +674,11 @@ export default function DashboardPage() {
                 </p>
               </div>
               <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-                <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetPercent}%` }} />
+                <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetBarPercent}%` }} />
               </span>
+              <p className="mt-2 text-[10px] font-medium text-[#7a8290]">
+                기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
+              </p>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
               <span>

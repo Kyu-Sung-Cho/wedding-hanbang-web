@@ -2,6 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+
+const PUBLIC_NON_AMBIENT_MUTATION_PATHS = new Set([
+  // Native signup and password recovery have no ambient cookie or Bearer yet.
+  // Both routes enforce their own bounded Turnstile proof before any write.
+  "/api/auth/signup",
+  "/api/auth/forgot-password",
+  // This read-only POST exists solely to prove whether the production write
+  // fence intercepted it before the handler.
+  "/api/release/write-fence-probe",
+]);
 
 function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   const { pathname } = request.nextUrl;
@@ -98,8 +109,6 @@ export async function proxy(request: NextRequest) {
     [
       "/api/auth/callback",
       "/api/auth/me",
-      "/api/community/cohort",
-      "/api/community/profile",
       "/api/couple/code",
       "/api/messages",
     ].includes(request.nextUrl.pathname) ||
@@ -144,6 +153,28 @@ export async function proxy(request: NextRequest) {
         status: 503,
         headers: { "Cache-Control": "no-store" },
       }
+    );
+  }
+
+  const isUnsafeApiMethod = isApiPath
+    && !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase());
+  const isRouteAuthenticatedServerMutation =
+    request.nextUrl.pathname.startsWith("/api/internal/");
+  if (
+    isUnsafeApiMethod
+    && !PUBLIC_NON_AMBIENT_MUTATION_PATHS.has(request.nextUrl.pathname)
+    && !isRouteAuthenticatedServerMutation
+    && !isTrustedMutationRequest(request)
+  ) {
+    return NextResponse.json(
+      { error: "untrusted_mutation_origin" },
+      {
+        status: 403,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+          Vary: "Authorization, Origin, Sec-Fetch-Site",
+        },
+      },
     );
   }
 

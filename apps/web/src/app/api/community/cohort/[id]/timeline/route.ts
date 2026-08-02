@@ -2,6 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import type { CohortEventType } from "@/types/community.types";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
@@ -101,6 +102,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id: roomId } = await params;
     const supabase = await createClientFromRequest(req);

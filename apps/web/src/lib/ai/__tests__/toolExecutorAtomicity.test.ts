@@ -19,6 +19,7 @@ import { executeTool } from "@/lib/ai/toolExecutor";
 function context(): ToolExecutionContext {
   return {
     coupleId: "10000000-0000-4000-8000-000000000001",
+    actorProfileId: "20000000-0000-4000-8000-000000000001",
     requestKey:
       "chat:20000000-0000-4000-8000-000000000001:30000000-0000-4000-8000-000000000001",
     requestAttemptCount: 1,
@@ -266,7 +267,7 @@ describe("Amora atomic mutating-tool execution", () => {
       .map((candidate) => candidate.id)).toEqual([event.id, laterEvent.id]);
   });
 
-  it("atomically deletes a confirmed schedule event and records the deleted value", async () => {
+  it("blocks every legacy schedule delete before any durable write", async () => {
     const ctx = context();
     const event = {
       id: "evt_delete",
@@ -286,18 +287,72 @@ describe("Amora atomic mutating-tool execution", () => {
     );
 
     expect(result).toMatchObject({
-      success: true,
-      toolOutput: { deleted_event: event },
+      success: false,
+      toolOutput: { error: "legacy_schedule_delete_blocked" },
     });
-    const atomicCall = mocks.rpc.mock.calls.find(([name]) =>
-      name === "apply_amora_atomic_tool_execution");
-    expect(atomicCall?.[1]).toMatchObject({
-      p_domain_mutation: {
-        kind: "journey_progress_key_cas",
-        expected: [event],
-        value: [],
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(ctx.weddingContext.progress.__events).toEqual([event]);
+  });
+
+  it("atomically soft-cancels the exact human-readable schedule target", async () => {
+    const ctx = context();
+    const event = {
+      id: "evt_cancel",
+      date: "2027-03-12",
+      title: "드레스 투어",
+      status: "planned",
+      createdAt: "2026-07-17T00:00:00.000Z",
+      updatedAt: "2026-07-17T00:00:00.000Z",
+    };
+    ctx.weddingContext.progress = {
+      __events: [event],
+    } as unknown as ToolExecutionContext["weddingContext"]["progress"];
+    const input = {
+      event_id: event.id,
+      expected_title: event.title,
+      expected_date: event.date,
+      reason: "  업체 일정 변경  ",
+    };
+
+    const result = await executeTool("cancel_schedule_event", input, ctx);
+
+    expect(result).toMatchObject({
+      success: true,
+      toolOutput: {
+        event: {
+          id: event.id,
+          status: "cancelled",
+          cancellation: {
+            cancelledByProfileId: ctx.actorProfileId,
+            reason: "업체 일정 변경",
+          },
+        },
+        previous_event: event,
       },
     });
+    const changed = result.toolOutput.event as {
+      updatedAt: string;
+      cancellation: { cancelledAt: string };
+    };
+    expect(changed.updatedAt).toBe(changed.cancellation.cancelledAt);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "apply_amora_atomic_tool_execution",
+      expect.objectContaining({
+        p_tool_input: input,
+        p_domain_mutation: expect.objectContaining({
+          kind: "journey_progress_key_cas",
+          key: "__events",
+          expected: [event],
+          value: [expect.objectContaining({
+            id: event.id,
+            status: "cancelled",
+          })],
+        }),
+      }),
+    );
+    expect(ctx.weddingContext.progress.__events).toEqual([
+      expect.objectContaining({ id: event.id, status: "cancelled" }),
+    ]);
   });
 
   it("commits wedding-date changes through the atomic dispatcher instead of a split write", async () => {

@@ -24,6 +24,12 @@
 - 현재 웹 MVP 제품 계약: `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 - 현재 전체 작업 트리·릴리스 인계:
   `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+- 다른 컴퓨터에서 clone·환경 복원·웹/모바일 연결을 재개하는 최신 인계:
+  `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+- 2026-08-02 커뮤니티 설계·후속 전체 구현 상세 보충 인계:
+  `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+- 선택적 Lazyweb MCP 디자인 조사와 새 컴퓨터 재설치 런북:
+  `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
 - 현재 Supabase successor release controller:
   `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
 - 현재 커뮤니티 production release gate:

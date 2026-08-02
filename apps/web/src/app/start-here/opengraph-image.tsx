@@ -28,11 +28,11 @@ export default async function OpenGraphImage() {
           </div>
           <div style={{ display: "flex", fontSize: 72, lineHeight: 1.14, letterSpacing: -2 }}>결혼 준비, 지금 뭐부터?</div>
           <div style={{ display: "flex", fontSize: 31, color: "#4E6A62" }}>
-            지금 열어야 하는 항목과 첫 걸음을 3가지로 정리해 드려요
+            지금 열어야 하는 항목과 첫걸음을 세 가지로 정리해 드려요
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", color: "#4E6A62", fontSize: 23 }}>
-          <div style={{ display: "flex" }}>로그인 없이 무료 · 입력한 날짜는 저장하지 않습니다</div>
+          <div style={{ display: "flex" }}>로그인 없이 · 날짜는 이 화면에서 서버로 보내지 않아요</div>
           <div style={{ display: "flex" }}>hanbang.ai</div>
         </div>
       </div>

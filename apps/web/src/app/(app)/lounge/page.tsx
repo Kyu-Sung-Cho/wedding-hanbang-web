@@ -43,9 +43,10 @@ import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 type Status = ProgressItem["status"];
 
@@ -168,8 +169,11 @@ function getStatus(progress: Record<string, ProgressItem>, key: string): Status 
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
     if (key.startsWith("__")) return sum;
-    const amount = Number(item.spent ?? item.cost ?? 0);
-    return Number.isFinite(amount) ? sum + amount : sum;
+    // 명시적으로 기록한 지출만 합산한다. legacy cost는 용도 확인 전까지
+    // 예산 사용·지출·결제 완료 수치에서 제외한다.
+    const amount = isValidWeddingWonAmount(item.spent) ? item.spent : 0;
+    const next = sum + amount;
+    return Number.isSafeInteger(next) ? next : sum;
   }, 0);
 }
 
@@ -209,13 +213,15 @@ function getDdayLabel(dday: number | null) {
   return `D+${Math.abs(dday)}`;
 }
 
-function getUpcomingEvents(progress: Record<string, ProgressItem>): ScheduleEvent[] {
+export function getUpcomingEvents(progress: Record<string, ProgressItem>): ScheduleEvent[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return getEvents(progress as Record<string, unknown>)
     .filter((event) => {
       const date = new Date(event.date);
-      return !Number.isNaN(date.getTime()) && date >= today;
+      return getScheduleEventStatus(event) === "planned"
+        && !Number.isNaN(date.getTime())
+        && date >= today;
     })
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 4);
@@ -675,9 +681,11 @@ export default function LoungePage() {
               icon={<ClipboardCheck className="h-4 w-4" />}
             />
             <MetricTile
-              label="예산 사용"
-              value={`${budgetPercent}%`}
-              note={`${formatWon(spentBudget)} / ${formatWon(totalBudget)}`}
+              label="기록 지출 비율"
+              value={totalBudget > 0 ? `${budgetPercent}%` : "미입력"}
+              note={totalBudget > 0
+                ? `${formatWon(spentBudget)} 기록 / ${formatWon(totalBudget)} · 결제 확인과 별도`
+                : `${formatWon(spentBudget)} 기록 · 총 예산 입력 전`}
               icon={<Wallet className="h-4 w-4" />}
             />
             <MetricTile
@@ -974,33 +982,55 @@ function BudgetPanel({
   budgetPercent: number;
   budgetWidth: number;
 }) {
-  const remaining = Math.max(0, totalBudget - spentBudget);
-  const tone = totalBudget <= 0 ? "예산 미정" : budgetPercent >= 100 ? "초과" : budgetPercent >= 85 ? "주의" : "안정";
+  const balance = totalBudget - spentBudget;
+  const overrun = totalBudget > 0 && balance < 0;
+  const balanceLabel = totalBudget <= 0
+    ? "기록 지출"
+    : overrun
+      ? "총 예산보다 더 기록된 금액"
+      : "남은 예산";
+  const balanceValue = totalBudget <= 0 ? spentBudget : Math.abs(balance);
+  const tone = totalBudget <= 0
+    ? "예산 미정"
+    : budgetPercent > 100
+      ? "기록 초과"
+      : budgetPercent === 100
+        ? "한도 도달"
+        : budgetPercent >= 85
+          ? "주의"
+          : "안정";
 
   return (
     <section className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
-          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">지출 안전선</h2>
+          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">기록 지출 현황</h2>
         </div>
         <span className="rounded-full bg-[#fff8ec] px-3 py-1 text-[12px] font-semibold text-[#36534E]">{tone}</span>
       </div>
       <div className="mt-4">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold text-[#7a8290]">남은 예산</p>
-            <p className="mt-1 font-serif-kr text-[28px] font-medium leading-none text-[#071629]">{formatWon(remaining)}</p>
+            <p className="text-[11px] font-semibold text-[#7a8290]">{balanceLabel}</p>
+            <p className="mt-1 font-serif-kr text-[28px] font-medium leading-none text-[#071629]">
+              {formatWon(balanceValue)}
+            </p>
           </div>
-          <p className="text-[13px] font-semibold text-[#36534E]">{budgetPercent}% 사용</p>
+          <p className="text-[13px] font-semibold text-[#36534E]">
+            {totalBudget > 0 ? `${budgetPercent}% 기록` : "비율 계산 전"}
+          </p>
         </div>
         <span className="mt-3 block h-2 overflow-hidden rounded-full bg-[#efe6d7]">
           <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetWidth}%` }} />
         </span>
         <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
-          <span>{formatWon(spentBudget)} 사용</span>
+          <span>{formatWon(spentBudget)} 기록 지출</span>
           <span>총 {formatWon(totalBudget)}</span>
         </div>
+        <p className="mt-2 text-[10px] font-medium leading-4 text-[#7a8290]">
+          기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
+        </p>
       </div>
       <Link {...weddingLinkProps("/budget")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
         예산 관리 열기

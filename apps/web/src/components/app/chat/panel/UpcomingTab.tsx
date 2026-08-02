@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import CollapsibleSection from "./CollapsibleSection";
@@ -70,7 +70,7 @@ export default function UpcomingTab() {
   const upcomingEvents: ScheduleEvent[] = useMemo(() => {
     if (!todayStr) return [];
     return getEvents(progress as Record<string, unknown>)
-      .filter((e) => e.date >= todayStr)
+      .filter((e) => e.date >= todayStr && getScheduleEventStatus(e) === "planned")
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 10);
   }, [progress, todayStr]);

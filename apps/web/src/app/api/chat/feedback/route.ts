@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,9 @@ async function checkRateLimit(userId: string): Promise<boolean> {
  */
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     // 인증 체크
     const supabase = await createClientFromRequest(request);
     const {

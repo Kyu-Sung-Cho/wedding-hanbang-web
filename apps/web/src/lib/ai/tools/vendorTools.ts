@@ -471,7 +471,7 @@ export async function executeCheckVendorAvailability(
         toolInput: input,
         toolOutput: { error: "invalid_product_vendor", vendorId, productId },
         success: false,
-        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약 가능 시간을 확인하지 않았습니다.",
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 방문·상담 시간 후보를 확인하지 않았습니다.",
       };
     }
   }
@@ -524,6 +524,7 @@ export async function executeCheckVendorAvailability(
     .select("booking_date, booking_time")
     .eq("vendor_id", vendorId)
     .in("booking_date", dateStrings)
+    .neq("vendor_delivery_status", "not_sent")
     .neq("status", "cancelled");
 
   if (productOwnsSchedule && productId) {
@@ -564,7 +565,7 @@ export async function executeCheckVendorAvailability(
     toolOutput: { vendorName: vendor.name, slots: availableSlots, count: availableSlots.length },
     success: true,
     displayMessage: availableSlots.length > 0
-      ? `${vendor.name}의 예약 가능 시간 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((slot) => `${slot.dateTimeLabel}(잔여${slot.remaining}석)`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}`
+      ? `${vendor.name}에 등록된 방문·상담 시간 후보 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((slot) => `${slot.dateTimeLabel}(참고 잔여 ${slot.remaining})`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}. 실제 가능 여부와 예약 확정은 업체 확인이 필요해요.`
       : `${vendor.name}은(는) 현재 예약 가능한 시간이 없습니다.`,
   };
 }

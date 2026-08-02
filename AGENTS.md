@@ -49,6 +49,12 @@
 - **현재 전체 작업 트리·릴리스 인계**(exact inventory · 사용자와 확정한 결정 ·
   GitHub/Web/DB/Community/Mobile 개별 상태 · rollback · 남은 게이트):
   `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+- **다른 컴퓨터 개발 인계**(clone · 환경변수 · 웹/모바일 연결 · 검증 · 이어서 할 일):
+  `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+- **2026-08-02 커뮤니티·전체 구현 보충 인계**(검색·신뢰·아모라 연결 · 구현/후속 구분):
+  `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+- **UI 작업용 선택적 Lazyweb 런북**(기기별 MCP·보안 경계·재설치, 제품 정본 아님):
+  `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
 - **현재 웹 MVP 제품 계약**(한 줄 정의 · 제품 위계 · 전면/비전면 범위 · 핵심 지표):
   `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 - 과거 로컬 저장소 전체 감사(2026-07-30 source snapshot):

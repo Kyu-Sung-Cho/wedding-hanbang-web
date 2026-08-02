@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import type { ReportReason } from "@/types/community.types";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const VALID_REASONS: ReportReason[] = [
   "spam",
@@ -21,6 +22,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; userId: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id: roomId, userId: reportedUserId } = await params;
     const supabase = await createClientFromRequest(req);

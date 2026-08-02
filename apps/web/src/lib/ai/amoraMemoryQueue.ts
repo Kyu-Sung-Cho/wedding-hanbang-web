@@ -10,7 +10,8 @@ export type AmoraPrivacyMemoryState = {
 };
 
 export type AmoraPrivacyContextSnapshot = {
-  version: 1;
+  version: 2;
+  privacyEpoch: number;
   actorRole: AmoraActorRole;
   rosterFingerprint: string;
   memory: Record<AmoraMemoryVisibility, AmoraPrivacyMemoryState>;
@@ -23,6 +24,16 @@ export type AmoraPrivacyContextSnapshot = {
 export type AmoraPrivacyContextErrorCode =
   | "AMORA_PRIVACY_CONTEXT_UNAVAILABLE"
   | "AMORA_PRIVACY_CONTEXT_CHANGED";
+
+export type AmoraMemoryEnqueueResult =
+  | "queued"
+  | "requeued"
+  | "not_requested"
+  | "disabled"
+  | "before_boundary"
+  | "duplicate"
+  | "dead_letter"
+  | "failed";
 
 export class AmoraPrivacyContextError extends Error {
   constructor(readonly code: AmoraPrivacyContextErrorCode) {
@@ -69,7 +80,9 @@ function parseAmoraPrivacyContextSnapshot(
 ): AmoraPrivacyContextSnapshot | null {
   if (
     !isRecord(value)
-    || value.version !== 1
+    || value.version !== 2
+    || !Number.isSafeInteger(value.privacyEpoch)
+    || (value.privacyEpoch as number) < 1
     || (value.actorRole !== "bride" && value.actorRole !== "groom")
     || typeof value.rosterFingerprint !== "string"
     || !/^[a-f0-9]{32}$/.test(value.rosterFingerprint)
@@ -114,7 +127,8 @@ function parseAmoraPrivacyContextSnapshot(
   }
 
   return {
-    version: 1,
+    version: 2,
+    privacyEpoch: value.privacyEpoch as number,
     actorRole: value.actorRole,
     rosterFingerprint: value.rosterFingerprint,
     memory,
@@ -125,6 +139,32 @@ function parseAmoraPrivacyContextSnapshot(
         : null,
     },
   };
+}
+
+export async function getAmoraPrivacyEpoch(
+  coupleId: string,
+  visibility: AmoraMemoryVisibility,
+  client: SupabaseClient,
+): Promise<number> {
+  const { data, error } = await client.rpc(
+    "get_own_amora_privacy_epoch",
+    {
+      p_couple_id: coupleId,
+      p_visibility: visibility,
+    },
+  );
+  if (
+    error
+    || !Number.isSafeInteger(data)
+    || (data as number) < 1
+  ) {
+    console.error(
+      "[amora-privacy-context] epoch lookup failed",
+      error?.code ?? "invalid_result",
+    );
+    throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_UNAVAILABLE");
+  }
+  return data as number;
 }
 
 export function isAuxiliaryMemoryRuntimeEnabled(): boolean {
@@ -170,7 +210,9 @@ export function assertAmoraPrivacyContextSnapshotCurrent(
   visibilities: readonly AmoraMemoryVisibility[],
 ): void {
   if (
-    initial.actorRole !== current.actorRole
+    initial.version !== current.version
+    || initial.privacyEpoch !== current.privacyEpoch
+    || initial.actorRole !== current.actorRole
     || initial.rosterFingerprint !== current.rosterFingerprint
     || initial.personalization.exists !== current.personalization.exists
     || initial.personalization.revision !== current.personalization.revision
@@ -233,19 +275,34 @@ export async function enqueueAmoraMemoryJob(input: {
   visibility: AmoraMemoryVisibility;
   toMessageId: string;
   admin?: SupabaseClient;
-}): Promise<"queued" | "disabled" | "before_boundary" | "duplicate" | "failed"> {
+}): Promise<AmoraMemoryEnqueueResult> {
   if (!isAuxiliaryMemoryRuntimeEnabled()) return "disabled";
-  const admin = input.admin ?? createAdminClient();
-  const { data, error } = await admin.rpc("enqueue_amora_memory_job", {
-    p_couple_id: input.coupleId,
-    p_user_id: input.userId,
-    p_visibility: input.visibility,
-    p_to_message_id: input.toMessageId,
-  });
-  if (!error && (data === "queued" || data === "disabled" || data === "before_boundary" || data === "duplicate")) {
-    return data;
+  try {
+    const admin = input.admin ?? createAdminClient();
+    const { data, error } = await admin.rpc("enqueue_amora_memory_job", {
+      p_couple_id: input.coupleId,
+      p_user_id: input.userId,
+      p_visibility: input.visibility,
+      p_to_message_id: input.toMessageId,
+    });
+    if (
+      !error
+      && (
+        data === "queued"
+        || data === "requeued"
+        || data === "not_requested"
+        || data === "disabled"
+        || data === "before_boundary"
+        || data === "duplicate"
+        || data === "dead_letter"
+      )
+    ) {
+      return data;
+    }
+    console.error("[amora-memory] enqueue failed", error?.code ?? "invalid_result");
+  } catch {
+    console.error("[amora-memory] enqueue failed", "transport_error");
   }
-  console.error("[amora-memory] enqueue failed", error?.code ?? "invalid_result");
   return "failed";
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   Animated,
   Pressable,
@@ -57,6 +57,7 @@ interface WeddingHomeExperienceProps {
   loading: boolean;
   refreshing: boolean;
   onRefresh: () => void;
+  todayOneCare?: ReactNode;
 }
 
 const SERVICE_ICONS = {
@@ -114,7 +115,7 @@ function getFocusPill(focus: DashboardFocus): {
     case "calm":
       return { label: "순조로워요", tone: "success" };
     default:
-      return { label: "오늘의 한 가지", tone: "rose" };
+      return { label: "준비 포커스", tone: "rose" };
   }
 }
 
@@ -202,6 +203,7 @@ export default function WeddingHomeExperience({
   loading,
   refreshing,
   onRefresh,
+  todayOneCare,
 }: WeddingHomeExperienceProps) {
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -328,6 +330,10 @@ export default function WeddingHomeExperience({
               <ArrowRight size={17} color={colors.noir[900]} />
             </View>
           </Pressable>
+
+          {todayOneCare ? (
+            <View style={styles.todayOneSection}>{todayOneCare}</View>
+          ) : null}
 
           <View style={styles.section}>
             <SectionHeader
@@ -703,6 +709,9 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: spacing[8],
+  },
+  todayOneSection: {
+    marginTop: spacing[5],
   },
   serviceGrid: {
     flexDirection: "row",

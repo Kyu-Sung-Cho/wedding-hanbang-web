@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn((prefix: string, _request: Request, userId?: string) =>
     `${prefix}:${userId ?? "anonymous"}`),
+  isTrustedMutationRequest: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -40,6 +41,10 @@ vi.mock("@/lib/community/uploadSession", () => ({
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimitPersistent: mocks.checkRateLimitPersistent,
   rateLimitKey: mocks.rateLimitKey,
+}));
+
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: mocks.isTrustedMutationRequest,
 }));
 
 import { POST } from "./route";

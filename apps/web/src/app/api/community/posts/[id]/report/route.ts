@@ -6,6 +6,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import type { ReportReason } from "@/types/community.types";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 function getServiceClient() {
   return createAdminClient();
@@ -16,6 +17,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   buildConfirmedActionRecoveryRequest,
+  reconcileAmoraCrisisRecoveryMessages,
+  syncToolResult,
   useChatStore,
 } from "../chatStore";
 import type { WeddingContext } from "@/types/chat.types";
@@ -14,24 +16,137 @@ const chatStoreSource = readFileSync(
   path.join(process.cwd(), "src/stores/chatStore.ts"),
   "utf8",
 );
+const chatContentSource = readFileSync(
+  path.join(process.cwd(), "src/components/app/chat/ChatContent.tsx"),
+  "utf8",
+);
+const chatSidePanelSource = readFileSync(
+  path.join(process.cwd(), "src/components/app/chat/ChatSidePanel.tsx"),
+  "utf8",
+);
 const mockInsertSingle = vi.fn();
 const mockStorageUpload = vi.fn();
-const mockInsert = vi.fn(() => ({
-  select: vi.fn(() => ({
-    single: mockInsertSingle,
-  })),
-}));
+const mockStorageRemove = vi.fn();
+const mockInsert = vi.fn((payload?: unknown) => {
+  void payload;
+  return {
+    select: vi.fn(() => ({
+      single: mockInsertSingle,
+    })),
+  };
+});
+const mockReconcileMaybeSingle = vi.fn();
+const mockReconcileQuery = {
+  select: vi.fn(),
+  eq: vi.fn(),
+  maybeSingle: mockReconcileMaybeSingle,
+};
+mockReconcileQuery.select.mockReturnValue(mockReconcileQuery);
+mockReconcileQuery.eq.mockReturnValue(mockReconcileQuery);
+const defaultChatMessagesTable = {
+  insert: mockInsert,
+  select: mockReconcileQuery.select,
+};
+const mockFrom = vi.fn((table?: string): Record<string, unknown> => {
+  void table;
+  return defaultChatMessagesTable;
+});
 
 const mockSupabase = {
   storage: {
-    from: vi.fn(() => ({ upload: mockStorageUpload })),
+    from: vi.fn(() => ({ upload: mockStorageUpload, remove: mockStorageRemove })),
   },
-  from: vi.fn(() => ({
-    insert: mockInsert,
-  })),
+  from: mockFrom,
 };
 
-function completedChatResponse(content = "완료된 답변") {
+const TEST_COUPLE_UUID = "20000000-0000-4000-8000-000000000001";
+const TEST_USER_UUID = "10000000-0000-4000-8000-000000000001";
+const TEST_OTHER_USER_UUID = "10000000-0000-4000-8000-000000000002";
+const TEST_CLIENT_REQUEST_UUID = "30000000-0000-4000-8000-000000000001";
+const TEST_CONFIRMED_ACTION_UUID = "40000000-0000-4000-8000-000000000001";
+
+describe("booking projection local sync", () => {
+  it("keeps recorded spend and soft-cancels the stable event", () => {
+    const bookingId = "60000000-0000-4000-8000-000000000001";
+    const eventId = `evt_booking_${bookingId}`;
+    useAuthStore.setState({
+      journey: {
+        id: "journey-1",
+        progress: {
+          studio: {
+            category: "studio",
+            status: "in_progress",
+            spent: 850_000,
+          },
+          __events: [{
+            id: eventId,
+            sourceKey: `booking:${bookingId}`,
+            date: "2026-10-01",
+            title: "스튜디오 상담",
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+          }],
+        },
+      } as never,
+    });
+    const cancelledEvent = {
+      id: eventId,
+      sourceKey: `booking:${bookingId}`,
+      date: "2026-10-01",
+      title: "스튜디오 상담",
+      status: "cancelled",
+      cancellation: {
+        cancelledAt: "2026-08-02T12:30:00.000Z",
+        cancelledByProfileId: TEST_USER_UUID,
+        reason: "예약 취소",
+      },
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-02T12:30:00.000Z",
+    };
+
+    syncToolResult({
+      toolName: "cancel_booking",
+      toolInput: { booking_id: bookingId },
+      toolOutput: {
+        scheduleCancelled: true,
+        recordedSpendPreserved: true,
+        quoteContributionCorrected: false,
+        syncedEvent: cancelledEvent,
+        syncedEventId: eventId,
+        syncedEventIdRemoved: null,
+        syncedCategoryKey: null,
+        syncedNewSpent: null,
+      },
+      success: true,
+      displayMessage: "",
+    });
+
+    const progress = useAuthStore.getState().journey?.progress as unknown as
+      Record<string, unknown>;
+    expect(progress.studio).toMatchObject({ spent: 850_000 });
+    expect(progress.__events).toEqual([cancelledEvent]);
+  });
+});
+
+function durableUserRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "50000000-0000-4000-8000-000000000001",
+    couple_id: TEST_COUPLE_UUID,
+    sender_id: TEST_USER_UUID,
+    sender_type: "bride",
+    role: "user",
+    content: "retry this exact message",
+    metadata: { client_request_id: TEST_CLIENT_REQUEST_UUID },
+    visibility: "shared",
+    created_at: "2026-08-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function completedChatResponse(
+  content = "완료된 답변",
+  metadata: Record<string, unknown> = { serverMessageId: "ai-message-retry-1" },
+) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
@@ -39,13 +154,39 @@ function completedChatResponse(content = "완료된 답변") {
         `data: ${JSON.stringify({
           type: "done",
           fullContent: content,
-          metadata: { serverMessageId: "ai-message-retry-1" },
+          metadata,
         })}\n\n`
       ));
       controller.close();
     },
   });
   return new Response(stream, { status: 200 });
+}
+
+function failedChatStreamResponse(event: Record<string, unknown>) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+        type: "error",
+        ...event,
+      })}\n\n`));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
+function retryableChatHttpResponse() {
+  return new Response(JSON.stringify({
+    error: "safe retry",
+    code: "AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED",
+    retryable: true,
+    retryPolicy: "same_request",
+  }), {
+    status: 503,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -153,6 +294,126 @@ describe("confirmed Amora action recovery", () => {
   });
 });
 
+describe("Amora crisis reload recovery", () => {
+  beforeEach(() => {
+    useChatStore.getState().reset();
+    mockFetch.mockReset();
+    mockInsertSingle.mockReset();
+    mockReconcileMaybeSingle.mockReset();
+    mockReconcileMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockSupabase.from.mockReset();
+    mockSupabase.from.mockImplementation(() => defaultChatMessagesTable);
+    mockInsertSingle.mockResolvedValue({
+      data: {
+        id: "user-message-1",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_type: "bride",
+        role: "user",
+        content: "지금 죽고 싶어",
+        metadata: null,
+        visibility: "bride_private",
+        created_at: "2026-08-02T12:00:00.000Z",
+      },
+      error: null,
+    });
+    vi.stubGlobal("fetch", mockFetch);
+    document.cookie = "demo_mode=; Max-Age=0; path=/";
+    useAuthStore.setState({
+      profile: {
+        id: "user-1",
+        name: "테스터",
+        role: "bride",
+        couple_id: "couple-1",
+      } as never,
+    });
+  });
+
+  it("adds a local-only same-visibility safety card without copying the disclosure into metadata", () => {
+    const disclosure = {
+      id: "crisis-user-1",
+      couple_id: "couple-1",
+      sender_id: "user-1",
+      sender_role: "bride" as const,
+      content: "지금 죽고 싶어",
+      metadata: { target: "ai" as const },
+      visibility: "bride_private" as const,
+      created_at: "2026-08-02T12:00:00.000Z",
+    };
+
+    const recovered = reconcileAmoraCrisisRecoveryMessages(
+      [disclosure],
+      "couple-1",
+    );
+
+    expect(recovered).toHaveLength(2);
+    expect(recovered[1]).toEqual(expect.objectContaining({
+      sender_id: null,
+      sender_role: "ai",
+      visibility: "bride_private",
+      content: expect.stringContaining("112"),
+      metadata: expect.objectContaining({
+        response_origin: "client_deterministic_crisis_recovery",
+        in_reply_to_user_message_id: disclosure.id,
+      }),
+    }));
+    expect(JSON.stringify(recovered[1].metadata)).not.toContain(disclosure.content);
+  });
+
+  it("reconciles the local card on history load and every later canonical insert", () => {
+    expect(chatStoreSource).toMatch(
+      /messages: reconcileAmoraCrisisRecoveryMessages\(allMessages, coupleId\)/,
+    );
+    expect(chatStoreSource).toMatch(
+      /const nextMessages = reconcileAmoraCrisisRecoveryMessages\([\s\S]*newMsg[\s\S]*coupleId/,
+    );
+  });
+
+  it("renders the recovered guidance as an alert and never treats it as feedback or community content", () => {
+    expect(chatContentSource).toMatch(
+      /const isPinnedSafetyCard = msg\.metadata\?\.pinned_safety_card === true/,
+    );
+    expect(chatContentSource).toMatch(
+      /filter\(\(m\) => m\.sender_role === "ai" && m\.metadata\?\.pinned_safety_card !== true\)/,
+    );
+    expect(chatContentSource).toMatch(
+      /!isPinnedSafetyCard[\s\S]*canConsiderCommunityFallback/,
+    );
+    expect(chatContentSource).toMatch(/data-amora-safety-card="true"/);
+    expect(chatContentSource).toMatch(/role="alert"/);
+  });
+
+  it("binds an ephemeral deterministic crisis response to its durable user row without copying raw text", async () => {
+    mockFetch.mockResolvedValue(completedChatResponse(
+      "고정 안전 안내",
+      {
+        response_origin: "deterministic_crisis_safety",
+        safety_classification: "self_harm",
+        question_scope: "W5_safety_override",
+      },
+    ));
+
+    await useChatStore.getState().sendMessage({
+      content: "지금 죽고 싶어",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+    });
+
+    const answer = useChatStore.getState().messages.find(
+      (candidate) => candidate.sender_role === "ai",
+    );
+    expect(answer?.metadata).toEqual(expect.objectContaining({
+      response_origin: "deterministic_crisis_safety",
+      in_reply_to_user_message_id: "user-message-1",
+    }));
+    expect(JSON.stringify(answer?.metadata)).not.toContain("죽고 싶어");
+  });
+});
+
 describe("useChatStore quota warning", () => {
   beforeEach(() => {
     useChatStore.getState().reset();
@@ -207,6 +468,32 @@ describe("useChatStore quota warning", () => {
     });
 
     expect(useChatStore.getState().quotaRemaining).toBeNull();
+  });
+
+  it("keeps the active send lock when greeting and mediation are requested mid-send", async () => {
+    useChatStore.setState({ isSending: true, isStreaming: false });
+
+    await useChatStore.getState().requestInitialGreeting({
+      coupleId: TEST_COUPLE_UUID,
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+    });
+    await useChatStore.getState().requestMediation({
+      coupleId: TEST_COUPLE_UUID,
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useChatStore.getState().isSending).toBe(true);
+    expect(useChatStore.getState().isStreaming).toBe(false);
+
+    // reset() intentionally preserves in-flight flags, so do not leak this
+    // synthetic lock into later tests in the shared singleton store.
+    useChatStore.setState({ isSending: false });
   });
 
   it("sends only the requester's explicit summary for structured mediation", async () => {
@@ -624,9 +911,16 @@ describe("useChatStore failed provider retry", () => {
   beforeEach(() => {
     useChatStore.getState().reset();
     mockFetch.mockReset();
+    mockInsert.mockClear();
     mockInsertSingle.mockReset();
     mockStorageUpload.mockReset();
-    mockSupabase.from.mockClear();
+    mockStorageRemove.mockReset();
+    mockReconcileMaybeSingle.mockReset();
+    mockReconcileMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockReconcileQuery.select.mockClear();
+    mockReconcileQuery.eq.mockClear();
+    mockSupabase.from.mockReset();
+    mockSupabase.from.mockImplementation(() => defaultChatMessagesTable);
     mockSupabase.storage.from.mockClear();
     vi.mocked(captureEvent).mockClear();
     mockInsertSingle.mockResolvedValue({ data: insertedMessage, error: null });
@@ -665,6 +959,805 @@ describe("useChatStore failed provider retry", () => {
     expect(useChatStore.getState().isSending).toBe(false);
   });
 
+  it("never sends a direct partner message back to the provider in demo context", async () => {
+    document.cookie = "demo_mode=true; path=/";
+    mockFetch.mockResolvedValue(completedChatResponse());
+    const base = {
+      senderId: "user-1",
+      senderRole: "bride" as const,
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared" as const,
+    };
+
+    await useChatStore.getState().sendMessage({
+      ...base,
+      content: "상대방에게만 보낼 비밀 문장",
+      target: "partner",
+      partnerRecipientId: TEST_OTHER_USER_UUID,
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    await useChatStore.getState().sendMessage({
+      ...base,
+      content: "아모라에게 묻는 새 질문",
+      target: "ai",
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const providerPayload = JSON.parse(String(
+      (mockFetch.mock.calls[0][1] as RequestInit).body,
+    )) as { messages?: Array<{ content?: string }> };
+    const providerContext = JSON.stringify(providerPayload.messages ?? []);
+    expect(providerContext).toContain("아모라에게 묻는 새 질문");
+    expect(providerContext).not.toContain("상대방에게만 보낼 비밀 문장");
+  });
+
+  it("pins a direct partner row to the exact recipient without invoking the provider", async () => {
+    mockInsertSingle.mockResolvedValueOnce({
+      data: {
+        ...insertedMessage,
+        content: "only for my linked partner",
+        metadata: {
+          target: "partner",
+          client_request_id: TEST_CLIENT_REQUEST_UUID,
+          partner_recipient_id: TEST_OTHER_USER_UUID,
+        },
+        visibility: "shared",
+      },
+      error: null,
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "only for my linked partner",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "partner",
+      partnerRecipientId: TEST_OTHER_USER_UUID,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome.userMessage).toBe("persisted");
+    expect(mockInsert.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      metadata: {
+        target: "partner",
+        client_request_id: TEST_CLIENT_REQUEST_UUID,
+        partner_recipient_id: TEST_OTHER_USER_UUID,
+      },
+    }));
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before side effects when a direct partner recipient is missing", async () => {
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "do not guess who receives this",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "partner",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual({ userMessage: "not_persisted", reason: "validation" });
+    expect(useChatStore.getState().error).toContain("상대방 연결 정보");
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before side effects when the direct recipient is the sender", async () => {
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "do not address this back to me",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "partner",
+      partnerRecipientId: TEST_USER_UUID,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual({ userMessage: "not_persisted", reason: "validation" });
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["shared AI", "shared", "ai"],
+    ["private AI", "bride_private", "ai"],
+    ["private partner", "bride_private", "partner"],
+  ] as const)("never mixes a partner recipient into a %s delivery", async (
+    _label,
+    visibility,
+    target,
+  ) => {
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "keep the delivery lane exact",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility,
+      target,
+      partnerRecipientId: TEST_OTHER_USER_UUID,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual({ userMessage: "not_persisted", reason: "validation" });
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("derives the same exact opposite roster slot in both web chat surfaces", () => {
+    for (const surfaceSource of [chatContentSource, chatSidePanelSource]) {
+      expect(surfaceSource).toMatch(/const linkedPartnerId =/);
+      expect(surfaceSource).toMatch(/profile\.couple_id === coupleId/);
+      expect(surfaceSource).toMatch(/couple\?\.bride_id === profile\.id/);
+      expect(surfaceSource).toMatch(/couple\?\.groom_id === profile\.id/);
+      expect(surfaceSource).toMatch(/partnerRecipientId: linkedPartnerId/);
+    }
+  });
+
+  it("reports that the user message was not persisted when its database insert fails", async () => {
+    mockInsertSingle.mockResolvedValue({
+      data: null,
+      error: { code: "XX001", message: "database unavailable" },
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "저장 실패 시 초안을 돌려줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      userMessage: "not_persisted",
+      reason: "database",
+    }));
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("does not destructively remove an immutable image after a failed user-row insert", async () => {
+    mockStorageUpload.mockResolvedValue({ error: null });
+    mockStorageRemove.mockResolvedValue({ error: null });
+    mockInsertSingle.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "insert rejected" },
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "첨부 저장도 되돌려줘",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+      images: [{
+        base64: "aW1hZ2UtYnl0ZXM=",
+        mediaType: "image/png",
+        previewUrl: "blob:image-preview",
+        fileName: "receipt.png",
+      }],
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      userMessage: "not_persisted",
+      reason: "database",
+    }));
+    expect(mockStorageUpload).toHaveBeenCalledTimes(1);
+    expect(mockStorageRemove).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("reports an unknown persistence result when the reconciliation query also fails", async () => {
+    mockInsertSingle.mockResolvedValue({
+      data: null,
+      error: { code: "NETWORK_RESPONSE_LOST", message: "insert response lost" },
+    });
+    mockReconcileMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { code: "NETWORK_UNAVAILABLE", message: "cannot reconcile" },
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "전송 여부를 다시 확인해줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "persistence_unknown",
+      clientRequestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    expect(useChatStore.getState().error).toMatch(/전송됐는지 확인/);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns the reusable idempotency key when the insert request throws before reconciliation", async () => {
+    mockInsertSingle.mockRejectedValue(new Error("network disconnected"));
+    mockReconcileMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { code: "NETWORK_UNAVAILABLE", message: "cannot reconcile" },
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "네트워크 예외도 같은 키로 확인해줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "persistence_unknown",
+      clientRequestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    expect(useChatStore.getState().isSending).toBe(false);
+  });
+
+  it("reuses an immutable canonical image path and accepts only an exact 409 duplicate on retry", async () => {
+    const persisted = durableUserRow();
+    mockStorageUpload
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({
+        error: {
+          statusCode: "409",
+          error: "Duplicate",
+          message: "The resource already exists",
+        },
+      });
+    mockInsertSingle
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "NETWORK_RESPONSE_LOST", message: "insert response lost" },
+      })
+      .mockResolvedValueOnce({ data: persisted, error: null });
+    mockReconcileMaybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "NETWORK_UNAVAILABLE", message: "cannot reconcile" },
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+    mockFetch.mockResolvedValue(completedChatResponse());
+    const params = {
+      content: persisted.content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride" as const,
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared" as const,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      images: [{
+        base64: "aW1hZ2UtYnl0ZXM=",
+        mediaType: "image/png",
+        previewUrl: "blob:image-preview",
+        fileName: "receipt.png",
+      }],
+    };
+
+    const firstOutcome = await useChatStore.getState().sendMessage(params);
+    expect(firstOutcome).toEqual({
+      userMessage: "persistence_unknown",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    const retryOutcome = await useChatStore.getState().sendMessage(params);
+
+    expect(retryOutcome).toEqual({
+      userMessage: "persisted",
+      userMessageId: persisted.id,
+    });
+    expect(mockStorageUpload).toHaveBeenCalledTimes(2);
+    expect(mockStorageUpload.mock.calls[1][0]).toBe(mockStorageUpload.mock.calls[0][0]);
+    expect(mockStorageUpload.mock.calls[0][0]).toMatch(
+      new RegExp(
+        `^${TEST_COUPLE_UUID}/${TEST_USER_UUID}/[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.png$`,
+      ),
+    );
+    expect(mockStorageUpload.mock.calls[0][2]).toEqual({
+      contentType: "image/png",
+      upsert: false,
+    });
+    expect(mockStorageUpload.mock.calls[1][2]).toEqual({
+      contentType: "image/png",
+      upsert: false,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["PDF", "application/pdf", "contract.pdf"],
+    [
+      "DOCX",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "contract.docx",
+    ],
+  ])("keeps %s attachments provider-only and out of chat-image metadata", async (
+    _label,
+    mediaType,
+    fileName,
+  ) => {
+    const content = `review ${fileName}`;
+    mockInsertSingle.mockResolvedValue({
+      data: durableUserRow({ content }),
+      error: null,
+    });
+    mockFetch.mockResolvedValue(completedChatResponse());
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      images: [{
+        base64: "ZG9jdW1lbnQtYnl0ZXM=",
+        mediaType,
+        previewUrl: `blob:${fileName}`,
+        fileName,
+      }],
+    });
+
+    expect(outcome.userMessage).toBe("persisted");
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    const insertedPayload = mockInsert.mock.calls.at(-1)?.[0] as {
+      metadata?: Record<string, unknown>;
+    };
+    expect(insertedPayload.metadata).toEqual({
+      client_request_id: TEST_CLIENT_REQUEST_UUID,
+    });
+    const providerPayload = JSON.parse(String(
+      (mockFetch.mock.calls.at(-1)?.[1] as RequestInit).body,
+    )) as { attachments?: Array<Record<string, unknown>> };
+    expect(providerPayload.attachments).toEqual([{
+      base64: "ZG9jdW1lbnQtYnl0ZXM=",
+      mediaType,
+      fileName,
+    }]);
+  });
+
+  it.each([
+    ["PDF", "application/pdf", "contract.pdf"],
+    [
+      "DOCX",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "contract.docx",
+    ],
+  ])("rejects a partner-targeted %s before every side effect", async (
+    _label,
+    mediaType,
+    fileName,
+  ) => {
+    const outcome = await useChatStore.getState().sendMessage({
+      content: `send ${fileName} to my partner`,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "partner",
+      images: [{
+        base64: "ZG9jdW1lbnQtYnl0ZXM=",
+        mediaType,
+        previewUrl: `blob:${fileName}`,
+        fileName,
+      }],
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "not_persisted",
+      reason: "validation",
+    });
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("stops before database and provider work when an immutable image upload fails", async () => {
+    mockStorageUpload.mockResolvedValue({
+      error: {
+        statusCode: 403,
+        error: "Forbidden",
+        message: "row-level security policy denied the upload",
+      },
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "review this receipt",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      images: [{
+        base64: "aW1hZ2UtYnl0ZXM=",
+        mediaType: "image/png",
+        previewUrl: "blob:image-preview",
+        fileName: "receipt.png",
+      }],
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "not_persisted",
+      reason: "storage",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useChatStore.getState().isSending).toBe(false);
+  });
+
+  it("pre-reconciles a requested key and skips both image upload and insert for its exact row", async () => {
+    const reconciled = durableUserRow({
+      metadata: {
+        client_request_id: TEST_CLIENT_REQUEST_UUID,
+        imagePaths: [
+          `${TEST_COUPLE_UUID}/${TEST_USER_UUID}/60000000-0000-5000-8000-000000000001.png`,
+        ],
+      },
+    });
+    mockReconcileMaybeSingle.mockResolvedValue({ data: reconciled, error: null });
+    mockFetch.mockResolvedValue(completedChatResponse());
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: reconciled.content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      images: [{
+        base64: "aW1hZ2UtYnl0ZXM=",
+        mediaType: "image/png",
+        previewUrl: "blob:image-preview",
+        fileName: "receipt.png",
+      }],
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "persisted",
+      userMessageId: reconciled.id,
+    });
+    expect(mockReconcileMaybeSingle).toHaveBeenCalledTimes(1);
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().messages.filter(
+      (message) => message.id === reconciled.id,
+    )).toHaveLength(1);
+  });
+
+  it("pre-reconciles a partner retry only when the exact recipient is still bound", async () => {
+    const reconciled = durableUserRow({
+      metadata: {
+        client_request_id: TEST_CLIENT_REQUEST_UUID,
+        target: "partner",
+        partner_recipient_id: TEST_OTHER_USER_UUID,
+      },
+    });
+    mockReconcileMaybeSingle.mockResolvedValue({ data: reconciled, error: null });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: reconciled.content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "partner",
+      partnerRecipientId: TEST_OTHER_USER_UUID,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual({ userMessage: "persisted", userMessageId: reconciled.id });
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a partner retry row bound to a different recipient", async () => {
+    mockReconcileMaybeSingle.mockResolvedValue({
+      data: durableUserRow({
+        metadata: {
+          client_request_id: TEST_CLIENT_REQUEST_UUID,
+          target: "partner",
+          partner_recipient_id: TEST_CONFIRMED_ACTION_UUID,
+        },
+      }),
+      error: null,
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "retry this exact message",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "partner",
+      partnerRecipientId: TEST_OTHER_USER_UUID,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual({ userMessage: "not_persisted", reason: "validation" });
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["sender id", { sender_id: TEST_OTHER_USER_UUID }],
+    ["sender role", { sender_type: "groom" }],
+    ["content", { content: "different content" }],
+    ["visibility", { visibility: "bride_private" }],
+    [
+      "target",
+      {
+        metadata: {
+          client_request_id: TEST_CLIENT_REQUEST_UUID,
+          target: "partner",
+        },
+      },
+    ],
+    [
+      "confirmed action",
+      {
+        metadata: {
+          client_request_id: TEST_CLIENT_REQUEST_UUID,
+          confirmed_amora_action_id: TEST_CONFIRMED_ACTION_UUID,
+        },
+      },
+    ],
+    [
+      "partner recipient on an AI row",
+      {
+        metadata: {
+          client_request_id: TEST_CLIENT_REQUEST_UUID,
+          partner_recipient_id: TEST_OTHER_USER_UUID,
+        },
+      },
+    ],
+  ])("rejects a pre-reconciled row with mismatched %s", async (
+    _field,
+    mismatch,
+  ) => {
+    mockReconcileMaybeSingle.mockResolvedValue({
+      data: durableUserRow(mismatch),
+      error: null,
+    });
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "retry this exact message",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      target: "ai",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "not_persisted",
+      reason: "validation",
+    });
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useChatStore.getState().isSending).toBe(false);
+  });
+
+  it("deduplicates a durable user row when realtime arrives before the insert response", async () => {
+    const persisted = durableUserRow();
+    let releaseInsert!: (value: unknown) => void;
+    mockInsertSingle.mockImplementation(() => new Promise((resolve) => {
+      releaseInsert = resolve;
+    }));
+    mockFetch.mockResolvedValue(completedChatResponse());
+
+    const send = useChatStore.getState().sendMessage({
+      content: persisted.content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockInsertSingle).toHaveBeenCalledTimes(1));
+
+    useChatStore.setState({
+      messages: [{
+        id: persisted.id,
+        couple_id: TEST_COUPLE_UUID,
+        sender_id: TEST_USER_UUID,
+        sender_role: "bride",
+        content: persisted.content,
+        metadata: persisted.metadata,
+        visibility: "shared",
+        created_at: persisted.created_at,
+      }],
+    });
+    releaseInsert({ data: persisted, error: null });
+    await send;
+
+    expect(useChatStore.getState().messages.filter(
+      (message) => message.id === persisted.id,
+    )).toHaveLength(1);
+  });
+
+  it("reports a durable user message when only the provider phase fails", async () => {
+    mockFetch.mockResolvedValue(retryableChatHttpResponse());
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "저장은 하고 AI만 다시 시도해줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+    });
+
+    expect(outcome).toEqual({
+      userMessage: "persisted",
+      userMessageId: "user-message-1",
+    });
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      userMessageId: "user-message-1",
+      canRetry: true,
+    }));
+  });
+
+  it("turns the preview-stub API code into a truthful consumer message without a dead retry", async () => {
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({
+      error: "preview_stub_api_disabled",
+    }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "날짜 없이 먼저 맞출 기준을 알려줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(useChatStore.getState().error).toBe(
+      "현재 미리보기에서는 AI 답변을 생성하지 않아요. 입력한 내용은 계정의 준비 기록에 남지 않았어요.",
+    );
+    expect(useChatStore.getState().error).not.toContain("preview_stub_api_disabled");
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      requestBody: "",
+      unavailableReason: "현재 미리보기에서는 같은 요청을 재시도할 수 없어요.",
+    }));
+  });
+
+  it("binds the durable user row and provider request to the same idempotency key", async () => {
+    mockFetch.mockResolvedValue(completedChatResponse());
+
+    await useChatStore.getState().sendMessage({
+      content: "한 번만 저장해줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    const insertedPayload = mockInsert.mock.calls.at(-1)?.[0] as {
+      metadata?: { client_request_id?: string };
+    };
+    const providerPayload = JSON.parse(String(
+      (mockFetch.mock.calls.at(-1)?.[1] as RequestInit).body,
+    ));
+    expect(insertedPayload.metadata?.client_request_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(providerPayload.clientRequestId).toBe(insertedPayload.metadata?.client_request_id);
+  });
+
+  it("reconciles any committed user message when its insert response is lost", async () => {
+    const reconciledMessage = {
+      ...insertedMessage,
+      id: "44444444-4444-4444-8444-444444444444",
+      content: "응답이 유실돼도 중복 저장하지 마",
+      visibility: "shared",
+    };
+    mockInsertSingle.mockResolvedValue({
+      data: null,
+      error: { code: "NETWORK_RESPONSE_LOST", message: "response lost" },
+    });
+    const recoveryQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+    };
+    recoveryQuery.select.mockReturnValue(recoveryQuery);
+    recoveryQuery.eq.mockReturnValue(recoveryQuery);
+    recoveryQuery.maybeSingle.mockImplementation(async () => {
+      const requestId = recoveryQuery.eq.mock.calls.find(
+        ([column]) => column === "metadata->>client_request_id",
+      )?.[1];
+      return {
+        data: {
+          ...reconciledMessage,
+          metadata: { client_request_id: requestId },
+        },
+        error: null,
+      };
+    });
+    mockSupabase.from
+      .mockImplementationOnce(() => ({ insert: mockInsert }))
+      .mockImplementationOnce(() => recoveryQuery);
+    mockFetch.mockResolvedValue(completedChatResponse());
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: reconciledMessage.content,
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(recoveryQuery.eq).toHaveBeenCalledWith(
+      "metadata->>client_request_id",
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+    );
+    expect(outcome).toEqual({
+      userMessage: "persisted",
+      userMessageId: reconciledMessage.id,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects an oversized image before analytics, upload, message persistence, or provider work", async () => {
     await useChatStore.getState().sendMessage({
       content: "이 이미지를 봐줘",
@@ -694,7 +1787,7 @@ describe("useChatStore failed provider retry", () => {
 
   it("retries only the provider request with the exact original body and durable ids", async () => {
     mockFetch
-      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(retryableChatHttpResponse())
       .mockResolvedValueOnce(completedChatResponse());
 
     await useChatStore.getState().sendMessage({
@@ -736,7 +1829,7 @@ describe("useChatStore failed provider retry", () => {
   it("keeps the exact explicit action confirmation id in the provider retry snapshot", async () => {
     mockInsert.mockClear();
     mockFetch
-      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(retryableChatHttpResponse())
       .mockResolvedValueOnce(completedChatResponse());
 
     await useChatStore.getState().sendMessage({
@@ -759,10 +1852,10 @@ describe("useChatStore failed provider retry", () => {
       confirmedActionId: "22222222-2222-4222-8222-222222222222",
     }));
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: {
+      metadata: expect.objectContaining({
         confirmed_amora_action_id:
           "22222222-2222-4222-8222-222222222222",
-      },
+      }),
     }));
 
     await useChatStore.getState().retryFailedMessage();
@@ -790,13 +1883,25 @@ describe("useChatStore failed provider retry", () => {
       insert: mockInsert,
       select: vi.fn(),
       eq: vi.fn(),
-      maybeSingle: vi.fn().mockResolvedValue({
-        data: reconciledMessage,
-        error: null,
-      }),
+      maybeSingle: vi.fn(),
     };
     recoveryQuery.select.mockReturnValue(recoveryQuery);
     recoveryQuery.eq.mockReturnValue(recoveryQuery);
+    recoveryQuery.maybeSingle.mockImplementation(async () => {
+      const requestId = recoveryQuery.eq.mock.calls.find(
+        ([column]) => column === "metadata->>client_request_id",
+      )?.[1];
+      return {
+        data: {
+          ...reconciledMessage,
+          metadata: {
+            client_request_id: requestId,
+            confirmed_amora_action_id: confirmedActionId,
+          },
+        },
+        error: null,
+      };
+    });
     mockSupabase.from
       .mockImplementationOnce(() => ({ insert: mockInsert }))
       .mockImplementationOnce(() => recoveryQuery);
@@ -815,8 +1920,8 @@ describe("useChatStore failed provider retry", () => {
 
     expect(mockInsertSingle).toHaveBeenCalledTimes(1);
     expect(recoveryQuery.eq).toHaveBeenCalledWith(
-      "metadata->>confirmed_amora_action_id",
-      confirmedActionId,
+      "metadata->>client_request_id",
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
     );
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(
@@ -885,8 +1990,166 @@ describe("useChatStore failed provider retry", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("does not offer an immutable retry when the SSE terminal marks the request non-retryable", async () => {
+    mockFetch.mockResolvedValue(failedChatStreamResponse({
+      code: "PRIVACY_CONTEXT_CHANGED",
+      message: "개인정보 설정이 바뀌어 답변을 표시하지 않았어요.",
+      retryable: false,
+      retryPolicy: "new_message",
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "이전 요청을 그대로 다시 실행하면 안 돼",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+    });
+
+    expect(useChatStore.getState().error).toContain("개인정보 설정");
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      requestBody: "",
+      unavailableReason: expect.stringContaining("새 메시지"),
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("honors a JSON privacy terminal as new-message-only without exposing server detail", async () => {
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({
+      error: "private privacy epoch mismatch detail",
+      code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+      retryable: true,
+      retryPolicy: "new_message",
+    }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "개인정보 설정 변경 뒤 안전하게 새 요청으로 안내해 줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+    });
+
+    expect(useChatStore.getState().error).not.toContain("private privacy epoch mismatch detail");
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      content: "",
+      requestBody: "",
+      unavailableReason: expect.stringContaining("새 메시지"),
+    }));
+  });
+
+  it.each([
+    ["legacy", JSON.stringify({ code: "LEGACY_HTTP_503" })],
+    ["malformed", "not-json"],
+  ])("fails closed for a %s HTTP terminal without an explicit replay contract", async (
+    _label,
+    body,
+  ) => {
+    mockFetch.mockResolvedValue(new Response(body, { status: 503 }));
+
+    await useChatStore.getState().sendMessage({
+      content: "재시도 계약이 없으면 새 메시지로 안내해 줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      content: "",
+      requestBody: "",
+      unavailableReason: expect.stringContaining("새 메시지"),
+    }));
+  });
+
+  it("keeps the exact immutable retry across streamed and repeated JSON memory failures", async () => {
+    mockFetch
+      .mockResolvedValueOnce(failedChatStreamResponse({
+        code: "AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED",
+        message: "답변 저장을 확인하는 중이에요.",
+        retryable: true,
+        retryPolicy: "same_request",
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: "private memory reconciliation detail",
+        code: "AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED",
+        retryable: false,
+        retryPolicy: "same_request",
+      }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(completedChatResponse());
+
+    await useChatStore.getState().sendMessage({
+      content: "저장 확인 후 같은 요청으로 이어가 줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    const firstBody = (mockFetch.mock.calls[0][1] as RequestInit).body;
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: true,
+      requestBody: firstBody,
+      unavailableReason: null,
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+    expect((mockFetch.mock.calls[1][1] as RequestInit).body).toBe(firstBody);
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: true,
+      requestBody: firstBody,
+      unavailableReason: null,
+    }));
+    expect(useChatStore.getState().error).not.toContain("private memory reconciliation detail");
+
+    await useChatStore.getState().retryFailedMessage();
+    expect((mockFetch.mock.calls[2][1] as RequestInit).body).toBe(firstBody);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+  });
+
+  it("fails closed for a legacy SSE terminal without an explicit replay contract", async () => {
+    mockFetch.mockResolvedValue(failedChatStreamResponse({
+      code: "LEGACY_TERMINAL",
+      message: "요청을 완료하지 못했어요.",
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "구버전 응답은 보수적으로 처리해 줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      content: "",
+      requestBody: "",
+    }));
+  });
+
   it("blocks a duplicate retry while the first retry is in flight", async () => {
-    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    mockFetch.mockResolvedValueOnce(retryableChatHttpResponse());
     await useChatStore.getState().sendMessage({
       content: "계약서를 봐줘",
       senderId: "user-1",
@@ -916,7 +2179,7 @@ describe("useChatStore failed provider retry", () => {
   it("retains a safe attachment as an immutable provider payload copy", async () => {
     document.cookie = "demo_mode=true; path=/";
     mockFetch
-      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(retryableChatHttpResponse())
       .mockResolvedValueOnce(completedChatResponse("첨부 답변"));
 
     await useChatStore.getState().sendMessage({
@@ -952,7 +2215,7 @@ describe("useChatStore failed provider retry", () => {
   });
 
   it("clears the old retry state as soon as a new message is accepted", async () => {
-    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    mockFetch.mockResolvedValueOnce(retryableChatHttpResponse());
     await useChatStore.getState().sendMessage({
       content: "계약서를 봐줘",
       senderId: "user-1",
@@ -971,13 +2234,14 @@ describe("useChatStore failed provider retry", () => {
       senderName: "테스터",
       weddingContext: {} as WeddingContext,
       target: "partner",
+      partnerRecipientId: TEST_OTHER_USER_UUID,
     });
 
     expect(useChatStore.getState().failedRequest).toBeNull();
   });
 
   it("clears retry material on store reset/logout", async () => {
-    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    mockFetch.mockResolvedValueOnce(retryableChatHttpResponse());
     await useChatStore.getState().sendMessage({
       content: "계약서를 봐줘",
       senderId: "user-1",
@@ -995,7 +2259,7 @@ describe("useChatStore failed provider retry", () => {
   });
 
   it("does not restore retry material when an in-flight retry settles after logout", async () => {
-    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    mockFetch.mockResolvedValueOnce(retryableChatHttpResponse());
     await useChatStore.getState().sendMessage({
       content: "계약서를 봐줘",
       senderId: "user-1",
@@ -1021,7 +2285,7 @@ describe("useChatStore failed provider retry", () => {
   });
 
   it("discards retained retry material when the user closes the retry notice", async () => {
-    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    mockFetch.mockResolvedValueOnce(retryableChatHttpResponse());
     await useChatStore.getState().sendMessage({
       content: "계약서를 봐줘",
       senderId: "user-1",

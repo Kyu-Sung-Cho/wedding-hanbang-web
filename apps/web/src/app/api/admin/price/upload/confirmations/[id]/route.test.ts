@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
 }));
 
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
+
 vi.mock("@/lib/utils/adminAuth", () => ({
   verifyAdmin: mocks.verifyAdmin,
   getServiceClient: mocks.getServiceClient,

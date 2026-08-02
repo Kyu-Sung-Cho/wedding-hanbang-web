@@ -12,6 +12,7 @@ import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -19,8 +20,9 @@ export const revalidate = 0;
 const MAX_BODY_BYTES = 128 * 1024;
 const MAX_SUMMARY_CHARS = 240;
 const MAX_VENUE_CHARS = 120;
+const MAX_BUDGET_LABEL_CHARS = 200;
 const MAX_PROGRESS_DEPTH = 8;
-const MAX_PROGRESS_ARRAY_LENGTH = 300;
+const MAX_PROGRESS_ARRAY_LENGTH = 500;
 const MAX_PROGRESS_OBJECT_KEYS = 300;
 const MAX_PROGRESS_STRING_CHARS = 1_500;
 const MAX_PROGRESS_REMOVE_KEYS = 50;
@@ -33,6 +35,22 @@ const BUDGET_PROGRESS_FIELDS = new Set([
   "cost",
   "payer",
 ]);
+const BUDGET_PAYER_VALUES = new Set([
+  "couple",
+  "bride_parents",
+  "groom_parents",
+  "both_parents",
+]);
+const BUDGET_ITEM_FIELDS = new Set([
+  "budget",
+  "spent",
+  "payer",
+  "category",
+  "label",
+]);
+const KNOWN_BUDGET_CATEGORY_KEYS = new Set(
+  Object.keys(PLANNING_CATEGORY_LABELS),
+);
 const VALID_SURFACES = new Set(["/schedule", "/budget", "/dashboard"]);
 const SCHEDULE_PROGRESS_FIELDS = new Set([
   "__events",
@@ -136,6 +154,28 @@ function normalizeProgress(value: unknown): Record<string, unknown> | null {
     maxArrayLength: MAX_PROGRESS_ARRAY_LENGTH,
     maxObjectKeys: MAX_PROGRESS_OBJECT_KEYS,
     maxStringLength: MAX_PROGRESS_STRING_CHARS,
+  });
+}
+
+function hasValidBudgetFields(progress: Record<string, unknown>) {
+  return Object.entries(progress).every(([key, item]) => {
+    if (!isRecord(item)) {
+      return !KNOWN_BUDGET_CATEGORY_KEYS.has(key)
+        && !BUDGET_ITEM_FIELDS.has(key);
+    }
+    return (!hasOwn(item, "budget") || isValidWeddingWonAmount(item.budget))
+      && (!hasOwn(item, "spent") || isValidWeddingWonAmount(item.spent))
+      && (!hasOwn(item, "payer") || (
+        typeof item.payer === "string"
+        && BUDGET_PAYER_VALUES.has(item.payer)
+      ))
+      && (!hasOwn(item, "category") || item.category === key)
+      && (!hasOwn(item, "label") || (
+        typeof item.label === "string"
+        && Array.from(item.label.trim()).length >= 1
+        && Array.from(item.label).length <= MAX_BUDGET_LABEL_CHARS
+        && !hasUnsafeDisplayCharacter(item.label)
+      ));
   });
 }
 
@@ -306,7 +346,7 @@ function parsePatchBody(body: unknown): ParsePatchResult {
 
   if (hasProgress) {
     const progress = normalizeProgress(body.progress);
-    if (!progress) {
+    if (!progress || !hasValidBudgetFields(progress)) {
       return { ok: false, error: "진행 데이터 형식이 올바르지 않습니다." };
     }
     changes.progress = progress;
@@ -315,7 +355,7 @@ function parsePatchBody(body: unknown): ParsePatchResult {
   let progressPatch: Record<string, unknown> | null = null;
   if (hasProgressPatch) {
     progressPatch = normalizeProgress(body.progress_patch);
-    if (!progressPatch) {
+    if (!progressPatch || !hasValidBudgetFields(progressPatch)) {
       return { ok: false, error: "진행 패치 형식이 올바르지 않습니다." };
     }
     changes.progress_patch = progressPatch;

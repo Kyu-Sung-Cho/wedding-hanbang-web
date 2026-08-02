@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readUserRequestedMediationV2 } from "@/lib/ai/mediation";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 
@@ -83,17 +85,13 @@ async function context(request: Request, messageId: string): Promise<MediationCo
     .eq("id", messageId)
     .eq("couple_id", profile.couple_id)
     .maybeSingle();
-  const mediation = (message?.metadata as {
-    mediation?: {
-      resolution?: unknown;
-      proposalVersion?: unknown;
-      rosterFingerprint?: unknown;
-    };
+  const rawMediation = (message?.metadata as {
+    mediation?: Record<string, unknown>;
   } | null)?.mediation;
+  const mediation = readUserRequestedMediationV2(rawMediation);
   if (
     error || !message || message.sender_type !== "ai" || message.role !== "assistant"
-    || message.visibility !== "shared" || typeof mediation?.resolution !== "string"
-    || mediation.resolution.trim().length === 0 || mediation.resolution.length > 500
+    || message.visibility !== "shared" || !mediation
   ) {
     return { error: NextResponse.json({ error: "중재안을 찾을 수 없습니다." }, { status: 404 }) };
   }
@@ -101,13 +99,13 @@ async function context(request: Request, messageId: string): Promise<MediationCo
     user,
     coupleId: profile.couple_id as string,
     resolution: mediation.resolution.trim(),
-    proposalVersion: typeof mediation.proposalVersion === "string"
-      && UUID_PATTERN.test(mediation.proposalVersion)
-      ? mediation.proposalVersion.toLowerCase()
+    proposalVersion: typeof rawMediation?.proposalVersion === "string"
+      && UUID_PATTERN.test(rawMediation.proposalVersion)
+      ? rawMediation.proposalVersion.toLowerCase()
       : null,
-    proposalRosterFingerprint: typeof mediation.rosterFingerprint === "string"
-      && ROSTER_FINGERPRINT_PATTERN.test(mediation.rosterFingerprint)
-      ? mediation.rosterFingerprint
+    proposalRosterFingerprint: typeof rawMediation?.rosterFingerprint === "string"
+      && ROSTER_FINGERPRINT_PATTERN.test(rawMediation.rosterFingerprint)
+      ? rawMediation.rosterFingerprint
       : null,
   };
 }
@@ -186,6 +184,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+  }
   if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
     return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
   }
@@ -260,6 +261,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+  }
   if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
     return NextResponse.json({ error: "요청 데이터가 너무 커요." }, { status: 413 });
   }

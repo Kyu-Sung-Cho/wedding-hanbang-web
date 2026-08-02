@@ -72,7 +72,7 @@ export default async function PriceIndexPage() {
               가격을 공개한 업체 {total.toLocaleString()}곳
             </p>
           </div>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#243832]/65">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#243832]/75">
             기본가와 추가금은 물론, 취소하면 얼마를 무는지까지 업체가 공시한 원문 그대로
             {" "}{PUBLISHED_POLICY_COUNT.toLocaleString()}건을 실었어요. 좋다·나쁘다 판정은 하지 않습니다.
           </p>
@@ -109,7 +109,7 @@ export default async function PriceIndexPage() {
                       {(catalog.counts[category] ?? 0).toLocaleString()}곳
                     </span>
                   </span>
-                  <span className="mt-1 block text-sm leading-6 text-[#243832]/65">{CATEGORY_HINTS[category]}</span>
+                  <span className="mt-1 block text-sm leading-6 text-[#243832]/75">{CATEGORY_HINTS[category]}</span>
                 </span>
                 <ArrowRight aria-hidden="true" className="size-5 shrink-0 text-[#36534E]" />
               </Link>
@@ -134,7 +134,7 @@ export default async function PriceIndexPage() {
           <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
         </Link>
 
-        <p className="mt-6 text-xs leading-5 text-[#243832]/55">
+        <p className="mt-6 text-xs leading-5 text-[#243832]/75">
           가격 출처: 한국소비자원 참가격 · {period} 공시 기준. 공시 가격은 기준 시점의 기본 조건 가격이라
           계약 시점·시즌·선택 옵션에 따라 실제 금액은 달라질 수 있어요. 계약 전 업체에 직접 확인하세요.
         </p>

@@ -1,14 +1,29 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ToolExecutionResult } from "@/types/database.types";
 import VendorToolCard from "./VendorToolCard";
+
+const source = readFileSync(
+  resolve(process.cwd(), "src/components/app/chat/VendorToolCard.tsx"),
+  "utf8",
+);
 
 function render(result: ToolExecutionResult) {
   return renderToStaticMarkup(<VendorToolCard result={result} />);
 }
 
 describe("VendorToolCard booking projection state", () => {
-  it("shows that a created booking is safe while schedule/budget projection retries", () => {
+  it("scopes every booking-card cancellation prompt to the Amora record", () => {
+    expect(source).toContain("아모라 예약 요청 기록을 취소로 표시해줘");
+    expect(source).toContain("아모라 안 기록만 취소로 표시할까요? 업체 취소는 별도예요.");
+    expect(source).toContain("기록 취소 표시");
+    expect(source).not.toContain("예약 취소해줘");
+    expect(source).not.toContain("예약을 취소할까요?");
+  });
+
+  it("labels the request amount as a quote while schedule projection retries", () => {
     const html = render({
       toolName: "create_booking",
       toolInput: {},
@@ -19,16 +34,23 @@ describe("VendorToolCard booking projection state", () => {
         staffName: "",
         date: "2099-07-20",
         time: "10:00",
-        amount: 500_000,
+        quotedAmount: 500_000,
+        amountBasis: "quote",
         status: "pending",
         projectionStatus: "pending_retry",
       },
       success: true,
-      displayMessage: "예약 접수 완료, 일정·예산 반영 재시도 중",
+      displayMessage: "예약 접수 완료, 일정 반영 재시도 중",
     });
 
-    expect(html).toContain("일정·예산 반영 중");
-    expect(html).toContain("예약을 다시 만들 필요는 없어요");
+    expect(html).toContain("아모라 내부 후보 견적");
+    expect(html).toContain("결제·지출 기록이 아니에요");
+    expect(html).toContain("아모라에 예약 요청을 기록했어요");
+    expect(html).toContain("업체에 전달되거나 확정된 상태가 아니에요");
+    expect(html).toContain("기록 취소 표시");
+    expect(html).not.toContain(">예약 취소<");
+    expect(html).toContain("일정 반영 중");
+    expect(html).toContain("같은 기록을 다시 만들 필요는 없어요");
   });
 
   it("shows that cancellation is complete while cleanup projection retries", () => {
@@ -42,14 +64,53 @@ describe("VendorToolCard booking projection state", () => {
         date: "2099-07-20",
         time: "10:00",
         status: "cancelled",
+        recordedSpendPreserved: true,
+        refundStatus: "unknown",
         projectionStatus: "pending_retry",
       },
       success: true,
-      displayMessage: "예약 취소 완료, 일정·예산 정리 재시도 중",
+      displayMessage: "예약 취소 완료, 일정 취소 상태 반영 재시도 중",
     });
 
-    expect(html).toContain("일정·예산 정리 중");
-    expect(html).toContain("취소 요청을 다시 보낼 필요는 없어요");
+    expect(html).toContain("일정 취소 상태 반영 중");
+    expect(html).toContain("기록된 실제 지출은 유지돼요");
+    expect(html).toContain("아모라 예약 기록을 취소로 표시했어요");
+    expect(html).toContain("업체 취소는 전달되거나 확정되지 않았어요");
+    expect(html).toContain("환불 여부와 금액은 아직 확인되지 않았어요");
+    expect(html).toContain("같은 취소 표시를 다시 보낼 필요는 없어요");
+  });
+});
+
+describe("VendorToolCard availability boundary", () => {
+  it("shows internal candidates and never renders diagnostic ids", () => {
+    const html = render({
+      toolName: "get_available_slots",
+      toolInput: {},
+      toolOutput: {
+        vendorId: "internal-vendor-secret",
+        vendorName: "Hanbang Studio",
+        productId: "internal-product-secret",
+        staffId: "internal-staff-secret",
+        slots: [],
+        fallbackSlots: [],
+        filterLabel: "2027-03-20",
+        _debug: {
+          slotSource: "staff",
+          slotsLoaded: 0,
+          rangeStart: "2027-03-20",
+          rangeEnd: "2027-03-20",
+        },
+      },
+      success: true,
+      displayMessage: "후보 없음",
+    });
+
+    expect(html).toContain("아모라에 등록된 가능 시간 후보가 없습니다");
+    expect(html).toContain("최종 확정은 업체에 별도로 확인");
+    expect(html).not.toContain("src=");
+    expect(html).not.toContain("internal-vendor-secret");
+    expect(html).not.toContain("internal-product-secret");
+    expect(html).not.toContain("internal-staff-secret");
   });
 });
 

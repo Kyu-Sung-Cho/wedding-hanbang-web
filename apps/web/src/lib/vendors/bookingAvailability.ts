@@ -234,6 +234,7 @@ export async function loadPublicBookingAvailability(
       .eq("vendor_id", vendorId)
       .gte("booking_date", range.from)
       .lte("booking_date", range.to)
+      .neq("vendor_delivery_status", "not_sent")
       .or("status.is.null,status.neq.cancelled")
       .order("id", { ascending: true })
       .range(from, to);

@@ -6,11 +6,15 @@ import {
 } from "@/lib/couples/membershipRpc";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const COUPLE_LINK_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
 
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },

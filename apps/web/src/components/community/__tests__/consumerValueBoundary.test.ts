@@ -19,9 +19,9 @@ describe("community consumer-value boundary", () => {
   it("gives value before asking a first-time visitor to contribute", () => {
     const landing = source("src/components/community/CommunityLandingClient.tsx");
 
-    expect(landing).toContain("무엇을 결정해야 하나요?");
-    expect(landing).toContain("견적·추가금 확인");
-    expect(landing).toContain("업체·계약 경험 찾기");
+    expect(landing).toContain("계약하기 전에,");
+    expect(landing).toContain("내 상황과 가까운 해결 경험부터 찾아보세요");
+    expect(landing).toContain("사람이 직접 남긴 답변 확인");
     expect(landing).not.toContain("최근 글 중 답변을 기다리는 고민");
   });
 
@@ -51,7 +51,7 @@ describe("community consumer-value boundary", () => {
     expect(landing).toContain("결혼 준비 이야기");
     expect(landing).toContain("지금 올라온 글");
     expect(landing).toContain("compact={showFullFeed}");
-    expect(landing).toContain("feedFirst={showFullFeed}");
+    expect(landing).toContain("feedFirst={showFullFeed || showLandingIntro}");
   });
 
   it("keeps the visible community choices to four intents and three useful destinations", () => {
@@ -108,6 +108,22 @@ describe("community consumer-value boundary", () => {
     expect(commentSection.match(/id="comments"/g) ?? []).toHaveLength(0);
   });
 
+  it("keeps a decision record in the order question, human answers, then Amora action", () => {
+    const detail = source(
+      "src/app/(community)/community/post/[id]/PostDetailClient.tsx",
+    );
+
+    expect(detail).toContain("질문자가 해결됐다고 표시한 기록");
+    expect(detail).toContain("특정 답변을 채택했다는 뜻은 아닙니다");
+    expect(detail).toContain("작성 출처와 광고·혜택 공개 여부");
+    expect(detail.indexOf('id="decision-question"')).toBeLessThan(
+      detail.indexOf('id="comments"'),
+    );
+    expect(detail.indexOf('id="comments"')).toBeLessThan(
+      detail.indexOf('id="decision-next-action"'),
+    );
+  });
+
   it("lets a guest shape a question before login and warns about public personal data", () => {
     const writePage = source("src/app/(community)/community/post/write/page.tsx");
 
@@ -144,7 +160,7 @@ describe("community consumer-value boundary", () => {
     const guidance = [
       source("src/components/community/CommunityGuide.tsx"),
       source("src/app/(community)/community/about/page.tsx"),
-      source("src/app/(community)/start-here/page.tsx"),
+      source("src/app/start-here/page.tsx"),
       source("src/components/community/StartHereClient.tsx"),
       source("src/constants/communityCategories.ts"),
     ].join("\n");
@@ -155,6 +171,13 @@ describe("community consumer-value boundary", () => {
     expect(guidance).toContain("사진 촬영·드레스·메이크업");
     expect(guidance).toContain("결혼식 날 사진·영상");
     expect(guidance).toContain("결혼식 날짜");
+  });
+
+  it("keeps the full checklist collapsed until a visitor asks for it", () => {
+    const startHere = source("src/components/community/StartHereClient.tsx");
+
+    expect(startHere).toContain("날짜가 있으면 지금 볼 세 가지");
+    expect(startHere).not.toContain('<details open={dday === null}');
   });
 
   it("does not expose booking controls on the community vendor page", () => {

@@ -5,6 +5,51 @@ import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 
 const helperPath = fileURLToPath(new URL("../lib/pendingAmoraAction.ts", import.meta.url));
+const sharedSchedulePath = fileURLToPath(new URL(
+  "../../../../packages/shared/src/contracts/sharedSchedule.ts",
+  import.meta.url,
+));
+const budgetImpactPath = fileURLToPath(new URL(
+  "../../../../packages/shared/src/contracts/budgetImpactPreview.ts",
+  import.meta.url,
+));
+const actionApprovalPath = fileURLToPath(new URL(
+  "../../../../packages/shared/src/contracts/amoraActionApproval.ts",
+  import.meta.url,
+));
+
+function compileCommonJs(source, resolveDependency = () => {
+  throw new Error("unexpected dependency");
+}) {
+  const result = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  const module = { exports: {} };
+  new Function("exports", "module", "require", result.outputText)(
+    module.exports,
+    module,
+    resolveDependency,
+  );
+  return module.exports;
+}
+
+const sharedScheduleModule = compileCommonJs(
+  readFileSync(sharedSchedulePath, "utf8"),
+);
+const sharedModule = {
+  ...sharedScheduleModule,
+  ...compileCommonJs(readFileSync(budgetImpactPath, "utf8")),
+  ...compileCommonJs(
+    readFileSync(actionApprovalPath, "utf8"),
+    (specifier) => {
+      if (specifier === "./sharedSchedule") return sharedScheduleModule;
+      throw new Error(`unexpected dependency: ${specifier}`);
+    },
+  ),
+};
 const helperSource = readFileSync(helperPath, "utf8");
 const compiled = ts.transpileModule(helperSource, {
   compilerOptions: {
@@ -13,10 +58,22 @@ const compiled = ts.transpileModule(helperSource, {
   },
 });
 const helperModule = { exports: {} };
-new Function("exports", "module", compiled.outputText)(helperModule.exports, helperModule);
+new Function("exports", "module", "require", compiled.outputText)(
+  helperModule.exports,
+  helperModule,
+  (specifier) => {
+    if (specifier === "@hanbang/shared") return sharedModule;
+    throw new Error(`unexpected dependency: ${specifier}`);
+  },
+);
 const {
+  getAmoraActionApprovalPolicy,
+  getAmoraPendingActionTtlMs,
   getPendingAmoraAction,
+  getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  getSharedActionApprovalPresentation,
+  parseSharedActionApprovalStatus,
 } = helperModule.exports;
 
 const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
@@ -26,13 +83,253 @@ const action = {
   version: 2,
   actionId: "33333333-3333-4333-8333-333333333333",
   tool: "add_schedule_event",
-  input: { date: "2026-08-01", title: "드레스 피팅" },
+  input: {
+    date: "2026-08-01",
+    title: "드레스 피팅",
+    schedule_scope: "confirmed_fact",
+  },
   inputDigest: "a".repeat(64),
   operationKey: "b".repeat(64),
   confirmation: "드레스 피팅 일정을 추가할까요?",
   issuedAt: Date.parse("2026-07-17T00:00:00.000Z"),
   expiresAt: Date.parse("2026-07-17T00:10:00.000Z"),
 };
+
+test("mobile uses the exact input-aware approval policy", () => {
+  assert.equal(
+    getAmoraActionApprovalPolicy("add_schedule_event", {
+      schedule_scope: "confirmed_fact",
+    }),
+    "single",
+  );
+  assert.equal(getAmoraActionApprovalPolicy("add_schedule_event", {}), "couple");
+  assert.equal(
+    getAmoraActionApprovalPolicy("add_schedule_event", {
+      schedule_scope: "shared_commitment",
+    }),
+    "couple",
+  );
+  assert.equal(getAmoraActionApprovalPolicy("update_schedule_event", {}), "couple");
+  assert.equal(getAmoraActionApprovalPolicy("update_category_budget", {}), "single");
+  assert.equal(
+    getAmoraActionApprovalPolicy("update_category_budget", { budget: 30_000_000 }),
+    "couple",
+  );
+  assert.equal(getAmoraActionApprovalPolicy("add_custom_category", {}), "single");
+  assert.equal(
+    getAmoraActionApprovalPolicy("add_custom_category", { budget: 3_000_000 }),
+    "couple",
+  );
+  assert.equal(getAmoraActionApprovalPolicy("update_budget", {}), "couple");
+  assert.equal(getAmoraActionApprovalPolicy("unknown_tool", {}), "blocked");
+});
+
+test("mobile binds 10-minute and 24-hour TTLs to the exact policy", () => {
+  assert.equal(
+    getAmoraPendingActionTtlMs("add_schedule_event", {
+      schedule_scope: "confirmed_fact",
+    }),
+    10 * 60 * 1_000,
+  );
+  assert.equal(
+    getAmoraPendingActionTtlMs("add_schedule_event", {}),
+    24 * 60 * 60 * 1_000,
+  );
+  assert.equal(
+    getAmoraPendingActionTtlMs("update_schedule_event", {}),
+    24 * 60 * 60 * 1_000,
+  );
+
+  const ambiguousSchedule = {
+    ...action,
+    input: { date: "2026-08-02", title: "상담" },
+    expiresAt: action.issuedAt + 24 * 60 * 60 * 1_000,
+  };
+  assert.deepEqual(getPendingAmoraAction(message({
+    metadata: { pending_amora_action: ambiguousSchedule },
+  })), ambiguousSchedule);
+  assert.equal(getPendingAmoraAction(message({
+    metadata: {
+      pending_amora_action: {
+        ...ambiguousSchedule,
+        expiresAt: action.issuedAt + 10 * 60 * 1_000,
+      },
+    },
+  })), null);
+});
+
+test("mobile presents every couple approval state truthfully", () => {
+  const zero = parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 2,
+    partnerLinked: true,
+    ready: false,
+  });
+  assert.equal(
+    getSharedActionApprovalPresentation(zero).copy,
+    "두 분이 각각 확인해야 반영돼요 · 현재 0/2",
+  );
+
+  const mine = parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: true,
+    acceptedCount: 1,
+    requiredCount: 2,
+    partnerLinked: true,
+    ready: false,
+  });
+  assert.deepEqual(
+    getSharedActionApprovalPresentation(mine),
+    {
+      copy: "내 확인 1/2 · 아직 반영되지 않았어요. 적용 요청 전까지 취소할 수 있어요.",
+      applyLabel: "상대방 확인 기다리는 중",
+      waitingForPartner: true,
+      canWithdraw: true,
+    },
+  );
+
+  const partner = parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: false,
+    acceptedCount: 1,
+    requiredCount: 2,
+    partnerLinked: true,
+    ready: false,
+  });
+  assert.equal(
+    getSharedActionApprovalPresentation(partner).copy,
+    "상대방 확인 1/2 · 내 확인을 누르면 바로 반영을 시작해요.",
+  );
+  assert.equal(
+    getSharedActionApprovalPresentation(partner).applyLabel,
+    "확인하고 바로 반영",
+  );
+
+  const ready = parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: true,
+    acceptedCount: 2,
+    requiredCount: 2,
+    partnerLinked: true,
+    ready: true,
+  });
+  assert.equal(
+    getSharedActionApprovalPresentation(ready).copy,
+    "두 분 확인 완료 · 반영하기를 누르면 바로 적용 요청이 시작돼요.",
+  );
+  assert.equal(
+    getSharedActionApprovalPresentation(ready).applyLabel,
+    "두 분 확인 완료 · 반영하기",
+  );
+
+  const unlinked = parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 1,
+    partnerLinked: false,
+    ready: false,
+  });
+  assert.equal(
+    getSharedActionApprovalPresentation(unlinked).copy,
+    "파트너 연결 전이라 내 확인으로 반영돼요.",
+  );
+  assert.equal(
+    getSharedActionApprovalPresentation(unlinked).applyLabel,
+    "확인하고 반영",
+  );
+  assert.equal(parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: true,
+    acceptedCount: 2,
+    requiredCount: 2,
+    partnerLinked: true,
+    ready: false,
+  }), null);
+  assert.equal(parseSharedActionApprovalStatus({
+    approvalMode: "couple",
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 1,
+    partnerLinked: true,
+    ready: false,
+  }), null);
+});
+
+test("mobile fails closed unless the budget preview matches action digest and journey revision", () => {
+  const budgetAction = {
+    ...action,
+    tool: "update_budget",
+    input: { budget: 50_000_000 },
+    expiresAt: action.issuedAt + 24 * 60 * 60 * 1_000,
+  };
+  const preview = {
+    version: 1,
+    kind: "budget_change",
+    tool: "update_budget",
+    inputDigest: budgetAction.inputDigest,
+    sourceRevision: 7,
+    recordedSpendBasis: "explicit_spent_only",
+    current: {
+      totalBudget: 40_000_000,
+      allocatedBudget: 30_000_000,
+      recordedSpend: 5_000_000,
+      unallocatedBudget: 10_000_000,
+    },
+    proposed: {
+      totalBudget: 50_000_000,
+      allocatedBudget: 30_000_000,
+      recordedSpend: 5_000_000,
+      unallocatedBudget: 20_000_000,
+    },
+    delta: {
+      totalBudget: 10_000_000,
+      allocatedBudget: 0,
+      recordedSpend: 0,
+      unallocatedBudget: 10_000_000,
+    },
+    categories: [],
+    warnings: [],
+  };
+  const budgetMessage = message({
+    metadata: {
+      pending_amora_action: budgetAction,
+      pending_amora_action_journey_revision: 7,
+      pending_amora_action_impact_preview: preview,
+    },
+  });
+
+  assert.deepEqual(
+    getPendingAmoraBudgetImpactPreview(budgetMessage, budgetAction),
+    preview,
+  );
+  assert.equal(getPendingAmoraBudgetImpactPreview({
+    ...budgetMessage,
+    metadata: {
+      ...budgetMessage.metadata,
+      pending_amora_action_journey_revision: 8,
+    },
+  }, budgetAction), null);
+  assert.equal(getPendingAmoraBudgetImpactPreview({
+    ...budgetMessage,
+    metadata: {
+      ...budgetMessage.metadata,
+      pending_amora_action_impact_preview: {
+        ...preview,
+        inputDigest: "c".repeat(64),
+      },
+    },
+  }, budgetAction), null);
+  assert.equal(getPendingAmoraBudgetImpactPreview(
+    budgetMessage,
+    {
+      ...budgetAction,
+      actionId: "44444444-4444-4444-8444-444444444444",
+    },
+  ), null);
+});
 
 function message(overrides = {}) {
   return {
@@ -65,11 +362,16 @@ test("mobile accepts pending actions only from structurally valid shared AI meta
   assert.equal(getPendingAmoraAction(message({
     metadata: { pending_amora_action: { ...action, operationKey: "wrong" } },
   })), null);
-  assert.equal(getPendingAmoraAction(message({
+  const blocked = getPendingAmoraAction(message({
     metadata: {
       pending_amora_action: { ...action, tool: "update_amora_action" },
     },
-  })), null);
+  }));
+  assert.equal(blocked?.tool, "update_amora_action");
+  assert.equal(
+    getAmoraActionApprovalPolicy(blocked?.tool ?? "", blocked?.input),
+    "blocked",
+  );
 });
 
 test("mobile disables expired, superseded, and in-flight actions", () => {
@@ -100,7 +402,10 @@ test("mobile obtains the single application lease before sending a confirmation"
   );
   const handler = chatSource.slice(handlerStart, handlerEnd);
 
-  assert.match(chatSource, /method: "PUT"/);
+  assert.match(
+    chatSource,
+    /requestAmoraSharedAction\(actionId, messageId, "PUT"\)/,
+  );
   assert.match(chatSource, /Authorization: `Bearer \$\{accessToken\}`/);
   assert.match(
     handler,
@@ -113,7 +418,7 @@ test("mobile obtains the single application lease before sending a confirmation"
   assert.match(handler, /if \(!claim\.applicationGranted\)/);
   assert.match(
     chatSource,
-    /metadata: draft\.confirmedActionId\s*\?\s*\{ confirmed_amora_action_id: draft\.confirmedActionId \}/,
+    /confirmed_amora_action_id: draft\.confirmedActionId[\s\S]*client_request_id: draft\.clientRequestId/,
   );
 });
 
@@ -146,8 +451,9 @@ test("mobile retry reconciles a durable confirmation before reacquiring its leas
   );
   assert.match(
     chatSource,
-    /if \(!draft\.confirmedActionId\) \{\s*query = query\.gte\("created_at", draft\.startedAt\)/,
+    /draft\.confirmedActionId[\s\S]*confirmed_amora_action_id: draft\.confirmedActionId[\s\S]*client_request_id: draft\.clientRequestId/,
   );
+  assert.doesNotMatch(chatSource, /draft\.startedAt/);
 });
 
 test("mobile restores an owned durable confirmation and ignores direct partner chat for freshness", () => {
@@ -176,8 +482,40 @@ test("mobile restores an owned durable confirmation and ignores direct partner c
 });
 
 test("mobile exposes explicit 44-point apply and dismiss controls", () => {
-  assert.match(chatSource, /accessibilityLabel="확인한 내용을 이대로 적용"/);
+  assert.match(chatSource, /: "확인한 내용을 이대로 적용"/);
+  assert.match(chatSource, /accessibilityLabel=\{applyAccessibilityLabel\}/);
   assert.match(chatSource, /accessibilityLabel="지금은 적용하지 않기"/);
   assert.match(chatSource, /pendingActionButton: \{[^}]*minHeight: 44/);
   assert.match(chatSource, /pendingActionDismiss: \{[^}]*minHeight: 44/);
+});
+
+test("mobile uses Bearer-authenticated GET, POST, DELETE, and PUT shared-action flows", () => {
+  assert.match(
+    chatSource,
+    /type AmoraSharedActionMethod = "GET" \| "POST" \| "DELETE" \| "PUT"/,
+  );
+  assert.match(
+    chatSource,
+    /Authorization: `Bearer \$\{accessToken\}`/,
+  );
+  assert.match(chatSource, /requestAmoraSharedActionStatus\(/);
+  assert.match(chatSource, /requestAmoraSharedActionApproval\([^)]*"POST"/s);
+  assert.match(chatSource, /requestAmoraSharedActionApproval\([^)]*"DELETE"/s);
+  assert.match(chatSource, /requestAmoraApplicationClaim\(/);
+  assert.match(chatSource, /async function handleWithdrawPendingAction\(actionId: string\)/);
+});
+
+test("mobile renders truthful couple progress and bound budget impact copy", () => {
+  assert.match(chatSource, /getAmoraActionApprovalPolicy\(pendingAction\.tool, pendingAction\.input\)/);
+  assert.match(chatSource, /getSharedActionApprovalPresentation\(/);
+  assert.match(chatSource, /두 분 확인이 필요한 변경이에요/);
+  assert.match(chatSource, /내 공동 변경 확인 취소/);
+  assert.match(chatSource, /getPendingAmoraBudgetImpactPreview\(item, pendingAction\)/);
+  assert.match(chatSource, /총예산/);
+  assert.match(chatSource, /배분 합계/);
+  assert.match(chatSource, /기록 지출/);
+  assert.match(
+    chatSource,
+    /기록 지출은 사용자가 명시적으로 입력한 금액이며, 결제 증거나 결제 완료를 뜻하지 않아요\./,
+  );
 });

@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const INVITE_CODE_PATTERN = /^WH-[A-Z0-9]{6,12}$/;
 
@@ -234,6 +235,9 @@ export async function GET(request: Request) {
 // Rotate the invite only before the first two-member roster has been sealed.
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     const supabase = await createClientFromRequest(request);
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) {

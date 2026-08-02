@@ -4,9 +4,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import LoungePage from "./page";
+import LoungePage, { getUpcomingEvents } from "./page";
 import { useAuthStore } from "@/stores/authStore";
-import type { Couple, Profile, WeddingJourney } from "@/types/database.types";
+import type { Couple, Profile, ProgressItem, WeddingJourney } from "@/types/database.types";
 
 vi.mock("@/components/app/WeeklyCard", () => ({ default: () => null }));
 vi.mock("@/lib/care/requestProactiveCare", () => ({
@@ -165,5 +165,36 @@ describe("Live lounge solo, couple, and joined handoff", () => {
 
     expect(container.querySelector('[data-testid="joined-plan-handoff"]')).toBeNull();
     expect(window.location.search).toBe("");
+  });
+});
+
+describe("lounge upcoming schedule truth", () => {
+  it("excludes cancelled events even when their date is the nearest", () => {
+    const result = getUpcomingEvents({
+      __events: [
+        {
+          id: "evt_cancelled",
+          date: "2099-01-01",
+          title: "취소된 상담",
+          status: "cancelled",
+          cancellation: {
+            cancelledAt: "2026-08-02T01:00:00.000Z",
+            cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+          },
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T01:00:00.000Z",
+        },
+        {
+          id: "evt_planned",
+          date: "2099-01-02",
+          title: "진행할 상담",
+          status: "planned",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+        },
+      ],
+    } as unknown as Record<string, ProgressItem>);
+
+    expect(result.map((event) => event.id)).toEqual(["evt_planned"]);
   });
 });

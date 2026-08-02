@@ -61,7 +61,7 @@ describe("my question status", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "preview-public-key");
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url.startsWith("/api/community/posts?")) {
           await new Promise((resolve) => window.setTimeout(resolve, 5));
@@ -96,9 +96,21 @@ describe("my question status", () => {
           };
         }
         if (url === "/api/community/profile") {
+          if (init?.method === "POST") {
+            return {
+              ok: true,
+              json: async () => ({
+                profile: {
+                  user_id: "author-1",
+                  nickname: "anonymous-couple",
+                  avatar_url: null,
+                },
+              }),
+            };
+          }
           return {
             ok: true,
-            json: async () => ({}),
+            json: async () => ({ profile: null }),
           };
         }
         throw new Error(`Unexpected fetch: ${url}`);
@@ -121,6 +133,10 @@ describe("my question status", () => {
     expect(fetch).toHaveBeenCalledWith(
       "/api/community/posts?author_id=author-1&limit=100",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/community/profile",
+      expect.objectContaining({ method: "POST", signal: expect.any(AbortSignal) }),
     );
     expect(container.textContent).toContain("해결됨");
     expect(container.textContent).toContain("답변 받는 중");

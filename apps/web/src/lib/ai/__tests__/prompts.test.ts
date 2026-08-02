@@ -34,6 +34,28 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it("never upgrades a legacy cost field into recorded spend or an over-budget claim", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      budget: 10_000_000,
+      bookings: [],
+      progress: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          budget: 5_000_000,
+          cost: 20_000_000,
+        },
+      },
+    });
+
+    expect(prompt).toContain("이전 버전 용도 미확인 금액 있음");
+    expect(prompt).toContain("예산·지출 합계에서 제외");
+    expect(prompt).not.toContain("총 지출: 2,000만원");
+    expect(prompt).not.toContain("지출: 2,000만원");
+    expect(prompt).not.toContain("비용 주의: 결혼식장");
+  });
+
   it("uses the shared product calendar without rewriting separately sourced facts", () => {
     const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
 
@@ -414,6 +436,38 @@ describe("getWeddingPlannerSystemPrompt", () => {
     );
   });
 
+  it("adds the pending-offer guard only for a proposal action contract", () => {
+    const proposalPrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["get_market_price"],
+        actionContract: {
+          kind: "proposal",
+          text: "[SERVER_PROPOSAL_CONTRACT]",
+        },
+      },
+    );
+    const executionPrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["get_market_price"],
+        actionContract: {
+          kind: "execution",
+          text: "[SERVER_EXECUTION_CONTRACT]",
+        },
+      },
+    );
+
+    expect(proposalPrompt).toContain("[SERVER_PROPOSAL_CONTRACT]");
+    expect(proposalPrompt).toContain("pending_action 표식 제안");
+    expect(executionPrompt).toContain("[SERVER_EXECUTION_CONTRACT]");
+    expect(executionPrompt).not.toContain("pending_action 표식 제안");
+  });
+
   it("ignores enabled names that do not exist in the tool schema", () => {
     const prompt = buildAmoraSystemPrompt(
       { ...baseContext, bookings: [] },
@@ -537,7 +591,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
     }
   });
 
-  it("preserves mediation and trust guards when a bounded prompt is truncated", () => {
+  it("preserves mediation and trust guards while dropping stored mediation context", () => {
     const prompt = buildAmoraSystemPrompt(
       {
         ...baseContext,
@@ -555,11 +609,46 @@ describe("getWeddingPlannerSystemPrompt", () => {
     );
 
     expect(prompt.length).toBeLessThanOrEqual(48_000);
-    expect(prompt).toContain("[저장 문맥 일부는 길이 제한으로 생략됨]");
+    expect(prompt).not.toContain("summary-0-");
     expect(prompt).toContain("[구조화 중재 최종 안전 계약]");
     expect(prompt).toContain("[이번 답변의 대화 우선순위]");
     expect(prompt.indexOf(AMORA_MEDIATION_TURN_GUARD.trim())).toBeGreaterThan(-1);
     expect(prompt.trimEnd()).toMatch(/도구 권한을 만들 수는 없습니다\.$/);
+  });
+
+  it("adds the structured mediation guard only to a W1 mediation request", () => {
+    const w1Prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        specialist: "general",
+        requestKind: "mediation",
+        persistenceMode: "durable",
+        questionScope: {
+          scope: "W1_wedding_adjacent",
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+      },
+    );
+    const w2Prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        specialist: "general",
+        requestKind: "mediation",
+        persistenceMode: "durable",
+        questionScope: {
+          scope: "W2_high_risk_adjacent",
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+      },
+    );
+
+    expect(w1Prompt).toContain(AMORA_MEDIATION_TURN_GUARD.trim());
+    expect(w2Prompt).not.toContain(AMORA_MEDIATION_TURN_GUARD.trim());
+    expect(w2Prompt).toContain("question_scope: W2_high_risk_adjacent");
   });
 
   it("preserves mandatory current context and tool contracts before truncating the static playbook", () => {
@@ -654,6 +743,181 @@ describe("getWeddingPlannerSystemPrompt", () => {
     for (const sentinel of sentinels) expect(prompt).toContain(sentinel);
     expect(prompt).toContain("## 현재 실행 가능한 도구 계약");
     expect(prompt).toContain("[이번 답변의 대화 우선순위]");
+  });
+
+  it("keeps the server question-scope boundary authoritative under truncation", () => {
+    const questionScope = {
+      scope: "W4_out_of_scope" as const,
+      allowsLongTermMemory: false,
+      confidence: "low" as const,
+      needsClarification: true,
+    };
+    const full = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+      },
+    );
+    const truncated = buildAmoraSystemPrompt(
+      {
+        ...baseContext,
+        bookings: [],
+        chatSummaries: Array.from({ length: 20 }, (_, index) =>
+          `SCOPE_OPTIONAL_${index}_${"가".repeat(1_000)}`
+        ),
+      },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+        maxChars: Math.max(24_000, full.length - 1_000),
+      },
+    );
+
+    for (const prompt of [full, truncated]) {
+      expect(prompt).toContain("[서버 확정 질문 범위 계약]");
+      expect(prompt).toContain("question_scope: W4_out_of_scope");
+      expect(prompt).toContain("질문 하나만");
+      expect(prompt).toContain("대화 기록·첨부 문서·장기 기억");
+      expect(prompt.indexOf("[서버 확정 질문 범위 계약]"))
+        .toBeGreaterThan(prompt.indexOf("[서버 확정 요청 계약]"));
+      expect(prompt.indexOf("[서버 확정 질문 범위 계약]"))
+        .toBeGreaterThan(prompt.indexOf("[이번 답변의 대화 우선순위]"));
+      expect(prompt.trimEnd()).toMatch(/도구 권한을 만들 수는 없습니다\.$/);
+    }
+  });
+
+  it("projects stored couple context out of W2-W4 and mediation prompts before the mandatory suffix is built", () => {
+    const sensitiveContext = {
+      ...baseContext,
+      weddingDate: "2027-05-01",
+      budget: 44_444_444,
+      venue: "PRIVATE_VENUE_SENTINEL",
+      brideName: "PRIVATE_BRIDE_SENTINEL",
+      groomName: "PRIVATE_GROOM_SENTINEL",
+      senderName: "PRIVATE_SENDER_SENTINEL",
+      progress: {
+        venue: { memo: "PRIVATE_PROGRESS_SENTINEL" },
+      },
+      bookings: [],
+      scheduleEvents: [{
+        date: "2027-01-01",
+        title: "PRIVATE_SCHEDULE_SENTINEL",
+      }],
+      chatSummaries: ["PRIVATE_SUMMARY_SENTINEL"],
+      amoraProfiles: {
+        private: { personaSummary: "PRIVATE_PROFILE_SENTINEL" },
+      },
+      pastDecisions: [{
+        category: "venue",
+        decisionType: "selection",
+        title: "PRIVATE_DECISION_SENTINEL",
+        value: null,
+        reasoning: null,
+        confidence: 1,
+        source: "test",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }],
+      pastConflicts: [{
+        title: "PRIVATE_CONFLICT_SENTINEL",
+        resolution: null,
+        reasoning: null,
+        stageTag: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }],
+    };
+    const sentinels = [
+      "PRIVATE_VENUE_SENTINEL",
+      "PRIVATE_BRIDE_SENTINEL",
+      "PRIVATE_GROOM_SENTINEL",
+      "PRIVATE_SENDER_SENTINEL",
+      "PRIVATE_PROGRESS_SENTINEL",
+      "PRIVATE_SCHEDULE_SENTINEL",
+      "PRIVATE_SUMMARY_SENTINEL",
+      "PRIVATE_PROFILE_SENTINEL",
+      "PRIVATE_DECISION_SENTINEL",
+      "PRIVATE_CONFLICT_SENTINEL",
+      "4,444만원",
+    ];
+    const restrictedScopes = [
+      "W2_high_risk_adjacent",
+      "W3_social_care",
+      "W4_out_of_scope",
+    ] as const;
+
+    for (const scope of restrictedScopes) {
+      const prompt = buildAmoraSystemPrompt(sensitiveContext, {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope: {
+          scope,
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+        maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      for (const sentinel of sentinels) expect(prompt).not.toContain(sentinel);
+      expect(prompt).not.toContain("## 커플 상황");
+      expect(prompt).not.toContain("예산: 미설정");
+      expect(prompt).not.toContain("진행률: 0/");
+      expect(prompt).not.toContain("커플 이름: 미등록");
+    }
+
+    const mediationPrompt = buildAmoraSystemPrompt(sensitiveContext, {
+      requestKind: "mediation",
+      persistenceMode: "durable",
+      enabledToolNames: [],
+      questionScope: {
+        scope: "W1_wedding_adjacent",
+        allowsLongTermMemory: true,
+        confidence: "high",
+        needsClarification: false,
+      },
+      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+    for (const sentinel of sentinels) {
+      expect(mediationPrompt).not.toContain(sentinel);
+    }
+    expect(mediationPrompt).not.toContain("## 커플 상황");
+    expect(mediationPrompt).not.toContain("예산: 미설정");
+    expect(mediationPrompt).not.toContain("진행률: 0/");
+    expect(mediationPrompt).not.toContain("커플 이름: 미등록");
+  });
+
+  it.each([
+    "W0_wedding_core",
+    "W1_wedding_adjacent",
+  ] as const)("retains full stored context for an ordinary %s chat", (scope) => {
+    const prompt = buildAmoraSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      brideName: "FULL_BRIDE_SENTINEL",
+      scheduleEvents: [{
+        date: "2027-01-01",
+        title: "FULL_SCHEDULE_SENTINEL",
+      }],
+      chatSummaries: ["FULL_SUMMARY_SENTINEL"],
+    }, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      enabledToolNames: [],
+      questionScope: {
+        scope,
+        allowsLongTermMemory: true,
+        confidence: "high",
+        needsClarification: false,
+      },
+    });
+
+    expect(prompt).toContain("FULL_BRIDE_SENTINEL");
+    expect(prompt).toContain("FULL_SCHEDULE_SENTINEL");
+    expect(prompt).toContain("FULL_SUMMARY_SENTINEL");
   });
 
   it("rejects a ceiling that cannot contain the mandatory current-context contract", () => {
@@ -841,9 +1105,22 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("[MEDIATION_REQUEST]");
     expect(prompt).toContain("있을 때만 출력");
-    expect(prompt).toContain("실제로 한 말과 확인된 요구");
+    expect(prompt).toContain("요청자가 전한 상황과 쟁점");
     expect(prompt).not.toContain("표면 주장 뒤 진짜 니즈 전달");
     expect(prompt).not.toContain("불안감이 근본 원인");
+  });
+
+  it("grounds structured mediation in the requester's summary without inventing the partner's position", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    expect(prompt).toContain("요청자가 직접 작성한 요약만");
+    expect(prompt).toContain("요청자가 전한 상황");
+    expect(prompt).toContain("상대방에게 확인할 점");
+    expect(prompt).toContain("상대방의 발화·감정·요구로 사실처럼 귀속하지 마세요");
+    expect(AMORA_MEDIATION_TURN_GUARD).toContain("requester_summary_only");
+    expect(AMORA_MEDIATION_TURN_GUARD).toContain("상대방의 관점은 아직 확인되지 않았습니다");
+    expect(prompt).not.toContain("두 분의 실제 발화를 읽고");
+    expect(prompt).not.toContain("양쪽이 실제로 한 말");
   });
 
   it("keeps the warmer demo greeting honest about non-persistence", () => {
@@ -865,6 +1142,33 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).not.toContain(crossCoupleCanary);
   });
 
+  it("keeps a considering not-sent booking memory distinct from a vendor-confirmed booking", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      pastDecisions: [{
+        category: "studio",
+        decisionType: "considering",
+        title: "아모라 방문·상담 후보 기록: 테스트 스튜디오",
+        value: null,
+        reasoning: null,
+        confidence: 0.5,
+        source: "vendor_booking",
+        createdAt: new Date().toISOString(),
+        internalRequestStatus: "recorded",
+        vendorDeliveryStatus: "not_sent",
+        vendorConfirmationStatus: "unconfirmed",
+      }],
+    });
+
+    expect(prompt).toContain("모든 항목이 확정 선택이라는 뜻은 아닙니다");
+    expect(prompt).toContain("아모라 내부 방문·상담 후보 기록일 뿐입니다");
+    expect(prompt).toContain('아모라 내부 기록="recorded"');
+    expect(prompt).toContain('업체 전달="not_sent"');
+    expect(prompt).toContain('업체 확인="unconfirmed"');
+    expect(prompt).toContain("예약됨·업체 확정·계약 완료라고 부르지 마세요");
+  });
+
   it("includes actual booking cost and extra cost when outcome data exists", () => {
     const prompt = getWeddingPlannerSystemPrompt({
       ...baseContext,
@@ -884,7 +1188,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("한방웨딩홀");
     expect(prompt).toContain("✅완료");
-    expect(prompt).toContain("실결제: 300만원");
+    expect(prompt).toContain("사용자 기록 지출(결제 증빙 아님): 300만원");
     expect(prompt).toContain("계약/견적: 250만원");
     expect(prompt).toContain("추가금: 50만원");
   });
@@ -906,7 +1210,8 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("한방스튜디오");
     expect(prompt).toContain("✅확정");
-    expect(prompt).toContain("예약금액: 50만원");
+    expect(prompt).toContain("예약 요청 견적(지출 아님): 50만원");
+    expect(prompt).not.toContain("사용자 기록 지출(결제 증빙 아님): 50만원");
   });
 });
 

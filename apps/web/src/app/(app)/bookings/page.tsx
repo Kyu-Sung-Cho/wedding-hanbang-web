@@ -8,6 +8,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import {
+  classifyBookingDate,
+  formatBookingDate,
+  scheduleSeoulDateRollover,
+} from "@/lib/bookings/dateClassification";
 import type { Booking } from "@/types/vendor.types";
 
 interface BookingWithExtra extends Booking {
@@ -15,12 +20,12 @@ interface BookingWithExtra extends Booking {
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: "대기 중", color: "text-[#946a6a] bg-[#795252]/10" },
-  confirmed: { label: "확인됨", color: "text-[#795252] bg-[#795252]/15" },
-  in_service: { label: "서비스 진행 중", color: "text-[#795252] bg-[#795252]/15" },
-  service_completed: { label: "서비스 완료", color: "text-white bg-[#795252]" },
-  completed: { label: "완료", color: "text-[#504444] bg-[#F6F3F2]" },
-  cancelled: { label: "취소", color: "text-red-500 bg-red-500/10" },
+  pending: { label: "요청 기록됨", color: "text-[#946a6a] bg-[#795252]/10" },
+  confirmed: { label: "확정 상태 기록(근거 미확인)", color: "text-[#795252] bg-[#795252]/15" },
+  in_service: { label: "진행 기록", color: "text-[#795252] bg-[#795252]/15" },
+  service_completed: { label: "진행 완료 기록", color: "text-white bg-[#795252]" },
+  completed: { label: "기록 완료", color: "text-[#504444] bg-[#F6F3F2]" },
+  cancelled: { label: "내부 취소 표시", color: "text-red-500 bg-red-500/10" },
 };
 
 function formatPrice(price: number): string {
@@ -32,6 +37,7 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingWithExtra[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [classificationTime, setClassificationTime] = useState(() => new Date());
 
   useEffect(() => {
     fetch("/api/bookings/mine")
@@ -43,9 +49,11 @@ export default function BookingsPage() {
           setBookings(data.bookings ?? []);
         }
       })
-      .catch(() => setError("예약 목록을 불러오는데 실패했습니다."))
+      .catch(() => setError("예약 요청 기록을 불러오는데 실패했습니다."))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => scheduleSeoulDateRollover(setClassificationTime), []);
 
   if (loading) {
     return (
@@ -64,12 +72,16 @@ export default function BookingsPage() {
     );
   }
 
-  const upcoming = bookings.filter(
-    (b) => b.status !== "cancelled" && b.status !== "completed" && new Date(b.bookingDate) >= new Date()
-  );
-  const past = bookings.filter(
-    (b) => b.status === "completed" || b.status === "cancelled" || new Date(b.bookingDate) < new Date()
-  );
+  const upcoming = bookings.filter((booking) => classifyBookingDate({
+    bookingDate: booking.bookingDate,
+    status: booking.status,
+    now: classificationTime,
+  }) === "upcoming");
+  const past = bookings.filter((booking) => classifyBookingDate({
+    bookingDate: booking.bookingDate,
+    status: booking.status,
+    now: classificationTime,
+  }) === "past");
 
   return (
     <div className="mx-auto max-w-[860px]">
@@ -77,18 +89,18 @@ export default function BookingsPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
           WEDDING HANBANG
         </p>
-        <h1 className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">내 예약</h1>
+        <h1 className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">예약 요청 기록</h1>
         <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-          업체 방문·상담 예약 현황을 확인하세요. 변경·취소는 아모라에게 말해주세요.
+          아모라 안에 남긴 방문·상담 후보 기록이에요. 업체 전달·확정·취소와 환불은 업체에 별도로 확인해 주세요.
         </p>
       </div>
 
       {bookings.length === 0 ? (
         <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-8 text-center shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in">
           <Calendar className="mx-auto mb-4 h-12 w-12 text-[#36534E]/45" />
-          <p className="mb-2 font-serif-kr text-[22px] font-medium text-[#071629]">아직 예약이 없습니다</p>
+          <p className="mb-2 font-serif-kr text-[22px] font-medium text-[#071629]">아직 예약 요청 기록이 없어요</p>
           <p className="mb-6 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-            업체를 둘러보고 첫 예약을 잡아보세요
+            업체를 둘러보고 방문·상담 후보를 아모라에 기록해 보세요
           </p>
           <Link
             {...weddingLinkProps("/vendors")}
@@ -99,10 +111,10 @@ export default function BookingsPage() {
         </div>
       ) : (
         <>
-          {/* 진행 중 예약 */}
+          {/* 다가오는 요청 기록 */}
           {upcoming.length > 0 && (
             <div className="mb-8">
-              <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#7a8290]">진행 중</h2>
+              <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#7a8290]">다가오는 요청 기록</h2>
               <div className="space-y-3">
                 {upcoming.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];
@@ -123,14 +135,18 @@ export default function BookingsPage() {
                             <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-[#5d6879]">
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-4 h-4" />
-                                {new Date(booking.bookingDate).toLocaleDateString("ko-KR")}
+                                {formatBookingDate(booking.bookingDate)}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Clock className="w-4 h-4" />
                                 {booking.bookingTime}
                               </span>
                               {booking.productName && <span>{booking.productName}</span>}
-                              {booking.amount > 0 && <span>{formatPrice(booking.amount)}</span>}
+                              {booking.amount > 0 && (
+                                <span title="결제·지출 기록이 아닌 예약 요청 견적">
+                                  요청 견적 {formatPrice(booking.amount)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -142,10 +158,10 @@ export default function BookingsPage() {
             </div>
           )}
 
-          {/* 지난 예약 */}
+          {/* 지난·취소 기록 */}
           {past.length > 0 && (
             <div>
-              <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#7a8290]">지난 예약</h2>
+              <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#7a8290]">지난·취소 기록</h2>
               <div className="space-y-2">
                 {past.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];
@@ -164,7 +180,7 @@ export default function BookingsPage() {
                           </span>
                         </div>
                         <span className="text-sm text-[#B5ADA3]">
-                          {new Date(booking.bookingDate).toLocaleDateString("ko-KR")}
+                          {formatBookingDate(booking.bookingDate)}
                         </span>
                       </div>
                     </div>

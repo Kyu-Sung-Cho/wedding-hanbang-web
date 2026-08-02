@@ -25,6 +25,8 @@ const SCHEDULE_WRITE_TOOLS = [
   "update_task_status",
   "add_schedule_event",
   "update_schedule_event",
+  "cancel_schedule_event",
+  "restore_schedule_event",
   "toggle_checklist_item",
 ] as const;
 const VENDOR_READ_TOOLS = [
@@ -70,6 +72,9 @@ const TASK_STATUS_WRITE = /(?:상견례|예식장|웨딩홀|스튜디오|드레�
 const CHECKLIST_WRITE = /(?:체크리스트|할\s*일|준비\s*항목).*(?:완료|체크|해제|되돌)/i;
 const SCHEDULE_UPDATE_WRITE = /(?:일정|스케줄).*(?:변경|바꿔|수정|옮겨|미뤄|당겨)/i;
 const SCHEDULE_ADD_WRITE = /(?:일정|스케줄).*(?:추가|등록|저장|잡아)|(?:추가|등록|저장).*(?:일정|스케줄)/i;
+const SCHEDULE_CANCEL_WRITE = /(?:일정|스케줄).*(?:취소|안\s*가|못\s*가)|(?:취소|안\s*가|못\s*가).*(?:일정|스케줄)/i;
+const SCHEDULE_RESTORE_WRITE = /(?:취소(?:한|된)?\s*)?(?:일정|스케줄).*(?:복원|되돌|다시\s*(?:살려|잡아|예정))|(?:복원|되돌|다시\s*(?:살려|잡아|예정)).*(?:일정|스케줄)/i;
+const SCHEDULE_RESTORE_SHORT_WRITE = /(?:(?:취소(?:한|했던|된)|취소해\s*둔).{0,50}(?:상견례|예식장|웨딩홀|드레스(?:\s*피팅)?|턱시도(?:\s*피팅)?|메이크업|스튜디오|본식|웨딩\s*촬영|청첩장|신혼여행)|(?:상견례|예식장|웨딩홀|드레스(?:\s*피팅)?|턱시도(?:\s*피팅)?|메이크업|스튜디오|본식|웨딩\s*촬영|청첩장|신혼여행).{0,50}취소(?:한|했던|된)?(?:\s*거)?).{0,50}(?:복원|되돌|다시\s*(?:살려|잡아|예정))/i;
 const ACTION_ADD_WRITE = /기억해\s*줘|메모해\s*줘|챙겨\s*줘|리마인드.*(?:추가|등록|설정)|(?:다음\s*)?할\s*일.*(?:추가|등록|저장)/i;
 const ACTION_UPDATE_WRITE = /(?:기억|메모|리마인드|할\s*일|액션).*(?:완료|끝냈|숨겨|삭제|지워|수정)/i;
 const VENUE_WRITE = /(?:웨딩홀|예식장|식장|장소|venue).*(?:변경|바꿔|수정|설정|정했)/i;
@@ -82,6 +87,7 @@ const VENUE_WRITE = /(?:웨딩홀|예식장|식장|장소|venue).*(?:변경|바�
 const KRW_AMOUNT = /(?:\d+(?:[.,]\d+)?\s*(?:억|천만|백만|십만|천|백|십|만)?\s*)+(?:억|천만|백만|십만|만)?\s*원/;
 const MONEY_AMOUNT = new RegExp(KRW_AMOUNT.source, "i");
 const NON_EXECUTABLE_DECLARATION = /(?:친구|지인|언니|오빠|누나|형|동생|남의|다른\s*사람).*(?:은|는|이|가)|(?:하면|한다면|했으면|일까|할까|어떨|어때|좋을까|괜찮을까|가정|예시|추천해|알려줘)|(?:아니야|아니다|취소|미정)/i;
+const NON_EXECUTABLE_RESTORE = /(?:친구|지인|언니|오빠|누나|형|동생|남의|다른\s*사람).*(?:은|는|이|가)|(?:하면|한다면|했으면|일까|할까|어떨|어때|좋을까|괜찮을까|가정|예시|추천해|알려줘)|(?:아니야|아니다|미정)/i;
 const DIRECT_TOTAL_BUDGET_DECLARATION = new RegExp(
   /(?:총\s*)?(?:예산|비용)(?:은|이|을|를)?\s*/.source
     + KRW_AMOUNT.source
@@ -238,7 +244,20 @@ export function selectAmoraTools({
     selected.add("update_task_status");
   }
   if (CHECKLIST_WRITE.test(userText)) selected.add("toggle_checklist_item");
-  if (SCHEDULE_UPDATE_WRITE.test(userText)) selected.add("update_schedule_event");
+  if (
+    !NON_EXECUTABLE_RESTORE.test(userText)
+    && (
+      SCHEDULE_RESTORE_WRITE.test(userText)
+      || SCHEDULE_RESTORE_SHORT_WRITE.test(userText)
+    )
+  ) {
+    addAll(selected, SCHEDULE_READ_TOOLS);
+    selected.add("restore_schedule_event");
+  } else if (SCHEDULE_CANCEL_WRITE.test(userText)) {
+    selected.add("cancel_schedule_event");
+  } else if (SCHEDULE_UPDATE_WRITE.test(userText)) {
+    selected.add("update_schedule_event");
+  }
   if (SCHEDULE_ADD_WRITE.test(userText)
     || (acceptsDirectDeclaration && DIRECT_SCHEDULE_DECLARATION.test(userText))) {
     selected.add("add_schedule_event");

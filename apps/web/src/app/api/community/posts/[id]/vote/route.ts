@@ -2,6 +2,7 @@ import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 type PostVoteType = 0 | 1;
 
@@ -14,6 +15,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);

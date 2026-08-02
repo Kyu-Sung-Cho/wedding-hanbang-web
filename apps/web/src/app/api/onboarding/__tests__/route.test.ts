@@ -1320,10 +1320,22 @@ describe("/api/onboarding POST", () => {
     });
   });
 
-  it("merges a missing sanggyeonrye event through the revision-bound plan RPC", async () => {
+  it("keeps a cancelled sanggyeonrye record and creates the requested active event", async () => {
+    const cancelledSanggyeonrye = {
+      ...storedScheduleEvent("cancelled-event", "sanggyeonrye", "2027-02-01"),
+      status: "cancelled",
+      cancellation: {
+        cancelledAt: "2026-08-02T12:30:00.000Z",
+        cancelledByProfileId: "11111111-1111-4111-8111-111111111111",
+      },
+      updatedAt: "2026-08-02T12:30:00.000Z",
+    };
     const existingProgress = {
       budget: { spent: 1_000_000 },
-      __events: [storedScheduleEvent("other-event", "venue", "2027-01-10")],
+      __events: [
+        storedScheduleEvent("other-event", "venue", "2027-01-10"),
+        cancelledSanggyeonrye,
+      ],
     };
     const { admin } = setupClients(
       {
@@ -1398,6 +1410,11 @@ describe("/api/onboarding POST", () => {
         progress_patch: {
           __events: expect.arrayContaining([
             expect.objectContaining({ id: "other-event" }),
+            expect.objectContaining({
+              id: "cancelled-event",
+              status: "cancelled",
+              cancellation: cancelledSanggyeonrye.cancellation,
+            }),
             expect.objectContaining({
               momentType: "sanggyeonrye",
               date: "2027-03-01",

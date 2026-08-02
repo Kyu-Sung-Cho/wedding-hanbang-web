@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true as const })),
 }));
 
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
 }));

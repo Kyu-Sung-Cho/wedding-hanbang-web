@@ -7,6 +7,9 @@ import { GET, PATCH } from "../route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimit: vi.fn(() => null),
   rateLimitKey: vi.fn(() => "settings-test"),

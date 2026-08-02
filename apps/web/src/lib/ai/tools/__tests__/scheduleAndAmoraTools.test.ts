@@ -159,6 +159,54 @@ describe("scheduleTools", () => {
       .toMatchObject({ count: 1 });
   });
 
+  it("persists a canonical local time and appends a same-category event", async () => {
+    mockAdminClient({});
+    const existing = {
+      ...scheduleEvent(1),
+      categoryKey: "dress",
+      sourceKey: "category:dress",
+    };
+    const ctx = createContext({ __events: [existing] });
+
+    const result = await executeAddScheduleEvent(
+      {
+        date: "2027-02-17",
+        time: "14:30",
+        title: "드레스 최종 피팅",
+        category_key: "dress",
+      },
+      ctx,
+    );
+
+    expect(result.success).toBe(true);
+    expect(ctx.weddingContext.progress.__events).toEqual([
+      existing,
+      expect.objectContaining({
+        date: "2027-02-17",
+        time: "14:30",
+        title: "드레스 최종 피팅",
+        categoryKey: "dress",
+      }),
+    ]);
+    expect(result.toolOutput).not.toHaveProperty("upserted");
+  });
+
+  it.each(["24:00", "9:30", "14:60"])(
+    "rejects the invalid schedule time %s before persistence",
+    async (time) => {
+      const result = await executeAddScheduleEvent(
+        { date: "2027-02-17", time, title: "드레스 피팅" },
+        createContext({}),
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        toolOutput: { error: "invalid_schedule_event", field: "time" },
+      });
+      expect(createAdminClient).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["2027-02-29", "2027-02-31", "2027-04-31"])(
     "rejects the nonexistent add_schedule_event date %s before persistence",
     async (date) => {
@@ -208,6 +256,37 @@ describe("scheduleTools", () => {
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
+  it("records update before/after and refuses a no-op update", async () => {
+    mockAdminClient({});
+    const existing = { ...scheduleEvent(1), time: "13:00" };
+    const ctx = createContext({ __events: [existing] });
+
+    const changed = await executeUpdateScheduleEvent(
+      { event_id: existing.id, time: "14:30" },
+      ctx,
+    );
+
+    expect(changed).toMatchObject({
+      success: true,
+      toolOutput: {
+        previous_event: existing,
+        event: { id: existing.id, time: "14:30" },
+        updates: { time: "14:30" },
+      },
+    });
+
+    vi.clearAllMocks();
+    const noChange = await executeUpdateScheduleEvent(
+      { event_id: existing.id, time: "14:30" },
+      ctx,
+    );
+    expect(noChange).toMatchObject({
+      success: false,
+      toolOutput: { error: "no_change" },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
   it("returns actionable not-found copy without internal schedule or checklist IDs", async () => {
     const internalId = "018f4dc8-3ac1-7f31-9c45-1b8b46bf6e89";
     const results = await Promise.all([
@@ -227,7 +306,7 @@ describe("scheduleTools", () => {
 
     expect(results.map((result) => result.displayMessage)).toEqual([
       "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
-      "삭제할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+      "일정은 기록 보호를 위해 삭제하지 않아요. 취소 상태로 남겨 주세요.",
       "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
     ]);
     for (const result of results) {

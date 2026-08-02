@@ -410,7 +410,7 @@ function VendorDetailCard({
           <p className="text-sm text-[#928980] mt-1">
             {isOfficial
               ? "공시 근거를 먼저 확인하고, 필요하면 예약 보조 정보를 이어서 보세요"
-              : hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}
+              : hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 등록된 방문·상담 시간 후보를 확인할 수 있어요"}
           </p>
         </div>
 
@@ -624,7 +624,7 @@ function VendorDetailCard({
                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Calendar className="w-5 h-5" />
-              예약 가능 시간 확인
+              가능 시간 후보 확인
             </button>
           </div>
         )}
@@ -664,17 +664,6 @@ function TimeslotPicker({
       remaining: number;
     }[];
     filterLabel?: string | null;
-    _debug?: {
-      slotSource?: string;
-      slotsLoaded?: number;
-      rangeStart?: string;
-      rangeEnd?: string;
-      expanded?: number;
-      primary?: number;
-      fallback?: number;
-      targetMonthResolved?: string | null;
-      targetDateResolved?: string | null;
-    };
   };
 
   // 1차: 사용자가 지정한 월/날짜의 슬롯. 비어있으면 인접 월 fallback 슬롯으로 자동 대체.
@@ -707,11 +696,10 @@ function TimeslotPicker({
     const [, ymM, ymD] = slot.date.split("-");
     const dateLabel = `${Number(ymM)}/${Number(ymD)}(${slot.dayLabel})`;
 
-    onSend?.(`${dateLabel} ${slot.time} 예약할게요 ${tags}`);
+    onSend?.(`${dateLabel} ${slot.time} 예약 요청 기록으로 남길게요 ${tags}`);
   };
 
   if (slots.length === 0) {
-    const dbg = output._debug;
     return (
       <div className="flex justify-start ml-14 my-2">
         <div className="rounded-xl border border-black/[0.06] bg-white px-5 py-4 shadow-sm max-w-[440px]">
@@ -719,19 +707,13 @@ function TimeslotPicker({
             <Calendar className="w-5 h-5 text-[#B5ADA3]" />
             <p className="text-base text-[#928980]">
               {filterLabel
-                ? `${filterLabel}에 예약 가능한 시간이 없습니다`
-                : "예약 가능한 시간이 없습니다"}
+                ? `${filterLabel}에 아모라에 등록된 가능 시간 후보가 없습니다`
+                : "아모라에 등록된 가능 시간 후보가 없습니다"}
             </p>
           </div>
-          {dbg && (
-            <pre className="mt-2 text-[0.625rem] text-[#B5ADA3] font-mono leading-tight whitespace-pre-wrap break-all">
-              {`src=${dbg.slotSource ?? "-"} loaded=${dbg.slotsLoaded ?? "-"}
-range=${dbg.rangeStart ?? "-"}~${dbg.rangeEnd ?? "-"}
-expanded=${dbg.expanded ?? "-"} primary=${dbg.primary ?? "-"} fallback=${dbg.fallback ?? "-"}
-targetMonth=${dbg.targetMonthResolved ?? "-"} targetDate=${dbg.targetDateResolved ?? "-"}
-vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${output.staffId ?? "-"}`}
-            </pre>
-          )}
+          <p className="mt-2 text-xs leading-relaxed text-[#928980]">
+            실제 가능 여부와 최종 확정은 업체에 별도로 확인해 주세요.
+          </p>
         </div>
       </div>
     );
@@ -744,16 +726,16 @@ vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${outpu
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-[#C4967E]" />
-            <p className="text-lg font-semibold text-[#1A1A1F]">예약 가능 시간</p>
+            <p className="text-lg font-semibold text-[#1A1A1F]">아모라에 등록된 가능 시간 후보</p>
           </div>
           <p className="text-sm text-[#928980] mt-1">
             {output.vendorName}
             {filterLabel && !usingFallback ? ` · ${filterLabel}` : ""}
-            {" · 원하시는 시간을 선택해 주세요"}
+            {" · 실제 가능 여부와 최종 확정은 업체 확인이 필요해요"}
           </p>
           {usingFallback && (
             <p className="mt-2 text-xs text-[#9A6B62] bg-[#C4967E]/10 rounded px-2 py-1.5 inline-block">
-              💡 {filterLabel}에는 빈 시간이 없어 인접한 시기의 슬롯을 보여드려요
+              💡 {filterLabel}에는 등록 후보가 없어 인접한 시기의 참고 후보를 보여드려요
             </p>
           )}
         </div>
@@ -811,8 +793,10 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
     staffName: string;
     date: string;
     time: string;
-    amount: number;
+    quotedAmount: number;
+    amountBasis: "quote";
     status: string;
+    completedSchedulePreserved?: boolean;
     projectionStatus?: "completed" | "pending_retry" | "failed";
   };
 
@@ -836,7 +820,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
   const handleCancel = () => {
     setCancelled(true);
     setShowCancelConfirm(false);
-    onSend?.(`예약 취소해줘 [booking:${output.bookingId}]`);
+    onSend?.(`아모라 예약 요청 기록을 취소로 표시해줘 [booking:${output.bookingId}]`);
   };
 
   return (
@@ -853,10 +837,12 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
           </div>
           <div>
             <p className="text-sm font-semibold text-[#1A1A1F]">
-              {cancelled ? "예약 취소 요청됨" : "예약이 접수되었습니다"}
+              {cancelled ? "아모라 기록 취소 표시 요청됨" : "아모라에 예약 요청을 기록했어요"}
             </p>
             <p className="text-xs text-[#928980]">
-              {cancelled ? "취소 처리 중" : "업체 확인 후 최종 확정"}
+              {cancelled
+                ? "업체 취소 전달·확정은 별도 확인"
+                : "업체에 전달되거나 확정된 상태가 아니에요"}
             </p>
           </div>
         </div>
@@ -875,10 +861,16 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                 <span className="text-xs text-[#928980]">상품</span>
                 <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
                   {output.productName}
-                  {output.amount > 0 && ` (${formatPrice(output.amount)})`}
                 </span>
               </div>
             )}
+            <div className="flex items-center gap-2">
+              <FileCheck2 className="w-3.5 h-3.5 text-[#C4967E]" />
+              <span className="text-xs text-[#928980]">아모라 내부 후보 견적</span>
+              <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
+                {output.quotedAmount > 0 ? formatPrice(output.quotedAmount) : "미확정"}
+              </span>
+            </div>
             {output.staffName && (
               <div className="flex items-center gap-2">
                 <Users className="w-3.5 h-3.5 text-[#C4967E]" />
@@ -895,19 +887,23 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             </div>
           </div>
 
+          <p className="mt-2 text-xs leading-relaxed text-[#6F6862]">
+            이 금액은 결제·지출 기록이 아니에요. 실제 지출은 별도로 확인해 기록해요.
+          </p>
+
           {output.projectionStatus === "pending_retry" && (
             <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-xs font-semibold text-amber-800">일정·예산 반영 중</p>
+              <p className="text-xs font-semibold text-amber-800">일정 반영 중</p>
               <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
-                예약은 안전하게 접수됐어요. 자동으로 다시 반영하니 예약을 다시 만들 필요는 없어요.
+                아모라 안 요청 기록은 저장됐어요. 자동으로 다시 반영하니 같은 기록을 다시 만들 필요는 없어요.
               </p>
             </div>
           )}
           {output.projectionStatus === "failed" && (
             <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-              <p className="text-xs font-semibold text-red-700">일정·예산 반영 확인 필요</p>
+              <p className="text-xs font-semibold text-red-700">일정 반영 확인 필요</p>
               <p className="mt-0.5 text-xs leading-relaxed text-red-600">
-                예약은 접수됐어요. 다시 예약하지 말고 고객지원에 알려주세요.
+                아모라 안 요청 기록은 저장됐어요. 같은 기록을 다시 만들지 말고 고객지원에 알려주세요.
               </p>
             </div>
           )}
@@ -917,7 +913,9 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             <div className="mt-2">
               {showCancelConfirm ? (
                 <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                  <p className="text-xs text-red-600">예약을 취소할까요?</p>
+                  <p className="text-xs text-red-600">
+                    아모라 안 기록만 취소로 표시할까요? 업체 취소는 별도예요.
+                  </p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setShowCancelConfirm(false)}
@@ -930,7 +928,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                       disabled={disabled}
                       className="px-2.5 py-1 text-xs rounded-md bg-red-500 text-white disabled:opacity-40"
                     >
-                      취소하기
+                      기록 취소 표시
                     </button>
                   </div>
                 </div>
@@ -940,7 +938,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                   disabled={disabled}
                   className="text-xs text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
                 >
-                  예약 취소
+                  기록 취소 표시
                 </button>
               )}
             </div>
@@ -966,6 +964,11 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
     date: string;
     time: string;
     status: string;
+    recordedSpendPreserved?: boolean;
+    completedSchedulePreserved?: boolean;
+    quoteContributionCorrected?: boolean;
+    quoteCorrectionAmount?: number;
+    refundStatus?: "unknown";
     projectionStatus?: "completed" | "pending_retry" | "failed";
   };
 
@@ -994,7 +997,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
             <X className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-[#1A1A1F]">예약이 취소되었습니다</p>
+            <p className="text-lg font-semibold text-[#1A1A1F]">아모라 예약 기록을 취소로 표시했어요</p>
           </div>
         </div>
         <div className="px-5 pb-4">
@@ -1017,19 +1020,45 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
               <span className="text-sm font-medium text-[#928980] ml-auto line-through">{dateLabel} {output.time}</span>
             </div>
           </div>
+          <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            {output.completedSchedulePreserved && (
+              <p className="text-xs leading-relaxed text-slate-700">
+                연결 일정은 이미 완료 기록이라 취소로 바꾸지 않고 보존했어요.
+              </p>
+            )}
+            {output.recordedSpendPreserved && (
+              <p className="text-xs leading-relaxed text-slate-700">
+                기록된 실제 지출은 유지돼요. 아모라 기록의 취소 표시만으로 환불 처리하지 않아요.
+              </p>
+            )}
+            {output.quoteContributionCorrected && (
+              <p className="text-xs leading-relaxed text-slate-700">
+                과거에 지출로 잘못 반영된 견적
+                {typeof output.quoteCorrectionAmount === "number"
+                  ? ` ${formatPrice(output.quoteCorrectionAmount)}`
+                  : ""}만 바로잡았어요.
+              </p>
+            )}
+            <p className="text-xs leading-relaxed text-slate-700">
+              업체 취소는 전달되거나 확정되지 않았어요.
+            </p>
+            <p className="text-xs leading-relaxed text-slate-700">
+              환불 여부와 금액은 아직 확인되지 않았어요. 업체 조건을 확인해 주세요.
+            </p>
+          </div>
           {output.projectionStatus === "pending_retry" && (
             <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-xs font-semibold text-amber-800">일정·예산 정리 중</p>
+              <p className="text-xs font-semibold text-amber-800">일정 취소 상태 반영 중</p>
               <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
-                예약 취소는 완료됐어요. 자동으로 다시 정리하니 취소 요청을 다시 보낼 필요는 없어요.
+                아모라 안 취소 표시는 저장됐어요. 자동으로 다시 반영하니 같은 취소 표시를 다시 보낼 필요는 없어요.
               </p>
             </div>
           )}
           {output.projectionStatus === "failed" && (
             <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-              <p className="text-xs font-semibold text-red-700">일정·예산 정리 확인 필요</p>
+              <p className="text-xs font-semibold text-red-700">일정 취소 상태 확인 필요</p>
               <p className="mt-0.5 text-xs leading-relaxed text-red-600">
-                예약 취소는 완료됐어요. 취소 요청을 다시 보내지 말고 고객지원에 알려주세요.
+                아모라 안 취소 표시는 저장됐어요. 같은 취소 표시를 다시 보내지 말고 고객지원에 알려주세요.
               </p>
             </div>
           )}

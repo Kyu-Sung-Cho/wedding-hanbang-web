@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
@@ -205,6 +206,12 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
@@ -558,6 +565,12 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);

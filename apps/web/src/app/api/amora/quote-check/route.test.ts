@@ -26,7 +26,10 @@ import { POST } from "./route";
 function request(extra: Record<string, unknown> = {}) {
   return new NextRequest("https://hanbang.ai/api/amora/quote-check", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "https://hanbang.ai",
+    },
     body: JSON.stringify({
       category: "studio",
       region: "seoul",
@@ -89,5 +92,66 @@ describe("POST /api/amora/quote-check consent boundary", () => {
       .toContain("studio_video");
     expect(body.analysis.missingItems.map((item: { id: string }) => item.id))
       .not.toContain("studio_video");
+  });
+
+  it("rejects a streamed oversized body without Content-Length before auth", async () => {
+    const oversized = new NextRequest("https://hanbang.ai/api/amora/quote-check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://hanbang.ai",
+      },
+      body: JSON.stringify({ padding: "x".repeat(17 * 1024) }),
+    });
+    expect(oversized.headers.get("content-length")).toBeNull();
+
+    const response = await POST(oversized);
+
+    expect(response.status).toBe(413);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on malformed JSON before auth", async () => {
+    const response = await POST(new NextRequest("https://hanbang.ai/api/amora/quote-check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://hanbang.ai",
+      },
+      body: "{",
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("does not coerce a string quote price into a number", async () => {
+    const response = await POST(request({ quotePriceManwon: "250" }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects an untrusted browser mutation before reading auth state", async () => {
+    const response = await POST(new NextRequest("https://hanbang.ai/api/amora/quote-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: "studio", region: "seoul" }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("does not expose a raw auth provider failure", async () => {
+    const providerMessage = "internal auth service tenant detail";
+    mocks.getUser.mockRejectedValue(new Error(providerMessage));
+
+    const response = await POST(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(body)).not.toContain(providerMessage);
+    expect(body).toEqual({ error: "체크리스트 결과를 가져오지 못했습니다." });
   });
 });

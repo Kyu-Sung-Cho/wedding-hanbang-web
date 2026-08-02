@@ -17,20 +17,22 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   update_wedding_date: "결혼식 날짜 변경",
   update_task_status: "준비 항목 상태 변경",
   update_venue: "결혼식장 변경",
-  update_category_budget: "카테고리 예산·지출 변경",
+  update_category_budget: "카테고리 예산·기록 지출 변경",
   apply_budget_plan: "예산 배분안 적용",
   add_custom_category: "맞춤 예산 항목 추가",
   delete_category: "예산 항목 삭제",
   reset_category: "예산 항목 초기화",
   add_schedule_event: "일정 추가",
   update_schedule_event: "일정 변경",
-  delete_schedule_event: "일정 삭제",
+  cancel_schedule_event: "일정 취소",
+  restore_schedule_event: "취소 일정 복원",
+  delete_schedule_event: "지원 중단된 일정 삭제",
   toggle_checklist_item: "체크리스트 상태 변경",
   add_amora_action: "아모라 행동 카드 추가",
   update_amora_action: "아모라 행동 카드 변경",
   log_wedding_event: "웨딩 일정 기억",
-  create_booking: "업체 예약 요청",
-  cancel_booking: "업체 예약 취소",
+  create_booking: "아모라 방문·상담 요청 기록",
+  cancel_booking: "아모라 예약 요청 기록 취소 표시",
 };
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   total_budget: "총 예산",
@@ -39,17 +41,22 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   status: "상태",
   venue: "결혼식장",
   budget: "예산",
-  spent: "지출",
+  spent: "기록 지출(결제 확인과 별도)",
   allocations: "카테고리별 배분",
   intake_summary: "배분 근거",
   rationale: "배분 이유",
   label: "항목 이름",
   confirmed: "사용자 확인",
   date: "날짜",
+  time: "시간",
   title: "제목",
   memo: "메모",
   category_key: "관련 카테고리",
+  schedule_scope: "일정 성격",
   event_id: "일정 식별자",
+  expected_title: "대상 일정",
+  expected_date: "현재 날짜",
+  reason: "취소 사유",
   item_id: "체크리스트 항목",
   done: "완료 여부",
   description: "설명",
@@ -60,7 +67,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   action_id: "행동 카드 식별자",
   moment_type: "일정 종류",
   service_id: "서비스 식별자",
-  booking_id: "예약 식별자",
+  booking_id: "대상 예약 요청 기록",
   preferred_date: "희망 날짜",
   preferred_time: "희망 시간",
 };
@@ -96,12 +103,23 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
     guardrail: "주의사항",
     manual: "직접 입력",
   },
+  schedule_scope: {
+    confirmed_fact: "이미 확정된 사실 기록",
+    shared_commitment: "두 사람이 함께 정할 약속",
+    external_commitment: "업체·가족과의 약속",
+  },
 };
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   general: "일반",
   ...PLANNING_CATEGORY_LABELS,
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);
+const INTERNAL_CONFIRMATION_FIELDS = new Set([
+  "event_id",
+  "item_id",
+  "action_id",
+  "service_id",
+]);
 const NESTED_FIELD_ORDER = ["category", "budget", "rationale"] as const;
 
 const ajv = new Ajv({
@@ -244,6 +262,9 @@ function formatFieldValue(key: string, value: unknown): string {
   }
   if (typeof value === "string") {
     const normalized = value;
+    if (key === "booking_id") {
+      return JSON.stringify(`…${normalized.slice(-8)}`);
+    }
     const categoryLabel = key === "category" || key === "category_key"
       ? CATEGORY_LABELS[normalized]
       : undefined;
@@ -295,7 +316,10 @@ function formatCanonicalConfirmation(
     ? Object.keys(tool.input_schema.properties)
     : [];
   const fieldLines = declaredFields
-    .filter((key) => Object.prototype.hasOwnProperty.call(input, key))
+    .filter((key) =>
+      !INTERNAL_CONFIRMATION_FIELDS.has(key)
+      && Object.prototype.hasOwnProperty.call(input, key)
+    )
     .map((key) => `- ${FIELD_LABELS[key] ?? key}: ${formatFieldValue(key, input[key])}`);
   const confirmation = [
     "다음 변경을 적용할까요?",

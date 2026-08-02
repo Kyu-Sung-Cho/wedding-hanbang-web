@@ -1,4 +1,4 @@
-// 내 예약 목록
+// 아모라 내부 예약 요청 기록 목록
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
@@ -27,7 +27,11 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
-import { apiJson } from "@/lib/api";
+import { apiFetchForExpectedUser } from "@/lib/api";
+import {
+  createOwnerCoupleSessionFence,
+  type OwnerCoupleSessionToken,
+} from "@/lib/ownerCoupleSessionFence.mjs";
 import {
   AppHeader,
   AppText,
@@ -80,16 +84,16 @@ interface BookingOutcomeResponse {
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "전체" },
-  { key: "upcoming", label: "예정" },
-  { key: "completed", label: "완료" },
-  { key: "cancelled", label: "취소" },
+  { key: "upcoming", label: "다가옴" },
+  { key: "completed", label: "지난 기록" },
+  { key: "cancelled", label: "취소 표시" },
 ];
 
 const STATUS_MAP: Record<BookingStatus, { label: string; tone: PillTone }> = {
-  pending: { label: "대기중", tone: "warning" },
-  confirmed: { label: "확정", tone: "success" },
-  completed: { label: "완료", tone: "neutral" },
-  cancelled: { label: "취소됨", tone: "danger" },
+  pending: { label: "요청 상태 기록", tone: "warning" },
+  confirmed: { label: "확정 상태 기록", tone: "warning" },
+  completed: { label: "완료 상태 기록", tone: "neutral" },
+  cancelled: { label: "취소 표시 기록", tone: "danger" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -118,6 +122,59 @@ function normalizeStatus(status: unknown): BookingStatus {
     return status;
   }
   return "pending";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseBookingOutcomeResponse(
+  value: unknown,
+  expectedBookingId: string,
+): BookingOutcomeResponse | null {
+  if (
+    !isRecord(value)
+    || !isRecord(value.booking)
+    || !isRecord(value.outcome)
+    || typeof value.message !== "string"
+    || value.message.length === 0
+    || Array.from(value.message).length > 500
+    || /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value.message)
+    || typeof value.booking.id !== "string"
+    || value.booking.id !== expectedBookingId
+    || !(
+      value.booking.status === "pending"
+      || value.booking.status === "confirmed"
+      || value.booking.status === "completed"
+      || value.booking.status === "cancelled"
+    )
+    || typeof value.outcome.extraAmount !== "number"
+    || !Number.isFinite(value.outcome.extraAmount)
+    || typeof value.outcome.baselineAmount !== "number"
+    || !Number.isFinite(value.outcome.baselineAmount)
+    || value.outcome.extraAmount < 0
+    || value.outcome.baselineAmount < 0
+  ) return null;
+  const amounts = [
+    value.booking.amount,
+    value.booking.contracted_amount,
+    value.booking.actual_amount,
+  ];
+  if (amounts.some((amount) => amount !== null && readAmount(amount) === null)) {
+    return null;
+  }
+  return value as unknown as BookingOutcomeResponse;
+}
+
+function bookingOutcomeError(value: unknown): string {
+  if (
+    isRecord(value)
+    && typeof value.error === "string"
+    && value.error.length > 0
+    && Array.from(value.error).length <= 300
+    && !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value.error)
+  ) return value.error;
+  return "예약 결과를 안전하게 저장하지 못했어요. 다시 시도해주세요.";
 }
 
 function formatWon(n: number): string {
@@ -183,13 +240,13 @@ function categoryLabel(category: string | null | undefined): string {
 
 function bookingAmountLabel(booking: Booking): string {
   if (booking.actual_amount && booking.actual_amount > 0) {
-    return `실결제 ${formatWon(booking.actual_amount)}`;
+    return `기록 지출 ${formatWon(booking.actual_amount)} · 사용자 입력(결제 증빙 아님)`;
   }
   if (booking.contracted_amount && booking.contracted_amount > 0) {
-    return `계약 ${formatWon(booking.contracted_amount)}`;
+    return `계약 참고액 ${formatWon(booking.contracted_amount)} · 증빙 미확인`;
   }
   if (booking.amount && booking.amount > 0) {
-    return formatWon(booking.amount);
+    return `요청 참고액 ${formatWon(booking.amount)} · 견적·결제 증빙 아님`;
   }
   return "금액 확인 필요";
 }
@@ -223,55 +280,57 @@ function compareByDateDesc(a: Booking, b: Booking): number {
 function getBookingAction(booking: Booking): BookingAction {
   if (booking.status === "cancelled") {
     return {
-      label: "취소됨",
-      title: "취소된 예약",
-      description: "필요하면 업체와 재예약 가능 여부를 다시 확인하세요.",
+      label: "취소 표시 기록",
+      title: "아모라 요청 기록 취소 표시",
+      description: "취소 표시는 아모라 기록에만 적용돼요. 업체 취소·환불을 뜻하지 않아요.",
       tone: "danger",
     };
   }
 
-  if (isCompleted(booking)) {
+  if (booking.status === "completed") {
     if (booking.actual_amount && booking.actual_amount > 0) {
       return {
-        label: "기록됨",
-        title: "실제 금액 기록 완료",
-        description: "입력한 실제 결제금액이 내 예약 기록과 예산에 반영돼요.",
+        label: "완료 상태 기록",
+        title: "완료 상태 · 기록 지출 있음",
+        description: "사용자가 입력한 지출이 아모라 기록과 예산에 반영돼요. 결제 증빙을 뜻하지 않아요.",
         tone: "success",
       };
     }
 
     return {
-      label: "완료",
-      title: "진행 완료",
-      description: "실제 결제금액과 만족도를 남겨 이번 예약을 정리해보세요.",
+      label: "완료 상태 기록",
+      title: "완료 상태 · 지출 근거 미확인",
+      description: "기존 완료 상태 기록은 유지했어요. 실제 진행과 지출은 직접 확인해 주세요.",
+      tone: "warning",
+    };
+  }
+
+  if (isCompleted(booking)) {
+    return {
+      label: "날짜 지남",
+      title: "진행 여부 확인 필요",
+      description: "날짜가 지났다는 사실만으로 완료된 것은 아니에요. 업체 진행 여부를 먼저 확인해 주세요.",
       tone: "warning",
     };
   }
 
   if (booking.status === "pending") {
     return {
-      label: "확인 필요",
-      title: "업체 확정 대기",
-      description: "확정 전 포함/불포함, 변경·환불 조건을 먼저 확인하세요.",
+      label: "요청 상태 기록",
+      title: "업체 전달·확정 미확인",
+      description: "아모라 안 요청 기록이에요. 업체에 가능 여부와 포함 항목·변경·환불 조건을 확인해 주세요.",
       tone: "warning",
     };
   }
 
   const daysUntil = getDaysUntil(booking);
-  if (daysUntil <= 7) {
-    return {
-      label: "다가옴",
-      title: "방문 준비",
-      description: "방문 시간, 담당자, 준비물, 추가금 가능성을 다시 확인하세요.",
-      tone: "warning",
-    };
-  }
-
   return {
-    label: "확정",
-    title: "예약 유지",
-    description: "방문 전날 시간과 위치를 한 번 더 재확인하면 좋아요.",
-    tone: "success",
+    label: "확정 상태 기록",
+    title: "업체 전달·확정 근거 미확인",
+    description: daysUntil <= 7
+      ? "기존 확정 상태 기록은 유지했어요. 업체 전달·확정 근거는 확인되지 않았어요. 날짜가 가까워 방문 시간·위치를 직접 확인해 주세요."
+      : "기존 확정 상태 기록은 유지했어요. 업체 전달·확정 근거는 확인되지 않았어요. 방문 시간·위치와 업체 확정을 직접 확인해 주세요.",
+    tone: "warning",
   };
 }
 
@@ -284,31 +343,82 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
+  const [sessionOwnerId, setSessionOwnerId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const openedBookingIdRef = useRef<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const sessionFenceRef = useRef(createOwnerCoupleSessionFence()).current;
+  const loadSequenceRef = useRef(0);
+
+  const clearIdentityBoundState = useCallback((ownerId: string | null) => {
+    setSessionOwnerId(ownerId);
+    setCoupleId(null);
+    setBookings([]);
+    setSelectedBooking(null);
+    setTab("all");
+    openedBookingIdRef.current = null;
+  }, []);
+
+  const isOwnerCurrent = useCallback(async (
+    sequence: number,
+    ownerId: string,
+  ) => {
+    if (loadSequenceRef.current !== sequence) return false;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id.toLowerCase() === ownerId.toLowerCase()
+      && loadSequenceRef.current === sequence;
+  }, []);
+
+  const isLoadCommitCurrent = useCallback(async (
+    sequence: number,
+    token: OwnerCoupleSessionToken,
+  ) => {
+    if (
+      loadSequenceRef.current !== sequence
+      || !sessionFenceRef.isCurrent(token)
+    ) return false;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id.toLowerCase() === token.ownerId
+      && loadSequenceRef.current === sequence
+      && sessionFenceRef.isCurrent(token);
+  }, [sessionFenceRef]);
 
   const loadData = useCallback(async () => {
+    const sequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = sequence;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setBookings([]);
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (loadSequenceRef.current !== sequence) return;
+      const ownerId = sessionData.session?.user.id ?? null;
+      const ownerChanged = sessionFenceRef.setOwner(ownerId);
+      if (ownerChanged) clearIdentityBoundState(ownerId);
+      if (!ownerId) {
+        clearIdentityBoundState(null);
         return;
       }
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("couple_id")
-        .eq("id", user.id)
+        .eq("id", ownerId)
         .single();
+      if (!(await isOwnerCurrent(sequence, ownerId))) return;
 
       if (!profile?.couple_id) {
-        setCoupleId(null);
-        setBookings([]);
+        sessionFenceRef.clearCouple(ownerId);
+        clearIdentityBoundState(ownerId);
         return;
       }
 
+      const coupleChanged = sessionFenceRef.setIdentity(
+        ownerId,
+        profile.couple_id,
+      );
+      if (coupleChanged) clearIdentityBoundState(ownerId);
+      const token = sessionFenceRef.capture();
+      if (!token || !(await isLoadCommitCurrent(sequence, token))) return;
+      setSessionOwnerId(token.ownerId);
       setCoupleId(profile.couple_id);
 
       const { data, error } = await supabase
@@ -318,6 +428,7 @@ export default function BookingsScreen() {
         .order("booking_date", { ascending: false });
 
       if (error) throw error;
+      if (!(await isLoadCommitCurrent(sequence, token))) return;
 
       const nextBookings = (data ?? []).map((row: Record<string, unknown>) => ({
         id: String(row.id ?? ""),
@@ -336,16 +447,48 @@ export default function BookingsScreen() {
         current ? nextBookings.find((booking) => booking.id === current.id) ?? null : current
       ));
     } catch (err) {
-      console.error("Bookings load:", err);
+      if (loadSequenceRef.current === sequence) {
+        console.error("Bookings load:", err);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (loadSequenceRef.current === sequence) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [
+    clearIdentityBoundState,
+    isLoadCommitCurrent,
+    isOwnerCurrent,
+    sessionFenceRef,
+  ]);
+
+  useEffect(() => {
+    let disposed = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const ownerId = session?.user.id ?? null;
+        if (!sessionFenceRef.setOwner(ownerId)) return;
+        loadSequenceRef.current += 1;
+        clearIdentityBoundState(ownerId);
+        setLoading(true);
+        setRefreshing(false);
+        setTimeout(() => {
+          if (!disposed) void loadData();
+        }, 0);
+      },
+    );
+    return () => {
+      disposed = true;
+      loadSequenceRef.current += 1;
+      sessionFenceRef.setOwner(null);
+      subscription.unsubscribe();
+    };
+  }, [clearIdentityBoundState, loadData, sessionFenceRef]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      void loadData();
     }, [loadData])
   );
 
@@ -359,7 +502,7 @@ export default function BookingsScreen() {
         table: "vendor_bookings",
         filter: `couple_id=eq.${coupleId}`,
       }, () => {
-        loadData();
+        void loadData();
       })
       .subscribe();
 
@@ -425,7 +568,14 @@ export default function BookingsScreen() {
 
   const nextAction = summary.nextBooking ? getBookingAction(summary.nextBooking) : null;
 
-  function handleOutcomeSaved(updated: BookingOutcomeResponse["booking"]) {
+  function handleOutcomeSaved(
+    updated: BookingOutcomeResponse["booking"],
+    expectedIdentity: OwnerCoupleSessionToken,
+  ) {
+    if (!sessionFenceRef.isCurrent(expectedIdentity)) return;
+    loadSequenceRef.current += 1;
+    setLoading(false);
+    setRefreshing(false);
     setBookings((current) =>
       current.map((booking) =>
         booking.id === updated.id
@@ -456,11 +606,11 @@ export default function BookingsScreen() {
     return (
       <SafeAreaView style={s.container} edges={["top"]}>
         <AppHeader
-          title="내 예약"
-          subtitle="업체 예약 상태와 다음 행동"
+          title="예약 요청 기록"
+          subtitle="아모라 내부 기록 · 업체 전달·확정은 별도 확인"
           onBack={() => router.back()}
         />
-        <LoadingState label="예약을 불러오고 있어요" />
+        <LoadingState label="예약 요청 기록을 불러오고 있어요" />
       </SafeAreaView>
     );
   }
@@ -468,8 +618,8 @@ export default function BookingsScreen() {
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
-        title="내 예약"
-        subtitle="업체 예약 상태와 다음 행동"
+        title="예약 요청 기록"
+        subtitle="아모라 내부 기록 · 업체 전달·확정은 별도 확인"
         onBack={() => router.back()}
       />
 
@@ -510,7 +660,7 @@ export default function BookingsScreen() {
                 <View style={s.summaryTop}>
                   <View style={s.summaryTitleBlock}>
                     <AppText variant="eyebrow" style={s.summaryEyebrow}>
-                      BOOKING NEXT
+                      REQUEST RECORD NEXT
                     </AppText>
                     <AppText variant="subtitle" style={s.summaryTitle} numberOfLines={2}>
                       {summary.nextBooking.vendor?.name ?? "업체 미정"}
@@ -540,13 +690,13 @@ export default function BookingsScreen() {
             ) : (
               <>
                 <AppText variant="eyebrow" style={s.summaryEyebrow}>
-                  BOOKING REVIEW
+                  REQUEST RECORD REVIEW
                 </AppText>
                 <AppText variant="subtitle" style={[s.reviewTitle, s.summaryTitle]}>
-                  예정된 예약은 없어요
+                  다가오는 요청 기록은 없어요
                 </AppText>
                 <AppText variant="body" style={s.summaryBody}>
-                  완료된 예약의 실제 결제금액과 만족도를 기록해두면 지출 내역을 다시 확인하기 쉬워요.
+                  진행 여부와 지출을 직접 확인한 뒤 사용자 기록과 만족도를 남길 수 있어요. 입력값은 결제 증빙이 아니에요.
                 </AppText>
               </>
             )}
@@ -555,21 +705,21 @@ export default function BookingsScreen() {
                 <AppText variant="bodyStrong" style={s.statNumber}>
                   {summary.upcomingCount}
                 </AppText>
-                <AppText variant="caption" style={s.statLabel}>예정</AppText>
+                <AppText variant="caption" style={s.statLabel}>다가옴</AppText>
               </View>
               <View style={s.statDivider} />
               <View style={s.statItem}>
                 <AppText variant="bodyStrong" style={s.statNumber}>
                   {summary.pendingCount}
                 </AppText>
-                <AppText variant="caption" style={s.statLabel}>대기</AppText>
+                <AppText variant="caption" style={s.statLabel}>미확인</AppText>
               </View>
               <View style={s.statDivider} />
               <View style={s.statItem}>
                 <AppText variant="bodyStrong" style={s.statNumber}>
                   {summary.cancelledCount}
                 </AppText>
-                <AppText variant="caption" style={s.statLabel}>취소</AppText>
+                <AppText variant="caption" style={s.statLabel}>취소 표시</AppText>
               </View>
             </View>
           </Surface>
@@ -582,11 +732,11 @@ export default function BookingsScreen() {
                 <CalendarCheck size={26} color={colors.taupe[500]} />
               </IconBadge>
             }
-            title={bookings.length === 0 ? "예약 내역이 없어요" : "이 조건의 예약이 없어요"}
+            title={bookings.length === 0 ? "예약 요청 기록이 없어요" : "이 조건의 요청 기록이 없어요"}
             description={
               bookings.length === 0
-                ? "업체 상세에서 상담 날짜와 상품을 선택하면 예약이 여기에 모여요."
-                : "다른 상태 탭을 눌러 예약 흐름을 확인해보세요."
+                ? "업체 상세에서 상담 날짜와 상품 후보를 고르면 아모라 내부 기록이 여기에 모여요. 업체 전달·확정은 별도예요."
+                : "다른 상태 탭을 눌러 아모라 요청 기록을 확인해 보세요."
             }
             action={
               bookings.length === 0 ? (
@@ -662,7 +812,9 @@ export default function BookingsScreen() {
       </ScrollView>
 
       <BookingDetailSheet
+        key={`${sessionOwnerId ?? "signed-out"}:${coupleId ?? "unlinked"}:${selectedBooking?.id ?? "closed"}`}
         booking={selectedBooking}
+        identity={sessionFenceRef.capture()}
         onClose={() => setSelectedBooking(null)}
         onSaved={handleOutcomeSaved}
       />
@@ -672,12 +824,17 @@ export default function BookingsScreen() {
 
 function BookingDetailSheet({
   booking,
+  identity,
   onClose,
   onSaved,
 }: {
   booking: Booking | null;
+  identity: OwnerCoupleSessionToken | null;
   onClose: () => void;
-  onSaved: (booking: BookingOutcomeResponse["booking"]) => void;
+  onSaved: (
+    booking: BookingOutcomeResponse["booking"],
+    expectedIdentity: OwnerCoupleSessionToken,
+  ) => void;
 }) {
   const [actualAmountText, setActualAmountText] = useState("");
   const [contractedAmountText, setContractedAmountText] = useState("");
@@ -699,11 +856,13 @@ function BookingDetailSheet({
     setOutcomeMessage(null);
   }, [booking?.id]);
 
-  if (!booking) return null;
+  if (!booking || !identity) return null;
+  const expectedIdentity = identity;
+  const expectedOwnerId = expectedIdentity.ownerId;
 
   const action = getBookingAction(booking);
   const status = STATUS_MAP[booking.status];
-  const completed = isCompleted(booking);
+  const completed = booking.status !== "cancelled" && isCompleted(booking);
   const actualAmount = parseAmountInput(actualAmountText);
   const contractedAmount = parseAmountInput(contractedAmountText);
   const canSaveOutcome = completed && actualAmount !== null && rating !== null && !savingOutcome;
@@ -711,7 +870,7 @@ function BookingDetailSheet({
   async function saveOutcome() {
     if (!booking) return;
     if (actualAmount === null) {
-      setOutcomeError("실제 결제금액을 입력해주세요.");
+      setOutcomeError("사용자가 확인한 기록 지출을 입력해 주세요.");
       return;
     }
     if (rating === null) {
@@ -723,7 +882,8 @@ function BookingDetailSheet({
     setOutcomeError(null);
     setOutcomeMessage(null);
     try {
-      const result = await apiJson<BookingOutcomeResponse>(
+      const response = await apiFetchForExpectedUser(
+        expectedOwnerId,
         `/api/bookings/${booking.id}/outcome`,
         {
           method: "PATCH",
@@ -736,11 +896,19 @@ function BookingDetailSheet({
           }),
         }
       );
-      onSaved(result.booking);
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(bookingOutcomeError(payload));
+      const result = parseBookingOutcomeResponse(payload, booking.id);
+      if (!result) {
+        throw new Error("예약 저장 응답을 안전하게 확인하지 못했어요. 다시 불러와 확인해주세요.");
+      }
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user.id.toLowerCase() !== expectedOwnerId.toLowerCase()) return;
+      onSaved(result.booking, expectedIdentity);
       setOutcomeMessage(
         result.outcome.extraAmount > 0
-          ? `추가금 ${formatWon(result.outcome.extraAmount)}까지 기록했어요.`
-          : "실제 결제금액을 기록했어요."
+          ? `입력 기준 추가 지출 ${formatWon(result.outcome.extraAmount)}까지 사용자가 입력한 기록으로 저장했어요. 결제 증빙을 뜻하지 않아요.`
+          : "사용자가 입력한 기록 지출로 저장했어요. 결제 증빙을 뜻하지 않아요."
       );
     } catch (err) {
       setOutcomeError(err instanceof Error ? err.message : "저장에 실패했습니다.");
@@ -766,7 +934,7 @@ function BookingDetailSheet({
             >
               <View style={s.sheetHeader}>
                 <View style={s.sheetTitleBlock}>
-                  <AppText variant="eyebrow">BOOKING DETAIL</AppText>
+                  <AppText variant="eyebrow">REQUEST RECORD DETAIL</AppText>
                   <AppText variant="subtitle">{booking.vendor?.name ?? "업체 미정"}</AppText>
                 </View>
                 <Pressable
@@ -807,7 +975,7 @@ function BookingDetailSheet({
                 />
                 <DetailRow
                   icon={<WalletCards size={18} color={colors.noir[800]} />}
-                  label="금액"
+                  label="금액 기록"
                   value={bookingAmountLabel(booking)}
                 />
               </View>
@@ -824,8 +992,8 @@ function BookingDetailSheet({
                 <View style={s.outcomeBox}>
                   <View style={s.outcomeHeader}>
                     <View style={s.outcomeTitleBlock}>
-                      <AppText variant="eyebrow">REAL COST MEMORY</AppText>
-                      <AppText variant="bodyStrong">실제 금액과 만족도 기록</AppText>
+                      <AppText variant="eyebrow">SPEND MEMORY</AppText>
+                      <AppText variant="bodyStrong">사용자 입력 지출·후기 기록</AppText>
                     </View>
                     {booking.actual_amount ? (
                       <StatusPill label="기록 있음" tone="success" />
@@ -833,7 +1001,7 @@ function BookingDetailSheet({
                   </View>
 
                   <View style={s.inputGroup}>
-                    <AppText variant="caption">계약/견적 금액</AppText>
+                    <AppText variant="caption">계약/견적 참고 금액(직접 입력)</AppText>
                     <TextInput
                       value={contractedAmountText}
                       onChangeText={setContractedAmountText}
@@ -845,12 +1013,12 @@ function BookingDetailSheet({
                   </View>
 
                   <View style={s.inputGroup}>
-                    <AppText variant="caption">실제 결제금액</AppText>
+                    <AppText variant="caption">기록 지출(사용자 입력 · 결제 증빙 아님)</AppText>
                     <TextInput
                       value={actualAmountText}
                       onChangeText={setActualAmountText}
                       keyboardType="number-pad"
-                      placeholder="실제로 낸 총액을 입력해주세요"
+                      placeholder="사용자가 확인한 지출 총액"
                       placeholderTextColor={colors.textTertiary}
                       style={s.textInput}
                     />
@@ -887,7 +1055,7 @@ function BookingDetailSheet({
                   </View>
 
                   <View style={s.inputGroup}>
-                    <AppText variant="caption">후기 메모</AppText>
+                    <AppText variant="caption">사용자 입력 후기(이용·결제 확인 증빙 아님)</AppText>
                     <TextInput
                       value={reviewText}
                       onChangeText={(value) => setReviewText(value.slice(0, 1000))}
@@ -904,9 +1072,9 @@ function BookingDetailSheet({
 
                   <View style={s.publicToggleRow}>
                     <View style={s.publicToggleCopy}>
-                      <AppText variant="bodyStrong">공개 후기로 공유</AppText>
+                      <AppText variant="bodyStrong">사용자 입력 후기로 공개</AppText>
                       <AppText variant="caption">
-                        끄면 후기 내용은 내 예약 기록에만 저장되고 공개 목록에는 보이지 않아요.
+                        아모라가 이용·결제를 검증한 후기가 아니에요. 끄면 아모라 예약 요청 기록에만 저장되고 공개 목록에는 보이지 않아요.
                       </AppText>
                     </View>
                     <Switch
@@ -920,7 +1088,7 @@ function BookingDetailSheet({
                   {actualAmount !== null && contractedAmount !== null ? (
                     <View style={s.outcomePreview}>
                       <AppText variant="caption">
-                        추가금 {formatWon(Math.max(0, actualAmount - contractedAmount))}
+                        입력 기준 추가 지출 {formatWon(Math.max(0, actualAmount - contractedAmount))}
                       </AppText>
                     </View>
                   ) : null}
@@ -941,7 +1109,7 @@ function BookingDetailSheet({
                     onPress={saveOutcome}
                     disabled={!canSaveOutcome}
                   >
-                    {savingOutcome ? "저장 중..." : "실제 결과 저장"}
+                    {savingOutcome ? "저장 중..." : "사용자 입력 지출·결과 저장"}
                   </PrimaryButton>
                 </View>
               ) : null}

@@ -4,6 +4,7 @@ import { parsePriceUpload, processPriceUpload } from "@/lib/admin/priceUpload";
 import { persistAdminJsonEvidence } from "@/lib/admin/priceUploadEvidence";
 import { createSupabasePriceUploadRepository } from "@/lib/admin/priceUploadSupabase";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +51,12 @@ async function readBoundedBody(request: Request): Promise<BoundedBody> {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const admin = await verifyAdmin(request);
   if (!admin.authorized || !admin.userId) {
     return NextResponse.json(

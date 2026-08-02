@@ -63,6 +63,7 @@ async function authenticatedApiFetch(
   path: string,
   options: RequestInit,
   handleExpiredSession: boolean,
+  expectedUserId?: string,
 ) {
   if (!path.startsWith("/") || path.startsWith("//")) {
     throw new Error("내부 API 경로만 호출할 수 있습니다.");
@@ -72,6 +73,16 @@ async function authenticatedApiFetch(
   const userId = data.session?.user.id;
   const token = data.session?.access_token;
   const initialSession = userId && token ? { userId, accessToken: token } : null;
+  if (
+    expectedUserId !== undefined
+    && (
+      typeof expectedUserId !== "string"
+      || expectedUserId.length === 0
+      || initialSession?.userId.toLowerCase() !== expectedUserId.toLowerCase()
+    )
+  ) {
+    throw new Error("API_SESSION_OWNER_MISMATCH");
+  }
 
   const fetchWithAccessToken = (accessToken: string) => fetch(`${API_BASE}${path}`, {
     ...options,
@@ -84,6 +95,7 @@ async function authenticatedApiFetch(
 
   if (!handleExpiredSession) {
     return fetchMobileWebApiWithSession({
+      expectedUserId,
       initialSession,
       fetchWithAccessToken,
       refreshSession: () => initialSession
@@ -117,6 +129,18 @@ async function authenticatedApiFetch(
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
   return authenticatedApiFetch(path, options, true);
+}
+
+/**
+ * 시작 시점 사용자와 실제 Bearer 소유자가 정확히 같을 때만 호출한다.
+ * 계정 전환 중에는 네트워크 요청 자체를 보내지 않는다.
+ */
+export async function apiFetchForExpectedUser(
+  expectedUserId: string,
+  path: string,
+  options: RequestInit = {},
+) {
+  return authenticatedApiFetch(path, options, true, expectedUserId);
 }
 
 // WebView의 허용 목록 기반 업체 API 브리지는 401 응답을 웹 화면에 그대로

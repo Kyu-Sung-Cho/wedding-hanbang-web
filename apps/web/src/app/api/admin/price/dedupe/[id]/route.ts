@@ -1,6 +1,7 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { z } from "zod";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const vendorDecisionSchema = z.strictObject({
   decision: z.enum(["same", "different"]),
@@ -46,6 +47,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const { authorized, userId } = await verifyAdmin(request);
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

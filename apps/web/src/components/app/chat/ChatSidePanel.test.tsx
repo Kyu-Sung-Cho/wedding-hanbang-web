@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   dismissFailedMessageRetry: vi.fn(),
   applicationFetch: vi.fn(),
   setChatState: vi.fn(),
+  suggestions: [] as string[],
   initialLoadDone: false,
   personalizationStatus: "ready" as "idle" | "loading" | "ready" | "error",
   personalizationProfile: null as null | {
@@ -53,10 +54,19 @@ const mocks = vi.hoisted(() => ({
     metadata: Record<string, unknown>;
     created_at: string;
   }>,
+  profileId: "user-1" as string | null,
+  coupleId: "couple-1" as string | null,
+  hasLinkedPartner: true,
+  isDemo: false,
   profileRole: "bride" as "bride" | "groom" | null,
   push: vi.fn(),
   chatState: {
+    artifactVisibility: "shared" as "shared" | "bride_private" | "groom_private" | null,
     error: null as string | null,
+    quotaRemaining: null as number | null,
+    isStreaming: false,
+    isSending: false,
+    streamingContent: "",
     failedRequest: null as null | {
       canRetry: boolean;
       unavailableReason: string | null;
@@ -71,12 +81,33 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({
-    profile: { id: "user-1", role: mocks.profileRole, name: "테스트" },
-    couple: { id: "couple-1", bride_id: "user-1", groom_id: "user-2" },
-    journey: null,
-    isDemo: false,
-  }),
+  useAuthStore: () => {
+    const currentUserId = mocks.profileId;
+    const isGroom = mocks.profileRole === "groom";
+    return {
+      profile: currentUserId
+        ? {
+            id: currentUserId,
+            role: mocks.profileRole,
+            name: "테스트",
+            couple_id: mocks.coupleId,
+          }
+        : null,
+      couple: mocks.coupleId && currentUserId
+        ? {
+            id: mocks.coupleId,
+            bride_id: isGroom
+              ? (mocks.hasLinkedPartner ? "partner-bride" : null)
+              : currentUserId,
+            groom_id: isGroom
+              ? currentUserId
+              : (mocks.hasLinkedPartner ? "partner-groom" : null),
+          }
+        : null,
+      journey: null,
+      isDemo: mocks.isDemo,
+    };
+  },
 }));
 
 vi.mock("@/hooks/useAmoraPersonalization", () => ({
@@ -93,12 +124,14 @@ vi.mock("@/stores/chatStore", () => {
   const useChatStore = Object.assign(
     () => ({
       messages: mocks.messages,
-      isStreaming: false,
-      isSending: false,
-      streamingContent: "",
+      isStreaming: mocks.chatState.isStreaming,
+      isSending: mocks.chatState.isSending,
+      streamingContent: mocks.chatState.streamingContent,
       streamingToolResults: [],
-      suggestions: [],
+      suggestions: mocks.suggestions,
+      artifactVisibility: mocks.chatState.artifactVisibility,
       error: mocks.chatState.error,
+      quotaRemaining: mocks.chatState.quotaRemaining,
       failedRequest: mocks.chatState.failedRequest,
       isRetrying: false,
       initialLoadDone: mocks.initialLoadDone,
@@ -115,8 +148,8 @@ vi.mock("@/stores/chatStore", () => {
       setState: mocks.setChatState,
       getState: () => ({
         messages: mocks.messages,
-        isStreaming: false,
-        isSending: false,
+        isStreaming: mocks.chatState.isStreaming,
+        isSending: mocks.chatState.isSending,
       }),
     },
   );
@@ -128,11 +161,33 @@ vi.mock("./ChatBubble", () => ({
 }));
 vi.mock("./ActionCard", () => ({ default: () => <div /> }));
 vi.mock("./VendorToolCard", () => ({
-  default: () => <div />,
-  VENDOR_TOOL_NAMES: new Set<string>(),
+  default: ({ onSend }: { onSend: (message: string) => void }) => (
+    <button type="button" onClick={() => onSend("업체 카드 후속 질문")}>업체 카드 후속 질문</button>
+  ),
+  VENDOR_TOOL_NAMES: new Set<string>(["search_vendors"]),
 }));
-vi.mock("./SuggestionButtons", () => ({ default: () => <div /> }));
-vi.mock("./StreamingBubble", () => ({ default: () => <div /> }));
+vi.mock("./SuggestionButtons", () => ({
+  default: ({
+    suggestions,
+    onSelect,
+  }: {
+    suggestions: string[];
+    onSelect: (suggestion: string) => void;
+  }) => (
+    <div>
+      {suggestions.map((suggestion) => (
+        <button key={suggestion} type="button" onClick={() => onSelect(suggestion)}>
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+vi.mock("./StreamingBubble", () => ({
+  default: ({ content }: { content?: string }) => (
+    <div data-testid="streaming-bubble">{content || "응답 생성 중"}</div>
+  ),
+}));
 
 describe("ChatSidePanel attachment sending", () => {
   let root: Root;
@@ -142,6 +197,15 @@ describe("ChatSidePanel attachment sending", () => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
     mocks.messages = [];
+    mocks.suggestions = [];
+    mocks.sendMessage.mockResolvedValue({
+      userMessage: "ephemeral_demo",
+      userMessageId: "demo-sidepanel-message",
+    });
+    mocks.profileId = "user-1";
+    mocks.coupleId = "couple-1";
+    mocks.hasLinkedPartner = true;
+    mocks.isDemo = false;
     mocks.profileRole = "bride";
     mocks.initialLoadDone = false;
     mocks.personalizationStatus = "ready";
@@ -159,6 +223,11 @@ describe("ChatSidePanel attachment sending", () => {
       updatedAt: "2026-07-31T00:00:00.000Z",
     });
     mocks.chatState.error = null;
+    mocks.chatState.artifactVisibility = "shared";
+    mocks.chatState.quotaRemaining = null;
+    mocks.chatState.isStreaming = false;
+    mocks.chatState.isSending = false;
+    mocks.chatState.streamingContent = "";
     mocks.chatState.failedRequest = null;
     mocks.applicationFetch.mockReset();
     mocks.applicationFetch.mockResolvedValue(new Response(JSON.stringify({
@@ -206,6 +275,9 @@ describe("ChatSidePanel attachment sending", () => {
       fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(container.textContent).toContain("pdf");
+    expect(container.textContent).toContain(
+      "PDF·DOCX 파일은 아모라 분석에만 사용되며 대화 첨부로 저장되지 않아요.",
+    );
 
     const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
     const sendButton = buttons.at(-1);
@@ -225,6 +297,42 @@ describe("ChatSidePanel attachment sending", () => {
         mediaType: "application/pdf",
       })],
     }));
+  });
+
+  it("submits only once when the send control fires twice before React rerenders", async () => {
+    let finishSend: (() => void) | undefined;
+    mocks.sendMessage.mockImplementationOnce(() => new Promise((resolve) => {
+      finishSend = () => resolve({
+        userMessage: "persisted",
+        userMessageId: "double-submit-guarded",
+      });
+    }));
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(input, "한 번만 보내줘");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const sendButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="메시지 보내기"]',
+    );
+
+    await act(async () => {
+      sendButton?.click();
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendButton?.disabled).toBe(true);
+
+    await act(async () => {
+      finishSend?.();
+      await Promise.resolve();
+    });
   });
 
   it("cancels a mediation offer without sending or creating a shared message", async () => {
@@ -796,7 +904,45 @@ describe("ChatSidePanel attachment sending", () => {
     }));
   });
 
-  it("clears only the currently selected private conversation", async () => {
+  it("truthfully hides only the shared conversation from this screen", async () => {
+    mocks.messages = [{
+      id: "shared-1",
+      sender_id: "user-1",
+      sender_role: "bride",
+      content: "함께 볼 메시지",
+      visibility: "shared",
+      metadata: {},
+      created_at: "2026-07-17T00:00:00.000Z",
+    }];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    const clearButton = container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]');
+    expect(clearButton).not.toBeNull();
+    expect(clearButton?.getAttribute("aria-label")).toBe("현재 대화 범위를 내 화면에서 정리");
+    await act(async () => {
+      clearButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("함께 대화의 이전 메시지를 내 화면에서만 숨길까요?");
+    expect(container.textContent).toContain("서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.");
+    expect(container.textContent).not.toContain("삭제");
+    expect(container.textContent).not.toContain("초기화");
+    const confirmButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.trim() === "내 화면에서만 숨기기");
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.clearMessages).toHaveBeenCalledWith("couple-1", "view_reset_shared");
+  });
+
+  it("truthfully hides only the selected private conversation from this screen", async () => {
     mocks.messages = [{
       id: "private-1",
       sender_id: "user-1",
@@ -819,15 +965,20 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
-    const clearButton = container.querySelector<HTMLButtonElement>('button[title="대화 초기화"]');
+    const clearButton = container.querySelector<HTMLButtonElement>('button[title="대화 화면 정리"]');
     expect(clearButton).not.toBeNull();
+    expect(clearButton?.getAttribute("aria-label")).toBe("현재 대화 범위를 내 화면에서 정리");
     await act(async () => {
       clearButton?.click();
       await Promise.resolve();
     });
 
+    expect(container.textContent).toContain("나만의 상담 이전 메시지를 내 화면에서만 숨길까요?");
+    expect(container.textContent).toContain("서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.");
+    expect(container.textContent).not.toContain("삭제");
+    expect(container.textContent).not.toContain("초기화");
     const confirmButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-      .find((button) => button.textContent?.trim() === "삭제");
+      .find((button) => button.textContent?.trim() === "내 화면에서만 숨기기");
     await act(async () => {
       confirmButton?.click();
       await Promise.resolve();
@@ -837,6 +988,7 @@ describe("ChatSidePanel attachment sending", () => {
   });
 
   it("shows a failed private request only inside its original private scope", async () => {
+    mocks.chatState.artifactVisibility = "bride_private";
     mocks.chatState.error = "개인 상담 답변을 받지 못했어요.";
     mocks.chatState.failedRequest = {
       canRetry: true,
@@ -858,6 +1010,73 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     expect(container.textContent).toContain("개인 상담 답변을 받지 못했어요.");
+  });
+
+  it("shows error, retry, suggestions, and quota only in their artifact visibility", async () => {
+    mocks.chatState.artifactVisibility = "bride_private";
+    mocks.chatState.error = "개인 상담 일시 오류";
+    mocks.chatState.quotaRemaining = 2;
+    mocks.chatState.failedRequest = {
+      canRetry: true,
+      unavailableReason: null,
+      visibility: "bride_private",
+    };
+    mocks.suggestions = ["개인 상담 후속 질문"];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("개인 상담 일시 오류");
+    expect(container.textContent).not.toContain("개인 상담 후속 질문");
+    expect(container.textContent).not.toContain("베타 무료 상담이 2회 남았어요");
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .some((button) => button.textContent?.trim() === "다시 시도")).toBe(false);
+
+    const privateScopeButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("나만 (상담)"));
+    await act(async () => {
+      privateScopeButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("개인 상담 일시 오류");
+    expect(container.textContent).toContain("개인 상담 후속 질문");
+    expect(container.textContent).toContain("베타 무료 상담이 2회 남았어요");
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .some((button) => button.textContent?.trim() === "다시 시도")).toBe(true);
+  });
+
+  it("shows streaming output only in its artifact visibility", async () => {
+    mocks.chatState.artifactVisibility = "bride_private";
+    mocks.chatState.isStreaming = true;
+    mocks.chatState.streamingContent = "개인 상담 스트리밍";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="streaming-bubble"]')).toBeNull();
+
+    mocks.chatState.isStreaming = false;
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    const privateScopeButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("나만 (상담)"));
+    await act(async () => {
+      privateScopeButton?.click();
+      await Promise.resolve();
+    });
+
+    mocks.chatState.isStreaming = true;
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="streaming-bubble"]')?.textContent)
+      .toContain("개인 상담 스트리밍");
   });
 
   it("fails closed when the signed-in profile has no verified couple role", async () => {
@@ -914,6 +1133,647 @@ describe("ChatSidePanel attachment sending", () => {
     });
     expect(container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]')?.value)
       .toBe("개인 상담 초안");
+  });
+
+  it("keeps shared drafts inside the recipient where they were written", async () => {
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    const composer = () => container.querySelector<HTMLInputElement>(
+      'input[aria-label="메시지 입력"]',
+    );
+    const typeIntoComposer = async (value: string) => {
+      await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        valueSetter?.call(composer(), value);
+        composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    await typeIntoComposer("아모라에게 보낼 초안");
+
+    await act(async () => {
+      findButton("상대방에게")?.click();
+      await Promise.resolve();
+    });
+    expect(composer()?.value).toBe("");
+
+    await typeIntoComposer("상대방에게 보낼 초안");
+
+    await act(async () => {
+      findButton("아모라에게")?.click();
+      await Promise.resolve();
+    });
+    expect(composer()?.value).toBe("아모라에게 보낼 초안");
+  });
+
+  it("sends only the selected recipient draft and preserves the other shared draft", async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    const typeIntoComposer = async (value: string) => {
+      await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        valueSetter?.call(composer(), value);
+        composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    await typeIntoComposer("아모라에게 남길 초안");
+    await act(async () => findButton("상대방에게")?.click());
+    await typeIntoComposer("상대방에게 보낼 내용");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: "상대방에게 보낼 내용",
+      target: "partner",
+      visibility: "shared",
+    }));
+    expect(composer()?.value).toBe("");
+
+    await act(async () => findButton("아모라에게")?.click());
+    expect(composer()?.value).toBe("아모라에게 남길 초안");
+  });
+
+  it("blocks non-image attachments before reading them in the partner lane", async () => {
+    const readAsDataUrl = vi.spyOn(FileReader.prototype, "readAsDataURL");
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    await act(async () => {
+      findButton("상대방에게")?.click();
+      await Promise.resolve();
+    });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(fileInput?.accept).not.toContain("application/pdf");
+    const file = new File(["contract"], "partner-contract.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(readAsDataUrl).not.toHaveBeenCalled();
+    expect(mocks.setChatState).toHaveBeenCalledWith(expect.objectContaining({
+      artifactVisibility: "shared",
+      error: "파트너에게 보내는 첨부파일은 이미지 형식만 지원해요.",
+    }));
+  });
+
+  it("asks the partner to confirm an attachment-only image instead of analyze it", async () => {
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (
+      this: FileReader,
+    ) {
+      Object.defineProperty(this, "result", {
+        configurable: true,
+        value: "data:image/png;base64,aW1hZ2U=",
+      });
+      this.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    await act(async () => {
+      findButton("상대방에게")?.click();
+      await Promise.resolve();
+    });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const file = new File(["image"], "partner-image.png", { type: "image/png" });
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="메시지 보내기"]',
+      )?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: "이 이미지를 확인해주세요.",
+      target: "partner",
+      images: [expect.objectContaining({ fileName: "partner-image.png" })],
+    }));
+  });
+
+  it("never offers an Amora reply suggestion while the recipient is the partner", async () => {
+    mocks.suggestions = ["예산부터 정리할게요"];
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    expect(findButton("예산부터 정리할게요")).toBeDefined();
+
+    await act(async () => {
+      findButton("상대방에게")?.click();
+      await Promise.resolve();
+    });
+
+    expect(findButton("예산부터 정리할게요")).toBeUndefined();
+  });
+
+  it("scopes demo welcome suggestions to the shared artifact visibility", async () => {
+    mocks.isDemo = true;
+    mocks.setChatState.mockClear();
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    const stateUpdater = mocks.setChatState.mock.calls
+      .map(([nextState]) => nextState)
+      .find((nextState) => typeof nextState === "function") as ((state: {
+        messages: typeof mocks.messages;
+        suggestions: string[];
+      }) => Record<string, unknown>) | undefined;
+    expect(stateUpdater).toBeDefined();
+    expect(stateUpdater?.({ messages: [], suggestions: [] })).toEqual(expect.objectContaining({
+      artifactVisibility: "shared",
+    }));
+  });
+
+  it("always sends vendor-card follow-ups to Amora even in the partner composer lane", async () => {
+    mocks.messages = [{
+      id: "vendor-result",
+      sender_id: null,
+      sender_role: "ai",
+      content: "업체를 찾았어요.",
+      visibility: "shared",
+      metadata: {
+        target: "ai",
+        toolResults: [{
+          toolName: "search_vendors",
+          success: true,
+          toolInput: { category: "스튜디오" },
+          toolOutput: { vendors: [] },
+        }],
+      },
+      created_at: "2026-07-31T00:00:00.000Z",
+    }];
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+
+    await act(async () => {
+      findButton("상대방에게")?.click();
+      await Promise.resolve();
+      findButton("업체 카드 후속 질문")?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: "업체 카드 후속 질문",
+      target: "ai",
+      visibility: "shared",
+    }));
+  });
+
+  it("keeps a delayed file read in the delivery lane where selection started", async () => {
+    const pendingReaders: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+      pendingReaders.push(this);
+    });
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    const attachedFile = () => container.querySelector<HTMLButtonElement>(
+      'button[aria-label="amora-contract.pdf 첨부 제거"]',
+    );
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const file = new File(["contract"], "amora-contract.pdf", { type: "application/pdf" });
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(pendingReaders).toHaveLength(1);
+    expect(findButton("상대방에게")?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>(
+      'button[aria-label="파일 첨부"]',
+    )?.disabled).toBe(true);
+
+    await act(async () => {
+      Object.defineProperty(pendingReaders[0], "result", {
+        configurable: true,
+        value: "data:application/pdf;base64,Y29udHJhY3Q=",
+      });
+      pendingReaders[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+
+    expect(attachedFile()).not.toBeNull();
+    expect(findButton("상대방에게")?.disabled).toBe(false);
+    await act(async () => findButton("상대방에게")?.click());
+    expect(attachedFile()).toBeNull();
+    await act(async () => findButton("아모라에게")?.click());
+    expect(attachedFile()).not.toBeNull();
+  });
+
+  it("clears all composer lanes and retry state when the profile or couple changes", async () => {
+    const retryId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    mocks.sendMessage
+      .mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: retryId })
+      .mockResolvedValueOnce({ userMessage: "persisted", userMessageId: "new-session" });
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    const composer = () => container.querySelector<HTMLInputElement>(
+      'input[aria-label="메시지 입력"]',
+    );
+    const typeIntoComposer = async (value: string) => {
+      await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        valueSetter?.call(composer(), value);
+        composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    await typeIntoComposer("이전 계정 AI 초안");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')?.click();
+      await Promise.resolve();
+    });
+    await act(async () => findButton("상대방에게")?.click());
+    await typeIntoComposer("이전 계정 파트너 초안");
+    await act(async () => findButton("나만 (상담)")?.click());
+    await typeIntoComposer("이전 계정 개인 초안");
+
+    mocks.profileId = "user-new";
+    mocks.coupleId = "couple-new";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("현재 범위 · 함께 대화");
+    expect(composer()?.value).toBe("");
+    await act(async () => findButton("상대방에게")?.click());
+    expect(composer()?.value).toBe("");
+    await act(async () => findButton("나만 (상담)")?.click());
+    expect(composer()?.value).toBe("");
+    await act(async () => findButton("함께 대화")?.click());
+    await typeIntoComposer("새 계정 질문");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')?.click();
+      await Promise.resolve();
+    });
+
+    const latestSend = mocks.sendMessage.mock.calls.at(-1)?.[0];
+    expect(latestSend).not.toHaveProperty("clientRequestId");
+    expect(latestSend).toEqual(expect.objectContaining({
+      content: "새 계정 질문",
+      coupleId: "couple-new",
+      senderId: "user-new",
+    }));
+  });
+
+  it("clears private drafts when the verified couple role changes", async () => {
+    const privateScopeButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("나만 (상담)"));
+    await act(async () => privateScopeButton?.click());
+    const composer = () => container.querySelector<HTMLInputElement>(
+      'input[aria-label="메시지 입력"]',
+    );
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(composer(), "신부 역할의 개인 초안");
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    mocks.profileRole = "groom";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("현재 범위 · 함께 대화");
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("나만 (상담)"))
+        ?.click();
+    });
+    expect(composer()?.value).toBe("");
+  });
+
+  it("can request an initial greeting again after the couple identity changes", async () => {
+    mocks.initialLoadDone = true;
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(mocks.requestInitialGreeting).toHaveBeenCalledTimes(1);
+
+    mocks.coupleId = "couple-new";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(mocks.requestInitialGreeting).toHaveBeenCalledTimes(2);
+    expect(mocks.requestInitialGreeting).toHaveBeenLastCalledWith(expect.objectContaining({
+      coupleId: "couple-new",
+    }));
+  });
+
+  it("invalidates a pending file read when the profile or couple changes", async () => {
+    const pendingReaders: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+      pendingReaders.push(this);
+    });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const file = new File(["old"], "old-account.pdf", { type: "application/pdf" });
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(container.querySelector<HTMLButtonElement>(
+      'button[aria-label="파일 첨부"]',
+    )?.disabled).toBe(true);
+
+    mocks.profileId = "user-new";
+    mocks.coupleId = "couple-new";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(container.querySelector<HTMLButtonElement>(
+      'button[aria-label="파일 첨부"]',
+    )?.disabled).toBe(false);
+
+    await act(async () => {
+      Object.defineProperty(pendingReaders[0], "result", {
+        configurable: true,
+        value: "data:application/pdf;base64,b2xk",
+      });
+      pendingReaders[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    expect(container.textContent).not.toContain("old-account.pdf");
+  });
+
+  it("fails closed to Amora and discards the old-recipient draft when the verified link disappears", async () => {
+    const pendingReaders: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+      pendingReaders.push(this);
+    });
+    const findButton = (label: string) => Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes(label));
+    await act(async () => findButton("상대방에게")?.click());
+    const composer = () => container.querySelector<HTMLInputElement>(
+      'input[aria-label="메시지 입력"]',
+    );
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(composer(), "연결 해제된 파트너 초안");
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const oldRecipientImage = new File(["old"], "old-recipient.png", { type: "image/png" });
+    Object.defineProperty(fileInput, "files", {
+      configurable: true,
+      value: [oldRecipientImage],
+    });
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(pendingReaders).toHaveLength(1);
+
+    mocks.hasLinkedPartner = false;
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(findButton("상대방에게")).toBeUndefined();
+    expect(composer()?.value).toBe("");
+    expect(composer()?.placeholder).toContain("결혼 준비");
+    expect(mocks.setChatState).toHaveBeenCalledWith(expect.objectContaining({
+      artifactVisibility: "shared",
+      error: expect.stringContaining("안전을 위해 삭제"),
+    }));
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    await act(async () => {
+      Object.defineProperty(pendingReaders[0], "result", {
+        configurable: true,
+        value: "data:image/png;base64,b2xk",
+      });
+      pendingReaders[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+
+    mocks.hasLinkedPartner = true;
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await act(async () => findButton("상대방에게")?.click());
+    expect(composer()?.value).toBe("");
+    expect(container.textContent).not.toContain("old-recipient.png");
+  });
+
+  it("restores text and attachments to the original lane when persistence fails", async () => {
+    mocks.sendMessage.mockResolvedValueOnce({
+      userMessage: "not_persisted",
+      reason: "database",
+    });
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (
+      this: FileReader,
+      file: Blob,
+    ) {
+      Object.defineProperty(this, "result", {
+        configurable: true,
+        value: `data:${file.type};base64,cmVzdG9yZQ==`,
+      });
+      this.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(composer(), "복구해야 하는 질문");
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const file = new File(["restore"], "restore-sidepanel.pdf", { type: "application/pdf" });
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="메시지 보내기"]')?.click();
+      await Promise.resolve();
+    });
+
+    expect(composer()?.value).toBe("복구해야 하는 질문");
+    expect(container.querySelector(
+      'button[aria-label="restore-sidepanel.pdf 첨부 제거"]',
+    )).not.toBeNull();
+  });
+
+  it("does not consume a typed draft when sending a separate Amora suggestion", async () => {
+    const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(composer(), "직접 쓰던 사이드패널 초안");
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.suggestions = ["추천 답장만 보내기"];
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    const suggestion = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("추천 답장만 보내기"));
+
+    await act(async () => {
+      suggestion?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      content: "추천 답장만 보내기",
+      images: undefined,
+      target: "ai",
+    }));
+    expect(composer()?.value).toBe("직접 쓰던 사이드패널 초안");
+  });
+
+  it("reuses the same idempotency key after an unknown persistence result", async () => {
+    const requestId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    mocks.sendMessage
+      .mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: requestId })
+      .mockResolvedValueOnce({ userMessage: "persisted", userMessageId: "user-message-2" });
+    const composer = () => container.querySelector<HTMLInputElement>('input[aria-label="메시지 입력"]');
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(composer(), "사이드패널도 같은 키로 확인해줘");
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const send = () => container.querySelector<HTMLButtonElement>(
+      'button[aria-label="메시지 보내기"]',
+    );
+
+    await act(async () => {
+      send()?.click();
+      await Promise.resolve();
+    });
+    expect(composer()?.value).toBe("사이드패널도 같은 키로 확인해줘");
+
+    await act(async () => {
+      send()?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      clientRequestId: requestId,
+    }));
+    expect(composer()?.value).toBe("");
+  });
+
+  it.each([
+    {
+      label: "busy",
+      secondOutcome: { userMessage: "not_persisted", reason: "busy" },
+      expectedRetryId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    },
+    {
+      label: "not_persisted result key",
+      secondOutcome: {
+        userMessage: "not_persisted",
+        reason: "storage",
+        clientRequestId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      },
+      expectedRetryId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    },
+    {
+      label: "thrown send",
+      secondOutcome: new Error("network unavailable"),
+      expectedRetryId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    },
+  ])("preserves the submitted retry id after $label", async ({
+    secondOutcome,
+    expectedRetryId,
+  }) => {
+    const originalRetryId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    mocks.sendMessage.mockReset();
+    mocks.sendMessage.mockResolvedValueOnce({
+      userMessage: "persistence_unknown",
+      clientRequestId: originalRetryId,
+    });
+    if (secondOutcome instanceof Error) {
+      mocks.sendMessage.mockRejectedValueOnce(secondOutcome);
+    } else {
+      mocks.sendMessage.mockResolvedValueOnce(secondOutcome);
+    }
+    mocks.sendMessage.mockResolvedValueOnce({
+      userMessage: "persisted",
+      userMessageId: "retry-finished",
+    });
+    const composer = () => container.querySelector<HTMLInputElement>(
+      'input[aria-label="메시지 입력"]',
+    );
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(composer(), "같은 요청인지 확인해줘");
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const clickSend = async () => {
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>(
+          'button[aria-label="메시지 보내기"]',
+        )?.click();
+        await Promise.resolve();
+      });
+    };
+
+    await clickSend();
+    await clickSend();
+    expect(composer()?.value).toBe("같은 요청인지 확인해줘");
+    await clickSend();
+
+    expect(mocks.sendMessage).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      clientRequestId: expectedRetryId,
+    }));
   });
 
   it("uses the verified groom-private visibility without falling back to bride-private", async () => {
@@ -1017,10 +1877,15 @@ describe("ChatSidePanel attachment sending", () => {
             version: 2,
             actionId,
             tool: "add_schedule_event",
-            input: { date: "2026-08-01", title: "드레스 투어" },
+            input: {
+              date: "2026-08-01",
+              title: "드레스 투어",
+              schedule_scope: "confirmed_fact",
+            },
             ...pendingIdentity("add_schedule_event", {
               date: "2026-08-01",
               title: "드레스 투어",
+              schedule_scope: "confirmed_fact",
             }),
             confirmation: "드레스 투어 일정을 추가할까요?",
             issuedAt,
@@ -1074,10 +1939,15 @@ describe("ChatSidePanel attachment sending", () => {
             version: 2,
             actionId,
             tool: "add_schedule_event",
-            input: { date: "2026-08-01", title: "드레스 투어" },
+            input: {
+              date: "2026-08-01",
+              title: "드레스 투어",
+              schedule_scope: "confirmed_fact",
+            },
             ...pendingIdentity("add_schedule_event", {
               date: "2026-08-01",
               title: "드레스 투어",
+              schedule_scope: "confirmed_fact",
             }),
             confirmation: "드레스 투어 일정을 추가할까요?",
             issuedAt,

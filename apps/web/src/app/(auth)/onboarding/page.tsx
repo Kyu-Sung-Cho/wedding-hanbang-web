@@ -71,7 +71,18 @@ export default function OnboardingPage() {
   };
 
   const getCompletionRedirectSearch = () => {
-    if (store.coupleAction !== "join") return window.location.search;
+    const requestedPath = getAuthRedirectPath(
+      window.location.search,
+      window.location.origin,
+    );
+    // 랜딩에서 시작한 명시적 목적지가 있으면 가입 전 맥락을 우선 보존한다.
+    // 별도 목적지 없이 파트너에게 참여한 경우에만 연결 결과를 대시보드에 알린다.
+    if (
+      store.coupleAction !== "join"
+      || requestedPath !== "/wedding/lounge"
+    ) {
+      return window.location.search;
+    }
     return `?${new URLSearchParams({
       redirect: buildJoinedDashboardRedirect(),
     })}`;

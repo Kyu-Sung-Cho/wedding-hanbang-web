@@ -1,6 +1,7 @@
 "use client";
 
 import type { UserRole } from "@/types/database.types";
+import { BETA_COUPLE_ROLE_SUPPORT_COPY } from "@/constants/coupleRoleSupport";
 
 interface RoleSelectionProps {
   selected: UserRole | null;
@@ -24,21 +25,34 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
   ];
 
   return (
-    <div className="space-y-6">
+    <section
+      className="space-y-6"
+      aria-labelledby="couple-role-heading"
+      aria-describedby="couple-role-support-note"
+    >
       <div className="text-center">
-        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
+        <h2
+          id="couple-role-heading"
+          className="text-[22px] font-semibold text-noir-800 mb-2"
+        >
           어떤 역할이신가요?
         </h2>
-        <p className="text-[14px] text-taupe-400">
-          커플 연동 시 역할이 구분됩니다
-        </p>
+        <div
+          id="couple-role-support-note"
+          className="space-y-1 text-[13px] leading-relaxed text-taupe-400"
+        >
+          <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.current}</p>
+          <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.planned}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         {roles.map((role) => (
           <button
             key={role.value}
+            type="button"
             onClick={() => onSelect(role.value)}
+            aria-pressed={selected === role.value}
             className={`p-6 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-center ${
               selected === role.value
                 ? "border-rose-500 bg-rose-500/5 shadow-[0_4px_16px_rgba(121,82,82,0.15)]"
@@ -53,6 +67,6 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

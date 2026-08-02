@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin/vendorWorkspace";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { verifyAdminJsonEvidence } from "@/lib/admin/priceUploadEvidence";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 type PriceRow = Record<string, unknown>;
 
@@ -147,6 +148,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const { authorized, userId } = await verifyAdmin(request);
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

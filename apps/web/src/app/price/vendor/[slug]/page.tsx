@@ -315,7 +315,7 @@ export default async function VendorPricePage({
   });
 
   return (
-    <main className="min-h-screen bg-[#FBF8F2] text-[#243832] [overflow-wrap:anywhere]">
+    <div className="min-h-screen bg-[#FBF8F2] text-[#243832] [overflow-wrap:anywhere]">
       {structuredData.map((data, index) => (
         <script
           key={index}
@@ -335,7 +335,7 @@ export default async function VendorPricePage({
         </Link>
 
         <header className="mt-8 border-b border-[#243832]/15 pb-8">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-[#36534E]/75">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[#36534E]/85">
             <span>{CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category}</span>
             {/* 같은 샵을 여러 지역 대행사가 취급하면 지역도 여러 개다(목록 카드와 같은 기준). */}
             {visibleRegionCodes.map((regionCode) => (
@@ -352,7 +352,7 @@ export default async function VendorPricePage({
             </h1>
           </div>
           {profile.vendor.aliases.length > 0 ? (
-            <p className="mt-2 text-sm text-[#36534E]/75">
+            <p className="mt-2 text-sm text-[#36534E]/85">
               다른 표기 · {profile.vendor.aliases.join(" · ")}
             </p>
           ) : null}
@@ -420,14 +420,14 @@ export default async function VendorPricePage({
                         {price.agency?.name ? ` · ${price.agency.name}` : " · 업체 직접 공시"}
                       </p>
                       <h3 className="mt-1 text-lg font-bold">{price.item_name}</h3>
-                      {price.base_spec ? <p className="mt-1 text-sm text-[#36534E]/75">{price.base_spec}</p> : null}
+                      {price.base_spec ? <p className="mt-1 text-sm text-[#36534E]/85">{price.base_spec}</p> : null}
                     </div>
                     <p className="shrink-0 text-lg font-bold tabular-nums">
                       {krwRangeLabel(price.price_min_krw, price.price_max_krw)}
                     </p>
                   </div>
                   {[price.vat_note, price.price_note].filter(Boolean).length > 0 ? (
-                    <p className="mt-3 text-sm text-[#36534E]/75">
+                    <p className="mt-3 text-sm text-[#36534E]/85">
                       {[price.vat_note, price.price_note].filter(Boolean).join(" · ")}
                     </p>
                   ) : null}
@@ -476,7 +476,7 @@ export default async function VendorPricePage({
             <p className="mt-2 text-sm text-[#36534E]/70">발행된 기준 시점별 가격 변화를 확인하세요.</p>
             <div className="mt-5 overflow-x-auto rounded-xl border border-[#243832]/12 bg-white">
               <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="bg-[#F5ECE4] text-xs text-[#36534E]/75">
+                <thead className="bg-[#F5ECE4] text-xs text-[#36534E]/85">
                   <tr>
                     <th className="px-4 py-3 font-bold">공시 시점</th>
                     <th className="px-4 py-3 font-bold">대행사</th>
@@ -488,8 +488,8 @@ export default async function VendorPricePage({
                   {visiblePrices.map((price) => (
                     <tr key={`history-${price.id}`}>
                       <td className="px-4 py-3 font-medium">{disclosureRoundLabel()}</td>
-                      <td className="px-4 py-3 text-[#36534E]/75">{price.agency?.name ?? "업체 직접"}</td>
-                      <td className="px-4 py-3 text-[#36534E]/75">{price.item_name}</td>
+                      <td className="px-4 py-3 text-[#36534E]/85">{price.agency?.name ?? "업체 직접"}</td>
+                      <td className="px-4 py-3 text-[#36534E]/85">{price.item_name}</td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">{krwRangeLabel(price.price_min_krw, price.price_max_krw)}</td>
                     </tr>
                   ))}
@@ -516,7 +516,7 @@ export default async function VendorPricePage({
         {policies.length > 0 ? (
           <section aria-labelledby="policy-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
             <h2 id="policy-heading" className="text-2xl font-bold">계약 전 확인 · 위약금과 환불</h2>
-            <p className="mt-2 text-sm leading-6 text-[#36534E]/75">
+            <p className="mt-2 text-sm leading-6 text-[#36534E]/85">
               업체가 공시한 원문 그대로예요. 웨딩한방이 요약하거나 해석하지 않았고,
               계약 시점·조건에 따라 달라질 수 있으니 계약서에 같은 내용이 적혀 있는지 꼭 확인하세요.
             </p>
@@ -601,6 +601,6 @@ export default async function VendorPricePage({
           <p>본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.</p>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

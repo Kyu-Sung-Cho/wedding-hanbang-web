@@ -37,6 +37,10 @@ const tools: AiToolDefinition[] = [
         date: { type: "string" },
         title: { type: "string" },
         memo: { type: "string" },
+        schedule_scope: {
+          type: "string",
+          enum: ["confirmed_fact", "shared_commitment", "external_commitment"],
+        },
       },
       required: ["date", "title"],
     },
@@ -64,6 +68,28 @@ const tools: AiToolDefinition[] = [
       required: ["total_budget", "allocations", "intake_summary"],
     },
   },
+  {
+    name: "create_booking",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: {
+        vendor_id: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+      },
+      required: ["vendor_id", "date", "time"],
+    },
+  },
+  {
+    name: "cancel_booking",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: { booking_id: { type: "string" } },
+      required: ["booking_id"],
+    },
+  },
 ];
 
 function extract(text: string) {
@@ -76,6 +102,21 @@ function extract(text: string) {
 }
 
 describe("Amora pending actions", () => {
+  it("labels booking confirmations as Amora-internal record changes", () => {
+    const created = extract(
+      '[pending_action]{"tool":"create_booking","input":{"vendor_id":"vendor-1","date":"2027-03-20","time":"10:00"}}[/pending_action]',
+    );
+    const cancelled = extract(
+      '[pending_action]{"tool":"cancel_booking","input":{"booking_id":"11111111-1111-4111-8111-111111111111"}}[/pending_action]',
+    );
+
+    expect(created.cleanText).toContain("변경: 아모라 방문·상담 요청 기록");
+    expect(cancelled.cleanText).toContain("변경: 아모라 예약 요청 기록 취소 표시");
+    expect(cancelled.cleanText).toContain('대상 예약 요청 기록: "…11111111"');
+    expect(created.cleanText).not.toContain("변경: 업체 예약 요청");
+    expect(cancelled.cleanText).not.toContain("변경: 업체 예약 취소");
+  });
+
   it("replaces a model-authored misleading proposal with a server-owned truthful summary", () => {
     const result = extract(
       '일정만 가볍게 확인해볼게요.\n[pending_action]{"tool":"update_budget","input":{"total_budget":30000000},"confirmation":"일정만 확인할까요?"}[/pending_action]',
@@ -130,7 +171,7 @@ describe("Amora pending actions", () => {
       '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
     ).pendingAction;
     const singleAction = extract(
-      '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-08-01","title":"드레스 피팅"}}[/pending_action]',
+      '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-08-01","title":"드레스 피팅","schedule_scope":"confirmed_fact"}}[/pending_action]',
     ).pendingAction;
 
     expect(coupleAction?.expiresAt).toBe(NOW + 24 * 60 * 60 * 1_000);

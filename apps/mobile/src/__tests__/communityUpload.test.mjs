@@ -11,7 +11,10 @@ const writeSource = readFileSync(writePath, "utf8");
 test("mobile sends file bytes directly to the exact Supabase signed path as ArrayBuffer", () => {
   assert.match(helperSource, /const localResponse = await fetch\(asset\.uri\)/);
   assert.match(helperSource, /const bytes = await localResponse\.arrayBuffer\(\)/);
-  assert.match(helperSource, /apiJson\("\/api\/community\/upload"/);
+  assert.match(
+    helperSource,
+    /apiFetchForExpectedUser\(\s*ownerUserId,\s*"\/api\/community\/upload"/s,
+  );
   assert.match(helperSource, /body: JSON\.stringify\(\{ mimeType, size: bytes\.byteLength \}\)/);
   assert.match(helperSource, /\.from\(signed\.bucket\)[\s\S]*\.uploadToSignedUrl\([\s\S]*signed\.path,[\s\S]*signed\.token,[\s\S]*bytes/);
   assert.doesNotMatch(helperSource, /FormData/);
@@ -19,7 +22,9 @@ test("mobile sends file bytes directly to the exact Supabase signed path as Arra
 
 test("mobile exposes a URL only after the idempotent finalize endpoint succeeds", () => {
   const uploadIndex = helperSource.indexOf("uploadToSignedUrl(");
-  const finalizeIndex = helperSource.lastIndexOf("return finalizeWithRetry(signed.uploadId)");
+  const finalizeIndex = helperSource.lastIndexOf(
+    "return finalizeWithRetry(signed.uploadId, ownerUserId)",
+  );
   const returnIndex = helperSource.indexOf("return { url: finalized.url, type: finalized.type }");
   assert.ok(uploadIndex >= 0);
   assert.ok(finalizeIndex > uploadIndex);
@@ -42,6 +47,25 @@ test("mobile rejects an unknown or oversized picker file before buffering its by
   assert.ok(sizeCheckIndex >= 0);
   assert.ok(fetchIndex > sizeCheckIndex);
   assert.match(writeSource, /fileSize:\s*asset\.fileSize/);
+});
+
+test("mobile binds init, signed path, upload, and finalize to one verified account", () => {
+  assert.match(helperSource, /const ownerUserId = await verifiedUserId\(\)/);
+  assert.match(helperSource, /isValidSignedUpload\(signed, mimeType, ownerUserId\)/);
+  assert.match(helperSource, /value\.path\.toLowerCase\(\) ===/);
+  assert.match(
+    helperSource,
+    /await assertExpectedUser\(ownerUserId\);[\s\S]*uploadToSignedUrl/,
+  );
+  assert.match(
+    helperSource,
+    /apiFetchForExpectedUser\(\s*expectedUserId,\s*"\/api\/community\/upload\/finalize"/s,
+  );
+  assert.match(
+    helperSource,
+    /await assertExpectedUser\(expectedUserId\);[\s\S]*return \{ url: finalized\.url/,
+  );
+  assert.match(helperSource, /error\.message === "API_SESSION_OWNER_MISMATCH"/);
 });
 
 test("mobile write screen has no legacy hard-coded multipart upload path", () => {

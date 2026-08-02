@@ -14,6 +14,7 @@ import {
   getAmoraMemoryEnablement,
   isAuxiliaryMemoryRuntimeEnabled,
 } from "@/lib/ai/amoraMemoryQueue";
+import { repairMissingAmoraMemoryJobs } from "@/lib/ai/amoraMemoryRepair";
 import {
   AmoraMemoryBudgetDeferredError,
   assertAmoraMemoryProviderBudget,
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const MAX_JOBS_PER_RUN = 3;
+const MAX_REPAIR_CANDIDATES_PER_RUN = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type MemoryJob = {
@@ -268,6 +270,12 @@ export async function GET(request: NextRequest) {
   }
 
   const stats = {
+    repairScanned: 0,
+    repairQueued: 0,
+    repairDuplicate: 0,
+    repairSkipped: 0,
+    repairFailed: 0,
+    repairUnavailable: false,
     claimed: 0,
     compiled: 0,
     deferred: 0,
@@ -275,6 +283,33 @@ export async function GET(request: NextRequest) {
     cancelled: 0,
     failed: 0,
   };
+
+  // A response can be atomically persisted while the immediately-following,
+  // runtime-gated enqueue RPC loses its result. Drain the bounded ID-only
+  // repair outbox before the queue, but never let repair availability block
+  // older jobs.
+  try {
+    const repair = await repairMissingAmoraMemoryJobs(
+      createAdminClient(),
+      MAX_REPAIR_CANDIDATES_PER_RUN,
+    );
+    if (repair.status === "unavailable") {
+      stats.repairUnavailable = true;
+    } else {
+      stats.repairScanned = repair.scanned;
+      stats.repairQueued = repair.queued;
+      stats.repairDuplicate = repair.duplicate;
+      stats.repairSkipped = repair.skipped;
+      stats.repairFailed = repair.failed;
+    }
+  } catch {
+    // The helper validates its fixed bound and normally contains transport
+    // failures. This last fence protects the pre-existing queue drain from an
+    // unexpected local regression without logging message text or raw errors.
+    stats.repairUnavailable = true;
+    console.error("[amora-memory-cron] repair unavailable", "internal_error");
+  }
+
   for (let index = 0; index < MAX_JOBS_PER_RUN; index += 1) {
     const admin = createAdminClient();
     const { data, error } = await admin.rpc("claim_amora_memory_job", { p_lease_seconds: 300 });

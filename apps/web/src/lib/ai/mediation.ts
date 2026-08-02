@@ -11,7 +11,8 @@
  *   [/mediation]
  *
  * - 마커가 없으면 그대로 통과 (null 반환).
- * - 4필드 중 일부만 있어도 graceful (있는 것만 채워서 반환).
+ * - 4필드가 모두 검증된 경우에만 승인 가능한 카드 데이터로 반환.
+ * - 일부 필드만 있으면 마커를 제거한 일반 텍스트로 강등.
  * - 본문 텍스트에서 마커 블록은 통째로 제거해서 UI에 노출되지 않게 함.
  *
  * 파싱 실패해도 절대 throw하지 않음 — fallback은 일반 텍스트 그대로.
@@ -24,6 +25,17 @@ export interface MediationBlock {
   resolution?: string;
 }
 
+export const AMORA_USER_REQUESTED_MEDIATION_V2 = {
+  origin: "user_requested",
+  evidenceScope: "requester_summary_only",
+  schemaVersion: 2,
+} as const;
+
+export type UserRequestedMediationV2 = Required<MediationBlock>
+  & typeof AMORA_USER_REQUESTED_MEDIATION_V2;
+
+const MAX_MEDIATION_FIELD_CHARS = 500;
+
 const MEDIATION_RE = /\[mediation\]([\s\S]*?)\[\/mediation\]/i;
 
 const FIELD_PATTERNS: Array<{ key: keyof MediationBlock; regex: RegExp }> = [
@@ -32,6 +44,54 @@ const FIELD_PATTERNS: Array<{ key: keyof MediationBlock; regex: RegExp }> = [
   { key: "data", regex: /^\s*데이터\s*[:：]\s*(.+?)\s*$/m },
   { key: "resolution", regex: /^\s*합의안\s*[:：]\s*(.+?)\s*$/m },
 ];
+
+const FIELD_LABELS: Record<keyof MediationBlock, string> = {
+  empathy: "공감",
+  translation: "통역",
+  data: "데이터",
+  resolution: "합의안",
+};
+
+function isCompleteMediationBlock(
+  block: MediationBlock,
+): block is Required<MediationBlock> {
+  return FIELD_PATTERNS.every(({ key }) => Boolean(block[key]?.trim()));
+}
+
+export function toUserRequestedMediationV2(
+  block: MediationBlock,
+): UserRequestedMediationV2 | null {
+  if (!isCompleteMediationBlock(block)) return null;
+  return { ...block, ...AMORA_USER_REQUESTED_MEDIATION_V2 };
+}
+
+export function mediationBlockToOrdinaryText(block: MediationBlock): string {
+  return FIELD_PATTERNS
+    .flatMap(({ key }) => block[key] ? [`${FIELD_LABELS[key]}: ${block[key]}`] : [])
+    .join("\n\n");
+}
+
+export function readUserRequestedMediationV2(
+  value: unknown,
+): UserRequestedMediationV2 | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.origin !== AMORA_USER_REQUESTED_MEDIATION_V2.origin
+    || candidate.evidenceScope !== AMORA_USER_REQUESTED_MEDIATION_V2.evidenceScope
+    || candidate.schemaVersion !== AMORA_USER_REQUESTED_MEDIATION_V2.schemaVersion
+  ) return null;
+
+  const block: MediationBlock = {};
+  for (const { key } of FIELD_PATTERNS) {
+    const field = candidate[key];
+    if (typeof field !== "string") return null;
+    const normalized = field.trim();
+    if (!normalized || normalized.length > MAX_MEDIATION_FIELD_CHARS) return null;
+    block[key] = normalized;
+  }
+  return toUserRequestedMediationV2(block);
+}
 
 /**
  * 응답 텍스트에서 mediation 블록을 추출.
@@ -59,18 +119,23 @@ export function extractMediation(text: string): {
     }
   }
 
-  // 4필드 모두 비어 있으면 카드로 만들 가치 없음 — null 처리, 본문은 마커 제거만.
-  const hasAny = Object.values(block).some((v) => Boolean(v && v.trim()));
-
   // 마커 블록 제거 + 주변 빈 줄 정리
   const cleanText = text
     .replace(MEDIATION_RE, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+  if (!isCompleteMediationBlock(block)) {
+    const ordinaryText = mediationBlockToOrdinaryText(block);
+    return {
+      cleanText: [cleanText, ordinaryText].filter(Boolean).join("\n\n"),
+      mediation: null,
+    };
+  }
+
   return {
     cleanText,
-    mediation: hasAny ? block : null,
+    mediation: block,
   };
 }
 

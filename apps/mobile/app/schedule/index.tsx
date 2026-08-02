@@ -3,23 +3,46 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
   RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
-  Animated, LayoutAnimation,
+  Animated, LayoutAnimation, AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   ChevronDown, ChevronUp, CheckCircle2, Circle,
-  Plus, X, CalendarDays, Clock, Trash2, AlertTriangle,
+  Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
-import { apiFetch } from "@/lib/api";
+import { apiFetchForExpectedUser } from "@/lib/api";
+import {
+  actOnScheduleApproval,
+  fetchScheduleApprovalInbox,
+  mergeScheduleApprovalInbox,
+  parseScheduleMutationSubmission,
+  type ScheduleApprovalAction,
+  type ScheduleApprovalRequest,
+  type ScheduleMutationSubmission,
+} from "@/lib/scheduleApprovalInbox.mjs";
+import {
+  buildScheduleProgressPatch,
+  cancelScheduleEventById,
+  isCancelledScheduleEvent,
+  isWritableJourneyRevision,
+  replaceScheduleEventById,
+  restoreScheduleEventById,
+  validateScheduleEventDraft,
+} from "@/lib/scheduleMutation.mjs";
+import {
+  createScheduleSessionFence,
+  type ScheduleSessionToken,
+} from "@/lib/scheduleSessionFence.mjs";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   AppHeader,
   AppText,
   LoadingState,
+  PrimaryButton,
   StatusPill,
   Surface,
 } from "@/components/ui/AppUI";
@@ -38,7 +61,7 @@ interface Category {
 }
 
 interface ScheduleEvent {
-  id?: string;
+  id: string;
   date: string;
   title: string;
   time?: string;
@@ -46,8 +69,28 @@ interface ScheduleEvent {
   sourceKey?: string;
   momentType?: string;
   memo?: string;
+  status?: "planned" | "completed" | "cancelled";
+  cancellation?: {
+    cancelledAt: string;
+    cancelledByProfileId: string;
+    reason?: string;
+  };
   createdAt?: string;
   updatedAt?: string;
+}
+
+type ScheduleMutationErrorCode =
+  | "stale"
+  | "active_request"
+  | "target_changed"
+  | "invalid_snapshot"
+  | "failed";
+
+class ScheduleMutationError extends Error {
+  constructor(readonly code: ScheduleMutationErrorCode) {
+    super(code);
+    this.name = "ScheduleMutationError";
+  }
 }
 
 type ActionUrgency = "overdue" | "urgent" | "soon" | "active";
@@ -158,15 +201,142 @@ function createEventId(): string {
   return `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function normalizeScheduleEvent(event: ScheduleEvent): ScheduleEvent {
-  const now = new Date().toISOString();
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
+  if (
+    !isRecord(event)
+    || typeof event.id !== "string"
+    || event.id.trim().length === 0
+    || typeof event.date !== "string"
+    || typeof event.title !== "string"
+    || event.title.trim().length === 0
+    || (
+      event.memo !== undefined
+      && event.memo !== null
+      && typeof event.memo !== "string"
+    )
+    || (
+      event.status !== undefined
+      && event.status !== "planned"
+      && event.status !== "completed"
+      && event.status !== "cancelled"
+    )
+    || (
+      event.status === "cancelled"
+        ? !isCancelledScheduleEvent(event)
+        : event.cancellation !== undefined
+    )
+  ) {
+    return null;
+  }
+
   return {
-    ...event,
+    ...(event as unknown as ScheduleEvent),
+    id: event.id,
+    date: event.date,
+    title: event.title,
     memo: sanitizeUserFacingScheduleMemo(event.memo),
-    id: event.id ?? createEventId(),
-    createdAt: event.createdAt ?? now,
-    updatedAt: event.updatedAt ?? now,
   };
+}
+
+function readScheduleEventsForDisplay(progress: Record<string, unknown>): ScheduleEvent[] {
+  if (progress.__events === undefined) return [];
+  if (!Array.isArray(progress.__events)) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+  const events = progress.__events.map(normalizeScheduleEvent);
+  if (events.some((event) => event === null)) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+  const validEvents = events as ScheduleEvent[];
+  if (new Set(validEvents.map((event) => event.id)).size !== validEvents.length) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+  return validEvents;
+}
+
+function readScheduleEventsForMutation(progress: Record<string, unknown>): ScheduleEvent[] {
+  if (progress.__events === undefined) return [];
+  if (!Array.isArray(progress.__events)) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+  const events = progress.__events.map(normalizeScheduleEvent);
+  if (events.some((event) => event === null)) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+  const validEvents = events as ScheduleEvent[];
+  if (new Set(validEvents.map((event) => event.id)).size !== validEvents.length) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+  return validEvents;
+}
+
+async function fetchScheduleMutationSnapshot(coupleId: string) {
+  const { data: journey, error } = await supabase
+    .from("wedding_journeys")
+    .select("progress, state_revision")
+    .eq("couple_id", coupleId)
+    .single();
+
+  if (
+    error
+    || !journey
+    || !isWritableJourneyRevision(journey.state_revision)
+  ) {
+    throw new ScheduleMutationError("invalid_snapshot");
+  }
+
+  return {
+    progress: isRecord(journey.progress) ? journey.progress : {},
+    stateRevision: journey.state_revision,
+  };
+}
+
+async function submitScheduleEvents(
+  expectedUserId: string,
+  expectedRevision: number,
+  updatedEvents: ScheduleEvent[],
+): Promise<ScheduleMutationSubmission> {
+  const response = await apiFetchForExpectedUser(expectedUserId, "/api/journey", {
+    method: "PATCH",
+    body: JSON.stringify(
+      buildScheduleProgressPatch(expectedRevision, updatedEvents),
+    ),
+  });
+  const payload: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    if (
+      response.status === 409
+      && isRecord(payload)
+      && payload.code === "PLAN_CHANGE_STALE"
+    ) {
+      throw new ScheduleMutationError("stale");
+    }
+    if (
+      response.status === 409
+      && isRecord(payload)
+      && payload.code === "PLAN_CHANGE_ACTIVE_REQUEST"
+    ) {
+      throw new ScheduleMutationError("active_request");
+    }
+    throw new ScheduleMutationError("failed");
+  }
+  try {
+    return parseScheduleMutationSubmission(payload);
+  } catch {
+    throw new ScheduleMutationError("failed");
+  }
+}
+
+function showActiveScheduleRequestAlert() {
+  Alert.alert(
+    "먼저 대기 중인 일정 변경 요청을 확인해 주세요",
+    "상대가 동의·거절하거나, 보낸 사람이 요청을 철회한 뒤 다시 변경할 수 있어요.",
+  );
 }
 
 /* ───── main screen ───── */
@@ -176,17 +346,36 @@ export default function ScheduleScreen() {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [weddingDate, setWeddingDate] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [approvalRequests, setApprovalRequests] = useState<ScheduleApprovalRequest[]>([]);
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [approvalError, setApprovalError] = useState(false);
+  const [scheduleDataError, setScheduleDataError] = useState<
+    "integrity" | "load" | null
+  >(null);
+  const [approvalBusy, setApprovalBusy] = useState<{
+    requestId: string;
+    action: ScheduleApprovalAction;
+  } | null>(null);
 
   // 진행률 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const scheduleSessionFenceRef = useRef(createScheduleSessionFence()).current;
+  const scheduleLoadSequenceRef = useRef(0);
+  const approvalLoadSequenceRef = useRef(0);
+  const approvalActionSequenceRef = useRef(0);
+  const approvalBusyRef = useRef<number | null>(null);
+  const approvalIdentityRef = useRef<{ ownerId: string; coupleId: string } | null>(null);
+  const hasFocusedRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   // event modal
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
@@ -194,28 +383,156 @@ export default function ScheduleScreen() {
   const [formMemo, setFormMemo] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const clearIdentityBoundState = useCallback((nextProfileId: string | null) => {
+    approvalIdentityRef.current = null;
+    approvalLoadSequenceRef.current += 1;
+    approvalActionSequenceRef.current += 1;
+    approvalBusyRef.current = null;
+    progressAnim.stopAnimation();
+    progressAnim.setValue(0);
+    setProfileId(nextProfileId);
+    setCoupleId(null);
+    setWeddingDate(null);
+    setCategories([]);
+    setProgress({});
+    setEvents([]);
+    setExpandedKey(null);
+    setApprovalRequests([]);
+    setApprovalError(false);
+    setScheduleDataError(null);
+    setApprovalLoading(false);
+    setApprovalBusy(null);
+    setRefreshing(false);
+    setSaving(false);
+    setModalVisible(false);
+    setEditingEventId(null);
+    setFormTitle("");
+    setFormDate("");
+    setFormTime("");
+    setFormCategoryKey("");
+    setFormMemo("");
+  }, [progressAnim]);
+
+  const loadApprovalRequests = useCallback(async (
+    identity: { ownerId: string; coupleId: string },
+    options?: { silent?: boolean },
+  ) => {
+    const loadSequence = approvalLoadSequenceRef.current + 1;
+    approvalLoadSequenceRef.current = loadSequence;
+    if (!options?.silent) setApprovalLoading(true);
+    try {
+      const result = await fetchScheduleApprovalInbox({
+        apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
+          identity.ownerId,
+          path,
+          requestOptions,
+        ),
+        ownerId: identity.ownerId,
+        coupleId: identity.coupleId,
+      });
+      const activeIdentity = approvalIdentityRef.current;
+      if (
+        approvalLoadSequenceRef.current === loadSequence
+        && activeIdentity?.ownerId === identity.ownerId
+        && activeIdentity.coupleId === identity.coupleId
+      ) {
+        setApprovalRequests((current) => mergeScheduleApprovalInbox(
+          current,
+          result,
+        ));
+        setApprovalError(result.partial);
+      }
+    } catch {
+      if (approvalLoadSequenceRef.current === loadSequence) {
+        setApprovalError(true);
+      }
+    } finally {
+      if (approvalLoadSequenceRef.current === loadSequence) {
+        setApprovalLoading(false);
+      }
+    }
+  }, []);
+
+  const rememberPendingApproval = useCallback((
+    outcome: ScheduleMutationSubmission,
+    sessionToken: ScheduleSessionToken,
+  ) => {
+    if (
+      outcome.status !== "pending_partner"
+      || !scheduleSessionFenceRef.isCurrent(sessionToken)
+    ) return;
+    setApprovalRequests((current) => [{
+      requestId: outcome.requestId,
+      role: "requester",
+      createdAt: new Date().toISOString(),
+      summary: outcome.summary,
+    }, ...current.filter((request) => request.requestId !== outcome.requestId)]);
+    setApprovalError(false);
+    const identity = approvalIdentityRef.current;
+    if (identity) {
+      void loadApprovalRequests(identity, { silent: true });
+    }
+  }, [loadApprovalRequests, scheduleSessionFenceRef]);
+
   const loadData = useCallback(async () => {
+    const loadSequence = scheduleLoadSequenceRef.current + 1;
+    scheduleLoadSequenceRef.current = loadSequence;
+    let identity: { ownerId: string; coupleId: string } | null = null;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (scheduleLoadSequenceRef.current !== loadSequence) return null;
+
+      if (!user) {
+        scheduleSessionFenceRef.setOwner(null);
+        clearIdentityBoundState(null);
+        return null;
+      }
+
+      if (scheduleSessionFenceRef.setOwner(user.id)) {
+        clearIdentityBoundState(user.id);
+      } else {
+        setProfileId(user.id);
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("couple_id")
         .eq("id", user.id)
         .single();
+      if (scheduleLoadSequenceRef.current !== loadSequence) return null;
 
-      if (!profile?.couple_id) return;
-      setCoupleId(profile.couple_id);
+      if (!profile?.couple_id) {
+        scheduleSessionFenceRef.clearCouple(user.id);
+        clearIdentityBoundState(user.id);
+        return null;
+      }
 
-      const { data: journey } = await supabase
+      identity = { ownerId: user.id, coupleId: profile.couple_id };
+      if (scheduleSessionFenceRef.setIdentity(identity.ownerId, identity.coupleId)) {
+        clearIdentityBoundState(user.id);
+      }
+      setProfileId(identity.ownerId);
+      setCoupleId(identity.coupleId);
+      approvalIdentityRef.current = identity;
+
+      const { data: journey, error: journeyError } = await supabase
         .from("wedding_journeys")
-        .select("wedding_date, progress")
+        .select("wedding_date, progress, state_revision")
         .eq("couple_id", profile.couple_id)
         .single();
+      if (scheduleLoadSequenceRef.current !== loadSequence) return null;
 
-      setWeddingDate(journey?.wedding_date ?? null);
-      const prog = (journey?.progress as Record<string, unknown>) ?? {};
+      if (
+        journeyError
+        || !journey
+        || !isWritableJourneyRevision(journey.state_revision)
+      ) {
+        throw new ScheduleMutationError("invalid_snapshot");
+      }
+
+      setWeddingDate(journey.wedding_date ?? null);
+      const prog = isRecord(journey.progress) ? journey.progress : {};
 
       // 웹과 동일한 progress 구조:
       // progress[catKey] = { category, status, checklist: [{id, label, done}, ...], cost?, budget? }
@@ -275,23 +592,60 @@ export default function ScheduleScreen() {
       }
 
       // 이벤트 추출
-      const evts = ((prog.__events as ScheduleEvent[]) ?? []).map(normalizeScheduleEvent);
-      setEvents(evts);
+      setEvents(readScheduleEventsForDisplay(prog));
+      setScheduleDataError(null);
+      return identity;
     } catch (err) {
+      if (scheduleLoadSequenceRef.current !== loadSequence) return null;
       console.error("일정 로드 오류:", err);
+      setEvents([]);
+      setScheduleDataError(
+        err instanceof ScheduleMutationError && err.code === "invalid_snapshot"
+          ? "integrity"
+          : "load",
+      );
+      return identity;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (scheduleLoadSequenceRef.current === loadSequence) {
+        setLoading(false);
+      }
     }
-  }, [progressAnim]);
+  }, [clearIdentityBoundState, progressAnim, scheduleSessionFenceRef]);
 
   useEffect(() => {
-    loadData().then(() => {
-      // coupleId가 세팅된 후 Realtime 구독
-      // setCoupleId는 loadData 안에서 호출되므로 state 대신 직접 참조 불가
-      // loadData가 완료된 뒤 다음 렌더에서 coupleId가 설정됨
+    loadData().then((identity) => {
+      if (identity) loadApprovalRequests(identity);
     });
-  }, [loadData]);
+  }, [loadApprovalRequests, loadData]);
+
+  useEffect(() => {
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const nextOwnerId = session?.user?.id ?? null;
+        if (!scheduleSessionFenceRef.setOwner(nextOwnerId)) return;
+
+        scheduleLoadSequenceRef.current += 1;
+        clearIdentityBoundState(nextOwnerId);
+        if (reloadTimer !== null) clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => {
+          void loadData().then((identity) => {
+            if (identity) void loadApprovalRequests(identity);
+          });
+        }, 0);
+      },
+    );
+
+    return () => {
+      if (reloadTimer !== null) clearTimeout(reloadTimer);
+      subscription.unsubscribe();
+    };
+  }, [
+    clearIdentityBoundState,
+    loadApprovalRequests,
+    loadData,
+    scheduleSessionFenceRef,
+  ]);
 
   // Realtime: 웹에서 체크리스트 변경 시 자동 갱신
   useEffect(() => {
@@ -304,7 +658,9 @@ export default function ScheduleScreen() {
         table: 'wedding_journeys',
         filter: `couple_id=eq.${coupleId}`,
       }, () => {
-        loadData();
+        loadData().then((identity) => {
+          if (identity) loadApprovalRequests(identity, { silent: true });
+        });
       })
       .subscribe();
 
@@ -316,11 +672,60 @@ export default function ScheduleScreen() {
         channelRef.current = null;
       }
     };
-  }, [coupleId, loadData]);
+  }, [coupleId, loadApprovalRequests, loadData]);
+
+  const refreshScheduleAndApprovals = useCallback(async (
+    options?: { silentApproval?: boolean },
+  ) => {
+    const identity = await loadData();
+    if (identity) {
+      await loadApprovalRequests(identity, {
+        silent: options?.silentApproval,
+      });
+    }
+  }, [loadApprovalRequests, loadData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedRef.current) {
+        hasFocusedRef.current = true;
+        return;
+      }
+      void refreshScheduleAndApprovals({ silentApproval: true });
+    }, [refreshScheduleAndApprovals]),
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+      if (nextState === "active" && previousState !== "active") {
+        void refreshScheduleAndApprovals({ silentApproval: true });
+      }
+    });
+    return () => subscription.remove();
+  }, [refreshScheduleAndApprovals]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshScheduleAndApprovals({ silentApproval: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshScheduleAndApprovals]);
 
   /* ── 체크 토글 ── */
   async function toggleItem(categoryKey: string, itemId: string, currentDone: boolean) {
-    if (!coupleId) return;
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (
+      !coupleId
+      || !profileId
+      || !sessionToken
+      || sessionToken.coupleId !== coupleId
+      || sessionToken.ownerId !== profileId
+    ) return;
+    const mutationCoupleId = sessionToken.coupleId;
 
     const nextDone = !currentDone;
     const previousCategories = categories;
@@ -341,17 +746,9 @@ export default function ScheduleScreen() {
 
     // 웹과 동일한 구조로 DB 업데이트
     try {
-      const { data: journey } = await supabase
-        .from("wedding_journeys")
-        .select("progress")
-        .eq("couple_id", coupleId)
-        .single();
-
-      if (!journey) {
-        throw new Error("journey not found");
-      }
-
-      const currentProgress = { ...(journey.progress as Record<string, unknown>) };
+      const snapshot = await fetchScheduleMutationSnapshot(mutationCoupleId);
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      const currentProgress = { ...snapshot.progress };
       const catTemplate = CATEGORY_CHECKLISTS.find((c) => c.key === categoryKey);
       if (!catTemplate) {
         throw new Error("category template not found");
@@ -380,18 +777,80 @@ export default function ScheduleScreen() {
         checklist: updatedChecklist,
       };
 
-      const res = await apiFetch("/api/journey", {
+      const res = await apiFetchForExpectedUser(
+        sessionToken.ownerId,
+        "/api/journey",
+        {
         method: "PATCH",
-        body: JSON.stringify({ progress_patch: { [categoryKey]: currentProgress[categoryKey] } }),
-      });
+        body: JSON.stringify({
+          expected_revision: snapshot.stateRevision,
+          progress_patch: { [categoryKey]: currentProgress[categoryKey] },
+        }),
+        },
+      );
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
 
       if (!res.ok) {
-        throw new Error("checklist save failed");
+        const payload: unknown = await res.json().catch(() => null);
+        if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+        if (
+          res.status === 409
+          && isRecord(payload)
+          && payload.code === "PLAN_CHANGE_STALE"
+        ) {
+          throw new ScheduleMutationError("stale");
+        }
+        if (
+          res.status === 409
+          && isRecord(payload)
+          && payload.code === "PLAN_CHANGE_ACTIVE_REQUEST"
+        ) {
+          throw new ScheduleMutationError("active_request");
+        }
+        throw new ScheduleMutationError("failed");
       }
-    } catch {
+
+      const payload: unknown = await res.json().catch(() => null);
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      let outcome: ScheduleMutationSubmission;
+      try {
+        outcome = parseScheduleMutationSubmission(payload);
+      } catch {
+        throw new ScheduleMutationError("failed");
+      }
+      rememberPendingApproval(outcome, sessionToken);
+      if (outcome.status === "pending_partner") {
+        setCategories(previousCategories);
+        setProgress(previousProgress);
+        Alert.alert(
+          "파트너 확인을 기다리고 있어요",
+          "파트너가 동의하면 체크 상태에 반영돼요.",
+        );
+        await loadData();
+        return;
+      }
+
+      await loadData();
+    } catch (error) {
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
       setCategories(previousCategories);
       setProgress(previousProgress);
-      Alert.alert("오류", "체크 상태를 저장하지 못했어요. 다시 시도해주세요.");
+      if (
+        error instanceof ScheduleMutationError
+        && error.code === "active_request"
+      ) {
+        showActiveScheduleRequestAlert();
+        const identity = approvalIdentityRef.current;
+        if (identity) await loadApprovalRequests(identity);
+      } else if (error instanceof ScheduleMutationError && error.code === "stale") {
+        Alert.alert(
+          "최신 상태를 다시 불러왔어요",
+          "그 사이 파트너가 준비 정보를 바꿨어요. 최신 내용에서 다시 선택해 주세요.",
+        );
+        await loadData();
+      } else {
+        Alert.alert("오류", "체크 상태를 저장하지 못했어요. 다시 시도해주세요.");
+      }
     }
   }
 
@@ -463,7 +922,7 @@ export default function ScheduleScreen() {
 
   /* ── 이벤트 모달 ── */
   function openAddEventModal() {
-    setEditingIdx(null);
+    setEditingEventId(null);
     const today = new Date().toISOString().slice(0, 10);
     setFormTitle("");
     setFormDate(today);
@@ -473,9 +932,24 @@ export default function ScheduleScreen() {
     setModalVisible(true);
   }
 
-  function openEditEventModal(idx: number) {
-    const evt = events[idx];
-    setEditingIdx(idx);
+  function openEditEventModal(eventId: string) {
+    const evt = events.find((event) => event.id === eventId);
+    if (!evt) {
+      Alert.alert(
+        "일정이 바뀌었어요",
+        "최신 일정 목록을 다시 불러온 뒤 선택해 주세요.",
+      );
+      loadData();
+      return;
+    }
+    if (isCancelledScheduleEvent(evt)) {
+      Alert.alert(
+        "취소된 일정",
+        "취소됨 구역에서 먼저 복원 요청한 뒤 수정해 주세요.",
+      );
+      return;
+    }
+    setEditingEventId(eventId);
     setFormTitle(evt.title);
     setFormDate(evt.date);
     setFormTime(evt.time ?? "");
@@ -485,103 +959,439 @@ export default function ScheduleScreen() {
   }
 
   async function saveEvent() {
-    if (!coupleId) return;
-    if (!formTitle.trim()) {
-      Alert.alert("오류", "일정 제목을 입력해주세요");
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(formDate)) {
-      Alert.alert("오류", "날짜를 YYYY-MM-DD 형식으로 입력해주세요");
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (
+      !coupleId
+      || !profileId
+      || saving
+      || !sessionToken
+      || sessionToken.coupleId !== coupleId
+      || sessionToken.ownerId !== profileId
+    ) return;
+    const mutationCoupleId = sessionToken.coupleId;
+    const draftValidation = validateScheduleEventDraft({
+      date: formDate,
+      title: formTitle,
+      time: formTime,
+      categoryKey: formCategoryKey,
+      memo: formMemo,
+    });
+    if (!draftValidation.ok) {
+      const message = {
+        draft: "일정 내용을 다시 확인해 주세요.",
+        title: "일정 제목을 1자 이상 500자 이내로 입력해 주세요.",
+        date: "날짜를 YYYY-MM-DD 형식의 실제 날짜로 입력해 주세요.",
+        time: "시간을 00:00~23:59 형식으로 입력해 주세요.",
+        memo: "메모는 2,000자 이내로 입력해 주세요.",
+        categoryKey: "카테고리를 다시 선택해 주세요.",
+      }[draftValidation.field];
+      Alert.alert("입력 확인", message);
       return;
     }
 
     setSaving(true);
     try {
-      const { data: journey } = await supabase
-        .from("wedding_journeys")
-        .select("progress")
-        .eq("couple_id", coupleId)
-        .single();
-
-      const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
-      const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
+      const snapshot = await fetchScheduleMutationSnapshot(mutationCoupleId);
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      const currentEvents = readScheduleEventsForMutation(snapshot.progress);
 
       const now = new Date().toISOString();
-      const existingEvent = editingIdx !== null ? currentEvents[editingIdx] : null;
+      const existingEvent = editingEventId === null
+        ? null
+        : currentEvents.find((event) => event.id === editingEventId) ?? null;
+      if (editingEventId !== null && !existingEvent) {
+        throw new ScheduleMutationError("target_changed");
+      }
+      if (existingEvent && isCancelledScheduleEvent(existingEvent)) {
+        throw new ScheduleMutationError("target_changed");
+      }
       const newEvent: ScheduleEvent = {
         ...(existingEvent ?? {}),
         id: existingEvent?.id ?? createEventId(),
-        date: formDate,
-        title: formTitle.trim(),
-        time: formTime.trim() || undefined,
-        categoryKey: formCategoryKey || undefined,
-        memo: formMemo.trim() || undefined,
+        ...draftValidation.value,
         createdAt: existingEvent?.createdAt ?? now,
         updatedAt: now,
       };
 
       let updatedEvents: ScheduleEvent[];
-      if (editingIdx !== null) {
-        updatedEvents = [...currentEvents];
-        updatedEvents[editingIdx] = newEvent;
+      if (editingEventId !== null) {
+        const mutation = replaceScheduleEventById(
+          currentEvents,
+          editingEventId,
+          newEvent,
+        );
+        if (mutation.status !== "updated") {
+          throw new ScheduleMutationError("target_changed");
+        }
+        updatedEvents = mutation.events;
       } else {
         updatedEvents = [...currentEvents, newEvent];
       }
 
       updatedEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-      const updatedProgress = { ...currentProgress, __events: updatedEvents };
-      const res = await apiFetch("/api/journey", {
-        method: "PATCH",
-        body: JSON.stringify({ progress_patch: { __events: updatedProgress.__events } }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "저장에 실패했어요");
-      }
+      const outcome = await submitScheduleEvents(
+        sessionToken.ownerId,
+        snapshot.stateRevision,
+        updatedEvents,
+      );
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      rememberPendingApproval(outcome, sessionToken);
 
       setModalVisible(false);
-      loadData();
-    } catch {
-      Alert.alert("오류", "저장에 실패했어요. 다시 시도해주세요.");
+      setEditingEventId(null);
+      if (outcome.status === "pending_partner") {
+        Alert.alert(
+          "파트너 확인을 기다리고 있어요",
+          "파트너가 동의하면 일정에 반영돼요. 승인 전에는 기존 일정이 유지돼요.",
+        );
+      }
+      await loadData();
+    } catch (error) {
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      if (
+        error instanceof ScheduleMutationError
+        && error.code === "active_request"
+      ) {
+        showActiveScheduleRequestAlert();
+        const identity = approvalIdentityRef.current;
+        if (identity) await loadApprovalRequests(identity);
+      } else if (
+        error instanceof ScheduleMutationError
+        && (error.code === "stale" || error.code === "target_changed")
+      ) {
+        setModalVisible(false);
+        setEditingEventId(null);
+        Alert.alert(
+          "일정이 바뀌었어요",
+          "그 사이 파트너가 일정을 변경했어요. 최신 목록을 확인한 뒤 다시 시도해 주세요.",
+        );
+        await loadData();
+      } else if (
+        error instanceof ScheduleMutationError
+        && error.code === "invalid_snapshot"
+      ) {
+        Alert.alert(
+          "일정 정보를 확인해 주세요",
+          "저장된 일정 중 안전하게 확인할 수 없는 항목이 있어 변경하지 않았어요.",
+        );
+        await loadData();
+      } else {
+        Alert.alert("오류", "저장에 실패했어요. 다시 시도해주세요.");
+      }
     } finally {
-      setSaving(false);
+      if (scheduleSessionFenceRef.isCurrent(sessionToken)) {
+        setSaving(false);
+      }
     }
   }
 
-  async function deleteEvent() {
-    if (editingIdx === null || !coupleId) return;
-    Alert.alert("삭제 확인", "이 일정을 삭제할까요?", [
-      { text: "취소", style: "cancel" },
+  function requestEventCancellation() {
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (
+      editingEventId === null
+      || !coupleId
+      || !profileId
+      || saving
+      || !sessionToken
+      || sessionToken.coupleId !== coupleId
+      || sessionToken.ownerId !== profileId
+    ) return;
+    const targetEventId = editingEventId;
+    Alert.alert("일정 취소 요청", "이 일정의 취소를 요청할까요? 기록은 완전히 삭제되지 않아요.", [
+      { text: "닫기", style: "cancel" },
       {
-        text: "삭제",
-        style: "destructive",
+        text: "취소 요청 보내기",
         onPress: async () => {
-          const { data: journey } = await supabase
-            .from("wedding_journeys")
-            .select("progress")
-            .eq("couple_id", coupleId)
-            .single();
+          if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+          setSaving(true);
+          try {
+            const snapshot = await fetchScheduleMutationSnapshot(sessionToken.coupleId);
+            if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+            const currentEvents = readScheduleEventsForMutation(snapshot.progress);
+            const mutation = cancelScheduleEventById(
+              currentEvents,
+              targetEventId,
+              {
+                cancelledAt: new Date().toISOString(),
+                cancelledByProfileId: sessionToken.ownerId,
+              },
+            );
+            if (mutation.status !== "updated") {
+              throw new ScheduleMutationError("target_changed");
+            }
 
-          const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
-          const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
-          const updatedEvents = currentEvents.filter((_, i) => i !== editingIdx);
-          const updatedProgress = { ...currentProgress, __events: updatedEvents };
-
-          const res = await apiFetch("/api/journey", {
-            method: "PATCH",
-            body: JSON.stringify({ progress_patch: { __events: updatedProgress.__events } }),
-          });
-          if (!res.ok) {
-            Alert.alert("오류", "삭제에 실패했어요. 다시 시도해주세요.");
-            return;
+            const outcome = await submitScheduleEvents(
+              sessionToken.ownerId,
+              snapshot.stateRevision,
+              mutation.events,
+            );
+            if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+            rememberPendingApproval(outcome, sessionToken);
+            setModalVisible(false);
+            setEditingEventId(null);
+            if (outcome.status === "pending_partner") {
+              Alert.alert(
+                "취소 요청을 보냈어요",
+                "파트너 승인 전 기존 일정 유지 상태예요.",
+              );
+            } else {
+              Alert.alert(
+                "일정 취소됨",
+                "기록은 취소됨 구역에 남아 있고 다시 복원 요청할 수 있어요.",
+              );
+            }
+            await loadData();
+          } catch (error) {
+            if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+            if (
+              error instanceof ScheduleMutationError
+              && error.code === "active_request"
+            ) {
+              showActiveScheduleRequestAlert();
+              const identity = approvalIdentityRef.current;
+              if (identity) await loadApprovalRequests(identity);
+            } else if (
+              error instanceof ScheduleMutationError
+              && (error.code === "stale" || error.code === "target_changed")
+            ) {
+              setModalVisible(false);
+              setEditingEventId(null);
+              Alert.alert(
+                "일정이 바뀌었어요",
+                "그 사이 파트너가 일정을 변경했어요. 최신 목록을 확인해 주세요.",
+              );
+              await loadData();
+            } else if (
+              error instanceof ScheduleMutationError
+              && error.code === "invalid_snapshot"
+            ) {
+              Alert.alert(
+                "일정 정보를 확인해 주세요",
+                "저장된 일정 중 안전하게 확인할 수 없는 항목이 있어 취소 요청을 보내지 않았어요.",
+              );
+              await loadData();
+            } else {
+              Alert.alert("오류", "일정 취소 요청에 실패했어요. 다시 시도해 주세요.");
+            }
+          } finally {
+            if (scheduleSessionFenceRef.isCurrent(sessionToken)) {
+              setSaving(false);
+            }
           }
-
-          setModalVisible(false);
-          loadData();
         },
       },
     ]);
+  }
+
+  function requestEventRestore(eventId: string) {
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (
+      !coupleId
+      || !profileId
+      || saving
+      || !sessionToken
+      || sessionToken.coupleId !== coupleId
+      || sessionToken.ownerId !== profileId
+    ) return;
+    Alert.alert("일정 복원 요청", "이 일정을 예정 상태로 복원할까요?", [
+      { text: "닫기", style: "cancel" },
+      {
+        text: "복원 요청",
+        onPress: async () => {
+          if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+          setSaving(true);
+          try {
+            const snapshot = await fetchScheduleMutationSnapshot(sessionToken.coupleId);
+            if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+            const currentEvents = readScheduleEventsForMutation(snapshot.progress);
+            const mutation = restoreScheduleEventById(
+              currentEvents,
+              eventId,
+              new Date().toISOString(),
+            );
+            if (mutation.status !== "updated") {
+              throw new ScheduleMutationError("target_changed");
+            }
+            const outcome = await submitScheduleEvents(
+              sessionToken.ownerId,
+              snapshot.stateRevision,
+              mutation.events,
+            );
+            if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+            rememberPendingApproval(outcome, sessionToken);
+            if (outcome.status === "pending_partner") {
+              Alert.alert(
+                "복원 요청을 보냈어요",
+                "파트너 승인 전에는 취소됨 상태가 유지돼요.",
+              );
+            } else {
+              Alert.alert("일정 복원됨", "예정 상태로 복원했어요.");
+            }
+            await loadData();
+          } catch (error) {
+            if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+            if (
+              error instanceof ScheduleMutationError
+              && error.code === "active_request"
+            ) {
+              showActiveScheduleRequestAlert();
+              const identity = approvalIdentityRef.current;
+              if (identity) await loadApprovalRequests(identity);
+            } else if (
+              error instanceof ScheduleMutationError
+              && (error.code === "stale" || error.code === "target_changed")
+            ) {
+              Alert.alert(
+                "일정이 바뀌었어요",
+                "최신 목록을 확인한 뒤 다시 복원 요청해 주세요.",
+              );
+            } else {
+              Alert.alert("오류", "일정 복원 요청에 실패했어요. 다시 시도해 주세요.");
+            }
+            await loadData();
+          } finally {
+            if (scheduleSessionFenceRef.isCurrent(sessionToken)) {
+              setSaving(false);
+            }
+          }
+        },
+      },
+    ]);
+  }
+
+  async function executeApprovalAction(
+    request: ScheduleApprovalRequest,
+    action: ScheduleApprovalAction,
+    confirmedSessionToken?: ScheduleSessionToken,
+  ) {
+    const sessionToken = confirmedSessionToken ?? scheduleSessionFenceRef.capture();
+    if (
+      !coupleId
+      || !profileId
+      || approvalBusyRef.current !== null
+      || !sessionToken
+      || !scheduleSessionFenceRef.isCurrent(sessionToken)
+      || sessionToken.coupleId !== coupleId
+      || sessionToken.ownerId !== profileId
+    ) return;
+
+    const approvalOperationId = approvalActionSequenceRef.current + 1;
+    approvalActionSequenceRef.current = approvalOperationId;
+    approvalBusyRef.current = approvalOperationId;
+    setApprovalBusy({ requestId: request.requestId, action });
+    try {
+      const result = await actOnScheduleApproval({
+        apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
+          sessionToken.ownerId,
+          path,
+          requestOptions,
+        ),
+        coupleId: sessionToken.coupleId,
+        request,
+        action,
+      });
+      if (
+        !scheduleSessionFenceRef.isCurrent(sessionToken)
+        || approvalBusyRef.current !== approvalOperationId
+      ) return;
+      setApprovalRequests((current) => current.filter(
+        (item) => item.requestId !== request.requestId,
+      ));
+
+      if (result.status === "applied") {
+        Alert.alert(
+          "일정 변경을 반영했어요",
+          "두 사람의 확인이 끝나 최신 일정에 반영됐어요.",
+        );
+        await loadData();
+      } else if (result.status === "rejected") {
+        Alert.alert(
+          "일정 변경을 반영하지 않았어요",
+          "기존 일정은 그대로 유지돼요.",
+        );
+      } else if (result.status === "withdrawn") {
+        Alert.alert(
+          "보낸 요청을 철회했어요",
+          "파트너가 확인하기 전 요청을 닫았고 기존 일정은 그대로예요.",
+        );
+      } else if (result.status === "conflict") {
+        Alert.alert(
+          "요청 상태가 바뀌었어요",
+          "다른 기기나 파트너가 먼저 처리했을 수 있어 최신 상태를 다시 불러왔어요.",
+        );
+        await loadData();
+      } else if (result.status === "terminal") {
+        if (result.terminalStatus === "applied") await loadData();
+        if (
+          !scheduleSessionFenceRef.isCurrent(sessionToken)
+          || approvalBusyRef.current !== approvalOperationId
+        ) return;
+        Alert.alert(
+          result.terminalStatus === "applied"
+            ? "이미 반영된 요청이에요"
+            : "이미 닫힌 요청이에요",
+          "최신 일정과 요청 상태를 다시 불러왔어요.",
+        );
+      }
+    } catch {
+      if (
+        !scheduleSessionFenceRef.isCurrent(sessionToken)
+        || approvalBusyRef.current !== approvalOperationId
+      ) return;
+      Alert.alert(
+        "처리 상태를 확인해 주세요",
+        "요청 결과를 확정하지 못했어요. 중복 처리하지 않고 최신 상태를 다시 확인할게요.",
+      );
+    } finally {
+      if (approvalBusyRef.current === approvalOperationId) {
+        approvalBusyRef.current = null;
+        if (scheduleSessionFenceRef.isCurrent(sessionToken)) {
+          setApprovalBusy(null);
+          const identity = approvalIdentityRef.current;
+          if (
+            identity?.ownerId === sessionToken.ownerId
+            && identity.coupleId === sessionToken.coupleId
+          ) {
+            await loadApprovalRequests(identity, { silent: true });
+          }
+        }
+      }
+    }
+  }
+
+  function requestApprovalAction(
+    request: ScheduleApprovalRequest,
+    action: ScheduleApprovalAction,
+  ) {
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (
+      !sessionToken
+      || !scheduleSessionFenceRef.isCurrent(sessionToken)
+      || sessionToken.coupleId !== coupleId
+      || sessionToken.ownerId !== profileId
+    ) return;
+    if (action === "approve") {
+      void executeApprovalAction(request, action, sessionToken);
+      return;
+    }
+    const withdrawing = action === "withdraw";
+    Alert.alert(
+      withdrawing ? "요청을 철회할까요?" : "이 변경을 반영하지 않을까요?",
+      withdrawing
+        ? "철회하면 파트너의 확인함에서 닫히고 기존 일정이 유지돼요."
+        : "반영하지 않으면 두 사람의 기존 일정이 유지돼요.",
+      [
+        { text: "계속 확인", style: "cancel" },
+        {
+          text: withdrawing ? "요청 철회" : "반영하지 않기",
+          style: "destructive",
+          onPress: () => {
+            void executeApprovalAction(request, action, sessionToken);
+          },
+        },
+      ],
+    );
   }
 
   function handleExpandToggle(key: string) {
@@ -591,7 +1401,9 @@ export default function ScheduleScreen() {
 
   /* ── 임박 일정 (7일 이내) ── */
   const next7Days = getUpcomingDays(7);
-  const upcomingEvents = events
+  const activeEvents = events.filter((event) => !isCancelledScheduleEvent(event));
+  const cancelledEvents = events.filter(isCancelledScheduleEvent);
+  const upcomingEvents = activeEvents
     .filter((e) => next7Days.includes(e.date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -627,7 +1439,15 @@ export default function ScheduleScreen() {
         subtitle="일정과 준비 항목을 같이 관리해요"
         onBack={() => router.back()}
         right={
-          <Pressable onPress={openAddEventModal} hitSlop={12} accessibilityRole="button" accessibilityLabel="일정 추가">
+          <Pressable
+            onPress={openAddEventModal}
+            hitSlop={12}
+            disabled={scheduleDataError !== null}
+            accessibilityRole="button"
+            accessibilityLabel="일정 추가"
+            accessibilityState={{ disabled: scheduleDataError !== null }}
+            style={scheduleDataError !== null ? styles.disabledButton : undefined}
+          >
             <Plus size={22} color={colors.rose[500]} />
           </Pressable>
         }
@@ -639,11 +1459,32 @@ export default function ScheduleScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); loadData(); }}
+            onRefresh={handleRefresh}
             tintColor={colors.rose[500]}
           />
         }
       >
+        {scheduleDataError ? (
+          <Surface style={styles.approvalSection}>
+            <View style={styles.approvalErrorCopy} accessibilityRole="alert">
+              <AlertTriangle size={18} color={colors.warning} />
+              <AppText variant="caption" style={styles.approvalErrorText}>
+                {scheduleDataError === "integrity"
+                  ? "저장된 일정 중 확인이 필요한 기록이 있어 일정을 임의로 숨겼어요. 원본은 바꾸지 않았습니다. 다시 불러와도 계속되면 고객지원에 알려 주세요."
+                  : "일정을 안전하게 불러오지 못했어요. 기존 기록은 바꾸지 않았습니다."}
+              </AppText>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="일정 다시 불러오기"
+              onPress={() => void loadData()}
+              style={styles.approvalRetry}
+            >
+              <Text style={styles.approvalRetryText}>다시 불러오기</Text>
+            </Pressable>
+          </Surface>
+        ) : null}
+
         <Surface tone="noir" style={styles.opsCard}>
           <View style={styles.opsTop}>
             <View>
@@ -676,6 +1517,121 @@ export default function ScheduleScreen() {
             <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
           </View>
         </Surface>
+
+        {(approvalLoading || approvalError || approvalRequests.length > 0) && (
+          <Surface style={styles.approvalSection}>
+            <View style={styles.approvalHeader}>
+              <View style={styles.approvalHeaderCopy}>
+                <AppText variant="eyebrow">TOGETHER</AppText>
+                <AppText variant="subtitle">둘이 확인할 일정 변경</AppText>
+              </View>
+              {approvalLoading ? (
+                <ActivityIndicator size="small" color={colors.rose[500]} />
+              ) : null}
+            </View>
+            <AppText variant="caption" style={styles.approvalIntro}>
+              한 사람이 보낸 변경은 다른 사람이 확인하기 전까지 현재 일정에 반영되지 않아요.
+            </AppText>
+
+            {approvalError ? (
+              <View style={styles.approvalErrorRow}>
+                <View style={styles.approvalErrorCopy}>
+                  <AlertTriangle size={17} color={colors.warning} />
+                  <AppText variant="caption" style={styles.approvalErrorText}>
+                    {approvalRequests.length > 0
+                      ? "공동 확인 상태를 모두 최신으로 확인하지 못했어요. 확인된 요청은 유지했고 기존 일정은 바꾸지 않았어요."
+                      : "공동 확인 상태를 불러오지 못했어요. 기존 일정은 바꾸지 않았어요."}
+                  </AppText>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="공동 확인 상태 다시 불러오기"
+                  onPress={() => {
+                    const identity = approvalIdentityRef.current;
+                    if (identity) void loadApprovalRequests(identity);
+                  }}
+                  style={({ pressed }) => [
+                    styles.approvalRetry,
+                    pressed && styles.rowPressed,
+                  ]}
+                >
+                  <Text style={styles.approvalRetryText}>다시 불러오기</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {approvalRequests.map((request, index) => {
+              const busyAction = approvalBusy?.requestId === request.requestId
+                ? approvalBusy.action
+                : null;
+              const actionsDisabled = approvalBusy !== null;
+              return (
+                <View
+                  key={request.requestId}
+                  style={[
+                    styles.approvalRequestRow,
+                    index > 0 && styles.approvalRequestDivider,
+                  ]}
+                >
+                  <View style={styles.approvalRequestTitleRow}>
+                    <AppText variant="bodyStrong">
+                      {request.role === "reviewer"
+                        ? "파트너가 보낸 변경"
+                        : "내가 보낸 변경"}
+                    </AppText>
+                    <StatusPill
+                      label={request.role === "reviewer" ? "내 확인 필요" : "파트너 확인 대기"}
+                      tone={request.role === "reviewer" ? "warning" : "neutral"}
+                    />
+                  </View>
+                  <Text style={styles.approvalSummary}>{request.summary}</Text>
+                  <Text style={styles.approvalHint}>
+                    {request.role === "reviewer"
+                      ? "동의하면 두 사람의 최신 일정에 반영돼요. 반영하지 않으면 기존 일정이 유지돼요."
+                      : "승인 전에는 기존 일정이 유지돼요. 필요하면 이 요청을 철회할 수 있어요."}
+                  </Text>
+                  <View style={styles.approvalActions}>
+                    {request.role === "reviewer" ? (
+                      <>
+                        <PrimaryButton
+                          tone="ghost"
+                          style={styles.approvalActionButton}
+                          disabled={actionsDisabled}
+                          onPress={() => requestApprovalAction(request, "reject")}
+                        >
+                          {busyAction === "reject"
+                            ? <ActivityIndicator color={colors.noir[800]} />
+                            : "반영하지 않기"}
+                        </PrimaryButton>
+                        <PrimaryButton
+                          tone="rose"
+                          style={styles.approvalActionButton}
+                          disabled={actionsDisabled}
+                          onPress={() => requestApprovalAction(request, "approve")}
+                        >
+                          {busyAction === "approve"
+                            ? <ActivityIndicator color="#fff" />
+                            : "동의하고 반영"}
+                        </PrimaryButton>
+                      </>
+                    ) : (
+                      <PrimaryButton
+                        tone="ghost"
+                        style={styles.approvalActionButton}
+                        disabled={actionsDisabled}
+                        onPress={() => requestApprovalAction(request, "withdraw")}
+                      >
+                        {busyAction === "withdraw"
+                          ? <ActivityIndicator color={colors.noir[800]} />
+                          : "요청 철회"}
+                      </PrimaryButton>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </Surface>
+        )}
 
         <Surface style={styles.weeklySection}>
           <View style={styles.weeklyHeader}>
@@ -728,9 +1684,11 @@ export default function ScheduleScreen() {
           ) : (
             <View style={styles.weeklyEmpty}>
               <CheckCircle2 size={24} color={colors.rose[500]} />
-              <AppText variant="bodyStrong">이번 주에 급한 준비가 없어요</AppText>
+              <AppText variant="bodyStrong">
+                현재 저장된 일정 기준, 이번 주 확인 항목이 없어요
+              </AppText>
               <AppText variant="caption" style={styles.weeklyEmptyText}>
-                아래 체크리스트를 점검하거나 새 일정을 추가해두면 파트너와 함께 동기화돼요.
+                등록하지 않은 일정과 실제 계약·업체·가족 일정은 포함되지 않아요.
               </AppText>
             </View>
           )}
@@ -743,19 +1701,14 @@ export default function ScheduleScreen() {
               <CalendarDays size={18} color={colors.rose[500]} />
               <Text style={styles.upcomingTitle}>임박 일정</Text>
             </View>
-            {upcomingEvents.map((evt, i) => (
+            {upcomingEvents.map((evt) => (
               <Pressable
-                key={`${evt.date}-${evt.title}-${i}`}
+                key={`upcoming-${evt.id}`}
                 style={({ pressed }) => [
                   styles.eventCard,
                   pressed && { transform: [{ scale: 0.98 }] },
                 ]}
-                onPress={() => {
-                  const idx = events.findIndex(
-                    (e) => e.date === evt.date && e.title === evt.title
-                  );
-                  if (idx >= 0) openEditEventModal(idx);
-                }}
+                onPress={() => openEditEventModal(evt.id)}
               >
                 <View style={styles.eventDateBadge}>
                   <Text style={styles.eventDateNum}>{formatDate(evt.date)}</Text>
@@ -839,22 +1792,63 @@ export default function ScheduleScreen() {
         )}
 
         {/* 전체 일정 목록 */}
-        {events.length > 0 && (
+        {activeEvents.length > 0 && (
           <View style={styles.allEventsSection}>
             <Text style={styles.allEventsTitle}>전체 일정</Text>
-            {events.map((evt, i) => (
+            {activeEvents.map((evt) => (
               <Pressable
-                key={`all-${evt.date}-${evt.title}-${i}`}
+                key={`all-${evt.id}`}
                 style={({ pressed }) => [
                   styles.allEventRow,
                   pressed && { transform: [{ scale: 0.98 }] },
                 ]}
-                onPress={() => openEditEventModal(i)}
+                onPress={() => openEditEventModal(evt.id)}
               >
                 <Text style={styles.allEventDate}>{formatDate(evt.date)}</Text>
                 <Text style={styles.allEventTitle}>{evt.title}</Text>
                 {evt.time ? <Text style={styles.allEventTime}>{evt.time}</Text> : null}
               </Pressable>
+            ))}
+          </View>
+        )}
+
+        {cancelledEvents.length > 0 && (
+          <View style={styles.cancelledSection}>
+            <Text style={styles.cancelledTitle}>취소됨</Text>
+            <Text style={styles.cancelledHint}>
+              완전 삭제하지 않고 변경 기록을 보관해요.
+            </Text>
+            {cancelledEvents.map((evt) => (
+              <View key={`cancelled-${evt.id}`} style={styles.cancelledRow}>
+                <View style={styles.cancelledInfo}>
+                  <Text style={styles.cancelledEventTitle}>{evt.title}</Text>
+                  <Text style={styles.cancelledMeta}>
+                    기존 날짜 {evt.date}{evt.time ? ` ${evt.time}` : ""}
+                  </Text>
+                  <Text style={styles.cancelledMeta}>
+                    취소 시각 {evt.cancellation?.cancelledAt.slice(0, 10) ?? "기록 확인 필요"}
+                  </Text>
+                  {evt.cancellation?.reason ? (
+                    <Text style={styles.cancelledMeta}>
+                      취소 사유 {evt.cancellation.reason}
+                    </Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${evt.title} 일정 복원 요청`}
+                  disabled={saving}
+                  onPress={() => requestEventRestore(evt.id)}
+                  style={({ pressed }) => [
+                    styles.restoreBtn,
+                    pressed && styles.rowPressed,
+                    saving && styles.disabledButton,
+                  ]}
+                >
+                  <RotateCcw size={16} color={colors.noir[800]} />
+                  <Text style={styles.restoreBtnText}>복원 요청</Text>
+                </Pressable>
+              </View>
             ))}
           </View>
         )}
@@ -875,7 +1869,7 @@ export default function ScheduleScreen() {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingIdx !== null ? "일정 수정" : "일정 추가"}
+                {editingEventId !== null ? "일정 수정" : "일정 추가"}
               </Text>
               <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
                 <X size={24} color={colors.textTertiary} />
@@ -890,6 +1884,7 @@ export default function ScheduleScreen() {
                 onChangeText={setFormTitle}
                 placeholder="예: 드레스 입어보기"
                 placeholderTextColor={colors.textTertiary}
+                maxLength={500}
               />
 
               <Text style={styles.fieldLabel}>날짜 (YYYY-MM-DD)</Text>
@@ -900,6 +1895,7 @@ export default function ScheduleScreen() {
                 placeholder="2026-06-15"
                 placeholderTextColor={colors.textTertiary}
                 keyboardType="numbers-and-punctuation"
+                maxLength={10}
               />
 
               <Text style={styles.fieldLabel}>시간 (선택)</Text>
@@ -909,6 +1905,8 @@ export default function ScheduleScreen() {
                 onChangeText={setFormTime}
                 placeholder="14:00"
                 placeholderTextColor={colors.textTertiary}
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
               />
 
               <Text style={styles.fieldLabel}>카테고리 (선택)</Text>
@@ -940,17 +1938,20 @@ export default function ScheduleScreen() {
                 placeholder="메모"
                 placeholderTextColor={colors.textTertiary}
                 multiline
+                maxLength={2000}
               />
             </ScrollView>
 
             <View style={styles.modalActions}>
-              {editingIdx !== null && (
+              {editingEventId !== null && (
                 <Pressable
-                  style={({ pressed }) => [styles.deleteBtn, pressed && { transform: [{ scale: 0.96 }] }]}
-                  onPress={deleteEvent}
+                  accessibilityRole="button"
+                  accessibilityLabel="일정 취소 요청"
+                  style={({ pressed }) => [styles.cancelBtn, pressed && { transform: [{ scale: 0.96 }] }]}
+                  onPress={requestEventCancellation}
                 >
-                  <Trash2 size={18} color="#EF4444" />
-                  <Text style={styles.deleteBtnText}>삭제</Text>
+                  <Ban size={18} color={colors.noir[800]} />
+                  <Text style={styles.cancelBtnText}>일정 취소 요청</Text>
                 </Pressable>
               )}
               <Pressable
@@ -966,7 +1967,7 @@ export default function ScheduleScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.saveBtnText}>
-                    {editingIdx !== null ? "수정 완료" : "추가하기"}
+                    {editingEventId !== null ? "수정 완료" : "추가하기"}
                   </Text>
                 )}
               </Pressable>
@@ -1020,6 +2021,88 @@ const styles = StyleSheet.create({
     color: colors.gold.light,
     lineHeight: 22,
     marginBottom: 16,
+  },
+  approvalSection: {
+    padding: 18,
+  },
+  approvalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  approvalHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  approvalIntro: {
+    marginTop: 6,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  approvalErrorRow: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  approvalErrorCopy: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  approvalErrorText: {
+    flex: 1,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  approvalRetry: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  approvalRetryText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.noir[800],
+  },
+  approvalRequestRow: {
+    paddingTop: 16,
+  },
+  approvalRequestDivider: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  approvalRequestTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  approvalSummary: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "600",
+    color: colors.noir[800],
+  },
+  approvalHint: {
+    marginTop: 5,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  approvalActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  approvalActionButton: {
+    flex: 1,
+    minHeight: 44,
   },
   weeklySection: {
     paddingVertical: 16,
@@ -1261,6 +2344,65 @@ const styles = StyleSheet.create({
   allEventTitle: { fontSize: 14, color: colors.noir[800], flex: 1 },
   allEventTime: { fontSize: 12, color: colors.textTertiary },
 
+  cancelledSection: {
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ivory[100],
+  },
+  cancelledTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.noir[800],
+  },
+  cancelledHint: {
+    marginTop: 4,
+    marginBottom: 10,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  cancelledRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 64,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  cancelledInfo: { flex: 1, minWidth: 0 },
+  cancelledEventTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.noir[800],
+  },
+  cancelledMeta: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.textTertiary,
+  },
+  restoreBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.noir[800],
+  },
+  restoreBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.noir[800],
+  },
+  disabledButton: { opacity: 0.5 },
+
   // 모달
   modalOverlay: {
     flex: 1,
@@ -1331,18 +2473,19 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 20,
   },
-  deleteBtn: {
+  cancelBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 16,
+    minHeight: 44,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EF4444",
+    borderColor: colors.noir[800],
   },
-  deleteBtnText: { fontSize: 14, fontWeight: "600", color: "#EF4444" },
+  cancelBtnText: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
   saveBtn: {
     backgroundColor: colors.rose[500],
     borderRadius: 16,

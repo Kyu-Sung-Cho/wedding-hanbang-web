@@ -19,6 +19,11 @@ vi.mock("@/stores/authStore", () => ({
           budget: 3_000_000,
           spent: 0,
         },
+        studio: {
+          category: "studio",
+          status: "completed",
+          cost: 9_000_000,
+        },
       },
     },
     updateJourney: vi.fn(),
@@ -101,15 +106,15 @@ describe("ActionCard budget results", () => {
           result={result({
             toolInput: { category: "ring", spent: 500_000 },
             toolOutput: { category: "ring", spent: 500_000 },
-            displayMessage: "예물 지출 50만원으로 설정되었습니다.",
+            displayMessage: "예물 기록 지출 50만원으로 설정되었습니다.",
           })}
         />,
       );
     });
 
-    expect(container.textContent).toContain("카테고리 지출 변경");
-    expect(container.querySelector('[aria-label="결혼반지·기념 선물 지출 변경 결과"]')).not.toBeNull();
-    expect(container.textContent).toContain("변경된 지출");
+    expect(container.textContent).toContain("카테고리 기록 지출 변경");
+    expect(container.querySelector('[aria-label="결혼반지·기념 선물 기록 지출 변경 결과"]')).not.toBeNull();
+    expect(container.textContent).toContain("변경된 기록 지출");
     expect(container.textContent).toContain("50만원");
     expect(container.textContent).not.toContain("총 0원 / 2,700만원");
   });
@@ -128,7 +133,9 @@ describe("ActionCard budget results", () => {
       );
     });
 
-    expect(container.textContent).toContain("총 0원 / 2,700만원");
+    expect(container.textContent).toContain("기록 지출 총 0원 / 2,700만원");
     expect(container.textContent).toContain("0%");
+    expect(container.textContent).toContain("결제 완료 여부와 별도");
+    expect(container.textContent).not.toContain("900만원");
   });
 });

@@ -4,10 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { processBookingProjectionJob } from "@/lib/bookings/projectionOutbox";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { POST } from "./route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimit: vi.fn(() => null),
   rateLimitKey: vi.fn(() => "booking:test"),
@@ -48,6 +52,24 @@ function query(result: { data: unknown; error: unknown }) {
 describe("POST /api/bookings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isTrustedMutationRequest).mockReturnValue(true);
+  });
+
+  it("rejects an untrusted mutation before authentication or body parsing", async () => {
+    vi.mocked(isTrustedMutationRequest).mockReturnValueOnce(false);
+    const request = new Request("https://example.test/api/bookings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ vendorId: VENDOR_ID }),
+    });
+    const jsonSpy = vi.spyOn(request, "json");
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(jsonSpy).not.toHaveBeenCalled();
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("returns 202 and an explicit retry boundary when booking projection is queued", async () => {
@@ -59,6 +81,12 @@ describe("POST /api/bookings", () => {
       booking_time: "10:00",
       amount: 500_000,
       status: "pending",
+      product_id: null,
+      staff_id: null,
+      vendor_delivery_status: "not_sent",
+      intent_created_by_profile_id: USER_ID,
+      intent_vendor_name_snapshot: "Hanbang Studio",
+      intent_vendor_category_snapshot: "studio",
     };
     vi.mocked(createClientFromRequest).mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
@@ -92,6 +120,9 @@ describe("POST /api/bookings", () => {
       sync: {
         persisted: false,
         error: "atomic projection failed",
+        terminalSchedulePreserved: false,
+        needsReview: false,
+        reviewReason: null,
         nextProgress: {},
         scheduleAdded: false,
         scheduleUpdated: false,
@@ -124,9 +155,15 @@ describe("POST /api/bookings", () => {
 
     expect(response.status).toBe(202);
     expect(payload).toMatchObject({
-      bookingAccepted: true,
+      internalRequestRecorded: true,
+      vendorDeliveryStatus: "not_sent",
+      vendorConfirmationStatus: "unconfirmed",
       fullyApplied: false,
-      booking: { id: BOOKING_ID },
+      booking: {
+        id: BOOKING_ID,
+        quotedAmount: 500_000,
+        amountBasis: "quote",
+      },
       projection: {
         status: "pending_retry",
         retryable: true,
@@ -135,7 +172,13 @@ describe("POST /api/bookings", () => {
         errorCode: "PROJECTION_APPLY_FAILED",
       },
     });
-    expect(payload.message).toContain("예약을 다시 만들 필요는 없습니다");
+    expect(payload.booking).not.toHaveProperty("amount");
+    expect(payload.message).toContain("예약 요청 금액은 견적");
+    expect(payload.message).toContain("결제·지출 기록에는 더하지 않았습니다");
+    expect(payload.message).toContain("아모라 안에 예약 요청을 기록했");
+    expect(payload.message).toContain("업체에 전달되거나 확정된 상태는 아닙니다");
+    expect(payload.message).not.toContain("일정·예산");
+    expect(payload.message).toContain("같은 기록을 다시 만들 필요는 없습니다");
     expect(processBookingProjectionJob).toHaveBeenCalledWith(
       expect.anything(),
       { bookingId: BOOKING_ID },

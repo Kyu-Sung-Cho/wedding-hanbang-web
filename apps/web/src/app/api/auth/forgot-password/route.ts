@@ -8,6 +8,13 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
+import {
+  isRecord,
+  normalizeEmail,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 4 * 1024;
 
 function getAdminSupabase() {
   return createAdminClient();
@@ -15,24 +22,47 @@ function getAdminSupabase() {
 
 export async function POST(request: Request) {
   try {
-    const { email, turnstileToken } = await request.json();
+    const rawBody = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: rawBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.text);
+    } catch {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
+    const email = normalizeEmail(body.email);
 
     if (!email) {
       return NextResponse.json({ error: "이메일을 입력해주세요." }, { status: 400 });
     }
 
-    // signup과 동일한 발송 표면 — caller-controlled client headers are not
-    // attestation. 모든 클라이언트가 검증 토큰을 제출해야 하며, enumeration
-    // 방지를 위해 실패 응답은 동일한 success 형태로 마스킹한다.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request), "forgot");
-    if (!turnstile.ok) {
-      return NextResponse.json({ success: true });
-    }
     const ipLimited = await checkRateLimitPersistent(rateLimitKey("forgot", request), {
       maxRequests: 5,
       windowMs: 10 * 60 * 1000,
     });
     if (ipLimited) return NextResponse.json({ success: true });
+
+    // signup과 동일한 발송 표면 — caller-controlled client headers are not
+    // attestation. 모든 클라이언트가 검증 토큰을 제출해야 하며, enumeration
+    // 방지를 위해 실패 응답은 동일한 success 형태로 마스킹한다.
+    const turnstile = await verifyTurnstile(
+      typeof body.turnstileToken === "string" ? body.turnstileToken : undefined,
+      getClientIp(request),
+      "forgot",
+    );
+    if (!turnstile.ok) {
+      return NextResponse.json({ success: true });
+    }
     const emailLimited = await checkRateLimitPersistent(
       rateLimitSubjectKey("forgot-email", normalizeEmailForRateLimit(email)),
       {

@@ -1,5 +1,6 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { objectParticle } from "@/lib/ai/tools/toolTypes";
+import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
@@ -124,11 +125,9 @@ function toDate(value: BuildAmoraLifecyclePlanInput["weddingDate"]): Date | null
 
 function getDday(weddingDate: Date | null, now: Date): number | null {
   if (!weddingDate) return null;
-  const weddingMidnight = new Date(weddingDate);
-  weddingMidnight.setHours(0, 0, 0, 0);
-  const todayMidnight = new Date(now);
-  todayMidnight.setHours(0, 0, 0, 0);
-  return Math.ceil((weddingMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+  const weddingMidnight = kstMidnightFromYmd(ymdInKst(weddingDate));
+  const todayMidnight = kstMidnightFromYmd(ymdInKst(now));
+  return Math.round((weddingMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function getStage(dday: number | null): AmoraLifecycleStage {
@@ -169,9 +168,11 @@ function getOverallCounts(progress: Record<string, ProgressItem | unknown>) {
 function getSpentBudget(progress: Record<string, ProgressItem | unknown>): number {
   return Object.entries(progress).reduce((sum, [key, value]) => {
     if (key.startsWith("__")) return sum;
-    const item = value as { spent?: unknown; cost?: unknown } | undefined;
-    const amount = Number(item?.spent ?? item?.cost ?? 0);
-    return Number.isFinite(amount) ? sum + amount : sum;
+    const item = value as { spent?: unknown } | undefined;
+    const amount = item?.spent;
+    return typeof amount === "number" && Number.isFinite(amount) && amount >= 0
+      ? sum + amount
+      : sum;
   }, 0);
 }
 
@@ -272,8 +273,8 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
   } else if (budgetPercent >= 100) {
     guardrails.push({
       id: "budget_over_limit",
-      title: "예산을 이미 넘었어요",
-      body: "계약 전 항목, 추가금, 부모님 분담 항목을 다시 나눠서 정리해야 해요.",
+      title: "기록 지출 합계가 전체 예산보다 커요",
+      body: "직접 기록한 금액 기준이며 결제 완료 여부와는 별도예요. 누락·중복을 확인하고 계약 전 항목, 추가금, 가족 분담 항목을 다시 나눠서 정리해요.",
       href: weddingPath("/budget"),
       cta: "예산 보기",
       severity: "critical",
@@ -283,7 +284,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     guardrails.push({
       id: "budget_near_limit",
       title: "예산 여유가 줄고 있어요",
-      body: "남은 큰 지출을 먼저 표시하고, 견적서에 빠진 비용이 없는지 점검하세요.",
+      body: "앞으로 예상하는 큰 금액을 먼저 표시하고, 견적서에 빠진 비용이 없는지 점검하세요.",
       href: weddingPath("/budget"),
       cta: "예산 점검",
       severity: "warning",

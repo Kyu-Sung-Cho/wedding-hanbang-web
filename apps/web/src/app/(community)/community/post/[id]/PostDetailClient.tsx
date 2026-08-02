@@ -22,6 +22,7 @@ import {
   Pin,
   Loader2,
   RotateCcw,
+  MessageCircle,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -82,6 +83,120 @@ function getPostThumbnail(
   if (post.images?.[0]) return post.images[0];
   const match = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
   return match ? match[1] : null;
+}
+
+function formatRecordDate(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return "날짜 확인 필요";
+  return `${year}.${month}.${day}`;
+}
+
+function DecisionRecordOverview({
+  post,
+  isMembersOnly,
+}: {
+  post: Pick<
+    PostWithAuthor,
+    | "category"
+    | "is_resolved"
+    | "comment_count"
+    | "content_origin"
+    | "ad_disclosure"
+    | "sponsorship_detail"
+    | "updated_at"
+    | "under_review"
+  >;
+  isMembersOnly: boolean;
+}) {
+  const isQuestion = post.category === "is_normal" || post.category === "ama";
+  const hasAnswers = post.comment_count > 0;
+  const status = post.under_review
+    ? {
+        tone: "border-[#ead6d2] bg-[#fbf1ef] text-[#8F6662]",
+        title: "운영 검토 중인 글",
+        body: "검토가 끝나기 전에는 내용과 답변을 판단 근거로 사용하지 마세요.",
+      }
+    : isQuestion && post.is_resolved
+      ? {
+          tone: "border-[#c7d1c2] bg-[#eef4f1] text-[#36534E]",
+          title: "질문자가 해결됐다고 표시한 기록",
+          body: "특정 답변을 채택했다는 뜻은 아닙니다. 아래 질문과 답변 과정을 함께 확인하세요.",
+        }
+      : isQuestion && hasAnswers
+        ? {
+            tone: "border-[#d8c7ad] bg-[#fbf4e7] text-[#7d5a2c]",
+            title: "답변을 확인 중인 질문",
+            body: `사람의 답변 ${post.comment_count}개가 달렸고, 질문자는 아직 해결 여부를 표시하지 않았습니다.`,
+          }
+        : isQuestion
+          ? {
+              tone: "border-[#d8c7ad] bg-[#fffaf0] text-[#7d5a2c]",
+              title: "첫 사람 답변을 기다리는 질문",
+              body: "직접 겪은 사람이 답하기 전까지는 추측으로 결론 내리지 않습니다.",
+            }
+          : {
+              tone: "border-[#c7d1c2] bg-[#f5f7f2] text-[#36534E]",
+              title: "사람이 남긴 경험 기록",
+              body: "작성 출처와 광고·혜택 표시를 확인한 뒤 내 상황과 같은 조건만 참고하세요.",
+            };
+  const contentLabel = isQuestion ? "질문 내용" : "경험 내용";
+  const responseLabel = isQuestion ? "사람의 답변" : "사람들의 의견";
+
+  return (
+    <section
+      className="mb-5 mt-1 overflow-hidden rounded-[16px] border border-[#e6ded2] bg-[#fbf8f2]"
+      aria-label="이 기록의 상태와 출처"
+    >
+      <div className="grid md:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] md:divide-x md:divide-[#e6ded2]">
+        <div className={`border-b px-4 py-4 md:border-b-0 ${status.tone}`}>
+          <p className="text-[10px] font-bold tracking-[0.14em] opacity-70">진행 상태</p>
+          <div className="mt-1.5 flex items-start gap-2.5">
+            {post.is_resolved && !post.under_review ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            ) : (
+              <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            )}
+            <div>
+              <strong className="block text-[13px] font-bold leading-snug">{status.title}</strong>
+              <p className="mt-1 text-[11.5px] font-medium leading-[1.6] opacity-80">{status.body}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 py-4">
+          <p className="text-[10px] font-bold tracking-[0.14em] text-[#8b8175]">기록 확인</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ContentOriginBadge origin={post.content_origin} size="md" />
+            <AdDisclosureBadge
+              adDisclosure={post.ad_disclosure}
+              sponsorshipDetail={post.sponsorship_detail}
+              size="md"
+            />
+            <span className="text-[11px] font-medium text-[#7d756c]">
+              마지막 수정 {formatRecordDate(post.updated_at)}
+            </span>
+          </div>
+          <p className="mt-2 text-[10.5px] font-medium leading-[1.55] text-[#8b8175]">
+            이 표시는 작성 출처와 광고·혜택 공개 여부를 말하며, 내용의 정확성을 보증하지 않습니다.
+          </p>
+        </div>
+      </div>
+
+      {!isMembersOnly && (
+        <nav className="grid grid-cols-3 border-t border-[#e6ded2] bg-white/70" aria-label="이 기록 둘러보기">
+          <a href="#decision-question" className="flex min-h-11 items-center justify-center px-2 text-center text-[11px] font-semibold text-[#36534E] hover:bg-[#eef4f1]">
+            {contentLabel}
+          </a>
+          <a href="#comments" className="flex min-h-11 items-center justify-center border-x border-[#e6ded2] px-2 text-center text-[11px] font-semibold text-[#36534E] hover:bg-[#eef4f1]">
+            {responseLabel} {post.comment_count > 0 ? post.comment_count : ""}
+          </a>
+          <a href="#decision-next-action" className="flex min-h-11 items-center justify-center px-2 text-center text-[11px] font-semibold text-[#36534E] hover:bg-[#eef4f1]">
+            내 준비에 반영
+          </a>
+        </nav>
+      )}
+    </section>
+  );
 }
 
 type PostDetailClientProps = {
@@ -369,7 +484,7 @@ export default function PostDetailClient({
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
-      <div className="mx-auto w-full max-w-[1380px] px-4 sm:px-6 lg:px-8 py-5">
+      <div className="mx-auto w-full max-w-[1160px] px-4 sm:px-6 lg:px-8 py-5">
         {/* 브레드크럼 네비게이션 */}
         <nav className="flex items-center gap-1 text-sm text-[#B5ADA3] mb-3 overflow-hidden">
           <Link
@@ -393,11 +508,10 @@ export default function PostDetailClient({
           <span className="truncate text-[#1A1A1F]">{post.title}</span>
         </nav>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,720px)_300px] xl:grid-cols-[270px_minmax(0,720px)_300px] lg:items-start lg:justify-center">
-          <SimilarPostsRail posts={relatedPosts.length > 0 ? relatedPosts : popularPosts} />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,760px)_300px] lg:items-start lg:justify-center">
           <main className="min-w-0">
         {/* 메인 포스트 카드 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#F0EFED] overflow-hidden">
+        <div id="decision-question" className="scroll-mt-24 overflow-hidden rounded-2xl border border-[#e6ded2] bg-white shadow-sm">
           <div className="flex">
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0 p-4 sm:p-5">
@@ -502,6 +616,8 @@ export default function PostDetailClient({
                 )}
                 {post.title}
               </h1>
+
+              <DecisionRecordOverview post={post} isMembersOnly={isMembersOnly} />
 
               {/* 카드 게시물 슬라이드 — 본문 위에 인스타 캐러셀로 렌더 */}
               {!isMembersOnly && Array.isArray(post.slides) && post.slides.length > 0 && (
@@ -929,19 +1045,6 @@ export default function PostDetailClient({
           </div>
         </div>
 
-        {/* 서비스 CTA (게시글과 댓글 사이) */}
-        {!isMembersOnly && (
-          <div className="mt-3">
-            <ServiceCTA
-              category={post.category}
-              postId={post.id}
-              postTitle={post.title}
-              postContent={isMembersOnly ? undefined : post.content}
-              priceData={isMembersOnly ? undefined : post.price_data}
-            />
-          </div>
-        )}
-
         {/* 목록으로 버튼 */}
         <div className="mt-3 flex">
           <Link
@@ -1154,76 +1257,25 @@ export default function PostDetailClient({
             <CommentSection postId={post.id} />
           </div>
         )}
+
+        {/* 사람의 답변을 읽은 뒤에만 서비스로 이어진다. */}
+        {!isMembersOnly && (
+          <div id="decision-next-action" className="mt-3 scroll-mt-24">
+            <ServiceCTA
+              category={post.category}
+              postId={post.id}
+              postTitle={post.title}
+              postContent={post.content}
+              priceData={post.price_data}
+            />
+          </div>
+        )}
           </main>
 
           <RelatedPostsSidebar posts={popularPosts.length > 0 ? popularPosts : relatedPosts} />
         </div>
       </div>
     </div>
-  );
-}
-
-function SimilarPostsRail({ posts }: { posts: PostWithAuthor[] }) {
-  return (
-    <aside className="hidden xl:block">
-      <div className="sticky top-24 rounded-2xl border border-[#eadfc9] bg-white p-4 shadow-sm">
-        <div className="mb-3">
-          <p className="text-[11px] font-semibold text-[#9d6f36]">연관 글</p>
-          <h2 className="font-serif-kr text-[18px] font-medium text-[#071629]">
-            비슷한 글
-          </h2>
-        </div>
-
-        {posts.length > 0 ? (
-          <div className="grid gap-3">
-            {posts.slice(0, 3).map((item) => {
-              const itemCategory = CATEGORY_MAP[item.category];
-              const thumb = getPostThumbnail(item);
-              return (
-                <Link
-                  key={item.id}
-                  href={communityPostPath(item.id)}
-                  className="group block overflow-hidden rounded-xl border border-[#efe4d3] bg-[#fffdf7] transition-colors hover:border-[#36534E]/40 hover:bg-white"
-                >
-                  {thumb && (
-                    <div className="relative aspect-[16/10] w-full bg-[#f8f4ec]">
-                      <Image
-                        src={thumb}
-                        alt=""
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                        sizes="270px"
-                      />
-                    </div>
-                  )}
-                  <div className="px-3 py-3">
-                    <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-[#7a8290]">
-                      <span className="shrink-0 rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
-                        {itemCategory?.shortLabel ?? "글"}
-                      </span>
-                      <span className="truncate">{timeAgo(item.created_at)}</span>
-                    </div>
-                    <h3 className="line-clamp-4 break-words text-[14px] font-semibold leading-[1.55] text-[#071629]">
-                      {item.title}
-                    </h3>
-                    <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#7a8290]">
-                      {stripHtmlPreview(item.content, 90)}
-                    </p>
-                    <p className="mt-2 text-[11px] font-medium text-[#7a8290]">
-                      조회 {item.view_count ?? 0} · 답변 {item.comment_count ?? 0}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="rounded-xl bg-[#fffdf7] px-3 py-4 text-[13px] font-medium leading-relaxed text-[#7a8290]">
-            아직 함께 보여드릴 비슷한 글이 없어요.
-          </p>
-        )}
-      </div>
-    </aside>
   );
 }
 

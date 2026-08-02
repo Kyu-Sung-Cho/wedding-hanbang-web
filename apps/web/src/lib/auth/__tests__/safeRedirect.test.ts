@@ -62,6 +62,19 @@ describe("post-login redirect", () => {
     ).toBe("/wedding/onboarding?redirect=%2Fprice%2Fwishlist");
   });
 
+  it("keeps the opaque start-here handoff inside the chat destination", () => {
+    const chatPath = "/wedding/chat?startHereHandoff=0f75ca2a-94c1-4d9c-83e3-a45981c98673";
+    const search = `?${new URLSearchParams({ redirect: chatPath })}`;
+
+    expect(buildOAuthCallbackUrl(search, "https://hanbang.ai")).toBe(
+      `https://hanbang.ai/api/auth/callback?redirect=${encodeURIComponent(chatPath)}`,
+    );
+    expect(buildOnboardingRedirectPath(search, "https://hanbang.ai")).toBe(
+      `/wedding/onboarding?redirect=${encodeURIComponent(chatPath)}`,
+    );
+    expect(getAuthRedirectPath(search, "https://hanbang.ai")).toBe(chatPath);
+  });
+
   it("keeps onboarding first and then returns to the requested destination", () => {
     const search = "?redirect=%2Fprice%2Fwishlist";
     expect(getPostLoginRedirectPath(search, "https://hanbang.ai", false)).toBe(

@@ -69,8 +69,11 @@ export default function CalendarView({
     return eachDayOfInterval({ start: calStart, end: calEnd });
   }, [currentMonth]);
 
+  const activeEvents = events.filter(
+    (event) => getScheduleEventStatus(event) !== "cancelled",
+  );
   const getEventsForDate = (date: Date) =>
-    events.filter((e) => e.date === format(date, "yyyy-MM-dd"));
+    activeEvents.filter((e) => e.date === format(date, "yyyy-MM-dd"));
 
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
@@ -247,6 +250,11 @@ export default function CalendarView({
                             assigneeContext,
                           )}
                         </p>
+                        {evt.time && (
+                          <p className="mt-1 text-[12px] font-medium text-[#5d6879]">
+                            시간 · {evt.time}
+                          </p>
+                        )}
                         {evt.completionCriteria && (
                           <div className="mt-2 rounded-lg border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
                             <p className="mb-1 text-[11px] font-semibold text-[#4F6451]">

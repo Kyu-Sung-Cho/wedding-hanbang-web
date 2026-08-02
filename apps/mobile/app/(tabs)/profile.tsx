@@ -1,5 +1,5 @@
 // 프로필/설정 화면
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as Application from "expo-application";
 import {
   ChevronRight,
@@ -149,9 +149,11 @@ export default function ProfileScreen() {
     });
   }, []);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

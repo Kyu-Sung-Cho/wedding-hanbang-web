@@ -113,6 +113,18 @@ describe("public landing preview stub", () => {
     expect(container.querySelector("button[title]")).toBeNull();
   });
 
+  it("does not contradict the login-free start-here flow with a login-gated launcher", async () => {
+    mocks.usePathname.mockReturnValue("/start-here");
+
+    await act(async () => {
+      root.render(<CommunityAmoraLauncher />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+    expect(container.textContent).not.toContain("로그인 후 이용할 수 있어요");
+  });
+
   it("keeps keyboard focus inside the login prompt and restores the launcher", async () => {
     await act(async () => {
       root.render(<CommunityAmoraLauncher />);

@@ -49,6 +49,18 @@ describe("Amora atomic mutation coverage", () => {
       .toEqual([]);
   });
 
+  it("exposes canonical HH:mm time fields for schedule add and update tools", () => {
+    for (const name of ["add_schedule_event", "update_schedule_event"]) {
+      const tool = BETA_SAFE_TOOLS.find((candidate) => candidate.name === name);
+      expect(tool?.input_schema.properties).toMatchObject({
+        time: {
+          type: "string",
+          description: expect.stringContaining("HH:mm"),
+        },
+      });
+    }
+  });
+
   it("builds CAS operations for wedding date, venue, task status, and category budget", () => {
     vi.setSystemTime(new Date("2026-07-17T00:00:00.000Z"));
     const ctx = context();
@@ -199,6 +211,89 @@ describe("Amora atomic mutation coverage", () => {
     expect(ctx.weddingContext.progress.__events).toEqual([
       expect.objectContaining({ momentType: "venue_tour", date: "2027-03-12" }),
     ]);
+  });
+
+  it("keeps add_schedule_event truthful by adding instead of silently replacing a category event", () => {
+    const ctx = context();
+    const existing = {
+      id: "evt_existing_dress",
+      date: "2027-02-10",
+      title: "드레스·예식 정장",
+      categoryKey: "dress",
+      sourceKey: "category:dress",
+      status: "planned" as const,
+      createdAt: "2026-07-17T00:00:00.000Z",
+      updatedAt: "2026-07-17T00:00:00.000Z",
+    };
+    ctx.weddingContext.progress = {
+      __events: [existing],
+    } as unknown as ToolExecutionContext["weddingContext"]["progress"];
+
+    const operation = buildAmoraAtomicToolOperation(
+      "add_schedule_event",
+      {
+        date: "2027-02-17",
+        time: "14:30",
+        title: "드레스 최종 피팅",
+        category_key: "dress",
+      },
+      ctx,
+    );
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({
+      kind: "journey_progress_key_cas",
+      key: "__events",
+      value: [
+        existing,
+        expect.objectContaining({
+          date: "2027-02-17",
+          time: "14:30",
+          title: "드레스 최종 피팅",
+          categoryKey: "dress",
+        }),
+      ],
+    });
+    expect(operation.result.toolOutput).not.toHaveProperty("upserted");
+    expect(operation.result.displayMessage).toContain("추가했어요");
+  });
+
+  it("records the exact previous schedule event and rejects timestamp-only updates", () => {
+    const ctx = context();
+    const existing = {
+      id: "evt_existing",
+      date: "2027-02-10",
+      title: "상견례",
+      memo: "장소 확인 전",
+      createdAt: "2026-07-17T00:00:00.000Z",
+      updatedAt: "2026-07-17T00:00:00.000Z",
+    };
+    ctx.weddingContext.progress = {
+      __events: [existing],
+    } as unknown as ToolExecutionContext["weddingContext"]["progress"];
+
+    const changed = buildAmoraAtomicToolOperation(
+      "update_schedule_event",
+      { event_id: existing.id, date: "2027-02-11", time: "15:00" },
+      ctx,
+    );
+    expectAtomicSuccess(changed);
+    expect(changed.result.toolOutput).toMatchObject({
+      previous_event: existing,
+      event: { id: existing.id, date: "2027-02-11", time: "15:00" },
+      updates: { date: "2027-02-11", time: "15:00" },
+    });
+
+    const noChange = buildAmoraAtomicToolOperation(
+      "update_schedule_event",
+      { event_id: existing.id, title: existing.title },
+      ctx,
+    );
+    expect(noChange.domainMutation).toEqual({ kind: "none" });
+    expect(noChange.result).toMatchObject({
+      success: false,
+      toolOutput: { error: "no_change" },
+    });
   });
 
   it("uses amora_actions as the canonical durable store with an operation-derived ID", () => {

@@ -9,6 +9,8 @@ import {
   quarterToMonth,
   shouldUseFlexibleCohort,
 } from "@/utils/quarter";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
   return createAdminClient();
@@ -27,6 +29,12 @@ function getServiceClient() {
  * 첫 커뮤니티 진입 시 silent로 호출.
  */
 export async function POST(req: Request) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const supabase = await createClientFromRequest(req);
     const {
@@ -38,18 +46,26 @@ export async function POST(req: Request) {
     }
 
     // 1. 이미 가입된 방이 있으면 그대로 반환
-    const { data: existingMembership } = await supabase
+    const { data: existingMemberships } = await supabase
       .from("cohort_members")
       .select("room_id")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("joined_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(2);
 
-    if (existingMembership) {
-      return NextResponse.json({ room_id: existingMembership.room_id, reason: "already_assigned" });
+    if (existingMemberships?.length === 1) {
+      return NextResponse.json(
+        { room_id: existingMemberships[0].room_id, reason: "already_assigned" },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
     }
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:cohort:auto-assign", req, user.id),
+      { maxRequests: 10, windowMs: 60_000 },
+    );
+    if (limited) return limited;
 
     const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
     if (!writeAccess.allowed) {
@@ -111,28 +127,16 @@ export async function POST(req: Request) {
     if (rpcError) {
       console.error("[auto-assign] RPC error:", rpcError);
       return NextResponse.json(
-        { room_id: null, reason: "rpc_failed", error: rpcError.message },
-        { status: 500 }
+        { room_id: null, reason: "rpc_failed" },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
       );
     }
 
-    if (roomId) {
-      await serviceClient
-        .from("cohort_members")
-        .update({ is_active: true })
-        .eq("room_id", roomId)
-        .eq("user_id", user.id);
-
-      const { count } = await serviceClient
-        .from("cohort_members")
-        .select("id", { count: "exact", head: true })
-        .eq("room_id", roomId)
-        .eq("is_active", true);
-
-      await serviceClient
-        .from("cohort_rooms")
-        .update({ member_count: count ?? 0 })
-        .eq("id", roomId);
+    if (typeof roomId !== "string") {
+      return NextResponse.json(
+        { room_id: null, reason: "rpc_invalid_result" },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
+      );
     }
 
     return NextResponse.json({
@@ -141,7 +145,7 @@ export async function POST(req: Request) {
       year: target.year,
       quarter: target.quarter,
       flexible: useFlexibleCohort,
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     console.error("[auto-assign] unexpected:", err);
     return NextResponse.json(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const ALLOWED_ACTIONS = ["hide", "restore", "soft_delete"] as const;
 type ModerateAction = (typeof ALLOWED_ACTIONS)[number];
@@ -27,6 +28,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { authorized, userId: adminId } = await verifyAdmin(request);
     if (!authorized || !adminId) {

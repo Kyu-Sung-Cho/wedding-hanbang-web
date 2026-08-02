@@ -11,6 +11,7 @@ import { chooseAmoraChatModelRole } from "@/lib/ai/modelConfig";
 import {
   AMORA_SYSTEM_PROMPT_MAX_CHARS,
   buildAmoraSystemPrompt,
+  type AmoraActionContract,
 } from "@/lib/ai/amoraPromptComposer";
 import { AMORA_EVAL_HEADER, verifyAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
@@ -20,6 +21,8 @@ import {
   getPlaceSearchToolChoice,
 } from "@/lib/ai/placeSearchRouting";
 import {
+  getClientSafeToolInput,
+  getClientSafeToolResult,
   getModelSafeToolOutput,
   getPersistableToolResults,
   hasEphemeralPlaceSearchResult,
@@ -28,11 +31,15 @@ import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
-import { guardDemoPersistenceDisclosure } from "@/lib/ai/amoraDemoPersistence";
-import { guardUnverifiedAmoraPersistenceClaims } from "@/lib/ai/amoraPersistenceClaims";
+import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
+import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGate";
 import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
-import { extractMediation } from "@/lib/ai/mediation";
+import {
+  extractMediation,
+  mediationBlockToOrdinaryText,
+  toUserRequestedMediationV2,
+} from "@/lib/ai/mediation";
 import {
   AMORA_PROFILE_PROJECTION_QUERY_LIMIT,
   normalizeAmoraProfileProjectionRows,
@@ -40,14 +47,18 @@ import {
   toPromptAmoraProfiles,
 } from "@/lib/ai/amoraProfileProjection";
 import {
+  AmoraPrivacyContextError,
   assertAmoraPrivacyContextSnapshotCurrent,
-  enqueueAmoraMemoryJob,
   getAmoraPrivacyContextSnapshot,
+  getAmoraPrivacyEpoch,
+  isAuxiliaryMemoryRuntimeEnabled,
   type AmoraPrivacyContextErrorCode,
   type AmoraPrivacyContextSnapshot,
 } from "@/lib/ai/amoraMemoryQueue";
+import { reconcilePersistedAmoraMemoryEnqueue } from "@/lib/ai/amoraMemoryReplay";
 import { parseAmoraPersonalizationRow } from "@/lib/amora/personalization";
 import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
+import { isAmoraConversationSegmentReadEnabled } from "@/lib/ai/amoraConversationSegmentRead";
 import { resolveAmoraWeddingContext } from "@/lib/ai/amoraWeddingContext";
 import {
   AmoraAttachmentValidationError,
@@ -69,6 +80,14 @@ import {
   selectAmoraPendingProposalToolsWithCarryover,
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
+import {
+  classifyAmoraQuestionScope,
+  filterAmoraToolsByQuestionScope,
+} from "@/lib/ai/amoraQuestionScope";
+import {
+  buildAmoraBoundedW3Continuity,
+  hasExplicitAmoraW3ContinuityReference,
+} from "@/lib/ai/amoraBoundedContinuity";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import {
@@ -77,6 +96,7 @@ import {
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
+import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import {
   AMORA_MAX_TOOL_ROUNDS,
   AMORA_MAX_TOOL_CALLS_PER_TURN,
@@ -171,6 +191,15 @@ function getAmoraPrivacyContextErrorCode(
     || error.code === "AMORA_PRIVACY_CONTEXT_CHANGED"
     ? error.code
     : null;
+}
+
+class AmoraMemoryEnqueueRetryError extends Error {
+  readonly code = "AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED";
+
+  constructor() {
+    super("AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED");
+    this.name = "AmoraMemoryEnqueueRetryError";
+  }
 }
 
 function getEvalRequestLimit(request: Request): { key: string; maxRequests: number } {
@@ -272,6 +301,7 @@ function replayEphemeralCrisisMessage(
       response_origin: "deterministic_crisis_safety",
       safety_classification: kind,
       safety_contact_policy: AMORA_CRISIS_CONTACT_POLICY_VERSION,
+      question_scope: "W5_safety_override",
       memory_eligible: false,
       persistence_status: "unconfirmed_ephemeral_fallback",
       stageTag: null,
@@ -637,6 +667,63 @@ export async function POST(request: Request) {
   const requestCorrelationId = createHash("sha256")
     .update(clientRequestId)
     .digest("hex");
+  const replayPersistedWithMemoryReconciliation = async (
+    message: PersistedAiMessage,
+    expectedReplayPrivacyEpoch: number,
+  ): Promise<Response> => {
+    const memoryReconciliation = await reconcilePersistedAmoraMemoryEnqueue({
+      coupleId,
+      userId: actorId,
+      expectedVisibility: visibility,
+      message,
+    });
+    if (memoryReconciliation.status === "retry_required") {
+      console.error("[chat] persisted memory enqueue retry required", {
+        requestCorrelationId,
+        messageId: message.id,
+        visibility,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "답변은 저장됐지만 장기 기억 반영을 확인하지 못했어요. 같은 요청으로 다시 시도해주세요.",
+          code: "AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (memoryReconciliation.status === "invalid_message_scope") {
+      console.error("[chat] persisted memory message scope mismatch", {
+        requestCorrelationId,
+        messageId: message.id,
+        visibility,
+      });
+      return NextResponse.json(
+        {
+          error: "저장된 답변의 공개 범위를 안전하게 확인하지 못했어요.",
+          code: "CHAT_REPLAY_INCONSISTENT",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    // The persisted row is read with the service client, so its final release
+    // must be bound back to the request actor. Re-reading the authenticated
+    // scalar epoch here validates the current couple roster/private scope and
+    // detects revocation between replay preflight and response construction.
+    const currentReplayPrivacyEpoch = await getAmoraPrivacyEpoch(
+      dataCoupleId,
+      visibility,
+      supabase,
+    );
+    if (currentReplayPrivacyEpoch !== expectedReplayPrivacyEpoch) {
+      throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
+    }
+    return replayPersistedMessage(message);
+  };
   const demoSessionToken = isDemo
     ? getCookieValue(request.headers.get("cookie"), "demo_session")
     : null;
@@ -651,6 +738,7 @@ export async function POST(request: Request) {
   // every provider call. An infrastructure or malformed-attachment failure
   // must never hide time-critical contact guidance.
   let earlyCrisisUserText: string | null = null;
+  let trustedCanonicalScopeUserRow: Record<string, unknown> | null = null;
   if (requestKind === "mediation") {
     earlyCrisisUserText = String(conflictContext).trim();
   } else if (requestKind === "chat") {
@@ -664,7 +752,7 @@ export async function POST(request: Request) {
       try {
         let query = supabase
           .from("chat_messages")
-          .select("id, content, sender_id, sender_type, role, metadata, visibility")
+          .select("id, content, sender_id, sender_type, role, metadata, visibility, segment_id, created_at")
           .eq("couple_id", coupleId)
           .eq("sender_id", actorId)
           .eq("role", "user")
@@ -679,8 +767,10 @@ export async function POST(request: Request) {
           && canonicalCrisisRow.data.sender_type !== "ai"
           && canonicalCrisisRow.data.sender_id === actorId
           && canonicalCrisisRow.data.role === "user"
+          && typeof canonicalCrisisRow.data.content === "string"
         ) {
           earlyCrisisUserText = canonicalCrisisRow.data.content;
+          trustedCanonicalScopeUserRow = canonicalCrisisRow.data;
         } else {
           // Returning fixed emergency guidance is safe even if the focused
           // canonical read is unavailable; never send this fallback to a model
@@ -702,6 +792,111 @@ export async function POST(request: Request) {
       earlyCrisisClassification.kind,
     );
   }
+
+  // Exact durable retries are recovery reads, not new turns. Once identity,
+  // couple ownership, visibility, request/user binding, and the early crisis
+  // override are established, recover the committed answer before ordinary
+  // rate limiting or parsing a resent attachment. A retry must not be blocked
+  // by a later 429 or by a damaged duplicate of an attachment that was already
+  // handled by the original request.
+  const hasTrustedReplayBinding =
+    requestKind !== "chat"
+    || typeof bodyUserMessageId !== "string"
+    || trustedCanonicalScopeUserRow !== null;
+  if (!isDemo && hasTrustedReplayBinding) {
+    try {
+      // Validate the authenticated actor's current roster/private scope before
+      // the admin-backed persisted-message lookup. The same epoch is checked
+      // again immediately before any persisted payload is returned.
+      const replayPrivacyEpoch = await getAmoraPrivacyEpoch(
+        dataCoupleId,
+        visibility,
+        supabase,
+      );
+      const existing = await findPersistedAiMessage({
+        coupleId,
+        clientRequestId,
+        visibility,
+      });
+      if (existing?.id) {
+        const reconciled = await reconcileChatRequest({
+          coupleId,
+          requestKey: clientRequestId,
+          userId: actorId,
+          visibility,
+          messageId: existing.id,
+        });
+        if (!reconciled) {
+          throw new ChatRequestClaimError(
+            "Persisted response has no durable claim to reconcile",
+          );
+        }
+        return await replayPersistedWithMemoryReconciliation(
+          existing,
+          replayPrivacyEpoch,
+        );
+      }
+    } catch (error) {
+      console.error("[chat] completed-request reconciliation failed", error);
+      const privacyCode = getAmoraPrivacyContextErrorCode(error);
+      return NextResponse.json(
+        {
+          error: "저장된 답변을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+          code: privacyCode ?? "CHAT_REPLAY_RECONCILIATION_FAILED",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+
+  const preliminaryQuestionScope = requestKind === "initial_greeting"
+    ? classifyAmoraQuestionScope({
+        userText: "[INITIAL_GREETING]",
+        requestKind,
+      })
+    : requestKind === "mediation"
+      ? classifyAmoraQuestionScope({
+          userText: String(conflictContext).trim(),
+          requestKind,
+        })
+      : trustedCanonicalScopeUserRow && earlyCrisisUserText !== null
+        ? classifyAmoraQuestionScope({ userText: earlyCrisisUserText })
+        : null;
+  const shouldAttemptBoundedW3Continuity =
+    !isDemo
+    && requestKind === "chat"
+    && typeof bodyUserMessageId === "string"
+    && trustedCanonicalScopeUserRow !== null
+    && earlyCrisisUserText !== null
+    && preliminaryQuestionScope?.scope === "W3_social_care"
+    && hasExplicitAmoraW3ContinuityReference(earlyCrisisUserText)
+    && isUuid(trustedCanonicalScopeUserRow.segment_id);
+  const boundedW3CanonicalSegmentId = shouldAttemptBoundedW3Continuity
+    ? trustedCanonicalScopeUserRow?.segment_id as string
+    : null;
+  let shouldLoadBoundedW3Continuity = false;
+  let boundedW3SegmentId: string | null = null;
+  const skipsIrrelevantProviderContextReads =
+    bodyConfirmedActionId === undefined
+    && (
+      requestKind === "initial_greeting"
+      || requestKind === "mediation"
+      || (
+        requestKind === "chat"
+        && trustedCanonicalScopeUserRow !== null
+        && preliminaryQuestionScope !== null
+        && (
+          preliminaryQuestionScope.scope === "W2_high_risk_adjacent"
+          || preliminaryQuestionScope.scope === "W3_social_care"
+          || (
+            preliminaryQuestionScope.scope === "W4_out_of_scope"
+            && preliminaryQuestionScope.confidence === "high"
+          )
+        )
+      )
+    );
 
   const limited = await checkRateLimitPersistent(
     evalLimit
@@ -728,41 +923,6 @@ export async function POST(request: Request) {
       );
     }
     throw error;
-  }
-
-  // A completed retry must not reserve cost, rerun the model, or replay tools.
-  if (!isDemo) {
-    try {
-      const existing = await findPersistedAiMessage({
-        coupleId,
-        clientRequestId,
-        visibility,
-      });
-      if (existing?.id) {
-        const reconciled = await reconcileChatRequest({
-          coupleId,
-          requestKey: clientRequestId,
-          userId: actorId,
-          visibility,
-          messageId: existing.id,
-        });
-        if (!reconciled) {
-          throw new ChatRequestClaimError(
-            "Persisted response has no durable claim to reconcile",
-          );
-        }
-        return replayPersistedMessage(existing);
-      }
-    } catch (error) {
-      console.error("[chat] completed-request reconciliation failed", error);
-      return NextResponse.json(
-        {
-          error: "저장된 답변을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
-          code: "CHAT_REPLAY_RECONCILIATION_FAILED",
-        },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
-      );
-    }
   }
 
   let processedAttachments: ProcessedAttachment;
@@ -804,14 +964,29 @@ export async function POST(request: Request) {
     try {
       const claim = await claimChatRequest(claimParams);
       if (claim.action === "completed") {
+        const replayPrivacyEpoch = await getAmoraPrivacyEpoch(
+          dataCoupleId,
+          visibility,
+          supabase,
+        );
         const completed = await findPersistedAiMessage({
           coupleId,
           clientRequestId,
           visibility,
         });
-        if (completed?.id === claim.messageId) return replayPersistedMessage(completed);
+        if (completed?.id === claim.messageId) {
+          return await replayPersistedWithMemoryReconciliation(
+            completed,
+            replayPrivacyEpoch,
+          );
+        }
         return NextResponse.json(
-          { error: "저장된 답변을 확인하지 못했습니다.", code: "CHAT_REPLAY_INCONSISTENT" },
+          {
+            error: "저장된 답변을 확인하지 못했습니다.",
+            code: "CHAT_REPLAY_INCONSISTENT",
+            retryable: false,
+            retryPolicy: "new_message",
+          },
           { status: 503, headers: { "Cache-Control": "no-store" } },
         );
       }
@@ -821,6 +996,8 @@ export async function POST(request: Request) {
             error: "같은 답변을 아직 만들고 있어요. 잠시 후 다시 확인해주세요.",
             code: "CHAT_REQUEST_IN_PROGRESS",
             retryAfterMs: claim.retryAfterMs,
+            retryable: true,
+            retryPolicy: "same_request",
           },
           {
             status: 409,
@@ -833,7 +1010,12 @@ export async function POST(request: Request) {
       }
       if (claim.action === "conflict") {
         return NextResponse.json(
-          { error: "요청 식별자가 다른 대화와 충돌했습니다.", code: "CHAT_REQUEST_CONFLICT" },
+          {
+            error: "요청 식별자가 다른 대화와 충돌했습니다.",
+            code: "CHAT_REQUEST_CONFLICT",
+            retryable: false,
+            retryPolicy: "new_message",
+          },
           { status: 409, headers: { "Cache-Control": "no-store" } },
         );
       }
@@ -856,8 +1038,12 @@ export async function POST(request: Request) {
         requestClaimAcquired = false;
         requestClaimAttemptCount = null;
       }
+      const privacyCode = getAmoraPrivacyContextErrorCode(error);
       return NextResponse.json(
-        { error: "대화를 안전하게 시작하지 못했습니다. 잠시 후 다시 시도해주세요.", code: "CHAT_REQUEST_CLAIM_FAILED" },
+        {
+          error: "대화를 안전하게 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          code: privacyCode ?? "CHAT_REQUEST_CLAIM_FAILED",
+        },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -880,13 +1066,25 @@ export async function POST(request: Request) {
     ? ["shared"] as const
     : ["shared", visibility] as const;
   let initialPrivacyContextSnapshot: AmoraPrivacyContextSnapshot | null = null;
+  let initialPrivacyEpoch: number | null = null;
   if (!isDemo) {
     try {
-      initialPrivacyContextSnapshot = await getAmoraPrivacyContextSnapshot(
-        dataCoupleId,
-        requestedMemoryVisibilities,
-        supabase,
-      );
+      if (!skipsIrrelevantProviderContextReads) {
+        initialPrivacyContextSnapshot = await getAmoraPrivacyContextSnapshot(
+          dataCoupleId,
+          requestedMemoryVisibilities,
+          supabase,
+        );
+        initialPrivacyEpoch = initialPrivacyContextSnapshot.privacyEpoch;
+      } else {
+        // Current-input-only scopes deliberately skip all auxiliary context,
+        // but their durable response still needs an actor/roster epoch fence.
+        initialPrivacyEpoch = await getAmoraPrivacyEpoch(
+          dataCoupleId,
+          visibility,
+          supabase,
+        );
+      }
     } catch (error) {
       const code =
         getAmoraPrivacyContextErrorCode(error)
@@ -914,20 +1112,128 @@ export async function POST(request: Request) {
   const memoryEnabledForTurn = memoryEnablement[visibility].enabled;
   const sharedMemoryEnabledForTurn = memoryEnablement.shared.enabled;
   const assertPrivacyContextStillCurrent = async () => {
-    if (!initialPrivacyContextSnapshot) return;
-    const currentSnapshot = await getAmoraPrivacyContextSnapshot(
+    if (isDemo) return;
+    if (initialPrivacyEpoch === null) {
+      throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_UNAVAILABLE");
+    }
+    if (initialPrivacyContextSnapshot) {
+      const currentSnapshot = await getAmoraPrivacyContextSnapshot(
+        dataCoupleId,
+        requestedMemoryVisibilities,
+        supabase,
+      );
+      assertAmoraPrivacyContextSnapshotCurrent(
+        initialPrivacyContextSnapshot,
+        currentSnapshot,
+        requestedMemoryVisibilities,
+      );
+      return;
+    }
+    const currentEpoch = await getAmoraPrivacyEpoch(
       dataCoupleId,
-      requestedMemoryVisibilities,
+      visibility,
       supabase,
     );
-    assertAmoraPrivacyContextSnapshotCurrent(
-      initialPrivacyContextSnapshot,
-      currentSnapshot,
-      requestedMemoryVisibilities,
-    );
+    if (currentEpoch !== initialPrivacyEpoch) {
+      throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
+    }
   };
 
   // 병렬로 커플 관련 데이터 전체 조회
+  const conversationSegmentReadEnabled =
+    !isDemo
+    && !skipsIrrelevantProviderContextReads
+    && isAmoraConversationSegmentReadEnabled(
+      process.env.AMORA_CONVERSATION_SEGMENT_READ_ENABLED,
+    );
+  let activeConversationSegmentId: string | null = null;
+  if (conversationSegmentReadEnabled) {
+    try {
+      const activeSegmentResult = await supabase
+        .from("conversation_segments")
+        .select("id")
+        .eq("couple_id", dataCoupleId)
+        .eq("visibility", visibility)
+        .eq("status", "active")
+        .maybeSingle();
+      const candidateId = isRecord(activeSegmentResult.data)
+        ? activeSegmentResult.data.id
+        : null;
+      if (activeSegmentResult.error || !isUuid(candidateId)) {
+        console.error("[chat] active conversation segment unavailable", {
+          providerCode: activeSegmentResult.error?.code ?? null,
+          visibility,
+        });
+        await releaseClaimBeforeStream("CONVERSATION_SEGMENT_UNAVAILABLE");
+        return NextResponse.json(
+          {
+            error: "현재 대화 구간을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+            code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+          },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      activeConversationSegmentId = candidateId;
+    } catch (error) {
+      console.error("[chat] active conversation segment lookup failed", error);
+      await releaseClaimBeforeStream("CONVERSATION_SEGMENT_UNAVAILABLE");
+      return NextResponse.json(
+        {
+          error: "현재 대화 구간을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+          code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+
+  // W3 normally skips all broad stored context, including the feature-flagged
+  // segment read above. A narrow continuity request is the sole exception:
+  // prove that its canonical current row belongs to the server's active
+  // segment before reading the exact three-row exchange. Missing, closed, or
+  // mismatched proof safely degrades to the current W3 message only.
+  if (shouldAttemptBoundedW3Continuity) {
+    try {
+      const activeW3SegmentResult = await supabase
+        .from("conversation_segments")
+        .select("id, status")
+        .eq("couple_id", dataCoupleId)
+        .eq("visibility", visibility)
+        .eq("status", "active")
+        .maybeSingle();
+      const activeW3SegmentId = isRecord(activeW3SegmentResult.data)
+        ? activeW3SegmentResult.data.id
+        : null;
+      const activeW3SegmentStatus = isRecord(activeW3SegmentResult.data)
+        ? activeW3SegmentResult.data.status
+        : null;
+      if (
+        !activeW3SegmentResult.error
+        && isUuid(activeW3SegmentId)
+        && activeW3SegmentStatus === "active"
+        && activeW3SegmentId === boundedW3CanonicalSegmentId
+      ) {
+        boundedW3SegmentId = activeW3SegmentId;
+        shouldLoadBoundedW3Continuity = true;
+      } else {
+        console.warn("[chat] bounded W3 active segment proof unavailable", {
+          reason: activeW3SegmentResult.error
+            ? "lookup_error"
+            : activeW3SegmentStatus !== "active"
+              ? "not_active"
+              : activeW3SegmentId !== boundedW3CanonicalSegmentId
+                ? "segment_mismatch"
+                : "invalid_result",
+          visibility,
+        });
+      }
+    } catch {
+      console.warn("[chat] bounded W3 active segment lookup failed", {
+        visibility,
+      });
+    }
+  }
+
   const [
     journeyResult,
     profilesResult,
@@ -938,25 +1244,35 @@ export async function POST(request: Request) {
     personalizationResult,
   ] = await Promise.all([
     // 1. 웨딩 저니
-    supabase.from("wedding_journeys").select("*").eq("couple_id", dataCoupleId).single(),
+    skipsIrrelevantProviderContextReads
+      ? Promise.resolve({ data: null, error: null })
+      : supabase.from("wedding_journeys").select("*").eq("couple_id", dataCoupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
-    supabase
-      .from("couple_profile_directory")
-      .select("id, name, role")
-      .eq("couple_id", dataCoupleId),
+    skipsIrrelevantProviderContextReads
+      ? Promise.resolve({ data: [], error: null })
+      : supabase
+          .from("couple_profile_directory")
+          .select("id, name, role")
+          .eq("couple_id", dataCoupleId),
     // 3. 대화 요약 (최근 3개) — visibility 격리 (2026-05-04)
     //    shared turn → shared summary만 / private turn → shared + 본인 visibility
     enabledMemoryVisibilities.length === 0
       ? Promise.resolve({ data: [], error: null })
       : (() => {
-      const q = supabase.from("chat_summaries")
-        .select("summary, summary_type, visibility, created_at, message_count, to_message_id")
+      const summaryContextColumns: string = conversationSegmentReadEnabled
+        ? "summary, summary_type, visibility, segment_id, created_at, message_count, to_message_id"
+        : "summary, summary_type, visibility, created_at, message_count, to_message_id";
+      let q = supabase.from("chat_summaries")
+        .select(summaryContextColumns)
         .eq("couple_id", dataCoupleId)
         // Keep legacy rows whose summary_type is NULL while excluding the
         // non-factual rows written only to advance the durable-memory cursor.
         .or("summary_type.is.null,summary_type.neq.cursor")
         .order("created_at", { ascending: false })
         .limit(6);
+      if (conversationSegmentReadEnabled) {
+        q = q.eq("segment_id", activeConversationSegmentId);
+      }
       return enabledMemoryVisibilities.length === 1
         ? q.eq("visibility", enabledMemoryVisibilities[0])
         : q.in("visibility", enabledMemoryVisibilities);
@@ -964,17 +1280,45 @@ export async function POST(request: Request) {
     // 4. Memory Step C: 의사결정 히스토리 (최근 50개, 사용자가 확인한 결정 포함)
     //    사용자가 동의한 범위의 활성 기억과 명시적 제품 결정만 사용한다.
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
-    supabase.from("decision_nodes")
-      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
-      .eq("couple_id", dataCoupleId)
-      .order("created_at", { ascending: false })
-      .limit(50),
+    skipsIrrelevantProviderContextReads
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.from("decision_nodes")
+          .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
+          .eq("couple_id", dataCoupleId)
+          .order("created_at", { ascending: false })
+          .limit(50),
     // 5. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
     // prompt source로 신뢰하지 않으며 사용자 RLS를 한 번 더 적용한다.
-    (() => {
-      const q = supabase
+    skipsIrrelevantProviderContextReads && !shouldLoadBoundedW3Continuity
+      ? Promise.resolve({
+          data:
+            requestKind === "chat" && trustedCanonicalScopeUserRow
+              ? [trustedCanonicalScopeUserRow]
+              : [],
+          error: null,
+        })
+      : (() => {
+      const messageContextColumns: string =
+        conversationSegmentReadEnabled || shouldLoadBoundedW3Continuity
+        ? "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at"
+        : "id, sender_id, sender_type, role, content, metadata, visibility, created_at";
+      if (shouldLoadBoundedW3Continuity) {
+        // Read exactly the current row and its two direct predecessors. Do not
+        // hide partner-target rows here: their presence must break continuity,
+        // never make non-adjacent messages look adjacent after filtering.
+        return supabase
+          .from("chat_messages")
+          .select(messageContextColumns)
+          .eq("couple_id", dataCoupleId)
+          .eq("visibility", visibility)
+          .eq("segment_id", boundedW3SegmentId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(3);
+      }
+      let q = supabase
         .from("chat_messages")
-        .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at")
+        .select(messageContextColumns)
         .eq("couple_id", dataCoupleId)
         // 상대에게 직접 보낸 메시지는 커플이 공유해서 보는 데이터여도
         // Amora/OpenAI 입력은 아니다. DB에서 먼저 제외하고 아래에서 한 번 더
@@ -983,10 +1327,13 @@ export async function POST(request: Request) {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(MAX_CONTEXT_MESSAGES);
+      if (conversationSegmentReadEnabled) {
+        q = q.eq("segment_id", activeConversationSegmentId);
+      }
       return visibility === "shared"
         ? q.eq("visibility", "shared")
         : q.in("visibility", ["shared", visibility]);
-    })(),
+        })(),
     // 6. 검증된 V2 기억 노드에서 요청별 맞춤 정보를 결정론적으로 투영한다.
     // 최근 결정 50개와 분리해 오래된 active 근거도 누락하지 않는다.
     enabledMemoryVisibilities.length === 0
@@ -1009,7 +1356,7 @@ export async function POST(request: Request) {
     // 7. 현재 인증 사용자가 직접 확인한 개인 답변 방식.
     // 커플 공용 데이터가 아니므로 actor id로 다시 고정하고, malformed/error는
     // 중립 동작으로 닫는다. 체험에서는 읽거나 저장하지 않는다.
-    isDemo
+    isDemo || skipsIrrelevantProviderContextReads
       ? Promise.resolve({ data: null, error: null })
       : supabase
           .from("amora_personalization_preferences")
@@ -1136,6 +1483,8 @@ export async function POST(request: Request) {
           error:
             "개인정보 설정이 대화 준비 중 변경됐어요. 최신 설정으로 다시 시도해주세요.",
           code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+          retryable: false,
+          retryPolicy: "new_message",
         },
         { status: 409, headers: { "Cache-Control": "no-store" } },
       );
@@ -1156,14 +1505,33 @@ export async function POST(request: Request) {
   } = resolvedWeddingContext;
 
   // 대화 요약은 visibility별 RLS 정책을 통해 shared/bride/groom 범위가 분리된다.
-  const summariesData = (summariesResult.data ?? []) as Array<{
+  const summariesData = (summariesResult.data ?? []) as unknown as Array<{
     summary: string;
     summary_type: string | null;
     visibility: "shared" | "bride_private" | "groom_private";
+    segment_id?: string | null;
     created_at: string;
     message_count: number | null;
     to_message_id: string | null;
   }>;
+  if (
+    conversationSegmentReadEnabled
+    && summariesData.some((summary) =>
+      summary.segment_id !== activeConversationSegmentId
+      || summary.visibility !== visibility)
+  ) {
+    console.error("[chat] memory summary escaped active conversation segment", {
+      visibility,
+    });
+    await releaseClaimBeforeStream("CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE");
+    return NextResponse.json(
+      {
+        error: "현재 대화 구간의 기억을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        code: "CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const chatSummaries = summariesData
     // Defense in depth: PostgREST filtering is not the provider trust boundary.
     // Reject the marker itself too, including legacy/misclassified rows.
@@ -1181,7 +1549,7 @@ export async function POST(request: Request) {
     category: string;
     decision_type: string;
     title: string;
-    chosen_value: { value?: string } | null;
+    chosen_value: Record<string, unknown> | null;
     reasoning: string | null;
     confidence: number | null;
     stage_tag: string | null;
@@ -1190,7 +1558,7 @@ export async function POST(request: Request) {
     created_at: string;
     memory_key: string | null;
     superseded_at: string | null;
-    metadata: { extracted_by?: string } | null;
+    metadata: Record<string, unknown> | null;
   }>;
   const isAutomaticMemory = (decision: typeof rawDecisions[number]) =>
     decision.memory_key !== null || typeof decision.metadata?.extracted_by === "string";
@@ -1211,11 +1579,39 @@ export async function POST(request: Request) {
     category: d.category,
     decisionType: d.decision_type,
     title: d.title,
-    value: d.chosen_value?.value ?? null,
+    value: typeof d.chosen_value?.value === "string" ? d.chosen_value.value : null,
     reasoning: d.reasoning,
     confidence: d.confidence ?? 0.5,
     source: d.source,
     createdAt: d.created_at,
+    vendorDeliveryStatus: typeof d.chosen_value?.vendor_delivery_status === "string"
+      ? d.chosen_value.vendor_delivery_status
+      : typeof d.metadata?.vendor_delivery_status === "string"
+        ? d.metadata.vendor_delivery_status
+        : null,
+    vendorConfirmationStatus: typeof d.chosen_value?.vendor_confirmation_status === "string"
+      ? d.chosen_value.vendor_confirmation_status
+      : typeof d.metadata?.vendor_confirmation_status === "string"
+        ? d.metadata.vendor_confirmation_status
+        : null,
+    internalRequestStatus: typeof d.chosen_value?.internal_request_status === "string"
+      ? d.chosen_value.internal_request_status
+      : null,
+    vendorCancellationStatus: typeof d.chosen_value?.vendor_cancellation_status === "string"
+      ? d.chosen_value.vendor_cancellation_status
+      : typeof d.metadata?.vendor_cancellation_status === "string"
+        ? d.metadata.vendor_cancellation_status
+        : null,
+    refundStatus: typeof d.chosen_value?.refund_status === "string"
+      ? d.chosen_value.refund_status
+      : typeof d.metadata?.refund_status === "string"
+        ? d.metadata.refund_status
+        : null,
+    completionEvidence: typeof d.chosen_value?.completion_evidence === "string"
+      ? d.chosen_value.completion_evidence
+      : typeof d.metadata?.completion_evidence === "string"
+        ? d.metadata.completion_evidence
+        : null,
   }));
 
   // 갈등 합의도 위에서 같은 동의·visibility 필터를 통과한 결정만 사용한다.
@@ -1225,7 +1621,7 @@ export async function POST(request: Request) {
     .slice(0, 5)
     .map((c) => ({
     title: c.title,
-    resolution: c.chosen_value?.value ?? null,
+    resolution: typeof c.chosen_value?.value === "string" ? c.chosen_value.value : null,
     reasoning: c.reasoning,
     stageTag: c.stage_tag,
     createdAt: c.created_at,
@@ -1240,8 +1636,10 @@ export async function POST(request: Request) {
     metadata: {
       target?: string;
       pending_amora_action?: unknown;
+      in_reply_to_user_message_id?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
+    segment_id?: string | null;
     created_at: string;
   };
 
@@ -1254,7 +1652,27 @@ export async function POST(request: Request) {
     );
   }
 
-  let canonicalRows = ((messagesResult.data ?? []) as CanonicalChatRow[])
+  const canonicalContextRows = (messagesResult.data ?? []) as unknown as CanonicalChatRow[];
+  if (
+    conversationSegmentReadEnabled
+    && canonicalContextRows.some((row) =>
+      row.segment_id !== activeConversationSegmentId
+      || row.visibility !== visibility)
+  ) {
+    console.error("[chat] canonical history escaped active conversation segment", {
+      visibility,
+    });
+    await releaseClaimBeforeStream("CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE");
+    return NextResponse.json(
+      {
+        error: "현재 대화 구간을 안전하게 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+        code: "CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  let canonicalRows = canonicalContextRows
     .filter((row) => row.metadata?.target !== "partner")
     .reverse();
   let isDurableUserMessageBound = false;
@@ -1338,8 +1756,10 @@ export async function POST(request: Request) {
           ? "신부"
           : "사용자";
     lastUserText = `[MEDIATION_REQUEST] ${String(conflictContext).trim()}`;
+    // The consent dialog promises requester_summary_only. Do not carry raw
+    // canonical chat into this provider turn and then overstate its evidence
+    // scope in the persisted proposal provenance.
     typedMessages = [
-      ...typedMessages,
       {
         role: "user",
         content: `[${roleLabel}] [MEDIATION_REQUEST] 커플 대화의 의견 차이를 중립적으로 중재해주세요. 요청자가 직접 작성한 요약: ${String(conflictContext).trim()}`,
@@ -1483,6 +1903,67 @@ export async function POST(request: Request) {
     }
   }
 
+  // 범위 권한은 현재 사용자 발화와 서버가 검증한 승인 액션에서만 얻는다.
+  // 일반 대화 기록·첨부 내용·저장 기억·진행 단계는 도구 권한을 높이지 않는다.
+  // 다만 사용자가 직전 자신의 명시적 웨딩 요청을 짧게 확인하는 한 턴은
+  // 기존 pending 제안 흐름과 일치하도록 좁게 이어간다.
+  const previousUserTextForScope =
+    !isDemo && requestKind === "chat"
+      ? [...canonicalRows].slice(0, -1).reverse()
+          .find((row) =>
+            row.role === "user"
+            && row.sender_type !== "ai"
+            && row.sender_id === actorId
+            && row.visibility === visibility
+          )
+          ?.content ?? null
+      : null;
+  const questionScope = classifyAmoraQuestionScope({
+    userText: lastUserText,
+    requestKind,
+    previousUserText: previousUserTextForScope,
+    hasApprovedWeddingAction: Boolean(approvedPendingAction),
+  });
+  const memoryEnqueueRequested =
+    questionScope.allowsLongTermMemory
+    && memoryEnabledForTurn
+    && isAuxiliaryMemoryRuntimeEnabled();
+  const allowsStoredProviderContext =
+    requestKind === "chat"
+    && (
+      questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent"
+    );
+  const assertStoredContextTerminalReleasePrivacyEpochCurrent = async () => {
+    // Current-input-only scopes never loaded stored couple context, so they do
+    // not need another database read at the terminal display boundary.
+    if (isDemo || !allowsStoredProviderContext) return;
+    if (initialPrivacyEpoch === null) {
+      throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_UNAVAILABLE");
+    }
+    const currentEpoch = await getAmoraPrivacyEpoch(
+      dataCoupleId,
+      visibility,
+      supabase,
+    );
+    if (currentEpoch !== initialPrivacyEpoch) {
+      throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
+    }
+  };
+  const isStructuredMediation =
+    requestKind === "mediation"
+    && questionScope.scope === "W1_wedding_adjacent";
+  const isHighRiskMediation =
+    requestKind === "mediation"
+    && questionScope.scope === "W2_high_risk_adjacent";
+  const allowsCurrentAttachmentContext =
+    requestKind === "chat"
+    && (
+      questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent"
+      || questionScope.scope === "W2_high_risk_adjacent"
+    );
+
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
 
   // 직전 AI 메시지 (마지막 assistant 메시지)
@@ -1506,7 +1987,12 @@ export async function POST(request: Request) {
   }
 
   // 불만족 감지 시 자동 피드백 저장 (비동기, 비블로킹)
-  if (!isDemo && dissatisfaction?.detected) {
+  if (
+    !isDemo
+    && requestKind === "chat"
+    && questionScope.allowsLongTermMemory
+    && dissatisfaction?.detected
+  ) {
     autoSaveDissatisfaction({
       userId: actorId,
       coupleId,
@@ -1516,7 +2002,10 @@ export async function POST(request: Request) {
   }
 
   // Part 3: 세션 내 2회 이상 수정 시 신중 모드 프리픽스
-  const cautionPrefix = correctionCount >= 2
+  const providerCorrectionCount = allowsStoredProviderContext
+    ? correctionCount
+    : 0;
+  const cautionPrefix = providerCorrectionCount >= 2
     ? "[CONTEXT: 이 세션에서 사용자가 2번 이상 수정했습니다. 더 신중하게, 확인하며 답변하세요.]\n\n"
     : "";
 
@@ -1530,15 +2019,30 @@ export async function POST(request: Request) {
 
   // D3: stage + specialist 계산. 문서는 텍스트의 모호한 표현보다 서버가
   // 검증한 첨부 종류를 우선해 계약/견적 검토 경로로 일관되게 보낸다.
-  const weddingDateForStage = resolvedWeddingContext.weddingDate;
-  const stageTag = determineStage(weddingDateForStage);
-  const specialistType = attachmentKind === "document"
+  const weddingDateForStage = allowsStoredProviderContext
+    ? resolvedWeddingContext.weddingDate
+    : null;
+  const stageTag = allowsStoredProviderContext
+    ? determineStage(weddingDateForStage)
+    : null;
+  const providerAttachmentKind = allowsCurrentAttachmentContext
+    ? attachmentKind
+    : "none" as const;
+  const requiresW4AttachmentReuploadGuidance =
+    requestKind === "chat"
+    && questionScope.scope === "W4_out_of_scope"
+    && attachmentKind !== "none";
+  const specialistType = providerAttachmentKind === "document"
     ? "contract_reviewer" as const
-    : routeSpecialist(lastUserText, stageTag);
+    : allowsStoredProviderContext && stageTag !== null
+      ? routeSpecialist(lastUserText, stageTag)
+      : "general" as const;
 
   // Private 모드 안내 (신부/신랑이 단독으로 아모라에게 털어놓는 채팅)
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
-    ? `[PRIVATE_MODE] 이 메시지는 ${visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n` +
+    ? (allowsStoredProviderContext
+      ? `[PRIVATE_MODE] 이 메시지는 ${visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n`
+      : "[PRIVATE_MODE] 이 메시지는 사용자의 개인 비공개 대화입니다.\n") +
       `- 상대방을 비난하거나 편드는 발언 금지. 객관적·공감적으로.\n` +
       `- 이 대화 내용은 절대 상대방의 채팅(shared/상대방의 private)에서 언급·인용하지 마세요. 시스템이 격리하지만 아모라도 의식적으로 분리.\n` +
       `- 그러나 이 대화에서 드러난 인사이트는 본인의 향후 private 대화에서는 자연스럽게 이어가도 됩니다.\n` +
@@ -1582,32 +2086,52 @@ export async function POST(request: Request) {
   // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
   // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
   // 재설계 이후 운영에서 변경 실행 0건.)
-  const availableTools = visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name));
+  const availableTools = filterAmoraToolsByQuestionScope(
+    visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name)),
+    questionScope,
+  );
+  const availableToolNameSet = new Set(
+    availableTools.map((tool) => tool.name),
+  );
+  const questionScopeToolNameCeiling = new Set(
+    filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, questionScope)
+      .map((tool) => tool.name),
+  );
   const pendingProposalTools =
     !isDemo
     && requestKind === "chat"
     && isDurableUserMessageBound
     && visibility === "shared"
     && !approvedPendingAction
-      ? selectAmoraPendingProposalToolsWithCarryover({
-          availableTools: PENDING_ACTION_TOOLS,
-          userText: lastUserText,
-          // "응, 해줘" 같은 승인 턴은 도메인 어휘가 없어 제안 창이 닫히는 문제의
-          // 이월분 — 직전 사용자 턴 텍스트로 한 턴만 제안 자격을 유지한다.
-          previousUserText: [...canonicalRows].slice(0, -1).reverse()
-            .find((row) => row.role === "user")?.content ?? null,
-          specialistType,
-          attachmentKind,
-        }).filter(
-          (tool) =>
-            getAmoraActionApprovalPolicy(tool.name) !== "blocked",
+      ? filterAmoraToolsByQuestionScope(
+          selectAmoraPendingProposalToolsWithCarryover({
+            availableTools: PENDING_ACTION_TOOLS,
+            userText: lastUserText,
+            // "응, 해줘" 같은 승인 턴은 도메인 어휘가 없어 제안 창이 닫히는 문제의
+            // 이월분 — 직전 사용자 턴 텍스트로 한 턴만 제안 자격을 유지한다.
+            previousUserText: previousUserTextForScope,
+            specialistType,
+            attachmentKind,
+          }).filter(
+            (tool) =>
+              getAmoraActionApprovalPolicy(tool.name) !== "blocked",
+          ),
+          questionScope,
         )
       : [];
   const pendingOfferEnabled = pendingProposalTools.length > 0;
-  const serverIssuedActionContract = approvedPendingAction
-    ? buildAmoraApprovedActionPrompt(approvedPendingAction)
+  const actionContract: AmoraActionContract | undefined = approvedPendingAction
+    ? {
+        kind: "execution",
+        text: buildAmoraApprovedActionPrompt(approvedPendingAction),
+      }
     : pendingOfferEnabled
-      ? buildAmoraPendingActionPrompt(pendingProposalTools.map((tool) => tool.name))
+      ? {
+          kind: "proposal",
+          text: buildAmoraPendingActionPrompt(
+            pendingProposalTools.map((tool) => tool.name),
+          ),
+        }
       : undefined;
   const promptContext = {
     weddingDate: weddingDateForStage,
@@ -1634,7 +2158,8 @@ export async function POST(request: Request) {
       requestKind,
       persistenceMode: isDemo ? "demo" : "durable",
       enabledToolNames: enabledTools.map((tool) => tool.name),
-      serverIssuedActionContract,
+      actionContract,
+      questionScope,
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
   const systemPrompt = buildSystemPromptForTools(availableTools);
@@ -1644,8 +2169,32 @@ export async function POST(request: Request) {
 
   // 오래된 대화가 exact-token 상한을 영구적으로 막지 않게 최근 연속 문맥을
   // 보존한다. 실제 비용 경계는 provider의 exact count가 최종 판정한다.
-  const providerMessages = takeRecentAmoraConversation(typedMessages);
-  const boundedTextAttachments = boundAmoraTextAttachments(textAttachments);
+  const boundedW3ContinuityMessages =
+    !isDemo
+    && requestKind === "chat"
+    && isDurableUserMessageBound
+    && typeof bodyUserMessageId === "string"
+    && questionScope.scope === "W3_social_care"
+    && shouldLoadBoundedW3Continuity
+      ? buildAmoraBoundedW3Continuity({
+          newestFirstRows: canonicalContextRows,
+          currentMessageId: bodyUserMessageId,
+          currentUserText: lastUserText,
+          requesterUserId: actorId,
+          visibility,
+          segmentId: boundedW3SegmentId as string,
+        })
+      : null;
+  const providerMessages = allowsStoredProviderContext
+    ? takeRecentAmoraConversation(typedMessages)
+    : boundedW3ContinuityMessages
+      ?? [{ role: "user" as const, content: lastUserText }];
+  const boundedTextAttachments = allowsCurrentAttachmentContext
+    ? boundAmoraTextAttachments(textAttachments)
+    : "";
+  const providerVisionAttachments = allowsCurrentAttachmentContext
+    ? visionAttachments
+    : [];
 
   // 메시지 포맷팅
   const formattedMessages: ChatInputItem[] = providerMessages.map(
@@ -1661,10 +2210,10 @@ export async function POST(request: Request) {
         }
 
         // 이미지/PDF 첨부가 있으면 멀티모달로
-        if (visionAttachments.length > 0) {
+        if (providerVisionAttachments.length > 0) {
           return {
             role,
-            content: buildMultimodalContent(enrichedText, visionAttachments),
+            content: buildMultimodalContent(enrichedText, providerVisionAttachments),
           } as ChatInputItem;
         }
 
@@ -1679,15 +2228,27 @@ export async function POST(request: Request) {
   // 운영에서 terra가 reasoning "none" 잠금 하에 빈 응답을 내 모든 저장·예산
   // 턴이 죽는 사고. terra 빈응답 궁합은 별도 백로그, 저장 턴은 검증된 fast 유지.
   const modelRole =
-    requestKind === "mediation"
+    isStructuredMediation
       ? ("primary" as const)
       : chooseAmoraChatModelRole({
           specialistType,
           userText: lastUserText,
-          correctionCount,
+          correctionCount: providerCorrectionCount,
         });
+  const shouldBufferProviderText = Boolean(approvedPendingAction)
+    || pendingOfferEnabled
+    || requestKind === "mediation"
+    || requiresW4AttachmentReuploadGuidance
+    || boundedW3ContinuityMessages !== null
+    // Replies built from stored couple context stay hidden until the database
+    // atomically validates the exact privacy epoch and commits the message.
+    || allowsStoredProviderContext
+    // Demo has no durable write boundary. Buffer every demo chat response so
+    // an unexpected completion claim can never flash before terminal scrubbing.
+    || (isDemo && requestKind === "chat");
   const executionContext: ToolExecutionContext = {
     coupleId,
+    ...(!isDemo ? { actorProfileId: actorId } : {}),
     requestKey: clientRequestId,
     requestAttemptCount: requestClaimAttemptCount ?? undefined,
     currentUserText: lastUserText,
@@ -1739,6 +2300,7 @@ export async function POST(request: Request) {
     );
   }, providerTimeRemainingMs);
   let toolExecutionCompleted = false;
+  let paidProviderBoundaryReached = false;
   const abortBeforeDurableTool = () => {
     if (!toolExecutionCompleted && !turnAbortController.signal.aborted) {
       turnAbortController.abort();
@@ -1767,6 +2329,27 @@ export async function POST(request: Request) {
           // 클라이언트 연결 끊김
         }
       };
+      const buffersSensitiveToolEvents = !isDemo && allowsStoredProviderContext;
+      const bufferedSensitiveToolEvents: Array<Record<string, unknown>> = [];
+      let sensitiveToolEventsReleased = !buffersSensitiveToolEvents;
+      const sendSensitiveToolEvent = (event: Record<string, unknown>) => {
+        if (!sensitiveToolEventsReleased) {
+          bufferedSensitiveToolEvents.push(event);
+          return;
+        }
+        send(event);
+      };
+      const releaseSensitiveToolEvents = () => {
+        if (sensitiveToolEventsReleased) return;
+        sensitiveToolEventsReleased = true;
+        for (const event of bufferedSensitiveToolEvents) send(event);
+        bufferedSensitiveToolEvents.length = 0;
+      };
+      const providerPreviewGate = shouldBufferProviderText
+        ? null
+        : createAmoraProviderPreviewGate((content) => {
+            send({ type: "text_delta", content });
+          });
 
       const closeStream = () => {
         clearInterval(heartbeat);
@@ -1796,10 +2379,13 @@ export async function POST(request: Request) {
               "AbortError",
             );
           }
-          send({
+          sendSensitiveToolEvent({
             type: "tool_start",
             toolName: approvedPendingAction.tool,
-            toolInput: approvedPendingAction.input,
+            toolInput: getClientSafeToolInput(
+              approvedPendingAction.tool,
+              approvedPendingAction.input,
+            ),
           });
           toolCallCount += 1;
           toolsUsed.push(approvedPendingAction.tool);
@@ -1814,7 +2400,10 @@ export async function POST(request: Request) {
           approvedPendingActionExecuted = true;
           toolExecutionCompleted = true;
           toolResults.push(approvedResult);
-          send({ type: "tool_result", result: approvedResult });
+          sendSensitiveToolEvent({
+            type: "tool_result",
+            result: getClientSafeToolResult(approvedResult),
+          });
           currentMessages.push({
             role: "user",
             content: [
@@ -1822,16 +2411,17 @@ export async function POST(request: Request) {
               `action_id=${approvedPendingAction.actionId}`,
               `tool=${approvedPendingAction.tool}`,
               boundAmoraToolResultJson(
-                approvedResult.toolOutput,
+                {
+                  success: approvedResult.success,
+                  displayMessage: approvedResult.displayMessage,
+                  toolOutput: getModelSafeToolOutput(approvedResult),
+                },
                 AMORA_MAX_TOOL_RESULT_CHARS,
               ),
             ].join("\n"),
           });
         };
-        const prepareTerminalResponse = (
-          fullText: string,
-          guardDemoDisclosure: boolean,
-        ) => {
+        const prepareTerminalResponse = (fullText: string) => {
           const { cleanText: afterSuggest, suggestions } = extractSuggestions(
             fullText,
           );
@@ -1847,31 +2437,52 @@ export async function POST(request: Request) {
           ) {
             throw new Error("AMORA_JOURNEY_REVISION_UNAVAILABLE");
           }
-          const { cleanText, mediation } = extractMediation(
+          const pendingBudgetImpactPreview = pendingExtraction.pendingAction
+            && canonicalJourneyStateRevision !== null
+            ? buildAmoraBudgetImpactPreview({
+                action: pendingExtraction.pendingAction,
+                sourceRevision: canonicalJourneyStateRevision,
+                context: executionContext,
+              })
+            : null;
+          const {
+            cleanText: extractedMediationText,
+            mediation: extractedMediation,
+          } = extractMediation(
             pendingExtraction.cleanText,
           );
-          const demoPersistenceGuard =
-            guardDemoDisclosure && isDemo && requestKind === "chat"
-              ? guardDemoPersistenceDisclosure(cleanText, lastUserText)
-              : { text: cleanText, appendedNotice: null };
-          const persistenceClaimGuard = isDemo
-            ? {
-                text: demoPersistenceGuard.text,
-                corrected: false,
-                removedClaimCount: 0,
-              }
-            : guardUnverifiedAmoraPersistenceClaims({
-                text: demoPersistenceGuard.text,
-                hasVerifiedMutationReceipt: toolResults.some(
-                  (result) => result.success && isMutatingTool(result.toolName),
-                ),
-                hasPendingAction: pendingExtraction.pendingAction !== null,
-              });
+          // Provider text is untrusted. Strip a stray marker from every turn,
+          // but only the server-owned mediation request kind may promote it
+          // into a confirmable shared card.
+          const mediation = isStructuredMediation
+            && extractedMediation
+            ? toUserRequestedMediationV2(extractedMediation)
+            : null;
+          const providerCleanText = !isStructuredMediation
+            && extractedMediation
+            && !extractedMediationText
+              ? isHighRiskMediation
+                ? "이 사안은 합의안으로 단정하기보다 안전과 권리·건강에 관련된 확인이 먼저예요. 확인된 사실만 정리하고, 해당 분야의 자격 있는 전문가나 공식 기관에 문의할 질문을 준비해 주세요."
+                : mediationBlockToOrdinaryText(extractedMediation)
+              : extractedMediationText;
+          const cleanText = requiresW4AttachmentReuploadGuidance
+            ? "지금 요청만으로는 이 파일이 결혼 준비와 어떤 관련이 있는지 확인할 수 없어요. 결혼 준비 관련 파일이라면 관련성을 한 줄로 알려주시고, 파일을 다시 첨부해 주세요."
+            : providerCleanText;
+          const persistenceClaimGuard = composeAmoraPersistenceTerminal({
+            text: cleanText,
+            toolResults,
+            hasPendingAction: pendingExtraction.pendingAction !== null,
+            persistenceMode: isDemo ? "demo" : "durable",
+            demoUserText: lastUserText,
+          });
           const persistenceSafeText = persistenceClaimGuard.text;
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
             senderName: safeSenderName,
+            question_scope: questionScope.scope,
+            memory_eligible: questionScope.allowsLongTermMemory,
+            memory_enqueue_requested: memoryEnqueueRequested,
             ...(typeof bodyUserMessageId === "string"
               ? { in_reply_to_user_message_id: bodyUserMessageId }
               : {}),
@@ -1888,14 +2499,23 @@ export async function POST(request: Request) {
                   pending_amora_action: pendingExtraction.pendingAction,
                   pending_amora_action_journey_revision:
                     canonicalJourneyStateRevision,
+                  ...(pendingBudgetImpactPreview
+                    ? {
+                        pending_amora_action_impact_preview:
+                          pendingBudgetImpactPreview,
+                      }
+                    : {}),
                 }
               : {}),
-            ...(persistenceClaimGuard.corrected
+            ...(persistenceClaimGuard.removedClaimCount > 0
               ? {
                   persistence_claim_corrected: true,
                   persistence_claim_removed_count:
                     persistenceClaimGuard.removedClaimCount,
                 }
+              : {}),
+            ...(persistenceClaimGuard.source !== "provider"
+              ? { persistence_terminal_source: persistenceClaimGuard.source }
               : {}),
           };
           return {
@@ -1903,7 +2523,6 @@ export async function POST(request: Request) {
             persistenceSafeText,
             suggestions,
             pendingExtraction,
-            demoPersistenceGuard,
             persistenceClaimGuard,
             metadata,
           };
@@ -1938,6 +2557,7 @@ export async function POST(request: Request) {
             // the durable result even when the process crashed afterward.
             await executeApprovedPendingAction();
           }
+          if (!resumedResult) paidProviderBoundaryReached = false;
           const result = resumedResult ?? await runAmoraProviderCallWithLedger(
             {
               userId: isDemo ? null : actorId,
@@ -1985,7 +2605,7 @@ export async function POST(request: Request) {
               // generation hook. Fence that provider request too; the hook
               // below repeats the check after counting and before reservation.
               await assertPrivacyContextStillCurrent();
-              return chatWithToolsStream({
+              const providerResult = await chatWithToolsStream({
                 systemPrompt,
                 input: currentMessages,
                 tools: lockToolsAfterPlaceSearch ? [] : availableTools,
@@ -1995,15 +2615,16 @@ export async function POST(request: Request) {
                       userText: lastUserText,
                       round,
                       tools: availableTools,
-                    }),
+                }),
                 onTextDelta: (token) => {
-                  send({ type: "text_delta", content: token });
+                  providerPreviewGate?.push(token);
                 },
                 maxInputTokens: requestPolicy.maxInputTokens,
                 maxOutputTokens: requestPolicy.maxOutputTokens,
                 beforeGeneration: async () => {
                   await assertPrivacyContextStillCurrent();
                   await reserveBeforeGeneration();
+                  paidProviderBoundaryReached = true;
                 },
                 modelRole,
                 safetyIdentifierScope,
@@ -2011,16 +2632,27 @@ export async function POST(request: Request) {
                   ? deadlineAbortController.signal
                   : preMutationAbortController.signal,
               });
+              // Consent, roster, reset, or personalization may change while
+              // the provider is generating. Recheck after the paid boundary
+              // and before the ledger can atomically persist/display a reply
+              // or let a model-requested tool proceed.
+              await assertPrivacyContextStillCurrent();
+              return providerResult;
             },
             {
               buildAtomicChatResponse: (providerResult) => {
                 if (providerResult.toolCalls.length > 0) return null;
-                const terminal = prepareTerminalResponse(providerResult.fullText, true);
+                const terminal = prepareTerminalResponse(providerResult.fullText);
                 preparedTerminal = terminal;
                 if (isDemo) return null;
                 if (requestClaimAttemptCount === null) {
                   throw new ChatRequestClaimError(
                     "Terminal response claim generation was missing",
+                  );
+                }
+                if (initialPrivacyEpoch === null) {
+                  throw new AmoraPrivacyContextError(
+                    "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
                   );
                 }
                 return {
@@ -2029,6 +2661,7 @@ export async function POST(request: Request) {
                   requestKey: clientRequestId,
                   visibility,
                   claimAttemptCount: requestClaimAttemptCount,
+                  expectedPrivacyEpoch: initialPrivacyEpoch,
                   content: terminal.persistenceSafeText,
                   metadata: terminal.metadata,
                   stageTag,
@@ -2068,37 +2701,32 @@ export async function POST(request: Request) {
               );
             }
             const {
-              cleanText,
               persistenceSafeText,
               suggestions,
               pendingExtraction,
-              demoPersistenceGuard,
               persistenceClaimGuard,
               metadata,
             } = terminal;
 
-            if (
-              pendingExtraction.hadPendingActionTag
-              || persistenceClaimGuard.corrected
-            ) {
-              // Provider tokens may already have contained the private marker.
-              // A provider may also claim a write that has no server receipt.
-              // Replace either visible draft with server-scrubbed text before done.
-              send({ type: "text_clear" });
-              if (persistenceSafeText) {
-                send({ type: "text_delta", content: persistenceSafeText });
+            let committedMessage: PersistedAiMessage | null = null;
+            if (!isDemo) {
+              const committed = atomicFinalization as
+                AtomicAmoraChatResponseFinalization | null;
+              if (committed?.outcome === "privacy_context_changed") {
+                requestClaimAcquired = false;
+                requestClaimAttemptCount = null;
+                throw new AmoraPrivacyContextError(
+                  "AMORA_PRIVACY_CONTEXT_CHANGED",
+                );
               }
-            }
-
-            if (demoPersistenceGuard.appendedNotice && !pendingExtraction.hadPendingActionTag) {
-              send({
-                type: "text_delta",
-                content: `${cleanText.trim() ? "\n\n" : ""}${demoPersistenceGuard.appendedNotice}`,
-              });
-            }
-
-            if (suggestions.length > 0) {
-              send({ type: "suggestions", suggestions });
+              if (committed?.outcome !== "persisted" || !committed.message?.id) {
+                throw new AiMessagePersistenceError(
+                  "Atomic terminal AI response was not committed",
+                );
+              }
+              committedMessage = committed.message;
+              requestClaimAcquired = false;
+              requestClaimAttemptCount = null;
             }
 
             // 서버 사이드 INSERT (with 10s idempotency)
@@ -2116,32 +2744,70 @@ export async function POST(request: Request) {
                 visibility,
               });
             } else {
-              const committed = atomicFinalization as
-                AtomicAmoraChatResponseFinalization | null;
-              if (committed?.outcome !== "persisted" || !committed.message?.id) {
+              if (!committedMessage) {
                 throw new AiMessagePersistenceError(
                   "Atomic terminal AI response was not committed",
                 );
               }
-              insertResult = committed.message;
-              requestClaimAcquired = false;
-              requestClaimAttemptCount = null;
+              insertResult = committedMessage;
             }
+            if (
+              !isDemo
+              && insertResult.id
+              && memoryEnqueueRequested
+            ) {
+              const memoryReconciliation =
+                await reconcilePersistedAmoraMemoryEnqueue({
+                  coupleId,
+                  userId: actorId,
+                  expectedVisibility: visibility,
+                  message: insertResult,
+                });
+              if (memoryReconciliation.status === "retry_required") {
+                throw new AmoraMemoryEnqueueRetryError();
+              }
+              if (
+                memoryReconciliation.status !== "reconciled"
+                && memoryReconciliation.status !== "repair_queued"
+              ) {
+                throw new AiMessagePersistenceError(
+                  "Eligible memory metadata was not persisted safely",
+                );
+              }
+            }
+
+            // Tool cards, terminal text, and suggestions form one success
+            // release. Keep all of them invisible until both the atomic
+            // privacy commit and the durable memory handoff are confirmed.
+            // Revalidate the authenticated scalar epoch after the awaited
+            // handoff so a consent/reset race cannot release stored context.
+            await assertStoredContextTerminalReleasePrivacyEpochCurrent();
             if (insertResult.reused) {
               send({ type: "text_clear" });
               const storedSuggestions = getStoredSuggestions(insertResult);
               if (storedSuggestions.length > 0) {
                 send({ type: "suggestions", suggestions: storedSuggestions });
               }
-            }
-
-            if (!isDemo && insertResult.id) {
-              await enqueueAmoraMemoryJob({
-                coupleId,
-                userId: actorId,
-                visibility,
-                toMessageId: insertResult.id,
-              });
+            } else {
+              releaseSensitiveToolEvents();
+              if (
+                pendingExtraction.hadPendingActionTag
+                || persistenceClaimGuard.corrected
+                || shouldBufferProviderText
+                || suggestions.length > 0
+                || !providerPreviewGate?.matchesTerminal(persistenceSafeText)
+              ) {
+                // Provider tokens may already have contained a private marker
+                // or unsupported persistence claim. Replace the draft only at
+                // the final success boundary.
+                send({ type: "text_clear" });
+                if (persistenceSafeText) {
+                  send({ type: "text_delta", content: persistenceSafeText });
+                }
+              }
+              if (suggestions.length > 0) {
+                send({ type: "suggestions", suggestions });
+              }
             }
 
             send({
@@ -2173,6 +2839,7 @@ export async function POST(request: Request) {
               costUsd: null,
               metadata: {
                 stage_tag: stageTag,
+                question_scope: questionScope.scope,
                 tools_used: toolsUsed,
                 tool_rounds: round + 1,
                 correction_count: correctionCount,
@@ -2188,7 +2855,7 @@ export async function POST(request: Request) {
           }
 
           // tool use 감지 → 스트리밍된 텍스트 클리어 후 도구 실행
-          send({ type: "text_clear" });
+          sendSensitiveToolEvent({ type: "text_clear" });
 
           // UI 카드로 자동 렌더링되는 도구 목록
           const UI_RENDERED_TOOLS = new Set([
@@ -2198,6 +2865,30 @@ export async function POST(request: Request) {
           ]);
 
           const toolResultInputs: ChatInputItem[] = [];
+          const rejectToolCall = (
+            callId: string,
+            toolName: string,
+            errorCode: string,
+            error: string,
+          ) => {
+            const rejectedResult = JSON.stringify({
+              success: false,
+              error_code: errorCode,
+              error,
+            });
+            sendSensitiveToolEvent({
+              type: "tool_result",
+              result: {
+                toolName,
+                toolInput: {},
+                toolOutput: JSON.parse(rejectedResult),
+                success: false,
+              },
+            });
+            toolResultInputs.push(
+              buildToolResultInput(callId, rejectedResult),
+            );
+          };
           // 유저가 보낸 canonical 마지막 메시지만 신뢰한다. Provider가 생성한
           // output item을 다시 훑어 태그 권한을 추론하지 않는다.
           const hasQuoteAnalysisTag = lastUserText.includes("[quote_analysis]");
@@ -2210,7 +2901,7 @@ export async function POST(request: Request) {
                 error_code: "TOOL_CALL_LIMIT_REACHED",
                 error: "이 요청에서 실행할 수 있는 도구 수를 초과했습니다. 지금까지의 결과만 정리하세요.",
               });
-              send({
+              sendSensitiveToolEvent({
                 type: "tool_result",
                 result: {
                   toolName: toolUse.name,
@@ -2226,13 +2917,57 @@ export async function POST(request: Request) {
               throw new DOMException("Chat request aborted before tool execution", "AbortError");
             }
 
+            // 승인된 변경은 위의 executeApprovedPendingAction 서버 경로에서만
+            // 정확히 한 번 실행한다. provider 출력과 재개 journal은 W0에서도
+            // 변경 도구를 직접 실행할 수 없다.
+            if (isMutatingTool(toolUse.name)) {
+              rejectToolCall(
+                toolUse.callId,
+                toolUse.name,
+                "MODEL_MUTATION_TOOL_BLOCKED",
+                "변경 도구는 서버가 확인한 액션 경로에서만 실행할 수 있습니다.",
+              );
+              continue;
+            }
+
+            // Provider output and a resumed journal are both untrusted at the
+            // execution boundary. Even if either contains a tool that was not
+            // offered this turn, the deterministic question scope remains the
+            // absolute upper bound.
+            if (!questionScopeToolNameCeiling.has(toolUse.name)) {
+              rejectToolCall(
+                toolUse.callId,
+                toolUse.name,
+                "QUESTION_SCOPE_TOOL_BLOCKED",
+                "이 질문 범위에서는 해당 도구를 실행할 수 없습니다. 현재 범위 안에서만 답하세요.",
+              );
+              continue;
+            }
+
+            // Intent policy may be narrower than W0/W1. It is also recomputed
+            // on a reclaimed request, so an older checkpoint cannot preserve
+            // authority that the current policy no longer grants. After an
+            // ephemeral place search, later rounds intentionally have no tools.
+            if (
+              lockToolsAfterPlaceSearch
+              || !availableToolNameSet.has(toolUse.name)
+            ) {
+              rejectToolCall(
+                toolUse.callId,
+                toolUse.name,
+                "TOOL_NOT_AVAILABLE_FOR_TURN",
+                "이 요청의 현재 도구 계약에는 해당 도구가 없습니다.",
+              );
+              continue;
+            }
+
             if (toolUse.parseError) {
               const invalidResult = JSON.stringify({
                 success: false,
                 error_code: "INVALID_TOOL_INPUT",
                 error: "도구 입력 형식이 올바르지 않습니다. 정의된 스키마에 맞게 다시 시도하세요.",
               });
-              send({
+              sendSensitiveToolEvent({
                 type: "tool_result",
                 result: {
                   toolName: toolUse.name,
@@ -2255,7 +2990,11 @@ export async function POST(request: Request) {
               }
             }
 
-            send({ type: "tool_start", toolName: toolUse.name, toolInput: toolUse.input });
+            sendSensitiveToolEvent({
+              type: "tool_start",
+              toolName: toolUse.name,
+              toolInput: getClientSafeToolInput(toolUse.name, toolUse.input),
+            });
             const execResult = await executeTool(toolUse.name, toolUse.input, {
               ...executionContext,
               providerCallIndex,
@@ -2264,7 +3003,10 @@ export async function POST(request: Request) {
             // 커밋되었을 가능성이 있으므로 응답/원장을 끝까지 확정한다.
             if (isMutatingTool(toolUse.name)) toolExecutionCompleted = true;
             toolResults.push(execResult);
-            send({ type: "tool_result", result: execResult });
+            sendSensitiveToolEvent({
+              type: "tool_result",
+              result: getClientSafeToolResult(execResult),
+            });
             // UI 카드로 렌더링되는 도구는 텍스트 중복 방지 리마인더 추가
             const reminder = UI_RENDERED_TOOLS.has(toolUse.name)
               ? "\n[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드/버튼으로 자동 표시됩니다. 텍스트 응답에서 업체 목록, 상품 목록, 시간표, 가격표를 절대 나열하지 마세요. 간단한 안내 1~2문장만 작성하세요.]"
@@ -2304,6 +3046,7 @@ export async function POST(request: Request) {
         const finalRequestPolicy = getAmoraProviderRequestPolicy(finalCallIndex);
         let preparedFinalTerminal: ReturnType<typeof prepareTerminalResponse> | null = null;
         let atomicFinalization2: AtomicAmoraChatResponseFinalization | null = null;
+        paidProviderBoundaryReached = false;
         await runAmoraProviderCallWithLedger(
           {
             userId: isDemo ? null : actorId,
@@ -2340,20 +3083,21 @@ export async function POST(request: Request) {
             // This precedes OpenAI's input-token count request. The generation
             // hook repeats the fence immediately before quota reservation.
             await assertPrivacyContextStillCurrent();
-            return chatWithToolsStream({
+            const providerResult = await chatWithToolsStream({
               systemPrompt: noToolSystemPrompt,
               input: currentMessages,
               // 최대 도구 라운드 이후에는 새 mutation 요청을 받지 않고 기존 결과를
               // 사용자용 문장으로 정리하게 한다.
               tools: [],
               onTextDelta: (token) => {
-                send({ type: "text_delta", content: token });
+                providerPreviewGate?.push(token);
               },
               maxInputTokens: finalRequestPolicy.maxInputTokens,
               maxOutputTokens: finalRequestPolicy.maxOutputTokens,
               beforeGeneration: async () => {
                 await assertPrivacyContextStillCurrent();
                 await reserveBeforeGeneration();
+                paidProviderBoundaryReached = true;
               },
               modelRole,
               safetyIdentifierScope,
@@ -2361,15 +3105,22 @@ export async function POST(request: Request) {
                 ? deadlineAbortController.signal
                 : preMutationAbortController.signal,
             });
+            await assertPrivacyContextStillCurrent();
+            return providerResult;
           },
           {
             buildAtomicChatResponse: (providerResult) => {
-              const terminal = prepareTerminalResponse(providerResult.fullText, false);
+              const terminal = prepareTerminalResponse(providerResult.fullText);
               preparedFinalTerminal = terminal;
               if (isDemo) return null;
               if (requestClaimAttemptCount === null) {
                 throw new ChatRequestClaimError(
                   "Final response claim generation was missing",
+                );
+              }
+              if (initialPrivacyEpoch === null) {
+                throw new AmoraPrivacyContextError(
+                  "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
                 );
               }
               return {
@@ -2378,6 +3129,7 @@ export async function POST(request: Request) {
                 requestKey: clientRequestId,
                 visibility,
                 claimAttemptCount: requestClaimAttemptCount,
+                expectedPrivacyEpoch: initialPrivacyEpoch,
                 content: terminal.persistenceSafeText,
                 metadata: terminal.metadata,
                 stageTag,
@@ -2405,18 +3157,25 @@ export async function POST(request: Request) {
           metadata: finalMetadata,
         } = finalTerminal;
 
-        if (
-          pendingExtraction2.hadPendingActionTag
-          || finalPersistenceClaimGuard.corrected
-        ) {
-          send({ type: "text_clear" });
-          if (finalPersistenceSafeText) {
-            send({ type: "text_delta", content: finalPersistenceSafeText });
+        let committedFinalMessage: PersistedAiMessage | null = null;
+        if (!isDemo) {
+          const committed = atomicFinalization2 as
+            AtomicAmoraChatResponseFinalization | null;
+          if (committed?.outcome === "privacy_context_changed") {
+            requestClaimAcquired = false;
+            requestClaimAttemptCount = null;
+            throw new AmoraPrivacyContextError(
+              "AMORA_PRIVACY_CONTEXT_CHANGED",
+            );
           }
-        }
-
-        if (suggestions.length > 0) {
-          send({ type: "suggestions", suggestions });
+          if (committed?.outcome !== "persisted" || !committed.message?.id) {
+            throw new AiMessagePersistenceError(
+              "Atomic final AI response was not committed",
+            );
+          }
+          committedFinalMessage = committed.message;
+          requestClaimAcquired = false;
+          requestClaimAttemptCount = null;
         }
 
         // 서버 사이드 INSERT (MAX_TOOL_ROUNDS 초과 분기 — idempotency 포함)
@@ -2433,33 +3192,65 @@ export async function POST(request: Request) {
             visibility,
           });
         } else {
-          const committed = atomicFinalization2 as
-            AtomicAmoraChatResponseFinalization | null;
-          if (committed?.outcome !== "persisted" || !committed.message?.id) {
+          if (!committedFinalMessage) {
             throw new AiMessagePersistenceError(
               "Atomic final AI response was not committed",
             );
           }
-          insertResult2 = committed.message;
-          requestClaimAcquired = false;
-          requestClaimAttemptCount = null;
+          insertResult2 = committedFinalMessage;
         }
 
+        if (
+          !isDemo
+          && insertResult2.id
+          && memoryEnqueueRequested
+        ) {
+          const memoryReconciliation =
+            await reconcilePersistedAmoraMemoryEnqueue({
+              coupleId,
+              userId: actorId,
+              expectedVisibility: visibility,
+              message: insertResult2,
+            });
+          if (memoryReconciliation.status === "retry_required") {
+            throw new AmoraMemoryEnqueueRetryError();
+          }
+          if (
+            memoryReconciliation.status !== "reconciled"
+            && memoryReconciliation.status !== "repair_queued"
+          ) {
+            throw new AiMessagePersistenceError(
+              "Eligible memory metadata was not persisted safely",
+            );
+          }
+        }
+
+        // MAX_TOOL_ROUNDS completion uses the exact same atomic privacy and
+        // durable memory success boundary as the normal terminal branch.
+        await assertStoredContextTerminalReleasePrivacyEpochCurrent();
         if (insertResult2.reused) {
           send({ type: "text_clear" });
           const storedSuggestions = getStoredSuggestions(insertResult2);
           if (storedSuggestions.length > 0) {
             send({ type: "suggestions", suggestions: storedSuggestions });
           }
-        }
-
-        if (!isDemo && insertResult2.id) {
-          await enqueueAmoraMemoryJob({
-            coupleId,
-            userId: actorId,
-            visibility,
-            toMessageId: insertResult2.id,
-          });
+        } else {
+          releaseSensitiveToolEvents();
+          if (
+            pendingExtraction2.hadPendingActionTag
+            || finalPersistenceClaimGuard.corrected
+            || shouldBufferProviderText
+            || suggestions.length > 0
+            || !providerPreviewGate?.matchesTerminal(finalPersistenceSafeText)
+          ) {
+            send({ type: "text_clear" });
+            if (finalPersistenceSafeText) {
+              send({ type: "text_delta", content: finalPersistenceSafeText });
+            }
+          }
+          if (suggestions.length > 0) {
+            send({ type: "suggestions", suggestions });
+          }
         }
 
         send({
@@ -2491,6 +3282,7 @@ export async function POST(request: Request) {
           costUsd: null,
           metadata: {
             stage_tag: stageTag,
+            question_scope: questionScope.scope,
             tools_used: toolsUsed,
             tool_rounds: AMORA_MAX_TOOL_ROUNDS,
             exceeded_max_rounds: true,
@@ -2503,15 +3295,32 @@ export async function POST(request: Request) {
         const privacyContextErrorCode =
           getAmoraPrivacyContextErrorCode(err);
         const costGuardError = err instanceof AmoraCostGuardError ? err : null;
+        const memoryEnqueueError =
+          err instanceof AmoraMemoryEnqueueRetryError ? err : null;
         const durableErrorCode =
           err instanceof AiMessagePersistenceError || err instanceof ChatRequestClaimError
             ? err.code
             : null;
         const publicErrorCode =
           durableErrorCode
+          ?? memoryEnqueueError?.code
           ?? privacyContextErrorCode
           ?? costGuardError?.code
           ?? inputStreamError?.code;
+        // The immutable request key may only be replayed when the failed
+        // provider attempt never crossed its paid generation boundary (or
+        // when replay is the explicit durable memory-repair path). Once a
+        // receipt can be settled/unknown, force a new user message instead of
+        // offering an exact-key retry loop that can never make progress.
+        const exactRetryAllowed = Boolean(
+          memoryEnqueueError
+          || costGuardError
+          || (
+            !paidProviderBoundaryReached
+            && !toolExecutionCompleted
+            && inputStreamError?.code !== "AMORA_INPUT_TOO_LARGE"
+          )
+        );
         console.error("채팅 API 에러:", errMsg);
         if (requestClaimAcquired) {
           await failChatRequest({
@@ -2528,7 +3337,17 @@ export async function POST(request: Request) {
         send({
           type: "error",
           code: publicErrorCode,
-          message: durableErrorCode
+          retryable: exactRetryAllowed,
+          retryPolicy: exactRetryAllowed ? "same_request" : "new_message",
+          message: memoryEnqueueError
+            ? "답변은 저장됐지만 장기 기억 반영을 확인하지 못했어요. 같은 요청으로 다시 시도해주세요."
+            : !exactRetryAllowed
+              ? inputStreamError?.code === "AMORA_INPUT_TOO_LARGE"
+                ? inputStreamError.message
+                : privacyContextErrorCode
+                  ? "개인정보 설정이 변경되었거나 안전하게 확인되지 않았어요. 최신 설정에서 새 메시지로 다시 보내주세요."
+                  : "이 요청은 같은 식별자로 다시 이어갈 수 없어요. 새 메시지로 다시 보내주세요."
+            : durableErrorCode
             ? "답변 저장을 완료하지 못했어요. 같은 요청으로 다시 시도해주세요."
             : privacyContextErrorCode
               ? "개인정보 설정이 변경되었거나 안전하게 확인되지 않았어요. 최신 설정으로 다시 시도해주세요."
@@ -2560,6 +3379,7 @@ export async function POST(request: Request) {
           costUsd: null,
           metadata: {
             stage_tag: stageTag,
+            question_scope: questionScope.scope,
           },
         });
       }

@@ -8,7 +8,15 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
-import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
+import { buildOAuthCallbackUrl } from "@/lib/auth/safeRedirect";
+import {
+  cleanOptionalText,
+  isRecord,
+  normalizeEmail,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 function getAdminSupabase() {
   return createAdminClient();
@@ -36,11 +44,30 @@ function isStrongPassword(value: unknown): value is string {
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed } = await request.json();
-    const email = normalizeEmail(rawEmail);
-    const name = cleanOptionalText(rawName, 60);
+    const rawBody = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: rawBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.text);
+    } catch {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
+    const email = normalizeEmail(body.email);
+    const password = body.password;
+    const name = cleanOptionalText(body.name, 60);
+    const requestedRedirect = cleanOptionalText(body.redirect, 500);
     // 마케팅 수신 동의 기록 — 명시적 true만 동의로 저장 (미전달=false, 웹 폼은 현재 미수집)
-    const marketingConsent = marketingAgreed === true;
+    const marketingConsent = body.marketingAgreed === true;
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
@@ -52,22 +79,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Caller-controlled client headers are not attestation. Web and mobile
-    // must both present a server-verifiable Turnstile token before any admin
-    // link generation or email-provider call can occur.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request), "signup");
+    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (ipLimited) return ipLimited;
+
+    // Caller-controlled client headers are not attestation. Web and native
+    // clients without an ambient session must present a server-verifiable
+    // Turnstile token. The IP limiter runs first so invalid traffic cannot
+    // consume an unbounded number of verification-provider calls.
+    const turnstile = await verifyTurnstile(
+      typeof body.turnstileToken === "string" ? body.turnstileToken : undefined,
+      getClientIp(request),
+      "signup",
+    );
     if (!turnstile.ok) {
       return NextResponse.json(
         { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },
         { status: 400 }
       );
     }
-
-    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
-      maxRequests: 5,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (ipLimited) return ipLimited;
 
     const emailLimited = await checkRateLimitPersistent(
       rateLimitSubjectKey("signup-email", normalizeEmailForRateLimit(email)),
@@ -79,13 +111,17 @@ export async function POST(request: Request) {
     if (emailLimited) return emailLimited;
 
     const supabase = getAdminSupabase();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai";
+    const callbackSearch = requestedRedirect
+      ? `?${new URLSearchParams({ redirect: requestedRedirect })}`
+      : "";
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "signup",
       email,
       password,
       options: {
         data: { name, marketing_agreed: marketingConsent },
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"}/api/auth/callback`,
+        redirectTo: buildOAuthCallbackUrl(callbackSearch, siteUrl),
       },
     });
 

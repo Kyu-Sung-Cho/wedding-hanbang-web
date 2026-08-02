@@ -5,6 +5,8 @@ import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { PrimaryButton } from "@/components/ui/AppUI";
+import { resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
+import { verifyMobileWebRuntime } from "@/lib/mobileWebRuntime";
 
 type Destination = "login" | "onboarding" | "dashboard";
 type GateStatus = "loading" | "ready" | "error";
@@ -20,6 +22,15 @@ export default function Index() {
 
     (async () => {
       try {
+        const siteOrigin = resolveMobileSiteOrigin(
+          process.env.EXPO_PUBLIC_SITE_URL,
+          { isDevelopment: __DEV__ },
+        );
+        await verifyMobileWebRuntime({
+          siteOrigin,
+          supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+        });
+
         const {
           data: { session },
           error: sessionError,

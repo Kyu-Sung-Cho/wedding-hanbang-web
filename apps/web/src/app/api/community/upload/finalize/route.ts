@@ -24,6 +24,7 @@ import {
 } from "@/lib/community/uploadSession";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -325,6 +326,11 @@ async function publishAndVerify(
 }
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return json(
+      { error: "올바르지 않은 요청 출처예요.", code: "UNTRUSTED_ORIGIN" }, 403);
+  }
+
   const uploadId = await readUploadId(req);
   if (!uploadId) {
     return json({ error: "올바르지 않은 업로드 요청이에요.", code: "INVALID_FINALIZE_REQUEST" }, 400);

@@ -129,7 +129,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
                   <span className="font-semibold text-[#243832]">{candidate.agencyName}</span>
                   <span className="font-bold tabular-nums text-[#243832]">{krwRangeLabel(candidate.minimumKrw, candidate.maximumKrw)}</span>
                 </span>
-                {candidate.baseSpec ? <span className="mt-1 block text-xs leading-5 text-[#243832]/65">{candidate.baseSpec}</span> : null}
+                {candidate.baseSpec ? <span className="mt-1 block text-xs leading-5 text-[#243832]/75">{candidate.baseSpec}</span> : null}
               </span>
             </label>
           ))}
@@ -200,7 +200,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
 
         <div className="sticky bottom-0 -mx-5 mt-6 border-t border-[#243832]/10 bg-[#FBF8F2]/95 px-5 pb-[max(0px,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-7 sm:px-7">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-[#243832]/65">
+            <span className="text-sm font-semibold text-[#243832]/75">
               {validCustomKrw === null ? "기본·옵션 공시가 합계" : "입력 견적·옵션 공시가 합계"}
             </span>
             <strong className="text-xl tabular-nums text-[#243832]">{krwRangeLabel(totalMinimumKrw, totalMaximumKrw)}</strong>

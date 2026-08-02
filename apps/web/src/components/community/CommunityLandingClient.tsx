@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Bookmark,
@@ -35,6 +35,9 @@ import Avatar from "@/components/community/Avatar";
 import ContentOriginBadge from "@/components/community/ContentOriginBadge";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import PostSkeleton from "@/components/community/PostSkeleton";
+import CommunityAcquisitionPrototype, {
+  parseCommunityPrototypeVariant,
+} from "@/components/community/CommunityAcquisitionPrototype";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { PRICE_CATEGORIES, type PriceCategory } from "@/lib/price/catalog";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
@@ -248,6 +251,11 @@ export default function CommunityLandingClient({
   useCommunityRealtime();
 
   const router = useRouter();
+  const urlSearchParams = useSearchParams();
+  const prototypeVariant =
+    process.env.NODE_ENV !== "production"
+      ? parseCommunityPrototypeVariant(urlSearchParams.get("variant"))
+      : null;
   const searchQuery = initialQuery.search ?? "";
   const categoryQuery = initialQuery.category ?? "";
   const tagQuery = initialQuery.tag ?? "";
@@ -501,25 +509,29 @@ export default function CommunityLandingClient({
       isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && displayedPosts.length === 0 : isLoading}
       errorMessage={isSearching ? null : errorMessage}
       clearError={clearError}
-      feedFirst={showFullFeed}
+      feedFirst={showFullFeed || showLandingIntro}
     />
   );
 
+  if (prototypeVariant) {
+    return (
+      <CommunityAcquisitionPrototype
+        variant={prototypeVariant}
+        posts={displayedPosts}
+        total={activeTotal}
+      />
+    );
+  }
+
   return (
-    <div className="bg-[#fffdf7] pb-16 text-[#061a34] md:pb-0">
+    <div
+      className="bg-[#fffdf7] pb-16 text-[#061a34] md:pb-0"
+      data-community-home-order="search-first"
+    >
+      {searchHubNode}
+      {communityMainNode}
       {showLandingIntro && <AmoraBlock />}
       {showLandingIntro && <WhatWeDo />}
-      {showLandingIntro ? (
-        <>
-          {communityMainNode}
-          {searchHubNode}
-        </>
-      ) : (
-        <>
-          {searchHubNode}
-          {communityMainNode}
-        </>
-      )}
       {!isAllFeedMode && <DisclosureHero spread={agencySpread} />}
       <div ref={observerRef} className="h-1" />
     </div>
@@ -558,17 +570,17 @@ function AmoraBlock() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)] lg:items-center lg:gap-12">
         <div className="min-w-0">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef4f1] px-3 py-1 text-[11px] font-semibold text-[#36534E]">
-            AI 웨딩 플래너 아모라
+            찾은 답을 내 준비에 반영하기
           </span>
-          <h1 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.25] text-[#071629] md:text-[30px]">
-            결혼 준비,
+          <h2 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.25] text-[#071629] md:text-[30px]">
+            사람의 경험을 찾았다면,
             <br />
-            아모라와 정리하세요
-          </h1>
+            우리 둘의 계획으로 옮기세요
+          </h2>
           <p className="mt-3 max-w-xl text-[13px] font-medium leading-[1.75] text-[#5d6879] md:text-[14px]">
+            커뮤니티에서 확인한 조건과 다음 행동을 아모라에게 이어서 말해보세요.
             웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께
-            정리되는 서비스예요. 추가금·계약·업체 선택처럼 AI가 직접 겪을 수 없는
-            고민은 먼저 겪은 사람의 경험을 함께 찾아요.
+            정리되는 서비스예요.
           </p>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -577,7 +589,7 @@ function AmoraBlock() {
               onClick={() => captureEvent("amora_block_click", { source: "landing_amora_block" })}
               className="group inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] sm:w-auto"
             >
-              아모라와 지금 시작하기
+              아모라로 내 상황 정리하기
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
@@ -585,12 +597,12 @@ function AmoraBlock() {
               onClick={() => captureEvent("community_hero_click", { action: "find_experience" })}
               className="inline-flex min-h-[50px] w-full items-center justify-center gap-1.5 rounded-full border border-[#d8c7ad] bg-white px-6 text-[14px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/45 sm:w-auto"
             >
-              해결 경험 먼저 찾아보기
+              다른 해결 경험 더 보기
               <Search className="h-4 w-4" />
             </Link>
           </div>
           <p className="mt-3 text-[11.5px] font-medium leading-[1.6] text-[#7a8290]">
-            글은 로그인 없이 열람 · 질문과 답변 작성은 로그인 후 · 광고·협찬은 표시
+            AI의 제안과 사람의 경험은 구분해서 보여주고, 최종 결정은 사용자가 합니다.
           </p>
         </div>
 
@@ -601,15 +613,15 @@ function AmoraBlock() {
           aria-labelledby="decision-start-heading"
         >
           <div>
-            <span className="text-[11px] font-semibold text-[#A77B74]">지금 가장 급한 문제부터</span>
+            <span className="text-[11px] font-semibold text-[#A77B74]">경험에서 행동으로</span>
             <h2
               id="decision-start-heading"
               className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[#071629]"
             >
-              무엇을 결정해야 하나요?
+              확인한 내용을 어디에 남길까요?
             </h2>
             <p className="mt-1.5 text-[12px] font-medium leading-[1.6] text-[#7a8290]">
-              먼저 확인하고, 사람의 경험이 필요한 순간에 질문하세요.
+              필요한 것 하나만 골라도 내 준비 흐름에 이어집니다.
             </p>
           </div>
 
@@ -623,9 +635,9 @@ function AmoraBlock() {
                 <Wallet className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13.5px] font-semibold text-[#263832]">견적·추가금 확인</span>
+                  <span className="block text-[13.5px] font-semibold text-[#263832]">견적 조건 다시 확인</span>
                 <span className="mt-0.5 block text-[11px] font-medium text-[#7a8290]">
-                  받은 조건에서 놓친 비용 찾기
+                    포함·별도·확인 필요 항목 정리하기
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
@@ -639,9 +651,9 @@ function AmoraBlock() {
                 <Building2 className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13.5px] font-semibold text-[#263832]">업체·계약 경험 찾기</span>
+                  <span className="block text-[13.5px] font-semibold text-[#263832]">계약 경험 더 찾아보기</span>
                 <span className="mt-0.5 block text-[11px] font-medium text-[#7a8290]">
-                  비슷한 상황의 선택과 결과 보기
+                    놓친 조건이 없는지 한 번 더 비교하기
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
@@ -656,9 +668,9 @@ function AmoraBlock() {
                 <MessageCircle className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13.5px] font-semibold text-[#263832]">내 상황으로 질문 만들기</span>
+                  <span className="block text-[13.5px] font-semibold text-[#263832]">남은 질문 이어서 묻기</span>
                 <span className="mt-0.5 block text-[11px] font-medium text-[#7a8290]">
-                  검색으로 안 풀린 고민 구체화하기
+                    검색으로 풀리지 않은 부분만 구체화하기
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
@@ -666,7 +678,7 @@ function AmoraBlock() {
           </div>
 
           <p className="mt-3 text-[11px] font-medium leading-[1.6] text-[#7a8290]">
-            공개된 경험을 먼저 찾아보고, 없으면 입력한 내용으로 질문을 이어갑니다.
+            공개된 경험은 판단 근거로 참고하고, 우리 상황에 맞는 결정은 둘이 직접 정합니다.
           </p>
         </article>
       </div>
@@ -1040,29 +1052,31 @@ function SearchHub({
   return (
     <section
       id="community-search"
-      className={`${shell} mt-1 scroll-mt-24`}
+      className={`${shell} scroll-mt-24 pt-6 md:pt-10`}
       aria-labelledby="community-search-heading"
     >
       <div
-        className="rounded-[18px] border border-[#eadfc9] bg-white/84 px-4 py-4 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:px-8 md:py-5"
+        className="overflow-hidden rounded-[24px] border border-[#d8c7ad] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(247,241,232,0.9))] px-4 py-5 shadow-[0_18px_50px_rgba(8,22,38,0.06)] md:px-9 md:py-8"
         data-tutorial-target="community-categories"
       >
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <span className="text-[11px] font-semibold text-[#A77B74]">사람의 경험이 필요할 때</span>
-          <h2
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-7">
+        <div className="max-w-[760px]">
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-[#A77B74]">결혼 준비 결정 커뮤니티</span>
+          <h1
             id="community-search-heading"
-            className="mt-1 font-serif-kr text-[21px] font-medium leading-[1.35] text-[#071629]"
+            className="mt-2 font-serif-kr text-[29px] font-medium leading-[1.24] tracking-[-0.025em] text-[#071629] sm:text-[34px] md:text-[40px]"
           >
-            내 상황과 가까운 해결 경험부터 찾아보세요
-          </h2>
-          <p className="mt-1 text-[12px] font-medium leading-[1.6] text-[#7a8290]">
-            업체명, 받은 금액, 계약 단계처럼 지금 막힌 한 가지를 적어주세요.
+            계약하기 전에,
+            <br className="sm:hidden" /> 먼저 겪은 사람에게 확인하세요.
+          </h1>
+          <p className="mt-3 max-w-[680px] text-[13px] font-medium leading-[1.7] text-[#5d6879] md:text-[14px]">
+            내 상황과 가까운 해결 경험부터 찾아보세요. 후기만 나열하지 않고 질문,
+            사람의 답변, 질문자가 표시한 해결 여부를 한 흐름으로 보여드립니다.
           </p>
         </div>
         <Link
           {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#d8c7ad] bg-[#fffdf7] px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/45"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#d8c7ad] bg-white px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/45"
         >
           내 상황 질문하기
           <PenSquare className="h-3.5 w-3.5" />
@@ -1076,18 +1090,24 @@ function SearchHub({
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
             placeholder="예: 촬영 결과물 별도 금액, 계약 취소 때 내는 금액"
-            className="h-[52px] w-full rounded-full border border-[#d8c7ad] bg-white/70 px-5 pr-14 text-[14px] font-medium text-[#061a34] outline-none placeholder:text-[#b49b7c] focus:border-[#36534E] sm:pr-36 md:px-8 md:text-[15px]"
+            className="h-[58px] w-full rounded-full border border-[#cbb99d] bg-white px-5 pr-14 text-[14px] font-medium text-[#061a34] shadow-[0_8px_24px_rgba(8,22,38,0.05)] outline-none placeholder:text-[#a89278] focus:border-[#36534E] focus:shadow-[0_0_0_3px_rgba(54,83,78,0.1)] sm:pr-40 md:h-[62px] md:px-7 md:text-[15px]"
           />
           <button
             type="submit"
             aria-label="비슷한 해결 경험 찾기"
-            className="absolute right-1 top-1/2 flex h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full bg-[#36534E] px-3 text-white transition-colors hover:bg-[#2d4642] sm:min-w-[124px]"
+            className="absolute right-1.5 top-1/2 flex h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full bg-[#36534E] px-3 text-white transition-colors hover:bg-[#2d4642] sm:min-w-[132px] md:h-[50px]"
           >
             <Search className="h-5 w-5" />
             <span className="hidden text-[12px] font-semibold sm:inline">경험 찾기</span>
           </button>
         </label>
       </form>
+
+      <div className="mt-3 grid gap-1.5 text-[11px] font-medium leading-[1.5] text-[#667268] sm:grid-cols-3 sm:gap-3">
+        <span className="flex items-center gap-2"><Search className="h-3.5 w-3.5 text-[#36534E]" />비슷한 상황을 먼저 검색</span>
+        <span className="flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 text-[#36534E]" />사람이 직접 남긴 답변 확인</span>
+        <span className="flex items-center gap-2"><ClipboardCheck className="h-3.5 w-3.5 text-[#36534E]" />출처·광고·해결 상태 표시</span>
+      </div>
 
       <div className="mt-4 flex flex-col gap-3 md:mt-5">
         {/* 375px에서 가로 스크롤이던 시절 6개 중 3개("스토리 & 꿀팁"·"선배 Q&A"·

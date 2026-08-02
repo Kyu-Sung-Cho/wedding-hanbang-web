@@ -105,7 +105,7 @@ export function BudgetFinderModal({
                 aria-label="최대 예산(만원)"
                 className="min-w-0 flex-1 bg-transparent text-base font-bold tabular-nums outline-none"
               />
-              <span className="text-sm text-[#243832]/65">만원</span>
+              <span className="text-sm text-[#243832]/75">만원</span>
             </span>
           </label>
           <label className="text-sm font-semibold text-[#243832]">

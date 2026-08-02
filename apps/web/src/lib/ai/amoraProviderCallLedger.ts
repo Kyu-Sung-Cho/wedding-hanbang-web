@@ -112,6 +112,8 @@ export interface AtomicAmoraChatResponseInput {
   visibility: ChatVisibility;
   /** Current amora_chat_request_claims.attempt_count generation fence. */
   claimAttemptCount: number;
+  /** Actor-bound database epoch captured before any provider context read. */
+  expectedPrivacyEpoch: number;
   content: string;
   metadata: Record<string, unknown>;
   stageTag: string | null;
@@ -119,7 +121,10 @@ export interface AtomicAmoraChatResponseInput {
 }
 
 export interface AtomicAmoraChatResponseFinalization {
-  outcome: "persisted" | "cooldown_race_lost";
+  outcome:
+    | "persisted"
+    | "cooldown_race_lost"
+    | "privacy_context_changed";
   message: PersistedAiMessage | null;
 }
 
@@ -300,6 +305,8 @@ function validateAtomicChatResponse(
     || !UUID_PATTERN.test(input.userId)
     || !Number.isSafeInteger(input.claimAttemptCount)
     || input.claimAttemptCount < 1
+    || !Number.isSafeInteger(input.expectedPrivacyEpoch)
+    || input.expectedPrivacyEpoch < 1
     || !["shared", "bride_private", "groom_private"].includes(input.visibility)
     || typeof input.content !== "string"
     || !input.content.trim()
@@ -339,9 +346,12 @@ function validateToolRoundCheckpoint(
 function parseAtomicChatFinalization(
   row: Record<string, unknown>,
 ): AtomicAmoraChatResponseFinalization | null {
-  if (row.outcome === "cooldown_race_lost") {
+  if (
+    row.outcome === "cooldown_race_lost"
+    || row.outcome === "privacy_context_changed"
+  ) {
     if (row.message_id !== null && row.message_id !== undefined) return null;
-    return { outcome: "cooldown_race_lost", message: null };
+    return { outcome: row.outcome, message: null };
   }
   if (
     row.outcome !== "persisted"
@@ -538,7 +548,7 @@ async function finalizeProviderReceipt(
           ...commonParams,
         })
         : values.atomicChatResponse
-          ? await admin.rpc("finalize_amora_chat_response", {
+          ? await admin.rpc("finalize_amora_chat_response_with_privacy_fence", {
             p_receipt_id: receiptId,
             p_receipt_claim_token: claimToken,
             p_chat_couple_id: values.atomicChatResponse.coupleId,
@@ -547,6 +557,8 @@ async function finalizeProviderReceipt(
             p_chat_visibility: values.atomicChatResponse.visibility,
             p_chat_claim_attempt_count:
               values.atomicChatResponse.claimAttemptCount,
+            p_expected_privacy_epoch:
+              values.atomicChatResponse.expectedPrivacyEpoch,
             p_message_content: values.atomicChatResponse.content,
             p_message_metadata: values.atomicChatResponse.metadata,
             p_message_stage_tag: values.atomicChatResponse.stageTag,
@@ -695,6 +707,8 @@ export async function runAmoraProviderCallWithLedger<
         ? normalized.usageStatus
         : "complete";
     const model = safeMetadataToken(normalized.model) ?? configuredModel;
+    const privacyContextChanged =
+      normalized.providerCode === "AMORA_PRIVACY_CONTEXT_CHANGED";
     const costUsd = calcCostUsd(
       model,
       normalized.usage?.input_tokens,
@@ -710,7 +724,9 @@ export async function runAmoraProviderCallWithLedger<
         : null,
       latencyMs: elapsedMs(startedAt),
       success: false,
-      errorMessage: error instanceof AmoraCostGuardError
+      errorMessage: privacyContextChanged
+        ? "privacy_context_changed"
+        : error instanceof AmoraCostGuardError
         ? "pre_generation_gate_failed"
         : `openai_${normalized.category}`,
       model,
@@ -745,7 +761,6 @@ export async function runAmoraProviderCallWithLedger<
   }
 
   const usageStatus: OpenAIUsageStatus = result.usage ? "complete" : result.usageStatus;
-  const conflictCheckpoint = getAtomicConflictCheckpoint(context, result);
   const model = safeMetadataToken(result.model) ?? configuredModel;
   const costUsd = calcCostUsd(
     model,
@@ -754,20 +769,73 @@ export async function runAmoraProviderCallWithLedger<
     result.usage?.cache_write_input_tokens,
     result.usage?.cache_read_input_tokens,
   );
+  let conflictCheckpoint: AtomicConflictCheckpoint | null = null;
   let atomicChatResponse: AtomicAmoraChatResponseInput | null = null;
   let toolRoundCheckpoint: AtomicAmoraToolRoundCheckpointInput | null = null;
-  if (options) {
-    atomicChatResponse = options.buildAtomicChatResponse(result);
-    if (atomicChatResponse) {
-      atomicChatResponse = validateAtomicChatResponse(context, atomicChatResponse);
-    }
-    toolRoundCheckpoint = options.buildToolRoundCheckpoint?.(result) ?? null;
-    if (toolRoundCheckpoint) {
+  try {
+    conflictCheckpoint = getAtomicConflictCheckpoint(context, result);
+    if (options) {
+      atomicChatResponse = options.buildAtomicChatResponse(result);
       if (atomicChatResponse) {
-        throw new Error("[ai-ledger] terminal response cannot be a tool checkpoint");
+        atomicChatResponse = validateAtomicChatResponse(context, atomicChatResponse);
       }
-      toolRoundCheckpoint = validateToolRoundCheckpoint(context, toolRoundCheckpoint);
+      toolRoundCheckpoint = options.buildToolRoundCheckpoint?.(result) ?? null;
+      if (toolRoundCheckpoint) {
+        if (atomicChatResponse) {
+          throw new Error("[ai-ledger] terminal response cannot be a tool checkpoint");
+        }
+        toolRoundCheckpoint = validateToolRoundCheckpoint(context, toolRoundCheckpoint);
+      }
     }
+  } catch (error) {
+    // The provider already returned successfully, so its known usage must not
+    // remain held by the maximum reservation merely because a local atomic
+    // payload builder/validator rejected the result. Settle the receipt as a
+    // failed attempt without any untrusted atomic payload, then preserve the
+    // original contract error for the caller. Only a settlement outage leaves
+    // the reservation in place for an exact token-fenced retry.
+    const failedSettlement = await finalizeProviderReceipt(
+      admin,
+      receiptId,
+      claimToken,
+      {
+        providerAttempted: true,
+        usageStatus,
+        actualCostMicrousd: toActualCostMicrousd(costUsd),
+        latencyMs: elapsedMs(startedAt),
+        success: false,
+        errorMessage: "post_provider_payload_invalid",
+        model,
+        tokensInput: result.usage?.input_tokens ?? null,
+        tokensOutput: result.usage?.output_tokens ?? null,
+        metadata: {
+          ...buildMetadata(context, {
+            providerAttempted: true,
+            usageStatus,
+            requestId: result.requestId,
+            responseId: result.responseId,
+            inputCountRequestId: result.inputCountRequestId,
+            requestStage: "generation",
+            providerErrorCategory: "internal_validation",
+            providerErrorCode: "post_provider_payload_invalid",
+          }),
+          content_logging: "disabled",
+          ledger_status: "finalized",
+          post_provider_payload_status: "rejected",
+          cache_creation_input_tokens:
+            result.usage?.cache_write_input_tokens ?? null,
+          cache_read_input_tokens:
+            result.usage?.cache_read_input_tokens ?? null,
+        },
+      },
+    );
+    if (!failedSettlement) {
+      reportOperationalError(
+        "[ai-ledger] invalid post-provider payload settlement unconfirmed",
+        "amora_provider_payload_failure_settlement_unconfirmed",
+      );
+    }
+    throw error;
   }
   const finalized = await finalizeProviderReceipt(admin, receiptId, claimToken, {
     providerAttempted: true,

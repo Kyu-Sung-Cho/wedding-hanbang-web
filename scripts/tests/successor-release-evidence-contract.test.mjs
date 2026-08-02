@@ -194,6 +194,8 @@ function runtimeEvidenceFixture() {
       AMORA_AUXILIARY_MEMORY_ENABLED: "false",
       AMORA_CARE_OUTBOUND_ENABLED: "false",
       AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+      AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
+      AMORA_TODAY_ONE_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
@@ -205,6 +207,8 @@ function runtimeEvidenceFixture() {
       "storageWriteFenceHeld",
       "authSignupDisabled",
       "webWriteFenceEnabled",
+      "chatPartnerRecipientBoundaryHeld",
+      "conversationSegmentScopeBoundaryHeld",
     ],
   };
   const manifest = {
@@ -532,6 +536,8 @@ function readyStaticFixture({
       AMORA_AUXILIARY_MEMORY_ENABLED: "false",
       AMORA_CARE_OUTBOUND_ENABLED: "false",
       AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+      AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
+      AMORA_TODAY_ONE_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
@@ -543,6 +549,8 @@ function readyStaticFixture({
       "storageWriteFenceHeld",
       "authSignupDisabled",
       "webWriteFenceEnabled",
+      "chatPartnerRecipientBoundaryHeld",
+      "conversationSegmentScopeBoundaryHeld",
     ],
   };
   const contract = {
@@ -559,6 +567,13 @@ function readyStaticFixture({
       sha256: "b".repeat(64),
       expectedEvidence: {
         account_deletion_auth_fk_contract_count: 1,
+        chat_partner_recipient_insert_policy_count: 1,
+        chat_partner_recipient_select_policy_count: 1,
+        chat_partner_recipient_trigger_count: 1,
+        conversation_segment_active_index_count: 3,
+        conversation_segment_rls_policy_count: 1,
+        conversation_segment_rpc_acl_count: 1,
+        conversation_segment_scope_fk_count: 2,
         couple_plan_change_auth_user_fk_count: 4,
         couple_plan_change_display_guard_count: 1,
         couple_plan_change_idempotency_index_count: 1,
@@ -566,7 +581,7 @@ function readyStaticFixture({
         couple_plan_change_terminal_event_count: 3,
         couple_plan_change_write_boundary_trigger_count: 1,
         successor_created_table_count: createdTables.length,
-        successor_feature_flags_off_count: 8,
+        successor_feature_flags_off_count: 10,
         successor_migration_head_count: 1,
         wedding_court_auth_delete_fk_count: 1,
         chat_feedback_auth_delete_fk_count: 1,
@@ -675,6 +690,13 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
   );
   assert.ok(state.createdTables.includes("couple_plan_change_requests"));
   assert.ok(state.createdTables.includes("couple_plan_change_acceptances"));
+  assert.ok(state.createdTables.includes("conversation_segments"));
+  assert.ok(
+    state.createdTables.includes("amora_memory_enqueue_repair_candidates"),
+  );
+  assert.ok(
+    state.createdTables.includes("amora_memory_enqueue_repair_dead_letters"),
+  );
   assert.ok(
     result.controllerManifest.postExpandBackupContract.expectedTables
       .includes("account_deletion_jobs"),
@@ -682,6 +704,18 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
   assert.ok(
     result.controllerManifest.postExpandBackupContract.expectedTables
       .includes("account_deletion_media_manifest"),
+  );
+  assert.ok(
+    result.controllerManifest.postExpandBackupContract.expectedTables
+      .includes("conversation_segments"),
+  );
+  assert.ok(
+    result.controllerManifest.postExpandBackupContract.expectedTables
+      .includes("amora_memory_enqueue_repair_candidates"),
+  );
+  assert.ok(
+    result.controllerManifest.postExpandBackupContract.expectedTables
+      .includes("amora_memory_enqueue_repair_dead_letters"),
   );
   assert.equal(
     result.controllerManifest.postApplyChecks[0].expectedEvidence
@@ -737,6 +771,21 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
     result.controllerManifest.postApplyChecks[0].expectedEvidence
       .couple_plan_change_idempotency_index_count,
     1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .chat_partner_recipient_trigger_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .conversation_segment_scope_fk_count,
+    2,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .conversation_segment_active_index_count,
+    3,
   );
 });
 
@@ -816,6 +865,25 @@ test("postcheck 또는 feature-off rollback 계약을 약화하면 controller_re
       contract.rollbackContract.requiredControls.AMORA_OPENAI_ENABLED = "true";
     },
     (contract) => {
+      contract.rollbackContract.requiredControls
+        .AMORA_CONVERSATION_SEGMENT_READ_ENABLED = "true";
+    },
+    (contract) => {
+      contract.rollbackContract.requiredControls.AMORA_TODAY_ONE_ENABLED = "true";
+    },
+    (contract) => {
+      contract.rollbackContract.requiredChecks =
+        contract.rollbackContract.requiredChecks.filter(
+          (check) => check !== "chatPartnerRecipientBoundaryHeld",
+        );
+    },
+    (contract) => {
+      contract.rollbackContract.requiredChecks =
+        contract.rollbackContract.requiredChecks.filter(
+          (check) => check !== "conversationSegmentScopeBoundaryHeld",
+        );
+    },
+    (contract) => {
       delete contract.rollbackContract.requiredChecks;
     },
     (contract) => {
@@ -861,6 +929,34 @@ test("postcheck 또는 feature-off rollback 계약을 약화하면 controller_re
     (contract) => {
       contract.postApplyChecks[0].expectedEvidence
         .couple_plan_change_idempotency_index_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .chat_partner_recipient_trigger_count = 0;
+    },
+    (contract) => {
+      delete contract.postApplyChecks[0].expectedEvidence
+        .chat_partner_recipient_select_policy_count;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .chat_partner_recipient_insert_policy_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .conversation_segment_scope_fk_count = 1;
+    },
+    (contract) => {
+      delete contract.postApplyChecks[0].expectedEvidence
+        .conversation_segment_active_index_count;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .conversation_segment_rls_policy_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .conversation_segment_rpc_acl_count = 0;
     },
   ]) {
     expectBlocked(

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { sendVendorApprovalEmail, sendVendorRejectionEmail } from "@/lib/resend";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const { authorized } = await verifyAdmin(req);

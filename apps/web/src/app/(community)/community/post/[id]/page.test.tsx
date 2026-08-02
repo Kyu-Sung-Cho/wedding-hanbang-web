@@ -194,6 +194,8 @@ describe("question resolution control", () => {
 
   it("lets the question author mark the post resolved", async () => {
     const container = await renderPage();
+    expect(container.textContent).toContain("답변을 확인 중인 질문");
+    expect(container.textContent).toContain("사람의 답변 2개");
     const button = Array.from(container.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.includes("해결됨으로 표시"),
     );
@@ -218,6 +220,7 @@ describe("question resolution control", () => {
     const container = await renderPage();
 
     expect(container.textContent).toContain("다시 열기");
+    expect(container.textContent).toContain("질문자가 해결됐다고 표시한 기록");
     expect(container.textContent).not.toContain("채택된 답변");
     expect(container.textContent).not.toContain("답변 채택");
   });

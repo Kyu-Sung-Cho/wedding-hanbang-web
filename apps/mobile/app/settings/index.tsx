@@ -55,6 +55,7 @@ import {
 import { clearCommunityCaches } from "@/lib/communityPostCache";
 import { hasActiveCareConsent } from "@/lib/careSettings";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
+import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
 
 type SettingsData = WeddingSettingsData;
 
@@ -701,6 +702,7 @@ export default function SettingsScreen() {
             onPress={() => void Linking.openSettings()}
             right={<ExternalLink size={16} color={colors.taupe[400]} />}
           />
+          <TodayOnePreferenceControl />
           {legacyCareConsentActive ? (
             <>
               <View style={styles.divider} />

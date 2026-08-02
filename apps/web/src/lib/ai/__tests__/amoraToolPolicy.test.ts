@@ -86,6 +86,38 @@ describe("selectAmoraTools", () => {
     expect(selected).not.toContain("update_venue");
   });
 
+  it("routes schedule cancellation and restoration to distinct soft-state tools", () => {
+    const cancellation = names("드레스 피팅 일정을 취소해줘");
+    expect(cancellation).toContain("cancel_schedule_event");
+    expect(cancellation).not.toContain("restore_schedule_event");
+    expect(cancellation).not.toContain("update_schedule_event");
+    expect(cancellation).not.toContain("delete_schedule_event");
+
+    const restoration = names("취소한 드레스 피팅 일정을 다시 살려줘");
+    expect(restoration).toContain("restore_schedule_event");
+    expect(restoration).toContain("get_schedule_events");
+    expect(restoration).not.toContain("cancel_schedule_event");
+    expect(restoration).not.toContain("delete_schedule_event");
+
+    for (const shorthand of [
+      "아까 취소한 드레스 피팅 다시 살려줘",
+      "상견례 취소한 거 되돌려줘",
+    ]) {
+      const selected = names(shorthand);
+      expect(selected).toContain("restore_schedule_event");
+      expect(selected).toContain("get_schedule_events");
+      expect(selected).not.toContain("cancel_schedule_event");
+    }
+  });
+
+  it.each([
+    "취소한 드레스 피팅 다시 살려주면 어떨까?",
+    "친구가 취소한 드레스 피팅 다시 살려줬대",
+    "취소한 건 아니야, 드레스 피팅 다시 살려줘",
+  ])("does not turn hypothetical, third-party, or negated restore wording into a mutation: %s", (text) => {
+    expect(names(text)).not.toContain("restore_schedule_event");
+  });
+
   it.each([
     ["예산은 3천만 원이야", "update_budget"],
     ["드레스 예산은 250만 원이야", "update_category_budget"],

@@ -75,6 +75,9 @@ describe("EventFormModal execution fields", () => {
     const title = container.querySelector<HTMLInputElement>(
       'input[name="schedule-title"]',
     );
+    const time = container.querySelector<HTMLInputElement>(
+      'input[name="schedule-time"]',
+    );
     const assignee = container.querySelector<HTMLSelectElement>(
       'select[name="schedule-assignee"]',
     );
@@ -84,7 +87,7 @@ describe("EventFormModal execution fields", () => {
     const status = container.querySelector<HTMLSelectElement>(
       'select[name="schedule-status"]',
     );
-    if (!title || !assignee || !criteria || !status) {
+    if (!title || !time || !assignee || !criteria || !status) {
       throw new Error("execution field not rendered");
     }
 
@@ -94,6 +97,7 @@ describe("EventFormModal execution fields", () => {
 
     await act(async () => {
       setValue(title, "드레스 최종 확인");
+      setValue(time, "14:30");
       setValue(assignee, `member:${PARTNER_ID}`);
       setValue(criteria, "수선 결과를 확인하고 인수하기");
       setValue(status, "completed");
@@ -108,6 +112,7 @@ describe("EventFormModal execution fields", () => {
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       title: "드레스 최종 확인",
+      time: "14:30",
       status: "completed",
       completionCriteria: "수선 결과를 확인하고 인수하기",
       assignee: {
@@ -266,8 +271,8 @@ describe("EventFormModal execution fields", () => {
     expect(container.textContent).not.toContain("wedding_journeys");
   });
 
-  it("requires a second explicit action before deleting an event", async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined);
+  it("requires a second explicit action before requesting cancellation", async () => {
+    const onCancel = vi.fn().mockResolvedValue(undefined);
 
     await act(async () => {
       root.render(
@@ -283,20 +288,21 @@ describe("EventFormModal execution fields", () => {
           }}
           defaultDate={null}
           onSave={vi.fn().mockResolvedValue(undefined)}
-          onDelete={onDelete}
+          onCancel={onCancel}
           onClose={vi.fn()}
         />,
       );
     });
 
-    await act(async () => findButton(container, "삭제").click());
-    expect(onDelete).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("이 일정을 삭제할까요?");
+    await act(async () => findButton(container, "일정 취소 요청").click());
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("일정 취소 요청");
+    expect(container.textContent).not.toContain("삭제");
 
     await act(async () => {
-      findButton(container, "삭제 확인").click();
+      findButton(container, "취소 요청 보내기").click();
       await Promise.resolve();
     });
-    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,6 +11,25 @@
 > 웹 배포, 커뮤니티 공개, 모바일 출시는 이 문서 작성만으로 승인되지 않는다.
 > 명령·원격 commit·deployment receipt·운영 사후조건이 없는 항목은 완료가 아니다.
 
+> [!TIP]
+> **2026-08-02 다른 컴퓨터 개발 인계:** 최신 clone·환경·웹/모바일 연결·검증·남은
+> 게이트는 `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`에서
+> 시작한다. 이 문서의 2026-07-31 snapshot과 함께 읽되, 날짜가 더 최신인 검증 ledger를
+> 우선한다.
+
+> [!NOTE]
+> **2026-08-02 DB 계약 동기화:** 로컬 successor manifest는 66개 migration,
+> 마지막 `20260802240000_amora_memory_job_recovery.sql`까지 확장됐다.
+> 아래의 “18개 migration”과 48개 digest 기록은 2026-07-31 snapshot 설명이다. 후속 migration은
+> hosted 적용·backup·restore·canary 증거가 없고 DB 상태는 계속 **BLOCKED**다.
+
+> [!NOTE]
+> **2026-08-02 커뮤니티·후속 구현 보충 인계:** 검색 우선 커뮤니티 홈, 글 상세의
+> 진행 상태·작성 출처·광고 표시, 사람 답변 뒤 아모라 연결, 그리고 함께 쌓인 아모라·
+> 모바일·공유 계약·18개 후속 migration의 상세 범위는
+> `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`에 기록한다.
+> 이 보충 문서도 배포나 DB 적용 승인이 아니다.
+
 ## 1. 30초 요약
 
 현재 제품 정의는 다음 한 문장이다.
@@ -35,7 +54,7 @@ commit의 READY 배포이고, 새 작업 트리는 GitHub Draft PR과 Vercel 보
 | GitHub | **PUSHED / DRAFT PR** | `agent/release-handoff-20260731`을 origin에 push했고 Draft PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)를 열었다. |
 | Production Web | **READY — base SHA `0f84665e9b8828f30e5a83ca5854ef618c3f4518`** | rollback 기준은 deployment `dpl_FHbiEU4qAVqPFTV6TzwmvmEFQvLL`, immutable URL `https://wedding-hanbang-o9fn2bc2c-hanbang.vercel.app`이다. live `https://hanbang.ai/landing?preview=final`은 HTTP 200이다. |
 | New worktree | **PREVIEW READY / PRODUCTION BLOCKED** | Vercel branch alias `https://wedding-hanbang-web-git-agent-release-handoff-20260731-hanbang.vercel.app`이 Ready다. 최초 확인 receipt는 deployment `dpl_CByALSMu1zcnLPudFDmnCSM9egMC`와 code SHA `41686ad60721092b6f1fd7088cb674ed5e7b43eb`를 가리킨다. Preview는 Vercel Deployment Protection 뒤에 있고 production 승인이 아니다. |
-| Database | **BLOCKED** | manifest는 `deployment_blocked`, 필수 운영 증거 5종은 `missing`이고 운영 DB에는 후보 migration 16개가 pending이다. 적용하지 않았다. |
+| Database | **BLOCKED** | manifest는 `deployment_blocked`, 필수 운영 증거 5종은 `missing`이다. 2026-08-02 로컬 manifest는 66개로 확장됐지만 후속 migration의 hosted 적용 증거가 없고, 현재 hosted pending set은 이번 sync에서 다시 조회하지 않았다. |
 | Community | **NO-GO** | 로컬 후보와 운영 공개는 별개다. 운영 DB·사람 답변 공급·신고 훈련·법률 검토가 없다. 쓰기를 열지 않는다. |
 | Mobile | **NOT RELEASED** | 이 컴퓨터의 global EAS CLI 18.7은 로그인되지 않았고, 저장소의 production gate는 의도적으로 미구현 상태다. 서명 빌드·실기기 증거가 없다. |
 
@@ -234,6 +253,11 @@ receipt 원문을 넣지 않았다.
 소비자 loop는 질문, 출처가 보이는 사람 답변, 재방문 알림, 해결 표시, 신고·통지·
 이의제기다.
 
+2026-08-02 후보에서는 검색과 사람의 해결 기록을 아모라 소개보다 먼저 두고, 글 상세에
+질문의 진행 상태·작성 출처·광고 공개를 표시하며, 사람의 답변을 읽은 뒤에만 글 맥락을
+아모라의 일정·예산·할 일로 잇도록 구성했다. 구현과 아직 남은 결정 네트워크·행복 층의
+구분은 `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`를 따른다.
+
 현재 후보에는 다음 계열이 있다.
 
 - 미공개 AI persona activity retirement와 재발행 DB 차단
@@ -345,6 +369,30 @@ manifest/controller의 정확한 순서·hash 검증과 hosted evidence 없이 �
 | 15 | `20260731191000_wedding_payment_ledger.sql` | 계약 금액·지급 진행의 커플 공동 기록 | 결제·예약·전자계약·환불 판정 기능이 아니다. |
 | 16 | `20260731192000_chat_feedback_account_delete_cascade.sql` | feedback의 Auth 삭제 cascade와 legacy 원문 비식별화 | 삭제 전후 row·FK·보관 정책 사후검증 필요. |
 
+2026-08-01~02 후속 로컬 계약에는 아래 18개가 추가됐다. 모두 hosted 미적용이며 별도
+backup·restore·postcheck·rollback evidence 없이는 실행하지 않는다.
+
+| 순서 | migration | 목적 | 적용·rollback 경계 |
+|---:|---|---|---|
+| 17 | `20260801090000_amora_chat_delivery_safety.sql` | 파트너 수신자 UUID 고정, 동시 roster 변경 잠금, SELECT/INSERT RLS 강화 | 기능 롤백과 무관하게 trigger·RLS 전달 경계를 유지한다. |
+| 18 | `20260801100000_amora_conversation_segments.sql` | shared/private 원문 문맥 segment와 nullable message/summary FK 기반 | provider read flag는 false; 이미 기록된 segment 감사 연결은 down migration으로 제거하지 않는다. |
+| 19 | `20260802090000_amora_moment_care_source_revision.sql` | 케어 순간의 근거 revision 고정 | 오래된 근거로 알림·행동을 확정하지 않는다. |
+| 20 | `20260802100000_amora_shared_schedule_decision_receipts.sql` | 공동 일정 결정 영수증 | 취소·복원·승인 결과를 append-only 근거로 남긴다. |
+| 21 | `20260802110000_amora_shared_schedule_approval_policy.sql` | 일정 영향도별 승인 정책 | 확정 사실 추가 외의 공유 변경은 커플 승인을 기본값으로 둔다. |
+| 22 | `20260802120000_amora_conversation_segment_dual_write.sql` | 비활성 segment 이중 기록 기반 | read flag는 계속 false이고 사용자 채팅 분리는 아직 활성화하지 않는다. |
+| 23 | `20260802130000_amora_in_app_today_one.sql` | 하루 한 가지 인앱 케어와 수신 설정 | opt-in 전에는 생성·발송하지 않고 outbound는 별도 gate로 둔다. |
+| 24 | `20260802140000_amora_manual_schedule_fairness.sql` | 수동 일정 공동승인·취소·복원 원자성 | roster와 expected revision이 다르면 쓰지 않는다. |
+| 25 | `20260802150000_amora_today_one_budget_guardrails.sql` | 예산 초과 신호의 보수적 케어 경계 | 불확실한 금액은 경고 확정 대신 검토 상태로 둔다. |
+| 26 | `20260802160000_booking_quote_spend_soft_cancel.sql` | 견적 snapshot·지출 진실성·soft cancel | 2인 커플 실행기가 준비되기 전 공동 예약 변경은 fail-closed다. |
+| 27 | `20260802170000_amora_shared_action_roster_binding.sql` | 공동 행동의 제안 당시 roster 고정 | 계정·커플 구성 변경 뒤 오래된 승인을 적용하지 않는다. |
+| 28 | `20260802180000_community_cohort_assignment_atomic.sql` | 동기방 이동·정원·인원수의 단일 트랜잭션 | 중간 실패와 동시 30명 초과를 롤백·직렬화로 막는다. |
+| 29 | `20260802190000_community_idempotent_writes.sql` | 명시적 북마크 상태와 동기방 메시지 request UUID | 응답 유실 재시도가 북마크를 반대로 뒤집거나 메시지를 중복 생성하지 않는다. |
+| 30 | `20260802200000_journey_budget_progress_integrity.sql` | 예산 진행 record 무결성, 공동 지출 승인과 정확한 변경 요약 | service-only RPC에서 신규 쓰기를 검증하며 기존 저장 데이터는 그대로 둔다. 2인 커플의 지출 변경은 양측 승인 전 적용하지 않는다. |
+| 31 | `20260802210000_amora_conversation_segment_roster_repair.sql` | 허용된 로스터 복구 시 비공개 segment 소유권 회전과 이전 구간 연결 | 영구 roster epoch/privacy fence는 유지한다. 과거 메시지·요약 링크를 옮기지 않고 stale active 구간만 닫는다. |
+| 32 | `20260802220000_amora_memory_enqueue_repair.sql` | 저장 완료 뒤 enqueue 응답 유실로 누락된 exact W0/W1 메모리 job의 bounded 복구 | claim 완료와 같은 트랜잭션에서 content 없는 ID-only outbox를 남기고 service-role cron이 `FOR UPDATE SKIP LOCKED` oldest-first hard limit으로 기존 enqueue RPC를 재사용한다. terminal 결과만 배출하고 오류는 backoff 보존하며, W2~W5·legacy·malformed metadata는 캡처하지 않는다. 신규 outbox 테이블은 post-expand backup·restore 계약에 반드시 포함된다. |
+| 33 | `20260802230000_amora_atomic_privacy_epoch.sql` | 로스터·기억 동의·reset·개인화 변경과 AI 답변 commit 사이의 TOCTOU 차단 | 커플별 privacy epoch를 변경 트랜잭션에서 증가시키고 terminal finalizer가 같은 epoch row를 잠근 뒤 expected epoch가 일치할 때만 답변을 저장한다. 불일치한 유료 생성은 content 없이 ledger만 정산하고 fail-closed하며, epoch 테이블은 post-expand backup·restore 계약에 반드시 포함된다. |
+| 34 | `20260802240000_amora_memory_job_recovery.sql` | 메모리 enqueue 중복 증명·실패 job 재큐잉·영구 오류 격리 | `duplicate`를 성공으로 추정하지 않고 현재 로스터·visibility·동의·reset·source 및 구조적으로 유효한 job을 service-only RPC로 다시 증명한다. exact 실패 job만 worker 상태를 원자적으로 초기화해 재큐잉하고, scope·source·contract 영구 오류는 content 없는 ID-only dead-letter로 이동하며 transient SQLSTATE만 bounded backoff로 재시도한다. 런타임과 동의가 실제로 enqueue를 요청한 exact boolean metadata가 있는 W0/W1 turn만 outbox에 남겨 플래그 OFF backlog와 OFF→ON 과거 turn backfill을 막는다. 신규 dead-letter 테이블은 post-expand backup·restore 계약에 반드시 포함된다. |
+
 현재 DB 정본은
 `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`다.
 release manifest가 `deployment_blocked`인 동안 controller, remote fence, finalizer는
@@ -352,16 +400,15 @@ Git·Supabase·backup verifier를 호출하기 전에 멈춰야 한다.
 
 현재 로컬 manifest 정적 사실:
 
-- ordered migration 수: 48
-- 마지막 version: `20260731192000`
+- ordered migration 수: 66
+- 마지막 version: `20260802240000`
 - canonical manifest SHA-256:
-  `672751b60fc60228d6976924ff35790f674fe90d62be6d74378eaa8839e5892c`
+  `7019565f14ab03b60a033ddb5dd56a9c7cd3b4a810aa2fdb9aa9448431fb8cad`
 - versions digest:
-  `f9ed84dcb8073892ff4e16568a8bf480648db01654ed908032ab8eb97103ee4b`
-- 누락돼 있던 최신 4개 migration canonical hash를 추가한 뒤
-  `corepack pnpm supabase:release:fence` 통과
+  `96bc9d77687b502482f3bc361a5bce8c01f450d6ffd1f77488094221fee78360`
+- 2026-08-02 현재 successor 정적 release-controller·인계 문서 관련 90개 테스트가 통과했다.
 
-이것은 local static contract 증거다. 운영 DB의 16 pending migration, hosted
+이것은 local static contract 증거다. 운영 DB의 pending migration, hosted
 staging/restore, backup/storage/finalizer evidence를 대체하지 않는다.
 
 ## 15. 최초 snapshot의 tracked 삭제 46개
@@ -383,6 +430,10 @@ import, sitemap, metadata, deep link, 404·410 계약이 안전하다고 가정�
 commit 전에 각 경로의 참조 검색과 nearest test를 확인해야 한다.
 
 ## 16. 검증 ledger
+
+2026-08-02 후속 dirty source의 검증 결과는
+`docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`의 ledger에 따로
+기록한다. 아래 2026-07-31 PASS를 후속 변경의 완료 증거로 재사용하지 않는다.
 
 ### 이번 문서 작업에서 같은 source snapshot에 실행
 
@@ -558,6 +609,7 @@ project·SPA rewrite·preview 전용 API/Supabase 환경이 없고, 별도 origi
   - `AMORA_AUXILIARY_MEMORY_ENABLED=false`
   - `AMORA_CARE_OUTBOUND_ENABLED=false`
   - `AMORA_COMMUNITY_AI_COMMENT_ENABLED=false`
+  - `AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false`
   - `AMORA_OPENAI_ENABLED=false`
   - `AMORA_PROACTIVE_CHAT_ENABLED=false`
   - `AMORA_COST_GUARD_ENABLED=true`
@@ -566,6 +618,7 @@ project·SPA rewrite·preview 전용 API/Supabase 환경이 없고, 별도 origi
   - DB·Storage write fence 유지
   - Auth signup 비활성
   - web write fence 유지
+  - partner-recipient와 conversation-segment DB 보안 경계 유지
 - provenance·moderation·동의 ledger를 약한 과거 schema로 자동 복원하지 않는다.
 
 ### Storage와 개인정보
@@ -586,7 +639,7 @@ project·SPA rewrite·preview 전용 API/Supabase 환경이 없고, 별도 origi
 
 - inventory `review_required` 전건 owner 확인
 - tracked 삭제 46개 대체 경로·참조·SEO 검사
-- migration 16개 manifest 순서·normalized SHA 재검증
+- 현재 66개 manifest 순서·normalized SHA와 후속 migration 18개 재검증
 - current candidate 전체 typecheck·lint·test·build
 - clean release commit, push, PR, checks
 

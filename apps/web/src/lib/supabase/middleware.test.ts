@@ -45,7 +45,9 @@ describe("vendor admin-preview onboarding boundary", () => {
     );
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://hanbang.ai/wedding/onboarding");
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/wedding/onboarding?redirect=%2Fwedding%2Fvendors",
+    );
     expect(mocks.getUser).toHaveBeenCalledOnce();
   });
 
@@ -57,7 +59,38 @@ describe("vendor admin-preview onboarding boundary", () => {
     );
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://hanbang.ai/login?preview=1");
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?redirect=%2Fwedding%2Fvendors%3Fpreview%3D1",
+    );
     expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a chat handoff nested while an authenticated user finishes onboarding", async () => {
+    const handoff = "0f75ca2a-94c1-4d9c-83e3-a45981c98673";
+    const response = await updateSession(
+      new NextRequest(
+        `https://hanbang.ai/wedding/chat?startHereHandoff=${handoff}`,
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      `https://hanbang.ai/wedding/onboarding?redirect=%2Fwedding%2Fchat%3FstartHereHandoff%3D${handoff}`,
+    );
+  });
+
+  it("keeps a chat handoff nested while an unauthenticated user signs in", async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
+    const handoff = "0f75ca2a-94c1-4d9c-83e3-a45981c98673";
+    const response = await updateSession(
+      new NextRequest(
+        `https://hanbang.ai/wedding/chat?startHereHandoff=${handoff}`,
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      `https://hanbang.ai/login?redirect=%2Fwedding%2Fchat%3FstartHereHandoff%3D${handoff}`,
+    );
   });
 });

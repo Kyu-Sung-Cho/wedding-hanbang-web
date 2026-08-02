@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin/priceUploadConfirmations";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { z } from "zod";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +81,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const admin = await verifyAdmin(request);
   if (!admin.authorized || !admin.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

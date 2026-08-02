@@ -11,11 +11,29 @@ import {
 import { createHash } from "node:crypto";
 import { shouldRecallSavedNotes } from "@/lib/amora/savedNotesRecall";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isAmoraProactiveChatEnabled } from "@/lib/features/amoraCareFlags";
 
 const MUTATION_RESPONSE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
   Vary: "Origin, Sec-Fetch-Site",
 };
+
+type MomentCareInsertResult =
+  | { state: "inserted"; messageId: string }
+  | { state: "source_stale" | "consent_required" };
+
+function parseMomentCareInsertResult(value: unknown): MomentCareInsertResult | null {
+  if (!value || typeof value !== "object" || !("state" in value)) return null;
+  const state = (value as { state?: unknown }).state;
+  if (state === "source_stale" || state === "consent_required") {
+    return { state };
+  }
+  const messageId = (value as { message_id?: unknown }).message_id;
+  if (state === "inserted" && typeof messageId === "string") {
+    return { state, messageId };
+  }
+  return null;
+}
 
 export async function GET() {
   return NextResponse.json(
@@ -68,7 +86,7 @@ async function handleProactiveRequest(req: NextRequest) {
   // (AMORA_CARE_OUTBOUND_ENABLED, cron/care-moments)와 별개 스위치로 게이트해
   // "먼저 챙기는 언니"를 이메일 격리와 독립적으로 켤 수 있게 한다.
   // Fail closed before authentication, service-role construction, or user reads.
-  if (process.env.AMORA_PROACTIVE_CHAT_ENABLED !== "true") {
+  if (!isAmoraProactiveChatEnabled()) {
     return NextResponse.json({ triggered: false, reason: "proactive_chat_disabled" });
   }
   try {
@@ -104,7 +122,7 @@ async function handleProactiveRequest(req: NextRequest) {
     // 여정 조회
     const { data: journey } = await admin
       .from("wedding_journeys")
-      .select("*")
+      .select("wedding_date, venue, total_budget, progress, state_revision")
       .eq("couple_id", profile.couple_id)
       .single();
 
@@ -141,10 +159,22 @@ async function handleProactiveRequest(req: NextRequest) {
     }
 
     if (nextCell) {
-      const { data: insertedMessageId, error: insertError } = await admin.rpc(
-        "insert_amora_care_message",
+      if (
+        typeof journey.state_revision !== "number"
+        || !Number.isSafeInteger(journey.state_revision)
+        || journey.state_revision < 0
+      ) {
+        return NextResponse.json(
+          { triggered: false, reason: "source_revision_unavailable" },
+          { status: 503 },
+        );
+      }
+
+      const { data: insertResultValue, error: insertError } = await admin.rpc(
+        "insert_amora_moment_care_message",
         {
           p_couple_id: profile.couple_id,
+          p_expected_journey_revision: journey.state_revision,
           p_content: nextCell.message,
           p_metadata: {
             client_request_id: `moment:${nextCell.dedupeKey}`,
@@ -154,6 +184,7 @@ async function handleProactiveRequest(req: NextRequest) {
               cellKind: nextCell.cellKind,
               momentDate: nextCell.momentDate,
               memoryKeys: nextCell.memoryKeys,
+              sourceRevision: journey.state_revision,
             },
           },
         },
@@ -170,14 +201,22 @@ async function handleProactiveRequest(req: NextRequest) {
           { status: 503 },
         );
       }
-      if (typeof insertedMessageId !== "string") {
-        return NextResponse.json({ triggered: false, reason: "consent_required" });
+
+      const insertResult = parseMomentCareInsertResult(insertResultValue);
+      if (!insertResult) {
+        return NextResponse.json(
+          { triggered: false, reason: "persistence_failed" },
+          { status: 503 },
+        );
+      }
+      if (insertResult.state !== "inserted") {
+        return NextResponse.json({ triggered: false, reason: insertResult.state });
       }
 
       return NextResponse.json({
         triggered: true,
         kind: "moment",
-        messageId: insertedMessageId,
+        messageId: insertResult.messageId,
       });
     }
 

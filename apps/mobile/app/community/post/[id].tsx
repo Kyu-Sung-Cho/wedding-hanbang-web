@@ -6,18 +6,29 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
+import * as Crypto from "expo-crypto";
 import { ChevronUp, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { apiFetch, apiJson } from "@/lib/api";
+import {
+  apiFetchForExpectedUser,
+  publicApiFetch,
+} from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
-  getCachedCommunityComments,
-  getCachedCommunityPost,
+  clearCommunityCaches,
   putCachedCommunityComments,
   putCachedCommunityPost,
-  type CachedCommunityComment,
   type CachedCommunityPost,
 } from "@/lib/communityPostCache";
+import {
+  CommunityPostMutationError,
+  createCommunityCommentIdempotencyStore,
+  createCommunityPostActionGate,
+  fetchCommunityPostSocialState,
+  setCommunityBookmark,
+  submitCommunityVote,
+  type CommunityPostActionToken,
+} from "@/lib/communityPostMutations.mjs";
 import {
   CommunityAvatar,
   type CommunityAvatarRole,
@@ -74,11 +85,6 @@ type CommunityAuthorRow = {
   rank: string | null;
 };
 
-type SocialState = {
-  userVote: number;
-  bookmarked: boolean;
-};
-
 const AD_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   sponsored: { label: "협찬", color: "#EAB308", bg: "rgba(234,179,8,0.12)" },
   ad: { label: "광고", color: "#EF4444", bg: "rgba(239,68,68,0.12)" },
@@ -127,13 +133,6 @@ function fallbackAuthor(): PostDetail["author"] {
   return { nickname: "익명", rank: "sprout", role: null };
 }
 
-function fromCachedPost(post: CachedCommunityPost): PostDetail {
-  return {
-    ...post,
-    ad_disclosure: post.ad_disclosure ?? "general",
-  };
-}
-
 function toCachedPost(post: PostDetail): CachedCommunityPost {
   return {
     id: post.id,
@@ -170,10 +169,19 @@ async function fetchAuthorMap(authorIds: string[]) {
   ) as Record<string, PostDetail["author"]>;
 }
 
-async function fetchPostFromApi(postId: string): Promise<PostDetail> {
-  const data = await apiJson<PostDetail & { user_vote?: number | null; user_bookmarked?: boolean }>(
-    `/api/community/posts/${postId}`
-  );
+async function fetchPostFromApi(
+  postId: string,
+  ownerId: string | null,
+): Promise<PostDetail> {
+  const path = `/api/community/posts/${postId}`;
+  const response = ownerId
+    ? await apiFetchForExpectedUser(ownerId, path)
+    : await publicApiFetch(path);
+  if (!response.ok) throw new Error("post not readable");
+  const data = await response.json() as PostDetail & {
+    user_vote?: number | null;
+    user_bookmarked?: boolean;
+  };
   return {
     ...data,
     ad_disclosure: data.ad_disclosure ?? "general",
@@ -220,10 +228,16 @@ async function fetchPostFromSupabase(postId: string): Promise<PostDetail> {
   };
 }
 
-async function fetchCommentsFromApi(postId: string): Promise<Comment[]> {
-  const commentsData = await apiJson<{ comments: Comment[] }>(
-    `/api/community/comments?postId=${postId}`
-  );
+async function fetchCommentsFromApi(
+  postId: string,
+  ownerId: string | null,
+): Promise<Comment[]> {
+  const path = `/api/community/comments?postId=${postId}`;
+  const response = ownerId
+    ? await apiFetchForExpectedUser(ownerId, path)
+    : await publicApiFetch(path);
+  if (!response.ok) throw new Error("comments not readable");
+  const commentsData = await response.json() as { comments?: Comment[] };
   return commentsData.comments ?? [];
 }
 
@@ -252,47 +266,13 @@ async function fetchCommentsFromSupabase(postId: string): Promise<Comment[]> {
   }));
 }
 
-async function fetchSocialState(postId: string): Promise<SocialState> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { userVote: 0, bookmarked: false };
-
-  const [voteResult, bookmarkResult] = await Promise.all([
-    supabase
-      .from("community_votes")
-      .select("vote_type")
-      .eq("post_id", postId)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("community_bookmarks")
-      .select("id")
-      .eq("post_id", postId)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-  ]);
-
-  return {
-    userVote: voteResult.data?.vote_type ?? 0,
-    bookmarked: Boolean(bookmarkResult.data),
-  };
-}
-
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const postId = typeof id === "string" ? id : "";
-  const initialPostRef = useRef<CachedCommunityPost | null>(
-    postId ? getCachedCommunityPost(postId) : null
-  );
-  const initialCommentsRef = useRef<CachedCommunityComment[] | null>(
-    postId ? getCachedCommunityComments(postId) : null
-  );
-
-  const [post, setPost] = useState<PostDetail | null>(() =>
-    initialPostRef.current ? fromCachedPost(initialPostRef.current) : null
-  );
-  const [comments, setComments] = useState<Comment[]>(() => initialCommentsRef.current ?? []);
-  const [loading, setLoading] = useState(() => !initialPostRef.current);
+  const [post, setPost] = useState<PostDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -310,6 +290,17 @@ export default function PostDetailScreen() {
   const upScale = useRef(new Animated.Value(1)).current;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const actionNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionGateRef = useRef(createCommunityPostActionGate()).current;
+  const commentIdempotencyRef = useRef(
+    createCommunityCommentIdempotencyStore(() => Crypto.randomUUID()),
+  ).current;
+  const loadSequenceRef = useRef(0);
+
+  const invalidateLoadsForMutation = useCallback(() => {
+    loadSequenceRef.current += 1;
+    setLoading(false);
+    setCommentsLoading(false);
+  }, []);
 
   useEffect(() => () => {
     if (actionNoticeTimerRef.current) {
@@ -328,8 +319,30 @@ export default function PostDetailScreen() {
     }, 3500);
   }
 
-  const loadComments = useCallback(async (options?: { silent?: boolean }) => {
-    if (!postId) return;
+  const isLoadCurrent = useCallback((sequence: number, ownerId: string | null) => {
+    if (loadSequenceRef.current !== sequence) return false;
+    const identity = actionGateRef.capture();
+    return ownerId === null ? identity === null : identity?.ownerId === ownerId;
+  }, [actionGateRef]);
+
+  const isLoadOwnerCurrent = useCallback(async (
+    sequence: number,
+    ownerId: string | null,
+  ) => {
+    if (!isLoadCurrent(sequence, ownerId)) return false;
+    const { data } = await supabase.auth.getSession();
+    const currentOwnerId = data.session?.user.id.toLowerCase() ?? null;
+    const expectedOwnerId = ownerId?.toLowerCase() ?? null;
+    return currentOwnerId === expectedOwnerId
+      && isLoadCurrent(sequence, ownerId);
+  }, [isLoadCurrent]);
+
+  const loadComments = useCallback(async (
+    ownerId: string | null,
+    sequence: number,
+    options?: { silent?: boolean },
+  ) => {
+    if (!postId || !isLoadCurrent(sequence, ownerId)) return;
     if (!options?.silent) setCommentsLoading(true);
 
     try {
@@ -337,68 +350,146 @@ export default function PostDetailScreen() {
       try {
         nextComments = await fetchCommentsFromSupabase(postId);
       } catch {
-        nextComments = await fetchCommentsFromApi(postId);
+        nextComments = await fetchCommentsFromApi(postId, ownerId);
       }
-
+      if (!(await isLoadOwnerCurrent(sequence, ownerId))) return;
       setComments(nextComments);
       putCachedCommunityComments(postId, nextComments);
     } catch {
       // 댓글 로드 실패는 본문 표시를 막지 않는다.
     } finally {
-      setCommentsLoading(false);
+      if (isLoadCurrent(sequence, ownerId)) setCommentsLoading(false);
     }
-  }, [postId]);
+  }, [isLoadCurrent, isLoadOwnerCurrent, postId]);
 
-  const refreshAuxiliaryState = useCallback((options?: { silentComments?: boolean }) => {
-    if (!postId) return;
+  const refreshAuxiliaryState = useCallback((
+    ownerId: string | null,
+    sequence: number,
+  ) => {
+    if (!postId || !isLoadCurrent(sequence, ownerId)) return;
 
-    loadComments({ silent: options?.silentComments });
-    fetchSocialState(postId)
-      .then((state) => {
+    void loadComments(ownerId, sequence);
+    if (ownerId) {
+      void fetchCommunityPostSocialState({
+        apiFetchForExpectedUser,
+        ownerId,
+        postId,
+      }).then(async (state) => {
+        if (!(await isLoadOwnerCurrent(sequence, ownerId))) return;
         setUserVote(state.userVote);
         setBookmarked(state.bookmarked);
-      })
-      .catch(() => {});
-    apiFetch(`/api/community/posts/${postId}/view`, { method: "POST" }).catch(() => {});
-  }, [loadComments, postId]);
+        setPost((current) => current ? {
+          ...current,
+          upvote_count: state.upvoteCount,
+          downvote_count: state.downvoteCount,
+        } : current);
+      }).catch(() => {});
+    } else {
+      setUserVote(0);
+      setBookmarked(false);
+    }
+    if (ownerId) {
+      void apiFetchForExpectedUser(
+        ownerId,
+        `/api/community/posts/${postId}/view`,
+        { method: "POST" },
+      ).catch(() => {});
+    }
+  }, [isLoadCurrent, isLoadOwnerCurrent, loadComments, postId]);
 
   const loadPost = useCallback(async () => {
+    if (actionGateRef.hasActiveAction()) return;
+    const sequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = sequence;
     if (!postId) {
       setLoading(false);
       return;
     }
+    setLoading(true);
 
-    const cachedPost = getCachedCommunityPost(postId);
-    const hadCachedPost = Boolean(cachedPost);
-    if (cachedPost) {
-      setPost(fromCachedPost(cachedPost));
-      setLoading(false);
-      refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
-    } else {
-      setLoading(true);
-    }
-
+    let loadOwnerId: string | null | undefined;
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (loadSequenceRef.current !== sequence) return;
+      const ownerId = sessionData.session?.user.id ?? null;
+      loadOwnerId = ownerId;
+      const ownerChanged = actionGateRef.setOwner(ownerId);
+      if (ownerChanged) {
+        clearCommunityCaches();
+        commentIdempotencyRef.clear();
+        setPost(null);
+        setComments([]);
+        setUserVote(0);
+        setBookmarked(false);
+        setVoteSyncing(false);
+        setBookmarkSyncing(false);
+        setSubmitting(false);
+        setCommentText("");
+        setCommentFocused(false);
+        setActionNotice(null);
+        if (actionNoticeTimerRef.current) {
+          clearTimeout(actionNoticeTimerRef.current);
+          actionNoticeTimerRef.current = null;
+        }
+      }
+      if (!(await isLoadOwnerCurrent(sequence, ownerId))) return;
+
       let nextPost: PostDetail;
       try {
         nextPost = await fetchPostFromSupabase(postId);
       } catch {
-        nextPost = await fetchPostFromApi(postId);
+        nextPost = await fetchPostFromApi(postId, ownerId);
       }
-
+      if (!(await isLoadOwnerCurrent(sequence, ownerId))) return;
       setPost(nextPost);
       putCachedCommunityPost(toCachedPost(nextPost));
       setLoading(false);
-
-      if (!hadCachedPost) {
-        refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
-      }
+      refreshAuxiliaryState(ownerId, sequence);
     } catch {
-      if (!cachedPost) setPost(null);
+      if (
+        loadOwnerId !== undefined
+        && await isLoadOwnerCurrent(sequence, loadOwnerId)
+      ) setPost(null);
     } finally {
-      setLoading(false);
+      if (loadSequenceRef.current === sequence) setLoading(false);
     }
-  }, [postId, refreshAuxiliaryState]);
+  }, [actionGateRef, commentIdempotencyRef, isLoadOwnerCurrent, postId, refreshAuxiliaryState]);
+
+  useEffect(() => {
+    let disposed = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const changed = actionGateRef.setOwner(session?.user.id ?? null);
+      if (!changed) return;
+      clearCommunityCaches();
+      commentIdempotencyRef.clear();
+      loadSequenceRef.current += 1;
+      setPost(null);
+      setComments([]);
+      setUserVote(0);
+      setBookmarked(false);
+      setVoteSyncing(false);
+      setBookmarkSyncing(false);
+      setSubmitting(false);
+      setCommentText("");
+      setCommentFocused(false);
+      setActionNotice(null);
+      if (actionNoticeTimerRef.current) {
+        clearTimeout(actionNoticeTimerRef.current);
+        actionNoticeTimerRef.current = null;
+      }
+      setLoading(true);
+      setTimeout(() => {
+        if (!disposed) void loadPost();
+      }, 0);
+    });
+    return () => {
+      disposed = true;
+      loadSequenceRef.current += 1;
+      actionGateRef.setOwner(null);
+      commentIdempotencyRef.clear();
+      subscription.unsubscribe();
+    };
+  }, [actionGateRef, commentIdempotencyRef, loadPost]);
 
   useFocusEffect(
     useCallback(() => {
@@ -413,20 +504,57 @@ export default function PostDetailScreen() {
     ]).start();
   }
 
+  async function isActionOwnerCurrent(token: CommunityPostActionToken) {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id.toLowerCase() === token.ownerId
+      && actionGateRef.isCurrent(token);
+  }
+
+  async function recoverSocialState(token: CommunityPostActionToken) {
+    try {
+      const state = await fetchCommunityPostSocialState({
+        apiFetchForExpectedUser,
+        ownerId: token.ownerId,
+        postId,
+      });
+      if (!(await isActionOwnerCurrent(token))) return;
+      setUserVote(state.userVote);
+      setBookmarked(state.bookmarked);
+      setPost((current) => current ? {
+        ...current,
+        upvote_count: state.upvoteCount,
+        downvote_count: state.downvoteCount,
+      } : current);
+    } catch {
+      // 이전 화면 상태를 유지하고 다음 새로고침에서 서버 상태를 다시 확인한다.
+    }
+  }
+
+  function mutationNotice(error: unknown, fallback: string) {
+    return error instanceof CommunityPostMutationError
+      ? error.displayMessage
+      : fallback;
+  }
+
   // 투표 처리
   async function handleVote() {
-    if (!post || voteSyncing) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      Alert.alert("로그인 필요", "투표하려면 로그인이 필요합니다.");
+    if (!post) return;
+    const token = actionGateRef.begin("vote");
+    if (!token) {
+      if (!actionGateRef.capture()) {
+        Alert.alert("로그인 필요", "투표하려면 로그인이 필요합니다.");
+      }
       return;
     }
-
+    invalidateLoadsForMutation();
     animatePress(upScale);
 
     const newVote = userVote === 1 ? 0 : 1;
     const prevVote = userVote;
-    const prevPost = post;
+    const previousCounts = {
+      upvoteCount: post.upvote_count,
+      downvoteCount: post.downvote_count,
+    };
 
     // 낙관적 업데이트
     setVoteSyncing(true);
@@ -436,33 +564,53 @@ export default function PostDetailScreen() {
       let up = prev.upvote_count;
       if (prevVote === 1) up--;
       if (newVote === 1) up++;
-      return { ...prev, upvote_count: Math.max(0, up), downvote_count: 0 };
+      return { ...prev, upvote_count: Math.max(0, up) };
     });
 
     try {
-      await supabase.rpc("community_vote_post", {
-        p_user_id: user.id,
-        p_post_id: postId,
-        p_vote_type: newVote,
+      const result = await submitCommunityVote({
+        apiFetchForExpectedUser,
+        ownerId: token.ownerId,
+        postId,
+        voteType: newVote,
       });
-    } catch {
+      if (!(await isActionOwnerCurrent(token))) return;
+      setUserVote(result.userVote);
+      setPost((current) => current ? {
+        ...current,
+        upvote_count: result.upvoteCount,
+        downvote_count: result.downvoteCount,
+      } : current);
+    } catch (error) {
+      if (!(await isActionOwnerCurrent(token))) return;
       setUserVote(prevVote);
-      setPost(prevPost);
-      showActionNotice("좋아요를 저장하지 못했어요. 연결을 확인하고 다시 시도해주세요.");
-      loadPost();
+      setPost((current) => current ? {
+        ...current,
+        upvote_count: previousCounts.upvoteCount,
+        downvote_count: previousCounts.downvoteCount,
+      } : current);
+      showActionNotice(mutationNotice(
+        error,
+        "좋아요 저장 결과를 확인하지 못했어요. 최신 상태를 다시 확인합니다.",
+      ));
+      await recoverSocialState(token);
     } finally {
-      setVoteSyncing(false);
+      const shouldCommit = await isActionOwnerCurrent(token);
+      actionGateRef.finish(token);
+      if (shouldCommit) setVoteSyncing(false);
     }
   }
 
   // 북마크 처리
   async function handleBookmark() {
-    if (bookmarkSyncing) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      Alert.alert("로그인 필요", "북마크하려면 로그인이 필요합니다.");
+    const token = actionGateRef.begin("bookmark");
+    if (!token) {
+      if (!actionGateRef.capture()) {
+        Alert.alert("로그인 필요", "북마크하려면 로그인이 필요합니다.");
+      }
       return;
     }
+    invalidateLoadsForMutation();
 
     animatePress(bookmarkScale);
 
@@ -471,46 +619,86 @@ export default function PostDetailScreen() {
     setBookmarked(!wasBookmarked);
 
     try {
-      if (wasBookmarked) {
-        await supabase
-          .from("community_bookmarks")
-          .delete()
-          .eq("post_id", postId)
-          .eq("user_id", user.id);
-      } else {
-        await supabase
-          .from("community_bookmarks")
-          .upsert({ post_id: postId, user_id: user.id });
-      }
-    } catch {
+      const result = await setCommunityBookmark({
+        apiFetchForExpectedUser,
+        ownerId: token.ownerId,
+        postId,
+        bookmarked: !wasBookmarked,
+      });
+      if (!(await isActionOwnerCurrent(token))) return;
+      setBookmarked(result.bookmarked);
+    } catch (error) {
+      if (!(await isActionOwnerCurrent(token))) return;
       setBookmarked(wasBookmarked);
-      showActionNotice("북마크를 저장하지 못했어요. 연결을 확인하고 다시 시도해주세요.");
+      showActionNotice(mutationNotice(
+        error,
+        "북마크 저장 결과를 확인하지 못했어요. 최신 상태를 다시 확인합니다.",
+      ));
+      await recoverSocialState(token);
     } finally {
-      setBookmarkSyncing(false);
+      const shouldCommit = await isActionOwnerCurrent(token);
+      actionGateRef.finish(token);
+      if (shouldCommit) setBookmarkSyncing(false);
     }
   }
 
   async function handleComment() {
-    if (!commentText.trim() || submitting) return;
+    const content = commentText.trim();
+    if (!content) return;
+    const token = actionGateRef.begin("comment");
+    if (!token) {
+      if (!actionGateRef.capture()) {
+        Alert.alert("로그인 필요", "댓글을 작성하려면 로그인이 필요합니다.");
+      }
+      return;
+    }
+    invalidateLoadsForMutation();
     setSubmitting(true);
     try {
-      const res = await apiFetch("/api/community/comments", {
+      const idempotencyKey = commentIdempotencyRef.keyFor(
+        token.ownerId,
+        postId,
+        content,
+      );
+      const res = await apiFetchForExpectedUser(token.ownerId, "/api/community/comments", {
         method: "POST",
-        body: JSON.stringify({ post_id: postId, content: commentText.trim() }),
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ post_id: postId, content }),
       });
+      const body = await res.json().catch(() => null) as unknown;
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "댓글 작성에 실패했어요.");
+        const serverMessage = body
+          && typeof body === "object"
+          && "error" in body
+          && typeof body.error === "string"
+          ? body.error
+          : "댓글 작성에 실패했어요.";
+        throw new Error(serverMessage);
       }
+      if (
+        !body
+        || typeof body !== "object"
+        || !("post_comment_count" in body)
+        || !Number.isSafeInteger(body.post_comment_count)
+        || (body.post_comment_count as number) < 0
+      ) throw new Error("댓글 저장 결과를 확인하지 못했어요.");
+      if (!(await isActionOwnerCurrent(token))) return;
+      commentIdempotencyRef.clearIf(idempotencyKey);
       setCommentText("");
       setPost((prev) =>
-        prev ? { ...prev, comment_count: prev.comment_count + 1 } : prev
+        prev ? { ...prev, comment_count: body.post_comment_count as number } : prev
       );
-      loadComments();
-    } catch {
-      showActionNotice("댓글 작성에 실패했어요. 입력한 내용은 유지했으니 다시 시도해주세요.");
+      void loadComments(token.ownerId, loadSequenceRef.current, { silent: true });
+    } catch (error) {
+      if (!(await isActionOwnerCurrent(token))) return;
+      const message = error instanceof Error && error.message.length <= 240
+        ? error.message
+        : "댓글 작성에 실패했어요.";
+      showActionNotice(`${message} 입력한 내용은 유지했어요.`);
     } finally {
-      setSubmitting(false);
+      const shouldCommit = await isActionOwnerCurrent(token);
+      actionGateRef.finish(token);
+      if (shouldCommit) setSubmitting(false);
     }
   }
 
@@ -550,8 +738,8 @@ export default function PostDetailScreen() {
             <Pressable
               onPress={handleBookmark}
               hitSlop={12}
-              disabled={bookmarkSyncing}
-              style={bookmarkSyncing && styles.actionDisabled}
+              disabled={bookmarkSyncing || voteSyncing}
+              style={(bookmarkSyncing || voteSyncing) && styles.actionDisabled}
               accessibilityRole="button"
               accessibilityLabel={bookmarked ? "북마크 해제" : "북마크"}
             >
@@ -609,11 +797,11 @@ export default function PostDetailScreen() {
                 <Pressable
                   onPress={handleVote}
                   hitSlop={8}
-                  disabled={voteSyncing}
+                  disabled={voteSyncing || bookmarkSyncing}
                   style={[
                     styles.voteBtn,
                     userVote === 1 && styles.voteBtnActive,
-                    voteSyncing && styles.actionDisabled,
+                    (voteSyncing || bookmarkSyncing) && styles.actionDisabled,
                   ]}
                 >
                   <ChevronUp

@@ -6,6 +6,12 @@ import {
   getAmoraActionApprovalPolicy,
   getAmoraPendingActionTtlMs,
 } from "@/lib/ai/amoraActionApprovalPolicy";
+import {
+  parseBudgetImpactPreview,
+  type BudgetImpactPreview,
+  type BudgetImpactWarning,
+} from "@hanbang/shared";
+import { formatWon } from "@/lib/formatWon";
 import type {
   ChatMessage,
   PendingAmoraAction,
@@ -98,6 +104,26 @@ export function getPendingAmoraAction(message: ChatMessage): PendingAmoraAction 
   return value as unknown as PendingAmoraAction;
 }
 
+export function getPendingAmoraBudgetImpactPreview(
+  message: ChatMessage,
+  action: PendingAmoraAction,
+): BudgetImpactPreview | null {
+  const sourceRevision = message.metadata?.pending_amora_action_journey_revision;
+  if (
+    typeof sourceRevision !== "number"
+    || !Number.isSafeInteger(sourceRevision)
+    || sourceRevision < 0
+  ) return null;
+  return parseBudgetImpactPreview(
+    message.metadata?.pending_amora_action_impact_preview,
+    {
+      tool: action.tool,
+      inputDigest: action.inputDigest,
+      sourceRevision,
+    },
+  );
+}
+
 export function isPendingAmoraActionExpired(
   action: PendingAmoraAction,
   nowMs: number,
@@ -125,6 +151,7 @@ const DISABLED_COPY: Record<Exclude<PendingActionDisabledReason, null>, string> 
 
 interface PendingAmoraActionCardProps {
   action: PendingAmoraAction;
+  impactPreview?: BudgetImpactPreview | null;
   messageId: string;
   disabledReason: PendingActionDisabledReason;
   isApplying: boolean;
@@ -132,8 +159,112 @@ interface PendingAmoraActionCardProps {
   onDismiss: () => void;
 }
 
+function formatSignedWon(value: number): string {
+  if (value === 0) return "변동 없음";
+  return `${value > 0 ? "+" : "-"}${formatWon(Math.abs(value))}`;
+}
+
+function formatPossiblyNegativeWon(value: number): string {
+  return value < 0 ? `-${formatWon(Math.abs(value))}` : formatWon(value);
+}
+
+const BUDGET_WARNING_COPY: Record<BudgetImpactWarning, string> = {
+  allocated_over_total: "변경 후 배분 합계가 총예산보다 커요.",
+  recorded_spend_over_total: "기록 지출 합계가 변경 후 총예산보다 커요.",
+  category_recorded_spend_over_budget:
+    "일부 항목의 기록 지출이 해당 배정 예산보다 커요.",
+};
+
+function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
+  const rows = [
+    {
+      label: "총예산",
+      current: preview.current.totalBudget,
+      proposed: preview.proposed.totalBudget,
+      delta: preview.delta.totalBudget,
+    },
+    {
+      label: "배분 합계",
+      current: preview.current.allocatedBudget,
+      proposed: preview.proposed.allocatedBudget,
+      delta: preview.delta.allocatedBudget,
+    },
+    {
+      label: "기록 지출",
+      current: preview.current.recordedSpend,
+      proposed: preview.proposed.recordedSpend,
+      delta: preview.delta.recordedSpend,
+    },
+    {
+      label: "배분 후 남는 금액",
+      current: preview.current.unallocatedBudget,
+      proposed: preview.proposed.unallocatedBudget,
+      delta: preview.delta.unallocatedBudget,
+    },
+  ];
+
+  return (
+    <div className="mt-3 rounded-xl border border-[#E5D8CE] bg-white/80 p-3">
+      <h4 className="text-xs font-semibold text-[#2B2525]">변경 영향</h4>
+      <dl className="mt-2 space-y-2">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="grid grid-cols-[minmax(5.5rem,0.8fr)_minmax(0,1.7fr)] gap-2 text-xs leading-5"
+          >
+            <dt className="text-[#746866]">{row.label}</dt>
+            <dd className="min-w-0 text-right font-medium text-[#3D3434]">
+              {formatPossiblyNegativeWon(row.current)} → {formatPossiblyNegativeWon(row.proposed)}
+              <span className="ml-1.5 whitespace-nowrap font-normal text-[#867976]">
+                ({formatSignedWon(row.delta)})
+              </span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {preview.categories.length > 0 && (
+        <details className="mt-3 border-t border-[#EEE4DC] pt-2">
+          <summary className="cursor-pointer text-xs font-medium text-[#2F5F51]">
+            항목별 변경 {preview.categories.length}개 보기
+          </summary>
+          <ul className="mt-2 space-y-2">
+            {preview.categories.map((category) => (
+              <li key={category.key} className="rounded-lg bg-[#F8F4F0] px-2.5 py-2 text-xs leading-5 text-[#504444]">
+                <p className="font-medium text-[#3D3434]">{category.label}</p>
+                {category.currentBudget !== category.proposedBudget && (
+                  <p>
+                    배정 예산 {formatWon(category.currentBudget)} → {formatWon(category.proposedBudget)}
+                  </p>
+                )}
+                {category.currentRecordedSpend !== category.proposedRecordedSpend && (
+                  <p>
+                    기록 지출 {formatWon(category.currentRecordedSpend)} → {formatWon(category.proposedRecordedSpend)}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {preview.warnings.length > 0 && (
+        <ul className="mt-3 space-y-1 rounded-lg bg-[#FFF2EF] px-2.5 py-2 text-xs leading-5 text-[#8A3D31]">
+          {preview.warnings.map((warning) => (
+            <li key={warning}>• {BUDGET_WARNING_COPY[warning]}</li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-[11px] leading-4 text-[#746866]">
+        기록 지출은 사용자가 명시적으로 입력한 금액이며, 결제 완료를 뜻하지 않아요.
+      </p>
+    </div>
+  );
+}
+
 export default function PendingAmoraActionCard({
   action,
+  impactPreview = null,
   messageId,
   disabledReason,
   isApplying,
@@ -428,6 +559,8 @@ export default function PendingAmoraActionCard({
           </p>
         </div>
       </div>
+
+      {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
 
       {disabledReason && (
         <p id={statusId} role="status" className="mt-3 text-xs leading-5 text-[#795252]">

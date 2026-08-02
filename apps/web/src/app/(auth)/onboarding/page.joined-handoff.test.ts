@@ -11,6 +11,8 @@ describe("onboarding joined handoff redirect", () => {
 
     expect(source).toContain('store.coupleAction === "join"');
     expect(source).toContain("buildJoinedDashboardRedirect()");
+    expect(source).toContain('requestedPath !== "/wedding/lounge"');
+    expect(source).toContain("return window.location.search");
     expect(source).not.toContain("localStorage");
   });
 });

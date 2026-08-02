@@ -97,6 +97,26 @@ describe("get_budget_summary — 실데이터 원칙 (상태 기반 추정 금�
     expect(studio.allocated_is_set).toBe(false);
   });
 
+  it("legacy cost는 결제·지출 증거로 승격하지 않고 용도 미확인으로 표시한다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { budget: 20_000_000, cost: 15_000_000 },
+    }));
+    const out = result.toolOutput as {
+      total_spent: number;
+      categories: Array<{
+        key: string;
+        spent: number;
+        legacy_amount_unclassified: boolean;
+      }>;
+    };
+
+    expect(out.total_spent).toBe(0);
+    expect(out.categories.find((category) => category.key === "venue"))
+      .toMatchObject({ spent: 0, legacy_amount_unclassified: true });
+    expect(result.displayMessage).toContain("용도 미확인 이전 금액");
+    expect(result.displayMessage).not.toContain("기록된 지출 1,500만원");
+  });
+
   it("입력하지 않은 항목의 예산을 추정하지 않는다고 명시한다", async () => {
     const result = await executeTool("get_budget_summary", {}, makeCtx());
     expect(result.displayMessage).toContain("입력된 금액만 표시");

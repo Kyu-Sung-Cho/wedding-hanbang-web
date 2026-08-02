@@ -7,6 +7,7 @@ import {
   findObviousPublicPersonalInfo,
   PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
 } from "@/lib/community/publicPersonalInfo";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 function getServiceClient() {
   return createAdminClient();
@@ -26,6 +27,12 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
@@ -145,6 +152,12 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);

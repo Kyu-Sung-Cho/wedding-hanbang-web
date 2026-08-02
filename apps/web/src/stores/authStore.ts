@@ -154,7 +154,7 @@ interface AuthState {
   isInitialized: boolean;
   isDemo: boolean;
 
-  initialize: (options?: { force?: boolean }) => Promise<void>;
+  initialize: (options?: { force?: boolean; initialDemo?: boolean }) => Promise<void>;
   updateJourney: (
     updates: Partial<
       Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">
@@ -189,6 +189,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (get().isInitialized && !options?.force) return;
     const initializeSequence = ++authInitializeSequence;
     const initializeJourneySequence = ++journeyWriteSequence;
+
+    // 서버 레이아웃이 HttpOnly 서명까지 검증한 데모 세션은 다시 원격 Auth에
+    // 물어보지 않는다. 네트워크가 느리거나 끊겨도 체험 화면은 즉시 열려야 한다.
+    if (options?.initialDemo) {
+      set({
+        user: { id: "demo", email: "demo@hanbang.ai" },
+        profile: DEMO_PROFILE,
+        couple: DEMO_COUPLE,
+        journey: DEMO_JOURNEY,
+        partner: null,
+        isDemo: true,
+        isLoading: false,
+        isInitialized: true,
+      });
+      return;
+    }
+
     if (!options?.force) set({ isLoading: true });
 
     try {

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useLayoutEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +13,11 @@ import {
   buildOAuthCallbackUrl,
   getPostLoginRedirectPath,
 } from "@/lib/auth/safeRedirect";
+import {
+  forgetDemoAmoraPrefill,
+  getStartHereHandoffIdFromRedirect,
+  readDemoAmoraPrefill,
+} from "@/lib/chat/demoHandoff";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -52,14 +57,41 @@ export default function LoginPage() {
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [cameFromStartHere, setCameFromStartHere] = useState(false);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
   // 콜백에서 전달된 에러 표시 (query params + hash fragment)
-  useEffect(() => {
+  // 랜딩의 회원가입 CTA가 첫 페인트에서 로그인 화면으로 번쩍이지 않게
+  // URL 모드를 브라우저가 그리기 전에 반영한다.
+  useLayoutEffect(() => {
     // 1. query params 에러 (우리 콜백에서 설정)
     const params = new URLSearchParams(window.location.search);
     setMode(loginModeFromSearch(window.location.search));
+    const startHereHandoffId = getStartHereHandoffIdFromRedirect(
+      params.get("redirect"),
+    );
+    let hasValidStartHereHandoff = false;
+    try {
+      if (startHereHandoffId) {
+        hasValidStartHereHandoff = Boolean(
+          readDemoAmoraPrefill(window.localStorage, startHereHandoffId),
+        );
+      } else {
+        // 일반 로그인에서는 같은 브라우저의 이전 방문자가 남긴 초안을 즉시 폐기한다.
+        forgetDemoAmoraPrefill(window.localStorage);
+      }
+    } catch {
+      // 브라우저 저장소가 막혔으면 연속성 안내 없이 일반 가입으로 진행한다.
+    }
+    try {
+      // 직접 체험은 로그인 페이지를 거치지 않는다. 여기 남은 현재 탭 초안은
+      // 중단된 이전 체험이므로 다음 로그인 사용자에게 넘어가기 전에 폐기한다.
+      forgetDemoAmoraPrefill(window.sessionStorage);
+    } catch {
+      // 현재 탭 저장소 정리가 막혀도 로그인은 계속한다.
+    }
+    setCameFromStartHere(hasValidStartHereHandoff);
     const callbackError = params.get("error");
 
     // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
@@ -82,6 +114,12 @@ export default function LoginPage() {
     setError("");
     // 실제 로그인 시작 시 데모 모드 쿠키 제거
     document.cookie = "demo_mode=; path=/; max-age=0";
+    if (mode === "signup") {
+      captureEvent("signup_started", {
+        method: provider,
+        source: cameFromStartHere ? "start_here" : "login_page",
+      });
+    }
     try {
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -146,17 +184,28 @@ export default function LoginPage() {
 
       if (mode === "signup") {
         // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
-        captureEvent("signup_started", { method: "email" });
+        captureEvent("signup_started", {
+          method: "email",
+          source: cameFromStartHere ? "start_here" : "login_page",
+        });
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, turnstileToken }),
+          body: JSON.stringify({
+            email,
+            password,
+            name,
+            turnstileToken,
+            redirect: new URLSearchParams(window.location.search).get("redirect"),
+          }),
         });
         const result = await res.json();
         if (!res.ok) {
           setError(result.error || "회원가입에 실패했습니다.");
         } else {
-          setSuccess("인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
+          setSuccess(cameFromStartHere
+            ? "인증 이메일을 보냈습니다. 같은 브라우저에서 인증하면 아모라 화면으로 이어져요."
+            : "인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
         }
       } else if (mode === "forgot") {
         // 서버 API로 비밀번호 재설정 이메일 발송
@@ -230,7 +279,11 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/demo/start", { method: "POST" });
       if (!res.ok) throw new Error("demo start failed");
-      window.location.href = "/wedding/lounge";
+      window.location.href = getPostLoginRedirectPath(
+        window.location.search,
+        window.location.origin,
+        true,
+      );
     } catch {
       setError("데모 모드를 시작하지 못했습니다. 잠시 후 다시 시도해주세요.");
       setLoading(null);
@@ -238,7 +291,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_52%,#f5f8f1_100%)] flex items-center justify-center px-5">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_52%,#f5f8f1_100%)] flex items-center justify-center px-5 py-10">
       {/* 배경 장식 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#eef4f1,transparent)] blur-[100px] opacity-45" />
@@ -253,7 +306,7 @@ export default function LoginPage() {
       >
         {/* 로고 */}
         <div className="text-center mb-10">
-          <Link href="/wedding">
+          <Link href="/landing">
             <Logo size="md" />
           </Link>
           <p className="text-[14px] text-[#635b51] font-light mt-3">
@@ -272,9 +325,77 @@ export default function LoginPage() {
                 {mode === "login"
                   ? "계정에 로그인하세요"
                   : mode === "signup"
-                    ? "이메일로 간편하게 가입하세요"
+                    ? cameFromStartHere
+                      ? "가입하고 방금 확인한 준비를 이어가세요"
+                      : "간편하게 가입하고 준비를 이어가세요"
                     : "가입한 이메일을 입력해주세요"}
               </p>
+
+              {cameFromStartHere && mode === "signup" ? (
+                <div role="status" className="mb-6 border-y border-[#36534E]/14 bg-[#EEF4F1] px-4 py-4 text-left">
+                  <p className="text-[13px] font-semibold text-[#263832]">방금 본 준비를 이어갈게요.</p>
+                  <p className="mt-1 text-[12px] leading-5 text-[#4E6A62]">
+                    같은 브라우저에서 30분 안에 이 가입 흐름을 마치면, 임시로 남긴 첫 질문을 입력창에서 확인한 뒤 직접 보낼 수 있어요. 다른 기기나 다른 로그인 경로에서는 날짜를 다시 확인해 주세요.
+                  </p>
+                  <p className="mt-2 text-[11px] leading-5 text-[#4E6A62]">
+                    베타 제공 범위·기간·비용은 참여 확정 안내에서 확인할 수 있어요.
+                  </p>
+                </div>
+              ) : null}
+
+              {mode !== "forgot" ? (
+                <>
+                  <div className="mb-5 flex items-center gap-4">
+                    <div className="h-px flex-1 bg-platinum" />
+                    <span className="text-[11px] text-[#635b51]">
+                      {mode === "signup" ? "빠르게 가입하기" : "빠르게 로그인하기"}
+                    </span>
+                    <div className="h-px flex-1 bg-platinum" />
+                  </div>
+
+                  <div className="mb-5 flex gap-3">
+                    <button
+                      onClick={() => handleOAuth("kakao")}
+                      disabled={loading !== null}
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] py-3 text-[13px] font-medium text-[#191919] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(254,229,0,0.3)]"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z" fill="#191919"/>
+                      </svg>
+                      카카오
+                    </button>
+                    <button
+                      onClick={() => handleOAuth("google")}
+                      disabled={loading !== null}
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-black/[0.08] bg-white py-3 text-[13px] font-medium text-[#071629] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>
+                        <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z" fill="#34A853"/>
+                        <path d="M3.97 10.71A5.41 5.41 0 013.68 9c0-.6.1-1.17.28-1.71V4.96H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.04l3.01-2.33z" fill="#FBBC05"/>
+                        <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3.01 2.33C4.68 5.17 6.66 3.58 9 3.58z" fill="#EA4335"/>
+                      </svg>
+                      Google
+                    </button>
+                    <button
+                      onClick={() => handleOAuth("apple")}
+                      disabled={loading !== null}
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-black py-3 text-[13px] font-medium text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>
+                      </svg>
+                      Apple
+                    </button>
+                  </div>
+
+                  <div className="mb-5 flex items-center gap-4">
+                    <div className="h-px flex-1 bg-platinum" />
+                    <span className="text-[11px] text-[#635b51]">또는 이메일로</span>
+                    <div className="h-px flex-1 bg-platinum" />
+                  </div>
+                </>
+              ) : null}
 
               {/* 이메일 폼 */}
               <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
@@ -477,50 +598,6 @@ export default function LoginPage() {
               {/* 구분선 */}
               <div className="flex items-center gap-4 mb-5">
                 <div className="flex-1 h-px bg-platinum" />
-                <span className="text-[11px] text-[#928980]">소셜 로그인</span>
-                <div className="flex-1 h-px bg-platinum" />
-              </div>
-
-              {/* 소셜 로그인 */}
-              <div className="flex gap-3 mb-5">
-                <button
-                  onClick={() => handleOAuth("kakao")}
-                  disabled={loading !== null}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-[#FEE500] text-[#191919] hover:shadow-[0_4px_16px_rgba(254,229,0,0.3)]"
-                >
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                    <path d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z" fill="#191919"/>
-                  </svg>
-                  카카오
-                </button>
-                <button
-                  onClick={() => handleOAuth("google")}
-                  disabled={loading !== null}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-white border border-black/[0.08] text-[#071629] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
-                >
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                    <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z" fill="#34A853"/>
-                    <path d="M3.97 10.71A5.41 5.41 0 013.68 9c0-.6.1-1.17.28-1.71V4.96H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.04l3.01-2.33z" fill="#FBBC05"/>
-                    <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3.01 2.33C4.68 5.17 6.66 3.58 9 3.58z" fill="#EA4335"/>
-                  </svg>
-                  Google
-                </button>
-                <button
-                  onClick={() => handleOAuth("apple")}
-                  disabled={loading !== null}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-black text-white hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
-                >
-                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                    <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>
-                  </svg>
-                  Apple
-                </button>
-              </div>
-
-              {/* 구분선 */}
-              <div className="flex items-center gap-4 mb-5">
-                <div className="flex-1 h-px bg-platinum" />
                 <span className="text-[11px] text-[#928980]">또는</span>
                 <div className="flex-1 h-px bg-platinum" />
               </div>
@@ -536,19 +613,19 @@ export default function LoginPage() {
                 로그인 없이 체험하기
               </button>
 
-              <p className="text-[11px] text-[#928980] text-center mt-4 font-light">
-                체험 모드는 샘플 데이터로 화면과 아모라 대화를 둘러보는 용도예요. 입력·변경한 내용은 저장되지 않습니다
+              <p className="text-[11px] text-[#635b51] text-center mt-4 font-light leading-5">
+                체험 대화와 변경은 계정의 준비 기록에 남지 않아요. 체험 연결을 위한 임시 정보와 쿠키는 사용할 수 있어요.
               </p>
           </>
         </div>
 
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-4 mt-6">
-          <Link href="/wedding" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
-            ← 홈으로
+          <Link href="/landing" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
+            ← 서비스 소개로
           </Link>
         </div>
       </motion.div>
-    </div>
+    </main>
   );
 }

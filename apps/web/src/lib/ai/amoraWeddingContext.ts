@@ -115,6 +115,15 @@ function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedS
   const events: NormalizedScheduleEvent[] = [];
   for (const rawEvent of rawEvents.slice(0, MAX_PROGRESS_ARRAY_ITEMS)) {
     if (!isRecord(rawEvent)) continue;
+    if (
+      rawEvent.status === "cancelled"
+      || (rawEvent.status !== undefined
+        && rawEvent.status !== "planned"
+        && rawEvent.status !== "completed")
+      || rawEvent.cancellation !== undefined
+    ) {
+      continue;
+    }
     const date = normalizeWeddingDate(rawEvent.date);
     const title = boundedString(rawEvent.title, 300);
     if (!date || !title) continue;

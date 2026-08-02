@@ -53,6 +53,17 @@ describe("useAuthStore", () => {
   // ─── initialize() ───
 
   describe("initialize()", () => {
+    it("uses a server-verified demo session immediately without waiting for auth/me", async () => {
+      await useAuthStore.getState().initialize({ initialDemo: true });
+
+      const state = useAuthStore.getState();
+      expect(state.isDemo).toBe(true);
+      expect(state.isInitialized).toBe(true);
+      expect(state.isLoading).toBe(false);
+      expect(state.user?.id).toBe("demo");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it("sets isInitialized to true after completion", async () => {
       mockFetch.mockResolvedValue({ ok: false });
       await useAuthStore.getState().initialize();

@@ -75,14 +75,18 @@ function getTitle(result: ToolExecutionResult) {
       return "일정 추가";
     case "update_schedule_event":
       return "일정 변경";
+    case "cancel_schedule_event":
+      return "일정 취소";
+    case "restore_schedule_event":
+      return "취소 일정 복원";
     case "delete_schedule_event":
-      return "일정 삭제";
+      return "과거 일정 삭제 영수증";
     case "get_schedule_events":
       return "등록 일정";
     case "log_wedding_event":
       return "웨딩 일정 기록";
     case "get_my_bookings":
-      return "예약 현황";
+      return "아모라 예약 요청 기록";
     case "get_market_price":
       return "결혼 비용 시세";
     case "get_wedding_info":
@@ -92,8 +96,8 @@ function getTitle(result: ToolExecutionResult) {
     case "update_category_budget": {
       const hasBudget = result.toolInput.budget !== undefined;
       const hasSpent = result.toolInput.spent !== undefined;
-      if (hasBudget && hasSpent) return "카테고리 예산·지출 변경";
-      if (hasSpent) return "카테고리 지출 변경";
+      if (hasBudget && hasSpent) return "카테고리 예산·기록 지출 변경";
+      if (hasSpent) return "카테고리 기록 지출 변경";
       return "카테고리 예산 변경";
     }
     case "add_amora_action":
@@ -130,8 +134,12 @@ const STATUS_LABELS: Record<string, string> = {
 const INTERNAL_ID_FAILURE_COPY: Record<string, string> = {
   update_schedule_event:
     "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+  cancel_schedule_event:
+    "취소할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+  restore_schedule_event:
+    "복원할 취소 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
   delete_schedule_event:
-    "삭제할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+    "일정 삭제는 지원하지 않아요. 일정 목록에서 취소를 다시 선택해 주세요.",
   toggle_checklist_item:
     "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
 };
@@ -164,16 +172,9 @@ function getUserFacingDisplayMessage(result: ToolExecutionResult): string {
     : INTERNAL_ID_FAILURE_COPY[result.toolName] ?? GENERIC_INTERNAL_ID_FAILURE_COPY;
 }
 
-function readLegacyProgressSpent(item: ProgressItem | undefined): number {
+function readExplicitProgressSpent(item: ProgressItem | undefined): number {
   const spent = readWonAmount(item?.spent);
-  if (spent !== null) return spent;
-
-  const legacyCost = readWonAmount(item?.cost);
-  if (legacyCost === null) return 0;
-  const normalized = legacyCost > 0 && legacyCost < 100_000
-    ? legacyCost * 10_000
-    : legacyCost;
-  return readWonAmount(normalized) ?? 0;
+  return spent ?? 0;
 }
 
 // 예산 현황 미니 카드
@@ -193,7 +194,7 @@ function BudgetMiniCard() {
   const items = topCategories.flatMap((key) => {
     const item = progress[key];
     const budget = readWonAmount(item?.budget);
-    const spent = readLegacyProgressSpent(item);
+    const spent = readExplicitProgressSpent(item);
     if (budget === null && spent === 0) return [];
     const pct = budget !== null && budget > 0
       ? Math.round((spent / budget) * 100)
@@ -203,7 +204,7 @@ function BudgetMiniCard() {
 
   let totalSpent = 0;
   for (const key of Object.keys(CATEGORY_LABELS)) {
-    totalSpent += readLegacyProgressSpent(progress[key]);
+    totalSpent += readExplicitProgressSpent(progress[key]);
     if (!Number.isSafeInteger(totalSpent)) return null;
   }
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
@@ -211,9 +212,12 @@ function BudgetMiniCard() {
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06]">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm text-[#928980]">총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
+        <span className="text-sm text-[#928980]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
         <span className={`text-sm font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
       </div>
+      <p className="mt-2 text-[11px] leading-4 text-[#928980]">
+        기록 지출은 결제 완료 여부와 별도예요.
+      </p>
       <div className="space-y-1.5">
         {items.map((cat) => (
           <div key={cat.key} className="flex items-center gap-2 text-sm">
@@ -297,9 +301,9 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
 
   if (changedBudget === null && changedSpent === null) return null;
   const changeLabel = changedBudget !== null && changedSpent !== null
-    ? "예산·지출"
+    ? "예산·기록 지출"
     : changedSpent !== null
-      ? "지출"
+      ? "기록 지출"
       : "예산";
 
   return (
@@ -320,7 +324,7 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
           )}
           {changedSpent !== null && (
             <div className="flex items-center justify-end gap-2">
-              <span className="text-xs text-[#928980]">변경된 지출</span>
+              <span className="text-xs text-[#928980]">변경된 기록 지출</span>
               <strong className="text-sm font-semibold text-[#36534E]">
                 {formatWon(changedSpent)}
               </strong>
@@ -635,12 +639,17 @@ export default function ActionCard({ result }: ActionCardProps) {
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면
   // 빨간 X 카드가 6개 줄줄이 나와 "AI 웨딩플래너인데 깨진 화면"으로 보였음.
   // 동일 결과 반복은 ChatSidePanel에서 내용 기준으로 한 번만 표시한다.
-  const msg = getUserFacingDisplayMessage(result);
+  const isLegacyScheduleDelete = result.toolName === "delete_schedule_event";
+  const msg = isLegacyScheduleDelete
+    ? "과거 일정 삭제 처리 기록입니다. 현재 일정 상태를 다시 확인해 주세요. 일정 삭제는 지원하지 않아요. 새 변경은 일정 목록에서 취소나 복원을 다시 선택해 주세요."
+    : getUserFacingDisplayMessage(result);
   if (!result.success && msg === "") return null;
 
   const icon = getIcon(result.toolName);
   const title = getTitle(result);
-  const accentColor = getAccentColor(result.toolName);
+  const accentColor = isLegacyScheduleDelete
+    ? "border-[#B89785]/30 bg-[#B89785]/5"
+    : getAccentColor(result.toolName);
 
   const isBudgetSummary = result.success && result.toolName === "get_budget_summary";
   const isBudgetChange = result.success && (
@@ -662,9 +671,13 @@ export default function ActionCard({ result }: ActionCardProps) {
         className={`rounded-xl border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
       >
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-[#C4967E]">{icon}</span>
+          <span className={isLegacyScheduleDelete ? "text-[#B89785]" : "text-[#C4967E]"}>
+            {icon}
+          </span>
           <span className="text-sm font-semibold text-[#1A1A1F]">{title}</span>
-          {result.success ? (
+          {isLegacyScheduleDelete ? (
+            <Info className="w-4 h-4 text-[#B89785] ml-auto" />
+          ) : result.success ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto" />
           ) : (
             <XCircle className="w-4 h-4 text-red-400 ml-auto" />

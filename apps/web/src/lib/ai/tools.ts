@@ -90,7 +90,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "update_category_budget",
     description:
-      "특정 카테고리의 예산 또는 지출 금액을 변경합니다. '스튜디오 예산 400만원으로 해줘', '드레스에 250만원 썼어' 같은 요청에 사용합니다. 기존 20개 카테고리에 없는 새 항목은 add_custom_category를 사용하세요.",
+      "특정 카테고리의 예산 또는 사용자가 직접 기록한 지출 금액을 변경합니다. 기록 지출은 결제 완료 증거가 아닙니다. '스튜디오 예산 400만원으로 해줘', '드레스에 250만원 썼어' 같은 요청에 사용합니다. 기존 20개 카테고리에 없는 새 항목은 add_custom_category를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -109,7 +109,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         spent: {
           type: "number",
-          description: "새 지출 금액 (원 단위). 예: 2500000 = 250만원. 지출 변경 불필요 시 생략",
+          description: "새 기록 지출 금액 (원 단위, 결제 완료 여부와 별도). 예: 2500000 = 250만원. 변경 불필요 시 생략",
         },
       },
       required: ["category"],
@@ -182,7 +182,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         spent: {
           type: "number",
-          description: "지출 금액 (원 단위). 예: 300000 = 30만원. 지출 불필요 시 생략",
+          description: "기록 지출 금액 (원 단위, 결제 완료 여부와 별도). 예: 300000 = 30만원. 변경 불필요 시 생략",
         },
       },
       required: ["label"],
@@ -211,7 +211,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "reset_category",
     description:
-      "특정 카테고리의 예산·지출 데이터만 초기화합니다(카테고리 자체는 유지). '결혼식장 금액 초기화해줘', '사진 촬영 금액 초기화' 같은 요청에 사용합니다.",
+      "특정 카테고리의 예산·기록 지출 데이터만 초기화합니다(카테고리 자체는 유지). '결혼식장 금액 초기화해줘', '사진 촬영 금액 초기화' 같은 요청에 사용합니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -251,20 +251,29 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "add_schedule_event",
     description:
-      "캘린더에 일정을 추가합니다. category_key가 있는 대표 카테고리 일정은 이미 같은 카테고리 일정이 있으면 새로 만들지 않고 기존 일정 날짜·메모를 업데이트합니다. '3월 15일에 드레스 입어보는 일정 잡아줘', '양쪽 부모님이 만나는 날은 6월 5일이야' 같은 요청에 사용합니다.",
+      "캘린더에 새 일정을 추가합니다. 같은 카테고리 일정이 있어도 기존 일정을 덮어쓰지 않습니다. 기존 일정을 바꾸려면 먼저 get_schedule_events로 event_id를 확인한 뒤 update_schedule_event를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
         date: {
           type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
           description: "일정 날짜 (YYYY-MM-DD 형식). 예: 2026-03-15",
+        },
+        time: {
+          type: "string",
+          pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+          description: "일정 현지 시각 (24시간제 HH:mm 형식, 선택). 예: 14:30",
         },
         title: {
           type: "string",
+          minLength: 1,
+          maxLength: 500,
           description: "일정 제목. 예: '드레스 입어보기 예약'",
         },
         memo: {
           type: "string",
+          maxLength: 2000,
           description: "일정 메모 (선택). 예: '강남 드레스 매장 오후 2시'",
         },
         category_key: {
@@ -275,6 +284,11 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
             "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
           ],
           description: `관련 카테고리 (선택). 대표 준비 일정이면 반드시 넣습니다. general=일반, ${PLANNING_CATEGORY_DESCRIPTION}`,
+        },
+        schedule_scope: {
+          type: "string",
+          enum: ["confirmed_fact", "shared_commitment", "external_commitment"],
+          description: "일정 성격. 이미 당사자에게 확정된 사실을 기록할 때만 confirmed_fact, 두 사람이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment. 모호하면 shared_commitment.",
         },
       },
       required: ["date", "title"],
@@ -293,24 +307,103 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         date: {
           type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
           description: "변경할 날짜 (YYYY-MM-DD). 날짜 변경 불필요 시 생략",
+        },
+        time: {
+          type: "string",
+          pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+          description: "변경할 현지 시각 (24시간제 HH:mm 형식). 시간 변경 불필요 시 생략",
         },
         title: {
           type: "string",
+          minLength: 1,
+          maxLength: 500,
           description: "변경할 제목. 제목 변경 불필요 시 생략",
         },
         memo: {
           type: "string",
+          maxLength: 2000,
           description: "변경할 메모. 메모 변경 불필요 시 생략",
+        },
+        schedule_scope: {
+          type: "string",
+          enum: ["confirmed_fact", "shared_commitment", "external_commitment"],
+          description: "변경하는 일정의 성격. 일정 수정은 값과 관계없이 두 사람 확인 대상입니다.",
         },
       },
       required: ["event_id"],
     },
   },
   {
+    name: "cancel_schedule_event",
+    description:
+      "일정을 지우지 않고 취소 상태로 바꾸며 취소 시각·처리한 구성원·선택적 사유를 남깁니다. 먼저 get_schedule_events로 event_id와 현재 상태를 확인하세요. 두 사람의 확인이 필요합니다.",
+    input_schema: {
+      type: "object" as const,
+      additionalProperties: false,
+      properties: {
+        event_id: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "취소할 일정의 ID",
+        },
+        expected_title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "get_schedule_events에서 확인한 현재 일정 제목. 대상이 바뀌지 않았는지 서버가 다시 검증합니다.",
+        },
+        expected_date: {
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+          description: "get_schedule_events에서 확인한 현재 일정 날짜 (YYYY-MM-DD)",
+        },
+        reason: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          pattern: "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u206F\\uFEFF]+$",
+          description: "사용자가 말한 취소 사유만 선택적으로 기록합니다. 추정해서 채우지 마세요.",
+        },
+      },
+      required: ["event_id", "expected_title", "expected_date"],
+    },
+  },
+  {
+    name: "restore_schedule_event",
+    description:
+      "취소 상태인 일정 하나를 예정 상태로 복원하고 취소 감사 정보는 제거합니다. 먼저 get_schedule_events로 event_id와 현재 상태를 확인하세요. 두 사람의 확인이 필요합니다.",
+    input_schema: {
+      type: "object" as const,
+      additionalProperties: false,
+      properties: {
+        event_id: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "복원할 취소 일정의 ID",
+        },
+        expected_title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "get_schedule_events에서 확인한 취소 일정의 현재 제목",
+        },
+        expected_date: {
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+          description: "get_schedule_events에서 확인한 취소 일정의 현재 날짜 (YYYY-MM-DD)",
+        },
+      },
+      required: ["event_id", "expected_title", "expected_date"],
+    },
+  },
+  {
     name: "delete_schedule_event",
     description:
-      "캘린더에서 일정을 삭제합니다. '드레스 입어보는 일정 취소해줘' 같은 요청에 사용합니다. 먼저 get_schedule_events로 event_id를 확인하세요.",
+      "지원이 중단된 과거 호환 도구입니다. 일정을 삭제하지 않으며 cancel_schedule_event를 사용해야 합니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -357,9 +450,10 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_schedule_events",
     description:
-      "캘린더에 등록된 일정을 조회합니다. '다음 주 일정 뭐 있어?', '등록된 일정 보여줘' 같은 요청에 사용합니다.",
+      "캘린더 일정을 상태별로 조회합니다. 일반 조회는 planned만 사용하고, 사용자가 취소 기록이나 복원을 명시적으로 요청한 경우에만 status=cancelled를 사용하세요.",
     input_schema: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
         from_date: {
           type: "string",
@@ -368,6 +462,11 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         to_date: {
           type: "string",
           description: "조회 종료일 (YYYY-MM-DD). 생략하면 시작일+30일",
+        },
+        status: {
+          type: "string",
+          enum: ["planned", "cancelled", "all"],
+          description: "조회 상태. 생략하면 planned. cancelled는 명시적 취소 기록/복원 요청에만 사용합니다.",
         },
       },
       required: [],
@@ -556,7 +655,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "check_vendor_availability",
     description:
-      "특정 업체의 예약 가능 시간을 조회합니다. 고객이 '이 업체 언제 예약 가능해?', '○○ 스튜디오 토요일 가능해?' 같은 요청에 사용합니다.",
+      "아모라 내부에 등록된 특정 업체의 가능 시간 후보를 조회합니다. 실제 업체 재고를 실시간 조회하거나 예약 가능 여부를 확정하는 도구가 아니며, 모든 결과는 업체 최종 확인이 필요합니다. 고객이 '이 업체 언제 상담 후보가 있어?', '○○ 스튜디오 토요일 후보가 있어?' 같은 요청에 사용합니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -648,7 +747,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_available_slots",
     description:
-      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요. 사용자가 특정 월/주/날짜를 지정하면 target_month 또는 target_date 를 함께 넘기세요. 특정 날짜 요청이면 target_date 를 반드시 사용하고, 결과의 fallbackSlots 는 '다른 날짜 참고 후보'일 뿐 예약 확정 날짜로 취급하지 마세요.",
+      "아모라 내부에 등록된 업체의 가능 시간 후보를 조회합니다. 실제 업체 재고의 실시간 조회나 예약 가능 확정이 아니며 업체 최종 확인이 필요합니다. 고객이 상품과 스태프를 선택한 후 후보 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요. 사용자가 특정 월/주/날짜를 지정하면 target_month 또는 target_date 를 함께 넘기세요. 특정 날짜 요청이면 target_date 를 반드시 사용하고, 결과의 fallbackSlots 는 '다른 날짜 참고 후보'일 뿐 예약 확정 날짜로 취급하지 마세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -681,7 +780,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "create_booking",
     description:
-      "업체에 예약을 생성합니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 사용자가 특정 날짜를 말했거나 메시지에 [date:YYYY-MM-DD] 태그가 있으면 date 는 반드시 그 날짜와 정확히 같아야 합니다. 해당 날짜 슬롯이 없으면 create_booking 을 호출하지 말고 get_available_slots 결과를 바탕으로 불가 안내와 대체 후보만 제안하세요. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
+      "고객이 날짜와 시간을 선택한 뒤 아모라 내부에 방문·상담 예약 요청 기록과 일정을 만듭니다. 업체에 요청을 전송하거나 예약을 확정하지 않으며, 금액은 견적일 뿐 결제·지출 기록이 아닙니다. 업체 전달 및 최종 확정은 별도 확인이 필요합니다. 사용자가 특정 날짜를 말했거나 메시지에 [date:YYYY-MM-DD] 태그가 있으면 date 는 반드시 그 날짜와 정확히 같아야 합니다. 해당 날짜 후보가 없으면 create_booking 을 호출하지 말고 get_available_slots 결과를 바탕으로 불가 안내와 대체 후보만 제안하세요. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -716,7 +815,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_my_bookings",
     description:
-      "현재 커플의 예약 목록을 조회합니다. 예약 취소, 예약 현황 확인 시 먼저 호출하여 booking_id를 확인하세요.",
+      "현재 커플이 아모라 내부에 남긴 방문·상담 예약 요청 기록을 조회합니다. 업체 전달·확정 상태를 뜻하지 않습니다. 내부 기록 취소나 현황 확인 시 먼저 호출하여 booking_id를 확인하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -731,7 +830,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "cancel_booking",
     description:
-      "예약을 취소합니다. 고객이 예약 취소를 요청하면 사용합니다. 메시지에 [booking:ID] 태그가 있으면 해당 값을 사용하세요.",
+      "아모라 내부의 예약 요청 기록과 연결 일정을 취소 상태로 표시합니다. 업체에 취소를 전송하거나 업체 취소·환불을 확정하지 않으며, 실제 지출 기록은 보존합니다. 업체 취소와 환불은 별도 확인이 필요합니다. 고객이 내부 기록 취소를 요청하면 사용하고, 메시지에 [booking:ID] 태그가 있으면 해당 값을 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {

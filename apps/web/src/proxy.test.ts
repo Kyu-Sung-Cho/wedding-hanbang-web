@@ -108,6 +108,10 @@ describe("proxy preview stub write fence", () => {
     vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
     const request = new NextRequest("https://preview.example.test/api/demo/start", {
       method: "POST",
+      headers: {
+        origin: "https://preview.example.test",
+        "sec-fetch-site": "same-origin",
+      },
     });
 
     const response = await proxy(request);
@@ -135,6 +139,106 @@ describe("proxy preview stub write fence", () => {
     await proxy(request);
 
     expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+});
+
+describe("proxy API mutation trust boundary", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("blocks a cross-site cookie mutation before session middleware", async () => {
+    const response = await proxy(new NextRequest(
+      "https://hanbang.ai/api/community/posts",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://evil.example",
+          "sec-fetch-site": "cross-site",
+          cookie: "sb-session=ambient",
+        },
+      },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toEqual({
+      error: "untrusted_mutation_origin",
+    });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("allows a same-origin browser mutation to continue", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/community/posts", {
+      method: "POST",
+      headers: {
+        origin: "https://hanbang.ai",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("allows a native Bearer mutation without browser fetch metadata", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/community/posts", {
+      method: "POST",
+      headers: { authorization: "Bearer native-session-token" },
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("does not fall back to cookies when Authorization is malformed", async () => {
+    const response = await proxy(new NextRequest(
+      "https://hanbang.ai/api/community/posts",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer malformed token",
+          origin: "https://hanbang.ai",
+          "sec-fetch-site": "same-origin",
+        },
+      },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it.each(["/api/auth/signup", "/api/auth/forgot-password"])(
+    "preserves the non-ambient Turnstile flow for %s",
+    async (pathname) => {
+      const request = new NextRequest(`https://hanbang.ai${pathname}`, {
+        method: "POST",
+      });
+
+      await proxy(request);
+
+      expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+    },
+  );
+
+  it("leaves internal-token routes to their constant-time route verifier", async () => {
+    const request = new NextRequest(
+      "https://hanbang.ai/api/internal/vendors/recommend",
+      {
+        method: "POST",
+        headers: { "x-internal-token": "route-verifies-this-secret" },
+      },
+    );
+
+    await proxy(request);
+
     expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
   });
 });
@@ -255,8 +359,6 @@ describe("proxy production write fence", () => {
     "/api/cron/amora-memory",
     "/api/auth/callback",
     "/api/auth/me",
-    "/api/community/cohort",
-    "/api/community/profile",
     "/api/couple/code",
     "/api/messages",
     "/api/vendors/12345678-1234-4234-8234-123456789abc",
@@ -286,6 +388,8 @@ describe("proxy production write fence", () => {
   it.each([
     "/api/vendors",
     "/api/messages/threads",
+    "/api/community/cohort",
+    "/api/community/profile",
     "/api/community/cohort/123/timeline",
   ])("keeps an explicitly read-only neighboring GET available: %s", async (pathname) => {
     vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
@@ -304,6 +408,10 @@ describe("proxy production write fence", () => {
       else vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", value);
       const request = new NextRequest("https://hanbang.ai/api/community/posts", {
         method: "POST",
+        headers: {
+          origin: "https://hanbang.ai",
+          "sec-fetch-site": "same-origin",
+        },
       });
 
       const response = await proxy(request);

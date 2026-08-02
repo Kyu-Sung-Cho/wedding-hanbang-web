@@ -23,8 +23,8 @@ describe("web MVP product direction", () => {
     const productContract = source("../../docs/MVP_PRODUCT_DIRECTION_2026-07-30.md")
       .replace(/\r?\n/g, " ");
     const principles = source("../../PRINCIPLES.md").replace(/\r?\n/g, " ");
-    const landing = source("src/app/landing/page.tsx");
-    const hero = source("src/components/landing/CelebrationHero.tsx");
+    const hero = source("src/components/landing/redesign/TransformationHero.tsx");
+    const landingContent = source("src/components/landing/redesign/landingContent.ts");
     const communityPage = source("src/app/(community)/community/page.tsx");
     const communityLayout = source("src/app/(community)/layout.tsx");
     const communityNav = source("src/components/community/CommunityNav.tsx");
@@ -34,8 +34,9 @@ describe("web MVP product direction", () => {
 
     expect(productContract).toContain(PRODUCT_DEFINITION);
     expect(principles).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스다."));
-    expect(landing).toContain("둘이 함께 쓰는 결혼 준비 AI 아모라");
-    expect(hero).toContain("결혼 준비 AI · 아모라");
+    expect(landingContent).toContain("둘이 함께 쓰는 AI 결혼 준비 도우미 · 아모라");
+    expect(landingContent).toContain("예산 이야기, 해야 할 일, 중요한 날짜");
+    expect(hero).toContain("landingContent.hero.eyebrow");
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");
     expect(community).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스예요."));
     for (const publicShell of [communityLayout, communityNav, priceLayout]) {
@@ -45,33 +46,58 @@ describe("web MVP product direction", () => {
     }
   });
 
-  it("shows Amora before supporting evidence and community content", () => {
+  it("lets the community deliver people-first value before Amora turns it into a plan", () => {
     const landing = source("src/app/landing/page.tsx");
     const community = source("src/components/community/CommunityLandingClient.tsx");
+    const searchHubRender = community.indexOf("{searchHubNode}");
+    const communityMainRender = community.indexOf("{communityMainNode}", searchHubRender);
+    const amoraRender = community.indexOf("{showLandingIntro && <AmoraBlock />}");
     const whatWeDoRender = community.indexOf("{showLandingIntro && <WhatWeDo />}");
-    const communityMainRender = community.indexOf("{communityMainNode}", whatWeDoRender);
 
-    expect(landing.indexOf("<AmoraSection />")).toBeLessThan(landing.indexOf("<ProofBand"));
-    expect(community.indexOf("<AmoraBlock />")).toBeLessThan(community.indexOf("<WhatWeDo />"));
+    expect(landing.indexOf("<PreparationResult />")).toBeLessThan(
+      landing.indexOf("<TrustEvidenceSection"),
+    );
+    expect(community).toContain('data-community-home-order="search-first"');
+    expect(searchHubRender).toBeGreaterThanOrEqual(0);
+    expect(communityMainRender).toBeGreaterThan(searchHubRender);
+    expect(amoraRender).toBeGreaterThan(communityMainRender);
     expect(whatWeDoRender).toBeGreaterThanOrEqual(0);
-    expect(communityMainRender).toBeGreaterThan(whatWeDoRender);
-    expect(communityMainRender).toBeLessThan(community.indexOf("<DisclosureHero"));
+    expect(whatWeDoRender).toBeGreaterThan(amoraRender);
+    expect(whatWeDoRender).toBeLessThan(community.indexOf("<DisclosureHero"));
   });
 
-  it("keeps primary navigation focused on Amora, tasks, budget, and community", () => {
-    const landing = source("src/app/landing/page.tsx");
+  it("keeps landing story anchors distinct from the Amora product navigation", () => {
+    const landingHeader = source("src/components/landing/redesign/LandingHeader.tsx");
+    const landingFooter = source("src/components/landing/redesign/LandingFooter.tsx");
     const communityNav = source("src/components/community/CommunityNav.tsx");
     const userMenu = source("src/components/community/UserMenu.tsx");
     const sidebar = source("src/components/app/Sidebar.tsx");
     const topNav = source("src/components/app/TopNav.tsx");
 
-    const landingNav = blockBetween(landing, "const navItems = [", "];");
+    const landingNav = blockBetween(landingHeader, "const navItems = [", "] as const;");
+    const landingProductLinks = blockBetween(
+      landingFooter,
+      "const serviceLinks = [",
+      "] as const;",
+    );
     const publicNav = blockBetween(communityNav, "const baseNavItems = [", "];");
     const signedInNav = blockBetween(sidebar, "const menuItems:", "];");
     const signedInQuickLinks = blockBetween(topNav, "const quickLinks = [", "];");
 
+    for (const [label, href] of [
+      ["어떻게 정리되나요", "#how-it-works"],
+      ["함께 보기·나만 보기", "#privacy"],
+      ["안심하고 쓰는 이유", "#trust"],
+    ]) {
+      expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
+    }
+
+    expect(landingProductLinks).toContain('label: "아모라 채팅"');
+    for (const label of ["할 일·일정", "예산", "커뮤니티"]) {
+      expect(landingProductLinks).toContain(`label: "${label}"`);
+    }
+
     for (const label of ["아모라", "할 일·일정", "예산", "커뮤니티"]) {
-      expect(landingNav).toContain(`label: "${label}"`);
       expect(publicNav).toContain(`label: "${label}"`);
       expect(signedInNav).toContain(`label: "${label}"`);
       expect(signedInQuickLinks).toContain(`label: "${label}"`);
@@ -86,6 +112,7 @@ describe("web MVP product direction", () => {
       "/wedding-code",
     ]) {
       expect(landingNav).not.toContain(retiredPrimaryPath);
+      expect(landingProductLinks).not.toContain(retiredPrimaryPath);
       expect(publicNav).not.toContain(retiredPrimaryPath);
       expect(signedInNav).not.toContain(retiredPrimaryPath);
       expect(signedInQuickLinks).not.toContain(retiredPrimaryPath);

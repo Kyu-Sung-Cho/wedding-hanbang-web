@@ -14,13 +14,15 @@ const EXPECTED_POLICY_BY_MUTATING_TOOL = {
   apply_budget_plan: "couple",
   delete_category: "blocked",
   reset_category: "blocked",
-  update_schedule_event: "single",
+  update_schedule_event: "couple",
+  cancel_schedule_event: "couple",
+  restore_schedule_event: "couple",
   delete_schedule_event: "blocked",
   toggle_checklist_item: "single",
   update_amora_action: "blocked",
   cancel_booking: "blocked",
   add_custom_category: "couple",
-  add_schedule_event: "single",
+  add_schedule_event: "couple",
   add_amora_action: "single",
   log_wedding_event: "single",
   create_booking: "blocked",
@@ -77,13 +79,32 @@ describe("Amora action approval policy", () => {
   it.each([
     "update_task_status",
     "add_custom_category",
-    "add_schedule_event",
-    "update_schedule_event",
     "toggle_checklist_item",
     "add_amora_action",
     "log_wedding_event",
   ])("allows one member to approve reversible action %s", (toolName) => {
     expect(getAmoraActionApprovalPolicy(toolName, {})).toBe("single");
+  });
+
+  it("allows one member to record a confirmed schedule fact but protects commitments and edits", () => {
+    expect(getAmoraActionApprovalPolicy("add_schedule_event", {
+      schedule_scope: "confirmed_fact",
+    })).toBe("single");
+
+    for (const scheduleScope of [
+      undefined,
+      "shared_commitment",
+      "external_commitment",
+      "unknown_future_scope",
+    ]) {
+      expect(getAmoraActionApprovalPolicy("add_schedule_event", {
+        ...(scheduleScope ? { schedule_scope: scheduleScope } : {}),
+      })).toBe("couple");
+    }
+
+    expect(getAmoraActionApprovalPolicy("update_schedule_event", {
+      schedule_scope: "confirmed_fact",
+    })).toBe("couple");
   });
 
   it("blocks beta-disabled writes and unknown tools", () => {

@@ -14,7 +14,7 @@ import {
 import { captureEvent } from "@/lib/analytics";
 
 const shell = "mx-auto w-full max-w-[1160px] px-5 sm:px-8 lg:px-10";
-const amoraStartHref = "/login?mode=signup&redirect=%2Fwedding%2Fchat";
+const amoraStartHref = "/start-here";
 
 export default function CelebrationHero() {
   return (
@@ -36,7 +36,7 @@ export default function CelebrationHero() {
               className="h-px w-8 shrink-0 bg-[#8F6662]"
               aria-hidden="true"
             />
-            둘이 함께 쓰는 결혼 준비 AI · 아모라
+            둘이 함께 쓰는 AI 결혼 준비 도우미 · 아모라
           </p>
 
           <h1
@@ -47,14 +47,16 @@ export default function CelebrationHero() {
               우리, 정말 결혼하는구나.
             </span>
             <span className="mt-3 block text-[clamp(2.1rem,10vw,3.35rem)] font-semibold leading-[1.08] sm:mt-4">
-              둘이 말하면 준비가{" "}
-              <span className="text-[#8F6662]">하나로</span> 정리돼요.
+              둘이 말하면{" "}
+              <span className="text-[#8F6662]">예산·할 일·일정이</span>{" "}
+              정리돼요.
             </span>
           </h1>
 
           <p className="mt-5 max-w-[33rem] text-[15px] font-normal leading-[1.72] text-[#36534E] sm:mt-6 sm:text-[16px]">
-            둘이 같은 채팅에서 말하면 아모라가 예산·할 일·일정을 제안해요.
-            바뀌는 내용을 먼저 보여주고, 확인한 변경만 함께 반영해요.
+            예산 이야기부터 해야 할 일, 중요한 날짜까지 한 대화방에서
+            말해보세요. 아모라가 보기 쉽게 정리하고, 확인 버튼을 누른 내용만
+            우리 준비에 저장해요.
           </p>
 
           <div
@@ -62,21 +64,21 @@ export default function CelebrationHero() {
             aria-label="아모라와 함께 준비하는 세 단계"
           >
             <p className="text-center text-[12px] font-semibold leading-[1.35] text-[#243832] sm:text-[13px]">
-              둘이 말해요
+              같이 말해요
             </p>
             <ArrowRight
               className="h-3.5 w-3.5 shrink-0 text-[#8F6662]"
               aria-hidden="true"
             />
             <p className="text-center text-[12px] font-semibold leading-[1.35] text-[#243832] sm:text-[13px]">
-              아모라가 정리해요
+              보기 쉽게 정리해요
             </p>
             <ArrowRight
               className="h-3.5 w-3.5 shrink-0 text-[#8F6662]"
               aria-hidden="true"
             />
             <p className="text-center text-[12px] font-semibold leading-[1.35] text-[#243832] sm:text-[13px]">
-              확인 후 함께 반영해요
+              확인하면 저장돼요
             </p>
           </div>
 
@@ -90,7 +92,7 @@ export default function CelebrationHero() {
               }
               className="group inline-flex min-h-14 w-full items-center justify-between gap-4 rounded-[16px] bg-[#8F6662] px-5 text-[15px] font-semibold text-white shadow-[0_12px_28px_rgba(143,102,98,0.22)] transition-[background-color,box-shadow] duration-200 hover:bg-[#7D5753] hover:shadow-[0_16px_34px_rgba(125,87,83,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-[#F7F1E8] sm:w-auto sm:min-w-60"
             >
-              <span>우리 둘 준비 시작하기</span>
+              <span>로그인 없이 아모라에게 물어보기</span>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/16">
                 <ArrowRight
                   className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transform-none"
@@ -99,14 +101,14 @@ export default function CelebrationHero() {
               </span>
             </Link>
             <Link
-              href="/start-here"
+              href="/login"
               className="inline-flex min-h-11 items-center justify-center px-1 text-center text-[14px] font-semibold leading-5 text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-[#F7F1E8]"
             >
-              로그인 없이 준비 순서 보기
+              계정이 있다면 로그인
             </Link>
           </div>
 
-          <p className="mt-4 flex items-start gap-2 text-[12px] font-medium leading-5 text-[#36534E] sm:text-[13px]">
+          <p className="mt-4 flex items-start gap-2 text-[13px] font-medium leading-5 text-[#36534E]">
             <LockKeyhole
               className="mt-0.5 h-4 w-4 shrink-0 text-[#8F6662]"
               aria-hidden="true"
@@ -134,7 +136,7 @@ function CoupleRoomPreview() {
   return (
     <div
       className="relative min-h-[700px] min-w-0 w-full animate-fade-in motion-reduce:animate-none sm:min-h-[720px] lg:min-h-[660px]"
-      aria-label="로그인 없이 체험하는 커플 공동 채팅 기능 예시"
+      aria-label="로그인 없이 체험하는 커플 대화방 기능 예시"
     >
       <div className="absolute inset-x-0 top-0 h-[540px] overflow-hidden rounded-[24px] bg-[#243832] shadow-[0_26px_70px_rgba(36,56,50,0.16)] sm:h-[580px] sm:rounded-[28px] lg:inset-y-0 lg:h-auto lg:rounded-[32px]">
         <picture className="absolute inset-0 block h-full w-full">
@@ -173,10 +175,10 @@ function CoupleRoomPreview() {
           </span>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold leading-5 text-[#243832] sm:text-[14px]">
-              민지 · 현우의 공동 채팅
+              민지 · 현우의 대화방
             </p>
-            <p className="text-[11px] font-medium leading-4 text-[#36534E] sm:text-[12px]">
-              함께 대화 · 기능 예시 · 로그인 없이 눌러보세요
+            <p className="text-[12px] font-medium leading-4 text-[#36534E] sm:text-[13px]">
+              둘이 함께 대화해요 · 로그인 없이 눌러볼 수 있어요
             </p>
           </div>
         </div>
@@ -212,7 +214,7 @@ function CoupleRoomPreview() {
                 </span>
                 <div>
                   <p className="text-[14px] font-semibold text-[#243832]">
-                    공동 일정에 추가됐어요
+                    우리 일정에 저장됐어요
                   </p>
                   <p className="mt-0.5 text-[12px] leading-5 text-[#36534E]">
                     10월 17일(토) 오후 2시 · 드레스 투어
@@ -222,7 +224,7 @@ function CoupleRoomPreview() {
               <button
                 type="button"
                 onClick={() => setDemoApplied(false)}
-                className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#36534E]/18 bg-white px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#8F6662] hover:text-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#36534E]/18 bg-white px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#8F6662] hover:text-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 다시 보기
@@ -236,12 +238,12 @@ function CoupleRoomPreview() {
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-[#36534E]">
-                    아모라의 일정 제안 · 변경 전 확인
+                  <p className="text-[13px] font-semibold text-[#36534E]">
+                    아모라의 일정 제안 · 저장 전 확인
                   </p>
                   <p className="mt-1 text-[13px] font-semibold leading-5 text-[#243832]">
-                    10월 17일(토) 오후 2시 ‘드레스 투어’를 공동 일정에
-                    추가할까요?
+                    10월 17일(토) 오후 2시 ‘드레스 투어’를 우리 일정에
+                    저장할까요?
                   </p>
                 </div>
               </div>
@@ -251,13 +253,13 @@ function CoupleRoomPreview() {
                 className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#36534E] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
-                이대로 적용
+                우리 일정에 저장하기
               </button>
             </>
           )}
         </div>
 
-        <p className="border-t border-[#243832]/8 bg-[#FBF8F2] px-4 py-2.5 text-center text-[11px] font-medium leading-4 text-[#36534E] sm:px-5">
+        <p className="border-t border-[#243832]/8 bg-[#FBF8F2] px-4 py-2.5 text-center text-[13px] font-medium leading-5 text-[#36534E] sm:px-5">
           기능 예시이며 실제로 저장되지 않아요
         </p>
       </div>

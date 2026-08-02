@@ -745,6 +745,8 @@ const REQUIRED_ROLLBACK_CONTROLS = Object.freeze({
   AMORA_AUXILIARY_MEMORY_ENABLED: "false",
   AMORA_CARE_OUTBOUND_ENABLED: "false",
   AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+  AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
+  AMORA_TODAY_ONE_ENABLED: "false",
   AMORA_OPENAI_ENABLED: "false",
   AMORA_PROACTIVE_CHAT_ENABLED: "false",
   AMORA_COST_GUARD_ENABLED: "true",
@@ -756,6 +758,8 @@ const REQUIRED_ROLLBACK_CHECKS = Object.freeze([
   "storageWriteFenceHeld",
   "authSignupDisabled",
   "webWriteFenceEnabled",
+  "chatPartnerRecipientBoundaryHeld",
+  "conversationSegmentScopeBoundaryHeld",
 ]);
 
 function exactTextListSha256(values) {
@@ -887,6 +891,13 @@ function validateSuccessorControllerContract({
     check?.expectedEvidence?.successor_created_table_count
       === createdPublicTables.length
     && check.expectedEvidence.account_deletion_auth_fk_contract_count === 1
+    && check.expectedEvidence.chat_partner_recipient_insert_policy_count === 1
+    && check.expectedEvidence.chat_partner_recipient_select_policy_count === 1
+    && check.expectedEvidence.chat_partner_recipient_trigger_count === 1
+    && check.expectedEvidence.conversation_segment_active_index_count === 3
+    && check.expectedEvidence.conversation_segment_rls_policy_count === 1
+    && check.expectedEvidence.conversation_segment_rpc_acl_count === 1
+    && check.expectedEvidence.conversation_segment_scope_fk_count === 2
     && check.expectedEvidence.couple_plan_change_auth_user_fk_count === 4
     && check.expectedEvidence.couple_plan_change_terminal_event_count === 3
     && check.expectedEvidence.couple_plan_change_journey_write_fence_count === 4
@@ -905,7 +916,7 @@ function validateSuccessorControllerContract({
       || !semanticPostcheck) {
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
-      "successor must pin exact release tables, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
+      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
     );
   }
 

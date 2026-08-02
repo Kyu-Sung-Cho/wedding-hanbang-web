@@ -10,6 +10,10 @@
 3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:
    `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+   - clone·환경 복원·웹/모바일 연결:
+     `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+   - 커뮤니티 설계와 후속 전체 구현 상세:
+     `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
 5. 변경 영역의 현재 게이트
    - DB: `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
    - 커뮤니티: `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
@@ -51,3 +55,10 @@
 
 일반 `supabase db push`, `--include-all`, migration history 추측 보정, 임의 운영 SQL
 write는 실행하지 않는다.
+
+## 보조 개발 도구
+
+다음 문서는 제품·릴리스 정본이 아니라 기기별 개발 도구 런북이다.
+
+- Lazyweb MCP 디자인 조사·보안 경계·새 컴퓨터 설치:
+  `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`

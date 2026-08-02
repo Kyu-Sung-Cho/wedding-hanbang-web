@@ -18,7 +18,7 @@ import {
   CalendarDays,
   Plus,
   Pencil,
-  Trash2,
+  Ban,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
@@ -103,7 +103,7 @@ interface Props {
   onToggleChecklistItem: (categoryKey: string, item: ChecklistItem) => Promise<void>;
   events?: ScheduleEvent[];
   onEditEvent?: (event: ScheduleEvent) => void;
-  onDeleteEvent?: (eventId: string) => Promise<void> | void;
+  onCancelEvent?: (eventId: string) => Promise<void> | void;
   onAddEvent?: () => void;
   assigneeContext?: ScheduleEventAssigneeContext;
 }
@@ -118,7 +118,7 @@ export default function TimelineView({
   onToggleChecklistItem,
   events = [],
   onEditEvent,
-  onDeleteEvent,
+  onCancelEvent,
   onAddEvent,
   assigneeContext = {},
 }: Props) {
@@ -126,9 +126,13 @@ export default function TimelineView({
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [togglingItem, setTogglingItem] = useState<string | null>(null);
-  const [pendingDeleteEventId, setPendingDeleteEventId] = useState<string | null>(null);
-  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [pendingCancelEventId, setPendingCancelEventId] = useState<string | null>(null);
+  const [cancellingEventId, setCancellingEventId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState("");
+  const activeEvents = useMemo(
+    () => events.filter((event) => getScheduleEventStatus(event) !== "cancelled"),
+    [events],
+  );
 
   const getCategoryData = useCallback(
     (key: string) => {
@@ -166,23 +170,23 @@ export default function TimelineView({
     [togglingItem, onToggleChecklistItem]
   );
 
-  const confirmDeleteEvent = useCallback(
+  const confirmCancelEvent = useCallback(
     async (eventId: string) => {
-      if (!onDeleteEvent || deletingEventId) return;
-      setDeletingEventId(eventId);
+      if (!onCancelEvent || cancellingEventId) return;
+      setCancellingEventId(eventId);
       setOperationError("");
       try {
-        await onDeleteEvent(eventId);
-        setPendingDeleteEventId(null);
+        await onCancelEvent(eventId);
+        setPendingCancelEventId(null);
       } catch {
         setOperationError(
-          "일정을 삭제하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
+          "일정 취소 요청을 보내지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
         );
       } finally {
-        setDeletingEventId(null);
+        setCancellingEventId(null);
       }
     },
-    [deletingEventId, onDeleteEvent],
+    [cancellingEventId, onCancelEvent],
   );
 
   return (
@@ -276,7 +280,7 @@ export default function TimelineView({
                       const data = getCategoryData(cat.key);
                       const isCatExpanded = expandedCategory === cat.key;
                       const Icon = ICON_MAP[cat.icon] ?? Building2;
-                      const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
+                      const scheduledEvent = findCategoryScheduleEvent(activeEvents, cat.key, cat.label);
                       const percent =
                         data.total > 0
                           ? Math.round((data.done / data.total) * 100)
@@ -416,7 +420,7 @@ export default function TimelineView({
       {/* 카테고리 미지정 커스텀 일정 */}
       {(() => {
         const allCatKeys = CATEGORY_CHECKLISTS.map(c => c.key);
-        const uncategorized = events.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
+        const uncategorized = activeEvents.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
         if (uncategorized.length === 0 && !onAddEvent) return null;
         return (
           <div
@@ -472,6 +476,7 @@ export default function TimelineView({
                         </div>
                         <p className="text-sm text-[#7a8290]">
                           {evt.date}
+                          {evt.time ? ` · ${evt.time}` : ""}
                           {sanitizeUserFacingScheduleMemo(evt.memo)
                             ? ` · ${sanitizeUserFacingScheduleMemo(evt.memo)}`
                             : ""}
@@ -483,23 +488,24 @@ export default function TimelineView({
                         )}
                       </div>
                       <div className="flex items-center gap-1">
-                        {pendingDeleteEventId === evt.id ? (
+                        {pendingCancelEventId === evt.id ? (
                           <>
+                            <span className="sr-only">일정 취소 요청</span>
                             <button
                               type="button"
-                              onClick={() => void confirmDeleteEvent(evt.id)}
-                              disabled={Boolean(deletingEventId)}
-                              className="rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                              onClick={() => void confirmCancelEvent(evt.id)}
+                              disabled={Boolean(cancellingEventId)}
+                              className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2d4642] disabled:opacity-50"
                             >
-                              {deletingEventId === evt.id ? "삭제 중..." : "삭제 확인"}
+                              {cancellingEventId === evt.id ? "요청 중..." : "취소 요청 보내기"}
                             </button>
                             <button
                               type="button"
-                              onClick={() => setPendingDeleteEventId(null)}
-                              disabled={Boolean(deletingEventId)}
-                              className="rounded-md bg-[#f6f3f2] px-2 py-1 text-xs font-medium text-[#504444] hover:bg-[#EFEBEA] disabled:opacity-50"
+                              onClick={() => setPendingCancelEventId(null)}
+                              disabled={Boolean(cancellingEventId)}
+                              className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[#504444] hover:bg-[#EFEBEA] disabled:opacity-50"
                             >
-                              취소
+                              닫기
                             </button>
                           </>
                         ) : (
@@ -509,19 +515,19 @@ export default function TimelineView({
                                 type="button"
                                 aria-label={`${evt.title} 일정 수정`}
                                 onClick={() => onEditEvent(evt)}
-                                className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] hover:bg-[#f6f3f2] hover:text-[#795252]"
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
                             )}
-                            {onDeleteEvent && (
+                            {onCancelEvent && (
                               <button
                                 type="button"
-                                aria-label={`${evt.title} 일정 삭제`}
-                                onClick={() => setPendingDeleteEventId(evt.id)}
-                                className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"
+                                aria-label={`${evt.title} 일정 취소 요청`}
+                                onClick={() => setPendingCancelEventId(evt.id)}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] hover:bg-[#f7f3ec] hover:text-[#36534E]"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Ban className="h-4 w-4" />
                               </button>
                             )}
                           </div>

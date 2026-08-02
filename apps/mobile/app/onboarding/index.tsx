@@ -313,12 +313,24 @@ export default function OnboardingScreen() {
           {step === 1 && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>반가워요!</Text>
-              <Text style={styles.stepDesc}>결혼 준비에서의 역할을 알려주세요</Text>
+              <Text style={[styles.stepDesc, styles.roleStepDesc]}>결혼 준비에서의 역할을 알려주세요</Text>
+
+              <View style={styles.roleSupportNotice}>
+                <Text style={styles.roleSupportText}>
+                  현재 베타 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요.
+                </Text>
+                <Text style={styles.roleSupportText}>
+                  다양한 커플 형태도 개인정보와 대화 기록을 안전하게 지킬 수 있는 구조로 준비하고 있어요.
+                </Text>
+              </View>
 
               <View style={styles.roleRow}>
                 <Animated.View style={[{ flex: 1 }, { transform: [{ scale: brideScale }] }]}>
                   <Pressable
                     style={[styles.roleCard, role === "bride" && styles.roleCardActive]}
+                    accessibilityRole="button"
+                    accessibilityLabel="신부 역할 선택"
+                    accessibilityState={{ selected: role === "bride" }}
                     onPress={() => handleRolePress("bride")}
                   >
                     <View style={[styles.roleIconCircle, role === "bride" && styles.roleIconCircleActive]}>
@@ -330,6 +342,9 @@ export default function OnboardingScreen() {
                 <Animated.View style={[{ flex: 1 }, { transform: [{ scale: groomScale }] }]}>
                   <Pressable
                     style={[styles.roleCard, role === "groom" && styles.roleCardActive]}
+                    accessibilityRole="button"
+                    accessibilityLabel="신랑 역할 선택"
+                    accessibilityState={{ selected: role === "groom" }}
                     onPress={() => handleRolePress("groom")}
                   >
                     <View style={[styles.roleIconCircle, role === "groom" && styles.roleIconCircleActive]}>
@@ -627,6 +642,23 @@ const styles = StyleSheet.create({
   },
 
   // Step 1: 역할
+  roleStepDesc: { marginBottom: 16 },
+  roleSupportNotice: {
+    gap: 4,
+    marginBottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleSupportText: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
   roleRow: { flexDirection: "row", gap: 16 },
   roleCard: {
     alignItems: "center",

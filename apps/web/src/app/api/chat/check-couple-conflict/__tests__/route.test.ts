@@ -14,12 +14,16 @@ const mocks = vi.hoisted(() => ({
   pastConflictRows: [] as Array<Record<string, unknown>>,
   persistentLimit: vi.fn(),
   providerLedger: vi.fn(),
-  atomicOutcome: "persisted" as "persisted" | "cooldown_race_lost",
+  atomicOutcome: "persisted" as
+    | "persisted"
+    | "cooldown_race_lost"
+    | "privacy_context_changed",
   atomicResponses: [] as Array<Record<string, unknown>>,
   providerGeneration: vi.fn(),
   rawMessages: [] as Array<Record<string, unknown>>,
   reserveTurn: vi.fn(),
   rpc: vi.fn(),
+  userRpc: vi.fn(),
   structuredResponse: vi.fn(),
   tableCallCounts: new Map<string, number>(),
   CostGuardError: class AmoraCostGuardError extends Error {},
@@ -224,6 +228,7 @@ vi.mock("@/lib/supabase/server", () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })),
     },
+    rpc: mocks.userRpc,
   })),
 }));
 
@@ -270,14 +275,31 @@ import { POST } from "@/app/api/chat/check-couple-conflict/route";
 function request() {
   return new NextRequest("http://localhost/api/chat/check-couple-conflict", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://localhost",
+      "Sec-Fetch-Site": "same-origin",
+    },
     body: JSON.stringify({ coupleId: COUPLE_ID }),
+  });
+}
+
+function requestWithRawBody(body: string) {
+  return new NextRequest("http://localhost/api/chat/check-couple-conflict", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://localhost",
+      "Sec-Fetch-Site": "same-origin",
+    },
+    body,
   });
 }
 
 describe("POST /api/chat/check-couple-conflict memory consent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED", "true");
     mocks.tableCallCounts.clear();
     mocks.from.mockImplementation(nextTableResult);
     const now = Date.now();
@@ -311,6 +333,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
       data: null,
       error: { code: "CONSENT_LOOKUP_FAILED" },
     });
+    mocks.userRpc.mockResolvedValue({ data: 7, error: null });
     mocks.auditedResponse.mockImplementation(async (options) => {
       await options.beforeGeneration?.();
       mocks.providerGeneration("primary");
@@ -325,7 +348,9 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
         options?.onAtomicChatResponseFinalized?.(
           mocks.atomicOutcome === "cooldown_race_lost"
             ? { outcome: "cooldown_race_lost", message: null }
-            : {
+            : mocks.atomicOutcome === "privacy_context_changed"
+              ? { outcome: "privacy_context_changed", message: null }
+              : {
                 outcome: "persisted",
                 message: {
                   id: "40000000-0000-4000-8000-000000000001",
@@ -367,6 +392,57 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
+  it("rejects a chunked-size body that exceeds the real byte limit", async () => {
+    const response = await POST(requestWithRawBody(JSON.stringify({
+      coupleId: COUPLE_ID,
+      padding: "x".repeat(5_000),
+    })));
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "request_too_large",
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed JSON instead of continuing with an empty body", async () => {
+    const response = await POST(requestWithRawBody("{not-json"));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "invalid_request_body",
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("keeps hidden automatic mediation disabled without reading chat data", async () => {
+    vi.stubEnv("AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED", "false");
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "explicit_mediation_required",
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.userRpc).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+  });
+
+  it("cannot enable hidden automatic mediation in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED", "true");
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(410);
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
@@ -398,8 +474,11 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(instructions).not.toContain("create_booking");
     expect(instructions).not.toContain("update_budget");
     expect(instructions).not.toContain("add_schedule_event");
-    expect(instructions).toContain("EXPLICIT_SHARED_DECISION");
-    expect(instructions).toContain("EXPLICIT_CONFLICT_DECISION");
+    // Automatic mediation uses the current bounded shared-message window only.
+    // Historical decisions can otherwise bias a new disagreement toward one
+    // partner even when they were explicitly stored at the time.
+    expect(instructions).not.toContain("EXPLICIT_SHARED_DECISION");
+    expect(instructions).not.toContain("EXPLICIT_CONFLICT_DECISION");
     expect(mocks.structuredResponse).not.toHaveBeenCalled();
     expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
     expect(mocks.providerLedger.mock.calls[0]?.[0]).toEqual(
@@ -417,7 +496,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(mocks.completeClaim).not.toHaveBeenCalled();
   });
 
-  it("keeps legacy factual summaries but excludes every cursor row from mediation input", async () => {
+  it("excludes all historical summaries from automatic mediation input", async () => {
     mocks.rpc.mockResolvedValue({ data: true, error: null });
 
     const response = await POST(request());
@@ -425,7 +504,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ triggered: true });
     const instructions = mocks.auditedResponse.mock.calls[0]?.[0]?.instructions as string;
-    expect(instructions).toContain("SHARED_SUMMARY_SECRET");
+    expect(instructions).not.toContain("SHARED_SUMMARY_SECRET");
     expect(instructions).not.toContain("CURSOR_TYPE_SECRET");
     expect(instructions).not.toContain("[AMORA_MEMORY_CURSOR_ONLY]");
   });
@@ -444,6 +523,45 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(mocks.completeClaim).not.toHaveBeenCalled();
     expect(mocks.failClaim).not.toHaveBeenCalledWith(
       expect.objectContaining({ failureCode: "COOLDOWN_RACE_LOST" }),
+      expect.anything(),
+    );
+  });
+
+  it("discards automatic mediation when the atomic privacy epoch changed", async () => {
+    mocks.atomicOutcome = "privacy_context_changed";
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "privacy_context_changed",
+    });
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({ expectedPrivacyEpoch: 7 }),
+    ]);
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+  });
+
+  it("fails the mediation claim when the roster epoch changes after generation", async () => {
+    mocks.userRpc
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: 8, error: null });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "privacy_context_changed",
+    });
+    expect(mocks.providerGeneration).toHaveBeenCalledWith("primary");
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.failClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failureCode: "AMORA_PRIVACY_CONTEXT_CHANGED",
+      }),
       expect.anything(),
     );
   });

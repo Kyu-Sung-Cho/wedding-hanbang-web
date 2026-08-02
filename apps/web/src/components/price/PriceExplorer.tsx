@@ -605,7 +605,9 @@ export function PriceExplorer({
   const displayVendors = filtered.slice(0, visibleCount).map((vendor) => agencyIds.length === 0
     ? vendor
     : { ...vendor, offers: vendor.offers.filter(({ agencyId }) => agencyId === null || agencyIds.includes(agencyId)) });
-  const Root = surface === "app" ? "div" : "main";
+  // 공개 가격 레이아웃이 이미 유일한 <main>을 제공한다. 앱 표면과 공개 표면 모두
+  // 여기서는 중립 컨테이너를 써 중첩·중복 main landmark를 만들지 않는다.
+  const Root = "div";
   const totalVendorCount = new Set(PRICE_CATEGORIES.flatMap((value) => (
     catalog.categories[value].map((vendor) => vendor.id)
   ))).size;
@@ -627,33 +629,33 @@ export function PriceExplorer({
           <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-normal">
             {preview ? "업체 공시가 검수 미리보기" : "업체 탐색"}
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[#243832]/65">
+          <p className="mt-2 text-sm leading-6 text-[#243832]/75">
             {preview
               ? "자동 추출된 검수 전 데이터입니다. 업체·가격·연결 정보의 정확성이 보장되지 않습니다."
               : "출처가 확인된 공식 가격 업체를 비교하고, 마음에 드는 후보를 저장해 보세요."}
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2" aria-label="업체 탐색 현황">
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#243832]/55">
+              <p className="text-[11px] font-bold text-[#243832]/75">
                 {preview ? "자동 추출 업체" : "공식 가격 업체"}
               </p>
               <p className="mt-1 text-xl font-bold tabular-nums">{totalVendorCount}</p>
             </div>
             {preview ? (
               <div className="rounded-2xl bg-[#F5ECE4] px-3 py-4">
-                <p className="text-[11px] font-bold text-[#243832]/55">검수 상태</p>
+                <p className="text-[11px] font-bold text-[#243832]/75">검수 상태</p>
                 <p className="mt-1 text-sm font-bold text-[#36534E]">읽기 전용</p>
               </div>
             ) : (
               <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
-                <p className="text-[11px] font-bold text-[#243832]/55">찜한 업체</p>
+                <p className="text-[11px] font-bold text-[#243832]/75">찜한 업체</p>
                 <p className="mt-1 text-xl font-bold tabular-nums">
                   {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
                 </p>
               </Link>
             )}
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#243832]/55">가격 카테고리</p>
+              <p className="text-[11px] font-bold text-[#243832]/75">가격 카테고리</p>
               <p className="mt-1 text-xl font-bold tabular-nums">
                 {PRICE_CATEGORIES.filter((value) => catalog.counts[value] > 0).length}
               </p>
@@ -697,7 +699,7 @@ export function PriceExplorer({
               {/* 허브(/price)는 위약금을 앞세우는데 카테고리로 들어오면 그 말이 사라져,
                   위약금을 보러 온 사람이 여기서 훅을 잃었다. 정작 원문은 한 번 더 들어간
                   업체 상세에 있으므로 그 경로를 여기서 짚어 준다. */}
-              <p className="mt-2 text-sm leading-6 text-[#243832]/65">
+              <p className="mt-2 text-sm leading-6 text-[#243832]/75">
                 {preview
                   ? "일반 사용자에게는 보이지 않으며, 검수 완료 전 저장·추천에 사용하지 않습니다."
                   : "업체별 기본가와 추가금을 한 화면에서 확인하고, 업체를 누르면 취소 위약금·환불 규정 원문까지 그대로 볼 수 있어요."}
@@ -780,7 +782,7 @@ export function PriceExplorer({
 
           <div className={`${filtersOpen ? "block" : "hidden"} mt-4 border-t border-[#243832]/10 pt-4 md:block`}>
             <div className="grid gap-4 md:grid-cols-4">
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 지역
                 <select value={regionCode} onChange={(event) => {
                   chooseRegion(event.target.value);
@@ -789,21 +791,21 @@ export function PriceExplorer({
                   {PRICE_REGION_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 최소 가격
                 <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785]">
                   <input value={minimumManwon} onChange={(event) => setMinimumManwon(event.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
                   <span className="text-xs font-medium text-[#243832]/50">만원</span>
                 </span>
               </label>
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 최대 가격
                 <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785]">
                   <input value={maximumManwon} onChange={(event) => setMaximumManwon(event.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="제한 없음" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
                   <span className="text-xs font-medium text-[#243832]/50">만원</span>
                 </span>
               </label>
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 정렬
                 <select value={sort} onChange={(event) => {
                   setSort(event.target.value as "name" | "lowest_price");
@@ -816,7 +818,7 @@ export function PriceExplorer({
 
             {activeAgencies.length > 0 ? (
               <fieldset className="mt-4">
-                <legend className="text-xs font-bold text-[#243832]/65">대행사</legend>
+                <legend className="text-xs font-bold text-[#243832]/75">대행사</legend>
                 {/* 대행사가 수십 개라 가로 스크롤(스크롤바 숨김)로는 칸을 뚫고 나가
                     잘려 보였다 — 줄바꿈으로 전부 칸 안에 담고, 기본은 일부만 +
                     "모두 보기"로 펼친다. 선택된 칩은 접힌 상태에서도 항상 보인다. */}
@@ -867,7 +869,7 @@ export function PriceExplorer({
                 찜한 업체만
               </button> : null}
               {activeFilterCount > 0 ? (
-                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#243832]/65 hover:bg-[#FBF8F2]">
+                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#243832]/75 hover:bg-[#FBF8F2]">
                   <RotateCcw aria-hidden="true" className="size-3.5" />
                   필터 초기화
                 </button>
@@ -945,7 +947,7 @@ export function PriceExplorer({
 
         <div className="mt-6 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <div>
-            <p className="text-sm text-[#243832]/65"><strong className="font-bold text-[#243832]">{filtered.length}</strong>개 업체</p>
+            <p className="text-sm text-[#243832]/75"><strong className="font-bold text-[#243832]">{filtered.length}</strong>개 업체</p>
             {!preview ? (
               <p className="mt-1 max-w-2xl text-xs leading-5 text-[#243832]/70">
                 이름이 같거나 같은 업체로 확인된 표기는 한 카드로 모았어요. 지점·동명 업체로 확인된 표기는 따로 보여드려요.

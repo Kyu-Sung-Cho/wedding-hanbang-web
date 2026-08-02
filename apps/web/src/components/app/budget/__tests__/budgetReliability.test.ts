@@ -12,6 +12,14 @@ const mobileBudgetSource = readFileSync(
   resolve(process.cwd(), "../mobile/app/budget/index.tsx"),
   "utf8",
 );
+const dashboardSource = readFileSync(
+  resolve(process.cwd(), "src/app/(app)/dashboard/page.tsx"),
+  "utf8",
+);
+const loungeSource = readFileSync(
+  resolve(process.cwd(), "src/app/(app)/lounge/page.tsx"),
+  "utf8",
+);
 const toolExecutorSource = readFileSync(
   resolve(process.cwd(), "src/lib/ai/toolExecutor.ts"),
   "utf8",
@@ -56,6 +64,19 @@ describe("예산 계산의 소비자 신뢰 경계", () => {
       "const isOverBudget = remaining !== null && remaining < 0",
     );
     expect(webBudgetSource).toContain("총 예산을 입력하면 남은 금액을 계산해요");
+  });
+
+  it("웹과 모바일 모두 legacy cost를 예산이나 기록 지출 합계로 승격하지 않는다", () => {
+    expect(webBudgetSource).not.toMatch(/getCategoryBudget[\s\S]{0,500}normalizeCost\(item\?\.cost\)/);
+    expect(webBudgetSource).not.toMatch(/getCategorySpent[\s\S]{0,500}normalizeCost\(item\?\.cost\)/);
+    expect(mobileBudgetSource).not.toMatch(/getCatBudget[\s\S]{0,500}normalizeCost\(item\?\.cost\)/);
+    expect(mobileBudgetSource).not.toMatch(/getCatSpent[\s\S]{0,500}normalizeCost\(item\?\.cost\)/);
+    expect(webBudgetSource).toContain("용도 미확인 이전 금액");
+    expect(mobileBudgetSource).toContain("용도 미확인 이전 금액");
+    expect(dashboardSource).not.toMatch(/spent\s*\?\?\s*item\.cost/);
+    expect(loungeSource).not.toMatch(/spent\s*\?\?\s*item\.cost/);
+    expect(dashboardSource).toContain("명시적으로 기록한 지출만 합산");
+    expect(loungeSource).toContain("명시적으로 기록한 지출만 합산");
   });
 
   it("모바일 분담 이름은 축약어 대신 처음 보는 사람도 이해할 수 있게 쓴다", () => {

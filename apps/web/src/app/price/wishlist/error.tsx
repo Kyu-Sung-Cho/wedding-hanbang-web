@@ -2,7 +2,7 @@
 
 export default function PriceWishlistError({ reset }: { reset: () => void }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FBF8F2] px-5 text-[#243832]">
+    <div className="flex min-h-screen items-center justify-center bg-[#FBF8F2] px-5 text-[#243832]">
       <div className="max-w-md text-center">
         <p className="text-sm font-bold text-[#8F6662]">잠시 연결이 불안정해요</p>
         <h1 className="mt-2 text-2xl font-bold tracking-normal">공식 가격 카탈로그를 불러오지 못했어요.</h1>
@@ -17,6 +17,6 @@ export default function PriceWishlistError({ reset }: { reset: () => void }) {
           다시 불러오기
         </button>
       </div>
-    </main>
+    </div>
   );
 }

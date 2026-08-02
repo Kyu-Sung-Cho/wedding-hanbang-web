@@ -8,6 +8,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import { readStoredUtm } from "@/utils/utm";
+import { BETA_COUPLE_ROLE_SUPPORT_COPY } from "@/constants/coupleRoleSupport";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -176,7 +177,10 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
-        <Field label="역할" required>
+        <fieldset className="block" aria-describedby="beta-role-support-note">
+          <legend className="text-[11px] tracking-[0.2em] text-white/60 mb-2.5 block font-medium">
+            역할<span className="text-rose-light ml-1">*</span>
+          </legend>
           <div className="flex gap-3">
             {([
               { value: "bride" as const, label: "신부" },
@@ -187,6 +191,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
                 type="button"
                 onClick={() => setRole(opt.value)}
                 disabled={submitting}
+                aria-pressed={role === opt.value}
                 className={`flex-1 py-3 text-sm font-medium rounded-xl border transition-colors ${
                   role === opt.value
                     ? "bg-rose-light/20 border-rose-light text-white"
@@ -197,7 +202,14 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
               </button>
             ))}
           </div>
-        </Field>
+          <div
+            id="beta-role-support-note"
+            className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/50"
+          >
+            <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.current}</p>
+            <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.planned}</p>
+          </div>
+        </fieldset>
 
         <Field label="예식 예정일">
           <DatePickerPopover

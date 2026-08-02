@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { processBookingProjectionJob } from "@/lib/bookings/projectionOutbox";
 import { recordDecision } from "@/lib/memory/record-decision";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { PATCH } from "../route";
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -11,6 +12,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: vi.fn(),
+}));
+
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/memory/record-decision", () => ({
@@ -106,7 +111,21 @@ function atomicRpcResult({
 describe("/api/bookings/[id]/outcome PATCH", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isTrustedMutationRequest).mockReturnValue(true);
     mockAuthClient();
+  });
+
+  it("rejects an untrusted mutation before authentication or body parsing", async () => {
+    vi.mocked(isTrustedMutationRequest).mockReturnValueOnce(false);
+    const request = createOutcomeRequest({});
+    const jsonSpy = vi.spyOn(request, "json");
+
+    const response = await PATCH(request, routeContext());
+
+    expect(response.status).toBe(403);
+    expect(jsonSpy).not.toHaveBeenCalled();
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("stores actual amount, private review, and completed decision for an owned booking", async () => {
@@ -122,6 +141,9 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
       sync: {
         persisted: true,
         projectionDisposition: "completed",
+        terminalSchedulePreserved: false,
+        needsReview: false,
+        reviewReason: null,
         nextProgress: {},
         scheduleAdded: false,
         scheduleUpdated: true,
@@ -241,7 +263,7 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
 
     expect(response.status).toBe(200);
     expect(admin.rpc).toHaveBeenCalledTimes(1);
-    expect(admin.rpc).toHaveBeenCalledWith("complete_vendor_booking_outcome", {
+    expect(admin.rpc).toHaveBeenCalledWith("complete_amora_booking_outcome_atomic", {
       p_booking_id: "12345678-1234-4234-9234-123456789abc",
       p_customer_id: "user-1",
       p_actual_amount: 3000000,

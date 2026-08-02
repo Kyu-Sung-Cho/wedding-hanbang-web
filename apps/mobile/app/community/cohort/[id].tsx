@@ -13,9 +13,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   LayoutAnimation,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
+import * as Crypto from "expo-crypto";
 import {
   Send,
   ChevronDown,
@@ -28,8 +30,25 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { apiFetch } from "@/lib/api";
-import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
+import { apiFetchForExpectedUser } from "@/lib/api";
+import {
+  CommunityCohortAccessError,
+  assignCurrentUserToCohort,
+  createCohortMessageIdempotencyStore,
+  createCommunityCohortGate,
+  fetchCohortMessages,
+  fetchCurrentCohortAccess,
+  mergeCohortMessageSnapshot,
+  sendCohortMessage,
+  type CohortIdentityToken,
+  type CohortMessageToken,
+} from "@/lib/communityCohortAccess.mjs";
+import {
+  AppHeader,
+  EmptyState,
+  LoadingState,
+  PrimaryButton,
+} from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
 
@@ -60,6 +79,13 @@ interface CohortMember {
 }
 
 type ScreenTab = "chat" | "info" | "timeline";
+type CohortAccessState =
+  | "checking"
+  | "member"
+  | "unassigned"
+  | "different_room"
+  | "unauthenticated"
+  | "error";
 
 const TOPICS = [
   { key: "all", label: "전체" },
@@ -193,6 +219,7 @@ function TimelineTab() {
 
 export default function CohortChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const roomId = typeof id === "string" ? id : "";
   const [messages, setMessages] = useState<CohortMessage[]>([]);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [members, setMembers] = useState<CohortMember[]>([]);
@@ -205,108 +232,228 @@ export default function CohortChatScreen() {
   const [showTopicDropdown, setShowTopicDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<ScreenTab>("chat");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [accessState, setAccessState] = useState<CohortAccessState>("checking");
+  const [assignedRoom, setAssignedRoom] = useState<{ id: string; name: string } | null>(null);
+  const [accessMessage, setAccessMessage] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState(false);
+  const [sendNotice, setSendNotice] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<CohortMessage>>(null);
+  const cohortGateRef = useRef(createCommunityCohortGate()).current;
+  const messageIdempotencyRef = useRef(
+    createCohortMessageIdempotencyStore(() => Crypto.randomUUID()),
+  ).current;
+  const loadSequenceRef = useRef(0);
+  const messageRevisionRef = useRef(0);
 
-  // 초기: 자동 입장 + 메시지/방 정보 로드 (Supabase 직접)
-  const loadMessages = useCallback(async () => {
-    if (!id) return;
-    try {
-      // 1. 자동 입장 (이미 멤버면 무시)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-        await supabase.from("cohort_members").upsert(
-          { room_id: id, user_id: user.id },
-          { onConflict: "room_id,user_id" }
-        ).then(() => {});
-      }
+  const clearRoomState = useCallback((options?: { preserveComposer?: boolean }) => {
+    messageRevisionRef.current += 1;
+    setMessages([]);
+    setMembers([]);
+    setRoomInfo(null);
+    setCurrentUserId(null);
+    setAssigning(false);
+    setSending(false);
+    setSendNotice(null);
+    if (!options?.preserveComposer) {
+      setInput("");
+    }
+  }, []);
 
-      // 2. 방 정보 로드
-      const { data: roomData } = await supabase
-        .from("cohort_rooms")
-        .select("id, name, member_count, message_count, year, month")
-        .eq("id", id)
-        .single();
+  const isLoadCurrent = useCallback((sequence: number, token: CohortIdentityToken) => (
+    loadSequenceRef.current === sequence && cohortGateRef.isCurrent(token)
+  ), [cohortGateRef]);
 
-      if (roomData) {
-        setRoomInfo({
-          name: roomData.name,
-          member_count: roomData.member_count,
-        });
-      }
+  const isLoadOwnerCurrent = useCallback(async (
+    sequence: number,
+    token: CohortIdentityToken,
+  ) => {
+    if (!isLoadCurrent(sequence, token)) return false;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id.toLowerCase() === token.ownerId
+      && isLoadCurrent(sequence, token);
+  }, [isLoadCurrent]);
 
-      // 3. 메시지 로드 (Supabase 직접 — RLS는 멤버 확인)
-      const { data: msgs } = await supabase
-        .from("cohort_messages")
-        .select("id, room_id, author_id, content, thread_topic, created_at")
-        .eq("room_id", id)
-        .order("created_at", { ascending: true })
-        .limit(100);
+  const loadRoom = useCallback(async (options?: { silent?: boolean }) => {
+    const sequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = sequence;
+    if (!options?.silent) setLoading(true);
+    setAccessMessage(null);
 
-      if (msgs) {
-        setMessages(msgs.map((m) => ({
-          id: m.id,
-          room_id: m.room_id,
-          author_id: m.author_id,
-          author_nickname: null, // 멤버 리스트에서 매칭
-          content: m.content,
-          topic: m.thread_topic,
-          created_at: m.created_at,
-        })));
-      }
-    } catch (err) {
-      console.error("동기방 로드 에러:", err);
-    } finally {
+    if (!roomId) {
+      setAccessState("error");
+      setAccessMessage("동기방 주소가 올바르지 않아요.");
       setLoading(false);
       setRefreshing(false);
+      return;
     }
-  }, [id]);
 
-  // 멤버 로드
-  const loadMembers = useCallback(async () => {
-    if (!id) return;
+    let loadToken: CohortIdentityToken | null = null;
     try {
-      const { data } = await supabase
-        .from("cohort_members")
-        .select("id, user_id, profile:community_profiles(nickname, rank, wedding_year, wedding_month)")
-        .eq("room_id", id);
+      const { data } = await supabase.auth.getSession();
+      if (loadSequenceRef.current !== sequence) return;
+      const ownerId = data.session?.user.id ?? null;
+      const ownerChanged = cohortGateRef.setOwner(ownerId);
+      if (ownerChanged) {
+        messageIdempotencyRef.clear();
+        clearRoomState();
+      }
+      if (!ownerId) {
+        setAccessState("unauthenticated");
+        setAccessMessage("동기방은 로그인한 멤버만 이용할 수 있어요.");
+        return;
+      }
+      const token = cohortGateRef.capture();
+      if (!token) return;
+      loadToken = token;
 
-      setMembers((data as unknown as CohortMember[]) ?? []);
-    } catch (err) {
-      console.error("멤버 로드 에러:", err);
+      const access = await fetchCurrentCohortAccess({
+        apiFetchForExpectedUser,
+        ownerId: token.ownerId,
+        roomId,
+      });
+      if (!(await isLoadOwnerCurrent(sequence, token))) return;
+
+      if (access.status === "unassigned") {
+        cohortGateRef.invalidateOperations();
+        clearRoomState();
+        setAccessState("unassigned");
+        setAssignedRoom(null);
+        setAccessMessage("아직 배정된 동기방이 없어요. 동의한 뒤 명시적으로 배정받을 수 있어요.");
+        return;
+      }
+      if (access.status === "different_room") {
+        cohortGateRef.invalidateOperations();
+        clearRoomState();
+        setAccessState("different_room");
+        setAssignedRoom({ id: access.room.id, name: access.room.name });
+        setAccessMessage("이 방은 현재 가입한 동기방이 아니에요. 내 동기방으로 이동할 수 있어요.");
+        return;
+      }
+
+      const messageRevision = messageRevisionRef.current;
+      const [nextMessages, memberResult] = await Promise.all([
+        fetchCohortMessages({
+          apiFetchForExpectedUser,
+          ownerId: token.ownerId,
+          roomId,
+        }),
+        supabase
+          .from("cohort_members")
+          .select("id, user_id, profile:community_profiles(nickname, rank, wedding_year, wedding_month)")
+          .eq("room_id", roomId)
+          .eq("is_active", true),
+      ]);
+      if (memberResult.error) throw memberResult.error;
+      if (!(await isLoadOwnerCurrent(sequence, token))) return;
+
+      setAccessState("member");
+      setAssignedRoom({ id: access.room.id, name: access.room.name });
+      setRoomInfo({ name: access.room.name, member_count: access.room.memberCount });
+      setCurrentUserId(token.ownerId);
+      const messageSnapshot = nextMessages.map((message) => ({
+        id: message.id,
+        room_id: message.roomId,
+        author_id: message.authorId,
+        author_nickname: message.authorNickname,
+        content: message.content,
+        topic: message.topic,
+        created_at: message.createdAt,
+      }));
+      setMessages((current) => messageRevisionRef.current === messageRevision
+        ? messageSnapshot
+        : mergeCohortMessageSnapshot(messageSnapshot, current));
+      setMembers((memberResult.data as unknown as CohortMember[]) ?? []);
+    } catch (error) {
+      if (!loadToken || !(await isLoadOwnerCurrent(sequence, loadToken))) return;
+      cohortGateRef.invalidateOperations();
+      clearRoomState({ preserveComposer: true });
+      setAccessState("error");
+      setAccessMessage(
+        error instanceof CommunityCohortAccessError
+          ? error.displayMessage
+          : "동기방 가입 상태와 메시지를 안전하게 확인하지 못했어요.",
+      );
+    } finally {
+      if (loadSequenceRef.current === sequence) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [id]);
+  }, [clearRoomState, cohortGateRef, isLoadOwnerCurrent, messageIdempotencyRef, roomId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadRoom({ silent: true });
+    }, [loadRoom]),
+  );
 
   useEffect(() => {
-    loadMessages();
-    loadMembers();
-  }, [loadMessages, loadMembers]);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void loadRoom({ silent: true });
+    });
+    return () => subscription.remove();
+  }, [loadRoom]);
+
+  useEffect(() => {
+    let disposed = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const changed = cohortGateRef.setOwner(session?.user.id ?? null);
+      if (!changed) return;
+      messageIdempotencyRef.clear();
+      loadSequenceRef.current += 1;
+      clearRoomState();
+      setAccessState("checking");
+      setLoading(true);
+      setTimeout(() => {
+        if (!disposed) void loadRoom();
+      }, 0);
+    });
+    return () => {
+      disposed = true;
+      loadSequenceRef.current += 1;
+      cohortGateRef.setOwner(null);
+      messageIdempotencyRef.clear();
+      subscription.unsubscribe();
+    };
+  }, [clearRoomState, cohortGateRef, loadRoom, messageIdempotencyRef]);
 
   // Supabase Realtime 구독
   useEffect(() => {
-    if (!id) return;
+    if (!roomId || accessState !== "member") return;
+    const identity = cohortGateRef.capture();
+    if (!identity) return;
 
     const channel = supabase
-      .channel(`cohort:${id}`)
+      .channel(`cohort:${roomId}:${identity.ownerId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "cohort_messages",
-          filter: `room_id=eq.${id}`,
+          filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
+          if (!cohortGateRef.isCurrent(identity)) return;
           const raw = payload.new as Record<string, unknown>;
+          if (
+            typeof raw.id !== "string"
+            || raw.room_id !== roomId
+            || !(raw.author_id === null || typeof raw.author_id === "string")
+            || typeof raw.content !== "string"
+            || raw.content.trim().length === 0
+            || typeof raw.created_at !== "string"
+          ) return;
           const newMsg: CohortMessage = {
-            id: raw.id as string,
-            room_id: raw.room_id as string,
-            author_id: raw.author_id as string | null,
+            id: raw.id,
+            room_id: roomId,
+            author_id: raw.author_id,
             author_nickname: null, // 멤버 리스트에서 매칭
             content: raw.content as string,
             topic: (raw.thread_topic as string) ?? null,
             created_at: raw.created_at as string,
           };
+          messageRevisionRef.current += 1;
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
@@ -318,7 +465,7 @@ export default function CohortChatScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id]);
+  }, [accessState, cohortGateRef, roomId]);
 
   // 새 메시지 도착 시 하단 스크롤
   const scrollToEnd = useCallback(() => {
@@ -337,37 +484,109 @@ export default function CohortChatScreen() {
       ? messages
       : messages.filter((m) => m.topic === activeTopic);
 
+  async function isOperationOwnerCurrent(token: CohortIdentityToken | CohortMessageToken) {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id.toLowerCase() === token.ownerId
+      && cohortGateRef.isCurrent(token);
+  }
+
+  async function handleAssignCohort() {
+    const token = cohortGateRef.beginAssignment();
+    if (!token) return;
+    setAssigning(true);
+    setAccessMessage(null);
+    try {
+      const result = await assignCurrentUserToCohort({
+        apiFetchForExpectedUser,
+        ownerId: token.ownerId,
+      });
+      if (!(await isOperationOwnerCurrent(token))) return;
+      if (result.roomId !== roomId) {
+        router.replace({
+          pathname: "/community/cohort/[id]",
+          params: { id: result.roomId },
+        });
+        return;
+      }
+      await loadRoom();
+    } catch (error) {
+      if (!(await isOperationOwnerCurrent(token))) return;
+      setAccessMessage(
+        error instanceof CommunityCohortAccessError
+          ? error.displayMessage
+          : "동기방을 배정하지 못했어요. 잠시 후 다시 시도해주세요.",
+      );
+    } finally {
+      const shouldCommit = await isOperationOwnerCurrent(token);
+      cohortGateRef.finishAssignment(token);
+      if (shouldCommit) setAssigning(false);
+    }
+  }
+
   // 메시지 전송
   async function handleSend() {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || accessState !== "member") return;
+    const token = cohortGateRef.beginMessage();
+    if (!token) return;
 
     setSending(true);
+    setSendNotice(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const topic = selectedTopic === "all" ? undefined : selectedTopic ?? undefined;
-      const res = await apiFetch(`/api/community/cohort/${id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({
-          content: text,
-          thread_topic: topic,
-        }),
+      const topic = selectedTopic === "price"
+        || selectedTopic === "review"
+        || selectedTopic === "concern"
+        || selectedTopic === "chat"
+        ? selectedTopic
+        : undefined;
+      const idempotencyKey = messageIdempotencyRef.keyFor(
+        token.ownerId,
+        roomId,
+        text,
+        topic,
+      );
+      const message = await sendCohortMessage({
+        apiFetchForExpectedUser,
+        ownerId: token.ownerId,
+        roomId,
+        content: text,
+        threadTopic: topic,
+        idempotencyKey,
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "메시지 전송에 실패했습니다.");
-      }
-
+      if (!(await isOperationOwnerCurrent(token))) return;
+      messageIdempotencyRef.clearIf(idempotencyKey);
+      messageRevisionRef.current += 1;
+      setMessages((current) => current.some((item) => item.id === message.id)
+        ? current
+        : [...current, {
+          id: message.id,
+          room_id: message.roomId,
+          author_id: message.authorId,
+          author_nickname: null,
+          content: message.content,
+          topic: message.topic,
+          created_at: message.createdAt,
+        }]);
       setInput("");
       setSelectedTopic(null);
-      // Realtime이 새 메시지를 자동 추가하므로 수동 reload 불필요
-    } catch (err) {
-      console.error("전송 실패:", err);
+    } catch (error) {
+      if (!(await isOperationOwnerCurrent(token))) return;
+      if (error instanceof CommunityCohortAccessError && error.status === 403) {
+        cohortGateRef.invalidateOperations();
+        clearRoomState({ preserveComposer: true });
+        setAccessState("error");
+        setAccessMessage(error.displayMessage);
+        return;
+      }
+      setSendNotice(
+        error instanceof CommunityCohortAccessError
+          ? error.displayMessage
+          : "메시지 전송 결과를 확인하지 못했어요. 입력한 내용은 유지했어요.",
+      );
     } finally {
-      setSending(false);
+      const shouldCommit = await isOperationOwnerCurrent(token);
+      cohortGateRef.finishMessage(token);
+      if (shouldCommit) setSending(false);
     }
   }
 
@@ -479,6 +698,78 @@ export default function CohortChatScreen() {
     { key: "timeline", label: "타임라인", icon: Clock },
   ];
 
+  if (accessState === "checking" || (loading && accessState !== "member")) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="동기방" onBack={() => router.back()} />
+        <LoadingState label="내 동기방 가입 상태를 확인하고 있어요" />
+      </SafeAreaView>
+    );
+  }
+
+  if (accessState !== "member") {
+    const presentation = accessState === "unassigned"
+      ? {
+          title: "아직 배정된 동기방이 없어요",
+          description: accessMessage ?? "원할 때 동기방을 배정받을 수 있어요.",
+          action: (
+            <PrimaryButton onPress={handleAssignCohort} disabled={assigning}>
+              {assigning ? "배정 확인 중..." : "동기방 배정받기"}
+            </PrimaryButton>
+          ),
+        }
+      : accessState === "different_room"
+        ? {
+            title: "현재 가입한 동기방이 따로 있어요",
+            description: accessMessage ?? "내 동기방으로 이동해주세요.",
+            action: (
+              <PrimaryButton
+                onPress={() => {
+                  if (!assignedRoom) return;
+                  router.replace({
+                    pathname: "/community/cohort/[id]",
+                    params: { id: assignedRoom.id },
+                  });
+                }}
+                disabled={!assignedRoom}
+              >
+                {assignedRoom ? `${assignedRoom.name}으로 이동` : "내 동기방으로 이동"}
+              </PrimaryButton>
+            ),
+          }
+        : accessState === "unauthenticated"
+          ? {
+              title: "로그인이 필요해요",
+              description: accessMessage ?? "동기방은 로그인한 멤버만 이용할 수 있어요.",
+              action: (
+                <PrimaryButton onPress={() => router.replace("/(auth)/login")}>
+                  로그인하기
+                </PrimaryButton>
+              ),
+            }
+          : {
+              title: "동기방을 열지 못했어요",
+              description: accessMessage ?? "가입 상태를 다시 확인해주세요.",
+              action: (
+                <PrimaryButton onPress={() => void loadRoom()}>
+                  다시 확인하기
+                </PrimaryButton>
+              ),
+            };
+
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="동기방" onBack={() => router.back()} />
+        <EmptyState
+          icon={<Users size={42} color={colors.rose[500]} />}
+          title={presentation.title}
+          description={presentation.description}
+          action={presentation.action}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AppHeader
@@ -586,8 +877,7 @@ export default function CohortChatScreen() {
                   refreshing={refreshing}
                   onRefresh={() => {
                     setRefreshing(true);
-                    loadMessages();
-                    loadMembers();
+                    void loadRoom();
                   }}
                   tintColor={colors.rose[500]}
                 />
@@ -598,6 +888,11 @@ export default function CohortChatScreen() {
 
           {/* 입력 바 */}
           <View style={styles.inputBar}>
+            {sendNotice ? (
+              <View style={styles.sendNotice}>
+                <Text style={styles.sendNoticeText}>{sendNotice}</Text>
+              </View>
+            ) : null}
             {selectedTopic && (
               <View style={styles.selectedTopicRow}>
                 <Text style={styles.selectedTopicLabel}>
@@ -916,6 +1211,20 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
     paddingHorizontal: 12,
+  },
+  sendNotice: {
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: colors.rose.glow,
+    borderWidth: 1,
+    borderColor: colors.rose[500] + "30",
+  },
+  sendNoticeText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
   selectedTopicRow: {
     flexDirection: "row",

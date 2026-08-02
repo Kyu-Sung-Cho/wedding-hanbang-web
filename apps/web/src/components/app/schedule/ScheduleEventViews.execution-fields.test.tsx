@@ -17,6 +17,7 @@ const PARTNER_ID = "4ed560aa-52e6-47d2-9595-612d0bfe2c7b";
 const EVENT: ScheduleEvent = {
   id: "evt-execution",
   date: "2026-07-15",
+  time: "14:30",
   title: "사회자 최종 확인",
   status: "completed",
   completionCriteria: "진행 순서와 도착 시간을 모두 확인",
@@ -76,6 +77,7 @@ describe("schedule execution field presentation", () => {
 
     expect(container.textContent).toContain("완료");
     expect(container.textContent).toContain("담당 · 수현 (파트너)");
+    expect(container.textContent).toContain("14:30");
     expect(container.textContent).toContain(
       "진행 순서와 도착 시간을 모두 확인",
     );
@@ -96,43 +98,44 @@ describe("schedule execution field presentation", () => {
     expect(container.textContent).toContain("사회자 최종 확인");
     expect(container.textContent).toContain("완료");
     expect(container.textContent).toContain("수현 (파트너)");
+    expect(container.textContent).toContain("14:30");
     expect(container.textContent).toContain(
       "완료 기준 · 진행 순서와 도착 시간을 모두 확인",
     );
   });
 
-  it("does not delete a direct timeline event before explicit confirmation", async () => {
-    const onDeleteEvent = vi.fn().mockResolvedValue(undefined);
+  it("does not request cancellation before explicit confirmation", async () => {
+    const onCancelEvent = vi.fn().mockResolvedValue(undefined);
     await act(async () => {
       root.render(
         <TimelineView
           progress={{}}
           events={[EVENT]}
           onToggleChecklistItem={vi.fn()}
-          onDeleteEvent={onDeleteEvent}
+          onCancelEvent={onCancelEvent}
           assigneeContext={ASSIGNEE_CONTEXT}
         />,
       );
     });
 
-    const deleteButton = container.querySelector<HTMLButtonElement>(
-      '[aria-label="사회자 최종 확인 일정 삭제"]',
+    const cancelButton = container.querySelector<HTMLButtonElement>(
+      '[aria-label="사회자 최종 확인 일정 취소 요청"]',
     );
-    if (!deleteButton) throw new Error("delete button not rendered");
+    if (!cancelButton) throw new Error("cancel button not rendered");
 
-    await act(async () => deleteButton.click());
-    expect(onDeleteEvent).not.toHaveBeenCalled();
+    await act(async () => cancelButton.click());
+    expect(onCancelEvent).not.toHaveBeenCalled();
 
     const confirmButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "삭제 확인",
+      (button) => button.textContent?.trim() === "취소 요청 보내기",
     );
     if (!(confirmButton instanceof HTMLButtonElement)) {
-      throw new Error("delete confirmation not rendered");
+      throw new Error("cancel confirmation not rendered");
     }
     await act(async () => {
       confirmButton.click();
       await Promise.resolve();
     });
-    expect(onDeleteEvent).toHaveBeenCalledTimes(1);
+    expect(onCancelEvent).toHaveBeenCalledTimes(1);
   });
 });

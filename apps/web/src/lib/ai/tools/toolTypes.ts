@@ -5,6 +5,11 @@ export { formatWon } from "@/lib/formatWon";
 export interface ToolExecutionContext {
   coupleId: string;
   /**
+   * Supabase Auth에서 서버가 확인한 현재 구성원의 profile UUID.
+   * 일정 취소 감사 정보처럼 행위자를 저장하는 변경은 이 값이 없으면 중단한다.
+   */
+  actorProfileId?: string;
+  /**
    * Canonical durable chat claim key (`chat:<user uuid>:<request uuid>`).
    * executeTool fails closed for mutating tools when this is absent so a
    * model retry cannot bypass the database operation ledger.

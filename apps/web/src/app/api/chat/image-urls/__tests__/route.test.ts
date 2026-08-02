@@ -50,7 +50,11 @@ class MessageQuery {
 function requestFor(body: unknown) {
   return new Request("http://localhost/api/chat/image-urls", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://localhost",
+      "Sec-Fetch-Site": "same-origin",
+    },
     body: JSON.stringify(body),
   });
 }
@@ -97,7 +101,12 @@ describe("POST /api/chat/image-urls", () => {
   it("rejects an oversized body before authentication or signing", async () => {
     const response = await POST(new Request("http://localhost/api/chat/image-urls", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": "4096" },
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": "4096",
+        Origin: "http://localhost",
+        "Sec-Fetch-Site": "same-origin",
+      },
       body: JSON.stringify({ messageId: SHARED_MESSAGE_ID }),
     }));
 

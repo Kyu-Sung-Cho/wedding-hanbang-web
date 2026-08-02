@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { buildDueMomentCells } from "../momentLoop";
 import { MOMENTS } from "@/constants/moments";
+import type { ScheduleEvent } from "@/types/database.types";
 
 // 기준 시각 고정: 2026-06-15 12:00 KST (= 03:00 UTC) → 오늘(KST) = 2026-06-15
 const NOW = new Date("2026-06-15T03:00:00Z");
 
-function eventProgress(date: string, momentType = "sanggyeonrye") {
+function eventProgress(
+  date: string,
+  momentType = "sanggyeonrye",
+  status?: ScheduleEvent["status"],
+) {
   return {
     __events: [
       {
@@ -13,6 +18,7 @@ function eventProgress(date: string, momentType = "sanggyeonrye") {
         date,
         title: "상견례",
         momentType,
+        ...(status ? { status } : {}),
         createdAt: "2026-06-01T00:00:00Z",
         updatedAt: "2026-06-01T00:00:00Z",
       },
@@ -26,7 +32,8 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     expect(cells).toHaveLength(1);
     expect(cells[0].cellKind).toBe("d3");
     expect(cells[0].momentType).toBe("sanggyeonrye");
-    expect(cells[0].dedupeKey).toBe("sanggyeonrye:d3:2026-06-18");
+    expect(cells[0].dedupeKey).toBe("sanggyeonrye:d3:2026-06-18:evt_test");
+    expect(cells[0].sourceEventId).toBe("evt_test");
   });
 
   it("모멘트 하루 전이면 d1 셀(체크리스트 포함)이 나온다", () => {
@@ -35,6 +42,27 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     expect(cells[0].cellKind).toBe("d1");
     // d1 메시지에 체크리스트가 조립되어 들어간다
     expect(cells[0].message).toContain("✓");
+  });
+
+  it("이미 완료한 일정은 다시 독촉하지 않는다", () => {
+    const progress = eventProgress("2026-06-16", "sanggyeonrye", "completed");
+
+    expect(buildDueMomentCells({ progress, now: NOW })).toEqual([]);
+  });
+
+  it("취소된 일정은 D-3, D-1, D+1 케어 후보에서 제외한다", () => {
+    const progress = {
+      __events: [{
+        ...eventProgress("2026-06-16", "sanggyeonrye").__events[0],
+        status: "cancelled",
+        cancellation: {
+          cancelledAt: "2026-06-15T01:00:00.000Z",
+          cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+        },
+      }],
+    };
+
+    expect(buildDueMomentCells({ progress, now: NOW })).toEqual([]);
   });
 
   it("모멘트 다음날이면 dAfter 셀 + 기억 저장 키가 나온다", () => {
@@ -120,13 +148,31 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     expect(a.dedupeKey).not.toBe(b.dedupeKey);
   });
 
-  it("같은 날짜와 타입의 중복 이벤트는 하나의 care cell로 축약한다", () => {
+  it("같은 event ID가 반복된 경우에만 하나의 care cell로 축약한다", () => {
     const duplicate = eventProgress("2026-07-17", "sanggyeonrye").__events[0];
     const cells = buildDueMomentCells({
       progress: { __events: Array.from({ length: 300 }, () => ({ ...duplicate })) },
       now: new Date("2026-07-16T03:00:00.000Z"),
     });
 
-    expect(cells.filter((cell) => cell.dedupeKey === "sanggyeonrye:d1:2026-07-17")).toHaveLength(1);
+    expect(cells.filter((cell) => cell.dedupeKey === "sanggyeonrye:d1:2026-07-17:evt_test")).toHaveLength(1);
+  });
+
+  it("같은 날짜와 타입이어도 서로 다른 실제 일정은 각각 유지한다", () => {
+    const first = eventProgress("2026-07-17", "sanggyeonrye").__events[0];
+    const cells = buildDueMomentCells({
+      progress: {
+        __events: [
+          { ...first, id: "evt_first", title: "첫 번째 상견례 일정" },
+          { ...first, id: "evt_second", title: "두 번째 상견례 일정" },
+        ],
+      },
+      now: new Date("2026-07-16T03:00:00.000Z"),
+    });
+
+    expect(cells.map((cell) => cell.sourceEventId).sort()).toEqual([
+      "evt_first",
+      "evt_second",
+    ]);
   });
 });

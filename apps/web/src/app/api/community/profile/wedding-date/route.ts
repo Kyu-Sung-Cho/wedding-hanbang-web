@@ -1,29 +1,23 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { cohortRoomName, monthToQuarter, quarterToMonth } from "@/utils/quarter";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { readCohortAssignmentBody } from "@/lib/community/cohortAssignment";
+import { monthToQuarter, quarterToMonth } from "@/utils/quarter";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
   return createAdminClient();
 }
 
-async function refreshMemberCount(
-  supabase: ReturnType<typeof getServiceClient>,
-  roomId: string
-) {
-  const { count } = await supabase
-    .from("cohort_members")
-    .select("id", { count: "exact", head: true })
-    .eq("room_id", roomId)
-    .eq("is_active", true);
-
-  await supabase
-    .from("cohort_rooms")
-    .update({ member_count: count ?? 0 })
-    .eq("id", roomId);
-}
-
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const authClient = await createClientFromRequest(req);
     const {
@@ -34,125 +28,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = (await req.json()) as { year: number; month: number };
-    const { year, month } = body;
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:profile:wedding-date", req, user.id),
+      { maxRequests: 10, windowMs: 60_000 },
+    );
+    if (limited) return limited;
 
-    if (
-      !year ||
-      !month ||
-      month < 1 ||
-      month > 12 ||
-      year < 2020 ||
-      year > 2100
-    ) {
+    const writeAccess = await checkCommunityWriteAccess(authClient, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status },
+      );
+    }
+
+    const body = await readCohortAssignmentBody(req);
+    if (!body.ok) {
       return NextResponse.json(
         { error: "올바른 결혼 시기를 입력해주세요." },
-        { status: 400 }
+        { status: body.status, headers: { "Cache-Control": "private, no-store" } },
       );
     }
 
     const supabase = getServiceClient();
+    const { year, month } = body;
     const quarter = monthToQuarter(month);
     const normalizedMonth = quarterToMonth(quarter);
-
-    await supabase
-      .from("community_profiles")
-      .update({ wedding_year: year, wedding_month: normalizedMonth })
-      .eq("user_id", user.id);
-
-    const { data: staleMemberships } = await supabase
-      .from("cohort_members")
-      .select("room_id")
-      .eq("user_id", user.id)
-      .eq("is_active", true);
-
-    await supabase
-      .from("cohort_members")
-      .update({ is_active: false })
-      .eq("user_id", user.id)
-      .eq("is_active", true);
-
-    const { data: availableRoom } = await supabase
-      .from("cohort_rooms")
-      .select("*")
-      .eq("year", year)
-      .eq("month", normalizedMonth)
-      .eq("is_active", true)
-      .lt("member_count", 30)
-      .order("room_number", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    let room = availableRoom;
-
-    if (!room) {
-      const { data: existingRooms } = await supabase
-        .from("cohort_rooms")
-        .select("room_number")
-        .eq("year", year)
-        .eq("month", normalizedMonth)
-        .order("room_number", { ascending: false })
-        .limit(1);
-
-      const roomNumber = ((existingRooms?.[0]?.room_number as number | undefined) ?? 0) + 1;
-      const { data: newRoom, error: createErr } = await supabase
-        .from("cohort_rooms")
-        .insert({
-          year,
-          month: normalizedMonth,
-          room_number: roomNumber,
-          name: cohortRoomName(year, normalizedMonth, roomNumber),
-          is_active: true,
-          member_count: 0,
-          message_count: 0,
-        })
-        .select("*")
-        .single();
-
-      if (createErr || !newRoom) {
-        console.error("Create room error:", createErr);
-        return NextResponse.json(
-          { error: "동기방 생성에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-      room = newRoom;
-    } else if (room.name !== cohortRoomName(year, normalizedMonth, room.room_number as number)) {
-      await supabase
-        .from("cohort_rooms")
-        .update({ name: cohortRoomName(year, normalizedMonth, room.room_number as number) })
-        .eq("id", room.id);
-    }
-
-    const { error: memberErr } = await supabase
-      .from("cohort_members")
-      .upsert(
-        { room_id: room.id, user_id: user.id, is_active: true },
-        { onConflict: "room_id,user_id" }
-      );
-
-    if (memberErr) {
-      console.error("Member upsert error:", memberErr);
+    const { data: roomId, error: assignmentError } = await supabase.rpc(
+      "community_assign_cohort",
+      {
+        p_user_id: user.id,
+        p_year: year,
+        p_month: normalizedMonth,
+      },
+    );
+    if (assignmentError || typeof roomId !== "string") {
+      console.error("Atomic wedding-date cohort assignment error:", assignmentError);
       return NextResponse.json(
-        { error: "동기방 입장에 실패했습니다." },
-        { status: 500 }
+        { error: "결혼 시기와 동기방을 안전하게 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
       );
     }
-
-    const affectedRoomIds = [
-      ...new Set([
-        room.id as string,
-        ...((staleMemberships ?? []).map((m) => m.room_id as string)),
-      ]),
-    ];
-    await Promise.all(affectedRoomIds.map((roomId) => refreshMemberCount(supabase, roomId)));
 
     return NextResponse.json({
-      room_id: room.id,
+      room_id: roomId,
       year,
       quarter,
       month: normalizedMonth,
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     console.error("wedding-date POST error:", err);
     return NextResponse.json(

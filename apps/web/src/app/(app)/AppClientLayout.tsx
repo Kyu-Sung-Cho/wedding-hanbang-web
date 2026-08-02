@@ -38,11 +38,14 @@ function GlobalChatAssistant() {
 export default function AppClientLayout({
   children,
   banner = null,
+  initialDemo = false,
 }: {
   children: React.ReactNode;
   // 체험 고지처럼 본문 흐름 밖에서 항상 보여야 하는 서버 렌더 알림.
   // children으로 넣으면 채팅의 100dvh 고정 레이아웃 안으로 들어가 화면을 누른다.
   banner?: React.ReactNode;
+  // 서버가 demo_session HMAC까지 검증한 결과다. 클라이언트 쿠키만 신뢰하지 않는다.
+  initialDemo?: boolean;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -57,11 +60,14 @@ export default function AppClientLayout({
   ) && searchParams.get("preview") === "1";
 
   usePageViewTracker(isInitialized && !isDemo && !analyticsSuppressed);
-  useAuthSessionSync(!isDemo);
+  // 첫 hydration에서는 Zustand가 아직 isDemo=false다. 서버가 검증한 데모라면
+  // 이 순간에도 Supabase 세션 구독을 만들지 않아야 INITIAL_SESSION 이벤트가
+  // 데모 상태를 지우고 원격 Auth 대기로 되돌리는 경쟁 조건이 생기지 않는다.
+  useAuthSessionSync(!initialDemo && !isDemo);
 
   useEffect(() => {
-    if (!isInitialized) void initialize();
-  }, [initialize, isInitialized]);
+    if (!isInitialized) void initialize({ initialDemo });
+  }, [initialize, initialDemo, isInitialized]);
 
   if (!isInitialized || isLoading) {
     return (

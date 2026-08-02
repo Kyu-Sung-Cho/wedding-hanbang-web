@@ -11,6 +11,14 @@ const migrationPath = resolve(
   "../../supabase/migrations/20260730102000_amora_shared_action_approval_and_notifications.sql",
 );
 const migrationSql = readFileSync(migrationPath, "utf8");
+const rosterBindingMigrationPath = resolve(
+  process.cwd(),
+  "../../supabase/migrations/20260802170000_amora_shared_action_roster_binding.sql",
+);
+const rosterBindingMigrationSql = readFileSync(
+  rosterBindingMigrationPath,
+  "utf8",
+);
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
 const GROOM_ID = "10000000-0000-4000-8000-000000000002";
@@ -36,6 +44,7 @@ type ApprovalStatus = {
   partnerLinked: boolean;
   ready: boolean;
   proposalDigest: string;
+  rosterFingerprint: string;
 };
 
 type ApplicationClaimStatus = {
@@ -43,7 +52,7 @@ type ApplicationClaimStatus = {
   retryAfterMs: number;
 };
 
-async function createDatabase() {
+async function createDatabase(options: { applyRosterBinding?: boolean } = {}) {
   const db = await PGlite.create();
   await db.exec(`
     CREATE ROLE anon NOLOGIN;
@@ -235,6 +244,9 @@ async function createDatabase() {
       ('${OTHER_COUPLE_ID}', 30000000);
   `);
   await db.exec(migrationSql);
+  if (options.applyRosterBinding !== false) {
+    await db.exec(rosterBindingMigrationSql);
+  }
   return db;
 }
 
@@ -571,6 +583,83 @@ describe("Amora shared-action approval migration", () => {
     expect(sql).toContain(
       "OLD.state_revision IS DISTINCT FROM v_expected_revision",
     );
+  });
+
+  it("installs a private immutable proposal-time roster binding without backfill", () => {
+    const sql = rosterBindingMigrationSql;
+
+    expect(sql.trimStart()).toMatch(/^BEGIN;/);
+    expect(sql.trimEnd()).toMatch(/COMMIT;$/);
+    expect(sql).toContain("SET LOCAL lock_timeout = '5s'");
+    expect(sql).toContain("SET LOCAL statement_timeout = '60s'");
+    expect(sql).toContain(
+      "CREATE TABLE IF NOT EXISTS public.amora_shared_action_roster_bindings",
+    );
+    expect(sql).toMatch(
+      /ALTER TABLE public\.amora_shared_action_roster_bindings[\s\S]+ENABLE ROW LEVEL SECURITY/,
+    );
+    expect(sql).toMatch(
+      /REVOKE ALL ON TABLE public\.amora_shared_action_roster_bindings[\s\S]+FROM PUBLIC, anon, authenticated, service_role/,
+    );
+    expect(sql).not.toMatch(
+      /GRANT[\s\S]{0,120}ON TABLE public\.amora_shared_action_roster_bindings/,
+    );
+    expect(sql).toContain(
+      "RENAME TO amora_shared_action_context_pre_roster_binding",
+    );
+    expect(sql).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.amora_shared_action_context\([\s\S]+amora_shared_action_context_pre_roster_binding/,
+    );
+    expect(sql).toMatch(
+      /CREATE TRIGGER trg_bind_amora_shared_action_roster[\s\S]+AFTER INSERT ON public\.chat_messages/,
+    );
+    expect(sql).toMatch(
+      /CREATE TRIGGER trg_reject_amora_shared_action_roster_rewrite[\s\S]+BEFORE INSERT OR UPDATE OR DELETE/,
+    );
+    expect(sql).toContain("'initialProposalDigest'");
+    expect(sql).toContain("'rosterFingerprint'");
+    expect(sql).toContain("'requiredCount'");
+    expect(sql.match(
+      /INSERT INTO public\.amora_shared_action_roster_bindings/g,
+    )).toHaveLength(1);
+    expect(sql).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
+  });
+
+  it("reruns safely without rewriting an existing roster binding", async () => {
+    const db = await createDatabase();
+    try {
+      await insertProposal(db);
+      const before = await db.query<{
+        proposal_digest: string;
+        created_at: string;
+      }>(`
+        SELECT proposal_digest, created_at::text
+        FROM public.amora_shared_action_roster_bindings
+        WHERE source_message_id = $1
+      `, [PROPOSAL_ID]);
+
+      await db.exec(rosterBindingMigrationSql);
+      const after = await db.query<{
+        proposal_digest: string;
+        created_at: string;
+      }>(`
+        SELECT proposal_digest, created_at::text
+        FROM public.amora_shared_action_roster_bindings
+        WHERE source_message_id = $1
+      `, [PROPOSAL_ID]);
+      expect(after.rows).toEqual(before.rows);
+
+      await setPersona(db, "service_role");
+      expect(await status(db, BRIDE_ID)).toMatchObject({
+        acceptedCount: 0,
+        requiredCount: 2,
+        ready: false,
+        proposalDigest: before.rows[0].proposal_digest,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
   });
 
   it("keeps multi-session races behind database uniqueness and advisory locking", () => {
@@ -2146,6 +2235,314 @@ describe("Amora shared-action approval migration", () => {
       await expect(status(db, NEW_GROOM_ID)).rejects.toThrow(
         /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
       );
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("stores the exact proposal-time roster and returns its bound proposal digest", async () => {
+    const db = await createDatabase();
+    try {
+      await insertProposal(db);
+      const binding = await db.query<{
+        source_message_id: string;
+        action_id: string;
+        couple_id: string;
+        bride_id: string;
+        groom_id: string;
+        required_count: number;
+        roster_fingerprint: string;
+        expected_roster_fingerprint: string;
+        initial_proposal_digest: string;
+        proposal_digest: string;
+      }>(`
+        SELECT source_message_id::text, action_id::text, couple_id::text,
+               bride_id::text, groom_id::text, required_count::integer,
+               roster_fingerprint,
+               md5(bride_id::text || ':' || groom_id::text)
+                 AS expected_roster_fingerprint,
+               initial_proposal_digest, proposal_digest
+        FROM public.amora_shared_action_roster_bindings
+      `);
+      expect(binding.rows).toEqual([{
+        source_message_id: PROPOSAL_ID,
+        action_id: ACTION_ID,
+        couple_id: COUPLE_ID,
+        bride_id: BRIDE_ID,
+        groom_id: GROOM_ID,
+        required_count: 2,
+        roster_fingerprint: binding.rows[0].expected_roster_fingerprint,
+        expected_roster_fingerprint: binding.rows[0].expected_roster_fingerprint,
+        initial_proposal_digest: expect.stringMatching(/^[a-f0-9]{64}$/),
+        proposal_digest: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }]);
+      expect(binding.rows[0].proposal_digest).not.toBe(
+        binding.rows[0].initial_proposal_digest,
+      );
+
+      await setPersona(db, "service_role");
+      const current = await status(db, BRIDE_ID);
+      expect(current).toMatchObject({
+        proposalDigest: binding.rows[0].proposal_digest,
+        rosterFingerprint: binding.rows[0].roster_fingerprint,
+        requiredCount: 2,
+        partnerLinked: true,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rehashes the same initial proposal differently for connected and solo rosters", async () => {
+    const connectedDb = await createDatabase();
+    const soloDb = await createDatabase();
+    try {
+      const issuedAt = Date.now();
+      await insertProposal(connectedDb, { issuedAt });
+      await soloDb.query(
+        "UPDATE public.couples SET groom_id = NULL WHERE id = $1",
+        [COUPLE_ID],
+      );
+      await soloDb.query(
+        "UPDATE public.profiles SET couple_id = NULL, role = NULL WHERE id = $1",
+        [GROOM_ID],
+      );
+      await insertProposal(soloDb, { issuedAt });
+
+      const readDigest = (db: PGlite) => db.query<{
+        initial_proposal_digest: string;
+        proposal_digest: string;
+        required_count: number;
+      }>(`
+        SELECT initial_proposal_digest, proposal_digest,
+               required_count::integer
+        FROM public.amora_shared_action_roster_bindings
+        WHERE source_message_id = $1
+      `, [PROPOSAL_ID]);
+      const [connected, solo] = await Promise.all([
+        readDigest(connectedDb),
+        readDigest(soloDb),
+      ]);
+
+      expect(connected.rows[0].initial_proposal_digest).toBe(
+        solo.rows[0].initial_proposal_digest,
+      );
+      expect(connected.rows[0].proposal_digest).not.toBe(
+        solo.rows[0].proposal_digest,
+      );
+      expect(connected.rows[0].required_count).toBe(2);
+      expect(solo.rows[0].required_count).toBe(1);
+    } finally {
+      await Promise.all([
+        resetPersona(connectedDb).catch(() => undefined),
+        resetPersona(soloDb).catch(() => undefined),
+      ]);
+      await Promise.all([connectedDb.close(), soloDb.close()]);
+    }
+  });
+
+  it("invalidates a zero-acceptance proposal when groom B is replaced by groom C", async () => {
+    const db = await createDatabase();
+    try {
+      await insertProposal(db);
+      await setPersona(db, "service_role");
+
+      await db.query(
+        "UPDATE public.profiles SET couple_id = NULL, role = NULL WHERE id = $1",
+        [GROOM_ID],
+      );
+      await db.query(
+        "UPDATE public.couples SET groom_id = $2 WHERE id = $1",
+        [COUPLE_ID, NEW_GROOM_ID],
+      );
+      await db.query(
+        "UPDATE public.profiles SET couple_id = $2, role = 'groom' WHERE id = $1",
+        [NEW_GROOM_ID, COUPLE_ID],
+      );
+
+      await expect(status(db, NEW_GROOM_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+      await expect(accept(db, NEW_GROOM_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+      await expect(claimApplication(db, NEW_GROOM_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+
+      const ledgers = await db.query<{ votes: number; claims: number }>(`
+        SELECT
+          (SELECT count(*)::integer
+           FROM public.amora_shared_action_acceptances) AS votes,
+          (SELECT count(*)::integer
+           FROM public.amora_shared_action_application_claims) AS claims
+      `);
+      expect(ledgers.rows[0]).toEqual({ votes: 0, claims: 0 });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("invalidates a zero-acceptance couple proposal when the roster becomes solo", async () => {
+    const db = await createDatabase();
+    try {
+      await insertProposal(db);
+      await setPersona(db, "service_role");
+      await db.query(
+        "UPDATE public.couples SET groom_id = NULL WHERE id = $1",
+        [COUPLE_ID],
+      );
+      await db.query(
+        "UPDATE public.profiles SET couple_id = NULL, role = NULL WHERE id = $1",
+        [GROOM_ID],
+      );
+
+      await expect(status(db, BRIDE_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+      expect((await db.query(
+        "SELECT count(*)::integer AS count FROM public.amora_shared_action_acceptances",
+      )).rows[0]).toEqual({ count: 0 });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("invalidates a zero-acceptance solo proposal when a partner is linked", async () => {
+    const db = await createDatabase();
+    try {
+      await db.query(
+        "UPDATE public.couples SET groom_id = NULL WHERE id = $1",
+        [COUPLE_ID],
+      );
+      await db.query(
+        "UPDATE public.profiles SET couple_id = NULL, role = NULL WHERE id = $1",
+        [GROOM_ID],
+      );
+      await insertProposal(db);
+      const issuedBinding = await db.query<{
+        groom_id: string | null;
+        required_count: number;
+      }>(`
+        SELECT groom_id::text, required_count::integer
+        FROM public.amora_shared_action_roster_bindings
+        WHERE source_message_id = $1
+      `, [PROPOSAL_ID]);
+      expect(issuedBinding.rows[0]).toEqual({
+        groom_id: null,
+        required_count: 1,
+      });
+
+      await setPersona(db, "service_role");
+      await db.query(
+        "UPDATE public.couples SET groom_id = $2 WHERE id = $1",
+        [COUPLE_ID, NEW_GROOM_ID],
+      );
+      await db.query(
+        "UPDATE public.profiles SET couple_id = $2, role = 'groom' WHERE id = $1",
+        [NEW_GROOM_ID, COUPLE_ID],
+      );
+
+      await expect(status(db, BRIDE_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("fails closed for a legacy proposal that has no proposal-time roster evidence", async () => {
+    const db = await createDatabase({ applyRosterBinding: false });
+    try {
+      await insertProposal(db);
+      await db.exec(rosterBindingMigrationSql);
+      const bindings = await db.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM public.amora_shared_action_roster_bindings",
+      );
+      expect(bindings.rows[0].count).toBe(0);
+
+      await setPersona(db, "service_role");
+      await expect(status(db, BRIDE_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+      await expect(accept(db, BRIDE_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+      await expect(claimApplication(db, BRIDE_ID)).rejects.toThrow(
+        /AMORA_SHARED_ACTION_PROPOSAL_CHANGED/,
+      );
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("allows only the definer trigger to write the immutable roster binding", async () => {
+    const db = await createDatabase();
+    try {
+      await insertProposal(db);
+      await setPersona(db, "service_role");
+
+      await expect(db.query(
+        "SELECT * FROM public.amora_shared_action_roster_bindings",
+      )).rejects.toThrow(/permission denied/i);
+      await expect(db.query(`
+        INSERT INTO public.amora_shared_action_roster_bindings(
+          source_message_id, action_id, couple_id, bride_id, groom_id,
+          required_count, roster_fingerprint, initial_proposal_digest,
+          proposal_digest
+        ) VALUES (
+          '30000000-0000-4000-8000-000000000099',
+          '40000000-0000-4000-8000-000000000099',
+          $1, $2, $3, 2, repeat('a', 32), repeat('b', 64), repeat('c', 64)
+        )
+      `, [COUPLE_ID, BRIDE_ID, GROOM_ID])).rejects.toThrow(/permission denied/i);
+      await expect(db.query(
+        "SELECT public.amora_shared_action_current_roster($1)",
+        [COUPLE_ID],
+      )).rejects.toThrow(/permission denied/i);
+      await expect(db.query(
+        `SELECT public.amora_shared_action_context_pre_roster_binding(
+           $1, $2, $3, $4, 'proposal_latest', NULL
+         )`,
+        [ACTION_ID, COUPLE_ID, PROPOSAL_ID, BRIDE_ID],
+      )).rejects.toThrow(/permission denied/i);
+
+      await resetPersona(db);
+      await expect(db.query(`
+        UPDATE public.amora_shared_action_roster_bindings
+        SET roster_fingerprint = repeat('d', 32)
+        WHERE source_message_id = $1
+      `, [PROPOSAL_ID])).rejects.toThrow(
+        /AMORA_SHARED_ACTION_ROSTER_BINDING_IMMUTABLE/,
+      );
+      await expect(db.query(`
+        INSERT INTO public.amora_shared_action_roster_bindings(
+          source_message_id, action_id, couple_id, bride_id, groom_id,
+          required_count, roster_fingerprint, initial_proposal_digest,
+          proposal_digest
+        ) VALUES (
+          '30000000-0000-4000-8000-000000000099',
+          '40000000-0000-4000-8000-000000000099',
+          $1, $2, $3, 2, repeat('a', 32), repeat('b', 64), repeat('c', 64)
+        )
+      `, [COUPLE_ID, BRIDE_ID, GROOM_ID])).rejects.toThrow(
+        /AMORA_SHARED_ACTION_ROSTER_BINDING_IMMUTABLE/,
+      );
+      await expect(db.query(`
+        DELETE FROM public.amora_shared_action_roster_bindings
+        WHERE source_message_id = $1
+      `, [PROPOSAL_ID])).rejects.toThrow(
+        /AMORA_SHARED_ACTION_ROSTER_BINDING_IMMUTABLE/,
+      );
+      expect((await db.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM public.amora_shared_action_roster_bindings",
+      )).rows[0].count).toBe(1);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();

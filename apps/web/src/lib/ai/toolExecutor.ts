@@ -25,10 +25,12 @@ import {
 } from "@/lib/ai/tools/bookingTools";
 import {
   executeAddScheduleEvent,
+  executeCancelScheduleEvent,
   executeDeleteScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
   executeLogWeddingEvent,
+  executeRestoreScheduleEvent,
   executeToggleChecklistItem,
   executeUpdateScheduleEvent,
 } from "@/lib/ai/tools/scheduleTools";
@@ -175,6 +177,14 @@ export async function executeTool(
   toolInput: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (toolName === "delete_schedule_event") {
+    return failureResult(
+      toolName,
+      toolInput,
+      "legacy_schedule_delete_blocked",
+      "일정은 기록 보호를 위해 삭제하지 않아요. 취소 상태로 남겨 주세요.",
+    );
+  }
   if (!isMutatingTool(toolName)) {
     try {
       return await executeToolOnce(toolName, toolInput, context);
@@ -509,6 +519,10 @@ async function executeToolOnce(
         return await executeAddScheduleEvent(toolInput, context);
       case "update_schedule_event":
         return await executeUpdateScheduleEvent(toolInput, context);
+      case "cancel_schedule_event":
+        return await executeCancelScheduleEvent(toolInput, context);
+      case "restore_schedule_event":
+        return await executeRestoreScheduleEvent(toolInput, context);
       case "delete_schedule_event":
         return await executeDeleteScheduleEvent(toolInput, context);
       case "toggle_checklist_item":
@@ -740,7 +754,7 @@ async function executeUpdateCategoryBudget(
   if (input.spent !== undefined) {
     const newSpent = input.spent as number;
     updates.spent = newSpent;
-    changes.push(`지출 ${formatWon(newSpent)}`);
+    changes.push(`기록 지출 ${formatWon(newSpent)}(결제 확인과 별도)`);
   }
 
   await patchJourneyProgress(ctx, { [category]: updates });
@@ -961,7 +975,7 @@ async function executeAddCustomCategory(
   }
   if (input.spent !== undefined) {
     updates.spent = input.spent as number;
-    changes.push(`지출 ${formatWon(input.spent as number)}`);
+    changes.push(`기록 지출 ${formatWon(input.spent as number)}(결제 확인과 별도)`);
   }
 
   await patchJourneyProgress(ctx, { [key]: updates });
@@ -1094,18 +1108,18 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
     : 0;
   const progress = ctx.weddingContext.progress;
 
-  // 사용자가 입력하거나 계약 금액으로 확인한 예산과 실제 기록된 지출만 보고한다.
+  // 사용자가 입력하거나 계약 금액으로 확인한 예산과 명시적 기록 지출만 보고한다.
+  // 기록 지출은 결제 완료 증거가 아니다.
   // 미입력 예산이나 상태를 근거로 금액을 추정하지 않는다.
   const categories = Object.keys(CATEGORY_LABELS).map((key) => {
     const p = (progress[key] ?? {}) as Record<string, unknown>;
     const hasSetBudget = isValidWonAmount(p.budget);
     const allocated = hasSetBudget ? (p.budget as number) : null;
-    const spent =
-      isValidWonAmount(p.spent)
-        ? (p.spent as number)
-        : isValidWonAmount(p.cost)
-          ? (p.cost as number)
-          : 0;
+    const spent = isValidWonAmount(p.spent) ? (p.spent as number) : 0;
+    const legacyAmountUnclassified = Object.prototype.hasOwnProperty.call(
+      p,
+      "cost",
+    );
 
     return {
       key,
@@ -1113,6 +1127,7 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       allocated,
       allocated_is_set: hasSetBudget,
       spent,
+      legacy_amount_unclassified: legacyAmountUnclassified,
       status: (p.status as string) || "not_started",
     };
   });
@@ -1125,6 +1140,9 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   const sourceNote = categories.some((c) => !c.allocated_is_set)
     ? " (항목별 예산은 입력된 금액만 표시)"
     : "";
+  const legacyNote = categories.some((c) => c.legacy_amount_unclassified)
+    ? " · 용도 미확인 이전 금액은 예산·기록 지출 합계에서 제외"
+    : "";
 
   return {
     toolName: "get_budget_summary",
@@ -1132,11 +1150,12 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
     toolOutput: {
       total_budget: total,
       total_spent: totalSpent,
+      recorded_spend_basis: "explicit_spent_only",
       remaining,
       categories,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}`,
+    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}${legacyNote}`,
   };
 }
 

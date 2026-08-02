@@ -18,10 +18,6 @@ const celebrationHero = resolve(
   appRoot,
   "public/images/wedding-celebration-hero.webp",
 );
-const celebrationHeroMobile = resolve(
-  appRoot,
-  "public/images/wedding-celebration-hero-mobile.webp",
-);
 const landingSocialCard = resolve(
   appRoot,
   "public/images/landing-social-card.webp",
@@ -38,20 +34,17 @@ describe("hero image performance budget", () => {
     }
   });
 
-  it("serves art-directed celebration hero assets within the first-view budget", () => {
+  it("serves one optimized celebration image within the first-view budget", () => {
     expect(statSync(celebrationHero).size).toBeLessThanOrEqual(180 * 1024);
-    expect(statSync(celebrationHeroMobile).size).toBeLessThanOrEqual(180 * 1024);
 
     const source = readFileSync(
-      resolve(appRoot, "src/components/landing/CelebrationHero.tsx"),
+      resolve(appRoot, "src/components/landing/redesign/TransformationHero.tsx"),
       "utf8",
     );
     expect(source).toContain("/images/wedding-celebration-hero.webp");
-    expect(source).toContain("/images/wedding-celebration-hero-mobile.webp");
-    expect(source).toContain(
-      'media="(max-width: 1024px) and (orientation: portrait)"',
-    );
-    expect(source).toMatch(/className="[^"]*\bmin-h-\[[^\]]+\][^"]*"/);
+    expect(source).toContain('sizes="(min-width: 1024px) 58vw, 100vw"');
+    expect(source.match(/src="\/images\/wedding-celebration-hero\.webp"/g)).toHaveLength(1);
+    expect(source).toContain("lg:min-h-[min(820px,calc(100svh-4rem))]");
     expect(source).not.toContain("radial-gradient");
     expect(source).not.toContain("amora-hero-bouquet-custom");
   });

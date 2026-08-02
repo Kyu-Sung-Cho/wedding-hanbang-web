@@ -16,6 +16,10 @@ const mocks = vi.hoisted(() => ({
   rateLimitKey: vi.fn(() => "court-test"),
 }));
 
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
 }));

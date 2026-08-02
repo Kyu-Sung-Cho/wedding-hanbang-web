@@ -246,7 +246,7 @@ export function PriceVendorCard({
             >
               <span
                 aria-hidden="true"
-                className="inline-flex min-w-0 max-w-full truncate rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/75"
+                className="inline-flex min-w-0 max-w-full truncate rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/85"
               >
                 {primaryRegionLabel}
               </span>
@@ -329,13 +329,13 @@ export function PriceVendorCard({
                     const agencyOffers = offersByAgency.get(agency.id) ?? [];
                     return (
                       <li key={agency.id} className="px-4 py-3 sm:px-6">
-                        <p className="text-xs font-semibold text-[#243832]/65">{agency.name}</p>
+                        <p className="text-xs font-semibold text-[#243832]/75">{agency.name}</p>
                         {agencyOffers.length > 0 ? (
                           <div className="mt-1 space-y-1.5">
                             {agencyOffers.map((offer) => (
                               <div key={offer.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                                 {offer.itemName && offer.itemName !== vendor.name ? (
-                                  <p className="min-w-0 text-xs font-semibold leading-5 text-[#243832]/65">
+                                  <p className="min-w-0 text-xs font-semibold leading-5 text-[#243832]/75">
                                     {offer.itemName}
                                   </p>
                                 ) : <span />}
@@ -374,9 +374,9 @@ export function PriceVendorCard({
               <div className={`grid sm:grid-cols-2 ${displayedAgencies.length > 0 ? "border-t border-[#243832]/10" : ""}`}>
                 {directOffers.map((offer) => (
                   <div key={offer.id} className="min-w-0 border-b border-[#243832]/10 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-6">
-                    <p className="text-xs font-semibold text-[#243832]/65">업체 직접 공시</p>
+                    <p className="text-xs font-semibold text-[#243832]/75">업체 직접 공시</p>
                     {offer.itemName && offer.itemName !== vendor.name ? (
-                      <p className="mt-1 text-xs font-semibold leading-5 text-[#243832]/65">
+                      <p className="mt-1 text-xs font-semibold leading-5 text-[#243832]/75">
                         {offer.itemName}
                       </p>
                     ) : null}
@@ -445,12 +445,12 @@ export function PriceVendorCard({
                   </span>
                 </div>
                 {option.condition || option.unit ? (
-                  <p className="mt-1 text-xs leading-5 text-[#243832]/65">
+                  <p className="mt-1 text-xs leading-5 text-[#243832]/75">
                     {[option.unit, option.condition].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
                 {option.rawText ? (
-                  <p className="mt-1 text-xs leading-5 text-[#243832]/65">
+                  <p className="mt-1 text-xs leading-5 text-[#243832]/75">
                     공시 원문 · {option.rawText}
                   </p>
                 ) : null}

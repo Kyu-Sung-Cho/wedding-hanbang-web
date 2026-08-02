@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { X, Trash2, CalendarDays } from "lucide-react";
+import { X, Ban, CalendarDays } from "lucide-react";
 import type {
   ScheduleEvent,
   ScheduleEventAssignee,
@@ -28,6 +28,7 @@ const CATEGORY_OPTIONS = [
 
 const INVALID_FIELD_MESSAGES: Record<string, string> = {
   date: "날짜를 다시 확인해 주세요.",
+  time: "시간을 00:00~23:59 형식으로 다시 확인해 주세요.",
   title: "일정 제목을 다시 확인해 주세요.",
   memo: "메모는 2,000자 이내로 적어 주세요.",
   categoryKey: "관련 카테고리를 다시 선택해 주세요.",
@@ -38,7 +39,7 @@ const INVALID_FIELD_MESSAGES: Record<string, string> = {
   assignee: "담당자를 다시 선택해 주세요.",
 };
 
-function getSaveErrorMessage(error: unknown, action: "save" | "delete"): string {
+function getSaveErrorMessage(error: unknown, action: "save" | "cancel"): string {
   if (error instanceof ScheduleEventCapacityError) {
     return "일정 저장 한도에 도달했어요. 기존 일정을 정리한 뒤 다시 시도해 주세요.";
   }
@@ -48,7 +49,7 @@ function getSaveErrorMessage(error: unknown, action: "save" | "delete"): string 
   }
   return action === "save"
     ? "일정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요."
-    : "일정을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.";
+    : "일정 취소 요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 interface Props {
@@ -59,6 +60,7 @@ interface Props {
   assigneeContext?: ScheduleEventAssigneeContext;
   onSave: (data: {
     date: string;
+    time?: string;
     title: string;
     memo?: string;
     categoryKey?: string;
@@ -66,7 +68,7 @@ interface Props {
     completionCriteria?: string;
     assignee?: ScheduleEventAssignee;
   }) => Promise<void>;
-  onDelete?: () => Promise<void>;
+  onCancel?: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -77,11 +79,12 @@ export default function EventFormModal({
   defaultDate,
   assigneeContext = {},
   onSave,
-  onDelete,
+  onCancel,
   onClose,
 }: Props) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [memo, setMemo] = useState("");
   const [categoryKey, setCategoryKey] = useState("");
   const [status, setStatus] = useState<ScheduleEventStatus>("planned");
@@ -89,17 +92,18 @@ export default function EventFormModal({
   const [assigneeSelection, setAssigneeSelection] = useState("unassigned");
   const [externalAssigneeLabel, setExternalAssigneeLabel] = useState("");
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
     setError("");
-    setConfirmingDelete(false);
+    setConfirmingCancel(false);
     if (mode === "edit" && event) {
       setTitle(event.title);
       setDate(event.date);
+      setTime(event.time ?? "");
       setMemo(sanitizeUserFacingScheduleMemo(event.memo) ?? "");
       setCategoryKey(event.categoryKey ?? "");
       setStatus(getScheduleEventStatus(event));
@@ -115,6 +119,7 @@ export default function EventFormModal({
     } else {
       setTitle("");
       setDate(defaultDate ?? "");
+      setTime("");
       setMemo("");
       setCategoryKey("");
       setStatus("planned");
@@ -215,6 +220,7 @@ export default function EventFormModal({
     try {
       await onSave({
         date,
+        time: time || undefined,
         title: title.trim(),
         memo: memo.trim() || undefined,
         categoryKey: categoryKey || undefined,
@@ -229,25 +235,57 @@ export default function EventFormModal({
     }
   };
 
-  const handleDelete = async () => {
-    if (!onDelete) return;
-    setDeleting(true);
+  const handleCancel = async () => {
+    if (!onCancel) return;
+    setCancelling(true);
     setError("");
     try {
-      await onDelete();
-    } catch (deleteError) {
-      setError(getSaveErrorMessage(deleteError, "delete"));
+      await onCancel();
+    } catch (cancelError) {
+      setError(getSaveErrorMessage(cancelError, "cancel"));
     } finally {
-      setDeleting(false);
+      setCancelling(false);
     }
   };
 
   if (!isOpen) return null;
 
+  if (mode === "edit" && event && getScheduleEventStatus(event) === "cancelled") {
+    return (
+      <>
+        <div
+          onClick={onClose}
+          aria-hidden="true"
+          className="fixed inset-0 z-50 bg-[#1A1A1F]/40 backdrop-blur-sm"
+        />
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancelled-event-edit-title"
+          className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-2xl bg-white p-6 shadow-[0_20px_60px_rgb(0,0,0,0.15)]"
+        >
+          <h3 id="cancelled-event-edit-title" className="text-xl font-semibold text-[#243832]">
+            취소된 일정은 바로 수정할 수 없어요
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-[#5d6879]">
+            일정 화면의 취소됨 구역에서 먼저 복원 요청한 뒤 수정해 주세요.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-5 min-h-11 w-full rounded-xl bg-[#36534E] px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            확인
+          </button>
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
       <div
-        onClick={saving || deleting ? undefined : onClose}
+        onClick={saving || cancelling ? undefined : onClose}
         aria-hidden="true"
         className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
       />
@@ -276,8 +314,8 @@ export default function EventFormModal({
               onClick={onClose}
               type="button"
               aria-label="일정 창 닫기"
-              disabled={saving || deleting}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
+              disabled={saving || cancelling}
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#F6F3F2]"
             >
               <X className="w-4 h-4" />
             </button>
@@ -322,6 +360,28 @@ export default function EventFormModal({
               onChange={(e) => setDate(e.target.value)}
               className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
             />
+          </div>
+
+          {/* 시간 */}
+          <div>
+            <label
+              htmlFor="schedule-time"
+              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+            >
+              시간
+            </label>
+            <input
+              id="schedule-time"
+              name="schedule-time"
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              step={60}
+              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+            />
+            <p className="mt-1.5 text-xs leading-5 text-[#7a746e]">
+              선택 사항이며 입력한 현지 시각 그대로 표시해요.
+            </p>
           </div>
 
           {/* 메모 */}
@@ -476,38 +536,38 @@ export default function EventFormModal({
 
         {/* 하단 버튼 */}
         <div className="px-6 py-4 bg-[#FAFAF8] flex items-center justify-between">
-          {mode === "edit" && onDelete ? (
-            confirmingDelete ? (
+          {mode === "edit" && onCancel ? (
+            confirmingCancel ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-[#8C3E3E]">
-                  이 일정을 삭제할까요?
+                <span className="text-sm font-medium text-[#36534E]">
+                  일정 취소 요청
                 </span>
                 <button
-                  onClick={handleDelete}
+                  onClick={handleCancel}
                   type="button"
-                  disabled={deleting || saving}
-                  className="rounded-lg bg-red-500 px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                  disabled={cancelling || saving}
+                  className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:opacity-50"
                 >
-                  {deleting ? "삭제 중..." : "삭제 확인"}
+                  {cancelling ? "요청 중..." : "취소 요청 보내기"}
                 </button>
                 <button
-                  onClick={() => setConfirmingDelete(false)}
+                  onClick={() => setConfirmingCancel(false)}
                   type="button"
-                  disabled={deleting || saving}
-                  className="rounded-lg px-2 py-1.5 text-sm text-[#504444] hover:bg-[#F6F3F2] disabled:opacity-50"
+                  disabled={cancelling || saving}
+                  className="min-h-11 rounded-lg px-3 py-2 text-sm text-[#504444] hover:bg-[#F6F3F2] disabled:opacity-50"
                 >
-                  취소
+                  닫기
                 </button>
               </div>
             ) : (
               <button
-                onClick={() => setConfirmingDelete(true)}
+                onClick={() => setConfirmingCancel(true)}
                 type="button"
-                disabled={deleting || saving}
-                className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                disabled={cancelling || saving}
+                className="flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
               >
-                <Trash2 className="w-4 h-4" />
-                삭제
+                <Ban className="h-4 w-4" />
+                일정 취소 요청
               </button>
             )
           ) : (
@@ -517,16 +577,16 @@ export default function EventFormModal({
             <button
               onClick={onClose}
               type="button"
-              disabled={saving || deleting}
-              className="px-4 py-2.5 rounded-xl text-base text-[#504444] hover:bg-[#F6F3F2] transition-colors"
+              disabled={saving || cancelling}
+              className="min-h-11 px-4 py-2.5 rounded-xl text-base text-[#504444] hover:bg-[#F6F3F2] transition-colors"
             >
               취소
             </button>
             <button
               onClick={handleSubmit}
               type="button"
-              disabled={saving || deleting || !title.trim() || !date}
-              className="px-5 py-2.5 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
+              disabled={saving || cancelling || !title.trim() || !date}
+              className="min-h-11 px-5 py-2.5 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
             >
               {saving
                 ? "저장 중..."

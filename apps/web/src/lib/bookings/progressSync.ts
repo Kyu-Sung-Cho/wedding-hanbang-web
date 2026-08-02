@@ -1,7 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatWon } from "@/lib/formatWon";
-import type { ScheduleEvent } from "@/types/database.types";
-import { getEvents } from "@/utils/scheduleEvents";
+import type {
+  ScheduleEvent,
+  ScheduleEventCancellation,
+} from "@/types/database.types";
+import {
+  cancelEvent,
+  getEvents,
+  getScheduleEventStatus,
+  inspectScheduleEvents,
+  isScheduleEventCancellation,
+} from "@/utils/scheduleEvents";
 import { isRecord } from "@/utils/requestValidation";
 
 export interface BookingProgressBooking {
@@ -9,6 +18,7 @@ export interface BookingProgressBooking {
   date: string;
   time: string;
   amount: number;
+  actualAmount?: number | null;
 }
 
 export interface BookingProgressVendor {
@@ -27,6 +37,8 @@ export interface BookingOutcomeProgressBooking {
 export interface BookingCancelledProgressBooking {
   id: string;
   amount: number | null;
+  actualAmount: number | null;
+  cancellation: ScheduleEventCancellation;
 }
 
 export interface BookingProgressBuildInput {
@@ -42,6 +54,9 @@ export interface BookingProgressSyncResult {
   nextProgress: Record<string, unknown>;
   scheduleAdded: boolean;
   scheduleUpdated: boolean;
+  terminalSchedulePreserved: boolean;
+  needsReview: boolean;
+  reviewReason: string | null;
   budgetUpdated: boolean;
   budgetDelta?: number;
   budgetExceededBy: number;
@@ -71,6 +86,8 @@ export interface BookingOutcomeProgressSyncResult {
   categoryLabel: string | null;
   syncedCategoryKey: string | null;
   syncedNewSpent: number | null;
+  needsReview: boolean;
+  reviewReason: string | null;
 }
 
 export interface BookingCancelProgressSyncResult {
@@ -78,10 +95,19 @@ export interface BookingCancelProgressSyncResult {
   nextProgress: Record<string, unknown>;
   scheduleRemoved: boolean;
   budgetReverted: boolean;
+  scheduleCancelled: boolean;
+  completedSchedulePreserved: boolean;
+  terminalSchedulePreserved: boolean;
+  needsReview: boolean;
+  reviewReason: string | null;
+  recordedSpendPreserved: boolean;
+  quoteContributionCorrected: boolean;
+  quoteCorrectionAmount: number;
   revertedAmount: number;
   categoryBudgetLimit: number;
   categoryLabel: string | null;
   syncedEventIdRemoved: string | null;
+  syncedEventId: string | null;
   syncedCategoryKey: string | null;
   syncedNewSpent: number | null;
 }
@@ -104,12 +130,6 @@ export interface BookingProjectionClaimContext {
   claimToken: string;
 }
 
-interface VendorRow {
-  id: string;
-  name: string | null;
-  category: string | null;
-}
-
 interface ProductRow {
   name: string | null;
 }
@@ -126,8 +146,18 @@ interface AtomicBookingProjectionResult {
   event: ScheduleEvent | null;
   scheduleAdded: boolean;
   scheduleUpdated: boolean;
+  scheduleCancelled: boolean;
+  completedSchedulePreserved: boolean;
+  terminalSchedulePreserved: boolean;
+  needsReview: boolean;
+  reviewReason: string | null;
+  recordedSpendPreserved: boolean;
+  quoteContributionCorrected: boolean;
+  quoteCorrectionAmount: number;
+  /** @deprecated Booking schedule events are soft-cancelled, never removed. */
   scheduleRemoved: boolean;
   budgetUpdated: boolean;
+  /** @deprecated Cancellation never implies a refund or spend reversal. */
   budgetReverted: boolean;
   budgetDelta: number;
   budgetExceededBy: number;
@@ -151,6 +181,8 @@ type AtomicBookingProjectionResponse =
 interface BookingCostContribution {
   amount: number;
   categoryKey: string | null;
+  basis: "none" | "actual" | "legacy_unknown";
+  quotedAmount?: number;
 }
 
 const BOOKING_EVENT_PREFIX = "evt_booking_";
@@ -192,17 +224,13 @@ function finiteSignedAmount(value: unknown): number | null {
 }
 
 function parseScheduleEvent(value: unknown): ScheduleEvent | null {
-  if (!isRecord(value)) return null;
-  if (
-    typeof value.id !== "string" ||
-    typeof value.date !== "string" ||
-    typeof value.title !== "string" ||
-    typeof value.createdAt !== "string" ||
-    typeof value.updatedAt !== "string"
-  ) {
-    return null;
-  }
-  return value as unknown as ScheduleEvent;
+  const inspection = inspectScheduleEvents({ __events: [value] });
+  return !inspection.malformedContainer
+    && inspection.rejectedCount === 0
+    && inspection.truncatedCount === 0
+    && inspection.events.length === 1
+    ? inspection.events[0]
+    : null;
 }
 
 function parseAtomicBookingProjectionResult(
@@ -228,16 +256,42 @@ function parseAtomicBookingProjectionResult(
   const booleanKeys = [
     "scheduleAdded",
     "scheduleUpdated",
+    "scheduleCancelled",
+    "recordedSpendPreserved",
+    "quoteContributionCorrected",
     "scheduleRemoved",
     "budgetUpdated",
     "budgetReverted",
   ] as const;
   if (booleanKeys.some((key) => typeof value[key] !== "boolean")) return null;
+  if (
+    value.completedSchedulePreserved !== undefined
+    && typeof value.completedSchedulePreserved !== "boolean"
+  ) {
+    return null;
+  }
+  if (
+    value.terminalSchedulePreserved !== undefined
+    && typeof value.terminalSchedulePreserved !== "boolean"
+  ) {
+    return null;
+  }
+  if (value.needsReview !== undefined && typeof value.needsReview !== "boolean") {
+    return null;
+  }
+  if (
+    value.reviewReason !== undefined
+    && value.reviewReason !== null
+    && typeof value.reviewReason !== "string"
+  ) {
+    return null;
+  }
 
   const budgetDelta = finiteSignedAmount(value.budgetDelta);
   const budgetExceededBy = finiteNonNegativeAmount(value.budgetExceededBy);
   const categoryBudgetLimit = finiteNonNegativeAmount(value.categoryBudgetLimit);
   const revertedAmount = finiteNonNegativeAmount(value.revertedAmount);
+  const quoteCorrectionAmount = finiteNonNegativeAmount(value.quoteCorrectionAmount);
   const newSpent = value.newSpent === null
     ? null
     : finiteNonNegativeAmount(value.newSpent);
@@ -246,15 +300,48 @@ function parseAtomicBookingProjectionResult(
     budgetExceededBy === null ||
     categoryBudgetLimit === null ||
     revertedAmount === null ||
+    quoteCorrectionAmount === null ||
     (value.newSpent !== null && newSpent === null) ||
     (value.categoryKey !== null && typeof value.categoryKey !== "string") ||
     (value.removedEventId !== null && typeof value.removedEventId !== "string")
   ) {
     return null;
   }
+  if (
+    value.scheduleRemoved
+    || value.budgetReverted
+    || revertedAmount !== 0
+    || value.removedEventId !== null
+    || (value.quoteContributionCorrected
+      ? quoteCorrectionAmount <= 0
+      : quoteCorrectionAmount !== 0)
+    || (!value.budgetUpdated && budgetDelta !== 0)
+  ) {
+    return null;
+  }
 
   const event = value.event === null ? null : parseScheduleEvent(value.event);
   if (value.event !== null && !event) return null;
+  if (
+    value.scheduleCancelled
+    && (
+      !event
+      || getScheduleEventStatus(event) !== "cancelled"
+      || !isScheduleEventCancellation(event.cancellation)
+    )
+  ) {
+    return null;
+  }
+  if (
+    value.completedSchedulePreserved === true
+    && (
+      value.scheduleCancelled
+      || !event
+      || getScheduleEventStatus(event) !== "completed"
+    )
+  ) {
+    return null;
+  }
 
   return {
     accepted: true,
@@ -263,6 +350,14 @@ function parseAtomicBookingProjectionResult(
     event,
     scheduleAdded: value.scheduleAdded as boolean,
     scheduleUpdated: value.scheduleUpdated as boolean,
+    scheduleCancelled: value.scheduleCancelled as boolean,
+    completedSchedulePreserved: value.completedSchedulePreserved === true,
+    terminalSchedulePreserved: value.terminalSchedulePreserved === true,
+    needsReview: value.needsReview === true,
+    reviewReason: typeof value.reviewReason === "string" ? value.reviewReason : null,
+    recordedSpendPreserved: value.recordedSpendPreserved as boolean,
+    quoteContributionCorrected: value.quoteContributionCorrected as boolean,
+    quoteCorrectionAmount,
     scheduleRemoved: value.scheduleRemoved as boolean,
     budgetUpdated: value.budgetUpdated as boolean,
     budgetReverted: value.budgetReverted as boolean,
@@ -326,6 +421,12 @@ function readBookingCostContributions(
         categoryKey: typeof rawContribution.categoryKey === "string"
           ? projectionCategoryKey(rawContribution.categoryKey)
           : null,
+        basis: rawContribution.basis === "none" || rawContribution.basis === "actual"
+          ? rawContribution.basis
+          : "legacy_unknown",
+        ...(finiteNonNegativeAmount(rawContribution.quotedAmount) !== null
+          ? { quotedAmount: finiteNonNegativeAmount(rawContribution.quotedAmount)! }
+          : {}),
       };
       continue;
     }
@@ -334,7 +435,11 @@ function readBookingCostContributions(
     // rewritten by a create/outcome projection.
     const amount = finiteNonNegativeAmount(rawContribution);
     if (amount !== null) {
-      contributions[bookingId] = { amount, categoryKey: null };
+      contributions[bookingId] = {
+        amount,
+        categoryKey: null,
+        basis: "legacy_unknown",
+      };
     }
   }
   return contributions;
@@ -383,6 +488,8 @@ export function buildBookingOutcomeProgressPatch(input: {
       categoryLabel: categoryKey,
       syncedCategoryKey: null,
       syncedNewSpent: null,
+      needsReview: false,
+      reviewReason: null,
     };
   }
 
@@ -398,14 +505,54 @@ export function buildBookingOutcomeProgressPatch(input: {
   const currentCategory = isRecord(progress[categoryKey]) ? progress[categoryKey] : {};
   const previousSpent = finiteUnknownAmount(currentCategory.spent);
   const budget = finiteUnknownAmount(currentCategory.budget);
-  const nextSpent = Math.max(0, previousSpent + budgetDelta);
+  const ambiguousLegacy = Boolean(
+    storedContribution
+    && storedContribution.amount > 0
+    && (
+      storedContribution.basis === "legacy_unknown"
+      || storedContribution.categoryKey === null
+    ),
+  );
+  const wouldUnderflow = budgetDelta < 0 && previousSpent < Math.abs(budgetDelta);
+  if (ambiguousLegacy || wouldUnderflow) {
+    return {
+      patch,
+      nextProgress,
+      budgetUpdated: false,
+      budgetDelta: 0,
+      previousContribution,
+      nextContribution: previousContribution,
+      budgetExceededBy: budget > 0 && previousSpent > budget
+        ? previousSpent - budget
+        : 0,
+      categoryBudgetLimit: budget,
+      categoryLabel:
+        typeof currentCategory.label === "string" && currentCategory.label.trim()
+          ? currentCategory.label
+          : categoryKey,
+      syncedCategoryKey: null,
+      syncedNewSpent: null,
+      needsReview: true,
+      reviewReason: ambiguousLegacy
+        ? "LEGACY_BOOKING_CONTRIBUTION_PROVENANCE_AMBIGUOUS"
+        : "BOOKING_CONTRIBUTION_AGGREGATE_UNDERFLOW",
+    };
+  }
+  const nextSpent = previousSpent + budgetDelta;
   const nextCategory = {
     ...currentCategory,
     spent: nextSpent,
   };
   const nextContributions = {
     ...existingContributions,
-    [input.booking.id]: { amount: actualAmount, categoryKey },
+    [input.booking.id]: {
+      amount: actualAmount,
+      categoryKey,
+      basis: "actual" as const,
+      quotedAmount:
+        storedContribution?.quotedAmount
+        ?? finiteUnknownAmount(input.booking.amount),
+    },
   };
 
   patch.__booking_costs = nextContributions;
@@ -433,6 +580,8 @@ export function buildBookingOutcomeProgressPatch(input: {
     categoryLabel,
     syncedCategoryKey: categoryKey,
     syncedNewSpent: budgetDelta !== 0 ? nextSpent : null,
+    needsReview: false,
+    reviewReason: null,
   };
 }
 
@@ -442,58 +591,77 @@ export function buildBookingCancelledProgressPatch(input: {
   vendor: BookingProgressVendor;
 }): BookingCancelProgressSyncResult {
   const progress = input.progress;
-  const events = getEvents(progress);
-  const removedEvents = events.filter((event) => isBookingEvent(event, input.booking.id));
-  const nextEvents = events.filter((event) => !isBookingEvent(event, input.booking.id));
-  const scheduleRemoved = removedEvents.length > 0;
-  const existingContributions = readBookingCostContributions(progress);
+  const actualAmount = input.booking.actualAmount === null
+    ? null
+    : finiteNonNegativeAmount(input.booking.actualAmount);
+  if (input.booking.actualAmount !== null && actualAmount === null) {
+    throw new Error("invalid_booking_actual_amount");
+  }
+  const outcomeProjection = actualAmount === null
+    ? null
+    : buildBookingOutcomeProgressPatch({
+        progress,
+        booking: {
+          id: input.booking.id,
+          amount: input.booking.amount,
+          previousActualAmount: null,
+          actualAmount,
+        },
+        vendor: input.vendor,
+      });
+  const projectedProgress = outcomeProjection?.nextProgress ?? progress;
+  const eventInspection = inspectScheduleEvents(projectedProgress);
+  if (
+    eventInspection.malformedContainer
+    || eventInspection.rejectedCount > 0
+    || eventInspection.truncatedCount > 0
+    || new Set(eventInspection.events.map((event) => event.id)).size
+      !== eventInspection.events.length
+  ) {
+    throw new Error("invalid_booking_schedule_projection");
+  }
+  const events = eventInspection.events;
+  const matchingEvents = events.filter((event) => isBookingEvent(event, input.booking.id));
+  if (matchingEvents.length > 1) {
+    throw new Error("ambiguous_booking_schedule_projection");
+  }
+  const existingEvent = matchingEvents[0] ?? null;
+  const completedSchedulePreserved = existingEvent !== null
+    && getScheduleEventStatus(existingEvent) === "completed";
+  const scheduleCancelled = existingEvent !== null
+    && getScheduleEventStatus(existingEvent) === "planned";
+  const existingContributions = readBookingCostContributions(projectedProgress);
   const storedContribution = existingContributions[input.booking.id];
   const categoryKey =
     storedContribution?.categoryKey ??
-    projectionCategoryKey(removedEvents[0]?.categoryKey) ??
+    projectionCategoryKey(existingEvent?.categoryKey) ??
     projectionCategoryKey(input.vendor.category);
-  const hasStoredContribution = Object.prototype.hasOwnProperty.call(
-    existingContributions,
-    input.booking.id
-  );
-  const previousContribution = hasStoredContribution
-    ? storedContribution?.amount ?? 0
-    : scheduleRemoved
-      ? finiteUnknownAmount(input.booking.amount)
-      : 0;
-
-  const nextProgress: Record<string, unknown> = { ...progress };
-  const patch: Record<string, unknown> = {};
-
-  if (scheduleRemoved) {
-    patch.__events = nextEvents;
-    nextProgress.__events = nextEvents;
+  const nextProgress: Record<string, unknown> = scheduleCancelled && existingEvent
+    ? cancelEvent(projectedProgress, existingEvent.id, input.booking.cancellation)
+    : { ...projectedProgress };
+  const patch: Record<string, unknown> = { ...(outcomeProjection?.patch ?? {}) };
+  if (scheduleCancelled) {
+    patch.__events = nextProgress.__events;
   }
 
-  if (hasStoredContribution) {
-    const nextContributions = { ...existingContributions };
-    delete nextContributions[input.booking.id];
-    patch.__booking_costs = nextContributions;
-    nextProgress.__booking_costs = nextContributions;
-  }
-
-  const currentCategory = categoryKey && isRecord(progress[categoryKey])
-    ? progress[categoryKey]
+  const currentCategory = categoryKey && isRecord(projectedProgress[categoryKey])
+    ? projectedProgress[categoryKey]
     : {};
-  const previousSpent = finiteUnknownAmount(currentCategory.spent);
   const budget = finiteUnknownAmount(currentCategory.budget);
-  let syncedNewSpent: number | null = null;
-
-  if (categoryKey && previousContribution > 0) {
-    const nextSpent = Math.max(0, previousSpent - previousContribution);
-    const nextCategory = {
-      ...currentCategory,
-      spent: nextSpent,
-    };
-    patch[categoryKey] = nextCategory;
-    nextProgress[categoryKey] = nextCategory;
-    syncedNewSpent = nextSpent;
-  }
+  const quotedAmount = finiteUnknownAmount(input.booking.amount);
+  const hasLegacyQuoteEvidence = input.booking.actualAmount === null
+    && quotedAmount > 0
+    && (
+      (storedContribution?.basis === "legacy_unknown"
+        && storedContribution.amount === quotedAmount)
+    );
+  const quoteContributionCorrected = false;
+  const needsReview = Boolean(hasLegacyQuoteEvidence || outcomeProjection?.needsReview);
+  const reviewReason = outcomeProjection?.reviewReason
+    ?? (hasLegacyQuoteEvidence
+      ? "LEGACY_BOOKING_CONTRIBUTION_PROVENANCE_AMBIGUOUS"
+      : null);
+  const syncedNewSpent: number | null = outcomeProjection?.syncedNewSpent ?? null;
 
   const categoryLabel =
     typeof currentCategory.label === "string" && currentCategory.label.trim()
@@ -503,13 +671,25 @@ export function buildBookingCancelledProgressPatch(input: {
   return {
     patch,
     nextProgress,
-    scheduleRemoved,
-    budgetReverted: syncedNewSpent !== null,
-    revertedAmount: previousContribution,
-    categoryBudgetLimit: budget,
-    categoryLabel,
-    syncedEventIdRemoved: removedEvents[0]?.id ?? null,
-    syncedCategoryKey: syncedNewSpent !== null ? categoryKey : null,
+    scheduleRemoved: false,
+    budgetReverted: false,
+    scheduleCancelled,
+    completedSchedulePreserved,
+    terminalSchedulePreserved: completedSchedulePreserved
+      || (existingEvent !== null && getScheduleEventStatus(existingEvent) === "cancelled"),
+    needsReview,
+    reviewReason,
+    recordedSpendPreserved: actualAmount !== null,
+    quoteContributionCorrected,
+    quoteCorrectionAmount: quoteContributionCorrected ? quotedAmount : 0,
+    revertedAmount: 0,
+    categoryBudgetLimit: outcomeProjection?.categoryBudgetLimit ?? budget,
+    categoryLabel: outcomeProjection?.categoryLabel ?? categoryLabel,
+    syncedEventIdRemoved: null,
+    syncedEventId: existingEvent?.id ?? null,
+    syncedCategoryKey: quoteContributionCorrected
+      ? categoryKey
+      : outcomeProjection?.syncedCategoryKey ?? null,
     syncedNewSpent,
   };
 }
@@ -529,17 +709,37 @@ export function buildBookingCreatedProgressPatch(
     (event) => event.id === eventId || event.sourceKey === sourceKey
   );
 
-  const event: ScheduleEvent = {
-    ...(existingEvent ?? {}),
-    id: existingEvent?.id ?? eventId,
-    date: input.booking.date,
-    title: buildEventTitle(input),
-    memo: `예약 자동 등록${wonMemo(amount)}`,
-    categoryKey: categoryKey ?? existingEvent?.categoryKey,
-    sourceKey,
-    createdAt: existingEvent?.createdAt ?? now,
-    updatedAt: now,
-  };
+  const existingStatus = existingEvent ? getScheduleEventStatus(existingEvent) : null;
+  const isTerminalExisting = existingStatus === "completed" || existingStatus === "cancelled";
+  let event: ScheduleEvent;
+  if (existingEvent && isTerminalExisting) {
+    event = existingEvent;
+  } else if (existingEvent) {
+    const ownedPatch: ScheduleEvent = {
+      ...existingEvent,
+      id: existingEvent.id,
+      date: input.booking.date,
+      time: input.booking.time.slice(0, 5),
+      sourceKey,
+    };
+    event = JSON.stringify(ownedPatch) === JSON.stringify(existingEvent)
+      ? existingEvent
+      : { ...ownedPatch, updatedAt: now };
+  } else {
+    event = {
+      id: eventId,
+      date: input.booking.date,
+      time: input.booking.time.slice(0, 5),
+      title: buildEventTitle(input),
+      memo: amount > 0
+        ? `아모라 내부 방문·상담 후보 견적${wonMemo(amount)} · 결제·지출 기록 아님 · 업체 전달·확정 미확인`
+        : "아모라 내부 방문·상담 후보 금액 미확인 · 결제·지출 기록 아님 · 업체 전달·확정 미확인",
+      categoryKey: categoryKey ?? undefined,
+      sourceKey,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
 
   const nextEvents = existingEvent
     ? events.map((item) => (item.id === existingEvent.id ? event : item))
@@ -555,64 +755,31 @@ export function buildBookingCreatedProgressPatch(
   const existingContributions = readBookingCostContributions(progress);
   const nextContributions = {
     ...existingContributions,
-    [input.booking.id]: {
-      amount: categoryKey ? amount : 0,
+    [input.booking.id]: existingContributions[input.booking.id] ?? {
+      amount: 0,
       categoryKey,
+      basis: "none" as const,
+      quotedAmount: amount,
     },
   };
   patch.__booking_costs = nextContributions;
   nextProgress.__booking_costs = nextContributions;
 
-  let budgetUpdated = false;
-  let budgetExceededBy = 0;
-  let categoryBudgetLimit = 0;
-  let categoryLabel: string | null = null;
-  let syncedNewSpent: number | null = null;
-
-  if (!existingEvent && categoryKey && amount > 0) {
-    const currentCategory = isRecord(progress[categoryKey])
-      ? progress[categoryKey]
-      : {};
-    const previousSpent =
-      typeof currentCategory.spent === "number" && Number.isFinite(currentCategory.spent)
-        ? currentCategory.spent
-        : 0;
-    const budget =
-      typeof currentCategory.budget === "number" && Number.isFinite(currentCategory.budget)
-        ? currentCategory.budget
-        : 0;
-    const nextSpent = previousSpent + amount;
-    const nextCategory = {
-      ...currentCategory,
-      spent: nextSpent,
-    };
-
-    patch[categoryKey] = nextCategory;
-    nextProgress[categoryKey] = nextCategory;
-    budgetUpdated = true;
-    syncedNewSpent = nextSpent;
-    categoryBudgetLimit = budget;
-    categoryLabel =
-      typeof currentCategory.label === "string" && currentCategory.label.trim()
-        ? currentCategory.label
-        : categoryKey;
-    if (budget > 0 && nextSpent > budget) {
-      budgetExceededBy = nextSpent - budget;
-    }
-  }
-
   return {
     patch,
     nextProgress,
     scheduleAdded: !existingEvent,
-    scheduleUpdated: Boolean(existingEvent),
-    budgetUpdated,
-    budgetExceededBy,
-    categoryBudgetLimit,
-    categoryLabel,
+    scheduleUpdated: Boolean(existingEvent && event !== existingEvent),
+    terminalSchedulePreserved: isTerminalExisting,
+    needsReview: false,
+    reviewReason: null,
+    budgetUpdated: false,
+    budgetExceededBy: 0,
+    categoryBudgetLimit: 0,
+    categoryLabel: null,
     syncedEvent: event,
-    syncedCategoryKey: budgetUpdated ? categoryKey : null,
-    syncedNewSpent,
+    syncedCategoryKey: null,
+    syncedNewSpent: null,
   };
 }
 
@@ -621,39 +788,20 @@ export async function syncBookingProgressAfterCreate(
   input: {
     coupleId: string;
     booking: BookingProgressBooking;
-    vendorId: string;
+    vendor: BookingProgressVendor;
     productId?: string | null;
     staffId?: string | null;
     productName?: string | null;
     projectionClaim: BookingProjectionClaimContext;
   }
 ): Promise<BookingProgressPersistenceResult> {
-  const { data: vendorRow, error: vendorError } = await client
-    .from("vendors")
-    .select("id, name, category")
-    .eq("id", input.vendorId)
-    .single();
-
-  if (vendorError || !vendorRow) {
-    return {
-      persisted: false,
-      error: vendorError?.message ?? "missing sync context",
-      ...buildBookingCreatedProgressPatch({
-        progress: {},
-        booking: input.booking,
-        vendor: { id: input.vendorId, name: "업체", category: null },
-        productName: input.productName,
-      }),
-    };
-  }
-
   let productName = input.productName ?? null;
   if (!productName && input.productId) {
     const { data: productRow } = await client
       .from("vendor_products")
       .select("name")
       .eq("id", input.productId)
-      .eq("vendor_id", input.vendorId)
+      .eq("vendor_id", input.vendor.id)
       .maybeSingle();
     productName = ((productRow as ProductRow | null)?.name ?? null) || null;
   }
@@ -664,7 +812,7 @@ export async function syncBookingProgressAfterCreate(
       .from("vendor_staff")
       .select("name, role")
       .eq("id", input.staffId)
-      .eq("vendor_id", input.vendorId)
+      .eq("vendor_id", input.vendor.id)
       .maybeSingle();
     const staff = staffRow as StaffRow | null;
     if (staff?.name) {
@@ -672,7 +820,7 @@ export async function syncBookingProgressAfterCreate(
     }
   }
 
-  const vendor = vendorRow as VendorRow;
+  const vendor = input.vendor;
   const draftResult = buildBookingCreatedProgressPatch({
     progress: {},
     booking: input.booking,
@@ -693,7 +841,12 @@ export async function syncBookingProgressAfterCreate(
       p_desired_state: "active",
       p_event: draftResult.syncedEvent,
       p_category_key: vendor.category,
-      p_amount: finiteAmount(input.booking.amount),
+      // `booking.amount` is a quoted/request amount. Only an explicitly
+      // recorded actual amount may contribute to spent.
+      p_amount: input.booking.actualAmount === null
+        || input.booking.actualAmount === undefined
+        ? 0
+        : finiteUnknownAmount(input.booking.actualAmount),
       p_generation: input.projectionClaim.generation,
       p_claim_token: input.projectionClaim.claimToken,
     }
@@ -747,6 +900,9 @@ export async function syncBookingProgressAfterCreate(
     nextProgress: projection.progress,
     scheduleAdded: projection.scheduleAdded,
     scheduleUpdated: projection.scheduleUpdated,
+    terminalSchedulePreserved: projection.terminalSchedulePreserved,
+    needsReview: projection.needsReview,
+    reviewReason: projection.reviewReason,
     budgetUpdated: projection.budgetUpdated,
     budgetDelta: projection.budgetDelta,
     budgetExceededBy: projection.budgetExceededBy,
@@ -781,7 +937,7 @@ export async function syncBookingProgressAfterCancel(
       p_desired_state: "cancelled",
       p_event: null,
       p_category_key: input.vendor.category,
-      p_amount: finiteUnknownAmount(input.booking.amount),
+      p_amount: input.booking.actualAmount ?? 0,
       p_generation: input.projectionClaim.generation,
       p_claim_token: input.projectionClaim.claimToken,
     }
@@ -828,11 +984,20 @@ export async function syncBookingProgressAfterCancel(
     nextProgress: projection.progress,
     scheduleRemoved: projection.scheduleRemoved,
     budgetReverted: projection.budgetReverted,
+    scheduleCancelled: projection.scheduleCancelled,
+    completedSchedulePreserved: projection.completedSchedulePreserved,
+    terminalSchedulePreserved: projection.terminalSchedulePreserved,
+    needsReview: projection.needsReview,
+    reviewReason: projection.reviewReason,
+    recordedSpendPreserved: projection.recordedSpendPreserved,
+    quoteContributionCorrected: projection.quoteContributionCorrected,
+    quoteCorrectionAmount: projection.quoteCorrectionAmount,
     revertedAmount: projection.revertedAmount,
     categoryBudgetLimit: projection.categoryBudgetLimit,
     categoryLabel,
     syncedEventIdRemoved: projection.removedEventId,
-    syncedCategoryKey: projection.budgetReverted ? projection.categoryKey : null,
+    syncedEventId: projection.event?.id ?? null,
+    syncedCategoryKey: projection.budgetUpdated ? projection.categoryKey : null,
     syncedNewSpent: projection.newSpent,
   };
 }

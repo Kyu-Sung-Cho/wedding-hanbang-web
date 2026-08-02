@@ -10,6 +10,7 @@ import {
   WeddingCourtRepositoryError,
 } from "@/lib/weddingCourt/repository";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_LENGTH = 2_048;
 const caseIdSchema = z.string().uuid();
@@ -98,6 +99,9 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ caseId: string }> },
 ) {
+  if (!isTrustedMutationRequest(request)) {
+    return json({ error: "Forbidden" }, 403);
+  }
   if (!isWeddingCourtEnabled()) {
     return json({ error: "Not found" }, 404);
   }

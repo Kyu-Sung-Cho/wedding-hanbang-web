@@ -4,11 +4,14 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { formatWon } from "@/lib/ai/tools/toolTypes";
 import {
   inspectScheduleEvents,
+  addEvent,
+  getCategoryEventSourceKey,
   getEvents,
   ScheduleEventCapacityError,
   ScheduleEventValidationError,
+  cancelEvent,
+  restoreEvent,
   updateEvent,
-  upsertCategoryEvent,
   upsertMomentEvent,
 } from "@/utils/scheduleEvents";
 import {
@@ -44,6 +47,7 @@ const ACTION_SOURCES = new Set([
   "manual",
 ]);
 const PROGRESS_STATUSES = new Set(["not_started", "in_progress", "completed"]);
+const PROFILE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const AMORA_ATOMIC_TOOL_NAMES = new Set([
   "update_budget",
@@ -55,7 +59,8 @@ export const AMORA_ATOMIC_TOOL_NAMES = new Set([
   "add_custom_category",
   "add_schedule_event",
   "update_schedule_event",
-  "delete_schedule_event",
+  "cancel_schedule_event",
+  "restore_schedule_event",
   "toggle_checklist_item",
   "add_amora_action",
   "log_wedding_event",
@@ -1182,21 +1187,18 @@ export function buildAmoraAtomicToolOperation(
     return buildUpdateActionOperation(toolInput);
   }
   if (toolName === "delete_schedule_event") {
-    if (toolInput.confirmed !== true) {
-      return {
-        domainMutation: { kind: "none" },
-        result: {
-          toolName,
-          toolInput,
-          toolOutput: {
-            requires_confirmation: true,
-            confirmation_field: "confirmed",
-          },
-          success: false,
-          displayMessage: "일정을 삭제하려면 삭제할 항목을 먼저 확인해 주세요.",
-        },
-      };
-    }
+    return noOpFailure(
+      toolName,
+      toolInput,
+      "legacy_schedule_delete_blocked",
+      "일정은 기록 보호를 위해 삭제하지 않아요. 취소 상태로 남겨 주세요.",
+    );
+  }
+
+  if (
+    toolName === "cancel_schedule_event"
+    || toolName === "restore_schedule_event"
+  ) {
     const progress = context.weddingContext.progress as Record<string, unknown>;
     const inspection = inspectScheduleEvents(progress);
     if (
@@ -1211,6 +1213,17 @@ export function buildAmoraAtomicToolOperation(
         "현재 일정 데이터에 확인이 필요한 항목이 있어 변경하지 않았어요.",
       );
     }
+    if (
+      typeof context.actorProfileId !== "string"
+      || !PROFILE_UUID_RE.test(context.actorProfileId)
+    ) {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_actor_missing",
+        "현재 변경을 처리하는 구성원을 안전하게 확인하지 못해 적용하지 않았어요.",
+      );
+    }
     const eventId = toolInput.event_id;
     const existing = typeof eventId === "string"
       ? inspection.events.find((event) => event.id === eventId)
@@ -1220,25 +1233,102 @@ export function buildAmoraAtomicToolOperation(
         toolName,
         toolInput,
         "schedule_event_not_found",
-        "삭제할 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
+        toolName === "cancel_schedule_event"
+          ? "취소할 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요."
+          : "복원할 취소 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
       );
     }
-    return {
-      domainMutation: {
-        kind: "journey_progress_key_cas",
-        key: "__events",
-        expectedPresent: true,
-        expected: progress.__events,
-        value: inspection.events.filter((event) => event.id !== existing.id),
-      },
-      result: {
+    if (
+      typeof toolInput.expected_title !== "string"
+      || typeof toolInput.expected_date !== "string"
+      || toolInput.expected_title !== existing.title
+      || toolInput.expected_date !== existing.date
+    ) {
+      return noOpFailure(
         toolName,
         toolInput,
-        toolOutput: { deleted_event: existing },
-        success: true,
-        displayMessage: `“${existing.title}” (${existing.date}) 일정을 삭제했어요.`,
-      },
-    };
+        "schedule_target_changed",
+        "선택한 일정의 제목이나 날짜가 달라져 적용하지 않았어요. 현재 일정을 다시 확인해 주세요.",
+      );
+    }
+
+    const changedAt = new Date().toISOString();
+    try {
+      let nextProgress: Record<string, unknown>;
+      if (toolName === "cancel_schedule_event") {
+        const inputReason = toolInput.reason;
+        if (inputReason !== undefined && typeof inputReason !== "string") {
+          return noOpFailure(
+            toolName,
+            toolInput,
+            "invalid_schedule_cancellation",
+            "취소 사유를 다시 확인해 주세요.",
+          );
+        }
+        const reason = typeof inputReason === "string" ? inputReason.trim() : "";
+        if (inputReason !== undefined && reason.length === 0) {
+          return noOpFailure(
+            toolName,
+            toolInput,
+            "invalid_schedule_cancellation",
+            "취소 사유를 비우거나 실제 사유를 입력해 주세요.",
+          );
+        }
+        nextProgress = cancelEvent(progress, existing.id, {
+          cancelledAt: changedAt,
+          cancelledByProfileId: context.actorProfileId,
+          ...(reason ? { reason } : {}),
+        });
+      } else {
+        nextProgress = restoreEvent(progress, existing.id, changedAt);
+      }
+      const changedEvent = getEvents(nextProgress).find(
+        (event) => event.id === existing.id,
+      );
+      if (!changedEvent) {
+        return noOpFailure(
+          toolName,
+          toolInput,
+          "schedule_state_invalid",
+          "변경된 일정 상태를 안전하게 확인하지 못해 적용하지 않았어요.",
+        );
+      }
+      return {
+        domainMutation: {
+          kind: "journey_progress_key_cas",
+          key: "__events",
+          expectedPresent: true,
+          expected: progress.__events,
+          value: nextProgress.__events,
+        },
+        result: {
+          toolName,
+          toolInput,
+          toolOutput: {
+            event: changedEvent,
+            previous_event: existing,
+          },
+          success: true,
+          displayMessage: toolName === "cancel_schedule_event"
+            ? `“${existing.title}” (${existing.date}) 일정을 취소 상태로 남겼어요.`
+            : `“${existing.title}” (${existing.date}) 일정을 예정 상태로 복원했어요.`,
+        },
+      };
+    } catch (error) {
+      if (error instanceof ScheduleEventValidationError) {
+        return noOpFailure(
+          toolName,
+          toolInput,
+          toolName === "cancel_schedule_event"
+            ? "invalid_schedule_cancellation"
+            : "invalid_schedule_restoration",
+          toolName === "cancel_schedule_event"
+            ? "현재 일정 상태나 취소 정보를 다시 확인해 주세요."
+            : "취소된 일정과 복원 시각을 다시 확인해 주세요.",
+        );
+      }
+      throw error;
+    }
   }
 
   if (toolName === "update_schedule_event") {
@@ -1276,8 +1366,20 @@ export function buildAmoraAtomicToolOperation(
     }
     const updates: Partial<ScheduleEvent> = {};
     if (toolInput.date !== undefined) updates.date = toolInput.date as string;
+    if (toolInput.time !== undefined) updates.time = toolInput.time as string;
     if (toolInput.title !== undefined) updates.title = toolInput.title as string;
     if (toolInput.memo !== undefined) updates.memo = toolInput.memo as string;
+    const hasMeaningfulChange = Object.entries(updates).some(
+      ([key, value]) => existing[key as keyof ScheduleEvent] !== value,
+    );
+    if (!hasMeaningfulChange) {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "no_change",
+        "일정에 바뀐 내용이 없어 변경하지 않았어요.",
+      );
+    }
     try {
       const newProgress = updateEvent(progress, eventId, updates);
       const updated = getEvents(newProgress).find((event) => event.id === eventId)!;
@@ -1292,7 +1394,7 @@ export function buildAmoraAtomicToolOperation(
         result: {
           toolName,
           toolInput,
-          toolOutput: { event: updated, updates },
+          toolOutput: { event: updated, previous_event: existing, updates },
           success: true,
           displayMessage: `“${updated.title}” 일정을 수정했어요.`,
         },
@@ -1327,11 +1429,13 @@ export function buildAmoraAtomicToolOperation(
     }
 
     const date = toolInput.date;
+    const time = toolInput.time;
     const title = toolInput.title;
     const memo = toolInput.memo;
     const categoryKey = toolInput.category_key;
     if (
       typeof date !== "string"
+      || (time !== undefined && typeof time !== "string")
       || typeof title !== "string"
       || (memo !== undefined && typeof memo !== "string")
       || (categoryKey !== undefined && typeof categoryKey !== "string")
@@ -1345,10 +1449,18 @@ export function buildAmoraAtomicToolOperation(
     }
 
     try {
-      const mutation = upsertCategoryEvent(
+      const mutation = addEvent(
         progress,
-        { date, title, memo, categoryKey },
-        CATEGORY_LABELS[categoryKey ?? ""],
+        {
+          date,
+          time,
+          title,
+          memo,
+          categoryKey,
+          sourceKey: categoryKey && categoryKey !== "general"
+            ? getCategoryEventSourceKey(categoryKey)
+            : undefined,
+        },
       );
       return {
         domainMutation: {
@@ -1363,16 +1475,9 @@ export function buildAmoraAtomicToolOperation(
         result: {
           toolName,
           toolInput,
-          toolOutput: {
-            event: mutation.event,
-            ...(mutation.created
-              ? {}
-              : { upserted: true, replaced_event_id: mutation.event.id }),
-          },
+          toolOutput: { event: mutation.newEvent },
           success: true,
-          displayMessage: mutation.created
-            ? `${date}에 “${title}” 일정을 추가했어요.`
-            : `${CATEGORY_LABELS[categoryKey ?? ""] ?? title} 일정을 ${date}로 업데이트했어요.`,
+          displayMessage: `${date}${time ? ` ${time}` : ""}에 “${title}” 일정을 추가했어요.`,
         },
       };
     } catch (error) {
@@ -1520,7 +1625,13 @@ export function applyAmoraAtomicToolResultToContext(
     } as ToolExecutionContext["weddingContext"]["progress"];
   }
   if (
-    ["add_schedule_event", "update_schedule_event", "log_wedding_event"].includes(
+    [
+      "add_schedule_event",
+      "update_schedule_event",
+      "cancel_schedule_event",
+      "restore_schedule_event",
+      "log_wedding_event",
+    ].includes(
       result.toolName,
     )
     && result.toolOutput.event
@@ -1539,22 +1650,6 @@ export function applyAmoraAtomicToolResultToContext(
     context.weddingContext.progress = {
       ...progress,
       __events: replaced ? events : [...events, event],
-    } as unknown as ToolExecutionContext["weddingContext"]["progress"];
-  }
-  if (
-    result.toolName === "delete_schedule_event"
-    && result.toolOutput.deleted_event
-    && typeof result.toolOutput.deleted_event === "object"
-    && !Array.isArray(result.toolOutput.deleted_event)
-  ) {
-    const deleted = result.toolOutput.deleted_event as ScheduleEvent;
-    const progress = context.weddingContext.progress as Record<string, unknown>;
-    const events = inspectScheduleEvents(progress).events.filter(
-      (candidate) => candidate.id !== deleted.id,
-    );
-    context.weddingContext.progress = {
-      ...progress,
-      __events: events,
     } as unknown as ToolExecutionContext["weddingContext"]["progress"];
   }
   if (

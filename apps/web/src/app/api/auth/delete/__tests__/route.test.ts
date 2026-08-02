@@ -14,6 +14,9 @@ vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn(() => "auth:delete:test-user"),

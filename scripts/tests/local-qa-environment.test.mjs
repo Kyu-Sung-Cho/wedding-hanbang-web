@@ -18,6 +18,8 @@ test("local QA web builds replace provider credentials with static placeholders"
     OPENAI_API_KEY: "real-openai-key",
     ANTHROPIC_API_KEY: "legacy-anthropic-key",
     AMORA_OPENAI_ENABLED: "true",
+    AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "true",
+    AMORA_TODAY_ONE_ENABLED: "true",
   };
 
   const env = createLocalQaWebBuildEnvironment(source);
@@ -33,6 +35,8 @@ test("local QA web builds replace provider credentials with static placeholders"
   assert.equal(env.SUPABASE_PRODUCTION_PROJECT_REF, "zyxwvutsrqponmlkjihg");
   assert.equal(env.SUPABASE_PRODUCTION_WRITE_CONFIRM, "");
   assert.equal(env.AMORA_OPENAI_ENABLED, "false");
+  assert.equal(env.AMORA_CONVERSATION_SEGMENT_READ_ENABLED, "false");
+  assert.equal(env.AMORA_TODAY_ONE_ENABLED, "false");
   assert.equal(env.OPENAI_API_KEY, "");
   assert.equal(env.ANTHROPIC_API_KEY, "");
   assert.equal("VERCEL_ENV" in env, false);

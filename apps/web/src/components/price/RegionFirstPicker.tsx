@@ -34,7 +34,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
         <h2 id="region-first-heading" className="mt-2 text-xl font-bold sm:text-2xl">
           어느 지역에서 준비하세요?
         </h2>
-        <p className="mt-2 text-sm leading-6 text-[#36534E]/75">
+        <p className="mt-2 text-sm leading-6 text-[#36534E]/85">
           같은 업체라도 어느 대행사를 끼는지에 따라 가격이 달라요. 지역을 고르면 그
           지역 대행사가 공시한 가격만 보여드릴게요.
         </p>

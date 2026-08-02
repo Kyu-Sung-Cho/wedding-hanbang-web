@@ -29,8 +29,8 @@ export const HOME_SERVICES = Object.freeze([
   },
   {
     key: "bookings",
-    title: "상담 예약",
-    description: "방문과 기록",
+    title: "상담 요청 기록",
+    description: "아모라 내부 후보",
     route: "/bookings",
   },
   {
@@ -145,7 +145,7 @@ export function buildDashboardFocus({
       eyebrow: "다녀온 뒤 기록",
       title: `${booking.vendorName} 결과를 남겨주세요`,
       description:
-        "실제 결제금액과 만족도를 기록하면 두 사람의 예산과 다음 준비가 실제 경험에 맞게 이어져요.",
+        "실제 진행 여부를 직접 확인한 뒤, 사용자가 입력한 기록 지출과 만족도를 남겨보세요. 이 입력값은 결제 증빙이 아니에요.",
       ctaLabel: "결과 기록하기",
       route: "/bookings",
       bookingId: booking.id,
@@ -167,10 +167,10 @@ export function buildDashboardFocus({
 
   return {
     kind: "calm",
-    eyebrow: "오늘의 여유",
-    title: "오늘은 준비가 잘 흘러가고 있어요",
+    eyebrow: "저장된 일정 확인",
+    title: "현재 저장된 일정 기준, 오늘 확인 항목이 없어요",
     description:
-      "아모라에게 다음 한 주의 준비 순서를 물어보거나, 둘이 정한 내용을 한 번 더 확인해 보세요.",
+      "등록하지 않은 일정과 실제 계약·업체·가족 일정은 포함되지 않아요. 필요하면 아모라와 다음 준비를 정리해 보세요.",
     ctaLabel: "아모라와 계획하기",
     route: "/(tabs)/chat",
   };

@@ -36,6 +36,7 @@ import type {
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
+import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import {
   resolveCoupleConnectionState,
   type CoupleConnectionState,
@@ -994,6 +995,8 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+
+        {!isDemo && <TodayOnePreferenceControl />}
 
         {hasLegacyCareConsent && (
           <div className="mt-5 border-t border-[#E8E0D8] px-5 pt-5">

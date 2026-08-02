@@ -11,6 +11,9 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@supabase/supabase-js", () => ({
   createClient: createAdminClientSpy,
 }));
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
 
 import { GET, POST } from "../route";
 

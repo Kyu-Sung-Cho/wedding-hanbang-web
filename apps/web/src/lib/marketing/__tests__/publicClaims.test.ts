@@ -13,7 +13,13 @@ const ACTIVE_PUBLIC_SOURCES = [
   "src/app/beta/page.tsx",
   "src/app/beta/BetaForm.tsx",
   "src/components/customer-landing/CustomerNav.tsx",
-  "src/components/landing/CelebrationHero.tsx",
+  "src/components/landing/redesign/landingContent.ts",
+  "src/components/landing/redesign/TransformationHero.tsx",
+  "src/components/landing/redesign/PreparationResult.tsx",
+  "src/components/landing/redesign/SharedPrivateSection.tsx",
+  "src/components/landing/redesign/TrustEvidenceSection.tsx",
+  "src/components/landing/redesign/ClosingAction.tsx",
+  "src/components/landing/redesign/LandingFooter.tsx",
   "src/components/landing/CompareToHumanPlanner.tsx",
   "src/components/landing/FiveRoles.tsx",
   "src/components/landing/ForBetaCouples.tsx",
@@ -67,9 +73,14 @@ describe("public marketing claim boundary", () => {
   });
 
   it("states that AI changes require confirmation and keeps policy links real", () => {
-    const landing = source("src/app/landing/page.tsx");
+    const landing = [
+      source("src/components/landing/redesign/landingContent.ts"),
+      source("src/components/landing/redesign/TrustEvidenceSection.tsx"),
+      source("src/components/landing/redesign/LandingFooter.tsx"),
+    ].join("\n");
 
-    expect(landing).toContain("사용자가 승인한 내용만 반영");
+    expect(landing).toContain("확인한 내용만 저장");
+    expect(landing).toContain("확인 버튼을 누르기 전에는 우리 준비에 반영되지 않아요");
     expect(landing).toContain('{ label: "이용약관", href: "/terms" }');
     expect(landing).toContain('{ label: "개인정보처리방침", href: "/privacy" }');
     expect(landing).toContain('{ label: "AI 서비스 정책", href: "/ai-policy" }');

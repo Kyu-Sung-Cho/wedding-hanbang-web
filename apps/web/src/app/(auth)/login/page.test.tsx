@@ -1,6 +1,14 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  DEMO_AMORA_PREFILL_STORAGE_KEY,
+  rememberDemoAmoraPrefill,
+} from "@/lib/chat/demoHandoff";
+
+const HANDOFF_ID = "0f75ca2a-94c1-4d9c-83e3-a45981c98673";
+const START_HERE_REDIRECT = `/wedding/chat?startHereHandoff=${HANDOFF_ID}`;
+const START_HERE_LOGIN = `/login?mode=signup&redirect=${encodeURIComponent(START_HERE_REDIRECT)}&source=start-here`;
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -28,6 +36,8 @@ describe("login return journey", () => {
     mocks.createClient.mockReturnValue({
       auth: { signInWithOAuth: mocks.signInWithOAuth },
     });
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     window.history.replaceState({}, "", "/login?redirect=%2Fprice%2Fwishlist");
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -37,6 +47,7 @@ describe("login return journey", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    vi.unstubAllGlobals();
   });
 
   it("sends the requested internal destination through the OAuth callback", async () => {
@@ -93,5 +104,97 @@ describe("login return journey", () => {
     expect(
       container.querySelector('button[aria-label="비밀번호 확인 표시"]'),
     ).not.toBeNull();
+  });
+
+  it("opens a landing signup destination in signup mode", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/login?mode=signup&redirect=%2Fwedding%2Fchat",
+    );
+
+    await act(async () => root.render(<LoginPage />));
+
+    expect(container.querySelector("h1")?.textContent).toBe("회원가입");
+    expect(container.querySelector('input[placeholder="이름 *"]')).not.toBeNull();
+  });
+
+  it("recognizes a start-here handoff and puts one-tap signup before the email form", async () => {
+    rememberDemoAmoraPrefill(window.localStorage, "가입 전에 고른 질문", HANDOFF_ID);
+    window.history.replaceState({}, "", START_HERE_LOGIN);
+
+    await act(async () => root.render(<LoginPage />));
+
+    expect(container.textContent).toContain("방금 본 준비를 이어갈게요.");
+    expect(container.textContent).toContain("입력창에서 확인한 뒤 직접 보낼 수 있어요");
+    expect(container.textContent).toContain("베타 제공 범위·기간·비용");
+
+    const kakaoButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.trim() === "카카오");
+    const emailInput = container.querySelector('input[type="email"]');
+    expect(kakaoButton).not.toBeNull();
+    expect(emailInput).not.toBeNull();
+    expect(
+      kakaoButton?.compareDocumentPosition(emailInput as Node)
+        ?? Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("does not trust a source label without a matching one-time handoff", async () => {
+    rememberDemoAmoraPrefill(window.localStorage, "다른 방문자의 질문", HANDOFF_ID);
+    rememberDemoAmoraPrefill(window.sessionStorage, "중단된 이전 체험 질문");
+    window.history.replaceState(
+      {},
+      "",
+      "/login?mode=signup&redirect=%2Fwedding%2Fchat&source=start-here",
+    );
+
+    await act(async () => root.render(<LoginPage />));
+
+    expect(container.textContent).not.toContain("방금 본 준비를 이어갈게요.");
+    expect(window.localStorage.getItem(DEMO_AMORA_PREFILL_STORAGE_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(DEMO_AMORA_PREFILL_STORAGE_KEY)).toBeNull();
+  });
+
+  it("passes the safe destination into an email signup confirmation", async () => {
+    rememberDemoAmoraPrefill(window.localStorage, "가입 전에 고른 질문", HANDOFF_ID);
+    window.history.replaceState({}, "", START_HERE_LOGIN);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ success: true }),
+    }));
+    await act(async () => root.render(<LoginPage />));
+
+    const setInput = (input: HTMLInputElement | undefined, value: string) => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(input, value);
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+      input?.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const passwordInputs = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+    );
+    await act(async () => {
+      setInput(container.querySelector<HTMLInputElement>('input[placeholder="이름 *"]') ?? undefined, "테스트 사용자");
+      setInput(container.querySelector<HTMLInputElement>('input[type="email"]') ?? undefined, "test@example.com");
+      setInput(passwordInputs[0], "Strong1!");
+      setInput(passwordInputs[1], "Strong1!");
+    });
+
+    await act(async () => {
+      container.querySelector("form")?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const requestInit = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(String(requestInit?.body))).toMatchObject({
+      redirect: START_HERE_REDIRECT,
+    });
+    expect(container.textContent).toContain("같은 브라우저에서 인증하면 아모라 화면으로 이어져요");
   });
 });

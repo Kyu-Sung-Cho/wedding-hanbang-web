@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
@@ -30,6 +31,9 @@ function accountDeletionReasonCode(value: unknown): string {
 
 export async function DELETE(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     // Intake is a separate boundary from worker progression. During an
     // expand-only release we must be able to deploy the durable saga without
     // creating jobs, upload fences, or logout side effects before the legal

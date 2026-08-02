@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
+  getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
+import type { BudgetImpactPreview } from "@hanbang/shared";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ChatMessage, PendingAmoraAction } from "@/types/database.types";
 
@@ -29,15 +31,52 @@ const action: PendingAmoraAction = {
   expiresAt: Date.parse("2026-07-18T00:00:00.000Z"),
 };
 
+const budgetImpactPreview: BudgetImpactPreview = {
+  version: 1,
+  kind: "budget_change",
+  tool: "update_budget",
+  inputDigest: action.inputDigest,
+  sourceRevision: 5,
+  recordedSpendBasis: "explicit_spent_only",
+  current: {
+    totalBudget: 50_000_000,
+    allocatedBudget: 20_000_000,
+    recordedSpend: 5_000_000,
+    unallocatedBudget: 30_000_000,
+  },
+  proposed: {
+    totalBudget: 30_000_000,
+    allocatedBudget: 20_000_000,
+    recordedSpend: 5_000_000,
+    unallocatedBudget: 10_000_000,
+  },
+  delta: {
+    totalBudget: -20_000_000,
+    allocatedBudget: 0,
+    recordedSpend: 0,
+    unallocatedBudget: -20_000_000,
+  },
+  categories: [],
+  warnings: [],
+};
+
 const singleIdentity = getAmoraToolOperationIdentity(
   "add_schedule_event",
-  { date: "2026-08-01", title: "드레스 피팅" },
+  {
+    date: "2026-08-01",
+    title: "드레스 피팅",
+    schedule_scope: "confirmed_fact",
+  },
 );
 const singleAction: PendingAmoraAction = {
   version: 2,
   actionId: "22222222-2222-4222-8222-222222222222",
   tool: "add_schedule_event",
-  input: { date: "2026-08-01", title: "드레스 피팅" },
+  input: {
+    date: "2026-08-01",
+    title: "드레스 피팅",
+    schedule_scope: "confirmed_fact",
+  },
   inputDigest: singleIdentity.inputDigest,
   operationKey: singleIdentity.operationKey,
   confirmation: "드레스 피팅 일정을 추가할까요?",
@@ -141,6 +180,39 @@ describe("PendingAmoraActionCard", () => {
     expect(container.textContent).toContain("새 대화가 이어져");
     await act(async () => apply?.click());
     expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("shows truthful before/after budget impact without calling recorded spend a payment", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      approvalMode: "couple",
+      accepted: false,
+      acceptedCount: 0,
+      requiredCount: 2,
+      partnerLinked: true,
+      ready: false,
+    }), { status: 200 }));
+
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          impactPreview={budgetImpactPreview}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+    });
+    await act(async () => Promise.resolve());
+
+    expect(container.textContent).toContain("변경 영향");
+    expect(container.textContent).toContain("총예산");
+    expect(container.textContent).toContain("5,000만원 → 3,000만원");
+    expect(container.textContent).toContain("기록 지출");
+    expect(container.textContent).toContain("결제 완료를 뜻하지 않아요");
+    expect(container.textContent).not.toContain("결제액");
   });
 
   it("records only my first confirmation and clearly says nothing changed yet", async () => {
@@ -468,6 +540,34 @@ describe("pending action message boundary", () => {
     expect(getPendingAmoraAction(message({
       metadata: { pending_amora_action: { ...action, operationKey: "wrong" } },
     }))).toBeNull();
+  });
+
+  it("accepts an impact preview only when action digest and journey revision match", () => {
+    const validMessage = message({
+      metadata: {
+        pending_amora_action: action,
+        pending_amora_action_journey_revision: 5,
+        pending_amora_action_impact_preview: budgetImpactPreview,
+      },
+    });
+    expect(getPendingAmoraBudgetImpactPreview(validMessage, action)).toEqual(
+      budgetImpactPreview,
+    );
+    expect(getPendingAmoraBudgetImpactPreview(message({
+      metadata: {
+        ...validMessage.metadata,
+        pending_amora_action_journey_revision: 6,
+      },
+    }), action)).toBeNull();
+    expect(getPendingAmoraBudgetImpactPreview(message({
+      metadata: {
+        ...validMessage.metadata,
+        pending_amora_action_impact_preview: {
+          ...budgetImpactPreview,
+          inputDigest: "b".repeat(64),
+        },
+      },
+    }), action)).toBeNull();
   });
 
   it("uses the server expiry instant without a locale conversion", () => {

@@ -149,6 +149,7 @@ const SAFE_AI_LOG_METADATA_KEYS = new Set([
   "provider_request_id",
   "provider_request_stage",
   "provider_response_id",
+  "question_scope",
   "reasoning_effort",
   "region",
   "routing_reason",
@@ -164,6 +165,14 @@ const SAFE_AI_LOG_METADATA_KEYS = new Set([
   "usage_status",
   "vendor_category",
   "visibility",
+]);
+const SAFE_QUESTION_SCOPES = new Set([
+  "W0_wedding_core",
+  "W1_wedding_adjacent",
+  "W2_high_risk_adjacent",
+  "W3_social_care",
+  "W4_out_of_scope",
+  "W5_safety_override",
 ]);
 
 function safeMetadataValue(value: unknown): unknown | undefined {
@@ -189,6 +198,12 @@ function sanitizeLogMetadata(
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(metadata)) {
     if (!SAFE_AI_LOG_METADATA_KEYS.has(key)) continue;
+    if (key === "question_scope") {
+      if (typeof value === "string" && SAFE_QUESTION_SCOPES.has(value)) {
+        safe[key] = value;
+      }
+      continue;
+    }
     const sanitized = safeMetadataValue(value);
     if (sanitized !== undefined) safe[key] = sanitized;
   }

@@ -7,8 +7,14 @@ const currentProductDefinition =
   "웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는 서비스입니다.";
 const currentReleaseHandoffPath =
   "docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md";
+const crossMachineHandoffPath =
+  "docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md";
+const latestSupplementalHandoffPath =
+  "docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md";
 const currentReleaseInventoryPath =
   "docs/operations/evidence/full-workspace-release-inventory-2026-07-31.json";
+const lazywebRunbookPath =
+  "docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md";
 
 function escaped(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -63,10 +69,44 @@ test("repository handoff docs describe the current monorepo and release source o
 
   for (const document of [agents, readme]) {
     assert.match(document, new RegExp(escaped(currentReleaseHandoffPath)));
+    assert.match(document, new RegExp(escaped(crossMachineHandoffPath)));
+    assert.match(document, new RegExp(escaped(latestSupplementalHandoffPath)));
     assert.match(document, /docs\/operations\/CURRENT_WORKSPACE_HANDOFF_2026-07-20\.md/);
     assert.match(document, /scripts\/ingest\/README\.md/);
     assert.doesNotMatch(document, /현재 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-17\.md/);
     assert.doesNotMatch(document, /다른 컴퓨터 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-19\.md/);
+  }
+});
+
+test("cross-machine handoff links the machine-local Lazyweb runbook without committing credentials", async () => {
+  const [agents, claude, readme, docsIndex, crossMachine, lazywebRunbook] =
+    await Promise.all([
+      readFile(new URL("AGENTS.md", root), "utf8"),
+      readFile(new URL("CLAUDE.md", root), "utf8"),
+      readFile(new URL("README.md", root), "utf8"),
+      readFile(new URL("docs/README.md", root), "utf8"),
+      readFile(new URL(crossMachineHandoffPath, root), "utf8"),
+      readFile(new URL(lazywebRunbookPath, root), "utf8"),
+    ]);
+
+  for (const document of [agents, claude, readme, docsIndex, crossMachine]) {
+    assert.match(document, new RegExp(escaped(lazywebRunbookPath)));
+  }
+
+  assert.match(lazywebRunbook, /https:\/\/www\.lazyweb\.com\/mcp/);
+  assert.match(lazywebRunbook, /https:\/\/github\.com\/aboul3ata\/lazyweb-skill/);
+  assert.match(lazywebRunbook, /LAZYWEB_MCP_TOKEN/);
+  assert.match(lazywebRunbook, /v0\.14\.9/);
+  assert.match(lazywebRunbook, /MACHINE-LOCAL/);
+  assert.match(crossMachine, /\/artifacts\/[\s\S]*GitHub 인계 대상이 아니다/);
+  assert.match(crossMachine, /\/\.lazyweb\/[\s\S]*GitHub 인계 대상이 아니다/);
+
+  for (const document of [crossMachine, lazywebRunbook]) {
+    assert.doesNotMatch(document, /lazyweb\.com\/agent\/[0-9a-f-]{36}\.md/i);
+    assert.doesNotMatch(
+      document,
+      /Authorization\s*:\s*Bearer\s+[A-Za-z0-9._-]{16,}/i,
+    );
   }
 });
 
@@ -165,7 +205,15 @@ test("document authority chain is complete and old status claims stay historical
       document,
       new RegExp(escaped(currentReleaseHandoffPath)),
     );
+    assert.match(document, new RegExp(escaped(crossMachineHandoffPath)));
+    assert.match(document, new RegExp(escaped(latestSupplementalHandoffPath)));
   }
+
+  assert.match(documents.currentRelease, new RegExp(escaped(crossMachineHandoffPath)));
+  assert.match(
+    documents.currentRelease,
+    new RegExp(escaped(latestSupplementalHandoffPath)),
+  );
 
   for (const document of [
     documents.agents,

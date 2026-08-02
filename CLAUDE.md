@@ -9,6 +9,12 @@
 2. `AGENTS.md`
 3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 4. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+   - 다른 컴퓨터 재개:
+     `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+   - 2026-08-02 커뮤니티·전체 구현 상세:
+     `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+   - UI 디자인 조사 도구가 필요한 경우에만:
+     `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
 5. 변경 영역의 현재 release gate
 6. 변경 영역의 실제 코드·테스트·최신 migration
 7. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,

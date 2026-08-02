@@ -16,6 +16,7 @@ import {
   WEDDING_PRIORITY_OPTIONS,
   WEDDING_STYLE_OPTIONS,
 } from "@hanbang/shared";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 const DEFAULT_PROMPT_DATA_LIMIT = 800;
 const STYLE_LABELS = Object.fromEntries(
@@ -74,8 +75,10 @@ function generateBehaviorInsights(context: {
 
   for (const key of categoryKeys) {
     const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-    const catBudget = (p.budget ?? 0) as number;
-    const catSpent = ((p.spent ?? p.cost ?? 0) as number);
+    const catBudget = isValidWeddingWonAmount(p.budget) ? p.budget : 0;
+    // `cost` is a legacy amount with no reliable budget/spend meaning. Only an
+    // explicit `spent` field participates in spend-derived guidance.
+    const catSpent = isValidWeddingWonAmount(p.spent) ? p.spent : 0;
     const status = p.status as string | undefined;
 
     if (status === "completed") {
@@ -214,6 +217,12 @@ export type WeddingPlannerPromptContext = {
     confidence: number;
     source: string;
     createdAt: string;
+    vendorDeliveryStatus?: string | null;
+    vendorConfirmationStatus?: string | null;
+    internalRequestStatus?: string | null;
+    vendorCancellationStatus?: string | null;
+    refundStatus?: string | null;
+    completionEvidence?: string | null;
   }>;
   /**
    * Mediation 강화: 이 커플의 과거 갈등→합의 history (최근 5개).
@@ -261,9 +270,14 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
       const status = p.status === "completed" ? "✅완료" : p.status === "in_progress" ? "🔄진행중" : "⬜예정";
-      const budget = typeof p.budget === "number" ? `${(p.budget as number / 10000).toLocaleString()}만원` : "미설정";
-      const spent = typeof p.spent === "number" || typeof p.cost === "number"
-        ? `지출: ${(((p.spent ?? p.cost) as number) / 10000).toLocaleString()}만원`
+      const budget = isValidWeddingWonAmount(p.budget)
+        ? `${(p.budget / 10000).toLocaleString()}만원`
+        : "미설정";
+      const spent = isValidWeddingWonAmount(p.spent)
+        ? `기록 지출: ${(p.spent / 10000).toLocaleString()}만원`
+        : "";
+      const legacyAmount = Object.prototype.hasOwnProperty.call(p, "cost")
+        ? "이전 버전 용도 미확인 금액 있음(예산·지출 합계에서 제외)"
         : "";
       const vendor = p.vendor ? `업체: ${promptData(p.vendor, 200)}` : "";
       const notes = p.notes ? `메모: ${promptData(p.notes, 500)}` : "";
@@ -271,7 +285,14 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       const checklistInfo = checklist.length > 0
         ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
         : "";
-      const parts = [`${label}(${key}): ${status}, 예산: ${budget}`, spent, vendor, notes, checklistInfo].filter(Boolean);
+      const parts = [
+        `${label}(${key}): ${status}, 예산: ${budget}`,
+        spent,
+        legacyAmount,
+        vendor,
+        notes,
+        checklistInfo,
+      ].filter(Boolean);
       return `  - ${parts.join(" | ")}`;
     })
     .join("\n");
@@ -281,10 +302,12 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   let totalAllocated = 0;
   for (const [key] of Object.entries(CATEGORY_LABELS)) {
     const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-    totalSpent += ((p.spent ?? p.cost ?? 0) as number);
-    totalAllocated += ((p.budget ?? 0) as number);
+    totalSpent += isValidWeddingWonAmount(p.spent) ? p.spent : 0;
+    totalAllocated += isValidWeddingWonAmount(p.budget) ? p.budget : 0;
   }
-  const spentInfo = totalSpent > 0 ? `총 지출: ${(totalSpent / 10000).toLocaleString()}만원` : "";
+  const spentInfo = totalSpent > 0
+    ? `기록 지출 합계: ${(totalSpent / 10000).toLocaleString()}만원`
+    : "";
   const unallocated = context.budget - totalAllocated;
   const unallocatedInfo = context.budget > 0 && unallocated > 0
     ? `미배정 예산: ${(unallocated / 10000).toLocaleString()}만원`
@@ -318,12 +341,12 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       const amountParts: string[] = [];
 
       if (isPositiveAmount(b.actualAmount)) {
-        amountParts.push(`실결제: ${formatWon(b.actualAmount)}`);
+        amountParts.push(`사용자 기록 지출(결제 증빙 아님): ${formatWon(b.actualAmount)}`);
       }
       if (isPositiveAmount(b.contractedAmount)) {
         amountParts.push(`계약/견적: ${formatWon(b.contractedAmount)}`);
       } else if (isPositiveAmount(b.amount)) {
-        amountParts.push(`예약금액: ${formatWon(b.amount)}`);
+        amountParts.push(`예약 요청 견적(지출 아님): ${formatWon(b.amount)}`);
       }
       if (isPositiveAmount(b.actualAmount) && baselineAmount !== null) {
         const delta = b.actualAmount - baselineAmount;
@@ -573,7 +596,16 @@ ${profileBlocks.join("\n\n")}
       const sourceTag = d.source === "chat" ? "" : ` [${promptData(d.source, 40)}]`;
       const valueText = d.value ? ` | 값 ${promptData(d.value, 500)}` : "";
       const reasonText = d.reasoning ? ` | 배경 ${promptData(d.reasoning, 800)}` : "";
-      return `  - [${categoryLabel}]${sourceTag} 제목 ${promptData(d.title, 300)}${valueText}${reasonText} (${dateStr})`;
+      const truthParts = [
+        d.internalRequestStatus ? `아모라 내부 기록=${promptData(d.internalRequestStatus, 40)}` : null,
+        d.vendorDeliveryStatus ? `업체 전달=${promptData(d.vendorDeliveryStatus, 40)}` : null,
+        d.vendorConfirmationStatus ? `업체 확인=${promptData(d.vendorConfirmationStatus, 40)}` : null,
+        d.vendorCancellationStatus ? `업체 취소=${promptData(d.vendorCancellationStatus, 40)}` : null,
+        d.refundStatus ? `환불=${promptData(d.refundStatus, 40)}` : null,
+        d.completionEvidence ? `완료 근거=${promptData(d.completionEvidence, 40)}` : null,
+      ].filter((part): part is string => part !== null);
+      const truthText = truthParts.length > 0 ? ` | 진실 상태 ${truthParts.join(", ")}` : "";
+      return `  - [${categoryLabel}]${sourceTag} 제목 ${promptData(d.title, 300)}${valueText}${reasonText}${truthText} (${dateStr})`;
     };
 
     // 오래된 결정: 압축 (날짜 + 카테고리 + 제목만, reasoning 생략)
@@ -581,7 +613,10 @@ ${profileBlocks.join("\n\n")}
       const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
       const categoryLabel = CATEGORY_LABELS[d.category] ?? promptData(d.category, 80);
       const valueText = d.value ? ` | 값 ${promptData(d.value, 500)}` : "";
-      return `  - [${categoryLabel}] 제목 ${promptData(d.title, 300)}${valueText} (${dateStr})`;
+      const truthText = d.vendorDeliveryStatus || d.vendorConfirmationStatus
+        ? ` | 업체 전달=${promptData(d.vendorDeliveryStatus ?? "unknown", 40)}, 업체 확인=${promptData(d.vendorConfirmationStatus ?? "unknown", 40)}`
+        : "";
+      return `  - [${categoryLabel}] 제목 ${promptData(d.title, 300)}${valueText}${truthText} (${dateStr})`;
     };
 
     const sections: string[] = [];
@@ -615,12 +650,13 @@ ${profileBlocks.join("\n\n")}
     }
 
     pastDecisionsSection = `\n## 이 커플의 결정 히스토리 (최근 ${context.pastDecisions.length}개)
-아래는 이 커플이 과거에 결정·선호 표현한 내용입니다.
-사용자가 기억 기능을 켠 범위에서 직접 확정한 선택을 이어가기 위한 데이터입니다.
+아래는 이 커플이 과거에 결정·고려·선호를 표현한 내용입니다.
+사용자가 기억 기능을 켠 범위에서 이전 맥락을 이어가기 위한 데이터이며, 모든 항목이 확정 선택이라는 뜻은 아닙니다.
 
 ${sections.join("\n\n")}
 
 **활용 원칙:**
+0. **진실 상태 우선**: considering, 업체 전달=not_sent, 업체 확인=unconfirmed인 항목은 아모라 내부 방문·상담 후보 기록일 뿐입니다. 예약됨·업체 확정·계약 완료라고 부르지 마세요.
 1. **일관성 유지**: 이미 결정한 것은 존중. "드레스샵 A로 하셨죠? 오늘은 관련 투어 준비 얘기해볼까요?"
 2. **변화 감지**: 과거 선호와 지금 발언이 다르면 자연스럽게 확인. "지난번엔 미니멀 좋다 하셨는데, 지금은 화려한 쪽이 끌리시나 봐요. 어떤 변화가 있었어요?"
 3. **맥락 이어가기**: 사용자가 짧게 말하면 과거 맥락을 단정하지 말고 짧게 확인. "1500만원 얘기 이어가는 걸까요?"
@@ -700,6 +736,7 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraPro
 - 결정·실행 역할을 선택했고 실제 누락 위험이 있을 때만, 사용자가 놓칠 수 있는 다음 실수 1개를 조용히 잡아주세요.
 - 사용자가 "정했어", "예약했어", "계약했어", "보냈어", "식 끝났어"라고 하면 짧게 축하하세요. 마감·추가 납부·저장 누락처럼 지금 놓치면 되돌리기 어려운 실무만 한 가지 챙기고, 나머지는 사용자가 원할 때 이어가세요.
 - 식이 끝난 뒤에도 혼인신고, 앨범/영상 수령, 업체 후기, 감사 인사, 도와준 사람에게 따로 보낼 메시지를 도와주세요.
+- spent 필드는 사용자가 기록한 금액일 뿐 결제 완료 증거가 아닙니다. cost 필드는 이전 버전의 용도 미확인 값이므로 예산·지출·결제 합계나 초과 판단에 쓰지 마세요.
 
 **파트너 모드의 기본 행동:**
 - 위의 "먼저 이번 턴의 역할 하나를 고르기" 원칙을 먼저 적용하세요. 아래 행동을 모든 답변에 한꺼번에 넣지 마세요.
@@ -1055,14 +1092,18 @@ Step 설명, 합계 검증, 표, 보정 노트 — **모두** 한글로. 영어 
 - create_booking의 date는 사용자가 마지막으로 말한 날짜 또는 [date:YYYY-MM-DD] 태그와 정확히 같아야 합니다. 가능한 슬롯이 전날/다음날에 있어도 자동 변경 금지.
 - 사용자가 "그럼 다음 가능한 날짜로 해줘"처럼 날짜 변경을 명시적으로 승인한 뒤에만 대체 날짜로 예약하세요.
 
-### 5단계: 예약 확정 후
+### 5단계: 아모라 내부 방문·상담 후보 기록 후
 - \`create_booking\` 성공 뒤에는 실제 예약 결과만 안내하세요. 행동 카드는 자동으로 추가하지 말고, 별도 카드가 유용하면 내용을 제안한 뒤 다시 확인받으세요.
+- 현재 create_booking은 아모라 내부에 예약 요청 기록을 저장할 뿐 업체에 요청을 전송하거나 예약을 확정하지 않습니다. "예약 접수/확정"이라고 말하지 말고 업체 전달·확정이 미확인임을 명시하세요.
+- 예약의 amount는 요청 시점 견적입니다. actual_amount가 명시적으로 기록되기 전에는 결제·실제 지출·예산 사용액이라고 말하거나 합산하지 마세요.
 
 ### 예약 취소 (cancel_booking)
 - **한 사용자 발화당 cancel_booking 은 최대 한 번만 호출.** 같은 turn 에 두 번 호출 금지.
 - booking_id 는 반드시 직전 BookingConfirmCard 메시지의 [booking:ID] 태그 또는 get_my_bookings 결과의 id 에서 정확히 가져오기. **추측 / placeholder / hallucinated id 절대 금지.**
 - 사용자가 "취소" 만 말하고 어떤 예약인지 모호하면 → cancel_booking 호출 전에 먼저 어느 예약인지 사용자에게 물어보거나 get_my_bookings 로 확인.
 - 이미 취소한 예약은 같은 세션 동안 재호출 금지.
+- 현재 cancel_booking은 아모라 내부 기록만 취소 상태로 바꾸며 업체에 취소 요청을 전송하거나 업체 취소를 확정하지 않습니다. "예약 취소 완료"라고 단정하지 마세요.
+- 예약 취소는 일정 삭제나 환불 확정을 뜻하지 않습니다. 일정은 취소 상태와 행위자 기록을 남기고, 기록된 실제 지출은 유지하며, 환불 여부·금액은 업체 조건이나 별도 증빙 없이는 "미확인"이라고 말하세요.
 - \`cancel_booking\` 성공 뒤 관련 행동 카드가 보이면 정확한 action_id를 조회하고, 사용자에게 별도 정리 여부를 확인한 뒤에만 숨기세요. 이름·날짜가 비슷하다는 이유만으로 자동 변경하지 마세요.
 
 ### 금지 패턴
@@ -1185,7 +1226,7 @@ ${getVendorAsymmetryContext()}
 - F: 근거 없음. 답하지 말고 필요한 정보를 질문하거나 확인 방법을 안내합니다.
 
 **확정 금지 영역:**
-- 업체 가능 여부, 예약 가능 시간, 할인, 최종 가격, 환불 가능성, 계약 효력은 도구/문서/사용자 제공 정보 없이는 확정하지 않습니다.
+- 업체 가능 여부, 표시된 시간 후보의 실제 가능 여부, 할인, 최종 가격, 환불 가능성, 계약 효력은 도구/문서/사용자 제공 정보 없이는 확정하지 않습니다.
 - 사용자가 제공하지 않은 견적 포함 항목을 포함이라고 추정하지 않습니다.
 - 특정 업체를 검증 업체처럼 보이게 말하지 않습니다.
 - 감사 인사나 전화 스크립트에 사실관계가 필요한 경우, 확인된 정보만 넣고 불확실한 부분은 빈칸 또는 확인 질문으로 둡니다.
@@ -1259,17 +1300,18 @@ ${getVendorAsymmetryContext()}
 
 ### 갈등 중재 응답 형식 (중요)
 시스템이 전달한 \`[MEDIATION_REQUEST]\`처럼 **구조화된 중재가 명시적으로 요청된 경우에만** 답변 본문 끝에 아래 마커 블록을 정확히 한 번 포함하세요. 일반적인 속상함이나 갈등 언급에는 마커 없이 자연스럽게 답하세요. 마커는 UI 카드용 데이터이며 고정된 대화 순서를 뜻하지 않습니다.
+구조화된 중재에서는 이번 요청자가 직접 작성한 요약만 새 근거입니다. 이전 공유 대화가 있더라도 상대방의 현재 관점으로 대신하지 말고, 요청자의 전달 내용을 상대방의 발화·감정·요구로 사실처럼 귀속하지 마세요.
 
 [mediation]
-공감: <감정을 인정하는 한 문장. 30~70자.>
-통역: <양쪽이 실제로 한 말과 확인된 요구를 균형 있게 옮긴 한~두 문장. 가능한 해석은 "~일 수 있어요"처럼 낮추고 확인이 필요함을 표시.>
-데이터: <현재 대화에서 확인된 예산 영향 또는 원문 URL·기준일·적용 범위가 확인된 객관적 근거 한 문장. 근거가 없으면 "확인된 수치는 없어요"라고 솔직하게.>
+공감: <요청자가 직접 표현한 감정을 인정하는 한 문장. 말하지 않은 감정은 추가하지 않음. 30~70자.>
+통역: <요청자가 전한 상황과 쟁점을 중립적으로 요약한 한~두 문장. 상대방이 말했다거나 원한다고 단정하지 않음.>
+데이터: <상대방에게 확인할 점 또는 아직 확인되지 않은 날짜·예산·조건 한 문장. 객관적 근거가 있으면 원문 URL·기준일·적용 범위를 함께 표시.>
 합의안: <중립적 타협 제안. 어느 한쪽 편 들지 않고 두 가치를 살리는 방향 한~두 문장.>
 [/mediation]
 
 **규칙**
 - 마커는 \`[MEDIATION_REQUEST]\`가 있을 때만 출력. 일반 질문·상담·감정 토로에는 절대 출력 금지.
-- 4줄 모두 채우는 게 원칙. 정보 부족하면 데이터 줄에 "확실한 통계는 부족" 같이 솔직하게.
+- 4줄이 모두 검증되어야 확인 가능한 카드가 됩니다. 정보가 부족해도 데이터 줄을 생략하지 말고 무엇을 상대방에게 확인해야 하는지 솔직하게 적으세요.
 - 마커 안에 다른 마커, 코드블록, JSON, [etiquette:..] 금지. 평문 문장만.
 - 본문 응답에서 같은 내용을 다시 반복하지 마세요 — 마커가 시각 카드를 만들고 본문은 자연스러운 도입/마무리만.
 
@@ -1301,13 +1343,13 @@ ${getVendorAsymmetryContext()}
 - 첫 답변부터 카테고리 나열·긴 기능 소개 금지. 질문 2개 이상 금지.
 - 견적이 아직 없다고 하면 → 단계에 맞는 다음 한 걸음 1개만 (예: "10분이면 예산 틀부터 같이 잡아볼 수 있어요").
 
-## 자동 중재 (MEDIATION_REQUEST)
-[MEDIATION_REQUEST] 메시지는 시스템이 커플 대화에서 갈등을 감지했을 때 자동으로 보냅니다.
-- 두 분의 실제 발화를 읽고, 어느 쪽도 판정하지 않은 채 지금 필요한 조율만 자연스럽게 제안하세요.
+## 요청 기반 조율 (MEDIATION_REQUEST)
+[MEDIATION_REQUEST] 메시지는 사용자가 명시적으로 조율 초안을 요청하고, 요청자가 직접 작성한 요약만 전달했을 때 서버가 보냅니다.
+- 요청자가 전한 상황만 중립적으로 정리하고, 상대방의 생각·감정·요구는 아직 확인되지 않았다고 취급하세요.
 - "시스템이 감지했다", "갈등이 감지되었다" 등 기술적 표현 절대 사용 금지.
-- 감정을 추정해 채우거나 "많은 커플이 그렇다"는 상투어로 시작하지 마세요. 두 사람이 말한 쟁점을 짧게 확인하고 가능한 합의안을 제시하세요.
+- 감정을 추정해 채우거나 "많은 커플이 그렇다"는 상투어로 시작하지 마세요. 상대방에게 확인할 점과 가능한 합의안을 분리하세요.
 - 공감·통역·대안의 고정 순서를 강제하지 말고, 해당 대화에 필요한 요소만 쓰세요.
-- 한쪽이 포기하거나 물러난 장면을 "양보했다/지켜줬다"로 칭찬하지 마세요. 자동 중재에서는 특히 양쪽 모두 체면을 잃지 않게 중립적으로 표현하세요.
+- 한쪽이 포기하거나 물러났다고 추정해 "양보했다/지켜줬다"고 칭찬하지 마세요. 두 사람 모두 체면을 잃지 않게 중립적으로 표현하세요.
 
 ## 가족 조율·관습 질문
 

@@ -87,10 +87,10 @@ describe("ActionCard remaining budget mutation results", () => {
       );
     });
 
-    const change = container.querySelector('[aria-label="포토부스 예산·지출 변경 결과"]');
+    const change = container.querySelector('[aria-label="포토부스 예산·기록 지출 변경 결과"]');
     expect(change?.textContent).toContain("변경된 예산");
     expect(change?.textContent).toContain("80만원");
-    expect(change?.textContent).toContain("변경된 지출");
+    expect(change?.textContent).toContain("변경된 기록 지출");
     expect(change?.textContent).toContain("10만원");
   });
   it.each([

@@ -197,6 +197,13 @@ async function addControllerReadySuccessorRelease(fixture) {
 SELECT
   0 AS successor_created_table_count,
   1 AS account_deletion_auth_fk_contract_count,
+  1 AS chat_partner_recipient_insert_policy_count,
+  1 AS chat_partner_recipient_select_policy_count,
+  1 AS chat_partner_recipient_trigger_count,
+  3 AS conversation_segment_active_index_count,
+  1 AS conversation_segment_rls_policy_count,
+  1 AS conversation_segment_rpc_acl_count,
+  2 AS conversation_segment_scope_fk_count,
   4 AS couple_plan_change_auth_user_fk_count,
   1 AS couple_plan_change_display_guard_count,
   1 AS couple_plan_change_idempotency_index_count,
@@ -204,7 +211,7 @@ SELECT
   3 AS couple_plan_change_terminal_event_count,
   1 AS couple_plan_change_write_boundary_trigger_count,
   1 AS successor_migration_head_count,
-  8 AS successor_feature_flags_off_count,
+  10 AS successor_feature_flags_off_count,
   (
     SELECT count(*)::integer
     FROM pg_catalog.pg_constraint
@@ -257,6 +264,8 @@ ROLLBACK;
       AMORA_AUXILIARY_MEMORY_ENABLED: "false",
       AMORA_CARE_OUTBOUND_ENABLED: "false",
       AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+      AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
+      AMORA_TODAY_ONE_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
@@ -268,6 +277,8 @@ ROLLBACK;
       "storageWriteFenceHeld",
       "authSignupDisabled",
       "webWriteFenceEnabled",
+      "chatPartnerRecipientBoundaryHeld",
+      "conversationSegmentScopeBoundaryHeld",
     ],
   };
   const contract = {
@@ -287,6 +298,13 @@ ROLLBACK;
       sha256: sha256(successorPostCheckSql),
       expectedEvidence: {
         account_deletion_auth_fk_contract_count: 1,
+        chat_partner_recipient_insert_policy_count: 1,
+        chat_partner_recipient_select_policy_count: 1,
+        chat_partner_recipient_trigger_count: 1,
+        conversation_segment_active_index_count: 3,
+        conversation_segment_rls_policy_count: 1,
+        conversation_segment_rpc_acl_count: 1,
+        conversation_segment_scope_fk_count: 2,
         couple_plan_change_auth_user_fk_count: 4,
         couple_plan_change_display_guard_count: 1,
         couple_plan_change_idempotency_index_count: 1,
@@ -294,7 +312,7 @@ ROLLBACK;
         couple_plan_change_terminal_event_count: 3,
         couple_plan_change_write_boundary_trigger_count: 1,
         successor_created_table_count: 0,
-        successor_feature_flags_off_count: 8,
+        successor_feature_flags_off_count: 10,
         successor_migration_head_count: 1,
         wedding_court_auth_delete_fk_count: 1,
         chat_feedback_auth_delete_fk_count: 1,

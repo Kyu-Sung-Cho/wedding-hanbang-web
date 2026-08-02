@@ -116,10 +116,16 @@ function formatWonFull(n: number): string {
   return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
 
-// 이전 버전 호환: cost가 만원 단위로 저장된 경우 원 단위로 변환
-function normalizeCost(cost: number | undefined): number {
-  if (!cost || cost <= 0) return 0;
-  return cost < 100000 ? cost * 10000 : cost;
+// 이전 버전의 cost는 예산인지 지출인지 구분할 수 없다. 합산하지 않고
+// 검토 화면에만 보여주기 위해 예전 표시 단위를 복원한다.
+function normalizeLegacyCostForReview(cost: unknown): number | null {
+  if (!Number.isSafeInteger(cost) || (cost as number) <= 0) return null;
+  const normalized = (cost as number) < 100_000
+    ? (cost as number) * 10_000
+    : (cost as number);
+  return Number.isSafeInteger(normalized) && normalized <= 1_000_000_000
+    ? normalized
+    : null;
 }
 
 // 포함·별도 항목 확인 배지 컴포넌트
@@ -481,12 +487,12 @@ function BudgetRow({
 
       {/* 지출 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
+        <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">기록 지출</span>
         <InlineMoneyEdit
           value={spent}
           onSave={(v) => onSpentChange(catKey, v)}
           onReset={() => onSpentReset(catKey)}
-          label={`${label} 지출`}
+          label={`${label} 기록 지출`}
           highlight="spent"
         />
       </div>
@@ -640,12 +646,12 @@ function BudgetCard({
       <div className="flex items-end justify-between gap-2">
         <div className="flex items-end gap-3 min-w-0">
           <div className="flex flex-col items-start">
-            <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
+            <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">기록 지출</span>
             <InlineMoneyEdit
               value={spent}
               onSave={(v) => onSpentChange(catKey, v)}
               onReset={() => onSpentReset(catKey)}
-              label={`${label} 지출`}
+              label={`${label} 기록 지출`}
               highlight="spent"
             />
           </div>
@@ -754,9 +760,9 @@ export default function BudgetContent({
   const getCategoryBudget = useCallback(
     (key: string) => {
       const item = progress[key];
-      if (item?.budget !== undefined && item.budget > 0) return item.budget;
-      const cost = normalizeCost(item?.cost);
-      if (cost > 0) return cost;
+      if (Number.isSafeInteger(item?.budget) && (item?.budget ?? 0) >= 0) {
+        return item!.budget!;
+      }
       return 0;
     },
     [progress]
@@ -765,9 +771,9 @@ export default function BudgetContent({
   const getCategorySpent = useCallback(
     (key: string) => {
       const item = progress[key];
-      if (item?.spent !== undefined) return item.spent;
-      const cost = normalizeCost(item?.cost);
-      if (cost > 0) return cost;
+      if (Number.isSafeInteger(item?.spent) && (item?.spent ?? 0) >= 0) {
+        return item!.spent!;
+      }
       return 0;
     },
     [progress]
@@ -817,6 +823,24 @@ export default function BudgetContent({
     ...visibleFixed.map((c) => c.key),
     ...customCategories.map((c) => c.key),
   ];
+  const legacyReviewItems = [
+    ...BUDGET_CATEGORIES.map((category) => ({
+      key: category.key,
+      label: category.label,
+    })),
+    ...customCategories.map((category) => ({
+      key: category.key,
+      label: category.label,
+    })),
+  ].flatMap(({ key, label }) => {
+    const item = progress[key] as unknown as Record<string, unknown> | undefined;
+    if (!item || !Object.prototype.hasOwnProperty.call(item, "cost")) return [];
+    return [{
+      key,
+      label,
+      amount: normalizeLegacyCostForReview(item.cost),
+    }];
+  });
   const payerSummary = allVisibleKeys.reduce(
     (acc, key) => {
       const payer = getCategoryPayer(key);
@@ -1064,7 +1088,7 @@ export default function BudgetContent({
           <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
             <TrendingUp className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[#36534E]/35" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
-              SPENT
+              RECORDED SPEND
             </p>
             <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[#071629]">
               <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalSpent / 10000).toLocaleString()}</span>
@@ -1072,8 +1096,8 @@ export default function BudgetContent({
             </p>
             <p className="mt-3 text-[13px] font-medium text-[#5d6879]">
               {spentPercent === null
-                ? "사용한 금액 · 총 예산 입력 전"
-                : `사용한 금액 (${spentPercent}%)`}
+                ? "기록 지출 · 총 예산 입력 전 · 결제 완료 여부와 별도"
+                : `기록 지출 (${spentPercent}%) · 결제 완료 여부와 별도`}
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
               <div
@@ -1115,6 +1139,28 @@ export default function BudgetContent({
             )}
           </div>
         </div>
+
+        {legacyReviewItems.length > 0 && (
+          <section
+            role="status"
+            className="rounded-[16px] border border-[#D8C7BB] bg-[#FFF9F2] px-4 py-4 text-sm text-[#504444]"
+          >
+            <h3 className="font-semibold text-[#2B2525]">용도 미확인 이전 금액</h3>
+            <p className="mt-1 leading-6">
+              이전 버전 값은 배정 예산인지 실제 기록인지 확인할 수 없어 예산·기록 지출 합계에서 제외했어요.
+              아래 금액을 확인한 뒤 해당 항목에서 맞는 칸에 다시 입력해 주세요.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {legacyReviewItems.map((item) => (
+                <li key={item.key}>
+                  {item.label} {item.amount === null
+                    ? "금액 형식 확인 필요"
+                    : formatWonFull(item.amount)}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {paymentLedgerEnabled && <PaymentLedger />}
 
@@ -1370,7 +1416,7 @@ export default function BudgetContent({
                 어디를 먼저 확인할까요?
               </h3>
               <p className="text-base text-white/70 mb-6 max-w-md">
-                아모라가 저장한 예산·지출과 확인이 필요한 포함 항목을 함께 정리해드려요.
+                직접 입력한 예산·기록 지출과 확인이 필요한 포함 항목을 함께 정리해드려요.
               </p>
             </div>
             <Link
@@ -1450,7 +1496,7 @@ export default function BudgetContent({
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">지출 (만원)</label>
+                    <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
                     <input
                       type="number"
                       value={newCatSpent}

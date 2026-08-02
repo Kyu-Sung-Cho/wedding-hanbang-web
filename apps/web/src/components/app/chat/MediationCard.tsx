@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
   getExpectedMediationRevision,
+  isRequesterSummaryMediationV2,
   type MediationBlock,
 } from "./mediationBlock";
 
@@ -34,6 +35,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
   const [saving, setSaving] = useState<"accept" | "revoke" | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const expectedRevision = getExpectedMediationRevision(block);
+  const isRequesterSummaryV2 = isRequesterSummaryMediationV2(block);
   const expectedProposalVersion = expectedRevision?.expectedProposalVersion;
   const expectedRosterFingerprint = expectedRevision?.expectedRosterFingerprint;
   const canConfirm = Boolean(
@@ -127,23 +129,32 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
     }
   }
 
-  const sections = [
-    { key: "empathy", title: "느껴진 감정", Icon: Heart, text: block.empathy },
-    { key: "translation", title: "두 사람이 말한 내용", Icon: MessagesSquare, text: block.translation },
-    { key: "data", title: "확인된 사실 · 아직 확인할 점", Icon: CircleHelp, text: block.data },
-    { key: "resolution", title: "같이 검토할 선택안", Icon: Users, text: block.resolution },
-  ].filter((section) => Boolean(section.text?.trim()));
+  const sections = (isRequesterSummaryV2
+    ? [
+        { key: "empathy", title: "요청자가 전한 감정", Icon: Heart, text: block.empathy },
+        { key: "translation", title: "요청자가 전한 상황", Icon: MessagesSquare, text: block.translation },
+        { key: "data", title: "상대방에게 확인할 점", Icon: CircleHelp, text: block.data },
+        { key: "resolution", title: "같이 검토할 선택안", Icon: Users, text: block.resolution },
+      ]
+    : [
+        { key: "empathy", title: "전해진 감정", Icon: Heart, text: block.empathy },
+        { key: "translation", title: "상황 정리", Icon: MessagesSquare, text: block.translation },
+        { key: "data", title: "확인할 내용", Icon: CircleHelp, text: block.data },
+        { key: "resolution", title: "같이 검토할 선택안", Icon: Users, text: block.resolution },
+      ]).filter((section) => Boolean(section.text?.trim()));
 
   if (sections.length === 0) return null;
 
   return (
     <section
-      aria-label="아모라의 대화 정리 초안"
+      aria-label="요청자 요약 기반 조율 초안"
       className="mt-3 overflow-hidden rounded-2xl border border-[#E2D3C8] bg-[#FFFDF9]"
     >
       <div className="border-b border-[#EEE6DF] px-4 py-3.5">
         <p className="text-xs leading-relaxed text-[#6D625B]">
-          아모라가 두 분의 대화를 정리한 초안이에요. 사실과 조건은 두 분이 직접 확인해 주세요.
+          {isRequesterSummaryV2
+            ? "요청자가 직접 적은 요약을 바탕으로 만든 조율 초안이에요. 상대방의 생각은 아직 확인되지 않았어요."
+            : "확인 출처가 없는 이전 조율 초안이에요. 내용은 참고만 하고 새 공동 결정으로 확인하려면 조율 초안을 다시 요청해 주세요."}
         </p>
       </div>
 

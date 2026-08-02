@@ -10,6 +10,7 @@ import {
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const MONEY_SIDES = ["groom", "bride", "both"] as const;
@@ -50,6 +51,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     const { id } = await params;
     if (!isUuid(id)) {
       return NextResponse.json({ error: "잘못된 기록 ID입니다." }, { status: 400 });
@@ -141,20 +145,23 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     const { id } = await params;
     if (!isUuid(id)) {
       return NextResponse.json({ error: "잘못된 기록 ID입니다." }, { status: 400 });
     }
 
-    const supabase = await createClientFromRequest(_request);
+    const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
-    const limited = checkRateLimit(rateLimitKey("money:delete", _request, user.id), {
+    const limited = checkRateLimit(rateLimitKey("money:delete", request, user.id), {
       maxRequests: 30,
       windowMs: 60 * 1000,
     });

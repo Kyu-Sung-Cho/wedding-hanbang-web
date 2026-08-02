@@ -2,19 +2,20 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { List, Calendar, Plus, Pencil, Trash2, CalendarDays, Sparkles, X } from "lucide-react";
+import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import {
   addEvent,
-  deleteEvent,
+  cancelEvent,
   findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
   getScheduleEventStatus,
   inspectScheduleEvents,
   sanitizeUserFacingScheduleMemo,
+  restoreEvent,
   updateEvent,
   upsertCategoryEvent,
   type ScheduleEventAssigneeContext,
@@ -40,6 +41,8 @@ const CATEGORY_KEYS = [
   "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
 ];
 
+const DEMO_SCHEDULE_ACTOR_PROFILE_ID = "00000000-0000-4000-8000-000000000001";
+
 const CATEGORY_LABELS: Record<string, string> = {
   ...PLANNING_CATEGORY_LABELS,
   etiquette: "결혼 예절 참고",
@@ -52,9 +55,12 @@ export function getScheduleEventMutationBlockReason(
   progress: Record<string, unknown>,
 ): string | null {
   const inspection = inspectScheduleEvents(progress);
+  const hasDuplicateId = new Set(inspection.events.map((event) => event.id)).size
+    !== inspection.events.length;
   return inspection.malformedContainer
     || inspection.rejectedCount > 0
     || inspection.truncatedCount > 0
+    || hasDuplicateId
     ? SCHEDULE_EVENT_REPAIR_MESSAGE
     : null;
 }
@@ -109,7 +115,7 @@ interface ScheduleContentProps {
 }
 
 export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
-  const { journey, updateJourney, profile, partner } = useAuthStore();
+  const { journey, updateJourney, profile, partner, isDemo } = useAuthStore();
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -117,7 +123,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const [eventFormMode, setEventFormMode] = useState<"add" | "edit" | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [selectedDateForAdd, setSelectedDateForAdd] = useState<string | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
   const [pendingChecklistSchedule, setPendingChecklistSchedule] =
     useState<PendingChecklistSchedule | null>(null);
   const [journeyNotice, setJourneyNotice] = useState("");
@@ -131,6 +137,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           "wedding_date" | "total_budget" | "venue" | "progress"
         >
       >,
+      notices?: {
+        pending: string;
+        applied: string;
+      },
     ) => {
       setJourneyError("");
       setJourneyNotice("");
@@ -138,10 +148,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         const result = await updateJourney(updates);
         setJourneyNotice(
           result.status === "pending_partner"
-            ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
-            : partner
-              ? "일정 변경을 저장했어요. 함께 보는 일정에 반영됐어요."
-              : "일정 변경을 저장했어요.",
+            ? `${result.summary} ${
+                notices?.pending
+                  ?? "상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다."
+              }`
+            : notices?.applied
+              ?? (partner
+                ? "일정 변경을 저장했어요. 함께 보는 일정에 반영됐어요."
+                : "일정 변경을 저장했어요.")
         );
         return result;
       } catch (error) {
@@ -171,6 +185,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     [progress],
   );
   const events = eventInspection.events;
+  const activeEvents = useMemo(
+    () => events.filter((event) => getScheduleEventStatus(event) !== "cancelled"),
+    [events],
+  );
+  const cancelledEvents = useMemo(
+    () => events.filter((event) => getScheduleEventStatus(event) === "cancelled"),
+    [events],
+  );
   const assigneeContext = useMemo<ScheduleEventAssigneeContext>(
     () => ({
       viewer: profile
@@ -198,7 +220,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   // 다가오는 일정
   const todayStr = new Date().toISOString().slice(0, 10);
   const upcomingEvents = useMemo(() => {
-    return events
+    return activeEvents
       .filter(
         (event) =>
           event.date >= todayStr
@@ -206,12 +228,12 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       )
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 5);
-  }, [events, todayStr]);
+  }, [activeEvents, todayStr]);
 
   // 임박 카테고리
   const imminentCategories = useMemo(
-    () => getImminentCategories(progress, weddingDate, events),
-    [progress, weddingDate, events]
+    () => getImminentCategories(progress, weddingDate, activeEvents),
+    [progress, weddingDate, activeEvents]
   );
 
   // 전체 체크리스트 완료 수
@@ -260,7 +282,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       }
 
       const categoryLabel = CATEGORY_LABELS[categoryKey] ?? categoryKey;
-      const existingEvent = findCategoryScheduleEvent(events, categoryKey, categoryLabel);
+      const existingEvent = findCategoryScheduleEvent(activeEvents, categoryKey, categoryLabel);
       setPendingChecklistSchedule({
         categoryKey,
         itemId: item.id,
@@ -269,7 +291,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         existingEvent,
       });
     },
-    [events, handleToggleChecklistItem]
+    [activeEvents, handleToggleChecklistItem]
   );
 
   const completeChecklistWithSchedule = useCallback(
@@ -348,6 +370,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
   const handleEditEvent = useCallback((event: ScheduleEvent) => {
     if (blockUnsafeEventMutation()) return;
+    if (getScheduleEventStatus(event) === "cancelled") {
+      setJourneyError("취소된 일정은 먼저 복원한 뒤 수정해 주세요.");
+      return;
+    }
     setEditingEvent(event);
     setSelectedDateForAdd(null);
     setEventFormMode("edit");
@@ -398,24 +424,52 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     ]
   );
 
-  const handleDeleteEvent = useCallback(
+  const handleCancelEvent = useCallback(
     async (eventId: string) => {
-      if (!journey) return;
+      if (!journey || !profile) return;
       if (blockUnsafeEventMutation()) return;
 
       const progressObj = progress as Record<string, unknown>;
+      const cancelledAt = new Date().toISOString();
 
       await saveJourney({
-        progress: deleteEvent(
+        progress: cancelEvent(
           progressObj,
           eventId,
+          {
+            cancelledAt,
+            cancelledByProfileId: isDemo
+              ? DEMO_SCHEDULE_ACTOR_PROFILE_ID
+              : profile.id,
+          },
         ) as unknown as Record<string, ProgressItem>,
+      }, {
+        pending: "파트너 승인 전 기존 일정 유지 상태입니다.",
+        applied: "일정을 취소됨으로 옮겼어요. 기록은 남아 있고 언제든 복원 요청할 수 있어요.",
       });
 
       setEventFormMode(null);
       setEditingEvent(null);
     },
-    [blockUnsafeEventMutation, journey, progress, saveJourney]
+    [blockUnsafeEventMutation, isDemo, journey, profile, progress, saveJourney]
+  );
+
+  const handleRestoreEvent = useCallback(
+    async (eventId: string) => {
+      if (!journey) return;
+      if (blockUnsafeEventMutation()) return;
+      await saveJourney({
+        progress: restoreEvent(
+          progress as Record<string, unknown>,
+          eventId,
+          new Date().toISOString(),
+        ) as unknown as Record<string, ProgressItem>,
+      }, {
+        pending: "파트너 승인 전에는 취소됨 상태가 유지됩니다.",
+        applied: "일정을 예정 상태로 복원했어요.",
+      });
+    },
+    [blockUnsafeEventMutation, journey, progress, saveJourney],
   );
 
   // 날짜 포맷
@@ -568,16 +622,16 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 <TimelineView
                   progress={progress}
                   onToggleChecklistItem={handleChecklistItemClick}
-                  events={events}
+                  events={activeEvents}
                   onEditEvent={handleEditEvent}
-                  onDeleteEvent={handleDeleteEvent}
+                  onCancelEvent={handleCancelEvent}
                   onAddEvent={handleAddEventQuick}
                   assigneeContext={assigneeContext}
                 />
               ) : (
                 <CalendarView
                   weddingDate={weddingDate}
-                  events={events}
+                  events={activeEvents}
                   onAddEvent={handleAddEvent}
                   onEditEvent={handleEditEvent}
                   assigneeContext={assigneeContext}
@@ -658,41 +712,46 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         <span className="inline-flex items-center rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
                           {getDaysUntil(evt.date)}
                         </span>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {pendingDeleteId === evt.id ? (
+                        <div className="flex items-center gap-1 transition-opacity">
+                          {pendingCancelId === evt.id ? (
                             <>
+                              <span className="sr-only">일정 취소 요청</span>
                               <button
+                                type="button"
                                 onClick={() => {
-                                  void handleDeleteEvent(evt.id)
-                                    .then(() => setPendingDeleteId(null))
+                                  void handleCancelEvent(evt.id)
+                                    .then(() => setPendingCancelId(null))
                                     .catch(() => undefined);
                                 }}
-                                className="px-2 py-1 rounded-md text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2d4642]"
                               >
-                                삭제
+                                취소 요청 보내기
                               </button>
                               <button
-                                onClick={() => setPendingDeleteId(null)}
-                                className="px-2 py-1 rounded-md text-xs font-medium bg-[#f6f3f2] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
+                                type="button"
+                                onClick={() => setPendingCancelId(null)}
+                                className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[#504444] transition-colors hover:bg-[#EFEBEA]"
                               >
-                                취소
+                                닫기
                               </button>
                             </>
                           ) : (
                             <>
                               <button
+                                type="button"
                                 onClick={() => handleEditEvent(evt)}
                                 aria-label={`${evt.title} 일정 수정`}
-                                className="w-7 h-7 rounded-md flex items-center justify-center text-[#d4c2c2] hover:bg-[#f6f3f2] hover:text-[#795252] transition-colors"
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f6f3f2] hover:text-[#795252]"
                               >
-                                <Pencil className="w-3.5 h-3.5" />
+                                <Pencil className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => setPendingDeleteId(evt.id)}
-                                aria-label={`${evt.title} 일정 삭제`}
-                                className="w-7 h-7 rounded-md flex items-center justify-center text-[#d4c2c2] hover:bg-red-50 hover:text-red-400 transition-colors"
+                                type="button"
+                                onClick={() => setPendingCancelId(evt.id)}
+                                aria-label={`${evt.title} 일정 취소 요청`}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[#36534E]"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Ban className="h-4 w-4" />
                               </button>
                             </>
                           )}
@@ -705,6 +764,58 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             </div>
           </div>
         </div>
+
+        {cancelledEvents.length > 0 && (
+          <section
+            aria-labelledby="cancelled-schedule-heading"
+            className="rounded-[18px] border border-[#e2d3c8] bg-[#fbf8f2] p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5"
+          >
+            <div className="mb-3">
+              <h3
+                id="cancelled-schedule-heading"
+                className="text-[18px] font-semibold text-[#243832]"
+              >
+                취소됨
+              </h3>
+              <p className="mt-1 text-[13px] leading-5 text-[#5d6879]">
+                완전 삭제하지 않고 변경 기록을 보관합니다. 필요하면 예정 상태로 복원 요청할 수 있어요.
+              </p>
+            </div>
+            <div className="space-y-2">
+              {cancelledEvents.map((event) => (
+                <article
+                  key={`cancelled-${event.id}`}
+                  className="flex flex-col gap-3 rounded-[14px] border border-[#e2d3c8] bg-white px-4 py-3 sm:flex-row sm:items-center"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-[#243832]">
+                      {event.title}
+                    </p>
+                    <p className="mt-1 text-[12px] leading-5 text-[#5d6879]">
+                      기존 날짜 {event.date}{event.time ? ` ${event.time}` : ""}
+                      {event.cancellation
+                        ? ` · 취소 시각 ${event.cancellation.cancelledAt.slice(0, 10)}`
+                        : ""}
+                    </p>
+                    {event.cancellation?.reason && (
+                      <p className="mt-1 text-[12px] leading-5 text-[#5d6879]">
+                        사유 · {event.cancellation.reason}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleRestoreEvent(event.id).catch(() => undefined)}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#36534E] px-4 py-2 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#36534E] hover:text-white"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    복원 요청
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 체크리스트 모달 */}
         <CategoryChecklistModal
@@ -728,7 +839,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           defaultDate={selectedDateForAdd}
           assigneeContext={assigneeContext}
           onSave={handleSaveEvent}
-          onDelete={editingEvent ? () => handleDeleteEvent(editingEvent.id) : undefined}
+          onCancel={editingEvent ? () => handleCancelEvent(editingEvent.id) : undefined}
           onClose={() => {
             setEventFormMode(null);
             setEditingEvent(null);

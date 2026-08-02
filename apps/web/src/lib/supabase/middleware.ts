@@ -20,6 +20,19 @@ function isProtectedPath(pathname: string): "customer" | "admin" | null {
   return null;
 }
 
+function buildCustomerGateRedirect(
+  request: NextRequest,
+  gatePath: "/login" | "/wedding/onboarding",
+): URL {
+  const destination = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const url = request.nextUrl.clone();
+  url.pathname = gatePath;
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("redirect", destination);
+  return url;
+}
+
 export async function updateSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
@@ -74,8 +87,10 @@ export async function updateSession(request: NextRequest) {
 
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {
-    const url = request.nextUrl.clone();
-    url.pathname = protectedType === "admin" ? "/admin/login" : "/login";
+    const url = protectedType === "customer"
+      ? buildCustomerGateRedirect(request, "/login")
+      : request.nextUrl.clone();
+    if (protectedType === "admin") url.pathname = "/admin/login";
     return NextResponse.redirect(url);
   }
 
@@ -90,8 +105,7 @@ export async function updateSession(request: NextRequest) {
     const onboardingComplete =
       request.cookies.get("onboarding_complete")?.value === "true";
     if (!onboardingComplete) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/wedding/onboarding";
+      const url = buildCustomerGateRedirect(request, "/wedding/onboarding");
       return NextResponse.redirect(url);
     }
   }

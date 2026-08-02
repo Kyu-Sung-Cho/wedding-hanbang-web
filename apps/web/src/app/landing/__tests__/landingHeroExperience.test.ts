@@ -6,93 +6,50 @@ import { describe, expect, it } from "vitest";
 
 const appRoot = resolve(process.cwd());
 const hero = readFileSync(
-  resolve(appRoot, "src/components/landing/CelebrationHero.tsx"),
+  resolve(appRoot, "src/components/landing/redesign/TransformationHero.tsx"),
+  "utf8",
+);
+const content = readFileSync(
+  resolve(appRoot, "src/components/landing/redesign/landingContent.ts"),
   "utf8",
 );
 
-function sourceWindowAround(copy: string, before = 500, after = 200): string {
+function sourceWindowAround(copy: string, before = 500, after = 260): string {
   const copyIndex = hero.indexOf(copy);
-  expect(copyIndex, `Hero에서 계약 문구를 찾지 못함: ${copy}`).toBeGreaterThanOrEqual(0);
+  expect(copyIndex, `새 Hero에서 계약 문구를 찾지 못함: ${copy}`).toBeGreaterThanOrEqual(0);
   return hero.slice(Math.max(0, copyIndex - before), copyIndex + copy.length + after);
 }
 
-function nearestOpeningTag(copy: string): string {
-  const copyIndex = hero.indexOf(copy);
-  expect(copyIndex, `Hero에서 계약 문구를 찾지 못함: ${copy}`).toBeGreaterThanOrEqual(0);
-  const openingIndex = hero.lastIndexOf("<", copyIndex);
-  return hero.slice(openingIndex, copyIndex);
-}
-
 describe("landing hero product experience contract", () => {
-  it("pairs a human first message with the concrete Amora confirmation loop", () => {
-    expect(hero).toMatch(/(둘이|두 사람|우리)[\s\S]{0,120}(대화|결혼|함께)/);
-    expect(hero).toContain("커플 공동 채팅");
-    expect(hero).toContain("예산·할 일·일정");
-    expect(hero).toMatch(/아모라[\s\S]{0,220}(정리|변경을 하나씩 보여)/);
-    expect(hero).toMatch(/(확인|이대로 적용)[\s\S]{0,220}(반영|추가)/);
+  it("explains the product in plain language before asking for action", () => {
+    expect(content).toContain("둘이 함께 쓰는 AI 결혼 준비 도우미 · 아모라");
+    expect(content).toContain("우리 얘기가, 우리 결혼 준비가 되는 순간.");
+    expect(content).toContain("예산·할 일·일정으로 정리하고");
+    expect(content).toContain("확인한 내용만 우리 준비에 저장해요");
+    expect(content).toContain("내 준비 순서 바로 보기");
+    expect(hero).toContain("예산");
+    expect(hero).toContain("할 일");
+    expect(hero).toContain("일정");
+    expect(hero).toContain("확인 후 저장");
   });
 
-  it("keeps the no-login secondary CTA visible from the smallest breakpoint", () => {
-    const startHereCta = sourceWindowAround('href="/start-here"', 40, 600);
+  it("keeps the no-login primary CTA visible from the smallest breakpoint", () => {
+    const startHereCta = sourceWindowAround("href={amoraStartHref}", 80, 800);
 
-    expect(startHereCta).toContain("로그인 없이");
+    expect(content).toContain("내 준비 순서 바로 보기");
     expect(startHereCta).not.toMatch(/className="[^"]*(?:^|\s)hidden(?:\s|$)[^"]*"/);
+    expect(hero).toContain('const amoraStartHref = "/start-here"');
   });
 
-  it("keeps the core conversation, D-day, and headings readable on mobile", () => {
-    const h1 = hero.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
-    expect(h1).not.toContain("whitespace-nowrap");
+  it("shows a complete conversation to review to saved-state flow without a live AI call", () => {
+    expect(hero).toContain('type DemoState = "conversation" | "review" | "saved"');
+    expect(hero).toContain("정리한 내용 보기");
+    expect(hero).toContain("이렇게 정리할까요?");
+    expect(hero).toContain("확인하고 저장 흐름 보기");
+    expect(hero).toContain("확인한 준비만");
+    expect(content).toContain("기능 예시 · 이 화면에서는 실제로 저장되지 않아요");
 
-    for (const copy of [
-      "D-184",
-      "드레스 투어, 10월 17일 오후 어때?",
-      "좋아. 아모라, 우리 일정에 넣어줘.",
-      "아모라의 일정 제안 · 변경 전 확인",
-    ]) {
-      const nearbySource = sourceWindowAround(copy);
-      expect(nearbySource, `${copy}: 모바일에서 hidden이면 안 됨`).not.toMatch(
-        /className="[^"]*\bhidden\b[^"]*"/,
-      );
-      expect(nearbySource, `${copy}: lg에서만 flex이면 안 됨`).not.toContain("lg:flex");
-    }
-  });
-
-  it("does not render trust-critical copy at nine-pixel utility sizes", () => {
-    for (const copy of [
-      "기능 예시이며 실제로 저장되지 않아요",
-      "나만 상담은 파트너에게 보이지 않아요",
-      "아모라의 일정 제안 · 변경 전 확인",
-    ]) {
-      expect(nearestOpeningTag(copy), copy).not.toMatch(/text-\[(?:8|9)px\]/);
-    }
-  });
-
-  it("offers a real, clearly bounded no-login mini demo", () => {
-    expect(hero).toMatch(/<button[\s\S]*?onClick=/);
-    expect(hero).toContain("기능 예시이며 실제로 저장되지 않아요");
-    expect(hero).toContain("나만 상담은 파트너에게 보이지 않아요");
-
-    const captureCalls = [
-      ...hero.matchAll(
-        /captureEvent\(\s*"([^"]+)"\s*,\s*\{([\s\S]*?)\}\s*\)/g,
-      ),
-    ];
-    expect(captureCalls.length).toBeGreaterThan(0);
-    expect(
-      captureCalls.some(([, eventName]) => /demo|preview|example/.test(eventName)),
-      "미니 데모 상호작용을 구분하는 분석 이벤트가 필요함",
-    ).toBe(true);
-
-    for (const [, eventName, payload] of captureCalls) {
-      const payloadKeys = [...payload.matchAll(/([A-Za-z_]\w*)\s*:/g)].map(
-        (match) => match[1],
-      );
-      expect(payloadKeys, `${eventName} 이벤트는 source만 전송해야 함`).toEqual([
-        "source",
-      ]);
-    }
-
-    for (const browserPersistenceOrTransmission of [
+    for (const forbiddenPersistenceOrNetworkCall of [
       "localStorage",
       "sessionStorage",
       "indexedDB",
@@ -101,11 +58,35 @@ describe("landing hero product experience contract", () => {
       "XMLHttpRequest",
       "FormData",
       "fetch(",
-      "<form",
-      "<input",
-      "<textarea",
+      "anthropic",
+      "openai",
     ]) {
-      expect(hero).not.toContain(browserPersistenceOrTransmission);
+      expect(hero.toLowerCase()).not.toContain(forbiddenPersistenceOrNetworkCall.toLowerCase());
+    }
+  });
+
+  it("keeps analytics bounded to a non-sensitive source label", () => {
+    const captureCalls = [
+      ...hero.matchAll(/captureEvent\(\s*"([^"]+)"\s*,\s*\{([\s\S]*?)\}\s*\)/g),
+    ];
+
+    expect(captureCalls.length).toBeGreaterThanOrEqual(2);
+    for (const [, eventName, payload] of captureCalls) {
+      const payloadKeys = [...payload.matchAll(/([A-Za-z_]\w*)\s*:/g)].map(
+        (match) => match[1],
+      );
+      expect(payloadKeys, `${eventName} 이벤트는 source만 전송해야 함`).toEqual(["source"]);
+    }
+  });
+
+  it("keeps headline and trust-critical copy readable on mobile", () => {
+    const h1 = hero.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
+    expect(h1).not.toContain("whitespace-nowrap");
+
+    for (const copy of ["첫 준비 화면의 날짜는 서버로 보내지 않아요", "직접 눌러보는 예시"]) {
+      const nearbySource = sourceWindowAround(copy);
+      expect(nearbySource).not.toMatch(/className="[^"]*\bhidden\b[^"]*"/);
+      expect(nearbySource).not.toMatch(/text-\[(?:8|9)px\]/);
     }
   });
 });

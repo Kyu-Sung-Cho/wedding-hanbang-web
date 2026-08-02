@@ -89,6 +89,10 @@ test("a completed visit asks for the factual booking outcome before generic plan
   assert.equal(focus.route, "/bookings");
   assert.equal(focus.bookingId, "booking-7");
   assert.match(focus.title, /라온 스튜디오/);
+  assert.match(focus.description, /실제 진행 여부를 직접 확인/);
+  assert.match(focus.description, /사용자가 입력한 기록 지출/);
+  assert.match(focus.description, /결제 증빙이 아니에요/);
+  assert.doesNotMatch(focus.description, /실제 결제금액/);
 });
 
 test("the wedding moment copy celebrates the day without hiding the practical next step", () => {

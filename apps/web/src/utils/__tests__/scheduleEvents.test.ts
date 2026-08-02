@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addEvent,
+  cancelEvent,
   getScheduleEventAssigneeLabel,
   getScheduleEventStatus,
   getEvents,
@@ -9,7 +10,9 @@ import {
   ScheduleEventCapacityError,
   ScheduleEventValidationError,
   sanitizeUserFacingScheduleMemo,
+  restoreEvent,
   updateEvent,
+  upsertCategoryEvent,
   upsertMomentEvent,
   type ScheduleEventDraft,
 } from "../scheduleEvents";
@@ -78,6 +81,36 @@ describe("getEvents", () => {
     expect(getScheduleEventStatus(legacy)).toBe("planned");
   });
 
+  it("accepts only the exact cancellation contract and never treats it as planned", () => {
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      reason: "일정이 변경됨",
+    };
+    const cancelled = {
+      ...validEvent(31),
+      status: "cancelled",
+      cancellation,
+      updatedAt: cancellation.cancelledAt,
+    } as const;
+
+    expect(getEvents({ __events: [cancelled] })).toEqual([cancelled]);
+    expect(getScheduleEventStatus(cancelled)).toBe("cancelled");
+    expect(getEvents({
+      __events: [
+        { ...cancelled, cancellation: undefined },
+        { ...cancelled, cancellation: { ...cancellation, unexpected: true } },
+        { ...cancelled, cancellation: { ...cancellation, cancelledAt: "not-iso" } },
+        { ...cancelled, cancellation: { ...cancellation, cancelledByProfileId: "me" } },
+        { ...cancelled, cancellation: { ...cancellation, reason: "a".repeat(501) } },
+        { ...cancelled, cancellation: { ...cancellation, reason: "unsafe\nreason" } },
+        { ...cancelled, updatedAt: "2026-08-02T12:30:00.001Z" },
+        { ...validEvent(32), status: "planned", cancellation },
+        { ...validEvent(33), status: "completed", cancellation },
+      ],
+    })).toEqual([]);
+  });
+
   it("accepts canonical execution fields without copying profile names", () => {
     const event = {
       ...validEvent(4),
@@ -92,6 +125,24 @@ describe("getEvents", () => {
     expect(getEvents({ __events: [event] })).toEqual([event]);
     expect(JSON.stringify(event.assignee)).not.toContain("지은");
     expect(getScheduleEventStatus(event)).toBe("completed");
+  });
+
+  it("accepts a canonical local time and rejects impossible clock values", () => {
+    const timed = { ...validEvent(41), time: "09:30" };
+    expect(getEvents({ __events: [timed] })).toEqual([timed]);
+    expect(getEvents({
+      __events: [
+        { ...validEvent(42), time: "24:00" },
+        { ...validEvent(43), time: "9:30" },
+        { ...validEvent(44), time: 930 },
+      ],
+    })).toEqual([]);
+
+    expect(addEvent({}, {
+      date: "2027-05-01",
+      title: "시간 있는 일정",
+      time: "18:05",
+    }).newEvent.time).toBe("18:05");
   });
 
   it.each([
@@ -151,6 +202,7 @@ describe("getEvents", () => {
     [{ date: "2027-05-01", title: "   " }, "title"],
     [{ date: "2027-05-01", title: "Valid", memo: "m".repeat(2_001) }, "memo"],
     [{ date: "2027-05-01", title: "Valid", categoryKey: "c".repeat(101) }, "categoryKey"],
+    [{ date: "2027-05-01", title: "Valid", time: "24:00" }, "time"],
     [{ date: "2027-05-01", title: "Valid", status: "doing" }, "status"],
     [{
       date: "2027-05-01",
@@ -200,6 +252,150 @@ describe("getEvents", () => {
       status: "completed",
       completionCriteria: "수선 결과 확인",
     });
+  });
+
+  it("soft-cancels and restores one stable id while preserving audit fields and unrelated progress", () => {
+    const first = {
+      ...validEvent(61),
+      status: "completed" as const,
+      memo: "keep me",
+    };
+    const second = validEvent(62);
+    const progress = {
+      __events: [first, second],
+      unrelated: { status: "in_progress", spent: 123 },
+    };
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      reason: "일정 변경",
+    };
+
+    const cancelledProgress = cancelEvent(progress, first.id, cancellation);
+    expect(cancelledProgress.unrelated).toEqual(progress.unrelated);
+    expect(getEvents(cancelledProgress)).toEqual([
+      {
+        ...first,
+        status: "cancelled",
+        cancellation,
+        createdAt: first.createdAt,
+        updatedAt: cancellation.cancelledAt,
+      },
+      second,
+    ]);
+
+    const restoredProgress = restoreEvent(
+      cancelledProgress,
+      first.id,
+      "2026-08-02T13:00:00.000Z",
+    );
+    expect(getEvents(restoredProgress)[0]).toEqual({
+      ...first,
+      status: "planned",
+      createdAt: first.createdAt,
+      updatedAt: "2026-08-02T13:00:00.000Z",
+    });
+    expect(getEvents(restoredProgress)[0]).not.toHaveProperty("cancellation");
+  });
+
+  it("fails closed when a cancel or restore target is missing or duplicated", () => {
+    const duplicate = validEvent(71);
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+    };
+
+    expect(() => cancelEvent({ __events: [duplicate] }, "missing", cancellation))
+      .toThrow(ScheduleEventValidationError);
+    expect(() => cancelEvent({ __events: [duplicate, duplicate] }, duplicate.id, cancellation))
+      .toThrow(ScheduleEventValidationError);
+    expect(() => restoreEvent({ __events: [duplicate] }, duplicate.id, cancellation.cancelledAt))
+      .toThrow(ScheduleEventValidationError);
+  });
+
+  it("restores only at an instant strictly after the cancellation", () => {
+    const event = validEvent(79);
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+    };
+    const cancelledProgress = cancelEvent(
+      { __events: [event] },
+      event.id,
+      cancellation,
+    );
+
+    for (const restoredAt of [
+      cancellation.cancelledAt,
+      "2026-08-02T21:30:00.000+09:00",
+      "2026-08-02T12:29:59.999Z",
+    ]) {
+      expect(() => restoreEvent(cancelledProgress, event.id, restoredAt))
+        .toThrow(ScheduleEventValidationError);
+    }
+
+    expect(getEvents(restoreEvent(
+      cancelledProgress,
+      event.id,
+      "2026-08-02T12:30:00.001Z",
+    ))[0]).toMatchObject({
+      id: event.id,
+      status: "planned",
+      updatedAt: "2026-08-02T12:30:00.001Z",
+    });
+  });
+
+  it("never reuses a cancelled category event as an active schedule", () => {
+    const cancelled = {
+      ...validEvent(81),
+      categoryKey: "studio",
+      sourceKey: "category:studio",
+      status: "cancelled" as const,
+      cancellation: {
+        cancelledAt: "2026-08-02T12:30:00.000Z",
+        cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      },
+      updatedAt: "2026-08-02T12:30:00.000Z",
+    };
+
+    const result = upsertCategoryEvent(
+      { __events: [cancelled] },
+      { date: "2027-05-20", title: "스튜디오", categoryKey: "studio" },
+      "스튜디오",
+    );
+
+    expect(result.created).toBe(true);
+    expect(getEvents(result.newProgress)).toHaveLength(2);
+    expect(getScheduleEventStatus(getEvents(result.newProgress)[0])).toBe("cancelled");
+    expect(getScheduleEventStatus(result.event)).toBe("planned");
+  });
+
+  it("never edits a cancelled moment event when recreating the same moment", () => {
+    const cancelled = {
+      ...validEvent(82),
+      momentType: "sanggyeonrye",
+      status: "cancelled" as const,
+      cancellation: {
+        cancelledAt: "2026-08-02T12:30:00.000Z",
+        cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      },
+      updatedAt: "2026-08-02T12:30:00.000Z",
+    };
+
+    const result = upsertMomentEvent(
+      { __events: [cancelled] },
+      {
+        date: cancelled.date,
+        title: "다시 잡은 상견례",
+        momentType: "sanggyeonrye",
+      },
+    );
+
+    expect(result.created).toBe(true);
+    expect(result.event.id).not.toBe(cancelled.id);
+    expect(getEvents(result.newProgress)).toHaveLength(2);
+    expect(getScheduleEventStatus(getEvents(result.newProgress)[0])).toBe("cancelled");
+    expect(getScheduleEventStatus(getEvents(result.newProgress)[1])).toBe("planned");
   });
 
   it("formats unassigned, couple, external, and disconnected-member labels safely", () => {

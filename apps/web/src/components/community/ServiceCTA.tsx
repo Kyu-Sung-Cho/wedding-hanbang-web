@@ -33,37 +33,37 @@ interface CTAConfig {
 const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
     icon: FileSearch,
-    label: "상황 확인",
-    title: "이 상황, 내 기준으로 한 번 더 확인해볼까요?",
-    subtext: "결혼식 날짜, 예산, 준비 단계 기준으로 다음 행동을 정리합니다.",
+    label: "아모라와 조건 정리",
+    title: "답변에서 확인할 조건을 내 기준으로 다시 정리해보세요.",
+    subtext: "결혼식 날짜, 예산, 준비 단계에 맞춰 다음 질문과 행동을 정리합니다.",
     href: "/chat",
   },
   tour_review: {
     icon: MessageCircle,
-    label: "후기 다음 단계",
-    title: "후기 기준으로 내 조건에 맞는 후보를 좁혀보세요.",
-    subtext: "예산, 지역, 스타일을 기준으로 아모라와 비교할 수 있어요.",
+    label: "아모라와 후기 해석",
+    title: "이 경험에서 우리 조건에 해당하는 부분만 골라보세요.",
+    subtext: "예산, 지역, 원하는 분위기를 기준으로 더 확인할 내용을 정리합니다.",
     href: "/chat",
   },
   tips_v2: {
     icon: CalendarCheck,
-    label: "준비 흐름",
-    title: "이 팁을 내 일정에 맞게 다시 정리해보세요.",
+    label: "일정으로 옮기기",
+    title: "도움이 된 내용을 우리 일정에 맞게 다시 정리해보세요.",
     subtext: "해야 할 일과 확인 시점을 놓치지 않게 이어갑니다.",
     href: "/schedule",
   },
   ama: {
     icon: HelpCircle,
-    label: "질문 정리",
-    title: "더 물어볼 내용은 아모라와 먼저 정리해보세요.",
-    subtext: "상황을 정리하고 커뮤니티에 올릴 질문까지 다듬을 수 있어요.",
+    label: "남은 질문 정리",
+    title: "답변을 읽고도 남은 질문만 아모라와 정리해보세요.",
+    subtext: "내 상황을 먼저 정리하고 커뮤니티에 더 물어볼 내용을 구체화합니다.",
     href: "/chat",
   },
   free: {
     icon: MessageCircle,
-    label: "상담",
-    title: "이 이야기를 아모라와 짧게 정리해볼까요?",
-    subtext: "필요한 경우에만 상담으로 이어가요.",
+    label: "내 준비에 반영",
+    title: "이 이야기에서 우리에게 필요한 행동만 정리해보세요.",
+    subtext: "아모라에게 내 상황을 말하고 일정·예산·할 일 중 필요한 곳에 이어갑니다.",
     href: "/chat",
   },
 };
@@ -139,22 +139,28 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
   }
 
   return (
-    <div className="rounded-lg border border-[#e4ded9] bg-[#f6efe5] px-3 py-3 sm:px-4">
-      <p className="mb-2 text-[10px] font-medium tracking-[0.18em] text-[#928980]">
-        다음 행동
-      </p>
+    <section className="overflow-hidden rounded-2xl border border-[#c7d1c2] bg-[#f4f6f1]" aria-labelledby="community-next-action-heading">
+      <div className="px-4 py-4 sm:px-5 sm:py-5">
+        <p className="text-[10px] font-bold tracking-[0.16em] text-[#8F6662]">답을 찾은 다음</p>
+        <h2 id="community-next-action-heading" className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[#243832] sm:text-[22px]">
+          사람의 답변을 내 준비로 옮기기
+        </h2>
+        <p className="mt-1.5 max-w-[620px] text-[12px] font-medium leading-[1.65] text-[#667268]">
+          이 글의 제목과 본문을 함께 넘겨, 우리 일정·예산·확인 항목에 맞는 다음 행동만 정리합니다.
+        </p>
+      </div>
 
-      <ServiceAction
-        href={mainHref}
-        icon={MainIcon}
-        label={mainCta.label}
-        title={mainCta.title}
-        subtext={mainCta.subtext}
-      />
+      <div className={`grid gap-px border-t border-[#c7d1c2] bg-[#c7d1c2] ${secondaryCta ? "sm:grid-cols-2" : ""}`}>
+        <ServiceAction
+          href={mainHref}
+          icon={MainIcon}
+          label={mainCta.label}
+          title={mainCta.title}
+          subtext={mainCta.subtext}
+          primary
+        />
 
-      {secondaryCta ? (
-        <>
-          <div className="my-2 border-t border-[#eee6e0]" />
+        {secondaryCta ? (
           <ServiceAction
             href={weddingPath(secondaryCta.href)}
             icon={secondaryCta.icon}
@@ -162,9 +168,13 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
             title={secondaryCta.title}
             subtext={secondaryCta.subtext}
           />
-        </>
-      ) : null}
-    </div>
+        ) : null}
+      </div>
+
+      <p className="border-t border-[#d8dfd4] px-4 py-3 text-[10.5px] font-medium leading-[1.55] text-[#6f786f] sm:px-5">
+        아모라는 사람의 경험을 정답으로 확정하지 않습니다. 제안 내용을 확인한 뒤 반영 여부를 직접 선택하세요.
+      </p>
+    </section>
   );
 }
 
@@ -174,22 +184,34 @@ function ServiceAction({
   label,
   title,
   subtext,
-}: CTAConfig) {
+  primary = false,
+}: CTAConfig & { primary?: boolean }) {
   return (
-    <Link href={href} className="group flex items-start gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#36534E] transition-colors group-hover:border-[#dfc9c1]">
+    <Link
+      href={href}
+      className={`group flex min-h-[118px] items-start gap-3 px-4 py-4 transition-colors sm:px-5 ${
+        primary
+          ? "bg-[#36534E] text-white hover:bg-[#2d4642]"
+          : "bg-white text-[#243832] hover:bg-[#fbf8f2]"
+      }`}
+    >
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
+        primary
+          ? "border-white/20 bg-white/10 text-white"
+          : "border-[#d8dfd4] bg-[#eef4f1] text-[#36534E]"
+      }`}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="mb-0.5 block text-[10px] font-medium text-[#928980]">{label}</span>
-        <span className="block text-[13px] font-medium leading-snug text-[#1A1A1F] transition-colors group-hover:text-[#36534E]">
+        <span className={`mb-1 block text-[10px] font-bold tracking-[0.04em] ${primary ? "text-white/65" : "text-[#8b8175]"}`}>{label}</span>
+        <span className={`block text-[13px] font-bold leading-[1.45] ${primary ? "text-white" : "text-[#243832]"}`}>
           {title}
         </span>
-        <span className="mt-0.5 block text-[12px] leading-snug text-[#635b51]">
+        <span className={`mt-1 block text-[11px] font-medium leading-[1.55] ${primary ? "text-white/72" : "text-[#6f786f]"}`}>
           {subtext}
         </span>
       </span>
-      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[#B5ADA3] transition-all group-hover:translate-x-0.5 group-hover:text-[#36534E]" />
+      <ArrowRight className={`mt-1 h-4 w-4 shrink-0 transition-all group-hover:translate-x-0.5 ${primary ? "text-white/70" : "text-[#8b8175] group-hover:text-[#36534E]"}`} />
     </Link>
   );
 }

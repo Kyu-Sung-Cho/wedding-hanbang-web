@@ -194,6 +194,61 @@ describe("useCommunityStore feed cache", () => {
     expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
   });
 
+  it("initializes a missing community profile with an explicit POST and unwraps it", async () => {
+    const createdProfile = communityProfile("author-1", "safe-default");
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ profile: null }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ profile: createdProfile }),
+      });
+
+    await useCommunityStore.getState().fetchProfile();
+
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/community/profile",
+      { cache: "no-store" },
+    );
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/community/profile",
+      { method: "POST" },
+    );
+    expect(useCommunityStore.getState().communityProfile).toEqual(createdProfile);
+  });
+
+  it("sends explicit bookmark intent so a retry cannot invert the result", async () => {
+    const target = {
+      ...post("post-bookmark", "2026-06-15T00:00:00.000Z"),
+      user_bookmarked: false,
+      bookmark_count: 2,
+    };
+    useCommunityStore.setState({ posts: [target] });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ bookmarked: true, bookmark_count: 3 }),
+    });
+
+    await useCommunityStore.getState().toggleBookmark(target.id);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/community/posts/${target.id}/bookmark`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookmarked: true }),
+      },
+    );
+    expect(useCommunityStore.getState().posts[0]).toMatchObject({
+      user_bookmarked: true,
+      bookmark_count: 3,
+    });
+  });
+
   it("merges a resolved post response into both the feed and current detail", async () => {
     const question = {
       ...post("question-1", "2026-06-15T00:00:00.000Z"),

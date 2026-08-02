@@ -79,6 +79,7 @@ export interface VendorBookingRow {
   vendor_id: string;
   couple_id: string | null;
   product_id: string | null;
+  staff_id?: string | null;
   booking_date: string;
   booking_time: string;
   booking_type: string | null;
@@ -89,8 +90,18 @@ export interface VendorBookingRow {
   contract_status: string | null;
   payment_status: string | null;
   amount: number | null;
+  actual_amount?: number | null;
+  contracted_amount?: number | null;
   is_paid: boolean;
   memo: string | null;
+  cancelled_at?: string | null;
+  cancelled_by_profile_id?: string | null;
+  cancel_reason?: string | null;
+  vendor_delivery_status?: "legacy_unknown" | "not_sent";
+  intent_created_by_profile_id?: string | null;
+  intent_vendor_name_snapshot?: string | null;
+  intent_vendor_category_snapshot?: string | null;
+  intent_product_name_snapshot?: string | null;
   created_at: string;
   updated_at: string;
 }

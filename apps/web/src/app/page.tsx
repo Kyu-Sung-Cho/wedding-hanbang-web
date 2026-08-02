@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "웨딩한방 — 둘이 함께 쓰는 결혼 준비 AI 아모라",
+  title: "웨딩한방 | 둘이 말하면 결혼 준비가 정리돼요",
   description:
     "두 사람이 커플 공동 채팅에서 결혼 준비 AI 아모라와 이야기하고, 확인한 변경만 "
     + "예산·할 일·일정에 반영합니다. 필요한 아모라 답변은 저장해 둘이 함께 다시 볼 수 있습니다.",

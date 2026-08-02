@@ -12,8 +12,17 @@ import MediationCard from "../MediationCard";
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 const MESSAGE_ID = "1474c6f2-29c6-4c77-8d91-d3347eef4c3f";
-const CONFIRMABLE_BLOCK = {
+const REQUESTER_SUMMARY_DRAFT = {
+  empathy: "요청자가 답답함을 느꼈다고 전했어요.",
+  translation: "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+  data: "상대방의 예산 상한은 아직 확인되지 않았어요.",
   resolution: "예산 상한선을 같이 확인해 봐요",
+  origin: "user_requested" as const,
+  evidenceScope: "requester_summary_only" as const,
+  schemaVersion: 2 as const,
+};
+const CONFIRMABLE_BLOCK = {
+  ...REQUESTER_SUMMARY_DRAFT,
   proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
   rosterFingerprint: "0123456789abcdef0123456789abcdef",
 };
@@ -86,6 +95,21 @@ describe("Amora mediation card wiring", () => {
     expect(source).toContain('updateAcceptance("DELETE")');
     expect(source).toContain("내 확인 취소");
     expect(source).toContain("acceptance?.completed");
+  });
+
+  it("labels the draft as the requester's account and leaves the partner's view unconfirmed", async () => {
+    await act(async () => {
+      root.render(createElement(MediationCard, {
+        block: REQUESTER_SUMMARY_DRAFT,
+        messageId: MESSAGE_ID,
+      }));
+    });
+
+    expect(container.textContent).toContain("요청자가 전한 상황");
+    expect(container.textContent).toContain("상대방에게 확인할 점");
+    expect(container.textContent).toContain("상대방의 생각은 아직 확인되지 않았어요");
+    expect(container.textContent).not.toContain("두 사람이 말한 내용");
+    expect(container.textContent).not.toContain("두 분의 대화");
   });
 
   it("lets a waiting person refresh after their partner confirms", async () => {
@@ -237,6 +261,8 @@ describe("Amora mediation card wiring", () => {
     await flushAsyncUpdates();
 
     expect(container.textContent).toContain("초안 내용은 계속 볼 수 있어요");
+    expect(container.textContent).toContain("확인 출처가 없는 이전 조율 초안이에요");
+    expect(container.textContent).not.toContain("요청자가 직접 적은 요약을 바탕으로");
     expect(container.textContent).not.toContain("이 선택안을 나는 확인했어요");
     expect(fetchMock).not.toHaveBeenCalled();
   });
