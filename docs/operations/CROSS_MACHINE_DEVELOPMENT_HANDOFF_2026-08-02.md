@@ -373,6 +373,7 @@ corepack pnpm build:web
 | 현재 전체 후보 `pnpm build:web` | PASS | 격리 worktree와 local QA synthetic 환경에서 exit 0; Next.js 16.2.11, 142개 정적 페이지, production artifact 2,365개 clean |
 | 모바일 정적 export | PASS | Web·iOS·Android export exit 0; Sentry org/project 미설정 경고는 release credential 미주입 경계로 기록 |
 | 아모라 offline 평가 | PASS / LIVE UNVERIFIED | 37 scenarios, 19 domains, W0~W5; `externalAiCalls=0`, `humanReviews=0`, `liveMatrixVerified=false` |
+| GitHub Web Quality 시간 예산 | 45분 | 최초 30분 run은 테스트가 계속 통과 중인 상태에서 job timeout으로 취소돼 build가 skip됨; `.github/workflows/ci.yml`을 45분으로 보정했으며 최신 결과는 PR #79를 정본으로 확인 |
 | hosted migration | NOT RUN | production DB NO-GO |
 | Vercel/EAS production deploy | NOT RUN | 별도 승인·receipt 필요 |
 
