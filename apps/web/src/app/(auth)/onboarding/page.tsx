@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useAuthStore } from "@/stores/authStore";
+import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import Logo from "@/components/ui/Logo";
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import RoleSelection from "@/components/onboarding/RoleSelection";
@@ -14,38 +16,27 @@ import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
+  const { user, profile, isInitialized, isLoading: authLoading, isDemo } = useAuthStore();
+  const isSessionVerified = useAuthSessionSync(!isDemo);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [inviteCodeResult, setInviteCodeResult] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
 
-  // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
-    const checkProfile = async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (!res.ok) {
-          window.location.href = "/login";
-          return;
-        }
-        const data = await res.json();
-        if (!data.profile) {
-          return; // 프로필 없으면 온보딩 진행
-        }
-        if (data.profile.onboarding_completed) {
-          document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-          window.location.href = getAuthRedirectPath(
-            window.location.search,
-            window.location.origin,
-          );
-        }
-      } catch {
-        // 에러 시 온보딩 계속 진행
-      }
-    };
-    checkProfile();
-  }, []);
+    if (!isSessionVerified || !isInitialized || authLoading) return;
+    if (!user || isDemo) {
+      window.location.replace("/login");
+      return;
+    }
+    if (profile?.onboarding_completed) {
+      window.location.replace(getAuthRedirectPath(
+        window.location.search,
+        window.location.origin,
+      ));
+    }
+  }, [authLoading, isDemo, isInitialized, isSessionVerified, profile, user]);
 
   const canProceed = () => {
     switch (store.currentStep) {
@@ -68,6 +59,18 @@ export default function OnboardingPage() {
   };
 
   const handleSubmit = async () => {
+    const expectedUserId = user?.id ?? null;
+    if (
+      !isSessionVerified ||
+      isDemo ||
+      !expectedUserId ||
+      useAuthStore.getState().user?.id !== expectedUserId
+    ) {
+      useOnboardingStore.getState().reset();
+      setError("로그인 계정이 변경되었습니다. 다시 확인해주세요.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -105,18 +108,23 @@ export default function OnboardingPage() {
           sanggyeonryeDate: store.sanggyeonryeUndecided ? null : store.sanggyeonryeDate,
           totalBudget: store.approximateBudget,
           progress,
+          expectedUserId,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409) {
+          useOnboardingStore.getState().reset();
+          window.location.replace(`${window.location.pathname}${window.location.search}`);
+          return;
+        }
         setError(data.error ?? "온보딩 저장에 실패했습니다.");
         return;
       }
 
       // 온보딩 완료 쿠키 설정
-      document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
       // 초대코드가 있고 "새로 시작하기"인 경우 모달 표시
       if (data.inviteCode && store.coupleAction === "create") {
@@ -159,8 +167,23 @@ export default function OnboardingPage() {
     }
   };
 
+  if (
+    !isSessionVerified ||
+    !isInitialized ||
+    authLoading ||
+    isDemo ||
+    !user ||
+    profile?.onboarding_completed
+  ) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-ivory-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
+    <div key={user.id} className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
       <div className="w-full max-w-[480px]">
         {/* 로고 */}
         <div className="text-center mb-8">

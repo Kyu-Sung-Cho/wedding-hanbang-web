@@ -63,6 +63,7 @@ import {
   quarterToMonth,
 } from "@/utils/quarter";
 import { withSessionCache } from "@/utils/sessionCache";
+import { useUserScopedClientActor } from "@/components/common/UserScopedClientStateBoundary";
 
 interface TrendingPost {
   id: string;
@@ -1459,14 +1460,21 @@ function RightPanels() {
 
 function BestPostsPanel() {
   const previewStubMode = isPreviewStubMode();
+  const actor = useUserScopedClientActor();
   const [posts, setPosts] = useState<TrendingPost[]>([]);
   const [loading, setLoading] = useState(!previewStubMode);
+  const [loadedActorKey, setLoadedActorKey] = useState<string | null>(null);
+  const actorKey = actor.status === "ready" ? actor.actorKey : null;
+  const visiblePosts = actorKey !== null && loadedActorKey === actorKey ? posts : [];
+  const visibleLoading = !previewStubMode
+    && (actorKey === null || loadedActorKey !== actorKey || loading);
 
   useEffect(() => {
     if (previewStubMode) return;
+    if (!actorKey) return;
 
     let cancelled = false;
-    void withSessionCache("community:landing:weekly-top-posts:5", 5 * 60 * 1000, async () => {
+    void withSessionCache<BestPostPayload>("community:landing:weekly-top-posts:5", 5 * 60 * 1000, actorKey, async (signal) => {
       const normalize = (items: TrendingPost[]) =>
         items.slice(0, 5).map((post: TrendingPost) => ({
           id: post.id,
@@ -1475,7 +1483,7 @@ function BestPostsPanel() {
           comment_count: post.comment_count,
         }));
 
-      const weeklyRes = await fetch("/api/community/posts?sort=top&period=week&limit=5&page=1");
+      const weeklyRes = await fetch("/api/community/posts?sort=top&period=week&limit=5&page=1", { signal });
       if (!weeklyRes.ok) return { posts: [] } satisfies BestPostPayload;
       const weeklyJson = await weeklyRes.json();
       return { posts: normalize(weeklyJson.posts ?? []) } satisfies BestPostPayload;
@@ -1483,6 +1491,13 @@ function BestPostsPanel() {
       .then((data) => {
         if (cancelled) return;
         setPosts(data.posts);
+        setLoadedActorKey(actorKey);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
+          setPosts([]);
+          setLoadedActorKey(actorKey);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -1490,7 +1505,7 @@ function BestPostsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [previewStubMode]);
+  }, [actorKey, previewStubMode]);
 
   const title = "이번 주 인기글";
   const moreHref = "/community?sort=top&period=week&feed=all#community-feed";
@@ -1505,17 +1520,17 @@ function BestPostsPanel() {
           더보기
         </Link>
       </div>
-      {loading ? (
+      {visibleLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="h-7 animate-pulse rounded-md bg-[#f3eadc]" />
           ))}
         </div>
-      ) : posts.length === 0 ? (
+      ) : visiblePosts.length === 0 ? (
         <p className="text-[13px] font-medium text-[#7a8290]">이번 주 반응을 집계하고 있어요.</p>
       ) : (
         <ol className="space-y-3">
-          {posts.map((post, index) => (
+          {visiblePosts.map((post, index) => (
             <li key={post.id}>
               <Link
                 {...communityPostLinkProps(post.id)}

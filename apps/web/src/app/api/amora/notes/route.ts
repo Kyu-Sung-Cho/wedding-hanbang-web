@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
   isBodyTooLarge,
@@ -9,8 +10,9 @@ import {
   isUuid,
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 // 원문 스냅샷 + 메모까지 담기므로 즐겨찾기보다는 넉넉하게 잡는다.
 const MAX_BODY_BYTES = 16 * 1024;
@@ -125,9 +127,15 @@ export async function GET(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return unauthenticated(req, { notes: [] });
 
+    const coupleId = await resolveCoupleId(supabase, user.id);
+    if (!coupleId) {
+      return mobileBridgeJson({ notes: [] }, { headers: RESPONSE_HEADERS });
+    }
+
     const { data, error } = await supabase
       .from("amora_saved_notes")
       .select("id, message_id, content, memo, saved_by, created_at")
+      .eq("couple_id", coupleId)
       .order("created_at", { ascending: false })
       .limit(MAX_NOTES);
     if (error) {
@@ -147,7 +155,7 @@ export async function GET(req: NextRequest) {
     }));
     return mobileBridgeJson({ notes }, { headers: RESPONSE_HEADERS });
   } catch (error) {
-    console.error("[amora notes] list failed:", error);
+    console.error("[amora notes] list failed:", safeErrorDiagnostic(error));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: RESPONSE_HEADERS },
@@ -167,7 +175,7 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return unauthenticated(req, { saved: false });
 
-    const limited = checkRateLimit(rateLimitKey("amora-notes:save", req, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("amora-notes:save", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -200,9 +208,32 @@ export async function POST(req: Request) {
       );
     }
 
+    const messageId = (body.messageId as string | undefined) ?? null;
+    if (messageId) {
+      const { data: sourceMessage, error: sourceMessageError } = await supabase
+        .from("chat_messages")
+        .select("id, couple_id")
+        .eq("id", messageId)
+        .eq("couple_id", coupleId)
+        .maybeSingle();
+      if (sourceMessageError) {
+        return mobileBridgeJson(
+          { error: "원본 메시지를 확인하지 못했습니다." },
+          { status: 503, headers: RESPONSE_HEADERS },
+        );
+      }
+      if (!sourceMessage) {
+        return mobileBridgeJson(
+          { error: "저장할 수 있는 메시지를 찾지 못했습니다." },
+          { status: 404, headers: RESPONSE_HEADERS },
+        );
+      }
+    }
+
     const { count } = await supabase
       .from("amora_saved_notes")
-      .select("id", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true })
+      .eq("couple_id", coupleId);
     if ((count ?? 0) >= MAX_NOTES) {
       return mobileBridgeJson(
         {
@@ -213,12 +244,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await createAdminClient()
       .from("amora_saved_notes")
       .insert({
         couple_id: coupleId,
         saved_by: user.id,
-        message_id: (body.messageId as string | undefined) ?? null,
+        message_id: messageId,
         content,
         memo,
       })
@@ -229,6 +260,18 @@ export async function POST(req: Request) {
       // 같은 메시지를 두 번 저장한 경우 — 이미 원하는 상태이므로 성공으로 답한다.
       if ((error as { code?: string }).code === "23505") {
         return mobileBridgeJson({ saved: true }, { headers: RESPONSE_HEADERS });
+      }
+      if (
+        (error as { code?: string; message?: string }).code === "23514"
+        && (error as { message?: string }).message?.includes("SAVED_NOTES_LIMIT")
+      ) {
+        return mobileBridgeJson(
+          {
+            error: `저장은 ${MAX_NOTES}개까지 할 수 있어요. 오래된 것을 지우고 다시 시도해 주세요.`,
+            code: "SAVED_NOTES_LIMIT",
+          },
+          { status: 409, headers: RESPONSE_HEADERS },
+        );
       }
       return mobileBridgeJson(
         { error: "저장하지 못했습니다." },
@@ -241,7 +284,7 @@ export async function POST(req: Request) {
       { headers: RESPONSE_HEADERS },
     );
   } catch (error) {
-    console.error("[amora notes] save failed:", error);
+    console.error("[amora notes] save failed:", safeErrorDiagnostic(error));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: RESPONSE_HEADERS },
@@ -261,7 +304,7 @@ export async function PATCH(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return unauthenticated(req, { updated: false });
 
-    const limited = checkRateLimit(rateLimitKey("amora-notes:memo", req, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("amora-notes:memo", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -278,10 +321,38 @@ export async function PATCH(req: Request) {
     const memo = optionalMemo(body.memo);
     if (memo instanceof NextResponse) return memo;
 
-    const { data, error } = await supabase
+    const coupleId = await resolveCoupleId(supabase, user.id);
+    if (!coupleId) {
+      return mobileBridgeJson(
+        { error: "커플 연결 후 저장할 수 있어요." },
+        { status: 409, headers: RESPONSE_HEADERS },
+      );
+    }
+
+    const { data: accessibleNote, error: lookupError } = await supabase
+      .from("amora_saved_notes")
+      .select("id, couple_id")
+      .eq("id", body.id)
+      .eq("couple_id", coupleId)
+      .maybeSingle();
+    if (lookupError) {
+      return mobileBridgeJson(
+        { error: "저장 항목을 확인하지 못했습니다." },
+        { status: 503, headers: RESPONSE_HEADERS },
+      );
+    }
+    if (!accessibleNote) {
+      return mobileBridgeJson(
+        { error: "저장 항목을 찾을 수 없습니다." },
+        { status: 404, headers: RESPONSE_HEADERS },
+      );
+    }
+
+    const { data, error } = await createAdminClient()
       .from("amora_saved_notes")
       .update({ memo })
       .eq("id", body.id)
+      .eq("couple_id", coupleId)
       .select("id")
       .maybeSingle();
     if (error) {
@@ -298,7 +369,7 @@ export async function PATCH(req: Request) {
     }
     return mobileBridgeJson({ updated: true }, { headers: RESPONSE_HEADERS });
   } catch (error) {
-    console.error("[amora notes] memo failed:", error);
+    console.error("[amora notes] memo failed:", safeErrorDiagnostic(error));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: RESPONSE_HEADERS },
@@ -318,7 +389,7 @@ export async function DELETE(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return unauthenticated(req, { deleted: false });
 
-    const limited = checkRateLimit(rateLimitKey("amora-notes:delete", req, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("amora-notes:delete", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -333,10 +404,38 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { error } = await supabase
+    const coupleId = await resolveCoupleId(supabase, user.id);
+    if (!coupleId) {
+      return mobileBridgeJson(
+        { error: "커플 연결 후 저장할 수 있어요." },
+        { status: 409, headers: RESPONSE_HEADERS },
+      );
+    }
+
+    const { data: accessibleNote, error: lookupError } = await supabase
+      .from("amora_saved_notes")
+      .select("id, couple_id")
+      .eq("id", body.id)
+      .eq("couple_id", coupleId)
+      .maybeSingle();
+    if (lookupError) {
+      return mobileBridgeJson(
+        { error: "저장 항목을 확인하지 못했습니다." },
+        { status: 503, headers: RESPONSE_HEADERS },
+      );
+    }
+    if (!accessibleNote) {
+      return mobileBridgeJson(
+        { error: "저장 항목을 찾을 수 없습니다." },
+        { status: 404, headers: RESPONSE_HEADERS },
+      );
+    }
+
+    const { error } = await createAdminClient()
       .from("amora_saved_notes")
       .delete()
-      .eq("id", body.id);
+      .eq("id", body.id)
+      .eq("couple_id", coupleId);
     if (error) {
       return mobileBridgeJson(
         { error: "삭제하지 못했습니다." },
@@ -346,7 +445,7 @@ export async function DELETE(req: Request) {
     // 이미 없어도 원하는 상태이므로 성공으로 답한다(재시도 안전).
     return mobileBridgeJson({ deleted: true }, { headers: RESPONSE_HEADERS });
   } catch (error) {
-    console.error("[amora notes] delete failed:", error);
+    console.error("[amora notes] delete failed:", safeErrorDiagnostic(error));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: RESPONSE_HEADERS },

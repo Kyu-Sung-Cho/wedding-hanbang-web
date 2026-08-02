@@ -3,6 +3,7 @@ import {
   COMMUNITY_IMAGE_BUCKET,
   COMMUNITY_VIDEO_BUCKET,
   validateCommunityHtmlImageSources,
+  validateCommunityMessageImageSources,
   validateCommunityAttachmentUrl,
   validateCommunityMediaUrl,
   validateRetainedCommunityImageUrl,
@@ -113,6 +114,25 @@ describe("validateCommunityMediaUrl", () => {
     ).ok).toBe(false);
   });
 
+  it("accepts unlinkable v2 image paths without treating the path as ownership proof", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
+    const randomFinalId = "44444444-4444-4444-8444-444444444444";
+    const url = `${SUPABASE_URL}/storage/v1/object/public/${COMMUNITY_IMAGE_BUCKET}/v2/${randomFinalId}.webp`;
+
+    expect(validateCommunityAttachmentUrl(url, { ownerIds: OWNER_ID })).toEqual({
+      ok: true,
+      kind: "image",
+      url,
+      bucket: COMMUNITY_IMAGE_BUCKET,
+      ownerId: null,
+      objectPath: `v2/${randomFinalId}.webp`,
+    });
+    expect(validateCommunityAttachmentUrl(
+      `${SUPABASE_URL}/storage/v1/object/public/${COMMUNITY_IMAGE_BUCKET}/v2/${randomFinalId}.webp/extra`,
+      { ownerIds: OWNER_ID },
+    )).toEqual({ ok: false, reason: "unsafe_path" });
+  });
+
   it("allows an update to retain only a video URL already present on that post", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
     const retained = publicObjectUrl(COMMUNITY_VIDEO_BUCKET, OWNER_ID, "old.mp4");
@@ -180,5 +200,45 @@ describe("validateCommunityMediaUrl", () => {
     );
 
     expect(result).toMatchObject({ ok: false, src: "https://example.com/tracker.jpg" });
+  });
+
+  it("rejects duplicate image sources instead of validating only the last one", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
+    const ownedUrl = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, `${UPLOAD_ID}.png`);
+
+    const result = validateCommunityHtmlImageSources(
+      `<img src="https://attacker.example/collect" src="${ownedUrl}" alt="photo">`,
+      { ownerIds: OWNER_ID },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      src: "https://attacker.example/collect",
+      reason: "wrong_origin",
+    });
+  });
+
+  it("allows cohort image tokens only for the author's finalized upload", () => {
+    const ownedUrl = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, `${UPLOAD_ID}.png`);
+
+    expect(validateCommunityMessageImageSources(
+      `사진이에요 [img:${ownedUrl}]`,
+      { ownerId: OWNER_ID, supabaseUrl: SUPABASE_URL },
+    )).toEqual({ ok: true });
+
+    expect(validateCommunityMessageImageSources(
+      `추적 [img:https://attacker.supabase.co/pixel.gif]`,
+      { ownerId: OWNER_ID, supabaseUrl: SUPABASE_URL },
+    )).toMatchObject({ ok: false, reason: "wrong_origin" });
+
+    expect(validateCommunityMessageImageSources(
+      `내부 호출 [img:/api/messages?vendorId=${OTHER_OWNER_ID}]`,
+      { ownerId: OWNER_ID, supabaseUrl: SUPABASE_URL },
+    )).toMatchObject({ ok: false, reason: "invalid_url" });
+
+    expect(validateCommunityMessageImageSources(
+      `다른 사람 파일 [img:${publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OTHER_OWNER_ID, `${UPLOAD_ID}.png`)}]`,
+      { ownerId: OWNER_ID, supabaseUrl: SUPABASE_URL },
+    )).toMatchObject({ ok: false, reason: "wrong_owner" });
   });
 });

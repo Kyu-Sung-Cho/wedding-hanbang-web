@@ -1,9 +1,34 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { cleanOptionalText, isRecord, normalizeEmail } from "@/utils/requestValidation";
+import {
+  cleanOptionalText,
+  isRecord,
+  normalizeEmail,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { isStrongAdminPassword } from "@hanbang/shared/security/password-policy";
+import {
+  clearAdminStepUpCookie,
+  hasAdminStepUp,
+  setAdminStepUpCookie,
+} from "@/lib/auth/adminStepUp";
+
+const MAX_BODY_BYTES = 16 * 1024;
+const PRIVATE_RESPONSE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Cookie, Authorization",
+};
+
+function withPrivateResponseHeaders<T extends Response>(response: T): T {
+  for (const [name, value] of Object.entries(PRIVATE_RESPONSE_HEADERS)) {
+    response.headers.set(name, value);
+  }
+  return response;
+}
 
 function getServiceClient() {
   return createAdminClient();
@@ -11,27 +36,26 @@ function getServiceClient() {
 
 function safeEqualString(left: unknown, right: string): boolean {
   if (typeof left !== "string") return false;
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return timingSafeEqual(leftBuffer, rightBuffer);
+  // Hash both values before comparing so a wrong-length guess does not take a
+  // separate early-return path at this remote secret boundary.
+  const leftDigest = createHash("sha256").update(left, "utf8").digest();
+  const rightDigest = createHash("sha256").update(right, "utf8").digest();
+  return timingSafeEqual(leftDigest, rightDigest);
 }
 
-function isStrongAdminPassword(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length >= 12 &&
-    /[a-z]/.test(value) &&
-    /[A-Z]/.test(value) &&
-    /\d/.test(value) &&
-    /[^A-Za-z0-9]/.test(value)
-  );
+function isStrongBootstrapSecret(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length >= 32
+    && value.length <= 512
+    && !/[\s\u0000-\u001f\u007f]/.test(value)
+    && new Set(value).size >= 12;
 }
 
 const ADMIN_PASSWORD_ERROR =
   "관리자 계정 비밀번호는 12자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다.";
+const ADMIN_AUTH_ACTIONS = new Set(["login", "initial-setup", "create-admin"]);
 
-export async function GET(req: Request) {
+async function handleGet(req: Request) {
   try {
     const url = new URL(req.url);
     const checkOnly = url.searchParams.get("check") === "exists";
@@ -68,8 +92,10 @@ export async function GET(req: Request) {
       .eq("id", user.id)
       .single();
 
+    const isAdmin = profile?.is_admin === true
+      && hasAdminStepUp(req.headers.get("cookie"), user.id);
     return NextResponse.json({
-      isAdmin: profile?.is_admin === true,
+      isAdmin,
       email: user.email,
     });
   } catch {
@@ -77,20 +103,44 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-  if (!ADMIN_PASSWORD) {
+  if (!isStrongBootstrapSecret(ADMIN_PASSWORD)) {
     return NextResponse.json({ error: "서버 설정 오류" }, { status: 500 });
   }
 
   try {
-    const body = await req.json();
+    const ingressLimited = await checkRateLimitPersistent(
+      rateLimitKey("admin-auth:ingress", req),
+      { maxRequests: 20, windowMs: 10 * 60 * 1000 },
+    );
+    if (ingressLimited) return ingressLimited;
+
+    const boundedBody = await readBoundedUtf8Text(req, MAX_BODY_BYTES);
+    if (!boundedBody.ok) {
+      return NextResponse.json(
+        { error: boundedBody.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: boundedBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(boundedBody.text);
+    } catch {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
-    const action = typeof body.action === "string" ? body.action : "login";
-    const limited = await checkRateLimitPersistent(rateLimitKey(`admin-auth:${action}`, req), {
+    const action = body.action === undefined ? "login" : body.action;
+    if (typeof action !== "string" || !ADMIN_AUTH_ACTIONS.has(action)) {
+      return NextResponse.json({ error: "지원하지 않는 관리자 인증 요청입니다." }, { status: 400 });
+    }
+
+    // 모든 bootstrap-secret 시도는 action과 무관하게 같은 버킷을 쓴다. 요청자가
+    // 임의 action 문자열로 namespace를 늘려 비밀번호 제한을 우회하지 못한다.
+    const limited = await checkRateLimitPersistent(rateLimitKey("admin-auth:secret", req), {
       maxRequests: 8,
       windowMs: 15 * 60 * 1000,
     });
@@ -106,6 +156,15 @@ export async function POST(req: Request) {
     const serviceClient = getServiceClient();
 
     if (action === "initial-setup") {
+      const isProduction = process.env.NODE_ENV === "production"
+        || process.env.VERCEL_ENV === "production";
+      if (isProduction && process.env.ADMIN_INITIAL_SETUP_ENABLED !== "true") {
+        return NextResponse.json(
+          { error: "운영 환경의 최초 관리자 생성이 잠겨 있습니다." },
+          { status: 403 },
+        );
+      }
+
       const initEmail = normalizeEmail(body.email);
       const initPassword = body.password;
       const initName = cleanOptionalText(body.name, 60) ?? "어드민 관리자";
@@ -116,7 +175,7 @@ export async function POST(req: Request) {
         .eq("is_admin", true);
 
       if (adminCountError) {
-        console.error("Initial admin count failed:", adminCountError.message);
+        console.error("Initial admin count failed", safeErrorDiagnostic(adminCountError));
         return NextResponse.json(
           { error: "관리자 상태를 확인하지 못했습니다." },
           { status: 503 },
@@ -153,36 +212,44 @@ export async function POST(req: Request) {
         ) {
           return NextResponse.json({ error: "이미 등록된 이메일입니다." }, { status: 409 });
         }
-        return NextResponse.json(
-          { error: `계정 생성 실패: ${createError.message}` },
-          { status: 500 }
-        );
+        console.error("admin_initial_auth_create_failed", {
+          code: safeErrorDiagnostic(createError).code,
+        });
+        return NextResponse.json({ error: "계정 생성에 실패했습니다." }, { status: 500 });
       }
 
       if (!newUser.user) {
         return NextResponse.json({ error: "계정 생성에 실패했습니다." }, { status: 500 });
       }
 
-      const { error: profileError } = await serviceClient.from("profiles").upsert({
-        id: newUser.user.id,
-        name: initName,
-        email: initEmail,
-        onboarding_completed: true,
-        onboarding_step: 5,
-        is_admin: true,
-      });
+      const { data: profileCreated, error: profileError } = await serviceClient.rpc(
+        "bootstrap_initial_admin_profile",
+        {
+          p_user_id: newUser.user.id,
+          p_name: initName,
+          p_email: initEmail,
+        },
+      );
 
-      if (profileError) {
+      if (profileError || profileCreated !== true) {
+        const conflict = profileError?.code === "23505";
         const { error: rollbackError } = await serviceClient.auth.admin.deleteUser(
           newUser.user.id,
         );
-        console.error("Initial admin profile persistence failed:", profileError.message);
+        console.error(
+          "Initial admin profile claim failed",
+          safeErrorDiagnostic(profileError ?? new Error("invalid bootstrap result")),
+        );
         if (rollbackError) {
-          console.error("Initial admin Auth rollback failed:", rollbackError.message);
+          console.error("Initial admin Auth rollback failed", safeErrorDiagnostic(rollbackError));
         }
         return NextResponse.json(
-          { error: "관리자 계정 생성이 완료되지 않았습니다." },
-          { status: 500 },
+          {
+            error: conflict
+              ? "이미 관리자가 존재합니다. 기존 관리자로 로그인해주세요."
+              : "관리자 계정 생성이 완료되지 않았습니다.",
+          },
+          { status: conflict ? 409 : 500 },
         );
       }
 
@@ -237,10 +304,10 @@ export async function POST(req: Request) {
         ) {
           return NextResponse.json({ error: "이미 등록된 이메일입니다." }, { status: 409 });
         }
-        return NextResponse.json(
-          { error: `계정 생성 실패: ${createError.message}` },
-          { status: 500 }
-        );
+        console.error("admin_auth_create_failed", {
+          code: safeErrorDiagnostic(createError).code,
+        });
+        return NextResponse.json({ error: "계정 생성에 실패했습니다." }, { status: 500 });
       }
 
       if (!newUser.user) {
@@ -260,9 +327,9 @@ export async function POST(req: Request) {
         const { error: rollbackError } = await serviceClient.auth.admin.deleteUser(
           newUser.user.id,
         );
-        console.error("Admin profile persistence failed:", profileError.message);
+        console.error("Admin profile persistence failed", safeErrorDiagnostic(profileError));
         if (rollbackError) {
-          console.error("Admin Auth rollback failed:", rollbackError.message);
+          console.error("Admin Auth rollback failed", safeErrorDiagnostic(rollbackError));
         }
         return NextResponse.json(
           { error: "관리자 계정 생성이 완료되지 않았습니다." },
@@ -292,7 +359,14 @@ export async function POST(req: Request) {
       .single();
 
     if (profile?.is_admin) {
-      return NextResponse.json({ success: true, message: "관리자 로그인 성공" });
+      const response = NextResponse.json({
+        success: true,
+        message: "관리자 로그인 성공",
+      });
+      if (!setAdminStepUpCookie(response, user.id)) {
+        return NextResponse.json({ error: "서버 설정 오류" }, { status: 500 });
+      }
+      return response;
     }
 
     return NextResponse.json(
@@ -302,4 +376,18 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
+}
+
+export async function GET(req: Request) {
+  return withPrivateResponseHeaders(await handleGet(req));
+}
+
+export async function POST(req: Request) {
+  return withPrivateResponseHeaders(await handlePost(req));
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({ success: true });
+  clearAdminStepUpCookie(response);
+  return withPrivateResponseHeaders(response);
 }

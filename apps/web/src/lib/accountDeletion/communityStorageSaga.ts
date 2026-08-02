@@ -36,7 +36,10 @@ export interface CommunityDeletionManifestEntry {
 }
 
 export class AccountDeletionStorageError extends Error {
-  constructor(public readonly code: string) {
+  constructor(
+    public readonly code: string,
+    public readonly paths: readonly string[] = [],
+  ) {
     super(code);
     this.name = "AccountDeletionStorageError";
   }
@@ -47,12 +50,17 @@ const SESSION_FILE_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-
 const LEGACY_IMAGE_RE = /^[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|gif|webp)$/i;
 const LEGACY_VIDEO_RE = /^[0-9]{13}_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(mp4|mov|webm)$/i;
 const CHAT_IMAGE_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpeg|jpg|png|gif|webp)$/;
+const LEGACY_CHAT_IMAGE_FILE_RE = /^(?:[0-9]{13}-[a-z0-9]{5}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.(jpeg|jpg|png|gif|webp)$/;
 const SAFE_LISTED_NAME_RE = /^[^/\\\u0000-\u001f\u007f]{1,400}$/;
 const SIGNED_TOKEN_GRACE_MS = 5 * 60 * 1000;
 const INVENTORY_PAGE_SIZE = 100;
 const INVENTORY_MAX_OBJECTS = 10_000;
 const CHAT_IMAGE_MAX_COUPLE_FOLDERS = 1_000;
 const CHAT_IMAGE_MAX_LIST_PAGES = 1_111;
+const CHAT_MESSAGE_PAGE_SIZE = 250;
+const CHAT_MESSAGE_MAX_ROWS = 10_000;
+const CHAT_MEDIA_MAX_REFERENCES = 1_000;
+const CHAT_OWNER_PAGE_SIZE = 100;
 const SESSION_PAGE_SIZE = 500;
 const INVENTORY_MAX_SESSIONS = 10_000;
 const MANIFEST_PAGE_SIZE = 500;
@@ -106,6 +114,207 @@ function assertSafeListedName(name: string) {
   }
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function classifyChatAttachmentPath(
+  path: string,
+  coupleId: string,
+  userId: string,
+): "current" | "legacy" | null {
+  if (path.length > 512 || path.startsWith("/") || path.endsWith("/")
+      || path.includes("\\") || path.includes("%") || path.includes("?")
+      || path.includes("#") || path.includes("//")
+      || /[\u0000-\u001f\u007f]/.test(path)) {
+    return null;
+  }
+  const parts = path.split("/");
+  if (parts.length === 3) {
+    return parts[0] === coupleId
+      && parts[1] === userId
+      && CHAT_IMAGE_FILE_RE.test(parts[2])
+      ? "current"
+      : null;
+  }
+  if (parts.length === 2) {
+    const fileName = parts[1];
+    return parts[0] === coupleId
+      && LEGACY_CHAT_IMAGE_FILE_RE.test(fileName)
+      ? "legacy"
+      : null;
+  }
+  return null;
+}
+
+function pathFromLegacyChatPublicUrl(value: string): string | null {
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!configuredUrl || value.length > 2_048) return null;
+  try {
+    const url = new URL(value);
+    const marker = "/storage/v1/object/public/chat-image/";
+    if (url.origin !== new URL(configuredUrl).origin
+        || !url.pathname.startsWith(marker)) {
+      return null;
+    }
+    return decodeURIComponent(url.pathname.slice(marker.length));
+  } catch {
+    return null;
+  }
+}
+
+async function assertNoLiveLegacyChatAttachments(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const legacyPaths = new Set<string>();
+  let referenceCount = 0;
+  for (let offset = 0; ; offset += CHAT_MESSAGE_PAGE_SIZE) {
+    if (offset >= CHAT_MESSAGE_MAX_ROWS) {
+      const { data, error } = await admin
+        .from("chat_messages")
+        .select("id")
+        .eq("sender_id", userId)
+        .order("id", { ascending: true })
+        .range(offset, offset);
+      if (error || !Array.isArray(data)) {
+        throw new AccountDeletionStorageError("chat_attachment_inventory_unavailable");
+      }
+      if (data.length > 0) {
+        throw new AccountDeletionStorageError("chat_attachment_reference_limit_exceeded");
+      }
+      break;
+    }
+
+    const { data, error } = await admin
+      .from("chat_messages")
+      .select("id,couple_id,sender_id,metadata")
+      .eq("sender_id", userId)
+      .order("id", { ascending: true })
+      .range(offset, offset + CHAT_MESSAGE_PAGE_SIZE - 1);
+    if (error || !Array.isArray(data)) {
+      throw new AccountDeletionStorageError("chat_attachment_inventory_unavailable");
+    }
+
+    for (const rawRow of data) {
+      if (!isPlainRecord(rawRow)
+          || !UUID_RE.test(String(rawRow.id ?? ""))
+          || !UUID_RE.test(String(rawRow.couple_id ?? ""))
+          || rawRow.sender_id !== userId
+          || !isPlainRecord(rawRow.metadata)) {
+        throw new AccountDeletionStorageError("chat_attachment_reference_malformed");
+      }
+      const coupleId = String(rawRow.couple_id);
+      const rawPaths = rawRow.metadata.imagePaths;
+      const rawUrls = rawRow.metadata.imageUrls;
+      if (rawPaths !== undefined && !Array.isArray(rawPaths)) {
+        throw new AccountDeletionStorageError("chat_attachment_reference_malformed");
+      }
+      if (rawUrls !== undefined && !Array.isArray(rawUrls)) {
+        throw new AccountDeletionStorageError("chat_attachment_reference_malformed");
+      }
+      const paths = [
+        ...(rawPaths ?? []),
+        ...(rawUrls ?? []).map((url) => (
+          typeof url === "string" ? pathFromLegacyChatPublicUrl(url) : null
+        )),
+      ];
+      for (const path of paths) {
+        referenceCount += 1;
+        if (referenceCount > CHAT_MEDIA_MAX_REFERENCES
+            || typeof path !== "string") {
+          throw new AccountDeletionStorageError("chat_attachment_reference_limit_exceeded");
+        }
+        const kind = classifyChatAttachmentPath(path, coupleId, userId);
+        if (!kind) {
+          throw new AccountDeletionStorageError("chat_attachment_reference_malformed");
+        }
+        if (kind === "legacy") legacyPaths.add(path);
+      }
+    }
+    if (data.length < CHAT_MESSAGE_PAGE_SIZE) break;
+  }
+
+  if (legacyPaths.size === 0) return;
+  const chatStorage = admin.storage.from("chat-image");
+  const livePaths: string[] = [];
+  for (const path of [...legacyPaths].sort()) {
+    const { data, error } = await chatStorage.exists(path);
+    if (error || typeof data !== "boolean") {
+      throw new AccountDeletionStorageError("chat_attachment_inventory_unavailable");
+    }
+    if (data) {
+      livePaths.push(path);
+    }
+  }
+  if (livePaths.length > 0) {
+    throw new AccountDeletionStorageError(
+      "chat_legacy_attachment_manual_review_required",
+      livePaths,
+    );
+  }
+}
+
+async function listOwnedChatImagePaths(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<string[]> {
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  let afterName: string | null = null;
+
+  while (true) {
+    if (paths.length >= INVENTORY_MAX_OBJECTS) {
+      const { data, error } = await admin.rpc(
+        "list_account_deletion_owned_chat_objects",
+        { p_user_id: userId, p_after_name: afterName, p_limit: 1 },
+      );
+      if (error || !Array.isArray(data)) {
+        throw new AccountDeletionStorageError(
+          "chat_owned_object_inventory_unavailable",
+        );
+      }
+      if (data.length > 0) {
+        throw new AccountDeletionStorageError(
+          "chat_owned_object_limit_exceeded",
+        );
+      }
+      return paths;
+    }
+
+    const limit = Math.min(
+      CHAT_OWNER_PAGE_SIZE,
+      INVENTORY_MAX_OBJECTS - paths.length,
+    );
+    const { data, error } = await admin.rpc(
+      "list_account_deletion_owned_chat_objects",
+      { p_user_id: userId, p_after_name: afterName, p_limit: limit },
+    );
+    if (error || !Array.isArray(data)) {
+      throw new AccountDeletionStorageError(
+        "chat_owned_object_inventory_unavailable",
+      );
+    }
+    if (data.length > limit) {
+      throw new AccountDeletionStorageError("chat_owned_object_limit_exceeded");
+    }
+    for (const rawRow of data) {
+      if (!isPlainRecord(rawRow)
+          || typeof rawRow.path !== "string"
+          || rawRow.path.length < 1
+          || rawRow.path.length > 512
+          || /[\u0000-\u001f\u007f]/.test(rawRow.path)
+          || seen.has(rawRow.path)) {
+        throw new AccountDeletionStorageError("chat_owned_object_path_malformed");
+      }
+      seen.add(rawRow.path);
+      paths.push(rawRow.path);
+    }
+    if (data.length < limit) return paths;
+    afterName = paths.at(-1) ?? null;
+  }
+}
+
 function assertSessionContract(
   session: CommunityDeletionSession,
   userId: string,
@@ -115,6 +324,19 @@ function assertSessionContract(
   const fileMatch = stagingParts.length === 2
     ? stagingParts[1].match(SESSION_FILE_RE)
     : null;
+  const finalParts = session.final_path.split("/");
+  const finalFileMatch = finalParts.length === 2
+    ? finalParts[1].match(SESSION_FILE_RE)
+    : null;
+  const finalPathExact = session.final_path === session.staging_path
+    || Boolean(
+      finalParts[0] === "v2"
+       && finalFileMatch
+       && finalFileMatch[1].toLowerCase() !== session.id.toLowerCase()
+       && finalFileMatch[1].toLowerCase() !== userId.toLowerCase()
+       && fileMatch
+      && finalFileMatch[2].toLowerCase() === fileMatch[2].toLowerCase(),
+    );
   if (!UUID_RE.test(userId)
       || session.user_id !== userId
       || !UUID_RE.test(session.id)
@@ -122,7 +344,7 @@ function assertSessionContract(
       || !fileMatch
       || fileMatch[1].toLowerCase() !== session.id.toLowerCase()
       || session.final_bucket !== "community-images"
-      || session.final_path !== session.staging_path
+      || !finalPathExact
       || !Number.isFinite(expiresAt)) {
     throw new AccountDeletionStorageError("session_contract_invalid");
   }
@@ -292,6 +514,8 @@ async function inventoryChatImageQuarantine(
   if (!UUID_RE.test(userId) || !Number.isFinite(now)) {
     throw new AccountDeletionStorageError("inventory_input_invalid");
   }
+  const ownedPaths = await listOwnedChatImagePaths(admin, userId);
+  await assertNoLiveLegacyChatAttachments(admin, userId);
   const storage = admin.storage.from("chat-image");
   const coupleIds: string[] = [];
   const seenCouples = new Set<string>();
@@ -339,6 +563,34 @@ async function inventoryChatImageQuarantine(
 
   const entries: CommunityDeletionManifestEntry[] = [];
   const seenPaths = new Set<string>();
+  const legacyOwnedPaths: string[] = [];
+  for (const path of ownedPaths) {
+    const parts = path.split("/");
+    if (parts.length === 2
+        && UUID_RE.test(parts[0])
+        && LEGACY_CHAT_IMAGE_FILE_RE.test(parts[1])) {
+      legacyOwnedPaths.push(path);
+      continue;
+    }
+    if (parts.length !== 3
+        || classifyChatAttachmentPath(path, parts[0], userId) !== "current") {
+      throw new AccountDeletionStorageError("chat_owned_object_path_malformed");
+    }
+    seenPaths.add(path);
+    entries.push({
+      bucket: "chat-image",
+      path,
+      source: "quarantine",
+      not_before: new Date(now).toISOString(),
+    });
+    objectCount += 1;
+  }
+  if (legacyOwnedPaths.length > 0) {
+    throw new AccountDeletionStorageError(
+      "chat_legacy_owner_manual_review_required",
+      legacyOwnedPaths,
+    );
+  }
   for (const coupleId of coupleIds) {
     const prefix = `${coupleId}/${userId}`;
     for (let offset = 0; ; offset += INVENTORY_PAGE_SIZE) {
@@ -357,9 +609,7 @@ async function inventoryChatImageQuarantine(
           throw new AccountDeletionStorageError("chat_image_path_malformed");
         }
         const path = `${prefix}/${item.name}`;
-        if (seenPaths.has(path)) {
-          throw new AccountDeletionStorageError("chat_image_path_malformed");
-        }
+        if (seenPaths.has(path)) continue;
         seenPaths.add(path);
         entries.push({
           bucket: "chat-image",
@@ -581,6 +831,12 @@ const MANUAL_REVIEW_CODES = new Set([
   "chat_image_folder_limit_exceeded",
   "chat_image_object_limit_exceeded",
   "chat_image_page_limit_exceeded",
+  "chat_attachment_reference_malformed",
+  "chat_attachment_reference_limit_exceeded",
+  "chat_legacy_attachment_manual_review_required",
+  "chat_owned_object_path_malformed",
+  "chat_owned_object_limit_exceeded",
+  "chat_legacy_owner_manual_review_required",
   "session_contract_invalid",
   "session_inventory_limit_exceeded",
   "job_response_invalid",
@@ -795,6 +1051,23 @@ export async function processAccountDeletionJob(
   }
 
   try {
+    // This must run before inventory or deletion: legal/audit retention and
+    // membership conflicts require a human decision, and Storage deletion is
+    // irreversible even when the later Auth boundary refuses to proceed.
+    const { data: retentionPreflight, error: retentionPreflightError } = await admin.rpc(
+      "preflight_account_deletion_retention",
+      { p_job_id: job.id, p_claim_token: claimToken },
+    );
+    if (retentionPreflightError) {
+      throw new AccountDeletionStorageError("retention_preflight_failed");
+    }
+    if (retentionPreflight === "manual_review") {
+      return { status: "manual_review" };
+    }
+    if (retentionPreflight !== "clear") {
+      throw new AccountDeletionStorageError("retention_preflight_rejected");
+    }
+
     if (job.status === "inventorying") {
       await assertNoOwnedVendor(admin, job.user_id);
       const manifest = await inventoryCommunityDeletionMedia(admin, job.user_id, now);
@@ -838,6 +1111,13 @@ export async function processAccountDeletionJob(
       { p_job_id: job.id, p_claim_token: claimToken },
     );
     if (prepareError || prepared !== true) {
+      const { data: boundaryState, error: boundaryStateError } = await admin.rpc(
+        "preflight_account_deletion_retention",
+        { p_job_id: job.id, p_claim_token: claimToken },
+      );
+      if (!boundaryStateError && boundaryState === "manual_review") {
+        return { status: "manual_review" };
+      }
       throw new AccountDeletionStorageError("auth_boundary_rejected");
     }
 
@@ -867,6 +1147,31 @@ export async function processAccountDeletionJob(
     const code = error instanceof AccountDeletionStorageError
       ? error.code
       : "account_deletion_worker_failed";
+    if (error instanceof AccountDeletionStorageError
+        && (
+          code === "chat_legacy_owner_manual_review_required"
+          || code === "chat_legacy_attachment_manual_review_required"
+        )
+        && error.paths.length > 0) {
+      try {
+        const { data, error: checkpointError } = await admin.rpc(
+          "mark_account_deletion_legacy_chat_manual_review",
+          {
+            p_job_id: job.id,
+            p_claim_token: claimToken,
+            p_paths: [...error.paths],
+            p_error_code: code,
+          },
+        );
+        if (!checkpointError && data === true) {
+          return { status: "manual_review" };
+        }
+      } catch {
+        // The claim is released below; never erase Auth without a durable path.
+      }
+      await releaseClaim(admin, job.id, claimToken, "chat_owner_checkpoint_failed");
+      return { status: "retry" };
+    }
     if (MANUAL_REVIEW_CODES.has(code)) {
       return markManualReview(admin, job.id, claimToken, code);
     }

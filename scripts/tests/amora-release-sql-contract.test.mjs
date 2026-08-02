@@ -303,6 +303,12 @@ test("Storage release contract is exact, owner-aware, empty-staging, and one-to-
   const migration1140 = await source(
     "supabase/migrations/20260716114000_current_couple_membership_privacy_fence.sql",
   );
+  const migration1340 = await source(
+    "supabase/migrations/20260802134000_close_dormant_guestbook_public_surface.sql",
+  );
+  const migration1430 = await source(
+    "supabase/migrations/20260802143000_close_empty_dormant_storage_buckets.sql",
+  );
   const pre = await source(releaseChecks.pre);
   const post = await source(releaseChecks.post);
 
@@ -322,6 +328,50 @@ test("Storage release contract is exact, owner-aware, empty-staging, and one-to-
   }
   assert.match(rollbackVerify, /STORAGE_FINAL_SAFE_ROLLBACK_VERIFY_POLICY_INVALID/);
   assert.match(emergencyRollbackVerify, /STORAGE_ROLLBACK_VERIFY_POLICY_MANIFEST_INVALID/);
+
+  const privacyContractBuckets = [
+    "cohort-images",
+    "guestbook-images",
+    "guestbook-uploads",
+    "invitation-photos",
+    "user_photos",
+  ];
+  for (const sql of [inventory, freezeVerify, freezeReleaseCheck, pre]) {
+    for (const bucket of privacyContractBuckets) {
+      assert.match(sql, new RegExp(`\\('${bucket}',\\s*true\\b`, "i"));
+    }
+  }
+  for (const sql of [
+    apply,
+    verify,
+    rollbackVerify,
+    emergencyRollbackVerify,
+    finalReleaseCheck,
+    post,
+  ]) {
+    for (const bucket of privacyContractBuckets) {
+      assert.match(sql, new RegExp(`\\('${bucket}',\\s*false\\b`, "i"));
+    }
+  }
+  assert.match(
+    migration1340,
+    /UPDATE\s+storage\.buckets\s+SET\s+public\s*=\s*FALSE\s+WHERE\s+id\s+IN\s*\(\s*'guestbook-images'\s*,\s*'guestbook-uploads'\s*\)\s*;/i,
+  );
+  assert.match(
+    migration1430,
+    /UPDATE\s+storage\.buckets\s+SET\s+public\s*=\s*FALSE\s+WHERE\s+id\s+IN\s*\(\s*'cohort-images'\s*,\s*'invitation-photos'\s*,\s*'user_photos'\s*\)\s*;/i,
+  );
+  assert.match(migration1430, /DORMANT_STORAGE_PRIVACY_FENCE_BUCKET_NOT_EMPTY/);
+  assert.match(
+    migration1430,
+    /ORDER\s+BY\s+bucket\.id\s+FOR\s+UPDATE/i,
+  );
+  for (const sql of [rollback, emergencyRollback]) {
+    assert.doesNotMatch(
+      executableSql(sql),
+      /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|ALTER\s+TABLE|TRUNCATE(?:\s+TABLE)?)\s+storage\.buckets\b/i,
+    );
+  }
 
   assert.match(apply, new RegExp(storageFinalPolicy));
   for (const sql of [apply, verify, finalReleaseCheck, post]) {

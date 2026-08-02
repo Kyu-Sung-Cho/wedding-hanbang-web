@@ -4,6 +4,8 @@
 // PostHog $pageview 자동 캡처와 별개로, preregistrations 테이블의 채널 전환
 // 측정(G1 판정)에 쓰인다.
 
+import { sanitizeUtmFields } from "@/utils/campaignAttribution";
+
 const STORAGE_KEY = "hanbang_first_utm";
 
 export interface StoredUtm {
@@ -19,10 +21,16 @@ export function persistFirstTouchUtm(): void {
     const params = new URLSearchParams(window.location.search);
     const source = params.get("utm_source");
     if (!source) return;
+    const sanitized = sanitizeUtmFields({
+      source,
+      medium: params.get("utm_medium"),
+      campaign: params.get("utm_campaign"),
+    });
+    if (!sanitized.source) return;
     const utm: StoredUtm = {
-      source: source.slice(0, 80),
-      medium: params.get("utm_medium")?.slice(0, 80) ?? undefined,
-      campaign: params.get("utm_campaign")?.slice(0, 120) ?? undefined,
+      source: sanitized.source,
+      medium: sanitized.medium ?? undefined,
+      campaign: sanitized.campaign ?? undefined,
     };
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(utm));
   } catch {
@@ -35,9 +43,35 @@ export function readStoredUtm(): StoredUtm | null {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const value = JSON.parse(raw) as StoredUtm;
-    return value && typeof value === "object" ? value : null;
+    const value = JSON.parse(raw) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    const sanitized = sanitizeUtmFields({
+      source: record.source,
+      medium: record.medium,
+      campaign: record.campaign,
+    });
+    if (!sanitized.source) {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    const cleanValue: StoredUtm = {
+      source: sanitized.source,
+      medium: sanitized.medium ?? undefined,
+      campaign: sanitized.campaign ?? undefined,
+    };
+    const canonical = JSON.stringify(cleanValue);
+    if (canonical !== raw) window.sessionStorage.setItem(STORAGE_KEY, canonical);
+    return cleanValue;
   } catch {
+    try {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in hardened/private browser contexts.
+    }
     return null;
   }
 }

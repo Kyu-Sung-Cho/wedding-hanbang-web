@@ -60,6 +60,7 @@ export type SSEEvent =
   | { type: "tool_result"; result: ToolExecutionResult }
   | { type: "suggestions"; suggestions: string[] }
   | { type: "quota"; remaining: number }
+  | { type: "attachment_paths"; userMessageId: string; imagePaths: string[] }
   | { type: "done"; fullContent: string; metadata: ChatMessageMetadata }
   | { type: "error"; code?: string; message: string };
 

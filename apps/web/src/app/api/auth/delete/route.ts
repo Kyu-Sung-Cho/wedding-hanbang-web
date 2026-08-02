@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 
-import {
-  AccountDeletionStorageError,
-  requestAccountDeletion,
-} from "@/lib/accountDeletion/communityStorageSaga";
+import { requestAccountDeletion } from "@/lib/accountDeletion/communityStorageSaga";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import {
+  isBodyTooLarge,
+  isRecord,
+  readBoundedJsonValue,
+} from "@/utils/requestValidation";
 
-const MAX_BODY_BYTES = 8 * 1024;
+const MAX_BODY_BYTES = 2 * 1024;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 const ACCOUNT_DELETION_REASON_CODES = new Set([
   "unknown",
@@ -67,15 +69,19 @@ export async function DELETE(request: Request) {
     });
     if (limited) return limited;
 
-    let reason = "unknown";
-    try {
-      const body = await request.json();
-      reason = isRecord(body)
-        ? accountDeletionReasonCode(body.reason)
-        : "unknown";
-    } catch {
-      // A reason is optional; the durable deletion boundary is not.
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 형식이 올바르지 않습니다." },
+        {
+          status: bodyResult.reason === "too_large" ? 413 : 400,
+          headers: NO_STORE_HEADERS,
+        },
+      );
     }
+    const reason = isRecord(bodyResult.value)
+      ? accountDeletionReasonCode(bodyResult.value.reason)
+      : "unknown";
 
     const result = await requestAccountDeletion(
       createAdminClient(),
@@ -114,11 +120,7 @@ export async function DELETE(request: Request) {
       { status: 202, headers: NO_STORE_HEADERS },
     );
   } catch (error) {
-    console.error("[auth/delete] durable deletion request failed", {
-      code: error instanceof AccountDeletionStorageError
-        ? error.code
-        : "account_deletion_request_failed",
-    });
+    console.error("[auth/delete] durable deletion request failed", safeErrorDiagnostic(error));
     return NextResponse.json(
       { error: "계정 삭제 요청을 시작하지 못했어요. 잠시 후 다시 시도해 주세요." },
       { status: 503, headers: NO_STORE_HEADERS },

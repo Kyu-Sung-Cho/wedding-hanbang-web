@@ -387,6 +387,10 @@ async function addSuccessorRelease(root, {
   const predecessorText = await readFile(join(root, predecessorFile), "utf8");
   const migrationFile = "20260718120000_vendor_disclosure_foundation.sql";
   const migrationSql = "select 'vendor disclosure successor';\n";
+  const publicIdentityInventory = "BEGIN TRANSACTION READ ONLY;\nselect 1 as legacy_auth_uuid_contract_inventory;\nROLLBACK;\n";
+  const publicIdentityApply = "BEGIN;\nselect 'apply public identity contract';\nCOMMIT;\n";
+  const publicIdentityVerify = "BEGIN TRANSACTION READ ONLY;\nselect 1 as community_public_identity_contract_verified;\nROLLBACK;\n";
+  const publicIdentityRollout = "# Community public identity rollout fixture\n";
   const successorManifest = {
     release: "vendor-disclosure-v2-20260718",
     projectRef: "test-project",
@@ -400,6 +404,29 @@ async function addSuccessorRelease(root, {
     expandMigrations: [
       { file: migrationFile, sha256: sha256(migrationSql) },
     ],
+    forwardOnlySecurityOperations: [{
+      id: "community-public-identity-contract-20260803104500",
+      phase: "post-application-deploy",
+      requiredGate: "minimum-supported-community-client-version-enforced",
+      rollbackPolicy: "forward-fix-only-no-auth-uuid-regrant",
+      inventory: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_inventory.sql",
+        sha256: sha256(publicIdentityInventory),
+      },
+      apply: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_apply.sql",
+        sha256: sha256(publicIdentityApply),
+      },
+      verify: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_verify.sql",
+        sha256: sha256(publicIdentityVerify),
+        expectedEvidence: { community_public_identity_contract_verified: 1 },
+      },
+    }],
+    requiredDocuments: [{
+      file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+      sha256: sha256(publicIdentityRollout),
+    }],
     deploymentEvidence: {
       hostedStaging: "missing",
       backup: "missing",
@@ -414,6 +441,26 @@ async function addSuccessorRelease(root, {
     `${JSON.stringify(successorManifest, null, 2)}\n`,
   );
   await write(root, `supabase/migrations/${migrationFile}`, migrationSql);
+  await write(
+    root,
+    "supabase/platform-operations/security/20260803104500_community_public_identity_contract_inventory.sql",
+    publicIdentityInventory,
+  );
+  await write(
+    root,
+    "supabase/platform-operations/security/20260803104500_community_public_identity_contract_apply.sql",
+    publicIdentityApply,
+  );
+  await write(
+    root,
+    "supabase/platform-operations/security/20260803104500_community_public_identity_contract_verify.sql",
+    publicIdentityVerify,
+  );
+  await write(
+    root,
+    "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+    publicIdentityRollout,
+  );
   return successorManifest;
 }
 
@@ -444,7 +491,7 @@ test("successor release rejects any drift in its pinned predecessor manifest", a
 
     const result = runFence(root);
     assert.notEqual(result.status, 0, result.stdout);
-    assert.match(result.stderr, /predecessor release manifest hash mismatch/i);
+    assert.match(result.stderr, /\[PIN_HASH_MISMATCH\]/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -462,7 +509,7 @@ test("successor release rejects hash drift in every release-era migration", asyn
 
     const result = runFence(root);
     assert.notEqual(result.status, 0, result.stdout);
-    assert.match(result.stderr, /successor migration hash mismatch/i);
+    assert.match(result.stderr, /\[PIN_HASH_MISMATCH\]/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -480,7 +527,7 @@ test("successor release rejects an unmanifested migration at or after its floor"
 
     const result = runFence(root);
     assert.notEqual(result.status, 0, result.stdout);
-    assert.match(result.stderr, /successor migration set or order drifted/i);
+    assert.match(result.stderr, /\[MIGRATION_SET_DRIFT\]/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -505,7 +552,7 @@ test("successor release rejects a manifest whose migrations are not in strict ve
 
     const result = runFence(root);
     assert.notEqual(result.status, 0, result.stdout);
-    assert.match(result.stderr, /strictly ordered from migrationFloor/i);
+    assert.match(result.stderr, /\[MIGRATION_ORDER_INVALID\]/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -12,6 +12,7 @@ import {
   AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
   blockLegacyAuxiliaryProviderGeneration,
 } from "@/lib/ai/amoraRequestPolicy";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export type AmoraProfileVisibility = "shared" | "bride_private" | "groom_private";
 
@@ -201,7 +202,7 @@ export async function loadAmoraProfiles(
       .in("visibility", visibilities);
 
     if (error) {
-      console.warn("[amora-profile] load skipped:", error.message);
+      console.warn("[amora-profile] load skipped", safeErrorDiagnostic(error));
       return { shared: null, private: null };
     }
 
@@ -213,7 +214,7 @@ export async function loadAmoraProfiles(
         : rows.find((row) => row.visibility === visibility) ?? null,
     };
   } catch (err) {
-    console.warn("[amora-profile] load failed:", err);
+    console.warn("[amora-profile] load failed", safeErrorDiagnostic(err));
     return { shared: null, private: null };
   }
 }
@@ -625,11 +626,11 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       .upsert(payload, { onConflict: "couple_id,visibility" });
 
     if (error) {
-      console.warn("[amora-profile] upsert skipped:", error.message);
+      console.warn("[amora-profile] upsert skipped", safeErrorDiagnostic(error));
       return;
     }
 
   } catch (err) {
-    console.warn("[amora-profile] update failed:", err);
+    console.warn("[amora-profile] update failed", safeErrorDiagnostic(err));
   }
 }

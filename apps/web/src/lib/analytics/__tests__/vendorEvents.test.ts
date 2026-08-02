@@ -4,7 +4,10 @@ import {
   normalizeVendorEventBatch,
   sanitizeVendorEventContext,
 } from "../vendorEvents";
-import { EVENT_WEIGHTS } from "../eventWeights";
+import {
+  CLIENT_VENDOR_EVENT_TYPES,
+  EVENT_WEIGHTS,
+} from "../eventWeights";
 
 const ANON_ID = "10000000-0000-4000-8000-000000000001";
 const VENDOR_ID = "20000000-0000-4000-8000-000000000001";
@@ -30,12 +33,25 @@ describe("vendor event contract", () => {
     });
   });
 
+  it("keeps every browser-ingestible event at low-trust weight one or below", () => {
+    expect(CLIENT_VENDOR_EVENT_TYPES).toEqual([
+      "page_view",
+      "vendor_impression",
+      "vendor_card_click",
+      "search",
+      "filter_use",
+    ]);
+    for (const eventType of CLIENT_VENDOR_EVENT_TYPES) {
+      expect(EVENT_WEIGHTS[eventType]).toBeLessThanOrEqual(1);
+    }
+  });
+
   it("drops client weights and non-whitelisted context, including PII-shaped keys", () => {
     const parsed = normalizeVendorEventBatch({
       events: [{
         anon_id: ANON_ID,
         session_id: SESSION_ID,
-        event_type: "wishlist_add",
+        event_type: "vendor_card_click",
         vendor_id: VENDOR_ID,
         surface: "price_list",
         weight: 999,
@@ -52,12 +68,12 @@ describe("vendor event contract", () => {
     expect(parsed).toEqual([{
       anon_id: ANON_ID,
       session_id: SESSION_ID,
-      event_type: "wishlist_add",
+      event_type: "vendor_card_click",
       vendor_id: VENDOR_ID,
       agency_id: null,
       surface: "price_list",
       context: { category: "studio", zero_result: false },
-      weight: 5,
+      weight: 1,
     }]);
     expect(JSON.stringify(parsed)).not.toContain("person@example.test");
     expect(JSON.stringify(parsed)).not.toContain("원문 검색어");
@@ -80,6 +96,23 @@ describe("vendor event contract", () => {
     expect(() => normalizeVendorEventBatch([{
       ...event,
       session_id: "person@example.test",
+    }])).toThrow("EVENT_BATCH_INVALID");
+  });
+
+  it.each(
+    Object.keys(EVENT_WEIGHTS).filter(
+      (eventType) => !CLIENT_VENDOR_EVENT_TYPES.includes(
+        eventType as (typeof CLIENT_VENDOR_EVENT_TYPES)[number],
+      ),
+    ),
+  )("rejects server-owned event %s from the browser envelope", (eventType) => {
+    expect(() => normalizeVendorEventBatch([{
+      anon_id: ANON_ID,
+      session_id: SESSION_ID,
+      event_type: eventType,
+      vendor_id: VENDOR_ID,
+      surface: "price_list",
+      context: {},
     }])).toThrow("EVENT_BATCH_INVALID");
   });
 

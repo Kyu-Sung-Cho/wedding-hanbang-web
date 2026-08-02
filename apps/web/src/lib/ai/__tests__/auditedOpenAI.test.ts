@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  AIInteractionAuditPersistenceError,
   createOpenAIResponseWithAudit,
   createOpenAIStructuredResponseWithAudit,
 } from "../auditedOpenAI";
@@ -13,7 +14,7 @@ vi.mock("@/lib/compliance/ai-log", async () => {
   );
   return {
     ...actual,
-    logAIInteraction: vi.fn().mockResolvedValue(undefined),
+    logAIInteraction: vi.fn().mockResolvedValue(true),
   };
 });
 
@@ -73,8 +74,9 @@ function fakeClient(result: unknown, inputTokens = 20) {
 describe("audited OpenAI Responses", () => {
   beforeEach(() => {
     logSpy.mockClear();
+    logSpy.mockResolvedValue(true);
     process.env.AMORA_OPENAI_ENABLED = "true";
-    process.env.OPENAI_API_KEY = "sk-unit-fixture-not-a-secret-0000000000000000";
+    process.env.OPENAI_API_KEY = ["sk", "unit-fixture-not-a-secret-0000000000000000"].join("-");
     process.env.OPENAI_AMORA_FAST_MODEL = "gpt-5.6-luna";
     process.env.OPENAI_AMORA_FAST_REASONING_EFFORT = "none";
   });
@@ -131,6 +133,24 @@ describe("audited OpenAI Responses", () => {
     });
 
     expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not return a provider result when the required audit row is missing", async () => {
+    const { client } = fakeClient(response());
+    logSpy.mockResolvedValueOnce(false);
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration: async () => undefined,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toBeInstanceOf(AIInteractionAuditPersistenceError);
+
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
   });
 
   it("blocks an oversized counted input before the hook or paid generation", async () => {

@@ -1,6 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { cohortRoomName } from "@/utils/quarter";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkAdminReadRateLimit } from "@/lib/admin/adminReadBoundary";
+
+const REPORT_STATUSES = ["pending", "reviewed", "resolved", "dismissed"] as const;
+const MAX_REPORTS_PER_SOURCE = 100;
 
 function formatCohortRoomName(room: Record<string, unknown>) {
   const year = room.year as number | undefined;
@@ -16,21 +22,27 @@ function formatCohortRoomName(room: Record<string, unknown>) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const { authorized } = await verifyAdmin(request);
-    if (!authorized) {
+    const { authorized, userId } = await verifyAdmin(request);
+    if (!authorized || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const limited = await checkAdminReadRateLimit(request, userId, "reports");
+    if (limited) return limited;
+
     const url = new URL(request.url);
     const statusFilter = url.searchParams.get("status") ?? "pending";
+    if (statusFilter !== "all" && !REPORT_STATUSES.some((status) => status === statusFilter)) {
+      return NextResponse.json({ error: "Invalid report status" }, { status: 400 });
+    }
 
     const supabase = getServiceClient();
 
     let query = supabase
       .from("community_reports")
-      .select("*")
+      .select("id,reporter_id,post_id,comment_id,reason,description,status,created_at")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(MAX_REPORTS_PER_SOURCE);
 
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
@@ -38,9 +50,9 @@ export async function GET(request: NextRequest) {
 
     let memberQuery = supabase
       .from("cohort_member_reports")
-      .select("*")
+      .select("id,room_id,reporter_id,reported_user_id,reason,description,status,created_at")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(MAX_REPORTS_PER_SOURCE);
 
     if (statusFilter !== "all") {
       memberQuery = memberQuery.eq("status", statusFilter);
@@ -51,11 +63,11 @@ export async function GET(request: NextRequest) {
       memberQuery,
     ]);
     if (error) {
-      console.error("[admin/reports] reports query error:", error);
+      console.error("[admin/reports] reports query error:", safeErrorDiagnostic(error));
       return NextResponse.json({ error: "신고 목록을 불러오지 못했습니다." }, { status: 500 });
     }
     if (memberError && memberError.code !== "42P01") {
-      console.error("[admin/reports] member reports query error:", memberError);
+      console.error("[admin/reports] member reports query error:", safeErrorDiagnostic(memberError));
       return NextResponse.json({ error: "멤버 신고 목록을 불러오지 못했습니다." }, { status: 500 });
     }
 
@@ -108,16 +120,24 @@ export async function GET(request: NextRequest) {
       reporterIds.length
         ? supabase
             .from("community_profiles")
-            .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month, post_count, comment_count")
+            .select("user_id,nickname,wedding_year,wedding_month")
             .in("user_id", reporterIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
       roomIds.length
         ? supabase
             .from("cohort_rooms")
-            .select("id, name, year, month, room_number, member_count")
+            .select("id,name,year,month,room_number")
             .in("id", roomIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
     ]);
+
+    const hydrationError = [postsRes, commentsRes, reportersRes, roomsRes]
+      .map((result) => (result as { error?: unknown }).error)
+      .find(Boolean);
+    if (hydrationError) {
+      console.error("[admin/reports] hydration query failed", safeErrorDiagnostic(hydrationError));
+      return NextResponse.json({ error: "신고 대상 정보를 불러오지 못했습니다." }, { status: 500 });
+    }
 
     const postMap: Record<string, Record<string, unknown>> = {};
     (postsRes.data ?? []).forEach((p) => {
@@ -184,19 +204,37 @@ export async function GET(request: NextRequest) {
     );
 
     // 카운트 by status (탭 뱃지용)
-    const [{ data: countsRaw }, { data: memberCountsRaw }] = await Promise.all([
-      supabase.from("community_reports").select("status"),
-      supabase.from("cohort_member_reports").select("status"),
-    ]);
     const counts: Record<string, number> = { pending: 0, reviewed: 0, resolved: 0, dismissed: 0 };
-    [...(countsRaw ?? []), ...(memberCountsRaw ?? [])].forEach((row) => {
-      const s = (row as { status: string }).status;
-      if (s in counts) counts[s] += 1;
-    });
+    const countResults = await Promise.all(REPORT_STATUSES.flatMap((status) => [
+      supabase.from("community_reports").select("id", { count: "exact", head: true }).eq("status", status),
+      supabase.from("cohort_member_reports").select("id", { count: "exact", head: true }).eq("status", status),
+    ]));
+    for (const [index, status] of REPORT_STATUSES.entries()) {
+      const contentCount = countResults[index * 2];
+      const memberCount = countResults[index * 2 + 1];
+      const countError = contentCount?.error
+        ?? (memberCount?.error?.code === "42P01" ? null : memberCount?.error);
+      if (countError) {
+        console.error("[admin/reports] count query failed", safeErrorDiagnostic(countError));
+        return NextResponse.json({ error: "신고 통계를 불러오지 못했습니다." }, { status: 500 });
+      }
+      counts[status] = (contentCount?.count ?? 0) + (memberCount?.count ?? 0);
+    }
 
-    return NextResponse.json({ reports: enriched, counts });
+    const selectedTotal = statusFilter === "all"
+      ? REPORT_STATUSES.reduce((sum, status) => sum + counts[status], 0)
+      : counts[statusFilter] ?? 0;
+    return NextResponse.json({
+      reports: enriched,
+      counts,
+      pagination: {
+        limitPerSource: MAX_REPORTS_PER_SOURCE,
+        total: selectedTotal,
+        truncated: enriched.length < selectedTotal,
+      },
+    });
   } catch (err) {
-    console.error("[admin/reports] unexpected:", err);
+    console.error("[admin/reports] unexpected:", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

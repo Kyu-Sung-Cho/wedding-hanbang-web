@@ -13,6 +13,20 @@ import { PriceWishlist } from "./PriceWishlist";
 
 vi.mock("@/lib/analytics/track", () => ({ track: vi.fn() }));
 
+const actorMock = vi.hoisted(() => ({
+  current: {
+    status: "ready" as "verifying" | "ready" | "error",
+    actorKey: "user:test-a" as string | null,
+    kind: "user" as "user" | "guest" | "demo" | "native" | null,
+    userId: "test-a" as string | null,
+    generation: 1,
+  },
+}));
+
+vi.mock("@/components/common/UserScopedClientStateBoundary", () => ({
+  useUserScopedClientActor: () => actorMock.current,
+}));
+
 function vendor(id: string, category: PriceCategory, name: string): PriceVendor {
   return {
     id,
@@ -50,6 +64,14 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 async function flushAsyncWork() {
   await new Promise((resolve) => window.setTimeout(resolve, 0));
   await Promise.resolve();
@@ -60,6 +82,13 @@ describe("PriceWishlist", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    actorMock.current = {
+      status: "ready",
+      actorKey: "user:test-a",
+      kind: "user",
+      userId: "test-a",
+      generation: 1,
+    };
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -151,7 +180,53 @@ describe("PriceWishlist", () => {
     expect(fetchMock).toHaveBeenLastCalledWith("/api/favorites", expect.objectContaining({
       method: "DELETE",
       credentials: "same-origin",
+      headers: expect.objectContaining({ "x-hanbang-expected-actor": "test-a" }),
     }));
+    expect(container.textContent).toContain("공식 가격 업체를 아직 찜하지 않았어요");
+  });
+
+  it("drops account A's late favorites response after switching to account B", async () => {
+    const accountABody = deferred<{ vendorIds: string[] }>();
+    let accountASignal: AbortSignal | undefined;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce((_input: string | URL | Request, init?: RequestInit) => {
+        accountASignal = init?.signal as AbortSignal | undefined;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => accountABody.promise,
+        });
+      })
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(<PriceWishlist catalog={catalog} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    actorMock.current = {
+      status: "ready",
+      actorKey: "user:test-b",
+      kind: "user",
+      userId: "test-b",
+      generation: 2,
+    };
+    await act(async () => {
+      root.render(<PriceWishlist catalog={catalog} />);
+      await flushAsyncWork();
+    });
+
+    expect((accountASignal as AbortSignal | undefined)?.aborted).toBe(true);
+    expect(container.textContent).not.toContain("공식 스튜디오");
+
+    await act(async () => {
+      accountABody.resolve({ vendorIds: [officialStudio.id] });
+      await flushAsyncWork();
+    });
+
+    expect(container.textContent).not.toContain("공식 스튜디오");
     expect(container.textContent).toContain("공식 가격 업체를 아직 찜하지 않았어요");
   });
 });

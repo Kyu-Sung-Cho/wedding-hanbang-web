@@ -19,6 +19,7 @@ import PendingAmoraActionCard, {
 import {
   chatAttachmentKey,
   CHAT_ATTACHMENT_MAX_COUNT,
+  CHAT_PDF_DISABLED_ERROR,
   CHAT_ATTACHMENT_SNAPSHOT_ERROR,
   CHAT_ATTACHMENT_TYPE_INFO,
   prepareChatAttachmentPayload,
@@ -362,10 +363,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   // 첨부파일 처리
   const processFile = useCallback((file: File) => {
+    if (file.type === "application/pdf") {
+      useChatStore.setState({ error: CHAT_PDF_DISABLED_ERROR });
+      return;
+    }
     const typeInfo = ALLOWED_TYPES[file.type];
     if (!typeInfo) {
       useChatStore.setState({
-        error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, PDF, DOCX만 가능해요.)`,
+        error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, DOCX만 가능해요.)`,
       });
       return;
     }
@@ -466,8 +471,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         const hasDoc = currentAttachments.some((a) =>
           a.mediaType.includes("word") || a.mediaType.includes("spreadsheet") || a.mediaType.includes("ms-excel")
         );
-        const hasPdf = currentAttachments.some((a) => a.mediaType === "application/pdf");
-        if (hasDoc || hasPdf) finalContent = "이 문서를 분석해주세요.";
+        if (hasDoc) finalContent = "이 문서를 분석해주세요.";
         else finalContent = "이 이미지를 분석해주세요.";
       }
 

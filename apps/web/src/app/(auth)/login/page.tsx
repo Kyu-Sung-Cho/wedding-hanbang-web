@@ -13,6 +13,15 @@ import {
   buildOAuthCallbackUrl,
   getPostLoginRedirectPath,
 } from "@/lib/auth/safeRedirect";
+import {
+  captureAndClearSensitiveAuthUrl,
+  consumePendingLoginError,
+} from "@/lib/auth/sensitiveAuthUrl";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import {
+  CURRENT_PRIVACY_VERSION,
+  CURRENT_TERMS_VERSION,
+} from "@/lib/compliance/policyVersions";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -52,28 +61,17 @@ export default function LoginPage() {
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
-  // 콜백에서 전달된 에러 표시 (query params + hash fragment)
+  // 공급자 오류 원문은 URL에서 먼저 제거하고 고정된 안내만 표시한다.
   useEffect(() => {
-    // 1. query params 에러 (우리 콜백에서 설정)
-    const params = new URLSearchParams(window.location.search);
+    captureAndClearSensitiveAuthUrl();
     setMode(loginModeFromSearch(window.location.search));
-    const callbackError = params.get("error");
-
-    // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
-    const hash = window.location.hash.substring(1);
-    const hashParams = new URLSearchParams(hash);
-    const hashError = hashParams.get("error");
-    const hashDescription = hashParams.get("error_description");
-
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+    if (consumePendingLoginError()) {
+      setError("로그인에 실패했습니다. 다시 시도해 주세요.");
     }
   }, []);
 
@@ -94,15 +92,14 @@ export default function LoginPage() {
         },
       });
       if (oauthError) {
-        console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        console.error("OAuth error:", safeErrorDiagnostic(oauthError));
+        setError("소셜 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
         setLoading(null);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("OAuth catch error:", msg);
+      console.error("OAuth catch error:", safeErrorDiagnostic(err));
       setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
+      setError("소셜 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -129,6 +126,10 @@ export default function LoginPage() {
         setError("비밀번호가 일치하지 않습니다.");
         return;
       }
+      if (!termsAgreed || !privacyAgreed) {
+        setError("필수 약관에 동의해주세요.");
+        return;
+      }
       if (TURNSTILE_ENABLED && !turnstileToken) {
         setError("봇 확인을 완료해주세요.");
         return;
@@ -150,7 +151,16 @@ export default function LoginPage() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, turnstileToken }),
+          body: JSON.stringify({
+            email,
+            password,
+            name,
+            turnstileToken,
+            termsAgreed,
+            privacyAgreed,
+            termsVersion: CURRENT_TERMS_VERSION,
+            privacyVersion: CURRENT_PRIVACY_VERSION,
+          }),
         });
         const result = await res.json();
         if (!res.ok) {
@@ -181,7 +191,7 @@ export default function LoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            setError("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
           }
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
@@ -193,7 +203,6 @@ export default function LoginPage() {
               .single();
 
             if (profile?.onboarding_completed) {
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               window.location.href = getPostLoginRedirectPath(
                 window.location.search,
                 window.location.origin,
@@ -216,9 +225,8 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      console.error("Auth error:", safeErrorDiagnostic(err));
+      setError("인증 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(null);
     }
@@ -392,6 +400,58 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {mode === "signup" && (
+                  <fieldset className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3 space-y-2.5">
+                    <legend className="px-1 text-[12px] font-medium text-[#263832]">
+                      필수 약관 동의
+                    </legend>
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="flex min-w-0 items-center gap-2 text-[12px] text-[#635b51]">
+                        <input
+                          type="checkbox"
+                          checked={termsAgreed}
+                          onChange={(event) => {
+                            setTermsAgreed(event.target.checked);
+                            setError("");
+                          }}
+                          className="size-4 accent-[#36534E]"
+                        />
+                        <span>이용약관 동의 (필수)</span>
+                      </label>
+                      <Link
+                        href="/terms"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 text-[11px] text-[#36534E] underline"
+                      >
+                        내용 보기
+                      </Link>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="flex min-w-0 items-center gap-2 text-[12px] text-[#635b51]">
+                        <input
+                          type="checkbox"
+                          checked={privacyAgreed}
+                          onChange={(event) => {
+                            setPrivacyAgreed(event.target.checked);
+                            setError("");
+                          }}
+                          className="size-4 accent-[#36534E]"
+                        />
+                        <span>개인정보 처리방침 동의 (필수)</span>
+                      </label>
+                      <Link
+                        href="/privacy"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 text-[11px] text-[#36534E] underline"
+                      >
+                        내용 보기
+                      </Link>
+                    </div>
+                  </fieldset>
+                )}
+
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
                   <TurnstileWidget
@@ -415,7 +475,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
+                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || !termsAgreed || !privacyAgreed || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
@@ -435,7 +495,7 @@ export default function LoginPage() {
                     <p>
                       아직 계정이 없으신가요?{" "}
                       <button
-                        onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
+                        onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTermsAgreed(false); setPrivacyAgreed(false); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
                         className="text-[#36534E] font-medium hover:underline"
                       >
                         회원가입
@@ -455,7 +515,7 @@ export default function LoginPage() {
                   <p>
                     이미 계정이 있으신가요?{" "}
                     <button
-                      onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
+                      onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTermsAgreed(false); setPrivacyAgreed(false); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
                       className="text-[#36534E] font-medium hover:underline"
                     >
                       로그인

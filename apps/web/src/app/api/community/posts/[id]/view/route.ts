@@ -2,7 +2,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isUuid } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 function getServiceClient() {
   return createAdminClient();
@@ -15,26 +17,42 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없습니다." },
+        { status: 404 },
+      );
+    }
 
-    // Rate limit: 10 views per post per IP per minute (prevent view count inflation)
-    const rlResult = checkRateLimit(
-      rateLimitKey(`community:view:${id}`, req),
-      { maxRequests: 10, windowMs: 60 * 1000 }
-    );
-    if (rlResult) return rlResult;
+    // The per-post bucket limits counter inflation. The independent ingress
+    // bucket also bounds how many attacker-chosen post IDs can create durable
+    // rate-limit rows and database lookups from one network identity.
+    for (const gate of [
+      {
+        key: rateLimitKey("community:view:ingress", req),
+        config: { maxRequests: 120, windowMs: 60 * 1000 },
+      },
+      {
+        key: rateLimitKey(`community:view:post:${id}`, req),
+        config: { maxRequests: 10, windowMs: 60 * 1000 },
+      },
+    ]) {
+      const limited = await checkRateLimitPersistent(gate.key, gate.config);
+      if (limited) return limited;
+    }
 
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { data: visiblePost, error: visibilityError } = await supabase
+    const { data: visiblePost, error: visibilityError } = await getServiceClient()
       .from("community_posts")
       .select("id, author_id, visibility, under_review")
       .eq("id", id)
       .maybeSingle();
 
     if (visibilityError) {
-      console.error("View visibility check error:", visibilityError);
+      console.error("View visibility check error:", safeErrorDiagnostic(visibilityError));
       return NextResponse.json(
         { error: "게시글 접근 확인에 실패했습니다." },
         { status: 500 }
@@ -57,7 +75,7 @@ export async function POST(
     });
 
     if (error) {
-      console.error("Increment view RPC error:", error);
+      console.error("Increment view RPC error:", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "조회수 업데이트에 실패했습니다." },
         { status: 500 }
@@ -66,7 +84,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Increment view error:", err);
+    console.error("Increment view error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

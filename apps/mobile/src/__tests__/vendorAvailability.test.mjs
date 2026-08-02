@@ -14,7 +14,7 @@ const compiled = ts.transpileModule(readFileSync(helperPath, "utf8"), {
 const module = { exports: {} };
 new Function("exports", "module", compiled.outputText)(module.exports, module);
 const {
-  availableHoursFromOccupancy,
+  availableHoursFromPublicAvailability,
   databaseWeekdayForLocalDate,
   localDateString,
   parsePublicAvailabilityPayload,
@@ -26,29 +26,23 @@ test("mobile converts Sunday/Monday to the database Monday-zero convention", () 
   assert.equal(localDateString(new Date(2026, 6, 20)), "2026-07-20");
 });
 
-test("mobile includes other customers in product capacity without receiving their identity", () => {
-  const counts = [
+test("mobile consumes only server-derived public availability booleans", () => {
+  const slots = [
     {
       date: "2026-07-20",
       time: "10:00",
-      productId: "11111111-1111-4111-8111-111111111111",
-      staffId: null,
-      bookedCount: 2,
+      available: false,
     },
     {
       date: "2026-07-20",
       time: "11:00",
-      productId: "22222222-2222-4222-8222-222222222222",
-      staffId: null,
-      bookedCount: 1,
+      available: true,
     },
   ];
 
-  assert.deepEqual(availableHoursFromOccupancy(
-    [{ hour: 10, maxBookings: 2 }, { hour: 11, maxBookings: 2 }],
-    counts,
+  assert.deepEqual(availableHoursFromPublicAvailability(
+    slots,
     "2026-07-20",
-    { productId: "11111111-1111-4111-8111-111111111111" },
   ), [11]);
 });
 
@@ -57,19 +51,17 @@ test("mobile rejects malformed or mismatched availability payloads instead of as
     from: "2026-07-20",
     to: "2026-07-20",
     timezone: "Asia/Seoul",
-    counts: [{
+    slots: [{
       date: "2026-07-20",
       time: "10:00",
-      productId: null,
-      staffId: null,
-      bookedCount: 0,
+      available: "yes",
     }],
   }, "2026-07-20"), null);
   assert.equal(parsePublicAvailabilityPayload({
     from: "2026-07-21",
     to: "2026-07-21",
     timezone: "Asia/Seoul",
-    counts: [],
+    slots: [],
   }, "2026-07-20"), null);
 });
 

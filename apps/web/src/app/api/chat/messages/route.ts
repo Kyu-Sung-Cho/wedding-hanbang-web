@@ -2,8 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import {
+  isBodyTooLarge,
+  isRecord,
+  isUuid,
+  readBoundedJsonValue,
+} from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -50,13 +56,20 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, deleted: 0 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("chat:messages:delete", request, user!.id), {
       maxRequests: 10,
       windowMs: 10 * 60 * 1000,
     });
     if (limited) return limited;
 
-    const body = await request.json().catch(() => null);
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -129,7 +142,7 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: "잘못된 mode 값입니다." }, { status: 400 });
     }
   } catch (err) {
-    console.error("메시지 삭제 에러:", err);
+    console.error("메시지 삭제 에러", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "메시지 삭제에 실패했습니다." },
       { status: 500 }

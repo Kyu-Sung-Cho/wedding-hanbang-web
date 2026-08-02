@@ -82,6 +82,72 @@ describe("useAuthStore", () => {
       expect(state.couple).toEqual(fakeData.couple);
       expect(state.journey).toEqual(fakeData.journey);
       expect(state.isDemo).toBe(false);
+      expect(mockFetch).toHaveBeenCalledWith("/api/auth/me", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+    });
+
+    it("clears every previous identity field when server verification fails", async () => {
+      useAuthStore.setState({
+        user: { id: "user-a", email: "a@example.com" },
+        profile: { id: "user-a", name: "A" } as never,
+        partner: { id: "partner-a", name: "Partner", role: "groom", couple_id: "couple-a" },
+        couple: { id: "couple-a" } as never,
+        journey: { id: "journey-a", couple_id: "couple-a" } as never,
+        isInitialized: true,
+      });
+      mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+      await useAuthStore.getState().initialize({ force: true });
+
+      expect(useAuthStore.getState()).toMatchObject({
+        user: null,
+        profile: null,
+        partner: null,
+        couple: null,
+        journey: null,
+        isInitialized: true,
+        isDemo: false,
+      });
+    });
+
+    it("ignores an older auth response that completes after an identity refresh", async () => {
+      let resolveOld: ((value: unknown) => void) | undefined;
+      const oldResponse = new Promise((resolve) => {
+        resolveOld = resolve;
+      });
+      mockFetch
+        .mockReturnValueOnce(oldResponse)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            user: { id: "user-b", email: "b@example.com" },
+            profile: { id: "user-b", name: "B" },
+            couple: null,
+            partner: null,
+            journey: null,
+          }),
+        });
+
+      const oldInitialize = useAuthStore.getState().initialize({ force: true });
+      const newInitialize = useAuthStore.getState().initialize({ force: true });
+      await newInitialize;
+      resolveOld?.({
+        ok: true,
+        json: async () => ({
+          user: { id: "user-a", email: "a@example.com" },
+          profile: { id: "user-a", name: "A" },
+          couple: null,
+          partner: null,
+          journey: null,
+        }),
+      });
+      await oldInitialize;
+
+      expect(useAuthStore.getState().user?.id).toBe("user-b");
+      expect(useAuthStore.getState().profile?.id).toBe("user-b");
     });
 
     it("enters demo mode when /api/auth/me returns no user and demo cookie is set", async () => {
@@ -129,6 +195,65 @@ describe("useAuthStore", () => {
       const state = useAuthStore.getState();
       expect(state.isDemo).toBe(false);
       expect(state.user?.id).toBe("real-user");
+    });
+  });
+
+  describe("identity lifecycle", () => {
+    it("ignores a delayed journey refresh from the previous account", async () => {
+      let resolveFetch: ((value: unknown) => void) | undefined;
+      mockFetch.mockReturnValue(new Promise((resolve) => {
+        resolveFetch = resolve;
+      }));
+      useAuthStore.setState({
+        user: { id: "user-a", email: "a@example.com" },
+        journey: { id: "journey-a", couple_id: "couple-a" } as never,
+        isInitialized: true,
+      });
+
+      const pending = useAuthStore.getState().refreshJourney();
+      useAuthStore.getState().reset();
+      useAuthStore.setState({
+        user: { id: "user-b", email: "b@example.com" },
+        journey: { id: "journey-b", couple_id: "couple-b" } as never,
+        isInitialized: true,
+      });
+      resolveFetch?.({
+        ok: true,
+        json: async () => ({ journey: { id: "journey-a", couple_id: "couple-a" } }),
+      });
+      await pending;
+
+      expect(useAuthStore.getState().journey?.id).toBe("journey-b");
+    });
+
+    it("ignores a delayed journey mutation response from the previous account", async () => {
+      let resolveFetch: ((value: unknown) => void) | undefined;
+      mockFetch.mockReturnValue(new Promise((resolve) => {
+        resolveFetch = resolve;
+      }));
+      useAuthStore.setState({
+        user: { id: "user-a", email: "a@example.com" },
+        journey: { id: "journey-a", couple_id: "couple-a" } as never,
+        isInitialized: true,
+      });
+
+      const pending = useAuthStore.getState().updateJourney({ venue: "A의 예식장" });
+      useAuthStore.getState().reset();
+      useAuthStore.setState({
+        user: { id: "user-b", email: "b@example.com" },
+        journey: { id: "journey-b", couple_id: "couple-b", venue: "B의 예식장" } as never,
+        isInitialized: true,
+      });
+      resolveFetch?.({
+        ok: true,
+        json: async () => ({
+          journey: { id: "journey-a", couple_id: "couple-a", venue: "A의 예식장" },
+        }),
+      });
+      await pending;
+
+      expect(useAuthStore.getState().journey?.id).toBe("journey-b");
+      expect(useAuthStore.getState().journey?.venue).toBe("B의 예식장");
     });
   });
 

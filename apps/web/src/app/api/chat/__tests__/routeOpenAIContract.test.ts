@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 const mocks = vi.hoisted(() => {
   class PersistenceError extends Error {
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => {
     callIndex: number;
     phase: "tool_round" | "final_no_tool";
     modelRole: string;
+    requestKey: string;
     costGuard: Record<string, unknown>;
     onCostReserved?: (result: unknown) => void;
   }, call: (
@@ -162,6 +164,8 @@ const mocks = vi.hoisted(() => {
     authenticatedUser: { id: "00000000-0000-4000-8000-000000000001" } as { id: string } | null,
     signedDemo: false,
     demoSessionToken: "signed-demo-test-token",
+    demoSessionId: "demo-session-scope-1",
+    demoDailyCostLedgerId: "50000000-0000-4000-8000-000000000001",
     reserve,
     atomicResponses,
     journal,
@@ -169,6 +173,19 @@ const mocks = vi.hoisted(() => {
     buildJournalCheckpoint,
     rateLimit: vi.fn(),
     adminFrom: vi.fn(),
+    storageFrom: vi.fn(),
+    storageUpload: vi.fn(),
+    storageRemove: vi.fn(),
+    attachmentMessageUpdate: vi.fn(),
+    buildMultimodal: vi.fn((text: string, attachments: unknown[]) => ({ text, attachments })),
+    attachmentMessage: {
+      id: "30000000-0000-4000-8000-000000000001",
+      couple_id: "10000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      role: "user",
+      visibility: "shared",
+      metadata: null as Record<string, unknown> | null,
+    },
     enqueueMemory: vi.fn(),
     PersistenceError,
     ClaimError,
@@ -180,6 +197,7 @@ function queryResult(data: unknown, hooks: {
   onOr?: (value: string) => void;
   onSelect?: (value: string) => unknown;
   onSelectError?: (value: string) => unknown;
+  onUpdate?: (value: Record<string, unknown>) => unknown;
 } = {}) {
   const result: { data: unknown; error: unknown } = { data, error: null };
   const query: Record<string, unknown> = {};
@@ -195,6 +213,11 @@ function queryResult(data: unknown, hooks: {
   });
   query.or = vi.fn((value: string) => {
     hooks.onOr?.(value);
+    return query;
+  });
+  query.update = vi.fn((value: Record<string, unknown>) => {
+    const updated = hooks.onUpdate?.(value);
+    if (updated !== undefined) result.data = updated;
     return query;
   });
   query.single = vi.fn(async () => result);
@@ -267,19 +290,46 @@ vi.mock("@/lib/supabase/admin", () => ({
           name: "테스트 고객",
         });
       }
+      if (table === "chat_messages") {
+        return queryResult(mocks.attachmentMessage, {
+          onUpdate: (value) => {
+            mocks.attachmentMessageUpdate(value);
+            mocks.attachmentMessage = {
+              ...mocks.attachmentMessage,
+              metadata: value.metadata as Record<string, unknown>,
+            };
+            return mocks.attachmentMessage;
+          },
+        });
+      }
       return queryResult([]);
     }),
+    storage: {
+      from: mocks.storageFrom.mockImplementation(() => ({
+        upload: mocks.storageUpload,
+        remove: mocks.storageRemove,
+      })),
+    },
   })),
 }));
 
 vi.mock("@/utils/rateLimit", () => ({
   rateLimitKey: vi.fn(() => "chat:test"),
+  rateLimitSubjectKey: vi.fn(() => "chat-demo-session:test"),
   checkRateLimitPersistent: mocks.rateLimit,
 }));
 
 vi.mock("@/lib/demoSession", () => ({
   hasSignedDemoSessionFromCookieHeader: vi.fn(() => mocks.signedDemo),
   getCookieValue: vi.fn(() => mocks.demoSessionToken),
+  getSignedDemoSessionFromCookieHeader: vi.fn(() => mocks.signedDemo
+    ? {
+        token: mocks.demoSessionToken,
+        issuedAt: 1_786_003_200_000,
+        sessionId: mocks.demoSessionId,
+        dailyCostLedgerId: mocks.demoDailyCostLedgerId,
+      }
+    : null),
 }));
 
 vi.mock("@/lib/ai/costGuard", () => ({
@@ -305,7 +355,7 @@ vi.mock("@/lib/ai/chatRequestClaim", () => ({
 vi.mock("@/lib/ai/openai", () => ({
   chatWithToolsStream: mocks.provider,
   buildToolResultInput: mocks.buildToolResult,
-  buildMultimodalContent: vi.fn((text: string) => text),
+  buildMultimodalContent: mocks.buildMultimodal,
 }));
 
 vi.mock("@/lib/ai/modelConfig", () => ({
@@ -482,6 +532,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.authenticatedUser = { id: "00000000-0000-4000-8000-000000000001" };
     mocks.signedDemo = false;
     mocks.demoSessionToken = "signed-demo-test-token";
+    mocks.demoSessionId = "demo-session-scope-1";
+    mocks.demoDailyCostLedgerId = "50000000-0000-4000-8000-000000000001";
     mocks.memoryEnablement = {
       shared: false,
       bride_private: false,
@@ -512,6 +564,20 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.chooseModelRole.mockReturnValue("fast");
     mocks.failClaim.mockResolvedValue(undefined);
     mocks.rateLimit.mockResolvedValue(null);
+    mocks.storageUpload.mockResolvedValue({ data: { path: "stored" }, error: null });
+    mocks.storageRemove.mockResolvedValue({ data: [], error: null });
+    mocks.buildMultimodal.mockImplementation((text: string, attachments: unknown[]) => ({
+      text,
+      attachments,
+    }));
+    mocks.attachmentMessage = {
+      id: "30000000-0000-4000-8000-000000000001",
+      couple_id: COUPLE_ID,
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      role: "user",
+      visibility: "shared",
+      metadata: null,
+    };
     mocks.persist.mockImplementation(async ({ cleanText }: { cleanText: string }) => persisted(cleanText));
     mocks.completeClaim.mockResolvedValue(undefined);
     mocks.executeTool.mockResolvedValue({
@@ -532,7 +598,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
-  it("returns canonical crisis guidance before limiter, attachments, persistence, model, cost, tools, or memory", async () => {
+  it("charges the limiter before returning canonical crisis guidance without attachments, persistence, model, cost, tools, or memory", async () => {
     const disclosure = "지금 죽\u200B고 싶어요";
     const actionId = "11111111-1111-4111-8111-111111111111";
     const now = Date.now();
@@ -581,7 +647,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(body).toContain("경찰 112");
     expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
     expect(body).not.toContain(disclosure);
-    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.rateLimit).toHaveBeenCalledWith(
+      "chat:test",
+      { maxRequests: 60, windowMs: 60 * 60 * 1000 },
+      { failClosed: true },
+    );
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
@@ -594,7 +665,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.log).not.toHaveBeenCalled();
   });
 
-  it("still emits fixed crisis guidance when the ordinary limiter and attachment path would reject", async () => {
+  it("blocks crisis guidance before attachment work when the ordinary limiter is exhausted", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
       content: "자해할 생각이 들어",
@@ -606,11 +677,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       attachments: [{ kind: "image", fileName: "remote.png", url: "https://example.test/private.png" }],
     }));
 
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).toContain("자살예방상담전화 109");
-    expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
-    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(response.status).toBe(429);
+    expect(await response.text()).toBe("limited");
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(mocks.failClaim).not.toHaveBeenCalled();
@@ -658,7 +727,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
     expect(body).toContain("경찰 112");
     expect(body).toContain("소방 119");
-    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
@@ -698,6 +767,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(firstBody).toContain("여성긴급전화 1366");
     expect(firstBody).toContain("365일 24시간");
     expect(firstBody).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
@@ -706,6 +776,61 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.executeTool).not.toHaveBeenCalled();
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("charges repeated near-16 MiB signed-demo crisis bodies to the daily session quota", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.rateLimit
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(new Response("session limited", { status: 429 }));
+
+    const maxBodyBytes = 16 * 1024 * 1024;
+    const basePayload = {
+      messages: [{ role: "user", content: "지금 죽고 싶어요" }],
+      coupleId: "demo-couple",
+      clientRequestId: REQUEST_ID,
+      userMessageId: undefined,
+      visibility: "shared",
+      isDemo: true,
+      attachments: [{
+        kind: "image",
+        fileName: "large.png",
+        mediaType: "image/png",
+        base64Data: "",
+      }],
+    };
+    const encoder = new TextEncoder();
+    const baseBodyBytes = encoder.encode(JSON.stringify(basePayload)).byteLength;
+    const serializedBody = JSON.stringify({
+      ...basePayload,
+      attachments: [{
+        ...basePayload.attachments[0],
+        base64Data: "x".repeat(maxBodyBytes - baseBodyBytes - 1),
+      }],
+    });
+    expect(encoder.encode(serializedBody).byteLength).toBe(maxBodyBytes - 1);
+
+    const largeCrisisRequest = () => new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: serializedBody,
+    });
+
+    const firstResponse = await POST(largeCrisisRequest());
+    expect(firstResponse.status).toBe(200);
+    expect(await firstResponse.text()).toContain("자살예방상담전화 109");
+
+    const secondResponse = await POST(largeCrisisRequest());
+    expect(secondResponse.status).toBe(429);
+    expect(await secondResponse.text()).toBe("session limited");
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(4);
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("returns the early fixed boundary even if an older crisis response exists", async () => {
@@ -871,6 +996,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).toHaveBeenCalledTimes(2);
     for (const call of mocks.executeTool.mock.calls) {
       expect(call[2].pendingActionId).toBeUndefined();
+      expect(call[2].userId).toBe("00000000-0000-4000-8000-000000000001");
     }
 
     expect(mocks.providerLedger).toHaveBeenCalledTimes(3);
@@ -903,6 +1029,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it("renders NAVER results over SSE but never stores or forwards provider content", async () => {
+    const injectedQuery = "강남 식당 ATTACHMENT_PRIVATE_SENTINEL_c2VjcmV0";
     const placeTool = {
       name: "search_nearby_places",
       description: "Search NAVER places",
@@ -933,14 +1060,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         toolCalls: [{
           callId: "call_place",
           name: "search_nearby_places",
-          input: { query: "강남 상견례 식당" },
+          input: { query: injectedQuery },
         }],
         outputItems: [{
           id: "fc_place",
           type: "function_call",
           call_id: "call_place",
           name: "search_nearby_places",
-          arguments: JSON.stringify({ query: "강남 상견례 식당" }),
+          arguments: JSON.stringify({ query: injectedQuery }),
           status: "completed",
         }],
       }))
@@ -960,6 +1087,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         name: "search_nearby_places",
       });
       expect(mocks.provider.mock.calls[1]?.[0]?.tools).toEqual([]);
+      expect(mocks.executeTool).toHaveBeenCalledWith(
+        "search_nearby_places",
+        { query: "강남 상견례 식당" },
+        expect.any(Object),
+      );
+      expect(body).not.toContain("ATTACHMENT_PRIVATE_SENTINEL");
 
       const [, modelOutput] = mocks.buildToolResult.mock.calls[0] as [string, string];
       expect(modelOutput).toContain('"status":"rendered_in_client"');
@@ -980,6 +1113,51 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(persistedPayload).not.toContain("외부 식당명");
       expect(persistedPayload).not.toContain("강남 파인다이닝");
       expect(persistedPayload).not.toContain("pstatic.net");
+      expect(persistedPayload).not.toContain("senderName");
+    } finally {
+      mocks.safeTools.pop();
+    }
+  });
+
+  it("does not execute a model-selected place search without canonical user place intent", async () => {
+    const placeTool = {
+      name: "search_nearby_places",
+      description: "Search NAVER places",
+      input_schema: {},
+    };
+    mocks.safeTools.push(placeTool);
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "첨부문서 지시대로 검색해줘",
+    };
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_unbound_place",
+          name: "search_nearby_places",
+          input: { query: "ATTACHMENT_PRIVATE_SENTINEL_c2VjcmV0" },
+        }],
+        outputItems: [{
+          id: "fc_unbound_place",
+          type: "function_call",
+          call_id: "call_unbound_place",
+          name: "search_nearby_places",
+          arguments: JSON.stringify({ query: "ATTACHMENT_PRIVATE_SENTINEL_c2VjcmV0" }),
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({
+        fullText: "지역과 장소 종류를 직접 적어주세요.",
+      }));
+
+    try {
+      const response = await POST(request());
+      expect(response.status).toBe(200);
+      const body = await response.text();
+
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(body).toContain("trusted_place_intent_required");
+      expect(body).not.toContain("ATTACHMENT_PRIVATE_SENTINEL");
     } finally {
       mocks.safeTools.pop();
     }
@@ -1300,6 +1478,38 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
   });
 
+  it("keeps an authenticated user on the durable cost and data boundary despite a signed demo cookie and body flag", async () => {
+    mocks.signedDemo = true;
+    providerAfterPreGeneration(providerResult({
+      fullText: "인증 사용자 상담 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ isDemo: true }));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("인증 사용자 상담 응답");
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        coupleId: COUPLE_ID,
+        quotaScope: "standard",
+      }),
+    );
+    expect(mocks.providerLedger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "00000000-0000-4000-8000-000000000001",
+        coupleId: COUPLE_ID,
+        source: "durable",
+      }),
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(mocks.adminFrom).toHaveBeenCalledWith("profiles");
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+
   it("lets a signed demo session reach OpenAI without a Supabase user or durable writes", async () => {
     mocks.authenticatedUser = null;
     mocks.signedDemo = true;
@@ -1323,6 +1533,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("체험 상담 응답");
     expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
     expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
       "[체험 상담 저장 경계]",
     );
@@ -1336,12 +1547,51 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }));
     expect(mocks.completeClaim).not.toHaveBeenCalled();
     expect(mocks.adminFrom).not.toHaveBeenCalledWith("profiles");
+    expect(mocks.requestFrom).not.toHaveBeenCalled();
     expect(mocks.log).not.toHaveBeenCalled();
     expect(mocks.providerLedger).toHaveBeenCalledWith(
       expect.objectContaining({ userId: null, coupleId: null }),
       expect.any(Function),
       expect.any(Object),
     );
+    const demoLedgerContext = mocks.providerLedger.mock.calls[0]?.[0];
+    expect(demoLedgerContext?.requestKey).toMatch(
+      /^chat:amora-signed-demo-[a-f0-9]{24}:/,
+    );
+    expect(demoLedgerContext?.requestKey).not.toContain(mocks.demoSessionId);
+    expect(demoLedgerContext?.requestKey).not.toContain(mocks.demoSessionToken);
+    expect(mocks.rateLimit).toHaveBeenNthCalledWith(
+      1,
+      "chat:test",
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 },
+      { failClosed: true },
+    );
+    expect(mocks.rateLimit).toHaveBeenNthCalledWith(
+      2,
+      "chat-demo-session:test",
+      { maxRequests: 20, windowMs: 24 * 60 * 60 * 1000 },
+      { failClosed: true },
+    );
+  });
+
+  it("blocks a signed demo session before data or provider work when its daily bucket is exhausted", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.rateLimit
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(new Response("limited", { status: 429 }));
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+    }));
+
+    expect(response.status).toBe(429);
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
+    expect(mocks.requestFrom).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("bounds oversized tool feedback before it is sent into the next provider call", async () => {
@@ -1797,9 +2047,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const response = await POST(request({
       messages: [{ role: "user", content: "이 첨부를 봐줘" }],
       attachments: [{
-        mediaType: "application/pdf",
-        url: "https://untrusted.example/quote.pdf",
-        fileName: "quote.pdf",
+        mediaType: "image/png",
+        url: "https://untrusted.example/photo.png",
+        fileName: "photo.png",
       }],
     }));
     expect(response.status).toBe(400);
@@ -1817,6 +2067,137 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("stores and sends only the same server-reencoded metadata-free image", async () => {
+    const source = await sharp({
+      create: {
+        width: 4,
+        height: 3,
+        channels: 3,
+        background: { r: 70, g: 90, b: 110 },
+      },
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Artist: "private-chat-device" },
+        IFD3: {
+          GPSLatitudeRef: "N",
+          GPSLatitude: "37/1 33/1 0/1",
+          GPSLongitudeRef: "E",
+          GPSLongitude: "126/1 58/1 0/1",
+        },
+      })
+      .toBuffer();
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "이 이미지를 봐줘",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "이미지를 확인했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "이 이미지를 봐줘" }],
+      attachments: [{
+        mediaType: "image/jpeg",
+        base64: source.toString("base64"),
+        fileName: "photo.jpg",
+      }],
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.storageFrom).toHaveBeenCalledWith("chat-image");
+    expect(mocks.storageUpload).toHaveBeenCalledTimes(1);
+    const [storedPath, storedBody, storedOptions] = mocks.storageUpload.mock.calls[0]!;
+    const storedBytes = storedBody as Buffer;
+    expect(Buffer.isBuffer(storedBytes)).toBe(true);
+    expect(storedOptions).toEqual(expect.objectContaining({
+      contentType: "image/jpeg",
+      upsert: false,
+    }));
+    expect(storedPath).toMatch(new RegExp(
+      `^${COUPLE_ID}/00000000-0000-4000-8000-000000000001/`
+      + "[0-9a-f-]{36}\\.jpeg$",
+    ));
+    const storedMetadata = await sharp(storedBytes).metadata();
+    expect(storedMetadata.exif).toBeUndefined();
+    expect(storedMetadata.icc).toBeUndefined();
+    expect(storedBytes.includes(Buffer.from("private-chat-device"))).toBe(false);
+    expect(storedBytes.equals(source)).toBe(false);
+
+    const providerAttachments = mocks.buildMultimodal.mock.calls[0]?.[1] as Array<{
+      base64: string;
+      mediaType: string;
+    }>;
+    expect(providerAttachments).toEqual([{
+      base64: storedBytes.toString("base64"),
+      mediaType: "image/jpeg",
+    }]);
+    expect(mocks.attachmentMessageUpdate).toHaveBeenCalledWith({
+      metadata: { imagePaths: [storedPath] },
+    });
+    expect(body).toContain('"type":"attachment_paths"');
+    expect(body).toContain(storedPath);
+    expect(body).not.toContain(source.toString("base64"));
+  });
+
+  it("rejects malformed image bytes without logging or echoing their raw contents", async () => {
+    const privateMarker = "gps=37.55,126.98;device=private-chat-phone";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const response = await POST(request({
+        attachments: [{
+          mediaType: "image/png",
+          base64: Buffer.from(privateMarker).toString("base64"),
+          fileName: "photo.png",
+        }],
+      }));
+      expect(response.status).toBe(422);
+      expect(await response.text()).not.toContain(privateMarker);
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(privateMarker);
+      expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(privateMarker);
+      expect(mocks.storageUpload).not.toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("fails closed before provider transfer when sanitized storage upload fails", async () => {
+    const source = await sharp({
+      create: {
+        width: 2,
+        height: 2,
+        channels: 3,
+        background: { r: 10, g: 20, b: 30 },
+      },
+    }).png().toBuffer();
+    mocks.storageUpload.mockResolvedValueOnce({
+      data: null,
+      error: { message: "storage unavailable" },
+    });
+
+    const response = await POST(request({
+      attachments: [{
+        mediaType: "image/png",
+        base64: source.toString("base64"),
+        fileName: "photo.png",
+      }],
+    }));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "ATTACHMENT_STORAGE_FAILED" });
+    expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({
+      failureCode: "ATTACHMENT_STORAGE_FAILED",
+    }));
+    expect(mocks.attachmentMessageUpdate).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
   it("rejects an unsafe DOCX archive before a durable claim or quota reservation", async () => {
@@ -1892,16 +2273,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).toContain("계약금은 300만원입니다.");
   });
 
-  it("routes a server-accepted PDF to document analysis tools", async () => {
-    mocks.canonicalRows[0] = {
-      ...mocks.canonicalRows[0],
-      content: "이 첨부를 봐줘",
-    };
-    mocks.provider.mockResolvedValueOnce(providerResult({
-      fullText: "견적서를 살펴볼게요.",
-      usage: { input_tokens: 10, output_tokens: 3 },
-    }));
-
+  it("rejects PDF before storage, claim, quota, or provider transfer", async () => {
     const response = await POST(request({
       messages: [{ role: "user", content: "이 첨부를 봐줘" }],
       attachments: [{
@@ -1910,17 +2282,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         fileName: "quote.pdf",
       }],
     }));
-    expect(response.status).toBe(200);
-    await response.text();
-
-    const toolNames = mocks.provider.mock.calls[0]?.[0]?.tools
-      .map((tool: { name: string }) => tool.name);
-    expect(toolNames).toContain("analyze_quote");
-    expect(mocks.providerLedger).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistType: "contract_reviewer" }),
-      expect.any(Function),
-      expect.any(Object),
-    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "PDF_NOT_SUPPORTED",
+      error: expect.stringContaining("PDF"),
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("wraps each provider generation in the per-call ledger and applies the exact request envelope", async () => {
@@ -2325,7 +2694,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .not.toContain("OVERFLOW_MUST_NOT_LEAK");
     expect(warning).toHaveBeenCalledWith(
       "[chat] profile projection failed closed",
-      "too_many_nodes",
+      { code: "too_many_nodes" },
     );
     warning.mockRestore();
   });
@@ -2348,7 +2717,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .not.toContain("QUERY_ERROR_SECRET");
     expect(warning).toHaveBeenCalledWith(
       "[chat] profile projection source query failed",
-      "PGRST200",
+      { name: "UnknownError", code: "PGRST200", status: null },
     );
     warning.mockRestore();
   });
@@ -2378,7 +2747,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(prompt).not.toContain("INCOMPLETE_SOURCE_SECRET");
     expect(warning).toHaveBeenCalledWith(
       "[chat] profile projection failed closed",
-      "invalid_source",
+      { code: "invalid_source" },
     );
     warning.mockRestore();
   });
@@ -2406,7 +2775,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }));
     expect(mocks.reserve).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ quotaScope: "demo" }),
+      expect.objectContaining({
+        coupleId: mocks.demoDailyCostLedgerId,
+        quotaScope: "demo",
+      }),
     );
   });
 

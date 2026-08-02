@@ -10,8 +10,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import {
+  CURRENT_PRIVACY_VERSION,
+  CURRENT_TERMS_VERSION,
+} from "@hanbang/shared/constants";
+import { isStrongUserPassword } from "@hanbang/shared/security/password-policy";
 import TurnstileModal from "@/components/auth/TurnstileModal";
 import { requestMobileSignup } from "@/lib/mobileAuthRequests";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import {
   getTurnstileWebFallbackUrl,
   hasValidTurnstileSiteKey,
@@ -23,7 +29,12 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const SITE = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const TERMS_URL = buildMobileSiteUrl("/terms", SITE);
+const PRIVACY_URL = buildMobileSiteUrl("/privacy", SITE);
 const TURNSTILE_SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
 const TURNSTILE_CONFIGURED = hasValidTurnstileSiteKey(TURNSTILE_SITE_KEY);
 const SIGNUP_WEB_URL = getTurnstileWebFallbackUrl(
@@ -41,12 +52,12 @@ type PasswordStrength = "none" | "weak" | "medium" | "strong";
 function getPasswordStrength(pw: string): PasswordStrength {
   if (pw.length === 0) return "none";
   if (pw.length < 6) return "weak";
+  if (isStrongUserPassword(pw)) return "strong";
   let score = 0;
   if (pw.length >= 8) score++;
   if (/[A-Z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  if (score >= 3) return "strong";
   if (score >= 1) return "medium";
   return "weak";
 }
@@ -56,18 +67,6 @@ const strengthConfig: Record<Exclude<PasswordStrength, "none">, { label: string;
   medium: { label: "보통", color: colors.warning, width: "66%" },
   strong: { label: "강함", color: colors.success, width: "100%" },
 };
-
-// 서버(/api/auth/signup)와 동일한 강한 비밀번호 정책 —
-// 8자 이상 + 대/소문자 + 숫자 + 특수문자. 클라에서 먼저 막아 400 왕복을 줄인다.
-function isStrongPassword(pw: string): boolean {
-  return (
-    pw.length >= 8 &&
-    /[A-Z]/.test(pw) &&
-    /[a-z]/.test(pw) &&
-    /\d/.test(pw) &&
-    /[^A-Za-z0-9]/.test(pw)
-  );
-}
 
 export default function SignupScreen() {
   const [name, setName] = useState("");
@@ -110,13 +109,13 @@ export default function SignupScreen() {
     setShowAgreements((v) => !v);
   }, []);
 
-  const canSubmit = name.trim() && email.trim() && isValidEmail(email) && isStrongPassword(password) &&
+  const canSubmit = name.trim() && email.trim() && isValidEmail(email) && isStrongUserPassword(password) &&
     password === confirmPassword && agreeTerms && agreePrivacy;
 
   async function handleSignup() {
     if (!canSubmit) return;
 
-    if (!isStrongPassword(password)) {
+    if (!isStrongUserPassword(password)) {
       Alert.alert("알림", "비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 해요.");
       return;
     }
@@ -159,6 +158,12 @@ export default function SignupScreen() {
       Alert.alert("안전 확인 실패", "사람인지 확인을 다시 완료해주세요.");
       return;
     }
+    if (!agreeTerms || !agreePrivacy) {
+      turnstileTokenRef.current = "";
+      setTurnstileVisible(false);
+      Alert.alert("알림", "필수 약관에 다시 동의해주세요.");
+      return;
+    }
 
     turnstileTokenRef.current = turnstileToken;
     setTurnstileVisible(false);
@@ -170,6 +175,10 @@ export default function SignupScreen() {
           email: email.trim(),
           password,
           name: name.trim(),
+          termsAgreed: agreeTerms,
+          privacyAgreed: agreePrivacy,
+          termsVersion: CURRENT_TERMS_VERSION,
+          privacyVersion: CURRENT_PRIVACY_VERSION,
           marketingAgreed: agreeMarketing,
         },
         turnstileTokenRef.current,
@@ -289,7 +298,7 @@ export default function SignupScreen() {
               </Text>
             </View>
           )}
-          {password.length > 0 && !isStrongPassword(password) && (
+          {password.length > 0 && !isStrongUserPassword(password) && (
             <Text style={styles.errorText}>
               8자 이상, 대문자·소문자·숫자·특수문자를 모두 포함해야 해요
             </Text>
@@ -344,7 +353,7 @@ export default function SignupScreen() {
                   <Text style={styles.agreeText}>
                     <Text style={styles.agreeRequired}>[필수]</Text> 이용약관 동의
                   </Text>
-                  <Pressable onPress={() => Linking.openURL(`${SITE}/terms`)}>
+                  <Pressable onPress={() => Linking.openURL(TERMS_URL)}>
                     <Text style={styles.agreeLink}>보기</Text>
                   </Pressable>
                 </View>
@@ -360,7 +369,7 @@ export default function SignupScreen() {
                   <Text style={styles.agreeText}>
                     <Text style={styles.agreeRequired}>[필수]</Text> 개인정보 처리방침 동의
                   </Text>
-                  <Pressable onPress={() => Linking.openURL(`${SITE}/privacy`)}>
+                  <Pressable onPress={() => Linking.openURL(PRIVACY_URL)}>
                     <Text style={styles.agreeLink}>보기</Text>
                   </Pressable>
                 </View>

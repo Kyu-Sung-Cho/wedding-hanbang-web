@@ -1,5 +1,7 @@
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
-import { NextResponse } from "next/server";
+import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 interface CommunityPostInsightRow {
   id: string;
@@ -17,15 +19,33 @@ interface CommunityProfileNicknameRow {
   nickname: string | null;
 }
 
+const MAX_ANALYTICS_ROWS = 25_000;
+
+class InsightsCapacityError extends Error {}
+
+function boundedAnalyticsRows<T>(data: T[] | null, error: unknown): T[] {
+  if (error) throw new Error("INSIGHTS_QUERY_FAILED");
+  if ((data?.length ?? 0) > MAX_ANALYTICS_ROWS) {
+    throw new InsightsCapacityError("INSIGHTS_SAFE_LIMIT_EXCEEDED");
+  }
+  return data ?? [];
+}
+
 export async function GET(req: Request) {
   try {
     // verifyAdmin으로 통일 (profiles.is_admin 체크)
-    const { authorized } = await verifyAdmin(req);
-    if (!authorized) {
+    const { authorized, userId } = await verifyAdmin(req);
+    if (!authorized || !userId) {
       return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
     // service client 사용 (RLS 우회)
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("admin:insights", req, userId),
+      { maxRequests: 6, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
+
     const supabase = getServiceClient();
 
     const url = new URL(req.url);
@@ -54,19 +74,23 @@ export async function GET(req: Request) {
       .gte("created_at", startStr);
 
     // 전체 예약
-    const { data: bookings } = await supabase
+    const { data: bookingsRaw, error: bookingsError } = await supabase
       .from("vendor_bookings")
       .select("status, created_at, vendor_id")
-      .gte("created_at", startStr);
+      .gte("created_at", startStr)
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const bookings = boundedAnalyticsRows(bookingsRaw, bookingsError);
 
     const totalBookings = (bookings ?? []).length;
     const confirmedBookings = (bookings ?? []).filter(b => b.status === "confirmed" || b.status === "completed").length;
 
     // 활성 사용자 (기간 내 이벤트 발생)
-    const { data: activeUserEvents } = await supabase
+    const { data: activeUserEventsRaw, error: activeUserEventsError } = await supabase
       .from("customer_events")
       .select("user_id, created_at")
-      .gte("created_at", startStr);
+      .gte("created_at", startStr)
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const activeUserEvents = boundedAnalyticsRows(activeUserEventsRaw, activeUserEventsError);
     const activeUsers = new Set((activeUserEvents ?? []).map(e => e.user_id).filter(Boolean)).size;
 
     // 전체 등록 사용자
@@ -81,19 +105,23 @@ export async function GET(req: Request) {
       .eq("status", "approved");
 
     // 인기 업체 (조회수 + 즐겨찾기 + 예약 기준)
-    const { data: vendorViews } = await supabase
+    const { data: vendorViewsRaw, error: vendorViewsError } = await supabase
       .from("vendor_views")
       .select("vendor_id")
-      .gte("created_at", startStr);
+      .gte("created_at", startStr)
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const vendorViews = boundedAnalyticsRows(vendorViewsRaw, vendorViewsError);
 
     const viewCountMap = new Map<string, number>();
     for (const v of vendorViews ?? []) {
       viewCountMap.set(v.vendor_id, (viewCountMap.get(v.vendor_id) ?? 0) + 1);
     }
 
-    const { data: vendorFavs } = await supabase
+    const { data: vendorFavsRaw, error: vendorFavsError } = await supabase
       .from("vendor_favorites")
-      .select("vendor_id");
+      .select("vendor_id")
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const vendorFavs = boundedAnalyticsRows(vendorFavsRaw, vendorFavsError);
 
     const favCountMap = new Map<string, number>();
     for (const f of vendorFavs ?? []) {
@@ -133,10 +161,12 @@ export async function GET(req: Request) {
     }));
 
     // 카테고리별 통계
-    const { data: allVendors } = await supabase
+    const { data: allVendorsRaw, error: allVendorsError } = await supabase
       .from("vendors")
       .select("id, category, rating")
-      .eq("status", "approved");
+      .eq("status", "approved")
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const allVendors = boundedAnalyticsRows(allVendorsRaw, allVendorsError);
 
     const categoryMap = new Map<string, { count: number; bookings: number; totalRating: number }>();
     for (const v of allVendors ?? []) {
@@ -178,10 +208,12 @@ export async function GET(req: Request) {
     }));
 
     // 이벤트 유형 분석
-    const { data: allEvents } = await supabase
+    const { data: allEventsRaw, error: allEventsError } = await supabase
       .from("customer_events")
       .select("event_type")
-      .gte("created_at", startStr);
+      .gte("created_at", startStr)
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const allEvents = boundedAnalyticsRows(allEventsRaw, allEventsError);
 
     const eventTypeMap = new Map<string, number>();
     for (const e of allEvents ?? []) {
@@ -214,10 +246,12 @@ export async function GET(req: Request) {
       .slice(0, 15);
 
     // 즐겨찾기 트렌드
-    const { data: favTrendRaw } = await supabase
+    const { data: favTrendRawData, error: favTrendError } = await supabase
       .from("vendor_favorites")
       .select("created_at")
-      .gte("created_at", startStr);
+      .gte("created_at", startStr)
+      .limit(MAX_ANALYTICS_ROWS + 1);
+    const favTrendRaw = boundedAnalyticsRows(favTrendRawData, favTrendError);
 
     const favTrendMap = new Map<string, number>();
     for (let i = 0; i < days; i++) {
@@ -293,7 +327,16 @@ export async function GET(req: Request) {
       topSavedCommunityPosts,
     });
   } catch (err) {
-    console.error("Admin insights error:", err);
+    if (err instanceof InsightsCapacityError) {
+      return NextResponse.json(
+        {
+          error: "분석 데이터가 안전 처리 한도를 초과했습니다.",
+          code: "INSIGHTS_SAFE_LIMIT_EXCEEDED",
+        },
+        { status: 503 },
+      );
+    }
+    console.error("Admin insights error:", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
 }

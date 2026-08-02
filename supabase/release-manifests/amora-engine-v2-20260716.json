@@ -159,13 +159,14 @@
   ],
   "postPushChecks": [
     {
-      "id": "community-upload-storage-final-verify-20260716108000",
+      "id": "chat-image-server-upload-final-verify-20260802159000",
       "type": "read-only-sql",
-      "file": "supabase/release-checks/amora-engine-v2-storage-final-post-push.sql",
-      "sha256": "8fc1b1fbd13fb8f00f80fba657f90ae15436fb383952cce05691f8e21dd17c7e",
+      "file": "supabase/release-checks/amora-engine-v2-chat-image-server-upload-post-push.sql",
+      "sha256": "05d8326c7faf6ffe8d30e368bf05ab88a596d201abeac09e535ba2b91051ce0e",
       "expectedEvidence": {
-        "storage_policy_count": 1,
-        "storage_insert_policy_count": 1,
+        "chat_image_server_upload_fence_verified_count": 1,
+        "storage_policy_count": 0,
+        "authenticated_storage_mutation_policy_count": 0,
         "storage_bucket_count": 11,
         "storage_object_count": 49,
         "storage_staging_object_count": 0,
@@ -178,7 +179,7 @@
       "id": "amora-engine-v2-post-20260716",
       "type": "read-only-sql",
       "file": "supabase/release-checks/amora-engine-v2-20260716-post.sql",
-      "sha256": "5a089c7b83588b27fd5d668947d31c026a766c60b418bb8ff7be0e250849ec3a",
+      "sha256": "2ba71ea8a9b18286a1cd134209150e46a1fdb1af981dd3bdca0c7826eeaf31f2",
       "expectedEvidence": {
         "post_release_contract_verified_count": 1
       }
@@ -231,11 +232,11 @@
       "sha256": "cd16b5b5fb4492b7ac22ec5672a53795b899dc305b0d573a0c280f86d5ea6fb5"
     },
     {
-      "id": "community-upload-storage-finalize-20260716108000",
+      "id": "chat-image-server-upload-finalize-20260802159000",
       "phase": "post-push-pre-deploy",
-      "verificationCheckId": "community-upload-storage-final-verify-20260716108000",
-      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql",
-      "sha256": "4ccf5eb76bc5ceff7eea5413948e0ae4ecbb324336fe2e83b177c1773b69cd56"
+      "verificationCheckId": "chat-image-server-upload-final-verify-20260802159000",
+      "file": "supabase/platform-operations/storage/20260802159000_chat_image_server_upload_fence_apply.sql",
+      "sha256": "cadcfacec4ed8b477a0a9546e7c59d940423c4511a1876742751ac629c50bcdb"
     }
   ],
   "rollbackArtifacts": [
@@ -252,10 +253,10 @@
       "sha256": "0ece5ef3d0fa1fb9301e6cb8ade7abba0f326ee154ca1321639a931d3f3e0745"
     },
     {
-      "id": "community-upload-storage-rollback-20260716108000",
-      "forOperationId": "community-upload-storage-finalize-20260716108000",
-      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_rollback.sql",
-      "sha256": "a703272f5629b2998424bdf0d82dfaa38210a699a619f4011d3af91a78cab8ef"
+      "id": "chat-image-server-upload-rollback-20260802159000",
+      "forOperationId": "chat-image-server-upload-finalize-20260802159000",
+      "file": "supabase/platform-operations/storage/20260802159000_chat_image_server_upload_fence_rollback.sql",
+      "sha256": "3aaeb2933aaa68996abb5b2ee38200884fb12a0c938783de991a0b143c34b6d1"
     }
   ],
   "manualControlEvidence": {
@@ -506,8 +507,12 @@
       "sha256": "c33e5e5bd14519eb811c61943637743af921826abf812cad0dd3590f95e23b17"
     },
     {
+      "file": "docs/operations/CHAT_IMAGE_SERVER_UPLOAD_FENCE_2026-08-03.md",
+      "sha256": "1e3cfec3dfb05e16d52e3d34cb1e382623ac4818a457e3d8281123024d74d3c6"
+    },
+    {
       "file": "docs/operations/COMMUNITY_UPLOAD_SERVICE_FENCE.md",
-      "sha256": "226242d89ec46662c53bd856a30f1529708002681323627326978aa2ac6b01ba"
+      "sha256": "8007c0ed53fcdda4642c1d5c0c7fd53356d61849728a9bfc5073d95d005a9f1b"
     },
     {
       "file": "docs/operations/CURRENT_COUPLE_MEMBERSHIP_PRIVACY_FENCE_2026-07-17.md",

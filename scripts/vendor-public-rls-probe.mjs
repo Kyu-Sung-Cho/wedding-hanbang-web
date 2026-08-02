@@ -2154,20 +2154,11 @@ function cliEnvironment(processEnv) {
 
 async function main() {
   const repoRoot = process.cwd();
-  const result = await executeHostedStagingRlsProbe({
+  await executeHostedStagingRlsProbe({
     env: cliEnvironment(process.env),
     repoRoot,
   });
-  console.log(JSON.stringify({
-    passed: true,
-    scope: result.receipt.scope,
-    projectRef: result.receipt.projectRef,
-    release: result.receipt.release,
-    gitCommit: result.receipt.gitCommit,
-    successorMigrationSetSha256: result.receipt.successorMigrationSetSha256,
-    receiptPath: result.receiptPath,
-    receiptSha256: result.receiptSha256,
-  }));
+  console.log("HOSTED_STAGING_RLS_PROBE_VERIFIED");
 }
 
 const isCli = process.argv[1]
@@ -2177,7 +2168,7 @@ if (isCli) {
     await main();
   } catch (error) {
     if (error instanceof ProbeFailure) {
-      console.error(`${error.code}: ${error.message}`);
+      console.error(error.code);
     } else {
       console.error("UNEXPECTED_PROBE_FAILURE: Hosted-staging RLS probe failed unexpectedly");
     }

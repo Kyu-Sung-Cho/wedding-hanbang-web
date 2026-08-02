@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chatAttachmentKey,
   CHAT_ATTACHMENT_MAX_PROVIDER_BASE64_CHARS,
+  CHAT_PDF_DISABLED_ERROR,
   CHAT_ATTACHMENT_SIZE_ERROR,
   CHAT_ATTACHMENT_SNAPSHOT_ERROR,
   dedupeChatAttachments,
@@ -40,10 +41,9 @@ describe("chat attachment helpers", () => {
     expect(chatAttachmentKey(png)).not.toBe(chatAttachmentKey(jpeg));
   });
 
-  it("builds primitive-only snapshots for image, PDF, and DOCX attachments", () => {
+  it("builds primitive-only snapshots for image and DOCX attachments", () => {
     const attachments = [
       { base64: "aGVsbG8=", mediaType: "image/png", previewUrl: "blob:image", fileName: "photo.png" },
-      { base64: "JVBERg==", mediaType: "application/pdf", previewUrl: "file:pdf", fileName: "plan.pdf" },
       {
         base64: "UEsDBA==",
         mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -56,7 +56,6 @@ describe("chat attachment helpers", () => {
       ok: true,
       attachments: [
         { base64: "aGVsbG8=", mediaType: "image/png", fileName: "photo.png" },
-        { base64: "JVBERg==", mediaType: "application/pdf", fileName: "plan.pdf" },
         {
           base64: "UEsDBA==",
           mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -64,6 +63,15 @@ describe("chat attachment helpers", () => {
         },
       ],
     });
+  });
+
+  it("rejects PDF before a provider snapshot can retain its original bytes", () => {
+    expect(prepareChatAttachmentPayload([{
+      base64: "JVBERg==",
+      mediaType: "application/pdf",
+      previewUrl: "file:pdf",
+      fileName: "plan.pdf",
+    }])).toEqual({ ok: false, error: CHAT_PDF_DISABLED_ERROR });
   });
 
   it("rejects aggregate provider payload overflow and exceptional attachment objects", () => {

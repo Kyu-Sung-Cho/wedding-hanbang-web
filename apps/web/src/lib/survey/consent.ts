@@ -1,0 +1,1 @@
+export const CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION = "2026-08-02" as const;

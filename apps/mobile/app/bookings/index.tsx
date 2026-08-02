@@ -26,6 +26,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { apiJson } from "@/lib/api";
 import {
   AppHeader,
@@ -335,7 +336,7 @@ export default function BookingsScreen() {
         current ? nextBookings.find((booking) => booking.id === current.id) ?? null : current
       ));
     } catch (err) {
-      console.error("Bookings load:", err);
+      console.error("Bookings load:", safeErrorDiagnostic(err));
     } finally {
       setLoading(false);
       setRefreshing(false);

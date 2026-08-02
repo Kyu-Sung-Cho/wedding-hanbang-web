@@ -60,6 +60,13 @@ export class OpenAIStructuredOutputError extends Error {
   }
 }
 
+export class AIInteractionAuditPersistenceError extends Error {
+  constructor() {
+    super("[ai-audit] interaction ledger persistence failed");
+    this.name = "AIInteractionAuditPersistenceError";
+  }
+}
+
 interface BaseAuditOptions {
   modelRole: AmoraModelRole;
   instructions: string;
@@ -160,7 +167,7 @@ async function writeAudit(options: {
   usage?: NormalizedOpenAIUsage;
   metadata: Record<string, unknown>;
 }): Promise<void> {
-  await logAIInteraction({
+  const persisted = await logAIInteraction({
     ...options.audit,
     // canonical chat/domain rows are the content source of truth. The cost log
     // never duplicates conversation or tool payloads.
@@ -178,6 +185,7 @@ async function writeAudit(options: {
     cacheReadTokens: options.usage?.cache_read_input_tokens ?? null,
     metadata: options.metadata,
   });
+  if (!persisted) throw new AIInteractionAuditPersistenceError();
 }
 
 async function createOpenAIResponseWithAuditInternal<T>(

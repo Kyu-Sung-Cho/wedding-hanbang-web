@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
     readonly code = "CHAT_REQUEST_CLAIM_FAILED";
   }
   return {
+    authenticatedUser: { id: "00000000-0000-4000-8000-000000000001" } as { id: string } | null,
     profile: {
       couple_id: "10000000-0000-4000-8000-000000000001",
       role: "bride",
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => {
     reconcile: vi.fn(),
     claim: vi.fn(),
     provider: vi.fn(),
+    rateLimit: vi.fn(),
     PersistenceError,
     ClaimError,
   };
@@ -27,7 +29,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+        data: { user: mocks.authenticatedUser },
       })),
     },
   })),
@@ -47,11 +49,13 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/utils/rateLimit", () => ({
   rateLimitKey: vi.fn(() => "chat:test"),
-  checkRateLimitPersistent: vi.fn(async () => null),
+  rateLimitSubjectKey: vi.fn(() => "chat-demo-session:test"),
+  checkRateLimitPersistent: mocks.rateLimit,
 }));
 
 vi.mock("@/lib/demoSession", () => ({
   hasSignedDemoSessionFromCookieHeader: vi.fn(() => false),
+  getSignedDemoSessionFromCookieHeader: vi.fn(() => null),
 }));
 
 vi.mock("@/lib/ai/costGuard", () => ({
@@ -104,12 +108,68 @@ function validBody(overrides: Record<string, unknown> = {}) {
 describe("POST /api/chat safety ordering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.authenticatedUser = { id: "00000000-0000-4000-8000-000000000001" };
     mocks.profile.couple_id = COUPLE_ID;
     mocks.profile.role = "bride";
     mocks.reserve.mockResolvedValue({ allowed: true, remaining: 99 });
     mocks.findPersisted.mockResolvedValue(null);
     mocks.reconcile.mockResolvedValue(true);
     mocks.claim.mockResolvedValue({ action: "acquired", attemptCount: 1, reclaimed: false });
+    mocks.rateLimit.mockResolvedValue(null);
+  });
+
+  it("rejects an unauthenticated request before reading a chunked attachment body", async () => {
+    mocks.authenticatedUser = null;
+    let pullCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        controller.enqueue(new Uint8Array(1_000_000));
+      },
+    }, { highWaterMark: 0 });
+    const unauthenticatedRequest = {
+      body,
+      headers: new Headers(),
+    } as Request;
+
+    const response = await POST(unauthenticatedRequest);
+
+    expect(response.status).toBe(401);
+    expect(pullCount).toBe(0);
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("returns an ingress limit before reading or parsing an authenticated chunked body", async () => {
+    mocks.rateLimit.mockResolvedValueOnce(new Response("limited", { status: 429 }));
+    let pullCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        controller.enqueue(new Uint8Array(1_000_000));
+      },
+    }, { highWaterMark: 0 });
+    const limitedRequest = {
+      body,
+      headers: new Headers(),
+    } as Request;
+    const jsonParse = vi.spyOn(JSON, "parse");
+
+    try {
+      const response = await POST(limitedRequest);
+
+      expect(response.status).toBe(429);
+      expect(await response.text()).toBe("limited");
+      expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
+      expect(pullCount).toBe(0);
+      expect(jsonParse).not.toHaveBeenCalled();
+      expect(mocks.findPersisted).not.toHaveBeenCalled();
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+    } finally {
+      jsonParse.mockRestore();
+    }
   });
 
   it("rejects malformed messages before claim, quota reservation, or provider work", async () => {

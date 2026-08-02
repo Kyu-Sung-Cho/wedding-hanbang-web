@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   pathname: "/wedding/lounge",
   searchParams: new URLSearchParams(),
   isDemo: true,
+  userId: "demo" as string | null,
+  sessionVerified: true,
   pageViewCalls: [] as boolean[],
 }));
 
@@ -48,7 +50,7 @@ vi.mock("@/hooks/useEventTracker", () => ({
 }));
 
 vi.mock("@/hooks/useAuthSessionSync", () => ({
-  useAuthSessionSync: () => undefined,
+  useAuthSessionSync: () => mocks.sessionVerified,
 }));
 
 vi.mock("@/stores/authStore", () => ({
@@ -57,6 +59,7 @@ vi.mock("@/stores/authStore", () => ({
     isInitialized: true,
     isLoading: false,
     isDemo: mocks.isDemo,
+    user: mocks.userId ? { id: mocks.userId, email: "user@example.com" } : null,
   }),
 }));
 
@@ -68,6 +71,8 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.pathname = "/wedding/lounge";
     mocks.searchParams = new URLSearchParams();
     mocks.isDemo = true;
+    mocks.userId = "demo";
+    mocks.sessionVerified = true;
     mocks.pageViewCalls.length = 0;
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -126,6 +131,7 @@ describe("AppClientLayout global Amora panel", () => {
 
   it("suppresses internal page-view writes only in admin vendor preview mode", async () => {
     mocks.isDemo = false;
+    mocks.userId = "user-a";
     mocks.pathname = "/wedding/vendors";
     mocks.searchParams = new URLSearchParams("preview=1");
     await renderLayout();
@@ -140,5 +146,44 @@ describe("AppClientLayout global Amora panel", () => {
     expect(mocks.pageViewCalls.at(-1)).toBe(true);
     expect(container.querySelector(".ph-no-capture")).toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).not.toBeNull();
+  });
+
+  it("removes protected children while the server session is being revalidated", async () => {
+    mocks.isDemo = false;
+    mocks.userId = "user-a";
+    mocks.sessionVerified = false;
+
+    await renderLayout();
+
+    expect(container.textContent).not.toContain("page content");
+    expect(container.textContent).toContain("웨딩 라운지를 불러오는 중");
+  });
+
+  it("remounts the protected subtree when the authenticated identity changes", async () => {
+    mocks.isDemo = false;
+    mocks.userId = "user-a";
+
+    function StatefulChild() {
+      const [count, setCount] = useState(0);
+      return <button onClick={() => setCount((value) => value + 1)}>count:{count}</button>;
+    }
+
+    await act(async () => {
+      root.render(<AppClientLayout><StatefulChild /></AppClientLayout>);
+      await Promise.resolve();
+    });
+    const counter = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.startsWith("count:"));
+    await act(async () => counter?.click());
+    expect(container.textContent).toContain("count:1");
+
+    mocks.userId = "user-b";
+    await act(async () => {
+      root.render(<AppClientLayout><StatefulChild /></AppClientLayout>);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("count:0");
+    expect(container.textContent).not.toContain("count:1");
   });
 });

@@ -116,6 +116,27 @@ describe("parseMembershipRpcResponse", () => {
     });
   });
 
+  it("maps the database abuse guard to an HTTP rate-limit response", () => {
+    const result = parseMembershipRpcResponse(
+      {
+        success: false,
+        error_code: "RATE_LIMITED",
+        error: "database implementation detail",
+      },
+      "groom",
+      "join",
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 429,
+      errorCode: "RATE_LIMITED",
+    });
+    if (!result.ok) {
+      expect(result.message).not.toContain("database implementation detail");
+    }
+  });
+
   it("fails closed for unknown errors", () => {
     const result = parseMembershipRpcResponse(
       { success: false, error: "relation secret_table does not exist" },

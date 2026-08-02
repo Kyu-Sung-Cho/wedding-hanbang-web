@@ -5,6 +5,21 @@ const WEDDING_VENDOR_QUERY_PATTERN =
 
 type NaverSearchKind = "local" | "image";
 
+const MAX_PLACE_SEARCH_QUERY_LENGTH = 120;
+const PRIVATE_PLACE_SEARCH_QUERY_PATTERNS = [
+  /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu,
+  /(?:\+?82[-.\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/u,
+  /\b\d{6}-?[1-4]\d{6}\b/u,
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/iu,
+  /\bBearer\s+[A-Za-z0-9._~-]{12,}\b/iu,
+  /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{12,}(?:\.[A-Za-z0-9_-]{12,})?\b/u,
+  /\b(?:sk-(?:proj-)?|sbp_|sb_secret_|sntrys_)[A-Za-z0-9_-]{16,}\b/iu,
+] as const;
+
+function hasPrivatePlaceSearchData(query: string): boolean {
+  return PRIVATE_PLACE_SEARCH_QUERY_PATTERNS.some((pattern) => pattern.test(query));
+}
+
 interface NaverSearchConfig {
   provider: "api_hub";
   baseUrl: string;
@@ -173,10 +188,31 @@ export async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
   const query = typeof input.query === "string" ? input.query.trim() : "";
-  if (!query) {
+  const safeToolInput = { query };
+  const queryLength = Array.from(query).length;
+
+  // The model-provided tool input crosses a separate provider boundary.
+  // Revalidate it here instead of trusting the JSON schema alone so prompt
+  // injection cannot turn NAVER Search into a direct-identifier exfiltration
+  // channel.
+  if (hasPrivatePlaceSearchData(query)) {
     return {
       toolName: "search_nearby_places",
-      toolInput: input,
+      toolInput: { query: "[redacted]" },
+      toolOutput: {
+        places: [],
+        query: "[redacted]",
+        error: "private_query_blocked",
+      },
+      success: false,
+      displayMessage: "개인정보를 제외한 지역과 장소 종류만 알려주세요.",
+    };
+  }
+
+  if (queryLength < 2 || queryLength > MAX_PLACE_SEARCH_QUERY_LENGTH) {
+    return {
+      toolName: "search_nearby_places",
+      toolInput: safeToolInput,
       toolOutput: { places: [], query, error: "invalid_query" },
       success: false,
       displayMessage: "검색할 지역과 장소를 알려주세요.",
@@ -186,7 +222,7 @@ export async function executeSearchNearbyPlaces(
   if (WEDDING_VENDOR_QUERY_PATTERN.test(query)) {
     return {
       toolName: "search_nearby_places",
-      toolInput: input,
+      toolInput: safeToolInput,
       toolOutput: {
         places: [],
         query,
@@ -197,11 +233,31 @@ export async function executeSearchNearbyPlaces(
     };
   }
 
+  // Search terms cross into a separate third-party processor. Credentials
+  // alone must never activate that transfer: production keeps this exact
+  // opt-in off until the privacy notice, contract, and operating approval are
+  // independently verified.
+  if (process.env.NAVER_PLACE_SEARCH_ENABLED !== "true") {
+    return {
+      toolName: "search_nearby_places",
+      toolInput: safeToolInput,
+      toolOutput: {
+        places: [],
+        query,
+        error: "naver_api_disabled",
+        providerUnavailable: true,
+        handoff: buildNaverHandoff(query),
+      },
+      success: false,
+      displayMessage: "외부 장소 검색 연동을 점검 중입니다.",
+    };
+  }
+
   const config = readNaverSearchConfig();
   if (!config) {
     return {
       toolName: "search_nearby_places",
-      toolInput: input,
+      toolInput: safeToolInput,
       toolOutput: {
         places: [],
         query,
@@ -226,7 +282,7 @@ export async function executeSearchNearbyPlaces(
     if (items.length === 0) {
       return {
         toolName: "search_nearby_places",
-        toolInput: input,
+        toolInput: safeToolInput,
         toolOutput: {
           places: [],
           query,
@@ -280,7 +336,7 @@ export async function executeSearchNearbyPlaces(
     if (basePlaces.length === 0) {
       return {
         toolName: "search_nearby_places",
-        toolInput: input,
+        toolInput: safeToolInput,
         toolOutput: {
           places: [],
           query,
@@ -336,7 +392,7 @@ export async function executeSearchNearbyPlaces(
       : "";
     return {
       toolName: "search_nearby_places",
-      toolInput: input,
+      toolInput: safeToolInput,
       toolOutput: {
         places,
         query,
@@ -356,7 +412,7 @@ export async function executeSearchNearbyPlaces(
     console.error("search_nearby_places error", { errorCode, status, provider: config.provider });
     return {
       toolName: "search_nearby_places",
-      toolInput: input,
+      toolInput: safeToolInput,
       toolOutput: {
         places: [],
         query,

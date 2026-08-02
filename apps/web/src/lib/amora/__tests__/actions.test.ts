@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { getAmoraActions, mergeAmoraActions, withUpdatedAmoraAction, type AmoraActionItem } from "../actions";
+import {
+  createAmoraActionId,
+  getAmoraActions,
+  mergeAmoraActions,
+  sanitizeAmoraActionHref,
+  withUpdatedAmoraAction,
+  type AmoraActionItem,
+} from "../actions";
+
+describe("Amora action identifier", () => {
+  it("uses cryptographically random UUIDs", () => {
+    const first = createAmoraActionId();
+    const second = createAmoraActionId();
+
+    expect(first).toMatch(/^act_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
+    expect(second).not.toBe(first);
+  });
+});
 
 const baseAction: AmoraActionItem = {
   id: "act_base",
@@ -12,6 +29,22 @@ const baseAction: AmoraActionItem = {
 };
 
 describe("아모라 액션", () => {
+  it.each([
+    "//attacker.example/path",
+    "/%2F%2Fattacker.example/path",
+    "/%252f%252fattacker.example/path",
+    "/safe\\attacker.example",
+    "https://attacker.example/path",
+  ])("rejects a non-canonical action href: %s", (href) => {
+    expect(sanitizeAmoraActionHref(href)).toBeUndefined();
+  });
+
+  it("keeps a bounded first-party action href", () => {
+    expect(sanitizeAmoraActionHref(" /wedding/budget?tab=plan#next ")).toBe(
+      "/wedding/budget?tab=plan#next",
+    );
+  });
+
   it("progress에 저장된 legacy 액션을 정렬해서 읽는다", () => {
     const actions = getAmoraActions({
       __amora_actions: [

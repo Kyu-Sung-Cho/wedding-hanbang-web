@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
   revalidatePath: vi.fn(),
+  rateLimit: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
@@ -13,6 +14,11 @@ vi.mock("@/lib/utils/adminAuth", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: mocks.revalidatePath,
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
 }));
 
 import { GET, POST } from "./route";

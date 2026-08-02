@@ -2,23 +2,19 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  checkRateLimit: vi.fn(),
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
   createClientFromRequest: vi.fn(),
   hasSignedDemoSessionFromCookieHeader: vi.fn(),
-  recordDecision: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
 }));
-vi.mock("@/lib/memory/record-decision", () => ({
-  recordDecision: mocks.recordDecision,
-}));
 vi.mock("@/lib/demoSession", () => ({
   hasSignedDemoSessionFromCookieHeader: mocks.hasSignedDemoSessionFromCookieHeader,
 }));
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: mocks.checkRateLimit,
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
   rateLimitKey: (scope: string, _request: Request, userId?: string) => `${scope}:${userId ?? "guest"}`,
 }));
 
@@ -74,13 +70,9 @@ function favoriteAddClient(
   const publicCurrentEq = vi.fn().mockReturnValue({ order: publicOrder });
   const publicVendorEq = vi.fn().mockReturnValue({ eq: publicCurrentEq });
   const publicSelect = vi.fn().mockReturnValue({ eq: publicVendorEq });
-  const profileMaybeSingle = vi.fn().mockResolvedValue({ data: { couple_id: null } });
-  const profileEq = vi.fn().mockReturnValue({ maybeSingle: profileMaybeSingle });
-  const profileSelect = vi.fn().mockReturnValue({ eq: profileEq });
   const from = vi.fn((table: string) => {
     if (table === "vendor_favorites") return { upsert };
     if (table === "v_public_prices") return { select: publicSelect };
-    if (table === "profiles") return { select: profileSelect };
     throw new Error(`unexpected table ${table}`);
   });
   return {
@@ -185,7 +177,7 @@ describe("GET /api/favorites", () => {
 describe("DELETE /api/favorites", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.checkRateLimit.mockReturnValue(null);
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.hasSignedDemoSessionFromCookieHeader.mockReturnValue(false);
   });
 
@@ -290,12 +282,25 @@ describe("DELETE /api/favorites", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: expect.any(String) });
   });
+
+  it("rejects an account A removal if the request authenticates as account B", async () => {
+    const database = authenticatedClient();
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await DELETE(deleteRequest(
+      { vendorId: VENDOR_ID },
+      { "x-hanbang-expected-actor": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+    ));
+
+    expect(response.status).toBe(409);
+    expect(database.from).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/favorites", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.checkRateLimit.mockReturnValue(null);
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.hasSignedDemoSessionFromCookieHeader.mockReturnValue(false);
   });
 
@@ -383,6 +388,19 @@ describe("POST /api/favorites", () => {
     }));
 
     expect(response.status).toBe(413);
+    expect(database.from).not.toHaveBeenCalled();
+  });
+
+  it("rejects an account A add if the request authenticates as account B", async () => {
+    const database = favoriteAddClient();
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await POST(postRequest(
+      { vendorId: VENDOR_ID },
+      { "x-hanbang-expected-actor": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+    ));
+
+    expect(response.status).toBe(409);
     expect(database.from).not.toHaveBeenCalled();
   });
 });

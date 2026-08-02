@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
+  rateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
@@ -10,22 +11,47 @@ vi.mock("@/lib/utils/adminAuth", () => ({
   getServiceClient: mocks.getServiceClient,
 }));
 
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
+}));
+
 import { GET } from "./route";
 
+const ADMIN_ID = "00000000-0000-4000-8000-000000000002";
+
 describe("GET /api/admin/price", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.rateLimit.mockResolvedValue(null);
+  });
 
   it("fails closed before creating a service client for a non-admin", async () => {
     mocks.verifyAdmin.mockResolvedValue({ authorized: false });
 
-    const response = await GET(new Request("https://hanbang.ai/api/admin/price"));
+    const request = new Request("https://hanbang.ai/api/admin/price");
+    const response = await GET(request);
 
     expect(response.status).toBe(401);
+    expect(mocks.verifyAdmin).toHaveBeenCalledWith(request);
     expect(mocks.getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the signed step-up boundary does not return an admin identity", async () => {
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+
+    const request = new Request("https://hanbang.ai/api/admin/price");
+    const response = await GET(request);
+
+    expect(response.status).toBe(401);
+    expect(mocks.verifyAdmin).toHaveBeenCalledWith(request);
+    expect(mocks.getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
   });
 
   it("returns low-confidence pending evidence first without exposing raw source paths", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: "admin-id" });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const range = vi.fn().mockResolvedValue({
       data: [{
         id: "00000000-0000-4000-8000-000000000001",
@@ -110,7 +136,7 @@ describe("GET /api/admin/price", () => {
   });
 
   it("lists pending agency packages with an explicit entity kind and private source keys stripped", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: "admin-id" });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const objectKey = "c".repeat(64) + ".pdf";
     const range = vi.fn().mockResolvedValue({
       data: [{
@@ -171,7 +197,7 @@ describe("GET /api/admin/price", () => {
   });
 
   it("walks 437 stable rows through bounded cursors without gaps or duplicates", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: "admin-id" });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const rows = Array.from({ length: 437 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
       category: "studio",
@@ -230,7 +256,7 @@ describe("GET /api/admin/price", () => {
   });
 
   it("rejects malformed pagination before creating a service client", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: "admin-id" });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
 
     const response = await GET(new Request(
       "https://hanbang.ai/api/admin/price?cursor=v2%3A10",

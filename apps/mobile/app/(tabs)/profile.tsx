@@ -1,5 +1,5 @@
 // 프로필/설정 화면
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -31,8 +31,14 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { signOut as signOutSession } from "@/lib/auth";
+import {
+  captureMobileAuthIdentityExpectation,
+  isCurrentMobileAuthIdentity,
+} from "@/lib/mobileAuthIdentity";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
+import { apiJson } from "@/lib/api";
 
 interface ProfileData {
   name: string | null;
@@ -77,18 +83,30 @@ export default function ProfileScreen() {
     totalUpvotes: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const mountedRef = useRef(false);
+  const loadVersionRef = useRef(0);
 
   const loadProfile = useCallback(async () => {
+    const expectation = captureMobileAuthIdentityExpectation();
+    if (!expectation) return false;
+    const loadVersion = ++loadVersionRef.current;
+    const isActiveLoad = () => (
+      mountedRef.current
+      && loadVersionRef.current === loadVersion
+      && isCurrentMobileAuthIdentity(expectation)
+    );
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user || user.id !== expectation.userId || !isActiveLoad()) return false;
 
     const { data } = await supabase
       .from("profiles")
       .select("name, role, couple_id")
       .eq("id", user.id)
       .single();
+    if (!isActiveLoad()) return false;
 
     let weddingDate: string | null = null;
     let partnerName: string | null = null;
@@ -100,6 +118,7 @@ export default function ProfileScreen() {
         .select("wedding_date")
         .eq("couple_id", data.couple_id)
         .single();
+      if (!isActiveLoad()) return false;
       weddingDate = journey?.wedding_date ?? null;
 
       // 파트너 이름
@@ -108,29 +127,34 @@ export default function ProfileScreen() {
         .select("name")
         .eq("couple_id", data.couple_id)
         .neq("id", user.id);
+      if (!isActiveLoad()) return false;
       if (partners?.[0]) {
         partnerName = partners[0].name ?? null;
       }
     }
 
     // 커뮤니티 활동 통계
-    const { data: communityProfile } = await supabase
-      .from("community_profiles")
-      .select("post_count, comment_count, total_upvotes_received")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const communityResponse = await apiJson<{
+      profile: {
+        comment_count?: number | null;
+        total_upvotes_received?: number | null;
+      } | null;
+      actualPostCount?: number | null;
+    }>("/api/community/profile");
+    if (!isActiveLoad()) return false;
 
     // 북마크 수
     const { count: bookmarkCount } = await supabase
       .from("community_bookmarks")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
+    if (!isActiveLoad()) return false;
 
     setStats({
-      postCount: communityProfile?.post_count ?? 0,
-      commentCount: communityProfile?.comment_count ?? 0,
+      postCount: communityResponse.actualPostCount ?? 0,
+      commentCount: communityResponse.profile?.comment_count ?? 0,
       bookmarkCount: bookmarkCount ?? 0,
-      totalUpvotes: communityProfile?.total_upvotes_received ?? 0,
+      totalUpvotes: communityResponse.profile?.total_upvotes_received ?? 0,
     });
 
     setProfile({
@@ -142,16 +166,22 @@ export default function ProfileScreen() {
       coupleId: data?.couple_id ?? null,
       partnerName,
     });
+    return true;
   }, []);
 
   useEffect(() => {
-    loadProfile();
+    mountedRef.current = true;
+    void loadProfile();
+    return () => {
+      mountedRef.current = false;
+      loadVersionRef.current += 1;
+    };
   }, [loadProfile]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadProfile();
-    setRefreshing(false);
+    if (mountedRef.current) setRefreshing(false);
   }, [loadProfile]);
 
   async function handleLogout() {
@@ -161,8 +191,15 @@ export default function ProfileScreen() {
         text: "로그아웃",
         style: "destructive",
         onPress: async () => {
-          await supabase.auth.signOut();
-          router.replace("/(auth)/login");
+          try {
+            await signOutSession();
+            router.replace("/(auth)/login");
+          } catch {
+            Alert.alert(
+              "안전한 로그아웃을 완료하지 못했어요",
+              "이 계정의 알림 연결을 먼저 해제해야 해요. 네트워크 연결 후 다시 시도해주세요.",
+            );
+          }
         },
       },
     ]);

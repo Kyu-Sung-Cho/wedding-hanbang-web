@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin/vendorWorkspace";
 import type { VendorAttributeCategory } from "@/lib/vendors/attributeSchemas";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 const CATEGORIES = new Set(["all", "studio", "dress", "makeup", "hall"]);
 const STATUSES = new Set(["all", "pending", "in_progress", "done", "skip"]);
@@ -154,6 +155,11 @@ export async function GET(request: Request) {
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:enrichment-queue", request, userId),
+    { maxRequests: 6, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
 
   const url = new URL(request.url);
   const category = url.searchParams.get("category") ?? "all";

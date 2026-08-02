@@ -52,6 +52,7 @@ import {
   ymdInKst,
 } from "@/lib/utils/kstDate";
 import { isValidScheduleYmd } from "@/utils/scheduleEvents";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import {
   formatWon,
   requireDestructiveConfirmation,
@@ -182,7 +183,7 @@ export async function executeTool(
     } catch (error) {
       console.error("[amora-tool] read tool failed", {
         toolName,
-        errorName: error instanceof Error ? error.name : "UnknownError",
+        error: safeErrorDiagnostic(error),
       });
       return {
         toolName,
@@ -416,25 +417,25 @@ async function executeMutatingToolWithLedger({
 
   const markExecutionUncertain = async (failureCode: string) => {
     try {
-      const { data, error } = await admin.rpc("mark_amora_tool_execution_uncertain", {
+      const { data: acknowledged, error } = await admin.rpc("mark_amora_tool_execution_uncertain", {
         p_couple_id: context.coupleId,
         p_request_key: context.requestKey!,
         p_operation_key: operationKey,
         p_failure_code: failureCode,
       });
-      if (error || data !== true) {
+      if (error || acknowledged !== true) {
         console.error("[amora-tool-ledger] uncertainty marker was not persisted", {
           toolName,
           failureCode,
-          error: error?.message ?? null,
-          acknowledged: data === true,
+          error: safeErrorDiagnostic(error),
+          acknowledged: acknowledged === true,
         });
       }
     } catch (markerError) {
       console.error("[amora-tool-ledger] uncertainty marker transport failed", {
         toolName,
         failureCode,
-        markerError,
+        markerError: safeErrorDiagnostic(markerError),
       });
     }
   };

@@ -1,19 +1,22 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { sanitizeHtml } from "@/utils/sanitize";
+import { sanitizeHtmlWithInputLimit } from "@/utils/sanitize";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { COMMUNITY_COMMENT_PUBLIC_SELECT } from "@/lib/community/commentSelect";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { verifyAdmin } from "@/lib/utils/adminAuth";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
+
+const MAX_BODY_BYTES = 32 * 1024;
 
 function getServiceClient() {
   return createAdminClient();
-}
-
-async function isAdmin(userId: string): Promise<boolean> {
-  const { data } = await getServiceClient()
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .single();
-  return data?.is_admin === true;
 }
 
 // 댓글 수정 (작성자만)
@@ -22,6 +25,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isTrustedMutationRequest(req)) {
+      return NextResponse.json({ error: "허용되지 않은 요청 출처입니다." }, { status: 403 });
+    }
+
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
     const {
@@ -35,12 +42,18 @@ export async function PATCH(
       );
     }
 
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:comment:update", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
+
     // 작성자 확인
-    const { data: existingComment } = await supabase
+    const { data: existingComment } = await getServiceClient()
       .from("community_comments")
       .select("author_id, is_deleted")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (!existingComment) {
       return NextResponse.json(
@@ -56,17 +69,32 @@ export async function PATCH(
       );
     }
 
-    if (existingComment.author_id !== user.id && !(await isAdmin(user.id))) {
-      return NextResponse.json(
-        { error: "수정 권한이 없습니다." },
-        { status: 403 }
-      );
+    let allowAdminOverride = false;
+    if (existingComment.author_id !== user.id) {
+      const adminVerification = await verifyAdmin(req);
+      if (!adminVerification.authorized || adminVerification.userId !== user.id) {
+        return NextResponse.json(
+          { error: "수정 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+      allowAdminOverride = true;
     }
 
-    const { content: rawContent } = (await req.json()) as { content: string };
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const rawContent = isRecord(bodyResult.value)
+      && typeof bodyResult.value.content === "string"
+      ? bodyResult.value.content
+      : "";
 
     // 댓글 내용 검증 및 정화
-    const content = sanitizeHtml(rawContent ?? "").slice(0, 5000);
+    const content = sanitizeHtmlWithInputLimit(rawContent ?? "", 5000);
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json(
@@ -75,18 +103,26 @@ export async function PATCH(
       );
     }
 
-    const { data: updatedComment, error } = await supabase
-      .from("community_comments")
-      .update({
-        content,
-        updated_at: new Date().toISOString(),
+    // Recheck ownership, suspension, and deletion state in the mutation
+    // transaction so a concurrent moderation action cannot be raced.
+    const { data: updatedComment, error } = await getServiceClient()
+      .rpc("community_update_comment_for_actor", {
+        p_actor_id: user.id,
+        p_comment_id: id,
+        p_content: content,
+        p_allow_admin_override: allowAdminOverride,
       })
-      .eq("id", id)
-      .select("*")
+      .select(COMMUNITY_COMMENT_PUBLIC_SELECT)
       .single();
 
     if (error) {
-      console.error("Update comment error:", error);
+      if (isCommunityActorWriteDenied(error)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
+      console.error("Update comment error:", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "댓글 수정에 실패했습니다." },
         { status: 500 }
@@ -95,7 +131,7 @@ export async function PATCH(
 
     return NextResponse.json({ comment: updatedComment });
   } catch (err) {
-    console.error("Update comment error:", err);
+    console.error("Update comment error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -109,6 +145,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isTrustedMutationRequest(req)) {
+      return NextResponse.json({ error: "허용되지 않은 요청 출처입니다." }, { status: 403 });
+    }
+
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
     const serviceClient = getServiceClient();
@@ -123,12 +163,30 @@ export async function DELETE(
       );
     }
 
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:comment:delete", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
+
     // 작성자 확인
-    const { data: existingComment } = await supabase
+    const { data: existingComment, error: commentLookupError } = await serviceClient
       .from("community_comments")
-      .select("author_id, post_id, is_deleted")
+      .select("author_id, is_deleted")
       .eq("id", id)
       .single();
+
+    if (commentLookupError) {
+      console.error(
+        "Delete comment lookup error:",
+        safeErrorDiagnostic(commentLookupError),
+      );
+      return NextResponse.json(
+        { error: "댓글을 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
 
     if (!existingComment) {
       return NextResponse.json(
@@ -144,49 +202,53 @@ export async function DELETE(
       );
     }
 
-    if (existingComment.author_id !== user.id && !(await isAdmin(user.id))) {
-      return NextResponse.json(
-        { error: "삭제 권한이 없습니다." },
-        { status: 403 }
-      );
+    let allowAdminOverride = false;
+    if (existingComment.author_id !== user.id) {
+      const adminVerification = await verifyAdmin(req);
+      if (!adminVerification.authorized || adminVerification.userId !== user.id) {
+        return NextResponse.json(
+          { error: "삭제 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+      allowAdminOverride = true;
     }
 
-    // 소프트 삭제: is_deleted = true, 내용 제거
-    const { error } = await serviceClient
-      .from("community_comments")
-      .update({
-        is_deleted: true,
-        content: "삭제된 댓글입니다.",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    // 소프트 삭제도 actor gate와 동일 트랜잭션에서 수행한다.
+    const { data: deleted, error } = await serviceClient.rpc(
+      "community_delete_comment_for_actor",
+      {
+        p_actor_id: user.id,
+        p_comment_id: id,
+        p_allow_admin_override: allowAdminOverride,
+      },
+    );
 
     if (error) {
-      console.error("Delete comment error:", error);
+      if (isCommunityActorWriteDenied(error)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
+      console.error("Delete comment error:", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "댓글 삭제에 실패했습니다." },
         { status: 500 }
       );
     }
 
-    // comment_count 감소
-    await serviceClient
-      .from("community_posts")
-      .select("comment_count")
-      .eq("id", existingComment.post_id)
-      .single()
-      .then(({ data }) => {
-        return serviceClient
-          .from("community_posts")
-          .update({
-            comment_count: Math.max(0, (data?.comment_count ?? 1) - 1),
-          })
-          .eq("id", existingComment.post_id);
-      });
+    if (deleted !== true) {
+      console.error("Delete comment RPC returned an invalid result");
+      return NextResponse.json(
+        { error: "댓글 삭제 결과를 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Delete comment error:", err);
+    console.error("Delete comment error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

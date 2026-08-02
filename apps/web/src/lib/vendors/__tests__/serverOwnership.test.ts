@@ -33,7 +33,8 @@ describe("loadOwnedVendorWithServiceRole", () => {
     expect(mock.from).toHaveBeenCalledWith("vendors");
     expect(mock.select).toHaveBeenCalledWith("id,name");
     expect(mock.eq).toHaveBeenNthCalledWith(1, "owner_id", OWNER_ID);
-    expect(mock.eq).toHaveBeenNthCalledWith(2, "id", VENDOR_ID);
+    expect(mock.eq).toHaveBeenNthCalledWith(2, "status", "approved");
+    expect(mock.eq).toHaveBeenNthCalledWith(3, "id", VENDOR_ID);
   });
 
   it("returns null when the service-side ownership predicate has no match", async () => {

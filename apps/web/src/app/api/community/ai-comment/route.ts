@@ -4,6 +4,12 @@ import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import {
+  COMMUNITY_AI_COMMENT_SELECT,
+  COMMUNITY_COMMENT_PUBLIC_SELECT,
+} from "@/lib/community/commentSelect";
 
 // 아모라 서비스 계정 ID (환경변수 또는 고정값)
 const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
@@ -16,6 +22,7 @@ const MAX_COST_LABEL_CHARS = 60;
 const MAX_MODEL_INPUT_CHARS = 3_000;
 const COMMUNITY_AI_COMMENT_MAX_INPUT_TOKENS = 64_000;
 const COMMUNITY_AI_COMMENT_MAX_COST_MICROUSD = 88_400;
+const MAX_BODY_BYTES = 2 * 1024;
 
 class CommunityAiCommentUnavailableError extends Error {
   constructor() {
@@ -86,7 +93,16 @@ export async function POST(req: NextRequest) {
     });
     if (limited) return limited;
 
-    const { postId } = (await req.json()) as { postId: string };
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const postId = isRecord(bodyResult.value) && typeof bodyResult.value.postId === "string"
+      ? bodyResult.value.postId
+      : "";
 
     if (!postId) {
       return NextResponse.json({ error: "postId가 필요합니다." }, { status: 400 });
@@ -213,22 +229,57 @@ export async function POST(req: NextRequest) {
     }
 
     // 아모라 프로필 자동 생성 (없을 경우)
-    const { data: amoraProfile } = await serviceClient
-      .from("community_profiles")
-      .select("user_id")
-      .eq("user_id", AMORA_USER_ID)
-      .maybeSingle();
+    const { data: amoraProfile, error: amoraProfileLookupError } =
+      await serviceClient
+        .from("community_profiles")
+        .select("user_id")
+        .eq("user_id", AMORA_USER_ID)
+        .maybeSingle();
+
+    if (amoraProfileLookupError) {
+      console.error(
+        "AI community profile lookup error:",
+        safeErrorDiagnostic(amoraProfileLookupError),
+      );
+      return NextResponse.json(
+        { error: "AI 댓글 저장 준비에 실패했습니다." },
+        { status: 500 },
+      );
+    }
 
     if (!amoraProfile) {
-      await serviceClient.from("community_profiles").upsert({
-        user_id: AMORA_USER_ID,
-        nickname: "아모라 AI",
-        rank: "master",
-        post_count: 0,
-        comment_count: 0,
-        total_upvotes_received: 0,
-        avatar_url: null,
-      }, { onConflict: "user_id" });
+      const { error: amoraProfileInsertError } = await serviceClient
+        .from("community_profiles")
+        .insert({
+          user_id: AMORA_USER_ID,
+          nickname: "아모라 AI",
+          rank: "master",
+          post_count: 0,
+          comment_count: 0,
+          total_upvotes_received: 0,
+          avatar_url: null,
+        });
+
+      if (amoraProfileInsertError) {
+        const { data: racedAmoraProfile, error: amoraProfileRereadError } =
+          await serviceClient
+            .from("community_profiles")
+            .select("user_id")
+            .eq("user_id", AMORA_USER_ID)
+            .maybeSingle();
+        if (amoraProfileRereadError || !racedAmoraProfile) {
+          console.error(
+            "AI community profile creation error:",
+            safeErrorDiagnostic(
+              amoraProfileRereadError ?? amoraProfileInsertError,
+            ),
+          );
+          return NextResponse.json(
+            { error: "AI 댓글 저장 준비에 실패했습니다." },
+            { status: 500 },
+          );
+        }
+      }
     }
 
     // 댓글 저장 (is_ai 플래그 포함)
@@ -243,7 +294,7 @@ export async function POST(req: NextRequest) {
         is_deleted: false,
         is_ai: true,
       })
-      .select("*")
+      .select(COMMUNITY_AI_COMMENT_SELECT)
       .single();
 
     if (commentError) {
@@ -258,26 +309,13 @@ export async function POST(req: NextRequest) {
           upvote_count: 0,
           is_deleted: false,
         })
-        .select("*")
+        .select(COMMUNITY_COMMENT_PUBLIC_SELECT)
         .single();
 
       if (fallbackError) {
-        console.error("AI comment insert error:", fallbackError);
+        console.error("AI comment insert error:", safeErrorDiagnostic(fallbackError));
         return NextResponse.json({ error: "댓글 저장 실패" }, { status: 500 });
       }
-
-      // comment_count 증가
-      await serviceClient
-        .from("community_posts")
-        .select("comment_count")
-        .eq("id", postId)
-        .single()
-        .then(({ data }) => {
-          return serviceClient
-            .from("community_posts")
-            .update({ comment_count: (data?.comment_count ?? 0) + 1 })
-            .eq("id", postId);
-        });
 
       return NextResponse.json({
         comment: {
@@ -293,19 +331,6 @@ export async function POST(req: NextRequest) {
         },
       }, { status: 201 });
     }
-
-    // comment_count 증가
-    await serviceClient
-      .from("community_posts")
-      .select("comment_count")
-      .eq("id", postId)
-      .single()
-      .then(({ data }) => {
-        return serviceClient
-          .from("community_posts")
-          .update({ comment_count: (data?.comment_count ?? 0) + 1 })
-          .eq("id", postId);
-      });
 
     return NextResponse.json({
       comment: {
@@ -330,7 +355,7 @@ export async function POST(req: NextRequest) {
         { status: 503 }
       );
     }
-    console.error("AI comment generation error:", err);
+    console.error("AI comment generation error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "AI 댓글 생성 중 오류가 발생했습니다." },
       { status: 500 }

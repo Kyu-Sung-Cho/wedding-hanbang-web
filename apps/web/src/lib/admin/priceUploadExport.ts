@@ -88,14 +88,16 @@ function pageResult(value: unknown): PromiseLike<PageResult> {
 
 async function loadAll(
   queryPage: (start: number, end: number) => PromiseLike<PageResult>,
+  maxRows = MAX_ROWS_PER_DATASET,
 ): Promise<unknown[]> {
   const rows: unknown[] = [];
-  while (rows.length < MAX_ROWS_PER_DATASET) {
-    const result = await queryPage(rows.length, rows.length + PAGE_SIZE - 1);
+  while (rows.length < maxRows) {
+    const requestedPageSize = Math.min(PAGE_SIZE, maxRows - rows.length);
+    const result = await queryPage(rows.length, rows.length + requestedPageSize - 1);
     if (result.error) throw new Error("PRICE_EXPORT_QUERY_FAILED");
     if (!Array.isArray(result.data)) throw new Error("PRICE_EXPORT_RESPONSE_INVALID");
     rows.push(...result.data);
-    if (result.data.length < PAGE_SIZE) return rows;
+    if (result.data.length < requestedPageSize) return rows;
   }
   throw new Error("PRICE_EXPORT_ROW_LIMIT_EXCEEDED");
 }
@@ -142,6 +144,10 @@ export async function loadCurrentPublishedPriceExport(client: SupabaseClient) {
   const rawOptions: unknown[] = [];
   for (let offset = 0; offset < priceIds.length; offset += 100) {
     const chunk = priceIds.slice(offset, offset + 100);
+    const remainingOptionBudget = MAX_ROWS_PER_DATASET - rawOptions.length;
+    if (remainingOptionBudget <= 0) {
+      throw new Error("PRICE_EXPORT_ROW_LIMIT_EXCEEDED");
+    }
     rawOptions.push(...await loadAll((start, end) => pageResult(
       client
         .from("v_private_admin_official_price_options")
@@ -151,7 +157,7 @@ export async function loadCurrentPublishedPriceExport(client: SupabaseClient) {
         .order("sort_order", { ascending: true })
         .order("id", { ascending: true })
         .range(start, end),
-    )));
+    ), remainingOptionBudget));
   }
   const options = optionRowsSchema.parse(rawOptions);
   const allowedPrices = new Set(priceIds);

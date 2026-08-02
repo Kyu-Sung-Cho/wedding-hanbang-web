@@ -10,12 +10,14 @@ describe("vendor event client queue", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     __resetVendorEventTrackerForTests();
-    document.cookie = "hb_price_anon_id=; Path=/; Max-Age=0";
+    document.cookie = "hb_price_anon_id=legacy; Path=/";
     sessionStorage.clear();
   });
 
   afterEach(() => {
     __resetVendorEventTrackerForTests();
+    document.cookie = "hb_price_anon_id=; Path=/; Max-Age=0";
+    Object.defineProperty(navigator, "doNotTrack", { configurable: true, value: null });
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -56,5 +58,58 @@ describe("vendor event client queue", () => {
     });
     await flushVendorEvents();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops decision events until a server-owned mutation emits them", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    track("quote_request", {
+      vendor_id: "20000000-0000-4000-8000-000000000001",
+      surface: "price_detail",
+    });
+    await flushVendorEvents();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses memory-only identifiers and never writes analytics browser storage", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    const cookieBefore = document.cookie;
+
+    track("search", { surface: "price_list", context: {} });
+    await flushVendorEvents();
+
+    expect(document.cookie).toBe(cookieBefore);
+    expect(sessionStorage).toHaveLength(0);
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload.events[0].anon_id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(payload.events[0].session_id).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("does not queue or send events when DNT is enabled", async () => {
+    Object.defineProperty(navigator, "doNotTrack", { configurable: true, value: "1" });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    track("search", { surface: "price_list", context: {} });
+    await vi.advanceTimersByTimeAsync(6_000);
+    await flushVendorEvents();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops analytics instead of falling back to a predictable identifier", async () => {
+    vi.stubGlobal("crypto", {});
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    track("search", { surface: "price_list", context: {} });
+    await vi.advanceTimersByTimeAsync(6_000);
+    await flushVendorEvents();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

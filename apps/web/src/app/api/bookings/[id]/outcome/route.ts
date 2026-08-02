@@ -5,7 +5,7 @@ import {
   processBookingProjectionJob,
   type BookingProjectionDeliveryResult,
 } from "@/lib/bookings/projectionOutbox";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanIntegerInRange,
   cleanOptionalBoolean,
@@ -13,7 +13,9 @@ import {
   isBodyTooLarge,
   isRecord,
   isUuid,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export const dynamic = "force-dynamic";
 
@@ -199,13 +201,24 @@ export async function PATCH(
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("booking:outcome", request, user.id),
       { maxRequests: 20, windowMs: 60 * 60 * 1000 }
     );
     if (rlResult) return rlResult;
 
-    const outcome = parseOutcomeBody(await request.json().catch(() => null));
+    const parsedBody = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!parsedBody.ok) {
+      return NextResponse.json(
+        {
+          error: parsedBody.reason === "too_large"
+            ? "요청 데이터가 너무 큽니다."
+            : "예약 결과 입력값이 올바르지 않습니다.",
+        },
+        { status: parsedBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const outcome = parseOutcomeBody(parsedBody.value);
     if (!outcome) {
       return NextResponse.json({ error: "예약 결과 입력값이 올바르지 않습니다." }, { status: 400 });
     }
@@ -235,7 +248,7 @@ export async function PATCH(
           { status: 400 },
         );
       }
-      console.error("Booking outcome atomic RPC error:", atomicError);
+      console.error("Booking outcome atomic RPC error:", safeErrorDiagnostic(atomicError));
       return NextResponse.json(
         {
           error: "예약 결과 저장 여부를 확인하지 못했습니다. 같은 내용을 다시 저장해도 중복 처리되지 않습니다.",
@@ -272,7 +285,7 @@ export async function PATCH(
     } catch (projectionError) {
       console.error(
         "[booking outcome] projection processing failed; durable retry remains queued:",
-        projectionError,
+        safeErrorDiagnostic(projectionError),
       );
       projection = {
         bookingId: id,
@@ -285,7 +298,6 @@ export async function PATCH(
     }
     if (projection.status !== "completed") {
       console.error("[booking outcome] budget projection is not complete:", {
-        bookingId: id,
         status: projection.status,
         errorCode: projection.errorCode,
       });
@@ -341,7 +353,7 @@ export async function PATCH(
       message,
     }, { status: fullyApplied ? 200 : 202 });
   } catch (err) {
-    console.error("Booking outcome error:", err);
+    console.error("Booking outcome error:", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

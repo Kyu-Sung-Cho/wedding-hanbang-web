@@ -2,8 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { createBrowserClient } from "@supabase/ssr";
-import { useRouter } from "next/navigation";
 import {
   User,
   CalendarCheck,
@@ -13,7 +11,8 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
+import { useAuthStore } from "@/stores/authStore";
 
 interface MenuItem {
   linkProps?: ReturnType<typeof weddingLinkProps>;
@@ -30,19 +29,13 @@ interface MenuItem {
  * - 모바일에서도 동일 데스크탑 UI (모바일 메뉴는 별도 처리)
  */
 export default function UserMenu() {
-  const router = useRouter();
+  const signOut = useAuthStore((state) => state.signOut);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = useCallback(async () => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    await supabase.auth.signOut();
-    router.push(weddingPath());
-    router.refresh();
-  }, [router]);
+    await signOut();
+  }, [signOut]);
 
   useEffect(() => {
     if (!open) return;

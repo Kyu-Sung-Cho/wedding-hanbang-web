@@ -11,10 +11,12 @@ vi.mock("@/lib/bookings/projectionOutbox", () => ({
   drainBookingProjectionJobs: vi.fn(),
 }));
 
+const CRON_SECRET = "cron-secret-with-at-least-thirty-two-characters";
+
 describe("/api/cron/booking-projections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("CRON_SECRET", "test-cron-secret");
+    vi.stubEnv("CRON_SECRET", CRON_SECRET);
   });
 
   afterEach(() => {
@@ -54,7 +56,7 @@ describe("/api/cron/booking-projections", () => {
 
     const response = await GET(new NextRequest(
       "https://example.test/api/cron/booking-projections",
-      { headers: { authorization: "Bearer test-cron-secret" } },
+      { headers: { authorization: `Bearer ${CRON_SECRET}` } },
     ));
 
     expect(response.status).toBe(200);
@@ -93,7 +95,7 @@ describe("/api/cron/booking-projections", () => {
 
     const response = await GET(new NextRequest(
       "https://example.test/api/cron/booking-projections",
-      { headers: { authorization: "Bearer test-cron-secret" } },
+      { headers: { authorization: `Bearer ${CRON_SECRET}` } },
     ));
 
     expect(response.status).toBe(503);

@@ -3,16 +3,31 @@ import {
   bookingCountAt,
   buildKstDateWindow,
   loadPublicBookingAvailability,
+  toPublicBookingSlots,
   type BookingOccupancyCount,
 } from "@/lib/vendors/bookingAvailability";
 import { isUuid } from "@/utils/requestValidation";
+import { checkPublicBookingAvailabilityRateLimit } from "@/lib/vendors/publicAvailabilityRateLimit";
 import { NextResponse } from "next/server";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION } from "@/lib/vendors/staffPublicationConsent";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
+function publicJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
+
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     if (!isUuid(id)) {
-      return NextResponse.json({ error: "잘못된 업체 ID입니다." }, { status: 400 });
+      return publicJson({ error: "잘못된 업체 ID입니다." }, 400);
+    }
+    const limited = await checkPublicBookingAvailabilityRateLimit(req);
+    if (limited) {
+      limited.headers.set("Cache-Control", NO_STORE_HEADERS["Cache-Control"]);
+      return limited;
     }
     const admin = createAdminClient();
 
@@ -25,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .single();
 
     if (!vendor) {
-      return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
+      return publicJson({ error: "업체를 찾을 수 없습니다." }, 404);
     }
 
     // 활성 스태프만 조회
@@ -34,6 +49,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .select("id, name, role, description")
       .eq("vendor_id", id)
       .eq("is_active", true)
+      .not("public_profile_consent_at", "is", null)
+      .eq(
+        "public_profile_consent_version",
+        CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION,
+      )
       .order("sort_order");
 
     // 스태프별 타임슬롯
@@ -55,24 +75,25 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       });
     } catch {
       console.error("[vendor-staff] booking availability unavailable");
-      return NextResponse.json(
+      return publicJson(
         {
           error: "예약 가능 시간을 확인할 수 없습니다.",
           code: "BOOKING_AVAILABILITY_UNAVAILABLE",
         },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
+        503,
       );
     }
     const dateForDay = new Map(nextWeekDates.map(({ date, day }) => [day, date]));
 
     const result = (staff ?? []).map((s) => {
-      const slots = (timeslots ?? [])
+      const internalSlots = (timeslots ?? [])
         .filter((t) => t.staff_id === s.id)
         .map((t) => ({
           day: t.day,
           hour: t.hour,
-          maxBookings: t.max_bookings,
-          currentBookings: dateForDay.has(t.day)
+          available: true,
+          max_bookings: t.max_bookings,
+          current_bookings: dateForDay.has(t.day)
             ? bookingCountAt(occupancy, {
                 date: dateForDay.get(t.day)!,
                 hour: t.hour,
@@ -80,6 +101,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
               })
             : t.max_bookings,
         }));
+      const slots = toPublicBookingSlots(internalSlots);
 
       return {
         id: s.id,
@@ -90,9 +112,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       };
     });
 
-    return NextResponse.json({ staff: result });
+    return publicJson({ staff: result });
   } catch (err) {
-    console.error("Vendor staff GET error:", err);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+    console.error("Vendor staff GET error", safeErrorDiagnostic(err));
+    return publicJson({ error: "서버 오류" }, 500);
   }
 }

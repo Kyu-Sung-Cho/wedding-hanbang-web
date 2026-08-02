@@ -6,13 +6,16 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { processBookingProjectionJob } from "@/lib/bookings/projectionOutbox";
 import { POST } from "./route";
 
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: rateLimitMocks.checkRateLimitPersistent,
   rateLimitKey: vi.fn(() => "booking:test"),
 }));
-vi.mock("@/lib/memory/record-decision", () => ({ recordDecision: vi.fn() }));
 vi.mock("@/lib/bookings/progressSync", () => ({
   syncBookingProgressAfterCreate: vi.fn().mockResolvedValue({
     persisted: false,
@@ -45,9 +48,45 @@ function query(result: { data: unknown; error: unknown }) {
   return value;
 }
 
+function chunkedOversizeRequest(byteLength: number): Request {
+  const firstChunkSize = Math.floor(byteLength / 2);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(firstChunkSize).fill(0x7b));
+      controller.enqueue(new Uint8Array(byteLength - firstChunkSize).fill(0x7d));
+      controller.close();
+    },
+  });
+  return new Request("https://example.test/api/bookings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 describe("POST /api/bookings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitMocks.checkRateLimitPersistent.mockResolvedValue(null);
+  });
+
+  it("returns 413 for a Content-Length-less chunked oversized JSON body", async () => {
+    const from = vi.fn(() => {
+      throw new Error("oversized input must not reach database reads");
+    });
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+      from,
+    } as never);
+    const request = chunkedOversizeRequest(8 * 1024 + 1);
+
+    const response = await POST(request);
+
+    expect(request.headers.get("content-length")).toBeNull();
+    expect(response.status).toBe(413);
+    expect(from).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("returns 202 and an explicit retry boundary when booking projection is queued", async () => {
@@ -68,9 +107,6 @@ describe("POST /api/bookings", () => {
         }
         if (table === "vendor_bookings") {
           return query({ data: booking, error: null });
-        }
-        if (table === "vendors") {
-          return query({ data: { name: "Hanbang Studio", category: "studio" }, error: null });
         }
         throw new Error(`unexpected table ${table}`);
       }),

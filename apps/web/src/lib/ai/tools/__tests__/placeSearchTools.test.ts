@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeSearchNearbyPlaces } from "../placeSearchTools";
 
 const ENV_KEYS = [
+  "NAVER_PLACE_SEARCH_ENABLED",
   "NAVER_API_HUB_CLIENT_ID",
   "NAVER_API_HUB_CLIENT_SECRET",
   "NAVER_CLIENT_ID",
@@ -58,6 +59,7 @@ function expectHandoff(output: Record<string, unknown>, query: string) {
 describe("placeSearchTools", () => {
   beforeEach(() => {
     for (const key of ENV_KEYS) delete process.env[key];
+    process.env.NAVER_PLACE_SEARCH_ENABLED = "true";
   });
 
   afterEach(() => {
@@ -82,6 +84,97 @@ describe("placeSearchTools", () => {
       toolOutput: { places: [], query: "", error: "invalid_query" },
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps third-party place search disabled unless the exact privacy gate is enabled", async () => {
+    process.env.NAVER_PLACE_SEARCH_ENABLED = "false";
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+    const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
+    const query = "강남 상견례 식당";
+
+    const result = await executeSearchNearbyPlaces({ query });
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: {
+        places: [],
+        query,
+        error: "naver_api_disabled",
+        providerUnavailable: true,
+      },
+    });
+    expectHandoff(result.toolOutput as Record<string, unknown>, query);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "bride@example.com 근처 식당",
+    "010-1234-5678 근처 카페",
+    "900101-2000000 주변 식당",
+    "11111111-1111-4111-8111-111111111111 주변 카페",
+    "Bearer abcdefghijklmnopqrstuvwxyz 근처 식당",
+    "sk-proj-abcdefghijklmnopqrstuvwxyz 주변 카페",
+  ])("blocks direct identifiers and credentials before NAVER: %s", async (query) => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+    const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
+
+    const result = await executeSearchNearbyPlaces({ query });
+
+    expect(result).toMatchObject({
+      success: false,
+      toolInput: { query: "[redacted]" },
+      toolOutput: {
+        places: [],
+        query: "[redacted]",
+        error: "private_query_blocked",
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain(query);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("enforces the provider query length at execution time", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+    const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
+
+    const tooLong = "가".repeat(121);
+    const result = await executeSearchNearbyPlaces({ query: tooLong });
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_query" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("redacts a private query before length validation can retain it", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+    const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
+    const query = `${"가".repeat(121)} bride@example.com`;
+
+    const result = await executeSearchNearbyPlaces({ query });
+
+    expect(result).toMatchObject({
+      success: false,
+      toolInput: { query: "[redacted]" },
+      toolOutput: { query: "[redacted]", error: "private_query_blocked" },
+    });
+    expect(JSON.stringify(result)).not.toContain(query);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops model-injected fields from the retained tool input", async () => {
+    const result = await executeSearchNearbyPlaces({
+      query: "강남 상견례 식당",
+      accessToken: "secret-that-must-not-be-retained",
+    });
+
+    expect(result.toolInput).toEqual({ query: "강남 상견례 식당" });
+    expect(JSON.stringify(result)).not.toContain("secret-that-must-not-be-retained");
   });
 
   it.each([

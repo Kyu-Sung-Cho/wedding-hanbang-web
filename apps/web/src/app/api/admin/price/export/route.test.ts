@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
   loadExport: vi.fn(),
+  rateLimit: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
@@ -15,6 +16,11 @@ vi.mock("@/lib/utils/adminAuth", () => ({
 
 vi.mock("@/lib/admin/priceUploadExport", () => ({
   loadCurrentPublishedPriceExport: mocks.loadExport,
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
 }));
 
 import { GET } from "./route";
@@ -56,5 +62,16 @@ describe("GET /api/admin/price/export", () => {
       prices: [{ id: "price-1", options: [] }],
     });
     expect(mocks.loadExport).toHaveBeenCalledWith(client);
+  });
+
+  it("stops a limited export before loading the high-volume projection", async () => {
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: "admin-1" });
+    mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }));
+
+    const response = await GET(new Request("https://example.test/api/admin/price/export"));
+
+    expect(response.status).toBe(429);
+    expect(mocks.getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.loadExport).not.toHaveBeenCalled();
   });
 });

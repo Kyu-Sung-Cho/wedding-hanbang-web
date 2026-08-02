@@ -65,6 +65,8 @@ describe("checkRateLimit", () => {
     const retryAfter = result?.headers.get("Retry-After");
     expect(Number(retryAfter)).toBeGreaterThan(0);
     expect(Number(retryAfter)).toBeLessThanOrEqual(30);
+    expect(result?.headers.get("Cache-Control")).toContain("no-store");
+    expect(result?.headers.get("Vary")).toContain("Authorization");
   });
 
   it("resets window after windowMs elapses", async () => {
@@ -152,6 +154,38 @@ describe("rateLimitKey", () => {
     );
   });
 
+  it("prefers Vercel's platform forwarding header over proxy-overwritable headers", () => {
+    const req = new Request("http://localhost", {
+      headers: {
+        "x-vercel-forwarded-for": "8.8.8.8",
+        "x-real-ip": "7.7.7.7",
+        "x-forwarded-for": "1.2.3.4",
+      },
+    });
+    expect(rateLimitKey("chat", req)).toBe(
+      rateLimitKey(
+        "chat",
+        new Request("http://localhost", {
+          headers: { "x-vercel-forwarded-for": "8.8.8.8" },
+        }),
+      ),
+    );
+  });
+
+  it("ignores malformed IP headers instead of creating attacker-chosen buckets", () => {
+    const malformed = new Request("http://localhost", {
+      headers: {
+        "x-vercel-forwarded-for": "attacker-controlled",
+        "x-real-ip": "also-not-an-ip",
+        "x-forwarded-for": "garbage, 5.6.7.8",
+      },
+    });
+    const validFallback = new Request("http://localhost", {
+      headers: { "x-forwarded-for": "5.6.7.8" },
+    });
+    expect(rateLimitKey("chat", malformed)).toBe(rateLimitKey("chat", validFallback));
+  });
+
   it("spoofed leftmost XFF cannot create fresh buckets", () => {
     const spoofed = new Request("http://localhost", {
       headers: { "x-forwarded-for": "6.6.6.6, 5.6.7.8" },
@@ -198,10 +232,22 @@ describe("rateLimitKey", () => {
     expect(first).toMatch(/^chat:sha256:[a-f0-9]{64}$/);
     expect(first).not.toContain("user-123");
   });
+
+  it.each(["", "short", "x".repeat(40), "placeholder-secret-that-is-long-enough"])(
+    "fails closed for a missing or weak production pseudonym key",
+    (secret) => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("RATE_LIMIT_KEY_SECRET", secret);
+
+      expect(() => rateLimitSubjectKey("signup-email", "person@example.com"))
+        .toThrow("RATE_LIMIT_KEY_SECRET_INVALID");
+    },
+  );
 });
 
 describe("checkRateLimitPersistent fail-closed mode", () => {
   beforeEach(() => {
+    mocks.rpc.mockReset();
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", `sb_secret_${"a".repeat(40)}`);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -210,6 +256,20 @@ describe("checkRateLimitPersistent fail-closed mode", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+  });
+
+  it("returns 503 when the shared limiter configuration is unavailable", async () => {
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
+    const { checkRateLimitPersistent } = await import("../rateLimit");
+
+    const response = await checkRateLimitPersistent(
+      "community:search:missing-config",
+      { maxRequests: 30, windowMs: 60_000 },
+    );
+
+    expect(response?.status).toBe(503);
+    expect(response?.headers.get("Retry-After")).toBe("60");
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("defaults to 503 instead of an instance-local fallback when the shared RPC fails", async () => {
@@ -280,5 +340,35 @@ describe("checkRateLimitPersistent fail-closed mode", () => {
       p_window_ms: 60_000,
       p_cost: 20,
     });
+  });
+
+  it("sends concurrent attempts to the shared atomic bucket and preserves every denial", async () => {
+    let release: (() => void) | undefined;
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let ordinal = 0;
+    mocks.rpc.mockImplementation(async () => {
+      const current = ordinal;
+      ordinal += 1;
+      await barrier;
+      return {
+        data: [{ allowed: current < 3, retry_after_seconds: current < 3 ? 0 : 60 }],
+        error: null,
+      };
+    });
+    const { checkRateLimitPersistent } = await import("../rateLimit");
+
+    const pending = Array.from({ length: 6 }, () => checkRateLimitPersistent(
+      "community:post:create:hmac-sha256:" + "b".repeat(64),
+      { maxRequests: 3, windowMs: 60_000 },
+    ));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(6));
+    release?.();
+    const results = await Promise.all(pending);
+
+    expect(results.slice(0, 3)).toEqual([null, null, null]);
+    expect(results.slice(3).map((response) => response?.status)).toEqual([429, 429, 429]);
+    expect(mocks.rpc).toHaveBeenCalledTimes(6);
   });
 });

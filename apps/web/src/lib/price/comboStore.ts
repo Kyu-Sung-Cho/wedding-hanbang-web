@@ -21,13 +21,29 @@ export type PriceComboState = {
   setSelection(category: ComboCategory, selection: ComboSelection): void;
   replaceSelections(selections: ComboSelections): void;
   clearSelection(category: ComboCategory): void;
-  hydrate(storage?: SessionStorageLike): void;
+  hydrate(storage?: SessionStorageLike, actorKey?: string): void;
   reset(): void;
 };
 
-export type SessionStorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export type SessionStorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">
+  & Partial<Pick<Storage, "key" | "length">>;
 
 export const PRICE_COMBO_STORAGE_KEY = "hanbang-price-combo-v1";
+const PRICE_COMBO_ACTOR_STORAGE_PREFIX = `${PRICE_COMBO_STORAGE_KEY}:actor:`;
+
+function browserSessionStorage(): SessionStorageLike | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function priceComboStorageKey(actorKey: string): string {
+  if (!actorKey) throw new Error("PRICE_COMBO_ACTOR_REQUIRED");
+  return `${PRICE_COMBO_ACTOR_STORAGE_PREFIX}${encodeURIComponent(actorKey)}`;
+}
 
 const EMPTY_SELECTIONS: ComboSelections = {
   studio: null,
@@ -101,9 +117,10 @@ export function createPriceComboStore(
   initialStorage?: SessionStorageLike,
 ): StoreApi<PriceComboState> {
   let activeStorage = initialStorage;
+  let activeStorageKey = PRICE_COMBO_STORAGE_KEY;
   const persist = (selections: ComboSelections) => {
     try {
-      activeStorage?.setItem(PRICE_COMBO_STORAGE_KEY, JSON.stringify({ selections }));
+      activeStorage?.setItem(activeStorageKey, JSON.stringify({ selections }));
     } catch {
       // Session persistence is best effort and must never block price comparison.
     }
@@ -130,30 +147,59 @@ export function createPriceComboStore(
         return { selections, totalKrw: total(selections) };
       });
     },
-    hydrate(storage) {
+    hydrate(storage, actorKey) {
       if (storage) activeStorage = storage;
+      else if (!activeStorage) activeStorage = browserSessionStorage() ?? undefined;
       if (!activeStorage) return;
+      activeStorageKey = actorKey ? priceComboStorageKey(actorKey) : PRICE_COMBO_STORAGE_KEY;
+      // Switching the active key must blank memory before any scoped restore.
+      set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
       try {
-        const raw = activeStorage.getItem(PRICE_COMBO_STORAGE_KEY);
+        if (actorKey) activeStorage.removeItem(PRICE_COMBO_STORAGE_KEY);
+        const raw = activeStorage.getItem(activeStorageKey);
         if (!raw) return;
         const parsed = JSON.parse(raw) as unknown;
         const selections = isRecord(parsed) ? parseSelections(parsed.selections) : null;
         if (!selections) {
-          activeStorage.removeItem(PRICE_COMBO_STORAGE_KEY);
+          activeStorage.removeItem(activeStorageKey);
           return;
         }
         set({ selections, totalKrw: total(selections) });
       } catch {
-        activeStorage.removeItem(PRICE_COMBO_STORAGE_KEY);
+        activeStorage.removeItem(activeStorageKey);
       }
     },
     reset() {
       try {
-        activeStorage?.removeItem(PRICE_COMBO_STORAGE_KEY);
+        activeStorage?.removeItem(activeStorageKey);
       } catch {
         // Session persistence is best effort.
       }
       set({ selections: { ...EMPTY_SELECTIONS }, totalKrw: 0 });
     },
   }));
+}
+
+export const priceComboStore = createPriceComboStore();
+
+/** Purge both the singleton and an unhydrated tab cache on actor changes. */
+export function clearPriceComboClientState(
+  storage: SessionStorageLike | null = browserSessionStorage(),
+  actorKey?: string,
+): void {
+  priceComboStore.getState().reset();
+  try {
+    storage?.removeItem(PRICE_COMBO_STORAGE_KEY);
+    if (actorKey) storage?.removeItem(priceComboStorageKey(actorKey));
+    if (!actorKey && storage && typeof storage.key === "function" && typeof storage.length === "number") {
+      const keys: string[] = [];
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key?.startsWith(PRICE_COMBO_ACTOR_STORAGE_PREFIX)) keys.push(key);
+      }
+      for (const key of keys) storage.removeItem(key);
+    }
+  } catch {
+    // Storage may be unavailable; the in-memory state is already blank.
+  }
 }

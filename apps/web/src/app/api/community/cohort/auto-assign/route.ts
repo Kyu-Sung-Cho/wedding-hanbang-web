@@ -1,6 +1,14 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { isUuid } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
 import {
   dateToYearQuarter,
   FLEX_COHORT_MONTH,
@@ -26,6 +34,13 @@ function getServiceClient() {
  * 첫 커뮤니티 진입 시 silent로 호출.
  */
 export async function POST(req: Request) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { room_id: null, reason: "invalid_origin" },
+      { status: 403 },
+    );
+  }
+
   try {
     const supabase = await createClientFromRequest(req);
     const {
@@ -35,6 +50,13 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ room_id: null, reason: "unauthenticated" }, { status: 200 });
     }
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:cohort:assign", req, user.id),
+      { maxRequests: 10, windowMs: 10 * 60 * 1000 },
+      { failClosed: true },
+    );
+    if (limited) return limited;
 
     // 1. 이미 가입된 방이 있으면 그대로 반환
     const { data: existingMembership } = await supabase
@@ -94,31 +116,22 @@ export async function POST(req: Request) {
       p_month: target.month,
     });
 
-    if (rpcError) {
-      console.error("[auto-assign] RPC error:", rpcError);
+    if (rpcError && isCommunityActorWriteDenied(rpcError)) {
       return NextResponse.json(
-        { room_id: null, reason: "rpc_failed", error: rpcError.message },
-        { status: 500 }
+        { room_id: null, reason: "actor_write_denied", error: COMMUNITY_WRITE_DENIED_MESSAGE },
+        { status: 403 },
       );
     }
 
-    if (roomId) {
-      await serviceClient
-        .from("cohort_members")
-        .update({ is_active: true })
-        .eq("room_id", roomId)
-        .eq("user_id", user.id);
-
-      const { count } = await serviceClient
-        .from("cohort_members")
-        .select("id", { count: "exact", head: true })
-        .eq("room_id", roomId)
-        .eq("is_active", true);
-
-      await serviceClient
-        .from("cohort_rooms")
-        .update({ member_count: count ?? 0 })
-        .eq("id", roomId);
+    if (rpcError || typeof roomId !== "string" || !isUuid(roomId)) {
+      console.error(
+        "[auto-assign] RPC error:",
+        safeErrorDiagnostic(rpcError ?? new Error("invalid cohort room id")),
+      );
+      return NextResponse.json(
+        { room_id: null, reason: "rpc_failed", error: "동기방 배정에 실패했습니다." },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -129,7 +142,7 @@ export async function POST(req: Request) {
       flexible: useFlexibleCohort,
     });
   } catch (err) {
-    console.error("[auto-assign] unexpected:", err);
+    console.error("[auto-assign] unexpected:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { room_id: null, reason: "server_error" },
       { status: 500 }

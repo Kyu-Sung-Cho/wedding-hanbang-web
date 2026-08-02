@@ -29,6 +29,13 @@ const VALUE_SET = new Set<string>(VALUES);
 /** 코드 문자열 한 글자 = 문항 하나의 답. 미응답은 `-`. */
 export const WEDDING_CODE_V06_SKIP = "-";
 
+export type WeddingCodeV06SharePayload = {
+  firstCode: string;
+  firstAnswers: WeddingCodeV06Answers;
+  secondCode: string | null;
+  secondAnswers: WeddingCodeV06Answers | null;
+};
+
 export function encodeWeddingCodeV06(answers: WeddingCodeV06Answers): string {
   return WEDDING_CODE_V06_QUESTIONS.map(
     (question) => answers[question.key] ?? WEDDING_CODE_V06_SKIP,
@@ -63,4 +70,41 @@ export function decodeWeddingCodeV06(code: string | null | undefined): WeddingCo
 
 export function isCompleteWeddingCodeV06(answers: WeddingCodeV06Answers): boolean {
   return WEDDING_CODE_V06_QUESTIONS.every((question) => Boolean(answers[question.key]));
+}
+
+/**
+ * 공유 답변은 URL fragment에만 둔다. Fragment는 HTTP 요청과 Referer 헤더에
+ * 포함되지 않으므로 CDN, 서버, 프록시 접근 로그로 답변이 전송되지 않는다.
+ */
+export function decodeWeddingCodeV06ShareHash(
+  hash: string | null | undefined,
+): WeddingCodeV06SharePayload | null {
+  if (typeof hash !== "string") return null;
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw || raw.length > 256) return null;
+
+  const params = new URLSearchParams(raw);
+  const firstCode = (params.get("a") ?? "").trim().toUpperCase();
+  const firstAnswers = decodeWeddingCodeV06(firstCode);
+  if (!firstAnswers) return null;
+
+  const candidateSecondCode = (params.get("b") ?? "").trim().toUpperCase();
+  const secondAnswers = decodeWeddingCodeV06(candidateSecondCode);
+
+  return {
+    firstCode,
+    firstAnswers,
+    secondCode: secondAnswers ? candidateSecondCode : null,
+    secondAnswers,
+  };
+}
+
+export function buildWeddingCodeV06ShareUrl(
+  origin: string,
+  firstCode: string,
+  secondCode?: string | null,
+): string {
+  const params = new URLSearchParams({ a: firstCode.trim().toUpperCase() });
+  if (secondCode) params.set("b", secondCode.trim().toUpperCase());
+  return `${origin.replace(/\/$/, "")}/wedding-code#${params.toString()}`;
 }

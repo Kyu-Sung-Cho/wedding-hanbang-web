@@ -4,7 +4,10 @@
 > (20260716108000)” below and follow
 > `docs/operations/PRODUCTION_WRITE_FENCE_2026-07-17.md`. The earlier 20260714
 > chat-image Expand/Contract sections are superseded historical instructions and
-> must not be executed for the current release.
+> must not be executed for the current release. The authenticated chat INSERT
+> policy produced by the 20260716108000 finalizer is now a transitional prestate:
+> the current release must finish with the 20260802159000 server-owned upload
+> fence and zero `storage.objects` policies.
 
 These chat-attachment changes are intentionally outside `supabase/migrations`.
 Hosted Supabase owns `storage.objects` as `supabase_storage_admin`; the project
@@ -73,38 +76,67 @@ Run them only in their assigned role:
 | `storage_global_write_freeze_apply.sql` | Phase 1: remove exactly 15 mutation policies | Dashboard reference/local test only; leaves exactly four SELECT policies. |
 | `storage_global_write_freeze_verify.sql` | Phase 1 receipt | Read-only; proves four SELECTs, ten buckets, no staging, and exact 6/43 object counts. |
 | `storage_global_write_freeze_rollback.sql` | Safe phase-1 recovery | Restores/converges to four SELECTs and zero mutation policies. |
-| `community_upload_service_fence_apply.sql` | Phase 2: remove four SELECTs when present and create one strict guarded INSERT | Dashboard reference/local test only, after all 27 migrations and staging creation; accepts the exact four-read freeze or zero-policy retry state. |
-| `community_upload_service_fence_verify.sql` | Final receipt | Read-only; proves exact helper ACL/body contracts, closed production fence, eleven buckets, empty staging, and the exact one-row semantic policy multiset. |
+| `community_upload_service_fence_apply.sql` | Phase 2: require the hardened `chat-image` contract, remove four SELECTs when present, and create one strict guarded INSERT | Dashboard reference/local test only, after all 27 migrations, the five-bucket privacy transitions in migrations `20260802134000`/`20260802143000`, the 3 MiB/image-only transition in migration `20260802157000`, and staging creation; accepts the exact four-read freeze or zero-policy retry state and never mutates bucket metadata. |
+| `community_upload_service_fence_verify.sql` | Final receipt | Read-only; proves the 3 MiB/image-only `chat-image` bucket, exact helper ACL/body contracts, closed production fence, eleven buckets including five private dormant buckets, empty staging, and the exact one-row semantic policy multiset. |
 | `community_upload_service_fence_rollback.sql` | Safe phase-2 rollback | Removes the semantic final policy regardless of generated suffix and converges to zero policies; broad public reads stay removed. |
-| `community_upload_service_fence_rollback_verify.sql` | Safe phase-2 rollback receipt | Read-only; proves zero policies, hence zero reads and zero mutations. |
-| `community_upload_service_fence_emergency_rollback.sql` | Security-regressing incident restore | Manual/time-bounded only; restores the exact insecure 19-policy prestate. Never bind to the controller. |
-| `community_upload_service_fence_emergency_rollback_verify.sql` | Incident restore receipt | Read-only; green proves the regression was reproduced, not that it is safe. |
+| `community_upload_service_fence_rollback_verify.sql` | Safe phase-2 rollback receipt | Read-only; proves zero policies, hence zero reads and zero mutations, while all five dormant buckets remain private. |
+| `community_upload_service_fence_emergency_rollback.sql` | Security-regressing incident restore | Manual/time-bounded policy-only restore; restores the exact insecure 19-policy prestate without reopening any dormant bucket. Never bind to the controller. |
+| `community_upload_service_fence_emergency_rollback_verify.sql` | Incident restore receipt | Read-only; green proves the policy regression was reproduced while all five dormant buckets stayed private, not that the state is safe. |
+| `20260802159000_chat_image_server_upload_fence_inventory.sql` | Server-owned chat prestate | Read-only; records policy/bucket counts and hashed object-path inventory without exposing raw paths. |
+| `20260802159000_chat_image_server_upload_fence_apply.sql` | Final chat-image privilege contraction | Dashboard reference only; accepts the exact four-read freeze, reviewed authenticated INSERT policy, or an idempotent zero-policy retry, then removes every reviewed policy without touching objects. |
+| `20260802159000_chat_image_server_upload_fence_verify.sql` | Final server-owned receipt | Read-only; proves zero Storage policies, the private 3 MiB/image-only bucket, and service-role BYPASSRLS/table authority. |
+| `20260802159000_chat_image_server_upload_fence_rollback.sql` | Fail-closed recovery | Never restores client upload; validates zero policies and preserves all existing objects. |
+| `20260802159000_chat_image_server_upload_fence_rollback_verify.sql` | Fail-closed recovery receipt | Read-only; proves rollback did not recreate a policy or weaken the bucket. |
 
 The order is fixed: inventory → global mutation-policy freeze → read-only freeze
 verification → wait at least two-hour signed-token TTL plus 10-minute grace →
 two stable controller receipts at least five minutes apart → verified logical
 backup and local PGlite logical row replay → separate different-project hosted
-restore rehearsal → all 27 migrations with the global database fence still active →
-create private empty staging → final policy operation → final controller receipt
+restore rehearsal → all 27 predecessor migrations with the global database
+fence still active → apply the complete ordered
+`vendor-disclosure-v2-20260718.json` successor manifest through migration 1570,
+including migrations `20260802134000` and `20260802143000`'s five-bucket
+`public=false` transition (only after the pre-migration receipts, and only after
+1430 proves its three buckets are empty) and migration `20260802157000`'s exact
+`chat-image` 3 MiB/image-only transition → create
+private empty staging → final
+transitional policy operation → 20260802159000 server-owned upload contraction
+→ final zero-policy controller receipt
 with the Storage helper still false → disposable hosted compatibility probe →
 deploy/read-only canary with both fences closed → authorized database-fence
 lift → positive production canary. Phase 1 is deliberately independent of
-migration 1130's helpers.
+migration 1130's helpers. Inventory, freeze verification, the freeze controller
+receipt, and the release pre-check intentionally require the old
+`public=true` state for all five dormant buckets; every final and phase-2
+rollback receipt requires `public=false`. Safe and emergency phase-2 rollback
+operations do not weaken the hardened `chat-image` bucket settings or the five
+private dormant bucket flags.
 
-The provisional final global `storage.objects` manifest is exactly one
-authenticated `INSERT`. Its Dashboard-generated suffix is logged but ignored by
-verification; the exact command, role, permissive mode, predicate digest, and
-one-row count are authoritative. It accepts only canonical
-`{couple_uuid}/{auth.uid()}/{uuid}.{jpeg|jpg|png|gif|webp}` and calls the current
-couple-membership, account-deletion, and production-fence helpers. There is no
-one-folder compatibility policy and no public Storage SELECT policy.
+The 20260716108000 one-policy state is now only the reviewed input to the final
+contraction. The release-ready state is a private `chat-image` bucket with a
+3 MiB limit, the ordered JPEG/PNG/GIF/WebP MIME allowlist, and zero
+`storage.objects` policies. Authenticated clients therefore have no direct read
+or mutation path. The chat API uses `service_role` (BYPASSRLS) only after it has
+decoded, bounded, and re-encoded the image. Existing objects are preserved for
+the separately reviewed inventory/quarantine/re-encode gate in
+`docs/operations/CHAT_IMAGE_SERVER_UPLOAD_FENCE_2026-08-03.md`.
 
-This one-policy manifest is **NO-GO until an actual disposable hosted Storage
-`upload()` succeeds**. Supabase documents an `INSERT ... RETURNING *` path that
-may require a matching SELECT policy. If the positive probe fails, review a
-strict same-path SELECT companion or server-signed flow and update the exact
-manifest; never add a broad read. Historical chat bytes use the authorized
-service-role signed-URL API.
+Because Supabase both documents SQL bucket creation and advises treating its
+Storage schema as read-only, a successful SQL migration is not by itself proof
+that the hosted service enforces the new metadata. The disposable hosted clone
+must read the bucket through the official bucket API and exercise real upload
+allow/deny probes. If the service does not honor the SQL metadata transition,
+stop and use an explicitly reviewed Dashboard or official `updateBucket`
+operation; never open either production write fence on SQL evidence alone.
+
+The old one-policy manifest remains **NO-GO for production writes**. The current
+server-owned flow supplies byte-level MIME validation, decode/re-encode,
+metadata removal, exact message binding, bounded payloads, and best-effort
+orphan cleanup before provider use. A disposable hosted probe must prove an
+authenticated direct upload fails and a service-owned sanitized upload works;
+never add a client SELECT companion or broad read. Historical chat bytes use
+the authorized service-role signed-URL API and remain subject to the documented
+legacy re-encode gate.
 
 Migration 1080 creates only the app-owned durable session table/function. It has
 no hosted Storage prerequisite and never reads or changes `storage.objects`,

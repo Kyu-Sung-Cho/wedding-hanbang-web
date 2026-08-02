@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -40,7 +41,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 데모 모드는 고객 앱 shell에만 허용한다. 관리자 보호 경로는 실제 인증 필요.
-  if (protectedType === "customer" && request.cookies.get("demo_mode")?.value === "true") {
+  if (
+    protectedType === "customer"
+    && getSignedDemoSessionFromCookieHeader(request.headers.get("cookie"))
+  ) {
     return supabaseResponse;
   }
 
@@ -87,9 +91,14 @@ export async function updateSession(request: NextRequest) {
 
   // 미리보기도 인증은 필수이며, 페이지의 verifyAdmin이 권한을 다시 fail-closed 검증한다.
   if (protectedType === "customer" && !isOnboardingPath && !isVendorAdminPreview) {
-    const onboardingComplete =
-      request.cookies.get("onboarding_complete")?.value === "true";
-    if (!onboardingComplete) {
+    // A browser-writable cookie is not onboarding authority. Resolve the
+    // canonical state through the authenticated RLS client and fail closed.
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("onboarding_completed")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profileError || profile?.onboarding_completed !== true) {
       const url = request.nextUrl.clone();
       url.pathname = "/wedding/onboarding";
       return NextResponse.redirect(url);

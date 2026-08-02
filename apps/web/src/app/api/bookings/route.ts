@@ -1,8 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { recordDecision } from "@/lib/memory/record-decision";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   processBookingProjectionJob,
   type BookingProjectionDeliveryResult,
@@ -12,9 +11,13 @@ import {
   cleanOptionalText,
   isRecord,
   isUuid,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { VENDOR_BOOKING_PRIVATE_SELECT } from "@/lib/privacy/privateDataSelects";
 
 const BOOKING_TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
+const MAX_BODY_BYTES = 8 * 1024;
 
 interface BookingRequestBody {
   vendorId: string;
@@ -60,13 +63,24 @@ export async function POST(req: Request) {
     }
 
     // Rate limit: 10 bookings per hour per user
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("booking:create", req, user.id),
       { maxRequests: 10, windowMs: 60 * 60 * 1000 }
     );
     if (rlResult) return rlResult;
 
-    const body = parseBookingRequestBody(await req.json().catch(() => null));
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        {
+          error: bodyResult.reason === "too_large"
+            ? "요청 데이터가 너무 큽니다."
+            : "예약 요청 형식이 올바르지 않습니다.",
+        },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = parseBookingRequestBody(bodyResult.value);
     if (!body) {
       return NextResponse.json({ error: "예약 요청 형식이 올바르지 않습니다." }, { status: 400 });
     }
@@ -154,24 +168,24 @@ export async function POST(req: Request) {
       if (msg.includes("past_booking_datetime")) {
         return NextResponse.json({ error: "이미 지난 시간에는 예약할 수 없습니다." }, { status: 409 });
       }
-      console.error("Booking create RPC error:", rpcError);
+      console.error("Booking create RPC error:", safeErrorDiagnostic(rpcError));
       return NextResponse.json({ error: "예약 생성에 실패했습니다." }, { status: 500 });
     }
 
     // RPC 는 UUID 만 반환. 응답에서 full row 가 필요하므로 다시 조회.
     const { data: booking, error: fetchError } = await supabase
       .from("vendor_bookings")
-      .select("*")
+      .select(VENDOR_BOOKING_PRIVATE_SELECT)
       .eq("id", bookingId as unknown as string)
       .single();
 
     if (fetchError || !booking) {
-      console.error("Booking fetch after RPC error:", fetchError);
+      console.error("Booking fetch after RPC error:", safeErrorDiagnostic(fetchError));
       return NextResponse.json({ error: "예약 조회에 실패했습니다." }, { status: 500 });
     }
     const persistedAmount = Number(booking.amount ?? 0);
     if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
-      console.error("Booking amount after RPC was invalid", { bookingId });
+      console.error("Booking amount after RPC was invalid");
       return NextResponse.json({ error: "예약 금액 확인에 실패했습니다." }, { status: 500 });
     }
 
@@ -188,7 +202,7 @@ export async function POST(req: Request) {
         errorCode: "PROJECTION_NOT_CLAIMED",
       };
     } catch (projectionError) {
-      console.error("[bookings] projection processing failed; durable retry remains queued:", projectionError);
+      console.error("[bookings] projection processing failed; durable retry remains queued:", safeErrorDiagnostic(projectionError));
       projection = {
         bookingId: bookingId as unknown as string,
         desiredState: "active",
@@ -200,45 +214,9 @@ export async function POST(req: Request) {
     }
     if (projection.status !== "completed") {
       console.error("[bookings] schedule/budget projection is not complete:", {
-        bookingId,
         status: projection.status,
         errorCode: projection.errorCode,
       });
-    }
-
-    // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)
-    if (booking && profile.couple_id) {
-      void (async () => {
-        try {
-          const { data: vendor } = await admin
-            .from("vendors")
-            .select("name, category")
-            .eq("id", vendorId)
-            .eq("status", "approved")
-            .maybeSingle();
-          const v = vendor as { name: string; category: string } | null;
-
-          await recordDecision({
-            coupleId: profile.couple_id,
-            userId: user.id,
-            category: v?.category ?? "vendor",
-            title: `예약: ${v?.name ?? "업체"}`,
-            chosenValue: {
-              vendor_id: vendorId,
-              vendor_name: v?.name ?? null,
-              booking_date: date,
-              booking_time: time,
-              amount: persistedAmount,
-            },
-            decisionType: "booked",
-            source: "vendor_booking",
-            sourceRefId: (booking as { id: string }).id,
-            metadata: { hook: "bookings", booking_type: "consultation" },
-          });
-        } catch (err) {
-          console.error("[bookings recordDecision] 실패 (무시):", err);
-        }
-      })();
     }
 
     const createSync = projection.sync && "scheduleAdded" in projection.sync
@@ -273,7 +251,7 @@ export async function POST(req: Request) {
       message,
     }, { status: fullyApplied ? 200 : 202 });
   } catch (err) {
-    console.error("Booking create error:", err);
+    console.error("Booking create error:", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

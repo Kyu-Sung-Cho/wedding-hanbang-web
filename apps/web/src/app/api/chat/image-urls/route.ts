@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge } from "@/utils/requestValidation";
+import { isBodyTooLarge, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const MAX_PATHS = 10;
 const MAX_REQUEST_BODY_BYTES = 2 * 1024;
@@ -141,17 +142,14 @@ export async function POST(request: Request) {
     );
     if (limited) return limited;
 
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BODY_BYTES) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    const bodyResult = await readBoundedJsonValue(request, MAX_REQUEST_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 형식이 올바르지 않습니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
     }
-    const body: unknown = (() => {
-      try {
-        return JSON.parse(rawBody) as unknown;
-      } catch {
-        return null;
-      }
-    })();
+    const body = bodyResult.value;
     const messageId = parseMessageId(body);
     if (!messageId) {
       return NextResponse.json({ error: "유효한 메시지 ID가 필요합니다." }, { status: 400 });
@@ -166,7 +164,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (messageError) {
-      console.error("[chat image-urls] visible message lookup failed:", messageError);
+      console.error("[chat image-urls] visible message lookup failed", safeErrorDiagnostic(messageError));
       return NextResponse.json({ error: "첨부파일을 확인하지 못했습니다." }, { status: 500 });
     }
     if (!message) {
@@ -184,7 +182,7 @@ export async function POST(request: Request) {
       .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
 
     if (error) {
-      console.error("[chat image-urls] signed URL failed:", error);
+      console.error("[chat image-urls] signed URL failed", safeErrorDiagnostic(error));
       return NextResponse.json({ error: "첨부파일 URL을 만들지 못했습니다." }, { status: 500 });
     }
 
@@ -197,7 +195,7 @@ export async function POST(request: Request) {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {
-    console.error("[chat image-urls] unexpected:", err);
+    console.error("[chat image-urls] unexpected", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

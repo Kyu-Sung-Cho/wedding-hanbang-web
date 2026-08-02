@@ -10,13 +10,14 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { mobileBridgeJson as boundedMobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   isBodyTooLarge,
   isUuid,
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { requestMatchesExpectedActor } from "@/lib/auth/actorFence";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const LATEST_SAVED_COMBO_LIMIT = 1;
@@ -96,7 +97,14 @@ export async function POST(request: Request) {
     return mobileBridgeJson({ error: "로그인이 필요합니다." }, { status: 401 });
   }
 
-  const limited = checkRateLimit(rateLimitKey("price-combos:create", request, user.id), {
+  if (!requestMatchesExpectedActor(request, user.id)) {
+    return mobileBridgeJson(
+      { error: "계정이 변경되었습니다. 다시 시도해 주세요." },
+      { status: 409 },
+    );
+  }
+
+  const limited = await checkRateLimitPersistent(rateLimitKey("price-combos:create", request, user.id), {
     maxRequests: 20,
     windowMs: 60 * 1000,
   });

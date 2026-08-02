@@ -4,10 +4,15 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { ActivityIndicator, Text, TextInput, View } from "react-native";
 import { initSentry, registerSentryNavigationContainer, Sentry } from "@/lib/sentry";
 import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
+import {
+  getMobileAuthIdentitySnapshot,
+  mobileAuthNavigationKey,
+  subscribeMobileAuthIdentity,
+} from "@/lib/mobileAuthIdentity";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
@@ -63,6 +68,11 @@ SplashScreen.preventAutoHideAsync();
 
 function RootLayout() {
   const navigationContainerRef = useNavigationContainerRef();
+  const mobileIdentity = useSyncExternalStore(
+    subscribeMobileAuthIdentity,
+    getMobileAuthIdentitySnapshot,
+    getMobileAuthIdentitySnapshot,
+  );
   const [fontsLoaded, fontError] = useFonts({
     // Paperlogy mapped through legacy aliases for existing screens.
     NotoSerifKR_300Light,
@@ -104,6 +114,22 @@ function RootLayout() {
     );
   }
 
+  if (
+    mobileIdentity.status !== "authenticated"
+    && mobileIdentity.status !== "anonymous"
+  ) {
+    return (
+      <View
+        accessibilityRole="progressbar"
+        style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}
+      >
+        <ActivityIndicator color={colors.rose[500]} />
+      </View>
+    );
+  }
+
+  const navigationIdentityKey = mobileAuthNavigationKey(mobileIdentity);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
@@ -111,6 +137,7 @@ function RootLayout() {
           <OfflineBanner />
           <StatusBar style="dark" />
           <Stack
+            key={navigationIdentityKey}
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: colors.bg },

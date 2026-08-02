@@ -3,10 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { GET, POST } from "./route";
+import { DELETE, GET, POST } from "./route";
+
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: rateLimitMocks.checkRateLimitPersistent,
+  rateLimitKey: vi.fn(() => "amora:mediation:test-user"),
+}));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const PARTNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -37,6 +45,7 @@ function fingerprint(brideId: string, groomId: string) {
 describe("GET /api/amora/mediation/accept", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitMocks.checkRateLimitPersistent.mockResolvedValue(null);
   });
 
   it("counts only the exact current proposal version and roster", async () => {
@@ -204,5 +213,86 @@ describe("GET /api/amora/mediation/accept", () => {
       p_expected_proposal_version: CURRENT_VERSION,
       p_expected_roster_fingerprint: currentRoster,
     });
+  });
+});
+
+describe("POST/DELETE /api/amora/mediation/accept body boundary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rateLimitMocks.checkRateLimitPersistent.mockResolvedValue(null);
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })) },
+    } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
+  });
+
+  it.each([
+    ["POST", POST],
+    ["DELETE", DELETE],
+  ] as const)("%s rejects a headerless chunked body immediately after 2 KiB", async (method, handler) => {
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        if (pulls === 1) controller.enqueue(new Uint8Array(2 * 1024));
+        else if (pulls === 2) controller.enqueue(new Uint8Array([1]));
+        else controller.enqueue(new Uint8Array(512 * 1024));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }, { highWaterMark: 0 });
+    const request = {
+      body,
+      headers: new Headers(),
+      method,
+      url: "http://localhost/api/amora/mediation/accept",
+    } as Request;
+
+    const response = await handler(request);
+
+    expect(response.status).toBe(413);
+    expect(pulls).toBe(2);
+    expect(cancelled).toBe(true);
+    expect(rateLimitMocks.checkRateLimitPersistent).toHaveBeenCalledTimes(1);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["POST", POST],
+    ["DELETE", DELETE],
+  ] as const)("%s charges every repeated invalid JSON attempt to the shared limiter", async (method, handler) => {
+    const responses = await Promise.all(Array.from({ length: 4 }, () => handler(new Request(
+      "http://localhost/api/amora/mediation/accept",
+      { method, body: "{not-json" },
+    ))));
+
+    expect(responses.map((response) => response.status)).toEqual([400, 400, 400, 400]);
+    expect(rateLimitMocks.checkRateLimitPersistent).toHaveBeenCalledTimes(4);
+  });
+
+  it("fails closed before pulling an untrusted body when the shared limiter is unavailable", async () => {
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new Uint8Array(1_024));
+      },
+    }, { highWaterMark: 0 });
+    rateLimitMocks.checkRateLimitPersistent.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "unavailable" }), { status: 503 }),
+    );
+    const request = {
+      body,
+      headers: new Headers(),
+      method: "POST",
+      url: "http://localhost/api/amora/mediation/accept",
+    } as Request;
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(503);
+    expect(pulls).toBe(0);
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 });

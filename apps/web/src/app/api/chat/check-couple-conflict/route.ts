@@ -30,6 +30,8 @@ import {
 import { extractMediation } from "@/lib/ai/mediation";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import {
   AmoraCostGuardError,
   checkAmoraCostGuard,
@@ -65,6 +67,7 @@ const RECENT_MESSAGE_LIMIT = 20;
 const MAX_MEDIATION_SYSTEM_CHARS = 48_000;
 const MAX_MEDIATION_MESSAGE_CHARS = 1_200;
 const MAX_CONFLICT_CONTEXT_CHARS = 2_000;
+const MAX_BODY_BYTES = 2 * 1024;
 
 type MemoryClassifiableDecision = {
   memory_key: string | null;
@@ -104,8 +107,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as { coupleId?: string };
-    const requestCoupleId = body.coupleId;
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { triggered: false, reason: bodyResult.reason === "too_large" ? "body_too_large" : "invalid_request" },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    if (!isRecord(bodyResult.value)) {
+      return NextResponse.json({ triggered: false, reason: "invalid_request" }, { status: 400 });
+    }
+    const requestCoupleId = typeof bodyResult.value.coupleId === "string"
+      ? bodyResult.value.coupleId
+      : undefined;
 
     const admin = getAdminClient();
     const { data: profile } = await admin
@@ -649,7 +663,10 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       if (!(error instanceof AmoraCostGuardError)) throw error;
       await failChatRequest({ ...durableClaim, failureCode: "COST_GUARD_REJECTED" }, admin)
-        .catch((claimError) => console.error("[check-couple-conflict] claim release failed", claimError));
+        .catch((claimError) => console.error(
+          "[check-couple-conflict] claim release failed",
+          safeErrorDiagnostic(claimError),
+        ));
       durableClaim = null;
       durableClaimAttemptCount = null;
       return respondAndCompleteConflictCheck({
@@ -663,7 +680,10 @@ export async function POST(req: NextRequest) {
     const cleanText = mediationResult?.cleanText ?? completion.text;
     if (!cleanText.trim()) {
       await failChatRequest({ ...durableClaim, failureCode: "EMPTY_RESPONSE" }, admin)
-        .catch((error) => console.error("[check-couple-conflict] claim failure marker failed", error));
+        .catch((error) => console.error(
+          "[check-couple-conflict] claim failure marker failed",
+          safeErrorDiagnostic(error),
+        ));
       durableClaim = null;
       durableClaimAttemptCount = null;
       await releaseConflictCheck("EMPTY_RESPONSE");
@@ -698,17 +718,23 @@ export async function POST(req: NextRequest) {
       llmVerified: detection.llmVerified,
     });
   } catch (err) {
-    console.error("check-couple-conflict 에러:", err);
+    console.error("check-couple-conflict 에러", safeErrorDiagnostic(err));
     if (durableClaim) {
       await failChatRequest({ ...durableClaim, failureCode: "MEDIATION_FAILED" }, getAdminClient())
-        .catch((claimError) => console.error("[check-couple-conflict] claim failure marker failed", claimError));
+        .catch((claimError) => console.error(
+          "[check-couple-conflict] claim failure marker failed",
+          safeErrorDiagnostic(claimError),
+        ));
     }
     if (conflictCheckClaim) {
       await failAmoraConflictCheck({
         ...conflictCheckClaim,
         failureCode: "CONFLICT_CHECK_FAILED",
       }, getAdminClient()).catch((claimError) => {
-        console.error("[check-couple-conflict] conflict-check failure marker failed", claimError);
+        console.error(
+          "[check-couple-conflict] conflict-check failure marker failed",
+          safeErrorDiagnostic(claimError),
+        );
       });
     }
     return NextResponse.json(

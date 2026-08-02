@@ -116,7 +116,9 @@ test("vendor webview back and share actions follow the current in-page navigatio
   assert.match(webviewSource, /const \[canGoBack, setCanGoBack\]/);
   assert.match(webviewSource, /onNavigationStateChange=\{handleNavigationStateChange\}/);
   assert.match(webviewSource, /webViewRef\.current\?\.goBack\(\)/);
-  assert.match(webviewSource, /Share\.share\(\{ url: currentUrl, message: currentUrl \}\)/);
+  assert.match(webviewSource, /buildShareableMobileSiteUrl\(currentUrl, SITE_ORIGIN\)/);
+  assert.match(webviewSource, /Share\.share\(\{ url: shareUrl, message: shareUrl \}\)/);
+  assert.doesNotMatch(webviewSource, /Share\.share\(\{ url: currentUrl, message: currentUrl \}\)/);
   assert.match(webviewSource, /accessibilityLabel="이전 화면"/);
   assert.match(webviewSource, /accessibilityLabel="현재 페이지 공유"/);
 });

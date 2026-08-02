@@ -69,7 +69,11 @@ describe("booking progress sync", () => {
       projectionClaim,
     });
 
-    expect(result).toMatchObject({ persisted: false, error: "atomic patch failed" });
+    expect(result).toMatchObject({
+      persisted: false,
+      error: "booking projection apply failed",
+    });
+    expect(JSON.stringify(result)).not.toContain("atomic patch failed");
     expect(client.rpc).toHaveBeenCalledWith(
       "apply_booking_progress_projection",
       expect.objectContaining({
@@ -129,8 +133,9 @@ describe("booking progress sync", () => {
 
     expect(result).toMatchObject({
       persisted: false,
-      error: "atomic cancel patch failed",
+      error: "booking projection apply failed",
     });
+    expect(JSON.stringify(result)).not.toContain("atomic cancel patch failed");
     expect(client.rpc).toHaveBeenCalledWith(
       "apply_booking_progress_projection",
       expect.objectContaining({

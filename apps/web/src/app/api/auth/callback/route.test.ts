@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
+  checkRateLimitPersistent: vi.fn(),
 }));
 
 vi.mock("@supabase/ssr", () => ({
@@ -17,6 +18,11 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@/lib/demoSession", () => ({
   clearDemoCookies: vi.fn(),
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
+  rateLimitKey: (scope: string) => `${scope}:test-ip`,
 }));
 
 import { GET } from "./route";
@@ -45,6 +51,7 @@ function authenticatedClient(onboardingCompleted = true) {
 describe("OAuth callback post-login destination", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.createServerClient.mockReturnValue(authenticatedClient());
   });
 
@@ -55,6 +62,10 @@ describe("OAuth callback post-login destination", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://hanbang.ai/price/wishlist");
+    expect(response.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0, must-revalidate",
+    );
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
   });
 
   it("preserves the safe destination when OAuth returns without a code", async () => {
@@ -65,6 +76,72 @@ describe("OAuth callback post-login destination", () => {
     expect(response.headers.get("location")).toBe(
       "https://hanbang.ai/login?error=no_code&redirect=%2Fprice%2Fwishlist",
     );
+    expect(response.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0, must-revalidate",
+    );
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("stops repeated provider exchanges at a persistent ingress bucket", async () => {
+    mocks.checkRateLimitPersistent.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "limited" }), { status: 429 }),
+    );
+
+    const response = await GET(new Request(
+      "https://hanbang.ai/api/auth/callback?code=one-time-code&redirect=%2Fprice%2Fwishlist",
+    ));
+
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?error=rate_limited&redirect=%2Fprice%2Fwishlist",
+    );
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
+
+  it("never reflects or logs a provider error message", async () => {
+    const privateMarker = "bride@example.com access_token=provider-secret-marker";
+    const client = authenticatedClient();
+    client.auth.exchangeCodeForSession.mockResolvedValue({
+      error: {
+        name: "AuthApiError",
+        code: "bad_oauth_state",
+        status: 400,
+        message: privateMarker,
+        details: { accessToken: "provider-secret-marker" },
+      },
+    });
+    mocks.createServerClient.mockReturnValue(client);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await GET(new Request(
+      "https://hanbang.ai/api/auth/callback?code=one-time-code&redirect=%2Fprice%2Fwishlist",
+    ));
+
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?error=session_exchange_failed&redirect=%2Fprice%2Fwishlist",
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(privateMarker);
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("provider-secret-marker");
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      { name: "AuthApiError", code: "unknown", status: 400 },
+    );
+  });
+
+  it("uses a fixed callback failure code for unexpected exceptions", async () => {
+    const privateMarker = "unexpected-private-wedding-plan";
+    mocks.createServerClient.mockImplementation(() => {
+      throw new Error(privateMarker);
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await GET(new Request(
+      "https://hanbang.ai/api/auth/callback?code=one-time-code",
+    ));
+
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?error=callback_failed",
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(privateMarker);
   });
 
   it.each([

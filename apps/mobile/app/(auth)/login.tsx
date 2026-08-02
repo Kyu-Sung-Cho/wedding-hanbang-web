@@ -93,9 +93,8 @@ export default function LoginScreen() {
         return;
       }
       router.replace("/(tabs)/dashboard");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "로그인에 실패했어요";
-      Alert.alert("로그인 오류", message);
+    } catch {
+      Alert.alert("로그인 오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
       setLoading(null);
     }

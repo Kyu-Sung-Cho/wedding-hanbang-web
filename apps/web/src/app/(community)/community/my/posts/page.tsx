@@ -13,8 +13,7 @@ import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import { timeAgo } from "@/utils/timeAgo";
-
-const avatarOptions = ["🌿", "💍", "🌸", "🤍", "✨", "👑"];
+import { COMMUNITY_AVATAR_OPTIONS } from "@/lib/community/avatar";
 
 const rankLabels: Record<CommunityRank, string> = {
   sprout: "새싹",
@@ -76,7 +75,7 @@ export default function MyPostsPage() {
     if (!userId) return;
     const timer = window.setTimeout(() => setLoading(true), 0);
     const controller = new AbortController();
-    fetch(`/api/community/posts?author_id=${userId}&limit=100`, { signal: controller.signal })
+    fetch("/api/community/posts?sort=my_posts&limit=50", { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => { setPosts(data.posts ?? []); setLoading(false); })
       .catch((err) => {
@@ -92,7 +91,7 @@ export default function MyPostsPage() {
   useEffect(() => {
     if (!userId) return;
     const controller = new AbortController();
-    fetch("/api/community/profile", { signal: controller.signal })
+    fetch("/api/community/profile", { method: "POST", signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const nextProfile = data?.profile as CommunityProfile | undefined;
@@ -185,7 +184,7 @@ export default function MyPostsPage() {
                     placeholder="커뮤니티 닉네임"
                   />
                   <div className="flex flex-wrap gap-2">
-                    {avatarOptions.map((avatar) => (
+                    {COMMUNITY_AVATAR_OPTIONS.map((avatar) => (
                       <button
                         key={avatar}
                         type="button"

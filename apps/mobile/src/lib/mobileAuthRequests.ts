@@ -5,6 +5,10 @@ export interface MobileSignupInput {
   email: string;
   password: string;
   name: string;
+  termsAgreed: boolean;
+  privacyAgreed: boolean;
+  termsVersion: string;
+  privacyVersion: string;
   marketingAgreed: boolean;
 }
 

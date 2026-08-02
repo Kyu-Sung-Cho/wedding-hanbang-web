@@ -53,16 +53,46 @@ function jsonRequest(body: unknown, headers: HeadersInit = {}) {
   return request;
 }
 
+function chunkedOversizeRequest(byteLength: number): Request {
+  const firstChunkSize = Math.floor(byteLength / 2);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(firstChunkSize).fill(0x7b));
+      controller.enqueue(new Uint8Array(byteLength - firstChunkSize).fill(0x7d));
+      controller.close();
+    },
+  });
+  return new Request("http://localhost/api/community/upload", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 function adminHarness(options: { signError?: boolean; insertError?: boolean } = {}) {
   const insertSingle = vi.fn(async () => ({
     data: options.insertError ? null : { id: "unused" },
     error: options.insertError ? { message: "db unavailable" } : null,
   }));
   const select = vi.fn(() => ({ single: insertSingle }));
-  const insert = vi.fn(() => ({ select }));
+  const insert = vi.fn((value: unknown) => {
+    void value;
+    return { select };
+  });
   const updateEq = vi.fn(async () => ({ error: null }));
   const update = vi.fn(() => ({ eq: updateEq }));
-  const fromTable = vi.fn(() => ({ insert, update }));
+  const fromTable = vi.fn(() => ({ update }));
+  const actorCheckRpc = vi.fn(async () => ({ data: true, error: null }));
+  const rpc = vi.fn((name: string, args: unknown) => {
+    if (name === "community_create_upload_session_for_actor") {
+      return insert(args);
+    }
+    if (name === "community_check_active_write_actor") {
+      return actorCheckRpc();
+    }
+    throw new Error(`unexpected RPC ${name}`);
+  });
   const createSignedUploadUrl = vi.fn(async () => options.signError
     ? { data: null, error: { message: "storage unavailable" } }
     : {
@@ -74,7 +104,7 @@ function adminHarness(options: { signError?: boolean; insertError?: boolean } = 
         error: null,
       });
   const storageFrom = vi.fn(() => ({ createSignedUploadUrl }));
-  const admin = { from: fromTable, storage: { from: storageFrom } };
+  const admin = { from: fromTable, rpc, storage: { from: storageFrom } };
   mocks.createAdminClient.mockReturnValue(admin);
   return {
     admin,
@@ -83,6 +113,8 @@ function adminHarness(options: { signError?: boolean; insertError?: boolean } = 
     insert,
     select,
     insertSingle,
+    rpc,
+    actorCheckRpc,
     update,
     updateEq,
     storageFrom,
@@ -134,6 +166,21 @@ describe("POST /api/community/upload (signed upload initiation)", () => {
     );
     expect(text).not.toHaveBeenCalled();
     expect(harness.insert).not.toHaveBeenCalled();
+  });
+
+  it("returns 413 for a Content-Length-less chunked oversized strict body", async () => {
+    const harness = adminHarness();
+    const oversized = chunkedOversizeRequest(2 * 1024 + 1);
+
+    const response = await POST(oversized as never);
+
+    expect(oversized.headers.get("content-length")).toBeNull();
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "REQUEST_BODY_TOO_LARGE",
+    });
+    expect(harness.insert).not.toHaveBeenCalled();
+    expect(harness.createSignedUploadUrl).not.toHaveBeenCalled();
   });
 
   it("issues no durable session or signed token after account deletion begins", async () => {
@@ -238,17 +285,22 @@ describe("POST /api/community/upload (signed upload initiation)", () => {
     });
     expect(body).not.toHaveProperty("url");
     expect(body).not.toHaveProperty("signedUrl");
-    expect(harness.fromTable).toHaveBeenCalledWith("community_upload_sessions");
+    expect(harness.rpc).toHaveBeenCalledWith(
+      "community_create_upload_session_for_actor",
+      expect.any(Object),
+    );
     expect(harness.insert).toHaveBeenCalledWith(expect.objectContaining({
-      id: body.uploadId,
-      user_id: USER_ID,
-      staging_path: body.path,
-      final_path: body.path,
-      final_bucket: "community-images",
-      declared_mime_type: "image/png",
-      declared_size: 1234,
-      status: "issued",
+      p_actor_id: USER_ID,
+      p_upload_id: body.uploadId,
+      p_staging_path: body.path,
+      p_final_path: expect.stringMatching(/^v2\/[0-9a-f-]{36}\.png$/i),
+      p_final_bucket: "community-images",
+      p_declared_mime_type: "image/png",
+      p_declared_size: 1234,
     }));
+    const session = harness.insert.mock.calls[0][0] as { p_final_path: string };
+    expect(session.p_final_path).not.toContain(USER_ID);
+    expect(session.p_final_path).not.toContain(body.uploadId);
     expect(harness.storageFrom).toHaveBeenCalledWith("community-media-staging");
     expect(harness.createSignedUploadUrl).toHaveBeenCalledWith(body.path, { upsert: false });
     expect(harness.insert.mock.invocationCallOrder[0]).toBeLessThan(

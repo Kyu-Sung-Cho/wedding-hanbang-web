@@ -125,7 +125,7 @@ describe("ChatSidePanel attachment sending", () => {
     vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
       Object.defineProperty(this, "result", {
         configurable: true,
-        value: "data:application/pdf;base64,Y29udHJhY3Q=",
+        value: "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,UEsDBA==",
       });
       this.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
     });
@@ -133,13 +133,15 @@ describe("ChatSidePanel attachment sending", () => {
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
     expect(fileInput).not.toBeNull();
 
-    const file = new File(["contract"], "contract.pdf", { type: "application/pdf" });
+    const file = new File(["contract"], "contract.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
     Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
 
     await act(async () => {
       fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(container.textContent).toContain("pdf");
+    expect(container.textContent).toContain("docx");
 
     const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
     const sendButton = buttons.at(-1);
@@ -155,10 +157,27 @@ describe("ChatSidePanel attachment sending", () => {
       content: "이 문서를 분석해주세요.",
       visibility: "shared",
       images: [expect.objectContaining({
-        fileName: "contract.pdf",
-        mediaType: "application/pdf",
+        fileName: "contract.docx",
+        mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       })],
     }));
+  });
+
+  it("rejects PDF before FileReader can retain its original bytes", async () => {
+    const readSpy = vi.spyOn(FileReader.prototype, "readAsDataURL");
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const file = new File(["contract"], "contract.pdf", { type: "application/pdf" });
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+
+    await act(async () => {
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(mocks.setChatState).toHaveBeenCalledWith({
+      error: expect.stringContaining("PDF"),
+    });
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it("offers an explicit provider-only retry and a close action", async () => {

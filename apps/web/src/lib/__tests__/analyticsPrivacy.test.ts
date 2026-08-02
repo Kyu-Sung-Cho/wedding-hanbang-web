@@ -1,21 +1,39 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  hasExplicitThirdPartyAnalyticsConsent,
   isAnalyticsSuppressedLocation,
   isAnalyticsSuppressedPath,
+  THIRD_PARTY_ANALYTICS_CONSENT_KEY,
 } from "../analyticsPrivacy";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const srcRoot = path.resolve(here, "../..");
 
 describe("zero-I/O research analytics boundary", () => {
-  it("suppresses only the guarded WeddingCode research path", () => {
+  it("fails third-party analytics closed until both deployment and current consent allow it", () => {
+    window.localStorage.clear();
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_ENABLED", "true");
+    expect(hasExplicitThirdPartyAnalyticsConsent()).toBe(false);
+
+    window.localStorage.setItem(THIRD_PARTY_ANALYTICS_CONSENT_KEY, "granted");
+    expect(hasExplicitThirdPartyAnalyticsConsent()).toBe(true);
+
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_ENABLED", "false");
+    expect(hasExplicitThirdPartyAnalyticsConsent()).toBe(false);
+    vi.unstubAllEnvs();
+    window.localStorage.clear();
+  });
+
+  it("suppresses WeddingCode research and answer-bearing public paths", () => {
     expect(isAnalyticsSuppressedPath("/internal/wedding-code-research")).toBe(true);
     expect(isAnalyticsSuppressedPath("/internal/wedding-code-research/session")).toBe(true);
     expect(isAnalyticsSuppressedPath("/internal/wedding-code-research-copy")).toBe(false);
-    expect(isAnalyticsSuppressedPath("/wedding-code")).toBe(false);
+    expect(isAnalyticsSuppressedPath("/wedding-code")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/wedding-code/result")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/wedding-code-copy")).toBe(false);
     expect(isAnalyticsSuppressedPath(null)).toBe(false);
   });
 

@@ -1,76 +1,121 @@
-import { NextResponse } from "next/server";
+import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import {
+  adminPaginationMetadata,
+  checkAdminReadRateLimit,
+  parseAdminPagination,
+} from "@/lib/admin/adminReadBoundary";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+
+const BOOKING_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as const;
+type BookingStatus = (typeof BOOKING_STATUSES)[number];
+
+function normalizeBookingStatus(value: string | null): BookingStatus {
+  return BOOKING_STATUSES.find((status) => status === value) ?? "pending";
+}
 
 export async function GET(request: Request) {
-  const { authorized } = await verifyAdmin(request);
-  if (!authorized) {
-    return NextResponse.json({ error: "권한이 없습니다." }, { status: 401 });
+  const { authorized, userId } = await verifyAdmin(request);
+  if (!authorized || !userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limited = await checkAdminReadRateLimit(request, userId, "bookings");
+  if (limited) return limited;
+
+  const pagination = parseAdminPagination(request, { defaultLimit: 100, maxLimit: 200 });
+  if (!pagination) {
+    return NextResponse.json({ error: "Invalid pagination" }, { status: 400 });
   }
 
   try {
     const admin = getServiceClient();
-
-    // 모든 예약 조회 (최근 순)
-    const { data: bookings, error: bookingsErr } = await admin
+    const { data: bookings, error: bookingsError, count } = await admin
       .from("vendor_bookings")
-      .select("*")
+      .select(
+        "id,vendor_id,product_id,couple_id,bride_name,groom_name,contact_phone,booking_date,booking_time,status,amount,is_paid,memo,created_at",
+        { count: "exact" },
+      )
       .order("created_at", { ascending: false })
-      .limit(500);
+      .range(pagination.offset, pagination.offset + pagination.limit - 1);
 
-    if (bookingsErr) {
-      return NextResponse.json({ error: bookingsErr.message }, { status: 500 });
+    if (bookingsError) {
+      console.error("Admin bookings query failed", safeErrorDiagnostic(bookingsError));
+      return NextResponse.json({ error: "예약 목록을 불러오지 못했습니다." }, { status: 500 });
     }
 
-    // 업체 이름 매핑
-    const vendorIds = [...new Set((bookings ?? []).map((b) => b.vendor_id).filter(Boolean))];
-    const { data: vendors } = vendorIds.length > 0
-      ? await admin.from("vendors").select("id, name, category").in("id", vendorIds)
-      : { data: [] };
-    const vendorMap = new Map((vendors ?? []).map((v) => [v.id, v]));
+    const statusCounts = await Promise.all(BOOKING_STATUSES.map((status) => admin
+      .from("vendor_bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", status)));
+    const statsError = statusCounts.find((result) => result.error)?.error;
+    if (statsError) {
+      console.error("Admin booking stats query failed", safeErrorDiagnostic(statsError));
+      return NextResponse.json({ error: "예약 통계를 불러오지 못했습니다." }, { status: 500 });
+    }
 
-    // 상품 이름 매핑
-    const productIds = [...new Set((bookings ?? []).map((b) => b.product_id).filter(Boolean))];
-    const { data: products } = productIds.length > 0
-      ? await admin.from("vendor_products").select("id, name").in("id", productIds)
-      : { data: [] };
-    const productMap = new Map((products ?? []).map((p) => [p.id, p]));
+    const rows = bookings ?? [];
+    const vendorIds = [...new Set(rows.map((booking) => booking.vendor_id).filter(Boolean))];
+    const productIds = [...new Set(rows.map((booking) => booking.product_id).filter((id): id is string => Boolean(id)))];
 
-    const result = (bookings ?? []).map((b) => {
-      const vendor = vendorMap.get(b.vendor_id);
-      const product = b.product_id ? productMap.get(b.product_id) : null;
+    const [vendorsResult, productsResult] = await Promise.all([
+      vendorIds.length > 0
+        ? admin.from("vendors").select("id,name,category").in("id", vendorIds)
+        : Promise.resolve({ data: [], error: null }),
+      productIds.length > 0
+        ? admin.from("vendor_products").select("id,name").in("id", productIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (vendorsResult.error || productsResult.error) {
+      console.error(
+        "Admin booking relationship query failed",
+        safeErrorDiagnostic(vendorsResult.error ?? productsResult.error),
+      );
+      return NextResponse.json({ error: "예약 관계 정보를 불러오지 못했습니다." }, { status: 500 });
+    }
+
+    const vendorMap = new Map((vendorsResult.data ?? []).map((vendor) => [vendor.id, vendor]));
+    const productMap = new Map((productsResult.data ?? []).map((product) => [product.id, product]));
+    const result = rows.map((booking) => {
+      const vendor = vendorMap.get(booking.vendor_id);
+      const product = booking.product_id ? productMap.get(booking.product_id) : null;
       return {
-        id: b.id,
-        vendorId: b.vendor_id,
+        id: booking.id,
+        vendorId: booking.vendor_id,
         vendorName: vendor?.name ?? "-",
         vendorCategory: vendor?.category ?? "-",
         productName: product?.name ?? null,
-        coupleId: b.couple_id,
-        brideName: b.bride_name,
-        groomName: b.groom_name,
-        contactPhone: b.contact_phone,
-        bookingDate: b.booking_date,
-        bookingTime: b.booking_time,
-        status: b.status,
-        amount: b.amount,
-        isPaid: b.is_paid,
-        memo: b.memo,
-        createdAt: b.created_at,
+        coupleId: booking.couple_id,
+        brideName: booking.bride_name,
+        groomName: booking.groom_name,
+        contactPhone: booking.contact_phone,
+        bookingDate: booking.booking_date,
+        bookingTime: booking.booking_time,
+        status: normalizeBookingStatus(booking.status),
+        amount: booking.amount,
+        isPaid: booking.is_paid,
+        memo: booking.memo,
+        createdAt: booking.created_at,
       };
     });
 
-    // 통계
-    const total = result.length;
-    const pending = result.filter((b) => b.status === "pending").length;
-    const confirmed = result.filter((b) => b.status === "confirmed").length;
-    const completed = result.filter((b) => b.status === "completed").length;
-    const cancelled = result.filter((b) => b.status === "cancelled").length;
+    const stats = BOOKING_STATUSES.reduce<Record<BookingStatus, number>>(
+      (accumulator, status, index) => {
+        accumulator[status] = statusCounts[index]?.count ?? 0;
+        return accumulator;
+      },
+      { pending: 0, confirmed: 0, completed: 0, cancelled: 0 },
+    );
+    const total = count ?? 0;
 
     return NextResponse.json({
       bookings: result,
-      stats: { total, pending, confirmed, completed, cancelled },
+      stats: { total, ...stats },
+      pagination: adminPaginationMetadata(pagination, result.length, total),
     });
-  } catch (err) {
-    console.error("Admin bookings error:", err);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+  } catch (error) {
+    console.error("Admin bookings error", safeErrorDiagnostic(error));
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

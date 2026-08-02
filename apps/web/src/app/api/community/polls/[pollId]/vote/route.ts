@@ -2,8 +2,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import {
+  COMMUNITY_POLL_OPTION_SERVER_SELECT,
+  COMMUNITY_POLL_SERVER_SELECT,
+  protectCommunityPollResults,
+} from "@/lib/community/pollVisibility";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import type { PollWithOptions } from "@/types/community.types";
+import { isRecord, isUuid, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
+
+const MAX_BODY_BYTES = 2 * 1024;
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Cookie, Authorization",
+};
 
 function getServiceClient() {
   return createAdminClient();
@@ -38,7 +55,7 @@ async function loadPollWithOptions(
 ): Promise<PollWithOptions | null> {
   const { data: poll } = await serviceClient
     .from("community_polls")
-    .select("*")
+    .select(COMMUNITY_POLL_SERVER_SELECT)
     .eq("id", pollId)
     .maybeSingle();
   if (!poll) return null;
@@ -46,7 +63,7 @@ async function loadPollWithOptions(
 
   const { data: options } = await serviceClient
     .from("community_poll_options")
-    .select("*")
+    .select(COMMUNITY_POLL_OPTION_SERVER_SELECT)
     .eq("poll_id", pollId)
     .order("position", { ascending: true });
   const optionRows = (options ?? []) as OptionRow[];
@@ -61,7 +78,7 @@ async function loadPollWithOptions(
     userVotedOptionIds = (votes ?? []).map((v: { option_id: string }) => v.option_id);
   }
 
-  return {
+  return protectCommunityPollResults({
     id: pollRow.id,
     post_id: pollRow.post_id,
     question: pollRow.question,
@@ -74,7 +91,7 @@ async function loadPollWithOptions(
     created_at: pollRow.created_at,
     options: optionRows,
     user_voted_option_ids: userVotedOptionIds,
-  };
+  });
 }
 
 // 폴 단건 조회 (이미 후속 갱신 시 유용)
@@ -84,6 +101,12 @@ export async function GET(
 ) {
   try {
     const { pollId } = await params;
+    if (!isUuid(pollId)) {
+      return NextResponse.json(
+        { error: "올바른 투표 ID가 아닙니다." },
+        { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
@@ -112,9 +135,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ poll });
+    return NextResponse.json(
+      { poll },
+      { headers: PRIVATE_NO_STORE_HEADERS },
+    );
   } catch (err) {
-    console.error("[poll.GET] error:", err);
+    console.error("[poll.GET] error", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }
@@ -126,6 +152,12 @@ export async function POST(
 ) {
   try {
     const { pollId } = await params;
+    if (!isUuid(pollId)) {
+      return NextResponse.json(
+        { error: "올바른 투표 ID가 아닙니다." },
+        { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
@@ -136,15 +168,22 @@ export async function POST(
     }
 
     // Rate limit: 30 votes / minute / user — 사용자가 빠르게 마음 바꾸는 건 허용
-    const rl = checkRateLimit(
+    const rl = await checkRateLimitPersistent(
       rateLimitKey("community:poll:vote", req, user.id),
       { maxRequests: 30, windowMs: 60_000 }
     );
     if (rl) return rl;
 
-    const body = await req.json().catch(() => ({}));
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = isRecord(bodyResult.value) ? bodyResult.value : {};
     const optionId = typeof body.option_id === "string" ? body.option_id : null;
-    if (!optionId) {
+    if (!optionId || !isUuid(optionId)) {
       return NextResponse.json({ error: "옵션을 선택해주세요." }, { status: 400 });
     }
 
@@ -160,7 +199,7 @@ export async function POST(
       .eq("id", poll.post_id)
       .maybeSingle();
     if (!post || !canReadCommunityPost(post, { userId: user.id })) {
-      return NextResponse.json({ error: "투표 권한이 없습니다." }, { status: 403 });
+      return NextResponse.json({ error: "투표를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const { data: rpcRaw, error: rpcError } = await serviceClient.rpc(
@@ -173,7 +212,13 @@ export async function POST(
     );
 
     if (rpcError) {
-      console.error("[poll.POST] RPC error:", rpcError);
+      if (isCommunityActorWriteDenied(rpcError)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
+      console.error("[poll.POST] RPC error", safeErrorDiagnostic(rpcError));
       return NextResponse.json({ error: "투표 처리에 실패했습니다." }, { status: 500 });
     }
 
@@ -208,7 +253,7 @@ export async function POST(
 
     return NextResponse.json({ poll: updatedPoll, action: rpcResult.action });
   } catch (err) {
-    console.error("[poll.POST] error:", err);
+    console.error("[poll.POST] error", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

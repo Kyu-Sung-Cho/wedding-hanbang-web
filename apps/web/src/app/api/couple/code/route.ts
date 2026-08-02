@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { PrivateNextResponse as NextResponse } from "@/lib/http/privateResponse";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 const INVITE_CODE_PATTERN = /^WH-[A-Z0-9]{6,12}$/;
 
@@ -181,7 +182,6 @@ function handleError(error: unknown, operation: "GET" | "POST") {
   if (error instanceof CoupleCodeError) {
     console.warn("[couple/code] request rejected", {
       operation,
-      code: error.diagnosticCode,
     });
     return NextResponse.json({ error: error.publicMessage }, { status: error.status });
   }
@@ -203,7 +203,6 @@ export async function GET(request: Request) {
     if (!authData.user) {
       return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
     }
-
     const admin = getAdmin();
     const { coupleId, couple } = await loadCoupleContext(admin, authData.user.id);
     if (couple.membership_sealed_at) {
@@ -242,6 +241,11 @@ export async function POST(request: Request) {
     if (!authData.user) {
       return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
     }
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("couple:code:rotate", request, authData.user.id),
+      { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+    );
+    if (limited) return limited;
 
     const admin = getAdmin();
     const { coupleId, couple } = await loadCoupleContext(admin, authData.user.id);

@@ -1,31 +1,111 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  verifyAdmin: vi.fn(),
-  getServiceClient: vi.fn(),
+  createAdminClient: vi.fn(),
+  createClientFromRequest: vi.fn(),
+  checkAdminReadRateLimit: vi.fn(),
+  checkAdminMutationRateLimit: vi.fn(),
 }));
 
-vi.mock("@/lib/utils/adminAuth", () => ({
-  verifyAdmin: mocks.verifyAdmin,
-  getServiceClient: mocks.getServiceClient,
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
 }));
 
+vi.mock("@/lib/supabase/server", () => ({
+  createClientFromRequest: mocks.createClientFromRequest,
+}));
+
+vi.mock("@/lib/admin/adminReadBoundary", () => ({
+  checkAdminReadRateLimit: mocks.checkAdminReadRateLimit,
+  checkAdminMutationRateLimit: mocks.checkAdminMutationRateLimit,
+}));
+
+import {
+  ADMIN_STEP_UP_COOKIE,
+  createAdminStepUpToken,
+} from "@/lib/auth/adminStepUp";
 import { GET, PATCH } from "./route";
 
+const ADMIN_ID = "00000000-0000-4000-8000-000000000002";
+const ADMIN_PASSWORD = "admin-bootstrap-secret-longer-than-32-characters";
+
+function resetAdminTest() {
+  vi.resetAllMocks();
+  vi.stubEnv("ADMIN_PASSWORD", ADMIN_PASSWORD);
+  mocks.checkAdminReadRateLimit.mockResolvedValue(null);
+  mocks.checkAdminMutationRateLimit.mockResolvedValue(null);
+}
+
+function primeAdminBoundary(businessClient: unknown) {
+  mocks.createClientFromRequest.mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: ADMIN_ID } },
+      }),
+    },
+  });
+  mocks.createAdminClient
+    .mockReturnValueOnce({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({ data: { is_admin: true } }),
+          })),
+        })),
+      })),
+    })
+    .mockReturnValueOnce(businessClient);
+}
+
+function stepUpHeaders(): Record<string, string> {
+  const token = createAdminStepUpToken(ADMIN_ID);
+  if (!token) throw new Error("admin step-up test token was not created");
+  return { cookie: `${ADMIN_STEP_UP_COOKIE}=${token}` };
+}
+
+function mutationHeaders(includeStepUp = true): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    origin: "https://hanbang.ai",
+    "sec-fetch-site": "same-origin",
+    ...(includeStepUp ? stepUpHeaders() : {}),
+  };
+}
+
+afterEach(() => vi.unstubAllEnvs());
+
 describe("PATCH /api/admin/enrich/:id", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetAdminTest);
+
+  it("rejects an authenticated administrator without a signed step-up", async () => {
+    const rpc = vi.fn();
+    primeAdminBoundary({ rpc });
+
+    const response = await PATCH(new Request(
+      `https://hanbang.ai/api/admin/enrich/${ADMIN_ID}`,
+      {
+        method: "PATCH",
+        headers: mutationHeaders(false),
+        body: JSON.stringify({}),
+      },
+    ), { params: Promise.resolve({ id: ADMIN_ID }) });
+
+    expect(response.status).toBe(401);
+    expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
+    expect(mocks.checkAdminMutationRateLimit).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
 
   it("atomically stores public attributes, private notes, tags, and completion", async () => {
     const vendorId = "00000000-0000-4000-8000-000000000001";
-    const actorId = "00000000-0000-4000-8000-000000000002";
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: actorId });
+    const actorId = ADMIN_ID;
     const single = vi.fn().mockResolvedValue({
       data: { id: vendorId, category: "studio" },
       error: null,
     });
     const rpc = vi.fn().mockResolvedValue({ error: null });
     const statusIn = vi.fn().mockReturnValue({ single });
-    mocks.getServiceClient.mockReturnValue({
+    primeAdminBoundary({
       from: vi.fn(() => ({
         select: vi.fn(() => ({ eq: vi.fn(() => ({ in: statusIn })) })),
       })),
@@ -34,7 +114,7 @@ describe("PATCH /api/admin/enrich/:id", () => {
 
     const response = await PATCH(new Request(`https://hanbang.ai/api/admin/enrich/${vendorId}`, {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: mutationHeaders(),
       body: JSON.stringify({
         action: "complete",
         official_url: "https://sample.example.com",
@@ -67,11 +147,9 @@ describe("PATCH /api/admin/enrich/:id", () => {
 
   it("returns 404 and never writes a rejected vendor", async () => {
     const vendorId = "00000000-0000-4000-8000-000000000021";
-    const actorId = "00000000-0000-4000-8000-000000000022";
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: actorId });
     const single = vi.fn().mockResolvedValue({ data: null, error: { code: "PGRST116" } });
     const rpc = vi.fn();
-    mocks.getServiceClient.mockReturnValue({
+    primeAdminBoundary({
       from: vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({ in: vi.fn().mockReturnValue({ single }) })),
@@ -82,7 +160,7 @@ describe("PATCH /api/admin/enrich/:id", () => {
 
     const response = await PATCH(new Request(`https://hanbang.ai/api/admin/enrich/${vendorId}`, {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: mutationHeaders(),
       body: JSON.stringify({}),
     }), { params: Promise.resolve({ id: vendorId }) });
 
@@ -92,12 +170,11 @@ describe("PATCH /api/admin/enrich/:id", () => {
 });
 
 describe("GET /api/admin/enrich/:id", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetAdminTest);
 
   it("returns an evidence-linked fitting-fee proposal without persisting it", async () => {
     const vendorId = "00000000-0000-4000-8000-000000000011";
-    const actorId = "00000000-0000-4000-8000-000000000012";
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: actorId });
+    const actorId = ADMIN_ID;
 
     const vendorSingle = vi.fn().mockResolvedValue({
       data: {
@@ -156,7 +233,7 @@ describe("GET /api/admin/enrich/:id", () => {
     });
 
     const activeVendorIn = vi.fn().mockReturnValue({ single: vendorSingle });
-    mocks.getServiceClient.mockReturnValue({
+    primeAdminBoundary({
       from: vi.fn((table: string) => {
         if (table === "vendors") {
           return { select: vi.fn(() => ({ eq: vi.fn(() => ({ in: activeVendorIn })) })) };
@@ -175,7 +252,9 @@ describe("GET /api/admin/enrich/:id", () => {
     });
 
     const response = await GET(
-      new Request(`https://hanbang.ai/api/admin/enrich/${vendorId}`),
+      new Request(`https://hanbang.ai/api/admin/enrich/${vendorId}`, {
+        headers: stepUpHeaders(),
+      }),
       { params: Promise.resolve({ id: vendorId }) },
     );
     expect(response.status).toBe(200);
@@ -192,10 +271,6 @@ describe("GET /api/admin/enrich/:id", () => {
 
   it("does not expose a rejected or merged vendor detail", async () => {
     const vendorId = "00000000-0000-4000-8000-000000000031";
-    mocks.verifyAdmin.mockResolvedValue({
-      authorized: true,
-      userId: "00000000-0000-4000-8000-000000000032",
-    });
     const vendorSingle = vi.fn().mockResolvedValue({
       data: null,
       error: { code: "PGRST116" },
@@ -203,7 +278,7 @@ describe("GET /api/admin/enrich/:id", () => {
     const empty = Promise.resolve({ data: [], error: null });
     const orderedEmpty = { data: [], error: null, order: vi.fn() };
     orderedEmpty.order.mockReturnValue(orderedEmpty);
-    mocks.getServiceClient.mockReturnValue({
+    primeAdminBoundary({
       from: vi.fn((table: string) => {
         if (table === "vendors") {
           return {
@@ -224,7 +299,9 @@ describe("GET /api/admin/enrich/:id", () => {
     });
 
     const response = await GET(
-      new Request(`https://hanbang.ai/api/admin/enrich/${vendorId}`),
+      new Request(`https://hanbang.ai/api/admin/enrich/${vendorId}`, {
+        headers: stepUpHeaders(),
+      }),
       { params: Promise.resolve({ id: vendorId }) },
     );
 

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createClientFromRequestSpy, createAdminClientSpy } = vi.hoisted(() => ({
+const { createClientFromRequestSpy, createAdminClientSpy, checkRateLimitPersistentSpy } = vi.hoisted(() => ({
   createClientFromRequestSpy: vi.fn(),
   createAdminClientSpy: vi.fn(),
+  checkRateLimitPersistentSpy: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -10,6 +11,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: createAdminClientSpy,
+}));
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: checkRateLimitPersistentSpy,
+  rateLimitKey: (_scope: string, _request: Request, userId?: string) =>
+    `couple:code:rotate:${userId ?? "anonymous"}`,
 }));
 
 import { GET, POST } from "../route";
@@ -113,6 +119,7 @@ function request(method: "GET" | "POST") {
 describe("/api/couple/code roster epoch fence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    checkRateLimitPersistentSpy.mockResolvedValue(null);
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = `sb_secret_${"a".repeat(40)}`;
     createClientFromRequestSpy.mockResolvedValue({
@@ -120,6 +127,21 @@ describe("/api/couple/code roster epoch fence", () => {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }),
       },
     });
+  });
+
+  it("rate-limits rotation before constructing an admin client", async () => {
+    checkRateLimitPersistentSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "too many requests" }), { status: 429 }),
+    );
+
+    const response = await POST(request("POST"));
+
+    expect(response.status).toBe(429);
+    expect(checkRateLimitPersistentSpy).toHaveBeenCalledWith(
+      `couple:code:rotate:${USER_ID}`,
+      { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+    );
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
   });
 
   it("GET returns no invite code and performs no regeneration for a sealed pair", async () => {

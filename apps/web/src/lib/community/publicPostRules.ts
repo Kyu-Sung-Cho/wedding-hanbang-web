@@ -25,6 +25,12 @@ export function isPublicCommunityPost(post: CommunityPostAccessRow): boolean {
   );
 }
 
+export function filterPublicCommunityPosts<T extends CommunityPostAccessRow>(
+  posts: readonly T[],
+): T[] {
+  return posts.filter(isPublicCommunityPost);
+}
+
 export function canReadCommunityPost(
   post: CommunityPostAccessRow,
   viewer: CommunityPostViewer = {},
@@ -45,7 +51,7 @@ export function communityReadablePostOrFilter(viewerId: string): string {
   return [
     "and(visibility.eq.public,under_review.eq.false)",
     "and(visibility.eq.members,under_review.eq.false)",
-    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
-    `and(under_review.eq.true,author_id.eq.${viewerId})`,
+    `and(visibility.eq.draft,author_public_id.eq.${viewerId})`,
+    `and(under_review.eq.true,author_public_id.eq.${viewerId})`,
   ].join(",");
 }

@@ -570,6 +570,6 @@ test("the explicit extract local-candidates CLI cannot fall through to active ex
       "--state-dir",
       fixture.stateDir,
     ], { cwd: fixture.cliRoot }),
-    /unknown_extract_operation:local-candidate-typo/u,
+    /INGEST_ARGUMENT_INVALID/u,
   );
 });

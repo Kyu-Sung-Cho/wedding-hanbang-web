@@ -163,6 +163,10 @@ async function createReleaseFixture(t) {
     }],
   };
   const predecessorManifestText = `${JSON.stringify(predecessorManifest, null, 2)}\n`;
+  const identityInventory = "BEGIN TRANSACTION READ ONLY;\nselect 1;\nROLLBACK;\n";
+  const identityApply = "BEGIN;\nselect 1;\nCOMMIT;\n";
+  const identityVerify = "BEGIN TRANSACTION READ ONLY;\nselect 1 as community_public_identity_contract_verified;\nROLLBACK;\n";
+  const identityRollout = "# Fixture community public identity rollout\n";
   const manifest = {
     deploymentEvidence: {
       backup: "missing",
@@ -172,6 +176,25 @@ async function createReleaseFixture(t) {
       storage: "missing",
     },
     expandMigrations: [{ file: migrationFile, sha256: migrationSha256 }],
+    forwardOnlySecurityOperations: [{
+      id: "community-public-identity-contract-20260803104500",
+      phase: "post-application-deploy",
+      requiredGate: "minimum-supported-community-client-version-enforced",
+      rollbackPolicy: "forward-fix-only-no-auth-uuid-regrant",
+      inventory: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_inventory.sql",
+        sha256: sha256(identityInventory),
+      },
+      apply: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_apply.sql",
+        sha256: sha256(identityApply),
+      },
+      verify: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_verify.sql",
+        sha256: sha256(identityVerify),
+        expectedEvidence: { community_public_identity_contract_verified: 1 },
+      },
+    }],
     migrationFloor: "20260718120000",
     predecessorManifest: {
       file: "supabase/release-manifests/amora-engine-v2-20260716.json",
@@ -179,6 +202,10 @@ async function createReleaseFixture(t) {
     },
     projectRef: PRODUCTION_REF,
     release: "vendor-disclosure-v2-20260718",
+    requiredDocuments: [{
+      file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+      sha256: sha256(identityRollout),
+    }],
     requiredRemoteHead: "20260716117000",
     status: "deployment_blocked",
   };
@@ -221,6 +248,26 @@ async function createReleaseFixture(t) {
   await writeFile(
     join(repoRoot, "supabase", "migrations", migrationFile),
     migrationText,
+  );
+  await mkdir(join(repoRoot, "supabase", "platform-operations", "security"), {
+    recursive: true,
+  });
+  await mkdir(join(repoRoot, "docs", "operations"), { recursive: true });
+  await writeFile(
+    join(repoRoot, "supabase", "platform-operations", "security", "20260803104500_community_public_identity_contract_inventory.sql"),
+    identityInventory,
+  );
+  await writeFile(
+    join(repoRoot, "supabase", "platform-operations", "security", "20260803104500_community_public_identity_contract_apply.sql"),
+    identityApply,
+  );
+  await writeFile(
+    join(repoRoot, "supabase", "platform-operations", "security", "20260803104500_community_public_identity_contract_verify.sql"),
+    identityVerify,
+  );
+  await writeFile(
+    join(repoRoot, "docs", "operations", "COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md"),
+    identityRollout,
   );
   const commit = await initializeGitRepo(repoRoot, "release fixture");
   t.after(() => rm(workspace, { recursive: true, force: true }));

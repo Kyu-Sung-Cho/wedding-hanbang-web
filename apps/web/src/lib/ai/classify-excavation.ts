@@ -23,6 +23,7 @@ import {
   blockLegacyAuxiliaryProviderGeneration,
 } from "@/lib/ai/amoraRequestPolicy";
 import type { StageTag } from "@/types/moat.types";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const MAX_USER_CHARS = 400;
 const MAX_AI_CHARS = 1_200;
@@ -182,7 +183,7 @@ async function classifyWithOpenAI(
         : undefined,
     };
   } catch (err) {
-    console.error("[classify-excavation] OpenAI 호출 실패:", err);
+    console.error("[classify-excavation] provider call failed", safeErrorDiagnostic(err));
     return null;
   }
 }
@@ -219,6 +220,6 @@ export async function maybeClassifyExcavation(
     });
     if (!result) return;
   } catch (err) {
-    console.error("[classify-excavation] 예외 (무시):", err);
+    console.error("[classify-excavation] ignored failure", safeErrorDiagnostic(err));
   }
 }

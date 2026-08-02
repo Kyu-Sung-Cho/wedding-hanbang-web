@@ -13,8 +13,9 @@ import {
   projectAmoraProfiles,
   toAmoraProfileApiRows,
 } from "@/lib/ai/amoraProfileProjection";
-import { isBodyTooLarge } from "@/utils/requestValidation";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, readBoundedJsonValue } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export const dynamic = "force-dynamic";
 
@@ -123,12 +124,15 @@ export async function GET(request: Request) {
         .single(),
     ]);
     if (settingsResult.error || memoriesResult.error || consentsResult.error || coupleResult.error) {
-      console.error("[amora-memory-api] read failed", {
-        settings: settingsResult.error?.code,
-        memories: memoriesResult.error?.code,
-        consents: consentsResult.error?.code,
-        couple: coupleResult.error?.code,
-      });
+      console.error(
+        "[amora-memory-api] read failed",
+        safeErrorDiagnostic(
+          settingsResult.error
+          ?? memoriesResult.error
+          ?? consentsResult.error
+          ?? coupleResult.error,
+        ),
+      );
       return NextResponse.json({ error: "기억을 불러오지 못했어요." }, { status: 503 });
     }
     const members = [...new Set(
@@ -175,12 +179,12 @@ export async function GET(request: Request) {
     if (profileNodesResult.error) {
       console.warn(
         "[amora-memory-api] profile projection source query failed",
-        profileNodesResult.error.code,
+        safeErrorDiagnostic(profileNodesResult.error),
       );
     } else if (profileProjection.rejectedReason) {
       console.warn(
         "[amora-memory-api] profile projection failed closed",
-        profileProjection.rejectedReason,
+        { code: profileProjection.rejectedReason },
       );
     }
     const projectedProfiles = toAmoraProfileApiRows(profileProjection.profiles);
@@ -212,7 +216,7 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
-    console.error("[amora-memory-api] GET failed", error);
+    console.error("[amora-memory-api] GET failed", safeErrorDiagnostic(error));
     return NextResponse.json({ error: "서버 오류가 발생했어요." }, { status: 500 });
   }
 }
@@ -225,17 +229,19 @@ export async function PATCH(request: Request) {
     const auth = await getAuthContext(request);
     if (!auth.ok) return auth.response;
     const { supabase, context } = auth;
-    const limited = checkRateLimit(rateLimitKey("amora:memory", request, context.userId), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("amora:memory", request, context.userId), {
       maxRequests: 30,
       windowMs: 60 * 1000,
     });
     if (limited) return limited;
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      if (bodyResult.reason === "too_large") {
+        return NextResponse.json({ error: "요청 데이터가 너무 커요." }, { status: 413 });
+      }
       return NextResponse.json({ error: "요청 형식이 올바르지 않아요." }, { status: 400 });
     }
+    const body = bodyResult.value;
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "요청 형식이 올바르지 않아요." }, { status: 400 });
     }
@@ -364,7 +370,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ error: "지원하지 않는 작업이에요." }, { status: 400 });
   } catch (error) {
-    console.error("[amora-memory-api] PATCH failed", error);
+    console.error("[amora-memory-api] PATCH failed", safeErrorDiagnostic(error));
     return NextResponse.json({ error: "기억 설정을 바꾸지 못했어요." }, { status: 500 });
   }
 }

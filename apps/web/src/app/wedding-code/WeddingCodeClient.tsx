@@ -18,6 +18,7 @@ import {
   type WeddingCodeV05Question,
 } from "@/constants/weddingCodeV05";
 import { readStoredUtm } from "@/utils/utm";
+import { sanitizeUtmFields } from "@/utils/campaignAttribution";
 import { captureEvent } from "@/lib/analytics";
 import { WC_RESULT_STORAGE_KEY, type WcResultBackup } from "./result/ResultClient";
 
@@ -107,6 +108,12 @@ export default function WeddingCodeClient() {
     try {
       const utm = readStoredUtm();
       const params = new URLSearchParams(window.location.search);
+      const currentUtm = sanitizeUtmFields({
+        source: params.get("utm_source"),
+        medium: params.get("utm_medium"),
+        campaign: params.get("utm_campaign"),
+        content: params.get("utm_content"),
+      });
       const res = await fetch("/api/wedding-code/response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -124,10 +131,10 @@ export default function WeddingCodeClient() {
           cta_interest: cta,
           free_text: freeText,
           duration_ms: startedAt ? Date.now() - startedAt : undefined,
-          utm_source: utm?.source ?? params.get("utm_source") ?? undefined,
-          utm_medium: utm?.medium ?? params.get("utm_medium") ?? undefined,
-          utm_campaign: utm?.campaign ?? params.get("utm_campaign") ?? undefined,
-          utm_content: params.get("utm_content") ?? undefined,
+          utm_source: utm?.source ?? currentUtm.source ?? undefined,
+          utm_medium: utm?.medium ?? currentUtm.medium ?? undefined,
+          utm_campaign: utm?.campaign ?? currentUtm.campaign ?? undefined,
+          utm_content: currentUtm.content ?? undefined,
           couple_token: ctToken ?? undefined,
         }),
       });

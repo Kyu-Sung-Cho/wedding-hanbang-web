@@ -49,7 +49,7 @@ export default function AppClientLayout({
   const searchParams = useSearchParams();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
-  const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
+  const { user, isInitialized, isLoading, isDemo } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
   const vendorAdminPreview = (
@@ -57,13 +57,15 @@ export default function AppClientLayout({
   ) && searchParams.get("preview") === "1";
 
   usePageViewTracker(isInitialized && !isDemo && !analyticsSuppressed);
-  useAuthSessionSync(!isDemo);
+  const isSessionVerified = useAuthSessionSync(!isDemo);
 
   useEffect(() => {
-    if (!isInitialized) void initialize();
-  }, [initialize, isInitialized]);
+    if (isSessionVerified && isInitialized && !isLoading && !isDemo && !user) {
+      window.location.replace("/login");
+    }
+  }, [isDemo, isInitialized, isLoading, isSessionVerified, user]);
 
-  if (!isInitialized || isLoading) {
+  if (!isSessionVerified || !isInitialized || isLoading || (!isDemo && !user)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2]">
         <div className="text-center">
@@ -76,6 +78,7 @@ export default function AppClientLayout({
 
   return (
     <div
+      key={isDemo ? "demo" : user?.id}
       className={`${analyticsSuppressed ? "ph-no-capture " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh

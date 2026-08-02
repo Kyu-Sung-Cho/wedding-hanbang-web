@@ -21,6 +21,8 @@ vi.mock("@/lib/amora/momentLoop", () => ({
   }),
 }));
 
+const CRON_SECRET = "cron-secret-with-at-least-thirty-two-characters";
+
 type FakeJourney = {
   id: string;
   couple_id: string;
@@ -231,7 +233,7 @@ function buildFakeAdmin(input: {
 describe("/api/cron/care-moments", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("CRON_SECRET", "test-cron-secret");
+    vi.stubEnv("CRON_SECRET", CRON_SECRET);
   });
 
   afterEach(() => {
@@ -246,7 +248,7 @@ describe("/api/cron/care-moments", () => {
     });
     vi.mocked(createClient).mockReturnValue({ rpc } as never);
     const request = new NextRequest("http://localhost/api/cron/care-moments", {
-      headers: { authorization: "Bearer test-cron-secret" },
+      headers: { authorization: `Bearer ${CRON_SECRET}` },
     });
 
     const response = await GET(request);
@@ -269,7 +271,7 @@ describe("/api/cron/care-moments", () => {
       rpc: vi.fn().mockResolvedValue({ data: null, error: { code: "DB_DOWN" } }),
     } as never);
     const request = new NextRequest("http://localhost/api/cron/care-moments", {
-      headers: { authorization: "Bearer test-cron-secret" },
+      headers: { authorization: `Bearer ${CRON_SECRET}` },
     });
 
     const response = await GET(request);
@@ -282,7 +284,7 @@ describe("/api/cron/care-moments", () => {
     vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
     vi.stubEnv("RESEND_API_KEY", "");
     const request = new NextRequest("http://localhost/api/cron/care-moments", {
-      headers: { authorization: "Bearer test-cron-secret" },
+      headers: { authorization: `Bearer ${CRON_SECRET}` },
     });
 
     const response = await GET(request);

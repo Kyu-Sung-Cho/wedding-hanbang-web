@@ -45,6 +45,10 @@ function harness(options: {
   objectStillExists?: boolean;
   authMissing?: boolean;
   claimThrows?: boolean;
+  retentionPreflight?: "clear" | "manual_review" | "rejected";
+  ownedChatPaths?: string[];
+  chatRows?: Array<Record<string, unknown>>;
+  existingPaths?: string[];
 } = {}) {
   const sequence: string[] = [];
   const rows = options.manifest ?? [manifest()];
@@ -57,10 +61,28 @@ function harness(options: {
         error: null,
       };
     }
+    if (name === "preflight_account_deletion_retention") {
+      return { data: options.retentionPreflight ?? "clear", error: null };
+    }
+    if (name === "list_account_deletion_owned_chat_objects") {
+      const afterName = typeof args?.p_after_name === "string"
+        ? args.p_after_name
+        : null;
+      const limit = Number(args?.p_limit ?? 100);
+      return {
+        data: [...(options.ownedChatPaths ?? [])]
+          .sort()
+          .filter((path) => afterName === null || path > afterName)
+          .slice(0, limit)
+          .map((path) => ({ path })),
+        error: null,
+      };
+    }
     if (name === "checkpoint_account_deletion_media"
         || name === "prepare_account_deletion_auth_delete"
         || name === "finalize_account_deletion_job"
         || name === "release_account_deletion_job"
+        || name === "mark_account_deletion_legacy_chat_manual_review"
         || name === "mark_account_deletion_manual_review") {
       return { data: true, error: null };
     }
@@ -74,7 +96,15 @@ function harness(options: {
   orderedQuery.order.mockReturnValue(orderedQuery);
   const eq = vi.fn(() => orderedQuery);
   const select = vi.fn(() => ({ eq }));
+  const chatRange = vi.fn(async (fromIndex: number) => ({
+    data: fromIndex === 0 ? (options.chatRows ?? []) : [],
+    error: null,
+  }));
+  const chatOrder = vi.fn(() => ({ range: chatRange }));
+  const chatEq = vi.fn(() => ({ order: chatOrder }));
+  const chatSelect = vi.fn(() => ({ eq: chatEq }));
   const from = vi.fn((table: string) => {
+    if (table === "chat_messages") return { select: chatSelect };
     if (table !== "account_deletion_media_manifest") {
       throw new Error(`unexpected table: ${table}`);
     }
@@ -84,9 +114,13 @@ function harness(options: {
     sequence.push("storage.remove");
     return { data: [], error: null };
   });
-  const exists = vi.fn(async () => {
+  const existingPaths = new Set(options.existingPaths ?? []);
+  const exists = vi.fn(async (path: string) => {
     sequence.push("storage.exists");
-    return { data: options.objectStillExists ?? false, error: null };
+    return {
+      data: existingPaths.has(path) || (options.objectStillExists ?? false),
+      error: null,
+    };
   });
   const list = vi.fn(async (): Promise<{
     data: Array<{ name: string; id?: string | null }>;
@@ -133,12 +167,14 @@ describe("account deletion Storage worker", () => {
     expect(test.exists).toHaveBeenCalledWith(LEGACY_PATH);
     expect(test.sequence).toEqual([
       "claim_account_deletion_job",
+      "preflight_account_deletion_retention",
       "storage.remove",
       "storage.exists",
       "checkpoint_account_deletion_media",
       "storage.list",
       "storage.list",
       "storage.list",
+      "list_account_deletion_owned_chat_objects",
       "storage.list",
       "prepare_account_deletion_auth_delete",
       "auth.getUserById",
@@ -161,6 +197,22 @@ describe("account deletion Storage worker", () => {
     expect(test.rpc).toHaveBeenCalledWith(
       "release_account_deletion_job",
       expect.objectContaining({ p_error_code: "storage_delete_unconfirmed" }),
+    );
+  });
+
+  it("stops on retention review before any irreversible Storage side effect", async () => {
+    const test = harness({ retentionPreflight: "manual_review" });
+
+    const result = await processAccountDeletionJob(test.admin as never, JOB_ID, NOW);
+
+    expect(result).toEqual({ status: "manual_review" });
+    expect(test.remove).not.toHaveBeenCalled();
+    expect(test.exists).not.toHaveBeenCalled();
+    expect(test.list).not.toHaveBeenCalled();
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).not.toHaveBeenCalledWith(
+      "prepare_account_deletion_auth_delete",
+      expect.anything(),
     );
   });
 
@@ -288,6 +340,50 @@ describe("account deletion Storage worker", () => {
     );
   });
 
+  it("moves an owner-attributed orphan legacy chat object to manual review", async () => {
+    const legacyChatPath = "77777777-7777-4777-8777-777777777777/1700000000000-abc12.webp";
+    const test = harness({ ownedChatPaths: [legacyChatPath] });
+
+    const result = await processAccountDeletionJob(test.admin as never, JOB_ID, NOW);
+
+    expect(result).toEqual({ status: "manual_review" });
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).toHaveBeenCalledWith(
+      "mark_account_deletion_legacy_chat_manual_review",
+      expect.objectContaining({
+        p_paths: [legacyChatPath],
+        p_error_code: "chat_legacy_owner_manual_review_required",
+      }),
+    );
+  });
+
+  it("durably checkpoints an exact sender-referenced legacy chat object", async () => {
+    const coupleId = "77777777-7777-4777-8777-777777777777";
+    const legacyChatPath = `${coupleId}/1700000000000-abc12.webp`;
+    const test = harness({
+      manifest: [],
+      existingPaths: [legacyChatPath],
+      chatRows: [{
+        id: "88888888-8888-4888-8888-888888888888",
+        couple_id: coupleId,
+        sender_id: USER_ID,
+        metadata: { imagePaths: [legacyChatPath] },
+      }],
+    });
+
+    const result = await processAccountDeletionJob(test.admin as never, JOB_ID, NOW);
+
+    expect(result).toEqual({ status: "manual_review" });
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).toHaveBeenCalledWith(
+      "mark_account_deletion_legacy_chat_manual_review",
+      expect.objectContaining({
+        p_paths: [legacyChatPath],
+        p_error_code: "chat_legacy_attachment_manual_review_required",
+      }),
+    );
+  });
+
   it("returns a resumed inventorying job to manual review while its chat attachment remains", async () => {
     const rpc = vi.fn(async (name: string, args?: Record<string, unknown>) => {
       if (name === "claim_account_deletion_job") {
@@ -298,6 +394,12 @@ describe("account deletion Storage worker", () => {
           })],
           error: null,
         };
+      }
+      if (name === "preflight_account_deletion_retention") {
+        return { data: "clear", error: null };
+      }
+      if (name === "list_account_deletion_owned_chat_objects") {
+        return { data: [], error: null };
       }
       if (name === "replace_account_deletion_media_manifest") {
         return {
@@ -380,6 +482,9 @@ describe("account deletion Storage worker", () => {
           })],
           error: null,
         };
+      }
+      if (name === "preflight_account_deletion_retention") {
+        return { data: "clear", error: null };
       }
       if (name === "mark_account_deletion_manual_review") {
         return { data: true, error: null };

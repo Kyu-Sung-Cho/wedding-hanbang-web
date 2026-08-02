@@ -17,6 +17,13 @@ export interface ComputedNotification {
 const DISMISSED_KEY = "hanbang_dismissed_notifications";
 const PREFS_KEY = "hanbang_notification_prefs";
 
+/** Local notification UI state must not carry over to the next signed-in actor. */
+export function clearNotificationClientState(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(DISMISSED_KEY);
+  localStorage.removeItem(PREFS_KEY);
+}
+
 export interface NotificationPrefs {
   schedule: boolean;
   budget: boolean;

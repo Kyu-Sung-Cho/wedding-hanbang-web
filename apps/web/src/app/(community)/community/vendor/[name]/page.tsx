@@ -55,7 +55,7 @@ interface StaffLite {
 interface SlotLite {
   day: number;        // 0=월 ~ 6=일
   hour: number;       // 0~23
-  max_bookings: number;
+  available: boolean;
 }
 
 interface ApiResponse {
@@ -97,13 +97,13 @@ function jsDayToDbDay(jsDay: number): number {
 
 interface DaySlotGroup {
   date: Date;
-  slots: Array<{ hour: number; available: boolean; remaining: number }>;
+  slots: Array<{ hour: number; available: boolean }>;
 }
 
 /**
- * 실제 vendor_timeslots / staff_timeslots 기반으로 앞으로 7일 슬롯 생성.
+ * 서버가 수용량과 예약 현황을 합산한 공개 가능 여부로 앞으로 7일 슬롯 생성.
  * - 선택된 staff가 있으면 그 staff의 슬롯만, 없으면 vendor 단위 슬롯.
- * - max_bookings를 remaining(잔여)으로 사용 (실제 예약 카운트는 데모용으로 무시).
+ * - 내부 수용량과 정확한 예약 건수는 브라우저로 전달하지 않는다.
  * - 슬롯 비어있는 시간대도 같이 표시(disabled). 시간 범위는 데이터에서 추출.
  */
 function buildSlotsFromData(slots: SlotLite[]): DaySlotGroup[] {
@@ -121,10 +121,10 @@ function buildSlotsFromData(slots: SlotLite[]): DaySlotGroup[] {
     maxHour = 18;
   }
 
-  // (day, hour) → max_bookings 인덱싱
-  const lookup = new Map<string, number>();
+  // (day, hour) → 서버에서 계산한 공개 가능 여부 인덱싱
+  const lookup = new Map<string, boolean>();
   for (const s of slots) {
-    lookup.set(`${s.day}:${s.hour}`, s.max_bookings);
+    lookup.set(`${s.day}:${s.hour}`, s.available);
   }
 
   const today = new Date();
@@ -135,10 +135,12 @@ function buildSlotsFromData(slots: SlotLite[]): DaySlotGroup[] {
     const date = new Date(today);
     date.setDate(today.getDate() + d);
     const dbDay = jsDayToDbDay(date.getDay());
-    const daySlots: Array<{ hour: number; available: boolean; remaining: number }> = [];
+    const daySlots: Array<{ hour: number; available: boolean }> = [];
     for (let h = minHour; h <= maxHour; h++) {
-      const remaining = lookup.get(`${dbDay}:${h}`) ?? 0;
-      daySlots.push({ hour: h, available: remaining > 0, remaining });
+      daySlots.push({
+        hour: h,
+        available: lookup.get(`${dbDay}:${h}`) === true,
+      });
     }
     days.push({ date, slots: daySlots });
   }
@@ -618,7 +620,7 @@ function BookingSection({
                   >
                     <div className="text-sm font-semibold">{slot.hour}:00</div>
                     <div className="text-[10px] mt-0.5">
-                      {available ? `잔여 ${slot.remaining}` : "마감"}
+                      {available ? "예약 가능" : "마감"}
                     </div>
                   </div>
                 );

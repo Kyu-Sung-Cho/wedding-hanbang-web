@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
 import ProtectionToolCard, { PROTECTION_TOOL_NAMES } from "./ProtectionToolCard";
+import { normalizeExternalHttpsUrl } from "@/utils/externalUrls";
 
 // 업체 관련 tool 이름 집합
 export const VENDOR_TOOL_NAMES = new Set([
@@ -1074,18 +1075,8 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
   };
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
 
-  const safeNaverUrl = (value: string | undefined): string | null => {
-    if (!value) return null;
-    try {
-      const url = new URL(value);
-      const isNaver = url.hostname === "naver.com" || url.hostname.endsWith(".naver.com");
-      return url.protocol === "https:" && isNaver && !url.username && !url.password
-        ? url.toString()
-        : null;
-    } catch {
-      return null;
-    }
-  };
+  const safeNaverUrl = (value: string | undefined): string | null =>
+    normalizeExternalHttpsUrl(value, ["naver.com"]);
 
   const handoffSearchUrl = safeNaverUrl(output.handoff?.searchUrl);
   const handoffMapsUrl = safeNaverUrl(output.handoff?.mapsUrl);
@@ -1159,7 +1150,19 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
     );
   }
 
-  const places = output.places ?? [];
+  const places = (output.places ?? []).flatMap((place) => {
+    const searchUrl = safeNaverUrl(place.searchUrl);
+    const mapsUrl = safeNaverUrl(place.mapsUrl);
+    const blogSearchUrl = safeNaverUrl(place.blogSearchUrl);
+    if (!searchUrl && !mapsUrl) return [];
+    return [{
+      ...place,
+      searchUrl,
+      mapsUrl,
+      blogSearchUrl,
+      imageUrl: normalizeExternalHttpsUrl(place.imageUrl, ["pstatic.net"]),
+    }];
+  });
   if (places.length === 0) {
     return (
       <div className="flex justify-start ml-14 my-2">
@@ -1215,7 +1218,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
           >
             {/* 메인 컨텐츠 — 하단 지도/블로그 링크와 분리된 단일 검색 링크 */}
             <a
-              href={p.searchUrl || p.mapsUrl}
+              href={p.searchUrl ?? p.mapsUrl!}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`${p.name} 네이버 검색에서 보기`}
@@ -1342,7 +1345,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
             {/* 하단 액션 버튼 */}
             <div className="flex border-t border-black/[0.04]">
               <a
-                href={p.mapsUrl}
+                href={p.mapsUrl ?? p.searchUrl ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-[#1A1A1F] hover:bg-[#FAF7F2] transition-colors"
@@ -1352,7 +1355,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               </a>
               <div className="w-px bg-black/[0.04]" />
               <a
-                href={p.blogSearchUrl}
+                href={p.blogSearchUrl ?? p.searchUrl ?? p.mapsUrl ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-[#C4967E] hover:bg-[#FDF8F5] transition-colors"

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -18,14 +19,16 @@ function validEnv(overrides = {}) {
     OPENAI_AMORA_FAST_MODEL: "gpt-5.6-luna",
     OPENAI_AMORA_PRIMARY_REASONING_EFFORT: "none",
     OPENAI_AMORA_FAST_REASONING_EFFORT: "none",
-    AMORA_COUPLE_QUOTA_ENABLED: "false",
+    AMORA_COUPLE_QUOTA_ENABLED: "true",
     AMORA_COST_GUARD_ENABLED: "true",
+    AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP: "60",
     AMORA_GLOBAL_DAILY_MESSAGE_CAP: "300",
     AMORA_GLOBAL_DAILY_COST_CAP_USD: "20",
     AMORA_AUXILIARY_MEMORY_ENABLED: "false",
     AMORA_CARE_OUTBOUND_ENABLED: "false",
     AMORA_PROACTIVE_CHAT_ENABLED: "true",
     AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+    NAVER_PLACE_SEARCH_ENABLED: "false",
     AI_LOG_RETENTION_CRON_ENABLED: "false",
     ACCOUNT_DELETION_INTAKE_ENABLED: "false",
     ACCOUNT_DELETION_CRON_ENABLED: "false",
@@ -38,8 +41,11 @@ function validEnv(overrides = {}) {
     SUPABASE_PRODUCTION_PROJECT_REF: PROJECT_REF,
     SUPABASE_PRODUCTION_WRITE_CONFIRM: `RUNTIME_WRITE:${PROJECT_REF}`,
     ADMIN_PASSWORD: "admin-bootstrap-secret-longer-than-thirty-two-chars",
-    CRON_SECRET: "cron-secret-longer-than-thirty-two-characters",
+    CRON_SECRET: "G7mY2qV9xN4sK8dP1fR6wT3cH5jL0uB_zA-EiQo",
+    INTERNAL_API_TOKEN: "P8qJ3mV7rT2xK9cN4sL6wY1dF5gB0uA_zE-HoQi",
     RATE_LIMIT_KEY_SECRET: "rate-limit-secret-longer-than-thirty-two-chars",
+    DEMO_SESSION_SECRET: "demo-session-secret-longer-than-thirty-two-chars!",
+    AMORA_EVAL_SECRET: "eval-release-secret-longer-than-thirty-two-chars!",
     PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT: "2",
     PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256: "a".repeat(64),
     ...overrides,
@@ -70,12 +76,152 @@ test("the production environment gate accepts only an explicit safe configuratio
   assert.deepEqual(report.failed, []);
 });
 
+test("the production environment gate accepts generated-like base64url and hex secrets", () => {
+  const base64urlSecret = createHash("sha256")
+    .update("test-only-cron-secret-fixture")
+    .digest("base64url");
+  const hexSecret = createHash("sha256")
+    .update("test-only-internal-secret-fixture")
+    .digest("hex");
+  const result = runChecker(validEnv({
+    CRON_SECRET: base64urlSecret,
+    INTERNAL_API_TOKEN: hexSecret,
+  }));
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
 test("the production environment gate blocks a missing rate-limit HMAC secret", () => {
   const result = runChecker(validEnv({ RATE_LIMIT_KEY_SECRET: "" }));
   assert.equal(result.status, 1);
   const report = JSON.parse(result.stdout);
   assert.equal(report.pass, false);
   assert.deepEqual(report.failed, ["rateLimitSecretConfigured"]);
+});
+
+test("the production environment gate enforces the runtime CRON_SECRET grammar", () => {
+  for (const unsafe of [
+    "StrongMachineSecret_0123456789abcdef!",
+    "a".repeat(32),
+    "abcdEFGH".repeat(4),
+  ]) {
+    const result = runChecker(validEnv({ CRON_SECRET: unsafe }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(JSON.parse(result.stdout).failed, ["cronSecretConfigured"]);
+  }
+});
+
+test("the production environment gate validates canonical and legacy internal tokens", () => {
+  const legacySecret = "V4nR8kD2yM7pQ1sT6wX3cF9hJ5uL0aB_zG-EiNo";
+
+  const missing = runChecker(validEnv({ INTERNAL_API_TOKEN: "" }));
+  assert.equal(missing.status, 1);
+  assert.deepEqual(
+    JSON.parse(missing.stdout).failed,
+    ["internalApiTokenConfigured"],
+  );
+
+  const repeated = runChecker(validEnv({ INTERNAL_API_TOKEN: "i".repeat(32) }));
+  assert.equal(repeated.status, 1);
+  assert.deepEqual(
+    JSON.parse(repeated.stdout).failed,
+    ["internalApiTokenConfigured"],
+  );
+
+  const legacyFallback = runChecker(validEnv({
+    INTERNAL_API_TOKEN: "",
+    VENDOR_INTERNAL_TOKEN: legacySecret,
+  }));
+  assert.equal(legacyFallback.status, 0, legacyFallback.stderr || legacyFallback.stdout);
+
+  const conflict = runChecker(validEnv({ VENDOR_INTERNAL_TOKEN: legacySecret }));
+  assert.equal(conflict.status, 1);
+  assert.deepEqual(
+    JSON.parse(conflict.stdout).failed,
+    ["internalApiTokenConfigured", "internalApiTokenAliasesCompatible"],
+  );
+});
+
+test("the production environment gate blocks a missing or weak demo-session secret", () => {
+  for (const unsafe of ["", "too-short", "a".repeat(64), "replace-with-demo-secret-12345678901234567890"]) {
+    const result = runChecker(validEnv({ DEMO_SESSION_SECRET: unsafe }));
+    assert.equal(result.status, 1);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.failed, ["demoSessionSecretConfigured"]);
+  }
+});
+
+test("the production environment gate rejects demo signing-key reuse", () => {
+  const shared = "shared-secret-with-enough-unique-characters-123!";
+  const result = runChecker(validEnv({
+    DEMO_SESSION_SECRET: shared,
+    RATE_LIMIT_KEY_SECRET: shared,
+  }));
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(
+    JSON.parse(result.stdout).failed,
+    ["demoSessionSecretDistinct"],
+  );
+});
+
+test("the production environment gate blocks a missing or weak release-eval secret", () => {
+  for (const unsafe of ["", "too-short", "a".repeat(64), "replace-with-eval-secret-12345678901234567890"]) {
+    const result = runChecker(validEnv({ AMORA_EVAL_SECRET: unsafe }));
+    assert.equal(result.status, 1);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.failed, ["evalSecretConfigured"]);
+  }
+});
+
+test("the production environment gate rejects release-eval signing-key reuse", () => {
+  const shared = "shared-secret-with-enough-unique-characters-123!";
+  const result = runChecker(validEnv({
+    AMORA_EVAL_SECRET: shared,
+    DEMO_SESSION_SECRET: shared,
+  }));
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(
+    JSON.parse(result.stdout).failed,
+    ["evalSecretDistinct"],
+  );
+});
+
+test("the production environment gate requires a positive dedicated demo cap", () => {
+  for (const unsafe of ["", "0", "-1", "1.5"]) {
+    const result = runChecker(validEnv({
+      AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["demoMessageCapConfigured"],
+    );
+  }
+});
+
+test("the production environment gate keeps the per-couple cost quota enabled", () => {
+  for (const unsafe of ["", "false", "TRUE"]) {
+    const result = runChecker(validEnv({
+      AMORA_COUPLE_QUOTA_ENABLED: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(JSON.parse(result.stdout).failed, ["coupleQuotaEnabled"]);
+  }
+});
+
+test("the expand deployment keeps NAVER place search disabled pending privacy approval", () => {
+  for (const unsafe of ["", "true", "FALSE"]) {
+    const result = runChecker(validEnv({
+      NAVER_PLACE_SEARCH_ENABLED: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["naverPlaceSearchDisabledForExpandDeploy"],
+    );
+  }
 });
 
 test("the production environment gate requires an exact positive published-vendor count", () => {

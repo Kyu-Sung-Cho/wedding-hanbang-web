@@ -5,14 +5,16 @@ import {
   isCommunityNicknameUniqueViolation,
   validateCommunityNickname,
 } from "@/lib/community/nickname";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalIsoDate,
   isBodyTooLarge,
   isRecord,
   isUuid,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
 import { MAX_WEDDING_BUDGET_WON } from "@/lib/weddingBudget";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const MAX_BUDGET_WON = MAX_WEDDING_BUDGET_WON;
@@ -348,7 +350,7 @@ export async function GET(request: Request) {
     const user = await authenticatedUser(request);
     if (!user) return privateResponse({ error: "인증이 필요합니다." }, 401);
 
-    const limited = checkRateLimit(
+    const limited = await checkRateLimitPersistent(
       rateLimitKey("wedding-settings:read", request, user.id),
       { maxRequests: 60, windowMs: 60 * 1000 },
     );
@@ -362,7 +364,7 @@ export async function GET(request: Request) {
       { p_user_id: user.id },
     );
     if (error) {
-      console.error("Wedding settings snapshot failed:", error);
+      console.error("Wedding settings snapshot failed", safeErrorDiagnostic(error));
       return privateResponse({ error: "설정을 불러오지 못했습니다." }, 500);
     }
 
@@ -373,7 +375,7 @@ export async function GET(request: Request) {
     }
     return privateResponse({ settings, careAvailability: careAvailabilityFor(user) });
   } catch (error) {
-    console.error("Wedding settings read API error:", error);
+    console.error("Wedding settings read API error", safeErrorDiagnostic(error));
     return privateResponse({ error: "서버 오류" }, 500);
   }
 }
@@ -387,7 +389,7 @@ export async function PATCH(request: Request) {
     const user = await authenticatedUser(request);
     if (!user) return privateResponse({ error: "인증이 필요합니다." }, 401);
 
-    const limited = checkRateLimit(
+    const limited = await checkRateLimitPersistent(
       rateLimitKey("wedding-settings:update", request, user.id),
       { maxRequests: 20, windowMs: 60 * 1000 },
     );
@@ -396,17 +398,14 @@ export async function PATCH(request: Request) {
       return limited;
     }
 
-    const rawBody = await request.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-      return privateResponse({ error: "요청 데이터가 너무 큽니다." }, 413);
-    }
-
-    let body: unknown;
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      if (bodyResult.reason === "too_large") {
+        return privateResponse({ error: "요청 데이터가 너무 큽니다." }, 413);
+      }
       return privateResponse({ error: "잘못된 JSON 요청입니다." }, 400);
     }
+    const body = bodyResult.value;
     const parsed = parsePatchBody(body, user.id);
     if (!parsed.ok) return privateResponse({ error: parsed.error }, 400);
 
@@ -441,7 +440,7 @@ export async function PATCH(request: Request) {
         return privateResponse({ error: "설정 변경 요청이 올바르지 않습니다." }, 400);
       }
 
-      console.error("Atomic wedding settings patch failed:", error);
+      console.error("Atomic wedding settings patch failed", safeErrorDiagnostic(error));
       return privateResponse({ error: "설정을 저장하지 못했습니다." }, 500);
     }
 
@@ -452,7 +451,7 @@ export async function PATCH(request: Request) {
     }
     return privateResponse({ settings, careAvailability: careAvailabilityFor(user) });
   } catch (error) {
-    console.error("Wedding settings patch API error:", error);
+    console.error("Wedding settings patch API error", safeErrorDiagnostic(error));
     return privateResponse({ error: "서버 오류" }, 500);
   }
 }

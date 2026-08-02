@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { setDemoCookies } from "@/lib/demoSession";
 import { createClient } from "@/lib/supabase/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 export async function POST(request: Request) {
-  const limited = checkRateLimit(rateLimitKey("demo-start", request), {
-    maxRequests: 20,
-    windowMs: 60 * 60 * 1000,
-  });
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("demo-start", request),
+    {
+      maxRequests: 20,
+      windowMs: 60 * 60 * 1000,
+    },
+    { failClosed: true },
+  );
   if (limited) return limited;
 
   // 앱 셸은 데모 쿠키를 실제 세션보다 우선한다. 로그인한 사용자가 공개 표면의

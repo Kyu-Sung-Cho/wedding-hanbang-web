@@ -21,7 +21,9 @@
 - 제품·디자인: `DESIGN.md`
 - 아모라 V2: `docs/AMORA_ENGINE_V2_2026-07-16.md`
 - 현재 운영 릴리스: `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
-- 다른 컴퓨터 인수인계: `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
+- 최신 보안·개인정보 인수인계:
+  `docs/operations/SECURITY_PRIVACY_HARDENING_HANDOFF_2026-08-03.md`
+- 이전 운영 인수인계: `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
 - 업체 공시 실행 기준: `scripts/ingest/README.md`
 - 업체 공시 적재·속성·아모라 추천 V2: `docs/operations/VENDOR_DISCLOSURE_PIPELINE_V2_2026-07-18.md`
 - 업체 공시 전수 감사: `docs/operations/VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`

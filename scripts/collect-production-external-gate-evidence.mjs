@@ -457,7 +457,7 @@ if (isMain) {
     });
     process.stdout.write(result.help
       ? `${usage()}\n`
-      : `PRODUCTION_EXTERNAL_GATE_EVIDENCE_COLLECTED: ${result.kind}\n`);
+      : "PRODUCTION_EXTERNAL_GATE_EVIDENCE_COLLECTED\n");
   } catch (error) {
     const code = error instanceof ExternalGateCollectorCliError
         || error instanceof ExternalGateProvenanceError

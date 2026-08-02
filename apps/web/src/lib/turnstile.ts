@@ -7,6 +7,7 @@
 //   TURNSTILE_SECRET_KEY            (서버 검증용 — 비공개)
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const MAX_TOKEN_LENGTH = 2_048;
 
 export type TurnstileAction = "signup" | "forgot" | "preregister" | "survey";
 
@@ -23,24 +24,22 @@ function requiresTurnstileSecret(): boolean {
 
 export async function verifyTurnstile(
   token: string | undefined | null,
-  remoteIp?: string | null,
-  expectedAction?: TurnstileAction,
+  remoteIp: string | null | undefined,
+  expectedAction: TurnstileAction,
+  expectedHostname: string | null,
 ): Promise<TurnstileVerifyResult> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
-    // fail-closed는 "배포된 통제"에만 적용한다(2026-07-24). 사이트 키가
-    // 미발급이면 위젯이 렌더되지 않아 사용자는 토큰을 만들 수 없다 — 그때의
-    // 전면 거부는 봇 차단이 아니라 가입 차단이다(키 미발급 상태로 릴리스돼
-    // 가입이 통째로 막혔던 운영 사고). 미발급 시엔 기존 방어(영구 rate
-    // limit + 이메일 정규화)로 동작하고, 사이트 키가 발급된 순간부터는
-    // 시크릿 누락을 설정 오류로 보고 다시 fail-closed로 강제한다.
-    const provisioned = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim());
-    return requiresTurnstileSecret() && provisioned
+    // Missing production credentials are a security failure, not a feature
+    // toggle. Otherwise deleting both keys silently disables bot attestation.
+    return requiresTurnstileSecret()
       ? { ok: false, skipped: false }
       : { ok: true, skipped: true };
   }
 
-  if (!token) return { ok: false, skipped: false };
+  if (!token || token.length > MAX_TOKEN_LENGTH) {
+    return { ok: false, skipped: false };
+  }
 
   try {
     const body = new URLSearchParams();
@@ -55,9 +54,23 @@ export async function verifyTurnstile(
       // siteverify 지연으로 가입 표면이 무방비 통과 모드에 빠지지 않도록 타임아웃.
       signal: AbortSignal.timeout(5000),
     });
-    const data = (await res.json()) as { success?: boolean; action?: unknown };
-    const actionMatches = expectedAction === undefined || data.action === expectedAction;
-    return { ok: data.success === true && actionMatches, skipped: false };
+    if (!res.ok) return { ok: false, skipped: false };
+    const data = (await res.json()) as {
+      success?: boolean;
+      action?: unknown;
+      hostname?: unknown;
+    };
+    const actionMatches = data.action === expectedAction;
+    // The public site key can be embedded elsewhere if dashboard hostname
+    // restrictions drift. Bind every accepted token to the exact hostname at
+    // the trusted Next request-URL boundary as recommended by Siteverify.
+    const hostnameMatches = typeof expectedHostname === "string"
+      && expectedHostname.length > 0
+      && data.hostname === expectedHostname;
+    return {
+      ok: data.success === true && actionMatches && hostnameMatches,
+      skipped: false,
+    };
   } catch {
     // fail-closed: 시크릿이 설정됐는데 검증을 못 했다면 가입을 거부한다.
     // (이메일 폭탄 방어가 목적인 표면이라, 장애 시 통과보다 거부가 안전.

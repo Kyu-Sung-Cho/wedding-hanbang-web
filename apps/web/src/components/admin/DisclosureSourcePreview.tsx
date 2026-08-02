@@ -28,16 +28,6 @@ export function DisclosureSourcePreview({
       />
     );
   }
-  if (normalizedLabel.endsWith(".pdf")) {
-    return (
-      <iframe
-        src={source.signed_url}
-        title={`${title} PDF`}
-        className="h-[520px] w-full"
-        referrerPolicy="no-referrer"
-      />
-    );
-  }
   if (typeof source.preview_text === "string") {
     return (
       <div className="flex h-[520px] min-h-[360px] flex-col">

@@ -11,6 +11,11 @@ import {
   normalizeCommunityMimeType,
 } from "@/lib/community/uploadPolicy";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { readBoundedUtf8Text } from "@/utils/requestValidation";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,32 +30,41 @@ function json(body: Record<string, unknown>, status: number, headers: HeadersIni
   });
 }
 
-async function readStrictInitBody(request: Request): Promise<{
-  mimeType: string;
-  size: number;
-} | null> {
+type StrictInitBodyResult =
+  | { ok: true; value: { mimeType: string; size: number } }
+  | { ok: false; reason: "too_large" | "invalid" };
+
+async function readStrictInitBody(request: Request): Promise<StrictInitBodyResult> {
   if (request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase()
       !== "application/json") {
-    return null;
+    return { ok: false, reason: "invalid" };
   }
 
-  const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_INIT_BODY_BYTES) return null;
-
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_INIT_BODY_BYTES) return null;
+  const bodyResult = await readBoundedUtf8Text(request, MAX_INIT_BODY_BYTES);
+  if (!bodyResult.ok) {
+    return {
+      ok: false,
+      reason: bodyResult.reason === "too_large" ? "too_large" : "invalid",
+    };
+  }
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(bodyResult.text);
   } catch {
-    return null;
+    return { ok: false, reason: "invalid" };
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, reason: "invalid" };
+  }
   const record = parsed as Record<string, unknown>;
-  if (Object.keys(record).sort().join(",") !== "mimeType,size") return null;
-  if (typeof record.mimeType !== "string" || typeof record.size !== "number") return null;
-  return { mimeType: record.mimeType, size: record.size };
+  if (Object.keys(record).sort().join(",") !== "mimeType,size") {
+    return { ok: false, reason: "invalid" };
+  }
+  if (typeof record.mimeType !== "string" || typeof record.size !== "number") {
+    return { ok: false, reason: "invalid" };
+  }
+  return { ok: true, value: { mimeType: record.mimeType, size: record.size } };
 }
 
 export async function POST(req: NextRequest) {
@@ -112,9 +126,21 @@ export async function POST(req: NextRequest) {
   );
   if (dailyLimited) return dailyLimited;
 
-  const body = await readStrictInitBody(req);
-  const mimeType = normalizeCommunityMimeType(body?.mimeType);
-  if (!body || !mimeType || !isValidCommunityMediaSize(mimeType, body.size)) {
+  const bodyResult = await readStrictInitBody(req);
+  if (!bodyResult.ok) {
+    return bodyResult.reason === "too_large"
+      ? json({ error: "요청 본문이 너무 큽니다.", code: "REQUEST_BODY_TOO_LARGE" }, 413)
+      : json(
+        {
+          error: "지원하는 파일 형식과 용량을 확인해 주세요.",
+          code: "INVALID_MEDIA_DECLARATION",
+        },
+        400,
+      );
+  }
+  const body = bodyResult.value;
+  const mimeType = normalizeCommunityMimeType(body.mimeType);
+  if (!mimeType || !isValidCommunityMediaSize(mimeType, body.size)) {
     return json(
       {
         error: "지원하는 파일 형식과 용량을 확인해 주세요.",
@@ -127,25 +153,30 @@ export async function POST(req: NextRequest) {
   const uploadId = randomUUID();
   const rule = COMMUNITY_MEDIA_RULES[mimeType];
   const path = `${user.id}/${uploadId}.${rule.extension}`;
+  const finalPath = `v2/${randomUUID()}.${rule.extension}`;
   const expiresAt = new Date(Date.now() + COMMUNITY_SIGNED_UPLOAD_TTL_MS).toISOString();
 
   const { error: sessionError } = await admin
-    .from("community_upload_sessions")
-    .insert({
-      id: uploadId,
-      user_id: user.id,
-      staging_path: path,
-      final_bucket: rule.bucket,
-      final_path: path,
-      declared_mime_type: mimeType,
-      declared_size: body.size,
-      status: "issued",
-      expires_at: expiresAt,
+    .rpc("community_create_upload_session_for_actor", {
+      p_actor_id: user.id,
+      p_upload_id: uploadId,
+      p_staging_path: path,
+      p_final_bucket: rule.bucket,
+      p_final_path: finalPath,
+      p_declared_mime_type: mimeType,
+      p_declared_size: body.size,
+      p_expires_at: expiresAt,
     })
     .select("id")
     .single();
 
   if (sessionError) {
+    if (isCommunityActorWriteDenied(sessionError)) {
+      return json(
+        { error: COMMUNITY_WRITE_DENIED_MESSAGE, code: "COMMUNITY_WRITE_DENIED" },
+        403,
+      );
+    }
     console.error("[community upload] durable session creation failed");
     return json(
       { error: "업로드 준비에 실패했어요. 잠시 후 다시 시도해 주세요.", code: "UPLOAD_INIT_FAILED" },
@@ -196,6 +227,41 @@ export async function POST(req: NextRequest) {
         503,
         { "Retry-After": "30" },
       );
+  }
+
+  const { data: actorStillAllowed, error: actorFenceError } = await admin.rpc(
+    "community_check_active_write_actor",
+    { p_actor_id: user.id },
+  );
+  if (actorFenceError || actorStillAllowed !== true) {
+    const now = new Date().toISOString();
+    await admin
+      .from("community_upload_sessions")
+      .update({
+        status: "rejected",
+        rejection_code: isCommunityActorWriteDenied(actorFenceError)
+          ? "actor_suspended"
+          : "actor_write_fence_unavailable",
+        rejected_at: now,
+        staging_deleted_at: now,
+        updated_at: now,
+      })
+      .eq("id", uploadId);
+
+    if (isCommunityActorWriteDenied(actorFenceError)) {
+      return json(
+        { error: COMMUNITY_WRITE_DENIED_MESSAGE, code: "COMMUNITY_WRITE_DENIED" },
+        403,
+      );
+    }
+    return json(
+      {
+        error: "커뮤니티 쓰기 권한을 안전하게 확인하지 못했어요.",
+        code: "COMMUNITY_WRITE_FENCE_UNAVAILABLE",
+      },
+      503,
+      { "Retry-After": "30" },
+    );
   }
 
   const { data: signed, error: signError } = await admin.storage

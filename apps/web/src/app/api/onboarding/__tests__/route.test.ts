@@ -1,18 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { POST } from "../route";
 
 vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
-vi.mock("@/lib/memory/record-decision", () => ({
-  recordDecision: vi.fn().mockResolvedValue({ nodeId: "decision-1" }),
-}));
-vi.mock("@/lib/ai/stage-router", () => ({ determineStage: vi.fn(() => "planning") }));
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn(() => "onboarding:user-1"),
 }));
 
@@ -156,6 +151,25 @@ describe("/api/onboarding POST", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = `sb_secret_${"a".repeat(40)}`;
   });
 
+  it("rejects a browser draft when the authenticated identity changed before submit", async () => {
+    const { authClient, admin } = setupClients({}, createSuccess);
+
+    const response = await POST(
+      onboardingRequest({
+        expectedUserId: "22222222-2222-4222-8222-222222222222",
+        role: "bride",
+        coupleAction: "create",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "로그인 계정이 변경되었습니다. 온보딩을 다시 확인해주세요.",
+    });
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.from).not.toHaveBeenCalled();
+  });
+
   it("creates membership through the authenticated RPC and never writes couples directly", async () => {
     let profileCompletion: unknown;
     let journeyInsert: unknown;
@@ -242,7 +256,6 @@ describe("/api/onboarding POST", () => {
     await expect(response.json()).resolves.toEqual({
       error: "온보딩 저장을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.",
     });
-    expect(recordDecision).not.toHaveBeenCalled();
   });
 
   it("preserves a partner's existing sanggyeonrye event", async () => {

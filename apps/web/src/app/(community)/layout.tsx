@@ -4,6 +4,7 @@ import { Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
+import UserScopedClientStateBoundary from "@/components/common/UserScopedClientStateBoundary";
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
 import { CONTACT } from "@/lib/constants/contact";
@@ -15,18 +16,23 @@ export default function CommunityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fffdf7]">
-      <CommunityAuthInitializer />
-      <Suspense fallback={<div className="h-[76px] bg-[#fffdf7]" />}>
-        <CommunityNav />
-      </Suspense>
-      <ToastContainer />
+    <UserScopedClientStateBoundary
+      hideUntilVerified
+      fallback={<div className="min-h-screen bg-[#fffdf7]" aria-busy="true" />}
+    >
+      <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fffdf7]">
+        <CommunityAuthInitializer />
+        <Suspense fallback={<div className="h-[76px] bg-[#fffdf7]" />}>
+          <CommunityNav />
+        </Suspense>
+        <ToastContainer />
 
-      <main className="flex-1">{children}</main>
+        <main className="flex-1">{children}</main>
 
-      <CommunityFooter />
-      <CommunityAmoraLauncher />
-    </div>
+        <CommunityFooter />
+        <CommunityAmoraLauncher />
+      </div>
+    </UserScopedClientStateBoundary>
   );
 }
 

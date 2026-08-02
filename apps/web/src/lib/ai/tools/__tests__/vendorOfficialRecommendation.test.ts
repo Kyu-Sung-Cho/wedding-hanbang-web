@@ -523,6 +523,7 @@ describe("Amora official vendor recommendation", () => {
         const query = {
           select: vi.fn(),
           eq: vi.fn(),
+          not: vi.fn(),
           order: vi.fn(),
           limit: vi.fn(),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
@@ -530,6 +531,7 @@ describe("Amora official vendor recommendation", () => {
         };
         query.select.mockReturnValue(query);
         query.eq.mockReturnValue(query);
+        query.not.mockReturnValue(query);
         query.order.mockReturnValue(query);
         query.limit.mockReturnValue(query);
         return query;
@@ -626,6 +628,7 @@ describe("Amora official vendor recommendation", () => {
         const query = {
           select: vi.fn(),
           eq: vi.fn(),
+          not: vi.fn(),
           order: vi.fn(),
           limit: vi.fn(),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
@@ -633,6 +636,7 @@ describe("Amora official vendor recommendation", () => {
         };
         query.select.mockReturnValue(query);
         query.eq.mockReturnValue(query);
+        query.not.mockReturnValue(query);
         query.order.mockReturnValue(query);
         query.limit.mockReturnValue(query);
         return query;

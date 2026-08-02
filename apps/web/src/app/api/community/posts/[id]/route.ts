@@ -6,16 +6,36 @@ import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import {
+  COMMUNITY_POLL_OPTION_SERVER_SELECT,
+  COMMUNITY_POLL_SERVER_SELECT,
+  protectCommunityPollResults,
+} from "@/lib/community/pollVisibility";
+import { requestMatchesExpectedCommunityActor } from "@/lib/community/actorFence";
+import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
   validateCommunityMediaUrl,
   validateRetainedCommunityImageUrl,
   validateRetainedCommunityVideoUrl,
 } from "@/lib/community/mediaUrls";
-import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
+import { sanitizeHtmlWithInputLimit, sanitizeText } from "@/utils/sanitize";
+import { isRecord, isUuid, readBoundedJsonValue } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { getCommunityPublicIdForUser } from "@/lib/community/publicIdentity";
+import { verifyAdmin } from "@/lib/utils/adminAuth";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
 import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
 
 const VALID_POST_VISIBILITIES: PostVisibility[] = ["public", "members", "draft"];
+const MAX_BODY_BYTES = 512 * 1024;
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Cookie, Authorization",
+};
 
 function getServiceClient() {
   return createAdminClient();
@@ -28,15 +48,6 @@ function invalidCommunityMediaResponse() {
   );
 }
 
-async function isAdmin(userId: string): Promise<boolean> {
-  const { data } = await getServiceClient()
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .single();
-  return data?.is_admin === true;
-}
-
 // 게시글 상세 조회
 export async function GET(
   req: NextRequest,
@@ -44,6 +55,18 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: "올바른 게시글 ID가 아닙니다." },
+        { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
+    const ingressLimited = await checkRateLimitPersistent(
+      rateLimitKey("community:post:detail", req),
+      { maxRequests: 180, windowMs: 60 * 1000 },
+    );
+    if (ingressLimited) return ingressLimited;
+
     const supabase = await createClientFromRequest(req);
 
     const {
@@ -66,9 +89,20 @@ export async function GET(
       );
     }
 
-    const userIsAdmin = user ? await isAdmin(user.id) : false;
+    const adminVerification = user
+      ? await verifyAdmin(req)
+      : { authorized: false as const, userId: undefined };
+    const userIsAdmin = Boolean(
+      user
+      && adminVerification.authorized
+      && adminVerification.userId === user.id,
+    );
+    const viewerPublicId = await getCommunityPublicIdForUser(
+      getServiceClient(),
+      user?.id,
+    );
     const canReadPost = canReadCommunityPost(post, {
-      userId: user?.id ?? null,
+      userId: viewerPublicId,
       isAdmin: userIsAdmin,
     });
 
@@ -133,16 +167,17 @@ export async function GET(
 
     // 폴 + 옵션 + 사용자 투표 상태
     let pollData: PollWithOptions | null = null;
-    const { data: pollRow } = await supabase
+    const serviceClient = getServiceClient();
+    const { data: pollRow } = await serviceClient
       .from("community_polls")
-      .select("*")
+      .select(COMMUNITY_POLL_SERVER_SELECT)
       .eq("post_id", id)
       .maybeSingle();
 
     if (pollRow) {
-      const { data: optionRows } = await supabase
+      const { data: optionRows } = await serviceClient
         .from("community_poll_options")
-        .select("*")
+        .select(COMMUNITY_POLL_OPTION_SERVER_SELECT)
         .eq("poll_id", pollRow.id)
         .order("position", { ascending: true });
 
@@ -156,7 +191,7 @@ export async function GET(
         votedOptionIds = (voteRows ?? []).map((v: { option_id: string }) => v.option_id);
       }
 
-      pollData = {
+      pollData = protectCommunityPollResults({
         id: pollRow.id,
         post_id: pollRow.post_id,
         question: pollRow.question,
@@ -169,19 +204,23 @@ export async function GET(
         created_at: pollRow.created_at,
         options: optionRows ?? [],
         user_voted_option_ids: votedOptionIds,
-      };
+      });
     }
 
-    return NextResponse.json({
-      ...post,
-      author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
-      vendor_details: vendorDetails,
-      user_vote: userVote,
-      user_bookmarked: userBookmarked,
-      poll: pollData,
-    });
+    return NextResponse.json(
+      {
+        ...post,
+        author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
+        is_author: Boolean(viewerPublicId && post.author_id === viewerPublicId),
+        vendor_details: vendorDetails,
+        user_vote: userVote,
+        user_bookmarked: userBookmarked,
+        poll: pollData,
+      },
+      { headers: PRIVATE_NO_STORE_HEADERS },
+    );
   } catch (err) {
-    console.error("Get post detail error:", err);
+    console.error("Get post detail error", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -196,6 +235,12 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: "올바른 게시글 ID가 아닙니다." },
+        { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
@@ -208,8 +253,21 @@ export async function PATCH(
       );
     }
 
-    const userIsAdmin = await isAdmin(user.id);
-    const readClient = userIsAdmin ? getServiceClient() : supabase;
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:post:update", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
+
+
+    if (!requestMatchesExpectedCommunityActor(req, user.id)) {
+      return NextResponse.json(
+        { error: "계정이 변경되어 글 수정을 중단했습니다. 다시 확인해 주세요." },
+        { status: 409 },
+      );
+    }
+
+    const readClient = getServiceClient();
 
     // 작성자 확인. 관리자는 전체 커뮤니티 관리 권한으로 service role 조회를 사용한다.
     const { data: existingPost } = await readClient
@@ -225,15 +283,32 @@ export async function PATCH(
       );
     }
 
-    if (existingPost.author_id !== user.id && !userIsAdmin) {
-      return NextResponse.json(
-        { error: "수정 권한이 없습니다." },
-        { status: 403 }
-      );
+    let allowAdminOverride = false;
+    if (existingPost.author_id !== user.id) {
+      const adminVerification = await verifyAdmin(req);
+      if (!adminVerification.authorized || adminVerification.userId !== user.id) {
+        return NextResponse.json(
+          { error: "수정 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+      allowAdminOverride = true;
     }
 
-    const mediaOwnerIds = userIsAdmin ? [existingPost.author_id, user.id] : existingPost.author_id;
-    const body: UpdatePostInput = await req.json();
+    const mediaOwnerIds = allowAdminOverride
+      ? [existingPost.author_id, user.id]
+      : existingPost.author_id;
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    if (!isRecord(bodyResult.value)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    const body = bodyResult.value as unknown as UpdatePostInput;
     const updateData: Record<string, unknown> = {};
 
     if (body.title !== undefined) {
@@ -247,7 +322,10 @@ export async function PATCH(
       updateData.title = title;
     }
     if (body.content !== undefined) {
-      const content = sanitizeHtml(typeof body.content === "string" ? body.content : "").slice(0, 50000);
+      const content = sanitizeHtmlWithInputLimit(
+        typeof body.content === "string" ? body.content : "",
+        50000
+      );
       const contentImagesResult = validateCommunityHtmlImageSources(content, {
         ownerIds: mediaOwnerIds,
       });
@@ -370,18 +448,27 @@ export async function PATCH(
         .filter((t: string) => t.length > 0);
     }
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
-    updateData.updated_at = new Date().toISOString();
-
-    const writeClient = userIsAdmin ? getServiceClient() : supabase;
+    // Authorization, suspension state, and the row update are revalidated under
+    // one database transaction. This also closes a suspension/update race.
+    const writeClient = getServiceClient();
     const { data: updatedPost, error } = await writeClient
-      .from("community_posts")
-      .update(updateData)
-      .eq("id", id)
-      .select("*")
+      .rpc("community_update_post_for_actor", {
+        p_actor_id: user.id,
+        p_post_id: id,
+        p_patch: updateData,
+        p_allow_admin_override: allowAdminOverride,
+      })
+      .select(COMMUNITY_POST_PUBLIC_SELECT)
       .single();
 
     if (error) {
-      console.error("Update post error:", error);
+      if (isCommunityActorWriteDenied(error)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
+      console.error("Update post error", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "게시글 수정에 실패했습니다." },
         { status: 500 }
@@ -394,12 +481,15 @@ export async function PATCH(
       revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
-      console.error("[posts.PATCH] revalidatePath failed (non-fatal):", e);
+      console.error(
+        "[posts.PATCH] revalidatePath failed (non-fatal)",
+        safeErrorDiagnostic(e),
+      );
     }
 
     return NextResponse.json({ post: updatedPost });
   } catch (err) {
-    console.error("Update post error:", err);
+    console.error("Update post error", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -414,6 +504,12 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: "올바른 게시글 ID가 아닙니다." },
+        { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
     const supabase = await createClientFromRequest(req);
     const serviceClient = getServiceClient();
     const {
@@ -427,15 +523,31 @@ export async function DELETE(
       );
     }
 
-    const userIsAdmin = await isAdmin(user.id);
-    const readClient = userIsAdmin ? serviceClient : supabase;
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:post:delete", req, user.id),
+      { maxRequests: 20, windowMs: 10 * 60 * 1000 },
+    );
+    if (limited) return limited;
+
+    const readClient = serviceClient;
 
     // 작성자 확인. 관리자는 숨김/신고 글까지 처리할 수 있어야 한다.
-    const { data: existingPost } = await readClient
+    const { data: existingPost, error: postLookupError } = await readClient
       .from("community_posts")
       .select("author_id")
       .eq("id", id)
       .maybeSingle();
+
+    if (postLookupError) {
+      console.error(
+        "Delete post lookup error",
+        safeErrorDiagnostic(postLookupError),
+      );
+      return NextResponse.json(
+        { error: "게시글을 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
 
     if (!existingPost) {
       return NextResponse.json(
@@ -444,33 +556,47 @@ export async function DELETE(
       );
     }
 
-    if (existingPost.author_id !== user.id && !userIsAdmin) {
-      return NextResponse.json(
-        { error: "삭제 권한이 없습니다." },
-        { status: 403 }
-      );
+    let allowAdminOverride = false;
+    if (existingPost.author_id !== user.id) {
+      const adminVerification = await verifyAdmin(req);
+      if (!adminVerification.authorized || adminVerification.userId !== user.id) {
+        return NextResponse.json(
+          { error: "삭제 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+      allowAdminOverride = true;
     }
 
-    const { error } = await serviceClient
-      .from("community_posts")
-      .delete()
-      .eq("id", id);
+    const { data: deleted, error } = await serviceClient.rpc(
+      "community_delete_post_for_actor",
+      {
+        p_actor_id: user.id,
+        p_post_id: id,
+        p_allow_admin_override: allowAdminOverride,
+      },
+    );
 
     if (error) {
-      console.error("Delete post error:", error);
+      if (isCommunityActorWriteDenied(error)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
+      console.error("Delete post error", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "게시글 삭제에 실패했습니다." },
         { status: 500 }
       );
     }
 
-    // 작성자의 post_count를 감소시킨다. 관리자가 삭제해도 관리자 카운터가 바뀌면 안 된다.
-    const { error: countError } = await serviceClient.rpc("community_decrement_profile_count", {
-      p_user_id: existingPost.author_id,
-      p_field: "post_count",
-    });
-    if (countError) {
-      console.error("[posts.DELETE] post_count decrement failed (non-fatal):", countError);
+    if (deleted !== true) {
+      console.error("Delete post RPC returned an invalid result");
+      return NextResponse.json(
+        { error: "게시글 삭제 결과를 확인하지 못했습니다." },
+        { status: 500 },
+      );
     }
 
     // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 실패해도 응답은 성공
@@ -479,12 +605,15 @@ export async function DELETE(
       revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
-      console.error("[posts.DELETE] revalidatePath failed (non-fatal):", e);
+      console.error(
+        "[posts.DELETE] revalidatePath failed (non-fatal)",
+        safeErrorDiagnostic(e),
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Delete post error:", err);
+    console.error("Delete post error", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

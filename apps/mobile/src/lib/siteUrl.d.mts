@@ -21,3 +21,8 @@ export declare function normalizeMobileSiteUrl(
   value: string | null,
   siteOrigin: string,
 ): string | null;
+
+export declare function buildShareableMobileSiteUrl(
+  value: string | null,
+  siteOrigin: string,
+): string | null;

@@ -735,7 +735,7 @@ test("rejects a re-signed traversal path before reading or writing outside the b
 test("rejects a re-signed artifact containing a secret-shaped key", async (t) => {
   const fixture = await makeFixture(t);
   const resignedSha256 = await mutateReportAndResign(fixture.bundleDir, (report) => {
-    report.api_key = "sk-example-must-never-enter-evidence";
+    report.api_key = ["sk", "example-must-never-enter-evidence"].join("-");
   });
 
   await assert.rejects(

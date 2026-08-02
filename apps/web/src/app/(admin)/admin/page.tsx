@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { revokeAndClearSupabaseBrowserSession } from "@/lib/auth/supabaseBrowserSession";
+import { useAdminSessionBoundary } from "@/hooks/useAdminSessionBoundary";
+import { isStrongAdminPassword } from "@hanbang/shared/security/password-policy";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, CalendarCheck,
@@ -20,6 +23,10 @@ interface Registration {
 interface DailyCount {
   date: string;
   count: number;
+}
+
+interface PaginationMetadata {
+  truncated?: boolean;
 }
 
 interface AdminVendor {
@@ -177,8 +184,6 @@ const REPORT_STATUS_LABEL: Record<ReportStatus, { text: string; cls: string }> =
   resolved: { text: "처리됨", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
   dismissed: { text: "기각", cls: "bg-noir-800/10 text-noir-800" },
 };
-type AuthState = "loading" | "not_authenticated" | "admin";
-
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   pending: { text: "대기", cls: "bg-gold/10 text-gold" },
   confirmed: { text: "확정", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
@@ -187,12 +192,33 @@ const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 };
 
 export default function AdminPage() {
-  const [authState, setAuthState] = useState<AuthState>("loading");
-  const [adminEmail, setAdminEmail] = useState("");
+  const session = useAdminSessionBoundary();
+
+  if (session.status !== "admin") {
+    return (
+      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[14px] text-taupe-500">인증 확인 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AdminDashboard
+      key={session.userId}
+      adminEmail={session.email}
+    />
+  );
+}
+
+function AdminDashboard({ adminEmail }: { adminEmail: string }) {
 
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([]);
+  const [registrationTruncated, setRegistrationTruncated] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabKey>("registrations");
 
@@ -202,18 +228,22 @@ export default function AdminPage() {
   const [selectedVendor, setSelectedVendor] = useState<AdminVendor | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [vendorLoading, setVendorLoading] = useState(false);
+  const [vendorTruncated, setVendorTruncated] = useState(false);
+  const [vendorCounts, setVendorCounts] = useState({ draft: 0, pending: 0, approved: 0, rejected: 0 });
   const [actionLoading, setActionLoading] = useState(false);
 
   // 고객
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [customerStats, setCustomerStats] = useState({ total: 0, onboarded: 0, coupled: 0, todayCount: 0 });
   const [customerLoading, setCustomerLoading] = useState(false);
+  const [customerTruncated, setCustomerTruncated] = useState(false);
 
   // 예약
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [bookingStats, setBookingStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 });
   const [bookingFilter, setBookingFilter] = useState<AdminBooking["status"] | "all">("all");
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingTruncated, setBookingTruncated] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
 
   // 인사이트
@@ -243,6 +273,7 @@ export default function AdminPage() {
   const [reportFilter, setReportFilter] = useState<ReportStatus | "all">("pending");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportActionId, setReportActionId] = useState<string | null>(null);
+  const [reportTruncated, setReportTruncated] = useState(false);
 
   const loadReports = useCallback(async (filter: ReportStatus | "all" = "pending") => {
     setReportLoading(true);
@@ -252,6 +283,7 @@ export default function AdminPage() {
       if (res.ok) {
         setReports(data.reports ?? []);
         if (data.counts) setReportCounts(data.counts);
+        setReportTruncated(Boolean((data.pagination as PaginationMetadata | undefined)?.truncated));
       }
     } finally {
       setReportLoading(false);
@@ -308,25 +340,6 @@ export default function AdminPage() {
     }
   }
 
-  // 관리자 인증
-  useEffect(() => {
-    async function checkAdmin() {
-      try {
-        const res = await fetch("/api/admin/auth");
-        const data = await res.json();
-        if (res.status === 401 || !data.isAdmin) {
-          window.location.href = "/admin/login";
-          return;
-        }
-        setAuthState("admin");
-        setAdminEmail(data.email || "");
-      } catch {
-        window.location.href = "/admin/login";
-      }
-    }
-    checkAdmin();
-  }, []);
-
   const fetchRegistrations = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/registrations");
@@ -335,6 +348,7 @@ export default function AdminPage() {
         setRegistrations(data.registrations);
         setTotalCount(data.total);
         setDailyCounts(data.dailyCounts);
+        setRegistrationTruncated(Boolean((data.pagination as PaginationMetadata | undefined)?.truncated));
       }
     } catch { /* ignore */ }
   }, []);
@@ -346,6 +360,15 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         setVendors(data.vendors);
+        if (data.counts) {
+          setVendorCounts({
+            draft: data.counts.draft ?? 0,
+            pending: data.counts.pending ?? 0,
+            approved: data.counts.approved ?? 0,
+            rejected: data.counts.rejected ?? 0,
+          });
+        }
+        setVendorTruncated(Boolean((data.pagination as PaginationMetadata | undefined)?.truncated));
       }
     } catch { /* ignore */ }
     setVendorLoading(false);
@@ -359,6 +382,7 @@ export default function AdminPage() {
         const data = await res.json();
         setCustomers(data.customers);
         setCustomerStats(data.stats);
+        setCustomerTruncated(Boolean((data.pagination as PaginationMetadata | undefined)?.truncated));
       }
     } catch { /* ignore */ }
     setCustomerLoading(false);
@@ -372,6 +396,7 @@ export default function AdminPage() {
         const data = await res.json();
         setBookings(data.bookings);
         setBookingStats(data.stats);
+        setBookingTruncated(Boolean((data.pagination as PaginationMetadata | undefined)?.truncated));
       }
     } catch { /* ignore */ }
     setBookingLoading(false);
@@ -406,8 +431,8 @@ export default function AdminPage() {
       setCreateAdminError("모든 필드를 입력해주세요.");
       return;
     }
-    if (newAdminPassword.length < 6) {
-      setCreateAdminError("비밀번호는 6자 이상이어야 합니다.");
+    if (!isStrongAdminPassword(newAdminPassword)) {
+      setCreateAdminError("비밀번호는 12자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다.");
       return;
     }
     setCreateAdminLoading(true);
@@ -443,16 +468,14 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (authState === "admin") {
-      fetchRegistrations();
-      fetchVendors();
-      fetchCustomers();
-      fetchBookings();
-      fetchAdminUsers();
-      fetchInsights();
-      void loadReports("pending");
-    }
-  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights, loadReports]);
+    fetchRegistrations();
+    fetchVendors();
+    fetchCustomers();
+    fetchBookings();
+    fetchAdminUsers();
+    fetchInsights();
+    void loadReports("pending");
+  }, [fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights, loadReports]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(true);
@@ -506,28 +529,24 @@ export default function AdminPage() {
 
   const handleLogout = async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+    try {
+      await fetch("/api/admin/auth", {
+        method: "DELETE",
+        cache: "no-store",
+      }).catch(() => undefined);
+      await revokeAndClearSupabaseBrowserSession(supabase);
+    } finally {
+      window.location.href = "/login";
+    }
   };
 
   const filteredVendors = vendorFilter === "all" ? vendors : vendors.filter((v) => v.status === vendorFilter);
-  const pendingVendors = vendors.filter((v) => v.status === "pending").length;
-  const draftVendors = vendors.filter((v) => v.status === "draft").length;
-  const approvedVendors = vendors.filter((v) => v.status === "approved").length;
-  const rejectedVendors = vendors.filter((v) => v.status === "rejected").length;
+  const pendingVendors = vendorCounts.pending;
+  const draftVendors = vendorCounts.draft;
+  const approvedVendors = vendorCounts.approved;
+  const rejectedVendors = vendorCounts.rejected;
 
   const filteredBookings = bookingFilter === "all" ? bookings : bookings.filter((b) => b.status === bookingFilter);
-
-  if (authState !== "admin") {
-    return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[14px] text-taupe-500">인증 확인 중...</p>
-        </div>
-      </div>
-    );
-  }
 
   const maxDailyCount = Math.max(...dailyCounts.map((d) => d.count), 1);
 
@@ -617,6 +636,12 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {registrationTruncated && (
+              <p className="mb-6 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-[12px] text-taupe-500">
+                전체 등록 수는 정확한 값이며, 날짜 차트와 목록은 개인정보 과다 조회를 막기 위해 최근 100건만 표시합니다.
+              </p>
+            )}
+
             <div className="bg-white rounded-2xl p-8 border border-black/[0.04] mb-10">
               <h2 className="font-serif-kr text-lg font-normal mb-6">날짜별 등록 현황</h2>
               <div className="flex items-end gap-2 h-[200px]">
@@ -696,6 +721,12 @@ export default function AdminPage() {
                   }`}>{f.label}</button>
               ))}
             </div>
+
+            {vendorTruncated && (
+              <p className="mb-6 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-[12px] text-taupe-500">
+                상태별 합계는 전체 기준이며, 업체 목록과 필터 결과는 최근 100건 범위에서 표시합니다.
+              </p>
+            )}
 
             <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
               {vendorLoading ? (
@@ -873,6 +904,12 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {customerTruncated && (
+              <p className="mb-6 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-[12px] text-taupe-500">
+                고객 통계는 전체 기준이며, 개인정보 보호를 위해 목록은 최근 100건만 표시합니다.
+              </p>
+            )}
+
             <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
               <div className="p-8 pb-4"><h2 className="font-serif-kr text-lg font-normal">고객 목록</h2></div>
               {customerLoading ? (
@@ -965,6 +1002,12 @@ export default function AdminPage() {
                   }`}>{f.label}</button>
               ))}
             </div>
+
+            {bookingTruncated && (
+              <p className="mb-6 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-[12px] text-taupe-500">
+                예약 통계는 전체 기준이며, 연락처 등 개인정보 과다 조회를 막기 위해 목록은 최근 100건만 표시합니다.
+              </p>
+            )}
 
             <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
               {bookingLoading ? (
@@ -1406,6 +1449,12 @@ export default function AdminPage() {
               ))}
             </div>
 
+            {reportTruncated && (
+              <p className="mb-6 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-[12px] text-taupe-500">
+                신고 합계는 전체 기준이며, 신고 내용과 사용자 정보는 개인정보 과다 조회를 막기 위해 최신 항목만 표시합니다.
+              </p>
+            )}
+
             {reportLoading ? (
               <div className="bg-white rounded-2xl p-16 text-center">
                 <Loader2 className="w-6 h-6 text-rose-500 animate-spin mx-auto" />
@@ -1672,7 +1721,7 @@ export default function AdminPage() {
                       type="password"
                       value={newAdminPassword}
                       onChange={(e) => { setNewAdminPassword(e.target.value); setCreateAdminError(""); }}
-                      placeholder="6자 이상"
+                      placeholder="12자 이상·대소문자·숫자·특수문자"
                       className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
                       required
                     />

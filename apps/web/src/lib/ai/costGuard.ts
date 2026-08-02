@@ -24,17 +24,20 @@
 // 면제하면 안 됨 — 인증 유저가 그 값을 조작해 가드를 우회할 수 있다.
 //
 // 환경변수로 조정 가능 (미설정 시 보수적 기본값):
-//   AMORA_COUPLE_QUOTA_ENABLED=false (커플별 한도만 해제, 전역 가드는 유지)
+//   AMORA_COUPLE_QUOTA_ENABLED=false (긴급 운영 승인 시에만 커플별 한도 해제)
 //   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
+//   AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP (기본 60, 공개 데모 전용 KST 일일 상한)
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const POSTGRES_INT_MAX = 2_147_483_647;
 const POSTGRES_BIGINT_SAFE_MAX = Number.MAX_SAFE_INTEGER;
 const DEFAULT_FREE_PER_COUPLE = 100;
+const DEFAULT_DEMO_GLOBAL_DAILY_CAP = 60;
 const DEFAULT_GLOBAL_DAILY_CAP = 300;
 const DEFAULT_GLOBAL_DAILY_COST_CAP_USD = 20;
 
@@ -76,6 +79,10 @@ function readPositiveUsdMicros(name: string, fallbackUsd: number): number {
 const FREE_PER_COUPLE = readPositivePostgresInteger(
   "AMORA_FREE_MESSAGES_PER_COUPLE",
   DEFAULT_FREE_PER_COUPLE,
+);
+const DEMO_GLOBAL_DAILY_CAP = readPositivePostgresInteger(
+  "AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP",
+  DEFAULT_DEMO_GLOBAL_DAILY_CAP,
 );
 const GLOBAL_DAILY_CAP = readPositivePostgresInteger(
   "AMORA_GLOBAL_DAILY_MESSAGE_CAP",
@@ -122,7 +129,7 @@ export class AmoraCostGuardError extends Error {
 type CostGuardParams = {
   coupleId: string;
   isAdmin: boolean;
-  /** Demo/release-eval/background calls bypass couple quota, never global cost. */
+  /** Demo uses its own daily ledger; release-eval/background bypass couple quota. */
   quotaScope?: "standard" | "demo" | "release_eval" | "background";
 };
 
@@ -177,7 +184,8 @@ export async function reserveAmoraTurn(
   admin: SupabaseClient,
   params: ReserveCostGuardParams,
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED) return ALLOW;
+  const quotaScope = params.quotaScope ?? "standard";
+  if (!GUARD_ENABLED && quotaScope !== "demo") return ALLOW;
   if (
     !Number.isSafeInteger(params.maxCostMicrousd)
     || params.maxCostMicrousd < 1
@@ -185,12 +193,18 @@ export async function reserveAmoraTurn(
     console.error("[costGuard] invalid maxCostMicrousd; blocking provider call");
     return DENY_UNAVAILABLE;
   }
-  const appliesCoupleQuota =
+  const appliesDemoQuota = quotaScope === "demo";
+  const appliesStandardCoupleQuota =
     !params.isAdmin
-    && (params.quotaScope ?? "standard") === "standard"
+    && quotaScope === "standard"
     && COUPLE_QUOTA_ENABLED;
-  const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
-  const ledgerCoupleId = params.quotaScope === "background"
+  const appliesCoupleQuota = appliesDemoQuota || appliesStandardCoupleQuota;
+  const coupleCap = appliesDemoQuota
+    ? DEMO_GLOBAL_DAILY_CAP
+    : appliesStandardCoupleQuota
+      ? FREE_PER_COUPLE
+      : DISABLED_COUPLE_CAP;
+  const ledgerCoupleId = quotaScope === "background"
     ? BACKGROUND_COST_LEDGER_COUPLE_ID
     : params.coupleId;
 
@@ -203,7 +217,7 @@ export async function reserveAmoraTurn(
       p_global_cost_cap_microusd: GLOBAL_DAILY_COST_CAP_MICROUSD,
     });
     if (error) {
-      console.error("[costGuard] 원자 예약 실패 (차단):", error.message);
+      console.error("[costGuard] atomic reservation failed (blocked)", safeErrorDiagnostic(error));
       return DENY_UNAVAILABLE;
     }
 
@@ -214,7 +228,7 @@ export async function reserveAmoraTurn(
       return {
         allowed: true,
         remaining: appliesCoupleQuota
-          ? await readCoupleRemaining(admin, params.coupleId)
+          ? await readCoupleRemaining(admin, ledgerCoupleId, coupleCap)
           : undefined,
       };
     }
@@ -223,10 +237,10 @@ export async function reserveAmoraTurn(
     if (row?.reason === "couple_quota" && appliesCoupleQuota) return DENY_COUPLE;
 
     // Unknown reservation state must never create an unmetered provider call.
-    console.error("[costGuard] 예약 RPC 응답 형태 불명 (차단):", JSON.stringify(row ?? null));
+    console.error("[costGuard] reservation RPC returned an invalid shape (blocked)");
     return DENY_UNAVAILABLE;
   } catch (err) {
-    console.error("[costGuard] 원자 예약 예외 (차단):", err);
+    console.error("[costGuard] atomic reservation exception (blocked)", safeErrorDiagnostic(err));
     return DENY_UNAVAILABLE;
   }
 }
@@ -255,13 +269,20 @@ export async function reserveAmoraProviderCall(
     return DENY_UNAVAILABLE;
   }
 
-  const appliesCoupleQuota =
+  const quotaScope = params.quotaScope ?? "standard";
+  const appliesDemoQuota = quotaScope === "demo";
+  const appliesStandardCoupleQuota =
     GUARD_ENABLED
     && !params.isAdmin
-    && (params.quotaScope ?? "standard") === "standard"
+    && quotaScope === "standard"
     && COUPLE_QUOTA_ENABLED;
-  const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
-  const ledgerCoupleId = params.quotaScope === "background"
+  const appliesCoupleQuota = appliesDemoQuota || appliesStandardCoupleQuota;
+  const coupleCap = appliesDemoQuota
+    ? DEMO_GLOBAL_DAILY_CAP
+    : appliesStandardCoupleQuota
+      ? FREE_PER_COUPLE
+      : DISABLED_COUPLE_CAP;
+  const ledgerCoupleId = quotaScope === "background"
     ? BACKGROUND_COST_LEDGER_COUPLE_ID
     : params.coupleId;
 
@@ -281,7 +302,7 @@ export async function reserveAmoraProviderCall(
     if (error) {
       console.error(
         "[costGuard] provider receipt reservation failed (blocked):",
-        error.message,
+        safeErrorDiagnostic(error),
       );
       return DENY_UNAVAILABLE;
     }
@@ -301,13 +322,13 @@ export async function reserveAmoraProviderCall(
 
     console.error(
       "[costGuard] provider receipt reservation state unknown (blocked):",
-      JSON.stringify(row ?? null),
+      { shape: Array.isArray(row) ? "array" : typeof row },
     );
     return DENY_UNAVAILABLE;
   } catch (err) {
     console.error(
       "[costGuard] provider receipt reservation exception (blocked):",
-      err,
+      safeErrorDiagnostic(err),
     );
     return DENY_UNAVAILABLE;
   }
@@ -315,7 +336,8 @@ export async function reserveAmoraProviderCall(
 
 async function readCoupleRemaining(
   admin: SupabaseClient,
-  coupleId: string
+  coupleId: string,
+  cap: number,
 ): Promise<number | undefined> {
   try {
     const { data } = await admin
@@ -324,7 +346,7 @@ async function readCoupleRemaining(
       .eq("key", `couple:${coupleId}`)
       .maybeSingle();
     if (typeof data?.count === "number") {
-      return Math.max(0, FREE_PER_COUPLE - data.count);
+      return Math.max(0, cap - data.count);
     }
   } catch {
     // 배너용 조회 실패는 무시
@@ -348,7 +370,7 @@ export async function checkAmoraCostGuard(
     .gte("created_at", startOfTodayKstUtc);
 
   if (globalErr) {
-    console.error("[costGuard] 전역 카운트 실패 (차단):", globalErr.message);
+    console.error("[costGuard] global count failed (blocked)", safeErrorDiagnostic(globalErr));
     return DENY_UNAVAILABLE;
   }
   if ((globalToday ?? 0) >= GLOBAL_DAILY_CAP) {
@@ -371,7 +393,7 @@ export async function checkAmoraCostGuard(
     .eq("interaction_type", "chat_turn");
 
   if (coupleErr) {
-    console.error("[costGuard] 커플 카운트 실패 (차단):", coupleErr.message);
+    console.error("[costGuard] couple count failed (blocked)", safeErrorDiagnostic(coupleErr));
     return DENY_UNAVAILABLE;
   }
   if ((coupleTotal ?? 0) >= FREE_PER_COUPLE) {

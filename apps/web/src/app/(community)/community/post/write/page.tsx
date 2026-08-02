@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 import {
   ArrowLeft,
   Loader2,
@@ -26,7 +25,22 @@ import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { communityPostPath } from "@/lib/community/routes";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
+import {
+  communityPostDraftKey,
+  readOwnedCommunityPostDraft,
+  removeCommunityPostDraft,
+} from "@/lib/community/draftStorage";
 import { weddingPath } from "@/lib/weddingPaths";
+import { consumeQuotePostHandoff } from "@/lib/privacy/oneTimeHandoff";
+import { createClient } from "@/lib/supabase/client";
+import {
+  getCurrentVerifiedUserScopedActor,
+  useUserScopedClientActor,
+} from "@/components/common/UserScopedClientStateBoundary";
+import {
+  CommunityActorChangedError,
+  runWithExpectedCommunityActor,
+} from "@/lib/community/actorFence";
 import type {
   CommunityCategory,
   PostVisibility,
@@ -39,9 +53,6 @@ import type {
 
 type PostMode = "regular" | "slides";
 
-// 로컬스토리지 키
-const DRAFT_KEY = "community_post_draft";
-
 // 글자수 제한
 const TITLE_MAX_LENGTH = 200;
 const CONTENT_MAX_LENGTH = 50000;
@@ -52,6 +63,7 @@ interface InlineImageEntry {
 }
 
 interface DraftData {
+  ownerId: string;
   category: CommunityCategory | null;
   title: string;
   content: string;
@@ -114,20 +126,15 @@ export default function PostWritePage() {
 }
 
 function PostWriteContent() {
+  const actor = useUserScopedClientActor();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
   const isEditMode = Boolean(editId);
-  const prefillKind = searchParams.get("prefill");
-  // 견적 체크 → "익명 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
-  const prefillTitle = searchParams.get("title");
-  const prefillBody = searchParams.get("body");
   const requestedCategory = searchParams.get("category");
   const initialCategory = COMMUNITY_CATEGORIES.some((c) => c.key === requestedCategory)
     ? (requestedCategory as CommunityCategory)
     : null;
-  const isPrefillQuoteCheck =
-    prefillKind === "quote_check" && (!!prefillTitle || !!prefillBody) && !isEditMode;
 
   const { createPost, updatePost } = useCommunityStore();
 
@@ -186,23 +193,33 @@ function PostWriteContent() {
 
   // 인증 체크
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    let cancelled = false;
+    if (actor.status !== "ready") return;
+    if (actor.kind !== "user" || !actor.userId) {
+      const redirect = encodeURIComponent(
+        weddingPath(`/community/post/write${editId ? `?edit=${editId}` : ""}`)
+      );
+      router.replace(`/login?redirect=${redirect}`);
+      return;
+    }
 
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) {
+    const expectedUserId = actor.userId;
+    void createClient().auth.getUser().then(({ data, error: authError }) => {
+      if (cancelled) return;
+      if (authError || data.user?.id !== expectedUserId) {
         const redirect = encodeURIComponent(
           weddingPath(`/community/post/write${editId ? `?edit=${editId}` : ""}`)
         );
         router.replace(`/login?redirect=${redirect}`);
         return;
       }
-      setUserId(data.user.id);
+      setUserId(expectedUserId);
       setAuthChecked(true);
     });
-  }, [router, editId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [actor.kind, actor.status, actor.userId, router, editId]);
 
   // 수정 모드: 기존 글 로드
   useEffect(() => {
@@ -216,7 +233,7 @@ function PostWriteContent() {
         const post = await res.json();
 
         // 작성자 확인
-        if (post.author_id !== userId) {
+        if (post.is_author !== true) {
           setError("본인이 작성한 글만 수정할 수 있습니다.");
           setLoadingPost(false);
           return;
@@ -267,17 +284,11 @@ function PostWriteContent() {
 
   // 새 글 모드: 임시저장 복원
   useEffect(() => {
-    if (isEditMode || !authChecked) return;
+    if (isEditMode || !authChecked || !userId) return;
 
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft: DraftData = JSON.parse(raw);
-      // 24시간 이내 임시저장만 복원
-      if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) {
-        localStorage.removeItem(DRAFT_KEY);
-        return;
-      }
+      const draft = readOwnedCommunityPostDraft<DraftData>(localStorage, userId);
+      if (!draft) return;
       setCategory(draft.category);
       setTitle(draft.title || "");
       setContent(draft.content || "");
@@ -296,19 +307,21 @@ function PostWriteContent() {
     } catch {
       // 파싱 실패 시 무시
     }
-  }, [isEditMode, authChecked]);
+  }, [isEditMode, authChecked, userId]);
 
   // 견적 체크 → "익명 사례로 공유하기" prefill (이슈 #3)
   // - 인증 직후 1회 적용. 이후 사용자가 자유롭게 편집할 수 있도록 ref guard.
   const quotePrefillAppliedRef = useRef(false);
   useEffect(() => {
-    if (!isPrefillQuoteCheck || !authChecked || quotePrefillAppliedRef.current) return;
+    if (isEditMode || !authChecked || !userId || quotePrefillAppliedRef.current) return;
     quotePrefillAppliedRef.current = true;
-    if (prefillTitle) setTitle(prefillTitle.slice(0, TITLE_MAX_LENGTH));
-    if (prefillBody) setContent(prefillBody.slice(0, CONTENT_MAX_LENGTH));
-    // category는 URL ?category= 가 이미 initialCategory 로 잡혀 있음
+    const prefill = consumeQuotePostHandoff(userId);
+    if (!prefill) return;
+    setCategory(prefill.category);
+    if (prefill.title) setTitle(prefill.title.slice(0, TITLE_MAX_LENGTH));
+    if (prefill.body) setContent(prefill.body.slice(0, CONTENT_MAX_LENGTH));
     setDraftRestored(false);
-  }, [isPrefillQuoteCheck, authChecked, prefillTitle, prefillBody]);
+  }, [isEditMode, authChecked, userId]);
 
   // 변경 감지 (unsaved changes)
   useEffect(() => {
@@ -354,10 +367,11 @@ function PostWriteContent() {
 
   // 자동 저장 (30초마다)
   useEffect(() => {
-    if (isEditMode) return;
+    if (isEditMode || !userId) return;
 
     autoSaveRef.current = setInterval(() => {
       const draft: DraftData = {
+        ownerId: userId,
         category,
         title,
         content,
@@ -377,7 +391,7 @@ function PostWriteContent() {
       // 비어있으면 저장하지 않음 (카드 모드면 슬라이드 한 장만 있어도 저장)
       if (!title && !content && !category && slides.length === 0) return;
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        localStorage.setItem(communityPostDraftKey(userId), JSON.stringify(draft));
         // 자동 저장 표시
         setAutoSaveFlash(true);
         setTimeout(() => setAutoSaveFlash(false), 2000);
@@ -389,7 +403,7 @@ function PostWriteContent() {
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     };
-  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides]);
+  }, [isEditMode, userId, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -549,6 +563,15 @@ function PostWriteContent() {
       return;
     }
 
+    const expectedUserId = userId;
+    const expectedActorKey = actor.status === "ready" && actor.kind === "user"
+      ? actor.actorKey
+      : null;
+    if (!expectedUserId || !expectedActorKey || actor.userId !== expectedUserId) {
+      setError("계정이 변경되어 글 작성을 중단했어요. 다시 로그인해 주세요.");
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
 
@@ -590,34 +613,46 @@ function PostWriteContent() {
     };
 
     try {
-      if (isEditMode && editId) {
-        const success = await updatePost(editId, input);
-        if (!success) {
-          const storeErr = useCommunityStore.getState().errorMessage;
-          throw new Error(storeErr || "수정에 실패했습니다.");
-        }
-        // 임시저장 삭제
-        localStorage.removeItem(DRAFT_KEY);
-        setHasUnsavedChanges(false);
-        router.push(communityPostPath(editId));
+      const outcome = await runWithExpectedCommunityActor({
+        expectedActorKey,
+        expectedUserId,
+        getCurrentActor: getCurrentVerifiedUserScopedActor,
+        getVerifiedUserId: async () => {
+          const { data, error: authError } = await createClient().auth.getUser();
+          return authError ? null : data.user?.id ?? null;
+        },
+        operation: async () => {
+          if (isEditMode && editId) {
+            const success = await updatePost(editId, input, expectedUserId);
+            if (!success) {
+              const storeErr = useCommunityStore.getState().errorMessage;
+              throw new Error(storeErr || "수정에 실패했습니다.");
+            }
+            return { kind: "updated" as const, postId: editId };
+          }
+
+          const postId = await createPost(input, expectedUserId);
+          if (!postId) {
+            const storeErr = useCommunityStore.getState().errorMessage;
+            throw new Error(storeErr || "작성에 실패했습니다.");
+          }
+          return { kind: "created" as const, postId, asDraft };
+        },
+      });
+      removeCommunityPostDraft(localStorage, expectedUserId);
+      setHasUnsavedChanges(false);
+      if (outcome.kind === "updated") {
+        router.push(communityPostPath(outcome.postId));
+      } else if (outcome.asDraft) {
+        router.push(weddingPath());
       } else {
-        const postId = await createPost(input);
-        if (!postId) {
-          const storeErr = useCommunityStore.getState().errorMessage;
-          throw new Error(storeErr || "작성에 실패했습니다.");
-        }
-        // 임시저장 삭제
-        localStorage.removeItem(DRAFT_KEY);
-        setHasUnsavedChanges(false);
-        if (asDraft) {
-          router.push(weddingPath());
-        } else {
-          router.push(communityPostPath(postId));
-        }
+        router.push(communityPostPath(outcome.postId));
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "오류가 발생했습니다."
+        err instanceof CommunityActorChangedError
+          ? "계정이 변경되어 글 작성을 중단했어요. 현재 계정에서 다시 확인해 주세요."
+          : err instanceof Error ? err.message : "오류가 발생했습니다."
       );
     } finally {
       setIsSubmitting(false);

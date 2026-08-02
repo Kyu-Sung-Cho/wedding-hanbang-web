@@ -41,6 +41,7 @@ describe("checkAmoraCostGuard", () => {
     delete process.env.AMORA_COST_GUARD_ENABLED;
     delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
     delete process.env.AMORA_FREE_MESSAGES_PER_COUPLE;
+    delete process.env.AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP;
     delete process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP;
     delete process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD;
     vi.resetModules();
@@ -138,6 +139,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
     delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
+    delete process.env.AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP;
     delete process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD;
   });
   afterEach(() => {
@@ -160,7 +162,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     });
   });
 
-  it("demo는 커플 lifetime cap을 우회하지만 global 사용량을 원자 예약한다", async () => {
+  it("applies the dedicated daily demo cap even when standard couple quotas are disabled", async () => {
     const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
 
     const r = await reserveAmoraTurn(admin, { ...BASE, quotaScope: "demo" });
@@ -169,7 +171,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(r.remaining).toBeUndefined();
     expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
       p_couple_id: "c1",
-      p_couple_cap: 2_147_483_647,
+      p_couple_cap: 60,
       p_global_cap: 300,
       p_reserve_cost_microusd: 254_400,
       p_global_cost_cap_microusd: 20_000_000,
@@ -185,6 +187,20 @@ describe("reserveAmoraTurn (원자 예약)", () => {
 
     expect(r.allowed).toBe(false);
     expect(r.reason).toBe("global_daily");
+  });
+
+  it("honors an explicit dedicated demo cap", async () => {
+    process.env.AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP = "7";
+    vi.resetModules();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    await mod.reserveAmoraTurn(admin, { ...BASE, quotaScope: "demo" });
+
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_turn",
+      expect.objectContaining({ p_couple_cap: 7 }),
+    );
   });
 
   it.each([
@@ -335,6 +351,24 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(rpcSpy).not.toHaveBeenCalled();
   });
 
+  it("keeps the public demo cap active when the standard cost guard is disabled", async () => {
+    process.env.AMORA_COST_GUARD_ENABLED = "false";
+    vi.resetModules();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    const result = await mod.reserveAmoraTurn(admin, {
+      ...BASE,
+      quotaScope: "demo",
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_turn",
+      expect.objectContaining({ p_couple_cap: 60 }),
+    );
+  });
+
   it("백그라운드 케어 호출은 실제 커플 무료 상담 카운터를 소모하지 않는다", async () => {
     const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
 
@@ -414,6 +448,7 @@ describe("reserveAmoraProviderCall", () => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
     delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
+    delete process.env.AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP;
     delete process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD;
   });
   afterEach(() => {
@@ -444,5 +479,29 @@ describe("reserveAmoraProviderCall", () => {
       p_reserve_cost_microusd: 212_000,
       p_global_cost_cap_microusd: 20_000_000,
     });
+  });
+
+  it("uses the dedicated demo cap for provider-call receipts", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: true, reason: null },
+    });
+
+    const result = await reserveAmoraProviderCall(admin, {
+      ...BASE,
+      quotaScope: "demo",
+      receiptId: "30000000-0000-4000-8000-000000000002",
+      claimToken: "40000000-0000-4000-8000-000000000002",
+      requestKey: "demo_request_123",
+      maxCostMicrousd: 212_000,
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_provider_call",
+      expect.objectContaining({
+        p_cost_couple_id: "c1",
+        p_couple_cap: 60,
+      }),
+    );
   });
 });

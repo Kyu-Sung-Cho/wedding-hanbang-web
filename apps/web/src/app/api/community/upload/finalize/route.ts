@@ -23,6 +23,11 @@ import {
   type CommunityUploadSession,
 } from "@/lib/community/uploadSession";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { readBoundedUtf8Text } from "@/utils/requestValidation";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,28 +37,40 @@ const MAX_BODY_BYTES = 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const V2_FINAL_PATH_RE = /^v2\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.(jpg|png|gif|webp)$/i;
 
 function json(body: Record<string, unknown>, status: number, headers: HeadersInit = {}) {
   return NextResponse.json(body, { status, headers: { ...NO_STORE, ...headers } });
 }
 
-async function readUploadId(request: Request): Promise<string | null> {
+type UploadIdResult =
+  | { ok: true; uploadId: string }
+  | { ok: false; reason: "too_large" | "invalid" };
+
+async function readUploadId(request: Request): Promise<UploadIdResult> {
   if (request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase()
-      !== "application/json") return null;
-  const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) return null;
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) return null;
+      !== "application/json") return { ok: false, reason: "invalid" };
+  const bodyResult = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
+    return {
+      ok: false,
+      reason: bodyResult.reason === "too_large" ? "too_large" : "invalid",
+    };
+  }
   try {
-    const parsed = JSON.parse(text) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const parsed = JSON.parse(bodyResult.text) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ok: false, reason: "invalid" };
+    }
     const record = parsed as Record<string, unknown>;
-    if (Object.keys(record).join(",") !== "uploadId") return null;
+    if (Object.keys(record).join(",") !== "uploadId") {
+      return { ok: false, reason: "invalid" };
+    }
     return typeof record.uploadId === "string" && UUID_RE.test(record.uploadId)
-      ? record.uploadId
-      : null;
+      ? { ok: true, uploadId: record.uploadId }
+      : { ok: false, reason: "invalid" };
   } catch {
-    return null;
+    return { ok: false, reason: "invalid" };
   }
 }
 
@@ -62,8 +79,16 @@ function isSessionContractExact(session: CommunityUploadSession): boolean {
   if (!mimeType || session.user_id.length === 0) return false;
   const rule = COMMUNITY_MEDIA_RULES[mimeType];
   const expectedPath = `${session.user_id}/${session.id}.${rule.extension}`;
+  const v2FinalMatch = session.final_path.match(V2_FINAL_PATH_RE);
+  const finalPathExact = session.final_path === expectedPath
+    || Boolean(
+      v2FinalMatch
+      && v2FinalMatch[1].toLowerCase() !== session.id.toLowerCase()
+      && v2FinalMatch[1].toLowerCase() !== session.user_id.toLowerCase()
+      && v2FinalMatch[2].toLowerCase() === rule.extension,
+    );
   const baseExact = session.staging_path === expectedPath
-    && session.final_path === expectedPath
+    && finalPathExact
     && session.final_bucket === rule.bucket
     && Number.isSafeInteger(session.declared_size)
     && session.declared_size > 0
@@ -324,10 +349,13 @@ async function publishAndVerify(
 }
 
 export async function POST(req: NextRequest) {
-  const uploadId = await readUploadId(req);
-  if (!uploadId) {
-    return json({ error: "올바르지 않은 업로드 요청이에요.", code: "INVALID_FINALIZE_REQUEST" }, 400);
+  const uploadIdResult = await readUploadId(req);
+  if (!uploadIdResult.ok) {
+    return uploadIdResult.reason === "too_large"
+      ? json({ error: "요청 본문이 너무 큽니다.", code: "REQUEST_BODY_TOO_LARGE" }, 413)
+      : json({ error: "올바르지 않은 업로드 요청이에요.", code: "INVALID_FINALIZE_REQUEST" }, 400);
   }
+  const uploadId = uploadIdResult.uploadId;
 
   const requestClient = await createClientFromRequest(req);
   const { data: { user } } = await requestClient.auth.getUser();
@@ -388,7 +416,13 @@ export async function POST(req: NextRequest) {
   let session: CommunityUploadSession | null;
   try {
     session = await claimCommunityUploadSession(admin, uploadId, user.id, proposedClaim);
-  } catch {
+  } catch (error) {
+    if (isCommunityActorWriteDenied(error)) {
+      return json(
+        { error: COMMUNITY_WRITE_DENIED_MESSAGE, code: "COMMUNITY_WRITE_DENIED" },
+        403,
+      );
+    }
     console.error("[community upload] session claim failed");
     return json({ error: "업로드 확인에 실패했어요.", code: "UPLOAD_CLAIM_FAILED" }, 503, { "Retry-After": "2" });
   }
@@ -493,13 +527,51 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const completed = await markCommunityUploadCompleted(
-    admin,
-    session,
-    published.size,
-    mimeType,
-    published.sha256,
-  );
+  let completed: boolean;
+  try {
+    completed = await markCommunityUploadCompleted(
+      admin,
+      session,
+      published.size,
+      mimeType,
+      published.sha256,
+    );
+  } catch (error) {
+    if (isCommunityActorWriteDenied(error)) {
+      const finalDeleted = await deleteObject(
+        admin,
+        session.final_bucket,
+        session.final_path,
+      );
+      const rejected = finalDeleted
+        ? await rejectCommunityUploadSession(
+            admin,
+            session,
+            "actor_suspended",
+            true,
+          )
+        : false;
+      if (rejected) {
+        return json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE, code: "COMMUNITY_WRITE_DENIED" },
+          403,
+        );
+      }
+      return json(
+        {
+          error: "정지된 계정의 업로드 결과를 안전하게 정리하지 못했어요.",
+          code: "UPLOAD_SUSPENSION_CLEANUP_FAILED",
+        },
+        503,
+        { "Retry-After": "30" },
+      );
+    }
+    return json(
+      { error: "업로드 완료 기록에 실패했어요.", code: "UPLOAD_COMPLETION_FAILED" },
+      503,
+      { "Retry-After": "2" },
+    );
+  }
   if (!completed) {
     return json({ error: "업로드 완료 기록에 실패했어요.", code: "UPLOAD_COMPLETION_FAILED" }, 503, { "Retry-After": "2" });
   }

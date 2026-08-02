@@ -16,9 +16,11 @@ import {
 import { parseVendorRecommendationRequest } from "@/lib/vendors/recommendationRequest";
 import type { VendorAttributeCategory } from "@/lib/vendors/attributeSchemas";
 import { loadVendorProfile } from "@/lib/vendors/vendorProfileData";
+import { CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION } from "@/lib/vendors/staffPublicationConsent";
 
 type VendorToolExecutionContext = {
   coupleId: string;
+  userId?: string;
   weddingContext: {
     budget: number;
     progress: Record<string, { category: string; status: string }>;
@@ -290,6 +292,22 @@ function getAdminClient() {
   return createAdminClient();
 }
 
+async function resolveBoundActorId(
+  admin: ReturnType<typeof createAdminClient>,
+  ctx: VendorToolExecutionContext,
+): Promise<string | null> {
+  const actorId = ctx.userId ?? "";
+  if (!isUuid(ctx.coupleId) || !isUuid(actorId)) return null;
+
+  const { data: profile, error } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", actorId)
+    .eq("couple_id", ctx.coupleId)
+    .maybeSingle();
+  return !error && profile?.id === actorId ? actorId : null;
+}
+
 function formatAvailabilitySlotDateTime(slot: { date?: string | null; dayLabel?: string | null; time: string }): string {
   if (slot.date) {
     return slot.dayLabel ? `${slot.date} (${slot.dayLabel}) ${slot.time}` : `${slot.date} ${slot.time}`;
@@ -394,22 +412,15 @@ export async function executeSearchVendors(
     });
 
   // 체험 상담의 coupleId는 "demo-couple"이라 uuid 컬럼 비교가 매번 에러를 낸다.
-  // 개인화 기록은 실제 커플일 때만 남긴다.
-  if (isUuid(ctx.coupleId)) {
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("couple_id", ctx.coupleId)
-      .limit(1)
-      .single();
-    if (profile) {
-      await admin.from("search_logs").insert({
-        user_id: profile.id,
-        query: (input.search as string) || (input.category as string) || "AI 검색",
-        category: (input.category as string) || null,
-        result_count: results.length,
-      }).then(() => {});
-    }
+  // 개인화는 인증된 호출자가 이 커플에 속한다는 사실까지 다시 확인한 뒤 적용한다.
+  const actorId = await resolveBoundActorId(admin, ctx);
+  if (actorId) {
+    await admin.from("search_logs").insert({
+      user_id: actorId,
+      query: (input.search as string) || (input.category as string) || "AI 검색",
+      category: (input.category as string) || null,
+      result_count: results.length,
+    }).then(() => {});
   }
 
   return {
@@ -728,24 +739,16 @@ export async function executeRecommendVendors(
   }
 
   let viewedVendorIds: string[] = [];
-  if (isUuid(ctx.coupleId)) {
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("id")
-      .eq("couple_id", ctx.coupleId)
-      .limit(1)
-      .single();
-
-    if (profile) {
-      const { data: viewed } = await admin
-        .from("customer_events")
-        .select("vendor_id")
-        .eq("user_id", profile.id)
-        .eq("event_type", "vendor_view")
-        .not("vendor_id", "is", null)
-        .limit(50);
-      viewedVendorIds = (viewed ?? []).map((viewedVendor) => viewedVendor.vendor_id).filter(Boolean);
-    }
+  const actorId = await resolveBoundActorId(admin, ctx);
+  if (actorId) {
+    const { data: viewed } = await admin
+      .from("customer_events")
+      .select("vendor_id")
+      .eq("user_id", actorId)
+      .eq("event_type", "vendor_view")
+      .not("vendor_id", "is", null)
+      .limit(50);
+    viewedVendorIds = (viewed ?? []).map((viewedVendor) => viewedVendor.vendor_id).filter(Boolean);
   }
 
   let query = admin
@@ -965,6 +968,11 @@ export async function executeGetVendorDetail(
           .select("id, name, role, description")
           .eq("vendor_id", vendorId)
           .eq("is_active", true)
+          .not("public_profile_consent_at", "is", null)
+          .eq(
+            "public_profile_consent_version",
+            CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION,
+          )
           .order("sort_order", { ascending: true })
           .order("id", { ascending: true })
           .limit(MAX_VENDOR_STAFF),
@@ -1074,6 +1082,11 @@ export async function executeGetVendorDetail(
     .select("id, name, role, description")
     .eq("vendor_id", vendorId)
     .eq("is_active", true)
+    .not("public_profile_consent_at", "is", null)
+    .eq(
+      "public_profile_consent_version",
+      CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION,
+    )
     .order("sort_order", { ascending: true })
     .order("id", { ascending: true })
     .limit(MAX_VENDOR_STAFF);

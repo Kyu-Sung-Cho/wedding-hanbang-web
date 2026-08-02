@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { WEDDING_JOURNEY_PRIVATE_SELECT } from "@/lib/privacy/privateDataSelects";
 import {
   buildMultimodalContent,
   buildToolResultInput,
@@ -16,8 +17,10 @@ import { AMORA_EVAL_HEADER, verifyAmoraEvalToken } from "@/lib/ai/amoraEvalAuth"
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import {
+  buildTrustedPlaceSearchQuery,
   getAvailableChatTools,
   getPlaceSearchToolChoice,
+  PLACE_SEARCH_TOOL_NAME,
 } from "@/lib/ai/placeSearchRouting";
 import {
   getModelSafeToolOutput,
@@ -45,12 +48,20 @@ import {
 import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
 import { resolveAmoraWeddingContext } from "@/lib/ai/amoraWeddingContext";
 import {
+  AMORA_MAX_ATTACHMENTS,
   AmoraAttachmentValidationError,
   AmoraDocxArchiveValidationError,
   assertSafeDocxArchive,
   validateAmoraAttachments,
   type ValidatedAmoraAttachment,
 } from "@/lib/ai/amoraAttachments";
+import {
+  AMORA_MAX_PROVIDER_IMAGE_BASE64_CHARS,
+  AmoraImageSanitizationError,
+  isAmoraImageMediaType,
+  sanitizeAmoraImageAttachment,
+  type SanitizedAmoraImageAttachment,
+} from "@/lib/ai/amoraImageAttachments";
 import {
   runAmoraProviderCallWithLedger,
   type AtomicAmoraChatResponseFinalization,
@@ -104,12 +115,19 @@ import {
 } from "@/lib/ai/chatRequestClaim";
 import { NextResponse } from "next/server";
 import type { ToolExecutionResult } from "@/types/database.types";
-import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
-  getCookieValue,
-  hasSignedDemoSessionFromCookieHeader,
-} from "@/lib/demoSession";
-import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+  checkRateLimitPersistent,
+  rateLimitKey,
+  rateLimitSubjectKey,
+} from "@/utils/rateLimit";
+import { getSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
+import {
+  isBodyTooLarge,
+  isRecord,
+  isUuid,
+  readBoundedJsonValue,
+} from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import { createHash, randomUUID } from "node:crypto";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
@@ -118,6 +136,8 @@ export const maxDuration = 300;
 
 const MAX_EXTRACTED_TEXT_CHARS = 80_000;
 const MAX_DOCX_EXTRACTED_TEXT_CHARS = 200_000;
+// Chat requests can include bounded inline image/DOCX attachments. Keep
+// their existing 16 MiB product limit, but count the stream before JSON parse.
 const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
 const MAX_CONTEXT_MESSAGES = 40;
 const MAX_MESSAGE_CHARS = 20_000;
@@ -131,8 +151,9 @@ const SSE_HEADERS = {
   "X-Accel-Buffering": "no",
 };
 const DEMO_COUPLE_ID = "demo-couple";
-const DEMO_ACTOR_ID = "amora-signed-demo";
-const DEMO_COST_GUARD_COUPLE_ID = "00000000-0000-4000-8000-000000000000";
+const DEMO_ACTOR_PREFIX = "amora-signed-demo";
+const DEMO_IP_HOURLY_REQUEST_CAP = 20;
+const DEMO_SESSION_DAILY_REQUEST_CAP = 20;
 const EVAL_ACTOR_ID = "amora-release-eval";
 const EVAL_COST_LEDGER_COUPLE_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -293,7 +314,7 @@ async function autoSaveDissatisfaction(params: {
       if (error) throw error;
     });
   } catch (err) {
-    console.error("자동 불만족 피드백 저장 실패 (무시됨):", err);
+    console.error("자동 불만족 피드백 저장 실패 (무시됨)", safeErrorDiagnostic(err));
   }
 }
 
@@ -317,17 +338,11 @@ async function extractDocxText(base64: string): Promise<string> {
 
 // 첨부파일 처리: OpenAI Responses API에 보낼 형태로 변환
 interface ProcessedAttachment {
-  visionAttachments: ImageAttachment[]; // 이미지/PDF → OpenAI image/file input
+  visionAttachments: ImageAttachment[]; // 서버가 재인코딩한 이미지만 OpenAI input으로 사용
+  sanitizedImages: SanitizedAmoraImageAttachment[];
   textAttachments: string[]; // DOCX → 추출된 텍스트
 }
 
-const VISION_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-]);
 const DOCX_MEDIA_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -336,6 +351,7 @@ class AmoraAttachmentProcessingError extends Error {
     message: string,
     readonly code:
       | "ATTACHMENT_PROCESSING_FAILED"
+      | "UNSAFE_IMAGE_ATTACHMENT"
       | "UNSAFE_DOCX_ARCHIVE"
       | "DOCX_TEXT_TOO_LARGE" =
       "ATTACHMENT_PROCESSING_FAILED",
@@ -359,17 +375,35 @@ async function processAttachments(
   attachments: ValidatedAmoraAttachment[],
 ): Promise<ProcessedAttachment> {
   const visionAttachments: ImageAttachment[] = [];
+  const sanitizedImages: SanitizedAmoraImageAttachment[] = [];
   const textAttachments: string[] = [];
+  let totalImageBase64Chars = 0;
 
   for (const item of attachments) {
-    if (VISION_TYPES.has(item.mediaType)) {
+    if (isAmoraImageMediaType(item.mediaType)) {
+      let sanitized: SanitizedAmoraImageAttachment;
+      try {
+        sanitized = await sanitizeAmoraImageAttachment(item);
+      } catch (error) {
+        if (error instanceof AmoraImageSanitizationError) {
+          throw new AmoraAttachmentProcessingError(
+            "Image attachment failed safety inspection",
+            "UNSAFE_IMAGE_ATTACHMENT",
+          );
+        }
+        throw error;
+      }
+      totalImageBase64Chars += sanitized.base64.length;
+      if (totalImageBase64Chars > AMORA_MAX_PROVIDER_IMAGE_BASE64_CHARS) {
+        throw new AmoraAttachmentProcessingError(
+          "Sanitized image attachments exceeded the provider payload limit",
+          "UNSAFE_IMAGE_ATTACHMENT",
+        );
+      }
+      sanitizedImages.push(sanitized);
       visionAttachments.push({
-        base64: item.base64,
-        mediaType: item.mediaType as ImageAttachment["mediaType"],
-        fileName:
-          item.mediaType === "application/pdf"
-            ? safeFileName(item.fileName, "attachment.pdf")
-            : undefined,
+        base64: sanitized.base64,
+        mediaType: sanitized.mediaType,
       });
     } else if (item.mediaType === DOCX_MEDIA_TYPE) {
       try {
@@ -393,7 +427,132 @@ async function processAttachments(
     }
   }
 
-  return { visionAttachments, textAttachments };
+  return { visionAttachments, sanitizedImages, textAttachments };
+}
+
+function deriveSanitizedAttachmentId(
+  durableRequestId: string,
+  attachmentIndex: number,
+): string {
+  const digest = createHash("sha256")
+    .update(`amora-chat-image\0${durableRequestId}\0${attachmentIndex}`, "utf8")
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  digest[12] = "5";
+  digest[16] = "8";
+  const value = digest.join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function exactStringArray(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value)
+    || value.length > AMORA_MAX_ATTACHMENTS
+    || value.some((item) => typeof item !== "string")
+  ) {
+    return null;
+  }
+  return value as string[];
+}
+
+function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
+
+async function persistSanitizedChatImages(params: {
+  actorId: string;
+  coupleId: string;
+  durableRequestId: string;
+  images: SanitizedAmoraImageAttachment[];
+  userMessageId: string;
+  visibility: "shared" | "bride_private" | "groom_private";
+}): Promise<string[]> {
+  if (params.images.length === 0) return [];
+
+  const admin = getServiceClient();
+  const { data: message, error: readError } = await admin
+    .from("chat_messages")
+    .select("id, couple_id, sender_id, role, visibility, metadata")
+    .eq("id", params.userMessageId)
+    .eq("couple_id", params.coupleId)
+    .eq("sender_id", params.actorId)
+    .eq("role", "user")
+    .eq("visibility", params.visibility)
+    .single();
+
+  if (
+    readError
+    || !message
+    || message.id !== params.userMessageId
+    || message.couple_id !== params.coupleId
+    || message.sender_id !== params.actorId
+    || message.role !== "user"
+    || message.visibility !== params.visibility
+    || (message.metadata !== null && !isRecord(message.metadata))
+  ) {
+    throw new Error("chat attachment message binding failed");
+  }
+
+  const metadata = message.metadata === null ? {} : { ...message.metadata };
+  const existingPaths = exactStringArray(metadata.imagePaths);
+  if (existingPaths === null) {
+    throw new Error("chat attachment metadata is malformed");
+  }
+
+  const paths = params.images.map((image, index) => (
+    `${params.coupleId}/${params.actorId}/${deriveSanitizedAttachmentId(
+      params.durableRequestId,
+      index,
+    )}.${image.extension}`
+  ));
+  const alreadyBound = arraysEqual(existingPaths, paths);
+  if (existingPaths.length > 0 && !alreadyBound) {
+    throw new Error("chat attachment metadata already has a different binding");
+  }
+
+  const storage = admin.storage.from("chat-image");
+  const uploadedPaths: string[] = [];
+  try {
+    for (let index = 0; index < params.images.length; index += 1) {
+      const image = params.images[index]!;
+      const path = paths[index]!;
+      const { error: uploadError } = await storage.upload(path, image.bytes, {
+        cacheControl: "31536000",
+        contentType: image.mediaType,
+        upsert: alreadyBound,
+      });
+      if (uploadError) throw new Error("chat attachment storage upload failed");
+      uploadedPaths.push(path);
+    }
+
+    const nextMetadata = { ...metadata, imagePaths: paths };
+    const { data: updated, error: updateError } = await admin
+      .from("chat_messages")
+      .update({ metadata: nextMetadata })
+      .eq("id", params.userMessageId)
+      .eq("couple_id", params.coupleId)
+      .eq("sender_id", params.actorId)
+      .eq("role", "user")
+      .eq("visibility", params.visibility)
+      .select("metadata")
+      .single();
+    const updatedPaths = isRecord(updated?.metadata)
+      ? exactStringArray(updated.metadata.imagePaths)
+      : null;
+    if (updateError || updatedPaths === null || !arraysEqual(updatedPaths, paths)) {
+      throw new Error("chat attachment metadata update failed");
+    }
+  } catch (error) {
+    if (!alreadyBound && uploadedPaths.length > 0) {
+      await storage.remove(uploadedPaths).catch(() => undefined);
+    }
+    throw error;
+  }
+
+  return paths;
 }
 
 export async function POST(request: Request) {
@@ -402,18 +561,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
   }
   // 인증 체크 (웹: 쿠키, 앱: Bearer 토큰)
-  let body: Record<string, unknown>;
-  try {
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BODY_BYTES) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
-    }
-    const parsed = JSON.parse(rawBody) as unknown;
-    if (!isRecord(parsed)) throw new Error("invalid body");
-    body = parsed;
-  } catch {
+  // Authenticate before buffering the potentially large attachment payload.
+  // A signed demo session is a separate authorization boundary; the body is
+  // still checked below before it can opt into demo behavior.
+  const signedDemoSession = getSignedDemoSessionFromCookieHeader(
+    request.headers.get("cookie"),
+  );
+  const hasSignedDemoSession = signedDemoSession !== null;
+  const supabase = await createClientFromRequest(request);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user && !hasSignedDemoSession) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  }
+
+  // Meter the authenticated ingress boundary before reading a potentially
+  // 16 MiB chunked JSON body. Evaluation traffic also passes through this
+  // broad demo boundary, then receives its request-bound limit after parsing.
+  const ingressLimited = await checkRateLimitPersistent(
+    user
+      ? rateLimitKey("chat", request, user.id)
+      : rateLimitKey("chat-demo", request),
+    {
+      maxRequests: user ? 60 : DEMO_IP_HOURLY_REQUEST_CAP,
+      windowMs: 60 * 60 * 1000,
+    },
+    { failClosed: true },
+  );
+  if (ingressLimited) return ingressLimited;
+
+  if (!user && signedDemoSession) {
+    const sessionIngressLimited = await checkRateLimitPersistent(
+      rateLimitSubjectKey("chat-demo-session", signedDemoSession.sessionId),
+      {
+        maxRequests: DEMO_SESSION_DAILY_REQUEST_CAP,
+        windowMs: 24 * 60 * 60 * 1000,
+      },
+      { failClosed: true },
+    );
+    if (sessionIngressLimited) return sessionIngressLimited;
+  }
+
+  const bodyResult = await readBoundedJsonValue(request, MAX_REQUEST_BODY_BYTES);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  if (!isRecord(bodyResult.value)) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
+  const body = bodyResult.value;
 
   const {
     messages,
@@ -430,8 +630,9 @@ export async function POST(request: Request) {
     visibility: bodyVisibility,
   } = body;
   const isDemo =
+    !user &&
     bodyIsDemo === true &&
-    hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
+    hasSignedDemoSession;
   const evalToken = request.headers.get(AMORA_EVAL_HEADER);
   const isEvaluation =
     isDemo &&
@@ -445,18 +646,18 @@ export async function POST(request: Request) {
     );
   }
 
-  // Real users authenticate with Supabase. The public demo is authorized by a
-  // separate signed, HttpOnly session cookie and never receives database write access.
-  const supabase = await createClientFromRequest(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   if (!user && !isDemo) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
-  const actorId = user?.id ?? (isEvaluation ? EVAL_ACTOR_ID : DEMO_ACTOR_ID);
+  const demoSessionScope = signedDemoSession
+    ? createHash("sha256").update(signedDemoSession.sessionId, "utf8").digest("hex")
+    : null;
+  const actorId = isEvaluation
+    ? EVAL_ACTOR_ID
+    : isDemo
+      ? `${DEMO_ACTOR_PREFIX}-${demoSessionScope!.slice(0, 24)}`
+      : user!.id;
   const evalLimit = isEvaluation ? getEvalRequestLimit(request) : null;
 
   if (
@@ -554,7 +755,7 @@ export async function POST(request: Request) {
   const dataCoupleId = isEvaluation
     ? EVAL_COST_LEDGER_COUPLE_ID
     : isDemo
-      ? DEMO_COST_GUARD_COUPLE_ID
+      ? signedDemoSession!.dailyCostLedgerId
       : coupleId;
   const safeSenderName =
     typeof userProfile.name === "string" && userProfile.name.trim()
@@ -589,19 +790,26 @@ export async function POST(request: Request) {
   const requestCorrelationId = createHash("sha256")
     .update(clientRequestId)
     .digest("hex");
-  const demoSessionToken = isDemo
-    ? getCookieValue(request.headers.get("cookie"), "demo_session")
-    : null;
   const safetyIdentifierScope = isDemo
-    ? `demo:${createHash("sha256")
-        .update(demoSessionToken ?? rawClientRequestId)
-        .digest("hex")}`
+    ? `demo:${demoSessionScope}`
     : actorId;
 
-  // This deterministic boundary intentionally runs before the ordinary chat
-  // limiter, attachment parsing, durable claim, auxiliary context reads, and
-  // every provider call. An infrastructure or malformed-attachment failure
-  // must never hide time-critical contact guidance.
+  if (evalLimit) {
+    const evalLimited = await checkRateLimitPersistent(
+      evalLimit.key,
+      {
+        maxRequests: evalLimit.maxRequests,
+        windowMs: 24 * 60 * 60 * 1000,
+      },
+      { failClosed: true },
+    );
+    if (evalLimited) return evalLimited;
+  }
+
+  // This deterministic boundary intentionally runs before attachment parsing,
+  // durable claim, auxiliary context reads, and every provider call. It runs
+  // after the persistent request limits above so fixed guidance cannot become
+  // an unmetered large-body response path.
   let earlyCrisisUserText: string | null = null;
   if (requestKind === "mediation") {
     earlyCrisisUserText = String(conflictContext).trim();
@@ -655,31 +863,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const limited = await checkRateLimitPersistent(
-    evalLimit
-      ? evalLimit.key
-      : isDemo
-      ? rateLimitKey("chat-demo", request)
-      : rateLimitKey("chat", request, actorId),
-    {
-      maxRequests: evalLimit?.maxRequests ?? 60,
-      windowMs: evalLimit ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
-    },
-    { failClosed: true },
-  );
-  if (limited) return limited;
-
   let validatedAttachments: ValidatedAmoraAttachment[];
   try {
     validatedAttachments = validateAmoraAttachments(attachmentInput);
   } catch (error) {
     if (error instanceof AmoraAttachmentValidationError) {
       return NextResponse.json(
-        { error: error.message, code: error.code },
+        { error: error.publicMessage, code: error.code },
         { status: 400, headers: { "Cache-Control": "no-store" } },
       );
     }
     throw error;
+  }
+  if (
+    !isDemo
+    && validatedAttachments.some((attachment) => isAmoraImageMediaType(attachment.mediaType))
+    && typeof bodyUserMessageId !== "string"
+  ) {
+    return NextResponse.json(
+      {
+        error: "이미지 첨부를 메시지에 안전하게 연결하지 못했어요. 앱을 새로고침한 뒤 파일을 다시 첨부해주세요.",
+        code: "ATTACHMENT_MESSAGE_BINDING_REQUIRED",
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // A completed retry must not reserve cost, rerun the model, or replay tools.
@@ -706,7 +913,7 @@ export async function POST(request: Request) {
         return replayPersistedMessage(existing);
       }
     } catch (error) {
-      console.error("[chat] completed-request reconciliation failed", error);
+      console.error("[chat] completed-request reconciliation failed", safeErrorDiagnostic(error));
       return NextResponse.json(
         {
           error: "저장된 답변을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
@@ -722,14 +929,17 @@ export async function POST(request: Request) {
     processedAttachments = await processAttachments(validatedAttachments);
   } catch (error) {
     if (error instanceof AmoraAttachmentProcessingError) {
+      const unsafeImage = error.code === "UNSAFE_IMAGE_ATTACHMENT";
       const unsafeArchive = error.code === "UNSAFE_DOCX_ARCHIVE";
       const textTooLarge = error.code === "DOCX_TEXT_TOO_LARGE";
       return NextResponse.json(
         {
-          error: textTooLarge
-            ? "첨부한 Word 문서의 텍스트가 너무 길어 안전하게 읽지 못했어요. 필요한 부분만 남기거나 PDF로 나눠서 첨부해주세요."
+          error: unsafeImage
+            ? "첨부한 이미지의 실제 형식이나 크기를 안전하게 처리할 수 없어요. JPEG, PNG, GIF 또는 WebP 파일을 다시 선택해주세요."
+            : textTooLarge
+            ? "첨부한 Word 문서의 텍스트가 너무 길어 안전하게 읽지 못했어요. 필요한 부분만 남기거나 여러 DOCX로 나눠서 첨부해주세요."
             : unsafeArchive
-              ? "첨부한 Word 파일의 내부 구조가 너무 크거나 안전하지 않아 열지 않았어요. Word에서 새 DOCX로 다시 저장하거나 PDF로 첨부해주세요."
+              ? "첨부한 Word 파일의 내부 구조가 너무 크거나 안전하지 않아 열지 않았어요. Word에서 새 DOCX로 다시 저장하거나 필요한 내용을 텍스트로 보내주세요."
               : "첨부한 Word 파일을 읽지 못했어요. DOCX 파일을 다시 저장한 뒤 첨부해주세요.",
           code: error.code,
         },
@@ -797,13 +1007,13 @@ export async function POST(request: Request) {
         attemptCount: claim.attemptCount,
       });
     } catch (error) {
-      console.error("[chat] durable request claim failed", error);
+      console.error("[chat] durable request claim failed", safeErrorDiagnostic(error));
       if (requestClaimAcquired) {
         await failChatRequest({
           ...claimParams,
           failureCode: "CHAT_TURN_JOURNAL_UNAVAILABLE",
         }).catch((claimError) => {
-          console.error("[chat] journal failure marker failed", claimError);
+          console.error("[chat] journal failure marker failed", safeErrorDiagnostic(claimError));
         });
         requestClaimAcquired = false;
         requestClaimAttemptCount = null;
@@ -818,13 +1028,45 @@ export async function POST(request: Request) {
   const releaseClaimBeforeStream = async (failureCode: string) => {
     if (!requestClaimAcquired) return;
     await failChatRequest({ ...claimParams, failureCode }).catch((error) => {
-      console.error("[chat] pre-stream claim release failed", error);
+      console.error("[chat] pre-stream claim release failed", safeErrorDiagnostic(error));
     });
     requestClaimAcquired = false;
     requestClaimAttemptCount = null;
   };
 
-  const { visionAttachments, textAttachments } = processedAttachments;
+  const { visionAttachments, sanitizedImages, textAttachments } = processedAttachments;
+  let storedImagePaths: string[] = [];
+  if (!isDemo && sanitizedImages.length > 0) {
+    if (typeof bodyUserMessageId !== "string") {
+      await releaseClaimBeforeStream("ATTACHMENT_MESSAGE_BINDING_REQUIRED");
+      return NextResponse.json(
+        {
+          error: "이미지 첨부를 메시지에 안전하게 연결하지 못했어요. 앱을 새로고침한 뒤 파일을 다시 첨부해주세요.",
+          code: "ATTACHMENT_MESSAGE_BINDING_REQUIRED",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    try {
+      storedImagePaths = await persistSanitizedChatImages({
+        actorId,
+        coupleId,
+        durableRequestId: durableClientRequestUuid,
+        images: sanitizedImages,
+        userMessageId: bodyUserMessageId,
+        visibility,
+      });
+    } catch {
+      await releaseClaimBeforeStream("ATTACHMENT_STORAGE_FAILED");
+      return NextResponse.json(
+        {
+          error: "이미지를 안전하게 저장하지 못했어요. 잠시 후 파일을 다시 첨부해주세요.",
+          code: "ATTACHMENT_STORAGE_FAILED",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
 
   // Consent must be resolved before any auxiliary-memory read. Disabled
   // scopes do not query factual summaries or profile source nodes at all.
@@ -839,6 +1081,8 @@ export async function POST(request: Request) {
   );
   const memoryEnabledForTurn = memoryEnablement[visibility] === true;
   const sharedMemoryEnabledForTurn = memoryEnablement.shared === true;
+  const emptyDemoRows = () => Promise.resolve({ data: [], error: null });
+  const emptyDemoRow = () => Promise.resolve({ data: null, error: null });
 
   // 병렬로 커플 관련 데이터 전체 조회
   const [
@@ -851,22 +1095,28 @@ export async function POST(request: Request) {
     profileNodesResult,
   ] = await Promise.all([
     // 1. 웨딩 저니
-    supabase.from("wedding_journeys").select("*").eq("couple_id", dataCoupleId).single(),
+    isDemo
+      ? emptyDemoRow()
+      : supabase.from("wedding_journeys").select(WEDDING_JOURNEY_PRIVATE_SELECT).eq("couple_id", dataCoupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
-    supabase
-      .from("couple_profile_directory")
-      .select("id, name, role")
-      .eq("couple_id", dataCoupleId),
+    isDemo
+      ? emptyDemoRows()
+      : supabase
+          .from("couple_profile_directory")
+          .select("id, name, role")
+          .eq("couple_id", dataCoupleId),
     // 3. 예약 내역 (취소 제외)
-    supabase.from("vendor_bookings")
-      .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo")
-      .eq("couple_id", dataCoupleId)
-      .neq("status", "cancelled")
-      .order("booking_date", { ascending: true }),
+    isDemo
+      ? emptyDemoRows()
+      : supabase.from("vendor_bookings")
+          .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo")
+          .eq("couple_id", dataCoupleId)
+          .neq("status", "cancelled")
+          .order("booking_date", { ascending: true }),
     // 4. 대화 요약 (최근 3개) — visibility 격리 (2026-05-04)
     //    shared turn → shared summary만 / private turn → shared + 본인 visibility
-    enabledMemoryVisibilities.length === 0
-      ? Promise.resolve({ data: [], error: null })
+    isDemo || enabledMemoryVisibilities.length === 0
+      ? emptyDemoRows()
       : (() => {
       const q = supabase.from("chat_summaries")
         .select("summary, summary_type, visibility, created_at, message_count, to_message_id")
@@ -883,14 +1133,16 @@ export async function POST(request: Request) {
     // 5. Memory Step C: 의사결정 히스토리 (최근 50개, AI 추출 + manual/booking/onboarding 포함)
     //    사용자가 동의한 범위의 활성 기억과 명시적 제품 결정만 사용한다.
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
-    supabase.from("decision_nodes")
-      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
-      .eq("couple_id", dataCoupleId)
-      .order("created_at", { ascending: false })
-      .limit(50),
+    isDemo
+      ? emptyDemoRows()
+      : supabase.from("decision_nodes")
+          .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
+          .eq("couple_id", dataCoupleId)
+          .order("created_at", { ascending: false })
+          .limit(50),
     // 6. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
     // prompt source로 신뢰하지 않으며 사용자 RLS를 한 번 더 적용한다.
-    (() => {
+    isDemo ? emptyDemoRows() : (() => {
       const q = supabase
         .from("chat_messages")
         .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at")
@@ -908,8 +1160,8 @@ export async function POST(request: Request) {
     })(),
     // 7. 검증된 V2 기억 노드에서 요청별 맞춤 정보를 결정론적으로 투영한다.
     // 최근 결정 50개와 분리해 오래된 active 근거도 누락하지 않는다.
-    enabledMemoryVisibilities.length === 0
-      ? Promise.resolve({ data: [], error: null })
+    isDemo || enabledMemoryVisibilities.length === 0
+      ? emptyDemoRows()
       : (() => {
           const query = supabase
             .from("decision_nodes")
@@ -929,7 +1181,7 @@ export async function POST(request: Request) {
 
   const journey = journeyResult.data;
   if (!isDemo && journeyResult.error) {
-    console.error("Journey 조회 에러:", journeyResult.error.message);
+    console.error("Journey 조회 에러", safeErrorDiagnostic(journeyResult.error));
     await releaseClaimBeforeStream("WEDDING_CONTEXT_UNAVAILABLE");
     return NextResponse.json(
       {
@@ -966,7 +1218,6 @@ export async function POST(request: Request) {
   if (criticalContextFailure) {
     console.error("[chat] canonical context lookup failed", {
       code: criticalContextFailure.code,
-      providerCode: criticalContextFailure.error?.code ?? null,
     });
     await releaseClaimBeforeStream(criticalContextFailure.code);
     return NextResponse.json(
@@ -988,9 +1239,10 @@ export async function POST(request: Request) {
         .eq("status", "approved")
     : { data: [], error: null };
   if (bookingVendorResult.error) {
-    console.error("[chat] booking vendor context lookup failed", {
-      providerCode: bookingVendorResult.error.code ?? null,
-    });
+    console.error(
+      "[chat] booking vendor context lookup failed",
+      safeErrorDiagnostic(bookingVendorResult.error),
+    );
     await releaseClaimBeforeStream("BOOKINGS_CONTEXT_UNAVAILABLE");
     return NextResponse.json(
       {
@@ -1030,9 +1282,12 @@ export async function POST(request: Request) {
         },
       );
   if (profileNodesResult.error) {
-    console.warn("[chat] profile projection source query failed", profileNodesResult.error.code);
+    console.warn(
+      "[chat] profile projection source query failed",
+      safeErrorDiagnostic(profileNodesResult.error),
+    );
   } else if (projection.rejectedReason) {
-    console.warn("[chat] profile projection failed closed", projection.rejectedReason);
+    console.warn("[chat] profile projection failed closed", { code: projection.rejectedReason });
   }
   const projectedAmoraProfiles = toPromptAmoraProfiles(projection.profiles, visibility);
   const consentedAmoraProfiles = {
@@ -1163,7 +1418,7 @@ export async function POST(request: Request) {
   };
 
   if (!isDemo && messagesResult.error) {
-    console.error("Canonical chat history lookup failed:", messagesResult.error.message);
+    console.error("Canonical chat history lookup failed", safeErrorDiagnostic(messagesResult.error));
     await releaseClaimBeforeStream("CHAT_HISTORY_UNAVAILABLE");
     return NextResponse.json(
       { error: "저장된 대화를 확인하지 못했습니다.", code: "CHAT_HISTORY_UNAVAILABLE" },
@@ -1363,7 +1618,6 @@ export async function POST(request: Request) {
 
   const attachmentKind =
     textAttachments.length > 0
-    || visionAttachments.some((attachment) => attachment.mediaType === "application/pdf")
       ? "document" as const
       : visionAttachments.length > 0
         ? "image" as const
@@ -1404,6 +1658,7 @@ export async function POST(request: Request) {
     round: 0,
     tools: candidateTools,
   });
+  const trustedPlaceSearchQuery = buildTrustedPlaceSearchQuery(lastUserText);
   const selectedTools = initialPlaceSearchToolChoice
     ? candidateTools.filter((tool) => (
         tool.name === initialPlaceSearchToolChoice.name
@@ -1423,7 +1678,12 @@ export async function POST(request: Request) {
   // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
   // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
   // 재설계 이후 운영에서 변경 실행 0건.)
-  const availableTools = visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name));
+  // Public demo sessions never receive executable tools. This prevents an
+  // anonymous session from reaching customer-data, storage, or third-party
+  // side-effect paths through a model-selected read tool.
+  const availableTools = isDemo && !isEvaluation
+    ? []
+    : visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name));
   const pendingProposalTools =
     !isDemo
     && requestKind === "chat"
@@ -1495,7 +1755,7 @@ export async function POST(request: Request) {
           enrichedText = `${boundedTextAttachments}\n\n${m.content}`;
         }
 
-        // 이미지/PDF 첨부가 있으면 멀티모달로
+        // 서버가 재인코딩한 이미지 첨부가 있으면 멀티모달로
         if (visionAttachments.length > 0) {
           return {
             role,
@@ -1523,6 +1783,7 @@ export async function POST(request: Request) {
         });
   const executionContext: ToolExecutionContext = {
     coupleId,
+    userId: user?.id,
     requestKey: clientRequestId,
     requestAttemptCount: requestClaimAttemptCount ?? undefined,
     currentUserText: lastUserText,
@@ -1602,6 +1863,14 @@ export async function POST(request: Request) {
           // 클라이언트 연결 끊김
         }
       };
+
+      if (storedImagePaths.length > 0 && typeof bodyUserMessageId === "string") {
+        send({
+          type: "attachment_paths",
+          userMessageId: bodyUserMessageId,
+          imagePaths: storedImagePaths,
+        });
+      }
 
       const closeStream = () => {
         clearInterval(heartbeat);
@@ -1687,7 +1956,6 @@ export async function POST(request: Request) {
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
-            senderName: safeSenderName,
             ...(visibleClientRequestKey !== clientRequestId
               ? { client_visible_request_id: visibleClientRequestKey }
               : {}),
@@ -2030,19 +2298,44 @@ export async function POST(request: Request) {
 
             toolsUsed.push(toolUse.name);
 
+            // search_nearby_places crosses into a separate third-party search
+            // provider. Never forward a model-generated query: an untrusted
+            // attachment could otherwise make the model encode private context
+            // in that argument. The canonical user message is reduced to its
+            // server-recognized location + place kind; extraction failure is an
+            // empty input and therefore fails closed in the executor.
+            const effectiveToolInput = toolUse.name === PLACE_SEARCH_TOOL_NAME
+              ? trustedPlaceSearchQuery
+                ? { query: trustedPlaceSearchQuery }
+                : {}
+              : toolUse.input;
+
             // analyze_quote 방어: [quote_analysis] 태그 없이 included_items가 있으면 강제로 비움
             if (toolUse.name === "analyze_quote" && !hasQuoteAnalysisTag) {
-              const inp = toolUse.input as Record<string, unknown>;
+              const inp = effectiveToolInput as Record<string, unknown>;
               if (Array.isArray(inp.included_items) && (inp.included_items as string[]).length > 0) {
                 inp.included_items = [];
               }
             }
 
-            send({ type: "tool_start", toolName: toolUse.name, toolInput: toolUse.input });
-            const execResult = await executeTool(toolUse.name, toolUse.input, {
-              ...executionContext,
-              providerCallIndex,
-            });
+            send({ type: "tool_start", toolName: toolUse.name, toolInput: effectiveToolInput });
+            const rejectUnboundPlaceSearch =
+              toolUse.name === PLACE_SEARCH_TOOL_NAME && !trustedPlaceSearchQuery;
+            const execResult: ToolExecutionResult = rejectUnboundPlaceSearch
+              ? {
+                  toolName: PLACE_SEARCH_TOOL_NAME,
+                  toolInput: {},
+                  toolOutput: {
+                    places: [],
+                    error: "trusted_place_intent_required",
+                  },
+                  success: false,
+                  displayMessage: "검색할 지역과 장소 종류를 메시지에 직접 적어주세요.",
+                }
+              : await executeTool(toolUse.name, effectiveToolInput, {
+                  ...executionContext,
+                  providerCallIndex,
+                });
             // 조회 도구는 연결 종료 시 즉시 중단할 수 있다. 변경 도구만 이미
             // 커밋되었을 가능성이 있으므로 응답/원장을 끝까지 확정한다.
             if (isMutatingTool(toolUse.name)) toolExecutionCompleted = true;
@@ -2275,13 +2568,13 @@ export async function POST(request: Request) {
             ? err.code
             : null;
         const publicErrorCode = durableErrorCode ?? costGuardError?.code ?? inputStreamError?.code;
-        console.error("채팅 API 에러:", errMsg);
+        console.error("채팅 API 에러", safeErrorDiagnostic(err));
         if (requestClaimAcquired) {
           await failChatRequest({
             ...claimParams,
             failureCode: publicErrorCode ?? "CHAT_TURN_FAILED",
           }).catch((claimError) => {
-            console.error("[chat] durable request failure marker failed", claimError);
+            console.error("[chat] durable request failure marker failed", safeErrorDiagnostic(claimError));
           });
           requestClaimAcquired = false;
         }

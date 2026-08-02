@@ -14,6 +14,9 @@ import { useStore } from "zustand";
 
 import { track } from "@/lib/analytics/track";
 import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
+import { buildShareablePageUrl } from "@/lib/shareUrl";
+import { useUserScopedClientActor } from "@/components/common/UserScopedClientStateBoundary";
+import { expectedActorHeaders } from "@/lib/auth/actorFence";
 import type { BudgetCombination } from "@/lib/price/budgetFinder";
 import {
   filterPriceCatalog,
@@ -30,9 +33,10 @@ import {
   ThinCoverageNotice,
 } from "@/components/price/RegionFirstPicker";
 import {
-  createPriceComboStore,
+  priceComboStore as comboStore,
   type ComboCategory,
   type ComboSelection,
+  type ComboSelections,
 } from "@/lib/price/comboStore";
 import {
   PRICE_CATEGORY_LABELS,
@@ -58,8 +62,8 @@ const PAGE_SIZE = 20;
 const REGION_STORAGE_KEY = "hanbang.price.region";
 // 접힌 상태에서 보여줄 대행사 칩 수 — 나머지는 "모두 보기"로 펼친다.
 const AGENCY_PREVIEW_COUNT = 12;
-const comboStore = createPriceComboStore();
-
+const EMPTY_COMBO_SELECTIONS: ComboSelections = { studio: null, dress: null, makeup: null };
+const EMPTY_WISHLIST = new Set<string>();
 type AuthStatus = "loading" | "authenticated" | "guest" | "unknown";
 type WishlistHydrationStatus = "loading" | "ready" | "error";
 type SavedComboHydrationStatus = "loading" | "ready" | "error";
@@ -95,6 +99,9 @@ export function PriceExplorer({
   surface = "public",
   preview = false,
 }: PriceExplorerProps) {
+  const actor = useUserScopedClientActor();
+  const privateActorKey = preview || actor.status !== "ready" ? null : actor.actorKey;
+  const privateUserId = actor.status === "ready" && actor.kind === "user" ? actor.userId : null;
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [regionCode, setRegionCode] = useState("");
@@ -115,6 +122,7 @@ export function PriceExplorer({
   const [wishlistHydrationStatus, setWishlistHydrationStatus] =
     useState<WishlistHydrationStatus>("loading");
   const [ownerStateReload, setOwnerStateReload] = useState(0);
+  const [ownerStateActorKey, setOwnerStateActorKey] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [savedComboHydrationStatus, setSavedComboHydrationStatus] =
     useState<SavedComboHydrationStatus>("loading");
@@ -127,13 +135,28 @@ export function PriceExplorer({
   const [comboSaving, setComboSaving] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const favoriteBusy = useRef(new Set<string>());
+  const favoriteMutationControllersRef = useRef(new Map<string, AbortController>());
   const comboSaveBusy = useRef(false);
+  const comboSaveAbortRef = useRef<AbortController | null>(null);
   const comboSaveRequest = useRef<{ key: string; signature: string } | null>(null);
   const lastTrackedSearchSignature = useRef("");
   const lastTrackedFilterSignature = useRef("");
+  const ownerGenerationRef = useRef(0);
+  const privateActorKeyRef = useRef(privateActorKey);
+  privateActorKeyRef.current = privateActorKey;
 
-  const selections = useStore(comboStore, (state) => state.selections);
-  const comboTotalKrw = useStore(comboStore, (state) => state.totalKrw);
+  const storedSelections = useStore(comboStore, (state) => state.selections);
+  const storedComboTotalKrw = useStore(comboStore, (state) => state.totalKrw);
+  const canUsePrivateState = preview || (
+    privateActorKey !== null && ownerStateActorKey === privateActorKey
+  );
+  const selections = canUsePrivateState && privateActorKey ? storedSelections : EMPTY_COMBO_SELECTIONS;
+  const comboTotalKrw = canUsePrivateState && privateActorKey ? storedComboTotalKrw : 0;
+  const currentAuthStatus = canUsePrivateState ? authStatus : "loading";
+  const currentWishlistHydrationStatus = canUsePrivateState ? wishlistHydrationStatus : "loading";
+  const currentSavedComboHydrationStatus = canUsePrivateState ? savedComboHydrationStatus : "loading";
+  const currentWishlistedIds = canUsePrivateState ? wishlistedIds : EMPTY_WISHLIST;
+  const currentLatestSavedCombo = canUsePrivateState ? latestSavedCombo : null;
   const comboCount = Object.values(selections).filter(Boolean).length;
   const visibleComboCount = preview ? 0 : comboCount;
 
@@ -184,13 +207,20 @@ export function PriceExplorer({
   }, []);
 
   useEffect(() => {
-    if (preview) return;
-    comboStore.getState().hydrate(sessionStorage);
+    if (preview || !privateActorKey) return;
+    comboStore.getState().hydrate(undefined, privateActorKey);
     track("page_view", { surface: "price_list", context: { category } });
-  }, [category, preview]);
+  }, [category, preview, privateActorKey]);
 
   useEffect(() => {
     if (preview) {
+      for (const controller of favoriteMutationControllersRef.current.values()) controller.abort();
+      favoriteMutationControllersRef.current.clear();
+      comboSaveAbortRef.current?.abort();
+      comboSaveAbortRef.current = null;
+      comboSaveBusy.current = false;
+      comboSaveRequest.current = null;
+      setOwnerStateActorKey("preview");
       setAuthStatus("guest");
       setWishlistedIds(new Set());
       setWishlistBusyIds(new Set());
@@ -201,7 +231,48 @@ export function PriceExplorer({
       setRestoreConfirming(false);
       return;
     }
+    if (!privateActorKey) {
+      ownerGenerationRef.current += 1;
+      for (const controller of favoriteMutationControllersRef.current.values()) controller.abort();
+      favoriteMutationControllersRef.current.clear();
+      comboSaveAbortRef.current?.abort();
+      comboSaveAbortRef.current = null;
+      comboSaveBusy.current = false;
+      comboSaveRequest.current = null;
+      favoriteBusy.current.clear();
+      setOwnerStateActorKey(null);
+      setAuthStatus("loading");
+      setWishlistedIds(new Set());
+      setWishlistBusyIds(new Set());
+      setWishlistOnly(false);
+      setWishlistHydrationStatus("loading");
+      setLatestSavedCombo(null);
+      setSavedComboHydrationStatus("loading");
+      setRestoreConfirming(false);
+      return;
+    }
+    const requestedActorKey = privateActorKey;
+    const generation = ++ownerGenerationRef.current;
     const controller = new AbortController();
+    const mutationControllers = favoriteMutationControllersRef.current;
+    const isCurrentRequest = () => (
+      !controller.signal.aborted
+      && generation === ownerGenerationRef.current
+      && privateActorKeyRef.current === requestedActorKey
+    );
+    for (const mutationController of favoriteMutationControllersRef.current.values()) mutationController.abort();
+    favoriteMutationControllersRef.current.clear();
+    comboSaveAbortRef.current?.abort();
+    comboSaveAbortRef.current = null;
+    comboSaveBusy.current = false;
+    comboSaveRequest.current = null;
+    favoriteBusy.current.clear();
+    setOwnerStateActorKey(requestedActorKey);
+    setAuthStatus("loading");
+    setWishlistedIds(new Set());
+    setWishlistBusyIds(new Set());
+    setWishlistOnly(false);
+    setLatestSavedCombo(null);
     setWishlistHydrationStatus("loading");
     setSavedComboHydrationStatus("loading");
     setRestoreConfirming(false);
@@ -209,7 +280,7 @@ export function PriceExplorer({
       mobileAuthenticatedFetch("/api/price/combos", { cache: "no-store", signal: controller.signal }),
       mobileAuthenticatedFetch("/api/favorites", { cache: "no-store", signal: controller.signal }),
     ]).then(async ([comboResponse, favoriteResponse]) => {
-      if (controller.signal.aborted) return;
+      if (!isCurrentRequest()) return;
       if (comboResponse.status === 401 || favoriteResponse.status === 401) {
         setAuthStatus("guest");
       } else if (comboResponse.ok) {
@@ -230,7 +301,7 @@ export function PriceExplorer({
         } catch {
           comboBody = null;
         }
-        if (controller.signal.aborted) return;
+        if (!isCurrentRequest()) return;
         const parsedCombo = parseLatestSavedComboPayload(comboBody);
         if (!parsedCombo.ok) {
           setSavedComboHydrationStatus("error");
@@ -257,7 +328,7 @@ export function PriceExplorer({
       } catch {
         body = {};
       }
-      if (controller.signal.aborted) return;
+      if (!isCurrentRequest()) return;
       if (
         !Array.isArray(body.vendorIds)
         || !body.vendorIds.every((id): id is string => typeof id === "string" && id.length > 0)
@@ -269,15 +340,21 @@ export function PriceExplorer({
       setWishlistedIds(new Set(body.vendorIds));
       setWishlistHydrationStatus("ready");
     }).catch((error: unknown) => {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
+      if (isCurrentRequest() && !(error instanceof DOMException && error.name === "AbortError")) {
         setAuthStatus("unknown");
         setWishlistOnly(false);
         setWishlistHydrationStatus("error");
         setSavedComboHydrationStatus("error");
       }
     });
-    return () => controller.abort();
-  }, [ownerStateReload, preview]);
+    return () => {
+      controller.abort();
+      for (const mutationController of mutationControllers.values()) mutationController.abort();
+      mutationControllers.clear();
+      comboSaveAbortRef.current?.abort();
+      if (ownerGenerationRef.current === generation) ownerGenerationRef.current += 1;
+    };
+  }, [ownerStateReload, preview, privateActorKey]);
 
   const vendors = catalog.categories[category];
   const activeAgencyIds = useMemo(() => new Set(vendors.flatMap((vendor) => vendor.offers.flatMap((offer) => (
@@ -320,9 +397,9 @@ export function PriceExplorer({
     minimumKrw,
     maximumKrw,
     wishlistOnly,
-    wishlistedIds,
+    wishlistedIds: currentWishlistedIds,
     sort,
-  }), [agencyIds, debouncedSearch, maximumKrw, minimumKrw, regionCode, sort, vendors, wishlistOnly, wishlistedIds]);
+  }), [agencyIds, currentWishlistedIds, debouncedSearch, maximumKrw, minimumKrw, regionCode, sort, vendors, wishlistOnly]);
   const searchResultCount = filtered.length;
   const filterSignature = [
     category,
@@ -399,27 +476,43 @@ export function PriceExplorer({
   };
 
   const toggleWishlist = useCallback(async (vendor: PriceVendor) => {
-    if (preview) return;
-    if (wishlistHydrationStatus !== "ready") {
-      if (wishlistHydrationStatus === "error") {
+    if (preview || !privateActorKey || !canUsePrivateState) return;
+    if (currentWishlistHydrationStatus !== "ready") {
+      if (currentWishlistHydrationStatus === "error") {
         setFeedback("찜 목록을 먼저 다시 불러와 주세요.");
       }
       return;
     }
-    if (authStatus === "guest") {
+    if (currentAuthStatus === "guest") {
       setShowAuthGate(true);
       return;
     }
+    if (currentAuthStatus !== "authenticated") return;
     if (favoriteBusy.current.has(vendor.id)) return;
-    const desiredFavorite = !wishlistedIds.has(vendor.id);
+    const requestedActorKey = privateActorKey;
+    const requestedGeneration = ownerGenerationRef.current;
+    const controller = new AbortController();
+    const isCurrentMutation = () => (
+      !controller.signal.aborted
+      && privateActorKeyRef.current === requestedActorKey
+      && ownerGenerationRef.current === requestedGeneration
+      && favoriteMutationControllersRef.current.get(vendor.id) === controller
+    );
+    const desiredFavorite = !currentWishlistedIds.has(vendor.id);
     favoriteBusy.current.add(vendor.id);
+    favoriteMutationControllersRef.current.set(vendor.id, controller);
     setWishlistBusyIds((current) => new Set(current).add(vendor.id));
     try {
       const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: desiredFavorite ? "POST" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(privateUserId ? expectedActorHeaders(privateUserId) : {}),
+        },
         body: JSON.stringify({ vendorId: vendor.id }),
+        signal: controller.signal,
       });
+      if (!isCurrentMutation()) return;
       if (response.status === 401) {
         setAuthStatus("guest");
         setShowAuthGate(true);
@@ -430,6 +523,7 @@ export function PriceExplorer({
         return;
       }
       const body = await response.json() as { isFavorite?: boolean };
+      if (!isCurrentMutation()) return;
       if (body.isFavorite !== desiredFavorite) {
         setFeedback("찜 상태를 확인하지 못했어요. 다시 시도해 주세요.");
         return;
@@ -448,19 +542,25 @@ export function PriceExplorer({
           context: { category: vendor.category },
         });
       }
-    } catch {
-      setFeedback("네트워크를 확인한 뒤 다시 시도해 주세요.");
+    } catch (error: unknown) {
+      if (isCurrentMutation() && !(error instanceof DOMException && error.name === "AbortError")) {
+        setFeedback("네트워크를 확인한 뒤 다시 시도해 주세요.");
+      }
     } finally {
-      favoriteBusy.current.delete(vendor.id);
-      setWishlistBusyIds((current) => {
-        const next = new Set(current);
-        next.delete(vendor.id);
-        return next;
-      });
+      if (favoriteMutationControllersRef.current.get(vendor.id) === controller) {
+        favoriteMutationControllersRef.current.delete(vendor.id);
+        favoriteBusy.current.delete(vendor.id);
+        setWishlistBusyIds((current) => {
+          const next = new Set(current);
+          next.delete(vendor.id);
+          return next;
+        });
+      }
     }
-  }, [authStatus, preview, wishlistHydrationStatus, wishlistedIds]);
+  }, [canUsePrivateState, currentAuthStatus, currentWishlistHydrationStatus, currentWishlistedIds, preview, privateActorKey, privateUserId]);
 
   const addCombo = (comboCategory: ComboCategory, selection: ComboSelection) => {
+    if (!privateActorKey || !canUsePrivateState) return;
     comboStore.getState().setSelection(comboCategory, selection);
     track("combo_add", {
       vendor_id: selection.vendorId,
@@ -472,6 +572,7 @@ export function PriceExplorer({
   };
 
   const chooseBudgetCombination = (combination: BudgetCombination) => {
+    if (!privateActorKey || !canUsePrivateState) return;
     for (const comboCategory of ["studio", "dress", "makeup"] as const) {
       const choice = combination[comboCategory];
       addCombo(comboCategory, {
@@ -490,13 +591,13 @@ export function PriceExplorer({
   };
 
   const restoreLatestCombo = () => {
-    if (!latestSavedCombo || savedComboHydrationStatus !== "ready") return;
+    if (!privateActorKey || !canUsePrivateState || !currentLatestSavedCombo || currentSavedComboHydrationStatus !== "ready") return;
     if (comboCount > 0 && !restoreConfirming) {
       setRestoreConfirming(true);
       return;
     }
 
-    const restored = restoreSavedComboAgainstCatalog(latestSavedCombo, catalog);
+    const restored = restoreSavedComboAgainstCatalog(currentLatestSavedCombo, catalog);
     setRestoreConfirming(false);
     if (restored.restoredCategories.length === 0) {
       setFeedback("최근 저장 조합의 가격이 바뀌었거나 업체가 공개 종료되어 불러오지 않았어요.");
@@ -512,11 +613,22 @@ export function PriceExplorer({
   };
 
   const saveCombo = async () => {
-    if (authStatus === "guest") {
+    if (!privateActorKey || !canUsePrivateState) return;
+    if (currentAuthStatus === "guest") {
       setShowAuthGate(true);
       return;
     }
+    if (currentAuthStatus !== "authenticated") return;
     if (comboSaveBusy.current) return;
+    const requestedActorKey = privateActorKey;
+    const requestedGeneration = ownerGenerationRef.current;
+    const controller = new AbortController();
+    const isCurrentMutation = () => (
+      !controller.signal.aborted
+      && privateActorKeyRef.current === requestedActorKey
+      && ownerGenerationRef.current === requestedGeneration
+      && comboSaveAbortRef.current === controller
+    );
     const payload = {
       name: "내 스드메 조합",
       selections: {
@@ -537,6 +649,7 @@ export function PriceExplorer({
       };
     }
     comboSaveBusy.current = true;
+    comboSaveAbortRef.current = controller;
     setComboSaving(true);
     setFeedback("조합을 안전하게 저장하고 있어요…");
     try {
@@ -545,9 +658,12 @@ export function PriceExplorer({
         headers: {
           "content-type": "application/json",
           "idempotency-key": comboSaveRequest.current.key,
+          ...(privateUserId ? expectedActorHeaders(privateUserId) : {}),
         },
         body: signature,
+        signal: controller.signal,
       });
+      if (!isCurrentMutation()) return;
       if (response.status === 401) {
         setAuthStatus("guest");
         setFeedback("");
@@ -562,15 +678,21 @@ export function PriceExplorer({
         setFeedback("조합을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
+      if (!isCurrentMutation()) return;
       setAuthStatus("authenticated");
       setFeedback("조합을 저장했어요. ‘최근 저장 조합 불러오기’로 다시 열 수 있어요.");
       setOwnerStateReload((value) => value + 1);
       track("combo_save", { surface: "combo" });
-    } catch {
-      setFeedback("네트워크를 확인한 뒤 다시 저장해 주세요.");
+    } catch (error: unknown) {
+      if (isCurrentMutation() && !(error instanceof DOMException && error.name === "AbortError")) {
+        setFeedback("네트워크를 확인한 뒤 다시 저장해 주세요.");
+      }
     } finally {
-      comboSaveBusy.current = false;
-      setComboSaving(false);
+      if (comboSaveAbortRef.current === controller) {
+        comboSaveAbortRef.current = null;
+        comboSaveBusy.current = false;
+        setComboSaving(false);
+      }
     }
   };
 
@@ -578,11 +700,13 @@ export function PriceExplorer({
     const names = (["studio", "dress", "makeup"] as const)
       .flatMap((comboCategory) => selections[comboCategory]?.vendorName ?? []);
     const text = `웨딩한방에서 고른 스드메 조합: ${names.join(" · ")}`;
+    const shareUrl = buildShareablePageUrl(window.location.href, window.location.origin);
+    if (!shareUrl) return;
     try {
       if (typeof navigator.share === "function") {
-        await navigator.share({ title: "나의 스드메 조합", text, url: window.location.href });
+        await navigator.share({ title: "나의 스드메 조합", text, url: shareUrl });
       } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${text}\n${window.location.href}`);
+        await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
         setFeedback("공유할 내용을 복사했어요.");
       } else {
         setFeedback("이 브라우저에서는 공유를 지원하지 않아요.");
@@ -640,7 +764,7 @@ export function PriceExplorer({
               <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
                 <p className="text-[11px] font-bold text-[#243832]/55">찜한 업체</p>
                 <p className="mt-1 text-xl font-bold tabular-nums">
-                  {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
+                  {currentWishlistHydrationStatus === "ready" ? currentWishlistedIds.size : "–"}
                 </p>
               </Link>
             )}
@@ -846,13 +970,14 @@ export function PriceExplorer({
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#243832]/10 pt-4">
               {!preview ? <button type="button" onClick={() => {
-                if (wishlistHydrationStatus !== "ready") return;
-                if (authStatus === "guest") {
+                if (currentWishlistHydrationStatus !== "ready") return;
+                if (currentAuthStatus === "guest") {
                   setShowAuthGate(true);
                   return;
                 }
+                if (currentAuthStatus !== "authenticated") return;
                 setWishlistOnly((value) => !value);
-              }} disabled={wishlistHydrationStatus !== "ready"} aria-busy={wishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[#243832]"}`}>
+              }} disabled={currentWishlistHydrationStatus !== "ready"} aria-busy={currentWishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[#243832]"}`}>
                 <Heart aria-hidden="true" className="size-4" fill={wishlistOnly ? "currentColor" : "none"} />
                 찜한 업체만
               </button> : null}
@@ -866,7 +991,7 @@ export function PriceExplorer({
           </div>
         </div>
 
-        {!preview && wishlistHydrationStatus === "error" ? (
+        {!preview && currentWishlistHydrationStatus === "error" ? (
           <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#8F6662]/25 bg-[#F5ECE4] px-4 py-3 text-sm text-[#7A4742]">
             <p className="font-semibold">찜 목록을 불러오지 못했어요. 기존 찜은 변경하지 않았어요.</p>
             <button
@@ -879,7 +1004,7 @@ export function PriceExplorer({
           </div>
         ) : null}
 
-        {!preview && authStatus === "authenticated" && savedComboHydrationStatus === "error" ? (
+        {!preview && currentAuthStatus === "authenticated" && currentSavedComboHydrationStatus === "error" ? (
           <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#243832]/15 bg-white px-4 py-3 text-sm text-[#243832]">
             <p className="font-semibold">저장한 조합을 불러오지 못했어요. 현재 담은 조합은 그대로 두었어요.</p>
             <button
@@ -892,14 +1017,14 @@ export function PriceExplorer({
           </div>
         ) : null}
 
-        {!preview && authStatus === "authenticated"
-          && savedComboHydrationStatus === "ready"
-          && latestSavedCombo ? (
+        {!preview && currentAuthStatus === "authenticated"
+          && currentSavedComboHydrationStatus === "ready"
+          && currentLatestSavedCombo ? (
             <section aria-label="최근 저장 조합" className="mt-4 rounded-2xl border border-[#243832]/12 bg-[#F5ECE4] px-4 py-4 text-[#243832]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold tracking-[0.1em] text-[#8F6662]">최근 저장 조합</p>
-                  <p className="mt-1 truncate text-sm font-bold">{latestSavedCombo.name}</p>
+                  <p className="mt-1 truncate text-sm font-bold">{currentLatestSavedCombo.name}</p>
                   <p className="mt-1 text-xs leading-5 text-[#243832]/60">현재 공개 중인 업체와 가격이 일치하는 항목만 안전하게 불러옵니다.</p>
                 </div>
                 {restoreConfirming ? (
@@ -945,10 +1070,10 @@ export function PriceExplorer({
                 key={vendor.id}
                 vendor={vendor}
                 agencyOrder={cardAgencyOrder}
-                isWishlisted={wishlistedIds.has(vendor.id)}
-                wishlistBusy={preview || wishlistHydrationStatus !== "ready" || wishlistBusyIds.has(vendor.id)}
+                isWishlisted={currentWishlistedIds.has(vendor.id)}
+                wishlistBusy={preview || currentWishlistHydrationStatus !== "ready" || wishlistBusyIds.has(vendor.id)}
                 onToggleWishlist={toggleWishlist}
-                onOpenCombo={preview ? undefined : setComboVendor}
+                onOpenCombo={preview || !canUsePrivateState ? undefined : setComboVendor}
                 preview={preview}
               />
             ))}
@@ -998,7 +1123,9 @@ export function PriceExplorer({
             selections={selections}
             totalKrw={comboTotalKrw}
             saving={comboSaving}
-            onClear={(comboCategory) => comboStore.getState().clearSelection(comboCategory)}
+            onClear={(comboCategory) => {
+              if (privateActorKey && canUsePrivateState) comboStore.getState().clearSelection(comboCategory);
+            }}
             onSave={() => void saveCombo()}
             onShare={() => void shareCombo()}
           />

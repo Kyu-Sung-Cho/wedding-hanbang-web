@@ -21,6 +21,7 @@ import {
   validationIssueLabel,
   vendorRegionLabel,
 } from "@/lib/admin/vendorWorkspace";
+import { csvRow } from "@/utils/csv";
 
 type PriceStatus = "pending" | "approved" | "rejected" | "all";
 
@@ -259,9 +260,9 @@ function VendorDemandPanel() {
 
   function downloadCsv() {
     if (rows.length === 0) return;
-    const header = "업체명,카테고리,지역,노출,상세열람,찜,조합담기,견적요청,가중점수,유효점수(예식일보유)";
-    const lines = rows.map((row) => [
-      `"${row.name.replaceAll('"', '""')}"`,
+    const header = csvRow(["업체명", "카테고리", "지역", "노출", "상세열람", "찜", "조합담기", "견적요청", "가중점수", "유효점수(예식일보유)"]);
+    const lines = rows.map((row) => csvRow([
+      row.name,
       row.category,
       row.region_code ?? "",
       row.impressions,
@@ -271,8 +272,8 @@ function VendorDemandPanel() {
       row.quote_requests,
       row.weighted_score,
       row.qualified_score,
-    ].join(","));
-    const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    ]));
+    const blob = new Blob(["\uFEFF" + [header, ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const anchor = document.createElement("a");
     anchor.href = URL.createObjectURL(blob);
     anchor.download = `vendor-demand-${days}d${category ? `-${category}` : ""}.csv`;

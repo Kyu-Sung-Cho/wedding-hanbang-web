@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
+  rateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
@@ -10,12 +11,52 @@ vi.mock("@/lib/utils/adminAuth", () => ({
   getServiceClient: mocks.getServiceClient,
 }));
 
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
+}));
+
 import { PATCH } from "./route";
 
 const PRICE_ID = "00000000-0000-4000-8000-000000000001";
 
 describe("PATCH /api/admin/price/:id", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.rateLimit.mockResolvedValue(null);
+  });
+
+  it("fails closed before reading a request body for a non-admin", async () => {
+    mocks.verifyAdmin.mockResolvedValue({ authorized: false });
+    const request = new Request(`https://hanbang.ai/api/admin/price/${PRICE_ID}`, {
+      method: "PATCH",
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: PRICE_ID }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(mocks.verifyAdmin).toHaveBeenCalledWith(request);
+    expect(mocks.getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the signed step-up boundary does not return an admin identity", async () => {
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    const request = new Request(`https://hanbang.ai/api/admin/price/${PRICE_ID}`, {
+      method: "PATCH",
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: PRICE_ID }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(mocks.verifyAdmin).toHaveBeenCalledWith(request);
+    expect(mocks.getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+  });
 
   it("marks an admin-edited row and clears review only after evidence-backed approval", async () => {
     const actorId = "00000000-0000-4000-8000-000000000002";

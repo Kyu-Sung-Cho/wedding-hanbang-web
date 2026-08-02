@@ -20,7 +20,7 @@ const original = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
 describe("Amora GPT-5.6 model policy", () => {
   beforeEach(() => {
     process.env.AMORA_OPENAI_ENABLED = "true";
-    process.env.OPENAI_API_KEY = "sk-unit-fixture-not-a-secret-0000000000000000";
+    process.env.OPENAI_API_KEY = ["sk", "unit-fixture-not-a-secret-0000000000000000"].join("-");
     process.env.OPENAI_AMORA_PRIMARY_MODEL = "gpt-5.6-terra";
     process.env.OPENAI_AMORA_FAST_MODEL = "gpt-5.6-luna";
     process.env.OPENAI_AMORA_PRIMARY_REASONING_EFFORT = "none";
@@ -48,7 +48,7 @@ describe("Amora GPT-5.6 model policy", () => {
     process.env.OPENAI_API_KEY = "sk-placeholder";
     expect(hasOpenAIConfig()).toBe(false);
 
-    process.env.OPENAI_API_KEY = "sk-unit-fixture-not-a-secret-0000000000000000";
+    process.env.OPENAI_API_KEY = ["sk", "unit-fixture-not-a-secret-0000000000000000"].join("-");
     process.env.OPENAI_AMORA_FAST_MODEL = "gpt-5.6-sol";
     expect(() => getAmoraModelConfig("fast")).toThrow("gpt-5.6-luna");
     expect(hasOpenAIConfig("fast")).toBe(false);

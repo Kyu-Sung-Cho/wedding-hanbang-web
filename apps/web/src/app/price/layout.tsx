@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import Logo from "@/components/ui/Logo";
+import UserScopedClientStateBoundary from "@/components/common/UserScopedClientStateBoundary";
 import { CONTACT } from "@/lib/constants/contact";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
@@ -44,7 +45,9 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <UserScopedClientStateBoundary>
+        <main className="flex-1">{children}</main>
+      </UserScopedClientStateBoundary>
 
       <footer className="mt-12 bg-[linear-gradient(135deg,#183832_0%,#2f5f55_58%,#12302b_100%)] text-white">
         <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-4 py-9 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">

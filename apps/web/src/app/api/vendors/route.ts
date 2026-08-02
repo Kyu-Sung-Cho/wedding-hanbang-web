@@ -2,7 +2,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
 import { PUBLIC_VENDOR_COLUMNS, PUBLIC_VENDOR_PRODUCT_COLUMNS } from "@/lib/vendors/publicFields";
+import { checkPublicVendorCatalogRateLimit } from "@/lib/vendors/publicCatalogRateLimit";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern, isUuid } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
+function publicJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 // 카테고리 alias — DB에는 영어 슬러그·한글 라벨·변형이 섞여 들어가 있어서,
 // 한 카테고리 선택 시 가능한 모든 표기를 OR로 매칭한다.
@@ -21,13 +29,12 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
 
 export async function GET(req: Request) {
   try {
-    const admin = createAdminClient();
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const id = searchParams.get("id");
     const ids = searchParams.get("ids");
-    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
+    const page = Math.max(1, Math.min(200, parseInt(searchParams.get("page") ?? "1") || 1));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
     const idList = [
@@ -40,6 +47,21 @@ export async function GET(req: Request) {
 
     // 캐논 v2: ai_recommend 우선 정렬 제거. 평점 + 등록순으로만.
     // (Phase 2에서 "조건 공개"/"검증 참여" 기반 설명 가능한 랭킹으로 재도입 예정)
+    // ID 목록으로 필터 (찜한 업체 등)
+    if (id || ids) {
+      if (idList.length === 0) {
+        return publicJson({ vendors: [], total: 0, page, limit });
+      }
+    }
+
+    const limited = await checkPublicVendorCatalogRateLimit(req);
+    if (limited) {
+      limited.headers.set("Cache-Control", NO_STORE_HEADERS["Cache-Control"]);
+      return limited;
+    }
+
+    const admin = createAdminClient();
+
     let query = admin
       .from("vendors")
       .select(PUBLIC_VENDOR_COLUMNS, { count: "exact" })
@@ -50,9 +72,6 @@ export async function GET(req: Request) {
 
     // ID 목록으로 필터 (찜한 업체 등)
     if (id || ids) {
-      if (idList.length === 0) {
-        return NextResponse.json({ vendors: [], total: 0, page, limit });
-      }
       query = query.in("id", idList);
     }
 
@@ -74,8 +93,8 @@ export async function GET(req: Request) {
     const { data: vendorRows, count, error } = await query;
 
     if (error) {
-      console.error("Vendors list error:", error);
-      return NextResponse.json({ error: "업체 목록을 불러올 수 없습니다." }, { status: 500 });
+      console.error("Vendors list error", safeErrorDiagnostic(error));
+      return publicJson({ error: "업체 목록을 불러올 수 없습니다." }, 500);
     }
 
     // 각 업체의 상품 수 가져오기
@@ -100,14 +119,14 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json({
+    return publicJson({
       vendors,
       total: count ?? 0,
       page,
       limit,
     });
   } catch (err) {
-    console.error("Vendors list error:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    console.error("Vendors list error", safeErrorDiagnostic(err));
+    return publicJson({ error: "서버 오류가 발생했습니다." }, 500);
   }
 }

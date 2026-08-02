@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { WEDDING_CODE_V06_QUESTIONS } from "@/constants/weddingCodeV06";
 import {
+  buildWeddingCodeV06ShareUrl,
+  decodeWeddingCodeV06ShareHash,
   decodeWeddingCodeV06,
   encodeWeddingCodeV06,
   isCompleteWeddingCodeV06,
@@ -75,5 +77,25 @@ describe("응답 코드", () => {
     const partial = { ...FULL };
     delete partial.C3;
     expect(isCompleteWeddingCodeV06(partial)).toBe(false);
+  });
+  it("공유 답변을 서버에 전송되지 않는 fragment URL로 만든다", () => {
+    const first = encodeWeddingCodeV06(FULL);
+    const second = first.replace(/^A/, "B");
+    const url = buildWeddingCodeV06ShareUrl("https://hanbang.ai/", first, second);
+
+    expect(url).toBe(`https://hanbang.ai/wedding-code#a=${first}&b=${second}`);
+    expect(new URL(url).search).toBe("");
+  });
+
+  it("fragment 공유 답변은 검증 후에만 복원한다", () => {
+    const first = encodeWeddingCodeV06(FULL);
+    const parsed = decodeWeddingCodeV06ShareHash(`#a=${first.toLowerCase()}&b=invalid`);
+
+    expect(parsed?.firstCode).toBe(first);
+    expect(parsed?.firstAnswers).toEqual(FULL);
+    expect(parsed?.secondCode).toBeNull();
+    expect(parsed?.secondAnswers).toBeNull();
+    expect(decodeWeddingCodeV06ShareHash("#a=invalid")).toBeNull();
+    expect(decodeWeddingCodeV06ShareHash(`#a=${"A".repeat(257)}`)).toBeNull();
   });
 });

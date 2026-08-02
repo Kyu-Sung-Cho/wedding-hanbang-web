@@ -11,7 +11,36 @@ const UPLOAD_ID = "33333333-3333-4333-8333-333333333333";
 const COUPLE_ID = "22222222-2222-4222-8222-222222222222";
 const CHAT_FILE_ID = "44444444-4444-4444-8444-444444444444";
 const SESSION_PATH = `${USER_ID}/${UPLOAD_ID}.png`;
+const V2_FINAL_PATH = "v2/55555555-5555-4555-8555-555555555555.png";
 const NOW = Date.parse("2026-07-17T00:00:00Z");
+
+function emptyTableQuery() {
+  const range = vi.fn(async () => ({ data: [], error: null }));
+  const order = vi.fn(() => ({ range }));
+  const eq = vi.fn(() => ({ order }));
+  const select = vi.fn(() => ({ eq }));
+  return { select };
+}
+
+function ownedChatRpc(paths: string[] = []) {
+  return vi.fn(async (name: string, args?: Record<string, unknown>) => {
+    if (name !== "list_account_deletion_owned_chat_objects") {
+      throw new Error(`unexpected RPC: ${name}`);
+    }
+    const afterName = typeof args?.p_after_name === "string"
+      ? args.p_after_name
+      : null;
+    const limit = Number(args?.p_limit ?? 100);
+    return {
+      data: [...paths]
+        .sort()
+        .filter((path) => afterName === null || path > afterName)
+        .slice(0, limit)
+        .map((path) => ({ path })),
+      error: null,
+    };
+  });
+}
 
 function session(overrides: Partial<CommunityDeletionSession> = {}): CommunityDeletionSession {
   return {
@@ -52,6 +81,26 @@ describe("community account-deletion Storage manifest", () => {
         not_before: "2026-07-17T01:05:00.000Z",
       },
     ]);
+  });
+
+  it("includes an unlinkable v2 final path only through exact durable-session proof", () => {
+    const manifest = buildCommunityDeletionManifest({
+      userId: USER_ID,
+      sessions: [session({ final_path: V2_FINAL_PATH })],
+      listedNames: {
+        "community-media-staging": [],
+        "community-images": [],
+        "community-videos": [],
+      },
+      now: NOW,
+    });
+
+    expect(manifest).toContainEqual({
+      bucket: "community-images",
+      path: V2_FINAL_PATH,
+      source: "session_final",
+      not_before: "2026-07-17T01:05:00.000Z",
+    });
   });
 
   it("accepts only the bounded historical generator shape and quarantines unproven objects", () => {
@@ -153,8 +202,11 @@ describe("community account-deletion Storage manifest", () => {
     const eq = vi.fn(() => ({ order }));
     const select = vi.fn(() => ({ eq }));
     const admin = {
+      rpc: ownedChatRpc(),
       storage: { from: storageFrom },
-      from: vi.fn(() => ({ select })),
+      from: vi.fn((table: string) => (
+        table === "chat_messages" ? emptyTableQuery() : { select }
+      )),
     };
 
     const manifest = await inventoryCommunityDeletionMedia(admin as never, USER_ID, NOW);
@@ -204,8 +256,11 @@ describe("community account-deletion Storage manifest", () => {
     const eq = vi.fn(() => ({ order }));
     const select = vi.fn(() => ({ eq }));
     const admin = {
+      rpc: ownedChatRpc(),
       storage: { from: storageFrom },
-      from: vi.fn(() => ({ select })),
+      from: vi.fn((table: string) => (
+        table === "chat_messages" ? emptyTableQuery() : { select }
+      )),
     };
 
     const manifest = await inventoryCommunityDeletionMedia(admin as never, USER_ID, NOW);
@@ -222,6 +277,70 @@ describe("community account-deletion Storage manifest", () => {
       source: "quarantine",
       not_before: "2026-07-17T00:00:00.000Z",
     });
+  });
+
+  it("fails to manual review while an attributed legacy chat object still exists", async () => {
+    const legacyPath = `${COUPLE_ID}/${CHAT_FILE_ID}.jpeg`;
+    const exists = vi.fn(async (path: string) => ({
+      data: path === legacyPath,
+      error: null,
+    }));
+    const storageFrom = vi.fn((bucket: string) => ({
+      list: vi.fn(async () => ({ data: [], error: null })),
+      ...(bucket === "chat-image" ? { exists } : {}),
+    }));
+    const chatRange = vi.fn(async (from: number) => ({
+      data: from === 0
+        ? [{
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          couple_id: COUPLE_ID,
+          sender_id: USER_ID,
+          metadata: { imagePaths: [legacyPath] },
+        }]
+        : [],
+      error: null,
+    }));
+    const chatOrder = vi.fn(() => ({ range: chatRange }));
+    const chatEq = vi.fn(() => ({ order: chatOrder }));
+    const chatSelect = vi.fn(() => ({ eq: chatEq }));
+    const sessionRange = vi.fn(async () => ({ data: [], error: null }));
+    const sessionOrder = vi.fn(() => ({ range: sessionRange }));
+    const sessionEq = vi.fn(() => ({ order: sessionOrder }));
+    const sessionSelect = vi.fn(() => ({ eq: sessionEq }));
+
+    await expect(inventoryCommunityDeletionMedia({
+      rpc: ownedChatRpc(),
+      storage: { from: storageFrom },
+      from: vi.fn((table: string) => ({
+        select: table === "chat_messages" ? chatSelect : sessionSelect,
+      })),
+    } as never, USER_ID, NOW)).rejects.toThrow(
+      /chat_legacy_attachment_manual_review_required/,
+    );
+    expect(exists).toHaveBeenCalledWith(legacyPath);
+  });
+
+  it("detects an owner-attributed orphan legacy chat object without a message reference", async () => {
+    const legacyPath = `${COUPLE_ID}/1700000000000-abc12.webp`;
+    const storageFrom = vi.fn(() => ({
+      list: vi.fn(async () => ({ data: [], error: null })),
+    }));
+    const sessionRange = vi.fn(async () => ({ data: [], error: null }));
+    const sessionOrder = vi.fn(() => ({ range: sessionRange }));
+    const sessionEq = vi.fn(() => ({ order: sessionOrder }));
+    const sessionSelect = vi.fn(() => ({ eq: sessionEq }));
+
+    await expect(inventoryCommunityDeletionMedia({
+      rpc: ownedChatRpc([legacyPath]),
+      storage: { from: storageFrom },
+      from: vi.fn((table: string) => (
+        table === "chat_messages"
+          ? emptyTableQuery()
+          : { select: sessionSelect }
+      )),
+    } as never, USER_ID, NOW)).rejects.toThrow(
+      /chat_legacy_owner_manual_review_required/,
+    );
   });
 
   it("fails closed on malformed chat-image folders and attachment names", async () => {
@@ -241,8 +360,11 @@ describe("community account-deletion Storage manifest", () => {
       const eq = vi.fn(() => ({ order }));
       const select = vi.fn(() => ({ eq }));
       return inventoryCommunityDeletionMedia({
+        rpc: ownedChatRpc(),
         storage: { from: storageFrom },
-        from: vi.fn(() => ({ select })),
+        from: vi.fn((table: string) => (
+          table === "chat_messages" ? emptyTableQuery() : { select }
+        )),
       } as never, USER_ID, NOW);
     }
 
@@ -283,8 +405,11 @@ describe("community account-deletion Storage manifest", () => {
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
+      rpc: ownedChatRpc(),
       storage: { from: storageFrom },
-      from: vi.fn(() => ({ select })),
+      from: vi.fn((table: string) => (
+        table === "chat_messages" ? emptyTableQuery() : { select }
+      )),
     } as never, USER_ID, NOW)).rejects.toThrow(/chat_image_folder_limit_exceeded/);
     expect(chatList).toHaveBeenLastCalledWith(
       "",
@@ -313,8 +438,11 @@ describe("community account-deletion Storage manifest", () => {
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
+      rpc: ownedChatRpc(),
       storage: { from: storageFrom },
-      from: vi.fn(() => ({ select })),
+      from: vi.fn((table: string) => (
+        table === "chat_messages" ? emptyTableQuery() : { select }
+      )),
     } as never, USER_ID, NOW)).rejects.toThrow(/chat_image_page_limit_exceeded/);
   });
 
@@ -342,8 +470,11 @@ describe("community account-deletion Storage manifest", () => {
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
+      rpc: ownedChatRpc(),
       storage: { from: storageFrom },
-      from: vi.fn(() => ({ select })),
+      from: vi.fn((table: string) => (
+        table === "chat_messages" ? emptyTableQuery() : { select }
+      )),
     } as never, USER_ID, NOW)).rejects.toThrow(/chat_image_object_limit_exceeded/);
     expect(chatList).toHaveBeenLastCalledWith(
       `${COUPLE_ID}/${USER_ID}`,

@@ -34,10 +34,12 @@ const DEPLOYMENT_EVIDENCE_KEYS = [
 const BLOCKED_TOP_LEVEL_KEYS = [
   "deploymentEvidence",
   "expandMigrations",
+  "forwardOnlySecurityOperations",
   "migrationFloor",
   "predecessorManifest",
   "projectRef",
   "release",
+  "requiredDocuments",
   "requiredRemoteHead",
   "status",
 ];
@@ -54,6 +56,22 @@ const COMMIT_SHA = /^[a-f0-9]{40}$/;
 const SECRET_LIKE_KEY = /(?:secret|token|password|passwd|credential|apikey|api_key|private)/i;
 // 증거는 이 디렉터리 안에만 둔다. 아무 데나 가리키면 무엇이 증거인지 흐려진다.
 const EVIDENCE_DIRECTORY = "docs/operations/evidence";
+const PIN_KEYS = ["file", "sha256"];
+const FORWARD_ONLY_OPERATION_KEYS = [
+  "apply",
+  "id",
+  "inventory",
+  "phase",
+  "requiredGate",
+  "rollbackPolicy",
+  "verify",
+];
+const VERIFY_ARTIFACT_KEYS = ["expectedEvidence", "file", "sha256"];
+const REQUIRED_COMMUNITY_IDENTITY_DOCUMENT =
+  "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md";
+const COMMUNITY_IDENTITY_OPERATION_ID =
+  "community-public-identity-contract-20260803104500";
+const SECURITY_OPERATION_DIRECTORY = "supabase/platform-operations/security";
 
 export class SuccessorReleaseContractError extends Error {
   constructor(code, message) {
@@ -106,6 +124,96 @@ function readPinnedRegularFile(repoRoot, entry, label, expectedDirectory) {
     );
   }
   return { path, text };
+}
+
+function exactKeys(value, expected) {
+  return value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort());
+}
+
+function validateSuccessorForwardOnlySecurityOperations(repoRoot, manifest) {
+  const operations = manifest.forwardOnlySecurityOperations;
+  if (!Array.isArray(operations) || operations.length !== 1) {
+    invalid(
+      "FORWARD_ONLY_SECURITY_OPERATIONS_INVALID",
+      "successor must pin exactly the reviewed community public-identity cutover operation",
+    );
+  }
+
+  const operation = operations[0];
+  if (!exactKeys(operation, FORWARD_ONLY_OPERATION_KEYS)
+      || operation.id !== COMMUNITY_IDENTITY_OPERATION_ID
+      || operation.phase !== "post-application-deploy"
+      || operation.requiredGate !== "minimum-supported-community-client-version-enforced"
+      || operation.rollbackPolicy !== "forward-fix-only-no-auth-uuid-regrant"
+      || !exactKeys(operation.inventory, PIN_KEYS)
+      || !exactKeys(operation.apply, PIN_KEYS)
+      || !exactKeys(operation.verify, VERIFY_ARTIFACT_KEYS)
+      || !exactKeys(
+        operation.verify.expectedEvidence,
+        ["community_public_identity_contract_verified"],
+      )
+      || operation.verify.expectedEvidence.community_public_identity_contract_verified !== 1) {
+    invalid(
+      "FORWARD_ONLY_SECURITY_OPERATIONS_INVALID",
+      "community public-identity cutover operation contract is invalid",
+    );
+  }
+
+  const expectedFiles = {
+    inventory:
+      `${SECURITY_OPERATION_DIRECTORY}/20260803104500_community_public_identity_contract_inventory.sql`,
+    apply:
+      `${SECURITY_OPERATION_DIRECTORY}/20260803104500_community_public_identity_contract_apply.sql`,
+    verify:
+      `${SECURITY_OPERATION_DIRECTORY}/20260803104500_community_public_identity_contract_verify.sql`,
+  };
+  for (const [kind, entry] of Object.entries({
+    inventory: operation.inventory,
+    apply: operation.apply,
+    verify: operation.verify,
+  })) {
+    if (entry.file !== expectedFiles[kind]) {
+      invalid(
+        "FORWARD_ONLY_SECURITY_OPERATIONS_INVALID",
+        `${kind} artifact is not the reviewed community public-identity contract file`,
+      );
+    }
+    readPinnedRegularFile(
+      repoRoot,
+      entry,
+      `community public-identity ${kind}`,
+      join(repoRoot, ...SECURITY_OPERATION_DIRECTORY.split("/")),
+    );
+  }
+  return operations;
+}
+
+function validateSuccessorRequiredDocuments(repoRoot, manifest) {
+  const documents = manifest.requiredDocuments;
+  if (!Array.isArray(documents) || documents.length !== 1) {
+    invalid(
+      "REQUIRED_DOCUMENTS_INVALID",
+      "successor must pin exactly the reviewed community public-identity rollout document",
+    );
+  }
+  const entry = documents[0];
+  if (!exactKeys(entry, PIN_KEYS)
+      || entry.file !== REQUIRED_COMMUNITY_IDENTITY_DOCUMENT) {
+    invalid(
+      "REQUIRED_DOCUMENTS_INVALID",
+      "community public-identity rollout document pin is invalid",
+    );
+  }
+  readPinnedRegularFile(
+    repoRoot,
+    entry,
+    "community public-identity rollout document",
+    join(repoRoot, "docs", "operations"),
+  );
+  return documents;
 }
 
 function declaredMigrations(manifest) {
@@ -314,6 +422,9 @@ export function validateSuccessorReleaseContract({
     invalid("MANIFEST_IDENTITY_INVALID", "successor manifest identity is invalid");
   }
   const deployment = validateDeploymentBlock(root, manifest);
+  const forwardOnlySecurityOperations =
+    validateSuccessorForwardOnlySecurityOperations(root, manifest);
+  const requiredDocuments = validateSuccessorRequiredDocuments(root, manifest);
   if (!/^\d{14}$/.test(manifest.migrationFloor ?? "")
       || !/^\d{14}$/.test(manifest.requiredRemoteHead ?? "")
       || manifest.requiredRemoteHead >= manifest.migrationFloor) {
@@ -366,6 +477,8 @@ export function validateSuccessorReleaseContract({
   return {
     manifest,
     migrationCount: expectedFiles.length,
+    forwardOnlySecurityOperationCount: forwardOnlySecurityOperations.length,
+    requiredDocumentCount: requiredDocuments.length,
     predecessorHead,
     // 컨트롤러는 이 값만 보고 진행 여부를 정한다. 상태 문자열을 각자 해석하면
     // 판정이 두 군데로 갈라진다.

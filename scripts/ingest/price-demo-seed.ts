@@ -849,10 +849,9 @@ export async function runPriceDemoSeed(env: NodeJS.ProcessEnv = process.env): Pr
 const invokedFilename = process.argv[1] ? path.basename(process.argv[1]).toLocaleLowerCase("en-US") : "";
 if (invokedFilename === "price-demo-seed.ts" || invokedFilename === "price-demo-seed.js") {
   runPriceDemoSeed().then(
-    (result) => process.stdout.write(`${JSON.stringify(result, null, 2)}\n`),
-    (error: unknown) => {
-      const message = error instanceof Error ? error.message : "unknown price demo seed error";
-      process.stderr.write(`price demo seed failed: ${message}\n`);
+    () => process.stdout.write("PRICE_DEMO_SEED_COMPLETED\n"),
+    () => {
+      process.stderr.write("PRICE_DEMO_SEED_BLOCKED [SEED_RETIRED_OR_FAILED]\n");
       process.exitCode = 1;
     },
   );

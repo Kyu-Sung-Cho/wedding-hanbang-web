@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   isBodyTooLarge,
   isRecord,
@@ -10,6 +10,7 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { requestMatchesExpectedActor } from "@/lib/auth/actorFence";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const MAX_PRICE_ALERTS = 500;
@@ -117,7 +118,13 @@ export async function POST(request: Request) {
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
-  const limited = checkRateLimit(rateLimitKey("price-alerts:add", request, user.id), {
+  if (!requestMatchesExpectedActor(request, user.id)) {
+    return mobileBridgeJson(
+      { error: "계정이 변경되었습니다. 다시 시도해 주세요." },
+      { status: 409, headers: PRIVATE_NO_STORE_HEADERS },
+    );
+  }
+  const limited = await checkRateLimitPersistent(rateLimitKey("price-alerts:add", request, user.id), {
     maxRequests: 30,
     windowMs: 60 * 1000,
   });
@@ -172,7 +179,13 @@ export async function DELETE(request: Request) {
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
-  const limited = checkRateLimit(rateLimitKey("price-alerts:remove", request, user.id), {
+  if (!requestMatchesExpectedActor(request, user.id)) {
+    return mobileBridgeJson(
+      { error: "계정이 변경되었습니다. 다시 시도해 주세요." },
+      { status: 409, headers: PRIVATE_NO_STORE_HEADERS },
+    );
+  }
+  const limited = await checkRateLimitPersistent(rateLimitKey("price-alerts:remove", request, user.id), {
     maxRequests: 30,
     windowMs: 60 * 1000,
   });

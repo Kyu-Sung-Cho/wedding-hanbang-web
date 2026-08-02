@@ -59,13 +59,13 @@ describe("validateAmoraAttachments", () => {
 
   it("accepts only a data URL whose declared MIME matches the attachment", () => {
     expect(validateAmoraAttachments([{
-      base64: "data:application/pdf;base64,JVBERi0xLjQ=",
-      mediaType: "application/pdf",
-      fileName: "contract.pdf",
+      base64: "data:image/png;base64,aGVsbG8=",
+      mediaType: "image/png",
+      fileName: "sample.png",
     }])).toEqual([{
-      base64: "JVBERi0xLjQ=",
-      mediaType: "application/pdf",
-      fileName: "contract.pdf",
+      base64: "aGVsbG8=",
+      mediaType: "image/png",
+      fileName: "sample.png",
     }]);
 
     expectAttachmentError([{
@@ -89,6 +89,14 @@ describe("validateAmoraAttachments", () => {
       base64: "aGVsbG8=",
       mediaType: "application/msword",
     }], "UNSUPPORTED_MEDIA_TYPE");
+  });
+
+  it("rejects PDF until a vetted metadata sanitizer is available", () => {
+    expectAttachmentError([{
+      base64: "JVBERi0xLjQ=",
+      mediaType: "application/pdf",
+      fileName: "contract.pdf",
+    }], "PDF_NOT_SUPPORTED");
   });
 
   it("rejects remote URLs, ambiguous sources, and missing payloads", () => {
@@ -117,7 +125,7 @@ describe("validateAmoraAttachments", () => {
     }], "MISSING_ATTACHMENT_DATA");
     expectAttachmentError([{
       base64: Buffer.alloc(10 * 1024 * 1024 + 1).toString("base64"),
-      mediaType: "application/pdf",
+      mediaType: "image/png",
     }], "ATTACHMENT_TOO_LARGE");
   });
 

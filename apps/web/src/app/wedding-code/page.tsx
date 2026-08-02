@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { decodeWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
 import WeddingCodeV06Client from "./WeddingCodeV06Client";
 
 /**
@@ -20,8 +19,8 @@ import WeddingCodeV06Client from "./WeddingCodeV06Client";
  *
  * ## 색인
  *
- * `?a=`·`?b=`가 붙은 주소에는 **누군가의 실제 응답**이 들어 있다. 색인되면 남의 답이
- * 검색 결과에 남으므로 이 라우트는 통째로 색인하지 않는다.
+ * 현재 공유 응답은 서버·로그·리퍼러에 실리지 않도록 URL fragment에만 둔다. 과거
+ * 쿼리 링크는 프록시에서 값을 폐기하며 이 라우트는 계속 통째로 색인하지 않는다.
  */
 export const metadata: Metadata = {
   title: "웨딩코드 — 결혼 준비 열여섯 장면 | 웨딩한방",
@@ -37,26 +36,8 @@ function shareOrigin(): string {
   return "https://hanbang.ai";
 }
 
-export default async function WeddingCodePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ a?: string; b?: string }>;
-}) {
-  const { a, b } = await searchParams;
-  const first = decodeWeddingCodeV06(a);
-  const second = decodeWeddingCodeV06(b);
-
-  // 코드가 둘 다 성립할 때만 곧바로 차이 지도를 연다. 하나라도 망가졌으면
-  // 조용히 기본값을 채우지 않고 처음부터 답하게 한다 — 고르지도 않은 답을
-  // 「상대는 이렇게 답했어요」로 보여주는 것이 이 제품에서 제일 나쁜 버그다.
-  const both = first && second ? { mine: second, theirs: first } : null;
-
+export default function WeddingCodePage() {
   return (
-    <WeddingCodeV06Client
-      shareOrigin={shareOrigin()}
-      partnerAnswers={both ? null : first}
-      partnerCode={first ? (a ?? "").trim().toUpperCase() : null}
-      bothCodes={both}
-    />
+    <WeddingCodeV06Client shareOrigin={shareOrigin()} />
   );
 }

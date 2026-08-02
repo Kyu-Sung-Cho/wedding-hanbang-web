@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { PrivateNextResponse as NextResponse } from "@/lib/http/privateResponse";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalEnum,
   cleanOptionalIsoDate,
@@ -8,7 +9,10 @@ import {
   isBodyTooLarge,
   isRecord,
   isUuid,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { CONGRATULATORY_MONEY_PRIVATE_SELECT } from "@/lib/privacy/privateDataSelects";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const MONEY_SIDES = ["groom", "bride", "both"] as const;
@@ -38,17 +42,17 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("congratulatory_money")
-      .select("*")
+      .select(CONGRATULATORY_MONEY_PRIVATE_SELECT)
       .eq("couple_id", coupleId)
       .order("received_at", { ascending: false });
 
     if (error) {
-      console.error("[money GET] supabase:", error);
+      console.error("[money GET] supabase", safeErrorDiagnostic(error));
       return NextResponse.json({ error: "축의금 정보를 불러올 수 없습니다." }, { status: 500 });
     }
     return NextResponse.json({ moneyList: data ?? [] });
   } catch (err) {
-    console.error("[money GET]", err);
+    console.error("[money GET]", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }
@@ -63,13 +67,20 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
 
-    const limited = checkRateLimit(rateLimitKey("money:create", request, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("money:create", request, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
     if (limited) return limited;
 
-    const body = await request.json();
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -108,7 +119,7 @@ export async function POST(request: Request) {
     }
     const receivedAt = cleanReceivedAt ?? new Date().toISOString().slice(0, 10);
 
-    const { data, error } = await supabase
+    const { data, error } = await createAdminClient()
       .from("congratulatory_money")
       .insert({
         couple_id: profile.couple_id,
@@ -120,13 +131,16 @@ export async function POST(request: Request) {
         memo: cleanOptionalText(body.memo, 500),
         received_at: receivedAt,
       })
-      .select()
+      .select(CONGRATULATORY_MONEY_PRIVATE_SELECT)
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[money POST] insert failed", safeErrorDiagnostic(error));
+      return NextResponse.json({ error: "저장에 실패했습니다." }, { status: 500 });
+    }
     return NextResponse.json({ money: data }, { status: 201 });
   } catch (err) {
-    console.error("[money POST]", err);
+    console.error("[money POST]", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

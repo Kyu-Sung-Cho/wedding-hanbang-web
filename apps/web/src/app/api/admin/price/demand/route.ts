@@ -2,6 +2,7 @@ import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -29,7 +30,12 @@ type DemandRow = {
 
 export async function GET(request: Request) {
   const admin = await verifyAdmin(request);
-  if (!admin.authorized) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!admin.authorized || !admin.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-demand:list", request, admin.userId),
+    { maxRequests: 10, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
 
   const url = new URL(request.url);
   const daysRaw = Number(url.searchParams.get("days") ?? "30");
@@ -49,7 +55,7 @@ export async function GET(request: Request) {
         .order("vendor_id", { ascending: true })
         .order("day", { ascending: true })
         .range(from, from + PAGE - 1);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error("VENDOR_DEMAND_QUERY_FAILED");
       rows.push(...((data ?? []) as DemandRow[]));
       if (!data || data.length < PAGE) break;
     }
@@ -79,7 +85,7 @@ export async function GET(request: Request) {
         .from("vendors")
         .select("id, name, category, region_code")
         .in("id", chunk);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error("VENDOR_DEMAND_VENDOR_QUERY_FAILED");
       for (const vendor of data ?? []) {
         vendors.set(vendor.id, {
           name: vendor.name,
@@ -125,7 +131,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "요청 출처를 확인할 수 없습니다." }, { status: 403 });
   }
   const admin = await verifyAdmin(request);
-  if (!admin.authorized) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!admin.authorized || !admin.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-demand:aggregate", request, admin.userId),
+    { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+  );
+  if (limited) return limited;
 
   const body = await readBoundedUtf8Text(request, 1_024);
   if (!body.ok) return NextResponse.json({ error: "요청 본문을 읽을 수 없습니다." }, { status: 400 });
@@ -143,7 +154,7 @@ export async function POST(request: Request) {
       "aggregate_vendor_demand_daily",
       input.day ? { p_day: input.day } : {},
     );
-    if (error) throw new Error(error.message);
+    if (error) throw new Error("VENDOR_DEMAND_AGGREGATION_FAILED");
     return NextResponse.json({ aggregated_vendors: data ?? 0, day: input.day ?? "KST 어제" });
   } catch {
     return NextResponse.json({ error: "집계 실행에 실패했습니다." }, { status: 503 });

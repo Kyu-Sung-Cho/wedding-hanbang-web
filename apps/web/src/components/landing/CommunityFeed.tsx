@@ -5,6 +5,7 @@ import { communityPostPath } from "@/lib/community/routes";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { createPublicClient } from "@/lib/supabase/public";
 import { weddingPath } from "@/lib/weddingPaths";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 // 60초 ISR — 랜딩 페이지는 매 방문마다 fetch하지 않아도 됨
 export const revalidate = 60;
@@ -46,7 +47,7 @@ async function fetchPosts(): Promise<{ posts: PostRow[]; profiles: Map<string, P
 
     const { data: posts } = await supabase
       .from("community_posts")
-      .select("id, title, content, category, author_id, upvote_count, comment_count, ai_comment, created_at")
+      .select("id, title, content, category, author_id:author_public_id, upvote_count, comment_count, ai_comment, created_at")
       .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
       .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("upvote_count", { ascending: false })
@@ -62,8 +63,8 @@ async function fetchPosts(): Promise<{ posts: PostRow[]; profiles: Map<string, P
     const authorIds = [...new Set(postRows.map((p) => p.author_id))];
     const { data: profiles } = await supabase
       .from("community_profiles")
-      .select("user_id, nickname, badge, avatar_url")
-      .in("user_id", authorIds);
+      .select("user_id:community_public_id, nickname, badge, avatar_url")
+      .in("community_public_id", authorIds);
 
     const profileMap = new Map<string, ProfileRow>();
     ((profiles ?? []) as unknown as ProfileRow[]).forEach((p) => {
@@ -72,7 +73,7 @@ async function fetchPosts(): Promise<{ posts: PostRow[]; profiles: Map<string, P
 
     return { posts: postRows, profiles: profileMap };
   } catch (err) {
-    console.error("[CommunityFeed] fetch 실패:", err);
+    console.error("[CommunityFeed] fetch 실패:", safeErrorDiagnostic(err));
     return { posts: [], profiles: new Map() };
   }
 }

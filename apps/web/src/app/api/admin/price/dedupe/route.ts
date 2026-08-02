@@ -1,14 +1,18 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkAdminReadRateLimit } from "@/lib/admin/adminReadBoundary";
 
 const KINDS = new Set(["vendor", "agency"]);
 const STATUSES = new Set(["pending", "same", "different", "superseded", "all"]);
 
 export async function GET(request: Request) {
-  const { authorized } = await verifyAdmin(request);
-  if (!authorized) {
+  const { authorized, userId } = await verifyAdmin(request);
+  if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await checkAdminReadRateLimit(request, userId, "price-dedupe");
+  if (limited) return limited;
 
   const searchParams = new URL(request.url).searchParams;
   const kind = searchParams.get("kind");

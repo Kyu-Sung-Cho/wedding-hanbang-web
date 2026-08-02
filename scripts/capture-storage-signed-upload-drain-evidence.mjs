@@ -6,6 +6,13 @@ import {
   captureStorageSignedUploadDrainEvidence,
   StorageDrainEvidenceError,
 } from "./lib/storage-signed-upload-drain-evidence.mjs";
+import { allowlistedOperationalStatus } from "./lib/operational-log-safety.mjs";
+
+const STORAGE_DRAIN_STATUSES = new Set([
+  "waiting_signed_upload_expiry",
+  "waiting_inventory_stability",
+  "storage_signed_upload_drain_verified",
+]);
 
 const allowed = new Set([
   "--expected-commit",
@@ -37,7 +44,13 @@ try {
     siteUrl: options["--site-url"],
     stage: options["--stage"],
   });
-  console.log(JSON.stringify(result, null, 2));
+  const status = allowlistedOperationalStatus(result.status, STORAGE_DRAIN_STATUSES);
+  if (status === "unexpected_status") {
+    console.error("STORAGE_DRAIN_RESULT_STATUS_INVALID");
+    process.exitCode = 1;
+  } else {
+    console.log(`STORAGE_DRAIN_EVIDENCE: ${status}`);
+  }
 } catch (error) {
   console.error(
     error instanceof StorageDrainEvidenceError

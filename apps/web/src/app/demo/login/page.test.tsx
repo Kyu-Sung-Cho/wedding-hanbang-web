@@ -65,6 +65,20 @@ describe("demo login accessibility", () => {
     ).not.toBeNull();
   });
 
+  it("does not render arbitrary callback or fragment error text", async () => {
+    const privateMarker = "private-provider-detail-bride@example.com";
+    window.history.replaceState(
+      {},
+      "",
+      `/demo/login?error=${encodeURIComponent(privateMarker)}#error_description=${encodeURIComponent(privateMarker)}`,
+    );
+
+    await act(async () => root.render(<DemoLoginPage />));
+
+    expect(container.textContent).not.toContain(privateMarker);
+    expect(container.textContent).toContain("로그인에 실패했습니다.");
+  });
+
   // 이 화면에는 Turnstile 위젯이 없다. 실키가 발급되면 여기서 보낸 가입·비밀번호
   // 재설정은 토큰 누락으로 영구 실패하므로, 위젯이 있는 /login으로 넘겨야 한다.
   // `6a95dd5b`이 가입만 고치고 비밀번호 찾기는 같은 상태로 남겨 뒀다.

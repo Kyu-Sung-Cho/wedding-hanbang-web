@@ -1,19 +1,20 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
-import { determineStage } from "@/lib/ai/stage-router";
 import {
   parseMembershipRpcResponse,
   type CoupleRole,
   type MembershipAction,
 } from "@/lib/couples/membershipRpc";
-import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { upsertMomentEvent } from "@/utils/scheduleEvents";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const ONBOARDING_JOIN_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
 const DEFAULT_TOTAL_BUDGET = 20_000_000;
+const MAX_BODY_BYTES = 32 * 1024;
 
 function getAdmin() {
   return createAdminClient();
@@ -248,8 +249,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = await request.json();
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 형식이 올바르지 않습니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    if (!isRecord(bodyResult.value)) {
+      return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    const body = bodyResult.value;
     const {
+      expectedUserId,
       role: rawRole,
       coupleAction: rawCoupleAction,
       partnerInviteCode,
@@ -259,6 +271,20 @@ export async function POST(request: Request) {
       totalBudget: rawTotalBudget,
       progress,
     } = body;
+
+    // The browser binds its draft to the identity that created it. If another
+    // tab changes accounts before submit, never apply that draft to the new actor.
+    // The field stays optional for the existing native client, whose onboarding
+    // state is isolated by the OS app sandbox and Bearer-authenticated request.
+    if (
+      expectedUserId !== undefined &&
+      (typeof expectedUserId !== "string" || expectedUserId !== user.id)
+    ) {
+      return NextResponse.json(
+        { error: "로그인 계정이 변경되었습니다. 온보딩을 다시 확인해주세요." },
+        { status: 409 },
+      );
+    }
 
     if (rawRole !== "bride" && rawRole !== "groom") {
       return NextResponse.json({ error: "유효하지 않은 역할입니다." }, { status: 400 });
@@ -272,7 +298,7 @@ export async function POST(request: Request) {
 
     let normalizedInviteCode: string | null = null;
     if (coupleAction === "join") {
-      const limited = checkRateLimit(
+      const limited = await checkRateLimitPersistent(
         rateLimitKey("onboarding_couple_join", request, user.id),
         ONBOARDING_JOIN_RATE,
       );
@@ -322,7 +348,7 @@ export async function POST(request: Request) {
           });
 
     if (rpcResponse.error) {
-      console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
+      console.error("[onboarding] membership RPC failed", safeErrorDiagnostic(rpcResponse.error));
       return NextResponse.json(
         { error: "커플 연결을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
         { status: 500 },
@@ -331,7 +357,7 @@ export async function POST(request: Request) {
 
     const membership = parseMembershipRpcResponse(rpcResponse.data, role, coupleAction);
     if (!membership.ok) {
-      console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
+      console.warn(`[onboarding ${coupleAction}] membership rejected`, { code: membership.errorCode });
       return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
@@ -348,83 +374,12 @@ export async function POST(request: Request) {
     } catch (error) {
       // The membership RPC is atomic and idempotent, so a retry finishes these
       // post-steps against the same couple instead of creating another couple.
-      console.error(`[onboarding ${coupleAction}] completion failed`, error);
+      console.error("[onboarding] completion failed", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "온보딩 저장을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
         { status: 500 },
       );
     }
-
-    // Optional memory enrichment is deliberately outside the core completion
-    // transaction. It must not mutate or roll back the canonical onboarding data.
-    void (async () => {
-      try {
-        const stageTag = determineStage(weddingDate);
-        const baseMeta = { hook: "onboarding", role, coupleAction };
-
-        if (weddingDate) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "timeline",
-            title: "예식일 확정",
-            chosenValue: { wedding_date: weddingDate },
-            decisionType: "decided",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.95,
-            metadata: baseMeta,
-          });
-        }
-
-        if (venue) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "venue",
-            title: venue,
-            chosenValue: { venue },
-            decisionType: "considering",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.7,
-            metadata: baseMeta,
-          });
-        }
-
-        if (sanggyeonryeDate) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "timeline",
-            title: "상견례 일정",
-            chosenValue: { sanggyeonrye_date: sanggyeonryeDate },
-            decisionType: "decided",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.9,
-            metadata: baseMeta,
-          });
-        }
-
-        if (totalBudget) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "budget",
-            title: "총 예산 설정",
-            chosenValue: { total_budget: totalBudget },
-            decisionType: "decided",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.9,
-            metadata: baseMeta,
-          });
-        }
-      } catch (error) {
-        console.error("[onboarding recordDecision] optional enrichment failed", error);
-      }
-    })();
 
     return NextResponse.json({
       success: true,
@@ -434,7 +389,7 @@ export async function POST(request: Request) {
       idempotent: membership.idempotent,
     });
   } catch (error) {
-    console.error("[onboarding] unexpected error", error);
+    console.error("[onboarding] unexpected error", safeErrorDiagnostic(error));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요." },
       { status: 500 },

@@ -36,4 +36,21 @@ describe("Amora release-evaluation authentication", () => {
       secret: "too-short",
     })).toBe(false);
   });
+
+  it("fails closed for low-entropy, placeholder, and whitespace-bearing secrets", () => {
+    for (const weakSecret of [
+      "a".repeat(64),
+      "replace-with-eval-secret-12345678901234567890",
+      "release eval secret with spaces and enough variety 123!",
+    ]) {
+      expect(() => createAmoraEvalToken(weakSecret, REQUEST_ID, NOW)).toThrow(
+        "AMORA_EVAL_SECRET_INVALID",
+      );
+      expect(verifyAmoraEvalToken(
+        "v1.1784067600000.signature",
+        REQUEST_ID,
+        { now: NOW, secret: weakSecret },
+      )).toBe(false);
+    }
+  });
 });

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
+  rateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
@@ -10,27 +11,58 @@ vi.mock("@/lib/utils/adminAuth", () => ({
   getServiceClient: mocks.getServiceClient,
 }));
 
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
+}));
+
 import { GET } from "./route";
 
+const ADMIN_ID = "00000000-0000-4000-8000-000000000002";
+
 describe("GET /api/admin/price/:id/source", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.rateLimit.mockResolvedValue(null);
+  });
 
   it("never reads private evidence for a non-admin request", async () => {
     mocks.verifyAdmin.mockResolvedValue({ authorized: false });
     const getServiceClient = mocks.getServiceClient;
 
+    const request = new Request(
+      "https://hanbang.ai/api/admin/price/00000000-0000-4000-8000-000000000001/source",
+    );
     const response = await GET(
-      new Request("https://hanbang.ai/api/admin/price/00000000-0000-4000-8000-000000000001/source"),
+      request,
       { params: Promise.resolve({ id: "00000000-0000-4000-8000-000000000001" }) },
     );
 
     expect(response.status).toBe(401);
+    expect(mocks.verifyAdmin).toHaveBeenCalledWith(request);
     expect(getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
-  it("refuses a local path without asking Storage to sign it", async () => {
+  it("rejects source access when the signed step-up boundary omits the admin identity", async () => {
     mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    const request = new Request(
+      "https://hanbang.ai/api/admin/price/00000000-0000-4000-8000-000000000001/source",
+    );
+
+    const response = await GET(request, {
+      params: Promise.resolve({ id: "00000000-0000-4000-8000-000000000001" }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(mocks.verifyAdmin).toHaveBeenCalledWith(request);
+    expect(mocks.getServiceClient).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+  });
+
+  it("refuses a local path without asking Storage to sign it", async () => {
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const single = vi.fn().mockResolvedValue({
       data: { source_file: "C:\\private\\raw\\샘플 공시.xlsx" },
       error: null,
@@ -54,7 +86,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("returns a short-lived signed URL from the disclosure-raw bucket", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const single = vi.fn().mockResolvedValue({
       data: {
         source_file: '["서울/샘플 공시.pdf","서울/샘플 가격표.xlsx"]',
@@ -104,7 +136,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("signs an agency package source only when the explicit package kind is provided", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const key = "d".repeat(64) + ".pdf";
     const single = vi.fn().mockResolvedValue({
       data: {
@@ -141,7 +173,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("returns a bounded private XLSX text preview without exposing storage keys or local paths", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const rawKey = `${"e".repeat(64)}.xlsx`;
     const previewKey = `${"f".repeat(64)}.txt`;
     const single = vi.fn().mockResolvedValue({
@@ -190,7 +222,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("renders the immutable admin JSON evidence as bounded serialized text", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const rawKey = `${"9".repeat(64)}.json`;
     const rawJson = '{"period_label":"2026Q3","source":"kca_tprice"}';
     const single = vi.fn().mockResolvedValue({
@@ -235,7 +267,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("rejects a local path masquerading as a preview key before Storage is read", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const rawKey = `${"1".repeat(64)}.docx`;
     const single = vi.fn().mockResolvedValue({
       data: {
@@ -270,7 +302,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("fails closed when a preview object exceeds the browser payload limit", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const rawKey = `${"2".repeat(64)}.xlsx`;
     const previewKey = `${"3".repeat(64)}.txt`;
     const single = vi.fn().mockResolvedValue({
@@ -308,7 +340,7 @@ describe("GET /api/admin/price/:id/source", () => {
   });
 
   it("keeps multi-source preview text attached to the matching sanitized filename", async () => {
-    mocks.verifyAdmin.mockResolvedValue({ authorized: true });
+    mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     const rawKeys = [
       `${"4".repeat(64)}.xlsx`,
       `${"5".repeat(64)}.png`,

@@ -23,6 +23,20 @@ export type BookingOccupancyCount = {
   bookedCount: number;
 };
 
+export type PublicBookingSlot = {
+  day: number;
+  hour: number;
+  available: boolean;
+};
+
+type InternalBookingSlot = {
+  day: number;
+  hour: number;
+  available: boolean;
+  max_bookings: number;
+  current_bookings: number;
+};
+
 export class AvailabilityInputError extends Error {
   constructor(message = "INVALID_AVAILABILITY_RANGE") {
     super(message);
@@ -180,6 +194,39 @@ export function bookingCountAt(
     if (input.staffId !== undefined && row.staffId !== input.staffId) return total;
     return total + row.bookedCount;
   }, 0);
+}
+
+/**
+ * Converts internal capacity and occupancy into the only fact a public client
+ * needs: whether the slot can currently be selected. Invalid internal rows are
+ * omitted instead of accidentally being advertised as open.
+ */
+export function toPublicBookingSlots(
+  slots: readonly InternalBookingSlot[],
+): PublicBookingSlot[] {
+  return slots.flatMap((slot) => {
+    if (
+      !Number.isSafeInteger(slot.day)
+      || slot.day < 0
+      || slot.day > 6
+      || !Number.isSafeInteger(slot.hour)
+      || slot.hour < 0
+      || slot.hour > 23
+      || !Number.isSafeInteger(slot.max_bookings)
+      || slot.max_bookings < 1
+      || !Number.isSafeInteger(slot.current_bookings)
+      || slot.current_bookings < 0
+    ) {
+      return [];
+    }
+
+    return [{
+      day: slot.day,
+      hour: slot.hour,
+      available: slot.available === true
+        && slot.current_bookings < slot.max_bookings,
+    }];
+  });
 }
 
 type BookingOccupancyPage = {

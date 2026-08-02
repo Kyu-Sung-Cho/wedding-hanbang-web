@@ -1,8 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { checkAdminMutationRateLimit } from "@/lib/admin/adminReadBoundary";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const ALLOWED_ACTIONS = ["hide", "unhide", "delete"] as const;
 type ModerateAction = (typeof ALLOWED_ACTIONS)[number];
+const MAX_BODY_BYTES = 4 * 1024;
 
 /**
  * POST /api/admin/posts/[id]/moderate
@@ -20,14 +25,28 @@ export async function POST(
 ) {
   try {
     const { authorized, userId: adminId } = await verifyAdmin(request);
-    if (!authorized) {
+    if (!authorized || !adminId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const limited = await checkAdminMutationRateLimit(
+      request,
+      adminId,
+      "post-moderation",
+    );
+    if (limited) return limited;
+
     const { id } = await params;
-    const body = await request.json().catch(() => ({}));
-    const action = body?.action as string | undefined;
-    const reason = typeof body?.reason === "string" ? body.reason.slice(0, 500) : null;
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 형식이 올바르지 않습니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = isRecord(bodyResult.value) ? bodyResult.value : {};
+    const action = typeof body.action === "string" ? body.action : undefined;
+    const reason = typeof body.reason === "string" ? body.reason.slice(0, 500) : null;
 
     if (!action || !ALLOWED_ACTIONS.includes(action as ModerateAction)) {
       return NextResponse.json(
@@ -55,7 +74,7 @@ export async function POST(
         .update({ visibility: "draft" })
         .eq("id", id);
       if (error) {
-        console.error("[admin moderate hide] error:", error);
+        console.error("[admin moderate hide] error", safeErrorDiagnostic(error));
         return NextResponse.json({ error: "숨김 처리 실패" }, { status: 500 });
       }
     } else if (action === "unhide") {
@@ -64,7 +83,7 @@ export async function POST(
         .update({ visibility: "public", under_review: false })
         .eq("id", id);
       if (error) {
-        console.error("[admin moderate unhide] error:", error);
+        console.error("[admin moderate unhide] error", safeErrorDiagnostic(error));
         return NextResponse.json({ error: "복원 처리 실패" }, { status: 500 });
       }
     } else if (action === "delete") {
@@ -73,7 +92,7 @@ export async function POST(
         .delete()
         .eq("id", id);
       if (error) {
-        console.error("[admin moderate delete] error:", error);
+        console.error("[admin moderate delete] error", safeErrorDiagnostic(error));
         return NextResponse.json({ error: "삭제 실패" }, { status: 500 });
       }
     }
@@ -112,7 +131,7 @@ export async function POST(
 
     return NextResponse.json({ ok: true, action });
   } catch (err) {
-    console.error("[admin moderate] unexpected:", err);
+    console.error("[admin moderate] unexpected", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

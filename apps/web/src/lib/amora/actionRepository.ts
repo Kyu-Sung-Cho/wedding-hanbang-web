@@ -3,6 +3,7 @@ import type { AmoraAction } from "@/types/database.types";
 import {
   MAX_ACTIONS,
   normalizeAmoraAction,
+  sanitizeAmoraActionHref,
   sortAmoraActions,
   type AmoraActionItem,
   type AmoraActionPriority,
@@ -77,7 +78,7 @@ export function amoraActionToRow(
     priority: action.priority,
     status: action.status,
     source: action.source,
-    href: action.href && action.href.startsWith("/") ? action.href.slice(0, 180) : null,
+    href: sanitizeAmoraActionHref(action.href) ?? null,
     metadata: {},
     created_by: createdBy ?? null,
     created_at: action.createdAt,
@@ -156,7 +157,7 @@ export async function updateAmoraActionRecord(
   if (updates.status !== undefined) payload.status = updates.status;
   if (updates.source !== undefined) payload.source = updates.source;
   if (updates.href !== undefined) {
-    payload.href = updates.href.startsWith("/") ? updates.href.slice(0, 180) : null;
+    payload.href = sanitizeAmoraActionHref(updates.href) ?? null;
   }
 
   if (Object.keys(payload).length === 0) {

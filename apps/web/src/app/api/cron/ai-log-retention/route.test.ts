@@ -15,7 +15,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { GET } from "./route";
 
-function request(secret = "cron-secret") {
+const CRON_SECRET = "cron-secret-with-at-least-thirty-two-characters";
+
+function request(secret = CRON_SECRET) {
   return new Request("https://example.test/api/cron/ai-log-retention", {
     headers: { authorization: `Bearer ${secret}` },
   });
@@ -24,7 +26,7 @@ function request(secret = "cron-secret") {
 describe("GET /api/cron/ai-log-retention", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("CRON_SECRET", "cron-secret");
+    vi.stubEnv("CRON_SECRET", CRON_SECRET);
     delete process.env.AI_LOG_RETENTION_CRON_ENABLED;
   });
 

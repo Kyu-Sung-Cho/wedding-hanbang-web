@@ -10,11 +10,17 @@ import {
 } from "@/lib/admin/vendorWorkspace";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { verifyAdminJsonEvidence } from "@/lib/admin/priceUploadEvidence";
+import { readBoundedJsonValue } from "@/utils/requestValidation";
+import { checkAdminMutationRateLimit } from "@/lib/admin/adminReadBoundary";
 
 type PriceRow = Record<string, unknown>;
 
 const REVIEW_VERSION_CONFLICT_MESSAGE =
   "다른 관리자가 먼저 수정했습니다. 최신 내용을 다시 불러와 주세요.";
+
+// The review schema permits 100 options and up to 4,000 characters of source
+// evidence per option, so this authenticated admin route needs a larger bound.
+const MAX_BODY_BYTES = 768 * 1024;
 
 function isReviewVersionConflict(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -151,18 +157,26 @@ export async function PATCH(
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminMutationRateLimit(
+    request,
+    userId,
+    "price-review-update",
+  );
+  if (limited) return limited;
 
   const idResult = z.string().uuid().safeParse((await params).id);
   if (!idResult.success) {
     return NextResponse.json({ error: "검수 항목을 찾을 수 없습니다." }, { status: 404 });
   }
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
+  const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
+    if (bodyResult.reason === "too_large") {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
     return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
+  const rawBody = bodyResult.value;
   if (
     !rawBody
     || typeof rawBody !== "object"

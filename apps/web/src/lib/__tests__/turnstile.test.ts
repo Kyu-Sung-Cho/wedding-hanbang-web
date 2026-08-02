@@ -54,7 +54,7 @@ describe("verifyTurnstile — production guard", () => {
     vi.stubEnv("VERCEL_ENV", "");
     vi.stubEnv("TURNSTILE_SECRET_KEY", "");
 
-    await expect(verifyTurnstile(undefined)).resolves.toEqual({
+    await expect(verifyTurnstile(undefined, null, "signup", "localhost")).resolves.toEqual({
       ok: true,
       skipped: true,
     });
@@ -66,24 +66,45 @@ describe("verifyTurnstile — production guard", () => {
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAA-site-key");
     vi.stubEnv("TURNSTILE_SECRET_KEY", "");
 
-    await expect(verifyTurnstile(undefined)).resolves.toEqual({
+    await expect(verifyTurnstile(undefined, null, "signup", "hanbang.ai")).resolves.toEqual({
       ok: false,
       skipped: false,
     });
   });
 
-  it("skips in production when the feature is not provisioned at all", async () => {
-    // 사이트 키 미발급 = 위젯 자체가 없어 토큰이 존재할 수 없는 상태.
-    // 이때 거부하면 봇이 아니라 모든 가입이 막힌다(2026-07-24 운영 사고 회귀 방지).
+  it("fails closed in production when both keys are omitted", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
     vi.stubEnv("TURNSTILE_SECRET_KEY", "");
 
-    await expect(verifyTurnstile(undefined)).resolves.toEqual({
-      ok: true,
-      skipped: true,
+    await expect(verifyTurnstile(undefined, null, "signup", "hanbang.ai")).resolves.toEqual({
+      ok: false,
+      skipped: false,
     });
+  });
+
+  it("rejects an oversized token before making a Siteverify request", async () => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      verifyTurnstile("x".repeat(2_049), null, "signup", "hanbang.ai"),
+    ).resolves.toEqual({ ok: false, skipped: false });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for a non-successful Siteverify HTTP response", async () => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action: "signup",
+      hostname: "hanbang.ai",
+    }), { status: 503, headers: { "content-type": "application/json" } }));
+
+    await expect(
+      verifyTurnstile("sample-token", null, "signup", "hanbang.ai"),
+    ).resolves.toEqual({ ok: false, skipped: false });
   });
 
   it("requires the verified token action to match the requested auth operation", async () => {
@@ -91,12 +112,61 @@ describe("verifyTurnstile — production guard", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       success: true,
       action: "forgot",
+      hostname: "hanbang.ai",
     }), { status: 200, headers: { "content-type": "application/json" } }));
 
-    await expect(verifyTurnstile("sample-token", null, "signup")).resolves.toEqual({
+    await expect(
+      verifyTurnstile("sample-token", null, "signup", "hanbang.ai"),
+    ).resolves.toEqual({
       ok: false,
       skipped: false,
     });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["different", "attacker.example"],
+  ])("fails closed for a %s Siteverify hostname", async (_case, hostname) => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action: "signup",
+      hostname,
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    await expect(
+      verifyTurnstile("sample-token", null, "signup", "hanbang.ai"),
+    ).resolves.toEqual({ ok: false, skipped: false });
+  });
+
+  it("fails closed when the trusted request hostname is unavailable", async () => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action: "signup",
+      hostname: "hanbang.ai",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    await expect(
+      verifyTurnstile("sample-token", null, "signup", null),
+    ).resolves.toEqual({ ok: false, skipped: false });
+  });
+
+  it.each([
+    ["web", "www.hanbang.ai"],
+    ["mobile", "hanbang.ai"],
+    ["local", "localhost"],
+  ])("accepts an exact %s hostname match", async (_client, hostname) => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action: "signup",
+      hostname,
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    await expect(
+      verifyTurnstile("sample-token", null, "signup", hostname),
+    ).resolves.toEqual({ ok: true, skipped: false });
   });
 
   it.each(["signup", "forgot", "preregister", "survey"] as const)(
@@ -106,9 +176,12 @@ describe("verifyTurnstile — production guard", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       success: true,
       action,
+      hostname: "hanbang.ai",
     }), { status: 200, headers: { "content-type": "application/json" } }));
 
-    await expect(verifyTurnstile("sample-token", null, action)).resolves.toEqual({
+    await expect(
+      verifyTurnstile("sample-token", null, action, "hanbang.ai"),
+    ).resolves.toEqual({
       ok: true,
       skipped: false,
     });

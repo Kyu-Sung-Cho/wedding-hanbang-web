@@ -1,6 +1,6 @@
 -- PHASE 2 / POST-MIGRATION FINAL STORAGE CONTRACT / REFERENCE ONLY.
 -- DO NOT run through db push or SQL Editor. Apply in
--- Dashboard > Storage > Policies only after all 27 migrations pass and the
+-- Dashboard > Storage > Policies only after all migrations pass and the
 -- account-deletion Storage predicate from 1130 passes its ACL/body contract.
 -- The precondition accepts either the exact phase-1 four-read freeze or the
 -- phase-2 fail-closed zero-policy retry state. Create private empty staging first.
@@ -159,14 +159,15 @@ BEGIN
   IF EXISTS (
     WITH expected(id, is_public, file_size_limit, allowed_mime_types, object_count) AS (
       VALUES
-        ('chat-image'::text, false, NULL::bigint, NULL::text[], 6::bigint),
-        ('cohort-images', true, NULL::bigint, NULL::text[], 0::bigint),
+        ('chat-image'::text, false, 3 * 1024 * 1024,
+          ARRAY['image/jpeg','image/png','image/gif','image/webp']::text[], 6::bigint),
+        ('cohort-images', false, NULL::bigint, NULL::text[], 0::bigint),
         ('community-images', true, 10 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/gif','image/webp']::text[], 43::bigint),
         ('community-videos', true, 50 * 1024 * 1024, ARRAY['video/mp4','video/quicktime','video/webm']::text[], 0::bigint),
-        ('guestbook-images', true, NULL::bigint, NULL::text[], 0::bigint),
-        ('guestbook-uploads', true, 5 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/webp','image/heic','image/heif']::text[], 0::bigint),
-        ('invitation-photos', true, 10 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/webp','image/heic']::text[], 0::bigint),
-        ('user_photos', true, NULL::bigint, NULL::text[], 0::bigint),
+        ('guestbook-images', false, NULL::bigint, NULL::text[], 0::bigint),
+        ('guestbook-uploads', false, 5 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/webp','image/heic','image/heif']::text[], 0::bigint),
+        ('invitation-photos', false, 10 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/webp','image/heic']::text[], 0::bigint),
+        ('user_photos', false, NULL::bigint, NULL::text[], 0::bigint),
         ('vendor-images', true, 5 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/webp']::text[], 0::bigint),
         ('vendor-licenses', false, 10 * 1024 * 1024, ARRAY['image/jpeg','image/png','application/pdf']::text[], 0::bigint),
         ('community-media-staging', false, 6 * 1024 * 1024, ARRAY['image/jpeg','image/png','image/gif','image/webp']::text[], 0::bigint)

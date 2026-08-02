@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
   createAdminClient: vi.fn(),
   createClientFromRequest: vi.fn(),
   pricesIn: vi.fn(),
@@ -21,6 +22,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
+}));
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
+  rateLimitKey: (scope: string, _request: Request, userId?: string) =>
+    `${scope}:${userId ?? "guest"}`,
 }));
 
 import { GET, POST } from "./route";
@@ -132,6 +138,7 @@ describe("GET /api/price/combos", () => {
 describe("POST /api/price/combos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.pricesEq.mockResolvedValue({
       data: [{
         official_price_id: PRICE_ID,
@@ -220,6 +227,16 @@ describe("POST /api/price/combos", () => {
     expect(response.status).toBe(201);
     expect(mocks.createClientFromRequest).toHaveBeenCalledOnce();
     expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an account A save if the request authenticates as account B", async () => {
+    const response = await POST(comboRequest(validBody(), IDEMPOTENCY_KEY, {
+      "x-hanbang-expected-actor": "50000000-0000-4000-8000-000000000001",
+    }));
+
+    expect(response.status).toBe(409);
+    expect(mocks.pricesIn).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("requires a UUID idempotency key before reading catalog data", async () => {

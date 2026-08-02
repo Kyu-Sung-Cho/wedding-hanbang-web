@@ -12,6 +12,8 @@ import {
   summarizeScenarioResults,
 } from "../amora-conversation-eval.mjs";
 
+const VALID_EVAL_SECRET = "eval-Release_2026!9FzQ4mN8xT2vK7pL";
+
 function scenario(id) {
   const found = SCENARIOS.find((item) => item.id === id);
   assert.ok(found, `missing scenario ${id}`);
@@ -28,8 +30,35 @@ test("the live package shortcut never pre-authorizes production evaluation", () 
   );
 });
 
+test("every Amora CLI POST identifies its same-origin target", () => {
+  const cliSources = [
+    [
+      "conversation evaluation",
+      readFileSync(new URL("../amora-conversation-eval.mjs", import.meta.url), "utf8"),
+    ],
+    [
+      "production smoke",
+      readFileSync(new URL("../amora-production-smoke.mjs", import.meta.url), "utf8"),
+    ],
+  ];
+
+  for (const [label, source] of cliSources) {
+    const postCount = source.match(/method:\s*"POST"/g)?.length ?? 0;
+    const sameOriginHeaderCount = source.match(
+      /Origin:\s*new URL\(baseUrl\)\.origin/g,
+    )?.length ?? 0;
+
+    assert.ok(postCount > 0, `${label} must issue at least one POST request`);
+    assert.equal(
+      sameOriginHeaderCount,
+      postCount,
+      `${label} must attach its target origin to every POST request`,
+    );
+  }
+});
+
 test("requires an explicit target and explicit production permission", () => {
-  const env = { AMORA_EVAL_SECRET: "s".repeat(32) };
+  const env = { AMORA_EVAL_SECRET: VALID_EVAL_SECRET };
   assert.throws(() => parseArgs([], env), /--base-url is required/);
   assert.throws(
     () => parseArgs(["--base-url=https://hanbang.ai", "--samples=1"], env),
@@ -113,6 +142,19 @@ test("requires an explicit target and explicit production permission", () => {
     ], env),
     /non-empty scenario id/,
   );
+
+  for (const weakSecret of [
+    "s".repeat(64),
+    "replace-with-eval-secret-12345678901234567890",
+    "release eval secret with spaces and enough variety 123!",
+  ]) {
+    assert.throws(
+      () => parseArgs(["--base-url=http://localhost:3000"], {
+        AMORA_EVAL_SECRET: weakSecret,
+      }),
+      /AMORA_EVAL_SECRET/,
+    );
+  }
 });
 
 test("locks the production suite to six explicitly opted-in scenarios", () => {

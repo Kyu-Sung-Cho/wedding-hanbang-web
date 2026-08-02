@@ -23,9 +23,11 @@ import {
   runMobileWebApiRequestWithTimeout,
 } from "@/lib/mobileWebApiBridge.mjs";
 import {
+  buildShareableMobileSiteUrl,
   normalizeMobileSiteUrl,
   resolveMobileSiteOrigin,
 } from "@/lib/siteUrl.mjs";
+import { normalizeWebViewExternalUrl } from "@/lib/externalUrls.mjs";
 
 const SITE_ORIGIN = resolveMobileSiteOrigin(
   process.env.EXPO_PUBLIC_SITE_URL,
@@ -36,15 +38,6 @@ const MAX_BRIDGE_CONTENT_TYPE_LENGTH = 256;
 function firstParam(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
-}
-
-function canOpenExternally(value: string): boolean {
-  try {
-    const protocol = new URL(value).protocol;
-    return protocol === "https:" || protocol === "http:" || protocol === "mailto:" || protocol === "tel:";
-  } catch {
-    return false;
-  }
 }
 
 function titleFromUrl(url: string): string {
@@ -86,9 +79,10 @@ export default function WebViewScreen() {
   }, [bridgeNonce]);
 
   const handleShare = useCallback(async () => {
-    if (!currentUrl) return;
+    const shareUrl = buildShareableMobileSiteUrl(currentUrl, SITE_ORIGIN);
+    if (!shareUrl) return;
     try {
-      await Share.share({ url: currentUrl, message: currentUrl });
+      await Share.share({ url: shareUrl, message: shareUrl });
     } catch {
       // 공유 취소
     }
@@ -110,8 +104,9 @@ export default function WebViewScreen() {
       return true;
     }
 
-    if (canOpenExternally(event.url)) {
-      Linking.openURL(event.url).catch(() => undefined);
+    const externalUrl = normalizeWebViewExternalUrl(event.url);
+    if (externalUrl) {
+      Linking.openURL(externalUrl).catch(() => undefined);
       return false;
     }
 

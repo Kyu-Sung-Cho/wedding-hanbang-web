@@ -24,6 +24,10 @@ export type BoundedUtf8TextResult =
   | { ok: true; text: string }
   | { ok: false; reason: "too_large" | "read_error" };
 
+export type BoundedJsonValueResult =
+  | { ok: true; value: unknown }
+  | { ok: false; reason: "too_large" | "read_error" | "invalid_json" };
+
 /**
  * Read at most maxBytes from a request body. Content-Length is only an early
  * rejection hint; the stream itself is counted so chunked or dishonest
@@ -79,6 +83,25 @@ export async function readBoundedUtf8Text(
     return { ok: false, reason: "read_error" };
   } finally {
     reader.releaseLock();
+  }
+}
+
+/**
+ * Parse JSON only after the request stream has been byte-counted. Route
+ * handlers still validate the returned unknown value against their own
+ * payload contract.
+ */
+export async function readBoundedJsonValue(
+  request: Request,
+  maxBytes: number,
+): Promise<BoundedJsonValueResult> {
+  const body = await readBoundedUtf8Text(request, maxBytes);
+  if (!body.ok) return body;
+
+  try {
+    return { ok: true, value: JSON.parse(body.text) as unknown };
+  } catch {
+    return { ok: false, reason: "invalid_json" };
   }
 }
 
@@ -162,6 +185,8 @@ export interface JsonSanitizeOptions {
   maxStringLength?: number;
 }
 
+const UNSAFE_JSON_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 export function sanitizeJsonValue(
   value: unknown,
   options: JsonSanitizeOptions = {},
@@ -193,9 +218,10 @@ export function sanitizeJsonValue(
   }
 
   if (isRecord(value)) {
-    const output: Record<string, unknown> = {};
+    const output = Object.create(null) as Record<string, unknown>;
     for (const [key, item] of Object.entries(value).slice(0, maxObjectKeys)) {
       if (!/^[a-zA-Z0-9_.:-]{1,80}$/.test(key)) continue;
+      if (UNSAFE_JSON_OBJECT_KEYS.has(key)) continue;
       output[key] = sanitizeJsonValue(item, options, depth + 1);
     }
     return output;

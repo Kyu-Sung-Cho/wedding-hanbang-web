@@ -25,6 +25,26 @@ function validBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe("WeddingCode object-key boundary", () => {
+  it("drops prototype-pollution keys from legacy stage flags", () => {
+    const stageFlags = JSON.parse(
+      '{"safe":"ok","__proto__":"polluted","constructor":"polluted","prototype":"polluted"}'
+    ) as Record<string, unknown>;
+
+    const result = validateWcSubmission(validBody({ stage_flags: stageFlags }));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(Object.getPrototypeOf(result.data.stage_flags)).toBeNull();
+      expect({ ...result.data.stage_flags }).toEqual({ safe: "ok" });
+      expect(result.data.stage_flags.__proto__).toBeUndefined();
+      expect(result.data.stage_flags.constructor).toBeUndefined();
+      expect(result.data.stage_flags.prototype).toBeUndefined();
+    }
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
 describe("웨딩코드 응답 검증", () => {
   it("정상 제출을 통과시키고 정규화한다", () => {
     const r = validateWcSubmission(validBody());
@@ -79,6 +99,25 @@ describe("웨딩코드 응답 검증", () => {
     if (r.ok) {
       expect(r.data.free_text.free_text_feedback).not.toContain("<script>");
       expect(r.data.free_text.free_text_feedback.length).toBeLessThanOrEqual(1000);
+    }
+  });
+
+  it("does not persist sensitive data smuggled through UTM fields", () => {
+    const result = validateWcSubmission(validBody({
+      utm_source: "person@example.com",
+      utm_medium: "social",
+      utm_campaign: "sk_live_1234567890",
+      utm_content: "https://example.com/private",
+    }));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.utm).toEqual({
+        source: null,
+        medium: "social",
+        campaign: null,
+        content: null,
+      });
     }
   });
 });

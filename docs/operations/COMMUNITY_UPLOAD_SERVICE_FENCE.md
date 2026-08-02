@@ -79,9 +79,34 @@ bounded to 6 MiB and must be monitored for memory and latency.
 
 | Bucket | Visibility | Platform limit | New client mutation | Purpose |
 |---|---:|---:|---|---|
+| `chat-image` | private | 3 MiB, exact image MIME allowlist | current-couple/uploader/UUID path INSERT only | private chat image history; PDF/DOCX remain provider-only and are not persisted |
 | `community-media-staging` | private | 6 MiB, exact image MIME allowlist | signed exact-path upload only | untrusted input |
 | `community-images` | public | 10 MiB, exact image MIME allowlist | none | sanitized output; app caps output at 6 MiB |
 | `community-videos` | public | 50 MiB, exact historical video allowlist | none | historical reads only |
+| `cohort-images` | private after migration `20260802143000` | unchanged | none | empty retired bucket; cohort messages use sanitized `community-images` |
+| `guestbook-images` | private after migration `20260802134000` | unchanged | none | dormant legacy surface |
+| `guestbook-uploads` | private after migration `20260802134000` | 5 MiB, exact historical image MIME allowlist | none | dormant legacy surface |
+| `invitation-photos` | private after migration `20260802143000` | 10 MiB, exact historical image MIME allowlist | none | empty retired bucket |
+| `user_photos` | private after migration `20260802143000` | unchanged | none | empty retired bucket |
+
+The `chat-image` bucket settings are a coarse ingress fence, not content
+validation or a per-user storage quota. Supabase Storage's pinned uploader
+implementation compares the declared request `Content-Type` string with the
+bucket allowlist; it does not inspect image magic bytes or fully decode the
+file ([pinned MIME implementation](https://github.com/supabase/storage/blob/c4e745e4bf196774d6ef373c20e348ad1f97ccb0/src/storage/uploader.ts#L305-L332),
+[raw request source](https://github.com/supabase/storage/blob/c4e745e4bf196774d6ef373c20e348ad1f97ccb0/src/storage/uploader.ts#L512-L520)).
+The same pinned source rejects an oversized raw upload early only when it knows
+the request length and explicitly notes that an unknown-size raw body has no
+later truncation signal
+([pinned size path](https://github.com/supabase/storage/blob/c4e745e4bf196774d6ef373c20e348ad1f97ccb0/src/storage/uploader.ts#L529-L543)).
+Whether the hosted edge always supplies a trustworthy length is **UNVERIFIED**.
+Before enabling the provisional direct INSERT, the hosted-clone probe must
+cover oversized uploads both with and without `Content-Length`, declared-image
+payloads with invalid bytes, repeated uploads, and abandoned objects. A
+no-length oversize success is a hard stop. The recommended final architecture
+is a bounded server-owned upload/finalize path that fully decodes and re-encodes
+images, atomically enforces an approved per-user byte/object quota, removes
+orphaned objects, and then removes the authenticated direct INSERT policy.
 
 The release verifiers pin the complete global bucket inventory, not just the
 three community buckets. Before the final operation there are exactly ten
@@ -89,8 +114,24 @@ existing buckets; afterward `community-media-staging` makes exactly eleven.
 This includes `chat-image`, `cohort-images`, both guestbook buckets,
 `invitation-photos`, `user_photos`, and both vendor buckets. Every name,
 visibility flag, limit, ordered MIME array, and MIME cardinality is exact.
-Staging must be absent during the backup freeze and must exist empty before the
-final policy operation.
+The inventory, freeze verifier, freeze controller receipt, and pre-check pin
+the captured `chat-image` bucket limit/MIME values as `NULL`. After those
+receipts, migration `20260802157000_harden_chat_image_bucket_upload_limits.sql`
+accepts only that captured prestate or an exact idempotent retry and sets a
+3 MiB limit with the ordered JPEG/PNG/GIF/WebP MIME allowlist. The final
+Dashboard policy operation requires that hardened state and does not mutate
+bucket metadata. Final/rollback verifiers and post-checks require the hardened
+values; no rollback removes them. The same
+pre-final receipts also pin `cohort-images`, both guestbook buckets,
+`invitation-photos`, and `user_photos`
+as `public=true`, because they describe the state before migrations
+`20260802134000` and `20260802143000`. After those migrations, the final apply
+precondition, final verifier, both phase-2 rollback verifiers, final controller
+receipt, and post-check pin all five as `public=false`. Migration
+`20260802143000` locks its three target bucket rows and aborts unless they all
+exist and contain zero objects; it never hides a live legacy object. Staging
+must be absent during the backup freeze and must exist empty before the final
+policy operation.
 
 The complete final `storage.objects` policy manifest is exactly one permissive
 `INSERT` policy for `authenticated`:
@@ -122,8 +163,12 @@ update/delete and broad writes, and vendor mutations. Existing bytes are not
 deleted. Historical chat objects remain available through the authorized
 service-role signed-URL route, not a public `storage.objects` SELECT policy.
 
-Published final objects are intentionally public. This fence removes client
-write capability; it does not make existing final objects private.
+Published `community-images` final objects are intentionally public. This fence
+removes client write capability; it does not make those existing final objects
+private. The dormant guestbook buckets are a deliberate exception: migration
+`20260802134000` makes both private. The three empty retired buckets are also
+deliberate exceptions: migration `20260802143000` makes them private only after
+the locked zero-object preflight. No phase-2 rollback reopens any of the five.
 
 ## Hosted ownership and helper-function policy fence
 
@@ -135,35 +180,43 @@ are the source of truth:
 - `inventory.sql` is read-only and lists every global bucket, object count, and
   every Storage policy with its full
   `qual`/`with_check`, not only policies containing literal community names.
-  This is required because a helper function can hide a bucket target.
+  This is required because a helper function can hide a bucket target. Its
+  five dormant-bucket visibility flags are intentionally the pre-migration
+  `public=true` state.
 - `storage_global_write_freeze_apply.sql` is the pre-backup Dashboard reference.
   It accepts only the exact 19-policy inventory and removes exactly 15 mutation
   policies without depending on any new helper.
 - `storage_global_write_freeze_verify.sql` is read-only and requires exactly the
   four recorded SELECT policies, no mutation policy, the exact ten-bucket
-  inventory, and the recorded 6 chat plus 43 community-image objects.
+  pre-migration inventory (including all five public dormant buckets), and the
+  recorded 6 chat plus 43 community-image objects.
 - `storage_global_write_freeze_rollback.sql` is the safe convergence/recovery
   operation. It restores only those four reads and never restores a mutation
   policy.
 - `apply.sql` is the post-migration Dashboard reference. It accepts only the
   frozen four-policy state or the fail-closed zero-policy phase-2 retry state,
   plus the exact membership, account-deletion, and production-fence helpers.
-  It removes the four SELECT policies when present and creates the provisional
-  strict INSERT policy.
+  It also requires all five dormant buckets to already be private and
+  `chat-image` to have the exact 3 MiB/image-only contract established by
+  migration `20260802157000`, removes the four SELECT policies when present,
+  and creates the provisional strict INSERT policy.
 - `verify.sql` is the final read-only hosted verifier. It records the policy
   name, but compares permissive mode, roles, command, and canonical expression
   SHA-256 as an exact one-row semantic multiset; the generated suffix is ignored but
   emitted in the receipt. It also pins relation owner/kind/RLS/FORCE state,
-  all eleven bucket contracts, empty staging, helper ACL/body contracts, and a
-  still-closed production fence. Save every result set.
+  all eleven bucket contracts including the five private dormant buckets,
+  empty staging, helper ACL/body contracts, and a still-closed production
+  fence. Save every result set.
 - `community_upload_service_fence_rollback.sql` and `_rollback_verify.sql` are
   the default safe phase-2 rollback. They remove any semantically exact final
   policy regardless of its generated suffix and converge to zero policies.
-  Mutation and broad public reads both remain removed.
+  Mutation and broad public reads both remain removed, and the five private
+  dormant-bucket metadata rows are unchanged.
 - `community_upload_service_fence_emergency_rollback.sql` and
   `_emergency_rollback_verify.sql` are manual incident-only artifacts that
   restore/prove the known-insecure 19-policy prestate. They must never be bound
-  to the release controller.
+  to the release controller. They restore policies only: all five dormant
+  buckets remain private and the emergency verifier requires that state.
 - `amora-engine-v2-storage-freeze-pre.sql` and
   `amora-engine-v2-storage-final-post-push.sql` are the controller-compatible,
   read-only receipts for the two phases.
@@ -220,10 +273,25 @@ semantically identical policies still fail because they change the multiset.
    Migration 1170 must preserve the exact reviewed Auth-FK inventory, anonymize
    retained couple/chat identifiers with validated `ON DELETE SET NULL`, and
    keep vendor ownership as the validated deletion blocker.
-7. **Create staging and finalize Storage.** Create private
+7. **Create staging and finalize Storage.** First apply the complete ordered
+   `vendor-disclosure-v2-20260718.json` successor manifest
+   through migration `20260802157000`; do not cherry-pick only the Storage
+   migrations. In that train, the Storage-affecting migrations are
+   `20260802134000_close_dormant_guestbook_public_surface.sql`,
+   `20260802143000_close_empty_dormant_storage_buckets.sql`, and
+   `20260802157000_harden_chat_image_bucket_upload_limits.sql`. Migration 1430 must
+   prove `cohort-images`, `invitation-photos`, and `user_photos` all exist and
+   contain zero objects before it makes them private. All five dormant buckets
+   must now be `public=false`; migration 1570 must prove `chat-image` remains
+   private and starts from the captured null/null metadata contract, the exact
+   10 MiB/image-only fresh-bootstrap state, or an exact retry before it sets the
+   3 MiB/image-only limits. Never start the successor
+   train before the inventory, freeze receipts, and release pre-check, which
+   intentionally pin the old prestate. Create private
    `community-media-staging` at 6 MiB with the exact JPEG/PNG/GIF/WebP allowlist
-   and no policies. Then reproduce `apply.sql`: remove the frozen four SELECT
-   policies and create exactly the one strict guarded chat INSERT. Run
+   and no policies. Then reproduce `apply.sql` in Dashboard: remove the frozen
+   four SELECT policies and create exactly the one strict guarded chat INSERT.
+   Run
    `verify.sql`, `amora-engine-v2-storage-final-post-push.sql`, then the release
    post-check. All must prove
    `public.production_storage_writes_allowed() = false`; any mismatch is a hard
@@ -233,8 +301,22 @@ semantically identical policies still fail because they change the multiset.
    temporary fence intentionally lifted, an authenticated direct upload to the
    exact own-couple path must succeed, while another-user folder, non-UUID
    filename, non-current membership, retired bucket, update, and delete probes
-   must fail without residue. This is mandatory because local SQL insertion
-   does not model the hosted Storage API's `INSERT ... RETURNING *` behavior.
+   must fail without residue. The probe must also prove that known-length and
+   chunked/no-`Content-Length` bodies over 3 MiB cannot persist, record that a
+   declared image MIME is not byte-content validation, and exercise repeated
+   and abandoned uploads. This is mandatory because local SQL insertion does
+   not model the hosted Storage API's `INSERT ... RETURNING *` or edge body-size
+   behavior. Do not present the direct policy as a complete upload-security or
+   cost-control boundary.
+
+   Supabase documents SQL bucket creation but separately advises treating the
+   Storage schema as read-only. Therefore migration success alone is not an
+   operational receipt for this metadata transition: the disposable hosted
+   clone must confirm the exact values through the official bucket API and
+   prove the allow/deny cases through actual Storage uploads. If the hosted
+   service does not honor the SQL metadata update, stop and perform an explicitly
+   reviewed Dashboard or official `updateBucket` transition instead; do not open
+   either production write fence.
 9. **Deploy clients and cron with both fences closed.** Deploy the compatible
    web/API, confirm
    `CRON_SECRET`, `SUPABASE_EXPECTED_URL`, `SUPABASE_EXPECTED_PROJECT_REF`,
@@ -244,13 +326,16 @@ semantically identical policies still fail because they change the multiset.
    Produce a signed real-device iOS/Android build pointed at the same production
    URL and Supabase project; simulator-only evidence is insufficient. Run the
    production canary in read-only mode and re-run the final Storage receipt.
-10. **Authorize lift and positive production canary.** Only when every prior
-    receipt is green may the controller remove the exact temporary database
-    fence artifacts. Verify the helper turns true, perform one authorized
-    disposable own-path upload, validate the object, delete the fixture through
-    the approved service path, and prove no residue. Any failure immediately
-    returns to the fail-closed zero-policy state. Never use the 19-policy
-    emergency restore as the automatic rollback.
+10. **Keep the Storage write fence closed pending quota/sanitation work.** The
+    current direct INSERT policy has no atomic per-user/couple object-count or
+    cumulative-byte quota, and bucket MIME matching validates only the declared
+    request type. Hosted compatibility probes may temporarily lift a disposable
+    clone, but production must remain fail-closed until a separately reviewed
+    server-owned upload/finalize flow validates bytes, decodes and re-encodes
+    images, atomically reserves quota, binds each final object to a message, and
+    reaps abandoned/orphaned objects. A positive path-only canary is not enough
+    to authorize production lift. Never use the 19-policy emergency restore as
+    an automatic rollback.
 
 ## Authenticated Storage negative probes
 
@@ -334,14 +419,18 @@ both mutations and broad public reads remain removed. The separate
 `storage_global_write_freeze_rollback.sql` is phase-1 recovery only: before the
 privacy contraction it preserves the exact four historical reads while keeping
 all mutations disabled. Keep the global database fence installed. There is no
-automatic phase-2 compatibility restore for the four public reads.
+automatic phase-2 compatibility restore for the four public reads. Neither the
+safe rollback nor its verifier weakens bucket metadata, so the `chat-image`
+size/MIME fence remains in force and all five dormant buckets remain private.
 
 Only for an explicitly approved, time-bounded incident may an operator use
 `community_upload_service_fence_emergency_rollback.sql`, followed immediately
 by `_emergency_rollback_verify.sql`. That pair restores/proves all 19 insecure
 historical policies and reopens public reads and unsigned mutations. It is never
-an automatic/controller rollback. Keeping a non-empty staging bucket private is
-safer than deleting it.
+an automatic/controller rollback. The emergency operation is policy-only and
+does not set any dormant bucket back to public; its verifier requires all five
+to remain private.
+Keeping a non-empty staging bucket private is safer than deleting it.
 
 ## Account deletion interaction
 

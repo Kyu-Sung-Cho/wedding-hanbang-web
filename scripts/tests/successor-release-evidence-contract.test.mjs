@@ -39,6 +39,26 @@ function fixture(mutate) {
     join(root, "supabase", "release-manifests"),
     { recursive: true },
   );
+  cpSync(
+    join(REPO_ROOT, "supabase", "platform-operations", "security"),
+    join(root, "supabase", "platform-operations", "security"),
+    { recursive: true },
+  );
+  mkdirSync(join(root, "docs", "operations"), { recursive: true });
+  cpSync(
+    join(
+      REPO_ROOT,
+      "docs",
+      "operations",
+      "COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+    ),
+    join(
+      root,
+      "docs",
+      "operations",
+      "COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+    ),
+  );
   const manifestPath = join(root, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const mutated = mutate(manifest) ?? manifest;
@@ -105,6 +125,44 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.deploymentBlocked, true);
   assert.equal(result.releaseCommit, null);
   assert.equal(result.manifest.status, "deployment_blocked");
+  assert.equal(result.forwardOnlySecurityOperationCount, 1);
+  assert.equal(result.requiredDocumentCount, 1);
+});
+
+test("successor pins the deferred public-identity cutover and its rollout gate", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+  const [operation] = result.manifest.forwardOnlySecurityOperations;
+  assert.equal(operation.id, "community-public-identity-contract-20260803104500");
+  assert.equal(operation.phase, "post-application-deploy");
+  assert.equal(
+    operation.requiredGate,
+    "minimum-supported-community-client-version-enforced",
+  );
+  assert.equal(operation.rollbackPolicy, "forward-fix-only-no-auth-uuid-regrant");
+});
+
+test("successor rejects operation, evidence, or rollout-document drift", () => {
+  expectBlocked(
+    fixture((manifest) => {
+      manifest.forwardOnlySecurityOperations[0].requiredGate = "skipped";
+      return manifest;
+    }),
+    "FORWARD_ONLY_SECURITY_OPERATIONS_INVALID",
+  );
+  expectBlocked(
+    fixture((manifest) => {
+      manifest.forwardOnlySecurityOperations[0].apply.sha256 = "0".repeat(64);
+      return manifest;
+    }),
+    "PIN_HASH_MISMATCH",
+  );
+  expectBlocked(
+    fixture((manifest) => {
+      manifest.requiredDocuments[0].sha256 = "0".repeat(64);
+      return manifest;
+    }),
+    "PIN_HASH_MISMATCH",
+  );
 });
 
 test("증거 5종이 같은 커밋에 묶여 있으면 고정 상태로 통과한다", () => {

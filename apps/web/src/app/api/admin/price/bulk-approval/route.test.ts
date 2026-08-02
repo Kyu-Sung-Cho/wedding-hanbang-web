@@ -4,11 +4,17 @@ const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
   rpc: vi.fn(),
+  rateLimit: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
   verifyAdmin: mocks.verifyAdmin,
   getServiceClient: mocks.getServiceClient,
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
 }));
 
 import { GET, POST } from "./route";
@@ -47,6 +53,7 @@ describe("admin automatic validation bulk approval", () => {
     vi.clearAllMocks();
     mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     mocks.getServiceClient.mockReturnValue({ rpc: mocks.rpc });
+    mocks.rateLimit.mockResolvedValue(null);
   });
 
   it("fails closed before service access for a non-admin count request", async () => {

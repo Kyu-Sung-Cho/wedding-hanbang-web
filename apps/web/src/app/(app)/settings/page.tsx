@@ -250,6 +250,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [deleteSupportEmail, setDeleteSupportEmail] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
@@ -474,6 +475,7 @@ export default function SettingsPage() {
     if (deleteConfirmText !== "탈퇴합니다" || !deleteReason) return;
     setDeleting(true);
     setDeleteError("");
+    setDeleteSupportEmail("");
 
     try {
       const res = await fetch("/api/auth/delete", {
@@ -485,6 +487,7 @@ export default function SettingsPage() {
         error?: string;
         message?: string;
         pending?: boolean;
+        supportEmail?: string;
       };
 
       if (data.pending) {
@@ -492,24 +495,19 @@ export default function SettingsPage() {
           data.message
             ?? "계정 삭제 요청을 안전하게 처리 중이에요. 새 파일 업로드는 제한돼요.",
         );
-        try {
-          await signOut();
-        } finally {
-          window.location.href = "/login";
-        }
+        await signOut();
         return;
       }
 
       if (!res.ok) {
         setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
+        setDeleteSupportEmail(
+          data.supportEmail === "support@hanbang.ai" ? data.supportEmail : "",
+        );
         return;
       }
 
-      try {
-        await signOut();
-      } finally {
-        window.location.href = "/login";
-      }
+      await signOut();
     } catch {
       setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
@@ -535,7 +533,6 @@ export default function SettingsPage() {
         return;
       }
 
-      document.cookie = "onboarding_complete=; path=/; max-age=0";
       window.location.href = "/onboarding";
     } catch {
       setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -1217,7 +1214,11 @@ export default function SettingsPage() {
         </button>
 
         <button
-          onClick={() => setShowDeleteModal(true)}
+          onClick={() => {
+            setDeleteError("");
+            setDeleteSupportEmail("");
+            setShowDeleteModal(true);
+          }}
           className="w-full flex items-center justify-center gap-2 py-3.5 text-[#B5ADA3] text-base font-light hover:text-red-400 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
@@ -1357,7 +1358,17 @@ export default function SettingsPage() {
               </div>
 
               {deleteError && (
-                <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
+                <div className="text-sm text-red-500 text-center mb-4">
+                  <p>{deleteError}</p>
+                  {deleteSupportEmail && (
+                    <a
+                      href={`mailto:${deleteSupportEmail}`}
+                      className="mt-2 inline-flex font-medium underline underline-offset-4"
+                    >
+                      {deleteSupportEmail}로 요청하기
+                    </a>
+                  )}
+                </div>
               )}
 
               <button
@@ -1373,6 +1384,7 @@ export default function SettingsPage() {
                   setShowDeleteModal(false);
                   setDeleteConfirmText("");
                   setDeleteError("");
+                  setDeleteSupportEmail("");
                   setDeleteReason("");
                 }}
                 className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"

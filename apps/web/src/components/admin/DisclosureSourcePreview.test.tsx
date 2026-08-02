@@ -23,7 +23,7 @@ describe("DisclosureSourcePreview", () => {
     expect(html).not.toContain("<script>alert(1)</script>");
   });
 
-  it("keeps a PDF in the existing inline viewer", () => {
+  it("renders a PDF's server-derived text instead of embedding the untrusted document", () => {
     const html = renderToStaticMarkup(
       <DisclosureSourcePreview
         source={{
@@ -35,8 +35,25 @@ describe("DisclosureSourcePreview", () => {
       />,
     );
 
-    expect(html).toContain("<iframe");
+    expect(html).not.toContain("<iframe");
     expect(html).toContain("https://storage.example/signed-pdf");
-    expect(html).not.toContain("server preview is secondary for PDFs");
+    expect(html).toContain("server preview is secondary for PDFs");
+  });
+
+  it("offers a separate-tab link when a PDF has no inert preview", () => {
+    const html = renderToStaticMarkup(
+      <DisclosureSourcePreview
+        source={{
+          label: "untrusted.pdf",
+          signed_url: "https://storage.example/signed-pdf",
+        }}
+        title="가격 공시 원본"
+      />,
+    );
+
+    expect(html).not.toContain("<iframe");
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noreferrer"');
+    expect(html).toContain("https://storage.example/signed-pdf");
   });
 });

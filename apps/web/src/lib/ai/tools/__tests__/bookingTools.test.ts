@@ -37,6 +37,7 @@ class FakeQuery {
   eq() { return this; }
   in() { return this; }
   neq() { return this; }
+  not() { return this; }
   order() { return this; }
   limit() { return this; }
 

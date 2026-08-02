@@ -19,7 +19,8 @@ export async function getBetaCount(): Promise<number> {
     const { count } = await admin
       .from("preregistrations")
       .select("id", { count: "exact", head: true })
-      .eq("is_beta_candidate", true);
+      .eq("is_beta_candidate", true)
+      .not("email_verified_at", "is", null);
     return count ?? 0;
   } catch {
     return 0;

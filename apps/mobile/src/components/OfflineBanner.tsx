@@ -3,8 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Animated, AppState, Platform } from "react-native";
 import { WifiOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import {
+  buildMobileSiteUrl,
+  resolveMobileSiteOrigin,
+} from "@/lib/siteUrl.mjs";
 
-const CONNECTIVITY_CHECK_URL = "https://www.google.com/generate_204";
+const SITE_ORIGIN = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const CONNECTIVITY_CHECK_URL = buildMobileSiteUrl("/api/health", SITE_ORIGIN);
 const CHECK_TIMEOUT_MS = 5000;
 const HIDDEN_OFFSET_Y = -120;
 

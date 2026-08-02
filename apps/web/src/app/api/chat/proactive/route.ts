@@ -11,6 +11,8 @@ import {
 import { createHash } from "node:crypto";
 import { shouldRecallSavedNotes } from "@/lib/amora/savedNotesRecall";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { WEDDING_JOURNEY_PRIVATE_SELECT } from "@/lib/privacy/privateDataSelects";
 
 const MUTATION_RESPONSE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -104,7 +106,7 @@ async function handleProactiveRequest(req: NextRequest) {
     // 여정 조회
     const { data: journey } = await admin
       .from("wedding_journeys")
-      .select("*")
+      .select(WEDDING_JOURNEY_PRIVATE_SELECT)
       .eq("couple_id", profile.couple_id)
       .single();
 
@@ -164,7 +166,7 @@ async function handleProactiveRequest(req: NextRequest) {
         if (insertError.code === "23505") {
           return NextResponse.json({ triggered: false });
         }
-        console.error("모멘트 발화 insert 실패:", insertError);
+        console.error("모멘트 발화 insert 실패:", safeErrorDiagnostic(insertError));
         return NextResponse.json(
           { triggered: false, reason: "persistence_failed" },
           { status: 503 },
@@ -207,7 +209,7 @@ async function handleProactiveRequest(req: NextRequest) {
       );
       // 23505 = 동시 요청이 먼저 발화 — 중복 없이 조용히 종료
       if (recallError && recallError.code !== "23505") {
-        console.error("저장본 회수 발화 실패:", recallError);
+        console.error("저장본 회수 발화 실패:", safeErrorDiagnostic(recallError));
       } else if (typeof recallMessageId === "string") {
         return NextResponse.json({
           triggered: true,
@@ -315,12 +317,12 @@ async function handleProactiveRequest(req: NextRequest) {
     }
 
     if (persistenceError || duplicateWithoutMessage || typeof insertedMessageId !== "string") {
-      console.error("[chat/proactive] lifecycle persistence failed", persistenceError);
+      console.error("[chat/proactive] lifecycle persistence failed", safeErrorDiagnostic(persistenceError));
       const failureCode = persistenceError || duplicateWithoutMessage
         ? "PERSISTENCE_FAILED"
         : "CONSENT_REQUIRED";
       await failChatRequest({ ...claimParams, failureCode }, admin)
-        .catch((error) => console.error("[chat/proactive] claim failure marker failed", error));
+        .catch((error) => console.error("[chat/proactive] claim failure marker failed", safeErrorDiagnostic(error)));
       if (!persistenceError && !duplicateWithoutMessage) {
         return NextResponse.json({ triggered: false, reason: "consent_required" });
       }
@@ -333,9 +335,9 @@ async function handleProactiveRequest(req: NextRequest) {
     try {
       await completeChatRequest({ ...claimParams, messageId: insertedMessageId }, admin);
     } catch (error) {
-      console.error("[chat/proactive] lifecycle claim completion failed", error);
+      console.error("[chat/proactive] lifecycle claim completion failed", safeErrorDiagnostic(error));
       await failChatRequest({ ...claimParams, failureCode: "CLAIM_COMPLETION_FAILED" }, admin)
-        .catch((claimError) => console.error("[chat/proactive] claim failure marker failed", claimError));
+        .catch((claimError) => console.error("[chat/proactive] claim failure marker failed", safeErrorDiagnostic(claimError)));
       return NextResponse.json(
         { triggered: false, reason: "persistence_failed" },
         { status: 503 },
@@ -348,7 +350,7 @@ async function handleProactiveRequest(req: NextRequest) {
       messageId: insertedMessageId,
     });
   } catch (err) {
-    console.error("프로액티브 체크 에러:", err);
+    console.error("프로액티브 체크 에러:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { triggered: false, reason: "internal_error" },
       { status: 500 },

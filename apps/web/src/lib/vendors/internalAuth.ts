@@ -1,9 +1,11 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-export const INTERNAL_VENDOR_TOKEN_HEADER = "x-internal-token";
+import {
+  isValidServerSecret,
+  resolveAliasedServerSecret,
+} from "@hanbang/shared/security/server-secret-policy";
 
-const MIN_SECRET_LENGTH = 32;
-const MAX_TOKEN_LENGTH = 512;
+export const INTERNAL_VENDOR_TOKEN_HEADER = "x-internal-token";
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -18,16 +20,10 @@ export function resolveInternalApiToken(
     VENDOR_INTERNAL_TOKEN: process.env.VENDOR_INTERNAL_TOKEN,
   },
 ): string {
-  const canonicalSecret = environment.INTERNAL_API_TOKEN ?? "";
-  const legacySecret = environment.VENDOR_INTERNAL_TOKEN ?? "";
-  if (
-    canonicalSecret.length > 0
-    && legacySecret.length > 0
-    && canonicalSecret !== legacySecret
-  ) {
-    return "";
-  }
-  return canonicalSecret || legacySecret;
+  return resolveAliasedServerSecret(
+    environment.INTERNAL_API_TOKEN,
+    environment.VENDOR_INTERNAL_TOKEN,
+  );
 }
 
 export function verifyInternalVendorRequest(
@@ -35,11 +31,7 @@ export function verifyInternalVendorRequest(
   configuredSecret = resolveInternalApiToken(),
 ): boolean {
   const received = request.headers.get(INTERNAL_VENDOR_TOKEN_HEADER) ?? "";
-  if (
-    configuredSecret.length < MIN_SECRET_LENGTH
-    || received.length === 0
-    || received.length > MAX_TOKEN_LENGTH
-  ) {
+  if (!isValidServerSecret(configuredSecret) || !isValidServerSecret(received)) {
     return false;
   }
 

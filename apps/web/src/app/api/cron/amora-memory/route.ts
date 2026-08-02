@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySecretBearerRequest } from "@/lib/auth/secretBearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AMORA_MEMORY_CURSOR_SUMMARY,
@@ -25,6 +26,7 @@ export const maxDuration = 120;
 
 const MAX_JOBS_PER_RUN = 3;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 type MemoryJob = {
   id: string;
@@ -259,12 +261,17 @@ async function processJob(
 }
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!verifySecretBearerRequest(request, process.env.CRON_SECRET)) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: NO_STORE_HEADERS },
+    );
   }
   if (!isAuxiliaryMemoryRuntimeEnabled()) {
-    return NextResponse.json({ ok: true, enabled: false, claimed: 0 });
+    return NextResponse.json(
+      { ok: true, enabled: false, claimed: 0 },
+      { headers: NO_STORE_HEADERS },
+    );
   }
 
   const stats = {
@@ -280,7 +287,10 @@ export async function GET(request: NextRequest) {
     const { data, error } = await admin.rpc("claim_amora_memory_job", { p_lease_seconds: 300 });
     if (error) {
       console.error("[amora-memory-cron] claim failed", error.code ?? "unknown");
-      return NextResponse.json({ error: "memory queue unavailable", ...stats }, { status: 503 });
+      return NextResponse.json(
+        { error: "memory queue unavailable", ...stats },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
     }
     const job = Array.isArray(data) ? (data[0] as MemoryJob | undefined) : undefined;
     if (!job) break;
@@ -290,10 +300,13 @@ export async function GET(request: NextRequest) {
       stats[result] += 1;
     } catch (error) {
       stats.failed += 1;
-      console.error("[amora-memory-cron] job failed", { jobId: job.id, code: errorCode(error) });
+      console.error("[amora-memory-cron] job failed", { code: errorCode(error) });
       await finishJob(job.id, job.attempt_count, false, errorCode(error));
     }
   }
 
-  return NextResponse.json({ ok: true, enabled: true, ...stats });
+  return NextResponse.json(
+    { ok: true, enabled: true, ...stats },
+    { headers: NO_STORE_HEADERS },
+  );
 }

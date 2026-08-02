@@ -12,6 +12,13 @@ import {
   vendorRegionLabel,
 } from "@/lib/admin/vendorWorkspace";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { readBoundedJsonValue } from "@/utils/requestValidation";
+import {
+  checkAdminMutationRateLimit,
+  checkAdminReadRateLimit,
+} from "@/lib/admin/adminReadBoundary";
+
+const MAX_BODY_BYTES = 32 * 1024;
 
 type UnknownRecord = Record<string, unknown>;
 const ACTIVE_VENDOR_STATUSES = ["pending", "approved"] as const;
@@ -48,6 +55,8 @@ export async function GET(
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminReadRateLimit(request, userId, "vendor-enrichment-detail");
+  if (limited) return limited;
   const id = z.string().uuid().safeParse((await params).id);
   if (!id.success) {
     return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
@@ -166,17 +175,25 @@ export async function PATCH(
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminMutationRateLimit(
+    request,
+    userId,
+    "vendor-enrichment-save",
+  );
+  if (limited) return limited;
   const id = z.string().uuid().safeParse((await params).id);
   if (!id.success) {
     return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
+  const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
+    if (bodyResult.reason === "too_large") {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
     return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
+  const body = bodyResult.value;
 
   try {
     const client = getServiceClient();

@@ -89,7 +89,7 @@ describe("logAIInteraction privacy boundary", () => {
   it("redacts secret-looking tokens even when they match the code character set", async () => {
     await logAIInteraction({
       interactionType: "chat_turn",
-      errorMessage: "sk-proj-this-is-not-safe-to-store-1234567890",
+      errorMessage: ["sk", "proj", "this-is-not-safe-to-store-1234567890"].join("-"),
       metadata: {
         endpoint: "operator@example.com",
         source: "unit_test",

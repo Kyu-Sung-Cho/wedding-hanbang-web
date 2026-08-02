@@ -7,6 +7,10 @@
  */
 
 import { verifySupabaseServiceDestinationFromEnv } from "./lib/supabase-service-destination.mjs";
+import {
+  isValidServerSecret,
+  resolveAliasedServerSecret,
+} from "../packages/shared/src/security/serverSecretPolicy.mjs";
 
 const env = process.env;
 
@@ -49,9 +53,22 @@ function isPlausibleSecret(value) {
   return (
     typeof value === "string"
     && value.length >= 32
+    && value.length <= 512
+    && !/[\s\u0000-\u001f\u007f]/u.test(value)
+    && new Set(value).size >= 12
     && !/(?:placeholder|example|test-only|replace-with|not-a-real)/i.test(value)
   );
 }
+
+const internalApiToken = resolveAliasedServerSecret(
+  env.INTERNAL_API_TOKEN,
+  env.VENDOR_INTERNAL_TOKEN,
+);
+const internalApiTokenAliasesCompatible = !(
+  env.INTERNAL_API_TOKEN
+  && env.VENDOR_INTERNAL_TOKEN
+  && env.INTERNAL_API_TOKEN !== env.VENDOR_INTERNAL_TOKEN
+);
 
 const checks = {
   openaiEnabledFlagPresent: Boolean(env.AMORA_OPENAI_ENABLED),
@@ -62,8 +79,10 @@ const checks = {
   fastModelExact: env.OPENAI_AMORA_FAST_MODEL === "gpt-5.6-luna",
   primaryReasoningNone: env.OPENAI_AMORA_PRIMARY_REASONING_EFFORT === "none",
   fastReasoningNone: env.OPENAI_AMORA_FAST_REASONING_EFFORT === "none",
-  coupleQuotaDisabled: env.AMORA_COUPLE_QUOTA_ENABLED === "false",
+  coupleQuotaEnabled: env.AMORA_COUPLE_QUOTA_ENABLED === "true",
   costGuardEnabled: env.AMORA_COST_GUARD_ENABLED === "true",
+  demoMessageCapConfigured:
+    isPositiveInteger(env.AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP),
   globalMessageCapConfigured:
     isPositiveInteger(env.AMORA_GLOBAL_DAILY_MESSAGE_CAP),
   globalCostCapConfigured:
@@ -79,6 +98,8 @@ const checks = {
     || env.AMORA_PROACTIVE_CHAT_ENABLED === "false",
   communityAiDisabledByDefault:
     env.AMORA_COMMUNITY_AI_COMMENT_ENABLED === "false",
+  naverPlaceSearchDisabledForExpandDeploy:
+    env.NAVER_PLACE_SEARCH_ENABLED === "false",
   aiLogRetentionCronDisabledForExpandDeploy:
     env.AI_LOG_RETENTION_CRON_ENABLED === "false",
   accountDeletionIntakeDisabledForExpandDeploy:
@@ -94,8 +115,27 @@ const checks = {
   supabaseServiceRolePresent: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
   supabaseDestinationPinned: hasPinnedSupabaseDestination(),
   adminBootstrapSecretConfigured: isPlausibleSecret(env.ADMIN_PASSWORD),
-  cronSecretConfigured: isPlausibleSecret(env.CRON_SECRET),
+  cronSecretConfigured: isValidServerSecret(env.CRON_SECRET),
+  internalApiTokenConfigured: isValidServerSecret(internalApiToken),
+  internalApiTokenAliasesCompatible,
   rateLimitSecretConfigured: isPlausibleSecret(env.RATE_LIMIT_KEY_SECRET),
+  demoSessionSecretConfigured: isPlausibleSecret(env.DEMO_SESSION_SECRET),
+  demoSessionSecretDistinct:
+    !isPlausibleSecret(env.DEMO_SESSION_SECRET)
+    || (
+      env.DEMO_SESSION_SECRET !== env.RATE_LIMIT_KEY_SECRET
+      && env.DEMO_SESSION_SECRET !== env.CRON_SECRET
+      && env.DEMO_SESSION_SECRET !== env.ADMIN_PASSWORD
+    ),
+  evalSecretConfigured: isPlausibleSecret(env.AMORA_EVAL_SECRET),
+  evalSecretDistinct:
+    !isPlausibleSecret(env.AMORA_EVAL_SECRET)
+    || (
+      env.AMORA_EVAL_SECRET !== env.DEMO_SESSION_SECRET
+      && env.AMORA_EVAL_SECRET !== env.RATE_LIMIT_KEY_SECRET
+      && env.AMORA_EVAL_SECRET !== env.CRON_SECRET
+      && env.AMORA_EVAL_SECRET !== env.ADMIN_PASSWORD
+    ),
   priceCatalogExpectedCountConfigured:
     isPublishedVendorCount(env.PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT),
   priceCatalogExpectedSlugDigestConfigured:

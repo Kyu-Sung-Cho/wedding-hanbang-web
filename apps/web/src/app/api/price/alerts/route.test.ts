@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
   createClientFromRequest: vi.fn(),
   publicMaybeSingle: vi.fn(),
   upsert: vi.fn(),
@@ -9,6 +10,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
+}));
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
+  rateLimitKey: (scope: string, _request: Request, userId?: string) =>
+    `${scope}:${userId ?? "guest"}`,
 }));
 
 import { DELETE, GET, POST } from "./route";
@@ -95,6 +101,7 @@ describe("GET /api/price/alerts", () => {
 describe("POST /api/price/alerts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.publicMaybeSingle.mockResolvedValue({ data: { vendor_id: VENDOR_ID }, error: null });
     mocks.upsert.mockResolvedValue({ error: null });
     mocks.deleteResult.mockResolvedValue({ error: null });
@@ -184,5 +191,18 @@ describe("POST /api/price/alerts", () => {
     }));
     expect(response.status).toBe(413);
     expect(mocks.publicMaybeSingle).not.toHaveBeenCalled();
+  });
+
+  it("rejects stale-account subscribe and remove mutations before database access", async () => {
+    const headers = { "x-hanbang-expected-actor": "50000000-0000-4000-8000-000000000001" };
+    const [subscribe, remove] = await Promise.all([
+      POST(request({ vendorId: VENDOR_ID }, "POST", headers)),
+      DELETE(request({ vendorId: VENDOR_ID }, "DELETE", headers)),
+    ]);
+
+    expect(subscribe.status).toBe(409);
+    expect(remove.status).toBe(409);
+    expect(mocks.publicMaybeSingle).not.toHaveBeenCalled();
+    expect(mocks.deleteResult).not.toHaveBeenCalled();
   });
 });

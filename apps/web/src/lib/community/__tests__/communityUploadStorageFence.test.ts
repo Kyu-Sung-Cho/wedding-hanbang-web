@@ -14,6 +14,27 @@ const migration = readFileSync(
   ),
   "utf8"
 );
+const guestbookPrivacyMigration = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260802134000_close_dormant_guestbook_public_surface.sql"
+  ),
+  "utf8"
+);
+const dormantStoragePrivacyMigration = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260802143000_close_empty_dormant_storage_buckets.sql"
+  ),
+  "utf8"
+);
+const chatImageBucketLimitsMigration = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260802157000_harden_chat_image_bucket_upload_limits.sql"
+  ),
+  "utf8"
+);
 
 const CURRENT_DIRECT_WRITE_POLICIES = [
   "community-images own folder write",
@@ -95,6 +116,30 @@ function taggedDoBlock(sql: string, tag: string) {
   if (start < 0 || end < 0) throw new Error(`missing tagged DO block: ${tag}`);
   return sql.slice(start, end + closing.length);
 }
+
+function guestbookBucketPrivacyTransition(sql: string) {
+  const statement = sql.match(
+    /UPDATE\s+storage\.buckets\s+SET\s+public\s*=\s*FALSE\s+WHERE\s+id\s+IN\s*\(\s*'guestbook-images'\s*,\s*'guestbook-uploads'\s*\)\s*;/i
+  );
+  if (!statement) throw new Error("missing guestbook bucket privacy transition");
+  return statement[0];
+}
+
+const guestbookBucketPrivacyOperation = guestbookBucketPrivacyTransition(
+  guestbookPrivacyMigration
+);
+
+function dormantStorageBucketPrivacyTransition(sql: string) {
+  const statement = sql.match(
+    /UPDATE\s+storage\.buckets\s+SET\s+public\s*=\s*FALSE\s+WHERE\s+id\s+IN\s*\(\s*'cohort-images'\s*,\s*'invitation-photos'\s*,\s*'user_photos'\s*\)\s*;/i
+  );
+  if (!statement) throw new Error("missing dormant Storage bucket privacy transition");
+  return statement[0];
+}
+
+const dormantStorageBucketPrivacyOperation = dormantStorageBucketPrivacyTransition(
+  dormantStoragePrivacyMigration
+);
 
 async function createStorageDb() {
   const db = await PGlite.create({ extensions: { pgcrypto } });
@@ -291,6 +336,38 @@ async function createStorageDb() {
   return db;
 }
 
+async function applyPostMigrationBucketPrivacy(
+  db: Awaited<ReturnType<typeof createStorageDb>>
+) {
+  await db.exec(guestbookBucketPrivacyOperation);
+  await db.exec(dormantStorageBucketPrivacyOperation);
+  await db.exec(chatImageBucketLimitsMigration);
+}
+
+async function expectPrivatePostMigrationBuckets(
+  db: Awaited<ReturnType<typeof createStorageDb>>
+) {
+  const buckets = await db.query<{ id: string; public: boolean }>(`
+    SELECT id, public
+    FROM storage.buckets
+    WHERE id IN (
+      'cohort-images',
+      'guestbook-images',
+      'guestbook-uploads',
+      'invitation-photos',
+      'user_photos'
+    )
+    ORDER BY id
+  `);
+  expect(buckets.rows).toEqual([
+    { id: "cohort-images", public: false },
+    { id: "guestbook-images", public: false },
+    { id: "guestbook-uploads", public: false },
+    { id: "invitation-photos", public: false },
+    { id: "user_photos", public: false },
+  ]);
+}
+
 describe("community upload storage release fence", () => {
   it("creates only app-owned session state and has no hosted Storage prerequisite", () => {
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS public.community_upload_sessions");
@@ -307,11 +384,137 @@ describe("community upload storage release fence", () => {
     expect(migration).toContain("interval '2 hours 5 minutes'");
   });
 
+  it("pins the private chat-image bucket to the reviewed size and MIME contract", async () => {
+    expect(chatImageBucketLimitsMigration).toMatch(
+      /UPDATE\s+storage\.buckets[\s\S]*file_size_limit\s*=\s*3\s*\*\s*1024\s*\*\s*1024/i
+    );
+    expect(chatImageBucketLimitsMigration).toContain(
+      "ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']::text[]"
+    );
+    expect(chatImageBucketLimitsMigration).not.toMatch(
+      /\bstorage\.objects\b|\b(?:CREATE|DROP|ALTER)\s+POLICY\b/i
+    );
+
+    const db = await createStorageDb();
+    try {
+      await expect(db.exec(chatImageBucketLimitsMigration)).resolves.toBeDefined();
+      await expect(db.exec(chatImageBucketLimitsMigration)).resolves.toBeDefined();
+
+      const contract = await db.query<{
+        id: string;
+        name: string;
+        public: boolean;
+        fileSizeLimit: string;
+        allowedMimeTypes: string[];
+        objectCount: string;
+      }>(`
+        SELECT bucket.id, bucket.name, bucket.public,
+          bucket.file_size_limit::text AS "fileSizeLimit",
+          bucket.allowed_mime_types AS "allowedMimeTypes",
+          count(storage_object.id)::text AS "objectCount"
+        FROM storage.buckets AS bucket
+        LEFT JOIN storage.objects AS storage_object
+          ON storage_object.bucket_id = bucket.id
+        WHERE bucket.id = 'chat-image'
+        GROUP BY bucket.id, bucket.name, bucket.public,
+          bucket.file_size_limit, bucket.allowed_mime_types
+      `);
+      expect(contract.rows).toEqual([{
+        id: "chat-image",
+        name: "chat-image",
+        public: false,
+        fileSizeLimit: String(3 * 1024 * 1024),
+        allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        objectCount: "6",
+      }]);
+
+      const driftCases = [
+        {
+          mutation: "UPDATE storage.buckets SET public = TRUE WHERE id = 'chat-image'",
+          error: /CHAT_IMAGE_BUCKET_LIMIT_FENCE_IDENTITY_OR_PRIVACY_DRIFT/,
+        },
+        {
+          mutation: `UPDATE storage.buckets
+            SET file_size_limit = 1024 * 1024
+            WHERE id = 'chat-image'`,
+          error: /CHAT_IMAGE_BUCKET_LIMIT_FENCE_PRESTATE_DRIFT/,
+        },
+        {
+          mutation: `UPDATE storage.buckets
+            SET allowed_mime_types = ARRAY['image/jpeg']
+            WHERE id = 'chat-image'`,
+          error: /CHAT_IMAGE_BUCKET_LIMIT_FENCE_PRESTATE_DRIFT/,
+        },
+        {
+          mutation: "UPDATE storage.buckets SET name = 'renamed' WHERE id = 'chat-image'",
+          error: /CHAT_IMAGE_BUCKET_LIMIT_FENCE_IDENTITY_OR_PRIVACY_DRIFT/,
+        },
+        {
+          mutation: "DELETE FROM storage.buckets WHERE id = 'chat-image'",
+          error: /CHAT_IMAGE_BUCKET_LIMIT_FENCE_BUCKET_MISSING/,
+        },
+      ];
+
+      for (const testCase of driftCases) {
+        await db.exec("BEGIN");
+        await db.exec(testCase.mutation);
+        await expect(
+          db.exec(operationBody(chatImageBucketLimitsMigration))
+        ).rejects.toThrow(testCase.error);
+        await db.exec("ROLLBACK");
+      }
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("accepts the exact fresh-bootstrap chat-image state and rejects nearby drift", async () => {
+    const db = await createStorageDb();
+    try {
+      await db.exec(`
+        UPDATE storage.buckets
+        SET file_size_limit = 10 * 1024 * 1024,
+            allowed_mime_types =
+              ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        WHERE id = 'chat-image';
+      `);
+
+      await expect(db.exec(chatImageBucketLimitsMigration)).resolves.toBeDefined();
+      const contract = await db.query<{
+        fileSizeLimit: string;
+        allowedMimeTypes: string[];
+      }>(`
+        SELECT file_size_limit::text AS "fileSizeLimit",
+          allowed_mime_types AS "allowedMimeTypes"
+        FROM storage.buckets
+        WHERE id = 'chat-image'
+      `);
+      expect(contract.rows).toEqual([{
+        fileSizeLimit: String(3 * 1024 * 1024),
+        allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+      }]);
+
+      await db.exec("BEGIN");
+      await db.exec(`
+        UPDATE storage.buckets
+        SET file_size_limit = 10 * 1024 * 1024,
+            allowed_mime_types =
+              ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        WHERE id = 'chat-image';
+      `);
+      await expect(
+        db.exec(operationBody(chatImageBucketLimitsMigration))
+      ).rejects.toThrow(/CHAT_IMAGE_BUCKET_LIMIT_FENCE_PRESTATE_DRIFT/);
+      await db.exec("ROLLBACK");
+    } finally {
+      await db.close();
+    }
+  });
+
   it("executes the exact 19 -> frozen four -> final one -> fail-closed zero -> final one policy sequence", async () => {
     const db = await createStorageDb();
     try {
       await db.exec(emergencyRollbackOperation);
-      await expect(db.exec(emergencyRollbackVerifyOperation)).resolves.toBeDefined();
       await expect(db.exec(inventoryOperation)).resolves.toBeDefined();
       await db.exec(`
         DELETE FROM storage.buckets WHERE id = 'community-media-staging';
@@ -321,6 +524,7 @@ describe("community upload storage release fence", () => {
       await expect(db.exec(storageFreezeReleaseCheck)).resolves.toBeDefined();
       await expect(db.exec(taggedDoBlock(preReleaseCheck, "pre_storage_1080")))
         .resolves.toBeDefined();
+      await applyPostMigrationBucketPrivacy(db);
       await db.exec(`
         INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
         VALUES (
@@ -338,6 +542,7 @@ describe("community upload storage release fence", () => {
 
       await db.exec(rollbackOperation);
       await expect(db.exec(rollbackVerifyOperation)).resolves.toBeDefined();
+      await expectPrivatePostMigrationBuckets(db);
       const rolledBackPolicies = await db.query<{ policy_count: string }>(`
         SELECT count(*)::text AS policy_count
         FROM pg_policies
@@ -373,6 +578,7 @@ describe("community upload storage release fence", () => {
     try {
       await db.exec(emergencyRollbackOperation);
       await db.exec(freezeOperation);
+      await applyPostMigrationBucketPrivacy(db);
       await db.exec(applyOperation);
 
       const cases = [
@@ -441,6 +647,18 @@ describe("community upload storage release fence", () => {
             VALUES ('community-media-staging', 'fixture/nonzero.png')`,
           error: /COMMUNITY_UPLOAD_PLATFORM_VERIFY_FAILED: bucket contract/,
         },
+        {
+          mutation: `UPDATE storage.buckets
+            SET file_size_limit = NULL
+            WHERE id = 'chat-image'`,
+          error: /COMMUNITY_UPLOAD_PLATFORM_VERIFY_FAILED: bucket contract/,
+        },
+        {
+          mutation: `UPDATE storage.buckets
+            SET allowed_mime_types = ARRAY['image/jpeg', 'text/html']
+            WHERE id = 'chat-image'`,
+          error: /COMMUNITY_UPLOAD_PLATFORM_VERIFY_FAILED: bucket contract/,
+        },
       ];
 
       for (const testCase of cases) {
@@ -459,6 +677,7 @@ describe("community upload storage release fence", () => {
     try {
       await db.exec(emergencyRollbackOperation);
       await db.exec(freezeOperation);
+      await applyPostMigrationBucketPrivacy(db);
       await db.exec(applyOperation);
       await db.exec(`
         ALTER POLICY "chat-image own uploader folder write pf46ue_0"
@@ -504,6 +723,7 @@ describe("community upload storage release fence", () => {
       `);
       await db.exec(emergencyRollbackOperation);
       await expect(db.exec(emergencyRollbackVerifyOperation)).resolves.toBeDefined();
+      await expectPrivatePostMigrationBuckets(db);
     } finally {
       await db.close();
     }
@@ -780,6 +1000,40 @@ describe("community upload storage release fence", () => {
     expect(freezeRecovery).toContain("STORAGE_FREEZE_SAFE_RECOVERY_FAILED");
     expect(freezeRecovery).not.toMatch(/FOR\s+(?:INSERT|UPDATE|DELETE)/i);
 
+    const privacyContractBuckets = [
+      "cohort-images",
+      "guestbook-images",
+      "guestbook-uploads",
+      "invitation-photos",
+      "user_photos",
+    ];
+    for (const sql of [inventory, freezeVerify, freezeReleaseCheck, preReleaseCheck]) {
+      for (const bucket of privacyContractBuckets) {
+        expect(sql).toMatch(new RegExp(`\\('${bucket}',\\s*true\\b`, "i"));
+      }
+    }
+    for (const sql of [
+      apply,
+      verify,
+      rollbackVerify,
+      emergencyRollbackVerify,
+      finalReleaseCheck,
+      postReleaseCheck,
+    ]) {
+      for (const bucket of privacyContractBuckets) {
+        expect(sql).toMatch(new RegExp(`\\('${bucket}',\\s*false\\b`, "i"));
+      }
+    }
+    expect(guestbookPrivacyMigration).toContain(guestbookBucketPrivacyOperation);
+    expect(dormantStoragePrivacyMigration).toContain(
+      dormantStorageBucketPrivacyOperation
+    );
+    for (const rollbackSql of [rollback, emergencyRollback]) {
+      expect(rollbackSql.replace(/^\s*--.*$/gm, "")).not.toMatch(
+        /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|ALTER\s+TABLE|TRUNCATE(?:\s+TABLE)?)\s+storage\.buckets\b/i
+      );
+    }
+
     expect(apply).toContain("COMMUNITY_UPLOAD_PLATFORM_POLICY_REMOVAL_INCOMPLETE");
     expect(apply).toContain("community-media-staging");
     expect(apply).toContain("account_deletion_storage_writes_allowed");
@@ -826,6 +1080,7 @@ describe("community upload storage release fence", () => {
           ('${otherUserId}', '${coupleId}', 'groom');
         GRANT SELECT ON public.profiles TO authenticated;
       `);
+      await applyPostMigrationBucketPrivacy(db);
       await db.exec(rollbackOperation);
       await expect(db.exec(rollbackVerifyOperation)).resolves.toBeDefined();
       await db.exec(applyOperation);
@@ -884,6 +1139,14 @@ describe("community upload storage release fence", () => {
         INSERT INTO storage.objects (bucket_id, name)
         VALUES ('vendor-images', '${userId}/blocked.png');
       `)).rejects.toThrow(/row-level security policy/i);
+      await expect(db.exec(`
+        INSERT INTO storage.objects (bucket_id, name)
+        VALUES ('vendor-images', 'logos/10000000-0000-4000-8000-000000000001.png');
+      `)).rejects.toThrow(/row-level security policy/i);
+      await expect(db.exec(`
+        INSERT INTO storage.objects (bucket_id, name)
+        VALUES ('vendor-licenses', '${userId}/business-license.pdf');
+      `)).rejects.toThrow(/row-level security policy/i);
 
       await db.exec(`
         RESET ROLE;
@@ -931,7 +1194,7 @@ describe("community upload storage release fence", () => {
       "utf8"
     );
 
-    expect(runbook).toMatch(/Exact inventory[\s\S]*Freeze all Storage writes[\s\S]*Verify the frozen four-policy manifest[\s\S]*Drain signed upload tokens[\s\S]*Backup verification and separate hosted restore[\s\S]*Apply all 27 migrations[\s\S]*Create staging and finalize Storage[\s\S]*Hosted-clone canary[\s\S]*Deploy clients and cron with both fences closed[\s\S]*Authorize lift and positive production canary/i);
+    expect(runbook).toMatch(/Exact inventory[\s\S]*Freeze all Storage writes[\s\S]*Verify the frozen four-policy manifest[\s\S]*Drain signed upload tokens[\s\S]*Backup verification and separate hosted restore[\s\S]*Apply all 27 migrations[\s\S]*Create staging and finalize Storage[\s\S]*Hosted-clone canary[\s\S]*Deploy clients and cron with both fences closed[\s\S]*Keep the Storage write fence closed pending quota\/sanitation work/i);
     expect(runbook).toMatch(/2 hours 10 minutes[\s\S]*twice at least five minutes apart/i);
     expect(runbook).toMatch(/Current gate:\s*NO-GO/i);
     expect(runbook).toMatch(/INSERT \.\.\. RETURNING \*/i);

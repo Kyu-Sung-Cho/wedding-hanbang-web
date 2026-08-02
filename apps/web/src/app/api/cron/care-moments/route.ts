@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifySecretBearerRequest } from "@/lib/auth/secretBearer";
 import { NextRequest, NextResponse } from "next/server";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import { Resend } from "resend";
 import {
   buildDueMomentCells,
@@ -11,6 +13,7 @@ import { inspectScheduleEvents } from "@/utils/scheduleEvents";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export const CARE_SCAN_PAGE_SIZE = 100;
 export const CARE_SCAN_PAGES_PER_RUN = 2;
@@ -456,9 +459,11 @@ export async function runCareCron(input: {
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!verifySecretBearerRequest(req, process.env.CRON_SECRET)) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: NO_STORE_HEADERS },
+    );
   }
   // The kill switch also quarantines already-durable work. Otherwise turning it
   // back on later the same day could send payloads prepared before rollback.
@@ -470,19 +475,22 @@ export async function GET(req: NextRequest) {
       });
       const quarantined = objectValue(data);
       if (error || !quarantined) throw new Error("care queue quarantine failed");
-      return NextResponse.json({
-        ok: true,
-        enabled: false,
-        scanned: 0,
-        claimed: 0,
-        quarantinedJobs: quarantined.jobs ?? 0,
-        quarantinedDeliveries: quarantined.deliveries ?? 0,
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          enabled: false,
+          scanned: 0,
+          claimed: 0,
+          quarantinedJobs: quarantined.jobs ?? 0,
+          quarantinedDeliveries: quarantined.deliveries ?? 0,
+        },
+        { headers: NO_STORE_HEADERS },
+      );
     } catch (error) {
-      console.error("[care-cron] kill-switch quarantine failed", error instanceof Error ? error.message : "unknown");
+      console.error("[care-cron] kill-switch quarantine failed", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "care queue quarantine failed" },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
+        { status: 503, headers: NO_STORE_HEADERS },
       );
     }
   }
@@ -491,7 +499,7 @@ export async function GET(req: NextRequest) {
     // Never consume and terminally skip durable jobs because of a bad deploy.
     return NextResponse.json(
       { error: "care email provider is not configured" },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
+      { status: 503, headers: NO_STORE_HEADERS },
     );
   }
 
@@ -499,9 +507,15 @@ export async function GET(req: NextRequest) {
     const admin = getAdmin();
     const resend = new Resend(process.env.RESEND_API_KEY);
     const stats = await runCareCron({ admin, resend, now: new Date() });
-    return NextResponse.json({ ok: true, enabled: true, ...stats });
+    return NextResponse.json(
+      { ok: true, enabled: true, ...stats },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error) {
-    console.error("[care-cron] durable queue run failed", error instanceof Error ? error.message : "unknown");
-    return NextResponse.json({ error: "care queue run failed" }, { status: 500 });
+    console.error("[care-cron] durable queue run failed", safeErrorDiagnostic(error));
+    return NextResponse.json(
+      { error: "care queue run failed" },
+      { status: 500, headers: NO_STORE_HEADERS },
+    );
   }
 }

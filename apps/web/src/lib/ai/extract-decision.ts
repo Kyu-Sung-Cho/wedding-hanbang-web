@@ -22,6 +22,7 @@ import {
   blockLegacyAuxiliaryProviderGeneration,
 } from "@/lib/ai/amoraRequestPolicy";
 import type { StageTag, DecisionType } from "@/types/moat.types";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const CONTEXT_WINDOW_MESSAGES = 6;
 const MAX_MESSAGE_CHARS = 600;
@@ -259,7 +260,7 @@ async function extractWithOpenAI(
         : undefined,
     };
   } catch (err) {
-    console.error("[extract-decision] OpenAI 호출 실패:", err);
+    console.error("[extract-decision] provider call failed", safeErrorDiagnostic(err));
     return null;
   }
 }
@@ -335,6 +336,6 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
     }
 
   } catch (err) {
-    console.error("[extract-decision] 예외 (무시):", err);
+    console.error("[extract-decision] ignored failure", safeErrorDiagnostic(err));
   }
 }

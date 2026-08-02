@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 
 import {
   WEDDING_CODE_V06_QUESTIONS,
-  type WeddingCodeV06OptionValue,
 } from "@/constants/weddingCodeV06";
-import { encodeWeddingCodeV06, isCompleteWeddingCodeV06 } from "@/lib/weddingCode/v06/code";
+import {
+  buildWeddingCodeV06ShareUrl,
+  decodeWeddingCodeV06ShareHash,
+  encodeWeddingCodeV06,
+  isCompleteWeddingCodeV06,
+} from "@/lib/weddingCode/v06/code";
 import {
   answeredCount,
   buildWeddingCodeV06GapMap,
@@ -16,6 +20,7 @@ import {
   topGapsForDisplay,
   type WeddingCodeV06Answers,
 } from "@/lib/weddingCode/v06/gap";
+import { clearRetiredWeddingCodeStorage } from "@/lib/weddingCode/retiredStorage";
 
 const surface = "rounded-[20px] border border-[#EFE4D7] bg-white";
 const primaryButton =
@@ -49,23 +54,56 @@ type Step = "intro" | "quiz" | "result";
  */
 export default function WeddingCodeV06Client({
   shareOrigin,
-  partnerAnswers,
-  partnerCode,
-  bothCodes,
 }: {
   shareOrigin: string;
-  /** 링크로 먼저 온 상대 답. 없으면 내가 먼저 푸는 것이다. */
-  partnerAnswers: WeddingCodeV06Answers | null;
-  partnerCode: string | null;
-  /** 두 사람 코드가 모두 URL에 있으면 곧장 차이 지도를 연다. */
-  bothCodes: { mine: WeddingCodeV06Answers; theirs: WeddingCodeV06Answers } | null;
 }) {
-  const [step, setStep] = useState<Step>(bothCodes ? "result" : "intro");
+  const [step, setStep] = useState<Step>("intro");
   const [index, setIndex] = useState(0);
-  const [answers, setAnswers] = useState<WeddingCodeV06Answers>(bothCodes?.mine ?? {});
+  const [answers, setAnswers] = useState<WeddingCodeV06Answers>({});
   const [copied, setCopied] = useState(false);
+  const [sharedCodes, setSharedCodes] = useState<{
+    partnerAnswers: WeddingCodeV06Answers | null;
+    partnerCode: string | null;
+    bothCodes: { mine: WeddingCodeV06Answers; theirs: WeddingCodeV06Answers } | null;
+  }>({ partnerAnswers: null, partnerCode: null, bothCodes: null });
 
-  const theirs = bothCodes?.theirs ?? partnerAnswers;
+  useEffect(() => {
+    // 폐기된 v0.5가 답변·커플 토큰을 계정 미귀속 localStorage에 남겼다.
+    // v0.6는 저장하지 않으므로 새 화면 진입 시 오래된 사본도 복원 없이 폐기한다.
+    clearRetiredWeddingCodeStorage();
+
+    const fragmentPayload = decodeWeddingCodeV06ShareHash(window.location.hash);
+    if (fragmentPayload) {
+      let cancelled = false;
+      window.queueMicrotask(() => {
+        if (cancelled) return;
+        if (fragmentPayload.secondAnswers) {
+          setAnswers(fragmentPayload.secondAnswers);
+          setSharedCodes({
+            partnerAnswers: null,
+            partnerCode: fragmentPayload.firstCode,
+            bothCodes: {
+              mine: fragmentPayload.secondAnswers,
+              theirs: fragmentPayload.firstAnswers,
+            },
+          });
+          setStep("result");
+        } else {
+          setSharedCodes({
+            partnerAnswers: fragmentPayload.firstAnswers,
+            partnerCode: fragmentPayload.firstCode,
+            bothCodes: null,
+          });
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+  }, []);
+
+  const theirs = sharedCodes.bothCodes?.theirs ?? sharedCodes.partnerAnswers;
   const done = answeredCount(answers);
 
   function restart() {
@@ -82,7 +120,7 @@ export default function WeddingCodeV06Client({
           answers={answers}
           theirs={theirs}
           shareOrigin={shareOrigin}
-          partnerCode={partnerCode}
+          partnerCode={sharedCodes.partnerCode}
           copied={copied}
           onCopied={setCopied}
           onRestart={restart}
@@ -260,8 +298,8 @@ function ResultView({
   const mineCode = encodeWeddingCodeV06(answers);
   // 상대 답이 이미 있으면 둘 다 담아 돌려준다 — 그래야 상대도 같은 화면을 본다.
   const shareUrl = theirs && partnerCode
-    ? `${shareOrigin}/wedding-code?a=${partnerCode}&b=${mineCode}`
-    : `${shareOrigin}/wedding-code?a=${mineCode}`;
+    ? buildWeddingCodeV06ShareUrl(shareOrigin, partnerCode, mineCode)
+    : buildWeddingCodeV06ShareUrl(shareOrigin, mineCode);
 
   const copyButton = (
     <div className="mt-5">

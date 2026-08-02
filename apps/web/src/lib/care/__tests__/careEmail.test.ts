@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { buildCareEmailSubject, buildCareEmailHtml } from "../careEmail";
+import {
+  buildCareEmailSubject,
+  buildCareEmailHtml,
+  getCareEmailSiteOrigin,
+} from "../careEmail";
+
+describe("care email security boundary", () => {
+  it("removes header controls from user-derived subject text", () => {
+    const subject = buildCareEmailSubject({
+      momentLabel: "상담\r\nBcc: attacker@example.com",
+      cellKind: "d1",
+    });
+
+    expect(subject).not.toMatch(/[\r\n]/u);
+    expect(subject).toContain("상담 Bcc: attacker@example.com");
+  });
+
+  it("uses only approved production origins in email HTML", () => {
+    expect(getCareEmailSiteOrigin("https://www.hanbang.ai")).toBe("https://www.hanbang.ai");
+    expect(getCareEmailSiteOrigin("https://evil.test/\" onerror=\"alert(1)")).toBe("https://hanbang.ai");
+    expect(getCareEmailSiteOrigin("http://hanbang.ai")).toBe("https://hanbang.ai");
+  });
+});
 
 describe("케어 이메일 빌더 (친언니 아웃바운드)", () => {
   it("셀 종류별 제목 — 카톡 첫 줄 톤", () => {

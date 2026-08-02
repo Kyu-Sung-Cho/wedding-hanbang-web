@@ -637,7 +637,7 @@ export async function syncBookingProgressAfterCreate(
   if (vendorError || !vendorRow) {
     return {
       persisted: false,
-      error: vendorError?.message ?? "missing sync context",
+      error: vendorError ? "vendor lookup failed" : "missing sync context",
       ...buildBookingCreatedProgressPatch({
         progress: {},
         booking: input.booking,
@@ -702,7 +702,7 @@ export async function syncBookingProgressAfterCreate(
   if (projectionError) {
     return {
       persisted: false,
-      error: projectionError.message,
+      error: "booking projection apply failed",
       ...draftResult,
     };
   }
@@ -790,7 +790,7 @@ export async function syncBookingProgressAfterCancel(
   if (projectionError) {
     return {
       persisted: false,
-      error: projectionError.message,
+      error: "booking projection apply failed",
       ...draftResult,
     };
   }

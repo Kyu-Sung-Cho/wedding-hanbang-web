@@ -13,7 +13,7 @@ type ValidationSuccess = {
   ok: true;
   url: string;
   bucket: CommunityMediaBucket;
-  ownerId: string;
+  ownerId: string | null;
   objectPath: string;
 };
 
@@ -41,6 +41,8 @@ export type CommunityAttachmentValidationResult =
 export type CommunityHtmlImageValidationResult =
   | { ok: true }
   | { ok: false; src: string; reason: ValidationFailure["reason"] };
+
+export type CommunityMessageImageValidationResult = CommunityHtmlImageValidationResult;
 
 const BUCKET_BY_KIND: Record<CommunityMediaKind, CommunityMediaBucket> = {
   image: COMMUNITY_IMAGE_BUCKET,
@@ -122,13 +124,15 @@ export function validateCommunityMediaUrl(
   if (!segments || segments.length < 3) return fail("wrong_storage_path");
   if (segments.some(isUnsafeSegment)) return fail("unsafe_path");
 
-  const [bucket, ownerId, ...pathParts] = segments;
+  const [bucket, ownerOrVersion, ...pathParts] = segments;
   const expectedBucket = BUCKET_BY_KIND[options.kind];
   if (bucket !== expectedBucket) return fail("wrong_bucket");
 
+  const isV2PublicPath = bucket === COMMUNITY_IMAGE_BUCKET
+    && ownerOrVersion === "v2";
   const allowedOwners = normalizeOwnerIds(options.ownerIds);
-  if (!allowedOwners.has(ownerId)) return fail("wrong_owner");
-  if (options.requireUploadSessionPath) {
+  if (!isV2PublicPath && !allowedOwners.has(ownerOrVersion)) return fail("wrong_owner");
+  if (options.requireUploadSessionPath || isV2PublicPath) {
     if (rawSegments.length !== segments.length
         || rawSegments.some((segment, index) => segment !== segments[index])
         || pathParts.length !== 1
@@ -137,12 +141,12 @@ export function validateCommunityMediaUrl(
     }
   }
 
-  const objectPath = [ownerId, ...pathParts].join("/");
+  const objectPath = [ownerOrVersion, ...pathParts].join("/");
   return {
     ok: true,
     url: trimmedUrl,
     bucket,
-    ownerId,
+    ownerId: isV2PublicPath ? null : ownerOrVersion,
     objectPath,
   };
 }
@@ -241,14 +245,51 @@ export function validateCommunityHtmlImageSources(
     supabaseUrl?: string;
   }
 ): CommunityHtmlImageValidationResult {
-  const imgSrcRe = /<img\b[^>]*\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+  const imgTagRe = /<img\b[^>]*>/gi;
+  const srcAttrRe = /\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+  let tagMatch: RegExpExecArray | null;
+
+  while ((tagMatch = imgTagRe.exec(html))) {
+    let srcMatch: RegExpExecArray | null;
+    let sourceCount = 0;
+    srcAttrRe.lastIndex = 0;
+    while ((srcMatch = srcAttrRe.exec(tagMatch[0]))) {
+      const src = srcMatch[2] ?? srcMatch[3] ?? srcMatch[4] ?? "";
+      sourceCount += 1;
+      if (sourceCount > 1) return { ok: false, src, reason: "unsafe_path" };
+      const result = validateCommunityMediaUrl(src, {
+        kind: "image",
+        ownerIds: options.ownerIds,
+        supabaseUrl: options.supabaseUrl,
+        requireUploadSessionPath: true,
+      });
+      if (!result.ok) return { ok: false, src, reason: result.reason };
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Cohort messages encode uploaded images as `[img:URL]`. Treat those tokens as
+ * active browser subresource requests, not plain text: only the author's own
+ * finalized community image object is safe to render.
+ */
+export function validateCommunityMessageImageSources(
+  content: string,
+  options: {
+    ownerId: string;
+    supabaseUrl?: string;
+  },
+): CommunityMessageImageValidationResult {
+  const imageTokenRe = /\[img:([^\]]+)\]/g;
   let match: RegExpExecArray | null;
 
-  while ((match = imgSrcRe.exec(html))) {
-    const src = match[2] ?? match[3] ?? match[4] ?? "";
+  while ((match = imageTokenRe.exec(content))) {
+    const src = match[1] ?? "";
     const result = validateCommunityMediaUrl(src, {
       kind: "image",
-      ownerIds: options.ownerIds,
+      ownerIds: options.ownerId,
       supabaseUrl: options.supabaseUrl,
       requireUploadSessionPath: true,
     });

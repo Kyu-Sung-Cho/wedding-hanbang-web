@@ -1,9 +1,8 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
-import { recordDecision } from "@/lib/memory/record-decision";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   isBodyTooLarge,
   isRecord,
@@ -11,6 +10,8 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { requestMatchesExpectedActor } from "@/lib/auth/actorFence";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const MAX_FAVORITES = 500;
@@ -102,7 +103,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const limited = checkRateLimit(rateLimitKey("favorites:add", req, user.id), {
+    if (!requestMatchesExpectedActor(req, user.id)) {
+      return mobileBridgeJson(
+        { error: "계정이 변경되었습니다. 다시 시도해 주세요." },
+        { status: 409, headers: MUTATION_RESPONSE_HEADERS },
+      );
+    }
+
+    const limited = await checkRateLimitPersistent(rateLimitKey("favorites:add", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -146,48 +154,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // D2 Hook 1: decision_nodes에 '찜 = 고려 중' 기록 (fire-and-forget, dedupe)
-    void (async () => {
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("couple_id")
-          .eq("id", user.id)
-          .maybeSingle();
-        const coupleId = (profile as { couple_id?: string } | null)?.couple_id;
-        if (!coupleId) return;
-
-        await recordDecision({
-          coupleId,
-          userId: user.id,
-          category: vendorForFavorite.category ?? "vendor",
-          title: `찜: ${vendorForFavorite.vendor_name}`,
-          chosenValue: {
-            vendor_id: vendorForFavorite.vendor_id,
-            vendor_name: vendorForFavorite.vendor_name,
-            vendor_category: vendorForFavorite.category,
-          },
-          decisionType: "considering",
-          source: "manual",
-          sourceRefId: vendorForFavorite.vendor_id,
-          metadata: { hook: "favorites" },
-          dedupeKey: {
-            sourceRefId: vendorForFavorite.vendor_id,
-            source: "manual",
-            decisionType: "considering",
-          },
-        });
-      } catch (err) {
-        console.error("[favorites recordDecision] 실패 (무시):", err);
-      }
-    })();
-
     return mobileBridgeJson(
       { isFavorite: true },
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {
-    console.error("Favorite add error:", err);
+    console.error("Favorite add error:", safeErrorDiagnostic(err));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: MUTATION_RESPONSE_HEADERS },
@@ -228,7 +200,14 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const limited = checkRateLimit(rateLimitKey("favorites:remove", req, user.id), {
+    if (!requestMatchesExpectedActor(req, user.id)) {
+      return mobileBridgeJson(
+        { error: "계정이 변경되었습니다. 다시 시도해 주세요." },
+        { status: 409, headers: MUTATION_RESPONSE_HEADERS },
+      );
+    }
+
+    const limited = await checkRateLimitPersistent(rateLimitKey("favorites:remove", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -254,7 +233,7 @@ export async function DELETE(req: Request) {
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {
-    console.error("Favorite remove error:", err);
+    console.error("Favorite remove error:", safeErrorDiagnostic(err));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: MUTATION_RESPONSE_HEADERS },
@@ -311,7 +290,7 @@ export async function GET(req: NextRequest) {
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {
-    console.error("Favorites list error:", err);
+    console.error("Favorites list error:", safeErrorDiagnostic(err));
     return mobileBridgeJson(
       { error: "서버 오류" },
       { status: 500, headers: MUTATION_RESPONSE_HEADERS },

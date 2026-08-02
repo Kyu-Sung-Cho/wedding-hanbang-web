@@ -95,7 +95,7 @@ describe("useCommunityStore feed cache", () => {
     mockFetch.mockReset();
   });
 
-  it("revalidates latest feed even when a fresh cached feed exists", async () => {
+  it("ignores a legacy unscoped cache and revalidates the latest feed", async () => {
     const cachedPost = post("cached-old", "2026-06-15T00:00:00.000Z");
     const networkPost = post("network-new", "2026-06-16T00:00:00.000Z");
     sessionStorage.setItem(
@@ -109,22 +109,94 @@ describe("useCommunityStore feed cache", () => {
 
     await useCommunityStore.getState().fetchPosts(true);
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/community/posts?sort=new&page=1&limit=20");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/community/posts?sort=new&page=1&limit=20",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(useCommunityStore.getState().posts[0].id).toBe("network-new");
   });
 
-  it("keeps the short fresh-cache skip for non-latest feeds", async () => {
+  it("does not restore a previous account's non-latest feed cache", async () => {
     useCommunityStore.getState().setSort("hot");
     const cachedPost = post("cached-hot", "2026-06-15T00:00:00.000Z");
+    const networkPost = post("network-hot", "2026-06-16T00:00:00.000Z");
     sessionStorage.setItem(
       "community:feed:all:hot:_:_:_",
       JSON.stringify({ posts: [cachedPost], total: 1, hasMore: false, ts: Date.now() })
     );
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ posts: [networkPost], total: 1, hasMore: false }),
+    });
 
     await useCommunityStore.getState().fetchPosts(true);
 
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(useCommunityStore.getState().posts[0].id).toBe("cached-hot");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(useCommunityStore.getState().posts[0].id).toBe("network-hot");
+  });
+
+  it("purges all account-sensitive community caches when user-scoped state resets", () => {
+    sessionStorage.setItem("community:feed:legacy", "private post content");
+    sessionStorage.setItem("community:landing:weekly-top-posts:5", "members-only title");
+    sessionStorage.setItem("community:trending:weekly-top:5", "members-only title");
+    sessionStorage.setItem("unrelated:cache", "keep me");
+    localStorage.setItem("community_post_draft:user-a", "private draft content");
+
+    useCommunityStore.getState().reset();
+
+    expect(sessionStorage.getItem("community:feed:legacy")).toBeNull();
+    expect(sessionStorage.getItem("community:landing:weekly-top-posts:5")).toBeNull();
+    expect(sessionStorage.getItem("community:trending:weekly-top:5")).toBeNull();
+    expect(sessionStorage.getItem("unrelated:cache")).toBe("keep me");
+    expect(localStorage.getItem("community_post_draft:user-a")).toBeNull();
+  });
+
+  it("ignores a private feed response that arrives after an identity reset", async () => {
+    const stalePost = post("user-a-private-post", "2026-06-16T00:00:00.000Z");
+    let resolveFetch: ((value: unknown) => void) | undefined;
+    mockFetch.mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+
+    const pending = useCommunityStore.getState().fetchPosts(true);
+    const signal = (mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.signal;
+    useCommunityStore.getState().reset();
+    expect(signal?.aborted).toBe(true);
+    resolveFetch?.({
+      ok: true,
+      json: async () => ({ posts: [stalePost], total: 1, hasMore: false }),
+    });
+    await pending;
+
+    expect(useCommunityStore.getState().posts).toEqual([]);
+    expect(useCommunityStore.getState().total).toBe(0);
+    expect(useCommunityStore.getState().communityProfile).toBeNull();
+  });
+
+  it("binds a post creation request to the verified expected actor", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "new-post" }),
+    });
+
+    const id = await useCommunityStore.getState().createPost({
+      category: "free",
+      title: "safe post",
+      content: "content",
+      ad_disclosure: "general",
+    }, "account-a");
+
+    expect(id).toBe("new-post");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/community/posts",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "x-hanbang-expected-actor": "account-a",
+        }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 
   it("applies the current user's new nickname to cached community state", () => {

@@ -4,11 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
-import {
-  getCommunityNicknameFallback,
-  getSafeDefaultCommunityNickname,
-  isCommunityNicknameUniqueViolation,
-} from "@/lib/community/nickname";
+import { getSafeDefaultCommunityNickname } from "@/lib/community/nickname";
 import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
@@ -19,27 +15,37 @@ import {
   PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
   communityReadablePostOrFilter,
 } from "@/lib/community/publicPostRules";
+import {
+  COMMUNITY_POLL_SERVER_SELECT,
+  areCommunityPollResultsVisible,
+} from "@/lib/community/pollVisibility";
 import { isCommunityCategory } from "@/lib/community/routes";
-import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { requestMatchesExpectedCommunityActor } from "@/lib/community/actorFence";
+import {
+  getCommunityPublicIdForUser,
+  getCommunityPublicIdsForUsers,
+} from "@/lib/community/publicIdentity";
+import { sanitizeHtmlWithInputLimit, sanitizeText } from "@/utils/sanitize";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isRecord, isUuid, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import type {
-  CommunityCategory,
   PostSort,
   TimePeriod,
-  PostVisibility,
-  CostShareData,
-  AdDisclosure,
   PriceData,
   AiComment,
-  CreatePollInput,
   PollSummary,
 } from "@/types/community.types";
+
+const MAX_BODY_BYTES = 512 * 1024;
+const POST_SORTS = new Set<PostSort>(["hot", "new", "top", "my_cohort", "my_posts"]);
+const TIME_PERIODS = new Set<TimePeriod>(["week", "month", "all"]);
 
 async function generateAiPriceComment(priceData: PriceData): Promise<AiComment | null> {
   try {
     return buildSourceBackedPriceComment(priceData);
   } catch (err) {
-    console.error("AI price comment inline error:", err);
+    console.error("AI price comment inline error:", safeErrorDiagnostic(err));
     return null;
   }
 }
@@ -64,17 +70,26 @@ function invalidCommunityMediaResponse() {
 // 게시글 목록 조회
 export async function GET(req: NextRequest) {
   try {
+    const ingressLimited = await checkRateLimitPersistent(
+      rateLimitKey("community:posts:list", req),
+      { maxRequests: 180, windowMs: 60 * 1000 },
+    );
+    if (ingressLimited) return ingressLimited;
+
     const supabase = await createClientFromRequest(req);
     const { searchParams } = new URL(req.url);
 
     const categoryParam = searchParams.get("category");
     const category = isCommunityCategory(categoryParam) ? categoryParam : null;
-    const sort = (searchParams.get("sort") ?? "hot") as PostSort;
-    const period = (searchParams.get("period") ?? "week") as TimePeriod;
-    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
-    const tag = searchParams.get("tag");
-    const authorId = searchParams.get("author_id");
+    const requestedSort = searchParams.get("sort") as PostSort | null;
+    const requestedPeriod = searchParams.get("period") as TimePeriod | null;
+    const sort = requestedSort && POST_SORTS.has(requestedSort) ? requestedSort : "hot";
+    const period = requestedPeriod && TIME_PERIODS.has(requestedPeriod) ? requestedPeriod : "week";
+    const page = Math.max(1, Math.min(200, parseInt(searchParams.get("page") ?? "1") || 1));
+    const limit = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") ?? "20") || 20));
+    const tag = cleanOptionalText(searchParams.get("tag"), 60) ?? null;
+    const authorParam = searchParams.get("author_id");
+    const authorId = isUuid(authorParam) ? authorParam : null;
     const bookmarkedOnly = searchParams.get("bookmarked") === "true";
     const offset = (page - 1) * limit;
 
@@ -82,6 +97,11 @@ export async function GET(req: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    const serviceClient = getServiceClient();
+    const viewerPublicId = await getCommunityPublicIdForUser(
+      serviceClient,
+      user?.id,
+    );
 
     const isLatestFeed = sort === "new";
     const isPersonalizedFeed = Boolean(user) || bookmarkedOnly || sort === "my_cohort" || sort === "my_posts";
@@ -93,7 +113,10 @@ export async function GET(req: NextRequest) {
     const feedResponse = (payload: unknown, status = 200) =>
       NextResponse.json(payload, {
         status,
-        headers: { "Cache-Control": feedCacheControl },
+        headers: {
+          "Cache-Control": feedCacheControl,
+          Vary: "Cookie, Authorization",
+        },
       });
 
     // bookmarked=true는 로그인 필수 — 비로그인이면 빈 결과
@@ -121,7 +144,7 @@ export async function GET(req: NextRequest) {
 
     // 작성자 필터
     if (authorId) {
-      query = query.eq("author_id", authorId);
+      query = query.eq("author_public_id", authorId);
     }
 
     // 북마크 필터 — 본인이 북마크한 글의 id만 통과
@@ -138,8 +161,15 @@ export async function GET(req: NextRequest) {
     }
 
     // 공개/멤버/작성자 전용 visibility와 under_review 규칙은 단일 Module에서 관리한다.
-    if (user) {
-      query = query.or(communityReadablePostOrFilter(user.id));
+    if (user && viewerPublicId) {
+      query = query.or(communityReadablePostOrFilter(viewerPublicId));
+    } else if (user) {
+      // A missing pseudonym must not fall back to the Auth UUID. The account
+      // can still read ordinary member content, but owner-only rows fail shut.
+      query = query.or([
+        "and(visibility.eq.public,under_review.eq.false)",
+        "and(visibility.eq.members,under_review.eq.false)",
+      ].join(","));
     } else {
       query = query
         .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
@@ -172,19 +202,26 @@ export async function GET(req: NextRequest) {
       const memberIds = [
         ...new Set((cohortMembers ?? []).map((m) => m.user_id as string)),
       ].filter((id) => id !== user.id);
-      if (memberIds.length === 0) {
+      const memberPublicIds = await getCommunityPublicIdsForUsers(
+        serviceClient,
+        memberIds,
+      );
+      if (memberPublicIds.length === 0) {
         // 동기방에 나밖에 없음 → 빈 결과
         return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 3. 동기들이 작성한 글만 + 최신순
-      query = query.in("author_id", memberIds).order("created_at", { ascending: false });
+      query = query.in("author_public_id", memberPublicIds).order("created_at", { ascending: false });
     } else if (sort === "my_posts") {
       // 비로그인은 빈 결과
       if (!user) {
         return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
+      if (!viewerPublicId) {
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
+      }
       // 본인 글만 + 최신순 (본인 글이라 visibility 무관 — RLS는 위에서 이미 적용됨)
-      query = query.eq("author_id", user.id).order("created_at", { ascending: false });
+      query = query.eq("author_public_id", viewerPublicId).order("created_at", { ascending: false });
     } else if (sort === "new") {
       // 고정 글 우선(운영자 앵커) → 그 다음 최신순
       query = query.order("is_pinned", { ascending: false }).order("created_at", { ascending: false });
@@ -212,7 +249,7 @@ export async function GET(req: NextRequest) {
     const { data: posts, count, error } = await query;
 
     if (error) {
-      console.error("Community posts list error:", error);
+      console.error("Community posts list error:", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "게시글을 불러올 수 없습니다." },
         { status: 500 }
@@ -261,19 +298,37 @@ export async function GET(req: NextRequest) {
     let pollSummaryMap: Record<string, PollSummary> = {};
     if (sortedPosts.length > 0) {
       const postIds = sortedPosts.map((p) => p.id);
-      const { data: polls } = await supabase
+      const { data: polls } = await getServiceClient()
         .from("community_polls")
-        .select("id, post_id, question, total_voters, closes_at")
+        .select(COMMUNITY_POLL_SERVER_SELECT)
         .in("post_id", postIds);
       if (polls) {
+        const pollIds = polls.map((poll) => poll.id as string);
+        let votedPollIds = new Set<string>();
+        if (user && pollIds.length > 0) {
+          const { data: pollVotes } = await supabase
+            .from("community_poll_votes")
+            .select("poll_id")
+            .eq("user_id", user.id)
+            .in("poll_id", pollIds);
+          votedPollIds = new Set(
+            (pollVotes ?? []).map((vote) => vote.poll_id as string),
+          );
+        }
+
         pollSummaryMap = Object.fromEntries(
-          polls.map((p: { id: string; post_id: string; question: string; total_voters: number; closes_at: string | null }) => [
-            p.post_id,
+          polls.map((poll) => [
+            poll.post_id,
             {
-              id: p.id,
-              question: p.question,
-              total_voters: p.total_voters,
-              closes_at: p.closes_at,
+              id: poll.id,
+              question: poll.question,
+              total_voters: areCommunityPollResultsVisible(
+                poll,
+                votedPollIds.has(poll.id as string),
+              )
+                ? poll.total_voters
+                : 0,
+              closes_at: poll.closes_at,
             } satisfies PollSummary,
           ])
         );
@@ -284,6 +339,7 @@ export async function GET(req: NextRequest) {
     const postsWithVotes = sortedPosts.map((post) => ({
       ...post,
       author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
+      is_author: Boolean(viewerPublicId && post.author_id === viewerPublicId),
       user_vote: userVotesMap[post.id] ?? null,
       poll: pollSummaryMap[post.id] ?? null,
     }));
@@ -293,7 +349,7 @@ export async function GET(req: NextRequest) {
 
     return feedResponse({ posts: postsWithVotes, total, hasMore });
   } catch (err) {
-    console.error("Community posts error:", err);
+    console.error("Community posts error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -302,6 +358,24 @@ export async function GET(req: NextRequest) {
 }
 
 // 게시글 생성
+function invalidPostInput(message = "입력값을 확인해 주세요.") {
+  return NextResponse.json({ error: message }, { status: 400 });
+}
+
+function atomicPostErrorStatus(error: unknown): number {
+  if (!isRecord(error) || typeof error.code !== "string") return 500;
+  if (error.code === "P0002") return 404;
+  if (error.code === "42501") return 403;
+  if (
+    error.code.startsWith("22")
+    || ["23502", "23514"].includes(error.code)
+  ) {
+    return 400;
+  }
+  return 500;
+}
+
+// 게시글 작성
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClientFromRequest(req);
@@ -312,124 +386,74 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
-    // Rate limit: 10 posts per 10 minutes per user
-    const rlResult = checkRateLimit(
+    if (!requestMatchesExpectedCommunityActor(req, user.id)) {
+      return NextResponse.json(
+        { error: "계정이 변경되어 글 작성을 중단했습니다. 다시 확인해 주세요." },
+        { status: 409 },
+      );
+    }
+
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:post:create", req, user.id),
-      { maxRequests: 10, windowMs: 10 * 60 * 1000 }
+      { maxRequests: 10, windowMs: 10 * 60 * 1000 },
     );
     if (rlResult) return rlResult;
 
-    const body = await req.json();
-    const {
-      category,
-      title: rawTitle,
-      content: rawContent,
-      images: rawImages,
-      slides: rawSlides,
-      visibility,
-      vendor_tags: rawVendorTags,
-      tags: rawTags,
-      cost_data,
-      ad_disclosure: rawAdDisclosure,
-      sponsorship_detail: rawSponsorshipDetail,
-      price_data: rawPriceData,
-      is_quick_review,
-      rating,
-      poll: rawPoll,
-    } = body as {
-      category: CommunityCategory;
-      title: string;
-      content: string;
-      images?: string[];
-      slides?: Array<{ type?: string; url?: string; width?: number; height?: number; thumbnail_url?: string }> | null;
-      visibility: PostVisibility;
-      vendor_tags?: string[];
-      tags?: string[];
-      cost_data?: CostShareData;
-      ad_disclosure?: AdDisclosure;
-      sponsorship_detail?: string;
-      price_data?: PriceData;
-      is_quick_review?: boolean;
-      rating?: number;
-      poll?: CreatePollInput | null;
-    };
-
-    // 광고 표시 필수 검증
-    const validAdDisclosures: AdDisclosure[] = ["general", "sponsored", "ad"];
-    if (!rawAdDisclosure || !validAdDisclosures.includes(rawAdDisclosure)) {
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
       return NextResponse.json(
-        { error: "광고 표시 유형을 선택해주세요." },
-        { status: 400 }
+        {
+          error:
+            bodyResult.reason === "too_large"
+              ? "요청 본문이 너무 큽니다."
+              : "잘못된 요청입니다.",
+        },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
       );
     }
-    const adDisclosure: AdDisclosure = rawAdDisclosure;
-    let sponsorshipDetail: string | null = null;
-    if (adDisclosure === "sponsored") {
-      const d = cleanOptionalText(rawSponsorshipDetail, 500) ?? "";
-      if (!d || d.length < 5) {
-        return NextResponse.json(
-          { error: "협찬 내용을 5자 이상 입력해주세요." },
-          { status: 400 }
-        );
-      }
-      sponsorshipDetail = d;
+    if (!isRecord(bodyResult.value)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    const body = bodyResult.value;
+
+    const category =
+      typeof body.category === "string" && isCommunityCategory(body.category)
+        ? body.category
+        : null;
+    const visibility =
+      body.visibility === "public"
+      || body.visibility === "members"
+      || body.visibility === "draft"
+        ? body.visibility
+        : null;
+    if (!category || !visibility) {
+      return invalidPostInput("카테고리와 공개 범위를 확인해 주세요.");
     }
 
-    // price_data 검증
-    let priceData: PriceData | null = null;
-    if (rawPriceData && typeof rawPriceData.base_price === "number" && rawPriceData.base_price > 0) {
-      priceData = {
-        vendor_category: rawPriceData.vendor_category,
-        base_price: rawPriceData.base_price,
-        extra_price: rawPriceData.extra_price,
-        vendor_name: cleanOptionalText(rawPriceData.vendor_name, 100),
-        region: cleanOptionalText(rawPriceData.region, 100),
-        details: cleanOptionalText(rawPriceData.details, 1000),
-      };
+    const title = cleanOptionalText(body.title, 200);
+    if (!title) {
+      return invalidPostInput("제목을 입력해 주세요.");
     }
 
-    // 입력 검증 및 정화
-    const title = cleanOptionalText(rawTitle, 200);
-    if (!title || title.length === 0) {
-      return NextResponse.json(
-        { error: "제목을 입력해주세요." },
-        { status: 400 }
-      );
-    }
-
-    const content = sanitizeHtml(typeof rawContent === "string" ? rawContent : "").slice(0, 50000);
+    const content = sanitizeHtmlWithInputLimit(
+      typeof body.content === "string" ? body.content : "",
+      50000,
+    );
     const contentImagesResult = validateCommunityHtmlImageSources(content, {
       ownerIds: user.id,
     });
     if (!contentImagesResult.ok) return invalidCommunityMediaResponse();
 
-    // 카드 게시물(슬라이드)이면 캡션이 비어도 허용 — 슬라이드 자체가 본문 역할.
-    const hasSlides = Array.isArray(rawSlides) && rawSlides.length > 0;
-    if (!hasSlides && (!content || content.trim().length === 0)) {
-      return NextResponse.json(
-        { error: "내용을 입력해주세요." },
-        { status: 400 }
-      );
+    const rawImageValues = body.images === undefined ? [] : body.images;
+    if (!Array.isArray(rawImageValues) || rawImageValues.length > 10) {
+      return invalidPostInput("이미지는 최대 10개까지 등록할 수 있습니다.");
     }
-
-    // 태그 검증: 최대 10개, 각 최대 30자
-    const tags = (Array.isArray(rawTags) ? rawTags : [])
-      .slice(0, 10)
-      .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
-      .filter((t: string) => t.length > 0);
-
-    // vendor_tags 검증: 최대 5개
-    const vendor_tags = (Array.isArray(rawVendorTags) ? rawVendorTags : [])
-      .filter((tag): tag is string => typeof tag === "string")
-      .slice(0, 5);
-
-    // 이미지 검증: 최대 10개, 각 URL은 https://로 시작
     const images: string[] = [];
-    for (const rawImageUrl of (Array.isArray(rawImages) ? rawImages : []).slice(0, 10)) {
+    for (const rawImageUrl of rawImageValues) {
       const mediaResult = validateCommunityAttachmentUrl(rawImageUrl, {
         ownerIds: user.id,
       });
@@ -437,268 +461,428 @@ export async function POST(req: NextRequest) {
       images.push(mediaResult.url);
     }
 
-    // 카드 게시물(인스타 캐러셀) 슬라이드 검증.
-    // 최대 10장, 신규 슬라이드는 검증이 끝난 이미지 URL만 허용한다.
-    // 잘못된 형식은 자동으로 제거. 결과 배열이 비면 null로 저장 (일반 글로 처리).
-    let slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> | null = null;
-    if (Array.isArray(rawSlides) && rawSlides.length > 0) {
-      const cleaned: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> = [];
-      for (const s of rawSlides.slice(0, 10)) {
-        if (s?.type === "video") return invalidCommunityMediaResponse();
-        const type = "image" as const;
-        const mediaResult = validateCommunityMediaUrl(s?.url, {
-          kind: type,
-          ownerIds: user.id,
-          requireUploadSessionPath: true,
-        });
-        if (!mediaResult.ok) return invalidCommunityMediaResponse();
+    const rawSlideValues =
+      body.slides === undefined || body.slides === null ? [] : body.slides;
+    if (!Array.isArray(rawSlideValues) || rawSlideValues.length > 10) {
+      return invalidPostInput("슬라이드는 최대 10개까지 등록할 수 있습니다.");
+    }
+    const cleanedSlides: Array<{
+      type: "image";
+      url: string;
+      width?: number;
+      height?: number;
+      thumbnail_url?: string;
+    }> = [];
+    const allowedSlideKeys = new Set([
+      "type",
+      "url",
+      "width",
+      "height",
+      "thumbnail_url",
+    ]);
+    for (const rawSlide of rawSlideValues) {
+      if (
+        !isRecord(rawSlide)
+        || Object.keys(rawSlide).some((key) => !allowedSlideKeys.has(key))
+        || rawSlide.type !== "image"
+      ) {
+        return invalidPostInput("슬라이드 형식을 확인해 주세요.");
+      }
 
-        const out: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
-          type,
-          url: mediaResult.url,
-        };
-        if (typeof s.width === "number" && s.width > 0) out.width = Math.min(8192, Math.round(s.width));
-        if (typeof s.height === "number" && s.height > 0) out.height = Math.min(8192, Math.round(s.height));
-        if (typeof s.thumbnail_url === "string" && s.thumbnail_url.trim().length > 0) {
-          const thumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
+      const mediaResult = validateCommunityMediaUrl(rawSlide.url, {
+        kind: "image",
+        ownerIds: user.id,
+        requireUploadSessionPath: true,
+      });
+      if (!mediaResult.ok) return invalidCommunityMediaResponse();
+
+      const slide: {
+        type: "image";
+        url: string;
+        width?: number;
+        height?: number;
+        thumbnail_url?: string;
+      } = {
+        type: "image",
+        url: mediaResult.url,
+      };
+
+      if (rawSlide.width !== undefined && rawSlide.width !== null) {
+        if (
+          typeof rawSlide.width !== "number"
+          || !Number.isSafeInteger(rawSlide.width)
+          || rawSlide.width < 1
+          || rawSlide.width > 8192
+        ) {
+          return invalidPostInput("슬라이드 너비를 확인해 주세요.");
+        }
+        slide.width = rawSlide.width;
+      }
+      if (rawSlide.height !== undefined && rawSlide.height !== null) {
+        if (
+          typeof rawSlide.height !== "number"
+          || !Number.isSafeInteger(rawSlide.height)
+          || rawSlide.height < 1
+          || rawSlide.height > 8192
+        ) {
+          return invalidPostInput("슬라이드 높이를 확인해 주세요.");
+        }
+        slide.height = rawSlide.height;
+      }
+      if (
+        rawSlide.thumbnail_url !== undefined
+        && rawSlide.thumbnail_url !== null
+      ) {
+        if (typeof rawSlide.thumbnail_url !== "string") {
+          return invalidPostInput("슬라이드 썸네일을 확인해 주세요.");
+        }
+        const thumbnailResult = validateCommunityMediaUrl(
+          rawSlide.thumbnail_url,
+          {
             kind: "image",
             ownerIds: user.id,
             requireUploadSessionPath: true,
-          });
-          if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
-          out.thumbnail_url = thumbnailResult.url;
-        }
-        cleaned.push(out);
+          },
+        );
+        if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
+        slide.thumbnail_url = thumbnailResult.url;
       }
-      if (cleaned.length > 0) slides = cleaned;
+      cleanedSlides.push(slide);
+    }
+    const slides = cleanedSlides.length > 0 ? cleanedSlides : null;
+    if (content.trim().length === 0 && !slides) {
+      return invalidPostInput("내용을 입력해 주세요.");
     }
 
-    if (!category || !visibility) {
-      return NextResponse.json(
-        { error: "필수 항목을 입력해주세요." },
-        { status: 400 }
-      );
+    const rawTagValues = body.tags === undefined ? [] : body.tags;
+    if (
+      !Array.isArray(rawTagValues)
+      || rawTagValues.length > 10
+      || rawTagValues.some((tag) => typeof tag !== "string")
+    ) {
+      return invalidPostInput("태그 형식을 확인해 주세요.");
+    }
+    const tags = rawTagValues.map((tag) =>
+      sanitizeText(tag as string).slice(0, 30)
+    );
+    if (tags.some((tag) => tag.length === 0)) {
+      return invalidPostInput("빈 태그는 등록할 수 없습니다.");
+    }
+
+    const rawVendorTagValues =
+      body.vendor_tags === undefined ? [] : body.vendor_tags;
+    if (
+      !Array.isArray(rawVendorTagValues)
+      || rawVendorTagValues.length > 5
+      || rawVendorTagValues.some((tag) => !isUuid(tag))
+    ) {
+      return invalidPostInput("업체 태그 형식을 확인해 주세요.");
+    }
+    const vendorTags = rawVendorTagValues as string[];
+
+    let costData: Record<string, unknown> | null = null;
+    if (body.cost_data !== undefined && body.cost_data !== null) {
+      if (!isRecord(body.cost_data)) {
+        return invalidPostInput("비용 공유 데이터 형식을 확인해 주세요.");
+      }
+      const costDataBytes = new TextEncoder().encode(
+        JSON.stringify(body.cost_data),
+      ).byteLength;
+      if (costDataBytes > 131072) {
+        return invalidPostInput("비용 공유 데이터가 너무 큽니다.");
+      }
+      costData = body.cost_data;
+    }
+
+    const validAdDisclosures = new Set(["general", "sponsored", "ad"]);
+    if (
+      typeof body.ad_disclosure !== "string"
+      || !validAdDisclosures.has(body.ad_disclosure)
+    ) {
+      return invalidPostInput("광고 표시 유형을 선택해 주세요.");
+    }
+    const adDisclosure = body.ad_disclosure;
+    let sponsorshipDetail: string | null = null;
+    if (adDisclosure === "sponsored") {
+      sponsorshipDetail =
+        cleanOptionalText(body.sponsorship_detail, 500) ?? null;
+      if (!sponsorshipDetail || sponsorshipDetail.length < 5) {
+        return invalidPostInput("협찬 내용을 5자 이상 입력해 주세요.");
+      }
+    } else if (
+      body.sponsorship_detail !== undefined
+      && body.sponsorship_detail !== null
+      && cleanOptionalText(body.sponsorship_detail, 500)
+    ) {
+      return invalidPostInput("협찬 글에만 협찬 내용을 입력할 수 있습니다.");
+    }
+
+    let priceData: PriceData | null = null;
+    if (body.price_data !== undefined && body.price_data !== null) {
+      if (!isRecord(body.price_data)) {
+        return invalidPostInput("가격 데이터 형식을 확인해 주세요.");
+      }
+      const rawPriceData = body.price_data;
+      const allowedPriceKeys = new Set([
+        "vendor_category",
+        "base_price",
+        "extra_price",
+        "vendor_name",
+        "region",
+        "details",
+      ]);
+      const validPriceCategories = new Set([
+        "venue",
+        "studio",
+        "dress",
+        "makeup",
+        "snap",
+        "ring",
+        "honeymoon",
+        "other",
+      ]);
+      if (
+        Object.keys(rawPriceData).some((key) => !allowedPriceKeys.has(key))
+        || typeof rawPriceData.vendor_category !== "string"
+        || !validPriceCategories.has(rawPriceData.vendor_category)
+        || typeof rawPriceData.base_price !== "number"
+        || !Number.isSafeInteger(rawPriceData.base_price)
+        || rawPriceData.base_price < 1
+        || rawPriceData.base_price > 1_000_000_000
+      ) {
+        return invalidPostInput("가격 데이터 값을 확인해 주세요.");
+      }
+      if (
+        rawPriceData.extra_price !== undefined
+        && rawPriceData.extra_price !== null
+        && (
+          typeof rawPriceData.extra_price !== "number"
+          || !Number.isSafeInteger(rawPriceData.extra_price)
+          || rawPriceData.extra_price < 0
+          || rawPriceData.extra_price > 1_000_000_000
+        )
+      ) {
+        return invalidPostInput("추가 비용 값을 확인해 주세요.");
+      }
+
+      for (const textField of ["vendor_name", "region", "details"] as const) {
+        const value = rawPriceData[textField];
+        if (value !== undefined && value !== null && typeof value !== "string") {
+          return invalidPostInput("가격 데이터의 텍스트 값을 확인해 주세요.");
+        }
+      }
+
+      priceData = {
+        vendor_category:
+          rawPriceData.vendor_category as PriceData["vendor_category"],
+        base_price: rawPriceData.base_price,
+      };
+      if (typeof rawPriceData.extra_price === "number") {
+        priceData.extra_price = rawPriceData.extra_price;
+      }
+      const vendorName = cleanOptionalText(rawPriceData.vendor_name, 100);
+      const region = cleanOptionalText(rawPriceData.region, 100);
+      const details = cleanOptionalText(rawPriceData.details, 1000);
+      if (vendorName) priceData.vendor_name = vendorName;
+      if (region) priceData.region = region;
+      if (details) priceData.details = details;
+    }
+
+    const isQuickReview =
+      body.is_quick_review === undefined ? false : body.is_quick_review;
+    if (typeof isQuickReview !== "boolean") {
+      return invalidPostInput("후기 유형 값을 확인해 주세요.");
+    }
+
+    let normalizedRating: number | null = null;
+    if (body.rating !== undefined && body.rating !== null) {
+      if (
+        typeof body.rating !== "number"
+        || !Number.isInteger(body.rating)
+        || body.rating < 1
+        || body.rating > 5
+      ) {
+        return invalidPostInput("별점은 1점부터 5점까지 입력해 주세요.");
+      }
+      normalizedRating = body.rating;
     }
 
     let pollDraft: {
       question: string;
-      options: Array<{ position: number; label: string; image_url: string | null }>;
+      options: Array<{
+        position: number;
+        label: string;
+        image_url: string | null;
+      }>;
       allow_multiple: boolean;
       is_anonymous: boolean;
       hide_results_until_voted: boolean;
       closes_at: string | null;
     } | null = null;
-    if (rawPoll && typeof rawPoll === "object") {
-      const question = cleanOptionalText(rawPoll.question, 200) ?? "";
-      const rawOptions = Array.isArray(rawPoll.options) ? rawPoll.options : [];
-      const cleanOptions: Array<{ position: number; label: string; image_url: string | null }> = [];
+    if (body.poll !== undefined && body.poll !== null) {
+      if (!isRecord(body.poll)) {
+        return invalidPostInput("투표 형식을 확인해 주세요.");
+      }
+      const rawPoll = body.poll;
+      const allowedPollKeys = new Set([
+        "question",
+        "options",
+        "allow_multiple",
+        "is_anonymous",
+        "hide_results_until_voted",
+        "closes_at",
+      ]);
+      if (Object.keys(rawPoll).some((key) => !allowedPollKeys.has(key))) {
+        return invalidPostInput("투표 형식을 확인해 주세요.");
+      }
 
-      for (const [idx, option] of rawOptions.slice(0, 10).entries()) {
-        const label = cleanOptionalText(option?.label, 100) ?? "";
-        if (!label) continue;
+      const question = cleanOptionalText(rawPoll.question, 200);
+      if (!question) {
+        return invalidPostInput("투표 질문을 입력해 주세요.");
+      }
+      if (
+        !Array.isArray(rawPoll.options)
+        || rawPoll.options.length < 2
+        || rawPoll.options.length > 10
+      ) {
+        return invalidPostInput("투표 선택지는 2개부터 10개까지 등록할 수 있습니다.");
+      }
+
+      const options: Array<{
+        position: number;
+        label: string;
+        image_url: string | null;
+      }> = [];
+      const allowedOptionKeys = new Set(["label", "image_url"]);
+      for (const rawOption of rawPoll.options) {
+        if (
+          !isRecord(rawOption)
+          || Object.keys(rawOption).some((key) => !allowedOptionKeys.has(key))
+        ) {
+          return invalidPostInput("투표 선택지 형식을 확인해 주세요.");
+        }
+        const label = cleanOptionalText(rawOption.label, 100);
+        if (!label) {
+          return invalidPostInput("투표 선택지 내용을 입력해 주세요.");
+        }
 
         let imageUrl: string | null = null;
-        if (typeof option?.image_url === "string" && option.image_url.trim().length > 0) {
-          const imageResult = validateCommunityMediaUrl(option.image_url, {
-            kind: "image",
-            ownerIds: user.id,
-            requireUploadSessionPath: true,
-          });
+        if (
+          rawOption.image_url !== undefined
+          && rawOption.image_url !== null
+        ) {
+          if (typeof rawOption.image_url !== "string") {
+            return invalidPostInput("투표 선택지 이미지를 확인해 주세요.");
+          }
+          const imageResult = validateCommunityMediaUrl(
+            rawOption.image_url,
+            {
+              kind: "image",
+              ownerIds: user.id,
+              requireUploadSessionPath: true,
+            },
+          );
           if (!imageResult.ok) return invalidCommunityMediaResponse();
           imageUrl = imageResult.url;
         }
 
-        cleanOptions.push({ position: idx, label, image_url: imageUrl });
+        options.push({
+          position: options.length,
+          label,
+          image_url: imageUrl,
+        });
       }
 
-      if (question.length > 0 && cleanOptions.length >= 2) {
-        let closesAt: string | null = null;
-        if (rawPoll.closes_at && typeof rawPoll.closes_at === "string") {
-          const t = Date.parse(rawPoll.closes_at);
-          if (!isNaN(t) && t > Date.now()) closesAt = new Date(t).toISOString();
+      const allowMultiple =
+        rawPoll.allow_multiple === undefined
+          ? false
+          : rawPoll.allow_multiple;
+      const isAnonymous =
+        rawPoll.is_anonymous === undefined ? false : rawPoll.is_anonymous;
+      const hideResultsUntilVoted =
+        rawPoll.hide_results_until_voted === undefined
+          ? false
+          : rawPoll.hide_results_until_voted;
+      if (
+        typeof allowMultiple !== "boolean"
+        || typeof isAnonymous !== "boolean"
+        || typeof hideResultsUntilVoted !== "boolean"
+      ) {
+        return invalidPostInput("투표 설정 값을 확인해 주세요.");
+      }
+
+      let closesAt: string | null = null;
+      if (rawPoll.closes_at !== undefined && rawPoll.closes_at !== null) {
+        if (typeof rawPoll.closes_at !== "string") {
+          return invalidPostInput("투표 마감 시간을 확인해 주세요.");
         }
-
-        pollDraft = {
-          question,
-          options: cleanOptions,
-          allow_multiple: !!rawPoll.allow_multiple,
-          is_anonymous: !!rawPoll.is_anonymous,
-          hide_results_until_voted: !!rawPoll.hide_results_until_voted,
-          closes_at: closesAt,
-        };
+        const closesAtMs = Date.parse(rawPoll.closes_at);
+        if (!Number.isFinite(closesAtMs) || closesAtMs <= Date.now()) {
+          return invalidPostInput("투표 마감 시간은 미래여야 합니다.");
+        }
+        closesAt = new Date(closesAtMs).toISOString();
       }
+
+      pollDraft = {
+        question,
+        options,
+        allow_multiple: allowMultiple,
+        is_anonymous: isAnonymous,
+        hide_results_until_voted: hideResultsUntilVoted,
+        closes_at: closesAt,
+      };
     }
 
     const serviceClient = getServiceClient();
-
-    // 커뮤니티 프로필 자동 생성 (없으면)
-    const { data: existingProfile } = await serviceClient
-      .from("community_profiles")
-      .select("user_id, post_count")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!existingProfile) {
-      // profiles 테이블에서 이름 가져오기
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-
-      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
-      const fallbackNickname = getCommunityNicknameFallback(user.id);
-      const createProfilePayload = {
-        user_id: user.id,
-        nickname,
-        badge: "member",
-        post_count: 0,
-        comment_count: 0,
-        total_upvotes_received: 0,
-      };
-
-      const { error: profileInsertError } = await serviceClient
-        .from("community_profiles")
-        .insert(createProfilePayload);
-
-      if (
-        profileInsertError &&
-        isCommunityNicknameUniqueViolation(profileInsertError) &&
-        nickname !== fallbackNickname
-      ) {
-        await serviceClient
-          .from("community_profiles")
-          .insert({ ...createProfilePayload, nickname: fallbackNickname });
-      }
-    }
-
-    // 게시글 생성
+    const nickname = getSafeDefaultCommunityNickname(undefined, user.id);
     const { data: post, error } = await serviceClient
-      .from("community_posts")
-      .insert({
-        author_id: user.id,
-        category,
-        title,
-        content,
-        images: images ?? [],
-        slides,
-        visibility,
-        vendor_tags: vendor_tags ?? [],
-        tags: tags ?? [],
-        cost_data: cost_data ?? null,
-        ad_disclosure: adDisclosure,
-        sponsorship_detail: sponsorshipDetail,
-        price_data: priceData,
-        is_quick_review: is_quick_review ?? false,
-        rating: typeof rating === "number" ? rating : null,
-        upvote_count: 0,
-        downvote_count: 0,
-        comment_count: 0,
-        view_count: 0,
-        bookmark_count: 0,
-        is_pinned: false,
-        is_weekly_best: false,
+      .rpc("community_create_post_with_poll_atomic", {
+        p_actor_id: user.id,
+        p_default_nickname: nickname,
+        p_category: category,
+        p_title: title,
+        p_content: content,
+        p_images: images,
+        p_slides: slides,
+        p_visibility: visibility,
+        p_vendor_tags: vendorTags,
+        p_tags: tags,
+        p_cost_data: costData,
+        p_ad_disclosure: adDisclosure,
+        p_sponsorship_detail: sponsorshipDetail,
+        p_price_data: priceData,
+        p_is_quick_review: isQuickReview,
+        p_rating: normalizedRating,
+        p_poll: pollDraft,
       })
-      .select("*")
+      .select(COMMUNITY_POST_PUBLIC_SELECT)
       .single();
 
-    if (error) {
-      console.error("Create post error:", error);
-      return NextResponse.json(
-        { error: "게시글 작성에 실패했습니다." },
-        { status: 500 }
-      );
+    if (error || !post) {
+      console.error("Create post atomic RPC error:", safeErrorDiagnostic(error));
+      const status = atomicPostErrorStatus(error);
+      const message =
+        status === 400
+          ? "게시글 입력값을 확인해 주세요."
+          : status === 403
+            ? "현재 계정으로는 게시글을 작성할 수 없습니다."
+          : status === 404
+            ? "게시글 작성 대상을 찾을 수 없습니다."
+            : "게시글 작성에 실패했습니다.";
+      return NextResponse.json({ error: message }, { status });
     }
 
-    // ─────── 폴 생성 (있을 경우) ───────
-    // 폴 INSERT 실패 시 게시글 자체를 롤백하여 고아 글 방지
-    if (pollDraft) {
-      const question = pollDraft.question;
-      const cleanOptions = pollDraft.options;
-
-      // 질문/옵션이 모두 충족된 경우에만 생성. 부분 입력이면 폴 없이 진행 (UX 친화적)
-      if (question.length > 0 && cleanOptions.length >= 2) {
-        // 마감일 검증 (미래여야 함)
-        const { data: pollRow, error: pollErr } = await serviceClient
-          .from("community_polls")
-          .insert({
-            post_id: post.id,
-            question,
-            allow_multiple: pollDraft.allow_multiple,
-            is_anonymous: pollDraft.is_anonymous,
-            hide_results_until_voted: pollDraft.hide_results_until_voted,
-            closes_at: pollDraft.closes_at,
-          })
-          .select("id")
-          .single();
-
-        if (pollErr || !pollRow) {
-          console.error("[posts.POST] poll insert failed, rolling back post:", pollErr);
-          await serviceClient.from("community_posts").delete().eq("id", post.id);
-          return NextResponse.json(
-            { error: "투표 생성에 실패했습니다." },
-            { status: 500 }
-          );
-        }
-
-        const optionsPayload = cleanOptions.map((o) => ({
-          poll_id: pollRow.id,
-          position: o.position,
-          label: o.label,
-          image_url: o.image_url,
-        }));
-
-        const { error: optErr } = await serviceClient
-          .from("community_poll_options")
-          .insert(optionsPayload);
-
-        if (optErr) {
-          console.error("[posts.POST] poll options insert failed, rolling back:", optErr);
-          await serviceClient.from("community_polls").delete().eq("id", pollRow.id);
-          await serviceClient.from("community_posts").delete().eq("id", post.id);
-          return NextResponse.json(
-            { error: "투표 선택지 생성에 실패했습니다." },
-            { status: 500 }
-          );
-        }
-      }
-    }
-
-    // post_count 증가 — 실패해도 INSERT 응답에 영향 없도록 격리
-    try {
-      await serviceClient
-        .rpc("community_increment_profile_count", {
-          p_user_id: user.id,
-          p_field: "post_count",
-        })
-        .then(({ error: rpcError }) => {
-          if (rpcError) {
-            return serviceClient
-              .from("community_profiles")
-              .update({
-                post_count: (existingProfile as Record<string, number>)
-                  ?.post_count
-                  ? (existingProfile as Record<string, number>).post_count + 1
-                  : 1,
-              })
-              .eq("user_id", user.id);
-          }
-        });
-    } catch (e) {
-      console.error("[posts.POST] post_count increment failed (non-fatal):", e);
-    }
-
-    // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록 — 실패해도 응답은 성공
     try {
       revalidatePath("/");
       revalidatePath("/wedding");
       revalidatePath("/community");
-    } catch (e) {
-      console.error("[posts.POST] revalidatePath failed (non-fatal):", e);
+    } catch (error) {
+      console.error(
+        "[posts.POST] revalidatePath failed (non-fatal):",
+        safeErrorDiagnostic(error),
+      );
     }
 
-    // price_data가 있으면 카테고리 무관 AI 코멘트 생성 — fire-and-forget
-    // (코멘트는 결정론적 시세 벤치마크라 비용 부담 없음. 응답을 막지 않게 백그라운드 처리)
     if (priceData) {
       void (async () => {
         try {
@@ -709,18 +893,24 @@ export async function POST(req: NextRequest) {
               .update({ ai_comment: aiComment })
               .eq("id", post.id);
           }
-        } catch (aiErr) {
-          console.error("AI comment generation failed:", aiErr);
+        } catch (aiError) {
+          console.error(
+            "AI comment generation failed:",
+            safeErrorDiagnostic(aiError),
+          );
         }
       })();
     }
 
-    return NextResponse.json({ post }, { status: 201 });
+    return NextResponse.json(
+      { post: { ...post, is_author: true } },
+      { status: 201 },
+    );
   } catch (err) {
-    console.error("Create post error:", err);
+    console.error("Create post error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -4,10 +4,34 @@
 // 채널 전략: Phase1 이메일(즉시 가동) → Phase2 모바일 푸시(출시 시) → Phase3 카카오 알림톡.
 
 import type { DueMomentCell } from "@/lib/amora/momentLoop";
+import { getConfiguredSiteOrigin } from "@/lib/auth/passwordRecoveryLink";
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai";
+const CANONICAL_SITE_ORIGIN = "https://hanbang.ai";
+const CARE_EMAIL_SITE_ORIGINS = new Set([
+  CANONICAL_SITE_ORIGIN,
+  "https://www.hanbang.ai",
+]);
+
+export function getCareEmailSiteOrigin(configuredSiteUrl: string | undefined): string {
+  const origin = getConfiguredSiteOrigin(configuredSiteUrl);
+  return origin && CARE_EMAIL_SITE_ORIGINS.has(origin)
+    ? origin
+    : CANONICAL_SITE_ORIGIN;
+}
+
+function safeEmailSubjectText(value: string): string {
+  return value
+    .replace(/[\r\n\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+}
 
 export function buildCareEmailSubject(cell: Pick<DueMomentCell, "momentLabel" | "cellKind">): string {
+  cell = {
+    ...cell,
+    momentLabel: safeEmailSubjectText(cell.momentLabel) || "일정",
+  };
   switch (cell.cellKind) {
     case "d3":
       return `${cell.momentLabel} 3일 전이에요 — 아모라가 미리 챙겨왔어요`;
@@ -31,6 +55,7 @@ export function buildCareEmailHtml(params: {
   recipientName: string | null;
   cell: Pick<DueMomentCell, "momentLabel" | "cellKind" | "message">;
 }): string {
+  const siteOrigin = getCareEmailSiteOrigin(process.env.NEXT_PUBLIC_SITE_URL);
   const greeting = params.recipientName
     ? `${escapeHtml(params.recipientName)}님,`
     : "안녕하세요,";
@@ -39,7 +64,7 @@ export function buildCareEmailHtml(params: {
   return `
     <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
       <div style="text-align: center; margin-bottom: 28px;">
-        <img src="${SITE}/images/logo-512-transparent.png" alt="웨딩한방" width="56" height="56" style="width: 56px; height: 56px; object-fit: contain;" />
+        <img src="${siteOrigin}/images/logo-512-transparent.png" alt="웨딩한방" width="56" height="56" style="width: 56px; height: 56px; object-fit: contain;" />
       </div>
       <p style="font-size: 13px; color: #9d6f36; text-align: center; margin-bottom: 8px; letter-spacing: 0.08em;">
         아모라가 먼저 챙겨왔어요
@@ -53,13 +78,13 @@ export function buildCareEmailHtml(params: {
         </p>
       </div>
       <div style="text-align: center; margin-bottom: 28px;">
-        <a href="${SITE}/chat" style="display: inline-block; padding: 13px 36px; background: #36534E; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+        <a href="${siteOrigin}/chat" style="display: inline-block; padding: 13px 36px; background: #36534E; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
           아모라랑 이어서 얘기하기
         </a>
       </div>
       <p style="font-size: 12px; color: #B5ADA3; text-align: center; line-height: 1.7;">
         이 안내는 직접 입력하신 일정을 기준으로 보내드려요.<br>
-        받고 싶지 않으시면 <a href="${SITE}/settings" style="color: #9d6f36;">설정 &gt; 알림</a>에서 끌 수 있어요.
+        받고 싶지 않으시면 <a href="${siteOrigin}/settings" style="color: #9d6f36;">설정 &gt; 알림</a>에서 끌 수 있어요.
       </p>
       <p style="font-size: 11px; color: #D5D0C9; text-align: center; margin-top: 20px;">
         © 2026 웨딩한방

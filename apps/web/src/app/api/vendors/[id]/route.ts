@@ -10,18 +10,46 @@ import {
   PUBLIC_VENDOR_TIMESLOT_COLUMNS,
 } from "@/lib/vendors/publicFields";
 import { isUuid } from "@/utils/requestValidation";
+import { checkPublicBookingAvailabilityRateLimit } from "@/lib/vendors/publicAvailabilityRateLimit";
+import { checkPublicVendorCatalogRateLimit } from "@/lib/vendors/publicCatalogRateLimit";
 import {
   bookingCountAt,
   buildKstDateWindow,
   loadPublicBookingAvailability,
+  toPublicBookingSlots,
   type BookingOccupancyCount,
+  type PublicBookingSlot,
 } from "@/lib/vendors/bookingAvailability";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Cookie, Authorization",
+};
+
+function privateJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_NO_STORE_HEADERS });
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     if (!isUuid(id)) {
-      return NextResponse.json({ error: "잘못된 업체 ID입니다." }, { status: 400 });
+      return privateJson({ error: "잘못된 업체 ID입니다." }, 400);
+    }
+    const catalogLimited = await checkPublicVendorCatalogRateLimit(req);
+    if (catalogLimited) {
+      for (const [name, value] of Object.entries(PRIVATE_NO_STORE_HEADERS)) {
+        catalogLimited.headers.set(name, value);
+      }
+      return catalogLimited;
+    }
+    const limited = await checkPublicBookingAvailabilityRateLimit(req);
+    if (limited) {
+      for (const [name, value] of Object.entries(PRIVATE_NO_STORE_HEADERS)) {
+        limited.headers.set(name, value);
+      }
+      return limited;
     }
     const admin = createAdminClient();
     const userClient = await createClientFromRequest(req);
@@ -35,7 +63,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .single();
 
     if (error || !vendorRow) {
-      return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });
+      return privateJson({ error: "업체를 찾을 수 없습니다." }, 404);
     }
 
     // 타임슬롯
@@ -69,12 +97,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       });
     } catch {
       console.error("[vendor-detail] booking availability unavailable");
-      return NextResponse.json(
+      return privateJson(
         {
           error: "예약 가능 시간을 확인할 수 없습니다.",
           code: "BOOKING_AVAILABILITY_UNAVAILABLE",
         },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
+        503,
       );
     }
     const dateForDay = new Map(nextWeekDates.map(({ date, day }) => [day, date]));
@@ -87,6 +115,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         : s.max_bookings,
     }));
 
+    const publicProductSlots = new Map<string, PublicBookingSlot[]>();
     const products = (productRows ?? []).map((row) => {
       const pts = (productTimeslots ?? []).filter((pt) => pt.product_id === row.id);
       const enrichedPts = pts.map((s) => ({
@@ -99,6 +128,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             })
           : s.max_bookings,
       }));
+      publicProductSlots.set(row.id, toPublicBookingSlots(enrichedPts));
       return productRowToProduct(row, enrichedPts as typeof pts);
     });
 
@@ -111,19 +141,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .order("created_at", { ascending: false })
       .limit(10);
 
+    const internalVendor = vendorToPublicVendor(
+      vendorRowToVendor(vendorRow, enrichedTimeslots, products),
+    );
     const vendor = {
-      ...vendorToPublicVendor(vendorRowToVendor(vendorRow, enrichedTimeslots, products)),
+      ...internalVendor,
+      timeSlots: toPublicBookingSlots(enrichedTimeslots),
+      products: internalVendor.products.map((product) => ({
+        ...product,
+        timeSlots: publicProductSlots.get(product.id) ?? [],
+      })),
       isVerified: Boolean(vendorRow.is_verified),
     };
 
-    // 조회수 기록
+    // GET은 캐시·프리패치·이미지 요청으로도 호출될 수 있으므로 상태를 바꾸지 않는다.
+    // 인증은 찜 여부를 응답하기 위해서만 확인한다.
     const { data: { user } } = await userClient.auth.getUser();
-    if (user) {
-      await userClient.from("vendor_views").insert({
-        vendor_id: id,
-        viewer_id: user.id,
-      });
-    }
 
     // 찜 여부 확인
     let isFavorite = false;
@@ -137,13 +170,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       isFavorite = !!fav;
     }
 
-    return NextResponse.json({
+    return privateJson({
       vendor,
       reviews: reviews ?? [],
       isFavorite,
     });
   } catch (err) {
-    console.error("Vendor detail error:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    console.error("Vendor detail error", safeErrorDiagnostic(err));
+    return privateJson({ error: "서버 오류가 발생했습니다." }, 500);
   }
 }

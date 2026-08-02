@@ -2,6 +2,24 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import type { CohortThreadTopic } from "@/types/community.types";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isUuid } from "@/utils/requestValidation";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+  Vary: "Cookie, Authorization",
+} as const;
+
+function digestJson(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: PRIVATE_NO_STORE_HEADERS,
+  });
+}
 
 type DigestPeriod = "today" | "week";
 
@@ -618,20 +636,29 @@ export async function GET(
 ) {
   try {
     const { id: roomId } = await params;
+    if (!isUuid(roomId)) {
+      return digestJson({ error: "잘못된 동기방 ID입니다." }, 400);
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return digestJson({ error: "인증이 필요합니다." }, 401);
     }
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("cohort:digest", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
 
     const member = await ensureActiveMember(supabase, roomId, user.id);
     if (!member) {
-      return NextResponse.json(
+      return digestJson(
         { error: "해당 동기방의 활성 멤버만 이용할 수 있습니다." },
-        { status: 403 }
+        403
       );
     }
 
@@ -649,10 +676,10 @@ export async function GET(
       .limit(DIGEST_MESSAGE_LIMIT);
 
     if (error) {
-      console.error("Cohort digest load error:", error);
-      return NextResponse.json(
+      console.error("Cohort digest load error:", safeErrorDiagnostic(error));
+      return digestJson(
         { error: "동기방 요약을 불러오지 못했습니다." },
-        { status: 500 }
+        500
       );
     }
 
@@ -713,16 +740,12 @@ export async function GET(
       empty: messages.length === 0,
     };
 
-    return NextResponse.json(payload, {
-      headers: {
-        "Cache-Control": "private, max-age=120",
-      },
-    });
+    return digestJson(payload);
   } catch (err) {
-    console.error("Cohort digest error:", err);
-    return NextResponse.json(
+    console.error("Cohort digest error:", safeErrorDiagnostic(err));
+    return digestJson(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      500
     );
   }
 }

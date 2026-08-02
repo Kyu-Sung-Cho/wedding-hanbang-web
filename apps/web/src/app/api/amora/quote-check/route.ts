@@ -8,6 +8,8 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import { sanitizeText } from "@/utils/sanitize";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,17 @@ const LEAD_CATEGORY_BY_QUOTE_CATEGORY: Record<AmoraQuoteCategory, string> = {
 const BOOKING_CHANNEL_SET = new Set(["walk_in", "planner", "agency_package", "platform", "unknown"]);
 const QUOTE_STAGE_SET = new Set(["quote_only", "contracted"]);
 const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const MAX_BODY_BYTES = 16 * 1024;
+
+class QuoteCheckValidationError extends Error {
+  readonly publicMessage: string;
+
+  constructor(publicMessage: string) {
+    super(publicMessage);
+    this.name = "QuoteCheckValidationError";
+    this.publicMessage = publicMessage;
+  }
+}
 
 interface QuoteCheckBody {
   category?: string;
@@ -45,15 +58,15 @@ function parseBody(body: QuoteCheckBody): AmoraQuoteCheckInput {
   const quotePriceManwon = Number(body.quotePriceManwon);
 
   if (!CATEGORY_SET.has(category as AmoraQuoteCategory)) {
-    throw new Error("지원하지 않는 견적 카테고리입니다.");
+    throw new QuoteCheckValidationError("지원하지 않는 견적 카테고리입니다.");
   }
 
   if (!REGION_SET.has(region as AmoraQuoteRegion)) {
-    throw new Error("지원하지 않는 지역입니다.");
+    throw new QuoteCheckValidationError("지원하지 않는 지역입니다.");
   }
 
   if (!Number.isFinite(quotePriceManwon) || quotePriceManwon <= 0 || quotePriceManwon > 10000) {
-    throw new Error("견적 금액은 1만원 이상 1억원 이하로 입력해주세요.");
+    throw new QuoteCheckValidationError("견적 금액은 1만원 이상 1억원 이하로 입력해주세요.");
   }
 
   return {
@@ -108,7 +121,17 @@ export async function POST(req: NextRequest) {
     });
     if (limited) return limited;
 
-    const body = (await req.json()) as QuoteCheckBody;
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 형식이 올바르지 않습니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    if (!isRecord(bodyResult.value)) {
+      return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    const body = bodyResult.value as QuoteCheckBody;
     const input = parseBody(body);
     const conditions = parseConditions(body);
     const analysis = analyzeAmoraQuoteCheck(input);
@@ -164,7 +187,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (saveError) {
-        console.warn("Amora quote check save skipped:", saveError.message);
+        console.warn("Amora quote check save skipped", safeErrorDiagnostic(saveError));
       } else {
         savedId = saved?.id ?? null;
       }
@@ -186,7 +209,7 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (leadReadError) {
-          console.warn("Vendor lead read skipped:", leadReadError.message);
+          console.warn("Vendor lead read skipped", safeErrorDiagnostic(leadReadError));
         } else if (existingLead) {
           const { error: leadUpdateError } = await admin
             .from("vendor_leads")
@@ -196,7 +219,7 @@ export async function POST(req: NextRequest) {
             })
             .eq("id", existingLead.id);
           if (leadUpdateError) {
-            console.warn("Vendor lead update skipped:", leadUpdateError.message);
+            console.warn("Vendor lead update skipped", safeErrorDiagnostic(leadUpdateError));
           }
         } else {
           const { error: leadInsertError } = await admin
@@ -230,11 +253,11 @@ export async function POST(req: NextRequest) {
                   })
                   .eq("id", duplicateLead.id);
                 if (duplicateUpdateError) {
-                  console.warn("Vendor lead duplicate update skipped:", duplicateUpdateError.message);
+                  console.warn("Vendor lead duplicate update skipped", safeErrorDiagnostic(duplicateUpdateError));
                 }
               }
             } else {
-              console.warn("Vendor lead insert skipped:", leadInsertError.message);
+              console.warn("Vendor lead insert skipped", safeErrorDiagnostic(leadInsertError));
             }
           }
         }
@@ -246,7 +269,10 @@ export async function POST(req: NextRequest) {
       { headers: { "Cache-Control": "private, no-store, max-age=0" } }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "체크리스트 결과를 가져오지 못했습니다.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (err instanceof QuoteCheckValidationError) {
+      return NextResponse.json({ error: err.publicMessage }, { status: 400 });
+    }
+    console.error("Amora quote check failed", safeErrorDiagnostic(err));
+    return NextResponse.json({ error: "체크리스트 결과를 가져오지 못했습니다." }, { status: 500 });
   }
 }

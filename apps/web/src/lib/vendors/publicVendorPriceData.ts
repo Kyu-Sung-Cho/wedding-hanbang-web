@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import {
   canonicalVendorName,
   isSameNameDifferentBusiness,
@@ -254,7 +255,10 @@ export async function loadVendorIdentityRows(
 }
 
 function reportIdentityLoadFailure(cause: unknown): void {
-  console.error("[vendor-identity] 형제 업체 조회 실패 — 상세가 병합 전 상태로 얇아진다:", cause);
+  console.error(
+    "[vendor-identity] 형제 업체 조회 실패 — 상세가 병합 전 상태로 얇아진다:",
+    safeErrorDiagnostic(cause),
+  );
 }
 
 export type VendorIdentitySummary = {
@@ -494,7 +498,10 @@ function policyTypeRank(semanticType: string): number {
  * 검색 가능한 접두어로 남겨 Vercel 함수 로그에서 바로 잡을 수 있게 한다.
  */
 function reportPolicyLoadFailure(cause: unknown): void {
-  console.error("[vendor-policies] 위약금 공개 조회 실패 — 상세 화면에서 섹션이 사라진다:", cause);
+  console.error(
+    "[vendor-policies] 위약금 공개 조회 실패 — 상세 화면에서 섹션이 사라진다:",
+    safeErrorDiagnostic(cause),
+  );
 }
 
 export async function loadPublicVendorPolicies(

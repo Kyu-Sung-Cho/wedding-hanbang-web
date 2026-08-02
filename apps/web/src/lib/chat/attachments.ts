@@ -18,7 +18,6 @@ export const CHAT_ATTACHMENT_TYPE_INFO: Readonly<
   "image/png": { maxSize: CHAT_ATTACHMENT_MAX_RAW_BYTES, label: "이미지" },
   "image/gif": { maxSize: CHAT_ATTACHMENT_MAX_RAW_BYTES, label: "이미지" },
   "image/webp": { maxSize: CHAT_ATTACHMENT_MAX_RAW_BYTES, label: "이미지" },
-  "application/pdf": { maxSize: CHAT_ATTACHMENT_MAX_RAW_BYTES, label: "PDF" },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
     maxSize: CHAT_ATTACHMENT_MAX_RAW_BYTES,
     label: "Word",
@@ -29,6 +28,10 @@ export const CHAT_ATTACHMENT_SIZE_ERROR =
   `첨부파일 전체 크기가 너무 커요. 전체 ${CHAT_ATTACHMENT_MAX_RAW_MB_LABEL} 이하로 줄인 뒤 파일을 다시 첨부해주세요.`;
 export const CHAT_ATTACHMENT_SNAPSHOT_ERROR =
   "첨부파일을 안전하게 읽지 못했어요. 지원되는 파일인지 확인한 뒤 다시 첨부해주세요.";
+export const CHAT_PDF_DISABLED_ERROR =
+  "PDF는 문서 메타데이터를 안전하게 제거하는 기능이 준비될 때까지 첨부할 수 없어요. 필요한 내용을 DOCX로 다시 저장하거나 텍스트로 보내주세요.";
+export const CHAT_PARTNER_ATTACHMENT_DISABLED_ERROR =
+  "파일 첨부는 현재 아모라 대화에서만 안전하게 처리할 수 있어요. 상대방에게는 파일 없이 메시지를 보내주세요.";
 
 export type PreparedChatAttachment = {
   base64: string;
@@ -89,6 +92,9 @@ export function prepareChatAttachmentPayload(
       }
       const candidate = raw as Record<string, unknown>;
       const { base64, mediaType, fileName } = candidate;
+      if (mediaType === "application/pdf") {
+        return { ok: false, error: CHAT_PDF_DISABLED_ERROR };
+      }
       if (
         typeof base64 !== "string"
         || typeof mediaType !== "string"

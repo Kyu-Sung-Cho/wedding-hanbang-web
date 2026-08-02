@@ -1120,7 +1120,7 @@ test("the extract CLI rejects every legacy paid OpenAI flag spelling", async (t)
         assert.ok("stderr" in error);
         assert.match(
           String(error.stderr),
-          /paid_openai_cli_disabled/u,
+          /PAID_OPENAI_CLI_DISABLED/u,
           `legacy arguments were not rejected: ${legacyArguments.join(" ")}`,
         );
         return true;

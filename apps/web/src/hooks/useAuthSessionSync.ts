@@ -1,29 +1,51 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { clearUserScopedClientState } from "@/lib/auth/userScopedClientState";
 import { useAuthStore } from "@/stores/authStore";
-import { useChatStore } from "@/stores/chatStore";
-import { useCommunityStore } from "@/stores/communityStore";
-
-function resetUserScopedStores() {
-  useChatStore.getState().reset();
-  useCommunityStore.getState().reset();
-}
 
 export function useAuthSessionSync(enabled = true) {
+  const [isSessionVerified, setIsSessionVerified] = useState(!enabled);
+
   useEffect(() => {
     if (!enabled) return;
 
     const supabase = createClient();
+    let active = true;
+    let synchronizationGeneration = 0;
 
-    const refreshFromServer = async () => {
+    const redirectToLogin = () => {
+      if (window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
+    };
+
+    const refreshFromServer = async (expectedUserId?: string) => {
+      const generation = ++synchronizationGeneration;
+      setIsSessionVerified(false);
       const beforeUserId = useAuthStore.getState().user?.id ?? null;
       await useAuthStore.getState().initialize({ force: true });
+
+      if (!active || generation !== synchronizationGeneration) return;
+
+      const authState = useAuthStore.getState();
       const afterUserId = useAuthStore.getState().user?.id ?? null;
       if (beforeUserId !== afterUserId) {
-        resetUserScopedStores();
+        clearUserScopedClientState();
       }
+
+      if (
+        !authState.isDemo &&
+        (!afterUserId || (expectedUserId !== undefined && expectedUserId !== afterUserId))
+      ) {
+        clearUserScopedClientState();
+        useAuthStore.getState().reset();
+        redirectToLogin();
+        return;
+      }
+
+      setIsSessionVerified(true);
     };
 
     const {
@@ -31,11 +53,24 @@ export function useAuthSessionSync(enabled = true) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUserId = useAuthStore.getState().user?.id ?? null;
       const nextUserId = session?.user?.id ?? null;
-      if (currentUserId === nextUserId) return;
 
-      resetUserScopedStores();
+      if (nextUserId && currentUserId === nextUserId) return;
+
+      synchronizationGeneration += 1;
+      setIsSessionVerified(false);
+      clearUserScopedClientState();
       useAuthStore.getState().reset();
-      void useAuthStore.getState().initialize({ force: true });
+
+      if (!nextUserId) {
+        redirectToLogin();
+        return;
+      }
+
+      // Defer network work until Supabase has finished publishing the new
+      // cookie-backed session. The sensitive tree is already blank at this point.
+      window.queueMicrotask(() => {
+        if (active) void refreshFromServer(nextUserId);
+      });
     });
 
     const handleFocus = () => {
@@ -50,11 +85,16 @@ export function useAuthSessionSync(enabled = true) {
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    void refreshFromServer();
 
     return () => {
+      active = false;
+      synchronizationGeneration += 1;
       subscription.unsubscribe();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [enabled]);
+
+  return !enabled || isSessionVerified;
 }

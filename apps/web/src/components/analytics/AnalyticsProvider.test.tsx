@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { THIRD_PARTY_ANALYTICS_CONSENT_KEY } from "@/lib/analyticsPrivacy";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -37,6 +38,8 @@ describe("AnalyticsProvider admin preview boundary", () => {
       return 0;
     });
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test_key");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_ENABLED", "true");
+    window.localStorage.setItem(THIRD_PARTY_ANALYTICS_CONSENT_KEY, "granted");
     mocks.pathname = "/wedding/vendors";
     mocks.searchParams = new URLSearchParams("preview=1");
     mocks.init.mockReset();
@@ -49,6 +52,7 @@ describe("AnalyticsProvider admin preview boundary", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     document.body.replaceChildren();
+    window.localStorage.clear();
     vi.unstubAllEnvs();
   });
 
@@ -71,9 +75,75 @@ describe("AnalyticsProvider admin preview boundary", () => {
     await renderProvider();
 
     expect(mocks.init).toHaveBeenCalledTimes(1);
+    expect(mocks.init).toHaveBeenCalledWith(
+      "phc_test_key",
+      expect.objectContaining({
+        autocapture: false,
+        capture_pageleave: false,
+        capture_pageview: false,
+        disable_external_dependency_loading: true,
+        disable_session_recording: true,
+        disable_surveys: true,
+        advanced_disable_flags: true,
+        mask_personal_data_properties: true,
+        persistence: "memory",
+        person_profiles: "never",
+        respect_dnt: true,
+        save_campaign_params: false,
+        save_referrer: false,
+        before_send: expect.any(Function),
+      }),
+    );
     expect(mocks.capture).toHaveBeenCalledTimes(1);
     expect(mocks.capture).toHaveBeenCalledWith("$pageview", {
       $current_url: `${window.location.origin}/wedding/vendors`,
     });
+  });
+
+  it("never sends query or fragment data in pageviews", async () => {
+    mocks.pathname = "/community/post/write";
+    mocks.searchParams = new URLSearchParams("title=private-title&body=private-body");
+
+    await renderProvider();
+
+    expect(mocks.capture).toHaveBeenCalledWith("$pageview", {
+      $current_url: `${window.location.origin}/community/post/write`,
+    });
+    expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain("private-title");
+    expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain("private-body");
+  });
+
+  it("does not initialize from an environment key without an explicit browser grant", async () => {
+    window.localStorage.removeItem(THIRD_PARTY_ANALYTICS_CONSENT_KEY);
+    mocks.pathname = "/landing";
+    mocks.searchParams = new URLSearchParams();
+
+    await renderProvider();
+
+    expect(mocks.init).not.toHaveBeenCalled();
+    expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
+  it("redacts WeddingCode answers and auth secrets at the final PostHog boundary", async () => {
+    mocks.pathname = "/landing";
+    mocks.searchParams = new URLSearchParams();
+    await renderProvider();
+
+    const config = mocks.init.mock.calls[0]?.[1] as {
+      before_send: (event: {
+        event: string;
+        properties: Record<string, string>;
+      }) => { event: string; properties: Record<string, string> } | null;
+    };
+    const sanitized = config.before_send({
+      event: "$pageview",
+      properties: {
+        $current_url: "https://hanbang.ai/wedding-code?a=AAAAAAAAAAAAAAAA&b=BBBBBBBBBBBBBBBB",
+        callback: "https://hanbang.ai/reset-password#access_token=secret&refresh_token=secret2",
+      },
+    });
+
+    expect(sanitized?.properties.$current_url).toBe("https://hanbang.ai/wedding-code");
+    expect(sanitized?.properties.callback).not.toContain("secret");
   });
 });

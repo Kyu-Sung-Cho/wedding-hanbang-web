@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export type ChatVisibility = "shared" | "bride_private" | "groom_private";
 
@@ -36,6 +37,14 @@ export class AiMessagePersistenceError extends Error {
 type AdminClient = ReturnType<typeof createAdminClient>;
 const RETRY_DELAYS_MS = [0, 120, 360] as const;
 
+function privacySafeMetadata(
+  metadata: Record<string, unknown>,
+): Record<string, unknown> {
+  const safe = { ...metadata };
+  delete safe.senderName;
+  return safe;
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -71,7 +80,7 @@ export async function findPersistedAiMessage(
     content: row.content,
     metadata:
       row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
-        ? (row.metadata as Record<string, unknown>)
+        ? privacySafeMetadata(row.metadata as Record<string, unknown>)
         : null,
     stageTag: (row.stage_tag as string | null) ?? null,
     specialistType: (row.specialist_type as string | null) ?? null,
@@ -90,7 +99,7 @@ export async function persistAiMessage(
       id: null,
       createdAt: null,
       content: params.cleanText,
-      metadata: params.metadata,
+      metadata: privacySafeMetadata(params.metadata),
       stageTag: params.stageTag,
       specialistType: params.specialistType,
       visibility: params.visibility,
@@ -109,11 +118,11 @@ export async function persistAiMessage(
     if (existing) return existing;
   } catch (error) {
     // A transient read failure should not prevent the first INSERT attempt.
-    console.warn("[chat] idempotency preflight lookup failed", error);
+    console.warn("[chat] idempotency preflight lookup failed", safeErrorDiagnostic(error));
   }
 
   const metadata = {
-    ...params.metadata,
+    ...privacySafeMetadata(params.metadata),
     client_request_id: params.clientRequestId,
   };
   let lastError: unknown = null;
@@ -142,7 +151,7 @@ export async function persistAiMessage(
         const persistedMetadata = data.metadata
           && typeof data.metadata === "object"
           && !Array.isArray(data.metadata)
-          ? data.metadata as Record<string, unknown>
+          ? privacySafeMetadata(data.metadata as Record<string, unknown>)
           : metadata;
         return {
           id: data.id as string,

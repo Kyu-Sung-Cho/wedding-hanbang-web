@@ -3,11 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   getServiceClient: vi.fn(),
+  rateLimit: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
   verifyAdmin: mocks.verifyAdmin,
   getServiceClient: mocks.getServiceClient,
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
 }));
 
 import { GET } from "./route";

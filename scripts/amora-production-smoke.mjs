@@ -44,6 +44,7 @@ function parseSse(text) {
 try {
   const demoResponse = await fetch(new URL("/api/demo/start", baseUrl), {
     method: "POST",
+    headers: { Origin: new URL(baseUrl).origin },
     signal: controller.signal,
   });
   const cookie = cookieHeader(demoResponse);
@@ -60,6 +61,7 @@ try {
     const response = await fetch(new URL("/api/chat", baseUrl), {
       method: "POST",
       headers: {
+        Origin: new URL(baseUrl).origin,
         "Content-Type": "application/json",
         Cookie: cookie,
       },

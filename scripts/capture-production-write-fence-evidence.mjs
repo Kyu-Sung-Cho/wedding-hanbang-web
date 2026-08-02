@@ -30,14 +30,14 @@ for (const argument of process.argv.slice(2)) {
 }
 
 try {
-  const result = await captureProductionWriteFenceEvidence({
+  await captureProductionWriteFenceEvidence({
     repoRoot: resolve(import.meta.dirname, ".."),
     expectedCommit: options["--expected-commit"],
     backupReceiptPath: options["--backup-receipt"],
     receiptOut: options["--receipt-out"],
     siteUrl: options["--site-url"],
   });
-  console.log(JSON.stringify(result, null, 2));
+  console.log("PRODUCTION_WRITE_FENCE_EVIDENCE_CAPTURED");
 } catch (error) {
   console.error(
     error instanceof WriteFenceEvidenceError

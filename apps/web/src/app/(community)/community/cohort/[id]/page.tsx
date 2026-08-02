@@ -27,6 +27,8 @@ import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/co
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import { communityPostPath } from "@/lib/community/routes";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
+import { normalizeCommunityAvatar } from "@/lib/community/avatar";
+import { validateCommunityMediaUrl } from "@/lib/community/mediaUrls";
 import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
@@ -37,8 +39,6 @@ import {
 import type {
   CohortRoom,
   CohortMessage,
-  CohortProfileSummary,
-  CohortContract,
   CohortStat,
   CohortTimelineEvent,
   CohortThreadTopic,
@@ -579,21 +579,17 @@ function ChatTab({
       return;
     }
     (async () => {
-      const { data: memberRows } = await supabase
-        .from("cohort_members")
-        .select("user_id")
-        .eq("room_id", roomId)
-        .eq("is_active", true);
-      if (!memberRows) return;
-      const ids = memberRows.map((m) => m.user_id);
-      if (ids.length === 0) return;
-      const { data: profiles } = await supabase
-        .from("community_profiles")
-        .select("user_id, nickname")
-        .in("user_id", ids);
-      setMembers((profiles ?? []) as { user_id: string; nickname: string }[]);
+      const res = await fetch("/api/community/cohort");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.room?.id !== roomId) return;
+      setMembers(
+        (data.recentMembers ?? [])
+          .map((member: { profile?: { user_id: string; nickname: string } | null }) => member.profile)
+          .filter(Boolean) as { user_id: string; nickname: string }[],
+      );
     })();
-  }, [enabled, roomId, supabase]);
+  }, [enabled, roomId]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value;
@@ -658,35 +654,8 @@ function ChatTab({
           table: "cohort_messages",
           filter: "room_id=eq." + roomId,
         },
-        async (payload) => {
-          const newMsg = payload.new as CohortMessage;
-          // author 프로필 join해서 추가
-          const { data: authorData } = await supabase
-            .from("community_profiles")
-            .select("user_id, nickname, avatar_url, rank")
-            .eq("user_id", newMsg.author_id)
-            .maybeSingle<CohortProfileSummary>();
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            const hydratedMessage = {
-              ...newMsg,
-              author: authorData ?? undefined,
-            };
-            const tempIndex = prev.findIndex((message) => (
-              message.id.startsWith("temp-") &&
-              message.author_id === newMsg.author_id &&
-              message.content === newMsg.content &&
-              Math.abs(new Date(newMsg.created_at).getTime() - new Date(message.created_at).getTime()) < 30_000
-            ));
-
-            if (tempIndex >= 0) {
-              return prev.map((message, index) => (
-                index === tempIndex ? hydratedMessage : message
-              ));
-            }
-
-            return [...prev, hydratedMessage];
-          });
+        async () => {
+          await loadMessages();
         }
       )
       .subscribe();
@@ -694,7 +663,7 @@ function ChatTab({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, supabase, roomId]);
+  }, [enabled, loadMessages, supabase, roomId]);
 
   // 컨테이너 내부 스크롤 위치 추적 — 바닥 근처 여부 캐시
   useEffect(() => {
@@ -1048,7 +1017,7 @@ function FilterPill({
   );
 }
 
-function renderMessageContent(text: string): React.ReactNode {
+function renderMessageContent(text: string, authorId: string): React.ReactNode {
   const regex = /(\[post:[a-f0-9-]+\|[^\]]+\]|\[img:[^\]]+\]|@\[[^|]+\|[a-f0-9-]+\])/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -1088,15 +1057,25 @@ function renderMessageContent(text: string): React.ReactNode {
       );
     } else if (token.startsWith("[img:")) {
       const url = token.slice(5, -1);
-      parts.push(
+      const image = validateCommunityMediaUrl(url, {
+        kind: "image",
+        ownerIds: authorId,
+        requireUploadSessionPath: true,
+      });
+      parts.push(image.ok ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           key={`i${match.index}`}
-          src={url}
+          src={image.url}
           alt=""
+          referrerPolicy="no-referrer"
           className="my-1 max-h-80 rounded-lg"
         />
-      );
+      ) : (
+        <span key={`i${match.index}`} className="text-xs text-[#928980]">
+          [안전하지 않은 이미지가 숨겨졌습니다]
+        </span>
+      ));
     } else if (token.startsWith("@[")) {
       const inner = token.slice(2, -1); // 제거 @[ 와 ]
       const sepIdx = inner.indexOf("|");
@@ -1134,6 +1113,7 @@ function MessageBubble({
 }) {
   const nickname = message.author?.nickname ?? "익명";
   const initial = nickname[0] ?? "?";
+  const avatar = normalizeCommunityAvatar(message.author?.avatar_url);
   const displayTopic = resolveCohortThreadTopic(message.thread_topic, message.content);
   const isDimmed = selectedTopic !== "all" && displayTopic !== selectedTopic;
   return (
@@ -1152,16 +1132,7 @@ function MessageBubble({
       >
       {!isMine && (
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
-          {message.author?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={message.author?.avatar_url ?? ""}
-              alt=""
-              className="h-full w-full rounded-full object-cover"
-            />
-          ) : (
-            initial
-          )}
+          {avatar ?? initial}
         </div>
       )}
       <div className={`min-w-0 ${isMine ? "max-w-[86%] text-right sm:max-w-[76%]" : "flex-1"}`}>
@@ -1188,7 +1159,7 @@ function MessageBubble({
               : "bg-[#fbf8f2] text-[#263832]"
           }`}
         >
-          {renderMessageContent(message.content)}
+          {renderMessageContent(message.content, message.author_id)}
         </div>
       </div>
       </div>
@@ -1308,20 +1279,26 @@ function InfoTab({
   toastFn: ToastFnLike;
 }) {
   const [stats, setStats] = useState<CohortStat[]>([]);
-  const [contracts, setContracts] = useState<CohortContract[]>([]);
+  const [contractCount, setContractCount] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!enabled) {
       setStats([]);
-      setContracts([]);
+      setContractCount(0);
       return;
     }
-    const res = await fetch(`/api/community/cohort/${roomId}/contracts`);
+    const res = await fetch(`/api/community/cohort/${roomId}/contracts`, {
+      cache: "no-store",
+    });
     const data = await res.json();
     if (res.ok) {
       setStats(data.stats ?? []);
-      setContracts(data.contracts ?? []);
+      setContractCount(
+        Number.isInteger(data.contract_count) && data.contract_count >= 0
+          ? data.contract_count
+          : 0,
+      );
     }
   }, [enabled, roomId]);
 
@@ -1389,7 +1366,9 @@ function InfoTab({
         {CONTRACT_ITEMS.map((cat) => {
           const stat = statByCat[cat.key];
           const sample = stat?.sample_size ?? 0;
-          const enough = sample >= 5;
+          const enough = sample >= 5
+            && typeof stat?.avg_base_price === "number"
+            && typeof stat?.avg_total === "number";
           return (
             <div
               key={cat.key}
@@ -1444,9 +1423,9 @@ function InfoTab({
         })}
       </div>
 
-      {contracts.length > 0 && (
+      {contractCount > 0 && (
         <div className="mt-4 text-xs text-[#928980] text-center">
-          동기방 내 총 {contracts.length}건의 계약 정보
+          동기방 내 총 {contractCount}건의 계약 정보
         </div>
       )}
 
@@ -1699,6 +1678,7 @@ function TimelineTab({
           {events.map((ev) => {
             const nickname = ev.user?.nickname ?? "익명";
             const initial = nickname[0] ?? "?";
+            const avatar = normalizeCommunityAvatar(ev.user?.avatar_url);
             const label = EVENT_LABEL[ev.event_type] ?? ev.event_type;
             return (
               <div
@@ -1706,16 +1686,7 @@ function TimelineTab({
                 className="flex items-start gap-3 rounded-[18px] border border-[#e5d8ca] bg-white p-4 sm:p-5"
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
-                  {ev.user?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={ev.user.avatar_url}
-                      alt=""
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  ) : (
-                    initial
-                  )}
+                  {avatar ?? initial}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#263832] leading-relaxed">
@@ -1932,7 +1903,10 @@ function CohortDigestCard({
     setError(null);
 
     try {
-      const res = await fetch(`/api/community/cohort/${encodeURIComponent(roomId)}/digest?period=${period}`);
+      const res = await fetch(
+        `/api/community/cohort/${encodeURIComponent(roomId)}/digest?period=${period}`,
+        { cache: "no-store" },
+      );
       const data = (await res.json().catch(() => ({}))) as Partial<CohortDigest> & { error?: string };
 
       if (!res.ok || data.error) {
@@ -2246,24 +2220,15 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
   const [members, setMembers] = useState<{ user_id: string; nickname: string; avatar_url?: string | null }[]>([]);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("cohort_members")
-      .select("user_id")
-      .eq("room_id", roomId)
-      .eq("is_active", true)
-      .order("joined_at", { ascending: false })
-      .limit(12)
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
-        const ids = data.map((m) => m.user_id);
-        supabase
-          .from("community_profiles")
-          .select("user_id, nickname, avatar_url")
-          .in("user_id", ids)
-          .then(({ data: profiles }) => {
-            setMembers(profiles ?? []);
-          });
+    void fetch("/api/community/cohort")
+      .then(async (res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.room?.id !== roomId) return;
+        setMembers(
+          (data.recentMembers ?? [])
+            .map((member: { profile?: { user_id: string; nickname: string; avatar_url?: string | null } | null }) => member.profile)
+            .filter(Boolean),
+        );
       });
   }, [roomId]);
 
@@ -2279,6 +2244,7 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
       <div className="flex flex-wrap gap-2">
         {members.slice(0, 8).map((m) => {
           const grad = MEMBER_GRADIENTS[m.nickname.charCodeAt(0) % MEMBER_GRADIENTS.length];
+          const avatar = normalizeCommunityAvatar(m.avatar_url);
           return (
             <div
               key={m.user_id}
@@ -2286,12 +2252,7 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
               title={m.nickname}
             >
               <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-medium shadow-sm`}>
-                {m.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.avatar_url} alt="" className="h-full w-full rounded-full object-cover" />
-                ) : (
-                  m.nickname[0]
-                )}
+                {avatar ?? m.nickname[0]}
               </div>
               <span className="text-[10px] text-[#635b51] truncate w-full text-center">
                 {m.nickname}

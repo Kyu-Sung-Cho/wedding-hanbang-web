@@ -6,6 +6,21 @@ const TOKEN_VERSION = "v1";
 const MAX_TOKEN_AGE_MS = 5 * 60 * 1000;
 const MAX_FUTURE_SKEW_MS = 30 * 1000;
 const MIN_SECRET_LENGTH = 32;
+const MAX_SECRET_LENGTH = 512;
+const MIN_UNIQUE_SECRET_CHARACTERS = 12;
+const UNSAFE_SECRET_PATTERN =
+  /(?:placeholder|example|test-only|replace-with|not-a-real)/i;
+
+function isPlausibleEvalSecret(secret: string): boolean {
+  const byteLength = Buffer.byteLength(secret, "utf8");
+  return (
+    byteLength >= MIN_SECRET_LENGTH
+    && byteLength <= MAX_SECRET_LENGTH
+    && !/[\s\u0000-\u001f\u007f]/u.test(secret)
+    && new Set(secret).size >= MIN_UNIQUE_SECRET_CHARACTERS
+    && !UNSAFE_SECRET_PATTERN.test(secret)
+  );
+}
 
 function signatureFor(secret: string, requestId: string, issuedAt: string): string {
   return createHmac("sha256", secret)
@@ -29,6 +44,9 @@ export function createAmoraEvalToken(
   requestId: string,
   now = Date.now(),
 ): string {
+  if (!isPlausibleEvalSecret(secret)) {
+    throw new Error("AMORA_EVAL_SECRET_INVALID");
+  }
   const issuedAt = String(now);
   return `${TOKEN_VERSION}.${issuedAt}.${signatureFor(secret, requestId, issuedAt)}`;
 }
@@ -40,7 +58,7 @@ export function verifyAmoraEvalToken(
 ): boolean {
   if (!token || token.length > 200) return false;
   const secret = options.secret ?? process.env.AMORA_EVAL_SECRET ?? "";
-  if (secret.length < MIN_SECRET_LENGTH) return false;
+  if (!isPlausibleEvalSecret(secret)) return false;
 
   const parts = token.split(".");
   if (parts.length !== 3) return false;

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getServiceClient: vi.fn(),
   createRepository: vi.fn(),
   persistEvidence: vi.fn(),
+  rateLimit: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/utils/adminAuth", () => ({
@@ -20,6 +21,11 @@ vi.mock("@/lib/admin/priceUploadSupabase", () => ({
 
 vi.mock("@/lib/admin/priceUploadEvidence", () => ({
   persistAdminJsonEvidence: mocks.persistEvidence,
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.rateLimit,
+  rateLimitKey: vi.fn((prefix: string) => `${prefix}:test`),
 }));
 
 import { POST } from "./route";

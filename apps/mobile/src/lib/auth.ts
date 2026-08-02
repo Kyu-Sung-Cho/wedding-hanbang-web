@@ -7,6 +7,9 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { extractMobileOAuthAuthorizationCode } from "@hanbang/shared/utils";
 import { supabase } from "./supabase";
+import { setCommunityCacheOwner } from "./communityPostCache";
+import { detachPushTokenForCurrentUser } from "./notifications";
+import { resolveMobileSiteOrigin } from "./siteUrl.mjs";
 import type { Provider } from "@supabase/supabase-js";
 
 // iOS: 브라우저 인증 세션 완료 감지
@@ -14,7 +17,10 @@ WebBrowser.maybeCompleteAuthSession();
 
 // 웹 콜백 페이지를 중간 다리로 사용한다. 재사용 가능한 세션 토큰은 전달하지 않는다.
 // Supabase → https://hanbang.ai/auth/mobile-callback?code=... → 앱으로 딥링크
-const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const SITE_URL = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
 const redirectTo = `${SITE_URL}/auth/mobile-callback`;
 
 // 앱으로 돌아올 때 감지할 URL (hanbang:// 또는 exp://)
@@ -86,7 +92,25 @@ export async function signInWithOAuth(provider: Provider) {
   return { cancelled: false, session };
 }
 
-export async function signOut() {
+async function completeLocalSignOut() {
+  setCommunityCacheOwner(null);
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+}
+
+export async function signOut() {
+  // Fail closed: completing account A's local sign-out while its device token
+  // remains attached can expose A notifications after account B signs in.
+  await detachPushTokenForCurrentUser();
+  await completeLocalSignOut();
+}
+
+/**
+ * Complete local sign-out only after the account-deletion caller has disabled
+ * push consent and the server has accepted the deletion saga. Keeping this as
+ * a separate, narrowly named boundary avoids treating ordinary detach errors
+ * as success after an Auth row has already been removed.
+ */
+export async function signOutAfterAccountDeletionRequest() {
+  await completeLocalSignOut();
 }

@@ -61,7 +61,7 @@
 | Vercel 환경변수 입력 | Vercel 대시보드 | 없음(로그인만) |
 | 아모라 상한 변경 | Vercel `AMORA_GLOBAL_DAILY_MESSAGE_CAP`(현재 300) | 없음 |
 | 코드 수정·테스트 | 저장소 + `pnpm install` | 없음 |
-| `audit:production` | `apps/web/.env.local`의 `SUPABASE_ACCESS_TOKEN` | **필요** |
+| `audit:production` | 현재 프로세스에 일회성으로 주입한 `SUPABASE_ACCESS_TOKEN` | **필요** |
 | 배포 | main push(Vercel 자동) | 없음 |
 
 **유통 글 게시는 이 저장소를 클론할 필요도 없다** — GitHub 웹에서 파일을 열어
@@ -81,7 +81,7 @@ cp apps/web/.env.example apps/web/.env.local
 - `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase
   Dashboard → Project Settings → API
 - `SUPABASE_ACCESS_TOKEN` — Supabase Dashboard → Account → Access Tokens.
-  **`audit:production`이 이것 없이는 못 돈다.**
+  **`audit:production` 실행 프로세스에만 주입하고 `.env.local`에는 저장하지 않는다.**
 
 전체 목록과 각 키의 용도는 `apps/web/.env.example`이 정본이다(코드에 값을 베끼지
 않는다 — 베끼면 드리프트다).
@@ -91,7 +91,7 @@ cp apps/web/.env.example apps/web/.env.local
 ```bash
 npx pnpm@11.7.0 test          # 루트 계약 + turbo test
 npx pnpm@11.7.0 qa:local      # 웹·모바일 typecheck/lint/vitest/build
-npx pnpm@11.7.0 audit:production   # 운영 DB 읽기 점검(.env.local 필요)
+npx pnpm@11.7.0 audit:production   # 운영 DB 읽기 점검(PAT는 현재 프로세스에만 주입)
 npx pnpm@11.7.0 audit:vendor-merge # 업체 병합 후보(비밀값 불필요)
 npx pnpm@11.7.0 hooks:install      # pre-push 훅 — 체크아웃마다 한 번
 ```
@@ -114,8 +114,8 @@ qa:local 그린만 보고 "전부 통과"로 읽지 말 것.
   `data/raw` + ingest 파이프라인으로 재생성한다(`scripts/ingest/README.md`).
 - `work/.env.staging` — 스테이징 자격증명.
 
-운영 감사는 `apps/web/.env.local`(또는 형제 체크아웃)의 `SUPABASE_ACCESS_TOKEN`이
-필요하다. 감사 스크립트는 **키가 든 파일을 고른다** — 존재만 보고 첫 파일을 잡지 않는다.
+운영 감사는 현재 프로세스의 `SUPABASE_ACCESS_TOKEN`이 필요하다. 관리 PAT는
+`.env.local`이나 형제 체크아웃에 저장하지 말고, 실행이 끝나면 프로세스 환경에서 지운다.
 
 ## 남은 일
 

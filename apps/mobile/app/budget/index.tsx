@@ -12,6 +12,7 @@ import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
 // 분담 타입 (웹과 동일)
@@ -120,7 +121,7 @@ export default function BudgetScreen() {
       const { data: journey } = await supabase.from("wedding_journeys").select("total_budget, progress").eq("couple_id", profile.couple_id).single();
       setTotalBudget(journey?.total_budget ?? 0);
       setProgress((journey?.progress as Record<string, ProgressItem>) ?? {});
-    } catch (err) { console.error("Budget load:", err); }
+    } catch (err) { console.error("Budget load:", safeErrorDiagnostic(err)); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 

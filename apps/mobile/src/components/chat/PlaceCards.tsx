@@ -14,9 +14,11 @@ import {
   type PlaceCardModel,
   type PlaceSearchToolResult,
 } from "./placeCardsModel";
+import { normalizeExternalHttpsUrl } from "@/lib/externalUrls.mjs";
 
 function openExternal(url: string) {
-  void Linking.openURL(url).catch(() => undefined);
+  const safeUrl = normalizeExternalHttpsUrl(url, ["naver.com"]);
+  if (safeUrl) void Linking.openURL(safeUrl).catch(() => undefined);
 }
 
 function PlaceImage({ place, index }: { place: PlaceCardModel; index: number }) {

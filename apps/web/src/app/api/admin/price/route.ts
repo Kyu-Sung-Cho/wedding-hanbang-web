@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin/reviewPagination";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { isSafeDisclosureObjectKey, sourceFileLabels } from "@/lib/admin/vendorWorkspace";
+import { checkAdminReadRateLimit } from "@/lib/admin/adminReadBoundary";
 
 const REVIEW_STATUSES = new Set(["pending", "approved", "rejected", "all"]);
 const ENTITY_KINDS = new Set(["price", "agency_package"]);
@@ -108,10 +109,13 @@ function mapAgencyPackageRow(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  const { authorized } = await verifyAdmin(request);
-  if (!authorized) {
+  const { authorized, userId } = await verifyAdmin(request);
+  if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await checkAdminReadRateLimit(request, userId, "price-review");
+  if (limited) return limited;
 
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind") ?? "price";

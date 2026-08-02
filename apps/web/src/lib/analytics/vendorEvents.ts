@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import {
   EVENT_WEIGHTS,
-  isVendorEventType,
-  type VendorEventType,
+  isClientVendorEventType,
+  type ClientVendorEventType,
 } from "./eventWeights";
 
 export const VENDOR_EVENT_SURFACES = [
@@ -81,7 +81,7 @@ const eventInputSchema = z.object({
   // Client-generated opaque UUID only. Free-form session identifiers can
   // otherwise become an analytics PII channel.
   session_id: z.uuid(),
-  event_type: z.string().refine(isVendorEventType),
+  event_type: z.string().refine(isClientVendorEventType),
   vendor_id: z.uuid().nullable().optional().default(null),
   agency_id: z.uuid().nullable().optional().default(null),
   surface: z.enum(VENDOR_EVENT_SURFACES),
@@ -97,7 +97,7 @@ const eventEnvelopeSchema = z.union([
 export type NormalizedVendorEvent = {
   anon_id: string;
   session_id: string;
-  event_type: VendorEventType;
+  event_type: ClientVendorEventType;
   vendor_id: string | null;
   agency_id: string | null;
   surface: VendorEventSurface;
@@ -109,7 +109,7 @@ export function normalizeVendorEventBatch(value: unknown): NormalizedVendorEvent
   const result = eventEnvelopeSchema.safeParse(value);
   if (!result.success) throw new Error("EVENT_BATCH_INVALID");
   return result.data.map((event) => {
-    const eventType = event.event_type as VendorEventType;
+    const eventType = event.event_type as ClientVendorEventType;
     return {
       ...event,
       event_type: eventType,

@@ -6,13 +6,15 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { careChannelsAvailable } from "@/lib/care/careConsent";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalKoreanMobile,
   cleanOptionalText,
   isBodyTooLarge,
   isRecord,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const PROFILE_READ_COLUMNS =
@@ -63,6 +65,35 @@ function toMobileProfile(data: unknown, authenticatedUserId: string) {
   };
 }
 
+function toProfilePatchResponse(data: unknown, authenticatedUserId: string) {
+  if (!isRecord(data) || data.id !== authenticatedUserId) return null;
+
+  return {
+    id: authenticatedUserId,
+    name: typeof data.name === "string" ? data.name : null,
+    role: data.role === "bride" || data.role === "groom" ? data.role : null,
+    couple_id: typeof data.couple_id === "string" ? data.couple_id : null,
+    avatar_url: typeof data.avatar_url === "string" ? data.avatar_url : null,
+    onboarding_completed: data.onboarding_completed === true,
+    onboarding_step:
+      typeof data.onboarding_step === "number" && Number.isInteger(data.onboarding_step)
+        ? data.onboarding_step
+        : 0,
+    care_notifications_enabled: data.care_notifications_enabled === true,
+    care_notifications_consented_at:
+      typeof data.care_notifications_consented_at === "string"
+        ? data.care_notifications_consented_at
+        : null,
+    phone: typeof data.phone === "string" ? data.phone : null,
+    phone_care_consented_at:
+      typeof data.phone_care_consented_at === "string"
+        ? data.phone_care_consented_at
+        : null,
+    created_at: typeof data.created_at === "string" ? data.created_at : null,
+    updated_at: typeof data.updated_at === "string" ? data.updated_at : null,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -74,7 +105,7 @@ export async function GET(request: Request) {
       return profileReadResponse({ error: "인증이 필요합니다." }, 401);
     }
 
-    const limited = checkRateLimit(rateLimitKey("profile:read", request, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("profile:read", request, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -90,7 +121,7 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (error) {
-      console.error("Profile read error:", error);
+      console.error("Profile read error", safeErrorDiagnostic(error));
       return profileReadResponse({ error: "프로필을 불러오지 못했습니다." }, 500);
     }
 
@@ -109,7 +140,7 @@ export async function GET(request: Request) {
       careAvailability: careAvailabilityFor(user),
     });
   } catch (err) {
-    console.error("Profile read API error:", err);
+    console.error("Profile read API error", safeErrorDiagnostic(err));
     return profileReadResponse({ error: "서버 오류" }, 500);
   }
 }
@@ -128,13 +159,20 @@ export async function PATCH(request: Request) {
     }
     const careAvailability = careAvailabilityFor(user);
 
-    const limited = checkRateLimit(rateLimitKey("profile:update", request, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("profile:update", request, user.id), {
       maxRequests: 30,
       windowMs: 60 * 1000,
     });
     if (limited) return limited;
 
-    const body = await request.json();
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -286,14 +324,16 @@ export async function PATCH(request: Request) {
           { status: 404 }
         );
       }
-      console.error("Atomic profile patch failed:", patchError);
+      console.error("Atomic profile patch failed", safeErrorDiagnostic(patchError));
       return NextResponse.json({ error: "프로필 저장에 실패했습니다." }, { status: 500 });
     }
 
+    const responseProfile = isRecord(patchResult)
+      ? toProfilePatchResponse(patchResult.profile, user.id)
+      : null;
     if (
       !isRecord(patchResult)
-      || !isRecord(patchResult.profile)
-      || patchResult.profile.id !== user.id
+      || !responseProfile
       || typeof patchResult.community_profile_synced !== "boolean"
     ) {
       console.error("Atomic profile patch returned an invalid result.");
@@ -301,7 +341,7 @@ export async function PATCH(request: Request) {
     }
 
     return profileReadResponse({
-      profile: patchResult.profile,
+      profile: responseProfile,
       communityProfileSynced: patchResult.community_profile_synced,
       communityNickname:
         typeof patchResult.community_nickname === "string"
@@ -310,7 +350,7 @@ export async function PATCH(request: Request) {
       careAvailability,
     });
   } catch (err) {
-    console.error("Profile API error:", err);
+    console.error("Profile API error", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
 }

@@ -260,6 +260,6 @@ export function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): 
     link.click();
     document.body.removeChild(link);
   } else {
-    window.open(dataUrl, "_blank");
+    window.open(dataUrl, "_blank", "noopener,noreferrer");
   }
 }

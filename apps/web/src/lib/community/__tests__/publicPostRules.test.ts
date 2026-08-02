@@ -3,6 +3,7 @@ import {
   PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
   canReadCommunityPost,
   communityReadablePostOrFilter,
+  filterPublicCommunityPosts,
   isPublicCommunityPost,
   type CommunityPostAccessRow,
 } from "../publicPostRules";
@@ -31,6 +32,15 @@ describe("public community post rules", () => {
     expect(isPublicCommunityPost(post({ visibility: "draft", under_review: false }))).toBe(false);
   });
 
+  it("defensively removes non-public and under-review rows from public responses", () => {
+    const publicPost = post({ author_id: "public-author" });
+    const underReview = post({ author_id: "review-author", under_review: true });
+    const membersOnly = post({ author_id: "member-author", visibility: "members" });
+
+    expect(filterPublicCommunityPosts([publicPost, underReview, membersOnly]))
+      .toEqual([publicPost]);
+  });
+
   it("keeps under-review posts readable only to the author or an admin", () => {
     const row = post({ under_review: true });
 
@@ -52,7 +62,7 @@ describe("public community post rules", () => {
 
     expect(filter).toContain("and(visibility.eq.public,under_review.eq.false)");
     expect(filter).toContain("and(visibility.eq.members,under_review.eq.false)");
-    expect(filter).toContain("and(visibility.eq.draft,author_id.eq.user-1)");
-    expect(filter).toContain("and(under_review.eq.true,author_id.eq.user-1)");
+    expect(filter).toContain("and(visibility.eq.draft,author_public_id.eq.user-1)");
+    expect(filter).toContain("and(under_review.eq.true,author_public_id.eq.user-1)");
   });
 });

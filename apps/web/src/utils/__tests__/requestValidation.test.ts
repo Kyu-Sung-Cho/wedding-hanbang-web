@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanOptionalKoreanMobile,
+  readBoundedJsonValue,
   readBoundedUtf8Text,
+  sanitizeJsonObject,
 } from "../requestValidation";
+
+describe("sanitizeJsonObject", () => {
+  it("drops prototype-pollution keys at every nesting level", () => {
+    const input = JSON.parse(
+      '{"__proto__":{"polluted":true},"constructor":{"bad":true},"safe":{"prototype":"bad","ok":1}}',
+    ) as unknown;
+
+    const sanitized = sanitizeJsonObject(input);
+
+    expect(sanitized).not.toBeNull();
+    expect(Object.getPrototypeOf(sanitized)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(sanitized, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(sanitized, "constructor")).toBe(false);
+    expect(sanitized?.safe).toEqual({ ok: 1 });
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+  });
+});
 
 describe("cleanOptionalKoreanMobile (알림톡/문자 채널 번호 정규화)", () => {
   it("하이픈·공백 입력을 숫자만으로 정규화한다", () => {
@@ -68,6 +87,47 @@ describe("readBoundedUtf8Text", () => {
     await expect(readBoundedUtf8Text(request, 1_024)).resolves.toEqual({
       ok: true,
       text,
+    });
+  });
+});
+
+describe("readBoundedJsonValue", () => {
+  it("rejects a content-length-less chunked JSON body before buffering a later chunk", async () => {
+    let pullCount = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        if (pullCount === 1) controller.enqueue(new Uint8Array(2_048));
+        else if (pullCount === 2) controller.enqueue(new Uint8Array([1]));
+        else controller.enqueue(new Uint8Array(1_000_000));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }, { highWaterMark: 0 });
+    const request = {
+      body,
+      headers: new Headers(),
+    } as Request;
+
+    await expect(readBoundedJsonValue(request, 2_048)).resolves.toEqual({
+      ok: false,
+      reason: "too_large",
+    });
+    expect(cancelled).toBe(true);
+    expect(pullCount).toBe(2);
+  });
+
+  it("distinguishes malformed bounded JSON from an oversized body", async () => {
+    const request = new Request("https://hanbang.ai/test", {
+      method: "POST",
+      body: "{not-json",
+    });
+
+    await expect(readBoundedJsonValue(request, 1_024)).resolves.toEqual({
+      ok: false,
+      reason: "invalid_json",
     });
   });
 });

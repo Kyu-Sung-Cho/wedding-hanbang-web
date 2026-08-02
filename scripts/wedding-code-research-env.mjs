@@ -39,7 +39,7 @@ export function buildWeddingCodeResearchEnvironment(source = process.env) {
     ...environment,
     ...SYNTHETIC_SUPABASE_ENVIRONMENT,
     NODE_ENV: "development",
-    NEXT_PUBLIC_POSTHOG_HOST: "",
+    NEXT_PUBLIC_POSTHOG_ENABLED: "false",
     NEXT_PUBLIC_POSTHOG_KEY: "",
     NEXT_PUBLIC_SENTRY_DSN: "",
     NEXT_TELEMETRY_DISABLED: "1",

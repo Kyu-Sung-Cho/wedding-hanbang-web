@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { verifySecretBearerRequest } from "@/lib/auth/secretBearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -9,8 +10,7 @@ export const maxDuration = 60;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(request: Request) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected || request.headers.get("authorization") !== `Bearer ${expected}`) {
+  if (!verifySecretBearerRequest(request, process.env.CRON_SECRET)) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: NO_STORE_HEADERS },

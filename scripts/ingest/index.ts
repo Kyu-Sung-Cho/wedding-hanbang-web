@@ -1,6 +1,12 @@
 import path from "node:path";
 
 import { convertManifest } from "./convert.js";
+import {
+  formatIngestCliFailure,
+  formatIngestCliJson,
+  summarizeIngestStatus,
+  summarizeScoreReport,
+} from "./cli-output.js";
 import { resolveIngestStateDirectory } from "./io.js";
 import {
   LOCAL_DETERMINISTIC_MODEL,
@@ -61,8 +67,8 @@ function requiredOption(args: string[], name: string): string {
   return value;
 }
 
-function print(value: unknown): void {
-  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+function print(value: Record<string, unknown>): void {
+  process.stdout.write(formatIngestCliJson(value));
 }
 
 async function main(): Promise<void> {
@@ -79,7 +85,7 @@ async function main(): Promise<void> {
       agencyDir: optionValue(args, "--agency-dir"),
       hallDir: optionValue(args, "--hall-dir"),
     });
-    print({ command, units: manifest.units.length, manifest: path.join(stateDir, "manifest.json") });
+    print({ command, units: manifest.units.length, manifest_written: true });
     return;
   }
   if (command === "convert") {
@@ -87,7 +93,11 @@ async function main(): Promise<void> {
       stateDir,
       windowsOcrReviewOnly: hasFlag(args, "--windows-ocr-review-only"),
     });
-    print({ command, status: await getIngestStatus({ stateDir }), units: manifest.units.length });
+    print({
+      command,
+      status: summarizeIngestStatus(await getIngestStatus({ stateDir })),
+      units: manifest.units.length,
+    });
     return;
   }
   if (command === "extract") {
@@ -140,7 +150,14 @@ async function main(): Promise<void> {
         operation: "local-candidates",
         mode: LOCAL_DETERMINISTIC_PROVIDER_MODE,
         model: LOCAL_DETERMINISTIC_MODEL,
-        ...result,
+        selected_units: result.selected_units,
+        processed_units: result.processed_units,
+        cache_hits: result.cache_hits,
+        failed_units: result.failed_units,
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        cost_usd: result.cost_usd,
+        candidate_details_redacted: true,
       });
       return;
     }
@@ -160,13 +177,16 @@ async function main(): Promise<void> {
       processed_units: result.processed_units,
       cache_hits: result.cache_hits,
       failed_units: result.failed_units,
-      status: await getIngestStatus({ stateDir }),
+      status: summarizeIngestStatus(await getIngestStatus({ stateDir })),
     });
     return;
   }
   if (command === "validate") {
     await validateManifest({ stateDir });
-    print({ command, status: await getIngestStatus({ stateDir }) });
+    print({
+      command,
+      status: summarizeIngestStatus(await getIngestStatus({ stateDir })),
+    });
     return;
   }
   if (command === "score") {
@@ -219,7 +239,7 @@ async function main(): Promise<void> {
         : {}),
       requireValidatedArtifacts: true,
     });
-    print({ command, report });
+    print({ command, report: summarizeScoreReport(report) });
     return;
   }
   if (command === "load") {
@@ -241,8 +261,6 @@ async function main(): Promise<void> {
         command,
         mode: "prepared-pending-only-apply",
         snapshot,
-        target_project_ref: prepared.preparation.target_project_ref,
-        started_at: prepared.preparation.started_at,
         manifest_sha256: prepared.preparation.manifest_sha256,
         full_plan_sha256: prepared.preparation.full_plan_sha256,
         authorization_sha256: prepared.preparation.authorization.authorization_sha256,
@@ -292,7 +310,7 @@ async function main(): Promise<void> {
         official_prices: result.plan.official_prices.length,
         dedupe_candidates: result.plan.dedupe_candidates.length,
         ai_ledger_entries: result.plan.ai_ledger.length,
-        warnings: result.plan.warnings,
+        warning_count: result.plan.warnings.length,
       },
     });
     return;
@@ -316,10 +334,6 @@ async function main(): Promise<void> {
       command,
       mode: "finalized",
       snapshot,
-      target_project_ref: result.descriptor.target_project_ref,
-      full_plan_sha256: result.descriptor.full_plan_sha256,
-      authorization_sha256: result.descriptor.authorization_sha256,
-      run_sha256: result.descriptor.run_sha256,
       completed_batch_count: result.batchRun.results.length,
       database_run_status: "complete",
     });
@@ -339,7 +353,11 @@ async function main(): Promise<void> {
       reason: requiredOption(args, "--reason"),
       confirmation: "no_inflight_upload_confirmed",
     });
-    print({ command, mode: "manual-no-inflight-retry-authorized", result });
+    print({
+      command,
+      mode: "manual-no-inflight-retry-authorized",
+      authorization_recorded: Boolean(result),
+    });
     return;
   }
   if (command === "abort-staging-run") {
@@ -367,7 +385,7 @@ async function main(): Promise<void> {
       }
       throw error;
     }
-    print({ command, result });
+    print({ command, status: "staging_abort_recorded", run_found: result.runFound });
     return;
   }
   if (command === "complete-storage-rollback") {
@@ -383,7 +401,7 @@ async function main(): Promise<void> {
       fullPlanSha256: requiredOption(args, "--full-plan-sha256"),
       environment,
     });
-    print({ command, result });
+    print({ command, status: "storage_rollback_completed", completion_recorded: Boolean(result) });
     return;
   }
   if (command === "invalidate-staging-run") {
@@ -402,7 +420,7 @@ async function main(): Promise<void> {
     });
     print({
       command,
-      result,
+      status: "staging_run_invalidated",
       snapshot_lifecycle: {
         state: "invalidated_audit_retained",
         next_step: "Correct the local artifacts, rebuild validation/load evidence, then run load again with the same --snapshot and newly confirmed hashes. The prepare RPC will atomically supersede this run.",
@@ -416,11 +434,29 @@ async function main(): Promise<void> {
   }
 
   if (command === "paid-execution-domain-init") {
-    print({ command, ...(await initializePaidExecutionDomain(stateDir)) });
+    const result = await initializePaidExecutionDomain(stateDir);
+    print({
+      command,
+      status: "paid_execution_domain_initialized",
+      claim_count: result.claim_count,
+      pending_claim_count: result.pending_claim_count,
+      pending_reserved_cost_usd: result.pending_reserved_cost_usd,
+      cumulative_committed_cost_usd: result.cumulative_committed_cost_usd,
+      local_authority_only: result.local_authority_only,
+    });
     return;
   }
   if (command === "paid-execution-domain-status") {
-    print({ command, ...(await getPaidExecutionDomainStatus(stateDir)) });
+    const result = await getPaidExecutionDomainStatus(stateDir);
+    print({
+      command,
+      status: "paid_execution_domain_status",
+      claim_count: result.claim_count,
+      pending_claim_count: result.pending_claim_count,
+      pending_reserved_cost_usd: result.pending_reserved_cost_usd,
+      cumulative_committed_cost_usd: result.cumulative_committed_cost_usd,
+      local_authority_only: result.local_authority_only,
+    });
     return;
   }
 
@@ -430,16 +466,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  if (error instanceof StagingRollbackIncompleteError) {
-    process.stderr.write(`${JSON.stringify({
-      error: error.name,
-      message: error.message,
-      result: error.result,
-    }, null, 2)}\n`);
-    process.exitCode = 2;
-    return;
-  }
-  const message = error instanceof Error ? error.message : "알 수 없는 ingest 오류";
-  process.stderr.write(`ingest 실패: ${message}\n`);
-  process.exitCode = 1;
+  process.stderr.write(formatIngestCliFailure(error));
+  process.exitCode = error instanceof StagingRollbackIncompleteError ? 2 : 1;
 });

@@ -5,8 +5,12 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Shield, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { userFacingSignInError } from "@/lib/auth/userFacingAuthError";
+import { isStrongAdminPassword } from "@hanbang/shared/security/password-policy";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
 type PageMode = "loading" | "initial-setup" | "login";
+const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 export default function AdminLoginPage() {
   const [pageMode, setPageMode] = useState<PageMode>("loading");
@@ -19,9 +23,12 @@ export default function AdminLoginPage() {
   const [success, setSuccess] = useState("");
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [resetTurnstileToken, setResetTurnstileToken] = useState("");
 
   // 관리자 존재 여부 확인
   useEffect(() => {
+    // Retired: authorization is server-verified, never a forgeable JS cookie.
+    document.cookie = "admin_role=; path=/; max-age=0";
     async function checkAdminExists() {
       try {
         const res = await fetch("/api/admin/auth?check=exists");
@@ -41,8 +48,8 @@ export default function AdminLoginPage() {
       setError("모든 필드를 입력해주세요.");
       return;
     }
-    if (loginPassword.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다.");
+    if (!isStrongAdminPassword(loginPassword)) {
+      setError("비밀번호는 12자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다.");
       return;
     }
     setLoading(true);
@@ -83,8 +90,21 @@ export default function AdminLoginPage() {
         return;
       }
 
-      document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-      document.cookie = "admin_role=true; path=/; max-age=2592000";
+      const stepUpResponse = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          setupPassword: adminSetupPw,
+        }),
+      });
+      if (!stepUpResponse.ok) {
+        setError("계정은 생성됐지만 관리자 추가 인증에 실패했습니다. 다시 로그인해주세요.");
+        setPageMode("login");
+        setLoading(false);
+        return;
+      }
+
       window.location.href = "/admin";
     } catch {
       setError("서버 오류가 발생했습니다.");
@@ -111,11 +131,10 @@ export default function AdminLoginPage() {
       });
 
       if (signInError) {
-        setError(
-          signInError.message === "Invalid login credentials"
-            ? "이메일 또는 비밀번호가 올바르지 않습니다."
-            : signInError.message
-        );
+        setError(userFacingSignInError(
+          signInError.message,
+          "관리자 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        ));
         setLoading(false);
         return;
       }
@@ -138,8 +157,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-      document.cookie = "admin_role=true; path=/; max-age=2592000";
       window.location.href = "/admin";
     } catch {
       setError("서버 오류가 발생했습니다.");
@@ -154,22 +171,33 @@ export default function AdminLoginPage() {
       setError("이메일을 입력해주세요.");
       return;
     }
+    if (TURNSTILE_ENABLED && !resetTurnstileToken) {
+      setError("봇 확인을 완료해주세요.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const supabase = createClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(loginEmail, {
-        redirectTo: `${window.location.origin}/reset-password?redirect=/admin/login`,
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginEmail,
+          redirect: "/admin/login",
+          turnstileToken: resetTurnstileToken,
+        }),
       });
-      if (resetError) {
-        setError(resetError.message);
+      if (!response.ok) {
+        setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
       } else {
         setResetSent(true);
       }
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setResetTurnstileToken("");
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const isInitialSetup = pageMode === "initial-setup";
@@ -235,7 +263,7 @@ export default function AdminLoginPage() {
                     <br />메일이 오지 않으면 스팸함도 확인해보세요.
                   </p>
                   <button
-                    onClick={() => { setResetMode(false); setResetSent(false); setError(""); }}
+                    onClick={() => { setResetMode(false); setResetSent(false); setResetTurnstileToken(""); setError(""); }}
                     className="text-[13px] text-gold font-medium hover:text-gold/80 transition-colors"
                   >
                     로그인으로 돌아가기
@@ -253,17 +281,20 @@ export default function AdminLoginPage() {
                     placeholder="admin@hanbang.ai"
                     className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                   />
+                  {TURNSTILE_ENABLED && (
+                    <TurnstileWidget action="forgot" onVerify={setResetTurnstileToken} />
+                  )}
                   {error && <p className="text-[12px] text-rose-400 px-1">{error}</p>}
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || (TURNSTILE_ENABLED && !resetTurnstileToken)}
                     className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[0_4px_20px_rgba(201,169,110,0.3)] disabled:opacity-50"
                   >
                     {loading ? "발송 중..." : "재설정 메일 보내기"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setResetMode(false); setError(""); }}
+                    onClick={() => { setResetMode(false); setResetTurnstileToken(""); setError(""); }}
                     className="w-full text-[13px] text-white/40 hover:text-white/70 transition-colors py-2"
                   >
                     로그인으로 돌아가기
@@ -302,7 +333,7 @@ export default function AdminLoginPage() {
                       type="password"
                       value={loginPassword}
                       onChange={(e) => { setLoginPassword(e.target.value); setError(""); }}
-                      placeholder={isInitialSetup ? "6자 이상 설정" : "비밀번호"}
+                      placeholder={isInitialSetup ? "12자 이상·대소문자·숫자·특수문자" : "비밀번호"}
                       className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                     />
                   </div>
@@ -348,7 +379,7 @@ export default function AdminLoginPage() {
                     <div className="text-center">
                       <button
                         type="button"
-                        onClick={() => { setResetMode(true); setError(""); setSuccess(""); }}
+                        onClick={() => { setResetMode(true); setResetTurnstileToken(""); setError(""); setSuccess(""); }}
                         className="text-[12px] text-white/40 hover:text-white/60 transition-colors"
                       >
                         비밀번호를 잊으셨나요?

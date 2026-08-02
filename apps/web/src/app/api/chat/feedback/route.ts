@@ -1,11 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { readBoundedJsonValue } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export const dynamic = "force-dynamic";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_CORRECTION_LENGTH = 2_000;
+const MAX_BODY_BYTES = 8 * 1024;
 const FEEDBACK_BODY_KEYS = new Set(["messageId", "rating", "correction", "category"]);
 const FEEDBACK_CATEGORIES = new Set([
   "correction",
@@ -65,20 +69,6 @@ function getServiceClient() {
   return createAdminClient();
 }
 
-// 레이트 리밋: 시간당 20회
-async function checkRateLimit(userId: string): Promise<boolean> {
-  const admin = getServiceClient();
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-
-  const { count } = await admin
-    .from("chat_feedback")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .gte("created_at", oneHourAgo);
-
-  return (count ?? 0) < 20;
-}
-
 /**
  * POST /api/chat/feedback
  * AI 메시지에 대한 피드백 저장
@@ -95,12 +85,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    let rawBody: unknown;
-    try {
-      rawBody = await request.json();
-    } catch {
-      return NextResponse.json({ error: "요청 본문이 올바르지 않습니다." }, { status: 400 });
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "요청 본문이 올바르지 않습니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
     }
+    const rawBody = bodyResult.value;
 
     const body = parseFeedbackRequestBody(rawBody);
     if (!body) {
@@ -111,14 +103,12 @@ export async function POST(request: Request) {
     }
     const { messageId, rating, correction, category } = body;
 
-    // 레이트 리밋 체크
-    const withinLimit = await checkRateLimit(user.id);
-    if (!withinLimit) {
-      return NextResponse.json(
-        { error: "피드백 제한을 초과했습니다. 1시간에 최대 20회까지 가능합니다." },
-        { status: 429 }
-      );
-    }
+    // Shared atomic limiter prevents concurrent/serverless-instance bypasses.
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("chat:feedback", request, user.id),
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 },
+    );
+    if (limited) return limited;
 
     // 요청 사용자 권한으로 프로필과 메시지를 조회해 RLS를 그대로 적용한다.
     const { data: profile } = await supabase
@@ -177,7 +167,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      console.error("피드백 저장 실패:", insertError.message);
+      console.error("피드백 저장 실패", safeErrorDiagnostic(insertError));
       return NextResponse.json(
         { error: "피드백 저장에 실패했습니다." },
         { status: 500 }
@@ -186,7 +176,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, id: feedback?.id });
   } catch (err) {
-    console.error("피드백 API 에러:", err);
+    console.error("피드백 API 에러", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -215,7 +205,7 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (err) {
-    console.error("피드백 조회 에러:", err);
+    console.error("피드백 조회 에러", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

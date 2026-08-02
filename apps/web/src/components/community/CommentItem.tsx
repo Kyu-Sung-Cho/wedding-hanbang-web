@@ -8,9 +8,6 @@ import type { CommentWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
 import { weddingPath } from "@/lib/weddingPaths";
 
-// 아모라 서비스 계정 ID
-const AMORA_USER_ID = process.env.NEXT_PUBLIC_AMORA_USER_ID ?? "00000000-0000-0000-0000-000000000000";
-
 interface CommentItemProps {
   comment: CommentWithAuthor;
   postId: string;
@@ -40,12 +37,12 @@ export default function CommentItem({
   const [editContent, setEditContent] = useState(comment.content);
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
-  const isAuthor = currentUserId === comment.author_id;
+  const isAuthor = comment.is_author === true;
   const isLoggedIn = !!currentUserId;
 
   // 아바타 계산
   const nickname = comment.author?.nickname ?? "익명";
-  const isAmoraAI = comment.author_id === AMORA_USER_ID || nickname === "아모라 AI";
+  const isAmoraAI = nickname === "아모라 AI";
   const avatarUrl = comment.author?.avatar_url;
 
   function startEdit() {

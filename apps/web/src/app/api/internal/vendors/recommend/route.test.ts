@@ -32,7 +32,7 @@ vi.mock("@/lib/vendors/recommendationData", async (importOriginal) => {
 
 import { POST } from "./route";
 
-const secret = "r".repeat(32);
+const secret = "R2pQ8hJ3mV7rT9xK4cN6sL1wY5dF0gB_zA-EiUo";
 
 function request(body: unknown, token = secret) {
   return new Request("https://example.test/api/internal/vendors/recommend", {

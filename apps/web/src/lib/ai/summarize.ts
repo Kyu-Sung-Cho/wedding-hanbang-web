@@ -15,6 +15,7 @@ import {
   AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
   blockLegacyAuxiliaryProviderGeneration,
 } from "@/lib/ai/amoraRequestPolicy";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const SUMMARY_TRIGGER_THRESHOLD = 10; // 마지막 요약 이후 새 메시지 N개 이상이면 요약
 const MAX_INPUT_CHARS = 12_000; // 모델에 보낼 대화 전문 상한 (토큰 절약)
@@ -107,7 +108,7 @@ async function generateSummary(
         : undefined,
     };
   } catch (err) {
-    console.error("[summarize] OpenAI 호출 실패:", err);
+    console.error("[summarize] provider call failed", safeErrorDiagnostic(err));
     return null;
   }
 }
@@ -182,11 +183,11 @@ export async function maybeSummarize(input: MaybeSummarizeInput): Promise<void> 
     });
 
     if (error) {
-      console.error("[summarize] INSERT 실패:", error.message);
+      console.error("[summarize] insert failed", safeErrorDiagnostic(error));
       return;
     }
 
   } catch (err) {
-    console.error("[summarize] 예외 (무시):", err);
+    console.error("[summarize] ignored failure", safeErrorDiagnostic(err));
   }
 }

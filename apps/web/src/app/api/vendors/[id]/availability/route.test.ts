@@ -3,16 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
 const mocks = vi.hoisted(() => ({
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
   createAdminClient: vi.fn(),
+  rateLimitKey: vi.fn(() => "public-booking-availability:test-ip"),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
 }));
 
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
+  rateLimitKey: mocks.rateLimitKey,
+}));
+
 const VENDOR_ID = "11111111-1111-4111-8111-111111111111";
 
-function fakeAdmin(options: { bookingError?: boolean; approved?: boolean } = {}) {
+function fakeAdmin(options: {
+  bookingError?: boolean;
+  approved?: boolean;
+  scheduleError?: boolean;
+} = {}) {
   const calls: Array<{ table: string; select: string }> = [];
   const bookingRows = [
     {
@@ -81,6 +92,26 @@ function fakeAdmin(options: { bookingError?: boolean; approved?: boolean } = {})
           };
           return query;
         }
+        if (table === "vendor_timeslots") {
+          const query = {
+            select(columns: string) {
+              calls.push({ table, select: columns });
+              return query;
+            },
+            eq() {
+              return Promise.resolve(options.scheduleError
+                ? { data: null, error: { message: "schedule unavailable" } }
+                : {
+                    data: [
+                      { day: 0, hour: 10, available: true, max_bookings: 2 },
+                      { day: 0, hour: 11, available: true, max_bookings: 1 },
+                    ],
+                    error: null,
+                  });
+            },
+          };
+          return query;
+        }
         throw new Error(`unexpected table: ${table}`);
       },
     },
@@ -90,10 +121,37 @@ function fakeAdmin(options: { bookingError?: boolean; approved?: boolean } = {})
 describe("GET /api/vendors/:id/availability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
-  it("uses the service boundary to count all customers without returning raw identifiers", async () => {
+  it("returns 429 before creating a service-role client when the shared IP bucket is exhausted", async () => {
+    mocks.checkRateLimitPersistent.mockResolvedValueOnce(
+      new Response("limited", { status: 429 }),
+    );
+    const request = new Request(
+      `http://localhost/api/vendors/${VENDOR_ID}/availability?from=2099-07-20&to=2099-07-20`,
+    );
+
+    const response = await GET(request, {
+      params: Promise.resolve({ id: VENDOR_ID }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
+    expect(mocks.rateLimitKey).toHaveBeenCalledWith(
+      "public-booking-availability",
+      request,
+    );
+    expect(mocks.checkRateLimitPersistent).toHaveBeenCalledWith(
+      "public-booking-availability:test-ip",
+      { maxRequests: 30, windowMs: 60 * 1000 },
+      { failClosed: true },
+    );
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("returns only derived availability without capacity, occupancy, or resource identifiers", async () => {
     const admin = fakeAdmin();
     mocks.createAdminClient.mockReturnValue(admin.client);
 
@@ -110,13 +168,10 @@ describe("GET /api/vendors/:id/availability", () => {
       from: "2099-07-20",
       to: "2099-07-20",
       timezone: "Asia/Seoul",
-      counts: [{
-        date: "2099-07-20",
-        time: "10:00",
-        productId: "22222222-2222-4222-8222-222222222222",
-        staffId: null,
-        bookedCount: 2,
-      }],
+      slots: [
+        { date: "2099-07-20", time: "10:00", available: false },
+        { date: "2099-07-20", time: "11:00", available: true },
+      ],
     });
     expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
     expect(mocks.createAdminClient).toHaveBeenCalledOnce();
@@ -125,7 +180,13 @@ describe("GET /api/vendors/:id/availability", () => {
       table: "vendor_bookings",
       select: "id,booking_date,booking_time,product_id,staff_id",
     });
-    expect(JSON.stringify(payload)).not.toMatch(/private-couple|aaaaaaaa-aaaa|bbbbbbbb-bbbb/);
+    expect(admin.calls).toContainEqual({
+      table: "vendor_timeslots",
+      select: "day,hour,available,max_bookings",
+    });
+    expect(JSON.stringify(payload)).not.toMatch(
+      /private-couple|aaaaaaaa-aaaa|bbbbbbbb-bbbb|bookedCount|staffId|productId|max_bookings/,
+    );
   });
 
   it("fails closed with 503 instead of reporting zero occupancy when aggregation fails", async () => {
@@ -159,5 +220,21 @@ describe("GET /api/vendors/:id/availability", () => {
 
     expect(response.status).toBe(404);
     expect(admin.calls.some(({ table }) => table === "vendor_bookings")).toBe(false);
+    expect(admin.calls.some(({ table }) => table === "vendor_timeslots")).toBe(false);
+  });
+
+  it("fails closed instead of advertising slots when the internal schedule cannot be loaded", async () => {
+    const admin = fakeAdmin({ scheduleError: true });
+    mocks.createAdminClient.mockReturnValue(admin.client);
+
+    const response = await GET(
+      new Request(
+        `http://localhost/api/vendors/${VENDOR_ID}/availability?from=2099-07-20&to=2099-07-20`,
+      ),
+      { params: Promise.resolve({ id: VENDOR_ID }) },
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
   });
 });

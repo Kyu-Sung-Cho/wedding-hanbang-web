@@ -8,7 +8,15 @@
     ".": "./src/index.ts",
     "./types": "./src/types/index.ts",
     "./constants": "./src/constants/index.ts",
-    "./utils": "./src/utils/index.ts"
+    "./utils": "./src/utils/index.ts",
+    "./security/server-secret-policy": {
+      "types": "./src/security/serverSecretPolicy.d.mts",
+      "default": "./src/security/serverSecretPolicy.mjs"
+    },
+    "./security/password-policy": {
+      "types": "./src/security/passwordPolicy.d.mts",
+      "default": "./src/security/passwordPolicy.mjs"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

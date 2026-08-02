@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { sections, type Question } from '../data/questions';
 import { validateAnswer } from '../utils/validation';
 
-const LOCAL_STORAGE_KEY = 'wedding_survey_draft';
+const LEGACY_DRAFT_STORAGE_KEY = 'wedding_survey_draft';
 
 export type SurveyStatus = 'intro' | 'in_progress' | 'screen_out' | 'completed';
 
@@ -17,29 +17,13 @@ export interface SurveyState {
   startTime: number;
 }
 
-function loadDraft(): Partial<SurveyState> | null {
-  try {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {
-    // localStorage 접근 불가 시 무시
-  }
-  return null;
-}
-
-function saveDraft(state: SurveyState) {
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // localStorage 접근 불가 시 무시
-  }
-}
-
 export function clearDraft() {
-  try {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-  } catch {
-    // localStorage 접근 불가 시 무시
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      storage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
+    } catch {
+      // 저장소 접근이 차단된 브라우저에서도 설문은 메모리에서 계속 진행한다.
+    }
   }
 }
 
@@ -53,29 +37,14 @@ export function useSurveyState() {
   const [completionTimeSeconds, setCompletionTimeSeconds] = useState(0);
   const [hasDraft, setHasDraft] = useState(false);
 
-  // 초기 로드: localStorage 확인
+  // 과거 버전이 연락처와 자유서술 응답을 남겼을 수 있어 복원하지 않고 즉시 삭제한다.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const draft = loadDraft();
-      if (draft && draft.answers && Object.keys(draft.answers).length > 0) {
-        setHasDraft(true);
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    clearDraft();
   }, []);
 
-  // 이어하기
+  // 민감 설문 응답은 브라우저 영구 저장소에서 복원하지 않는다.
   const resumeDraft = useCallback(() => {
-    const draft = loadDraft();
-    if (draft) {
-      setAnswers(draft.answers ?? {});
-      setOtherTexts(draft.otherTexts ?? {});
-      setCurrentSectionIndex(draft.currentSectionIndex ?? 0);
-      setStatus('in_progress');
-      const startTime = draft.startTime ?? Date.now();
-      startTimeRef.current = startTime;
-      setCompletionTimeSeconds(Math.round((Date.now() - startTime) / 1000));
-    }
+    clearDraft();
     setHasDraft(false);
   }, []);
 
@@ -83,20 +52,6 @@ export function useSurveyState() {
     clearDraft();
     setHasDraft(false);
   }, []);
-
-  // 자동 저장
-  useEffect(() => {
-    if (status === 'in_progress') {
-      saveDraft({
-        answers,
-        otherTexts,
-        currentSectionIndex,
-        status,
-        errors: {},
-        startTime: startTimeRef.current ?? Date.now(),
-      });
-    }
-  }, [answers, otherTexts, currentSectionIndex, status]);
 
   useEffect(() => {
     if (status !== 'in_progress') return;

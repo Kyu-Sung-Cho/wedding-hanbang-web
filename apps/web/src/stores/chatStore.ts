@@ -4,8 +4,13 @@ import { create } from "zustand";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
-import { prepareChatAttachmentPayload } from "@/lib/chat/attachments";
+import {
+  CHAT_PARTNER_ATTACHMENT_DISABLED_ERROR,
+  prepareChatAttachmentPayload,
+} from "@/lib/chat/attachments";
 import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { CHAT_MESSAGE_CLIENT_SELECT } from "@/lib/privacy/privateDataSelects";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -13,7 +18,12 @@ import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
  * 같은 채널 인스턴스로 broadcast 송신 (별개 채널 인스턴스는 send 안 됨).
  */
 const activeChatChannels = new Map<string, RealtimeChannel>();
+const activeChatAbortControllers = new Set<AbortController>();
+const activeChatSubscriptionCleanups = new Set<() => void>();
 let chatLifecycleEpoch = 0;
+let boundChatScopeKey: string | null = null;
+let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
+let typingLastSentState: "start" | "stop" = "stop";
 import type {
   ChatMessage,
   MessageSenderRole,
@@ -125,6 +135,8 @@ export interface FailedChatRequest {
   clientRequestId: string;
   /** Durable user row id issued by the server/database; never INSERTed again. */
   userMessageId: string | null;
+  /** Auth actor that created this immutable retry snapshot. */
+  actorId: string;
   coupleId: string;
   content: string;
   visibility: ChatVisibility;
@@ -215,6 +227,102 @@ interface ChatStoreState {
   notifyTyping: (params: { coupleId: string; userId: string; senderRole: "bride" | "groom" }) => void;
 
   reset: () => void;
+}
+
+interface ChatLifecycleScope {
+  epoch: number;
+  actorId: string;
+  coupleId: string;
+}
+
+function currentChatIdentity(): { actorId: string; coupleId: string } | null {
+  const authState = useAuthStore.getState();
+  const actorId = authState.user?.id ?? null;
+  if (!actorId || (authState.profile?.id && authState.profile.id !== actorId)) {
+    return null;
+  }
+  const coupleIds = new Set([
+    authState.couple?.id,
+    authState.profile?.couple_id,
+    authState.journey?.couple_id,
+  ].filter((value): value is string => typeof value === "string" && value.length > 0));
+  if (coupleIds.size !== 1) return null;
+  return { actorId, coupleId: [...coupleIds][0] };
+}
+
+function captureChatScope(
+  coupleId: string,
+  expectedActorId?: string,
+): ChatLifecycleScope | null {
+  const identity = currentChatIdentity();
+  if (!identity
+      || identity.coupleId !== coupleId
+      || (expectedActorId !== undefined && identity.actorId !== expectedActorId)) {
+    return null;
+  }
+  return { epoch: chatLifecycleEpoch, ...identity };
+}
+
+function isChatScopeCurrent(scope: ChatLifecycleScope): boolean {
+  const identity = currentChatIdentity();
+  return chatLifecycleEpoch === scope.epoch
+    && identity?.actorId === scope.actorId
+    && identity.coupleId === scope.coupleId;
+}
+
+function trackedAbortController(): AbortController {
+  const controller = new AbortController();
+  activeChatAbortControllers.add(controller);
+  return controller;
+}
+
+function releaseAbortController(controller: AbortController): void {
+  activeChatAbortControllers.delete(controller);
+}
+
+function invalidateChatLifecycle(): void {
+  chatLifecycleEpoch += 1;
+  for (const controller of activeChatAbortControllers) controller.abort();
+  activeChatAbortControllers.clear();
+  for (const cleanup of [...activeChatSubscriptionCleanups]) cleanup();
+  activeChatSubscriptionCleanups.clear();
+  activeChatChannels.clear();
+  if (typingStopTimer) clearTimeout(typingStopTimer);
+  typingStopTimer = null;
+  typingLastSentState = "stop";
+  boundChatScopeKey = null;
+}
+
+function bindChatScope(
+  set: ChatStoreSet,
+  coupleId: string,
+  expectedActorId?: string,
+): ChatLifecycleScope | null {
+  const initialScope = captureChatScope(coupleId, expectedActorId);
+  if (!initialScope) return null;
+  const nextKey = `${initialScope.actorId}:${initialScope.coupleId}`;
+  if (boundChatScopeKey !== null && boundChatScopeKey !== nextKey) {
+    invalidateChatLifecycle();
+    set({
+      messages: [],
+      isLoading: false,
+      isStreaming: false,
+      isSending: false,
+      isRetrying: false,
+      streamingContent: "",
+      streamingToolResults: [],
+      suggestions: [],
+      error: null,
+      initialLoadDone: false,
+      quotaRemaining: null,
+      failedRequest: null,
+      sharedClearedAt: null,
+      privateClearedAt: null,
+      presence: { partnerTyping: null, aiResponding: null },
+    });
+  }
+  boundChatScopeKey = nextKey;
+  return captureChatScope(coupleId, expectedActorId);
 }
 
 // 일정/예산/예약 등 journey.progress 를 변경하는 tool 들 — 처리 후 백엔드와
@@ -540,6 +648,7 @@ async function parseSSEStream(
     onToolResult: (result: ToolExecutionResult) => void;
     onSuggestions: (suggestions: string[]) => void;
     onQuota?: (remaining: number) => void;
+    onAttachmentPaths?: (userMessageId: string, imagePaths: string[]) => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
     onError: (message: string) => void;
   }
@@ -583,6 +692,22 @@ async function parseSSEStream(
             callbacks.onQuota?.(event.remaining);
           }
           break;
+        case "attachment_paths":
+          if (
+            EXPLICIT_ACTION_ID_PATTERN.test(event.userMessageId)
+            && Array.isArray(event.imagePaths)
+            && event.imagePaths.length > 0
+            && event.imagePaths.length <= 5
+            && event.imagePaths.every((path) => (
+              typeof path === "string"
+              && path.length > 0
+              && path.length <= 255
+              && !/[\u0000\r\n]/.test(path)
+            ))
+          ) {
+            callbacks.onAttachmentPaths?.(event.userMessageId, [...event.imagePaths]);
+          }
+          break;
         case "done":
           callbacks.onDone(event.fullContent, event.metadata);
           return true;
@@ -595,7 +720,7 @@ async function parseSSEStream(
           return true;
       }
     } catch (e) {
-      console.warn("SSE 파싱 실패:", e);
+      console.warn("SSE 파싱 실패:", safeErrorDiagnostic(e));
     }
     return false;
   };
@@ -655,6 +780,7 @@ function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
 async function saveAiMessage(
   set: (fn: ((s: ChatStoreState) => Partial<ChatStoreState>) | Partial<ChatStoreState>) => void,
   params: {
+    scope: ChatLifecycleScope;
     coupleId: string;
     fullContent: string;
     aiMetadata: ChatMessageMetadata;
@@ -662,7 +788,8 @@ async function saveAiMessage(
     visibility?: ChatMessage["visibility"];
   }
 ) {
-  const { coupleId, fullContent, aiMetadata, isDemo } = params;
+  const { scope, coupleId, fullContent, aiMetadata, isDemo } = params;
+  if (!isChatScopeCurrent(scope)) return;
   const visibility: ChatMessage["visibility"] = params.visibility ?? "shared";
 
   // 서버에서 이미 INSERT 했으면 그 id/created_at 사용 (모바일 백그라운드 안전)
@@ -682,6 +809,7 @@ async function saveAiMessage(
       created_at: serverCreatedAt ?? new Date().toISOString(),
     };
     set((s) => {
+      if (!isChatScopeCurrent(scope)) return s;
       const exists = s.messages.some((m) => m.id === serverMessageId);
       if (exists) {
         return {
@@ -709,7 +837,9 @@ async function saveAiMessage(
     visibility,
     created_at: new Date().toISOString(),
   };
-  set((s) => ({ messages: [...s.messages, localMsg] }));
+  set((s) => isChatScopeCurrent(scope)
+    ? { messages: [...s.messages, localMsg] }
+    : s);
 
   // serverMessageId가 없으면 서버 저장이 실패한 것입니다. 인증 클라이언트가
   // AI/assistant DB 행을 만들 수 없도록 재시도 INSERT는 하지 않습니다.
@@ -769,6 +899,18 @@ function withRetryAvailability(
   retryable: boolean,
   unavailableReason: string | null,
 ): FailedChatRequest {
+  // Never retain an original attachment (including EXIF/device/GPS bytes) in
+  // the retry snapshot after the request settles unsuccessfully. The user can
+  // reattach a file, which will pass through the server sanitizer again.
+  if (request.attachmentCount > 0) {
+    return {
+      ...request,
+      attachmentCount: 0,
+      canRetry: false,
+      unavailableReason: ATTACHMENT_RETRY_UNAVAILABLE,
+      requestBody: "",
+    };
+  }
   if (retryable) return request;
   // Permanent failures must not retain a useless base64/document snapshot in
   // memory. The durable user row remains visible and the user can send a new,
@@ -794,8 +936,9 @@ async function executeChatProviderRequest(
   retrying: boolean
 ): Promise<void> {
   if (get().isStreaming) return;
-  const lifecycleEpoch = chatLifecycleEpoch;
-  const isCurrentLifecycle = () => lifecycleEpoch === chatLifecycleEpoch;
+  const scope = bindChatScope(set, request.coupleId, request.actorId);
+  if (!scope) return;
+  const isCurrentLifecycle = () => isChatScopeCurrent(scope);
 
   set({
     isStreaming: true,
@@ -807,7 +950,7 @@ async function executeChatProviderRequest(
     quotaRemaining: null,
   });
 
-  const abortController = new AbortController();
+  const abortController = trackedAbortController();
   const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
   try {
@@ -821,7 +964,7 @@ async function executeChatProviderRequest(
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      console.error("AI API 에러:", res.status, errText);
+      console.error("AI API 에러:", { status: res.status });
       const parsed = parseChatHttpError(errText);
       const retryable = isRetryableChatHttpError(res.status, parsed.code);
       const fallbackMessage = res.status === 429
@@ -865,6 +1008,22 @@ async function executeChatProviderRequest(
       onQuota: (remaining) => {
         if (isCurrentLifecycle()) set({ quotaRemaining: remaining });
       },
+      onAttachmentPaths: (userMessageId, imagePaths) => {
+        if (!isCurrentLifecycle() || request.userMessageId !== userMessageId) return;
+        set((state) => ({
+          messages: state.messages.map((message) => (
+            message.id === userMessageId
+              ? {
+                  ...message,
+                  metadata: {
+                    ...(message.metadata ?? {}),
+                    imagePaths,
+                  },
+                }
+              : message
+          )),
+        }));
+      },
       onDone: (content, metadata) => {
         if (!isCurrentLifecycle()) return;
         fullContent = content;
@@ -886,7 +1045,7 @@ async function executeChatProviderRequest(
     // 저장하지 않으면 사라지므로, 그 경우에만 텍스트 없이도 저장한다.
     if (!gotDone || (!fullContent.trim() && ephemeralPlaceResults.length === 0)) {
       set({
-        failedRequest: request,
+        failedRequest: withRetryAvailability(request, true, null),
         error: get().error ?? "AI 응답이 중단되었습니다. 다시 시도해주세요.",
         streamingContent: "",
       });
@@ -908,6 +1067,7 @@ async function executeChatProviderRequest(
         : {}),
     };
     await saveAiMessage(set, {
+      scope,
       coupleId: request.coupleId,
       fullContent,
       aiMetadata,
@@ -915,16 +1075,17 @@ async function executeChatProviderRequest(
       visibility: request.visibility,
     });
 
-    if (progressTouched) {
+    if (progressTouched && isCurrentLifecycle()) {
       await useAuthStore.getState().refreshJourney();
     }
+    if (!isCurrentLifecycle()) return;
 
     // 저장까지 성공했을 때만 재시도 상태를 지운다. 서버가 보낸 안내(예: 일부 저장
     // 실패)는 사용자가 읽어야 하므로 여기서 함께 지우지 않는다.
     set({ failedRequest: null });
   } catch (err) {
     if (!isCurrentLifecycle()) return;
-    console.error("AI 응답 에러:", err);
+    console.error("AI 응답 에러:", safeErrorDiagnostic(err));
     const isAbort = err instanceof DOMException && err.name === "AbortError";
     const requestError = err instanceof ChatProviderRequestError ? err : null;
     set({
@@ -942,6 +1103,7 @@ async function executeChatProviderRequest(
     });
   } finally {
     clearTimeout(fetchTimeout);
+    releaseAbortController(abortController);
     if (isCurrentLifecycle()) {
       set({
         isStreaming: false,
@@ -972,6 +1134,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 메시지 로드 — 스트리밍 중이면 스킵
   loadMessages: async (coupleId: string) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope) return;
     if (get().isStreaming) return;
 
     set({ isLoading: true, error: null, initialLoadDone: false });
@@ -996,6 +1160,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           .limit(500),
       ]);
 
+      if (!isChatScopeCurrent(scope)) return;
       if (messagesErr) throw messagesErr;
       if (get().isStreaming) return;
 
@@ -1020,12 +1185,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         });
 
       // cleared_at 도 store 에 저장 — pollNewMessages 가 활용
-      set({ messages: allMessages, sharedClearedAt, privateClearedAt });
+      if (isChatScopeCurrent(scope)) {
+        set({ messages: allMessages, sharedClearedAt, privateClearedAt });
+      }
     } catch (err) {
-      console.error("채팅 로드 에러:", err);
+      if (!isChatScopeCurrent(scope)) return;
+      console.error("채팅 로드 에러:", safeErrorDiagnostic(err));
       set({ error: "채팅을 불러오지 못했습니다." });
     } finally {
-      set({ isLoading: false, initialLoadDone: true });
+      if (isChatScopeCurrent(scope)) {
+        set({ isLoading: false, initialLoadDone: true });
+      }
     }
   },
 
@@ -1033,6 +1203,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   // - 스트리밍 중 스킵 (race condition 방지)
   // - id 기준 dedup → Realtime이 작동해도 중복 안 됨
   pollNewMessages: async (coupleId: string) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope) return;
     const state = get();
     if (!state.initialLoadDone) return; // 최초 로드 완료 전엔 스킵
 
@@ -1049,6 +1221,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .order("created_at", { ascending: true })
         .limit(50);
 
+      if (!isChatScopeCurrent(scope)) return;
       if (error || !data?.length) return;
       const fetched = data
         .map((m) => dbRowToMessage(m as Record<string, unknown>))
@@ -1056,6 +1229,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .filter((m) => !get().isStreaming || m.sender_role !== "ai");
       if (fetched.length === 0) return;
       set((s) => {
+        if (!isChatScopeCurrent(scope)) return s;
         const existing = new Set(s.messages.map((m) => m.id));
         // cleared_at 이전 메시지는 무시 — "새 채팅" 후 cleared 메시지가
         // 다시 들어오는 문제 방지 (이전 사고)
@@ -1073,9 +1247,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         return { messages: [...s.messages, ...toAdd] };
       });
     } catch (err) {
+      if (!isChatScopeCurrent(scope)) return;
       // 폴링 실패는 silent — 다음 tick에 재시도
       if (process.env.NODE_ENV !== "production") {
-        console.warn("[poll] 실패 (무시):", err);
+        console.warn("[poll] 실패 (무시):", safeErrorDiagnostic(err));
       }
     }
   },
@@ -1084,6 +1259,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
     confirmedActionId,
   }) => {
+    const scope = bindChatScope(set, coupleId, senderId);
+    if (!scope) return;
     // 중복 발사 가드 (모바일 더블탭, 짧은 시간 내 재시도 방지)
     if (get().isStreaming || get().isSending) {
       if (process.env.NODE_ENV !== "production") {
@@ -1108,6 +1285,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       return;
     }
     const uniqueImages = preparedAttachments.attachments;
+    if (target === "partner" && uniqueImages.length > 0) {
+      set({ error: CHAT_PARTNER_ATTACHMENT_DISABLED_ERROR });
+      return;
+    }
     set({ isSending: true });
 
     try {
@@ -1127,37 +1308,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const clientRequestId = createClientRequestId();
     let persistedUserMessageId: string | null = null;
 
-    // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
-    const imagePaths: string[] = [];
-    if (uniqueImages.length > 0 && !isDemo) {
-      for (const img of uniqueImages) {
-        try {
-          const ext = img.mediaType.split("/")[1] || "jpg";
-          const fileName = `${coupleId}/${senderId}/${createClientRequestId()}.${ext}`;
-          const byteChars = atob(img.base64);
-          const byteArray = new Uint8Array(byteChars.length);
-          for (let i = 0; i < byteChars.length; i++) {
-            byteArray[i] = byteChars.charCodeAt(i);
-          }
-          const blob = new Blob([byteArray], { type: img.mediaType });
-          const { error: uploadErr } = await supabase.storage
-            .from("chat-image")
-            .upload(fileName, blob, { contentType: img.mediaType });
-          if (!uploadErr) {
-            imagePaths.push(fileName);
-          } else {
-            console.warn("Storage 업로드 실패 (무시):", uploadErr.message);
-          }
-        } catch (err) {
-          console.warn("Storage 업로드 에러 (무시):", err);
-        }
-      }
-    }
-
-    // 이미지 storage path가 있으면 메타데이터에 추가
-    const finalMetadata = imagePaths.length > 0
-      ? { ...msgMetadata, imagePaths }
-      : msgMetadata;
+    // 이미지 원본은 브라우저에서 Storage로 직접 올리지 않는다. AI 요청이
+    // 메시지에 바인딩된 뒤 서버가 재인코딩한 바이트만 저장하고 경로를 붙인다.
+    const finalMetadata = msgMetadata;
 
     // visibility 결정: 명시 없으면 senderRole 기반 추론 (private mode면 자기 role의 private)
     // 기본은 'shared' — 사용자가 명시적으로 private 모드 선택 시에만 다른 값
@@ -1179,18 +1332,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           stage_tag: userStageTag,
           visibility: finalVisibility,
         })
-        .select()
+        .select(CHAT_MESSAGE_CLIENT_SELECT)
         .single();
 
+      if (!isChatScopeCurrent(scope)) return;
       if (insertErr) {
-        console.error("메시지 저장 에러:", insertErr);
+        console.error("메시지 저장 에러:", safeErrorDiagnostic(insertErr));
         set({ error: "메시지 전송에 실패했습니다." });
         return;
       }
       persistedUserMessageId = inserted.id as string;
 
       set((s) => ({
-        messages: [...s.messages, dbRowToMessage(inserted as Record<string, unknown>)],
+        messages: isChatScopeCurrent(scope)
+          ? [...s.messages, dbRowToMessage(inserted as Record<string, unknown>)]
+          : s.messages,
       }));
     } else {
       const demoMsg: ChatMessage = {
@@ -1203,8 +1359,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         metadata: finalMetadata,
         created_at: new Date().toISOString(),
       };
-      set((s) => ({ messages: [...s.messages, demoMsg] }));
+      set((s) => isChatScopeCurrent(scope)
+        ? { messages: [...s.messages, demoMsg] }
+        : s);
     }
+
+    if (!isChatScopeCurrent(scope)) return;
 
     // 상대방에게 보내는 메시지는 명시적 커플 동의 없이 AI 제공자에게
     // 전달하지 않는다. 자동 중재는 별도 동의 계약/UI가 준비될 때까지 중단한다.
@@ -1250,7 +1410,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
       });
     } catch (error) {
-      console.error("AI 요청 직렬화 에러:", error);
+      console.error("AI 요청 직렬화 에러:", safeErrorDiagnostic(error));
       set({ error: "요청 정보를 안전하게 준비하지 못했습니다. 새 메시지로 다시 보내주세요." });
       return;
     }
@@ -1258,6 +1418,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const failedRequest: FailedChatRequest = {
       clientRequestId,
       userMessageId: persistedUserMessageId,
+      actorId: scope.actorId,
       coupleId,
       content,
       visibility: finalVisibility,
@@ -1271,7 +1432,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     await executeChatProviderRequest(set, get, failedRequest, false);
     } finally {
-      set({ isSending: false });
+      if (isChatScopeCurrent(scope)) set({ isSending: false });
     }
   },
 
@@ -1292,6 +1453,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 첫 진입 시 AI 인사 (타임아웃 + gotDone 체크 추가)
   requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope || useAuthStore.getState().profile?.role !== senderRole) return;
     if (get().isStreaming) return;
 
     set({
@@ -1307,7 +1470,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     });
 
     // 180초 타임아웃
-    const abortController = new AbortController();
+    const abortController = trackedAbortController();
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
     try {
@@ -1328,7 +1491,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         signal: abortController.signal,
       });
 
-      clearTimeout(fetchTimeout);
+      if (!isChatScopeCurrent(scope)) return;
 
       if (!res.ok) throw new Error("AI 초기 인사 실패");
 
@@ -1337,17 +1500,36 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       let gotDone = false;
 
       await parseSSEStream(res, {
-        onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
-        onTextClear: () => set({ streamingContent: "" }),
+        onTextDelta: (content) => {
+          if (isChatScopeCurrent(scope)) {
+            set((s) => ({ streamingContent: s.streamingContent + content }));
+          }
+        },
+        onTextClear: () => {
+          if (isChatScopeCurrent(scope)) set({ streamingContent: "" });
+        },
         onToolResult: (result) => {
+          if (!isChatScopeCurrent(scope)) return;
           syncToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
-        onSuggestions: (sug) => set({ suggestions: sug }),
-        onQuota: (remaining) => set({ quotaRemaining: remaining }),
-        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
-        onError: (msg) => set({ error: msg }),
+        onSuggestions: (sug) => {
+          if (isChatScopeCurrent(scope)) set({ suggestions: sug });
+        },
+        onQuota: (remaining) => {
+          if (isChatScopeCurrent(scope)) set({ quotaRemaining: remaining });
+        },
+        onDone: (fc, meta) => {
+          if (!isChatScopeCurrent(scope)) return;
+          fullContent = fc;
+          finalMetadata = meta;
+          gotDone = true;
+        },
+        onError: (msg) => {
+          if (isChatScopeCurrent(scope)) set({ error: msg });
+        },
       });
+      if (!isChatScopeCurrent(scope)) return;
 
       // 스트림이 done 없이 끊긴 경우 에러 표시
       if (!gotDone && !fullContent && !get().error) {
@@ -1357,10 +1539,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (fullContent) {
         const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
         const isDemo = document.cookie.includes("demo_mode=true");
-        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
+        await saveAiMessage(set, { scope, coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
-      console.error("초기 인사 에러:", err);
+      if (!isChatScopeCurrent(scope)) return;
+      console.error("초기 인사 에러:", safeErrorDiagnostic(err));
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       set({
         error: isAbort
@@ -1369,12 +1552,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       });
     } finally {
       clearTimeout(fetchTimeout);
-      set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
+      releaseAbortController(abortController);
+      if (isChatScopeCurrent(scope)) {
+        set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
+      }
     }
   },
 
   // 갈등 중재: 커플 대화 중 아모라가 자동 개입
   requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope || useAuthStore.getState().profile?.role !== senderRole) return;
     if (get().isStreaming) return;
 
     set({
@@ -1388,7 +1576,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       isRetrying: false,
     });
 
-    const abortController = new AbortController();
+    const abortController = trackedAbortController();
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
     try {
@@ -1430,7 +1618,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         signal: abortController.signal,
       });
 
-      clearTimeout(fetchTimeout);
+      if (!isChatScopeCurrent(scope)) return;
 
       if (!res.ok) throw new Error("AI 중재 요청 실패");
 
@@ -1439,17 +1627,36 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       let gotDone = false;
 
       await parseSSEStream(res, {
-        onTextDelta: (content) => set((s) => ({ streamingContent: s.streamingContent + content })),
-        onTextClear: () => set({ streamingContent: "" }),
+        onTextDelta: (content) => {
+          if (isChatScopeCurrent(scope)) {
+            set((s) => ({ streamingContent: s.streamingContent + content }));
+          }
+        },
+        onTextClear: () => {
+          if (isChatScopeCurrent(scope)) set({ streamingContent: "" });
+        },
         onToolResult: (result) => {
+          if (!isChatScopeCurrent(scope)) return;
           syncToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
-        onSuggestions: (sug) => set({ suggestions: sug }),
-        onQuota: (remaining) => set({ quotaRemaining: remaining }),
-        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
-        onError: (msg) => set({ error: msg }),
+        onSuggestions: (sug) => {
+          if (isChatScopeCurrent(scope)) set({ suggestions: sug });
+        },
+        onQuota: (remaining) => {
+          if (isChatScopeCurrent(scope)) set({ quotaRemaining: remaining });
+        },
+        onDone: (fc, meta) => {
+          if (!isChatScopeCurrent(scope)) return;
+          fullContent = fc;
+          finalMetadata = meta;
+          gotDone = true;
+        },
+        onError: (msg) => {
+          if (isChatScopeCurrent(scope)) set({ error: msg });
+        },
       });
+      if (!isChatScopeCurrent(scope)) return;
 
       if (!gotDone && !fullContent && !get().error) {
         set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
@@ -1458,10 +1665,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (fullContent) {
         const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
         const isDemo = document.cookie.includes("demo_mode=true");
-        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
+        await saveAiMessage(set, { scope, coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
-      console.error("중재 요청 에러:", err);
+      if (!isChatScopeCurrent(scope)) return;
+      console.error("중재 요청 에러:", safeErrorDiagnostic(err));
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       set({
         error: isAbort
@@ -1470,12 +1678,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       });
     } finally {
       clearTimeout(fetchTimeout);
-      set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
+      releaseAbortController(abortController);
+      if (isChatScopeCurrent(scope)) {
+        set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
+      }
     }
   },
 
   // 대화 초기화
   clearMessages: async (coupleId, mode) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope) return;
+    const abortController = trackedAbortController();
+    try {
     const isDemo = document.cookie.includes("demo_mode=true");
     // 서버 응답에서 받은 clearedAt 사용 — DB·클라이언트 동기화
     let serverClearedAt: string | null = null;
@@ -1484,8 +1699,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ coupleId, mode }),
+        signal: abortController.signal,
       });
       const data = await res.json().catch(() => ({}));
+      if (!isChatScopeCurrent(scope)) return;
       if (!res.ok) {
         const message = typeof data?.error === "string" ? data.error : "채팅 정리에 실패했습니다.";
         set({ error: message });
@@ -1493,6 +1710,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       serverClearedAt = typeof data?.clearedAt === "string" ? data.clearedAt : null;
     }
+    if (!isChatScopeCurrent(scope)) return;
     const nowIso = serverClearedAt ?? new Date().toISOString();
     if (mode === "view_reset_shared" || mode === "delete_shared") {
       writeLocalClearedAt(coupleId, "shared", nowIso);
@@ -1504,6 +1722,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // 로컬 state 업데이트 — 영향받는 메시지 제거 + cleared_at 갱신
     // (pollNewMessages 가 cleared_at 이후 메시지만 추가하도록 보장)
     set((s) => {
+      if (!isChatScopeCurrent(scope)) return s;
       const filtered = s.messages.filter((m) => {
         if (mode === "view_reset_shared" || mode === "delete_shared") {
           return m.visibility !== "shared";
@@ -1522,33 +1741,53 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       return next as ChatStoreState;
     });
+    } finally {
+      releaseAbortController(abortController);
+    }
   },
 
   // "둘 다 새로시작" 요청 보내기
   requestSharedClear: async (coupleId: string) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope) return { ok: false, error: "현재 계정을 다시 확인해주세요." };
+    const abortController = trackedAbortController();
     try {
       const res = await fetch("/api/chat/clear-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "request", coupleId }),
+        signal: abortController.signal,
       });
       const data = await res.json().catch(() => ({}));
+      if (!isChatScopeCurrent(scope)) {
+        return { ok: false, error: "계정이 변경되어 요청을 취소했습니다." };
+      }
       if (!res.ok) return { ok: false, error: data?.error ?? "요청 실패" };
       return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : "네트워크 오류" };
+    } catch {
+      return { ok: false, error: "네트워크 오류" };
+    } finally {
+      releaseAbortController(abortController);
     }
   },
 
   // 받은 요청에 동의/거절
   respondToClearRequest: async (messageId: string, action: "accept" | "decline") => {
+    const identity = currentChatIdentity();
+    const scope = identity ? bindChatScope(set, identity.coupleId, identity.actorId) : null;
+    if (!scope) return { ok: false, error: "현재 계정을 다시 확인해주세요." };
+    const abortController = trackedAbortController();
     try {
       const res = await fetch("/api/chat/clear-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, messageId }),
+        signal: abortController.signal,
       });
       const data = await res.json().catch(() => ({}));
+      if (!isChatScopeCurrent(scope)) {
+        return { ok: false, error: "계정이 변경되어 응답을 취소했습니다." };
+      }
       if (!res.ok) return { ok: false, error: data?.error ?? "응답 실패" };
 
       // accept 의 경우 양쪽 cleared_at 이 갱신됨 — 본인 store 도 즉시 반영
@@ -1556,6 +1795,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         const activeCoupleId = useAuthStore.getState().couple?.id;
         if (activeCoupleId) writeLocalClearedAt(activeCoupleId, "shared", data.clearedAt);
         set((s) => {
+          if (!isChatScopeCurrent(scope)) return s;
           // cleared_at 이전 shared 메시지 제거 (clear-request 메시지 자체는
           // 동일 created_at 이라 살아남음 — 카드 상태 업데이트로 표시).
           const filtered = s.messages.filter((m) => {
@@ -1566,12 +1806,16 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         });
       }
       return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : "네트워크 오류" };
+    } catch {
+      return { ok: false, error: "네트워크 오류" };
+    } finally {
+      releaseAbortController(abortController);
     }
   },
 
   subscribeToMessages: (coupleId: string) => {
+    const scope = bindChatScope(set, coupleId);
+    if (!scope) return () => undefined;
     const supabase = createClient();
     let currentChannel: ReturnType<typeof supabase.channel> | null = null;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1579,12 +1823,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     let cancelled = false;
     const isDev = process.env.NODE_ENV !== "production";
 
-    const scheduleReconnect = (reason: string) => {
-      if (cancelled || retryTimeout) return;
+    const scheduleReconnect = () => {
+      if (cancelled || retryTimeout || !isChatScopeCurrent(scope)) return;
       // 1s → 2s → 4s → 8s → max 10s 지수 백오프
       const delay = Math.min(1000 * 2 ** retryCount, 10000);
       if (isDev) {
-        console.warn(`[realtime] chat:${coupleId} ${reason} → ${delay}ms 후 재연결 (attempt ${retryCount + 1})`);
+        console.warn("[realtime] chat reconnect scheduled", {
+          delayMs: delay,
+          attempt: retryCount + 1,
+        });
       }
       retryCount++;
       retryTimeout = setTimeout(() => {
@@ -1593,12 +1840,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           supabase.removeChannel(currentChannel);
           currentChannel = null;
         }
-        connect();
+        if (isChatScopeCurrent(scope)) connect();
       }, delay);
     };
 
     const connect = () => {
-      if (cancelled) return;
+      if (cancelled || !isChatScopeCurrent(scope)) return;
       currentChannel = supabase
         .channel(`chat:${coupleId}`)
         .on(
@@ -1610,11 +1857,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             filter: `couple_id=eq.${coupleId}`,
           },
           (payload) => {
+            if (!isChatScopeCurrent(scope)) return;
             const newMsg = dbRowToMessage(payload.new as Record<string, unknown>);
+            if (newMsg.couple_id !== scope.coupleId) return;
             // ID 기반 dedup만 사용 — 이전엔 isStreaming 중일 때 모든 AI 메시지를
             // 무시했는데, 그러면 동시 발화 시 파트너의 AI 응답까지 가려졌음.
             // saveAiMessage도 같은 id 기반 dedup을 사용하므로 중복 위험 없음.
             set((s) => {
+              if (!isChatScopeCurrent(scope)) return s;
               const exists = s.messages.some((m) => m.id === newMsg.id);
               if (exists) return s;
               if (!canCurrentUserSeeMessage(newMsg)) return s;
@@ -1659,8 +1909,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             filter: `couple_id=eq.${coupleId}`,
           },
           (payload) => {
+            if (!isChatScopeCurrent(scope)) return;
             const updated = dbRowToMessage(payload.new as Record<string, unknown>);
+            if (updated.couple_id !== scope.coupleId) return;
             set((s) => {
+              if (!isChatScopeCurrent(scope)) return s;
               if (!canCurrentUserSeeMessage(updated)) {
                 const nextMessages = s.messages.filter((m) => m.id !== updated.id);
                 return nextMessages.length === s.messages.length ? s : { messages: nextMessages };
@@ -1694,6 +1947,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         )
         // ───────── Realtime broadcast: typing + AI streaming ─────────
         .on("broadcast", { event: "typing" }, (msg) => {
+          if (!isChatScopeCurrent(scope)) return;
           const p = msg.payload as
             | { sender_role: "bride" | "groom"; user_id: string; state: "start" | "stop" }
             | undefined;
@@ -1702,18 +1956,23 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           const me = useAuthStore.getState().profile?.id;
           if (p.user_id === me) return;
           set((s) => ({
-            presence: {
-              ...s.presence,
-              partnerTyping:
-                p.state === "start"
-                  ? { sender_role: p.sender_role, user_id: p.user_id, updated_at: Date.now() }
-                  : null,
-            },
+            ...(isChatScopeCurrent(scope)
+              ? {
+                  presence: {
+                    ...s.presence,
+                    partnerTyping:
+                      p.state === "start"
+                        ? { sender_role: p.sender_role, user_id: p.user_id, updated_at: Date.now() }
+                        : null,
+                  },
+                }
+              : {}),
           }));
         })
         // AI 응답 중 상태는 메시지 타임스탬프로 추론 (서버 broadcast 인프라 불필요)
         .subscribe((status) => {
-          if (isDev) console.log(`[realtime] chat:${coupleId} status: ${status}`);
+          if (!isChatScopeCurrent(scope)) return;
+          if (isDev) console.debug("[realtime] chat subscription status changed");
           if (status === "SUBSCRIBED") {
             retryCount = 0; // 재연결 성공 시 카운터 리셋
             // notifyTyping이 같은 채널 인스턴스로 send할 수 있게 등록
@@ -1723,7 +1982,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
             // 끊긴 채널은 더 이상 broadcast 못 보냄 — 레지스트리에서 제거
             activeChatChannels.delete(coupleId);
-            scheduleReconnect(status);
+            scheduleReconnect();
           }
         });
     };
@@ -1733,30 +1992,35 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // 스테일 presence 청소 — 파트너 탭 닫혔거나 broadcast가 유실됐을 때 인디케이터가
     // 영원히 떠있는 걸 방지. 5초마다 partnerTyping의 updated_at이 5s+ 지났으면 null 처리.
     const presenceSweep = setInterval(() => {
+      if (!isChatScopeCurrent(scope)) return;
       const now = Date.now();
       const pt = get().presence.partnerTyping;
       if (pt && now - pt.updated_at > 5000) {
-        set((s) => ({ presence: { ...s.presence, partnerTyping: null } }));
+        set((s) => isChatScopeCurrent(scope)
+          ? { presence: { ...s.presence, partnerTyping: null } }
+          : s);
       }
     }, 5000);
 
-    return () => {
+    const cleanup = () => {
       cancelled = true;
+      activeChatSubscriptionCleanups.delete(cleanup);
       clearInterval(presenceSweep);
       activeChatChannels.delete(coupleId);
       if (retryTimeout) clearTimeout(retryTimeout);
       if (currentChannel) supabase.removeChannel(currentChannel);
     };
+    activeChatSubscriptionCleanups.add(cleanup);
+    return cleanup;
   },
 
   // typing 브로드캐스트 — 마지막 입력 후 3초간 유지, 그 다음 자동 stop 발송.
   // 같은 채널 인스턴스로 send해야 broadcast가 도달함 → activeChatChannels에서 lookup.
-  notifyTyping: (() => {
-    let lastSentState: "start" | "stop" = "stop";
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
-
-    return ({ coupleId, userId, senderRole }) => {
+  notifyTyping: ({ coupleId, userId, senderRole }) => {
+      const scope = bindChatScope(set, coupleId, userId);
+      if (!scope) return;
       const sendBroadcast = (state: "start" | "stop") => {
+        if (!isChatScopeCurrent(scope)) return;
         const channel = activeChatChannels.get(coupleId);
         // 아직 구독 전이거나 끊긴 상태 → 조용히 스킵 (다음 입력 때 다시 시도)
         if (!channel) return;
@@ -1768,23 +2032,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       };
 
       // 첫 입력일 때만 "start" 발송 (불필요한 broadcast 폭주 방지)
-      if (lastSentState !== "start") {
+      if (typingLastSentState !== "start") {
         sendBroadcast("start");
-        lastSentState = "start";
+        typingLastSentState = "start";
       }
 
       // 마지막 입력 후 3초 뒤 자동 stop
-      if (stopTimer) clearTimeout(stopTimer);
-      stopTimer = setTimeout(() => {
+      if (typingStopTimer) clearTimeout(typingStopTimer);
+      typingStopTimer = setTimeout(() => {
         sendBroadcast("stop");
-        lastSentState = "stop";
-        stopTimer = null;
+        typingLastSentState = "stop";
+        typingStopTimer = null;
       }, 3000);
-    };
-  })(),
+  },
 
   reset: () => {
-    chatLifecycleEpoch += 1;
+    invalidateChatLifecycle();
     set({
       messages: [],
       isLoading: false,
@@ -1796,6 +2059,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       initialLoadDone: false,
       quotaRemaining: null,
       failedRequest: null,
+      isSending: false,
       isRetrying: false,
       sharedClearedAt: null,
       privateClearedAt: null,
@@ -1803,3 +2067,27 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     });
   },
 }));
+
+function chatIdentityKeyFromAuthState(
+  state: ReturnType<typeof useAuthStore.getState>,
+): string | null {
+  const actorId = state.user?.id ?? null;
+  if (!actorId || (state.profile?.id && state.profile.id !== actorId)) return null;
+  const coupleIds = new Set([
+    state.couple?.id,
+    state.profile?.couple_id,
+    state.journey?.couple_id,
+  ].filter((value): value is string => typeof value === "string" && value.length > 0));
+  if (coupleIds.size !== 1) return null;
+  return `${actorId}:${[...coupleIds][0]}`;
+}
+
+// Supabase can replace an authenticated session without a full page unload.
+// Reset synchronously at that boundary so A's local rows, drafts, timers, and
+// realtime callbacks cannot remain visible while B's app tree is still mounted.
+useAuthStore.subscribe((state, previousState) => {
+  if (chatIdentityKeyFromAuthState(state)
+      !== chatIdentityKeyFromAuthState(previousState)) {
+    useChatStore.getState().reset();
+  }
+});

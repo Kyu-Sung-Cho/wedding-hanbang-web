@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { Sentry } from "@/lib/sentry";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 
 interface Props {
   children: React.ReactNode;
@@ -24,15 +25,11 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    Sentry.withScope((scope) => {
-      scope.setContext("react", { componentStack: errorInfo.componentStack });
-      Sentry.captureException(error);
-    });
+  componentDidCatch(error: Error) {
+    Sentry.captureException(error);
 
     if (__DEV__) {
-      console.error("[ErrorBoundary] 앱 크래시:", error);
-      console.error("[ErrorBoundary] 컴포넌트 스택:", errorInfo.componentStack);
+      console.error("[ErrorBoundary] 앱 크래시:", safeErrorDiagnostic(error));
     }
   }
 

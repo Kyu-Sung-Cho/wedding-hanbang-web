@@ -26,6 +26,18 @@ export type ProgressWithAmoraActions = Record<string, ProgressItem | unknown>;
 
 const ACTIONS_KEY = "__amora_actions";
 export const MAX_ACTIONS = 80;
+const UNSAFE_HREF_CHARACTER = /[\\\u0000-\u001f\u007f]/;
+const ENCODED_PATH_SEPARATOR = /%(?:25)*(?:2f|5c)/i;
+
+export function sanitizeAmoraActionHref(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const href = value.trim().slice(0, 180);
+  if (!href.startsWith("/") || href.startsWith("//") || UNSAFE_HREF_CHARACTER.test(href)) {
+    return undefined;
+  }
+  const pathname = href.split(/[?#]/, 1)[0] ?? "";
+  return ENCODED_PATH_SEPARATOR.test(pathname) ? undefined : href;
+}
 
 function isAction(value: unknown): value is AmoraActionItem {
   if (!value || typeof value !== "object") return false;
@@ -36,6 +48,7 @@ function isAction(value: unknown): value is AmoraActionItem {
 export function normalizeAmoraAction(item: AmoraActionItem): AmoraActionItem {
   return {
     ...item,
+    href: sanitizeAmoraActionHref(item.href),
     priority: item.priority ?? "medium",
     status: item.status ?? "open",
     source: item.source ?? "chat",
@@ -71,7 +84,7 @@ export function mergeAmoraActions(
 }
 
 export function createAmoraActionId() {
-  return `act_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return `act_${globalThis.crypto.randomUUID()}`;
 }
 
 export function getAmoraActions(progress: ProgressWithAmoraActions | null | undefined): AmoraActionItem[] {

@@ -4,6 +4,8 @@ export { formatWon } from "@/lib/formatWon";
 
 export interface ToolExecutionContext {
   coupleId: string;
+  /** Canonical authenticated actor. Never derive this from couple membership rows. */
+  userId?: string;
   /**
    * Canonical durable chat claim key (`chat:<user uuid>:<request uuid>`).
    * executeTool fails closed for mutating tools when this is absent so a

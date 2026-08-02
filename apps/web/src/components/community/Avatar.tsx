@@ -1,8 +1,8 @@
 "use client";
 
 import { useId } from "react";
-import Image from "next/image";
 import type { UserRole } from "@/types/database.types";
+import { normalizeCommunityAvatar } from "@/lib/community/avatar";
 
 interface AvatarProps {
   nickname: string;
@@ -20,31 +20,15 @@ export default function Avatar({
   className = "",
 }: AvatarProps) {
   const gradientId = useId().replace(/:/g, "");
+  const safeAvatar = normalizeCommunityAvatar(avatarUrl);
 
-  if (avatarUrl && !isEmoji(avatarUrl) && (avatarUrl.startsWith("http") || avatarUrl.startsWith("/"))) {
-    return (
-      <div
-        className={`overflow-hidden rounded-full bg-[#f6efe5] ${className}`}
-        style={{ width: size, height: size }}
-      >
-        <Image
-          src={avatarUrl}
-          alt={nickname}
-          width={size}
-          height={size}
-          className="h-full w-full object-cover"
-        />
-      </div>
-    );
-  }
-
-  if (avatarUrl && isEmoji(avatarUrl)) {
+  if (safeAvatar) {
     return (
       <div
         className={`flex items-center justify-center rounded-full bg-gradient-to-br from-[#f6efe5] to-[#e5d8ca] ${className}`}
         style={{ width: size, height: size, fontSize: size * 0.5 }}
       >
-        {avatarUrl}
+        {safeAvatar}
       </div>
     );
   }
@@ -81,10 +65,6 @@ export default function Avatar({
       </svg>
     </div>
   );
-}
-
-function isEmoji(str: string): boolean {
-  return /\p{Emoji}/u.test(str) && str.length <= 4;
 }
 
 type AvatarRole = UserRole | "neutral";

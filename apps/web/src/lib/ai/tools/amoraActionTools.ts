@@ -1,10 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import {
   createAmoraActionId,
   getActionStatusLabel,
   getAmoraActions,
   mergeAmoraActions,
   normalizeAmoraAction,
+  sanitizeAmoraActionHref,
   withAddedAmoraAction,
   withUpdatedAmoraAction,
   type AmoraActionItem,
@@ -70,7 +72,7 @@ async function listStoredAmoraActions(ctx: ToolExecutionContext): Promise<AmoraA
     return await listAmoraActionRecords(getAdminClient(), ctx.coupleId, { status: "all" });
   } catch (error) {
     if (!isAmoraActionStorageUnavailable(error)) {
-      console.warn("amora action table read skipped:", error instanceof Error ? error.message : String(error));
+      console.warn("amora action table read skipped", safeErrorDiagnostic(error));
     }
     return null;
   }
@@ -105,7 +107,7 @@ async function mirrorAmoraActionToProgress(
 
     await saveProgress(ctx, newProgress);
   } catch (error) {
-    console.warn("amora action progress mirror skipped:", error instanceof Error ? error.message : String(error));
+    console.warn("amora action progress mirror skipped", safeErrorDiagnostic(error));
   }
 }
 
@@ -128,9 +130,7 @@ export async function executeAddAmoraAction(
     ? String(input.category_key)
     : undefined;
   const source = normalizeActionSource(input.source);
-  const href = typeof input.href === "string" && input.href.startsWith("/")
-    ? input.href
-    : getDefaultActionHref(categoryKey, source);
+  const href = sanitizeAmoraActionHref(input.href) ?? getDefaultActionHref(categoryKey, source);
   const actionId = createAmoraActionId();
   const now = new Date().toISOString();
   const draftAction = normalizeAmoraAction({
@@ -152,7 +152,7 @@ export async function executeAddAmoraAction(
     action = await insertAmoraActionRecord(getAdminClient(), ctx.coupleId, draftAction);
   } catch (error) {
     if (!isAmoraActionStorageUnavailable(error)) {
-      console.warn("amora action table insert skipped:", error instanceof Error ? error.message : String(error));
+      console.warn("amora action table insert skipped", safeErrorDiagnostic(error));
     }
   }
 
@@ -217,7 +217,8 @@ export async function executeUpdateAmoraAction(
   if (typeof input.title === "string") updates.title = input.title.slice(0, 80);
   if (typeof input.description === "string") updates.description = input.description.slice(0, 300);
   if (typeof input.due_date === "string") updates.dueDate = input.due_date;
-  if (typeof input.href === "string" && input.href.startsWith("/")) updates.href = input.href;
+  const safeHref = sanitizeAmoraActionHref(input.href);
+  if (safeHref) updates.href = safeHref;
   if (input.priority !== undefined) updates.priority = normalizeActionPriority(input.priority);
   if (input.status !== undefined) {
     const status = normalizeActionStatus(input.status);
@@ -241,7 +242,7 @@ export async function executeUpdateAmoraAction(
     if (isAmoraActionStorageUnavailable(error)) {
       storageUnavailable = true;
     } else {
-      console.error("amora action table update failed:", error instanceof Error ? error.message : String(error));
+      console.error("amora action table update failed", safeErrorDiagnostic(error));
       return {
         toolName: "update_amora_action",
         toolInput: input,

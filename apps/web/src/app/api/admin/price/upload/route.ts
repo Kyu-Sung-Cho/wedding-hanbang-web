@@ -4,6 +4,7 @@ import { parsePriceUpload, processPriceUpload } from "@/lib/admin/priceUpload";
 import { persistAdminJsonEvidence } from "@/lib/admin/priceUploadEvidence";
 import { createSupabasePriceUploadRepository } from "@/lib/admin/priceUploadSupabase";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
       { status: 401, headers: PRIVATE_HEADERS },
     );
   }
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-upload", request, admin.userId),
+    { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  );
+  if (limited) return limited;
   const body = await readBoundedBody(request);
   if (body.status === "too_large") {
     return NextResponse.json(

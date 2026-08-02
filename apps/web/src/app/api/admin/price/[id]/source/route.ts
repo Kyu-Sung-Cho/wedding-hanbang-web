@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isSafeDisclosureObjectKey, sourceFileLabels } from "@/lib/admin/vendorWorkspace";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkAdminReadRateLimit } from "@/lib/admin/adminReadBoundary";
 
 const DISCLOSURE_BUCKET = "disclosure-raw";
 const DISCLOSURE_PREVIEW_BUCKET = "disclosure-preview";
@@ -56,10 +57,13 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { authorized } = await verifyAdmin(request);
-  if (!authorized) {
+  const { authorized, userId } = await verifyAdmin(request);
+  if (!authorized || !userId) {
     return privateJson({ error: "Unauthorized" }, 401);
   }
+
+  const limited = await checkAdminReadRateLimit(request, userId, "price-source");
+  if (limited) return limited;
 
   const parsedId = z.string().uuid().safeParse((await params).id);
   if (!parsedId.success) {

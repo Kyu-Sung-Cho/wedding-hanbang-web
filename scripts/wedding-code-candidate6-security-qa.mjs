@@ -80,7 +80,7 @@ const researchServer = spawn(process.execPath, [devScript], {
   cwd: repoRoot,
   env: {
     ...process.env,
-    NEXT_PUBLIC_POSTHOG_HOST: sinkOrigin,
+    NEXT_PUBLIC_POSTHOG_ENABLED: "true",
     NEXT_PUBLIC_POSTHOG_KEY: "phc_deliberately_fake_candidate6_key",
     NEXT_PUBLIC_SENTRY_DSN: `http://public@127.0.0.1:${sinkPort}/1`,
     PORT: String(appPort),

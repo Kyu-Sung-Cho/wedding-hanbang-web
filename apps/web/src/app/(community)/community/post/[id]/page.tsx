@@ -38,6 +38,7 @@ import PollDisplay from "@/components/community/PollDisplay";
 import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import { communityCategoryFeedPath, communityPostPath } from "@/lib/community/routes";
+import { buildShareablePageUrl } from "@/lib/shareUrl";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PollWithOptions, PostWithAuthor } from "@/types/community.types";
 
@@ -198,7 +199,8 @@ export default function PostDetailPage() {
 
   // 공유 기능
   function handleShare() {
-    const url = window.location.href;
+    const url = buildShareablePageUrl(window.location.href, window.location.origin);
+    if (!url) return;
     if (navigator.share) {
       navigator.share({ title: post?.title, url }).catch(() => {});
     } else {
@@ -368,7 +370,7 @@ export default function PostDetailPage() {
   // 멤버전용 & 비로그인
   const isMembersOnly = post.visibility === "members" && !user;
   const categoryInfo = CATEGORY_MAP[post.category];
-  const isAuthor = user && user.id === post.author_id;
+  const isAuthor = post.is_author === true;
 
   // 좋아요 표시값 (낙관적 UI)
   const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote === 1 ? 1 : null);

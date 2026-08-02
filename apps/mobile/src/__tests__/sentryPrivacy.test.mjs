@@ -24,7 +24,10 @@ test("Sentry error scrubber removes direct PII containers and sensitive free tex
     extra: { chat: "private wedding plan" },
     message: "call 010-1234-5678 or bride@example.com at https://hanbang.ai/private",
     exception: {
-      values: [{ value: "Bearer abcdefghijklmnopqrstuvwx.abcdefghijkl.secretpayload" }],
+      values: [
+        { value: "Bearer abcdefghijklmnopqrstuvwx.abcdefghijkl.secretpayload" },
+        { value: ["sk", "proj", "test_fixture_not_a_secret_1234567890"].join("-") },
+      ],
     },
     breadcrumbs: [{ message: "resident 900101-1234567", data: { input: "private" } }],
   };
@@ -34,10 +37,50 @@ test("Sentry error scrubber removes direct PII containers and sensitive free tex
   assert.equal(result.user, undefined);
   assert.equal(result.request, undefined);
   assert.equal(result.extra, undefined);
-  assert.equal(result.message, "call [redacted] or [redacted] at [url]");
-  assert.equal(result.exception.values[0].value, "[redacted]");
-  assert.equal(result.breadcrumbs[0].message, "resident [redacted]");
+  assert.equal(result.message, "[redacted-error]");
+  assert.equal(result.exception.values[0].value, "[redacted-error]");
+  assert.equal(result.exception.values[1].value, "[redacted-error]");
+  assert.equal(result.breadcrumbs[0].message, "[redacted]");
   assert.equal(result.breadcrumbs[0].data, undefined);
+});
+
+test("Sentry scrubber removes arbitrary user-authored error and console text", () => {
+  const privateMarker = "our private venue is the family home";
+  const event = {
+    message: privateMarker,
+    contexts: { react: { componentStack: privateMarker } },
+    exception: {
+      values: [{
+        type: "PostgrestError",
+        value: privateMarker,
+        stacktrace: { frames: [{ filename: "screen.tsx", lineno: 10 }] },
+      }],
+    },
+    breadcrumbs: [{ category: "console", message: privateMarker }],
+  };
+
+  const result = privacy.sanitizeSentryEvent(event);
+  const serialized = JSON.stringify(result);
+
+  assert.equal(serialized.includes(privateMarker), false);
+  assert.equal(result.contexts, undefined);
+  assert.equal(result.exception.values[0].type, "PostgrestError");
+  assert.equal(result.exception.values[0].stacktrace.frames[0].filename, "screen.tsx");
+  assert.equal(result.exception.values[0].value, "[redacted-error]");
+  assert.equal(result.breadcrumbs[0].message, "[redacted]");
+});
+
+test("Sentry transaction scrubber removes root-relative URL parameters", () => {
+  const event = {
+    transaction: "GET /auth/callback?code=oauth-code-marker&state=private-state#token=private-token",
+  };
+
+  privacy.sanitizeSentryTransaction(event);
+
+  assert.equal(event.transaction, "GET /auth/callback");
+  assert.equal(JSON.stringify(event).includes("oauth-code-marker"), false);
+  assert.equal(JSON.stringify(event).includes("private-state"), false);
+  assert.equal(JSON.stringify(event).includes("private-token"), false);
 });
 
 test("Sentry transaction scrubber removes span data and URLs before performance upload", () => {
@@ -60,6 +103,19 @@ test("Sentry transaction scrubber removes span data and URLs before performance 
   assert.equal(result.user, undefined);
   assert.equal(result.request, undefined);
   assert.equal(result.extra, undefined);
-  assert.equal(result.spans[0].description, "fetch [url]");
+  assert.equal(result.spans[0].description, "[redacted]");
   assert.deepEqual(result.spans[0].data, {});
+});
+
+test("Sentry transaction scrubber removes arbitrary user-authored span descriptions", () => {
+  const privateMarker = "private venue contract clause";
+  const event = {
+    spans: [{ description: privateMarker, data: { body: privateMarker } }],
+  };
+
+  privacy.sanitizeSentryTransaction(event);
+
+  assert.equal(JSON.stringify(event).includes(privateMarker), false);
+  assert.equal(event.spans[0].description, "[redacted]");
+  assert.deepEqual(event.spans[0].data, {});
 });

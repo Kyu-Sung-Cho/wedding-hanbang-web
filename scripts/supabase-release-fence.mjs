@@ -48,8 +48,29 @@ const HOSTED_RESTORE_REQUIRED_CHECKS = [
   "typedSchemaVerified",
 ];
 
+function sanitizeReleaseFenceDiagnostic(value) {
+  return String(value)
+    .replace(/[\u0000-\u001f\u007f]+/gu, " ")
+    .replace(/\b(?:authorization|password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token)\s*[:=]\s*\S+/giu, "[secret redacted]")
+    .replace(/\b(?:Bearer\s+\S+|(?:sk-(?:ant-)?|sb_(?:secret|publishable)_|github_pat_|gh[pousr]_|xox[bap]-|re_)[A-Za-z0-9._-]{6,})\b/giu, "[secret redacted]")
+    .replace(/https?:\/\/[^\s"'<>]+/giu, "[url redacted]")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu, "[email redacted]")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/giu, "[identifier redacted]")
+    .replace(/\b[a-z0-9]{20}\b/gu, "[project-ref redacted]")
+    .replace(/\b[0-9a-f]{40,128}\b/giu, "[digest redacted]")
+    .replace(/(?:[A-Za-z]:\\|\\\\)[^\s,;"']+/gu, "[path redacted]")
+    .replace(/\/(?:Users|home|tmp|var|private|mnt|workspace)\/[^\s,;"']+/gu, "[path redacted]")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 320) || "operational validation failed";
+}
+
 function fail(message) {
-  console.error(`SUPABASE_RELEASE_FENCE_BLOCKED: ${message}`);
+  const codeMatch = /^([A-Z][A-Z0-9_]{2,95})(?::|$)/u.exec(String(message));
+  const code = codeMatch?.[1] ?? "RELEASE_FENCE_VALIDATION_FAILED";
+  console.error(
+    `SUPABASE_RELEASE_FENCE_BLOCKED [${code}]: ${sanitizeReleaseFenceDiagnostic(message)}`,
+  );
   process.exit(1);
 }
 
@@ -273,7 +294,7 @@ function verifyExtendedReleaseContracts(
     contracts = validateAmoraExtendedReleaseContracts(manifest);
   } catch (error) {
     if (error instanceof ExtendedReleaseContractError) {
-      fail(`${error.code}: ${error.message}`);
+      fail(`${error.code}: extended release contract validation failed`);
     }
     throw error;
   }
@@ -526,8 +547,10 @@ function verifyRemotePending() {
     { cwd: repoRoot, encoding: "utf8", shell: false }
   );
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
-  if (result.error) fail(`Supabase CLI could not start: ${result.error.message}`);
-  if (result.status !== 0) fail(`Supabase dry-run failed\n${output}`);
+  if (result.error) fail("SUPABASE_CLI_START_FAILED: Supabase CLI could not start");
+  if (result.status !== 0) {
+    fail("SUPABASE_DRY_RUN_FAILED: Supabase dry-run failed; provider output withheld");
+  }
   const pending = parsePending(output);
   const expected = expectedMode === "before-reconcile"
     ? [...filesFor("historicalReconciliation"), ...filesFor("expandMigrations")]
@@ -535,7 +558,7 @@ function verifyRemotePending() {
       ? filesFor("expandMigrations")
       : [];
   assertExact(pending, expected, expectedMode);
-  console.log(`Remote pending set verified for ${linkedRef}: ${expectedMode} (${pending.length} migrations).`);
+  console.log(`Remote pending set verified: ${expectedMode} (${pending.length} migrations).`);
 }
 
 let successorContract = null;
@@ -544,7 +567,7 @@ if (existsSync(successorManifestPath)) {
     successorContract = validateSuccessorReleaseContract({ repoRoot });
   } catch (error) {
     if (error instanceof SuccessorReleaseContractError) {
-      fail(`${error.code}: ${error.message}`);
+      fail(`${error.code}: successor release contract validation failed`);
     }
     throw error;
   }

@@ -11,6 +11,7 @@ import SectionHeader from './components/SectionHeader';
 import QuestionRenderer from './components/QuestionRenderer';
 import NavigationButtons from './components/NavigationButtons';
 import TurnstileWidget from '@/components/auth/TurnstileWidget';
+import { CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION } from '@/lib/survey/consent';
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -40,6 +41,7 @@ export default function CustomerSurveyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [surveyConsent, setSurveyConsent] = useState(false);
 
   const visibleQuestions = getVisibleQuestions(currentSectionIndex);
 
@@ -77,6 +79,8 @@ export default function CustomerSurveyPage() {
           otherTexts,
           completionTimeSeconds,
           turnstileToken,
+          consent: surveyConsent,
+          consentVersion: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION,
         }),
       });
 
@@ -87,7 +91,7 @@ export default function CustomerSurveyPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, otherTexts, completionTimeSeconds, markCompleted, turnstileToken]);
+  }, [answers, otherTexts, completionTimeSeconds, markCompleted, surveyConsent, turnstileToken]);
 
   // 다음 버튼 핸들러
   const handleNext = useCallback(() => {
@@ -144,6 +148,8 @@ export default function CustomerSurveyPage() {
         hasDraft={hasDraft}
         onResume={resumeDraft}
         onDismissDraft={dismissDraft}
+        consent={surveyConsent}
+        onConsentChange={setSurveyConsent}
       />
     );
   }

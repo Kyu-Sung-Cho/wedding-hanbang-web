@@ -17,7 +17,7 @@ vi.mock("@/lib/vendors/vendorProfileData", () => ({
 
 import { GET } from "./route";
 
-const secret = "p".repeat(32);
+const secret = "P8qJ3mV7rT2xK9cN4sL6wY1dF5gB0uA_zE-HoQi";
 const vendorId = "123e4567-e89b-42d3-a456-426614174000";
 
 function request(token = secret) {

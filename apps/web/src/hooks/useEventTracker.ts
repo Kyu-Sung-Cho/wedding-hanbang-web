@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { isBrowserTrackingOptOut } from "@/lib/analyticsPrivacy";
 
 interface TrackEventOptions {
   vendorId?: string;
@@ -10,14 +11,12 @@ interface TrackEventOptions {
 }
 
 // 세션 ID 생성 (탭별 고유)
+let inMemorySessionId: string | null = null;
+
 function getSessionId(): string {
   if (typeof window === "undefined") return "";
-  let sessionId = sessionStorage.getItem("event_session_id");
-  if (!sessionId) {
-    sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    sessionStorage.setItem("event_session_id", sessionId);
-  }
-  return sessionId;
+  inMemorySessionId ??= crypto.randomUUID();
+  return inMemorySessionId;
 }
 
 // 중복 방지: 같은 이벤트 5초 내 재전송 차단
@@ -36,7 +35,7 @@ function isDemoMode(): boolean {
 }
 
 async function sendEvent(eventType: string, options: TrackEventOptions = {}) {
-  if (isDemoMode()) return;
+  if (isDemoMode() || isBrowserTrackingOptOut()) return;
 
   const key = `${eventType}:${options.vendorId || ""}:${options.productId || ""}`;
   if (isDuplicate(key)) return;
@@ -85,8 +84,6 @@ export function usePageViewTracker(enabled = true) {
       sendEvent("page_view", {
         metadata: {
           path,
-          referrer: document.referrer || undefined,
-          timestamp: new Date().toISOString(),
         },
       });
     };
@@ -104,6 +101,12 @@ export function usePageViewTracker(enabled = true) {
 
     return () => observer.disconnect();
   }, [enabled]);
+}
+
+/** Prevent one browser tab from linking events across authenticated actors. */
+export function resetLegacyEventTrackerState(): void {
+  inMemorySessionId = null;
+  recentEvents.clear();
 }
 
 // 체류시간 자동 추적 훅

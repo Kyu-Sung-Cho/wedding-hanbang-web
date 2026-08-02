@@ -155,6 +155,7 @@ describe("read tool error boundary", () => {
       toolOutput: { error_code: "TOOL_EXECUTION_FAILED" },
     });
     expect(JSON.stringify(result)).not.toContain("SECRET_DATABASE_CONNECTION_DETAIL");
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("SECRET_DATABASE_CONNECTION_DETAIL");
     errorSpy.mockRestore();
   });
 });

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommunityMimeType } from "./uploadPolicy";
+import { isCommunityActorWriteDenied } from "./actorWriteGate";
 
 export type CommunityUploadStatus =
   | "issued"
@@ -56,7 +57,10 @@ export async function claimCommunityUploadSession(
     p_claim_token: claimToken,
     p_stale_before: staleBefore,
   });
-  if (error) throw new Error("community upload session claim failed");
+  if (error) {
+    if (isCommunityActorWriteDenied(error)) throw error;
+    throw new Error("community upload session claim failed");
+  }
   const row = Array.isArray(data) ? data[0] : data;
   if (row === undefined || row === null) return null;
   if (!isSession(row)) throw new Error("community upload session claim malformed");
@@ -71,27 +75,19 @@ export async function markCommunityUploadCompleted(
   contentSha256: string,
 ): Promise<boolean> {
   if (!session.claim_token || !/^[0-9a-f]{64}$/.test(contentSha256)) return false;
-  const now = new Date().toISOString();
-  const { data, error } = await admin
-    .from("community_upload_sessions")
-    .update({
-      status: "completed",
-      actual_size: actualSize,
-      actual_mime_type: actualMimeType,
-      content_sha256: contentSha256,
-      sanitized_at: now,
-      completed_at: now,
-      claim_token: null,
-      updated_at: now,
-      staging_deleted_at: now,
-    })
-    .eq("id", session.id)
-    .eq("user_id", session.user_id)
-    .eq("status", "finalizing")
-    .eq("claim_token", session.claim_token)
-    .select("id")
-    .maybeSingle();
-  return !error && Boolean(data);
+  const { data, error } = await admin.rpc(
+    "community_complete_upload_session_for_actor",
+    {
+      p_actor_id: session.user_id,
+      p_upload_id: session.id,
+      p_claim_token: session.claim_token,
+      p_actual_size: actualSize,
+      p_actual_mime_type: actualMimeType,
+      p_content_sha256: contentSha256,
+    },
+  );
+  if (error && isCommunityActorWriteDenied(error)) throw error;
+  return !error && data === true;
 }
 
 export async function rejectCommunityUploadSession(

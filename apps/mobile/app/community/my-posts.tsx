@@ -8,7 +8,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { FileText, ThumbsUp, MessageCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { supabase } from "@/lib/supabase";
+import { apiJson } from "@/lib/api";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -43,19 +44,12 @@ export default function MyPostsScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("community_posts")
-        .select("id, category, title, created_at, upvote_count, comment_count")
-        .eq("author_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setPosts((data ?? []) as Post[]);
+      const data = await apiJson<{ posts: Post[] }>(
+        "/api/community/posts?sort=my_posts&limit=50",
+      );
+      setPosts(data.posts ?? []);
     } catch (err) {
-      console.error("My posts load:", err);
+      console.error("My posts load:", safeErrorDiagnostic(err));
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -44,6 +44,11 @@ test("signup obtains one verified token before the API and clears it after use",
   assert.match(source, /async function submitSignupWithTurnstile\(turnstileToken: string\)/);
   assert.match(source, /isValidTurnstileToken\(turnstileToken\)/);
   assert.match(source, /turnstileTokenRef\.current = turnstileToken/);
+  assert.match(source, /if \(!agreeTerms \|\| !agreePrivacy\)[\s\S]*return/);
+  assert.match(source, /requestMobileSignup\([\s\S]*termsAgreed:\s*agreeTerms/);
+  assert.match(source, /requestMobileSignup\([\s\S]*privacyAgreed:\s*agreePrivacy/);
+  assert.match(source, /termsVersion:\s*CURRENT_TERMS_VERSION/);
+  assert.match(source, /privacyVersion:\s*CURRENT_PRIVACY_VERSION/);
   assert.match(source, /requestMobileSignup\([\s\S]*turnstileTokenRef\.current/);
   assert.match(source, /finally \{[\s\S]*turnstileTokenRef\.current = ""/);
   assert.match(source, /<TurnstileModal[\s\S]*action="signup"/);

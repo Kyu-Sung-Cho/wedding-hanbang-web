@@ -5,6 +5,22 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 const PRODUCTION_HOST = "hanbang.ai";
+const MIN_SECRET_LENGTH = 32;
+const MAX_SECRET_LENGTH = 512;
+const MIN_UNIQUE_SECRET_CHARACTERS = 12;
+const UNSAFE_SECRET_PATTERN =
+  /(?:placeholder|example|test-only|replace-with|not-a-real)/i;
+
+function isPlausibleEvalSecret(secret) {
+  return (
+    typeof secret === "string"
+    && Buffer.byteLength(secret, "utf8") >= MIN_SECRET_LENGTH
+    && Buffer.byteLength(secret, "utf8") <= MAX_SECRET_LENGTH
+    && !/[\s\u0000-\u001f\u007f]/u.test(secret)
+    && new Set(secret).size >= MIN_UNIQUE_SECRET_CHARACTERS
+    && !UNSAFE_SECRET_PATTERN.test(secret)
+  );
+}
 
 class EvalInfrastructureError extends Error {
   constructor(message, { retryable = false } = {}) {
@@ -52,7 +68,7 @@ Options:
   --json               Print machine-readable JSON only.
 
 Environment:
-  AMORA_EVAL_SECRET    Shared release-evaluation secret (minimum 32 characters).`);
+  AMORA_EVAL_SECRET    Distinct random release-evaluation secret (32+ bytes).`);
       process.exit(0);
     } else {
       throw new Error(`Unknown argument: ${arg}`);
@@ -83,8 +99,8 @@ Environment:
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 10_000) {
     throw new Error("--timeout-ms must be at least 10000");
   }
-  if (options.evalSecret.length < 32) {
-    throw new Error("AMORA_EVAL_SECRET must be set to at least 32 characters");
+  if (!isPlausibleEvalSecret(options.evalSecret)) {
+    throw new Error("AMORA_EVAL_SECRET must be a distinct random secret of 32-512 bytes");
   }
   if (options.isProduction && !options.allowProduction) {
     throw new Error("Refusing production evaluation without --allow-production");
@@ -334,6 +350,9 @@ export function parseSse(text) {
 }
 
 export function createEvalToken(secret, requestId, timestamp = Date.now()) {
+  if (!isPlausibleEvalSecret(secret)) {
+    throw new Error("AMORA_EVAL_SECRET_INVALID");
+  }
   const issuedAt = String(timestamp);
   const signature = createHmac("sha256", secret)
     .update(`v1:${issuedAt}:${requestId}`)
@@ -342,7 +361,14 @@ export function createEvalToken(secret, requestId, timestamp = Date.now()) {
 }
 
 async function startDemoSession(baseUrl, timeoutMs) {
-  const response = await fetchWithTimeout(`${baseUrl}/api/demo/start`, { method: "POST" }, timeoutMs);
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/demo/start`,
+    {
+      method: "POST",
+      headers: { Origin: new URL(baseUrl).origin },
+    },
+    timeoutMs,
+  );
   invariant(response.ok, `Demo session failed: ${response.status} ${await response.text()}`);
   const cookie = getCookieHeader(response);
   invariant(cookie, "Demo session did not return a cookie");
@@ -356,6 +382,7 @@ async function runScenario({ baseUrl, cookie, timeoutMs, scenario, evalSecret })
     {
       method: "POST",
       headers: {
+        Origin: new URL(baseUrl).origin,
         "Content-Type": "application/json",
         Cookie: cookie,
         "X-Amora-Eval": createEvalToken(evalSecret, clientRequestId),

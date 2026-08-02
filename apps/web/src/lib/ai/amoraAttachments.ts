@@ -8,7 +8,6 @@ export const AMORA_ATTACHMENT_MEDIA_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
-  "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 
@@ -24,6 +23,7 @@ export type AmoraAttachmentValidationCode =
   | "INVALID_ATTACHMENTS"
   | "TOO_MANY_ATTACHMENTS"
   | "INVALID_ATTACHMENT"
+  | "PDF_NOT_SUPPORTED"
   | "UNSUPPORTED_MEDIA_TYPE"
   | "REMOTE_URL_NOT_ALLOWED"
   | "AMBIGUOUS_ATTACHMENT_SOURCE"
@@ -39,7 +39,8 @@ const USER_MESSAGES: Record<AmoraAttachmentValidationCode, string> = {
   INVALID_ATTACHMENTS: "첨부파일 형식이 올바르지 않아요.",
   TOO_MANY_ATTACHMENTS: `첨부파일은 한 번에 ${AMORA_MAX_ATTACHMENTS}개까지 보낼 수 있어요.`,
   INVALID_ATTACHMENT: "첨부파일 정보가 올바르지 않아요. 파일을 다시 선택해주세요.",
-  UNSUPPORTED_MEDIA_TYPE: "지원하지 않는 파일 형식이에요. 이미지, PDF 또는 DOCX 파일을 사용해주세요.",
+  PDF_NOT_SUPPORTED: "PDF는 문서 메타데이터를 안전하게 제거하는 기능이 준비될 때까지 첨부할 수 없어요. 필요한 내용을 DOCX로 다시 저장하거나 텍스트로 보내주세요.",
+  UNSUPPORTED_MEDIA_TYPE: "지원하지 않는 파일 형식이에요. 이미지 또는 DOCX 파일을 사용해주세요.",
   REMOTE_URL_NOT_ALLOWED: "외부 링크 파일은 안전을 위해 열 수 없어요. 파일을 직접 첨부해주세요.",
   AMBIGUOUS_ATTACHMENT_SOURCE: "첨부파일 데이터가 중복되어 있어요. 파일을 다시 선택해주세요.",
   MISSING_ATTACHMENT_DATA: "첨부파일 내용이 비어 있어요. 파일을 다시 선택해주세요.",
@@ -51,11 +52,13 @@ const USER_MESSAGES: Record<AmoraAttachmentValidationCode, string> = {
 
 export class AmoraAttachmentValidationError extends Error {
   readonly code: AmoraAttachmentValidationCode;
+  readonly publicMessage: string;
 
   constructor(code: AmoraAttachmentValidationCode) {
     super(USER_MESSAGES[code]);
     this.name = "AmoraAttachmentValidationError";
     this.code = code;
+    this.publicMessage = USER_MESSAGES[code];
   }
 }
 
@@ -450,6 +453,9 @@ export function validateAmoraAttachments(input: unknown): ValidatedAmoraAttachme
   return input.map((raw): ValidatedAmoraAttachment => {
     if (!isRecord(raw) || typeof raw.mediaType !== "string") {
       throw new AmoraAttachmentValidationError("INVALID_ATTACHMENT");
+    }
+    if (raw.mediaType === "application/pdf") {
+      throw new AmoraAttachmentValidationError("PDF_NOT_SUPPORTED");
     }
     if (!ALLOWED_MEDIA_TYPES.has(raw.mediaType)) {
       throw new AmoraAttachmentValidationError("UNSUPPORTED_MEDIA_TYPE");

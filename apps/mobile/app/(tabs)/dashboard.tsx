@@ -28,6 +28,10 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import {
+  captureMobileAuthIdentityExpectation,
+  isCurrentMobileAuthIdentity,
+} from "@/lib/mobileAuthIdentity";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
 import AppGuide from "@/components/AppGuide";
@@ -262,6 +266,8 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const mountedRef = useRef(false);
+  const loadVersionRef = useRef(0);
 
   // 앱 가이드 (첫 실행 시 1회 표시)
   const [showGuide, setShowGuide] = useState(false);
@@ -286,7 +292,6 @@ export default function DashboardScreen() {
   // 진행률 바 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  const coupleIdRef = useRef<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // 퀵 액션 스케일 애니메이션용
@@ -298,22 +303,31 @@ export default function DashboardScreen() {
   ]).current;
 
   const loadData = useCallback(async () => {
+    const expectation = captureMobileAuthIdentityExpectation();
+    if (!expectation) return null;
+    const loadVersion = ++loadVersionRef.current;
+    const isActiveLoad = () => (
+      mountedRef.current
+      && loadVersionRef.current === loadVersion
+      && isCurrentMobileAuthIdentity(expectation)
+    );
+
     try {
-      setError(false);
+      if (isActiveLoad()) setError(false);
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || user.id !== expectation.userId || !isActiveLoad()) return null;
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("name, couple_id")
         .eq("id", user.id)
         .single();
-
-      coupleIdRef.current = profile?.couple_id ?? null;
+      if (!isActiveLoad()) return null;
 
       if (!profile?.couple_id) {
+        if (!isActiveLoad()) return null;
         setData({
           name: profile?.name ?? null,
           weddingDate: null,
@@ -326,7 +340,7 @@ export default function DashboardScreen() {
           bookingOutcomeTasks: [],
           partnerActivity: null,
         });
-        return;
+        return { coupleId: null, expectation };
       }
 
       const { data: journey } = await supabase
@@ -334,6 +348,7 @@ export default function DashboardScreen() {
         .select("wedding_date, total_budget, progress")
         .eq("couple_id", profile.couple_id)
         .single();
+      if (!isActiveLoad()) return null;
 
       const progress =
         (journey?.progress as Record<string, unknown>) ?? {};
@@ -401,6 +416,7 @@ export default function DashboardScreen() {
       }
 
       // 파트너 활동 감지
+      if (!isActiveLoad()) return null;
       let partnerActivity: PartnerActivity | null = null;
       try {
         const { data: partners } = await supabase
@@ -448,6 +464,7 @@ export default function DashboardScreen() {
         // 파트너 활동 조회 실패 시 무시
       }
 
+      if (!isActiveLoad()) return null;
       const pct = progressPercent;
       setData({
         name: profile.name,
@@ -469,19 +486,31 @@ export default function DashboardScreen() {
         duration: 800,
         useNativeDriver: false,
       }).start();
-    } catch (err) {
-      console.error("Dashboard load error:", err);
-      setError(true);
+      return { coupleId: profile.couple_id, expectation };
+    } catch {
+      if (isActiveLoad()) {
+        if (__DEV__) console.warn("[Dashboard] load failed");
+        setError(true);
+      }
+      return null;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isActiveLoad()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [progressAnim]);
 
   useEffect(() => {
-    loadData().then(() => {
-      const cid = coupleIdRef.current;
-      if (!cid) return;
+    mountedRef.current = true;
+    let disposed = false;
+    void loadData().then((result) => {
+      if (
+        disposed
+        || !result?.coupleId
+        || !isCurrentMobileAuthIdentity(result.expectation)
+      ) return;
+      const cid = result.coupleId;
 
       // Realtime: 웹에서 변경 시 대시보드 자동 갱신
       const channel = supabase.channel(`dashboard:${cid}`)
@@ -491,7 +520,9 @@ export default function DashboardScreen() {
           table: 'wedding_journeys',
           filter: `couple_id=eq.${cid}`,
         }, () => {
-          loadData();
+          if (!disposed && isCurrentMobileAuthIdentity(result.expectation)) {
+            void loadData();
+          }
         })
         .on('postgres_changes', {
           event: '*',
@@ -499,16 +530,25 @@ export default function DashboardScreen() {
           table: 'vendor_bookings',
           filter: `couple_id=eq.${cid}`,
         }, () => {
-          loadData();
+          if (!disposed && isCurrentMobileAuthIdentity(result.expectation)) {
+            void loadData();
+          }
         })
         .subscribe();
 
+      if (disposed || !isCurrentMobileAuthIdentity(result.expectation)) {
+        void supabase.removeChannel(channel);
+        return;
+      }
       channelRef.current = channel;
     });
 
     return () => {
+      disposed = true;
+      mountedRef.current = false;
+      loadVersionRef.current += 1;
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };

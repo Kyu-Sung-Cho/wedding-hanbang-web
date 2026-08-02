@@ -25,6 +25,7 @@ export type CohortEventType =
 // 프로필
 // ────────────────────────────────────────
 export interface CommunityProfile {
+  /** Stable community pseudonym; never a Supabase Auth user UUID. */
   user_id: string;
   nickname: string;
   avatar_url: string | null;
@@ -78,7 +79,10 @@ export interface SlideMedia {
 
 export interface CommunityPost {
   id: string;
+  /** Public author pseudonym projected from author_public_id. */
   author_id: string;
+  /** Server-computed ownership hint; clients must not infer it from Auth UUIDs. */
+  is_author?: boolean;
   category: CommunityCategory;
   title: string;
   content: string;
@@ -214,7 +218,10 @@ export interface CommunityComment {
   id: string;
   post_id: string;
   parent_id: string | null;
+  /** Public author pseudonym projected from author_public_id. */
   author_id: string;
+  /** Server-computed ownership hint; clients must not infer it from Auth UUIDs. */
+  is_author?: boolean;
   content: string;
   upvote_count: number;
   is_deleted: boolean;

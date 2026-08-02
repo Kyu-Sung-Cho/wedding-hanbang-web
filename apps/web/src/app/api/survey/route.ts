@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { getTurnstileRequestHostname } from "@/lib/turnstileRequestHostname";
 import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanIntegerInRange,
   cleanOptionalText,
   isBodyTooLarge,
   isRecord,
-  sanitizeJsonObject,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION } from "@/lib/survey/consent";
+import { validateSurveySubmission } from "@/lib/survey/submission";
 
-const MAX_BODY_BYTES = 96 * 1024;
+const MAX_BODY_BYTES = 32 * 1024;
 
 function getServiceClient() {
   return createAdminClient();
@@ -44,15 +48,33 @@ export async function POST(request: NextRequest) {
     });
     if (limited) return limited;
 
-    const body = await request.json();
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
+    if (
+      body.consent !== true
+      || body.consentVersion !== CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION
+    ) {
+      return NextResponse.json(
+        { error: "설문 응답 처리 동의가 필요합니다." },
+        { status: 400 },
+      );
     }
 
     const turnstile = await verifyTurnstile(
       typeof body.turnstileToken === "string" ? body.turnstileToken : null,
       getClientIp(request),
       "survey",
+      getTurnstileRequestHostname(request),
     );
     if (!turnstile.ok) {
       return NextResponse.json(
@@ -61,22 +83,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const answers = sanitizeJsonObject(body.answers, {
-      maxDepth: 4,
-      maxArrayLength: 30,
-      maxObjectKeys: 80,
-      maxStringLength: 2000,
-    });
-    const otherTexts = sanitizeJsonObject(body.otherTexts ?? {}, {
-      maxDepth: 2,
-      maxArrayLength: 5,
-      maxObjectKeys: 40,
-      maxStringLength: 1000,
-    }) ?? {};
-
-    if (!answers || Object.keys(answers).length === 0) {
-      return NextResponse.json({ error: "응답 데이터가 없습니다." }, { status: 400 });
+    const validated = validateSurveySubmission(body.answers, body.otherTexts ?? {});
+    if (!validated.ok) {
+      return NextResponse.json(
+        {
+          error: validated.reason === "direct_identifier"
+            ? "자유서술에서 연락처와 링크를 제거해 주세요."
+            : "설문 응답을 다시 확인해 주세요.",
+        },
+        { status: 400 },
+      );
     }
+    const { answers, otherTexts } = validated.data;
 
     const ranking = Array.isArray(answers.q13) ? answers.q13 : [];
     const q15 = isRecord(answers.q15) ? answers.q15 : {};
@@ -127,12 +145,11 @@ export async function POST(request: NextRequest) {
       q22_gender: scalar(q22.q22_gender),
       q22_age: scalar(q22.q22_age),
       q22_budget: scalar(q22.q22_budget),
-      q23_contact: cleanOptionalText(answers.q23, 160),
-
       completion_time_seconds:
         cleanIntegerInRange(body.completionTimeSeconds, 0, 24 * 60 * 60) ?? null,
-      user_agent: cleanOptionalText(request.headers.get("user-agent"), 300),
       screen_out: false,
+      survey_consent_version: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION,
+      survey_consented_at: new Date().toISOString(),
     };
 
     const { error } = await getServiceClient()
@@ -140,7 +157,7 @@ export async function POST(request: NextRequest) {
       .insert(row);
 
     if (error) {
-      console.error("survey insert failed:", error);
+      console.error("survey insert failed", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "응답 저장에 실패했습니다." },
         { status: 500 }
@@ -149,7 +166,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Survey API error:", err);
+    console.error("Survey API error", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

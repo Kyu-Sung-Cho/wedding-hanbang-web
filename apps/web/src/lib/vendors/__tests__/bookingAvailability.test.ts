@@ -10,6 +10,7 @@ import {
   collectBookingOccupancyPages,
   databaseWeekday,
   parseAvailabilityRange,
+  toPublicBookingSlots,
 } from "../bookingAvailability";
 
 describe("public booking availability dates", () => {
@@ -141,5 +142,21 @@ describe("public booking availability dates", () => {
       expect(route).toContain("loadPublicBookingAvailability");
       expect(route).toContain("BOOKING_AVAILABILITY_UNAVAILABLE");
     }
+  });
+
+  it("reduces internal capacity and occupancy to a fail-closed availability flag", () => {
+    const publicSlots = toPublicBookingSlots([
+      { day: 0, hour: 10, available: true, max_bookings: 3, current_bookings: 2 },
+      { day: 0, hour: 11, available: true, max_bookings: 1, current_bookings: 1 },
+      { day: 0, hour: 12, available: false, max_bookings: 5, current_bookings: 0 },
+      { day: 9, hour: 12, available: true, max_bookings: 5, current_bookings: 0 },
+    ]);
+
+    expect(publicSlots).toEqual([
+      { day: 0, hour: 10, available: true },
+      { day: 0, hour: 11, available: false },
+      { day: 0, hour: 12, available: false },
+    ]);
+    expect(JSON.stringify(publicSlots)).not.toMatch(/max_bookings|current_bookings|bookedCount/);
   });
 });

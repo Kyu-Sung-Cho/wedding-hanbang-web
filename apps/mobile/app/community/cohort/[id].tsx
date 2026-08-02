@@ -29,6 +29,7 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
@@ -54,8 +55,6 @@ interface CohortMember {
   profile: {
     nickname: string;
     rank: string;
-    wedding_year: number | null;
-    wedding_month: number | null;
   } | null;
 }
 
@@ -207,21 +206,61 @@ export default function CohortChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<CohortMessage>>(null);
 
-  // 초기: 자동 입장 + 메시지/방 정보 로드 (Supabase 직접)
+  // 서버가 capacity/단일 활성 멤버십을 원자적으로 보장한 뒤 방 데이터를 읽는다.
   const loadMessages = useCallback(async () => {
-    if (!id) return;
+    if (!id) return false;
     try {
-      // 1. 자동 입장 (이미 멤버면 무시)
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-        await supabase.from("cohort_members").upsert(
-          { room_id: id, user_id: user.id },
-          { onConflict: "room_id,user_id" }
-        ).then(() => {});
+      if (!user) {
+        router.replace("/(auth)/login");
+        return false;
+      }
+      setCurrentUserId(user.id);
+
+      const currentResponse = await apiFetch("/api/community/cohort", {
+        method: "GET",
+        cache: "no-store",
+      });
+      const current = (await currentResponse.json().catch(() => ({}))) as {
+        room?: { id?: unknown } | null;
+      };
+      if (!currentResponse.ok || !("room" in current)) {
+        throw new Error("cohort membership lookup failed");
       }
 
-      // 2. 방 정보 로드
+      let assignedRoomId: string;
+      if (current.room !== null) {
+        if (typeof current.room?.id !== "string" || current.room.id.length === 0) {
+          throw new Error("invalid cohort membership response");
+        }
+        assignedRoomId = current.room.id;
+      } else {
+        const assignmentResponse = await apiFetch("/api/community/cohort/auto-assign", {
+          method: "POST",
+        });
+        const assignment = (await assignmentResponse.json().catch(() => ({}))) as {
+          room_id?: unknown;
+        };
+        if (
+          !assignmentResponse.ok
+          || typeof assignment.room_id !== "string"
+          || assignment.room_id.length === 0
+        ) {
+          throw new Error("cohort assignment failed");
+        }
+        assignedRoomId = assignment.room_id;
+      }
+
+      // 탐색 화면의 URL은 힌트일 뿐이다. 서버가 정한 방이 단일 멤버십과
+      // 정원 제한을 만족하는 최종 권위이므로 다르면 그 방으로 교정한다.
+      if (assignedRoomId !== id) {
+        router.replace({
+          pathname: "/community/cohort/[id]",
+          params: { id: assignedRoomId },
+        });
+        return false;
+      }
+
       const { data: roomData } = await supabase
         .from("cohort_rooms")
         .select("id, name, member_count, message_count, year, month")
@@ -254,8 +293,10 @@ export default function CohortChatScreen() {
           created_at: m.created_at,
         })));
       }
+      return true;
     } catch (err) {
-      console.error("동기방 로드 에러:", err);
+      console.error("동기방 로드 에러:", safeErrorDiagnostic(err));
+      return false;
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -268,18 +309,19 @@ export default function CohortChatScreen() {
     try {
       const { data } = await supabase
         .from("cohort_members")
-        .select("id, user_id, profile:community_profiles(nickname, rank, wedding_year, wedding_month)")
+        .select("id, user_id, profile:community_profiles(nickname, rank)")
         .eq("room_id", id);
 
       setMembers((data as unknown as CohortMember[]) ?? []);
     } catch (err) {
-      console.error("멤버 로드 에러:", err);
+      console.error("멤버 로드 에러:", safeErrorDiagnostic(err));
     }
   }, [id]);
 
   useEffect(() => {
-    loadMessages();
-    loadMembers();
+    void loadMessages().then((ready) => {
+      if (ready) void loadMembers();
+    });
   }, [loadMessages, loadMembers]);
 
   // Supabase Realtime 구독
@@ -365,7 +407,7 @@ export default function CohortChatScreen() {
       setSelectedTopic(null);
       // Realtime이 새 메시지를 자동 추가하므로 수동 reload 불필요
     } catch (err) {
-      console.error("전송 실패:", err);
+      console.error("전송 실패:", safeErrorDiagnostic(err));
     } finally {
       setSending(false);
     }
@@ -586,8 +628,9 @@ export default function CohortChatScreen() {
                   refreshing={refreshing}
                   onRefresh={() => {
                     setRefreshing(true);
-                    loadMessages();
-                    loadMembers();
+                    void loadMessages().then((ready) => {
+                      if (ready) void loadMembers();
+                    });
                   }}
                   tintColor={colors.rose[500]}
                 />

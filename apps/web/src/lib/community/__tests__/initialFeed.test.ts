@@ -73,16 +73,6 @@ const mocks = vi.hoisted(() => {
   pollsQuery.select.mockReturnValue(pollsQuery);
   pollsQuery.in.mockResolvedValue({ data: [], error: null });
 
-  const profileRolesQuery = {
-    select: vi.fn(),
-    in: vi.fn(),
-  };
-  profileRolesQuery.select.mockReturnValue(profileRolesQuery);
-  profileRolesQuery.in.mockResolvedValue({
-    data: [{ id: "author-1", role: "bride" }],
-    error: null,
-  });
-
   const supabase = {
     from: vi.fn((table: string) => {
       if (table === "community_posts") return postsQuery;
@@ -94,7 +84,7 @@ const mocks = vi.hoisted(() => {
 
   const adminSupabase = {
     from: vi.fn((table: string) => {
-      if (table === "profiles") return profileRolesQuery;
+      if (table === "community_polls") return pollsQuery;
       throw new Error(`Unexpected admin table ${table}`);
     }),
   };
@@ -105,7 +95,6 @@ const mocks = vi.hoisted(() => {
     postsQuery,
     profilesQuery,
     pollsQuery,
-    profileRolesQuery,
     supabase,
     adminSupabase,
   };
@@ -135,6 +124,32 @@ describe("getInitialCommunityFeed", () => {
     expect(feed.posts).toHaveLength(1);
     expect(feed.posts[0]?.id).toBe("listed-post");
     expect(feed.posts[0]?.category).toBe("is_normal");
-    expect(feed.posts[0]?.author.role).toBe("bride");
+    expect(feed.posts[0]?.author.role).toBeNull();
+  });
+
+  it("does not leak an open hidden poll count through the cached anonymous feed", async () => {
+    mocks.pollsQuery.in.mockResolvedValueOnce({
+      data: [{
+        id: "poll-1",
+        post_id: "listed-post",
+        question: "Hidden result",
+        allow_multiple: false,
+        is_anonymous: true,
+        hide_results_until_voted: true,
+        closes_at: "2999-01-01T00:00:00.000Z",
+        total_voters: 12,
+        total_votes: 12,
+        created_at: "2026-06-20T00:00:00.000Z",
+      }],
+      error: null,
+    });
+
+    const feed = await getInitialCommunityFeed(1);
+
+    expect(feed.posts[0]?.poll).toMatchObject({
+      id: "poll-1",
+      total_voters: 0,
+    });
+    expect(mocks.adminSupabase.from).toHaveBeenCalledWith("community_polls");
   });
 });

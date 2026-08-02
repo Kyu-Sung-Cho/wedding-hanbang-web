@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { verifySecretBearerRequest } from "@/lib/auth/secretBearer";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +44,18 @@ function isExactSessionPath(path: string, uploadId: string, userId: string): boo
     && IMAGE_EXTENSION_RE.test(filenameParts[1]);
 }
 
+function isExactFinalPath(path: string, uploadId: string, userId: string): boolean {
+  if (isExactSessionPath(path, uploadId, userId)) return true;
+  const parts = path.split("/");
+  if (parts.length !== 2 || parts[0] !== "v2") return false;
+  const filenameParts = parts[1].split(".");
+  return filenameParts.length === 2
+    && UUID_RE.test(filenameParts[0])
+    && filenameParts[0].toLowerCase() !== uploadId.toLowerCase()
+    && filenameParts[0].toLowerCase() !== userId.toLowerCase()
+    && IMAGE_EXTENSION_RE.test(filenameParts[1]);
+}
+
 function isTokenCandidate(value: unknown): value is TokenCleanupCandidate {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
@@ -67,7 +81,7 @@ function isUnattachedCandidate(
     && typeof row.user_id === "string"
     && row.final_bucket === "community-images"
     && typeof row.final_path === "string"
-    && isExactSessionPath(row.final_path, row.id, row.user_id)
+    && isExactFinalPath(row.final_path, row.id, row.user_id)
     && (row.status === "completed" || row.status === "rejected" || row.status === "expired")
     && row.attachment_cleanup_token === claimToken;
 }
@@ -81,8 +95,7 @@ async function confirmObjectAbsent(
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!verifySecretBearerRequest(req, process.env.CRON_SECRET)) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: { "Cache-Control": "no-store" } },
@@ -205,7 +218,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error(
       "[community upload cleanup] durable cleanup failed",
-      error instanceof Error ? error.message : "unknown",
+      safeErrorDiagnostic(error),
     );
     return NextResponse.json(
       { error: "community upload cleanup failed" },

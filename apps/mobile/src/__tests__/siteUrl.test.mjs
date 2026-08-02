@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildLegacyVendorDetailUrl,
   buildMobileSiteUrl,
+  buildShareableMobileSiteUrl,
   normalizeMobileSiteUrl,
   resolveMobileSiteOrigin,
 } from "../lib/siteUrl.mjs";
@@ -69,6 +70,22 @@ test("WebView navigation stays on the exact configured origin", () => {
   );
   assert.equal(
     normalizeMobileSiteUrl("https://user:password@vendor-preview.example.com/price/studio", origin),
+    null,
+  );
+});
+
+test("WebView sharing removes query strings and fragments", () => {
+  const origin = "https://vendor-preview.example.com";
+
+  assert.equal(
+    buildShareableMobileSiteUrl(
+      `${origin}/auth/callback?code=oauth-code-marker&state=private#token=private-token`,
+      origin,
+    ),
+    `${origin}/auth/callback`,
+  );
+  assert.equal(
+    buildShareableMobileSiteUrl("https://evil.example/auth/callback?code=secret", origin),
     null,
   );
 });

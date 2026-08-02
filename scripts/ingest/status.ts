@@ -398,11 +398,19 @@ export function formatIngestStatus(status: IngestStatus): string {
     `Local deterministic extraction cost (USD): ${status.durable_local_extraction_cost_usd.toFixed(6)}`,
   ];
   if (status.failed_unit_details.length > 0) {
+    const errorCodeCounts = new Map<string, number>();
+    for (const detail of status.failed_unit_details) {
+      for (const code of detail.error_codes) {
+        errorCodeCounts.set(code, (errorCodeCounts.get(code) ?? 0) + 1);
+      }
+    }
     lines.push(
       "",
-      "Failed unit details (content-safe):",
-      ...status.failed_unit_details.map(
-        (detail) => `${detail.unit_id}: ${detail.error_codes.join(", ")}`,
+      "Failed unit error codes (identifier-free counts):",
+      ...[...errorCodeCounts.entries()].sort(([left], [right]) =>
+        left.localeCompare(right, "en")
+      ).map(
+        ([code, count]) => `${code}: ${count}`,
       ),
     );
   }

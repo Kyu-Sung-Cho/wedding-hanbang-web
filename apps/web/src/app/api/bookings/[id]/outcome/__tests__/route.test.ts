@@ -5,6 +5,10 @@ import { processBookingProjectionJob } from "@/lib/bookings/projectionOutbox";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { PATCH } from "../route";
 
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimitPersistent: vi.fn<() => Promise<Response | null>>(),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
 }));
@@ -22,7 +26,7 @@ vi.mock("@/lib/bookings/projectionOutbox", () => ({
 }));
 
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: rateLimitMocks.checkRateLimitPersistent,
   rateLimitKey: vi.fn(() => "booking:outcome:user-1"),
 }));
 
@@ -58,6 +62,23 @@ function createOutcomeRequest(body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+function createChunkedOutcomeRequest(chunks: Uint8Array[]) {
+  let index = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const chunk = chunks[index++];
+      if (chunk) controller.enqueue(chunk);
+      else controller.close();
+    },
+  }, { highWaterMark: 0 });
+  return new Request("http://localhost/api/bookings/12345678-1234-4234-9234-123456789abc/outcome", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
 }
 
 function routeContext(id = "12345678-1234-4234-9234-123456789abc") {
@@ -106,6 +127,7 @@ function atomicRpcResult({
 describe("/api/bookings/[id]/outcome PATCH", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitMocks.checkRateLimitPersistent.mockResolvedValue(null);
     mockAuthClient();
   });
 
@@ -285,6 +307,20 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
     expect(body.error).toContain("같은 내용을 다시 저장해도 중복 처리되지 않습니다");
     expect(processBookingProjectionJob).not.toHaveBeenCalled();
     expect(recordDecision).not.toHaveBeenCalled();
+  });
+
+  it("rejects a chunked body after the measured stream exceeds 24 KiB", async () => {
+    mockAdminClient();
+    const response = await PATCH(
+      createChunkedOutcomeRequest([
+        new Uint8Array(24 * 1024),
+        new Uint8Array([1]),
+      ]),
+      routeContext(),
+    );
+
+    expect(response.status).toBe(413);
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("rejects invalid amount or rating payloads", async () => {

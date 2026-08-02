@@ -23,6 +23,7 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { AppHeader, EmptyState, LoadingState, PrimaryButton } from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
@@ -265,7 +266,7 @@ export default function CohortDiscoveryScreen() {
       // 서버가 같은 분기 내 정원 여유 방으로 배정 — 응답의 room_id로 이동
       router.push({ pathname: "/community/cohort/[id]", params: { id: data.room_id } });
     } catch (err) {
-      console.error("동기방 입장 에러:", err);
+      console.error("동기방 입장 에러:", safeErrorDiagnostic(err));
       // 세션 만료는 apiFetch가 이미 Alert+재로그인 이동을 처리 — 중복 알림 방지
       if (!(err instanceof Error && err.message.includes("세션"))) {
         Alert.alert("입장 실패", "동기방 입장에 실패했어요. 잠시 후 다시 시도해주세요.");

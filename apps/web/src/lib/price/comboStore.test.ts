@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { createPriceComboStore, type ComboSelection } from "./comboStore";
+import {
+  clearPriceComboClientState,
+  createPriceComboStore,
+  PRICE_COMBO_STORAGE_KEY,
+  priceComboStorageKey,
+  priceComboStore,
+  type ComboSelection,
+} from "./comboStore";
 
 function selection(vendorId: string, baseKrw: number): ComboSelection {
   return {
@@ -75,5 +82,44 @@ describe("createPriceComboStore", () => {
         makeup: null,
       },
     });
+  });
+
+  it("purges tab storage and singleton values at an account boundary", () => {
+    const actorStorageKey = priceComboStorageKey("user:a");
+    const values = new Map([
+      [PRICE_COMBO_STORAGE_KEY, "legacy private combo"],
+      [actorStorageKey, "private account A combo"],
+    ]);
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    };
+    priceComboStore.getState().setSelection("studio", selection("account-a", 2_000_000));
+
+    clearPriceComboClientState(storage, "user:a");
+
+    expect(priceComboStore.getState().totalKrw).toBe(0);
+    expect(priceComboStore.getState().selections.studio).toBeNull();
+    expect(values.has(PRICE_COMBO_STORAGE_KEY)).toBe(false);
+    expect(values.has(actorStorageKey)).toBe(false);
+  });
+
+  it("uses a different persistence key for every verified actor", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    };
+    const store = createPriceComboStore(storage);
+
+    store.getState().hydrate(storage, "user:a");
+    store.getState().setSelection("studio", selection("account-a", 2_000_000));
+    store.getState().hydrate(storage, "user:b");
+
+    expect(store.getState().selections.studio).toBeNull();
+    expect(values.has(priceComboStorageKey("user:a"))).toBe(true);
+    expect(values.has(priceComboStorageKey("user:b"))).toBe(false);
   });
 });

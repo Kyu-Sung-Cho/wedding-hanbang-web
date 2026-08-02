@@ -8,6 +8,7 @@
 // (기존 코드 일괄 변경은 회귀 위험으로 보류)
 
 import * as Sentry from "@sentry/nextjs";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -15,31 +16,37 @@ type LogPayload = unknown;
 
 export const log = {
   error: (msg: string, err?: LogPayload) => {
+    const diagnostic = safeErrorDiagnostic(err);
     if (isDev) {
-      console.error(msg, err);
+      console.error(msg, diagnostic);
       return;
     }
-    // 프로덕션: Sentry capture (DSN 미설정이면 SDK가 no-op)
-    Sentry.captureException(err instanceof Error ? err : new Error(msg), {
-      extra: { msg, payload: err },
+    // Provider errors can embed request data in message/detail fields. Keep
+    // only bounded operational tokens; the original object never reaches Sentry.
+    Sentry.captureException(new Error("OPERATIONAL_FAILURE"), {
+      tags: {
+        "error.name": diagnostic.name,
+        "error.code": diagnostic.code,
+        "error.status": diagnostic.status === null ? "unknown" : String(diagnostic.status),
+      },
     });
   },
 
   warn: (msg: string, payload?: LogPayload) => {
     if (isDev) {
-      console.warn(msg, payload);
+      console.warn(msg, safeErrorDiagnostic(payload));
     }
   },
 
   info: (msg: string, payload?: LogPayload) => {
     if (isDev) {
-      console.info(msg, payload);
+      console.info(msg, safeErrorDiagnostic(payload));
     }
   },
 
   debug: (msg: string, payload?: LogPayload) => {
     if (isDev) {
-      console.debug(msg, payload);
+      console.debug(msg, safeErrorDiagnostic(payload));
     }
   },
 };

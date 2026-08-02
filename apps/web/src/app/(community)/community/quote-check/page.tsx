@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { captureEvent } from "@/lib/analytics";
 import {
@@ -25,6 +25,12 @@ import {
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 import { weddingPath } from "@/lib/weddingPaths";
+import {
+  stageChatHandoff,
+  stageQuotePostHandoff,
+} from "@/lib/privacy/oneTimeHandoff";
+import { publishQuoteForSharing } from "@/lib/privacy/quotePublication";
+import { useAuthStore } from "@/stores/authStore";
 import ReportCardButton from "./ReportCardButton";
 
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
@@ -419,7 +425,7 @@ function ItemGroup({
   );
 }
 
-function ResultPanel({
+export function ResultPanel({
   result,
   savedId,
 }: {
@@ -434,8 +440,20 @@ function ResultPanel({
   const Icon = style.icon;
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const [shareSharing, setShareSharing] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [instaCopied, setInstaCopied] = useState(false);
+  const publishedQuoteRef = useRef<{ id: string; path: string } | null>(null);
+  const activeShareRef = useRef<{ id: string; token: symbol } | null>(null);
+
+  useEffect(() => {
+    publishedQuoteRef.current = null;
+    activeShareRef.current = null;
+    setShareBusy(false);
+    setShareError(null);
+    setShareCopied(false);
+    setInstaCopied(false);
+  }, [savedId]);
 
   // missingItems 중 계약 전 확인 우선순위가 높은 것부터 공유/포스트에 노출한다.
   const topMissing = useMemo(() => {
@@ -492,8 +510,8 @@ function ResultPanel({
     return lines.join("\n");
   }, [result, topMissing]);
 
-  const chatHref = weddingPath(`/chat?prefill=${encodeURIComponent(chatPrompt)}`);
-  const postWriteHref = weddingPath(`/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`);
+  const chatHref = weddingPath("/chat");
+  const postWriteHref = weddingPath("/community/post/write");
 
   const copyQuestions = async () => {
     const text = [
@@ -524,47 +542,88 @@ function ResultPanel({
     return `${head}\n${meta}\n\n[견적서에 없는 항목]\n${detailLines.join("\n")}`;
   };
 
+  const withPublishedQuote = async (
+    action: (publicUrl: string) => Promise<void>,
+  ) => {
+    const quoteId = savedId;
+    if (!quoteId || activeShareRef.current?.id === quoteId) return;
+
+    const token = Symbol("quote-share");
+    activeShareRef.current = { id: quoteId, token };
+    setShareBusy(true);
+    setShareError(null);
+
+    try {
+      let publicPath = publishedQuoteRef.current?.id === quoteId
+        ? publishedQuoteRef.current.path
+        : null;
+
+      if (!publicPath) {
+        try {
+          publicPath = await publishQuoteForSharing(quoteId);
+        } catch {
+          if (activeShareRef.current?.token === token) {
+            setShareError("공개 링크를 만들지 못했어요. 로그인과 네트워크를 확인한 뒤 다시 시도해 주세요.");
+          }
+          return;
+        }
+
+        if (activeShareRef.current?.token !== token) return;
+        publishedQuoteRef.current = { id: quoteId, path: publicPath };
+      }
+
+      try {
+        await action(new URL(publicPath, window.location.origin).toString());
+      } catch {
+        // Native share cancellation and browser clipboard denial are not
+        // publication failures. The action supplies its own safe fallback.
+      }
+    } finally {
+      if (activeShareRef.current?.token === token) {
+        activeShareRef.current = null;
+        setShareBusy(false);
+      }
+    }
+  };
+
   const shareResult = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
     const title = `${result.summaryTitle}`;
     const text = buildShareText(false);
 
-    if (typeof navigator.share === "function") {
-      try {
-        setShareSharing(true);
-        await navigator.share({ title, text, url });
-      } catch {
-        // 취소 등 — 무시
-      } finally {
-        setShareSharing(false);
+    await withPublishedQuote(async (url) => {
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({ title, text, url });
+        } catch {
+          // 사용자가 공유 창을 닫은 경우에는 추가 동작을 하지 않는다.
+        }
+        return;
       }
-      return;
-    }
 
-    try {
-      await navigator.clipboard.writeText(`${text}\n${url}`);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    } catch {
-      window.prompt("이 링크를 복사해 공유하세요", `${text}\n${url}`);
-    }
+      try {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch {
+        window.prompt("이 링크를 복사해 공유하세요", `${text}\n${url}`);
+      }
+    });
   };
 
   // 인스타그램은 웹에서 텍스트 직접 공유가 안 되므로 — 텍스트를 클립보드로 복사하고
   // 인스타그램을 새 탭으로 열어줌. 사용자가 스토리/DM/게시물에 붙여넣어 공유.
   const shareToInstagram = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
-    const text = `${buildShareText(false)}\n\n${url}\n#웨딩한방 #견적체크`;
-    try {
-      await navigator.clipboard.writeText(text);
-      setInstaCopied(true);
-      setTimeout(() => setInstaCopied(false), 2500);
-    } catch {
-      window.prompt("아래 텍스트를 복사해 인스타그램에 붙여넣으세요", text);
-    }
-    window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+    await withPublishedQuote(async (url) => {
+      const text = `${buildShareText(false)}\n\n${url}\n#웨딩한방 #견적체크`;
+      try {
+        await navigator.clipboard.writeText(text);
+        setInstaCopied(true);
+        setTimeout(() => setInstaCopied(false), 2500);
+      } catch {
+        window.prompt("아래 텍스트를 복사해 인스타그램에 붙여넣으세요", text);
+      }
+      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+    });
   };
 
   return (
@@ -651,6 +710,9 @@ function ResultPanel({
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={chatHref}
+          onClick={() => {
+            stageChatHandoff(chatPrompt, useAuthStore.getState().user?.id ?? null);
+          }}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#36534E] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E]"
         >
           <MessageCircle className="h-4 w-4" />
@@ -658,6 +720,12 @@ function ResultPanel({
         </Link>
         <Link
           href={postWriteHref}
+          onClick={() => {
+            stageQuotePostHandoff(
+              { category: "is_normal", title: postTitle, body: postContent },
+              useAuthStore.getState().user?.id ?? null,
+            );
+          }}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#f6efe5]"
         >
           <PenLine className="h-4 w-4" />
@@ -677,10 +745,15 @@ function ResultPanel({
               <button
                 type="button"
                 onClick={shareResult}
-                disabled={shareSharing}
+                disabled={shareBusy}
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#36534E] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
               >
-                {shareCopied ? (
+                {shareBusy ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    공개 링크 준비 중
+                  </>
+                ) : shareCopied ? (
                   <>
                     <Check className="h-3.5 w-3.5 text-emerald-600" />
                     링크·세부항목 복사됨
@@ -695,9 +768,15 @@ function ResultPanel({
               <button
                 type="button"
                 onClick={shareToInstagram}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
+                disabled={shareBusy}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
               >
-                {instaCopied ? (
+                {shareBusy ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    공개 링크 준비 중
+                  </>
+                ) : instaCopied ? (
                   <>
                     <Check className="h-3.5 w-3.5 text-emerald-600" />
                     복사 완료 · 인스타에 붙여넣기
@@ -710,6 +789,11 @@ function ResultPanel({
                 )}
               </button>
             </div>
+            {shareError && (
+              <p role="alert" className="text-xs leading-5 text-red-700">
+                {shareError}
+              </p>
+            )}
           </div>
         </div>
       )}

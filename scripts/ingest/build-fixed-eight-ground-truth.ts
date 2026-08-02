@@ -446,10 +446,16 @@ const report = {
 };
 assert.equal(report.gate_counts.fixed_eight_readable_occurrences, 2_404);
 await writeJsonFile(buildReportPath, report);
-process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+process.stdout.write(`${JSON.stringify({
+  status: "fixed_eight_ground_truth_built",
+  schema_version: report.schema_version,
+  output_count: Object.keys(report.outputs).length,
+  adjudication_decisions: report.outputs.adjudication.decisions,
+  gate_counts: report.gate_counts,
+}, null, 2)}\n`);
 }
 
-void main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+void main().catch(() => {
+  process.stderr.write("FIXED_EIGHT_GROUND_TRUTH_BUILD_BLOCKED [BUILD_FAILED]\n");
   process.exitCode = 1;
 });

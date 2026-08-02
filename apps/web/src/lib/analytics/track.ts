@@ -1,23 +1,25 @@
 "use client";
 
-import type { VendorEventType } from "./eventWeights";
+import { isBrowserTrackingOptOut } from "@/lib/analyticsPrivacy";
+import {
+  isClientVendorEventType,
+  type ClientVendorEventType,
+  type VendorEventType,
+} from "./eventWeights";
 import {
   sanitizeVendorEventContext,
   type VendorEventContext,
   type VendorEventSurface,
 } from "./vendorEvents";
 
-const ANON_COOKIE = "hb_price_anon_id";
-const SESSION_KEY = "hb_price_session_id";
 const FLUSH_INTERVAL_MS = 5_000;
 const FLUSH_SIZE = 20;
 const MAX_BATCH_SIZE = 50;
-const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
 
 type QueuedVendorEvent = {
   anon_id: string;
   session_id: string;
-  event_type: VendorEventType;
+  event_type: ClientVendorEventType;
   vendor_id?: string;
   agency_id?: string;
   surface: VendorEventSurface;
@@ -35,47 +37,34 @@ const queue: QueuedVendorEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushing = false;
 let listenersInstalled = false;
+let anonymousId: string | null = null;
+let sessionId: string | null = null;
 
 function uuidV4(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let index = 0; index < bytes.length; index += 1) {
-      bytes[index] = Math.floor(Math.random() * 256);
-    }
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    // Analytics is optional. Never synthesize a linkable identifier from a
+    // predictable PRNG merely to keep telemetry alive on an unsupported host.
+    throw new Error("secure_random_unavailable");
   }
+  crypto.getRandomValues(bytes);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
 }
 
-function cookieValue(name: string): string | null {
-  const prefix = `${name}=`;
-  const item = document.cookie.split(";").map((part) => part.trim())
-    .find((part) => part.startsWith(prefix));
-  return item ? decodeURIComponent(item.slice(prefix.length)) : null;
-}
-
 function getAnonId(): string {
-  const existing = cookieValue(ANON_COOKIE);
-  if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
-  const value = uuidV4();
-  const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${ANON_COOKIE}=${encodeURIComponent(value)}; Path=/; Max-Age=${ONE_YEAR_SECONDS}; SameSite=Lax${secure}`;
-  return value;
+  anonymousId ??= uuidV4();
+  return anonymousId;
 }
 
 function getSessionId(): string {
-  const existing = sessionStorage.getItem(SESSION_KEY);
-  if (existing) return existing;
-  const value = uuidV4();
-  sessionStorage.setItem(SESSION_KEY, value);
-  return value;
+  sessionId ??= uuidV4();
+  return sessionId;
 }
 
 function scheduleFlush(): void {
@@ -145,7 +134,11 @@ export function track(
   eventType: VendorEventType,
   options: TrackOptions,
 ): void {
-  if (typeof window === "undefined") return;
+  if (
+    typeof window === "undefined"
+    || isBrowserTrackingOptOut()
+    || !isClientVendorEventType(eventType)
+  ) return;
   try {
     installLifecycleListeners();
     const context = sanitizeVendorEventContext(options.context);
@@ -177,4 +170,11 @@ export function __resetVendorEventTrackerForTests(): void {
   if (flushTimer !== null) clearTimeout(flushTimer);
   flushTimer = null;
   flushing = false;
+  anonymousId = null;
+  sessionId = null;
+}
+
+/** Rotate tab-memory analytics identities when the authenticated actor changes. */
+export function resetVendorEventIdentity(): void {
+  __resetVendorEventTrackerForTests();
 }

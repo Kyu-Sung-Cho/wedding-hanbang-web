@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySecretBearerRequest } from "@/lib/auth/secretBearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainBookingProjectionJobs } from "@/lib/bookings/projectionOutbox";
 import { isRecord } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,8 +18,7 @@ function queueMetric(value: unknown, name: string): number {
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!verifySecretBearerRequest(req, process.env.CRON_SECRET)) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: { "Cache-Control": "no-store" } },
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error(
       "[booking-projections] durable queue run failed",
-      error instanceof Error ? error.message : "unknown",
+      safeErrorDiagnostic(error),
     );
     return NextResponse.json(
       { error: "booking projection queue run failed" },

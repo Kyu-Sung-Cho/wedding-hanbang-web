@@ -1,9 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import type { ReportReason } from "@/types/community.types";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 const VALID_REASONS: ReportReason[] = [
   "spam",
@@ -36,13 +44,23 @@ export async function POST(
       return NextResponse.json({ error: "본인은 신고할 수 없습니다." }, { status: 400 });
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("cohort:member-report", req, user.id),
       { maxRequests: 5, windowMs: 60 * 60 * 1000 }
     );
     if (rlResult) return rlResult;
 
-    const body = (await req.json()) as {
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    if (!isRecord(bodyResult.value)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    const body = bodyResult.value as {
       reason?: ReportReason;
       description?: string;
     };
@@ -64,7 +82,7 @@ export async function POST(
       .in("user_id", [user.id, reportedUserId]);
 
     if (membershipError) {
-      console.error("[cohort member report] membership error:", membershipError);
+      console.error("[cohort member report] membership error:", safeErrorDiagnostic(membershipError));
       return NextResponse.json({ error: "동기방 멤버 확인에 실패했습니다." }, { status: 500 });
     }
 
@@ -76,37 +94,57 @@ export async function POST(
       );
     }
 
-    const { error } = await serviceClient.from("cohort_member_reports").insert({
-      room_id: roomId,
-      reporter_id: user.id,
-      reported_user_id: reportedUserId,
-      reason,
-      description,
-      status: "pending",
-    });
+    const { data: reportResult, error } = await serviceClient.rpc(
+      "community_submit_cohort_member_report_for_actor",
+      {
+        p_actor_id: user.id,
+        p_room_id: roomId,
+        p_reported_user_id: reportedUserId,
+        p_reason: reason,
+        p_description: description,
+      },
+    );
 
     if (error) {
+      if (isCommunityActorWriteDenied(error)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
       if (error.code === "23505") {
         return NextResponse.json({ error: "이미 신고한 멤버입니다." }, { status: 409 });
       }
-      console.error("[cohort member report] insert error:", error);
+      console.error("[cohort member report] insert error:", safeErrorDiagnostic(error));
       return NextResponse.json({ error: "신고 접수에 실패했습니다." }, { status: 500 });
     }
 
-    const { count } = await serviceClient
-      .from("cohort_member_reports")
-      .select("id", { count: "exact", head: true })
-      .eq("room_id", roomId)
-      .eq("reported_user_id", reportedUserId)
-      .eq("status", "pending");
+    const reportCount = isRecord(reportResult)
+      && typeof reportResult.report_count === "number"
+      && Number.isInteger(reportResult.report_count)
+      && reportResult.report_count >= 1
+      ? reportResult.report_count
+      : null;
+    const reviewRequired = isRecord(reportResult)
+      && typeof reportResult.review_required === "boolean"
+      ? reportResult.review_required
+      : null;
+
+    if (reportCount === null || reviewRequired === null) {
+      console.error("[cohort member report] RPC returned an invalid result");
+      return NextResponse.json(
+        { error: "신고 접수 결과를 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      reportCount: count ?? 1,
-      reviewRequired: (count ?? 1) >= 5,
+      reportCount,
+      reviewRequired,
     });
   } catch (err) {
-    console.error("[cohort member report] unexpected:", err);
+    console.error("[cohort member report] unexpected:", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

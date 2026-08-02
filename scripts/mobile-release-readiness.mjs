@@ -63,6 +63,7 @@ const appConfig = readJson("apps/mobile/app.json").expo;
 const easConfig = readJson("apps/mobile/eas.json");
 const mobileMetroConfig = readText("apps/mobile/metro.config.js");
 const rootPackage = readJson("package.json");
+const turboConfig = readJson("turbo.json");
 const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEasGatePath = path.join(root, "scripts/mobile-eas-release-gate.mjs");
 const mobileEnvExample = readText("apps/mobile/.env.example");
@@ -81,6 +82,10 @@ expect(appConfig.slug === "wedding-hanbang", "Expo slug is wedding-hanbang");
 expect(appConfig.scheme === "hanbang", "App scheme is hanbang");
 expect(appConfig.userInterfaceStyle === "light", "App is locked to light mode");
 expect(appConfig.newArchEnabled === true, "React Native new architecture is enabled");
+expect(
+  appConfig.updates?.enabled === false,
+  "Unsigned OTA updates stay disabled until end-to-end code signing is configured",
+);
 
 expect(appConfig.ios?.bundleIdentifier === "ai.hanbang.wedding", "iOS bundle identifier is ai.hanbang.wedding");
 expect(appConfig.ios?.usesAppleSignIn === true, "Apple Sign In is enabled on iOS");
@@ -91,6 +96,10 @@ expect(
 );
 
 expect(appConfig.android?.package === "ai.hanbang.wedding", "Android package is ai.hanbang.wedding");
+expect(
+  appConfig.android?.allowBackup === false,
+  "Android app-data backup and restore stay disabled for sensitive account data",
+);
 expect(
   appConfig.android?.adaptiveIcon?.backgroundColor === "#FBF8F2",
   "Android adaptive icon background uses Pearl Ivory"
@@ -448,12 +457,24 @@ for (const envName of [
   "EXPO_PUBLIC_SUPABASE_URL",
   "EXPO_PUBLIC_SUPABASE_ANON_KEY",
   "EXPO_PUBLIC_SITE_URL=https://hanbang.ai",
+  "EXPO_PUBLIC_PUSH_REGISTRATION_ENABLED=false",
   "EXPO_PUBLIC_SENTRY_DSN",
   "SENTRY_ORG",
   "SENTRY_PROJECT",
   "SENTRY_AUTH_TOKEN",
 ]) {
   expect(mobileEnvExample.includes(envName), `.env.example documents ${envName}`);
+}
+
+for (const [values, label] of [
+  [turboConfig.globalEnv, "globalEnv"],
+  [turboConfig.tasks?.build?.env, "build.env"],
+]) {
+  expectIncludes(
+    values,
+    "EXPO_PUBLIC_PUSH_REGISTRATION_ENABLED",
+    `Turborepo ${label} includes EXPO_PUBLIC_PUSH_REGISTRATION_ENABLED`,
+  );
 }
 
 expect(
@@ -486,8 +507,10 @@ expect(
 );
 expect(
   mobileErrorBoundary.includes("Sentry.captureException(error)")
-    && mobileErrorBoundary.includes("scope.setContext(\"react\""),
-  "Mobile error boundary reports caught React crashes with component context",
+    && mobileErrorBoundary.includes("safeErrorDiagnostic(error)")
+    && !mobileErrorBoundary.includes("scope.setContext(\"react\"")
+    && !mobileErrorBoundary.includes("errorInfo.componentStack"),
+  "Mobile error boundary reports caught React crashes without attaching raw component context",
 );
 
 expect(
@@ -499,7 +522,10 @@ expect(
   "Mobile OAuth waits for auth/callback deep link"
 );
 expect(
-  mobileCallback.includes("buildMobileOAuthAppCallbackUrl(callbackUrl)")
+  mobileCallback.includes("captureAndClearSensitiveAuthUrl()")
+    && mobileCallback.includes("consumePendingMobileOAuthCode()")
+    && mobileCallback.includes("buildMobileOAuthAppCallbackUrl(callbackUrl.toString())")
+    && !mobileCallback.includes("buildMobileOAuthAppCallbackUrl(window.location.href)")
     && sharedMobileOAuth.includes('const DEFAULT_APP_CALLBACK_URL = "hanbang://auth/callback"')
     && sharedMobileOAuth.includes("new URLSearchParams({ code })")
     && sharedMobileOAuth.includes('appCallback.hash = ""'),

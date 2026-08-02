@@ -17,6 +17,14 @@ const authSource = fs.readFileSync(
 test("mobile OAuth exchanges a PKCE code without accepting URL session tokens", () => {
   assert.match(supabaseSource, /flowType:\s*["']pkce["']/);
   assert.match(authSource, /exchangeCodeForSession\(code\)/);
+  assert.match(
+    authSource,
+    /resolveMobileSiteOrigin\(\s*process\.env\.EXPO_PUBLIC_SITE_URL/,
+  );
+  assert.doesNotMatch(
+    authSource,
+    /process\.env\.EXPO_PUBLIC_SITE_URL\s*\|\|\s*["']https:\/\/hanbang\.ai/,
+  );
   assert.doesNotMatch(authSource, /auth\.setSession\(/);
   assert.doesNotMatch(authSource, /params\.get\(["'](?:access_token|refresh_token)["']\)/);
 });

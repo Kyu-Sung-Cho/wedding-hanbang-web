@@ -67,6 +67,23 @@ function request(body: unknown = { uploadId: UPLOAD_ID }) {
   });
 }
 
+function chunkedOversizeRequest(byteLength: number): Request {
+  const firstChunkSize = Math.floor(byteLength / 2);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(firstChunkSize).fill(0x7b));
+      controller.enqueue(new Uint8Array(byteLength - firstChunkSize).fill(0x7d));
+      controller.close();
+    },
+  });
+  return new Request("http://localhost/api/community/upload/finalize", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 function session(overrides: Record<string, unknown> = {}) {
   return {
     id: UPLOAD_ID,
@@ -208,6 +225,20 @@ describe("POST /api/community/upload/finalize", () => {
     mocks.hasActiveAccountDeletion.mockResolvedValue(false);
     vi.stubGlobal("fetch", vi.fn(async () => pngRange()));
     vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  it("returns 413 for a Content-Length-less chunked oversized strict body", async () => {
+    const oversized = chunkedOversizeRequest(1024 + 1);
+
+    const response = await POST(oversized as never);
+
+    expect(oversized.headers.get("content-length")).toBeNull();
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "REQUEST_BODY_TOO_LARGE",
+    });
+    expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("claims no upload session after account deletion begins", async () => {

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Users, ChevronRight, Sparkles } from "lucide-react";
 import { useToast } from "./Toast";
 import type { CohortRoom, CommunityProfile } from "@/types/community.types";
+import { normalizeCommunityAvatar } from "@/lib/community/avatar";
 
 export interface CohortCardMemberPreview {
   id: string;
@@ -151,21 +152,13 @@ export default function CohortCard({
         <div className="flex -space-x-2">
           {recentMembers.slice(0, 5).map((m) => {
             const initial = m.profile?.nickname?.[0] ?? "?";
+            const avatar = normalizeCommunityAvatar(m.profile?.avatar_url);
             return (
               <div
                 key={m.id}
                 className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#36534E] bg-[#36534E] text-xs font-medium text-white"
               >
-                {m.profile?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={m.profile.avatar_url}
-                    alt=""
-                    className="h-full w-full rounded-full object-cover"
-                  />
-                ) : (
-                  initial
-                )}
+                {avatar ?? initial}
               </div>
             );
           })}

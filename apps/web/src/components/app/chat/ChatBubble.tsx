@@ -5,6 +5,11 @@ import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
 import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  readChatFeedbackState,
+  writeChatFeedbackState,
+} from "@/lib/chat/feedbackStorage";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -16,29 +21,6 @@ interface ChatBubbleProps {
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
   onNegativeFeedback?: (message: ChatMessage) => void;
-}
-
-// 이미 피드백한 메시지 ID를 로컬에 저장 (페이지 리로드 시에도 유지)
-const FEEDBACK_STORAGE_KEY = "hanbang_chat_feedback";
-
-function getFeedbackState(): Record<string, "good" | "bad"> {
-  if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(localStorage.getItem(FEEDBACK_STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function setFeedbackState(messageId: string, rating: "good" | "bad") {
-  if (typeof window === "undefined") return;
-  try {
-    const state = getFeedbackState();
-    state[messageId] = rating;
-    localStorage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // localStorage 사용 불가 시 무시
-  }
 }
 
 // 피드백 API 호출
@@ -140,13 +122,15 @@ function ChatImageAttachments({
 // AI 메시지 피드백 UI
 function AiFeedbackRow({
   messageId,
+  userId,
   onNegativeFeedback,
 }: {
   messageId: string;
+  userId: string | null;
   onNegativeFeedback?: () => void;
 }) {
   const [status, setStatus] = useState<"idle" | "input" | "submitted">(() => {
-    const saved = getFeedbackState();
+    const saved = readChatFeedbackState(userId);
     return saved[messageId] ? "submitted" : "idle";
   });
   const [correction, setCorrection] = useState("");
@@ -156,11 +140,11 @@ function AiFeedbackRow({
     setIsSubmitting(true);
     const ok = await submitFeedback(messageId, "good");
     if (ok) {
-      setFeedbackState(messageId, "good");
+      writeChatFeedbackState(userId, messageId, "good");
       setStatus("submitted");
     }
     setIsSubmitting(false);
-  }, [messageId]);
+  }, [messageId, userId]);
 
   const handleBadClick = useCallback(() => {
     onNegativeFeedback?.();
@@ -172,11 +156,11 @@ function AiFeedbackRow({
     setIsSubmitting(true);
     const ok = await submitFeedback(messageId, "bad", correction.trim());
     if (ok) {
-      setFeedbackState(messageId, "bad");
+      writeChatFeedbackState(userId, messageId, "bad");
       setStatus("submitted");
     }
     setIsSubmitting(false);
-  }, [messageId, correction]);
+  }, [messageId, correction, userId]);
 
   if (status === "submitted") {
     return (
@@ -497,6 +481,7 @@ export default function ChatBubble({
   onNegativeFeedback,
 }: ChatBubbleProps) {
   const { sender_role, content, created_at } = message;
+  const feedbackUserId = useAuthStore((state) => state.user?.id ?? null);
 
   // 함께 대화 새로 시작 — 동의 요청 메시지는 별도 카드로 렌더 (양쪽에 보임)
   if (message.metadata?.clearRequest) {
@@ -575,7 +560,9 @@ export default function ChatBubble({
               <SaveNoteButton messageId={message.id} content={cleanText} />
               {isRecentAi && (
                 <AiFeedbackRow
+                  key={`${feedbackUserId ?? "anonymous"}:${message.id}`}
                   messageId={message.id}
+                  userId={feedbackUserId}
                   onNegativeFeedback={() => onNegativeFeedback?.(message)}
                 />
               )}

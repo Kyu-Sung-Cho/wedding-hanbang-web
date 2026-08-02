@@ -32,7 +32,7 @@ for (const argument of process.argv.slice(2)) {
 }
 
 try {
-  const result = await capturePostPushPlatformEvidence({
+  await capturePostPushPlatformEvidence({
     repoRoot: resolve(import.meta.dirname, ".."),
     expectedCommit: options["--expected-commit"],
     backupReceiptPath: options["--backup-receipt"],
@@ -41,7 +41,7 @@ try {
     confirmOperations: options["--confirm-operations"],
     siteUrl: options["--site-url"],
   });
-  console.log(JSON.stringify(result, null, 2));
+  console.log("POST_PUSH_PLATFORM_EVIDENCE_CAPTURED");
 } catch (error) {
   console.error(
     error instanceof PostPushEvidenceError

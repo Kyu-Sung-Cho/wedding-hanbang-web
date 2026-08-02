@@ -9,9 +9,9 @@ export type OwnedVendor = {
 };
 
 /**
- * Checks vendor ownership with a server-only service client after the caller
- * has authenticated the request. `owner_id` is deliberately never granted to
- * browser roles or returned from this helper.
+ * Checks currently approved vendor ownership with a server-only service client
+ * after the caller has authenticated the request. `owner_id` is deliberately
+ * never granted to browser roles or returned from this helper.
  */
 export async function loadOwnedVendorWithServiceRole(
   client: SupabaseClient,
@@ -25,7 +25,8 @@ export async function loadOwnedVendorWithServiceRole(
   let query = client
     .from("vendors")
     .select("id,name")
-    .eq("owner_id", ownerId);
+    .eq("owner_id", ownerId)
+    .eq("status", "approved");
   if (vendorId !== undefined) query = query.eq("id", vendorId);
 
   const { data, error } = await query.maybeSingle();

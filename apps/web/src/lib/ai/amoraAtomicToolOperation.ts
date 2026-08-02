@@ -28,6 +28,7 @@ import {
 } from "@/lib/utils/kstDate";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { sanitizeAmoraActionHref } from "@/lib/amora/actions";
 const MAX_VENUE_CHARS = 200;
 const MAX_ACTION_TITLE_CHARS = 120;
 const MAX_ACTION_DESCRIPTION_CHARS = 500;
@@ -1020,10 +1021,11 @@ function buildAddActionOperation(
   }
   let href = defaultActionHref(categoryKey, source);
   if (toolInput.href !== undefined) {
+    const safeHref = sanitizeAmoraActionHref(toolInput.href);
     if (
       typeof toolInput.href !== "string"
-      || !toolInput.href.startsWith("/")
       || toolInput.href.length > MAX_ACTION_HREF_CHARS
+      || !safeHref
     ) {
       return noOpFailure(
         "add_amora_action",
@@ -1032,7 +1034,7 @@ function buildAddActionOperation(
         "행동 카드 연결 경로를 다시 확인해 주세요.",
       );
     }
-    href = toolInput.href;
+    href = safeHref;
   }
   const action = {
     id: actionId,
@@ -1113,14 +1115,19 @@ function buildUpdateActionOperation(
     updates.status = toolInput.status;
   }
   if (toolInput.href !== undefined) {
-    if (
-      typeof toolInput.href !== "string"
-      || (toolInput.href !== "" && !toolInput.href.startsWith("/"))
-      || toolInput.href.length > MAX_ACTION_HREF_CHARS
-    ) {
-      return noOpFailure("update_amora_action", toolInput, "invalid_action_href", "행동 카드 연결 경로를 다시 확인해 주세요.");
+    if (toolInput.href === "") {
+      updates.href = null;
+    } else {
+      const safeHref = sanitizeAmoraActionHref(toolInput.href);
+      if (
+        typeof toolInput.href !== "string"
+        || toolInput.href.length > MAX_ACTION_HREF_CHARS
+        || !safeHref
+      ) {
+        return noOpFailure("update_amora_action", toolInput, "invalid_action_href", "행동 카드 연결 경로를 다시 확인해 주세요.");
+      }
+      updates.href = safeHref;
     }
-    updates.href = toolInput.href || null;
   }
   if (Object.keys(updates).length === 0) {
     return noOpFailure(

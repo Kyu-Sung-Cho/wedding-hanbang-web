@@ -9,8 +9,14 @@ import {
   vendorToInsertRow,
   vendorToUpdateRow,
   bookingRowToBooking,
+  messageRowToMessage,
 } from "../vendorMapper";
-import type { VendorRow, VendorTimeslotRow, VendorBookingRow } from "@/types/vendor.types";
+import type {
+  VendorBookingRow,
+  VendorMessageRow,
+  VendorRow,
+  VendorTimeslotRow,
+} from "@/types/vendor.types";
 
 // ─── Fixtures ───
 
@@ -330,5 +336,36 @@ describe("bookingRowToBooking", () => {
     const booking = bookingRowToBooking({ ...baseBookingRow, product_name: "스탠다드 패키지", product_duration: 120 });
     expect(booking.productName).toBe("스탠다드 패키지");
     expect(booking.productDuration).toBe(120);
+  });
+});
+
+describe("messageRowToMessage", () => {
+  it("accepts non-identifying server provenance without exposing internal metadata", () => {
+    const row: VendorMessageRow = {
+      id: "40000000-0000-4000-8000-000000000001",
+      vendor_id: "20000000-0000-4000-8000-000000000001",
+      customer_id: "00000000-0000-4000-8000-000000000001",
+      server_provenance_version: 1,
+      sender_type: "customer",
+      content: "문의합니다",
+      is_read: false,
+      booking_id: null,
+      created_at: "2026-08-02T00:00:00.000Z",
+    };
+
+    const message = messageRowToMessage(row);
+
+    expect(message).toEqual({
+      id: row.id,
+      vendorId: row.vendor_id,
+      customerId: row.customer_id,
+      senderType: row.sender_type,
+      content: row.content,
+      isRead: row.is_read,
+      bookingId: null,
+      createdAt: row.created_at,
+    });
+    expect(message).not.toHaveProperty("serverProvenanceVersion");
+    expect(message).not.toHaveProperty("server_provenance_version");
   });
 });

@@ -2,6 +2,64 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+
+const NON_BROWSER_MUTATION_EXEMPTIONS = new Set([
+  // React Native has no browser Origin/Sec-Fetch metadata before a session
+  // exists. Both endpoints require a one-time, server-verified Turnstile token.
+  "/api/auth/signup",
+  "/api/auth/forgot-password",
+  // This route is a read-only POST sentinel used to prove the independent
+  // production write fence. Reaching it must keep returning its canonical 409.
+  "/api/release/write-fence-probe",
+  // Exact server-to-server route. Its handler independently requires the
+  // strong internal bearer token; new /api/internal routes are not exempt by
+  // default because that would silently disable the browser mutation fence.
+  "/api/internal/vendors/recommend",
+]);
+
+// This legacy GET lazily creates an invite code. Treat it like every other
+// cookie-authenticated mutation so a cross-site top-level navigation cannot
+// create account state with ambient cookies. OAuth callback GETs remain
+// outside this set because their PKCE/state boundary is intentionally reached
+// from the external identity provider.
+const ORIGIN_GUARDED_MUTATING_GETS = new Set([
+  "/api/couple/code",
+]);
+
+function isApiMutationOriginExempt(pathname: string): boolean {
+  return NON_BROWSER_MUTATION_EXEMPTIONS.has(pathname);
+}
+
+function fenceAuthenticatedApiResponseCache(
+  request: NextRequest,
+  response: NextResponse,
+): NextResponse {
+  const hasAmbientIdentity = Boolean(
+    request.headers.get("authorization")
+    || request.headers.get("cookie"),
+  );
+  if (!hasAmbientIdentity) return response;
+
+  // Route handlers are expected to mark identity-scoped data private, but a
+  // single omission must not let a browser, proxy, or future CDN reuse one
+  // person's response for another. This edge-level fence covers both native
+  // Bearer sessions and browser cookie sessions, including error responses.
+  response.headers.set(
+    "Cache-Control",
+    "private, no-store, max-age=0, must-revalidate",
+  );
+  response.headers.set("Pragma", "no-cache");
+  const vary = new Map<string, string>();
+  for (const value of (response.headers.get("Vary") ?? "").split(",")) {
+    const normalized = value.trim();
+    if (normalized) vary.set(normalized.toLowerCase(), normalized);
+  }
+  vary.set("authorization", "Authorization");
+  vary.set("cookie", "Cookie");
+  response.headers.set("Vary", [...vary.values()].join(", "));
+  return response;
+}
 
 function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   const { pathname } = request.nextUrl;
@@ -31,6 +89,26 @@ function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   } catch {
     return false;
   }
+}
+
+function stripRetiredSensitiveNavigationQuery(request: NextRequest): NextResponse | null {
+  const pathname = request.nextUrl.pathname;
+  const keys = pathname === "/chat" || pathname === "/wedding/chat"
+    ? ["prefill"]
+    : pathname === "/community/post/write" || pathname === "/wedding/community/post/write"
+      ? ["prefill", "title", "body"]
+      : pathname === "/wedding-code" || pathname === "/wedding-code/result"
+        ? ["a", "b", "ct"]
+        : [];
+  if (!keys.some((key) => request.nextUrl.searchParams.has(key))) return null;
+
+  const url = request.nextUrl.clone();
+  keys.forEach((key) => url.searchParams.delete(key));
+  if (pathname === "/wedding-code/result") url.pathname = "/wedding-code";
+  const response = NextResponse.redirect(url);
+  response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
 }
 
 export async function proxy(request: NextRequest) {
@@ -97,13 +175,9 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/api/cron/") ||
     [
       "/api/auth/callback",
-      "/api/auth/me",
       "/api/community/cohort",
-      "/api/community/profile",
       "/api/couple/code",
-      "/api/messages",
-    ].includes(request.nextUrl.pathname) ||
-    /^\/api\/vendors\/[^/]+$/.test(request.nextUrl.pathname);
+    ].includes(request.nextUrl.pathname);
 
   if (
     process.env.PRODUCTION_WRITE_FENCE_ENABLED === "true" &&
@@ -143,15 +217,42 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  const isUnsafeApiMethod = isApiPath
+    && !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase());
+  const requiresMutationOrigin = isUnsafeApiMethod
+    || (
+      ["GET", "HEAD"].includes(request.method.toUpperCase())
+      && ORIGIN_GUARDED_MUTATING_GETS.has(request.nextUrl.pathname)
+    );
   if (
-    request.nextUrl.pathname === "/wedding-code/result" ||
-    (request.nextUrl.pathname === "/wedding-code" &&
-      request.nextUrl.searchParams.has("ct"))
+    requiresMutationOrigin
+    && !isApiMutationOriginExempt(request.nextUrl.pathname)
+    && !isTrustedMutationRequest(request)
+  ) {
+    return NextResponse.json(
+      { error: "api_mutation_origin_not_allowed" },
+      {
+        status: 403,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+          Vary: "Origin, Sec-Fetch-Site, Authorization",
+        },
+      },
+    );
+  }
+
+  const sanitizedNavigation = stripRetiredSensitiveNavigationQuery(request);
+  if (sanitizedNavigation) return sanitizedNavigation;
+
+  if (
+    request.nextUrl.pathname === "/wedding-code/result"
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/wedding-code";
-    url.searchParams.delete("ct");
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
   }
 
   if (request.nextUrl.pathname === "/wedding/wedding" || request.nextUrl.pathname.startsWith("/wedding/wedding/")) {
@@ -172,7 +273,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return await updateSession(request);
+  const response = await updateSession(request);
+  return isApiPath
+    ? fenceAuthenticatedApiResponseCache(request, response)
+    : response;
 }
 
 export const config = {

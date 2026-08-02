@@ -18,8 +18,9 @@ import { GET } from "./route";
 
 const JOB_ONE = "11111111-1111-4111-8111-111111111111";
 const JOB_TWO = "22222222-2222-4222-8222-222222222222";
+const CRON_SECRET = "cron-secret-with-at-least-thirty-two-characters";
 
-function request(secret = "cron-secret") {
+function request(secret = CRON_SECRET) {
   return new Request("http://localhost/api/cron/account-deletion", {
     headers: { Authorization: `Bearer ${secret}` },
   });
@@ -40,7 +41,7 @@ function adminHarness(rows: unknown[] = []) {
 describe("GET /api/cron/account-deletion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.CRON_SECRET = "cron-secret";
+    process.env.CRON_SECRET = CRON_SECRET;
     process.env.ACCOUNT_DELETION_CRON_ENABLED = "true";
   });
 

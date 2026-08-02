@@ -1,6 +1,7 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { readBoundedUtf8Text } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { z } from "zod";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 const MARKER = "agent_auto_validated";
 const MAX_PER_CALL = 500;
 const PRIVATE_VARY = "Origin, Sec-Fetch-Site, Authorization";
+const AUTO_APPROVAL_FAILURE_REASON = "승인 처리에 실패했습니다.";
 
 const requestSchema = z.strictObject({
   confirmation: z.literal("approve_agent_auto_validated_pending"),
@@ -50,7 +52,7 @@ async function loadEligibleRows(limit: number) {
     .eq("snapshot.published", false)
     .order("id", { ascending: true })
     .limit(limit);
-  if (error) throw new Error("eligible query failed: " + error.message);
+  if (error) throw new Error("AUTO_APPROVAL_ELIGIBLE_QUERY_FAILED");
   const candidates = rows ?? [];
   if (candidates.length === 0) return [];
   // dedupe 후보(pending)에 걸린 vendor 제외 (후보 수가 작으므로 전체 조회 후 필터)
@@ -59,7 +61,7 @@ async function loadEligibleRows(limit: number) {
     .select("left_vendor_id, right_vendor_id")
     .eq("status", "pending")
     .limit(2000);
-  if (dedupeError) throw new Error("dedupe query failed: " + dedupeError.message);
+  if (dedupeError) throw new Error("AUTO_APPROVAL_DEDUPE_QUERY_FAILED");
   const blocked = new Set<string>();
   for (const pair of dedupe ?? []) {
     blocked.add(String(pair.left_vendor_id));
@@ -71,6 +73,11 @@ async function loadEligibleRows(limit: number) {
 export async function GET(request: Request) {
   const admin = await verifyAdmin(request);
   if (!admin.authorized || !admin.userId) return privateJson({ error: "Unauthorized" }, 401);
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-auto-approve:preview", request, admin.userId),
+    { maxRequests: 10, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
   try {
     const rows = await loadEligibleRows(MAX_PER_CALL);
     return privateJson({
@@ -90,6 +97,11 @@ export async function POST(request: Request) {
   }
   const admin = await verifyAdmin(request);
   if (!admin.authorized || !admin.userId) return privateJson({ error: "Unauthorized" }, 401);
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-auto-approve:execute", request, admin.userId),
+    { maxRequests: 6, windowMs: 60 * 60 * 1000 },
+  );
+  if (limited) return limited;
 
   const body = await readBoundedUtf8Text(request, 2_048);
   if (!body.ok) return privateJson({ error: "요청 본문을 읽을 수 없습니다." }, 400);
@@ -146,7 +158,9 @@ export async function POST(request: Request) {
       const message = typeof error.message === "string" ? error.message : "";
       if (message.includes("PRICE_REVIEW_VERSION_CONFLICT") || error.code === "40001") { conflicts++; continue; }
       failed++;
-      if (failures.length < 10) failures.push({ id: String(row.id), reason: message.slice(0, 160) });
+      if (failures.length < 10) {
+        failures.push({ id: String(row.id), reason: AUTO_APPROVAL_FAILURE_REASON });
+      }
     }
     return privateJson({ approved, conflicts, failed, failures, total_targets: rows.length });
   } catch {

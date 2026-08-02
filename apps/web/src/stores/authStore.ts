@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { createClient } from "@/lib/supabase/client";
 import { useCommunityStore } from "@/stores/communityStore";
+import { revokeAndClearSupabaseBrowserSession } from "@/lib/auth/supabaseBrowserSession";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
 
 // 데모 모드 샘플 데이터
@@ -154,6 +156,23 @@ function isTransientAuthFetchError(err: unknown) {
   );
 }
 
+let initializeGeneration = 0;
+let authIdentityEpoch = 0;
+
+function advanceIdentityEpochIfChanged(currentUserId: string | null, nextUserId: string | null) {
+  if (currentUserId !== nextUserId) authIdentityEpoch += 1;
+}
+
+const EMPTY_AUTH_STATE = {
+  user: null,
+  profile: null,
+  partner: null,
+  couple: null,
+  journey: null,
+  isLoading: false,
+  isDemo: false,
+} as const;
+
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
@@ -193,14 +212,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async (options) => {
     if (get().isInitialized && !options?.force) return;
+    const requestGeneration = ++initializeGeneration;
     if (!options?.force) set({ isLoading: true });
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/auth/me", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
 
       if (res.ok) {
         const data = await res.json();
+        if (requestGeneration !== initializeGeneration) return;
 
         if (data.user) {
           // 실제 로그인된 유저가 있으면 데모 쿠키 제거 후 실제 데이터 사용
@@ -208,6 +233,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             document.cookie = "demo_mode=; path=/; max-age=0";
           }
 
+          advanceIdentityEpochIfChanged(get().user?.id ?? null, data.user.id);
           set({
             user: data.user,
             profile: data.profile ?? null,
@@ -222,8 +248,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
+      if (requestGeneration !== initializeGeneration) return;
+
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
+        advanceIdentityEpochIfChanged(get().user?.id ?? null, "demo");
         set({
           user: { id: "demo", email: "demo@hanbang.ai" },
           profile: DEMO_PROFILE,
@@ -237,14 +266,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      advanceIdentityEpochIfChanged(get().user?.id ?? null, null);
+      set({ ...EMPTY_AUTH_STATE, isInitialized: true });
     } catch (err) {
+      if (requestGeneration !== initializeGeneration) return;
       if (!isTransientAuthFetchError(err)) {
-        console.error("Auth store init error:", err);
+        console.error("Auth store init error:", safeErrorDiagnostic(err));
       }
 
       // fetch 에러 시에도 데모 모드 폴백
       if (isDemoMode()) {
+        advanceIdentityEpochIfChanged(get().user?.id ?? null, "demo");
         set({
           user: { id: "demo", email: "demo@hanbang.ai" },
           profile: DEMO_PROFILE,
@@ -258,7 +290,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      // Authentication could not be re-verified. Do not retain the previous
+      // actor's profile, couple, or journey in the protected client tree.
+      advanceIdentityEpochIfChanged(get().user?.id ?? null, null);
+      set({ ...EMPTY_AUTH_STATE, isInitialized: true });
     }
   },
 
@@ -273,16 +308,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshJourney: async () => {
     const { isDemo } = get();
     if (isDemo) return;
+    const lifecycleEpoch = authIdentityEpoch;
+    const actorUserId = get().user?.id ?? null;
     try {
       const res = await fetch("/api/auth/me", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
+      if (
+        lifecycleEpoch !== authIdentityEpoch ||
+        (get().user?.id ?? null) !== actorUserId
+      ) return;
       if (data.journey) {
         set({ journey: data.journey });
       }
     } catch (err) {
       if (!isTransientAuthFetchError(err)) {
-        console.error("refreshJourney 실패:", err);
+        console.error("refreshJourney 실패:", safeErrorDiagnostic(err));
       }
     }
   },
@@ -295,6 +336,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ journey: journey ? { ...journey, ...updates } : null });
       return;
     }
+    const lifecycleEpoch = authIdentityEpoch;
+    const actorUserId = get().user?.id ?? null;
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
     // 전체 전송은 이 클라이언트의 스테일 스냅샷으로 파트너/AI의 다른 키 변경을
@@ -333,10 +376,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (res.ok) {
         const data = await res.json();
+        if (
+          lifecycleEpoch !== authIdentityEpoch ||
+          (get().user?.id ?? null) !== actorUserId
+        ) return;
         set({ journey: data.journey });
       }
     } catch (err) {
-      console.error("Journey 업데이트 에러:", err);
+      console.error("Journey 업데이트 에러:", safeErrorDiagnostic(err));
     }
   },
 
@@ -351,6 +398,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       return;
     }
+    const lifecycleEpoch = authIdentityEpoch;
+    const actorUserId = get().user?.id ?? null;
 
     try {
       const res = await fetch("/api/profile", {
@@ -365,6 +414,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!res.ok) {
         throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
+      if (
+        lifecycleEpoch !== authIdentityEpoch ||
+        (get().user?.id ?? null) !== actorUserId
+      ) return;
       if (data.profile) {
         set({ profile: data.profile });
         if (updates.sync_community_nickname) {
@@ -372,30 +425,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
     } catch (err) {
-      console.error("Profile 업데이트 에러:", err);
+      console.error("Profile 업데이트 에러:", safeErrorDiagnostic(err));
       throw err;
     }
   },
 
   signOut: async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
-    document.cookie = "onboarding_complete=; path=/; max-age=0";
-    document.cookie = "demo_mode=; path=/; max-age=0";
-    get().reset();
-    window.location.href = "/login";
+    const userId = get().user?.id;
+    const actorKey = userId ? `user:${userId}` : undefined;
+    // The centralized purge imports chatStore, which reads authStore. Load it
+    // only after this module is initialized to avoid a static cycle.
+    const clearClientState = import("@/lib/auth/userScopedClientState")
+      .then(({ clearUserScopedClientState }) => clearUserScopedClientState(actorKey))
+      .catch(() => undefined);
+
+    try {
+      await Promise.allSettled([
+        revokeAndClearSupabaseBrowserSession(supabase),
+        clearClientState,
+      ]);
+    } finally {
+      get().reset();
+      document.cookie = "demo_mode=; path=/; max-age=0";
+      window.location.replace("/login");
+    }
   },
 
   reset: () => {
+    initializeGeneration += 1;
+    authIdentityEpoch += 1;
     set({
-      user: null,
-      profile: null,
-      partner: null,
-      couple: null,
-      journey: null,
-      isLoading: false,
+      ...EMPTY_AUTH_STATE,
       isInitialized: false,
-      isDemo: false,
     });
   },
 }));

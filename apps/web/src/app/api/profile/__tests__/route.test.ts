@@ -12,7 +12,7 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn(() => "profile:update:user-1"),
 }));
 
@@ -352,6 +352,68 @@ describe("/api/profile PATCH", () => {
       p_force_community_nickname_sync: true,
     });
     expect(admin.from).not.toHaveBeenCalled();
+  });
+
+  it("removes server-only and push-delivery fields from an excessive RPC result", async () => {
+    const admin = mockAdminClient({}, {
+      data: {
+        profile: {
+          id: "user-1",
+          name: "New Name",
+          role: "bride",
+          couple_id: "couple-1",
+          avatar_url: null,
+          onboarding_completed: true,
+          onboarding_step: 5,
+          care_notifications_enabled: true,
+          care_notifications_consented_at: "2026-07-16T01:00:00.000Z",
+          phone: "01012345678",
+          phone_care_consented_at: "2026-07-16T01:00:00.000Z",
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-07-16T01:00:00.000Z",
+          email: "must-not-leak@example.com",
+          is_admin: true,
+          push_token: "ExponentPushToken[sensitive-device]",
+          push_notifications_enabled: true,
+          push_notifications_consented_at: "2026-07-16T01:00:00.000Z",
+          community_push_notifications_enabled: true,
+          partner_push_notifications_enabled: true,
+          push_token_attached_at: "2026-07-16T01:00:00.000Z",
+        },
+        community_profile_synced: false,
+        cancelled_jobs: 0,
+      },
+      error: null,
+    });
+
+    const response = await PATCH(createProfilePatchRequest("New Name"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.profile).toEqual({
+      id: "user-1",
+      name: "New Name",
+      role: "bride",
+      couple_id: "couple-1",
+      avatar_url: null,
+      onboarding_completed: true,
+      onboarding_step: 5,
+      care_notifications_enabled: true,
+      care_notifications_consented_at: "2026-07-16T01:00:00.000Z",
+      phone: "01012345678",
+      phone_care_consented_at: "2026-07-16T01:00:00.000Z",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-07-16T01:00:00.000Z",
+    });
+    expect(body.profile).not.toHaveProperty("email");
+    expect(body.profile).not.toHaveProperty("is_admin");
+    expect(body.profile).not.toHaveProperty("push_token");
+    expect(body.profile).not.toHaveProperty("push_notifications_enabled");
+    expect(body.profile).not.toHaveProperty("push_notifications_consented_at");
+    expect(body.profile).not.toHaveProperty("community_push_notifications_enabled");
+    expect(body.profile).not.toHaveProperty("partner_push_notifications_enabled");
+    expect(body.profile).not.toHaveProperty("push_token_attached_at");
+    expect(admin.rpc).toHaveBeenCalledOnce();
   });
 
   it("updates an independent community nickname through the same atomic API", async () => {

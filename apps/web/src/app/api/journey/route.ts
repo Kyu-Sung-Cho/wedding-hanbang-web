@@ -7,11 +7,18 @@ import {
   cleanOptionalText,
   isBodyTooLarge,
   isRecord,
+  readBoundedJsonValue,
   sanitizeJsonObject,
 } from "@/utils/requestValidation";
 import { MAX_WEDDING_BUDGET_WON } from "@/lib/weddingBudget";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { WEDDING_JOURNEY_PRIVATE_SELECT } from "@/lib/privacy/privateDataSelects";
 
-const MAX_BODY_BYTES = 128 * 1024;
+// Legacy clients may still send a complete progress snapshot. Current clients
+// send a small progress_patch, but 64 KiB preserves the bounded legacy path.
+const MAX_BODY_BYTES = 64 * 1024;
 const PROGRESS_REMOVE_KEY_RE = /^[a-zA-Z0-9_.:-]{1,80}$/;
 
 function getAdminClient() {
@@ -20,6 +27,10 @@ function getAdminClient() {
 
 export async function PATCH(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "허용되지 않은 요청 출처입니다." }, { status: 403 });
+    }
+
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
@@ -33,6 +44,12 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("journey:update", request, user.id),
+      { maxRequests: 60, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
+
     const admin = getAdminClient();
     const { data: profile } = await admin
       .from("profiles")
@@ -44,7 +61,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
     }
 
-    const body = await request.json();
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -139,7 +163,7 @@ export async function PATCH(request: Request) {
       );
 
       if (patchError) {
-        console.error("journey progress patch failed:", patchError);
+        console.error("journey progress patch failed", safeErrorDiagnostic(patchError));
         return NextResponse.json({ error: "진행 데이터 업데이트에 실패했습니다." }, { status: 500 });
       }
 
@@ -150,18 +174,22 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "수정할 항목이 없습니다." }, { status: 400 });
     }
 
-    const journeyQuery = admin.from("wedding_journeys").select().eq("couple_id", profile.couple_id).single();
+    const journeyQuery = admin
+      .from("wedding_journeys")
+      .select(WEDDING_JOURNEY_PRIVATE_SELECT)
+      .eq("couple_id", profile.couple_id)
+      .single();
     const { data: journey, error } = Object.keys(updates).length > 0
       ? await admin
           .from("wedding_journeys")
           .update(updates)
           .eq("couple_id", profile.couple_id)
-          .select()
+          .select(WEDDING_JOURNEY_PRIVATE_SELECT)
           .single()
       : await journeyQuery;
 
     if (error) {
-      console.error("journey update failed:", error);
+      console.error("journey update failed", safeErrorDiagnostic(error));
       return NextResponse.json({ error: "업데이트에 실패했습니다." }, { status: 500 });
     }
 
@@ -171,7 +199,7 @@ export async function PATCH(request: Request) {
         : journey,
     });
   } catch (err) {
-    console.error("Journey API error:", err);
+    console.error("Journey API error", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
 }

@@ -10,7 +10,13 @@ import * as Crypto from "expo-crypto";
 import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import {
+  captureMobileAuthIdentityExpectation,
+  isCurrentMobileAuthIdentity,
+  type MobileAuthIdentityExpectation,
+} from "@/lib/mobileAuthIdentity";
 import { normalizeMediationBlock } from "@/lib/amoraMediation";
+import { resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import {
   getPendingAmoraAction,
   getPendingActionDisabledReason,
@@ -29,7 +35,10 @@ import { PlaceCards } from "@/components/chat/PlaceCards";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 
-const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const API_BASE = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
 
 interface ToolExecutionResult {
@@ -93,6 +102,7 @@ interface AiRequest {
   body: ChatRequestBody;
   tempId: string;
   serverRequestKey: string;
+  userId: string;
 }
 
 interface PartnerDraft {
@@ -660,6 +670,7 @@ function waitForUnlessAborted<T>(operation: PromiseLike<T>, signal: AbortSignal)
 
 async function requestChatStream(
   body: ChatRequestBody,
+  expectedUserId: string,
   signal: AbortSignal,
   onUpdate: ChatStreamUpdateCallback,
   onQuota: (remaining: number) => void,
@@ -670,6 +681,9 @@ async function requestChatStream(
     signal,
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
+  if (sessionData.session?.user.id !== expectedUserId) {
+    throw new ChatTransportError("AUTH");
+  }
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new ChatTransportError("AUTH");
 
@@ -687,7 +701,11 @@ async function requestChatStream(
     signal,
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
-  if (refreshError || !refreshed.session?.access_token) throw new ChatTransportError("AUTH");
+  if (
+    refreshError
+    || refreshed.session?.user.id !== expectedUserId
+    || !refreshed.session?.access_token
+  ) throw new ChatTransportError("AUTH");
   return streamChatWithXhr(
     body,
     refreshed.session.access_token,
@@ -766,10 +784,17 @@ export default function ChatScreen() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const activeControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const identityExpectationRef = useRef<MobileAuthIdentityExpectation | null>(null);
   const sendingRef = useRef(false);
   const applyingPendingActionRef = useRef<string | null>(null);
   const persistedAiRequestKeysRef = useRef(new Set<string>());
   const previousMessageCountRef = useRef(0);
+  const isActiveChatIdentity = useCallback((expectedUserId?: string) => {
+    const expectation = identityExpectationRef.current;
+    return mountedRef.current
+      && isCurrentMobileAuthIdentity(expectation)
+      && (expectedUserId === undefined || expectation.userId === expectedUserId);
+  }, []);
   const scopedMessages = useMemo(
     () => messages.filter((message) => (
       isMessageInChatScope(message.visibility, activeScope, userRole)
@@ -799,31 +824,46 @@ export default function ChatScreen() {
 
   useEffect(() => {
     mountedRef.current = true;
-    (async () => {
+    const expectation = captureMobileAuthIdentityExpectation();
+    identityExpectationRef.current = expectation;
+    persistedAiRequestKeysRef.current.clear();
+
+    if (!expectation) {
+      setInitialLoaded(true);
+      return () => {
+        mountedRef.current = false;
+        identityExpectationRef.current = null;
+      };
+    }
+
+    void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setInitialLoaded(true); return; }
-      setUserId(user.id);
+      if (!user || user.id !== expectation.userId || !isActiveChatIdentity(user.id)) return;
 
       const { data: profile } = await supabase.from("profiles").select("name, role, couple_id").eq("id", user.id).single();
-      if (!profile?.couple_id) { setInitialLoaded(true); return; }
+      if (!isActiveChatIdentity(user.id)) return;
+      if (!profile?.couple_id) {
+        setUserId(user.id);
+        setInitialLoaded(true);
+        return;
+      }
       const viewerRole: ViewerRole = profile.role === "bride" || profile.role === "groom"
         ? profile.role
         : null;
-      setCoupleId(profile.couple_id);
-      if (profile.name) setUserName(profile.name);
-      if (viewerRole) setUserRole(viewerRole);
 
       // 파트너
       const { data: partners } = await supabase.from("couple_profile_directory").select("name").eq("couple_id", profile.couple_id).neq("id", user.id);
-      if (partners?.[0]) setPartnerName(partners?.[0]?.name ?? "");
+      if (!isActiveChatIdentity(user.id)) return;
 
       // 대화 이력
       const { data: history } = await supabase.from("chat_messages")
         .select("id, role, sender_type, content, metadata, created_at, visibility")
         .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
+      if (!isActiveChatIdentity(user.id)) return;
 
+      let historyMessages: ChatMessage[] = [];
       if (history?.length) {
-        const historyMessages = history
+        historyMessages = history
           .map((message) => chatMessageFromRealtimeRow(message))
           .filter((message): message is ChatMessage => (
             message !== null && canViewerSeeChatMessage(message, viewerRole)
@@ -835,12 +875,20 @@ export default function ChatScreen() {
             persistedAiRequestKeysRef.current.add(persistedRequestKey);
           }
         }
-        setMessages(historyMessages);
       }
+
+      if (!isActiveChatIdentity(user.id)) return;
+      setUserId(user.id);
+      setCoupleId(profile.couple_id);
+      if (profile.name) setUserName(profile.name);
+      if (viewerRole) setUserRole(viewerRole);
+      if (partners?.[0]) setPartnerName(partners[0]?.name ?? "");
+      setMessages(historyMessages);
 
       // Realtime
       const ch = supabase.channel(`chat:${profile.couple_id}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+          if (!isActiveChatIdentity(user.id)) return;
           const incoming = chatMessageFromRealtimeRow(payload.new);
           if (!incoming || !canViewerSeeChatMessage(incoming, viewerRole)) return;
           const incomingMetadata = incoming.metadata;
@@ -860,6 +908,7 @@ export default function ChatScreen() {
           });
         })
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+          if (!isActiveChatIdentity(user.id)) return;
           const updated = chatMessageFromRealtimeRow(payload.new);
           const updatedId = updated?.id
             ?? (payload.new as Record<string, unknown> | null)?.id;
@@ -873,19 +922,26 @@ export default function ChatScreen() {
           });
         })
         .subscribe();
+      if (!isActiveChatIdentity(user.id)) {
+        void supabase.removeChannel(ch);
+        return;
+      }
       channelRef.current = ch;
       setInitialLoaded(true);
-    })();
+    })().catch(() => {
+      if (isActiveChatIdentity(expectation.userId)) setInitialLoaded(true);
+    });
     return () => {
       mountedRef.current = false;
+      identityExpectationRef.current = null;
       activeControllerRef.current?.abort();
       activeControllerRef.current = null;
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, []);
+  }, [isActiveChatIdentity]);
 
   useEffect(() => {
     if (!initialLoaded || scopedMessages.length === 0) return;
@@ -908,6 +964,7 @@ export default function ChatScreen() {
     draft: Pick<AiDraft, "text" | "startedAt" | "coupleId" | "userId" | "senderType" | "visibility">,
     intendedTarget: MessageTarget,
   ): Promise<ChatMessage | null> {
+    if (!isActiveChatIdentity(draft.userId)) return null;
     const { data, error } = await supabase.from("chat_messages")
       .select("id, role, sender_type, content, metadata, created_at, visibility")
       .eq("couple_id", draft.coupleId)
@@ -920,7 +977,7 @@ export default function ChatScreen() {
       .order("created_at", { ascending: false })
       .limit(10);
 
-    if (error || !data) return null;
+    if (error || !data || !isActiveChatIdentity(draft.userId)) return null;
     const match = data.find((row) => {
       const metadata = row.metadata as ChatMessageMetadata | null;
       return intendedTarget === "partner"
@@ -932,6 +989,7 @@ export default function ChatScreen() {
   }
 
   async function sendPartnerDraft(draft: PartnerDraft, reconcileFirst: boolean) {
+    if (!isActiveChatIdentity(draft.userId)) return;
     setStreaming(true);
     setSendFailure(null);
     try {
@@ -940,6 +998,7 @@ export default function ChatScreen() {
         : null;
 
       if (!durableMessage) {
+        if (!isActiveChatIdentity(draft.userId)) return;
         const { data, error } = await supabase.from("chat_messages")
           .insert({
             couple_id: draft.coupleId,
@@ -960,7 +1019,7 @@ export default function ChatScreen() {
       }
 
       if (!durableMessage) throw new Error("partner message was not persisted");
-      if (mountedRef.current) {
+      if (isActiveChatIdentity(draft.userId)) {
         setMessages((previous) => previous.some((message) => message.id === durableMessage.id)
           ? previous
           : [...previous, durableMessage]
@@ -968,7 +1027,7 @@ export default function ChatScreen() {
         setActiveInput((current) => current.trim() === draft.text ? "" : current);
       }
     } catch {
-      if (mountedRef.current) {
+      if (isActiveChatIdentity(draft.userId)) {
         setSendFailure({
           kind: "partner_insert",
           message: "메시지를 저장하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
@@ -976,12 +1035,12 @@ export default function ChatScreen() {
         });
       }
     } finally {
-      if (mountedRef.current) setStreaming(false);
+      if (isActiveChatIdentity(draft.userId)) setStreaming(false);
     }
   }
 
   async function streamAiRequest(request: AiRequest) {
-    if (!mountedRef.current) return;
+    if (!isActiveChatIdentity(request.userId)) return;
     if (persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
       setSendFailure(null);
       setStreaming(false);
@@ -1034,14 +1093,15 @@ export default function ChatScreen() {
     try {
       const completion = await requestChatStream(
         request.body,
+        request.userId,
         controller.signal,
         (partialText, toolResults, metadata) => {
-          if (!mountedRef.current) return;
+          if (!isActiveChatIdentity(request.userId)) return;
           pendingUpdate = { text: partialText, toolResults, metadata };
           if (renderFrame !== null) return;
           renderFrame = requestAnimationFrame(() => {
             renderFrame = null;
-            if (!mountedRef.current) return;
+            if (!isActiveChatIdentity(request.userId)) return;
             setMessages((previous) => reconcileChatStreamUpdate(
               previous,
               request.tempId,
@@ -1051,7 +1111,7 @@ export default function ChatScreen() {
           });
         },
         (remaining) => {
-          if (mountedRef.current) setQuotaRemaining(remaining);
+          if (isActiveChatIdentity(request.userId)) setQuotaRemaining(remaining);
         },
         (metadata) => {
           completionPendingAction = getPendingAmoraAction({
@@ -1062,7 +1122,7 @@ export default function ChatScreen() {
         },
       );
       cancelPendingRender();
-      if (mountedRef.current) {
+      if (isActiveChatIdentity(request.userId)) {
         const completedUpdate: ChatStreamCompletion = completionPendingAction
           ? {
               ...completion,
@@ -1081,11 +1141,11 @@ export default function ChatScreen() {
         scrollToLatest(true);
       }
     } catch (error) {
-      const cancelledByUnmount =
-        !mountedRef.current &&
+      const cancelledByIdentityChange =
+        !isActiveChatIdentity(request.userId) &&
         error instanceof ChatTransportError &&
-        error.code === "CANCELLED";
-      if (!cancelledByUnmount && mountedRef.current) {
+        (error.code === "CANCELLED" || error.code === "AUTH");
+      if (!cancelledByIdentityChange && isActiveChatIdentity(request.userId)) {
         cancelPendingRender();
         setMessages((previous) => previous.filter((message) => message.id !== request.tempId));
         if (!persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
@@ -1100,11 +1160,12 @@ export default function ChatScreen() {
       cancelPendingRender();
       clearTimeout(timeout);
       if (activeControllerRef.current === controller) activeControllerRef.current = null;
-      if (mountedRef.current) setStreaming(false);
+      if (isActiveChatIdentity(request.userId)) setStreaming(false);
     }
   }
 
   async function sendAiDraft(draft: AiDraft, reconcileFirst: boolean) {
+    if (!isActiveChatIdentity(draft.userId)) return;
     setStreaming(true);
     setSendFailure(null);
     try {
@@ -1113,6 +1174,7 @@ export default function ChatScreen() {
         : null;
 
       if (!durableMessage) {
+        if (!isActiveChatIdentity(draft.userId)) return;
         const { data, error } = await supabase.from("chat_messages")
           .insert({
             couple_id: draft.coupleId,
@@ -1137,6 +1199,7 @@ export default function ChatScreen() {
       const request: AiRequest = {
         tempId: `temp_${draft.clientRequestId}`,
         serverRequestKey,
+        userId: draft.userId,
         body: {
           messages: [
             ...draft.context,
@@ -1151,17 +1214,17 @@ export default function ChatScreen() {
         },
       };
 
-      if (mountedRef.current) {
+      if (isActiveChatIdentity(draft.userId)) {
         setMessages((previous) => previous.some((message) => message.id === durableMessage.id)
           ? previous
           : [...previous, durableMessage]
         );
         setActiveInput((current) => current.trim() === draft.text ? "" : current);
       }
-      if (!mountedRef.current) return;
+      if (!isActiveChatIdentity(draft.userId)) return;
       await streamAiRequest(request);
     } catch {
-      if (mountedRef.current) {
+      if (isActiveChatIdentity(draft.userId)) {
         setSendFailure({
           kind: "ai_insert",
           message: "질문을 저장하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
@@ -1204,6 +1267,7 @@ export default function ChatScreen() {
       || !userId
       || !userRole
       || !activeVisibility
+      || !isActiveChatIdentity(userId)
     ) return;
     sendingRef.current = true;
     try {
@@ -1274,6 +1338,7 @@ export default function ChatScreen() {
       || !coupleId
       || !userId
       || !userRole
+      || !isActiveChatIdentity(userId)
     ) return;
 
     const latestSharedMessage = [...messages]

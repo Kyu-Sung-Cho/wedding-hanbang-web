@@ -1,6 +1,7 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { readBoundedUtf8Text } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { z } from "zod";
 
@@ -144,6 +145,11 @@ export async function GET(request: Request) {
   if (!admin.authorized || !admin.userId) {
     return privateJson({ error: "Unauthorized" }, 401);
   }
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-bulk-approval:preview", request, admin.userId),
+    { maxRequests: 30, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
 
   try {
     const { data, error } = await getServiceClient().rpc(COUNT_RPC, {
@@ -187,6 +193,11 @@ export async function POST(request: Request) {
   if (!admin.authorized || !admin.userId) {
     return privateJson({ error: "Unauthorized" }, 401);
   }
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-bulk-approval:execute", request, admin.userId),
+    { maxRequests: 12, windowMs: 60 * 60 * 1000 },
+  );
+  if (limited) return limited;
 
   const body = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
   if (!body.ok) {

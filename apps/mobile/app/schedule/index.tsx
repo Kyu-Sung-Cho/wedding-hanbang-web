@@ -15,6 +15,7 @@ import { colors } from "@hanbang/design-tokens";
 import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   AppHeader,
@@ -279,7 +280,7 @@ export default function ScheduleScreen() {
       const evts = ((prog.__events as ScheduleEvent[]) ?? []).map(normalizeScheduleEvent);
       setEvents(evts);
     } catch (err) {
-      console.error("일정 로드 오류:", err);
+      console.error("일정 로드 오류:", safeErrorDiagnostic(err));
     } finally {
       setLoading(false);
       setRefreshing(false);

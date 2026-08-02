@@ -4,6 +4,8 @@ import Link from "next/link";
 import { AlertCircle, ArrowRight, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { useUserScopedClientActor } from "@/components/common/UserScopedClientStateBoundary";
+import { expectedActorHeaders } from "@/lib/auth/actorFence";
 import { track } from "@/lib/analytics/track";
 import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
 import {
@@ -23,6 +25,8 @@ type FavoritesResponse = {
   vendorIds?: unknown;
 };
 
+const EMPTY_FAVORITE_IDS: string[] = [];
+
 function favoriteIdsFromResponse(value: unknown): string[] | null {
   if (!value || typeof value !== "object") return null;
   const vendorIds = (value as FavoritesResponse).vendorIds;
@@ -33,12 +37,25 @@ function favoriteIdsFromResponse(value: unknown): string[] | null {
 }
 
 export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
+  const actor = useUserScopedClientActor();
+  const actorKey = actor.status === "ready" ? actor.actorKey : null;
+  const actorUserId = actor.status === "ready" && actor.kind === "user" ? actor.userId : null;
   const [status, setStatus] = useState<WishlistStatus>("loading");
+  const [stateActorKey, setStateActorKey] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState("");
   const [loadRevision, setLoadRevision] = useState(0);
   const favoriteBusy = useRef(new Set<string>());
+  const actorKeyRef = useRef(actorKey);
+  const loadGenerationRef = useRef(0);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const mutationControllersRef = useRef(new Map<string, AbortController>());
+  actorKeyRef.current = actorKey;
+  const canUsePrivateState = actorKey !== null && stateActorKey === actorKey;
+  const currentStatus: WishlistStatus = canUsePrivateState ? status : "loading";
+  const currentFavoriteIds = canUsePrivateState ? favoriteIds : EMPTY_FAVORITE_IDS;
+  const currentFeedback = canUsePrivateState ? feedback : "";
 
   useEffect(() => {
     track("page_view", {
@@ -48,13 +65,38 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
   }, []);
 
   useEffect(() => {
+    loadAbortRef.current?.abort();
+    for (const mutationController of mutationControllersRef.current.values()) mutationController.abort();
+    mutationControllersRef.current.clear();
+    favoriteBusy.current.clear();
+    setBusyIds(new Set());
+    setFeedback("");
+    if (!actorKey) {
+      loadGenerationRef.current += 1;
+      setStateActorKey(null);
+      setFavoriteIds([]);
+      setStatus("loading");
+      return;
+    }
+
     const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const requestedActorKey = actorKey;
+    const generation = ++loadGenerationRef.current;
+    const isCurrentRequest = () => (
+      !controller.signal.aborted
+      && actorKeyRef.current === requestedActorKey
+      && loadGenerationRef.current === generation
+    );
+    setStateActorKey(requestedActorKey);
+    setFavoriteIds([]);
     setStatus("loading");
 
     void mobileAuthenticatedFetch("/api/favorites", {
       cache: "no-store",
       signal: controller.signal,
     }).then(async (response) => {
+      if (!isCurrentRequest()) return;
       if (response.status === 401) {
         setFavoriteIds([]);
         setStatus("guest");
@@ -62,20 +104,25 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
       }
       if (!response.ok) throw new Error("FAVORITES_UNAVAILABLE");
       const ids = favoriteIdsFromResponse(await response.json());
+      if (!isCurrentRequest()) return;
       if (!ids) throw new Error("FAVORITES_INVALID_RESPONSE");
       setFavoriteIds(ids);
       setStatus("ready");
     }).catch((error: unknown) => {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setStatus("error");
+      if (isCurrentRequest() && !(error instanceof DOMException && error.name === "AbortError")) {
+        setStatus("error");
+      }
     });
 
-    return () => controller.abort();
-  }, [loadRevision]);
+    return () => {
+      controller.abort();
+      if (loadGenerationRef.current === generation) loadGenerationRef.current += 1;
+    };
+  }, [actorKey, loadRevision]);
 
   const groups = useMemo(
-    () => selectOfficialWishlistedVendors(catalog, favoriteIds),
-    [catalog, favoriteIds],
+    () => selectOfficialWishlistedVendors(catalog, currentFavoriteIds),
+    [catalog, currentFavoriteIds],
   );
   const total = groups.reduce((count, group) => count + group.vendors.length, 0);
 
@@ -85,36 +132,57 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
   }, []);
 
   const removeFavorite = useCallback(async (vendor: PriceVendor) => {
+    if (!actorKey || !canUsePrivateState || currentStatus !== "ready") return;
     if (favoriteBusy.current.has(vendor.id)) return;
+    const requestedActorKey = actorKey;
+    const requestedGeneration = loadGenerationRef.current;
+    const controller = new AbortController();
+    const isCurrentMutation = () => (
+      !controller.signal.aborted
+      && actorKeyRef.current === requestedActorKey
+      && loadGenerationRef.current === requestedGeneration
+      && mutationControllersRef.current.get(vendor.id) === controller
+    );
     favoriteBusy.current.add(vendor.id);
+    mutationControllersRef.current.set(vendor.id, controller);
     setFeedback("");
     setBusyIds((current) => new Set(current).add(vendor.id));
     try {
       const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: "DELETE",
         credentials: "same-origin",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(actorUserId ? expectedActorHeaders(actorUserId) : {}),
+        },
         body: JSON.stringify({ vendorId: vendor.id }),
+        signal: controller.signal,
       });
+      if (!isCurrentMutation()) return;
       if (response.status === 401) {
         setStatus("guest");
         return;
       }
       if (!response.ok) throw new Error("FAVORITE_REMOVE_FAILED");
       const body = await response.json() as { isFavorite?: unknown };
+      if (!isCurrentMutation()) return;
       if (body.isFavorite !== false) throw new Error("FAVORITE_REMOVE_NOT_CONFIRMED");
       setFavoriteIds((current) => current.filter((id) => id !== vendor.id));
-    } catch {
+    } catch (error: unknown) {
+      if (!isCurrentMutation() || (error instanceof DOMException && error.name === "AbortError")) return;
       setFeedback("찜을 해제하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
-      favoriteBusy.current.delete(vendor.id);
-      setBusyIds((current) => {
-        const next = new Set(current);
-        next.delete(vendor.id);
-        return next;
-      });
+      if (mutationControllersRef.current.get(vendor.id) === controller) {
+        mutationControllersRef.current.delete(vendor.id);
+        favoriteBusy.current.delete(vendor.id);
+        setBusyIds((current) => {
+          const next = new Set(current);
+          next.delete(vendor.id);
+          return next;
+        });
+      }
     }
-  }, []);
+  }, [actorKey, actorUserId, canUsePrivateState, currentStatus]);
 
   return (
     <main className="min-h-screen bg-[#FBF8F2] px-4 pb-16 pt-10 text-[#243832] sm:px-6 sm:pt-14">
@@ -132,7 +200,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                 공식 가격이 공개된 업체만 한곳에서 비교해요. 찜 기록에 있어도 현재 공개 카탈로그에 없는 업체는 표시하지 않아요.
               </p>
             </div>
-            {status === "ready" ? (
+            {currentStatus === "ready" ? (
               <span className="rounded-full bg-[#F5ECE4] px-3 py-1.5 text-sm font-bold text-[#8F6662]">
                 {total}개 저장됨
               </span>
@@ -152,13 +220,13 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                 className="flex min-h-12 items-center justify-between rounded-2xl border border-[#243832]/10 bg-white px-4 text-sm"
               >
                 <span className="font-semibold">{PRICE_CATEGORY_LABELS[category]}</span>
-                <span className="tabular-nums text-[#243832]/55">{status === "ready" ? count : "–"}</span>
+                <span className="tabular-nums text-[#243832]/55">{currentStatus === "ready" ? count : "–"}</span>
               </div>
             );
           })}
         </div>
 
-        {status === "loading" ? (
+        {currentStatus === "loading" ? (
           <section
             aria-live="polite"
             className="flex min-h-64 items-center justify-center rounded-[24px] border border-[#243832]/10 bg-white"
@@ -170,7 +238,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </section>
         ) : null}
 
-        {status === "guest" ? (
+        {currentStatus === "guest" ? (
           <StateCard
             icon={<Heart aria-hidden="true" className="size-6" />}
             title="로그인하면 찜한 업체를 이어서 볼 수 있어요"
@@ -186,7 +254,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </StateCard>
         ) : null}
 
-        {status === "error" ? (
+        {currentStatus === "error" ? (
           <StateCard
             icon={<AlertCircle aria-hidden="true" className="size-6" />}
             title="찜한 업체를 불러오지 못했어요"
@@ -203,7 +271,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </StateCard>
         ) : null}
 
-        {status === "ready" && total === 0 ? (
+        {currentStatus === "ready" && total === 0 ? (
           <StateCard
             icon={<Heart aria-hidden="true" className="size-6" />}
             title="공식 가격 업체를 아직 찜하지 않았어요"
@@ -219,7 +287,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </StateCard>
         ) : null}
 
-        {status === "ready" && total > 0 ? (
+        {currentStatus === "ready" && total > 0 ? (
           <div className="space-y-9">
             {groups.map(({ category, vendors }) => (
               <section key={category} aria-labelledby={`wishlist-${category}`}>
@@ -251,9 +319,9 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </div>
         ) : null}
 
-        {feedback ? (
+        {currentFeedback ? (
           <p role="alert" className="mt-5 rounded-2xl bg-[#A43E3E]/8 px-4 py-3 text-sm font-semibold text-[#A43E3E]">
-            {feedback}
+            {currentFeedback}
           </p>
         ) : null}
 

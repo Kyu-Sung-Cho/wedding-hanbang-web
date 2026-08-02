@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import {
+  CURRENT_TERMS_VERSION,
+  formatPolicyVersionKorean,
+} from "@/lib/compliance/policyVersions";
+
+const TERMS_VERSION_KO = formatPolicyVersionKorean(CURRENT_TERMS_VERSION);
 
 export default function TermsPage() {
   return (
@@ -17,7 +23,7 @@ export default function TermsPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">서비스 이용약관</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 17일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: {TERMS_VERSION_KO}</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -66,8 +72,7 @@ export default function TermsPage() {
                 <ul className="list-disc pl-5 mt-2 space-y-1">
                   <li>AI 웨딩 플래너(아모라) 상담 서비스</li>
                   <li>예산·일정·체크리스트 관리 도구</li>
-                  <li>웨딩 관련 업체 탐색 및 예약 중개</li>
-                  <li>모바일 청첩장, 축의금 관리, AI 대본 생성</li>
+                  <li>웨딩 관련 업체 탐색 및 예약 준비·기록</li>
                   <li>커뮤니티 게시판 및 동기방</li>
                   <li>예절 가이드 및 시세 정보</li>
                 </ul>
@@ -77,12 +82,11 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (결제 및 환불)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (거래 기능)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>플랫폼 내 업체 예약·결제는 <strong>토스페이먼츠</strong>(주)를 통해 진행됩니다. 회사는 카드정보를 직접 저장하지 않습니다.</li>
-              <li>결제 내역 및 거래 기록은 「전자상거래 등에서의 소비자보호에 관한 법률」 제6조에 따라 <strong>5년간</strong> 보관됩니다.</li>
-              <li>환불은 파트너의 환불 정책에 따르며, 각 업체 상세 페이지에 명시된 약관을 기준으로 합니다.</li>
-              <li>분쟁 발생 시 회사는 회원과 파트너 사이의 합리적 조정을 위해 노력합니다.</li>
+              <li>현재 공개된 베타 서비스는 업체와 회원 사이의 계약·예약·결제를 대행하거나 중개하지 않습니다. 계약과 대금 지급은 회원이 해당 업체와 직접 진행합니다.</li>
+              <li>회원이 서비스에 입력하는 예산, 견적, 예약일 또는 실제 지출 금액은 준비 과정을 정리하기 위한 기록이며, 회사가 결제를 처리했다는 의미가 아닙니다.</li>
+              <li>회사가 향후 거래 기능을 제공하는 경우에는 적용 범위, 결제사업자, 환불 기준, 법정 보관 항목과 기간을 검증한 뒤 기능 사용 전에 별도로 고지하고 필요한 동의를 받습니다.</li>
             </ol>
           </section>
 
@@ -153,7 +157,7 @@ export default function TermsPage() {
           </section>
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 약관은 2026년 7월 17일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 약관은 {TERMS_VERSION_KO}부터 시행합니다.</p>
           </section>
         </div>
       </div>

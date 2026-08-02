@@ -4,8 +4,14 @@ import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { isCommunityCategory } from "@/lib/community/routes";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+
+const PRIVATE_RESPONSE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Cookie, Authorization",
+};
 
 type CommunityPostWithAuthorId = {
   id: string;
@@ -38,8 +44,8 @@ export async function GET(req: NextRequest) {
     const q = searchParams.get("q");
     const categoryParam = searchParams.get("category");
     const category = isCommunityCategory(categoryParam) ? categoryParam : null;
-    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
+    const page = Math.max(1, Math.min(200, parseInt(searchParams.get("page") ?? "1") || 1));
+    const limit = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
 
     if (!q || q.trim().length === 0) {
@@ -58,7 +64,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Rate limit: 30 searches per minute per IP
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:search", req),
       { maxRequests: 30, windowMs: 60 * 1000 }
     );
@@ -88,7 +94,7 @@ export async function GET(req: NextRequest) {
     const { data: posts, count, error } = await query;
 
     if (error) {
-      console.error("Community search error:", error);
+      console.error("Community search error:", safeErrorDiagnostic(error));
 
       // search_vector 칼럼이 없는 경우 ilike 폴백
       // SQL 특수 문자 이스케이프 (SQL injection 방지)
@@ -120,7 +126,7 @@ export async function GET(req: NextRequest) {
       } = await fallbackQuery;
 
       if (fallbackError) {
-        console.error("Community search fallback error:", fallbackError);
+        console.error("Community search fallback error:", safeErrorDiagnostic(fallbackError));
         return NextResponse.json(
           { error: "검색에 실패했습니다." },
           { status: 500 }
@@ -155,11 +161,14 @@ export async function GET(req: NextRequest) {
       }));
 
       const total = fallbackCount ?? 0;
-      return NextResponse.json({
-        posts: postsWithVotes,
-        total,
-        hasMore: offset + limit < total,
-      });
+      return NextResponse.json(
+        {
+          posts: postsWithVotes,
+          total,
+          hasMore: offset + limit < total,
+        },
+        { headers: PRIVATE_RESPONSE_HEADERS },
+      );
     }
 
     // 인증 사용자의 투표 상태
@@ -190,13 +199,16 @@ export async function GET(req: NextRequest) {
     }));
 
     const total = count ?? 0;
-    return NextResponse.json({
-      posts: postsWithVotes,
-      total,
-      hasMore: offset + limit < total,
-    });
+    return NextResponse.json(
+      {
+        posts: postsWithVotes,
+        total,
+        hasMore: offset + limit < total,
+      },
+      { headers: PRIVATE_RESPONSE_HEADERS },
+    );
   } catch (err) {
-    console.error("Community search error:", err);
+    console.error("Community search error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

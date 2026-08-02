@@ -15,6 +15,12 @@ import {
 } from "@/lib/quoteCheck/publicResult";
 import ShareButtons from "@/components/quote/ShareButtons";
 import { weddingPath } from "@/lib/weddingPaths";
+import { isUuid } from "@/utils/requestValidation";
+
+// Publication can be revoked by the owner. Never serve a previously published
+// result from an RSC/ISR cache after consent has been withdrawn.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 // 카톡 공유 진단 결과 페이지 — 공개 (RLS service role 우회).
 // 캐논 v2 referral 루프 핵심: 공유 받은 친구가 → "나도 진단 받기" CTA 클릭
@@ -29,15 +35,16 @@ interface PublicQuoteData {
   category: AmoraQuoteCategory;
   region: AmoraQuoteRegion;
   analysis: PublicQuoteAnalysis;
-  createdAt: string;
 }
 
 async function fetchQuoteData(id: string): Promise<PublicQuoteData | null> {
+  if (!isUuid(id)) return null;
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("amora_quote_checks")
-    .select("id, category, region, analysis, created_at")
+    .select("id, category, region, analysis")
     .eq("id", id)
+    .not("published_at", "is", null)
     .maybeSingle();
 
   if (error || !data) return null;
@@ -58,7 +65,6 @@ async function fetchQuoteData(id: string): Promise<PublicQuoteData | null> {
     category,
     region: data.region as AmoraQuoteRegion,
     analysis,
-    createdAt: data.created_at,
   };
 }
 
@@ -73,6 +79,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!data) {
     return {
       title: "결과를 찾을 수 없습니다 — 웨딩한방",
+      robots: { index: false, follow: false, noarchive: true },
     };
   }
 
@@ -87,6 +94,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title,
     description,
+    robots: { index: false, follow: false, noarchive: true },
     openGraph: {
       title,
       description,

@@ -257,8 +257,7 @@ export type AttachmentMediaType =
   | "image/jpeg"
   | "image/png"
   | "image/gif"
-  | "image/webp"
-  | "application/pdf";
+  | "image/webp";
 
 export interface ImageAttachment {
   base64: string;
@@ -278,22 +277,24 @@ export function buildMultimodalContent(
 
   const content: ResponseInputMessageContentList = [];
   for (const attachment of attachments) {
-    if (attachment.mediaType === "application/pdf") {
-      content.push({
-        type: "input_file",
-        filename: attachment.fileName || "attachment.pdf",
-        file_data: `data:application/pdf;base64,${attachment.base64}`,
-        // GPT-5.6 PDF auto/high rendering은 입력 토큰이 크게 늘 수 있다.
-        detail: "low",
-      });
-    } else {
-      content.push({
-        type: "input_image",
-        // 원본/auto는 큰 이미지의 입력 토큰과 지연을 급증시킬 수 있다.
-        detail: "low",
-        image_url: `data:${attachment.mediaType};base64,${attachment.base64}`,
+    if (
+      attachment.mediaType !== "image/jpeg"
+      && attachment.mediaType !== "image/png"
+      && attachment.mediaType !== "image/gif"
+      && attachment.mediaType !== "image/webp"
+    ) {
+      throw new OpenAIProviderError("[openai] unsupported attachment media type", {
+        category: "invalid_request",
+        providerCode: "unsupported_attachment_media_type",
+        usageStatus: "complete",
       });
     }
+    content.push({
+      type: "input_image",
+      // 원본/auto는 큰 이미지의 입력 토큰과 지연을 급증시킬 수 있다.
+      detail: "low",
+      image_url: `data:${attachment.mediaType};base64,${attachment.base64}`,
+    });
   }
   if (text) content.push({ type: "input_text", text });
   return content;

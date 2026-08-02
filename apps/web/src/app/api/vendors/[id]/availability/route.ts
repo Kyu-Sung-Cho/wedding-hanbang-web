@@ -2,10 +2,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AvailabilityInputError,
   AvailabilityVendorNotFoundError,
+  addCalendarDays,
+  bookingCountAt,
+  databaseWeekday,
   loadPublicBookingAvailability,
   parseAvailabilityRange,
+  toPublicBookingSlots,
 } from "@/lib/vendors/bookingAvailability";
 import { isUuid } from "@/utils/requestValidation";
+import { checkPublicBookingAvailabilityRateLimit } from "@/lib/vendors/publicAvailabilityRateLimit";
 import { NextResponse } from "next/server";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
@@ -23,12 +28,50 @@ export async function GET(
       );
     }
     const range = parseAvailabilityRange(new URL(request.url).searchParams);
-    const counts = await loadPublicBookingAvailability(createAdminClient(), id, range);
+    const limited = await checkPublicBookingAvailabilityRateLimit(request);
+    if (limited) {
+      limited.headers.set("Cache-Control", NO_STORE_HEADERS["Cache-Control"]);
+      return limited;
+    }
+    const admin = createAdminClient();
+    const occupancy = await loadPublicBookingAvailability(admin, id, range);
+    const { data: schedule, error: scheduleError } = await admin
+      .from("vendor_timeslots")
+      .select("day,hour,available,max_bookings")
+      .eq("vendor_id", id);
+    if (scheduleError || !schedule) {
+      throw new Error("BOOKING_SCHEDULE_UNAVAILABLE");
+    }
+
+    const slots: Array<{ date: string; time: string; available: boolean }> = [];
+    for (let date = range.from; date <= range.to; date = addCalendarDays(date, 1)) {
+      const day = databaseWeekday(date);
+      const daySlots = toPublicBookingSlots(
+        schedule
+          .filter((slot) => slot.day === day)
+          .map((slot) => ({
+            day: slot.day,
+            hour: slot.hour,
+            available: slot.available === true,
+            max_bookings: slot.max_bookings,
+            current_bookings: bookingCountAt(occupancy, {
+              date,
+              hour: slot.hour,
+            }),
+          })),
+      );
+      slots.push(...daySlots.map((slot) => ({
+        date,
+        time: `${String(slot.hour).padStart(2, "0")}:00`,
+        available: slot.available,
+      })));
+    }
+
     return NextResponse.json(
       {
         ...range,
         timezone: "Asia/Seoul",
-        counts,
+        slots,
       },
       { headers: NO_STORE_HEADERS },
     );

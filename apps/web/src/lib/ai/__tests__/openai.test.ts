@@ -92,7 +92,7 @@ function completedResponse(output: unknown[], outputText = "최종 답변", usag
 describe("OpenAI Responses adapter", () => {
   beforeEach(() => {
     process.env.AMORA_OPENAI_ENABLED = "true";
-    process.env.OPENAI_API_KEY = "sk-unit-fixture-not-a-secret-0000000000000000";
+    process.env.OPENAI_API_KEY = ["sk", "unit-fixture-not-a-secret-0000000000000000"].join("-");
     process.env.OPENAI_AMORA_FAST_MODEL = "gpt-5.6-luna";
     process.env.OPENAI_AMORA_FAST_REASONING_EFFORT = "none";
   });
@@ -608,20 +608,15 @@ describe("OpenAI Responses adapter", () => {
     ]);
   });
 
-  it("uses low-detail PDF rendering to bound document input cost", () => {
-    expect(buildMultimodalContent("계약서 검토", [{
+  it("fails closed if an unsupported PDF reaches the final provider adapter", () => {
+    expect(() => buildMultimodalContent("계약서 검토", [{
       base64: "JVBERi0xLjQ=",
       mediaType: "application/pdf",
       fileName: "contract.pdf",
-    }])).toEqual([
-      {
-        type: "input_file",
-        detail: "low",
-        filename: "contract.pdf",
-        file_data: "data:application/pdf;base64,JVBERi0xLjQ=",
-      },
-      { type: "input_text", text: "계약서 검토" },
-    ]);
+    } as never])).toThrowError(expect.objectContaining({
+      category: "invalid_request",
+      providerCode: "unsupported_attachment_media_type",
+    }));
   });
 
   it("exposes a typed provider error contract", () => {

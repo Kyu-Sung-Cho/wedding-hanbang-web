@@ -12,6 +12,8 @@ import {
 import type { ComponentType } from "react";
 import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
+import { stageChatHandoff } from "@/lib/privacy/oneTimeHandoff";
+import { useAuthStore } from "@/stores/authStore";
 import type { CommunityCategory, PriceData } from "@/types/community.types";
 
 interface ServiceCTAProps {
@@ -91,13 +93,13 @@ function formatPriceLine(priceData: PriceData): string {
   return `글에 적힌 가격 정보(${priceData.vendor_category}): ${parts.join(", ")}`;
 }
 
-function buildChatHref(
+function buildChatPrompt(
   postTitle?: string,
   postId?: string,
   postContent?: string,
   priceData?: PriceData | null
 ) {
-  if (!postTitle) return weddingPath("/chat");
+  if (!postTitle) return null;
   const prompt = [
     "이 커뮤니티 글을 내 예식일, 예산, 준비 단계 기준으로 해석해줘.",
     `글 제목: ${postTitle}`,
@@ -108,16 +110,16 @@ function buildChatHref(
   ]
     .filter(Boolean)
     .join("\n");
-  return weddingPath(`/chat?prefill=${encodeURIComponent(prompt)}`);
+  return prompt;
 }
 
 export default function ServiceCTA({ category, postTitle, postId, postContent, priceData }: ServiceCTAProps) {
   const mainCta = CTA_MAP[category] ?? CTA_MAP.free;
   const MainIcon = mainCta.icon;
-  const mainHref =
-    mainCta.href === "/chat"
-      ? buildChatHref(postTitle, postId, postContent, priceData)
-      : weddingPath(mainCta.href);
+  const mainHref = weddingPath(mainCta.href);
+  const chatPrompt = mainCta.href === "/chat"
+    ? buildChatPrompt(postTitle, postId, postContent, priceData)
+    : null;
 
   let secondaryCta: CTAConfig | null = null;
   if (BUDGET_CATEGORIES.has(category)) {
@@ -150,6 +152,9 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
         label={mainCta.label}
         title={mainCta.title}
         subtext={mainCta.subtext}
+        onClick={chatPrompt
+          ? () => stageChatHandoff(chatPrompt, useAuthStore.getState().user?.id ?? null)
+          : undefined}
       />
 
       {secondaryCta ? (
@@ -174,9 +179,10 @@ function ServiceAction({
   label,
   title,
   subtext,
-}: CTAConfig) {
+  onClick,
+}: CTAConfig & { onClick?: () => void }) {
   return (
-    <Link href={href} className="group flex items-start gap-3">
+    <Link href={href} onClick={onClick} className="group flex items-start gap-3">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eee6e0] bg-white text-[#36534E] transition-colors group-hover:border-[#dfc9c1]">
         <Icon className="h-4 w-4" />
       </span>

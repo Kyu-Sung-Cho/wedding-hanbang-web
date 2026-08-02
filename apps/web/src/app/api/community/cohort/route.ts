@@ -1,26 +1,23 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { PrivateNextResponse as NextResponse } from "@/lib/http/privateResponse";
 import { cohortRoomName, monthToQuarter, quarterToMonth } from "@/utils/quarter";
+import { isRecord, isUuid, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
+
+const MAX_BODY_BYTES = 2 * 1024;
+const COHORT_ROOM_RESPONSE_COLUMNS =
+  "id, year, month, room_number, name, member_count, message_count, is_active, created_at";
 
 function getServiceClient() {
   return createAdminClient();
-}
-
-async function refreshMemberCount(
-  supabase: ReturnType<typeof getServiceClient>,
-  roomId: string
-) {
-  const { count } = await supabase
-    .from("cohort_members")
-    .select("id", { count: "exact", head: true })
-    .eq("room_id", roomId)
-    .eq("is_active", true);
-
-  await supabase
-    .from("cohort_rooms")
-    .update({ member_count: count ?? 0 })
-    .eq("id", roomId);
 }
 
 export async function GET(request: Request) {
@@ -36,55 +33,27 @@ export async function GET(request: Request) {
 
     const supabase = getServiceClient();
 
-    const { data: memberships } = await supabase
+    // Database invariant: one active cohort_members row per user.
+    const { data: membership } = await supabase
       .from("cohort_members")
-      .select("room_id, joined_at")
+      .select("room_id")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .order("joined_at", { ascending: false });
-
-    if (!memberships || memberships.length === 0) {
-      return NextResponse.json({ room: null }, { status: 200 });
-    }
-
-    const roomIds = [...new Set(memberships.map((m) => m.room_id as string))];
-    const { data: rooms } = await supabase
-      .from("cohort_rooms")
-      .select("*")
-      .in("id", roomIds)
-      .eq("is_active", true);
-
-    if (!rooms || rooms.length === 0) {
-      return NextResponse.json({ room: null }, { status: 200 });
-    }
-
-    const { data: profile } = await supabase
-      .from("community_profiles")
-      .select("wedding_year, wedding_month")
-      .eq("user_id", user.id)
       .maybeSingle();
 
-    const desiredMonth = profile?.wedding_month
-      ? quarterToMonth(monthToQuarter(profile.wedding_month as number))
-      : null;
+    if (!membership) {
+      return NextResponse.json({ room: null }, { status: 200 });
+    }
 
-    const selectedRoom =
-      profile?.wedding_year && desiredMonth
-        ? rooms.find(
-            (room) =>
-              room.year === profile.wedding_year && room.month === desiredMonth
-          ) ?? rooms[0]
-        : rooms[0];
+    const { data: selectedRoom } = await supabase
+      .from("cohort_rooms")
+      .select(COHORT_ROOM_RESPONSE_COLUMNS)
+      .eq("id", membership.room_id)
+      .eq("is_active", true)
+      .maybeSingle();
 
-    const staleRoomIds = roomIds.filter((id) => id !== selectedRoom.id);
-    if (staleRoomIds.length > 0) {
-      await supabase
-        .from("cohort_members")
-        .update({ is_active: false })
-        .eq("user_id", user.id)
-        .in("room_id", staleRoomIds);
-
-      await Promise.all(staleRoomIds.map((roomId) => refreshMemberCount(supabase, roomId)));
+    if (!selectedRoom) {
+      return NextResponse.json({ room: null }, { status: 200 });
     }
 
     const normalizedRoom = {
@@ -102,7 +71,7 @@ export async function GET(request: Request) {
       .eq("room_id", selectedRoom.id)
       .eq("is_active", true)
       .order("joined_at", { ascending: false })
-      .limit(8);
+      .limit(30);
 
     const memberUserIds = (memberRows ?? []).map((m) => m.user_id as string);
     let memberProfiles: Record<
@@ -143,7 +112,7 @@ export async function GET(request: Request) {
       lastMessage: lastMsg?.content ?? null,
     });
   } catch (err) {
-    console.error("Cohort GET error:", err);
+    console.error("Cohort GET error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -152,6 +121,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "허용되지 않은 요청 출처입니다." },
+      { status: 403 },
+    );
+  }
+
   try {
     const authClient = await createClientFromRequest(req);
     const {
@@ -162,12 +138,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = (await req.json()) as { year: number; month: number };
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:cohort:assign", req, user.id),
+      { maxRequests: 10, windowMs: 10 * 60 * 1000 },
+      { failClosed: true },
+    );
+    if (limited) return limited;
+
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     const { year, month } = body;
 
     if (
-      !year ||
-      !month ||
+      typeof year !== "number" ||
+      typeof month !== "number" ||
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
       month < 1 ||
       month > 12 ||
       year < 2020 ||
@@ -183,106 +178,41 @@ export async function POST(req: NextRequest) {
     const quarter = monthToQuarter(month);
     const normalizedMonth = quarterToMonth(quarter);
 
-    const { data: staleMemberships } = await supabase
-      .from("cohort_members")
-      .select("room_id")
-      .eq("user_id", user.id)
-      .eq("is_active", true);
+    const { data: roomId, error: assignmentError } = await supabase.rpc(
+      "community_assign_cohort",
+      {
+        p_user_id: user.id,
+        p_year: year,
+        p_month: normalizedMonth,
+      },
+    );
 
-    await supabase
-      .from("cohort_members")
-      .update({ is_active: false })
-      .eq("user_id", user.id)
-      .eq("is_active", true);
-
-    const { data: availableRoom } = await supabase
-      .from("cohort_rooms")
-      .select("*")
-      .eq("year", year)
-      .eq("month", normalizedMonth)
-      .eq("is_active", true)
-      .lt("member_count", 30)
-      .order("room_number", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    let room = availableRoom;
-
-    if (!room) {
-      const { data: existingRooms } = await supabase
-        .from("cohort_rooms")
-        .select("room_number")
-        .eq("year", year)
-        .eq("month", normalizedMonth)
-        .order("room_number", { ascending: false })
-        .limit(1);
-
-      const roomNumber = ((existingRooms?.[0]?.room_number as number | undefined) ?? 0) + 1;
-      const { data: newRoom, error: createError } = await supabase
-        .from("cohort_rooms")
-        .insert({
-          year,
-          month: normalizedMonth,
-          room_number: roomNumber,
-          name: cohortRoomName(year, normalizedMonth, roomNumber),
-          is_active: true,
-          member_count: 0,
-          message_count: 0,
-        })
-        .select("*")
-        .single();
-
-      if (createError || !newRoom) {
-        console.error("Create cohort room error:", createError);
-        return NextResponse.json(
-          { error: "동기방 생성에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-      room = newRoom;
-    } else if (room.name !== cohortRoomName(year, normalizedMonth, room.room_number as number)) {
-      await supabase
-        .from("cohort_rooms")
-        .update({ name: cohortRoomName(year, normalizedMonth, room.room_number as number) })
-        .eq("id", room.id);
+    if (assignmentError && isCommunityActorWriteDenied(assignmentError)) {
+      return NextResponse.json(
+        { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+        { status: 403 },
+      );
     }
 
-    const { error: memberError } = await supabase
-      .from("cohort_members")
-      .upsert(
-        { room_id: room.id, user_id: user.id, is_active: true },
-        { onConflict: "room_id,user_id" }
+    if (assignmentError || typeof roomId !== "string" || !isUuid(roomId)) {
+      console.error(
+        "Cohort assignment RPC error:",
+        safeErrorDiagnostic(assignmentError ?? new Error("invalid cohort room id")),
       );
-
-    if (memberError) {
-      console.error("Cohort member upsert error:", memberError);
       return NextResponse.json(
         { error: "동기방 입장에 실패했습니다." },
         { status: 500 }
       );
     }
 
-    await supabase
-      .from("community_profiles")
-      .update({ wedding_year: year, wedding_month: normalizedMonth })
-      .eq("user_id", user.id);
-
-    const affectedRoomIds = [
-      ...new Set([
-        room.id as string,
-        ...((staleMemberships ?? []).map((m) => m.room_id as string)),
-      ]),
-    ];
-    await Promise.all(affectedRoomIds.map((roomId) => refreshMemberCount(supabase, roomId)));
-
     return NextResponse.json({
-      room_id: room.id,
+      room_id: roomId,
       year,
       quarter,
       month: normalizedMonth,
     });
   } catch (err) {
-    console.error("Cohort POST error:", err);
+    console.error("Cohort POST error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

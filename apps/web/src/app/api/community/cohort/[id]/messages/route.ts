@@ -1,14 +1,30 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { NextRequest } from "next/server";
+import { PrivateNextResponse as NextResponse } from "@/lib/http/privateResponse";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import {
+  isBodyTooLarge,
+  isRecord,
+  isUuid,
+  readBoundedJsonValue,
+} from "@/utils/requestValidation";
 import type { CohortThreadTopic } from "@/types/community.types";
 import {
   normalizeCohortThreadTopic,
   resolveCohortThreadTopic,
 } from "@/lib/community/cohortTopicClassifier";
+import { validateCommunityMessageImageSources } from "@/lib/community/mediaUrls";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import {
+  COMMUNITY_WRITE_DENIED_MESSAGE,
+  isCommunityActorWriteDenied,
+} from "@/lib/community/actorWriteGate";
 
 const MAX_BODY_BYTES = 8 * 1024;
+const COHORT_MESSAGE_RESPONSE_COLUMNS =
+  "id, room_id, author_id, content, thread_topic, images, reply_to, is_deleted, created_at";
 
 async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
@@ -57,7 +73,7 @@ export async function GET(
 
     let query = supabase
       .from("cohort_messages")
-      .select("*")
+      .select(COHORT_MESSAGE_RESPONSE_COLUMNS)
       .eq("room_id", roomId)
       .eq("is_deleted", false)
       .order("created_at", { ascending: false })
@@ -70,7 +86,7 @@ export async function GET(
     const { data, error } = await query;
 
     if (error) {
-      console.error("Messages GET error:", error);
+      console.error("Messages GET error:", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "메시지를 불러오지 못했습니다." },
         { status: 500 }
@@ -85,7 +101,7 @@ export async function GET(
     > = {};
 
     if (authorIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await createAdminClient()
         .from("community_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", authorIds);
@@ -109,7 +125,7 @@ export async function GET(
 
     return NextResponse.json({ messages: messagesWithAuthor });
   } catch (err) {
-    console.error("Messages GET error:", err);
+    console.error("Messages GET error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -122,6 +138,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isTrustedMutationRequest(req)) {
+      return NextResponse.json({ error: "허용되지 않은 요청 출처입니다." }, { status: 403 });
+    }
+
     const { id: roomId } = await params;
     if (!isUuid(roomId)) {
       return NextResponse.json({ error: "잘못된 동기방 ID입니다." }, { status: 400 });
@@ -139,7 +159,7 @@ export async function POST(
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("cohort:message:create", req, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("cohort:message:create", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -153,7 +173,14 @@ export async function POST(
       );
     }
 
-    const body = await req.json();
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -168,6 +195,16 @@ export async function POST(
       );
     }
 
+    const imageValidation = validateCommunityMessageImageSources(content, {
+      ownerId: user.id,
+    });
+    if (!imageValidation.ok) {
+      return NextResponse.json(
+        { error: "본인이 업로드한 커뮤니티 이미지만 메시지에 첨부할 수 있습니다." },
+        { status: 400 },
+      );
+    }
+
     const threadTopic = resolveCohortThreadTopic(
       typeof body.thread_topic === "string"
         ? (body.thread_topic as CohortThreadTopic)
@@ -178,27 +215,49 @@ export async function POST(
       ? body.reply_to
       : null;
 
-    const { data: inserted, error } = await supabase
-      .from("cohort_messages")
-      .insert({
-        room_id: roomId,
-        author_id: user.id,
-        content,
-        thread_topic: threadTopic,
-        reply_to: replyTo,
+    if (replyTo) {
+      const { data: parentMessage, error: parentError } = await supabase
+        .from("cohort_messages")
+        .select("id")
+        .eq("id", replyTo)
+        .eq("room_id", roomId)
+        .eq("is_deleted", false)
+        .maybeSingle();
+
+      if (parentError || !parentMessage) {
+        return NextResponse.json(
+          { error: "같은 동기방의 유효한 메시지에만 답글을 남길 수 있습니다." },
+          { status: 400 },
+        );
+      }
+    }
+
+    const { data: inserted, error } = await createAdminClient()
+      .rpc("community_create_cohort_message_for_actor", {
+        p_actor_id: user.id,
+        p_room_id: roomId,
+        p_content: content,
+        p_thread_topic: threadTopic,
+        p_reply_to: replyTo,
       })
-      .select("*")
+      .select(COHORT_MESSAGE_RESPONSE_COLUMNS)
       .single();
 
     if (error) {
-      console.error("Message insert error:", error);
+      if (isCommunityActorWriteDenied(error)) {
+        return NextResponse.json(
+          { error: COMMUNITY_WRITE_DENIED_MESSAGE },
+          { status: 403 },
+        );
+      }
+      console.error("Message insert error:", safeErrorDiagnostic(error));
       return NextResponse.json(
         { error: "메시지 전송에 실패했습니다." },
         { status: 500 }
       );
     }
 
-    const { data: authorProfile } = await supabase
+    const { data: authorProfile } = await createAdminClient()
       .from("community_profiles")
       .select("user_id, nickname, avatar_url, rank")
       .eq("user_id", user.id)
@@ -219,7 +278,7 @@ export async function POST(
       { status: 201 }
     );
   } catch (err) {
-    console.error("Message POST error:", err);
+    console.error("Message POST error:", safeErrorDiagnostic(err));
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

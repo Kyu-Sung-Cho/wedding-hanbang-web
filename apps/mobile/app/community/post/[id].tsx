@@ -13,9 +13,11 @@ import { supabase } from "@/lib/supabase";
 import {
   getCachedCommunityComments,
   getCachedCommunityPost,
+  getCommunityCacheOwnerRevision,
+  isCommunityCacheOwner,
   putCachedCommunityComments,
   putCachedCommunityPost,
-  type CachedCommunityComment,
+  setCommunityCacheOwner,
   type CachedCommunityPost,
 } from "@/lib/communityPostCache";
 import {
@@ -45,35 +47,6 @@ interface Comment {
   author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
 }
 
-type CommunityPostRow = {
-  id: string;
-  author_id: string | null;
-  category: string;
-  title: string;
-  content: string;
-  ad_disclosure: string | null;
-  visibility: string | null;
-  under_review: boolean | null;
-  upvote_count: number | null;
-  downvote_count: number | null;
-  comment_count: number | null;
-  view_count: number | null;
-  created_at: string;
-};
-
-type CommunityCommentRow = {
-  id: string;
-  author_id: string | null;
-  content: string;
-  created_at: string;
-};
-
-type CommunityAuthorRow = {
-  user_id: string;
-  nickname: string | null;
-  rank: string | null;
-};
-
 type SocialState = {
   userVote: number;
   bookmarked: boolean;
@@ -92,9 +65,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   free: "자유",
 };
 
-const MOBILE_POST_DETAIL_SELECT =
-  "id, author_id, category, title, content, ad_disclosure, visibility, under_review, upvote_count, downvote_count, comment_count, view_count, created_at" as const;
-
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -103,28 +73,6 @@ function timeAgo(dateStr: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}시간 전`;
   return `${Math.floor(hours / 24)}일 전`;
-}
-
-function readablePostOrFilter(viewerId: string): string {
-  return [
-    "and(visibility.eq.public,under_review.eq.false)",
-    "and(visibility.eq.members,under_review.eq.false)",
-    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
-    `and(under_review.eq.true,author_id.eq.${viewerId})`,
-  ].join(",");
-}
-
-function canReadPost(row: CommunityPostRow, userId: string | null) {
-  const isAuthor = Boolean(userId && row.author_id === userId);
-  if (row.under_review === true) return isAuthor;
-  if (row.visibility === "public") return true;
-  if (row.visibility === "members") return Boolean(userId);
-  if (row.visibility === "draft") return isAuthor;
-  return false;
-}
-
-function fallbackAuthor(): PostDetail["author"] {
-  return { nickname: "익명", rank: "sprout", role: null };
 }
 
 function fromCachedPost(post: CachedCommunityPost): PostDetail {
@@ -150,26 +98,6 @@ function toCachedPost(post: PostDetail): CachedCommunityPost {
   };
 }
 
-async function fetchAuthorMap(authorIds: string[]) {
-  if (authorIds.length === 0) return {};
-
-  const { data } = await supabase
-    .from("community_profiles")
-    .select("user_id, nickname, rank")
-    .in("user_id", authorIds);
-
-  return Object.fromEntries(
-    ((data ?? []) as CommunityAuthorRow[]).map((author) => [
-      author.user_id,
-      {
-        nickname: author.nickname ?? "익명",
-        rank: author.rank ?? "sprout",
-        role: null,
-      },
-    ])
-  ) as Record<string, PostDetail["author"]>;
-}
-
 async function fetchPostFromApi(postId: string): Promise<PostDetail> {
   const data = await apiJson<PostDetail & { user_vote?: number | null; user_bookmarked?: boolean }>(
     `/api/community/posts/${postId}`
@@ -180,46 +108,6 @@ async function fetchPostFromApi(postId: string): Promise<PostDetail> {
   };
 }
 
-async function fetchPostFromSupabase(postId: string): Promise<PostDetail> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user?.id ?? null;
-
-  let query = supabase
-    .from("community_posts")
-    .select(MOBILE_POST_DETAIL_SELECT)
-    .eq("id", postId);
-
-  query = userId
-    ? query.or(readablePostOrFilter(userId))
-    : query.eq("visibility", "public").eq("under_review", false);
-
-  const { data, error } = await query.maybeSingle();
-  if (error || !data) {
-    throw error ?? new Error("post not found");
-  }
-
-  const row = data as CommunityPostRow;
-  if (!canReadPost(row, userId)) {
-    throw new Error("post not readable");
-  }
-
-  const authorMap = await fetchAuthorMap(row.author_id ? [row.author_id] : []);
-
-  return {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    category: row.category,
-    ad_disclosure: row.ad_disclosure ?? "general",
-    upvote_count: row.upvote_count ?? 0,
-    downvote_count: row.downvote_count ?? 0,
-    comment_count: row.comment_count ?? 0,
-    view_count: row.view_count ?? 0,
-    created_at: row.created_at,
-    author: row.author_id ? (authorMap[row.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
-  };
-}
-
 async function fetchCommentsFromApi(postId: string): Promise<Comment[]> {
   const commentsData = await apiJson<{ comments: Comment[] }>(
     `/api/community/comments?postId=${postId}`
@@ -227,47 +115,19 @@ async function fetchCommentsFromApi(postId: string): Promise<Comment[]> {
   return commentsData.comments ?? [];
 }
 
-async function fetchCommentsFromSupabase(postId: string): Promise<Comment[]> {
-  const { data, error } = await supabase
-    .from("community_comments")
-    .select("id, author_id, content, created_at")
-    .eq("post_id", postId)
-    .eq("is_deleted", false)
-    .is("parent_id", null)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-
-  const rows = (data ?? []) as CommunityCommentRow[];
-  const authorIds = [
-    ...new Set(rows.map((comment) => comment.author_id).filter((id): id is string => Boolean(id))),
-  ];
-  const authorMap = await fetchAuthorMap(authorIds);
-
-  return rows.map((comment) => ({
-    id: comment.id,
-    content: comment.content,
-    created_at: comment.created_at,
-    author: comment.author_id ? (authorMap[comment.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
-  }));
-}
-
-async function fetchSocialState(postId: string): Promise<SocialState> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { userVote: 0, bookmarked: false };
-
+async function fetchSocialState(postId: string, userId: string): Promise<SocialState> {
   const [voteResult, bookmarkResult] = await Promise.all([
     supabase
       .from("community_votes")
       .select("vote_type")
       .eq("post_id", postId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle(),
     supabase
       .from("community_bookmarks")
       .select("id")
       .eq("post_id", postId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle(),
   ]);
 
@@ -281,18 +141,11 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const postId = typeof id === "string" ? id : "";
-  const initialPostRef = useRef<CachedCommunityPost | null>(
-    postId ? getCachedCommunityPost(postId) : null
-  );
-  const initialCommentsRef = useRef<CachedCommunityComment[] | null>(
-    postId ? getCachedCommunityComments(postId) : null
-  );
-
-  const [post, setPost] = useState<PostDetail | null>(() =>
-    initialPostRef.current ? fromCachedPost(initialPostRef.current) : null
-  );
-  const [comments, setComments] = useState<Comment[]>(() => initialCommentsRef.current ?? []);
-  const [loading, setLoading] = useState(() => !initialPostRef.current);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [post, setPost] = useState<PostDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -310,6 +163,52 @@ export default function PostDetailScreen() {
   const upScale = useRef(new Animated.Value(1)).current;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const actionNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    let authEventVersion = 0;
+    let renderedOwnerId: string | null = null;
+
+    function applyOwner(nextOwnerId: string | null) {
+      setCommunityCacheOwner(nextOwnerId);
+      if (!mounted) return;
+
+      if (renderedOwnerId !== nextOwnerId) {
+        setPost(null);
+        setComments([]);
+        setCommentText("");
+        setUserVote(0);
+        setBookmarked(false);
+        setActionNotice(null);
+        setLoading(Boolean(nextOwnerId));
+        setCommentsLoading(false);
+        renderedOwnerId = nextOwnerId;
+      }
+      setViewerId(nextOwnerId);
+      setAuthResolved(true);
+    }
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      authEventVersion += 1;
+      applyOwner(session?.user.id ?? null);
+    });
+
+    const versionBeforeSessionRead = authEventVersion;
+    const ownerRevisionBeforeSessionRead = getCommunityCacheOwnerRevision();
+    void supabase.auth.getSession().then(({ data: sessionData }) => {
+      if (
+        !mounted
+        || authEventVersion !== versionBeforeSessionRead
+        || getCommunityCacheOwnerRevision() !== ownerRevisionBeforeSessionRead
+      ) return;
+      applyOwner(sessionData.session?.user.id ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => () => {
     if (actionNoticeTimerRef.current) {
@@ -329,76 +228,76 @@ export default function PostDetailScreen() {
   }
 
   const loadComments = useCallback(async (options?: { silent?: boolean }) => {
-    if (!postId) return;
+    if (!postId || !viewerId || !isCommunityCacheOwner(viewerId)) return;
     if (!options?.silent) setCommentsLoading(true);
 
     try {
-      let nextComments: Comment[];
-      try {
-        nextComments = await fetchCommentsFromSupabase(postId);
-      } catch {
-        nextComments = await fetchCommentsFromApi(postId);
-      }
+      const nextComments = await fetchCommentsFromApi(postId);
 
+      if (!isCommunityCacheOwner(viewerId)) return;
       setComments(nextComments);
-      putCachedCommunityComments(postId, nextComments);
+      putCachedCommunityComments(viewerId, postId, nextComments);
     } catch {
       // 댓글 로드 실패는 본문 표시를 막지 않는다.
     } finally {
-      setCommentsLoading(false);
+      if (isCommunityCacheOwner(viewerId)) setCommentsLoading(false);
     }
-  }, [postId]);
+  }, [postId, viewerId]);
 
   const refreshAuxiliaryState = useCallback((options?: { silentComments?: boolean }) => {
-    if (!postId) return;
+    if (!postId || !viewerId || !isCommunityCacheOwner(viewerId)) return;
 
     loadComments({ silent: options?.silentComments });
-    fetchSocialState(postId)
+    fetchSocialState(postId, viewerId)
       .then((state) => {
+        if (!isCommunityCacheOwner(viewerId)) return;
         setUserVote(state.userVote);
         setBookmarked(state.bookmarked);
       })
       .catch(() => {});
     apiFetch(`/api/community/posts/${postId}/view`, { method: "POST" }).catch(() => {});
-  }, [loadComments, postId]);
+  }, [loadComments, postId, viewerId]);
 
   const loadPost = useCallback(async () => {
-    if (!postId) {
+    if (!authResolved) return;
+    if (!postId || !viewerId || !isCommunityCacheOwner(viewerId)) {
       setLoading(false);
       return;
     }
 
-    const cachedPost = getCachedCommunityPost(postId);
+    const cachedPost = getCachedCommunityPost(viewerId, postId);
+    const cachedComments = getCachedCommunityComments(viewerId, postId);
     const hadCachedPost = Boolean(cachedPost);
+    if (cachedComments) {
+      setComments(cachedComments);
+      setCommentsLoading(false);
+    }
     if (cachedPost) {
       setPost(fromCachedPost(cachedPost));
       setLoading(false);
-      refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
+      refreshAuxiliaryState({ silentComments: Boolean(cachedComments) });
     } else {
       setLoading(true);
     }
 
     try {
-      let nextPost: PostDetail;
-      try {
-        nextPost = await fetchPostFromSupabase(postId);
-      } catch {
-        nextPost = await fetchPostFromApi(postId);
-      }
+      const nextPost = await fetchPostFromApi(postId);
 
+      if (!isCommunityCacheOwner(viewerId)) return;
       setPost(nextPost);
-      putCachedCommunityPost(toCachedPost(nextPost));
+      putCachedCommunityPost(viewerId, toCachedPost(nextPost));
       setLoading(false);
 
       if (!hadCachedPost) {
-        refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
+        refreshAuxiliaryState({ silentComments: Boolean(cachedComments) });
       }
     } catch {
+      if (!isCommunityCacheOwner(viewerId)) return;
       if (!cachedPost) setPost(null);
     } finally {
-      setLoading(false);
+      if (isCommunityCacheOwner(viewerId)) setLoading(false);
     }
-  }, [postId, refreshAuxiliaryState]);
+  }, [authResolved, postId, refreshAuxiliaryState, viewerId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -440,11 +339,24 @@ export default function PostDetailScreen() {
     });
 
     try {
-      await supabase.rpc("community_vote_post", {
-        p_user_id: user.id,
-        p_post_id: postId,
-        p_vote_type: newVote,
+      const result = await apiJson<unknown>(`/api/community/posts/${postId}/vote`, {
+        method: "POST",
+        body: JSON.stringify({ voteType: newVote }),
       });
+      if (
+        typeof result !== "object"
+        || result === null
+        || !("upvote_count" in result)
+        || typeof result.upvote_count !== "number"
+        || !Number.isInteger(result.upvote_count)
+        || result.upvote_count < 0
+      ) {
+        throw new Error("COMMUNITY_VOTE_RESPONSE_INVALID");
+      }
+      const canonicalUpvoteCount = result.upvote_count;
+      setPost((current) => current
+        ? { ...current, upvote_count: canonicalUpvoteCount, downvote_count: 0 }
+        : current);
     } catch {
       setUserVote(prevVote);
       setPost(prevPost);
@@ -471,17 +383,21 @@ export default function PostDetailScreen() {
     setBookmarked(!wasBookmarked);
 
     try {
-      if (wasBookmarked) {
-        await supabase
-          .from("community_bookmarks")
-          .delete()
-          .eq("post_id", postId)
-          .eq("user_id", user.id);
-      } else {
-        await supabase
-          .from("community_bookmarks")
-          .upsert({ post_id: postId, user_id: user.id });
+      const result = await apiJson<unknown>(`/api/community/posts/${postId}/bookmark`, { method: "POST" });
+      if (
+        typeof result !== "object"
+        || result === null
+        || !("bookmarked" in result)
+        || typeof result.bookmarked !== "boolean"
+        || !("bookmark_count" in result)
+        || typeof result.bookmark_count !== "number"
+        || !Number.isInteger(result.bookmark_count)
+        || result.bookmark_count < 0
+      ) {
+        throw new Error("invalid bookmark response");
       }
+
+      setBookmarked(result.bookmarked);
     } catch {
       setBookmarked(wasBookmarked);
       showActionNotice("북마크를 저장하지 못했어요. 연결을 확인하고 다시 시도해주세요.");

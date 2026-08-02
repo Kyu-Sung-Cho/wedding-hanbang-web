@@ -13,6 +13,20 @@ vi.mock("@/lib/analytics/track", () => ({
   track: vi.fn(),
 }));
 
+const actorMock = vi.hoisted(() => ({
+  current: {
+    status: "ready" as "verifying" | "ready" | "error",
+    actorKey: "user:test-a" as string | null,
+    kind: "user" as "user" | "guest" | "demo" | "native" | null,
+    userId: "test-a" as string | null,
+    generation: 1,
+  },
+}));
+
+vi.mock("@/components/common/UserScopedClientStateBoundary", () => ({
+  useUserScopedClientActor: () => actorMock.current,
+}));
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -40,6 +54,13 @@ describe("VendorDetailActions", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    actorMock.current = {
+      status: "ready",
+      actorKey: "user:test-a",
+      kind: "user",
+      userId: "test-a",
+      generation: 1,
+    };
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -181,10 +202,22 @@ describe("VendorDetailActions", () => {
       await flushAsyncWork();
     });
 
-    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: "POST" });
-    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "DELETE" });
-    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ method: "POST" });
-    expect(fetchMock.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({ "x-hanbang-expected-actor": "test-a" }),
+    });
+    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({
+      method: "DELETE",
+      headers: expect.objectContaining({ "x-hanbang-expected-actor": "test-a" }),
+    });
+    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({ "x-hanbang-expected-actor": "test-a" }),
+    });
+    expect(fetchMock.mock.calls[5]?.[1]).toMatchObject({
+      method: "DELETE",
+      headers: expect.objectContaining({ "x-hanbang-expected-actor": "test-a" }),
+    });
     expect(favoriteButton?.getAttribute("aria-pressed")).toBe("false");
     expect(alertButton?.getAttribute("aria-pressed")).toBe("false");
   });
@@ -270,6 +303,49 @@ describe("VendorDetailActions", () => {
 
     await act(async () => {
       oldMutation.resolve(jsonResponse({ isFavorite: true }));
+      await flushAsyncWork();
+    });
+
+    expect(favoriteButton?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("aborts and drops account A's saved-state response after account B becomes active", async () => {
+    const accountABody = deferred<{ vendorIds: string[] }>();
+    let accountASignal: AbortSignal | undefined;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce((_input: string | URL | Request, init?: RequestInit) => {
+        accountASignal = init?.signal as AbortSignal | undefined;
+        return Promise.resolve({ ok: true, status: 200, json: () => accountABody.promise });
+      })
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(<VendorDetailActions vendorId="vendor-1" redirectPath="/price/studio/sample" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    actorMock.current = {
+      status: "ready",
+      actorKey: "user:test-b",
+      kind: "user",
+      userId: "test-b",
+      generation: 2,
+    };
+    await act(async () => {
+      root.render(<VendorDetailActions vendorId="vendor-1" redirectPath="/price/studio/sample" />);
+      await flushAsyncWork();
+    });
+
+    const favoriteButton = container.querySelector<HTMLButtonElement>('button[aria-pressed]');
+    expect((accountASignal as AbortSignal | undefined)?.aborted).toBe(true);
+    expect(favoriteButton?.getAttribute("aria-pressed")).toBe("false");
+
+    await act(async () => {
+      accountABody.resolve({ vendorIds: ["vendor-1"] });
       await flushAsyncWork();
     });
 

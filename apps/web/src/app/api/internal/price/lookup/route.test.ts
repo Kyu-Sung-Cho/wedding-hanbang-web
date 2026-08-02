@@ -17,7 +17,7 @@ vi.mock("@/lib/admin/priceUploadLookup", () => ({
 
 import { GET } from "./route";
 
-const secret = "s".repeat(32);
+const secret = "S9kM3qV7rT2xN8cP4sL6wY1dF5gB0uA_zE-HoJi";
 
 function request(query = "샘플스튜디오", token = secret) {
   const url = new URL("https://example.test/api/internal/price/lookup");
@@ -58,17 +58,12 @@ describe("GET /api/internal/price/lookup", () => {
   });
 
   it("returns typo-tolerant published matches with no-store caching", async () => {
-    const insert = vi.fn().mockResolvedValue({ error: null });
-    const from = vi.fn((table: string) => {
-      if (table !== "events") throw new Error(`unexpected table: ${table}`);
-      return { insert };
-    });
+    const from = vi.fn();
     const client = { from };
-    const vendorId = "00000000-0000-4000-8000-000000000001";
     const lookupResult = {
       matches: [{
         vendor: {
-          id: vendorId,
+          id: "00000000-0000-4000-8000-000000000001",
           slug: "sample-studio-a",
           name: "샘플스튜디오가",
           category: "studio",
@@ -97,82 +92,24 @@ describe("GET /api/internal/price/lookup", () => {
       query: "샘플스튜됴",
       category: "studio",
     });
-    expect(from).toHaveBeenCalledTimes(1);
-    expect(from).toHaveBeenCalledWith("events");
-    expect(insert).toHaveBeenCalledTimes(1);
-    expect(insert).toHaveBeenCalledWith({
-      anon_id: "amora",
-      vendor_id: vendorId,
-      surface: "amora",
-      event_type: "vendor_detail_view",
-      weight: 2,
-      context: {
-        category: "studio",
-        surface: "amora",
-        zero_result: false,
-      },
-    });
+    expect(from).not.toHaveBeenCalled();
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("logs exactly one zero-result event for a successful empty lookup", async () => {
-    const insert = vi.fn().mockResolvedValue({ error: null });
-    mocks.createAdminClient.mockReturnValue({
-      from: vi.fn(() => ({ insert })),
-    });
+  it("keeps repeated GET requests free of auxiliary database writes", async () => {
+    const from = vi.fn();
+    mocks.createAdminClient.mockReturnValue({ from });
     mocks.lookup.mockResolvedValue({
       matches: [],
       disclaimer: "공시 기준 가격이며 실제 계약 조건에 따라 달라질 수 있습니다.",
     });
 
-    const response = await GET(request("없는업체"));
+    const first = await GET(request("없는업체"));
+    const replay = await GET(request("없는업체"));
 
-    expect(response.status).toBe(200);
-    expect(insert).toHaveBeenCalledTimes(1);
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
-      anon_id: "amora",
-      vendor_id: null,
-      surface: "amora",
-      event_type: "vendor_detail_view",
-      weight: 2,
-      context: expect.objectContaining({ zero_result: true }),
-    }));
-  });
-
-  it("returns verified prices when optional event persistence fails", async () => {
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const insert = vi.fn().mockResolvedValue({ error: { code: "42501" } });
-    mocks.createAdminClient.mockReturnValue({
-      from: vi.fn(() => ({ insert })),
-    });
-    mocks.lookup.mockResolvedValue({
-      matches: [{
-        vendor: {
-          id: "00000000-0000-4000-8000-000000000001",
-          slug: "sample-studio-a",
-          name: "샘플스튜디오가",
-          category: "studio",
-          region_code: "seoul_gangnam3",
-        },
-        period_label: "2026Q3",
-        prices: [],
-        detail_url: "/price/vendor/sample-studio-a",
-      }],
-      disclaimer: "공시 기준 가격이며 실제 계약 조건에 따라 달라질 수 있습니다.",
-    });
-
-    const response = await GET(request());
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      matches: [expect.objectContaining({
-        vendor: expect.objectContaining({ slug: "sample-studio-a" }),
-      })],
-    });
-    expect(insert).toHaveBeenCalledTimes(1);
-    expect(warning).toHaveBeenCalledWith(
-      "[internal price lookup] analytics event unavailable",
-    );
-    warning.mockRestore();
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(mocks.lookup).toHaveBeenCalledTimes(2);
+    expect(from).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ import { GET, PATCH } from "../route";
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn(() => "amora:memory:user"),
 }));
 
@@ -348,7 +348,7 @@ describe("/api/amora/memory GET profile projection", () => {
     expect(body.memories).toEqual([]);
     expect(warning).toHaveBeenCalledWith(
       "[amora-memory-api] profile projection source query failed",
-      "PGRST200",
+      { name: "UnknownError", code: "PGRST200", status: null },
     );
     warning.mockRestore();
   });
@@ -364,7 +364,7 @@ describe("/api/amora/memory GET profile projection", () => {
     expect(body.profiles).toEqual([]);
     expect(warning).toHaveBeenCalledWith(
       "[amora-memory-api] profile projection failed closed",
-      "too_many_nodes",
+      { code: "too_many_nodes" },
     );
     warning.mockRestore();
   });

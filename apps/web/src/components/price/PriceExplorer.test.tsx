@@ -13,6 +13,20 @@ import { PriceExplorer } from "./PriceExplorer";
 
 vi.mock("@/lib/analytics/track", () => ({ track: vi.fn() }));
 
+const actorMock = vi.hoisted(() => ({
+  current: {
+    status: "ready" as "verifying" | "ready" | "error",
+    actorKey: "user:test-a" as string | null,
+    kind: "user" as "user" | "guest" | "demo" | "native" | null,
+    userId: "test-a" as string | null,
+    generation: 1,
+  },
+}));
+
+vi.mock("@/components/common/UserScopedClientStateBoundary", () => ({
+  useUserScopedClientActor: () => actorMock.current,
+}));
+
 function offer(id: string, agencyId: string, agencyName: string, price: number) {
   return {
     id,
@@ -78,6 +92,14 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 async function flushAsyncWork() {
   await new Promise((resolve) => window.setTimeout(resolve, 0));
   await Promise.resolve();
@@ -88,6 +110,13 @@ describe("PriceExplorer", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    actorMock.current = {
+      status: "ready",
+      actorKey: "user:test-a",
+      kind: "user",
+      userId: "test-a",
+      generation: 1,
+    };
     window.sessionStorage.clear();
     window.localStorage.clear();
     container = document.createElement("div");
@@ -118,6 +147,49 @@ describe("PriceExplorer", () => {
     expect(container.textContent).toContain("찜한 업체");
     expect(container.querySelector('a[href="/wedding/vendors?category=dress"]')).not.toBeNull();
     expect(container.querySelector("main main")).toBeNull();
+  });
+
+  it("aborts and drops account A's late wishlist response after account B becomes active", async () => {
+    const accountABody = deferred<{ vendorIds: string[] }>();
+    let accountASignal: AbortSignal | undefined;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ combos: [] }))
+      .mockImplementationOnce((_input: string | URL | Request, init?: RequestInit) => {
+        accountASignal = init?.signal as AbortSignal | undefined;
+        return Promise.resolve({ ok: true, status: 200, json: () => accountABody.promise });
+      })
+      .mockResolvedValueOnce(jsonResponse({ combos: [] }))
+      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    actorMock.current = {
+      status: "ready",
+      actorKey: "user:test-b",
+      kind: "user",
+      userId: "test-b",
+      generation: 2,
+    };
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    expect((accountASignal as AbortSignal | undefined)?.aborted).toBe(true);
+    expect(container.querySelector(`button[aria-label="${firstVendor.name} 찜하기"]`)).not.toBeNull();
+
+    await act(async () => {
+      accountABody.resolve({ vendorIds: [firstVendor.id] });
+      await flushAsyncWork();
+    });
+
+    expect(container.querySelector(`button[aria-label="${firstVendor.name} 찜하기"]`)).not.toBeNull();
+    expect(container.querySelector(`button[aria-label="${firstVendor.name} 찜 해제"]`)).toBeNull();
   });
 
   it("marks admin preview content and preserves preview on category and detail links", async () => {
@@ -429,6 +501,9 @@ describe("PriceExplorer", () => {
       (init as RequestInit | undefined)?.method === "POST"
     ));
     expect(favoriteMutations).toHaveLength(2);
+    expect(favoriteMutations[0]?.[1]).toMatchObject({
+      headers: expect.objectContaining({ "x-hanbang-expected-actor": "test-a" }),
+    });
     expect(container.querySelector(
       `button[aria-label="${secondVendor.name} 찜 해제"]`,
     )).not.toBeNull();

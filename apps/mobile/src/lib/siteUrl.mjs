@@ -79,3 +79,13 @@ export function normalizeMobileSiteUrl(value, siteOrigin) {
     return null;
   }
 }
+
+export function buildShareableMobileSiteUrl(value, siteOrigin) {
+  const normalized = normalizeMobileSiteUrl(value, siteOrigin);
+  if (!normalized) return null;
+
+  const parsed = new URL(normalized);
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
+}

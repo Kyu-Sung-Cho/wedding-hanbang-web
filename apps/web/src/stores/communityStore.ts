@@ -11,6 +11,8 @@ import type {
   CreatePostInput,
   CreateCommentInput,
 } from "@/types/community.types";
+import { clearCommunityPostDrafts } from "@/lib/community/draftStorage";
+import { expectedCommunityActorHeaders } from "@/lib/community/actorFence";
 
 interface CommunityState {
   // 피드
@@ -43,8 +45,8 @@ interface CommunityState {
   fetchMorePosts: () => Promise<void>;
   fetchPostDetail: (id: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<void>;
-  createPost: (input: CreatePostInput) => Promise<string | null>;
-  updatePost: (id: string, input: Partial<CreatePostInput>) => Promise<boolean>;
+  createPost: (input: CreatePostInput, expectedActorId?: string) => Promise<string | null>;
+  updatePost: (id: string, input: Partial<CreatePostInput>, expectedActorId?: string) => Promise<boolean>;
   deletePost: (id: string) => Promise<boolean>;
   votePost: (postId: string, voteType: 1 | 0) => Promise<void>;
   voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
@@ -65,75 +67,46 @@ interface CommunityState {
 }
 
 const LIMIT = 20;
+let communityLifecycleEpoch = 0;
+const communityRequestControllers = new Set<AbortController>();
 
-// SWR 캐시 — sessionStorage 기반.
-// fresh window 안엔 네트워크 skip, 그 후엔 stale-while-revalidate.
-const CACHE_FRESH_MS = 30_000; // 30s 안엔 즉시 표시 + 네트워크 skip
-const CACHE_MAX_AGE_MS = 5 * 60_000; // 5분 후엔 캐시 버림
-
-interface CachedFeed {
-  posts: PostWithAuthor[];
-  total: number;
-  hasMore: boolean;
-  ts: number;
+function isCurrentCommunityLifecycle(epoch: number): boolean {
+  return epoch === communityLifecycleEpoch;
 }
 
-function feedCacheKey(
-  category: CommunityCategory | null,
-  sort: PostSort,
-  period: TimePeriod,
-  tag: string | null,
-  authorId: string | null,
-): string {
-  return `community:feed:${category ?? "all"}:${sort}:${sort === "top" ? period : "_"}:${tag ?? "_"}:${authorId ?? "_"}`;
-}
-
-function readFeedCache(key: string): CachedFeed | null {
-  if (typeof window === "undefined") return null;
+async function communityFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  communityRequestControllers.add(controller);
   try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CachedFeed;
-    if (!parsed.ts || Date.now() - parsed.ts > CACHE_MAX_AGE_MS) {
-      sessionStorage.removeItem(key);
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    communityRequestControllers.delete(controller);
   }
 }
 
-function writeFeedCache(key: string, value: CachedFeed): void {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* quota — ignore */
-  }
+function abortCommunityRequests(): void {
+  for (const controller of communityRequestControllers) controller.abort();
+  communityRequestControllers.clear();
 }
 
-// 글 작성/삭제 시 모든 피드 캐시 무력화 — 뒤로 가면 신선한 목록 보이게.
-// vote/bookmark는 in-memory state만 갱신해도 30s 안엔 stale 캐시 보일 수 있지만,
-// 백그라운드 refetch가 바로 정정하므로 무시.
-function shouldSkipFreshFeedNetwork(sort: PostSort): boolean {
-  // Latest feed should always revalidate so newly published posts appear promptly.
-  return sort !== "new";
-}
-
-function invalidateFeedCache(): void {
+// 커뮤니티 응답에는 회원 전용 제목과 개인화 상태가 섞일 수 있으므로 계정 전환 시
+// 피드뿐 아니라 랜딩·트렌딩의 짧은 세션 캐시도 모두 제거한다.
+function invalidateCommunityCache(): void {
   if (typeof window === "undefined") return;
   try {
     const keys: string[] = [];
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i);
-      if (k && k.startsWith("community:feed:")) keys.push(k);
+      if (k && k.startsWith("community:")) keys.push(k);
     }
     keys.forEach((k) => sessionStorage.removeItem(k));
   } catch {
     /* ignore */
   }
 }
+
+// 이전 버전이 남긴 계정 미귀속 캐시도 새 번들이 로드되는 즉시 제거한다.
+invalidateCommunityCache();
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
   posts: [],
@@ -173,29 +146,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPosts: async (reset = true) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId } = get();
-    const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId);
-
-    // SWR — reset일 때만 캐시 먹임 (페이지네이션엔 의미 없음)
-    let usingFreshCache = false;
     if (reset) {
-      const cached = readFeedCache(cacheKey);
-      if (cached) {
-        // 캐시 즉시 표시 — 화면 깜빡임 제거
-        set({
-          posts: cached.posts,
-          total: cached.total,
-          hasMore: cached.hasMore,
-          currentPage: 1,
-          isLoading: false,
-          errorMessage: null,
-        });
-        usingFreshCache = shouldSkipFreshFeedNetwork(currentSort) && Date.now() - cached.ts < CACHE_FRESH_MS;
-        if (usingFreshCache) return; // fresh window — 네트워크 skip
-        // stale → 백그라운드 refetch (loading은 안 켬)
-      } else {
-        set({ isLoading: get().posts.length === 0, currentPage: 1, errorMessage: null });
-      }
+      set({ isLoading: get().posts.length === 0, currentPage: 1, errorMessage: null });
     }
 
     const params = new URLSearchParams();
@@ -208,20 +162,22 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     params.set("limit", String(LIMIT));
 
     try {
-      const res = await fetch(`/api/community/posts?${params}`);
+      const res = await communityFetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       const posts = data.posts ?? [];
       const total = data.total ?? 0;
       const hasMore = data.hasMore ?? false;
       set({ posts, total, hasMore, currentPage: 1, isLoading: false, errorMessage: null, lastSyncedAt: new Date().toISOString() });
-      writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set({ isLoading: false, errorMessage: "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." });
     }
   },
 
   fetchMorePosts: async () => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
     set({ isLoading: true, errorMessage: null });
@@ -237,9 +193,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     params.set("limit", String(LIMIT));
 
     try {
-      const res = await fetch(`/api/community/posts?${params}`);
+      const res = await communityFetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set((s) => ({
         posts: [...s.posts, ...data.posts],
         hasMore: data.hasMore,
@@ -249,11 +206,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         lastSyncedAt: new Date().toISOString(),
       }));
     } catch {
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set({ isLoading: false, errorMessage: "다음 글을 불러오지 못했습니다." });
     }
   },
 
   fetchPostDetail: async (id) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     set((state) => ({
       postLoading: true,
       currentPost: null,
@@ -262,16 +221,19 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         : {}),
     }));
     try {
-      const res = await fetch(`/api/community/posts/${id}`);
+      const res = await communityFetch(`/api/community/posts/${id}`);
       if (!res.ok) throw new Error();
       const post = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set({ currentPost: post, postLoading: false });
     } catch {
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set({ postLoading: false, errorMessage: "게시글 상세를 불러오지 못했습니다." });
     }
   },
 
   fetchComments: async (postId) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     set((state) => ({
       commentsLoading: true,
       errorMessage: null,
@@ -280,25 +242,31 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         : {}),
     }));
     try {
-      const res = await fetch(`/api/community/comments?postId=${postId}`);
+      const res = await communityFetch(`/api/community/comments?postId=${postId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set((state) =>
         state.commentsPostId === postId
           ? { comments: data.comments ?? data, commentsLoading: false }
           : state
       );
     } catch {
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       if (get().commentsPostId !== postId) return;
       set({ commentsLoading: false, errorMessage: "댓글을 불러오지 못했습니다." });
     }
   },
 
-  createPost: async (input) => {
+  createPost: async (input, expectedActorId) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch("/api/community/posts", {
+      const res = await communityFetch("/api/community/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(expectedActorId ? expectedCommunityActorHeaders(expectedActorId) : {}),
+        },
         body: JSON.stringify(input),
       });
       if (!res.ok) {
@@ -312,6 +280,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         } catch {
           /* JSON 파싱 실패는 무시 — 기본 메시지로 fallback */
         }
+        if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return null;
         set({ errorMessage: serverMsg ?? "게시글 작성에 실패했습니다." });
         return null;
       }
@@ -319,6 +288,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         post?: PostWithAuthor & { id: string };
         id?: string;
       };
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return null;
       const newPost = data.post;
       const id = newPost?.id ?? data.id ?? null;
 
@@ -338,23 +308,29 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         const dedup = posts.some((p) => p.id === id);
         if (!dedup) set({ posts: [enriched, ...posts] });
       }
-      invalidateFeedCache();
+      invalidateCommunityCache();
       set({ errorMessage: null, lastSyncedAt: new Date().toISOString() });
       return id;
     } catch {
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return null;
       set({ errorMessage: "게시글 작성 중 오류가 발생했습니다." });
       return null;
     }
   },
 
-  updatePost: async (id, input) => {
+  updatePost: async (id, input, expectedActorId) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch(`/api/community/posts/${id}`, {
+      const res = await communityFetch(`/api/community/posts/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(expectedActorId ? expectedCommunityActorHeaders(expectedActorId) : {}),
+        },
         body: JSON.stringify(input),
       });
-      if (res.ok) invalidateFeedCache();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return false;
+      if (res.ok) invalidateCommunityCache();
       return res.ok;
     } catch {
       return false;
@@ -362,11 +338,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   deletePost: async (id) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch(`/api/community/posts/${id}`, { method: "DELETE" });
+      const res = await communityFetch(`/api/community/posts/${id}`, { method: "DELETE" });
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return false;
       if (res.ok) {
         set((s) => ({ posts: s.posts.filter((p) => p.id !== id) }));
-        invalidateFeedCache();
+        invalidateCommunityCache();
       }
       return res.ok;
     } catch {
@@ -375,8 +353,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   votePost: async (postId, voteType) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch(`/api/community/posts/${postId}/vote`, {
+      const res = await communityFetch(`/api/community/posts/${postId}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ voteType }),
@@ -386,6 +365,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         throw new Error(errorData?.error ?? "좋아요 처리에 실패했습니다.");
       }
       const data = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       const upvoteCount = Math.max(0, data.upvote_count ?? 0);
       const downvoteCount = Math.max(0, data.downvote_count ?? 0);
       const userVote: 1 | null = voteType === 1 ? 1 : null;
@@ -402,19 +382,22 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           : s.currentPost,
       }));
     } catch (error) {
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       throw error;
     }
   },
 
   voteComment: async (commentId, voteType) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch(`/api/community/comments/${commentId}/vote`, {
+      const res = await communityFetch(`/api/community/comments/${commentId}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ voteType }),
       });
       if (!res.ok) return;
       const data = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
 
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
         if (c.id === commentId) return { ...c, upvote_count: data.upvote_count, user_vote: voteType === 0 ? null : voteType };
@@ -426,10 +409,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   toggleBookmark: async (postId) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch(`/api/community/posts/${postId}/bookmark`, { method: "POST" });
+      const res = await communityFetch(`/api/community/posts/${postId}/bookmark`, { method: "POST" });
       if (!res.ok) return;
       const data = await res.json();
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
       set((s) => ({
         posts: s.posts.map((p) =>
           p.id === postId
@@ -452,15 +437,18 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   createComment: async (input) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch("/api/community/comments", {
+      const res = await communityFetch("/api/community/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
       if (!res.ok) return false;
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return false;
       // 댓글 다시 불러오기
       await get().fetchComments(input.post_id);
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return false;
       // 글 댓글 수 업데이트
       set((s) => ({
         currentPost: s.currentPost?.id === input.post_id
@@ -474,11 +462,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   updateComment: async (commentId, content) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     const trimmed = content.trim();
     if (!trimmed) return false;
 
     try {
-      const res = await fetch(`/api/community/comments/${commentId}`, {
+      const res = await communityFetch(`/api/community/comments/${commentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: trimmed }),
@@ -488,6 +477,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const data = (await res.json().catch(() => null)) as {
         comment?: Partial<CommentWithAuthor>;
       } | null;
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return false;
       const nextContent = data?.comment?.content ?? trimmed;
       const nextUpdatedAt = data?.comment?.updated_at ?? new Date().toISOString();
 
@@ -507,9 +497,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   deleteComment: async (commentId) => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch(`/api/community/comments/${commentId}`, { method: "DELETE" });
+      const res = await communityFetch(`/api/community/comments/${commentId}`, { method: "DELETE" });
       if (!res.ok) return false;
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return false;
       // 소프트 삭제 반영
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
         if (c.id === commentId) return { ...c, is_deleted: true, content: "삭제된 댓글입니다." };
@@ -525,16 +517,18 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   incrementView: async (postId) => {
     try {
-      await fetch(`/api/community/posts/${postId}/view`, { method: "POST" });
+      await communityFetch(`/api/community/posts/${postId}/view`, { method: "POST" });
     } catch { /* ignore */ }
   },
 
   fetchProfile: async () => {
+    const lifecycleEpoch = communityLifecycleEpoch;
     try {
-      const res = await fetch("/api/community/profile");
+      const res = await communityFetch("/api/community/profile", { method: "POST" });
       if (!res.ok) return;
-      const data = await res.json();
-      set({ communityProfile: data });
+      const data = (await res.json()) as { profile?: CommunityProfile | null };
+      if (!isCurrentCommunityLifecycle(lifecycleEpoch)) return;
+      set({ communityProfile: data.profile ?? null });
     } catch { /* ignore */ }
   },
 
@@ -554,7 +548,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         : nextComment;
     };
 
-    invalidateFeedCache();
+    invalidateCommunityCache();
     set((state) => ({
       communityProfile:
         state.communityProfile?.user_id === userId
@@ -593,6 +587,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   clearError: () => set({ errorMessage: null }),
 
   reset: () => {
+    communityLifecycleEpoch += 1;
+    abortCommunityRequests();
+    invalidateCommunityCache();
     set({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
@@ -600,5 +597,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       currentPost: null, comments: [], commentsPostId: null, postLoading: false, commentsLoading: false,
       communityProfile: null,
     });
+    if (typeof window !== "undefined") {
+      try {
+        clearCommunityPostDrafts(window.localStorage);
+      } catch {
+        // The in-memory boundary is already closed when storage is unavailable.
+      }
+    }
   },
 }));

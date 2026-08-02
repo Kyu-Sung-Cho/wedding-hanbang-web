@@ -1,6 +1,10 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { z } from "zod";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { readBoundedJsonValue } from "@/utils/requestValidation";
+import { checkAdminMutationRateLimit } from "@/lib/admin/adminReadBoundary";
+
+const MAX_BODY_BYTES = 2 * 1024;
 
 const vendorDecisionSchema = z.strictObject({
   decision: z.enum(["same", "different"]),
@@ -50,6 +54,12 @@ export async function PATCH(
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminMutationRateLimit(
+    request,
+    userId,
+    "price-dedupe-decision",
+  );
+  if (limited) return limited;
 
   const kind = new URL(request.url).searchParams.get("kind");
   if (kind !== "vendor" && kind !== "agency") {
@@ -64,12 +74,14 @@ export async function PATCH(
     return NextResponse.json({ error: "중복 후보를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
+  const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
+    if (bodyResult.reason === "too_large") {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
     return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
+  const rawBody = bodyResult.value;
 
   let decision: "same" | "different";
   let preservedId: string | null;

@@ -46,6 +46,7 @@ const LEGACY_ERROR_CODES: Record<string, string> = {
 };
 
 const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
+  RATE_LIMITED: { status: 429, message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." },
   AUTH_REQUIRED: { status: 401, message: "로그인이 필요합니다." },
   UNAUTHENTICATED: { status: 401, message: "로그인이 필요합니다." },
   INVALID_ROLE: { status: 400, message: "역할 정보가 올바르지 않습니다." },

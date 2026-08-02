@@ -16,6 +16,7 @@ import {
 import { WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
 import { isRecord, isUuid } from "@/utils/requestValidation";
 import { sanitizeText } from "@/utils/sanitize";
+import { sanitizeUtmFields } from "@/utils/campaignAttribution";
 
 const OPTION_VALUES = new Set(["A", "B", "C", "D"]);
 const STAGE_SET = new Set<string>(WC_STAGES.map((s) => s.value));
@@ -23,6 +24,7 @@ const MODE_SET = new Set<string>(WC_ANSWERING_MODES.map((s) => s.value));
 const QUOTE_SET = new Set<string>(WC_QUOTE_STATUSES.map((s) => s.value));
 const PARENT_SET = new Set<string>(WC_PARENT_INVOLVEMENTS.map((s) => s.value));
 const CONCERN_SET = new Set<string>(WC_CONCERNS);
+const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export interface WcSubmission {
   participant_stage: string;
@@ -69,7 +71,7 @@ export function validateWcSubmission(
   const rawAnswers = isRecord(body.answers) ? body.answers : {};
   const rawFlags = isRecord(body.stage_flags) ? body.stage_flags : {};
   const answers: Record<string, string> = {};
-  const stageFlags: Record<string, string> = {};
+  const stageFlags = Object.create(null) as Record<string, string>;
 
   for (const q of WEDDING_CODE_V05_QUESTIONS) {
     const v = rawAnswers[q.key];
@@ -85,7 +87,9 @@ export function validateWcSubmission(
     if (typeof key !== "string" || typeof value !== "string") continue;
     const cleanedKey = sanitizeText(key).slice(0, 40).trim();
     const cleanedValue = sanitizeText(value).slice(0, 40).trim();
-    if (cleanedKey && cleanedValue) stageFlags[cleanedKey] = cleanedValue;
+    if (cleanedKey && cleanedValue && !UNSAFE_OBJECT_KEYS.has(cleanedKey)) {
+      stageFlags[cleanedKey] = cleanedValue;
+    }
   }
 
   const feedback = readScales(body.feedback, WC_FEEDBACK_ITEMS.map((f) => f.key));
@@ -109,8 +113,12 @@ export function validateWcSubmission(
       ? Math.round(durationRaw)
       : null;
 
-  const cleanUtm = (v: unknown, max: number) =>
-    typeof v === "string" ? sanitizeText(v).slice(0, max).trim() || null : null;
+  const utm = sanitizeUtmFields({
+    source: body.utm_source,
+    medium: body.utm_medium,
+    campaign: body.utm_campaign,
+    content: body.utm_content,
+  });
 
   return {
     ok: true,
@@ -127,12 +135,7 @@ export function validateWcSubmission(
       cta_interest: cta,
       free_text: freeText,
       duration_ms: duration,
-      utm: {
-        source: cleanUtm(body.utm_source, 80),
-        medium: cleanUtm(body.utm_medium, 80),
-        campaign: cleanUtm(body.utm_campaign, 120),
-        content: cleanUtm(body.utm_content, 120),
-      },
+      utm,
       // 잘못된 토큰으로 테스트 자체를 막지 않는다 — 페어링만 조용히 포기
       couple_token: isUuid(body.couple_token) ? (body.couple_token as string) : null,
     },

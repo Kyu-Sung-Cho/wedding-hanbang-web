@@ -42,8 +42,13 @@ import {
   resolveCoupleConnectionState,
   type CoupleConnectionState,
 } from "@hanbang/shared";
+import {
+  isStrongUserPassword,
+  USER_PASSWORD_MIN_LENGTH,
+} from "@hanbang/shared/security/password-policy";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import {
   canChangeCareConsent,
   hasActiveCareConsent,
@@ -58,14 +63,31 @@ import {
   type WeddingSettingsData,
   type WeddingSettingsSnapshot,
 } from "@/lib/weddingSettings";
-import { clearCommunityCaches } from "@/lib/communityPostCache";
+import {
+  clearCommunityCaches,
+} from "@/lib/communityPostCache";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  signOut as signOutSession,
+  signOutAfterAccountDeletionRequest,
+} from "@/lib/auth";
+import {
+  getMobilePushPreferences,
+  registerForPushNotifications,
+  updateMobilePushPreferences,
+} from "@/lib/notifications";
+import {
+  changePasswordAndRevokeSessions,
+  isValidPasswordReauthenticationCode,
+  requestPasswordChangeReauthentication,
+} from "@/lib/passwordChange.mjs";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 
-// AsyncStorage 키
-const NOTIF_PUSH_KEY = "@hanbang/notif_push";
-const NOTIF_COMMUNITY_KEY = "@hanbang/notif_community";
-const NOTIF_PARTNER_KEY = "@hanbang/notif_partner";
+const LEGACY_NOTIFICATION_KEYS = [
+  "@hanbang/notif_push",
+  "@hanbang/notif_community",
+  "@hanbang/notif_partner",
+] as const;
 
 type SettingsData = WeddingSettingsData;
 
@@ -108,9 +130,10 @@ export default function SettingsScreen() {
   const settingsLoadGate = useRef(createLatestSettingsLoadGate()).current;
 
   // 알림 설정 상태
-  const [pushEnabled, setPushEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [communityNotifEnabled, setCommunityNotifEnabled] = useState(true);
   const [partnerNotifEnabled, setPartnerNotifEnabled] = useState(true);
+  const [notificationSaving, setNotificationSaving] = useState(false);
   const [careNotificationsEnabled, setCareNotificationsEnabled] = useState(false);
   const [careSaving, setCareSaving] = useState(false);
   const [careDeliveryEmail, setCareDeliveryEmail] = useState<string | null>(null);
@@ -118,10 +141,15 @@ export default function SettingsScreen() {
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordReauthenticationCode, setPasswordReauthenticationCode] = useState("");
+  const [passwordReauthenticationRequested, setPasswordReauthenticationRequested] = useState(false);
+  const [passwordReauthenticationSending, setPasswordReauthenticationSending] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
 
   // 파트너 관리
@@ -132,40 +160,85 @@ export default function SettingsScreen() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [resettingCouple, setResettingCouple] = useState(false);
 
-  // 알림 설정 로드
+  // 알림 설정은 계정 귀속 서버 상태만 사용한다. 폐기된 전역 기기 설정은 제거한다.
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
-        const [push, community, partner] = await Promise.all([
-          AsyncStorage.getItem(NOTIF_PUSH_KEY),
-          AsyncStorage.getItem(NOTIF_COMMUNITY_KEY),
-          AsyncStorage.getItem(NOTIF_PARTNER_KEY),
-        ]);
-        // 기본값: 켜짐 (null이면 true)
-        if (push !== null) setPushEnabled(push === "true");
-        if (community !== null) setCommunityNotifEnabled(community === "true");
-        if (partner !== null) setPartnerNotifEnabled(partner === "true");
-      } catch (err) {
-        console.error("알림 설정 로드 오류:", err);
+        await AsyncStorage.multiRemove([...LEGACY_NOTIFICATION_KEYS]);
+        const preferences = await getMobilePushPreferences();
+        if (!active || !preferences) return;
+        setPushEnabled(preferences.pushEnabled);
+        setCommunityNotifEnabled(preferences.communityEnabled);
+        setPartnerNotifEnabled(preferences.partnerEnabled);
+      } catch {
+        if (active) setPushEnabled(false);
       }
     })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // 알림 토글 핸들러
   const togglePush = useCallback(async (value: boolean) => {
+    if (notificationSaving) return;
+    const previous = pushEnabled;
     setPushEnabled(value);
-    await AsyncStorage.setItem(NOTIF_PUSH_KEY, String(value));
-  }, []);
+    setNotificationSaving(true);
+    try {
+      const preferences = await updateMobilePushPreferences({ pushEnabled: value });
+      setPushEnabled(preferences.pushEnabled);
+      if (value) {
+        const token = await registerForPushNotifications();
+        if (!token) {
+          const disabled = await updateMobilePushPreferences({ pushEnabled: false });
+          setPushEnabled(disabled.pushEnabled);
+          Alert.alert("푸시 알림을 켜지 못했어요", "기기 알림 권한을 허용한 뒤 다시 시도해 주세요.");
+        }
+      }
+    } catch {
+      setPushEnabled(previous);
+      if (value) {
+        await updateMobilePushPreferences({ pushEnabled: false }).catch(() => undefined);
+      }
+      Alert.alert("알림 설정 오류", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  }, [notificationSaving, pushEnabled]);
 
   const toggleCommunity = useCallback(async (value: boolean) => {
+    if (notificationSaving) return;
+    const previous = communityNotifEnabled;
     setCommunityNotifEnabled(value);
-    await AsyncStorage.setItem(NOTIF_COMMUNITY_KEY, String(value));
-  }, []);
+    setNotificationSaving(true);
+    try {
+      const preferences = await updateMobilePushPreferences({ communityEnabled: value });
+      setCommunityNotifEnabled(preferences.communityEnabled);
+    } catch {
+      setCommunityNotifEnabled(previous);
+      Alert.alert("알림 설정 오류", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  }, [communityNotifEnabled, notificationSaving]);
 
   const togglePartner = useCallback(async (value: boolean) => {
+    if (notificationSaving) return;
+    const previous = partnerNotifEnabled;
     setPartnerNotifEnabled(value);
-    await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
-  }, []);
+    setNotificationSaving(true);
+    try {
+      const preferences = await updateMobilePushPreferences({ partnerEnabled: value });
+      setPartnerNotifEnabled(preferences.partnerEnabled);
+    } catch {
+      setPartnerNotifEnabled(previous);
+      Alert.alert("알림 설정 오류", "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  }, [notificationSaving, partnerNotifEnabled]);
 
   const toggleCare = useCallback(async (value: boolean) => {
     if (careSaving) return;
@@ -275,7 +348,7 @@ export default function SettingsScreen() {
               nextCoupleConnection = resolveCoupleConnectionState(null, { partnerPresent });
             }
           } catch (err) {
-            console.error("파트너 정보 로드 오류:", err);
+            console.error("파트너 정보 로드 오류:", safeErrorDiagnostic(err));
             nextCoupleConnection = resolveCoupleConnectionState(null, { partnerPresent });
           }
         }
@@ -293,7 +366,7 @@ export default function SettingsScreen() {
           setSettingsSnapshot(parsedSettings.snapshot);
         }
       } catch (err) {
-        console.error("설정 로드 오류:", err);
+        console.error("설정 로드 오류:", safeErrorDiagnostic(err));
         if (loadToken.isCurrent()) {
           setLoadError(
             err instanceof Error && err.message.startsWith("로그인이 만료")
@@ -380,36 +453,102 @@ export default function SettingsScreen() {
     }
   }
 
-  // 비밀번호 변경
+  function resetPasswordChangeForm() {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordReauthenticationCode("");
+    setPasswordReauthenticationRequested(false);
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  }
+
+  function closePasswordChangeModal() {
+    if (passwordSaving || passwordReauthenticationSending) return;
+    resetPasswordChangeForm();
+    setPasswordModalVisible(false);
+  }
+
+  async function handleRequestPasswordReauthentication() {
+    if (passwordReauthenticationSending || passwordSaving) return;
+    setPasswordReauthenticationSending(true);
+    try {
+      await requestPasswordChangeReauthentication(supabase.auth);
+      setPasswordReauthenticationCode("");
+      setPasswordReauthenticationRequested(true);
+      Alert.alert(
+        "인증 코드를 보냈어요",
+        "계정 이메일로 받은 숫자 코드를 입력해 주세요.",
+      );
+    } catch {
+      setPasswordReauthenticationRequested(false);
+      Alert.alert(
+        "본인 확인을 시작하지 못했어요",
+        "잠시 후 다시 시도하거나 비밀번호 찾기를 이용해 주세요.",
+      );
+    } finally {
+      setPasswordReauthenticationSending(false);
+    }
+  }
+
+  // 비밀번호 변경은 Supabase의 recent-auth nonce를 검증하고 모든 세션을 철회한다.
   async function handleChangePassword() {
+    if (!currentPassword) {
+      Alert.alert("오류", "현재 비밀번호를 입력해주세요.");
+      return;
+    }
     if (!newPassword.trim()) {
       Alert.alert("오류", "새 비밀번호를 입력해주세요.");
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert("오류", "비밀번호는 6자 이상이어야 해요.");
+    if (!isStrongUserPassword(newPassword)) {
+      Alert.alert("오류", "비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 해요.");
       return;
     }
     if (newPassword !== confirmPassword) {
       Alert.alert("오류", "비밀번호가 일치하지 않아요.");
       return;
     }
+    if (
+      !passwordReauthenticationRequested
+      || !isValidPasswordReauthenticationCode(passwordReauthenticationCode)
+    ) {
+      Alert.alert("본인 확인이 필요해요", "이메일로 받은 인증 코드를 입력해 주세요.");
+      return;
+    }
 
     setPasswordSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
+      await changePasswordAndRevokeSessions({
+        auth: supabase.auth,
+        currentPassword: currentPassword,
+        newPassword,
+        reauthenticationCode: passwordReauthenticationCode,
+        signOutAllSessions: signOutSession,
       });
-      if (error) throw error;
-
-      Alert.alert("완료", "비밀번호가 변경되었어요.");
+      resetPasswordChangeForm();
       setPasswordModalVisible(false);
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "비밀번호 변경 중 오류가 발생했어요";
-      Alert.alert("오류", message);
+      router.replace("/(auth)/login");
+      Alert.alert("변경 완료", "모든 기기에서 로그아웃했어요. 새 비밀번호로 다시 로그인해 주세요.");
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "PASSWORD_CHANGED_SIGN_OUT_FAILED") {
+        Alert.alert(
+          "비밀번호는 변경됐지만 로그아웃 확인이 필요해요",
+          "네트워크 연결 후 로그아웃을 다시 시도하고 새 비밀번호로 로그인해 주세요.",
+        );
+      } else if (code === "PASSWORD_CHANGE_REJECTED") {
+        setCurrentPassword("");
+        setPasswordReauthenticationCode("");
+        setPasswordReauthenticationRequested(false);
+        Alert.alert(
+          "본인 확인에 실패했어요",
+          "현재 비밀번호를 다시 입력하고 새 인증 코드를 받은 뒤 시도해 주세요.",
+        );
+      } else {
+        Alert.alert("오류", "비밀번호 변경 중 오류가 발생했어요.");
+      }
     } finally {
       setPasswordSaving(false);
     }
@@ -479,8 +618,15 @@ export default function SettingsScreen() {
         text: "로그아웃",
         style: "destructive",
         onPress: async () => {
-          await supabase.auth.signOut();
-          router.replace("/(auth)/login");
+          try {
+            await signOutSession();
+            router.replace("/(auth)/login");
+          } catch {
+            Alert.alert(
+              "안전한 로그아웃을 완료하지 못했어요",
+              "이 계정의 알림 연결을 먼저 해제해야 해요. 네트워크 연결 후 다시 시도해주세요.",
+            );
+          }
         },
       },
     ]);
@@ -508,6 +654,10 @@ export default function SettingsScreen() {
                   style: "destructive",
                   onPress: async () => {
                     try {
+                      // Disable consent as well as detaching the token. This
+                      // prevents an auth refresh from re-attaching the same
+                      // installation while deletion is being accepted.
+                      await updateMobilePushPreferences({ pushEnabled: false });
                       const res = await apiFetch("/api/auth/delete", {
                         method: "DELETE",
                         body: JSON.stringify({ reason: "mobile_request" }),
@@ -524,8 +674,15 @@ export default function SettingsScreen() {
                       }
 
                       const finishSignOut = async () => {
-                        await supabase.auth.signOut();
-                        router.replace("/(auth)/login");
+                        try {
+                          await signOutAfterAccountDeletionRequest();
+                          router.replace("/(auth)/login");
+                        } catch {
+                          Alert.alert(
+                            "로컬 로그아웃을 완료하지 못했어요",
+                            "삭제 요청은 접수됐어요. 앱을 다시 열어 로그인 상태를 확인해주세요.",
+                          );
+                        }
                       };
                       if (body.pending) {
                         Alert.alert(
@@ -537,10 +694,13 @@ export default function SettingsScreen() {
                         return;
                       }
                       await finishSignOut();
-                    } catch (err) {
-                      const message =
-                        err instanceof Error ? err.message : "탈퇴 처리 중 오류가 발생했어요";
-                      Alert.alert("오류", message);
+                    } catch (error) {
+                      Alert.alert(
+                        "탈퇴 요청을 접수하지 못했어요",
+                        error instanceof Error
+                          ? error.message
+                          : "잠시 후 다시 시도하거나 support@hanbang.ai로 요청해 주세요.",
+                      );
                     }
                   },
                 },
@@ -805,7 +965,8 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={pushEnabled}
-              onValueChange={togglePush}
+              onValueChange={(value) => void togglePush(value)}
+              disabled={notificationSaving}
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={pushEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -820,7 +981,8 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={communityNotifEnabled}
-              onValueChange={toggleCommunity}
+              onValueChange={(value) => void toggleCommunity(value)}
+              disabled={notificationSaving || !pushEnabled}
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={communityNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -835,7 +997,8 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={partnerNotifEnabled}
-              onValueChange={togglePartner}
+              onValueChange={(value) => void togglePartner(value)}
+              disabled={notificationSaving || !pushEnabled}
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -948,10 +1111,7 @@ export default function SettingsScreen() {
             icon={<Lock size={18} color={colors.noir[800]} />}
             title="비밀번호 변경"
             onPress={() => {
-              setNewPassword("");
-              setConfirmPassword("");
-              setShowNewPassword(false);
-              setShowConfirmPassword(false);
+              resetPasswordChangeForm();
               setPasswordModalVisible(true);
             }}
           />
@@ -1017,11 +1177,11 @@ export default function SettingsScreen() {
         visible={passwordModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setPasswordModalVisible(false)}
+        onRequestClose={closePasswordChangeModal}
       >
         <Pressable
           style={styles.modalOverlay}
-          onPress={() => setPasswordModalVisible(false)}
+          onPress={closePasswordChangeModal}
         >
           <Pressable
             style={styles.modalContent}
@@ -1031,11 +1191,81 @@ export default function SettingsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>비밀번호 변경</Text>
               <Pressable
-                onPress={() => setPasswordModalVisible(false)}
+                onPress={closePasswordChangeModal}
                 hitSlop={12}
+                disabled={passwordSaving || passwordReauthenticationSending}
               >
                 <X size={22} color={colors.noir[800]} />
               </Pressable>
+            </View>
+
+            <View style={styles.modalField}>
+              <Text style={styles.label}>본인 확인</Text>
+              <Text style={styles.reauthenticationHint}>
+                계정 이메일로 받은 인증 코드를 확인한 뒤 비밀번호를 변경해 주세요.
+              </Text>
+              <PrimaryButton
+                tone="ghost"
+                onPress={() => void handleRequestPasswordReauthentication()}
+                disabled={passwordReauthenticationSending || passwordSaving}
+                icon={
+                  passwordReauthenticationSending
+                    ? <ActivityIndicator size="small" color={colors.rose[500]} />
+                    : undefined
+                }
+              >
+                {passwordReauthenticationSending
+                  ? "인증 코드 보내는 중"
+                  : passwordReauthenticationRequested
+                    ? "인증 코드 다시 받기"
+                    : "인증 코드 받기"}
+              </PrimaryButton>
+              {passwordReauthenticationRequested ? (
+                <View style={styles.passwordInputWrapper}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={passwordReauthenticationCode}
+                    onChangeText={(value) => {
+                      setPasswordReauthenticationCode(value.replace(/\D/g, "").slice(0, 10));
+                    }}
+                    placeholder="숫자 인증 코드"
+                    placeholderTextColor={colors.taupe[400]}
+                    keyboardType="number-pad"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    maxLength={10}
+                  />
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.modalField}>
+              <Text style={styles.label}>현재 비밀번호</Text>
+              <View style={styles.passwordInputWrapper}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  placeholder="현재 비밀번호 입력"
+                  placeholderTextColor={colors.taupe[400]}
+                  secureTextEntry={!showCurrentPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
+                  autoComplete="current-password"
+                  maxLength={128}
+                />
+                <Pressable
+                  onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                  hitSlop={8}
+                  style={styles.eyeBtn}
+                >
+                  {showCurrentPassword ? (
+                    <EyeOff size={18} color={colors.taupe[400]} />
+                  ) : (
+                    <Eye size={18} color={colors.taupe[400]} />
+                  )}
+                </Pressable>
+              </View>
             </View>
 
             {/* 새 비밀번호 */}
@@ -1046,10 +1276,12 @@ export default function SettingsScreen() {
                   style={styles.passwordInput}
                   value={newPassword}
                   onChangeText={setNewPassword}
-                  placeholder="6자 이상 입력"
+                  placeholder="8자 이상·대소문자·숫자·특수문자"
                   placeholderTextColor={colors.taupe[400]}
                   secureTextEntry={!showNewPassword}
                   autoCapitalize="none"
+                  textContentType="newPassword"
+                  autoComplete="new-password"
                   maxLength={64}
                 />
                 <Pressable
@@ -1078,6 +1310,8 @@ export default function SettingsScreen() {
                   placeholderTextColor={colors.taupe[400]}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
+                  textContentType="newPassword"
+                  autoComplete="new-password"
                   maxLength={64}
                 />
                 <Pressable
@@ -1104,8 +1338,13 @@ export default function SettingsScreen() {
               onPress={handleChangePassword}
               disabled={
                 passwordSaving ||
+                passwordReauthenticationSending ||
+                !passwordReauthenticationRequested ||
+                !isValidPasswordReauthenticationCode(passwordReauthenticationCode) ||
+                !currentPassword ||
                 !newPassword.trim() ||
-                newPassword.length < 6 ||
+                newPassword.length < USER_PASSWORD_MIN_LENGTH ||
+                !isStrongUserPassword(newPassword) ||
                 newPassword !== confirmPassword
               }
               icon={passwordSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
@@ -1371,6 +1610,12 @@ const styles = StyleSheet.create({
   modalField: {
     marginBottom: 18,
     gap: 6,
+  },
+  reauthenticationHint: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 2,
   },
   passwordInputWrapper: {
     flexDirection: "row",

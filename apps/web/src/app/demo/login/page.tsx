@@ -6,6 +6,11 @@ import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
+import {
+  captureAndClearSensitiveAuthUrl,
+  consumePendingLoginError,
+} from "@/lib/auth/sensitiveAuthUrl";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -48,22 +53,11 @@ export default function DemoLoginPage() {
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
-  // 콜백에서 전달된 에러 표시 (query params + hash fragment)
+  // 공급자 오류 원문은 URL에서 먼저 제거하고 고정된 안내만 표시한다.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const callbackError = params.get("error");
-
-    const hash = window.location.hash.substring(1);
-    const hashParams = new URLSearchParams(hash);
-    const hashError = hashParams.get("error");
-    const hashDescription = hashParams.get("error_description");
-
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+    captureAndClearSensitiveAuthUrl();
+    if (consumePendingLoginError()) {
+      setError("로그인에 실패했습니다. 다시 시도해 주세요.");
     }
   }, []);
 
@@ -81,15 +75,14 @@ export default function DemoLoginPage() {
         },
       });
       if (oauthError) {
-        console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        console.error("OAuth error:", safeErrorDiagnostic(oauthError));
+        setError("소셜 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
         setLoading(null);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("OAuth catch error:", msg);
+      console.error("OAuth catch error:", safeErrorDiagnostic(err));
       setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
+      setError("소셜 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -142,7 +135,7 @@ export default function DemoLoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            setError("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
           }
         } else {
           // 온보딩 완료 여부 확인
@@ -155,7 +148,6 @@ export default function DemoLoginPage() {
               .single();
 
             if (profile?.onboarding_completed) {
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
               window.location.href = "/wedding/lounge";
             } else {
               window.location.href = "/wedding/onboarding";
@@ -166,9 +158,8 @@ export default function DemoLoginPage() {
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      console.error("Auth error:", safeErrorDiagnostic(err));
+      setError("인증 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(null);
     }

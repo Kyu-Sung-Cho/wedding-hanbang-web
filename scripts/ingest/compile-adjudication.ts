@@ -371,7 +371,11 @@ async function main(): Promise<void> {
       planPath,
       outputPath,
     });
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      status: "canonical_docx_locator_additions_built",
+      decisions: result.decisions,
+      output_written: true,
+    }, null, 2)}\n`);
     return;
   }
   const [stateDir, basePath, additionsPath, outputPath] = args;
@@ -379,12 +383,16 @@ async function main(): Promise<void> {
     throw new Error("usage: compile-adjudication <state-dir> <base.json> <additions.json> <output.json>");
   }
   const result = await compileAdjudication({ stateDir, basePath, additionsPath, outputPath });
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({
+    status: "adjudication_compiled",
+    decisions: result.decisions,
+    output_written: true,
+  }, null, 2)}\n`);
 }
 
 if (process.argv[1] && /^compile-adjudication\.(?:[cm]?js|ts)$/u.test(path.basename(process.argv[1]))) {
-  void main().catch((error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  void main().catch(() => {
+    process.stderr.write("ADJUDICATION_COMPILE_BLOCKED [COMPILE_FAILED]\n");
     process.exitCode = 1;
   });
 }

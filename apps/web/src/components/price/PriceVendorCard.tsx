@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronDown, Heart, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { useUserScopedClientActor } from "@/components/common/UserScopedClientStateBoundary";
 import { track } from "@/lib/analytics/track";
 import { krwRangeLabel } from "@/lib/format/krw";
 import {
@@ -16,6 +17,7 @@ import {
   type PriceVendor,
 } from "@/lib/price/catalog";
 import { priceRegionLabel } from "@/lib/price/labels";
+import { hasPriceImpression, markPriceImpression } from "@/lib/price/impressionStorage";
 import { VendorAvatar } from "./VendorAvatar";
 import { loadVendorOptions } from "./vendorOptionsClient";
 
@@ -48,6 +50,8 @@ export function PriceVendorCard({
   onToggleWishlist,
   onOpenCombo,
 }: PriceVendorCardProps) {
+  const actor = useUserScopedClientActor();
+  const actorKey = actor.status === "ready" ? actor.actorKey : null;
   const cardRef = useRef<HTMLElement>(null);
   const optionCount = vendor.offers.reduce((count, offer) => count + offerOptionCount(offer), 0);
   // 슬림 카탈로그(옵션 본문 미탑재)의 지연 로드 상태 — 펼칠 때 1회 조회, 모듈 캐시 공유.
@@ -118,21 +122,16 @@ export function PriceVendorCard({
     : `/price/vendor/${vendor.slug}`;
 
   useEffect(() => {
-    if (preview) return;
+    if (preview || !actorKey) return;
     const element = cardRef.current;
     if (!element || typeof IntersectionObserver === "undefined") return;
-    const storageKey = `hb-price-impression:${vendor.id}`;
-    try {
-      if (sessionStorage.getItem(storageKey)) return;
-    } catch {
-      // The event remains best effort when storage is unavailable.
-    }
+    if (hasPriceImpression(actorKey, vendor.id)) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry?.isIntersecting && entry.intersectionRatio >= 0.5) {
         if (timer === null) {
           timer = setTimeout(() => {
-            try { sessionStorage.setItem(storageKey, "1"); } catch { /* no-op */ }
+            markPriceImpression(actorKey, vendor.id);
             track("vendor_impression", {
               vendor_id: vendor.id,
               surface: "price_list",
@@ -154,7 +153,7 @@ export function PriceVendorCard({
       if (timer !== null) clearTimeout(timer);
       observer.disconnect();
     };
-  }, [preview, vendor.category, vendor.id, vendor.regionCode]);
+  }, [actorKey, preview, vendor.category, vendor.id, vendor.regionCode]);
 
   return (
     <article

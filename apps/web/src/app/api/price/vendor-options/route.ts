@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { optionFromRow, type PublicOptionRow } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkPublicVendorCatalogRateLimit } from "@/lib/vendors/publicCatalogRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,16 +14,16 @@ const MAX_IDS = 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(rateLimitKey("vendor-options", request), {
-    maxRequests: 240,
-    windowMs: 60_000,
-  });
-  if (limited) return limited;
-
   const raw = new URL(request.url).searchParams.get("ids") ?? "";
   const ids = [...new Set(raw.split(",").map((id) => id.trim()).filter(Boolean))];
   if (ids.length === 0 || ids.length > MAX_IDS || ids.some((id) => !UUID_RE.test(id))) {
     return NextResponse.json({ error: "ids 형식이 올바르지 않습니다." }, { status: 400 });
+  }
+
+  const limited = await checkPublicVendorCatalogRateLimit(request);
+  if (limited) {
+    limited.headers.set("Cache-Control", "private, no-store, max-age=0");
+    return limited;
   }
 
   try {
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("id", { ascending: true })
       .range(0, 999);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error("PUBLIC_VENDOR_OPTIONS_QUERY_FAILED");
 
     const options = ((data ?? []) as PublicOptionRow[]).flatMap((row) => {
       const option = optionFromRow(row);

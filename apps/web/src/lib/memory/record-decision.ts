@@ -10,6 +10,7 @@
 // =============================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import type {
   DecisionType,
   DecisionSource,
@@ -112,7 +113,7 @@ export async function recordDecision(
       .single();
 
     if (nodeErr || !node) {
-      console.error("[record-decision] 노드 INSERT 실패 (무시됨):", nodeErr?.message);
+      console.error("[record-decision] node insert failed", safeErrorDiagnostic(nodeErr));
       return { nodeId: null };
     }
 
@@ -134,13 +135,13 @@ export async function recordDecision(
 
       if (edgeErr) {
         // 엣지 실패해도 노드는 이미 만들어짐 — 로그만 남김
-        console.error("[record-decision] 엣지 INSERT 실패 (무시됨):", edgeErr.message);
+        console.error("[record-decision] edge insert failed", safeErrorDiagnostic(edgeErr));
       }
     }
 
     return { nodeId };
   } catch (err) {
-    console.error("[record-decision] 예외 (무시됨):", err);
+    console.error("[record-decision] ignored failure", safeErrorDiagnostic(err));
     return { nodeId: null };
   }
 }

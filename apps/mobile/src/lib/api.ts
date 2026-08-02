@@ -2,12 +2,17 @@
 import { Alert } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "./supabase";
+import { signOut as signOutSession } from "./auth";
 import {
   createMobileWebApiSessionRefreshGate,
   fetchMobileWebApiWithSession,
 } from "./mobileWebApiBridge.mjs";
+import { resolveMobileSiteOrigin } from "./siteUrl.mjs";
 
-const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const API_BASE = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
 type WebBridgeSessionIdentity = { userId: string; accessToken: string };
 const webBridgeSessionRefreshGate = createMobileWebApiSessionRefreshGate();
 
@@ -104,8 +109,16 @@ async function authenticatedApiFetch(
       {
         text: "확인",
         onPress: () => {
-          supabase.auth.signOut();
-          router.replace("/(auth)/login");
+          void signOutSession()
+            .then(() => {
+              router.replace("/(auth)/login");
+            })
+            .catch(() => {
+              Alert.alert(
+                "안전한 로그아웃을 완료하지 못했어요",
+                "알림 연결을 해제하려면 네트워크 연결 후 다시 시도해주세요.",
+              );
+            });
         },
       },
     ]);

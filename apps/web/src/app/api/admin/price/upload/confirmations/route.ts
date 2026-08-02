@@ -1,6 +1,7 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { listPendingPriceUploadConfirmations } from "@/lib/admin/priceUploadConfirmations";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkAdminReadRateLimit } from "@/lib/admin/adminReadBoundary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,12 @@ export async function GET(request: Request) {
   if (!admin.authorized || !admin.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminReadRateLimit(
+    request,
+    admin.userId,
+    "price-upload-confirmations",
+  );
+  if (limited) return limited;
   try {
     const confirmations = await listPendingPriceUploadConfirmations(getServiceClient());
     return NextResponse.json({ confirmations });

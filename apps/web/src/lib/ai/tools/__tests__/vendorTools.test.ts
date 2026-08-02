@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   executeCheckVendorAvailability,
   executeGetVendorDetail,
+  executeRecommendVendors,
   executeSearchVendors,
 } from "../vendorTools";
 
@@ -30,15 +31,20 @@ type TableHandler = {
   insertResult?: QueryResult;
   onInsert?: (payload: unknown) => void;
   limits?: number[];
+  eqs?: Array<[string, unknown]>;
 };
 
 class FakeQuery {
   constructor(private readonly handler: TableHandler) {}
 
   select() { return this; }
-  eq() { return this; }
+  eq(field: string, value: unknown) {
+    this.handler.eqs?.push([field, value]);
+    return this;
+  }
   in() { return this; }
   neq() { return this; }
+  not() { return this; }
   limit(value: number) {
     this.handler.limits?.push(value);
     return this;
@@ -204,6 +210,8 @@ describe("vendorTools", () => {
 
   it("keeps search_vendors output shape and search log insert", async () => {
     const insertedLogs: unknown[] = [];
+    const profileFilters: Array<[string, unknown]> = [];
+    const actorId = "22222222-2222-4222-8222-222222222222";
     mockAdminClient({
       vendors: [{
         awaitResult: {
@@ -222,7 +230,10 @@ describe("vendorTools", () => {
           error: null,
         },
       }],
-      profiles: [{ singleResult: { data: { id: "profile-1" }, error: null } }],
+      profiles: [{
+        singleResult: { data: { id: actorId }, error: null },
+        eqs: profileFilters,
+      }],
       search_logs: [{ onInsert: (payload) => insertedLogs.push(payload) }],
     });
 
@@ -232,6 +243,7 @@ describe("vendorTools", () => {
         // 실제 커플 id는 uuid다. 체험 상담의 "demo-couple" 같은 비-uuid 값으로는
         // 개인화 기록을 남기지 않는다(uuid 컬럼 비교 에러 방지).
         coupleId: "11111111-1111-4111-8111-111111111111",
+        userId: actorId,
         weddingContext: {
           budget: 50000000,
           progress: {},
@@ -258,11 +270,90 @@ describe("vendorTools", () => {
       }],
     });
     expect(insertedLogs).toEqual([{
-      user_id: "profile-1",
+      user_id: actorId,
       query: "한복",
       category: "한복",
       result_count: 1,
     }]);
+    expect(profileFilters).toEqual([
+      ["id", actorId],
+      ["couple_id", "11111111-1111-4111-8111-111111111111"],
+    ]);
+  });
+
+  it("uses only the authenticated actor's view history for legacy recommendations", async () => {
+    const profileFilters: Array<[string, unknown]> = [];
+    const eventFilters: Array<[string, unknown]> = [];
+    const actorId = "22222222-2222-4222-8222-222222222222";
+    mockAdminClient({
+      profiles: [{
+        singleResult: { data: { id: actorId }, error: null },
+        eqs: profileFilters,
+      }],
+      customer_events: [{
+        awaitResult: { data: [{ vendor_id: "vendor-viewed-by-actor" }], error: null },
+        eqs: eventFilters,
+      }],
+      vendors: [{
+        awaitResult: {
+          data: [
+            {
+              id: "vendor-viewed-by-actor",
+              name: "이미 본 한복점",
+              category: "hanbok",
+              location: "서울",
+              region: "서울",
+              price_range: "100만원대",
+              price_min: 1_000_000,
+              price_max: 1_500_000,
+              rating: 4.9,
+              review_count: 20,
+              tags: [],
+              ai_recommend: false,
+              description: "",
+            },
+            {
+              id: "vendor-new",
+              name: "새 한복점",
+              category: "hanbok",
+              location: "서울",
+              region: "서울",
+              price_range: "120만원대",
+              price_min: 1_200_000,
+              price_max: 1_700_000,
+              rating: 4.8,
+              review_count: 15,
+              tags: [],
+              ai_recommend: false,
+              description: "",
+            },
+          ],
+          error: null,
+        },
+      }],
+    });
+
+    const result = await executeRecommendVendors(
+      { category: "hanbok", limit: 3 },
+      {
+        coupleId: "11111111-1111-4111-8111-111111111111",
+        userId: actorId,
+        weddingContext: { budget: 50_000_000, progress: {} },
+      },
+    );
+
+    expect(profileFilters).toEqual([
+      ["id", actorId],
+      ["couple_id", "11111111-1111-4111-8111-111111111111"],
+    ]);
+    expect(eventFilters).toEqual([
+      ["user_id", actorId],
+      ["event_type", "vendor_view"],
+    ]);
+    expect(result.toolOutput).toMatchObject({
+      vendors: [{ id: "vendor-new" }],
+      count: 1,
+    });
   });
 
   it("includes the concrete date and time in availability output", async () => {

@@ -2,61 +2,25 @@
 // 전부 읽기 전용. 릴리스 전과 사고 조사 때 그대로 다시 돌린다.
 //
 // 실행: node scripts/audit/production-readiness-audit.mjs
-// 전제: apps/web/.env.local 에 SUPABASE_ACCESS_TOKEN과 anon 키가 있어야 한다.
-//       워크트리에서 비밀값을 형제 체크아웃에 두는 배치도 그대로 지원한다.
+// 전제: SUPABASE_ACCESS_TOKEN과 NEXT_PUBLIC_SUPABASE_ANON_KEY를 현재 프로세스
+//       환경에만 주입한다. 관리 PAT를 저장소의 .env 파일에서 읽지 않는다.
 //
 // 2026-07-27 이 점검에서 두 결함을 찾았다 — 저장본 외래키가 엉뚱한 테이블을
 // 가리켜 기능이 죽어 있었고, 버려진 messages 테이블이 anon에게 전면 개방돼 있었다.
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const PROD = "slrtobkksjmxgzatjyqb";
 
-// 형제 체크아웃 경로만 하드코딩해 두면 그 배치를 쓰는 컴퓨터에서만 돌아간다.
-// 조사 때 다시 돌리려고 저장소에 넣은 스크립트이므로 자기 저장소를 먼저 본다.
-const REQUIRED_ENV_KEYS = ["SUPABASE_ACCESS_TOKEN", "NEXT_PUBLIC_SUPABASE_ANON_KEY"];
-
-function readEnvFile() {
-  const candidates = [
-    path.resolve(ROOT, "apps", "web", ".env.local"),
-    path.resolve(ROOT, "..", "wedding", "apps", "web", ".env.local"),
-  ];
-  const present = candidates.filter((candidate) => existsSync(candidate));
-  if (present.length === 0) {
+function requireProcessEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) {
     throw new Error(
-      `.env.local을 찾지 못했다. 다음 중 한 곳에 두라:\n  ${candidates.join("\n  ")}`,
+      `${name}을 현재 프로세스 환경에만 설정해야 한다. .env.local에는 저장하지 않는다.`,
     );
   }
-
-  // **있는 파일**이 아니라 **키가 든 파일**을 고른다. 워크트리에서 비밀값을 형제
-  // 체크아웃에 두는 배치에서는 자기 저장소의 .env.local이 존재하되 운영 토큰이
-  // 없다 — 존재만 보고 첫 파일을 잡으면 그 컴퓨터에서 감사가 못 돈다(2026-07-27
-  // 이 저장소에서 실제로 재현됐다). 여러 파일이 자격을 갖추면 자기 저장소가 우선.
-  const usable = present.find((candidate) => {
-    const source = readFileSync(candidate, "utf8");
-    return REQUIRED_ENV_KEYS.every((key) => new RegExp(`^${key}=`, "m").test(source));
-  });
-  if (!usable) {
-    const detail = present
-      .map((candidate) => {
-        const source = readFileSync(candidate, "utf8");
-        const missing = REQUIRED_ENV_KEYS.filter(
-          (key) => !new RegExp(`^${key}=`, "m").test(source),
-        );
-        return `  ${candidate} — 없는 키: ${missing.join(", ")}`;
-      })
-      .join("\n");
-    throw new Error(`필요한 키를 모두 가진 .env.local이 없다:\n${detail}`);
-  }
-  console.log(`  env: ${path.relative(ROOT, usable) || usable}`);
-  return readFileSync(usable, "utf8");
-}
-
-function requireKey(source, pattern, name) {
-  const matched = source.match(pattern);
-  if (!matched) throw new Error(`${name}이 .env.local에 없다 — 이 점검은 그 값 없이 돌 수 없다.`);
-  return matched[1].trim().replace(/^["']|["']$/g, "");
+  return value;
 }
 
 /**
@@ -88,13 +52,8 @@ function readDisclosureRoundPins() {
 
 const { DISCLOSURE_ROUND, DISCLOSURE_ROUND_SNAPSHOT_LABELS } = readDisclosureRoundPins();
 
-const env = readEnvFile();
-const TOKEN = requireKey(env, /^SUPABASE_ACCESS_TOKEN=(.*)$/m, "SUPABASE_ACCESS_TOKEN");
-const ANON = requireKey(
-  env,
-  /^NEXT_PUBLIC_SUPABASE_ANON_KEY="?([^"\r\n]+)"?/m,
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-);
+const TOKEN = requireProcessEnv("SUPABASE_ACCESS_TOKEN");
+const ANON = requireProcessEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 const REST = `https://${PROD}.supabase.co/rest/v1`;
 
 const results = [];

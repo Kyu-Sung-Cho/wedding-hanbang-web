@@ -234,6 +234,25 @@ describe("Amora atomic mutation coverage", () => {
     });
   });
 
+  it.each([
+    "//attacker.example/path",
+    "/%2f%2fattacker.example/path",
+    "/safe\\attacker.example",
+  ])("fails closed before persisting an unsafe action href: %s", (href) => {
+    const operation = buildAmoraAtomicToolOperation(
+      "add_amora_action",
+      { title: "계약서 확인", href },
+      context(),
+      "a".repeat(64),
+    );
+
+    expect(operation.domainMutation).toEqual({ kind: "none" });
+    expect(operation.result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_action_href" },
+    });
+  });
+
   it("does not report success for known no-op assignments", () => {
     const ctx = context();
     const cases = [

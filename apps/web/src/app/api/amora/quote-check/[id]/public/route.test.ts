@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
 }));
+vi.mock("@/lib/http/publicServiceReadRateLimit", () => ({
+  checkPublicServiceReadRateLimit: vi.fn().mockResolvedValue(null),
+}));
 
 import { GET } from "./route";
 
@@ -21,10 +24,22 @@ function setStoredAnalysis(analysis: Record<string, unknown>) {
     },
     error: null,
   });
-  const eq = vi.fn(() => ({ maybeSingle }));
+  const not = vi.fn(() => ({ maybeSingle }));
+  const eq = vi.fn(() => ({ not }));
   const select = vi.fn(() => ({ eq }));
   const from = vi.fn(() => ({ select }));
   mocks.createAdminClient.mockReturnValue({ from });
+  return { from, select, eq, not, maybeSingle };
+}
+
+function setPrivateResult() {
+  const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  const not = vi.fn(() => ({ maybeSingle }));
+  const eq = vi.fn(() => ({ not }));
+  const select = vi.fn(() => ({ eq }));
+  const from = vi.fn(() => ({ select }));
+  mocks.createAdminClient.mockReturnValue({ from });
+  return { not };
 }
 
 describe("GET /api/amora/quote-check/[id]/public", () => {
@@ -33,7 +48,7 @@ describe("GET /api/amora/quote-check/[id]/public", () => {
   });
 
   it("does not republish legacy medians, comparison copy, or source claims", async () => {
-    setStoredAnalysis({
+    const query = setStoredAnalysis({
       quotePriceManwon: 320,
       marketMedianManwon: 250,
       marketComparatorLabel: "서울 스튜디오 중위가",
@@ -62,6 +77,24 @@ describe("GET /api/amora/quote-check/[id]/public", () => {
     expect(body.analysis.sourceNote).toContain("가격의 적정성을 판정하지 않습니다");
     expect(JSON.stringify(body)).not.toContain("과거 고정 시세");
     expect(JSON.stringify(body)).not.toContain("과거 중위가 비교");
+    expect(body).not.toHaveProperty("createdAt");
+    expect(query.select).toHaveBeenCalledWith("id, category, region, analysis");
+    expect(query.not).toHaveBeenCalledWith("published_at", "is", null);
+    expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+  });
+
+  it("returns 404 for a private result and never marks the miss cacheable", async () => {
+    const query = setPrivateResult();
+
+    const response = await GET(
+      new NextRequest("https://hanbang.ai/api/amora/quote-check/10000000-0000-4000-8000-000000000001/public"),
+      { params: Promise.resolve({ id: "10000000-0000-4000-8000-000000000001" }) },
+    );
+
+    expect(response.status).toBe(404);
+    expect(query.not).toHaveBeenCalledWith("published_at", "is", null);
+    expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
   });
 
   it("returns 404 for malformed compatibility JSON", async () => {
@@ -73,5 +106,16 @@ describe("GET /api/amora/quote-check/[id]/public", () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it("rejects a malformed UUID before creating a service-role client", async () => {
+    const response = await GET(
+      new NextRequest("https://hanbang.ai/api/amora/quote-check/not-a-uuid/public"),
+      { params: Promise.resolve({ id: "not-a-uuid" }) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store, max-age=0");
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 });

@@ -92,7 +92,10 @@ describe("persistAiMessage", () => {
           id: "message-1",
           created_at: "2026-07-14T00:00:00.000Z",
           content: "기존 답변",
-          metadata: { client_request_id: BASE.clientRequestId },
+          metadata: {
+            senderName: "이전 사용자 이름",
+            client_request_id: BASE.clientRequestId,
+          },
           stage_tag: "planning_0",
           specialist_type: null,
           visibility: "shared",
@@ -114,7 +117,7 @@ describe("persistAiMessage", () => {
     expect(insertPayloads).toHaveLength(0);
   });
 
-  it("persists the server-controlled assistant shape and idempotency key", async () => {
+  it("persists the server-controlled assistant shape without sender display names", async () => {
     const { admin, insertPayloads } = makeAdmin({
       lookups: [{ data: [], error: null }],
       inserts: [{
@@ -144,7 +147,6 @@ describe("persistAiMessage", () => {
       createdAt: "2026-07-14T00:00:01.000Z",
       content: BASE.cleanText,
       metadata: {
-        senderName: "아모라",
         client_request_id: BASE.clientRequestId,
         mediation: {
           resolution: "총예산 상한선을 확인해요",
@@ -163,7 +165,6 @@ describe("persistAiMessage", () => {
       role: "assistant",
       visibility: "shared",
       metadata: {
-        senderName: "아모라",
         client_request_id: BASE.clientRequestId,
       },
     });
@@ -202,7 +203,7 @@ describe("persistAiMessage", () => {
       id: null,
       createdAt: null,
       content: BASE.cleanText,
-      metadata: BASE.metadata,
+      metadata: {},
       stageTag: BASE.stageTag,
       specialistType: BASE.specialistType,
       visibility: BASE.visibility,

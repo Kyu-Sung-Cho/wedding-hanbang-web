@@ -4,29 +4,15 @@ import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import Logo from "@/components/ui/Logo";
 import { getSameOriginRedirectPath } from "@/lib/auth/safeRedirect";
+import {
+  captureAndClearSensitiveAuthUrl,
+  consumePendingPasswordRecovery,
+} from "@/lib/auth/sensitiveAuthUrl";
 import { createClient } from "@/lib/supabase/client";
-
-interface PasswordCheck {
-  minLength: boolean;
-  hasUppercase: boolean;
-  hasLowercase: boolean;
-  hasNumber: boolean;
-  hasSpecial: boolean;
-}
-
-function checkPasswordStrength(pw: string): PasswordCheck {
-  return {
-    minLength: pw.length >= 8,
-    hasUppercase: /[A-Z]/.test(pw),
-    hasLowercase: /[a-z]/.test(pw),
-    hasNumber: /[0-9]/.test(pw),
-    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pw),
-  };
-}
-
-function isPasswordValid(checks: PasswordCheck): boolean {
-  return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
-}
+import {
+  getPasswordPolicyChecks,
+  isStrongUserPassword,
+} from "@hanbang/shared/security/password-policy";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -38,21 +24,51 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
+  const passwordChecks = useMemo(() => getPasswordPolicyChecks(password), [password]);
 
   useEffect(() => {
-    // Supabase가 hash fragment로 세션을 전달하므로 클라이언트에서 처리
+    let active = true;
+
+    // createBrowserClient보다 먼저 URL을 비워 SDK/관측성 계층이 토큰을
+    // 수집하지 못하게 하고, 서버가 발급한 일회용 recovery token만 검증한다.
+    captureAndClearSensitiveAuthUrl();
+    const pendingRecovery = consumePendingPasswordRecovery();
     const supabase = createClient();
-    supabase.auth.onAuthStateChange((event: string) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setReady(true);
+
+    const restoreRecoverySession = async () => {
+      try {
+        if (pendingRecovery?.kind !== "token_hash") {
+          throw new Error("missing recovery token");
+        }
+
+        const { data, error: sessionError } = await supabase.auth.verifyOtp({
+          token_hash: pendingRecovery.tokenHash,
+          type: "recovery",
+        });
+        if (sessionError || !data.session) throw new Error("invalid recovery token");
+
+        if (active) {
+          setError("");
+          setReady(true);
+        }
+      } catch {
+        if (active) {
+          setReady(false);
+          setError("복구 링크가 만료되었거나 유효하지 않습니다. 비밀번호 찾기를 다시 진행해주세요.");
+        }
       }
-    });
+    };
+
+    void restoreRecoverySession();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isPasswordValid(passwordChecks)) {
+    if (!isStrongUserPassword(password)) {
       setError("비밀번호 조건을 모두 충족해주세요.");
       return;
     }
@@ -72,6 +88,12 @@ export default function ResetPasswordPage() {
       if (updateError) {
         setError("비밀번호 변경에 실패했습니다. 다시 시도해주세요.");
       } else {
+        // 계정 탈취 대응: 복구가 끝나면 모든 refresh session을 폐기하고,
+        // 원격 폐기가 일시 실패해도 이 브라우저의 recovery session은 제거한다.
+        const { error: globalSignOutError } = await supabase.auth.signOut({ scope: "global" });
+        if (globalSignOutError) {
+          await supabase.auth.signOut({ scope: "local" });
+        }
         setSuccess(true);
         // redirect 쿼리 파라미터가 있으면 해당 경로로, 없으면 /login으로
         const params = new URLSearchParams(window.location.search);
@@ -81,9 +103,8 @@ export default function ResetPasswordPage() {
           window.location.href = safePath;
         }, 2000);
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`오류: ${msg}`);
+    } catch {
+      setError("비밀번호 변경에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setLoading(false);
     }
@@ -124,15 +145,17 @@ export default function ResetPasswordPage() {
           ) : !ready ? (
             <div className="text-center py-4">
               <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500 animate-spin">
-                  <path d="M12 6v6l4 2" /><circle cx="12" cy="12" r="10" />
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`text-rose-500 ${error ? "" : "animate-spin"}`}>
+                  {error
+                    ? <><circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" /></>
+                    : <><path d="M12 6v6l4 2" /><circle cx="12" cy="12" r="10" /></>}
                 </svg>
               </div>
               <h1 className="font-serif-kr text-[24px] font-light text-noir-800 mb-2">
-                인증 확인 중
+                {error ? "복구 링크를 확인해주세요" : "인증 확인 중"}
               </h1>
               <p className="text-[14px] text-taupe-500 font-light">
-                잠시만 기다려주세요...
+                {error || "잠시만 기다려주세요..."}
               </p>
               <p className="text-[12px] text-taupe-400 mt-4">
                 이 페이지가 계속 표시되면{" "}
@@ -259,7 +282,7 @@ export default function ResetPasswordPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || !isPasswordValid(passwordChecks) || password !== passwordConfirm}
+                  disabled={loading || !isStrongUserPassword(password) || password !== passwordConfirm}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading ? "처리 중..." : "비밀번호 변경"}

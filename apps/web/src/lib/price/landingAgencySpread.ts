@@ -6,6 +6,7 @@ import {
   type AgencySpreadSummary,
 } from "./agencySpread";
 import { createPublicClient } from "@/lib/supabase/public";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 /**
  * 첫 화면이 쓸 대행사 간 공시가 차이 요약.
@@ -28,7 +29,7 @@ export async function loadLandingAgencySpread(): Promise<AgencySpreadSummary> {
   } catch (cause) {
     console.error(
       "[landing-agency-spread] 공시가 차이 요약 실패 — 첫 화면에서 숫자 블록이 사라진다:",
-      cause,
+      safeErrorDiagnostic(cause),
     );
     return EMPTY_AGENCY_SPREAD_SUMMARY;
   }

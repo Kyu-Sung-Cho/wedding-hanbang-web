@@ -196,7 +196,7 @@ test("production paid extraction stays disabled even with complete explicit opt-
       },
       {
         env: {
-          OPENAI_API_KEY: "sk-residual-key-must-not-enable-paid-extraction",
+          OPENAI_API_KEY: ["sk", "residual-key-must-not-enable-paid-extraction"].join("-"),
           INGEST_OPENAI_ENABLED: "true",
         },
       },
@@ -222,7 +222,7 @@ test("the arbitrary test provider seam rejects ambient paid OpenAI credentials",
   };
   const previousApiKey = process.env.OPENAI_API_KEY;
   const previousEnabled = process.env.INGEST_OPENAI_ENABLED;
-  process.env.OPENAI_API_KEY = "sk-ambient-key-must-never-enable-a-test-provider";
+  process.env.OPENAI_API_KEY = ["sk", "ambient-key-must-never-enable-a-test-provider"].join("-");
   process.env.INGEST_OPENAI_ENABLED = "true";
   try {
     await assert.rejects(

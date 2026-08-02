@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { PrivateNextResponse as NextResponse } from "@/lib/http/privateResponse";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -11,6 +11,7 @@ import {
   getAmoraActions,
   mergeAmoraActions,
   normalizeAmoraAction,
+  sanitizeAmoraActionHref,
   type AmoraActionItem,
   type AmoraActionPriority,
   type AmoraActionSource,
@@ -22,7 +23,11 @@ import {
   cleanOptionalText,
   isBodyTooLarge,
   isRecord,
+  readBoundedJsonValue,
 } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +44,7 @@ async function getCoupleIdForUser(admin: ReturnType<typeof createAdminClient>, u
     .single();
 
   if (error) {
-    console.error("amora actions profile read failed:", error.message);
+    console.error("amora actions profile read failed", safeErrorDiagnostic(error));
   }
 
   return typeof profile?.couple_id === "string" ? profile.couple_id : null;
@@ -56,9 +61,7 @@ async function getLegacyActions(admin: ReturnType<typeof createAdminClient>, cou
 }
 
 function cleanHref(raw: unknown): string | undefined {
-  if (typeof raw !== "string") return undefined;
-  const value = raw.trim().slice(0, 180);
-  return value.startsWith("/") && !value.startsWith("//") ? value : undefined;
+  return sanitizeAmoraActionHref(raw);
 }
 
 function parseStatusParam(request: Request): AmoraActionStatus | "all" {
@@ -77,6 +80,12 @@ export async function GET(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("amora:actions:list", request, user.id),
+      { maxRequests: 120, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
 
     const admin = createAdminClient();
     const coupleId = await getCoupleIdForUser(admin, user.id);
@@ -112,13 +121,17 @@ export async function GET(request: Request) {
       });
     }
   } catch (error) {
-    console.error("amora actions get failed:", error);
+    console.error("amora actions get failed", safeErrorDiagnostic(error));
     return NextResponse.json({ error: "아모라 행동을 불러오지 못했습니다." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "허용되지 않은 요청 출처입니다." }, { status: 403 });
+    }
+
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
@@ -132,7 +145,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const body = await request.json();
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("amora:actions:create", request, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
+
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -172,7 +198,7 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
-    console.error("amora actions create failed:", error);
+    console.error("amora actions create failed", safeErrorDiagnostic(error));
     return NextResponse.json({ error: "아모라 행동을 저장하지 못했습니다." }, { status: 500 });
   }
 }

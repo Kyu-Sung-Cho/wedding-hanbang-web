@@ -117,6 +117,7 @@ export interface VendorMessageRow {
   id: string;
   vendor_id: string;
   customer_id: string;
+  server_provenance_version: 1 | null;
   sender_type: "customer" | "vendor";
   content: string;
   is_read: boolean;

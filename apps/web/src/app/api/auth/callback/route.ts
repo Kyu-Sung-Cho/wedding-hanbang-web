@@ -6,6 +6,17 @@ import {
   getOptionalSameOriginRedirectPath,
   getPostLoginRedirectPath,
 } from "@/lib/auth/safeRedirect";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+
+const PRIVATE_NO_STORE = "private, no-store, max-age=0, must-revalidate";
+
+function privateRedirect(destination: URL) {
+  const response = NextResponse.redirect(destination);
+  response.headers.set("Cache-Control", PRIVATE_NO_STORE);
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
 
 function loginErrorDestination(
   origin: string,
@@ -35,10 +46,23 @@ export async function GET(request: Request) {
 
   if (!code) {
     console.error("콜백: code 파라미터 없음");
-    return NextResponse.redirect(loginErrorDestination(
+    return privateRedirect(loginErrorDestination(
       origin,
       loginPath,
       "no_code",
+      requestedPostLoginPath,
+    ));
+  }
+
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("auth:callback", request),
+    { maxRequests: 60, windowMs: 10 * 60 * 1000 },
+  );
+  if (limited) {
+    return privateRedirect(loginErrorDestination(
+      origin,
+      loginPath,
+      "rate_limited",
       requestedPostLoginPath,
     ));
   }
@@ -69,11 +93,11 @@ export async function GET(request: Request) {
     const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (sessionError) {
-      console.error("콜백: 세션 교환 에러:", sessionError.message);
-      return NextResponse.redirect(loginErrorDestination(
+      console.error("콜백: 세션 교환 에러:", safeErrorDiagnostic(sessionError));
+      return privateRedirect(loginErrorDestination(
         origin,
         loginPath,
-        sessionError.message,
+        "session_exchange_failed",
         requestedPostLoginPath,
       ));
     }
@@ -84,7 +108,7 @@ export async function GET(request: Request) {
 
     if (!user) {
       console.error("콜백: 세션 교환 후 user가 null");
-      return NextResponse.redirect(loginErrorDestination(
+      return privateRedirect(loginErrorDestination(
         origin,
         loginPath,
         "no_user",
@@ -100,35 +124,30 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (profileError) {
-      console.error("콜백: 프로필 조회 에러:", profileError.message);
+      console.error("콜백: 프로필 조회 에러:", safeErrorDiagnostic(profileError));
     }
 
     if (!profile || !profile.onboarding_completed) {
       const onboardingPath = from === "demo"
         ? "/wedding/onboarding"
         : getPostLoginRedirectPath(search, origin, false);
-      const response = NextResponse.redirect(new URL(onboardingPath, origin));
+      const response = privateRedirect(new URL(onboardingPath, origin));
       // 실제 로그인 시 데모 모드 쿠키 제거
       clearDemoCookies(response);
       return response;
     }
 
     // 일반 고객 → 대시보드
-    const response = NextResponse.redirect(new URL(postLoginPath, origin));
-    response.cookies.set("onboarding_complete", "true", {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
-    });
+    const response = privateRedirect(new URL(postLoginPath, origin));
     // 실제 로그인 시 데모 모드 쿠키 제거
     clearDemoCookies(response);
     return response;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("콜백: 예외 발생:", msg);
-    return NextResponse.redirect(loginErrorDestination(
+    console.error("콜백: 예외 발생:", safeErrorDiagnostic(err));
+    return privateRedirect(loginErrorDestination(
       origin,
       loginPath,
-      msg,
+      "callback_failed",
       requestedPostLoginPath,
     ));
   }

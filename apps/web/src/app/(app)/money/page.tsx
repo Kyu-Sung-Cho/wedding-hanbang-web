@@ -8,6 +8,7 @@ import {
   Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
 } from "lucide-react";
+import { csvRow } from "@/utils/csv";
 
 const RELATIONS: Relation[] = ["친구", "직장동료", "가족", "친척", "은사", "이웃", "기타"];
 const METHODS: { key: MoneyMethod; label: string }[] = [
@@ -142,11 +143,17 @@ export default function MoneyPage() {
 
   // CSV 다운로드
   const handleExportCSV = () => {
-    const header = "이름,금액,신랑/신부,관계,수단,메모,날짜\n";
-    const rows = moneyList.map((m) =>
-      [m.guest_name, m.amount, m.side === "groom" ? "신랑" : m.side === "bride" ? "신부" : "공통", m.relation ?? "", m.method, m.memo ?? "", m.received_at].join(",")
-    ).join("\n");
-    const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8" });
+    const header = csvRow(["이름", "금액", "신랑/신부", "관계", "수단", "메모", "날짜"]);
+    const rows = moneyList.map((m) => csvRow([
+      m.guest_name,
+      m.amount,
+      m.side === "groom" ? "신랑" : m.side === "bride" ? "신부" : "공통",
+      m.relation ?? "",
+      m.method,
+      m.memo ?? "",
+      m.received_at,
+    ]));
+    const blob = new Blob(["\uFEFF" + [header, ...rows].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

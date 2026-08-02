@@ -9,6 +9,7 @@ import { router } from "expo-router";
 import { Bookmark, ThumbsUp, MessageCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { safeErrorDiagnostic } from "@/lib/safeErrorDiagnostic";
 import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -58,7 +59,7 @@ export default function MyBookmarksScreen() {
       if (error) throw error;
       setBookmarks((data ?? []) as unknown as BookmarkedPost[]);
     } catch (err) {
-      console.error("Bookmarks load:", err);
+      console.error("Bookmarks load:", safeErrorDiagnostic(err));
     } finally {
       setLoading(false);
       setRefreshing(false);

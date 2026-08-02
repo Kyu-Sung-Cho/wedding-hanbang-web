@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 
 interface IntroScreenProps {
@@ -8,6 +9,8 @@ interface IntroScreenProps {
   hasDraft: boolean;
   onResume: () => void;
   onDismissDraft: () => void;
+  consent: boolean;
+  onConsentChange: (consent: boolean) => void;
 }
 
 export default function IntroScreen({
@@ -15,6 +18,8 @@ export default function IntroScreen({
   hasDraft,
   onResume,
   onDismissDraft,
+  consent,
+  onConsentChange,
 }: IntroScreenProps) {
   return (
     <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-5">
@@ -43,8 +48,23 @@ export default function IntroScreen({
           소요 시간은 약 5~7분이며, 응답 내용은 서비스 개선에만 활용됩니다.
         </p>
         <p className="text-[13px] text-taupe-400 mb-10">
-          모든 응답은 익명으로 처리됩니다.
+          이름과 연락처는 수집하지 않습니다. 자유서술란에도 개인을 알아볼 수 있는 정보는 적지 말아주세요.
         </p>
+
+        <label className="mb-6 flex cursor-pointer items-start gap-3 rounded-2xl border border-platinum bg-white px-4 py-4 text-left">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(event) => onConsentChange(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[#36534E]"
+          />
+          <span className="text-[13px] leading-relaxed text-charcoal">
+            익명 설문 응답(성별·연령대·예산 및 선택적 자유서술 포함)을 서비스 개선을 위해 처리하는 데 동의합니다. 자유서술에는 개인을 식별할 수 있는 정보를 입력하지 마세요.{' '}
+            <Link href="/privacy" className="font-medium text-[#36534E] underline underline-offset-2">
+              개인정보 처리방침
+            </Link>
+          </span>
+        </label>
 
         {hasDraft ? (
           <div className="space-y-3">
@@ -61,7 +81,8 @@ export default function IntroScreen({
             <button
               type="button"
               onClick={onResume}
-              className="w-full py-4 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98]"
+              disabled={!consent}
+              className="w-full py-4 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
               이어서 작성하기
             </button>
@@ -71,7 +92,8 @@ export default function IntroScreen({
                 onDismissDraft();
                 onStart();
               }}
-              className="w-full py-4 rounded-2xl border-[1.5px] border-platinum text-[15px] font-medium text-charcoal hover:bg-ivory-warm hover:border-rose-pale transition-all"
+              disabled={!consent}
+              className="w-full py-4 rounded-2xl border-[1.5px] border-platinum text-[15px] font-medium text-charcoal hover:bg-ivory-warm hover:border-rose-pale transition-all disabled:cursor-not-allowed disabled:opacity-40"
             >
               처음부터 시작하기
             </button>
@@ -83,7 +105,8 @@ export default function IntroScreen({
             transition={{ delay: 0.4 }}
             type="button"
             onClick={onStart}
-            className="w-full max-w-xs mx-auto py-4 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98]"
+            disabled={!consent}
+            className="w-full max-w-xs mx-auto py-4 rounded-2xl bg-noir-800 text-white text-[15px] font-medium hover:bg-noir-900 hover:shadow-[0_4px_20px_rgba(13,13,15,0.2)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
             설문 시작하기
           </motion.button>

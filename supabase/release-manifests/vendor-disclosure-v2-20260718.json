@@ -4,7 +4,7 @@
   "status": "deployment_blocked",
   "predecessorManifest": {
     "file": "supabase/release-manifests/amora-engine-v2-20260716.json",
-    "sha256": "a17c37ce829a302d5e00945af3269fc227a30bd6ac7791ff8ea2d4103bf54a33"
+    "sha256": "80168c3fa73044499a7707fdf1dcd9e94eb24091685f5c43450992746cb12ef0"
   },
   "requiredRemoteHead": "20260716117000",
   "migrationFloor": "20260718120000",
@@ -136,6 +136,235 @@
     {
       "file": "20260727090000_fix_saved_note_message_ref_and_lock_messages.sql",
       "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60"
+    },
+    {
+      "file": "20260802120000_lock_server_trusted_fields.sql",
+      "sha256": "f2a2f6e612a9461381ba20c7ffba62db4a7e6e2484ade7e5258d4f19c205cdbd"
+    },
+    {
+      "file": "20260802121000_close_direct_mutation_bypasses.sql",
+      "sha256": "d1932da9fa360a45f8688622ffda0740449bbc2f16b582cbe50504c8fa1986dd"
+    },
+    {
+      "file": "20260802122000_lock_community_avatar_values.sql",
+      "sha256": "965f3bb127a683505c996f28fae0a62ab47cfffef08d2edabefb18b51665a87a"
+    },
+    {
+      "file": "20260802123000_close_community_read_bypasses.sql",
+      "sha256": "91c515ff3d5c840468cac48968bd882ab893337c9bee8e27ac5270ade9cf85d5"
+    },
+    {
+      "file": "20260802124000_enforce_single_active_cohort_membership.sql",
+      "sha256": "d45cab6f1757eab6b3543fb1b78ba5405f75a6e50e10c7ec8d6a231de2d0c315"
+    },
+    {
+      "file": "20260802125000_record_canonical_couple_decisions.sql",
+      "sha256": "85abb8918b8afc24b2849ab86ceab622b53d8e2c0ef6ae9e7693cbab12b7a2ae"
+    },
+    {
+      "file": "20260802130000_mobile_push_identity_consent.sql",
+      "sha256": "941b5e2d4e43cf337a06682df9761a84048f1f75c21848f5174163ddfe5dc9e6"
+    },
+    {
+      "file": "20260802131000_account_deletion_private_data_purge.sql",
+      "sha256": "c0a56fd7adb5e216a300c021776170c1631d2008257a4da21bcfbcbd0663fecd"
+    },
+    {
+      "file": "20260802132000_atomic_initial_admin_bootstrap.sql",
+      "sha256": "9480831c9554b108252361da5f843e38811e81019eb70bccdfe88ffddd22ec0b"
+    },
+    {
+      "file": "20260802133000_amora_quote_publication_consent.sql",
+      "sha256": "7e8e1b9533fcea7b7f02464ff0ff10da8b70c2bfa81cb77a7f5da80cf3c71342"
+    },
+    {
+      "file": "20260802134000_close_dormant_guestbook_public_surface.sql",
+      "sha256": "88840bbb98e9a59a818b40b0785cb3637e16d14c289c0351084cd0357a2a5154"
+    },
+    {
+      "file": "20260802135000_close_hidden_poll_result_bypass.sql",
+      "sha256": "dc3f677d158ff904fcbf97f3fd224555ff07a3993403e53992809310bc307313"
+    },
+    {
+      "file": "20260802136000_close_legacy_gamification_definer_surface.sql",
+      "sha256": "76628ad63731043bfd573e1b935108b6041573d2dbbb26a00ea0e2378efd3744"
+    },
+    {
+      "file": "20260802137000_hide_public_post_cohort_room_identifier.sql",
+      "sha256": "ddcd29a6e46e170a5dfcead36322a03b4443df0df7453448805d8422b01ba7bd"
+    },
+    {
+      "file": "20260802138000_close_legacy_gamification_data_surface.sql",
+      "sha256": "db6eb2b1504da737e38e589ba1dcf40804ce7d0c52a587732872549ad030b6ad"
+    },
+    {
+      "file": "20260802139000_require_auth_for_cohort_room_metadata.sql",
+      "sha256": "0cf860d6f5b5083bf96a68b9967004988bbd38a8a60f0fb09ff00c74be68441a"
+    },
+    {
+      "file": "20260802140000_close_dormant_legacy_data_surfaces.sql",
+      "sha256": "ce47fb21f900b87a4f2cbcc9d0fae262ae940e443f02d7f665948749d87971f5"
+    },
+    {
+      "file": "20260802141000_minimize_public_marketplace_column_access.sql",
+      "sha256": "eebedc87d7af8b2189ad95d34247fb6d9512def7aa5bba0886b3fec5f852cb6a"
+    },
+    {
+      "file": "20260802142000_close_live_only_fitting_definer_surface.sql",
+      "sha256": "639f428c8dc04adf84137038ea1a3860520c8c3c30ab491d9d66331eb32687ef"
+    },
+    {
+      "file": "20260802143000_close_empty_dormant_storage_buckets.sql",
+      "sha256": "47557c025e1507a7f4b18eef87b924724d9fe7dbab36ed3928e4fd54ca0fdfba"
+    },
+    {
+      "file": "20260802144000_vendor_message_relationship_authorization.sql",
+      "sha256": "a0b6e1740b55f320dc8156ec36896f39ffaebfa0987bceb0e9987f396adc6c13"
+    },
+    {
+      "file": "20260802145000_close_community_bookmark_visibility_bypass.sql",
+      "sha256": "6bfcdf5670ebba30e2f40f17427712621da6032d9baec8676e967fedadc481df"
+    },
+    {
+      "file": "20260802146000_harden_community_vote_rpc_serialization.sql",
+      "sha256": "2333d7724829d6249be80843b270ece5c2e6d08b8f6f666b754acb040a67389e"
+    },
+    {
+      "file": "20260802147000_vendor_message_trusted_thread_read_fence.sql",
+      "sha256": "99ba1a084db5ac6e231571d42c0fe3d6d5d10239fb290d014f48b05f0e579a22"
+    },
+    {
+      "file": "20260802148000_reconcile_community_comment_counters.sql",
+      "sha256": "7c88b3cfea16e8a995c72eef8ee67a7c91cf0f3c55f0b7879f2349e274b1aa11"
+    },
+    {
+      "file": "20260802149000_harden_community_poll_vote_integrity.sql",
+      "sha256": "150e3ac0efcfa679abc618a72575b42adbbd05657cb9ff5437e1f242e341eb3e"
+    },
+    {
+      "file": "20260802150000_harden_cohort_guestbook_integrity.sql",
+      "sha256": "ce448fe1377f902924f719941948679347754eaa69eba4ac72db355d009c0fd7"
+    },
+    {
+      "file": "20260802151000_revoke_untrusted_public_schema_create.sql",
+      "sha256": "6124a3ed02cc24589ba8ca48bf12fbfb668696f098b791a2a90ce2de51a5e82f"
+    },
+    {
+      "file": "20260802153000_reconcile_community_post_counters.sql",
+      "sha256": "e0424e5e96e47bce55712805ba2f402c4583c6cc3f40f8bcb07dc5bee203feb4"
+    },
+    {
+      "file": "20260802154000_close_residual_database_privilege_surfaces.sql",
+      "sha256": "703060d38824bd1cd6cf713448b0d1835d11c7ec4029abe3ffb55efa60619aff"
+    },
+    {
+      "file": "20260802155000_make_profiles_self_only.sql",
+      "sha256": "2192a333f152c10efdc5f491bc02eb53c5f03d66affac344662313d4be875ae7"
+    },
+    {
+      "file": "20260802155100_mobile_push_preference_read_projection.sql",
+      "sha256": "a88dcd38d7dc1bd3c6d7a9438222839b81fcf0c7efa77b08935b3dd6e0348bd6"
+    },
+    {
+      "file": "20260802155200_bind_mobile_push_mutations_to_expected_actor.sql",
+      "sha256": "22986255d95402d626e7eea54fae2cbc63281f3963612d59d2cd42c34da9e40d"
+    },
+    {
+      "file": "20260802156000_harden_cohort_contract_anonymity.sql",
+      "sha256": "74990beeee21c9a15e8dfda7e7ad81781fff5f20de7722bb7b15c1d736e5ec5a"
+    },
+    {
+      "file": "20260802157000_harden_chat_image_bucket_upload_limits.sql",
+      "sha256": "0efb00a71d740e29e1e512268abe419c9aee35892028ff5cd66b2cc5487dbf06"
+    },
+    {
+      "file": "20260802158000_gate_new_auth_users_on_signup_consent.sql",
+      "sha256": "8230856da787f82e994482409f604b8b08ca29dff03c8bcfbf8adee2c574f00d"
+    },
+    {
+      "file": "20260802160000_require_vendor_staff_publication_consent.sql",
+      "sha256": "e4769118429e74bd9925d8392327df767cc3c3939f9ec20b8f5ffe4a56c53e54"
+    },
+    {
+      "file": "20260803100000_harden_client_event_trust.sql",
+      "sha256": "5aeaff452ebd8bb4156b95f591b06c6ccf5e1cfa6ae77c4dfdae4df21defc66e"
+    },
+    {
+      "file": "20260803101000_require_customer_survey_consent_evidence.sql",
+      "sha256": "af17b27d90fb4f822c8b9087c93e12840da87e10249bad939bc9056be7407b00"
+    },
+    {
+      "file": "20260803102000_preregistration_double_opt_in.sql",
+      "sha256": "f138894ba20e7bcfa682b02616fe8a90bfd608e2156fb0b8a31e219e638e116f"
+    },
+    {
+      "file": "20260803103000_add_community_public_identities.sql",
+      "sha256": "d535e1b260b0d5cc95247a6c0818e1253a14ac62706eaccd1404622f6d5417c8"
+    },
+    {
+      "file": "20260803104000_unlink_new_community_media_paths.sql",
+      "sha256": "a1217f41eb260085a17ad30690db2a8a418ef9cb57e75dedf7b3f6c777728515"
+    },
+    {
+      "file": "20260803105000_rate_limit_direct_chat_message_inserts.sql",
+      "sha256": "860194ba926515fd40997d0c2d22f31975014cf1f682216e5ede82b8ca404d02"
+    },
+    {
+      "file": "20260803106000_reconcile_community_reputation.sql",
+      "sha256": "b90c0023ca1f842b89cfbbb1ee9756659154066d0812ff180c722d5e0fa68832"
+    },
+    {
+      "file": "20260803107000_atomic_community_content_creation.sql",
+      "sha256": "e597cf33a26d0fb039b94a03e765525ae6164ab00b0efd134df4b8a8f842e6fd"
+    },
+    {
+      "file": "20260803108000_make_community_vote_rpcs_server_only.sql",
+      "sha256": "b02b125302280d4db5964ec465a67efc4dea3c501c351721d950a8b1f13c0c6e"
+    },
+    {
+      "file": "20260803109000_rate_limit_direct_couple_membership_rpcs.sql",
+      "sha256": "48e86037c92352821848aa8ee7fcd3ca8e3ebb59f2f10d43675bfc55a62bc94f"
+    },
+    {
+      "file": "20260803110000_harden_vendor_photo_like_boundary.sql",
+      "sha256": "164b8da571a03045e835cea6577e450c73ffd264a101fc0e0fdf8686e9ecc199"
+    },
+    {
+      "file": "20260803112000_enforce_community_suspended_actor_write_fence.sql",
+      "sha256": "49d5985e2cf869bdfee3464da63096f0fc53fbd7fd0d37b21faa1f63556ac31d"
+    },
+    {
+      "file": "20260803113000_harden_ai_interactions_log_acl.sql",
+      "sha256": "edad1c16b8b01d7a27ec79575b9830e802a5a23ffe0f6aed519e793be5460886"
+    }
+  ],
+  "forwardOnlySecurityOperations": [
+    {
+      "id": "community-public-identity-contract-20260803104500",
+      "phase": "post-application-deploy",
+      "requiredGate": "minimum-supported-community-client-version-enforced",
+      "rollbackPolicy": "forward-fix-only-no-auth-uuid-regrant",
+      "inventory": {
+        "file": "supabase/platform-operations/security/20260803104500_community_public_identity_contract_inventory.sql",
+        "sha256": "b3d18a4570c74d1c15b6d189627bb116060756c6c3f6955b2a07c0e4ece2e512"
+      },
+      "apply": {
+        "file": "supabase/platform-operations/security/20260803104500_community_public_identity_contract_apply.sql",
+        "sha256": "cf91a6358ff9cf5f086918cf4bf8ab29dfb7d955bd38bef379b8aa5d51a6c758"
+      },
+      "verify": {
+        "file": "supabase/platform-operations/security/20260803104500_community_public_identity_contract_verify.sql",
+        "sha256": "f40765b975ab54f52a575628041be5a0628431b7973fed2198028639900bd4ba",
+        "expectedEvidence": {
+          "community_public_identity_contract_verified": 1
+        }
+      }
+    }
+  ],
+  "requiredDocuments": [
+    {
+      "file": "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+      "sha256": "e20b33d96084178e1368d66e368d17f1f7a61cc565fe153b596951b4eff6e67c"
     }
   ],
   "deploymentEvidence": {

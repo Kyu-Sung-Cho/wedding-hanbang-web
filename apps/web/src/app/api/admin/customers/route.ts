@@ -1,76 +1,129 @@
-import { NextResponse } from "next/server";
+import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import {
+  adminPaginationMetadata,
+  checkAdminReadRateLimit,
+  parseAdminPagination,
+} from "@/lib/admin/adminReadBoundary";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 export async function GET(request: Request) {
-  const { authorized } = await verifyAdmin(request);
-  if (!authorized) {
-    return NextResponse.json({ error: "권한이 없습니다." }, { status: 401 });
+  const { authorized, userId } = await verifyAdmin(request);
+  if (!authorized || !userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limited = await checkAdminReadRateLimit(request, userId, "customers");
+  if (limited) return limited;
+
+  const pagination = parseAdminPagination(request, { defaultLimit: 100, maxLimit: 100 });
+  if (!pagination) {
+    return NextResponse.json({ error: "Invalid pagination" }, { status: 400 });
   }
 
   try {
     const admin = getServiceClient();
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
 
-    // 고객 프로필 전체 조회 (is_admin이 아닌 사용자)
-    const { data: profiles, error: profilesErr } = await admin
-      .from("profiles")
-      .select("id, name, email, role, couple_id, onboarding_completed, onboarding_step, is_admin, created_at")
-      .order("created_at", { ascending: false });
+    const [profilesResult, onboardedResult, todayResult, pairedCouplesResult] = await Promise.all([
+      admin
+        .from("profiles")
+        .select(
+          "id,name,email,role,couple_id,onboarding_completed,onboarding_step,created_at",
+          { count: "exact" },
+        )
+        .eq("is_admin", false)
+        .order("created_at", { ascending: false })
+        .range(pagination.offset, pagination.offset + pagination.limit - 1),
+      admin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("is_admin", false)
+        .eq("onboarding_completed", true),
+      admin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("is_admin", false)
+        .gte("created_at", todayStart.toISOString()),
+      admin
+        .from("couples")
+        .select("id", { count: "exact", head: true })
+        .not("bride_id", "is", null)
+        .not("groom_id", "is", null),
+    ]);
 
-    if (profilesErr) {
-      return NextResponse.json({ error: profilesErr.message }, { status: 500 });
+    const statsError = onboardedResult.error ?? todayResult.error ?? pairedCouplesResult.error;
+    if (profilesResult.error || statsError) {
+      console.error(
+        "Admin customer profile or stats query failed",
+        safeErrorDiagnostic(profilesResult.error ?? statsError),
+      );
+      return NextResponse.json({ error: "고객 목록을 불러오지 못했습니다." }, { status: 500 });
     }
 
-    // 커플 정보 조회
-    const { data: couples } = await admin
-      .from("couples")
-      .select("id, invite_code, bride_id, groom_id, created_at");
+    const profiles = profilesResult.data ?? [];
+    const coupleIds = [
+      ...new Set(profiles.map((profile) => profile.couple_id).filter((id): id is string => Boolean(id))),
+    ];
 
-    // 웨딩 여정 조회 (결혼일, 예산)
-    const { data: journeys } = await admin
-      .from("wedding_journeys")
-      .select("couple_id, wedding_date, total_budget, venue");
+    const [couplesResult, journeysResult] = coupleIds.length > 0
+      ? await Promise.all([
+          admin
+            .from("couples")
+            .select("id,bride_id,groom_id")
+            .in("id", coupleIds),
+          admin
+            .from("wedding_journeys")
+            .select("couple_id,wedding_date,total_budget,venue")
+            .in("couple_id", coupleIds),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
 
-    const coupleMap = new Map((couples ?? []).map((c) => [c.id, c]));
-    const journeyMap = new Map((journeys ?? []).map((j) => [j.couple_id, j]));
+    if (couplesResult.error || journeysResult.error) {
+      console.error(
+        "Admin customer relationship query failed",
+        safeErrorDiagnostic(couplesResult.error ?? journeysResult.error),
+      );
+      return NextResponse.json({ error: "고객 관계 정보를 불러오지 못했습니다." }, { status: 500 });
+    }
 
-    const customers = (profiles ?? [])
-      .filter((p) => !p.is_admin)
-      .map((p) => {
-        const couple = p.couple_id ? coupleMap.get(p.couple_id) : null;
-        const journey = p.couple_id ? journeyMap.get(p.couple_id) : null;
-        const hasPartner = couple
-          ? !!(couple.bride_id && couple.groom_id)
-          : false;
+    const coupleMap = new Map((couplesResult.data ?? []).map((couple) => [couple.id, couple]));
+    const journeyMap = new Map((journeysResult.data ?? []).map((journey) => [journey.couple_id, journey]));
 
-        return {
-          id: p.id,
-          name: p.name,
-          email: p.email,
-          role: p.role,
-          coupleId: p.couple_id,
-          onboardingCompleted: p.onboarding_completed,
-          onboardingStep: p.onboarding_step,
-          hasPartner,
-          weddingDate: journey?.wedding_date ?? null,
-          totalBudget: journey?.total_budget ?? null,
-          venue: journey?.venue ?? null,
-          createdAt: p.created_at,
-        };
-      });
+    const customers = profiles.map((profile) => {
+      const couple = profile.couple_id ? coupleMap.get(profile.couple_id) : null;
+      const journey = profile.couple_id ? journeyMap.get(profile.couple_id) : null;
+      return {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        coupleId: profile.couple_id,
+        onboardingCompleted: profile.onboarding_completed,
+        onboardingStep: profile.onboarding_step,
+        hasPartner: Boolean(couple?.bride_id && couple?.groom_id),
+        weddingDate: journey?.wedding_date ?? null,
+        totalBudget: journey?.total_budget ?? null,
+        venue: journey?.venue ?? null,
+        createdAt: profile.created_at,
+      };
+    });
 
-    // 통계
-    const total = customers.length;
-    const onboarded = customers.filter((c) => c.onboardingCompleted).length;
-    const coupled = customers.filter((c) => c.hasPartner).length;
-    const today = new Date().toISOString().slice(0, 10);
-    const todayCount = customers.filter((c) => c.createdAt?.slice(0, 10) === today).length;
-
+    const total = profilesResult.count ?? 0;
+    const pairedProfiles = (pairedCouplesResult.count ?? 0) * 2;
     return NextResponse.json({
       customers,
-      stats: { total, onboarded, coupled, todayCount },
+      stats: {
+        total,
+        onboarded: onboardedResult.count ?? 0,
+        coupled: Math.min(total, pairedProfiles),
+        todayCount: todayResult.count ?? 0,
+      },
+      pagination: adminPaginationMetadata(pagination, customers.length, total),
     });
-  } catch (err) {
-    console.error("Admin customers error:", err);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+  } catch (error) {
+    console.error("Admin customers error", safeErrorDiagnostic(error));
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

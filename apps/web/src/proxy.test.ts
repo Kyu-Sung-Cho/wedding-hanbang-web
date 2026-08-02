@@ -9,7 +9,32 @@ vi.mock("@/lib/supabase/middleware", () => middlewareMock);
 
 import { config, proxy } from "./proxy";
 
-describe("proxy WeddingCode capability-token containment", () => {
+describe("proxy sensitive navigation query containment", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  it.each([
+    [
+      "/wedding/chat?prefill=quote%20amount%203000&utm_source=legacy",
+      "https://hanbang.ai/wedding/chat?utm_source=legacy",
+    ],
+    [
+      "/wedding/community/post/write?category=is_normal&prefill=quote_check&title=private&body=secret",
+      "https://hanbang.ai/wedding/community/post/write?category=is_normal",
+    ],
+  ])("redirects %s before rendering", async (path, expectedLocation) => {
+    const response = await proxy(new NextRequest(`https://hanbang.ai${path}`));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(expectedLocation);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("proxy WeddingCode answer containment", () => {
   beforeEach(() => {
     middlewareMock.updateSession.mockClear();
   });
@@ -19,11 +44,11 @@ describe("proxy WeddingCode capability-token containment", () => {
   });
 
   it.each(["/wedding-code", "/wedding-code/result"])(
-    "removes ct before rendering or redirecting %s",
+    "removes legacy answers and capability tokens before rendering or redirecting %s",
     async (pathname) => {
       const response = await proxy(
         new NextRequest(
-          `https://hanbang.ai${pathname}?ct=sensitive-capability-token&utm_source=legacy-invite`
+          `https://hanbang.ai${pathname}?a=0123012301230123&b=3210321032103210&ct=sensitive-capability-token&utm_source=legacy-invite`
         )
       );
 
@@ -32,9 +57,13 @@ describe("proxy WeddingCode capability-token containment", () => {
         "https://hanbang.ai/wedding-code?utm_source=legacy-invite"
       );
       expect(response.headers.get("location")).not.toContain("ct=");
+      expect(response.headers.get("location")).not.toContain("a=");
+      expect(response.headers.get("location")).not.toContain("b=");
       expect(response.headers.get("location")).not.toContain(
         "sensitive-capability-token"
       );
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
       expect(middlewareMock.updateSession).not.toHaveBeenCalled();
     }
   );
@@ -50,6 +79,8 @@ describe("proxy WeddingCode capability-token containment", () => {
     expect(response.headers.get("location")).toBe(
       "https://hanbang.ai/wedding-code?utm_source=saved-result"
     );
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(middlewareMock.updateSession).not.toHaveBeenCalled();
   });
 
@@ -230,12 +261,8 @@ describe("proxy production write fence", () => {
   it.each([
     "/api/cron/amora-memory",
     "/api/auth/callback",
-    "/api/auth/me",
     "/api/community/cohort",
-    "/api/community/profile",
     "/api/couple/code",
-    "/api/messages",
-    "/api/vendors/12345678-1234-4234-8234-123456789abc",
   ])("blocks a GET route with known write side effects: %s", async (pathname) => {
     vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
     const response = await proxy(
@@ -261,6 +288,10 @@ describe("proxy production write fence", () => {
 
   it.each([
     "/api/vendors",
+    "/api/vendors/12345678-1234-4234-8234-123456789abc",
+    "/api/auth/me",
+    "/api/community/profile",
+    "/api/messages",
     "/api/messages/threads",
     "/api/community/cohort/123/timeline",
   ])("keeps an explicitly read-only neighboring GET available: %s", async (pathname) => {
@@ -280,6 +311,10 @@ describe("proxy production write fence", () => {
       else vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", value);
       const request = new NextRequest("https://hanbang.ai/api/community/posts", {
         method: "POST",
+        headers: {
+          Origin: "https://hanbang.ai",
+          "Sec-Fetch-Site": "same-origin",
+        },
       });
 
       const response = await proxy(request);
@@ -289,4 +324,198 @@ describe("proxy production write fence", () => {
       expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
     }
   );
+});
+
+describe("proxy API mutation origin fence", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each(["POST", "PUT", "PATCH", "DELETE"])(
+    "blocks %s without same-origin or Bearer proof",
+    async (method) => {
+      const response = await proxy(new NextRequest(
+        "https://hanbang.ai/api/profile",
+        { method },
+      ));
+
+      expect(response.status).toBe(403);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      await expect(response.json()).resolves.toEqual({
+        error: "api_mutation_origin_not_allowed",
+      });
+      expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("blocks cross-site browser metadata", async () => {
+    const response = await proxy(new NextRequest(
+      "https://hanbang.ai/api/bookings",
+      {
+        method: "POST",
+        headers: {
+          Origin: "https://attacker.example",
+          "Sec-Fetch-Site": "cross-site",
+        },
+      },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("allows a same-origin browser mutation to continue to the route", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/profile", {
+      method: "PATCH",
+      headers: {
+        Origin: "https://hanbang.ai",
+        "Sec-Fetch-Site": "same-origin",
+      },
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("allows a native Bearer mutation to continue to the route", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/profile", {
+      method: "PATCH",
+      headers: { Authorization: "Bearer signed-session-token" },
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it.each(["GET", "HEAD"])(
+    "blocks the lazy invite-code %s without same-origin or Bearer proof",
+    async (method) => {
+      const response = await proxy(new NextRequest(
+        "https://hanbang.ai/api/couple/code",
+        { method },
+      ));
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({
+        error: "api_mutation_origin_not_allowed",
+      });
+      expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each<{ label: string; headers: Record<string, string> }>([
+    {
+      label: "same-origin browser",
+      headers: {
+        Origin: "https://hanbang.ai",
+        "Sec-Fetch-Site": "same-origin",
+      },
+    },
+    {
+      label: "native Bearer",
+      headers: { Authorization: "Bearer signed-session-token" },
+    },
+  ])("allows the lazy invite-code GET for a $label request", async ({ headers }) => {
+    const request = new NextRequest("https://hanbang.ai/api/couple/code", {
+      method: "GET",
+      headers,
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it.each([
+    "/api/auth/signup",
+    "/api/auth/forgot-password",
+    "/api/release/write-fence-probe",
+    "/api/internal/vendors/recommend",
+  ])("leaves the explicitly non-browser-authenticated boundary to its route: %s", async (pathname) => {
+    const request = new NextRequest(`https://hanbang.ai${pathname}`, { method: "POST" });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("fails closed for future internal mutation routes that were not allowlisted", async () => {
+    const response = await proxy(new NextRequest(
+      "https://hanbang.ai/api/internal/future-write",
+      { method: "POST" },
+    ));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "api_mutation_origin_not_allowed",
+    });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("proxy authenticated API cache fence", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  it.each<{ label: string; headers: Record<string, string> }>([
+    { label: "Bearer", headers: { Authorization: "Bearer signed-session-token" } },
+    { label: "cookie", headers: { Cookie: "sb-session=signed-session-cookie" } },
+  ])("marks $label API responses private and non-cacheable", async ({ headers }) => {
+    const request = new NextRequest("https://hanbang.ai/api/profile", { headers });
+
+    const response = await proxy(request);
+
+    expect(response.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0, must-revalidate",
+    );
+    expect(response.headers.get("pragma")).toBe("no-cache");
+    expect(response.headers.get("vary")).toBe("Authorization, Cookie");
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("does not disable caching for an anonymous public API at the global boundary", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/vendors");
+
+    const response = await proxy(request);
+
+    expect(response.headers.has("cache-control")).toBe(false);
+    expect(response.headers.has("pragma")).toBe(false);
+    expect(response.headers.has("vary")).toBe(false);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("preserves existing response variance while adding identity headers", async () => {
+    middlewareMock.updateSession.mockResolvedValueOnce(
+      new NextResponse(null, { headers: { Vary: "Accept-Encoding, Origin" } }),
+    );
+    const request = new NextRequest("https://hanbang.ai/api/profile", {
+      headers: { Cookie: "sb-session=signed-session-cookie" },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.headers.get("vary")).toBe(
+      "Accept-Encoding, Origin, Authorization, Cookie",
+    );
+  });
+
+  it("does not attach API cache headers to an authenticated page response", async () => {
+    const request = new NextRequest("https://hanbang.ai/wedding/lounge", {
+      headers: { Cookie: "sb-session=signed-session-cookie" },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.headers.has("cache-control")).toBe(false);
+    expect(response.headers.has("pragma")).toBe(false);
+    expect(response.headers.has("vary")).toBe(false);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
 });

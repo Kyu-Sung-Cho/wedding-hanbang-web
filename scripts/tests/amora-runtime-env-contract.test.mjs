@@ -9,6 +9,7 @@ const runtimeVariables = [
   "AMORA_AUXILIARY_MEMORY_ENABLED",
   "AMORA_CARE_OUTBOUND_ENABLED",
   "AMORA_COMMUNITY_AI_COMMENT_ENABLED",
+  "NAVER_PLACE_SEARCH_ENABLED",
   "AI_LOG_RETENTION_CRON_ENABLED",
   "ACCOUNT_DELETION_INTAKE_ENABLED",
   "ACCOUNT_DELETION_CRON_ENABLED",
@@ -19,14 +20,18 @@ const runtimeVariables = [
   "AMORA_COST_GUARD_ENABLED",
   "AMORA_COUPLE_QUOTA_ENABLED",
   "AMORA_FREE_MESSAGES_PER_COUPLE",
+  "AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP",
   "AMORA_GLOBAL_DAILY_MESSAGE_CAP",
   "AMORA_GLOBAL_DAILY_COST_CAP_USD",
   "OPENAI_API_KEY",
   "OPENAI_AMORA_PRIMARY_MODEL",
   "OPENAI_AMORA_FAST_MODEL",
   "CRON_SECRET",
+  "INTERNAL_API_TOKEN",
+  "VENDOR_INTERNAL_TOKEN",
   "RATE_LIMIT_KEY_SECRET",
   "DEMO_SESSION_SECRET",
+  "AMORA_EVAL_SECRET",
   "SUPABASE_EXPECTED_URL",
   "SUPABASE_EXPECTED_PROJECT_REF",
   "SUPABASE_PRODUCTION_PROJECT_REF",
@@ -52,6 +57,7 @@ test("the example environment keeps external Amora side effects fail-closed", as
     "AMORA_AUXILIARY_MEMORY_ENABLED=false",
     "AMORA_CARE_OUTBOUND_ENABLED=false",
     "AMORA_COMMUNITY_AI_COMMENT_ENABLED=false",
+    "NAVER_PLACE_SEARCH_ENABLED=false",
     "AI_LOG_RETENTION_CRON_ENABLED=false",
     "ACCOUNT_DELETION_INTAKE_ENABLED=false",
     "ACCOUNT_DELETION_CRON_ENABLED=false",
@@ -61,7 +67,10 @@ test("the example environment keeps external Amora side effects fail-closed", as
   }
 
   assert.match(example, /^AMORA_COST_GUARD_ENABLED=true$/m);
-  assert.match(example, /^AMORA_COUPLE_QUOTA_ENABLED=false$/m);
+  assert.match(example, /^AMORA_COUPLE_QUOTA_ENABLED=true$/m);
+  assert.match(example, /^AMORA_DEMO_GLOBAL_DAILY_MESSAGE_CAP=60$/m);
   assert.match(example, /^AMORA_GLOBAL_DAILY_COST_CAP_USD=20$/m);
   assert.match(example, /^RATE_LIMIT_KEY_SECRET=$/m);
+  assert.match(example, /^DEMO_SESSION_SECRET=$/m);
+  assert.match(example, /^AMORA_EVAL_SECRET=$/m);
 });

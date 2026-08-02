@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createClientFromRequestSpy, createAdminClientSpy } = vi.hoisted(() => ({
+const { createClientFromRequestSpy, createAdminClientSpy, checkRateLimitPersistentSpy } = vi.hoisted(() => ({
   createClientFromRequestSpy: vi.fn(),
   createAdminClientSpy: vi.fn(),
+  checkRateLimitPersistentSpy: vi.fn<() => Promise<Response | null>>(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -11,6 +12,11 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: createAdminClientSpy,
+}));
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: checkRateLimitPersistentSpy,
+  rateLimitKey: (scope: string, _request: Request, userId?: string) =>
+    `${scope}:${userId ?? "guest"}`,
 }));
 
 import { POST } from "../route";
@@ -74,19 +80,15 @@ function mockRequestClient(messageResult: QueryResult, coupleId: string | null =
 }
 
 function mockAdminClient(inserts: unknown[]) {
-  let feedbackQueryCount = 0;
   const admin = {
     from: vi.fn((table: string) => {
       if (table !== "chat_feedback") {
         throw new Error(`admin must not read table: ${table}`);
       }
-      feedbackQueryCount += 1;
-      return feedbackQueryCount === 1
-        ? new FakeQuery({ count: 0 })
-        : new FakeQuery(
-          { data: { id: "feedback-a" }, error: null },
-          (payload) => { inserts.push(payload); }
-        );
+      return new FakeQuery(
+        { data: { id: "feedback-a" }, error: null },
+        (payload) => { inserts.push(payload); }
+      );
     }),
   };
   createAdminClientSpy.mockReturnValue(admin);
@@ -109,10 +111,31 @@ function feedbackRequestFromBody(body: unknown) {
   });
 }
 
+function oversizedChunkedFeedbackRequest(maxBytes: number) {
+  let pullCount = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pullCount += 1;
+      if (pullCount === 1) controller.enqueue(new Uint8Array(maxBytes));
+      else if (pullCount === 2) controller.enqueue(new Uint8Array([1]));
+      else controller.enqueue(new Uint8Array(1_000_000));
+    },
+  }, { highWaterMark: 0 });
+
+  return new Request("http://localhost/api/chat/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 describe("POST /api/chat/feedback", () => {
   beforeEach(() => {
     createClientFromRequestSpy.mockReset();
     createAdminClientSpy.mockReset();
+    checkRateLimitPersistentSpy.mockReset();
+    checkRateLimitPersistentSpy.mockResolvedValue(null);
   });
 
   it("rejects a non-UUID message ID before creating an admin client", async () => {
@@ -138,6 +161,35 @@ describe("POST /api/chat/feedback", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized chunked body without Content-Length before privileged database access", async () => {
+    const requestClient = mockRequestClient({ data: null, error: null });
+    const request = oversizedChunkedFeedbackRequest(8 * 1024);
+    expect(request.headers.get("content-length")).toBeNull();
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    expect(requestClient.from).not.toHaveBeenCalled();
+    expect(createAdminClientSpy).not.toHaveBeenCalled();
+  });
+
+  it("honors the shared atomic limiter before reading profile or message data", async () => {
+    const requestClient = mockRequestClient({ data: null, error: null });
+    checkRateLimitPersistentSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "rate_limited" }), { status: 429 }),
+    );
+
+    const response = await POST(feedbackRequest(MESSAGE_A, "limited"));
+
+    expect(response.status).toBe(429);
+    expect(checkRateLimitPersistentSpy).toHaveBeenCalledWith(
+      "chat:feedback:user-a",
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 },
+    );
     expect(requestClient.from).not.toHaveBeenCalled();
     expect(createAdminClientSpy).not.toHaveBeenCalled();
   });

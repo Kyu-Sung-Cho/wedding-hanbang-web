@@ -8,6 +8,8 @@ import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import { readStoredUtm } from "@/utils/utm";
+import { sanitizeUtmFields } from "@/utils/campaignAttribution";
+import { CURRENT_PRIVACY_VERSION } from "@/lib/compliance/policyVersions";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -30,6 +32,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +45,10 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
       setError("신부 또는 신랑을 선택해주세요.");
       return;
     }
+    if (!privacyAgreed) {
+      setError("개인정보 수집·이용 내용을 확인하고 동의해주세요.");
+      return;
+    }
     if (TURNSTILE_ENABLED && !turnstileToken) {
       setError("봇 확인을 완료해주세요.");
       return;
@@ -52,9 +59,14 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
       // 없으면 현재 URL 쿼리 폴백 — 채널 전환 측정(G1)의 데이터원.
       const storedUtm = readStoredUtm();
       const currentParams = new URLSearchParams(window.location.search);
-      const utmSource = storedUtm?.source ?? currentParams.get("utm_source") ?? undefined;
-      const utmMedium = storedUtm?.medium ?? currentParams.get("utm_medium") ?? undefined;
-      const utmCampaign = storedUtm?.campaign ?? currentParams.get("utm_campaign") ?? undefined;
+      const currentUtm = sanitizeUtmFields({
+        source: currentParams.get("utm_source"),
+        medium: currentParams.get("utm_medium"),
+        campaign: currentParams.get("utm_campaign"),
+      });
+      const utmSource = storedUtm?.source ?? currentUtm.source ?? undefined;
+      const utmMedium = storedUtm?.medium ?? currentUtm.medium ?? undefined;
+      const utmCampaign = storedUtm?.campaign ?? currentUtm.campaign ?? undefined;
 
       const res = await fetch("/api/preregister", {
         method: "POST",
@@ -70,6 +82,8 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           utmSource,
           utmMedium,
           utmCampaign,
+          privacyAgreed: true,
+          privacyVersion: CURRENT_PRIVACY_VERSION,
         }),
       });
       const data = await res.json();
@@ -92,15 +106,15 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           <Check className="w-6 h-6 text-rose-light" />
         </div>
         <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-5 tracking-[-0.005em]">
-          신청 <em className="not-italic text-rose-light">접수 완료</em>
+          확인 메일을 <em className="not-italic text-rose-light">보냈어요</em>
         </h2>
         <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
-          감사합니다. 신청 내용을 확인한 뒤 참여 가능 여부와 제공 범위를 이메일로 안내드릴게요.
+          메일의 링크를 연 뒤 확인 화면에서 직접 신청을 완료해주세요.
           <br />
           <span className="text-white/60">{email}</span>
         </p>
         <p className="text-[12px] text-white/50 leading-relaxed mb-8">
-          모집 현황은 약 1분 후 반영됩니다.
+          링크를 여는 것만으로는 신청되지 않으며, 확인 링크는 30분 동안 유효합니다.
         </p>
 
         <div className="h-px w-full bg-white/10 mb-8" aria-hidden />
@@ -222,6 +236,33 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
             maxLength={300}
           />
         </Field>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/15 px-4 py-4 text-left">
+          <input
+            type="checkbox"
+            checked={privacyAgreed}
+            onChange={(event) => setPrivacyAgreed(event.target.checked)}
+            disabled={submitting}
+            required
+            className="mt-1 h-4 w-4 shrink-0 accent-[#A77B74]"
+          />
+          <span className="text-[12px] leading-6 text-white/65">
+            <strong className="font-medium text-white/85">[필수] 개인정보 수집·이용에 동의합니다.</strong>
+            <br />
+            입력한 이메일, 이름·역할·예식일·메시지와 유입경로 식별값을 베타 신청 확인 및
+            참여 안내에 이용합니다. 확인 전 임시정보는 암호화해 최대 30분 보관하며,
+            확인 후 보유·파기와 권리 행사는 {" "}
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-rose-light underline underline-offset-4"
+            >
+              개인정보 처리방침({CURRENT_PRIVACY_VERSION})
+            </Link>
+            에서 확인할 수 있습니다.
+          </span>
+        </label>
 
         {TURNSTILE_ENABLED && (
           <TurnstileWidget action="preregister" onVerify={setTurnstileToken} />

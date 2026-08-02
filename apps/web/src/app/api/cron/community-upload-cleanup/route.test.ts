@@ -13,10 +13,12 @@ const oldSecret = process.env.CRON_SECRET;
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const UPLOAD_ID = "33333333-3333-4333-8333-333333333333";
 const FINAL_UPLOAD_ID = "44444444-4444-4444-8444-444444444444";
+const FINAL_OBJECT_ID = "55555555-5555-4555-8555-555555555555";
 const STAGING_PATH = `${USER_ID}/${UPLOAD_ID}.png`;
-const FINAL_PATH = `${USER_ID}/${FINAL_UPLOAD_ID}.webp`;
+const FINAL_PATH = `v2/${FINAL_OBJECT_ID}.webp`;
+const CRON_SECRET = "cron-secret-with-at-least-thirty-two-characters";
 
-function request(secret = "cron-secret") {
+function request(secret = CRON_SECRET) {
   return new Request("http://localhost/api/cron/community-upload-cleanup", {
     headers: { authorization: `Bearer ${secret}` },
   });
@@ -110,7 +112,7 @@ function adminHarness(options: HarnessOptions = {}) {
 describe("GET /api/cron/community-upload-cleanup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.CRON_SECRET = "cron-secret";
+    process.env.CRON_SECRET = CRON_SECRET;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 

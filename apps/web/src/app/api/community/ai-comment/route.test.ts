@@ -42,7 +42,24 @@ function request(): NextRequest {
   });
 }
 
-function mockServiceClientForGeneration() {
+function chunkedOversizeRequest(byteLength: number): Request {
+  const firstChunkSize = Math.floor(byteLength / 2);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(firstChunkSize).fill(0x7b));
+      controller.enqueue(new Uint8Array(byteLength - firstChunkSize).fill(0x7d));
+      controller.close();
+    },
+  });
+  return new Request("http://localhost/api/community/ai-comment", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
+function mockServiceClientForGeneration(options: { primaryInsertFails?: boolean } = {}) {
   const postRead = {
     select: vi.fn(),
     eq: vi.fn(),
@@ -82,41 +99,36 @@ function mockServiceClientForGeneration() {
   profileRead.select.mockReturnValue(profileRead);
   profileRead.eq.mockReturnValue(profileRead);
 
+  const commentSingle = vi.fn();
+  if (options.primaryInsertFails) {
+    commentSingle
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "42703", message: "column is_ai does not exist" },
+      })
+      .mockResolvedValueOnce({
+        data: { id: "comment-fallback", post_id: "post-1", content: "안전한 계약 조언 [amora_cta]" },
+        error: null,
+      });
+  } else {
+    commentSingle.mockResolvedValue({
+      data: { id: "comment-1", post_id: "post-1", content: "안전한 계약 조언 [amora_cta]" },
+      error: null,
+    });
+  }
+
   const commentInsert = {
     insert: vi.fn(),
     select: vi.fn(),
-    single: vi.fn().mockResolvedValue({
-      data: { id: "comment-1", post_id: "post-1", content: "안전한 계약 조언 [amora_cta]" },
-      error: null,
-    }),
+    single: commentSingle,
   };
   commentInsert.insert.mockReturnValue(commentInsert);
   commentInsert.select.mockReturnValue(commentInsert);
 
-  const countRead = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    single: vi.fn().mockResolvedValue({ data: { comment_count: 2 }, error: null }),
-  };
-  countRead.select.mockReturnValue(countRead);
-  countRead.eq.mockReturnValue(countRead);
-
-  const countUpdate = {
-    update: vi.fn(),
-    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-  };
-  countUpdate.update.mockReturnValue(countUpdate);
-
-  let postCalls = 0;
   let commentCalls = 0;
   const serviceClient = {
     from: vi.fn((table: string) => {
-      if (table === "community_posts") {
-        postCalls += 1;
-        if (postCalls === 1) return postRead;
-        if (postCalls === 2) return countRead;
-        return countUpdate;
-      }
+      if (table === "community_posts") return postRead;
       if (table === "community_comments") {
         commentCalls += 1;
         return commentCalls === 1 ? existingCommentRead : commentInsert;
@@ -186,6 +198,18 @@ describe("POST /api/community/ai-comment safety gates", () => {
     expect(mocks.reserveAmoraTurn).not.toHaveBeenCalled();
   });
 
+  it("returns 413 for a Content-Length-less chunked oversized JSON body", async () => {
+    process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED = "true";
+    const oversized = chunkedOversizeRequest(2 * 1024 + 1);
+
+    const response = await POST(oversized as never);
+
+    expect(oversized.headers.get("content-length")).toBeNull();
+    expect(response.status).toBe(413);
+    expect(mocks.createServiceClient).not.toHaveBeenCalled();
+    expect(mocks.createOpenAIResponse).not.toHaveBeenCalled();
+  });
+
   it("reserves one Luna background call immediately before generation", async () => {
     process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED = "true";
     const serviceClient = mockServiceClientForGeneration();
@@ -209,6 +233,24 @@ describe("POST /api/community/ai-comment safety gates", () => {
     expect(mocks.reserveAmoraTurn.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.providerGeneration.mock.invocationCallOrder[0]
     );
+  });
+
+  it("keeps the legacy is_ai fallback on trigger-owned counters", async () => {
+    process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED = "true";
+    const serviceClient = mockServiceClientForGeneration({ primaryInsertFails: true });
+    mocks.reserveAmoraTurn.mockResolvedValue({ allowed: true });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(201);
+    const communityCommentCalls = serviceClient.from.mock.calls.filter(
+      ([table]) => table === "community_comments",
+    );
+    const communityPostCalls = serviceClient.from.mock.calls.filter(
+      ([table]) => table === "community_posts",
+    );
+    expect(communityCommentCalls).toHaveLength(3);
+    expect(communityPostCalls).toHaveLength(1);
   });
 
   it("fails closed with 503 when the atomic cost reservation is denied", async () => {

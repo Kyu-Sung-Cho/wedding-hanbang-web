@@ -5,6 +5,15 @@
 // 그래서 유휴 시점에 동적 로드하되, 로드 전 구간이 감시 사각지대가 되지
 // 않도록 그 사이의 error·unhandledrejection을 버퍼에 담았다가 준비되면
 // 그대로 흘려보낸다. 결과적으로 잡히는 에러는 이전과 같고 첫 화면만 가벼워진다.
+import {
+  captureAndClearSensitiveAuthUrl,
+} from "@/lib/auth/sensitiveAuthUrl";
+import {
+  sanitizeSentryTelemetryBreadcrumb,
+  sanitizeSentryTelemetryEvent,
+  sanitizeSentryTelemetryTransaction,
+} from "@/lib/telemetryPrivacy";
+
 type SentryModule = typeof import("@sentry/nextjs");
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -29,6 +38,10 @@ function whenIdle(run: () => void) {
   else window.setTimeout(run, 1_200);
 }
 
+if (typeof window !== "undefined") {
+  captureAndClearSensitiveAuthUrl();
+}
+
 if (typeof window !== "undefined" && dsn) {
   window.addEventListener("error", bufferError);
   window.addEventListener("unhandledrejection", bufferRejection);
@@ -40,7 +53,11 @@ if (typeof window !== "undefined" && dsn) {
           dsn,
           enabled: true,
           environment: process.env.NODE_ENV,
+          sendDefaultPii: false,
           tracesSampleRate: 0.1,
+          beforeSend: (event) => sanitizeSentryTelemetryEvent(event),
+      beforeSendTransaction: (event) => sanitizeSentryTelemetryTransaction(event),
+          beforeBreadcrumb: (breadcrumb) => sanitizeSentryTelemetryBreadcrumb(breadcrumb),
         });
         sentry = mod;
         for (const error of buffered) mod.captureException(error);

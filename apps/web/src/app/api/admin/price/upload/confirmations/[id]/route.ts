@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin/priceUploadConfirmations";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { z } from "zod";
+import { checkAdminMutationRateLimit } from "@/lib/admin/adminReadBoundary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,6 +85,12 @@ export async function PATCH(
   if (!admin.authorized || !admin.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminMutationRateLimit(
+    request,
+    admin.userId,
+    "price-upload-confirmation",
+  );
+  if (limited) return limited;
   const confirmationId = z.string().uuid().safeParse((await params).id);
   if (!confirmationId.success) {
     return NextResponse.json(

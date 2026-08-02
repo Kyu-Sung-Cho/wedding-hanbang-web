@@ -3,6 +3,8 @@
 import { Bell, Heart } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useUserScopedClientActor } from "@/components/common/UserScopedClientStateBoundary";
+import { expectedActorHeaders } from "@/lib/auth/actorFence";
 import { AuthGateModal } from "@/components/price/AuthGateModal";
 import { track } from "@/lib/analytics/track";
 import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
@@ -41,24 +43,55 @@ async function loadMembership(
 }
 
 export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
+  const actor = useUserScopedClientActor();
+  const actorKey = actor.status === "ready" ? actor.actorKey : null;
+  const actorUserId = actor.status === "ready" && actor.kind === "user" ? actor.userId : null;
   const [favorite, setFavorite] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [stateActorKey, setStateActorKey] = useState<string | null>(null);
   const [favoriteStatus, setFavoriteStatus] = useState<SavedStateStatus>("loading");
   const [alertStatus, setAlertStatus] = useState<SavedStateStatus>("loading");
   const [busy, setBusy] = useState<"favorite" | "alert" | null>(null);
   const [showGate, setShowGate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mutationBusyRef = useRef(false);
+  const mutationAbortRef = useRef<AbortController | null>(null);
   const loadGenerationRef = useRef(0);
   const loadAbortRef = useRef<AbortController | null>(null);
   const latestVendorIdRef = useRef(vendorId);
+  const actorKeyRef = useRef(actorKey);
   latestVendorIdRef.current = vendorId;
+  actorKeyRef.current = actorKey;
+  const canUsePrivateState = actorKey !== null && stateActorKey === actorKey;
+  const currentFavorite = canUsePrivateState ? favorite : false;
+  const currentSubscribed = canUsePrivateState ? subscribed : false;
+  const currentFavoriteStatus: SavedStateStatus = canUsePrivateState ? favoriteStatus : "loading";
+  const currentAlertStatus: SavedStateStatus = canUsePrivateState ? alertStatus : "loading";
+  const currentBusy = canUsePrivateState ? busy : null;
+  const currentError = canUsePrivateState ? error : null;
 
   const loadSavedState = useCallback(async () => {
     loadAbortRef.current?.abort();
+    mutationAbortRef.current?.abort();
+    mutationAbortRef.current = null;
+    mutationBusyRef.current = false;
+    setBusy(null);
+    setShowGate(false);
+    if (!actorKey) {
+      loadGenerationRef.current += 1;
+      setStateActorKey(null);
+      setFavoriteStatus("loading");
+      setAlertStatus("loading");
+      setFavorite(false);
+      setSubscribed(false);
+      setError(null);
+      return;
+    }
     const controller = new AbortController();
     loadAbortRef.current = controller;
+    const requestedActorKey = actorKey;
     const generation = ++loadGenerationRef.current;
+    setStateActorKey(requestedActorKey);
     setFavoriteStatus("loading");
     setAlertStatus("loading");
     setFavorite(false);
@@ -73,42 +106,60 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       controller.signal.aborted
       || generation !== loadGenerationRef.current
       || latestVendorIdRef.current !== vendorId
+      || actorKeyRef.current !== requestedActorKey
     ) return;
 
     setFavorite(favoriteResult.selected);
     setFavoriteStatus(favoriteResult.status);
     setSubscribed(alertResult.selected);
     setAlertStatus(alertResult.status);
-  }, [vendorId]);
+  }, [actorKey, vendorId]);
 
   useEffect(() => {
     track("vendor_detail_view", { vendor_id: vendorId, surface: "price_detail" });
     void loadSavedState();
     return () => {
       loadAbortRef.current?.abort();
+      mutationAbortRef.current?.abort();
       loadGenerationRef.current += 1;
     };
   }, [loadSavedState, vendorId]);
 
   async function toggleFavorite() {
+    if (!actorKey || !canUsePrivateState) return;
     if (mutationBusyRef.current) return;
-    if (favoriteStatus === "guest") {
+    if (currentFavoriteStatus === "guest") {
       setShowGate(true);
       return;
     }
-    if (favoriteStatus !== "ready") return;
+    if (currentFavoriteStatus !== "ready") return;
     const requestedVendorId = vendorId;
-    const desiredFavorite = !favorite;
+    const requestedActorKey = actorKey;
+    const requestedGeneration = loadGenerationRef.current;
+    const controller = new AbortController();
+    const isCurrentMutation = () => (
+      !controller.signal.aborted
+      && mutationAbortRef.current === controller
+      && latestVendorIdRef.current === requestedVendorId
+      && actorKeyRef.current === requestedActorKey
+      && loadGenerationRef.current === requestedGeneration
+    );
+    const desiredFavorite = !currentFavorite;
     mutationBusyRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy("favorite");
     setError(null);
     try {
       const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: desiredFavorite ? "POST" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(actorUserId ? expectedActorHeaders(actorUserId) : {}),
+        },
         body: JSON.stringify({ vendorId }),
+        signal: controller.signal,
       });
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!isCurrentMutation()) return;
       if (response.status === 401) {
         setFavoriteStatus("guest");
         setShowGate(true);
@@ -119,7 +170,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
         return;
       }
       const body = await response.json();
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!isCurrentMutation()) return;
       if (body.isFavorite !== desiredFavorite) {
         setError("찜 상태를 확인하지 못했어요. 다시 시도해 주세요.");
         return;
@@ -128,35 +179,54 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       if (desiredFavorite) {
         track("wishlist_add", { vendor_id: requestedVendorId, surface: "price_detail" });
       }
-    } catch {
-      if (latestVendorIdRef.current === requestedVendorId) {
+    } catch (caught: unknown) {
+      if (isCurrentMutation() && !(caught instanceof DOMException && caught.name === "AbortError")) {
         setError("찜 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      mutationBusyRef.current = false;
-      setBusy(null);
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationBusyRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
   async function toggleAlert() {
+    if (!actorKey || !canUsePrivateState) return;
     if (mutationBusyRef.current) return;
-    if (alertStatus === "guest") {
+    if (currentAlertStatus === "guest") {
       setShowGate(true);
       return;
     }
-    if (alertStatus !== "ready") return;
+    if (currentAlertStatus !== "ready") return;
     const requestedVendorId = vendorId;
-    const desiredSubscription = !subscribed;
+    const requestedActorKey = actorKey;
+    const requestedGeneration = loadGenerationRef.current;
+    const controller = new AbortController();
+    const isCurrentMutation = () => (
+      !controller.signal.aborted
+      && mutationAbortRef.current === controller
+      && latestVendorIdRef.current === requestedVendorId
+      && actorKeyRef.current === requestedActorKey
+      && loadGenerationRef.current === requestedGeneration
+    );
+    const desiredSubscription = !currentSubscribed;
     mutationBusyRef.current = true;
+    mutationAbortRef.current = controller;
     setBusy("alert");
     setError(null);
     try {
       const response = await mobileAuthenticatedFetch("/api/price/alerts", {
         method: desiredSubscription ? "POST" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(actorUserId ? expectedActorHeaders(actorUserId) : {}),
+        },
         body: JSON.stringify({ vendorId }),
+        signal: controller.signal,
       });
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!isCurrentMutation()) return;
       if (response.status === 401) {
         setAlertStatus("guest");
         setShowGate(true);
@@ -167,7 +237,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
         return;
       }
       const body = await response.json();
-      if (latestVendorIdRef.current !== requestedVendorId) return;
+      if (!isCurrentMutation()) return;
       if (body.subscribed !== desiredSubscription) {
         setError("가격 알림 상태를 확인하지 못했어요. 다시 시도해 주세요.");
         return;
@@ -176,13 +246,16 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
       if (desiredSubscription) {
         track("alert_subscribe", { vendor_id: requestedVendorId, surface: "price_detail" });
       }
-    } catch {
-      if (latestVendorIdRef.current === requestedVendorId) {
+    } catch (caught: unknown) {
+      if (isCurrentMutation() && !(caught instanceof DOMException && caught.name === "AbortError")) {
         setError("가격 알림 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
-      mutationBusyRef.current = false;
-      setBusy(null);
+      if (mutationAbortRef.current === controller) {
+        mutationAbortRef.current = null;
+        mutationBusyRef.current = false;
+        setBusy(null);
+      }
     }
   }
 
@@ -192,31 +265,31 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
         <button
           type="button"
           onClick={toggleFavorite}
-          disabled={favoriteStatus === "loading" || favoriteStatus === "error" || busy !== null}
-          aria-busy={favoriteStatus === "loading" || busy === "favorite"}
-          aria-pressed={favorite}
+          disabled={currentFavoriteStatus === "loading" || currentFavoriteStatus === "error" || currentBusy !== null}
+          aria-busy={currentFavoriteStatus === "loading" || currentBusy === "favorite"}
+          aria-pressed={currentFavorite}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#243832]/20 bg-white px-4 text-sm font-bold text-[#243832] disabled:opacity-50"
         >
-          <Heart className={`size-4 ${favorite ? "fill-[#B89785] text-[#B89785]" : ""}`} aria-hidden="true" />
-          {favorite ? "찜했어요" : "찜하기"}
+          <Heart className={`size-4 ${currentFavorite ? "fill-[#B89785] text-[#B89785]" : ""}`} aria-hidden="true" />
+          {currentFavorite ? "찜했어요" : "찜하기"}
         </button>
         <button
           type="button"
           onClick={toggleAlert}
-          disabled={alertStatus === "loading" || alertStatus === "error" || busy !== null}
-          aria-busy={alertStatus === "loading" || busy === "alert"}
-          aria-pressed={subscribed}
+          disabled={currentAlertStatus === "loading" || currentAlertStatus === "error" || currentBusy !== null}
+          aria-busy={currentAlertStatus === "loading" || currentBusy === "alert"}
+          aria-pressed={currentSubscribed}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-bold text-white disabled:opacity-50"
         >
-          <Bell className={`size-4 ${subscribed ? "fill-white" : ""}`} aria-hidden="true" />
-          {subscribed ? "가격 알림 받는 중" : "가격변동 알림 받기"}
+          <Bell className={`size-4 ${currentSubscribed ? "fill-white" : ""}`} aria-hidden="true" />
+          {currentSubscribed ? "가격 알림 받는 중" : "가격변동 알림 받기"}
         </button>
       </div>
 
-      {favoriteStatus === "error" || alertStatus === "error" ? (
+      {currentFavoriteStatus === "error" || currentAlertStatus === "error" ? (
         <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#8F6662]/25 bg-[#F5ECE4] px-4 py-3 text-sm text-[#7A4742]">
           <p className="font-semibold">
-            {[favoriteStatus === "error" ? "찜" : null, alertStatus === "error" ? "가격 알림" : null]
+            {[currentFavoriteStatus === "error" ? "찜" : null, currentAlertStatus === "error" ? "가격 알림" : null]
               .filter(Boolean)
               .join("·")} 상태를 불러오지 못했어요. 기존 저장은 변경하지 않았어요.
           </p>
@@ -230,14 +303,14 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
         </div>
       ) : null}
 
-      {error ? (
+      {currentError ? (
         <p role="alert" className="mt-3 rounded-xl border border-[#8F6662]/25 bg-[#F5ECE4] px-4 py-3 text-sm font-semibold text-[#7A4742]">
-          {error}
+          {currentError}
         </p>
       ) : null}
 
       <AuthGateModal
-        open={showGate}
+        open={canUsePrivateState && showGate}
         redirectPath={redirectPath}
         onClose={() => setShowGate(false)}
       />

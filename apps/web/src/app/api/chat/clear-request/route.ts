@@ -1,8 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import {
+  isBodyTooLarge,
+  isRecord,
+  isUuid,
+  readBoundedJsonValue,
+} from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { CHAT_MESSAGE_CLIENT_SELECT } from "@/lib/privacy/privateDataSelects";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -57,13 +64,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("chat:clear-request", request, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("chat:clear-request", request, user.id), {
       maxRequests: 20,
       windowMs: 10 * 60 * 1000,
     });
     if (limited) return limited;
 
-    const body = await request.json().catch(() => null);
+    const bodyResult = await readBoundedJsonValue(request, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = bodyResult.value;
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -145,7 +159,7 @@ export async function POST(request: Request) {
           visibility: "shared",
           metadata: { clearRequest: meta },
         })
-        .select()
+        .select(CHAT_MESSAGE_CLIENT_SELECT)
         .single();
 
       if (insertError) {
@@ -201,10 +215,7 @@ export async function POST(request: Request) {
       idempotent: resolution.idempotent === true,
     });
   } catch (error) {
-    console.error(
-      "[clear-request] unexpected failure",
-      error instanceof Error ? error.name : "unknown"
-    );
+    console.error("[clear-request] unexpected failure", safeErrorDiagnostic(error));
     return NextResponse.json(
       { error: "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 500 }

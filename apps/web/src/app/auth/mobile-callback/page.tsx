@@ -10,6 +10,10 @@
 
 import { useEffect, useState } from "react";
 import { buildMobileOAuthAppCallbackUrl } from "@hanbang/shared/utils";
+import {
+  captureAndClearSensitiveAuthUrl,
+  consumePendingMobileOAuthCode,
+} from "@/lib/auth/sensitiveAuthUrl";
 
 const palette = {
   bg: "#FBF8F2",
@@ -23,16 +27,21 @@ export default function MobileCallbackPage() {
   const [status, setStatus] = useState("앱으로 돌아가는 중...");
 
   useEffect(() => {
-    const callbackUrl = window.location.href;
+    // instrumentation-client가 먼저 실행되지 않은 환경도 여기서 즉시 정리한다.
+    captureAndClearSensitiveAuthUrl();
+    const authorizationCode = consumePendingMobileOAuthCode();
     const devExpoCallback = process.env.NEXT_PUBLIC_EXPO_AUTH_CALLBACK_URL;
 
     let appUrl: string;
     let devAppUrl: string | undefined;
 
     try {
-      appUrl = buildMobileOAuthAppCallbackUrl(callbackUrl);
+      if (!authorizationCode) throw new Error("OAuth authorization code is missing");
+      const callbackUrl = new URL("/auth/mobile-callback", window.location.origin);
+      callbackUrl.searchParams.set("code", authorizationCode);
+      appUrl = buildMobileOAuthAppCallbackUrl(callbackUrl.toString());
       if (process.env.NODE_ENV !== "production" && devExpoCallback) {
-        devAppUrl = buildMobileOAuthAppCallbackUrl(callbackUrl, devExpoCallback);
+        devAppUrl = buildMobileOAuthAppCallbackUrl(callbackUrl.toString(), devExpoCallback);
       }
     } catch {
       const timer = window.setTimeout(() => {
@@ -40,9 +49,6 @@ export default function MobileCallbackPage() {
       }, 0);
       return () => window.clearTimeout(timer);
     }
-
-    // Remove the one-time code from browser history before opening the app.
-    window.history.replaceState(null, "", window.location.pathname);
 
     let devFallbackTimer: number | undefined;
     window.location.replace(appUrl);

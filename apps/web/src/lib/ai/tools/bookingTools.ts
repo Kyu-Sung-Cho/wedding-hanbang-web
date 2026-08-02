@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION } from "@/lib/vendors/staffPublicationConsent";
 import {
   processBookingProjectionJob,
   type BookingProjectionDeliveryStatus,
@@ -15,6 +16,7 @@ import {
   requireDestructiveConfirmation,
   type ToolExecutionContext,
 } from "@/lib/ai/tools/toolTypes";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HH_00_RE = /^\d{2}:00$/;
@@ -269,6 +271,12 @@ export async function executeGetAvailableSlots(
       .select("id")
       .eq("id", staffId)
       .eq("vendor_id", vendorId)
+      .eq("is_active", true)
+      .not("public_profile_consent_at", "is", null)
+      .eq(
+        "public_profile_consent_version",
+        CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION,
+      )
       .maybeSingle();
     if (!staff) {
       return {
@@ -641,6 +649,12 @@ export async function executeCreateBooking(
       .select("name, role")
       .eq("id", staffId)
       .eq("vendor_id", vendorId)
+      .eq("is_active", true)
+      .not("public_profile_consent_at", "is", null)
+      .eq(
+        "public_profile_consent_version",
+        CURRENT_VENDOR_STAFF_PUBLICATION_CONSENT_VERSION,
+      )
       .maybeSingle();
     if (!staff) {
       return {
@@ -803,7 +817,6 @@ export async function executeCreateBooking(
         syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
     } else if (projectionStatus !== "completed") {
       console.error("[create_booking] schedule/budget projection is not complete:", {
-        bookingId: booking.id,
         status: projectionStatus,
         errorCode: projectionErrorCode,
       });
@@ -812,7 +825,7 @@ export async function executeCreateBooking(
     projectionStatus = "pending_retry";
     projectionRetryable = true;
     projectionErrorCode = "PROJECTION_PROCESS_FAILED";
-    console.error("[create_booking] projection processing failed; durable retry remains queued:", syncErr);
+    console.error("[create_booking] projection processing failed; durable retry remains queued", safeErrorDiagnostic(syncErr));
   }
 
   const syncNote = scheduleAdded
@@ -1065,7 +1078,6 @@ export async function executeCancelBooking(
         syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
     } else if (projectionStatus !== "completed") {
       console.error("[cancel_booking] schedule/budget projection is not complete:", {
-        bookingId: booking.id,
         status: projectionStatus,
         errorCode: projectionErrorCode,
       });
@@ -1074,7 +1086,7 @@ export async function executeCancelBooking(
     projectionStatus = "pending_retry";
     projectionRetryable = true;
     projectionErrorCode = "PROJECTION_PROCESS_FAILED";
-    console.error("[cancel_booking] projection processing failed; durable retry remains queued:", syncErr);
+    console.error("[cancel_booking] projection processing failed; durable retry remains queued", safeErrorDiagnostic(syncErr));
   }
 
   const revertNote = scheduleRemoved

@@ -24,6 +24,36 @@ export function isExplicitPlaceSearchIntent(userText: string): boolean {
   return LOCATION_RE.test(normalized) && PLACE_KIND_RE.test(normalized) && SEARCH_ACTION_RE.test(normalized);
 }
 
+function collectUniqueMatches(value: string, pattern: RegExp): string[] {
+  const flags = Array.from(new Set(`${pattern.flags}g`)).join("");
+  const matches = value.match(new RegExp(pattern.source, flags)) ?? [];
+  return [...new Set(matches.map((match) => match.trim()).filter(Boolean))];
+}
+
+/**
+ * Build the outbound provider query only from lexical place intent in the
+ * canonical user message. Model-generated arguments may contain instructions
+ * copied from an untrusted attachment or private conversation context, so they
+ * must never become a third-party search query.
+ */
+export function buildTrustedPlaceSearchQuery(userText: string): string | null {
+  const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!isExplicitPlaceSearchIntent(normalized)) return null;
+
+  const actionMatch = normalized.match(SEARCH_ACTION_RE);
+  if (actionMatch?.index === undefined) return null;
+
+  // A normal Korean place request puts its search terms before the action
+  // phrase ("강남 카페 찾아줘"). Ignore anything after that phrase so a
+  // trailing instruction or copied attachment marker cannot join the query.
+  const intentPhrase = normalized.slice(0, actionMatch.index);
+  const locations = collectUniqueMatches(intentPhrase, LOCATION_RE);
+  const placeKinds = collectUniqueMatches(intentPhrase, PLACE_KIND_RE);
+  if (locations.length === 0 || placeKinds.length === 0) return null;
+
+  return [...locations.slice(-2), ...placeKinds.slice(0, 2)].join(" ");
+}
+
 export function getAvailableChatTools(options: {
   requestKind: "chat" | "initial_greeting" | "mediation";
   isDurableUserMessageBound: boolean;

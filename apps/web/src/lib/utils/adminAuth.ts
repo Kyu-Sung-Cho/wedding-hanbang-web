@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { hasAdminStepUp } from "@/lib/auth/adminStepUp";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export function getServiceClient() {
   return createAdminClient();
@@ -22,9 +24,16 @@ export function seedGate(): NextResponse | null {
   return null;
 }
 
-// 관리자 인증: Supabase Auth + is_admin 플래그만 허용
+// 관리자 인증: Supabase Auth + is_admin + 짧은 서버 서명 step-up을 모두 요구한다.
 export async function verifyAdmin(request: Request): Promise<{ authorized: boolean; userId?: string }> {
   try {
+    if (
+      !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
+      && !isTrustedMutationRequest(request)
+    ) {
+      return { authorized: false };
+    }
+
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -37,7 +46,10 @@ export async function verifyAdmin(request: Request): Promise<{ authorized: boole
       .eq("id", user.id)
       .single();
 
-    if (profile?.is_admin === true) {
+    if (
+      profile?.is_admin === true
+      && hasAdminStepUp(request.headers.get("cookie"), user.id)
+    ) {
       return { authorized: true, userId: user.id };
     }
   } catch {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
@@ -21,6 +20,7 @@ import PendingAmoraActionCard, {
 import {
   chatAttachmentKey,
   CHAT_ATTACHMENT_MAX_COUNT,
+  CHAT_PDF_DISABLED_ERROR,
   CHAT_ATTACHMENT_SNAPSHOT_ERROR,
   CHAT_ATTACHMENT_TYPE_INFO,
   prepareChatAttachmentPayload,
@@ -28,6 +28,7 @@ import {
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import { consumeChatHandoff } from "@/lib/privacy/oneTimeHandoff";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
@@ -447,24 +448,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }
   }, [input]);
 
-  // URL ?prefill=... 로 진입했을 때 (예: 견적 체크 → "아모라에게 이어서 묻기")
-  // input에 미리 채워주고 query string은 한 번 비움 (새로고침 시 재기입 방지).
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  // 민감한 견적·게시글 내용은 URL이 아닌 계정 귀속 1회성 메모리에서만 받는다.
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
-    if (prefillAppliedRef.current) return;
-    const prefill = searchParams?.get("prefill");
-    if (!prefill) return;
+    if (prefillAppliedRef.current || !authInitialized || authLoading) return;
     prefillAppliedRef.current = true;
-    setInput(prefill);
-    // URL 정리 — prefill만 제거
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("prefill");
-    const qs = next.toString();
-    router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+    const handoff = consumeChatHandoff(profile?.id ?? null);
+    if (!handoff) return;
+    setInput(handoff.input);
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [searchParams, router]);
+  }, [authInitialized, authLoading, profile?.id]);
   const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 
@@ -833,10 +826,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     if (remaining <= 0) return;
 
     uniqueFiles(files).forEach((file) => {
+      if (file.type === "application/pdf") {
+        useChatStore.setState({ error: CHAT_PDF_DISABLED_ERROR });
+        return;
+      }
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
         useChatStore.setState({
-          error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, PDF, DOCX만 가능해요.)`,
+          error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, DOCX만 가능해요.)`,
         });
         return;
       }
@@ -982,9 +979,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         const hasDoc = currentAttachments.some((a) =>
           a.mediaType.includes("word") || a.mediaType.includes("spreadsheet") || a.mediaType.includes("ms-excel")
         );
-        const hasPdf = currentAttachments.some((a) => a.mediaType === "application/pdf");
         if (hasDoc) defaultMsg = "이 문서를 분석해주세요.";
-        else if (hasPdf) defaultMsg = "이 문서를 분석해주세요.";
         else defaultMsg = "이 이미지를 분석해주세요.";
       }
 
@@ -1242,7 +1237,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const getFileIcon = (mediaType: string) => {
     if (mediaType.includes("word") || mediaType === "application/msword") return <FileText className="w-7 h-7 text-[#4285F4]" />;
     if (mediaType.includes("spreadsheet") || mediaType.includes("ms-excel")) return <FileSpreadsheet className="w-7 h-7 text-[#34A853]" />;
-    if (mediaType === "application/pdf") return <FileText className="w-7 h-7 text-[#795252]" />;
     return <FileText className="w-7 h-7 text-[#504444]" />;
   };
 
@@ -1259,7 +1253,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <div className="bg-white rounded-xl px-8 py-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)] text-center">
             <Paperclip className="w-12 h-12 text-[#795252] mx-auto mb-3" />
             <p className="text-lg font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
-            <p className="text-sm text-[#504444] mt-1">이미지, PDF, Word</p>
+            <p className="text-sm text-[#504444] mt-1">이미지, Word</p>
           </div>
         </div>
       )}
@@ -2175,7 +2169,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
-            title="파일 첨부 (이미지, PDF, Word)"
+            title="파일 첨부 (이미지, Word)"
           >
             <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>

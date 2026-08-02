@@ -1,8 +1,10 @@
 import { createHash, createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import type { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 // 간단한 인메모리 Rate Limiter (서버리스 환경)
 // Vercel 서버리스에서는 인스턴스당 메모리 — 완벽하지 않지만 기본 방어용
@@ -42,7 +44,11 @@ function rateLimitResponse(retryAfter: number): NextResponse {
     { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." },
     {
       status: 429,
-      headers: { "Retry-After": String(Math.max(1, retryAfter)) },
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Retry-After": String(Math.max(1, retryAfter)),
+        Vary: "Authorization, Cookie",
+      },
     },
   );
 }
@@ -52,7 +58,11 @@ function rateLimitUnavailableResponse(): NextResponse {
     { error: "요청 제한 확인에 실패했습니다. 잠시 후 다시 시도해주세요." },
     {
       status: 503,
-      headers: { "Retry-After": "60" },
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Retry-After": "60",
+        Vary: "Authorization, Cookie",
+      },
     },
   );
 }
@@ -128,7 +138,7 @@ export async function checkRateLimitPersistent(
       p_cost: cost,
     });
     if (error) {
-      console.error("[rateLimit] persistent check failed:", error.message);
+      console.error("[rateLimit] persistent check failed", safeErrorDiagnostic(error));
       return failClosed
         ? rateLimitUnavailableResponse()
         : checkRateLimit(key, config);
@@ -149,7 +159,7 @@ export async function checkRateLimitPersistent(
       : Math.ceil(config.windowMs / 1000);
     return rateLimitResponse(retryAfter);
   } catch (err) {
-    console.error("[rateLimit] persistent check exception:", err);
+    console.error("[rateLimit] persistent check exception", safeErrorDiagnostic(err));
     return failClosed
       ? rateLimitUnavailableResponse()
       : checkRateLimit(key, config);
@@ -163,13 +173,26 @@ export async function checkRateLimitPersistent(
  * 넣어 조작 가능하지만(익명 rate limit 우회 벡터), 최우측은 마지막 신뢰
  * 프록시가 붙인 값이다. Turnstile remoteip 등 IP가 필요한 곳도 이걸 쓴다.
  */
+// Current policy: prefer Vercel's platform-authored forwarding header, accept
+// only syntactically valid IP addresses, and use the right-most valid XFF hop.
 export function getClientIp(req: Request): string | null {
-  const realIp = req.headers.get("x-real-ip")?.trim();
-  if (realIp) return realIp;
+  const candidates = [
+    req.headers.get("x-vercel-forwarded-for"),
+    req.headers.get("x-real-ip"),
+  ];
+  for (const candidate of candidates) {
+    const value = candidate?.trim() ?? "";
+    if (value.length <= 64 && isIP(value) !== 0) return value;
+  }
+
   const forwarded = req.headers.get("x-forwarded-for");
   if (!forwarded) return null;
-  const tokens = forwarded.split(",").map((t) => t.trim()).filter(Boolean);
-  return tokens.length > 0 ? tokens[tokens.length - 1] : null;
+  const tokens = forwarded.split(",").map((token) => token.trim()).filter(Boolean);
+  for (let index = tokens.length - 1; index >= 0; index -= 1) {
+    const value = tokens[index];
+    if (value.length <= 64 && isIP(value) !== 0) return value;
+  }
+  return null;
 }
 
 /** IP 또는 유저 ID 기반 키 생성 */
@@ -184,9 +207,26 @@ export function getClientIp(req: Request): string | null {
 export function rateLimitSubjectKey(prefix: string, subject: string): string {
   const secret = process.env.RATE_LIMIT_KEY_SECRET?.trim();
   const payload = `${prefix}\0${subject}`;
-  if (secret) {
+  const secretIsStrong = Boolean(
+    secret
+    && secret.length >= 32
+    && secret.length <= 512
+    && !/[\s\u0000-\u001f\u007f]/u.test(secret)
+    && new Set(secret).size >= 12
+    && !/(?:placeholder|example|test-only|replace-with|not-a-real)/iu.test(secret),
+  );
+  if (secret && secretIsStrong) {
     const digest = createHmac("sha256", secret).update(payload).digest("hex");
     return `${prefix}:hmac-sha256:${digest}`;
+  }
+
+  if (
+    process.env.NODE_ENV === "production"
+    || process.env.VERCEL_ENV === "production"
+  ) {
+    // Never persist dictionary-reversible hashes of emails, user IDs, or IPs
+    // when a production secret is absent or implausibly weak.
+    throw new Error("RATE_LIMIT_KEY_SECRET_INVALID");
   }
 
   const digest = createHash("sha256").update(payload).digest("hex");

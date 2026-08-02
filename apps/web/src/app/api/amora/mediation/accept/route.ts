@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isBodyTooLarge } from "@/utils/requestValidation";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,19 @@ type MediationContext = {
 };
 
 type MediationContextResult = MediationContext | { error: NextResponse };
+
+type AuthenticatedMediationSession = {
+  supabase: Awaited<ReturnType<typeof createClientFromRequest>>;
+  user: { id: string };
+};
+
+type AuthenticatedMediationSessionResult =
+  | AuthenticatedMediationSession
+  | { error: NextResponse };
+
+type MutationBodyResult =
+  | { record: Record<string, unknown> }
+  | { error: NextResponse };
 
 function rosterFingerprint(brideId: unknown, groomId: unknown): string {
   const bride = typeof brideId === "string" ? brideId : "-";
@@ -70,10 +83,20 @@ function proposalChangedResponse() {
   );
 }
 
-async function context(request: Request, messageId: string): Promise<MediationContextResult> {
+async function authenticateMediationRequest(
+  request: Request,
+): Promise<AuthenticatedMediationSessionResult> {
   const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 }) };
+  return { supabase, user: { id: user.id } };
+}
+
+async function context(
+  session: AuthenticatedMediationSession,
+  messageId: string,
+): Promise<MediationContextResult> {
+  const { supabase, user } = session;
   const { data: profile } = await supabase
     .from("profiles").select("couple_id").eq("id", user.id).single();
   if (!profile?.couple_id) return { error: NextResponse.json({ error: "커플 연결이 필요합니다." }, { status: 403 }) };
@@ -112,6 +135,42 @@ async function context(request: Request, messageId: string): Promise<MediationCo
   };
 }
 
+async function readMutationBody(request: Request): Promise<MutationBodyResult> {
+  const boundedBody = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+  if (!boundedBody.ok) {
+    return {
+      error: NextResponse.json(
+        {
+          error: boundedBody.reason === "too_large"
+            ? "요청 데이터가 너무 큽니다."
+            : "요청 형식이 올바르지 않습니다.",
+        },
+        { status: boundedBody.reason === "too_large" ? 413 : 400 },
+      ),
+    };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(boundedBody.text);
+  } catch {
+    return {
+      error: NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 }),
+    };
+  }
+  if (!isRecord(body)) {
+    return {
+      error: NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 }),
+    };
+  }
+  if (Object.keys(body).some((key) => !MUTATION_KEYS.has(key))) {
+    return {
+      error: NextResponse.json({ error: "허용되지 않은 항목이 있습니다." }, { status: 400 }),
+    };
+  }
+  return { record: body };
+}
+
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const messageId = searchParams.get("messageId");
@@ -125,7 +184,9 @@ export async function GET(request: Request) {
   if (!expected) {
     return NextResponse.json({ error: "선택안 버전이 올바르지 않습니다." }, { status: 400 });
   }
-  const auth = await context(request, messageId);
+  const session = await authenticateMediationRequest(request);
+  if ("error" in session) return session.error;
+  const auth = await context(session, messageId);
   if ("error" in auth) return auth.error;
   if (!proposalMatches(auth, expected)) return proposalChangedResponse();
   const admin = createAdminClient();
@@ -186,20 +247,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-    return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
-  }
-  let body: unknown;
-  try { body = await request.json(); } catch {
-    return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
-  }
-  const record = body as Record<string, unknown>;
-  if (Object.keys(record).some((key) => !MUTATION_KEYS.has(key))) {
-    return NextResponse.json({ error: "허용되지 않은 항목이 있습니다." }, { status: 400 });
-  }
+  const session = await authenticateMediationRequest(request);
+  if ("error" in session) return session.error;
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("amora:mediation", request, session.user.id),
+    { maxRequests: 20, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
+
+  const body = await readMutationBody(request);
+  if ("error" in body) return body.error;
+  const { record } = body;
   const messageId = record.messageId;
   if (typeof messageId !== "string" || !UUID_PATTERN.test(messageId)) {
     return NextResponse.json({ error: "메시지 식별자가 올바르지 않습니다." }, { status: 400 });
@@ -208,14 +266,9 @@ export async function POST(request: Request) {
   if (!expected) {
     return NextResponse.json({ error: "선택안 버전이 올바르지 않습니다." }, { status: 400 });
   }
-  const auth = await context(request, messageId);
+  const auth = await context(session, messageId);
   if ("error" in auth) return auth.error;
   if (!proposalMatches(auth, expected)) return proposalChangedResponse();
-  const limited = checkRateLimit(rateLimitKey("amora:mediation", request, auth.user.id), {
-    maxRequests: 20,
-    windowMs: 60 * 1000,
-  });
-  if (limited) return limited;
   const admin = createAdminClient();
   const title = `함께 확인한 합의 · ${auth.resolution.slice(0, 56)}`;
   const { data, error } = await admin.rpc("accept_amora_mediation", {
@@ -260,20 +313,17 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-    return NextResponse.json({ error: "요청 데이터가 너무 커요." }, { status: 413 });
-  }
-  let body: unknown;
-  try { body = await request.json(); } catch {
-    return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
-  }
-  const record = body as Record<string, unknown>;
-  if (Object.keys(record).some((key) => !MUTATION_KEYS.has(key))) {
-    return NextResponse.json({ error: "허용되지 않은 항목이 있습니다." }, { status: 400 });
-  }
+  const session = await authenticateMediationRequest(request);
+  if ("error" in session) return session.error;
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("amora:mediation-revoke", request, session.user.id),
+    { maxRequests: 20, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
+
+  const body = await readMutationBody(request);
+  if ("error" in body) return body.error;
+  const { record } = body;
   const messageId = record.messageId;
   if (typeof messageId !== "string" || !UUID_PATTERN.test(messageId)) {
     return NextResponse.json({ error: "메시지 식별자가 올바르지 않습니다." }, { status: 400 });
@@ -282,14 +332,9 @@ export async function DELETE(request: Request) {
   if (!expected) {
     return NextResponse.json({ error: "선택안 버전이 올바르지 않습니다." }, { status: 400 });
   }
-  const auth = await context(request, messageId);
+  const auth = await context(session, messageId);
   if ("error" in auth) return auth.error;
   if (!proposalMatches(auth, expected)) return proposalChangedResponse();
-  const limited = checkRateLimit(rateLimitKey("amora:mediation-revoke", request, auth.user.id), {
-    maxRequests: 20,
-    windowMs: 60 * 1000,
-  });
-  if (limited) return limited;
 
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("revoke_amora_mediation_acceptance", {

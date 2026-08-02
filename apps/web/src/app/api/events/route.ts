@@ -7,6 +7,7 @@ import {
   checkRateLimitPersistent,
   rateLimitKey,
 } from "@/utils/rateLimit";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 import {
   cleanIntegerInRange,
   cleanOptionalText,
@@ -16,9 +17,8 @@ import {
 } from "@/utils/requestValidation";
 
 const MAX_BODY_BYTES = 64 * 1024;
-const LEGACY_TYPES = new Set([
-  "vendor_view", "product_view", "search", "favorite_add", "favorite_remove",
-  "booking_start", "booking_complete", "message_send", "comparison", "view_duration",
+const LEGACY_LOW_TRUST_TYPES = new Set([
+  "vendor_view", "product_view", "search", "comparison", "view_duration",
   "page_view", "click",
 ]);
 
@@ -86,18 +86,39 @@ async function writeVendorBatch(request: Request, body: unknown) {
   // Never trust a client-rotatable anon_id as an abuse-control identity.
   // Authenticated traffic is bucketed by server-verified user id; anonymous
   // traffic by the trusted proxy IP (or one conservative shared fallback).
-  const limited = await checkRateLimitPersistent(
-    rateLimitKey("events:vendor", request, user?.id),
+  const abuseGates = [
     {
+      key: rateLimitKey("events:vendor", request, user?.id),
       maxRequests: 60,
       windowMs: 60 * 1000,
-      cost: events.length,
     },
-  );
-  if (limited) return limited;
+    {
+      key: rateLimitKey("events:vendor:daily", request, user?.id),
+      maxRequests: 1_000,
+      windowMs: 24 * 60 * 60 * 1000,
+    },
+  ];
+  for (const gate of abuseGates) {
+    const limited = await checkRateLimitPersistent(
+      gate.key,
+      {
+        maxRequests: gate.maxRequests,
+        windowMs: gate.windowMs,
+        cost: events.length,
+      },
+    );
+    if (limited) return limited;
+  }
 
   const { error } = await createAdminClient().from("events").insert(
-    events.map((event) => ({ ...event, user_id: user?.id ?? null })),
+    events.map((event) => ({
+      ...event,
+      // Browser telemetry remains pseudonymous even when the request carries
+      // a valid session. The verified user id is used only for abuse-control
+      // bucketing and is never persisted in the untrusted event lane.
+      user_id: null,
+      ingestion_trust: "client_untrusted",
+    })),
   );
   if (error) {
     console.error("[vendor events] insert failed", { code: error.code });
@@ -113,25 +134,40 @@ async function writeLegacyEvent(request: Request, body: unknown) {
   if (!isRecord(body)) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
+  const eventType = cleanOptionalText(body.eventType, 40);
+  if (!eventType || !LEGACY_LOW_TRUST_TYPES.has(eventType)) {
+    return NextResponse.json(
+      { error: "유효하지 않은 이벤트 타입입니다." },
+      { status: 400 },
+    );
+  }
+
   const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ success: true, skipped: "unauthenticated" });
   }
 
-  const limited = await checkRateLimitPersistent(rateLimitKey("events:legacy", request, user.id), {
-    maxRequests: 120,
-    windowMs: 60 * 1000,
-  });
-  if (limited) return limited;
-
-  const eventType = cleanOptionalText(body.eventType, 40);
-  if (!eventType || !LEGACY_TYPES.has(eventType)) {
-    return NextResponse.json(
-      { error: "유효하지 않은 이벤트 타입입니다." },
-      { status: 400 },
+  const legacyAbuseGates = [
+    {
+      key: rateLimitKey("events:legacy", request, user.id),
+      maxRequests: 60,
+      windowMs: 60 * 1000,
+    },
+    {
+      key: rateLimitKey("events:legacy:daily", request, user.id),
+      maxRequests: 500,
+      windowMs: 24 * 60 * 60 * 1000,
+    },
+  ];
+  for (const gate of legacyAbuseGates) {
+    const limited = await checkRateLimitPersistent(
+      gate.key,
+      { maxRequests: gate.maxRequests, windowMs: gate.windowMs },
     );
+    if (limited) return limited;
   }
+
   const vendorId = body.vendorId == null || body.vendorId === "" ? null : body.vendorId;
   const productId = body.productId == null || body.productId === "" ? null : body.productId;
   if (vendorId !== null && !isUuid(vendorId)) {
@@ -150,7 +186,7 @@ async function writeLegacyEvent(request: Request, body: unknown) {
     .select("couple_id")
     .eq("id", user.id)
     .single();
-  const { error } = await supabase.from("customer_events").insert({
+  const { error } = await createAdminClient().from("customer_events").insert({
     user_id: user.id,
     couple_id: profile?.couple_id || null,
     event_type: eventType,
@@ -173,6 +209,12 @@ async function writeLegacyEvent(request: Request, body: unknown) {
 }
 
 export async function POST(request: Request) {
+  const ingressLimited = await checkRateLimitPersistent(
+    rateLimitKey("events:ingress", request),
+    { maxRequests: 120, windowMs: 60 * 1000 },
+  );
+  if (ingressLimited) return ingressLimited;
+
   if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
     return NextResponse.json(
       { error: "요청 본문이 너무 큽니다." },
@@ -198,9 +240,7 @@ export async function POST(request: Request) {
       ? await writeVendorBatch(request, body)
       : await writeLegacyEvent(request, body);
   } catch (error) {
-    console.error("[events] unexpected failure", {
-      name: error instanceof Error ? error.name : "unknown",
-    });
+    console.error("[events] unexpected failure", safeErrorDiagnostic(error));
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
 }

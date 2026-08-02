@@ -1,8 +1,14 @@
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
+import {
+  COMMUNITY_POLL_SERVER_SELECT,
+  areCommunityPollResultsVisible,
+} from "@/lib/community/pollVisibility";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
 import type { InitialCommunityFeed, PollSummary, PostWithAuthor } from "@/types/community.types";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
 
 const DEFAULT_LIMIT = 10;
 
@@ -30,7 +36,12 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       .range(0, queryLimit - 1);
 
     if (error || !queriedPosts?.length) {
-      if (error) console.error("[community.initialFeed] posts query failed:", error);
+      if (error) {
+        console.error(
+          "[community.initialFeed] posts query failed",
+          safeErrorDiagnostic(error),
+        );
+      }
       return emptyFeed;
     }
 
@@ -43,13 +54,16 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
 
     let pollSummaryMap = new Map<string, PollSummary>();
     if (postIds.length > 0) {
-      const { data: polls, error: pollError } = await supabase
+      const { data: polls, error: pollError } = await createAdminClient()
         .from("community_polls")
-        .select("id, post_id, question, total_voters, closes_at")
+        .select(COMMUNITY_POLL_SERVER_SELECT)
         .in("post_id", postIds);
 
       if (pollError) {
-        console.error("[community.initialFeed] poll query failed:", pollError);
+        console.error(
+          "[community.initialFeed] poll query failed",
+          safeErrorDiagnostic(pollError),
+        );
       } else {
         pollSummaryMap = new Map(
           (polls ?? []).map((poll) => [
@@ -57,7 +71,9 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
             {
               id: poll.id as string,
               question: poll.question as string,
-              total_voters: poll.total_voters as number,
+              total_voters: areCommunityPollResultsVisible(poll, false)
+                ? poll.total_voters as number
+                : 0,
               closes_at: poll.closes_at as string | null,
             },
           ]),
@@ -84,7 +100,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       fetchedAt: new Date().toISOString(),
     };
   } catch (error) {
-    console.error("[community.initialFeed] failed:", error);
+    console.error("[community.initialFeed] failed", safeErrorDiagnostic(error));
     return emptyFeed;
   }
 }

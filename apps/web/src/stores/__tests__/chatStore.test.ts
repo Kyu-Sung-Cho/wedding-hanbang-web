@@ -38,6 +38,33 @@ function completedChatResponse(content = "완료된 답변") {
   return new Response(stream, { status: 200 });
 }
 
+function completedChatResponseWithAttachmentPaths(
+  userMessageId: string,
+  imagePaths: string[],
+) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({
+          type: "attachment_paths",
+          userMessageId,
+          imagePaths,
+        })}\n\n`,
+      ));
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({
+          type: "done",
+          fullContent: "이미지 답변",
+          metadata: { serverMessageId: "ai-message-image-1" },
+        })}\n\n`,
+      ));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => mockSupabase,
 }));
@@ -45,6 +72,19 @@ vi.mock("@/lib/supabase/client", () => ({
 vi.mock("@/lib/analytics", () => ({
   captureEvent: vi.fn(),
 }));
+
+beforeEach(() => {
+  useAuthStore.setState({
+    user: { id: "user-1", email: "user-1@example.com" },
+    profile: {
+      id: "user-1",
+      couple_id: "couple-1",
+      role: "bride",
+      name: "테스터",
+    } as never,
+    couple: { id: "couple-1" } as never,
+  });
+});
 
 describe("useChatStore quota warning", () => {
   beforeEach(() => {
@@ -677,11 +717,9 @@ describe("useChatStore failed provider retry", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("retains a safe attachment as an immutable provider payload copy", async () => {
+  it("discards original attachment bytes after a transient provider failure", async () => {
     document.cookie = "demo_mode=true; path=/";
-    mockFetch
-      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
-      .mockResolvedValueOnce(completedChatResponse("첨부 답변"));
+    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
 
     await useChatStore.getState().sendMessage({
       content: "이 파일을 봐줘",
@@ -692,27 +730,120 @@ describe("useChatStore failed provider retry", () => {
       weddingContext: {} as WeddingContext,
       images: [{
         base64: "Y29udHJhY3Q=",
-        mediaType: "application/pdf",
+        mediaType: "image/png",
         previewUrl: "blob:must-not-be-retained",
-        fileName: "contract.pdf",
+        fileName: "contract.png",
       }],
     });
 
     const firstBody = String((mockFetch.mock.calls[0][1] as RequestInit).body);
     expect(JSON.parse(firstBody).attachments).toEqual([{
       base64: "Y29udHJhY3Q=",
-      mediaType: "application/pdf",
-      fileName: "contract.pdf",
+      mediaType: "image/png",
+      fileName: "contract.png",
     }]);
     expect(firstBody).not.toContain("blob:must-not-be-retained");
     expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
-      attachmentCount: 1,
-      canRetry: true,
+      attachmentCount: 0,
+      canRetry: false,
+      requestBody: "",
     }));
 
     await useChatStore.getState().retryFailedMessage();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 
-    expect((mockFetch.mock.calls[1][1] as RequestInit).body).toBe(firstBody);
+  it("rejects PDF before analytics, persistence, storage, or provider work", async () => {
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "Y29udHJhY3Q=",
+        mediaType: "application/pdf",
+        previewUrl: "blob:provider-only",
+        fileName: "contract.pdf",
+      }],
+    });
+
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(useChatStore.getState().error).toContain("PDF");
+    expect(mockInsertSingle).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(captureEvent).not.toHaveBeenCalled();
+  });
+
+  it("never uploads an original image from the browser and applies only server-issued paths", async () => {
+    const userMessageId = "30000000-0000-4000-8000-000000000001";
+    const imagePath = "couple-1/user-1/40000000-0000-4000-8000-000000000001.png";
+    mockInsertSingle.mockResolvedValueOnce({
+      data: { ...insertedMessage, id: userMessageId },
+      error: null,
+    });
+    mockFetch.mockResolvedValueOnce(
+      completedChatResponseWithAttachmentPaths(userMessageId, [imagePath]),
+    );
+
+    await useChatStore.getState().sendMessage({
+      content: "이 이미지를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "aGVsbG8=",
+        mediaType: "image/png",
+        previewUrl: "blob:local-original",
+        fileName: "photo.png",
+      }],
+    });
+
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(JSON.parse(String((mockFetch.mock.calls[0][1] as RequestInit).body)))
+      .toMatchObject({
+        userMessageId,
+        attachments: [{
+          base64: "aGVsbG8=",
+          mediaType: "image/png",
+          fileName: "photo.png",
+        }],
+      });
+    expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: userMessageId,
+        metadata: expect.objectContaining({ imagePaths: [imagePath] }),
+      }),
+    ]));
+  });
+
+  it("blocks partner attachments before every side effect", async () => {
+    await useChatStore.getState().sendMessage({
+      content: "사진 보낼게",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "partner",
+      images: [{
+        base64: "aGVsbG8=",
+        mediaType: "image/png",
+        previewUrl: "blob:local-original",
+        fileName: "photo.png",
+      }],
+    });
+
+    expect(useChatStore.getState().error).toContain("아모라 대화");
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("clears the old retry state as soon as a new message is accepted", async () => {
@@ -784,6 +915,53 @@ describe("useChatStore failed provider retry", () => {
     expect(useChatStore.getState().isStreaming).toBe(false);
   });
 
+  it("aborts account A work and rejects its late response after switching to account B", async () => {
+    let releaseProvider!: (response: Response) => void;
+    let providerSignal: AbortSignal | null = null;
+    mockFetch.mockImplementationOnce((_input, init) => {
+      providerSignal = init?.signal as AbortSignal;
+      return new Promise<Response>((resolve) => {
+        releaseProvider = resolve;
+      });
+    });
+
+    const send = useChatStore.getState().sendMessage({
+      content: "A의 비공개 질문",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "A",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private",
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    expect(useChatStore.getState().messages).toHaveLength(1);
+
+    useAuthStore.setState({
+      user: { id: "user-2", email: "user-2@example.com" },
+      profile: {
+        id: "user-2",
+        couple_id: "couple-2",
+        role: "groom",
+        name: "B",
+      } as never,
+      couple: { id: "couple-2" } as never,
+      journey: null,
+    });
+
+    expect((providerSignal as AbortSignal | null)?.aborted).toBe(true);
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useChatStore.getState().isSending).toBe(false);
+    expect(useChatStore.getState().isStreaming).toBe(false);
+
+    releaseProvider(completedChatResponse("A의 늦은 답변"));
+    await send;
+
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().error).toBeNull();
+  });
+
   it("discards retained retry material when the user closes the retry notice", async () => {
     mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
     await useChatStore.getState().sendMessage({
@@ -801,7 +979,7 @@ describe("useChatStore failed provider retry", () => {
     expect(useChatStore.getState().error).toBeNull();
   });
 
-  it("rejects an oversized PDF before any upload, message, or provider request", async () => {
+  it("rejects PDF even when its payload would also exceed the size limit", async () => {
     await useChatStore.getState().sendMessage({
       content: "이 파일을 봐줘",
       senderId: "user-1",
@@ -817,7 +995,7 @@ describe("useChatStore failed provider retry", () => {
       }],
     });
 
-    expect(useChatStore.getState().error).toMatch(/첨부.*(크기|MB).*다시/);
+    expect(useChatStore.getState().error).toContain("PDF");
     expect(useChatStore.getState().failedRequest).toBeNull();
     expect(useChatStore.getState().messages).toEqual([]);
     expect(mockSupabase.storage.from).not.toHaveBeenCalled();
@@ -859,9 +1037,9 @@ describe("useChatStore failed provider retry", () => {
       weddingContext: {} as WeddingContext,
       images: [{
         base64: "not-valid-base64",
-        mediaType: "application/pdf",
+        mediaType: "image/png",
         previewUrl: "",
-        fileName: "broken.pdf",
+        fileName: "broken.png",
       }],
     });
 

@@ -1,6 +1,11 @@
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
+import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { checkAdminMutationRateLimit } from "@/lib/admin/adminReadBoundary";
+import { isRecord, readBoundedJsonValue } from "@/utils/requestValidation";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+
+const MAX_BODY_BYTES = 2 * 1024;
 
 /**
  * 운영자 큐레이션 핀 API.
@@ -12,16 +17,23 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { authorized } = await verifyAdmin(req);
-    if (!authorized) {
+    const { authorized, userId } = await verifyAdmin(req);
+    if (!authorized || !userId) {
       return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
+    const limited = await checkAdminMutationRateLimit(req, userId, "post-pin");
+    if (limited) return limited;
+
     const { id } = await params;
-    const body = (await req.json()) as {
-      is_pinned?: boolean;
-      is_weekly_best?: boolean;
-    };
+    const bodyResult = await readBoundedJsonValue(req, MAX_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "요청 형식이 올바르지 않습니다." },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const body = isRecord(bodyResult.value) ? bodyResult.value : {};
 
     const updates: Record<string, boolean> = {};
     if (typeof body.is_pinned === "boolean") updates.is_pinned = body.is_pinned;
@@ -55,7 +67,7 @@ export async function PATCH(
 
     return NextResponse.json({ post });
   } catch (err) {
-    console.error("Pin toggle error:", err);
+    console.error("Pin toggle error", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

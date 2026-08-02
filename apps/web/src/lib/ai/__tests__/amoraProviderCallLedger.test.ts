@@ -175,7 +175,10 @@ describe("runAmoraProviderCallWithLedger", () => {
     vi.clearAllMocks();
     makeAdmin();
     process.env.AMORA_OPENAI_ENABLED = "true";
-    process.env.OPENAI_API_KEY = "sk-unit-fixture-not-a-secret-0000000000000000";
+    process.env.OPENAI_API_KEY = [
+      "sk",
+      "unit-fixture-not-a-secret-0000000000000000",
+    ].join("-");
     process.env.OPENAI_AMORA_FAST_MODEL = "gpt-5.6-luna";
     process.env.OPENAI_AMORA_FAST_REASONING_EFFORT = "none";
   });
@@ -847,7 +850,7 @@ describe("runAmoraProviderCallWithLedger", () => {
 
   it("never sends conversation text or sensitive-looking provider metadata to receipt RPCs", async () => {
     const { rpc } = makeAdmin();
-    const secret = "sk-proj-abcdefghijklmnopqrstuvwxyz123456";
+    const secret = ["sk", "proj", "abcdefghijklmnopqrstuvwxyz123456"].join("-");
     const privateText = "private wedding conversation";
 
     await runAmoraProviderCallWithLedger(

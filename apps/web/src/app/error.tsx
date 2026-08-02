@@ -8,7 +8,7 @@ import { useEffect } from "react";
 export default function RootError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     // 원문은 콘솔·모니터링으로만 흘리고 화면에는 올리지 않는다.
-    console.error("[root-error]", error.digest ?? error.message);
+    console.error("[root-error]");
   }, [error]);
 
   return (

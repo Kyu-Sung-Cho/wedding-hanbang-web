@@ -1,6 +1,7 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
 import { z } from "zod";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkAdminMutationRateLimit } from "@/lib/admin/adminReadBoundary";
 
 export async function POST(
   request: Request,
@@ -10,6 +11,12 @@ export async function POST(
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkAdminMutationRateLimit(
+    request,
+    userId,
+    "vendor-enrichment-assign",
+  );
+  if (limited) return limited;
   const id = z.string().uuid().safeParse((await params).id);
   if (!id.success) {
     return NextResponse.json({ error: "업체를 찾을 수 없습니다." }, { status: 404 });

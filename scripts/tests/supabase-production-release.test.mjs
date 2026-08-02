@@ -125,6 +125,10 @@ async function addBlockedSuccessorRelease(fixture) {
   const predecessorText = await readFile(join(fixture.root, predecessorFile), "utf8");
   const migrationFile = "20260718120000_vendor_disclosure_foundation.sql";
   const migrationSql = "select 'blocked successor';\n";
+  const identityInventory = "BEGIN TRANSACTION READ ONLY;\nselect 1;\nROLLBACK;\n";
+  const identityApply = "BEGIN;\nselect 1;\nCOMMIT;\n";
+  const identityVerify = "BEGIN TRANSACTION READ ONLY;\nselect 1 as community_public_identity_contract_verified;\nROLLBACK;\n";
+  const identityRollout = "# Fixture community public identity rollout\n";
   const manifest = {
     release: "vendor-disclosure-v2-20260718",
     projectRef: PROJECT_REF,
@@ -138,6 +142,29 @@ async function addBlockedSuccessorRelease(fixture) {
     expandMigrations: [
       { file: migrationFile, sha256: sha256(migrationSql) },
     ],
+    forwardOnlySecurityOperations: [{
+      id: "community-public-identity-contract-20260803104500",
+      phase: "post-application-deploy",
+      requiredGate: "minimum-supported-community-client-version-enforced",
+      rollbackPolicy: "forward-fix-only-no-auth-uuid-regrant",
+      inventory: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_inventory.sql",
+        sha256: sha256(identityInventory),
+      },
+      apply: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_apply.sql",
+        sha256: sha256(identityApply),
+      },
+      verify: {
+        file: "supabase/platform-operations/security/20260803104500_community_public_identity_contract_verify.sql",
+        sha256: sha256(identityVerify),
+        expectedEvidence: { community_public_identity_contract_verified: 1 },
+      },
+    }],
+    requiredDocuments: [{
+      file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+      sha256: sha256(identityRollout),
+    }],
     deploymentEvidence: {
       hostedStaging: "missing",
       backup: "missing",
@@ -152,6 +179,26 @@ async function addBlockedSuccessorRelease(fixture) {
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
   await write(fixture.root, `supabase/migrations/${migrationFile}`, migrationSql);
+  await write(
+    fixture.root,
+    "supabase/platform-operations/security/20260803104500_community_public_identity_contract_inventory.sql",
+    identityInventory,
+  );
+  await write(
+    fixture.root,
+    "supabase/platform-operations/security/20260803104500_community_public_identity_contract_apply.sql",
+    identityApply,
+  );
+  await write(
+    fixture.root,
+    "supabase/platform-operations/security/20260803104500_community_public_identity_contract_verify.sql",
+    identityVerify,
+  );
+  await write(
+    fixture.root,
+    "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+    identityRollout,
+  );
 }
 
 /**

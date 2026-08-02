@@ -1,7 +1,16 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadOwnedVendorWithServiceRole } from "@/lib/vendors/serverOwnership";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { PrivateNextResponse as NextResponse } from "@/lib/http/privateResponse";
+import { safeErrorDiagnostic } from "@/utils/safeErrorDiagnostic";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+
+const THREAD_MESSAGE_SELECT =
+  "id, vendor_id, customer_id, sender_type, content, is_read, booking_id, created_at, server_provenance_version";
+// This endpoint groups in memory. Keep the read bounded so a large mailbox
+// cannot turn one authenticated request into a multi-megabyte allocation.
+const MAX_THREAD_MESSAGES = 1_000;
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,6 +20,12 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("messages:threads", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 1000 },
+    );
+    if (limited) return limited;
 
     // 내가 업체 소유자인지 확인
     const admin = createAdminClient();
@@ -33,9 +48,11 @@ export async function GET(req: NextRequest) {
       // 업체 소유자: 내 업체에 온 모든 대화
       const { data: messages } = await supabase
         .from("vendor_messages")
-        .select("*")
+        .select(THREAD_MESSAGE_SELECT)
+        .eq("server_provenance_version", 1)
         .eq("vendor_id", myVendor.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(MAX_THREAD_MESSAGES);
 
       // 고객별로 그룹핑
       type Msg = NonNullable<typeof messages>[number];
@@ -71,9 +88,11 @@ export async function GET(req: NextRequest) {
       // 일반 고객: 내가 보낸/받은 모든 대화
       const { data: messages } = await supabase
         .from("vendor_messages")
-        .select("*")
+        .select(THREAD_MESSAGE_SELECT)
+        .eq("server_provenance_version", 1)
         .eq("customer_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(MAX_THREAD_MESSAGES);
 
       // 업체별로 그룹핑
       type Msg2 = NonNullable<typeof messages>[number];
@@ -118,7 +137,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ threads, isVendor: !!myVendor });
   } catch (err) {
-    console.error("Message threads error:", err);
+    console.error("Message threads error:", safeErrorDiagnostic(err));
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

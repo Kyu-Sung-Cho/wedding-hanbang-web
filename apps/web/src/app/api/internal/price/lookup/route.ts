@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { lookupPublishedVendorPrices } from "@/lib/admin/priceUploadLookup";
-import { EVENT_WEIGHTS } from "@/lib/analytics/eventWeights";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyInternalVendorRequest } from "@/lib/vendors/internalAuth";
 
@@ -40,25 +39,6 @@ export async function GET(request: Request) {
       query: parsed.data.q,
       category: parsed.data.category,
     });
-    try {
-      const { error: eventError } = await client.from("events").insert({
-        anon_id: "amora",
-        vendor_id: result.matches[0]?.vendor.id ?? null,
-        surface: "amora",
-        event_type: "vendor_detail_view",
-        weight: EVENT_WEIGHTS.vendor_detail_view,
-        context: {
-          ...(parsed.data.category ? { category: parsed.data.category } : {}),
-          surface: "amora",
-          zero_result: result.matches.length === 0,
-        },
-      });
-      if (eventError) {
-        console.warn("[internal price lookup] analytics event unavailable");
-      }
-    } catch {
-      console.warn("[internal price lookup] analytics event unavailable");
-    }
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch {
     return NextResponse.json(

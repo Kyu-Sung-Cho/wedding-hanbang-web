@@ -453,8 +453,8 @@ test("status identifies failed units with content-safe codes only", async (t) =>
     error_codes: ["extract_failed"],
   }]);
   const table = formatIngestStatus(status);
-  assert.match(table, new RegExp(manifest.units[0].unit_id, "u"));
-  assert.match(table, /extract_failed/u);
+  assert.doesNotMatch(table, new RegExp(manifest.units[0].unit_id, "u"));
+  assert.match(table, /extract_failed: 1/u);
   assert.doesNotMatch(table, /실제업체명|OPENAI_API_KEY|private/u);
 
   manifest.units[0].notices = [

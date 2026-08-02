@@ -84,4 +84,42 @@ describe("moneyStore 실패 전달", () => {
     expect(useMoneyStore.getState().moneyLocalMode).toBe(true);
     expect(useMoneyStore.getState().moneyList[0].amount).toBe(300_000);
   });
+
+  it("계정 reset 뒤 늦게 도착한 이전 축의금 목록을 복원하지 않는다", async () => {
+    let resolveFetch: ((value: unknown) => void) | undefined;
+    mockFetch.mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+
+    const pending = useMoneyStore.getState().loadMoney("couple-a");
+    useMoneyStore.getState().reset();
+    resolveFetch?.(response(200, { moneyList: [{ ...ROW, guest_name: "A 계정 하객" }] }));
+    await pending;
+
+    expect(useMoneyStore.getState().moneyList).toEqual([]);
+    expect(useMoneyStore.getState().moneyLoading).toBe(false);
+    expect(useMoneyStore.getState().moneyLocalMode).toBe(false);
+  });
+
+  it("계정 reset 뒤 이전 추가 요청의 응답도 새 목록에 넣지 않는다", async () => {
+    let resolveFetch: ((value: unknown) => void) | undefined;
+    mockFetch.mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+
+    const pending = useMoneyStore.getState().addMoney({
+      guest_name: "A 계정 하객",
+      amount: 100_000,
+      side: "bride",
+      relation: null,
+      method: "cash",
+      memo: null,
+      received_at: "2026-07-27",
+    });
+    useMoneyStore.getState().reset();
+    resolveFetch?.(response(200, { money: ROW }));
+    await pending;
+
+    expect(useMoneyStore.getState().moneyList).toEqual([]);
+  });
 });

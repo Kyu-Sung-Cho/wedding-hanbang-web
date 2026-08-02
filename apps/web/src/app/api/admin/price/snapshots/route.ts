@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin/priceSnapshotReadiness";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { revalidatePath } from "next/cache";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -335,6 +336,11 @@ export async function GET(request: Request) {
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-snapshots:list", request, userId),
+    { maxRequests: 6, windowMs: 60 * 1000 },
+  );
+  if (limited) return limited;
 
   try {
     const client = getServiceClient();
@@ -386,6 +392,11 @@ export async function POST(request: Request) {
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await checkRateLimitPersistent(
+    rateLimitKey("admin:price-snapshots:promote", request, userId),
+    { maxRequests: 6, windowMs: 60 * 60 * 1000 },
+  );
+  if (limited) return limited;
 
   const body = await readBoundedBody(request);
   if (body.status === "too_large") {
