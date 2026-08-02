@@ -310,7 +310,7 @@ corepack pnpm build:web
 | 현재 전체 후보 `pnpm typecheck` | PASS | 4 workspace + ingest |
 | Supabase release contract | PASS / BLOCKED | tests 189/189, 66개 manifest 정적 fence PASS, 적용은 `deployment_blocked` |
 | 커뮤니티 release contract | LOCAL READY / PRODUCTION NO-GO | local 13개 계약과 test 2/2 통과, hosted·운영 증거 없음 |
-| 현재 전체 후보 `pnpm build:web` | PASS | 격리 worktree와 local QA synthetic 환경에서 Next.js 16.2.11, 142개 정적 페이지, artifact 검사 1/1 |
+| 현재 전체 후보 `pnpm build:web` | PASS | 격리 worktree와 local QA synthetic 환경에서 exit 0; Next.js 16.2.11, 142개 정적 페이지, production artifact 2,365개 clean |
 | hosted migration | NOT RUN | production DB NO-GO |
 | Vercel/EAS production deploy | NOT RUN | 별도 승인·receipt 필요 |
 

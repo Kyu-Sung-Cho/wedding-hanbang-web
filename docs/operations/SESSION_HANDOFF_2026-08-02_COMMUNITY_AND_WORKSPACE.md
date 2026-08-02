@@ -318,7 +318,7 @@ AMORA_TODAY_ONE_ENABLED=false
 | `node --test scripts/tests/community-release-readiness.test.mjs` | PASS; 2/2 |
 | `node --test scripts/tests/repository-handoff-docs.test.mjs` | PASS; 6/6 |
 | `corepack pnpm qa:local` | 통합 명령은 실행하지 않음; 다른 작업의 web dev lock을 강제 종료하지 않고 개별 gate를 실행 |
-| web production build | PASS; 격리 worktree와 local QA synthetic 환경에서 Next.js 16.2.11, 142개 정적 페이지, artifact 검사 1/1 |
+| web production build | PASS; 격리 worktree와 local QA synthetic 환경에서 exit 0, Next.js 16.2.11, 142개 정적 페이지, production artifact 2,365개 clean |
 
 실행하지 못했거나 실패한 항목은 `PENDING`, `FAILED`, `BLOCKED`로 남긴다. 문서의 체크
 표시로 성공을 만들지 않는다.
