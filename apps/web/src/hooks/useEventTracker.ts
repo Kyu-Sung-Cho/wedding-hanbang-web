@@ -9,12 +9,34 @@ interface TrackEventOptions {
   durationSeconds?: number;
 }
 
+const UUID_V4_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function createUuidV4(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
 // 세션 ID 생성 (탭별 고유)
 function getSessionId(): string {
   if (typeof window === "undefined") return "";
   let sessionId = sessionStorage.getItem("event_session_id");
-  if (!sessionId) {
-    sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  if (!sessionId || !UUID_V4_PATTERN.test(sessionId)) {
+    sessionId = createUuidV4();
     sessionStorage.setItem("event_session_id", sessionId);
   }
   return sessionId;
