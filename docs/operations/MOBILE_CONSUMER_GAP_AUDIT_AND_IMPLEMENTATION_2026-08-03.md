@@ -242,3 +242,30 @@ dirty worktree를 `reset --hard`, `checkout --`, `clean`으로 지우지 않는�
 현재 판정은 `NOT RELEASE READY`다. 강점은 승인·revision·idempotency·privacy 경계가 상당히
 깊게 구현되어 있다는 점이고, 남은 일은 화면 수 추가가 아니라 실제 배포 순서와 소비자
 복구·동기화·운영 증거를 닫는 것이다.
+
+## 9. 이 branch의 최종 소스 검증
+
+아래 결과는 기존 개발 중 worktree가 아니라 `codex/mobile-consumer-qa-20260803`의 clean
+구현 범위에서 확인했다. 소스 검증 통과와 운영 출시 가능 판정은 서로 다른 증거다.
+
+| 검증 | 결과 |
+| --- | --- |
+| `corepack pnpm --filter @hanbang/web test` | 530 files, 5,072/5,072 PASS |
+| `corepack pnpm --filter @hanbang/mobile test` | 289/289 PASS |
+| `corepack pnpm typecheck` | 4/4 packages PASS |
+| `corepack pnpm lint` | 2/2 lint tasks PASS |
+| `corepack pnpm test:repo` | 275/275 PASS |
+| 웹 production build | PASS, static pages 1,195/1,195 generated |
+| 모바일 Expo export build | PASS, Web/iOS/Android bundles generated |
+| `corepack pnpm mobile:release-check` | 104/104 PASS |
+| `corepack pnpm supabase:release:fence` | clean baseline PASS, successor remains `deployment_blocked` |
+| `corepack pnpm audit --prod --audit-level high` | known vulnerability 0 |
+| `corepack pnpm qa:live` | 7 checks 중 4 PASS, 모바일 운영 계약 3개 404 FAIL |
+
+웹 build는 gitignored 로컬 `.env.local`을 프로세스 환경으로만 읽었고 값이나 파일을 branch에
+복사하지 않았다. 모바일 export는 성공했지만 Sentry organization/project 설정 경고가
+남았으므로 production source map 업로드와 release 연동은 여전히 `UNVERIFIED`다.
+
+clean baseline의 Supabase fence 통과는 현재 진행 중인 주 worktree의 신규 migration까지
+승인했다는 뜻이 아니다. 주 worktree는 3.4의 migration drift를 해소하기 전까지 계속
+`NO-GO`다.
