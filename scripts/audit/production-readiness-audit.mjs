@@ -343,4 +343,5 @@ console.log(`\n═══ 결과: ${results.length - failed.length}/${results.len
 if (failed.length) {
   console.log("실패 항목:");
   for (const f of failed) console.log("  ✗", f.name);
+  process.exitCode = 1;
 }
