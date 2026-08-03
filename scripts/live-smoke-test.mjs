@@ -162,6 +162,16 @@ async function textOrEmpty(locator, timeout = 2_500) {
   return (await locator.textContent({ timeout }).catch(() => ""))?.trim() || "";
 }
 
+async function jsonBody(page, result, label) {
+  const raw = await page.locator("body").innerText().catch(() => "");
+  try {
+    return JSON.parse(raw);
+  } catch {
+    addFailure(result, `Expected ${label} to return valid JSON`);
+    return null;
+  }
+}
+
 async function runPageCheck(browser, options, reportDir, check) {
   const context = await browser.newContext({
     viewport: check.viewport || { width: 1366, height: 900 },
@@ -247,6 +257,75 @@ function hasPathEnding(url, expectedEnding) {
 function buildChecks(skipDemo) {
   const checks = [
     {
+      name: "mobile-runtime-contract",
+      path: "/api/mobile/runtime-contract",
+      async assert(page, result) {
+        const payload = await jsonBody(page, result, "mobile runtime contract");
+        if (!payload || typeof payload !== "object") return;
+
+        const requiredCapabilities = [
+          "shared-supabase-auth-v1",
+          "wedding-journey-realtime-v1",
+          "mobile-web-bearer-v1",
+        ];
+        if (payload.version !== 1) {
+          addFailure(result, `Expected mobile runtime version 1, got ${String(payload.version)}`);
+        }
+        if (
+          typeof payload.supabaseProjectRef !== "string"
+          || !/^(?:[a-z0-9]{20}|local:\d+)$/.test(payload.supabaseProjectRef)
+        ) {
+          addFailure(result, "Expected a bounded Supabase project ref");
+        }
+        if (
+          !Array.isArray(payload.capabilities)
+          || !requiredCapabilities.every((capability) => payload.capabilities.includes(capability))
+        ) {
+          addFailure(result, "Expected every required mobile/web capability");
+        }
+      },
+    },
+    {
+      name: "ios-universal-link-association",
+      path: "/.well-known/apple-app-site-association",
+      async assert(page, result) {
+        const payload = await jsonBody(page, result, "Apple association file");
+        const details = payload?.applinks?.details;
+        const appDetail = Array.isArray(details)
+          ? details.find((detail) =>
+            typeof detail?.appID === "string"
+            && detail.appID.endsWith(".ai.hanbang.wedding"))
+          : null;
+        if (!appDetail) {
+          addFailure(result, "Expected the iOS bundle id in the Apple association file");
+          return;
+        }
+        const routes = JSON.stringify(appDetail.paths ?? appDetail.components ?? []);
+        if (!routes.includes("/app")) {
+          addFailure(result, "Expected the Apple association file to cover /app links");
+        }
+      },
+    },
+    {
+      name: "android-app-link-association",
+      path: "/.well-known/assetlinks.json",
+      async assert(page, result) {
+        const payload = await jsonBody(page, result, "Android association file");
+        const appStatement = Array.isArray(payload)
+          ? payload.find((statement) =>
+            statement?.target?.namespace === "android_app"
+            && statement.target.package_name === "ai.hanbang.wedding"
+            && Array.isArray(statement.target.sha256_cert_fingerprints)
+            && statement.target.sha256_cert_fingerprints.length > 0
+            && Array.isArray(statement.relation)
+            && statement.relation.includes("delegate_permission/common.handle_all_urls"))
+          : null;
+        if (!appStatement) {
+          addFailure(result, "Expected a signed Android app-link statement");
+        }
+      },
+    },
+    {
       name: "wedding-home",
       path: "/wedding",
       async assert(_page, result) {
@@ -262,10 +341,10 @@ function buildChecks(skipDemo) {
       name: "wedding-market-prices",
       path: "/wedding/market-prices",
       async assert(_page, result) {
-        if (!hasPath(result.finalUrl, "/wedding/market-prices")) {
+        if (!hasPath(result.finalUrl, "/price")) {
           addFailure(
             result,
-            `Expected final path /wedding/market-prices, got ${new URL(result.finalUrl).pathname}`
+            `Expected the legacy market-price path to redirect to /price, got ${new URL(result.finalUrl).pathname}`
           );
         }
         if (!result.title) {
