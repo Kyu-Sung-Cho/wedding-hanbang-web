@@ -1,3 +1,5 @@
+import { isPreviewStubMode } from "@/lib/previewStub";
+
 /**
  * Routes that must not initialize product analytics or UTM persistence.
  * Keep this list narrow: these pages make an explicit zero-I/O research promise.
@@ -60,6 +62,7 @@ export function isBrowserTrackingOptOut(): boolean {
  * third-party analytics SDK or sending an event.
  */
 export function hasExplicitThirdPartyAnalyticsConsent(): boolean {
+  if (isPreviewStubMode()) return false;
   if (process.env.NEXT_PUBLIC_POSTHOG_ENABLED !== "true") return false;
   if (typeof window === "undefined" || isBrowserTrackingOptOut()) return false;
 

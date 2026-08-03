@@ -1,20 +1,16 @@
 import { allQuestions, type Question } from "@/app/customersurvey/data/questions";
 import { isRecord } from "@/utils/requestValidation";
-import { sanitizeText } from "@/utils/sanitize";
 
 const MAX_MONTHLY_PRICE_WON = 10_000_000;
-const EMAIL_IN_TEXT = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/iu;
-const PHONE_IN_TEXT = /(?:\+?82[-.\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/u;
-const URL_IN_TEXT = /(?:https?:\/\/|www\.)\S+/iu;
+const RETIRED_FREE_TEXT_ANSWER_IDS = new Set(["q21"]);
 
 type NormalizedSurvey = {
   answers: Record<string, unknown>;
-  otherTexts: Record<string, string>;
 };
 
 export type SurveySubmissionValidation =
   | { ok: true; data: NormalizedSurvey }
-  | { ok: false; reason: "invalid" | "direct_identifier" };
+  | { ok: false; reason: "invalid" | "free_text_disabled" };
 
 function isMissing(value: unknown): boolean {
   return value === undefined || value === null || value === "";
@@ -40,28 +36,14 @@ function allowedOption(question: Question, value: unknown): boolean {
   ) === true;
 }
 
-function cleanAnonymousText(
-  value: unknown,
-  maxLength: number,
-): { ok: true; value: string } | { ok: false; directIdentifier: boolean } {
-  if (typeof value !== "string" || value.length > maxLength) {
-    return { ok: false, directIdentifier: false };
-  }
-  const cleaned = sanitizeText(value);
-  if (
-    EMAIL_IN_TEXT.test(cleaned)
-    || PHONE_IN_TEXT.test(cleaned)
-    || URL_IN_TEXT.test(cleaned)
-  ) {
-    return { ok: false, directIdentifier: true };
-  }
-  return { ok: true, value: cleaned };
+function hasNonEmptyFreeText(value: unknown): boolean {
+  return typeof value === "string" ? value.trim().length > 0 : !isMissing(value);
 }
 
 function normalizeAnswer(
   question: Question,
   raw: unknown,
-): { ok: true; value: unknown } | { ok: false; directIdentifier?: boolean } {
+): { ok: true; value: unknown } | { ok: false } {
   switch (question.type) {
     case "single_choice":
       return allowedOption(question, raw)
@@ -134,21 +116,12 @@ function normalizeAnswer(
     }
 
     case "text_area":
-    case "text_input": {
-      const cleaned = cleanAnonymousText(raw, question.maxLength ?? 500);
-      return cleaned.ok
-        ? { ok: true, value: cleaned.value }
-        : { ok: false, directIdentifier: cleaned.directIdentifier };
-    }
+    case "text_input":
+      // Anonymous free text is retired until a reviewed DLP and automatic
+      // retention/deletion contract exists. New question definitions cannot
+      // silently reopen this storage lane.
+      return { ok: false };
   }
-}
-
-function selectedOtherOption(question: Question, answer: unknown): boolean {
-  const option = question.options?.find((candidate) => candidate.hasTextInput);
-  if (!option) return false;
-  return Array.isArray(answer)
-    ? answer.includes(option.value)
-    : answer === option.value;
 }
 
 export function validateSurveySubmission(
@@ -159,8 +132,15 @@ export function validateSurveySubmission(
     return { ok: false, reason: "invalid" };
   }
 
+  if (
+    [...RETIRED_FREE_TEXT_ANSWER_IDS].some((id) =>
+      hasNonEmptyFreeText(rawAnswers[id]))
+    || Object.values(rawOtherTexts).some(hasNonEmptyFreeText)
+  ) {
+    return { ok: false, reason: "free_text_disabled" };
+  }
+
   const answers: Record<string, unknown> = Object.create(null);
-  const otherTexts: Record<string, string> = Object.create(null);
 
   for (const question of allQuestions) {
     if (!isVisible(question, answers)) continue;
@@ -172,25 +152,10 @@ export function validateSurveySubmission(
 
     const normalized = normalizeAnswer(question, raw);
     if (!normalized.ok) {
-      return {
-        ok: false,
-        reason: normalized.directIdentifier ? "direct_identifier" : "invalid",
-      };
+      return { ok: false, reason: "invalid" };
     }
     answers[question.id] = normalized.value;
-
-    if (selectedOtherOption(question, normalized.value)) {
-      const cleanedOther = cleanAnonymousText(rawOtherTexts[question.id], 1000);
-      if (!cleanedOther.ok) {
-        return {
-          ok: false,
-          reason: cleanedOther.directIdentifier ? "direct_identifier" : "invalid",
-        };
-      }
-      if (!cleanedOther.value) return { ok: false, reason: "invalid" };
-      otherTexts[question.id] = cleanedOther.value;
-    }
   }
 
-  return { ok: true, data: { answers, otherTexts } };
+  return { ok: true, data: { answers } };
 }

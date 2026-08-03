@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
 import { ThumbsUp, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PostCard from "@/components/community/PostCard";
@@ -29,7 +29,7 @@ export default function MyUpvotedPage() {
     let cancelled = false;
     void Promise.resolve().then(async () => {
       try {
-        const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+        const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (cancelled) return;
         if (!user) {

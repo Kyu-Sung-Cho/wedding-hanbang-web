@@ -136,6 +136,8 @@ const SAFE_AI_LOG_METADATA_KEYS = new Set([
   "extracted_by",
   "extraction_type",
   "input_count_request_id",
+  "input_count_attempt_count",
+  "input_count_attempts",
   "message_count",
   "model_role",
   "post_author_id",

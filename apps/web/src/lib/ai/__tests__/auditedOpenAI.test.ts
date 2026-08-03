@@ -5,7 +5,12 @@ import {
   createOpenAIResponseWithAudit,
   createOpenAIStructuredResponseWithAudit,
 } from "../auditedOpenAI";
-import { OpenAIRefusalError } from "../openai";
+import {
+  OpenAIInputTokenLimitError,
+  OpenAIProviderError,
+  OpenAIRefusalError,
+  normalizeOpenAIProviderError,
+} from "../openai";
 import { logAIInteraction } from "@/lib/compliance/ai-log";
 
 vi.mock("@/lib/compliance/ai-log", async () => {
@@ -187,17 +192,62 @@ describe("audited OpenAI Responses", () => {
     }));
   });
 
-  // 사전 토큰 계산은 과대 입력을 미리 걸러내는 선택적 가드레일이다. 그 측정이
-  // 불가능해졌다고 대화를 죽이면 가드레일 하나가 서비스 전체를 멈춘다 —
-  // 2026-07-25 운영에서 실제로 count 호출이 계속 실패하며 "안녕" 한 마디까지
-  // 전부 AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다. 과대 입력은 제공자가 스스로
-  // 거부하고 그 경로는 아래 "blocks an oversized counted input" 테스트가 지킨다.
-  it("proceeds with generation when the input pre-count is unavailable", async () => {
+  it("fails before reservation and generation when both count attempts fail", async () => {
     const count = vi.fn().mockReturnValue({
-      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count network"), {
-        request_id: "req_count_failed",
+      withResponse: vi.fn().mockRejectedValue(new OpenAIProviderError("count network", {
+        category: "transport",
+        requestId: "req_count_failed",
+        usageStatus: "unknown",
       })),
     });
+    const create = vi.fn().mockReturnValue(apiResult(response()));
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toMatchObject({
+      category: "transport",
+      requestStage: "input_count",
+    });
+
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        provider_request_stage: "input_count",
+        input_count_request_id: "req_count_failed",
+        input_count_attempt_count: 2,
+        input_count_attempts: [
+          "1:failure:transport:req_count_failed",
+          "2:failure:transport:req_count_failed",
+        ],
+      }),
+    }));
+  });
+
+  it("retries one transient count failure before allowing generation", async () => {
+    const count = vi.fn()
+      .mockReturnValueOnce({
+        withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count 503"), {
+          status: 503,
+        })),
+      })
+      .mockReturnValue(apiResult(
+        { input_tokens: 12, object: "response.input_tokens" },
+        "req_input_count_retry",
+      ));
     const create = vi.fn().mockReturnValue(apiResult(response()));
     const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
     const beforeGeneration = vi.fn();
@@ -214,14 +264,75 @@ describe("audited OpenAI Responses", () => {
     });
 
     expect(result.text).toBe("안녕하세요");
+    expect(result.inputCountAttempts).toEqual([
+      {
+        attempt: 1,
+        outcome: "failure",
+        category: "provider_5xx",
+        requestId: null,
+      },
+      {
+        attempt: 2,
+        outcome: "success",
+        category: null,
+        requestId: "req_input_count_retry",
+      },
+    ]);
+    expect(count).toHaveBeenCalledTimes(2);
     expect(beforeGeneration).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledTimes(1);
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
       success: true,
       metadata: expect.objectContaining({
-        provider_attempted: true,
-        // 가드레일이 꺼진 채 나간 턴이라는 사실은 원장에 남아야 한다.
-        input_count_unavailable: "transport",
+        input_count_attempt_count: 2,
+        input_count_attempts: [
+          "1:failure:provider_5xx:none",
+          "2:success:none:req_input_count_retry",
+        ],
+      }),
+    }));
+  });
+
+  it("keeps both count attempts when a retry succeeds above the hard limit", async () => {
+    const count = vi.fn()
+      .mockReturnValueOnce({
+        withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count 503"), {
+          status: 503,
+          requestID: "req_count_first",
+        })),
+      })
+      .mockReturnValue(apiResult(
+        { input_tokens: 64_001, object: "response.input_tokens" },
+        "req_count_limit",
+      ));
+    const create = vi.fn().mockReturnValue(apiResult(response()));
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toBeInstanceOf(OpenAIInputTokenLimitError);
+
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        input_count_request_id: "req_count_limit",
+        input_count_attempt_count: 2,
+        input_count_attempts: [
+          "1:failure:provider_5xx:req_count_first",
+          "2:success:none:req_count_limit",
+        ],
       }),
     }));
   });
@@ -252,6 +363,40 @@ describe("audited OpenAI Responses", () => {
         input_count_request_id: "req_input_count",
       }),
     }));
+  });
+
+  it("preserves exact-count attempts for an external receipt when reservation rejects", async () => {
+    const { client, create } = fakeClient(response());
+    const reservationError = new Error("external reservation rejected");
+    let thrown: unknown;
+
+    try {
+      await createOpenAIResponseWithAudit({
+        modelRole: "fast",
+        instructions: "system",
+        input: "input",
+        maxInputTokens: 64_000,
+        maxOutputTokens: 100,
+        beforeGeneration: async () => {
+          throw reservationError;
+        },
+        auditPersistence: "external_provider_receipt",
+        client,
+        audit: { interactionType: "amora_director" },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(reservationError);
+    expect(normalizeOpenAIProviderError(thrown).inputCountAttempts).toEqual([{
+      attempt: 1,
+      outcome: "success",
+      category: null,
+      requestId: "req_input_count",
+    }]);
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it("checks cancellation again after exact counting and before the hook", async () => {
@@ -477,5 +622,80 @@ describe("audited OpenAI Responses", () => {
         provider_attempted: true,
       }),
     }));
+  });
+
+  it("preserves exact-count attempts on external generation failures", async () => {
+    const count = vi.fn().mockReturnValue(apiResult({
+      input_tokens: 20,
+      object: "response.input_tokens",
+    }, "req_input_count"));
+    const create = vi.fn().mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("network"), {
+        request_id: "req_failed_external",
+      })),
+    });
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    let thrown: unknown;
+
+    try {
+      await createOpenAIResponseWithAudit({
+        modelRole: "fast",
+        instructions: "system",
+        input: "input",
+        maxInputTokens: 64_000,
+        maxOutputTokens: 100,
+        beforeGeneration: vi.fn(),
+        auditPersistence: "external_provider_receipt",
+        client,
+        audit: { interactionType: "amora_director" },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(normalizeOpenAIProviderError(thrown)).toMatchObject({
+      requestId: "req_failed_external",
+      inputCountAttempts: [{
+        attempt: 1,
+        outcome: "success",
+        category: null,
+        requestId: "req_input_count",
+      }],
+    });
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves exact-count attempts on external structured-output failures", async () => {
+    const { client } = fakeClient(response({ outputText: "not-json" }));
+    let thrown: unknown;
+
+    try {
+      await createOpenAIStructuredResponseWithAudit({
+        modelRole: "fast",
+        instructions: "json",
+        input: "input",
+        maxInputTokens: 64_000,
+        maxOutputTokens: 100,
+        beforeGeneration: vi.fn(),
+        auditPersistence: "external_provider_receipt",
+        client,
+        audit: { interactionType: "amora_director" },
+        responseFormat: {
+          name: "external_result",
+          schema: { type: "object", additionalProperties: true },
+        },
+        validate: (value): Record<string, unknown> => value as Record<string, unknown>,
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(normalizeOpenAIProviderError(thrown).inputCountAttempts).toEqual([{
+      attempt: 1,
+      outcome: "success",
+      category: null,
+      requestId: "req_input_count",
+    }]);
+    expect(logSpy).not.toHaveBeenCalled();
   });
 });

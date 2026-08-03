@@ -1,8 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 
+import { assertPreviewStubSupabaseDisabled } from "@/lib/previewStub";
 import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 function createAnonymousClient() {
+  assertPreviewStubSupabaseDisabled();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -15,6 +17,7 @@ function createAnonymousClient() {
  * Server Components, Server Actions에서 사용
  */
 export async function createClient() {
+  assertPreviewStubSupabaseDisabled();
   try {
     const { cookies } = await import("next/headers");
     const cookieStore = await cookies();
@@ -49,6 +52,7 @@ export async function createClient() {
  * Bearer 토큰으로 Supabase 클라이언트 생성 (모바일 앱용)
  */
 export function createClientFromToken(accessToken: string) {
+  assertPreviewStubSupabaseDisabled();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -65,6 +69,7 @@ export function createClientFromToken(accessToken: string) {
  * 2순위: Request Cookie 헤더 직접 파싱 (API Route)
  */
 export async function createClientFromRequest(request: Request) {
+  assertPreviewStubSupabaseDisabled();
   // 1순위: Bearer 토큰 (모바일 앱)
   const authorization = parseAuthorizationHeader(request.headers.get("authorization"));
   if (authorization.kind === "bearer") return createClientFromToken(authorization.token);

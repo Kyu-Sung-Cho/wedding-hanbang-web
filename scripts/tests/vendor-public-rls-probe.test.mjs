@@ -167,6 +167,7 @@ async function createReleaseFixture(t) {
   const identityApply = "BEGIN;\nselect 1;\nCOMMIT;\n";
   const identityVerify = "BEGIN TRANSACTION READ ONLY;\nselect 1 as community_public_identity_contract_verified;\nROLLBACK;\n";
   const identityRollout = "# Fixture community public identity rollout\n";
+  const surveyRetirement = "# Fixture customer survey free-text retirement\n";
   const manifest = {
     deploymentEvidence: {
       backup: "missing",
@@ -202,10 +203,16 @@ async function createReleaseFixture(t) {
     },
     projectRef: PRODUCTION_REF,
     release: "vendor-disclosure-v2-20260718",
-    requiredDocuments: [{
-      file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
-      sha256: sha256(identityRollout),
-    }],
+    requiredDocuments: [
+      {
+        file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+        sha256: sha256(identityRollout),
+      },
+      {
+        file: "docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+        sha256: sha256(surveyRetirement),
+      },
+    ],
     requiredRemoteHead: "20260716117000",
     status: "deployment_blocked",
   };
@@ -268,6 +275,10 @@ async function createReleaseFixture(t) {
   await writeFile(
     join(repoRoot, "docs", "operations", "COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md"),
     identityRollout,
+  );
+  await writeFile(
+    join(repoRoot, "docs", "operations", "CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md"),
+    surveyRetirement,
   );
   const commit = await initializeGitRepo(repoRoot, "release fixture");
   t.after(() => rm(workspace, { recursive: true, force: true }));

@@ -23,7 +23,7 @@ import {
   CheckCircle2,
   Pin,
 } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
 import { useCommunityStore } from "@/stores/communityStore";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
@@ -123,10 +123,8 @@ export default function PostDetailPage() {
 
   // 유저 상태 확인
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    if (process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE === "true") return;
+    const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ? { id: data.user.id } : null);
     });

@@ -16,6 +16,7 @@ import {
   normalizeOpenAIProviderError,
   OpenAIProviderError,
   type OpenAIRequestStage,
+  type OpenAIInputCountAttempt,
   type NormalizedOpenAIUsage,
   type OpenAIUsageStatus,
 } from "@/lib/ai/openai";
@@ -101,6 +102,7 @@ export interface AmoraProviderCallLedgerResult {
   requestId?: string | null;
   responseId?: string | null;
   inputCountRequestId?: string | null;
+  inputCountAttempts?: OpenAIInputCountAttempt[];
   /** Persisted atomically with a successful conflict-verification receipt. */
   providerCheckpoint?: AmoraConflictDetectionCheckpoint;
 }
@@ -381,6 +383,7 @@ function buildMetadata(context: AmoraProviderCallLedgerContext, options: {
   requestId?: string | null;
   responseId?: string | null;
   inputCountRequestId?: string | null;
+  inputCountAttempts?: OpenAIInputCountAttempt[];
   requestStage?: OpenAIRequestStage | null;
   providerErrorCategory?: string | null;
   providerErrorCode?: string | null;
@@ -402,6 +405,13 @@ function buildMetadata(context: AmoraProviderCallLedgerContext, options: {
     provider_request_id: safeMetadataToken(options.requestId),
     provider_response_id: safeMetadataToken(options.responseId),
     input_count_request_id: safeMetadataToken(options.inputCountRequestId),
+    input_count_attempt_count: options.inputCountAttempts?.length ?? 0,
+    input_count_attempts: (options.inputCountAttempts ?? []).map((attempt) => [
+      String(attempt.attempt),
+      attempt.outcome,
+      attempt.category ?? "none",
+      safeMetadataToken(attempt.requestId) ?? "none",
+    ].join(":")),
     provider_request_stage: options.requestStage ?? null,
     provider_error_category: safeMetadataToken(options.providerErrorCategory),
     provider_error_code: safeMetadataToken(options.providerErrorCode),
@@ -409,6 +419,16 @@ function buildMetadata(context: AmoraProviderCallLedgerContext, options: {
     source: context.source,
     request_key: context.requestKey,
   };
+}
+
+function latestInputCountRequestId(
+  attempts: OpenAIInputCountAttempt[] | undefined,
+): string | null {
+  for (let index = (attempts?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const requestId = safeMetadataToken(attempts?.[index]?.requestId);
+    if (requestId) return requestId;
+  }
+  return null;
 }
 
 async function prepareProviderReceipt(
@@ -728,7 +748,8 @@ export async function runAmoraProviderCallWithLedger<
           inputCountRequestId:
             normalized.requestStage === "input_count"
               ? normalized.requestId
-              : null,
+              : latestInputCountRequestId(normalized.inputCountAttempts),
+          inputCountAttempts: normalized.inputCountAttempts,
           requestStage: normalized.requestStage ?? null,
           providerErrorCategory: normalized.category,
           providerErrorCode: normalized.providerCode,
@@ -786,6 +807,7 @@ export async function runAmoraProviderCallWithLedger<
         requestId: result.requestId,
         responseId: result.responseId,
         inputCountRequestId: result.inputCountRequestId,
+        inputCountAttempts: result.inputCountAttempts,
         requestStage: "generation",
       }),
       content_logging: "disabled",

@@ -87,14 +87,14 @@ export async function POST(request: NextRequest) {
     if (!validated.ok) {
       return NextResponse.json(
         {
-          error: validated.reason === "direct_identifier"
-            ? "자유서술에서 연락처와 링크를 제거해 주세요."
+          error: validated.reason === "free_text_disabled"
+            ? "개인정보 보호를 위해 현재 설문에서는 자유서술을 받지 않습니다."
             : "설문 응답을 다시 확인해 주세요.",
         },
         { status: 400 },
       );
     }
-    const { answers, otherTexts } = validated.data;
+    const { answers } = validated.data;
 
     const ranking = Array.isArray(answers.q13) ? answers.q13 : [];
     const q15 = isRecord(answers.q15) ? answers.q15 : {};
@@ -109,20 +109,16 @@ export async function POST(request: NextRequest) {
       q5_reservation_easy: scalar(answers.q5),
       q6_price_gap: scalar(answers.q6),
       q7_pain_points: stringArray(answers.q7),
-      q7_other: cleanOptionalText(otherTexts.q7, 1000),
 
       q8_planner_usage: scalar(answers.q8),
       q8_1_planner_satisfaction: scalar(answers.q8_1),
       q8_2_no_planner_reasons: stringArray(answers.q8_2),
-      q8_2_other: cleanOptionalText(otherTexts.q8_2, 1000),
       q9_commission_awareness: scalar(answers.q9),
       q10_transparency_impact: scalar(answers.q10),
 
       q11_main_channel: scalar(answers.q11),
-      q11_other: cleanOptionalText(otherTexts.q11, 1000),
       q11_1_channel_satisfaction: scalar(answers.q11_1),
       q12_dissatisfaction: stringArray(answers.q12),
-      q12_other: cleanOptionalText(otherTexts.q12, 1000),
 
       q13_feature_rank_1: scalar(ranking[0]),
       q13_feature_rank_2: scalar(ranking[1]),
@@ -134,13 +130,10 @@ export async function POST(request: NextRequest) {
       q16_payment_preference: scalar(answers.q16),
 
       q17_interested_services: stringArray(answers.q17),
-      q17_other: cleanOptionalText(otherTexts.q17, 1000),
       q18_lacking_info: scalar(answers.q18),
-      q18_other: cleanOptionalText(otherTexts.q18, 1000),
 
       q19_usage_intent: scalar(answers.q19),
       q20_nps: scalar(answers.q20),
-      q21_feedback: cleanOptionalText(answers.q21, 2000),
 
       q22_gender: scalar(q22.q22_gender),
       q22_age: scalar(q22.q22_age),

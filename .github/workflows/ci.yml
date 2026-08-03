@@ -16,7 +16,10 @@ jobs:
   web_quality:
     name: Web Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The web suite boots PostgreSQL/WASM fixtures in more than one hundred
+    # migration-test files before the build starts. Keep a bounded but honest
+    # budget so a healthy run is not killed just before the build phase.
+    timeout-minutes: 60
 
     env:
       # Placeholder values keep CI focused on static verification and build integrity.
@@ -67,7 +70,10 @@ jobs:
       - name: Web tests
         run: pnpm --filter @hanbang/web exec vitest run
 
-      - name: Web production build
+      - name: Web preview-stub build (non-production)
+        env:
+          VERCEL_ENV: preview
+          NEXT_PUBLIC_PREVIEW_STUB_MODE: "true"
         run: pnpm --filter @hanbang/web build
 
   mobile_quality:

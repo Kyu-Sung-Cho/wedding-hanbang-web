@@ -1,4 +1,5 @@
 import OpenAI, {
+  APIConnectionError,
   APIConnectionTimeoutError,
   APIUserAbortError,
 } from "openai";
@@ -35,6 +36,10 @@ const schemaValidator = new Ajv({
 const compiledToolSchemas = new WeakMap<object, ValidateFunction>();
 const FUNCTION_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_FUNCTION_CALL_ID_LENGTH = 128;
+const INPUT_TOKEN_COUNT_MAX_ATTEMPTS = 2;
+const INPUT_COUNT_ATTEMPTS = Symbol("hanbang.openai.inputCountAttempts");
+const CANONICAL_OPENAI_BASE_URL = "https://api.openai.com/v1";
+const OPENAI_PROJECT_ID_RE = /^proj_[A-Za-z0-9_-]{8,128}$/u;
 
 export type OpenAIUsageStatus = "complete" | "unknown";
 export type OpenAIRequestStage = "input_count" | "generation";
@@ -49,6 +54,70 @@ export type OpenAIErrorCategory =
   | "refusal"
   | "transport"
   | "response_invalid";
+
+export interface OpenAIInputCountAttempt {
+  attempt: number;
+  outcome: "success" | "failure";
+  category: OpenAIErrorCategory | null;
+  requestId: string | null;
+}
+
+type ErrorWithInputCountAttempts = object & {
+  [INPUT_COUNT_ATTEMPTS]?: OpenAIInputCountAttempt[];
+};
+
+function copyInputCountAttempts(
+  attempts: OpenAIInputCountAttempt[] | undefined,
+): OpenAIInputCountAttempt[] | undefined {
+  return attempts?.slice(0, INPUT_TOKEN_COUNT_MAX_ATTEMPTS).map((attempt) => ({
+    attempt: attempt.attempt,
+    outcome: attempt.outcome,
+    category: attempt.category,
+    requestId: cleanProviderToken(attempt.requestId),
+  }));
+}
+
+function attachedInputCountAttempts(
+  error: unknown,
+): OpenAIInputCountAttempt[] | undefined {
+  if (!error || (typeof error !== "object" && typeof error !== "function")) {
+    return undefined;
+  }
+  const providerAttempts = error instanceof OpenAIProviderError
+    ? error.inputCountAttempts
+    : undefined;
+  return copyInputCountAttempts(
+    providerAttempts ?? (error as ErrorWithInputCountAttempts)[INPUT_COUNT_ATTEMPTS],
+  );
+}
+
+export function attachOpenAIInputCountAttempts<T>(
+  error: T,
+  attempts: OpenAIInputCountAttempt[] | undefined,
+): T {
+  const safeAttempts = copyInputCountAttempts(attempts);
+  if (!safeAttempts
+      || !error
+      || (typeof error !== "object" && typeof error !== "function")) {
+    return error;
+  }
+  try {
+    Object.defineProperty(error, INPUT_COUNT_ATTEMPTS, {
+      configurable: true,
+      value: safeAttempts,
+    });
+    if (error instanceof OpenAIProviderError && !error.inputCountAttempts) {
+      Object.defineProperty(error, "inputCountAttempts", {
+        configurable: true,
+        value: safeAttempts,
+      });
+    }
+  } catch {
+    // Frozen caller errors still fail closed; only auxiliary audit detail is
+    // unavailable in that exceptional case.
+  }
+  return error;
+}
 
 export interface NormalizedOpenAIUsage {
   input_tokens: number;
@@ -66,6 +135,7 @@ interface ProviderErrorDetails {
   responseId?: string | null;
   providerCode?: string | null;
   requestStage?: OpenAIRequestStage | null;
+  inputCountAttempts?: OpenAIInputCountAttempt[];
 }
 
 export class OpenAIProviderError extends Error {
@@ -77,6 +147,7 @@ export class OpenAIProviderError extends Error {
   readonly responseId?: string | null;
   readonly providerCode?: string | null;
   readonly requestStage?: OpenAIRequestStage | null;
+  readonly inputCountAttempts?: OpenAIInputCountAttempt[];
 
   constructor(message: string, details: ProviderErrorDetails) {
     super(message);
@@ -89,6 +160,9 @@ export class OpenAIProviderError extends Error {
     this.responseId = details.responseId;
     this.providerCode = details.providerCode;
     this.requestStage = details.requestStage;
+    this.inputCountAttempts = details.inputCountAttempts?.map((attempt) => ({
+      ...attempt,
+    }));
   }
 }
 
@@ -103,7 +177,7 @@ export class OpenAIInputTokenLimitError extends OpenAIProviderError {
   constructor(
     readonly inputTokens: number,
     readonly maxInputTokens: number,
-    details: Pick<ProviderErrorDetails, "requestId"> = {}
+    details: Pick<ProviderErrorDetails, "requestId" | "inputCountAttempts"> = {}
   ) {
     super("[openai] input token limit exceeded", {
       category: "invalid_request",
@@ -111,6 +185,7 @@ export class OpenAIInputTokenLimitError extends OpenAIProviderError {
       requestId: details.requestId,
       providerCode: "input_token_limit",
       requestStage: "input_count",
+      inputCountAttempts: details.inputCountAttempts,
     });
     this.name = "OpenAIInputTokenLimitError";
   }
@@ -133,6 +208,8 @@ function categorizeProviderError(error: unknown): OpenAIErrorCategory {
   const status = typeof record.status === "number" ? record.status : null;
   if (name === "aborterror" || code === "aborted") return "aborted";
   if (name.includes("timeout") || code.includes("timeout")) return "timeout";
+  if (status === 408) return "timeout";
+  if (status === 409) return "transport";
   if (status === 401 || status === 403) return "auth_config";
   if (status === 429) return "rate_limit";
   if (status !== null && status >= 500) return "provider_5xx";
@@ -142,9 +219,30 @@ function categorizeProviderError(error: unknown): OpenAIErrorCategory {
 
 export function normalizeOpenAIProviderError(
   error: unknown,
-  context: Pick<ProviderErrorDetails, "model" | "usage" | "requestId" | "responseId"> = {}
+  context: Pick<
+    ProviderErrorDetails,
+    "model" | "usage" | "requestId" | "responseId" | "inputCountAttempts"
+  > = {}
 ): OpenAIProviderError {
-  if (error instanceof OpenAIProviderError) return error;
+  if (error instanceof OpenAIProviderError) {
+    const inputCountAttempts =
+      attachedInputCountAttempts(error)
+      ?? copyInputCountAttempts(context.inputCountAttempts);
+    if (!inputCountAttempts || error.inputCountAttempts) return error;
+    attachOpenAIInputCountAttempts(error, inputCountAttempts);
+    if (attachedInputCountAttempts(error)) return error;
+    return new OpenAIProviderError(error.message, {
+      category: error.category,
+      model: error.model,
+      usage: error.usage,
+      usageStatus: error.usageStatus,
+      requestId: error.requestId,
+      responseId: error.responseId,
+      providerCode: error.providerCode,
+      requestStage: error.requestStage,
+      inputCountAttempts,
+    });
+  }
   const record = error && typeof error === "object"
     ? (error as {
         requestID?: unknown;
@@ -165,6 +263,9 @@ export function normalizeOpenAIProviderError(
     requestId,
     providerCode: cleanProviderToken(record.code) ?? cleanProviderToken(record.type),
     usageStatus: context.usage ? "complete" : "unknown",
+    inputCountAttempts:
+      attachedInputCountAttempts(error)
+      ?? copyInputCountAttempts(context.inputCountAttempts),
   });
 }
 
@@ -173,7 +274,7 @@ function markOpenAIRequestStage(
   requestStage: OpenAIRequestStage,
   context: Pick<
     ProviderErrorDetails,
-    "model" | "usage" | "requestId" | "responseId"
+    "model" | "usage" | "requestId" | "responseId" | "inputCountAttempts"
   >,
 ): OpenAIProviderError {
   const normalized = normalizeOpenAIProviderError(error, context);
@@ -187,7 +288,83 @@ function markOpenAIRequestStage(
     responseId: normalized.responseId,
     providerCode: normalized.providerCode,
     requestStage,
+    inputCountAttempts:
+      normalized.inputCountAttempts ?? context.inputCountAttempts,
   });
+}
+
+function inputCountAttemptMetadata(
+  attempts: OpenAIInputCountAttempt[] | undefined,
+): Pick<Record<string, unknown>, "input_count_attempt_count" | "input_count_attempts"> {
+  return {
+    input_count_attempt_count: attempts?.length ?? 0,
+    input_count_attempts: (attempts ?? []).map((attempt) => [
+      String(attempt.attempt),
+      attempt.outcome,
+      attempt.category ?? "none",
+      attempt.requestId ?? "none",
+    ].join(":")),
+  };
+}
+
+function withInputCountAttempts(
+  error: unknown,
+  attempts: OpenAIInputCountAttempt[],
+): OpenAIProviderError {
+  const normalized = normalizeOpenAIProviderError(error);
+  return new OpenAIProviderError(normalized.message, {
+    category: normalized.category,
+    model: normalized.model,
+    usage: normalized.usage,
+    usageStatus: normalized.usageStatus,
+    requestId: normalized.requestId,
+    responseId: normalized.responseId,
+    providerCode: normalized.providerCode,
+    requestStage: "input_count",
+    inputCountAttempts: attempts,
+  });
+}
+
+export async function countOpenAIInputTokensWithTransientRetry<T>(
+  count: () => Promise<T>,
+  getRequestId: (value: T) => unknown,
+): Promise<{ value: T; attempts: OpenAIInputCountAttempt[] }> {
+  const attempts: OpenAIInputCountAttempt[] = [];
+  for (let attempt = 1; attempt <= INPUT_TOKEN_COUNT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const value = await count();
+      attempts.push({
+        attempt,
+        outcome: "success",
+        category: null,
+        requestId: cleanProviderToken(getRequestId(value)),
+      });
+      return { value, attempts };
+    } catch (error) {
+      const normalized = normalizeOpenAIProviderError(error);
+      attempts.push({
+        attempt,
+        outcome: "failure",
+        category: normalized.category,
+        requestId: normalized.requestId ?? null,
+      });
+      const status = error && typeof error === "object"
+        && typeof (error as { status?: unknown }).status === "number"
+        ? (error as { status: number }).status
+        : null;
+      const transient = error instanceof APIConnectionError
+        || ["provider_5xx", "timeout", "rate_limit"].includes(normalized.category)
+        || status === 409
+        || (
+          error instanceof OpenAIProviderError
+          && normalized.category === "transport"
+        );
+      if (!transient || attempt === INPUT_TOKEN_COUNT_MAX_ATTEMPTS) {
+        throw withInputCountAttempts(error, attempts);
+      }
+    }
+  }
+  throw new Error("unreachable input-count retry state");
 }
 
 export function getSafeOpenAIErrorMetadata(error: unknown): Record<string, unknown> {
@@ -204,6 +381,7 @@ export function getSafeOpenAIErrorMetadata(error: unknown): Record<string, unkno
     usage_status: normalized.usageStatus,
     unknown_paid_attempt:
       !isInputCountRequest && normalized.usageStatus === "unknown",
+    ...inputCountAttemptMetadata(normalized.inputCountAttempts),
   };
 }
 
@@ -217,12 +395,64 @@ export function assertOpenAIProviderEnabled(): void {
   }
 }
 
+function validatedOpenAIProjectBinding(): string {
+  const configuredBaseUrl = process.env.OPENAI_BASE_URL?.trim();
+  const hasForbiddenAmbientOption = [
+    process.env.OPENAI_ADMIN_KEY,
+    process.env.OPENAI_CUSTOM_HEADERS,
+    process.env.OPENAI_ORG_ID,
+  ].some((value) => Boolean(value?.trim()));
+  if (
+    hasForbiddenAmbientOption
+    || (configuredBaseUrl && configuredBaseUrl !== CANONICAL_OPENAI_BASE_URL)
+  ) {
+    throw new OpenAIProviderError("[ai-config] unsafe OpenAI ambient override", {
+      category: "auth_config",
+      providerCode: "openai_ambient_override_forbidden",
+      usageStatus: "complete",
+    });
+  }
+
+  const project = process.env.OPENAI_PROJECT_ID?.trim();
+  const expectedProject = process.env.OPENAI_EXPECTED_PROJECT_ID?.trim();
+  if (
+    !project
+    || !expectedProject
+    || !OPENAI_PROJECT_ID_RE.test(project)
+    || project !== expectedProject
+  ) {
+    throw new OpenAIProviderError("[ai-config] OpenAI project binding is invalid", {
+      category: "auth_config",
+      providerCode: "openai_project_binding_invalid",
+      usageStatus: "complete",
+    });
+  }
+
+  if (
+    process.env.VERCEL_ENV === "production"
+    && process.env.OPENAI_PRODUCTION_PROJECT_ID?.trim() !== project
+  ) {
+    throw new OpenAIProviderError("[ai-config] production OpenAI project binding is invalid", {
+      category: "auth_config",
+      providerCode: "openai_production_project_binding_invalid",
+      usageStatus: "complete",
+    });
+  }
+  return project;
+}
+
 export function getOpenAIClient(): OpenAI {
   assertOpenAIProviderEnabled();
   const apiKey = process.env.OPENAI_API_KEY!.trim();
+  const project = validatedOpenAIProjectBinding();
   if (!defaultClient) {
     defaultClient = new OpenAI({
       apiKey,
+      adminAPIKey: null,
+      organization: null,
+      project,
+      baseURL: CANONICAL_OPENAI_BASE_URL,
+      logLevel: "off",
       // 생성 자동 재시도는 부분 성공 뒤 중복 과금을 숨길 수 있어 끈다.
       maxRetries: 0,
       timeout: 90_000,
@@ -249,7 +479,8 @@ export interface ChatWithToolsResult {
   requestId?: string | null;
   responseId?: string | null;
   inputCountRequestId?: string | null;
-  /** 사전 토큰 계산을 건너뛴 턴의 사유. null이면 정상적으로 측정했다. */
+  inputCountAttempts?: OpenAIInputCountAttempt[];
+  /** Legacy audit field. Successful paid calls always return null. */
   inputCountUnavailableReason?: string | null;
 }
 
@@ -552,26 +783,29 @@ export async function chatWithToolsStream(options: {
     });
   }
   let inputCountRequestId: string | null | undefined;
-  // 사전 토큰 계산을 건너뛴 턴 — 호출부가 원장에 남길 수 있게 반환한다.
-  let inputCountUnavailableReason: string | null = null;
-
+  let inputCountAttempts: OpenAIInputCountAttempt[] | undefined;
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
     throw new Error("[ai-config] maxInputTokens must be a positive integer");
   }
   try {
-    const countPromise = client.responses.inputTokens.count(
-      {
-        model: modelConfig.model,
-        instructions: systemPrompt,
-        input,
-        tools: openAITools,
-        parallel_tool_calls: false,
-        reasoning: { effort: modelConfig.reasoningEffort },
-        text: { verbosity: modelConfig.verbosity },
-      },
-      signal ? { signal } : undefined
+    const countResult = await countOpenAIInputTokensWithTransientRetry(
+      async () => client.responses.inputTokens.count(
+        {
+          model: modelConfig.model,
+          instructions: systemPrompt,
+          input,
+          tools: openAITools,
+          parallel_tool_calls: false,
+          tool_choice: toolChoice ?? "auto",
+          reasoning: { effort: modelConfig.reasoningEffort },
+          text: { verbosity: modelConfig.verbosity },
+        },
+        signal ? { signal } : undefined,
+      ).withResponse(),
+      (value) => value.request_id,
     );
-    const counted = await countPromise.withResponse();
+    const counted = countResult.value;
+    inputCountAttempts = countResult.attempts;
     inputCountRequestId = counted.request_id;
     if (
       !Number.isSafeInteger(counted.data.input_tokens) ||
@@ -583,34 +817,27 @@ export async function chatWithToolsStream(options: {
         providerCode: "invalid_input_token_count",
         requestStage: "input_count",
         usageStatus: "complete",
+        inputCountAttempts,
       });
     }
     if (counted.data.input_tokens > maxInputTokens) {
       throw new OpenAIInputTokenLimitError(
         counted.data.input_tokens,
         maxInputTokens,
-        { requestId: counted.request_id }
+        { requestId: counted.request_id, inputCountAttempts }
       );
     }
   } catch (error) {
     const staged = markOpenAIRequestStage(error, "input_count", {
       model: modelConfig.model,
+      inputCountAttempts,
     });
-    // 측정에 성공했고 그 값이 한도를 넘은 경우만 막는다.
-    if (error instanceof OpenAIInputTokenLimitError) throw staged;
-    // 측정 자체가 실패한 것은 사전 점검의 실패지 대화의 실패가 아니다.
-    // 여기서 던지면 선택적 가드레일 하나가 채팅 전체를 멈춘다 — 2026-07-25
-    // 운영에서 실제로 이 경로가 계속 실패하며 "안녕" 한 마디까지 죽었다.
-    // 과대 입력은 제공자가 스스로 거부하고 그 경로는 아래에서 처리된다.
-    inputCountUnavailableReason =
-      staged instanceof OpenAIProviderError
-        ? staged.providerCode ?? staged.category ?? "unknown"
-        : "unknown";
-    console.warn(
-      `[amora] streaming input pre-count unavailable (${inputCountUnavailableReason}) — proceeding without it`,
-    );
+    // The 64K ceiling and its cost reservation are authoritative. A provider
+    // count outage must never turn that hard boundary into an optional check.
+    throw staged;
   }
 
+  try {
   const requestBody: ResponseCreateParamsStreaming = {
     model: modelConfig.model,
     instructions: systemPrompt,
@@ -821,8 +1048,12 @@ export async function chatWithToolsStream(options: {
     requestId,
     responseId: finalResponse.id,
     inputCountRequestId,
-    inputCountUnavailableReason,
+    inputCountAttempts,
+    inputCountUnavailableReason: null,
   };
+  } catch (error) {
+    throw attachOpenAIInputCountAttempts(error, inputCountAttempts);
+  }
 }
 
 export function buildToolResultInput(

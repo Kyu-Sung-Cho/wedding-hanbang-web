@@ -22,6 +22,7 @@ import {
   reconcileUserScopedClientActor,
   userScopedActorKeyForUser,
 } from "@/lib/auth/userScopedClientState";
+import { isPreviewStubMode } from "@/lib/previewStub";
 
 export type UserScopedActorKind = "user" | "guest" | "demo" | "native";
 
@@ -167,6 +168,24 @@ export default function UserScopedClientStateBoundary({
 
   useEffect(() => {
     mountedRef.current = true;
+
+    // The ordinary Preview is a disconnected review surface. Resolve an
+    // anonymous actor locally so hydration cannot construct a Supabase client,
+    // subscribe to auth, or inherit a production session from the browser.
+    if (isPreviewStubMode()) {
+      const generation = suspend();
+      commit({ actorKey: "guest", kind: "guest", userId: null }, generation);
+      return () => {
+        mountedRef.current = false;
+        generationRef.current += 1;
+        supabaseRef.current = null;
+        if (latestCommittedActorOwner === ownerToken) {
+          latestCommittedActor = null;
+          latestCommittedActorOwner = null;
+        }
+      };
+    }
+
     const supabase = createClient();
     supabaseRef.current = supabase;
 
@@ -218,7 +237,7 @@ export default function UserScopedClientStateBoundary({
         latestCommittedActorOwner = null;
       }
     };
-  }, [ownerToken, suspend, verify]);
+  }, [commit, ownerToken, suspend, verify]);
 
   if (hideUntilVerified && actor.status !== "ready") return fallback;
 

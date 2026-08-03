@@ -7,14 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const routerPush = vi.fn();
   return {
-    createBrowserClient: vi.fn(),
+    createClient: vi.fn(),
     routerPush,
     router: { push: routerPush },
   };
 });
 
-vi.mock("@supabase/ssr", () => ({
-  createBrowserClient: mocks.createBrowserClient,
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: mocks.createClient,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -64,7 +64,7 @@ describe("community my pages Supabase configuration boundary", () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
-    mocks.createBrowserClient.mockImplementation(() => {
+    mocks.createClient.mockImplementation(() => {
       throw new Error("missing configuration must not create a browser client");
     });
   });
@@ -80,7 +80,7 @@ describe("community my pages Supabase configuration boundary", () => {
   it.each(pages)("renders an explicit missing-configuration state: $name", async ({ Page }) => {
     const { container } = await renderPage(Page);
 
-    expect(mocks.createBrowserClient).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
     expect(container.textContent).toContain("서비스 연결이 잠시 원활하지 않아요");
     expect(container.textContent).toContain("내 활동을 지금 불러오지 못했어요");
     expect(container.textContent).toContain("다시 시도");
@@ -96,8 +96,8 @@ describe("community my pages Supabase configuration boundary", () => {
       events.push("getUser");
       return { data: { user: null } };
     });
-    mocks.createBrowserClient.mockImplementation(() => {
-      events.push("createBrowserClient");
+    mocks.createClient.mockImplementation(() => {
+      events.push("createClient");
       return { auth: { getUser } };
     });
 
@@ -107,12 +107,9 @@ describe("community my pages Supabase configuration boundary", () => {
       await Promise.resolve();
     });
 
-    expect(events).toEqual(["createBrowserClient", "getUser"]);
-    expect(mocks.createBrowserClient).toHaveBeenCalledOnce();
-    expect(mocks.createBrowserClient).toHaveBeenCalledWith(
-      "https://preview.example.test",
-      "preview-public-key"
-    );
+    expect(events).toEqual(["createClient", "getUser"]);
+    expect(mocks.createClient).toHaveBeenCalledOnce();
+    expect(mocks.createClient).toHaveBeenCalledWith();
     expect(mocks.routerPush).toHaveBeenCalledOnce();
     expect(mocks.routerPush).toHaveBeenCalledWith(expect.stringContaining("/login?redirect="));
   });
@@ -120,7 +117,7 @@ describe("community my pages Supabase configuration boundary", () => {
   it("falls back when configured client construction fails", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "malformed-preview-url");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "preview-public-key");
-    mocks.createBrowserClient.mockImplementation(() => {
+    mocks.createClient.mockImplementation(() => {
       throw new Error("invalid Supabase URL");
     });
 
@@ -133,7 +130,7 @@ describe("community my pages Supabase configuration boundary", () => {
   it("falls back when the configured auth check rejects", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://preview.example.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "preview-public-key");
-    mocks.createBrowserClient.mockReturnValue({
+    mocks.createClient.mockReturnValue({
       auth: { getUser: vi.fn().mockRejectedValue(new Error("auth unavailable")) },
     });
 

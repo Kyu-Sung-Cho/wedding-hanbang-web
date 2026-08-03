@@ -13,6 +13,8 @@ import {
 } from "../packages/shared/src/security/serverSecretPolicy.mjs";
 
 const env = process.env;
+const CANONICAL_OPENAI_BASE_URL = "https://api.openai.com/v1";
+const OPENAI_PROJECT_ID_PATTERN = /^proj_[A-Za-z0-9_-]{8,128}$/u;
 
 function hasPinnedSupabaseDestination() {
   try {
@@ -29,6 +31,20 @@ function isPlausibleOpenAIKey(value) {
     && value.startsWith("sk-")
     && value.length >= 20
     && !/(?:placeholder|example|test-only|replace-with|not-a-real)/i.test(value)
+  );
+}
+
+function isPlausibleOpenAIProject(value) {
+  return typeof value === "string" && OPENAI_PROJECT_ID_PATTERN.test(value);
+}
+
+function hasNoUnsafeOpenAIAmbientOverrides() {
+  const baseUrl = env.OPENAI_BASE_URL?.trim();
+  return (
+    (!baseUrl || baseUrl === CANONICAL_OPENAI_BASE_URL)
+    && !env.OPENAI_ADMIN_KEY?.trim()
+    && !env.OPENAI_CUSTOM_HEADERS?.trim()
+    && !env.OPENAI_ORG_ID?.trim()
   );
 }
 
@@ -75,6 +91,14 @@ const checks = {
   openaiEnabled: env.AMORA_OPENAI_ENABLED === "true",
   openaiKeyPresent: Boolean(env.OPENAI_API_KEY),
   openaiKeyConfigured: isPlausibleOpenAIKey(env.OPENAI_API_KEY),
+  openaiProjectConfigured: isPlausibleOpenAIProject(env.OPENAI_PROJECT_ID),
+  openaiExpectedProjectMatches:
+    isPlausibleOpenAIProject(env.OPENAI_EXPECTED_PROJECT_ID)
+    && env.OPENAI_EXPECTED_PROJECT_ID === env.OPENAI_PROJECT_ID,
+  openaiProductionProjectMatches:
+    isPlausibleOpenAIProject(env.OPENAI_PRODUCTION_PROJECT_ID)
+    && env.OPENAI_PRODUCTION_PROJECT_ID === env.OPENAI_PROJECT_ID,
+  openaiDestinationAndAmbientOverridesSafe: hasNoUnsafeOpenAIAmbientOverrides(),
   primaryModelExact: env.OPENAI_AMORA_PRIMARY_MODEL === "gpt-5.6-terra",
   fastModelExact: env.OPENAI_AMORA_FAST_MODEL === "gpt-5.6-luna",
   primaryReasoningNone: env.OPENAI_AMORA_PRIMARY_REASONING_EFFORT === "none",

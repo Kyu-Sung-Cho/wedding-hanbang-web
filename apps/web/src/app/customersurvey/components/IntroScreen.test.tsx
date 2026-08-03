@@ -50,6 +50,8 @@ describe("customer survey consent gate", () => {
     const checkbox = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
     expect(start?.disabled).toBe(true);
     expect(container.querySelector('a[href="/privacy"]')).not.toBeNull();
+    expect(container.textContent).toContain("자유서술은 수집하지 않고");
+    expect(container.textContent).not.toContain("선택적 자유서술 포함");
 
     await act(async () => {
       checkbox?.click();

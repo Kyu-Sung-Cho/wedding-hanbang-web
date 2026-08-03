@@ -1,10 +1,10 @@
 export const SERVER_SECRET_MIN_LENGTH = 32;
 export const SERVER_SECRET_MAX_LENGTH = 512;
 
-const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const BEARER_TOKEN_PATTERN = /^[A-Za-z0-9._~+\/-]+={0,2}$/;
 const PLACEHOLDER_PATTERN =
   /(?:placeholder|example|test-only|replace-with|not-a-real)/i;
-const MIN_DISTINCT_CHARACTERS = 8;
+const MIN_DISTINCT_CHARACTERS = 12;
 const IDENTICAL_RUN_PATTERN = /(.)\1{7,}/;
 
 function isRepeatedPattern(value) {
@@ -19,17 +19,17 @@ function isRepeatedPattern(value) {
 /**
  * Canonical contract for machine-to-machine authentication secrets.
  *
- * Generate a value with a cryptographic RNG and encode it as unpadded
- * base64url (or hexadecimal, which is a subset of this grammar). Keeping the
- * grammar narrower than the generic HTTP Bearer grammar prevents deployment
- * gates from accepting a value that a runtime trust boundary cannot parse.
+ * Generate a value with a cryptographic RNG and prefer unpadded base64url (or
+ * hexadecimal, which is a subset of this grammar). The accepted character set
+ * matches the runtime Bearer parser so existing RFC 6750-style credentials are
+ * not rejected only at deployment time.
  */
 export function isValidServerSecret(value) {
   if (
     typeof value !== "string"
     || value.length < SERVER_SECRET_MIN_LENGTH
     || value.length > SERVER_SECRET_MAX_LENGTH
-    || !BASE64URL_PATTERN.test(value)
+    || !BEARER_TOKEN_PATTERN.test(value)
     || PLACEHOLDER_PATTERN.test(value)
   ) {
     return false;

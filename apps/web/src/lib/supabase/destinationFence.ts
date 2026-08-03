@@ -1,3 +1,6 @@
+import { assertPreviewStubDeployment } from "../../../previewStubConfig";
+import { assertPreviewStubSupabaseDisabled } from "@/lib/previewStub";
+
 type SupabaseServiceAccess = "read" | "runtime" | "operator-write";
 
 export type SupabaseServiceDestinationInput = {
@@ -157,6 +160,11 @@ export function verifySupabaseServiceDestination(
 export function verifyRuntimeSupabaseServiceDestination(
   env: NodeJS.ProcessEnv = process.env,
 ): VerifiedSupabaseServiceDestination {
+  // Repeat the build-time Preview containment immediately before any
+  // service-role client is created. A runtime env drift must not reopen a
+  // generic PR Preview against live services.
+  assertPreviewStubDeployment(env);
+  assertPreviewStubSupabaseDisabled(env);
   return verifySupabaseServiceDestination({
     url: env.NEXT_PUBLIC_SUPABASE_URL,
     serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,

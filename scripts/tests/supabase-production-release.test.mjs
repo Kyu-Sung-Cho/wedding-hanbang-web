@@ -129,6 +129,7 @@ async function addBlockedSuccessorRelease(fixture) {
   const identityApply = "BEGIN;\nselect 1;\nCOMMIT;\n";
   const identityVerify = "BEGIN TRANSACTION READ ONLY;\nselect 1 as community_public_identity_contract_verified;\nROLLBACK;\n";
   const identityRollout = "# Fixture community public identity rollout\n";
+  const surveyRetirement = "# Fixture customer survey free-text retirement\n";
   const manifest = {
     release: "vendor-disclosure-v2-20260718",
     projectRef: PROJECT_REF,
@@ -161,10 +162,16 @@ async function addBlockedSuccessorRelease(fixture) {
         expectedEvidence: { community_public_identity_contract_verified: 1 },
       },
     }],
-    requiredDocuments: [{
-      file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
-      sha256: sha256(identityRollout),
-    }],
+    requiredDocuments: [
+      {
+        file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+        sha256: sha256(identityRollout),
+      },
+      {
+        file: "docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+        sha256: sha256(surveyRetirement),
+      },
+    ],
     deploymentEvidence: {
       hostedStaging: "missing",
       backup: "missing",
@@ -198,6 +205,11 @@ async function addBlockedSuccessorRelease(fixture) {
     fixture.root,
     "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
     identityRollout,
+  );
+  await write(
+    fixture.root,
+    "docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+    surveyRetirement,
   );
 }
 

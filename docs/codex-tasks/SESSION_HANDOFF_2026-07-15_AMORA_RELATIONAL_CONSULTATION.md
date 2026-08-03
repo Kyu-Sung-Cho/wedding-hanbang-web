@@ -72,7 +72,9 @@ Do not evaluate an ordinary safe Preview where
 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`; its proxy correctly returns 503 for API
 routes. A targeted hosted evaluation requires a dedicated non-production
 Preview/Stage deployment with the stub disabled, non-production Supabase and
-OpenAI credentials, and its own evaluation secret. Otherwise use a local
+OpenAI credentials, its own evaluation secret, and the commit-bound
+`TARGETED_PREVIEW_BRANCH` / `TARGETED_PREVIEW_CONFIRM` contract in
+`apps/web/.env.example`. Otherwise use a local
 production build wired only to non-production services. Never disable the
 Preview fence while pointing at the production database.
 

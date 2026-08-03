@@ -48,7 +48,7 @@ export default function IntroScreen({
           소요 시간은 약 5~7분이며, 응답 내용은 서비스 개선에만 활용됩니다.
         </p>
         <p className="text-[13px] text-taupe-400 mb-10">
-          이름과 연락처는 수집하지 않습니다. 자유서술란에도 개인을 알아볼 수 있는 정보는 적지 말아주세요.
+          이름·연락처와 자유서술은 수집하지 않고 선택형 응답만 처리합니다.
         </p>
 
         <label className="mb-6 flex cursor-pointer items-start gap-3 rounded-2xl border border-platinum bg-white px-4 py-4 text-left">
@@ -59,7 +59,7 @@ export default function IntroScreen({
             className="mt-0.5 h-4 w-4 shrink-0 accent-[#36534E]"
           />
           <span className="text-[13px] leading-relaxed text-charcoal">
-            익명 설문 응답(성별·연령대·예산 및 선택적 자유서술 포함)을 서비스 개선을 위해 처리하는 데 동의합니다. 자유서술에는 개인을 식별할 수 있는 정보를 입력하지 마세요.{' '}
+            익명 설문 응답(성별·연령대·예산 구간 및 선택형 응답)을 서비스 개선을 위해 처리하는 데 동의합니다.{' '}
             <Link href="/privacy" className="font-medium text-[#36534E] underline underline-offset-2">
               개인정보 처리방침
             </Link>

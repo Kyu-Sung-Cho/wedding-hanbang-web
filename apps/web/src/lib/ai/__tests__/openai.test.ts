@@ -222,7 +222,7 @@ describe("OpenAI Responses adapter", () => {
 
   it("forwards an explicit function choice for deterministic read-only search", async () => {
     const response = completedResponse([], "검색을 시작할게요.");
-    const { client, create } = fakeClient([{ type: "response.completed", response }]);
+    const { client, create, count } = fakeClient([{ type: "response.completed", response }]);
     const searchTool = {
       name: "search_nearby_places",
       input_schema: {
@@ -242,6 +242,9 @@ describe("OpenAI Responses adapter", () => {
     });
 
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      tool_choice: { type: "function", name: "search_nearby_places" },
+    }), undefined);
+    expect(count).toHaveBeenCalledWith(expect.objectContaining({
       tool_choice: { type: "function", name: "search_nearby_places" },
     }), undefined);
   });
@@ -364,22 +367,25 @@ describe("OpenAI Responses adapter", () => {
     expect(beforeGeneration).not.toHaveBeenCalled();
   });
 
-  // 사전 토큰 계산은 과대 입력을 미리 걸러내는 선택적 가드레일이다. 그 측정이
-  // 불가능해졌다고 대화를 죽이면 가드레일 하나가 채팅 전체를 멈춘다 —
-  // 2026-07-25 운영에서 실제로 이 경로가 계속 실패하며 "안녕" 한 마디까지
-  // AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다. 한도 초과 차단은 바로 위
-  // OpenAIInputTokenLimitError 테스트가 그대로 지킨다.
   it.each([
     ["5xx", Object.assign(new Error("count service unavailable"), {
       status: 503,
       requestID: "req_count_503",
       code: "server_error",
-    }), "server_error"],
+    }), "provider_5xx"],
     ["timeout", new APIConnectionTimeoutError(), "timeout"],
-  ])("proceeds with generation when the input pre-count %s fails", async (
+    ["HTTP 408", Object.assign(new Error("request timeout"), {
+      status: 408,
+      requestID: "req_count_408",
+    }), "timeout"],
+    ["HTTP 409", Object.assign(new Error("request conflict"), {
+      status: 409,
+      requestID: "req_count_409",
+    }), "transport"],
+  ])("fails closed when both input pre-count %s attempts fail", async (
     _label,
     countError,
-    expectedReason,
+    expectedCategory,
   ) => {
     const { client, create, count } = fakeClient([
       { type: "response.completed", response: completedResponse([]) },
@@ -389,19 +395,97 @@ describe("OpenAI Responses adapter", () => {
       withResponse: vi.fn().mockRejectedValue(countError),
     });
 
-    const result = await chatWithToolsStream({
+    await expect(chatWithToolsStream({
       systemPrompt: "system",
       input: "토큰 수 확인",
       tools: [],
       maxInputTokens: 64_000,
       beforeGeneration,
       client,
+    })).rejects.toMatchObject({
+      category: expectedCategory,
+      requestStage: "input_count",
     });
 
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).not.toHaveBeenCalled();
+    expect(beforeGeneration).not.toHaveBeenCalled();
+  });
+
+  it("retries one transient input-count failure before generation", async () => {
+    const { client, create, count } = fakeClient([
+      { type: "response.completed", response: completedResponse([]) },
+    ]);
+    const beforeGeneration = vi.fn();
+    count
+      .mockReturnValueOnce({
+        withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count 503"), {
+          status: 503,
+        })),
+      })
+      .mockReturnValue(apiResult({
+        object: "response.input_tokens",
+        input_tokens: 123,
+      }, "req_count_retry"));
+
+    const result = await chatWithToolsStream({
+      systemPrompt: "system",
+      input: "재시도 뒤 생성",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    });
+
+    expect(count).toHaveBeenCalledTimes(2);
     expect(beforeGeneration).toHaveBeenCalledTimes(1);
-    // 가드레일이 꺼진 채 나간 턴이라는 사실은 호출부가 원장에 남길 수 있어야 한다.
-    expect(result.inputCountUnavailableReason).toBe(expectedReason);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result.inputCountAttempts).toEqual([
+      {
+        attempt: 1,
+        outcome: "failure",
+        category: "provider_5xx",
+        requestId: null,
+      },
+      {
+        attempt: 2,
+        outcome: "success",
+        category: null,
+        requestId: "req_count_retry",
+      },
+    ]);
+  });
+
+  it("does not retry a programming error from the input-count caller", async () => {
+    const { client, create, count } = fakeClient([
+      { type: "response.completed", response: completedResponse([]) },
+    ]);
+    const beforeGeneration = vi.fn();
+    count.mockImplementation(() => {
+      throw new TypeError("count request was assembled incorrectly");
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "count once",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    })).rejects.toMatchObject({
+      category: "transport",
+      requestStage: "input_count",
+      inputCountAttempts: [{
+        attempt: 1,
+        outcome: "failure",
+        category: "transport",
+        requestId: null,
+      }],
+    });
+
+    expect(count).toHaveBeenCalledTimes(1);
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
   });
 
   it("awaits beforeGeneration exactly once after exact counting and immediately before create", async () => {
@@ -493,6 +577,12 @@ describe("OpenAI Responses adapter", () => {
       beforeGeneration,
       client,
     })).rejects.toBe(hookError);
+    expect(normalizeOpenAIProviderError(hookError).inputCountAttempts).toEqual([{
+      attempt: 1,
+      outcome: "success",
+      category: null,
+      requestId: "req_count",
+    }]);
     expect(beforeGeneration).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
   });
@@ -515,6 +605,12 @@ describe("OpenAI Responses adapter", () => {
     })).rejects.toMatchObject({
       category: "transport",
       requestStage: "generation",
+      inputCountAttempts: [{
+        attempt: 1,
+        outcome: "success",
+        category: null,
+        requestId: "req_count_default",
+      }],
     });
     expect(create).toHaveBeenCalledTimes(1);
   });

@@ -68,6 +68,7 @@ async function createBlockedFixture() {
   const publicIdentityVerify =
     "BEGIN TRANSACTION READ ONLY;\nselect 1 as community_public_identity_contract_verified;\nROLLBACK;\n";
   const publicIdentityRollout = "# Community public identity rollout fixture\n";
+  const customerSurveyRetirement = "# Customer survey free-text retirement fixture\n";
   await Promise.all([
     writeFile(
       join(migrationDirectory, PREDECESSOR_MIGRATION),
@@ -111,6 +112,14 @@ async function createBlockedFixture() {
         "COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
       ),
       publicIdentityRollout,
+      "utf8",
+    ),
+    writeFile(
+      join(
+        rolloutDocumentDirectory,
+        "CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+      ),
+      customerSurveyRetirement,
       "utf8",
     ),
   ]);
@@ -157,10 +166,16 @@ async function createBlockedFixture() {
         expectedEvidence: { community_public_identity_contract_verified: 1 },
       },
     }],
-    requiredDocuments: [{
-      file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
-      sha256: sha256(publicIdentityRollout),
-    }],
+    requiredDocuments: [
+      {
+        file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+        sha256: sha256(publicIdentityRollout),
+      },
+      {
+        file: "docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+        sha256: sha256(customerSurveyRetirement),
+      },
+    ],
     deploymentEvidence: {
       hostedStaging: "missing",
       backup: "missing",

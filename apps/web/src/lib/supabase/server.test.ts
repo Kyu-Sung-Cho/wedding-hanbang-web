@@ -17,6 +17,7 @@ import { createClientFromRequest } from "./server";
 
 const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const originalPreviewStubMode = process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE;
 
 describe("createClientFromRequest authorization precedence", () => {
   beforeEach(() => {
@@ -25,6 +26,7 @@ describe("createClientFromRequest authorization precedence", () => {
     mocks.createServerClient.mockReturnValue({ client: true });
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://project.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    delete process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE;
   });
 
   afterEach(() => {
@@ -32,6 +34,8 @@ describe("createClientFromRequest authorization precedence", () => {
     else process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
     if (originalSupabaseAnonKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey;
+    if (originalPreviewStubMode === undefined) delete process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE;
+    else process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE = originalPreviewStubMode;
   });
 
   it("uses the shared case-insensitive Bearer parser", async () => {
@@ -43,6 +47,17 @@ describe("createClientFromRequest authorization precedence", () => {
     const options = mocks.createServerClient.mock.calls[0][2];
     expect(options.global.headers.Authorization).toBe("Bearer access.token-value");
     expect(options.cookies.getAll()).toEqual([]);
+    expect(mocks.cookies).not.toHaveBeenCalled();
+  });
+
+  it("blocks every server client before SDK construction in Preview stub mode", async () => {
+    process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE = "true";
+
+    await expect(createClientFromRequest(new Request(
+      "https://preview.example.test/api/favorites",
+      { headers: { authorization: "Bearer access.token-value" } },
+    ))).rejects.toThrow("Supabase clients are disabled in Preview stub mode");
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
     expect(mocks.cookies).not.toHaveBeenCalled();
   });
 

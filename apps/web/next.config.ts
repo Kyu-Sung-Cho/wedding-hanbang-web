@@ -8,6 +8,8 @@ import { WEDDING_APP_ROUTES } from "./weddingAppRoutes";
 
 assertPreviewStubDeployment();
 
+const previewStubMode = process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE === "true";
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 assertPrivacyProductionBuild();
@@ -40,7 +42,7 @@ function configuredSupabaseEndpoint(): { hostname: string; httpsOrigin: string; 
   }
 }
 
-const supabaseEndpoint = configuredSupabaseEndpoint();
+const supabaseEndpoint = previewStubMode ? null : configuredSupabaseEndpoint();
 
 function configuredSentryBrowserOrigin(): string | null {
   const rawDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -64,10 +66,17 @@ function configuredSentryBrowserOrigin(): string | null {
   }
 }
 
-const sentryBrowserOrigin = configuredSentryBrowserOrigin();
-const postHogBrowserOrigin = process.env.NEXT_PUBLIC_POSTHOG_ENABLED === "true"
+const sentryBrowserOrigin = previewStubMode ? null : configuredSentryBrowserOrigin();
+const postHogBrowserOrigin = !previewStubMode
+  && process.env.NEXT_PUBLIC_POSTHOG_ENABLED === "true"
   ? "https://us.i.posthog.com"
   : null;
+const turnstileBrowserOrigin = previewStubMode
+  ? null
+  : "https://challenges.cloudflare.com";
+const remoteImageOrigins = previewStubMode
+  ? ""
+  : " https://hanbang.ai https://*.pstatic.net";
 
 // Next.js Fast Refresh needs eval-backed source maps during local development.
 // Production bundles do not, so do not weaken the production CSP for that tool.
@@ -79,12 +88,12 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  `script-src 'self' 'unsafe-inline'${developmentUnsafeEval} https://challenges.cloudflare.com`,
+  `script-src 'self' 'unsafe-inline'${developmentUnsafeEval}${turnstileBrowserOrigin ? ` ${turnstileBrowserOrigin}` : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob:${supabaseEndpoint ? ` ${supabaseEndpoint.httpsOrigin}` : ""} https://hanbang.ai https://*.pstatic.net`,
+  `img-src 'self' data: blob:${supabaseEndpoint ? ` ${supabaseEndpoint.httpsOrigin}` : ""}${remoteImageOrigins}`,
   "font-src 'self' data:",
-  `connect-src 'self'${supabaseEndpoint ? ` ${supabaseEndpoint.httpsOrigin} ${supabaseEndpoint.wssOrigin}` : ""} https://challenges.cloudflare.com${postHogBrowserOrigin ? ` ${postHogBrowserOrigin}` : ""}${sentryBrowserOrigin ? ` ${sentryBrowserOrigin}` : ""}`,
-  "frame-src https://challenges.cloudflare.com",
+  `connect-src 'self'${supabaseEndpoint ? ` ${supabaseEndpoint.httpsOrigin} ${supabaseEndpoint.wssOrigin}` : ""}${turnstileBrowserOrigin ? ` ${turnstileBrowserOrigin}` : ""}${postHogBrowserOrigin ? ` ${postHogBrowserOrigin}` : ""}${sentryBrowserOrigin ? ` ${sentryBrowserOrigin}` : ""}`,
+  turnstileBrowserOrigin ? `frame-src ${turnstileBrowserOrigin}` : "frame-src 'none'",
   "upgrade-insecure-requests",
 ].join("; ");
 

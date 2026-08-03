@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
 import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
 import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
@@ -50,7 +50,7 @@ export default function MyPostsPage() {
     let cancelled = false;
     void Promise.resolve().then(async () => {
       try {
-        const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+        const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (cancelled) return;
         if (!user) {

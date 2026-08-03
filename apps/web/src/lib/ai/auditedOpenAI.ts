@@ -13,6 +13,8 @@ import {
 import {
   assertOpenAIProviderEnabled,
   assertNoPromptCacheBreakpoints,
+  attachOpenAIInputCountAttempts,
+  countOpenAIInputTokensWithTransientRetry,
   getOpenAIClient,
   normalizeOpenAIProviderError,
   normalizeResponseUsage,
@@ -20,6 +22,7 @@ import {
   OpenAIProviderError,
   OpenAIRefusalError,
   type NormalizedOpenAIUsage,
+  type OpenAIInputCountAttempt,
   type OpenAIRequestStage,
   type OpenAIUsageStatus,
 } from "@/lib/ai/openai";
@@ -44,6 +47,7 @@ export interface AuditedOpenAIResponse {
   requestId?: string | null;
   responseId?: string | null;
   inputCountRequestId?: string | null;
+  inputCountAttempts?: OpenAIInputCountAttempt[];
 }
 
 export interface AuditedOpenAIStructuredResponse<T> extends AuditedOpenAIResponse {
@@ -112,6 +116,7 @@ function buildAuditMetadata(options: {
   requestId?: string | null;
   responseId?: string | null;
   inputCountRequestId?: string | null;
+  inputCountAttempts?: OpenAIInputCountAttempt[];
   inputCountUnavailableReason?: string | null;
   usageStatus?: OpenAIUsageStatus;
   requestStage?: OpenAIRequestStage | null;
@@ -127,7 +132,15 @@ function buildAuditMetadata(options: {
     provider_request_id: options.requestId ?? null,
     provider_response_id: options.responseId ?? null,
     input_count_request_id: options.inputCountRequestId ?? null,
-    // 사전 토큰 계산을 건너뛴 턴 — null이 아니면 가드레일이 꺼진 채 나간 것이다.
+    input_count_attempt_count: options.inputCountAttempts?.length ?? 0,
+    input_count_attempts: (options.inputCountAttempts ?? []).map((attempt) => [
+      String(attempt.attempt),
+      attempt.outcome,
+      attempt.category ?? "none",
+      attempt.requestId ?? "none",
+    ].join(":")),
+    // Legacy audit field retained for schema compatibility. A successful paid
+    // call now always has an exact count, so this stays null.
     input_count_unavailable: options.inputCountUnavailableReason ?? null,
     provider_request_stage: options.requestStage ?? null,
     usage_status: options.usageStatus ?? "unknown",
@@ -142,7 +155,11 @@ function buildAuditMetadata(options: {
 
 function markInputCountFailure(
   error: unknown,
-  context: { model: string; requestId?: string | null },
+  context: {
+    model: string;
+    requestId?: string | null;
+    inputCountAttempts?: OpenAIInputCountAttempt[];
+  },
 ): OpenAIProviderError {
   const normalized = normalizeOpenAIProviderError(error, context);
   if (normalized.requestStage) return normalized;
@@ -155,6 +172,8 @@ function markInputCountFailure(
     responseId: normalized.responseId,
     providerCode: normalized.providerCode,
     requestStage: "input_count",
+    inputCountAttempts:
+      normalized.inputCountAttempts ?? context.inputCountAttempts,
   });
 }
 
@@ -205,8 +224,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
   );
   let requestId: string | null | undefined;
   let inputCountRequestId: string | null | undefined;
-  // 사전 토큰 계산이 불가능했던 이유 — 원장에 남겨 장애를 눈에 보이게 한다.
-  let inputCountUnavailableReason: string | null = null;
+  let inputCountAttempts: OpenAIInputCountAttempt[] | undefined;
   let response: OpenAIResponse | undefined;
   let providerAttempted = false;
   let beforeGenerationFailed = false;
@@ -238,17 +256,21 @@ async function createOpenAIResponseWithAuditInternal<T>(
     };
 
     try {
-      const countPromise = client.responses.inputTokens.count(
-        {
-          model: request.model,
-          instructions: request.instructions,
-          input: request.input,
-          reasoning: request.reasoning,
-          text: request.text,
-        },
-        options.signal ? { signal: options.signal } : undefined,
+      const countResult = await countOpenAIInputTokensWithTransientRetry(
+        async () => client.responses.inputTokens.count(
+          {
+            model: request.model,
+            instructions: request.instructions,
+            input: request.input,
+            reasoning: request.reasoning,
+            text: request.text,
+          },
+          options.signal ? { signal: options.signal } : undefined,
+        ).withResponse(),
+        (value) => value.request_id,
       );
-      const counted = await countPromise.withResponse();
+      const counted = countResult.value;
+      inputCountAttempts = countResult.attempts;
       inputCountRequestId = counted.request_id;
       if (
         !Number.isSafeInteger(counted.data.input_tokens)
@@ -261,33 +283,27 @@ async function createOpenAIResponseWithAuditInternal<T>(
           providerCode: "invalid_input_token_count",
           requestStage: "input_count",
           usageStatus: "complete",
+          inputCountAttempts,
         });
       }
       if (counted.data.input_tokens > options.maxInputTokens) {
         throw new OpenAIInputTokenLimitError(
           counted.data.input_tokens,
           options.maxInputTokens,
-          { requestId: counted.request_id },
+          { requestId: counted.request_id, inputCountAttempts },
         );
       }
     } catch (error) {
       const normalized = markInputCountFailure(error, {
         model: modelConfig.model,
         requestId: inputCountRequestId,
+        inputCountAttempts,
       });
-      // 측정에 성공했고 그 값이 한도를 넘은 경우는 그대로 막는다.
-      if (error instanceof OpenAIInputTokenLimitError) throw normalized;
-      // 측정 자체가 실패한 것은 사전 점검의 실패지 대화의 실패가 아니다.
-      // 여기서 던지면 선택적 가드레일 하나가 서비스 전체를 멈춘다 —
-      // 2026-07-25 운영에서 실제로 inputTokens.count가 계속 실패하며 모든 턴이
-      // AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다("안녕" 한 마디까지).
-      // 과대 입력은 제공자가 스스로 거부하고 그 경로(input_token_limit)는 이미
-      // 처리돼 있으므로, 측정 불가일 때는 본 호출로 진행한다.
-      inputCountUnavailableReason =
-        normalized.providerCode ?? normalized.category ?? "unknown";
-      console.warn(
-        `[amora] input token pre-count unavailable (${inputCountUnavailableReason}) — proceeding without it`,
-      );
+      // The exact count is part of the paid-call authorization contract. If it
+      // remains unavailable after the bounded retry, fail before reservation
+      // and generation rather than under-reserving an unbounded input. Every
+      // count attempt is attached to the owning audit metadata.
+      throw normalized;
     }
 
     options.signal?.throwIfAborted();
@@ -330,11 +346,19 @@ async function createOpenAIResponseWithAuditInternal<T>(
       });
     }
   } catch (error) {
-    const normalized = normalizeOpenAIProviderError(error, {
+    const errorWithCountAttempts = attachOpenAIInputCountAttempts(
+      error,
+      inputCountAttempts,
+    );
+    const originalErrorHasCountAttempts = Boolean(
+      normalizeOpenAIProviderError(errorWithCountAttempts).inputCountAttempts,
+    );
+    const normalized = normalizeOpenAIProviderError(errorWithCountAttempts, {
       model: response?.model ?? modelConfig.model,
       usage: response ? normalizeResponseUsage(response) : undefined,
       requestId,
       responseId: response?.id,
+      inputCountAttempts,
     });
     await writeOwnedAudit({
       audit: options.audit,
@@ -359,12 +383,16 @@ async function createOpenAIResponseWithAuditInternal<T>(
           normalized.requestStage === "input_count"
             ? normalized.requestId
             : inputCountRequestId,
+        inputCountAttempts:
+          normalized.inputCountAttempts ?? inputCountAttempts,
         usageStatus: providerAttempted ? normalized.usageStatus : "complete",
         requestStage: normalized.requestStage,
         providerAttempted,
       }),
     });
-    if (beforeGenerationFailed) throw error;
+    if (beforeGenerationFailed && originalErrorHasCountAttempts) {
+      throw errorWithCountAttempts;
+    }
     throw normalized;
   }
 
@@ -378,6 +406,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
       requestId,
       responseId: response.id,
       providerCode: "empty_response",
+      inputCountAttempts,
     });
     await writeOwnedAudit({
       audit: options.audit,
@@ -394,7 +423,8 @@ async function createOpenAIResponseWithAuditInternal<T>(
         requestId,
         responseId: response.id,
         inputCountRequestId,
-        inputCountUnavailableReason,
+        inputCountAttempts,
+        inputCountUnavailableReason: null,
         usageStatus: usage ? "complete" : "unknown",
         requestStage: "generation",
         providerAttempted,
@@ -423,13 +453,14 @@ async function createOpenAIResponseWithAuditInternal<T>(
           requestId,
           responseId: response.id,
           inputCountRequestId,
-          inputCountUnavailableReason,
+          inputCountAttempts,
+          inputCountUnavailableReason: null,
           usageStatus: usage ? "complete" : "unknown",
           requestStage: "generation",
           providerAttempted,
         }),
       });
-      throw error;
+      throw attachOpenAIInputCountAttempts(error, inputCountAttempts);
     }
   }
 
@@ -449,7 +480,8 @@ async function createOpenAIResponseWithAuditInternal<T>(
       requestId,
       responseId: response.id,
       inputCountRequestId,
-      inputCountUnavailableReason,
+      inputCountAttempts,
+      inputCountUnavailableReason: null,
       usageStatus,
       requestStage: "generation",
       providerAttempted,
@@ -464,6 +496,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
     requestId,
     responseId: response.id,
     inputCountRequestId,
+    inputCountAttempts,
     ...(options.parseOutput ? { data } : {}),
   };
 }
@@ -519,7 +552,10 @@ export async function createOpenAIStructuredResponseWithAudit<T>(
     },
   });
   if (response.data === undefined) {
-    throw new OpenAIStructuredOutputError("schema_validation_failed");
+    throw attachOpenAIInputCountAttempts(
+      new OpenAIStructuredOutputError("schema_validation_failed"),
+      response.inputCountAttempts,
+    );
   }
   return { ...response, data: response.data };
 }

@@ -56,6 +56,20 @@ describe("vendor admin-preview onboarding boundary", () => {
     expect(mocks.getUser).toHaveBeenCalledOnce();
   });
 
+  it("performs no Supabase session I/O in Preview stub mode", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+
+    const response = await updateSession(
+      new NextRequest("https://preview.example.test/wedding/chat", {
+        headers: { cookie: "sb-session=accidental-production-session" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
   it("still redirects an ordinary vendor request when onboarding is incomplete", async () => {
     const response = await updateSession(
       new NextRequest("https://hanbang.ai/wedding/vendors"),

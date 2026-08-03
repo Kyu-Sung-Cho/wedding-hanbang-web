@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { allQuestions } from "@/app/customersurvey/data/questions";
 import { validateSurveySubmission } from "@/lib/survey/submission";
 
 function validAnswers(overrides: Record<string, unknown> = {}) {
@@ -22,7 +23,6 @@ function validAnswers(overrides: Record<string, unknown> = {}) {
     q18: 1,
     q19: 2,
     q20: 8,
-    q21: "가격 비교가 쉬우면 좋겠습니다.",
     q22: {
       q22_gender: "응답 안 함",
       q22_age: "30대",
@@ -72,23 +72,33 @@ describe("customer survey server schema", () => {
     }
   });
 
-  it("requires bounded other text only when the other option is selected", () => {
-    expect(validateSurveySubmission(validAnswers({ q7: [7] }), {}).ok).toBe(false);
-    const result = validateSurveySubmission(validAnswers({ q7: [7] }), {
+  it("keeps the structured other option without opening a free-text lane", () => {
+    expect(validateSurveySubmission(validAnswers({ q7: [7] }), {}).ok).toBe(true);
+    expect(validateSurveySubmission(validAnswers({ q7: [7] }), {
       q7: "업체 비교 기준",
-    });
-    expect(result.ok).toBe(true);
+    })).toEqual({ ok: false, reason: "free_text_disabled" });
   });
 
   it.each([
+    "가격 비교가 쉬우면 좋겠습니다.",
     "person@example.com",
     "010-1234-5678로 연락 주세요",
     "https://example.com/private 를 확인해 주세요",
-  ])("rejects direct identifiers in anonymous free text: %s", (q21) => {
+    "홍길동 주민등록번호 900101-1234567, 서울 강남구",
+    "계좌 110-123-456789 또는 @private_social",
+  ])("rejects every retired anonymous free-text payload: %s", (q21) => {
     expect(validateSurveySubmission(validAnswers({ q21 }), {})).toEqual({
       ok: false,
-      reason: "direct_identifier",
+      reason: "free_text_disabled",
     });
+  });
+
+  it("keeps all configured survey questions structured-only", () => {
+    expect(allQuestions.some((question) =>
+      question.type === "text_area"
+      || question.type === "text_input"
+      || question.options?.some((option) => option.hasTextInput)
+    )).toBe(false);
   });
 
   it("rejects incomplete submissions", () => {

@@ -1,0 +1,15 @@
+# Review routing only. Enforcement still requires a main-branch ruleset on a
+# private-repository plan that supports required reviews and status checks.
+* @Kyu-Sung-Cho
+
+# Security-sensitive boundaries are listed explicitly so future ownership
+# changes cannot accidentally leave them unreviewed.
+/.github/ @Kyu-Sung-Cho
+/apps/web/src/app/api/ @Kyu-Sung-Cho
+/apps/web/src/lib/auth/ @Kyu-Sung-Cho
+/apps/web/src/lib/ai/ @Kyu-Sung-Cho
+/apps/web/src/lib/supabase/ @Kyu-Sung-Cho
+/apps/mobile/src/lib/ @Kyu-Sung-Cho
+/packages/shared/src/security/ @Kyu-Sung-Cho
+/scripts/ @Kyu-Sung-Cho
+/supabase/ @Kyu-Sung-Cho

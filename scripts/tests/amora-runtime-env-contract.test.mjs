@@ -24,6 +24,13 @@ const runtimeVariables = [
   "AMORA_GLOBAL_DAILY_MESSAGE_CAP",
   "AMORA_GLOBAL_DAILY_COST_CAP_USD",
   "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "OPENAI_ADMIN_KEY",
+  "OPENAI_CUSTOM_HEADERS",
+  "OPENAI_ORG_ID",
+  "OPENAI_PROJECT_ID",
+  "OPENAI_EXPECTED_PROJECT_ID",
+  "OPENAI_PRODUCTION_PROJECT_ID",
   "OPENAI_AMORA_PRIMARY_MODEL",
   "OPENAI_AMORA_FAST_MODEL",
   "CRON_SECRET",
@@ -36,6 +43,12 @@ const runtimeVariables = [
   "SUPABASE_EXPECTED_PROJECT_REF",
   "SUPABASE_PRODUCTION_PROJECT_REF",
   "SUPABASE_PRODUCTION_WRITE_CONFIRM",
+  "NEXT_PUBLIC_PREVIEW_STUB_MODE",
+  "TARGETED_PREVIEW_BRANCH",
+  "TARGETED_PREVIEW_CONFIRM",
+  "TARGETED_PREVIEW_OPENAI_CONFIRM",
+  "VERCEL_GIT_COMMIT_REF",
+  "VERCEL_GIT_COMMIT_SHA",
 ];
 
 test("Turborepo treats every safety- and cost-relevant runtime variable as a build input", async () => {
@@ -73,4 +86,12 @@ test("the example environment keeps external Amora side effects fail-closed", as
   assert.match(example, /^RATE_LIMIT_KEY_SECRET=$/m);
   assert.match(example, /^DEMO_SESSION_SECRET=$/m);
   assert.match(example, /^AMORA_EVAL_SECRET=$/m);
+  assert.match(example, /^NEXT_PUBLIC_PREVIEW_STUB_MODE=false$/m);
+  assert.match(example, /^TARGETED_PREVIEW_BRANCH=$/m);
+  assert.match(example, /^TARGETED_PREVIEW_CONFIRM=$/m);
+  assert.match(example, /^TARGETED_PREVIEW_OPENAI_CONFIRM=$/m);
+  assert.match(example, /^OPENAI_PROJECT_ID=$/m);
+  assert.match(example, /^OPENAI_BASE_URL=https:\/\/api\.openai\.com\/v1$/m);
+  assert.match(example, /^OPENAI_EXPECTED_PROJECT_ID=$/m);
+  assert.match(example, /^OPENAI_PRODUCTION_PROJECT_ID=$/m);
 });

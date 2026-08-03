@@ -13,6 +13,7 @@ import {
   sanitizeSentryTelemetryEvent,
   sanitizeSentryTelemetryTransaction,
 } from "@/lib/telemetryPrivacy";
+import { isPreviewStubMode } from "@/lib/previewStub";
 
 type SentryModule = typeof import("@sentry/nextjs");
 
@@ -42,7 +43,7 @@ if (typeof window !== "undefined") {
   captureAndClearSensitiveAuthUrl();
 }
 
-if (typeof window !== "undefined" && dsn) {
+if (typeof window !== "undefined" && dsn && !isPreviewStubMode()) {
   window.addEventListener("error", bufferError);
   window.addEventListener("unhandledrejection", bufferRejection);
 

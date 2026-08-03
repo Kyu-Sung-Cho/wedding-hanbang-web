@@ -67,8 +67,16 @@ const FORWARD_ONLY_OPERATION_KEYS = [
   "verify",
 ];
 const VERIFY_ARTIFACT_KEYS = ["expectedEvidence", "file", "sha256"];
-const REQUIRED_COMMUNITY_IDENTITY_DOCUMENT =
-  "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md";
+const REQUIRED_SUCCESSOR_DOCUMENTS = [
+  {
+    file: "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
+    label: "community public-identity rollout document",
+  },
+  {
+    file: "docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+    label: "customer survey free-text retirement document",
+  },
+];
 const COMMUNITY_IDENTITY_OPERATION_ID =
   "community-public-identity-contract-20260803104500";
 const SECURITY_OPERATION_DIRECTORY = "supabase/platform-operations/security";
@@ -193,26 +201,28 @@ function validateSuccessorForwardOnlySecurityOperations(repoRoot, manifest) {
 
 function validateSuccessorRequiredDocuments(repoRoot, manifest) {
   const documents = manifest.requiredDocuments;
-  if (!Array.isArray(documents) || documents.length !== 1) {
+  if (!Array.isArray(documents)
+      || documents.length !== REQUIRED_SUCCESSOR_DOCUMENTS.length) {
     invalid(
       "REQUIRED_DOCUMENTS_INVALID",
-      "successor must pin exactly the reviewed community public-identity rollout document",
+      "successor must pin exactly the reviewed security rollout documents",
     );
   }
-  const entry = documents[0];
-  if (!exactKeys(entry, PIN_KEYS)
-      || entry.file !== REQUIRED_COMMUNITY_IDENTITY_DOCUMENT) {
-    invalid(
-      "REQUIRED_DOCUMENTS_INVALID",
-      "community public-identity rollout document pin is invalid",
+  for (const [index, expected] of REQUIRED_SUCCESSOR_DOCUMENTS.entries()) {
+    const entry = documents[index];
+    if (!exactKeys(entry, PIN_KEYS) || entry.file !== expected.file) {
+      invalid(
+        "REQUIRED_DOCUMENTS_INVALID",
+        `${expected.label} pin is invalid`,
+      );
+    }
+    readPinnedRegularFile(
+      repoRoot,
+      entry,
+      expected.label,
+      join(repoRoot, "docs", "operations"),
     );
   }
-  readPinnedRegularFile(
-    repoRoot,
-    entry,
-    "community public-identity rollout document",
-    join(repoRoot, "docs", "operations"),
-  );
   return documents;
 }
 

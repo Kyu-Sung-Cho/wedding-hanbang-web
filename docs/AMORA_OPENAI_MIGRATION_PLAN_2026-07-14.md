@@ -157,10 +157,11 @@ corepack pnpm qa:local
 
 ## Preview stub safety fence
 
-- Vercel Preview may set `NEXT_PUBLIC_PREVIEW_STUB_MODE=true` without copying any production Supabase or AI secret.
+- Every ordinary Vercel Preview must set `NEXT_PUBLIC_PREVIEW_STUB_MODE=true` without copying any production Supabase or AI secret. A missing or false flag fails the build.
 - The flag has priority over accidentally injected Supabase values: public landing auth/realtime/feed effects stay disconnected.
 - Every `/api` and `/api/*` request returns `503` with `Cache-Control: no-store`, so preview code cannot read or write through application routes.
 - Production must keep the flag absent or `false`. Missing Supabase configuration without the flag remains a visible fail-fast configuration error.
-- Rollback: remove the Preview-scoped variable (or set it to `false`) and redeploy. Do not compensate by copying production service-role or provider keys into Preview.
+- A non-stub hosted evaluation is an exceptional targeted Preview only. It must use a non-production Supabase destination, bind `TARGETED_PREVIEW_BRANCH` to `VERCEL_GIT_COMMIT_REF`, and set `TARGETED_PREVIEW_CONFIRM=TARGETED_PREVIEW:<SUPABASE_EXPECTED_PROJECT_REF>:<VERCEL_GIT_COMMIT_SHA>`. Production destinations, `main`, non-Vercel hosts, mismatched commits and production write confirmations fail closed at build time and again before service-role client construction.
+- Rollback: restore the Preview-scoped stub variable to `true`, remove both targeted-preview variables, and redeploy. Do not compensate by copying production service-role or provider keys into Preview.
 
 키 값 자체를 출력하는 명령은 실행하거나 문서화하지 않는다. 환경변수는 존재 여부와 placeholder 여부만 검증한다.

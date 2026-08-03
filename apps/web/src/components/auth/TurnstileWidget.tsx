@@ -5,6 +5,7 @@
 // 토큰이 발급되면 onVerify(token)로 전달, 만료 시 onVerify("")로 초기화.
 
 import { useEffect, useRef } from "react";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import type { TurnstileAction } from "@/lib/turnstile";
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -42,7 +43,7 @@ export default function TurnstileWidget({
   const widgetIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!SITE_KEY || typeof window === "undefined") return;
+    if (isPreviewStubMode() || !SITE_KEY || typeof window === "undefined") return;
 
     let cancelled = false;
     let readinessInterval: ReturnType<typeof setInterval> | null = null;
@@ -94,6 +95,6 @@ export default function TurnstileWidget({
     };
   }, [action, onVerify]);
 
-  if (!SITE_KEY) return null;
+  if (isPreviewStubMode() || !SITE_KEY) return null;
   return <div ref={containerRef} className="flex justify-center" />;
 }

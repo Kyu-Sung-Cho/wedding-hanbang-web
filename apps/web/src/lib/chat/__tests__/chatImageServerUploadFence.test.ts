@@ -389,7 +389,7 @@ describe("chat-image server-owned upload Storage fence", () => {
       sha256: canonicalSha256(amoraManifestSource),
     });
     expect(vendorManifest.expandMigrations.at(-1)?.file).toBe(
-      "20260803113000_harden_ai_interactions_log_acl.sql",
+      "20260803115000_rotate_customer_survey_consent_version.sql",
     );
   });
 });

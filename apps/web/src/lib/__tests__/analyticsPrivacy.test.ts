@@ -21,6 +21,10 @@ describe("zero-I/O research analytics boundary", () => {
     window.localStorage.setItem(THIRD_PARTY_ANALYTICS_CONSENT_KEY, "granted");
     expect(hasExplicitThirdPartyAnalyticsConsent()).toBe(true);
 
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+    expect(hasExplicitThirdPartyAnalyticsConsent()).toBe(false);
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "false");
+
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_ENABLED", "false");
     expect(hasExplicitThirdPartyAnalyticsConsent()).toBe(false);
     vi.unstubAllEnvs();

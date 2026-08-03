@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { MessageCircle } from "lucide-react";
 import Link from "next/link";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
 import { useCommunityStore } from "@/stores/communityStore";
 import CommentItem from "@/components/community/CommentItem";
 import type { CommentWithAuthor } from "@/types/community.types";
@@ -31,10 +31,8 @@ export default function CommentSection({ postId }: CommentSectionProps) {
 
   // 유저 상태 확인
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    if (process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE === "true") return;
+    const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ? { id: data.user.id } : null);
     });

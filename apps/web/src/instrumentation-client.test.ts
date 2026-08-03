@@ -20,6 +20,7 @@ describe("browser Sentry privacy boundary", () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "https://public@example.invalid/1");
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "false");
     Object.defineProperty(window, "requestIdleCallback", {
       configurable: true,
       value: (callback: () => void) => callback(),
@@ -60,5 +61,14 @@ describe("browser Sentry privacy boundary", () => {
 
     expect(JSON.stringify({ event, breadcrumb, transaction })).not.toContain(accessToken);
     expect(JSON.stringify({ event, breadcrumb, transaction })).not.toContain(refreshToken);
+  });
+
+  it("keeps the Preview stub disconnected from browser Sentry", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+
+    await import("./instrumentation-client");
+    await Promise.resolve();
+
+    expect(mocks.init).not.toHaveBeenCalled();
   });
 });

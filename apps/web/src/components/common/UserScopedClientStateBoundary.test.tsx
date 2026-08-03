@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createClient: vi.fn(),
   getUser: vi.fn(),
   clear: vi.fn(),
   reconcile: vi.fn(),
@@ -13,15 +14,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    auth: {
-      getUser: mocks.getUser,
-      onAuthStateChange: (callback: typeof mocks.authCallback) => {
-        mocks.authCallback = callback;
-        return { data: { subscription: { unsubscribe: mocks.unsubscribe } } };
-      },
-    },
-  }),
+  createClient: (...args: unknown[]) => mocks.createClient(...args),
 }));
 vi.mock("@/lib/auth/userScopedClientState", () => ({
   clearUserScopedClientState: mocks.clear,
@@ -63,7 +56,17 @@ describe("UserScopedClientStateBoundary", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "false");
     mocks.authCallback = null;
+    mocks.createClient.mockReturnValue({
+      auth: {
+        getUser: mocks.getUser,
+        onAuthStateChange: (callback: typeof mocks.authCallback) => {
+          mocks.authCallback = callback;
+          return { data: { subscription: { unsubscribe: mocks.unsubscribe } } };
+        },
+      },
+    });
     document.cookie = "demo_mode=; path=/; max-age=0";
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -72,7 +75,29 @@ describe("UserScopedClientStateBoundary", () => {
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    vi.unstubAllEnvs();
     document.body.replaceChildren();
+  });
+
+  it("hydrates the Preview stub as a local guest without constructing Supabase", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+    mocks.createClient.mockImplementation(() => {
+      throw new Error("Preview stub attempted Supabase I/O");
+    });
+
+    await act(async () => {
+      root.render(
+        <UserScopedClientStateBoundary hideUntilVerified fallback={<div>loading</div>}>
+          <PrivateProbe />
+        </UserScopedClientStateBoundary>,
+      );
+      await flushAsyncWork();
+    });
+
+    expect(container.textContent).toBe("guest:private");
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.authCallback).toBeNull();
   });
 
   it("removes A's subtree immediately, then mounts a clean B subtree", async () => {

@@ -535,6 +535,13 @@ describe("runAmoraProviderCallWithLedger", () => {
       responseId: "resp_unknown",
       usageStatus: "unknown",
       providerCode: "stream_error",
+      requestStage: "generation",
+      inputCountAttempts: [{
+        attempt: 1,
+        outcome: "success",
+        category: null,
+        requestId: "req_count_before_generation",
+      }],
     });
 
     await expect(
@@ -554,6 +561,11 @@ describe("runAmoraProviderCallWithLedger", () => {
         p_metadata: expect.objectContaining({
           unknown_paid_attempt: true,
           provider_request_id: "req_unknown",
+          input_count_request_id: "req_count_before_generation",
+          input_count_attempt_count: 1,
+          input_count_attempts: [
+            "1:success:none:req_count_before_generation",
+          ],
         }),
       }),
     );
@@ -639,6 +651,20 @@ describe("runAmoraProviderCallWithLedger", () => {
       requestStage: "input_count",
       usageStatus: "unknown",
       providerCode: "server_error",
+      inputCountAttempts: [
+        {
+          attempt: 1,
+          outcome: "failure",
+          category: "provider_5xx",
+          requestId: "req_count_first",
+        },
+        {
+          attempt: 2,
+          outcome: "failure",
+          category: "provider_5xx",
+          requestId: "req_count_503",
+        },
+      ],
     });
 
     await expect(
@@ -656,6 +682,11 @@ describe("runAmoraProviderCallWithLedger", () => {
           input_count_request_id: "req_count_503",
           provider_request_stage: "input_count",
           unknown_paid_attempt: false,
+          input_count_attempt_count: 2,
+          input_count_attempts: [
+            "1:failure:provider_5xx:req_count_first",
+            "2:failure:provider_5xx:req_count_503",
+          ],
         }),
       }),
     );

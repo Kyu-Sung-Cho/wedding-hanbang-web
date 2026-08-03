@@ -5,10 +5,17 @@ import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 
-const migration = readFileSync(
+const initialMigration = readFileSync(
   resolve(
     process.cwd(),
     "../../supabase/migrations/20260803101000_require_customer_survey_consent_evidence.sql",
+  ),
+  "utf8",
+);
+const currentMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260803115000_rotate_customer_survey_consent_version.sql",
   ),
   "utf8",
 );
@@ -29,7 +36,13 @@ async function fixture() {
     );
     INSERT INTO public.customer_survey_responses(q1_status) VALUES ('legacy');
   `);
-  await db.exec(migration);
+  await db.exec(initialMigration);
+  await db.exec(`
+    INSERT INTO public.customer_survey_responses(
+      q1_status, survey_consent_version, survey_consented_at
+    ) VALUES ('previous-notice', '2026-08-02', statement_timestamp())
+  `);
+  await db.exec(currentMigration);
   return db;
 }
 
@@ -51,6 +64,13 @@ describe("customer survey consent evidence migration", () => {
       survey_consented_at: null,
     }]);
 
+    const previousNotice = await db.query<{ survey_consent_version: string }>(`
+      SELECT survey_consent_version
+      FROM public.customer_survey_responses
+      WHERE q1_status = 'previous-notice'
+    `);
+    expect(previousNotice.rows).toEqual([{ survey_consent_version: "2026-08-02" }]);
+
     await expect(db.exec(`
       INSERT INTO public.customer_survey_responses(q1_status)
       VALUES ('missing-consent')
@@ -59,7 +79,7 @@ describe("customer survey consent evidence migration", () => {
     await expect(db.exec(`
       INSERT INTO public.customer_survey_responses(
         q1_status, survey_consent_version, survey_consented_at
-      ) VALUES ('stale', '2026-07-01', statement_timestamp())
+      ) VALUES ('stale', '2026-08-02', statement_timestamp())
     `)).rejects.toThrow(/consent evidence is required/iu);
   });
 
@@ -68,7 +88,7 @@ describe("customer survey consent evidence migration", () => {
     await db.exec(`
       INSERT INTO public.customer_survey_responses(
         q1_status, survey_consent_version, survey_consented_at
-      ) VALUES ('current', '2026-08-02', statement_timestamp())
+      ) VALUES ('current', '2026-08-03', statement_timestamp())
     `);
 
     await db.exec(`

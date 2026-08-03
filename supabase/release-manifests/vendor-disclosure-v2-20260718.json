@@ -336,6 +336,14 @@
     {
       "file": "20260803113000_harden_ai_interactions_log_acl.sql",
       "sha256": "edad1c16b8b01d7a27ec79575b9830e802a5a23ffe0f6aed519e793be5460886"
+    },
+    {
+      "file": "20260803114000_retire_customer_survey_free_text.sql",
+      "sha256": "8927ecde5a16a5ce5e829aa427ddeb91a3661a767f17af0252f58cb0af5ec207"
+    },
+    {
+      "file": "20260803115000_rotate_customer_survey_consent_version.sql",
+      "sha256": "e860f84686d1ca677bdcd3a41c1c7b502c0a8fd3aaaa113468ad4a12a80ea27d"
     }
   ],
   "forwardOnlySecurityOperations": [
@@ -365,6 +373,10 @@
     {
       "file": "docs/operations/COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
       "sha256": "e20b33d96084178e1368d66e368d17f1f7a61cc565fe153b596951b4eff6e67c"
+    },
+    {
+      "file": "docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+      "sha256": "a0bc82a359254f57440d3a98ee10c55a0a9ca0b04065d78e44f8cd85fd5dd2dc"
     }
   ],
   "deploymentEvidence": {

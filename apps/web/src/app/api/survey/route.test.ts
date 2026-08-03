@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { allQuestions } from '@/app/customersurvey/data/questions';
+import { CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION } from '@/lib/survey/consent';
 
 const mocks = vi.hoisted(() => ({
   checkRateLimitPersistent: vi.fn(),
@@ -109,7 +110,7 @@ describe('anonymous customer survey privacy', () => {
         otherTexts: {},
         turnstileToken: 'captcha-token',
         consent: true,
-        consentVersion: '2026-08-02',
+        consentVersion: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION,
       }),
     }));
 
@@ -125,15 +126,15 @@ describe('anonymous customer survey privacy', () => {
     expect(insertedRow).not.toHaveProperty('q23_contact');
     expect(insertedRow).not.toHaveProperty('user_agent');
     expect(JSON.stringify(insertedRow)).not.toContain('person@example.com');
-    expect(insertedRow.survey_consent_version).toBe('2026-08-02');
+    expect(insertedRow.survey_consent_version).toBe(CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION);
     expect(typeof insertedRow.survey_consented_at).toBe('string');
   });
 
   it('rejects missing or stale survey consent before CAPTCHA and storage', async () => {
     for (const consent of [
       {},
-      { consent: true, consentVersion: '2026-07-01' },
-      { consent: false, consentVersion: '2026-08-02' },
+      { consent: true, consentVersion: '2026-08-02' },
+      { consent: false, consentVersion: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION },
     ]) {
       vi.clearAllMocks();
       mocks.checkRateLimitPersistent.mockResolvedValue(null);
@@ -163,7 +164,7 @@ describe('anonymous customer survey privacy', () => {
         otherTexts: {},
         turnstileToken: 'captcha-token',
         consent: true,
-        consentVersion: '2026-08-02',
+        consentVersion: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION,
       }),
     }));
 
@@ -172,23 +173,49 @@ describe('anonymous customer survey privacy', () => {
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
-  it('rejects direct identifiers in anonymous free text before storage', async () => {
+  it.each([
+    '일반적인 서비스 개선 의견',
+    '홍길동 주민등록번호 900101-1234567, 서울 강남구',
+  ])('rejects retired anonymous free text before storage: %s', async (q21) => {
     const response = await POST(new NextRequest('https://hanbang.ai/api/survey', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        answers: validAnswers({ q21: 'person@example.com' }),
+        answers: validAnswers({ q21 }),
         otherTexts: {},
         turnstileToken: 'captcha-token',
         consent: true,
-        consentVersion: '2026-08-02',
+        consentVersion: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION,
       }),
     }));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: '자유서술에서 연락처와 링크를 제거해 주세요.',
+      error: '개인정보 보호를 위해 현재 설문에서는 자유서술을 받지 않습니다.',
     });
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it('never sends retired free-text columns to Supabase', async () => {
+    const response = await POST(new NextRequest('https://hanbang.ai/api/survey', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        answers: validAnswers(),
+        otherTexts: {},
+        turnstileToken: 'captcha-token',
+        consent: true,
+        consentVersion: CURRENT_CUSTOMER_SURVEY_CONSENT_VERSION,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    const insertedRow = mocks.insert.mock.calls[0]?.[0] as Record<string, unknown>;
+    for (const column of [
+      'q7_other', 'q8_2_other', 'q11_other', 'q12_other',
+      'q17_other', 'q18_other', 'q21_feedback',
+    ]) {
+      expect(insertedRow).not.toHaveProperty(column);
+    }
   });
 });

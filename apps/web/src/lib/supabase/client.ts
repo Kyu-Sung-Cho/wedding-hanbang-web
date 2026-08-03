@@ -1,9 +1,11 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertPreviewStubSupabaseDisabled } from "@/lib/previewStub";
 
 let client: SupabaseClient | null = null;
 
 export function createClient(): SupabaseClient {
+  assertPreviewStubSupabaseDisabled();
   if (!client) {
     client = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

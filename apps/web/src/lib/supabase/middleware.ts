@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
+import { isPreviewStubMode } from "@/lib/previewStub";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -24,6 +25,10 @@ function isProtectedPath(pathname: string): "customer" | "admin" | null {
 export async function updateSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
+
+  // Preview stub pages are static review surfaces. Never refresh a session or
+  // query a profile even if production public credentials were inherited.
+  if (isPreviewStubMode()) return supabaseResponse;
 
   // Supabase 설정 없으면 스킵
   if (

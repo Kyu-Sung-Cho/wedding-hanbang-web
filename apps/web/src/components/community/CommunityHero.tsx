@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Handshake } from "lucide-react";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
 
 interface CommunityHeroProps {
   postCount?: number;
@@ -16,10 +16,8 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
   // 비로그인엔 그대로 노출하여 온보딩 컨텍스트 제공.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    if (process.env.NEXT_PUBLIC_PREVIEW_STUB_MODE === "true") return;
+    const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setIsLoggedIn(true);
     });

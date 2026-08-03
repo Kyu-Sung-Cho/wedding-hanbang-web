@@ -9,7 +9,11 @@
 
 - 원격 저장소: `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git`
 - 작업 브랜치: `codex/security-hardening-20260802`
+- Draft PR: `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/80`
+- 1차 하드닝 게시 SHA: `7c294aba7a318ea204bf7592843a3576acdfb317`
 - 기준 커밋: `0f84665e9b8828f30e5a83ca5854ef618c3f4518` (`origin/main`)
+- 최종 게시 SHA는 이 문서를 포함한 자기 커밋 안에 고정할 수 없으므로 원격 브랜치
+  HEAD를 기준으로 삼고, 아래 2절의 로컬·원격 HEAD 일치 검사를 반드시 수행한다.
 - 범위: 웹, 모바일, 공유 패키지, Supabase 마이그레이션, 수동 플랫폼 작업,
   릴리스 게이트, CI, 테스트, 운영 문서
 - 소스 상태: 하드닝 구현과 로컬 검증 완료
@@ -118,16 +122,38 @@ receipt처럼 비밀·PII가 포함된 자료는 Git에 추가하지 않는다. 
 - PostHog와 사용자 식별 분석은 명시적 opt-in 전에는 초기화하거나 식별하지 않는다.
 - 개인정보 처리방침의 실제 기능 상태와 source gate가 어긋나지 않도록 truthfulness
   테스트를 추가했다.
+- 익명 고객 설문은 검증된 DLP·보유기간·자동 파기가 준비될 때까지 선택형 응답만
+  받는다. 웹에서 `q21`과 모든 기타 자유서술 입력을 제거하고, API는 이전 클라이언트의
+  `q21`/`otherTexts`도 service-role client 생성 전에 거부한다.
+- `20260803114000`은 기존 설문 자유서술 7개 열을 모두 `NULL`로 만들고 validated
+  CHECK로 재입력을 차단한다. 이 삭제 작업은 production에 아직 적용하지 않았다.
+- `20260803115000`은 신규 설문 동의 계약을 `2026-08-03`으로 회전한다. write fence
+  상태에서 `114000`→`115000`→DB 검증→웹 배포 순서를 지켜야 한다.
 
 운영 문서:
 
 - `docs/operations/PREREGISTRATION_DOUBLE_OPT_IN_2026-08-03.md`
+- `docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md`
 - `docs/operations/PASSWORD_CHANGE_SECURITY_GATE.md`
 
 ### AI 사용·비용·로그
 
 - AI 호출을 사용자·커플·demo·release-eval 경계로 분리하고, 커플별·전역 일일
   quota와 비용 원장을 적용했다.
+- 모든 유료 generation 전에 OpenAI exact input-token count를 요구한다. 일시적
+  count 장애는 1회만 재시도하고, 두 번째 실패·잘못된 응답·한도 초과는 예약과
+  generation 전에 `requestStage=input_count`로 차단한다. 64K 비용 상한은 더 이상
+  provider 장애 시 선택적 검사가 아니다.
+- 연결 오류, HTTP 408·409·429와 provider 5xx만 최대 2회 경계 안에서 재시도한다.
+  일반 4xx와 프로그래밍 오류는 재시도하지 않고 즉시 fail-closed한다.
+- count의 각 시도는 성공·실패, 안전한 오류 분류와 provider request id만 감사
+  metadata에 남긴다. 내부 DB 감사뿐 아니라 외부 provider receipt가 소유한 경로도
+  예약·generation·빈 응답·구조화 출력 실패 시 이 시도 이력을 예외에 보존하며,
+  프롬프트 원문은 기록하지 않는다.
+- OpenAI 클라이언트는 공식 API 주소와 검증된 `OPENAI_PROJECT_ID`를 명시적으로
+  고정하고 expected/production project pin을 검사한다. SDK가 자동으로 읽는 custom
+  base URL, custom header, admin key, organization override는 거부하고 SDK logging은
+  끈다.
 - tool mutation을 현재 사용자와 커플에 묶고 원자적 RPC 또는 명시적 서버 경계를
   거치게 했다.
 - `ai_interactions_log`에 FORCE RLS를 적용하고 client role의 테이블·컬럼·sequence
@@ -203,6 +229,21 @@ receipt처럼 비밀·PII가 포함된 자료는 Git에 추가하지 않는다. 
 
 - 알려진 취약점이 있던 직접·전이 의존성을 업데이트하고 lockfile을 동기화했다.
 - Dependabot과 CI 보안 계약을 보강했다.
+- GitHub Dependabot alerts와 automated security fixes를 실제 활성화했고, Actions는
+  GitHub-owned/verified Action과 `pnpm/action-setup`만 허용하며 40자 SHA pinning을
+  강제했다. CODEOWNERS도 추가했다. branch/ruleset과 보안 스캔 강제는 아직 남았다.
+- 일반 Vercel Preview는 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`가 아니면 빌드가
+  실패한다. 예외적인 non-stub 평가만 production과 다른 Supabase ref, Vercel host,
+  non-main branch와 정확한 commit에 묶인 `TARGETED_PREVIEW_*` 확인값으로 허용하며,
+  service-role client 생성 직전에도 같은 계약을 다시 검증한다.
+- 일반 stub은 브라우저·서버 Supabase client/auth 구독, Sentry, PostHog, Turnstile을
+  초기화하지 않는다. 서버 instrumentation과 request-error telemetry도 no-op이며,
+  CSP는 상속된 provider 환경변수가 있어도 브라우저 연결을 same-origin으로 제한한다.
+- targeted non-stub에서 OpenAI를 쓰려면 production과 다른 project id와 expected pin,
+  commit-bound 확인값이 모두 필요하다. Resend·Decart·Naver·Sentry 배포 비밀과 OpenAI
+  ambient destination/header/admin/organization override는 허용하지 않는다.
+- PGlite 기반 전체 웹 검증은 CI에서 동시 worker를 2개로 제한하고 hook budget을
+  명시했다. 서울 날짜 경계 테스트는 고정 UTC 시각·KST 날짜 fixture를 사용한다.
 - production CSP에서 `unsafe-eval`을 제거하고 Supabase·Sentry·Turnstile 등 실제
   허용 origin만 조립한다.
 - 외부 URL, WebView, 공유 URL, redirect는 HTTPS·동일 출처·허용 scheme 규칙을
@@ -214,9 +255,9 @@ receipt처럼 비밀·PII가 포함된 자료는 Git에 추가하지 않는다. 
 ## 4. DB와 릴리스 매니페스트
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json`이 이 브랜치의
-후속 릴리스 계약이다. 다음을 포함해 총 82개 migration을 해시로 고정한다.
+후속 릴리스 계약이다. 다음을 포함해 총 84개 migration을 해시로 고정한다.
 
-현재 read-only validator 결과는 `migrationCount=82`, forward-only 보안 작업 1개,
+현재 read-only validator 결과는 `migrationCount=84`, forward-only 보안 작업 1개,
 `deploymentBlocked=true`, `releaseCommit=null`이다. hosted staging, backup, hosted
 restore, Storage, finalizer evidence는 모두 `missing`이며 이번 릴리스의 공개 가능한
 receipt도 아직 없다.
@@ -225,7 +266,7 @@ receipt도 아직 없다.
   Auth, push, 계정 삭제, Storage 관련 hardening
 - `20260803100000` 이후 event trust, 설문 동의, preregistration, 공개 identity,
   media path, direct chat/couple rate limit, 원자적 커뮤니티 쓰기, vote RPC,
-  vendor photo like, 정지 사용자, AI 로그 ACL hardening
+  vendor photo like, 정지 사용자, AI 로그 ACL, 익명 설문 자유서술 폐기 hardening
 - chat-image Storage 수동 작업과 rollback/verify artifact
 - 공개 community identity 권한 cutover용 forward-only 수동 작업
 
@@ -248,8 +289,9 @@ pending set, 수동 작업 receipt와 canary를 준비하고, reviewed successor
 
 | 검증 | 결과 |
 |---|---|
-| 최초 실패 회귀 묶음 | 12 files, 66 tests 통과 |
-| 웹 전체 Vitest | 509 files, 4,075 tests 통과 |
+| AI exact-count·retry·receipt 집중 회귀 | 3 files, 70 tests 통과 |
+| Preview 격리 경계 집중 회귀 | 15 files, 196 tests 통과 |
+| 웹 전체 Vitest | 514 files, 4,129 tests 통과 |
 | 모바일 전체 Node tests | 175 tests 통과 |
 | 루트 `corepack pnpm test` | 통과 |
 | `corepack pnpm typecheck` | 4 packages 통과 |
@@ -259,17 +301,23 @@ pending set, 수동 작업 receipt와 canary를 준비하고, reviewed successor
 | 전체 dependency audit | 알려진 취약점 0 |
 | `corepack pnpm mobile:release-check` | 109/109 통과 |
 | `corepack pnpm supabase:release:test` | 188/188 통과 |
-| static release fence | predecessor 27 migrations, successor 82 migrations 검증 |
+| static release fence | predecessor 27 migrations, successor 84 migrations 검증 |
 | `git diff --check` | 통과 |
 | production build probe | 의도대로 `PRIVACY_CROSS_BORDER_NOTICE_NOT_APPROVED`에서 차단 |
+
+검증 중 같은 worktree에서 두 `pnpm` 프로세스가 동시에 의존성 링크를 갱신해 Windows
+`EBUSY`가 한 번 발생했다. 모든 병렬 프로세스를 종료하고 의존성을 직렬로 확인한 뒤
+위 루트 전체 테스트를 새로 실행해 통과했다. 같은 worktree에서 install과 test를
+동시에 실행하지 않는다.
 
 production build 실패는 현재 결함이 아니라 릴리스 안전장치다. 국외이전 고지와
 처리자 보관 계약 승인 없이 성공하도록 우회하면 안 된다. vendor disclosure도
 외부의 짧은 수명 서명 승인이 구현되기 전까지 별도 gate로 차단된다.
 
 preview 빌드는 `VERCEL_ENV=preview`, `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`와 저장소의
-합성 public Supabase 값으로 수행했다. 코드 컴파일과 정적 생성 증거이며 hosted
-카탈로그, production 환경변수, production 배포 성공 증거는 아니다.
+합성 public Supabase 값을 포함해 수행했다. stub 경계는 이 값으로 client를 만들지
+않고 CSP도 외부 연결을 허용하지 않는다. 이 결과는 코드 컴파일과 정적 생성
+증거이며 hosted 카탈로그, production 환경변수, production 배포 성공 증거는 아니다.
 
 다른 컴퓨터에서 변경 후 공유하기 전 최소 재검증:
 
@@ -348,10 +396,22 @@ git diff --check
      모니터링 준비 전까지 비활성 상태다.
    - preregistration pending purge도 배포 후 확인 전에는 활성화하지 않는다.
 
-10. **GitHub·Vercel 릴리스 통제**
-   - secret/code scanning, Dependabot alerts, branch protection, CODEOWNERS, required
-     checks, environment approval, CI 실패 시 Vercel 후보 배포 차단을 repository
-     settings에서 확인한다.
+10. **익명 설문 기존 자유서술 폐기**
+   - `20260803114000`은 기존 자유서술을 되돌릴 수 없게 `NULL`로 만든다. DB backup과
+     isolated restore 없이 직접 적용하지 않는다.
+   - write fence를 닫은 채 `114000` 다음 `115000`을 적용하고 DB를 검증한 뒤 웹을
+     배포한다. 중간에 웹을 먼저 배포하면 동의 버전이 어긋나 새 설문이 거부된다.
+   - 원문을 로그나 evidence로 꺼내지 말고 count-only inventory를 수집한다. staging에서
+     구조화 응답 성공, 모든 자유서술 400, DB CHECK 위반을 검증한 뒤 적용한다.
+   - 선택형 응답 자체의 보유기간과 자동 파기는 여전히 승인·운영 증거가 필요하다.
+
+11. **GitHub·Vercel 릴리스 통제**
+   - Dependabot alerts/security updates, Actions allowlist·SHA pinning과 CODEOWNERS는
+     적용했다.
+   - `main` branch protection/ruleset, required code-quality check, 독립 review,
+     secret/code scanning, Production environment approval과 CI 실패 시 Vercel 승격
+     차단은 아직 없다. private 저장소 플랜과 두 번째 독립 검토자를 준비한 뒤
+     `docs/operations/GITHUB_SECURITY_CONTROLS_2026-08-03.md` 순서로 설정한다.
 
 ### P2: 출시 전 제품·호환성 결정
 
@@ -419,6 +479,7 @@ git diff --check
 | 관리자 step-up | `apps/web/src/lib/auth/adminStepUp.ts` |
 | 계정 삭제 | `apps/web/src/lib/accountDeletion/`, `docs/operations/ACCOUNT_DELETION_STORAGE_SAGA.md` |
 | AI 감사·비용 | `apps/web/src/lib/ai/auditedOpenAI.ts`, `apps/web/src/lib/ai/costGuard.ts` |
+| 설문 자유서술 폐기 | `apps/web/src/lib/survey/submission.ts`, `docs/operations/CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md` |
 | 커뮤니티 공개 identity | `apps/web/src/lib/community/publicIdentity.ts` |
 | 모바일 세션 | `apps/mobile/src/lib/supabase.ts` |
 | DB 변경 | `supabase/migrations/` |
@@ -426,3 +487,4 @@ git diff --check
 | 릴리스 계약 | `supabase/release-manifests/vendor-disclosure-v2-20260718.json` |
 | 릴리스 controller | `scripts/supabase-production-release.mjs` |
 | 모바일 출시 gate | `scripts/mobile-release-readiness.mjs` |
+| GitHub 보안 설정 | `.github/CODEOWNERS`, `docs/operations/GITHUB_SECURITY_CONTROLS_2026-08-03.md` |

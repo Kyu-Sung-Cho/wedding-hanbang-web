@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import {
   getOptionalSameOriginRedirectPath,
   getPostLoginRedirectPath,
@@ -31,6 +32,12 @@ function loginErrorDestination(
 }
 
 export async function GET(request: Request) {
+  if (isPreviewStubMode()) {
+    return NextResponse.json(
+      { error: "preview_stub_api_disabled" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const { search, searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const from = searchParams.get("from");

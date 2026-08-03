@@ -16,6 +16,8 @@ const migration = readFileSync(
 async function fixture() {
   const db = await PGlite.create();
   await db.exec(`
+    SET TIME ZONE 'UTC';
+
     CREATE ROLE anon NOLOGIN;
     CREATE ROLE authenticated NOLOGIN;
     CREATE ROLE service_role NOLOGIN BYPASSRLS;
@@ -77,7 +79,7 @@ async function fixture() {
     INSERT INTO public.vendor_demand_daily (
       day, vendor_id, quote_requests, weighted_score, qualified_score
     ) VALUES (
-      current_date,
+      DATE '2026-07-02',
       '40000000-0000-4000-8000-000000000001',
       999,
       29970,
@@ -179,7 +181,15 @@ describe("client event trust migration", () => {
           'server_verified'
         );
 
-        SELECT public.aggregate_vendor_demand_daily(current_date);
+        -- 15:30 UTC belongs to the following calendar day in Seoul. Keeping
+        -- this boundary fixed prevents the runner's local timezone from
+        -- selecting a different aggregation partition.
+        UPDATE public.events
+        SET created_at = TIMESTAMPTZ '2026-07-01 15:30:00+00';
+
+        SELECT public.aggregate_vendor_demand_daily(
+          DATE '2026-07-02'
+        );
       `);
 
       expect((await db.query(`

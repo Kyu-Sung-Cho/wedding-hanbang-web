@@ -59,6 +59,20 @@ function fixture(mutate) {
       "COMMUNITY_PUBLIC_IDENTITY_ROLLOUT_2026-08-03.md",
     ),
   );
+  cpSync(
+    join(
+      REPO_ROOT,
+      "docs",
+      "operations",
+      "CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+    ),
+    join(
+      root,
+      "docs",
+      "operations",
+      "CUSTOMER_SURVEY_FREE_TEXT_RETIREMENT_2026-08-03.md",
+    ),
+  );
   const manifestPath = join(root, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const mutated = mutate(manifest) ?? manifest;
@@ -126,7 +140,7 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.releaseCommit, null);
   assert.equal(result.manifest.status, "deployment_blocked");
   assert.equal(result.forwardOnlySecurityOperationCount, 1);
-  assert.equal(result.requiredDocumentCount, 1);
+  assert.equal(result.requiredDocumentCount, 2);
 });
 
 test("successor pins the deferred public-identity cutover and its rollout gate", () => {
@@ -162,6 +176,20 @@ test("successor rejects operation, evidence, or rollout-document drift", () => {
       return manifest;
     }),
     "PIN_HASH_MISMATCH",
+  );
+  expectBlocked(
+    fixture((manifest) => {
+      manifest.requiredDocuments.pop();
+      return manifest;
+    }),
+    "REQUIRED_DOCUMENTS_INVALID",
+  );
+  expectBlocked(
+    fixture((manifest) => {
+      manifest.requiredDocuments.reverse();
+      return manifest;
+    }),
+    "REQUIRED_DOCUMENTS_INVALID",
   );
 });
 

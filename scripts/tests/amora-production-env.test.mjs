@@ -8,6 +8,16 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PROJECT_REF = "abcdefghijklmnopqrst";
+const OPENAI_PROJECT = "proj_production_security_1234";
+const SECRET_POLICY_CORPUS = JSON.parse(
+  await readFile(
+    resolve(
+      REPO_ROOT,
+      "packages/shared/src/security/serverSecretPolicy.corpus.json",
+    ),
+    "utf8",
+  ),
+);
 
 function validEnv(overrides = {}) {
   return {
@@ -15,6 +25,10 @@ function validEnv(overrides = {}) {
     SYSTEMROOT: process.env.SYSTEMROOT,
     AMORA_OPENAI_ENABLED: "true",
     OPENAI_API_KEY: `sk-${"a".repeat(40)}`,
+    OPENAI_BASE_URL: "https://api.openai.com/v1",
+    OPENAI_PROJECT_ID: OPENAI_PROJECT,
+    OPENAI_EXPECTED_PROJECT_ID: OPENAI_PROJECT,
+    OPENAI_PRODUCTION_PROJECT_ID: OPENAI_PROJECT,
     OPENAI_AMORA_PRIMARY_MODEL: "gpt-5.6-terra",
     OPENAI_AMORA_FAST_MODEL: "gpt-5.6-luna",
     OPENAI_AMORA_PRIMARY_REASONING_EFFORT: "none",
@@ -99,15 +113,59 @@ test("the production environment gate blocks a missing rate-limit HMAC secret", 
   assert.deepEqual(report.failed, ["rateLimitSecretConfigured"]);
 });
 
-test("the production environment gate enforces the runtime CRON_SECRET grammar", () => {
-  for (const unsafe of [
-    "StrongMachineSecret_0123456789abcdef!",
-    "a".repeat(32),
-    "abcdEFGH".repeat(4),
+test("the production gate enforces the same OpenAI destination and project pins as runtime", () => {
+  for (const [name, overrides, expectedFailures] of [
+    ["invalid project", { OPENAI_PROJECT_ID: "production" }, [
+      "openaiProjectConfigured",
+      "openaiExpectedProjectMatches",
+      "openaiProductionProjectMatches",
+    ]],
+    ["expected project mismatch", {
+      OPENAI_EXPECTED_PROJECT_ID: "proj_different_expected_5678",
+    }, ["openaiExpectedProjectMatches"]],
+    ["production project mismatch", {
+      OPENAI_PRODUCTION_PROJECT_ID: "proj_different_production_5678",
+    }, ["openaiProductionProjectMatches"]],
+    ["custom destination", {
+      OPENAI_BASE_URL: "https://attacker.invalid/v1",
+    }, ["openaiDestinationAndAmbientOverridesSafe"]],
+    ["custom headers", {
+      OPENAI_CUSTOM_HEADERS: `OpenAI-Project: ${OPENAI_PROJECT}`,
+    }, ["openaiDestinationAndAmbientOverridesSafe"]],
+    ["admin key", {
+      OPENAI_ADMIN_KEY: "sk-admin-production",
+    }, ["openaiDestinationAndAmbientOverridesSafe"]],
+    ["organization override", {
+      OPENAI_ORG_ID: "org_production",
+    }, ["openaiDestinationAndAmbientOverridesSafe"]],
   ]) {
-    const result = runChecker(validEnv({ CRON_SECRET: unsafe }));
-    assert.equal(result.status, 1);
-    assert.deepEqual(JSON.parse(result.stdout).failed, ["cronSecretConfigured"]);
+    const result = runChecker(validEnv(overrides));
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.status, 1, `${name}: ${result.stderr || result.stdout}`);
+    assert.deepEqual(report.failed, expectedFailures, name);
+  }
+});
+
+test("the production environment gate applies the runtime server-secret corpus", () => {
+  for (const policyCase of SECRET_POLICY_CORPUS) {
+    const result = runChecker(validEnv({ CRON_SECRET: policyCase.secret }));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(
+      report.checks.cronSecretConfigured,
+      policyCase.accepted,
+      policyCase.name,
+    );
+    assert.equal(
+      result.status,
+      policyCase.accepted ? 0 : 1,
+      `${policyCase.name}: ${result.stderr || result.stdout}`,
+    );
+    assert.deepEqual(
+      report.failed,
+      policyCase.accepted ? [] : ["cronSecretConfigured"],
+      policyCase.name,
+    );
   }
 });
 
