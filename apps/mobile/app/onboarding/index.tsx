@@ -388,10 +388,10 @@ export default function OnboardingScreen() {
                   style={styles.inviteCodeInput}
                   value={inviteCode}
                   onChangeText={setInviteCode}
-                  placeholder="초대코드 입력 (예: WH-ABC123)"
+                  placeholder="초대코드 입력 (예: WH-ABC123DEF456)"
                   placeholderTextColor={colors.taupe[400]}
                   autoCapitalize="characters"
-                  maxLength={10}
+                  maxLength={15}
                 />
               )}
             </View>
