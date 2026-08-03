@@ -2,9 +2,11 @@
 
 > 상태: **PARTIALLY IMPLEMENTED LOCALLY / RELEASE BLOCKED / NOT A PRODUCTION CLAIM**
 >
-> 이 문서는 장기 비전의 통합 운영 모델을 정의한다. 현재 웹 MVP의 전면 범위와
+> 이 문서는 장기 비전의 통합 운영 모델을 정의한다. 현재 모바일 우선 MVP의 전면 범위와
 > 우선순위는 `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`가 정본이다. 이 문서가
-> 업체·예약·결제·외부 알림·모바일을 즉시 전면 확장할 권한을 만들지 않는다.
+> 업체·예약·결제·외부 알림을 즉시 전면 확장할 권한을 만들지 않는다. 모바일 출시 완료는
+> `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`의 실제 기기·동기화·운영
+> 증거를 모두 요구한다.
 >
 > 현재 코드·운영 상태는 `docs/AMORA_ENGINE_V2_2026-07-16.md`와 최신 운영 인계가
 > 우선한다.

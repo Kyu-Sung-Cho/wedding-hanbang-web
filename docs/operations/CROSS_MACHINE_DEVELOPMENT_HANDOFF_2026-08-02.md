@@ -29,6 +29,16 @@ worktree의 역사 기록이므로 현재 478-file 구현 목록으로 오해하
 source의 Preview 화면·로그인·브라우저 QA를 증명하지 않는다. 새 컴퓨터에서는 PR #79의 최신
 deployment source binding을 먼저 확인하고, 현재 HEAD와 다르면 새 Preview 증거로 다시 검증한다.
 
+### 2026-08-03 모바일 우선 제품 결정
+
+- 모바일 앱이 소비자가 처음 가치를 경험하고 매일 사용하는 주 제품이다.
+- 웹은 유입·설명·정책·고객지원·관리자 운영과 데스크톱 연속성을 담당한다.
+- 아모라 → 사용자 승인 → 예산·할 일·일정 반영이 앱의 첫 활성화 기준이다.
+- 웹과 앱은 같은 Supabase 및 서버 계약을 사용하지만 네이티브 UI는 별도 배포 단위다.
+- 모바일을 완료로 부르려면 실제 두 계정·두 기기 E2E, runtime contract, EAS production
+  build, 소셜 로그인·딥링크·푸시, 접근성·성능·복구와 store 내부 배포 증거가 필요하다.
+- 상세 완료 계약은 `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`를 따른다.
+
 ## 1. 가장 먼저 할 일
 
 새 컴퓨터에서 PowerShell을 열고 다음 순서로 실행한다.
@@ -87,7 +97,8 @@ git status -sb
 서비스입니다.**
 
 커플의 확정 결정과 웹·모바일 연결은 이 제품 계약을 안전하게 실행하기 위한 내부
-기반이며, 현재 MVP 한 문장을 바꾸거나 별도 전면 제품을 뜻하지 않는다.
+기반이다. 채널 역할은 모바일 앱을 주 제품으로, 웹을 유입·운영·연속성 보조 채널로
+구분하지만 두 채널의 사용자 결정 정본은 하나로 유지한다.
 
 이번 후보가 지키는 핵심 원칙은 다음과 같다.
 
@@ -440,13 +451,14 @@ Supabase 공개 변수가 없는 raw production build는 page-data 단계에서 
 2. `AGENTS.md`
 3. `DESIGN.md`
 4. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
-5. `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
-6. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
-7. `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
-8. 모바일 작업이면 `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
-9. 아모라 작업이면 `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`와
+5. 모바일 작업이면 `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`
+6. `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+7. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+8. `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+9. 모바일 작업이면 `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
+10. 아모라 작업이면 `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`와
    `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
-10. DB 작업이면 `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
+11. DB 작업이면 `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
 
 ## 14. 완료 정의
 

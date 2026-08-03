@@ -3,6 +3,12 @@
 > Date: 2026-06-30  
 > Scope: Expo mobile app, shared Supabase backend, shared design system  
 > North star: the app should tell a couple what to do next, help them decide together, and protect trust around money and vendors.
+>
+> Channel decision updated: 2026-08-03. Mobile is the primary consumer product;
+> web supports acquisition, policy/support, operations, and desktop continuity.
+> Where this document conflicts with the older web-first MVP wording, follow
+> `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md` and
+> `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`.
 
 ## 1. Product Thesis
 
@@ -22,10 +28,13 @@ This means mobile should prioritize action, memory, and trust over marketing den
 ### First 10 minutes
 
 1. Sign in.
-2. Complete onboarding.
-3. Set role, couple mode, wedding date, rough budget, and preference signals.
-4. Land on dashboard with D-day, current progress, and first recommended actions.
-5. Ask Amora one practical question.
+2. Enter the minimum context needed for a useful answer: wedding date and current preparation state.
+3. Land on Home with one clearly recommended next action.
+4. Ask Amora one practical question or accept the prepared first prompt.
+5. Review and approve one proposed change into budget, checklist, or schedule.
+
+Couple linking, rough budget, role, and preference signals are collected only when they are needed
+for the next useful action. They must not become a long mandatory questionnaire before first value.
 
 ### Daily use
 
@@ -275,6 +284,10 @@ Before TestFlight:
 - Dashboard syncs after web changes.
 - Budget and schedule updates appear on partner device.
 - Vendor recommendation copy does not imply paid ranking.
+
+The complete evidence contract, including real-device, reconnect, partner-sync, accessibility,
+performance, recovery, and store-release gates, is defined in
+`docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`.
 
 ## 9. Non-Negotiables
 
