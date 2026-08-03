@@ -95,11 +95,12 @@ describe("TodayOnePreferenceControl", () => {
   });
 
   it("supports confirmed pause, resume, and off without calling an outbound channel", async () => {
+    const pausedUntil = new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString();
     const paused = {
       available: true,
       preference: {
         ...ON.preference,
-        pausedUntil: "2026-08-03T03:00:00.000Z",
+        pausedUntil,
       },
     };
     const fetchMock = vi.fn()
