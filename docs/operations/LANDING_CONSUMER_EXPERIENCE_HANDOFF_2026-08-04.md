@@ -207,7 +207,7 @@ Lazyweb 근거는 그대로 복사하지 않고 다음 판단에 사용했다.
 
 | 검증 | 결과 | 확인 범위 |
 |---|---|---|
-| 랜딩·start-here·sitemap 표적 테스트 | PASS | 11 files / 46 tests |
+| 랜딩·start-here·sitemap·제품 방향 표적 테스트 | PASS | 12 files / 56 tests |
 | 웹 TypeScript 검사 | PASS | `corepack pnpm --filter @hanbang/web typecheck` |
 | 관련 파일 ESLint | PASS | 이번 배포 완성도 변경 파일 전체 |
 | 웹 production build | PASS | Next.js 16.2.11, TypeScript PASS, static 1,203 pages |
@@ -236,6 +236,12 @@ build의 TypeScript 단계도 통과했다.
 production build, 화면 QA가 모두 통과한 것을 확인한 뒤 저장소 hook이 제공하는
 `HANBANG_SKIP_PREPUSH=1`을 해당 push 한 번에만 사용한다. 원격 CI는 깨끗한 checkout의
 정확한 commit을 다시 검증해야 한다.
+
+첫 clean-checkout CI [run 30883715817](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/30883715817)은
+Web typecheck와 lint를 통과한 뒤 `mvpDirection.test.ts`의 이전 카피·탐색 기대값 2곳에서
+실패했다. 랜딩 구현을 되돌리지 않고 제품 방향 계약을 현재의 `예산·할 일·일정`,
+`신뢰 기준`, `시작 조건·비용`에 맞춰 갱신했다. 수정 후 깨끗한 worktree에서 위 표적
+범위를 다시 실행해 12 files / 56 tests PASS, ESLint PASS, typecheck PASS를 확인했다.
 
 일반 `.env.local`만으로 production server를 실행하면 `SUPABASE_EXPECTED_PROJECT_REF`가
 명시적으로 고정되지 않아 `EXPECTED_REF_INVALID`로 500을 반환한다. 이는 운영 목적지가
@@ -279,6 +285,7 @@ corepack pnpm dev:web
 
 ```powershell
 corepack pnpm --filter @hanbang/web exec vitest run `
+  src/lib/marketing/__tests__/mvpDirection.test.ts `
   src/app/landing `
   src/components/landing/redesign `
   src/components/community/StartHereClient.test.tsx `

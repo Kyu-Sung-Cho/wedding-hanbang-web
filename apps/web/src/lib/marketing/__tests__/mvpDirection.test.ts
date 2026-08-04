@@ -36,7 +36,7 @@ describe("web MVP product direction", () => {
     expect(principles).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스다."));
     expect(landingContent).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
     expect(landingContent).toContain("아모라 · 대화를 정리하는 AI");
-    expect(landingContent).toContain("예산·할 일·중요한 날짜");
+    expect(landingContent).toContain("예산·할 일·일정");
     expect(hero).toContain("landingContent.hero.eyebrow");
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");
     expect(community).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스예요."));
@@ -88,7 +88,8 @@ describe("web MVP product direction", () => {
     for (const [label, href] of [
       ["어떻게 정리되나요", "#how-it-works"],
       ["함께·나만 보기", "#privacy"],
-      ["신뢰와 비용", "#trust"],
+      ["신뢰 기준", "#trust"],
+      ["시작 조건·비용", "#start-conditions"],
     ]) {
       expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
     }
