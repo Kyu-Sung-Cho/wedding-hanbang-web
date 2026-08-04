@@ -191,10 +191,65 @@ reply-push provider route는 구현되어 있지만 기본 `apps/web/vercel.json
 | web Vitest 8 shards | PASS — 588 files, 5,816 tests, 8/8 shard exit 0 |
 | mobile full tests | PASS — 425/425 |
 | repository/release tests | PASS — stale dependency pin을 RED 재현·수정한 뒤 최종 273/273 |
-| web production build | PASS — Next.js compile·TypeScript·1,203/1,203 static page generation |
+| Amora transferred-draft regression | PASS — 새 회귀 파일과 기존 composer draft 묶음 2 files, 28 tests |
+| web production build | PASS — Next.js 16.2.11 compile·TypeScript·150/150 static page generation |
 | Expo export/release check | PASS — Web·Android·iOS export, 104/104 release checks. 로컬 Sentry org/project 경고는 외부 gate로 유지 |
 | release fence + manifest hash | PASS — predecessor 27, successor 80 migrations, local tail 14개 hash mismatch 0; 상태 `deployment_blocked` |
-| browser desktop/mobile QA | clean commit 뒤 실행 예정 |
+| browser desktop/mobile QA | PASS (LIMITED — local safe preview-stub shell/fail-closed smoke). 아래 §5.2 범위만 확인 |
+
+### 5.1 Git 게시 영수증
+
+- 대규모 Amora·커뮤니티 source candidate: `cedd7a1bf1ed4a5c7dfab11dde1feebc3d2f7414`
+  (`feat: harden Amora decision and community release candidate`).
+- 모바일 첫 질문 초안 가시성 회귀 수정: `7d39645dffacffebd5dc53e85e670e9e618ea13e`
+  (`fix(qa): expand transferred Amora draft for review`).
+- `7d39645d...` 게시 직후 local HEAD, tracking ref, GitHub `ls-remote`가 exact 일치했고
+  working tree는 clean이었다.
+- 이 수정 push의 pre-push gate는 typecheck·lint·test 8/8 task PASS(5 cached),
+  11분 18초였다. 훅을 우회하지 않았다.
+- Draft PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)가
+  `main` ← `agent/release-handoff-20260731`로 열려 있고, 확인 당시 head는 exact
+  `7d39645d...`였다. review decision은 아직 없다.
+- 구현 commit의 GitHub CI
+  [run 30889455231](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/30889455231)은
+  2026-08-04 17:09 KST snapshot에서 Mobile Quality, Vendor Disclosure Quality,
+  Static Release Contracts가 성공했고 Web Quality의 web tests가 진행 중이었다.
+  `Production Readiness: BLOCKED (Hosted Evidence Required)`는 hosted evidence가 없으면
+  fail-closed하는 step에서 실패했다. 따라서 source가 원격 브랜치에 있다는 사실을
+  review·CI 전체 통과·배포 완료로 해석하지 않는다.
+- 이 문서를 갱신하는 documentation-only commit 때문에 브랜치 tip은 위 구현 commit보다
+  새로울 수 있다. 다른 컴퓨터에서는 고정 SHA를 추측하지 말고 `git rev-parse HEAD`와
+  `git rev-parse @{u}`를 다시 비교한다.
+
+GitHub push가 출력한 `34 vulnerabilities`는 저장소 **default branch**에 대한 Dependabot
+안내였다. 이 브랜치 source candidate에서는 같은 날 `corepack pnpm audit`와 production
+audit를 별도로 실행해 알려진 취약점 0건을 확인했다. 두 범위를 섞어 “GitHub 전체가
+안전하다”거나 “이 브랜치에 34건이 있다”고 말하지 않는다.
+
+### 5.2 safe preview-stub 브라우저 영수증
+
+아래 브라우저 QA는 실제 credential 대신 repository의 synthetic Supabase 환경과
+`NEXT_PUBLIC_PREVIEW_STUB_MODE=true`를 사용한 HMR 없는 local production server에서
+실행했다. 외부 쓰기를 막은 public shell·fail-closed 검증이며 hosted/authenticated/stateful
+E2E가 아니다.
+
+| source | 화면·viewport | 확인 결과 |
+|---|---|---|
+| `cedd7a1b...` | Landing 1440×1000, 390×844, 320×720 | 200, 핵심 제목·CTA 표시, horizontal overflow 0, 44px 미만 visible target 0(모바일), console error 0 |
+| `cedd7a1b...` | Landing 일정 반영 예시·mobile menu | 예시 1건과 reset 표시, anchor 이동 뒤 menu 닫힘·`aria-expanded=false`. 빠른 이동 뒤 responsive hero preload warning 1건은 있었지만 console error는 아님 |
+| `cedd7a1b...` | Community 1440×1000, 390×844 | `/community` → canonical `/wedding` 307, public shell 제목·기존 fallback 표시, horizontal overflow 0 |
+| `cedd7a1b...` | Start-here 390×844 → Amora demo | `/api/demo/start` 200, `/wedding/chat` 이동, demo 경계·공유 composer·private disabled 표시, console error 0. 이 과정에서 104자 인수인계 초안이 44px 입력창에 잘리는 회귀를 발견 |
+| `7d39645d...` | Start-here 390×844 → Amora demo 재검증 | 같은 104자 초안이 `clientHeight=140`, `scrollHeight=140`, `maxHeight=160px`; 스크롤 없이 전부 검토 가능, horizontal overflow 0, console error 0 |
+
+Community의 preview-stub DecisionThread API는 의도적으로
+`503 preview_stub_api_disabled`를 반환했고 discovery component는 이를 숨긴 뒤 기존 public
+shell을 유지했다. 이 결과는 fallback의 fail-closed 동작만 증명하며 DecisionThread의 실제
+read/write E2E를 증명하지 않는다. 브라우저 스크린샷은 `.gstack/qa-reports/screenshots/`의
+로컬 생성 증거로 보존했지만 generated artifact이므로 Git source에는 넣지 않았다.
+
+따라서 이번 브라우저 결과가 증명하지 않는 범위는 실제 로그인, 서로 다른 두 계정,
+hosted DB/Storage, DecisionThread 질문·답변·해결·outcome write/read, production network,
+실제 push, 모바일 키보드·VoiceOver·TalkBack, Lazyweb 보고서다.
 
 ## 6. production NO-GO를 유지하는 외부 증거
 
@@ -292,7 +347,7 @@ git diff --check
 
 ## 9. 다음 우선순위
 
-1. clean commit 기반 브라우저 desktop/375px QA와 접근성·console 확인
+1. 실제 인증 환경의 desktop/390px/320px DecisionThread read/write와 키보드·스크린리더 QA
 2. 실제 iOS/Android 두 계정·두 세션·앱 upgrade/logout/account deletion 검증
 3. 한 주제(`contract_extra_cost`)의 사람 답변 capacity와 moderation 운영 리허설
 4. community → Amora cited proposal → 승인 → 할 일 하나 → outcome 영수증 E2E

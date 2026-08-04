@@ -165,7 +165,7 @@ manifest, backup, staging/dry-run, apply receipt, postcondition이 모두 있어
 | DecisionThread DB·API 적대적 focused | PASS — capacity/retry 5 files 35 tests, replay/visibility 관련 20 files 265 tests | 공개 thread 20개 상한의 동시 요청, slot 반환, exact receipt, hidden/blocked/source-unavailable fail-closed까지 확인 |
 | Web typecheck | PASS | ingest와 `@hanbang/web`을 포함한 모노레포 4 package typecheck 통과 |
 | Web 전체 lint | PASS, 경고 0건 | stale poll-test warning까지 제거한 최종 ESLint 결과 |
-| Web production build | PASS | Next.js compile·TypeScript·1,203/1,203 static page 생성 완료 |
+| Web production build | PASS | Next.js 16.2.11 compile·TypeScript·150/150 static page 생성 완료 |
 | Mobile 전체 test | 425/425 PASS | DecisionThread 작성·대기·재시도·상세·공개 결과·철회, push target, 기존 앱 회귀 포함 |
 | Mobile typecheck·전체 lint | PASS | `@hanbang/mobile`의 TypeScript와 ESLint 모두 통과 |
 | Mobile bundle export | PASS | Expo Web·iOS·Android 번들 export 완료. Sentry organization/project 미설정 경고는 있었으나 build exit는 0 |
@@ -176,11 +176,15 @@ manifest, backup, staging/dry-run, apply receipt, postcondition이 모두 있어
 | Mobile release readiness | 104/104 PASS | 설정·release gate·Sentry privacy·OAuth·production fail-closed 계약 확인 |
 | Repository/release contracts | 273/273 PASS | handoff, dependency security pin, release controller, storage·write fence를 포함한 최종 전수 실행 |
 | Supabase static release fence | PASS, `deployment_blocked` | predecessor 27, successor 80 migrations와 새 local tail 14개 순서·hash 고정. hosted apply 증거는 아님 |
+| Source commit·GitHub push | PASS — 구현 `cedd7a1b...`, composer QA fix `7d39645d...` | `7d39645d...` 게시 직후 local/tracking/remote exact 일치 |
+| GitHub PR·CI snapshot | PARTIAL — Draft PR #79 OPEN, review 없음 | 구현 run 30889455231의 Mobile·Vendor·Static 성공, Web 진행 중. hosted evidence 차단 check는 실패했으므로 CI 전체 PASS·배포 증거가 아님 |
+| Safe preview-stub browser | PASS (LIMITED) | public Landing desktop/390/320, Community fallback desktop/390, Start-here→Amora 390 smoke. DecisionThread API는 의도된 503이므로 실제 stateful E2E는 미증명 |
 
 또한 다음은 확인되지 않았다.
 
 - 원격 Supabase migration apply·RLS postcondition·backup·restore
-- production 배포·원격 smoke·CI
+- production 배포·원격 smoke
+- GitHub PR review·GitHub CI 최종 결과
 - 실제 브라우저 키보드·스크린리더 E2E
 - iOS·Android 실기기, offline/retry, deep link, account switch E2E
 - 서로 다른 두 계정의 질문자·답변자 전체 루프
@@ -193,14 +197,18 @@ manifest, backup, staging/dry-run, apply receipt, postcondition이 모두 있어
 
 ### A. 코드 동결과 리뷰
 
-- [ ] 최종 clean commit의 staged diff·secret·generated artifact를 90초 무변경 뒤 다시 감사한다.
+- [x] 최종 source+handoff staged diff·secret·generated artifact를 90초 무변경 뒤 감사한다.
 - [x] DecisionThread 범위의 AI-assisted 적대적 코드 감사에서 helper grant, RLS,
       SECURITY DEFINER, search path, cross-user/cross-couple 경계와 공개 projection
       가시성 일치를 재확인하고 발견된 Critical/P1/P2를 닫는다.
 - [x] 전체 web test suite 588 files·5,816 tests가 8/8 shard PASS summary를 남긴다.
 - [x] mobile 전체 425개 test·typecheck·lint의 로컬 실행 결과를 확인한다.
 - [x] 웹 production build와 Web·iOS·Android 모바일 bundle export를 확인한다.
-- [ ] commit·push·PR·CI 결과와 exact commit SHA를 이 문서에 추가한다.
+- [x] 구현 source commit과 composer QA fix의 exact SHA를 기록하고 같은 branch에 push한다.
+- [x] Draft PR #79가 exact 구현 head `7d39645d...`로 열린 사실을 확인한다.
+- [ ] GitHub PR review 결과를 기록한다.
+- [ ] GitHub CI checks의 최종 결과를 기록한다. Run 30889455231은 2026-08-04 17:09 KST에
+      Web Quality 진행 중이었고 hosted evidence 차단 check는 실패 상태였다.
 
 ### B. DB 출시 증거
 
@@ -234,6 +242,8 @@ manifest, backup, staging/dry-run, apply receipt, postcondition이 모두 있어
 
 ### E. 실제 화면과 접근성
 
+- [x] safe preview-stub에서 Landing desktop·390px·320px, Community fallback desktop·390px,
+      Start-here → Amora 390px public shell을 확인한다. 이는 실제 인증·DB 쓰기 증거가 아니다.
 - [ ] 320px·375px·desktop에서 첫 실제 질문, 탭, 상태, 답변 행동이 잘리지 않는지 캡처한다.
 - [ ] 키보드, VoiceOver, TalkBack, 최대 글자 크기에서 작성·탭·상태·오류 복구를 확인한다.
 - [ ] 빈 상태·오류·로딩이 기존 일반 커뮤니티의 첫 실제 글을 과도하게 밀지 않는지 본다.
