@@ -5,34 +5,43 @@
 
 ## 읽는 순서
 
-1. `PRINCIPLES.md`
-2. `AGENTS.md`
-3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
-4. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+1. `START_HERE.md`
+2. `PRINCIPLES.md`
+3. `AGENTS.md`
+4. `docs/README.md`
+5. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+6. `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+   - 개인정보·커플 경계 목표 아키텍처:
+     `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
+7. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
    - 다른 컴퓨터 재개:
      `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
    - 2026-08-02 커뮤니티·전체 구현 상세:
      `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
    - UI 디자인 조사 도구가 필요한 경우에만:
      `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
-5. 변경 영역의 현재 release gate
-6. 변경 영역의 실제 코드·테스트·최신 migration
-7. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,
+8. 변경 영역의 현재 release gate
+9. 변경 영역의 실제 코드·테스트·최신 migration
+10. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,
    `docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md` 등
    과거 snapshot
 
-문서가 충돌하면 위 순서를 따른다. 오래된 문서에 “완료”, “배포”, “최상위 전략”이
-적혀 있어도 현재 증거로 사용하지 않는다.
+위 목록은 냉시작을 위한 읽기 순서이며 권한 순서가 아니다. 문서가 충돌하면
+`PRINCIPLES.md` → `AGENTS.md` → `docs/README.md`의 현재 권한 체인과 실제 코드·증거를
+따른다. `START_HERE.md`는 탐색용 진입점일 뿐 규칙을 덮어쓰지 않는다. 오래된 문서에
+“완료”, “배포”, “최상위 전략”이 적혀 있어도 현재 증거로 사용하지 않는다.
 
 ## 현재 제품 계약
 
 **웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는
 서비스입니다.**
 
-- 아모라가 제품의 중심이다.
-- 주 내비게이션은 `아모라 | 할 일·일정 | 예산 | 커뮤니티`다.
+- 모바일 앱이 소비자의 주 제품이고, 웹은 유입·설명·정책·고객지원과 데스크톱 연속성을
+  담당한다.
+- 아모라가 제품의 중심이고 예산·할 일·일정은 승인받은 실행 결과다.
+- 모바일 하단 내비게이션은 `홈 | 아모라 | 커뮤니티 | 마이`를 유지한다.
 - 커뮤니티는 실제 경험을 찾고 질문하는 보조 축이다.
-- 업체 추천·예약·축의금·모바일 출시는 현재 웹 MVP의 전면 범위가 아니다.
+- 업체 추천·예약·축의금·결제는 현재 핵심 흐름보다 먼저 전면 확장하지 않는다.
 - 저장소에 장기 기능 코드가 남아 있다는 이유로 현재 제공 기능처럼 소개하지 않는다.
 - 새 독립 제품 축을 추가하기 전에 아모라의 제안, 사용자 승인, 실제 반영, 실패 복구
   흐름을 먼저 안정화한다.

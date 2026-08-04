@@ -48,6 +48,8 @@
 
 ## 현재 기준 문서
 
+- **새 컴퓨터·새 LLM의 모델 중립 진입점**(현재 배포 판정 · source 확인 · 금지 작업 ·
+  P0-5 첫 RED test): `START_HERE.md`
 - 문서 권한·상태 해석: `docs/README.md`
 - **현재 아모라 개인정보·보안 작업 진행과 프로덕션 판정**(CURRENT FACTUAL HANDOFF ·
   P0/P1 · PR/CI/DB/Mobile 증거 · 다른 컴퓨터 재개 · production NO-GO):
@@ -70,7 +72,7 @@
   `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
 - **UI 작업용 선택적 Lazyweb 런북**(기기별 MCP·보안 경계·재설치, 제품 정본 아님):
   `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
-- **현재 웹 MVP 제품 계약**(한 줄 정의 · 제품 위계 · 전면/비전면 범위 · 핵심 지표):
+- **현재 모바일 우선 MVP 제품 계약**(한 줄 정의 · 제품 위계 · 전면/비전면 범위 · 핵심 지표):
   `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 - 과거 로컬 저장소 전체 감사(2026-07-30 source snapshot):
   `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`

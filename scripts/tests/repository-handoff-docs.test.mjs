@@ -15,6 +15,11 @@ const currentReleaseInventoryPath =
   "docs/operations/evidence/full-workspace-release-inventory-2026-07-31.json";
 const lazywebRunbookPath =
   "docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md";
+const modelNeutralStartPath = "START_HERE.md";
+const currentPrivacyHandoffPath =
+  "docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md";
+const privacyArchitecturePath =
+  "docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md";
 
 function escaped(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -75,6 +80,76 @@ test("repository handoff docs describe the current monorepo and release source o
     assert.match(document, /scripts\/ingest\/README\.md/);
     assert.doesNotMatch(document, /현재 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-17\.md/);
     assert.doesNotMatch(document, /다른 컴퓨터 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-19\.md/);
+  }
+});
+
+test("new models have a fail-closed START_HERE contract", async () => {
+  const [startHere, agents, claude, readme, docsIndex, rootPackage] =
+    await Promise.all([
+      readFile(new URL(modelNeutralStartPath, root), "utf8"),
+      readFile(new URL("AGENTS.md", root), "utf8"),
+      readFile(new URL("CLAUDE.md", root), "utf8"),
+      readFile(new URL("README.md", root), "utf8"),
+      readFile(new URL("docs/README.md", root), "utf8"),
+      readFile(new URL("package.json", root), "utf8").then(JSON.parse),
+    ]);
+
+  for (const document of [agents, claude, readme, docsIndex]) {
+    assert.match(document, new RegExp(escaped(modelNeutralStartPath)));
+  }
+  for (const path of [
+    "PRINCIPLES.md",
+    "AGENTS.md",
+    "docs/README.md",
+    "docs/MVP_PRODUCT_DIRECTION_2026-07-30.md",
+    currentPrivacyHandoffPath,
+    privacyArchitecturePath,
+    "apps/web/.env.example",
+    "apps/mobile/.env.example",
+    "apps/web/src/lib/ai/__tests__/openai.test.ts",
+    "apps/web/src/lib/ai/__tests__/auditedOpenAI.test.ts",
+  ]) {
+    assert.match(startHere, new RegExp(escaped(path)));
+  }
+
+  assert.match(startHere, /PRODUCTION NO-GO/);
+  assert.match(startHere, /agent\/release-handoff-20260731/);
+  assert.match(startHere, /P0-5/);
+  assert.match(startHere, /inputTokens\.count/);
+  assert.match(startHere, /responses\.create/);
+  assert.match(startHere, /현재 컴퓨터.*\.env\.local[\s\S]*실행하지 않는다/);
+  assert.match(startHere, /승인된 non-production Supabase project ref.*기록돼[\s\S]*있지 않다/);
+  assert.match(startHere, /supabase:release:fence[\s\S]*DB 배포 가능으로 해석하지 않는다/);
+  assert.match(startHere, /Production Readiness job.*hosted 증거를 동적으로 판별하지 않고[\s\S]*fail-closed/);
+  assert.match(startHere, /workflow\/controller 갱신.*exact-SHA/);
+  assert.match(startHere, /감사·인수인계 기준 integration branch/);
+  assert.match(startHere, /git switch -c codex\/amora-p0-provider-egress-red/);
+  assert.match(
+    startHere,
+    /branch가 이미 있을 때[\s\S]*git status --short --branch[\s\S]*switch하지 않는다[\s\S]*git switch agent\/release-handoff-20260731/,
+  );
+  assert.match(startHere, /apps\/mobile\/scripts\/start-expo-dev\.mjs/);
+  assert.match(startHere, /Node `20\.19\.x`/);
+  assert.match(claude, /읽기 순서이며 권한 순서가 아니다/);
+  assert.match(claude, /START_HERE\.md.*탐색용 진입점/);
+
+  for (const document of [agents, claude, readme]) {
+    assert.match(document, /모바일 앱.*주 제품|모바일 우선 MVP/);
+  }
+  assert.doesNotMatch(readme, /모바일.*현재 MVP의 전면 제품으로 소개하지 않습니다/);
+  assert.doesNotMatch(claude, /모바일 출시는 현재 웹 MVP의 전면 범위가 아니다/);
+
+  for (const script of [
+    "typecheck",
+    "lint",
+    "test:repo",
+    "mobile:release-check",
+    "supabase:release:test",
+    "supabase:release:fence",
+    "hooks:install",
+  ]) {
+    assert.ok(rootPackage.scripts[script], `${script} script must exist`);
+    assert.match(startHere, new RegExp(escaped(script)));
   }
 });
 
