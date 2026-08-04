@@ -77,7 +77,7 @@ export default function TransformationHero() {
       <div
         className={`${shell} grid gap-9 pb-12 pt-8 sm:gap-11 sm:pb-14 sm:pt-10 lg:min-h-[min(720px,calc(100svh-4rem))] lg:grid-cols-[minmax(0,0.94fr)_minmax(510px,1.06fr)] lg:items-center lg:gap-9 lg:py-8 xl:gap-12 xl:py-12`}
       >
-        <div className="relative z-10 max-w-[610px] animate-fade-in motion-reduce:animate-none">
+        <div className="relative z-10 max-w-[610px]">
           <div
             role="group"
             aria-label="웨딩한방과 아모라의 역할"
@@ -117,7 +117,7 @@ export default function TransformationHero() {
               <label htmlFor="landing-wedding-date" className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-3 text-[12px] font-semibold text-white/82">
                   결혼식 날짜
-                  <span className="text-[#E2D3C8]">선택 입력</span>
+                  <span className="text-[#E2D3C8]">없어도 시작 가능</span>
                 </span>
                 <span className="mt-2 flex min-h-12 items-center gap-2 rounded-xl bg-white px-3 text-[#243832] transition-shadow focus-within:ring-2 focus-within:ring-[#E2D3C8] focus-within:ring-offset-2 focus-within:ring-offset-[#243832]">
                   <CalendarDays className="h-4 w-4 shrink-0 text-[#8F6662]" aria-hidden="true" />
@@ -146,7 +146,7 @@ export default function TransformationHero() {
               <ul className="grid gap-2 text-[12px] leading-5 text-white/82 sm:grid-cols-2">
                 <li className="flex items-start gap-2">
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#E2D3C8]" aria-hidden="true" />
-                  로그인·결제 없이 첫 준비 순서 확인
+                  로그인·결제 없이 지금 볼 세 가지 확인
                 </li>
                 <li className="flex items-start gap-2">
                   <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#E2D3C8]" aria-hidden="true" />

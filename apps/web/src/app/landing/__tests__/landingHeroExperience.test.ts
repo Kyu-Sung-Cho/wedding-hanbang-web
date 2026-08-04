@@ -24,8 +24,9 @@ describe("landing hero product experience contract", () => {
   it("explains the product in plain language before asking for action", () => {
     expect(content).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
     expect(content).toContain("아모라 · 대화를 정리하는 AI");
-    expect(content).toContain("먼저 날짜로 지금 볼 세 가지를 확인하고");
-    expect(content).toContain("이어서 예산·할 일·중요한 날짜를 아모라에게 말해보세요");
+    expect(content).toContain("날짜를 넣으면 지금 볼 세 가지가 나와요");
+    expect(content).toContain("이어서 예산·할 일·일정을 아모라에게 말해보세요");
+    expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("확인한 변경만 준비 기록에 반영해요");
     expect(content).toContain("아모라와 시작하기");
@@ -44,7 +45,8 @@ describe("landing hero product experience contract", () => {
     expect(startHereCta).not.toMatch(/className="[^"]*(?:^|\s)hidden(?:\s|$)[^"]*"/);
     expect(hero).toContain('const amoraStartHref = "/start-here"');
     expect(hero).toContain('id="landing-wedding-date"');
-    expect(hero).toContain("로그인·결제 없이 첫 준비 순서 확인");
+    expect(hero).toContain("로그인·결제 없이 지금 볼 세 가지 확인");
+    expect(hero).toContain("없어도 시작 가능");
     expect(hero).toContain("첫 날짜 계산은 이 브라우저에서 처리");
     expect(hero).toContain("AI 처리·대화 저장 정책이 적용돼요");
   });
@@ -98,7 +100,7 @@ describe("landing hero product experience contract", () => {
     const h1 = hero.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
     expect(h1).not.toContain("whitespace-nowrap");
 
-    for (const copy of ["로그인·결제 없이 첫 준비 순서 확인", "직접 눌러보는 예시"]) {
+    for (const copy of ["로그인·결제 없이 지금 볼 세 가지 확인", "직접 눌러보는 예시"]) {
       const nearbySource = sourceWindowAround(copy);
       expect(nearbySource).not.toMatch(/className="[^"]*\bhidden\b[^"]*"/);
       expect(nearbySource).not.toMatch(/text-\[(?:8|9)px\]/);
@@ -108,6 +110,7 @@ describe("landing hero product experience contract", () => {
   it("keeps the hero compact and prioritizes the result on smaller screens", () => {
     expect(hero).toContain("lg:min-h-[min(720px,calc(100svh-4rem))]");
     expect(hero).not.toContain("lg:min-h-[min(820px");
+    expect(hero).toContain('<div className="relative z-10 max-w-[610px]">');
     expect(hero).toContain("md:grid-cols-[0.88fr_1.12fr]");
     expect(hero).toContain("hidden border-b border-[#243832]/10");
     expect(hero).toContain("md:block md:border-b-0 md:border-r");

@@ -14,8 +14,9 @@ describe("landing first visit clarity", () => {
     const hero = source("src/components/landing/redesign/TransformationHero.tsx");
 
     expect(content).toContain("둘이 말하면, 결혼 준비가 정리돼요.");
-    expect(content).toContain("먼저 날짜로 지금 볼 세 가지를 확인하고");
-    expect(content).toContain("이어서 예산·할 일·중요한 날짜를 아모라에게 말해보세요");
+    expect(content).toContain("날짜를 넣으면 지금 볼 세 가지가 나와요");
+    expect(content).toContain("이어서 예산·할 일·일정을 아모라에게 말해보세요");
+    expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
     expect(hero.indexOf("둘이 말하면,")).toBeLessThan(
       hero.indexOf("landingContent.hero.body"),
     );

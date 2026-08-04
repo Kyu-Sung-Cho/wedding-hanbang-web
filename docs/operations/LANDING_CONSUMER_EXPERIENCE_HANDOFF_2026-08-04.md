@@ -1,7 +1,7 @@
 # 랜딩 소비자 경험·신뢰 경계 인수인계 — 2026-08-04
 
 > [!IMPORTANT]
-> **상태: LOCAL SOURCE VERIFIED / PRODUCTION NOT DEPLOYED / COMMUNITY PRODUCTION NO-GO**
+> **상태: LANDING DEPLOY-CANDIDATE VERIFIED / PRODUCTION NOT DEPLOYED / COMMUNITY PRODUCTION NO-GO**
 >
 > 이 문서는 `agent/release-handoff-20260731` 브랜치의 `/landing`과 `/start-here` 소비자
 > 경험을 다른 컴퓨터에서 그대로 이어 개발하기 위한 현재 작업 기록이다. 로컬 테스트와
@@ -24,17 +24,20 @@
 
 > **둘이 말하면, 결혼 준비가 정리돼요.**
 
-첫 행동은 제품 방향 정본의 `아모라와 시작하기`를 유지한다. 날짜 입력 폼이 갑자기
-등장하는 느낌을 줄이기 위해, 먼저 날짜로 지금 볼 세 가지를 확인하고 이어서 아모라에게
-말한다는 연결 문장을 H1 바로 아래에 둔다.
+첫 행동은 제품 방향 정본의 `아모라와 시작하기`를 유지한다. H1 바로 아래에서는
+`날짜를 넣으면 지금 볼 세 가지가 나와요`로 첫 결과를 먼저 설명하고, 계정 베타에서는
+아모라가 한 번에 한 가지 변경을 제안하며 사용자가 확인한 변경만 준비 기록에 반영된다는
+경계를 함께 알린다. 날짜 입력은 `없어도 시작 가능`으로 표시한다.
 
 ## 2. 사용한 디자인 근거
 
 - 제품·카피 정본: `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 - 디자인 의도: `DESIGN.md`
 - 웹 런타임 토큰: `apps/web/src/app/globals.css`
-- Lazyweb 디자인 근거 리포트:
+- 초기 Lazyweb 디자인 근거 리포트:
   <https://www.lazyweb.com/report/lazyweb/5402e783-519f-4358-b0ec-dc75dbc446c5/?source=create>
+- 배포 완성도 Lazyweb 리포트:
+  <https://www.lazyweb.com/report/lazyweb/dd16032e-725d-49e2-a1c8-5009e570d077/?source=create>
 
 Lazyweb 근거는 그대로 복사하지 않고 다음 판단에 사용했다.
 
@@ -43,6 +46,18 @@ Lazyweb 근거는 그대로 복사하지 않고 다음 판단에 사용했다.
 - 신뢰 문구는 추상적인 “안전합니다” 대신 저장, 공유, AI 한계, 광고, 가격 출처의 경계를
   구체적으로 쓴다.
 - 준비 중인 커뮤니티는 주 제품처럼 크게 판매하지 않고 짧은 운영 안내 스트립으로 낮춘다.
+
+### 2.1 배포 완성도 패스에서 내린 결정
+
+- 첫 화면의 제품 역할, 날짜 입력 결과, 계정 베타 경계를 한 흐름으로 읽히게 압축했다.
+- 헤더에서 `신뢰 기준`과 `시작 조건·비용`을 분리해 사용자가 비용 안내로 바로 이동할 수
+  있게 했다.
+- 핵심 Hero 카피의 초기 페이드 애니메이션은 제거해 첫 프레임부터 가치 제안과 CTA가
+  보이게 했다. 오른쪽 제품 데모의 짧은 보조 모션만 유지한다.
+- Lazyweb가 제안한 날짜 확실성 3개 선택지(`정확/대략/미정`)는 단일 일반 사례에 근거하고
+  첫 화면의 선택 부담을 늘리므로 적용하지 않았다. 대신 기존 날짜 입력에
+  `없어도 시작 가능`을 명시했다.
+- 검색 노출 경로에서 빠져 있던 `/landing`을 sitemap의 최우선 공개 페이지로 추가했다.
 
 ## 3. 최종 정보 구조
 
@@ -161,6 +176,7 @@ Lazyweb 근거는 그대로 복사하지 않고 다음 판단에 사용했다.
 - `apps/web/src/components/landing/redesign/ClosingAction.tsx`
 - `apps/web/src/components/landing/redesign/LandingFooter.tsx`
 - `apps/web/src/components/landing/redesign/TrackedLandingLink.tsx`
+- `apps/web/src/app/sitemap.ts`
 
 ### 첫 행동과 베타 안내
 
@@ -185,36 +201,46 @@ Lazyweb 근거는 그대로 복사하지 않고 다음 판단에 사용했다.
 - `apps/web/src/lib/marketing/__tests__/mvpDirection.test.ts`
 - `apps/web/src/lib/marketing/__tests__/publicClaims.test.ts`
 - `apps/web/src/app/(auth)/login/page.test.tsx`
+- `apps/web/src/app/sitemap.test.ts`
 
 ## 8. 2026-08-04 검증 ledger
 
 | 검증 | 결과 | 확인 범위 |
 |---|---|---|
-| 랜딩·start-here 표적 테스트 | PASS | 11 files / 54 tests |
-| 로그인 인접 흐름 테스트 filter | PASS | 2 files / 10 tests |
-| 관련 파일 ESLint | PASS | redesign, landing, start-here, beta, login, marketing |
-| 웹 production build | PASS | Next.js 16.2.11, TypeScript PASS, static 1,195 pages |
+| 랜딩·start-here·sitemap 표적 테스트 | PASS | 11 files / 46 tests |
+| 웹 TypeScript 검사 | PASS | `corepack pnpm --filter @hanbang/web typecheck` |
+| 관련 파일 ESLint | PASS | 이번 배포 완성도 변경 파일 전체 |
+| 웹 production build | PASS | Next.js 16.2.11, TypeScript PASS, static 1,203 pages |
 | `/landing` build 결과 | PASS | static, revalidate 1 day |
 | `/start-here` build 결과 | PASS | static |
-| 브라우저 데스크톱 QA | PASS | 첫 화면, 데모, 정보 위계, console warn/error 0 |
+| production HTTP smoke | PASS | 합성 Supabase 환경에서 `/landing` 200, sitemap·CSP 확인 |
+| 브라우저 데스크톱 QA | PASS | 1280×720, 즉시 보이는 핵심 카피, console error 0 |
 | 브라우저 모바일 QA | PASS | 390×844, 320×720, overflow 0, 작은 터치 대상 0 |
 | 모바일 메뉴 | PASS | 열기, 앵커 이동, 선택 후 닫기; 컴포넌트 테스트 포함 |
 | 데모 상호작용 | PASS | 일정 한 건만 반영된 예시, 실제 비저장 경계 표시 |
-| `git diff --check` | PASS | 문서·최종 staged diff 포함 |
-| 저장소 전체 pre-push gate | BLOCKED (범위 외) | 모바일 364개 중 363 PASS, 기존 `communityNotificationPayload.test.mjs` 1건 FAIL |
+| 운영 환경 fail-closed | PASS | destination pin 없는 기본 `.env.local`에서 의도대로 500 차단 |
+| `git diff --check` | PASS | 최종 랜딩 커밋 대상 8개 파일 |
+| 공유 worktree 전체 pre-push gate | BLOCKED (범위 외) | 웹 586 files / 5,804 tests PASS, 커뮤니티 경계 2 files / 12 tests FAIL |
 
 독립 `corepack pnpm --filter @hanbang/web typecheck`는 이 랜딩 변경과 무관한 untracked
 `communityRuntimeControlMigration.test.ts`의 정규식 `s` flag TS1501 때문에 실패한 적이
-있다. 해당 파일을 랜딩 작업에서 수정하지 않았다. 최종 production build의 TypeScript
-단계는 통과했다.
+있다. 이후 현재 공유 worktree 상태에서 다시 실행해 PASS를 확인했고, 최종 production
+build의 TypeScript 단계도 통과했다.
 
-첫 push 시도에서는 저장소 전체 pre-push gate가
-`apps/mobile/src/__tests__/communityNotificationPayload.test.mjs`의
-`buildCommunityReplyPushPayload` 연결 기대와 현재 `apps/mobile/src/lib/notifications.ts`
-구현이 맞지 않아 중단됐다. 랜딩 커밋에는 모바일 파일이 포함되지 않는다. 위의 랜딩
-표적 검증과 웹 production build가 통과한 것을 확인한 뒤, 저장소 hook이 제공하는
-`HANBANG_SKIP_PREPUSH=1`을 해당 push 한 번에만 사용했다. 모바일 알림 연결 문제는
-별도 작업에서 해결하고 전체 gate를 다시 통과시켜야 한다.
+이번 commit의 첫 push 시도에서는 저장소 전체 pre-push gate가 14분간 실행된 뒤 웹
+588 files / 5,816 tests 중 2 files / 12 tests에서 중단됐다. 11건은 현재 untracked
+커뮤니티 decision-thread·responder API가 `apiMutationTrustInventory.test.ts`의 mutation
+신뢰 경계를 아직 충족하지 못한 문제이고, 1건은 별도로 수정 중인 게시글 route가
+`communityApiOnlyWriteBoundaryMigration.test.ts`의 service RPC 계약과 맞지 않는 문제다.
+랜딩 커밋에는 이 파일들이 포함되지 않는다. 위의 랜딩 표적 검증, typecheck, ESLint,
+production build, 화면 QA가 모두 통과한 것을 확인한 뒤 저장소 hook이 제공하는
+`HANBANG_SKIP_PREPUSH=1`을 해당 push 한 번에만 사용한다. 원격 CI는 깨끗한 checkout의
+정확한 commit을 다시 검증해야 한다.
+
+일반 `.env.local`만으로 production server를 실행하면 `SUPABASE_EXPECTED_PROJECT_REF`가
+명시적으로 고정되지 않아 `EXPECTED_REF_INVALID`로 500을 반환한다. 이는 운영 목적지가
+불명확할 때 실행을 막는 의도된 보안 동작이다. 저장소의 합성 Supabase 환경을 주입한
+production server에서는 `/landing` 200, sitemap의 `/landing`, CSP 헤더를 확인했다.
 
 브라우저 자동화 환경에서는 native date input의 React `onChange`를 실제 사용자처럼
 발생시키지 못하는 경우가 있다. 날짜 handoff는 단위 테스트로 보호했지만, production
@@ -253,18 +279,13 @@ corepack pnpm dev:web
 
 ```powershell
 corepack pnpm --filter @hanbang/web exec vitest run `
-  src/components/landing/redesign/TransformationHero.test.tsx `
-  src/components/landing/redesign/TrackedLandingLink.test.tsx `
-  src/components/landing/redesign/MobileLandingMenu.test.tsx `
+  src/app/landing `
+  src/components/landing/redesign `
   src/components/community/StartHereClient.test.tsx `
-  src/app/landing/__tests__/landingFirstVisitClarity.test.ts `
-  src/app/landing/__tests__/landingHeroExperience.test.ts `
-  src/app/landing/__tests__/landingOutcomeEvidence.test.ts `
-  src/app/landing/__tests__/twoSidedTrust.test.ts `
-  src/app/landing/__tests__/heroAssetBudget.test.ts `
-  src/lib/marketing/__tests__/mvpDirection.test.ts `
-  src/lib/marketing/__tests__/publicClaims.test.ts
+  src/app/start-here `
+  src/app/sitemap.test.ts
 
+corepack pnpm --filter @hanbang/web typecheck
 corepack pnpm --filter @hanbang/web build
 ```
 

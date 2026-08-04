@@ -8,7 +8,8 @@ const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 const navItems = [
   { label: "어떻게 정리되나요", href: "#how-it-works" },
   { label: "함께·나만 보기", href: "#privacy" },
-  { label: "신뢰와 비용", href: "#trust" },
+  { label: "신뢰 기준", href: "#trust" },
+  { label: "시작 조건·비용", href: "#start-conditions" },
 ] as const;
 
 const focusRing =

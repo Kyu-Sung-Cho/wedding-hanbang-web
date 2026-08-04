@@ -73,6 +73,12 @@ describe("vendor sitemap", () => {
 
     const result = await sitemap();
 
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        url: "https://hanbang.ai/landing",
+        priority: 1,
+      }),
+    ]));
     expect(result.some(({ url }) => url.includes("/price/vendor/"))).toBe(false);
     expect(mocks.vendorRanges).not.toHaveBeenCalled();
   });
