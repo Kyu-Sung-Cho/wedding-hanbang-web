@@ -51,6 +51,10 @@ import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
+import {
+  resizeChatComposerToContent,
+  useChatComposerAutoResize,
+} from "./useChatComposerAutoResize";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
 
@@ -727,13 +731,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeDialogRef = useRef<HTMLDivElement>(null);
   const closeActiveDialogRef = useRef<() => void>(() => {});
-
-  // input 외부 비움(전송 후 등) 시 textarea 높이 리셋
-  useEffect(() => {
-    if (input === "" && textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  }, [input]);
+  useChatComposerAutoResize(textareaRef, input);
 
   // URL ?prefill=... 또는 로그인 없는 준비 순서에서 이어왔을 때 input에 초안을 채운다.
   // 바로 여는 체험은 현재 탭, 가입을 거치는 흐름은 같은 브라우저 저장소에서
@@ -3087,10 +3085,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             }
             onChange={(e) => {
               setInput(e.target.value);
-              // auto-resize: 줄 수에 따라 높이 자동 조절 (최대 ~5줄)
-              const ta = e.currentTarget;
-              ta.style.height = "auto";
-              ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+              resizeChatComposerToContent(e.currentTarget, e.target.value);
               // typing broadcast — 디바운스는 store 내부에서 처리, 여기선 매 입력마다 콜
               if (
                 activeTab === "shared"
@@ -3128,7 +3123,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   : "결혼 준비에서 궁금한 점을 물어보세요…"
             }
             disabled={isStreaming || isSending}
-            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[10rem] overflow-y-auto"
           />
           <button
             type="button"
