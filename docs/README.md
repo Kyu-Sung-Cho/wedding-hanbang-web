@@ -9,11 +9,16 @@
 2. `AGENTS.md`
 3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:
-   `docs/operations/AMORA_COMMUNITY_IMPLEMENTATION_HANDOFF_2026-08-04.md`
-   - 2026-08-04 Amora·커뮤니티 local release candidate, active migration 순서,
-     기본-off 스위치, production NO-GO 증거와 재개 명령의 현재 정본
+   `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+   - 2026-08-04 현재 Git/PR/CI/DB/Mobile 증거, P0/P1, 개인정보 구현 경계,
+     다른 컴퓨터 재개 순서와 **production NO-GO** 판정의 현재 factual 정본
+   - Amora·커뮤니티 local release candidate의 구현·파일·기존 검증 상세:
+     `docs/operations/AMORA_COMMUNITY_IMPLEMENTATION_HANDOFF_2026-08-04.md`
    - Amora 대화 안전 두 wave와 이전 검증 스냅샷:
      `docs/operations/AMORA_SAFETY_RELEASE_HANDOFF_2026-08-04.md`
+   - 아모라 개인정보 경계·소비자 안전 목표 아키텍처와 출시 절대 게이트
+     (**TARGET ARCHITECTURE, 현재 P0가 남아 있어 production NO-GO**):
+     `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
    - 2026-07-31 전체 workspace 기준선:
      `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
    - clone·환경 복원·웹/모바일 연결:

@@ -22,9 +22,13 @@
 ## 현재 기준 문서
 
 - 현재 웹 MVP 제품 계약: `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+- 현재 아모라 개인정보·보안 진행과 production 판정(**구현 미완료 / NO-GO**):
+  `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+- 아모라 개인정보 경계 목표 아키텍처(**TARGET ARCHITECTURE / 구현 완료 증거 아님**):
+  `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
 - 현재 전체 작업 트리·릴리스 인계:
   `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
-- 다른 컴퓨터에서 clone·환경 복원·웹/모바일 연결을 재개하는 최신 인계:
+- 다른 컴퓨터에서 clone·환경 복원·웹/모바일 연결을 재개하는 환경 복원 상세 보조 인계:
   `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
 - 2026-08-02 커뮤니티 설계·후속 전체 구현 상세 보충 인계:
   `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`

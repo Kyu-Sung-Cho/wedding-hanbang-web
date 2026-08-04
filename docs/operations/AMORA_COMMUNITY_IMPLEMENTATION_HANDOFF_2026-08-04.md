@@ -4,6 +4,12 @@
 대상 브랜치: `agent/release-handoff-20260731`
 상태: **로컬 source release candidate — production NO-GO**
 
+> **현재 개인정보·아모라 production 판정 우선 문서:**
+> `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+>
+> 아래 local PASS와 구현 목록은 유효한 source 이력이다. 그러나 이후 코드 재감사에서
+> P0 5건이 확인됐으므로 개인정보 안전·production GO 판정에는 위 문서를 우선한다.
+
 ## 1. 이 문서가 보장하는 것과 보장하지 않는 것
 
 이 문서는 2026-08-04 working tree에서 Amora 대화 안전성과 사람 경험 결정 네트워크를

@@ -49,6 +49,9 @@
 ## 현재 기준 문서
 
 - 문서 권한·상태 해석: `docs/README.md`
+- **현재 아모라 개인정보·보안 작업 진행과 프로덕션 판정**(CURRENT FACTUAL HANDOFF ·
+  P0/P1 · PR/CI/DB/Mobile 증거 · 다른 컴퓨터 재개 · production NO-GO):
+  `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
 - **현재 전체 작업 트리·릴리스 인계**(exact inventory · 사용자와 확정한 결정 ·
   GitHub/Web/DB/Community/Mobile 개별 상태 · rollback · 남은 게이트):
   `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
@@ -58,6 +61,9 @@
   `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
 - **현재 아모라 대화 기반**(lane·segment · privacy fence · retry · 기억 복구 · 위기 안전):
   `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
+- **아모라 개인정보 경계·소비자 안전 목표 아키텍처**(TARGET ARCHITECTURE · 현재 P0가 남아
+  있어 production NO-GO):
+  `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
 - **현재 아모라 통합 케어 계약**(W0~W5 · 실행 경계 · 평가 기준):
   `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
 - **neutral couple member 전환 제안**(PLAN · 미구현 · 미배포):
