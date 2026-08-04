@@ -516,6 +516,15 @@ export async function chatWithToolsStream(options: {
   modelRole?: AmoraModelRole;
   toolChoice?: ToolChoiceFunction;
   signal?: AbortSignal;
+  /**
+   * Privacy/audit gate for every content-bearing provider request of this call,
+   * including the input token count. `beforeGeneration` reserves paid capacity
+   * as close as possible to the billed generation and therefore runs *after*
+   * counting, so it cannot protect the count itself — the count already carries
+   * the full instructions and input to the provider. Callers that handle
+   * private content must supply this gate. See handoff §8 P0-5.
+   */
+  beforeProviderEgress?: () => void | Promise<void>;
   /** Required atomic paid-call gate; callers cannot silently opt out. */
   beforeGeneration: () => void | Promise<void>;
   client?: OpenAI;
@@ -531,6 +540,7 @@ export async function chatWithToolsStream(options: {
     modelRole = "fast",
     toolChoice,
     signal,
+    beforeProviderEgress,
     beforeGeneration,
     client: providedClient,
   } = options;
@@ -557,6 +567,14 @@ export async function chatWithToolsStream(options: {
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
     throw new Error("[ai-config] maxInputTokens must be a positive integer");
   }
+
+  // 토큰 계산도 systemPrompt와 input 원문을 그대로 제공자에게 보내는
+  // content-bearing egress다. 따라서 어떤 provider 요청보다 먼저 개인정보·감사
+  // 게이트를 통과해야 한다. 여기서 실패하면 count도 create도 시작하지 않는다.
+  signal?.throwIfAborted();
+  if (beforeProviderEgress) await beforeProviderEgress();
+  signal?.throwIfAborted();
+
   try {
     const countPromise = client.responses.inputTokens.count(
       {

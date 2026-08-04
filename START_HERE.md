@@ -221,9 +221,13 @@ git switch -c codex/amora-p0-provider-egress-red
 
 ### 현재 문제
 
-`apps/web/src/lib/ai/openai.ts`는 현재 전체 `systemPrompt`와 `input`을
+`apps/web/src/lib/ai/openai.ts`는 전체 `systemPrompt`와 `input`을
 `client.responses.inputTokens.count()`에 보낸 뒤 `beforeGeneration()`을 실행한다. 생성
 요청을 막아도 token-count 요청에서 원문이 먼저 provider로 나갈 수 있다.
+
+`beforeGeneration()`은 유료 생성 직전의 원자적 quota 예약 게이트다. 개인정보·감사
+게이트가 아니며, count보다 뒤에 있으므로 count 자체를 보호할 수 없다. 두 게이트는
+역할이 다르므로 하나로 합치지 않는다.
 
 ### 먼저 읽을 파일
 
@@ -259,13 +263,37 @@ corepack pnpm --filter @hanbang/web exec vitest run `
 첫 산출물은 현재 코드에서 정확히 실패하는 RED 증거와 최소 변경 설계다. Product code 수정은
 RED가 의도한 실패인지 확인한 뒤 별도 논리 단위로 진행한다.
 
+### 2026-08-05 진행 상태 — P0-5는 여전히 OPEN
+
+branch `codex/amora-p0-provider-egress-red`(base `5b33c95b`)에서 여기까지 했다.
+
+| 항목 | 상태 |
+|---|---|
+| RED 테스트 작성 | 완료 — `apps/web/src/lib/ai/__tests__/providerEgressGate.test.ts` |
+| 현재 코드에서 RED 재현 | 완료 — 16개 중 13개가 exact invariant mismatch로 실패 |
+| SDK 경계의 egress gate 계약 | 구현 — `beforeProviderEgress`가 `inputTokens.count`보다 먼저 실행 |
+| 표적 GREEN | 완료 — 신규 16 + 기존 44 = 60 PASS |
+| **호출부 배선** | **미완 — 어떤 production 호출부도 gate를 넘기지 않는다** |
+| DB claim·capability·kill-switch·TTL·content binding | 미구현 |
+| 응답 commit 시 scope/epoch 재검증 | 미구현 |
+| hosted network sink 증거 | 없음 |
+
+`beforeProviderEgress`는 optional이다. 넘기지 않으면 기존 동작이 그대로이므로 **실제
+운영 경로의 원문 반출은 아직 막히지 않았다.** 이 하위 브랜치는 P0-5를 닫지 않았고,
+`AI provider`는 계속 `MUST BE OFF`다.
+
+다음 최소 단위는 `apps/web/src/app/api/chat/route.ts`의 `runAmoraProviderCallWithLedger`
+경계에서 gate를 실제로 넘기고, 그 gate가 DB에서 current principal·scope·privacy
+epoch·kill-switch를 claim하게 만드는 것이다. 상세 handoff §16 카드 E를 따른다.
+
 ---
 
 ## 8. 이어서 닫을 P0
 
 상세 공격 순서·코드 줄·필수 테스트·종료 영수증은 상세 handoff §8을 그대로 따른다.
 
-1. P0-5: 최종 privacy gate 전 OpenAI token-count 원문 반출
+1. P0-5: 최종 privacy gate 전 OpenAI token-count 원문 반출 — **OPEN**. SDK 경계 gate
+   계약과 RED 테스트만 있고 호출부 배선·DB claim·hosted 증거가 없다(§7 진행 상태).
 2. P0-4: A의 늦은 Memory 응답이 계정 전환 뒤 B 화면에 적용될 가능성
 3. P0-3: provenance 없는 임의/private-derived 내용을 shared note로 저장할 가능성
 4. P0-1: A의 모바일 개인 초안이 계정 전환 뒤 B bearer로 저장될 가능성

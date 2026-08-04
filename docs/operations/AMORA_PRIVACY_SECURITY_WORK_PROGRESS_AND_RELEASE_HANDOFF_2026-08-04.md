@@ -757,6 +757,46 @@ unlink, delete, privacy epoch 증가, provider kill-switch 경합이 생길 수 
 - stream/non-stream, tool/file/search 모든 path 동일
 - provider mock이 원문 marker를 받지 않았음을 assertion
 
+#### 2026-08-05 갱신 — 부분 진행, 판정은 그대로 OPEN
+
+위 2026-08-04 감사 기록은 그대로 보존한다. 이후 branch
+`codex/amora-p0-provider-egress-red`(base `5b33c95b`)에서 다음이 추가됐다.
+
+**한 일**
+
+- `apps/web/src/lib/ai/__tests__/providerEgressGate.test.ts` 신규 RED 테스트 16개.
+  실제 원문 대신 synthetic marker만 사용하고, 모든 provider 인자를 직렬화해 marker가
+  한 번도 나가지 않았음을 확인한다.
+- 수정 전 현재 코드에서 13개가 exact invariant mismatch로 RED였다(timeout·flaky 아님).
+  gate가 완전히 무시돼 count와 create가 그대로 실행됐다.
+- `chatWithToolsStream`과 `createOpenAIResponseWithAuditInternal`에 optional
+  `beforeProviderEgress` 계약을 추가했다. 이 gate는 `responses.inputTokens.count`를
+  포함한 모든 content-bearing provider 요청보다 먼저 실행되고, 실패하면 fail-closed로
+  gate 자신의 오류를 그대로 던지며 count·create 호출 수가 모두 0이다.
+- audited wrapper는 이때 `provider_egress_gate_failed` 감사 행을 남긴다.
+  `provider_attempted:false`, `input_count_request_id:null`이며 원문은 포함하지 않는다.
+- `beforeGeneration`의 위치·의미는 바꾸지 않았다. 유료 생성 직전의 원자적 quota
+  예약 게이트로 남아 있고 기존 `count → beforeGeneration → create` 계약 테스트도
+  그대로 통과한다.
+
+**하지 않은 일 — 이것이 P0-5가 아직 OPEN인 이유**
+
+| 남은 작업 | 상태 |
+|---|---|
+| production 호출부가 gate를 실제로 넘김 | 0건. gate가 optional이라 현재 운영 경로 동작은 변하지 않았다 |
+| DB current principal·scope·privacy epoch claim | 미구현 |
+| short TTL과 exact content binding | 미구현 |
+| provider kill-switch claim | 미구현 |
+| 응답 commit 시 scope/epoch 재검증 | 미구현 |
+| moderation·Files·embedding·tool/search 등 나머지 SDK endpoint 통합 | 미구현 |
+| gateway 밖 OpenAI host 요청 0을 network sink에서 확인 | 미실행 |
+| hosted 두 계정·두 기기 증거 | 없음 |
+
+따라서 이번 변경은 §15 Phase 1의 `테스트가 현재 코드에서 정확히 RED → 최소 containment
+뒤 GREEN`까지만 만족한다. §16 카드 E의 all-egress gateway는 시작 단계이며,
+§10 표의 `AI provider — UNVERIFIED — MUST BE OFF` 판정과 전체 production NO-GO는
+바뀌지 않는다. 이 진행을 P0-5 종료로 인용하지 않는다.
+
 ### 8.6 P0 종료 원칙
 
 UI effect, 사후 응답 비교, 클라이언트 flag만으로 P0-1/P0-2를 닫지 않는다. 서버 command와
