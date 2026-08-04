@@ -8,7 +8,9 @@
 >
 > 브랜치: `agent/release-handoff-20260731`
 >
-> 원격에 게시된 기준 HEAD: `a4f3626e5f98772b340b358b00a562b4692254fd`
+> 구현·운영 감사 기준 HEAD: `a4f3626e5f98772b340b358b00a562b4692254fd`
+>
+> 이 인수인계 문서의 최초 게시 commit: `aaddd8ee23e5c83ac99784eb57b9a57c4c56af73`
 >
 > PR: [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79) — **OPEN / DRAFT / 최종 Quality Gate FAILURE**
 
@@ -182,6 +184,26 @@ PR check를 새 publication receipt로 확인한다.
 | document commit SHA | NOT CREATED |
 | remote branch containing this document | NOT VERIFIED |
 | PR checks for the document commit | NOT RUN |
+
+#### 2026-08-04 23:14 KST 게시 갱신
+
+위 표는 문서 작성 직전 audit baseline을 보존한 것이다. 이후 다음 publication evidence를
+직접 확인했다.
+
+| publication evidence | 확인값 |
+|---|---|
+| 문서 최초 게시 commit | `aaddd8ee23e5c83ac99784eb57b9a57c4c56af73` |
+| local/upstream/remote branch | 위 SHA로 exact 일치 |
+| Draft PR #79 head | 위 SHA로 갱신 |
+| pre-push gate | typecheck·lint·test 8/8 task PASS, Turbo cache 8/8 |
+| Vercel Preview check | SUCCESS — deployment completed |
+| Static Release Contracts | SUCCESS |
+| Production Readiness | FAILURE — hosted evidence 부재로 fail-closed |
+| 새 CI run | [30917835270](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/30917835270), 나머지 일반 품질 job은 영수증 작성 시점 진행 중 |
+
+이 게시 영수증을 추가한 후 remote HEAD는 더 새로울 수 있다. 문서에 적힌 SHA를 현재
+branch tip으로 추정하지 말고 `git rev-parse HEAD`, `git rev-parse '@{u}'`와 PR head를 다시
+확인한다. `aaddd8ee...`는 두 핵심 문서와 색인이 GitHub에서 최초로 복원 가능한 기준점이다.
 
 ### 3.3 목표 아키텍처 무결성
 
