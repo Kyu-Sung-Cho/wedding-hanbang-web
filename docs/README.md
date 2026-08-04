@@ -9,7 +9,13 @@
 2. `AGENTS.md`
 3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:
-   `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+   `docs/operations/AMORA_COMMUNITY_IMPLEMENTATION_HANDOFF_2026-08-04.md`
+   - 2026-08-04 Amora·커뮤니티 local release candidate, active migration 순서,
+     기본-off 스위치, production NO-GO 증거와 재개 명령의 현재 정본
+   - Amora 대화 안전 두 wave와 이전 검증 스냅샷:
+     `docs/operations/AMORA_SAFETY_RELEASE_HANDOFF_2026-08-04.md`
+   - 2026-07-31 전체 workspace 기준선:
+     `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
    - clone·환경 복원·웹/모바일 연결:
      `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
    - 커뮤니티 설계와 후속 전체 구현 상세:
@@ -20,6 +26,12 @@
      `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
    - neutral couple member 전환 제안(**PLAN, 미구현·미배포**):
      `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
+   - Amora × 사람 경험 결정 네트워크 마스터 설계와 local candidate 범위
+     (**승인 방향 + 로컬 구현, 운영 DB/배포 미반영**):
+     `docs/COMMUNITY_AMORA_DECISION_NETWORK_MASTER_SPEC_2026-08-03.md`
+   - DecisionThread P0 현재 로컬 구현 상태
+     (**LOCAL RELEASE CANDIDATE, exact Git·검증 상태는 현재 handoff 참조, 운영 NO-GO**):
+     `docs/operations/COMMUNITY_DECISION_THREAD_P0_RELEASE_CANDIDATE_2026-08-04.md`
 5. 변경 영역의 현재 게이트
    - DB: `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
    - 커뮤니티: `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`

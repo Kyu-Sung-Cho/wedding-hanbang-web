@@ -441,6 +441,58 @@ describe("/api/onboarding POST", () => {
     });
   });
 
+  it.each([
+    ["manwon", { amount: 3000, unit: "manwon" }, 30_000_000],
+    ["won", { amount: 30_000_000, unit: "won" }, 30_000_000],
+  ])("normalizes a tagged %s budget before applying the shared plan", async (
+    _unit,
+    totalBudget,
+    expectedBudgetWon,
+  ) => {
+    const { admin } = setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          { single: { data: { id: "user-1", couple_id: coupleId }, error: null } },
+        ],
+        wedding_journeys: [
+          { maybeSingle: { data: null, error: null } },
+          {
+            single: {
+              data: { id: "journey-1", progress: {}, state_revision: 0 },
+              error: null,
+            },
+          },
+        ],
+      },
+      createSuccess,
+    );
+
+    const response = await POST(
+      onboardingRequest({
+        role: "bride",
+        coupleAction: "create",
+        totalBudget,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "submit_couple_plan_change",
+      expect.objectContaining({
+        p_changes: expect.objectContaining({ total_budget: expectedBudgetWon }),
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(recordDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "budget",
+          chosenValue: { total_budget: expectedBudgetWon },
+        }),
+      );
+    });
+  });
+
   it("stores zero rather than inventing a budget when the member leaves it unset", async () => {
     let journeyInsert: unknown;
     setupClients(
@@ -1063,6 +1115,37 @@ describe("/api/onboarding POST", () => {
 
   it.each([1_000_000_001, 0.5, "not-a-budget", true, "1e3"])(
     "rejects invalid budget input %s before membership or completion",
+    async (totalBudget) => {
+      const { authClient } = setupClients({}, createSuccess);
+
+      const response = await POST(
+        onboardingRequest({
+          role: "bride",
+          coupleAction: "create",
+          totalBudget,
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "총 예산은 10억 원 이하의 금액으로 입력해주세요.",
+      });
+      expect(authClient.rpc).not.toHaveBeenCalled();
+      expect(createClient).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { amount: 3000, unit: "unknown" },
+    { amount: 3000, unit: "manwon", currency: "KRW" },
+    { amount: "3000", unit: "manwon" },
+    { amount: 3000.5, unit: "manwon" },
+    { amount: -1, unit: "manwon" },
+    { amount: 0, unit: "manwon" },
+    { amount: 100_001, unit: "manwon" },
+    { amount: 1_000_000_001, unit: "won" },
+  ])(
+    "rejects an invalid tagged budget %# before membership or completion",
     async (totalBudget) => {
       const { authClient } = setupClients({}, createSuccess);
 

@@ -10,6 +10,19 @@ const INVENTORY_ROOTS = [
   resolve(API_ROOT, "community"),
 ];
 
+const TRUST_GUARD_DELEGATES = [
+  {
+    functionName: "prepareDecisionMutation",
+    importSource: "@/lib/community/decisionThreadApi",
+    file: resolve(HERE, "../lib/community/decisionThreadApi.ts"),
+  },
+  {
+    functionName: "prepareResponderMutation",
+    importSource: "@/lib/community/responderSupplyApi",
+    file: resolve(HERE, "../lib/community/responderSupplyApi.ts"),
+  },
+] as const;
+
 const EXEMPT_MUTATIONS = new Map<
   string,
   { reason: string; evidence: readonly string[] }
@@ -55,6 +68,42 @@ function mutationHandlers(source: string) {
   }));
 }
 
+function exportedAsyncFunction(source: string, functionName: string): string {
+  const start = source.indexOf(`export async function ${functionName}`);
+  expect(start, `${functionName} must remain exported`).toBeGreaterThanOrEqual(0);
+  const nextExport = source.indexOf("\nexport ", start + 1);
+  return source.slice(start, nextExport >= 0 ? nextExport : source.length);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function namedImportPattern(imported: string, source: string): RegExp {
+  return new RegExp(
+    `import\\s*\\{[^}]*\\b${escapeRegExp(imported)}\\b[^}]*\\}\\s*from\\s*["']${escapeRegExp(source)}["']`,
+    "u",
+  );
+}
+
+function privilegedBoundaryIndexes(source: string): number[] {
+  return [
+    source.search(/createClientFromRequest\s*\(/),
+    source.search(/createAdminClient\s*\(/),
+    source.search(/verifyAdmin\s*\(/),
+    source.search(/getServiceClient\s*\(/),
+    source.search(/checkCommunityWriteAccess\s*\(/),
+    source.search(/checkRateLimit(?:Persistent)?\s*\(/),
+    source.search(/preflightResponderCommand\s*\(/),
+    source.search(/hasDurableMutationReceipt\s*\(/),
+    source.search(/reserveAmoraTurn\s*\(/),
+    source.search(/createOpenAIResponseWithAudit\s*\(/),
+    source.search(/readBoundedUtf8Text\s*\(/),
+    source.search(/readResponderJsonObject\s*\(/),
+    source.search(/\.(?:json|text|formData|rpc|from)\s*\(/),
+  ].filter((index) => index >= 0);
+}
+
 const INVENTORY = INVENTORY_ROOTS.flatMap(routeFiles).flatMap((file) => {
   const source = readFileSync(file, "utf8");
   return mutationHandlers(source).map((handler) => ({
@@ -84,24 +133,72 @@ describe("admin/community mutation trust inventory", () => {
     }
 
     it(`${key} rejects untrusted browser mutations before privileged work`, () => {
-      const guard = mutation.source.indexOf("isTrustedMutationRequest(");
-      expect(mutation.fullSource).toContain(
-        'import { isTrustedMutationRequest } from "@/utils/trustedMutation"',
+      const directGuard = mutation.source.indexOf("isTrustedMutationRequest(");
+      const delegate = TRUST_GUARD_DELEGATES.find(({ functionName }) =>
+        mutation.source.includes(`${functionName}(`),
       );
+      let guard = directGuard;
+
+      if (directGuard >= 0) {
+        expect(mutation.fullSource).toContain(
+          'import { isTrustedMutationRequest } from "@/utils/trustedMutation"',
+        );
+        expect(mutation.source).toMatch(/(?:status:\s*403|,\s*403\))/);
+      } else {
+        expect(delegate, `${key} must use a registered trust guard delegate`).toBeDefined();
+        if (!delegate) return;
+
+        expect(mutation.fullSource).toMatch(
+          namedImportPattern(delegate.functionName, delegate.importSource),
+        );
+        const delegateCall = new RegExp(
+          `const\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*await\\s+${escapeRegExp(delegate.functionName)}\\s*\\(`,
+          "u",
+        ).exec(mutation.source);
+        expect(delegateCall, `${key} must await the trust guard delegate`).not.toBeNull();
+        if (!delegateCall) return;
+
+        const binding = delegateCall[1];
+        expect(binding).toBeDefined();
+        if (!binding) return;
+
+        const afterCallOffset = delegateCall.index + delegateCall[0].length;
+        const rejection = new RegExp(
+          `if\\s*\\(\\s*!${escapeRegExp(binding)}\\.ok\\s*\\)\\s*(?:\\{\\s*)?return\\s+${escapeRegExp(binding)}\\.response\\s*;`,
+          "u",
+        ).exec(mutation.source.slice(afterCallOffset));
+        expect(
+          rejection,
+          `${key} must return a rejected delegate response`,
+        ).not.toBeNull();
+        if (!rejection) return;
+        guard = afterCallOffset + rejection.index + rejection[0].length;
+
+        const delegateSource = readFileSync(delegate.file, "utf8");
+        const delegateFunction = exportedAsyncFunction(
+          delegateSource,
+          delegate.functionName,
+        );
+        const delegateGuard = delegateFunction.search(
+          /if\s*\(\s*!isTrustedMutationRequest\(\s*request\s*\)\s*\)/u,
+        );
+        expect(delegateSource).toMatch(
+          namedImportPattern(
+            "isTrustedMutationRequest",
+            "@/utils/trustedMutation",
+          ),
+        );
+        expect(delegateGuard).toBeGreaterThanOrEqual(0);
+        expect(delegateFunction).toMatch(
+          /(?:status:\s*403|,\s*403,?\s*\))/,
+        );
+        for (const boundary of privilegedBoundaryIndexes(delegateFunction)) {
+          expect(delegateGuard).toBeLessThan(boundary);
+        }
+      }
+
       expect(guard).toBeGreaterThanOrEqual(0);
-      expect(mutation.source).toMatch(/(?:status:\s*403|,\s*403\))/);
-
-      const privilegedBoundaries = [
-        mutation.source.search(/createClientFromRequest\s*\(/),
-        mutation.source.search(/verifyAdmin\s*\(/),
-        mutation.source.search(/getServiceClient\s*\(/),
-        mutation.source.search(/checkRateLimit(?:Persistent)?\s*\(/),
-        mutation.source.search(/reserveAmoraTurn\s*\(/),
-        mutation.source.search(/createOpenAIResponseWithAudit\s*\(/),
-        mutation.source.search(/\.(?:json|text|formData|rpc|from)\s*\(/),
-      ].filter((index) => index >= 0);
-
-      for (const boundary of privilegedBoundaries) {
+      for (const boundary of privilegedBoundaryIndexes(mutation.source)) {
         expect(guard).toBeLessThan(boundary);
       }
     });

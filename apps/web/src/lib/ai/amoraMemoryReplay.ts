@@ -5,6 +5,7 @@ import {
   type AmoraMemoryEnqueueResult,
 } from "@/lib/ai/amoraMemoryQueue";
 import type { AmoraMemoryVisibility } from "@/lib/ai/amoraMemoryCompiler";
+import { hasTrustedAmoraMemoryEligibilityMetadata } from "@/lib/ai/amoraMemorySourceScope";
 import {
   verifyActiveAmoraMemoryJob,
   verifyAmoraMemoryEnqueueRepairCandidate,
@@ -29,16 +30,6 @@ export type PersistedAmoraMemoryEnqueueReconciliation =
       >;
     };
 
-function isEligibleMemoryMetadata(
-  metadata: Record<string, unknown> | null,
-): boolean {
-  return metadata?.memory_eligible === true
-    && (
-      metadata.question_scope === "W0_wedding_core"
-      || metadata.question_scope === "W1_wedding_adjacent"
-    );
-}
-
 export async function reconcilePersistedAmoraMemoryEnqueue(input: {
   coupleId: string;
   userId: string;
@@ -46,7 +37,7 @@ export async function reconcilePersistedAmoraMemoryEnqueue(input: {
   message: PersistedMemoryCandidate;
   admin?: SupabaseClient;
 }): Promise<PersistedAmoraMemoryEnqueueReconciliation> {
-  if (!isEligibleMemoryMetadata(input.message.metadata)) {
+  if (!hasTrustedAmoraMemoryEligibilityMetadata(input.message.metadata)) {
     return { status: "not_eligible" };
   }
   if (

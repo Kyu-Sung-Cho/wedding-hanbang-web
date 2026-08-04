@@ -161,35 +161,6 @@ export function selectAmoraPendingProposalTools({
 }
 
 /**
- * 승인 턴 캐리오버(2026-07-24): "예산 4천만원으로 바꿔줘" → "응, 해줘"처럼
- * 의도(도메인 어휘)와 승인(일반 긍정)이 두 턴에 갈리는 자연 대화에서,
- * 마지막 턴만 보면 제안 도구가 0개가 되어 표식을 낼 방법이 없어진다.
- * 직전 사용자 턴의 텍스트로 한 턴만 이월한다 — 제안 표식은 여전히 서버
- * 검증 + 사용자의 action_id 확인을 거쳐야 실행되므로 쓰기 권한과 무관하다.
- */
-export function selectAmoraPendingProposalToolsWithCarryover({
-  availableTools,
-  userText,
-  previousUserText,
-  specialistType,
-  attachmentKind,
-}: SelectAmoraToolsInput & { previousUserText?: string | null }): AiToolDefinition[] {
-  const fromCurrent = selectAmoraPendingProposalTools({
-    availableTools,
-    userText,
-    specialistType,
-    attachmentKind,
-  });
-  if (fromCurrent.length > 0 || !previousUserText) return fromCurrent;
-  return selectAmoraPendingProposalTools({
-    availableTools,
-    userText: previousUserText,
-    specialistType,
-    attachmentKind,
-  });
-}
-
-/**
  * Deterministically narrows the provider-visible tools while preserving the
  * canonical availableTools order (stable prompts/cache). It can only remove
  * tools; beta-disabled destructive tools are never introduced by this policy.

@@ -30,9 +30,11 @@ import {
   Users,
   ThumbsUp,
   Info,
+  Ban,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiJson } from "@/lib/api";
 import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
@@ -52,6 +54,12 @@ interface ActivityStats {
   commentCount: number;
   bookmarkCount: number;
   totalUpvotes: number;
+}
+
+interface CommunityProfileStats {
+  post_count?: number | null;
+  comment_count?: number | null;
+  total_upvotes_received?: number | null;
 }
 
 function calcDday(dateStr: string | null): number | null {
@@ -119,11 +127,18 @@ export default function ProfileScreen() {
     }
 
     // 커뮤니티 활동 통계
-    const { data: communityProfile } = await supabase
-      .from("community_profiles")
-      .select("post_count, comment_count, total_upvotes_received")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    let communityProfile: CommunityProfileStats | null = null;
+    let actualPostCount = 0;
+    try {
+      const payload = await apiJson<{
+        profile: CommunityProfileStats | null;
+        actualPostCount?: number;
+      }>("/api/community/profile");
+      communityProfile = payload.profile;
+      actualPostCount = payload.actualPostCount ?? 0;
+    } catch (error) {
+      console.warn("[profile] community stats unavailable", error);
+    }
 
     // 북마크 수
     const { count: bookmarkCount } = await supabase
@@ -132,7 +147,7 @@ export default function ProfileScreen() {
       .eq("user_id", user.id);
 
     setStats({
-      postCount: communityProfile?.post_count ?? 0,
+      postCount: actualPostCount || communityProfile?.post_count || 0,
       commentCount: communityProfile?.comment_count ?? 0,
       bookmarkCount: bookmarkCount ?? 0,
       totalUpvotes: communityProfile?.total_upvotes_received ?? 0,
@@ -340,6 +355,11 @@ export default function ProfileScreen() {
               icon={Users}
               label="내 동기방"
               onPress={() => router.push({ pathname: "/community/cohort-discovery" })}
+            />
+            <MenuItem
+              icon={Ban}
+              label="차단 관리"
+              onPress={() => router.push({ pathname: "/community/blocked-users" as never })}
               isLast
             />
           </View>

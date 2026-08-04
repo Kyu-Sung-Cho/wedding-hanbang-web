@@ -171,20 +171,26 @@ export interface PollOption {
   position: number;
   label: string;
   image_url: string | null;
-  vote_count: number;
+  /** 결과 비공개 상태에서는 서버가 0이 아닌 null을 반환한다. */
+  vote_count: number | null;
 }
 
 export interface Poll {
   id: string;
   post_id: string;
+  /** 투표 정의(질문·옵션·규칙)의 낙관적 동시성 버전. */
+  version: number;
   question: string;
   allow_multiple: boolean;
   is_anonymous: boolean;
   hide_results_until_voted: boolean;
   closes_at: string | null;
-  total_voters: number;
-  total_votes: number;
+  /** 결과 비공개 상태에서는 집계 수치를 노출하지 않는다. */
+  total_voters: number | null;
+  total_votes: number | null;
   created_at: string;
+  /** actor projection이 현재 사용자에게 결과를 숨겼는지 여부. */
+  results_hidden?: boolean;
 }
 
 export interface PollWithOptions extends Poll {
@@ -197,7 +203,7 @@ export interface PollWithOptions extends Poll {
 export interface PollSummary {
   id: string;
   question: string;
-  total_voters: number;
+  total_voters: number | null;
   closes_at: string | null;
 }
 

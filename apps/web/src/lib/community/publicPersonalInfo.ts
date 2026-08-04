@@ -21,6 +21,8 @@ const HTML_NUMERIC_ENTITY_PATTERN =
   /&#(?:x([0-9a-f]{1,6})|([0-9]{1,7}));?/giu;
 const UNICODE_FORMAT_PATTERN = /\p{Cf}/gu;
 const COMPACT_SEPARATOR_PATTERN = /[\s._·•/\\|()[\]{}'":;,~\-]+/gu;
+const PUBLIC_HTML_ATTRIBUTE_PATTERN =
+  /\b(?:href|src|alt|title)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/giu;
 
 const BIRTH_DATE_SOURCE =
   "(?:(?:19|20)\\d{2}\\s*(?:년\\s*|[-./])\\s*(?:0?[1-9]|1[0-2])\\s*(?:월\\s*|[-./])\\s*(?:0?[1-9]|[12]\\d|3[01])\\s*일?|(?:19|20)\\d{6}|\\d{2}\\s*[-./]\\s*(?:0?[1-9]|1[0-2])\\s*[-./]\\s*(?:0?[1-9]|[12]\\d|3[01])|\\d{6})";
@@ -75,7 +77,17 @@ function visibleText(values: Array<string | null | undefined>): {
   text: string;
   compact: string;
 } {
-  const text = decodeNumericCharacterReferences(values.filter(Boolean).join(" "))
+  const decoded = decodeNumericCharacterReferences(values.filter(Boolean).join(" "));
+  const attributeValues: string[] = [];
+  let attributeMatch: RegExpExecArray | null;
+  PUBLIC_HTML_ATTRIBUTE_PATTERN.lastIndex = 0;
+  while ((attributeMatch = PUBLIC_HTML_ATTRIBUTE_PATTERN.exec(decoded))) {
+    attributeValues.push(
+      attributeMatch[1] ?? attributeMatch[2] ?? attributeMatch[3] ?? "",
+    );
+  }
+
+  const text = `${decoded} ${attributeValues.join(" ")}`
     .replace(/<!--[\s\S]*?-->/gu, " ")
     .replace(/<[^>]*>/gu, " ")
     .replace(/&commat;|&commat/giu, "@")

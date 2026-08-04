@@ -40,6 +40,16 @@ export type PrepareChatAttachmentResult =
   | { ok: true; attachments: PreparedChatAttachment[] }
   | { ok: false; error: string };
 
+export type ChatAttachmentBinding = {
+  mediaType: string;
+  byteLength: number;
+  sha256: string;
+};
+
+export type CreateChatAttachmentBindingsResult =
+  | { ok: true; bindings: ChatAttachmentBinding[] }
+  | { ok: false; error: string };
+
 function isBase64Payload(value: string): boolean {
   if (!value || value.length % 4 !== 0) return false;
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
@@ -119,6 +129,52 @@ export function prepareChatAttachmentPayload(
     }
 
     return { ok: true, attachments };
+  } catch {
+    return { ok: false, error: CHAT_ATTACHMENT_SNAPSHOT_ERROR };
+  }
+}
+
+function decodeCanonicalBase64(base64: string): Uint8Array<ArrayBuffer> {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (const byte of bytes) {
+    hex += byte.toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Binds the ordered provider payload to exact bytes before the durable ingest.
+ * File names are intentionally excluded because they are not needed for
+ * integrity checks and may contain personal information.
+ */
+export async function createChatAttachmentBindings(
+  attachments: readonly PreparedChatAttachment[]
+): Promise<CreateChatAttachmentBindingsResult> {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return { ok: false, error: CHAT_ATTACHMENT_SNAPSHOT_ERROR };
+
+    const bindings: ChatAttachmentBinding[] = [];
+    for (const attachment of attachments) {
+      const bytes = decodeCanonicalBase64(attachment.base64);
+      const digest = await subtle.digest("SHA-256", bytes);
+      bindings.push({
+        mediaType: attachment.mediaType,
+        byteLength: bytes.byteLength,
+        sha256: bytesToHex(new Uint8Array(digest)),
+      });
+    }
+
+    return { ok: true, bindings };
   } catch {
     return { ok: false, error: CHAT_ATTACHMENT_SNAPSHOT_ERROR };
   }

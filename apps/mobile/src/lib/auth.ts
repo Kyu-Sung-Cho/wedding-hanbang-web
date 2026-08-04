@@ -113,7 +113,33 @@ export async function signInWithOAuth(provider: SupportedOAuthProvider) {
   return { cancelled: false, session };
 }
 
-export async function signOut() {
-  const { error } = await supabase.auth.signOut();
+export async function signOut(options: {
+  continueOnDecisionPurgeFailure?: boolean;
+} = {}) {
+  let decisionDataPurged = true;
+  if (Platform.OS !== "web") {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    const ownerId = sessionData.session?.user.id ?? null;
+    if (ownerId) {
+      try {
+        const { purgeCommunityDecisionPendingForOwnerWithRetry } = await import(
+          "./communityDecisionPending"
+        );
+        await purgeCommunityDecisionPendingForOwnerWithRetry(ownerId);
+      } catch {
+        decisionDataPurged = false;
+        if (!options.continueOnDecisionPurgeFailure) {
+          throw new Error("COMMUNITY_DECISION_OWNER_PURGE_UNCONFIRMED");
+        }
+      }
+    }
+    const { releasePushNotificationsForCurrentSession } = await import("./notifications");
+    await releasePushNotificationsForCurrentSession();
+  }
+  // 일반 기기 로그아웃은 다른 휴대폰의 준비 흐름과 알림 세션을 끊지 않는다.
+  // 계정 삭제/모든 기기 로그아웃은 별도의 명시적 서버 경계를 사용한다.
+  const { error } = await supabase.auth.signOut({ scope: "local" });
   if (error) throw error;
+  return { decisionDataPurged };
 }

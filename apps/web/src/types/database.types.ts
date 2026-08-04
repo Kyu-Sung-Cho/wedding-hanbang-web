@@ -180,6 +180,23 @@ export interface ChatMessageMetadata {
   roomId?: string;
   /** Browser/server idempotency key, protected by a per-couple unique index. */
   client_request_id?: string;
+  /** Provider attachment cardinality bound by server ingest for cold-start recovery. */
+  provider_attachment_count?: number;
+  /** Versioned server-authored contract for interrupted-turn recovery. */
+  amora_ingest_contract_version?: 1 | 2;
+  /** Whether this durable user row intentionally requested an Amora answer. */
+  ai_response_requested?: boolean;
+  /** Whether provider-only attachment bytes are needed to resume this turn. */
+  provider_attachment_state?:
+    | "none"
+    | "present"
+    | "discarded_by_safety_policy";
+  /** Ordered exact-byte bindings for v2 provider attachments; never raw bytes or file names. */
+  provider_attachment_manifest?: Array<{
+    media_type: string;
+    byte_length: number;
+    sha256: string;
+  }>;
   /** Exact opposite roster member for a partner-directed user message. */
   partner_recipient_id?: string;
   suggestions?: string[];
@@ -192,6 +209,8 @@ export interface ChatMessageMetadata {
   /** Fixed server boundary or client-only recovery origin; never raw user text. */
   response_origin?:
     | "deterministic_crisis_safety"
+    | "client_deterministic_crisis_preflight"
+    | "client_deterministic_safety_privacy_preflight"
     | "client_deterministic_crisis_recovery";
   safety_classification?: import("@hanbang/shared/amora-crisis-classifier").AmoraCrisisKind;
   safety_contact_policy?: string;
@@ -199,6 +218,12 @@ export interface ChatMessageMetadata {
   memory_eligible?: boolean;
   persistence_status?: string;
   pinned_safety_card?: boolean;
+  /** Whether this safety delivery persisted the raw disclosure anywhere. */
+  raw_disclosure_persisted?: boolean;
+  /** Whether the raw disclosure was made visible to the linked partner. */
+  raw_disclosure_shared?: boolean;
+  /** Durable scope used for the raw disclosure, if any. */
+  raw_disclosure_persistence?: "none" | "private_only" | "shared" | "unknown";
   /** Client echo consumed by the DB application lease trigger. */
   confirmed_amora_action_id?: string;
   /** Proposal-time wedding_journeys state token enforced by the database. */

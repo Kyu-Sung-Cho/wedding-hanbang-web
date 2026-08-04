@@ -9,12 +9,16 @@ import AdDisclosureModal from "@/components/community/AdDisclosureModal";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
+import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { useAuthStore } from "@/stores/authStore";
 import type { AdDisclosure } from "@/types/community.types";
 
 // 로그인이 필요한 화면인데 제출 직후에야 401을 맞으면 다 쓴 후기가 헛수고가 된다.
 // 미리 알려주고, 로그인 뒤 이 자리로 돌아오게 한다.
 const QUICK_REVIEW_LOGIN_HREF = "/login?redirect=%2Fwedding%2Fcommunity%2Fquick-review";
+const MEDIA_PUBLISHING_UI_ENABLED = isCommunityMediaPublishingUiEnabled(
+  process.env.NEXT_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED,
+);
 
 type Category = (typeof COHORT_CONTRACT_CATEGORIES)[number]["key"];
 
@@ -67,7 +71,7 @@ export default function QuickReviewPage() {
           category: "tour_review",
           title: `${vendorName.trim()} 후기`,
           content: oneLiner.trim(),
-          images,
+          images: MEDIA_PUBLISHING_UI_ENABLED ? images : [],
           visibility: "public",
           vendor_tags: [vendorName.trim()],
           tags: [category],
@@ -182,12 +186,14 @@ export default function QuickReviewPage() {
           </div>
         </div>
 
+        {MEDIA_PUBLISHING_UI_ENABLED && (
         <div>
           <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
             사진 (최대 3장)
           </label>
           <ImageUploader images={images} onChange={setImages} max={3} />
         </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-[#1A1A1F] mb-2">

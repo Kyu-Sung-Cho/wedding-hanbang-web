@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import type { ReportReason } from "@/types/community.types";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: "본인은 신고할 수 없습니다." }, { status: 400 });
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("cohort:member-report", req, user.id),
       { maxRequests: 5, windowMs: 60 * 60 * 1000 }
     );

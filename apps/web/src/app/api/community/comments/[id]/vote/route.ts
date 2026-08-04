@@ -1,6 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
@@ -30,7 +30,7 @@ export async function POST(
     }
 
     // Rate limit: 60 votes per minute per user
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:comment:vote", req, user.id),
       { maxRequests: 60, windowMs: 60 * 1000 }
     );

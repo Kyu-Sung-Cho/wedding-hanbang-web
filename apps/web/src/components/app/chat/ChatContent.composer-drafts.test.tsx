@@ -451,6 +451,44 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.textContent).toContain("amora-only.pdf");
   });
 
+  it("moves a non-immediate relationship safety disclosure to private before sending", async () => {
+    mocks.sendMessage.mockResolvedValueOnce({
+      userMessage: "persisted",
+      userMessageId: "private-safety-message",
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+    });
+    const composer = () => container.querySelector<HTMLTextAreaElement>("textarea");
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(
+        composer(),
+        "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+      );
+      composer()?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="함께 보는 아모라 메시지 보내기"]',
+      )?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      target: "ai",
+      visibility: "bride_private",
+      images: undefined,
+    }));
+    expect(container.querySelector(
+      'textarea[aria-label="나만의 아모라 상담 메시지 입력"]',
+    )).not.toBeNull();
+    expect(mocks.notifyTyping).not.toHaveBeenCalled();
+  });
+
   it("fails closed when an authenticated profile has no verified couple role", async () => {
     mocks.profileRole = null;
     await act(async () => {
@@ -873,7 +911,7 @@ describe("ChatContent composer draft lanes", () => {
     }));
   });
 
-  it("never broadcasts private typing and stops an existing shared typing signal", async () => {
+  it("broadcasts typing only for an explicit partner draft and never for AI 상담", async () => {
     const composer = () => container.querySelector<HTMLTextAreaElement>("textarea");
     const typeIntoComposer = async (value: string) => {
       await act(async () => {
@@ -885,7 +923,13 @@ describe("ChatContent composer draft lanes", () => {
         composer()?.dispatchEvent(new Event("input", { bubbles: true }));
       });
     };
-    await typeIntoComposer("공유 입력 중");
+    await typeIntoComposer("함께 보는 아모라 입력 중");
+    expect(mocks.notifyTyping).not.toHaveBeenCalled();
+
+    const partnerTarget = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("상대방에게"));
+    await act(async () => partnerTarget?.click());
+    await typeIntoComposer("상대방에게 입력 중");
     expect(mocks.notifyTyping).toHaveBeenCalledTimes(1);
 
     const privateScope = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))

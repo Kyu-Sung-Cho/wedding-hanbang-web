@@ -27,3 +27,19 @@ test("the auth listener applies the release gate before importing push code", as
     /pushRegistrationEnabled[\s\S]*import\("\.\/notifications"\)/,
   );
 });
+
+test("notification target verification fails closed without the configured mobile origin", async () => {
+  const source = await readFile(
+    new URL("../lib/notifications.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /createCommunityPushTargetResolver\(\s*\{[\s\S]*configuredSiteUrl:\s*process\.env\.EXPO_PUBLIC_SITE_URL,[\s\S]*isDevelopment:\s*__DEV__/,
+  );
+  assert.doesNotMatch(
+    source,
+    /EXPO_PUBLIC_SITE_URL\s*\?\?\s*["']https:\/\/hanbang\.ai["']/,
+  );
+});

@@ -53,9 +53,11 @@ import {
   type WeddingSettingsSnapshot,
 } from "@/lib/weddingSettings";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
+import { purgeCommunityDecisionPendingForOwnerWithRetry } from "@/lib/communityDecisionPending";
 import { hasActiveCareConsent } from "@/lib/careSettings";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
+import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
 
 type SettingsData = WeddingSettingsData;
 
@@ -448,6 +450,14 @@ export default function SettingsScreen() {
                   style: "destructive",
                   onPress: async () => {
                     try {
+                      const {
+                        data: { session: deletionSession },
+                        error: deletionSessionError,
+                      } = await supabase.auth.getSession();
+                      if (deletionSessionError || !deletionSession?.user.id) {
+                        throw new Error("계정의 기기 데이터를 안전하게 정리할 사용자를 확인하지 못했어요.");
+                      }
+                      const deletionOwnerId = deletionSession.user.id;
                       const res = await apiFetch("/api/auth/delete", {
                         method: "DELETE",
                         body: JSON.stringify({ reason: "mobile_request" }),
@@ -462,10 +472,37 @@ export default function SettingsScreen() {
                           body.error ?? "탈퇴 요청을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
                         );
                       }
-
                       const finishSignOut = async () => {
-                        await supabase.auth.signOut();
+                        const { decisionDataPurged } = await signOut({
+                          continueOnDecisionPurgeFailure: true,
+                        });
                         router.replace("/(auth)/login");
+                        if (!decisionDataPurged) {
+                          Alert.alert(
+                            "기기 임시 데이터 정리가 남아 있어요",
+                            "계정 삭제 요청은 접수됐지만 이 기기의 비공개 결정 초안과 재시도 명령 정리는 아직 완료로 확인되지 않았어요.",
+                            [
+                              {
+                                text: "다시 정리",
+                                onPress: () => {
+                                  void purgeCommunityDecisionPendingForOwnerWithRetry(
+                                    deletionOwnerId,
+                                  ).then(() => {
+                                    Alert.alert(
+                                      "기기 데이터 정리 완료",
+                                      "이 계정의 비공개 결정 임시 데이터를 모두 정리했어요.",
+                                    );
+                                  }).catch(() => {
+                                    Alert.alert(
+                                      "기기 데이터 정리 미완료",
+                                      "아직 안전하게 정리됐다고 확인할 수 없어요. 앱을 종료하지 말고 다시 시도해주세요.",
+                                    );
+                                  });
+                                },
+                              },
+                            ],
+                          );
+                        }
                       };
                       if (body.pending) {
                         Alert.alert(
@@ -702,6 +739,7 @@ export default function SettingsScreen() {
             onPress={() => void Linking.openSettings()}
             right={<ExternalLink size={16} color={colors.taupe[400]} />}
           />
+          <CommunityReplyPushPreferenceControl />
           <TodayOnePreferenceControl />
           {legacyCareConsentActive ? (
             <>

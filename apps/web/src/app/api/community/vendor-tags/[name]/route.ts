@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
+
+const PRIVATE_NO_STORE = "private, no-store, max-age=0";
+const VIEWER_VARY = "Authorization, Cookie";
 
 function getServiceClient() {
   return createAdminClient();
@@ -13,13 +17,13 @@ type CommunityPostWithAuthorId = {
 } & Record<string, unknown>;
 
 async function attachAuthorProfiles(
-  service: ReturnType<typeof getServiceClient>,
+  client: Parameters<typeof getCommunityAuthorMap>[0],
   posts: CommunityPostWithAuthorId[]
 ) {
   const authorIds = [...new Set(posts.map((post) => post.author_id))].filter(
     Boolean
   );
-  const authorMap = await getCommunityAuthorMap(service, authorIds);
+  const authorMap = await getCommunityAuthorMap(client, authorIds);
 
   return posts.map((post) => ({
     ...post,
@@ -28,17 +32,31 @@ async function attachAuthorProfiles(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
     const { name: rawName } = await params;
     const name = cleanPostgrestSearchTerm(decodeURIComponent(rawName), 100);
     if (!name) {
-      return NextResponse.json({ error: "잘못된 업체명입니다." }, { status: 400 });
+      return NextResponse.json(
+        { error: "잘못된 업체명입니다." },
+        {
+          status: 400,
+          headers: { "Cache-Control": PRIVATE_NO_STORE, Vary: VIEWER_VARY },
+        },
+      );
     }
     const escapedName = escapePostgrestLikePattern(name);
     const service = getServiceClient();
+    const viewerClient = await createClientFromRequest(req);
+    const {
+      data: { user },
+      error: viewerError,
+    } = await viewerClient.auth.getUser();
+    const responseCacheControl = user || viewerError
+      ? PRIVATE_NO_STORE
+      : "public, s-maxage=60, stale-while-revalidate=120";
 
     const { data: tag } = await service
       .from("community_vendor_tags")
@@ -46,13 +64,75 @@ export async function GET(
       .eq("vendor_name", name)
       .maybeSingle();
 
-    const { data: posts } = await service
-      .from("community_posts")
-      .select(COMMUNITY_POST_PUBLIC_SELECT)
-      .or(`title.ilike.%${escapedName}%,content.ilike.%${escapedName}%`)
-      .eq("visibility", "public")
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const { data: candidatePosts, error: candidatePostError } = viewerError
+      ? { data: [], error: null }
+      : await viewerClient
+          .from("community_posts")
+          .select("id, author_id")
+          .or(`title.ilike.%${escapedName}%,content.ilike.%${escapedName}%`)
+          .eq("visibility", "public")
+          .eq("under_review", false)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+    if (candidatePostError) {
+      throw candidatePostError;
+    }
+
+    const candidates = ((candidatePosts ?? []) as Array<{
+      id?: unknown;
+      author_id?: unknown;
+    }>).filter(
+      (post): post is { id: string; author_id: string } =>
+        typeof post.id === "string" && typeof post.author_id === "string",
+    );
+    const blockedAuthorIds = new Set<string>();
+
+    if (user && !viewerError) {
+      const authorIds = [...new Set(candidates.map((post) => post.author_id))];
+      await Promise.all(
+        authorIds.map(async (authorId) => {
+          if (authorId === user.id) return;
+          const { data: viewerCanSee, error: blockError } = await service.rpc(
+            "community_viewer_can_see" as never,
+            {
+              p_viewer_user_id: user.id,
+              p_other_user_id: authorId,
+            } as never,
+          );
+          if (blockError || viewerCanSee !== true) {
+            blockedAuthorIds.add(authorId);
+          }
+        }),
+      );
+    }
+
+    const visiblePostIds = viewerError
+      ? []
+      : candidates
+          .filter((post) => !blockedAuthorIds.has(post.author_id))
+          .map((post) => post.id);
+    const { data: viewerPosts, error: viewerPostsError } = visiblePostIds.length > 0
+      ? await viewerClient
+          .from("community_posts")
+          .select(COMMUNITY_POST_PUBLIC_SELECT)
+          .in("id", visiblePostIds)
+          .eq("visibility", "public")
+          .eq("under_review", false)
+          .order("created_at", { ascending: false })
+          .limit(50)
+      : { data: [], error: null };
+
+    if (viewerPostsError) {
+      throw viewerPostsError;
+    }
+
+    const posts = ((viewerPosts ?? []) as CommunityPostWithAuthorId[]).filter(
+      (post) =>
+        post.visibility === "public"
+        && post.under_review !== true
+        && !blockedAuthorIds.has(post.author_id),
+    );
 
     // 실제 vendor DB 매칭 — 이름이 비슷한 승인된 vendor가 있으면 예약 연동 가능.
     // 정확 매칭 우선, 없으면 부분 매칭. 데모 환경의 mock vendor도 함께 검색.
@@ -165,21 +245,35 @@ export async function GET(
     }
 
     const postsWithAuthors = await attachAuthorProfiles(
-      service,
-      (posts ?? []) as CommunityPostWithAuthorId[]
+      viewerClient,
+      posts,
     );
 
-    return NextResponse.json({
-      tag: tag ?? null,
-      posts: postsWithAuthors,
-      vendor: vendorMatch ?? null,
-      products,
-      staff,
-      vendorSlots,
-      staffSlots,
-    });
+    return NextResponse.json(
+      {
+        tag: tag ?? null,
+        posts: postsWithAuthors,
+        vendor: vendorMatch ?? null,
+        products,
+        staff,
+        vendorSlots,
+        staffSlots,
+      },
+      {
+        headers: {
+          "Cache-Control": responseCacheControl,
+          Vary: VIEWER_VARY,
+        },
+      },
+    );
   } catch (err) {
     console.error("Vendor tag detail error:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      {
+        status: 500,
+        headers: { "Cache-Control": PRIVATE_NO_STORE, Vary: VIEWER_VARY },
+      },
+    );
   }
 }

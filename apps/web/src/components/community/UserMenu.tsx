@@ -11,9 +11,11 @@ import {
   ShieldAlert,
   Settings,
   LogOut,
+  Ban,
 } from "lucide-react";
 import CommunityReplyNotifications from "@/components/community/CommunityReplyNotifications";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { useAuthStore } from "@/stores/authStore";
 
 interface MenuItem {
   linkProps?: ReturnType<typeof weddingLinkProps>;
@@ -31,6 +33,8 @@ interface MenuItem {
  */
 export default function UserMenu() {
   const router = useRouter();
+  const ownerId = useAuthStore((state) => state.user?.id ?? null);
+  const resetAuthState = useAuthStore((state) => state.reset);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -39,10 +43,12 @@ export default function UserMenu() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) return;
+    resetAuthState();
     router.push(weddingPath());
     router.refresh();
-  }, [router]);
+  }, [resetAuthState, router]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,13 +72,14 @@ export default function UserMenu() {
     { linkProps: weddingLinkProps("/community/my"), label: "내 활동", sub: "내가 쓴 글·답변·투표", Icon: Activity },
     { linkProps: weddingLinkProps("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
     { linkProps: weddingLinkProps("/community/moderation"), label: "운영 알림", sub: "조치 사유·이의제기", Icon: ShieldAlert },
+    { linkProps: weddingLinkProps("/community/my/blocks"), label: "차단 관리", sub: "숨긴 회원 확인·해제", Icon: Ban },
     { linkProps: weddingLinkProps("/settings"), label: "설정", sub: "프로필·알림·계정", Icon: Settings },
     { onClick: handleLogout, label: "로그아웃", sub: "", Icon: LogOut },
   ];
 
   return (
     <div className="flex items-center gap-1">
-      <CommunityReplyNotifications />
+      {ownerId ? <CommunityReplyNotifications ownerId={ownerId} /> : null}
       <div ref={containerRef} className="relative">
         <button
           type="button"

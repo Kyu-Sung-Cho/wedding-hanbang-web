@@ -23,7 +23,6 @@ export interface AmoraQuestionScopeClassification {
 export interface ClassifyAmoraQuestionScopeInput {
   userText: string;
   requestKind?: "chat" | "initial_greeting" | "mediation";
-  previousUserText?: string | null;
   hasApprovedWeddingAction?: boolean;
 }
 
@@ -66,8 +65,6 @@ const CANONICAL_ANAPHORIC_SCHEDULE_MUTATION_PATTERN =
   /그\s*(?:일정|스케줄).{0,12}(?:변경|바꾸|바꿔|옮겨|수정|취소|삭제|미뤄|당겨)/iu;
 const CANONICAL_TASK_STATE_PATTERN =
   /(?:체크\s*리스트|(?:내|다음)?\s*할\s*일|준비\s*목록|아모라\s*액션|리마인드).{0,12}(?:보여|알려|확인|조회|현황|추가|등록|수정|완료|삭제)/iu;
-const NARROW_CONFIRMATION_PATTERN =
-  /^(?:응|네|예|좋아|맞아)(?:\s+맞아)?(?:[,\s]*(?:(?:그대로|그걸로|그렇게)\s*)?(?:적용|반영|진행)?\s*(?:해\s*줘|해주세요|해줘))?[.!?\s]*$/u;
 const WEDDING_CONTEXT_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   "get_wedding_info",
   "get_budget_summary",
@@ -78,7 +75,6 @@ const WEDDING_CONTEXT_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
 export function classifyAmoraQuestionScope({
   userText,
   requestKind = "chat",
-  previousUserText,
   hasApprovedWeddingAction = false,
 }: ClassifyAmoraQuestionScopeInput): AmoraQuestionScopeClassification {
   const normalizedText = normalizeAmoraSafetyText(userText);
@@ -186,19 +182,6 @@ export function classifyAmoraQuestionScope({
     };
   }
   if (
-    previousUserText
-    && NARROW_CONFIRMATION_PATTERN.test(normalizedText)
-    && classifyAmoraQuestionScope({ userText: previousUserText }).scope
-      === "W0_wedding_core"
-  ) {
-    return {
-      scope: "W0_wedding_core",
-      allowsLongTermMemory: true,
-      confidence: "high",
-      needsClarification: false,
-    };
-  }
-  if (
     CANONICAL_TOTAL_BUDGET_ACTION_PATTERN.test(normalizedText)
     || CANONICAL_TOTAL_BUDGET_READ_PATTERN.test(normalizedText)
     || CANONICAL_NATURAL_BUDGET_ACTION_PATTERN.test(normalizedText)
@@ -268,6 +251,7 @@ export function filterAmoraToolsByQuestionScope<T extends AiToolDefinition>(
 
 export function buildAmoraQuestionScopeInstruction(
   classification: AmoraQuestionScopeClassification,
+  options: { linkedContextOnly?: boolean } = {},
 ): string {
   const commonLines = [
     "[서버 확정 질문 범위 계약]",
@@ -287,18 +271,29 @@ export function buildAmoraQuestionScopeInstruction(
       "- 법률·의료·금융상품·정신건강 같은 고위험 영역에서는 확인된 사실, 불확실성, 공식 기관이나 자격 있는 전문가에게 확인할 질문만 정리하세요.",
       "- 법적 판단, 진단, 처방, 투자 추천이나 수익 보장, 심리 판정을 하지 마세요. 도구 실행과 장기 기억 저장도 하지 마세요.",
     ],
-    W3_social_care: [
-      "- 짧고 자연스러운 인사나 정서적 돌봄만 제공하세요. 저장된 결혼 정보·예산·일정을 먼저 꺼내지 말고, 도구 실행과 장기 기억 저장도 하지 마세요.",
-    ],
-    W4_out_of_scope: classification.needsClarification
+    W3_social_care: options.linkedContextOnly
       ? [
-          "- 지금 문장만으로 결혼 준비와의 연결을 확인할 수 없습니다. 본문 답이나 실행을 시작하지 말고, 이 요청이 결혼 준비의 어떤 결정과 연결되는지 묻는 부담이 작은 질문 하나만 하세요.",
-          "- 도구 실행과 장기 기억 저장은 하지 마세요.",
+          "- 서버가 연결한 바로 직전 웨딩 대화 1회 안에서만 현재의 정서적 후속 말에 자연스럽게 답하세요. 다른 저장 정보로 넓히지 마세요.",
+          "- 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요.",
         ]
       : [
-          "- 아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요. 범위 밖 과업을 실질적으로 수행하지 말고, 가능하면 사용자의 목적을 결혼 준비 관점으로 바꿔 도울 수 있는 한 가지 방향만 제시하세요.",
-          "- 도구 실행과 장기 기억 저장은 하지 마세요.",
+          "- 짧고 자연스러운 인사나 정서적 돌봄만 제공하세요. 저장된 결혼 정보·예산·일정을 먼저 꺼내지 말고, 도구 실행과 장기 기억 저장도 하지 마세요.",
         ],
+    W4_out_of_scope: options.linkedContextOnly
+      ? [
+          "- 현재 문장만으로는 모호하지만 서버가 바로 직전 웨딩 대화 1회와의 지시 대상을 검증했습니다. 오직 그 대화 안에서만 현재의 참조·설명·비교·선호 후속 말에 자연스럽게 답하세요.",
+          "- 연결된 지시 대상은 이미 확인됐으므로 현재 문장이 짧다는 이유로 결혼 관련성을 다시 묻지는 마세요. 다른 주제로 넓히지는 마세요.",
+          "- 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요. 동의 표현도 실행 확인으로 취급하지 마세요.",
+        ]
+      : classification.needsClarification
+        ? [
+            "- 지금 문장만으로 결혼 준비와의 연결을 확인할 수 없습니다. 본문 답이나 실행을 시작하지 말고, 이 요청이 결혼 준비의 어떤 결정과 연결되는지 묻는 부담이 작은 질문 하나만 하세요.",
+            "- 도구 실행과 장기 기억 저장은 하지 마세요.",
+          ]
+        : [
+            "- 아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요. 범위 밖 과업을 실질적으로 수행하지 말고, 가능하면 사용자의 목적을 결혼 준비 관점으로 바꿔 도울 수 있는 한 가지 방향만 제시하세요.",
+            "- 도구 실행과 장기 기억 저장은 하지 마세요.",
+          ],
     W5_safety_override: [
       "- 이 분류는 방어용입니다. 일반 결혼 대화를 계속하거나 도구를 실행하거나 장기 기억에 저장하지 마세요. 서버의 위기 대응 경로가 우선입니다.",
     ],

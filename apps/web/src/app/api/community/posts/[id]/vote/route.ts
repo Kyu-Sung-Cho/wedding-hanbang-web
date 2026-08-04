@@ -1,4 +1,4 @@
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
@@ -35,7 +35,7 @@ export async function POST(
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:post:vote", req, user.id),
       { maxRequests: 60, windowMs: 60 * 1000 }
     );

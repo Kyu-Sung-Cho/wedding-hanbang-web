@@ -1,7 +1,9 @@
 // 웹 API 호출 헬퍼 — Bearer 토큰으로 인증
 import { Alert } from "react-native";
 import { router } from "expo-router";
+import { fetch as expoFetch, type FetchRequestInit } from "expo/fetch";
 import { supabase } from "./supabase";
+import { signOut } from "./auth";
 import {
   createMobileWebApiSessionRefreshGate,
   fetchMobileWebApiWithSession,
@@ -9,7 +11,29 @@ import {
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 type WebBridgeSessionIdentity = { userId: string; accessToken: string };
+type OptionalAuthGetOptions = Omit<
+  FetchRequestInit,
+  "body" | "credentials" | "method"
+> & {
+  body?: never;
+  credentials?: never;
+  method?: "GET";
+};
 const webBridgeSessionRefreshGate = createMobileWebApiSessionRefreshGate();
+const OPTIONAL_AUTH_FORBIDDEN_HEADERS = [
+  "authorization",
+  "cookie",
+  "cookie2",
+  "proxy-authorization",
+] as const;
+
+function hasAsciiControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
 
 async function readCurrentWebBridgeSession(): Promise<WebBridgeSessionIdentity | null> {
   const { data } = await supabase.auth.getSession();
@@ -53,6 +77,42 @@ function refreshWebBridgeSession(
       return null;
     }
   });
+}
+
+function resolveInternalApiUrl(path: string): string {
+  if (
+    typeof path !== "string"
+    || !path.startsWith("/api/")
+    || path.startsWith("//")
+    || path.includes("\\")
+    || path.includes("#")
+    || hasAsciiControlCharacter(path)
+  ) {
+    throw new Error("내부 API 경로만 호출할 수 있습니다.");
+  }
+
+  const baseUrl = new URL(API_BASE);
+  const requestUrl = new URL(path, baseUrl);
+  if (
+    requestUrl.origin !== baseUrl.origin
+    || !requestUrl.pathname.startsWith("/api/")
+    || requestUrl.username !== ""
+    || requestUrl.password !== ""
+  ) {
+    throw new Error("내부 API 경로만 호출할 수 있습니다.");
+  }
+  return requestUrl.toString();
+}
+
+function buildOptionalAuthGetHeaders(input: HeadersInit | undefined): Headers {
+  const headers = new Headers(input);
+  for (const name of OPTIONAL_AUTH_FORBIDDEN_HEADERS) {
+    if (headers.has(name)) {
+      throw new Error("선택 인증 GET 헤더는 헬퍼가 관리합니다.");
+    }
+  }
+  if (!headers.has("accept")) headers.set("Accept", "application/json");
+  return headers;
 }
 
 /**
@@ -116,8 +176,14 @@ async function authenticatedApiFetch(
       {
         text: "확인",
         onPress: () => {
-          supabase.auth.signOut();
-          router.replace("/(auth)/login");
+          void signOut()
+            .then(() => router.replace("/(auth)/login"))
+            .catch((error: unknown) => {
+              const message = error instanceof Error
+                ? error.message
+                : "알림 연결을 안전하게 해제하지 못했습니다.";
+              Alert.alert("로그아웃 실패", message);
+            });
         },
       },
     ]);
@@ -158,6 +224,73 @@ export async function apiJson<T = unknown>(path: string, options: RequestInit = 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API 오류 (${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * 공개 GET을 읽되 현재 로그인 세션이 있으면 해당 Bearer를 함께 보낸다.
+ * guest 요청은 어떤 자격 정보도 보내지 않으며, 이 헬퍼는 mutation에 사용할 수 없다.
+ */
+export async function optionalAuthGetFetch(
+  path: string,
+  options: OptionalAuthGetOptions = {},
+) {
+  const requestUrl = resolveInternalApiUrl(path);
+  if (options.method !== undefined && options.method !== "GET") {
+    throw new Error("선택 인증 요청은 GET만 허용합니다.");
+  }
+  if (Object.prototype.hasOwnProperty.call(options, "body")) {
+    throw new Error("선택 인증 GET에는 요청 본문을 사용할 수 없습니다.");
+  }
+  if (Object.prototype.hasOwnProperty.call(options, "credentials")) {
+    throw new Error("선택 인증 GET의 자격 정보는 헬퍼가 관리합니다.");
+  }
+
+  const baseHeaders = buildOptionalAuthGetHeaders(options.headers);
+  const fetchRead = (accessToken?: string) => {
+    const headers = new Headers(baseHeaders);
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    return expoFetch(requestUrl, {
+      ...options,
+      method: "GET",
+      headers,
+      credentials: "omit",
+      redirect: "error",
+    });
+  };
+
+  const initialSession = await readCurrentWebBridgeSession();
+  if (!initialSession) return fetchRead();
+
+  const initialResponse = await fetchRead(initialSession.accessToken);
+  if (initialResponse.status !== 401) return initialResponse;
+
+  // 계정이 바뀌었거나 로그아웃되었다면 새 계정/guest로 재전송하지 않는다.
+  const refreshedSession = await refreshWebBridgeSession(initialSession);
+  if (
+    !refreshedSession
+    || refreshedSession.userId !== initialSession.userId
+  ) return initialResponse;
+
+  // 한 번만 갱신·재시도하며 두 번째 401은 서버의 최종 응답으로 돌려준다.
+  return fetchRead(refreshedSession.accessToken);
+}
+
+export async function optionalAuthGetJson<T = unknown>(
+  path: string,
+  options: OptionalAuthGetOptions = {},
+): Promise<T> {
+  const res = await optionalAuthGetFetch(path, options);
+  if (!res.ok) {
+    const body: unknown = await res.json().catch(() => ({}));
+    const message = body !== null
+      && typeof body === "object"
+      && !Array.isArray(body)
+      && typeof (body as { error?: unknown }).error === "string"
+      ? (body as { error: string }).error
+      : `API 오류 (${res.status})`;
+    throw new Error(message);
   }
   return res.json();
 }

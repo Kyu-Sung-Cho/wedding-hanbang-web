@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   createAdminClient: vi.fn(),
   checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true as const })),
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: vi.fn(async () => null),
 }));
 
 vi.mock("@/utils/trustedMutation", () => ({
@@ -26,7 +26,7 @@ vi.mock("@/lib/community/writeAccess", () => ({
   checkCommunityWriteAccess: mocks.checkCommunityWriteAccess,
 }));
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: mocks.checkRateLimit,
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
   rateLimitKey: vi.fn(() => "cohort-message-key"),
 }));
 

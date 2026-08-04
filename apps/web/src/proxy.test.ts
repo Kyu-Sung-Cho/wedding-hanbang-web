@@ -422,3 +422,108 @@ describe("proxy production write fence", () => {
     }
   );
 });
+
+describe("proxy community runtime kill switch", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("turns community mutations read-only without taking reads down", async () => {
+    vi.stubEnv("COMMUNITY_RUNTIME_MODE", "read_only");
+
+    const blocked = await proxy(new NextRequest(
+      "https://hanbang.ai/api/community/posts",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://hanbang.ai",
+          "sec-fetch-site": "same-origin",
+        },
+      },
+    ));
+    expect(blocked.status).toBe(503);
+    expect(blocked.headers.get("cache-control")).toBe("no-store");
+    await expect(blocked.json()).resolves.toEqual({ error: "community_read_only" });
+
+    const read = new NextRequest("https://hanbang.ai/api/community/posts");
+    await expect(proxy(read)).resolves.toHaveProperty("status", 200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(read);
+  });
+
+  it("keeps user safety reports available while writes are frozen", async () => {
+    vi.stubEnv("COMMUNITY_RUNTIME_MODE", "read_only");
+    const request = new NextRequest(
+      "https://hanbang.ai/api/community/posts/12345678-1234-4234-8234-123456789abc/report",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer native-session-token" },
+      },
+    );
+
+    await expect(proxy(request)).resolves.toHaveProperty("status", 200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("can disable community reads and writes without disabling safety intake", async () => {
+    vi.stubEnv("COMMUNITY_RUNTIME_MODE", "disabled");
+
+    const blocked = await proxy(
+      new NextRequest("https://hanbang.ai/api/community/posts"),
+    );
+    expect(blocked.status).toBe(503);
+    await expect(blocked.json()).resolves.toEqual({ error: "community_disabled" });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it.each(["read_only", "disabled"])(
+    "keeps only responder decline and revoke exits open in %s mode",
+    async (mode) => {
+      vi.stubEnv("COMMUNITY_RUNTIME_MODE", mode);
+      const allowedPaths = [
+        "/api/community/responder-requests/12345678-1234-4234-8234-123456789abc/decline",
+        "/api/community/responder-capacity/12345678-1234-4234-8234-123456789abc/revoke",
+      ];
+      for (const pathname of allowedPaths) {
+        const request = new NextRequest(`https://hanbang.ai${pathname}`, {
+          method: "POST",
+          headers: { authorization: "Bearer native-session-token" },
+        });
+        await expect(proxy(request)).resolves.toHaveProperty("status", 200);
+        expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+      }
+
+      const blockedPaths = [
+        "/api/community/responder-capacity",
+        "/api/community/responder-requests/12345678-1234-4234-8234-123456789abc/accept",
+        "/api/community/responder-requests/12345678-1234-4234-8234-123456789abc/decline/extra",
+      ];
+      for (const pathname of blockedPaths) {
+        const response = await proxy(new NextRequest(`https://hanbang.ai${pathname}`, {
+          method: "POST",
+          headers: { authorization: "Bearer native-session-token" },
+        }));
+        expect(response.status).toBe(503);
+      }
+
+      const wrongMethod = await proxy(new NextRequest(
+        "https://hanbang.ai/api/community/responder-capacity/12345678-1234-4234-8234-123456789abc/revoke",
+        { method: "GET" },
+      ));
+      expect(wrongMethod.status).toBe(503);
+    },
+  );
+
+  it.each([undefined, "normal", "READ_ONLY", "true"])(
+    "does not activate for an unsupported mode %s",
+    async (mode) => {
+      vi.stubEnv("COMMUNITY_RUNTIME_MODE", mode);
+      const request = new NextRequest("https://hanbang.ai/api/community/posts");
+      await proxy(request);
+      expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+    },
+  );
+});

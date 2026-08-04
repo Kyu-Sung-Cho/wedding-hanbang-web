@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { isRecord, isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
 
@@ -44,7 +44,7 @@ export async function POST(
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:bookmark", req, user.id),
       { maxRequests: 30, windowMs: 60 * 1000 }
     );

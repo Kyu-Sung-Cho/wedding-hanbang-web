@@ -37,6 +37,7 @@ import Avatar from "@/components/community/Avatar";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import ContentOriginBadge from "@/components/community/ContentOriginBadge";
 import PollDisplay from "@/components/community/PollDisplay";
+import BlockUserButton from "@/components/community/BlockUserButton";
 import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import { communityCategoryFeedPath, communityPostPath } from "@/lib/community/routes";
@@ -200,14 +201,16 @@ function DecisionRecordOverview({
 }
 
 type PostDetailClientProps = {
-  initialPost: PublicCommunityPostDetail;
+  postId: string;
+  initialPost?: PublicCommunityPostDetail | null;
 };
 
 export default function PostDetailClient({
+  postId: requestedPostId,
   initialPost,
 }: PostDetailClientProps) {
   const router = useRouter();
-  const postId = initialPost.id;
+  const postId = requestedPostId;
 
   const {
     currentPost: hydratedPost,
@@ -219,7 +222,7 @@ export default function PostDetailClient({
     deletePost,
   } = useCommunityStore();
   const post =
-    hydratedPost?.id === initialPost.id ? hydratedPost : initialPost;
+    hydratedPost?.id === postId ? hydratedPost : initialPost ?? null;
 
   // 댓글 리얼타임 구독
   useCommentsRealtime(postId);
@@ -465,6 +468,10 @@ export default function PostDetailClient({
     },
     [user, isVoting, post, votePost]
   );
+
+  if (!post) {
+    return <div className="min-h-screen bg-[#FAFAF8]" aria-busy="true" />;
+  }
 
   // 멤버전용 & 비로그인
   const isMembersOnly = post.visibility === "members" && !user;
@@ -1021,6 +1028,18 @@ export default function PostDetailClient({
                   <Flag className="w-4 h-4" />
                   신고
                 </button>
+
+                {user && !isAuthor ? (
+                  <BlockUserButton
+                    userId={post.author_id}
+                    nickname={author.nickname}
+                    className="gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 whitespace-nowrap"
+                    onBlocked={() => {
+                      router.replace(weddingPath());
+                      router.refresh();
+                    }}
+                  />
+                ) : null}
 
                 {/* 수정/삭제 (작성자만) */}
                 {isAuthor && (

@@ -17,6 +17,7 @@ const ACTOR_ID = "22222222-2222-4222-8222-222222222222";
 const POST_ID = "33333333-3333-4333-8333-333333333333";
 const COMMENT_ID = "44444444-4444-4444-8444-444444444444";
 const NOTIFICATION_ID = "55555555-5555-4555-8555-555555555555";
+const OTHER_USER_ID = "66666666-6666-4666-8666-666666666666";
 
 function request(method: "GET" | "POST", body?: unknown) {
   const headers = new Headers({
@@ -63,7 +64,7 @@ describe("community reply notifications route", () => {
           select: vi.fn(() => ({ eq: recipientEq })),
         };
       }
-      if (table === "community_profiles") {
+      if (table === "community_public_profiles") {
         return {
           select: vi.fn(() => ({
             in: vi.fn(async () => ({
@@ -120,6 +121,52 @@ describe("community reply notifications route", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it("fails closed if the data layer returns another recipient's row", async () => {
+    const from = vi.fn((table: string) => {
+      if (table !== "community_reply_notifications") {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(() => ({
+              order: vi.fn(() => ({
+                limit: vi.fn(async () => ({
+                  data: [{
+                    id: NOTIFICATION_ID,
+                    recipient_id: OTHER_USER_ID,
+                    actor_id: ACTOR_ID,
+                    post_id: POST_ID,
+                    comment_id: COMMENT_ID,
+                    parent_comment_id: null,
+                    kind: "post_reply",
+                    read_at: null,
+                    created_at: "2026-07-31T00:00:00.000Z",
+                  }],
+                  error: null,
+                })),
+              })),
+            })),
+          })),
+        })),
+      };
+    });
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })),
+      },
+      from,
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COMMUNITY_NOTIFICATION_OWNERSHIP_UNCONFIRMED",
+    });
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
   it("marks only the current recipient's selected notification as read", async () => {
     const selectedIn = vi.fn(async () => ({ data: null, error: null }));
     const unreadIs = vi.fn(() => ({ in: selectedIn }));
@@ -138,12 +185,37 @@ describe("community reply notifications route", () => {
       from,
     });
 
-    const response = await POST(request("POST", { ids: [NOTIFICATION_ID] }));
+    const response = await POST(request("POST", {
+      ownerId: USER_ID,
+      ids: [NOTIFICATION_ID],
+    }));
 
     expect(response.status).toBe(200);
     expect(recipientEq).toHaveBeenCalledWith("recipient_id", USER_ID);
     expect(unreadIs).toHaveBeenCalledWith("read_at", null);
     expect(selectedIn).toHaveBeenCalledWith("id", [NOTIFICATION_ID]);
+    await expect(response.json()).resolves.toEqual({ ok: true, ownerId: USER_ID });
+  });
+
+  it("rejects a read mutation when the client owner no longer matches the session", async () => {
+    const from = vi.fn();
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })),
+      },
+      from,
+    });
+
+    const response = await POST(request("POST", {
+      ownerId: OTHER_USER_ID,
+      ids: [NOTIFICATION_ID],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COMMUNITY_NOTIFICATION_SESSION_CHANGED",
+    });
+    expect(from).not.toHaveBeenCalled();
   });
 
   it("rejects attempts to smuggle a different recipient into read requests", async () => {
@@ -156,6 +228,7 @@ describe("community reply notifications route", () => {
     });
 
     const response = await POST(request("POST", {
+      ownerId: USER_ID,
       ids: [NOTIFICATION_ID],
       recipient_id: ACTOR_ID,
     }));

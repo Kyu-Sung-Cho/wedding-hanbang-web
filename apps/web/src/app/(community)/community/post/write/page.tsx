@@ -17,6 +17,7 @@ import {
 import * as LucideIcons from "lucide-react";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityStore } from "@/stores/communityStore";
+import { useAuthStore } from "@/stores/authStore";
 import ImageUploader from "@/components/community/ImageUploader";
 import SlideBuilder from "@/components/community/SlideBuilder";
 import TagInput from "@/components/community/TagInput";
@@ -25,7 +26,14 @@ import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { communityPostPath } from "@/lib/community/routes";
+import {
+  claimGuestCommunityDraftForViewer,
+  communityPostDraftKey,
+  communityViewerToken,
+  markGuestCommunityDraftHandoff,
+} from "@/lib/community/viewerPrivacyCache";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
+import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
@@ -39,12 +47,14 @@ import type {
 
 type PostMode = "regular" | "slides";
 
-// 로컬스토리지 키
-const DRAFT_KEY = "community_post_draft";
+const LEGACY_DRAFT_KEY = "community_post_draft";
 
 // 글자수 제한
 const TITLE_MAX_LENGTH = 200;
 const CONTENT_MAX_LENGTH = 50000;
+const MEDIA_PUBLISHING_UI_ENABLED = isCommunityMediaPublishingUiEnabled(
+  process.env.NEXT_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED,
+);
 
 interface InlineImageEntry {
   id: string;
@@ -106,9 +116,12 @@ function getIcon(name: string) {
 }
 
 export default function PostWritePage() {
+  const authViewerId = useAuthStore((state) => state.user?.id ?? null);
+  const editorViewerScope = communityViewerToken(authViewerId);
+
   return (
     <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-[#635b51] animate-spin" /></div>}>
-      <PostWriteContent />
+      <PostWriteContent key={editorViewerScope} />
     </Suspense>
   );
 }
@@ -141,6 +154,7 @@ function PostWriteContent() {
   // 인증 상태
   const [authChecked, setAuthChecked] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const draftKey = communityPostDraftKey(userId);
 
   // 폼 상태
   const [category, setCategory] = useState<CommunityCategory | null>(initialCategory);
@@ -172,8 +186,16 @@ function PostWriteContent() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inlineImageInputRef = useRef<HTMLInputElement>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingCreateCommandRef = useRef<{
+    fingerprint: string;
+    idempotencyKey: string;
+  } | null>(null);
   // 초기 폼 상태 (변경 감지용)
   const initialFormRef = useRef<string>("");
+
+  useEffect(() => {
+    pendingCreateCommandRef.current = null;
+  }, [userId]);
 
   // 본문 인라인 이미지 — 토큰([!img:id])로 textarea에 표시, 발행/미리보기 시 HTML 변환
   const [inlineImages, setInlineImages] = useState<InlineImageEntry[]>([]);
@@ -278,36 +300,65 @@ function PostWriteContent() {
 
   // 새 글 모드: 임시저장 복원
   useEffect(() => {
-    if (isEditMode || !authChecked || (isGuidedQuestionFlow && !isResume)) return;
+    if (!authChecked) return;
 
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      // Unowned legacy drafts can belong to a previous account and are never restored.
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+      if (isEditMode || (isGuidedQuestionFlow && !isResume)) return;
+
+      if (userId && isResume) {
+        claimGuestCommunityDraftForViewer(userId);
+      }
+      const raw = localStorage.getItem(draftKey);
       if (!raw) return;
       const draft: DraftData = JSON.parse(raw);
       // 24시간 이내 임시저장만 복원
       if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) {
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey);
         return;
       }
       setCategory(draft.category);
       setTitle(draft.title || "");
-      setContent(draft.content || "");
+      setContent(
+        MEDIA_PUBLISHING_UI_ENABLED
+          ? draft.content || ""
+          : (draft.content || "").replace(IMG_HTML_RE, ""),
+      );
       setVisibility(draft.visibility || "public");
-      setImages(draft.images || []);
+      setImages(MEDIA_PUBLISHING_UI_ENABLED ? draft.images || [] : []);
       setTags(draft.tags || []);
       setVendorTags(draft.vendorTags || []);
       if (draft.adDisclosure) setAdDisclosure(draft.adDisclosure);
       if (draft.sponsorshipDetail) setSponsorshipDetail(draft.sponsorshipDetail);
       if (draft.priceData) setPriceData(draft.priceData);
-      if (draft.inlineImages?.length) setInlineImages(draft.inlineImages);
-      if (draft.poll) setPoll(draft.poll);
-      if (draft.postMode === "slides") setPostMode("slides");
-      if (draft.slides?.length) setSlides(draft.slides);
+      if (MEDIA_PUBLISHING_UI_ENABLED && draft.inlineImages?.length) {
+        setInlineImages(draft.inlineImages);
+      }
+      if (draft.poll) {
+        setPoll(
+          MEDIA_PUBLISHING_UI_ENABLED
+            ? draft.poll
+            : {
+                ...draft.poll,
+                options: draft.poll.options.map((option) => ({
+                  ...option,
+                  image_url: null,
+                })),
+              },
+        );
+      }
+      if (MEDIA_PUBLISHING_UI_ENABLED && draft.postMode === "slides") {
+        setPostMode("slides");
+      }
+      if (MEDIA_PUBLISHING_UI_ENABLED && draft.slides?.length) {
+        setSlides(draft.slides);
+      }
       setDraftRestored(true);
     } catch {
       // 파싱 실패 시 무시
     }
-  }, [isEditMode, authChecked, isGuidedQuestionFlow, isResume]);
+  }, [authChecked, draftKey, isEditMode, isGuidedQuestionFlow, isResume, userId]);
 
   // 견적 체크 또는 검색 0건 → 질문 작성 prefill
   // - 인증 직후 1회 적용. 이후 사용자가 자유롭게 편집할 수 있도록 ref guard.
@@ -383,12 +434,12 @@ function PostWriteContent() {
       };
     if (!title && !content && !category && slides.length === 0) return false;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      localStorage.setItem(draftKey, JSON.stringify(draft));
       return true;
     } catch {
       return false;
     }
-  }, [category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides]);
+  }, [category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides, draftKey]);
 
   // 자동 저장 (30초마다)
   useEffect(() => {
@@ -454,6 +505,7 @@ function PostWriteContent() {
 
   const handleInsertImage = useCallback(
     async (file: File) => {
+      if (!MEDIA_PUBLISHING_UI_ENABLED) return;
       if (insertingImage) return;
       setInsertImageError(null);
       // 5MB 검증 (이미지), 10MB (GIF)
@@ -564,7 +616,11 @@ function PostWriteContent() {
       return;
     }
     if (!asDraft && visibility === "public" && !publicSafetyConfirmed) {
-      setError("전체 공개 전에 본문과 사진에서 개인정보를 가렸는지 확인해 주세요.");
+      setError(
+        MEDIA_PUBLISHING_UI_ENABLED
+          ? "전체 공개 전에 본문과 사진에서 개인정보를 가렸는지 확인해 주세요."
+          : "전체 공개 전에 본문에서 개인정보를 지웠는지 확인해 주세요.",
+      );
       return;
     }
 
@@ -572,6 +628,12 @@ function PostWriteContent() {
       if (!persistDraft()) {
         setError(
           "작성 내용을 이 기기에 임시 저장하지 못했어요. 내용을 복사한 뒤 브라우저 저장공간 설정을 확인해 주세요.",
+        );
+        return;
+      }
+      if (!markGuestCommunityDraftHandoff()) {
+        setError(
+          "작성 내용을 로그인 뒤 안전하게 이어갈 수 없어요. 내용을 복사한 뒤 브라우저 저장공간 설정을 확인해 주세요.",
         );
         return;
       }
@@ -592,7 +654,12 @@ function PostWriteContent() {
             ...poll,
             question: poll.question.trim(),
             options: poll.options
-              .map((o) => ({ label: o.label.trim(), image_url: o.image_url ?? null }))
+              .map((o) => ({
+                label: o.label.trim(),
+                image_url: MEDIA_PUBLISHING_UI_ENABLED
+                  ? o.image_url ?? null
+                  : null,
+              }))
               .filter((o) => o.label.length > 0),
           }
         : null;
@@ -630,17 +697,26 @@ function PostWriteContent() {
           throw new Error(storeErr || "수정에 실패했습니다.");
         }
         // 임시저장 삭제
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey);
         setHasUnsavedChanges(false);
         router.push(communityPostPath(editId));
       } else {
-        const postId = await createPost(input);
+        const fingerprint = JSON.stringify(input);
+        if (pendingCreateCommandRef.current?.fingerprint !== fingerprint) {
+          pendingCreateCommandRef.current = {
+            fingerprint,
+            idempotencyKey: globalThis.crypto.randomUUID(),
+          };
+        }
+        const idempotencyKey = pendingCreateCommandRef.current.idempotencyKey;
+        const postId = await createPost(input, { idempotencyKey });
         if (!postId) {
           const storeErr = useCommunityStore.getState().errorMessage;
           throw new Error(storeErr || "작성에 실패했습니다.");
         }
+        pendingCreateCommandRef.current = null;
         // 임시저장 삭제
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey);
         setHasUnsavedChanges(false);
         if (asDraft) {
           router.push(weddingPath());
@@ -748,15 +824,15 @@ function PostWriteContent() {
               로그인은 게시할 때만 필요해요. 작성한 내용은 이 기기에 임시 저장됩니다.
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-[#8F6662]">
-              전화번호·이메일·주소·계좌번호·서명·QR코드는 지워주세요. 계약서나 견적서
-              이미지는 개인정보를 가린 뒤 일반 글에서만 첨부할 수 있어요. 다시 열 때
-              24시간이 지난 임시저장은 삭제됩니다.
+              전화번호·이메일·주소·계좌번호·서명·QR코드는 지워주세요. 현재 통제
+              베타에서는 사진 없이 텍스트로만 질문할 수 있어요. 다시 열 때 24시간이
+              지난 임시저장은 삭제됩니다.
             </p>
           </div>
         )}
 
         {/* 모드 토글 — 일반 글 / 인스타 캐러셀(카드 게시물) */}
-        {!isGuidedQuestionFlow && (
+        {!isGuidedQuestionFlow && MEDIA_PUBLISHING_UI_ENABLED && (
         <div className="mb-6 inline-flex bg-white border border-[#e5d8ca] rounded-full p-1 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
           <button
             type="button"
@@ -810,7 +886,7 @@ function PostWriteContent() {
             </section>
 
             {/* 카드 게시물(인스타 캐러셀) 빌더 — 슬라이드 모드 전용 */}
-            {postMode === "slides" && (
+            {MEDIA_PUBLISHING_UI_ENABLED && postMode === "slides" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
                   슬라이드 <span className="text-[#36534E]">*</span>
@@ -870,17 +946,39 @@ function PostWriteContent() {
                         setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
                         autoResize();
                       }}
-                      onPaste={isGuidedQuestionFlow ? undefined : handlePaste}
-                      onDragEnter={isGuidedQuestionFlow ? undefined : handleDragEnter}
-                      onDragOver={isGuidedQuestionFlow ? undefined : handleDragOver}
-                      onDragLeave={isGuidedQuestionFlow ? undefined : handleDragLeave}
-                      onDrop={isGuidedQuestionFlow ? undefined : handleDrop}
+                      onPaste={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handlePaste
+                          : undefined
+                      }
+                      onDragEnter={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDragEnter
+                          : undefined
+                      }
+                      onDragOver={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDragOver
+                          : undefined
+                      }
+                      onDragLeave={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDragLeave
+                          : undefined
+                      }
+                      onDrop={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDrop
+                          : undefined
+                      }
                       placeholder={
                         postMode === "slides"
                           ? "이 카드 게시물의 캡션을 한 줄로 적어보세요. (선택)"
                           : isGuidedQuestionFlow
                             ? "1. 지금 어떤 상황인가요?\n2. 이미 들은 조건이나 해본 선택이 있나요?\n3. 실제 비용·계약·후회한 점 중 무엇을 듣고 싶나요?"
-                            : "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                            : MEDIA_PUBLISHING_UI_ENABLED
+                              ? "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                              : "내용을 입력하세요. 통제 베타에서는 텍스트 게시물만 작성할 수 있어요."
                       }
                       maxLength={CONTENT_MAX_LENGTH}
                       className={`w-full px-4 py-3 text-base text-[#263832] bg-[#f6efe5] border rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none leading-relaxed min-h-[220px] ${
@@ -889,7 +987,7 @@ function PostWriteContent() {
                           : "border-[#e5d8ca]"
                       }`}
                     />
-                    {isDraggingImage && (
+                    {MEDIA_PUBLISHING_UI_ENABLED && isDraggingImage && (
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-[#36534E]/8">
                         <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md text-sm font-medium text-[#36534E]">
                           <ImagePlus className="w-4 h-4" />
@@ -902,7 +1000,7 @@ function PostWriteContent() {
                   {/* 인라인 도구바 — 이미지/GIF 삽입. 카드 모드는 캡션이라 도구바 숨김. */}
                   <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      {!isGuidedQuestionFlow && postMode === "regular" && (
+                      {MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow && postMode === "regular" && (
                         <>
                           <input
                             ref={inlineImageInputRef}
@@ -999,7 +1097,7 @@ function PostWriteContent() {
             </section>
 
             {/* 이미지 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
-            {!isGuidedQuestionFlow && postMode === "regular" && (
+            {MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow && postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
                   이미지
@@ -1011,7 +1109,40 @@ function PostWriteContent() {
             {/* 투표 (폴) — 수정 모드에서는 비활성화. 카드 게시물도 폴 없이 깔끔하게 유지. */}
             {!isEditMode && !isGuidedQuestionFlow && postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <PollEditor value={poll} onChange={setPoll} />
+                <PollEditor
+                  value={poll}
+                  onChange={setPoll}
+                  mediaUploadsEnabled={MEDIA_PUBLISHING_UI_ENABLED}
+                />
+              </section>
+            )}
+
+            {!MEDIA_PUBLISHING_UI_ENABLED
+              && isEditMode
+              && (images.length > 0 || slides.length > 0 || inlineImages.length > 0) && (
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <p className="text-sm font-semibold text-[#263832]">기존 미디어</p>
+                <p className="mt-1 text-sm leading-relaxed text-[#635b51]">
+                  통제 베타에서는 새 미디어를 추가하거나 바꿀 수 없어요. 기존 첨부는
+                  그대로 둔 채 텍스트만 수정하거나, 아래에서 모두 제거할 수 있어요.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImages([]);
+                    setSlides([]);
+                    setPostMode("regular");
+                    setInlineImages([]);
+                    setContent((previous) =>
+                      previous
+                        .replace(IMG_TOKEN_RE, "")
+                        .replace(/\n{3,}/g, "\n\n"),
+                    );
+                  }}
+                  className="mt-3 text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  기존 미디어 모두 제거
+                </button>
               </section>
             )}
           </div>
@@ -1081,8 +1212,10 @@ function PostWriteContent() {
                   <p className="text-[12px] leading-relaxed text-[#8F6662]">
                     전체 공개 글은 로그인하지 않은 사람과 검색엔진에도 노출될 수 있어요.
                     이름과 생년월일, 연락처, 정확한 주소, 건강·임신·성생활·민감한
-                    가족관계, 계약·예약번호는 지워 주세요. 이미지 메타정보는
-                    제거하지만 사진 속 글자는 자동으로 가려지지 않아요.
+                    가족관계, 계약·예약번호는 지워 주세요.
+                    {MEDIA_PUBLISHING_UI_ENABLED && (
+                      <> 이미지 메타정보는 제거하지만 사진 속 글자는 자동으로 가려지지 않아요.</>
+                    )}
                   </p>
                   <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[#635b51]">
                     <input
@@ -1091,7 +1224,9 @@ function PostWriteContent() {
                       onChange={(event) => setPublicSafetyConfirmed(event.target.checked)}
                       className="mt-0.5 h-4 w-4 shrink-0 accent-[#36534E]"
                     />
-                    본문과 사진에서 개인정보·민감한 사정·계약번호를 확인하고 가렸어요.
+                    {MEDIA_PUBLISHING_UI_ENABLED
+                      ? "본문과 사진에서 개인정보·민감한 사정·계약번호를 확인하고 가렸어요."
+                      : "본문에서 개인정보·민감한 사정·계약번호를 확인하고 지웠어요."}
                   </label>
                 </div>
               )}

@@ -9,24 +9,41 @@ export type CommunityWriteAccessResult =
       message: string;
     };
 
+type CommunityWriteAccessPayload = {
+  profile_exists: boolean;
+  is_suspended: boolean;
+};
+
+function isCommunityWriteAccessPayload(
+  value: unknown,
+): value is CommunityWriteAccessPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.profile_exists === "boolean"
+    && typeof payload.is_suspended === "boolean"
+  );
+}
+
 /**
  * API-level explanation for the DB suspension fence.
  *
  * Missing community profiles are allowed because a first-time member may not
- * have one until their first post is created. Lookup failures fail closed so a
- * database outage cannot silently bypass a suspension.
+ * have one until their first post is created. The base profile table is
+ * server-only; this uses the narrow own-actor RPC so counters, wedding timing,
+ * and moderation metadata never need client SELECT permission. Lookup failures
+ * and malformed RPC payloads fail closed.
  */
 export async function checkCommunityWriteAccess(
   client: SupabaseClient,
   userId: string,
 ): Promise<CommunityWriteAccessResult> {
-  const { data, error } = await client
-    .from("community_profiles")
-    .select("is_suspended")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const { data, error } = await client.rpc(
+    "community_get_write_access" as never,
+    { p_user_id: userId } as never,
+  );
 
-  if (error) {
+  if (error || !isCommunityWriteAccessPayload(data)) {
     return {
       allowed: false,
       status: 503,
@@ -35,7 +52,7 @@ export async function checkCommunityWriteAccess(
     };
   }
 
-  if (data?.is_suspended === true) {
+  if (data.is_suspended) {
     return {
       allowed: false,
       status: 403,

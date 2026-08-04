@@ -8,7 +8,7 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { sanitizeText } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +73,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data: profile, error } = await supabase
+    // The base profile contains private counters and moderation state. Auth is
+    // verified above; only the server-role boundary may read the caller's row.
+    const serviceClient = getServiceClient();
+    const { data: profile, error } = await serviceClient
       .from("community_profiles")
       .select("*")
       .eq("user_id", user.id)
@@ -87,7 +90,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const serviceClient = getServiceClient();
     const { count: actualPostCount } = await serviceClient
       .from("community_posts")
       .select("id", { count: "exact", head: true })
@@ -136,13 +138,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const limited = checkRateLimit(
+    const limited = await checkRateLimitPersistent(
       rateLimitKey("community:profile:create", req, user.id),
       { maxRequests: 5, windowMs: 60 * 60 * 1000 },
     );
     if (limited) return limited;
 
-    const { data: existing, error: existingError } = await supabase
+    const serviceClient = getServiceClient();
+    const { data: existing, error: existingError } = await serviceClient
       .from("community_profiles")
       .select("*")
       .eq("user_id", user.id)
@@ -154,7 +157,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const serviceClient = getServiceClient();
     const { count: actualPostCount } = await serviceClient
       .from("community_posts")
       .select("id", { count: "exact", head: true })
@@ -229,7 +231,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:profile:update", req, user.id),
       { maxRequests: 5, windowMs: 60 * 60 * 1000 }
     );

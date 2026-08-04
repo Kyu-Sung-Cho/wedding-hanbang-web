@@ -1,13 +1,28 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { sanitizeHtml } from "@/utils/sanitize";
+import { sanitizeText } from "@/utils/sanitize";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import {
   findObviousPublicPersonalInfo,
   PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
 } from "@/lib/community/publicPersonalInfo";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
+
+const MAX_COMMENT_PATCH_BODY_BYTES = 8 * 1024;
+
+function logContentFreeFailure(
+  scope: string,
+  category: "database" | "unexpected",
+  sourceCode: unknown,
+) {
+  const code =
+    typeof sourceCode === "string" && /^[A-Z0-9_]{1,64}$/u.test(sourceCode)
+      ? sourceCode
+      : "UNCLASSIFIED";
+  console.error(scope, { category, code });
+}
 
 function getServiceClient() {
   return createAdminClient();
@@ -81,17 +96,61 @@ export async function PATCH(
 
     const userIsAdmin =
       existingComment.author_id !== user.id && (await isAdmin(user.id));
-    if (existingComment.author_id !== user.id && !userIsAdmin) {
+    if (existingComment.author_id !== user.id && userIsAdmin) {
+      return NextResponse.json(
+        {
+          error: "관리자 운영 조치는 감사 기록이 남는 moderation 경로를 사용해 주세요.",
+          code: "COMMUNITY_ADMIN_EDIT_REQUIRES_AUDITED_ACTION",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    if (existingComment.author_id !== user.id) {
       return NextResponse.json(
         { error: "수정 권한이 없습니다." },
         { status: 403 }
       );
     }
 
-    const { content: rawContent } = (await req.json()) as { content: string };
+    const bodyResult = await readBoundedUtf8Text(
+      req,
+      MAX_COMMENT_PATCH_BODY_BYTES,
+    );
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: "댓글 수정 요청을 읽을 수 없습니다." },
+        {
+          status: bodyResult.reason === "too_large" ? 413 : 400,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(bodyResult.text) as unknown;
+    } catch {
+      return NextResponse.json(
+        { error: "댓글 수정 요청 형식을 확인해 주세요." },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (
+      !isRecord(body)
+      || Object.keys(body).some((field) => field !== "content")
+      || typeof body.content !== "string"
+    ) {
+      return NextResponse.json(
+        { error: "댓글 수정 요청 필드를 확인해 주세요." },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const rawContent = body.content;
 
     // 댓글 내용 검증 및 정화
-    const content = sanitizeHtml(rawContent ?? "").slice(0, 5000);
+    // Public comments are plain text. Strip markup and every attribute before
+    // PII inspection so mailto/src/alt/title values cannot survive an edit.
+    const content = sanitizeText(rawContent ?? "").slice(0, 5000).trim();
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json(
@@ -112,25 +171,34 @@ export async function PATCH(
       );
     }
 
-    let updateQuery = serviceClient
+    const updateQuery = serviceClient
       .from("community_comments")
       .update({
         content,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("is_deleted", false);
-    if (!userIsAdmin) {
+      .eq("is_deleted", false)
       // Repeat ownership in the write predicate so a stale or replaced row
       // cannot cross the authorization boundary between read and update.
-      updateQuery = updateQuery.eq("author_id", user.id);
-    }
+      .eq("author_id", user.id);
     const { data: updatedComment, error } = await updateQuery
       .select("*")
       .single();
 
+    if (!updatedComment && (!error || error.code === "PGRST116")) {
+      return NextResponse.json(
+        { error: "댓글을 찾을 수 없습니다." },
+        { status: 404, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     if (error) {
-      console.error("Update comment error:", error);
+      logContentFreeFailure(
+        "[community.comments.patch]",
+        "database",
+        error.code,
+      );
       return NextResponse.json(
         { error: "댓글 수정에 실패했습니다." },
         { status: 500 }
@@ -138,8 +206,12 @@ export async function PATCH(
     }
 
     return NextResponse.json({ comment: updatedComment });
-  } catch (err) {
-    console.error("Update comment error:", err);
+  } catch {
+    logContentFreeFailure(
+      "[community.comments.patch]",
+      "unexpected",
+      "UNHANDLED_EXCEPTION",
+    );
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -173,10 +245,12 @@ export async function DELETE(
       );
     }
 
-    // 작성자 확인
-    const { data: existingComment } = await supabase
+    // Direct client writes are revoked. Read the authoritative moderation and
+    // author-intent state through the service boundary before deciding whether
+    // this is a duplicate author deletion.
+    const { data: existingComment } = await serviceClient
       .from("community_comments")
-      .select("author_id, post_id, is_deleted")
+      .select("author_id, post_id, is_deleted, author_deleted_at")
       .eq("id", id)
       .single();
 
@@ -187,56 +261,83 @@ export async function DELETE(
       );
     }
 
-    if (existingComment.is_deleted) {
+    const deletingAsAdmin =
+      existingComment.author_id !== user.id && (await isAdmin(user.id));
+    if (deletingAsAdmin) {
       return NextResponse.json(
-        { error: "이미 삭제된 댓글입니다." },
-        { status: 400 }
+        {
+          error: "관리자 삭제는 작성자 의사와 분리된 감사 조치 경로를 사용해야 합니다.",
+          code: "COMMUNITY_ADMIN_DELETE_REQUIRES_AUDITED_ACTION",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
       );
     }
 
-    if (existingComment.author_id !== user.id && !(await isAdmin(user.id))) {
+    if (existingComment.author_id !== user.id) {
       return NextResponse.json(
         { error: "삭제 권한이 없습니다." },
         { status: 403 }
       );
     }
 
-    // 소프트 삭제: is_deleted = true, 내용 제거
-    const { error } = await serviceClient
-      .from("community_comments")
-      .update({
-        is_deleted: true,
-        content: "삭제된 댓글입니다.",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
+    // DB가 작성자와 댓글을 잠그고 작성자 삭제 의사 및 두 카운터를 한
+    // 트랜잭션으로 반영한다. 동일 요청은 이미 완료된 상태를 성공 재생한다.
+    const { data: deletion, error } = await serviceClient.rpc(
+      "community_delete_comment_service",
+      { p_actor_id: user.id, p_comment_id: id },
+    );
     if (error) {
-      console.error("Delete comment error:", error);
+      const message = `${error.code ?? ""} ${error.message ?? ""}`;
+      if (message.includes("COMMUNITY_COMMENT_NOT_FOUND")) {
+        return NextResponse.json({ error: "댓글을 찾을 수 없습니다." }, { status: 404 });
+      }
+      if (message.includes("COMMUNITY_COMMENT_DELETE_FORBIDDEN")) {
+        return NextResponse.json({ error: "삭제 권한이 없습니다." }, { status: 403 });
+      }
+      logContentFreeFailure(
+        "[community.comments.delete]",
+        "database",
+        error.code,
+      );
       return NextResponse.json(
-        { error: "댓글 삭제에 실패했습니다." },
-        { status: 500 }
+        {
+          error: "댓글 삭제 상태를 안전하게 저장하지 못했습니다.",
+          code: "COMMUNITY_COMMENT_DELETE_UNAVAILABLE",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
 
-    // comment_count 감소
-    await serviceClient
-      .from("community_posts")
-      .select("comment_count")
-      .eq("id", existingComment.post_id)
-      .single()
-      .then(({ data }) => {
-        return serviceClient
-          .from("community_posts")
-          .update({
-            comment_count: Math.max(0, (data?.comment_count ?? 1) - 1),
-          })
-          .eq("id", existingComment.post_id);
-      });
+    const result = deletion as {
+      comment_id?: unknown;
+      post_comment_count?: unknown;
+    } | null;
+    if (
+      !result
+      || result.comment_id !== id
+      || Object.hasOwn(result, "replayed")
+      || !Number.isSafeInteger(result.post_comment_count)
+    ) {
+      return NextResponse.json(
+        {
+          error: "댓글 삭제 결과를 확인하지 못했습니다.",
+          code: "COMMUNITY_COMMENT_DELETE_UNCONFIRMED",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Delete comment error:", err);
+    return NextResponse.json({
+      success: true,
+      comment_id: result.comment_id,
+      post_comment_count: result.post_comment_count,
+    });
+  } catch {
+    logContentFreeFailure(
+      "[community.comments.delete]",
+      "unexpected",
+      "UNHANDLED_EXCEPTION",
+    );
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

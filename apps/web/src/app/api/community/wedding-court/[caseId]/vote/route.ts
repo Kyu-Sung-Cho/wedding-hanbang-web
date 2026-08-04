@@ -9,7 +9,7 @@ import {
   castWeddingCourtVote,
   WeddingCourtRepositoryError,
 } from "@/lib/weddingCourt/repository";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_LENGTH = 2_048;
@@ -127,7 +127,7 @@ export async function POST(
       );
     }
 
-    const rateLimitResponse = checkRateLimit(
+    const rateLimitResponse = await checkRateLimitPersistent(
       rateLimitKey("community:wedding-court:vote", request, user.id),
       { maxRequests: 20, windowMs: 60_000 },
     );

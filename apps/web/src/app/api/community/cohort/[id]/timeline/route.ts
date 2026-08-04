@@ -67,7 +67,7 @@ export async function GET(
 
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
-        .from("community_profiles")
+        .from("community_public_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", userIds);
 

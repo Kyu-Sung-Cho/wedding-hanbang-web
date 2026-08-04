@@ -6,8 +6,10 @@ import {
   createCommunityCohortGate,
   createCohortMessageIdempotencyStore,
   fetchCurrentCohortAccess,
+  fetchCohortMembers,
   fetchCohortMessages,
   mergeCohortMessageSnapshot,
+  parseCohortMembers,
   parseCurrentCohortAccess,
   sendCohortMessage,
 } from "../lib/communityCohortAccess.mjs";
@@ -271,5 +273,52 @@ test("member message reads reject a malformed subset instead of hiding it", asyn
       roomId: ROOM_ID,
     }),
     /COMMUNITY_COHORT_MESSAGES_RESPONSE_INVALID/,
+  );
+});
+
+test("cohort members use the owner-bound API and retain only the public identity projection", async () => {
+  const calls = [];
+  const members = await fetchCohortMembers({
+    apiFetchForExpectedUser: async (...args) => {
+      calls.push(args);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          members: [{
+            user_id: OWNER_ID,
+            profile: { nickname: "테스터", rank: "expert" },
+          }],
+        }),
+      };
+    },
+    ownerId: OWNER_ID,
+    roomId: ROOM_ID,
+  });
+
+  assert.deepEqual(members, [{
+    user_id: OWNER_ID,
+    profile: { nickname: "테스터", rank: "expert" },
+  }]);
+  assert.deepEqual(calls, [[
+    OWNER_ID,
+    `/api/community/cohort/${ROOM_ID}/members`,
+    {},
+  ]]);
+});
+
+test("the mobile cohort member parser rejects wedding timing and other undeclared profile fields", () => {
+  assert.throws(
+    () => parseCohortMembers({
+      members: [{
+        user_id: OWNER_ID,
+        profile: {
+          nickname: "테스터",
+          rank: "expert",
+          wedding_year: 2027,
+        },
+      }],
+    }),
+    /COMMUNITY_COHORT_MEMBERS_RESPONSE_INVALID/,
   );
 });

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { buildCommunityReplyWebHref } from "@hanbang/shared/community-notification";
+
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
   isBodyTooLarge,
@@ -36,8 +38,44 @@ function json(body: unknown, init?: { status?: number }) {
 }
 
 type ReadSelection =
-  | { kind: "all" }
-  | { kind: "ids"; ids: string[] };
+  | { kind: "all"; ownerId: string }
+  | { kind: "ids"; ownerId: string; ids: string[] };
+
+type ReplyNotificationRow = {
+  id: string;
+  recipient_id: string;
+  actor_id: string;
+  post_id: string;
+  comment_id: string;
+  parent_comment_id: string | null;
+  kind: "post_reply" | "comment_reply";
+  read_at: string | null;
+  created_at: string;
+};
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function isReplyNotificationRow(
+  value: unknown,
+  expectedRecipientId: string,
+): value is ReplyNotificationRow {
+  if (!isRecord(value)) return false;
+  return (
+    isUuid(value.id)
+    && isUuid(value.recipient_id)
+    && value.recipient_id.toLowerCase() === expectedRecipientId.toLowerCase()
+    && isUuid(value.actor_id)
+    && value.actor_id.toLowerCase() !== expectedRecipientId.toLowerCase()
+    && isUuid(value.post_id)
+    && isUuid(value.comment_id)
+    && (value.parent_comment_id === null || isUuid(value.parent_comment_id))
+    && (value.kind === "post_reply" || value.kind === "comment_reply")
+    && (value.read_at === null || isTimestamp(value.read_at))
+    && isTimestamp(value.created_at)
+  );
+}
 
 async function readSelection(
   request: Request,
@@ -64,19 +102,34 @@ async function readSelection(
   } catch {
     body = null;
   }
-  if (!isRecord(body) || Object.keys(body).length !== 1) {
+  if (!isRecord(body) || !isUuid(body.ownerId)) {
     return json({ error: "읽음 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
-  if (body.all === true) return { kind: "all" };
+  const keys = Object.keys(body);
   if (
-    !Array.isArray(body.ids)
+    body.all === true
+    && keys.length === 2
+    && keys.includes("ownerId")
+    && keys.includes("all")
+  ) {
+    return { kind: "all", ownerId: body.ownerId };
+  }
+  if (
+    keys.length !== 2
+    || !keys.includes("ownerId")
+    || !keys.includes("ids")
+    || !Array.isArray(body.ids)
     || body.ids.length < 1
     || body.ids.length > MAX_NOTIFICATION_IDS
     || !body.ids.every(isUuid)
   ) {
     return json({ error: "알림 ID가 올바르지 않습니다." }, { status: 400 });
   }
-  return { kind: "ids", ids: [...new Set(body.ids)] };
+  return {
+    kind: "ids",
+    ownerId: body.ownerId,
+    ids: [...new Set(body.ids)],
+  };
 }
 
 export async function GET(request: Request) {
@@ -85,7 +138,7 @@ export async function GET(request: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
+    if (!user || !isUuid(user.id)) {
       return json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
@@ -104,23 +157,25 @@ export async function GET(request: Request) {
       );
     }
 
-    const rows = (data ?? []) as unknown as Array<{
-      id: string;
-      recipient_id: string;
-      actor_id: string;
-      post_id: string;
-      comment_id: string;
-      parent_comment_id: string | null;
-      kind: "post_reply" | "comment_reply";
-      read_at: string | null;
-      created_at: string;
-    }>;
+    if (
+      !Array.isArray(data)
+      || !data.every((row) => isReplyNotificationRow(row, user.id))
+    ) {
+      return json(
+        {
+          code: "COMMUNITY_NOTIFICATION_OWNERSHIP_UNCONFIRMED",
+          error: "알림 소유권을 안전하게 확인하지 못했습니다.",
+        },
+        { status: 503 },
+      );
+    }
+    const rows = data;
     const actorIds = [...new Set(rows.map((row) => row.actor_id))];
     const postIds = [...new Set(rows.map((row) => row.post_id))];
     const [profileResult, postResult] = await Promise.all([
       actorIds.length > 0
         ? supabase
-            .from("community_profiles")
+            .from("community_public_profiles")
             .select("user_id, nickname")
             .in("user_id", actorIds)
         : Promise.resolve({ data: [], error: null }),
@@ -131,6 +186,38 @@ export async function GET(request: Request) {
             .in("id", postIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
+
+    if (profileResult.error || postResult.error) {
+      return json(
+        { error: "알림 내용을 안전하게 불러오지 못했습니다." },
+        { status: 503 },
+      );
+    }
+
+    const actorIdSet = new Set(actorIds.map((id) => id.toLowerCase()));
+    const postIdSet = new Set(postIds.map((id) => id.toLowerCase()));
+    if (
+      !(profileResult.data ?? []).every((profile) => (
+        isRecord(profile)
+        && isUuid(profile.user_id)
+        && actorIdSet.has(profile.user_id.toLowerCase())
+        && typeof profile.nickname === "string"
+        && profile.nickname.length > 0
+        && Array.from(profile.nickname).length <= 40
+      ))
+      || !(postResult.data ?? []).every((post) => (
+        isRecord(post)
+        && isUuid(post.id)
+        && postIdSet.has(post.id.toLowerCase())
+        && typeof post.title === "string"
+        && Array.from(post.title).length <= 200
+      ))
+    ) {
+      return json(
+        { error: "알림 내용을 안전하게 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
 
     const nicknameById = new Map(
       (profileResult.data ?? []).map((profile) => [
@@ -144,14 +231,21 @@ export async function GET(request: Request) {
     const notifications = rows.map((row) => {
       const actorNickname = nicknameById.get(row.actor_id) ?? "회원";
       return {
-        ...row,
+        id: row.id,
+        actor_id: row.actor_id,
+        post_id: row.post_id,
+        comment_id: row.comment_id,
+        parent_comment_id: row.parent_comment_id,
+        kind: row.kind,
+        read_at: row.read_at,
+        created_at: row.created_at,
         actor_nickname: actorNickname,
         title:
           row.kind === "comment_reply"
             ? `${actorNickname}님이 내 답변에 답글을 남겼어요`
             : `${actorNickname}님이 내 고민에 답변을 남겼어요`,
         message: postTitleById.get(row.post_id) ?? "커뮤니티 글",
-        href: `/wedding/community/post/${row.post_id}#comment-${row.comment_id}`,
+        href: buildCommunityReplyWebHref(row.post_id, row.comment_id),
       };
     });
 
@@ -174,12 +268,21 @@ export async function POST(request: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
+    if (!user || !isUuid(user.id)) {
       return json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
     const selection = await readSelection(request);
     if (selection instanceof NextResponse) return selection;
+    if (selection.ownerId.toLowerCase() !== user.id.toLowerCase()) {
+      return json(
+        {
+          code: "COMMUNITY_NOTIFICATION_SESSION_CHANGED",
+          error: "로그인 계정이 변경되었습니다. 알림을 다시 불러와 주세요.",
+        },
+        { status: 409 },
+      );
+    }
 
     const recipientUpdate = supabase
       .from("community_reply_notifications")
@@ -197,7 +300,7 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
-    return json({ ok: true });
+    return json({ ok: true, ownerId: user.id });
   } catch {
     return json(
       { error: "알림 읽음 상태를 저장하지 못했습니다." },

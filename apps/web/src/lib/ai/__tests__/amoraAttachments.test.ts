@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AMORA_DOCX_MAX_ENTRIES,
+  AMORA_MAX_TOTAL_ATTACHMENT_BYTES,
   AmoraAttachmentValidationError,
   AmoraDocxArchiveValidationError,
   assertSafeDocxArchive,
@@ -119,6 +120,14 @@ describe("validateAmoraAttachments", () => {
       base64: Buffer.alloc(10 * 1024 * 1024 + 1).toString("base64"),
       mediaType: "application/pdf",
     }], "ATTACHMENT_TOO_LARGE");
+  });
+
+  it("rejects an attachment set whose combined raw bytes exceed the shared provider limit", () => {
+    const raw = Buffer.alloc(Math.floor(AMORA_MAX_TOTAL_ATTACHMENT_BYTES / 2) + 1);
+    expectAttachmentError([
+      { base64: raw.toString("base64"), mediaType: "image/png" },
+      { base64: raw.toString("base64"), mediaType: "application/pdf" },
+    ], "ATTACHMENT_TOO_LARGE");
   });
 
   it("rejects excessive counts and invalid filenames", () => {

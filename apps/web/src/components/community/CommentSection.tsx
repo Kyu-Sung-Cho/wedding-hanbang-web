@@ -65,6 +65,19 @@ export function buildCommentTree(
   }));
 }
 
+function removeBlockedAuthors(
+  sourceComments: CommentWithAuthor[],
+  blockedAuthorIds: ReadonlySet<string>,
+): CommentWithAuthor[] {
+  return sourceComments.flatMap((comment) => {
+    if (blockedAuthorIds.has(comment.author_id)) return [];
+    return [{
+      ...comment,
+      replies: removeBlockedAuthors(comment.replies ?? [], blockedAuthorIds),
+    }];
+  });
+}
+
 export default function CommentSection({ postId }: CommentSectionProps) {
   const {
     comments,
@@ -82,6 +95,10 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [blockedAuthorIds, setBlockedAuthorIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [blockNotice, setBlockNotice] = useState(false);
   const pendingSubmissionKeys = useRef(
     new Map<string, { content: string; idempotencyKey: string }>(),
   );
@@ -154,10 +171,10 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   }
 
   // 댓글 트리 빌드 (1-depth only)
-  const visibleComments = useMemo(
-    () => (commentsPostId === postId ? comments : []),
-    [comments, commentsPostId, postId]
-  );
+  const visibleComments = useMemo(() => {
+    const currentComments = commentsPostId === postId ? comments : [];
+    return removeBlockedAuthors(currentComments, blockedAuthorIds);
+  }, [blockedAuthorIds, comments, commentsPostId, postId]);
   const isLoadingCurrentComments = commentsPostId === postId && commentsLoading;
 
   const treeComments = useMemo(
@@ -183,6 +200,21 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           )}
         </h3>
       </div>
+
+      {blockNotice ? (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d8d1cc] bg-[#FBF8F2] px-3 py-2.5 text-xs leading-relaxed text-[#635b51]"
+        >
+          <span>차단한 회원의 답변을 이 화면에서도 숨겼어요.</span>
+          <Link
+            href={weddingPath("/community/my/blocks")}
+            className="font-semibold text-[#36534E] hover:underline"
+          >
+            차단 관리
+          </Link>
+        </div>
+      ) : null}
 
       {/* 댓글 입력 */}
       {user ? (
@@ -278,6 +310,14 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               onDelete={deleteComment}
               onEdit={updateComment}
               onVote={voteComment}
+              onBlockedUser={(blockedUserId) => {
+                setBlockedAuthorIds((current) => {
+                  const next = new Set(current);
+                  next.add(blockedUserId);
+                  return next;
+                });
+                setBlockNotice(true);
+              }}
               onReply={(parentId, content) => {
                 return submitWithStableKey({
                   post_id: postId,

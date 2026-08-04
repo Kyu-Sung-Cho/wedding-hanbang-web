@@ -13,11 +13,15 @@ import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { PrimaryButton } from "@/components/ui/AppUI";
 import {
+  captureCommunityCacheScope,
   getCachedCommunityFeed,
+  isCommunityCacheScopeCurrent,
   putCachedCommunityFeed,
   putCachedCommunityPosts,
+  setCommunityCacheViewer,
   type CachedCommunityPost,
 } from "@/lib/communityPostCache";
+import { parseCommunityPostTrust } from "@/lib/communityTrust.mjs";
 
 const COMMUNITY_WARM_LIMIT = 12;
 type AuthStatus = "checking" | "authenticated" | "guest" | "error";
@@ -26,9 +30,17 @@ type WarmedCommunityPost = CachedCommunityPost & {
   images?: string[] | null;
 };
 
-function normalizeWarmPost(post: WarmedCommunityPost): CachedCommunityPost {
+function normalizeWarmPost(value: unknown): CachedCommunityPost | null {
+  const trust = parseCommunityPostTrust(value);
+  if (!trust || !value || typeof value !== "object" || Array.isArray(value)) return null;
+  const post = value as WarmedCommunityPost;
   return {
     ...post,
+    content_origin: trust.contentOrigin,
+    ad_disclosure: trust.adDisclosure,
+    sponsorship_detail: trust.sponsorshipDetail,
+    is_resolved: trust.isResolved,
+    under_review: trust.underReview,
     image_urls: post.image_urls ?? post.images ?? [],
   };
 }
@@ -37,11 +49,19 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const isPublicCommunity = pathname === "/community";
   const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
+  const [communityViewerKey, setCommunityViewerKey] = useState("checking");
   const [authAttempt, setAuthAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
     setAuthStatus("checking");
+    setCommunityViewerKey("checking");
+
+    function applyViewer(viewerId: string | null, nextStatus: AuthStatus) {
+      setCommunityCacheViewer(viewerId);
+      setCommunityViewerKey(captureCommunityCacheScope().viewerKey);
+      setAuthStatus(nextStatus);
+    }
 
     async function checkSession() {
       const {
@@ -50,7 +70,15 @@ export default function TabsLayout() {
       } = await supabase.auth.getSession();
       if (!active) return;
 
-      setAuthStatus(error ? "error" : session ? "authenticated" : "guest");
+      if (error) {
+        applyViewer(null, "error");
+        return;
+      }
+
+      applyViewer(
+        session?.user?.id ?? null,
+        session ? "authenticated" : "guest",
+      );
     }
 
     void checkSession();
@@ -59,7 +87,10 @@ export default function TabsLayout() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || event === "INITIAL_SESSION") return;
-      setAuthStatus(session ? "authenticated" : "guest");
+      applyViewer(
+        session?.user?.id ?? null,
+        session ? "authenticated" : "guest",
+      );
     });
 
     return () => {
@@ -69,20 +100,26 @@ export default function TabsLayout() {
   }, [authAttempt]);
 
   useEffect(() => {
+    if (authStatus === "checking") return;
+
     let cancelled = false;
 
     async function warmCommunityFeed() {
       if (getCachedCommunityFeed("all")) return;
+      const cacheScope = captureCommunityCacheScope();
 
       try {
-        const data = await apiJson<{ posts: WarmedCommunityPost[] }>(
+        const data = await apiJson<{ posts?: unknown }>(
           `/api/community/posts?sort=new&limit=${COMMUNITY_WARM_LIMIT}`
         );
-        if (cancelled) return;
+        if (cancelled || !isCommunityCacheScopeCurrent(cacheScope)) return;
 
-        const posts = (data.posts ?? []).map(normalizeWarmPost);
-        putCachedCommunityFeed("all", posts);
-        putCachedCommunityPosts(posts);
+        if (!Array.isArray(data.posts)) return;
+        const posts = data.posts
+          .map(normalizeWarmPost)
+          .filter((post): post is CachedCommunityPost => post !== null);
+        putCachedCommunityFeed("all", posts, cacheScope);
+        putCachedCommunityPosts(posts, cacheScope);
       } catch {
         // Best-effort warmup. The community screen still performs its own load.
       }
@@ -96,9 +133,9 @@ export default function TabsLayout() {
       cancelled = true;
       warmTask.cancel();
     };
-  }, []);
+  }, [authStatus, communityViewerKey]);
 
-  if (!isPublicCommunity && authStatus === "checking") {
+  if (authStatus === "checking") {
     return (
       <View style={styles.authState}>
         <ActivityIndicator color={colors.rose[500]} size="large" />
@@ -134,6 +171,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      key={communityViewerKey}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.rose[500],

@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 function getServiceClient() {
@@ -24,7 +24,7 @@ export async function POST(
     const { id } = await params;
 
     // Rate limit: 10 views per post per IP per minute (prevent view count inflation)
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey(`community:view:${id}`, req),
       { maxRequests: 10, windowMs: 60 * 1000 }
     );

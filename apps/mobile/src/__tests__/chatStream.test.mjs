@@ -64,6 +64,65 @@ function sourceBetween(startMarker, endMarker) {
   return sourceText.slice(start, end);
 }
 
+function loadAiMessageIngestContract() {
+  const ingestFunctionNames = new Set([
+    "normalizeChatVisibility",
+    "isRecord",
+    "asToolExecutionResult",
+    "asChatMessageMetadata",
+    "chatMessageFromRealtimeRow",
+    "parseAiMessageIngestResult",
+    "parseRetryAfterMs",
+    "getAiMessageIngestFailureMessage",
+    "getEphemeralSafetyPersistencePresentation",
+  ]);
+  const declarations = sourceFile.statements
+    .filter((statement) =>
+      (ts.isClassDeclaration(statement) && statement.name?.text === "AiMessageIngestError")
+      || (
+        ts.isFunctionDeclaration(statement)
+        && statement.name
+        && ingestFunctionNames.has(statement.name.text)
+      )
+    )
+    .map((statement) => statement.getFullText(sourceFile))
+    .join("\n");
+  const transpiled = ts.transpileModule(declarations, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  return new Function(
+    `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, parseRetryAfterMs, getAiMessageIngestFailureMessage, getEphemeralSafetyPersistencePresentation };`,
+  )();
+}
+
+function loadColdStartAiRecoveryContract() {
+  const recoveryFunctionNames = new Set([
+    "isRecord",
+    "mergeColdStartRecoveryHistory",
+    "findColdStartAiRecovery",
+  ]);
+  const declarations = sourceFile.statements
+    .filter((statement) =>
+      ts.isFunctionDeclaration(statement)
+      && statement.name
+      && recoveryFunctionNames.has(statement.name.text)
+    )
+    .map((statement) => statement.getFullText(sourceFile))
+    .join("\n");
+  const transpiled = ts.transpileModule(declarations, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  return new Function(
+    `${transpiled.outputText}\nreturn { mergeColdStartRecoveryHistory, findColdStartAiRecovery };`,
+  )();
+}
+
 test("SSE parser survives arbitrary CRLF and JSON chunk boundaries", () => {
   const updates = [];
   const parser = createChatStreamParser((text) => updates.push(text));
@@ -545,15 +604,23 @@ test("AI transport stays behind the durable user-message gate", () => {
     "async function sendAiDraft",
     "async function handleRetry",
   );
-  const durableGate = sendAiDraft.indexOf("if (!durableMessage) throw");
+  const ingestGate = sendAiDraft.indexOf("await requestAiMessageIngest(draft)");
+  const durableGate = sendAiDraft.indexOf("durableMessage = ingestResult.message");
   const transportCall = sendAiDraft.indexOf("await streamAiRequest(request)");
   const inputClear = sendAiDraft.indexOf("setInputByLane((current)");
+  const ephemeralBranch = sendAiDraft.slice(
+    sendAiDraft.indexOf('if (ingestResult.outcome === "ephemeral_safety")'),
+    durableGate,
+  );
 
-  assert.ok(durableGate >= 0);
+  assert.ok(ingestGate >= 0);
+  assert.ok(durableGate > ingestGate);
   assert.ok(transportCall > durableGate);
-  assert.ok(inputClear > durableGate);
+  assert.ok(inputClear > ingestGate);
+  assert.match(ephemeralBranch, /setMessages\(/);
+  assert.match(ephemeralBranch, /return;/);
+  assert.doesNotMatch(ephemeralBranch, /streamAiRequest|requestChatStream/);
   assert.equal(sourceText.includes("apiFetch("), false);
-  assert.equal(sourceText.includes("await res.text()"), false);
 });
 
 test("manual AI retry reuses the stored request instead of generating a new id", () => {
@@ -564,6 +631,27 @@ test("manual AI retry reuses the stored request instead of generating a new id",
 
   assert.ok(retryHandler.includes("await streamAiRequest(failure.request)"));
   assert.equal(retryHandler.includes("Crypto.randomUUID()"), false);
+});
+
+test("AI retry continues from an existing canonical user row without re-ingesting it", () => {
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleRetry",
+  );
+  const durableLookup = aiSend.indexOf('await findDurableUserMessage(draft, "ai")');
+  const missingDurableGate = aiSend.indexOf("if (!durableMessage) {");
+  const ingestCall = aiSend.indexOf("await requestAiMessageIngest(draft)");
+  const providerCall = aiSend.indexOf("await streamAiRequest(request)");
+
+  assert.ok(durableLookup >= 0);
+  assert.ok(missingDurableGate > durableLookup);
+  assert.ok(ingestCall > missingDurableGate);
+  assert.ok(providerCall > ingestCall);
+  assert.match(aiSend, /const effectiveVisibility = durableMessage\.visibility/);
+  assert.doesNotMatch(
+    aiSend.slice(durableLookup, missingDurableGate),
+    /requestAiMessageIngest/,
+  );
 });
 
 test("mobile hides same-request retry after a non-retryable terminal and gives a privacy-free new-message path", () => {
@@ -580,10 +668,11 @@ test("mobile hides same-request retry after a non-retryable terminal and gives a
     "async function handleSend",
   );
 
+  assert.match(sendFailureType, /kind: "ai_insert"[\s\S]*canRetry: boolean[\s\S]*unavailableReason: string \| null/);
   assert.match(sendFailureType, /kind: "ai_response"[\s\S]*canRetry: boolean[\s\S]*unavailableReason: string \| null/);
   assert.match(streamAiRequest, /const canRetry = canRetrySameChatRequest\(error, timedOut\)/);
-  assert.match(retryHandler, /failure\.kind === "ai_response" && !failure\.canRetry/);
-  assert.match(sourceText, /activeSendFailure\.kind !== "ai_response" \|\| activeSendFailure\.canRetry/);
+  assert.match(retryHandler, /if \(!failure\.canRetry\) return/);
+  assert.match(sourceText, /activeSendFailure\.canRetry && \(/);
   assert.match(sourceText, /새 메시지로 보내주세요\./);
   assert.doesNotMatch(sourceText, /activeSendFailure\.request\.body\.messages[\s\S]*새 메시지로 보내주세요/);
 });
@@ -605,7 +694,1472 @@ test("mobile transport forwards parsed quota updates to visible screen state", (
   assert.match(sourceText, /quotaRemaining !== null/);
 });
 
-test("mobile send path preserves the selected visibility through persistence, provider, and retry", () => {
+test("AI message ingest accepts a canonical W0/W1 persisted row", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } =
+    loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "예식장 비교 기준을 정리해줘",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+  };
+  const message = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: expected.coupleId,
+    sender_id: expected.userId,
+    role: "user",
+    sender_type: expected.senderType,
+    content: expected.text,
+    metadata: {
+      client_request_id: expected.clientRequestId,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-03T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  const result = parseAiMessageIngestResult(201, {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message,
+  }, expected);
+
+  assert.deepEqual(result, {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    safetyResolution: null,
+    message,
+  });
+  const attachmentExpected = { ...expected, providerAttachmentCount: 2 };
+  assert.equal(parseAiMessageIngestResult(201, {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message: {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        provider_attachment_state: "present",
+        provider_attachment_count: 2,
+      },
+    },
+  }, attachmentExpected).message.id, message.id);
+  assert.throws(
+    () => parseAiMessageIngestResult(201, {
+      outcome: "persisted",
+      reused: false,
+      effectiveVisibility: "shared",
+      safetyPrivacyRedirected: false,
+      message: {
+        ...message,
+        metadata: {
+          ...message.metadata,
+          amora_ingest_contract_version: 0,
+        },
+      },
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+  assert.throws(
+    () => parseAiMessageIngestResult(201, {
+      outcome: "persisted",
+      reused: false,
+      effectiveVisibility: "shared",
+      safetyPrivacyRedirected: false,
+      message: {
+        ...message,
+        metadata: { ...message.metadata, target: "unexpected" },
+      },
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+});
+
+test("partner message ingest binds the canonical row to the exact target and recipient", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "파트너에게만 전달할 메시지",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "partner",
+    providerAttachmentCount: 0,
+    partnerRecipientId: "55555555-5555-4555-8555-555555555555",
+  };
+  const payload = {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message: {
+      id: "44444444-4444-4444-8444-444444444444",
+      couple_id: expected.coupleId,
+      sender_id: expected.userId,
+      role: "user",
+      sender_type: expected.senderType,
+      content: expected.text,
+      metadata: {
+        target: "partner",
+        client_request_id: expected.clientRequestId,
+        partner_recipient_id: expected.partnerRecipientId,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: false,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+      },
+      created_at: "2026-08-04T00:00:00.000Z",
+      visibility: "shared",
+    },
+  };
+
+  assert.equal(
+    parseAiMessageIngestResult(201, payload, expected).message.id,
+    payload.message.id,
+  );
+  for (const metadata of [
+    { ...payload.message.metadata, target: "ai" },
+    {
+      ...payload.message.metadata,
+      partner_recipient_id: "66666666-6666-4666-8666-666666666666",
+    },
+    { ...payload.message.metadata, ai_response_requested: true },
+  ]) {
+    assert.throws(
+      () => parseAiMessageIngestResult(201, {
+        ...payload,
+        message: { ...payload.message, metadata },
+      }, expected),
+      (error) => error instanceof AiMessageIngestError,
+    );
+  }
+});
+
+test("AI message ingest accepts only the sender's canonical W2 private row", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "상대가 무섭게 느껴져",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 2,
+  };
+  const payload = {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "bride_private",
+    safetyPrivacyRedirected: true,
+    safetyResolution: "non_immediate_safety",
+    message: {
+      id: "44444444-4444-4444-8444-444444444444",
+      couple_id: expected.coupleId,
+      sender_id: expected.userId,
+      role: "user",
+      sender_type: expected.senderType,
+      content: expected.text,
+      metadata: {
+        client_request_id: expected.clientRequestId,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "discarded_by_safety_policy",
+        provider_attachment_count: 0,
+      },
+      created_at: "2026-08-03T00:00:00.000Z",
+      visibility: "bride_private",
+    },
+  };
+
+  const result = parseAiMessageIngestResult(201, payload, expected);
+  assert.equal(result.effectiveVisibility, "bride_private");
+  assert.equal(result.safetyPrivacyRedirected, true);
+  assert.equal(result.safetyResolution, "non_immediate_safety");
+
+  const noAttachmentExpected = { ...expected, providerAttachmentCount: 0 };
+  assert.equal(parseAiMessageIngestResult(201, {
+    ...payload,
+    message: {
+      ...payload.message,
+      metadata: {
+        ...payload.message.metadata,
+        provider_attachment_state: "none",
+      },
+    },
+  }, noAttachmentExpected).message.id, payload.message.id);
+
+  assert.throws(
+    () => parseAiMessageIngestResult(201, {
+      ...payload,
+      safetyResolution: undefined,
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+
+  assert.throws(
+    () => parseAiMessageIngestResult(201, {
+      ...payload,
+      effectiveVisibility: "groom_private",
+      message: { ...payload.message, visibility: "groom_private" },
+    }, expected),
+    (error) => error instanceof AiMessageIngestError
+      && error.retryPolicy === "same_request",
+  );
+});
+
+test("AI message ingest recognizes a server W5 ephemeral fallback without a durable row", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "서버에서만 잡힌 고위험 입력",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+  const payload = {
+    outcome: "ephemeral_safety",
+    effectiveVisibility: "bride_private",
+    safetyPrivacyRedirected: true,
+    partnerDeliveryHeld: false,
+    safetyResolution: "immediate_crisis",
+    classification: "interpersonal_danger",
+    response: "즉시 안전 안내",
+    rawDisclosurePersisted: false,
+  };
+
+  assert.deepEqual(parseAiMessageIngestResult(200, payload, expected), {
+    ...payload,
+    rawDisclosureVisibility: null,
+  });
+  assert.deepEqual(
+    parseAiMessageIngestResult(200, {
+      ...payload,
+      safetyPrivacyRedirected: false,
+    }, expected),
+    {
+      ...payload,
+      safetyPrivacyRedirected: false,
+      rawDisclosureVisibility: null,
+    },
+  );
+  assert.throws(
+    () => parseAiMessageIngestResult(200, {
+      ...payload,
+      rawDisclosurePersisted: "unknown",
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+});
+
+test("partner ingest accepts server-authoritative W2 and W5 holds without persistence", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "서버의 최신 안전 분류가 잡은 파트너 메시지",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "partner",
+    partnerRecipientId: "55555555-5555-4555-8555-555555555555",
+  };
+  const basePayload = {
+    outcome: "ephemeral_safety",
+    effectiveVisibility: "bride_private",
+    safetyPrivacyRedirected: true,
+    partnerDeliveryHeld: true,
+    classification: null,
+    response: "상대방에게 보내지 않고 안전 안내를 보여드려요.",
+    rawDisclosurePersisted: false,
+  };
+
+  for (const safetyResolution of ["non_immediate_safety", "immediate_crisis"]) {
+    const payload = { ...basePayload, safetyResolution };
+    assert.deepEqual(parseAiMessageIngestResult(200, payload, expected), {
+      ...payload,
+      rawDisclosureVisibility: null,
+    });
+  }
+  assert.throws(
+    () => parseAiMessageIngestResult(200, {
+      ...basePayload,
+      safetyResolution: "non_immediate_safety",
+      partnerDeliveryHeld: false,
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+});
+
+test("ephemeral safety validates prior-persistence visibility without inventing scope", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "정책 변경 전 저장됐을 수 있는 안전 메시지",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "partner",
+    partnerRecipientId: "55555555-5555-4555-8555-555555555555",
+  };
+  const basePayload = {
+    outcome: "ephemeral_safety",
+    effectiveVisibility: "bride_private",
+    safetyPrivacyRedirected: true,
+    partnerDeliveryHeld: true,
+    safetyResolution: "immediate_crisis",
+    classification: "interpersonal_danger",
+    response: "즉시 안전 안내",
+  };
+
+  for (const rawDisclosureVisibility of ["shared", "bride_private"]) {
+    const payload = {
+      ...basePayload,
+      rawDisclosurePersisted: true,
+      rawDisclosureVisibility,
+    };
+    assert.deepEqual(parseAiMessageIngestResult(200, payload, expected), payload);
+  }
+
+  for (const rawDisclosurePersisted of [true, null]) {
+    const payload = { ...basePayload, rawDisclosurePersisted };
+    assert.deepEqual(parseAiMessageIngestResult(200, payload, expected), {
+      ...payload,
+      rawDisclosureVisibility: null,
+    });
+  }
+
+  assert.throws(
+    () => parseAiMessageIngestResult(200, {
+      ...basePayload,
+      rawDisclosurePersisted: true,
+      rawDisclosureVisibility: "public",
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+  assert.throws(
+    () => parseAiMessageIngestResult(200, {
+      ...basePayload,
+      rawDisclosurePersisted: false,
+      rawDisclosureVisibility: "shared",
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+});
+
+test("ephemeral safety derives truthful none, shared, private, and unknown presentation", () => {
+  const { getEphemeralSafetyPersistencePresentation } = loadAiMessageIngestContract();
+  const notStored = getEphemeralSafetyPersistencePresentation(false, null, true);
+  const partnerShared = getEphemeralSafetyPersistencePresentation(true, null, true);
+  const aiShared = getEphemeralSafetyPersistencePresentation(true, "shared", false);
+  const privateOnly = getEphemeralSafetyPersistencePresentation(
+    true,
+    "bride_private",
+    false,
+  );
+  const persistedUnknown = getEphemeralSafetyPersistencePresentation(true, null, false);
+  const persistenceUnknown = getEphemeralSafetyPersistencePresentation(null, null, false);
+
+  assert.equal(notStored.persistence, "none");
+  assert.equal(notStored.rawDisclosureShared, false);
+  assert.match(notStored.notice, /저장하지 않았어요/);
+
+  for (const shared of [partnerShared, aiShared]) {
+    assert.equal(shared.persistence, "shared");
+    assert.equal(shared.rawDisclosureShared, true);
+    assert.match(shared.notice, /상대방에게 전달·저장/);
+    assert.doesNotMatch(shared.notice, /저장하지 않았어요/);
+  }
+
+  assert.equal(privateOnly.persistence, "private_only");
+  assert.equal(privateOnly.rawDisclosureShared, false);
+  assert.match(privateOnly.notice, /비공개 대화에 이미 저장/);
+
+  assert.equal(persistedUnknown.persistence, "unknown");
+  assert.equal(persistedUnknown.rawDisclosureShared, null);
+  assert.match(persistedUnknown.notice, /이미 저장됐지만 저장 범위/);
+  assert.doesNotMatch(persistedUnknown.notice, /저장하지 않았어요/);
+
+  assert.equal(persistenceUnknown.persistence, "unknown");
+  assert.equal(persistenceUnknown.rawDisclosureShared, null);
+  assert.match(persistenceUnknown.notice, /이전 저장·전달 여부를 지금 확인하지 못했어요/);
+  assert.doesNotMatch(persistenceUnknown.notice, /저장하지 않았어요/);
+});
+
+test("AI message ingest accepts a reconciled 23505 row only as a reused 200 result", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "같은 요청으로 저장 결과를 확인해줘",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+  };
+  const payload = {
+    outcome: "persisted",
+    reused: true,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message: {
+      id: "44444444-4444-4444-8444-444444444444",
+      couple_id: expected.coupleId,
+      sender_id: expected.userId,
+      role: "user",
+      sender_type: expected.senderType,
+      content: expected.text,
+      metadata: {
+        client_request_id: expected.clientRequestId,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+      },
+      created_at: "2026-08-03T00:00:00.000Z",
+      visibility: "shared",
+    },
+  };
+
+  assert.equal(parseAiMessageIngestResult(200, payload, expected).reused, true);
+  assert.throws(
+    () => parseAiMessageIngestResult(201, payload, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+});
+
+test("AI message ingest binds a shared confirmed action to the canonical metadata", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "제안한 변경을 적용해줘",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+    confirmedActionId: "55555555-5555-4555-8555-555555555555",
+  };
+  const baseMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: expected.coupleId,
+    sender_id: expected.userId,
+    role: "user",
+    sender_type: expected.senderType,
+    content: expected.text,
+    metadata: {
+      client_request_id: expected.clientRequestId,
+      confirmed_amora_action_id: expected.confirmedActionId,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-03T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const payload = {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message: baseMessage,
+  };
+
+  assert.equal(
+    parseAiMessageIngestResult(201, payload, expected)
+      .message.metadata.confirmed_amora_action_id,
+    expected.confirmedActionId,
+  );
+  assert.throws(
+    () => parseAiMessageIngestResult(201, {
+      ...payload,
+      message: {
+        ...baseMessage,
+        metadata: {
+          ...baseMessage.metadata,
+          confirmed_amora_action_id: "66666666-6666-4666-8666-666666666666",
+        },
+      },
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+});
+
+test("AI message ingest marks a 409 idempotency conflict as new-message-only", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "충돌한 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  assert.throws(
+    () => parseAiMessageIngestResult(409, {
+      error: "같은 요청 식별자가 다른 메시지에 이미 사용되었어요.",
+      code: "USER_MESSAGE_REQUEST_CONFLICT",
+      retryable: false,
+      retryPolicy: "new_message",
+    }, expected),
+    (error) => {
+      assert.ok(error instanceof AiMessageIngestError);
+      assert.equal(error.status, 409);
+      assert.equal(error.serverCode, "USER_MESSAGE_REQUEST_CONFLICT");
+      assert.equal(error.retryable, false);
+      assert.equal(error.retryPolicy, "new_message");
+      return true;
+    },
+  );
+});
+
+test("AI message ingest preserves the exact request after an explicit 503 same-request result", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "저장 결과가 불확실한 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  assert.throws(
+    () => parseAiMessageIngestResult(503, {
+      error: "저장 결과를 확인하지 못했어요.",
+      code: "USER_MESSAGE_PERSISTENCE_UNKNOWN",
+      retryable: false,
+      retryPolicy: "same_request",
+    }, expected),
+    (error) => {
+      assert.ok(error instanceof AiMessageIngestError);
+      assert.equal(error.status, 503);
+      assert.equal(error.serverCode, "USER_MESSAGE_PERSISTENCE_UNKNOWN");
+      assert.equal(error.retryable, true);
+      assert.equal(error.retryPolicy, "same_request");
+      return true;
+    },
+  );
+});
+
+test("AI message ingest preserves the exact request across uncertain edge 5xx responses", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "엣지 응답 뒤 저장 여부가 불확실한 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  for (const status of [500, 502, 504]) {
+    assert.throws(
+      () => parseAiMessageIngestResult(status, { code: "EDGE_FAILURE" }, expected),
+      (error) => error instanceof AiMessageIngestError
+        && error.retryable === true
+        && error.retryPolicy === "same_request",
+    );
+  }
+});
+
+test("AI message ingest retries a pre-write 429 with the same idempotency key", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "요청이 몰린 동안 보낸 메시지",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  assert.throws(
+    () => parseAiMessageIngestResult(429, { code: "RATE_LIMITED" }, expected),
+    (error) => error instanceof AiMessageIngestError
+      && error.retryable === true
+      && error.retryPolicy === "same_request",
+  );
+});
+
+test("AI message ingest gives 401, 403, and 429 distinct safe recovery copy", () => {
+  const {
+    AiMessageIngestError,
+    getAiMessageIngestFailureMessage,
+    parseAiMessageIngestResult,
+  } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "실패 뒤에도 보존할 질문",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  const readFailure = (status, retryAfterMs = null) => {
+    try {
+      parseAiMessageIngestResult(status, null, expected, retryAfterMs);
+      assert.fail(`expected ${status} to fail`);
+    } catch (error) {
+      assert.ok(error instanceof AiMessageIngestError);
+      return error;
+    }
+  };
+  const auth = readFailure(401);
+  const forbidden = readFailure(403);
+  const limited = readFailure(429, 12_000);
+
+  assert.equal(auth.retryable, false);
+  assert.match(getAiMessageIngestFailureMessage(auth, false), /로그인이 만료/);
+  assert.equal(forbidden.retryable, false);
+  assert.match(getAiMessageIngestFailureMessage(forbidden, false), /대화 권한/);
+  assert.equal(limited.retryable, true);
+  assert.equal(limited.retryAfterMs, 12_000);
+  assert.match(getAiMessageIngestFailureMessage(limited, false), /12초 후/);
+});
+
+test("mobile honors bounded Retry-After seconds and HTTP dates from ingest", () => {
+  const { parseRetryAfterMs } = loadAiMessageIngestContract();
+  const nowMs = Date.parse("2026-08-04T00:00:00.000Z");
+
+  assert.equal(parseRetryAfterMs("12", nowMs), 12_000);
+  assert.equal(
+    parseRetryAfterMs("Tue, 04 Aug 2026 00:00:45 GMT", nowMs),
+    45_000,
+  );
+  assert.equal(parseRetryAfterMs("999999", nowMs), 300_000);
+  assert.equal(parseRetryAfterMs("not-a-date", nowMs), null);
+  assert.equal(parseRetryAfterMs(null, nowMs), null);
+
+  const ingestRequest = sourceBetween(
+    "async function requestAiMessageIngest",
+    "async function requestChatStream",
+  );
+  assert.match(
+    ingestRequest,
+    /parseRetryAfterMs\(response\.headers\.get\("Retry-After"\)\)/,
+  );
+});
+
+test("AI message ingest treats a malformed successful envelope as an unknown committed outcome", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "응답이 잘린 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  assert.throws(
+    () => parseAiMessageIngestResult(201, null, expected),
+    (error) => error instanceof AiMessageIngestError
+      && error.retryable === true
+      && error.retryPolicy === "same_request",
+  );
+});
+
+test("cold-start offers a click-only resume for the latest unanswered v1 text request", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "답변이 오기 전에 앱이 종료된 질문",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  assert.deepEqual(
+    findColdStartAiRecovery([userMessage], {
+      coupleId: userMessage.couple_id,
+      userId: userMessage.sender_id,
+      senderType: "bride",
+      visibility: "shared",
+    }),
+    {
+      disposition: "resumable",
+      lane: "shared_ai",
+      userMessageId: userMessage.id,
+      clientRequestId: userMessage.metadata.client_request_id,
+      content: userMessage.content,
+      visibility: "shared",
+      providerAttachmentState: "none",
+      providerAttachmentCount: 0,
+    },
+  );
+});
+
+test("cold-start can resume a v1 request whose attachments were discarded by safety policy", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "안전 정책으로 첨부가 제외된 질문",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "discarded_by_safety_policy",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "bride_private",
+  };
+
+  assert.deepEqual(
+    findColdStartAiRecovery([userMessage], {
+      coupleId: userMessage.couple_id,
+      userId: userMessage.sender_id,
+      senderType: "bride",
+      visibility: "bride_private",
+    }),
+    {
+      disposition: "resumable",
+      lane: "private_ai",
+      userMessageId: userMessage.id,
+      clientRequestId: userMessage.metadata.client_request_id,
+      content: userMessage.content,
+      visibility: "bride_private",
+      providerAttachmentState: "discarded_by_safety_policy",
+      providerAttachmentCount: 0,
+    },
+  );
+});
+
+test("cold-start exposes a canonical v2 attachment turn as reattach-only", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "Please continue after I reattach the image.",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 2,
+      ai_response_requested: true,
+      provider_attachment_state: "present",
+      provider_attachment_count: 1,
+      provider_attachment_manifest: [{
+        media_type: "image/png",
+        byte_length: 5,
+        sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      }],
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  assert.deepEqual(
+    findColdStartAiRecovery([userMessage], {
+      coupleId: userMessage.couple_id,
+      userId: userMessage.sender_id,
+      senderType: "bride",
+      visibility: "shared",
+    }),
+    {
+      disposition: "reattach_required",
+      lane: "shared_ai",
+      userMessageId: userMessage.id,
+      clientRequestId: userMessage.metadata.client_request_id,
+      content: userMessage.content,
+      visibility: "shared",
+      providerAttachmentState: "present",
+      providerAttachmentCount: 1,
+    },
+  );
+
+  const resumeHandler = sourceBetween(
+    "async function handleColdStartAiRecovery",
+    "async function handleRetry",
+  );
+  assert.match(resumeHandler, /recovery\.disposition !== "resumable"/);
+});
+
+test("cold-start rejects a malformed v2 attachment manifest", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "This row must not create a recovery action.",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 2,
+      ai_response_requested: true,
+      provider_attachment_state: "present",
+      provider_attachment_count: 1,
+      provider_attachment_manifest: [{
+        media_type: "image/png",
+        byte_length: 5,
+        sha256: "NOT-A-CANONICAL-DIGEST",
+      }],
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  assert.equal(findColdStartAiRecovery([userMessage], {
+    coupleId: userMessage.couple_id,
+    userId: userMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  }), null);
+});
+
+test("cold-start requires reattachment for present or unknown provider attachment state", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const baseMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "첨부파일이 있었던 질문",
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const context = {
+    coupleId: baseMessage.couple_id,
+    userId: baseMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  };
+
+  for (const attachmentMetadata of [
+    { provider_attachment_state: "present", provider_attachment_count: 2 },
+    { provider_attachment_count: 0 },
+  ]) {
+    const message = {
+      ...baseMessage,
+      metadata: {
+        client_request_id: "33333333-3333-4333-8333-333333333333",
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        ...attachmentMetadata,
+      },
+    };
+    const recovery = findColdStartAiRecovery([message], context);
+    assert.equal(recovery?.disposition, "reattach_required");
+    assert.equal(recovery?.userMessageId, message.id);
+    assert.equal(recovery?.clientRequestId, message.metadata.client_request_id);
+    assert.equal(
+      recovery?.providerAttachmentState,
+      attachmentMetadata.provider_attachment_state ?? "unknown",
+    );
+    assert.equal(
+      recovery?.providerAttachmentCount,
+      attachmentMetadata.provider_attachment_count,
+    );
+  }
+});
+
+test("cold-start never offers recovery after a correlated assistant reply exists", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "이미 답변된 질문",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const assistantMessage = {
+    id: "55555555-5555-4555-8555-555555555555",
+    couple_id: userMessage.couple_id,
+    sender_id: null,
+    role: "assistant",
+    sender_type: "ai",
+    content: "완료된 답변",
+    metadata: { in_reply_to_user_message_id: userMessage.id },
+    created_at: "2026-08-04T00:00:01.000Z",
+    visibility: "shared",
+  };
+
+  assert.equal(findColdStartAiRecovery([userMessage, assistantMessage], {
+    coupleId: userMessage.couple_id,
+    userId: userMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  }), null);
+});
+
+test("cold-start leaves confirmed actions to the existing higher-priority recovery flow", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "확인한 변경을 적용해줘",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      confirmed_amora_action_id: "55555555-5555-4555-8555-555555555555",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  assert.equal(findColdStartAiRecovery([userMessage], {
+    coupleId: userMessage.couple_id,
+    userId: userMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  }), null);
+});
+
+test("cold-start recovery fails closed for partner, other-owner, private intrusion, and legacy rows", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const baseMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "복구 후보 질문",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const context = {
+    coupleId: baseMessage.couple_id,
+    userId: baseMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  };
+
+  for (const message of [
+    { ...baseMessage, metadata: { ...baseMessage.metadata, target: "partner" } },
+    { ...baseMessage, sender_id: "66666666-6666-4666-8666-666666666666" },
+    {
+      ...baseMessage,
+      metadata: {
+        ...baseMessage.metadata,
+        amora_ingest_contract_version: undefined,
+      },
+    },
+  ]) {
+    assert.equal(findColdStartAiRecovery([message], context), null);
+  }
+
+  assert.equal(findColdStartAiRecovery([
+    baseMessage,
+    {
+      ...baseMessage,
+      id: "77777777-7777-4777-8777-777777777777",
+      created_at: "2026-08-04T00:00:01.000Z",
+      metadata: { client_request_id: "88888888-8888-4888-8888-888888888888" },
+    },
+  ], context), null);
+  assert.equal(findColdStartAiRecovery([{
+    ...baseMessage,
+    visibility: "groom_private",
+  }], {
+    ...context,
+    visibility: "groom_private",
+  }), null);
+});
+
+test("cold-start recovery rejects malformed canonical request and user-row identifiers", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const baseMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "식별자가 변조된 질문",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const context = {
+    coupleId: baseMessage.couple_id,
+    userId: baseMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  };
+
+  assert.equal(findColdStartAiRecovery([{
+    ...baseMessage,
+    id: "not-a-uuid",
+  }], context), null);
+  assert.equal(findColdStartAiRecovery([{
+    ...baseMessage,
+    metadata: { ...baseMessage.metadata, client_request_id: "not-a-uuid" },
+  }], context), null);
+});
+
+test("cold-start merges the latest private canonical turn beyond the 200-row history bound", () => {
+  const {
+    mergeColdStartRecoveryHistory,
+    findColdStartAiRecovery,
+  } = loadColdStartAiRecoveryContract();
+  const privateUserMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "아주 긴 대화 뒤에도 이어받아야 하는 비공개 질문",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-03T00:00:00.000Z",
+    visibility: "bride_private",
+  };
+  const boundedSharedHistory = Array.from({ length: 200 }, (_, index) => ({
+    id: `shared-filler-${index}`,
+    couple_id: privateUserMessage.couple_id,
+    sender_id: null,
+    role: "assistant",
+    sender_type: "ai",
+    content: `공유 기록 ${index}`,
+    metadata: {},
+    created_at: new Date(Date.parse("2026-08-04T00:00:00.000Z") + index).toISOString(),
+    visibility: "shared",
+  }));
+  const context = {
+    coupleId: privateUserMessage.couple_id,
+    userId: privateUserMessage.sender_id,
+    senderType: "bride",
+    visibility: "bride_private",
+  };
+
+  const merged = mergeColdStartRecoveryHistory(
+    boundedSharedHistory,
+    [privateUserMessage],
+  );
+  assert.equal(merged.length, 201);
+  assert.equal(
+    findColdStartAiRecovery(merged, context)?.userMessageId,
+    privateUserMessage.id,
+  );
+
+  const privateAssistantReply = {
+    id: "55555555-5555-4555-8555-555555555555",
+    couple_id: privateUserMessage.couple_id,
+    sender_id: null,
+    role: "assistant",
+    sender_type: "ai",
+    content: "이미 완료된 비공개 답변",
+    metadata: { in_reply_to_user_message_id: privateUserMessage.id },
+    created_at: "2026-08-03T00:00:01.000Z",
+    visibility: "bride_private",
+  };
+  assert.equal(findColdStartAiRecovery(
+    mergeColdStartRecoveryHistory(
+      boundedSharedHistory,
+      [privateUserMessage, privateAssistantReply],
+    ),
+    context,
+  ), null);
+});
+
+test("cold-start supplements the latest owned shared AI request beyond the 200-row history bound", () => {
+  const {
+    mergeColdStartRecoveryHistory,
+    findColdStartAiRecovery,
+  } = loadColdStartAiRecoveryContract();
+  const sharedUserMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "Resume the latest shared AI turn.",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-03T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const boundedPrivateHistory = Array.from({ length: 200 }, (_, index) => ({
+    id: `private-filler-${index}`,
+    couple_id: sharedUserMessage.couple_id,
+    sender_id: null,
+    role: "assistant",
+    sender_type: "ai",
+    content: `private filler ${index}`,
+    metadata: {},
+    created_at: new Date(Date.parse("2026-08-04T00:00:00.000Z") + index).toISOString(),
+    visibility: "bride_private",
+  }));
+
+  const merged = mergeColdStartRecoveryHistory(
+    boundedPrivateHistory,
+    [sharedUserMessage, sharedUserMessage],
+  );
+  assert.equal(merged.length, 201);
+  assert.equal(findColdStartAiRecovery(merged, {
+    coupleId: sharedUserMessage.couple_id,
+    userId: sharedUserMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  })?.userMessageId, sharedUserMessage.id);
+
+  const loadSession = sourceBetween(
+    "async function loadChatSession",
+    "void loadChatSession();",
+  );
+  assert.match(
+    loadSession,
+    /const latestOwnSharedAiUserRequest = viewerRole[\s\S]*\.eq\("couple_id", profile\.couple_id\)[\s\S]*\.eq\("sender_id", user\.id\)[\s\S]*\.eq\("sender_type", viewerRole\)[\s\S]*\.eq\("role", "user"\)[\s\S]*\.eq\("visibility", "shared"\)[\s\S]*\.limit\(1\)/,
+  );
+  assert.match(
+    loadSession,
+    /error: latestSharedCanonicalError[\s\S]*data: latestOwnSharedAiUser[\s\S]*error: latestOwnSharedAiUserError/,
+  );
+  assert.match(
+    loadSession,
+    /const sharedSupplementalCanonicalTurns =[\s\S]*latestSharedCanonicalError \|\| latestOwnSharedAiUserError[\s\S]*latestSharedCanonical[\s\S]*latestOwnSharedAiUser[\s\S]*const supplementalCanonicalTurns = \[[\s\S]*sharedSupplementalCanonicalTurns/,
+  );
+});
+
+test("cold-start suppresses a stale CTA after a newer canonical row in the same AI lane", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const ownedRequest = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "This interrupted request is no longer the lane tail.",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const newerPartnerAiRequest = {
+    id: "55555555-5555-4555-8555-555555555555",
+    couple_id: ownedRequest.couple_id,
+    sender_id: "66666666-6666-4666-8666-666666666666",
+    role: "user",
+    sender_type: "groom",
+    content: "This is now the latest shared AI request.",
+    metadata: {
+      target: "ai",
+      client_request_id: "77777777-7777-4777-8777-777777777777",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+    },
+    created_at: "2026-08-04T00:00:01.000Z",
+    visibility: "shared",
+  };
+
+  assert.equal(findColdStartAiRecovery(
+    [ownedRequest, newerPartnerAiRequest],
+    {
+      coupleId: ownedRequest.couple_id,
+      userId: ownedRequest.sender_id,
+      senderType: "bride",
+      visibility: "shared",
+    },
+  ), null);
+});
+
+test("mobile cold-start stages a neutral CTA and resumes only after the user's click", () => {
+  const loadSession = sourceBetween(
+    "async function loadChatSession",
+    "void loadChatSession();",
+  );
+  const resumeHandler = sourceBetween(
+    "async function handleColdStartAiRecovery",
+    "async function handleRetry",
+  );
+
+  assert.match(sourceText, /const \[coldStartAiRecoveryByLane, setColdStartAiRecoveryByLane\]/);
+  assert.match(loadSession, /findColdStartAiRecovery\(historyMessages/);
+  assert.match(loadSession, /const latestPrivateCanonicalRequest = privateVisibility/);
+  assert.match(loadSession, /const latestOwnPrivateAiUserRequest = privateVisibility/);
+  assert.match(
+    loadSession,
+    /latestOwnPrivateAiUserRequest[\s\S]*\.eq\("couple_id", profile\.couple_id\)[\s\S]*\.eq\("sender_id", user\.id\)[\s\S]*\.eq\("sender_type", viewerRole\)[\s\S]*\.eq\("role", "user"\)[\s\S]*\.eq\("visibility", privateVisibility\)[\s\S]*\.limit\(1\)/,
+  );
+  assert.match(
+    loadSession,
+    /const privateSupplementalCanonicalTurns =[\s\S]*latestPrivateCanonical[\s\S]*latestOwnPrivateAiUser[\s\S]*const supplementalCanonicalTurns = \[[\s\S]*sharedSupplementalCanonicalTurns[\s\S]*privateSupplementalCanonicalTurns[\s\S]*mergeColdStartRecoveryHistory\([\s\S]*supplementalCanonicalTurns/,
+  );
+  assert.match(
+    loadSession,
+    /error: latestPrivateCanonicalError[\s\S]*error: latestOwnPrivateAiUserError[\s\S]*latestPrivateCanonicalError \|\| latestOwnPrivateAiUserError[\s\S]*\? \[\]/,
+  );
+  assert.match(loadSession, /if \([\s\S]*durableConfirmation[\s\S]*setLaneFailure\("shared_ai"[\s\S]*else if \(viewerRole\)[\s\S]*setColdStartAiRecoveryByLane/);
+  assert.doesNotMatch(loadSession, /streamAiRequest\(|requestChatStream\(/);
+
+  assert.match(resumeHandler, /disposition !== "resumable"/);
+  assert.match(resumeHandler, /clientRequestId: recovery\.clientRequestId/);
+  assert.match(resumeHandler, /durableUserMessageId: recovery\.userMessageId/);
+  assert.match(resumeHandler, /providerAttachmentCount: 0/);
+  assert.match(resumeHandler, /recoveredProviderAttachmentState: recovery\.providerAttachmentState/);
+  assert.match(resumeHandler, /await sendAiDraft\(draft, true\)/);
+  assert.doesNotMatch(resumeHandler, /requestAiMessageIngest|streamAiRequest/);
+
+  assert.match(sourceText, /onPress=\{handleColdStartAiRecovery\}/);
+  assert.match(sourceText, /답변 이어받기/);
+  assert.match(
+    sourceText,
+    /disposition === "reattach_required"[\s\S]*providerAttachmentState === "present"[\s\S]*첨부파일이 포함된 질문[\s\S]*첨부 상태를 확인할 수 없어요/,
+  );
+});
+
+test("cold-start resume revalidates the exact durable row and safe attachment state", () => {
+  const durableLookup = sourceBetween(
+    "async function findDurableUserMessage",
+    "async function sendPartnerDraft",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleColdStartAiRecovery",
+  );
+
+  assert.match(durableLookup, /draft\.durableUserMessageId[\s\S]*\.eq\("id", draft\.durableUserMessageId\)/);
+  assert.match(durableLookup, /durableMessage\.id !== draft\.durableUserMessageId/);
+  assert.match(durableLookup, /amora_ingest_contract_version === 1/);
+  assert.match(durableLookup, /ai_response_requested === true/);
+  assert.match(durableLookup, /provider_attachment_count === draft\.providerAttachmentCount/);
+  assert.match(durableLookup, /recoveredProviderAttachmentState[\s\S]*provider_attachment_state/);
+  assert.match(
+    durableLookup,
+    /draft\.durableUserMessageId[\s\S]*in_reply_to_user_message_id[\s\S]*client_visible_request_id[\s\S]*sender_type", "ai"[\s\S]*role", "assistant"/,
+  );
+  assert.match(
+    durableLookup,
+    /answerLookupError \|\| \(answerRows \?\? \[\]\)\.length > 0[\s\S]*return null/,
+  );
+
+  assert.match(aiSend, /draft\.durableUserMessageId[\s\S]*draft\.providerAttachmentCount !== 0/);
+  assert.match(aiSend, /recoveredProviderAttachmentState !== "none"[\s\S]*"discarded_by_safety_policy"/);
+  assert.match(
+    aiSend,
+    /if \(draft\.durableUserMessageId && !durableMessage\)[\s\S]*return;/,
+  );
+  const durableRecoveryGuard = aiSend.slice(
+    aiSend.indexOf("if (draft.durableUserMessageId && !durableMessage)"),
+    aiSend.indexOf("if (!durableMessage)", aiSend.indexOf("if (draft.durableUserMessageId && !durableMessage)") + 1),
+  );
+  assert.doesNotMatch(durableRecoveryGuard, /requestAiMessageIngest/);
+});
+
+test("a correlated Realtime assistant insert removes the cold-start CTA", () => {
+  const loadSession = sourceBetween(
+    "async function loadChatSession",
+    "void loadChatSession();",
+  );
+  const realtimeInsert = loadSession.slice(
+    loadSession.indexOf('const ch = supabase.channel(`chat:'),
+    loadSession.indexOf('.on("postgres_changes", { event: "UPDATE"',
+      loadSession.indexOf('const ch = supabase.channel(`chat:')),
+  );
+
+  assert.match(realtimeInsert, /setColdStartAiRecoveryByLane/);
+  assert.match(realtimeInsert, /in_reply_to_user_message_id === recovery\.userMessageId/);
+  assert.match(realtimeInsert, /`chat:\$\{user\.id\}:\$\{recovery\.clientRequestId\}`/);
+  assert.match(realtimeInsert, /updateAmoraChatLaneRecord\(current, lane, null\)/);
+});
+
+test("a newer Realtime canonical lane row removes a stale cold-start CTA", () => {
+  const loadSession = sourceBetween(
+    "async function loadChatSession",
+    "void loadChatSession();",
+  );
+  const realtimeInsert = loadSession.slice(
+    loadSession.indexOf('const ch = supabase.channel(`chat:'),
+    loadSession.indexOf('.on("postgres_changes", { event: "UPDATE"',
+      loadSession.indexOf('const ch = supabase.channel(`chat:')),
+  );
+
+  assert.match(realtimeInsert, /const supersedesRecovery =/);
+  assert.match(
+    realtimeInsert,
+    /incoming\.id !== recovery\.userMessageId[\s\S]*incomingMetadata\?\.target !== "partner"/,
+  );
+  assert.match(
+    realtimeInsert,
+    /answersRecovery[\s\S]*\|\| supersedesRecovery[\s\S]*updateAmoraChatLaneRecord\(current, lane, null\)/,
+  );
+});
+
+test("mobile posts both AI and partner user rows through the Bearer ingest boundary", () => {
+  const ingestRequest = sourceBetween(
+    "async function requestAiMessageIngest",
+    "async function requestChatStream",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleRetry",
+  );
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+
+  assert.match(ingestRequest, /supabase\.auth\.getSession\(\)/);
+  assert.match(ingestRequest, /fetch\(`\$\{API_BASE\}\/api\/chat\/messages`/);
+  assert.match(ingestRequest, /Authorization: `Bearer \$\{accessToken\}`/);
+  assert.match(ingestRequest, /coupleId: draft\.coupleId/);
+  assert.match(ingestRequest, /content: draft\.text/);
+  assert.match(ingestRequest, /clientRequestId: draft\.clientRequestId/);
+  assert.match(ingestRequest, /requestedVisibility: draft\.requestedVisibility/);
+  assert.match(ingestRequest, /target: draft\.target/);
+  assert.match(
+    ingestRequest,
+    /providerAttachmentCount: draft\.target === "partner"[\s\S]*\? 0[\s\S]*: draft\.providerAttachmentCount/,
+  );
+  assert.doesNotMatch(ingestRequest, /imagePaths|attachments/);
+
+  assert.match(aiSend, /await requestAiMessageIngest\(draft\)/);
+  assert.doesNotMatch(aiSend, /\.from\("chat_messages"\)[\s\S]*?\.insert\(/);
+  assert.match(aiSend, /durableMessage = ingestResult\.message/);
+  assert.match(partnerSend, /await requestAiMessageIngest\(draft\)/);
+  assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
+  assert.doesNotMatch(partnerSend, /streamAiRequest|requestChatStream/);
+});
+
+test("partner ingest exposes retry only for safe same-request failures", () => {
+  const sendFailureType = sourceBetween(
+    "type SendFailure",
+    "type PartnerRecipientVerification",
+  );
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+  const retryHandler = sourceBetween(
+    "async function handleRetry",
+    "async function handleSend",
+  );
+
+  assert.match(sendFailureType, /kind: "partner_ingest"[\s\S]*canRetry: boolean[\s\S]*unavailableReason: string \| null/);
+  assert.match(partnerSend, /catch \(error\)/);
+  assert.match(partnerSend, /getAiMessageIngestFailureMessage\(error, false\)/);
+  assert.match(partnerSend, /error instanceof AiMessageIngestError[\s\S]*error\.retryable/);
+  assert.match(retryHandler, /if \(!failure\.canRetry\) return/);
+  assert.match(sourceText, /activeSendFailure\.canRetry && \(/);
+});
+
+test("a server W5 fallback creates one local card and never reaches the provider", () => {
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleRetry",
+  );
+  const start = aiSend.indexOf('if (ingestResult.outcome === "ephemeral_safety")');
+  const end = aiSend.indexOf("const safetyPrivacyCard", start);
+  const fallbackBranch = aiSend.slice(start, end);
+
+  assert.ok(start >= 0 && end > start);
+  assert.match(
+    fallbackBranch,
+    /`amora-server-crisis-preflight:\$\{draft\.userId\}:\$\{draft\.clientRequestId\}`/,
+  );
+  assert.match(fallbackBranch, /previous\.some\(\(message\) => message\.id === safetyCardId\)/);
+  assert.match(fallbackBranch, /getEphemeralSafetyPersistencePresentation/);
+  assert.match(fallbackBranch, /ingestResult\.rawDisclosureVisibility/);
+  assert.match(fallbackBranch, /rawDisclosurePersisted === null[\s\S]*raw_disclosure_persisted/);
+  assert.match(fallbackBranch, /raw_disclosure_shared: safetyPersistence\.rawDisclosureShared/);
+  assert.match(fallbackBranch, /raw_disclosure_persistence: safetyPersistence\.persistence/);
+  assert.match(fallbackBranch, /setActiveScope\("private"\)/);
+  assert.match(fallbackBranch, /setTarget\("ai"\)/);
+  assert.match(fallbackBranch, /return;/);
+  assert.doesNotMatch(
+    fallbackBranch,
+    /streamAiRequest|requestChatStream|\.from\("chat_messages"\)|\.insert\(/,
+  );
+});
+
+test("a server partner W2 or W5 hold becomes one private local safety card", () => {
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+  const start = partnerSend.indexOf('if (ingestResult.outcome === "ephemeral_safety")');
+  const end = partnerSend.indexOf("const durableMessage", start);
+  const safetyBranch = partnerSend.slice(start, end);
+
+  assert.ok(start >= 0 && end > start);
+  assert.match(safetyBranch, /ingestResult\.partnerDeliveryHeld/);
+  assert.match(safetyBranch, /getEphemeralSafetyPersistencePresentation/);
+  assert.match(safetyBranch, /ingestResult\.rawDisclosureVisibility/);
+  assert.match(safetyBranch, /raw_disclosure_persistence: safetyPersistence\.persistence/);
+  assert.match(safetyBranch, /safetyResolution === "immediate_crisis"[\s\S]*"W5_safety_override"[\s\S]*"W2_high_risk_adjacent"/);
+  assert.match(safetyBranch, /setActiveScope\("private"\)/);
+  assert.match(safetyBranch, /setTarget\("ai"\)/);
+  assert.match(safetyBranch, /return;/);
+  assert.doesNotMatch(partnerSend, /streamAiRequest|requestChatStream/);
+});
+
+test("mobile send path preserves the safety-effective visibility through persistence, provider, and retry", () => {
   const requestBodyType = sourceBetween(
     "interface ChatRequestBody",
     "interface AiDraft",
@@ -640,26 +2194,189 @@ test("mobile send path preserves the selected visibility through persistence, pr
   );
 
   assert.match(requestBodyType, /visibility: ChatMessageVisibility/);
+  assert.match(aiDraftType, /requestedVisibility: ChatMessageVisibility/);
   assert.match(aiDraftType, /visibility: ChatMessageVisibility/);
+  assert.match(aiDraftType, /target: "ai"/);
   assert.match(aiDraftType, /clientRequestId: string/);
+  assert.match(partnerDraftType, /target: "partner"/);
+  assert.match(partnerDraftType, /requestedVisibility: "shared"/);
   assert.match(partnerDraftType, /visibility: "shared"/);
   assert.match(partnerDraftType, /clientRequestId: string/);
   assert.match(partnerDraftType, /partnerRecipientId: string/);
   assert.match(durableLookup, /\.eq\("visibility", draft\.visibility\)/);
   assert.match(durableLookup, /client_request_id: draft\.clientRequestId/);
   assert.doesNotMatch(durableLookup, /\.eq\("content", draft\.text\)/);
+  assert.match(durableLookup, /durableMessage\.content !== draft\.text/);
   assert.doesNotMatch(durableLookup, /draft\.startedAt/);
-  assert.match(partnerSend, /visibility: draft\.visibility/);
-  assert.match(partnerSend, /metadata: \{[\s\S]*target: "partner",[\s\S]*client_request_id: draft\.clientRequestId,[\s\S]*partner_recipient_id: draft\.partnerRecipientId,[\s\S]*\}/);
-  assert.match(aiSend, /visibility: draft\.visibility/);
-  assert.match(aiSend, /client_request_id: draft\.clientRequestId/);
-  assert.match(aiSend, /body:[\s\S]*visibility: draft\.visibility/);
+  assert.match(partnerSend, /await requestAiMessageIngest\(draft\)/);
+  assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
+  assert.match(aiSend, /const ingestResult = await requestAiMessageIngest\(draft\)/);
+  assert.match(aiSend, /durableMessage = ingestResult\.message/);
+  assert.match(aiSend, /coupleId: canonicalUserMessage\.couple_id/);
+  assert.match(aiSend, /clientRequestId: canonicalUserMessage\.metadata!\.client_request_id!/);
+  assert.match(aiSend, /userMessageId: canonicalUserMessage\.id/);
+  assert.match(aiSend, /visibility: effectiveVisibility/);
+  assert.doesNotMatch(aiSend, /body:[\s\S]*visibility: draft\.visibility/);
   assert.match(aiStream, /visibility: request\.body\.visibility/);
   assert.match(sendHandler, /chatVisibilityForScope\(activeScope, userRole\)/);
-  assert.match(sendHandler, /visibility: activeVisibility/);
+  assert.match(sendHandler, /const effectiveVisibility = crisisPreflight\.effectiveVisibility/);
+  assert.match(sendHandler, /requestedVisibility: activeVisibility/);
+  assert.match(sendHandler, /visibility: effectiveVisibility/);
+  assert.match(sendHandler, /target: "ai"/);
+  assert.match(sendHandler, /target: "partner"/);
   assert.match(sendHandler, /partnerRecipientId/);
   assert.match(sendHandler, /const clientRequestId = Crypto\.randomUUID\(\)/);
   assert.equal((sendHandler.match(/Crypto\.randomUUID\(\)/g) ?? []).length, 1);
+});
+
+test("mobile crisis preflight holds every target locally before persistence or transport", () => {
+  const sendHandler = sourceBetween(
+    "async function handleSend",
+    "function handleInputChange",
+  );
+  const preflightIndex = sendHandler.indexOf("const crisisPreflight = planAmoraCrisisDelivery");
+  const holdIndex = sendHandler.indexOf('crisisPreflight.disposition === "local_safety_hold"');
+  const normalPathIndex = sendHandler.indexOf("const partnerRecipientId");
+
+  assert.ok(preflightIndex >= 0);
+  assert.ok(holdIndex > preflightIndex);
+  assert.ok(normalPathIndex > holdIndex);
+  assert.match(
+    sendHandler,
+    /planAmoraCrisisDelivery\(\{[\s\S]*userText: text,[\s\S]*requestedVisibility: activeVisibility,[\s\S]*target,[\s\S]*senderRole: userRole/,
+  );
+
+  const holdBranch = sendHandler.slice(holdIndex, normalPathIndex);
+  assert.match(holdBranch, /content: `\$\{privacyNotice\}\\n\\n\$\{crisisPreflight\.response\}`/);
+  assert.match(holdBranch, /visibility: crisisPreflight\.effectiveVisibility/);
+  assert.match(
+    holdBranch,
+    /response_origin: crisisPreflight\.safetyResolution === "immediate_crisis"[\s\S]*"client_deterministic_crisis_preflight"[\s\S]*"client_deterministic_safety_privacy_preflight"/,
+  );
+  assert.match(holdBranch, /raw_disclosure_persisted: false/);
+  assert.match(holdBranch, /setMessages\(/);
+  assert.match(holdBranch, /setActiveScope\("private"\)/);
+  assert.match(holdBranch, /setTarget\("ai"\)/);
+  assert.match(
+    holdBranch,
+    /current\[activeLane\]\.trim\(\) === text[\s\S]*updateAmoraChatLaneRecord\(current, activeLane, ""\)/,
+  );
+  assert.match(holdBranch, /return;/);
+  assert.doesNotMatch(
+    holdBranch,
+    /supabase|fetch\(|requestChatStream|streamAiRequest|sendPartnerDraft|sendAiDraft|\.upload\(|\.storage\b|captureEvent/,
+  );
+  assert.doesNotMatch(holdBranch, /content:\s*text|metadata:[\s\S]{0,300}\btext\b/);
+});
+
+test("mobile routes non-immediate shared AI safety text through the private lane end to end", () => {
+  const aiDraftType = sourceBetween(
+    "interface AiDraft",
+    "interface AiRequest",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleRetry",
+  );
+  const privacyCardBranch = aiSend.slice(
+    aiSend.indexOf("const safetyPrivacyCard"),
+    aiSend.indexOf("const serverRequestKey"),
+  );
+  const retryHandler = sourceBetween(
+    "async function handleRetry",
+    "async function handleSend",
+  );
+  const sendHandler = sourceBetween(
+    "async function handleSend",
+    "function handleInputChange",
+  );
+
+  assert.match(aiDraftType, /sourceLane: AmoraChatLane/);
+  assert.match(aiDraftType, /requestedVisibility: ChatMessageVisibility/);
+  assert.doesNotMatch(aiDraftType, /safetyPrivacyRedirected\?: boolean/);
+  assert.match(sendHandler, /const effectiveVisibility = crisisPreflight\.effectiveVisibility/);
+  assert.match(sendHandler, /const effectiveLane = aiLaneForVisibility\(effectiveVisibility\)/);
+  assert.match(sendHandler, /crisisPreflight\.disposition === "private_safety_route"/);
+  assert.match(sendHandler, /crisisPreflight\.safetyPrivacyRedirected/);
+  assert.match(sendHandler, /setActiveScope\("private"\)/);
+  assert.match(sendHandler, /setTarget\("ai"\)/);
+  assert.match(sendHandler, /sourceLane: activeLane/);
+  assert.match(sendHandler, /requestedVisibility: activeVisibility/);
+  assert.match(sendHandler, /visibility: effectiveVisibility/);
+  assert.doesNotMatch(
+    sendHandler,
+    /private_safety_route[\s\S]{0,1200}updateAmoraChatLaneRecord\([^\n]*"private_ai"[^\n]*text/,
+  );
+
+  assert.match(aiSend, /isMessageInAiContext\([\s\S]*message\.visibility,[\s\S]*effectiveVisibility/);
+  assert.match(aiSend, /ingestResult\.safetyPrivacyRedirected/);
+  assert.match(aiSend, /visibility: effectiveVisibility/);
+  assert.doesNotMatch(aiSend, /body:[\s\S]*visibility: draft\.visibility/);
+  assert.match(privacyCardBranch, /response_origin: "server_authoritative_safety_privacy_route"/);
+  assert.match(privacyCardBranch, /question_scope: "W2_high_risk_adjacent"/);
+  assert.match(privacyCardBranch, /pinned_safety_card: true/);
+  assert.match(privacyCardBranch, /raw_disclosure_persisted: true/);
+  assert.match(privacyCardBranch, /raw_disclosure_shared: false/);
+  assert.match(privacyCardBranch, /raw_disclosure_persistence: "private_only"/);
+  assert.doesNotMatch(privacyCardBranch, /raw_disclosure_persisted: false/);
+  assert.ok(
+    aiSend.indexOf("const safetyPrivacyCard")
+      > aiSend.indexOf("durableMessage = ingestResult.message"),
+    "the truthful private-only notice must be created only after durable persistence",
+  );
+  assert.match(
+    aiSend,
+    /current\[draft\.sourceLane\]\.trim\(\) === draft\.text[\s\S]*updateAmoraChatLaneRecord\(current, draft\.sourceLane, ""\)/,
+  );
+  assert.match(
+    retryHandler,
+    /updateAmoraChatLaneRecord\([\s\S]*current,[\s\S]*failure\.draft\.sourceLane,[\s\S]*failure\.draft\.text/,
+  );
+});
+
+test("mobile W5 safety cards suppress stale chrome and preserve persistence truth", () => {
+  assert.match(
+    sourceText,
+    /const activeW5PersistenceState = useMemo[\s\S]*pinned_safety_card !== true[\s\S]*question_scope !== "W5_safety_override"/,
+  );
+  assert.match(
+    sourceText,
+    /const latestMessage = scopedMessages\[scopedMessages\.length - 1\]/,
+  );
+  assert.match(
+    sourceText,
+    /activeW5PersistenceState\.persistence === "none"[\s\S]*입력 내용은 저장되지 않았어요[\s\S]*persistence === "shared"[\s\S]*상대방에게 전달·저장됐어요[\s\S]*persistence === "private_only"[\s\S]*비공개 대화에 저장됐어요[\s\S]*rawDisclosurePersisted === true[\s\S]*저장됐지만 저장 범위는 확인하지 못했어요[\s\S]*이전 저장·전달 여부를 확인하지 못했어요/,
+  );
+  assert.match(sourceText, /!hasActiveW5SafetyCard && quotaRemaining !== null/);
+  assert.match(sourceText, /!hasActiveW5SafetyCard && activeSendFailure/);
+});
+
+test("mobile local safety hold is synchronously deduplicated until the draft changes", () => {
+  const resetSession = sourceBetween(
+    "const resetChatSessionState",
+    "useEffect(() => {",
+  );
+  const sendHandler = sourceBetween(
+    "async function handleSend",
+    "function handleInputChange",
+  );
+  const inputHandler = sourceBetween(
+    "function handleInputChange",
+    "function handleTargetChange",
+  );
+  const holdIndex = sendHandler.indexOf('crisisPreflight.disposition === "local_safety_hold"');
+  const normalPathIndex = sendHandler.indexOf("const partnerRecipientId");
+  const holdBranch = sendHandler.slice(holdIndex, normalPathIndex);
+
+  assert.match(sourceText, /const safetyHoldLockRef = useRef\(false\)/);
+  assert.match(holdBranch, /if \(safetyHoldLockRef\.current\) return/);
+  assert.match(holdBranch, /safetyHoldLockRef\.current = true/);
+  assert.match(
+    holdBranch,
+    /previous\.some\(\(message\) => message\.id === safetyCard\.id\)[\s\S]*previous[\s\S]*\[\.\.\.previous, safetyCard\]/,
+  );
+  assert.match(inputHandler, /safetyHoldLockRef\.current = false/);
+  assert.match(resetSession, /safetyHoldLockRef\.current = false/);
 });
 
 test("mobile UI exposes accessible shared/private scopes and renders only the selected scope", () => {
@@ -722,9 +2439,10 @@ test("partner delivery is fail-closed and AI suggestions never overwrite the par
   assert.doesNotMatch(suggestionHandler, /handleInputChange/);
 
   const verificationCallIndex = partnerSend.indexOf("await verifyPartnerDraftRecipient(draft)");
-  const insertIndex = partnerSend.indexOf('.insert({');
+  const ingestIndex = partnerSend.indexOf("await requestAiMessageIngest(draft)");
   assert.ok(verificationCallIndex >= 0, "partner recipient must be reverified before delivery");
-  assert.ok(insertIndex > verificationCallIndex, "recipient verification must finish before insert");
+  assert.ok(ingestIndex > verificationCallIndex, "recipient verification must finish before server ingest");
+  assert.doesNotMatch(partnerSend, /\.insert\(/);
   assert.match(partnerSend, /draft\.partnerRecipientId/);
   assert.ok(
     (partnerSend.match(/setPartnerSafetyNotice\(PARTNER_CONNECTION_CHANGED_NOTICE\)/g) ?? []).length >= 2,

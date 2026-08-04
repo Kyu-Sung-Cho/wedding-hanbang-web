@@ -61,12 +61,21 @@ import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
 import { isAmoraConversationSegmentReadEnabled } from "@/lib/ai/amoraConversationSegmentRead";
 import { resolveAmoraWeddingContext } from "@/lib/ai/amoraWeddingContext";
 import {
+  AMORA_ATTACHMENT_MEDIA_TYPES,
+  AMORA_MAX_ATTACHMENT_BYTES,
+  AMORA_MAX_ATTACHMENTS,
+  AMORA_MAX_TOTAL_ATTACHMENT_BYTES,
   AmoraAttachmentValidationError,
   AmoraDocxArchiveValidationError,
   assertSafeDocxArchive,
   validateAmoraAttachments,
+  type AmoraAttachmentMediaType,
   type ValidatedAmoraAttachment,
 } from "@/lib/ai/amoraAttachments";
+import {
+  createChatImageObjectPathV2,
+  verifyChatImageObjectBindings,
+} from "@/lib/chat/attachmentStorage";
 import {
   runAmoraProviderCallWithLedger,
   type AtomicAmoraChatResponseFinalization,
@@ -77,7 +86,7 @@ import {
   type AmoraToolRoundCheckpoint,
 } from "@/lib/ai/amoraTurnJournal";
 import {
-  selectAmoraPendingProposalToolsWithCarryover,
+  selectAmoraPendingProposalTools,
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
 import {
@@ -85,9 +94,10 @@ import {
   filterAmoraToolsByQuestionScope,
 } from "@/lib/ai/amoraQuestionScope";
 import {
-  buildAmoraBoundedW3Continuity,
-  hasExplicitAmoraW3ContinuityReference,
+  buildAmoraBoundedContinuity,
+  canAttemptAmoraBoundedContinuity,
 } from "@/lib/ai/amoraBoundedContinuity";
+import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import {
@@ -116,6 +126,7 @@ import {
   classifyAmoraCrisis,
   type AmoraCrisisKind,
 } from "@/lib/ai/amoraCrisisSafety";
+import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import {
   AiMessagePersistenceError,
   findPersistedAiMessage,
@@ -135,7 +146,11 @@ import {
   getCookieValue,
   hasSignedDemoSessionFromCookieHeader,
 } from "@/lib/demoSession";
-import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import {
+  isRecord,
+  isUuid,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { createHash, randomUUID } from "node:crypto";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
@@ -162,6 +177,91 @@ const DEMO_ACTOR_ID = "amora-signed-demo";
 const DEMO_COST_GUARD_COUPLE_ID = "00000000-0000-4000-8000-000000000000";
 const EVAL_ACTOR_ID = "amora-release-eval";
 const EVAL_COST_LEDGER_COUPLE_ID = "00000000-0000-4000-8000-000000000001";
+const CANONICAL_ATTACHMENT_MANIFEST_KEYS = new Set([
+  "media_type",
+  "byte_length",
+  "sha256",
+]);
+const CANONICAL_ATTACHMENT_MEDIA_TYPES = new Set<string>(
+  AMORA_ATTACHMENT_MEDIA_TYPES,
+);
+
+type CanonicalProviderAttachmentManifestEntry = {
+  mediaType: AmoraAttachmentMediaType;
+  byteLength: number;
+  sha256: string;
+};
+
+type CanonicalProviderAttachmentContract = {
+  version: 1 | 2;
+  state: "none" | "present" | "discarded_by_safety_policy";
+  count: number;
+  manifest: CanonicalProviderAttachmentManifestEntry[] | null;
+  imagePaths: string[];
+};
+
+function parseCanonicalProviderAttachmentManifest(
+  value: unknown,
+  expectedCount: number,
+): CanonicalProviderAttachmentManifestEntry[] | null {
+  if (
+    !Array.isArray(value)
+    || value.length !== expectedCount
+    || value.length < 1
+    || value.length > AMORA_MAX_ATTACHMENTS
+  ) {
+    return null;
+  }
+
+  const manifest: CanonicalProviderAttachmentManifestEntry[] = [];
+  let totalBytes = 0;
+  for (const entry of value) {
+    if (
+      !isRecord(entry)
+      || Object.keys(entry).length !== CANONICAL_ATTACHMENT_MANIFEST_KEYS.size
+      || Object.keys(entry).some((key) => !CANONICAL_ATTACHMENT_MANIFEST_KEYS.has(key))
+      || typeof entry.media_type !== "string"
+      || !CANONICAL_ATTACHMENT_MEDIA_TYPES.has(entry.media_type)
+      || !Number.isSafeInteger(entry.byte_length)
+      || (entry.byte_length as number) < 1
+      || (entry.byte_length as number) > AMORA_MAX_ATTACHMENT_BYTES
+      || typeof entry.sha256 !== "string"
+      || !/^[0-9a-f]{64}$/.test(entry.sha256)
+    ) {
+      return null;
+    }
+    totalBytes += entry.byte_length as number;
+    if (totalBytes > AMORA_MAX_TOTAL_ATTACHMENT_BYTES) return null;
+    manifest.push({
+      mediaType: entry.media_type as AmoraAttachmentMediaType,
+      byteLength: entry.byte_length as number,
+      sha256: entry.sha256,
+    });
+  }
+  return manifest;
+}
+
+function matchesCanonicalProviderAttachmentManifest(
+  attachments: readonly ValidatedAmoraAttachment[],
+  manifest: readonly CanonicalProviderAttachmentManifestEntry[],
+): boolean {
+  if (attachments.length !== manifest.length) return false;
+  return attachments.every((attachment, index) => {
+    const expected = manifest[index];
+    if (!expected || attachment.mediaType !== expected.mediaType) return false;
+    const bytes = Buffer.from(attachment.base64, "base64");
+    return bytes.byteLength === expected.byteLength
+      && createHash("sha256").update(bytes).digest("hex") === expected.sha256;
+  });
+}
+
+function isMissingChatImageObjectError(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  const status = String(error.statusCode ?? error.status ?? "");
+  const detail = `${String(error.error ?? "")} ${String(error.message ?? "")}`
+    .toLowerCase();
+  return status === "404" || detail.includes("not found");
+}
 
 function getAmoraInputStreamError(error: unknown): {
   code: "AMORA_INPUT_TOO_LARGE" | "AMORA_INPUT_COUNT_UNAVAILABLE";
@@ -410,10 +510,6 @@ class AmoraAttachmentProcessingError extends Error {
   }
 }
 
-function safeFileName(value: string | undefined, fallback: string): string {
-  return (value ?? fallback).replace(/[^\w .()[\]\-가-힣]/g, "").slice(0, 120) || fallback;
-}
-
 function limitExtractedText(text: string): string {
   return text.length > MAX_EXTRACTED_TEXT_CHARS
     ? `${text.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n\n[첨부문서가 길어 일부만 분석합니다.]`
@@ -426,14 +522,14 @@ async function processAttachments(
   const visionAttachments: ImageAttachment[] = [];
   const textAttachments: string[] = [];
 
-  for (const item of attachments) {
+  for (const [index, item] of attachments.entries()) {
     if (VISION_TYPES.has(item.mediaType)) {
       visionAttachments.push({
         base64: item.base64,
         mediaType: item.mediaType as ImageAttachment["mediaType"],
         fileName:
           item.mediaType === "application/pdf"
-            ? safeFileName(item.fileName, "attachment.pdf")
+            ? `attachment-${index + 1}.pdf`
             : undefined,
       });
     } else if (item.mediaType === DOCX_MEDIA_TYPE) {
@@ -441,7 +537,7 @@ async function processAttachments(
         const text = await extractDocxText(item.base64);
         if (!text) throw new Error("empty document");
         textAttachments.push(
-          `[첨부문서: ${safeFileName(item.fileName, "document.docx")}]\n${limitExtractedText(text)}`,
+          `[첨부문서: attachment-${index + 1}.docx]\n${limitExtractedText(text)}`,
         );
       } catch (error) {
         if (error instanceof AmoraAttachmentProcessingError) throw error;
@@ -463,17 +559,18 @@ async function processAttachments(
 
 export async function POST(request: Request) {
   const requestDeadlineAt = Date.now() + AMORA_TOTAL_REQUEST_DEADLINE_MS;
-  if (isBodyTooLarge(request, MAX_REQUEST_BODY_BYTES)) {
+  const rawBody = await readBoundedUtf8Text(request, MAX_REQUEST_BODY_BYTES);
+  if (!rawBody.ok) {
     return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
   }
   // 인증 체크 (웹: 쿠키, 앱: Bearer 토큰)
   let body: Record<string, unknown>;
   try {
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BODY_BYTES) {
+    const rawBodyText = rawBody.text;
+    if (Buffer.byteLength(rawBodyText, "utf8") > MAX_REQUEST_BODY_BYTES) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
-    const parsed = JSON.parse(rawBody) as unknown;
+    const parsed = JSON.parse(rawBodyText) as unknown;
     if (!isRecord(parsed)) throw new Error("invalid body");
     body = parsed;
   } catch {
@@ -739,6 +836,7 @@ export async function POST(request: Request) {
   // must never hide time-critical contact guidance.
   let earlyCrisisUserText: string | null = null;
   let trustedCanonicalScopeUserRow: Record<string, unknown> | null = null;
+  let canonicalProviderAttachmentContract: CanonicalProviderAttachmentContract | null = null;
   if (requestKind === "mediation") {
     earlyCrisisUserText = String(conflictContext).trim();
   } else if (requestKind === "chat") {
@@ -764,6 +862,10 @@ export async function POST(request: Request) {
         const canonicalCrisisRow = await query.maybeSingle();
         if (
           canonicalCrisisRow.data
+          && (
+            typeof bodyUserMessageId !== "string"
+            || canonicalCrisisRow.data.id === bodyUserMessageId
+          )
           && canonicalCrisisRow.data.sender_type !== "ai"
           && canonicalCrisisRow.data.sender_id === actorId
           && canonicalCrisisRow.data.role === "user"
@@ -783,6 +885,9 @@ export async function POST(request: Request) {
     }
   }
 
+  const earlySafetyAssessment = earlyCrisisUserText === null
+    ? null
+    : assessAmoraSafetyText(earlyCrisisUserText);
   const earlyCrisisClassification = earlyCrisisUserText === null
     ? null
     : classifyAmoraCrisis(earlyCrisisUserText);
@@ -791,6 +896,142 @@ export async function POST(request: Request) {
       buildAmoraCrisisResponse(earlyCrisisClassification.kind),
       earlyCrisisClassification.kind,
     );
+  }
+  if (
+    requestKind === "mediation"
+    && (
+      earlySafetyAssessment?.resolution === "non_immediate_safety"
+      || earlySafetyAssessment?.resolution === "immediate_crisis"
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "이 내용은 커플 중재로 공유하기 전에 안전 확인과 비공개 지원이 먼저 필요해요.",
+        code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+      },
+      { status: 422, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  if (!isDemo && requestKind === "chat" && typeof bodyUserMessageId === "string") {
+    if (!trustedCanonicalScopeUserRow) {
+      return NextResponse.json(
+        {
+          error: "보낸 메시지와 요청의 연결을 확인하지 못했습니다. 다시 전송해주세요.",
+          code: "USER_MESSAGE_SCOPE_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const canonicalMetadata = isRecord(trustedCanonicalScopeUserRow.metadata)
+      ? trustedCanonicalScopeUserRow.metadata
+      : null;
+    const canonicalRawRequestId = typeof canonicalMetadata?.client_request_id === "string"
+      && CLIENT_REQUEST_ID_RE.test(canonicalMetadata.client_request_id)
+      ? canonicalMetadata.client_request_id.toLowerCase()
+      : null;
+    if (
+      canonicalRawRequestId === null
+      || canonicalRawRequestId !== rawClientRequestId.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error: "저장된 메시지의 원래 요청 식별자와 일치하지 않습니다. 최신 대화에서 다시 시도해주세요.",
+          code: "USER_MESSAGE_REQUEST_BINDING_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const hasAnyProviderAttachmentContractField =
+      canonicalMetadata?.amora_ingest_contract_version !== undefined
+      || canonicalMetadata?.ai_response_requested !== undefined
+      || canonicalMetadata?.provider_attachment_state !== undefined
+      || canonicalMetadata?.provider_attachment_count !== undefined
+      || canonicalMetadata?.provider_attachment_manifest !== undefined;
+    if (hasAnyProviderAttachmentContractField) {
+      const attachmentVersion = canonicalMetadata?.amora_ingest_contract_version;
+      const attachmentState = canonicalMetadata?.provider_attachment_state;
+      const attachmentCount = canonicalMetadata?.provider_attachment_count;
+      const stateIsValid = attachmentState === "none"
+        || attachmentState === "present"
+        || attachmentState === "discarded_by_safety_policy";
+      const countIsValid = Number.isSafeInteger(attachmentCount)
+        && (attachmentCount as number) >= 0
+        && (attachmentCount as number) <= AMORA_MAX_ATTACHMENTS;
+      const stateMatchesCount = stateIsValid
+        && countIsValid
+        && (attachmentState === "present"
+          ? (attachmentCount as number) > 0
+          : attachmentCount === 0);
+      const manifest = attachmentVersion === 2 && countIsValid
+        ? parseCanonicalProviderAttachmentManifest(
+            canonicalMetadata?.provider_attachment_manifest,
+            attachmentCount as number,
+          )
+        : null;
+      const versionContractIsValid = attachmentVersion === 1
+        ? canonicalMetadata?.provider_attachment_manifest === undefined
+        : attachmentVersion === 2
+          && attachmentState === "present"
+          && manifest !== null;
+      let imagePathContractIsValid = true;
+      let canonicalImagePaths: string[] = [];
+      if (attachmentVersion === 2 && manifest !== null) {
+        try {
+          const expectedImagePaths = (
+            await Promise.all(manifest.map((entry, attachmentIndex) => (
+              createChatImageObjectPathV2({
+                coupleId,
+                senderId: actorId,
+                clientRequestId: rawClientRequestId.toLowerCase(),
+                attachmentIndex,
+                mediaType: entry.mediaType,
+                sha256: entry.sha256,
+              })
+            )))
+          ).filter((path): path is string => path !== null);
+          const storedImagePaths = canonicalMetadata?.imagePaths === undefined
+            ? []
+            : canonicalMetadata.imagePaths;
+          imagePathContractIsValid = Array.isArray(storedImagePaths)
+            && storedImagePaths.length === expectedImagePaths.length
+            && storedImagePaths.every((path, index) => path === expectedImagePaths[index]);
+          if (imagePathContractIsValid) {
+            canonicalImagePaths = [...(storedImagePaths as string[])];
+          }
+        } catch {
+          imagePathContractIsValid = false;
+        }
+      }
+      if (
+        !versionContractIsValid
+        || canonicalMetadata?.ai_response_requested !== true
+        || !stateMatchesCount
+        || !imagePathContractIsValid
+      ) {
+        return NextResponse.json(
+          {
+            error: "저장된 질문의 첨부 계약을 안전하게 확인하지 못했습니다. 새 메시지로 다시 보내주세요.",
+            code: "USER_MESSAGE_ATTACHMENT_CONTRACT_INVALID",
+            retryable: false,
+            retryPolicy: "new_message",
+          },
+          { status: 409, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      canonicalProviderAttachmentContract = {
+        version: attachmentVersion as 1 | 2,
+        state: attachmentState as CanonicalProviderAttachmentContract["state"],
+        count: attachmentCount as number,
+        manifest,
+        imagePaths: canonicalImagePaths,
+      };
+    }
   }
 
   // Exact durable retries are recovery reads, not new turns. Once identity,
@@ -851,6 +1092,39 @@ export async function POST(request: Request) {
     }
   }
 
+  if (canonicalProviderAttachmentContract) {
+    if (
+      canonicalProviderAttachmentContract.version === 1
+      && canonicalProviderAttachmentContract.state === "present"
+    ) {
+      return NextResponse.json(
+        {
+          error: "이 질문은 첨부파일의 정확한 바이트 결합 전에 저장됐습니다. 파일을 다시 첨부해 새 메시지로 보내주세요.",
+          code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const suppliedAttachmentCount = Array.isArray(attachmentInput)
+      ? attachmentInput.length
+      : -1;
+    if (suppliedAttachmentCount !== canonicalProviderAttachmentContract.count) {
+      return NextResponse.json(
+        {
+          error: canonicalProviderAttachmentContract.state === "present"
+            ? "이 질문에는 원래 첨부한 파일이 필요합니다. 파일을 다시 첨부해 새 메시지로 보내주세요."
+            : "저장된 질문과 현재 첨부 상태가 일치하지 않습니다. 새 메시지로 다시 보내주세요.",
+          code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+
   const preliminaryQuestionScope = requestKind === "initial_greeting"
     ? classifyAmoraQuestionScope({
         userText: "[INITIAL_GREETING]",
@@ -864,25 +1138,26 @@ export async function POST(request: Request) {
       : trustedCanonicalScopeUserRow && earlyCrisisUserText !== null
         ? classifyAmoraQuestionScope({ userText: earlyCrisisUserText })
         : null;
-  const shouldAttemptBoundedW3Continuity =
+  const shouldAttemptBoundedContinuity =
     !isDemo
     && requestKind === "chat"
+    && bodyConfirmedActionId === undefined
     && typeof bodyUserMessageId === "string"
     && trustedCanonicalScopeUserRow !== null
     && earlyCrisisUserText !== null
-    && preliminaryQuestionScope?.scope === "W3_social_care"
-    && hasExplicitAmoraW3ContinuityReference(earlyCrisisUserText)
+    && canAttemptAmoraBoundedContinuity(earlyCrisisUserText)
     && isUuid(trustedCanonicalScopeUserRow.segment_id);
-  const boundedW3CanonicalSegmentId = shouldAttemptBoundedW3Continuity
+  const boundedCanonicalSegmentId = shouldAttemptBoundedContinuity
     ? trustedCanonicalScopeUserRow?.segment_id as string
     : null;
-  let shouldLoadBoundedW3Continuity = false;
-  let boundedW3SegmentId: string | null = null;
+  let shouldLoadBoundedContinuity = false;
+  let boundedContinuitySegmentId: string | null = null;
   const skipsIrrelevantProviderContextReads =
     bodyConfirmedActionId === undefined
     && (
       requestKind === "initial_greeting"
       || requestKind === "mediation"
+      || shouldAttemptBoundedContinuity
       || (
         requestKind === "chat"
         && trustedCanonicalScopeUserRow !== null
@@ -890,10 +1165,7 @@ export async function POST(request: Request) {
         && (
           preliminaryQuestionScope.scope === "W2_high_risk_adjacent"
           || preliminaryQuestionScope.scope === "W3_social_care"
-          || (
-            preliminaryQuestionScope.scope === "W4_out_of_scope"
-            && preliminaryQuestionScope.confidence === "high"
-          )
+          || preliminaryQuestionScope.scope === "W4_out_of_scope"
         )
       )
     );
@@ -923,6 +1195,104 @@ export async function POST(request: Request) {
       );
     }
     throw error;
+  }
+
+  if (
+    !isDemo
+    && validatedAttachments.length > 0
+    && (
+      canonicalProviderAttachmentContract?.version !== 2
+      || canonicalProviderAttachmentContract.manifest === null
+      || !matchesCanonicalProviderAttachmentManifest(
+          validatedAttachments,
+          canonicalProviderAttachmentContract.manifest,
+        )
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: "저장된 질문과 현재 첨부파일의 정확한 내용이 일치하지 않습니다. 파일을 다시 첨부해 새 메시지로 보내주세요.",
+        code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+        retryable: false,
+        retryPolicy: "new_message",
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  if (
+    !isDemo
+    && canonicalProviderAttachmentContract?.version === 2
+    && canonicalProviderAttachmentContract.manifest !== null
+  ) {
+    const imageStorage = getServiceClient().storage.from("chat-image");
+    const storageBinding = await verifyChatImageObjectBindings({
+      coupleId,
+      senderId: actorId,
+      clientRequestId: rawClientRequestId.toLowerCase(),
+      manifest: canonicalProviderAttachmentContract.manifest,
+      imagePaths: canonicalProviderAttachmentContract.imagePaths,
+      readObject: async (path, expected) => {
+        try {
+          const { data: info, error: infoError } = await imageStorage.info(path);
+          if (infoError || !info) {
+            return {
+              ok: false,
+              reason: isMissingChatImageObjectError(infoError)
+                ? "missing"
+                : "unavailable",
+            } as const;
+          }
+          if (
+            info.size !== expected.byteLength
+            || info.contentType !== expected.mediaType
+          ) {
+            return { ok: false, reason: "mismatch" } as const;
+          }
+          const { data: stream, error: downloadError } = await imageStorage
+            .download(path)
+            .asStream();
+          if (downloadError || !stream) {
+            return {
+              ok: false,
+              reason: isMissingChatImageObjectError(downloadError)
+                ? "missing"
+                : "unavailable",
+            } as const;
+          }
+          return {
+            ok: true,
+            stream,
+            byteLength: info.size,
+            mediaType: info.contentType,
+          } as const;
+        } catch {
+          return { ok: false, reason: "unavailable" } as const;
+        }
+      },
+    });
+    if (!storageBinding.ok && storageBinding.reason === "object_unavailable") {
+      return NextResponse.json(
+        {
+          error: "첨부 이미지를 안전하게 다시 확인하지 못했습니다. 잠시 후 같은 요청으로 다시 시도해 주세요.",
+          code: "USER_MESSAGE_ATTACHMENT_STORAGE_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (!storageBinding.ok) {
+      return NextResponse.json(
+        {
+          error: "저장된 첨부 이미지가 분석할 파일과 일치하지 않습니다. 새 메시지로 다시 첨부해 주세요.",
+          code: "USER_MESSAGE_ATTACHMENT_STORAGE_BINDING_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
   }
 
   let processedAttachments: ProcessedAttachment;
@@ -1187,48 +1557,49 @@ export async function POST(request: Request) {
     }
   }
 
-  // W3 normally skips all broad stored context, including the feature-flagged
-  // segment read above. A narrow continuity request is the sole exception:
+  // Current-input-only scopes normally skip all broad stored context, including
+  // the feature-flagged segment read above. A narrow continuity request is the
+  // sole exception:
   // prove that its canonical current row belongs to the server's active
   // segment before reading the exact three-row exchange. Missing, closed, or
-  // mismatched proof safely degrades to the current W3 message only.
-  if (shouldAttemptBoundedW3Continuity) {
+  // mismatched proof safely degrades to the current message only.
+  if (shouldAttemptBoundedContinuity) {
     try {
-      const activeW3SegmentResult = await supabase
+      const activeBoundedSegmentResult = await supabase
         .from("conversation_segments")
         .select("id, status")
         .eq("couple_id", dataCoupleId)
         .eq("visibility", visibility)
         .eq("status", "active")
         .maybeSingle();
-      const activeW3SegmentId = isRecord(activeW3SegmentResult.data)
-        ? activeW3SegmentResult.data.id
+      const activeBoundedSegmentId = isRecord(activeBoundedSegmentResult.data)
+        ? activeBoundedSegmentResult.data.id
         : null;
-      const activeW3SegmentStatus = isRecord(activeW3SegmentResult.data)
-        ? activeW3SegmentResult.data.status
+      const activeBoundedSegmentStatus = isRecord(activeBoundedSegmentResult.data)
+        ? activeBoundedSegmentResult.data.status
         : null;
       if (
-        !activeW3SegmentResult.error
-        && isUuid(activeW3SegmentId)
-        && activeW3SegmentStatus === "active"
-        && activeW3SegmentId === boundedW3CanonicalSegmentId
+        !activeBoundedSegmentResult.error
+        && isUuid(activeBoundedSegmentId)
+        && activeBoundedSegmentStatus === "active"
+        && activeBoundedSegmentId === boundedCanonicalSegmentId
       ) {
-        boundedW3SegmentId = activeW3SegmentId;
-        shouldLoadBoundedW3Continuity = true;
+        boundedContinuitySegmentId = activeBoundedSegmentId;
+        shouldLoadBoundedContinuity = true;
       } else {
-        console.warn("[chat] bounded W3 active segment proof unavailable", {
-          reason: activeW3SegmentResult.error
+        console.warn("[chat] bounded continuity active segment proof unavailable", {
+          reason: activeBoundedSegmentResult.error
             ? "lookup_error"
-            : activeW3SegmentStatus !== "active"
+            : activeBoundedSegmentStatus !== "active"
               ? "not_active"
-              : activeW3SegmentId !== boundedW3CanonicalSegmentId
+              : activeBoundedSegmentId !== boundedCanonicalSegmentId
                 ? "segment_mismatch"
                 : "invalid_result",
           visibility,
         });
       }
     } catch {
-      console.warn("[chat] bounded W3 active segment lookup failed", {
+      console.warn("[chat] bounded continuity active segment lookup failed", {
         visibility,
       });
     }
@@ -1289,7 +1660,7 @@ export async function POST(request: Request) {
           .limit(50),
     // 5. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
     // prompt source로 신뢰하지 않으며 사용자 RLS를 한 번 더 적용한다.
-    skipsIrrelevantProviderContextReads && !shouldLoadBoundedW3Continuity
+    skipsIrrelevantProviderContextReads && !shouldLoadBoundedContinuity
       ? Promise.resolve({
           data:
             requestKind === "chat" && trustedCanonicalScopeUserRow
@@ -1299,10 +1670,10 @@ export async function POST(request: Request) {
         })
       : (() => {
       const messageContextColumns: string =
-        conversationSegmentReadEnabled || shouldLoadBoundedW3Continuity
+        conversationSegmentReadEnabled || shouldLoadBoundedContinuity
         ? "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at"
         : "id, sender_id, sender_type, role, content, metadata, visibility, created_at";
-      if (shouldLoadBoundedW3Continuity) {
+      if (shouldLoadBoundedContinuity) {
         // Read exactly the current row and its two direct predecessors. Do not
         // hide partner-target rows here: their presence must break continuity,
         // never make non-adjacent messages look adjacent after filtering.
@@ -1311,7 +1682,7 @@ export async function POST(request: Request) {
           .select(messageContextColumns)
           .eq("couple_id", dataCoupleId)
           .eq("visibility", visibility)
-          .eq("segment_id", boundedW3SegmentId)
+          .eq("segment_id", boundedContinuitySegmentId)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(3);
@@ -1695,13 +2066,15 @@ export async function POST(request: Request) {
         { status: 409, headers: { "Cache-Control": "no-store" } },
       );
     }
-    // A client may replay an older durable message id and otherwise make the
-    // slice below hide newer Amora context. That would revive an obsolete
-    // pending action (or produce a response against stale context). Direct
-    // partner messages have already been excluded on both the PostgREST and
-    // in-process boundaries, so the final canonical row is the exact context
-    // freshness fence for this request.
-    if (requestedIndex !== canonicalRows.length - 1) {
+    // Private turns intentionally read shared context as well as their own
+    // lane. A newer row from another visibility must not make an interrupted
+    // request unrecoverable, while a newer row in the same lane must still
+    // fence off stale replay. Direct partner messages have already been
+    // excluded on both the PostgREST and in-process boundaries.
+    const latestLaneRow = [...canonicalRows]
+      .reverse()
+      .find((row) => row.visibility === visibility);
+    if (latestLaneRow?.id !== requestedRow.id) {
       await releaseClaimBeforeStream("USER_MESSAGE_NOT_LATEST");
       return NextResponse.json(
         {
@@ -1715,7 +2088,7 @@ export async function POST(request: Request) {
     isDurableUserMessageBound = true;
   }
 
-  const canonicalMessages = canonicalRows.map((row) => {
+  const toCanonicalMessage = (row: CanonicalChatRow) => {
     if (row.sender_type === "ai" || row.role === "assistant") {
       return { role: "assistant" as const, content: row.content, id: row.id };
     }
@@ -1726,7 +2099,8 @@ export async function POST(request: Request) {
       content: `[${roleLabel}${targetLabel}] ${row.content}`,
       id: row.id,
     };
-  });
+  };
+  const canonicalMessages = canonicalRows.map(toCanonicalMessage);
 
   // Signed demo만 DB가 없으므로 client history를 사용한다. 실제 사용자 턴은
   // canonical DB history만 prompt source로 허용한다.
@@ -1905,25 +2279,33 @@ export async function POST(request: Request) {
 
   // 범위 권한은 현재 사용자 발화와 서버가 검증한 승인 액션에서만 얻는다.
   // 일반 대화 기록·첨부 내용·저장 기억·진행 단계는 도구 권한을 높이지 않는다.
-  // 다만 사용자가 직전 자신의 명시적 웨딩 요청을 짧게 확인하는 한 턴은
-  // 기존 pending 제안 흐름과 일치하도록 좁게 이어간다.
-  const previousUserTextForScope =
-    !isDemo && requestKind === "chat"
-      ? [...canonicalRows].slice(0, -1).reverse()
-          .find((row) =>
-            row.role === "user"
-            && row.sender_type !== "ai"
-            && row.sender_id === actorId
-            && row.visibility === visibility
-          )
-          ?.content ?? null
-      : null;
+  // 짧은 후속 말은 범위를 승격하지 않는다. 바로 앞의 정확히 연결된
+  // 대화 1회만 별도 context-only 계약으로 전달하며, 권한은 현재 발화와
+  // 서버가 검증한 confirmedActionId에서만 얻는다.
   const questionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
-    previousUserText: previousUserTextForScope,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
   });
+  const boundedContinuity =
+    !isDemo
+    && requestKind === "chat"
+    && isDurableUserMessageBound
+    && typeof bodyUserMessageId === "string"
+    && shouldLoadBoundedContinuity
+      ? buildAmoraBoundedContinuity({
+          newestFirstRows: selectAmoraTrustedHistoryRows({
+            oldestFirstRows: [...canonicalContextRows].reverse(),
+            currentUserMessageId: bodyUserMessageId,
+            visibility,
+          }).reverse(),
+          currentMessageId: bodyUserMessageId,
+          currentUserText: lastUserText,
+          requesterUserId: actorId,
+          visibility,
+          segmentId: boundedContinuitySegmentId as string,
+        })
+      : null;
   const memoryEnqueueRequested =
     questionScope.allowsLongTermMemory
     && memoryEnabledForTurn
@@ -2104,12 +2486,9 @@ export async function POST(request: Request) {
     && visibility === "shared"
     && !approvedPendingAction
       ? filterAmoraToolsByQuestionScope(
-          selectAmoraPendingProposalToolsWithCarryover({
+          selectAmoraPendingProposalTools({
             availableTools: PENDING_ACTION_TOOLS,
             userText: lastUserText,
-            // "응, 해줘" 같은 승인 턴은 도메인 어휘가 없어 제안 창이 닫히는 문제의
-            // 이월분 — 직전 사용자 턴 텍스트로 한 턴만 제안 자격을 유지한다.
-            previousUserText: previousUserTextForScope,
             specialistType,
             attachmentKind,
           }).filter(
@@ -2160,6 +2539,7 @@ export async function POST(request: Request) {
       enabledToolNames: enabledTools.map((tool) => tool.name),
       actionContract,
       questionScope,
+      linkedContextMode: boundedContinuity?.mode,
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
   const systemPrompt = buildSystemPromptForTools(availableTools);
@@ -2169,25 +2549,23 @@ export async function POST(request: Request) {
 
   // 오래된 대화가 exact-token 상한을 영구적으로 막지 않게 최근 연속 문맥을
   // 보존한다. 실제 비용 경계는 provider의 exact count가 최종 판정한다.
-  const boundedW3ContinuityMessages =
-    !isDemo
-    && requestKind === "chat"
-    && isDurableUserMessageBound
-    && typeof bodyUserMessageId === "string"
-    && questionScope.scope === "W3_social_care"
-    && shouldLoadBoundedW3Continuity
-      ? buildAmoraBoundedW3Continuity({
-          newestFirstRows: canonicalContextRows,
-          currentMessageId: bodyUserMessageId,
-          currentUserText: lastUserText,
-          requesterUserId: actorId,
-          visibility,
-          segmentId: boundedW3SegmentId as string,
-        })
-      : null;
+  const currentCanonicalUserMessageId = !isDemo && requestKind === "chat"
+    ? [...canonicalRows].reverse().find((row) =>
+        row.role === "user"
+        && row.sender_type !== "ai"
+        && row.sender_id === actorId
+      )?.id ?? null
+    : null;
+  const trustedStoredProviderMessages = !isDemo && currentCanonicalUserMessageId
+    ? selectAmoraTrustedHistoryRows({
+        oldestFirstRows: canonicalRows,
+        currentUserMessageId: currentCanonicalUserMessageId,
+        visibility,
+      }).map(toCanonicalMessage)
+    : typedMessages;
   const providerMessages = allowsStoredProviderContext
-    ? takeRecentAmoraConversation(typedMessages)
-    : boundedW3ContinuityMessages
+    ? takeRecentAmoraConversation(trustedStoredProviderMessages)
+    : boundedContinuity?.messages
       ?? [{ role: "user" as const, content: lastUserText }];
   const boundedTextAttachments = allowsCurrentAttachmentContext
     ? boundAmoraTextAttachments(textAttachments)
@@ -2239,7 +2617,7 @@ export async function POST(request: Request) {
     || pendingOfferEnabled
     || requestKind === "mediation"
     || requiresW4AttachmentReuploadGuidance
-    || boundedW3ContinuityMessages !== null
+    || boundedContinuity !== null
     // Replies built from stored couple context stay hidden until the database
     // atomically validates the exact privacy epoch and commits the message.
     || allowsStoredProviderContext
@@ -2483,6 +2861,12 @@ export async function POST(request: Request) {
             question_scope: questionScope.scope,
             memory_eligible: questionScope.allowsLongTermMemory,
             memory_enqueue_requested: memoryEnqueueRequested,
+            ...(boundedContinuity
+              ? {
+                  context_mode: boundedContinuity.mode,
+                  context_capabilities: boundedContinuity.capabilities,
+                }
+              : {}),
             ...(typeof bodyUserMessageId === "string"
               ? { in_reply_to_user_message_id: bodyUserMessageId }
               : {}),
@@ -2840,6 +3224,9 @@ export async function POST(request: Request) {
               metadata: {
                 stage_tag: stageTag,
                 question_scope: questionScope.scope,
+                ...(boundedContinuity
+                  ? { context_mode: boundedContinuity.mode }
+                  : {}),
                 tools_used: toolsUsed,
                 tool_rounds: round + 1,
                 correction_count: correctionCount,
@@ -3283,6 +3670,9 @@ export async function POST(request: Request) {
           metadata: {
             stage_tag: stageTag,
             question_scope: questionScope.scope,
+            ...(boundedContinuity
+              ? { context_mode: boundedContinuity.mode }
+              : {}),
             tools_used: toolsUsed,
             tool_rounds: AMORA_MAX_TOOL_ROUNDS,
             exceeded_max_rounds: true,
@@ -3380,6 +3770,9 @@ export async function POST(request: Request) {
           metadata: {
             stage_tag: stageTag,
             question_scope: questionScope.scope,
+            ...(boundedContinuity
+              ? { context_mode: boundedContinuity.mode }
+              : {}),
           },
         });
       }

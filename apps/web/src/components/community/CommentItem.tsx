@@ -19,6 +19,7 @@ import type {
 } from "@/types/community.types";
 import Avatar from "./Avatar";
 import ContentOriginBadge from "./ContentOriginBadge";
+import BlockUserButton from "./BlockUserButton";
 import { weddingPath } from "@/lib/weddingPaths";
 import { normalizeCommunityContentOrigin } from "@/lib/community/contentOrigin";
 
@@ -43,6 +44,7 @@ interface CommentItemProps {
   onEdit: (commentId: string, content: string) => Promise<boolean>;
   onVote: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   onReply: (parentId: string, content: string) => Promise<boolean>;
+  onBlockedUser?: (userId: string) => void;
 }
 
 export default function CommentItem({
@@ -54,6 +56,7 @@ export default function CommentItem({
   onEdit,
   onVote,
   onReply,
+  onBlockedUser,
 }: CommentItemProps) {
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyContent, setReplyContent] = useState("");
@@ -216,6 +219,7 @@ export default function CommentItem({
                 onEdit={onEdit}
                 onVote={onVote}
                 onReply={onReply}
+                onBlockedUser={onBlockedUser}
               />
             ))}
           </div>
@@ -365,7 +369,7 @@ export default function CommentItem({
 
             {/* 액션 행: 도움됐어요, 답글, 삭제 */}
             {!isEditing && (
-              <div className="mt-1.5 flex items-center gap-3 text-[13px] font-medium text-[#B5ADA3]">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[13px] font-medium text-[#B5ADA3]">
               {isLoggedIn ? (
                 <button
                   type="button"
@@ -459,15 +463,22 @@ export default function CommentItem({
               )}
               {!isAuthor && (
                 isLoggedIn ? (
-                  <button
-                    type="button"
-                    onClick={openReportModal}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-[#FAFAF8] hover:text-[#8F6662]"
-                    aria-label={`${isReply ? "답글" : "답변"} 신고`}
-                  >
-                    <Flag className="h-3.5 w-3.5" />
-                    신고
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={openReportModal}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-[#FAFAF8] hover:text-[#8F6662]"
+                      aria-label={`${isReply ? "답글" : "답변"} 신고`}
+                    >
+                      <Flag className="h-3.5 w-3.5" />
+                      신고
+                    </button>
+                    <BlockUserButton
+                      userId={comment.author_id}
+                      nickname={nickname}
+                      onBlocked={onBlockedUser}
+                    />
+                  </>
                 ) : (
                   <Link
                     href={reportLoginHref}
@@ -736,6 +747,7 @@ export default function CommentItem({
               onEdit={onEdit}
               onVote={onVote}
               onReply={onReply}
+              onBlockedUser={onBlockedUser}
             />
           ))}
         </div>

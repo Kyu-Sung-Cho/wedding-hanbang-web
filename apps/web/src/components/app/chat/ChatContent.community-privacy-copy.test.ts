@@ -14,4 +14,23 @@ describe("chat-to-community privacy copy", () => {
     expect(source).toContain("계약·예약번호가");
     expect(source).toContain("사진 속 글자도 직접 확인해");
   });
+
+  it("never offers feedback or a community draft from a W2/W5 safety answer", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/components/app/chat/ChatContent.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("function isSafetyScopedChatMessage");
+    expect(source).toContain("isAmoraCommunityBridgeSafetyScoped(message)");
+    expect(source).toMatch(
+      /\.filter\(\(m\) =>[\s\S]*m\.sender_role === "ai"[\s\S]*!isSafetyScopedChatMessage\(m\)/,
+    );
+    expect(source).toContain(
+      "const isCommunityFallbackEligible = !isSafetyScopedChatMessage(msg)",
+    );
+    expect(source).toContain(
+      "!isSafetyScopedChatMessage(previousHumanMessage)",
+    );
+  });
 });

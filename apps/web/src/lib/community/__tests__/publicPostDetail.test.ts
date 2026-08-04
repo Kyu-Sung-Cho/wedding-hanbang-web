@@ -78,13 +78,16 @@ const mocks = vi.hoisted(() => {
   const supabase = {
     from: vi.fn((table: string) => {
       if (table === "community_posts") return postsQuery;
-      if (table === "community_profiles") return profilesQuery;
+      if (table === "community_public_profiles") return profilesQuery;
       if (table === "v_public_vendors") return vendorsQuery;
       if (table === "community_polls") return pollsQuery;
       if (table === "community_poll_options") return pollOptionsQuery;
       throw new Error(`Unexpected table ${table}`);
     }),
   };
+
+  const serviceRpc = vi.fn();
+  const service = { rpc: serviceRpc };
 
   return {
     postRow,
@@ -95,11 +98,17 @@ const mocks = vi.hoisted(() => {
     pollOptionsQuery,
     supabase,
     createPublicClient: vi.fn(() => supabase),
+    createAdminClient: vi.fn(() => service),
+    serviceRpc,
   };
 });
 
 vi.mock("@/lib/supabase/public", () => ({
   createPublicClient: mocks.createPublicClient,
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
 }));
 
 describe("getPublicCommunityPostDetail", () => {
@@ -115,8 +124,6 @@ describe("getPublicCommunityPostDetail", () => {
         nickname: "웨딩한방 운영팀",
         avatar_url: null,
         rank: "expert",
-        wedding_year: null,
-        wedding_month: null,
       },
       error: null,
     });
@@ -135,6 +142,7 @@ describe("getPublicCommunityPostDetail", () => {
       data: {
         id: "poll-1",
         post_id: "post-1",
+        version: 1,
         question: "계약 전 확인했나요?",
         allow_multiple: false,
         is_anonymous: true,
@@ -159,6 +167,35 @@ describe("getPublicCommunityPostDetail", () => {
       ],
       error: null,
     });
+    mocks.serviceRpc.mockResolvedValue({
+      data: {
+        ok: true,
+        id: "poll-1",
+        post_id: "post-1",
+        version: 1,
+        question: "계약 전에 확인할까요?",
+        allow_multiple: false,
+        is_anonymous: true,
+        hide_results_until_voted: false,
+        closes_at: null,
+        total_voters: 4,
+        total_votes: 4,
+        created_at: "2026-07-30T00:00:00.000Z",
+        results_hidden: false,
+        user_voted_option_ids: [],
+        options: [
+          {
+            id: "option-1",
+            poll_id: "poll-1",
+            position: 0,
+            label: "확인했어요",
+            image_url: null,
+            vote_count: 4,
+          },
+        ],
+      },
+      error: null,
+    });
   });
 
   it("builds the initial detail using only the anonymous public boundary", async () => {
@@ -171,6 +208,13 @@ describe("getPublicCommunityPostDetail", () => {
     expect(mocks.postsQuery.eq).toHaveBeenCalledWith("id", "post-1");
     expect(mocks.postsQuery.eq).toHaveBeenCalledWith("visibility", "public");
     expect(mocks.postsQuery.eq).toHaveBeenCalledWith("under_review", false);
+    expect(mocks.supabase.from).toHaveBeenCalledWith("community_public_profiles");
+    expect(mocks.pollsQuery.select).toHaveBeenCalledWith("id, post_id");
+    expect(mocks.serviceRpc).toHaveBeenCalledWith(
+      "community_get_poll_actor_projection",
+      { p_actor_id: null, p_poll_id: "poll-1" },
+    );
+    expect(mocks.supabase.from).not.toHaveBeenCalledWith("community_poll_options");
     expect(detail).toMatchObject({
       id: "post-1",
       title: "계약 전에 확인할 항목",
@@ -191,6 +235,8 @@ describe("getPublicCommunityPostDetail", () => {
         options: [{ id: "option-1" }],
       },
     });
+    expect(detail?.author.wedding_year).toBeNull();
+    expect(detail?.author.wedding_month).toBeNull();
   });
 
   it("returns null instead of inventing a post for missing or non-public rows", async () => {

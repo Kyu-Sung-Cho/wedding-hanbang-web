@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AMORA_MEMORY_CURSOR_SUMMARY,
-  AMORA_MEMORY_MAX_BATCH,
   compileAmoraMemory,
-  extractTrustedMomentMemoryKeys,
-  prepareAmoraMemoryBatch,
   shouldDeferAmoraMemoryBatch,
   type AmoraMemoryVisibility,
-  type MemoryCompilerMessage,
 } from "@/lib/ai/amoraMemoryCompiler";
+import {
+  AMORA_MEMORY_SOURCE_READ_LIMIT,
+  prepareTrustedAmoraMemoryBatch,
+} from "@/lib/ai/amoraMemorySourceScope";
 import {
   getAmoraMemoryEnablement,
   isAuxiliaryMemoryRuntimeEnabled,
@@ -44,13 +44,7 @@ type ChatRow = {
   sender_type: "bride" | "groom" | "ai";
   role: "user" | "assistant";
   content: string;
-  metadata: {
-    client_request_id?: string;
-    target?: string;
-    moment?: {
-      memoryKeys?: unknown;
-    };
-  } | null;
+  metadata: Record<string, unknown> | null;
   visibility: AmoraMemoryVisibility;
   created_at: string;
 };
@@ -146,7 +140,7 @@ async function processJob(
     .or("metadata->>target.is.null,metadata->>target.neq.partner")
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
-    .limit(AMORA_MEMORY_MAX_BATCH);
+    .limit(AMORA_MEMORY_SOURCE_READ_LIMIT);
   messagesQuery = messagesQuery.eq("visibility", job.visibility);
   const resetAt = typeof setting.memory_reset_at === "string" ? setting.memory_reset_at : null;
   const resetDominatesCursor = Boolean(resetAt && (!previousCreatedAt || resetAt >= previousCreatedAt));
@@ -166,7 +160,11 @@ async function processJob(
   const { data: rows, error: messagesError } = await messagesQuery;
   if (messagesError) throw new Error("MEMORY_MESSAGES_LOOKUP_FAILED");
   const messages = ((rows ?? []) as ChatRow[]).filter((row) => {
-    if (row.metadata?.target === "partner" || row.content.trim().length === 0) return false;
+    if (
+      row.visibility !== job.visibility
+      || row.metadata?.target === "partner"
+      || row.content.trim().length === 0
+    ) return false;
     if (!resetDominatesCursor && previousCreatedAt && previousMessageId) {
       const followsCursor = row.created_at > previousCreatedAt
         || (row.created_at === previousCreatedAt && row.id > previousMessageId);
@@ -182,29 +180,20 @@ async function processJob(
     return "deferred";
   }
 
-  const compilerMessages: MemoryCompilerMessage[] = messages.map((row) => {
-    const isAssistant = row.sender_type === "ai" || row.role === "assistant";
-    const sourceActorRole = isAssistant
-      ? null
-      : row.sender_id === couple.bride_id
-        ? "bride" as const
-        : row.sender_id === couple.groom_id
-          ? "groom" as const
-          : null;
-    return {
-      id: row.id,
-      role: isAssistant ? "assistant" : "user",
-      content: row.content,
-      sourceActorRole,
-      // Only a canonical AI/assistant row can carry a server-authored care
-      // taxonomy hint. Its text is still excluded from provider evidence.
-      trustedMomentMemoryKeys: row.sender_type === "ai" && row.role === "assistant"
-        ? extractTrustedMomentMemoryKeys(row.metadata)
-        : [],
-    };
+  const batch = prepareTrustedAmoraMemoryBatch(messages, {
+    brideId: couple.bride_id,
+    groomId: couple.groom_id,
   });
-  const batch = prepareAmoraMemoryBatch(compilerMessages);
-  if (batch.messages.length === 0) throw new Error("MEMORY_BATCH_EMPTY");
+  if (batch.messages.length === 0) {
+    if (batch.blockedByUnresolvedSource) {
+      // A concurrent Amora reply can arrive after this fetch. Do not advance
+      // past its W0/W1 user row; the later reply enqueue will safely retry from
+      // the unchanged cursor instead of losing that source forever.
+      await finishJob(job.id, job.attempt_count, true);
+      return "deferred";
+    }
+    throw new Error("MEMORY_BATCH_EMPTY");
+  }
   let compilation: Awaited<ReturnType<typeof compileAmoraMemory>>;
   try {
     compilation = await compileAmoraMemory({

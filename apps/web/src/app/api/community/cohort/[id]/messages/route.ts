@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isRecord, isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
 import type { CohortThreadTopic } from "@/types/community.types";
 import {
@@ -93,7 +93,7 @@ export async function GET(
 
     if (authorIds.length > 0) {
       const { data: profiles } = await supabase
-        .from("community_profiles")
+        .from("community_public_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", authorIds);
 
@@ -164,7 +164,7 @@ export async function POST(
       );
     }
 
-    const limited = checkRateLimit(rateLimitKey("cohort:message:create", req, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("cohort:message:create", req, user.id), {
       maxRequests: 60,
       windowMs: 60 * 1000,
     });
@@ -266,7 +266,7 @@ export async function POST(
     }
 
     const { data: authorProfile } = await supabase
-      .from("community_profiles")
+      .from("community_public_profiles")
       .select("user_id, nickname, avatar_url, rank")
       .eq("user_id", user.id)
       .maybeSingle();

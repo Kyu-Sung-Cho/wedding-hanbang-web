@@ -44,6 +44,26 @@ function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   }
 }
 
+function isCommunitySafetyIntakePath(pathname: string): boolean {
+  return (
+    /^\/api\/community\/(?:posts|comments)\/[^/]+\/report$/.test(pathname)
+    || /^\/api\/community\/cohort\/[^/]+\/members\/[^/]+\/report$/.test(pathname)
+    || pathname === "/api/community/moderation/appeals"
+  );
+}
+
+function isCommunitySafetyExitRoute(pathname: string): boolean {
+  return (
+    /^\/api\/community\/responder-requests\/[^/]+\/decline$/.test(pathname)
+    || /^\/api\/community\/responder-capacity\/[^/]+\/revoke$/.test(pathname)
+  );
+}
+
+function isCommunitySafetyExitPath(request: NextRequest): boolean {
+  return request.method.toUpperCase() === "POST"
+    && isCommunitySafetyExitRoute(request.nextUrl.pathname);
+}
+
 export async function proxy(request: NextRequest) {
   const isWeddingCodeResearchPath =
     request.nextUrl.pathname === "/internal/wedding-code-research" ||
@@ -136,6 +156,48 @@ export async function proxy(request: NextRequest) {
         status: 503,
         headers,
       }
+    );
+  }
+
+  const isCommunityApiPath =
+    request.nextUrl.pathname === "/api/community"
+    || request.nextUrl.pathname.startsWith("/api/community/");
+  const communityRuntimeMode = process.env.COMMUNITY_RUNTIME_MODE;
+  const isCommunitySafetyIntake = isCommunitySafetyIntakePath(
+    request.nextUrl.pathname,
+  );
+  const isCommunitySafetyExit = isCommunitySafetyExitPath(request);
+  const isInvalidCommunitySafetyExitMethod =
+    isCommunitySafetyExitRoute(request.nextUrl.pathname)
+    && !isCommunitySafetyExit;
+  const isCommunityMutation = !["GET", "HEAD", "OPTIONS"].includes(
+    request.method.toUpperCase(),
+  );
+  const shouldFreezeCommunity =
+    isCommunityApiPath
+    && !isCommunitySafetyIntake
+    && !isCommunitySafetyExit
+    && (
+      communityRuntimeMode === "disabled"
+      || (
+        communityRuntimeMode === "read_only"
+        && (isCommunityMutation || isInvalidCommunitySafetyExitMethod)
+      )
+    );
+  if (shouldFreezeCommunity) {
+    return NextResponse.json(
+      {
+        error: communityRuntimeMode === "disabled"
+          ? "community_disabled"
+          : "community_read_only",
+      },
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": "60",
+        },
+      },
     );
   }
 

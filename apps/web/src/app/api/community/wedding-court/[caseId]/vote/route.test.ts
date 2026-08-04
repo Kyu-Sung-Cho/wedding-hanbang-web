@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   checkCommunityWriteAccess: vi.fn(),
   castWeddingCourtVote: vi.fn(),
-  checkRateLimit: vi.fn(),
+  checkRateLimitPersistent: vi.fn(),
   rateLimitKey: vi.fn(() => "court-test"),
 }));
 
@@ -38,7 +38,7 @@ vi.mock("@/lib/weddingCourt/repository", () => ({
 }));
 
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: mocks.checkRateLimit,
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
   rateLimitKey: mocks.rateLimitKey,
 }));
 
@@ -71,7 +71,7 @@ describe("POST /api/community/wedding-court/[caseId]/vote", () => {
       },
     });
     mocks.checkCommunityWriteAccess.mockResolvedValue({ allowed: true });
-    mocks.checkRateLimit.mockReturnValue(null);
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.castWeddingCourtVote.mockResolvedValue({
       action: "created",
       courtCase: { id: CASE_ID, stage: "appeal_vote" },
@@ -109,7 +109,7 @@ describe("POST /api/community/wedding-court/[caseId]/vote", () => {
     expect(response.status).toBe(404);
     expect(paramsRead).toBe(false);
     expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
-    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
     expect(mocks.checkCommunityWriteAccess).not.toHaveBeenCalled();
     expect(mocks.castWeddingCourtVote).not.toHaveBeenCalled();
   });

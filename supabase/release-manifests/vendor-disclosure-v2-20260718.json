@@ -272,6 +272,62 @@
     {
       "file": "20260802240000_amora_memory_job_recovery.sql",
       "sha256": "f673b63550bbce8561ccd23fc7e5ec161627b5dc0ddbed8fed49a049adc7f0d4"
+    },
+    {
+      "file": "20260804103000_community_report_resolution_atomic.sql",
+      "sha256": "23b938edae10e03784cc13b80c61b10461f61b931bbd6d3921ed1889b0e31c1c"
+    },
+    {
+      "file": "20260804120000_community_profile_guestbook_p0_hardening.sql",
+      "sha256": "b837cc2ef7d3ce2c10892de61b0882666e919a2d452d7c1e4039400477703658"
+    },
+    {
+      "file": "20260804130000_community_runtime_control.sql",
+      "sha256": "0a7ccd82712051d5b1c1cab13090b071be107ecb8eee25d9f1d090b491337eb8"
+    },
+    {
+      "file": "20260804140000_community_responder_supply_foundation.sql",
+      "sha256": "82ae239c80cd19ab246280d5fd2005eb5815631e833c4816b855f1a5abc136d1"
+    },
+    {
+      "file": "20260804150000_community_comment_service_write_boundary.sql",
+      "sha256": "e06b8ee5c9e74c2f5c9ad2881cd0939fcab66f4fd02cbaaefdfa6effd50aa5a1"
+    },
+    {
+      "file": "20260804160000_community_poll_set_intent.sql",
+      "sha256": "9cc8af04fa086ef34d8650bd50f1c6612338de094594b5b0f3628bef32771a07"
+    },
+    {
+      "file": "20260804170000_notification_session_ownership.sql",
+      "sha256": "9dd0955b7144cee0d8174e29731027088accff9ea70e0406de335cb26310b302"
+    },
+    {
+      "file": "20260804180000_community_viewer_controls.sql",
+      "sha256": "bbf8c4208ce48280d35b55087696072d1435678eee728f48a0e70c16ebb89b97"
+    },
+    {
+      "file": "20260804185000_notification_delivery_outbox.sql",
+      "sha256": "d58f91f3ccc4fc9965e60d8de876187a95ad797aaf5773374b8a175d37abe1a2"
+    },
+    {
+      "file": "20260804190000_community_decision_thread_vertical.sql",
+      "sha256": "7f7e9288a6333b7358af6b02f189c9f1d6df885e34962764f3b6a2b387351a55"
+    },
+    {
+      "file": "20260804193000_community_decision_feed_read.sql",
+      "sha256": "5965c8118b0e5030339d9ad10dbb36d34e5b87f98f4bb833d5a23c6dd37e5400"
+    },
+    {
+      "file": "20260804194000_community_decision_outcome_review.sql",
+      "sha256": "60867720f77ed6d763fa5015bd414b2778a3e5be416f0927a3d115fab07def83"
+    },
+    {
+      "file": "20260804195000_community_decision_public_outcome_read.sql",
+      "sha256": "8367f384e95da3ba758759cd3f5ee5443c633dcdfcf33c1180e931a0e2f2c007"
+    },
+    {
+      "file": "20260804200000_community_post_service_write_boundary.sql",
+      "sha256": "3671f4d1878889b05eaad419354b35f311d2ac27757ed557a5b0580e31d57afc"
     }
   ],
   "deploymentEvidence": {

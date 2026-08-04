@@ -29,6 +29,33 @@ export async function GET(request: Request) {
 
     const supabase = getServiceClient();
 
+    const { data: discoveryRows, error: discoveryError } = await supabase
+      .from("cohort_rooms")
+      .select("id, year, month, room_number, member_count, message_count, is_active")
+      .eq("is_active", true)
+      .order("year")
+      .order("month")
+      .order("room_number")
+      .limit(10);
+
+    if (discoveryError) {
+      console.error("Cohort discovery GET error:", discoveryError);
+      return NextResponse.json(
+        { error: "동기방 목록을 불러오지 못했습니다." },
+        { status: 500, headers: PRIVATE_NO_STORE },
+      );
+    }
+
+    const availableRooms = (discoveryRows ?? []).map((room) => ({
+      id: room.id,
+      name: cohortRoomName(room.year, room.month, room.room_number),
+      year: room.year,
+      month: room.month,
+      member_count: room.member_count,
+      message_count: room.message_count,
+      is_active: room.is_active,
+    }));
+
     const { data: memberships } = await supabase
       .from("cohort_members")
       .select("room_id, joined_at")
@@ -38,7 +65,7 @@ export async function GET(request: Request) {
 
     if (!memberships || memberships.length === 0) {
       return NextResponse.json(
-        { room: null },
+        { room: null, availableRooms },
         { status: 200, headers: PRIVATE_NO_STORE },
       );
     }
@@ -66,7 +93,7 @@ export async function GET(request: Request) {
 
     if (!rooms || rooms.length === 0) {
       return NextResponse.json(
-        { room: null },
+        { room: null, availableRooms },
         { status: 200, headers: PRIVATE_NO_STORE },
       );
     }
@@ -98,7 +125,10 @@ export async function GET(request: Request) {
       ),
     };
 
-    const { data: memberRows } = await supabase
+    // Member previews and messages are viewer-specific. Use the authenticated
+    // client so the block RLS policies apply instead of bypassing them through
+    // the service role used for private cohort assignment data above.
+    const { data: memberRows } = await authClient
       .from("cohort_members")
       .select("id, user_id, joined_at")
       .eq("room_id", selectedRoom.id)
@@ -113,8 +143,8 @@ export async function GET(request: Request) {
     > = {};
 
     if (memberUserIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("community_profiles")
+      const { data: profiles } = await authClient
+        .from("community_public_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", memberUserIds);
 
@@ -125,12 +155,17 @@ export async function GET(request: Request) {
       }
     }
 
-    const members = (memberRows ?? []).map((member) => ({
-      ...member,
-      profile: memberProfiles[member.user_id as string] ?? null,
-    }));
+    const members = (memberRows ?? []).flatMap((member) => {
+      const profile = memberProfiles[member.user_id as string];
+      if (!profile) return [];
 
-    const { data: lastMsg } = await supabase
+      return [{
+        ...member,
+        profile,
+      }];
+    });
+
+    const { data: lastMsg } = await authClient
       .from("cohort_messages")
       .select("id, content, created_at, author_id")
       .eq("room_id", selectedRoom.id)
@@ -142,6 +177,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         room: normalizedRoom,
+        availableRooms,
         recentMembers: members,
         lastMessage: lastMsg?.content ?? null,
       },

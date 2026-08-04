@@ -341,23 +341,28 @@ export function prepareAmoraMemoryBatch(
         .slice(0, MAX_TRUSTED_MOMENT_KEYS);
       pendingMomentStartIndex = pendingMomentMemoryKeys.length > 0 ? index : null;
     }
-    if (message.role === "user" && message.sourceActorRole !== null) {
-      const line = formatUserMessage({
-        ...message,
-        trustedMomentMemoryKeys: pendingMomentMemoryKeys,
-      });
-      const nextLength = inputLength + (lines.length > 0 ? 1 : 0) + line.length;
-      if (nextLength > AMORA_MEMORY_MAX_INPUT_CHARS) {
-        // Keep the trusted care envelope and its first reply on the same side
-        // of the durable cursor. Otherwise a full batch could consume only the
-        // care question and permanently lose its catalog topic on continuation.
-        if (pendingMomentStartIndex !== null) {
-          consumedCount = Math.min(consumedCount, pendingMomentStartIndex);
+    if (message.role === "user") {
+      if (message.sourceActorRole !== null) {
+        const line = formatUserMessage({
+          ...message,
+          trustedMomentMemoryKeys: pendingMomentMemoryKeys,
+        });
+        const nextLength = inputLength + (lines.length > 0 ? 1 : 0) + line.length;
+        if (nextLength > AMORA_MEMORY_MAX_INPUT_CHARS) {
+          // Keep the trusted care envelope and its first eligible reply on the
+          // same side of the durable cursor. Otherwise a full batch could
+          // consume only the care question and lose its catalog topic.
+          if (pendingMomentStartIndex !== null) {
+            consumedCount = Math.min(consumedCount, pendingMomentStartIndex);
+          }
+          break;
         }
-        break;
+        lines.push(line);
+        inputLength = nextLength;
       }
-      lines.push(line);
-      inputLength = nextLength;
+      // A care topic belongs to the next human reply, even when that reply is
+      // outside the long-term-memory source scope. Never leak it forward to a
+      // later, unrelated eligible user message.
       pendingMomentMemoryKeys = [];
       pendingMomentStartIndex = null;
     }

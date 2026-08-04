@@ -253,7 +253,9 @@ export default function PostCard({ post }: PostCardProps) {
                       </span>
                       <span className="shrink-0 text-[#B5ADA3]">·</span>
                       <span className="shrink-0 tabular-nums">
-                        {post.poll.total_voters.toLocaleString()}명
+                        {post.poll.total_voters === null
+                          ? "참여 후 공개"
+                          : `${post.poll.total_voters.toLocaleString()}명`}
                       </span>
                       {isClosed && (
                         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#e5d8ca] text-[#635b51]">

@@ -63,6 +63,47 @@ const WEDDING_GUEST_COUNT_VALUES: ReadonlySet<string> = new Set(
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
 };
+
+type NormalizedOnboardingBudget =
+  | { ok: true; totalBudgetWon: number | null }
+  | { ok: false };
+
+function normalizeOnboardingBudget(value: unknown): NormalizedOnboardingBudget {
+  if (value === undefined || value === null || value === "" || value === 0) {
+    return { ok: true, totalBudgetWon: null };
+  }
+
+  // 기존 웹과 배포 전 클라이언트는 원 단위 숫자를 전송한다.
+  if (typeof value === "number") {
+    return isValidWeddingWonAmount(value) && value > 0
+      ? { ok: true, totalBudgetWon: value }
+      : { ok: false };
+  }
+
+  if (!isRecord(value)) return { ok: false };
+  const keys = Object.keys(value).sort();
+  if (keys.length !== 2 || keys[0] !== "amount" || keys[1] !== "unit") {
+    return { ok: false };
+  }
+
+  const { amount, unit } = value;
+  if (
+    typeof amount !== "number"
+    || !Number.isSafeInteger(amount)
+    || amount <= 0
+    || (unit !== "won" && unit !== "manwon")
+  ) {
+    return { ok: false };
+  }
+
+  const totalBudgetWon = unit === "manwon"
+    ? amount * 10_000
+    : amount;
+  return isValidWeddingWonAmount(totalBudgetWon) && totalBudgetWon > 0
+    ? { ok: true, totalBudgetWon }
+    : { ok: false };
+}
+
 function getAdmin() {
   return createAdminClient();
 }
@@ -835,25 +876,14 @@ export async function POST(request: Request) {
       return privateResponse({ error: "예식장 이름을 다시 확인해주세요." }, 400);
     }
     const venue = normalizedVenue || null;
-    const hasBudgetInput =
-      rawTotalBudget !== undefined
-      && rawTotalBudget !== null
-      && rawTotalBudget !== ""
-      && rawTotalBudget !== 0;
-    if (
-      hasBudgetInput
-      && (
-        typeof rawTotalBudget !== "number"
-        || !isValidWeddingWonAmount(rawTotalBudget)
-        || rawTotalBudget === 0
-      )
-    ) {
+    const normalizedBudget = normalizeOnboardingBudget(rawTotalBudget);
+    if (!normalizedBudget.ok) {
       return privateResponse(
         { error: "총 예산은 10억 원 이하의 금액으로 입력해주세요." },
         400,
       );
     }
-    const totalBudget = hasBudgetInput ? rawTotalBudget as number : null;
+    const totalBudget = normalizedBudget.totalBudgetWon;
     const hasSanggyeonryeDateInput =
       rawSanggyeonryeDate !== undefined
       && rawSanggyeonryeDate !== null

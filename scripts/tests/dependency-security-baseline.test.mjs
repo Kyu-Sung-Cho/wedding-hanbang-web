@@ -24,12 +24,14 @@ test("dependency security floors and compatibility patches stay pinned", async (
   assert.equal(rootPackage.devDependencies.sharp, "0.35.0");
 
   for (const requiredOverride of [
-    'postcss: "8.5.18"',
+    'postcss: "8.5.23"',
     '"shell-quote@<=1.8.4": "1.9.0"',
+    '"undici@<6.28.0": "6.28.0"',
+    '"undici@>=7.0.0 <7.29.0": "7.29.0"',
     '"tar@<=7.5.20": "7.5.21"',
     '"dompurify@<=3.4.11": "3.4.12"',
-    'brace-expansion: "5.0.8"',
-    'fast-uri: "3.1.4"',
+    'brace-expansion: "5.0.9"',
+    'fast-uri: "3.1.5"',
     'sharp: "0.35.0"',
   ]) {
     assert.match(

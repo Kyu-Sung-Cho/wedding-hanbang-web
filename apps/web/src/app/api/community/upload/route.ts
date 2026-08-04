@@ -13,6 +13,10 @@ import {
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import {
+  COMMUNITY_MEDIA_DISABLED_CODE,
+  isCommunityMediaPublishingEnabled,
+} from "@/lib/community/mediaPublishingGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +72,17 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return json({ error: "로그인이 필요해요.", code: "AUTH_REQUIRED" }, 401);
+  }
+
+  if (!isCommunityMediaPublishingEnabled()) {
+    return json(
+      {
+        error: "통제 베타에서는 커뮤니티 이미지 업로드를 아직 사용할 수 없어요.",
+        code: COMMUNITY_MEDIA_DISABLED_CODE,
+      },
+      503,
+      { "Retry-After": "3600" },
+    );
   }
 
   const writeAccess = await checkCommunityWriteAccess(requestClient, user.id);

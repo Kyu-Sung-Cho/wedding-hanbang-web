@@ -1,5 +1,6 @@
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const COHORT_MESSAGE_TOPICS = new Set(["price", "review", "concern", "chat"]);
+const COMMUNITY_PROFILE_RANKS = new Set(["sprout", "preparing", "expert", "master", "senior"]);
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -454,4 +455,75 @@ export async function fetchCohortMessages({
     throw new Error("COMMUNITY_COHORT_MESSAGES_RESPONSE_INVALID");
   }
   return messages;
+}
+
+export function parseCohortMembers(value) {
+  if (
+    !isRecord(value)
+    || Object.keys(value).length !== 1
+    || !Array.isArray(value.members)
+    || value.members.length > 200
+  ) throw new Error("COMMUNITY_COHORT_MEMBERS_RESPONSE_INVALID");
+
+  const seen = new Set();
+  return value.members.map((member) => {
+    const profile = isRecord(member) ? member.profile : null;
+    if (
+      !isRecord(member)
+      || Object.keys(member).some((key) => !["user_id", "profile"].includes(key))
+      || !isUuid(member.user_id)
+      || !isRecord(profile)
+      || Object.keys(profile).some((key) => !["nickname", "rank"].includes(key))
+      || !isSafeText(profile.nickname, 80)
+      || !COMMUNITY_PROFILE_RANKS.has(profile.rank)
+    ) throw new Error("COMMUNITY_COHORT_MEMBERS_RESPONSE_INVALID");
+
+    const userId = member.user_id.toLowerCase();
+    if (seen.has(userId)) {
+      throw new Error("COMMUNITY_COHORT_MEMBERS_RESPONSE_INVALID");
+    }
+    seen.add(userId);
+    return {
+      user_id: userId,
+      profile: {
+        nickname: profile.nickname,
+        rank: profile.rank,
+      },
+    };
+  });
+}
+
+export async function fetchCohortMembers({
+  apiFetchForExpectedUser,
+  ownerId,
+  roomId,
+}) {
+  if (
+    typeof apiFetchForExpectedUser !== "function"
+    || !isUuid(ownerId)
+    || !isUuid(roomId)
+  ) throw new Error("COMMUNITY_COHORT_MEMBERS_REQUEST_INVALID");
+
+  const response = await apiFetchForExpectedUser(
+    ownerId,
+    `/api/community/cohort/${roomId}/members`,
+    {},
+  );
+  if (!response || typeof response.ok !== "boolean" || typeof response.json !== "function") {
+    throw new Error("COMMUNITY_COHORT_MEMBERS_UNAVAILABLE");
+  }
+
+  const payload = await readJson(response);
+  if (!response.ok) {
+    const fields = serverErrorFields(
+      payload,
+      "COMMUNITY_COHORT_MEMBERS_UNAVAILABLE",
+      response.status === 403
+        ? "동기방 멤버만 멤버 목록을 볼 수 있어요."
+        : "동기방 멤버를 불러오지 못했어요.",
+    );
+    throw new CommunityCohortAccessError({ ...fields, status: response.status });
+  }
+
+  return parseCohortMembers(payload);
 }

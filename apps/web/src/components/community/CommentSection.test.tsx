@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   updateComment: vi.fn(async () => true),
   deleteComment: vi.fn(async () => true),
   voteComment: vi.fn(async () => undefined),
+  purgePrivacyState: vi.fn(),
   comments: [] as CommentWithAuthor[],
   commentsPostId: "post-1" as string | null,
   commentsLoading: false,
@@ -32,19 +33,25 @@ vi.mock("@supabase/ssr", () => ({
   createBrowserClient: mocks.createBrowserClient,
 }));
 
-vi.mock("@/stores/communityStore", () => ({
-  useCommunityStore: () => ({
-    comments: mocks.comments,
-    commentsPostId: mocks.commentsPostId,
-    commentsLoading: mocks.commentsLoading,
-    fetchComments: mocks.fetchComments,
-    createComment: mocks.createComment,
-    updateComment: mocks.updateComment,
-    deleteComment: mocks.deleteComment,
-    voteComment: mocks.voteComment,
-    currentPost: mocks.currentPost,
-  }),
-}));
+vi.mock("@/stores/communityStore", () => {
+  const useCommunityStore = Object.assign(
+    () => ({
+      comments: mocks.comments,
+      commentsPostId: mocks.commentsPostId,
+      commentsLoading: mocks.commentsLoading,
+      fetchComments: mocks.fetchComments,
+      createComment: mocks.createComment,
+      updateComment: mocks.updateComment,
+      deleteComment: mocks.deleteComment,
+      voteComment: mocks.voteComment,
+      currentPost: mocks.currentPost,
+    }),
+    {
+      getState: () => ({ purgePrivacyState: mocks.purgePrivacyState }),
+    },
+  );
+  return { useCommunityStore };
+});
 
 function comment(
   id: string,
@@ -107,6 +114,7 @@ describe("CommentSection participation recovery", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     document.body.replaceChildren();
+    vi.unstubAllGlobals();
   });
 
   it("preserves replies that already arrive nested under their parent", async () => {
@@ -261,6 +269,62 @@ describe("CommentSection participation recovery", () => {
 
     expect(mocks.createComment.mock.calls[0]?.[1]?.idempotencyKey).not.toBe(
       mocks.createComment.mock.calls[1]?.[1]?.idempotencyKey,
+    );
+  });
+
+  it("immediately removes every visible answer from a newly blocked author", async () => {
+    const blockedUserId = "10000000-0000-4000-8000-000000000002";
+    const first = comment("first", "첫 번째 숨길 답변");
+    const second = comment("second", "두 번째 숨길 답변");
+    for (const item of [first, second]) {
+      item.author_id = blockedUserId;
+      item.author = {
+        ...item.author,
+        user_id: blockedUserId,
+        nickname: "숨길회원",
+      };
+    }
+    mocks.comments = [first, second];
+    mocks.createBrowserClient.mockReturnValue({
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: "member-1" } } })),
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({
+        ok: true,
+        blocked_user_id: blockedUserId,
+        blocked: true,
+        changed: true,
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ));
+
+    await act(async () => {
+      root.render(<CommentSection postId="post-1" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="숨길회원님 차단"]',
+      )?.click();
+    });
+    const confirm = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("차단하기"),
+    );
+    await act(async () => {
+      confirm?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("첫 번째 숨길 답변");
+    expect(container.textContent).not.toContain("두 번째 숨길 답변");
+    expect(container.textContent).toContain(
+      "차단한 회원의 답변을 이 화면에서도 숨겼어요",
     );
   });
 });

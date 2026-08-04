@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+const supabaseMocks = vi.hoisted(() => ({
+  signOut: vi.fn(),
+}));
+
 // Mock Supabase client before importing the store
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { signOut: vi.fn().mockResolvedValue({}) },
+    auth: { signOut: supabaseMocks.signOut },
   }),
 }));
 
@@ -46,6 +50,9 @@ function resetStore() {
 describe("useAuthStore", () => {
   beforeEach(() => {
     resetStore();
+    sessionStorage.clear();
+    localStorage.clear();
+    supabaseMocks.signOut.mockReset().mockResolvedValue({});
     mockFetch.mockReset();
     setDemoCookie(false);
   });
@@ -682,5 +689,81 @@ describe("useAuthStore", () => {
       expect(state.isDemo).toBe(false);
       expect(state.isInitialized).toBe(false);
     });
+
+    it("purges the outgoing account's community memory, caches, and draft", () => {
+      useAuthStore.setState({
+        user: { id: "user-a", email: "a@example.com" },
+        isInitialized: true,
+      });
+      useCommunityStore.getState().bindViewer("user-a");
+      useCommunityStore.setState({
+        posts: [{ id: "a-private" } as never],
+      });
+      sessionStorage.setItem("community:viewer:user-a:landing", "A");
+      localStorage.setItem("community:post-draft:v2:user-a", "A-draft");
+
+      useAuthStore.getState().reset();
+
+      expect(useCommunityStore.getState()).toMatchObject({
+        viewerId: null,
+        posts: [],
+      });
+      expect(sessionStorage.getItem("community:viewer:user-a:landing")).toBeNull();
+      expect(localStorage.getItem("community:post-draft:v2:user-a")).toBeNull();
+    });
+  });
+
+  it("purges auth and community state before sign-out I/O finishes", async () => {
+    let resolveSignOut: (() => void) | undefined;
+    supabaseMocks.signOut.mockReturnValueOnce(
+      new Promise((resolve) => { resolveSignOut = () => resolve({}); }),
+    );
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@example.com" },
+      isInitialized: true,
+    });
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.setState({ posts: [{ id: "a-private" } as never] });
+
+    const pending = useAuthStore.getState().signOut();
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useCommunityStore.getState()).toMatchObject({
+      viewerId: null,
+      posts: [],
+    });
+
+    resolveSignOut?.();
+    await pending;
+  });
+
+  it("rebinds and purges community state before committing an account switch", async () => {
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@example.com" },
+      isInitialized: true,
+    });
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.setState({ posts: [{ id: "a-private" } as never] });
+    sessionStorage.setItem("community:viewer:user-a:trending", "A");
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: "user-b", email: "b@example.com" },
+        profile: { id: "user-b", name: "B" },
+        couple: null,
+        partner: null,
+        journey: null,
+      }),
+    });
+
+    await useAuthStore.getState().initialize({ force: true });
+
+    expect(useAuthStore.getState().user?.id).toBe("user-b");
+    expect(useCommunityStore.getState()).toMatchObject({
+      viewerId: "user-b",
+      posts: [],
+    });
+    expect(sessionStorage.getItem("community:viewer:user-a:trending")).toBeNull();
   });
 });

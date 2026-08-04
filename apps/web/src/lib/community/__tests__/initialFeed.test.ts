@@ -59,8 +59,6 @@ const mocks = vi.hoisted(() => {
         nickname: "Tester",
         avatar_url: null,
         rank: "sprout",
-        wedding_year: null,
-        wedding_month: null,
       },
     ],
     error: null,
@@ -86,13 +84,14 @@ const mocks = vi.hoisted(() => {
   const supabase = {
     from: vi.fn((table: string) => {
       if (table === "community_posts") return postsQuery;
-      if (table === "community_profiles") return profilesQuery;
+      if (table === "community_public_profiles") return profilesQuery;
       if (table === "community_polls") return pollsQuery;
       throw new Error(`Unexpected table ${table}`);
     }),
   };
 
   const adminSupabase = {
+    rpc: vi.fn(),
     from: vi.fn((table: string) => {
       if (table === "profiles") return profileRolesQuery;
       throw new Error(`Unexpected admin table ${table}`);
@@ -108,6 +107,7 @@ const mocks = vi.hoisted(() => {
     profileRolesQuery,
     supabase,
     adminSupabase,
+    serviceRpc: adminSupabase.rpc,
   };
 });
 
@@ -122,6 +122,8 @@ vi.mock("@/lib/supabase/admin", () => ({
 describe("getInitialCommunityFeed", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.pollsQuery.in.mockResolvedValue({ data: [], error: null });
+    mocks.serviceRpc.mockResolvedValue({ data: null, error: null });
   });
 
   it("lists posts through the same public visibility/select rule that detail pages can read", async () => {
@@ -132,9 +134,53 @@ describe("getInitialCommunityFeed", () => {
     expect(mocks.postsQuery.select).toHaveBeenCalledWith(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" });
     expect(mocks.postsQuery.eq).toHaveBeenCalledWith("visibility", "public");
     expect(mocks.postsQuery.eq).toHaveBeenCalledWith("under_review", false);
+    expect(mocks.supabase.from).toHaveBeenCalledWith("community_public_profiles");
     expect(feed.posts).toHaveLength(1);
     expect(feed.posts[0]?.id).toBe("listed-post");
     expect(feed.posts[0]?.category).toBe("is_normal");
     expect(feed.posts[0]?.author.role).toBe("bride");
+    expect(feed.posts[0]?.author.wedding_year).toBeNull();
+    expect(feed.posts[0]?.author.wedding_month).toBeNull();
+  });
+
+  it("loads public poll counters through the anonymous actor projection", async () => {
+    mocks.pollsQuery.in.mockResolvedValue({
+      data: [{ id: "poll-1", post_id: "listed-post" }],
+      error: null,
+    });
+    mocks.serviceRpc.mockResolvedValue({
+      data: {
+        ok: true,
+        id: "poll-1",
+        post_id: "listed-post",
+        version: 1,
+        question: "무엇부터 준비할까요?",
+        allow_multiple: false,
+        is_anonymous: true,
+        hide_results_until_voted: false,
+        closes_at: null,
+        total_voters: 7,
+        total_votes: 7,
+        created_at: "2026-08-04T00:00:00.000Z",
+        results_hidden: false,
+        user_voted_option_ids: [],
+        options: [],
+      },
+      error: null,
+    });
+
+    const feed = await getInitialCommunityFeed(1);
+
+    expect(mocks.pollsQuery.select).toHaveBeenCalledWith("id, post_id");
+    expect(mocks.serviceRpc).toHaveBeenCalledWith(
+      "community_get_poll_actor_projection",
+      { p_actor_id: null, p_poll_id: "poll-1" },
+    );
+    expect(feed.posts[0]?.poll).toEqual({
+      id: "poll-1",
+      question: "무엇부터 준비할까요?",
+      total_voters: 7,
+      closes_at: null,
+    });
   });
 });

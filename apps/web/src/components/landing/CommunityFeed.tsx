@@ -61,7 +61,7 @@ async function fetchPosts(): Promise<{ posts: PostRow[]; profiles: Map<string, P
 
     const authorIds = [...new Set(postRows.map((p) => p.author_id))];
     const { data: profiles } = await supabase
-      .from("community_profiles")
+      .from("community_public_profiles")
       .select("user_id, nickname, badge, avatar_url")
       .in("user_id", authorIds);
 

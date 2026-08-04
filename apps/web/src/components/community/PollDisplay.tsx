@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { PollWithOptions } from "@/types/community.types";
+import { submitPollVoteIntent } from "@/lib/community/pollVoteIntent";
 
 interface PollDisplayProps {
   poll: PollWithOptions;
@@ -45,8 +46,12 @@ export default function PollDisplay({
 
   const hasVoted = poll.user_voted_option_ids.length > 0;
   const isClosed = poll.closes_at ? new Date(poll.closes_at).getTime() <= now : false;
-  const showResults = !poll.hide_results_until_voted || hasVoted || isClosed;
-  const totalForBars = Math.max(1, poll.total_voters);
+  // 집계 공개 여부는 클라이언트가 추측하지 않는다. 서버 actor projection이
+  // 공개 가능한 경우에만 숫자를 반환하며, 숨김 상태는 반드시 null이다.
+  const showResults = poll.results_hidden !== true
+    && poll.total_voters !== null
+    && poll.options.every((option) => option.vote_count !== null);
+  const totalForBars = showResults ? Math.max(1, poll.total_voters ?? 0) : 1;
 
   const remaining = useMemo(() => {
     if (!poll.closes_at) return null;
@@ -76,6 +81,7 @@ export default function PollDisplay({
 
     // 낙관적 업데이트 (단일 선택은 교체, 다중은 토글)
     const wasVoted = poll.user_voted_option_ids.includes(optionId);
+    const desiredSelected = !wasVoted;
     const optimisticOptionIds = poll.allow_multiple
       ? wasVoted
         ? poll.user_voted_option_ids.filter((id) => id !== optionId)
@@ -88,6 +94,7 @@ export default function PollDisplay({
       ...poll,
       user_voted_option_ids: optimisticOptionIds,
       options: poll.options.map((opt) => {
+        if (opt.vote_count === null) return opt;
         const wasInOpt = poll.user_voted_option_ids.includes(opt.id);
         const isInOpt = optimisticOptionIds.includes(opt.id);
         if (wasInOpt && !isInOpt) return { ...opt, vote_count: Math.max(0, opt.vote_count - 1) };
@@ -95,7 +102,9 @@ export default function PollDisplay({
         return opt;
       }),
       total_voters:
-        poll.allow_multiple
+        poll.total_voters === null
+          ? null
+          : poll.allow_multiple
           ? optimisticOptionIds.length > 0
             ? Math.max(poll.total_voters, 1)
             : Math.max(0, poll.total_voters - 1)
@@ -106,10 +115,12 @@ export default function PollDisplay({
     setPoll(optimistic);
 
     try {
-      const res = await fetch(`/api/community/polls/${poll.id}/vote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ option_id: optionId }),
+      const res = await submitPollVoteIntent({
+        pollId: poll.id,
+        optionId,
+        selected: desiredSelected,
+        pollVersion: poll.version,
+        idempotencyKey: globalThis.crypto.randomUUID(),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -141,7 +152,9 @@ export default function PollDisplay({
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#928980]">
             <span className="inline-flex items-center gap-1">
               <Users className="w-3.5 h-3.5" />
-              {poll.total_voters.toLocaleString()}명 참여
+              {poll.total_voters === null
+                ? "참여 후 인원 공개"
+                : `${poll.total_voters.toLocaleString()}명 참여`}
             </span>
             {poll.allow_multiple && (
               <span className="inline-flex items-center gap-1">
@@ -189,8 +202,10 @@ export default function PollDisplay({
       <div className="space-y-2">
         {poll.options.map((opt) => {
           const isSelected = poll.user_voted_option_ids.includes(opt.id);
-          const percent = showResults
-            ? Math.round((opt.vote_count / totalForBars) * 100)
+          const voteCount = opt.vote_count;
+          const optionResultsVisible = showResults && voteCount !== null;
+          const percent = showResults && voteCount !== null
+            ? Math.round((voteCount / totalForBars) * 100)
             : 0;
           const isPending = pendingOptionId === opt.id;
           const disabled = isClosed || isPending || pendingOptionId !== null;
@@ -208,7 +223,7 @@ export default function PollDisplay({
               } ${disabled && !isPending ? "cursor-not-allowed opacity-90" : ""}`}
             >
               {/* 결과 막대 (배경) */}
-              {showResults && (
+              {optionResultsVisible && (
                 <div
                   className={`absolute inset-y-0 left-0 transition-all duration-500 ease-out ${
                     isSelected ? "bg-[#36534E]/12" : "bg-[#f6efe5]"
@@ -266,10 +281,10 @@ export default function PollDisplay({
                 {/* 결과 숫자 */}
                 <div className="shrink-0 flex items-center gap-2 text-right">
                   {isPending && <Loader2 className="w-4 h-4 text-[#36534E] animate-spin" />}
-                  {showResults && (
+                  {showResults && voteCount !== null && (
                     <>
                       <span className="text-xs text-[#928980] tabular-nums">
-                        {opt.vote_count.toLocaleString()}표
+                        {voteCount.toLocaleString()}표
                       </span>
                       <span
                         className={`text-base font-semibold tabular-nums ${

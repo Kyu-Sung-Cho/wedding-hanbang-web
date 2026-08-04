@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, CheckCheck, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { isAllowedCommunityReplyWebHref } from "@hanbang/shared/community-notification";
 
 type CommunityReplyNotification = {
   id: string;
@@ -19,29 +20,46 @@ type CommunityReplyNotification = {
   href: string;
 };
 
-const COMMUNITY_NOTIFICATION_HREF =
-  /^\/wedding\/community\/post\/[0-9a-f-]{36}#comment-[0-9a-f-]{36}$/i;
 const NOTIFICATION_REFRESH_MS = 60_000;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
 
 function isNotification(value: unknown): value is CommunityReplyNotification {
   if (typeof value !== "object" || value === null) return false;
   const row = value as Record<string, unknown>;
   return (
-    typeof row.id === "string"
-    && typeof row.actor_id === "string"
+    isUuid(row.id)
+    && isUuid(row.actor_id)
     && typeof row.actor_nickname === "string"
-    && typeof row.post_id === "string"
-    && typeof row.comment_id === "string"
-    && (row.parent_comment_id === null || typeof row.parent_comment_id === "string")
+    && row.actor_nickname.length > 0
+    && Array.from(row.actor_nickname).length <= 40
+    && isUuid(row.post_id)
+    && isUuid(row.comment_id)
+    && (row.parent_comment_id === null || isUuid(row.parent_comment_id))
     && (row.kind === "post_reply" || row.kind === "comment_reply")
-    && (row.read_at === null || typeof row.read_at === "string")
-    && typeof row.created_at === "string"
+    && (row.read_at === null || isTimestamp(row.read_at))
+    && isTimestamp(row.created_at)
     && typeof row.title === "string"
+    && Array.from(row.title).length <= 120
     && typeof row.message === "string"
+    && Array.from(row.message).length <= 200
     && typeof row.href === "string"
-    && COMMUNITY_NOTIFICATION_HREF.test(row.href)
+    && isAllowedCommunityReplyWebHref(row.href)
   );
 }
+
+type NotificationState = {
+  ownerId: string | null;
+  rows: CommunityReplyNotification[];
+};
 
 function formatTime(value: string) {
   const date = new Date(value);
@@ -54,40 +72,97 @@ function formatTime(value: string) {
   }).format(date);
 }
 
-export default function CommunityReplyNotifications() {
+export default function CommunityReplyNotifications({
+  ownerId,
+}: {
+  ownerId: string;
+}) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<
-    CommunityReplyNotification[]
-  >([]);
+  const [notificationState, setNotificationState] = useState<NotificationState>({
+    ownerId: null,
+    rows: [],
+  });
+  const requestSequenceRef = useRef(0);
+  const currentOwnerRef = useRef(ownerId);
+  currentOwnerRef.current = ownerId;
+  const notifications =
+    notificationState.ownerId === ownerId ? notificationState.rows : [];
 
-  const refresh = useCallback(async () => {
-    setError(null);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const expectedOwnerId = ownerId;
+    const sequence = ++requestSequenceRef.current;
+    if (currentOwnerRef.current === expectedOwnerId) setError(null);
     try {
       const response = await fetch("/api/community/notifications", {
         cache: "no-store",
         credentials: "same-origin",
         headers: { Accept: "application/json" },
+        signal,
       });
-      const payload = (await response.json().catch(() => null)) as
-        | { notifications?: unknown }
-        | null;
-      if (!response.ok || !Array.isArray(payload?.notifications)) {
+      const payload = await response.json().catch(() => null) as unknown;
+      const rawNotifications =
+        typeof payload === "object" && payload !== null && "notifications" in payload
+          ? payload.notifications
+          : null;
+      const responseOwnerId =
+        typeof payload === "object"
+        && payload !== null
+        && "ownerId" in payload
+        && typeof payload.ownerId === "string"
+          ? payload.ownerId
+          : null;
+      if (
+        !response.ok
+        || responseOwnerId?.toLowerCase() !== expectedOwnerId.toLowerCase()
+        || !Array.isArray(rawNotifications)
+        || !rawNotifications.every(isNotification)
+        || new Set(rawNotifications.map((notification) => notification.id)).size
+          !== rawNotifications.length
+      ) {
         throw new Error("notification load failed");
       }
-      setNotifications(payload.notifications.filter(isNotification));
-    } catch {
-      setError("새 답변을 불러오지 못했어요.");
+      if (
+        !signal?.aborted
+        && sequence === requestSequenceRef.current
+        && currentOwnerRef.current === expectedOwnerId
+      ) {
+        setNotificationState({
+          ownerId: expectedOwnerId,
+          rows: rawNotifications,
+        });
+      }
+    } catch (caught) {
+      if (
+        !(caught instanceof DOMException && caught.name === "AbortError")
+        && !signal?.aborted
+        && sequence === requestSequenceRef.current
+        && currentOwnerRef.current === expectedOwnerId
+      ) {
+        setError("새 답변을 불러오지 못했어요.");
+      }
     } finally {
-      setLoading(false);
+      if (
+        !signal?.aborted
+        && sequence === requestSequenceRef.current
+        && currentOwnerRef.current === expectedOwnerId
+      ) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [ownerId]);
 
   useEffect(() => {
-    void refresh();
+    requestSequenceRef.current += 1;
+    setNotificationState({ ownerId, rows: [] });
+    setOpen(false);
+    setError(null);
+    setLoading(true);
+    const controller = new AbortController();
+    void refresh(controller.signal);
     const recover = () => {
       if (document.visibilityState === "visible") void refresh();
     };
@@ -95,11 +170,13 @@ export default function CommunityReplyNotifications() {
     window.addEventListener("focus", recover);
     document.addEventListener("visibilitychange", recover);
     return () => {
+      controller.abort();
+      requestSequenceRef.current += 1;
       window.clearInterval(interval);
       window.removeEventListener("focus", recover);
       document.removeEventListener("visibilitychange", recover);
     };
-  }, [refresh]);
+  }, [ownerId, refresh]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,7 +203,10 @@ export default function CommunityReplyNotifications() {
     (notification) => notification.read_at === null,
   ).length;
 
-  const markRead = useCallback(async (ids: string[]) => {
+  const markRead = useCallback(async (
+    selection: { ids: string[] } | { all: true },
+  ) => {
+    const expectedOwnerId = ownerId;
     const response = await fetch("/api/community/notifications", {
       method: "POST",
       cache: "no-store",
@@ -136,10 +216,23 @@ export default function CommunityReplyNotifications() {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ ownerId: expectedOwnerId, ...selection }),
     });
-    if (!response.ok) throw new Error("notification read failed");
-  }, []);
+    const payload = await response.json().catch(() => null) as unknown;
+    if (
+      !response.ok
+      || currentOwnerRef.current !== expectedOwnerId
+      || typeof payload !== "object"
+      || payload === null
+      || !("ok" in payload)
+      || payload.ok !== true
+      || !("ownerId" in payload)
+      || typeof payload.ownerId !== "string"
+      || payload.ownerId.toLowerCase() !== expectedOwnerId.toLowerCase()
+    ) {
+      throw new Error("notification read failed");
+    }
+  }, [ownerId]);
 
   const openNotification = async (
     notification: CommunityReplyNotification,
@@ -147,15 +240,20 @@ export default function CommunityReplyNotifications() {
     if (notification.read_at === null) {
       const previous = notifications;
       const readAt = new Date().toISOString();
-      setNotifications((current) =>
-        current.map((item) =>
-          item.id === notification.id ? { ...item, read_at: readAt } : item,
-        ),
-      );
+      setNotificationState((current) => current.ownerId === ownerId
+        ? {
+            ownerId,
+            rows: current.rows.map((item) =>
+              item.id === notification.id ? { ...item, read_at: readAt } : item,
+            ),
+          }
+        : current);
       try {
-        await markRead([notification.id]);
+        await markRead({ ids: [notification.id] });
       } catch {
-        setNotifications(previous);
+        if (currentOwnerRef.current === ownerId) {
+          setNotificationState({ ownerId, rows: previous });
+        }
       }
     }
     setOpen(false);
@@ -170,28 +268,23 @@ export default function CommunityReplyNotifications() {
 
     const previous = notifications;
     const readAt = new Date().toISOString();
-    setNotifications((current) =>
-      current.map((notification) => (
-        notification.read_at === null
-          ? { ...notification, read_at: readAt }
-          : notification
-      )),
-    );
+    setNotificationState((current) => current.ownerId === ownerId
+      ? {
+          ownerId,
+          rows: current.rows.map((notification) => (
+            notification.read_at === null
+              ? { ...notification, read_at: readAt }
+              : notification
+          )),
+        }
+      : current);
     try {
-      const response = await fetch("/api/community/notifications", {
-        method: "POST",
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ all: true }),
-      });
-      if (!response.ok) throw new Error("notification read failed");
+      await markRead({ all: true });
     } catch {
-      setNotifications(previous);
-      setError("읽음 상태를 저장하지 못했어요.");
+      if (currentOwnerRef.current === ownerId) {
+        setNotificationState({ ownerId, rows: previous });
+        setError("읽음 상태를 저장하지 못했어요.");
+      }
     }
   };
 

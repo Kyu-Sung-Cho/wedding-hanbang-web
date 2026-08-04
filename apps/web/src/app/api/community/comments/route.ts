@@ -1,10 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getCommunityNicknameFallback,
-  getSafeDefaultCommunityNickname,
-  isCommunityNicknameUniqueViolation,
-} from "@/lib/community/nickname";
+import { getSafeDefaultCommunityNickname } from "@/lib/community/nickname";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
@@ -12,8 +9,8 @@ import {
   findObviousPublicPersonalInfo,
   PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
 } from "@/lib/community/publicPersonalInfo";
-import { sanitizeHtml } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { sanitizeText } from "@/utils/sanitize";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
   isBodyTooLarge,
   isRecord,
@@ -44,7 +41,7 @@ export async function GET(req: NextRequest) {
     const postId = searchParams.get("postId");
 
     if (!postId) {
-      return NextResponse.json(
+      return json(
         { error: "postId가 필요합니다." },
         { status: 400 }
       );
@@ -62,14 +59,14 @@ export async function GET(req: NextRequest) {
 
     if (postFetchError) {
       console.error("Comment parent post access check error:", postFetchError);
-      return NextResponse.json(
+      return json(
         { error: "게시글 접근 확인에 실패했습니다." },
         { status: 500 }
       );
     }
 
     if (!targetPost || !canReadCommunityPost(targetPost, { userId: user?.id ?? null })) {
-      return NextResponse.json(
+      return json(
         { error: "게시글을 찾을 수 없거나 접근 권한이 없습니다." },
         { status: 404 }
       );
@@ -85,7 +82,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("List comments error:", error);
-      return NextResponse.json(
+      return json(
         { error: "댓글을 불러올 수 없습니다." },
         { status: 500 }
       );
@@ -139,10 +136,10 @@ export async function GET(req: NextRequest) {
       replies: repliesMap[comment.id] ?? [],
     }));
 
-    return NextResponse.json({ comments: tree });
+    return json({ comments: tree });
   } catch (err) {
     console.error("List comments error:", err);
-    return NextResponse.json(
+    return json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
     );
@@ -150,17 +147,24 @@ export async function GET(req: NextRequest) {
 }
 
 type AtomicCommentResult = {
-  comment: Record<string, unknown>;
-  replayed: boolean;
+  comment: Record<string, unknown> & {
+    author: Record<string, unknown>;
+  };
   post_comment_count: number;
 };
 
-function isAtomicCommentResult(value: unknown): value is AtomicCommentResult {
+function isAtomicCommentResult(
+  value: unknown,
+  actorId: string,
+): value is AtomicCommentResult {
   return (
     isRecord(value)
     && isRecord(value.comment)
     && typeof value.comment.id === "string"
-    && typeof value.replayed === "boolean"
+    && value.comment.author_id === actorId
+    && isRecord(value.comment.author)
+    && value.comment.author.user_id === actorId
+    && !Object.hasOwn(value, "replayed")
     && typeof value.post_comment_count === "number"
     && Number.isSafeInteger(value.post_comment_count)
     && value.post_comment_count >= 0
@@ -230,20 +234,6 @@ export async function POST(req: NextRequest) {
       return json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
-    if (!writeAccess.allowed) {
-      return json(
-        { code: writeAccess.code, error: writeAccess.message },
-        { status: writeAccess.status },
-      );
-    }
-
-    const rlResult = checkRateLimit(
-      rateLimitKey("community:comment:create", req, user.id),
-      { maxRequests: 30, windowMs: 10 * 60 * 1000 },
-    );
-    if (rlResult) return rlResult;
-
     const idempotencyKey = req.headers.get("idempotency-key")?.trim() ?? "";
     if (!isUuid(idempotencyKey)) {
       return json(
@@ -293,7 +283,9 @@ export async function POST(req: NextRequest) {
       return json({ error: "답변 대상이나 내용이 올바르지 않습니다." }, { status: 400 });
     }
 
-    const content = sanitizeHtml(rawContent).slice(0, 5000).trim();
+    // Public comments are a plain-text surface. Removing markup before the PII
+    // scan also removes hidden href/src/alt/title values from persisted data.
+    const content = sanitizeText(rawContent).slice(0, 5000).trim();
     if (!content) {
       return json({ error: "답변 내용을 입력해 주세요." }, { status: 400 });
     }
@@ -309,6 +301,47 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
+
+    const normalizedParentId = typeof parentId === "string" ? parentId : null;
+    const writeService = createAdminClient();
+    const profileNickname = getSafeDefaultCommunityNickname(null, user.id);
+    const { data: replayData, error: replayError } = await writeService.rpc(
+      "community_replay_comment_command_service",
+      {
+        p_actor_id: user.id,
+        p_post_id: postId,
+        p_parent_id: normalizedParentId,
+        p_content: content,
+        p_idempotency_key: idempotencyKey,
+      },
+    );
+    if (replayError) return rpcFailure(replayError);
+    if (replayData !== null && replayData !== undefined) {
+      if (!isAtomicCommentResult(replayData, user.id)) {
+        return json(
+          {
+            code: "COMMUNITY_COMMENT_REPLAY_UNCONFIRMED",
+            error: "저장된 댓글 결과를 안전하게 확인하지 못했습니다.",
+          },
+          { status: 503 },
+        );
+      }
+
+      return json(replayData, { status: 201 });
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return json(
+        { code: writeAccess.code, error: writeAccess.message },
+        { status: writeAccess.status },
+      );
+    }
+    const rlResult = await checkRateLimitPersistent(
+      rateLimitKey("community:comment:create", req, user.id),
+      { maxRequests: 30, windowMs: 10 * 60 * 1000 },
+    );
+    if (rlResult) return rlResult;
 
     const { data: targetPost, error: postFetchError } = await supabase
       .from("community_posts")
@@ -329,7 +362,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const normalizedParentId = typeof parentId === "string" ? parentId : null;
     if (normalizedParentId) {
       const { data: parentComment, error: parentFetchError } = await supabase
         .from("community_comments")
@@ -351,51 +383,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // First-time answerers still receive a stable community nickname. Failure
-    // here is non-fatal because the atomic RPC can return the safe fallback.
-    const { data: existingProfile } = await supabase
-      .from("community_profiles")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!existingProfile) {
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .maybeSingle();
-      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
-      const fallbackNickname = getCommunityNicknameFallback(user.id);
-      const createProfilePayload = {
-        user_id: user.id,
-        nickname,
-        badge: "member",
-        post_count: 0,
-        comment_count: 0,
-        total_upvotes_received: 0,
-      };
-      const { error: profileInsertError } = await supabase
-        .from("community_profiles")
-        .insert(createProfilePayload);
-
-      if (
-        profileInsertError
-        && isCommunityNicknameUniqueViolation(profileInsertError)
-        && nickname !== fallbackNickname
-      ) {
-        await supabase
-          .from("community_profiles")
-          .insert({ ...createProfilePayload, nickname: fallbackNickname });
-      }
-    }
-
-    const { data: atomicData, error: atomicError } = await supabase.rpc(
-      "community_create_comment_with_notifications",
+    const { data: atomicData, error: atomicError } = await writeService.rpc(
+      "community_create_comment_with_notifications_service",
       {
+        p_actor_id: user.id,
         p_post_id: postId,
         p_parent_id: normalizedParentId,
         p_content: content,
+        p_profile_nickname: profileNickname,
         p_idempotency_key: idempotencyKey,
       },
     );
@@ -404,7 +399,7 @@ export async function POST(req: NextRequest) {
       console.error("Atomic community comment creation failed:", atomicError.code);
       return rpcFailure(atomicError);
     }
-    if (!isAtomicCommentResult(atomicData)) {
+    if (!isAtomicCommentResult(atomicData, user.id)) {
       return json(
         {
           code: "COMMUNITY_COMMENT_SAVE_UNCONFIRMED",
@@ -414,32 +409,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: creatorProfile } = await supabase
-      .from("community_profiles")
-      .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const commentWithAuthor = {
-      ...atomicData.comment,
-      author: creatorProfile ?? {
-        user_id: user.id,
-        nickname: "회원",
-        avatar_url: null,
-        rank: "sprout",
-        wedding_year: null,
-        wedding_month: null,
-      },
-    };
-
-    return json(
-      {
-        comment: commentWithAuthor,
-        replayed: atomicData.replayed,
-        post_comment_count: atomicData.post_comment_count,
-      },
-      { status: atomicData.replayed ? 200 : 201 },
-    );
+    return json(atomicData, { status: 201 });
   } catch (err) {
     console.error("Create comment error:", err);
     return json(

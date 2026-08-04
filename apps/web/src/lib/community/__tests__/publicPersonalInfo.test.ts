@@ -35,6 +35,16 @@ describe("findObviousPublicPersonalInfo", () => {
     ).toEqual(["email"]);
   });
 
+  it.each([
+    ['<a href="mailto:victim@example.com">문의</a>', "email"],
+    ['<a href="tel:010-1234-5678">전화</a>', "phone"],
+    ['<img src="/safe/image.jpg" alt="010-1234-5678">', "phone"],
+    ['<img src="https://example.com/010-1234-5678.jpg" title="사진">', "phone"],
+    ['<a href="mailto:test&#64;example.com">문의</a>', "email"],
+  ])("detects PII hidden in sanitized HTML attributes: %s", (value, kind) => {
+    expect(findObviousPublicPersonalInfo(value)).toContain(kind);
+  });
+
   it("does not mistake ordinary wedding prices and dates for identifiers", () => {
     expect(
       findObviousPublicPersonalInfo(

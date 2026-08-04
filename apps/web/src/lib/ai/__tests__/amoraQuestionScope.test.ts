@@ -337,36 +337,28 @@ describe("Amora question-scope ceiling", () => {
     expect(filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)).toEqual([]);
   });
 
-  it("inherits W0 only for a narrow confirmation of the previous user wedding request", () => {
-    const confirmed = [
+  it("never inherits W0 authority from conversational confirmation prose", () => {
+    const confirmations = [
       "응, 그대로 적용해줘",
       "응, 그렇게 해줘",
       "응, 해줘",
       "응 맞아, 그대로 적용해줘",
-    ].map((userText) => classifyAmoraQuestionScope({
-      userText,
-      previousUserText: "우리 결혼 총 예산을 4천만원으로 바꿔줘",
-    }));
+    ].map((userText) => classifyAmoraQuestionScope({ userText }));
     const untrustedFollowUp = classifyAmoraQuestionScope({
       userText: "그걸로 바꿔줘",
     });
-    const nonWeddingCarryover = classifyAmoraQuestionScope({
-      userText: "응, 그대로 적용해줘",
-      previousUserText: "주식 투자 예산을 3천만원으로 바꿔줘",
-    });
 
-    expect(confirmed.map(({ scope }) => scope)).toEqual([
-      "W0_wedding_core",
-      "W0_wedding_core",
-      "W0_wedding_core",
-      "W0_wedding_core",
-    ]);
+    expect(confirmations).toEqual(confirmations.map(() => expect.objectContaining({
+      scope: "W4_out_of_scope",
+      allowsLongTermMemory: false,
+      confidence: "low",
+      needsClarification: true,
+    })));
     expect(untrustedFollowUp).toMatchObject({
       scope: "W4_out_of_scope",
       confidence: "low",
       needsClarification: true,
     });
-    expect(nonWeddingCarryover.scope).toBe("W4_out_of_scope");
   });
 
   it("accepts a server-validated wedding action without trusting conversational prose", () => {
@@ -396,7 +388,6 @@ describe("Amora question-scope ceiling", () => {
     (userText, expectedScope) => {
       const classification = classifyAmoraQuestionScope({
         userText,
-        previousUserText: "우리 결혼 총 예산을 4천만원으로 바꿔줘",
         hasApprovedWeddingAction: true,
       });
 

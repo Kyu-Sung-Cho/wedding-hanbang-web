@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
     throw new Error("NEXT_NOT_FOUND");
   }),
   getPublicCommunityPostDetail: vi.fn(),
+  serverUserId: null as string | null,
+  serverAuthError: null as { message: string } | null,
+  viewerPostVisible: true,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -30,6 +33,32 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/community/publicPostDetail", () => ({
   getPublicCommunityPostDetail: mocks.getPublicCommunityPostDetail,
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => ({
+    auth: {
+      getUser: vi.fn(async () => ({
+        data: {
+          user: mocks.serverUserId ? { id: mocks.serverUserId } : null,
+        },
+        error: mocks.serverAuthError,
+      })),
+    },
+    from: vi.fn(() => {
+      const query = {
+        select: vi.fn(),
+        eq: vi.fn(),
+        maybeSingle: vi.fn(async () => ({
+          data: mocks.viewerPostVisible ? { id: "post-1" } : null,
+          error: null,
+        })),
+      };
+      query.select.mockReturnValue(query);
+      query.eq.mockReturnValue(query);
+      return query;
+    }),
+  })),
 }));
 
 vi.mock("next/image", () => ({
@@ -161,7 +190,10 @@ async function renderPage() {
   mountedRoots.push({ root, container });
 
   await act(async () => {
-    root.render(<PostDetailClient initialPost={mocks.post ?? question()} />);
+    const initialPost = mocks.post ?? question();
+    root.render(
+      <PostDetailClient postId={initialPost.id} initialPost={initialPost} />,
+    );
     await Promise.resolve();
     await Promise.resolve();
   });
@@ -257,6 +289,9 @@ describe("public post server rendering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.userId = null;
+    mocks.serverUserId = null;
+    mocks.serverAuthError = null;
+    mocks.viewerPostVisible = true;
   });
 
   it("puts the public title, body, and database-backed origin in the server HTML", async () => {
@@ -290,5 +325,72 @@ describe("public post server rendering", () => {
       }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mocks.notFound).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the same 404 for a signed-in viewer blocked from the post author", async () => {
+    mocks.serverUserId = "20000000-0000-4000-8000-000000000002";
+    mocks.viewerPostVisible = false;
+    mocks.getPublicCommunityPostDetail.mockResolvedValue(
+      question({
+        title: "anonymous fallback must stay hidden",
+        content: "blocked author content",
+      }),
+    );
+
+    await expect(
+      PostDetailPage({
+        params: Promise.resolve({ id: "post-1" }),
+      }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+
+    expect(mocks.getPublicCommunityPostDetail).not.toHaveBeenCalled();
+    expect(mocks.notFound).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not put an anonymous detail fallback in signed-in server HTML", async () => {
+    mocks.serverUserId = "20000000-0000-4000-8000-000000000002";
+    mocks.viewerPostVisible = true;
+    mocks.post = null;
+    mocks.getPublicCommunityPostDetail.mockResolvedValue(
+      question({
+        title: "anonymous initial title must not hydrate a member viewer",
+        content: "anonymous initial body must not hydrate a member viewer",
+      }),
+    );
+
+    const element = await PostDetailPage({
+      params: Promise.resolve({ id: "post-1" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).not.toContain(
+      "anonymous initial title must not hydrate a member viewer",
+    );
+    expect(html).not.toContain(
+      "anonymous initial body must not hydrate a member viewer",
+    );
+    expect(mocks.getPublicCommunityPostDetail).not.toHaveBeenCalled();
+  });
+
+  it("does not use the anonymous detail loader while authentication is uncertain", async () => {
+    mocks.serverAuthError = { message: "auth unavailable" };
+    mocks.post = null;
+    mocks.getPublicCommunityPostDetail.mockResolvedValue(
+      question({
+        title: "uncertain viewer must not receive anonymous detail",
+        content: "uncertain viewer body",
+      }),
+    );
+
+    const element = await PostDetailPage({
+      params: Promise.resolve({ id: "post-1" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).not.toContain(
+      "uncertain viewer must not receive anonymous detail",
+    );
+    expect(html).not.toContain("uncertain viewer body");
+    expect(mocks.getPublicCommunityPostDetail).not.toHaveBeenCalled();
   });
 });

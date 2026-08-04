@@ -22,7 +22,10 @@ export function useAuthSessionSync(enabled = true) {
       await useAuthStore.getState().initialize({ force: true });
       const afterUserId = useAuthStore.getState().user?.id ?? null;
       if (beforeUserId !== afterUserId) {
-        resetUserScopedStores();
+        useChatStore.getState().reset();
+        // initialize() already purged the outgoing viewer before committing
+        // the new auth identity. Keep the store bound to that new viewer.
+        useCommunityStore.getState().bindViewer(afterUserId);
       }
     };
 
@@ -32,6 +35,15 @@ export function useAuthSessionSync(enabled = true) {
       const currentUserId = useAuthStore.getState().user?.id ?? null;
       const nextUserId = session?.user?.id ?? null;
       if (currentUserId === nextUserId) return;
+
+      if (currentUserId === null && nextUserId !== null) {
+        useChatStore.getState().reset();
+        // bindViewer purges all guest caches while preserving only a draft
+        // explicitly marked for the login-return handoff.
+        useCommunityStore.getState().bindViewer(nextUserId);
+        void useAuthStore.getState().initialize({ force: true });
+        return;
+      }
 
       resetUserScopedStores();
       useAuthStore.getState().reset();

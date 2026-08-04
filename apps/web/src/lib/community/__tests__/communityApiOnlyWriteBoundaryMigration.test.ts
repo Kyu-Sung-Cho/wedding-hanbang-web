@@ -270,14 +270,28 @@ describe("community post application write contract", () => {
     );
     expect(collectionRoute).toContain("const serviceClient = getServiceClient();");
     expect(collectionRoute).toMatch(
-      /serviceClient[\s\S]{0,8000}\.from\("community_posts"\)[\s\S]{0,120}\.insert\(/u,
+      /serviceClient\s*\.\s*rpc\(\s*["']community_create_post_service["']/u,
     );
+    expect(collectionRoute).not.toMatch(
+      /\.from\(\s*["']community_posts["']\s*\)\s*\.\s*insert\(/u,
+    );
+    const replayIndex = collectionRoute.indexOf(
+      '"community_replay_post_command_service"',
+    );
+    const createIndex = collectionRoute.indexOf(
+      '"community_create_post_service"',
+    );
+    expect(replayIndex).toBeGreaterThanOrEqual(0);
+    expect(createIndex).toBeGreaterThan(replayIndex);
     expect(itemRoute).toContain("const writeClient = getServiceClient();");
     expect(itemRoute).not.toContain(
       "const writeClient = userIsAdmin ? getServiceClient() : supabase",
     );
     expect(itemRoute).toMatch(
-      /serviceClient[\s\S]{0,1200}\.from\("community_posts"\)[\s\S]{0,120}\.delete\(/u,
+      /serviceClient\s*\.\s*rpc\(\s*["']community_delete_post_service["']/u,
+    );
+    expect(itemRoute).not.toMatch(
+      /\.from\(\s*["']community_posts["']\s*\)\s*\.\s*delete\(/u,
     );
   });
 });

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Bookmark,
   ThumbsUp,
+  Ban,
 } from "lucide-react";
 import { COMMUNITY_CATEGORIES } from "@/constants/communityCategories";
 import { stripWeddingBasePath, weddingPath } from "@/lib/weddingPaths";
@@ -149,6 +150,22 @@ export default function CategoryTabs() {
               }`}
             />
             <span className="text-sm">좋아요</span>
+          </Link>
+
+          <Link
+            href={weddingPath("/community/my/blocks")}
+            className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+              isActive("/community/my/blocks")
+                ? "bg-[#f6efe5] text-[#36534E] font-bold"
+                : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+            }`}
+          >
+            <Ban
+              className={`mr-2.5 w-4 h-4 ${
+                isActive("/community/my/blocks") ? "opacity-80" : "opacity-60 group-hover:opacity-100"
+              }`}
+            />
+            <span className="text-sm">차단 관리</span>
           </Link>
         </div>
       </nav>

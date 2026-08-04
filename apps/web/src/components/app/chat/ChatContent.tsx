@@ -51,6 +51,8 @@ import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
@@ -384,6 +386,10 @@ function hasSuccessfulSystemAction(message: ChatMessage): boolean {
   );
 }
 
+function isSafetyScopedChatMessage(message: ChatMessage): boolean {
+  return isAmoraCommunityBridgeSafetyScoped(message);
+}
+
 function getCommunityAskCue(
   aiMessage: ChatMessage,
   userMessage: ChatMessage,
@@ -455,6 +461,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   } = useChatStore();
   const isConfirmedActionRecovery =
     failedRequest?.recoveryKind === "confirmed_action";
+  const isInterruptedTurnRecovery =
+    failedRequest?.recoveryKind === "interrupted_turn";
+  const isRecoveryNotice = Boolean(failedRequest?.recoveryKind);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
   // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
   const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
@@ -674,9 +683,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   useEffect(() => {
     if (!isDemo || activeTab !== "private") return;
+    const hasLocalSafetyCard = !!myPrivateVisibility && messages.some((message) => (
+      message.visibility === myPrivateVisibility
+      && message.metadata?.response_origin === "client_deterministic_crisis_preflight"
+    ));
+    if (hasLocalSafetyCard) return;
     setActiveTab("shared");
     setMessageTarget("ai");
-  }, [activeTab, isDemo]);
+  }, [activeTab, isDemo, messages, myPrivateVisibility]);
 
   const handleMessageTargetChange = useCallback((nextTarget: ChatMessageTarget) => {
     if (
@@ -1370,7 +1384,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const usesComposer = text === undefined;
       const content = usesComposer ? input.trim() : text;
       const currentAttachments = usesComposer ? [...attachments] : [];
-      const submittedLane = activeComposerLane;
+      const sourceLane = activeComposerLane;
       const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
       if (
         (!content && currentAttachments.length === 0)
@@ -1394,10 +1408,21 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           && linkedPartnerIdRef.current === submittedPartnerRecipientId
         )
       );
-      const visibility = isPrivate && sendTarget === "ai"
+      const requestedVisibility = isPrivate && sendTarget === "ai"
         ? (senderRole === "groom" ? "groom_private" : "bride_private")
         : "shared";
-      if (sendTarget === "partner" && !hasLinkedPartner) {
+      const crisisPreflight = planAmoraCrisisDelivery({
+        userText: content ?? "",
+        requestedVisibility,
+        target: sendTarget,
+        senderRole,
+      });
+      const visibility = crisisPreflight.effectiveVisibility;
+      const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
+      const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
+      const canTransmitAttachments = crisisPreflight.disposition === "continue";
+      const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
+      if (!isLocalSafetyHold && sendTarget === "partner" && !hasLinkedPartner) {
         setMessageTarget("ai");
         useChatStore.setState({
           error: "연결된 상대방이 없어 보내지 않았어요. 상대방 연결을 다시 확인해주세요.",
@@ -1406,6 +1431,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         return;
       }
       if (
+        canTransmitAttachments
+        &&
         sendTarget === "partner"
         && currentAttachments.some((attachment) => !attachment.mediaType.startsWith("image/"))
       ) {
@@ -1418,17 +1445,21 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       const submittedInput = usesComposer ? input : "";
       const submittedEpoch = composerEpochRef.current;
-      const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
-      if (!attachmentCheck.ok) {
-        useChatStore.setState({
-          error: attachmentCheck.error,
-          artifactVisibility: visibility,
-        });
-        return;
+      if (canTransmitAttachments) {
+        const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
+        if (!attachmentCheck.ok) {
+          useChatStore.setState({
+            error: attachmentCheck.error,
+            artifactVisibility: visibility,
+          });
+          return;
+        }
       }
 
       const restoreComposer = (clientRequestId: string | null) => {
         if (
+          isPrivateSafetyRoute
+          ||
           !usesComposer
           || composerEpochRef.current !== submittedEpoch
           || !partnerRecipientIsStillCurrent()
@@ -1471,13 +1502,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       if (usesComposer) {
         setComposerDrafts((currentDrafts) => ({
           ...currentDrafts,
-          [submittedLane]: {
-            ...currentDrafts[submittedLane],
+          [sourceLane]: {
+            ...currentDrafts[sourceLane],
             input: "",
             attachments: [],
             retryClientRequestId: submittedClientRequestId,
           },
         }));
+      }
+      if (isPrivateSafetyRoute) {
+        setActiveTab("private");
+        setMessageTarget("ai");
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       }
 
       try {
@@ -1493,7 +1529,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             venue: journey?.venue ?? null,
             progress: journey?.progress ?? {},
           },
-          images: currentAttachments.length > 0 ? currentAttachments : undefined,
+          images: canTransmitAttachments && currentAttachments.length > 0
+            ? currentAttachments
+            : undefined,
           target: sendTarget,
           ...(sendTarget === "partner" && linkedPartnerId
             ? { partnerRecipientId: linkedPartnerId }
@@ -1503,6 +1541,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ? { clientRequestId: submittedClientRequestId }
             : {}),
         });
+        if (outcome?.userMessage === "ephemeral_safety") {
+          setActiveTab("private");
+          setMessageTarget("ai");
+          setDraftRetryClientRequestId(submittedLane, null);
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+          return;
+        }
         if (!partnerRecipientIsStillCurrent()) {
           currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
           return;
@@ -1516,7 +1561,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           return;
         }
         if (usesComposer && composerEpochRef.current === submittedEpoch) {
-          setDraftRetryClientRequestId(submittedLane, null);
+          setDraftRetryClientRequestId(sourceLane, null);
         }
         currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       } catch {
@@ -2502,7 +2547,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
           const recentAiIds = new Set(
             filteredMessages
-              .filter((m) => m.sender_role === "ai" && m.metadata?.pinned_safety_card !== true)
+              .filter((m) => (
+                m.sender_role === "ai"
+                && !isSafetyScopedChatMessage(m)
+              ))
               .slice(-3)
               .map((m) => m.id)
           );
@@ -2515,7 +2563,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const isPinnedSafetyCard = msg.metadata?.pinned_safety_card === true;
-            const isCommunityFallbackEligible = !isPinnedSafetyCard;
+            const isCommunityFallbackEligible = !isSafetyScopedChatMessage(msg);
             const hasToolResults =
               msg.sender_role === "ai" &&
               msg.metadata?.toolResults &&
@@ -2544,8 +2592,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               !pendingActionCandidate &&
               !hasSuccessfulSystemAction(msg) &&
               recentAiIds.has(msg.id) &&
+              !!previousHumanMessage &&
               previousHumanMessage?.sender_id === profile?.id &&
-              (isSharedCommunityFallback || isPrivateCommunityFallback);
+              (isSharedCommunityFallback || isPrivateCommunityFallback) &&
+              !isSafetyScopedChatMessage(previousHumanMessage);
             const communityAskCue = canConsiderCommunityFallback && previousHumanMessage
               ? getCommunityAskCue(
                 msg,
@@ -2749,21 +2799,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {transientArtifactsVisible && error && !isStreaming && (
         <div
           className={`mx-2 mt-2 rounded-xl border p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${
-            isConfirmedActionRecovery
+            isRecoveryNotice
               ? "border-[#B9DAD5] bg-[#F0F8F6]"
               : "border-red-100 bg-red-50"
           }`}
-          role={isConfirmedActionRecovery ? "status" : "alert"}
+          role={isRecoveryNotice ? "status" : "alert"}
         >
           <p
             className={`text-sm leading-relaxed ${
-              isConfirmedActionRecovery ? "text-[#245B56]" : "text-red-700"
+              isRecoveryNotice ? "text-[#245B56]" : "text-red-700"
             }`}
           >
             {error}
           </p>
           {failedRequest?.unavailableReason && (
-            <p className="mt-1 text-xs leading-relaxed text-red-600">
+            <p className={`mt-1 text-xs leading-relaxed ${
+              isRecoveryNotice ? "text-[#356B66]" : "text-red-600"
+            }`}>
               {failedRequest.unavailableReason}
             </p>
           )}
@@ -2774,7 +2826,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 onClick={() => void retryFailedMessage()}
                 disabled={isStreaming || isRetrying}
                 className={`min-h-9 rounded-lg px-3.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isConfirmedActionRecovery
+                  isRecoveryNotice
                     ? "bg-[#2F766F] hover:bg-[#245B56]"
                     : "bg-red-600 hover:bg-red-700"
                 }`}
@@ -2783,6 +2835,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   ? isRetrying
                     ? "반영 확인 중..."
                     : "반영 계속하기"
+                  : isInterruptedTurnRecovery
+                    ? isRetrying
+                      ? "답변 확인 중..."
+                      : "답변 이어받기"
                   : isRetrying
                     ? "다시 시도 중..."
                     : "다시 시도"}
@@ -2793,12 +2849,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               onClick={dismissFailedMessageRetry}
               disabled={isStreaming || isRetrying}
               className={`min-h-9 rounded-lg border bg-white px-3.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                isConfirmedActionRecovery
+                isRecoveryNotice
                   ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
                   : "border-red-200 text-red-700 hover:bg-red-100"
               }`}
             >
-              {isConfirmedActionRecovery ? "나중에" : "닫기"}
+              {isRecoveryNotice ? "나중에" : "닫기"}
             </button>
           </div>
         </div>
@@ -3038,6 +3094,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               // typing broadcast — 디바운스는 store 내부에서 처리, 여기선 매 입력마다 콜
               if (
                 activeTab === "shared"
+                && messageTarget === "partner"
                 && coupleId
                 && profile?.id
                 && (profile.role === "bride" || profile.role === "groom")

@@ -122,7 +122,9 @@ export default function OnboardingPage() {
           weddingDate: store.weddingDateUndecided ? null : store.weddingDate,
           venue: store.venueUndecided ? null : store.venue,
           sanggyeonryeDate: store.sanggyeonryeUndecided ? null : store.sanggyeonryeDate,
-          totalBudget: store.approximateBudget,
+          totalBudget: store.approximateBudget > 0
+            ? { amount: store.approximateBudget, unit: "won" }
+            : null,
           progress,
         }),
       });

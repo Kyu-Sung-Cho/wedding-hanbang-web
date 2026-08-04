@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getOrCreateModerationOperationKey,
+  settleModerationOperationKey,
+} from "@/lib/community/adminModerationIdempotency";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, CalendarCheck,
@@ -243,6 +247,7 @@ export default function AdminPage() {
   const [reportFilter, setReportFilter] = useState<ReportStatus | "all">("pending");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportActionId, setReportActionId] = useState<string | null>(null);
+  const moderationOperationKeys = useRef(new Map<string, string>());
 
   const loadReports = useCallback(async (filter: ReportStatus | "all" = "pending") => {
     setReportLoading(true);
@@ -270,19 +275,45 @@ export default function AdminPage() {
     );
     if (!reason?.trim()) return;
 
+    const requestBody = { status, action, reason: reason.trim() };
+    const endpoint = `/api/admin/reports/${reportId}`;
+    const commandFingerprint = `${endpoint}:${JSON.stringify(requestBody)}`;
+    const operationKey = getOrCreateModerationOperationKey(
+      moderationOperationKeys.current,
+      commandFingerprint,
+    );
+
     setReportActionId(reportId);
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}`, {
+      const res = await fetch(endpoint, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, action, reason: reason.trim() }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": operationKey,
+        },
+        body: JSON.stringify(requestBody),
       });
+      settleModerationOperationKey(
+        moderationOperationKeys.current,
+        commandFingerprint,
+        res.status,
+      );
       if (res.ok) {
         await loadReports(reportFilter);
       } else {
+        if (res.status >= 500) {
+          window.alert(
+            "조치 결과를 확인하지 못했습니다. 같은 상태와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+          );
+          return;
+        }
         const data = await res.json().catch(() => ({}));
         window.alert(data?.error ?? "신고 상태를 기록하지 못했습니다.");
       }
+    } catch {
+      window.alert(
+        "네트워크 응답을 확인하지 못했습니다. 같은 상태와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+      );
     } finally {
       setReportActionId(null);
     }
@@ -304,19 +335,45 @@ export default function AdminPage() {
     );
     if (!reason?.trim()) return;
 
+    const requestBody = { action, reason: reason.trim() };
+    const endpoint = `/api/admin/posts/${postId}/moderate`;
+    const commandFingerprint = `${endpoint}:${JSON.stringify(requestBody)}`;
+    const operationKey = getOrCreateModerationOperationKey(
+      moderationOperationKeys.current,
+      commandFingerprint,
+    );
+
     setReportActionId(reportId);
     try {
-      const res = await fetch(`/api/admin/posts/${postId}/moderate`, {
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reason: reason.trim() }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": operationKey,
+        },
+        body: JSON.stringify(requestBody),
       });
+      settleModerationOperationKey(
+        moderationOperationKeys.current,
+        commandFingerprint,
+        res.status,
+      );
       if (res.ok) {
         await loadReports(reportFilter);
       } else {
+        if (res.status >= 500) {
+          window.alert(
+            "조치 결과를 확인하지 못했습니다. 같은 조치와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+          );
+          return;
+        }
         const data = await res.json().catch(() => ({}));
         window.alert(data?.error ?? "조치를 기록하지 못했습니다.");
       }
+    } catch {
+      window.alert(
+        "네트워크 응답을 확인하지 못했습니다. 같은 조치와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+      );
     } finally {
       setReportActionId(null);
     }
@@ -1565,7 +1622,7 @@ export default function AdminPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#2E7D5A] text-white rounded-lg hover:bg-[#246548] transition-colors disabled:opacity-50"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            처리됨으로 표시
+                            {isMemberReport ? "처리됨으로 표시" : "확정하고 콘텐츠 숨김"}
                           </button>
                         )}
                         {isMemberReport && (

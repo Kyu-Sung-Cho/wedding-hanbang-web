@@ -23,6 +23,14 @@ describe("onboarding reliability", () => {
     expect(onboardingPage).not.toContain("budget: costInWon");
   });
 
+  it("tags the web onboarding budget as canonical won and keeps an undecided value null", () => {
+    const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
+
+    expect(onboardingPage).toMatch(
+      /totalBudget:\s*store\.approximateBudget > 0\s*\? \{ amount: store\.approximateBudget, unit: "won" \}\s*: null/,
+    );
+  });
+
   it("states that a partner-gated onboarding plan is not applied yet", () => {
     const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
 

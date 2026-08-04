@@ -10,6 +10,7 @@ import { canUseServerInitialCommunityFeed, normalizeCommunityFeedQuery } from "@
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { EMPTY_AGENCY_SPREAD_SUMMARY } from "@/lib/price/agencySpread";
 import { loadLandingAgencySpread } from "@/lib/price/landingAgencySpread";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -61,10 +62,16 @@ export default async function CommunityFeedPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialQuery = normalizeCommunityFeedQuery(resolvedSearchParams);
   const previewStub = isPreviewStubMode();
+  const viewerResult = previewStub
+    ? null
+    : await (await createClient()).auth.getUser();
+  const confirmedAnonymous = Boolean(
+    viewerResult && !viewerResult.error && !viewerResult.data.user,
+  );
 
   // 피드와 공시 요약은 서로를 기다릴 이유가 없다 — 직렬로 두면 첫 화면 대기가 합쳐진다.
   const [initialFeed, agencySpread] = await Promise.all([
-    !previewStub && canUseServerInitialCommunityFeed(initialQuery)
+    confirmedAnonymous && canUseServerInitialCommunityFeed(initialQuery)
       ? loadSharedInitialFeed()
       : undefined,
     previewStub ? EMPTY_AGENCY_SPREAD_SUMMARY : loadSharedAgencySpread(),

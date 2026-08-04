@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
+import { getCommunityPollActorProjection } from "@/lib/community/pollProjection";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
 import type {
   CommunityProfile,
@@ -119,8 +121,6 @@ const publicAuthorRowSchema = z.object({
   nickname: z.string(),
   avatar_url: z.string().nullable(),
   rank: z.enum(["sprout", "preparing", "expert", "master", "senior"]),
-  wedding_year: z.number().int().nullable(),
-  wedding_month: z.number().int().min(1).max(12).nullable(),
 });
 
 const publicVendorRowSchema = z.object({
@@ -130,26 +130,9 @@ const publicVendorRowSchema = z.object({
   region_code: z.string().nullable(),
 });
 
-const publicPollSchema = z.object({
+const publicPollReferenceSchema = z.object({
   id: z.string().min(1),
   post_id: z.string().min(1),
-  question: z.string(),
-  allow_multiple: z.boolean(),
-  is_anonymous: z.boolean(),
-  hide_results_until_voted: z.boolean(),
-  closes_at: z.string().nullable(),
-  total_voters: z.number(),
-  total_votes: z.number(),
-  created_at: z.string(),
-});
-
-const publicPollOptionSchema = z.object({
-  id: z.string().min(1),
-  poll_id: z.string().min(1),
-  position: z.number(),
-  label: z.string(),
-  image_url: z.string().nullable(),
-  vote_count: z.number(),
 });
 
 export type PublicCommunityAuthor = Pick<
@@ -230,8 +213,8 @@ export async function getPublicCommunityPostDetail(
   const post = parsedPost.data;
 
   const authorRequest = supabase
-    .from("community_profiles")
-    .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
+    .from("community_public_profiles")
+    .select("user_id, nickname, avatar_url, rank")
     .eq("user_id", post.author_id)
     .maybeSingle();
 
@@ -245,9 +228,7 @@ export async function getPublicCommunityPostDetail(
 
   const pollRequest = supabase
     .from("community_polls")
-    .select(
-      "id, post_id, question, allow_multiple, is_anonymous, hide_results_until_voted, closes_at, total_voters, total_votes, created_at",
-    )
+    .select("id, post_id")
     .eq("post_id", post.id)
     .maybeSingle();
 
@@ -267,6 +248,8 @@ export async function getPublicCommunityPostDetail(
     if (!parsedAuthor.success) throw unavailable(parsedAuthor.error);
     author = {
       ...parsedAuthor.data,
+      wedding_year: null,
+      wedding_month: null,
       role: null,
     };
   }
@@ -289,26 +272,18 @@ export async function getPublicCommunityPostDetail(
 
   let poll: PublicCommunityPostDetail["poll"] = null;
   if (pollResult.data) {
-    const parsedPoll = publicPollSchema.safeParse(pollResult.data);
+    const parsedPoll = publicPollReferenceSchema.safeParse(pollResult.data);
     if (!parsedPoll.success) throw unavailable(parsedPoll.error);
 
-    const { data: rawOptions, error: optionsError } = await supabase
-      .from("community_poll_options")
-      .select("id, poll_id, position, label, image_url, vote_count")
-      .eq("poll_id", parsedPoll.data.id)
-      .order("position", { ascending: true });
-
-    if (optionsError) throw unavailable(optionsError);
-    const parsedOptions = z.array(publicPollOptionSchema).safeParse(
-      rawOptions ?? [],
-    );
-    if (!parsedOptions.success) throw unavailable(parsedOptions.error);
-
-    poll = {
-      ...parsedPoll.data,
-      options: parsedOptions.data,
-      user_voted_option_ids: [],
-    };
+    try {
+      poll = await getCommunityPollActorProjection(
+        createAdminClient(),
+        null,
+        parsedPoll.data.id,
+      );
+    } catch (error) {
+      throw unavailable(error);
+    }
   }
 
   return {

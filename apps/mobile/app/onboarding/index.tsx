@@ -20,6 +20,7 @@ import {
   type WeddingStyleValue,
 } from "@hanbang/shared";
 import { apiFetch } from "@/lib/api";
+import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
@@ -161,6 +162,7 @@ export default function OnboardingScreen() {
   const [budget, setBudget] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState("");
+  const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
 
   // Step 4: 웨딩 스타일 선호도
   const [weddingStyle, setWeddingStyle] = useState<WeddingStyle | null>(null);
@@ -215,13 +217,18 @@ export default function OnboardingScreen() {
     switch (step) {
       case 1: return role !== null;
       case 2: return coupleAction === "create" || (coupleAction === "join" && inviteCode.length >= 6);
-      case 3: return true;
+      case 3: return budgetEvaluation.status !== "invalid";
       case 4: return true; // 선호도는 선택사항
       default: return false;
     }
   }
 
   async function handleSubmit() {
+    if (budgetEvaluation.status === "invalid") {
+      Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
+      return;
+    }
+
     setSubmitting(true);
     try {
       // 선호도 데이터를 progress.__preferences에 저장
@@ -242,7 +249,7 @@ export default function OnboardingScreen() {
           partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
           weddingDate: weddingDateUndecided ? null : weddingDate || null,
           venue: venue || null,
-          totalBudget: budget ? parseInt(budget) : 0,
+          totalBudget: budgetEvaluation.requestBudget,
           progress,
         }),
       });
@@ -281,6 +288,8 @@ export default function OnboardingScreen() {
       animateStepTransition(step - 1);
     }
   }
+
+  const nextDisabled = (!canNext() && step < 5) || submitting;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -438,20 +447,36 @@ export default function OnboardingScreen() {
                 placeholderTextColor={colors.taupe[400]}
               />
 
-              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산</Text>
+              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산 (선택)</Text>
               <View style={styles.budgetRow}>
                 <TextInput
-                  style={[styles.input, styles.budgetInput]}
+                  style={[
+                    styles.input,
+                    styles.budgetInput,
+                    budgetEvaluation.status === "invalid" && styles.budgetInputInvalid,
+                  ]}
                   value={budget}
                   onChangeText={setBudget}
                   placeholder="예: 3000"
                   placeholderTextColor={colors.taupe[400]}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
+                  accessibilityLabel="총 예산, 만원 단위, 선택 입력"
+                  accessibilityHint="삼천만원이면 숫자 삼천을 입력합니다. 아직 정하지 않았다면 비워두세요."
                 />
                 <View style={styles.budgetUnitBox}>
                   <Text style={styles.budgetUnitText}>만원</Text>
                 </View>
               </View>
+              <Text
+                style={[
+                  styles.budgetFeedback,
+                  budgetEvaluation.status === "invalid" && styles.budgetFeedbackInvalid,
+                ]}
+                accessibilityRole={budgetEvaluation.status === "invalid" ? "alert" : undefined}
+              >
+                {budgetEvaluation.status === "invalid" ? "확인 필요 · " : ""}
+                {budgetEvaluation.message}
+              </Text>
             </View>
           )}
 
@@ -574,7 +599,10 @@ export default function OnboardingScreen() {
         <Pressable
           style={[styles.nextBtn, !canNext() && step < 5 && styles.nextBtnDisabled]}
           onPress={handleNext}
-          disabled={(!canNext() && step < 5) || submitting}
+          disabled={nextDisabled}
+          accessibilityRole="button"
+          accessibilityLabel={step === 4 ? "온보딩 시작하기" : step === 5 ? "대시보드로 이동" : "다음 단계"}
+          accessibilityState={{ disabled: nextDisabled, busy: submitting }}
         >
           {submitting ? (
             <ActivityIndicator color="#FFF" />
@@ -589,7 +617,14 @@ export default function OnboardingScreen() {
         </Pressable>
 
         {step === 4 && (
-          <Pressable onPress={handleSubmit} style={styles.skipBtn}>
+          <Pressable
+            onPress={handleSubmit}
+            style={styles.skipBtn}
+            disabled={submitting}
+            accessibilityRole="button"
+            accessibilityLabel="웨딩 스타일 건너뛰기"
+            accessibilityState={{ disabled: submitting, busy: submitting }}
+          >
             <Text style={styles.skipText}>건너뛰기</Text>
           </Pressable>
         )}
@@ -772,6 +807,9 @@ const styles = StyleSheet.create({
     flex: 1,
     marginBottom: 0,
   },
+  budgetInputInvalid: {
+    borderColor: colors.danger,
+  },
   budgetUnitBox: {
     paddingHorizontal: 14,
     paddingVertical: 14,
@@ -782,6 +820,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "NotoSansKR_500Medium",
     color: colors.textSecondary,
+  },
+  budgetFeedback: {
+    marginTop: 8,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+    lineHeight: 18,
+  },
+  budgetFeedbackInvalid: {
+    color: colors.noir[800],
   },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   checkbox: {

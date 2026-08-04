@@ -5,6 +5,117 @@ import {
   classifyAmoraCrisis,
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+
+describe("planAmoraCrisisDelivery", () => {
+  it("holds a shared AI crisis locally in the bride private lane", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "남편이 지금 칼을 들고 협박해",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      classification: { kind: "interpersonal_danger" },
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      response: expect.stringContaining("112"),
+    }));
+  });
+
+  it("holds an explicit partner crisis delivery instead of exposing it", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "나 지금 죽고 싶어",
+      requestedVisibility: "shared",
+      target: "partner",
+      senderRole: "groom",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      effectiveVisibility: "groom_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: true,
+      response: expect.stringContaining("109"),
+    }));
+  });
+
+  it("keeps an existing private crisis private without claiming a redirect", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "나 지금 죽고 싶어",
+      requestedVisibility: "groom_private",
+      target: "ai",
+      senderRole: "groom",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      effectiveVisibility: "groom_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+    }));
+  });
+
+  it("routes a historical violence disclosure from shared AI to private safety 상담", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+
+    expect(result).toEqual({
+      disposition: "private_safety_route",
+      safetyResolution: "non_immediate_safety",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+  });
+
+  it("holds non-immediate safety content addressed directly to the partner", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+      requestedVisibility: "shared",
+      target: "partner",
+      senderRole: "bride",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      safetyResolution: "non_immediate_safety",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: true,
+      response: expect.stringContaining("바로 보내지 않았어요"),
+    }));
+  });
+
+  it.each([
+    "죽고 싶지 않아",
+    "케이크 칼 배송 언제 와?",
+  ])("keeps a clear non-crisis in its requested lane: %s", (userText) => {
+    expect(planAmoraCrisisDelivery({
+      userText,
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    })).toEqual({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "shared",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+  });
+});
 
 describe("assessAmoraSafetyText", () => {
   it("attributes a partner threat toward the reporter without returning raw text", () => {

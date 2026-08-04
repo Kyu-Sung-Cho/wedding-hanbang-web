@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCommunityStore } from "../communityStore";
+import { scopedCommunitySessionCacheKey } from "@/lib/community/viewerPrivacyCache";
 import type { CommentWithAuthor, CommunityProfile, PostDetail, PostWithAuthor } from "@/types/community.types";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+const guestFeedCacheKey = (key: string) =>
+  scopedCommunitySessionCacheKey(key, null);
 
 function post(id: string, createdAt: string): PostWithAuthor {
   return {
@@ -94,14 +98,139 @@ describe("useCommunityStore feed cache", () => {
   beforeEach(() => {
     useCommunityStore.getState().reset();
     sessionStorage.clear();
+    localStorage.clear();
     mockFetch.mockReset();
+  });
+
+  it("purges A's private community state and browser caches before binding B or guest", () => {
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.setState({
+      posts: [post("a-under-review", "2026-06-15T00:00:00.000Z")],
+      currentPost: {
+        ...post("a-detail", "2026-06-15T00:00:00.000Z"),
+        vendor_details: [],
+      } as PostDetail,
+      communityProfile: communityProfile("user-a", "A"),
+    });
+    sessionStorage.setItem("community:viewer:user-a:feed:my_posts", "A-feed");
+    sessionStorage.setItem("community:viewer:user-a:trending", "A-trending");
+    sessionStorage.setItem("community:viewer:user-a:landing", "A-landing");
+    localStorage.setItem("community:post-draft:v2:user-a", "A-draft");
+    localStorage.setItem("community_post_draft", "A-legacy-draft");
+
+    useCommunityStore.getState().bindViewer("user-b");
+
+    expect(useCommunityStore.getState()).toMatchObject({
+      viewerId: "user-b",
+      posts: [],
+      currentPost: null,
+      communityProfile: null,
+    });
+    expect(
+      Array.from({ length: sessionStorage.length }, (_, index) =>
+        sessionStorage.key(index),
+      ).filter((key) => key?.startsWith("community:")),
+    ).toEqual([]);
+    expect(localStorage.getItem("community:post-draft:v2:user-a")).toBeNull();
+    expect(localStorage.getItem("community_post_draft")).toBeNull();
+
+    useCommunityStore.setState({
+      posts: [post("b-private", "2026-06-16T00:00:00.000Z")],
+    });
+    useCommunityStore.getState().bindViewer(null);
+
+    expect(useCommunityStore.getState().viewerId).toBeNull();
+    expect(useCommunityStore.getState().posts).toEqual([]);
+  });
+
+  it("ignores an A feed response that finishes after the store is rebound to B", async () => {
+    let resolveA: ((value: unknown) => void) | undefined;
+    const aResponse = new Promise((resolve) => {
+      resolveA = resolve;
+    });
+    mockFetch.mockReturnValueOnce(aResponse);
+
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.getState().setSort("my_posts");
+    const pendingA = useCommunityStore.getState().fetchPosts(true);
+
+    useCommunityStore.getState().bindViewer("user-b");
+    resolveA?.({
+      ok: true,
+      json: async () => ({
+        posts: [post("a-private", "2026-06-15T00:00:00.000Z")],
+        total: 1,
+        hasMore: false,
+      }),
+    });
+    await pendingA;
+
+    expect(useCommunityStore.getState().viewerId).toBe("user-b");
+    expect(useCommunityStore.getState().posts).toEqual([]);
+    const cachedValues = Array.from(
+      { length: sessionStorage.length },
+      (_, index) => {
+        const key = sessionStorage.key(index);
+        return key ? sessionStorage.getItem(key) : null;
+      },
+    );
+    expect(JSON.stringify(cachedValues)).not.toContain("a-private");
+  });
+
+  it("ignores late A detail, profile, and mutation receipts after binding B", async () => {
+    let resolveDetail: ((value: unknown) => void) | undefined;
+    let resolveProfile: ((value: unknown) => void) | undefined;
+    let resolveVote: ((value: unknown) => void) | undefined;
+    mockFetch
+      .mockReturnValueOnce(new Promise((resolve) => { resolveDetail = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveProfile = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveVote = resolve; }));
+
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.setState({
+      posts: [post("shared-post", "2026-06-15T00:00:00.000Z")],
+    });
+    const detailRequest = useCommunityStore.getState().fetchPostDetail("a-detail");
+    const profileRequest = useCommunityStore.getState().fetchProfile();
+    const voteRequest = useCommunityStore.getState().votePost("shared-post", 1);
+
+    useCommunityStore.getState().bindViewer("user-b");
+    useCommunityStore.setState({
+      posts: [post("shared-post", "2026-06-16T00:00:00.000Z")],
+    });
+    resolveDetail?.({
+      ok: true,
+      json: async () => ({
+        ...post("a-detail", "2026-06-15T00:00:00.000Z"),
+        vendor_details: [],
+      }),
+    });
+    resolveProfile?.({
+      ok: true,
+      json: async () => ({ profile: communityProfile("user-a", "A") }),
+    });
+    resolveVote?.({
+      ok: true,
+      json: async () => ({ upvote_count: 99, downvote_count: 0 }),
+    });
+    await Promise.all([detailRequest, profileRequest, voteRequest]);
+
+    const state = useCommunityStore.getState();
+    expect(state.viewerId).toBe("user-b");
+    expect(state.currentPost).toBeNull();
+    expect(state.communityProfile).toBeNull();
+    expect(state.posts[0]).toMatchObject({
+      id: "shared-post",
+      upvote_count: 0,
+      user_vote: null,
+    });
   });
 
   it("revalidates latest feed even when a fresh cached feed exists", async () => {
     const cachedPost = post("cached-old", "2026-06-15T00:00:00.000Z");
     const networkPost = post("network-new", "2026-06-16T00:00:00.000Z");
     sessionStorage.setItem(
-      "community:feed:all:new:_:_:_",
+      guestFeedCacheKey("community:feed:all:new:_:_:_"),
       JSON.stringify({ posts: [cachedPost], total: 1, hasMore: false, ts: Date.now() })
     );
     mockFetch.mockResolvedValue({
@@ -119,7 +248,7 @@ describe("useCommunityStore feed cache", () => {
     useCommunityStore.getState().setSort("hot");
     const cachedPost = post("cached-hot", "2026-06-15T00:00:00.000Z");
     sessionStorage.setItem(
-      "community:feed:all:hot:_:_:_",
+      guestFeedCacheKey("community:feed:all:hot:_:_:_"),
       JSON.stringify({ posts: [cachedPost], total: 1, hasMore: false, ts: Date.now() })
     );
 
@@ -140,7 +269,7 @@ describe("useCommunityStore feed cache", () => {
       category: "ama" as const,
     };
     sessionStorage.setItem(
-      "community:feed:all:unanswered:_:_:_",
+      guestFeedCacheKey("community:feed:all:unanswered:_:_:_"),
       JSON.stringify({ posts: [cachedPost], total: 1, hasMore: false, ts: Date.now() }),
     );
     mockFetch.mockResolvedValue({
@@ -171,7 +300,7 @@ describe("useCommunityStore feed cache", () => {
     const otherComment = comment("comment-2", otherAuthor);
 
     sessionStorage.setItem(
-      "community:feed:all:hot:_:_:_",
+      guestFeedCacheKey("community:feed:all:hot:_:_:_"),
       JSON.stringify({ posts: [ownPost], total: 1, hasMore: false, ts: Date.now() })
     );
     useCommunityStore.setState({
@@ -191,7 +320,7 @@ describe("useCommunityStore feed cache", () => {
     expect(state.comments[0].author.nickname).toBe("new-name");
     expect(state.comments[0].replies?.[0].author.nickname).toBe("new-name");
     expect(state.comments[1].author.nickname).toBe("other-name");
-    expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
+    expect(sessionStorage.getItem(guestFeedCacheKey("community:feed:all:hot:_:_:_"))).toBeNull();
   });
 
   it("initializes a missing community profile with an explicit POST and unwraps it", async () => {
@@ -263,7 +392,7 @@ describe("useCommunityStore feed cache", () => {
       currentPost,
     });
     sessionStorage.setItem(
-      "community:feed:all:new:_:_:_",
+      guestFeedCacheKey("community:feed:all:new:_:_:_"),
       JSON.stringify({ posts: [question], total: 1, hasMore: false, ts: Date.now() }),
     );
     mockFetch.mockResolvedValue({
@@ -304,7 +433,7 @@ describe("useCommunityStore feed cache", () => {
         vendor_details: [],
       }),
     );
-    expect(sessionStorage.getItem("community:feed:all:new:_:_:_")).toBeNull();
+    expect(sessionStorage.getItem(guestFeedCacheKey("community:feed:all:new:_:_:_"))).toBeNull();
   });
 
   it("keeps the current post unchanged when a resolution update fails", async () => {
@@ -403,7 +532,7 @@ describe("useCommunityStore feed cache", () => {
       currentPost: { ...question, vendor_details: [] } as PostDetail,
     });
     sessionStorage.setItem(
-      "community:feed:all:unanswered:_:_:_",
+      guestFeedCacheKey("community:feed:all:unanswered:_:_:_"),
       JSON.stringify({ posts: [question], total: 1, hasMore: false, ts: Date.now() }),
     );
     mockFetch.mockResolvedValue({
@@ -420,7 +549,7 @@ describe("useCommunityStore feed cache", () => {
     expect(useCommunityStore.getState().posts).toEqual([]);
     expect(useCommunityStore.getState().total).toBe(0);
     expect(useCommunityStore.getState().currentPost?.comment_count).toBe(1);
-    expect(sessionStorage.getItem("community:feed:all:unanswered:_:_:_")).toBeNull();
+    expect(sessionStorage.getItem(guestFeedCacheKey("community:feed:all:unanswered:_:_:_"))).toBeNull();
   });
 
   it("forwards the caller's stable idempotency key on a comment retry", async () => {
@@ -456,6 +585,46 @@ describe("useCommunityStore feed cache", () => {
     );
     expect(commentCalls).toHaveLength(2);
     for (const [, init] of commentCalls) {
+      expect(init).toEqual(expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": stableKey,
+        }),
+      }));
+    }
+  });
+
+  it("forwards the caller's stable idempotency key on a post retry", async () => {
+    const stableKey = "71000000-0000-4000-8000-000000000001";
+    mockFetch
+      .mockRejectedValueOnce(new Error("network interrupted"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ post: { id: "post-created" } }),
+      });
+    const input = {
+      category: "free" as const,
+      title: "같은 글 재시도",
+      content: "응답을 잃어도 한 번만 저장합니다.",
+      visibility: "public" as const,
+      ad_disclosure: "general" as const,
+    };
+
+    const first = await useCommunityStore.getState().createPost(
+      input,
+      { idempotencyKey: stableKey },
+    );
+    const retry = await useCommunityStore.getState().createPost(
+      input,
+      { idempotencyKey: stableKey },
+    );
+
+    expect(first).toBeNull();
+    expect(retry).toBe("post-created");
+    const postCalls = mockFetch.mock.calls.filter(
+      ([url]) => url === "/api/community/posts",
+    );
+    expect(postCalls).toHaveLength(2);
+    for (const [, init] of postCalls) {
       expect(init).toEqual(expect.objectContaining({
         headers: expect.objectContaining({
           "Idempotency-Key": stableKey,

@@ -71,7 +71,7 @@ const mocks = vi.hoisted(() => ({
       canRetry: boolean;
       unavailableReason: string | null;
       visibility: "shared" | "bride_private" | "groom_private";
-      recoveryKind?: "confirmed_action";
+      recoveryKind?: "confirmed_action" | "interrupted_turn" | "requires_reattach";
     },
   },
 }));
@@ -768,6 +768,54 @@ describe("ChatSidePanel attachment sending", () => {
     });
     expect(mocks.retryFailedMessage).toHaveBeenCalledTimes(1);
     expect(mocks.dismissFailedMessageRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an unanswered durable turn as a neutral user-controlled resume", async () => {
+    mocks.chatState.error =
+      "질문은 안전하게 저장됐지만 답변이 시작되지 않았어요. 원할 때 이어서 받을 수 있어요.";
+    mocks.chatState.failedRequest = {
+      canRetry: true,
+      unavailableReason: null,
+      visibility: "shared",
+      recoveryKind: "interrupted_turn",
+    };
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    const resumeButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.trim() === "답변 이어받기");
+    expect(resumeButton).toBeDefined();
+    await act(async () => {
+      resumeButton?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.retryFailedMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a lost-attachment recovery neutral without offering a replay", async () => {
+    mocks.chatState.error = "질문은 저장됐지만 첨부한 파일이 필요한 답변은 이어받지 못했어요.";
+    mocks.chatState.failedRequest = {
+      canRetry: false,
+      unavailableReason: "파일을 다시 첨부해 새 메시지로 보내주세요.",
+      visibility: "shared",
+      recoveryKind: "requires_reattach",
+    };
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    expect(container.textContent).toContain("파일을 다시 첨부해 새 메시지로 보내주세요.");
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .some((button) => button.textContent?.trim() === "답변 이어받기")).toBe(false);
   });
 
   it("supports Escape, traps keyboard focus, and restores the opening control", async () => {

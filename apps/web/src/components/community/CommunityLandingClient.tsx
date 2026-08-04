@@ -33,6 +33,7 @@ import {
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import Avatar from "@/components/community/Avatar";
 import ContentOriginBadge from "@/components/community/ContentOriginBadge";
+import CommunityDecisionDiscovery from "@/components/community/CommunityDecisionDiscovery";
 import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import CommunityAcquisitionPrototype, {
@@ -56,6 +57,10 @@ import type {
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
 import { communityPostLinkProps, communityPostUrl, isCommunityCategory } from "@/lib/community/routes";
+import {
+  communityViewerToken,
+  scopedCommunitySessionCacheKey,
+} from "@/lib/community/viewerPrivacyCache";
 import { COMMUNITY_TOUR_EVENT } from "@/components/community/CommunityFirstVisitTour";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { captureEvent } from "@/lib/analytics";
@@ -238,15 +243,37 @@ function getPostImage(post: PostWithAuthor) {
   return inline?.[1] ?? null;
 }
 
-export default function CommunityLandingClient({
-  initialFeed,
-  initialQuery = {},
-  agencySpread,
-}: {
+interface CommunityLandingClientProps {
   initialFeed?: InitialCommunityFeed;
   initialQuery?: CommunityFeedQuery;
   agencySpread?: AgencySpreadSummary;
-}) {
+}
+
+interface CommunityLandingViewerProps extends CommunityLandingClientProps {
+  viewerId: string | null;
+}
+
+export default function CommunityLandingClient(
+  props: CommunityLandingClientProps,
+) {
+  const viewerId = useAuthStore((state) => state.user?.id ?? null);
+  const communityViewerScope = communityViewerToken(viewerId);
+
+  return (
+    <CommunityLandingViewer
+      key={communityViewerScope}
+      {...props}
+      viewerId={viewerId}
+    />
+  );
+}
+
+function CommunityLandingViewer({
+  initialFeed,
+  initialQuery = {},
+  agencySpread,
+  viewerId,
+}: CommunityLandingViewerProps) {
   const previewStubMode = isPreviewStubMode();
   useCommunityRealtime();
 
@@ -529,6 +556,7 @@ export default function CommunityLandingClient({
       data-community-home-order="search-first"
     >
       {searchHubNode}
+      <CommunityDecisionDiscovery viewerId={viewerId} />
       {communityMainNode}
       {showLandingIntro && <AmoraBlock />}
       {showLandingIntro && <WhatWeDo />}
@@ -1978,6 +2006,11 @@ function RightPanels({ desktopOnly = false }: { desktopOnly?: boolean }) {
 
 function BestPostsPanel() {
   const previewStubMode = isPreviewStubMode();
+  const viewerId = useAuthStore((state) => state.user?.id ?? null);
+  const cacheKey = scopedCommunitySessionCacheKey(
+    "community:landing:weekly-top-posts:5",
+    viewerId,
+  );
   const [posts, setPosts] = useState<TrendingPost[]>([]);
   const [loading, setLoading] = useState(!previewStubMode);
 
@@ -1985,7 +2018,7 @@ function BestPostsPanel() {
     if (previewStubMode) return;
 
     let cancelled = false;
-    void withSessionCache("community:landing:weekly-top-posts:5", 5 * 60 * 1000, async () => {
+    void withSessionCache(cacheKey, 5 * 60 * 1000, async () => {
       const normalize = (items: TrendingPost[]) =>
         items
           .filter((post) => post.upvote_count > 0)
@@ -2001,6 +2034,10 @@ function BestPostsPanel() {
       if (!weeklyRes.ok) return { posts: [] } satisfies BestPostPayload;
       const weeklyJson = await weeklyRes.json();
       return { posts: normalize(weeklyJson.posts ?? []) } satisfies BestPostPayload;
+    }, {
+      shouldCache: () =>
+        !cancelled
+        && (useAuthStore.getState().user?.id ?? null) === viewerId,
     })
       .then((data) => {
         if (cancelled) return;
@@ -2012,7 +2049,7 @@ function BestPostsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [previewStubMode]);
+  }, [cacheKey, previewStubMode, viewerId]);
 
   const title = "이번 주 도움된 글";
   const moreHref = "/community?sort=top&period=week&feed=all#community-feed";

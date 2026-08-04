@@ -28,6 +28,7 @@ import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import { communityPostPath } from "@/lib/community/routes";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
+import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
@@ -46,6 +47,10 @@ import type {
   CohortContractCategory,
   CohortEventType,
 } from "@/types/community.types";
+
+const MEDIA_PUBLISHING_UI_ENABLED = isCommunityMediaPublishingUiEnabled(
+  process.env.NEXT_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED,
+);
 
 // ────────────────────────────────────────
 // 상수
@@ -519,6 +524,7 @@ function ChatTab({
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!MEDIA_PUBLISHING_UI_ENABLED) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -577,7 +583,7 @@ function ChatTab({
       const ids = memberRows.map((m) => m.user_id);
       if (ids.length === 0) return;
       const { data: profiles } = await supabase
-        .from("community_profiles")
+        .from("community_public_profiles")
         .select("user_id, nickname")
         .in("user_id", ids);
       setMembers((profiles ?? []) as { user_id: string; nickname: string }[]);
@@ -651,7 +657,7 @@ function ChatTab({
           const newMsg = payload.new as CohortMessage;
           // author 프로필 join해서 추가
           const { data: authorData } = await supabase
-            .from("community_profiles")
+            .from("community_public_profiles")
             .select("user_id, nickname, avatar_url, rank")
             .eq("user_id", newMsg.author_id)
             .maybeSingle<CohortProfileSummary>();
@@ -953,6 +959,7 @@ function ChatTab({
               className="h-[82px] max-h-[82px] min-h-[82px] w-full resize-none overflow-y-auto rounded-[16px] border border-transparent bg-[#f6efe5] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[#263832] outline-none transition-colors [field-sizing:fixed] placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
             />
           </div>
+          {MEDIA_PUBLISHING_UI_ENABLED && (
           <input
             ref={fileInputRef}
             type="file"
@@ -960,8 +967,10 @@ function ChatTab({
             className="hidden"
             onChange={handleImageUpload}
           />
+          )}
           {/* 액션 버튼 */}
           <div className="flex gap-2 sm:min-h-[82px]">
+            {MEDIA_PUBLISHING_UI_ENABLED && (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -971,6 +980,7 @@ function ChatTab({
             >
               <Paperclip className="h-4 w-4" />
             </button>
+            )}
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
@@ -2238,7 +2248,7 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
         if (!data || data.length === 0) return;
         const ids = data.map((m) => m.user_id);
         supabase
-          .from("community_profiles")
+          .from("community_public_profiles")
           .select("user_id, nickname, avatar_url")
           .in("user_id", ids)
           .then(({ data: profiles }) => {

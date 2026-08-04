@@ -125,6 +125,35 @@ describe("Amora memory compiler boundary", () => {
     expect(batch.input).not.toContain("오늘 본 예식장");
   });
 
+  it("does not carry a care topic past an ineligible user reply", () => {
+    const batch = prepareAmoraMemoryBatch([
+      {
+        id: OTHER_MESSAGE_ID,
+        role: "assistant",
+        content: "오늘 본 예식장 중 어디가 제일 좋았어요?",
+        sourceActorRole: null,
+        trustedMomentMemoryKeys: ["moment:venue_candidates"],
+      },
+      {
+        id: USER_MESSAGE_ID,
+        role: "user",
+        content: "지금은 다른 개인적인 이야기를 할게",
+        sourceActorRole: null,
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000003",
+        role: "user",
+        content: "결혼식 총예산은 3천만원으로 정했어",
+        sourceActorRole: "bride",
+      },
+    ]);
+
+    expect(batch.messages).toHaveLength(3);
+    expect(batch.input).toContain("결혼식 총예산은 3천만원으로 정했어");
+    expect(batch.input).not.toContain("지금은 다른 개인적인 이야기를 할게");
+    expect(batch.input).not.toContain("후보 기억 주제");
+  });
+
   it("does not advance a trusted care question past the input boundary without its first user reply", () => {
     const prefix = Array.from({ length: 28 }, (_, index) => ({
       id: `60000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS,
   AMORA_W3_PRIOR_USER_MAX_CHARS,
+  buildAmoraBoundedContinuity,
   buildAmoraBoundedW3Continuity,
+  canAttemptAmoraBoundedContinuity,
   hasExplicitAmoraW3ContinuityReference,
   type AmoraBoundedContinuityRow,
 } from "@/lib/ai/amoraBoundedContinuity";
@@ -65,6 +67,74 @@ function build(overrides: Partial<Parameters<
 
 describe("Amora bounded W3 continuity", () => {
   it.each([
+    "왜?",
+    "첫 번째가 좋아",
+    "아까 말한 거 다시 설명해줘",
+    "그걸로 해줘",
+    "응, 그렇게 해줘",
+    "아까 거",
+    "방금 말한 것",
+    "그거",
+    "아까 말한 거 다시 설명해주세요",
+    "그거 다시 정리해주세요",
+    "첫 번째가 좋아요",
+    "두 번째가 나아요",
+    "2번으로 할게요",
+    "왜 그렇게 생각해요?",
+    "왜 그게 더 좋아요?",
+    "무슨 뜻이에요?",
+    "왜 그렇게 추천했어요?",
+    "왜 그걸 추천했어요?",
+    "두 번째로 할래요",
+    "좀 더 자세히 설명해주세요",
+  ])("allows an exact-row lookup candidate for %s without granting authority", (text) => {
+    expect(canAttemptAmoraBoundedContinuity(text)).toBe(true);
+  });
+
+  it.each([
+    "그래서 오늘 저녁 메뉴 추천해줘",
+    "그거 말고 오늘 날씨 알려줘",
+    "그래서 역사에 대해 알려줘",
+    "영어 문법 다시 설명해줘",
+    "날씨를 설명해줘",
+    "회사 계획 정리해줘",
+    "역사 설명해줘",
+    "아까 날씨 다시 설명해줘",
+    "이유를 알려줘",
+    "그래서 오늘 뭐 먹을까?",
+    "그거 오늘 뭐 먹을까?",
+  ])("does not use a loose reference to pull wedding context into %s", (text) => {
+    expect(canAttemptAmoraBoundedContinuity(text)).toBe(false);
+  });
+
+  it("does not open linked context for a long message that merely contains a reference", () => {
+    const text = `그거 때문에 ${"마음이 ".repeat(100)}힘들어`;
+    expect(canAttemptAmoraBoundedContinuity(text)).toBe(false);
+  });
+
+  it("returns the linked wedding exchange with context-only capabilities", () => {
+    const candidate = rows();
+    candidate[0] = { ...candidate[0]!, content: "왜?" };
+
+    expect(buildAmoraBoundedContinuity({
+      newestFirstRows: candidate,
+      currentMessageId: CURRENT_ID,
+      currentUserText: "왜?",
+      requesterUserId: USER_ID,
+      visibility: "shared",
+      segmentId: SEGMENT_ID,
+    })).toEqual({
+      mode: "linked_context_only",
+      capabilities: "none",
+      messages: [
+        { role: "user", content: "예식장 계약 때문에 파트너와 의견이 달라요" },
+        { role: "assistant", content: "예식장 계약 조건을 다시 확인해볼 수 있어요." },
+        { role: "user", content: "왜?" },
+      ],
+    });
+  });
+
+  it.each([
     "그것도 마음에 걸려",
     "그거 때문에 힘들어",
     "그게 너무 속상해",
@@ -76,10 +146,11 @@ describe("Amora bounded W3 continuity", () => {
     "아까 너무 당황했어",
     "방금 마음이 복잡해졌어",
     "앞에서 말한 게 속상해",
-    "그래서 오늘 힘들어",
+    "그래서 힘들어",
     "그 때문에 마음이 무거워",
   ])("recognizes the explicit reference marker in %s", (text) => {
     expect(hasExplicitAmoraW3ContinuityReference(text)).toBe(true);
+    expect(canAttemptAmoraBoundedContinuity(text)).toBe(true);
   });
 
   it.each(["그 사람 때문에 힘들어", "요즘 힘들어", "일 때문에 지쳤어"])(
@@ -88,6 +159,27 @@ describe("Amora bounded W3 continuity", () => {
       expect(hasExplicitAmoraW3ContinuityReference(text)).toBe(false);
     },
   );
+
+  it.each([
+    "그거 말고 오늘 너무 힘들어",
+    "그거랑 상관없이 오늘 너무 힘들어",
+    "아까 얘기 말고 지금 회사 때문에 힘들어",
+    "그래서 회사 일이 힘들어",
+    "그래서 오늘 힘들어",
+    "그거는 됐고 오늘 너무 힘들어",
+    "그 얘기는 여기까지. 오늘 회사가 너무 힘들어",
+    "그거는 나중에 하고 지금 회사 일이 힘들어",
+    "아까 건 됐고, 오늘 회사 때문에 힘들어",
+    "그 일은 끝났고 요즘 직장이 힘들어",
+    "그거는 괜찮고 다른 일 때문에 힘들어",
+    "그거랑은 무관하게 오늘 너무 힘들어",
+    "그 얘기와 관계없이 오늘 너무 힘들어",
+    "그거 때문은 아니지만 오늘 회사가 힘들어",
+    "그거는 됐어. 오늘 뭐 먹을지 생각 중이야",
+  ])("respects an explicit topic break in %s", (text) => {
+    expect(hasExplicitAmoraW3ContinuityReference(text)).toBe(false);
+    expect(canAttemptAmoraBoundedContinuity(text)).toBe(false);
+  });
 
   it("returns only the linked prior exchange and current user turn", () => {
     expect(build()).toEqual([
@@ -134,6 +226,10 @@ describe("Amora bounded W3 continuity", () => {
       value[2] = { ...value[2]!, sender_id: "10000000-0000-4000-8000-000000000099" };
       return value;
     }],
+    ["assistant carrying a user sender id", (value: AmoraBoundedContinuityRow[]) => {
+      value[1] = { ...value[1]!, sender_id: USER_ID };
+      return value;
+    }],
     ["mixed visibility", (value: AmoraBoundedContinuityRow[]) => {
       value[1] = { ...value[1]!, visibility: "bride_private" };
       return value;
@@ -174,12 +270,39 @@ describe("Amora bounded W3 continuity", () => {
     expect(build({ newestFirstRows: candidate })).toBeNull();
   });
 
+  it.each([
+    "그거 때문에 죽고 싶어",
+    "그거 법적으로 판단해줘",
+    "그걸로 삼성전자 주식 사줘",
+  ])("keeps the current safety or domain boundary authoritative: %s", (content) => {
+    const candidate = rows();
+    candidate[0] = { ...candidate[0]!, content };
+    expect(canAttemptAmoraBoundedContinuity(content)).toBe(false);
+    expect(buildAmoraBoundedContinuity({
+      newestFirstRows: candidate,
+      currentMessageId: CURRENT_ID,
+      currentUserText: content,
+      requesterUserId: USER_ID,
+      visibility: "shared",
+      segmentId: SEGMENT_ID,
+    })).toBeNull();
+  });
+
   it("rejects a current turn without an explicit reference", () => {
     const candidate = rows();
     candidate[0] = { ...candidate[0]!, content: "오늘 너무 속상해" };
     expect(build({
       newestFirstRows: candidate,
       currentUserText: "오늘 너무 속상해",
+    })).toBeNull();
+  });
+
+  it("keeps the legacy W3 wrapper limited to W3 even for a W4-low reference", () => {
+    const candidate = rows();
+    candidate[0] = { ...candidate[0]!, content: "아까 말한 거 다시 설명해줘" };
+    expect(build({
+      newestFirstRows: candidate,
+      currentUserText: "아까 말한 거 다시 설명해줘",
     })).toBeNull();
   });
 });

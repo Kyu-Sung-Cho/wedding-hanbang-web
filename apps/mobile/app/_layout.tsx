@@ -93,6 +93,21 @@ function RootLayout() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    let dispose: () => void = () => undefined;
+    void import("@/lib/notifications")
+      .then(({ initCommunityPushNotificationNavigation }) => {
+        if (!active) return;
+        dispose = initCommunityPushNotificationNavigation();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      dispose();
+    };
+  }, []);
+
+  useEffect(() => {
     registerSentryNavigationContainer(navigationContainerRef);
   }, [navigationContainerRef]);
 

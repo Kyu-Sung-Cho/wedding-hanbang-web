@@ -12,7 +12,10 @@
     "./chat-lane": "./src/utils/chatLane.ts",
     "./amora-crisis-classifier": "./src/safety/amoraCrisisClassifier.ts",
     "./amora-crisis": "./src/safety/amoraCrisisSafety.ts",
-    "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts"
+    "./amora-crisis-delivery": "./src/safety/amoraCrisisDelivery.ts",
+    "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts",
+    "./community-notification": "./src/contracts/communityNotification.mjs",
+    "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

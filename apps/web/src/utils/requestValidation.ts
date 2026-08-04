@@ -13,6 +13,17 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
+/**
+ * A public read may receive Supabase's missing-session error from a real guest.
+ * Only a request that actually presented auth material should be treated as a
+ * failed authenticated session.
+ */
+export function hasPresentedAuthCredential(request: Request): boolean {
+  if (request.headers.has("authorization")) return true;
+  const cookie = request.headers.get("cookie") ?? "";
+  return /(?:^|;\s*)sb-[^=]*auth-token(?:\.\d+)?=/u.test(cookie);
+}
+
 export function isBodyTooLarge(request: Request, maxBytes: number): boolean {
   const contentLength = request.headers.get("content-length");
   if (!contentLength) return false;

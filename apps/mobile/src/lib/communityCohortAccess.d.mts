@@ -107,3 +107,19 @@ export function fetchCohortMessages(input: {
   topic: "price" | "review" | "concern" | "chat" | null;
   createdAt: string;
 }>>;
+
+export interface CohortMemberSummary {
+  user_id: string;
+  profile: {
+    nickname: string;
+    rank: "sprout" | "preparing" | "expert" | "master" | "senior";
+  };
+}
+
+export function parseCohortMembers(value: unknown): CohortMemberSummary[];
+
+export function fetchCohortMembers(input: {
+  apiFetchForExpectedUser: ExpectedUserApiFetch;
+  ownerId: string;
+  roomId: string;
+}): Promise<CohortMemberSummary[]>;

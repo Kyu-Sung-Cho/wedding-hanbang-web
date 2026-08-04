@@ -17,8 +17,25 @@ export interface ChatStoreState {
 }
 
 export type ChatSendOutcome =
-  | { userMessage: "persisted"; userMessageId: string }
-  | { userMessage: "ephemeral_demo"; userMessageId: string }
+  | {
+      userMessage: "persisted";
+      userMessageId: string;
+      effectiveVisibility?: ChatMessageVisibility;
+      safetyPrivacyRedirected?: true;
+    }
+  | {
+      userMessage: "ephemeral_demo";
+      userMessageId: string;
+      effectiveVisibility?: ChatMessageVisibility;
+      safetyPrivacyRedirected?: true;
+    }
+  | {
+      userMessage: "ephemeral_safety";
+      safetyCardId: string;
+      effectiveVisibility: ChatMessageVisibility;
+      safetyPrivacyRedirected: boolean;
+      partnerDeliveryHeld: boolean;
+    }
   | { userMessage: "persistence_unknown"; clientRequestId: string }
   | {
       userMessage: "not_persisted";

@@ -791,6 +791,90 @@ describe("getWeddingPlannerSystemPrompt", () => {
     }
   });
 
+  it("adds a capability-free linked-context contract without upgrading W4", () => {
+    const questionScope = {
+      scope: "W4_out_of_scope" as const,
+      allowsLongTermMemory: false,
+      confidence: "low" as const,
+      needsClarification: true,
+    };
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+        linkedContextMode: "linked_context_only",
+      },
+    );
+
+    expect(prompt).toContain("question_scope: W4_out_of_scope");
+    expect(prompt).toContain("context_mode: linked_context_only");
+    expect(prompt).toContain("capabilities: none");
+    expect(prompt.indexOf("context_mode: linked_context_only"))
+      .toBeGreaterThan(prompt.indexOf("question_scope: W4_out_of_scope"));
+    expect(prompt).toContain("결혼 관련성을 다시 묻지는 마세요");
+
+    const truncated = buildAmoraSystemPrompt(
+      {
+        ...baseContext,
+        bookings: [],
+        chatSummaries: Array.from({ length: 30 }, (_, index) =>
+          `LINKED_OPTIONAL_${index}_${"가".repeat(1_000)}`
+        ),
+      },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+        linkedContextMode: "linked_context_only",
+        maxChars: 24_000,
+      },
+    );
+    expect(truncated.length).toBeLessThanOrEqual(24_000);
+    expect(truncated).toContain("question_scope: W4_out_of_scope");
+    expect(truncated).toContain("context_mode: linked_context_only");
+    expect(truncated).toContain("capabilities: none");
+
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["get_wedding_info"],
+        questionScope,
+        linkedContextMode: "linked_context_only",
+      },
+    )).toThrow("cannot include tools or an action contract");
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        actionContract: { kind: "proposal", text: "unsafe" },
+        questionScope,
+        linkedContextMode: "linked_context_only",
+      },
+    )).toThrow("cannot include tools or an action contract");
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope: {
+          ...questionScope,
+          confidence: "high",
+          needsClarification: false,
+        },
+        linkedContextMode: "linked_context_only",
+      },
+    )).toThrow("requires a current-only W3 or W4-low chat scope");
+  });
+
   it("projects stored couple context out of W2-W4 and mediation prompts before the mandatory suffix is built", () => {
     const sensitiveContext = {
       ...baseContext,

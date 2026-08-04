@@ -193,6 +193,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 서버 레이아웃이 HttpOnly 서명까지 검증한 데모 세션은 다시 원격 Auth에
     // 물어보지 않는다. 네트워크가 느리거나 끊겨도 체험 화면은 즉시 열려야 한다.
     if (options?.initialDemo) {
+      useCommunityStore.getState().bindViewer("demo");
       set({
         user: { id: "demo", email: "demo@hanbang.ai" },
         profile: DEMO_PROFILE,
@@ -235,6 +236,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             journeyWriteSequence += 1;
           }
 
+          useCommunityStore.getState().bindViewer(data.user.id);
           set({
             user: data.user,
             profile: data.profile ?? null,
@@ -253,6 +255,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
         journeyWriteSequence += 1;
+        useCommunityStore.getState().bindViewer("demo");
         set({
           user: { id: "demo", email: "demo@hanbang.ai" },
           profile: DEMO_PROFILE,
@@ -266,7 +269,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      useCommunityStore.getState().bindViewer(null);
+      set({
+        user: null,
+        profile: null,
+        partner: null,
+        couple: null,
+        journey: null,
+        isDemo: false,
+        isLoading: false,
+        isInitialized: true,
+      });
     } catch (err) {
       if (initializeSequence !== authInitializeSequence) return;
       if (!isTransientAuthFetchError(err)) {
@@ -276,6 +289,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // fetch 에러 시에도 데모 모드 폴백
       if (isDemoMode()) {
         journeyWriteSequence += 1;
+        useCommunityStore.getState().bindViewer("demo");
         set({
           user: { id: "demo", email: "demo@hanbang.ai" },
           profile: DEMO_PROFILE,
@@ -526,16 +540,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     const supabase = createClient();
+    // Purge auth and viewer-owned state before I/O so logout cannot paint or
+    // refetch the outgoing account while the network request is pending.
+    get().reset();
     await supabase.auth.signOut();
     document.cookie = "onboarding_complete=; path=/; max-age=0";
     document.cookie = "demo_mode=; path=/; max-age=0";
-    get().reset();
     window.location.href = "/login";
   },
 
   reset: () => {
     authInitializeSequence += 1;
     journeyWriteSequence += 1;
+    useCommunityStore.getState().reset();
     set({
       user: null,
       profile: null,

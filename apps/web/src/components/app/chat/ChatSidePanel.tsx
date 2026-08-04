@@ -43,6 +43,7 @@ import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
@@ -53,6 +54,10 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+}
+
+function revokeObjectPreview(previewUrl: string) {
+  if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
 }
 
 function fileInputKey(file: File): string {
@@ -252,6 +257,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     && (!failedRequest || failedRequest.visibility === activeVisibility);
   const isConfirmedActionRecovery =
     failedRequest?.recoveryKind === "confirmed_action";
+  const isInterruptedTurnRecovery =
+    failedRequest?.recoveryKind === "interrupted_turn";
+  const isRecoveryNotice = Boolean(failedRequest?.recoveryKind);
   const showMediationBanner =
     !mediationDismissed
     && !mediationConsentOpen
@@ -672,7 +680,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       const content = usesComposer ? input.trim() : text;
       const submittedInput = usesComposer ? input : "";
       const currentAttachments = usesComposer ? [...attachments] : [];
-      const submittedLane = activeComposerLane;
+      const sourceLane = activeComposerLane;
       const submittedSessionGeneration = composerSessionGenerationRef.current;
       const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
       if (
@@ -683,18 +691,30 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         || !activeVisibility
       ) return;
 
-      const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
-      if (!attachmentCheck.ok) {
-        useChatStore.setState({
-          error: attachmentCheck.error,
-          artifactVisibility: activeVisibility,
-        });
-        return;
-      }
-
       const submittedTarget = activeScope === "private"
         ? "ai"
         : targetOverride ?? messageTarget;
+      const crisisPreflight = planAmoraCrisisDelivery({
+        userText: content ?? "",
+        requestedVisibility: activeVisibility,
+        target: submittedTarget,
+        senderRole,
+      });
+      const effectiveVisibility = crisisPreflight.effectiveVisibility;
+      const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
+      const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
+      const canTransmitAttachments = crisisPreflight.disposition === "continue";
+      const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
+      if (canTransmitAttachments) {
+        const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
+        if (!attachmentCheck.ok) {
+          useChatStore.setState({
+            error: attachmentCheck.error,
+            artifactVisibility: activeVisibility,
+          });
+          return;
+        }
+      }
       const submittedPartnerEpoch = partnerComposerEpochRef.current;
       const submittedPartnerRecipientId = submittedTarget === "partner"
         ? linkedPartnerId
@@ -707,7 +727,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           && linkedPartnerIdRef.current === submittedPartnerRecipientId
         )
       );
-      if (submittedTarget === "partner" && !hasCouplePartner) {
+      if (!isLocalSafetyHold && submittedTarget === "partner" && !hasCouplePartner) {
         setMessageTarget("ai");
         useChatStore.setState({
           error: "연결된 상대방이 없어 보내지 않았어요. 상대방 연결을 다시 확인해주세요.",
@@ -723,9 +743,16 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         setInput("");
         setAttachments([]);
       }
+      if (isPrivateSafetyRoute) {
+        setActiveScope("private");
+        setMessageTarget("ai");
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+      }
 
       const restoreComposer = () => {
         if (
+          isPrivateSafetyRoute
+          ||
           !usesComposer
           || composerSessionGenerationRef.current !== submittedSessionGeneration
           || !partnerRecipientIsStillCurrent()
@@ -765,20 +792,27 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             venue: journey?.venue ?? null,
             progress: journey?.progress ?? {},
           },
-          images: currentAttachments.length > 0 ? currentAttachments : undefined,
+          images: canTransmitAttachments && currentAttachments.length > 0
+            ? currentAttachments
+            : undefined,
           target: submittedTarget,
           ...(submittedTarget === "partner" && linkedPartnerId
             ? { partnerRecipientId: linkedPartnerId }
             : {}),
-          visibility: activeVisibility,
+          visibility: effectiveVisibility,
           ...(submittedClientRequestId
             ? { clientRequestId: submittedClientRequestId }
             : {}),
         });
-        if (
-          composerSessionGenerationRef.current !== submittedSessionGeneration
-          || !partnerRecipientIsStillCurrent()
-        ) return;
+        if (composerSessionGenerationRef.current !== submittedSessionGeneration) return;
+        if (outcome?.userMessage === "ephemeral_safety") {
+          setActiveScope("private");
+          setMessageTarget("ai");
+          setDraftRetryClientRequestId(submittedLane, null);
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+          return;
+        }
+        if (!partnerRecipientIsStillCurrent()) return;
         if (outcome?.userMessage === "persistence_unknown") {
           restoreComposer();
           setDraftRetryClientRequestId(submittedLane, outcome.clientRequestId);
@@ -789,7 +823,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             outcome.clientRequestId ?? submittedClientRequestId,
           );
         } else {
-          setDraftRetryClientRequestId(submittedLane, null);
+          setDraftRetryClientRequestId(sourceLane, null);
         }
       } catch {
         if (
@@ -800,7 +834,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         setDraftRetryClientRequestId(submittedLane, submittedClientRequestId);
         useChatStore.setState((state) => ({
           error: state.error ?? "메시지를 저장하지 못했습니다. 입력 내용을 복구했어요.",
-          artifactVisibility: state.artifactVisibility ?? activeVisibility,
+          artifactVisibility: state.artifactVisibility ?? effectiveVisibility,
         }));
       } finally {
         if (composerSessionGenerationRef.current === submittedSessionGeneration) {
@@ -1265,21 +1299,23 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {error && errorMatchesActiveVisibility && (
               <div
                 className={`mx-3 mt-2 rounded-xl border p-2.5 ${
-                  isConfirmedActionRecovery
+                  isRecoveryNotice
                     ? "border-[#B9DAD5] bg-[#F0F8F6]"
                     : "border-red-200 bg-red-50"
                 }`}
-                role={isConfirmedActionRecovery ? "status" : "alert"}
+                role={isRecoveryNotice ? "status" : "alert"}
               >
                 <p
                   className={`text-xs leading-relaxed ${
-                    isConfirmedActionRecovery ? "text-[#245B56]" : "text-red-700"
+                    isRecoveryNotice ? "text-[#245B56]" : "text-red-700"
                   }`}
                 >
                   {error}
                 </p>
                 {failedRequest?.unavailableReason && (
-                  <p className="mt-1 text-[0.6875rem] leading-relaxed text-red-600">
+                  <p className={`mt-1 text-[0.6875rem] leading-relaxed ${
+                    isRecoveryNotice ? "text-[#356B66]" : "text-red-600"
+                  }`}>
                     {failedRequest.unavailableReason}
                   </p>
                 )}
@@ -1290,7 +1326,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       onClick={() => void retryFailedMessage()}
                       disabled={isComposerBusy || isRetrying}
                       className={`min-h-11 rounded-lg px-3 text-[0.6875rem] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                        isConfirmedActionRecovery
+                        isRecoveryNotice
                           ? "bg-[#2F766F] hover:bg-[#245B56]"
                           : "bg-red-600 hover:bg-red-700"
                       }`}
@@ -1299,6 +1335,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         ? isRetrying
                           ? "반영 확인 중..."
                           : "반영 계속하기"
+                        : isInterruptedTurnRecovery
+                          ? isRetrying
+                            ? "답변 확인 중..."
+                            : "답변 이어받기"
                         : isRetrying
                           ? "다시 시도 중..."
                           : "다시 시도"}
@@ -1309,12 +1349,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                     onClick={dismissFailedMessageRetry}
                     disabled={isComposerBusy || isRetrying}
                     className={`min-h-11 rounded-lg border bg-white px-3 text-[0.6875rem] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isConfirmedActionRecovery
+                      isRecoveryNotice
                         ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
                         : "border-red-200 text-red-700 hover:bg-red-100"
                     }`}
                   >
-                    {isConfirmedActionRecovery ? "나중에" : "닫기"}
+                    {isRecoveryNotice ? "나중에" : "닫기"}
                   </button>
                 </div>
               </div>

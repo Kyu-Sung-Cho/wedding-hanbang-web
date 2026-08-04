@@ -36,6 +36,7 @@ import {
   assignCurrentUserToCohort,
   createCohortMessageIdempotencyStore,
   createCommunityCohortGate,
+  fetchCohortMembers,
   fetchCohortMessages,
   fetchCurrentCohortAccess,
   mergeCohortMessageSnapshot,
@@ -68,14 +69,11 @@ interface RoomInfo {
 }
 
 interface CohortMember {
-  id: string;
   user_id: string;
   profile: {
     nickname: string;
     rank: string;
-    wedding_year: number | null;
-    wedding_month: number | null;
-  } | null;
+  };
 }
 
 type ScreenTab = "chat" | "info" | "timeline";
@@ -173,7 +171,7 @@ function MemberListSection({ members }: { members: CohortMember[] }) {
             const nickname = member.profile?.nickname ?? "멤버";
             const bgColor = getAvatarColor(nickname);
             return (
-              <View key={member.id} style={styles.memberItem}>
+              <View key={member.user_id} style={styles.memberItem}>
                 <View style={[styles.memberAvatar, { backgroundColor: bgColor }]}>
                   <Text style={styles.memberAvatarText}>
                     {nickname.charAt(0)}
@@ -331,19 +329,18 @@ export default function CohortChatScreen() {
       }
 
       const messageRevision = messageRevisionRef.current;
-      const [nextMessages, memberResult] = await Promise.all([
+      const [nextMessages, nextMembers] = await Promise.all([
         fetchCohortMessages({
           apiFetchForExpectedUser,
           ownerId: token.ownerId,
           roomId,
         }),
-        supabase
-          .from("cohort_members")
-          .select("id, user_id, profile:community_profiles(nickname, rank, wedding_year, wedding_month)")
-          .eq("room_id", roomId)
-          .eq("is_active", true),
+        fetchCohortMembers({
+          apiFetchForExpectedUser,
+          ownerId: token.ownerId,
+          roomId,
+        }),
       ]);
-      if (memberResult.error) throw memberResult.error;
       if (!(await isLoadOwnerCurrent(sequence, token))) return;
 
       setAccessState("member");
@@ -362,7 +359,7 @@ export default function CohortChatScreen() {
       setMessages((current) => messageRevisionRef.current === messageRevision
         ? messageSnapshot
         : mergeCohortMessageSnapshot(messageSnapshot, current));
-      setMembers((memberResult.data as unknown as CohortMember[]) ?? []);
+      setMembers(nextMembers);
     } catch (error) {
       if (!loadToken || !(await isLoadOwnerCurrent(sequence, loadToken))) return;
       cohortGateRef.invalidateOperations();
