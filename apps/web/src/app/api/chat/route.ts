@@ -2985,10 +2985,6 @@ export async function POST(request: Request) {
                 });
               }
 
-              // OpenAI performs an input-token count request before its paid
-              // generation hook. Fence that provider request too; the hook
-              // below repeats the check after counting and before reservation.
-              await assertPrivacyContextStillCurrent();
               const providerResult = await chatWithToolsStream({
                 systemPrompt,
                 input: currentMessages,
@@ -3005,6 +3001,12 @@ export async function POST(request: Request) {
                 },
                 maxInputTokens: requestPolicy.maxInputTokens,
                 maxOutputTokens: requestPolicy.maxOutputTokens,
+                // OpenAI counts input tokens before its paid generation hook,
+                // and that count carries the full prompt. Fence every provider
+                // request on the privacy context, not just the billed one; the
+                // hook below repeats the check after counting and before the
+                // reservation.
+                beforeProviderEgress: assertPrivacyContextStillCurrent,
                 beforeGeneration: async () => {
                   await assertPrivacyContextStillCurrent();
                   await reserveBeforeGeneration();
@@ -3467,9 +3469,6 @@ export async function POST(request: Request) {
             },
           },
           async (reserveBeforeGeneration) => {
-            // This precedes OpenAI's input-token count request. The generation
-            // hook repeats the fence immediately before quota reservation.
-            await assertPrivacyContextStillCurrent();
             const providerResult = await chatWithToolsStream({
               systemPrompt: noToolSystemPrompt,
               input: currentMessages,
@@ -3481,6 +3480,9 @@ export async function POST(request: Request) {
               },
               maxInputTokens: finalRequestPolicy.maxInputTokens,
               maxOutputTokens: finalRequestPolicy.maxOutputTokens,
+              // Fences OpenAI's input-token count, which precedes the paid
+              // generation hook and already carries the full prompt.
+              beforeProviderEgress: assertPrivacyContextStillCurrent,
               beforeGeneration: async () => {
                 await assertPrivacyContextStillCurrent();
                 await reserveBeforeGeneration();

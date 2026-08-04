@@ -24,6 +24,7 @@ describe("Amora durable memory compiler execution boundary", () => {
       coupleId: "10000000-0000-4000-8000-000000000001",
       visibility: "shared",
       beforeGeneration,
+      beforeProviderEgress: () => {},
       messages: [
         {
           id: "20000000-0000-4000-8000-000000000001",
@@ -46,6 +47,7 @@ describe("Amora durable memory compiler execution boundary", () => {
       userId: "00000000-0000-4000-8000-000000000001",
       visibility: "shared",
       beforeGeneration,
+      beforeProviderEgress: () => {},
       messages: [{
         id: "20000000-0000-4000-8000-000000000001",
         role: "user",
@@ -57,6 +59,8 @@ describe("Amora durable memory compiler execution boundary", () => {
     expect(mocks.structuredResponse).toHaveBeenCalledWith(expect.objectContaining({
       maxInputTokens: 64_000,
       beforeGeneration,
+      // 컴파일러가 호출부의 egress gate를 그대로 SDK 경계까지 넘겨야 한다.
+      beforeProviderEgress: expect.any(Function),
     }));
   });
 });

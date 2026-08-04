@@ -72,14 +72,14 @@ interface BaseAuditOptions {
   signal?: AbortSignal;
   safetyIdentifierScope?: string;
   /**
-   * Privacy/audit gate for every content-bearing provider request of this call,
-   * including the input token count. `beforeGeneration` runs after counting
-   * because it reserves paid capacity next to the billed generation, so it
-   * cannot protect the count — which already carries the full instructions and
-   * input to the provider. Callers that handle private content must supply this
-   * gate. See handoff §8 P0-5.
+   * Required privacy/audit gate for every content-bearing provider request of
+   * this call, including the input token count. `beforeGeneration` runs after
+   * counting because it reserves paid capacity next to the billed generation, so
+   * it cannot protect the count — which already carries the full instructions and
+   * input to the provider. No caller may opt out: an omitted gate fails closed
+   * before any provider request. See handoff §8 P0-5 and §17.3.
    */
-  beforeProviderEgress?: () => void | Promise<void>;
+  beforeProviderEgress: () => void | Promise<void>;
   /** Required atomic paid-call gate; no audited caller may opt out. */
   beforeGeneration: () => void | Promise<void>;
   /**
@@ -241,15 +241,20 @@ async function createOpenAIResponseWithAuditInternal<T>(
 
     // 토큰 계산도 instructions와 input 원문을 제공자에게 보내는 content-bearing
     // egress다. 개인정보·감사 게이트가 실패하면 count도 create도 시작하지 않고,
-    // 감사 행에는 provider 요청이 없었다는 사실만 남는다.
+    // 감사 행에는 provider 요청이 없었다는 사실만 남는다. gate를 아예 넘기지
+    // 않은 호출부도 같은 취급이다 — 빠진 gate는 열린 gate와 같다.
+    if (typeof options.beforeProviderEgress !== "function") {
+      providerEgressGateFailed = true;
+      throw new Error(
+        "[ai-config] beforeProviderEgress is required before any content-bearing provider request",
+      );
+    }
     options.signal?.throwIfAborted();
-    if (options.beforeProviderEgress) {
-      try {
-        await options.beforeProviderEgress();
-      } catch (error) {
-        providerEgressGateFailed = true;
-        throw error;
-      }
+    try {
+      await options.beforeProviderEgress();
+    } catch (error) {
+      providerEgressGateFailed = true;
+      throw error;
     }
     options.signal?.throwIfAborted();
 

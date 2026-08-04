@@ -897,10 +897,16 @@ function setSensitiveStoredProviderContext(currentUserText: string) {
   );
 }
 
+// 이 fake들은 chatWithToolsStream의 실제 계약을 모사한다. 실제 구현은
+// `beforeProviderEgress` → `inputTokens.count` → `beforeGeneration` →
+// `responses.create` 순서이므로(P0-5), fake도 egress gate를 가장 먼저 실행해야
+// 라우트의 개인정보 fence가 테스트에서도 진짜와 같은 지점에 걸린다.
 function providerAfterPreGeneration(result: ReturnType<typeof providerResult>) {
   mocks.provider.mockImplementationOnce(async (options: {
+    beforeProviderEgress?: () => Promise<void>;
     beforeGeneration?: () => Promise<void>;
   }) => {
+    await options.beforeProviderEgress?.();
     await options.beforeGeneration?.();
     return result;
   });
@@ -911,8 +917,10 @@ function providerNetworkAfterPreGeneration(
 ) {
   const networkBoundary = vi.fn();
   mocks.provider.mockImplementationOnce(async (options: {
+    beforeProviderEgress?: () => Promise<void>;
     beforeGeneration?: () => Promise<void>;
   }) => {
+    await options.beforeProviderEgress?.();
     await options.beforeGeneration?.();
     networkBoundary();
     return result;
@@ -4376,7 +4384,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     };
     mocks.getPrivacyEpoch.mockReset();
     mocks.getPrivacyEpoch.mockResolvedValue(7);
-    mocks.provider.mockResolvedValueOnce(providerResult({
+    // 실제 SDK 계약을 모사하는 fake를 쓴다. 그래야 egress gate 읽기까지 세어진다.
+    providerAfterPreGeneration(providerResult({
       fullText: "결혼 준비 밖의 투자 추천은 하지 않을게요.",
     }));
 
@@ -4386,9 +4395,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     await response.text();
 
     expect(response.status).toBe(200);
-    // Replay preflight, initial current-only epoch, and the provider's two
-    // pre/post fences. There is deliberately no fifth terminal-release read.
-    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(4);
+    // Replay preflight, initial current-only epoch, the pre-egress fence that
+    // guards token counting, the pre-generation fence, and the post-provider
+    // fence. There is deliberately no further terminal-release read.
+    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(5);
   });
 
   it("keeps the minimized private-mode guard without disclosing the stored actor role", async () => {
@@ -6880,8 +6890,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const inputCountBoundary = vi.fn();
     const generationBoundary = vi.fn();
     mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
       beforeGeneration?: () => Promise<void>;
     }) => {
+      // 실제 계약과 같은 순서: egress gate가 토큰 계산보다도 먼저다.
+      await options.beforeProviderEgress?.();
       inputCountBoundary();
       await options.beforeGeneration?.();
       generationBoundary();
@@ -6962,8 +6975,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     );
     const networkBoundary = vi.fn();
     mocks.provider.mockImplementation(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
       beforeGeneration?: () => Promise<void>;
     }) => {
+      await options.beforeProviderEgress?.();
       await options.beforeGeneration?.();
       networkBoundary();
       if (networkBoundary.mock.calls.length === 1) {

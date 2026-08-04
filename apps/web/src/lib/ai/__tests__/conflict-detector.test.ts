@@ -28,6 +28,7 @@ describe("detectCoupleConflict safety gates", () => {
         message("groom", "난 절대 반대야. 그건 동의 못 해.", 10),
       ],
       pastConflicts: [],
+      beforeProviderEgress: () => {},
       runProviderCall,
     });
 
@@ -48,6 +49,7 @@ describe("detectCoupleConflict safety gates", () => {
         message("bride", "진짜 화가 나고 너무 서운해.", 10),
       ],
       pastConflicts: [],
+      beforeProviderEgress: () => {},
       runProviderCall,
     });
 
@@ -64,6 +66,7 @@ describe("detectCoupleConflict safety gates", () => {
         message("groom", "엄마가 그 업체는 절대 안 된다고 반대래.", 10),
       ],
       pastConflicts: [],
+      beforeProviderEgress: () => {},
       runProviderCall,
     });
 
@@ -80,6 +83,7 @@ describe("detectCoupleConflict safety gates", () => {
         message("bride", "결혼 취소하고 싶을 만큼 화가 나.", 10),
       ],
       pastConflicts: [],
+      beforeProviderEgress: () => {},
     });
 
     expect(result).toEqual({

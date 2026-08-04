@@ -438,6 +438,7 @@ export async function POST(req: NextRequest) {
         recentSharedMessages: recentMessages,
         pastConflicts,
         windowMinutes: 5,
+        beforeProviderEgress: assertPrivacyEpochStillCurrent,
         runProviderCall: (call) => runAmoraProviderCallWithLedger(
           {
             userId: user.id,
@@ -716,6 +717,9 @@ export async function POST(req: NextRequest) {
             modelRole: "primary",
             maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
             maxOutputTokens: 800,
+            // 두 사람의 갈등 대화 원문은 토큰 계산 요청에도 그대로 실린다.
+            // 유료 생성 게이트는 계산 뒤에 오므로 계산 자체를 보호하지 못한다.
+            beforeProviderEgress: assertPrivacyEpochStillCurrent,
             beforeGeneration: async () => {
               await assertPrivacyEpochStillCurrent();
               await beforeGeneration();

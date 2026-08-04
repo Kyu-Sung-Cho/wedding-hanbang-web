@@ -201,6 +201,9 @@ async function processJob(
       userId: job.user_id,
       visibility: job.visibility,
       messages: batch.messages,
+      // 예산 초과로 미룰 작업이면 대화 원문이 토큰 계산 요청으로도 나가면 안 된다.
+      // 그래서 같은 검사를 모든 provider 요청 앞에서 한 번 더 건다.
+      beforeProviderEgress: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
       beforeGeneration: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
     });
   } catch (error) {

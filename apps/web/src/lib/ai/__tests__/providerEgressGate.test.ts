@@ -349,7 +349,33 @@ describe("provider all-egress gate (P0-5)", () => {
       expect(calls).toEqual([]);
     });
 
-    it("keeps the existing count → beforeGeneration → create order when no egress gate is supplied", async () => {
+    // 2026-08-05 계약 변경: egress gate는 optional이 아니라 필수다. 이전에는
+    // "gate를 안 넘기면 기존 count → beforeGeneration → create 순서가 유지된다"가
+    // 계약이었지만, 그 계약이 곧 P0-5의 구멍이었다 — 넘기지 않은 gate는 열린
+    // gate와 같다. 아래 두 테스트가 그 두 역할을 분리해 고정한다.
+    //   1) egress gate: 개인정보·kill-switch. 모든 provider 요청보다 앞선다.
+    //   2) beforeGeneration: 유료 생성 직전의 원자적 quota 예약. count 뒤에 남는다.
+    it("fails closed with zero provider requests when no egress gate is supplied", async () => {
+      const { client, calls } = recordingClient();
+      const beforeGeneration = vi.fn();
+
+      await expect(
+        rawChatWithToolsStream({
+          maxInputTokens: 64_000,
+          systemPrompt: SYNTHETIC_SYSTEM_MARKER,
+          input: SYNTHETIC_PRIVATE_MARKER,
+          tools: [],
+          beforeGeneration,
+          client,
+        } as unknown as Parameters<typeof rawChatWithToolsStream>[0]),
+      ).rejects.toThrow(/beforeProviderEgress/u);
+
+      expect(calls).toEqual([]);
+      expectNoSyntheticMarkerReachedProvider(calls);
+      expect(beforeGeneration).not.toHaveBeenCalled();
+    });
+
+    it("keeps beforeGeneration between count and create once the egress gate passes", async () => {
       const order: string[] = [];
       const { client, count, create } = recordingClient();
       count.mockImplementation(() => {
@@ -369,6 +395,7 @@ describe("provider all-egress gate (P0-5)", () => {
 
       await chatWithToolsStream({
         tools: [],
+        beforeProviderEgress: vi.fn(),
         beforeGeneration: vi.fn(async () => {
           order.push("before_generation");
         }),
@@ -531,7 +558,31 @@ describe("provider all-egress gate (P0-5)", () => {
       expect(order).toEqual(["egress_gate", "count", "hook", "create"]);
     });
 
-    it("keeps the existing count → hook → create order when no egress gate is supplied", async () => {
+    it("fails closed with zero provider requests when no egress gate is supplied", async () => {
+      const { client, calls } = recordingClient({
+        nonStreamResponse: completedResponse(),
+      });
+      const beforeGeneration = vi.fn();
+
+      await expect(
+        createOpenAIResponseWithAudit({
+          modelRole: "fast",
+          instructions: SYNTHETIC_SYSTEM_MARKER,
+          input: SYNTHETIC_PRIVATE_MARKER,
+          maxInputTokens: 64_000,
+          maxOutputTokens: 100,
+          beforeGeneration,
+          client,
+          audit: { interactionType: "chat_turn" },
+        } as unknown as Parameters<typeof createOpenAIResponseWithAudit>[0]),
+      ).rejects.toThrow(/beforeProviderEgress/u);
+
+      expect(calls).toEqual([]);
+      expectNoSyntheticMarkerReachedProvider(calls);
+      expect(beforeGeneration).not.toHaveBeenCalled();
+    });
+
+    it("keeps the reservation hook between count and create once the egress gate passes", async () => {
       const order: string[] = [];
       const { client, count, create } = recordingClient({
         nonStreamResponse: completedResponse(),
@@ -554,6 +605,7 @@ describe("provider all-egress gate (P0-5)", () => {
         input: SYNTHETIC_PRIVATE_MARKER,
         maxInputTokens: 64_000,
         maxOutputTokens: 100,
+        beforeProviderEgress: vi.fn(),
         beforeGeneration: vi.fn(async () => {
           order.push("hook");
         }),
