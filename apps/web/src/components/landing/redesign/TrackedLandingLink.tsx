@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
 import { captureEvent } from "@/lib/analytics";
+import { clearStartHereDateHandoff } from "@/lib/marketing/startHereDateHandoff";
 
 type TrackedLandingLinkProps = Omit<ComponentProps<typeof Link>, "children" | "onClick"> & {
   children: ReactNode;
@@ -18,7 +19,10 @@ export default function TrackedLandingLink({
   return (
     <Link
       {...props}
-      onClick={() => captureEvent("landing_amora_start_click", { source })}
+      onClick={() => {
+        clearStartHereDateHandoff();
+        captureEvent("landing_amora_start_click", { source });
+      }}
     >
       {children}
     </Link>

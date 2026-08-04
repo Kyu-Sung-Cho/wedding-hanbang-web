@@ -179,12 +179,18 @@ git status -sb
 
 ### 4.5 랜딩과 첫 방문 경험
 
-- 첫 화면은 기능 목록보다 결혼 준비 전후의 변화를 먼저 설명한다.
-- `TransformationHero`, 문제 공감, 공유/개인 대화, 준비 결과, 근거, 마지막 행동 순서로
-  랜딩을 분리했다.
-- 로그인하지 않은 사용자가 데모와 시작 안내를 이해하고, 실제 가입 경계로 이동하도록
-  카피와 CTA를 정리했다.
+- 첫 화면은 웨딩한방과 아모라의 역할, 결혼 준비 전후의 변화와 첫 행동 결과를 먼저
+  설명한다.
+- `TransformationHero`, 문제 공감, 준비 결과, 연속 관리, 공유/개인 대화, 커뮤니티 준비
+  안내, 신뢰 근거, 비용·시작 조건 순서로 랜딩을 분리했다.
+- 로그인하지 않은 사용자가 날짜로 첫 준비 순서를 보고 아모라 체험으로 이어지도록
+  카피와 CTA를 정리했다. 날짜는 query parameter 대신 브라우저 안에서 일회성으로 넘긴다.
+- 계정형 기능과 커뮤니티는 production 공개 완료로 말하지 않고 계정 베타·운영 공개 전
+  경계로 표시한다.
 - QA 캡처는 로컬 `artifacts/`에서만 확인하며 Git source에는 포함하지 않는다.
+
+2026-08-04 소비자 카피 계약, 파일 지도, 날짜 handoff, 표적 테스트와 브라우저 QA는
+`docs/operations/LANDING_CONSUMER_EXPERIENCE_HANDOFF_2026-08-04.md`에서 이어서 읽는다.
 
 ### 4.6 웹·모바일 연결
 
@@ -453,12 +459,13 @@ Supabase 공개 변수가 없는 raw production build는 page-data 단계에서 
 4. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 5. 모바일 작업이면 `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`
 6. `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
-7. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
-8. `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
-9. 모바일 작업이면 `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
-10. 아모라 작업이면 `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`와
+7. 랜딩 작업이면 `docs/operations/LANDING_CONSUMER_EXPERIENCE_HANDOFF_2026-08-04.md`
+8. `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+9. `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+10. 모바일 작업이면 `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
+11. 아모라 작업이면 `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`와
    `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
-11. DB 작업이면 `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
+12. DB 작업이면 `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
 
 ## 14. 완료 정의
 

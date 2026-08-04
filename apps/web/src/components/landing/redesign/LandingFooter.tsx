@@ -12,7 +12,7 @@ const serviceLinks = [
   { label: "아모라 채팅", href: weddingPath("/chat") },
   { label: "할 일·일정", href: weddingPath("/schedule") },
   { label: "예산", href: weddingPath("/budget") },
-  { label: "커뮤니티", href: weddingPath() },
+  { label: "커뮤니티 준비 안내", href: "#community-bridge" },
 ] as const;
 
 const policyLinks = [
@@ -28,8 +28,8 @@ export default function LandingFooter() {
         <div>
           <span className="text-[22px] font-semibold tracking-[-0.02em]">웨딩한방</span>
           <p className="mt-5 max-w-sm text-[14px] leading-[1.85] text-[#36534E]/80">
-            둘이 한 대화방에서 아모라에게 결혼 준비를 말하면 예산·할 일·일정으로 정리하고,
-            확인한 내용만 우리 준비에 저장하는 서비스입니다.
+            웨딩한방은 둘이 예산·할 일·일정을 함께 관리하는 결혼 준비 공간입니다.
+            계정 베타에서는 아모라가 한 번에 한 가지 변경을 제안하고, 확인한 변경만 준비 기록에 반영합니다.
           </p>
           <a
             href={`mailto:${CONTACT.email}`}

@@ -62,7 +62,15 @@ export default function StartHerePage() {
 
       <footer className="border-t border-[#243832]/10 bg-white">
         <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 py-8 text-[12px] leading-6 text-[#4E6A62] sm:px-8 md:flex-row md:items-center md:justify-between lg:px-10">
-          <p>© 2026 Wedding Hanbang · 문의 {CONTACT.email}</p>
+          <p>
+            © 2026 Wedding Hanbang · 문의{" "}
+            <a
+              href={`mailto:${CONTACT.email}`}
+              className={`inline-flex min-h-11 items-center font-semibold underline decoration-[#243832]/20 underline-offset-4 hover:text-[#8F6662] ${focusRing}`}
+            >
+              {CONTACT.email}
+            </a>
+          </p>
           <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="정책 메뉴">
             {[
               ["이용약관", "/terms"],

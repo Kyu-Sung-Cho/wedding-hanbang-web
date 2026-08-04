@@ -14,6 +14,7 @@ import { ArrowRight, CalendarDays, Check, LockKeyhole } from "lucide-react";
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { captureEvent } from "@/lib/analytics";
+import { START_HERE_DATE_HANDOFF_KEY } from "@/lib/marketing/startHereDateHandoff";
 import {
   buildStartHereSignupHref,
   buildStartHereAmoraPrefill,
@@ -72,20 +73,53 @@ export default function StartHereClient() {
 
   const dday = useMemo(() => daysUntilWedding(dateText), [dateText]);
 
-  // 랜딩에서 고른 날짜는 서버·분석 URL로 보내지 않고 fragment로만 넘긴다.
-  // 읽은 즉시 주소에서 지워, 날짜가 주소 기록이나 서버 요청에 남지 않게 한다.
+  // 랜딩에서 고른 날짜는 sessionStorage로 넘겨 서버·분석 URL에 싣지 않는다.
+  // 저장소가 막힌 브라우저를 위한 fragment도 읽은 즉시 주소에서 지운다.
   useEffect(() => {
-    const match = /^#date=(\d{4}-\d{2}-\d{2})$/.exec(window.location.hash);
-    const initialDate = normalizeWeddingDate(match?.[1]);
-    if (!initialDate) return;
+    let applied = false;
+    let cleanupTimer: number | null = null;
 
-    window.history.replaceState(
-      null,
-      "",
-      `${window.location.pathname}${window.location.search}`,
-    );
-    const handoffTimer = window.setTimeout(() => setDateText(initialDate), 0);
-    return () => window.clearTimeout(handoffTimer);
+    const applyAvailableHandoff = () => {
+      if (applied) return true;
+
+      const match = /^#date=(\d{4}-\d{2}-\d{2})$/.exec(window.location.hash);
+      let storedDate: string | null = null;
+      try {
+        storedDate = window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY);
+      } catch {
+        // 저장소 접근이 막혀도 fragment 또는 빈 상태로 계속 진행한다.
+      }
+      const initialDate = normalizeWeddingDate(match?.[1]) || normalizeWeddingDate(storedDate);
+      if (!initialDate) return false;
+
+      applied = true;
+      setDateText(initialDate);
+      cleanupTimer = window.setTimeout(() => {
+        try {
+          window.sessionStorage.removeItem(START_HERE_DATE_HANDOFF_KEY);
+        } catch {
+          // 날짜는 컴포넌트 상태에 이미 들어가므로 저장소 정리 실패가 흐름을 막지 않는다.
+        }
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${window.location.search}`,
+        );
+      }, 0);
+      return true;
+    };
+
+    const appliedImmediately = applyAvailableHandoff();
+    const discoveryTimer = appliedImmediately
+      ? null
+      : window.setTimeout(applyAvailableHandoff, 50);
+    window.addEventListener("hashchange", applyAvailableHandoff);
+
+    return () => {
+      if (cleanupTimer !== null) window.clearTimeout(cleanupTimer);
+      if (discoveryTimer !== null) window.clearTimeout(discoveryTimer);
+      window.removeEventListener("hashchange", applyAvailableHandoff);
+    };
   }, []);
 
   const applyPreset = (next: Preset) => {
@@ -421,7 +455,7 @@ export default function StartHereClient() {
                   <p className="text-[12px] font-semibold text-[#E2D3C8]">03 · 첫 질문으로 이어가기</p>
                   <h3 className="mt-2 text-[20px] font-semibold">이제 아모라에게 한 가지만 물어보세요.</h3>
                   <p className="mt-2 text-[14px] leading-6 text-white/82">
-                    날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 이미 로그인했다면 계정 채팅에서 이어져요.
+                    날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 계정 베타 이용 중이라면 계정 채팅에서 이어져요.
                   </p>
                   <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                     <StartDemoButton
@@ -435,7 +469,7 @@ export default function StartHereClient() {
                       onClick={rememberSignupHandoff}
                       className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
                     >
-                      계정 만들고 계속 관리하기
+                      계정 베타로 계속 관리하기
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </div>
@@ -496,7 +530,7 @@ export default function StartHereClient() {
                     onClick={rememberSignupHandoff}
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-[#36534E]/20 px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#EDF2EA]"
                   >
-                    계정 만들고 천천히 관리하기
+                    계정 베타로 천천히 관리하기
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </div>

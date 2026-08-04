@@ -337,8 +337,8 @@ export default function LoginPage() {
                   <p className="mt-1 text-[12px] leading-5 text-[#4E6A62]">
                     같은 브라우저에서 30분 안에 이 가입 흐름을 마치면, 임시로 남긴 첫 질문을 입력창에서 확인한 뒤 직접 보낼 수 있어요. 다른 기기나 다른 로그인 경로에서는 날짜를 다시 확인해 주세요.
                   </p>
-                  <p className="mt-2 text-[11px] leading-5 text-[#4E6A62]">
-                    베타 제공 범위·기간·비용은 참여 확정 안내에서 확인할 수 있어요.
+                  <p className="mt-2 text-[12px] leading-5 text-[#4E6A62]">
+                    계정 베타의 제공 기능·이용 기간·무료 상담 한도는 참여 안내에서 먼저 확인할 수 있어요. 추가 이용 방법과 비용은 아직 정해지지 않았고, 신청만으로 결제되지 않아요.
                   </p>
                 </div>
               ) : null}

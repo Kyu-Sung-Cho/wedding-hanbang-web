@@ -10,14 +10,15 @@ export const revalidate = 60;
 
 export const metadata = {
   title: "베타 신청 · 웨딩한방",
-  description: "아모라의 운영 검증에 참여할 베타 이용자를 모집합니다. 제공 기능, 기간과 비용은 참여 확정 안내에서 확인합니다.",
+  description: "아모라의 운영 검증에 참여할 베타 이용자를 모집합니다. 제공 기능, 이용 기간과 무료 상담 한도는 참여 전에 안내합니다.",
 };
 
 const BENEFITS = [
   "운영 검증을 마친 기능부터 먼저 사용",
   "불편한 점과 필요한 기능을 제품팀에 전달",
   "기능 변경과 정식 출시 소식 안내",
-  "제공 범위·기간·비용을 참여 전 확인",
+  "제공 기능·이용 기간·무료 상담 한도를 참여 전 확인",
+  "추가 이용 방법·비용은 아직 미정 · 신청만으로 결제되지 않음",
 ];
 
 const CONDITIONS = [
@@ -58,7 +59,7 @@ export default async function BetaPage() {
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
             안전 검증을 마친 기능부터 사용해 보고,
             <br />
-            참여 전 제공 범위와 이용 조건을 정확히 안내받으세요.
+            참여 전 제공 기능·이용 기간·무료 상담 한도를 정확히 안내받으세요.
           </p>
         </div>
       </section>
@@ -115,11 +116,11 @@ export default async function BetaPage() {
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">02</span>
-                  이메일로 참여 가능 여부와 이용 조건 안내
+                  이메일로 참여 가능 여부와 제공 기능·기간·무료 상담 한도 안내
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">03</span>
-                  안내에 동의한 뒤 계정 생성과 사용 시작
+                  안내를 확인한 뒤 참여 결정·동의 및 계정 사용 시작
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">04</span>

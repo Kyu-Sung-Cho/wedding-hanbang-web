@@ -26,7 +26,7 @@ export default function ProblemMirrorSection() {
       className="bg-[#FBF8F2]"
       aria-labelledby="landing-problem-title"
     >
-      <div className="mx-auto grid w-full max-w-[1240px] gap-10 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[minmax(0,0.92fr)_minmax(460px,1.08fr)] lg:items-center lg:gap-20 lg:px-10 lg:py-28">
+      <div className="mx-auto grid w-full max-w-[1240px] gap-10 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[minmax(0,0.92fr)_minmax(460px,1.08fr)] lg:items-center lg:gap-20 lg:px-10 lg:py-24">
         <div className="max-w-[610px]">
           <p className="flex items-center gap-3 text-[12px] font-semibold text-[#8F6662] sm:text-[13px]">
             <span className="h-px w-8 bg-[#A77B74]" aria-hidden="true" />
@@ -45,7 +45,7 @@ export default function ProblemMirrorSection() {
           </p>
         </div>
 
-        <div className="border-y border-[#243832]/14" aria-label="흩어진 결혼 준비의 예시">
+        <div role="group" className="border-y border-[#243832]/14" aria-label="흩어진 결혼 준비의 예시">
           {scatteredPlaces.map(({ label, value, Icon }, index) => (
             <div
               key={label}

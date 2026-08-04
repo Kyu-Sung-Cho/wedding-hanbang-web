@@ -22,31 +22,44 @@ function sourceWindowAround(copy: string, before = 500, after = 260): string {
 
 describe("landing hero product experience contract", () => {
   it("explains the product in plain language before asking for action", () => {
-    expect(content).toContain("둘이 함께 쓰는 AI 결혼 준비 도우미 · 아모라");
-    expect(content).toContain("우리 얘기가, 우리 결혼 준비가 되는 순간.");
-    expect(content).toContain("예산·할 일·일정으로 정리하고");
-    expect(content).toContain("확인한 내용만 우리 준비에 저장해요");
-    expect(content).toContain("내 준비 순서 바로 보기");
+    expect(content).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
+    expect(content).toContain("아모라 · 대화를 정리하는 AI");
+    expect(content).toContain("먼저 날짜로 지금 볼 세 가지를 확인하고");
+    expect(content).toContain("이어서 예산·할 일·중요한 날짜를 아모라에게 말해보세요");
+    expect(content).toContain("한 번에 한 가지 변경을 제안하고");
+    expect(content).toContain("확인한 변경만 준비 기록에 반영해요");
+    expect(content).toContain("아모라와 시작하기");
     expect(hero).toContain("예산");
     expect(hero).toContain("할 일");
     expect(hero).toContain("일정");
-    expect(hero).toContain("확인 후 저장");
+    expect(hero).toContain("변경 제안");
+    expect(hero).toContain("준비에 반영");
+    expect(hero).not.toContain("landingContent.hero.emotionalLine");
   });
 
-  it("keeps the no-login primary CTA visible from the smallest breakpoint", () => {
-    const startHereCta = sourceWindowAround("href={amoraStartHref}", 80, 800);
+  it("keeps the no-login first-step action visible from the smallest breakpoint", () => {
+    const startHereCta = sourceWindowAround("type=\"submit\"", 80, 900);
 
-    expect(content).toContain("내 준비 순서 바로 보기");
+    expect(content).toContain("아모라와 시작하기");
     expect(startHereCta).not.toMatch(/className="[^"]*(?:^|\s)hidden(?:\s|$)[^"]*"/);
     expect(hero).toContain('const amoraStartHref = "/start-here"');
+    expect(hero).toContain('id="landing-wedding-date"');
+    expect(hero).toContain("로그인·결제 없이 첫 준비 순서 확인");
+    expect(hero).toContain("첫 날짜 계산은 이 브라우저에서 처리");
+    expect(hero).toContain("AI 처리·대화 저장 정책이 적용돼요");
   });
 
-  it("shows a complete conversation to review to saved-state flow without a live AI call", () => {
-    expect(hero).toContain('type DemoState = "conversation" | "review" | "saved"');
-    expect(hero).toContain("정리한 내용 보기");
-    expect(hero).toContain("이렇게 정리할까요?");
-    expect(hero).toContain("확인하고 저장 흐름 보기");
-    expect(hero).toContain("확인한 준비만");
+  it("shows one concrete proposal and demonstrates only that applied item without a live AI call", () => {
+    const demoSource = hero.slice(hero.indexOf("function ConversationToPlanDemo"));
+
+    expect(hero).toContain('type DemoState = "proposal" | "saved"');
+    expect(hero).toContain('useState<DemoState>("proposal")');
+    expect(hero).toContain("아모라의 첫 번째 변경 제안");
+    expect(hero).toContain("이 일정을 추가할까요?");
+    expect(hero).toContain("아직 반영 전");
+    expect(hero).toContain("이 일정 반영 예시 보기");
+    expect(hero).toContain("각각 별도 제안과 확인이 필요해요");
+    expect(hero).not.toContain("세 가지를 찾았어요");
     expect(content).toContain("기능 예시 · 이 화면에서는 실제로 저장되지 않아요");
 
     for (const forbiddenPersistenceOrNetworkCall of [
@@ -61,7 +74,9 @@ describe("landing hero product experience contract", () => {
       "anthropic",
       "openai",
     ]) {
-      expect(hero.toLowerCase()).not.toContain(forbiddenPersistenceOrNetworkCall.toLowerCase());
+      expect(demoSource.toLowerCase()).not.toContain(
+        forbiddenPersistenceOrNetworkCall.toLowerCase(),
+      );
     }
   });
 
@@ -83,10 +98,18 @@ describe("landing hero product experience contract", () => {
     const h1 = hero.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
     expect(h1).not.toContain("whitespace-nowrap");
 
-    for (const copy of ["첫 준비 화면의 날짜는 서버로 보내지 않아요", "직접 눌러보는 예시"]) {
+    for (const copy of ["로그인·결제 없이 첫 준비 순서 확인", "직접 눌러보는 예시"]) {
       const nearbySource = sourceWindowAround(copy);
       expect(nearbySource).not.toMatch(/className="[^"]*\bhidden\b[^"]*"/);
       expect(nearbySource).not.toMatch(/text-\[(?:8|9)px\]/);
     }
+  });
+
+  it("keeps the hero compact and prioritizes the result on smaller screens", () => {
+    expect(hero).toContain("lg:min-h-[min(720px,calc(100svh-4rem))]");
+    expect(hero).not.toContain("lg:min-h-[min(820px");
+    expect(hero).toContain("md:grid-cols-[0.88fr_1.12fr]");
+    expect(hero).toContain("hidden border-b border-[#243832]/10");
+    expect(hero).toContain("md:block md:border-b-0 md:border-r");
   });
 });

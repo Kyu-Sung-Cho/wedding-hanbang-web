@@ -1,8 +1,9 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEMO_AMORA_PREFILL_STORAGE_KEY } from "@/lib/chat/demoHandoff";
+import { START_HERE_DATE_HANDOFF_KEY } from "@/lib/marketing/startHereDateHandoff";
 
 const HANDOFF_ID = "0f75ca2a-94c1-4d9c-83e3-a45981c98673";
 
@@ -48,6 +49,7 @@ describe("StartHereClient first visit", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    vi.restoreAllMocks();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -82,6 +84,81 @@ describe("StartHereClient first visit", () => {
     expect(handoff).toContain("결혼식 날짜는 2027-05-01");
     expect(handoff).toContain("이번 주에 할 한 가지만");
     expect(mocks.push).toHaveBeenCalledWith("/wedding/chat");
+  });
+
+  it("keeps the landing date and renders priorities when effects replay in Strict Mode", async () => {
+    await act(async () => {
+      root.render(
+        <StrictMode>
+          <StartHereClient />
+        </StrictMode>,
+      );
+    });
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(container.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe(
+      "2027-05-01",
+    );
+    expect(container.textContent).toContain("먼저 이 세 가지를 봐요");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("consumes the browser-only landing handoff after a client-side route change", async () => {
+    window.history.replaceState({}, "", "/start-here");
+    window.sessionStorage.setItem(START_HERE_DATE_HANDOFF_KEY, "2027-05-01");
+
+    await act(async () => {
+      root.render(
+        <StrictMode>
+          <StartHereClient />
+        </StrictMode>,
+      );
+    });
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(container.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe(
+      "2027-05-01",
+    );
+    expect(container.textContent).toContain("먼저 이 세 가지를 봐요");
+    expect(window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY)).toBeNull();
+    expect(window.location.hash).toBe("");
+  });
+
+  it("prefers an explicit fragment date over a stale stored handoff", async () => {
+    window.history.replaceState({}, "", "/start-here#date=2028-06-02");
+    window.sessionStorage.setItem(START_HERE_DATE_HANDOFF_KEY, "2027-05-01");
+
+    await act(async () => root.render(<StartHereClient />));
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(container.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe(
+      "2028-06-02",
+    );
+    expect(window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY)).toBeNull();
+    expect(window.location.hash).toBe("");
+  });
+
+  it("uses the fragment and clears it even when session storage cannot be read", async () => {
+    window.history.replaceState({}, "", "/start-here#date=2028-06-02");
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+
+    await act(async () => root.render(<StartHereClient />));
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(container.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe(
+      "2028-06-02",
+    );
+    expect(window.location.hash).toBe("");
   });
 
   it("offers a direct Amora path when the couple has not chosen a date yet", async () => {
@@ -182,7 +259,7 @@ describe("StartHereClient first visit", () => {
     });
 
     const signupLink = [...container.querySelectorAll("a")].find((link) =>
-      link.textContent?.includes("계정 만들고 계속 관리하기"),
+      link.textContent?.includes("계정 베타로 계속 관리하기"),
     );
     expect(signupLink?.getAttribute("href")).toBe(
       "/login?mode=signup&redirect=%2Fwedding%2Fchat&source=start-here",

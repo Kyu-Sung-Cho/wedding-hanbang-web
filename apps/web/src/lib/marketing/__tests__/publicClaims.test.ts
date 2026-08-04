@@ -17,6 +17,7 @@ const ACTIVE_PUBLIC_SOURCES = [
   "src/components/landing/redesign/TransformationHero.tsx",
   "src/components/landing/redesign/PreparationResult.tsx",
   "src/components/landing/redesign/SharedPrivateSection.tsx",
+  "src/components/landing/redesign/CommunityBridgeSection.tsx",
   "src/components/landing/redesign/TrustEvidenceSection.tsx",
   "src/components/landing/redesign/ClosingAction.tsx",
   "src/components/landing/redesign/LandingFooter.tsx",
@@ -79,8 +80,10 @@ describe("public marketing claim boundary", () => {
       source("src/components/landing/redesign/LandingFooter.tsx"),
     ].join("\n");
 
-    expect(landing).toContain("확인한 내용만 저장");
-    expect(landing).toContain("확인 버튼을 누르기 전에는 우리 준비에 반영되지 않아요");
+    expect(landing).toContain("확인한 변경만 준비 기록에 반영");
+    expect(landing).toContain("대화 내용은 서비스에서 처리·저장될 수 있어요");
+    expect(landing).toContain("확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요");
+    expect(landing).not.toContain("확인한 내용만 저장");
     expect(landing).toContain('{ label: "이용약관", href: "/terms" }');
     expect(landing).toContain('{ label: "개인정보처리방침", href: "/privacy" }');
     expect(landing).toContain('{ label: "AI 서비스 정책", href: "/ai-policy" }');

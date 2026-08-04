@@ -127,7 +127,8 @@ describe("login return journey", () => {
 
     expect(container.textContent).toContain("방금 본 준비를 이어갈게요.");
     expect(container.textContent).toContain("입력창에서 확인한 뒤 직접 보낼 수 있어요");
-    expect(container.textContent).toContain("베타 제공 범위·기간·비용");
+    expect(container.textContent).toContain("제공 기능·이용 기간·무료 상담 한도");
+    expect(container.textContent).toContain("신청만으로 결제되지 않아요");
 
     const kakaoButton = [...container.querySelectorAll("button")]
       .find((button) => button.textContent?.trim() === "카카오");

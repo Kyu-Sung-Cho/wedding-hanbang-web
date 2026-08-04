@@ -9,15 +9,17 @@ function source(relativePath: string): string {
 }
 
 describe("landing first visit clarity", () => {
-  it("states what the product does before the emotional line", () => {
+  it("states what the product does and connects the first action to Amora", () => {
     const content = source("src/components/landing/redesign/landingContent.ts");
     const hero = source("src/components/landing/redesign/TransformationHero.tsx");
 
     expect(content).toContain("둘이 말하면, 결혼 준비가 정리돼요.");
-    expect(content).toContain("우리 얘기가, 우리 결혼 준비가 되는 순간.");
+    expect(content).toContain("먼저 날짜로 지금 볼 세 가지를 확인하고");
+    expect(content).toContain("이어서 예산·할 일·중요한 날짜를 아모라에게 말해보세요");
     expect(hero.indexOf("둘이 말하면,")).toBeLessThan(
-      hero.indexOf("landingContent.hero.emotionalLine"),
+      hero.indexOf("landingContent.hero.body"),
     );
+    expect(hero).not.toContain("landingContent.hero.emotionalLine");
   });
 
   it("mirrors the scattered preparation problem before showing the outcome", () => {

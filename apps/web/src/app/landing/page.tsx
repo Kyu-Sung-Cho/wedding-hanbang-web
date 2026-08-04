@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import ClosingAction from "@/components/landing/redesign/ClosingAction";
+import CommunityBridgeSection from "@/components/landing/redesign/CommunityBridgeSection";
 import ContinuitySection from "@/components/landing/redesign/ContinuitySection";
 import LandingFooter from "@/components/landing/redesign/LandingFooter";
 import LandingHeader from "@/components/landing/redesign/LandingHeader";
@@ -19,11 +20,12 @@ export const revalidate = 86_400;
  */
 const PUBLISHED_POLICY_COUNT = 831;
 const PUBLISHED_VENDOR_COUNT = 414;
+const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.04";
 
 export function generateMetadata(): Metadata {
   const title = "웨딩한방 | 둘이 말하면 결혼 준비가 정리돼요";
   const description =
-    "예산 이야기, 해야 할 일, 중요한 날짜를 아모라에게 말해보세요. 보기 쉽게 정리하고, 확인한 내용만 두 사람의 결혼 준비에 저장해요.";
+    "웨딩한방은 둘이 함께 관리하는 결혼 준비 공간이에요. 계정 베타에서는 대화 정리 AI 아모라가 한 번에 한 가지 변경을 제안하고, 확인한 변경만 준비 기록에 반영해요.";
 
   return {
     title,
@@ -68,9 +70,11 @@ export default function LandingPage() {
         <PreparationResult />
         <ContinuitySection />
         <SharedPrivateSection />
+        <CommunityBridgeSection />
         <TrustEvidenceSection
           publishedPolicyCount={PUBLISHED_POLICY_COUNT}
           publishedVendorCount={PUBLISHED_VENDOR_COUNT}
+          countsVerifiedAt={PUBLISHED_COUNTS_VERIFIED_AT}
         />
         <ClosingAction />
       </main>

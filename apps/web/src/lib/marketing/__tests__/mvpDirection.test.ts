@@ -34,8 +34,9 @@ describe("web MVP product direction", () => {
 
     expect(productContract).toContain(PRODUCT_DEFINITION);
     expect(principles).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스다."));
-    expect(landingContent).toContain("둘이 함께 쓰는 AI 결혼 준비 도우미 · 아모라");
-    expect(landingContent).toContain("예산 이야기, 해야 할 일, 중요한 날짜");
+    expect(landingContent).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
+    expect(landingContent).toContain("아모라 · 대화를 정리하는 AI");
+    expect(landingContent).toContain("예산·할 일·중요한 날짜");
     expect(hero).toContain("landingContent.hero.eyebrow");
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");
     expect(community).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스예요."));
@@ -86,16 +87,22 @@ describe("web MVP product direction", () => {
 
     for (const [label, href] of [
       ["어떻게 정리되나요", "#how-it-works"],
-      ["함께 보기·나만 보기", "#privacy"],
-      ["안심하고 쓰는 이유", "#trust"],
+      ["함께·나만 보기", "#privacy"],
+      ["신뢰와 비용", "#trust"],
     ]) {
       expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
     }
 
     expect(landingProductLinks).toContain('label: "아모라 채팅"');
-    for (const label of ["할 일·일정", "예산", "커뮤니티"]) {
+    for (const label of ["할 일·일정", "예산"]) {
       expect(landingProductLinks).toContain(`label: "${label}"`);
     }
+    expect(landingProductLinks).toContain(
+      'label: "커뮤니티 준비 안내", href: "#community-bridge"',
+    );
+    expect(landingProductLinks).not.toContain(
+      'label: "커뮤니티", href: weddingPath()',
+    );
 
     for (const label of ["아모라", "할 일·일정", "예산", "커뮤니티"]) {
       expect(publicNav).toContain(`label: "${label}"`);

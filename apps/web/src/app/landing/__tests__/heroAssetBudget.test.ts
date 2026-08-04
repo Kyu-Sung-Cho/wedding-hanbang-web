@@ -44,7 +44,7 @@ describe("hero image performance budget", () => {
     expect(source).toContain("/images/wedding-celebration-hero.webp");
     expect(source).toContain('sizes="(min-width: 1024px) 58vw, 100vw"');
     expect(source.match(/src="\/images\/wedding-celebration-hero\.webp"/g)).toHaveLength(1);
-    expect(source).toContain("lg:min-h-[min(820px,calc(100svh-4rem))]");
+    expect(source).toContain("lg:min-h-[min(720px,calc(100svh-4rem))]");
     expect(source).not.toContain("radial-gradient");
     expect(source).not.toContain("amora-hero-bouquet-custom");
   });
