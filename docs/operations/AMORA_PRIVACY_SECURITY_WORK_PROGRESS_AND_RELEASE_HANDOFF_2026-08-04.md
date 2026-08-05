@@ -503,7 +503,7 @@ private 내용을 shared/public으로 옮기는 것은 별도 declassification �
 | 기반 | 확인 내용 | 남은 한계 |
 |---|---|---|
 | 서버 canonical context | AI 문맥을 클라이언트 임의 history가 아닌 canonical message로 재구성 | 저장 actor 자체가 잘못되면 canonical도 오염 |
-| private context 분리 | private AI 문맥에서 partner direct 메시지를 제외 | 모든 파생물·검색·memory까지 아직 통합 증명 안 됨 |
+| private context 분리 | private AI 문맥에서 partner direct 메시지를 제외 | 모든 파생물·검색·memory까지 아직 통합 증명 안 됨. 2026-08-05 전수 추적 결과는 아래 §7.1 |
 | private owner RLS | private 메시지는 owner 중심 정책 | active/hosted policy와 구형 read path 미증명 |
 | partner recipient fence | 현재 커플 구성에 맞는 recipient 검사 기반 | current-membership production 적용 미증명 |
 | AI final commit epoch | AI 처리 중 privacy epoch 변경 시 최종 저장 차단 기반 | token-count 선행 egress는 이미 발생 가능 |
@@ -515,6 +515,59 @@ private 내용을 shared/public으로 옮기는 것은 별도 declassification �
 
 현재 안전 기반은 버리지 않는다. P0 수정은 이 기반 위에 actor-bound command, provenance,
 encryption, read boundary와 운영 증거를 더하는 방식으로 수행한다.
+
+### 7.1 2026-08-05 — lane↔visibility 전수 추적과 partner 격리 실측
+
+목표 아키텍처는 `private_ai / shared_ai / shared_partner` 3 lane을 말하고 DB는
+`shared / bride_private / groom_private` 3 visibility를 쓴다. 이 차이가 `shared_ai`와
+`shared_partner`를 저장 단계에서 합쳐 불변식 8(`partner direct 원문은 AI 문맥에 들어가지
+않는다`)을 깨는지 코드로 전수 추적했다.
+
+**실제 매핑** (`ChatContent.tsx:77`, `:1396-1412`, `database.types.ts:158`,
+`chatMessagePersistence.ts:3`):
+
+| UI lane | 전송 `target` | DB `visibility` | DB `metadata.target` |
+|---|---|---|---|
+| `private_ai` | `ai` | `bride_private` / `groom_private` | — |
+| `shared_ai` | `ai` | `shared` | `ai` |
+| `shared_partner` | `partner` | `shared` | `partner` |
+
+**결과: 합쳐지지 않는다.** `visibility`는 같지만 `metadata.target`으로 구분되고, AI
+문맥을 만드는 경로가 이를 제외한다. `chat_messages` 본문을 읽는 서버 경로를 전수
+확인한 결과는 다음과 같다.
+
+| 본문을 읽는 경로 | AI로 가는가 | partner 제외 |
+|---|---|---|
+| `app/api/chat/route.ts` | 예 | 있음 (`:858`, `:1697`, `:2047`) |
+| `app/api/chat/check-couple-conflict/route.ts` | 예 | 있음 |
+| `app/api/cron/amora-memory/route.ts` | 예 | 있음 |
+| `lib/ai/chatMessagePersistence.ts` | 아니오 — 저장·중복확인 | 불필요 |
+| `app/api/chat/feedback/route.ts` | 아니오 — AI 호출 없음 | 불필요 |
+
+`app/api/chat/proactive/route.ts`는 partner 제외가 없지만 **AI를 호출하지 않고**
+`sender_type='ai'` 행의 `id`·`metadata`만 읽는다. 본문을 읽지 않으므로 반출 경로가 아니다.
+
+또한 개인 상담 composer는 파트너 전송 lane 자체를 갖지 않도록 `sendTarget`을 `ai`로
+고정한다(`ChatContent.tsx:1396`).
+
+**남은 위험 — 지금 맞지만 강제 장치가 없다**
+
+- `target`이 정규 컬럼이 아니라 `metadata` JSONB 안에 있어 RLS·CHECK로 강제할 수 없다.
+- 제외는 애플리케이션 쿼리 3곳의 관례일 뿐이다. 네 번째 AI 경로가 필터를 빠뜨리면
+  파트너 직접 문장이 조용히 모델 문맥에 들어간다.
+- 필터는 `metadata->>target.is.null`을 허용한다. 서버가 partner 메시지에 `target`을
+  명시적으로 넣으므로(`app/api/chat/messages/route.ts:775`) 현재는 안전하지만, 이 보장은
+  삽입 경로에 의존한다.
+
+**조치**: `apps/web/src/lib/ai/__tests__/partnerDirectContextFence.test.ts` 신규 11개.
+본문을 읽는 모든 서버 경로가 partner 제외 필터를 갖거나 명시적 면제 사유를 갖도록
+정적으로 강제하고, 합성 위반·`select("*")`·오탐 케이스를 자기검증한다. 실제 위반 route를
+임시로 심어 경로와 이유를 정확히 지목하며 실패함을 확인한 뒤 제거했다.
+
+이 조치는 **회귀 방지**이며 DB 수준 강제가 아니다. 목표 아키텍처가 요구하는
+`서버와 DB가 강제한다`를 만족하려면 `target`을 정규 컬럼으로 올리고 RLS·CHECK에 묶는
+별도 migration이 필요하다. 현재 DB 릴리스는 `deployment_blocked`이므로 이번 범위에서
+수행하지 않았다.
 
 ---
 
