@@ -877,6 +877,46 @@ production NO-GO 판정은 그대로다.
 - app background/resume와 offline retry 포함
 - screen reader tree와 app-switch snapshot에도 A marker 0
 
+#### 2026-08-05 갱신 — client containment 구현, 판정은 그대로 OPEN
+
+위 2026-08-04 감사 기록은 보존한다. 이후 branch
+`codex/amora-p04-memory-actor-20260805`(base `5b33c95b`)에서 다음을 확인·구현했다.
+
+**추가로 확인한 사실**
+
+- 이 저장소에는 이미 `apps/mobile/src/lib/ownerCoupleSessionFence.mjs`가 있고,
+  예약·예산·일정·커뮤니티 **8개 화면이 `ForExpectedUser` 경로를 쓴다.**
+  `app/settings/amora-memory.tsx`만 0건이었다. 즉 없는 방어를 새로 만든 것이 아니라
+  **한 화면이 기존 계약에서 누락돼 있었다.**
+- `apiFetchForExpectedUser`는 있었지만 JSON 버전이 없어서, `apiJson`을 쓰던 이 화면은
+  결박된 경로를 선택할 수단 자체가 없었다.
+
+**한 일**
+
+- `apps/mobile/src/__tests__/amoraMemorySessionFence.test.mjs` 신규 5개.
+  synthetic marker만 사용한다.
+- 수정 전 RED: fence 동작 4개는 통과하고 **화면 계약 1개만 실패**했다. 결함이 fence
+  유틸이 아니라 이 화면에 있다는 것을 테스트가 격리해서 보여준다.
+- `apiJsonForExpectedUser`를 `apps/mobile/src/lib/api.ts`에 추가했다.
+- 화면에 fence를 배선했다: 요청 시작 identity 고정 → `onAuthStateChange` 구독으로
+  계정 전환 즉시 감지·화면 봉인 → 응답 반영 직전 `isLoadCommitCurrent` 재확인 →
+  로그아웃 시 `setOwner(null)` → PATCH 쓰기도 같은 identity에 결박.
+- 기존 `amoraMemorySettings.test.mjs`가 `apiJson<MemoryResponse>(...)` 문자열을 고정하고
+  있어 깨졌다. 의도(`WebView가 아니라 네이티브 직접 호출`)를 유지하면서 결박된 호출
+  형태까지 요구하도록 **강화**해 갱신했다. 약화시키지 않았다.
+
+**하지 않은 일 — P0-4가 아직 OPEN인 이유**
+
+| 남은 작업 | 상태 |
+|---|---|
+| app background/resume·offline retry 시험 | 미실행 |
+| screen reader tree·app-switch snapshot 확인 | 미실행 |
+| 실기기 2대·실계정 2개 A/B 전환 E2E | 없음 |
+| 서버·DB 측 actor 검증(이 수정은 client containment) | 별도 P0-1/P0-2 범위 |
+
+§8.6 원칙대로 **client 화면 방어만으로 P0를 닫지 않는다.** 이 진행을 P0-4 종료로
+인용하지 않으며 production NO-GO 판정은 그대로다.
+
 ### P0-5. OpenAI token count가 최종 개인정보 gate보다 먼저 원문을 전송함
 
 **현재 코드 근거**

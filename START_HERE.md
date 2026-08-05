@@ -399,7 +399,11 @@ short TTL과 exact content binding을 갖게 만드는 것이다(상세 handoff 
    필수화됐고 production 호출부 10곳이 모두 배선돼 알려진 원문 반출 경로는 닫혔지만,
    DB claim·TTL·content binding·응답 commit 재검증·나머지 SDK endpoint·hosted 증거가
    없다(§7 진행 상태).
-2. P0-4: A의 늦은 Memory 응답이 계정 전환 뒤 B 화면에 적용될 가능성
+2. P0-4: A의 늦은 Memory 응답이 계정 전환 뒤 B 화면에 적용될 가능성 — **OPEN**.
+   client containment는 `codex/amora-p04-memory-actor-20260805`에서 구현했다(기억 화면에
+   owner/couple session fence 배선, RED 5개). 실기기 2대 E2E와 background/resume·
+   offline retry·screen reader 확인이 없으므로 닫지 않는다. 상세 handoff §8 P0-4의
+   2026-08-05 갱신을 본다.
 3. P0-3: provenance 없는 임의/private-derived 내용을 shared note로 저장할 가능성
 4. P0-1: A의 모바일 개인 초안이 계정 전환 뒤 B bearer로 저장될 가능성
 5. P0-2: A가 시작한 공동 승인 명령이 B 승인으로 기록될 가능성
