@@ -52,6 +52,13 @@ const CANONICAL_TOTAL_BUDGET_READ_PATTERN =
   /총\s*예산(?:을|은|이|도)?\s*.{0,12}(?:얼마|보여|알려|현황|확인|조회)/iu;
 const CANONICAL_NATURAL_BUDGET_ACTION_PATTERN =
   /(?:^|\s)(?:우리\s*)?예산(?:을|은|이|도)?(?:\s*상한)?\s*(?:\d[\d,]*(?:\.\d+)?\s*(?:%|원|만\s*원|천\s*만\s*원|억(?:\s*원)?|천)).{0,16}(?:이야|이에요|예요|으로\s*(?:해|설정)|바꾸|바꿔|변경|조정|수정|줄여|늘려)/iu;
+// 금액이 붙은 예산 발화는 이미 결혼 준비 문맥으로 인정한다("예산은 3천만 원이야",
+// "예산 3천만원으로 해줘"). 그런데 인정 조건이 뒤에 오는 서술어 목록이라, 같은 사실을
+// "예산 3천만원인데 뭐부터 해야 해?"처럼 다른 어미로 말하면 범위 밖으로 떨어졌다.
+// 판단 근거는 금액이지 어미가 아니다. 금액 없는 "예산 변경해줘"는 여기 걸리지 않으므로
+// 한 번 확인하고 가는 기존 경계는 그대로다. 여행·회사 예산은 위에서 이미 걸러진다.
+const CANONICAL_BUDGET_AMOUNT_STATEMENT_PATTERN =
+  /(?:^|\s)(?:우리\s*)?예산(?:을|은|이|도)?(?:\s*상한)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|억(?:\s*원)?|천\s*만\s*원?|만\s*원|천|원)/iu;
 const CANONICAL_NATURAL_BUDGET_READ_PATTERN =
   /(?:남은\s*)?예산(?:을|은|이|도)?\s*.{0,12}(?:얼마|보여|알려|현황|확인|조회)/iu;
 const CANONICAL_SCHEDULE_STATE_PATTERN = /일정|스케줄/iu;
@@ -185,6 +192,7 @@ export function classifyAmoraQuestionScope({
     CANONICAL_TOTAL_BUDGET_ACTION_PATTERN.test(normalizedText)
     || CANONICAL_TOTAL_BUDGET_READ_PATTERN.test(normalizedText)
     || CANONICAL_NATURAL_BUDGET_ACTION_PATTERN.test(normalizedText)
+    || CANONICAL_BUDGET_AMOUNT_STATEMENT_PATTERN.test(normalizedText)
     || CANONICAL_NATURAL_BUDGET_READ_PATTERN.test(normalizedText)
     || CANONICAL_SCHEDULE_READ_PATTERN.test(normalizedText)
     || CANONICAL_ANAPHORIC_SCHEDULE_MUTATION_PATTERN.test(normalizedText)

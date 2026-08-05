@@ -1,3 +1,4 @@
+import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
 import { apiJson } from "./api";
 
 export interface MediationBlock {
@@ -7,6 +8,12 @@ export interface MediationBlock {
   resolution?: string;
   proposalVersion?: string;
   rosterFingerprint?: string;
+  /**
+   * 이 초안이 "요청자가 쓴 요약만" 계약으로 만들어졌는지. 화면 문구가 그 말을 누가
+   * 했는지 정직하게 쓰려면 이 값이 필요하다. 예전에는 여기서 버려서, 앱이 한 사람의
+   * 일방적 진술을 "두 분의 대화"라고 부르고 있었다.
+   */
+  requesterSummaryOnly?: boolean;
 }
 
 export interface MediationAcceptanceState {
@@ -52,7 +59,12 @@ export function normalizeMediationBlock(value: unknown): MediationBlock | null {
       : undefined,
   };
 
-  return Object.values(block).some(Boolean) ? block : null;
+  // 출처는 내용이 아니다. 표식만 있고 본문이 없는 값을 카드로 만들지 않도록,
+  // 내용 유무를 먼저 판단한 다음에 붙인다.
+  if (!Object.values(block).some(Boolean)) return null;
+
+  block.requesterSummaryOnly = isRequesterSummaryMediationProvenance(candidate);
+  return block;
 }
 
 export function getExpectedMediationRevision(
