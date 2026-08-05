@@ -85,7 +85,11 @@ describe("landing product outcome evidence", () => {
   });
 
   it("shows why the product remains useful after the first conversation", () => {
-    expect(content).toContain("오늘 정한 한 가지가, 다음 준비의 기준으로 이어져요.");
+    // 이 단언은 화면에 없는 문장("…기준으로 이어져요.")을 고정하고 있었다. 화면은
+    // 줄곧 "…기준으로."였고, 그래서 정본과 화면이 갈린 채로 통과했다. 정본을 화면에
+    // 맞춘 뒤 여기도 같은 문자열로 맞춘다. 두 사본의 일치 자체는
+    // landingHeadlineParity.test.ts가 별도로 강제한다.
+    expect(content).toContain("오늘 정한 한 가지가, 다음 준비의 기준으로.");
     expect(content).toContain("무엇이 바뀌는지 먼저 봐요.");
     expect(content).toContain("같은 준비에서 이어가요.");
     expect(continuity).toContain("로그인 없이 여는 체험 대화와 변경은 계정의 준비 기록에 남지 않아요.");

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 
 import { landingContent, preparationRecords } from "./landingContent";
+import { displaySection, sectionEyebrow, sectionLede, sectionRhythm } from "./landingType";
 
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 
@@ -34,29 +35,29 @@ export default function PreparationResult() {
       className="scroll-mt-20 bg-[#FBF8F2] text-[#243832]"
       aria-labelledby="landing-outcome-title"
     >
-      <div className={`${shell} py-16 sm:py-20 lg:py-24`}>
+      <div className={`${shell} ${sectionRhythm}`}>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-end lg:gap-16">
           <div>
-            <p className="text-[13px] font-semibold text-[#8F6662]">
+            <p className={sectionEyebrow}>
               {landingContent.outcome.eyebrow}
             </p>
             <h2
               id="landing-outcome-title"
-              className="mt-4 max-w-[720px] text-[clamp(2.25rem,7vw,3.8rem)] font-semibold leading-[1.04] tracking-[-0.045em]"
+              className={`mt-4 max-w-[720px] ${displaySection}`}
             >
               {landingContent.outcome.title}
             </h2>
           </div>
-          <p className="max-w-2xl text-[15px] leading-[1.8] text-[#36534E]/82 sm:text-[17px] lg:pb-1">
+          <p className={`max-w-[34rem] ${sectionLede} text-[#36534E]/82 lg:pb-1`}>
             {landingContent.outcome.body}
           </p>
         </div>
 
-        <div className="mt-10 border-y border-[#243832]/16 lg:mt-14">
-          <div className="flex flex-col gap-3 border-b border-[#243832]/12 py-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-10 border-y border-[#243832]/14 lg:mt-14">
+          <div className="flex flex-col gap-3 border-b border-[#243832]/10 py-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[12px] font-semibold text-[#8F6662]">서로 다른 변경의 목적지</p>
-              <h3 className="mt-1 text-[21px] font-semibold">확인한 한 가지가 알맞은 기록으로</h3>
+              <h3 className="mt-1 text-[20px] font-semibold">확인한 한 가지가 알맞은 기록으로</h3>
             </div>
             <p className="flex items-center gap-2 text-[12px] font-semibold text-[#36534E]">
               <Check className="h-4 w-4 text-[#8F6662]" aria-hidden="true" />
@@ -80,11 +81,11 @@ export default function PreparationResult() {
                   </div>
                   <div>
                     <p className="text-[12px] font-semibold text-[#8F6662]">{record.note}</p>
-                    <p className="mt-1 text-[15px] font-medium leading-6 text-[#243832]">
+                    <p className="mt-1 text-[16px] font-medium leading-[1.6] text-[#243832]">
                       “{exampleUtterances[record.id]}”
                     </p>
                   </div>
-                  <div className="border-l-2 border-[#A77B74] pl-4 sm:pl-5">
+                  <div className="border-l-2 border-sage-500 pl-4 sm:pl-5">
                     <p className="text-[12px] font-semibold text-[#4E6A62]">
                       {destinationLabels[record.id]}
                     </p>
@@ -95,7 +96,7 @@ export default function PreparationResult() {
             })}
           </ul>
 
-          <p className="flex items-start gap-2 border-t border-[#243832]/12 py-5 text-[13px] font-medium leading-6 text-[#36534E]">
+          <p className="flex items-start gap-2 border-t border-[#243832]/10 py-5 text-[14px] font-medium leading-[1.7] text-[#36534E]">
             <Check className="mt-1 h-4 w-4 shrink-0 text-[#8F6662]" aria-hidden="true" />
             계정 베타 기능 예시예요. 한 번의 확인에는 한 가지 변경만 포함돼요.
           </p>

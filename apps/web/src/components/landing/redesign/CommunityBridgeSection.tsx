@@ -1,6 +1,7 @@
 import { BadgeCheck } from "lucide-react";
 
 import { landingContent } from "./landingContent";
+import { displayMuted, sectionEyebrow, sectionLedeCompact, sectionRhythmCompact } from "./landingType";
 
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 
@@ -18,21 +19,21 @@ export default function CommunityBridgeSection() {
       className="scroll-mt-20 border-y border-[#243832]/10 bg-white text-[#243832]"
       aria-labelledby="landing-community-title"
     >
-      <div className={`${shell} py-8 sm:py-10`}>
+      <div className={`${shell} ${sectionRhythmCompact}`}>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(440px,0.92fr)] lg:items-center lg:gap-14">
           <div className="max-w-[660px]">
-            <p className="flex items-center gap-2 text-[12px] font-semibold text-[#7D5753] sm:text-[13px]">
+            <p className={`flex items-center gap-2 ${sectionEyebrow}`}>
               <BadgeCheck className="h-4 w-4" aria-hidden="true" />
               운영 공개 전 · 출처 기준 검증 중
             </p>
             <h2
               id="landing-community-title"
-              className="mt-3 text-[clamp(1.35rem,3.5vw,1.75rem)] font-semibold leading-[1.3] tracking-[-0.03em]"
+              className={`mt-3 ${displayMuted}`}
             >
               {landingContent.community.titleLead}{" "}
               <span className="text-[#8F6662]">{landingContent.community.titleAccent}</span>
             </h2>
-            <p className="mt-3 max-w-[42rem] text-[14px] leading-6 text-[#4E6A62] sm:text-[15px]">
+            <p className={`mt-3 max-w-[34rem] ${sectionLedeCompact} text-[#4E6A62]`}>
               {landingContent.community.body}
             </p>
           </div>
@@ -43,7 +44,7 @@ export default function CommunityBridgeSection() {
               {sourceLabels.map((label) => (
                 <li
                   key={label}
-                  className="border-t border-[#243832]/12 pt-2 text-[12px] font-semibold leading-5 text-[#4E6A62]"
+                  className="border-t border-[#243832]/10 pt-2 text-[12px] font-semibold leading-5 text-[#4E6A62]"
                 >
                   {label}
                 </li>
