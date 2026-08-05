@@ -404,12 +404,14 @@ test("mobile obtains the single application lease before sending a confirmation"
 
   assert.match(
     chatSource,
-    /requestAmoraSharedAction\(actionId, messageId, "PUT"\)/,
+    // P0-2 이후 이 요청은 누른 사람에 결박된다. lease를 얻는다는 원래 의도에
+    // 더해 결박까지 함께 고정한다.
+    /requestAmoraSharedAction\(actionId, messageId, "PUT", expectedUserId\)/,
   );
   assert.match(chatSource, /Authorization: `Bearer \$\{accessToken\}`/);
   assert.match(
     handler,
-    /await requestAmoraApplicationClaim\(\s*actionId,\s*latestSharedMessage\.id,\s*\)/,
+    /await requestAmoraApplicationClaim\(\s*actionId,\s*latestSharedMessage\.id,\s*sessionUserIdRef\.current,\s*\)/,
   );
   assert.ok(
     handler.indexOf("await requestAmoraApplicationClaim(")
@@ -439,7 +441,7 @@ test("mobile retry reconciles a durable confirmation before reacquiring its leas
   );
   assert.match(
     sender,
-    /await requestAmoraApplicationClaim\(\s*draft\.confirmedActionId,\s*draft\.amoraSourceMessageId,\s*\)/,
+    /await requestAmoraApplicationClaim\(\s*draft\.confirmedActionId,\s*draft\.amoraSourceMessageId,\s*sessionUserIdRef\.current,\s*\)/,
   );
   assert.ok(
     sender.indexOf('findDurableUserMessage(draft, "ai")')

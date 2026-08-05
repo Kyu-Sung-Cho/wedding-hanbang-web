@@ -640,6 +640,40 @@ encryption, read boundary와 운영 증거를 더하는 방식으로 수행한�
 - wrong actor/scope/recipient row 0
 - exact code SHA·DB migration·mobile build가 하나의 release receipt에 결박
 
+#### 2026-08-05 갱신 — client containment 구현, 판정은 그대로 OPEN
+
+branch `codex/amora-p01-draft-actor-20260805`(base `0bbac8bf`, P0-2 위).
+
+**추가로 확인한 사실**
+
+- `requestChatStream`은 P0-2의 승인 경로와 **구조가 같다.** 전송 시점에
+  `supabase.auth.getSession()`을 다시 읽어 그 토큰으로 보내고, 쓴 사람과 대조하지 않는다.
+  401 뒤 `refreshSession()` 재시도 경로에도 대조가 없다.
+- 따라서 P0-1과 P0-2는 별개 결함이 아니라 **같은 화면의 같은 공백**이 두 표면에 드러난
+  것이다. 규칙을 한 곳에 두지 않으면 한쪽만 고쳐질 수 있다.
+
+**한 일**
+
+- P0-2에서 만든 actor fence를 `assertAmoraRequestActor`라는 중립 이름으로 함께 export해
+  전송 경로가 **같은 규칙**을 쓰게 했다. 별도 구현을 만들지 않았다.
+- `requestChatStream`에 작성자를 결박했다. 첫 전송 전과 세션 갱신 후 각각 대조하고,
+  불일치면 **요청을 보내지 않는다.**
+- 전송 호출부가 화면이 캡처한 `sessionUserIdRef.current`를 넘긴다.
+
+**하지 않은 일 — P0-1이 아직 OPEN인 이유**
+
+| 남은 작업 | 상태 |
+|---|---|
+| 서버 발급 composer lease(actor·couple·lane·recipient·epoch·draft binding) | 미구현 |
+| 단일 DB transaction에서 auth principal·lease actor·membership 재검증 | 미구현 |
+| mismatch를 `identity_changed`로 fail-closed하고 원문 row 0 | 미구현 |
+| 계정 전환 시 composer subtree 동기 unmount | 미구현 |
+| offline retry·response loss·구형 앱 공격 시험 | 없음 |
+
+서버는 여전히 현재 bearer를 작성자로 보고 INSERT한다. 이 변경은 정상 클라이언트의
+계정 전환 창을 좁힐 뿐이며, 조작된 클라이언트나 직접 API 호출에는 효과가 없다.
+§8.6 원칙대로 P0-1을 닫지 않는다. production NO-GO 판정은 그대로다.
+
 ### P0-2. A가 시작한 공동 승인 명령이 B 승인으로 기록될 수 있음
 
 **현재 코드 근거**
@@ -679,6 +713,47 @@ encryption, read boundary와 운영 증거를 더하는 방식으로 수행한�
 - B의 독립 클릭 없이 B approval 0
 - stale action version과 다른 payload replay는 conflict
 - response loss 뒤 exact A replay는 중복 변경 없이 같은 receipt
+
+#### 2026-08-05 갱신 — client containment 구현, 판정은 그대로 OPEN
+
+branch `codex/amora-p02-approval-actor-20260805`(base `5b33c95b`).
+
+**추가로 확인한 사실**
+
+- 채팅 화면에는 이미 `chatSessionGenerationRef`와 `isCurrentChatSession(generation)`이
+  있고 `onAuthStateChange`로 계정 변경도 감지한다. 그러나 그 검사는 **응답을 받은 뒤**에만
+  실행된다. 서버가 이미 승인을 기록한 뒤라 되돌릴 수 없다.
+- `requestAmoraSharedAction`은 호출 시점에 `supabase.auth.getSession()`을 다시 읽어
+  그 토큰으로 요청했다. 누른 사람과 대조하지 않았고, 401 뒤 `refreshSession()` 재시도
+  경로에도 같은 대조가 없었다.
+- 이 화면은 `ForExpectedUser` 계열과 `ownerCoupleSessionFence`를 **0건** 사용한다.
+  P0-1과 P0-2는 같은 화면의 같은 공백에서 나온다.
+
+**한 일**
+
+- `apps/mobile/src/lib/amoraSharedActionActorFence.mjs` 신규. 양쪽이 모두 사용자 ID
+  형태이고 같은 사람일 때만 통과하며, 한쪽이라도 비었거나 형태가 아니면 같은 값이어도
+  거부한다(fail-closed).
+- `sessionUserIdRef`를 추가하고 `onAuthStateChange`의 early return **앞에서** 갱신한다.
+  핸들러는 이 값을 동기적으로 읽어 요청에 싣는다.
+- 공동 승인 GET·POST·DELETE·PUT 요청 5곳 전부를 누른 사람에 결박했다. 불일치면
+  **요청을 보내지 않는다.** `refreshSession()` 뒤에도 다시 대조한다.
+- 기존 `pendingAmoraAction.test.mjs`가 호출 인자를 문자열로 고정하고 있어 깨졌다.
+  원래 의도(전송 전 lease 획득, 재시도 시 durable 확인 우선)를 유지하면서 actor 결박까지
+  요구하도록 **강화**해 갱신했다. 약화시키지 않았다.
+
+**하지 않은 일 — P0-2가 아직 OPEN인 이유**
+
+| 남은 작업 | 상태 |
+|---|---|
+| 서버 actor-bound lease/command receipt | 미구현 |
+| action version·membership epoch·proposal digest의 DB 검증 | 미구현 |
+| exact actor+payload replay만 같은 receipt 반환 | 미구현 |
+| 실계정 A/B 승인 경합 E2E | 없음 |
+
+§8.6 원칙대로 **client 방어만으로 P0를 닫지 않는다.** 서버는 여전히 현재 bearer를
+`p_user_id`로 넘긴다. 이 변경은 같은 기기의 계정 전환 창을 좁힐 뿐, 조작된 클라이언트나
+직접 API 호출을 막지 못한다. production NO-GO 판정은 그대로다.
 
 ### P0-3. provenance 없는 private 내용을 공유 note로 저장할 수 있음
 
