@@ -161,10 +161,10 @@ describe("budget scope reaches the model instead of a bare number", () => {
       },
     }));
 
-    expect(line).toContain("포함: 결혼식·스드메");
+    expect(line).toContain("포함: 결혼식·사진·드레스·메이크업");
     expect(line).toContain("제외: 신혼집");
     // 확인하지 않은 나머지는 확인된 것처럼 보이지 않아야 한다.
-    expect(line).toContain("미확인: 예물·신혼여행·가전");
+    expect(line).toContain("미확인: 결혼반지·신혼여행·가전·가구");
   });
 
   it("does not claim a scope when there is no budget at all", () => {
@@ -192,7 +192,7 @@ describe("budget scope reaches the model instead of a bare number", () => {
     }));
 
     expect(line).not.toContain("미확인");
-    expect(line).toContain("포함: 결혼식·스드메·예물·신혼여행");
-    expect(line).toContain("제외: 가전·신혼집");
+    expect(line).toContain("포함: 결혼식·사진·드레스·메이크업·결혼반지·신혼여행");
+    expect(line).toContain("제외: 가전·가구·신혼집");
   });
 });

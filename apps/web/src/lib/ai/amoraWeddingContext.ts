@@ -42,13 +42,17 @@ export const BUDGET_SCOPE_ITEMS = [
 
 export type BudgetScopeItem = typeof BUDGET_SCOPE_ITEMS[number];
 
-/** 사용자와 모델에게 보여줄 한국어 이름. 항목을 늘리면 여기도 함께 늘린다. */
+/**
+ * 사용자와 모델에게 보여줄 이름. 결혼 준비가 처음인 사람도 바로 알 수 있는 말만 쓴다.
+ * `스드메`, `예물` 같은 업계 용어는 쓰지 않는다(`mvpDirection.test.ts`의 쉬운 말 계약).
+ * 항목을 늘리면 여기도 함께 늘린다.
+ */
 export const BUDGET_SCOPE_LABELS: Record<BudgetScopeItem, string> = {
   wedding: "결혼식",
-  studio: "스드메",
-  rings: "예물",
+  studio: "사진·드레스·메이크업",
+  rings: "결혼반지",
   honeymoon: "신혼여행",
-  appliances: "가전",
+  appliances: "가전·가구",
   housing: "신혼집",
 };
 
