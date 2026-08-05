@@ -216,16 +216,34 @@ export async function apiFetchForWebBridge(path: string, options: RequestInit = 
   return authenticatedApiFetch(path, options, false);
 }
 
-/**
- * JSON API 호출 (스트리밍 아닌 일반 요청용)
- */
-export async function apiJson<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await apiFetch(path, options);
+async function readJsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API 오류 (${res.status})`);
   }
   return res.json();
+}
+
+/**
+ * JSON API 호출 (스트리밍 아닌 일반 요청용)
+ */
+export async function apiJson<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  return readJsonOrThrow<T>(await apiFetch(path, options));
+}
+
+/**
+ * 시작 시점 사용자와 실제 Bearer 소유자가 정확히 같을 때만 JSON을 주고받는다.
+ * 계정 전환 중에는 요청 자체를 보내지 않으므로, 늦은 응답이 다른 계정 화면에
+ * 적용될 여지를 남기지 않는다.
+ */
+export async function apiJsonForExpectedUser<T = unknown>(
+  expectedUserId: string,
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return readJsonOrThrow<T>(
+    await apiFetchForExpectedUser(expectedUserId, path, options),
+  );
 }
 
 /**

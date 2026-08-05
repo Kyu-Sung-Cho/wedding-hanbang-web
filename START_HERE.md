@@ -266,7 +266,11 @@ RED가 의도한 실패인지 확인한 뒤 별도 논리 단위로 진행한다
 상세 공격 순서·코드 줄·필수 테스트·종료 영수증은 상세 handoff §8을 그대로 따른다.
 
 1. P0-5: 최종 privacy gate 전 OpenAI token-count 원문 반출
-2. P0-4: A의 늦은 Memory 응답이 계정 전환 뒤 B 화면에 적용될 가능성
+2. P0-4: A의 늦은 Memory 응답이 계정 전환 뒤 B 화면에 적용될 가능성 — **OPEN**.
+   client containment는 `codex/amora-p04-memory-actor-20260805`에서 구현했다(기억 화면에
+   owner/couple session fence 배선, RED 5개). 실기기 2대 E2E와 background/resume·
+   offline retry·screen reader 확인이 없으므로 닫지 않는다. 상세 handoff §8 P0-4의
+   2026-08-05 갱신을 본다.
 3. P0-3: provenance 없는 임의/private-derived 내용을 shared note로 저장할 가능성
 4. P0-1: A의 모바일 개인 초안이 계정 전환 뒤 B bearer로 저장될 가능성
 5. P0-2: A가 시작한 공동 승인 명령이 B 승인으로 기록될 가능성
