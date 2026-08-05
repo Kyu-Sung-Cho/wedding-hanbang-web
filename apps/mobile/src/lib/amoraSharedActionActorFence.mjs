@@ -24,3 +24,10 @@ export function assertSharedActionActor(expectedUserId, sessionUserId) {
     throw new Error(SHARED_ACTION_ACTOR_MISMATCH);
   }
 }
+
+/**
+ * 같은 규칙이 공동 승인 말고도 필요하다. 채팅 전송은 "보내는 문장의 주인"이 걸린
+ * 문제이고(P0-1), 승인과 똑같이 전송 시점 세션을 다시 읽는 구조였다. 규칙이 하나여야
+ * 한쪽만 고쳐지는 일이 생기지 않으므로 별도 구현을 만들지 않고 이 이름을 함께 쓴다.
+ */
+export const assertAmoraRequestActor = assertSharedActionActor;

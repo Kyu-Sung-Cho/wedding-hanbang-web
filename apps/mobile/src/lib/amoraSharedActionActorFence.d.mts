@@ -9,3 +9,6 @@ export declare function assertSharedActionActor(
   expectedUserId: unknown,
   sessionUserId: unknown,
 ): void;
+
+/** Same rule, used by any actor-bound request such as sending a chat message. */
+export declare const assertAmoraRequestActor: typeof assertSharedActionActor;

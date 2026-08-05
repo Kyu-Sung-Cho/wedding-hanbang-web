@@ -27,7 +27,10 @@ import {
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { supabase } from "@/lib/supabase";
-import { assertSharedActionActor } from "@/lib/amoraSharedActionActorFence.mjs";
+import {
+  assertAmoraRequestActor,
+  assertSharedActionActor,
+} from "@/lib/amoraSharedActionActorFence.mjs";
 import { normalizeMediationBlock } from "@/lib/amoraMediation";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
@@ -1431,12 +1434,15 @@ async function requestChatStream(
   onUpdate: ChatStreamUpdateCallback,
   onQuota: (remaining: number) => void,
   onDoneMetadata: (metadata: Record<string, unknown>) => void,
+  expectedUserId: string | null,
 ): Promise<ChatStreamCompletion> {
   const { data: sessionData } = await waitForUnlessAborted(
     supabase.auth.getSession(),
     signal,
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
+  // 쓴 사람과 지금 토큰의 주인이 다르면 보내지 않는다. 저장된 뒤에 되돌릴 수 없다.
+  assertAmoraRequestActor(expectedUserId, sessionData.session?.user.id);
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new ChatTransportError("AUTH");
 
@@ -1455,6 +1461,8 @@ async function requestChatStream(
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
   if (refreshError || !refreshed.session?.access_token) throw new ChatTransportError("AUTH");
+  // 세션 갱신은 다른 계정으로 바뀔 수 있는 지점이므로 재시도 전에 다시 대조한다.
+  assertAmoraRequestActor(expectedUserId, refreshed.session.user.id);
   return streamChatWithXhr(
     body,
     refreshed.session.access_token,
@@ -2692,6 +2700,7 @@ export default function ChatScreen() {
             metadata: { pending_amora_action: metadata.pending_amora_action },
           });
         },
+        sessionUserIdRef.current,
       );
       cancelPendingRender();
       if (isCurrentChatSession(request.sessionGeneration)) {
