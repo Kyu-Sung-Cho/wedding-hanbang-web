@@ -1,8 +1,11 @@
-import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readUserRequestedMediationV2 } from "@/lib/ai/mediation";
+import {
+  computeCoupleRosterFingerprint,
+  ROSTER_FINGERPRINT_PATTERN,
+} from "@/lib/amora/coupleRosterFingerprint";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -10,7 +13,6 @@ import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 export const dynamic = "force-dynamic";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ROSTER_FINGERPRINT_PATTERN = /^[a-f0-9]{32}$/;
 const MUTATION_KEYS = new Set([
   "messageId",
   "expectedProposalVersion",
@@ -32,12 +34,6 @@ type MediationContext = {
 };
 
 type MediationContextResult = MediationContext | { error: NextResponse };
-
-function rosterFingerprint(brideId: unknown, groomId: unknown): string {
-  const bride = typeof brideId === "string" ? brideId : "-";
-  const groom = typeof groomId === "string" ? groomId : "-";
-  return createHash("md5").update(`${bride}:${groom}`, "utf8").digest("hex");
-}
 
 function expectedProposal(
   proposalVersion: unknown,
@@ -146,7 +142,10 @@ export async function GET(request: Request) {
   const members = [...new Set(
     [couple.bride_id, couple.groom_id].filter((value): value is string => typeof value === "string"),
   )];
-  const currentRosterFingerprint = rosterFingerprint(couple.bride_id, couple.groom_id);
+  const currentRosterFingerprint = computeCoupleRosterFingerprint(
+    couple.bride_id,
+    couple.groom_id,
+  );
   if (auth.proposalRosterFingerprint !== currentRosterFingerprint) {
     return proposalChangedResponse();
   }
