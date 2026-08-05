@@ -273,4 +273,47 @@ describe("landing design system", () => {
     expect(result, "같은 표시가 출처와 목적지 두 의미로 쓰이면 안 된다")
       .not.toContain("border-l-2 border-[#A77B74]");
   });
+
+  it("ornaments an eyebrow only where the ornament carries meaning", () => {
+    // eyebrow 여덟 개에 장식이 네 종류(6px 점, 32px 규칙선 ×2, 16px 체크,
+    // 48px 원형 메달리언) 섞이고 셋은 맨몸이었다. 뜻이 없는 장식은 섹션마다
+    // 다른 격식을 만들 뿐이라 없앤다 — 남는 것은 두 가지 뜻뿐이다.
+    const meaning = new Map([
+      ["TransformationHero.tsx", "Sparkles"], // 기본이 아닌 행위자 = 아모라(AI)
+      ["CommunityBridgeSection.tsx", "BadgeCheck"], // 릴리스 경계 = 운영 공개 전
+    ]);
+
+    for (const [file, source] of components) {
+      // eyebrow 자리의 순수 장식: 규칙선·점·원형 메달리언
+      const decorations = [
+        ...source.matchAll(/className="[^"]*\b(?:h-px w-8|h-1\.5 w-1\.5 rounded-full|h-12 w-12 items-center justify-center rounded-full)\b[^"]*"/gu),
+      ].map((m) => m[0]);
+      expect(decorations, `${file}: 뜻 없는 eyebrow 장식`).toEqual([]);
+
+      const glyph = meaning.get(file);
+      if (glyph) {
+        expect(source, `${file}: ${glyph}는 이 eyebrow의 뜻이라 남아야 한다`)
+          .toContain(`<${glyph} className={eyebrowGlyph}`);
+      }
+    }
+
+    const type = readFileSync(resolve(DIR, "landingType.ts"), "utf8");
+    expect(type, "장식 글리프는 한 크기로 고정한다").toContain(
+      'export const eyebrowGlyph = "h-4 w-4 shrink-0"',
+    );
+  });
+
+  it("never tries to centre an inline-flex recipe with mx-auto", () => {
+    // 마무리 섹션의 CTA와 로그인 링크가 둘 다 `inline-flex`인데 각자 `mx-auto`로
+    // 가운데 정렬한다고 믿고 있었다. inline 요소에 auto margin은 아무 일도 하지
+    // 않으므로 둘은 같은 line box에 나란히 앉았고, 1280 실측에서 로그인 링크가
+    // 버튼 위로 겹쳤다. 가운데 정렬과 세로 쌓기는 부모 컨테이너의 몫이다.
+    const inlineRecipes = /(?:primaryAction(?:Sm|Md|Lg)|secondaryLink(?:OnDark)?)/u;
+    for (const [file, source] of components) {
+      const bad = [...source.matchAll(/className=\{`[^`]*`\}/gu)]
+        .map((m) => m[0])
+        .filter((c) => c.includes("mx-auto") && inlineRecipes.test(c));
+      expect(bad, `${file}: inline-flex 레시피에 mx-auto를 걸었다`).toEqual([]);
+    }
+  });
 });

@@ -1,7 +1,13 @@
 import { BadgeCheck } from "lucide-react";
 
 import { landingContent } from "./landingContent";
-import { displayMuted, sectionEyebrow, sectionLedeCompact, sectionRhythmCompact } from "./landingType";
+import {
+  displayMuted,
+  eyebrowGlyph,
+  sectionEyebrow,
+  sectionLedeCompact,
+  sectionRhythmCompact,
+} from "./landingType";
 
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 
@@ -23,7 +29,7 @@ export default function CommunityBridgeSection() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(440px,0.92fr)] lg:items-center lg:gap-14">
           <div className="max-w-[660px]">
             <p className={`flex items-center gap-2 ${sectionEyebrow}`}>
-              <BadgeCheck className="h-4 w-4" aria-hidden="true" />
+              <BadgeCheck className={eyebrowGlyph} aria-hidden="true" />
               운영 공개 전 · 출처 기준 검증 중
             </p>
             <h2

@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import Link from "next/link";
 
@@ -31,10 +31,7 @@ export default function ClosingAction() {
         aria-hidden="true"
       />
       <div className={`${shell} ${sectionRhythm} text-center`}>
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[#8F6662]/20 bg-white/60 text-[#8F6662]" aria-hidden="true">
-          <CalendarDays className="h-5 w-5" />
-        </span>
-        <p className={`mt-6 ${sectionEyebrow}`}>{landingContent.closing.eyebrow}</p>
+        <p className={sectionEyebrow}>{landingContent.closing.eyebrow}</p>
         <h2
           id="landing-closing-title"
           className={`mx-auto mt-4 max-w-4xl ${displaySection}`}
@@ -59,20 +56,25 @@ export default function ClosingAction() {
             </div>
           ))}
         </dl>
-        <TrackedLandingLink
-          href="/start-here"
-          source="landing_closing"
-          className={`${primaryActionLg} mx-auto mt-8 max-w-full justify-center focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
-        >
-          아모라와 시작하기
-          <ArrowRight className="h-4 w-4 transition-transform duration-200 motion-safe:group-hover:translate-x-1" aria-hidden="true" />
-        </TrackedLandingLink>
-        <Link
-          href="/login"
-          className={`mx-auto mt-4 w-fit justify-center ${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
-        >
-          계정이 있다면 로그인
-        </Link>
+        {/* 두 링크 모두 `inline-flex`라 `mx-auto`가 아무 일도 하지 않는다. 그래서
+            둘이 같은 line box에 나란히 놓여 로그인 링크가 버튼 위로 겹쳐 있었다
+            (1280 실측). 가운데 정렬과 세로 쌓기는 부모가 책임진다. */}
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <TrackedLandingLink
+            href="/start-here"
+            source="landing_closing"
+            className={`${primaryActionLg} max-w-full justify-center focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
+          >
+            아모라와 시작하기
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 motion-safe:group-hover:translate-x-1" aria-hidden="true" />
+          </TrackedLandingLink>
+          <Link
+            href="/login"
+            className={`${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
+          >
+            계정이 있다면 로그인
+          </Link>
+        </div>
         <dl className="mx-auto mt-10 grid max-w-4xl overflow-hidden border border-[#243832]/14 bg-white/34 text-left sm:grid-cols-2">
           {startConditions.slice(2).map((condition, index) => (
             <div
@@ -90,12 +92,14 @@ export default function ClosingAction() {
             참여 여부를 결정해요"라고 말하는데, 정작 그 참여 안내(/beta)로 가는 링크가
             살아 있는 랜딩에는 없었다(기존 링크 3개는 모두 렌더되지 않는 컴포넌트에
             있었다). 근거로 인용한 문서는 그 자리에서 열 수 있어야 한다. */}
-        <Link
-          href="/beta"
-          className={`mx-auto mt-5 w-fit justify-center ${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
-        >
-          계정 베타 참여 안내 보기
-        </Link>
+        <div className="mt-5 flex justify-center">
+          <Link
+            href="/beta"
+            className={`${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
+          >
+            계정 베타 참여 안내 보기
+          </Link>
+        </div>
       </div>
     </section>
   );

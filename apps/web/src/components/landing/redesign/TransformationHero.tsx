@@ -23,6 +23,7 @@ import {
 import { landingContent } from "./landingContent";
 import {
   displayHero,
+  eyebrowGlyph,
   primaryActionMd,
   secondaryLinkOnDark,
   sectionEyebrowTypography,
@@ -86,7 +87,7 @@ export default function TransformationHero() {
       />
 
       <div
-        className={`${shell} grid gap-8 pb-12 pt-5 sm:gap-11 sm:pb-14 sm:pt-10 lg:min-h-[min(720px,calc(100svh-4rem))] lg:grid-cols-[minmax(0,0.94fr)_minmax(510px,1.06fr)] lg:items-center lg:gap-9 lg:py-8 xl:gap-12 xl:py-12`}
+        className={`${shell} grid gap-8 pb-12 pt-5 sm:gap-11 sm:pb-14 sm:pt-10 lg:min-h-[min(720px,calc(100svh-4rem))] lg:grid-cols-[minmax(0,1.04fr)_minmax(468px,0.96fr)] lg:items-center lg:gap-9 lg:py-8 xl:gap-12 xl:py-12`}
       >
         <div className="relative z-10 max-w-[610px]">
           <div
@@ -94,13 +95,12 @@ export default function TransformationHero() {
             aria-label="웨딩한방과 아모라의 역할"
             className={`flex flex-col gap-2 ${sectionEyebrowTypography} sm:flex-row sm:flex-wrap sm:items-center sm:gap-3`}
           >
-            <span className="inline-flex w-fit items-center gap-2 text-white">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#A77B74]" aria-hidden="true" />
+            <span className="w-fit text-white">
               {landingContent.hero.eyebrow}
             </span>
             <span className="hidden h-4 w-px bg-white/20 sm:block" aria-hidden="true" />
             <span className="inline-flex w-fit items-center gap-2 text-[#E2D3C8]">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              <Sparkles className={eyebrowGlyph} aria-hidden="true" />
               {landingContent.hero.aiRole}
             </span>
           </div>
@@ -239,10 +239,6 @@ function ConversationToPlanDemo() {
       className="relative z-10 min-w-0 animate-fade-in motion-reduce:animate-none"
       aria-labelledby="landing-product-demo-title"
     >
-      <div
-        className="absolute -inset-4 -z-10 rounded-[28px] bg-[#E2D3C8]/10 blur-2xl"
-        aria-hidden="true"
-      />
       <div className="overflow-hidden rounded-[28px] border border-white/18 bg-[#FBF8F2] text-[#243832] shadow-overlay">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#243832]/10 bg-white/84 px-4 py-3 backdrop-blur sm:px-5">
           <div className="flex min-w-0 items-center gap-3">

@@ -58,6 +58,23 @@ export const displayMuted =
 export const sectionEyebrowTypography = "text-[12px] font-bold tracking-[0.01em]";
 
 /**
+ * eyebrow 장식 규칙.
+ *
+ * 여덟 개 eyebrow에 장식이 다섯 가지(6px 점, 14px Sparkles, 32px 규칙선 ×2,
+ * 16px 체크 아이콘, 48px 원형 메달리언) 섞여 있고 나머지 셋은 맨몸이었다.
+ * 히어로 하나에만 점과 Sparkles가 같이 붙어 크기가 6·14px로 갈렸다.
+ * 타이포는 통일했지만 장식은 여전히 섹션마다 달랐다.
+ *
+ * 규칙: **장식은 eyebrow의 뜻을 바꿀 때만 붙인다.**
+ *   - 기본이 아닌 행위자를 가리킬 때 (아모라 = AI)
+ *   - 릴리스 경계를 가리킬 때 (운영 공개 전)
+ * 그 외에는 아무것도 붙이지 않는다. 규칙선·점·원형 메달리언은 뜻이 없으므로 쓰지
+ * 않는다 — DESIGN.md "Decoration level: Intentional… Avoid decorative noise".
+ * 장식을 쓸 때는 16px lucide 글리프 하나로 통일한다.
+ */
+export const eyebrowGlyph = "h-4 w-4 shrink-0";
+
+/**
  * 섹션 라벨. 12px(xs)로 내리고 bold로 존재감을 되찾는다.
  * 색은 rose-600이 아니라 rose-700이다 — 12px는 WCAG상 4.5:1이 필요한데
  * rose-600(#8F6662)은 ivory-blush(#F3E9DD) 위에서 4.13:1로 미달했다(실측).

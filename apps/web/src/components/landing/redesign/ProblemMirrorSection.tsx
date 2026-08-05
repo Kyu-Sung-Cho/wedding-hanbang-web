@@ -29,8 +29,7 @@ export default function ProblemMirrorSection() {
     >
       <div className={`mx-auto grid w-full max-w-[1240px] gap-10 px-5 sm:px-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(460px,1.08fr)] lg:items-center lg:gap-20 lg:px-10 ${sectionRhythm}`}>
         <div className="max-w-[610px]">
-          <p className={`flex items-center gap-3 ${sectionEyebrow}`}>
-            <span className="h-px w-8 bg-[#A77B74]" aria-hidden="true" />
+          <p className={sectionEyebrow}>
             {landingContent.problem.eyebrow}
           </p>
           <h2

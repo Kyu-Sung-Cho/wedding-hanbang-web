@@ -42,8 +42,10 @@ export default function SharedPrivateSection() {
             <p className="mt-4 max-w-md text-[16px] leading-[1.7] text-[#4E6A62]">
               {landingContent.privacy.sharedBody}
             </p>
-            <div className="mt-auto flex items-center gap-3 border-t border-[#243832]/10 pt-5 text-[12px] font-semibold text-[#4E6A62]">
-              <span className="h-2 w-2 rounded-full bg-[#6D806E]" aria-hidden="true" />
+            {/* 두 카드의 꼬리 라벨은 같은 역할인데 하나는 점, 하나는 자물쇠였다.
+                자물쇠는 "파트너에게 안 보인다"는 뜻을 지고 있으므로 남기고, 뜻이
+                없는 점은 뺀다 — eyebrow에 적용한 것과 같은 기준이다. */}
+            <div className="mt-auto border-t border-[#243832]/10 pt-5 text-[12px] font-semibold text-[#4E6A62]">
               확인해 반영한 결과를 함께 보기
             </div>
           </article>

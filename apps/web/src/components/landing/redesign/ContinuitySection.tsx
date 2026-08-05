@@ -15,8 +15,7 @@ export default function ContinuitySection() {
       <div className={`${shell} ${sectionRhythm}`}>
         <div className="grid gap-9 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:gap-20">
           <div className="max-w-[590px] lg:sticky lg:top-28 lg:self-start">
-            <p className={`flex items-center gap-3 ${sectionEyebrowOnDark}`}>
-              <span className="h-px w-8 bg-[#A77B74]" aria-hidden="true" />
+            <p className={sectionEyebrowOnDark}>
               {landingContent.continuity.eyebrow}
             </p>
             <h2
