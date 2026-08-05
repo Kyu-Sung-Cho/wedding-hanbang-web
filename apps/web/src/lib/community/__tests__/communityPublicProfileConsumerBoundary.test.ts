@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 const WEB_CONSUMERS = [
   "src/hooks/useCommentsRealtime.ts",
-  "src/components/landing/CommunityFeed.tsx",
   "src/app/(community)/community/cohort/[id]/page.tsx",
   "src/lib/community/authorProfiles.ts",
   "src/lib/community/publicPostDetail.ts",

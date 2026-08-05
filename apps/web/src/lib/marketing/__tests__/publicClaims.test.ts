@@ -25,7 +25,6 @@ const ACTIVE_PUBLIC_SOURCES = [
   "src/components/landing/FiveRoles.tsx",
   "src/components/landing/ForBetaCouples.tsx",
   "src/components/landing/Footer.tsx",
-  "src/components/landing/ServicePreview.tsx",
   "src/components/community/ServiceCTA.tsx",
   "src/app/(community)/community/quote-check/layout.tsx",
 ].map(source);
