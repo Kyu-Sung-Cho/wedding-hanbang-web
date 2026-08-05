@@ -124,7 +124,8 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         total_budget: {
           type: "number",
-          description: "총 결혼 예산 (원 단위). 신혼여행·결혼반지·신혼집 포함 통합 예산.",
+          description:
+            "총 결혼 예산 (원 단위). 이 금액이 어디까지 덮는지는 사용자가 확인해 준 범위를 따릅니다. 결혼식·스드메·예물·신혼여행·가전·신혼집은 서로 다른 자금 범위일 수 있으므로 금액 크기로 포함 여부를 추정하지 말고, 모호하면 먼저 한 문장으로 확인하세요.",
         },
         allocations: {
           type: "array",

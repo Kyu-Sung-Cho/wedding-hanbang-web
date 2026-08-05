@@ -9,6 +9,10 @@ import {
   PEAK_WEDDING_MONTHS_LABEL,
 } from "@/constants/weddingSeasonality";
 import { AMORA_PROFILE_FIELD_MAX_CHARS } from "@/lib/ai/amoraProfileProjection";
+import {
+  BUDGET_SCOPE_LABELS,
+  normalizeBudgetScope,
+} from "@/lib/ai/amoraWeddingContext";
 import type { AmoraPersonalizationPreferences } from "@/lib/amora/personalization";
 import {
   WEDDING_BUDGET_TENDENCY_OPTIONS,
@@ -250,9 +254,27 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     dDayInfo = diff > 0 ? `(D-${diff})` : diff === 0 ? "(D-Day!)" : `(D+${Math.abs(diff)})`;
   }
 
+  // 같은 금액도 결혼식만인지 신혼집까지인지에 따라 이후 계산이 완전히 달라진다.
+  // 확인한 범위는 그대로 전하고, 확인하지 않은 항목은 포함으로 추정하지 않고
+  // "미확인"으로 드러낸다.
+  const budgetScope = normalizeBudgetScope(context.progress);
+  const scopeParts = [
+    budgetScope.included.length > 0
+      ? `포함: ${budgetScope.included.map((item) => BUDGET_SCOPE_LABELS[item]).join("·")}`
+      : null,
+    budgetScope.excluded.length > 0
+      ? `제외: ${budgetScope.excluded.map((item) => BUDGET_SCOPE_LABELS[item]).join("·")}`
+      : null,
+    budgetScope.unknown.length > 0
+      ? (budgetScope.included.length === 0 && budgetScope.excluded.length === 0
+        ? `포함 범위 미확인: ${budgetScope.unknown.map((item) => BUDGET_SCOPE_LABELS[item]).join("·")}`
+        : `미확인: ${budgetScope.unknown.map((item) => BUDGET_SCOPE_LABELS[item]).join("·")}`)
+      : null,
+  ].filter((part): part is string => part !== null);
+
   const budgetInfo =
     context.budget > 0
-      ? `총 예산: ${(context.budget / 10000).toLocaleString()}만원`
+      ? `총 예산: ${(context.budget / 10000).toLocaleString()}만원 (${scopeParts.join(" / ")})`
       : "예산: 미설정";
 
   const venueInfo = context.venue ? `결혼식장: ${promptData(context.venue, 200)}` : "결혼식장: 미정";
@@ -263,7 +285,9 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     context.groomName ? `신랑: ${promptData(context.groomName, 80)}` : null,
   ].filter(Boolean).join(", ");
 
-  const progressEntries = Object.entries(context.progress).filter(([k]) => k !== "__events");
+  // `__budgetScope`는 위 budgetInfo가 구조화해 전달하므로 원본을 다시 흘리지 않는다.
+  const progressEntries = Object.entries(context.progress)
+    .filter(([k]) => k !== "__events" && k !== "__budgetScope");
 
   // 카테고리별 상세 현황 생성
   const categoryStatus = Object.entries(CATEGORY_LABELS)
