@@ -3,6 +3,7 @@ import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_MAP } from "@/constants/checklists";
 
 const MAX_PENDING_ACTION_JSON_CHARS = 4_000;
 const MAX_CANONICAL_CONFIRMATION_CHARS = 2_000;
@@ -306,6 +307,36 @@ function formatFieldValue(key: string, value: unknown): string {
   return "없음";
 }
 
+/**
+ * 체크리스트 항목 id를 사용자가 읽을 수 있는 이름으로 바꾼다.
+ *
+ * 모델은 실제 항목 id를 한 번도 받지 못한다 — 프롬프트에 들어가는 건 `할일: 3/12완료`
+ * 같은 숫자뿐이다. 그런데 이 도구를 제안하려면 `item_id`를 적어야 하므로 모델은
+ * 사실상 지어낸다. 그리고 확인 카드는 `item_id`를 숨겨서, 사용자에게는
+ * "준비 항목 상태 변경 · 카테고리: 드레스 · 완료 여부: 완료"만 보였다.
+ * 지어낸 id가 우연히 다른 실제 항목과 맞으면 엉뚱한 항목이 완료로 바뀌는데
+ * 알아챌 방법이 없었다.
+ *
+ * 이 저장소의 안전망은 모델의 정확성이 아니라 사용자의 확인이다. 그러니 카드가
+ * 어떤 항목인지 이름으로 말해야 그 안전망이 작동한다.
+ *
+ * 해석 대상은 실행부와 같은 표준 목록이다 — `mergeChecklist`가 template만 돌려주므로
+ * (utils/checklist.ts) 저장본에만 있는 항목이란 존재하지 않는다. 즉 여기서 못 찾는
+ * id는 실행부에서도 `checklist_item_not_found`로 실패할 id다. 그런 제안은 카드로
+ * 만들지 않는다.
+ */
+function resolveChecklistItemLabel(input: Record<string, unknown>): string | null {
+  const category = typeof input.category === "string" ? input.category : null;
+  const itemId = typeof input.item_id === "string" ? input.item_id : null;
+  if (!category || !itemId) return null;
+
+  const items = CHECKLIST_MAP[category]?.items;
+  if (!Array.isArray(items)) return null;
+
+  const found = items.find((item) => item.id === itemId);
+  return typeof found?.label === "string" && found.label.trim() ? found.label : null;
+}
+
 function formatCanonicalConfirmation(
   tool: AiToolDefinition,
   input: Record<string, unknown>,
@@ -321,6 +352,15 @@ function formatCanonicalConfirmation(
       && Object.prototype.hasOwnProperty.call(input, key)
     )
     .map((key) => `- ${FIELD_LABELS[key] ?? key}: ${formatFieldValue(key, input[key])}`);
+
+  if (tool.name === "toggle_checklist_item") {
+    const itemLabel = resolveChecklistItemLabel(input);
+    // 어떤 항목인지 말할 수 없으면 확인을 요청하지 않는다. 사용자가 확인할 수 없는
+    // 변경은 승인받은 변경이 아니다.
+    if (!itemLabel) return null;
+    fieldLines.push(`- ${FIELD_LABELS.item_id}: ${itemLabel}`);
+  }
+
   const confirmation = [
     "다음 변경을 적용할까요?",
     `- 변경: ${toolLabel}`,

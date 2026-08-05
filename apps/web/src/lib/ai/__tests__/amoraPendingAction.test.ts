@@ -383,3 +383,60 @@ describe("Amora pending actions", () => {
     expect(prompt).toContain("앞선 턴에서 다른 도구가 빈 결과를 냈거나");
   });
 });
+
+describe("checklist confirmation names the item", () => {
+  // 모델은 실제 항목 id를 한 번도 받지 못한다(프롬프트는 `할일: n/m완료`뿐). 그런데
+  // 이 도구를 제안하려면 id를 적어야 하므로 사실상 지어낸다. 지어낸 id가 우연히 다른
+  // 실제 항목과 맞으면 엉뚱한 항목이 완료로 바뀌는데, 카드가 id를 숨기고 있어서
+  // 사용자가 알아챌 방법이 없었다.
+  const checklistTools: AiToolDefinition[] = [
+    {
+      name: "toggle_checklist_item",
+      description: "test",
+      input_schema: {
+        type: "object",
+        properties: {
+          category: { type: "string" },
+          item_id: { type: "string" },
+          done: { type: "boolean" },
+        },
+        required: ["category", "item_id", "done"],
+      },
+    },
+  ];
+
+  function extract(input: Record<string, unknown>) {
+    return extractAmoraPendingAction({
+      text: `[pending_action]${JSON.stringify({
+        tool: "toggle_checklist_item",
+        input,
+      })}[/pending_action]`,
+      allowedTools: checklistTools,
+      now: NOW,
+      createActionId: () => ACTION_ID,
+    });
+  }
+
+  it("shows the item name so a wrong item can be declined", () => {
+    const { pendingAction } = extract({
+      category: "meeting",
+      item_id: "meeting_02",
+      done: true,
+    });
+
+    expect(pendingAction).not.toBeNull();
+    expect(pendingAction!.confirmation).toContain("만날 장소 정하고 예약");
+  });
+
+  it("refuses to ask for confirmation when the item cannot be named", () => {
+    // 실행부도 같은 표준 목록에서 찾으므로, 여기서 못 찾는 id는 승인해도 실패한다.
+    // 사용자가 확인할 수 없는 변경은 승인받은 변경이 아니다.
+    for (const input of [
+      { category: "meeting", item_id: "meeting_99", done: true },
+      { category: "no_such_category", item_id: "meeting_02", done: true },
+      { category: "meeting", item_id: "venue_01", done: true },
+    ]) {
+      expect(extract(input).pendingAction, JSON.stringify(input)).toBeNull();
+    }
+  });
+});
