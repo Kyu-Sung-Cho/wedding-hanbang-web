@@ -627,6 +627,47 @@ encryption, read boundary와 운영 증거를 더하는 방식으로 수행한�
 - stale action version과 다른 payload replay는 conflict
 - response loss 뒤 exact A replay는 중복 변경 없이 같은 receipt
 
+#### 2026-08-05 갱신 — client containment 구현, 판정은 그대로 OPEN
+
+branch `codex/amora-p02-approval-actor-20260805`(base `5b33c95b`).
+
+**추가로 확인한 사실**
+
+- 채팅 화면에는 이미 `chatSessionGenerationRef`와 `isCurrentChatSession(generation)`이
+  있고 `onAuthStateChange`로 계정 변경도 감지한다. 그러나 그 검사는 **응답을 받은 뒤**에만
+  실행된다. 서버가 이미 승인을 기록한 뒤라 되돌릴 수 없다.
+- `requestAmoraSharedAction`은 호출 시점에 `supabase.auth.getSession()`을 다시 읽어
+  그 토큰으로 요청했다. 누른 사람과 대조하지 않았고, 401 뒤 `refreshSession()` 재시도
+  경로에도 같은 대조가 없었다.
+- 이 화면은 `ForExpectedUser` 계열과 `ownerCoupleSessionFence`를 **0건** 사용한다.
+  P0-1과 P0-2는 같은 화면의 같은 공백에서 나온다.
+
+**한 일**
+
+- `apps/mobile/src/lib/amoraSharedActionActorFence.mjs` 신규. 양쪽이 모두 사용자 ID
+  형태이고 같은 사람일 때만 통과하며, 한쪽이라도 비었거나 형태가 아니면 같은 값이어도
+  거부한다(fail-closed).
+- `sessionUserIdRef`를 추가하고 `onAuthStateChange`의 early return **앞에서** 갱신한다.
+  핸들러는 이 값을 동기적으로 읽어 요청에 싣는다.
+- 공동 승인 GET·POST·DELETE·PUT 요청 5곳 전부를 누른 사람에 결박했다. 불일치면
+  **요청을 보내지 않는다.** `refreshSession()` 뒤에도 다시 대조한다.
+- 기존 `pendingAmoraAction.test.mjs`가 호출 인자를 문자열로 고정하고 있어 깨졌다.
+  원래 의도(전송 전 lease 획득, 재시도 시 durable 확인 우선)를 유지하면서 actor 결박까지
+  요구하도록 **강화**해 갱신했다. 약화시키지 않았다.
+
+**하지 않은 일 — P0-2가 아직 OPEN인 이유**
+
+| 남은 작업 | 상태 |
+|---|---|
+| 서버 actor-bound lease/command receipt | 미구현 |
+| action version·membership epoch·proposal digest의 DB 검증 | 미구현 |
+| exact actor+payload replay만 같은 receipt 반환 | 미구현 |
+| 실계정 A/B 승인 경합 E2E | 없음 |
+
+§8.6 원칙대로 **client 방어만으로 P0를 닫지 않는다.** 서버는 여전히 현재 bearer를
+`p_user_id`로 넘긴다. 이 변경은 같은 기기의 계정 전환 창을 좁힐 뿐, 조작된 클라이언트나
+직접 API 호출을 막지 못한다. production NO-GO 판정은 그대로다.
+
 ### P0-3. provenance 없는 private 내용을 공유 note로 저장할 수 있음
 
 **현재 코드 근거**

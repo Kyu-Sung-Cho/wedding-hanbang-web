@@ -27,6 +27,7 @@ import {
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { supabase } from "@/lib/supabase";
+import { assertSharedActionActor } from "@/lib/amoraSharedActionActorFence.mjs";
 import { normalizeMediationBlock } from "@/lib/amoraMediation";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
@@ -1503,9 +1504,13 @@ async function requestAmoraSharedAction(
   actionId: string,
   messageId: string,
   method: AmoraSharedActionMethod,
+  expectedUserId: string | null,
 ): Promise<unknown> {
   const { data } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token;
+  // 누른 사람과 지금 토큰의 주인이 다르면 요청 자체를 보내지 않는다. 응답을 받은 뒤에
+  // 버리는 것으로는 늦다. 그때는 서버가 이미 다른 사람의 승인으로 기록한 뒤다.
+  assertSharedActionActor(expectedUserId, data.session?.user.id);
   if (!accessToken) throw new ChatTransportError("AUTH");
   try {
     return await requestAmoraSharedActionWithToken(
@@ -1523,6 +1528,8 @@ async function requestAmoraSharedAction(
   if (error || !refreshed.session?.access_token) {
     throw new ChatTransportError("AUTH");
   }
+  // 세션 갱신은 다른 계정으로 바뀔 수 있는 지점이므로 같은 사람인지 다시 본다.
+  assertSharedActionActor(expectedUserId, refreshed.session.user.id);
   return requestAmoraSharedActionWithToken(
     actionId,
     messageId,
@@ -1534,8 +1541,9 @@ async function requestAmoraSharedAction(
 async function requestAmoraSharedActionStatus(
   actionId: string,
   messageId: string,
+  expectedUserId: string | null,
 ): Promise<SharedActionApprovalStatus> {
-  const value = await requestAmoraSharedAction(actionId, messageId, "GET");
+  const value = await requestAmoraSharedAction(actionId, messageId, "GET", expectedUserId);
   const status = parseSharedActionApprovalStatus(value);
   if (!status) throw new ChatTransportError("STREAM");
   return status;
@@ -1545,8 +1553,9 @@ async function requestAmoraSharedActionApproval(
   actionId: string,
   messageId: string,
   method: "POST" | "DELETE",
+  expectedUserId: string | null,
 ): Promise<SharedActionApprovalStatus> {
-  const value = await requestAmoraSharedAction(actionId, messageId, method);
+  const value = await requestAmoraSharedAction(actionId, messageId, method, expectedUserId);
   const status = parseSharedActionApprovalStatus(value);
   if (!status) throw new ChatTransportError("STREAM");
   return status;
@@ -1555,8 +1564,9 @@ async function requestAmoraSharedActionApproval(
 async function requestAmoraApplicationClaim(
   actionId: string,
   messageId: string,
+  expectedUserId: string | null,
 ): Promise<SharedActionApplicationClaim> {
-  const value = await requestAmoraSharedAction(actionId, messageId, "PUT");
+  const value = await requestAmoraSharedAction(actionId, messageId, "PUT", expectedUserId);
   const claim = parseSharedActionApplicationClaim(value);
   if (!claim) throw new ChatTransportError("STREAM");
   return claim;
@@ -1742,6 +1752,9 @@ export default function ChatScreen() {
   const hasLinkedPartnerRef = useRef(false);
   const linkedPartnerIdRef = useRef<string | null>(null);
   const chatSessionGenerationRef = useRef(createChatSessionGenerationGuard());
+  // 공동 승인은 "누가 눌렀는가"가 동의의 주체다. 핸들러가 이 값을 동기적으로 읽어
+  // 요청에 실으면, 요청이 나가는 사이 계정이 바뀌어도 fence가 불일치를 잡는다.
+  const sessionUserIdRef = useRef<string | null>(null);
   const sendingRef = useRef(false);
   const safetyHoldLockRef = useRef(false);
   const applyingPendingActionRef = useRef<string | null>(null);
@@ -1886,7 +1899,11 @@ export default function ChatScreen() {
     const loadStatus = async () => {
       if (!active || Date.now() >= expiresAt) return;
       try {
-        const status = await requestAmoraSharedActionStatus(actionId, messageId);
+        const status = await requestAmoraSharedActionStatus(
+          actionId,
+          messageId,
+          sessionUserIdRef.current,
+        );
         if (!active) return;
         setPendingActionApproval((current) => (
           current?.actionId === actionId && current.messageId === messageId
@@ -1960,6 +1977,7 @@ export default function ChatScreen() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!isCurrentGeneration()) return;
+      sessionUserIdRef.current = user?.id ?? null;
       observedAuthUserId = user?.id ?? null;
       if (!user) {
         setInitialLoaded(true);
@@ -2325,6 +2343,8 @@ export default function ChatScreen() {
     void loadChatSession();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextAuthUserId = session?.user.id ?? null;
+      // 아래 early return보다 먼저 갱신한다. 승인 요청이 결박할 대상은 항상 지금 사람이다.
+      sessionUserIdRef.current = nextAuthUserId;
       if (nextAuthUserId === observedAuthUserId) return;
       observedAuthUserId = nextAuthUserId;
       scheduleChatSessionReload();
@@ -2777,6 +2797,7 @@ export default function ChatScreen() {
         const claim = await requestAmoraApplicationClaim(
           draft.confirmedActionId,
           draft.amoraSourceMessageId,
+          sessionUserIdRef.current,
         );
         if (!isCurrentChatSession(draft.sessionGeneration)) return;
         if (!claim.applicationGranted) {
@@ -3268,6 +3289,7 @@ export default function ChatScreen() {
           actionId,
           latestSharedMessage.id,
           "POST",
+          sessionUserIdRef.current,
         );
         if (!isCurrentChatSession(sessionGeneration)) return;
         setPendingActionApproval((current) => (
@@ -3281,6 +3303,7 @@ export default function ChatScreen() {
       const claim = await requestAmoraApplicationClaim(
         actionId,
         latestSharedMessage.id,
+        sessionUserIdRef.current,
       );
       if (!isCurrentChatSession(sessionGeneration)) return;
       if (!claim.applicationGranted) {
@@ -3387,6 +3410,7 @@ export default function ChatScreen() {
         actionId,
         latestSharedMessage.id,
         "DELETE",
+        sessionUserIdRef.current,
       );
       if (!isCurrentChatSession(sessionGeneration)) return;
       setPendingActionApproval((current) => (
