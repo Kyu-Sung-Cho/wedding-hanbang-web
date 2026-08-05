@@ -296,7 +296,7 @@ branch `codex/amora-p0-provider-egress-red`에서 여기까지 했다. 아래 1�
 파일을 다시 실행한 실측은 `providerEgressGate 16 + openai.test 26 +
 auditedOpenAI.test 11 = 53 PASS`였다. 44/60은 인용하지 않는다.
 
-#### 2차 (uncommitted) — 호출부 배선과 gate 필수화
+#### 2차 (commit `df463119`) — 호출부 배선과 gate 필수화
 
 | 항목 | 상태 |
 |---|---|
@@ -358,6 +358,36 @@ epoch·kill-switch를 claim하고 short TTL과 exact content binding을 갖게 �
 
 hosted Supabase, production DB, Vercel production, EAS는 이 작업에서 건드리지 않았고
 증거도 없다. §6 배포 판정은 그대로다.
+
+#### 3차 — gateway 우회 경로 차단
+
+2차까지는 `wrapper를 부르는 호출부가 gate를 넘기는가`를 닫았다. 반대편은 아직 아무도
+막지 않았다. wrapper를 **아예 거치지 않고** SDK에 직접 닿는 경로다. `getOpenAIClient()`는
+export돼 있고, `new OpenAI(...)`나 `fetch("https://api.openai.com/...")`도 어디서든 쓸 수
+있었다. 그렇게 만든 클라이언트 하나면 gate·감사·kill switch를 전부 우회한 채 원문이
+나간다.
+
+| 항목 | 상태 |
+|---|---|
+| 현재 우회 코드 | **0건** — SDK를 실제로 만지는 non-test 파일은 `lib/ai/openai.ts`, `lib/ai/auditedOpenAI.ts` 둘뿐이었다 |
+| 우회 차단 회귀 테스트 | 신규 — `apps/web/src/lib/ai/__tests__/providerSdkAccessFence.test.ts` |
+| gateway 밖 차단 규칙 | `openai` 패키지 **값** import · `getOpenAIClient` 참조 · `new OpenAI(` · `api.openai.com` 직접 요청 |
+| gateway 안 차단 규칙 | Responses 외 SDK 표면(embeddings·moderations·files·chat.completions·beta 등) 사용 금지 — gateway 통합 전까지 fail-closed |
+| 스캐너 자기검증 | 합성 위반 10종이 실제로 검출되는지 함께 고정. 타입 전용 import와 브라우저 File API를 오탐하지 않음도 고정 |
+| RED 실증 | 실제 우회 파일을 임시로 심어 테스트가 **경로와 규칙 2건을 정확히 지목하며 실패**함을 확인한 뒤 제거 |
+
+이 작업은 런타임 동작을 바꾸지 않는다. 현재 우회 코드가 0건이므로 정적 계약만 추가했다.
+막은 것은 `지금 열려 있는 문`이 아니라 `다음에 누군가 열 수 있는 문`이다. 목표
+아키텍처가 요구하는 `모든 SDK 접근을 하나의 audited egress gateway 뒤로`는 이제 두 축
+모두에서 회귀 테스트가 지킨다.
+
+주의: 나머지 SDK endpoint를 **gateway에 통합한 것이 아니라 사용을 막은 것**이다.
+moderation·Files·embedding·tool/search가 실제로 필요해지면 그때 gate 뒤로 통합하고 이
+차단 목록에서 빼야 하며, 목록에서 빼는 변경 자체가 리뷰 대상이다.
+
+**P0-5는 계속 OPEN이고 `AI provider`는 계속 `MUST BE OFF`다.** 다음 최소 단위는 여전히
+배선된 gate가 **DB에서** current principal·scope·privacy epoch·kill-switch를 claim하고
+short TTL과 exact content binding을 갖게 만드는 것이다(상세 handoff §16 카드 E).
 
 ---
 
