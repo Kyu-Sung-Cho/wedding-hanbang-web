@@ -44,6 +44,16 @@ const CONTENT_READERS_NOT_BOUND_FOR_AI = new Map<string, string>([
     "app/api/chat/feedback/route.ts",
     "sender_type='ai'인 아모라 답변에 대한 사용자 피드백 저장. AI 호출이 없다.",
   ],
+  [
+    "app/api/amora/notes/route.ts",
+    // 노트 출처를 클라이언트 문자열이 아니라 서버가 읽은 원본으로 고정하는 경로다.
+    // partner 필터 대신 더 좁은 조건을 쓴다 — `evaluateSavedNoteSource`가
+    // `visibility === "shared"`가 아닌 메시지를 전부 거절하므로(lib/amora/savedNoteSource.ts)
+    // 한쪽의 비공개 발화는 애초에 노트가 될 수 없다. 그리고 저장된 노트는 어떤
+    // 프롬프트에도 주입되지 않는다(lib/ai와 chat 라우트에 참조 0건). 둘 중 하나만
+    // 무너져도 이 면제는 무효이므로, 노트를 AI 문맥에 넣게 되면 여기부터 지운다.
+    "공유(shared) 메시지만 읽어 노트 출처를 서버가 증명한다. 저장된 노트는 모델로 가지 않는다.",
+  ],
 ]);
 
 /** `metadata->>target` (PostgREST) 와 `metadata?.target` (JS) 두 형태를 모두 본다. */

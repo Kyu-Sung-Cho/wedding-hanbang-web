@@ -74,6 +74,9 @@ const mobileRootLayout = readText("apps/mobile/app/_layout.tsx");
 const mobileErrorBoundary = readText("apps/mobile/src/components/ErrorBoundary.tsx");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
 const sharedMobileOAuth = readText("packages/shared/src/utils/mobileOAuth.ts");
+// 스크러버 본체는 웹과 앱이 함께 쓰도록 공유 패키지로 옮겼다. 앱 파일에는 SDK 타입만
+// 남아 있으므로, 규칙이 실제로 있는 곳을 본다.
+const sharedSentryScrub = readText("packages/shared/src/safety/sentryScrub.ts");
 
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
 expect(appConfig.name === expectedAppName, `Expo app name is ${expectedAppName}`);
@@ -470,10 +473,19 @@ expect(
   "Mobile Sentry applies breadcrumb, error, and transaction privacy scrubbers",
 );
 expect(
-  mobileSentryPrivacy.includes("span.data = {}")
-    && mobileSentryPrivacy.includes("event.request = undefined")
-    && mobileSentryPrivacy.includes("event.user = undefined"),
+  sharedSentryScrub.includes("span.data = {}")
+    && sharedSentryScrub.includes("event.request = undefined")
+    && sharedSentryScrub.includes("event.user = undefined"),
   "Mobile Sentry scrubbers remove private span, request, and user payloads",
+);
+// 위 검사가 공유 모듈을 보게 됐으니, 앱이 그 모듈을 실제로 쓰는지도 함께 고정한다.
+// 그러지 않으면 앱이 조용히 자기 구현으로 돌아가도 위 검사는 계속 통과한다.
+expect(
+  mobileSentryPrivacy.includes('from "@hanbang/shared"')
+    && mobileSentryPrivacy.includes("sanitizeSentryBreadcrumb as sanitizeBreadcrumb")
+    && mobileSentryPrivacy.includes("sanitizeSentryEvent as sanitizeEvent")
+    && mobileSentryPrivacy.includes("sanitizeSentryTransaction as sanitizeTransaction"),
+  "Mobile Sentry privacy delegates to the shared scrubber instead of its own copy",
 );
 expect(
   mobileSentry.includes("tracesSampleRate: __DEV__ ? 1.0 : 0.03"),
