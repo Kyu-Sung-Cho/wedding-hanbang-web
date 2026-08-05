@@ -74,6 +74,10 @@ export default function TransformationHero() {
           fill
           priority
           sizes="(min-width: 1024px) 58vw, 100vw"
+          // 이 이미지는 불투명도 20~34%에 불투명 그라디언트까지 덮인 장식 배경이고,
+          // 세로 컨테이너에 object-cover라 원본 폭의 11~24%만 화면에 닿는다.
+          // q75는 그 조건에서 보이지 않는 바이트를 내려받는다 — 태블릿 기준 49.5KB.
+          quality={50}
           className="object-cover object-[62%_center]"
         />
       </div>
@@ -340,7 +344,10 @@ function ConversationToPlanDemo() {
                       이 일정을 추가할까요?
                     </h3>
                   </div>
-                  <span className="rounded-full border border-[#8F6662]/20 bg-white px-2.5 py-1 text-[12px] font-semibold text-[#8F6662]">
+                  {/* nowrap이 없으면 배정 폭이 자연폭(80.1px)에 2.4px 모자라
+                      1024~1920px 전 구간과 320px에서 "전"만 둘째 줄로 떨어지고
+                      알약이 세로로 늘어난 로젠지가 된다. */}
+                  <span className="shrink-0 whitespace-nowrap rounded-full border border-[#8F6662]/20 bg-white px-2.5 py-1 text-[12px] font-semibold text-[#8F6662]">
                     아직 반영 전
                   </span>
                 </div>
