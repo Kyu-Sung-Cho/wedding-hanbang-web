@@ -306,6 +306,30 @@ describe("Amora question-scope ceiling", () => {
     });
   });
 
+  it.each([
+    "예산 3천만원인데 뭐부터 해야 해?",
+    "우리 예산 4천만원인데 스드메까지 될까?",
+    "예산 3000만원이고 아직 아무것도 안 정했어",
+    "예산 상한 4천인데 괜찮을까?",
+  ])("recognizes a budget amount the couple states in passing: %s", (userText) => {
+    // 금액이 붙은 예산 발화는 이미 W0로 인정한다("예산은 3천만 원이야"). 그런데 인정
+    // 조건이 어미 목록이라, 같은 사실을 다르게 말하면 첫 문장부터 되물었다.
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+      confidence: "high",
+      needsClarification: false,
+    });
+  });
+
+  it.each([
+    "여행 예산 3천만원인데 뭐부터 해야 해?",
+    "회사 예산 5천만원인데 어떻게 나눠?",
+  ])("still refuses an amount that belongs to another domain: %s", (userText) => {
+    // 금액을 인정 근거로 넓혔다고 해서 다른 영역의 예산까지 결혼 권한을 얻으면 안 된다.
+    expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
+  });
+
   it("accepts generic state nouns only when the current message carries a wedding signal", () => {
     for (const userText of [
       "웨딩 예산을 정리해줘",

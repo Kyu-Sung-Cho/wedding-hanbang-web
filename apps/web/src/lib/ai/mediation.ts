@@ -18,6 +18,8 @@
  * 파싱 실패해도 절대 throw하지 않음 — fallback은 일반 텍스트 그대로.
  */
 
+import { AMORA_REQUESTER_SUMMARY_MEDIATION } from "@hanbang/shared/mediation-provenance";
+
 export interface MediationBlock {
   empathy?: string;
   translation?: string;
@@ -25,11 +27,9 @@ export interface MediationBlock {
   resolution?: string;
 }
 
-export const AMORA_USER_REQUESTED_MEDIATION_V2 = {
-  origin: "user_requested",
-  evidenceScope: "requester_summary_only",
-  schemaVersion: 2,
-} as const;
+// 표식 자체는 공유 계약에 둔다. 앱도 같은 기준으로 "이 초안이 누구 말인가"를
+// 판별해야 하는데, 각자 갖고 있으면 한쪽만 고쳐진다.
+export const AMORA_USER_REQUESTED_MEDIATION_V2 = AMORA_REQUESTER_SUMMARY_MEDIATION;
 
 export type UserRequestedMediationV2 = Required<MediationBlock>
   & typeof AMORA_USER_REQUESTED_MEDIATION_V2;

@@ -10,13 +10,25 @@ const COUPLE_APPROVAL_TOOLS: ReadonlySet<string> = new Set([
   "update_wedding_date",
   "update_venue",
   "apply_budget_plan",
+  // `log_wedding_event`는 이름이 "기록"이지만 `add_schedule_event`와 **같은 공유 일정
+  // 배열**(`progress.__events`)에 쓴다. 그런데 한 사람 승인이었어서, 같은 결과를 두
+  // 경로로 만들 수 있었고 어느 쪽을 쓸지는 모델이 정했다. 상견례·예식장 방문처럼 둘이
+  // 함께 가는 자리가 합의 없이 공유 캘린더에 박히는데, 지우려면
+  // (`cancel_schedule_event`) 오히려 두 사람 확인이 필요했다 — 넣기는 혼자, 빼기는
+  // 둘이라는 비대칭이었다.
+  //
+  // 이 도구의 입력에는 일정 성격을 담을 자리가 없다(`moment_type`·`date`·`title`·
+  // `memo`뿐이고 DB가 그 키 집합을 엄격히 강제한다). 성격을 모르면 더 조심하는 쪽으로
+  // 간다. 이미 지난 일을 혼자 기록하는 길은 그대로 남아 있다 —
+  // `add_schedule_event`에 `schedule_scope: "confirmed_fact"`를 주면 된다. 그 도구는
+  // 성격을 명시적으로 받고, 성격을 밝힌 요청만 한 사람 승인을 얻는다.
+  "log_wedding_event",
 ]);
 
 const SINGLE_APPROVAL_TOOLS: ReadonlySet<string> = new Set([
   "update_task_status",
   "toggle_checklist_item",
   "add_amora_action",
-  "log_wedding_event",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
