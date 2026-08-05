@@ -52,13 +52,19 @@ export const displayMuted =
  */
 
 /**
+ * 섹션 라벨의 타이포그래피만. 색을 자식 span이 각자 정하는 히어로처럼, 색을
+ * 붙일 수 없는 자리에서 쓴다. 크기·웨이트·자간이 흩어지지 않게 하는 것이 목적이다.
+ */
+export const sectionEyebrowTypography = "text-[12px] font-bold tracking-[0.01em]";
+
+/**
  * 섹션 라벨. 12px(xs)로 내리고 bold로 존재감을 되찾는다.
  * 색은 rose-600이 아니라 rose-700이다 — 12px는 WCAG상 4.5:1이 필요한데
  * rose-600(#8F6662)은 ivory-blush(#F3E9DD) 위에서 4.13:1로 미달했다(실측).
  */
-export const sectionEyebrow = "text-[12px] font-bold tracking-[0.01em] text-rose-700";
+export const sectionEyebrow = `${sectionEyebrowTypography} text-rose-700`;
 /** 어두운 배경 위의 같은 라벨. */
-export const sectionEyebrowOnDark = "text-[12px] font-bold tracking-[0.01em] text-gold-light";
+export const sectionEyebrowOnDark = `${sectionEyebrowTypography} text-gold-light`;
 
 /**
  * 섹션 본문 lede. 이전에는 15→16, 15→17, 16→17, 14→15의 7가지 램프가 섞여 모바일에서

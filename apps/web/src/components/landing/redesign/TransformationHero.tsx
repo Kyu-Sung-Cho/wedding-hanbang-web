@@ -21,7 +21,12 @@ import {
 } from "@/lib/marketing/startHereDateHandoff";
 
 import { landingContent } from "./landingContent";
-import { displayHero, primaryActionMd, secondaryLinkOnDark } from "./landingType";
+import {
+  displayHero,
+  primaryActionMd,
+  secondaryLinkOnDark,
+  sectionEyebrowTypography,
+} from "./landingType";
 
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 const amoraStartHref = "/start-here";
@@ -87,7 +92,7 @@ export default function TransformationHero() {
           <div
             role="group"
             aria-label="웨딩한방과 아모라의 역할"
-            className="flex flex-col gap-2 text-[12px] font-bold tracking-[0.01em] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3"
+            className={`flex flex-col gap-2 ${sectionEyebrowTypography} sm:flex-row sm:flex-wrap sm:items-center sm:gap-3`}
           >
             <span className="inline-flex w-fit items-center gap-2 text-white">
               <span className="h-1.5 w-1.5 rounded-full bg-[#A77B74]" aria-hidden="true" />

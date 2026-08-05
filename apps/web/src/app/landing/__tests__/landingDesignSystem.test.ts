@@ -176,9 +176,45 @@ describe("landing design system", () => {
 
     for (const [file, source] of components) {
       // 밑줄 링크를 레시피 밖에서 다시 조립하지 않는다.
-      const adhoc = [...source.matchAll(/underline decoration-\[#[0-9A-Fa-f]{6}\]/gu)].map((m) => m[0]);
+      // hex 형태(`decoration-[#243832]/25`)만 보던 초기 정규식은 `decoration-white/30`을
+      // 놓쳤고, 실제로 TrustEvidenceSection이 그 사각지대에서 on-dark 링크를 다시
+      // 만들고 있었다. 토큰 이름 형태까지 함께 본다.
+      const adhoc = [
+        ...source.matchAll(/underline decoration-(?:\[#[0-9A-Fa-f]{6}\]|white|black|current)(?:\/\d+)?/gu),
+      ].map((m) => m[0]);
       expect(adhoc, `${file}이 보조 링크를 새로 조립했다`).toEqual([]);
     }
+  });
+
+  it("never re-declares the eyebrow type utilities inline", () => {
+    // 히어로는 색을 자식 span이 각자 정해서 sectionEyebrow(색 포함)를 쓸 수 없다.
+    // 그래도 크기·웨이트·자간은 흩어지면 안 되므로 sectionEyebrowTypography를 쓴다.
+    // 이 검사가 없을 때 실제로 히어로가 세 유틸리티를 그대로 인라인 복제하고 있었다.
+    const type = readFileSync(resolve(DIR, "landingType.ts"), "utf8");
+    expect(type).toMatch(/export const sectionEyebrowTypography\b/u);
+    const trio = /text-\[12px\] font-bold tracking-\[0\.01em\]/u;
+    for (const [file, source] of components) {
+      expect(trio.test(source), `${file}이 eyebrow 타이포를 인라인으로 다시 선언했다`).toBe(false);
+    }
+  });
+
+  it("keeps the closing CTA ahead of the account-beta conditions", () => {
+    // 조건 네 개를 한 덩어리로 버튼 앞에 쌓으면 실측에서 페이지의 마지막 행동이
+    // 접힘선 아래 53px(1280) · 266px(390)로 밀렸다. 지우지 않고 나눈 상태를 고정한다.
+    //  - 이 버튼이 지금 여는 것을 설명하는 조건(0,1)은 버튼 앞 — P6 이용 전 고지.
+    //  - 이 버튼이 열지 않는 계정 베타 조건(2,3)은 버튼 뒤.
+    const closing = components.find(([n]) => n === "ClosingAction.tsx")?.[1] ?? "";
+    const beforeCta = closing.indexOf("startConditions.slice(0, 2)");
+    const ctaIndex = closing.indexOf('source="landing_closing"');
+    const afterCta = closing.indexOf("startConditions.slice(2)");
+
+    expect(beforeCta, "버튼 앞 조건 블록이 없다").toBeGreaterThan(-1);
+    expect(afterCta, "버튼 뒤 조건 블록이 없다").toBeGreaterThan(-1);
+    expect(beforeCta).toBeLessThan(ctaIndex);
+    expect(ctaIndex).toBeLessThan(afterCta);
+
+    // 네 조건이 전부 화면에 남아 있어야 한다. 접근성·고지 의무는 위치가 아니라 존재다.
+    expect(closing).not.toMatch(/startConditions\.slice\(0,\s*1\)/u);
   });
 
   it("never puts a 44px touch target inline inside a paragraph", () => {

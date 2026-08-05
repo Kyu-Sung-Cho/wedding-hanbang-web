@@ -16,7 +16,6 @@ export const landingContent = {
     answer: "둘이 같은 준비를 보고, 지금 할 한 가지를 함께 정하세요.",
   },
   demo: {
-    coupleRoom: "민지 · 현우의 대화방",
     conversation: [
       { speaker: "민지", message: "예산은 3천만 원으로 생각하고 있어." },
       {
@@ -54,7 +53,6 @@ export const landingContent = {
     body: "결혼 준비에는 정답보다 확인할 선택지가 많아요. 아모라는 대신 결정하지 않고, 준비 기록에 반영할 변경을 먼저 보여줘요.",
   },
   community: {
-    eyebrow: "실제 경험이 필요할 때",
     titleLead: "AI만으로 판단하지 않도록,",
     titleAccent: "커뮤니티의 출처 표시 기준을 준비하고 있어요.",
     body: "커뮤니티는 아직 운영 공개 전이에요. 공개할 때 회원 글, 업체 공개 정보, 광고·협찬, AI 답변을 같은 근거처럼 섞지 않고 출처별로 구분할 기준을 검증하고 있어요.",

@@ -7,7 +7,14 @@ import {
 } from "@/lib/price/period";
 
 import { landingContent, trustPromises } from "./landingContent";
-import { displaySection, secondaryLink, sectionEyebrow, sectionLede, sectionRhythm } from "./landingType";
+import {
+  displaySection,
+  secondaryLink,
+  secondaryLinkOnDark,
+  sectionEyebrow,
+  sectionLede,
+  sectionRhythm,
+} from "./landingType";
 
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 
@@ -100,7 +107,7 @@ export default function TrustEvidenceSection({
                 href={DISCLOSURE_SOURCE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center gap-2 text-[14px] font-semibold text-white underline decoration-white/30 underline-offset-4 transition-colors duration-200 hover:text-[#E2D3C8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2D3C8] focus-visible:ring-offset-4 focus-visible:ring-offset-[#243832]"
+                className={`gap-2 ${secondaryLinkOnDark} focus-visible:ring-offset-4 focus-visible:ring-offset-[#243832]`}
               >
                 자료 출처 · 한국소비자원 참가격
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
