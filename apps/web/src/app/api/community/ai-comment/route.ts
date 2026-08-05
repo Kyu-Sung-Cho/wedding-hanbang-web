@@ -182,6 +182,14 @@ export async function POST(req: NextRequest) {
       maxOutputTokens: 300,
       instructions: SYSTEM_PROMPT,
       input: userContent,
+      // 위의 kill switch 검사 뒤에 DB 조회가 두 번 있다. 그 사이에 기능이 꺼질 수
+      // 있으므로 어떤 provider 요청보다 먼저 스위치를 다시 확인한다. 유료 생성
+      // 게이트는 토큰 계산 뒤에 오므로 계산 요청을 막지 못한다.
+      beforeProviderEgress: () => {
+        if (process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED !== "true") {
+          throw new CommunityAiCommentUnavailableError();
+        }
+      },
       beforeGeneration: async () => {
         let reservation;
         try {

@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createOpenAIResponseWithAudit,
-  createOpenAIStructuredResponseWithAudit,
+  createOpenAIResponseWithAudit as rawCreateOpenAIResponseWithAudit,
+  createOpenAIStructuredResponseWithAudit as rawCreateOpenAIStructuredResponseWithAudit,
 } from "../auditedOpenAI";
 import { OpenAIRefusalError } from "../openai";
 import { logAIInteraction } from "@/lib/compliance/ai-log";
@@ -18,6 +18,36 @@ vi.mock("@/lib/compliance/ai-log", async () => {
 });
 
 const logSpy = vi.mocked(logAIInteraction);
+
+type AuditOptions = Parameters<typeof rawCreateOpenAIResponseWithAudit>[0];
+type StructuredAuditOptions<T> = Parameters<
+  typeof rawCreateOpenAIStructuredResponseWithAudit<T>
+>[0];
+
+// 이 파일의 관심사는 count/hook/create 순서와 감사 행 계약이다. P0-5 egress
+// gate는 providerEgressGate.test.ts와 providerEgressCallerContract.test.ts가
+// 고정하므로 여기서는 통과하는 gate를 기본값으로 채운다.
+function createOpenAIResponseWithAudit(
+  options: Omit<AuditOptions, "beforeProviderEgress"> & {
+    beforeProviderEgress?: AuditOptions["beforeProviderEgress"];
+  },
+) {
+  return rawCreateOpenAIResponseWithAudit({
+    beforeProviderEgress: () => {},
+    ...options,
+  });
+}
+
+function createOpenAIStructuredResponseWithAudit<T>(
+  options: Omit<StructuredAuditOptions<T>, "beforeProviderEgress"> & {
+    beforeProviderEgress?: StructuredAuditOptions<T>["beforeProviderEgress"];
+  },
+) {
+  return rawCreateOpenAIStructuredResponseWithAudit<T>({
+    beforeProviderEgress: () => {},
+    ...options,
+  });
+}
 
 function apiResult<T>(data: T, requestId = "req_audit") {
   return {

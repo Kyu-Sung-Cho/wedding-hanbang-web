@@ -10,12 +10,16 @@ import {
 type ChatWithToolsOptions = Parameters<typeof rawChatWithToolsStream>[0];
 
 function chatWithToolsStream(
-  options: Omit<ChatWithToolsOptions, "maxInputTokens"> & {
+  options: Omit<ChatWithToolsOptions, "maxInputTokens" | "beforeProviderEgress"> & {
     maxInputTokens?: number;
+    beforeProviderEgress?: ChatWithToolsOptions["beforeProviderEgress"];
   },
 ) {
   return rawChatWithToolsStream({
     maxInputTokens: 64_000,
+    // 이 파일은 Responses API 경계 계약만 다룬다. P0-5 egress gate는 전용
+    // 테스트가 고정한다.
+    beforeProviderEgress: () => {},
     ...options,
   });
 }

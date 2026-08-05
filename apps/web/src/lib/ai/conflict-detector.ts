@@ -372,6 +372,8 @@ export function validateConflictVerification(value: unknown): ConflictVerificati
 async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
   options: {
+    /** Required gate ahead of every provider request, token counting included. */
+    beforeProviderEgress: () => void | Promise<void>;
     reserveProviderTurn?: () => Promise<boolean>;
     runProviderCall?: ConflictVerificationProviderRunner;
   },
@@ -416,6 +418,9 @@ async function verifyWithLLM(
       modelRole: "fast",
       maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 100,
+      // 갈등 판정 입력은 두 사람의 대화 원문이다. 토큰 계산 요청에도 그대로
+      // 실리므로 유료 생성 게이트보다 앞선 gate가 따로 필요하다.
+      beforeProviderEgress: options.beforeProviderEgress,
       beforeGeneration,
       auditPersistence: options.runProviderCall
         ? "external_provider_receipt"
@@ -492,6 +497,11 @@ export async function detectCoupleConflict(params: {
   pastConflicts: PastConflictSummary[];
   /** 최대 윈도우 (분) — 이 시간 이전 메시지는 무시. 기본 5분 */
   windowMinutes?: number;
+  /**
+   * Required privacy/kill-switch gate that runs before ANY content-bearing
+   * provider request for this detection, token counting included.
+   */
+  beforeProviderEgress: () => void | Promise<void>;
   /** 첫 provider 호출 직전 한 번만 실행되고 이후 호출에서 재사용되는 원자 예약. */
   reserveProviderTurn?: () => Promise<boolean>;
   /** Durable per-provider receipt wrapper used by production callers. */
@@ -589,6 +599,7 @@ export async function detectCoupleConflict(params: {
         })
     : undefined;
   const llm = await verifyWithLLM(coupleMessages, {
+    beforeProviderEgress: params.beforeProviderEgress,
     reserveProviderTurn: params.reserveProviderTurn,
     runProviderCall,
   }, {

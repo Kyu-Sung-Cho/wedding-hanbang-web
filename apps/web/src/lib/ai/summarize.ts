@@ -83,6 +83,9 @@ async function generateSummary(
       modelRole: "fast",
       maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 200,
+      // 이 경로는 꺼져 있다. 차단이 토큰 계산 뒤에만 걸리면 "꺼짐"인데도 대화
+      // 원문이 이미 제공자에 도달한다. 어떤 provider 요청보다 먼저 막는다.
+      beforeProviderEgress: blockLegacyAuxiliaryProviderGeneration,
       beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: SUMMARY_SYSTEM_PROMPT,
       input: formattedConversation,

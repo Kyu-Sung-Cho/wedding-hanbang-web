@@ -201,10 +201,15 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 
 ---
 
-## 7. 가장 안전한 첫 작업: P0-5 RED test-only
+## 7. 첫 작업이었던 P0-5 provider egress gate
+
+> **「작업 브랜치 경계」부터 「첫 RED 계약」까지는 2026-08-04 시작 시점의 지시와 문제
+> 서술이며 이미 수행됐다. 현재 사실은 이 절 끝의 「2026-08-05 진행 상태」를 먼저
+> 읽는다.** RED 테스트도 SDK gate도 호출부 배선도 이미 존재하므로 같은 작업을 다시
+> 만들지 않는다.
 
 새 기능부터 만들지 않는다. 첫 독립 작업은 AI provider로 원문이 나가기 전에 모든
-application privacy gate가 성공해야 한다는 실패 테스트다.
+application privacy gate가 성공해야 한다는 실패 테스트였다.
 
 ### 작업 브랜치 경계
 
@@ -219,24 +224,33 @@ git switch -c codex/amora-p0-provider-egress-red
 
 같은 branch 이름이 이미 있으면 현재 작업을 설명하는 고유한 `codex/` 이름을 사용한다.
 
-### 현재 문제
+### 당시 문제 (해소됨 — 아래 진행 상태 참조)
 
-`apps/web/src/lib/ai/openai.ts`는 현재 전체 `systemPrompt`와 `input`을
-`client.responses.inputTokens.count()`에 보낸 뒤 `beforeGeneration()`을 실행한다. 생성
-요청을 막아도 token-count 요청에서 원문이 먼저 provider로 나갈 수 있다.
+`apps/web/src/lib/ai/openai.ts`는 전체 `systemPrompt`와 `input`을
+`client.responses.inputTokens.count()`에 보낸 뒤 `beforeGeneration()`을 실행했다. 생성
+요청을 막아도 token-count 요청에서 원문이 먼저 provider로 나갈 수 있었다.
+
+`beforeGeneration()`은 유료 생성 직전의 원자적 quota 예약 게이트다. 개인정보·감사
+게이트가 아니며, count보다 뒤에 있으므로 count 자체를 보호할 수 없다. 두 게이트는
+역할이 다르므로 하나로 합치지 않는다. **이 분리는 지금도 유효한 설계 규칙이다** —
+현재 코드는 `beforeProviderEgress`(개인정보·kill-switch, 모든 provider 요청보다 앞)와
+`beforeGeneration`(유료 생성 직전 quota 예약, count 뒤)을 별도로 유지한다.
 
 ### 먼저 읽을 파일
 
 - `apps/web/src/lib/ai/openai.ts`
 - `apps/web/src/lib/ai/auditedOpenAI.ts`
+- `apps/web/src/lib/ai/__tests__/providerEgressGate.test.ts` — SDK 경계 gate 계약
+- `apps/web/src/lib/ai/__tests__/providerEgressCallerContract.test.ts` — 호출부 계약
 - `apps/web/src/lib/ai/__tests__/openai.test.ts`
 - `apps/web/src/lib/ai/__tests__/auditedOpenAI.test.ts`
 - 상세 handoff §8의 P0-5
 - 목표 아키텍처의 provider all-egress gate 부분
 
-### 첫 RED 계약
+### 첫 RED 계약 (충족됨)
 
-다음 조건을 검증하는 test-only 변경을 먼저 만든다.
+다음 조건을 검증하는 test-only 변경을 먼저 만들라는 지시였고, 네 조건 모두
+`providerEgressGate.test.ts`가 고정하고 있다.
 
 1. provider egress gate가 실패하면 `responses.inputTokens.count` 호출은 0회다.
 2. 같은 경우 `responses.create` 호출도 0회다.
@@ -244,20 +258,136 @@ git switch -c codex/amora-p0-provider-egress-red
    않는다.
 4. 실제 이름·대화 대신 synthetic marker만 쓴다.
 
-현재 `openai.test.ts`에는 `count → beforeGeneration → create` 순서를 정상 계약으로 고정한
-테스트가 있다. 이 테스트를 무심코 삭제하지 말고, privacy gate와 quota/generation gate의
-역할을 어떻게 분리할지 상세 설계와 함께 명시한다.
+`openai.test.ts`의 `count → beforeGeneration → create` 순서 테스트는 삭제하지 않았다.
+gate가 통과한 뒤의 순서 계약으로 그대로 유지되고, 그 앞에 egress gate가 추가됐다.
+`providerEgressGate.test.ts`에 있던 "gate를 넘기지 않으면 기존 순서가 유지된다" 두
+테스트는 gate 필수화에 맞춰 "gate를 넘기지 않으면 provider 요청 0회로 fail-closed"로
+바뀌었다. 이유는 그 optional 계약 자체가 P0-5의 구멍이었기 때문이다.
 
 표적 명령:
 
 ```powershell
 corepack pnpm --filter @hanbang/web exec vitest run `
+  src/lib/ai/__tests__/providerEgressGate.test.ts `
+  src/lib/ai/__tests__/providerEgressCallerContract.test.ts `
   src/lib/ai/__tests__/openai.test.ts `
   src/lib/ai/__tests__/auditedOpenAI.test.ts
 ```
 
-첫 산출물은 현재 코드에서 정확히 실패하는 RED 증거와 최소 변경 설계다. Product code 수정은
-RED가 의도한 실패인지 확인한 뒤 별도 논리 단위로 진행한다.
+2026-08-05 실측: 위 4개 파일 `18 + 15 + 26 + 11 = 70 PASS`.
+
+### 2026-08-05 진행 상태 — P0-5는 여전히 OPEN
+
+branch `codex/amora-p0-provider-egress-red`에서 여기까지 했다. 아래 1차 기록은 base
+`5b33c95b` 기준이고, 2차 기록은 그 위 commit `b31194b9`(= 현재 원격
+`origin/codex/amora-p0-provider-egress-red`) 위의 **uncommitted 작업 트리** 기준이다.
+숫자는 모두 실제 실행 결과이며, 커밋되지 않은 변경은 그렇게 표시한다.
+
+#### 1차 (commit `b31194b9`까지) — SDK 경계 계약
+
+| 항목 | 상태 |
+|---|---|
+| RED 테스트 작성 | 완료 — `apps/web/src/lib/ai/__tests__/providerEgressGate.test.ts` |
+| 현재 코드에서 RED 재현 | 완료 — 당시 16개 중 13개가 exact invariant mismatch로 실패(당시 기록) |
+| SDK 경계의 egress gate 계약 | 구현 — `beforeProviderEgress`가 `inputTokens.count`보다 먼저 실행 |
+| 호출부 배선 | 미완 — gate가 optional이라 production 호출부 0곳이 gate를 넘김 |
+
+1차 기록의 `표적 GREEN | 신규 16 + 기존 44 = 60 PASS`는 기존 개수가 틀렸다. 같은 3개
+파일을 다시 실행한 실측은 `providerEgressGate 16 + openai.test 26 +
+auditedOpenAI.test 11 = 53 PASS`였다. 44/60은 인용하지 않는다.
+
+#### 2차 (commit `df463119`) — 호출부 배선과 gate 필수화
+
+| 항목 | 상태 |
+|---|---|
+| **egress gate 필수화** | **완료 — optional → required. 타입과 런타임 모두에서 gate 없는 호출은 provider 요청 0회로 fail-closed** |
+| **production 호출부 배선** | **완료 — 9개 파일 10곳 전부 gate 통과(아래 목록)** |
+| 호출부 계약 회귀 테스트 | 신규 — `apps/web/src/lib/ai/__tests__/providerEgressCallerContract.test.ts`. `src` 전체를 정적 스캔해 gate를 넘기지 않는 호출부가 하나라도 생기면 실패한다 |
+| 배선 전 RED 재현 | 완료 — 신규 파일 15개 중 13개 실패(호출부 10 + SDK fail-closed 3) |
+| DB claim·capability·kill-switch·TTL·content binding | 미구현 |
+| 응답 commit 시 scope/epoch 재검증 | 미구현 |
+| moderation·Files·embedding·tool/search 등 나머지 SDK endpoint | 미구현 |
+| hosted network sink 증거 | 없음 |
+| hosted 두 계정·두 기기 증거 | 없음 |
+
+배선한 wrapper 호출부 10곳(9개 파일)과 각각의 gate. `lib/ai`의 두 라이브러리 모듈은
+gate를 인자로 받아 운영 라우트가 주입한다.
+
+| wrapper 호출부 | gate |
+|---|---|
+| `app/api/chat/route.ts` (tool round) | `assertPrivacyContextStillCurrent` |
+| `app/api/chat/route.ts` (final no-tool) | `assertPrivacyContextStillCurrent` |
+| `app/api/chat/check-couple-conflict/route.ts` | `assertPrivacyEpochStillCurrent` |
+| `app/api/community/ai-comment/route.ts` | `AMORA_COMMUNITY_AI_COMMENT_ENABLED` 재확인 |
+| `lib/ai/conflict-detector.ts` | 주입 — 운영 경로는 `check-couple-conflict/route.ts`의 `assertPrivacyEpochStillCurrent` |
+| `lib/ai/amoraMemoryCompiler.ts` | 주입 — 운영 경로는 `app/api/cron/amora-memory/route.ts`의 `assertAmoraMemoryProviderBudget` |
+| `lib/ai/summarize.ts` | `blockLegacyAuxiliaryProviderGeneration` |
+| `lib/ai/extract-decision.ts` | `blockLegacyAuxiliaryProviderGeneration` |
+| `lib/ai/classify-excavation.ts` | `blockLegacyAuxiliaryProviderGeneration` |
+| `lib/ai/amora-profile.ts` | `blockLegacyAuxiliaryProviderGeneration` |
+
+배선 전 실제로 열려 있던 것: `check-couple-conflict`는 커플 갈등 대화 원문을,
+legacy auxiliary 4개 모듈은 **꺼짐 스위치가 토큰 계산 뒤에 던지는 구조**라 "기능이
+꺼져 있다"는데도 대화 원문이 `inputTokens.count`로 먼저 나갔다. `chat/route.ts` 2곳만
+호출 직전 수동 assert로 보호돼 있었고, 그것은 계약이 아니라 호출 순서 관례였다.
+
+`beforeProviderEgress`는 더 이상 optional이 아니다. 넘기지 않은 호출부는 타입 검사에서
+막히고, 런타임에서도 provider 요청 0회로 거부한다. 따라서 **현재 코드의 알려진 호출부
+원문 반출 경로는 닫혔다.**
+
+그래도 **P0-5는 OPEN이고 `AI provider`는 계속 `MUST BE OFF`다.** 이 gate는 아직
+in-memory 검사일 뿐이고, 상세 handoff §8 P0-5의 영구 수정이 요구하는 DB current
+principal·scope·privacy epoch·retention/provider policy·audit reservation·kill-switch
+claim, short TTL, exact content binding, 응답 commit 시 재검증, 나머지 SDK endpoint
+통합, hosted 증거가 모두 없다. 이 진행을 P0-5 종료로 인용하지 않는다.
+
+다음 최소 단위는 배선된 gate가 **DB에서** current principal·scope·privacy
+epoch·kill-switch를 claim하고 short TTL과 exact content binding을 갖게 만드는 것이다.
+상세 handoff §16 카드 E를 따른다.
+
+#### 2차 작업에서 실제로 실행한 검증
+
+| 명령 | 결과 |
+|---|---|
+| `vitest run` (apps/web 전체) | 591 files / 5,853 tests PASS |
+| `tsc --noEmit` (apps/web) | PASS |
+| `eslint` (변경 영역) | PASS |
+| `node --test scripts/tests/repository-handoff-docs.test.mjs` | 8/8 PASS |
+| `supabase:release:test` | 189/189 PASS |
+| `supabase:release:fence` | PASS — `deployment_blocked` manifest를 정확히 검증한 성공이며 배포 승인이 아니다 |
+
+hosted Supabase, production DB, Vercel production, EAS는 이 작업에서 건드리지 않았고
+증거도 없다. §6 배포 판정은 그대로다.
+
+#### 3차 — gateway 우회 경로 차단
+
+2차까지는 `wrapper를 부르는 호출부가 gate를 넘기는가`를 닫았다. 반대편은 아직 아무도
+막지 않았다. wrapper를 **아예 거치지 않고** SDK에 직접 닿는 경로다. `getOpenAIClient()`는
+export돼 있고, `new OpenAI(...)`나 `fetch("https://api.openai.com/...")`도 어디서든 쓸 수
+있었다. 그렇게 만든 클라이언트 하나면 gate·감사·kill switch를 전부 우회한 채 원문이
+나간다.
+
+| 항목 | 상태 |
+|---|---|
+| 현재 우회 코드 | **0건** — SDK를 실제로 만지는 non-test 파일은 `lib/ai/openai.ts`, `lib/ai/auditedOpenAI.ts` 둘뿐이었다 |
+| 우회 차단 회귀 테스트 | 신규 — `apps/web/src/lib/ai/__tests__/providerSdkAccessFence.test.ts` |
+| gateway 밖 차단 규칙 | `openai` 패키지 **값** import · `getOpenAIClient` 참조 · `new OpenAI(` · `api.openai.com` 직접 요청 |
+| gateway 안 차단 규칙 | Responses 외 SDK 표면(embeddings·moderations·files·chat.completions·beta 등) 사용 금지 — gateway 통합 전까지 fail-closed |
+| 스캐너 자기검증 | 합성 위반 10종이 실제로 검출되는지 함께 고정. 타입 전용 import와 브라우저 File API를 오탐하지 않음도 고정 |
+| RED 실증 | 실제 우회 파일을 임시로 심어 테스트가 **경로와 규칙 2건을 정확히 지목하며 실패**함을 확인한 뒤 제거 |
+
+이 작업은 런타임 동작을 바꾸지 않는다. 현재 우회 코드가 0건이므로 정적 계약만 추가했다.
+막은 것은 `지금 열려 있는 문`이 아니라 `다음에 누군가 열 수 있는 문`이다. 목표
+아키텍처가 요구하는 `모든 SDK 접근을 하나의 audited egress gateway 뒤로`는 이제 두 축
+모두에서 회귀 테스트가 지킨다.
+
+주의: 나머지 SDK endpoint를 **gateway에 통합한 것이 아니라 사용을 막은 것**이다.
+moderation·Files·embedding·tool/search가 실제로 필요해지면 그때 gate 뒤로 통합하고 이
+차단 목록에서 빼야 하며, 목록에서 빼는 변경 자체가 리뷰 대상이다.
+
+**P0-5는 계속 OPEN이고 `AI provider`는 계속 `MUST BE OFF`다.** 다음 최소 단위는 여전히
+배선된 gate가 **DB에서** current principal·scope·privacy epoch·kill-switch를 claim하고
+short TTL과 exact content binding을 갖게 만드는 것이다(상세 handoff §16 카드 E).
 
 ---
 
@@ -265,7 +395,10 @@ RED가 의도한 실패인지 확인한 뒤 별도 논리 단위로 진행한다
 
 상세 공격 순서·코드 줄·필수 테스트·종료 영수증은 상세 handoff §8을 그대로 따른다.
 
-1. P0-5: 최종 privacy gate 전 OpenAI token-count 원문 반출
+1. P0-5: 최종 privacy gate 전 OpenAI token-count 원문 반출 — **OPEN**. SDK 경계 gate가
+   필수화됐고 production 호출부 10곳이 모두 배선돼 알려진 원문 반출 경로는 닫혔지만,
+   DB claim·TTL·content binding·응답 commit 재검증·나머지 SDK endpoint·hosted 증거가
+   없다(§7 진행 상태).
 2. P0-4: A의 늦은 Memory 응답이 계정 전환 뒤 B 화면에 적용될 가능성
 3. P0-3: provenance 없는 임의/private-derived 내용을 shared note로 저장할 가능성
 4. P0-1: A의 모바일 개인 초안이 계정 전환 뒤 B bearer로 저장될 가능성
@@ -336,8 +469,10 @@ corepack pnpm supabase:release:fence
    docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md를 읽으세요.
 4. 현재 판정은 Production NO-GO입니다. Production DB write/migration, Vercel Production,
    EAS Production, 실제 사용자 데이터 QA, Memory/push/media/provider 활성화를 하지 마세요.
-5. 먼저 P0-5의 provider all-egress RED 테스트만 synthetic marker로 작성하세요.
-   provider gate 실패 시 inputTokens.count와 responses.create가 모두 0회여야 합니다.
+5. P0-5의 provider all-egress RED 테스트와 SDK gate, 호출부 10곳 배선은 이미 있습니다
+   (§7 「2026-08-05 진행 상태」). 다시 만들지 말고 먼저 그 테스트를 실행해 현재 GREEN인지
+   확인한 다음, 배선된 gate가 DB에서 current principal·scope·privacy epoch·kill-switch를
+   claim하고 short TTL과 exact content binding을 갖게 만드는 것을 다음 최소 단위로 잡으세요.
 6. product code를 바꾸기 전에 현재 HEAD, dirty 파일, 확인한 근거, 변경할 파일, 표적 테스트,
    중단 조건을 보고하세요.
 7. 완료 보고에는 직접 확인한 사실, 코드 기반 추론, 미확인 외부 증거를 분리하고 실제로

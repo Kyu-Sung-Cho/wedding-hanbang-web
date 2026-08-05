@@ -154,6 +154,9 @@ async function classifyWithOpenAI(
       modelRole: "fast",
       maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 200,
+      // 꺼진 경로의 차단은 토큰 계산보다 먼저 걸려야 한다. 계산 요청도 대화
+      // 원문을 그대로 제공자에 보낸다.
+      beforeProviderEgress: blockLegacyAuxiliaryProviderGeneration,
       beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: CLASSIFY_SYSTEM_PROMPT,
       input: conversation,

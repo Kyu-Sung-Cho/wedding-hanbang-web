@@ -523,6 +523,12 @@ export async function compileAmoraMemory(input: {
   userId?: string | null;
   visibility: AmoraMemoryVisibility;
   messages: MemoryCompilerMessage[];
+  /**
+   * Required gate ahead of every content-bearing provider request, token
+   * counting included. `beforeGeneration` runs after counting and therefore
+   * cannot keep the conversation out of the count request.
+   */
+  beforeProviderEgress: () => void | Promise<void>;
   /** Atomic provider-budget gate, executed after exact token counting. */
   beforeGeneration: () => void | Promise<void>;
 }): Promise<AmoraMemoryCompilation> {
@@ -547,6 +553,7 @@ export async function compileAmoraMemory(input: {
     modelRole: "fast",
     maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
     maxOutputTokens: 800,
+    beforeProviderEgress: input.beforeProviderEgress,
     beforeGeneration: input.beforeGeneration,
     instructions: COMPILER_PROMPT,
     input: batch.input,
