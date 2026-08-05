@@ -1,8 +1,7 @@
 // @vitest-environment node
 
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
 const appRoot = resolve(process.cwd());
@@ -49,15 +48,43 @@ describe("hero image performance budget", () => {
     expect(source).not.toContain("amora-hero-bouquet-custom");
   });
 
-  it("serves the landing social preview as a production-sized WebP", async () => {
-    expect(statSync(landingSocialCard).size).toBeLessThanOrEqual(350 * 1024);
+  it("generates the landing social card from the page's own copy", () => {
+    // 이전에는 정적 webp였고, 거기 "축하의 온도와 기준의 정밀함"이 구워져 있었다.
+    // P5가 금지하는 정확성 보장 표현인데 이미지라서 어떤 카피 검사도 통과하지 않고
+    // 남아 있었다. 카드를 생성물로 바꾸고, 문구 출처를 페이지와 하나로 묶는다.
+    const card = readFileSync(resolve(appRoot, "src/app/landing/opengraph-image.tsx"), "utf8");
 
-    const metadata = await sharp(landingSocialCard).metadata();
-    expect(metadata.width).toBe(1200);
-    expect(metadata.height).toBe(630);
+    expect(card).toContain("size = { width: 1200, height: 630 }");
+    expect(card).toContain('contentType = "image/png"');
+    // satori는 woff2를 읽지 못한다. ttf가 아니면 렌더가 통째로 실패한다.
+    expect(card).toContain("Paperlogy-7Bold.ttf");
 
-    const source = readFileSync(resolve(appRoot, "src/app/landing/page.tsx"), "utf8");
-    expect(source).toContain('url: "/images/landing-social-card.webp"');
-    expect(source).toContain('images: ["/images/landing-social-card.webp"]');
+    // 카드 문구는 반드시 페이지와 같은 출처에서 온다 — 하드코딩하면 다시 갈라진다.
+    expect(card).toContain("landingContent");
+    expect(card).toContain("landingContent.hero.title");
+    expect(card).toContain("landingContent.hero.body");
+
+    // page.tsx가 images를 명시하면 파일 규약이 덮여 옛 카드가 되살아난다.
+    const page = readFileSync(resolve(appRoot, "src/app/landing/page.tsx"), "utf8");
+    expect(page).not.toMatch(/images:\s*\[/u);
+    expect(page).not.toContain("landing-social-card");
+  });
+
+  it("no longer ships the retired card or the claim baked into it", () => {
+    expect(existsSync(landingSocialCard), "P5 위반 문구가 구워진 카드가 남아 있다").toBe(false);
+
+    // 주석은 벗기고 본다 — 왜 지웠는지 설명하려면 그 문구를 인용해야 하는데,
+    // 자기 설명에 걸려 넘어지는 가드는 가드가 아니다. 실제 렌더에 닿는 코드만 본다.
+    const stripComments = (source: string) =>
+      source.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^[\t ]*\/\/.*$/gmu, "");
+
+    for (const file of [
+      "src/app/landing/page.tsx",
+      "src/app/landing/opengraph-image.tsx",
+      "src/components/landing/redesign/landingContent.ts",
+    ]) {
+      const source = stripComments(readFileSync(resolve(appRoot, file), "utf8"));
+      expect(source, `${file}에 금지된 정밀함 주장이 있다`).not.toContain("기준의 정밀함");
+    }
   });
 });

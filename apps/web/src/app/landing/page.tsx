@@ -31,32 +31,19 @@ export function generateMetadata(): Metadata {
     title,
     description,
     alternates: { canonical: "/landing" },
+    // openGraph.images / twitter.images를 여기 적지 않는다. 같은 폴더의
+    // `opengraph-image.tsx`가 파일 규약으로 카드를 만들고, 여기서 images를
+    // 명시하면 그 규약이 덮인다(start-here도 같은 방식).
     openGraph: {
       title,
       description,
       url: "/landing",
       type: "website",
-      images: [
-        {
-          url: "/images/landing-social-card.webp",
-          width: 1200,
-          height: 630,
-          // alt는 실제 이미지를 설명해야 한다. 이전 alt("둘이 나눈 대화를 예산,
-          // 할 일, 일정으로 정리하는 웨딩한방")는 존재하지 않는 그림을 묘사했다 —
-          // 실제 카드는 손을 맞잡고 걸어가는 두 사람 사진이다.
-          // TODO(카드 교체 필요): 이 이미지에 박힌 문구 "축하의 온도와 기준의 정밀함"은
-          // PRINCIPLES.md P5가 금지하는 정확성 보장 표현이고, 헤드라인
-          // "우리, 정말 결혼하는구나."도 현재 랜딩의 기능적 약속과 다른 이전 방향이다.
-          // 이미지 자체를 바꾸기 전에는 alt가 그 문구를 되풀이하지 않는다.
-          alt: "손을 맞잡고 예식장으로 걸어가는 두 사람 — 웨딩한방 소개 카드",
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: ["/images/landing-social-card.webp"],
     },
   };
 }
