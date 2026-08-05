@@ -1,61 +1,20 @@
+// 규칙 본체는 `@hanbang/shared`에 있다. 웹과 모바일이 서로 다른 Sentry SDK를 쓰지만
+// 개인정보를 지우는 기준은 하나여야 한다. 여기서는 SDK 타입만 얹는다.
 import type { Breadcrumb, ErrorEvent, TransactionEvent } from "@sentry/react-native";
-
-const REDACTED = "[redacted]";
-
-function redactText(value: string | undefined): string | undefined {
-  if (!value) return value;
-
-  return value
-    .replace(/https?:\/\/\S+/gi, "[url]")
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, REDACTED)
-    .replace(/(?:\+?82[-.\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g, REDACTED)
-    .replace(/\b\d{6}-?[1-4]\d{6}\b/g, REDACTED)
-    .replace(/\b(?:Bearer\s+)?[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{12,}(?:\.[A-Za-z0-9_-]{12,})?\b/g, REDACTED)
-    .replace(/\b(?:sk|sbp|sntrys)_[A-Za-z0-9_-]{16,}\b/g, REDACTED);
-}
-
-function removeCommonPrivateFields<T extends ErrorEvent | TransactionEvent>(event: T): T {
-  event.user = undefined;
-  event.request = undefined;
-  event.extra = undefined;
-  event.message = redactText(event.message);
-  event.transaction = redactText(event.transaction);
-  event.breadcrumbs = event.breadcrumbs
-    ?.map(sanitizeSentryBreadcrumb)
-    .filter((breadcrumb): breadcrumb is Breadcrumb => breadcrumb !== null);
-  return event;
-}
+import {
+  sanitizeSentryBreadcrumb as sanitizeBreadcrumb,
+  sanitizeSentryEvent as sanitizeEvent,
+  sanitizeSentryTransaction as sanitizeTransaction,
+} from "@hanbang/shared";
 
 export function sanitizeSentryBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
-  return {
-    ...breadcrumb,
-    message: redactText(breadcrumb.message),
-    data: undefined,
-  };
+  return sanitizeBreadcrumb(breadcrumb as never) as Breadcrumb;
 }
 
 export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
-  removeCommonPrivateFields(event);
-
-  if (event.logentry) {
-    event.logentry.message = redactText(event.logentry.message) ?? REDACTED;
-    event.logentry.params = undefined;
-  }
-
-  for (const exception of event.exception?.values ?? []) {
-    exception.value = redactText(exception.value);
-  }
-
-  return event;
+  return sanitizeEvent(event as never) as ErrorEvent;
 }
 
 export function sanitizeSentryTransaction(event: TransactionEvent): TransactionEvent {
-  removeCommonPrivateFields(event);
-
-  for (const span of event.spans ?? []) {
-    span.description = redactText(span.description);
-    span.data = {};
-  }
-
-  return event;
+  return sanitizeTransaction(event as never) as TransactionEvent;
 }

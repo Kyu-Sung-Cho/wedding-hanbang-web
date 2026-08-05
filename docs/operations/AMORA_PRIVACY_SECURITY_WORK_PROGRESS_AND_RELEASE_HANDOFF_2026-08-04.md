@@ -912,7 +912,7 @@ DB transaction, active RLS, old-client 차단, hosted A/B 공격시험이 함께
 | P1-05 | authenticated direct `chat_messages` INSERT policy가 active 경로에 남음 | Wave B hosted apply + fleet cutover + direct path 0 증명 |
 | P1-06 | attachment와 message가 원자 결합되지 않아 orphan 가능 | Wave C saga runtime, sweeper, receipt |
 | P1-07 | 발급된 signed URL은 권한 변화와 동시에 자동 취소되지 않음 | 짧은 TTL·auth streaming proxy·revocation strategy |
-| P1-08 | web Sentry에 mobile과 같은 중앙 원문 scrubber가 없음 | allowlist-only scrubber와 canary |
+| P1-08 | ~~web Sentry에 mobile과 같은 중앙 원문 scrubber가 없음~~ → **2026-08-05 배선 완료**(§9.4). canary는 아직 없음 | production canary로 원문 0 증명 |
 | P1-09 | 함께 대화 `새로 시작`은 원문 삭제가 아니라 cursor 이동 | UI 카피 정정, 삭제와 숨김 분리 |
 | P1-10 | current-membership fence의 hosted 적용·동일성이 미증명 | exact remote ledger와 두 계정 RLS receipt |
 | P1-11 | private AI 사용량이 couple quota/remaining 변화로 추론될 수 있음 | private metadata와 shared quota 분리 |
@@ -923,6 +923,40 @@ DB transaction, active RLS, old-client 차단, hosted A/B 공격시험이 함께
 | P1-16 | 공개 demo에서 private draft가 shared composer에 남는 회귀가 재현됨 | exact deployment SHA에서 routing 회귀 0 |
 | P1-17 | OpenAI 운영 org/project의 ZDR/MAM·region·DPA·삭제 계약 미증명 | 공식 계약·설정 evidence 또는 provider feature off |
 | P1-18 | web SHA, mobile build, DB, Storage, provider가 하나의 receipt에 안 묶임 | 통합 immutable release receipt |
+
+### 9.4 2026-08-05 — P1-08 web Sentry 원문 scrubber 배선
+
+branch `codex/amora-p108-web-sentry-scrub-20260805`(base `5b33c95b`).
+
+**확인한 사실**
+
+- 웹 `sentry.server.config.ts`, `sentry.edge.config.ts`,
+  `src/instrumentation-client.ts` **세 곳 모두 `beforeSend`가 없었다.** 필터가 부분적으로
+  약한 것이 아니라 아예 없었다.
+- 공용 로거 `utils/log.ts`는 `extra: { msg, payload: err }`로 **임의 payload를 통째로**
+  올린다. 호출자가 대화·개인정보·토큰을 담으면 그대로 나간다.
+- 모바일에는 이미 scrubber가 있었다. 즉 도구가 없던 것이 아니라 웹만 쓰지 않았다.
+
+**한 일**
+
+- 규칙을 `packages/shared/src/safety/sentryScrub.ts`로 올렸다. 웹·모바일이 서로 다른
+  Sentry SDK를 쓰므로 SDK 타입에 묶이지 않는 구조적 타입만 사용한다. **복사하지 않았다** —
+  규칙이 두 벌이면 한쪽만 고쳐진다(P0-1/P0-2에서 확인한 패턴).
+- 모바일 `sentryPrivacy.ts`는 SDK 타입만 얹는 얇은 어댑터가 됐다.
+- 웹 세 진입점에 `beforeSend`·`beforeSendTransaction`·`beforeBreadcrumb`를 배선했다.
+- 기존 모바일 scrubber 테스트가 동적 import 방식이라 깨졌다. 삭제하지 않고 **검증 대상을
+  공유 모듈로 옮겨** 원래 검증 내용을 유지했다.
+
+**실제 방어선**
+
+`extra`·`user`·`request`·breadcrumb `data`를 **통째로 버린다.** 이메일·전화·주민등록번호·
+JWT·API key는 마스킹한다. 마스킹은 임의 문장까지 잡지 못하므로, 원문이 실리는 자리를
+없애는 쪽이 실제 방어선이고 테스트도 그 한계를 명시한다.
+
+**남은 것**
+
+production canary — 합성 표식을 흘려 Sentry·PostHog·server log·push에 원문이 0인지
+실제로 확인하는 절차는 아직 없다(§14.5). 배선은 코드로 증명했지만 운영 증거는 없다.
 
 ### 9.1 current-membership fence의 긴급 확인 필요
 
