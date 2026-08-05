@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import AvailableNowSection from "@/components/landing/redesign/AvailableNowSection";
 import ClosingAction from "@/components/landing/redesign/ClosingAction";
 import CommunityBridgeSection from "@/components/landing/redesign/CommunityBridgeSection";
 import ContinuitySection from "@/components/landing/redesign/ContinuitySection";
@@ -61,6 +62,10 @@ export default function LandingPage() {
       <main id="main-content" tabIndex={-1}>
         <TransformationHero />
         <ProblemMirrorSection />
+        {/* 문제를 보여준 직후에 "지금 당장 무료로 이만큼 된다"를 둔다.
+            아래 섹션들은 대부분 계정 베타(미제공)를 설명하므로, 그 전에
+            오늘 쓸 수 있는 것을 먼저 세워야 처음 온 사람이 빈손으로 읽지 않는다. */}
+        <AvailableNowSection />
         <PreparationResult />
         <ContinuitySection />
         <SharedPrivateSection />

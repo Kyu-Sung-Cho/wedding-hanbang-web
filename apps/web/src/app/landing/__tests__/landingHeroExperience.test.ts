@@ -41,8 +41,11 @@ describe("landing hero product experience contract", () => {
   it("explains the product in plain language before asking for action", () => {
     expect(content).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
     expect(content).toContain("아모라 · 대화를 정리하는 AI");
-    expect(content).toContain("날짜를 넣으면 지금 볼 세 가지가 나와요");
-    expect(content).toContain("이어서 예산·할 일·일정을 아모라에게 말해보세요");
+    expect(content).toContain("지금 알아볼 준비 3가지");
+    expect(content, "산출물을 개수로만 말하면 안 된다").not.toMatch(/지금 볼 세 가지가 나와요/u);
+    expect(content, "첫 행동과 아모라를 잇는 문장이 필요하다").toMatch(
+      /body:\s*"[^"]*아모라[^"]*"/u,
+    );
     expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("확인한 변경만 준비 기록에 반영해요");
@@ -62,7 +65,7 @@ describe("landing hero product experience contract", () => {
     expect(startHereCta).not.toMatch(/className="[^"]*(?:^|\s)hidden(?:\s|$)[^"]*"/);
     expect(hero).toContain('const amoraStartHref = "/start-here"');
     expect(hero).toContain('id="landing-wedding-date"');
-    expect(hero).toContain("로그인·결제 없이 지금 볼 세 가지 확인");
+    expect(hero).toContain("로그인·결제 없이 준비 3가지 확인");
     expect(hero).toContain("없어도 시작 가능");
     expect(hero).toContain("첫 날짜 계산은 이 브라우저에서 처리");
     expect(hero).toContain("AI 처리·대화 저장 정책이 적용돼요");
@@ -117,7 +120,7 @@ describe("landing hero product experience contract", () => {
     const h1 = hero.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
     expect(h1).not.toContain("whitespace-nowrap");
 
-    for (const copy of ["로그인·결제 없이 지금 볼 세 가지 확인", "직접 눌러보는 예시"]) {
+    for (const copy of ["로그인·결제 없이 준비 3가지 확인", "직접 눌러보는 예시"]) {
       const nearbySource = sourceWindowAround(copy);
       expect(nearbySource).not.toMatch(/className="[^"]*\bhidden\b[^"]*"/);
       expect(nearbySource).not.toMatch(/text-\[(?:8|9)px\]/);
@@ -128,9 +131,12 @@ describe("landing hero product experience contract", () => {
     const body = content.match(/^\s*body:\s*"([^"]*)"/mu)?.[1] ?? "";
     const betaBoundary = content.match(/^\s*betaBoundary:\s*"([^"]*)"/mu)?.[1] ?? "";
 
-    // 첫 문단은 "무엇을 넣으면 무엇이 나오는지"만 말한다.
-    expect(body).toContain("날짜를 넣으면 지금 볼 세 가지가 나와요");
-    expect(body).toContain("이어서 예산·할 일·일정을 아모라에게 말해보세요");
+    // 첫 문단은 "무엇을 넣으면 무엇이 나오는지"만 말한다. 그리고 출력을 **개수가
+    // 아니라 이름으로** 말해야 한다 — 이전 문구는 "세 가지"라고만 해서 그 셋이
+    // 무엇인지 랜딩 어디에도 없었다.
+    expect(body).toContain("지금 알아볼 준비 3가지");
+    expect(body, "산출물을 개수로만 말하면 안 된다").not.toContain("지금 볼 세 가지가 나와요");
+    expect(body, "첫 행동과 아모라를 잇는 문장이 필요하다").toContain("아모라");
     expect(body).not.toContain("계정 베타");
 
     // 경계 문구는 사라지지 않는다. 위계만 CTA 아래로 내려간다.

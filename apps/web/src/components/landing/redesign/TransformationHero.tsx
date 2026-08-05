@@ -162,7 +162,7 @@ export default function TransformationHero() {
               <ul className="grid gap-2 text-[12px] leading-5 text-white/82 sm:grid-cols-2">
                 <li className="flex items-start gap-2">
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#E2D3C8]" aria-hidden="true" />
-                  로그인·결제 없이 지금 볼 세 가지 확인
+                  로그인·결제 없이 준비 3가지 확인
                 </li>
                 <li className="flex items-start gap-2">
                   <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#E2D3C8]" aria-hidden="true" />
