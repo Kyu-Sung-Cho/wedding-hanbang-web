@@ -41,6 +41,7 @@
     "prepare": "node ./scripts/install-git-hooks.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "community:media:audit": "node ./scripts/audit-community-media-urls.mjs",
+    "landing:date-handoff:qa": "node ./scripts/landing-date-handoff-qa.mjs",
     "audit:production": "node ./scripts/audit/production-readiness-audit.mjs",
     "audit:vendor-merge": "node ./scripts/audit/vendor-merge-review.mjs",
     "audit:distribution": "tsx ./scripts/audit/distribution-claims-audit.mjs",
