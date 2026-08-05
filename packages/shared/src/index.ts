@@ -9,3 +9,4 @@ export * from "./contracts/todayOneCare";
 export * from "./contracts/sharedSchedule";
 export * from "./contracts/budgetImpactPreview";
 export * from "./contracts/amoraActionApproval";
+export * from "./safety/sentryScrub";

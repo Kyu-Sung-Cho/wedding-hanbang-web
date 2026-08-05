@@ -5,6 +5,12 @@
 // 그래서 유휴 시점에 동적 로드하되, 로드 전 구간이 감시 사각지대가 되지
 // 않도록 그 사이의 error·unhandledrejection을 버퍼에 담았다가 준비되면
 // 그대로 흘려보낸다. 결과적으로 잡히는 에러는 이전과 같고 첫 화면만 가벼워진다.
+import {
+  sanitizeSentryBreadcrumb,
+  sanitizeSentryEvent,
+  sanitizeSentryTransaction,
+} from "@hanbang/shared";
+
 type SentryModule = typeof import("@sentry/nextjs");
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -41,6 +47,13 @@ if (typeof window !== "undefined" && dsn) {
           enabled: true,
           environment: process.env.NODE_ENV,
           tracesSampleRate: 0.1,
+          // 브라우저에서 잡히는 오류에는 사용자가 입력한 문장이 그대로 실릴 수 있다.
+          // 서버·edge와 같은 규칙으로 나가기 전에 지운다.
+          beforeSend: (event) => sanitizeSentryEvent(event as never) as typeof event,
+          beforeSendTransaction: (event) =>
+            sanitizeSentryTransaction(event as never) as typeof event,
+          beforeBreadcrumb: (breadcrumb) =>
+            sanitizeSentryBreadcrumb(breadcrumb as never) as typeof breadcrumb,
         });
         sentry = mod;
         for (const error of buffered) mod.captureException(error);
