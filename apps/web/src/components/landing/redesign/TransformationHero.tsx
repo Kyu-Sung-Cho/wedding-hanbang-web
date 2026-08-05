@@ -271,13 +271,17 @@ function ConversationToPlanDemo() {
             // 이전에는 활성/비활성 차이가 #243832 대 #36534E — 서로 약 1.5:1이라
             // 색만으로는 구분되지 않았고 보조기술에 알릴 신호도 없었다. 웨이트와
             // 농도로 차이를 만들고 aria-current로 현재 단계를 알린다.
+            // 농도는 85%다 — 70%는 12px에서 3.62:1(라벨)·3.84:1(숫자칩)로 4.5:1에
+            // 미달했다. 아직 오지 않은 단계는 비활성 컨트롤이 아니라 읽어야 하는
+            // 정보라 WCAG 1.4.3의 비활성 예외가 적용되지 않는다. 85%면 5.13:1·
+            // 5.59:1이고, 활성(11.09:1·12.45:1)과는 여전히 두 배 넘게 벌어진다.
             <li
               key={String(number)}
               aria-current={active ? "step" : undefined}
-              className={`flex items-center gap-1.5 text-[12px] sm:gap-2 ${active ? "font-bold text-[#243832]" : "font-medium text-[#36534E]/70"}`}
+              className={`flex items-center gap-1.5 text-[12px] sm:gap-2 ${active ? "font-bold text-[#243832]" : "font-medium text-[#36534E]/85"}`}
             >
               <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${active ? "bg-[#36534E] text-white" : "border border-[#243832]/14 bg-white text-[#36534E]/70"}`}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${active ? "bg-[#36534E] text-white" : "border border-[#243832]/14 bg-white text-[#36534E]/85"}`}
               >
                 {number}
               </span>

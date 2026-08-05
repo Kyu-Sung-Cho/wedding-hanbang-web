@@ -179,8 +179,16 @@ describe("landing design system", () => {
       // hex 형태(`decoration-[#243832]/25`)만 보던 초기 정규식은 `decoration-white/30`을
       // 놓쳤고, 실제로 TrustEvidenceSection이 그 사각지대에서 on-dark 링크를 다시
       // 만들고 있었다. 토큰 이름 형태까지 함께 본다.
+      //
+      // 그 목록에 정작 레시피 본체가 쓰는 토큰이 빠져 있었다 — secondaryLink는
+      // `decoration-noir-800/30`, secondaryLinkOnDark는 `decoration-gold-light/40`이다.
+      // 즉 레시피를 그대로 손으로 펼쳐 쓴 링크가 이 가드를 통과했다. 같은 파일의
+      // primaryAction 가드는 `bg-rose-600`+`rounded-`로 그 경우를 이미 잡으므로
+      // 링크 쪽만 비대칭으로 뚫려 있었다.
       const adhoc = [
-        ...source.matchAll(/underline decoration-(?:\[#[0-9A-Fa-f]{6}\]|white|black|current)(?:\/\d+)?/gu),
+        ...source.matchAll(
+          /underline decoration-(?:\[#[0-9A-Fa-f]{6}\]|noir-800|gold-light|white|black|current)(?:\/\d+)?/gu,
+        ),
       ].map((m) => m[0]);
       expect(adhoc, `${file}이 보조 링크를 새로 조립했다`).toEqual([]);
     }

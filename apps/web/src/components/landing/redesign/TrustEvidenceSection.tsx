@@ -107,7 +107,7 @@ export default function TrustEvidenceSection({
                 href={DISCLOSURE_SOURCE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`gap-2 ${secondaryLinkOnDark} focus-visible:ring-offset-4 focus-visible:ring-offset-[#243832]`}
+                className="gap-2 inline-flex min-h-11 items-center text-[14px] font-semibold text-gold-light underline decoration-gold-light/40 underline-offset-4 focus-visible:ring-offset-4 focus-visible:ring-offset-[#243832]"
               >
                 자료 출처 · 한국소비자원 참가격
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
