@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { evaluateSavedNoteSource } from "@/lib/amora/savedNoteSource";
 
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
@@ -176,19 +177,16 @@ export async function POST(req: Request) {
     const body = await readJsonBody(req);
     if (body instanceof NextResponse) return body;
 
-    const content = typeof body.content === "string" ? body.content.trim() : "";
-    if (!content || content.length > MAX_CONTENT_LENGTH) {
-      return mobileBridgeJson(
-        { error: "저장할 내용이 올바르지 않습니다." },
-        { status: 400, headers: RESPONSE_HEADERS },
-      );
-    }
-    if (body.messageId !== undefined && body.messageId !== null && !isUuid(body.messageId)) {
+    // 저장 노트는 커플 전체가 읽는다. 그래서 본문은 클라이언트가 보낸 문자열이 아니라
+    // 서버가 canonical 메시지에서 읽은 원문이어야 하고, 출처 없는 노트는 만들지 않는다.
+    // 목표 아키텍처 §6 불변식 5·6 참고.
+    if (!isUuid(body.messageId)) {
       return mobileBridgeJson(
         { error: "메시지 정보가 올바르지 않습니다." },
         { status: 400, headers: RESPONSE_HEADERS },
       );
     }
+    const sourceMessageId = body.messageId as string;
     const memo = optionalMemo(body.memo);
     if (memo instanceof NextResponse) return memo;
 
@@ -199,6 +197,31 @@ export async function POST(req: Request) {
         { status: 409, headers: RESPONSE_HEADERS },
       );
     }
+
+    // RLS 아래에서 읽으므로 다른 사람의 개인 상담은 애초에 보이지 않는다. 본인의 개인
+    // 상담은 보이지만, 공유 범위로 넓히는 declassification 경로가 아직 없으므로 거부한다.
+    const { data: sourceMessage } = await supabase
+      .from("chat_messages")
+      .select("couple_id, visibility, content")
+      .eq("id", sourceMessageId)
+      .maybeSingle();
+    const sourceDecision = evaluateSavedNoteSource({
+      message: sourceMessage,
+      requestCoupleId: coupleId,
+    });
+    if (!sourceDecision.ok) {
+      const refusal = sourceDecision.reason === "private_source_needs_declassification"
+        ? {
+            status: 403,
+            error: "개인 상담 내용은 두 분이 함께 보는 저장에 담을 수 없어요.",
+          }
+        : { status: 404, error: "저장할 메시지를 찾지 못했어요." };
+      return mobileBridgeJson(
+        { error: refusal.error },
+        { status: refusal.status, headers: RESPONSE_HEADERS },
+      );
+    }
+    const content = sourceDecision.content.slice(0, MAX_CONTENT_LENGTH);
 
     const { count } = await supabase
       .from("amora_saved_notes")
@@ -218,7 +241,7 @@ export async function POST(req: Request) {
       .insert({
         couple_id: coupleId,
         saved_by: user.id,
-        message_id: (body.messageId as string | undefined) ?? null,
+        message_id: sourceMessageId,
         content,
         memo,
       })

@@ -673,6 +673,47 @@ encryption, read boundary와 운영 증거를 더하는 방식으로 수행한�
 - source 삭제·동의 철회 뒤 note visibility/retention 정책 적용
 - shared joint source는 필요한 모든 독립 승인 전 publish 0
 
+#### 2026-08-05 갱신 — 서버 경계 구현, 판정은 그대로 OPEN
+
+branch `codex/amora-p03-note-provenance-20260805`(base `5b33c95b`).
+
+**추가로 확인한 사실**
+
+- 정상 UI(`ChatBubble.tsx`의 저장 버튼)는 이미 `messageId`를 **항상** 보낸다. 따라서
+  `messageId`를 필수로 올려도 기존 사용자 흐름은 깨지지 않는다. 선택으로 열어 둔 것이
+  기능 요구가 아니라 검증 공백이었다.
+
+**한 일**
+
+- `apps/web/src/lib/amora/savedNoteSource.ts` 신규. canonical 메시지를 받아
+  ①존재 ②요청자의 현재 커플과 동일 ③`visibility === "shared"` ④본문 비어 있지 않음을
+  확인하고, 저장할 **서버 원문**을 돌려준다. 모르는 visibility를 shared로 추정하지 않는다.
+- `POST /api/amora/notes`를 배선했다.
+  - `messageId`를 **필수**로 올렸다. 출처 없는 노트를 만들 수 없다.
+  - 서버가 `chat_messages`에서 원본을 읽고 위 검증을 통과할 때만 저장한다.
+  - 저장 본문을 **클라이언트가 보낸 문자열이 아니라 서버가 읽은 원문**으로 바꿨다.
+    임의 본문을 커플 공유물로 넣던 경로가 사라졌다.
+  - `message_id`는 검증된 출처 ID로 고정해 provenance가 항상 남는다.
+  - private source는 403으로 거부한다. 넓히는 유일한 정당한 경로인 exact-preview
+    declassification이 아직 없으므로 조용히 넓히지 않는다(fail-closed).
+- RLS 아래에서 읽으므로 다른 사람의 개인 상담은 조회 자체가 되지 않고, 본인의 개인
+  상담은 조회되지만 visibility 검사에서 막힌다.
+
+**하지 않은 일 — P0-3이 아직 OPEN인 이유**
+
+| 남은 작업 | 상태 |
+|---|---|
+| 중앙 artifact registry와 normalized audience row | 미구현 |
+| source 공개권과 열람권 분리 | 미구현 |
+| exact-preview declassification grant | 미구현 |
+| note·provenance edge·audience snapshot·command receipt의 단일 transaction | 미구현 |
+| source 삭제·동의 철회 뒤 downstream visibility 반영 | 미구현 |
+| 기존 2행의 owner·audience·provenance 판정 | 미실행 — §11.2대로 근거 없이 삭제하지 않는다 |
+
+이 변경은 **새 노트의 유입 경로**를 닫는다. 이미 저장된 행의 성격과 정리는 별도
+운영 절차이며, 저장된 사본이 원문 삭제를 따라가는 계보 삭제도 아직 없다.
+production NO-GO 판정은 그대로다.
+
 ### P0-4. A의 기억 응답이 계정 전환 뒤 B 화면에 표시될 수 있음
 
 **현재 코드 근거**
