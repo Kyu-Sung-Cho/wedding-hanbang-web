@@ -153,6 +153,8 @@ import {
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { createHash, randomUUID } from "node:crypto";
+import { isSupersededDecision } from "@/lib/ai/supersededDecisions";
+import { inspectScheduleEvents } from "@/utils/scheduleEvents";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
@@ -1946,7 +1948,27 @@ export async function POST(request: Request) {
             !isAutomaticMemory(d)
             || (d.visibility === "shared" ? sharedMemoryEnabledForTurn : memoryEnabledForTurn)
           ));
-  const pastDecisions = decisionsData.map((d) => ({
+  // 결정 영수증에는 `superseded_at`을 세우는 코드가 없다. 그래서 예식장을 A홀에서
+  // B홀로 바꿔도 A홀 영수증이 살아 있고, 일정을 옮겨도 두 판본이 다 남는다. 프롬프트는
+  // 2주 지난 결정을 "혹시 아직도..." 톤으로 회상하라고 지시하므로, 그대로 두면 아모라가
+  // 사용자가 이미 갈아치운 값을 아직 유효한 것처럼 되묻는다.
+  //
+  // DB 플래그가 아니라 지금 읽은 여정 값과 대조한다 — 트리거가 제때 돌았는지에 기대지
+  // 않는다. 기록 자체는 지우지 않는다. 아모라에게 현재처럼 보여주지 않을 뿐이다.
+  const currentJourneyFacts = {
+    venue: isRecord(journey) && typeof journey.venue === "string" ? journey.venue : null,
+    events: isRecord(journey) && isRecord(journey.progress)
+      ? inspectScheduleEvents(journey.progress).events
+        .filter((event) => event.status !== "cancelled")
+        .map((event) => ({ id: event.id, date: event.date, title: event.title }))
+      : [],
+  };
+  const liveDecisions = decisionsData.filter((d) => !isSupersededDecision(
+    { category: d.category, title: d.title, chosenValue: d.chosen_value },
+    currentJourneyFacts,
+  ));
+
+  const pastDecisions = liveDecisions.map((d) => ({
     category: d.category,
     decisionType: d.decision_type,
     title: d.title,
