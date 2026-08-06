@@ -1,3 +1,4 @@
+import Image from "next/image";
 import {
   CalendarDays,
   Check,
@@ -100,6 +101,36 @@ export default function PreparationResult() {
             계정 베타 기능 예시예요. 한 번의 확인에는 한 가지 변경만 포함돼요.
           </p>
         </div>
+
+        {/* 페이지가 아홉 섹션에 걸쳐 "예산·할 일·일정이 정리된다"고 말하면서 정작
+            그 화면을 한 번도 보여주지 않았다. 글로 설명하는 대신 확인한 변경이
+            실제로 어디에 쌓이는지 보여준다. 스톡 사진이 아니라 진짜 제품 화면이다. */}
+        <figure className="mt-12 lg:mt-16">
+          {/* 데스크톱 화면을 모바일에 그대로 넣으면 348×164로 줄어 글자가 읽히지
+              않는다(실측). 증거로 쓰려면 읽혀야 하므로 폭에 맞는 화면을 따로 쓴다.
+              lazy + display:none이라 각 뷰포트는 자기 것 하나만 내려받는다. */}
+          <div className="overflow-hidden rounded-[20px] border border-[#243832]/14 bg-white shadow-raised">
+            <Image
+              src="/images/landing-app-budget-mobile.webp"
+              alt="예산 화면 — 전체 예산 2,500만원, 기록한 지출, 남은 예산이 카드로 정리된 모습"
+              width={780}
+              height={1290}
+              sizes="100vw"
+              className="h-auto w-full sm:hidden"
+            />
+            <Image
+              src="/images/landing-app-budget.webp"
+              alt="예산 화면 — 전체 예산, 기록한 지출, 남은 예산과 두 사람의 분담 현황이 한 화면에 정리된 모습"
+              width={1600}
+              height={756}
+              sizes="(min-width: 1024px) 900px, 100vw"
+              className="hidden h-auto w-full sm:block"
+            />
+          </div>
+          <figcaption className="mt-3 text-center text-[12px] leading-5 text-[#243832]/72">
+            확인한 변경이 쌓이는 예산 화면이에요. 이름·금액은 기능을 보여주기 위한 샘플이고 실제 이용 현황이 아니에요.
+          </figcaption>
+        </figure>
       </div>
     </section>
   );
