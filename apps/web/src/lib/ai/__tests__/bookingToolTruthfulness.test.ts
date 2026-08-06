@@ -48,7 +48,16 @@ describe("booking tool truthfulness", () => {
     expect(vendorCard).toContain("아모라 내부 후보 견적");
     expect(promptComposer).toContain("업체가 확정한 예약 가능 시간이 아니라");
     expect(prompts).toContain("사용자 기록 지출(결제 증빙 아님)");
-    expect(prompts).toContain("아모라 내부 방문·상담 후보 기록 후");
+    // 예전에는 `### 5단계: 아모라 내부 방문·상담 후보 기록 후`라는 예약 도구 사용법
+    // 안에서 이 진실성을 지켰다. 그런데 예약 도구는 BETA_DISABLED_TOOL_NAMES로
+    // 꺼졌고 bookings도 모델에 전달되지 않는데 안내만 남아, 아모라가 잡을 수 없는
+    // 예약을 잡아주겠다고 말하게 됐다(promptToolDrift.test.ts).
+    //
+    // 그래서 안내를 걷어내되 진실성은 더 센 문장으로 옮겼다 — 예약을 "확정"이라
+    // 부르지 않는 데서 그치지 않고, 애초에 예약해 주겠다고 말하지 못하게 한다.
+    expect(prompts).toContain("예약해 드릴게요");
+    expect(prompts).toContain("예약 확정");
+    expect(prompts).not.toContain("create_booking");
   });
 
   it("excludes not-sent internal intents from every capacity reader", () => {
