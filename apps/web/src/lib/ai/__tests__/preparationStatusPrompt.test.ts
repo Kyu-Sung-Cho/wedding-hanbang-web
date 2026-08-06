@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   allowedCareTopics,
@@ -16,9 +18,16 @@ import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 
 const FAR_FUTURE = "2099-06-15";
 
-function prompt(preparationStatus?: unknown) {
+/** 오늘로부터 N일 뒤. 시급성 분기(daysLeft < 120)에 실제로 닿기 위해 필요하다. */
+function daysFromNow(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function prompt(preparationStatus?: unknown, weddingDate: string = FAR_FUTURE) {
   return getWeddingPlannerSystemPrompt({
-    weddingDate: FAR_FUTURE,
+    weddingDate,
     budget: 30_000_000,
     venue: null,
     progress: {},
@@ -77,6 +86,58 @@ describe("멈춘 사람에게 하는 말", () => {
   it("준비 중인 사람의 프롬프트는 건드리지 않는다", () => {
     expect(prompt("preparing")).not.toContain("준비를 잠시 멈춘 상황");
     expect(prompt("preparing")).not.toContain("이어가는 상황이 아닙니다");
+  });
+});
+
+// 아래 두 묶음은 §18을 "완료"로 보고한 뒤에 빠져 있던 것이다. 위 테스트들은 예식일을
+// 2099년으로 잡아서 시급성 분기(daysLeft < 120)에 애초에 닿지 못했고, 상태를 실제
+// 요청 경로에서 읽는지도 확인하지 않았다. 계약과 프롬프트 게이트가 다 있어도 그
+// 둘이 비면 기능은 존재하지 않는다.
+
+describe("예식이 코앞일 때의 재촉", () => {
+  const SOON = () => daysFromNow(40);
+
+  it("준비 중이면 기한 위험을 알린다 — 이 분기에 실제로 닿는지부터 고정한다", () => {
+    expect(prompt("preparing", SOON())).toContain("기한 위험: D-");
+  });
+
+  it("멈추거나 접은 사람에게는 기한 위험을 만들지 않는다", () => {
+    for (const status of ["paused", "called_off"] as const) {
+      const text = prompt(status, SOON());
+      expect(text, status).not.toContain("기한 위험");
+      // allowsCountdown이 일부러 지운 D-day 숫자를 이 문장이 되살리면 안 된다.
+      // 프롬프트에는 "D-85일이네요! ← 로봇"처럼 하지 말라고 박아둔 예시가 있으므로
+      // 이 커플의 실제 카운트다운 형식만 본다.
+      expect(text, status).not.toMatch(/\(D-\d+\)/u);
+      expect(text, status).not.toMatch(/D-\d+인데/u);
+    }
+  });
+
+  it("재촉하지 말라는 지시와 재촉 문구가 한 프롬프트에 같이 있지 않다", () => {
+    const text = prompt("called_off", SOON());
+    expect(text).toContain("다음 할 일을 재촉하지 마세요");
+    expect(text).not.toContain("미시작");
+  });
+});
+
+describe("요청 경로가 준비 상태를 실제로 읽는다", () => {
+  // 컬럼과 계약이 있어도 라우트가 안 읽으면 전원이 preparing으로 정규화된다.
+  // 그러면 위의 모든 게이트가 프로덕션에서 도달 불가능한 죽은 코드가 된다.
+  const chatRoute = readFileSync(
+    resolve(process.cwd(), "src/app/api/chat/route.ts"),
+    "utf8",
+  );
+
+  it("profiles에서 preparation_status를 조회한다", () => {
+    expect(chatRoute).toMatch(
+      /\.from\("profiles"\)[\s\S]{0,400}?\.select\([^)]*preparation_status/u,
+    );
+  });
+
+  it("조회한 값을 프롬프트 컨텍스트로 넘긴다", () => {
+    expect(chatRoute).toMatch(
+      /preparationStatus:\s*normalizePreparationStatus\(/u,
+    );
   });
 });
 

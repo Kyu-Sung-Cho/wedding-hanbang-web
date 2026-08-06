@@ -20,6 +20,7 @@ import {
   WEDDING_PRIORITY_OPTIONS,
   WEDDING_STYLE_OPTIONS,
   allowsCountdown,
+  allowsUrgency,
   normalizePreparationStatus,
   type PreparationStatus,
 } from "@hanbang/shared";
@@ -56,6 +57,7 @@ function generateBehaviorInsights(context: {
   weddingDate: string | null;
   budget: number;
   progress: Record<string, unknown>;
+  preparationStatus?: PreparationStatus | null;
   preferences?: {
     weddingStyle?: string | null;
     priorities?: string[];
@@ -120,7 +122,16 @@ function generateBehaviorInsights(context: {
   }
 
   // 인사이트 3: 미시작 + D-day 임박 → 긴급
-  if (daysLeft < 120 && notStartedCategories.length > 0) {
+  //
+  // 준비를 멈췄거나 접은 커플에게는 만들지 않는다. 예전에는 이 조건이 D-day와
+  // 미시작 목록만 봐서, `called_off`인데도 "기한 위험: D-40인데 … 미시작"이
+  // 프롬프트에 들어갔다. 같은 프롬프트에 "재촉하지 마세요"가 나란히 있었고,
+  // allowsCountdown이 일부러 지운 D-day 숫자까지 이 문장이 되살렸다.
+  if (
+    allowsUrgency(normalizePreparationStatus(context.preparationStatus))
+    && daysLeft < 120
+    && notStartedCategories.length > 0
+  ) {
     const priorities = context.preferences?.priorities ?? [];
     // 우선순위 중 아직 시작하지 않은 것
     const urgentPriorities = notStartedCategories

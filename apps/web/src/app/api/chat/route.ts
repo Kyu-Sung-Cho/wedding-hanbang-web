@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizePreparationStatus } from "@hanbang/shared";
 import {
   buildMultimodalContent,
   buildToolResultInput,
@@ -709,11 +710,15 @@ export async function POST(request: Request) {
         role: "bride" as const,
         is_admin: false,
         name: "체험 사용자",
+        preparation_status: "preparing" as const,
       }
     : (
         await getServiceClient()
           .from("profiles")
-          .select("couple_id, role, is_admin, name")
+          // preparation_status를 여기서 읽지 않으면 프롬프트의 카운트다운·재촉
+          // 게이트가 통째로 죽는다. 컬럼과 계약만 있고 아무도 읽지 않아, 준비를
+          // 멈추거나 접은 사람에게도 D-day와 재촉이 계속 나갔다.
+          .select("couple_id, role, is_admin, name, preparation_status")
           .eq("id", actorId)
           .single()
       ).data;
@@ -2539,6 +2544,9 @@ export async function POST(request: Request) {
     budget: resolvedWeddingContext.budget,
     venue: resolvedWeddingContext.venue,
     progress,
+    preparationStatus: normalizePreparationStatus(
+      userProfile.preparation_status,
+    ),
     brideName,
     groomName,
     senderName: safeSenderName,

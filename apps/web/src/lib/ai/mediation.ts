@@ -19,6 +19,10 @@
  */
 
 import { AMORA_REQUESTER_SUMMARY_MEDIATION } from "@hanbang/shared/mediation-provenance";
+import {
+  screenAmoraTrustClaims,
+  type AmoraTrustClaimKind,
+} from "./amoraTrustClaims";
 
 export interface MediationBlock {
   empathy?: string;
@@ -58,11 +62,43 @@ function isCompleteMediationBlock(
   return FIELD_PATTERNS.every(({ key }) => Boolean(block[key]?.trim()));
 }
 
+/**
+ * 카드 네 필드를 아모라 출력 검사층에 통과시킨다.
+ *
+ * `extractMediation`이 `[mediation]` 블록을 본문에서 잘라내기 때문에, 본문을 보는
+ * 검사층(`composeAmoraPersistenceTerminal`)은 카드 안을 한 번도 보지 못했다. 그래서
+ * 보증("100% 문제 없어요"), 비교 압박("다른 커플들은 보통 …"), 사람에 대한 판정
+ * ("두 분은 잘 맞아요"), 그리고 반영되지 않은 저장 주장("예산 3천만원으로
+ * 저장해뒀어요")이 카드 안에서는 그대로 살아남아 양쪽에게 저장됐다. 중재 카드는
+ * 수락하면 공동 결정으로 기록되므로, 검사를 건너뛰기에 가장 나쁜 자리였다.
+ *
+ * 검사로 필드가 통째로 비면 카드를 만들지 않는다(`isCompleteMediationBlock` 실패).
+ * 걸러낸 문장을 기워 붙인 카드보다 카드가 없는 편이 안전하다.
+ */
+export function screenMediationBlock(block: MediationBlock): {
+  block: MediationBlock;
+  removedKinds: AmoraTrustClaimKind[];
+} {
+  const screened: MediationBlock = {};
+  const removedKinds = new Set<AmoraTrustClaimKind>();
+
+  for (const { key } of FIELD_PATTERNS) {
+    const value = block[key];
+    if (typeof value !== "string" || !value.trim()) continue;
+    const result = screenAmoraTrustClaims(value);
+    for (const kind of result.removedKinds) removedKinds.add(kind);
+    if (result.text) screened[key] = result.text;
+  }
+
+  return { block: screened, removedKinds: [...removedKinds] };
+}
+
 export function toUserRequestedMediationV2(
   block: MediationBlock,
 ): UserRequestedMediationV2 | null {
-  if (!isCompleteMediationBlock(block)) return null;
-  return { ...block, ...AMORA_USER_REQUESTED_MEDIATION_V2 };
+  const { block: screened } = screenMediationBlock(block);
+  if (!isCompleteMediationBlock(screened)) return null;
+  return { ...screened, ...AMORA_USER_REQUESTED_MEDIATION_V2 };
 }
 
 export function mediationBlockToOrdinaryText(block: MediationBlock): string {
