@@ -22,6 +22,90 @@ function getAdminSupabase() {
   return createAdminClient();
 }
 
+/**
+ * 이미 계정이 있는 주소로 가입을 시도했을 때, 계정 주인에게 길을 알려준다.
+ *
+ * 밖에서 보는 응답은 신규 가입과 완전히 같아야 하므로(계정 존재 여부가 새면 안 된다)
+ * 이 함수는 무엇이 실패하든 조용히 끝난다. 실패를 호출부로 올리면 응답 모양이나
+ * 응답 시간이 달라져 그 자체가 신호가 된다.
+ *
+ * 링크는 비밀번호 재설정 링크다. 비밀번호를 잊어 다시 가입한 경우가 가장 흔하고,
+ * 그 링크 하나로 계정을 되찾을 수 있기 때문이다.
+ */
+async function sendExistingAccountNotice({
+  email,
+  name,
+  siteUrl,
+  supabase,
+}: {
+  email: string;
+  name: string;
+  siteUrl: string;
+  supabase: ReturnType<typeof getAdminSupabase>;
+}): Promise<void> {
+  try {
+    if (!process.env.RESEND_API_KEY) return;
+
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: `${siteUrl}/reset-password` },
+    });
+    const recoveryLink = error ? null : data?.properties?.action_link ?? null;
+
+    const safeName = escapeHtml(name);
+    const loginUrl = `${siteUrl}/login`;
+    // 링크를 만들지 못해도 메일은 보낸다. 아무것도 안 오는 것이 지금의 문제였다.
+    const recoveryBlock = recoveryLink
+      ? `
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="${recoveryLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+              비밀번호 새로 정하기
+            </a>
+          </div>
+          <p style="font-size: 12px; color: #B5ADA3; word-break: break-all; text-align: center; margin-bottom: 32px; padding: 16px; background: #FAF7F2; border-radius: 12px;">
+            ${recoveryLink}
+          </p>`
+      : `
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="${loginUrl}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+              로그인하러 가기
+            </a>
+          </div>`;
+
+    await new Resend(process.env.RESEND_API_KEY).emails.send({
+      from: "웨딩한방 <noreply@hanbang.ai>",
+      to: email,
+      subject: "웨딩한방 — 이미 가입된 계정이 있어요",
+      html: `
+        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
+          </div>
+          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
+            이미 가입된 계정이 있어요
+          </h1>
+          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
+            안녕하세요, <strong>${safeName}</strong>님<br>
+            이 주소로 가입을 시도하셨는데, 이미 계정이 있어요.<br>
+            비밀번호가 기억나지 않으시면 아래에서 새로 정하실 수 있어요.
+          </p>
+          ${recoveryBlock}
+          <p style="font-size: 13px; color: #928980; text-align: center; margin-bottom: 24px;">
+            로그인은 <a href="${loginUrl}" style="color: #4A4A52;">${loginUrl}</a> 에서 하실 수 있어요.
+          </p>
+          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
+            본인이 시도하신 게 아니라면 이 메일을 무시하셔도 괜찮아요. 계정은 그대로 안전합니다.
+          </p>
+        </div>
+      `,
+    });
+  } catch (sendError) {
+    // 응답은 어떤 경우에도 동일해야 한다.
+    console.error("existing account notice failed:", sendError);
+  }
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -130,6 +214,17 @@ export async function POST(request: Request) {
         error.message.includes("already been registered") ||
         error.message.includes("already registered")
       ) {
+        // 응답은 신규 가입과 똑같이 유지한다 — 여기서 "이미 가입된 이메일"이라고 답하면
+        // 어떤 주소가 우리 서비스에 있는지 밖에서 확인할 수 있게 된다.
+        //
+        // 그런데 예전에는 응답만 같고 메일을 **아무것도 보내지 않았다**. 예전에 가입한
+        // 걸 잊고 다시 가입한 사람은 "가입 확인 이메일을 보냈어요"를 보고 받은편지함을
+        // 계속 새로고침했고, 로그인하면 "이메일 인증이 완료되지 않았습니다" 한 줄만
+        // 나왔다. 재발송 수단도 없어 가입도 로그인도 못 하는 상태에 갇혔다.
+        //
+        // 그래서 응답은 그대로 두고 계정 주인에게 실제로 길을 보낸다. 이 경로가
+        // 곧 재발송 경로이기도 하다 — 같은 주소로 다시 가입을 시도하면 메일이 온다.
+        await sendExistingAccountNotice({ email, name, siteUrl, supabase });
         return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
       }
       console.error("generateLink error:", error);
