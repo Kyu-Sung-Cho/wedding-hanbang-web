@@ -236,7 +236,19 @@ export default function SettingsScreen() {
           typeof responseBody.error === "string"
             ? responseBody.error
             : "설정을 저장하지 못했어요.";
-        if (response.status === 409) setLoadError(errorMessage);
+        const errorCode =
+          typeof responseBody === "object" &&
+          responseBody !== null &&
+          "code" in responseBody &&
+          typeof responseBody.code === "string"
+            ? responseBody.code
+            : null;
+        // 409에는 두 종류가 섞여 있다. 화면 데이터가 낡아 다시 불러와야 하는 경우에만
+        // 로드 오류로 바꾼다. 저장이 거부된 것은 화면이 깨진 것이 아니므로, 그때
+        // 화면을 통째로 날리면 사람이 방금 입력한 값까지 잃는다.
+        if (response.status === 409 && errorCode === "SETTINGS_CHANGED") {
+          setLoadError(errorMessage);
+        }
         throw new Error(errorMessage);
       }
 

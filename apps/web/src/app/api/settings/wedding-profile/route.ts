@@ -435,10 +435,17 @@ export async function PATCH(request: Request) {
           code: "SETTINGS_CHANGED",
         }, 409);
       }
+      // 예식일·식장·총 예산은 `wedding_journeys`에 직접 쓸 수 없다. 계획 변경 경로
+      // (`submit_couple_plan_change`)를 거쳐야 하고, 그 경로가 파트너 유무에 따라
+      // 즉시 반영할지 상대 확인을 기다릴지 정한다.
+      //
+      // 예전 문구는 두 가지를 틀리게 말했다. 파트너가 없는 사람에게도 "파트너 확인이
+      // 필요해요"라고 했고, 앱에도 있는 화면을 두고 "웹의 ... 화면에서"라고 했다.
+      // 사람이 고칠 수 없는 것을 고치라고 하면 아무 데도 못 간다.
       if (/COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED/i.test(errorText)) {
         return privateResponse({
-          error: "함께 쓰는 날짜·식장·예산은 파트너 확인이 필요해요. 웹의 예산 또는 일정 화면에서 변경해 주세요.",
-          code: "PARTNER_APPROVAL_REQUIRED",
+          error: "결혼 예정일·식장·총 예산은 예산 화면에서 변경을 요청해 주세요. 파트너가 연결돼 있으면 두 분이 확인한 뒤에 반영돼요.",
+          code: "PLAN_CHANGE_REQUEST_REQUIRED",
         }, 409);
       }
       if (/WEDDING_SETTINGS_(?:JOURNEY_REQUIRED|JOURNEY_NOT_FOUND)/i.test(errorText)) {
