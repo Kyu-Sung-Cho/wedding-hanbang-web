@@ -13,8 +13,11 @@ export default function ContinuitySection() {
       aria-labelledby="landing-continuity-title"
     >
       <div className={`${shell} ${sectionRhythm}`}>
-        <div className="grid gap-9 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:gap-20">
-          <div className="max-w-[590px] lg:sticky lg:top-28 lg:self-start">
+        {/* 앞뒤 섹션이 전부 "좌 헤드라인 / 우 내용"이라 스크롤 리듬이 단조로웠다.
+            여기만 시각적으로 뒤집는다. DOM 순서는 헤드라인이 먼저인 채로 두어
+            보조기술이 읽는 순서는 그대로 유지한다. */}
+        <div className="grid gap-9 lg:grid-cols-[minmax(0,1.18fr)_minmax(0,0.82fr)] lg:gap-20">
+          <div className="max-w-[590px] lg:order-2 lg:sticky lg:top-28 lg:self-start">
             <p className={sectionEyebrowOnDark}>
               {landingContent.continuity.eyebrow}
             </p>
@@ -30,7 +33,7 @@ export default function ContinuitySection() {
             </p>
           </div>
 
-          <ol className="border-y border-white/18">
+          <ol className="border-y border-white/18 lg:order-1">
             {continuitySteps.map((step) => (
               <li
                 key={step.number}

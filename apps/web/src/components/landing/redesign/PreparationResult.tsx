@@ -36,19 +36,18 @@ export default function PreparationResult() {
       aria-labelledby="landing-outcome-title"
     >
       <div className={`${shell} ${sectionRhythm}`}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-end lg:gap-16">
-          <div>
-            <p className={sectionEyebrow}>
-              {landingContent.outcome.eyebrow}
-            </p>
-            <h2
-              id="landing-outcome-title"
-              className={`mt-4 max-w-[720px] ${displaySection}`}
-            >
-              {landingContent.outcome.title}
-            </h2>
-          </div>
-          <p className={`max-w-[34rem] ${sectionLede} text-[#36534E]/82 lg:pb-1`}>
+        {/* 세 번째 템플릿: 가운데로 모은다. 이 섹션이 페이지에서 제품의 핵심
+            동작("말한 것이 기록이 된다")을 보여주는 자리라, 좌우로 흩지 않고
+            한 축에 세워 아래 세 행에 시선을 모은다. */}
+        <div className="mx-auto max-w-[46rem] text-center">
+          <p className={sectionEyebrow}>{landingContent.outcome.eyebrow}</p>
+          <h2
+            id="landing-outcome-title"
+            className={`mx-auto mt-4 ${displaySection}`}
+          >
+            {landingContent.outcome.title}
+          </h2>
+          <p className={`mx-auto mt-6 max-w-[34rem] ${sectionLede} text-[#36534E]/82`}>
             {landingContent.outcome.body}
           </p>
         </div>

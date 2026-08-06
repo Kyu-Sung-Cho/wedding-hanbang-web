@@ -36,8 +36,10 @@ export default function TrustEvidenceSection({
       aria-labelledby="landing-trust-title"
     >
       <div className={`${shell} ${sectionRhythm}`}>
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:gap-20">
-          <div>
+        {/* 두 번째 반전 지점. 연속성 섹션과 함께 스크롤 중간중간 축을 바꿔
+            같은 리듬이 아홉 번 반복되지 않게 한다. */}
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.22fr)_minmax(0,0.78fr)] lg:gap-20">
+          <div className="lg:order-2">
             <p className={sectionEyebrow}>
               {landingContent.trust.eyebrow}
             </p>
