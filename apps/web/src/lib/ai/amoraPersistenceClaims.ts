@@ -2,6 +2,7 @@ import type { ToolExecutionResult } from "@/types/database.types";
 
 import { guardDemoPersistenceDisclosure } from "./amoraDemoPersistence";
 import { isMutatingTool } from "./mutationTools";
+import { screenAmoraTrustClaims } from "./amoraTrustClaims";
 
 const AFFIRMATIVE_PERSISTENCE_CLAIM_RE =
   /(?:(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용|처리|입력)(?:해\s*(?:두었|뒀|놓았|놨|드렸)|하였|했|됐|되었|\s*완료(?:했|됐))|(?:넣어|적어|써|바꿔|올려)\s*(?:두었|뒀|놓았|놨|드렸)|(?:넣었|적었|썼|바꿨|올렸)|완료(?:하였|했|됐|되었))(?:어요|습니다|어|다)?/u;
@@ -80,7 +81,12 @@ export function composeAmoraPersistenceTerminal({
     };
   }
 
-  const sanitized = removeUnverifiedPersistenceClaims(text);
+  // 위의 실행 결과 메시지는 서버가 소유한 문구라 검사하지 않는다 — 검사하면 오히려
+  // 훼손된다. 여기부터가 제공자 산문이므로, 사용자가 검증할 수 없는 약속과 사람에
+  // 대한 판정을 먼저 걷어낸다. 저장 주장 검사와 같은 문장 단위를 쓴다.
+  const trustScreened = screenAmoraTrustClaims(text);
+  const trustCorrected = trustScreened.removedCount > 0;
+  const sanitized = removeUnverifiedPersistenceClaims(trustScreened.text);
 
   if (persistenceMode === "demo") {
     const demoGuard = guardDemoPersistenceDisclosure(
@@ -93,6 +99,7 @@ export function composeAmoraPersistenceTerminal({
       ? [demoGuard.text, SERVER_OWNED_DEMO_NOTICE].filter(Boolean).join("\n\n")
       : demoGuard.text;
     const corrected = sanitized.removedClaimCount > 0
+      || trustCorrected
       || demoGuard.appendedNotice !== null;
 
     return {
@@ -106,9 +113,9 @@ export function composeAmoraPersistenceTerminal({
   if (sanitized.removedClaimCount === 0) {
     return {
       text: sanitized.text,
-      corrected: false,
+      corrected: trustCorrected,
       removedClaimCount: 0,
-      source: "provider",
+      source: trustCorrected ? "server_correction" : "provider",
     };
   }
 
