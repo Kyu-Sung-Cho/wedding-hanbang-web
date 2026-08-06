@@ -14,3 +14,4 @@ export * from "./safety/coerciveControlSignals";
 export * from "./contracts/decisionPacket";
 export * from "./contracts/commandLease";
 export * from "./contracts/preparationStatus";
+export * from "./contracts/coupleInviteCode";

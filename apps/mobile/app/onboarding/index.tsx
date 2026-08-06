@@ -21,6 +21,13 @@ import {
 } from "@hanbang/shared";
 import { apiFetch } from "@/lib/api";
 import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
+import {
+  COUPLE_INVITE_CODE_MAX_LENGTH,
+  COUPLE_INVITE_CODE_PLACEHOLDER,
+  describeCoupleInviteCodeProblem,
+  isCoupleInviteCode,
+  normalizeCoupleInviteCode,
+} from "@hanbang/shared";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
@@ -163,6 +170,11 @@ export default function OnboardingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState("");
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
+  // 아직 다 치지 않은 상태를 틀렸다고 하지 않는다 — 타이핑 중에 빨간 글씨가 뜨면
+  // 사람은 자기가 잘못한 줄 안다. 파트너 코드는 붙여넣는 경우가 많아 길이가 한 번에 찬다.
+  const inviteCodeProblem = coupleAction === "join" && inviteCode.length >= 4
+    ? describeCoupleInviteCodeProblem(inviteCode)
+    : null;
 
   // Step 4: 웨딩 스타일 선호도
   const [weddingStyle, setWeddingStyle] = useState<WeddingStyle | null>(null);
@@ -216,7 +228,7 @@ export default function OnboardingScreen() {
   function canNext(): boolean {
     switch (step) {
       case 1: return role !== null;
-      case 2: return coupleAction === "create" || (coupleAction === "join" && inviteCode.length >= 6);
+      case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
       case 3: return budgetEvaluation.status !== "invalid";
       case 4: return true; // 선호도는 선택사항
       default: return false;
@@ -393,15 +405,21 @@ export default function OnboardingScreen() {
               </Pressable>
 
               {coupleAction === "join" && (
-                <TextInput
-                  style={styles.inviteCodeInput}
-                  value={inviteCode}
-                  onChangeText={setInviteCode}
-                  placeholder="초대코드 입력 (예: WH-ABC123)"
-                  placeholderTextColor={colors.taupe[400]}
-                  autoCapitalize="characters"
-                  maxLength={10}
-                />
+                <>
+                  <TextInput
+                    style={styles.inviteCodeInput}
+                    value={inviteCode}
+                    onChangeText={(value) => setInviteCode(normalizeCoupleInviteCode(value))}
+                    placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_PLACEHOLDER})`}
+                    placeholderTextColor={colors.taupe[400]}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
+                  />
+                  {inviteCodeProblem && (
+                    <Text style={styles.inviteCodeProblem}>{inviteCodeProblem}</Text>
+                  )}
+                </>
               )}
             </View>
           )}
@@ -820,6 +838,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "NotoSansKR_500Medium",
     color: colors.textSecondary,
+  },
+  inviteCodeProblem: {
+    marginTop: 8,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.noir[800],
+    lineHeight: 18,
+    textAlign: "center",
   },
   budgetFeedback: {
     marginTop: 8,

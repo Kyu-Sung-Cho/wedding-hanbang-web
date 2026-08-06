@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  COUPLE_INVITE_CODE_MAX_LENGTH,
+  COUPLE_INVITE_CODE_PLACEHOLDER,
+  describeCoupleInviteCodeProblem,
+  normalizeCoupleInviteCode,
+} from "@hanbang/shared";
 
 interface CoupleLinkProps {
   coupleAction: "create" | "join" | null;
@@ -17,23 +23,17 @@ export default function CoupleLink({
 }: CoupleLinkProps) {
   const [codeError, setCodeError] = useState("");
 
+  // 형식 규칙은 `@hanbang/shared`에 한 벌만 둔다. 예전에는 웹과 앱이 각자 갖고 있었고,
+  // 앱 쪽 길이 제한만 10자로 남아 있어 15자 코드가 잘려 파트너 연결이 아예 막혔다.
   const handleCodeChange = (val: string) => {
-    // WH-XXXXXX 형식 자동 포맷
-    const clean = val.toUpperCase().replace(/[^A-Z0-9-]/g, "");
-    onPartnerCodeChange(clean);
+    onPartnerCodeChange(normalizeCoupleInviteCode(val));
     setCodeError("");
   };
 
   const validateCode = (code: string) => {
-    if (!code) {
-      setCodeError("코드를 입력해주세요");
-      return false;
-    }
-    if (!/^WH-[A-Z0-9]{6,12}$/.test(code)) {
-      setCodeError("올바른 형식이 아닙니다 (예: WH-A3B2C1)");
-      return false;
-    }
-    return true;
+    const problem = describeCoupleInviteCodeProblem(code);
+    setCodeError(problem ?? "");
+    return problem === null;
   };
 
   return (
@@ -108,8 +108,8 @@ export default function CoupleLink({
             value={partnerCode}
             onChange={(e) => handleCodeChange(e.target.value)}
             onBlur={() => partnerCode && validateCode(partnerCode)}
-            placeholder="WH-A3B2C1"
-            maxLength={15}
+            placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
+            maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
             className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[16px] text-noir-800 text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 placeholder:tracking-[0.2em]"
           />
           {codeError && (
