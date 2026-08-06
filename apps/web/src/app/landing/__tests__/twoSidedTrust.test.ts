@@ -83,12 +83,39 @@ describe("landing two-sided trust contract", () => {
     }
   });
 
+  it("never promises Amora without a login", () => {
+    // 주석은 벗기고 본다. 왜 이 약속을 하지 않는지 설명하려면 그 문구를 적어야
+    // 하는데, 자기 설명에 걸려 넘어지는 가드는 가드가 아니다(이 저장소에서 세 번째다).
+    const rendered = [landing, header, hero, content, trust, footer]
+      .join("\n")
+      .replace(/\/\*[\s\S]*?\*\//gu, "")
+      .replace(/^[	 ]*\/\/.*$/gmu, "")
+      .replace(/\{\/\*[\s\S]*?\*\/\}/gu, "");
+
+    // 한도 정책이 확정되기 전까지 "가입 없이 아모라를 쓸 수 있다"고 말하지 않는다.
+    // 한도에 걸린 사용자가 예상 못 한 벽을 만나는 것이 이 페이지가 만들 수 있는
+    // 가장 나쁜 첫인상이다.
+    for (const promise of [
+      "가입도 결제도 없이 아모라",
+      "가입 없이 아모라 체험하기",
+      "로그인 없는 아모라",
+      "로그인 없이 아모라",
+    ]) {
+      expect(rendered, `랜딩이 로그인 없는 아모라를 약속한다: "${promise}"`)
+        .not.toContain(promise);
+    }
+    // 숫자를 추측해 적지 않는다 — 한도 값이 아직 정해지지 않았다.
+    expect(rendered).not.toMatch(/무료\s*\d+\s*(회|번|건)/u);
+  });
+
   it("states the current first-step conditions without claiming the whole service is free", () => {
     expect(content).toContain("첫 준비 순서");
-    expect(content).toContain("로그인 없는 아모라 체험");
+    expect(content).toContain("아모라와 대화할 때");
     expect(content).toContain("계정으로 계속 관리");
-    expect(content).toContain("첫 준비 순서와 로그인 없는 아모라 체험에서는 결제를 요청하지 않아요.");
-    expect(content).toContain("체험 대화와 변경은 계정의 준비 기록에 남지 않지만");
+    expect(content).toContain("로그인 없이 볼 수 있는 것들에는 결제를 요청하지 않아요.");
+    // 2026-08-06 파운더 결정: 로그인 없는 아모라 이용에 한도를 걸 예정이라
+    // 랜딩은 아모라를 로그인 필요로 안내한다. CTA를 누르기 전에 알 수 있어야 한다.
+    expect(content).toContain("아모라는 결혼식 날짜와 준비 상황을 바탕으로 답해야 해서 로그인이 필요해요");
     expect(content).toContain("계정 베타의 제공 기능·이용 기간·무료 상담 한도");
     expect(content).toContain("추가 이용 방법과 비용은 아직 정해지지 않았으며");
     expect(content).toContain("신청만으로 결제되지 않아요");

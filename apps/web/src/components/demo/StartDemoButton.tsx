@@ -18,8 +18,7 @@ interface StartDemoButtonProps {
   analyticsSource?:
     | "start_here_priorities"
     | "start_here_early"
-    | "start_here_without_date"
-    | "landing_available_now";
+    | "start_here_without_date";
 }
 
 const DEMO_START_TIMEOUT_MS = 10_000;
