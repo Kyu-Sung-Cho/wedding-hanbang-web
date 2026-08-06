@@ -25,7 +25,8 @@ const content = read("src/components/landing/redesign/landingContent.ts");
 const section = read("src/components/landing/redesign/AvailableNowSection.tsx");
 const page = read("src/app/landing/page.tsx");
 
-/** availableNow 배열만 잘라 본다 — 같은 파일의 다른 목록도 `note:`를 쓴다. */
+/** availableNow 블록만 잘라 본다 — 같은 파일의 다른 목록도 `note:`를 쓴다.
+ *  `availableNowLead`가 이 접두사로 시작하므로 대표 카드도 함께 검사된다(의도). */
 const availableNowBlock = content.slice(
   content.indexOf("export const availableNow"),
   content.indexOf("export const preparationRecords"),
@@ -78,7 +79,10 @@ describe("landing available-now section", () => {
     expect(notes.length).toBeGreaterThanOrEqual(4);
     for (const note of notes) {
       expect(
-        /저장|서버|출처|자료|점수|등급|판정/u.test(note),
+        // "이용 전에 알아야 할 사실"의 범위: 저장 여부·데이터 출처·판정 안 함·
+        // 무료 한도. 대표 카드는 "준비 기록에 남지 않아요 / 무료 이용에는 한도가
+        // 있어요"로 말하므로 기록·한도·무료도 유효한 고지다.
+        /저장|서버|출처|자료|점수|등급|판정|기록|한도|무료/u.test(note),
         `이용 전에 알아야 할 사실이 없는 카드가 있다: "${note}"`,
       ).toBe(true);
     }

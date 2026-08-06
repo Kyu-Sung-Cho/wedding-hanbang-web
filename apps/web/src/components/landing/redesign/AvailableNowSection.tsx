@@ -1,9 +1,13 @@
-import { ArrowRight, CalendarCheck, FileSearch, ReceiptText, Users } from "lucide-react";
+import { ArrowRight, CalendarCheck, FileSearch, ReceiptText, Sparkles, Users } from "lucide-react";
 import Link from "next/link";
 
-import { availableNow, landingContent } from "./landingContent";
+import { StartDemoButton } from "@/components/demo/StartDemoButton";
+
+import { availableNow, availableNowLead, landingContent } from "./landingContent";
 import {
   displaySection,
+  eyebrowGlyph,
+  primaryActionMd,
   secondaryLink,
   sectionEyebrow,
   sectionLede,
@@ -56,7 +60,38 @@ export default function AvailableNowSection() {
           </p>
         </div>
 
-        <ul className="mt-10 grid gap-px overflow-hidden border border-[#243832]/14 bg-[#243832]/14 sm:grid-cols-2 lg:mt-14">
+        {/* 아모라를 넷과 같은 크기로 늘어놓으면 제품의 중심이 주변 도구와 같은
+            무게로 읽힌다. 대표 항목으로 먼저 세우고, 아래 넷이 그걸 뒷받침한다.
+            CTA는 링크가 아니라 실제 체험을 여는 버튼이다 — 아래 넷과 달리 이건
+            URL 이동이 아니라 `POST /api/demo/start` 뒤 아모라 채팅으로 간다. */}
+        <div className="mt-10 border border-[#243832]/14 bg-ivory-blush p-6 sm:p-8 lg:mt-14">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
+            <div className="flex-1">
+              <p className={`flex items-center gap-2 ${sectionEyebrow}`}>
+                <Sparkles className={eyebrowGlyph} aria-hidden="true" />
+                {availableNowLead.eyebrowLabel}
+              </p>
+              <h3 className="mt-3 text-[24px] font-semibold leading-[1.25] tracking-[-0.025em] sm:text-[30px]">
+                {availableNowLead.title}
+              </h3>
+              <p className="mt-3 max-w-[38rem] text-[16px] leading-[1.7] text-[#36534E]">
+                {availableNowLead.body}
+              </p>
+            </div>
+            <div className="lg:w-[19rem] lg:shrink-0">
+              <p className="text-[12px] leading-5 text-[#243832]/76">{availableNowLead.note}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <StartDemoButton
+                  label={availableNowLead.action}
+                  analyticsSource="landing_available_now"
+                  className={`${primaryActionMd} justify-between focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-blush`}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul className="mt-px grid gap-px overflow-hidden border border-[#243832]/14 bg-[#243832]/14 sm:grid-cols-2">
           {availableNow.map((item) => {
             const Icon = cardIcons[item.id];
             return (

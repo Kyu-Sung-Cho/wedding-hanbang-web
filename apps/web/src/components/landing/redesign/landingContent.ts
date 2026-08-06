@@ -139,6 +139,35 @@ export const startConditions = [
  *   2. `note`에 저장 여부나 출처처럼 이용 전에 알아야 할 사실을 적는다.
  *   3. 판정·점수·등급을 암시하는 표현을 쓰지 않는다.
  */
+/**
+ * 대표 항목: 로그인 없는 아모라 체험.
+ *
+ * 이 랜딩은 이미 `startConditions`의 "로그인 없는 아모라 체험"에서 같은 것을
+ * 약속하고 있었는데, 정작 "지금 되는 것" 목록에는 제품의 중심이 빠져 있었다.
+ *
+ * 로그인 없이 된다는 근거(2026-08-06 확인):
+ *   - 운영 `/price`에 "가입 없이 아모라 체험하기" 버튼이 실제로 렌더된다
+ *   - 운영 `/login`에 "로그인 없이 체험하기"가 있다
+ *   - `api/demo/start`가 서명 HttpOnly 쿠키를 발급하고 `api/chat/route.ts`가
+ *     그 쿠키만으로 인가한다 — 같은 파일이 "never receives database write access"
+ *   - 소유자가 운영 `AMORA_OPENAI_ENABLED=true`를 확인해 줬다
+ *
+ * ⚠️ 운영 랜딩(hanbang.ai/landing)은 "아모라는 로그인이 필요하고"라고 말한다.
+ * 자기 `/price`와 어긋난 낡은 문구로 보이며, 그 페이지는 이 브랜치 밖이라
+ * 여기서 고치지 않았다. 두 페이지가 같은 말을 하도록 별도 정리가 필요하다.
+ *
+ * CTA는 링크가 아니라 `StartDemoButton`이다. 체험은 URL 이동이 아니라
+ * `POST /api/demo/start` 뒤 `/wedding/chat`으로 가는 흐름이라, 링크로 흉내 내면
+ * 버튼이 약속한 것과 실제 동작이 갈린다.
+ */
+export const availableNowLead = {
+  eyebrowLabel: "지금 · 로그인 없이",
+  title: "아모라에게 먼저 물어보기",
+  body: "가입도 결제도 없이 아모라에게 결혼 준비를 물어볼 수 있어요. 무엇부터 해야 할지, 받은 견적이 뭘 뜻하는지 편한 말로 물어보세요.",
+  note: "체험 대화는 계정의 준비 기록에 남지 않아요. 무료 이용에는 한도가 있어요. AI가 만든 답이라 틀리거나 놓칠 수 있으니 계약 금액·취소 조건은 원문을 다시 확인해요.",
+  action: "가입 없이 아모라 체험하기",
+} as const;
+
 export const availableNow = [
   {
     id: "start-here",
