@@ -1591,7 +1591,37 @@ function getAmoraSharedActionFailureMessage(
   return fallback;
 }
 
+/**
+ * 서버가 밝힌 사유 코드를 앱의 말로 옮긴다.
+ *
+ * 서버가 보낸 문장 자체는 화면에 그리지 않는다 — 내부 정보가 실릴 수 있고, 그
+ * 결정은 `chatStream.test.mjs`가 "hides server details"로 고정하고 있다. 대신 코드만
+ * 읽고 앱이 자기 문구를 고른다.
+ *
+ * 코드까지 무시하면 한도를 다 쓴 사람이 "다시 시도해 주세요"를 받고 몇 번을 눌러도
+ * 같은 결과를 만난다. 자기 통신 문제인 줄 알고 계속 누르게 된다.
+ */
+function getServerCodeFailureMessage(serverCode: string | null): string | null {
+  switch (serverCode) {
+    case "COST_GUARD_COUPLE_QUOTA":
+      return "베타 기간에 드리는 무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
+    case "COST_GUARD_GLOBAL_DAILY":
+      return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
+    case "COST_GUARD_GLOBAL_BUDGET":
+      return "오늘 아모라의 안전 한도에 도달했어요. 잠시 후 다시 시도해 주세요.";
+    case "COST_GUARD_UNAVAILABLE":
+      return "아모라 사용량을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
+    default:
+      return null;
+  }
+}
+
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
+  // 왜 막혔는지 서버가 코드로 밝힌 경우에는 그것부터 전한다.
+  if (error instanceof ChatTransportError) {
+    const reason = getServerCodeFailureMessage(error.serverCode);
+    if (reason) return reason;
+  }
   if (timedOut || (error instanceof ChatTransportError && error.code === "TIMEOUT")) {
     return "답변이 평소보다 오래 걸렸어요. 같은 요청으로 다시 이어갈 수 있어요.";
   }
