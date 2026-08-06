@@ -65,7 +65,10 @@ describe("landing product outcome evidence", () => {
     expect(privacy).toContain("확인해 반영한 결과를 함께 보기");
     expect(privacy).toContain("파트너 화면에는 표시하지 않음");
     expect(privacy).toContain('href="/privacy"');
-    expect(privacy).toContain("로그인 없는 체험은 공유 모드로만 열려요");
+    // 2026-08-06: 로그인 없는 체험 언급을 내렸다(파운더 결정: 한도 예정).
+    // 남은 계약은 "계정 베타에서 분리할 수 있다"는 경계 자체다.
+    expect(privacy).toContain("계정 베타 기능이 제공되면 함께 관리할 준비와 파트너에게 보이지 않을 상담을 분리할 수 있어요");
+    expect(privacy, "되돌린 방향의 체험 잔재").not.toContain("로그인 없는 체험");
   });
 
   it("keeps the editorial story in the intended order", () => {
@@ -92,7 +95,8 @@ describe("landing product outcome evidence", () => {
     expect(content).toContain("오늘 정한 한 가지가, 다음 준비의 기준으로.");
     expect(content).toContain("무엇이 바뀌는지 먼저 봐요.");
     expect(content).toContain("같은 준비에서 이어가요.");
-    expect(continuity).toContain("로그인 없이 여는 체험 대화와 변경은 계정의 준비 기록에 남지 않아요.");
+    expect(continuity).toContain("계정 베타에서는 준비 기록에 반영될 변경을 먼저 확인할 수 있어요.");
+    expect(continuity, "되돌린 방향의 체험 잔재").not.toContain("체험 대화");
   });
 
   it("keeps the community promise bounded to an unlaunched operating plan", () => {

@@ -55,7 +55,7 @@ export default function ContinuitySection() {
         {/* 44px 터치 대상을 문단 안 inline 요소로 두면 line box가 44px로 벌어져
             링크가 혼자 줄을 차지한다. 문단 밖 블록으로 꺼내 대상 크기는 지킨다. */}
         <p className="mt-9 border-t border-white/12 pt-6 text-[14px] leading-[1.7] text-white/78">
-          로그인 없이 여는 체험 대화와 변경은 계정의 준비 기록에 남지 않아요. 계정 베타에서는 준비 기록에 반영될 변경을 먼저 확인할 수 있어요. 대화에는 별도의 처리·저장 기준이 적용돼요.
+          계정 베타에서는 준비 기록에 반영될 변경을 먼저 확인할 수 있어요. 대화에는 별도의 처리·저장 기준이 적용돼요.
         </p>
         <Link
           href="/privacy"

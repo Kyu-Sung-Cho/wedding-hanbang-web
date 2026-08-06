@@ -43,9 +43,12 @@ export default function PreparationPreview({ priorities, anyStarted }: Preparati
               지금 알아볼 준비 3가지
             </h2>
             <p className="mt-0.5 text-[12px] font-medium text-[#4E6A62]">
+              {/* 항목 순서는 날짜와 무관하게 고정이다(정렬이 모든 항목에서 같은
+                  D-day를 빼므로 상대 순서가 바뀌지 않는다). 날짜가 실제로 가르는 것은
+                  "지금 시작할 때가 됐는지"뿐이라 그것만 말한다. */}
               {anyStarted
-                ? "넣은 날짜 기준으로 골랐어요"
-                : "아직 여유가 있어요. 곧 볼 순서예요"}
+                ? "지금 시작해도 되는 시점이에요"
+                : "아직 여유가 있어요. 먼저 살펴볼 순서예요"}
             </p>
           </div>
         </div>

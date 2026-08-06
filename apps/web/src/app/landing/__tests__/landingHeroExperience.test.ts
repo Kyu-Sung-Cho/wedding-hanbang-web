@@ -41,11 +41,9 @@ describe("landing hero product experience contract", () => {
   it("explains the product in plain language before asking for action", () => {
     expect(content).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
     expect(content).toContain("아모라 · 대화를 정리하는 AI");
-    expect(content).toContain("지금 알아볼 준비 3가지");
+    expect(content).toContain("먼저 살펴볼 준비 3가지");
     expect(content, "산출물을 개수로만 말하면 안 된다").not.toMatch(/지금 볼 세 가지가 나와요/u);
-    expect(content, "첫 행동과 아모라를 잇는 문장이 필요하다").toMatch(
-      /body:\s*"[^"]*아모라[^"]*"/u,
-    );
+    expect(hero, "히어로가 아모라로 이어지지 않는다").toContain("아모라");
     expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("확인한 변경만 준비 기록에 반영해요");
@@ -134,9 +132,10 @@ describe("landing hero product experience contract", () => {
     // 첫 문단은 "무엇을 넣으면 무엇이 나오는지"만 말한다. 그리고 출력을 **개수가
     // 아니라 이름으로** 말해야 한다 — 이전 문구는 "세 가지"라고만 해서 그 셋이
     // 무엇인지 랜딩 어디에도 없었다.
-    expect(body).toContain("지금 알아볼 준비 3가지");
+    expect(body).toContain("먼저 살펴볼 준비 3가지");
     expect(body, "산출물을 개수로만 말하면 안 된다").not.toContain("지금 볼 세 가지가 나와요");
-    expect(body, "첫 행동과 아모라를 잇는 문장이 필요하다").toContain("아모라");
+    // 본문은 이 자리에서 되는 것만 말한다. 아모라 연결은 CTA와 폼 안내가 맡는다.
+    expect(hero, "히어로가 아모라로 이어지지 않는다").toContain("아모라");
     expect(body).not.toContain("계정 베타");
 
     // 경계 문구는 사라지지 않는다. 위계만 CTA 아래로 내려간다.

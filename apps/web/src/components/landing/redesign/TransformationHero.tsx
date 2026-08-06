@@ -78,6 +78,11 @@ export default function TransformationHero() {
     [dateText],
   );
   const hasPreview = preview.visiblePriorities.length > 0;
+  // 지난 날짜를 넣으면 계산이 빈 결과를 주고 화면이 조용히 데모로 되돌아갔다.
+  // 입력이 거부됐다는 사실이 어떤 경로로도 전달되지 않아, 사용자는 자기가 뭘
+  // 잘못했는지 모른 채 결과가 사라지는 것만 본다.
+  const isPastDate = dateText !== "" && !hasPreview;
+  const todayYmd = new Date().toISOString().slice(0, 10);
 
   const startWithDate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -178,8 +183,12 @@ export default function TransformationHero() {
                     id="landing-wedding-date"
                     type="date"
                     value={dateText}
+                    min={todayYmd}
+                    aria-invalid={isPastDate}
                     onChange={(event) => setDateText(event.target.value)}
-                    aria-describedby="landing-start-assurance"
+                    aria-describedby={
+                      isPastDate ? "landing-date-error" : "landing-start-assurance"
+                    }
                     className="min-h-12 min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#243832] outline-none [color-scheme:light]"
                   />
                 </span>
@@ -270,16 +279,35 @@ export default function TransformationHero() {
         </div>
 
         {/* 날짜를 넣기 전에는 "대화가 기록이 된다"를 보여주는 예시가, 넣은 뒤에는
-            그 사람의 실제 결과가 같은 자리에 온다. 예시가 자기 것으로 바뀌는 순간이
-            이 페이지에서 가장 강한 증거다. */}
-        {hasPreview ? (
-          <PreparationPreview
-            priorities={preview.visiblePriorities}
-            anyStarted={preview.activeNow.length > 0}
-          />
-        ) : (
-          <ConversationToPlanDemo />
-        )}
+            준비 순서가 같은 자리에 온다. 이 교체는 화면에서 통째로 일어나므로,
+            보지 못하는 사람에게는 아무 일도 안 일어난 것과 같다. 한 줄짜리
+            live region으로 무엇이 바뀌었는지만 알린다 — 패널 전체를 읽히면
+            항목 3개 × 첫걸음 3개가 통째로 낭독돼 오히려 방해가 된다. */}
+        <div className="relative z-10 min-w-0">
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {isPastDate
+              ? "지난 날짜예요. 결혼식 날짜를 다시 확인해 주세요."
+              : hasPreview
+                ? "먼저 살펴볼 준비 3가지를 표시했어요."
+                : ""}
+          </p>
+          {isPastDate ? (
+            <p
+              id="landing-date-error"
+              className="mb-3 rounded-xl border border-white/18 bg-white/10 px-4 py-3 text-[14px] font-medium leading-6 text-[#E2D3C8]"
+            >
+              지난 날짜예요. 결혼식 날짜를 다시 확인해 주세요.
+            </p>
+          ) : null}
+          {hasPreview ? (
+            <PreparationPreview
+              priorities={preview.visiblePriorities}
+              anyStarted={preview.activeNow.length > 0}
+            />
+          ) : (
+            <ConversationToPlanDemo />
+          )}
+        </div>
       </div>
     </section>
   );

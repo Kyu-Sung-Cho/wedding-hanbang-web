@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -86,7 +86,13 @@ describe("landing two-sided trust contract", () => {
   it("never promises Amora without a login", () => {
     // 주석은 벗기고 본다. 왜 이 약속을 하지 않는지 설명하려면 그 문구를 적어야
     // 하는데, 자기 설명에 걸려 넘어지는 가드는 가드가 아니다(이 저장소에서 세 번째다).
-    const rendered = [landing, header, hero, content, trust, footer]
+    // 가드가 6개 파일만 읽어서, 잔재가 실제로 남아 있던 ContinuitySection·
+    // SharedPrivateSection을 놓쳤다. 랜딩이 렌더하는 컴포넌트 전부를 읽는다.
+    const redesignDir = resolve(appRoot, "src/components/landing/redesign");
+    const everyLandingSource = readdirSync(redesignDir)
+      .filter((f) => f.endsWith(".tsx") && !f.includes(".test."))
+      .map((f) => readFileSync(resolve(redesignDir, f), "utf8"));
+    const rendered = [landing, content, ...everyLandingSource]
       .join("\n")
       .replace(/\/\*[\s\S]*?\*\//gu, "")
       .replace(/^[	 ]*\/\/.*$/gmu, "")
@@ -95,15 +101,11 @@ describe("landing two-sided trust contract", () => {
     // 한도 정책이 확정되기 전까지 "가입 없이 아모라를 쓸 수 있다"고 말하지 않는다.
     // 한도에 걸린 사용자가 예상 못 한 벽을 만나는 것이 이 페이지가 만들 수 있는
     // 가장 나쁜 첫인상이다.
-    for (const promise of [
-      "가입도 결제도 없이 아모라",
-      "가입 없이 아모라 체험하기",
-      "로그인 없는 아모라",
-      "로그인 없이 아모라",
-    ]) {
-      expect(rendered, `랜딩이 로그인 없는 아모라를 약속한다: "${promise}"`)
-        .not.toContain(promise);
-    }
+    // 정확 문자열 열거는 변형을 놓친다 — 실제로 "로그인 없이 여는 체험 대화"와
+    // "로그인 없는 체험"이 그렇게 빠져나갔다. 패턴으로 막는다.
+    const noLoginAmora = /(로그인|가입)[^.\n]{0,12}(없|안)[^.\n]{0,24}(아모라|체험)/u;
+    const hit = rendered.match(noLoginAmora);
+    expect(hit?.[0], "랜딩이 로그인 없는 아모라·체험을 약속한다").toBeUndefined();
     // 숫자를 추측해 적지 않는다 — 한도 값이 아직 정해지지 않았다.
     expect(rendered).not.toMatch(/무료\s*\d+\s*(회|번|건)/u);
   });
