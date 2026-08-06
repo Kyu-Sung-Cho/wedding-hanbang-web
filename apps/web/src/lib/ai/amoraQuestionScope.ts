@@ -14,8 +14,22 @@ export type AmoraQuestionScope =
   | "W4_out_of_scope"
   | "W5_safety_override";
 
+/**
+ * W2가 왜 걸렸는가.
+ *
+ * `domain` — 법률·의료·금융. 아모라가 판단할 자격이 없다는 뜻이지, 이 관계가
+ *            위험하다는 뜻이 아니다. 계약금 환불로 다투는 커플이 여기 온다.
+ * `safety` — 폭력·통제·자해. 이 대화를 합의안으로 끌고 가면 안 된다.
+ *
+ * 두 갈래는 다르게 다뤄야 한다. 예전에는 한 통이라 계약 분쟁이 안전 사안과 같은
+ * 취급을 받았다.
+ */
+export type AmoraHighRiskReason = "domain" | "safety";
+
 export interface AmoraQuestionScopeClassification {
   scope: AmoraQuestionScope;
+  /** scope가 W2일 때만 채워진다. */
+  highRiskReason?: AmoraHighRiskReason;
   allowsLongTermMemory: boolean;
   confidence: "high" | "low";
   needsClarification: boolean;
@@ -31,10 +45,38 @@ const NON_WEDDING_INVESTMENT_PATTERN =
   /주식|주가|삼성전자|코인|암호화폐|가상자산|ETF|펀드|채권|매수|매도|수익률|투자/iu;
 const OUT_OF_SCOPE_TASK_PATTERN =
   /코딩|프로그래밍|TypeScript|JavaScript|Python|코드를?\s*(?:대신\s*)?(?:짜|작성|구현)|버그를?\s*(?:고쳐|수정)|정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
-const HIGH_RISK_ADJACENT_PATTERN =
-  /법률|법적|불법|위법|소송|변호사|세무|세금.{0,16}(?:신고|법|계산|절세|공제|납부|세율|상담)|증여세|상속세|계약.{0,16}(?:효력|무효|취소|해지|해제|파기|환불|반환)|(?:계약금|위약금).{0,16}(?:환불|반환|돌려받)|계약서.{0,16}(?:봐|검토|확인|분석|리뷰)|(?:계약|약관)?\s*조항.{0,16}(?:불리|권리|의무|효력|검토|분석)|서명.{0,20}(?:권리|의무|효력|검토|확인)|의료|의학|치료|처방|복용|임신|산부인과|정신과|우울증|공황장애|심리\s*(?:분석|상담|진단|검사|치료)|궁합\s*(?:분석|진단)|약(?:을|를)?\s*(?:먹|복용)|수면제|다이어트\s*약|삭센다|위고비|오젬픽|(?:약|수면제|다이어트\s*약).{0,16}(?:복용량|용량|몇\s*알|용법|투여량)|금융\s*상품|(?:대출|보험).{0,16}(?:상품|추천|골라|가입|금리|상환)|가정\s*폭력|데이트\s*폭력|폭력|폭행|협박|신체적\s*위협|강압적(?:인|으로)?\s*통제|감금|스토킹/iu;
-const HIGH_RISK_CONCRETE_VARIANT_PATTERN =
-  /졸피뎀|보톡스|필러|전세\s*대출|대출|보험|(?:돈|카드|통장|계좌).{0,16}(?:못\s*쓰|통제|감시|검사)|(?:폰|휴대폰|연락|위치).{0,24}(?:검사|추적|통제|감시)|(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:에게|한테|가|이|은|는)?\s*.{0,40}(?:맞았|때렸|때릴|때릴까|죽(?:인|이겠)다고|죽여\s*버린다고|죽여\s*버리겠다고|(?:방|집|차)(?:에|에서)?\s*.{0,12}가둬)|동의\s*없이\s*.{0,24}(?:옷(?:을|를)?\s*벗(?:기|겼)|성관계|성적\s*행위)/iu;
+// 고위험은 두 가지가 섞여 있었다. 법률·의료·금융은 **아모라가 판단할 자격이 없는**
+// 영역이고, 폭력·통제·자해는 **이 대화를 합의안으로 끌고 가면 안 되는** 신호다.
+// 한 통에 담으면 계약금 환불로 다투는 커플이 안전 사안과 같은 취급을 받는다 —
+// 실제로 평범한 중재 요약 20개 중 5개가 그렇게 떨어졌다(2026-08-07 측정).
+// 두 갈래는 앞으로 다르게 다뤄야 하므로 판정 시점에 사유를 남긴다.
+const HIGH_RISK_DOMAIN_PATTERN =
+  /법률|법적|불법|위법|소송|변호사|세무|세금.{0,16}(?:신고|법|계산|절세|공제|납부|세율|상담)|증여세|상속세|계약.{0,16}(?:효력|무효|취소|해지|해제|파기|환불|반환)|(?:계약금|위약금).{0,16}(?:환불|반환|돌려받)|계약서.{0,16}(?:봐|검토|확인|분석|리뷰)|(?:계약|약관)?\s*조항.{0,16}(?:불리|권리|의무|효력|검토|분석)|서명.{0,20}(?:권리|의무|효력|검토|확인)|의료|의학|치료|처방|복용|임신|산부인과|정신과|우울증|공황장애|심리\s*(?:분석|상담|진단|검사|치료)|궁합\s*(?:분석|진단)|약(?:을|를)?\s*(?:먹|복용)|수면제|다이어트\s*약|삭센다|위고비|오젬픽|(?:약|수면제|다이어트\s*약).{0,16}(?:복용량|용량|몇\s*알|용법|투여량)|금융\s*상품|(?:대출|보험).{0,16}(?:상품|추천|골라|가입|금리|상환)/iu;
+const HIGH_RISK_DOMAIN_CONCRETE_PATTERN =
+  /졸피뎀|보톡스|필러|전세\s*대출|대출|보험/iu;
+// `때린|손찌검|밀쳐`는 나중에 더했다. 그 전에는 "화나면 물건을 던지고 저를 때린 적도
+// 있어요"가 W1로 떨어져 평범한 결혼 대화와 같은 취급을 받았다 — 신체 폭력을 말한
+// 사람이 "두 분이 조금씩 양보하세요" 카드를 받는다는 뜻이다. 기존 어휘는 `폭력`
+// `폭행` 같은 명명어이거나 "상대방 명사 + 때렸/때릴" 조합을 요구해서, 사람이 실제로
+// 쓰는 서술형을 비켜갔다.
+//
+// 처음에는 `때린|주먹|밀쳐`를 낱말 그대로 넣었고, 기존 오탐 코퍼스 46개에서 오탐이
+// 0이라 안전하다고 판단했다. 틀렸다 — 그 코퍼스는 **강압 통제**를 깨려고 만든 것이라
+// 이 낱말들을 아무도 노리지 않았다. 이 어휘를 겨냥해 문장을 만들자 10개 중 7개가
+// 걸렸다: "상견례 때 주먹밥 도시락", "주먹구구식으로 예산을 잡았더니",
+// "사람이 많아서 밀쳐서 넘어졌어요", "비가 창문을 때리는 소리".
+//
+// 그래서 **행위자와 대상**을 요구하는 형태로 좁혔다. 최종 측정(2026-08-07):
+// 폭력 서술 8개 중 7개 탐지, 오탐 0/46 — 그중 16개는 이 어휘를 깨려고 따로 만든
+// 문장이다. 놓친 하나는 "주먹으로 벽을 쳐요"인데, 위협이지 직접 폭력이 아니고
+// 요리 맥락("반죽을 주먹으로 치대는")과 낱말로 분리되지 않아 뺐다.
+//
+// 교훈은 어휘가 아니라 측정에 있다. **겨냥하지 않은 코퍼스의 오탐 0은 아무것도
+// 증명하지 않는다.** 그리고 이것도 여전히 낱말 검사라 완곡어법은 못 잡는다.
+const HIGH_RISK_SAFETY_PATTERN =
+  /가정\s*폭력|데이트\s*폭력|폭력|폭행|협박|신체적\s*위협|강압적(?:인|으로)?\s*통제|감금|스토킹|손찌검|(?:저|제|나|내)(?:를|을|한테|에게)\s*[^.!?\n]{0,10}?(?:때린|때렸|때려|때리려|밀쳐|밀치|밀었)|(?:때린|때렸|때려)\s*(?:적|뒤|이후|후)|때리려고\s*(?:손|팔)|주먹질|목(?:을|를)?\s*(?:조른|졸랐)|물건(?:을|를)?\s*(?:던지|집어\s*던)/iu;
+const HIGH_RISK_SAFETY_CONCRETE_PATTERN =
+  /(?:돈|카드|통장|계좌).{0,16}(?:못\s*쓰|통제|감시|검사)|(?:폰|휴대폰|연락|위치).{0,24}(?:검사|추적|통제|감시)|(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:에게|한테|가|이|은|는)?\s*.{0,40}(?:맞았|때렸|때릴|때릴까|죽(?:인|이겠)다고|죽여\s*버린다고|죽여\s*버리겠다고|(?:방|집|차)(?:에|에서)?\s*.{0,12}가둬)|동의\s*없이\s*.{0,24}(?:옷(?:을|를)?\s*벗(?:기|겼)|성관계|성적\s*행위)/iu;
 const HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN =
   /(?:누가|누군가|사람이|친구가)?\s*(?:그만\s*살고\s*싶|죽\s*고\s*싶|자살|자해).{0,32}(?:말하면|하면|도와|어떻게|위험)|(?:수면제|진통제|타이레놀|아세트아미노펜|졸피뎀|약|알약)(?:을|를)?\s*(?:(?:열|열다섯|스무|스물|서른|마흔|쉰)\s*알|[1-9]\d{1,}\s*알).{0,16}(?:먹으면|복용하면|위험)/iu;
 const SOCIAL_CARE_PATTERN =
@@ -109,13 +151,19 @@ export function classifyAmoraQuestionScope({
   // The current message's safety/domain boundary is authoritative. A prior
   // confirmation or an approved wedding action must not launder a newly added
   // medical, legal, financial, or otherwise out-of-scope question into W0.
-  if (
-    HIGH_RISK_ADJACENT_PATTERN.test(normalizedText)
-    || HIGH_RISK_CONCRETE_VARIANT_PATTERN.test(normalizedText)
-    || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText)
-  ) {
+  const safetyHighRisk =
+    HIGH_RISK_SAFETY_PATTERN.test(normalizedText)
+    || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(normalizedText)
+    || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText);
+  const domainHighRisk =
+    HIGH_RISK_DOMAIN_PATTERN.test(normalizedText)
+    || HIGH_RISK_DOMAIN_CONCRETE_PATTERN.test(normalizedText);
+  if (safetyHighRisk || domainHighRisk) {
     return {
       scope: "W2_high_risk_adjacent",
+      // 둘 다 걸리면 안전이 이긴다. 안전 신호가 있는 대화를 "전문가에게 물어보세요"로
+      // 끝내면 안 된다.
+      highRiskReason: safetyHighRisk ? "safety" : "domain",
       allowsLongTermMemory: false,
       confidence: "high",
       needsClarification: false,
@@ -179,6 +227,7 @@ export function classifyAmoraQuestionScope({
   if (requestKind === "mediation" && hasCoerciveControlSignal(normalizedText)) {
     return {
       scope: "W2_high_risk_adjacent",
+      highRiskReason: "safety",
       allowsLongTermMemory: false,
       confidence: "high",
       needsClarification: false,
