@@ -36,6 +36,31 @@ import {
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
 const amoraStartHref = "/start-here";
 
+/**
+ * 대략적인 시점 프리셋.
+ *
+ * 이 페이지는 "날짜 없어도 시작 가능"이라고 말하면서, 정작 날짜가 없는 사람에게는
+ * 그 자리에서 아무것도 주지 않았다. 처음 온 사람 상당수가 정확한 날짜를 아직 모르는데
+ * 빈 입력칸만 보게 된다. 대략만 눌러도 자기 결과를 볼 수 있게 한다.
+ *
+ * 누르면 날짜 입력칸이 실제로 채워진다 — 숨은 값을 쓰지 않으므로 사용자가 무엇이
+ * 계산에 쓰였는지 보고 바로 고칠 수 있다.
+ */
+const ROUGH_TIMEFRAMES = [
+  { label: "6개월 뒤쯤", months: 6 },
+  { label: "1년 뒤쯤", months: 12 },
+  { label: "1년 반 뒤쯤", months: 18 },
+] as const;
+
+/** 오늘로부터 N개월 뒤를 `YYYY-MM-DD`로. 월말 넘침은 그 달 마지막 날로 맞춘다. */
+function monthsFromToday(months: number): string {
+  const base = new Date();
+  const target = new Date(base.getFullYear(), base.getMonth() + months, base.getDate());
+  if (target.getDate() !== base.getDate()) target.setDate(0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}`;
+}
+
 type DemoState = "proposal" | "saved";
 
 export default function TransformationHero() {
@@ -171,6 +196,32 @@ export default function TransformationHero() {
                 />
               </button>
             </div>
+            {/* 날짜를 모르는 사람이 여기서 멈추지 않게 한다. 누르면 위 입력칸이
+                실제로 채워져 결과가 즉시 바뀐다 — 무엇으로 계산했는지 보이고
+                바로 고칠 수 있다. */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-semibold text-white/72">아직 모르겠다면</span>
+              {ROUGH_TIMEFRAMES.map((frame) => {
+                const value = monthsFromToday(frame.months);
+                const selected = dateText === value;
+                return (
+                  <button
+                    key={frame.label}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setDateText(value)}
+                    className={`inline-flex min-h-9 items-center rounded-full border px-3 text-[12px] font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2D3C8] focus-visible:ring-offset-2 focus-visible:ring-offset-[#243832] ${
+                      selected
+                        ? "border-gold-light bg-gold-light text-[#243832]"
+                        : "border-white/18 text-white/88 hover:border-gold-light hover:text-gold-light"
+                    }`}
+                  >
+                    {frame.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div id="landing-start-assurance" className="mt-3 border-t border-white/12 pt-3">
               <ul className="grid gap-2 text-[12px] leading-5 text-white/82 sm:grid-cols-2">
                 <li className="flex items-start gap-2">
