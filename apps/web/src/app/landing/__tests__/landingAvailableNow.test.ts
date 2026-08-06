@@ -87,10 +87,7 @@ describe("landing available-now section", () => {
   it("never routes these cards through the Amora start tracker", () => {
     // TrackedLandingLink는 landing_amora_start_click을 쏘고 날짜 handoff를 지운다.
     // 이 넷은 아모라를 열지 않으므로 둘 다 틀린 동작이 된다.
-    // 대표 카드(아모라)는 실제로 아모라를 열므로 TrackedLandingLink가 맞다.
-    // 검사 대상은 그 아래 네 카드(<ul>)뿐이다.
-    const cardList = withoutComments(section).match(/<ul[\s\S]*?<\/ul>/u)?.[0] ?? "";
-    expect(cardList, "네 카드는 아모라를 열지 않는다").not.toContain("TrackedLandingLink");
+    expect(withoutComments(section)).not.toContain("TrackedLandingLink");
     expect(section, "보조 링크는 공유 레시피를 쓴다").toContain("${secondaryLink}");
   });
 
