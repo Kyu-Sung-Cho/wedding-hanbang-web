@@ -19,6 +19,9 @@ import {
   WEDDING_GUEST_COUNT_OPTIONS,
   WEDDING_PRIORITY_OPTIONS,
   WEDDING_STYLE_OPTIONS,
+  allowsCountdown,
+  normalizePreparationStatus,
+  type PreparationStatus,
 } from "@hanbang/shared";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
@@ -147,6 +150,12 @@ function generateBehaviorInsights(context: {
 
 export type WeddingPlannerPromptContext = {
   weddingDate: string | null;
+  /**
+   * 이 사람에게 지금 준비가 진행 중인가. 저장 컬럼이 아직 없으므로 값이 없으면
+   * `preparing`으로 본다 — 모르는 상태 때문에 모든 사용자의 준비가 멈춘 것처럼
+   * 보여서는 안 된다.
+   */
+  preparationStatus?: PreparationStatus | null;
   budget: number;
   venue: string | null;
   progress: Record<string, unknown>;
@@ -247,12 +256,31 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     ? `결혼 예정일: ${promptData(context.weddingDate, 40)}`
     : "결혼 날짜: 아직 미정";
 
+  // 예식이 연기되거나 취소된 사람에게 남은 날짜를 세어 보여주지 않는다.
+  // 상태를 바꾸는 것은 언제나 사용자이고, 아모라가 추측해서 바꾸지 않는다.
+  const preparation = normalizePreparationStatus(context.preparationStatus);
+
   // D-day 계산
   let dDayInfo = "";
-  if (context.weddingDate) {
+  if (context.weddingDate && allowsCountdown(preparation)) {
     const diff = Math.ceil((new Date(context.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     dDayInfo = diff > 0 ? `(D-${diff})` : diff === 0 ? "(D-Day!)" : `(D+${Math.abs(diff)})`;
   }
+
+  // 멈춘 사람에게 남는 일은 준비가 아니라 정리다. 재촉과 축하를 거두고, 사용자가
+  // 원할 때 꺼낼 수 있는 세 가지만 남긴다.
+  const preparationInstruction = preparation === "preparing"
+    ? ""
+    : [
+      "",
+      preparation === "called_off"
+        ? "## 지금은 준비를 이어가는 상황이 아닙니다 (사용자가 직접 설정함)"
+        : "## 지금은 준비를 잠시 멈춘 상황입니다 (사용자가 직접 설정함)",
+      "- 남은 날짜를 세거나 축하하거나 다음 할 일을 재촉하지 마세요.",
+      "- 먼저 꺼낼 수 있는 이야기는 알림 정리, 계약 조건 확인, 환급·취소 일정뿐입니다. 그마저도 밀어붙이지 말고 사용자가 원할 때 꺼내세요.",
+      "- 이유를 캐묻지 말고, 사용자가 말한 범위 안에서만 도우세요.",
+      "- 이 상태를 되돌리는 것도 사용자입니다. 아모라가 임의로 준비를 다시 시작하지 마세요.",
+    ].join("\n");
 
   // 같은 금액도 결혼식만인지 신혼집까지인지에 따라 이후 계산이 완전히 달라진다.
   // 확인한 범위는 그대로 전하고, 확인하지 않은 항목은 포함으로 추정하지 않고
@@ -745,6 +773,8 @@ ${AMORA_CARE_VOICE}
 - 예약에서 사용자가 특정 날짜를 말하면 그 날짜가 절대 기준입니다. 빈 시간이 없더라도 전날/다음날로 바꿔 예약하지 말고, "그 날짜는 불가"와 대체 후보를 분리해서 안내하세요.
 - 결혼식 날짜를 답할 때는 "${_thisYear}년" 또는 "${_nextYear}년" 같이 4자리 연도를 명시하세요. 절대 ${_thisYear - 1}년 같은 과거 연도로 답하지 마세요.
 - 사용자가 결혼 예정일을 처음 말하면 그 날짜를 정확히 되짚고 저장 제안을 만드세요. 사용자가 저장·변경을 별도로 확인하기 전에는 \`update_wedding_date\`를 실행하거나 저장됐다고 말하지 마세요.
+
+${preparationInstruction}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
