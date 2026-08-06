@@ -8,10 +8,10 @@ import {
   completeChatRequest,
   failChatRequest,
 } from "@/lib/ai/chatRequestClaim";
-import { createHash } from "node:crypto";
 import { shouldRecallSavedNotes } from "@/lib/amora/savedNotesRecall";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isAmoraProactiveChatEnabled } from "@/lib/features/amoraCareFlags";
+import { buildLifecycleCareDigest } from "@/lib/amora/careMessageIdentity";
 
 const MUTATION_RESPONSE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -298,14 +298,13 @@ async function handleProactiveRequest(req: NextRequest) {
       `지금은 '${plan.stageLabel}' 단계예요. ${plan.stageSummary}`,
     ].join("\n");
 
-    const lifecycleBucket = Math.floor(Date.now() / (6 * 60 * 60 * 1000));
-    const lifecycleDigest = createHash("sha256")
-      .update(profile.couple_id)
-      .update("\0")
-      .update(plan.primaryAction.id)
-      .update("\0")
-      .update(String(lifecycleBucket))
-      .digest("hex");
+    // 예전에는 여기에 6시간 버킷이 들어 있어서, 내용이 한 글자도 바뀌지 않았는데
+    // 6시간마다 새 키가 되어 같은 메시지가 무기한 다시 나갔다. 상태가 바뀔 때만
+    // 다시 말한다 — 그 상태는 `primaryAction.id`가 담는다.
+    const lifecycleDigest = buildLifecycleCareDigest(
+      profile.couple_id,
+      plan.primaryAction.id,
+    );
     const claimParams = {
       coupleId: profile.couple_id,
       requestKey: `lifecycle:${lifecycleDigest}`,
