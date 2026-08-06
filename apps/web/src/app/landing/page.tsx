@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import AvailableNowSection from "@/components/landing/redesign/AvailableNowSection";
 import ClosingAction from "@/components/landing/redesign/ClosingAction";
 import CommunityBridgeSection from "@/components/landing/redesign/CommunityBridgeSection";
 import ContinuitySection from "@/components/landing/redesign/ContinuitySection";
@@ -31,25 +32,19 @@ export function generateMetadata(): Metadata {
     title,
     description,
     alternates: { canonical: "/landing" },
+    // openGraph.images / twitter.images를 여기 적지 않는다. 같은 폴더의
+    // `opengraph-image.tsx`가 파일 규약으로 카드를 만들고, 여기서 images를
+    // 명시하면 그 규약이 덮인다(start-here도 같은 방식).
     openGraph: {
       title,
       description,
       url: "/landing",
       type: "website",
-      images: [
-        {
-          url: "/images/landing-social-card.webp",
-          width: 1200,
-          height: 630,
-          alt: "둘이 나눈 대화를 예산, 할 일, 일정으로 정리하는 웨딩한방",
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: ["/images/landing-social-card.webp"],
     },
   };
 }
@@ -59,7 +54,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#FBF8F2] text-[#243832]">
       <a
         href="#main-content"
-        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-full bg-[#FBF8F2] px-5 py-3 text-[14px] font-semibold text-[#243832] shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[#8F6662] focus:ring-offset-2"
+        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-full bg-[#FBF8F2] px-5 py-3 text-[14px] font-semibold text-[#243832] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[#8F6662] focus:ring-offset-2"
       >
         본문 바로가기
       </a>
@@ -67,6 +62,10 @@ export default function LandingPage() {
       <main id="main-content" tabIndex={-1}>
         <TransformationHero />
         <ProblemMirrorSection />
+        {/* 문제를 보여준 직후에 "지금 당장 무료로 이만큼 된다"를 둔다.
+            아래 섹션들은 대부분 계정 베타(미제공)를 설명하므로, 그 전에
+            오늘 쓸 수 있는 것을 먼저 세워야 처음 온 사람이 빈손으로 읽지 않는다. */}
+        <AvailableNowSection />
         <PreparationResult />
         <ContinuitySection />
         <SharedPrivateSection />

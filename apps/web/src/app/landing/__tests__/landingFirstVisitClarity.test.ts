@@ -14,8 +14,14 @@ describe("landing first visit clarity", () => {
     const hero = source("src/components/landing/redesign/TransformationHero.tsx");
 
     expect(content).toContain("둘이 말하면, 결혼 준비가 정리돼요.");
-    expect(content).toContain("날짜를 넣으면 지금 볼 세 가지가 나와요");
-    expect(content).toContain("이어서 예산·할 일·일정을 아모라에게 말해보세요");
+    // 산출물을 개수로만 말하지 않는다. 이전 문구("지금 볼 세 가지가 나와요")는
+    // 그 셋이 무엇인지 랜딩 어디에도 없어서 입력은 분명한데 출력이 빈칸이었다.
+    expect(content).toContain("지금 알아볼 준비 3가지");
+    expect(content, "산출물을 개수로만 말하면 처음 온 사람은 뭘 받는지 모른다")
+      .not.toMatch(/지금 볼 세 가지가 나와요/u);
+    expect(content, "첫 행동과 아모라를 잇는 문장이 사라졌다").toMatch(
+      /body:\s*"[^"]*아모라[^"]*"/u,
+    );
     expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
     expect(hero.indexOf("둘이 말하면,")).toBeLessThan(
       hero.indexOf("landingContent.hero.body"),

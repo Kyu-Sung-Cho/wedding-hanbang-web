@@ -39,18 +39,26 @@ export const metadata = {
     "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다. "
     + "실제 경험이 필요할 때는 예비부부 커뮤니티에서 찾아보고 질문하세요.",
   alternates: { canonical: "/wedding" },
+  // Next 메타데이터는 openGraph를 **통째로 교체**한다. 여기서 images를 적지 않으면
+  // 루트 layout.tsx의 `/images/og-image.png` 폴백이 상속되지 않고 사라진다 —
+  // 실제로 /wedding의 렌더된 head에 og:image·twitter:image가 0개였다. 같은 구조인
+  // quote-check/layout.tsx는 images를 다시 적어 두어 카드가 살아 있다.
+  // /wedding은 sitemap에서 /landing과 동급(priority 1.0)인 앱 입구이고,
+  // 사용자가 서로에게 실제로 던지는 링크라 카드 없는 공유는 그대로 노출된다.
   openGraph: {
     title: "웨딩한방 — 결혼 준비를 아모라와 정리하세요",
     description:
       "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다.",
     url: "/wedding",
     type: "website",
+    images: [{ url: "/images/og-image.png", width: 1200, height: 630, alt: "웨딩한방 아모라" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "웨딩한방 — 결혼 준비를 아모라와 정리하세요",
     description:
       "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다.",
+    images: ["/images/og-image.png"],
   },
 };
 
