@@ -96,6 +96,18 @@ export default function TrustEvidenceSection({
           </div>
 
           <div className="px-6 py-8 sm:px-9 sm:py-9 lg:px-10 lg:py-10">
+            {/* 숫자만 있으면 "그래서 나한테 뭐가 다른데"가 남는다. 그 831건이 실제로
+                무엇을 드러내는지 한 문장으로 보여준다 — 우리 `/price`가 이미 게시 중인
+                문구를 그대로 쓴다(업체명 없이, 출처 있는 공시 자료 기준). */}
+            <figure className="mb-6 border-l-2 border-[#E2D3C8] pl-4">
+              <blockquote className="text-[16px] font-semibold leading-[1.6] text-white sm:text-[18px]">
+                “같은 업체인데 대행사에 따라 위약금이 달라요. 촬영 60일 전 취소 기준으로
+                한쪽은 상품가의 20%인데 다른 쪽은 100%인 경우가 있었어요.”
+              </blockquote>
+              <figcaption className="mt-2 text-[12px] leading-5 text-white/70">
+                공시 자료에서 확인한 사례 · 업체를 고른 뒤 대행사별 원문을 직접 비교할 수 있어요
+              </figcaption>
+            </figure>
             <p className="max-w-[34rem] text-[14px] leading-[1.7] text-white/82">
               현재는 한국소비자원 {disclosureRoundLabel()} 게시 자료에 포함된 업체만 보여드려요.
               표시 금액은 기본 조건 기준이라 시즌·옵션에 따라 실제 계약가가 달라질 수 있고,
