@@ -19,9 +19,11 @@ export const landingContent = {
   availableNow: {
     eyebrow: "로그인·결제 없이 지금",
     title: "가입하기 전에, 이만큼은 지금 써보세요.",
-    body: "아래 넷은 계정 없이 지금 열려 있어요. 계정 베타가 아직 제공 전이어도 이 네 가지는 오늘 쓸 수 있어요.",
+    // 개수를 문구에 박지 않는다. 항목이 늘거나 줄 때마다 카피가 조용히 틀린다 —
+    // 실제로 아모라를 대표 항목으로 올리면서 "넷"이 곧바로 어긋났다.
+    body: "아래는 계정을 만들지 않아도 지금 열려 있어요. 계정 베타가 아직 제공 전이어도 오늘 바로 쓸 수 있어요.",
     boundary:
-      "네 가지 모두 로그인·결제를 요구하지 않아요. 공시 가격은 업체가 공개한 자료를 그대로 보여주고, 웨딩한방이 좋다·나쁘다를 판정하지 않아요.",
+      "모두 로그인·결제를 요구하지 않아요. 공시 가격은 업체가 공개한 자료를 그대로 보여주고, 웨딩한방이 좋다·나쁘다를 판정하지 않아요.",
   },
   problem: {
     eyebrow: "결혼 준비가 복잡해지는 이유",
@@ -139,6 +141,27 @@ export const startConditions = [
  *   2. `note`에 저장 여부나 출처처럼 이용 전에 알아야 할 사실을 적는다.
  *   3. 판정·점수·등급을 암시하는 표현을 쓰지 않는다.
  */
+/**
+ * 대표 항목. 아모라는 제품의 중심인데 "지금 되는 것" 목록에서 빠져 있었다 —
+ * 주변 도구 넷만 있고 정작 본체가 없었다.
+ *
+ * 로그인 없이 되는 것이 맞다: `/api/demo/start`가 서명된 HttpOnly 쿠키를 발급하고
+ * `api/chat/route.ts`가 그 쿠키만으로 인가한다(같은 파일 주석: "The public demo is
+ * authorized by a separate signed, HttpOnly session cookie and never receives
+ * database write access"). 저장이 안 된다는 것도 코드가 보장하는 사실이다.
+ *
+ * 다만 무료 이용에는 한도가 있다(`lib/ai/costGuard.ts` — 커플당 누적, 전역 일일).
+ * 정확한 운영 값은 환경변수라 여기서 숫자를 단정하지 않는다.
+ */
+export const availableNowLead = {
+  id: "amora",
+  title: "아모라에게 먼저 물어보기",
+  body: "가입도 결제도 없이 아모라에게 결혼 준비를 물어볼 수 있어요. 무엇부터 해야 할지, 받은 조건이 뭘 뜻하는지 편한 말로 물어보세요.",
+  note: "체험 대화는 저장되지 않고 준비 기록에도 남지 않아요. 무료 이용에는 한도가 있어요. AI가 만든 답이라 틀리거나 놓칠 수 있어요.",
+  action: "아모라와 대화해보기",
+  href: "/start-here",
+} as const;
+
 export const availableNow = [
   {
     id: "start-here",
