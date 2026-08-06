@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -20,7 +20,11 @@ import {
   START_HERE_DATE_HANDOFF_KEY,
 } from "@/lib/marketing/startHereDateHandoff";
 
+import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
+import { daysUntilWedding } from "@/lib/utils/weddingDate";
+
 import { landingContent } from "./landingContent";
+import PreparationPreview from "./PreparationPreview";
 import {
   displayHero,
   eyebrowGlyph,
@@ -40,6 +44,15 @@ export default function TransformationHero() {
   // 탭과 다음 화면 사이에 아무 반응이 없으면 사용자는 눌린 줄 모르고 다시 누른다.
   // 연타는 분석 이벤트와 sessionStorage 쓰기를 반복시키므로 첫 제출만 통과시킨다.
   const [isStarting, setIsStarting] = useState(false);
+
+  // 날짜를 넣는 즉시 결과를 만든다. 서버도 DB도 타지 않는 순수 계산이라
+  // 이 페이지를 떠나지 않고 자기 결과를 볼 수 있다 — 랜딩이 약속을 증거로 바꾸는
+  // 지점이다. 날짜는 이 계산 밖으로 나가지 않는다.
+  const preview = useMemo(
+    () => computePreparationPriorities(daysUntilWedding(dateText)),
+    [dateText],
+  );
+  const hasPreview = preview.visiblePriorities.length > 0;
 
   const startWithDate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -203,7 +216,17 @@ export default function TransformationHero() {
           </Link>
         </div>
 
-        <ConversationToPlanDemo />
+        {/* 날짜를 넣기 전에는 "대화가 기록이 된다"를 보여주는 예시가, 넣은 뒤에는
+            그 사람의 실제 결과가 같은 자리에 온다. 예시가 자기 것으로 바뀌는 순간이
+            이 페이지에서 가장 강한 증거다. */}
+        {hasPreview ? (
+          <PreparationPreview
+            priorities={preview.visiblePriorities}
+            anyStarted={preview.activeNow.length > 0}
+          />
+        ) : (
+          <ConversationToPlanDemo />
+        )}
       </div>
     </section>
   );
