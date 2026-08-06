@@ -88,6 +88,26 @@ describe("login return journey", () => {
     });
   });
 
+  // provider가 Supabase에서 아직 열려 있지 않으면 여기로 온다. 예전에는 그 원문을
+  // 그대로 화면에 붙여 사람은 알아볼 수 없고 내부 상태만 드러났다.
+  it("keeps a failed social sign-in readable without echoing the provider error", async () => {
+    mocks.signInWithOAuth.mockResolvedValue({
+      error: { message: "Unsupported provider: provider is not enabled" },
+    });
+    await act(async () => root.render(<LoginPage />));
+    const googleButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Google"));
+
+    await act(async () => {
+      googleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).not.toContain("Unsupported provider");
+    expect(container.textContent).toContain("구글 로그인을 지금 이용할 수 없어요");
+    // 막힌 사람에게 남는 길을 같은 문장에서 알려준다.
+    expect(container.textContent).toContain("이메일로 로그인");
+  });
+
   it("gives every password visibility control an accessible name", async () => {
     await act(async () => root.render(<LoginPage />));
 

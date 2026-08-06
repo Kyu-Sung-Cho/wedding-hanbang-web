@@ -21,6 +21,21 @@ import {
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
+const SOCIAL_PROVIDER_LABEL = {
+  kakao: "카카오",
+  google: "구글",
+  apple: "Apple",
+} as const;
+
+// provider가 아직 열려 있지 않거나 설정이 끝나지 않았을 때 Supabase가 돌려주는
+// 원문을 그대로 보여주면 사람은 알아볼 수 없고 내부 상태만 드러난다.
+// 무엇이 안 됐는지와 대신 쓸 수 있는 길만 우리 말로 알린다.
+function socialLoginFailureMessage(
+  provider: keyof typeof SOCIAL_PROVIDER_LABEL,
+): string {
+  return `${SOCIAL_PROVIDER_LABEL[provider]} 로그인을 지금 이용할 수 없어요. 이메일로 로그인하거나 다른 방법을 이용해 주세요.`;
+}
+
 // 비밀번호 강도 체크
 interface PasswordCheck {
   minLength: boolean;
@@ -133,14 +148,14 @@ export default function LoginPage() {
       });
       if (oauthError) {
         console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        setError(socialLoginFailureMessage(provider));
         setLoading(null);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("OAuth catch error:", msg);
       setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
+      setError(socialLoginFailureMessage(provider));
     }
   };
 

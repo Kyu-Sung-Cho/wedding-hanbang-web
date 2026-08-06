@@ -10,7 +10,10 @@ import { extractMobileOAuthAuthorizationCode } from "@hanbang/shared/utils";
 import { supabase } from "./supabase";
 import type { Provider } from "@supabase/supabase-js";
 
-type SupportedOAuthProvider = Extract<Provider, "kakao" | "apple">;
+type SupportedOAuthProvider = Extract<Provider, "kakao" | "apple" | "google">;
+
+// 앱이 직접 쓴 안내 문장임을 표시한다. 이 이름이 붙은 오류만 화면에 그대로 올린다.
+export const OAUTH_PROVIDER_UNAVAILABLE = "OAuthProviderUnavailable";
 
 // iOS: 브라우저 인증 세션 완료 감지
 WebBrowser.maybeCompleteAuthSession();
@@ -32,6 +35,13 @@ export function isOAuthProviderEnabled(
   if (provider === "kakao") {
     // Supabase/Kakao 양쪽 운영 설정이 끝난 빌드에서만 명시적으로 연다.
     return process.env.EXPO_PUBLIC_KAKAO_OAUTH_ENABLED === "true";
+  }
+
+  if (provider === "google") {
+    // Kakao와 같은 이유로 기본은 꺼둔다. Supabase Auth의 Google provider와
+    // Google Cloud Console의 client ID·redirect URI가 모두 끝난 빌드에서만 켠다.
+    // 눌러도 동작하지 않는 버튼은 없는 것보다 나쁘다.
+    return process.env.EXPO_PUBLIC_GOOGLE_OAUTH_ENABLED === "true";
   }
 
   // Apple provider가 운영에서 꺼질 때 빌드 환경으로 즉시 숨길 수 있다.
@@ -58,8 +68,14 @@ export async function signInWithOAuth(provider: SupportedOAuthProvider) {
       ? "소셜 로그인은 설치한 앱에서 이용할 수 있어요."
       : provider === "kakao"
         ? "카카오 로그인은 현재 준비 중이에요. 이메일 로그인을 이용해주세요."
-        : "Apple 로그인을 현재 이용할 수 없어요. 이메일 로그인을 이용해주세요.";
-    throw new Error(message);
+        : provider === "google"
+          ? "구글 로그인은 현재 준비 중이에요. 이메일 로그인을 이용해주세요."
+          : "Apple 로그인을 현재 이용할 수 없어요. 이메일 로그인을 이용해주세요.";
+    // 이 문장은 우리가 쓴 것이라 화면에 그대로 보여도 된다. Supabase가 던진 오류와
+    // 구별되도록 표시해 둔다 — 그쪽 원문은 사람이 읽을 수 없고 내부 상태를 드러낸다.
+    const unavailable = new Error(message);
+    unavailable.name = OAUTH_PROVIDER_UNAVAILABLE;
+    throw unavailable;
   }
 
   // 카카오: account_email scope 제거 (비즈앱 아니라 권한 없음)

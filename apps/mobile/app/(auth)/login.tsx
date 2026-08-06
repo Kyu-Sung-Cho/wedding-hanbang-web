@@ -12,11 +12,26 @@ import { Eye, EyeOff } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { isOAuthProviderEnabled, signInWithOAuth } from "@/lib/auth";
+import {
+  OAUTH_PROVIDER_UNAVAILABLE,
+  isOAuthProviderEnabled,
+  signInWithOAuth,
+} from "@/lib/auth";
+
+const SOCIAL_PROVIDER_LABEL = {
+  kakao: "카카오",
+  google: "구글",
+  apple: "Apple",
+} as const;
 
 // Supabase 에러 메시지 한국어 변환
 function translateError(message: string): string {
-  if (message.includes("Invalid login")) return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  // 소셜로만 가입한 계정에는 비밀번호가 없다. 그 사람에게 "비밀번호가 틀렸다"고 하면
+  // 존재하지 않는 것을 계속 맞히려 애쓴다. 그렇다고 "이 계정은 구글이에요"라고 말하면
+  // 가입 여부가 밖으로 드러나므로, 어느 쪽인지는 말하지 않고 나가는 길만 가리킨다.
+  if (message.includes("Invalid login")) {
+    return "이메일과 비밀번호가 맞지 않아요. 카카오·구글·Apple로 시작한 계정이라면 비밀번호가 아직 없을 수 있어요 — 아래 '비밀번호 찾기'에서 정하실 수 있어요.";
+  }
   if (message.includes("Email not confirmed")) return "이메일 인증이 완료되지 않았습니다.";
   if (message.includes("Too many requests")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
   if (message.includes("User not found")) return "등록되지 않은 이메일입니다.";
@@ -33,12 +48,13 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState<null | "email" | "kakao" | "apple">(null);
+  const [loading, setLoading] = useState<null | "email" | "kakao" | "apple" | "google">(null);
   const [emailTouched, setEmailTouched] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const kakaoOAuthEnabled = isOAuthProviderEnabled("kakao");
   const appleOAuthEnabled = isOAuthProviderEnabled("apple");
-  const hasSocialLogin = kakaoOAuthEnabled || appleOAuthEnabled;
+  const googleOAuthEnabled = isOAuthProviderEnabled("google");
+  const hasSocialLogin = kakaoOAuthEnabled || appleOAuthEnabled || googleOAuthEnabled;
 
   // 로고 페이드인 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -100,7 +116,7 @@ export default function LoginScreen() {
   }
 
   // 소셜 로그인
-  async function handleSocialLogin(provider: "kakao" | "apple") {
+  async function handleSocialLogin(provider: "kakao" | "apple" | "google") {
     if (loading) return;
     setLoginError(null);
     setLoading(provider);
@@ -113,7 +129,12 @@ export default function LoginScreen() {
       // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다.
       router.replace("/");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "로그인에 실패했어요";
+      // 앱이 쓴 안내만 그대로 보여준다. Supabase가 던진 원문은 사람이 읽을 수 없고
+      // 내부 상태를 드러내므로, 무엇이 안 됐는지만 우리 말로 알린다.
+      const message =
+        err instanceof Error && err.name === OAUTH_PROVIDER_UNAVAILABLE
+          ? err.message
+          : `${SOCIAL_PROVIDER_LABEL[provider]} 로그인을 지금 마치지 못했어요. 잠시 후 다시 시도하시거나 이메일 로그인을 이용해주세요.`;
       showLoginError("로그인 오류", message);
     } finally {
       setLoading(null);
@@ -259,6 +280,29 @@ export default function LoginScreen() {
                     <Text style={styles.kakaoIconText}>K</Text>
                   </View>
                   <Text style={styles.kakaoText}>카카오로 계속하기</Text>
+                </View>
+              )}
+            </Pressable>
+            ) : null}
+
+            {googleOAuthEnabled ? (
+            <Pressable
+              style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.8 }]}
+              onPress={() => handleSocialLogin("google")}
+              disabled={loading !== null}
+              accessibilityLabel="구글로 로그인"
+              accessibilityRole="button"
+            >
+              {loading === "google" ? (
+                <ActivityIndicator color={colors.textPrimary} />
+              ) : (
+                <View style={styles.socialInner}>
+                  <Ionicons
+                    name="logo-google"
+                    size={20}
+                    color={colors.textPrimary}
+                  />
+                  <Text style={styles.googleText}>구글로 계속하기</Text>
                 </View>
               )}
             </Pressable>
@@ -454,6 +498,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "NotoSansKR_600SemiBold",
     color: "#191919",
+  },
+  googleButton: {
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleText: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textPrimary,
   },
   appleButton: {
     width: "100%",
