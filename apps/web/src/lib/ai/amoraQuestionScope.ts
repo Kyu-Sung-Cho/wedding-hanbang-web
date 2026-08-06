@@ -4,6 +4,7 @@ import {
   normalizeAmoraSafetyText,
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
+import { hasCoerciveControlSignal } from "@hanbang/shared";
 
 export type AmoraQuestionScope =
   | "W0_wedding_core"
@@ -164,6 +165,20 @@ export function classifyAmoraQuestionScope({
   if (requestKind === "initial_greeting") {
     return {
       scope: "W3_social_care",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    };
+  }
+  // 중재 요청에서만 문턱을 낮춘다. 두 실패의 무게가 다르기 때문이다 — 놓치면 강압을
+  // 겪는 사람이 "조금씩 양보하세요" 카드를 받고 그 카드가 상대와 공유될 수 있지만,
+  // 과하면 합의안 대신 사실 정리와 공식 창구 안내를 받을 뿐이다. 뒤쪽이 안전한 실패다.
+  //
+  // 일반 대화에는 적용하지 않는다. "예산은 신랑이 관리해요" 같은 평범한 문장이
+  // 고위험으로 떨어지면 도구가 전부 막혀 그 자체가 제품 실패가 된다.
+  if (requestKind === "mediation" && hasCoerciveControlSignal(normalizedText)) {
+    return {
+      scope: "W2_high_risk_adjacent",
       allowsLongTermMemory: false,
       confidence: "high",
       needsClarification: false,
