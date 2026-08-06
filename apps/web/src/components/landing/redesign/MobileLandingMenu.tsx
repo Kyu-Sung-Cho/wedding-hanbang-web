@@ -70,7 +70,11 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
       <nav
         id="landing-mobile-menu"
         aria-label="모바일 주요 메뉴"
-        className="absolute right-0 top-12 flex w-56 flex-col rounded-[16px] border border-white/12 bg-[#243832] p-2 shadow-overlay"
+        // `right-0`은 뷰포트가 아니라 이 버튼의 오른쪽 끝에 붙는다. 그 끝이 320px
+        // 화면에서 x=211이라 224px 패널이 왼쪽으로 13px 밀려나 메뉴 글자가 잘렸다
+        // (실측 -13..211). 360px 이상은 여유가 있어 그대로 두고, 그 아래에서만
+        // 뷰포트에 붙여 항상 화면 안에 들어오게 한다.
+        className="fixed inset-x-3 top-16 flex flex-col rounded-[16px] border border-white/12 bg-[#243832] p-2 shadow-overlay min-[360px]:absolute min-[360px]:inset-x-auto min-[360px]:right-0 min-[360px]:top-12 min-[360px]:w-56"
       >
         {items.map((item) => (
           <Link
