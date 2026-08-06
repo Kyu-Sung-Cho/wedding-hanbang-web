@@ -2858,13 +2858,18 @@ export async function POST(request: Request) {
             && extractedMediation
             ? toUserRequestedMediationV2(extractedMediation)
             : null;
-          const providerCleanText = !isStructuredMediation
-            && extractedMediation
-            && !extractedMediationText
-              ? isHighRiskMediation
-                ? "이 사안은 합의안으로 단정하기보다 안전과 권리·건강에 관련된 확인이 먼저예요. 확인된 사실만 정리하고, 해당 분야의 자격 있는 전문가나 공식 기관에 문의할 질문을 준비해 주세요."
-                : mediationBlockToOrdinaryText(extractedMediation)
-              : extractedMediationText;
+          // 서버가 이미 고위험으로 판정했으면 모델이 무엇을 어떤 모양으로 써 보냈든
+          // 합의안은 나가지 않는다. 예전에는 이 대체가 "완전한 4필드 블록이 왔고 블록
+          // 밖 텍스트가 비어 있을 때"만 발동해서, 필드 하나가 빠진 블록이나 마커 없는
+          // 산문이면 '조금씩 양보하세요'가 그대로 상대에게까지 저장됐다. 안전이 모델
+          // 출력 형식에 달려 있으면 그건 안전장치가 아니다.
+          const providerCleanText = isHighRiskMediation
+            ? "이 사안은 합의안으로 단정하기보다 안전과 권리·건강에 관련된 확인이 먼저예요. 확인된 사실만 정리하고, 해당 분야의 자격 있는 전문가나 공식 기관에 문의할 질문을 준비해 주세요."
+            : !isStructuredMediation
+              && extractedMediation
+              && !extractedMediationText
+                ? mediationBlockToOrdinaryText(extractedMediation)
+                : extractedMediationText;
           const cleanText = requiresW4AttachmentReuploadGuidance
             ? "지금 요청만으로는 이 파일이 결혼 준비와 어떤 관련이 있는지 확인할 수 없어요. 결혼 준비 관련 파일이라면 관련성을 한 줄로 알려주시고, 파일을 다시 첨부해 주세요."
             : providerCleanText;
