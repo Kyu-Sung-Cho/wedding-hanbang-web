@@ -360,6 +360,50 @@ function deriveConfirmedActionRequestId(
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
 }
 
+interface ChatActorProfile {
+  couple_id: string | null;
+  role: string | null;
+  is_admin: boolean | null;
+  name: string | null;
+  preparation_status: string | null;
+}
+
+/**
+ * 채팅 요청을 보낸 사람의 프로필.
+ *
+ * `preparation_status`는 있으면 쓰고 없으면 없는 대로 둔다. 이 컬럼을 select에 그냥
+ * 넣었더니, 마이그레이션이 아직 적용되지 않은 환경에서 PostgREST가
+ * `column profiles.preparation_status does not exist`로 400을 돌려주고 **채팅 전체가
+ * 죽었다.** 로컬에서 기존 DB에 붙여 개발하던 흐름이 그날로 막혔다.
+ *
+ * 마이그레이션 파일을 쓰는 것과 그 마이그레이션이 적용된 것은 다르다. 새 코드는 옛
+ * 스키마에서도 돌아야 하고, 그래야 마이그레이션과 배포의 순서에 여유가 생긴다.
+ * 컬럼이 생기면 아무것도 안 해도 값이 실려 온다.
+ */
+async function readChatActorProfile(actorId: string): Promise<ChatActorProfile | null> {
+  const client = getServiceClient();
+  const withStatus = await client
+    .from("profiles")
+    .select("couple_id, role, is_admin, name, preparation_status")
+    .eq("id", actorId)
+    .single();
+  if (!withStatus.error) return withStatus.data as unknown as ChatActorProfile;
+
+  // 42703 = undefined_column. 그 외의 오류는 진짜 실패이므로 삼키지 않는다.
+  if (withStatus.error.code !== "42703") return null;
+
+  const legacy = await client
+    .from("profiles")
+    .select("couple_id, role, is_admin, name")
+    .eq("id", actorId)
+    .single();
+  if (legacy.error || !legacy.data) return null;
+  return {
+    ...(legacy.data as unknown as Omit<ChatActorProfile, "preparation_status">),
+    preparation_status: null,
+  };
+}
+
 function getDoneMetadata(message: PersistedAiMessage): Record<string, unknown> {
   const metadata = { ...(message.metadata ?? {}) };
   delete metadata.client_request_id;
@@ -712,16 +756,7 @@ export async function POST(request: Request) {
         name: "체험 사용자",
         preparation_status: "preparing" as const,
       }
-    : (
-        await getServiceClient()
-          .from("profiles")
-          // preparation_status를 여기서 읽지 않으면 프롬프트의 카운트다운·재촉
-          // 게이트가 통째로 죽는다. 컬럼과 계약만 있고 아무도 읽지 않아, 준비를
-          // 멈추거나 접은 사람에게도 D-day와 재촉이 계속 나갔다.
-          .select("couple_id, role, is_admin, name, preparation_status")
-          .eq("id", actorId)
-          .single()
-      ).data;
+    : await readChatActorProfile(actorId);
 
   if (userProfile?.couple_id !== coupleId) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
