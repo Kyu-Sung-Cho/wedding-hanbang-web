@@ -6,6 +6,7 @@ import { CalendarDays } from "lucide-react";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 // 예식일 하나만 받아 "지금 열어야 하는 항목"을 보여준다.
@@ -54,23 +55,14 @@ export default function StartHereClient() {
     });
   };
 
-  // 지금 "열려 있는" 항목: 시작 권장일이 지났고 마감 권장일이 아직 남은 것.
-  const openNow = useMemo(() => {
-    if (dday === null) return [];
-    return CATEGORY_CHECKLISTS
-      .filter((category) => !skipped.has(category.key))
-      .map((category) => ({
-        key: category.key,
-        label: category.label,
-        tip: category.tip,
-        firstSteps: category.items.slice(0, 3).map((item) => item.label),
-        daysUntilDeadline: dday - category.ddayDeadline,
-        started: dday <= category.ddayStart,
-      }))
-      .filter((category) => category.started)
-      .sort((left, right) => left.daysUntilDeadline - right.daysUntilDeadline)
-      .slice(0, 3);
-  }, [dday, skipped]);
+  // 랜딩 히어로와 **같은 계산**을 쓴다. 여기 있던 사본은 시작점을 지난 항목만
+  // 남기고 폴백이 없어서, 가장 이른 시작점(360일)보다 먼 날짜에는 0개가 나왔다.
+  // 랜딩이 권하는 프리셋 "1년 뒤쯤"(D-365)·"1년 반 뒤쯤"(D-547)이 정확히 그
+  // 구간이라, 시킨 대로 누른 사람이 빈 화면을 만났다.
+  const { activeNow, visiblePriorities } = useMemo(
+    () => computePreparationPriorities(dday, { skipped }),
+    [dday, skipped],
+  );
 
   // 날짜를 넣기 전에도 답이 있어야 한다. 검색으로 들어온 사람에게 빈 입력칸만
   // 보여주면 첫 화면에서 이탈하고, 서버 HTML에도 색인할 본문이 남지 않는다.
@@ -138,13 +130,23 @@ export default function StartHereClient() {
         </p>
       ) : null}
 
-      {openNow.length > 0 ? (
-        <section className="mt-8" aria-label="지금 열어야 하는 항목">
+      {visiblePriorities.length > 0 ? (
+        <section className="mt-8" aria-label="먼저 살펴볼 항목">
+          {/* 시작점을 지난 항목이 하나도 없으면 "지금은 이것부터"가 거짓이 된다.
+              날짜가 실제로 가르는 것은 "시작할 때가 됐는지"뿐이라 그것만 말한다. */}
           <h2 className="text-lg font-bold tracking-[-0.02em] text-[#243832]">
-            예식까지 {dday}일 — 지금은 이것부터
+            {activeNow.length > 0
+              ? `예식까지 ${dday}일 — 지금은 이것부터`
+              : `예식까지 ${dday}일 — 아직 여유가 있어요`}
           </h2>
+          {activeNow.length === 0 ? (
+            <p className="mt-2 text-sm leading-6 text-[#243832]/70">
+              서둘러 시작할 항목은 아직 없어요. 먼저 살펴볼 순서만 짚어드릴게요. 지금은 두 사람의 예산 기준과
+              원하는 분위기를 이야기해 두면 충분해요.
+            </p>
+          ) : null}
           <ul className="mt-4 space-y-3">
-            {openNow.map((category) => (
+            {visiblePriorities.map((category) => (
               <li key={category.key} className="rounded-[20px] border border-[#243832]/12 bg-white px-5 py-5">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="text-base font-bold text-[#243832]">{category.label}</span>
@@ -189,11 +191,9 @@ export default function StartHereClient() {
         </section>
       ) : null}
 
-      {dday !== null && dday >= 0 && openNow.length === 0 ? (
-        <p className="mt-8 rounded-2xl border border-[#243832]/12 bg-white px-5 py-5 text-sm leading-6 text-[#243832]/70">
-          아직 서둘러 시작할 항목이 없어요. 지금은 두 사람의 예산 기준과 원하는 분위기를 이야기해 두면 충분해요.
-        </p>
-      ) : null}
+      {/* 예전에는 여기서 "아직 서둘러 시작할 항목이 없어요"만 보여주고 끝냈다.
+          이제 그 상황에서도 먼저 살펴볼 순서 3가지를 주므로, 같은 안내는 위
+          섹션의 부제로 옮겼다. 유효한 날짜에서 목록이 비는 경우는 없다. */}
 
       <details open={dday === null} className="mt-10 rounded-[20px] border border-[#243832]/12 bg-white px-5 py-4">
         <summary className="cursor-pointer text-base font-bold text-[#243832]">

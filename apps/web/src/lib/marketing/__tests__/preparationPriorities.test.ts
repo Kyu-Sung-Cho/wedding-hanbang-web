@@ -62,6 +62,27 @@ describe("computePreparationPriorities", () => {
     }
   });
 
+  it("/start-here computes with the shared function, not its own copy", () => {
+    // 두 화면이 같은 3가지를 보여준다는 계약은 **같은 함수를 쓸 때만** 성립한다.
+    // /start-here에 사본이 있었고 그 사본에만 폴백이 빠져서, 랜딩이 권한
+    // 프리셋(D-365·D-547)으로 넘어가면 목록이 0개였다.
+    const startHere = readFileSync(
+      resolve(process.cwd(), "src/components/community/StartHereClient.tsx"),
+      "utf8",
+    );
+    expect(startHere).toContain("computePreparationPriorities");
+    // 사본이 되살아나는 신호: 시작 여부로 직접 거르고 끝내는 코드.
+    expect(startHere).not.toMatch(/\.filter\(\s*\(\s*category\s*\)\s*=>\s*category\.started\s*\)/u);
+  });
+
+  it("never leaves a future date with an empty list", () => {
+    // 가장 이른 시작점보다 먼 날짜에서도 빈손으로 돌려보내지 않는다.
+    const farthestStart = Math.max(...CATEGORY_CHECKLISTS.map((c) => c.ddayStart));
+    for (const dday of [farthestStart + 1, 365, 547, 900, 1200]) {
+      expect(computePreparationPriorities(dday).visiblePriorities, `D-${dday}`).toHaveLength(3);
+    }
+  });
+
   it("names in the hero are the names the screen actually shows", () => {
     // 이 계약이 두 번 깨졌다. 한 번은 "드레스"를 예시로 들었는데 결과에 한 번도
     // 나오지 않았고, 한 번은 다른 브랜치에서 개명한 라벨을 그대로 옮겨 적어
