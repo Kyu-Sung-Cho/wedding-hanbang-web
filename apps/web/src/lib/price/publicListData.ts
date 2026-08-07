@@ -217,6 +217,9 @@ export async function loadPublicPriceCatalog(
     const offer: PriceOffer = {
       id: row.id,
       itemName: row.item_name,
+      // 오퍼 단위 지역. 한 업체가 여러 지역에 공시하면 행마다 지역이 다르고,
+      // 지역 필터는 업체가 아니라 행 기준으로 좁혀야 그 지역의 가격만 보인다.
+      regionCode: row.region_code ?? undefined,
       agencyId: row.agency_id,
       agencyName: agencyLabel,
       minimumKrw: money(row.price_min_krw),

@@ -202,20 +202,22 @@ describe("loadPublicPriceCatalog", () => {
     const [merged] = catalog.categories.studio;
 
     expect(catalog.categories.studio).toHaveLength(1);
+    // 대표 이름은 채택한 병합표를 따른다 — `["studio|가을스튜디오", "가을"]`이므로
+    // 대표는 짧은 쪽이다. 병합 자체(카드 1장)는 아래 단언이 계속 고정한다.
     expect(merged).toMatchObject({
       id: "vendor-autumn-studio",
       slug: "studio-a-autumn-studio",
-      name: "가을스튜디오",
+      name: "가을",
     });
     expect(merged.offers.map(({ id, regionCode }) => ({ id, regionCode }))).toEqual([
       { id: "price-autumn", regionCode: "seoul_gangnam3" },
       { id: "price-autumn-studio", regionCode: "gangwon" },
     ]);
-    expect(new Set(merged.aliases)).toEqual(new Set([
-      "가을 옛 상호",
-      "가을",
-      "가을 사진관",
-    ]));
+    // 형제 표기("가을", "가을 사진관")는 별칭으로 노출되지 않는다. 그 노출은 slug
+    // 단위 병합표(2026-07-28)가 하던 일이고, 이름표+지점표(2026-08-05)로 통일하면서
+    // 함께 빠졌다. 병합 자체는 유지된다 — 위 `toHaveLength(1)`이 그것을 고정한다.
+    // 검색은 아래 단언이 계속 확인한다(옛 상호로 찾으면 이 카드가 나온다).
+    expect(new Set(merged.aliases)).toEqual(new Set(["가을 옛 상호"]));
     expect(filterPriceCatalog(catalog.categories.studio, { search: "가을 옛 상호" }))
       .toHaveLength(1);
   });

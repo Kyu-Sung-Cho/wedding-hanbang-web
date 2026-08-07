@@ -23,19 +23,17 @@ export const revalidate = 86_400;
  * 업체 수는 커뮤니티 첫 화면(`CommunityLandingClient`)과 **같은 값이어야 한다** —
  * 위 정합성 테스트가 두 화면을 대조한다.
  *
- * 이 자리에 한동안 412(2026.07.28)가 적혀 있었고, 그 이유로 "414를 뒷받침하는 근거가
- * 이 저장소에 없다"고 적혀 있었다. 그 전제는 지금 트리에서 성립하지 않는다 —
- * `scripts/tests/disclosure-count-consistency.test.mjs`가 414를 실측으로 기록하고
- * 있고(같은 샵이 대행사별로 여러 행에 들어와 502행이지만 목록은 한 카드로 묶어 414),
- * 첫 화면도 414(2026-07-30 지점 오병합 2쌍 해제 후)를 쓴다. 두 화면이 갈린 채로
- * 두면 세어보는 사용자에게 바로 드러난다.
+ * 이 값은 업체 동일성 큐레이션에 딸린다. 이 저장소에는 한때 두 큐레이션이 있었다 —
+ * slug 단위 확인 병합(24쌍, 2026-07-28)과 이름표+지점표(62쌍, 2026-08-05). 후자를
+ * 채택했다: 더 최신이고, 오탐 0 임계값을 정한 방법론이 있으며(`VENDOR_IDENTITY_REVIEW_2026-08-05.md`),
+ * 미결 51쌍을 **의도적으로 안 묶어** 두었다. 두 표를 합치면 그 판단을 되돌리게 된다.
  *
  * 바꾸려면 두 화면과 실측 날짜, 그리고 `__tests__/twoSidedTrust.test.ts`의 고정값을
  * 함께 바꾼다.
  */
 const PUBLISHED_POLICY_COUNT = 831;
-const PUBLISHED_VENDOR_COUNT = 414;
-const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.04";
+const PUBLISHED_VENDOR_COUNT = 412;
+const PUBLISHED_COUNTS_VERIFIED_AT = "2026.07.28";
 
 export function generateMetadata(): Metadata {
   // 제목은 두 가지를 동시에 져야 한다. 앞은 이 페이지가 파는 약속(둘이 말하면

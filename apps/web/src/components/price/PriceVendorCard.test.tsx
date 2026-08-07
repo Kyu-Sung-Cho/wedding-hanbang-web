@@ -533,7 +533,11 @@ describe("PriceVendorCard", () => {
     });
 
     const summary = container.querySelector('[role="group"][aria-label="혼합 경로 공시 업체 공시 가격 요약"]');
-    expect(summary?.textContent).toContain("100~500만원");
+    // 요약은 대행사 오퍼(100~200만)만으로 만든다. 이 단언은 한동안 "100~500만원"이었고,
+    // 그 500만은 대행사를 거치지 않은 행에서 왔다 — 예식장 패키지처럼 기준이 다른
+    // 행을 같은 범위에 넣으면 실제로 살 수 없는 상한이 만들어진다. 그 행은 아래
+    // "대행사를 거치지 않은 공시" 블록에 원문 그대로 남는다.
+    expect(summary?.textContent).toContain("100~200만원");
     expect(summary?.textContent).toContain("대행사 2곳 + 직접 공시");
 
     const agencyBreakdown = container.querySelector(

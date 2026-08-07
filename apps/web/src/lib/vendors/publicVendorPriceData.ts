@@ -28,6 +28,9 @@ type PublicPriceProjection = {
   id: string;
   period_label: string;
   price_category: string;
+  // 가격 행 단위 지역. 업체 단위 `region_code`와 별개다 — 한 업체가 여러 지역에
+  // 공시하면 행마다 지역이 다르고, 지역 필터는 행 기준으로 좁혀야 한다.
+  region_code?: string | null;
   item_name: string;
   base_spec: string | null;
   price_min_krw: number | null;
@@ -350,6 +353,7 @@ export function assemblePublicVendorPriceProfile(
       id: price.id,
       period_label: price.period_label,
       category: consumerCategory(price.price_category),
+      region_code: price.region_code ?? null,
       item_name: price.item_name,
       base_spec: price.base_spec,
       price_min_krw: price.price_min_krw,
@@ -407,7 +411,7 @@ export async function loadPublicVendorPriceProfile(
       const result = await client
         .from("v_public_official_prices")
         .select(
-          "id, period_label, price_category, item_name, base_spec, price_min_krw, price_max_krw, vat_note, price_note, source_label, agency_id, agency_slug, agency_display_name, is_current, published_at",
+          "id, period_label, price_category, region_code, item_name, base_spec, price_min_krw, price_max_krw, vat_note, price_note, source_label, agency_id, agency_slug, agency_display_name, is_current, published_at",
         )
         .in("vendor_slug", vendorSlugs)
         .eq("source", "kca_tprice")

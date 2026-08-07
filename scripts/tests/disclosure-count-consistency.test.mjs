@@ -137,15 +137,18 @@ test("운영·유통 감사도 행 단위 검증 신원을 카드 수에 반영�
   const productionAudit = read("scripts/audit/production-readiness-audit.mjs");
   const distributionAudit = read("scripts/audit/distribution-claims-audit.mjs");
 
+  // 이 두 줄은 slug 단위 병합표(`VERIFIED_VENDOR_IDENTITY_BY_SLUG`)를 요구했다.
+  // 그 큐레이션은 이름표+지점표(2026-08-05)로 대체됐으므로, 감사가 읽어야 하는 것도
+  // 바뀐 표다. 없는 설계를 요구하는 단언은 계약이 아니라 잔재다.
   assert.match(
     productionAudit,
-    /VERIFIED_VENDOR_IDENTITY_BY_SLUG/,
-    "운영 감사가 row-scoped slug 병합표를 읽지 않는다",
+    /const SAME_BUSINESS_DIFFERENT_NAME/,
+    "운영 감사가 표기 병합표를 읽지 않는다",
   );
   assert.match(
     productionAudit,
-    /verifiedRowIdentity/,
-    "운영 감사가 각 vendor slug의 검증 신원을 카드 키보다 먼저 적용하지 않는다",
+    /const VENDOR_BRANCHES/,
+    "운영 감사가 지점표를 읽지 않는다",
   );
   assert.match(
     distributionAudit,

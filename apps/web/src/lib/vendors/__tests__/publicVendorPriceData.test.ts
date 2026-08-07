@@ -452,14 +452,23 @@ describe("loadPublicVendorPriceProfile", () => {
     const profile = await loadPublicVendorPriceProfile(client, "mei-studio-b");
 
     expect(profile?.vendor.slug).toBe("mei-studio-b");
-    expect(profile?.vendor.name).toBe("메이스튜디오");
-    expect(profile?.vendor.aliases).toEqual(["메이", "메이 스튜디오", "메이 옛 상호"]);
+    // 병합은 그대로다(형제 슬러그로 들어와도 대표 슬러그·id가 같다). 표시명만
+    // 바뀌었다 — 업체 동일성 큐레이션을 이름표+지점표(2026-08-05)로 통일하면서
+    // 대표 이름을 고르는 규칙이 그 표를 따르게 됐다. 정규화가 공백을 지우므로
+    // "메이 스튜디오"와 "메이스튜디오"는 여전히 한 업체다.
+    expect(profile?.vendor.name).toBe("메이 스튜디오");
+    // 형제 표기("메이", "메이스튜디오")는 여기서 별칭으로 노출되지 않는다. 그 노출은
+    // slug 단위 병합표(2026-07-28)가 하던 일이고, 이름표+지점표(2026-08-05)로
+    // 통일하면서 함께 빠졌다. 병합 자체는 유지된다 — 위 두 단언이 그것을 고정한다.
+    expect(profile?.vendor.aliases).toEqual(["메이 옛 상호"]);
     expect(profile?.identity.canonicalSlug).toBe("mei-studio-a");
     expect(profile?.identity.canonicalVendorId).toBe("vendor-1");
     const identityCall = calls.find(({ table, ilike }) => (
       table === "v_public_vendors" && ilike !== null
     ));
-    expect(identityCall?.selects[0]).toContain("aliases");
+    // 신원 조회가 `aliases`를 함께 읽던 것도 slug 단위 병합표의 일부였다. 형제 표기를
+    // 별칭으로 노출하지 않게 되면서 그 컬럼도 더 읽지 않는다.
+    expect(identityCall?.selects[0]).toContain("region_code");
   });
 
   it("keeps same-name-different-business vendors apart", async () => {
@@ -514,76 +523,16 @@ describe("loadPublicVendorPriceProfile", () => {
     expect(calls.filter(({ ilike }) => ilike !== null)).toHaveLength(0);
   });
 
-  it("merges only the row-scoped verified Seoul identity inside a split same-name group", async () => {
-    const vendorRow = (
-      id: string,
-      slug: string,
-      regionCode: string,
-    ) => ({
-      id,
-      slug,
-      name: "랑게",
-      category: "studio",
-      region_code: regionCode,
-      aliases: [],
-      official_url: null,
-      instagram_url: null,
-      naver_place_url: null,
-      attributes: {},
-      tags: [],
-    });
-    const priceRow = (id: string, slug: string, regionCode: string) => ({
-      id,
-      vendor_slug: slug,
-      source: "kca_tprice",
-      period_label: "2026Q3",
-      price_category: "studio",
-      region_code: regionCode,
-      item_name: "촬영 상품",
-      base_spec: null,
-      price_min_krw: 1_000_000,
-      price_max_krw: 1_000_000,
-      vat_note: null,
-      price_note: null,
-      source_label: "한국소비자원 참가격 · 2026Q3",
-      is_current: true,
-    });
-    const langheSeoulEtc = "studio-ingest-8b66b01259700071";
-    const langheSeoulGangnam = "studio-ingest-712748b50059a490";
-    const langheJeolla = "studio-ingest-langhe-jeolla";
-    const { client, calls } = fakeSupabase({
-      v_public_vendors: [
-        vendorRow("vendor-seoul-etc", langheSeoulEtc, "seoul_etc"),
-        vendorRow("vendor-seoul-gangnam", langheSeoulGangnam, "seoul_gangnam3"),
-        vendorRow("vendor-jeolla", langheJeolla, "jeolla"),
-      ],
-      v_public_official_prices: [
-        priceRow("price-seoul-etc", langheSeoulEtc, "seoul_etc"),
-        priceRow("price-seoul-gangnam", langheSeoulGangnam, "seoul_gangnam3"),
-        priceRow("price-jeolla", langheJeolla, "jeolla"),
-      ],
-      v_public_official_price_options: [],
-    });
-
-    const profile = await loadPublicVendorPriceProfile(client, langheSeoulEtc);
-
-    expect(new Set(profile?.identity.vendorIds)).toEqual(new Set([
-      "vendor-seoul-etc",
-      "vendor-seoul-gangnam",
-    ]));
-    expect(profile?.identity.vendorIds).not.toContain("vendor-jeolla");
-    expect(profile?.prices.map(({ id }) => id).sort()).toEqual([
-      "price-seoul-etc",
-      "price-seoul-gangnam",
-    ]);
-    const identityCall = calls.find(({ table, inValues }) => (
-      table === "v_public_vendors" && inValues !== null
-    ));
-    expect(new Set(identityCall?.inValues)).toEqual(new Set([
-      langheSeoulEtc,
-      langheSeoulGangnam,
-    ]));
-  });
+  // 여기 있던 "merges only the row-scoped verified Seoul identity" 테스트를 걷어냈다.
+  // 그 테스트는 `VERIFIED_VENDOR_IDENTITY_BY_SLUG`(행 단위 확인 병합, 2026-07-28)의
+  // 동작을 고정했는데, 업체 동일성 큐레이션을 이름표+지점표(2026-08-05,
+  // docs/operations/VENDOR_IDENTITY_REVIEW_2026-08-05.md)로 통일하면서 그 표가
+  // 사라졌다. 없는 설계를 요구하는 단언은 계약이 아니라 잔재다.
+  //
+  // **사라진 것**: 같은 이름이지만 다른 업체로 갈린 그룹 안에서, 공개 채널이 같다고
+  // 행 단위로 확인된 slug만 골라 묶던 동작. 새 큐레이션은 그런 쌍을 "미결 51"에
+  // 남겨 두는 쪽을 택했다(오탐 0 임계값). 되살리려면 그 판단부터 다시 해야 한다.
+  // 채택한 설계의 계약은 lib/price/__tests__/vendorBranchIdentity.test.ts 에 있다.
 });
 
 describe("loadPublicVendorPolicies", () => {
