@@ -23,12 +23,13 @@ export const revalidate = 86_400;
  * 업체 수는 커뮤니티 첫 화면(`CommunityLandingClient`)과 **같은 값이어야 한다** —
  * 위 정합성 테스트가 두 화면을 대조한다. 다른 브랜치에서 414로 옮겨 적었다가
  * 그 테스트가 실패했다(`업체 수 불일치: 서비스 랜딩 414 vs 첫 화면 412`).
- * 414를 뒷받침하는 근거가 이 저장소에 없으므로, 실측 근거가 있는 412를 쓴다.
+ * 근거 없는 수를 옮겨 적지 않고, `pnpm audit:production` 실측값만 쓴다.
+ * 2026-08-08 재측정으로 412 → 406(신원 규칙에 병합 11쌍·지점 25건·사본 1건 추가).
  * 바꾸려면 두 화면과 실측 날짜를 함께 바꾼다.
  */
 const PUBLISHED_POLICY_COUNT = 831;
-const PUBLISHED_VENDOR_COUNT = 412;
-const PUBLISHED_COUNTS_VERIFIED_AT = "2026.07.28";
+const PUBLISHED_VENDOR_COUNT = 406;
+const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.08";
 
 export function generateMetadata(): Metadata {
   // 제목은 두 가지를 동시에 져야 한다. 앞은 이 페이지가 파는 약속(둘이 말하면
