@@ -80,8 +80,8 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
       ).toBe(vendorIdentityKey(category as never, base, "slug-base"));
     }
     // 목록이 늘어난 것을 모르고 지나치지 않도록 개수를 잠근다.
-    // 1차 16 + 2차 10 + 3차 11 = 37.
-    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(37);
+    // 1차 16 + 2차 10 + 3차 11 + 사본중복 1(셀레네하우스웨딩) = 38.
+    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(38);
   });
 
   it("형제 조회 패턴이 양방향으로 상대를 잡는다", () => {

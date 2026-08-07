@@ -140,12 +140,12 @@ export async function generateMetadata({
     maximums.length > 0 ? Math.max(...maximums) : null,
   );
   return {
-    title: `${profile.vendor.name} 공시 가격 | 웨딩한방`,
-    description: `${region ? `${region} ` : ""}${category} ${profile.vendor.name}의 공시 가격 ${range}${withParticle(range)} 공개 근거를 확인하세요.`,
+    title: `${profile.vendor.displayName} 공시 가격 | 웨딩한방`,
+    description: `${region ? `${region} ` : ""}${category} ${profile.vendor.displayName}의 공시 가격 ${range}${withParticle(range)} 공개 근거를 확인하세요.`,
     // 형제 슬러그마다 같은 내용이 뜨므로 대표 주소 하나로 모은다.
     alternates: { canonical: `/price/vendor/${profile.identity.canonicalSlug}` },
     openGraph: {
-      title: `${profile.vendor.name} 공시 가격 | 웨딩한방`,
+      title: `${profile.vendor.displayName} 공시 가격 | 웨딩한방`,
       description: `${category} 공시 가격 ${range}`,
       url: `/price/vendor/${profile.identity.canonicalSlug}`,
       type: "website",
@@ -257,7 +257,7 @@ export default async function VendorPricePage({
   // 확인된 공식 링크가 없어도 막다른 골목을 만들지 않는다 — 외부 API·수집 없이
   // 업체명+지역으로 구성한 네이버 지도 "검색" 링크(오배정 불가: 결과는 사용자가 봄).
   const naverSearchHref = `https://map.naver.com/p/search/${encodeURIComponent(
-    [profile.vendor.name.replace(/^[[(][^\])]{1,8}[\])]\s*/u, ""),
+    [profile.vendor.displayName.replace(/^[[(][^\])]{1,8}[\])]\s*/u, ""),
       profile.vendor.region_code ? REGION_LABELS[profile.vendor.region_code] ?? "" : ""]
       .filter(Boolean).join(" "),
   )}`;
@@ -277,7 +277,7 @@ export default async function VendorPricePage({
   ).size;
   const categoryLabel = CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category;
   const structuredData = buildPriceVendorStructuredData({
-    vendorName: profile.vendor.name,
+    vendorName: profile.vendor.displayName,
     vendorSlug: profile.identity.canonicalSlug,
     category: profile.vendor.category,
     categoryLabel,
@@ -315,13 +315,20 @@ export default async function VendorPricePage({
             ))}
           </div>
           <div className="mt-3 flex items-center gap-4">
-            <VendorAvatar id={profile.vendor.id} name={profile.vendor.name} size="lg" />
+            <VendorAvatar id={profile.vendor.id} name={profile.vendor.displayName} size="lg" />
             <h1 className="text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
-              {profile.vendor.name}
+              {profile.vendor.displayName}
             </h1>
           </div>
           {profile.vendor.aliases.length > 0 ? (
             <p className="mt-2 text-sm text-[#36534E]/65">구. {profile.vendor.aliases.join(" · ")}</p>
+          ) : null}
+          {/* 업체명 괄호에서 뗀 법인명. 공시 의무 주체라 정보 가치가 있어 버리지
+              않고 여기로 옮긴다 — 이름에 그대로 두면 검색으로 못 찾는다. */}
+          {profile.vendor.disclosureEntity ? (
+            <p className="mt-2 text-sm text-[#36534E]/65">
+              공시주체 {profile.vendor.disclosureEntity}
+            </p>
           ) : null}
           <div className="mt-5 flex flex-wrap gap-2">
             {profile.prices.length > 0 ? (
