@@ -46,7 +46,7 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
-import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
 
@@ -1827,6 +1827,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           requestedVisibility,
           target,
           senderRole,
+          // 일반 발화에도 같은 안전 계약이 걸린다 — 안전 서술은 공유 레인에 남지 않는다.
+          // 중재만 고쳐두면 문장에 따라 계약이 갈린다. 여기서는 중재용으로 낮춘 문턱이
+          // 아니라 일반 문턱을 쓴다(requestKind: "chat"). 측정: 신체 폭력 서술 7건을
+          // 더 잡고, 평범한 결혼 대화 25문장(주먹밥·주먹구구식·인파에 밀침 등 이 어휘를
+          // 깨려고 만든 14문장 포함) 오탐 0.
+          externalSafetySignal: hasAmoraSafetySignal(content, "chat"),
         })
       : null;
     let finalVisibility = crisisPreflight?.effectiveVisibility ?? requestedVisibility;
@@ -2706,19 +2712,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // 중재 요청의 답은 공유 레인에 저장된다. 그래서 안전 판정은 **보내기 전에**
     // 끝나야 하고, 판정 갈래가 둘이면 둘 다 여기서 만나야 한다.
-    const mediationScope = classifyAmoraQuestionScope({
-      userText: requesterSummary,
-      requestKind: "mediation",
-    });
     const mediationSafetyPlan = planAmoraCrisisDelivery({
       userText: requesterSummary,
       requestedVisibility: "shared",
       target: "partner",
       senderRole,
-      externalSafetySignal:
-        mediationScope.scope === "W5_safety_override"
-        || (mediationScope.scope === "W2_high_risk_adjacent"
-          && mediationScope.highRiskReason === "safety"),
+      externalSafetySignal: hasAmoraSafetySignal(requesterSummary, "mediation"),
     });
     if (mediationSafetyPlan.disposition === "local_safety_hold") {
       const safetyCardId = `amora-mediation-safety-hold:${coupleId}:${createClientRequestId()}`;

@@ -338,6 +338,8 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       requestedVisibility: "shared",
       target: "ai",
       senderRole: "bride",
+      // 평범한 발화라 false. 이 필드가 빠지면 안전 판정 한 갈래가 통째로 안 보인다.
+      externalSafetySignal: false,
     });
     expect(admin.insert).toHaveBeenCalledWith({
       couple_id: COUPLE_ID,
@@ -986,6 +988,7 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       requestedVisibility: "shared",
       target: "partner",
       senderRole: "bride",
+      externalSafetySignal: false,
     });
     expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({
       visibility: "shared",
@@ -996,6 +999,34 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       },
     }));
   });
+
+  it.each([
+    "화나면 물건을 던지고 저를 때린 적도 있어요",
+    "손찌검을 한 적이 있어요",
+    "목을 조른 적도 있어요",
+  ])(
+    "passes the second safety branch to the delivery policy: %s",
+    async (content) => {
+      // 안전 판정은 두 갈래이고 planAmoraCrisisDelivery 안쪽은 한 갈래만 본다.
+      // 이 문장들은 그 안쪽 갈래(classifyAmoraCrisis / assessAmoraSafetyText)에 전혀
+      // 걸리지 않는다 — lib/ai/__tests__/mediationSafetyLaneGap.test.ts 가 그 사실을
+      // 고정하고 있다. 호출자가 신호를 안 넘기면 이 발화는 requestedVisibility 그대로
+      // 공유 레인에 저장되고, target=partner면 상대에게 전달된다.
+      mockPostAdmin({ insertData: canonicalUserRow({ content }) });
+
+      await POST(postRequest({
+        coupleId: COUPLE_ID,
+        content,
+        clientRequestId: REQUEST_ID,
+        requestedVisibility: "shared",
+        target: "ai",
+      }));
+
+      expect(planAmoraCrisisDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ userText: content, externalSafetySignal: true }),
+      );
+    },
+  );
 
   it("holds a server-classified W2 partner delivery locally without a write", async () => {
     const admin = mockPostAdmin();

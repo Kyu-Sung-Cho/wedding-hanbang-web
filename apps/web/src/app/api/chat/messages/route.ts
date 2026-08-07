@@ -21,6 +21,7 @@ import {
   AMORA_MAX_ATTACHMENTS,
   AMORA_MAX_TOTAL_ATTACHMENT_BYTES,
 } from "@/lib/ai/amoraAttachments";
+import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -488,6 +489,11 @@ export async function POST(request: Request) {
       requestedVisibility,
       target,
       senderRole,
+      // 안전 판정은 두 갈래다. planAmoraCrisisDelivery 안쪽은 한 갈래만 보고,
+      // 다른 갈래(신체 폭력 서술 등)는 호출자가 넣어줘야 본다. 여기가 사용자 원문의
+      // durable visibility를 정하는 정식 경로이므로, 빠지면 "안전 서술은 공유 레인에
+      // 남지 않는다"는 계약이 문장에 따라 갈린다.
+      externalSafetySignal: hasAmoraSafetySignal(content, "chat"),
     });
     if (deliveryPlan.disposition === "local_safety_hold") {
       let rawDisclosurePersisted: boolean | null = null;

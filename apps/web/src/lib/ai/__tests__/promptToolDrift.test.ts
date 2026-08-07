@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { BETA_DISABLED_TOOL_NAMES, BETA_SAFE_TOOLS } from "@/lib/ai/tools";
-import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
+import {
+  AMORA_SYSTEM_PROMPT_MAX_CHARS,
+  buildAmoraSystemPrompt,
+} from "@/lib/ai/amoraPromptComposer";
 
 // 도구를 끄면서 프롬프트를 안 지웠다. 그래서 아모라는 매 턴, 자기가 부를 수 없는
 // 도구 7개(예약 생성·취소, 업체 검색·추천, 빈 시간 조회, 장소 검색)의 사용법을
@@ -24,20 +27,57 @@ const CONTEXT = {
   chatSummaries: [],
 };
 
-/** 프롬프트는 갈래가 많다. 한 갈래만 보면 다른 갈래에 남은 안내를 놓친다. */
+const LIVE_TOOL_NAMES = BETA_SAFE_TOOLS.map((tool) => tool.name);
+
+// 프롬프트는 갈래가 많다. 한 갈래만 보면 다른 갈래에 남은 안내를 놓친다.
+//
+// **`enabledToolNames`를 반드시 넘겨야 한다.** 이걸 빼면 applyEnabledToolContract가
+// 첫 줄에서 그냥 돌아가고(amoraPromptComposer.ts), 운영에서는 실행되는
+// removeLegacyOperationalInstructions가 실행되지 않는다. 그 함수는
+// "## 도구 사용 핵심 규칙"부터 "### 카테고리 키"까지를 통째로 지운다.
+//
+// 이 테스트는 실제로 그 실수를 했다. 아래 "할 수 없다는 것을 말한다" 단언이 초록불이었지만
+// 그 구간에 있던 고지는 운영 프롬프트에 한 번도 들어가지 않았다 — route.ts는 매 턴
+// enabledToolNames를 넘긴다. 검사하는 모양이 운영의 모양과 다르면 초록불은 아무 뜻이 없다.
 const VARIANTS = [
-  { requestKind: "chat" as const, persistenceMode: "durable" as const },
-  { requestKind: "chat" as const, persistenceMode: "demo" as const },
-  { requestKind: "mediation" as const, persistenceMode: "durable" as const },
+  {
+    requestKind: "chat" as const,
+    persistenceMode: "durable" as const,
+    enabledToolNames: LIVE_TOOL_NAMES,
+    maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+  },
+  {
+    requestKind: "chat" as const,
+    persistenceMode: "demo" as const,
+    enabledToolNames: LIVE_TOOL_NAMES,
+    maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+  },
+  {
+    requestKind: "mediation" as const,
+    persistenceMode: "durable" as const,
+    enabledToolNames: LIVE_TOOL_NAMES,
+    maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+  },
   {
     requestKind: "chat" as const,
     persistenceMode: "durable" as const,
     specialist: "budget_optimizer" as const,
+    enabledToolNames: LIVE_TOOL_NAMES,
+    maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
   },
   {
     requestKind: "chat" as const,
     persistenceMode: "durable" as const,
     specialist: "schedule_manager" as const,
+    enabledToolNames: LIVE_TOOL_NAMES,
+    maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+  },
+  // 도구가 하나도 없는 턴. 여기서도 "못 한다"는 고지는 남아야 한다 — 오히려 더 필요하다.
+  {
+    requestKind: "chat" as const,
+    persistenceMode: "durable" as const,
+    enabledToolNames: [] as string[],
+    maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
   },
 ];
 
@@ -61,6 +101,20 @@ describe("프롬프트와 도구 목록이 어긋나지 않는다", () => {
         expect(text, `${label} 프롬프트가 비활성 도구 ${name}를 설명한다`)
           .not.toContain(name);
       }
+    }
+  });
+
+  it("검사하는 프롬프트가 실제로 잘린 프롬프트다", () => {
+    // 이 단언이 이 파일에서 가장 중요하다. 아래 고지 검사는 **잘리기 전** 프롬프트에
+    // 대고 하면 언제나 통과한다 — 실제로 그렇게 통과했고, 그 고지는 운영에 한 번도
+    // 들어가지 않았다.
+    //
+    // "## 아모라 행동 카드"는 removeLegacyOperationalInstructions가 지우는 구간
+    // 한가운데에 있다. 이게 남아 있다면 삭제가 안 돈 것이고, 그러면 이 파일의 나머지
+    // 단언은 운영과 무관한 문자열을 보고 있는 것이다.
+    for (const { label, text } of prompts()) {
+      expect(text, `${label}: 삭제가 실행되지 않았다 — enabledToolNames를 넘기고 있는지 확인하라`)
+        .not.toContain("## 아모라 행동 카드");
     }
   });
 

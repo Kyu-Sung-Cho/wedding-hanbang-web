@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { classifyAmoraCrisis } from "@/lib/ai/amoraCrisisSafety";
-import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { classifyAmoraQuestionScope, hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 
 // 중재 요청의 답은 `visibility: "shared"`로 저장된다(stores/chatStore.ts). 그래서
 // 안전 신호가 있는 중재는 모델에 닿기 전에 끝나야 한다. 답의 문구를 안전하게 바꾸는
@@ -38,12 +39,11 @@ function branchB(text: string): boolean {
   );
 }
 
-/** B에는 걸리고 A에는 안 걸리던 문장들. 2026-08-07 측정. */
-const B_ONLY = [
-  "예식장 정하는 걸로 싸웠는데 제 폰을 매일 확인하고 카톡도 다 봐요",
-  "헤어지자고 하면 가만 안 둔다고 해요",
-  "제 월급을 다 가져가요",
-  "가족을 못 만나게 해요",
+/**
+ * 신체 폭력 서술. B의 일반 문턱(requestKind "chat")에서도 걸린다 — 즉 중재뿐 아니라
+ * 평범한 발화에서도 이 문장들은 공유 레인에서 빠져야 한다.
+ */
+const B_ONLY_ANY_KIND = [
   "화나면 물건을 던지고 저를 때린 적도 있어요",
   "손찌검을 한 적이 있어요",
   "저를 밀쳐서 넘어진 적 있어요",
@@ -53,6 +53,20 @@ const B_ONLY = [
   "계약금 환불 얘기하다가 저를 때린 적도 있어요",
 ];
 
+/**
+ * 강압적 통제 서술. **중재에서만** 걸린다. 일반 대화에까지 이 문턱을 내리면
+ * "예산은 신랑이 관리해요" 같은 평범한 문장이 조용히 비공개로 새고, 그 대가가 더 크다.
+ */
+const B_ONLY_MEDIATION_ONLY = [
+  "예식장 정하는 걸로 싸웠는데 제 폰을 매일 확인하고 카톡도 다 봐요",
+  "헤어지자고 하면 가만 안 둔다고 해요",
+  "제 월급을 다 가져가요",
+  "가족을 못 만나게 해요",
+];
+
+/** B에는 걸리고 A에는 안 걸리던 문장들. 2026-08-07 측정. */
+const B_ONLY = [...B_ONLY_MEDIATION_ONLY, ...B_ONLY_ANY_KIND];
+
 describe("안전 탐지기 두 갈래는 서로를 대신하지 못한다", () => {
   it("B에만 걸리는 문장이 실재한다", () => {
     // 이 목록이 빈다면 두 갈래가 합쳐졌다는 뜻이고, 그때는 route.ts·chatStore.ts에서
@@ -60,6 +74,64 @@ describe("안전 탐지기 두 갈래는 서로를 대신하지 못한다", () =
     for (const text of B_ONLY) {
       expect(branchB(text), `B가 못 잡는다: ${text}`).toBe(true);
       expect(branchA(text), `A도 잡는다면 이 문장은 목록에서 빼야 한다: ${text}`).toBe(false);
+    }
+  });
+
+  it("신호를 넘기면 그 발화는 공유 레인에서 빠지고, 안 넘기면 그대로 남는다", () => {
+    // 여기가 이 결함의 실제 결과다. 목(mock) 없이 두 함수를 그대로 붙여서 확인한다.
+    // 아래 "신호 없음" 쪽이 고치기 전 상태이고, 그 단언이 이 파일의 실패 재현성이다.
+    for (const [kind, corpus] of [
+      ["mediation", B_ONLY],
+      ["chat", B_ONLY_ANY_KIND],
+    ] as const) {
+      for (const text of corpus) {
+        const base = {
+          userText: text,
+          requestedVisibility: "shared" as const,
+          target: "partner" as const,
+          senderRole: "bride" as const,
+        };
+        expect(
+          planAmoraCrisisDelivery({
+            ...base,
+            externalSafetySignal: hasAmoraSafetySignal(text, kind),
+          }).effectiveVisibility,
+          `${kind}: ${text}`,
+        ).toBe("bride_private");
+
+        expect(
+          planAmoraCrisisDelivery(base).effectiveVisibility,
+          `${kind}: 신호 없이도 빠진다면 이 문장은 B_ONLY가 아니다 — ${text}`,
+        ).toBe("shared");
+      }
+    }
+  });
+
+  it("평범한 발화에 일반 문턱을 걸어도 공유 레인이 유지된다", () => {
+    // 반대 실패. 여기가 깨지면 사용자가 공유하려던 말이 조용히 비공개로 간다.
+    // 2026-08-07 측정 당시 아래 문장들 오탐 0이었고, 이 어휘를 깨려고 만든 문장
+    // (주먹밥·주먹구구식·인파에 밀침·창문을 때리는 빗소리)이 포함돼 있다.
+    for (const text of [
+      "스드메 예산을 두고 서로 생각이 너무 달라요",
+      "예산은 신랑이 관리해요",
+      "상견례 때 주먹밥 도시락 어때요?",
+      "주먹구구식으로 예산을 잡았더니 어긋나요",
+      "지하철에서 사람이 많아서 밀쳐서 넘어졌어요",
+      "비가 창문을 때리는 소리에 잠을 못 잤어요",
+      "부케를 던지는 순서를 언제로 할까요",
+      "목을 조르는 듯한 셔츠 칼라가 불편해요",
+    ]) {
+      expect(hasAmoraSafetySignal(text, "chat"), text).toBe(false);
+      expect(
+        planAmoraCrisisDelivery({
+          userText: text,
+          requestedVisibility: "shared",
+          target: "partner",
+          senderRole: "bride",
+          externalSafetySignal: hasAmoraSafetySignal(text, "chat"),
+        }).effectiveVisibility,
+        text,
+      ).toBe("shared");
     }
   });
 
