@@ -8,7 +8,7 @@ import {
   type PriceOption,
   type PriceVendor,
 } from "./catalog";
-import { vendorIdentityKey } from "./vendorIdentity";
+import { vendorIdentityKey, vendorRegionCodeOverride } from "./vendorIdentity";
 
 type PublicPriceRow = {
   id: string;
@@ -231,6 +231,10 @@ export async function loadPublicPriceCatalog(
         || left.id.localeCompare(right.id)),
     };
     const identity = vendorIdentityKey(priceCategory, row.vendor_name, row.vendor_slug);
+    // 지역은 대행사의 것이지 샵의 것이 아니다. 이름에 지점 라벨이 있으면
+    // 그게 샵의 실제 소재지라 대행사 지역보다 우선한다 — 없으면 `[강릉]`이 붙은
+    // 샵이 서울로 잡혀 강원 필터에서 사라진다.
+    const regionCode = vendorRegionCodeOverride(priceCategory, row.vendor_name) ?? row.region_code;
     const existing = vendorsById.get(identity);
     if (existing) {
       if (existing.aliases.length === 0) existing.aliases = aliases(row.vendor_aliases);
@@ -241,10 +245,10 @@ export async function loadPublicPriceCatalog(
         existing.id = row.vendor_id;
       }
       if (existing.category === priceCategory) existing.offers.push(offer);
-      if (row.region_code) {
+      if (regionCode) {
         existing.regionCodes ??= [];
-        if (!existing.regionCodes.includes(row.region_code)) {
-          existing.regionCodes.push(row.region_code);
+        if (!existing.regionCodes.includes(regionCode)) {
+          existing.regionCodes.push(regionCode);
         }
       }
       continue;
@@ -255,8 +259,8 @@ export async function loadPublicPriceCatalog(
       name: row.vendor_name,
       aliases: aliases(row.vendor_aliases),
       category: priceCategory,
-      regionCode: row.region_code,
-      regionCodes: row.region_code ? [row.region_code] : [],
+      regionCode,
+      regionCodes: regionCode ? [regionCode] : [],
       offers: [offer],
     });
   }

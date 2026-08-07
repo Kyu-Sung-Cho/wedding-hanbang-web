@@ -187,11 +187,20 @@ console.log("\n=== 1-c. 공시 규모 표기 (화면 기준) ===");
   const claimed = /const PUBLISHED_VENDOR_COUNT = (\d+);/.exec(landingSource);
   if (!claimed) throw new Error("첫 화면의 PUBLISHED_VENDOR_COUNT를 못 읽었다 — 이 대조가 죽는다.");
 
-  const mergeBlock = /SAME_BUSINESS_DIFFERENT_NAME[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
-  const separateBlock = /SAME_NAME_DIFFERENT_BUSINESS[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
-  if (!mergeBlock || !separateBlock) {
+  // `const `로 고정한다 — 이름만 찾으면 주석 속 언급을 먼저 잡아 엉뚱한 블록을 읽는다
+  // (실제로 VENDOR_BRANCHES가 병합표 주석에 나와 지점 목록이 0건으로 파싱됐다).
+  const mergeBlock = /const SAME_BUSINESS_DIFFERENT_NAME[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
+  const separateBlock = /const SAME_NAME_DIFFERENT_BUSINESS[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
+  const branchBlock = /const VENDOR_BRANCHES[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
+  if (!mergeBlock || !separateBlock || !branchBlock) {
     throw new Error("vendorIdentity.ts의 신원 목록을 못 읽었다 — 이 대조가 죽는다.");
   }
+  // 확인된 지점은 브랜드가 같아도 다른 카드다. 앱과 같은 규칙을 안 쓰면 이 대조가
+  // 사이좋게 틀린 숫자를 통과시킨다(그게 502→412 사고의 원인이었다).
+  const branchMap = new Map(
+    [...branchBlock[1].matchAll(/"([^"]+)",\s*\{\s*brand:\s*"([^"]+)",\s*branch:\s*"([^"]+)"/g)]
+      .map((m) => [m[1], `${m[2]}#${m[3]}`]),
+  );
   const mergeMap = new Map(
     [...mergeBlock[1].matchAll(/"([^"]+)",\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]),
   );
@@ -200,8 +209,9 @@ console.log("\n=== 1-c. 공시 규모 표기 (화면 기준) ===");
   );
   if (mergeMap.size === 0) throw new Error("병합 대응표가 비었다 — 파싱이 깨졌다.");
 
+  // 대괄호를 빼먹으면 `[수원] 헤움`과 `헤움_수원점`이 갈려 앱과 숫자가 어긋난다.
   const normalize = (value) => String(value ?? "")
-    .replace(/\(주\)|주식회사|㈜/g, "").replace(/[\s·\-_,.()]/g, "").toLowerCase();
+    .replace(/\(주\)|주식회사|㈜/g, "").replace(/[\s·\-_,.()[\]]/g, "").toLowerCase();
   const consumerCategory = (value) => (value === "venue" ? "hall" : value);
 
   const policyVendors = await sql(`select v.slug, v.name, v.category
@@ -212,11 +222,14 @@ console.log("\n=== 1-c. 공시 규모 표기 (화면 기준) ===");
   for (const row of policyVendors) {
     const category = consumerCategory(row.category);
     const canonical = mergeMap.get(`${category}|${normalize(row.name)}`) ?? normalize(row.name);
-    cards.add(keepSeparate.has(`${category}|${canonical}`) ? `slug:${row.slug}` : `${category}|${canonical}`);
+    const branch = branchMap.get(`${category}|${normalize(row.name)}`);
+    cards.add(keepSeparate.has(`${category}|${canonical}`)
+      ? `slug:${row.slug}`
+      : `${category}|${branch ?? canonical}`);
   }
   console.log(
     `  vendor 행 ${policyVendors.length} → 화면 카드 ${cards.size}`
-    + ` (병합 대응표 ${mergeMap.size} · 분리 ${keepSeparate.size})`,
+    + ` (병합 대응표 ${mergeMap.size} · 분리 ${keepSeparate.size} · 지점 ${branchMap.size})`,
   );
   check(
     "첫 화면의 업체 수가 화면에서 셀 수 있는 값과 일치",

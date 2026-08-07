@@ -58,7 +58,7 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
     }
   });
 
-  it("확인된 26쌍이 실제로 한 그룹으로 묶인다", () => {
+  it("확인된 37쌍이 실제로 한 그룹으로 묶인다", () => {
     // 목록 카드의 그룹 키가 같아야 한 장으로 나온다.
     const pairs: Array<[string, string, string]> = [
       ["studio", "가을", "가을스튜디오"],
@@ -67,6 +67,11 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
       ["studio", "탱자", "탱자 스튜디오"],
       ["dress", "루비나엘", "루비나엘웨딩"],
       ["dress", "아비가일", "아비가일웨딩"],
+      // 3차(2026-08-05): 공시 원본 셀이 스스로 증명하는 표기 차이.
+      ["dress", "시그니처엘리자베스", "시그니쳐엘리자베스"],
+      ["makeup", "정남", "정남(Jungnam)"],
+      ["studio", "바로오늘이그날", "바로오늘이그날(바오그)"],
+      ["dress", "르네아뜰리에", "레이첼웨딩"],
     ];
     for (const [category, base, variant] of pairs) {
       expect(
@@ -74,7 +79,9 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
         `${base} ↔ ${variant}가 안 묶인다`,
       ).toBe(vendorIdentityKey(category as never, base, "slug-base"));
     }
-    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(26);
+    // 목록이 늘어난 것을 모르고 지나치지 않도록 개수를 잠근다.
+    // 1차 16 + 2차 10 + 3차 11 = 37.
+    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(37);
   });
 
   it("형제 조회 패턴이 양방향으로 상대를 잡는다", () => {
