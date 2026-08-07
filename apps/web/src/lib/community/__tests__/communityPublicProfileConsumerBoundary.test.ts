@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const WEB_CONSUMERS = [
   "src/hooks/useCommentsRealtime.ts",
-  "src/components/landing/CommunityFeed.tsx",
+  // CommunityFeed는 랜딩 개편에서 삭제됐다. 검사할 소비자가 없다.
   "src/app/(community)/community/cohort/[id]/page.tsx",
   "src/lib/community/authorProfiles.ts",
   "src/lib/community/publicPostDetail.ts",

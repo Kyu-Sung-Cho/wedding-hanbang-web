@@ -13,6 +13,7 @@ import { ArrowRight, CalendarDays, Check, LockKeyhole } from "lucide-react";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
 import { captureEvent } from "@/lib/analytics";
 import { START_HERE_DATE_HANDOFF_KEY } from "@/lib/marketing/startHereDateHandoff";
 import {
@@ -148,36 +149,14 @@ export default function StartHereClient() {
 
   // 기본 확인 구간에 들어온 항목을 먼저 보여주고, 세 자리가 차지 않으면
   // 시작점이 가장 가까운 다음 항목을 채운다. 아직 시작 전인 항목은 화면에서 명확히 구분한다.
-  const { activeNow, visiblePriorities } = useMemo(() => {
-    if (dday === null || dday < 0) {
-      return { activeNow: [], visiblePriorities: [] };
-    }
-    const candidates = CATEGORY_CHECKLISTS
-      .filter((category) => !skipped.has(category.key))
-      .map((category) => ({
-        key: category.key,
-        label: category.label,
-        tip: category.tip,
-        firstSteps: category.items.slice(0, 3).map((item) => item.label),
-        daysUntilDeadline: dday - category.ddayDeadline,
-        daysUntilStart: dday - category.ddayStart,
-        started: dday <= category.ddayStart,
-      }));
-    const active = candidates
-      .filter((category) => category.started)
-      .sort((left, right) => left.daysUntilDeadline - right.daysUntilDeadline)
-      .slice(0, 3);
-    const upcoming = candidates
-      .filter((category) => !category.started)
-      .sort((left, right) => (
-        left.daysUntilStart - right.daysUntilStart
-        || left.daysUntilDeadline - right.daysUntilDeadline
-      ));
-    return {
-      activeNow: active,
-      visiblePriorities: [...active, ...upcoming].slice(0, 3),
-    };
-  }, [dday, skipped]);
+  //
+  // 이 계산은 여기 인라인으로 있었다. 랜딩이 같은 3가지를 그 자리에서 보여주게 되면서
+  // 공유 함수로 빠졌고, 두 화면이 서로 다른 3가지를 보여주는 드리프트를 막으려면
+  // 여기서도 그 함수를 써야 한다. 로직은 한 글자도 바뀌지 않았다.
+  const { activeNow, visiblePriorities } = useMemo(
+    () => computePreparationPriorities(dday, { skipped }),
+    [dday, skipped],
+  );
 
   // 날짜를 넣기 전에도 답이 있어야 한다. 검색으로 들어온 사람에게 빈 입력칸만
   // 보여주면 첫 화면에서 이탈하고, 서버 HTML에도 색인할 본문이 남지 않는다.

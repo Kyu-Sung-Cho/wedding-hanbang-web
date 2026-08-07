@@ -1,10 +1,23 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 function source(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
+
+/**
+ * 랜딩 카피는 `landing/page.tsx` 한 장이 아니라 `redesign/` 아래 컴포넌트와
+ * `landingContent.ts`에 흩어져 있다. 목록에 파일 이름을 손으로 적으면 새 섹션이
+ * 생길 때마다 조용히 검사 밖으로 빠져나간다 — 실제로 개편 뒤 랜딩 카피 전체가
+ * 금지어 검사에서 빠져 있었고, page.tsx는 import 목록만 남아 통과하고 있었다.
+ * 디렉터리를 통째로 읽어 새 파일이 자동으로 걸리게 한다.
+ */
+const LANDING_REDESIGN_SOURCES = readdirSync(
+  resolve(process.cwd(), "src/components/landing/redesign"),
+)
+  .filter((f) => (f.endsWith(".tsx") || f.endsWith(".ts")) && !f.includes(".test."))
+  .map((f) => source(`src/components/landing/redesign/${f}`));
 
 const ACTIVE_PUBLIC_SOURCES = [
   "src/app/layout.tsx",
@@ -25,10 +38,14 @@ const ACTIVE_PUBLIC_SOURCES = [
   "src/components/landing/FiveRoles.tsx",
   "src/components/landing/ForBetaCouples.tsx",
   "src/components/landing/Footer.tsx",
-  "src/components/landing/ServicePreview.tsx",
+  // ServicePreview·Hero·CommunityFeed는 랜딩 개편에서 삭제됐다. 검사할 표면이 없다.
   "src/components/community/ServiceCTA.tsx",
   "src/app/(community)/community/quote-check/layout.tsx",
-].map(source);
+  // 시세 화면은 살아 있지만 components/app/market-prices/* 가 라우트로 재구성됐다.
+  // 죽은 경로를 지우기만 하면 이 표면의 검사가 조용히 사라지므로 살아 있는 파일로 옮긴다.
+  "src/app/(community)/market-prices/page.tsx",
+  "src/app/wedding/market-prices/page.tsx",
+].map(source).concat(LANDING_REDESIGN_SOURCES);
 
 describe("public marketing claim boundary", () => {
   it("does not publish unshipped features, invented evidence, or unapproved benefit promises", () => {
@@ -74,6 +91,10 @@ describe("public marketing claim boundary", () => {
   });
 
   it("states that AI changes require confirmation and keeps policy links real", () => {
+    // 랜딩이 page.tsx 한 장에서 섹션 컴포넌트로 나뉘면서 이 계약의 문장과 링크가
+    // landingContent·TrustEvidenceSection·LandingFooter로 흩어졌다. page.tsx만
+    // 읽으면 구조를 바꿨다는 이유로 계약이 통과해 버린다 — 읽는 곳을 옮기고
+    // 검사는 오히려 늘린다(승인 전 미반영·저장 고지까지).
     const landing = [
       source("src/components/landing/redesign/landingContent.ts"),
       source("src/components/landing/redesign/TrustEvidenceSection.tsx"),

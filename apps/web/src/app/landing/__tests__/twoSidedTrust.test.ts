@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -30,7 +30,16 @@ describe("landing two-sided trust contract", () => {
     expect(trust).toContain("한국소비자원");
     expect(trust).toContain("시즌·옵션에 따라 실제 계약가가 달라질 수 있고");
     expect(trust).toContain("예약·결제·계약은 업체와 직접 진행해요");
+    // 날짜는 업체 수의 실측 근거다. 커뮤니티 첫 화면이 414를 2026-08-04 실측으로
+    // 적고 있으므로 랜딩도 같은 근거를 말해야 한다 — 숫자만 맞추고 날짜를 다른
+    // 측정 시점으로 두면 출처 없는 수치가 된다.
+    //
+    // 이 두 줄은 한동안 412·2026.07.28로 고정돼 있었다. 그 값은 첫 화면도 412이던
+    // 트리에서만 맞았고, 첫 화면이 414인 지금은 두 공개 화면이 같은 통계를 다르게
+    // 말하게 만든다. 두 화면의 실제 대조는
+    // `scripts/tests/disclosure-count-consistency.test.mjs`가 한다.
     expect(landing).toContain('const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.04"');
+    expect(landing).toContain("const PUBLISHED_VENDOR_COUNT = 414");
     expect(footer).toContain("서비스·업체 정보 문의");
     expect(community).toContain("사람의 경험과 AI의 제안을 같은 근거처럼 보여주지 않아요");
     expect(content).toContain("준비 기록에 반영할 변경을 먼저 보여줘요");
@@ -83,12 +92,41 @@ describe("landing two-sided trust contract", () => {
     }
   });
 
+  it("never promises Amora without a login", () => {
+    // 주석은 벗기고 본다. 왜 이 약속을 하지 않는지 설명하려면 그 문구를 적어야
+    // 하는데, 자기 설명에 걸려 넘어지는 가드는 가드가 아니다(이 저장소에서 세 번째다).
+    // 가드가 6개 파일만 읽어서, 잔재가 실제로 남아 있던 ContinuitySection·
+    // SharedPrivateSection을 놓쳤다. 랜딩이 렌더하는 컴포넌트 전부를 읽는다.
+    const redesignDir = resolve(appRoot, "src/components/landing/redesign");
+    const everyLandingSource = readdirSync(redesignDir)
+      .filter((f) => f.endsWith(".tsx") && !f.includes(".test."))
+      .map((f) => readFileSync(resolve(redesignDir, f), "utf8"));
+    const rendered = [landing, content, ...everyLandingSource]
+      .join("\n")
+      .replace(/\/\*[\s\S]*?\*\//gu, "")
+      .replace(/^[	 ]*\/\/.*$/gmu, "")
+      .replace(/\{\/\*[\s\S]*?\*\/\}/gu, "");
+
+    // 한도 정책이 확정되기 전까지 "가입 없이 아모라를 쓸 수 있다"고 말하지 않는다.
+    // 한도에 걸린 사용자가 예상 못 한 벽을 만나는 것이 이 페이지가 만들 수 있는
+    // 가장 나쁜 첫인상이다.
+    // 정확 문자열 열거는 변형을 놓친다 — 실제로 "로그인 없이 여는 체험 대화"와
+    // "로그인 없는 체험"이 그렇게 빠져나갔다. 패턴으로 막는다.
+    const noLoginAmora = /(로그인|가입)[^.\n]{0,12}(없|안)[^.\n]{0,24}(아모라|체험)/u;
+    const hit = rendered.match(noLoginAmora);
+    expect(hit?.[0], "랜딩이 로그인 없는 아모라·체험을 약속한다").toBeUndefined();
+    // 숫자를 추측해 적지 않는다 — 한도 값이 아직 정해지지 않았다.
+    expect(rendered).not.toMatch(/무료\s*\d+\s*(회|번|건)/u);
+  });
+
   it("states the current first-step conditions without claiming the whole service is free", () => {
     expect(content).toContain("첫 준비 순서");
-    expect(content).toContain("로그인 없는 아모라 체험");
+    expect(content).toContain("아모라와 대화할 때");
     expect(content).toContain("계정으로 계속 관리");
-    expect(content).toContain("첫 준비 순서와 로그인 없는 아모라 체험에서는 결제를 요청하지 않아요.");
-    expect(content).toContain("체험 대화와 변경은 계정의 준비 기록에 남지 않지만");
+    expect(content).toContain("로그인 없이 볼 수 있는 것들에는 결제를 요청하지 않아요.");
+    // 2026-08-06 파운더 결정: 로그인 없는 아모라 이용에 한도를 걸 예정이라
+    // 랜딩은 아모라를 로그인 필요로 안내한다. CTA를 누르기 전에 알 수 있어야 한다.
+    expect(content).toContain("아모라는 결혼식 날짜와 준비 상황을 바탕으로 답해야 해서 로그인이 필요해요");
     expect(content).toContain("계정 베타의 제공 기능·이용 기간·무료 상담 한도");
     expect(content).toContain("추가 이용 방법과 비용은 아직 정해지지 않았으며");
     expect(content).toContain("신청만으로 결제되지 않아요");

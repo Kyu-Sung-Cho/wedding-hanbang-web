@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { primaryActionSm } from "./landingType";
 import MobileLandingMenu from "./MobileLandingMenu";
 import TrackedLandingLink from "./TrackedLandingLink";
 
@@ -17,7 +18,7 @@ const focusRing =
 
 export default function LandingHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#243832]/96 pt-[env(safe-area-inset-top)] text-white backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-white/12 bg-[#243832]/96 pt-[env(safe-area-inset-top)] text-white backdrop-blur">
       <div className={`${shell} flex h-14 items-center justify-between gap-5 lg:h-16`}>
         <Link
           href="/landing"
@@ -31,7 +32,7 @@ export default function LandingHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className={`inline-flex min-h-11 items-center text-[14px] font-medium text-white/74 transition-colors hover:text-white ${focusRing}`}
+              className={`inline-flex min-h-11 items-center text-[14px] font-medium text-white/74 transition-colors duration-200 hover:text-white ${focusRing}`}
             >
               {item.label}
             </Link>
@@ -43,14 +44,14 @@ export default function LandingHeader() {
 
           <Link
             href="/login"
-            className={`hidden min-h-11 items-center px-2 text-[14px] font-semibold text-white/72 transition-colors hover:text-white sm:inline-flex ${focusRing}`}
+            className={`hidden min-h-11 items-center px-2 text-[14px] font-semibold text-white/72 transition-colors duration-200 hover:text-white sm:inline-flex ${focusRing}`}
           >
             로그인
           </Link>
           <TrackedLandingLink
             href="/start-here"
             source="landing_header"
-            className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full bg-[#8F6662] px-4 text-[14px] font-semibold text-white transition-colors hover:bg-[#7D5753] sm:px-5 ${focusRing}`}
+            className={`${primaryActionSm} shrink-0 justify-center whitespace-nowrap ${focusRing}`}
           >
             <span className="sm:hidden">시작하기</span>
             <span className="hidden sm:inline">아모라와 시작하기</span>
