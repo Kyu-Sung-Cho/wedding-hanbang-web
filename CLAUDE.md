@@ -10,7 +10,7 @@
 
 - 모노레포 구조: `apps/web`, `apps/mobile`, `packages/design-tokens`, `packages/shared`, `supabase`, `scripts`.
 - 웹: Next.js `16.2.6`, React `19.2.3`, Tailwind CSS 4. 모바일: Expo 54, React Native 0.81. 정확한 버전은 각 `package.json`/`pnpm-lock.yaml` 기준.
-- AI: `@anthropic-ai/sdk` 기반 Anthropic Claude API. `Codex API (Anthropic)`는 폐기된 오표기.
+- AI: `openai` SDK 기반 **OpenAI Responses API** (`gpt-5.6-terra` / `gpt-5.6-luna`). 환경변수는 `OPENAI_API_KEY`, `AMORA_OPENAI_ENABLED`. 이 줄은 2026-08-07에 정정했다 — 그전까지 "Anthropic Claude API 기반"이라고 적혀 있었고, 실제로는 `@anthropic-ai/sdk` 의존성이 없다. 공개 화면의 AI 고지(OpenAI GPT-5.6)가 맞고 이 문서가 틀렸었다. 제공자는 개인정보 처리 주체와 직결되므로 `apps/web/package.json`과 `apps/web/src/lib/ai/modelConfig.ts`를 정본으로 본다.
 - 디자인: 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹 적용값은 `apps/web/src/app/globals.css`에서 확인.
 - 명령: 저장소 루트에서 `corepack pnpm ...`를 사용하고, 실행 가능한 스크립트는 `package.json`을 확인.
 
@@ -45,7 +45,7 @@
 
 ## 개요·스택
 - **무엇**: 한국 AI 웨딩 플래너 "아모라". 웹과 `apps/mobile` 모바일 앱이 **같은 Supabase 프로젝트**를 공유.
-- **스택**: Next.js 16.2.6 App Router · React 19 · TypeScript · Tailwind CSS 4 · Zustand 5 · Supabase(PostgreSQL/Auth/Realtime/Storage) · Anthropic Claude API · Resend. 웹 배포 대상은 Vercel.
+- **스택**: Next.js 16.2.6 App Router · React 19 · TypeScript · Tailwind CSS 4 · Zustand 5 · Supabase(PostgreSQL/Auth/Realtime/Storage) · OpenAI Responses API · Resend. 웹 배포 대상은 Vercel.
 - **구조**: 모노레포(pnpm + turbo) — `apps/web`(Next.js), `apps/mobile`(Expo), `supabase/`. git 레포 루트는 `wedding/`.
 
 ## 진짜 출처 (여기를 본다)
