@@ -8,7 +8,7 @@ import {
   type PriceOption,
   type PriceVendor,
 } from "./catalog";
-import { vendorIdentityKey } from "./vendorIdentity";
+import { vendorIdentityKey, vendorRegionCodeOverride } from "./vendorIdentity";
 
 type PublicPriceRow = {
   id: string;
@@ -219,7 +219,6 @@ export async function loadPublicPriceCatalog(
       itemName: row.item_name,
       agencyId: row.agency_id,
       agencyName: agencyLabel,
-      regionCode: row.region_code,
       minimumKrw: money(row.price_min_krw),
       maximumKrw: money(row.price_max_krw),
       // 부가세 표기는 비교의 핵심인데 목록에서만 빠져 있었다(상세엔 노출 중).
@@ -232,30 +231,24 @@ export async function loadPublicPriceCatalog(
         || left.id.localeCompare(right.id)),
     };
     const identity = vendorIdentityKey(priceCategory, row.vendor_name, row.vendor_slug);
+    // 지역은 대행사의 것이지 샵의 것이 아니다. 이름에 지점 라벨이 있으면
+    // 그게 샵의 실제 소재지라 대행사 지역보다 우선한다 — 없으면 `[강릉]`이 붙은
+    // 샵이 서울로 잡혀 강원 필터에서 사라진다.
+    const regionCode = vendorRegionCodeOverride(priceCategory, row.vendor_name) ?? row.region_code;
     const existing = vendorsById.get(identity);
     if (existing) {
-      // 검증된 동일 업체의 표기가 다르면 한 카드로 합친 뒤에도 두 이름 모두
-      // 검색되어야 한다. 각 형제 행의 기존 aliases도 버리지 않고 함께 보존한다.
-      const mergedAliases = new Set(existing.aliases);
-      const previousName = existing.name.trim().slice(0, 300);
-      if (previousName) mergedAliases.add(previousName);
-      const siblingName = row.vendor_name.trim().slice(0, 300);
-      if (siblingName) mergedAliases.add(siblingName);
-      for (const alias of aliases(row.vendor_aliases)) mergedAliases.add(alias);
+      if (existing.aliases.length === 0) existing.aliases = aliases(row.vendor_aliases);
       // 대표 URL은 슬러그 사전순 최솟값으로 고정한다 — 상세 페이지의 canonical과
       // 같은 규칙이어야 카드 링크와 정규 주소가 어긋나지 않는다.
       if (row.vendor_slug < existing.slug) {
         existing.slug = row.vendor_slug;
         existing.id = row.vendor_id;
-        existing.name = row.vendor_name;
       }
-      mergedAliases.delete(existing.name);
-      existing.aliases = [...mergedAliases].slice(0, 50);
       if (existing.category === priceCategory) existing.offers.push(offer);
-      if (row.region_code) {
+      if (regionCode) {
         existing.regionCodes ??= [];
-        if (!existing.regionCodes.includes(row.region_code)) {
-          existing.regionCodes.push(row.region_code);
+        if (!existing.regionCodes.includes(regionCode)) {
+          existing.regionCodes.push(regionCode);
         }
       }
       continue;
@@ -266,8 +259,8 @@ export async function loadPublicPriceCatalog(
       name: row.vendor_name,
       aliases: aliases(row.vendor_aliases),
       category: priceCategory,
-      regionCode: row.region_code,
-      regionCodes: row.region_code ? [row.region_code] : [],
+      regionCode,
+      regionCodes: regionCode ? [regionCode] : [],
       offers: [offer],
     });
   }

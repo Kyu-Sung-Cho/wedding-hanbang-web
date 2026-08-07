@@ -2,11 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   canonicalVendorName,
   isSameNameDifferentBusiness,
-  verifiedVendorIdentitySlugs,
-  vendorIdentityKey,
+  vendorIdentityGroup,
   vendorIdentityLikePattern,
 } from "@/lib/price/vendorIdentity";
-import type { PriceCategory } from "@/lib/price/catalog";
 import {
   sanitizePublicVendorAttributes,
   vendorAttributeCategoryFromDb,
@@ -30,7 +28,6 @@ type PublicPriceProjection = {
   id: string;
   period_label: string;
   price_category: string;
-  region_code: string | null;
   item_name: string;
   base_spec: string | null;
   price_min_krw: number | null;
@@ -158,13 +155,6 @@ function consumerCategory(category: string): string {
   return category === "venue" ? "hall" : category;
 }
 
-function isPriceCategory(category: string): category is PriceCategory {
-  return category === "studio"
-    || category === "dress"
-    || category === "makeup"
-    || category === "hall";
-}
-
 function nullableMoneyOrder(left: number | null, right: number | null): number {
   if (left === null && right === null) return 0;
   if (left === null) return 1;
@@ -198,7 +188,6 @@ export type VendorIdentityRow = {
   name: string;
   category: string;
   region_code: string | null;
-  aliases?: unknown;
 };
 
 /** 상세 페이지가 훑을 형제 후보 상한. 실측 최대 151(이름이 "스튜디오"인 1곳). */
@@ -225,39 +214,26 @@ export async function loadVendorIdentityRows(
     name: vendor.name,
     category: vendor.category,
     region_code: vendor.region_code,
-    aliases: vendor.aliases,
   };
   const consumer = consumerCategory(vendor.category);
-  if (!isPriceCategory(consumer)) return [self];
-  // 표기만 다른 같은 업체("가을" ↔ "가을스튜디오")까지 흡수한 대표 이름으로 본다.
-  // 목록(`vendorIdentityKey`)과 같은 함수를 써야 판정이 갈리지 않는다.
-  const normalized = canonicalVendorName(consumer, vendor.name);
-  const verifiedSlugs = verifiedVendorIdentitySlugs(consumer, vendor.slug);
+  // 표기만 다른 같은 업체("가을" ↔ "가을스튜디오")는 흡수하고, 확인된 지점
+  // ("바시움" ↔ "바시움 삼성점")은 가른다. 목록(`vendorIdentityKey`)과
+  // **같은 함수**를 써야 판정이 갈리지 않는다.
+  const normalized = vendorIdentityGroup(consumer, vendor.name);
   // 이름만 같고 실제로는 다른 업체는 목록에서도 분리하므로 형제를 찾지 않는다.
-  // 단, 공개 채널이 같은 것으로 행 단위 확인된 slug 묶음은 그 범위 안에서만 모은다.
-  if (
-    !normalized
-    || (isSameNameDifferentBusiness(consumer, normalized) && !verifiedSlugs)
-  ) {
-    return [self];
-  }
-  const pattern = verifiedSlugs
-    ? null
-    : vendorIdentityLikePattern(vendor.name, consumer);
-  if (!verifiedSlugs && !pattern) return [self];
-  const selfIdentity = vendorIdentityKey(consumer, vendor.name, vendor.slug);
+  // 판정은 대표 이름으로 한다 — 그룹 키는 지점이 붙으면 `브랜드#지점` 형태라
+  // 동명이업 목록과 형태가 맞지 않는다(목록 `vendorIdentityKey`와 같은 순서).
+  const canonical = canonicalVendorName(consumer, vendor.name);
+  if (!normalized || isSameNameDifferentBusiness(consumer, canonical)) return [self];
+  const pattern = vendorIdentityLikePattern(vendor.name, consumer);
+  if (!pattern) return [self];
 
   try {
-    const candidates = client
+    const { data, error } = await client
       .from("v_public_vendors")
-      .select("id, slug, name, category, region_code, aliases")
-      .eq("category", vendor.category);
-    const scopedCandidates = verifiedSlugs
-      ? candidates.in("slug", [...verifiedSlugs])
-      : pattern
-        ? candidates.ilike("name", pattern)
-        : candidates;
-    const { data, error } = await scopedCandidates
+      .select("id, slug, name, category, region_code")
+      .eq("category", vendor.category)
+      .ilike("name", pattern)
       .order("slug", { ascending: true })
       .limit(IDENTITY_CANDIDATE_CAP);
     if (error || !Array.isArray(data)) {
@@ -267,18 +243,13 @@ export async function loadVendorIdentityRows(
       reportIdentityLoadFailure(error ?? new Error("v_public_vendors returned no array"));
       return [self];
     }
-    const rows = (data as VendorIdentityRow[]).filter((row) => {
-      if (
-        typeof row?.id !== "string"
-        || typeof row?.slug !== "string"
-        || typeof row?.name !== "string"
-      ) {
-        return false;
-      }
-      const rowCategory = consumerCategory(row.category);
-      return isPriceCategory(rowCategory)
-        && vendorIdentityKey(rowCategory, row.name, row.slug) === selfIdentity;
-    });
+    const rows = (data as VendorIdentityRow[]).filter((row) => (
+      typeof row?.id === "string"
+      && typeof row?.slug === "string"
+      && typeof row?.name === "string"
+      && vendorIdentityGroup(consumerCategory(row.category), row.name) === normalized
+      && consumerCategory(row.category) === consumer
+    ));
     if (!rows.some((row) => row.slug === vendor.slug)) rows.push(self);
     return rows.sort((left, right) => left.slug.localeCompare(right.slug));
   } catch (err) {
@@ -311,10 +282,10 @@ export type VendorIdentitySummary = {
   canonicalVendorId: string;
 };
 
-function effectiveIdentityRows(
+function identitySummary(
   vendor: PublicVendorProjection,
   identityRows?: VendorIdentityRow[],
-): VendorIdentityRow[] {
+): VendorIdentitySummary {
   const rows = identityRows && identityRows.length > 0
     ? identityRows
     : [{
@@ -323,18 +294,7 @@ function effectiveIdentityRows(
         name: vendor.name,
         category: vendor.category,
         region_code: vendor.region_code,
-        aliases: vendor.aliases,
       }];
-  return [...rows].sort((left, right) => (
-    left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0
-  ));
-}
-
-function identitySummary(
-  vendor: PublicVendorProjection,
-  identityRows?: VendorIdentityRow[],
-): VendorIdentitySummary {
-  const rows = effectiveIdentityRows(vendor, identityRows);
   const slugs = [...new Set(rows.map(({ slug }) => slug))];
   // 목록의 병합 규칙(`row.vendor_slug < existing.slug`)과 같은 코드유닛 순서로
   // 비교해야 대표가 갈리지 않는다 — localeCompare로 바꾸면 어긋난다.
@@ -357,20 +317,6 @@ export function assemblePublicVendorPriceProfile(
   identityRows?: VendorIdentityRow[],
 ) {
   const attributeCategory = vendorAttributeCategoryFromDb(vendor.category);
-  const profileIdentityRows = effectiveIdentityRows(vendor, identityRows);
-  const identity = identitySummary(vendor, profileIdentityRows);
-  const canonicalVendor = profileIdentityRows.find(({ slug }) => (
-    slug === identity.canonicalSlug
-  )) ?? profileIdentityRows[0];
-  const representativeName = canonicalVendor?.name ?? vendor.name;
-  const mergedAliases = new Set<string>();
-  for (const row of profileIdentityRows) {
-    const siblingName = row.name.trim();
-    if (siblingName) mergedAliases.add(siblingName);
-    for (const alias of safeAliases(row.aliases)) mergedAliases.add(alias);
-  }
-  for (const alias of safeAliases(vendor.aliases)) mergedAliases.add(alias);
-  mergedAliases.delete(representativeName.trim());
   const orderedPrices = [...prices].sort(comparePrices);
   const orderedOptions = [...options].sort(compareOptions);
   const optionsByPriceId = new Map<string, PublicOptionProjection[]>();
@@ -384,10 +330,10 @@ export function assemblePublicVendorPriceProfile(
     vendor: {
       id: vendor.id,
       slug: vendor.slug,
-      name: representativeName,
+      name: vendor.name,
       category: consumerCategory(vendor.category),
       region_code: vendor.region_code,
-      aliases: [...mergedAliases].slice(0, 50),
+      aliases: safeAliases(vendor.aliases),
       urls: {
         official: vendor.official_url,
         instagram: vendor.instagram_url,
@@ -395,7 +341,7 @@ export function assemblePublicVendorPriceProfile(
       },
     },
     // 같은 샵이 대행사 지역 때문에 여러 행으로 갈려 있어도 상세는 한 곳으로 본다.
-    identity,
+    identity: identitySummary(vendor, identityRows),
     attributes: attributeCategory
       ? sanitizePublicVendorAttributes(attributeCategory, vendor.attributes)
       : {},
@@ -404,7 +350,6 @@ export function assemblePublicVendorPriceProfile(
       id: price.id,
       period_label: price.period_label,
       category: consumerCategory(price.price_category),
-      region_code: price.region_code,
       item_name: price.item_name,
       base_spec: price.base_spec,
       price_min_krw: price.price_min_krw,
@@ -462,7 +407,7 @@ export async function loadPublicVendorPriceProfile(
       const result = await client
         .from("v_public_official_prices")
         .select(
-          "id, period_label, price_category, region_code, item_name, base_spec, price_min_krw, price_max_krw, vat_note, price_note, source_label, agency_id, agency_slug, agency_display_name, is_current, published_at",
+          "id, period_label, price_category, item_name, base_spec, price_min_krw, price_max_krw, vat_note, price_note, source_label, agency_id, agency_slug, agency_display_name, is_current, published_at",
         )
         .in("vendor_slug", vendorSlugs)
         .eq("source", "kca_tprice")

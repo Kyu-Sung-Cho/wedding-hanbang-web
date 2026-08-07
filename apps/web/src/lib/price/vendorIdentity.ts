@@ -15,7 +15,9 @@ import type { PriceCategory } from "./catalog";
 export function normalizeVendorName(value: string): string {
   return String(value ?? "")
     .replace(/\(주\)|주식회사|㈜/g, "")
-    .replace(/[\s·\-_,.()]/g, "")
+    // 대괄호를 빼먹으면 `[수원] 헤움`과 `헤움_수원점`이 서로 다른 업체로 갈린다.
+    // 같은 샵의 같은 지점인데 대행사마다 지역 표기 위치가 달라서 생기는 분열이다.
+    .replace(/[\s·\-_,.()[\]]/g, "")
     .toLowerCase();
 }
 
@@ -24,59 +26,13 @@ export function normalizeVendorName(value: string): string {
  * 합치면 다른 가게의 가격을 한 카드에 섞게 되므로 반드시 분리한다.
  *   랑게        전라 @langhe_gj(광주)     ↔ 서울 @langhe_official
  *   메이든스튜디오 서울 @maiden_studio       ↔ 경상 @maiden_daegu(대구)
- *   라망        전주 @lamantstudio_jeonju ↔ 서울 @lamantstudio_official
- *
- * 단, 서울 안에서 공식 채널이 같은 것으로 재확인된 랑게·라망 slug 쌍은 아래
- * `VERIFIED_VENDOR_IDENTITY_BY_SLUG`가 행 단위로만 다시 모은다.
+ *   라망        한쪽만 공식 사이트 보유 — 동일 업체 근거 없음
  */
 export const SAME_NAME_DIFFERENT_BUSINESS: ReadonlySet<string> = new Set<string>([
   "studio|랑게",
   "studio|메이든스튜디오",
   "studio|라망",
 ]);
-
-/**
- * 이름 전체를 합칠 수는 없지만, 공개 행별 공식 채널이 같다고 확인된 slug만 묶는다.
- *
- * 키는 `카테고리|slug`, 값은 일반 이름 신원과 충돌하지 않는 검증 그룹 이름이다.
- * 같은 이름의 다른 지점까지 합치는 `SAME_NAME_DIFFERENT_BUSINESS`의 반대 규칙이
- * 아니라, 그 분리 규칙 안에서 확인된 행만 다시 모으는 더 좁은 예외다.
- */
-export const VERIFIED_VENDOR_IDENTITY_BY_SLUG: ReadonlyMap<string, string> =
-  new Map<string, string>([
-    [
-      "studio|studio-ingest-8b66b01259700071",
-      "studio|verified-row|랑게서울",
-    ],
-    [
-      "studio|studio-ingest-712748b50059a490",
-      "studio|verified-row|랑게서울",
-    ],
-    [
-      "studio|studio-ingest-ee80fe60805b12d1",
-      "studio|verified-row|라망서울",
-    ],
-    [
-      "studio|studio-ingest-d0d04f7ed9330369",
-      "studio|verified-row|라망서울",
-    ],
-  ]);
-
-export function verifiedVendorIdentitySlugs(
-  category: string,
-  vendorSlug: string,
-): readonly string[] | null {
-  const identity = VERIFIED_VENDOR_IDENTITY_BY_SLUG.get(`${category}|${vendorSlug}`);
-  if (!identity) return null;
-
-  return [...VERIFIED_VENDOR_IDENTITY_BY_SLUG.entries()]
-    .flatMap(([key, candidateIdentity]) => (
-      candidateIdentity === identity && key.startsWith(`${category}|`)
-        ? [key.slice(category.length + 1)]
-        : []
-    ))
-    .sort();
-}
 
 export function isSameNameDifferentBusiness(
   category: string,
@@ -115,6 +71,7 @@ export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map
   ["studio|클레브스튜디오", "클레브"],
   ["studio|타임포유스튜디오", "타임포유"],
   ["studio|탱자스튜디오", "탱자"],
+  ["studio|테레지아스튜디오", "테레지아"],
   ["dress|루비나엘웨딩", "루비나엘"],
   ["dress|르블랑웨딩", "르블랑"],
   ["dress|마이도터스웨딩", "마이도터스"],
@@ -127,13 +84,130 @@ export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map
   ["studio|구호스튜디오", "구호"], // 성동구 성수동2가 280-18
   ["studio|더청담스튜디오", "더청담"], // 청담동 49-5 · 02-3444-4155
   ["studio|바시움스튜디오", "바시움"], // 강남구 봉은사로51길 26
+  ["studio|버드투블룸스튜디오", "버드투블룸"], // 청담동 본점(양쪽 근거 모두 청담)
   ["studio|헤이스스튜디오", "헤이스"], // 서초 내곡동
   ["studio|st정우스튜디오", "st정우"], // (주)에스티정우 청담 — region 충청은 대행사 지역
   ["dress|메라키웨딩", "메라키"], // 강남 학동로 137-7
   ["dress|장다인웨딩", "장다인"], // 강남 선릉로135길 6 · 02-547-5568
   ["dress|폴라리스웨딩", "폴라리스"], // 강남 선릉로 731
   ["dress|플로렌스웨딩", "플로렌스"], // 청담
+
+  // ── 3차 (2026-08-05): 원본 셀 문맥이 스스로 증명하는 표기 차이 ──────────────
+  // 위 1·2차와 근거 종류가 다르다. 공식 채널이 아니라 **공시 원본 xlsx 자신이**
+  // 두 표기를 같은 것으로 쓴 경우다. 채널 확인보다 약한 근거가 아니라 다른 축이며,
+  // 반증 조건도 명확하다 — 한 파일이 두 표기를 각각 독립 행으로 올렸으면 다른 업체다.
+  // 253파일 전수 스캔에서 아래 전부 동시게재 0건을 확인했다.
+  // 판정 기록: docs/operations/VENDOR_IDENTITY_REVIEW_2026-08-05.md
+
+  // 철자 흔들림(처/쳐, 조/죠). 같은 작성자가 한 파일 안에서 혼용한다.
+  ["dress|시그니쳐엘리자베스", "시그니처엘리자베스"], // 케이트웨딩플랜 정책셀이 같은 상품을 '시그니처'로 적음
+  ["dress|죠슈아벨브라이덜", "조슈아벨브라이덜"], // 플랜온웨딩이 한 파일에서 처/쳐·조/죠 혼용
+  ["makeup|컬쳐앤네이쳐", "컬처앤네이처"], // 위와 같은 플랜온웨딩 파일 (근거 간접 — medium)
+
+  // 로마자 병기·약칭. 괄호 안이 본체의 다른 표기일 뿐이다.
+  ["makeup|로쉬rosh", "로쉬"], // 제이웨딩 셀 원문이 '로쉬\n(rosh)' — 줄바꿈 로마자 병기
+  ["makeup|밈mimm", "밈"], // 아이웨딩 '밈mimm' · 레브웨딩 '밈(MIMM)' (1음절이라 medium)
+  ["makeup|정남jungnam", "정남"], // 아이웨딩 770,000 = 케이트웨딩플랜 정남 본식 770,000
+  ["studio|바로오늘이그날바오그", "바로오늘이그날"], // 베리굿웨딩이 '바오그스튜디오'를 같은 스펙·가격으로 단독 게재
+
+  // 형제 지점이 없는 '본점'은 구분자가 아니라 주석이다.
+  // (형제가 실재하는 꼼나나는 정반대로 분리 유지한다 — VENDOR_BRANCHES 참고.)
+  ["makeup|알루본점", "알루"], // 알루 6행 중 라벨은 웨딩두잇 1행뿐, 나머지 5곳 전부 무표기
+
+  // 상호 변경. 원본 셀에 "…에서 상호명 변경"이라고 적혀 있다(추론 아님).
+  ["dress|레이첼웨딩", "르네아뜰리에"], // 다이렉트결혼준비 '르네아뜰리에 (레이첼웨딩에서 상호명 변경)'
+  ["dress|마틴드아뜰리에", "마틴드마리에"], // 다이렉트결혼준비 '마틴드마리에 (마틴드아뜰리에서 상호명 변경)'
+  ["dress|컬렉트비", "이브스더데이"], // 요즘웨딩 '이브스더데이 (구.컬렉트비)'
 ]);
+
+/**
+ * 확인된 **지점**. 병합하지 않고 브랜드로 묶기만 한다.
+ *
+ * 지점을 합치면 안 된다는 건 데이터로 확인됐다 — 같은 대행사가 같은 base_spec으로
+ * 올린 `바시움`(154만)과 `바시움 삼성점`(132만)이 22만원 다르다. 지점은 다른 샵이다.
+ *
+ * 그런데 지점 표기 **위치**가 대행사마다 달라서 같은 지점이 여러 장으로 갈렸다.
+ * `[수원] 헤움`((주)레브웨딩)과 `헤움_수원점`(아이웨딩)이 그 예다. 정규화만으로는
+ * `수원헤움` ≠ `헤움수원점`이라 안 묶인다. 그래서 (브랜드, 지점)을 신원 키로 쓴다.
+ *
+ * `regionCode`는 **샵 소재지**다. 목록은 카드 지역을 대행사 지역으로 채우는데,
+ * 지점 라벨은 이 데이터셋에서 샵의 실제 위치를 알려주는 유일한 정보다
+ * (레브웨딩 원본 시트는 카테고리 탭이고 지역 열이 없으며, 라벨행이 시트 끝에
+ * 도시별로 붙은 부록 구조다 — 그 대행사의 지역 지사 공시는 원본 전체에 0건).
+ * 이게 없으면 강원 필터를 고른 커플에게 강릉 소재 샵이 안 보인다.
+ */
+export type VendorBranch = {
+  /** 지점을 뺀 브랜드 이름(정규화형). 신원 키와 형제 조회의 기준이다. */
+  readonly brand: string;
+  /** 지점 라벨. 같은 브랜드 안에서 지점을 가르는 값이다. */
+  readonly branch: string;
+  /** 샵 소재지. 지역명이 아닌 라벨(본점·힐튼점 등)은 null이다. */
+  readonly regionCode: string | null;
+};
+
+export const VENDOR_BRANCHES: ReadonlyMap<string, VendorBranch> = new Map<string, VendorBranch>([
+  // 같은 지점인데 표기 위치가 달라 갈려 있던 것 — 아래 둘은 한 카드로 묶인다.
+  ["makeup|수원헤움", { brand: "헤움", branch: "수원", regionCode: "gyeonggi" }],
+  ["makeup|헤움수원점", { brand: "헤움", branch: "수원", regionCode: "gyeonggi" }],
+
+  // 형제 지점이 실재해 맨이름이 어느 지점인지 알 수 없는 브랜드들.
+  ["makeup|꼼나나본점", { brand: "꼼나나", branch: "본점", regionCode: null }],
+  ["makeup|꼼나나청담", { brand: "꼼나나", branch: "청담", regionCode: null }],
+  ["makeup|수원꼼나나", { brand: "꼼나나", branch: "수원", regionCode: "gyeonggi" }],
+  ["studio|천안s스튜디오", { brand: "s스튜디오", branch: "천안", regionCode: "chungcheong" }],
+  ["studio|s스튜디오울산", { brand: "s스튜디오", branch: "울산", regionCode: "ulsan" }],
+  ["studio|바시움삼성점", { brand: "바시움", branch: "삼성", regionCode: null }],
+  ["makeup|조이187인스타점", { brand: "조이187", branch: "인스타", regionCode: null }],
+  ["makeup|조이187청담점", { brand: "조이187", branch: "청담", regionCode: null }],
+
+  // (주)레브웨딩의 대괄호 지역 표기 — 전부 비서울이라 무표기 = 서울 기본이다.
+  ["studio|천안아우라", { brand: "아우라", branch: "천안", regionCode: "chungcheong" }],
+  ["studio|천안페레", { brand: "페레", branch: "천안", regionCode: "chungcheong" }],
+  ["studio|청주비마이", { brand: "비마이", branch: "청주", regionCode: "chungcheong" }],
+  ["studio|인천아우리", { brand: "아우리", branch: "인천", regionCode: "incheon" }],
+  ["makeup|강릉더페트라", { brand: "더페트라", branch: "강릉", regionCode: "gangwon" }],
+  ["makeup|강릉아틀리에도쿄", { brand: "아틀리에도쿄", branch: "강릉", regionCode: "gangwon" }],
+  ["makeup|동해리원드블랑", { brand: "리원드블랑", branch: "동해", regionCode: "gangwon" }],
+  ["makeup|동해오늘도예쁘다", { brand: "오늘도예쁘다", branch: "동해", regionCode: "gangwon" }],
+  ["studio|강릉미유웨딩", { brand: "미유웨딩", branch: "강릉", regionCode: "gangwon" }],
+  ["dress|강릉미유웨딩", { brand: "미유웨딩", branch: "강릉", regionCode: "gangwon" }],
+  ["makeup|강릉미유웨딩", { brand: "미유웨딩", branch: "강릉", regionCode: "gangwon" }],
+  ["dress|천안오브제웨딩", { brand: "오브제웨딩", branch: "천안", regionCode: "chungcheong" }],
+  ["dress|천안제니브라이드", { brand: "제니브라이드", branch: "천안", regionCode: "chungcheong" }],
+  ["dress|청주아델라브라이드", { brand: "아델라브라이드", branch: "청주", regionCode: "chungcheong" }],
+
+  // 대행사가 붙인 지점명이지만 지역이 아닌 것.
+  ["studio|아우라스튜디오천안점", { brand: "아우라스튜디오", branch: "천안", regionCode: "chungcheong" }],
+]);
+
+/**
+ * 지점이 실재해서 **맨이름 카드가 어느 지점인지 알 수 없는** 브랜드.
+ *
+ * 실측: `꼼나나` 맨이름 4행 중 (주)블랑드봄은 본점 행과, 세인트플래닝은 청담 행과
+ * 가격이 정확히 일치한다 — 즉 맨이름 행들의 귀속이 실제로 갈린다. 지금 화면의
+ * `꼼나나 55만~178만`은 서로 다른 가게 가격을 한 범위로 합친 값이다.
+ *
+ * 합치지도 가르지도 못하는 상태이므로 화면에 그 사실을 드러내는 데 쓴다.
+ * 판정이 아니라 관찰이라 "견적·시세에 판정 금지" 원칙과 어긋나지 않는다.
+ */
+export const VENDOR_BRANCH_AMBIGUOUS: ReadonlySet<string> = new Set<string>([
+  "makeup|꼼나나",
+  "makeup|조이187",
+  "studio|s스튜디오",
+  "studio|바시움",
+  "makeup|헤움",
+]);
+
+export function vendorBranchOf(category: string, vendorName: string): VendorBranch | null {
+  return VENDOR_BRANCHES.get(`${category}|${normalizeVendorName(vendorName)}`) ?? null;
+}
+
+/** 맨이름 카드가 어느 지점인지 확인되지 않았는가. 화면 표기용. */
+export function hasUnverifiedBranch(category: string, vendorName: string): boolean {
+  const normalized = normalizeVendorName(vendorName);
+  if (VENDOR_BRANCHES.has(`${category}|${normalized}`)) return false;
+  return VENDOR_BRANCH_AMBIGUOUS.has(`${category}|${canonicalVendorName(category, vendorName)}`);
+}
 
 /**
  * 그룹 판정에 쓸 대표 이름. 표기 차이를 흡수한 뒤의 정규화 이름이다.
@@ -147,22 +221,47 @@ export function canonicalVendorName(category: string, vendorName: string): strin
   return SAME_BUSINESS_DIFFERENT_NAME.get(`${category}|${normalized}`) ?? normalized;
 }
 
+/**
+ * 같은 묶음인지 판정하는 **유일한** 기준.
+ *
+ * 목록(`vendorIdentityKey`)·상세 형제 조회(`loadVendorIdentityRows`)가 전부 이걸
+ * 거쳐야 한다. 한 곳만 다른 규칙을 쓰면 "카드엔 대행사 4곳인데 눌러 보니 1곳"이
+ * 다시 생긴다 — 지점 키를 목록에만 넣고 상세를 안 고치면 정확히 그 상태가 된다.
+ */
+export function vendorIdentityGroup(category: string, vendorName: string): string {
+  // 확인된 지점은 브랜드가 같아도 다른 샵이다(같은 대행사·같은 base_spec인 바시움
+  // 154만 ↔ 삼성점 132만). 반대로 지점 표기 **위치**는 대행사마다 달라서
+  // 정규화만으로는 같은 지점끼리도 안 묶인다(`[수원] 헤움` ↔ `헤움_수원점`).
+  const branch = vendorBranchOf(category, vendorName);
+  if (branch) return `${branch.brand}#${branch.branch}`;
+  return canonicalVendorName(category, vendorName);
+}
+
 export function vendorIdentityKey(
   category: PriceCategory,
   vendorName: string,
   vendorSlug: string,
 ): string {
-  const verifiedRowIdentity = VERIFIED_VENDOR_IDENTITY_BY_SLUG.get(
-    `${category}|${vendorSlug}`,
-  );
-  if (verifiedRowIdentity) return verifiedRowIdentity;
-
   const canonical = canonicalVendorName(category, vendorName);
   if (!canonical || isSameNameDifferentBusiness(category, canonical)) {
     // 이름만 같고 실제로는 다른 업체 — 슬러그를 그대로 써서 분리를 유지한다.
     return `slug:${vendorSlug}`;
   }
-  return `${category}|${canonical}`;
+  return `${category}|${vendorIdentityGroup(category, vendorName)}`;
+}
+
+/**
+ * 카드에 쓸 지역. 지점 라벨이 있으면 **샵 소재지**가 대행사 지역을 이긴다.
+ *
+ * 목록은 카드 지역을 offer(=대행사)의 지역으로 채운다. 지역은 대행사의 것이지
+ * 샵의 것이 아니라서, 이름에 `[강릉]`이 붙은 샵이 서울로 잡혀 강원 필터에서
+ * 사라진다. 라벨이 있는 건 그것을 쓴다.
+ */
+export function vendorRegionCodeOverride(
+  category: string,
+  vendorName: string,
+): string | null {
+  return vendorBranchOf(category, vendorName)?.regionCode ?? null;
 }
 
 const IDENTITY_LIKE_MAX_LENGTH = 40;
@@ -181,9 +280,15 @@ export function vendorIdentityLikePattern(
 ): string | null {
   // 대표 이름으로 패턴을 만든다. 방문한 이름이 긴 쪽("가을스튜디오")이면 그것으로
   // 만든 패턴은 짧은 형제("가을")를 못 잡아 한 방향만 병합되는 상태가 된다.
-  const normalized = category === undefined
-    ? normalizeVendorName(vendorName)
-    : canonicalVendorName(category, vendorName);
+  // 지점은 **브랜드**로 만든다 — `[수원] 헤움`으로 만든 패턴 `%수%원%헤%움%`은
+  // 글자 순서 때문에 `헤움_수원점`을 못 잡는다. 후보를 넓게 긁고 최종 판정은
+  // `vendorIdentityGroup`이 한다.
+  const branch = category === undefined ? null : vendorBranchOf(category, vendorName);
+  const normalized = branch
+    ? branch.brand
+    : (category === undefined
+      ? normalizeVendorName(vendorName)
+      : canonicalVendorName(category, vendorName));
   if (!normalized) return null;
   // 너무 긴 이름은 패턴이 커져 인덱스 없이 훑는 비용만 늘어난다. 앞부분만 써도
   // 후보를 좁히는 목적은 달성되고, 최종 판정은 JS 정규화 비교가 한다.
