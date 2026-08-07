@@ -5,17 +5,19 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import SectionLabel from "./SectionLabel";
+import { BETA_COUPLE_ROLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
 const BENEFITS = [
   "운영 검증을 마친 기능부터 먼저 사용",
   "불편한 점과 필요한 기능을 제품팀에 전달",
   "기능 변경과 정식 출시 소식 안내",
-  "제공 범위·기간·비용을 참여 전 확인",
+  "제공 기능·이용 기간·무료 상담 한도를 참여 전 확인",
+  "추가 이용 방법·비용은 아직 미정 · 신청만으로 결제되지 않음",
 ];
 
 const CONDITIONS = [
   "현재 결혼을 준비 중인 본인",
-  "신부·신랑 또는 커플 모두 신청 가능",
+  ...BETA_COUPLE_ROLE_SUPPORT_NOTICES,
   "사용 중 발견한 불편이나 오류를 전달할 수 있는 분",
 ];
 
@@ -56,7 +58,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="초대" tone="light" />
-          <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
+          <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-normal">
             아모라의 운영 검증에
             <br />
             <em className="not-italic text-rose-light">함께해 주실 분</em>을 찾습니다.
@@ -126,7 +128,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 <>
                   {/* 진척 수치 — sans-serif + tabular-nums (Cormorant "1" Roman numeral 혼동 방지) */}
                   <div className="flex items-baseline gap-3 mb-3">
-                    <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
+                    <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-normal">
                       {BETA_CURRENT}
                     </span>
                     <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">

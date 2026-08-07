@@ -61,9 +61,20 @@ describe("public marketing claim boundary", () => {
   });
 
   it("states that AI changes require confirmation and keeps policy links real", () => {
-    const landing = source("src/app/landing/page.tsx");
+    // 랜딩이 page.tsx 한 장에서 섹션 컴포넌트로 나뉘면서 이 계약의 문장과 링크가
+    // landingContent·TrustEvidenceSection·LandingFooter로 흩어졌다. page.tsx만
+    // 읽으면 구조를 바꿨다는 이유로 계약이 통과해 버린다 — 읽는 곳을 옮기고
+    // 검사는 오히려 늘린다(승인 전 미반영·저장 고지까지).
+    const landing = [
+      source("src/components/landing/redesign/landingContent.ts"),
+      source("src/components/landing/redesign/TrustEvidenceSection.tsx"),
+      source("src/components/landing/redesign/LandingFooter.tsx"),
+    ].join("\n");
 
-    expect(landing).toContain("사용자가 승인한 내용만 반영");
+    expect(landing).toContain("확인한 변경만 준비 기록에 반영");
+    expect(landing).toContain("대화 내용은 서비스에서 처리·저장될 수 있어요");
+    expect(landing).toContain("확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요");
+    expect(landing).not.toContain("확인한 내용만 저장");
     expect(landing).toContain('{ label: "이용약관", href: "/terms" }');
     expect(landing).toContain('{ label: "개인정보처리방침", href: "/privacy" }');
     expect(landing).toContain('{ label: "AI 서비스 정책", href: "/ai-policy" }');

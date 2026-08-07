@@ -16,7 +16,7 @@ const ROLES: Role[] = [
     body: (
       <>
         금액만 보지 않고
-        <span className="text-noir-800"> 빠진 항목과 추가금 가능성</span>을 먼저 확인합니다.
+        <span className="text-noir-800"> 포함 여부와 별도 금액을 확인할 항목</span>을 먼저 정리합니다.
       </>
     ),
   },
@@ -35,7 +35,7 @@ const ROLES: Role[] = [
     title: "예산에 반영하기",
     body: (
       <>
-        확인한 견적과 숨은 비용을
+        확인한 견적과 별도 금액을
         <span className="text-noir-800"> 내 예산표에 이어서</span> 관리합니다.
       </>
     ),
@@ -75,7 +75,7 @@ export default function FiveRoles() {
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="준비 도구" />
-          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-5">
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal mb-5">
             견적에서 일정까지,
             <br />
             <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
@@ -102,7 +102,7 @@ export default function FiveRoles() {
               </span>
 
               {/* 제목 */}
-              <h3 className="font-serif-kr text-[20px] md:text-[24px] text-noir-800 font-medium tracking-[-0.005em]">
+              <h3 className="font-serif-kr text-[20px] md:text-[24px] text-noir-800 font-medium tracking-normal">
                 {role.title}
               </h3>
 

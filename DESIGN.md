@@ -2,10 +2,10 @@
 
 ## Product Context
 
-- **What this is:** Wedding Hanbang is an AI wedding operating room for Korean couples preparing a wedding together.
-- **Who it is for:** Couples 6-12 months before the wedding who need one place for decisions, budget, schedule, vendors, and partner coordination.
-- **Product type:** Consumer mobile app plus web app, community, vendor marketplace, and marketing site.
-- **Core memory:** The first impression should be "this app tells us what to do next, without making wedding planning feel cheap or chaotic."
+- **What this is:** Wedding Hanbang is a web service where couples tell Amora about their wedding preparation and Amora connects the result to their budget, checklist, and schedule.
+- **Who it is for:** Couples who do not know what to do next or are tired of keeping wedding decisions across chat, notes, calendars, and spreadsheets.
+- **Product type:** Amora-led web MVP with budget, checklist, schedule, and community support.
+- **Core memory:** The first impression should be "tell Amora, and our wedding preparation gets organized."
 
 ## Aesthetic Direction
 
@@ -28,8 +28,8 @@
 
 - **Approach:** Restrained warm luxury with a quieter web/app brand match.
 - **Primary eucalyptus ink:** `#36534E` and `#243832` for high-trust surfaces, main text, AI identity, and premium contrast.
-- **Dusty mauve:** `#A77B74` and `#8F6662` for key actions, selected states, and human warmth.
-- **Pearl ivory surfaces:** `#FBF8F2`, `#F7F1E8`, `#EFE4D7`, and `#F6EFE5` for backgrounds and layered panels.
+- **Dusty mauve:** `#A77B74` and `#8F6662` for key actions, selected states, and human warmth. `#7D5753` is the darker step of `#8F6662`: use it for hover/pressed fills, and for small mauve text (12–14px) where `#8F6662` misses 4.5:1 on warm ivory surfaces. Never a resting fill for large surfaces.
+- **Pearl ivory surfaces:** `#FBF8F2`, `#F7F1E8`, `#EFE4D7`, `#F3E9DD`, and `#F6EFE5` for backgrounds and layered panels.
 - **Sage:** `#6D806E` and `#C7D1C2` for calm success, verified, and operational states.
 - **Champagne taupe:** `#B89785` and `#E2D3C8` for rare highlights, not primary buttons everywhere.
 - **Semantic:** success `#6D806E`, warning `#B89785`, danger `#D95F5F`, info `#36534E`.
@@ -96,3 +96,10 @@
 | 2026-07-28 | 같은 프로토타입의 off-scale 타입 값(13·15·17·28)과 `rounded-[24px]`·`rounded-[14px]`를 잠정 유지한다 | 문항 화면의 세로 배분이 §5 가설2("다섯 답 동시 비교")에 직접 걸려 있어, 스케일 정렬이 접힘선을 움직인다. R1-UX 실기기 관찰 뒤 일괄 정렬한다. 근거·실측: `docs/wedding-code/63_today_one_line_design_plan_2026-07-28.md` §13-2·13-3. |
 | 2026-07-29 | `/today`(오늘 한 마디)는 목록이 아니라 **세 장 뽑기**로 하고, 세 장은 항상 마음 2 + 돈 1로 고정한다 | 28행 목록으로 띄워보니 첫 화면 10장 중 9장이 돈·계약이라 첫인상이 청구서였다. 구성을 seed 운에 맡기면 돈만 세 장인 날이 반드시 생긴다. 실측·근거: `docs/wedding-code/63_today_one_line_design_plan_2026-07-28.md` §14. |
 | 2026-07-29 | 공유 링크 원문(URL)은 결과 화면에 텍스트로 노출하지 않는다 | 주소에 카드 id가 들어 있어, 캡처를 보내는 순간 상대가 열기 전에 어느 장인지 들킨다. 주소는 복사 버튼이 들고 있는다. |
+| 2026-07-30 | 웹 MVP를 아모라·예산·체크리스트·일정·커뮤니티로 제한하고 아모라를 단일 제품 중심으로 둔다 | 첫 방문자가 공시가격·업체·커뮤니티·도구를 별도 제품으로 해석하지 않도록, "아모라에게 말하면 준비가 정리된다"는 한 가지 약속 아래 실행 도구와 커뮤니티를 배치한다. |
+| 2026-08-05 | `#7D5753`(rose-700)과 `#F3E9DD`(ivory-blush)를 정식 토큰으로 승격한다 | 랜딩이 이 두 값을 각각 9곳·7곳에서 쓰고 있었는데 `globals.css` 토큰에도 이 문서에도 없었다. 상호작용 상태 색이 시스템에 아예 없던 것이 원인이라, 지우는 대신 이름을 준다. 실측: 랜딩이 쓰는 색 11종 중 이 2종만 어느 출처에도 없었다. |
+| 2026-08-05 | 그림자는 `--shadow-raised`·`--shadow-overlay` 두 단계만 쓴다 | 랜딩에 일회성 그림자 5종이 있었고, 그중 둘은 기하는 거의 같고 알파만 75% 달랐다(20/48/0.2 vs 20/50/0.35). elevation 어휘가 없으면 "얼마나 떠 있나"를 컴포넌트마다 새로 정한다. |
+| 2026-08-05 | 랜딩 헤드라인은 `landingType.ts`의 3단계(hero/section/muted)만 쓴다 | 8개 섹션이 각자 clamp 곡선을 발명해 1280px에서 H1(68px)이 신뢰 h2(72px)·마무리 h2(73.6px)보다 작아지는 위계 역전이 있었다. |
+| 2026-08-05 | 왼쪽 2px 규칙선은 "인용된 출처"에만 쓴다. 반영 결과는 sage로 표시한다 | 같은 `border-l-2 border-[#A77B74]`가 히어로에서는 출처(커플이 한 말), PreparationResult에서는 목적지(반영된 기록)를 뜻해 의미가 정반대였다. sage는 이 문서가 이미 "operational states"에 배정한 색이다. |
+| 2026-08-05 | eyebrow 장식은 뜻을 바꿀 때만 붙이고, 붙일 때는 16px 글리프 하나로 통일한다 | eyebrow 8개에 장식이 5종(6px 점, 14px Sparkles, 32px 규칙선 ×2, 16px 체크, 48px 원형 메달리언) 섞이고 3개는 맨몸이라, 같은 층위의 라벨이 섹션마다 다른 격식으로 읽혔다. 히어로 하나에만 점과 Sparkles가 같이 붙어 있었다. 뜻을 지는 것은 둘뿐이다 — 기본이 아닌 행위자(아모라 = AI)와 릴리스 경계(운영 공개 전). 나머지는 이 문서의 "Decoration level: Intentional… Avoid decorative noise"에 어긋나므로 없앤다. 적용 후 실측: 글리프 2개 · 맨몸 6개. |
+| 2026-08-05 | `inline-flex` 레시피(`primaryAction*`·`secondaryLink*`)는 `mx-auto`로 가운데 정렬하지 않는다 | inline 요소에 auto margin은 아무 일도 하지 않는다. 마무리 섹션의 CTA와 로그인 링크가 각자 `mx-auto`를 걸고 같은 line box에 앉아, 1280 실측에서 로그인 링크가 버튼 위로 겹쳤다. 가운데 정렬과 세로 쌓기는 부모 컨테이너가 맡는다. |
