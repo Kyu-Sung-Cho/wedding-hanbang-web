@@ -491,7 +491,7 @@ export default function CommunityLandingClient({
  * **업체 수는 DB 행 수가 아니라 "화면에 보이는 카드 수"다.**
  * `v_public_vendor_policies`의 `count(distinct vendor_id)`는 502지만, 같은 샵이
  * 대행사별로 여러 행에 들어와 있고 목록은 그것을 `vendorIdentityKey`로 한 장에
- * 묶는다. 그래서 사용자가 실제로 세는 업체는 412곳이다(2026-07-28 실측).
+ * 묶는다. 그래서 사용자가 실제로 세는 업체는 406곳이다(2026-08-08 운영 실측).
  *
  * 502를 쓰면 첫 화면이 실제보다 22% 많은 수를 주장하게 된다 — 세어 보는 사람에게
  * 바로 들키는 종류의 과장이고, 하필 "판정하지 않고 사실만 보여준다"가 이 서비스의
@@ -499,13 +499,13 @@ export default function CommunityLandingClient({
  *
  * 갱신 확인: `pnpm audit:production` (=== 1-c. 공시 규모 표기 ===)
  *
- * **재측정 필요 (2026-08-05)**: 신원 규칙에 표기 병합 11쌍과 지점 키가 들어가면서
- * 카드가 줄었다(적재 계획 기준 836→824). 위약금 보유 업체만 세는 이 값도 그만큼
- * 작아지지만 정확한 수는 운영 조회로만 확정된다 — 추정치를 적으면 첫 화면이 다시
- * 근거 없는 숫자를 주장하게 되므로 그대로 두고 `pnpm audit:production`이 막게 한다.
+ * **2026-08-08 운영 재측정: 412 → 406.** 신원 규칙에 표기 병합 11쌍·지점 키 25건·
+ * 사본 중복 1건이 들어가면서 같은 502 vendor 행이 406장으로 묶인다(감사 실측:
+ * `vendor 행 502 → 화면 카드 406 · 병합 대응표 38 · 분리 3 · 지점 25`).
+ * 추정치를 적지 않고 운영 조회로 확정한 값이다.
  * 판정 근거: docs/operations/VENDOR_IDENTITY_REVIEW_2026-08-05.md
  */
-const PUBLISHED_VENDOR_COUNT = 412;
+const PUBLISHED_VENDOR_COUNT = 406;
 const PUBLISHED_POLICY_COUNT = 831;
 
 /**
