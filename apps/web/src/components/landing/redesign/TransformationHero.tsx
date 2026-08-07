@@ -46,11 +46,18 @@ const amoraStartHref = "/start-here";
  * 누르면 날짜 입력칸이 실제로 채워진다 — 숨은 값을 쓰지 않으므로 사용자가 무엇이
  * 계산에 쓰였는지 보고 바로 고칠 수 있다.
  */
-const ROUGH_TIMEFRAMES = [
-  { label: "6개월 뒤쯤", months: 6 },
-  { label: "1년 뒤쯤", months: 12 },
-  { label: "1년 반 뒤쯤", months: 18 },
-] as const;
+const SLIDER_MIN_MONTHS = 1;
+const SLIDER_MAX_MONTHS = 24;
+/** 손대기 전 슬라이더가 쉬는 자리. 이 값만으로는 결과를 만들지 않는다. */
+const SLIDER_RESTING_MONTHS = 12;
+
+/** 개월 수를 사람이 읽는 말로. "13개월 뒤"보다 "1년 1개월 뒤"가 읽힌다. */
+function monthsLabel(months: number): string {
+  if (months < 12) return `${months}개월 뒤`;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  return rest === 0 ? `${years}년 뒤` : `${years}년 ${rest}개월 뒤`;
+}
 
 /** 오늘로부터 N개월 뒤를 `YYYY-MM-DD`로. 월말 넘침은 그 달 마지막 날로 맞춘다. */
 function monthsFromToday(months: number): string {
@@ -73,11 +80,17 @@ export default function TransformationHero() {
   // 날짜를 넣는 즉시 결과를 만든다. 서버도 DB도 타지 않는 순수 계산이라
   // 이 페이지를 떠나지 않고 자기 결과를 볼 수 있다 — 랜딩이 약속을 증거로 바꾸는
   // 지점이다. 날짜는 이 계산 밖으로 나가지 않는다.
-  const preview = useMemo(
-    () => computePreparationPriorities(daysUntilWedding(dateText)),
-    [dateText],
-  );
+  const dday = useMemo(() => daysUntilWedding(dateText), [dateText]);
+  const preview = useMemo(() => computePreparationPriorities(dday), [dday]);
   const hasPreview = preview.visiblePriorities.length > 0;
+
+  /**
+   * 슬라이더 위치는 입력칸에서 파생시킨다. 별도 상태를 두면 직접 타이핑한 날짜와
+   * 손잡이가 어긋나서, 화면이 두 개의 다른 날짜를 동시에 말하게 된다.
+   */
+  const sliderMonths = hasPreview && dday !== null
+    ? Math.min(SLIDER_MAX_MONTHS, Math.max(SLIDER_MIN_MONTHS, Math.round(dday / 30.44)))
+    : SLIDER_RESTING_MONTHS;
   // 지난 날짜를 넣으면 계산이 빈 결과를 주고 화면이 조용히 데모로 되돌아갔다.
   // 입력이 거부됐다는 사실이 어떤 경로로도 전달되지 않아, 사용자는 자기가 뭘
   // 잘못했는지 모른 채 결과가 사라지는 것만 본다.
@@ -205,30 +218,47 @@ export default function TransformationHero() {
                 />
               </button>
             </div>
-            {/* 날짜를 모르는 사람이 여기서 멈추지 않게 한다. 누르면 위 입력칸이
-                실제로 채워져 결과가 즉시 바뀐다 — 무엇으로 계산했는지 보이고
-                바로 고칠 수 있다. */}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-[12px] font-semibold text-white/72">아직 모르겠다면</span>
-              {ROUGH_TIMEFRAMES.map((frame) => {
-                const value = monthsFromToday(frame.months);
-                const selected = dateText === value;
-                return (
-                  <button
-                    key={frame.label}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setDateText(value)}
-                    className={`inline-flex min-h-9 items-center rounded-full border px-3 text-[12px] font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2D3C8] focus-visible:ring-offset-2 focus-visible:ring-offset-[#243832] ${
-                      selected
-                        ? "border-gold-light bg-gold-light text-[#243832]"
-                        : "border-white/18 text-white/88 hover:border-gold-light hover:text-gold-light"
-                    }`}
-                  >
-                    {frame.label}
-                  </button>
-                );
-              })}
+            {/* 날짜를 모르는 사람이 여기서 멈추지 않게 한다. 끌면 위 입력칸이 실제로
+                채워지고 결과가 그 자리에서 따라 움직인다 — 무엇으로 계산했는지
+                보이고 바로 고칠 수 있다.
+                버튼 세 개 대신 슬라이더인 이유: 값이 연속이라 손을 대는 동안 화면이
+                계속 반응한다. 다만 **바뀌는 것은 항목이 아니라 시급도다** — 어떤
+                날짜를 넣어도 항목 셋은 같고(정렬이 모든 항목에서 같은 D-day를 빼므로
+                상대 순서가 고정), 날짜가 실제로 가르는 것은 "시작할 때가 됐는지"와
+                "권장 마감까지 며칠"이다. 화면도 딱 그것만 움직인다. */}
+            <div className="mt-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <label
+                  htmlFor="landing-timeline-slider"
+                  className="text-[12px] font-semibold text-white/72"
+                >
+                  아직 모르겠다면 · 끌어서 맞춰보세요
+                </label>
+                {/* 슬라이더를 끄는 동안 눈이 머무는 값이라 라벨보다 한 단계 위.
+                    스케일 밖 13px을 쓰지 않고 14px로 올린다. */}
+                <span className="text-[14px] font-bold text-gold-light" aria-hidden="true">
+                  {monthsLabel(sliderMonths)}
+                  {hasPreview && dday !== null ? ` · D-${dday}` : ""}
+                </span>
+              </div>
+              <input
+                id="landing-timeline-slider"
+                type="range"
+                min={SLIDER_MIN_MONTHS}
+                max={SLIDER_MAX_MONTHS}
+                step={1}
+                value={sliderMonths}
+                onChange={(event) => setDateText(monthsFromToday(Number(event.target.value)))}
+                aria-label="결혼식까지 남은 기간"
+                aria-valuetext={monthsLabel(sliderMonths)}
+                className="mt-2 h-11 w-full cursor-pointer accent-[#E2D3C8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2D3C8] focus-visible:ring-offset-2 focus-visible:ring-offset-[#243832]"
+              />
+              {/* 12px가 이 저장소의 최소 단계다 — 크기로 위계를 만들지 않고
+                  웨이트와 투명도로 낮춘다(landingDesignSystem 계약). */}
+              <div className="flex justify-between text-[12px] font-medium text-white/60">
+                <span>1개월</span>
+                <span>2년</span>
+              </div>
             </div>
 
             <div id="landing-start-assurance" className="mt-3 border-t border-white/12 pt-3">
