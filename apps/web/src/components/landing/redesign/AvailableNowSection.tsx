@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarCheck, FileSearch, ReceiptText, Users } from "lucide-react";
+import { ArrowRight, CalendarCheck, FileSearch, MessagesSquare, ReceiptText, Users } from "lucide-react";
 import Link from "next/link";
 
 import { availableNow, landingContent } from "./landingContent";
@@ -32,6 +32,7 @@ const cardIcons = {
   price: ReceiptText,
   "quote-check": FileSearch,
   "wedding-code": Users,
+  community: MessagesSquare,
 } as const;
 
 const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";

@@ -17,7 +17,9 @@ const serviceLinks = [
   { label: "아모라 채팅", href: weddingPath("/chat"), note: "계정 베타" },
   { label: "할 일·일정", href: weddingPath("/schedule"), note: "계정 베타" },
   { label: "예산", href: weddingPath("/budget"), note: "계정 베타" },
-  { label: "커뮤니티 준비 안내", href: "#community-bridge", note: "운영 공개 전" },
+  // 앵커로 랜딩 안쪽 설명 띠에 보내면서 "운영 공개 전"이라고 달아 뒀다. 커뮤니티는
+  // 이미 열려 있고 로그인 없이 읽힌다(라이브 확인) — 실제 화면으로 보낸다.
+  { label: "커뮤니티", href: weddingPath(), note: "로그인 없이" },
 ] as const;
 
 const policyLinks = [
