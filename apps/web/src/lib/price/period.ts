@@ -1,6 +1,10 @@
 const DISCLOSURE_DISCLAIMER =
   "본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.";
 
+/** 한국소비자원 참가격의 결혼준비대행서비스 공시 원문 게시판. */
+export const DISCLOSURE_SOURCE_URL =
+  "https://price.go.kr/tprice/portal/board/boardInfoMgr.do?boardTypeCode=0090000122";
+
 /**
  * 소비자에게 보이는 **공시 기준 시점**.
  *

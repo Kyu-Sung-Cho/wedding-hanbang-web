@@ -32,8 +32,9 @@ describe("runtime disclosure data boundary", () => {
     for (const path of [
       "apps/web/src/components/landing/NumbersAnchor.tsx",
       "apps/web/src/components/landing/ProblemReframe.tsx",
-      "apps/web/src/components/landing/PainPoints.tsx",
-      "apps/web/src/components/landing/Comparison.tsx",
+      // PainPoints·Comparison은 랜딩 개편에서 삭제됐다(렌더되지 않는 옛 섹션).
+      // 지운 파일을 목록에 남겨두면 ENOENT로 죽어서, 정작 살아 있는 파일들의
+      // 금액 하드코딩 검사까지 같이 멈춘다.
       "apps/web/src/components/customer-landing/CustomerPainPoints.tsx",
       "apps/web/src/components/customer-landing/CustomerSolutions.tsx",
       "apps/web/src/components/app/budget/BudgetContent.tsx",
