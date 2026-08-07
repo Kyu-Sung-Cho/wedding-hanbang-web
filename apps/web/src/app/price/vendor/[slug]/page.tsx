@@ -124,10 +124,15 @@ export async function generateMetadata({
     : null;
   const currentPrices = profile.prices.filter((price) => price.is_current);
   if (currentPrices.length === 0) return {};
-  const minimums = currentPrices.flatMap((price) => (
+  // 목록 카드와 같은 규칙 — 대행사 없는 행(예식장 패키지 구성)은 단위가 달라
+  // 범위에 넣으면 검색 결과 설명이 없는 최저가를 주장한다(루미디아 실제 150만
+  // 단일가인데 "1벌당 30만" 추가금 때문에 "30만원부터"가 된다).
+  const comparablePrices = currentPrices.filter((price) => price.agency?.name);
+  const rangeSource = comparablePrices.length > 0 ? comparablePrices : currentPrices;
+  const minimums = rangeSource.flatMap((price) => (
     price.price_min_krw === null ? [] : [price.price_min_krw]
   ));
-  const maximums = currentPrices.flatMap((price) => (
+  const maximums = rangeSource.flatMap((price) => (
     price.price_max_krw === null ? [] : [price.price_max_krw]
   ));
   const range = krwRangeLabel(
@@ -365,7 +370,7 @@ export default async function VendorPricePage({
                     <div>
                       <p className="text-xs font-medium text-[#36534E]/65">
                         {disclosureRoundLabel()}
-                        {price.agency?.name ? ` · ${price.agency.name}` : " · 업체 직접 공시"}
+                        {price.agency?.name ? ` · ${price.agency.name}` : " · 대행사를 거치지 않은 공시"}
                       </p>
                       <h3 className="mt-1 text-lg font-bold">{price.item_name}</h3>
                       {price.base_spec ? <p className="mt-1 text-sm text-[#36534E]/75">{price.base_spec}</p> : null}

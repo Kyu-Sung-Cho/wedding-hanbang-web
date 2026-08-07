@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 import { krwRangeLabel } from "@/lib/format/krw";
-import { PRICE_CATEGORIES, type PriceCatalog, type PriceCategory } from "@/lib/price/catalog";
+import { PRICE_CATEGORIES, comparableOffers, type PriceCatalog, type PriceCategory } from "@/lib/price/catalog";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
 import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
@@ -26,7 +26,9 @@ function isPriceCategory(value: string): value is PriceCategory {
 }
 
 function priceRange(catalog: PriceCatalog, category: PriceCategory): string {
-  const offers = catalog.categories[category].flatMap((vendor) => vendor.offers);
+  // 카드와 같은 규칙 — 대행사 없는 행(예식장 패키지 구성)은 단위가 달라
+  // 범위에 넣으면 공유 카드가 없는 최저가를 주장한다.
+  const offers = catalog.categories[category].flatMap(comparableOffers);
   const minimums = offers.flatMap((offer) => offer.minimumKrw === null ? [] : [offer.minimumKrw]);
   const maximums = offers.flatMap((offer) => offer.maximumKrw === null ? [] : [offer.maximumKrw]);
   return krwRangeLabel(

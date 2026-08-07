@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics/track";
 import { krwRangeLabel } from "@/lib/format/krw";
 import {
+  comparableOffers,
   offerOptionCount,
   pricePolicyBadgeClass,
   pricePolicyLabel,
@@ -110,7 +111,16 @@ export function PriceVendorCard({
     ? displayedAgencies
     : displayedAgencies.slice(0, AGENCY_PREVIEW_COUNT);
   // 대행사가 둘 이상일 때만 "얼마부터 얼마까지"가 의미를 갖는다.
-  const spreadPrices = vendor.offers
+  //
+  // 범위는 **대행사 오퍼만** 가지고 만든다. 대행사 없는 행은 같은 축의 가격이
+  // 아니라서 섞으면 없는 가격이 만들어진다 — 실측 2건:
+  //   루미디아  대행사 6곳이 전부 150만 단일가인데, 예식장 문서의 "1벌당 30만~70만"
+  //            추가금이 최저가가 되어 "30만원부터"로 보였다(실제와 5배 차이).
+  //   그가사랑하는순간  "스드메 280만 패키지"(스튜디오+드레스+메이크업 합계)가
+  //            스튜디오 단품가로 들어와 최고가를 부풀렸다.
+  // 그 행들은 아래 별도 블록에서 원문 그대로 계속 보인다 — 지우는 게 아니라
+  // 비교 축에서만 뺀다.
+  const spreadPrices = comparableOffers(vendor)
     .flatMap((offer) => [offer.minimumKrw, offer.maximumKrw])
     .filter((value): value is number => typeof value === "number");
   const showAgencySpread = displayedAgencies.length > 1 && spreadPrices.length > 0;
@@ -284,7 +294,11 @@ export function PriceVendorCard({
             <div className={`grid sm:grid-cols-2 ${displayedAgencies.length > 0 ? "border-t border-[#243832]/10" : ""}`}>
               {directOffers.map((offer) => (
                 <div key={offer.id} className="min-w-0 border-b border-[#243832]/10 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-6">
-                  <p className="text-xs font-semibold text-[#243832]/65">업체 직접 공시</p>
+                  {/* 이 행은 대행사 오퍼가 아니다(agency_id 없음). 실측상 전부
+                      예식장 공시에서 온 패키지 구성이고, 기준이 달라 위 대행사
+                      가격과 나란히 두면 없는 가격이 만들어진다. 앱이 아는 사실은
+                      "대행사를 거치지 않았다"까지이므로 딱 거기까지만 적는다. */}
+                  <p className="text-xs font-semibold text-[#243832]/65">대행사를 거치지 않은 공시</p>
                   {offer.itemName && offer.itemName !== vendor.name ? (
                     <p className="mt-1 text-xs font-semibold leading-5 text-[#243832]/65">
                       {offer.itemName}
@@ -293,6 +307,11 @@ export function PriceVendorCard({
                   <p className="mt-1 text-lg font-bold tabular-nums text-[#243832]">
                     {offerPriceLabel(offer)}
                   </p>
+                  {displayedAgencies.length > 0 ? (
+                    <p className="mt-1 text-xs leading-5 text-[#243832]/55">
+                      위 대행사 가격과 기준이 달라요. 그대로 비교하지 마세요.
+                    </p>
+                  ) : null}
                   {offer.priceNote ? (
                     <p className="mt-1.5 text-xs leading-5 text-[#243832]/60">{offer.priceNote}</p>
                   ) : null}

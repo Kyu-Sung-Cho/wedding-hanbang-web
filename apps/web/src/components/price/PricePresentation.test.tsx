@@ -147,7 +147,9 @@ describe("consumer price presentation", () => {
     // 2026-07-23 회귀: 미보유 대행사(A)는 "—" 컬럼 대신 아예 렌더하지 않는다 —
     // 대시 컬럼이 진짜 가격을 가로 스크롤 밖으로 밀어내던 문제의 계약 반전.
     const agencyB = html.indexOf("대행사 B");
-    const direct = html.indexOf("업체 직접 공시");
+    // 2026-08-07: 라벨을 "업체 직접 공시" → "대행사를 거치지 않은 공시"로 고쳤다.
+    // 그 행은 실측상 예식장 공시에서 온 패키지 구성이라 업체가 직접 낸 가격이 아니다.
+    const direct = html.indexOf("대행사를 거치지 않은 공시");
     expect(html).not.toContain("대행사 A");
     expect(html).not.toContain("—");
     expect(agencyB).toBeGreaterThan(-1);
