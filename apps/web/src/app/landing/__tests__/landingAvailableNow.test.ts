@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -95,12 +95,23 @@ describe("landing available-now section", () => {
     expect(section, "보조 링크는 공유 레시피를 쓴다").toContain("${secondaryLink}");
   });
 
-  it("keeps the section free of unverified claims", () => {
-    // 이 파일 위쪽에 `withoutComments`를 두고도 여기서는 안 쓰고 있었다. 그래서
-    // "왜 이 단어를 피했는지" 설명하는 주석이 금지어에 걸려 거짓 경보를 냈다 —
-    // 이 저장소에서 같은 실수가 반복된다. 주석은 화면에 렌더되지 않으므로
-    // 카피 검사 대상이 아니다.
-    const copyOnly = withoutComments(availableNowBlock);
+  it("keeps unverified claims out of every landing surface, not just this section", () => {
+    // 이 검사는 `availableNow` 블록만 보고 있었다. 그래서 카드에서는 "후기"를
+    // 피해 놓고 바로 옆 커뮤니티 섹션 본문에는 그대로 쓴 것이 통과해 **라이브까지
+    // 나갔다**. 금지어의 이유는 카드가 아니라 랜딩 전체에 적용된다 — 랜딩에서
+    // "후기"는 우리 제품에 대한 사회적 증거로 읽힌다.
+    //
+    // 파일 이름을 손으로 적지 않고 디렉터리를 통째로 읽는다. 새 섹션이 생길 때마다
+    // 목록에 추가하는 걸 잊으면 같은 구멍이 다시 난다.
+    const redesignDir = resolve(appRoot, "src/components/landing/redesign");
+    const everySurface = readdirSync(redesignDir)
+      .filter((f) => (f.endsWith(".tsx") || f.endsWith(".ts")) && !f.includes(".test."))
+      .map((f) => read(`src/components/landing/redesign/${f}`))
+      .concat(page);
+
+    // 주석은 렌더되지 않으므로 카피가 아니다. 벗기지 않으면 "왜 이 단어를 피했는지"
+    // 적은 설명이 스스로 걸린다(이 저장소에서 네 번 반복됐다).
+    const copyOnly = withoutComments(everySurface.join("\n"));
     const banned = ["후기", "만족도", "성공률", "1위", "최고", "보장", "절감"];
     for (const word of banned) {
       expect(copyOnly, `검증되지 않은 주장 "${word}"`).not.toContain(word);
