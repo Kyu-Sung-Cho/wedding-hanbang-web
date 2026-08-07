@@ -108,6 +108,11 @@ export type PriceVendor = {
    * 한 지역만 대표로 내세울 수 없으므로 닿을 수 있는 지역을 모두 들고 다닌다.
    */
   regionCodes?: string[];
+  /**
+   * 공시 의무 주체(법인). 업체명 괄호에서 떼어낸 값이다 — 지우지 않고 옮긴다.
+   * 예: `빌라드지디 논현(라비에벨(주))` → name `빌라드지디 논현` · 이 값 `라비에벨(주)`.
+   */
+  disclosureEntity?: string | null;
   offers: PriceOffer[];
   policies?: PricePolicy[];
 };
@@ -190,10 +195,11 @@ export function filterPriceCatalog(
   );
 
   return vendors
-    .filter((vendor) => !query || [vendor.name, ...vendor.aliases]
-      .some((value) => normalizedSearchValue(value).includes(query)))
-    // 전체 취급 지역으로 먼저 소속을 판정한 뒤, 아래에서 가격 행과 표시 배지를
-    // 선택 지역 하나로 좁힌다. 순서를 바꾸면 모든 카드가 선택 지역처럼 보인다.
+    // 공시주체(법인)도 검색 대상이다 — 이름에서 뗐다고 `라비에벨`로 찾던 사람이
+    // 못 찾게 되면 정리가 손해가 된다.
+    .filter((vendor) => !query || [vendor.name, vendor.disclosureEntity ?? "", ...vendor.aliases]
+      .some((value) => value && normalizedSearchValue(value).includes(query)))
+    // 병합된 업체는 여러 대행사 지역에서 닿을 수 있다 — 하나라도 맞으면 노출한다.
     .filter((vendor) => !filter.regionCode
       || vendorRegionCodes(vendor).includes(filter.regionCode))
     .map((vendor) => {

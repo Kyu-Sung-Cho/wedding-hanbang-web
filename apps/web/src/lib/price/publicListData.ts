@@ -8,6 +8,7 @@ import {
   type PriceOption,
   type PriceVendor,
 } from "./catalog";
+import { vendorDisplayName } from "./vendorDisplayName";
 import { vendorIdentityKey, vendorRegionCodeOverride } from "./vendorIdentity";
 
 type PublicPriceRow = {
@@ -256,10 +257,15 @@ export async function loadPublicPriceCatalog(
       }
       continue;
     }
+    // 적재를 만든 스캐너가 파일명을 그대로 업체명으로 써서 `베로나지디_예식장`·
+    // `빌라드지디 논현(라비에벨(주))` 같은 이름이 공개돼 있다(2026-08-08 실측 21곳).
+    // DB를 고치는 게 근본이지만 운영 쓰기가 봉인돼 있어 표시 규칙으로 정리한다.
+    const display = vendorDisplayName(row.vendor_name);
     vendorsById.set(identity, {
       id: row.vendor_id,
       slug: row.vendor_slug,
-      name: row.vendor_name,
+      name: display.name,
+      disclosureEntity: display.disclosureEntity,
       aliases: aliases(row.vendor_aliases),
       category: priceCategory,
       regionCode,

@@ -98,12 +98,14 @@ describe("web MVP product direction", () => {
     for (const label of ["할 일·일정", "예산"]) {
       expect(landingProductLinks).toContain(`label: "${label}"`);
     }
+    // 이 두 줄은 커뮤니티를 랜딩 안쪽 설명 띠(#community-bridge)로 보내고 "운영 공개
+    // 전"이라고 달아 두는 상태를 고정했다. 그건 사실이 아니었다 — 커뮤니티는 이미
+    // 열려 있고 로그인 없이 읽힌다(hanbang.ai/community 200 확인). 열려 있는 것을
+    // 닫혔다고 말하면 들어올 사람을 돌려보낸다. 실제 화면으로 보내는 쪽이 맞다.
     expect(landingProductLinks).toContain(
-      'label: "커뮤니티 준비 안내", href: "#community-bridge"',
+      'label: "커뮤니티", href: weddingPath(), note: "로그인 없이"',
     );
-    expect(landingProductLinks).not.toContain(
-      'label: "커뮤니티", href: weddingPath()',
-    );
+    expect(landingProductLinks).not.toContain('href: "#community-bridge"');
 
     for (const label of ["아모라", "할 일·일정", "예산", "커뮤니티"]) {
       expect(publicNav).toContain(`label: "${label}"`);

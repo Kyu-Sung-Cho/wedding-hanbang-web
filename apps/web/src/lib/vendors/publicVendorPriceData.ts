@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { vendorDisplayName } from "@/lib/price/vendorDisplayName";
 import {
   canonicalVendorName,
   isSameNameDifferentBusiness,
@@ -332,8 +333,13 @@ export function assemblePublicVendorPriceProfile(
   return {
     vendor: {
       id: vendor.id,
-      slug: vendor.slug,
+      // `name`은 **DB 원본**이다 — 형제 조회(vendorIdentityGroup)가 이 값으로
+      // 판정하므로 정리한 이름을 넣으면 자기 자신도 못 찾는다. 화면·메타데이터는
+      // 아래 displayName을 쓴다.
       name: vendor.name,
+      displayName: vendorDisplayName(vendor.name).name,
+      disclosureEntity: vendorDisplayName(vendor.name).disclosureEntity,
+      slug: vendor.slug,
       category: consumerCategory(vendor.category),
       region_code: vendor.region_code,
       aliases: safeAliases(vendor.aliases),

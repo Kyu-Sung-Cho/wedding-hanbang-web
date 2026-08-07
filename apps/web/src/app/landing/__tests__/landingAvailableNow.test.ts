@@ -126,9 +126,14 @@ describe("landing available-now section", () => {
   });
 
   it("keeps the section free of unverified claims", () => {
+    // 이 파일 위쪽에 `withoutComments`를 두고도 여기서는 안 쓰고 있었다. 그래서
+    // "왜 이 단어를 피했는지" 설명하는 주석이 금지어에 걸려 거짓 경보를 냈다 —
+    // 이 저장소에서 같은 실수가 반복된다. 주석은 화면에 렌더되지 않으므로
+    // 카피 검사 대상이 아니다.
+    const copyOnly = withoutComments(availableNowBlock);
     const banned = ["후기", "만족도", "성공률", "1위", "최고", "보장", "절감"];
     for (const word of banned) {
-      expect(availableNowBlock, `검증되지 않은 주장 "${word}"`).not.toContain(word);
+      expect(copyOnly, `검증되지 않은 주장 "${word}"`).not.toContain(word);
     }
   });
 });

@@ -8,6 +8,7 @@ import pdfParse from "pdf-parse";
 import { SaxesParser } from "saxes";
 import * as XLSX from "xlsx";
 
+import { HwpExtractionError, extractHwpBuffer } from "./hwp-extract.js";
 import { sha256File, sha256Text, writeJsonFile } from "./io.js";
 import { loadManifest, saveManifest } from "./manifest.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
@@ -29,8 +30,22 @@ const CONVERSION_CACHE_CLEANUP_BLOCKED_NOTICE_PREFIX = "convert_cache_cleanup_bl
 const OCR_REVIEW_ONLY_NOTICE_PREFIX = "ocr_review_only:";
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/u;
 
-const HWP_GUIDANCE =
-  "HWP는 자동 변환하지 않습니다. 한컴오피스 뷰어에서 열어 PDF로 같은 위치에 저장한 뒤 scan부터 다시 실행하세요.";
+/**
+ * HWP 안내문.
+ *
+ * 2026-08-08까지는 "HWP는 자동 변환하지 않습니다 — 한컴오피스 뷰어로 PDF 저장 후
+ * scan부터 다시"였다. 그 정책 때문에 공시 8유닛(전체의 3.2%, 대구·광주·강원
+ * 커버리지에 직접 영향)이 통째로 빠져 있었다. 그런데 같은 디렉터리의
+ * `hwp-extract.ts`가 그 일을 이미 하고 있었고(테스트 포함) 프로덕션 호출자만
+ * 0건이었다 — 실측 결과 8건 중 7건이 가격표·위약금 전문을 그대로 내놓는다.
+ *
+ * 그래서 **변환은 자동화하되 승인은 사람에게 남긴다**(`bulkApprovalEligible: false`).
+ * 텍스트가 안 나오는 것(본문이 통째로 스캔 이미지인 경우)만 아래 안내로 남는다.
+ */
+const HWP_UNREADABLE_GUIDANCE =
+  "HWP를 읽지 못했습니다(암호·배포제한·손상·HWP5 아님). 한컴오피스 뷰어에서 열어 PDF로 같은 위치에 저장한 뒤 scan부터 다시 실행하세요.";
+const HWP_OCR_GUIDANCE =
+  "HWP 본문에서 판독 가능한 텍스트가 나오지 않았습니다(내용이 스캔 이미지일 수 있습니다). 내장 이미지를 시각 판독 경로로 처리하세요.";
 const PDF_RASTER_GUIDANCE =
   "PDF 페이지의 시각 정보 보존을 위한 Poppler(pdftoppm) 래스터화에 실패했습니다. Poppler를 설치하거나 각 페이지를 PNG로 내보내 같은 위치에 둔 뒤 scan부터 다시 실행하세요.";
 const OFFICE_MEDIA_FORMAT_GUIDANCE =
@@ -2712,14 +2727,9 @@ export async function convertManifest(
     const replacementPdfStems = new Set(
       unit.source_files.filter((source) => source.ext === "pdf").map((source) => sourceStemKey(source.path)),
     );
+    // HWP는 이제 로컬 추출기로 변환한다. 사람 손이 필요한지는 변환을 **해 본 뒤**
+    // 결정된다 — 미리 needs_manual_conversion으로 찍으면 되는 것까지 막힌다.
     const unconvertedHwpFiles = hwpFiles.filter((source) => !replacementPdfStems.has(sourceStemKey(source.path)));
-    if (unconvertedHwpFiles.length > 0) {
-      unit.stage = "needs_manual_conversion";
-      unit.notices = Array.from(new Set([...unit.notices, HWP_GUIDANCE]));
-    }
-    for (const source of unconvertedHwpFiles) {
-      manualQueue.push({ unit_id: unit.unit_id, source_file: source.path, instruction: HWP_GUIDANCE });
-    }
 
     const publishedSnapshot = await capturePublishedConversionSnapshot(unit);
 
@@ -2733,7 +2743,9 @@ export async function convertManifest(
       continue;
     }
 
-    const convertibleFiles = unit.source_files.filter((source) => source.ext !== "hwp");
+    // PDF 대체본이 있는 HWP만 건너뛴다(그 PDF가 이미 근거다). 나머지 HWP는 변환한다.
+    const convertibleFiles = unit.source_files.filter((source) =>
+      source.ext !== "hwp" || unconvertedHwpFiles.includes(source));
     if (convertibleFiles.length === 0) continue;
     clearPriorConversionFailureNotices(unit);
     let finalOutputDirectory: string;
@@ -2786,6 +2798,44 @@ export async function convertManifest(
           imageArtifacts.push(...converted.imagePaths);
           textCharacters += converted.textCharacters;
           unit.notices = Array.from(new Set([...unit.notices, ...converted.notices]));
+        } else if (source.ext === "hwp") {
+          // 로컬 추출기(hwp5 CFB + zlib). 외부 도구·한컴오피스 설치 불필요.
+          let extraction: ReturnType<typeof extractHwpBuffer>;
+          try {
+            extraction = extractHwpBuffer(await readFile(source.absolute_path));
+          } catch (error) {
+            // 읽을 수 없는 HWP(암호·DRM·손상·HWP5 아님)는 **변환 실패가 아니라
+            // 사람 손이 필요한 상태**다. 유닛 전체를 error로 떨어뜨리면 같은 유닛의
+            // 정상 파일까지 죽는다 — 기존 계약(HWP는 유닛을 막는다)을 그대로 지킨다.
+            const code = error instanceof HwpExtractionError ? error.code : "hwp_unreadable";
+            requiresManualPdf = true;
+            const instruction = `${HWP_UNREADABLE_GUIDANCE} (${code})`;
+            unit.notices = Array.from(new Set([...unit.notices, instruction]));
+            manualQueue.push({ unit_id: unit.unit_id, source_file: source.path, instruction });
+            continue;
+          }
+          const textPath = path.join(outputDirectory, `${index + 1}-hwp.txt`);
+          await writeFile(textPath, extraction.text, "utf8");
+          textArtifacts.push(textPath);
+          textCharacters += extraction.textCharacters;
+          if (extraction.images.length > 0) {
+            // 내장 이미지는 버리지 않는다 — 본문이 스캔인 경우 유일한 근거다.
+            const mediaDirectory = path.join(outputDirectory, `${index + 1}-hwp-media`);
+            await mkdir(mediaDirectory, { recursive: true });
+            for (const image of extraction.images) {
+              const imagePath = path.join(mediaDirectory, image.name);
+              await writeFile(imagePath, image.content);
+              imageArtifacts.push(imagePath);
+            }
+          }
+          if (extraction.review.required) {
+            // 본문 텍스트가 근거가 못 된다(대개 가격표가 통째로 이미지).
+            // 자동 승인에서 빼고 시각 판독 경로로 넘긴다.
+            requiresManualPdf = true;
+            const instruction = `${HWP_OCR_GUIDANCE} (${extraction.review.reasonCodes.join(", ")})`;
+            unit.notices = Array.from(new Set([...unit.notices, instruction]));
+            manualQueue.push({ unit_id: unit.unit_id, source_file: source.path, instruction });
+          }
         } else if (source.ext === "png") {
           imageArtifacts.push(source.absolute_path);
         } else if (source.ext === "pdf") {
@@ -2921,9 +2971,9 @@ export async function convertManifest(
           converted_at: new Date().toISOString(),
           ...(publishedOcrReview ? { ocr_review: publishedOcrReview } : {}),
         };
-        unit.stage = requiresManualPdf || unconvertedHwpFiles.length > 0
-          ? "needs_manual_conversion"
-          : "converted";
+        // HWP가 있다는 사실만으로 막지 않는다 — 읽히면 변환된 것이다. 사람 손이
+        // 필요한 경우(읽기 실패·본문이 통째로 이미지)는 requiresManualPdf로 들어온다.
+        unit.stage = requiresManualPdf ? "needs_manual_conversion" : "converted";
       } catch (error) {
         // publishConversionAtomically owns cleanup once called. In the rare
         // double-failure case it deliberately retains `previous` for manual
@@ -2943,6 +2993,9 @@ export async function convertManifest(
       }
     } else {
       await discardConversionPublication(publication);
+      // 산출물이 하나도 없는데 실패도 아닌 경우는 HWP를 못 읽었을 때뿐이다.
+      // 그대로 두면 stage가 "scanned"에 머물러 사람 손이 필요하다는 사실이 사라진다.
+      if (requiresManualPdf) unit.stage = "needs_manual_conversion";
     }
   }
 

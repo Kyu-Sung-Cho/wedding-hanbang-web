@@ -15,7 +15,7 @@ import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
 import { captureEvent } from "@/lib/analytics";
-import { START_HERE_DATE_HANDOFF_KEY } from "@/lib/marketing/startHereDateHandoff";
+import { readStartHereDateHandoff } from "@/lib/marketing/startHereDateHandoff";
 import {
   buildStartHereSignupHref,
   buildStartHereAmoraPrefill,
@@ -74,53 +74,15 @@ export default function StartHereClient() {
 
   const dday = useMemo(() => daysUntilWedding(dateText), [dateText]);
 
-  // 랜딩에서 고른 날짜는 sessionStorage로 넘겨 서버·분석 URL에 싣지 않는다.
-  // 저장소가 막힌 브라우저를 위한 fragment도 읽은 즉시 주소에서 지운다.
+  // 랜딩 히어로에서 넘어온 날짜를 받는다. 수신 로직은 main 쪽 공유 모듈을 쓴다 —
+  // 지난 날짜를 걸러 내고 fragment 폴백까지 한 함수에서 다루며 자체 테스트가 있다.
+  //
+  // 초기 상태로 넣을 수 없다: sessionStorage는 서버에 없어 첫 렌더에 쓰면 서버 HTML과
+  // 어긋난다. 렌더 중에 읽을 수도 없다: 이 읽기는 저장소를 비우는 부수효과다.
   useEffect(() => {
-    let applied = false;
-    let cleanupTimer: number | null = null;
-
-    const applyAvailableHandoff = () => {
-      if (applied) return true;
-
-      const match = /^#date=(\d{4}-\d{2}-\d{2})$/.exec(window.location.hash);
-      let storedDate: string | null = null;
-      try {
-        storedDate = window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY);
-      } catch {
-        // 저장소 접근이 막혀도 fragment 또는 빈 상태로 계속 진행한다.
-      }
-      const initialDate = normalizeWeddingDate(match?.[1]) || normalizeWeddingDate(storedDate);
-      if (!initialDate) return false;
-
-      applied = true;
-      setDateText(initialDate);
-      cleanupTimer = window.setTimeout(() => {
-        try {
-          window.sessionStorage.removeItem(START_HERE_DATE_HANDOFF_KEY);
-        } catch {
-          // 날짜는 컴포넌트 상태에 이미 들어가므로 저장소 정리 실패가 흐름을 막지 않는다.
-        }
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.pathname}${window.location.search}`,
-        );
-      }, 0);
-      return true;
-    };
-
-    const appliedImmediately = applyAvailableHandoff();
-    const discoveryTimer = appliedImmediately
-      ? null
-      : window.setTimeout(applyAvailableHandoff, 50);
-    window.addEventListener("hashchange", applyAvailableHandoff);
-
-    return () => {
-      if (cleanupTimer !== null) window.clearTimeout(cleanupTimer);
-      if (discoveryTimer !== null) window.clearTimeout(discoveryTimer);
-      window.removeEventListener("hashchange", applyAvailableHandoff);
-    };
+    const handed = readStartHereDateHandoff();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 1회 인계 수신(위 근거)
+    setDateText((current) => handed ?? current);
   }, []);
 
   const applyPreset = (next: Preset) => {

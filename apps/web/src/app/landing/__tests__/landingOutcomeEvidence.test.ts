@@ -18,14 +18,25 @@ const continuity = readFileSync(
   resolve(appRoot, "src/components/landing/redesign/ContinuitySection.tsx"),
   "utf8",
 );
-const community = readFileSync(
+/**
+ * 주석은 벗기고 본다. 왜 어떤 문구를 쓰지 않는지 설명하려면 그 문구를 적어야 하는데,
+ * 자기 설명에 걸려 넘어지는 가드는 가드가 아니다. 주석은 렌더되지 않으므로 카피
+ * 검사 대상이 아니다(같은 처리가 twoSidedTrust·landingAvailableNow에도 있다).
+ */
+const withoutComments = (source: string) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//gu, "")
+    .replace(/^[\t ]*\/\/.*$/gmu, "")
+    .replace(/\{\/\*[\s\S]*?\*\/\}/gu, "");
+
+const community = withoutComments(readFileSync(
   resolve(appRoot, "src/components/landing/redesign/CommunityBridgeSection.tsx"),
   "utf8",
-);
-const content = readFileSync(
+));
+const content = withoutComments(readFileSync(
   resolve(appRoot, "src/components/landing/redesign/landingContent.ts"),
   "utf8",
-);
+));
 
 describe("landing product outcome evidence", () => {
   it("shows how separate proposals reach the three preparation records", () => {
@@ -99,14 +110,28 @@ describe("landing product outcome evidence", () => {
     expect(continuity, "되돌린 방향의 체험 잔재").not.toContain("체험 대화");
   });
 
-  it("keeps the community promise bounded to an unlaunched operating plan", () => {
+  it("describes the community as it actually is, and only promises what exists", () => {
+    // 이 계약은 원래 "커뮤니티는 아직 운영 공개 전"을 **강제**했다. 그 전제가 참일
+    // 때는 사람을 못 보내게 막는 것이 맞았지만, 커뮤니티는 이미 열려 있고 로그인
+    // 없이 읽힌다(라이브 확인). 열린 것을 닫혔다고 말하는 화면을 테스트가 지키고
+    // 있었던 셈이다. 계약을 뒤집는 게 아니라 **지키는 대상을 현재 사실로 옮긴다.**
     expect(landing).toContain("<CommunityBridgeSection />");
-    expect(content).toContain("커뮤니티의 출처 표시 기준을 준비하고 있어요.");
-    expect(content).toContain("커뮤니티는 아직 운영 공개 전이에요.");
-    expect(community).toContain("일반 회원 · 경험 미인증");
-    expect(community).toContain("운영 공개 전 · 출처 기준 검증 중");
-    expect(community).not.toContain('href="/start-here"');
-    expect(community).not.toContain("weddingLinkProps");
-    expect(community).not.toContain("궁금한 점을 질문해요");
+
+    // 닫혔다고 말하지 않는다.
+    expect(content).not.toContain("커뮤니티는 아직 운영 공개 전이에요.");
+    expect(community).not.toContain("운영 공개 전");
+    expect(community).not.toContain("공개할 때 구분할 출처");
+
+    // 실재하는 것만 현재형으로 약속한다 — AdDisclosureBadge·AiCommentBox.
+    expect(community).toContain("지금 구분해서 보여주는 것");
+    expect(community).toContain("광고·협찬 · 별도 표시");
+    expect(community).toContain("AI 답변 · AI 생성 표시");
+    expect(community).toContain("사람의 경험과 AI의 제안을 같은 근거처럼 보여주지 않아요.");
+
+    // 없는 것을 있다고 하지도, 조용히 지우지도 않는다. `UserRole`이
+    // "bride" | "groom"뿐이라 작성자 종류 구분은 아직 없다.
+    expect(community).toContain("아직 구분하지 않는 것");
+    expect(community).toContain("일반 회원 · 업계 종사자 구분");
+    expect(community).not.toContain("업계 종사자 · 이해관계 확인");
   });
 });
