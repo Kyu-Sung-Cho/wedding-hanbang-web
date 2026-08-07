@@ -123,6 +123,22 @@ export type PriceCatalogFilter = {
 };
 
 /**
+ * 서로 비교할 수 있는 오퍼만. **가격 주장에는 이것만 쓴다.**
+ *
+ * 대행사 없는 행(`agencyId === null`)은 이 업체를 그 값에 살 수 있다는 뜻이 아니다.
+ * 실측(2026-08-07 운영 17행): 전부 예식장 공시에서 온 패키지 구성이고 단위가 다르다.
+ *   루미디아          "1벌당 30만~70만" 추가금 — 대행사 6곳은 전부 150만 단일가인데
+ *                    이 행이 최저가가 되어 카드가 "30만원부터"라고 주장했다(5배 차이).
+ *   그가사랑하는순간   "스드메 280만 패키지"(스튜디오+드레스+메이크업 합계)가
+ *                    스튜디오 단품가로 들어와 최고가를 부풀렸다.
+ * 지우지는 않는다 — 공시된 사실이라 카드에 원문 그대로 계속 보인다. 다만 범위·정렬·
+ * 예산 조합·필터 같은 **"얼마다"라고 말하는 자리**에서는 뺀다.
+ */
+export function comparableOffers(vendor: PriceVendor): PriceOffer[] {
+  return vendor.offers.filter((offer) => offer.agencyId !== null);
+}
+
+/**
  * 이 업체에 닿을 수 있는 지역 전체.
  * 병합된 카드는 regionCodes를, 아직 병합 전이거나 단일 지역인 업체는
  * regionCode 하나를 갖는다 — 필터는 둘 다 같은 방식으로 다뤄야 한다.
@@ -142,8 +158,10 @@ export function filterPriceCatalog(
 ): PriceVendor[] {
   const query = normalizedSearchValue(filter.search ?? "");
   const agencyIds = new Set(filter.agencyIds ?? []);
+  // 대행사를 안 골랐어도 **비교 가능한 오퍼만** 본다 — 전체 오퍼를 쓰면 예식장
+  // 패키지 행이 정렬·가격대 필터의 기준이 되어 없는 가격을 주장하게 된다.
   const offersFor = (vendor: PriceVendor) => agencyIds.size === 0
-    ? vendor.offers
+    ? comparableOffers(vendor)
     : vendor.offers.filter(({ agencyId }) => agencyId !== null && agencyIds.has(agencyId));
   const minimumFor = (vendor: PriceVendor) => offersFor(vendor).reduce<number | null>(
     (minimum, offer) => offer.minimumKrw === null
