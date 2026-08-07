@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   canonicalVendorName,
   isSameNameDifferentBusiness,
+  vendorIdentityGroup,
   vendorIdentityLikePattern,
 } from "@/lib/price/vendorIdentity";
 import {
@@ -215,11 +216,15 @@ export async function loadVendorIdentityRows(
     region_code: vendor.region_code,
   };
   const consumer = consumerCategory(vendor.category);
-  // 표기만 다른 같은 업체("가을" ↔ "가을스튜디오")까지 흡수한 대표 이름으로 본다.
-  // 목록(`vendorIdentityKey`)과 같은 함수를 써야 판정이 갈리지 않는다.
-  const normalized = canonicalVendorName(consumer, vendor.name);
+  // 표기만 다른 같은 업체("가을" ↔ "가을스튜디오")는 흡수하고, 확인된 지점
+  // ("바시움" ↔ "바시움 삼성점")은 가른다. 목록(`vendorIdentityKey`)과
+  // **같은 함수**를 써야 판정이 갈리지 않는다.
+  const normalized = vendorIdentityGroup(consumer, vendor.name);
   // 이름만 같고 실제로는 다른 업체는 목록에서도 분리하므로 형제를 찾지 않는다.
-  if (!normalized || isSameNameDifferentBusiness(consumer, normalized)) return [self];
+  // 판정은 대표 이름으로 한다 — 그룹 키는 지점이 붙으면 `브랜드#지점` 형태라
+  // 동명이업 목록과 형태가 맞지 않는다(목록 `vendorIdentityKey`와 같은 순서).
+  const canonical = canonicalVendorName(consumer, vendor.name);
+  if (!normalized || isSameNameDifferentBusiness(consumer, canonical)) return [self];
   const pattern = vendorIdentityLikePattern(vendor.name, consumer);
   if (!pattern) return [self];
 
@@ -242,7 +247,7 @@ export async function loadVendorIdentityRows(
       typeof row?.id === "string"
       && typeof row?.slug === "string"
       && typeof row?.name === "string"
-      && canonicalVendorName(consumerCategory(row.category), row.name) === normalized
+      && vendorIdentityGroup(consumerCategory(row.category), row.name) === normalized
       && consumerCategory(row.category) === consumer
     ));
     if (!rows.some((row) => row.slug === vendor.slug)) rows.push(self);

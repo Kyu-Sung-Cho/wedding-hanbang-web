@@ -498,6 +498,12 @@ export default function CommunityLandingClient({
  * 주장이라 더 나쁘다. 2026-07-26부터 이 상태였고 유통 글 게시 직전에 잡았다.
  *
  * 갱신 확인: `pnpm audit:production` (=== 1-c. 공시 규모 표기 ===)
+ *
+ * **재측정 필요 (2026-08-05)**: 신원 규칙에 표기 병합 11쌍과 지점 키가 들어가면서
+ * 카드가 줄었다(적재 계획 기준 836→824). 위약금 보유 업체만 세는 이 값도 그만큼
+ * 작아지지만 정확한 수는 운영 조회로만 확정된다 — 추정치를 적으면 첫 화면이 다시
+ * 근거 없는 숫자를 주장하게 되므로 그대로 두고 `pnpm audit:production`이 막게 한다.
+ * 판정 근거: docs/operations/VENDOR_IDENTITY_REVIEW_2026-08-05.md
  */
 const PUBLISHED_VENDOR_COUNT = 412;
 const PUBLISHED_POLICY_COUNT = 831;

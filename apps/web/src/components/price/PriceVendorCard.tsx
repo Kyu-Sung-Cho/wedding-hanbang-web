@@ -16,6 +16,7 @@ import {
   type PriceVendor,
 } from "@/lib/price/catalog";
 import { priceRegionLabel } from "@/lib/price/labels";
+import { hasUnverifiedBranch } from "@/lib/price/vendorIdentity";
 import { VendorAvatar } from "./VendorAvatar";
 import { loadVendorOptions } from "./vendorOptionsClient";
 
@@ -192,6 +193,15 @@ export function PriceVendorCard({
           {vendor.aliases.length > 0 ? (
             <p className="mt-1 truncate text-xs text-[#243832]/55">
               (구. {vendor.aliases.join(", ")})
+            </p>
+          ) : null}
+          {/* 지점이 여럿인데 대행사가 지점을 안 적은 경우다. 합치지도 가르지도
+              못하므로 그 사실을 적는다 — 실측상 이런 카드의 가격 범위는 서로 다른
+              지점 가격을 한 줄로 합친 값이다(꼼나나 맨이름 4행의 귀속이 실제로
+              본점과 청담으로 갈린다). 판정이 아니라 관찰이다. */}
+          {hasUnverifiedBranch(vendor.category, vendor.name) ? (
+            <p className="mt-1 text-xs text-[#243832]/55">
+              지점이 여러 곳이에요 — 공시에 지점이 안 적혀 있어 어느 지점 가격인지 확인되지 않았어요.
             </p>
           ) : null}
           </div>
