@@ -56,6 +56,21 @@ export function planAmoraCrisisDelivery(input: {
   requestedVisibility: AmoraCrisisDeliveryVisibility;
   target: AmoraCrisisDeliveryTarget;
   senderRole: AmoraCrisisDeliverySenderRole;
+  /**
+   * 호출자가 따로 판정한 안전 신호. 이 파일의 두 탐지기가 못 잡는 서술을 상위
+   * 계층이 잡았을 때 넘긴다.
+   *
+   * 필요한 이유: 중재 요청의 안전 판정은 실제로 두 갈래로 갈려 있었다. 여기의
+   * `classifyAmoraCrisis`/`assessAmoraSafetyText`가 한 갈래고, 웹의 질문 범위
+   * 분류(강압적 통제·신체 폭력 서술)가 다른 갈래다. 뒤쪽만 걸리는 문장이
+   * 측정상 12개 중 11개였고, 그 문장들의 답은 공유 레인에 저장돼 상대 화면에
+   * 남았다. 안전 문구로 바뀐 답이라도 "파트너가 안전 관련해서 뭔가 물었다"는
+   * 사실 자체가 통제하는 쪽에 도착한다.
+   *
+   * 판정을 여기로 옮기지 않고 신호만 받는 이유는 그 어휘가 웹 계층에 있고,
+   * 이 패키지가 상위 계층을 import하면 방향이 뒤집히기 때문이다.
+   */
+  externalSafetySignal?: boolean;
 }): AmoraCrisisDeliveryPreflight {
   const classification = classifyAmoraCrisis(input.userText);
   const effectiveVisibility = `${input.senderRole}_private` as const;
@@ -72,7 +87,7 @@ export function planAmoraCrisisDelivery(input: {
   }
 
   const assessment = assessAmoraSafetyText(input.userText);
-  if (assessment.resolution === "non_immediate_safety") {
+  if (assessment.resolution === "non_immediate_safety" || input.externalSafetySignal) {
     if (input.target === "partner") {
       return {
         disposition: "local_safety_hold",

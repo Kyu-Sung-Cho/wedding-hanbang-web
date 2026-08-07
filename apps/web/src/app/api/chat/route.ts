@@ -939,11 +939,29 @@ export async function POST(request: Request) {
       earlyCrisisClassification.kind,
     );
   }
+  // 중재 요청의 답은 `visibility: "shared"`로 저장된다. 그러니 안전 신호가 있는
+  // 중재는 모델에 닿기 전에 여기서 끝나야 한다 — 답의 문구를 안전하게 바꾸는 것만으로는
+  // 부족하다. 저장 위치가 그대로면 "파트너가 아모라에게 안전 관련해서 뭔가 물었다"가
+  // 통제하는 쪽 화면에 도착하고, 그건 되돌릴 수 없다.
+  //
+  // 판정이 두 갈래라서 이 문이 거의 비어 있었다. 아래 `earlySafetyAssessment`만 보던
+  // 시절, 범위 분류가 안전으로 판정한 문장 12개 중 11개가 이 문을 통과했다.
+  // 두 갈래를 여기서 합친다.
+  const earlyMediationScope =
+    requestKind === "mediation" && earlyCrisisUserText !== null
+      ? classifyAmoraQuestionScope({
+          userText: earlyCrisisUserText,
+          requestKind: "mediation",
+        })
+      : null;
   if (
     requestKind === "mediation"
     && (
       earlySafetyAssessment?.resolution === "non_immediate_safety"
       || earlySafetyAssessment?.resolution === "immediate_crisis"
+      || earlyMediationScope?.scope === "W5_safety_override"
+      || (earlyMediationScope?.scope === "W2_high_risk_adjacent"
+        && earlyMediationScope.highRiskReason === "safety")
     )
   ) {
     return NextResponse.json(

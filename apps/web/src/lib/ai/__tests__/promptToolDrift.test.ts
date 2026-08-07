@@ -75,6 +75,53 @@ describe("프롬프트와 도구 목록이 어긋나지 않는다", () => {
     }
   });
 
+  it("하지 않은 조회를 했다고 말하는 출처 문구가 없다", () => {
+    // 위 검사는 **도구 이름**이 프롬프트에 있는지만 본다. 이름을 대지 않고 결과만
+    // 인용하게 시키는 문장은 그물을 그대로 빠져나갔다. 실제로 출처 표기 절에
+    // 이런 줄이 살아 있었다:
+    //
+    //   - 업체 정보 (도구로 받은 것): "방금 검색한 업체 데이터 기준..."
+    //
+    // 업체·장소를 조회하는 도구는 전부 꺼져 있다. 그러니 이 문장은 참이 될 수 없는
+    // 출처를 만드는 서식이고, 모델은 지어낸 업체 정보에 "방금 검색한"을 붙일 수 있다.
+    // 사용자에게는 확인된 데이터로 읽힌다.
+    const lookupTools = [
+      "search_vendors",
+      "recommend_vendors",
+      "get_vendor_detail",
+      "check_vendor_availability",
+      "get_available_slots",
+      "search_nearby_places",
+    ];
+    // 이 금지는 도구가 꺼져 있다는 사실에 딸린 것이다. 다시 켜면 여기서 먼저 실패해서
+    // 출처 문구를 되살릴지 함께 판단하게 된다.
+    for (const name of lookupTools) {
+      expect(BETA_DISABLED_TOOL_NAMES.has(name), `${name}가 켜졌다`).toBe(true);
+    }
+
+    const RETRIEVAL_CLAIMS = [
+      /방금\s*검색한/,
+      /검색한\s*(업체|장소|가게)/,
+      /조회한\s*(업체|장소|가게)/,
+      /(업체|장소|가게)\s*데이터\s*기준/,
+    ];
+
+    // 지웠던 줄을 그대로 통과시키는지 먼저 확인한다. 이게 없으면 이 테스트는
+    // 아무것도 잡지 못하면서 초록불만 준다 — 오늘 이미 그런 테스트를 썼다.
+    const REMOVED_LINE = '- 업체 정보 (도구로 받은 것): "방금 검색한 업체 데이터 기준..."';
+    expect(
+      RETRIEVAL_CLAIMS.some((pattern) => pattern.test(REMOVED_LINE)),
+      "패턴이 실제 결함 문장을 못 잡는다",
+    ).toBe(true);
+
+    for (const { label, text } of prompts()) {
+      for (const pattern of RETRIEVAL_CLAIMS) {
+        expect(text, `${label} 프롬프트에 하지 않은 조회의 출처 서식이 있다: ${pattern}`)
+          .not.toMatch(pattern);
+      }
+    }
+  });
+
   it("살아 있는 도구는 계속 설명한다", () => {
     // 위 두 단언만 있으면 프롬프트에서 도구 안내를 전부 지워도 통과한다.
     // 실제로 쓰는 도구가 여전히 안내되는지 함께 고정한다.

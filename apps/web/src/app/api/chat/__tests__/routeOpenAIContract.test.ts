@@ -1532,6 +1532,46 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.persist).not.toHaveBeenCalled();
   });
 
+  // 중재 요청의 답은 `visibility: "shared"`로 저장된다. 아래 문장들은 질문 범위
+  // 분류가 안전 사유 고위험으로 판정하지만, 위 두 테스트가 쓰는 탐지기
+  // (classifyAmoraCrisis / assessAmoraSafetyText)는 하나도 잡지 못한다. 그래서
+  // 전부 모델까지 갔고, 답은 공유 레인에 남았다 — 측정상 12개 중 11개.
+  //
+  // 답의 문구를 안전하게 바꾸는 것으로는 못 막는다. 상대에게 도착하는 것은 문구가
+  // 아니라 "파트너가 아모라에게 안전 관련해서 뭔가 물었다"는 사실이기 때문이다.
+  it.each([
+    "예식장 정하는 걸로 싸웠는데 제 폰을 매일 확인하고 카톡도 다 봐요",
+    "헤어지자고 하면 가만 안 둔다고 해요",
+    "제 월급을 다 가져가요",
+    "가족을 못 만나게 해요",
+    "화나면 물건을 던지고 저를 때린 적도 있어요",
+    "손찌검을 한 적이 있어요",
+    "저를 밀쳐서 넘어진 적 있어요",
+    "한 번 때린 뒤로는 안 그런다고 하는데요",
+    "목을 조른 적도 있어요",
+    "화나면 물건을 집어 던져요",
+    "계약금 환불 얘기하다가 저를 때린 적도 있어요",
+  ])(
+    "closes a scope-classified safety mediation before provider or durable insert: %s",
+    async (conflictContext) => {
+      const response = await POST(request({
+        requestKind: "mediation",
+        userMessageId: undefined,
+        conflictContext,
+      }));
+
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+      });
+      // 공유 레인에 아무것도 안 남는다는 것이 이 테스트의 전부다.
+      expect(mocks.persist).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(0);
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.providerLedger).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     ["too short", "네"],
     ["too long", "가".repeat(601)],

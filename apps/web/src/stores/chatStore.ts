@@ -46,8 +46,12 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
+
+/** 서버가 이유를 밝히며 거절한 중재 요청. 그 문장을 사용자에게 그대로 보여준다. */
+const MEDIATION_REQUEST_REJECTED = "MediationRequestRejected";
 
 type ChatLifecycleBinding = {
   epoch: number;
@@ -2700,11 +2704,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       return;
     }
 
+    // 중재 요청의 답은 공유 레인에 저장된다. 그래서 안전 판정은 **보내기 전에**
+    // 끝나야 하고, 판정 갈래가 둘이면 둘 다 여기서 만나야 한다.
+    const mediationScope = classifyAmoraQuestionScope({
+      userText: requesterSummary,
+      requestKind: "mediation",
+    });
     const mediationSafetyPlan = planAmoraCrisisDelivery({
       userText: requesterSummary,
       requestedVisibility: "shared",
       target: "partner",
       senderRole,
+      externalSafetySignal:
+        mediationScope.scope === "W5_safety_override"
+        || (mediationScope.scope === "W2_high_risk_adjacent"
+          && mediationScope.highRiskReason === "safety"),
     });
     if (mediationSafetyPlan.disposition === "local_safety_hold") {
       const safetyCardId = `amora-mediation-safety-hold:${coupleId}:${createClientRequestId()}`;
@@ -2793,7 +2807,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       clearTimeout(fetchTimeout);
 
-      if (!res.ok) throw new Error("AI 중재 요청 실패");
+      if (!res.ok) {
+        // 서버가 이유를 문장으로 돌려준 경우(안전 프리플라이트 등)에는 그 문장을
+        // 그대로 보여준다. 아래 catch가 전부 "AI 연결에 실패했습니다"로 덮고 있어서,
+        // 안전 때문에 멈춘 것이 접속 장애처럼 읽혔다. 무엇을 해야 하는지도 사라졌다.
+        // 여기서 오는 문장은 우리 라우트가 쓴 것이고 모델 출력이 아니다.
+        const failureBody = await res.json().catch(() => null);
+        const serverMessage =
+          failureBody
+          && typeof failureBody === "object"
+          && typeof (failureBody as { error?: unknown }).error === "string"
+            ? (failureBody as { error: string }).error
+            : null;
+        const failure = new Error(serverMessage ?? "AI 중재 요청 실패");
+        if (serverMessage) failure.name = MEDIATION_REQUEST_REJECTED;
+        throw failure;
+      }
 
       let fullContent = "";
       let finalMetadata: ChatMessageMetadata | null = null;
@@ -2845,10 +2874,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (!isCurrentLifecycle()) return;
       logChatDiagnostic("중재 요청 실패", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const isServerRejection =
+        err instanceof Error && err.name === MEDIATION_REQUEST_REJECTED;
       set({
         error: isAbort
           ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-          : "AI 연결에 실패했습니다. 새로고침 해주세요.",
+          : isServerRejection
+            ? err.message
+            : "AI 연결에 실패했습니다. 새로고침 해주세요.",
       });
     } finally {
       clearTimeout(fetchTimeout);
