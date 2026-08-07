@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
@@ -57,6 +59,25 @@ describe("computePreparationPriorities", () => {
       expect(item.firstSteps.length).toBeLessThanOrEqual(3);
       for (const step of item.firstSteps) expect(step.trim().length).toBeGreaterThan(0);
       expect(item.label.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("names in the hero are the names the screen actually shows", () => {
+    // 이 계약이 두 번 깨졌다. 한 번은 "드레스"를 예시로 들었는데 결과에 한 번도
+    // 나오지 않았고, 한 번은 다른 브랜치에서 개명한 라벨을 그대로 옮겨 적어
+    // 화면에는 없는 이름이 됐다. 둘 다 날짜를 하나만 넣어보고 넘어간 결과다.
+    // 카피와 계산을 여기서 묶어 둔다 — 라벨을 바꾸면 이 테스트가 먼저 깨진다.
+    const heroBody = readFileSync(
+      resolve(process.cwd(), "src/components/landing/redesign/landingContent.ts"),
+      "utf8",
+    ).match(/body:\s*"(날짜를 넣으면[^"]+)"/u)?.[1];
+    expect(heroBody, "히어로 본문을 찾지 못했다").toBeTruthy();
+
+    // 어떤 날짜를 넣어도 나오는 셋이 히어로가 약속한 이름이어야 한다.
+    for (const dday of [30, 120, 300, 500, 800]) {
+      for (const item of computePreparationPriorities(dday).visiblePriorities) {
+        expect(heroBody, `D-${dday}의 "${item.label}"이 히어로 예시에 없다`).toContain(item.label);
+      }
     }
   });
 
