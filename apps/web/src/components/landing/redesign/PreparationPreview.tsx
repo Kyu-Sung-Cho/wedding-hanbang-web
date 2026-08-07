@@ -24,6 +24,17 @@ interface PreparationPreviewProps {
   anyStarted: boolean;
 }
 
+/**
+ * 날짜가 실제로 가르는 유일한 것. 항목 셋은 어떤 날짜에도 같으므로, 슬라이더를
+ * 끄는 동안 움직이는 것은 여기다 — 시작할 때가 됐는지와 남은 날 수.
+ * 두 값 모두 상수의 기본 확인 시점에서 뺀 것이라 계약 마감이 아니다(아래 각주).
+ */
+function timingLabel(item: PreparationPriority): string {
+  if (!item.started) return `${item.daysUntilStart}일 뒤부터`;
+  if (item.daysUntilDeadline < 0) return `${Math.abs(item.daysUntilDeadline)}일 지남`;
+  return `${item.daysUntilDeadline}일 남음`;
+}
+
 export default function PreparationPreview({ priorities, anyStarted }: PreparationPreviewProps) {
   return (
     <section
@@ -60,9 +71,18 @@ export default function PreparationPreview({ priorities, anyStarted }: Preparati
       <ol className="divide-y divide-[#243832]/10">
         {priorities.map((item, index) => (
           <li key={item.key} className="px-4 py-4 sm:px-5">
-            <div className="flex items-baseline gap-3">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-[12px] font-bold text-rose-700">0{index + 1}</span>
               <h3 className="min-w-0 text-[16px] font-semibold leading-[1.4]">{item.label}</h3>
+              <span
+                className={`ml-auto inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[12px] font-bold ${
+                  item.started
+                    ? "bg-[#8F6662]/12 text-rose-700"
+                    : "bg-[#36534E]/10 text-[#36534E]"
+                }`}
+              >
+                {timingLabel(item)}
+              </span>
             </div>
             {item.firstSteps.length > 0 ? (
               <ul className="mt-2 space-y-1 pl-[27px]">
