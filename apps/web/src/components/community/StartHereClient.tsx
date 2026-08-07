@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
+import { readStartHereDateHandoff } from "@/lib/marketing/startHereDateHandoff";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 // 예식일 하나만 받아 "지금 열어야 하는 항목"을 보여준다.
@@ -38,6 +39,22 @@ export default function StartHereClient() {
   const [dateText, setDateText] = useState("");
   const [preset, setPreset] = useState<Preset>("standard");
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
+
+  // 랜딩 히어로에서 넘어온 날짜를 받는다.
+  //
+  // 초기 상태로 넣을 수 없다: sessionStorage는 서버에 없어서 첫 렌더에 쓰면 서버
+  // HTML과 어긋난다. 렌더 중에 읽을 수도 없다: 이 읽기는 저장소를 비우는 부수효과다.
+  // 그래서 마운트 효과가 유일한 자리다.
+  //
+  // `set-state-in-effect`를 이 줄에서만 끈다. 규칙이 막으려는 것은 상태 변화가
+  // 효과를 다시 돌려 렌더가 연쇄되는 경우인데, 여기는 그 조건이 성립하지 않는다 —
+  // 의존성이 `[]`라 한 번만 돌고, 상태를 최대 한 번 쓰며, `dateText`는 이 효과의
+  // 입력이 아니다. 읽은 값은 그 순간 소비돼 두 번째 호출은 항상 빈손이다.
+  useEffect(() => {
+    const handed = readStartHereDateHandoff();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 1회 인계 수신(위 근거)
+    setDateText((current) => handed ?? current);
+  }, []);
 
   const dday = useMemo(() => daysUntil(dateText), [dateText]);
 
