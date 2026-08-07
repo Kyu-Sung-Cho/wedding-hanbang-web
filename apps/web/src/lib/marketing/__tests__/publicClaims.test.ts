@@ -1,10 +1,23 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 function source(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
+
+/**
+ * 랜딩 카피는 `landing/page.tsx` 한 장이 아니라 `redesign/` 아래 컴포넌트와
+ * `landingContent.ts`에 흩어져 있다. 목록에 파일 이름을 손으로 적으면 새 섹션이
+ * 생길 때마다 조용히 검사 밖으로 빠져나간다 — 실제로 개편 뒤 랜딩 카피 전체가
+ * 금지어 검사에서 빠져 있었고, page.tsx는 import 목록만 남아 통과하고 있었다.
+ * 디렉터리를 통째로 읽어 새 파일이 자동으로 걸리게 한다.
+ */
+const LANDING_REDESIGN_SOURCES = readdirSync(
+  resolve(process.cwd(), "src/components/landing/redesign"),
+)
+  .filter((f) => (f.endsWith(".tsx") || f.endsWith(".ts")) && !f.includes(".test."))
+  .map((f) => source(`src/components/landing/redesign/${f}`));
 
 const ACTIVE_PUBLIC_SOURCES = [
   "src/app/layout.tsx",
@@ -19,7 +32,7 @@ const ACTIVE_PUBLIC_SOURCES = [
   "src/app/(community)/community/quote-check/layout.tsx",
   "src/components/app/market-prices/MarketPricesClient.tsx",
   "src/components/app/market-prices/MarketPriceSeoContent.tsx",
-].map(source);
+].map(source).concat(LANDING_REDESIGN_SOURCES);
 
 describe("public marketing claim boundary", () => {
   it("does not publish unshipped features, invented evidence, or unapproved benefit promises", () => {

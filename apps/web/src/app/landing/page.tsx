@@ -19,9 +19,16 @@ export const revalidate = 86_400;
  * 분기 자료 갱신 전에는 `pnpm audit:production`으로 실제 수치를 먼저 확인한다.
  * `scripts/tests/disclosure-count-consistency.test.mjs`가 다른 공개 화면과의 일치를 검사한다.
  */
+/**
+ * 업체 수는 커뮤니티 첫 화면(`CommunityLandingClient`)과 **같은 값이어야 한다** —
+ * 위 정합성 테스트가 두 화면을 대조한다. 다른 브랜치에서 414로 옮겨 적었다가
+ * 그 테스트가 실패했다(`업체 수 불일치: 서비스 랜딩 414 vs 첫 화면 412`).
+ * 414를 뒷받침하는 근거가 이 저장소에 없으므로, 실측 근거가 있는 412를 쓴다.
+ * 바꾸려면 두 화면과 실측 날짜를 함께 바꾼다.
+ */
 const PUBLISHED_POLICY_COUNT = 831;
-const PUBLISHED_VENDOR_COUNT = 414;
-const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.04";
+const PUBLISHED_VENDOR_COUNT = 412;
+const PUBLISHED_COUNTS_VERIFIED_AT = "2026.07.28";
 
 export function generateMetadata(): Metadata {
   // 제목은 두 가지를 동시에 져야 한다. 앞은 이 페이지가 파는 약속(둘이 말하면

@@ -30,7 +30,11 @@ describe("landing two-sided trust contract", () => {
     expect(trust).toContain("한국소비자원");
     expect(trust).toContain("시즌·옵션에 따라 실제 계약가가 달라질 수 있고");
     expect(trust).toContain("예약·결제·계약은 업체와 직접 진행해요");
-    expect(landing).toContain('const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.04"');
+    // 날짜는 업체 수의 실측 근거다. 커뮤니티 첫 화면이 412를 2026-07-28 실측으로
+    // 적고 있으므로 랜딩도 같은 근거를 말해야 한다 — 숫자만 맞추고 날짜를 다른
+    // 측정 시점으로 두면 출처 없는 수치가 된다.
+    expect(landing).toContain('const PUBLISHED_COUNTS_VERIFIED_AT = "2026.07.28"');
+    expect(landing).toContain("const PUBLISHED_VENDOR_COUNT = 412");
     expect(footer).toContain("서비스·업체 정보 문의");
     expect(community).toContain("사람의 경험과 AI의 제안을 같은 근거처럼 보여주지 않아요");
     expect(content).toContain("준비 기록에 반영할 변경을 먼저 보여줘요");
