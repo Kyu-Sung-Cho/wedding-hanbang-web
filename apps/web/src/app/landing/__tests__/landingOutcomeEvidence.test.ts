@@ -104,8 +104,20 @@ describe("landing product outcome evidence", () => {
     // 맞춘 뒤 여기도 같은 문자열로 맞춘다. 두 사본의 일치 자체는
     // landingHeadlineParity.test.ts가 별도로 강제한다.
     expect(content).toContain("오늘 정한 한 가지가, 다음 준비의 기준으로.");
-    expect(content).toContain("무엇이 바뀌는지 먼저 봐요.");
     expect(content).toContain("같은 준비에서 이어가요.");
+
+    // 이 계약은 원래 continuity 02단계의 문장("무엇이 바뀌는지 먼저 봐요.")을
+    // 고정하고 있었다. 그 단계는 `PreparationResult` 섹션 전체가 하는 이야기와
+    // 같은 말이어서 걷어냈다 — 같은 약속을 세 번 하면 페이지만 길어진다.
+    //
+    // **약속이 사라진 게 아니라 자리만 정리됐다**는 것을 여기서 지킨다. 문구를
+    // 고정하는 대신 약속이 실제로 살아 있는 곳들을 검사한다.
+    expect(content, "확인 전에는 반영되지 않는다는 약속이 히어로에서 사라졌다")
+      .toContain("확인한 변경만 준비 기록에 반영해요");
+    expect(content, "같은 약속이 신뢰 섹션에서도 사라졌다")
+      .toContain("확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요");
+    // 중복이 슬그머니 돌아오면 여기서 걸린다.
+    expect(content, "걷어낸 중복 단계가 되살아났다").not.toContain("무엇이 바뀌는지 먼저 봐요.");
     expect(continuity).toContain("계정 베타에서는 준비 기록에 반영될 변경을 먼저 확인할 수 있어요.");
     expect(continuity, "되돌린 방향의 체험 잔재").not.toContain("체험 대화");
   });

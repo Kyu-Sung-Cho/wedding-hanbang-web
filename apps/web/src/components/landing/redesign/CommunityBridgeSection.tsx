@@ -76,7 +76,10 @@ export default function CommunityBridgeSection() {
               {sourceLabelsPending.map((label) => (
                 <li
                   key={label}
-                  className="border-t border-[#243832]/10 pt-2 text-[12px] font-medium leading-5 text-[#243832]/60"
+                  // 투명도로 낮췄더니 12px에서 3.68:1로 미달했다(실측). 이 저장소
+                  // 규칙대로 색을 흐리는 대신 웨이트로 낮춘다 — 옆 목록과 같은
+                  // #4E6A62(5.90:1)를 쓰고 font-medium으로만 구분한다.
+                  className="border-t border-[#243832]/10 pt-2 text-[12px] font-medium leading-5 text-[#4E6A62]"
                 >
                   {label}
                 </li>

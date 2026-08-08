@@ -33,7 +33,10 @@ export default function ContinuitySection() {
             </p>
           </div>
 
-          <ol className="border-y border-white/18 lg:order-1">
+          {/* `self-start`가 없으면 그리드 기본값(stretch)으로 늘어나, 항목 수가
+              오른쪽 제목 블록보다 짧을 때 테두리 안쪽이 통째로 빈다. 세 단계에서
+              둘로 줄이자 230px가 죽었다(실측). 제목 쪽은 이미 self-start다. */}
+          <ol className="border-y border-white/18 lg:order-1 lg:self-start">
             {continuitySteps.map((step) => (
               <li
                 key={step.number}
