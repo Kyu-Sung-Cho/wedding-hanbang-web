@@ -146,7 +146,18 @@ const [counts] = await sql(`select
     (select count(*) from auth.users) as users,
     -- E2E(saved-notes-real-path-e2e.mjs)가 만드는 임시 계정 도메인. 정리 실패를 잡는다.
     (select count(*) from auth.users
-      where email like '%@hanbang-test.invalid') as leftover_test_users`);
+      where email like '%@hanbang-test.invalid') as leftover_test_users,
+    -- 저장본은 실사용자 데이터다(2026-08-08 실측: 2건 전부 소유자 실계정,
+    -- 커플 대화 132건, 원본 assistant 메시지 FK 정상). 전체 건수를 0으로 요구하면
+    -- 사용자가 쓰기 시작하는 순간 영구 빨간불이 된다 — 위 leftover_test_users와
+    -- 같은 함정이다. 정말 확인하려던 것만 본다: 테스트 계정 잔여와 고아 행.
+    (select count(*) from public.amora_saved_notes n
+      join auth.users u on u.id = n.saved_by
+      where u.email like '%@hanbang-test.invalid') as test_saved_notes,
+    (select count(*) from public.amora_saved_notes n
+      where not exists (select 1 from auth.users u where u.id = n.saved_by)
+         or not exists (select 1 from public.couples c where c.id = n.couple_id)
+      ) as orphan_saved_notes`);
 console.log("  현황:", counts);
 check("위약금 공개 831행", Number(counts.policies) === 831, `${counts.policies}행`);
 check("위약금 공개 502 vendor 행", Number(counts.policy_vendors) === 502, `${counts.policy_vendors}행`);
@@ -159,7 +170,18 @@ check(
   Number(counts.leftover_test_users) === 0,
   `잔여 ${counts.leftover_test_users}건 · 전체 사용자 ${counts.users}명`,
 );
-check("저장본 오염 없음", Number(counts.saved_notes) === 0, `${counts.saved_notes}건`);
+// 저장본 자체는 정상 사용자 데이터라 건수를 0으로 요구하지 않는다.
+// 잡아야 할 것은 ①E2E 임시 계정이 남긴 저장본 ②소유자·커플이 사라진 고아 행이다.
+check(
+  "저장본에 테스트 잔여 없음",
+  Number(counts.test_saved_notes) === 0,
+  `테스트 계정 저장본 ${counts.test_saved_notes}건 · 전체 저장본 ${counts.saved_notes}건`,
+);
+check(
+  "저장본 고아 없음",
+  Number(counts.orphan_saved_notes) === 0,
+  `고아 ${counts.orphan_saved_notes}건`,
+);
 
 // 화면은 `period_label`을 "YYYY년 N분기"로 그대로 렌더한다
 // (`price/vendor/[slug]/page.tsx`). 그 값이 실제 공시 라운드와 다르면 사이트가
