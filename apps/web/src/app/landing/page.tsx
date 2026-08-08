@@ -21,19 +21,15 @@ export const revalidate = 86_400;
  */
 /**
  * 업체 수는 커뮤니티 첫 화면(`CommunityLandingClient`)과 **같은 값이어야 한다** —
- * 위 정합성 테스트가 두 화면을 대조한다.
- *
- * 이 값은 업체 동일성 큐레이션에 딸린다. 이 저장소에는 한때 두 큐레이션이 있었다 —
- * slug 단위 확인 병합(24쌍, 2026-07-28)과 이름표+지점표(62쌍, 2026-08-05). 후자를
- * 채택했다: 더 최신이고, 오탐 0 임계값을 정한 방법론이 있으며(`VENDOR_IDENTITY_REVIEW_2026-08-05.md`),
- * 미결 51쌍을 **의도적으로 안 묶어** 두었다. 두 표를 합치면 그 판단을 되돌리게 된다.
- *
- * 바꾸려면 두 화면과 실측 날짜, 그리고 `__tests__/twoSidedTrust.test.ts`의 고정값을
- * 함께 바꾼다.
+ * 위 정합성 테스트가 두 화면을 대조한다. 다른 브랜치에서 414로 옮겨 적었다가
+ * 그 테스트가 실패했다(`업체 수 불일치: 서비스 랜딩 414 vs 첫 화면 412`).
+ * 근거 없는 수를 옮겨 적지 않고, `pnpm audit:production` 실측값만 쓴다.
+ * 2026-08-08 재측정으로 412 → 406(신원 규칙에 병합 11쌍·지점 25건·사본 1건 추가).
+ * 바꾸려면 두 화면과 실측 날짜를 함께 바꾼다.
  */
 const PUBLISHED_POLICY_COUNT = 831;
-const PUBLISHED_VENDOR_COUNT = 412;
-const PUBLISHED_COUNTS_VERIFIED_AT = "2026.07.28";
+const PUBLISHED_VENDOR_COUNT = 406;
+const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.08";
 
 export function generateMetadata(): Metadata {
   // 제목은 두 가지를 동시에 져야 한다. 앞은 이 페이지가 파는 약속(둘이 말하면
