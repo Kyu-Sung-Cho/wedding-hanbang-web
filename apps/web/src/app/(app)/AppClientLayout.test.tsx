@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   pathname: "/wedding/lounge",
   searchParams: new URLSearchParams(),
   isDemo: true,
+  isInitialized: true,
+  initializeCalls: [] as Array<{ initialDemo?: boolean } | undefined>,
+  authSyncCalls: [] as boolean[],
   pageViewCalls: [] as boolean[],
 }));
 
@@ -48,13 +51,17 @@ vi.mock("@/hooks/useEventTracker", () => ({
 }));
 
 vi.mock("@/hooks/useAuthSessionSync", () => ({
-  useAuthSessionSync: () => undefined,
+  useAuthSessionSync: (enabled = true) => {
+    mocks.authSyncCalls.push(enabled);
+  },
 }));
 
 vi.mock("@/stores/authStore", () => ({
   useAuthStore: () => ({
-    initialize: vi.fn(),
-    isInitialized: true,
+    initialize: (options?: { initialDemo?: boolean }) => {
+      mocks.initializeCalls.push(options);
+    },
+    isInitialized: mocks.isInitialized,
     isLoading: false,
     isDemo: mocks.isDemo,
   }),
@@ -68,6 +75,9 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.pathname = "/wedding/lounge";
     mocks.searchParams = new URLSearchParams();
     mocks.isDemo = true;
+    mocks.isInitialized = true;
+    mocks.initializeCalls.length = 0;
+    mocks.authSyncCalls.length = 0;
     mocks.pageViewCalls.length = 0;
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -89,6 +99,22 @@ describe("AppClientLayout global Amora panel", () => {
       await Promise.resolve();
     });
   }
+
+  it("hydrates a server-verified demo session without an auth round trip", async () => {
+    mocks.isInitialized = false;
+
+    await act(async () => {
+      root.render(
+        <AppClientLayout initialDemo>
+          <div>page content</div>
+        </AppClientLayout>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(mocks.initializeCalls).toEqual([{ initialDemo: true }]);
+    expect(mocks.authSyncCalls).toEqual([false]);
+  });
 
   it("unmounts and resets the global panel when navigation enters the full chat page", async () => {
     await renderLayout();

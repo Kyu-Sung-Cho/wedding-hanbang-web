@@ -3,6 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+};
+const PROFILE_AUTH_COLUMNS =
+  "id, name, role, couple_id, onboarding_completed, onboarding_step, is_admin, care_notifications_enabled, care_notifications_consented_at, created_at, updated_at";
+const COUPLE_AUTH_COLUMNS =
+  "id, bride_id, groom_id, membership_sealed_at, created_at, updated_at";
+const JOURNEY_AUTH_COLUMNS =
+  "id, couple_id, wedding_date, venue, total_budget, progress, state_revision, created_at, updated_at";
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -15,15 +25,21 @@ export async function GET(request: Request) {
 
     if (!user) {
       if (isDemoRequest) {
-        return NextResponse.json({ user: null, demo: true });
+        return NextResponse.json(
+          { user: null, demo: true },
+          { headers: PRIVATE_NO_STORE_HEADERS },
+        );
       }
       if (isGuestProbe) {
         return NextResponse.json(
           { user: null },
-          { headers: { "Cache-Control": "no-store" } },
+          { headers: PRIVATE_NO_STORE_HEADERS },
         );
       }
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return NextResponse.json(
+        { error: "인증이 필요합니다." },
+        { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
+      );
     }
 
     const admin = createAdminClient();
@@ -33,7 +49,7 @@ export async function GET(request: Request) {
     let profile = null;
     const { data: profileData, error: profileSelectErr } = await admin
       .from("profiles")
-      .select("*")
+      .select(PROFILE_AUTH_COLUMNS)
       .eq("id", user.id)
       .single();
 
@@ -42,7 +58,7 @@ export async function GET(request: Request) {
     }
 
     if (profileData) {
-      profile = profileData;
+      profile = { ...profileData, avatar_url: null };
 
       // 이름이 없으면 채워주기
       if (!profile.name) {
@@ -70,17 +86,20 @@ export async function GET(request: Request) {
           onboarding_completed: false,
           onboarding_step: 0,
         })
-        .select()
+        .select(PROFILE_AUTH_COLUMNS)
         .single();
       if (profileInsertErr) _debug.profileInsertError = profileInsertErr.message;
-      profile = newProfile;
+      profile = newProfile ? { ...newProfile, avatar_url: null } : null;
     }
 
     if (!profile) {
-      return NextResponse.json({
-        user: { id: user.id, email: user.email },
-        ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
-      });
+      return NextResponse.json(
+        {
+          user: { id: user.id, email: user.email },
+          ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
+        },
+        { headers: PRIVATE_NO_STORE_HEADERS },
+      );
     }
 
     let couple = null;
@@ -91,14 +110,16 @@ export async function GET(request: Request) {
       // 커플 정보
       const { data: coupleData, error: coupleErr } = await supabase
         .from("couples")
-        .select("*")
+        .select(COUPLE_AUTH_COLUMNS)
         .eq("id", profile.couple_id)
         .single();
 
       if (coupleErr) _debug.coupleSelectError = coupleErr.message;
 
       if (coupleData) {
-        couple = coupleData;
+        // Invite codes are fetched only through /api/couple/code, which also
+        // enforces the current roster phase before revealing them.
+        couple = { ...coupleData, invite_code: null };
 
         // 파트너 정보
         const partnerId =
@@ -119,7 +140,7 @@ export async function GET(request: Request) {
       // 웨딩 여정 조회
       const { data: journeyData, error: journeyErr } = await supabase
         .from("wedding_journeys")
-        .select("*")
+        .select(JOURNEY_AUTH_COLUMNS)
         .eq("couple_id", profile.couple_id)
         .single();
 
@@ -129,36 +150,58 @@ export async function GET(request: Request) {
         journey = journeyData;
       } else {
         // 여정이 없으면 생성
-        const { data: newJourney, error: journeyInsertErr } = await supabase
+        const { data: newJourney, error: journeyInsertErr } = await admin
           .from("wedding_journeys")
           .insert({
             couple_id: profile.couple_id,
             wedding_date: null,
             venue: null,
-            total_budget: 20000000,
+            total_budget: 0,
             progress: {},
           })
-          .select()
+          .select(JOURNEY_AUTH_COLUMNS)
           .single();
 
-        if (journeyInsertErr) _debug.journeyInsertError = journeyInsertErr.message;
-        journey = newJourney;
+        if (!journeyInsertErr && newJourney) {
+          journey = newJourney;
+        } else if (journeyInsertErr?.code === "23505") {
+          // Another member or a lost-response retry may win the singleton
+          // neutral bootstrap. Return that canonical row, never an empty lie.
+          const { data: canonicalJourney, error: canonicalJourneyError } =
+            await admin
+              .from("wedding_journeys")
+              .select(JOURNEY_AUTH_COLUMNS)
+              .eq("couple_id", profile.couple_id)
+              .maybeSingle();
+          if (canonicalJourneyError) {
+            _debug.journeyRaceReadError = canonicalJourneyError.message;
+          }
+          journey = canonicalJourney;
+        } else {
+          if (journeyInsertErr) {
+            _debug.journeyInsertError = journeyInsertErr.message;
+          }
+          journey = null;
+        }
       }
     }
 
-    return NextResponse.json({
-      user: { id: user.id, email: user.email },
-      profile,
-      couple,
-      partner,
-      journey,
-      ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
-    });
+    return NextResponse.json(
+      {
+        user: { id: user.id, email: user.email },
+        profile,
+        couple,
+        partner,
+        journey,
+        ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
+      },
+      { headers: PRIVATE_NO_STORE_HEADERS },
+    );
   } catch (err) {
     console.error("Auth me 에러:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
 }

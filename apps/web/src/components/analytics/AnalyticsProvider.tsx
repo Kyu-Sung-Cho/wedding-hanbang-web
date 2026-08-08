@@ -7,7 +7,10 @@
 import { useEffect, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { loadPostHog } from "@/lib/analytics";
-import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
+import {
+  analyticsSafeSearchParams,
+  isAnalyticsSuppressedLocation,
+} from "@/lib/analyticsPrivacy";
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
@@ -21,7 +24,7 @@ function PageViewTracker() {
       || !pathname
       || isAnalyticsSuppressedLocation(pathname, searchParams)
     ) return;
-    const qs = searchParams?.toString();
+    const qs = analyticsSafeSearchParams(pathname, searchParams);
     // 주소는 지금 값으로 고정한다 — 로드가 늦게 끝나도 실제 방문한 화면으로 기록된다.
     const url = window.location.origin + pathname + (qs ? `?${qs}` : "");
     void loadPostHog().then((posthog) => {

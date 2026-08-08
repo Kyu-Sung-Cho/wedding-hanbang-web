@@ -4,8 +4,815 @@ import {
   buildAmoraCrisisResponse,
   classifyAmoraCrisis,
 } from "@/lib/ai/amoraCrisisSafety";
+import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+
+describe("planAmoraCrisisDelivery", () => {
+  it("holds a shared AI crisis locally in the bride private lane", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "남편이 지금 칼을 들고 협박해",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      classification: { kind: "interpersonal_danger" },
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      response: expect.stringContaining("112"),
+    }));
+  });
+
+  it("holds an explicit partner crisis delivery instead of exposing it", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "나 지금 죽고 싶어",
+      requestedVisibility: "shared",
+      target: "partner",
+      senderRole: "groom",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      effectiveVisibility: "groom_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: true,
+      response: expect.stringContaining("109"),
+    }));
+  });
+
+  it("keeps an existing private crisis private without claiming a redirect", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "나 지금 죽고 싶어",
+      requestedVisibility: "groom_private",
+      target: "ai",
+      senderRole: "groom",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      effectiveVisibility: "groom_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+    }));
+  });
+
+  it("routes a historical violence disclosure from shared AI to private safety 상담", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+
+    expect(result).toEqual({
+      disposition: "private_safety_route",
+      safetyResolution: "non_immediate_safety",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+  });
+
+  it("holds non-immediate safety content addressed directly to the partner", () => {
+    const result = planAmoraCrisisDelivery({
+      userText: "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+      requestedVisibility: "shared",
+      target: "partner",
+      senderRole: "bride",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      disposition: "local_safety_hold",
+      safetyResolution: "non_immediate_safety",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: true,
+      response: expect.stringContaining("바로 보내지 않았어요"),
+    }));
+  });
+
+  it.each([
+    "죽고 싶지 않아",
+    "케이크 칼 배송 언제 와?",
+  ])("keeps a clear non-crisis in its requested lane: %s", (userText) => {
+    expect(planAmoraCrisisDelivery({
+      userText,
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    })).toEqual({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "shared",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+  });
+});
+
+describe("assessAmoraSafetyText", () => {
+  it("attributes a partner threat toward the reporter without returning raw text", () => {
+    const assessment = assessAmoraSafetyText("남친이 지금 나를 죽이겠다고 해");
+
+    expect(assessment.resolution).toBe("immediate_crisis");
+    expect(assessment.kind).toBe("interpersonal_danger");
+    expect(assessment.events).toContainEqual({
+      actor: "known_other",
+      target: "reporter",
+      direction: "toward_reporter",
+      action: "lethal_threat",
+      temporality: "current",
+      polarity: "affirmed",
+      context: "disclosure",
+    });
+    expect(JSON.stringify(assessment)).not.toContain("남친");
+    expect(JSON.stringify(assessment)).not.toContain("죽이겠");
+  });
+
+  it("attributes a partner's current self-harm disclosure to that person", () => {
+    const assessment = assessAmoraSafetyText("예비신랑이 자기가 죽겠다고 해");
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "third_party_self_harm",
+      responseDirection: "third_party",
+    });
+    expect(assessment.events).toContainEqual({
+      actor: "known_other",
+      target: "self",
+      direction: "self_directed",
+      action: "self_harm_intent",
+      temporality: "current",
+      polarity: "affirmed",
+      context: "disclosure",
+    });
+  });
+
+  it("keeps both directed violence and partner self-harm in a murder-suicide threat", () => {
+    const assessment = assessAmoraSafetyText("신랑이 나를 죽이고 자기도 죽겠대");
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "combined_interpersonal_self_harm",
+      responseDirection: "toward_reporter",
+    });
+    expect(assessment.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        actor: "known_other",
+        target: "reporter",
+        direction: "toward_reporter",
+        action: "lethal_threat",
+        polarity: "affirmed",
+      }),
+      expect.objectContaining({
+        actor: "known_other",
+        target: "self",
+        direction: "self_directed",
+        action: "self_harm_intent",
+        polarity: "affirmed",
+      }),
+    ]));
+  });
+
+  it.each([
+    [
+      "남친이 나 죽이겠다고 한 게 아니라 자기가 죽겠다고 해",
+      "third_party_self_harm",
+      "self_harm_intent",
+      "lethal_threat",
+    ],
+    [
+      "남친이 자기가 죽겠다고 한 게 아니라 나를 죽이겠다고 해",
+      "interpersonal_danger",
+      "lethal_threat",
+      "self_harm_intent",
+    ],
+  ] as const)(
+    "scopes a correction to the denied event instead of its affirmed contrast: %s",
+    (text, kind, affirmedAction, negatedAction) => {
+      const assessment = assessAmoraSafetyText(text);
+
+      expect(assessment.kind).toBe(kind);
+      expect(assessment.events).toEqual(expect.arrayContaining([
+        expect.objectContaining({ action: affirmedAction, polarity: "affirmed" }),
+        expect.objectContaining({ action: negatedAction, polarity: "negated" }),
+      ]));
+    },
+  );
+
+  it("separates reporter and friend self-harm without inventing interpersonal violence", () => {
+    const assessment = assessAmoraSafetyText(
+      "친구가 죽고 싶다고 했어. 나도 지금 죽고 싶어",
+    );
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "multi_party_self_harm",
+      responseDirection: "mixed",
+    });
+    expect(assessment.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actor: "known_other", action: "self_harm_intent" }),
+      expect.objectContaining({ actor: "self", action: "self_harm_intent" }),
+    ]));
+  });
+
+  it("records historical violence with current safety as non-immediate", () => {
+    const assessment = assessAmoraSafetyText(
+      "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+    );
+
+    expect(assessment).toMatchObject({
+      resolution: "non_immediate_safety",
+      kind: null,
+      responseDirection: null,
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "known_other",
+      target: "reporter",
+      direction: "toward_reporter",
+      action: "lethal_threat",
+      temporality: "past",
+      polarity: "safe_now",
+      context: "disclosure",
+    }));
+  });
+
+  it("does not let a past clause hide violence that resumes in the current clause", () => {
+    const assessment = assessAmoraSafetyText("예전에 맞았지만 지금 또 때려");
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+      responseDirection: "toward_reporter",
+    });
+    expect(assessment.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ temporality: "past", action: "physical_violence" }),
+      expect.objectContaining({
+        temporality: "current",
+        action: "physical_violence",
+        polarity: "affirmed",
+      }),
+    ]));
+  });
+
+  it("distinguishes the reporter's imminent aggression from victim direction", () => {
+    const assessment = assessAmoraSafetyText("나 지금 신랑 죽이러 갈 거야");
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger_reporter_aggressor",
+      responseDirection: "reporter_toward_other",
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "self",
+      target: "known_other",
+      direction: "reporter_toward_other",
+      action: "lethal_threat",
+      temporality: "impending",
+      polarity: "affirmed",
+      context: "disclosure",
+    }));
+  });
+
+  it("keeps reporter aggression direction when self-harm is also threatened", () => {
+    const assessment = assessAmoraSafetyText("내가 남친을 죽이고 나도 죽을 거야");
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "combined_reporter_aggressor_self_harm",
+      responseDirection: "reporter_toward_other",
+    });
+    expect(assessment.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        direction: "reporter_toward_other",
+        action: "lethal_threat",
+      }),
+      expect.objectContaining({
+        direction: "self_directed",
+        action: "self_harm_intent",
+      }),
+    ]));
+  });
+
+  it.each([
+    "내가 남편을 때리고 있어. 남편은 죽고 싶다고 해",
+    "친구가 죽고 싶다고 해. 내가 남편에게 칼을 휘두를 거야",
+  ])("preserves reporter aggression and another person's self-harm together: %s", (text) => {
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "combined_reporter_aggressor_third_party_self_harm",
+      responseDirection: "reporter_toward_other",
+    });
+    expect(assessment.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        direction: "reporter_toward_other",
+        polarity: "affirmed",
+      }),
+      expect.objectContaining({
+        actor: "known_other",
+        direction: "self_directed",
+        action: "self_harm_intent",
+        polarity: "affirmed",
+      }),
+    ]));
+    expect(JSON.stringify(assessment)).not.toContain(text);
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "combined_reporter_aggressor_third_party_self_harm",
+    });
+
+    const guidance = buildAmoraCrisisResponse(
+      "combined_reporter_aggressor_third_party_self_harm",
+    );
+    expect(guidance).toContain("행동을 멈추고");
+    expect(guidance).toMatch(/경찰\s*112/);
+    expect(guidance).toMatch(/소방\s*119/);
+    expect(guidance).toContain("그 사람의 안전");
+    expect(guidance).toMatch(/자살예방상담전화\s*109/);
+    expect(guidance).not.toContain("1366");
+  });
+
+  it("preserves reporter aggression and both self-harm directions together", () => {
+    const text =
+      "친구가 죽고 싶다고 해. 내가 남편을 죽이고 나도 죽을 거야";
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "combined_reporter_aggressor_multi_party_self_harm",
+      responseDirection: "mixed",
+    });
+    expect(assessment.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        actor: "known_other",
+        target: "self",
+        direction: "self_directed",
+        action: "self_harm_intent",
+        polarity: "affirmed",
+      }),
+      expect.objectContaining({
+        actor: "self",
+        target: "known_other",
+        direction: "reporter_toward_other",
+        action: "lethal_threat",
+        polarity: "affirmed",
+      }),
+      expect.objectContaining({
+        actor: "self",
+        target: "self",
+        direction: "self_directed",
+        action: "self_harm_intent",
+        polarity: "affirmed",
+      }),
+    ]));
+    expect(JSON.stringify(assessment)).not.toContain(text);
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "combined_reporter_aggressor_multi_party_self_harm",
+    });
+
+    const guidance = buildAmoraCrisisResponse(
+      "combined_reporter_aggressor_multi_party_self_harm",
+    );
+    expect(guidance).toContain("행동을 멈추고");
+    expect(guidance).toContain("칼이나 흉기를 들고 있다면 바닥에 내려놓고");
+    expect(guidance).toContain("상대방 사이의 거리를");
+    expect(guidance).toMatch(/경찰\s*112/);
+    expect(guidance).toMatch(/소방\s*119/);
+    expect(guidance).toContain("본인도 죽거나 다치고 싶은 마음");
+    expect(guidance).toContain("혼자 있지 말고");
+    expect(guidance).toContain("그 사람의 안전도");
+    expect(guidance).toMatch(/자살예방상담전화\s*109/);
+    expect(guidance).not.toContain("1366");
+    expect(guidance).not.toContain(text);
+  });
+
+  it("keeps a hypothetical request for help non-immediate", () => {
+    const assessment = assessAmoraSafetyText(
+      "남친이 나를 죽이겠다고 하면 어떻게 해야 해?",
+    );
+
+    expect(assessment).toMatchObject({
+      resolution: "non_immediate_safety",
+      kind: null,
+      responseDirection: null,
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "known_other",
+      target: "reporter",
+      direction: "toward_reporter",
+      action: "lethal_threat",
+      temporality: "hypothetical",
+      polarity: "affirmed",
+      context: "disclosure",
+    }));
+  });
+
+  it.each([
+    "배송 기사가 내 위치를 추적해서 집 앞에서 기다리고 있어",
+    "예식장에서 케이크 칼 들고 사진 찍고 있어",
+    "드레스 투어가 너무 힘들어서 죽을 것 같아",
+  ])("authoritatively excludes a visible benign use of safety vocabulary: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+      events: [],
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "친구가 영화에서 죽고 싶다고 말하는 장면을 분석해줘",
+    "친구가 영화에서 죽고 싶다고 말해",
+    "뉴스에서 남편이 아내를 죽이겠다고 한 사건을 읽었어",
+  ])("keeps fiction and news events out of immediate disclosure: %s", (text) => {
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(assessment.events).toEqual([
+      expect.objectContaining({
+        temporality: "hypothetical",
+        polarity: "affirmed",
+        context: "fiction_news",
+      }),
+    ]);
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    ["남친이 나 죽이겠다고 한 건 아니야", "lethal_threat"],
+    ["예비신랑이 죽겠다고 한 건 아니야", "self_harm_intent"],
+  ] as const)("makes an explicitly negated event non-immediate: %s", (text, action) => {
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+      responseDirection: null,
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      action,
+      polarity: "negated",
+      context: "disclosure",
+    }));
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it("represents quoted copy review as meta context without retaining the copy", () => {
+    const assessment = assessAmoraSafetyText(
+      '"죽고 싶다"라는 문구를 검토해줘',
+    );
+
+    expect(assessment).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(assessment.events).toEqual([
+      expect.objectContaining({
+        context: "meta",
+        temporality: "hypothetical",
+        polarity: "affirmed",
+      }),
+    ]);
+    expect(JSON.stringify(assessment)).not.toContain("문구");
+    expect(JSON.stringify(assessment)).not.toContain("죽고 싶다");
+  });
+
+  it("normalizes invisible controls before structural self-harm attribution", () => {
+    const assessment = assessAmoraSafetyText("나 지금 죽\u200B고 싶어요");
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "self_harm",
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "self",
+      target: "self",
+      direction: "self_directed",
+      action: "self_harm_intent",
+      temporality: "current",
+      polarity: "affirmed",
+      context: "disclosure",
+    }));
+  });
+
+  it.each([
+    ["졸피뎀 30알 먹었어", "self_harm", "self", "current"],
+    [
+      "누나가 수면제 30알 먹었어",
+      "third_party_self_harm",
+      "known_other",
+      "current",
+    ],
+    [
+      "상대방이 옥상에서 뛰어내리려고 해",
+      "third_party_self_harm",
+      "known_other",
+      "impending",
+    ],
+  ] as const)(
+    "attributes a concrete self-harm attempt without guessing from role: %s",
+    (text, kind, actor, temporality) => {
+      const assessment = assessAmoraSafetyText(text);
+
+      expect(assessment).toMatchObject({ resolution: "immediate_crisis", kind });
+      expect(assessment.events).toContainEqual(expect.objectContaining({
+        actor,
+        target: "self",
+        direction: "self_directed",
+        action: "self_harm_attempt",
+        temporality,
+        polarity: "affirmed",
+        context: "disclosure",
+      }));
+    },
+  );
+
+  it("attributes an overdose to the nearest explicit actor, not any person in the message", () => {
+    const assessment = assessAmoraSafetyText(
+      "남편과 싸웠고 나는 수면제 30알 먹었어",
+    );
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "self_harm",
+      responseDirection: null,
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "self",
+      target: "self",
+      direction: "self_directed",
+      action: "self_harm_attempt",
+      polarity: "affirmed",
+    }));
+    expect(classifyAmoraCrisis("남편과 싸웠고 나는 수면제 30알 먹었어"))
+      .toEqual({ kind: "self_harm" });
+  });
+
+  it.each([
+    [
+      "결혼 준비 너무 힘들어 죽겠는데, 남편이 지금 칼을 들고 있어",
+      "interpersonal_danger",
+      "known_other",
+      "weapon_threat",
+    ],
+    [
+      "남편이 나를 죽이겠다고 한 건 아니지만 나는 죽고 싶어",
+      "self_harm",
+      "self",
+      "self_harm_intent",
+    ],
+    [
+      "친구는 약을 많이 먹지 않았지만 나는 수면제 30알 먹었어",
+      "self_harm",
+      "self",
+      "self_harm_attempt",
+    ],
+  ] as const)(
+    "prioritizes a separate affirmed current event without retaining disclosure text: %s",
+    (text, kind, actor, action) => {
+      const assessment = assessAmoraSafetyText(text);
+
+      expect(assessment).toMatchObject({
+        resolution: "immediate_crisis",
+        kind,
+      });
+      expect(assessment.events).toContainEqual(expect.objectContaining({
+        actor,
+        action,
+        polarity: "affirmed",
+      }));
+      expect(JSON.stringify(assessment)).not.toContain(text);
+    },
+  );
+
+  it("retains scoped negated events next to a separate affirmed event", () => {
+    const threatAssessment = assessAmoraSafetyText(
+      "남편이 나를 죽이겠다고 한 건 아니지만 나는 죽고 싶어",
+    );
+    const ingestionAssessment = assessAmoraSafetyText(
+      "친구는 약을 많이 먹지 않았지만 나는 수면제 30알 먹었어",
+    );
+
+    expect(threatAssessment.events).toContainEqual(expect.objectContaining({
+      actor: "known_other",
+      action: "lethal_threat",
+      polarity: "negated",
+    }));
+    expect(ingestionAssessment.events).toContainEqual(expect.objectContaining({
+      actor: "known_other",
+      action: "self_harm_attempt",
+      polarity: "negated",
+    }));
+  });
+
+  it.each([
+    [
+      "친구는 수면제 30알을 먹었고 나는 먹지 않았어",
+      "third_party_self_harm",
+      "known_other",
+      "self",
+    ],
+    [
+      "친구는 수면제 30알을 먹지 않았고 나는 먹었어",
+      "self_harm",
+      "self",
+      "known_other",
+    ],
+  ] as const)(
+    "keeps actor and negation local across an elided coordinated ingestion: %s",
+    (text, kind, affirmedActor, negatedActor) => {
+      const assessment = assessAmoraSafetyText(text);
+
+      expect(assessment).toMatchObject({
+        resolution: "immediate_crisis",
+        kind,
+      });
+      expect(assessment.events).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          actor: affirmedActor,
+          action: "self_harm_attempt",
+          polarity: "affirmed",
+        }),
+        expect.objectContaining({
+          actor: negatedActor,
+          action: "self_harm_attempt",
+          polarity: "negated",
+        }),
+      ]));
+      expect(JSON.stringify(assessment)).not.toContain(text);
+      expect(classifyAmoraCrisis(text)).toEqual({ kind });
+    },
+  );
+
+  it("does not inherit a drug object when the next clause names food", () => {
+    expect(
+      classifyAmoraCrisis(
+        "친구는 수면제 30알을 먹지 않았고 나는 밥을 먹었어",
+      ),
+    ).toBeNull();
+
+    const assessment = assessAmoraSafetyText(
+      "친구는 수면제 30알을 먹었고 나는 밥을 먹지 않았어",
+    );
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "third_party_self_harm",
+    });
+    expect(assessment.events).not.toContainEqual(expect.objectContaining({
+      actor: "self",
+      action: "self_harm_attempt",
+    }));
+  });
+
+  it("keeps a movie scene contextual even when the viewing happened today", () => {
+    const text = "오늘 본 영화에서 주인공이 칼을 들고 있어. 장면 분석해줘";
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      temporality: "hypothetical",
+      context: "fiction_news",
+    }));
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it("limits prevention-education context to its clause before current violence", () => {
+    const text =
+      "가정폭력 예방 교육 내용인데, 지금 남편이 나를 때리고 있어";
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+      responseDirection: "toward_reporter",
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      direction: "toward_reporter",
+      action: "physical_violence",
+      temporality: "current",
+      polarity: "affirmed",
+    }));
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it("starts an independent current disclosure after a meta newline", () => {
+    const text =
+      "가정폭력 예방 교육 사례를 분석해\n지금 남편이 나를 때리고 있어";
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+      responseDirection: "toward_reporter",
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "known_other",
+      target: "reporter",
+      direction: "toward_reporter",
+      action: "physical_violence",
+      temporality: "current",
+      polarity: "affirmed",
+      context: "disclosure",
+    }));
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it("starts an independent current disclosure after a meta semicolon", () => {
+    const text =
+      "가정폭력 예방 교육 사례를 분석해; 지금 남편이 나를 때리고 있어";
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+      responseDirection: "toward_reporter",
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      direction: "toward_reporter",
+      action: "physical_violence",
+      temporality: "current",
+      polarity: "affirmed",
+    }));
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it("starts an independent weapon disclosure after a fiction newline", () => {
+    const text =
+      "영화 장면을 분석해\n지금 남편이 칼로 나를 위협하고 있어";
+    const assessment = assessAmoraSafetyText(text);
+
+    expect(assessment).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+      responseDirection: "toward_reporter",
+    });
+    expect(assessment.events).toContainEqual(expect.objectContaining({
+      actor: "known_other",
+      target: "reporter",
+      direction: "toward_reporter",
+      action: "weapon_threat",
+      temporality: "current",
+      polarity: "affirmed",
+    }));
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "가정폭력 예방 교육 사례를 분석해\n남편이 아내를 때리는 사례야",
+    "영화 장면을 분석해\n남편이 칼로 아내를 위협하는 장면이야",
+  ])("keeps a newline-separated meta-only example non-immediate: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+      responseDirection: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+});
 
 describe("classifyAmoraCrisis", () => {
+  it.each([
+    "나 죽...고 싶어",
+    "나 죽고... 싶어",
+    "나 죽고만… 싶어",
+  ])("detects a self-harm cue interrupted only by an ellipsis: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "self_harm" });
+  });
+
+  it.each([
+    "더는 못 살겠어",
+    "차라리 죽는 게 나아",
+    "이제 그만 살래",
+  ])("detects an unambiguous first-person self-harm idiom: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "self_harm" });
+  });
+
+  it("does not escalate a standalone ambiguous ending idiom", () => {
+    expect(classifyAmoraCrisis("모든 걸 끝내고 싶어")).toBeNull();
+  });
+
   it("detects a direct self-harm disclosure after Unicode and zero-width normalization", () => {
     expect(classifyAmoraCrisis("지금 죽\u200B고 싶어요")).toEqual({
       kind: "self_harm",
@@ -115,6 +922,22 @@ describe("classifyAmoraCrisis", () => {
   });
 
   it.each([
+    ["그만 살고 싶어", "self_harm"],
+    ["죽고만 싶어", "self_harm"],
+    ["나 차라리 사라지고 싶어", "self_harm"],
+    ["지금 살고 싶은 마음이 하나도 없어", "self_harm"],
+    ["약을 잔뜩 털어 넣었어", "self_harm"],
+    ["친구가 그만 살고 싶다고 했어", "third_party_self_harm"],
+    ["친구가 약을 잔뜩 털어 넣었어", "third_party_self_harm"],
+    ["나는 친구가 그만 살고 싶다고 해서 걱정돼", "third_party_self_harm"],
+    ["나는 친구가 약을 잔뜩 털어 넣어서 걱정돼", "third_party_self_harm"],
+    ["친구는 내가 그만 살고 싶다고 해서 걱정해", "self_harm"],
+    ["친구는 내가 약을 잔뜩 털어 넣어서 걱정해", "self_harm"],
+  ] as const)("detects high-risk Korean euphemisms without losing attribution: %s", (text, kind) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind });
+  });
+
+  it.each([
     "지금 남자친구가 나를 때리고 있어",
     "방금 배우자에게 맞았어",
     "칼을 들고 죽이겠다고 협박해",
@@ -135,8 +958,93 @@ describe("classifyAmoraCrisis", () => {
     "남편이 지금 목을 조르고 있어요",
     "남자친구가 성관계를 강요해요",
     "남편이 저를 죽이려고 해요",
+    "남편이 내 목을 졸랐어",
+    "나를 발로 찼어",
+    "신랑이 주먹으로 쳤어",
+    "남편이 밀치고 물건을 던지고 있어",
+    "칼 들고 집 앞에 찾아왔어",
+    "내 위치를 추적해서 집 앞에서 기다리고 있어",
+    "강제로 관계를 맺었어",
   ])("detects a current violence, threat, or sexual-violence disclosure: %s", (text) => {
     expect(classifyAmoraCrisis(text)).toEqual({ kind: "interpersonal_danger" });
+  });
+
+  it.each([
+    "예비신랑이 지금 날 때려",
+    "신랑이 지금 죽여버린다고 말해",
+    "그 사람이 지금 저를 때려요",
+    "파트너가 지금 절 때리고 있어요",
+    "상대방이 지금 때리는 중이야",
+    "지금 맞는 중이야",
+    "지금 집에서 못 나가게 막고 있어",
+    "남친이 칼 들고 죽인다고 해",
+    "그 사람이 죽여버리겠대",
+    "상대가 지금 물건을 던지고 있어",
+    "남편이 지금 벽을 치고 물건을 부숴",
+    "지금 또 때려",
+    "지금 날 때리고 있어",
+    "방금 절 때렸어요",
+    "예전에 맞았지만 지금 또 때려",
+    "전 남친이 지금 집 앞에 와 있어. 무서워",
+    "헤어진 애인이 계속 따라와",
+    "전 애인이 집 앞에서 기다리고 있어 살려줘",
+    "신랑이 지금 방에 가둬놨어",
+    "남친이 집에 가둬 두고 있어",
+    "남친이 싫다는데 억지로 성관계하려고 해",
+    "동의 없이 지금 옷을 벗기고 있어",
+  ])("detects natural current Korean interpersonal-danger phrasing: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "interpersonal_danger" });
+  });
+
+  it.each([
+    "나 지금 신랑 죽이러 갈 거야",
+    "남친 죽여버릴 거야",
+    "칼 들고 남편 찾아갈 거야",
+    "나 지금 남편 때리고 있어",
+  ])("detects current or imminent user-to-partner harm: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger_reporter_aggressor",
+    });
+  });
+
+  it("keeps interpersonal and self-harm support when the user threatens both", () => {
+    expect(classifyAmoraCrisis("내가 남친을 죽이고 나도 죽을 거야")).toEqual({
+      kind: "combined_reporter_aggressor_self_harm",
+    });
+  });
+
+  it.each([
+    ["나 지금 뛰어내리려고 옥상에 있어", "self_harm"],
+    ["졸피뎀 30알 먹었어", "self_harm"],
+    ["예비신랑이 지금 죽겠다고 해", "third_party_self_harm"],
+    ["남친이 지금 죽고 싶다고 해", "third_party_self_harm"],
+    ["상대방이 옥상에서 뛰어내리려고 해", "third_party_self_harm"],
+    ["남친이 지금 나 죽이겠다고 해", "interpersonal_danger"],
+    ["예비신랑이 자기가 죽겠다고 해", "third_party_self_harm"],
+    ["신랑이 나를 죽이고 자기도 죽겠대", "combined_interpersonal_self_harm"],
+    ["남친이 나 죽이겠다고 한 게 아니라 자기가 죽겠다고 해", "third_party_self_harm"],
+    ["남친이 자기가 죽겠다고 한 게 아니라 나를 죽이겠다고 해", "interpersonal_danger"],
+  ] as const)("keeps expanded self-harm attribution exact: %s", (text, kind) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind });
+  });
+
+  it.each([
+    "예전에 남편에게 맞았어요",
+    "상대가 과거에 칼로 협박했어요",
+    "예전에 감금당한 적이 있어요",
+    "과거에 성폭행 피해를 입었어요",
+    "작년에 신랑이 저를 때렸어요",
+    "신랑이 화나면 때릴 것 같아",
+    "상대가 때릴까 봐 걱정돼",
+    "전 애인이 지금 집 앞에서 기다리고 있어",
+    "예전에 남친이 죽여버린다고 말했어",
+    "작년에 신랑이 칼 들고 죽인다고 했어",
+    "예전에 남편에게 맞았는데 지금은 안전해",
+    "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해",
+    "작년에 남친이 방에 가둬놨어",
+    "예전에 동의 없이 옷을 벗겼어",
+  ])("does not label explicit history, fear, or neutral waiting as an immediate crisis: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toBeNull();
   });
 
   it.each([
@@ -192,13 +1100,44 @@ describe("classifyAmoraCrisis", () => {
     "드레스 투어 너무 힘들어서 죽을 것 같아",
     "친구가 웃겨서 죽을 것 같아",
     "남편이 게임에서 나를 죽이려고 해",
+    "그만 살고 싶은 건 아니야",
+    "죽고만 싶은 건 아니야",
+    "차라리 사라지고 싶은 건 아니야",
+    "살고 싶은 마음이 없는 건 아니야",
+    "그만 살고 싶으면 어떻게 도와야 해?",
+    "약을 잔뜩 털어 넣은 건 아니야",
+    "약을 잔뜩 털어 넣으면 어떻게 돼?",
+    "영화에서 주인공이 약을 잔뜩 털어 넣는 장면을 검토해줘",
+    "친구가 약을 약통에 잔뜩 털어 넣었어",
+    "신랑이 넥타이를 너무 꽉 졸랐어",
+    "드레스 허리끈을 졸랐어",
+    "축구하다가 공을 발로 찼어",
+    "신랑이 축구공을 발로 찼어",
+    "신랑이 주먹으로 문을 쳤어",
+    "결혼식에서 꽃가루를 던지고 있어",
+    "업체와 강제로 관계를 맺었어",
+    "강제로 관계를 맺은 건 아니야",
+    "영화에서 주인공이 강제로 관계를 맺는 장면을 검토해줘",
+    "칼을 들고 집 앞에 찾아온 건 아니야",
+    "배송 기사 위치를 추적해서 집 앞에서 기다리고 있어",
+    "남편이 내 목을 조른 건 아니야",
+    "남편이 내 목을 조르지 않았어",
+    "나를 발로 차지 않았어",
+    "신랑이 주먹으로 치지 않았어",
+    "남편이 게임에서 칼 들고 집 앞에 찾아왔어",
+    "나 뛰어내리려고 옥상에 있는 건 아니야",
+    "졸피뎀 30알 먹은 건 아니야",
+    "예비신랑이 죽겠다고 한 건 아니야",
+    "상대방이 옥상에서 뛰어내리려고 한 건 아니야",
+    "남친이 나 죽이겠다고 한 건 아니야",
+    "내가 남편 때린 건 아니야",
   ])("avoids ambiguous, hypothetical, or non-current false positives: %s", (text) => {
     expect(classifyAmoraCrisis(text)).toBeNull();
   });
 
   it("still detects a direct disclosure after a meta or third-person clause", () => {
     expect(classifyAmoraCrisis("친구가 죽고 싶다고 했어. 나도 지금 죽고 싶어")).toEqual({
-      kind: "combined",
+      kind: "multi_party_self_harm",
     });
     expect(classifyAmoraCrisis("영화 얘기가 아니라, 나 진짜 죽고 싶어")).toEqual({
       kind: "self_harm",
@@ -217,6 +1156,86 @@ describe("classifyAmoraCrisis", () => {
     ).toEqual({ kind: "self_harm" });
   });
 
+  it("does not let a benign idiom hide a separate current weapon danger", () => {
+    expect(
+      classifyAmoraCrisis(
+        "결혼 준비 너무 힘들어 죽겠는데, 남편이 지금 칼을 들고 있어",
+      ),
+    ).toEqual({ kind: "interpersonal_danger" });
+  });
+
+  it("does not let a negated partner threat hide the reporter's current self-harm intent", () => {
+    expect(
+      classifyAmoraCrisis(
+        "남편이 나를 죽이겠다고 한 건 아니지만 나는 죽고 싶어",
+      ),
+    ).toEqual({ kind: "self_harm" });
+  });
+
+  it("does not let another person's negated ingestion hide the reporter's overdose", () => {
+    expect(
+      classifyAmoraCrisis(
+        "친구는 약을 많이 먹지 않았지만 나는 수면제 30알 먹었어",
+      ),
+    ).toEqual({ kind: "self_harm" });
+  });
+
+  it.each([
+    [
+      "남편이 나를 죽이겠다고 한 건 아니지만 남편은 지금 나를 때리고 있어",
+      "interpersonal_danger",
+    ],
+    [
+      "남편이 때리겠다고 하면 신고하려 했는데 남편이 지금 칼을 들고 있어",
+      "interpersonal_danger",
+    ],
+    [
+      "남편이 자살한다고 말하면 109에 전화하려 했는데 나는 지금 죽고 싶어",
+      "self_harm",
+    ],
+  ] as const)(
+    "keeps negation or hypothetical context inside its clause before a current crisis: %s",
+    (text, kind) => {
+      expect(classifyAmoraCrisis(text)).toEqual({ kind });
+    },
+  );
+
+  it.each([
+    "남편이 나를 협박한 건 아니고 그냥 다퉜어",
+    "남편이 날 죽일 거라는 건 아니야",
+    "남편이 나 죽인다는 건 아니야",
+    "남편이 휴대폰을 뺏거나 집에 가둔 건 아니야",
+    "남편에게 칼을 휘두를 건 아니야",
+    "가정폭력 예방 교육에서 남편이 아내를 때리고 있다고 가정해",
+    "영화에서, 남편이 지금 나를 때리고 있는 장면을 분석해줘",
+  ])("keeps a negated or contextual violence cue non-immediate: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    [
+      "친구는 수면제 30알을 먹지 않았고, 나는 수면제 30알 먹었어",
+      "self_harm",
+    ],
+    [
+      "남편이 나를 죽이겠다고 한 건 아니고, 지금 나를 때리고 있어",
+      "interpersonal_danger",
+    ],
+    [
+      "남편이 때리겠다고 하면 신고하고, 지금 남편이 칼을 들고 있어",
+      "interpersonal_danger",
+    ],
+    [
+      "남편이 자살한다고 말하면 109에 전화하고, 나는 지금 죽고 싶어",
+      "self_harm",
+    ],
+  ] as const)(
+    "starts a new safety clause after a comma and a new actor or current marker: %s",
+    (text, kind) => {
+      expect(classifyAmoraCrisis(text)).toEqual({ kind });
+    },
+  );
+
   it.each([
     ["죽고 싶지 않지만 자해할 생각이 들어", "self_harm"],
     ["남편이 협박하고 있지 않지만 폭력을 쓰고 있어", "interpersonal_danger"],
@@ -226,8 +1245,38 @@ describe("classifyAmoraCrisis", () => {
 
   it("keeps both safety paths when self-harm and interpersonal danger coexist", () => {
     expect(classifyAmoraCrisis("상대가 칼을 들고 협박해. 나도 죽고 싶어")).toEqual({
-      kind: "combined",
+      kind: "combined_interpersonal_self_harm",
     });
+  });
+
+  it.each([
+    "남편이 날 죽일 거야",
+    "남편이 나 죽인대",
+    "남편이 휴대폰을 뺏고 집에 가뒀어",
+    "남편이 집 앞에서 기다리며 계속 따라와",
+    "남편이 차로 나를 들이받으려 해",
+  ])("keeps lethal, confinement, stalking, and vehicle danger toward the reporter: %s", (text) => {
+    const classification = classifyAmoraCrisis(text);
+
+    expect(classification).toEqual({ kind: "interpersonal_danger" });
+    expect(buildAmoraCrisisResponse("interpersonal_danger"))
+      .toContain("여성긴급전화 1366");
+  });
+
+  it.each([
+    "내가 남편 목을 조르고 있어",
+    "남편에게 칼을 휘두를 거야",
+  ])("keeps strangulation or weapon violence directed from the reporter: %s", (text) => {
+    const classification = classifyAmoraCrisis(text);
+
+    expect(classification).toEqual({
+      kind: "interpersonal_danger_reporter_aggressor",
+    });
+    const guidance = buildAmoraCrisisResponse(
+      "interpersonal_danger_reporter_aggressor",
+    );
+    expect(guidance).toContain("거리를 두세요");
+    expect(guidance).not.toContain("여성긴급전화 1366");
   });
 });
 
@@ -268,13 +1317,48 @@ describe("buildAmoraCrisisResponse", () => {
     expect(response).toContain("한국 밖");
   });
 
-  it("includes both 109 and 1366 for a combined crisis", () => {
-    const response = buildAmoraCrisisResponse("combined");
+  it("includes both 109 and 1366 for interpersonal danger plus self-harm", () => {
+    const response = buildAmoraCrisisResponse("combined_interpersonal_self_harm");
 
     expect(response).toMatch(/자살예방상담전화\s*109/);
     expect(response).toMatch(/여성긴급전화\s*1366/);
     expect(response).toMatch(/경찰\s*112/);
     expect(response).toMatch(/소방\s*119/);
     expect(response).toContain("한국 밖");
+  });
+
+  it("does not add a violence-support line to multi-party self-harm", () => {
+    const response = buildAmoraCrisisResponse("multi_party_self_harm");
+
+    expect(response).toMatch(/자살예방상담전화\s*109/);
+    expect(response).toMatch(/경찰\s*112/);
+    expect(response).toMatch(/소방\s*119/);
+    expect(response).not.toMatch(/1366/);
+  });
+
+  it("gives direction-specific de-escalation when the reporter may hurt someone", () => {
+    const response = buildAmoraCrisisResponse(
+      "interpersonal_danger_reporter_aggressor",
+    );
+
+    expect(response).toMatch(/다가가거나 따라가지/);
+    expect(response).toMatch(/칼이나 흉기.*내려놓/);
+    expect(response).toContain("거리를 두세요");
+    expect(response).toMatch(/경찰\s*112/);
+    expect(response).toMatch(/소방\s*119/);
+    expect(response).toContain("믿을 수 있는 사람");
+    expect(response).not.toMatch(/1366/);
+  });
+
+  it("adds self-harm support without victim-only services for reporter aggression", () => {
+    const response = buildAmoraCrisisResponse(
+      "combined_reporter_aggressor_self_harm",
+    );
+
+    expect(response).toMatch(/자살예방상담전화\s*109/);
+    expect(response).toMatch(/다가가거나 따라가지/);
+    expect(response).toMatch(/경찰\s*112/);
+    expect(response).toMatch(/소방\s*119/);
+    expect(response).not.toMatch(/1366/);
   });
 });

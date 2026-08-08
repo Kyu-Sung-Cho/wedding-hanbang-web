@@ -17,6 +17,7 @@ import {
 import * as LucideIcons from "lucide-react";
 import { COMMUNITY_CATEGORIES, CATEGORY_MAP } from "@/constants/communityCategories";
 import { useCommunityStore } from "@/stores/communityStore";
+import { useAuthStore } from "@/stores/authStore";
 import ImageUploader from "@/components/community/ImageUploader";
 import SlideBuilder from "@/components/community/SlideBuilder";
 import TagInput from "@/components/community/TagInput";
@@ -25,7 +26,14 @@ import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { communityPostPath } from "@/lib/community/routes";
+import {
+  claimGuestCommunityDraftForViewer,
+  communityPostDraftKey,
+  communityViewerToken,
+  markGuestCommunityDraftHandoff,
+} from "@/lib/community/viewerPrivacyCache";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
+import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
@@ -39,12 +47,14 @@ import type {
 
 type PostMode = "regular" | "slides";
 
-// 로컬스토리지 키
-const DRAFT_KEY = "community_post_draft";
+const LEGACY_DRAFT_KEY = "community_post_draft";
 
 // 글자수 제한
 const TITLE_MAX_LENGTH = 200;
 const CONTENT_MAX_LENGTH = 50000;
+const MEDIA_PUBLISHING_UI_ENABLED = isCommunityMediaPublishingUiEnabled(
+  process.env.NEXT_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED,
+);
 
 interface InlineImageEntry {
   id: string;
@@ -106,9 +116,12 @@ function getIcon(name: string) {
 }
 
 export default function PostWritePage() {
+  const authViewerId = useAuthStore((state) => state.user?.id ?? null);
+  const editorViewerScope = communityViewerToken(authViewerId);
+
   return (
     <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-[#635b51] animate-spin" /></div>}>
-      <PostWriteContent />
+      <PostWriteContent key={editorViewerScope} />
     </Suspense>
   );
 }
@@ -118,28 +131,37 @@ function PostWriteContent() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
   const isEditMode = Boolean(editId);
+  const isResume = searchParams.get("resume") === "1";
   const prefillKind = searchParams.get("prefill");
-  // 견적 체크 → "익명 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
+  // 견적 체크 또는 검색 0건 → 질문 작성으로 이어지는 prefill
   const prefillTitle = searchParams.get("title");
   const prefillBody = searchParams.get("body");
   const requestedCategory = searchParams.get("category");
   const initialCategory = COMMUNITY_CATEGORIES.some((c) => c.key === requestedCategory)
     ? (requestedCategory as CommunityCategory)
     : null;
-  const isPrefillQuoteCheck =
-    prefillKind === "quote_check" && (!!prefillTitle || !!prefillBody) && !isEditMode;
+  const isSupportedPrefill =
+    (prefillKind === "quote_check" || prefillKind === "community_search")
+    && (!!prefillTitle || !!prefillBody)
+    && !isEditMode
+    && !isResume;
+  const isGuidedQuestionFlow =
+    !isEditMode
+    && (prefillKind === "community_search" || prefillKind === "community_question");
 
   const { createPost, updatePost } = useCommunityStore();
 
   // 인증 상태
   const [authChecked, setAuthChecked] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const draftKey = communityPostDraftKey(userId);
 
   // 폼 상태
   const [category, setCategory] = useState<CommunityCategory | null>(initialCategory);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [visibility, setVisibility] = useState<PostVisibility>("public");
+  const [publicSafetyConfirmed, setPublicSafetyConfirmed] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [vendorTags, setVendorTags] = useState<string[]>([]);
@@ -164,8 +186,16 @@ function PostWriteContent() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inlineImageInputRef = useRef<HTMLInputElement>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingCreateCommandRef = useRef<{
+    fingerprint: string;
+    idempotencyKey: string;
+  } | null>(null);
   // 초기 폼 상태 (변경 감지용)
   const initialFormRef = useRef<string>("");
+
+  useEffect(() => {
+    pendingCreateCommandRef.current = null;
+  }, [userId]);
 
   // 본문 인라인 이미지 — 토큰([!img:id])로 textarea에 표시, 발행/미리보기 시 HTML 변환
   const [inlineImages, setInlineImages] = useState<InlineImageEntry[]>([]);
@@ -193,16 +223,19 @@ function PostWriteContent() {
 
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
-        const redirect = encodeURIComponent(
-          weddingPath(`/community/post/write${editId ? `?edit=${editId}` : ""}`)
-        );
-        router.replace(`/login?redirect=${redirect}`);
+        if (isEditMode) {
+          const currentWritePath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          const redirect = encodeURIComponent(currentWritePath);
+          router.replace(`/login?redirect=${redirect}`);
+          return;
+        }
+        setAuthChecked(true);
         return;
       }
       setUserId(data.user.id);
       setAuthChecked(true);
     });
-  }, [router, editId]);
+  }, [isEditMode, router]);
 
   // 수정 모드: 기존 글 로드
   useEffect(() => {
@@ -267,48 +300,77 @@ function PostWriteContent() {
 
   // 새 글 모드: 임시저장 복원
   useEffect(() => {
-    if (isEditMode || !authChecked) return;
+    if (!authChecked) return;
 
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      // Unowned legacy drafts can belong to a previous account and are never restored.
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+      if (isEditMode || (isGuidedQuestionFlow && !isResume)) return;
+
+      if (userId && isResume) {
+        claimGuestCommunityDraftForViewer(userId);
+      }
+      const raw = localStorage.getItem(draftKey);
       if (!raw) return;
       const draft: DraftData = JSON.parse(raw);
       // 24시간 이내 임시저장만 복원
       if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) {
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey);
         return;
       }
       setCategory(draft.category);
       setTitle(draft.title || "");
-      setContent(draft.content || "");
+      setContent(
+        MEDIA_PUBLISHING_UI_ENABLED
+          ? draft.content || ""
+          : (draft.content || "").replace(IMG_HTML_RE, ""),
+      );
       setVisibility(draft.visibility || "public");
-      setImages(draft.images || []);
+      setImages(MEDIA_PUBLISHING_UI_ENABLED ? draft.images || [] : []);
       setTags(draft.tags || []);
       setVendorTags(draft.vendorTags || []);
       if (draft.adDisclosure) setAdDisclosure(draft.adDisclosure);
       if (draft.sponsorshipDetail) setSponsorshipDetail(draft.sponsorshipDetail);
       if (draft.priceData) setPriceData(draft.priceData);
-      if (draft.inlineImages?.length) setInlineImages(draft.inlineImages);
-      if (draft.poll) setPoll(draft.poll);
-      if (draft.postMode === "slides") setPostMode("slides");
-      if (draft.slides?.length) setSlides(draft.slides);
+      if (MEDIA_PUBLISHING_UI_ENABLED && draft.inlineImages?.length) {
+        setInlineImages(draft.inlineImages);
+      }
+      if (draft.poll) {
+        setPoll(
+          MEDIA_PUBLISHING_UI_ENABLED
+            ? draft.poll
+            : {
+                ...draft.poll,
+                options: draft.poll.options.map((option) => ({
+                  ...option,
+                  image_url: null,
+                })),
+              },
+        );
+      }
+      if (MEDIA_PUBLISHING_UI_ENABLED && draft.postMode === "slides") {
+        setPostMode("slides");
+      }
+      if (MEDIA_PUBLISHING_UI_ENABLED && draft.slides?.length) {
+        setSlides(draft.slides);
+      }
       setDraftRestored(true);
     } catch {
       // 파싱 실패 시 무시
     }
-  }, [isEditMode, authChecked]);
+  }, [authChecked, draftKey, isEditMode, isGuidedQuestionFlow, isResume, userId]);
 
-  // 견적 체크 → "익명 사례로 공유하기" prefill (이슈 #3)
+  // 견적 체크 또는 검색 0건 → 질문 작성 prefill
   // - 인증 직후 1회 적용. 이후 사용자가 자유롭게 편집할 수 있도록 ref guard.
-  const quotePrefillAppliedRef = useRef(false);
+  const prefillAppliedRef = useRef(false);
   useEffect(() => {
-    if (!isPrefillQuoteCheck || !authChecked || quotePrefillAppliedRef.current) return;
-    quotePrefillAppliedRef.current = true;
+    if (!isSupportedPrefill || !authChecked || prefillAppliedRef.current) return;
+    prefillAppliedRef.current = true;
     if (prefillTitle) setTitle(prefillTitle.slice(0, TITLE_MAX_LENGTH));
     if (prefillBody) setContent(prefillBody.slice(0, CONTENT_MAX_LENGTH));
     // category는 URL ?category= 가 이미 initialCategory 로 잡혀 있음
     setDraftRestored(false);
-  }, [isPrefillQuoteCheck, authChecked, prefillTitle, prefillBody]);
+  }, [isSupportedPrefill, authChecked, prefillTitle, prefillBody]);
 
   // 변경 감지 (unsaved changes)
   useEffect(() => {
@@ -352,12 +414,8 @@ function PostWriteContent() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // 자동 저장 (30초마다)
-  useEffect(() => {
-    if (isEditMode) return;
-
-    autoSaveRef.current = setInterval(() => {
-      const draft: DraftData = {
+  const persistDraft = useCallback(() => {
+    const draft: DraftData = {
         category,
         title,
         content,
@@ -374,22 +432,30 @@ function PostWriteContent() {
         slides: slides.length > 0 ? slides : undefined,
         savedAt: Date.now(),
       };
-      // 비어있으면 저장하지 않음 (카드 모드면 슬라이드 한 장만 있어도 저장)
-      if (!title && !content && !category && slides.length === 0) return;
-      try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-        // 자동 저장 표시
+    if (!title && !content && !category && slides.length === 0) return false;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides, draftKey]);
+
+  // 자동 저장 (30초마다)
+  useEffect(() => {
+    if (isEditMode) return;
+
+    autoSaveRef.current = setInterval(() => {
+      if (persistDraft()) {
         setAutoSaveFlash(true);
         setTimeout(() => setAutoSaveFlash(false), 2000);
-      } catch {
-        // 스토리지 가득 찬 경우 무시
       }
     }, 30000);
 
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     };
-  }, [isEditMode, category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides]);
+  }, [isEditMode, persistDraft]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -439,6 +505,7 @@ function PostWriteContent() {
 
   const handleInsertImage = useCallback(
     async (file: File) => {
+      if (!MEDIA_PUBLISHING_UI_ENABLED) return;
       if (insertingImage) return;
       setInsertImageError(null);
       // 5MB 검증 (이미지), 10MB (GIF)
@@ -548,6 +615,34 @@ function PostWriteContent() {
       setError("협찬이 포함된 글은 받은 혜택을 5자 이상 적어주세요.");
       return;
     }
+    if (!asDraft && visibility === "public" && !publicSafetyConfirmed) {
+      setError(
+        MEDIA_PUBLISHING_UI_ENABLED
+          ? "전체 공개 전에 본문과 사진에서 개인정보를 가렸는지 확인해 주세요."
+          : "전체 공개 전에 본문에서 개인정보를 지웠는지 확인해 주세요.",
+      );
+      return;
+    }
+
+    if (!userId) {
+      if (!persistDraft()) {
+        setError(
+          "작성 내용을 이 기기에 임시 저장하지 못했어요. 내용을 복사한 뒤 브라우저 저장공간 설정을 확인해 주세요.",
+        );
+        return;
+      }
+      if (!markGuestCommunityDraftHandoff()) {
+        setError(
+          "작성 내용을 로그인 뒤 안전하게 이어갈 수 없어요. 내용을 복사한 뒤 브라우저 저장공간 설정을 확인해 주세요.",
+        );
+        return;
+      }
+      const resumeUrl = new URL(window.location.href);
+      resumeUrl.searchParams.set("resume", "1");
+      const currentWritePath = `${resumeUrl.pathname}${resumeUrl.search}${resumeUrl.hash}`;
+      router.replace(`/login?redirect=${encodeURIComponent(currentWritePath)}`);
+      return;
+    }
 
     setError(null);
     setIsSubmitting(true);
@@ -559,7 +654,12 @@ function PostWriteContent() {
             ...poll,
             question: poll.question.trim(),
             options: poll.options
-              .map((o) => ({ label: o.label.trim(), image_url: o.image_url ?? null }))
+              .map((o) => ({
+                label: o.label.trim(),
+                image_url: MEDIA_PUBLISHING_UI_ENABLED
+                  ? o.image_url ?? null
+                  : null,
+              }))
               .filter((o) => o.label.length > 0),
           }
         : null;
@@ -597,17 +697,26 @@ function PostWriteContent() {
           throw new Error(storeErr || "수정에 실패했습니다.");
         }
         // 임시저장 삭제
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey);
         setHasUnsavedChanges(false);
         router.push(communityPostPath(editId));
       } else {
-        const postId = await createPost(input);
+        const fingerprint = JSON.stringify(input);
+        if (pendingCreateCommandRef.current?.fingerprint !== fingerprint) {
+          pendingCreateCommandRef.current = {
+            fingerprint,
+            idempotencyKey: globalThis.crypto.randomUUID(),
+          };
+        }
+        const idempotencyKey = pendingCreateCommandRef.current.idempotencyKey;
+        const postId = await createPost(input, { idempotencyKey });
         if (!postId) {
           const storeErr = useCommunityStore.getState().errorMessage;
           throw new Error(storeErr || "작성에 실패했습니다.");
         }
+        pendingCreateCommandRef.current = null;
         // 임시저장 삭제
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey);
         setHasUnsavedChanges(false);
         if (asDraft) {
           router.push(weddingPath());
@@ -679,7 +788,7 @@ function PostWriteContent() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="font-serif-kr text-2xl sm:text-[28px] font-light text-[#263832]">
-            {isEditMode ? "글 수정" : "글쓰기"}
+            {isEditMode ? "글 수정" : isGuidedQuestionFlow ? "내 상황 질문하기" : "글쓰기"}
           </h1>
           <div className="ml-auto flex items-center gap-2">
             {draftRestored && !isEditMode && (
@@ -704,7 +813,26 @@ function PostWriteContent() {
           </div>
         )}
 
+        {isGuidedQuestionFlow && (
+          <div className="mb-6 rounded-2xl border border-[#d8c7ad] bg-[#fffdf7] px-5 py-4">
+            <p className="text-sm font-semibold text-[#36534E]">제목보다 상황이 중요해요</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-[#635b51]">
+              무슨 일이 있었는지, 이미 들은 조건이나 해본 선택, 어떤 경험이 필요한지만
+              적어주세요. 게시 전에 공개될 내용을 미리 확인할 수 있어요.
+            </p>
+            <p className="mt-3 text-[13px] font-semibold text-[#36534E]">
+              로그인은 게시할 때만 필요해요. 작성한 내용은 이 기기에 임시 저장됩니다.
+            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-[#8F6662]">
+              전화번호·이메일·주소·계좌번호·서명·QR코드는 지워주세요. 현재 통제
+              베타에서는 사진 없이 텍스트로만 질문할 수 있어요. 다시 열 때 24시간이
+              지난 임시저장은 삭제됩니다.
+            </p>
+          </div>
+        )}
+
         {/* 모드 토글 — 일반 글 / 인스타 캐러셀(카드 게시물) */}
+        {!isGuidedQuestionFlow && MEDIA_PUBLISHING_UI_ENABLED && (
         <div className="mb-6 inline-flex bg-white border border-[#e5d8ca] rounded-full p-1 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
           <button
             type="button"
@@ -729,6 +857,7 @@ function PostWriteContent() {
             카드 게시물 (옆으로 넘기기)
           </button>
         </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] xl:grid-cols-[minmax(0,1fr)_350px] gap-5 xl:gap-6 items-start">
           {/* 메인 영역: 제목 + 본문 */}
@@ -736,13 +865,18 @@ function PostWriteContent() {
             {/* 제목 */}
             <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-sm font-semibold text-[#263832] mb-2.5">
-                제목 <span className="text-[#36534E]">*</span>
+                {isGuidedQuestionFlow ? "지금 막힌 일" : "제목"}{" "}
+                <span className="text-[#36534E]">*</span>
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
-                placeholder="제목을 입력하세요"
+                placeholder={
+                  isGuidedQuestionFlow
+                    ? "예: 사진 촬영 계약 뒤 결과물 비용을 따로 안내받았어요"
+                    : "제목을 입력하세요"
+                }
                 maxLength={TITLE_MAX_LENGTH}
                 className="w-full px-4 py-3 text-base text-[#263832] bg-[#f6efe5] border border-[#e5d8ca] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
               />
@@ -752,7 +886,7 @@ function PostWriteContent() {
             </section>
 
             {/* 카드 게시물(인스타 캐러셀) 빌더 — 슬라이드 모드 전용 */}
-            {postMode === "slides" && (
+            {MEDIA_PUBLISHING_UI_ENABLED && postMode === "slides" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
                   슬라이드 <span className="text-[#36534E]">*</span>
@@ -768,7 +902,10 @@ function PostWriteContent() {
                   {postMode === "slides" ? (
                     <>캡션 <span className="text-[#928980] text-sm font-normal">(선택)</span></>
                   ) : (
-                    <>내용 <span className="text-[#36534E]">*</span></>
+                    <>
+                      {isGuidedQuestionFlow ? "상황과 듣고 싶은 경험" : "내용"}{" "}
+                      <span className="text-[#36534E]">*</span>
+                    </>
                   )}
                 </label>
                 <div className="flex bg-[#e5d8ca] rounded-lg p-0.5">
@@ -809,15 +946,39 @@ function PostWriteContent() {
                         setContent(e.target.value.slice(0, CONTENT_MAX_LENGTH));
                         autoResize();
                       }}
-                      onPaste={handlePaste}
-                      onDragEnter={handleDragEnter}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
+                      onPaste={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handlePaste
+                          : undefined
+                      }
+                      onDragEnter={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDragEnter
+                          : undefined
+                      }
+                      onDragOver={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDragOver
+                          : undefined
+                      }
+                      onDragLeave={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDragLeave
+                          : undefined
+                      }
+                      onDrop={
+                        MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow
+                          ? handleDrop
+                          : undefined
+                      }
                       placeholder={
                         postMode === "slides"
                           ? "이 카드 게시물의 캡션을 한 줄로 적어보세요. (선택)"
-                          : "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                          : isGuidedQuestionFlow
+                            ? "1. 지금 어떤 상황인가요?\n2. 이미 들은 조건이나 해본 선택이 있나요?\n3. 실제 비용·계약·후회한 점 중 무엇을 듣고 싶나요?"
+                            : MEDIA_PUBLISHING_UI_ENABLED
+                              ? "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
+                              : "내용을 입력하세요. 통제 베타에서는 텍스트 게시물만 작성할 수 있어요."
                       }
                       maxLength={CONTENT_MAX_LENGTH}
                       className={`w-full px-4 py-3 text-base text-[#263832] bg-[#f6efe5] border rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none leading-relaxed min-h-[220px] ${
@@ -826,7 +987,7 @@ function PostWriteContent() {
                           : "border-[#e5d8ca]"
                       }`}
                     />
-                    {isDraggingImage && (
+                    {MEDIA_PUBLISHING_UI_ENABLED && isDraggingImage && (
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-[#36534E]/8">
                         <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-md text-sm font-medium text-[#36534E]">
                           <ImagePlus className="w-4 h-4" />
@@ -839,7 +1000,7 @@ function PostWriteContent() {
                   {/* 인라인 도구바 — 이미지/GIF 삽입. 카드 모드는 캡션이라 도구바 숨김. */}
                   <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      {postMode === "regular" && (
+                      {MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow && postMode === "regular" && (
                         <>
                           <input
                             ref={inlineImageInputRef}
@@ -877,7 +1038,7 @@ function PostWriteContent() {
                   </div>
 
                   {/* 본문에 삽입된 이미지 썸네일 — 토큰이 어떤 이미지인지 시각 확인 + 제거. 카드 모드에서는 숨김. */}
-                  {postMode === "regular" && inlineImages.length > 0 && (
+                  {!isGuidedQuestionFlow && postMode === "regular" && inlineImages.length > 0 && (
                     <div className="mt-3 p-3 bg-[#fbf8f2] border border-[#f0eeec] rounded-lg">
                       <p className="text-xs font-medium text-[#928980] uppercase tracking-widest mb-2">
                         본문 안 이미지 {inlineImages.length}장
@@ -936,7 +1097,7 @@ function PostWriteContent() {
             </section>
 
             {/* 이미지 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
-            {postMode === "regular" && (
+            {MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow && postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
                   이미지
@@ -946,9 +1107,42 @@ function PostWriteContent() {
             )}
 
             {/* 투표 (폴) — 수정 모드에서는 비활성화. 카드 게시물도 폴 없이 깔끔하게 유지. */}
-            {!isEditMode && postMode === "regular" && (
+            {!isEditMode && !isGuidedQuestionFlow && postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <PollEditor value={poll} onChange={setPoll} />
+                <PollEditor
+                  value={poll}
+                  onChange={setPoll}
+                  mediaUploadsEnabled={MEDIA_PUBLISHING_UI_ENABLED}
+                />
+              </section>
+            )}
+
+            {!MEDIA_PUBLISHING_UI_ENABLED
+              && isEditMode
+              && (images.length > 0 || slides.length > 0 || inlineImages.length > 0) && (
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <p className="text-sm font-semibold text-[#263832]">기존 미디어</p>
+                <p className="mt-1 text-sm leading-relaxed text-[#635b51]">
+                  통제 베타에서는 새 미디어를 추가하거나 바꿀 수 없어요. 기존 첨부는
+                  그대로 둔 채 텍스트만 수정하거나, 아래에서 모두 제거할 수 있어요.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImages([]);
+                    setSlides([]);
+                    setPostMode("regular");
+                    setInlineImages([]);
+                    setContent((previous) =>
+                      previous
+                        .replace(IMG_TOKEN_RE, "")
+                        .replace(/\n{3,}/g, "\n\n"),
+                    );
+                  }}
+                  className="mt-3 text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  기존 미디어 모두 제거
+                </button>
               </section>
             )}
           </div>
@@ -956,6 +1150,7 @@ function PostWriteContent() {
           {/* 사이드바 영역: 카테고리, 태그, 공개범위 등 메타 */}
           <div className="min-w-0 space-y-5 xl:space-y-6">
             {/* 카테고리 선택 */}
+            {!isGuidedQuestionFlow && (
             <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-sm font-semibold text-[#263832] mb-3">
                 카테고리 <span className="text-[#36534E]">*</span>
@@ -982,6 +1177,7 @@ function PostWriteContent() {
                 })}
               </div>
             </section>
+            )}
 
             {/* 공개 범위 */}
             <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -1011,18 +1207,50 @@ function PostWriteContent() {
                   );
                 })}
               </div>
+              {visibility === "public" && (
+                <div className="mt-3 space-y-3">
+                  <p className="text-[12px] leading-relaxed text-[#8F6662]">
+                    전체 공개 글은 로그인하지 않은 사람과 검색엔진에도 노출될 수 있어요.
+                    이름과 생년월일, 연락처, 정확한 주소, 건강·임신·성생활·민감한
+                    가족관계, 계약·예약번호는 지워 주세요.
+                    {MEDIA_PUBLISHING_UI_ENABLED && (
+                      <> 이미지 메타정보는 제거하지만 사진 속 글자는 자동으로 가려지지 않아요.</>
+                    )}
+                  </p>
+                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[#635b51]">
+                    <input
+                      type="checkbox"
+                      checked={publicSafetyConfirmed}
+                      onChange={(event) => setPublicSafetyConfirmed(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[#36534E]"
+                    />
+                    {MEDIA_PUBLISHING_UI_ENABLED
+                      ? "본문과 사진에서 개인정보·민감한 사정·계약번호를 확인하고 가렸어요."
+                      : "본문에서 개인정보·민감한 사정·계약번호를 확인하고 지웠어요."}
+                  </label>
+                </div>
+              )}
+              {visibility === "members" && (
+                <p className="mt-3 text-[12px] leading-relaxed text-[#635b51]">
+                  회원 공개 글은 로그인한 회원만 볼 수 있고 공개 검색 목록에는 넣지 않아요.
+                  그래도 다른 회원이 볼 수 있으니 연락처·정확한 주소·건강·임신·
+                  성생활·민감한 가족관계·계약번호는 적지 마세요.
+                </p>
+              )}
             </section>
 
             {/* 태그 */}
-            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-              <label className="block text-sm font-semibold text-[#263832] mb-3">
-                태그
-              </label>
-              <TagInput tags={tags} onChange={setTags} max={10} />
-            </section>
+            {!isGuidedQuestionFlow && (
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                <label className="block text-sm font-semibold text-[#263832] mb-3">
+                  태그
+                </label>
+                <TagInput tags={tags} onChange={setTags} max={10} />
+              </section>
+            )}
 
             {/* 업체 태그 (카테고리가 허용하는 경우) */}
-            {categoryInfo?.allowVendorTags && (
+            {!isGuidedQuestionFlow && categoryInfo?.allowVendorTags && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
                   업체 태그
@@ -1032,6 +1260,7 @@ function PostWriteContent() {
             )}
 
             {/* 광고 표시 */}
+            {!isGuidedQuestionFlow && (
             <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <label className="block text-sm font-semibold text-[#263832] mb-3">
                 광고·협찬 포함 여부
@@ -1088,7 +1317,7 @@ function PostWriteContent() {
                     <textarea
                       value={sponsorshipDetail}
                       onChange={(event) => setSponsorshipDetail(event.target.value)}
-                      placeholder="받은 혜택을 적어주세요. 예: 드레스 피팅 1회 무료 제공"
+                      placeholder="받은 혜택을 적어주세요. 예: 드레스 입어보기 비용 1회 제공"
                       rows={3}
                       className="w-full rounded-lg border border-[#e5d8ca] bg-[#FAFAF8] px-3 py-2 text-sm text-[#263832] outline-none focus:border-[#36534E]"
                     />
@@ -1096,9 +1325,11 @@ function PostWriteContent() {
                 </div>
               )}
             </section>
+            )}
 
             {/* 가격 정보 폼 — 가격이 오갈 수 있는 카테고리 전체에 노출 (아모라 시세 코멘트 트리거) */}
-            {(category === "is_normal" || category === "tour_review" || category === "tips_v2") && (
+            {!isGuidedQuestionFlow
+              && (category === "is_normal" || category === "tour_review" || category === "tips_v2") && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
                   {category === "is_normal" ? "가격 질문 (선택)" : "가격 정보 (선택)"}
@@ -1119,7 +1350,7 @@ function PostWriteContent() {
             취소
           </button>
           <div className="flex items-center gap-3">
-            {!isEditMode && (
+            {!isEditMode && !isGuidedQuestionFlow && (
               <button
                 type="button"
                 onClick={() => handleSubmit(true)}
@@ -1139,7 +1370,13 @@ function PostWriteContent() {
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : null}
-              {isEditMode ? "수정하기" : "발행하기"}
+              {isEditMode
+                ? "수정하기"
+                : isGuidedQuestionFlow
+                  ? userId
+                    ? "경험자에게 질문하기"
+                    : "로그인하고 질문 올리기"
+                  : "발행하기"}
             </button>
           </div>
         </div>
@@ -1156,7 +1393,7 @@ function PostWriteContent() {
           >
             취소
           </button>
-          {!isEditMode && (
+          {!isEditMode && !isGuidedQuestionFlow && (
             <button
               type="button"
               onClick={() => handleSubmit(true)}
@@ -1175,7 +1412,13 @@ function PostWriteContent() {
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : null}
-            {isEditMode ? "수정하기" : "발행하기"}
+            {isEditMode
+              ? "수정하기"
+              : isGuidedQuestionFlow
+                ? userId
+                  ? "경험자에게 질문하기"
+                  : "로그인하고 질문 올리기"
+                : "발행하기"}
           </button>
         </div>
       </div>

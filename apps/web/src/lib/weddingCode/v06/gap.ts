@@ -2,10 +2,11 @@ import {
   WEDDING_CODE_V06_AXES,
   WEDDING_CODE_V06_QUESTIONS,
   weddingCodeV06Question,
+  type WeddingCodeV06Axis,
   type WeddingCodeV06AxisKey,
   type WeddingCodeV06OptionValue,
   type WeddingCodeV06Question,
-  type WeddingCodeV06QuestionKey,
+  type WeddingCodeQuestionKey,
 } from "@/constants/weddingCodeV06";
 
 /**
@@ -22,21 +23,22 @@ import {
  * ## v0.6가 대신 하는 것
  *
  * **판정하지 않는다.** 점수·유형·궁합·등급을 만들지 않는다. 대신 두 사람이 실제로 고른
- * 문장을 그대로 붙여 보여주고, 그 차이가 앞으로 **어느 장면에서 또 나오는지**만 말한다.
+ * 문장을 그대로 붙여 보여주고, 그 차이를 두 사람이 **어떻게 확인할지**만 말한다.
  * 「너는 "삼백이면 신혼여행 한 번인데", 나는 "여기 아니면 두고두고 아쉬울 것 같았다"」는
- * 성격 주장이 아니라 두 사람이 방금 남긴 **사실**이다. 그래서 타당도 근거가 필요 없다.
+ * 성격 주장이 아니라 두 사람이 방금 남긴 **사실**이다. 심리검사 타당도는 주장하지 않지만,
+ * 문항 이해도와 다음 대화의 유용성은 사람 검증이 필요하다.
  *
  * 구성개념 가중치는 사용자에게 노출되지 않는다 — **어느 차이를 먼저 보여줄지 고르는
  * 내부 정렬**에만 쓴다.
  */
 
 export type WeddingCodeV06Answers = Partial<
-  Record<WeddingCodeV06QuestionKey, WeddingCodeV06OptionValue>
+  Record<WeddingCodeQuestionKey, WeddingCodeV06OptionValue>
 >;
 
 /** 한 문항에서 두 사람이 갈린(또는 겹친) 지점. */
 export type WeddingCodeV06Gap = Readonly<{
-  key: WeddingCodeV06QuestionKey;
+  key: WeddingCodeQuestionKey;
   axis: WeddingCodeV06AxisKey;
   scene: string;
   question: string;
@@ -63,11 +65,17 @@ export type WeddingCodeV06GapMap = Readonly<{
   missing: number;
 }>;
 
+export type WeddingCodeSceneGapOptions = Readonly<{
+  questions?: readonly WeddingCodeV06Question[];
+  axes?: readonly WeddingCodeV06Axis[];
+}>;
+
 function sideOf(
   question: WeddingCodeV06Question,
   value: WeddingCodeV06OptionValue,
+  axes: readonly WeddingCodeV06Axis[],
 ): "left" | "right" {
-  const axis = WEDDING_CODE_V06_AXES.find((item) => item.key === question.axis)!;
+  const axis = axes.find((item) => item.key === question.axis)!;
   const left = axis.left.constructs as readonly string[];
   const option = question.options.find((item) => item.value === value)!;
   return option.weights.some((weight) => left.includes(weight.construct)) ? "left" : "right";
@@ -109,18 +117,21 @@ function splitWeight(
 export function buildWeddingCodeV06GapMap(
   first: WeddingCodeV06Answers,
   second: WeddingCodeV06Answers,
+  options: WeddingCodeSceneGapOptions = {},
 ): WeddingCodeV06GapMap {
-  const answered = WEDDING_CODE_V06_QUESTIONS.filter(
+  const questions = options.questions ?? WEDDING_CODE_V06_QUESTIONS;
+  const axes = options.axes ?? WEDDING_CODE_V06_AXES;
+  const answered = questions.filter(
     (question) => first[question.key] && second[question.key],
   );
-  const missing = WEDDING_CODE_V06_QUESTIONS.length - answered.length;
+  const missing = questions.length - answered.length;
 
   // 축별로 몇 개나 갈렸는지 먼저 센다 — 반복되는 차이를 위로 올리기 위해서다.
   const axisSplits = new Map<WeddingCodeV06AxisKey, number>();
   for (const question of answered) {
     const a = first[question.key]!;
     const b = second[question.key]!;
-    if (sideOf(question, a) !== sideOf(question, b)) {
+    if (sideOf(question, a, axes) !== sideOf(question, b, axes)) {
       axisSplits.set(question.axis, (axisSplits.get(question.axis) ?? 0) + 1);
     }
   }
@@ -133,7 +144,7 @@ export function buildWeddingCodeV06GapMap(
     const a = first[question.key]!;
     const b = second[question.key]!;
     const same = a === b;
-    const sameSide = sideOf(question, a) === sideOf(question, b);
+    const sameSide = sideOf(question, a, axes) === sideOf(question, b, axes);
     const gap: WeddingCodeV06Gap = {
       key: question.key,
       axis: question.axis,
@@ -197,35 +208,38 @@ export function topGapsForDisplay(
  * 갈린 지점 하나를 읽을 수 있는 한 문단으로.
  *
  * 판정하지 않는다 — 어느 쪽이 옳다고 말하지 않고, 상대를 평가하지 않으며,
- * 대신 말해주지 않는다. 두 문장을 붙여놓고 **그 차이가 다음에 어디서 또 나오는지**만 말한다.
+ * 대신 말해주지 않는다. 두 문장을 붙여놓고 **다음 결정 전에 무엇을 확인할지**만 말한다.
  */
 export function describeGap(
   gap: WeddingCodeV06Gap,
   names: { first: string; second: string } = { first: "한 사람", second: "다른 한 사람" },
+  options: Readonly<{
+    axes?: readonly WeddingCodeV06Axis[];
+    nextSteps?: Readonly<Partial<Record<WeddingCodeQuestionKey, string>>>;
+  }> = {},
 ): { headline: string; quotes: [string, string]; nextScene: string } {
-  const axis = WEDDING_CODE_V06_AXES.find((item) => item.key === gap.axis)!;
+  const axes = options.axes ?? WEDDING_CODE_V06_AXES;
+  const axis = axes.find((item) => item.key === gap.axis)!;
   return {
     headline: `${axis.labelKo} — 여기서 갈렸어요`,
     quotes: [`${names.first}: “${gap.firstLabel}”`, `${names.second}: “${gap.secondLabel}”`],
-    nextScene: AXIS_NEXT_SCENE[gap.axis],
+    nextScene: options.nextSteps?.[gap.key] ?? AXIS_NEXT_STEP[gap.axis],
   };
 }
 
 /**
- * 축마다 「이 차이가 다음에 또 나오는 자리」.
- *
- * 예언이 아니라 **일정표의 사실**이다 — 결혼 준비에서 실제로 그 결정이 다시 오는 지점을
- * 적었다. 그래서 근거가 필요 없고, 틀릴 수도 없다.
+ * 축마다 두 사람이 바로 써볼 수 있는 다음 확인 방법.
+ * 미래 행동이나 갈등을 예측하지 않고, 선택 가능한 대화 절차만 제안한다.
  */
-const AXIS_NEXT_SCENE: Record<WeddingCodeV06AxisKey, string> = {
+const AXIS_NEXT_STEP: Record<WeddingCodeV06AxisKey, string> = {
   decisionCriteria:
-    "이 차이는 계약서에 서명하기 전에 최소 세 번 더 나와요 — 예식장, 스드메, 그리고 추가금 항목을 정할 때.",
+    "다음 계약 전에는 각자 먼저 보는 기준을 하나씩 말하고, 총액·포함 항목·취소 조건을 같은 순서로 확인해 보세요.",
   preparationMode:
-    "이 차이는 투어 일정을 잡을 때마다 나와요. 누가 알아보고 누가 정할지를 매번 다시 정하게 돼요.",
+    "다음 업체 비교 전에는 누가 조사하고, 몇 개로 줄이고, 누가 최종 확인할지 먼저 나눠 보세요.",
   coordinationScope:
-    "이 차이는 상견례, 하객 명단, 예식 절차를 정할 때 세 번 더 나와요.",
+    "가족 관련 결정을 시작하기 전에 둘이 정할 범위와 양가에 먼저 물을 범위를 나눠 적어 보세요.",
   supportOrder:
-    "이 차이는 준비가 몰리는 달마다 나와요. 한쪽이 지쳤을 때 상대가 뭘 해줘야 하는지가 매번 갈려요.",
+    "힘들다는 말이 나오면 바로 해결하기 전에, 지금은 공감과 해결 중 무엇이 필요한지 먼저 물어보세요.",
 };
 
 /**
@@ -237,18 +251,32 @@ const AXIS_NEXT_SCENE: Record<WeddingCodeV06AxisKey, string> = {
 export function ownAnswerQuotes(
   answers: WeddingCodeV06Answers,
   limit = 3,
+  questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
 ): readonly { scene: string; label: string }[] {
   const quotes: { scene: string; label: string }[] = [];
-  for (const question of WEDDING_CODE_V06_QUESTIONS) {
+  const usedAxes = new Set<WeddingCodeV06AxisKey>();
+
+  for (const question of questions) {
     const value = answers[question.key];
-    if (!value) continue;
+    if (!value || usedAxes.has(question.axis)) continue;
+    usedAxes.add(question.axis);
+    quotes.push({ scene: question.scene, label: optionLabel(question, value) });
+  }
+
+  for (const question of questions) {
+    if (quotes.length >= limit) break;
+    const value = answers[question.key];
+    if (!value || quotes.some((quote) => quote.scene === question.scene)) continue;
     quotes.push({ scene: question.scene, label: optionLabel(question, value) });
   }
   return quotes.slice(0, limit);
 }
 
-export function answeredCount(answers: WeddingCodeV06Answers): number {
-  return WEDDING_CODE_V06_QUESTIONS.filter((question) => answers[question.key]).length;
+export function answeredCount(
+  answers: WeddingCodeV06Answers,
+  questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
+): number {
+  return questions.filter((question) => answers[question.key]).length;
 }
 
 export { weddingCodeV06Question };

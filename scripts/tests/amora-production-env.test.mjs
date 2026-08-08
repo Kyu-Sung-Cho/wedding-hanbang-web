@@ -26,6 +26,8 @@ function validEnv(overrides = {}) {
     AMORA_CARE_OUTBOUND_ENABLED: "false",
     AMORA_PROACTIVE_CHAT_ENABLED: "true",
     AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+    AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
+    AMORA_TODAY_ONE_ENABLED: "false",
     AI_LOG_RETENTION_CRON_ENABLED: "false",
     ACCOUNT_DELETION_INTAKE_ENABLED: "false",
     ACCOUNT_DELETION_CRON_ENABLED: "false",
@@ -146,6 +148,32 @@ test("the expand deployment keeps account deletion intake disabled", () => {
     assert.deepEqual(
       JSON.parse(result.stdout).failed,
       ["accountDeletionIntakeDisabledForExpandDeploy"],
+    );
+  }
+});
+
+test("the expand deployment keeps conversation-segment reads disabled", () => {
+  for (const unsafe of ["", "true", "FALSE"]) {
+    const result = runChecker(validEnv({
+      AMORA_CONVERSATION_SEGMENT_READ_ENABLED: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["conversationSegmentReadDisabledForExpandDeploy"],
+    );
+  }
+});
+
+test("the expand deployment keeps TodayOne disabled", () => {
+  for (const unsafe of ["", "true", "FALSE"]) {
+    const result = runChecker(validEnv({
+      AMORA_TODAY_ONE_ENABLED: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["todayOneDisabledForExpandDeploy"],
     );
   }
 });

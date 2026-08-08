@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { normalizeVendorEventBatch, sanitizeVendorEventContext } from "@/lib/analytics/vendorEvents";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import {
   checkRateLimitPersistent,
   rateLimitKey,
@@ -173,6 +174,9 @@ async function writeLegacyEvent(request: Request, body: unknown) {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+  }
   if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
     return NextResponse.json(
       { error: "요청 본문이 너무 큽니다." },

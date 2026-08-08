@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildCareEmailSubject, buildCareEmailHtml } from "../careEmail";
 
-describe("케어 이메일 빌더 (친언니 아웃바운드)", () => {
+describe("케어 이메일 빌더", () => {
   it("셀 종류별 제목 — 카톡 첫 줄 톤", () => {
     expect(buildCareEmailSubject({ momentLabel: "청첩장 모임", cellKind: "d3" })).toBe(
       "청첩장 모임 3일 전이에요 — 아모라가 미리 챙겨왔어요"

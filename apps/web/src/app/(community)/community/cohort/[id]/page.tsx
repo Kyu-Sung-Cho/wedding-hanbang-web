@@ -24,9 +24,11 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import { communityPostPath } from "@/lib/community/routes";
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
+import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
@@ -46,6 +48,10 @@ import type {
   CohortEventType,
 } from "@/types/community.types";
 
+const MEDIA_PUBLISHING_UI_ENABLED = isCommunityMediaPublishingUiEnabled(
+  process.env.NEXT_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED,
+);
+
 // ────────────────────────────────────────
 // 상수
 // ────────────────────────────────────────
@@ -54,40 +60,28 @@ type FocusMessageRequest = { id: string; requestedAt: number };
 const DIGEST_SUBTOPIC_INITIAL_LIMIT = 3;
 
 const EVENT_LABEL: Record<CohortEventType, string> = {
-  venue_booked: "웨딩홀 예약",
-  studio_booked: "스튜디오 예약",
+  venue_booked: "결혼식장 예약",
+  studio_booked: "웨딩 사진 촬영 예약",
   dress_booked: "드레스 예약",
   makeup_booked: "메이크업 예약",
-  tour_done: "투어 완료",
+  tour_done: "업체 상담 완료",
   contract_done: "계약 완료",
-  invitation_sent: "청첩장 발송",
+  invitation_sent: "초대장 전달 시작",
   progress_update: "준비 업데이트",
   wedding_done: "결혼식 완료",
 };
 
 const EVENT_ITEMS: Array<{ key: CohortEventType; label: string; helper: string }> = [
   { key: "contract_done", label: "계약 완료", helper: "견적 확정이나 계약을 마쳤어요" },
-  { key: "tour_done", label: "투어 완료", helper: "웨딩홀/스드메 상담을 다녀왔어요" },
-  { key: "venue_booked", label: "웨딩홀 예약", helper: "홀과 날짜를 확정했어요" },
-  { key: "studio_booked", label: "스튜디오 예약", helper: "촬영 일정을 잡았어요" },
-  { key: "dress_booked", label: "드레스 예약", helper: "샵/셀렉/가봉 일정을 잡았어요" },
-  { key: "makeup_booked", label: "메이크업 예약", helper: "혼주/본식 메이크업을 예약했어요" },
-  { key: "invitation_sent", label: "청첩장 발송", helper: "청첩장 전달을 시작했어요" },
+  { key: "tour_done", label: "업체 상담 완료", helper: "결혼식장이나 사진·드레스·메이크업 상담을 다녀왔어요" },
+  { key: "venue_booked", label: "결혼식장 예약", helper: "결혼식장과 날짜를 확정했어요" },
+  { key: "studio_booked", label: "웨딩 사진 촬영 예약", helper: "촬영 일정을 잡았어요" },
+  { key: "dress_booked", label: "드레스 예약", helper: "매장 방문·드레스 선택·수선 일정을 잡았어요" },
+  { key: "makeup_booked", label: "헤어·메이크업 예약", helper: "두 사람이나 부모님의 헤어·메이크업을 예약했어요" },
+  { key: "invitation_sent", label: "초대장 전달 시작", helper: "종이·모바일 초대장 전달을 시작했어요" },
   { key: "progress_update", label: "준비 업데이트", helper: "체크리스트나 준비 상황을 남겨요" },
-  { key: "wedding_done", label: "결혼식 완료", helper: "본식을 마쳤어요" },
+  { key: "wedding_done", label: "결혼식 완료", helper: "결혼식을 마쳤어요" },
 ];
-
-// 국가 평균 (샘플 부족 시 대체)
-const NATIONAL_AVG: Record<CohortContractCategory, number> = {
-  studio: 346,
-  dress: 190,
-  makeup: 85,
-  venue: 1200,
-  snap: 70,
-  ring: 300,
-  honeymoon: 500,
-  other: 0,
-};
 
 const THREAD_LABEL: Record<CohortThreadTopic, string> = {
   price: "가격",
@@ -104,13 +98,13 @@ const THREAD_HELPER: Record<CohortThreadTopic, string> = {
 };
 
 const CONTRACT_LABEL: Record<CohortContractCategory, string> = {
-  venue: "예식장",
-  studio: "스튜디오",
-  dress: "드레스",
-  makeup: "메이크업",
-  snap: "본식 스냅/영상",
-  ring: "예물",
-  honeymoon: "신혼여행",
+  venue: PLANNING_CATEGORY_LABELS.venue,
+  studio: PLANNING_CATEGORY_LABELS.studio,
+  dress: PLANNING_CATEGORY_LABELS.dress,
+  makeup: PLANNING_CATEGORY_LABELS.makeup,
+  snap: PLANNING_CATEGORY_LABELS.snap,
+  ring: PLANNING_CATEGORY_LABELS.ring,
+  honeymoon: PLANNING_CATEGORY_LABELS.honeymoon,
   other: "기타",
 };
 
@@ -250,7 +244,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
                     active={tab === "info"}
                     onClick={() => setTab("info")}
                     icon={<TrendingUp className="h-4 w-4" />}
-                    label="가격 평균"
+                    label="등록 금액"
                   />
                   <TabButton
                     active={tab === "timeline"}
@@ -401,7 +395,7 @@ function CohortSidePanel({
         <div className="grid gap-2.5">
           {[
             { tab: "chat" as const, label: "견적 캡처 올리고 의견 받기", desc: "가격/계약 조건은 대화 탭에서 빠르게 물어보세요." },
-            { tab: "info" as const, label: "익명 가격 평균 확인", desc: "견적·계약 금액을 등록하면 평균 통계에만 반영돼요." },
+            { tab: "info" as const, label: "익명 등록 금액 확인", desc: "5명 이상 등록된 항목만 산술 평균과 표본 수를 보여줘요." },
             { tab: "timeline" as const, label: "준비 기록 남기기", desc: "계약·투어·예약 완료를 남겨 동기들의 흐름을 같이 봐요." },
           ].map((item) => (
             <button
@@ -530,6 +524,7 @@ function ChatTab({
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!MEDIA_PUBLISHING_UI_ENABLED) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -588,7 +583,7 @@ function ChatTab({
       const ids = memberRows.map((m) => m.user_id);
       if (ids.length === 0) return;
       const { data: profiles } = await supabase
-        .from("community_profiles")
+        .from("community_public_profiles")
         .select("user_id, nickname")
         .in("user_id", ids);
       setMembers((profiles ?? []) as { user_id: string; nickname: string }[]);
@@ -662,7 +657,7 @@ function ChatTab({
           const newMsg = payload.new as CohortMessage;
           // author 프로필 join해서 추가
           const { data: authorData } = await supabase
-            .from("community_profiles")
+            .from("community_public_profiles")
             .select("user_id, nickname, avatar_url, rank")
             .eq("user_id", newMsg.author_id)
             .maybeSingle<CohortProfileSummary>();
@@ -964,6 +959,7 @@ function ChatTab({
               className="h-[82px] max-h-[82px] min-h-[82px] w-full resize-none overflow-y-auto rounded-[16px] border border-transparent bg-[#f6efe5] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[#263832] outline-none transition-colors [field-sizing:fixed] placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
             />
           </div>
+          {MEDIA_PUBLISHING_UI_ENABLED && (
           <input
             ref={fileInputRef}
             type="file"
@@ -971,8 +967,10 @@ function ChatTab({
             className="hidden"
             onChange={handleImageUpload}
           />
+          )}
           {/* 액션 버튼 */}
           <div className="flex gap-2 sm:min-h-[82px]">
+            {MEDIA_PUBLISHING_UI_ENABLED && (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -982,6 +980,7 @@ function ChatTab({
             >
               <Paperclip className="h-4 w-4" />
             </button>
+            )}
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
@@ -1342,10 +1341,10 @@ function InfoTab({
     <div>
       <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">익명 가격 평균</h2>
+          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기방 익명 등록 금액</h2>
           <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
             견적서나 계약서의 기본금·추가금·조건을 만원 단위로 등록하면,
-            업체명은 숨기고 우리 동기방 평균에만 반영돼요.
+            업체명은 숨기고 5명 이상 쌓인 항목의 산술 평균과 표본 수만 보여줘요. 시장 전체의 시세는 아니에요.
           </p>
         </div>
         <button
@@ -1366,9 +1365,9 @@ function InfoTab({
 
       <div className="mb-4 grid gap-2.5 md:grid-cols-3">
         {[
-          { step: "1", title: "업체·카테고리 선택", desc: "웨딩홀, 스드메, 스냅처럼 비교할 항목을 골라요." },
+          { step: "1", title: "업체·분야 선택", desc: "결혼식장, 사진 촬영, 드레스처럼 비교할 항목을 골라요." },
           { step: "2", title: "기본금·추가금 입력", desc: "계약금이 아니라 총 견적 기준으로 만원 단위만 적어요." },
-          { step: "3", title: "5명 이상 평균 공개", desc: "개별 견적이 드러나지 않도록 충분히 쌓인 항목만 보여요." },
+          { step: "3", title: "5명 이상이면 등록 평균 공개", desc: "개별 견적이 드러나지 않도록 표본 수와 산술 평균만 보여요." },
         ].map((item) => (
           <div key={item.step} className="rounded-[16px] border border-[#e5d8ca] bg-white px-4 py-3">
             <div className="flex items-start gap-3">
@@ -1406,7 +1405,7 @@ function InfoTab({
               {enough && stat ? (
                 <div>
                   <p className="text-xs sm:text-sm text-[#635b51]">
-                    우리 동기 평균 {cat.label} 기본금
+                    우리 동기 등록 평균 {cat.label} 기본금
                   </p>
                   <p className="mt-1.5 font-serif-kr text-2xl sm:text-3xl font-light text-[#263832] break-words">
                     {stat.avg_base_price.toLocaleString()}만원
@@ -1425,18 +1424,9 @@ function InfoTab({
                   <div className="mb-2 flex items-start gap-2">
                     <Sparkles className="h-4 w-4 text-[#B89785] shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-[#635b51] leading-relaxed">
-                      아직 우리 동기 데이터가 부족해요. 등록하면 우리끼리의 평균이 나와요.
+                      아직 5명 이상 등록되지 않았어요. 데이터가 더 쌓이기 전에는 비교값을 만들지 않아요.
                     </p>
                   </div>
-                  {NATIONAL_AVG[cat.key] > 0 && (
-                    <p className="text-xs sm:text-sm text-[#635b51]">
-                      전국 평균:{" "}
-                      <span className="font-medium text-[#263832]">
-                        {NATIONAL_AVG[cat.key].toLocaleString()}
-                        만원
-                      </span>
-                    </p>
-                  )}
                 </div>
               )}
             </div>
@@ -2172,7 +2162,7 @@ function CohortDigestCard({
               onClick={() => onTabChange("info")}
               className="inline-flex min-h-9 items-center justify-center rounded-full bg-[#36534E] text-[12px] font-semibold text-white"
             >
-              가격 평균
+              등록 금액
             </button>
           </div>
         </div>
@@ -2258,7 +2248,7 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
         if (!data || data.length === 0) return;
         const ids = data.map((m) => m.user_id);
         supabase
-          .from("community_profiles")
+          .from("community_public_profiles")
           .select("user_id, nickname, avatar_url")
           .in("user_id", ids)
           .then(({ data: profiles }) => {

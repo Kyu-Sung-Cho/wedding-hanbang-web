@@ -49,12 +49,12 @@ function WelcomeSlide() {
 
       <Text style={styles.welcomeTitle}>웨딩한방</Text>
       <Text style={styles.welcomeSubtitle}>
-        결혼 준비의 모든 것, 한곳에서
+        결혼 준비, 아모라와 정리하세요
       </Text>
 
       {/* 피처 배지 3개 */}
       <View style={styles.badgeRow}>
-        {["AI 상담", "커플 연동", "예산 관리"].map((label) => (
+        {["아모라", "할 일·일정", "예산"].map((label) => (
           <View key={label} style={styles.badge}>
             <Text style={styles.badgeText}>{label}</Text>
           </View>
@@ -141,7 +141,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
           <View style={styles.chatRowUser}>
             <View style={styles.chatBubbleUser}>
               <Text style={styles.chatBubbleUserText}>
-                스드메 어디가 좋아?
+                웨딩 사진 촬영 업체 상담이 다음 주 토요일이야
               </Text>
             </View>
           </View>
@@ -153,7 +153,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.chatBubbleAi}>
               <Text style={styles.chatBubbleAiText}>
-                {"말씀하신 조건으로 검수된 후보를 찾아봤어요 ✨"}
+                다음 주 토요일 일정에 추가할까요? 확인한 뒤에만 반영해요.
               </Text>
             </View>
           </View>
@@ -161,17 +161,17 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
           {/* 추천 필 버튼 */}
           <View style={styles.chatPillRow}>
             <View style={styles.chatPill}>
-              <Text style={styles.chatPillText}>가격 비교 보기</Text>
+              <Text style={styles.chatPillText}>할 일에 남기기</Text>
             </View>
             <View style={styles.chatPill}>
-              <Text style={styles.chatPillText}>후기 확인</Text>
+              <Text style={styles.chatPillText}>일정에 추가</Text>
             </View>
           </View>
         </View>
       </View>
 
       <Text style={styles.mockCaption}>
-        궁금한 건 뭐든 물어보세요
+        말하면 할 일·일정·예산으로 이어져요
       </Text>
     </View>
   );
@@ -204,9 +204,9 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
           </View>
 
           {/* 게시글 본문 */}
-          <Text style={styles.communityPostTitle}>스드메 조건 비교 후기</Text>
+          <Text style={styles.communityPostTitle}>웨딩 사진 촬영 업체 비교 후기</Text>
           <Text style={styles.communityPostPreview}>
-            원본·보정본 포함 범위를 같은 기준으로 비교했어요...
+            받는 사진 파일 수와 밝기·색을 다듬어 주는 사진 수를 같은 기준으로 비교했어요.
           </Text>
 
           {/* 투표 + 댓글 */}
@@ -267,7 +267,7 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
           {/* 카테고리 행 */}
           <View style={styles.budgetCategoryRow}>
             <View style={styles.budgetCatDot} />
-            <Text style={styles.budgetCatName}>스드메</Text>
+            <Text style={styles.budgetCatName}>사진·의상·메이크업</Text>
             <Text style={styles.budgetCatAmount}>입력한 금액</Text>
           </View>
           <View style={styles.budgetCategoryRow}>
@@ -277,7 +277,7 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
                 { backgroundColor: colors.gold.DEFAULT },
               ]}
             />
-            <Text style={styles.budgetCatName}>예식장</Text>
+            <Text style={styles.budgetCatName}>결혼식장</Text>
             <View style={styles.budgetCatAmountRow}>
               <Text style={styles.budgetCatAmount}>포함 항목 확인</Text>
               <View style={styles.budgetWarningBadge}>
@@ -296,13 +296,13 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
             <View style={styles.checkDone}>
               <Check size={10} color="#FFFFFF" />
             </View>
-            <Text style={styles.checklistTextDone}>예식장 계약</Text>
+            <Text style={styles.checklistTextDone}>결혼식장 계약 내용 확인</Text>
           </View>
           <View style={styles.checklistItem}>
             <View style={styles.checkDone}>
               <Check size={10} color="#FFFFFF" />
             </View>
-            <Text style={styles.checklistTextDone}>청첩장 업체 선정</Text>
+            <Text style={styles.checklistTextDone}>초대장 제작 업체 정하기</Text>
           </View>
 
           {/* 미완료 항목 */}
@@ -311,14 +311,14 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
               <Circle size={10} color={colors.taupe[400]} />
             </View>
             <Text style={styles.checklistTextUndone}>
-              스드메 계약금 입금
+              사진·의상·메이크업 계약금 확인
             </Text>
           </View>
         </View>
       </View>
 
       <Text style={styles.mockCaption}>
-        숨은 비용까지 꼼꼼하게
+        예상 금액과 실제로 쓴 금액, 해야 할 일과 날짜를 함께 확인
       </Text>
     </View>
   );
@@ -338,16 +338,11 @@ function StartSlide({ onStart, onNeverShow }: {
         <View style={styles.startSparkleInner}>
           <Sparkles size={36} color={colors.gold.DEFAULT} />
         </View>
-        {/* 장식 점들 */}
-        <View style={[styles.sparkDot, styles.sparkDot1]} />
-        <View style={[styles.sparkDot, styles.sparkDot2]} />
-        <View style={[styles.sparkDot, styles.sparkDot3]} />
-        <View style={[styles.sparkDot, styles.sparkDot4]} />
       </View>
 
-      <Text style={styles.startTitle}>준비되셨나요?</Text>
+      <Text style={styles.startTitle}>아모라에게 지금 상황을 말해보세요</Text>
       <Text style={styles.startSubtitle}>
-        무료로 모든 기능을 이용하세요
+        확인한 내용만 할 일·일정·예산에 반영해요
       </Text>
 
       {/* 시작하기 버튼 */}
@@ -1098,29 +1093,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ivory[200],
     alignItems: "center",
     justifyContent: "center",
-  },
-  sparkDot: {
-    position: "absolute",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.gold.DEFAULT,
-  },
-  sparkDot1: {
-    top: 4,
-    right: 12,
-  },
-  sparkDot2: {
-    top: 16,
-    left: 2,
-  },
-  sparkDot3: {
-    bottom: 8,
-    right: 4,
-  },
-  sparkDot4: {
-    bottom: 2,
-    left: 14,
   },
   startTitle: {
     fontSize: fontSize["3xl"],

@@ -1,5 +1,5 @@
 // 예산 관리 — 웹과 동일한 wedding_journeys.progress 기반
-// budget/spent/cost 필드를 progress 객체에서 읽고 씀 (별도 테이블 없음)
+// budget/spent만 합산한다. legacy cost는 용도 확인 전까지 검토값으로만 표시한다.
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
@@ -10,57 +10,61 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { PLANNING_CATEGORY_LABELS, type PlanningCategoryKey } from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
-import { apiFetch } from "@/lib/api";
+import { apiFetchForExpectedUser } from "@/lib/api";
+import {
+  buildCategoryBudgetMutation,
+  buildTotalBudgetMutation,
+  createBudgetRevisionCoordinator,
+  fetchActiveBudgetApprovalStatus,
+  isBudgetEditBaseCurrent,
+  isPendingBudgetApprovalBoundToIdentity,
+  parseBudgetApprovalStatusResponse,
+  parseBudgetMutationResponse,
+  type BudgetEditBase,
+  type BudgetIdentityToken,
+  type BudgetMutationToken,
+} from "@/lib/budgetRevision.mjs";
+import { listBudgetCategories } from "@/lib/budgetCategoryRegistry.mjs";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
+import ErrorRetry from "@/components/ErrorRetry";
 
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
 
-const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
-  { value: "couple", label: "커플", emoji: "\uD83D\uDC6B" },
-  { value: "bride_parents", label: "신부측", emoji: "\uD83D\uDC70" },
-  { value: "groom_parents", label: "신랑측", emoji: "\uD83E\uDD35" },
-  { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
+const PAYER_OPTIONS: { value: PayerType; label: string }[] = [
+  { value: "couple", label: "두 사람" },
+  { value: "bride_parents", label: "예비 신부 가족" },
+  { value: "groom_parents", label: "예비 신랑 가족" },
+  { value: "both_parents", label: "두 가족" },
 ];
 
 // 업체·상품마다 다른 포함/별도 확인 항목. 금액은 공시가 또는 사용자 견적에서만 표시한다.
 const HIDDEN_COSTS: Record<string, { warning: string; guidance: string }> = {
-  studio: { warning: "원본 파일, 앨범, 보정본의 포함 범위", guidance: "공시가·견적서 기준 확인" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈의 포함 범위", guidance: "업체 서면 안내 확인" },
-  makeup: { warning: "리허설, 혼주 메이크업, 피부 관리의 포함 범위", guidance: "업체 서면 안내 확인" },
-  venue: { warning: "사회, 축가, 영상, 꽃장식, 폐백실의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  studio: { warning: "받는 사진 파일 수, 앨범, 밝기와 색을 다듬어 주는 사진 수의 포함 범위", guidance: "업체 공개 가격·견적서 확인" },
+  dress: { warning: "속옷, 장갑, 머리에 쓰는 면사포, 신발의 포함 범위", guidance: "업체 서면 안내 확인" },
+  makeup: { warning: "미리 받아보는 메이크업, 부모님 메이크업, 피부 관리의 포함 범위", guidance: "업체 서면 안내 확인" },
+  venue: { warning: "결혼식 진행자, 축하 노래, 영상, 꽃 장식, 결혼식 뒤 전통 인사 공간의 포함 범위", guidance: "업체 공개 가격·견적서 확인" },
   honeymoon: { warning: "보험, 선택 일정, 현지 비용의 포함 범위", guidance: "예약 문서 기준 확인" },
   hanbok: { warning: "수선, 소품, 세탁의 포함 범위", guidance: "업체 서면 안내 확인" },
   gift: { warning: "포장, 배송, 추가 수량의 포함 범위", guidance: "업체 서면 안내 확인" },
-  snap: { warning: "편집본, 원본, 액자의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  snap: { warning: "편집한 영상, 받는 사진 파일 수, 액자의 포함 범위", guidance: "업체 공개 가격·견적서 확인" },
   ham: { warning: "장식, 운송, 주차의 포함 범위", guidance: "업체 서면 안내 확인" },
-  bouquet: { warning: "보존, 부토니에, 양가 꽃의 포함 범위", guidance: "업체 서면 안내 확인" },
+  bouquet: { warning: "꽃 보존, 예식 정장에 다는 꽃, 두 가족에게 드리는 꽃의 포함 범위", guidance: "업체 서면 안내 확인" },
 };
 
-// 웹과 동일한 카테고리 비율 상수
-const CATEGORY_RATIOS = [
-  { key: "meeting", label: "상견례", ratio: 0.01 },
-  { key: "venue", label: "예식장", ratio: 0.20 },
-  { key: "studio", label: "스튜디오", ratio: 0.10 },
-  { key: "dress", label: "드레스/턱시도", ratio: 0.07 },
-  { key: "makeup", label: "메이크업", ratio: 0.05 },
-  { key: "snap", label: "본식 스냅/영상", ratio: 0.04 },
-  { key: "ring", label: "예물", ratio: 0.12 },
-  { key: "yedan", label: "예단", ratio: 0.05 },
-  { key: "hanbok", label: "한복", ratio: 0.03 },
-  { key: "shoes", label: "웨딩 구두", ratio: 0.01 },
-  { key: "bouquet", label: "부케/꽃장식", ratio: 0.01 },
-  { key: "honeymoon", label: "신혼여행", ratio: 0.12 },
-  { key: "houseware", label: "혼수", ratio: 0.07 },
-  { key: "housing", label: "신혼집", ratio: 0.00 },
-  { key: "invitation", label: "청첩장", ratio: 0.02 },
-  { key: "gift", label: "답례품", ratio: 0.02 },
-  { key: "mc", label: "사회/축가", ratio: 0.01 },
-  { key: "ham", label: "함", ratio: 0.01 },
-  { key: "pyebaek", label: "폐백", ratio: 0.01 },
-  { key: "reserve", label: "예비비", ratio: 0.05 },
+// 금액은 사용자가 입력하거나 계약·예약 결과로 확인된 값만 사용한다.
+const BUDGET_CATEGORY_KEYS: PlanningCategoryKey[] = [
+  "meeting", "venue", "studio", "dress", "makeup", "snap", "ring", "yedan",
+  "hanbok", "shoes", "bouquet", "honeymoon", "houseware", "housing",
+  "invitation", "gift", "mc", "ham", "pyebaek", "reserve",
 ];
+
+const BUDGET_CATEGORIES = BUDGET_CATEGORY_KEYS.map((key) => ({
+  key,
+  label: PLANNING_CATEGORY_LABELS[key],
+}));
 
 interface ProgressItem {
   status?: string;
@@ -81,6 +85,59 @@ interface BudgetRisk {
   categoryKey?: string;
 }
 
+interface PendingBudgetApproval {
+  ownerId: string;
+  coupleId: string;
+  surface: "/budget";
+  requestId: string;
+  summary: string;
+  expectedRevision: number;
+  verification: "pending" | "unverified";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function toBudgetProgress(
+  progress: Record<string, unknown>,
+): Record<string, ProgressItem> {
+  return Object.fromEntries(
+    Object.entries(progress).filter((entry): entry is [string, ProgressItem] => {
+      return isRecord(entry[1]);
+    }),
+  );
+}
+
+function readSafeErrorMessage(value: unknown): string | null {
+  if (!isRecord(value) || typeof value.error !== "string") return null;
+  if (
+    value.error.length === 0
+    || Array.from(value.error).length > 300
+    || /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value.error)
+  ) return null;
+  return value.error;
+}
+
+function isSessionOwnerMismatch(error: unknown): boolean {
+  return error instanceof Error
+    && (
+      error.message === "API_SESSION_OWNER_MISMATCH"
+      || error.message === "MOBILE_WEB_API_SESSION_OWNER_MISMATCH"
+    );
+}
+
+function mutationErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  if (
+    error.message.startsWith("INVALID_")
+    || error.message.length === 0
+    || Array.from(error.message).length > 300
+    || /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(error.message)
+  ) return fallback;
+  return error.message;
+}
+
 function formatWon(n: number): string {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
   if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만원`;
@@ -88,10 +145,14 @@ function formatWon(n: number): string {
   return "—";
 }
 
-function normalizeCost(cost: unknown): number {
-  if (typeof cost === "number") return cost;
-  if (typeof cost === "string") return parseInt(cost, 10) || 0;
-  return 0;
+function normalizeLegacyCostForReview(cost: unknown): number | null {
+  if (!Number.isSafeInteger(cost) || (cost as number) <= 0) return null;
+  const normalized = (cost as number) < 100_000
+    ? (cost as number) * 10_000
+    : (cost as number);
+  return Number.isSafeInteger(normalized) && normalized <= 1_000_000_000
+    ? normalized
+    : null;
 }
 
 export default function BudgetScreen() {
@@ -99,6 +160,7 @@ export default function BudgetScreen() {
   const [progress, setProgress] = useState<Record<string, ProgressItem>>({});
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [editingTotal, setEditingTotal] = useState(false);
   const [totalInput, setTotalInput] = useState("");
@@ -107,28 +169,275 @@ export default function BudgetScreen() {
   const [budgetInput, setBudgetInput] = useState("");
   const [payerInput, setPayerInput] = useState<PayerType>("couple");
   const [saving, setSaving] = useState(false);
+  const [savingTotal, setSavingTotal] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState<PendingBudgetApproval | null>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const loadSequenceRef = useRef(0);
+  const pendingApprovalRef = useRef<PendingBudgetApproval | null>(null);
+  const totalEditBaseRef = useRef<BudgetEditBase | null>(null);
+  const categoryEditBaseRef = useRef<BudgetEditBase | null>(null);
+  const revisionCoordinatorRef = useRef<ReturnType<typeof createBudgetRevisionCoordinator> | null>(null);
+  if (revisionCoordinatorRef.current === null) {
+    revisionCoordinatorRef.current = createBudgetRevisionCoordinator();
+  }
+  const revisionCoordinator = revisionCoordinatorRef.current;
 
-  const loadData = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("couple_id").eq("id", user.id).single();
-      if (!profile?.couple_id) return;
-      setCoupleId(profile.couple_id);
-      const { data: journey } = await supabase.from("wedding_journeys").select("total_budget, progress").eq("couple_id", profile.couple_id).single();
-      setTotalBudget(journey?.total_budget ?? 0);
-      setProgress((journey?.progress as Record<string, ProgressItem>) ?? {});
-    } catch (err) { console.error("Budget load:", err); }
-    finally { setLoading(false); setRefreshing(false); }
+  const clearIdentityBoundState = useCallback(() => {
+    setTotalBudget(0);
+    setProgress({});
+    setCoupleId(null);
+    setEditingTotal(false);
+    setEditingKey(null);
+    totalEditBaseRef.current = null;
+    categoryEditBaseRef.current = null;
+    setSaving(false);
+    setSavingTotal(false);
+    pendingApprovalRef.current = null;
+    setPendingApproval(null);
   }, []);
+
+  const commitSnapshotToView = useCallback((snapshot: BudgetIdentityToken) => {
+    setCoupleId(snapshot.coupleId);
+    setTotalBudget(snapshot.totalBudget);
+    setProgress(toBudgetProgress(snapshot.progress));
+
+    const pending = pendingApprovalRef.current;
+    if (pending && !isPendingBudgetApprovalBoundToIdentity(pending, snapshot)) {
+      pendingApprovalRef.current = null;
+      setPendingApproval(null);
+    }
+  }, []);
+
+  const loadData = useCallback(async (authorizedMutationToken?: BudgetMutationToken) => {
+    const loadSequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = loadSequence;
+    let loadToken: ReturnType<typeof revisionCoordinator.beginLoad> = null;
+    const hadIdentity = revisionCoordinator.captureIdentity() !== null;
+    if (!hadIdentity) setLoading(true);
+    setLoadError(null);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (loadSequenceRef.current !== loadSequence) return null;
+      if (userError || !user) {
+        revisionCoordinator.setOwner(null);
+        clearIdentityBoundState();
+        return null;
+      }
+
+      if (revisionCoordinator.setOwner(user.id)) clearIdentityBoundState();
+      loadToken = authorizedMutationToken
+        ? revisionCoordinator.beginLoad(user.id, authorizedMutationToken)
+        : revisionCoordinator.beginLoad(user.id);
+      if (!loadToken) return null;
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("couple_id")
+        .eq("id", user.id)
+        .single();
+      if (
+        loadSequenceRef.current !== loadSequence
+        || !revisionCoordinator.isLoadCurrent(loadToken)
+      ) return null;
+      if (profileError || typeof profile?.couple_id !== "string") {
+        throw new Error("INVALID_BUDGET_PROFILE");
+      }
+
+      const { data: journey, error: journeyError } = await supabase
+        .from("wedding_journeys")
+        .select("couple_id, total_budget, progress, state_revision")
+        .eq("couple_id", profile.couple_id)
+        .single();
+      if (
+        loadSequenceRef.current !== loadSequence
+        || !revisionCoordinator.isLoadCurrent(loadToken)
+      ) return null;
+      if (journeyError || !journey) throw new Error("INVALID_BUDGET_JOURNEY");
+
+      const snapshot = revisionCoordinator.commitJourney(
+        loadToken,
+        journey,
+        profile.couple_id,
+      );
+      if (!snapshot) throw new Error("INVALID_BUDGET_JOURNEY");
+      commitSnapshotToView(snapshot);
+      let latestSnapshot = snapshot;
+
+      const pendingAtLoadStart = pendingApprovalRef.current;
+      if (pendingApprovalRef.current === null) {
+        try {
+          const recovered = await fetchActiveBudgetApprovalStatus({
+            apiFetch: (path, options) => apiFetchForExpectedUser(snapshot.ownerId, path, options),
+            ownerId: snapshot.ownerId,
+            coupleId: snapshot.coupleId,
+            currentRevision: snapshot.stateRevision,
+          });
+          if (
+            loadSequenceRef.current !== loadSequence
+            || !revisionCoordinator.isCurrent(snapshot)
+          ) return null;
+
+          if (recovered?.outcome.status === "pending_partner") {
+            const recoveredPending: PendingBudgetApproval = {
+              ownerId: recovered.approval.ownerId,
+              coupleId: recovered.approval.coupleId,
+              surface: recovered.approval.surface,
+              requestId: recovered.approval.requestId,
+              summary: recovered.approval.summary,
+              expectedRevision: recovered.approval.baseRevision,
+              verification: "pending",
+            };
+            pendingApprovalRef.current = recoveredPending;
+            setPendingApproval(recoveredPending);
+          } else if (
+            recovered?.outcome.status === "applied"
+            && "journey" in recovered.outcome
+          ) {
+            const observed = revisionCoordinator.commitObservedApplied(
+              snapshot,
+              recovered.outcome.journey,
+              recovered.approval.baseRevision,
+            );
+            if (!observed) throw new Error("PENDING_BUDGET_APPLIED_MISMATCH");
+            commitSnapshotToView(observed);
+            latestSnapshot = observed;
+          }
+        } catch (recoveryError) {
+          if (isSessionOwnerMismatch(recoveryError)) return null;
+        }
+      }
+
+      const pending = pendingAtLoadStart;
+      if (
+        pending
+        && isPendingBudgetApprovalBoundToIdentity(pending, snapshot)
+      ) {
+        try {
+          const statusResponse = await apiFetchForExpectedUser(
+            pending.ownerId,
+            `/api/couple-plan-changes/${pending.requestId}`,
+            { method: "GET" },
+          );
+          const statusPayload: unknown = await statusResponse.json().catch(() => null);
+          if (
+            loadSequenceRef.current !== loadSequence
+            || !revisionCoordinator.isCurrent(snapshot)
+          ) return null;
+          if (!statusResponse.ok) throw new Error("PENDING_BUDGET_STATUS_UNAVAILABLE");
+
+          const pendingOutcome = parseBudgetApprovalStatusResponse(
+            statusPayload,
+            snapshot.coupleId,
+            pending.expectedRevision,
+            snapshot.stateRevision,
+          );
+          if (
+            pendingOutcome.requestId !== pending.requestId
+            || pendingOutcome.summary !== pending.summary
+          ) {
+            throw new Error("PENDING_BUDGET_STATUS_MISMATCH");
+          }
+
+          if (pendingOutcome.status === "pending_partner") {
+            const verifiedPending = {
+              ...pending,
+              summary: pendingOutcome.summary,
+              verification: "pending" as const,
+            };
+            pendingApprovalRef.current = verifiedPending;
+            setPendingApproval(verifiedPending);
+          } else if (pendingOutcome.status === "applied" && "journey" in pendingOutcome) {
+            const observed = revisionCoordinator.commitObservedApplied(
+              snapshot,
+              pendingOutcome.journey,
+              pending.expectedRevision,
+            );
+            if (!observed) throw new Error("PENDING_BUDGET_APPLIED_MISMATCH");
+            pendingApprovalRef.current = null;
+            setPendingApproval(null);
+            commitSnapshotToView(observed);
+            latestSnapshot = observed;
+          } else if (
+            pendingOutcome.status === "stale"
+            || pendingOutcome.status === "rejected"
+          ) {
+            pendingApprovalRef.current = null;
+            setPendingApproval(null);
+          } else {
+            throw new Error("PENDING_BUDGET_STATUS_MISMATCH");
+          }
+        } catch (statusError) {
+          if (isSessionOwnerMismatch(statusError)) return null;
+          if (
+            loadSequenceRef.current === loadSequence
+            && revisionCoordinator.isCurrent(snapshot)
+          ) {
+            const unverifiedPending = {
+              ...pending,
+              verification: "unverified" as const,
+            };
+            pendingApprovalRef.current = unverifiedPending;
+            setPendingApproval(unverifiedPending);
+          }
+        }
+      }
+      return latestSnapshot;
+    } catch (error) {
+      if (
+        loadSequenceRef.current === loadSequence
+        && loadToken
+        && revisionCoordinator.isLoadCurrent(loadToken)
+      ) {
+        console.error("Budget load:", error);
+        setLoadError("예산 기록을 안전하게 확인하지 못했어요. 최신 내용을 다시 불러와 주세요.");
+      }
+      return null;
+    } finally {
+      if (loadSequenceRef.current === loadSequence) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [clearIdentityBoundState, commitSnapshotToView, revisionCoordinator]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      void loadData();
+      return () => {
+        loadSequenceRef.current += 1;
+      };
     }, [loadData])
   );
+
+  useEffect(() => {
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const nextOwnerId = session?.user.id ?? null;
+        if (!revisionCoordinator.setOwner(nextOwnerId)) return;
+
+        loadSequenceRef.current += 1;
+        clearIdentityBoundState();
+        setLoadError(null);
+        setRefreshing(false);
+        setLoading(nextOwnerId !== null);
+        if (reloadTimer !== null) clearTimeout(reloadTimer);
+        if (nextOwnerId) {
+          reloadTimer = setTimeout(() => {
+            void loadData();
+          }, 0);
+        }
+      },
+    );
+
+    return () => {
+      if (reloadTimer !== null) clearTimeout(reloadTimer);
+      loadSequenceRef.current += 1;
+      revisionCoordinator.setOwner(null);
+      subscription.unsubscribe();
+    };
+  }, [clearIdentityBoundState, loadData, revisionCoordinator]);
 
   useEffect(() => {
     if (!coupleId) return;
@@ -140,7 +449,7 @@ export default function BudgetScreen() {
         table: "wedding_journeys",
         filter: `couple_id=eq.${coupleId}`,
       }, () => {
-        loadData();
+        void loadData();
       })
       .subscribe();
 
@@ -156,16 +465,17 @@ export default function BudgetScreen() {
 
   function getCatBudget(key: string): number {
     const item = progress[key];
-    if (item?.budget && item.budget > 0) return item.budget;
-    const cost = normalizeCost(item?.cost);
-    if (cost > 0) return cost;
-    const r = CATEGORY_RATIOS.find((c) => c.key === key);
-    return r ? Math.round(totalBudget * r.ratio) : 0;
+    if (Number.isSafeInteger(item?.budget) && (item?.budget ?? 0) >= 0) {
+      return item!.budget!;
+    }
+    return 0;
   }
   function getCatSpent(key: string): number {
     const item = progress[key];
-    if (item?.spent !== undefined) return item.spent;
-    return normalizeCost(item?.cost);
+    if (Number.isSafeInteger(item?.spent) && (item?.spent ?? 0) >= 0) {
+      return item!.spent!;
+    }
+    return 0;
   }
   function getCatStatus(key: string): string {
     const s = progress[key]?.status ?? "not_started";
@@ -175,8 +485,13 @@ export default function BudgetScreen() {
     return progress[key]?.payer ?? "couple";
   }
 
+  const budgetCategories = listBudgetCategories({
+    fixedCategories: BUDGET_CATEGORIES,
+    progress,
+  });
+
   // 분담별 지출 합계
-  const payerSummary = CATEGORY_RATIOS.reduce(
+  const payerSummary = budgetCategories.reduce(
     (acc, c) => {
       const payer = getCatPayer(c.key);
       const spent = getCatSpent(c.key);
@@ -186,18 +501,26 @@ export default function BudgetScreen() {
     {} as Record<PayerType, number>,
   );
 
-  const totalSpent = CATEGORY_RATIOS.reduce((s, c) => s + getCatSpent(c.key), 0);
+  const totalSpent = budgetCategories.reduce((s, c) => s + getCatSpent(c.key), 0);
   const remaining = totalBudget - totalSpent;
   const spentPct = totalBudget > 0 ? Math.min(100, Math.round((totalSpent / totalBudget) * 100)) : 0;
-  const allocatedBudget = CATEGORY_RATIOS.reduce((a, c) => a + getCatBudget(c.key), 0);
-  const payerBreakdown = PAYER_OPTIONS.map((opt) => {
-    const amount = payerSummary[opt.value] ?? 0;
-    const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-    return { ...opt, amount, pct };
-  }).sort((a, b) => b.amount - a.amount);
-  const leadPayer = payerBreakdown[0];
+  const allocatedBudget = budgetCategories.reduce((sum, category) => {
+    return sum + getCatBudget(category.key);
+  }, 0);
+  const legacyReviewItems = Object.entries(progress).flatMap(([key, item]) => {
+    if (!Object.prototype.hasOwnProperty.call(item, "cost")) return [];
+    const category = budgetCategories.find((candidate) => candidate.key === key);
+    const customLabel = typeof item.label === "string" && item.label.trim()
+      ? item.label.trim()
+      : null;
+    return [{
+      key,
+      label: category?.label ?? customLabel ?? "사용자 항목",
+      amount: normalizeLegacyCostForReview(item.cost),
+    }];
+  });
 
-  const categoryOverruns = CATEGORY_RATIOS
+  const categoryOverruns = budgetCategories
     .map((cat) => {
       const budget = getCatBudget(cat.key);
       const spent = getCatSpent(cat.key);
@@ -211,7 +534,7 @@ export default function BudgetScreen() {
     .filter((cat) => cat.overrun > 0)
     .sort((a, b) => b.overrun - a.overrun);
 
-  const hiddenCostWatch = CATEGORY_RATIOS
+  const hiddenCostWatch = budgetCategories
     .filter((cat) => HIDDEN_COSTS[cat.key] && getCatStatus(cat.key) !== "완료")
     .map((cat) => {
       const budget = getCatBudget(cat.key);
@@ -226,8 +549,8 @@ export default function BudgetScreen() {
     ...(totalBudget <= 0
       ? [{
           id: "missing-total",
-          title: "총 예산을 먼저 정해야 해요",
-          detail: "카테고리별 기준 예산과 초과 위험을 계산하려면 총 예산이 필요해요.",
+          title: "총 예산을 입력해주세요",
+          detail: "전체 예산과 기록 지출의 차이를 계산하려면 총 예산이 필요해요.",
           tone: "warning" as const,
         }]
       : []),
@@ -235,25 +558,17 @@ export default function BudgetScreen() {
       ? [{
           id: "total-overrun",
           title: `총 예산 ${formatWon(Math.abs(remaining))} 초과`,
-          detail: "지출 확정 전 카테고리별 초과 항목을 먼저 조정하세요.",
+          detail: "기록값을 확인한 뒤 카테고리별 초과 항목을 먼저 조정하세요.",
           tone: "danger" as const,
         }]
       : []),
     ...categoryOverruns.map((cat) => ({
       id: `overrun-${cat.key}`,
       title: `${cat.label} 예산 초과`,
-      detail: `${formatWon(cat.overrun)} 초과 · 배정 ${formatWon(cat.budget)} / 지출 ${formatWon(cat.spent)}`,
+      detail: `${formatWon(cat.overrun)} 초과 · 입력한 예산 ${formatWon(cat.budget)} / 기록 지출 ${formatWon(cat.spent)}`,
       tone: "danger" as const,
       categoryKey: cat.key,
     })),
-    ...(leadPayer && leadPayer.amount > 0 && leadPayer.pct >= 70
-      ? [{
-          id: "payer-imbalance",
-          title: `${leadPayer.label} 분담 비중이 커요`,
-          detail: `${formatWon(leadPayer.amount)} · 전체 지출의 ${leadPayer.pct}%예요.`,
-          tone: "warning" as const,
-        }]
-      : []),
     ...hiddenCostWatch.map((cat) => {
       const hidden = HIDDEN_COSTS[cat.key]!;
       return {
@@ -268,71 +583,262 @@ export default function BudgetScreen() {
 
   const budgetStatus =
     totalBudget <= 0
-      ? { label: "설정 필요", tone: "warning" as const }
+      ? { label: "입력 필요", tone: "warning" as const }
       : remaining < 0
-        ? { label: "초과", tone: "danger" as const }
+        ? { label: "예산 초과", tone: "danger" as const }
         : budgetRisks.length > 0
-          ? { label: "주의", tone: "warning" as const }
-          : { label: "안정", tone: "success" as const };
+          ? { label: "확인할 항목", tone: "warning" as const }
+          : { label: "입력값 확인", tone: "success" as const };
 
   useEffect(() => {
     Animated.timing(progressAnim, { toValue: spentPct, duration: 800, useNativeDriver: false }).start();
   }, [spentPct, progressAnim]);
 
-  async function saveTotalBudget() {
-    if (!coupleId) return;
-    const num = parseInt(totalInput, 10);
-    if (isNaN(num) || num < 0) { Alert.alert("알림", "올바른 금액을 입력해주세요 (만원)"); return; }
-    const res = await apiFetch("/api/journey", {
-      method: "PATCH",
-      body: JSON.stringify({ total_budget: num * 10000 }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      Alert.alert("오류", err.error || "총 예산 저장에 실패했어요");
+  function closeEditorForMutation(token: BudgetMutationToken) {
+    if (token.kind === "total") {
+      totalEditBaseRef.current = null;
+      setEditingTotal(false);
+    }
+    if (token.kind === "category") {
+      categoryEditBaseRef.current = null;
+      setEditingKey(null);
+    }
+  }
+
+  async function reloadAfterConflict(
+    token: BudgetMutationToken,
+    reason: "active" | "stale" | "rejected",
+  ) {
+    if (!revisionCoordinator.isCurrent(token)) return;
+    closeEditorForMutation(token);
+    Alert.alert(
+      reason === "active"
+        ? "먼저 대기 중인 확인 요청이 있어요"
+        : reason === "rejected"
+          ? "이번 변경은 반영되지 않았어요"
+          : "예산 기록이 바뀌었어요",
+      reason === "active"
+        ? "파트너가 기존 요청을 확인하거나 보낸 사람이 철회한 뒤 다시 변경해 주세요. 최신 예산을 불러올게요."
+        : reason === "rejected"
+          ? "파트너가 동의하지 않았거나 요청이 이미 종료됐어요. 기존 예산을 유지하고 최신 내용을 불러올게요."
+          : "다른 기기나 파트너가 먼저 수정했을 수 있어요. 최신 예산을 불러온 뒤 다시 입력해 주세요.",
+    );
+    await loadData(token);
+  }
+
+  async function submitBudgetMutation(
+    token: BudgetMutationToken,
+    body: Record<string, unknown>,
+  ) {
+    if (!revisionCoordinator.isCurrent(token)) return;
+
+    const response = await apiFetchForExpectedUser(
+      token.ownerId,
+      "/api/journey",
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    if (!revisionCoordinator.isCurrent(token)) return;
+
+    if (!response.ok) {
+      const code = isRecord(payload) && typeof payload.code === "string"
+        ? payload.code
+        : null;
+      if (response.status === 409) {
+        let status: "stale" | "rejected" | null = null;
+        try {
+          const parsed = parseBudgetMutationResponse(
+            payload,
+            token.coupleId,
+            token.stateRevision,
+          );
+          status = parsed.status === "stale" || parsed.status === "rejected"
+            ? parsed.status
+            : null;
+        } catch {
+          // 활성 요청 오류는 request envelope가 아니므로 code로만 판별한다.
+        }
+        if (
+          status
+          || code === "PLAN_CHANGE_STALE"
+          || code === "PLAN_CHANGE_CONFLICT"
+          || code === "PLAN_CHANGE_REJECTED"
+          || code === "PLAN_CHANGE_ACTIVE_REQUEST"
+        ) {
+          await reloadAfterConflict(
+            token,
+            code === "PLAN_CHANGE_ACTIVE_REQUEST"
+              ? "active"
+              : status === "rejected" || code === "PLAN_CHANGE_REJECTED"
+                ? "rejected"
+                : "stale",
+          );
+          return;
+        }
+      }
+      throw new Error(
+        readSafeErrorMessage(payload)
+        ?? "예산 변경 요청을 안전하게 처리하지 못했어요.",
+      );
+    }
+
+    const outcome = parseBudgetMutationResponse(
+      payload,
+      token.coupleId,
+      token.stateRevision,
+    );
+    if (!revisionCoordinator.isCurrent(token)) return;
+
+    if (outcome.status === "pending_partner") {
+      const pending: PendingBudgetApproval = {
+        ownerId: token.ownerId,
+        coupleId: token.coupleId,
+        surface: "/budget",
+        requestId: outcome.requestId,
+        summary: outcome.summary,
+        expectedRevision: token.stateRevision,
+        verification: "pending",
+      };
+      pendingApprovalRef.current = pending;
+      setPendingApproval(pending);
+      closeEditorForMutation(token);
+      Alert.alert(
+        "파트너 확인을 요청했어요",
+        "아직 저장된 것은 아니에요. 파트너가 동의하면 예산에 반영돼요.",
+      );
       return;
     }
-    setEditingTotal(false);
-    loadData();
+
+    if (outcome.status === "stale" || outcome.status === "rejected") {
+      await reloadAfterConflict(token, outcome.status);
+      return;
+    }
+
+    if (!("journey" in outcome)) {
+      throw new Error("예산 변경 결과를 확인하지 못했어요.");
+    }
+    const committed = revisionCoordinator.commitApplied(token, outcome.journey);
+    if (!committed) throw new Error("예산 변경 결과의 revision을 확인하지 못했어요.");
+    commitSnapshotToView(committed);
+    closeEditorForMutation(token);
+    Alert.alert("예산을 반영했어요", "최신 예산 기록에 안전하게 저장했어요.");
+    await loadData(token);
+  }
+
+  async function saveTotalBudget() {
+    const token = revisionCoordinator.beginMutation("total");
+    if (!token) return;
+    setSavingTotal(true);
+    try {
+      if (!isBudgetEditBaseCurrent(totalEditBaseRef.current, token)) {
+        closeEditorForMutation(token);
+        Alert.alert(
+          "총 예산이 바뀌었어요",
+          "편집을 시작한 뒤 최신 기록이 달라졌어요. 새 값을 확인한 뒤 다시 입력해 주세요.",
+        );
+        await loadData(token);
+        return;
+      }
+      const body = buildTotalBudgetMutation(token, totalInput);
+      if (!revisionCoordinator.isCurrent(token)) return;
+      await submitBudgetMutation(token, body);
+    } catch (error) {
+      if (isSessionOwnerMismatch(error)) return;
+      if (!revisionCoordinator.isCurrent(token)) return;
+      const message = error instanceof Error && error.message === "INVALID_MANWON_AMOUNT"
+        ? "만원 단위 숫자를 정확히 입력해 주세요."
+        : mutationErrorMessage(error, "총 예산 변경 요청에 실패했어요.");
+      Alert.alert("총 예산을 반영하지 못했어요", message);
+    } finally {
+      if (revisionCoordinator.finishMutation(token)) setSavingTotal(false);
+    }
   }
 
   async function saveCategoryEdit() {
-    if (!coupleId || !editingKey) return;
+    if (!editingKey) return;
+    const categoryKey = editingKey;
+    const token = revisionCoordinator.beginMutation("category");
+    if (!token) return;
     setSaving(true);
     try {
-      const { data: journey } = await supabase.from("wedding_journeys").select("progress").eq("couple_id", coupleId).single();
-      const cur = { ...(journey?.progress as Record<string, ProgressItem>) ?? {} };
-      const ex = cur[editingKey] ?? {};
-      const sv = spentInput ? parseInt(spentInput, 10) * 10000 : undefined;
-      const bv = budgetInput ? parseInt(budgetInput, 10) * 10000 : undefined;
-      cur[editingKey] = { ...ex, category: editingKey, ...(sv !== undefined ? { spent: sv } : {}), ...(bv !== undefined ? { budget: bv } : {}), payer: payerInput };
-      const res = await apiFetch("/api/journey", {
-        method: "PATCH",
-        body: JSON.stringify({ progress_patch: { [editingKey]: cur[editingKey] } }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "저장에 실패했어요");
+      if (!isBudgetEditBaseCurrent(categoryEditBaseRef.current, token)) {
+        closeEditorForMutation(token);
+        Alert.alert(
+          "카테고리 예산이 바뀌었어요",
+          "편집을 시작한 뒤 최신 기록이 달라졌어요. 새 값을 확인한 뒤 다시 입력해 주세요.",
+        );
+        await loadData(token);
+        return;
       }
-      setEditingKey(null);
-      loadData();
-    } catch { Alert.alert("오류", "저장에 실패했어요"); }
-    finally { setSaving(false); }
+      const body = buildCategoryBudgetMutation(token, {
+        categoryKey,
+        budgetInput,
+        spentInput,
+        payer: payerInput,
+      });
+      if (!revisionCoordinator.isCurrent(token)) return;
+      await submitBudgetMutation(token, body);
+    } catch (error) {
+      if (isSessionOwnerMismatch(error)) return;
+      if (!revisionCoordinator.isCurrent(token)) return;
+      const message = error instanceof Error && error.message === "INVALID_MANWON_AMOUNT"
+        ? "예산과 기록 지출은 만원 단위 숫자로 정확히 입력해 주세요."
+        : mutationErrorMessage(error, "카테고리 예산 변경 요청에 실패했어요.");
+      Alert.alert("예산을 반영하지 못했어요", message);
+    } finally {
+      if (revisionCoordinator.finishMutation(token)) setSaving(false);
+    }
   }
 
   function openEdit(key: string) {
+    const identity = revisionCoordinator.captureIdentity();
+    if (!identity) return;
+    totalEditBaseRef.current = null;
+    setEditingTotal(false);
+    categoryEditBaseRef.current = {
+      ownerId: identity.ownerId,
+      coupleId: identity.coupleId,
+      stateRevision: identity.stateRevision,
+    };
     setBudgetInput(getCatBudget(key) > 0 ? String(Math.round(getCatBudget(key) / 10000)) : "");
     setSpentInput(getCatSpent(key) > 0 ? String(Math.round(getCatSpent(key) / 10000)) : "");
     setPayerInput(getCatPayer(key));
     setEditingKey(key);
   }
 
+  function openTotalEdit() {
+    const identity = revisionCoordinator.captureIdentity();
+    if (!identity) return;
+    totalEditBaseRef.current = {
+      ownerId: identity.ownerId,
+      coupleId: identity.coupleId,
+      stateRevision: identity.stateRevision,
+    };
+    setTotalInput(totalBudget > 0 ? String(Math.round(totalBudget / 10000)) : "");
+    setEditingTotal(true);
+  }
+
+  function closeTotalEditor() {
+    if (savingTotal) return;
+    totalEditBaseRef.current = null;
+    setEditingTotal(false);
+  }
+
+  function closeCategoryEditor() {
+    if (saving) return;
+    categoryEditBaseRef.current = null;
+    setEditingKey(null);
+  }
+
   function showHiddenCostAlert(key: string) {
     const data = HIDDEN_COSTS[key];
     if (!data) return;
-    const label = CATEGORY_RATIOS.find((c) => c.key === key)?.label ?? key;
+    const label = budgetCategories.find((category) => category.key === key)?.label ?? key;
     Alert.alert(
-      `⚠️ ${label} 포함·별도 항목 확인`,
+      `${label} 포함·별도 항목 확인`,
       `${data.warning}\n\n${data.guidance}`,
       [{ text: "확인" }],
     );
@@ -346,16 +852,73 @@ export default function BudgetScreen() {
     );
   }
 
+  if (loadError) {
+    return (
+      <SafeAreaView style={s.container}>
+        <ErrorRetry
+          message={loadError}
+          onRetry={() => {
+            setLoading(true);
+            void loadData();
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
         title="예산 관리"
-        subtitle="지출, 분담, 포함·별도 항목을 함께 봐요"
+        subtitle="기록 지출, 분담, 포함·별도 항목을 함께 봐요"
         onBack={() => router.back()}
       />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.rose[500]} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadData(); }} tintColor={colors.rose[500]} />}>
+
+        {pendingApproval && (
+          <Surface style={s.pendingApprovalCard}>
+            <View style={s.pendingApprovalHeader}>
+              <Text style={s.pendingApprovalTitle}>
+                {pendingApproval.verification === "pending"
+                  ? "파트너 확인 대기"
+                  : "승인 상태 확인 필요"}
+              </Text>
+              <StatusPill
+                label={pendingApproval.verification === "pending" ? "아직 미반영" : "재확인 필요"}
+                tone="warning"
+              />
+            </View>
+            <Text style={s.pendingApprovalSummary}>{pendingApproval.summary}</Text>
+            <Text style={s.pendingApprovalDescription}>
+              {pendingApproval.verification === "pending"
+                ? "파트너가 동의하기 전에는 예산에 저장되지 않아요. 승인함에서 요청 상태를 확인할 수 있어요."
+                : "요청 번호는 보관했지만 현재 상태를 다시 확인하지 못했어요. 화면을 새로고침하거나 승인함에서 확인해 주세요."}
+            </Text>
+            <Text style={s.pendingApprovalReference}>
+              요청 번호 {pendingApproval.requestId.slice(-8)}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                s.pendingApprovalRefresh,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={() => {
+                setRefreshing(true);
+                void loadData();
+              }}
+              disabled={refreshing}
+              accessibilityRole="button"
+              accessibilityLabel="예산 변경 승인 상태 다시 확인"
+              accessibilityState={{ disabled: refreshing, busy: refreshing }}
+            >
+              <Text style={s.pendingApprovalRefreshText}>
+                {refreshing ? "확인 중…" : "상태 다시 확인"}
+              </Text>
+            </Pressable>
+          </Surface>
+        )}
 
         {/* 총 예산 */}
         <View style={s.totalCard}>
@@ -365,13 +928,17 @@ export default function BudgetScreen() {
           </View>
           {editingTotal ? (
             <View style={s.editRow}>
-              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="number-pad" autoFocus placeholder="0" placeholderTextColor={colors.taupe[400]} />
+              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="number-pad" autoFocus editable={!savingTotal} maxLength={6} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
               <Text style={s.totalUnit}>만원</Text>
-              <Pressable onPress={saveTotalBudget}><Check size={22} color={colors.rose[500]} /></Pressable>
-              <Pressable onPress={() => setEditingTotal(false)}><X size={22} color={colors.taupe[400]} /></Pressable>
+              <Pressable onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 변경 요청" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
+                {savingTotal
+                  ? <ActivityIndicator size="small" color={colors.rose[500]} />
+                  : <Check size={22} color={colors.rose[500]} />}
+              </Pressable>
+              <Pressable onPress={closeTotalEditor} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 편집 취소"><X size={22} color={colors.taupe[400]} /></Pressable>
             </View>
           ) : (
-            <Pressable style={s.totalRow} onPress={() => { setTotalInput(totalBudget > 0 ? String(Math.round(totalBudget / 10000)) : ""); setEditingTotal(true); }}>
+            <Pressable style={s.totalRow} onPress={openTotalEdit}>
               <Text style={s.totalValue}>{totalBudget > 0 ? formatWon(totalBudget) : "설정해주세요"}</Text>
               <Edit3 size={16} color={colors.taupe[400]} />
             </Pressable>
@@ -382,7 +949,7 @@ export default function BudgetScreen() {
                 <Animated.View style={[s.progFill, { width: progressAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }), backgroundColor: remaining >= 0 ? colors.rose[500] : "#EF4444" }]} />
               </View>
               <View style={s.progLabels}>
-                <Text style={s.progLabel}>지출 {formatWon(totalSpent)}</Text>
+                <Text style={s.progLabel}>기록 지출 {formatWon(totalSpent)}</Text>
                 <Text style={[s.progLabel, remaining < 0 && { color: "#EF4444" }]}>잔여 {formatWon(Math.abs(remaining))}{remaining < 0 ? " 초과" : ""}</Text>
               </View>
             </View>
@@ -392,8 +959,8 @@ export default function BudgetScreen() {
         <Surface style={s.riskPanel}>
           <View style={s.riskHeader}>
             <View>
-              <Text style={s.riskEyebrow}>BUDGET RISK</Text>
-              <Text style={s.riskTitle}>지금 먼저 볼 돈 문제</Text>
+              <Text style={s.riskEyebrow}>입력값 확인</Text>
+              <Text style={s.riskTitle}>지금 확인할 예산 항목</Text>
             </View>
             <AlertTriangle
               size={18}
@@ -420,7 +987,7 @@ export default function BudgetScreen() {
                   <Text style={s.riskRowDetail}>{risk.detail}</Text>
                 </View>
                 <StatusPill
-                  label={risk.tone === "danger" ? "위험" : "점검"}
+                  label={risk.tone === "danger" ? "초과" : "확인"}
                   tone={risk.tone}
                 />
               </Pressable>
@@ -428,9 +995,9 @@ export default function BudgetScreen() {
           ) : (
             <View style={s.safeBudgetBox}>
               <Check size={18} color={colors.rose[500]} />
-              <Text style={s.safeBudgetTitle}>현재 큰 예산 위험은 없어요</Text>
+              <Text style={s.safeBudgetTitle}>입력한 금액에서 초과를 찾지 못했어요</Text>
               <Text style={s.safeBudgetText}>
-                계약 전에는 카테고리별 포함·별도 항목과 검수된 공시가를 한 번 더 확인해두세요.
+                아직 입력하지 않은 금액과 계약서에 적히지 않은 추가 비용은 이 결과에 포함되지 않아요.
               </Text>
             </View>
           )}
@@ -444,12 +1011,29 @@ export default function BudgetScreen() {
           </Pressable>
         </Surface>
 
+        {legacyReviewItems.length > 0 && (
+          <Surface style={s.legacyReviewCard}>
+            <Text style={s.legacyReviewTitle}>용도 미확인 이전 금액</Text>
+            <Text style={s.legacyReviewCopy}>
+              이전 버전 값은 배정 예산인지 실제 기록인지 확인할 수 없어 예산·기록 지출 합계에서 제외했어요.
+            </Text>
+            {legacyReviewItems.map((item) => (
+              <Text key={item.key} style={s.legacyReviewItem}>
+                {item.label} {item.amount === null ? "금액 형식 확인 필요" : formatWon(item.amount)}
+              </Text>
+            ))}
+          </Surface>
+        )}
+
         {/* 요약 */}
         <View style={s.sumRow}>
           <View style={s.sumCard}><Wallet size={16} color={colors.textTertiary} /><Text style={s.sumLabel}>배정</Text><Text style={s.sumVal}>{formatWon(allocatedBudget)}</Text></View>
-          <View style={s.sumCard}><TrendingDown size={16} color={colors.rose[500]} /><Text style={s.sumLabel}>지출</Text><Text style={[s.sumVal, { color: colors.rose[500] }]}>{formatWon(totalSpent)}</Text></View>
+          <View style={s.sumCard}><TrendingDown size={16} color={colors.rose[500]} /><Text style={s.sumLabel}>기록 지출</Text><Text style={[s.sumVal, { color: colors.rose[500] }]}>{formatWon(totalSpent)}</Text></View>
           <View style={s.sumCard}><TrendingUp size={16} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} /><Text style={s.sumLabel}>잔여</Text><Text style={[s.sumVal, remaining < 0 && { color: "#EF4444" }]}>{formatWon(Math.abs(remaining))}</Text></View>
         </View>
+        <Text style={s.budgetEvidenceNote}>
+          직접 입력하거나 계약 금액으로 확인된 예산만 합산해요. 기록 지출은 결제 완료 여부와 별도예요.
+        </Text>
 
         {/* 분담 현황 */}
         {totalSpent > 0 && (
@@ -461,7 +1045,6 @@ export default function BudgetScreen() {
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
                 return (
                   <View key={opt.value} style={s.payerCard}>
-                    <Text style={s.payerEmoji}>{opt.emoji}</Text>
                     <Text style={s.payerLabel}>{opt.label}</Text>
                     <Text style={s.payerAmount}>{formatWon(amount)}</Text>
                     {pct > 0 && <Text style={s.payerPct}>{pct}%</Text>}
@@ -473,7 +1056,7 @@ export default function BudgetScreen() {
         )}
 
         {/* 카테고리 목록 */}
-        {CATEGORY_RATIOS.map((cat) => {
+        {budgetCategories.map((cat) => {
           const b = getCatBudget(cat.key), sp = getCatSpent(cat.key), st = getCatStatus(cat.key);
           const pct = b > 0 ? Math.min(100, Math.round((sp / b) * 100)) : 0;
           const hasHidden = !!HIDDEN_COSTS[cat.key];
@@ -496,7 +1079,7 @@ export default function BudgetScreen() {
                 <View style={s.catHeadRight}>
                   {payerInfo && payerInfo.value !== "couple" && (
                     <View style={s.payerBadge}>
-                      <Text style={s.payerBadgeText}>{payerInfo.emoji} {payerInfo.label}</Text>
+                      <Text style={s.payerBadgeText}>{payerInfo.label}</Text>
                     </View>
                   )}
                   <View style={[s.badge, st === "완료" && s.badgeDone, st === "진행중" && s.badgeProg]}>
@@ -504,28 +1087,32 @@ export default function BudgetScreen() {
                   </View>
                 </View>
               </View>
-              <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b && b > 0 ? "#EF4444" : colors.rose[500] }]} /></View>
+              {b > 0 ? (
+                <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b ? "#EF4444" : colors.rose[500] }]} /></View>
+              ) : (
+                <Text style={s.categoryBudgetPending}>예산 입력 전</Text>
+              )}
               <View style={s.catFoot}>
-                <Text style={s.catSpent}>지출 {formatWon(sp)}</Text>
-                <Text style={s.catBudget}>/ {formatWon(b)}</Text>
-                <Text style={s.catPct}>{pct}%</Text>
+                <Text style={s.catSpent}>기록 지출 {formatWon(sp)}</Text>
+                <Text style={s.catBudget}>{b > 0 ? `/ 예산 ${formatWon(b)}` : "예산 미입력"}</Text>
+                {b > 0 && <Text style={s.catPct}>{pct}%</Text>}
               </View>
             </Pressable>
           );
         })}
-        <Text style={s.hint}>카테고리를 탭하면 예산/지출을 수정할 수 있어요</Text>
+        <Text style={s.hint}>카테고리를 탭하면 예산/기록 지출을 수정할 수 있어요</Text>
       </ScrollView>
 
       {/* 편집 모달 */}
-      <Modal visible={!!editingKey} animationType="slide" transparent onRequestClose={() => setEditingKey(null)}>
+      <Modal visible={!!editingKey} animationType="slide" transparent onRequestClose={closeCategoryEditor}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalOv}>
           <View style={s.modalCon}>
             <View style={s.modalHandle} />
-            <View style={s.modalHead}><Text style={s.modalTitle}>{CATEGORY_RATIOS.find((c) => c.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={() => setEditingKey(null)}><X size={24} color={colors.textTertiary} /></Pressable></View>
+            <View style={s.modalHead}><Text style={s.modalTitle}>{budgetCategories.find((category) => category.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={closeCategoryEditor} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 편집 닫기"><X size={24} color={colors.textTertiary} /></Pressable></View>
             <Text style={s.fLabel}>예산 (만원)</Text>
-            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
-            <Text style={s.fLabel}>지출 (만원)</Text>
-            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" editable={!saving} maxLength={6} accessibilityLabel="카테고리 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <Text style={s.fLabel}>기록 지출 (만원 · 결제 확인과 별도)</Text>
+            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="number-pad" editable={!saving} maxLength={6} accessibilityLabel="카테고리 기록 지출 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>분담</Text>
             <View style={s.payerRow}>
               {PAYER_OPTIONS.map((opt) => (
@@ -533,8 +1120,10 @@ export default function BudgetScreen() {
                   key={opt.value}
                   style={[s.payerOption, payerInput === opt.value && s.payerOptionActive]}
                   onPress={() => setPayerInput(opt.value)}
+                  disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: payerInput === opt.value, disabled: saving }}
                 >
-                  <Text style={s.payerOptionEmoji}>{opt.emoji}</Text>
                   <Text style={[s.payerOptionLabel, payerInput === opt.value && s.payerOptionLabelActive]}>{opt.label}</Text>
                 </Pressable>
               ))}
@@ -549,7 +1138,7 @@ export default function BudgetScreen() {
                 </View>
               </View>
             )}
-            <Pressable style={s.saveBtn} onPress={saveCategoryEdit} disabled={saving}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveTxt}>저장</Text>}</Pressable>
+            <Pressable style={s.saveBtn} onPress={saveCategoryEdit} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 변경 요청" accessibilityState={{ disabled: saving, busy: saving }}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveTxt}>변경 요청</Text>}</Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -560,6 +1149,14 @@ export default function BudgetScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 20, paddingBottom: 40 },
+  pendingApprovalCard: { marginBottom: 16, padding: 16, borderWidth: 1, borderColor: colors.gold.DEFAULT, backgroundColor: colors.ivory[100] },
+  pendingApprovalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  pendingApprovalTitle: { flex: 1, fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  pendingApprovalSummary: { marginTop: 10, fontSize: 13, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
+  pendingApprovalDescription: { marginTop: 6, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  pendingApprovalReference: { marginTop: 8, fontSize: 11, color: colors.textTertiary },
+  pendingApprovalRefresh: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.noir[800] },
+  pendingApprovalRefreshText: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
   totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
   totalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
   totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_400Regular", color: colors.taupe[400] },
@@ -573,6 +1170,10 @@ const s = StyleSheet.create({
   progFill: { height: "100%", borderRadius: 3 },
   progLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
   progLabel: { fontSize: 12, color: colors.taupe[400] },
+  legacyReviewCard: { marginBottom: 16, padding: 16, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: "#FFF9F2" },
+  legacyReviewTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  legacyReviewCopy: { marginTop: 6, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  legacyReviewItem: { marginTop: 6, fontSize: 12, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
   riskPanel: { paddingVertical: 18, marginBottom: 16 },
   riskHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   riskEyebrow: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.textTertiary, marginBottom: 2 },
@@ -595,6 +1196,7 @@ const s = StyleSheet.create({
   sumCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: "center", gap: 6 },
   sumLabel: { fontSize: 11, color: colors.textTertiary },
   sumVal: { fontSize: 15, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
+  budgetEvidenceNote: { marginTop: -10, marginBottom: 20, fontSize: 12, lineHeight: 18, color: colors.textTertiary, textAlign: "center" },
   catCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 10 },
   catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   catLabel: { fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
@@ -606,6 +1208,7 @@ const s = StyleSheet.create({
   badgeTextProg: { color: colors.gold.DEFAULT },
   catBar: { height: 4, backgroundColor: colors.ivory[200], borderRadius: 2, overflow: "hidden", marginBottom: 8 },
   catFill: { height: "100%", borderRadius: 2 },
+  categoryBudgetPending: { marginBottom: 8, fontSize: 12, color: colors.textTertiary },
   catFoot: { flexDirection: "row", alignItems: "center", gap: 4 },
   catSpent: { fontSize: 13, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
   catBudget: { fontSize: 12, color: colors.textTertiary, flex: 1 },

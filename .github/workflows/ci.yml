@@ -16,7 +16,9 @@ jobs:
   web_quality:
     name: Web Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The 5,070 tests across 529 files used almost the full former 30-minute
+    # job budget on ubuntu-latest, leaving no time for the production build.
+    timeout-minutes: 45
 
     env:
       # Placeholder values keep CI focused on static verification and build integrity.

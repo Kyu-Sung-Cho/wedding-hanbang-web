@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
+// 앱과 웹이 같은 판정을 쓰는지 확인하려면 테스트도 그 실물을 써야 한다.
+import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
 
 const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const cardPath = fileURLToPath(new URL("../components/chat/AmoraMediationCard.tsx", import.meta.url));
@@ -51,6 +53,7 @@ function loadAcceptanceClient(apiJson) {
   });
   return new Function(
     "apiJson",
+    "isRequesterSummaryMediationProvenance",
     `${compiled.outputText}\nreturn {
       getMediationAcceptance,
       acceptMediationResolution: typeof acceptMediationResolution === "function"
@@ -70,7 +73,7 @@ function loadAcceptanceClient(apiJson) {
         : undefined,
       normalizeMediationBlock,
     };`,
-  )(apiJson);
+  )(apiJson, isRequesterSummaryMediationProvenance);
 }
 
 test("opening a confirmable proposal loads the authenticated acceptance state", async () => {
@@ -137,6 +140,8 @@ test("untrusted mediation metadata is normalized before it can reach native text
     resolution: undefined,
     proposalVersion: undefined,
     rosterFingerprint: undefined,
+    // 표식이 없으면 출처를 주장하지 않는다 — 화면은 "요청자가 전한" 문구를 쓰지 못한다.
+    requesterSummaryOnly: false,
   });
   assert.equal(normalizeMediationBlock(null), null);
   assert.equal(normalizeMediationBlock([]), null);
@@ -157,6 +162,7 @@ test("native normalization preserves the exact server proposal revision", () => 
     resolution: "예산 상한선을 같이 확인해 봐요",
     proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
     rosterFingerprint: "0123456789abcdef0123456789abcdef",
+    requesterSummaryOnly: false,
   });
 });
 
@@ -350,10 +356,10 @@ test("the native confirmation surface distinguishes loading, failure, waiting, a
 
 test("the native mediation card describes an AI draft rather than a settled agreement", () => {
   for (const copy of [
-    "아모라의 대화 정리 초안",
-    "느껴진 감정",
-    "두 사람이 말한 내용",
-    "확인된 사실 · 아직 확인할 점",
+    "요청자 요약 기반 조율 초안",
+    "요청자가 전한 감정",
+    "요청자가 전한 상황",
+    "상대방에게 확인할 점",
     "같이 검토할 선택안",
     "파트너가 연결된 뒤 두 분이 각각 확인할 수 있어요",
     "두 분 모두 확인해야 공동 결정으로 저장돼요",
@@ -361,6 +367,57 @@ test("the native mediation card describes an AI draft rather than a settled agre
     assert.equal(cardSource.includes(copy), true, `missing non-final copy: ${copy}`);
   }
   assert.doesNotMatch(cardSource, /제안 합의안|이 제안을 합의로 남길까요|공동 합의로 기록/);
+});
+
+test("the native card never claims Amora heard both partners", () => {
+  // 카드에 담긴 말은 요청한 사람이 쓴 요약뿐이다. 상대의 메시지는 서버가 모델에
+  // 보내지도 않는다. 그런데도 "두 분의 대화를 정리했다"고 쓰면, 그 카드를 읽는
+  // 상대는 아모라가 양쪽 말을 듣고 저쪽 편을 들었다고 이해한다.
+  // 웹 카드는 같은 금지선을 MediationCardContract.test.ts에 걸어 두었는데
+  // 앱에는 없어서, 정작 주 제품인 앱만 잘못된 문구를 계속 내보내고 있었다.
+  for (const forbidden of ["두 사람이 말한 내용", "두 분의 대화"]) {
+    assert.equal(
+      cardSource.includes(forbidden),
+      false,
+      `native mediation card must not claim it heard both partners: ${forbidden}`,
+    );
+  }
+
+  // 출처 표식이 있을 때만 "요청자" 문구를 쓴다 — 모르면 아는 척하지 않는다.
+  assert.match(cardSource, /requesterSummaryOnly/);
+  assert.match(cardSource, /확인 출처가 없는 이전 조율 초안/);
+});
+
+test("the mediation block keeps the provenance marker the copy depends on", () => {
+  const { normalizeMediationBlock } = loadAcceptanceClient(async () => ({}));
+
+  const requesterSummary = normalizeMediationBlock({
+    empathy: "감정",
+    translation: "상황",
+    data: "확인할 점",
+    resolution: "선택안",
+    origin: "user_requested",
+    evidenceScope: "requester_summary_only",
+    schemaVersion: 2,
+  });
+  assert.equal(requesterSummary.requesterSummaryOnly, true);
+
+  // 표식이 하나라도 어긋나면 출처를 알 수 없는 것으로 본다.
+  const legacy = normalizeMediationBlock({
+    empathy: "감정",
+    translation: "상황",
+    origin: "user_requested",
+    evidenceScope: "requester_summary_only",
+    schemaVersion: 1,
+  });
+  assert.equal(legacy.requesterSummaryOnly, false);
+
+  // 표식만 있고 본문이 없으면 카드가 되지 않는다.
+  assert.equal(normalizeMediationBlock({
+    origin: "user_requested",
+    evidenceScope: "requester_summary_only",
+    schemaVersion: 2,
+  }), null);
 });
 
 test("a person waiting on their partner can refresh the joint acceptance state", () => {

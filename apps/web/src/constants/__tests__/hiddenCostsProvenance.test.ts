@@ -11,6 +11,8 @@ describe("contract-checklist provenance boundary", () => {
       expect(item).not.toHaveProperty("nationalPrice");
       expect(item).not.toHaveProperty("seoulPrice");
       expect(item).not.toHaveProperty("usageRate");
+      expect(item).not.toHaveProperty("disguise");
+      expect(item).not.toHaveProperty("reason");
     }
   });
 
@@ -22,5 +24,8 @@ describe("contract-checklist provenance boundary", () => {
     expect(source).not.toContain("usageRate");
     expect(source).not.toContain("estimatedHiddenCost");
     expect(source).not.toContain("estimatedTotal");
+    expect(source).not.toContain("대부분 추가");
+    expect(source).not.toContain("거의 필수");
+    expect(source).not.toContain("수요 급증");
   });
 });

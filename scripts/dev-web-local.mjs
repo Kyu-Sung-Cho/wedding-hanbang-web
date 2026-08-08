@@ -11,31 +11,18 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { SYNTHETIC_SUPABASE_ENVIRONMENT } from "./lib/synthetic-supabase-environment.mjs";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 
-const REF = "abcdefghijklmnopqrst";
-const URL_ = `https://${REF}.supabase.co`;
-
-const b64url = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
-// 서명이 없는 JWT다. fence는 헤더·role·ref·iss·exp만 본다(서명 검증은 하지 않는다).
-// 어차피 실제 프로젝트를 가리키지 않으므로 이 토큰으로는 아무것도 할 수 없다.
-const placeholderServiceKey = [
-  b64url({ alg: "HS256", typ: "JWT" }),
-  b64url({ role: "service_role", ref: REF, iss: "supabase", exp: 4102444800 }),
-  "local-dev-only-not-a-signature",
-].join(".");
-
+// 로컬 QA 빌드가 쓰는 것과 **같은** 합성 값이다. 따로 만들면 두 곳이 어긋나고,
+// 어긋난 쪽이 fence를 통과하는 순간 그 경로만 운영을 가리킬 수 있다.
 const child = spawn(process.execPath, [path.join(repoRoot, "scripts", "web-dev-safely.mjs")], {
   cwd: path.join(repoRoot, "apps", "web"),
   env: {
     ...process.env,
-    NEXT_PUBLIC_SUPABASE_URL: URL_,
-    SUPABASE_EXPECTED_URL: URL_,
-    SUPABASE_EXPECTED_PROJECT_REF: REF,
-    SUPABASE_PRODUCTION_PROJECT_REF: "zyxwvutsrqponmlkjihg",
-    SUPABASE_PRODUCTION_WRITE_CONFIRM: "",
-    SUPABASE_SERVICE_ROLE_KEY: placeholderServiceKey,
+    ...SYNTHETIC_SUPABASE_ENVIRONMENT,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   },
   stdio: "inherit",

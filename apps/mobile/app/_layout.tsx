@@ -93,6 +93,21 @@ function RootLayout() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    let dispose: () => void = () => undefined;
+    void import("@/lib/notifications")
+      .then(({ initCommunityPushNotificationNavigation }) => {
+        if (!active) return;
+        dispose = initCommunityPushNotificationNavigation();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      dispose();
+    };
+  }, []);
+
+  useEffect(() => {
     registerSentryNavigationContainer(navigationContainerRef);
   }, [navigationContainerRef]);
 
@@ -125,6 +140,7 @@ function RootLayout() {
             <Stack.Screen name="vendors" options={{ headerShown: false }} />
             <Stack.Screen name="settings" options={{ headerShown: false }} />
             <Stack.Screen name="market-prices" options={{ headerShown: false }} />
+            <Stack.Screen name="quote-check" options={{ headerShown: false }} />
             <Stack.Screen name="webview" options={{ headerShown: false }} />
             <Stack.Screen name="community" options={{ headerShown: false }} />
           </Stack>

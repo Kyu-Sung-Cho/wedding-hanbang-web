@@ -1,9 +1,13 @@
 # 웨딩한방
 
-웨딩한방은 한국 예비부부가 일정, 예산, 업체, 커뮤니티 정보와 커플 의사결정을
-한곳에서 관리하도록 돕는 웹·모바일 서비스입니다. 아모라는 OpenAI 기반의 결혼
-준비 동반자이며, 사용자의 승인 없이 일정·예산을 바꾸거나 검증되지 않은 업체
-정보를 확정 사실처럼 말하지 않는 것을 제품 원칙으로 둡니다.
+**웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는
+서비스입니다.**
+
+현재 MVP는 모바일 앱의 아모라 핵심 흐름에 집중합니다. 웹은 유입·설명·정책·고객지원과
+데스크톱 연속성을 담당하고, 커뮤니티는 실제 경험을 찾고 질문하는 보조 축입니다.
+업체·예약·축의금 기능은 저장소에 남아 있어도 현재 MVP의 전면 제품으로 소개하지
+않습니다. 아모라는 사용자의 승인 없이 일정·예산을 바꾸거나 검증되지 않은 업체 정보를
+확정 사실처럼 말하지 않습니다.
 
 ## 저장소 구조
 
@@ -18,10 +22,38 @@
 
 ## 현재 기준 문서
 
+- 새 컴퓨터·새 LLM의 모델 중립 진입점: `START_HERE.md`
+- 현재 모바일 우선 MVP 제품 계약: `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+- 현재 아모라 개인정보·보안 진행과 production 판정(**구현 미완료 / NO-GO**):
+  `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+- 아모라 개인정보 경계 목표 아키텍처(**TARGET ARCHITECTURE / 구현 완료 증거 아님**):
+  `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
+- 현재 전체 작업 트리·릴리스 인계:
+  `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+- 다른 컴퓨터에서 clone·환경 복원·웹/모바일 연결을 재개하는 환경 복원 상세 보조 인계:
+  `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+- 2026-08-02 커뮤니티 설계·후속 전체 구현 상세 보충 인계:
+  `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+- 현재 아모라 대화·privacy·retry·기억·위기 안전 기반:
+  `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
+- 현재 아모라 W0~W5 통합 케어 제품 계약:
+  `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
+- 성별 역할을 강제하지 않는 커플 member 전환안(**PLAN, 아직 미구현·미배포**):
+  `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
+- 선택적 Lazyweb MCP 디자인 조사와 새 컴퓨터 재설치 런북:
+  `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
+- 현재 Supabase successor release controller:
+  `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
+- 현재 커뮤니티 production release gate:
+  `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
 - 제품·디자인: `DESIGN.md`
 - 아모라 V2: `docs/AMORA_ENGINE_V2_2026-07-16.md`
-- 현재 운영 릴리스: `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
-- 다른 컴퓨터 인수인계: `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
+- 과거 CTO 인수인계와 2026-07-30 당시 미완료 운영 게이트:
+  `docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md`
+- 과거 아모라 운영 릴리스 계획:
+  `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
+- 과거 업체 공시 작업 인계:
+  `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
 - 업체 공시 실행 기준: `scripts/ingest/README.md`
 - 업체 공시 적재·속성·아모라 추천 V2: `docs/operations/VENDOR_DISCLOSURE_PIPELINE_V2_2026-07-18.md`
 - 업체 공시 전수 감사: `docs/operations/VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`

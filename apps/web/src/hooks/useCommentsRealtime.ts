@@ -30,14 +30,24 @@ export function useCommentsRealtime(postId: string | null) {
 
           // author 프로필 조회
           const { data: profile } = await supabase
-            .from("community_profiles")
-            .select("user_id, nickname, rank, avatar_url, wedding_year, wedding_month")
+            .from("community_public_profiles")
+            .select("user_id, nickname, rank, avatar_url")
             .eq("user_id", newComment.author_id)
             .maybeSingle();
 
+          const publicProfile = profile
+            ? { ...profile, wedding_year: null, wedding_month: null }
+            : null;
+
           const commentWithAuthor = {
             ...newComment,
-            author: profile ?? { nickname: "익명", rank: "sprout", avatar_url: null },
+            author: publicProfile ?? {
+              nickname: "익명",
+              rank: "sprout",
+              avatar_url: null,
+              wedding_year: null,
+              wedding_month: null,
+            },
             user_vote: null,
             replies: [],
           };

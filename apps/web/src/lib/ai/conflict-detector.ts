@@ -22,6 +22,12 @@ import { AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL } from "@/lib/ai/amoraRequestP
 import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
 import { AmoraCostGuardError } from "@/lib/ai/costGuard";
 import type { AmoraConflictDetectionCheckpoint } from "@/lib/ai/amoraConflictCheckClaim";
+import {
+  looksLikeThirdPartyNarrative,
+  normalizeConflictText as normalize,
+} from "@/lib/ai/conflictSafety";
+
+export { looksLikeThirdPartyNarrative } from "@/lib/ai/conflictSafety";
 
 const MAX_LLM_MESSAGE_CHARS = 800;
 const MAX_LLM_INPUT_CHARS = 8_000;
@@ -70,19 +76,6 @@ export type ConflictVerificationProviderRunner = (
     beforeGeneration: () => Promise<void>,
   ) => Promise<ConflictVerificationProviderResult>,
 ) => Promise<ConflictVerificationProviderResult>;
-
-// ──────────────────────────────────────────────────────────────
-// 정규화 — 공백·문장부호·반복문자 처리
-// ──────────────────────────────────────────────────────────────
-
-/** "안 돼!!" / "안돼" / "안되" 같은 변이를 동일 키워드로 만듦. 매칭 전에 적용. */
-function normalize(text: string): string {
-  return text
-    .replace(/\s+/g, "") // 공백 제거
-    .replace(/[?!.,~^_\-:;'"`*]/g, "") // 흔한 문장부호 제거
-    .replace(/(.)\1{2,}/g, "$1$1") // "안돼돼돼돼" → "안돼돼"
-    .toLowerCase();
-}
 
 // ──────────────────────────────────────────────────────────────
 // 패턴 라이브러리 — 정규화된 텍스트에 substring 매칭
@@ -151,34 +144,6 @@ const PASSIVE_AGGRESSIVE_HINTS = [
   "됐어", "됐다", "관둬", "포기할게", "포기해야겠",
   "솔직히짜증", "솔직히답답",
 ];
-
-// ──────────────────────────────────────────────────────────────
-// 회상 필터 — 시점/제3자 키워드 + 갈등 키워드 = 회상 모드 → 트리거 X
-// ──────────────────────────────────────────────────────────────
-
-const RECALL_TIME_KEYWORDS = [
-  "오늘", "어제", "그제", "엊그제", "지난주", "지난번",
-  "예전에", "전에", "옛날에", "그때", "저번에",
-];
-
-const RECALL_THIRD_PARTY = [
-  "엄마가", "아빠가", "아버지가", "어머니가",
-  "시어머니", "시아버지", "친정", "시댁",
-  "친구가", "동료가", "회사에서", "상사가",
-  "걔가", "쟤가", "그애가", "그분이",
-];
-
-function looksLikeRecall(rawMsg: string, normalizedMsg: string): boolean {
-  const hasTimeKeyword = RECALL_TIME_KEYWORDS.some((kw) =>
-    rawMsg.includes(kw) || normalizedMsg.includes(normalize(kw))
-  );
-  const hasThirdParty = RECALL_THIRD_PARTY.some((kw) =>
-    rawMsg.includes(kw) || normalizedMsg.includes(normalize(kw))
-  );
-  // 시점 키워드만 있고 제3자 없으면 모호 (둘 사이 일도 회상 가능) — false 처리
-  // 시점 + 제3자 동시면 회상 모드 확실
-  return hasTimeKeyword && hasThirdParty;
-}
 
 // ──────────────────────────────────────────────────────────────
 // 농담 필터 — ㅋㅋ ㅎㅎ 빈도 ≥ N 이면 농담 맥락으로 점수 감산
@@ -267,7 +232,7 @@ interface HeuristicResult {
   hitCategories: Set<string>;
   conflictMessageCount: number;
   conflictMessages: string[];
-  senderDiversity: number;
+  conflictSenderRoles: Set<"bride" | "groom">;
   notes: string[];
 }
 
@@ -278,13 +243,14 @@ function runHeuristics(
   const notes: string[] = [];
   let score = 0;
   const hitCategories = new Set<string>();
-  const senderHits: Record<string, number> = {};
+  const conflictSenderRoles = new Set<"bride" | "groom">();
   let conflictMessageCount = 0;
   const conflictMessages: string[] = [];
   let jokingMsgs = 0;
-  let recallMsgs = 0;
+  let thirdPartyMsgs = 0;
 
   for (const msg of coupleMessages) {
+    if (msg.senderRole !== "bride" && msg.senderRole !== "groom") continue;
     const raw = msg.content;
     const norm = normalize(raw);
     let msgScore = 0;
@@ -311,9 +277,9 @@ function runHeuristics(
 
     if (msgScore === 0) continue;
 
-    // 회상 모드 필터 — 점수 무효화
-    if (looksLikeRecall(raw, norm)) {
-      recallMsgs++;
+    // 제3자 서술 필터 — 시점 표현이 없어도 점수 무효화
+    if (looksLikeThirdPartyNarrative(raw, norm)) {
+      thirdPartyMsgs++;
       continue;
     }
 
@@ -327,17 +293,20 @@ function runHeuristics(
     for (const c of msgCategories) hitCategories.add(c);
     conflictMessageCount++;
     conflictMessages.push(raw.slice(0, 60));
-
-    const role = msg.senderRole ?? "unknown";
-    senderHits[role] = (senderHits[role] ?? 0) + 1;
+    // "응 그래", "됐어" 같은 수동공격 힌트만으로는 그 사람이 갈등에
+    // 참여했다고 단정하지 않는다. 최소 하나의 실질 카테고리가 필요하다.
+    if ([...msgCategories].some((category) => category !== "passive")) {
+      conflictSenderRoles.add(msg.senderRole);
+    }
   }
 
-  const senderDiversity = Object.keys(senderHits).length;
-
-  // 양쪽 발화자 → 1.5×
-  if (senderDiversity >= 2) {
+  // 양쪽 모두의 갈등 신호가 있을 때만 가중한다.
+  if (
+    conflictSenderRoles.has("bride")
+    && conflictSenderRoles.has("groom")
+  ) {
     score *= 1.5;
-    notes.push("양쪽 발화 ×1.5");
+    notes.push("양쪽 갈등 발화 ×1.5");
   }
 
   // 턴 패턴 보너스
@@ -352,7 +321,7 @@ function runHeuristics(
     notes.push(`재발 패턴 +${pastBonus}`);
   }
 
-  if (recallMsgs > 0) notes.push(`회상 제외 ${recallMsgs}개`);
+  if (thirdPartyMsgs > 0) notes.push(`제3자 서술 제외 ${thirdPartyMsgs}개`);
   if (jokingMsgs > 0) notes.push(`농담 ½ ${jokingMsgs}개`);
 
   return {
@@ -360,7 +329,7 @@ function runHeuristics(
     hitCategories,
     conflictMessageCount,
     conflictMessages,
-    senderDiversity,
+    conflictSenderRoles,
     notes,
   };
 }
@@ -403,6 +372,8 @@ export function validateConflictVerification(value: unknown): ConflictVerificati
 async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
   options: {
+    /** Required gate ahead of every provider request, token counting included. */
+    beforeProviderEgress: () => void | Promise<void>;
     reserveProviderTurn?: () => Promise<boolean>;
     runProviderCall?: ConflictVerificationProviderRunner;
   },
@@ -447,6 +418,9 @@ async function verifyWithLLM(
       modelRole: "fast",
       maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 100,
+      // 갈등 판정 입력은 두 사람의 대화 원문이다. 토큰 계산 요청에도 그대로
+      // 실리므로 유료 생성 게이트보다 앞선 gate가 따로 필요하다.
+      beforeProviderEgress: options.beforeProviderEgress,
       beforeGeneration,
       auditPersistence: options.runProviderCall
         ? "external_provider_receipt"
@@ -523,6 +497,11 @@ export async function detectCoupleConflict(params: {
   pastConflicts: PastConflictSummary[];
   /** 최대 윈도우 (분) — 이 시간 이전 메시지는 무시. 기본 5분 */
   windowMinutes?: number;
+  /**
+   * Required privacy/kill-switch gate that runs before ANY content-bearing
+   * provider request for this detection, token counting included.
+   */
+  beforeProviderEgress: () => void | Promise<void>;
   /** 첫 provider 호출 직전 한 번만 실행되고 이후 호출에서 재사용되는 원자 예약. */
   reserveProviderTurn?: () => Promise<boolean>;
   /** Durable per-provider receipt wrapper used by production callers. */
@@ -534,7 +513,7 @@ export async function detectCoupleConflict(params: {
   // 윈도우 안 + user 발화만 (AI 메시지 제외)
   const coupleMessages = params.recentSharedMessages.filter(
     (m) =>
-      m.senderRole !== "ai" &&
+      (m.senderRole === "bride" || m.senderRole === "groom") &&
       new Date(m.createdAt).getTime() >= cutoff,
   );
 
@@ -548,10 +527,35 @@ export async function detectCoupleConflict(params: {
     };
   }
 
+  const speakingRoles = new Set(coupleMessages.map((message) => message.senderRole));
+  if (!speakingRoles.has("bride") || !speakingRoles.has("groom")) {
+    return {
+      triggered: false,
+      score: 0,
+      reason: "양측 발화 부족 — 신부와 신랑의 최근 발화가 모두 필요",
+      conflictContext: "",
+      llmVerified: false,
+    };
+  }
+
   const h = runHeuristics(coupleMessages, params.pastConflicts);
 
   // 최소 2개 메시지 + 다중 카테고리 또는 fight hit 게이트
   const multiCategoryOk = h.hitCategories.size >= 2 || h.hitCategories.has("fight");
+  const bothSidesHaveConflictEvidence =
+    h.conflictSenderRoles.has("bride")
+    && h.conflictSenderRoles.has("groom");
+
+  // 한 사람의 강한 표현과 상대방의 중립적 답변만으로 자동 중재하지 않는다.
+  if (!bothSidesHaveConflictEvidence) {
+    return {
+      triggered: false,
+      score: h.score,
+      reason: `양측 갈등 발화 부족 — 갈등 신호 발화자 ${h.conflictSenderRoles.size}/2, ${h.notes.join(", ")}`,
+      conflictContext: h.conflictMessages.join(" / "),
+      llmVerified: false,
+    };
+  }
 
   // 점수 너무 낮으면 즉시 거절
   if (h.score < HARD_REJECT_SCORE || h.conflictMessageCount < 2 || !multiCategoryOk) {
@@ -595,6 +599,7 @@ export async function detectCoupleConflict(params: {
         })
     : undefined;
   const llm = await verifyWithLLM(coupleMessages, {
+    beforeProviderEgress: params.beforeProviderEgress,
     reserveProviderTurn: params.reserveProviderTurn,
     runProviderCall,
   }, {

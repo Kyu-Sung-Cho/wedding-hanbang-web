@@ -28,7 +28,7 @@ export default async function AboutPage() {
           <p className="text-[11px] tracking-[0.3em] text-rose-500 mb-5 font-medium">
             이 브랜드의 이야기
           </p>
-          <h1 className="font-serif-kr text-[clamp(36px,5vw,64px)] font-light text-noir-800 leading-[1.15] tracking-[-0.015em] max-w-3xl">
+          <h1 className="font-serif-kr text-[clamp(36px,5vw,64px)] font-light text-noir-800 leading-[1.15] tracking-normal max-w-3xl">
             우리가 믿는
             <br />
             <em className="not-italic text-rose-500">결혼 준비의 원칙.</em>

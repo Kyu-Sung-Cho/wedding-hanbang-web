@@ -8,7 +8,7 @@ const makeItems = (ids: string[], doneStates: boolean[]): ChecklistItem[] =>
 const template: ChecklistItem[] = makeItems(["a", "b", "c", "d"], [false, false, false, false]);
 
 describe("mergeChecklist", () => {
-  describe("no saved data — status-based initialization", () => {
+  describe("no saved item-level data", () => {
     it("returns all false when status is not_started", () => {
       const result = mergeChecklist(template, undefined, "not_started");
       expect(result.every((i) => !i.done)).toBe(true);
@@ -19,21 +19,14 @@ describe("mergeChecklist", () => {
       expect(result.every((i) => !i.done)).toBe(true);
     });
 
-    it("returns all true when status is completed", () => {
+    it("does not invent completed items from a category-level completed status", () => {
       const result = mergeChecklist(template, undefined, "completed");
-      expect(result.every((i) => i.done)).toBe(true);
+      expect(result.every((i) => !i.done)).toBe(true);
     });
 
-    it("marks first half done when status is in_progress", () => {
+    it("does not invent completed items from a category-level in-progress status", () => {
       const result = mergeChecklist(template, undefined, "in_progress");
-      const doneCount = result.filter((i) => i.done).length;
-      expect(doneCount).toBe(Math.ceil(template.length / 2));
-    });
-
-    it("in_progress with odd-length template marks ceil(n/2) done", () => {
-      const odd = makeItems(["a", "b", "c"], [false, false, false]);
-      const result = mergeChecklist(odd, undefined, "in_progress");
-      expect(result.filter((i) => i.done).length).toBe(2); // ceil(3/2)=2
+      expect(result.every((i) => !i.done)).toBe(true);
     });
 
     it("returns all false when no status provided", () => {

@@ -7,6 +7,9 @@ import { GET, PATCH } from "../route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimit: vi.fn(() => null),
   rateLimitKey: vi.fn(() => "settings-test"),
@@ -234,6 +237,26 @@ describe("/api/settings/wedding-profile", () => {
       code: "SETTINGS_CHANGED",
       error: expect.stringContaining("다시 불러"),
     });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed with a clear partner-approval response on legacy linked edits", async () => {
+    const rpc = mockAdmin({
+      data: null,
+      error: { message: "COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED" },
+    });
+
+    const response = await PATCH(patchRequest(validPatch()));
+
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.code).toBe("PLAN_CHANGE_REQUEST_REQUIRED");
+    // 사람이 실제로 갈 수 있는 곳을 가리켜야 한다.
+    expect(body.error).toContain("예산 화면");
+    // 예전 문구는 두 가지를 틀리게 말했다 — 파트너가 없는 사람에게도 "파트너 확인이
+    // 필요해요"라고 했고, 앱에도 있는 화면을 두고 "웹의"라고 했다.
+    expect(body.error).not.toContain("웹의");
+    expect(body.error).not.toMatch(/파트너 확인이 필요/u);
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 

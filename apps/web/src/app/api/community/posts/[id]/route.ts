@@ -2,9 +2,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
+import { getCommunityPollActorProjection } from "@/lib/community/pollProjection";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import {
+  findObviousPublicPersonalInfo,
+  PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+} from "@/lib/community/publicPersonalInfo";
 import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
@@ -12,10 +19,155 @@ import {
   validateRetainedCommunityImageUrl,
   validateRetainedCommunityVideoUrl,
 } from "@/lib/community/mediaUrls";
+import {
+  COMMUNITY_MEDIA_DISABLED_CODE,
+  isCommunityMediaPatchAllowedWhileDisabled,
+  isCommunityMediaPublishingEnabled,
+} from "@/lib/community/mediaPublishingGate";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
+import { isRecord, isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
+import type {
+  AdDisclosure,
+  PollWithOptions,
+  PostVisibility,
+  PriceData,
+  UpdatePostInput,
+} from "@/types/community.types";
 
 const VALID_POST_VISIBILITIES: PostVisibility[] = ["public", "members", "draft"];
+const MAX_POST_PATCH_BODY_BYTES = 512 * 1024;
+const POST_PATCH_FIELDS = new Set([
+  "title",
+  "content",
+  "images",
+  "slides",
+  "visibility",
+  "vendor_tags",
+  "tags",
+  "ad_disclosure",
+  "sponsorship_detail",
+  "price_data",
+  "is_resolved",
+  "cost_data",
+]);
+const SLIDE_FIELDS = new Set(["type", "url", "width", "height", "thumbnail_url"]);
+const PRICE_FIELDS = new Set([
+  "vendor_category",
+  "base_price",
+  "extra_price",
+  "vendor_name",
+  "region",
+  "details",
+]);
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function isOptionalFiniteNumber(value: unknown): boolean {
+  return value === undefined || (typeof value === "number" && Number.isFinite(value));
+}
+
+function isValidPostPatchBody(body: Record<string, unknown>): boolean {
+  if (Object.keys(body).some((field) => !POST_PATCH_FIELDS.has(field))) return false;
+  if (!isOptionalString(body.title) || !isOptionalString(body.content)) return false;
+  if (!isOptionalString(body.visibility) || !isOptionalString(body.ad_disclosure)) return false;
+  if (
+    body.sponsorship_detail !== undefined
+    && body.sponsorship_detail !== null
+    && typeof body.sponsorship_detail !== "string"
+  ) return false;
+  if (
+    body.is_resolved !== undefined
+    && typeof body.is_resolved !== "boolean"
+  ) return false;
+
+  for (const field of ["images", "vendor_tags", "tags"] as const) {
+    const value = body[field];
+    if (
+      value !== undefined
+      && (!Array.isArray(value) || value.some((item) => typeof item !== "string"))
+    ) return false;
+  }
+
+  if (body.slides !== undefined && body.slides !== null) {
+    if (!Array.isArray(body.slides)) return false;
+    for (const slide of body.slides) {
+      if (
+        !isRecord(slide)
+        || Object.keys(slide).some((field) => !SLIDE_FIELDS.has(field))
+        || (slide.type !== "image" && slide.type !== "video")
+        || typeof slide.url !== "string"
+        || !isOptionalFiniteNumber(slide.width)
+        || !isOptionalFiniteNumber(slide.height)
+        || !isOptionalString(slide.thumbnail_url)
+      ) return false;
+    }
+  }
+
+  if (body.price_data !== undefined && body.price_data !== null) {
+    const price = body.price_data;
+    if (
+      !isRecord(price)
+      || Object.keys(price).some((field) => !PRICE_FIELDS.has(field))
+      || typeof price.vendor_category !== "string"
+      || typeof price.base_price !== "number"
+      || !Number.isFinite(price.base_price)
+      || !isOptionalFiniteNumber(price.extra_price)
+      || !isOptionalString(price.vendor_name)
+      || !isOptionalString(price.region)
+      || !isOptionalString(price.details)
+    ) return false;
+  }
+
+  if (
+    body.cost_data !== undefined
+    && body.cost_data !== null
+    && !isRecord(body.cost_data)
+  ) return false;
+
+  return true;
+}
+
+function logContentFreeFailure(
+  scope: string,
+  category: "database" | "cache" | "unexpected",
+  sourceCode: unknown,
+) {
+  const code =
+    typeof sourceCode === "string" && /^[A-Z0-9_]{1,64}$/u.test(sourceCode)
+      ? sourceCode
+      : "UNCLASSIFIED";
+  console.error(scope, { category, code });
+}
+const PRIVATE_DETAIL_NO_STORE = "private, no-store, max-age=0";
+const VIEWER_VARY = "Authorization, Cookie";
+
+type AtomicPostDeleteResult = {
+  actor_id: string;
+  post_id: string;
+  deleted: boolean;
+  post_count: number;
+};
+
+function isAtomicPostDeleteResult(
+  value: unknown,
+  actorId: string,
+  postId: string,
+): value is AtomicPostDeleteResult {
+  return (
+    isRecord(value)
+    && isUuid(value.actor_id)
+    && value.actor_id === actorId
+    && isUuid(value.post_id)
+    && value.post_id === postId
+    && value.deleted === true
+    && typeof value.post_count === "number"
+    && Number.isSafeInteger(value.post_count)
+    && value.post_count >= 0
+    && !Object.hasOwn(value, "replayed")
+  );
+}
 
 function getServiceClient() {
   return createAdminClient();
@@ -25,6 +177,22 @@ function invalidCommunityMediaResponse() {
   return NextResponse.json(
     { error: "커뮤니티 업로드로 등록된 이미지만 첨부할 수 있습니다." },
     { status: 400 }
+  );
+}
+
+function communityMediaPublishingDisabledResponse() {
+  return NextResponse.json(
+    {
+      error: "통제 베타에서는 새 이미지 발행이나 기존 이미지 변경을 아직 사용할 수 없어요.",
+      code: COMMUNITY_MEDIA_DISABLED_CODE,
+    },
+    {
+      status: 503,
+      headers: {
+        "Cache-Control": "no-store",
+        "Retry-After": "3600",
+      },
+    },
   );
 }
 
@@ -38,7 +206,7 @@ async function isAdmin(userId: string): Promise<boolean> {
 }
 
 // 게시글 상세 조회
-export async function GET(
+async function getPostResponse(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -48,7 +216,15 @@ export async function GET(
 
     const {
       data: { user },
+      error: viewerError,
     } = await supabase.auth.getUser();
+
+    if (viewerError) {
+      return NextResponse.json(
+        { error: "게시글 접근 권한을 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
 
     // 게시글 + 작성자 정보 조회
     const { data: post, error } = await supabase
@@ -81,6 +257,28 @@ export async function GET(
     }
 
     // 벤더 태그 상세 정보
+    if (user && post.author_id !== user.id) {
+      const { data: viewerCanSee, error: viewerControlError } = await getServiceClient().rpc(
+        "community_viewer_can_see" as never,
+        {
+          p_viewer_user_id: user.id,
+          p_other_user_id: post.author_id,
+        } as never,
+      ) as { data: unknown; error: unknown };
+      if (viewerControlError || typeof viewerCanSee !== "boolean") {
+        return NextResponse.json(
+          { error: "게시글 접근 권한을 확인하지 못했습니다." },
+          { status: 503 },
+        );
+      }
+      if (!viewerCanSee) {
+        return NextResponse.json(
+          { error: "게시글을 찾을 수 없습니다." },
+          { status: 404 },
+        );
+      }
+    }
+
     let vendorDetails: Array<{
       id: string;
       business_name: string;
@@ -133,43 +331,19 @@ export async function GET(
 
     // 폴 + 옵션 + 사용자 투표 상태
     let pollData: PollWithOptions | null = null;
-    const { data: pollRow } = await supabase
+    const { data: pollRow, error: pollError } = await supabase
       .from("community_polls")
-      .select("*")
+      .select("id, post_id")
       .eq("post_id", id)
       .maybeSingle();
 
+    if (pollError) throw pollError;
     if (pollRow) {
-      const { data: optionRows } = await supabase
-        .from("community_poll_options")
-        .select("*")
-        .eq("poll_id", pollRow.id)
-        .order("position", { ascending: true });
-
-      let votedOptionIds: string[] = [];
-      if (user) {
-        const { data: voteRows } = await supabase
-          .from("community_poll_votes")
-          .select("option_id")
-          .eq("poll_id", pollRow.id)
-          .eq("user_id", user.id);
-        votedOptionIds = (voteRows ?? []).map((v: { option_id: string }) => v.option_id);
-      }
-
-      pollData = {
-        id: pollRow.id,
-        post_id: pollRow.post_id,
-        question: pollRow.question,
-        allow_multiple: pollRow.allow_multiple,
-        is_anonymous: pollRow.is_anonymous,
-        hide_results_until_voted: pollRow.hide_results_until_voted,
-        closes_at: pollRow.closes_at,
-        total_voters: pollRow.total_voters,
-        total_votes: pollRow.total_votes,
-        created_at: pollRow.created_at,
-        options: optionRows ?? [],
-        user_voted_option_ids: votedOptionIds,
-      };
+      pollData = await getCommunityPollActorProjection(
+        getServiceClient(),
+        user?.id ?? null,
+        pollRow.id,
+      );
     }
 
     return NextResponse.json({
@@ -180,8 +354,12 @@ export async function GET(
       user_bookmarked: userBookmarked,
       poll: pollData,
     });
-  } catch (err) {
-    console.error("Get post detail error:", err);
+  } catch {
+    logContentFreeFailure(
+      "[community.posts.get]",
+      "unexpected",
+      "UNHANDLED_EXCEPTION",
+    );
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -189,11 +367,27 @@ export async function GET(
   }
 }
 
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  const response = await getPostResponse(req, context);
+  response.headers.set("Cache-Control", PRIVATE_DETAIL_NO_STORE);
+  response.headers.set("Vary", VIEWER_VARY);
+  return response;
+}
+
 // 게시글 수정 (작성자만)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
@@ -208,13 +402,23 @@ export async function PATCH(
       );
     }
 
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status },
+      );
+    }
+
     const userIsAdmin = await isAdmin(user.id);
     const readClient = userIsAdmin ? getServiceClient() : supabase;
 
     // 작성자 확인. 관리자는 전체 커뮤니티 관리 권한으로 service role 조회를 사용한다.
     const { data: existingPost } = await readClient
       .from("community_posts")
-      .select("author_id, slides, images")
+      .select(
+        "author_id, slides, images, visibility, title, content, tags, cost_data, price_data, ad_disclosure, sponsorship_detail"
+      )
       .eq("id", id)
       .maybeSingle();
 
@@ -225,16 +429,72 @@ export async function PATCH(
       );
     }
 
-    if (existingPost.author_id !== user.id && !userIsAdmin) {
+    if (existingPost.author_id !== user.id && userIsAdmin) {
+      return NextResponse.json(
+        {
+          error: "관리자 운영 조치는 감사 기록이 남는 moderation 경로를 사용해 주세요.",
+          code: "COMMUNITY_ADMIN_EDIT_REQUIRES_AUDITED_ACTION",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    if (existingPost.author_id !== user.id) {
       return NextResponse.json(
         { error: "수정 권한이 없습니다." },
         { status: 403 }
       );
     }
 
-    const mediaOwnerIds = userIsAdmin ? [existingPost.author_id, user.id] : existingPost.author_id;
-    const body: UpdatePostInput = await req.json();
+    const mediaOwnerIds = existingPost.author_id;
+    const bodyResult = await readBoundedUtf8Text(req, MAX_POST_PATCH_BODY_BYTES);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: "게시글 수정 요청을 읽을 수 없습니다." },
+        {
+          status: bodyResult.reason === "too_large" ? 413 : 400,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+    let parsedBody: unknown;
+    try {
+      parsedBody = JSON.parse(bodyResult.text) as unknown;
+    } catch {
+      return NextResponse.json(
+        { error: "게시글 수정 요청 형식을 확인해 주세요." },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (
+      !isRecord(parsedBody)
+      || !isValidPostPatchBody(parsedBody)
+    ) {
+      return NextResponse.json(
+        { error: "게시글 수정 요청 필드를 확인해 주세요." },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const body = parsedBody as UpdatePostInput;
     const updateData: Record<string, unknown> = {};
+    const requestedContent = body.content === undefined
+      ? undefined
+      : sanitizeHtml(typeof body.content === "string" ? body.content : "").slice(0, 50000);
+
+    if (
+      !isCommunityMediaPublishingEnabled()
+      && !isCommunityMediaPatchAllowedWhileDisabled(
+        {
+          content: requestedContent,
+          images: body.images,
+          slides: body.slides,
+          visibility: body.visibility,
+        },
+        existingPost,
+      )
+    ) {
+      return communityMediaPublishingDisabledResponse();
+    }
 
     if (body.title !== undefined) {
       const title = sanitizeText(typeof body.title === "string" ? body.title : "").trim().slice(0, 200);
@@ -247,7 +507,7 @@ export async function PATCH(
       updateData.title = title;
     }
     if (body.content !== undefined) {
-      const content = sanitizeHtml(typeof body.content === "string" ? body.content : "").slice(0, 50000);
+      const content = requestedContent ?? "";
       const contentImagesResult = validateCommunityHtmlImageSources(content, {
         ownerIds: mediaOwnerIds,
       });
@@ -350,6 +610,15 @@ export async function PATCH(
       }
     }
     if (body.visibility !== undefined) {
+      if (existingPost.author_id !== user.id) {
+        return NextResponse.json(
+          {
+            error: "운영 조치는 작성자의 공개 의사와 분리된 감사 경로를 사용해야 합니다.",
+            code: "COMMUNITY_AUTHOR_VISIBILITY_INTENT_CONFLICT",
+          },
+          { status: 409, headers: { "Cache-Control": "no-store" } },
+        );
+      }
       if (!VALID_POST_VISIBILITIES.includes(body.visibility)) {
         return NextResponse.json(
           { error: "잘못된 공개 범위입니다." },
@@ -369,19 +638,149 @@ export async function PATCH(
         .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
         .filter((t: string) => t.length > 0);
     }
+    if (
+      body.ad_disclosure !== undefined ||
+      body.sponsorship_detail !== undefined
+    ) {
+      const allowedDisclosures: AdDisclosure[] = [
+        "general",
+        "sponsored",
+        "ad",
+      ];
+      const nextDisclosure =
+        body.ad_disclosure ?? existingPost.ad_disclosure;
+      if (!allowedDisclosures.includes(nextDisclosure as AdDisclosure)) {
+        return NextResponse.json(
+          { error: "광고 표시 유형을 확인해 주세요." },
+          { status: 400 }
+        );
+      }
+
+      updateData.ad_disclosure = nextDisclosure;
+      if (nextDisclosure === "sponsored") {
+        const detail = sanitizeText(
+          typeof body.sponsorship_detail === "string"
+            ? body.sponsorship_detail
+            : existingPost.sponsorship_detail ?? ""
+        )
+          .trim()
+          .slice(0, 500);
+        if (detail.length < 5) {
+          return NextResponse.json(
+            { error: "협찬으로 받은 혜택을 5자 이상 적어 주세요." },
+            { status: 400 }
+          );
+        }
+        updateData.sponsorship_detail = detail;
+      } else {
+        updateData.sponsorship_detail = null;
+      }
+    }
+    if (body.price_data !== undefined) {
+      if (body.price_data === null) {
+        updateData.price_data = null;
+      } else if (
+        typeof body.price_data.base_price === "number" &&
+        Number.isFinite(body.price_data.base_price) &&
+        body.price_data.base_price > 0
+      ) {
+        const priceData: PriceData = {
+          vendor_category: body.price_data.vendor_category,
+          base_price: body.price_data.base_price,
+          extra_price:
+            typeof body.price_data.extra_price === "number" &&
+            Number.isFinite(body.price_data.extra_price)
+              ? body.price_data.extra_price
+              : undefined,
+          vendor_name:
+            typeof body.price_data.vendor_name === "string"
+              ? sanitizeText(body.price_data.vendor_name).trim().slice(0, 100)
+              : undefined,
+          region:
+            typeof body.price_data.region === "string"
+              ? sanitizeText(body.price_data.region).trim().slice(0, 100)
+              : undefined,
+          details:
+            typeof body.price_data.details === "string"
+              ? sanitizeText(body.price_data.details).trim().slice(0, 1_000)
+              : undefined,
+        };
+        updateData.price_data = priceData;
+      } else {
+        return NextResponse.json(
+          { error: "가격 정보의 기본 금액을 확인해 주세요." },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.is_resolved !== undefined) {
+      if (typeof body.is_resolved !== "boolean") {
+        return NextResponse.json(
+          { error: "해결 상태는 참 또는 거짓으로 보내주세요." },
+          { status: 400 }
+        );
+      }
+      updateData.is_resolved = body.is_resolved;
+    }
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
+
+    const nextPublicValue = (field: string, currentValue: unknown) =>
+      Object.prototype.hasOwnProperty.call(updateData, field)
+        ? updateData[field]
+        : currentValue;
+    const publicText = (value: unknown): string | null => {
+      if (typeof value === "string") return value;
+      if (value === null || value === undefined) return null;
+      return JSON.stringify(value);
+    };
+    const personalInfoKinds = findObviousPublicPersonalInfo(
+      publicText(nextPublicValue("title", existingPost.title)),
+      publicText(nextPublicValue("content", existingPost.content)),
+      publicText(
+        nextPublicValue(
+          "sponsorship_detail",
+          existingPost.sponsorship_detail
+        )
+      ),
+      publicText(nextPublicValue("tags", existingPost.tags)),
+      publicText(nextPublicValue("cost_data", existingPost.cost_data)),
+      publicText(nextPublicValue("price_data", existingPost.price_data))
+    );
+    if (personalInfoKinds.length > 0) {
+      return NextResponse.json(
+        {
+          error: PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+          code: "COMMUNITY_PERSONAL_INFO_DETECTED",
+          detected: personalInfoKinds,
+        },
+        { status: 422 }
+      );
+    }
+
     updateData.updated_at = new Date().toISOString();
 
-    const writeClient = userIsAdmin ? getServiceClient() : supabase;
-    const { data: updatedPost, error } = await writeClient
+    // Authenticated table writes are intentionally revoked. Ownership and
+    // moderation access were checked above; the validated mutation now uses
+    // only the server-held service role.
+    const writeClient = getServiceClient();
+    const postUpdate = writeClient
       .from("community_posts")
       .update(updateData)
       .eq("id", id)
+      .eq("author_id", user.id);
+    const { data: updatedPost, error } = await postUpdate
       .select("*")
       .single();
 
+    if (!updatedPost && (!error || error.code === "PGRST116")) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없습니다." },
+        { status: 404, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     if (error) {
-      console.error("Update post error:", error);
+      logContentFreeFailure("[community.posts.patch]", "database", error.code);
       return NextResponse.json(
         { error: "게시글 수정에 실패했습니다." },
         { status: 500 }
@@ -393,13 +792,21 @@ export async function PATCH(
       revalidatePath("/");
       revalidatePath("/wedding");
       revalidatePath("/community");
-    } catch (e) {
-      console.error("[posts.PATCH] revalidatePath failed (non-fatal):", e);
+    } catch {
+      logContentFreeFailure(
+        "[community.posts.patch]",
+        "cache",
+        "REVALIDATE_FAILED",
+      );
     }
 
     return NextResponse.json({ post: updatedPost });
-  } catch (err) {
-    console.error("Update post error:", err);
+  } catch {
+    logContentFreeFailure(
+      "[community.posts.patch]",
+      "unexpected",
+      "UNHANDLED_EXCEPTION",
+    );
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -412,6 +819,12 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
@@ -428,49 +841,68 @@ export async function DELETE(
     }
 
     const userIsAdmin = await isAdmin(user.id);
-    const readClient = userIsAdmin ? serviceClient : supabase;
-
-    // 작성자 확인. 관리자는 숨김/신고 글까지 처리할 수 있어야 한다.
-    const { data: existingPost } = await readClient
-      .from("community_posts")
-      .select("author_id")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (!existingPost) {
-      return NextResponse.json(
-        { error: "게시글을 찾을 수 없습니다." },
-        { status: 404 }
-      );
+    if (userIsAdmin) {
+      // Foreign administrator deletion must remain on the recoverable audited
+      // moderation path. A missing row may still be this admin's exact retry,
+      // so only a present foreign row is rejected before the receipt RPC.
+      const { data: existingPost, error: existingPostError } = await serviceClient
+        .from("community_posts")
+        .select("author_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (existingPostError) {
+        return NextResponse.json(
+          { error: "게시글 소유자를 안전하게 확인하지 못했습니다." },
+          { status: 503, headers: { "Cache-Control": "private, no-store" } },
+        );
+      }
+      if (existingPost && existingPost.author_id !== user.id) {
+        return NextResponse.json(
+          {
+            error: "관리자 삭제는 복구 가능한 감사 조치 경로를 사용해야 합니다.",
+            code: "COMMUNITY_ADMIN_DELETE_REQUIRES_AUDITED_ACTION",
+          },
+          { status: 409, headers: { "Cache-Control": "no-store" } },
+        );
+      }
     }
 
-    if (existingPost.author_id !== user.id && !userIsAdmin) {
+    const { data: atomicData, error: atomicError } = await serviceClient.rpc(
+      "community_delete_post_service",
+      { p_actor_id: user.id, p_post_id: id },
+    );
+    if (atomicError) {
+      const message = atomicError.message ?? "";
+      if (
+        message.includes("COMMUNITY_POST_NOT_FOUND")
+        || message.includes("COMMUNITY_POST_DELETE_FORBIDDEN")
+      ) {
+        return NextResponse.json(
+          { error: "게시글을 찾을 수 없습니다." },
+          { status: 404, headers: { "Cache-Control": "private, no-store" } },
+        );
+      }
+      logContentFreeFailure(
+        "[community.posts.delete]",
+        "database",
+        atomicError.code,
+      );
       return NextResponse.json(
-        { error: "삭제 권한이 없습니다." },
-        { status: 403 }
+        {
+          code: "COMMUNITY_POST_DELETE_FAILED",
+          error: "게시글을 안전하게 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
       );
     }
-
-    const { error } = await serviceClient
-      .from("community_posts")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Delete post error:", error);
+    if (!isAtomicPostDeleteResult(atomicData, user.id, id)) {
       return NextResponse.json(
-        { error: "게시글 삭제에 실패했습니다." },
-        { status: 500 }
+        {
+          code: "COMMUNITY_POST_DELETE_UNCONFIRMED",
+          error: "게시글 삭제 결과를 안전하게 확인하지 못했습니다.",
+        },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
       );
-    }
-
-    // 작성자의 post_count를 감소시킨다. 관리자가 삭제해도 관리자 카운터가 바뀌면 안 된다.
-    const { error: countError } = await serviceClient.rpc("community_decrement_profile_count", {
-      p_user_id: existingPost.author_id,
-      p_field: "post_count",
-    });
-    if (countError) {
-      console.error("[posts.DELETE] post_count decrement failed (non-fatal):", countError);
     }
 
     // 랜딩 / 커뮤니티 ISR 캐시 무효화 — 실패해도 응답은 성공
@@ -478,13 +910,23 @@ export async function DELETE(
       revalidatePath("/");
       revalidatePath("/wedding");
       revalidatePath("/community");
-    } catch (e) {
-      console.error("[posts.DELETE] revalidatePath failed (non-fatal):", e);
+    } catch {
+      logContentFreeFailure(
+        "[community.posts.delete]",
+        "cache",
+        "REVALIDATE_FAILED",
+      );
     }
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Delete post error:", err);
+    return NextResponse.json(atomicData, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch {
+    logContentFreeFailure(
+      "[community.posts.delete]",
+      "unexpected",
+      "UNHANDLED_EXCEPTION",
+    );
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

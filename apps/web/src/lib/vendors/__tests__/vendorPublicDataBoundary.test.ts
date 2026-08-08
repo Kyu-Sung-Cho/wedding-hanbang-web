@@ -79,7 +79,8 @@ describe("public vendor data boundary", () => {
     const reviewColumns = PUBLIC_VENDOR_REVIEW_COLUMNS.split(",");
 
     expect(vendorColumns).toContain("is_verified");
-    expect(vendorColumns).not.toEqual(expect.arrayContaining([
+    for (const privateColumn of [
+      "ai_recommend",
       "owner_id",
       "owner_name",
       "email",
@@ -90,11 +91,12 @@ describe("public vendor data boundary", () => {
       "account_number",
       "account_holder",
       "notification_settings",
-    ]));
-    expect(reviewColumns).not.toEqual(expect.arrayContaining([
-      "customer_id",
-      "booking_id",
-    ]));
+    ]) {
+      expect(vendorColumns).not.toContain(privateColumn);
+    }
+    for (const privateColumn of ["customer_id", "booking_id"]) {
+      expect(reviewColumns).not.toContain(privateColumn);
+    }
   });
 
   it("keeps web and mobile discovery on one canonical disclosure surface", () => {
@@ -148,11 +150,12 @@ describe("public vendor data boundary", () => {
     }
   });
 
-  it("keeps the signed-in vendor navigation inside the wedding app", () => {
+  it("keeps vendor discovery available without making it primary MVP navigation", () => {
     const sidebar = source("src/components/app/Sidebar.tsx");
 
-    expect(sidebar).toContain('{ legacyPath: "/vendors", icon: Building2');
-    expect(sidebar).not.toContain('{ legacyPath: "/vendors", publicHref: "/price/studio"');
+    expect(existsSync(resolve(webRoot, "src/app/vendors/page.tsx"))).toBe(true);
+    expect(sidebar).not.toContain('{ legacyPath: "/vendors"');
+    expect(sidebar).not.toContain('{ legacyPath: "/market-prices"');
   });
 
   it("keeps the hosted-staging RLS receipt fail-closed across disclosure boundaries", () => {

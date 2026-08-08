@@ -6,6 +6,7 @@ import {
   executeCancelBooking,
   executeCreateBooking,
   executeGetAvailableSlots,
+  executeGetMyBookings,
 } from "../bookingTools";
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -101,6 +102,7 @@ function createContext(
 ): ToolExecutionContext {
   return {
     coupleId: "couple-1",
+    actorProfileId: "70000000-0000-4000-8000-000000000001",
     currentUserText: "",
     weddingContext: {
       weddingDate: "2026-10-10",
@@ -140,6 +142,55 @@ describe("bookingTools", () => {
     });
   });
 
+  it("lists not-sent intents with immutable vendor and product snapshots", async () => {
+    mockAdminClient({
+      vendor_bookings: [{
+        awaitResult: {
+          data: [{
+            id: "12345678-1234-4234-9234-123456789abc",
+            vendor_id: "22345678-1234-4234-9234-123456789abc",
+            product_id: "32345678-1234-4234-9234-123456789abc",
+            staff_id: null,
+            booking_date: "2099-07-20",
+            booking_time: "10:00",
+            status: "pending",
+            amount: 500_000,
+            memo: "",
+            created_at: "2026-08-02T00:00:00.000Z",
+            vendor_delivery_status: "not_sent",
+            intent_vendor_name_snapshot: "Original Studio",
+            intent_product_name_snapshot: "Original Package",
+          }],
+          error: null,
+        },
+      }],
+      vendors: [{
+        awaitResult: {
+          data: [{ id: "22345678-1234-4234-9234-123456789abc", name: "Renamed Studio" }],
+          error: null,
+        },
+      }],
+      vendor_products: [{
+        awaitResult: {
+          data: [{ id: "32345678-1234-4234-9234-123456789abc", name: "Renamed Package" }],
+          error: null,
+        },
+      }],
+    });
+
+    const result = await executeGetMyBookings({}, createContext());
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput.bookings).toEqual([
+      expect.objectContaining({
+        vendorName: "Original Studio",
+        productName: "Original Package",
+      }),
+    ]);
+    expect(result.displayMessage).toContain("Original Studio");
+    expect(result.displayMessage).not.toContain("Renamed Studio");
+  });
+
   it("uses staff slots before product slots when both schedules exist", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
@@ -173,9 +224,13 @@ describe("bookingTools", () => {
       slots: Array<{ date: string; time: string; remaining: number; dateTimeLabel: string }>;
       count: number;
       exactDateAvailable: boolean | null;
-      _debug: { slotSource: string };
+      availabilityScope: string;
+      vendorConfirmationRequired: boolean;
+      candidateSource: string;
     };
-    expect(output._debug.slotSource).toBe("staff");
+    expect(output.candidateSource).toBe("staff");
+    expect(output.availabilityScope).toBe("amora_internal_candidates");
+    expect(output.vendorConfirmationRequired).toBe(true);
     expect(output.exactDateAvailable).toBe(true);
     expect(output.count).toBe(1);
     expect(output.slots).toEqual([
@@ -189,6 +244,8 @@ describe("bookingTools", () => {
       },
     ]);
     expect(result.displayMessage).toContain("2026-07-06 (월) 10:00");
+    expect(result.displayMessage).toContain("업체 확인이 필요해요");
+    expect(result.toolOutput).not.toHaveProperty("_debug");
   });
 
   it("remaps past target months into the next future matching month", async () => {
@@ -212,8 +269,8 @@ describe("bookingTools", () => {
     });
 
     expect(result.success).toBe(true);
-    const output = result.toolOutput as { _debug: { targetMonthResolved: string | null } };
-    expect(output._debug.targetMonthResolved).toBe("2026-08");
+    const output = result.toolOutput as { resolvedTargetMonth: string | null };
+    expect(output.resolvedTargetMonth).toBe("2026-08");
   });
 
   it("blocks create_booking when the user-requested date differs from tool input", async () => {
@@ -251,7 +308,7 @@ describe("bookingTools", () => {
     const projectionCoupleId = "32345678-1234-4234-9234-123456789abc";
     const claimToken = "42345678-1234-4234-9234-123456789abc";
 
-    mockAdminClient(
+    const admin = mockAdminClient(
       {
         vendors: [
           { singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } },
@@ -280,6 +337,11 @@ describe("bookingTools", () => {
               status: "confirmed",
               product_id: "product-1",
               staff_id: null,
+              vendor_delivery_status: "not_sent",
+              intent_created_by_profile_id: "70000000-0000-4000-8000-000000000001",
+              intent_vendor_name_snapshot: "Hanbang Studio",
+              intent_vendor_category_snapshot: "studio",
+              intent_product_name_snapshot: "Basic",
             },
             error: null,
           },
@@ -287,7 +349,7 @@ describe("bookingTools", () => {
         wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
       },
       {
-        create_booking_atomic: () => ({ data: bookingId, error: null }),
+        create_amora_booking_intent_atomic: () => ({ data: bookingId, error: null }),
         claim_booking_projection_job: () => ({
           data: {
             bookingId,
@@ -299,7 +361,9 @@ describe("bookingTools", () => {
             booking: {
               date: "2026-07-06",
               time: "10:00",
-              amount: 450_000,
+              quotedAmount: 450_000,
+              actualAmount: null,
+              cancellation: null,
               status: "confirmed",
               vendorId: projectionVendorId,
               productId: null,
@@ -314,10 +378,14 @@ describe("bookingTools", () => {
           const event = args.p_event as ScheduleEvent;
           progressPatch = {
             ...initialProgress,
-            studio: { ...initialProgress.studio, spent: 650_000 },
             __events: [event],
             __booking_costs: {
-              [bookingId]: { amount: 450_000, categoryKey: "studio" },
+              [bookingId]: {
+                amount: 0,
+                categoryKey: "studio",
+                basis: "none",
+                quotedAmount: 450_000,
+              },
             },
           };
           return {
@@ -328,14 +396,18 @@ describe("bookingTools", () => {
               event,
               scheduleAdded: true,
               scheduleUpdated: false,
+              scheduleCancelled: false,
+              recordedSpendPreserved: false,
+              quoteContributionCorrected: false,
+              quoteCorrectionAmount: 0,
               scheduleRemoved: false,
-              budgetUpdated: true,
+              budgetUpdated: false,
               budgetReverted: false,
-              budgetDelta: 450_000,
+              budgetDelta: 0,
               budgetExceededBy: 0,
               categoryBudgetLimit: 1_000_000,
               categoryKey: "studio",
-              newSpent: 650_000,
+              newSpent: null,
               revertedAmount: 0,
               removedEventId: null,
             },
@@ -372,12 +444,16 @@ describe("bookingTools", () => {
     expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
       bookingId,
-      amount: 450_000,
+      internalRequestRecorded: true,
+      vendorDeliveryStatus: "not_sent",
+      vendorConfirmationStatus: "unconfirmed",
+      quotedAmount: 450_000,
+      amountBasis: "quote",
       status: "confirmed",
       scheduleAdded: true,
-      budgetUpdated: true,
-      syncedCategoryKey: "studio",
-      syncedNewSpent: 650_000,
+      budgetUpdated: false,
+      syncedCategoryKey: null,
+      syncedNewSpent: null,
     });
     expect(result.toolOutput.syncedEvent).toMatchObject({
       id: `evt_booking_${bookingId}`,
@@ -386,11 +462,22 @@ describe("bookingTools", () => {
       sourceKey: `booking:${bookingId}`,
     });
     expect(progressPatch).toMatchObject({
-      studio: { spent: 650_000 },
+      studio: { spent: 200_000 },
     });
+    expect(result.toolOutput).not.toHaveProperty("amount");
+    expect(result.displayMessage).toContain("견적");
+    expect(result.displayMessage).toContain("결제 기록에는 더하지 않았어요");
+    expect(result.displayMessage).toContain("아모라 안에 예약 요청을 기록했어요");
+    expect(result.displayMessage).toContain("업체에 전달되거나 확정된 상태는 아니에요");
     const createdProgress = ctx.weddingContext.progress as unknown as Record<string, unknown>;
     const events = createdProgress.__events as ScheduleEvent[] | undefined;
     expect(events?.[0]).toMatchObject({ id: `evt_booking_${bookingId}` });
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "create_amora_booking_intent_atomic",
+      expect.any(Object),
+    );
+    expect(admin.from.mock.calls.map(([table]) => table)).not.toContain("vendors");
+    expect(admin.from.mock.calls.map(([table]) => table)).not.toContain("vendor_products");
   });
 
   it("keeps the booking accepted but explicitly reports a queued projection failure", async () => {
@@ -415,13 +502,18 @@ describe("bookingTools", () => {
               status: "pending",
               product_id: null,
               staff_id: null,
+              vendor_delivery_status: "not_sent",
+              intent_created_by_profile_id: "70000000-0000-4000-8000-000000000001",
+              intent_vendor_name_snapshot: "Hanbang Studio",
+              intent_vendor_category_snapshot: "studio",
+              intent_product_name_snapshot: null,
             },
             error: null,
           },
         }],
       },
       {
-        create_booking_atomic: () => ({ data: bookingId, error: null }),
+        create_amora_booking_intent_atomic: () => ({ data: bookingId, error: null }),
         claim_booking_projection_job: () => ({
           data: {
             bookingId,
@@ -433,7 +525,9 @@ describe("bookingTools", () => {
             booking: {
               date: "2026-07-06",
               time: "10:00",
-              amount: 500_000,
+              quotedAmount: 500_000,
+              actualAmount: null,
+              cancellation: null,
               status: "pending",
               vendorId,
               productId: null,
@@ -478,17 +572,40 @@ describe("bookingTools", () => {
       projectionErrorCode: "PROJECTION_APPLY_FAILED",
       fullyApplied: false,
     });
-    expect(result.displayMessage).toContain("예약을 다시 만들 필요는 없어요");
+    expect(result.displayMessage).toContain("같은 기록을 다시 만들 필요는 없어요");
     expect(result.displayMessage).toContain("자동으로 다시 반영");
   });
 
-  it("reverts synced schedule and budget data when a booking is cancelled", async () => {
+  it("does not cancel when the verified actor profile is missing", async () => {
+    const result = await executeCancelBooking(
+      {
+        booking_id: "12345678-1234-4234-9234-123456789abc",
+        confirmed: true,
+      },
+      createContext({ actorProfileId: undefined }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "booking_actor_missing" },
+    });
+    expect(createAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it("soft-cancels the schedule and preserves recorded actual spend when a booking is cancelled", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
 
     const bookingId = "12345678-1234-4234-9234-123456789abc";
     const initialProgress = {
-      __booking_costs: { [bookingId]: 650_000 },
+      __booking_costs: {
+        [bookingId]: {
+          amount: 650_000,
+          categoryKey: "studio",
+          basis: "actual",
+          quotedAmount: 500_000,
+        },
+      },
       studio: { category: "studio", status: "in_progress", budget: 1_000_000, spent: 850_000 },
       __events: [{
         id: `evt_booking_${bookingId}`,
@@ -511,8 +628,12 @@ describe("bookingTools", () => {
         wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
       },
       {
-        cancel_booking_atomic: () => ({
-          data: {
+        cancel_booking_atomic: (args) => {
+          expect(args).toMatchObject({
+            p_booking_id: bookingId,
+            p_actor_profile_id: "70000000-0000-4000-8000-000000000001",
+          });
+          return { data: {
             id: bookingId,
             vendor_id: "12345678-1234-4234-9234-123456789abd",
             product_id: "product-1",
@@ -520,10 +641,14 @@ describe("bookingTools", () => {
             booking_time: "10:00",
             status: "cancelled",
             amount: 500_000,
+            actual_amount: 650_000,
+            cancelled_at: "2026-08-02T12:30:00.000Z",
+            cancelled_by_profile_id: "70000000-0000-4000-8000-000000000001",
+            cancel_reason: "예약 취소",
             idempotent: false,
           },
-          error: null,
-        }),
+          error: null };
+        },
         claim_booking_projection_job: () => ({
           data: {
             bookingId,
@@ -535,7 +660,13 @@ describe("bookingTools", () => {
             booking: {
               date: "2026-07-06",
               time: "10:00",
-              amount: 500_000,
+              quotedAmount: 500_000,
+              actualAmount: 650_000,
+              cancellation: {
+                cancelledAt: "2026-08-02T12:30:00.000Z",
+                cancelledByProfileId: "70000000-0000-4000-8000-000000000001",
+                reason: "예약 취소",
+              },
               status: "cancelled",
               vendorId: "12345678-1234-4234-9234-123456789abd",
               productId: null,
@@ -547,29 +678,42 @@ describe("bookingTools", () => {
           error: null,
         }),
         apply_booking_progress_projection: () => {
+          const cancelledEvent = {
+            ...initialProgress.__events[0],
+            status: "cancelled",
+            cancellation: {
+              cancelledAt: "2026-08-02T12:30:00.000Z",
+              cancelledByProfileId: "70000000-0000-4000-8000-000000000001",
+              reason: "예약 취소",
+            },
+            updatedAt: "2026-08-02T12:30:00.000Z",
+          };
           progressPatch = {
-            studio: { ...initialProgress.studio, spent: 200_000 },
-            __events: [],
-            __booking_costs: {},
+            ...initialProgress,
+            __events: [cancelledEvent],
           };
           return {
             data: {
               accepted: true,
               status: "completed",
               progress: progressPatch,
-              event: null,
+              event: cancelledEvent,
               scheduleAdded: false,
               scheduleUpdated: false,
-              scheduleRemoved: true,
+              scheduleCancelled: true,
+              recordedSpendPreserved: true,
+              quoteContributionCorrected: false,
+              quoteCorrectionAmount: 0,
+              scheduleRemoved: false,
               budgetUpdated: false,
-              budgetReverted: true,
-              budgetDelta: -650_000,
+              budgetReverted: false,
+              budgetDelta: 0,
               budgetExceededBy: 0,
               categoryBudgetLimit: 1_000_000,
               categoryKey: "studio",
-              newSpent: 200_000,
-              revertedAmount: 650_000,
-              removedEventId: `evt_booking_${bookingId}`,
+              newSpent: null,
+              revertedAmount: 0,
+              removedEventId: null,
             },
             error: null,
           };
@@ -599,22 +743,36 @@ describe("bookingTools", () => {
     expect(result.toolOutput).toMatchObject({
       bookingId,
       status: "cancelled",
-      scheduleRemoved: true,
-      budgetReverted: true,
-      syncedEventIdRemoved: `evt_booking_${bookingId}`,
-      syncedCategoryKey: "studio",
-      syncedNewSpent: 200_000,
+      internalCancellationRecorded: true,
+      vendorCancellationStatus: "unconfirmed",
+      scheduleCancelled: true,
+      recordedSpendPreserved: true,
+      quoteContributionCorrected: false,
+      refundStatus: "unknown",
+      scheduleRemoved: false,
+      budgetReverted: false,
+      syncedEventId: `evt_booking_${bookingId}`,
+      syncedEventIdRemoved: null,
+      syncedCategoryKey: null,
+      syncedNewSpent: null,
     });
     expect(progressPatch).toMatchObject({
-      studio: { spent: 200_000 },
-      __events: [],
-      __booking_costs: {},
+      studio: { spent: 850_000 },
+      __events: [expect.objectContaining({
+        id: `evt_booking_${bookingId}`,
+        status: "cancelled",
+      })],
+      __booking_costs: {
+        [bookingId]: expect.objectContaining({ amount: 650_000, basis: "actual" }),
+      },
     });
     expect(ctx.weddingContext.progress).toMatchObject({
-      studio: { spent: 200_000 },
-      __events: [],
-      __booking_costs: {},
+      studio: { spent: 850_000 },
+      __events: [expect.objectContaining({ status: "cancelled" })],
     });
+    expect(result.displayMessage).toContain("환불 여부와 금액은 확인되지 않았어요");
+    expect(result.displayMessage).toContain("아모라 안 예약 기록을 취소 상태로 표시했어요");
+    expect(result.displayMessage).toContain("업체 취소는 전달되거나 확정되지 않았어요");
   });
 
   it("explicitly reports a queued cancellation projection failure", async () => {
@@ -641,6 +799,10 @@ describe("bookingTools", () => {
             booking_time: "10:00",
             status: "cancelled",
             amount: 500_000,
+            actual_amount: null,
+            cancelled_at: "2026-08-02T12:30:00.000Z",
+            cancelled_by_profile_id: "70000000-0000-4000-8000-000000000001",
+            cancel_reason: "예약 취소",
             idempotent: false,
           },
           error: null,
@@ -656,7 +818,13 @@ describe("bookingTools", () => {
             booking: {
               date: "2026-07-06",
               time: "10:00",
-              amount: 500_000,
+              quotedAmount: 500_000,
+              actualAmount: null,
+              cancellation: {
+                cancelledAt: "2026-08-02T12:30:00.000Z",
+                cancelledByProfileId: "70000000-0000-4000-8000-000000000001",
+                reason: "예약 취소",
+              },
               status: "cancelled",
               vendorId,
               productId: null,
@@ -698,8 +866,10 @@ describe("bookingTools", () => {
       projectionErrorCode: "PROJECTION_APPLY_FAILED",
       fullyApplied: false,
     });
-    expect(result.displayMessage).toContain("취소 요청을 다시 보낼 필요는 없어요");
+    expect(result.displayMessage).toContain("같은 취소 표시를 다시 보낼 필요는 없어요");
     expect(result.displayMessage).toContain("자동으로 다시 반영");
+    expect(result.displayMessage).toContain("환불 여부와 금액은 확인되지 않았어요");
+    expect(result.displayMessage).toContain("업체 취소는 전달되거나 확정되지 않았어요");
   });
 
   it("repairs legacy progress on an exact retry of an already-cancelled booking", async () => {
@@ -738,6 +908,10 @@ describe("bookingTools", () => {
             booking_time: "10:00",
             status: "cancelled",
             amount: 500_000,
+            actual_amount: null,
+            cancelled_at: "2026-08-02T12:30:00.000Z",
+            cancelled_by_profile_id: "70000000-0000-4000-8000-000000000001",
+            cancel_reason: "예약 취소",
             idempotent: true,
           },
           error: null,
@@ -753,7 +927,13 @@ describe("bookingTools", () => {
             booking: {
               date: "2026-07-06",
               time: "10:00",
-              amount: 500_000,
+              quotedAmount: 500_000,
+              actualAmount: null,
+              cancellation: {
+                cancelledAt: "2026-08-02T12:30:00.000Z",
+                cancelledByProfileId: "70000000-0000-4000-8000-000000000001",
+                reason: "예약 취소",
+              },
               status: "cancelled",
               vendorId: "12345678-1234-4234-9234-123456789abd",
               productId: null,
@@ -765,29 +945,50 @@ describe("bookingTools", () => {
           error: null,
         }),
         apply_booking_progress_projection: () => {
+          const cancelledEvent = {
+            ...initialProgress.__events[0],
+            status: "cancelled",
+            cancellation: {
+              cancelledAt: "2026-08-02T12:30:00.000Z",
+              cancelledByProfileId: "70000000-0000-4000-8000-000000000001",
+              reason: "예약 취소",
+            },
+            updatedAt: "2026-08-02T12:30:00.000Z",
+          };
           progressPatch = {
             studio: { ...initialProgress.studio, spent: 200_000 },
-            __events: [],
-            __booking_costs: {},
+            __events: [cancelledEvent],
+            __booking_costs: {
+              [bookingId]: {
+                amount: 0,
+                categoryKey: "studio",
+                basis: "none",
+                quotedAmount: 500_000,
+              },
+            },
           };
           return {
             data: {
               accepted: true,
               status: "completed",
               progress: progressPatch,
-              event: null,
+              event: cancelledEvent,
               scheduleAdded: false,
               scheduleUpdated: false,
-              scheduleRemoved: true,
-              budgetUpdated: false,
-              budgetReverted: true,
+              scheduleCancelled: true,
+              recordedSpendPreserved: false,
+              quoteContributionCorrected: true,
+              quoteCorrectionAmount: 500_000,
+              scheduleRemoved: false,
+              budgetUpdated: true,
+              budgetReverted: false,
               budgetDelta: -500_000,
               budgetExceededBy: 0,
               categoryBudgetLimit: 1_000_000,
               categoryKey: "studio",
               newSpent: 200_000,
-              revertedAmount: 500_000,
-              removedEventId: "evt_booking_12345678",
+              revertedAmount: 0,
+              removedEventId: null,
             },
             error: null,
           };
@@ -816,15 +1017,23 @@ describe("bookingTools", () => {
       bookingId,
       status: "cancelled",
       idempotent: true,
-      scheduleRemoved: true,
-      budgetReverted: true,
-      syncedEventIdRemoved: "evt_booking_12345678",
+      scheduleCancelled: true,
+      recordedSpendPreserved: false,
+      quoteContributionCorrected: true,
+      quoteCorrectionAmount: 500_000,
+      scheduleRemoved: false,
+      budgetReverted: false,
+      syncedEventId: "evt_booking_12345678",
+      syncedEventIdRemoved: null,
       syncedCategoryKey: "studio",
       syncedNewSpent: 200_000,
     });
     expect(progressPatch).toMatchObject({
       studio: { spent: 200_000 },
-      __events: [],
+      __events: [expect.objectContaining({
+        id: "evt_booking_12345678",
+        status: "cancelled",
+      })],
     });
   });
 });

@@ -1,6 +1,7 @@
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 /**
  * 운영자 큐레이션 핀 API.
@@ -11,6 +12,12 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { authorized } = await verifyAdmin(req);
     if (!authorized) {

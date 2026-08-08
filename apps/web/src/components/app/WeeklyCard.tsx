@@ -7,7 +7,7 @@ import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { getImminentCategories } from "@/utils/imminentChecklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
 
@@ -31,25 +31,27 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
     const validWedding =
       weddingDateObj && !Number.isNaN(weddingDateObj.getTime()) ? weddingDateObj : null;
 
-    // 아모라 한 줄 — 1순위 오늘의 모멘트, 2순위 lifecycle 경고, 3순위 "오늘은 괜찮아"
+    // 아모라 한 줄 — 1순위 오늘의 모멘트, 2순위 lifecycle 경고, 3순위 저장 정보 범위 안내
     const dueCells = buildDueMomentCells({ weddingDate, progress: progressRecord });
     const topCell = dueCells[0];
     const plan = buildAmoraLifecyclePlan({ weddingDate, totalBudget, progress });
     const brief = topCell
       ? topCell.cellKind === "dAfter"
-        ? `어제 ${topCell.momentLabel} 어땠어요? 아모라가 채팅에 안부를 남겨뒀어요.`
-        : `${topCell.momentLabel}이(가) 다가와요 — 챙길 것들을 아모라가 채팅에 정리해뒀어요.`
+        ? `지난 일정: ${topCell.momentLabel}. 기억해 둘 내용을 지금 정리할까요?`
+        : `다가오는 일정: ${topCell.momentLabel}. 준비 항목을 지금 확인할까요?`
       : plan.primaryAction.severity === "critical" || plan.primaryAction.severity === "warning"
         ? plan.primaryAction.title
-        : "오늘은 급한 일 없어요. 이번 주 것만 천천히 보면 돼요.";
+        : "현재 저장된 정보 기준으로 오늘 확인된 마감은 없어요. 등록하지 않은 일정과 계약은 포함되지 않아요.";
     const briefHref = topCell
-      ? weddingPath("/chat")
+      ? weddingPath(topCell.cellKind === "dAfter" ? "/chat" : "/schedule")
       : plan.primaryAction.severity === "critical" || plan.primaryAction.severity === "warning"
         ? plan.primaryAction.href
         : null;
 
     // 이번 주 할 일 3 — 마감 임박 카테고리
-    const events = getEvents(progressRecord);
+    const events = getEvents(progressRecord).filter(
+      (event) => getScheduleEventStatus(event) !== "cancelled",
+    );
     const imminent = getImminentCategories(progress, validWedding, events).slice(0, 3);
 
     // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
@@ -69,7 +71,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         </p>
       </div>
 
-      {/* 아모라 한 줄 브리핑 — "할 일 없다"도 말해주는 사람이 있는 화면 */}
+      {/* 아모라 한 줄 브리핑 — 저장된 정보의 범위를 숨기지 않는다. */}
       <div className="mt-3 flex items-start gap-2.5 rounded-[14px] bg-[#f6f9f6] px-4 py-3">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#36534E]" />
         <p className="text-[14px] font-medium leading-[1.55] text-[#263832]">
@@ -122,8 +124,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           ) : (
             <p className="text-[13px] font-medium leading-[1.5] text-[#928980]">
               {weddingDate
-                ? "이번 주 마감 임박 항목이 없어요. 좋은 흐름이에요."
-                : "예식일을 입력하면 이번 주 할 일을 골라드려요."}
+                ? "현재 저장된 일정 기준으로 이번 주 마감 항목은 확인되지 않았어요. 등록하지 않은 일정은 포함되지 않아요."
+                : "결혼식 날짜를 입력하면 이번 주 할 일을 골라드려요."}
             </p>
           )}
         </div>
@@ -142,7 +144,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             정답보다 두 사람의 기준부터
           </p>
           <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-            예단·호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
+            두 가족에게 드릴 선물·서로 부를 호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
           </p>
         </Link>
 

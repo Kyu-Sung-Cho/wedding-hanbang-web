@@ -25,10 +25,12 @@ import {
 } from "@/lib/ai/tools/bookingTools";
 import {
   executeAddScheduleEvent,
+  executeCancelScheduleEvent,
   executeDeleteScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
   executeLogWeddingEvent,
+  executeRestoreScheduleEvent,
   executeToggleChecklistItem,
   executeUpdateScheduleEvent,
 } from "@/lib/ai/tools/scheduleTools";
@@ -39,7 +41,6 @@ import {
 } from "@/lib/ai/tools/amoraActionTools";
 import {
   CATEGORY_LABELS,
-  CATEGORY_RATIOS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import {
@@ -176,6 +177,14 @@ export async function executeTool(
   toolInput: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (toolName === "delete_schedule_event") {
+    return failureResult(
+      toolName,
+      toolInput,
+      "legacy_schedule_delete_blocked",
+      "일정은 기록 보호를 위해 삭제하지 않아요. 취소 상태로 남겨 주세요.",
+    );
+  }
   if (!isMutatingTool(toolName)) {
     try {
       return await executeToolOnce(toolName, toolInput, context);
@@ -510,6 +519,10 @@ async function executeToolOnce(
         return await executeAddScheduleEvent(toolInput, context);
       case "update_schedule_event":
         return await executeUpdateScheduleEvent(toolInput, context);
+      case "cancel_schedule_event":
+        return await executeCancelScheduleEvent(toolInput, context);
+      case "restore_schedule_event":
+        return await executeRestoreScheduleEvent(toolInput, context);
       case "delete_schedule_event":
         return await executeDeleteScheduleEvent(toolInput, context);
       case "toggle_checklist_item":
@@ -714,7 +727,7 @@ async function executeUpdateCategoryBudget(
   const hasSpent = input.spent !== undefined;
   if (
     typeof category !== "string"
-    || !Object.prototype.hasOwnProperty.call(CATEGORY_RATIOS, category)
+    || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, category)
     || (!hasBudget && !hasSpent)
     || (hasBudget && !isValidWonAmount(input.budget))
     || (hasSpent && !isValidWonAmount(input.spent))
@@ -741,7 +754,7 @@ async function executeUpdateCategoryBudget(
   if (input.spent !== undefined) {
     const newSpent = input.spent as number;
     updates.spent = newSpent;
-    changes.push(`지출 ${formatWon(newSpent)}`);
+    changes.push(`기록 지출 ${formatWon(newSpent)}(결제 확인과 별도)`);
   }
 
   await patchJourneyProgress(ctx, { [category]: updates });
@@ -755,8 +768,8 @@ async function executeUpdateCategoryBudget(
   };
 }
 
-// 예산 인터뷰 후 카테고리 일괄 배분 — 가중치 반영된 plan 한 번에 적용.
-// allocations 합계가 total_budget 보다 작으면 잔여분은 reserve(예비비)로 자동 배정.
+// 사용자가 확인한 카테고리 금액을 한 번에 적용한다.
+// allocations 합계가 total_budget보다 작으면 그 차액만 미배정 금액으로 보존한다.
 // intake_summary 는 이 쓰기 경로에서 영구 저장하지 않는다(아래 privacy 메모 참고).
 async function executeApplyBudgetPlan(
   input: Record<string, unknown>,
@@ -776,12 +789,12 @@ async function executeApplyBudgetPlan(
     totalBudget > MAX_WEDDING_AMOUNT_WON ||
     !Array.isArray(allocations) ||
     allocations.length === 0 ||
-    allocations.length > Object.keys(CATEGORY_RATIOS).length ||
+    allocations.length > Object.keys(CATEGORY_LABELS).length ||
     allocations.some((allocation) =>
       !allocation ||
       typeof allocation !== "object" ||
       typeof allocation.category !== "string" ||
-      !(allocation.category in CATEGORY_RATIOS) ||
+      !(allocation.category in CATEGORY_LABELS) ||
       !Number.isSafeInteger(allocation.budget) ||
       allocation.budget < 0 ||
       allocation.budget > MAX_WEDDING_AMOUNT_WON
@@ -810,7 +823,8 @@ async function executeApplyBudgetPlan(
     };
   }
 
-  // 잔여분이 있으면 reserve 에 자동 추가
+  // 내부 키는 이전 데이터와 호환하기 위해 reserve를 쓰되, 값의 의미는
+  // 사용자가 별도로 정한 예비비가 아니라면 아직 쓰임을 정하지 않은 금액이다.
   const remainder = totalBudget - allocSum;
   const finalAllocations = [...allocations];
   if (remainder > 0) {
@@ -824,7 +838,7 @@ async function executeApplyBudgetPlan(
       finalAllocations.push({
         category: "reserve",
         budget: remainder,
-        rationale: "총 예산 잔여분 자동 배정",
+        rationale: "총액에서 확인된 배정액을 뺀 아직 쓰임을 정하지 않은 금액",
       });
     }
   }
@@ -887,7 +901,7 @@ async function executeApplyBudgetPlan(
       remainder_to_reserve: remainder,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(totalBudget)} 기준 카테고리 ${finalAllocations.length}개 배분 적용 완료${remainder > 0 ? ` (잔여 ${formatWon(remainder)} 예비비로 자동 배정)` : ""}.\n${lines}`,
+    displayMessage: `총 예산 ${formatWon(totalBudget)} 기준 카테고리 ${finalAllocations.length}개 배분 적용 완료${remainder > 0 ? ` (아직 쓰임을 정하지 않은 금액 ${formatWon(remainder)})` : ""}.\n${lines}`,
   };
 }
 
@@ -961,7 +975,7 @@ async function executeAddCustomCategory(
   }
   if (input.spent !== undefined) {
     updates.spent = input.spent as number;
-    changes.push(`지출 ${formatWon(input.spent as number)}`);
+    changes.push(`기록 지출 ${formatWon(input.spent as number)}(결제 확인과 별도)`);
   }
 
   await patchJourneyProgress(ctx, { [key]: updates });
@@ -1084,7 +1098,7 @@ async function executeUpdateVenue(
     toolInput: input,
     toolOutput: { venue, previous_venue: oldVenue },
     success: true,
-    displayMessage: `예식장이 "${venue}"(으)로 설정되었습니다.`,
+    displayMessage: `결혼식장이 "${venue}"(으)로 설정되었습니다.`,
   };
 }
 
@@ -1094,26 +1108,26 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
     : 0;
   const progress = ctx.weddingContext.progress;
 
-  // 실데이터만 보고한다 — 배정은 progress[key].budget(미설정 시 평균 비율 "참고치"로 표시),
-  // 지출은 실제 기록된 spent/cost만. 상태 기반 추정(진행중=40% 등)으로 지출을 지어내면
-  // 대시보드 실값과 모순되는 숫자를 아모라가 말하게 된다(출처 원칙 위반).
-  const categories = Object.entries(CATEGORY_RATIOS).map(([key, ratio]) => {
+  // 사용자가 입력하거나 계약 금액으로 확인한 예산과 명시적 기록 지출만 보고한다.
+  // 기록 지출은 결제 완료 증거가 아니다.
+  // 미입력 예산이나 상태를 근거로 금액을 추정하지 않는다.
+  const categories = Object.keys(CATEGORY_LABELS).map((key) => {
     const p = (progress[key] ?? {}) as Record<string, unknown>;
     const hasSetBudget = isValidWonAmount(p.budget);
-    const allocated = hasSetBudget ? (p.budget as number) : Math.round(total * ratio);
-    const spent =
-      isValidWonAmount(p.spent)
-        ? (p.spent as number)
-        : isValidWonAmount(p.cost)
-          ? (p.cost as number)
-          : 0;
+    const allocated = hasSetBudget ? (p.budget as number) : null;
+    const spent = isValidWonAmount(p.spent) ? (p.spent as number) : 0;
+    const legacyAmountUnclassified = Object.prototype.hasOwnProperty.call(
+      p,
+      "cost",
+    );
 
     return {
       key,
       label: CATEGORY_LABELS[key] || key,
       allocated,
-      allocated_is_estimate: !hasSetBudget,
+      allocated_is_set: hasSetBudget,
       spent,
+      legacy_amount_unclassified: legacyAmountUnclassified,
       status: (p.status as string) || "not_started",
     };
   });
@@ -1123,8 +1137,11 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   const balanceLabel = remaining >= 0
     ? `잔여 ${formatWon(remaining)}`
     : `예산 ${formatWon(Math.abs(remaining))} 초과`;
-  const estimateNote = categories.some((c) => c.allocated_is_estimate)
-    ? " (예산 미설정 카테고리는 평균 비율 참고치)"
+  const sourceNote = categories.some((c) => !c.allocated_is_set)
+    ? " (항목별 예산은 입력된 금액만 표시)"
+    : "";
+  const legacyNote = categories.some((c) => c.legacy_amount_unclassified)
+    ? " · 용도 미확인 이전 금액은 예산·기록 지출 합계에서 제외"
     : "";
 
   return {
@@ -1133,11 +1150,12 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
     toolOutput: {
       total_budget: total,
       total_spent: totalSpent,
+      recorded_spend_basis: "explicit_spent_only",
       remaining,
       categories,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${estimateNote}`,
+    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}${legacyNote}`,
   };
 }
 

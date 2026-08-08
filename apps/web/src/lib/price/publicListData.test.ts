@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { filterPriceCatalog } from "./catalog";
 import { loadPublicPriceCatalog } from "./publicListData";
 
 function fakePublicClient(fixtures: Record<string, Array<Record<string, unknown>>>) {
@@ -150,5 +151,74 @@ describe("loadPublicPriceCatalog", () => {
     expect(JSON.stringify(catalog)).not.toContain("샘플 미발행");
     expect(JSON.stringify(catalog)).not.toContain("source_quote");
     expect(catalog.agencies).toEqual([{ id: "agency-1", name: "샘플 대행사" }]);
+  });
+
+  it("uses the canonical row name and keeps every verified sibling spelling searchable", async () => {
+    const base = {
+      period_label: "2026Q3",
+      source: "kca_tprice",
+      is_current: true,
+      vendor_category: "studio",
+      price_category: "studio",
+      price_max_krw: 1_200_000,
+      price_note: null,
+      vat_note: null,
+      base_spec: "기본 촬영",
+    };
+    const client = fakePublicClient({
+      v_public_official_prices: [
+        {
+          ...base,
+          id: "price-autumn",
+          vendor_id: "vendor-autumn",
+          vendor_slug: "studio-z-autumn",
+          vendor_name: "가을",
+          vendor_aliases: ["가을 옛 상호"],
+          region_code: "seoul_gangnam3",
+          agency_id: "agency-seoul",
+          agency_name: "서울 대행사",
+          agency_display_name: "서울 대행사",
+          item_name: "가을 기본 촬영",
+          price_min_krw: 1_000_000,
+        },
+        {
+          ...base,
+          id: "price-autumn-studio",
+          vendor_id: "vendor-autumn-studio",
+          vendor_slug: "studio-a-autumn-studio",
+          vendor_name: "가을스튜디오",
+          vendor_aliases: ["가을 사진관"],
+          region_code: "gangwon",
+          agency_id: "agency-gangwon",
+          agency_name: "강원 대행사",
+          agency_display_name: "강원 대행사",
+          item_name: "가을스튜디오 기본 촬영",
+          price_min_krw: 1_100_000,
+        },
+      ],
+    });
+
+    const catalog = await loadPublicPriceCatalog(client, { optionCategories: [] });
+    const [merged] = catalog.categories.studio;
+
+    expect(catalog.categories.studio).toHaveLength(1);
+    // 대표 이름은 채택한 병합표를 따른다 — `["studio|가을스튜디오", "가을"]`이므로
+    // 대표는 짧은 쪽이다. 병합 자체(카드 1장)는 아래 단언이 계속 고정한다.
+    expect(merged).toMatchObject({
+      id: "vendor-autumn-studio",
+      slug: "studio-a-autumn-studio",
+      name: "가을",
+    });
+    expect(merged.offers.map(({ id, regionCode }) => ({ id, regionCode }))).toEqual([
+      { id: "price-autumn", regionCode: "seoul_gangnam3" },
+      { id: "price-autumn-studio", regionCode: "gangwon" },
+    ]);
+    // 형제 표기("가을", "가을 사진관")는 별칭으로 노출되지 않는다. 그 노출은 slug
+    // 단위 병합표(2026-07-28)가 하던 일이고, 이름표+지점표(2026-08-05)로 통일하면서
+    // 함께 빠졌다. 병합 자체는 유지된다 — 위 `toHaveLength(1)`이 그것을 고정한다.
+    // 검색은 아래 단언이 계속 확인한다(옛 상호로 찾으면 이 카드가 나온다).
+    expect(new Set(merged.aliases)).toEqual(new Set(["가을 옛 상호"]));
+    expect(filterPriceCatalog(catalog.categories.studio, { search: "가을 옛 상호" }))
+      .toHaveLength(1);
   });
 });

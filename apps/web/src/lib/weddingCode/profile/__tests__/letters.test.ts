@@ -1,0 +1,167 @@
+import { describe, expect, it } from "vitest";
+
+import { WEDDING_CODE_V06_AXES } from "@/constants/weddingCodeV06";
+import type {
+  WeddingCodeSelfAxisReading,
+  WeddingCodeSelfProfile,
+} from "@/lib/weddingCode/scene/selfProfile";
+import {
+  WEDDING_CODE_LETTERS,
+  WEDDING_CODE_MISSING_LETTER,
+  buildWeddingCodeLetters,
+  compareWeddingCodeLetters,
+} from "../letters";
+
+/** 굳기 판정만 보려고 응답 수를 직접 지정한 축 하나. */
+function reading(
+  axis: WeddingCodeSelfAxisReading["axis"],
+  leftCount: number,
+  rightCount: number,
+): WeddingCodeSelfAxisReading {
+  const definition = WEDDING_CODE_V06_AXES.find((item) => item.key === axis)!;
+  return {
+    axis,
+    axisLabel: definition.labelKo,
+    lean: leftCount === rightCount ? "mixed" : leftCount > rightCount ? "left" : "right",
+    title: "제목",
+    leftLabel: definition.left.labelKo,
+    rightLabel: definition.right.labelKo,
+    leftCount,
+    rightCount,
+    answered: leftCount + rightCount,
+    evidence: [],
+    missingPhrases: [],
+    tellPartner: "문장",
+    watchOut: "문장",
+  };
+}
+
+function profileOf(
+  counts: readonly (readonly [number, number])[],
+): WeddingCodeSelfProfile {
+  const axes = WEDDING_CODE_V06_AXES.map((axis, index) =>
+    reading(axis.key, counts[index][0], counts[index][1]),
+  );
+  const answered = axes.reduce((sum, item) => sum + item.answered, 0);
+  return { answered, total: 20, complete: answered === 20, repeated: [], axes };
+}
+
+describe("웨딩코드 네 글자", () => {
+  it("축 순서대로 네 자리를 만든다", () => {
+    const letters = buildWeddingCodeLetters(
+      profileOf([[5, 0], [5, 0], [5, 0], [5, 0]]),
+    );
+    expect(letters.code).toHaveLength(WEDDING_CODE_V06_AXES.length);
+    expect(letters.code).toBe("VTUH");
+    expect(letters.complete).toBe(true);
+
+    const opposite = buildWeddingCodeLetters(
+      profileOf([[0, 5], [0, 5], [0, 5], [0, 5]]),
+    );
+    expect(opposite.code).toBe("MOFA");
+  });
+
+  it("굳기에 따라 글자 모양이 달라진다", () => {
+    const letters = buildWeddingCodeLetters(
+      profileOf([[5, 0], [4, 1], [3, 2], [1, 4]]),
+    );
+    // 5:0 굳음, 4:1 뚜렷은 대문자. 3:2 아슬은 소문자.
+    expect(letters.code).toBe("VTuA");
+    expect(letters.slots.map((slot) => slot.firmness)).toEqual([
+      "firm", "clear", "narrow", "clear",
+    ]);
+    // 비교·집계는 대문자 기준이라 아슬해도 자리를 잃지 않는다.
+    expect(letters.upperCode).toBe("VTUA");
+  });
+
+  it("아슬한 글자는 바뀔 수 있다고 먼저 알린다", () => {
+    const [slot] = buildWeddingCodeLetters(profileOf([[3, 2], [5, 0], [5, 0], [5, 0]])).slots;
+    expect(slot.firmness).toBe("narrow");
+    expect(slot.caution).toContain("3 대 2");
+    expect(slot.caution).toContain("바뀔 수 있어요");
+    // 반대편 글자를 정확히 알려준다.
+    expect(slot.caution).toContain(WEDDING_CODE_LETTERS.decisionCriteria.right.letter);
+
+    const firm = buildWeddingCodeLetters(profileOf([[5, 0], [5, 0], [5, 0], [5, 0]])).slots[0];
+    expect(firm.caution).toBeNull();
+  });
+
+  /**
+   * 건너뛴 축에 글자를 지어 넣으면, 고르지도 않은 답으로 정체성을 만드는 것이 된다.
+   */
+  it("건너뛰었거나 정확히 반반이면 글자를 만들지 않는다", () => {
+    const skipped = buildWeddingCodeLetters(profileOf([[0, 0], [5, 0], [5, 0], [5, 0]]));
+    expect(skipped.code.startsWith(WEDDING_CODE_MISSING_LETTER)).toBe(true);
+    expect(skipped.slots[0].upper).toBeNull();
+    expect(skipped.slots[0].firmness).toBe("unset");
+    expect(skipped.complete).toBe(false);
+    expect(skipped.slots[0].meaning).toContain("건너뛰어서");
+
+    // 건너뛴 문항 때문에 짝수가 되어 정확히 반반이 될 수 있다.
+    const tied = buildWeddingCodeLetters(profileOf([[2, 2], [5, 0], [5, 0], [5, 0]]));
+    expect(tied.slots[0].upper).toBeNull();
+    expect(tied.slots[0].tally).toContain("반반");
+    expect(tied.complete).toBe(false);
+  });
+
+  it("셈이 항상 글자와 함께 나간다", () => {
+    for (const slot of buildWeddingCodeLetters(profileOf([[5, 0], [4, 1], [3, 2], [0, 0]])).slots) {
+      expect(slot.tally.length).toBeGreaterThan(0);
+      expect(slot.meaning.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("성격을 설명하거나 점수를 매기지 않는다", () => {
+    const letters = buildWeddingCodeLetters(profileOf([[5, 0], [4, 1], [3, 2], [2, 3]]));
+    const text = letters.slots
+      .map((slot) => `${slot.meaning} ${slot.tally} ${slot.caution ?? ""}`)
+      .join(" ");
+    for (const banned of ["당신은", "성격", "유형", "궁합", "점수", "등급", "예측", "잘 맞"]) {
+      expect(text, banned).not.toContain(banned);
+    }
+    // 뜻은 사람이 아니라 「고른 답」을 설명해야 한다.
+    for (const slot of letters.slots) {
+      expect(slot.meaning, slot.axis).toContain("골랐어요");
+    }
+  });
+
+  it("열여섯 조합이 모두 서로 다른 코드가 된다", () => {
+    const codes = new Set<string>();
+    for (let mask = 0; mask < 16; mask += 1) {
+      const counts = [0, 1, 2, 3].map((index) =>
+        (mask >> index) & 1 ? ([0, 5] as const) : ([5, 0] as const),
+      );
+      codes.add(buildWeddingCodeLetters(profileOf(counts)).code);
+    }
+    expect(codes.size).toBe(16);
+  });
+});
+
+describe("두 코드 비교", () => {
+  it("자리마다 같은지 다른지만 말하고 점수로 합치지 않는다", () => {
+    const mine = buildWeddingCodeLetters(profileOf([[5, 0], [5, 0], [0, 5], [3, 2]]));
+    const theirs = buildWeddingCodeLetters(profileOf([[5, 0], [0, 5], [0, 5], [2, 3]]));
+    const comparison = compareWeddingCodeLetters(mine, theirs);
+
+    expect(comparison.map((item) => item.state)).toEqual([
+      "same", "different", "same", "different",
+    ]);
+    // 어떤 필드도 점수·백분율이 아니다.
+    for (const item of comparison) {
+      expect(Object.keys(item)).toEqual(["axis", "axisLabel", "first", "second", "state"]);
+    }
+  });
+
+  it("아슬한 글자도 대문자 기준으로 비교해 자리를 잃지 않는다", () => {
+    const mine = buildWeddingCodeLetters(profileOf([[3, 2], [5, 0], [5, 0], [5, 0]]));
+    const theirs = buildWeddingCodeLetters(profileOf([[5, 0], [5, 0], [5, 0], [5, 0]]));
+    expect(mine.slots[0].letter).toBe("v");
+    expect(compareWeddingCodeLetters(mine, theirs)[0].state).toBe("same");
+  });
+
+  it("한쪽이 건너뛴 자리는 같다고도 다르다고도 하지 않는다", () => {
+    const mine = buildWeddingCodeLetters(profileOf([[0, 0], [5, 0], [5, 0], [5, 0]]));
+    const theirs = buildWeddingCodeLetters(profileOf([[5, 0], [5, 0], [5, 0], [5, 0]]));
+    expect(compareWeddingCodeLetters(mine, theirs)[0].state).toBe("unknown");
+  });
+});

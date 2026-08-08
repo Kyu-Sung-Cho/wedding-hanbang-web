@@ -4,45 +4,37 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { captureEvent } from "@/lib/analytics";
 import {
-  AlertTriangle,
   ArrowLeft,
   Check,
   CheckCircle2,
+  CircleHelp,
   ClipboardCheck,
   Copy,
-  Instagram,
   Loader2,
   MessageCircle,
+  Minus,
   PenLine,
-  Share2,
 } from "lucide-react";
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
-  AMORA_QUOTE_REGION_LABELS,
   getQuoteCheckItems,
   type AmoraQuoteCategory,
   type AmoraQuoteCheckResult,
-  type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 import { weddingPath } from "@/lib/weddingPaths";
 import ReportCardButton from "./ReportCardButton";
 
-const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
-const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
+const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["studio", "dress", "makeup"];
 
-const SEVERITY_LABELS = {
-  critical: "핵심 확인",
-  high: "추가 확인",
-  medium: "선택 확인",
-} as const;
+type ItemDecision = "included" | "not_needed" | "unknown";
 
-const SEVERITY_STYLES = {
-  critical: "border-red-200 bg-red-50 text-red-700",
-  high: "border-amber-200 bg-amber-50 text-amber-700",
-  medium: "border-[#e5d8ca] bg-[#f6efe5] text-[#635b51]",
-} as const;
+const ITEM_DECISION_OPTIONS = [
+  { value: "included", label: "포함", icon: Check },
+  { value: "not_needed", label: "이용 안 함", icon: Minus },
+  { value: "unknown", label: "확인 필요", icon: CircleHelp },
+] as const;
 
-// 톤: 평가가 아닌 정보 노출 — 빠진 항목 개수에서 시각적 강도만 유도.
+// 톤: 평가가 아닌 정보 노출 — 아직 확인하지 않은 항목 수에서 시각적 강도만 유도.
 const INTENSITY_STYLES = {
   clear: {
     icon: CheckCircle2,
@@ -57,10 +49,10 @@ const INTENSITY_STYLES = {
     text: "text-[#36534E]",
   },
   critical: {
-    icon: AlertTriangle,
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-800",
+    icon: ClipboardCheck,
+    bg: "bg-[#F3F7F1]",
+    border: "border-[#C7D1C2]",
+    text: "text-[#36534E]",
   },
 } as const;
 
@@ -69,60 +61,42 @@ function formatManwon(value: number) {
 }
 
 export default function AmoraQuoteCheckPage() {
-  const [category, setCategory] = useState<AmoraQuoteCategory>("sdm_package");
-  const [region, setRegion] = useState<AmoraQuoteRegion>("seoul");
-  const [quotePrice, setQuotePrice] = useState("");
-  const [vendorName, setVendorName] = useState("");
-  const [memo, setMemo] = useState("");
-  const [bookingChannel, setBookingChannel] = useState("unknown");
-  const [quoteStage, setQuoteStage] = useState("quote_only");
-  const [includedItemIds, setIncludedItemIds] = useState<Set<string>>(new Set());
+  const [category, setCategory] = useState<AmoraQuoteCategory>("studio");
+  const [itemDecisions, setItemDecisions] = useState<Record<string, ItemDecision>>({});
   const [result, setResult] = useState<AmoraQuoteCheckResult | null>(null);
-  const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const parsedQuotePrice = Number(quotePrice);
-  const quotePriceValid = quotePrice.trim().length > 0
-    && Number.isFinite(parsedQuotePrice)
-    && parsedQuotePrice >= 1
-    && parsedQuotePrice <= 10_000;
 
-  const items = useMemo(() => getQuoteCheckItems(category, region), [category, region]);
+  const items = useMemo(() => getQuoteCheckItems(category, "other"), [category]);
   const requiredItems = items.filter((item) => item.severity === "critical");
   const highItems = items.filter((item) => item.severity === "high");
   const mediumItems = items.filter((item) => item.severity === "medium");
+  const includedItemIds = items
+    .filter((item) => itemDecisions[item.id] === "included")
+    .map((item) => item.id);
+  const notNeededItemIds = items
+    .filter((item) => itemDecisions[item.id] === "not_needed")
+    .map((item) => item.id);
+  const decidedCount = includedItemIds.length + notNeededItemIds.length;
 
-  const resetSelection = (nextCategory: AmoraQuoteCategory, nextRegion = region) => {
+  const resetSelection = (nextCategory: AmoraQuoteCategory) => {
     setCategory(nextCategory);
-    setRegion(nextRegion);
-    setIncludedItemIds(new Set());
+    setItemDecisions({});
     setResult(null);
     setError(null);
   };
 
-  const toggleItem = (id: string) => {
-    setIncludedItemIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+  const setItemDecision = (id: string, decision: ItemDecision) => {
+    setItemDecisions((previous) => ({ ...previous, [id]: decision }));
+    setResult(null);
+    setError(null);
   };
 
   const submit = async () => {
-    if (!quotePriceValid) {
-      setError("견적 금액을 1만원 이상 1억원 이하로 입력해 주세요.");
-      return;
-    }
-
     setError(null);
     setLoading(true);
     setResult(null);
-    setSavedId(null);
-    captureEvent("quote_check_submitted", { category, region });
+    captureEvent("quote_check_submitted");
 
     try {
       const res = await fetch("/api/amora/quote-check", {
@@ -130,19 +104,14 @@ export default function AmoraQuoteCheckPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category,
-          region,
-          quotePriceManwon: parsedQuotePrice,
-          vendorName,
-          memo,
-          includedItemIds: [...includedItemIds],
-          bookingChannel,
-          quoteStage,
+          region: "other",
+          includedItemIds,
+          notNeededItemIds,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "결과를 가져오지 못했습니다.");
       setResult(data.analysis as AmoraQuoteCheckResult);
-      setSavedId(typeof data.savedId === "string" ? data.savedId : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "결과를 가져오지 못했습니다.");
     } finally {
@@ -170,11 +139,11 @@ export default function AmoraQuoteCheckPage() {
                   계약 전 체크리스트
                 </div>
                 <h1 className="font-serif-kr text-3xl text-[#263832] sm:text-4xl">
-                  견적에 빠진 게 없는지 같이 봐드려요
+                  견적서에서 더 확인할 내용을 찾아드려요
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#635b51] sm:text-base">
-                  결혼 처음 준비하면 놓치기 쉬운 포함 항목과 계약 전 업체에 물어볼 질문을 정리해 드려요.
-                  견적이 좋다·나쁘다를 판단하는 게 아니라, 빠진 게 없는지 확인하는 체크리스트입니다.
+                  견적서에 포함 여부가 분명하게 적혀 있는지 살펴보고, 계약 전 업체에 물어볼
+                  질문을 정리해 드려요. 가격이 좋다·나쁘다를 판단하지 않습니다.
                 </p>
               </div>
               <Link
@@ -186,7 +155,7 @@ export default function AmoraQuoteCheckPage() {
               </Link>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="mt-5 max-w-md">
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-[#263832]">분야</span>
                 <select
@@ -201,117 +170,38 @@ export default function AmoraQuoteCheckPage() {
                   ))}
                 </select>
               </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#263832]">지역</span>
-                <select
-                  value={region}
-                  onChange={(event) => {
-                    setRegion(event.target.value as AmoraQuoteRegion);
-                    setResult(null);
-                    setError(null);
-                  }}
-                  className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
-                >
-                  {REGION_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {AMORA_QUOTE_REGION_LABELS[option]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#263832]">견적 금액</span>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    max="10000"
-                    value={quotePrice}
-                    onChange={(event) => {
-                     setQuotePrice(event.target.value);
-                     setResult(null);
-                     setError(null);
-                   }}
-                   aria-invalid={quotePrice.length > 0 && !quotePriceValid}
-                    className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 pr-12 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#928980]">
-                    만원
-                  </span>
-                </div>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#263832]">업체명</span>
-                <input
-                  type="text"
-                  value={vendorName}
-                  onChange={(event) => setVendorName(event.target.value)}
-                  placeholder="선택 입력"
-                  className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#36534E]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#263832]">견적 받은 경로</span>
-                <select
-                  value={bookingChannel}
-                  onChange={(event) => setBookingChannel(event.target.value)}
-                  className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
-                >
-                  <option value="unknown">잘 모르겠어요</option>
-                  <option value="walk_in">직접 방문 (워크인)</option>
-                  <option value="planner">플래너 동행·소개</option>
-                  <option value="agency_package">대행사 패키지</option>
-                </select>
-                <span className="mt-1 block text-xs text-[#928980]">
-                  같은 업체도 경로에 따라 가격이 달라서, 정확한 비교에 꼭 필요해요.
-                </span>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[#263832]">진행 단계</span>
-                <select
-                  value={quoteStage}
-                  onChange={(event) => setQuoteStage(event.target.value)}
-                  className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
-                >
-                  <option value="quote_only">견적만 받았어요</option>
-                  <option value="contracted">계약까지 했어요</option>
-                </select>
-              </label>
             </div>
-
-            <label className="mt-4 block">
-              <span className="mb-2 block text-sm font-medium text-[#263832]">견적 메모</span>
-              <textarea
-                rows={3}
-                value={memo}
-                onChange={(event) => setMemo(event.target.value)}
-                placeholder="상담 중 들은 추가금, 계약 조건, 헷갈리는 문장을 적어두세요"
-                className="w-full resize-none rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#36534E]"
-              />
-            </label>
           </section>
 
           <section className="mt-5 rounded-xl border border-[#e5d8ca] bg-white p-4 sm:p-5 lg:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-[#263832]">견적서에 포함된 항목</h2>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-[#263832]">각 항목의 상태</h2>
                 <p className="mt-1 text-sm text-[#928980]">
-                  견적서에 명시된 항목만 선택하면 계약 전 확인할 내용을 정리합니다.
+                  견적서에 포함이라고 적혀 있으면 ‘포함’, 이용하지 않을 항목은 ‘이용 안 함’,
+                  그 외에는 ‘확인 필요’를 선택해 주세요. 아무것도 고르지 않은 항목도
+                  ‘확인 필요’로 정리됩니다.
                 </p>
               </div>
-              <span className="rounded-full bg-[#f6efe5] px-3 py-1 text-xs text-[#635b51]">
-                {includedItemIds.size}/{items.length}
+              <span className="shrink-0 whitespace-nowrap rounded-full bg-[#f6efe5] px-3 py-1 text-xs text-[#635b51]">
+                정리 {decidedCount}/{items.length}
               </span>
             </div>
 
-            <ItemGroup title="핵심 확인" items={requiredItems} selected={includedItemIds} onToggle={toggleItem} />
-            <ItemGroup title="추가 확인" items={highItems} selected={includedItemIds} onToggle={toggleItem} />
-            <ItemGroup title="선택 확인" items={mediumItems} selected={includedItemIds} onToggle={toggleItem} compact />
+            <ItemGroup title="먼저 확인" items={requiredItems} decisions={itemDecisions} onChange={setItemDecision} />
+            <ItemGroup title="함께 확인" items={highItems} decisions={itemDecisions} onChange={setItemDecision} />
+            <ItemGroup title="해당하면 확인" items={mediumItems} decisions={itemDecisions} onChange={setItemDecision} />
+
+            <div className="mt-5 rounded-lg border border-[#e5d8ca] bg-[#fbf8f2] p-4">
+              <p className="text-sm font-semibold text-[#263832]">선택한 내용은 저장하지 않습니다</p>
+              <p className="text-xs leading-5 text-[#635b51]">
+                분야와 선택 항목은 이번 결과 계산에만 사용하고 별도 서버 DB,
+                업체 목록이나 공개 링크에 저장하지 않습니다.
+              </p>
+              <Link href="/privacy" className="mt-2 inline-flex text-xs font-medium text-[#36534E] underline underline-offset-2">
+                개인정보 처리 내용 보기
+              </Link>
+            </div>
 
             {error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -322,7 +212,7 @@ export default function AmoraQuoteCheckPage() {
             <button
               type="button"
                onClick={() => submit()}
-               disabled={loading || !quotePriceValid}
+               disabled={loading}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#36534E] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(6,26,52,0.18)] transition-colors hover:bg-[#2B423E] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
@@ -330,7 +220,7 @@ export default function AmoraQuoteCheckPage() {
             </button>
           </section>
 
-          {result && <ResultPanel result={result} savedId={savedId} />}
+          {result && <ResultPanel result={result} />}
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
@@ -338,13 +228,13 @@ export default function AmoraQuoteCheckPage() {
             <h2 className="font-serif-kr text-2xl text-[#263832]">이 체크리스트, 솔직히 말하면</h2>
             <div className="mt-4 space-y-3 text-sm leading-6 text-[#635b51]">
               <p>
-                견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 결혼 처음 준비하면 모르고 빠뜨릴 수 있는 항목들을 한 번에 보여주는 체크리스트예요.
+                견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 견적서에 포함 여부와 별도 금액을 적어둘 항목을 보여주는 체크리스트예요.
               </p>
                <p>
                  가격 비교값은 이 결과에 고정하지 않아요. 업체별 최신 공시가에서 출처·기준 시점·구성 범위를 확인한 뒤 받은 견적과 직접 대조해 주세요.
               </p>
               <p>
-                계약 전 빠진 항목을 업체에 한 번이라도 묻고 답변을 받으면 — 그게 가장 큰 안전장치예요.
+                원하는 항목의 포함 여부와 별도 금액을 계약 전에 서면으로 받아두세요.
               </p>
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
@@ -362,56 +252,56 @@ export default function AmoraQuoteCheckPage() {
 function ItemGroup({
   title,
   items,
-  selected,
-  onToggle,
-  compact = false,
+  decisions,
+  onChange,
 }: {
   title: string;
   items: ReturnType<typeof getQuoteCheckItems>;
-  selected: Set<string>;
-  onToggle: (id: string) => void;
-  compact?: boolean;
+  decisions: Record<string, ItemDecision>;
+  onChange: (id: string, decision: ItemDecision) => void;
 }) {
   if (items.length === 0) return null;
 
   return (
     <div className="mt-4">
       <h3 className="mb-2 text-sm font-semibold text-[#263832]">{title}</h3>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="divide-y divide-[#e5d8ca] border-y border-[#e5d8ca]">
         {items.map((item) => {
-          const active = selected.has(item.id);
+          const decision = decisions[item.id] ?? "unknown";
           return (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => onToggle(item.id)}
-              className={`flex min-h-[64px] items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
-                active
-                  ? "border-[#36534E] bg-[#f6efe5]"
-                  : "border-[#e5d8ca] bg-white hover:border-[#dfc9c1] hover:bg-[#f6efe5]"
-              }`}
-            >
-              <span
-                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                  active ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#dfc9c1] text-transparent"
-                }`}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              </span>
-              <span className="min-w-0 flex-1">
+            <div key={item.id} className="py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-[#263832]">{item.name}</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${SEVERITY_STYLES[item.severity]}`}>
-                    {SEVERITY_LABELS[item.severity]}
-                  </span>
                 </span>
-                {!compact && (
-                  <span className="mt-1 block text-xs text-[#928980]">
-                    현재 견적서에 포함되어 있는지 선택해 주세요
-                  </span>
-                )}
-              </span>
-            </button>
+                <div
+                  role="group"
+                  aria-label={`${item.name} 상태`}
+                  className="grid w-full grid-cols-3 overflow-hidden rounded-lg border border-[#e5d8ca] sm:w-[300px]"
+                >
+                  {ITEM_DECISION_OPTIONS.map((option) => {
+                    const active = decision === option.value;
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => onChange(item.id, option.value)}
+                        className={`flex min-h-10 items-center justify-center gap-1 border-r border-[#e5d8ca] px-2 text-xs font-medium last:border-r-0 ${
+                          active
+                            ? "bg-[#36534E] text-white"
+                            : "bg-white text-[#635b51] hover:bg-[#f6efe5]"
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           );
         })}
       </div>
@@ -419,13 +309,7 @@ function ItemGroup({
   );
 }
 
-function ResultPanel({
-  result,
-  savedId,
-}: {
-  result: AmoraQuoteCheckResult;
-  savedId: string | null;
-}) {
+function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
   const missingTotal =
     result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
   const intensity =
@@ -433,11 +317,8 @@ function ResultPanel({
   const style = INTENSITY_STYLES[intensity];
   const Icon = style.icon;
   const [copied, setCopied] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [shareSharing, setShareSharing] = useState(false);
-  const [instaCopied, setInstaCopied] = useState(false);
 
-  // missingItems 중 계약 전 확인 우선순위가 높은 것부터 공유/포스트에 노출한다.
+  // 확인 필요 항목 중 계약 전 확인 순서가 앞선 것부터 공유/포스트에 노출한다.
   const topMissing = useMemo(() => {
     const order = { critical: 0, high: 1, medium: 2 } as const;
     return [...result.missingItems]
@@ -448,47 +329,47 @@ function ResultPanel({
   // 아모라 채팅에 그대로 던질 수 있는 컨텍스트 메시지
   const chatPrompt = useMemo(() => {
     const lines = [
-      `방금 견적 체크를 돌렸어. ${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적이야.`,
+      `방금 ${AMORA_QUOTE_CATEGORY_LABELS[result.category]} 견적 항목을 확인했어.`,
       `결과 요약: ${result.summaryTitle}`,
       result.summaryText,
     ];
     if (topMissing.length > 0) {
       lines.push("");
-      lines.push("빠진 항목:");
+      lines.push("확인 필요로 남긴 항목:");
       topMissing.forEach((item) => {
         lines.push(
-          `- ${item.name} (${item.severity === "critical" ? "핵심 확인" : item.severity === "high" ? "추가 확인" : "선택 확인"})`
+          `- ${item.name} (${item.severity === "critical" ? "먼저 확인" : item.severity === "high" ? "함께 확인" : "해당하면 확인"})`
         );
       });
     }
     lines.push("");
-    lines.push("이 중에 계약 전에 꼭 확인해야 할 항목이랑, 업체에 어떻게 물어보면 좋을지 알려줘.");
+    lines.push("내 계획에 필요한 항목부터 구분하고, 업체에 어떻게 물어보면 좋을지 알려줘.");
     return lines.join("\n");
   }, [result, topMissing]);
 
-  // "익명 사례로 공유하기" 게시글 prefill
+  // 사용자가 직접 확인한 뒤 커뮤니티 글로 올리는 게시글 prefill
   const postTitle = useMemo(
     () =>
-      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적, 이거 빠진 거 정상인가요?`,
+      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} 견적, 이 항목들도 포함인지 궁금해요`,
     [result]
   );
   const postContent = useMemo(() => {
     const lines = [
-      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적 받았는데 체크리스트 돌려보니까 빠진 항목이 있어서 공유 + 의견 받고 싶어요.`,
+      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} 견적을 받았는데, 아래 항목은 포함 여부를 아직 확인하지 못해 의견을 듣고 싶어요.`,
       "",
-      `📌 ${result.summaryTitle}`,
+      result.summaryTitle,
       result.summaryText,
       "",
     ];
     if (topMissing.length > 0) {
-      lines.push("⚠️ 견적서에서 확인 안 된 항목");
+      lines.push("견적서에서 확인이 필요한 항목");
       topMissing.forEach((item) => {
-        const tag = item.severity === "critical" ? "[핵심 확인]" : item.severity === "high" ? "[추가 확인]" : "[선택 확인]";
+        const tag = item.severity === "critical" ? "[먼저 확인]" : item.severity === "high" ? "[함께 확인]" : "[해당하면 확인]";
         lines.push(`- ${tag} ${item.name}`);
       });
       lines.push("");
     }
-    lines.push("이거 보통 이렇게 빠지나요? 추가 질문 받습니다 🙏");
+    lines.push("보통 계약 전에 어떤 내용을 더 확인하는지 알려주세요.");
     return lines.join("\n");
   }, [result, topMissing]);
 
@@ -511,62 +392,6 @@ function ResultPanel({
     }
   };
 
-  // 공유 텍스트 — 빠진 세부 항목까지 포함 (이슈 6)
-  const buildShareText = (compact = false) => {
-    const head = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — ${result.summaryTitle}`;
-    const meta = `견적서에서 확인 안 된 항목 ${missingTotal}개 (핵심 확인 ${result.missingCriticalCount}개)`;
-    if (compact || topMissing.length === 0) return `${head}\n${meta}`;
-
-    const detailLines = topMissing.slice(0, 5).map((item) => {
-      const tag = item.severity === "critical" ? "[핵심 확인]" : item.severity === "high" ? "[추가 확인]" : "[선택 확인]";
-      return `${tag} ${item.name}`;
-    });
-    return `${head}\n${meta}\n\n[견적서에 없는 항목]\n${detailLines.join("\n")}`;
-  };
-
-  const shareResult = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
-    const title = `${result.summaryTitle}`;
-    const text = buildShareText(false);
-
-    if (typeof navigator.share === "function") {
-      try {
-        setShareSharing(true);
-        await navigator.share({ title, text, url });
-      } catch {
-        // 취소 등 — 무시
-      } finally {
-        setShareSharing(false);
-      }
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(`${text}\n${url}`);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    } catch {
-      window.prompt("이 링크를 복사해 공유하세요", `${text}\n${url}`);
-    }
-  };
-
-  // 인스타그램은 웹에서 텍스트 직접 공유가 안 되므로 — 텍스트를 클립보드로 복사하고
-  // 인스타그램을 새 탭으로 열어줌. 사용자가 스토리/DM/게시물에 붙여넣어 공유.
-  const shareToInstagram = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
-    const text = `${buildShareText(false)}\n\n${url}\n#웨딩한방 #견적체크`;
-    try {
-      await navigator.clipboard.writeText(text);
-      setInstaCopied(true);
-      setTimeout(() => setInstaCopied(false), 2500);
-    } catch {
-      window.prompt("아래 텍스트를 복사해 인스타그램에 붙여넣으세요", text);
-    }
-    window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
-  };
-
   return (
     <section className={`mt-5 rounded-xl border ${style.border} ${style.bg} p-4 sm:p-5 lg:p-6`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -578,7 +403,7 @@ function ResultPanel({
             <h2 className={`text-xl font-semibold ${style.text}`}>{result.summaryTitle}</h2>
             <p className="mt-2 text-sm leading-6 text-[#635b51]">{result.summaryText}</p>
             <p className="mt-2 text-xs leading-5 text-[#928980]">
-              평가가 아니라 빠진 항목 카운트입니다. 각자 예산·우선순위에 따라 적정선은 다를 수 있어요.
+              ‘확인 필요’로 남긴 항목만 정리했어요. ‘이용 안 함’으로 고른 항목은 제외했습니다.
             </p>
           </div>
         </div>
@@ -586,7 +411,10 @@ function ResultPanel({
 
       {/* 메트릭 카드 — 입력값과 확인된 체크리스트 사실만 표시 */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <ResultMetric label="입력한 견적가" value={formatManwon(result.quotePriceManwon)} />
+        <ResultMetric
+          label="점검한 견적"
+          value={AMORA_QUOTE_CATEGORY_LABELS[result.category]}
+        />
         {result.marketMedianManwon > 0 ? (
           <ResultMetric
             label={`${result.marketComparatorLabel} (참고)`}
@@ -604,12 +432,12 @@ function ResultPanel({
           </div>
         )}
         <ResultMetric
-          label="견적서에서 확인 안 된 항목"
-          value={`${missingTotal}개 (핵심 확인 ${result.missingCriticalCount})`}
+          label="정리한 상태"
+          value={`확인 필요 ${missingTotal}개 · 이용 안 함 ${result.notNeededItemCount}개`}
         />
       </div>
       <p className="mt-2 text-xs leading-5 text-[#928980]">
-        이 결과는 가격이 좋다·나쁘다는 판정이 아니라, 견적서에서 확인되지 않은 항목을 찾는 체크리스트예요.
+        이 결과는 가격이나 계약을 평가하지 않고, 사용자가 고른 항목 상태만 정리합니다.
       </p>
 
       {result.contractQuestions.length > 0 && (
@@ -661,58 +489,9 @@ function ResultPanel({
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#f6efe5]"
         >
           <PenLine className="h-4 w-4" />
-          익명 사례로 공유하기
+          커뮤니티에 직접 공유하기
         </Link>
       </div>
-
-      {savedId && (
-        <div className="mt-3 rounded-lg border border-[#e5d8ca] bg-white p-3">
-          <div className="flex flex-col gap-3">
-            <p className="text-xs leading-5 text-[#635b51]">
-              <strong className="text-[#263832]">고민되면 친구·파트너에게 보내세요.</strong>
-              <br />
-              공유 텍스트에는 견적가, 요약, 빠진 항목 세부 리스트가 포함돼요. 메모·업체명은 제외됩니다.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <button
-                type="button"
-                onClick={shareResult}
-                disabled={shareSharing}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#36534E] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
-              >
-                {shareCopied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                    링크·세부항목 복사됨
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="h-3.5 w-3.5" />
-                    카톡·메시지로 공유
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={shareToInstagram}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
-              >
-                {instaCopied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                    복사 완료 · 인스타에 붙여넣기
-                  </>
-                ) : (
-                  <>
-                    <Instagram className="h-3.5 w-3.5" />
-                    인스타 공유 (텍스트 복사)
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <p className="mt-3 text-xs leading-5 text-[#928980]">{result.sourceNote}</p>
     </section>

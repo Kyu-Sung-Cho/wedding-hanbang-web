@@ -118,6 +118,55 @@ defaults, checks, triggers, Auth and Storage metadata, RLS, RPC/ACL, row counts,
 and canonical digests. A local-only replay or same-project reset cannot open the
 Storage operation gate.
 
+## Retired guestbook buckets (20260804120000)
+
+Migration `20260804120000_community_profile_guestbook_p0_hardening.sql` retires
+the app-owned guestbook tables, but deliberately does not alter
+`storage.objects`, its policies, or `storage.buckets`. Supabase owns those
+entities as `supabase_storage_admin`; treat their schema records as read-only and
+change bucket configuration only through the supported Storage API.
+
+The two retained buckets are `guestbook-images` and `guestbook-uploads`. The
+operation makes them private without deleting or listing object names. It does
+not delete retained bytes.
+
+Run the hosted operation in this fixed order:
+
+1. Apply the database migration and the already-reviewed global Storage policy
+   operation. Do not run this bucket operation against an earlier policy state.
+2. Run
+   `20260804120000_retired_guestbook_storage_inventory.sql` in the hosted SQL
+   Editor. Save every result set. Stop on a missing bucket, owner drift, policy
+   drift, or any status other than `READY_TO_PRIVATIZE`/`ALREADY_PRIVATE`.
+3. Pin all destination variables: `NEXT_PUBLIC_SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_EXPECTED_URL`,
+   `SUPABASE_EXPECTED_PROJECT_REF`, and `SUPABASE_PRODUCTION_PROJECT_REF`.
+   Never place their values in a release receipt.
+4. For a production destination, separately set
+   `SUPABASE_PRODUCTION_WRITE_CONFIRM=OPERATOR_WRITE:<project-ref>`.
+5. Run the supported, destination-fenced change:
+
+   ```powershell
+   corepack pnpm exec node ./scripts/retire-guestbook-storage-buckets.mjs --apply --confirm=RETIRED_GUESTBOOK_BUCKETS_PRIVATE:<project-ref>
+   ```
+
+   The command validates the exact bucket identity and configuration before
+   changing visibility, is safe to retry, compensates an in-process partial
+   apply, and prints no secret, object name, or object byte.
+6. Re-run the command without `--apply` for a read-only API verification, then
+   run `20260804120000_retired_guestbook_storage_verify.sql` and save both
+   receipts:
+
+   ```powershell
+   corepack pnpm exec node ./scripts/retire-guestbook-storage-buckets.mjs --verify
+   ```
+
+The final SQL receipt fails unless both buckets are private and the entire
+global `storage.objects` policy multiset is the exact reviewed one-policy,
+no-read manifest. A green bucket receipt is necessary but does not authorize a
+production deploy, lift either write fence, or enable community media/push
+feature flags. Those decisions still require the full release runbook evidence.
+
 Migration 1110 adds full-byte sanitation checkpoints, exact signed-token
 cleanup, atomic post/cohort attachment binding, and leased cleanup for finalized
 assets left unattached for 24 hours. Migration 1130 creates the deletion-intake

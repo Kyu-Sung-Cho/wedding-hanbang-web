@@ -34,6 +34,28 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it("never upgrades a legacy cost field into recorded spend or an over-budget claim", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      budget: 10_000_000,
+      bookings: [],
+      progress: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          budget: 5_000_000,
+          cost: 20_000_000,
+        },
+      },
+    });
+
+    expect(prompt).toContain("이전 버전 용도 미확인 금액 있음");
+    expect(prompt).toContain("예산·지출 합계에서 제외");
+    expect(prompt).not.toContain("총 지출: 2,000만원");
+    expect(prompt).not.toContain("지출: 2,000만원");
+    expect(prompt).not.toContain("비용 주의: 결혼식장");
+  });
+
   it("uses the shared product calendar without rewriting separately sourced facts", () => {
     const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
 
@@ -52,7 +74,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
   it("puts the caring voice contract ahead of operational rules", () => {
     const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
 
-    const voiceIndex = prompt.indexOf("최우선 대화 원칙 — 친언니처럼 다정하고 끝까지 챙기는 아모라");
+    const voiceIndex = prompt.indexOf("최우선 대화 원칙 — 서두르지 않고 정확히 챙기는 아모라");
     const dateRuleIndex = prompt.indexOf("날짜 처리 절대 규칙");
 
     expect(voiceIndex).toBeGreaterThan(-1);
@@ -100,7 +122,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
         persistenceMode: "durable",
       },
     );
-    const expertiseIndex = assembledPrompt.indexOf("[전문분야 — 예산 최적화]");
+    const expertiseIndex = assembledPrompt.indexOf("[전문분야 — 확인된 금액으로 예산 정리]");
     const guardIndex = assembledPrompt.indexOf("[이번 답변의 대화 우선순위]");
 
     expect(expertiseIndex).toBeGreaterThan(-1);
@@ -111,6 +133,30 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(AMORA_FINAL_TURN_GUARD).toContain("감정 토로가 아닙니다");
     expect(AMORA_FINAL_TURN_GUARD).toContain("표현 선호는 개인화의 근거로 쓸 수 있지만");
     expect(generalAddon).toBe("");
+  });
+
+  it("keeps every specialist inside the same evidence and plain-language boundary", () => {
+    const specialistAddons = [
+      getSpecialistPromptAddon("sangkyeonrye_advisor"),
+      getSpecialistPromptAddon("contract_reviewer"),
+      getSpecialistPromptAddon("budget_optimizer"),
+      getSpecialistPromptAddon("ceremony_coordinator"),
+      getSpecialistPromptAddon("settlement_companion"),
+    ].join("\n");
+
+    for (const unsafeLegacyInstruction of [
+      "취소·환불·위약금 산정, 손해배상 범위를 구체 수치로 안내",
+      "카테고리별 평균가, 시세, 패키지 비교에 강합니다",
+      "절약 여지가 큰 항목",
+      "리허설 필수 확인 사항",
+      "예단·예물 실무",
+    ]) {
+      expect(specialistAddons).not.toContain(unsafeLegacyInstruction);
+    }
+
+    expect(specialistAddons).toContain("최신 공식 원문 없이 계산하거나 단정하지 마세요");
+    expect(specialistAddons).toContain("사용자가 입력하지 않은 카테고리 금액");
+    expect(specialistAddons).toContain("보편 규칙처럼 말하지 마세요");
   });
 
   it("never injects unverified fraud, legal, discount, or hidden-cost estimates", () => {
@@ -148,6 +194,115 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("사용자가 정한 시나리오 값만 사용");
     expect(prompt).toContain("출처가 있어도 현재 커플의 지역·날짜·구성과 맞는지는 별도 확인");
+  });
+
+  it("passes onboarding choices through in the same plain language without upgrading them into traits", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      preferences: {
+        weddingStyle: "minimal",
+        priorities: ["sdm", "rings"],
+        budgetAttitude: "premium",
+        guestCount: "50to100",
+      },
+    });
+
+    expect(prompt).toContain("## 사용자가 설정한 준비 참고값");
+    expect(prompt).toContain("원하는 분위기: 간결한 분위기");
+    expect(prompt).toContain("사진 촬영·드레스·헤어·메이크업");
+    expect(prompt).toContain("결혼반지·가족 선물");
+    expect(prompt).toContain("비용을 정할 때 먼저 보는 것: 원하는 결과 우선");
+    expect(prompt).toContain("예상 인원: 50~99명");
+    expect(prompt).not.toContain("프리미엄 (최고 퀄리티 선호)");
+    expect(prompt).not.toContain("50~100명");
+    expect(prompt).not.toContain("스몰웨딩");
+    expect(prompt).not.toContain("사용자 성향 프로필");
+  });
+
+  it("applies only the signed-in user's confirmed help style without turning it into a trait", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      helpPreference: {
+        decisionStart: "recommend_first",
+        answerDetail: "brief",
+        supportOrder: "listen_first",
+        workMode: "hybrid",
+        familyOrder: "couple_first",
+        toneStyle: "warm",
+      },
+    });
+
+    expect(prompt).toContain("## 사용자가 확인한 도움 방식");
+    expect(prompt).toContain("현실적인 안 하나를 먼저 제시");
+    expect(prompt).toContain("결론과 바로 할 다음 행동을 먼저 짧게");
+    expect(prompt).toContain("해결책부터 쏟지 말고");
+    expect(prompt).toContain("업무와 담당자를 자동 배정하지 마세요");
+    expect(prompt).toContain("먼저 두 사람의 현재 기준을 정리");
+    expect(prompt).toContain("다정하고 편안한 존댓말");
+    expect(prompt).toContain("과장된 공감");
+    expect(prompt).toContain("친한 언니나 누나 역할을 연기하지 마세요");
+    expect(prompt).toContain("현재 메시지를 따르세요");
+    expect(prompt).toContain("예산·날짜·일정·담당자·업체·공유 범위를 자동으로 바꾸거나 저장하지 마세요");
+    expect(prompt).toContain("어떤 말투에서도 사실·근거·안전·승인 기준은 바꾸지 마세요");
+    expect(prompt).toContain("항상 자연스러운 존댓말");
+    expect(prompt).toContain("반말로 바꾸지 마세요");
+    expect(prompt).not.toContain("당신은 추천형");
+    expect(prompt).not.toContain("궁합이 좋");
+  });
+
+  it("keeps ask-each-time neutral and preserves the help-style boundary under truncation", () => {
+    const context = {
+      ...baseContext,
+      bookings: [],
+      helpPreference: {
+        decisionStart: "ask_each_time" as const,
+        answerDetail: "adaptive" as const,
+        supportOrder: "ask_each_time" as const,
+        workMode: "ask_each_time" as const,
+        familyOrder: "ask_each_time" as const,
+        toneStyle: "adaptive" as const,
+      },
+    };
+    const full = buildAmoraSystemPrompt(context, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+    });
+    const truncated = buildAmoraSystemPrompt(context, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      maxChars: full.length - 500,
+    });
+
+    expect(truncated.length).toBeLessThan(full.length);
+    expect(truncated).toContain("## 사용자가 확인한 도움 방식");
+    expect(truncated).toContain("특정 형식을 고정하지 마세요");
+    expect(truncated).toContain("현재 메시지를 따르세요");
+    expect(truncated).not.toContain("현실적인 안 하나를 먼저 제시");
+  });
+
+  it.each([
+    ["calm_clear", "차분하고 또렷한 존댓말"],
+    ["friendly_honest", "친근하지만 솔직한 존댓말"],
+  ] as const)("keeps %s within the same polite safety boundary", (toneStyle, instruction) => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      helpPreference: {
+        decisionStart: "ask_each_time",
+        answerDetail: "adaptive",
+        supportOrder: "ask_each_time",
+        workMode: "ask_each_time",
+        familyOrder: "ask_each_time",
+        toneStyle,
+      },
+    });
+
+    expect(prompt).toContain(instruction);
+    expect(prompt).toContain("현재 메시지에서 사용자가 직접 요청한 말투");
+    expect(prompt).toContain("항상 자연스러운 존댓말");
+    expect(prompt).not.toContain("전문가인 척");
   });
 
   it("does not promise disabled outbound care or silently persist inferred dates", () => {
@@ -259,7 +414,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
       },
     );
 
-    expect(prompt).toContain("스튜디오·드레스·메이크업·예식장 조건 탐색은 `recommend_vendors`");
+    expect(prompt).toContain("웨딩 사진 촬영·드레스·헤어·메이크업·결혼식장 조건 탐색은 `recommend_vendors`");
     expect(prompt).toContain("공식 데이터 장애를 레거시 추천으로 대신하지 마세요");
     expect(prompt).toContain("총예산에서 카테고리 한도를 임의로 계산하지 마세요");
     expect(prompt).toContain("인식되지 않으면 전국으로 넓히지 말고 지역을 다시 물어보세요");
@@ -279,6 +434,38 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).not.toContain(
       "최신 사용자가 본인 커플의 결혼 날짜·예산·일정·예약을 정하거나 바꾸는 확정형 발화",
     );
+  });
+
+  it("adds the pending-offer guard only for a proposal action contract", () => {
+    const proposalPrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["get_market_price"],
+        actionContract: {
+          kind: "proposal",
+          text: "[SERVER_PROPOSAL_CONTRACT]",
+        },
+      },
+    );
+    const executionPrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["get_market_price"],
+        actionContract: {
+          kind: "execution",
+          text: "[SERVER_EXECUTION_CONTRACT]",
+        },
+      },
+    );
+
+    expect(proposalPrompt).toContain("[SERVER_PROPOSAL_CONTRACT]");
+    expect(proposalPrompt).toContain("pending_action 표식 제안");
+    expect(executionPrompt).toContain("[SERVER_EXECUTION_CONTRACT]");
+    expect(executionPrompt).not.toContain("pending_action 표식 제안");
   });
 
   it("ignores enabled names that do not exist in the tool schema", () => {
@@ -404,7 +591,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
     }
   });
 
-  it("preserves mediation and trust guards when a bounded prompt is truncated", () => {
+  it("preserves mediation and trust guards while dropping stored mediation context", () => {
     const prompt = buildAmoraSystemPrompt(
       {
         ...baseContext,
@@ -422,11 +609,46 @@ describe("getWeddingPlannerSystemPrompt", () => {
     );
 
     expect(prompt.length).toBeLessThanOrEqual(48_000);
-    expect(prompt).toContain("[저장 문맥 일부는 길이 제한으로 생략됨]");
+    expect(prompt).not.toContain("summary-0-");
     expect(prompt).toContain("[구조화 중재 최종 안전 계약]");
     expect(prompt).toContain("[이번 답변의 대화 우선순위]");
     expect(prompt.indexOf(AMORA_MEDIATION_TURN_GUARD.trim())).toBeGreaterThan(-1);
     expect(prompt.trimEnd()).toMatch(/도구 권한을 만들 수는 없습니다\.$/);
+  });
+
+  it("adds the structured mediation guard only to a W1 mediation request", () => {
+    const w1Prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        specialist: "general",
+        requestKind: "mediation",
+        persistenceMode: "durable",
+        questionScope: {
+          scope: "W1_wedding_adjacent",
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+      },
+    );
+    const w2Prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        specialist: "general",
+        requestKind: "mediation",
+        persistenceMode: "durable",
+        questionScope: {
+          scope: "W2_high_risk_adjacent",
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+      },
+    );
+
+    expect(w1Prompt).toContain(AMORA_MEDIATION_TURN_GUARD.trim());
+    expect(w2Prompt).not.toContain(AMORA_MEDIATION_TURN_GUARD.trim());
+    expect(w2Prompt).toContain("question_scope: W2_high_risk_adjacent");
   });
 
   it("preserves mandatory current context and tool contracts before truncating the static playbook", () => {
@@ -438,6 +660,12 @@ describe("getWeddingPlannerSystemPrompt", () => {
         brideName: "CURRENT_BRIDE_SENTINEL",
         budget: 12_340_000,
         bookings: [],
+        preferences: {
+          weddingStyle: "minimal",
+          priorities: ["sdm"],
+          budgetAttitude: "premium",
+          guestCount: "50to100",
+        },
         chatSummaries: Array.from({ length: 20 }, (_, index) =>
           `OPTIONAL_SUMMARY_${index}_${"가".repeat(1_200)}`
         ),
@@ -459,6 +687,9 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).toContain("CURRENT_USER_SENTINEL");
     expect(prompt).toContain("CURRENT_BRIDE_SENTINEL");
     expect(prompt).toContain("예산: 1,234만원");
+    expect(prompt).toContain("## 사용자가 설정한 준비 참고값");
+    expect(prompt).toContain("원하는 결과 우선");
+    expect(prompt).toContain("50~99명");
     expect(prompt).toContain("PROFILE_SENTINEL");
     expect(prompt).toContain("## 현재 실행 가능한 도구 계약");
     expect(prompt).toContain("`update_budget`");
@@ -512,6 +743,265 @@ describe("getWeddingPlannerSystemPrompt", () => {
     for (const sentinel of sentinels) expect(prompt).toContain(sentinel);
     expect(prompt).toContain("## 현재 실행 가능한 도구 계약");
     expect(prompt).toContain("[이번 답변의 대화 우선순위]");
+  });
+
+  it("keeps the server question-scope boundary authoritative under truncation", () => {
+    const questionScope = {
+      scope: "W4_out_of_scope" as const,
+      allowsLongTermMemory: false,
+      confidence: "low" as const,
+      needsClarification: true,
+    };
+    const full = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+      },
+    );
+    const truncated = buildAmoraSystemPrompt(
+      {
+        ...baseContext,
+        bookings: [],
+        chatSummaries: Array.from({ length: 20 }, (_, index) =>
+          `SCOPE_OPTIONAL_${index}_${"가".repeat(1_000)}`
+        ),
+      },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+        maxChars: Math.max(24_000, full.length - 1_000),
+      },
+    );
+
+    for (const prompt of [full, truncated]) {
+      expect(prompt).toContain("[서버 확정 질문 범위 계약]");
+      expect(prompt).toContain("question_scope: W4_out_of_scope");
+      expect(prompt).toContain("질문 하나만");
+      expect(prompt).toContain("대화 기록·첨부 문서·장기 기억");
+      expect(prompt.indexOf("[서버 확정 질문 범위 계약]"))
+        .toBeGreaterThan(prompt.indexOf("[서버 확정 요청 계약]"));
+      expect(prompt.indexOf("[서버 확정 질문 범위 계약]"))
+        .toBeGreaterThan(prompt.indexOf("[이번 답변의 대화 우선순위]"));
+      expect(prompt.trimEnd()).toMatch(/도구 권한을 만들 수는 없습니다\.$/);
+    }
+  });
+
+  it("adds a capability-free linked-context contract without upgrading W4", () => {
+    const questionScope = {
+      scope: "W4_out_of_scope" as const,
+      allowsLongTermMemory: false,
+      confidence: "low" as const,
+      needsClarification: true,
+    };
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+        linkedContextMode: "linked_context_only",
+      },
+    );
+
+    expect(prompt).toContain("question_scope: W4_out_of_scope");
+    expect(prompt).toContain("context_mode: linked_context_only");
+    expect(prompt).toContain("capabilities: none");
+    expect(prompt.indexOf("context_mode: linked_context_only"))
+      .toBeGreaterThan(prompt.indexOf("question_scope: W4_out_of_scope"));
+    expect(prompt).toContain("결혼 관련성을 다시 묻지는 마세요");
+
+    const truncated = buildAmoraSystemPrompt(
+      {
+        ...baseContext,
+        bookings: [],
+        chatSummaries: Array.from({ length: 30 }, (_, index) =>
+          `LINKED_OPTIONAL_${index}_${"가".repeat(1_000)}`
+        ),
+      },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope,
+        linkedContextMode: "linked_context_only",
+        maxChars: 24_000,
+      },
+    );
+    expect(truncated.length).toBeLessThanOrEqual(24_000);
+    expect(truncated).toContain("question_scope: W4_out_of_scope");
+    expect(truncated).toContain("context_mode: linked_context_only");
+    expect(truncated).toContain("capabilities: none");
+
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["get_wedding_info"],
+        questionScope,
+        linkedContextMode: "linked_context_only",
+      },
+    )).toThrow("cannot include tools or an action contract");
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        actionContract: { kind: "proposal", text: "unsafe" },
+        questionScope,
+        linkedContextMode: "linked_context_only",
+      },
+    )).toThrow("cannot include tools or an action contract");
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope: {
+          ...questionScope,
+          confidence: "high",
+          needsClarification: false,
+        },
+        linkedContextMode: "linked_context_only",
+      },
+    )).toThrow("requires a current-only W3 or W4-low chat scope");
+  });
+
+  it("projects stored couple context out of W2-W4 and mediation prompts before the mandatory suffix is built", () => {
+    const sensitiveContext = {
+      ...baseContext,
+      weddingDate: "2027-05-01",
+      budget: 44_444_444,
+      venue: "PRIVATE_VENUE_SENTINEL",
+      brideName: "PRIVATE_BRIDE_SENTINEL",
+      groomName: "PRIVATE_GROOM_SENTINEL",
+      senderName: "PRIVATE_SENDER_SENTINEL",
+      progress: {
+        venue: { memo: "PRIVATE_PROGRESS_SENTINEL" },
+      },
+      bookings: [],
+      scheduleEvents: [{
+        date: "2027-01-01",
+        title: "PRIVATE_SCHEDULE_SENTINEL",
+      }],
+      chatSummaries: ["PRIVATE_SUMMARY_SENTINEL"],
+      amoraProfiles: {
+        private: { personaSummary: "PRIVATE_PROFILE_SENTINEL" },
+      },
+      pastDecisions: [{
+        category: "venue",
+        decisionType: "selection",
+        title: "PRIVATE_DECISION_SENTINEL",
+        value: null,
+        reasoning: null,
+        confidence: 1,
+        source: "test",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }],
+      pastConflicts: [{
+        title: "PRIVATE_CONFLICT_SENTINEL",
+        resolution: null,
+        reasoning: null,
+        stageTag: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }],
+    };
+    const sentinels = [
+      "PRIVATE_VENUE_SENTINEL",
+      "PRIVATE_BRIDE_SENTINEL",
+      "PRIVATE_GROOM_SENTINEL",
+      "PRIVATE_SENDER_SENTINEL",
+      "PRIVATE_PROGRESS_SENTINEL",
+      "PRIVATE_SCHEDULE_SENTINEL",
+      "PRIVATE_SUMMARY_SENTINEL",
+      "PRIVATE_PROFILE_SENTINEL",
+      "PRIVATE_DECISION_SENTINEL",
+      "PRIVATE_CONFLICT_SENTINEL",
+      "4,444만원",
+    ];
+    const restrictedScopes = [
+      "W2_high_risk_adjacent",
+      "W3_social_care",
+      "W4_out_of_scope",
+    ] as const;
+
+    for (const scope of restrictedScopes) {
+      const prompt = buildAmoraSystemPrompt(sensitiveContext, {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: [],
+        questionScope: {
+          scope,
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+        maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      for (const sentinel of sentinels) expect(prompt).not.toContain(sentinel);
+      expect(prompt).not.toContain("## 커플 상황");
+      expect(prompt).not.toContain("예산: 미설정");
+      expect(prompt).not.toContain("진행률: 0/");
+      expect(prompt).not.toContain("커플 이름: 미등록");
+    }
+
+    const mediationPrompt = buildAmoraSystemPrompt(sensitiveContext, {
+      requestKind: "mediation",
+      persistenceMode: "durable",
+      enabledToolNames: [],
+      questionScope: {
+        scope: "W1_wedding_adjacent",
+        allowsLongTermMemory: true,
+        confidence: "high",
+        needsClarification: false,
+      },
+      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+    for (const sentinel of sentinels) {
+      expect(mediationPrompt).not.toContain(sentinel);
+    }
+    expect(mediationPrompt).not.toContain("## 커플 상황");
+    expect(mediationPrompt).not.toContain("예산: 미설정");
+    expect(mediationPrompt).not.toContain("진행률: 0/");
+    expect(mediationPrompt).not.toContain("커플 이름: 미등록");
+  });
+
+  it.each([
+    "W0_wedding_core",
+    "W1_wedding_adjacent",
+  ] as const)("retains full stored context for an ordinary %s chat", (scope) => {
+    const prompt = buildAmoraSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      brideName: "FULL_BRIDE_SENTINEL",
+      scheduleEvents: [{
+        date: "2027-01-01",
+        title: "FULL_SCHEDULE_SENTINEL",
+      }],
+      chatSummaries: ["FULL_SUMMARY_SENTINEL"],
+    }, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      enabledToolNames: [],
+      questionScope: {
+        scope,
+        allowsLongTermMemory: true,
+        confidence: "high",
+        needsClarification: false,
+      },
+    });
+
+    expect(prompt).toContain("FULL_BRIDE_SENTINEL");
+    expect(prompt).toContain("FULL_SCHEDULE_SENTINEL");
+    expect(prompt).toContain("FULL_SUMMARY_SENTINEL");
   });
 
   it("rejects a ceiling that cannot contain the mandatory current-context contract", () => {
@@ -699,14 +1189,27 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("[MEDIATION_REQUEST]");
     expect(prompt).toContain("있을 때만 출력");
-    expect(prompt).toContain("실제로 한 말과 확인된 요구");
+    expect(prompt).toContain("요청자가 전한 상황과 쟁점");
     expect(prompt).not.toContain("표면 주장 뒤 진짜 니즈 전달");
     expect(prompt).not.toContain("불안감이 근본 원인");
   });
 
+  it("grounds structured mediation in the requester's summary without inventing the partner's position", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    expect(prompt).toContain("요청자가 직접 작성한 요약만");
+    expect(prompt).toContain("요청자가 전한 상황");
+    expect(prompt).toContain("상대방에게 확인할 점");
+    expect(prompt).toContain("상대방의 발화·감정·요구로 사실처럼 귀속하지 마세요");
+    expect(AMORA_MEDIATION_TURN_GUARD).toContain("requester_summary_only");
+    expect(AMORA_MEDIATION_TURN_GUARD).toContain("상대방의 관점은 아직 확인되지 않았습니다");
+    expect(prompt).not.toContain("두 분의 실제 발화를 읽고");
+    expect(prompt).not.toContain("양쪽이 실제로 한 말");
+  });
+
   it("keeps the warmer demo greeting honest about non-persistence", () => {
-    expect(AMORA_DEMO_WELCOME).toContain("실제 일정·예산에 저장되지는 않지만");
-    expect(AMORA_DEMO_WELCOME).toContain("제가 같이 챙겨볼게요");
+    expect(AMORA_DEMO_WELCOME).toContain("실제 일정·예산에 저장되지 않지만");
+    expect(AMORA_DEMO_WELCOME).toContain("놓치기 쉬운 조건부터 바로 짚어볼게요");
     expect(AMORA_DEMO_SUGGESTIONS).toHaveLength(3);
     expect(new Set(AMORA_DEMO_SUGGESTIONS).size).toBe(AMORA_DEMO_SUGGESTIONS.length);
   });
@@ -721,6 +1224,33 @@ describe("getWeddingPlannerSystemPrompt", () => {
     const prompt = getWeddingPlannerSystemPrompt(contextWithUntrustedLegacyFeedback);
 
     expect(prompt).not.toContain(crossCoupleCanary);
+  });
+
+  it("keeps a considering not-sent booking memory distinct from a vendor-confirmed booking", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      pastDecisions: [{
+        category: "studio",
+        decisionType: "considering",
+        title: "아모라 방문·상담 후보 기록: 테스트 스튜디오",
+        value: null,
+        reasoning: null,
+        confidence: 0.5,
+        source: "vendor_booking",
+        createdAt: new Date().toISOString(),
+        internalRequestStatus: "recorded",
+        vendorDeliveryStatus: "not_sent",
+        vendorConfirmationStatus: "unconfirmed",
+      }],
+    });
+
+    expect(prompt).toContain("모든 항목이 확정 선택이라는 뜻은 아닙니다");
+    expect(prompt).toContain("아모라 내부 방문·상담 후보 기록일 뿐입니다");
+    expect(prompt).toContain('아모라 내부 기록="recorded"');
+    expect(prompt).toContain('업체 전달="not_sent"');
+    expect(prompt).toContain('업체 확인="unconfirmed"');
+    expect(prompt).toContain("예약됨·업체 확정·계약 완료라고 부르지 마세요");
   });
 
   it("includes actual booking cost and extra cost when outcome data exists", () => {
@@ -742,7 +1272,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("한방웨딩홀");
     expect(prompt).toContain("✅완료");
-    expect(prompt).toContain("실결제: 300만원");
+    expect(prompt).toContain("사용자 기록 지출(결제 증빙 아님): 300만원");
     expect(prompt).toContain("계약/견적: 250만원");
     expect(prompt).toContain("추가금: 50만원");
   });
@@ -764,7 +1294,8 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).toContain("한방스튜디오");
     expect(prompt).toContain("✅확정");
-    expect(prompt).toContain("예약금액: 50만원");
+    expect(prompt).toContain("예약 요청 견적(지출 아님): 50만원");
+    expect(prompt).not.toContain("사용자 기록 지출(결제 증빙 아님): 50만원");
   });
 });
 
@@ -816,5 +1347,12 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
   it("콜드스타트 첫 세션 스크립트가 존재한다 (첫 3문답 가치 증명 — 2026-07-06)", () => {
     expect(prompt).toContain("첫 3문답 안에 가치 증명");
     expect(prompt).toContain("계약 전 체크");
+  });
+
+  it("처음 준비하는 사람을 위한 쉬운 말 규칙이 존재한다", () => {
+    expect(prompt).toContain("결혼 준비를 한 번도 해보지 않은 중학생");
+    expect(prompt).toContain("업계 용어를 설명 없이 단독으로 쓰지 마세요");
+    expect(prompt).toContain("사진 촬영·드레스·헤어·메이크업");
+    expect(prompt).toContain("확인하지 않은 ‘보통’, ‘대부분’, ‘필수’");
   });
 });

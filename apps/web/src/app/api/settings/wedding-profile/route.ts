@@ -6,6 +6,7 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import {
   cleanOptionalIsoDate,
   isBodyTooLarge,
@@ -13,6 +14,9 @@ import {
   isUuid,
 } from "@/utils/requestValidation";
 import { MAX_WEDDING_BUDGET_WON } from "@/lib/weddingBudget";
+import {
+  isAmoraProactiveChatEnabled,
+} from "@/lib/features/amoraCareFlags";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const MAX_BUDGET_WON = MAX_WEDDING_BUDGET_WON;
@@ -64,7 +68,7 @@ function privateResponse(body: unknown, status = 200) {
 function careAvailabilityFor(user: { email_confirmed_at?: string | null }) {
   return {
     outboundEnabled: process.env.AMORA_CARE_OUTBOUND_ENABLED === "true",
-    proactiveChatEnabled: process.env.AMORA_PROACTIVE_CHAT_ENABLED === "true",
+    proactiveChatEnabled: isAmoraProactiveChatEnabled(),
     emailVerified:
       typeof user.email_confirmed_at === "string" &&
       user.email_confirmed_at.trim().length > 0,
@@ -257,11 +261,11 @@ function parsePatchBody(
   const venueProvided = hasOwn(changes, "venue");
   if (venueProvided) {
     if (!(changes.venue === null || typeof changes.venue === "string")) {
-      return { ok: false, error: "예식장 형식이 올바르지 않습니다." };
+      return { ok: false, error: "결혼식장 형식이 올바르지 않습니다." };
     }
     const parsedExpected = parseExpectedText(expected.venue);
     if (parsedExpected === undefined) {
-      return { ok: false, error: "이전 예식장 형식이 올바르지 않습니다." };
+      return { ok: false, error: "이전 결혼식장 형식이 올바르지 않습니다." };
     }
     const trimmed = typeof changes.venue === "string" ? changes.venue.trim() : "";
     venue = trimmed.length === 0 ? null : trimmed;
@@ -270,7 +274,7 @@ function parsePatchBody(
       venue !== null &&
       (Array.from(venue).length > 120 || hasControlCharacter(venue))
     ) {
-      return { ok: false, error: "예식장은 120자 이내로 입력해주세요." };
+      return { ok: false, error: "결혼식장은 120자 이내로 입력해 주세요." };
     }
   }
 
@@ -380,6 +384,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return privateResponse({ error: "잘못된 요청 출처입니다." }, 403);
+    }
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return privateResponse({ error: "요청 데이터가 너무 큽니다." }, 413);
     }
@@ -426,6 +433,19 @@ export async function PATCH(request: Request) {
         return privateResponse({
           error: "다른 기기에서 설정이 바뀌었어요. 다시 불러온 뒤 변경해주세요.",
           code: "SETTINGS_CHANGED",
+        }, 409);
+      }
+      // 예식일·식장·총 예산은 `wedding_journeys`에 직접 쓸 수 없다. 계획 변경 경로
+      // (`submit_couple_plan_change`)를 거쳐야 하고, 그 경로가 파트너 유무에 따라
+      // 즉시 반영할지 상대 확인을 기다릴지 정한다.
+      //
+      // 예전 문구는 두 가지를 틀리게 말했다. 파트너가 없는 사람에게도 "파트너 확인이
+      // 필요해요"라고 했고, 앱에도 있는 화면을 두고 "웹의 ... 화면에서"라고 했다.
+      // 사람이 고칠 수 없는 것을 고치라고 하면 아무 데도 못 간다.
+      if (/COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED/i.test(errorText)) {
+        return privateResponse({
+          error: "결혼 예정일·식장·총 예산은 예산 화면에서 변경을 요청해 주세요. 파트너가 연결돼 있으면 두 분이 확인한 뒤에 반영돼요.",
+          code: "PLAN_CHANGE_REQUEST_REQUIRED",
         }, 409);
       }
       if (/WEDDING_SETTINGS_(?:JOURNEY_REQUIRED|JOURNEY_NOT_FOUND)/i.test(errorText)) {

@@ -104,6 +104,34 @@ describe("proxy preview stub write fence", () => {
     expect(middlewareMock.updateSession).not.toHaveBeenCalled();
   });
 
+  it("allows only the non-persistent demo-cookie starter through the preview fence", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+    const request = new NextRequest("https://preview.example.test/api/demo/start", {
+      method: "POST",
+      headers: {
+        origin: "https://preview.example.test",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("does not exempt other methods on the demo path", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+
+    const response = await proxy(
+      new NextRequest("https://preview.example.test/api/demo/start"),
+    );
+
+    expect(response.status).toBe(503);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
   it("still renders public pages while the preview API fence is active", async () => {
     vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
     const request = new NextRequest("https://preview.example.test/wedding");
@@ -111,6 +139,106 @@ describe("proxy preview stub write fence", () => {
     await proxy(request);
 
     expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+});
+
+describe("proxy API mutation trust boundary", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("blocks a cross-site cookie mutation before session middleware", async () => {
+    const response = await proxy(new NextRequest(
+      "https://hanbang.ai/api/community/posts",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://evil.example",
+          "sec-fetch-site": "cross-site",
+          cookie: "sb-session=ambient",
+        },
+      },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toEqual({
+      error: "untrusted_mutation_origin",
+    });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("allows a same-origin browser mutation to continue", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/community/posts", {
+      method: "POST",
+      headers: {
+        origin: "https://hanbang.ai",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("allows a native Bearer mutation without browser fetch metadata", async () => {
+    const request = new NextRequest("https://hanbang.ai/api/community/posts", {
+      method: "POST",
+      headers: { authorization: "Bearer native-session-token" },
+    });
+
+    await proxy(request);
+
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("does not fall back to cookies when Authorization is malformed", async () => {
+    const response = await proxy(new NextRequest(
+      "https://hanbang.ai/api/community/posts",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer malformed token",
+          origin: "https://hanbang.ai",
+          "sec-fetch-site": "same-origin",
+        },
+      },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it.each(["/api/auth/signup", "/api/auth/forgot-password"])(
+    "preserves the non-ambient Turnstile flow for %s",
+    async (pathname) => {
+      const request = new NextRequest(`https://hanbang.ai${pathname}`, {
+        method: "POST",
+      });
+
+      await proxy(request);
+
+      expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+    },
+  );
+
+  it("leaves internal-token routes to their constant-time route verifier", async () => {
+    const request = new NextRequest(
+      "https://hanbang.ai/api/internal/vendors/recommend",
+      {
+        method: "POST",
+        headers: { "x-internal-token": "route-verifies-this-secret" },
+      },
+    );
+
+    await proxy(request);
+
     expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
   });
 });
@@ -231,8 +359,6 @@ describe("proxy production write fence", () => {
     "/api/cron/amora-memory",
     "/api/auth/callback",
     "/api/auth/me",
-    "/api/community/cohort",
-    "/api/community/profile",
     "/api/couple/code",
     "/api/messages",
     "/api/vendors/12345678-1234-4234-8234-123456789abc",
@@ -262,6 +388,8 @@ describe("proxy production write fence", () => {
   it.each([
     "/api/vendors",
     "/api/messages/threads",
+    "/api/community/cohort",
+    "/api/community/profile",
     "/api/community/cohort/123/timeline",
   ])("keeps an explicitly read-only neighboring GET available: %s", async (pathname) => {
     vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
@@ -280,6 +408,10 @@ describe("proxy production write fence", () => {
       else vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", value);
       const request = new NextRequest("https://hanbang.ai/api/community/posts", {
         method: "POST",
+        headers: {
+          origin: "https://hanbang.ai",
+          "sec-fetch-site": "same-origin",
+        },
       });
 
       const response = await proxy(request);
@@ -288,5 +420,110 @@ describe("proxy production write fence", () => {
       expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
       expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
     }
+  );
+});
+
+describe("proxy community runtime kill switch", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("turns community mutations read-only without taking reads down", async () => {
+    vi.stubEnv("COMMUNITY_RUNTIME_MODE", "read_only");
+
+    const blocked = await proxy(new NextRequest(
+      "https://hanbang.ai/api/community/posts",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://hanbang.ai",
+          "sec-fetch-site": "same-origin",
+        },
+      },
+    ));
+    expect(blocked.status).toBe(503);
+    expect(blocked.headers.get("cache-control")).toBe("no-store");
+    await expect(blocked.json()).resolves.toEqual({ error: "community_read_only" });
+
+    const read = new NextRequest("https://hanbang.ai/api/community/posts");
+    await expect(proxy(read)).resolves.toHaveProperty("status", 200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(read);
+  });
+
+  it("keeps user safety reports available while writes are frozen", async () => {
+    vi.stubEnv("COMMUNITY_RUNTIME_MODE", "read_only");
+    const request = new NextRequest(
+      "https://hanbang.ai/api/community/posts/12345678-1234-4234-8234-123456789abc/report",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer native-session-token" },
+      },
+    );
+
+    await expect(proxy(request)).resolves.toHaveProperty("status", 200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("can disable community reads and writes without disabling safety intake", async () => {
+    vi.stubEnv("COMMUNITY_RUNTIME_MODE", "disabled");
+
+    const blocked = await proxy(
+      new NextRequest("https://hanbang.ai/api/community/posts"),
+    );
+    expect(blocked.status).toBe(503);
+    await expect(blocked.json()).resolves.toEqual({ error: "community_disabled" });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it.each(["read_only", "disabled"])(
+    "keeps only responder decline and revoke exits open in %s mode",
+    async (mode) => {
+      vi.stubEnv("COMMUNITY_RUNTIME_MODE", mode);
+      const allowedPaths = [
+        "/api/community/responder-requests/12345678-1234-4234-8234-123456789abc/decline",
+        "/api/community/responder-capacity/12345678-1234-4234-8234-123456789abc/revoke",
+      ];
+      for (const pathname of allowedPaths) {
+        const request = new NextRequest(`https://hanbang.ai${pathname}`, {
+          method: "POST",
+          headers: { authorization: "Bearer native-session-token" },
+        });
+        await expect(proxy(request)).resolves.toHaveProperty("status", 200);
+        expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+      }
+
+      const blockedPaths = [
+        "/api/community/responder-capacity",
+        "/api/community/responder-requests/12345678-1234-4234-8234-123456789abc/accept",
+        "/api/community/responder-requests/12345678-1234-4234-8234-123456789abc/decline/extra",
+      ];
+      for (const pathname of blockedPaths) {
+        const response = await proxy(new NextRequest(`https://hanbang.ai${pathname}`, {
+          method: "POST",
+          headers: { authorization: "Bearer native-session-token" },
+        }));
+        expect(response.status).toBe(503);
+      }
+
+      const wrongMethod = await proxy(new NextRequest(
+        "https://hanbang.ai/api/community/responder-capacity/12345678-1234-4234-8234-123456789abc/revoke",
+        { method: "GET" },
+      ));
+      expect(wrongMethod.status).toBe(503);
+    },
+  );
+
+  it.each([undefined, "normal", "READ_ONLY", "true"])(
+    "does not activate for an unsupported mode %s",
+    async (mode) => {
+      vi.stubEnv("COMMUNITY_RUNTIME_MODE", mode);
+      const request = new NextRequest("https://hanbang.ai/api/community/posts");
+      await proxy(request);
+      expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+    },
   );
 });

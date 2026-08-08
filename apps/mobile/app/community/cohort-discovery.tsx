@@ -1,5 +1,5 @@
 // 동기방 탐색 — 풀스크린
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
-  Animated,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,8 +15,6 @@ import { router } from "expo-router";
 import {
   Users,
   MessageCircle,
-  MapPin,
-  Wallet,
   Calendar,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
@@ -36,14 +33,6 @@ interface CohortRoom {
   message_count: number;
   is_active: boolean;
 }
-
-type FilterTab = "monthly" | "region" | "budget";
-
-const FILTER_TABS: { key: FilterTab; label: string; icon: typeof Calendar }[] = [
-  { key: "monthly", label: "분기별", icon: Calendar },
-  { key: "region", label: "지역별", icon: MapPin },
-  { key: "budget", label: "예산별", icon: Wallet },
-];
 
 /* ───── 동기방 카드 ───── */
 
@@ -141,7 +130,7 @@ function MonthlySection({
       <EmptyState
         icon={<Calendar size={40} color={colors.taupe[400]} />}
         title="활성화된 동기방이 없어요"
-        description="곧 새로운 동기방이 열릴 예정이에요"
+        description="현재 들어갈 수 있는 방이 없어요. 나중에 다시 확인해주세요."
       />
     );
   }
@@ -165,46 +154,29 @@ function MonthlySection({
   );
 }
 
-/* ───── 준비 중 플레이스홀더 ───── */
-
-function ComingSoonSection({
-  icon: Icon,
-  message,
-}: {
-  icon: typeof MapPin;
-  message: string;
-}) {
-  return (
-    <EmptyState
-      icon={<Icon size={36} color={colors.rose[500]} />}
-      title={message}
-      description="더 나은 매칭을 위해 열심히 준비하고 있어요"
-    />
-  );
-}
-
 /* ───── 메인 ───── */
 
 export default function CohortDiscoveryScreen() {
   const [rooms, setRooms] = useState<CohortRoom[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<FilterTab>("monthly");
   const [joining, setJoining] = useState<string | null>(null);
-  const indicatorAnim = useRef(new Animated.Value(0)).current;
 
   const loadRooms = useCallback(async () => {
     try {
-      const { data } = await supabase
+      setLoadError(null);
+      const { data, error } = await supabase
         .from("cohort_rooms")
         .select("*")
         .eq("is_active", true)
         .order("year")
         .order("month");
+      if (error) throw error;
 
       setRooms((data as CohortRoom[]) ?? []);
     } catch {
-      // 조용히 실패
+      setLoadError("동기방을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해주세요.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -214,16 +186,6 @@ export default function CohortDiscoveryScreen() {
   useEffect(() => {
     loadRooms();
   }, [loadRooms]);
-
-  // 탭 전환 애니메이션
-  useEffect(() => {
-    const idx = FILTER_TABS.findIndex((t) => t.key === activeTab);
-    Animated.spring(indicatorAnim, {
-      toValue: idx,
-      useNativeDriver: true,
-      friction: 6,
-    }).start();
-  }, [activeTab, indicatorAnim]);
 
   // 동기방 입장 — 멤버십 쓰기는 서버 전용(20260615090000 하드닝):
   // 클라 직접 INSERT는 트리거가 차단하므로, 웹 API(POST /api/community/cohort)가
@@ -279,29 +241,6 @@ export default function CohortDiscoveryScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AppHeader title="동기방 찾기" onBack={() => router.back()} />
 
-      {/* 필터 탭 */}
-      <View style={styles.tabRow}>
-        {FILTER_TABS.map((tab) => {
-          const active = activeTab === tab.key;
-          const Icon = tab.icon;
-          return (
-            <Pressable
-              key={tab.key}
-              style={[styles.tab, active && styles.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Icon
-                size={16}
-                color={active ? colors.noir[800] : colors.taupe[400]}
-              />
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
       {/* 컨텐츠 */}
       {loading ? (
         <LoadingState label="동기방을 불러오는 중이에요" />
@@ -320,25 +259,28 @@ export default function CohortDiscoveryScreen() {
             />
           }
         >
-          {activeTab === "monthly" && (
+          {loadError ? (
+            <View style={styles.errorState}>
+              <EmptyState
+                icon={<Users size={40} color={colors.taupe[400]} />}
+                title="동기방을 열지 못했어요"
+                description={loadError}
+              />
+              <PrimaryButton
+                tone="rose"
+                onPress={() => {
+                  setLoading(true);
+                  void loadRooms();
+                }}
+              >
+                다시 시도
+              </PrimaryButton>
+            </View>
+          ) : (
             <MonthlySection
               rooms={rooms}
               onJoin={handleJoin}
               joining={joining}
-            />
-          )}
-
-          {activeTab === "region" && (
-            <ComingSoonSection
-              icon={MapPin}
-              message="같은 지역 동기방은 곧 추가됩니다"
-            />
-          )}
-
-          {activeTab === "budget" && (
-            <ComingSoonSection
-              icon={Wallet}
-              message="같은 예산대 동기방은 곧 추가됩니다"
             />
           )}
 
@@ -347,7 +289,7 @@ export default function CohortDiscoveryScreen() {
             <View style={styles.bottomCtaLine} />
             <Text style={styles.bottomCtaText}>
               나만의 동기방이 없다면?{"\n"}
-              결혼 예정일을 설정하면 같은 분기 동기방에 자동 배정돼요
+              결혼 예정일을 설정한 뒤 같은 분기의 방을 골라 입장하세요
             </Text>
             <PrimaryButton
               tone="rose"
@@ -368,42 +310,13 @@ export default function CohortDiscoveryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  // 필터 탭
-  tabRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 10,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tabActive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.noir[800],
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  tabText: { fontSize: 14, color: colors.taupe[400] },
-  tabTextActive: { color: colors.noir[800], fontWeight: "600" },
-
   // 스크롤 컨텐츠
   scrollContent: { paddingBottom: 40 },
+  errorState: {
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    gap: 16,
+  },
 
   // 월별 섹션
   sectionList: { paddingHorizontal: 20, paddingTop: 16 },

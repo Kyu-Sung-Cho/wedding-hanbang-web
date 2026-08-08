@@ -31,8 +31,8 @@ import type { WeddingCodeConstructKey } from "@/lib/wedding-code/types";
  * ## 무엇을 주장하지 않는가
  *
  * 이 문항들은 **성격을 판정하지 않는다.** 결과 화면은 유형·점수·궁합을 만들지 않고
- * 「두 사람이 이 장면에서 뭐라고 답했나」라는 사실과 그 차이가 앞으로 어디서 또 나오는지만
- * 말한다. 구성개념 가중치는 **어느 차이를 먼저 보여줄지 고르는 내부 정렬**에만 쓰이며
+ * 「두 사람이 이 장면에서 뭐라고 답했나」라는 사실과 다음 대화 절차만 말한다. 구성개념
+ * 가중치는 **어느 차이를 먼저 보여줄지 고르는 내부 정렬**에만 쓰이며
  * 사용자에게 축 이름이 정체성으로 노출되지 않는다.
  */
 export const WEDDING_CODE_V06_VERSION = "v0.6-scene";
@@ -44,6 +44,18 @@ export type WeddingCodeV06QuestionKey =
   | "B1" | "B2" | "B3" | "B4"
   | "C1" | "C2" | "C3" | "C4"
   | "D1" | "D2" | "D3" | "D4";
+
+/**
+ * v0.8에서 축마다 다섯 번째 문항이 붙었다.
+ *
+ * 짝수 문항은 정확히 반반인 자리를 만들고, 그 자리에서는 코드 글자를 정할 수 없다
+ * (4문항일 때 축마다 26%, 네 글자가 모두 나올 확률은 30%뿐이었다). 홀수로 바꾼 이유다.
+ */
+export type WeddingCodeV08ExtraQuestionKey = "A5" | "B5" | "C5" | "D5";
+
+export type WeddingCodeQuestionKey =
+  | WeddingCodeV06QuestionKey
+  | WeddingCodeV08ExtraQuestionKey;
 
 export type WeddingCodeV06OptionValue = "A" | "B" | "C" | "D";
 
@@ -62,11 +74,24 @@ export interface WeddingCodeV06Option {
   value: WeddingCodeV06OptionValue;
   /** 그대로 인용되는 1인칭 문장. 혼자 떼어놔도 말이 돼야 한다. */
   label: string;
+  /**
+   * 솔직한 답. **문항마다 최소 하나** 있어야 한다.
+   *
+   * 네 선택지가 전부 사회적으로 옳은 행동이면 사람들은 자기가 한 일이 아니라 좋아
+   * 보이는 답을 고른다. 그러면 재미도 없고(캡처해서 보낼 문장이 안 생긴다) 신호도
+   * 오염된다(아모라가 받는 값이 그 사람의 실제 방식이 아니게 된다).
+   *
+   * **자책하는 답과는 다르다.** 「고르는 게 힘들어서 정해달라고 했다」는 흔한 일이지만,
+   * 「고르는 게 지쳐서 그냥 정해달라고 했다」는 고르는 순간 자기 흠을 인정하는 문장이
+   * 된다. 그러면 사람들이 그 답을 피하고, 피한 만큼 축이 기운다 — 불편함과 편향이
+   * 같은 곳에서 생긴다. `그냥`·`솔직히`·`통보`처럼 자책을 부르는 말은 테스트가 막는다.
+   */
+  candid?: true;
   weights: readonly WeddingCodeV06Weight[];
 }
 
 export interface WeddingCodeV06Question {
-  key: WeddingCodeV06QuestionKey;
+  key: WeddingCodeQuestionKey;
   axis: WeddingCodeV06AxisKey;
   /** 장면 한 줄. 과잉 구체 디테일 하나. */
   scene: string;

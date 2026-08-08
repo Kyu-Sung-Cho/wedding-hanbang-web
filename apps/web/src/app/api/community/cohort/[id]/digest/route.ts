@@ -86,39 +86,39 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
   },
   {
     id: "venue_quote",
-    label: "웨딩홀 견적·식대",
+    label: "결혼식장 견적·식사비",
     group: "price",
     topicHint: "price",
     keywords: ["웨딩홀", "예식장", "홀", "식대", "대관료", "보증인원", "최소보증", "꽃장식", "주차", "시식"],
   },
   {
     id: "sdm_package",
-    label: "스드메 패키지",
+    label: "사진 촬영·드레스·헤어·메이크업 묶음",
     group: "price",
     topicHint: "price",
     keywords: ["스드메", "패키지", "스튜디오", "드레스", "메이크업", "추가금", "포함", "별도"],
   },
   {
     id: "studio_shoot",
-    label: "스튜디오·촬영",
+    label: "웨딩 사진 촬영",
     group: "vendor",
     keywords: ["스튜디오", "촬영", "원본", "수정본", "앨범", "액자", "컨셉", "야외", "한복"],
   },
   {
     id: "dress",
-    label: "드레스·피팅",
+    label: "드레스 입어보기·수선",
     group: "vendor",
     keywords: ["드레스", "드레스샵", "드레스 샵", "피팅", "투어", "가봉", "본식드레스", "셀렉"],
   },
   {
     id: "makeup",
-    label: "메이크업·헤어",
+    label: "헤어·메이크업",
     group: "vendor",
     keywords: ["메이크업", "메이크업샵", "헤어", "혼주메이크업", "혼주 메이크업", "샵", "실장"],
   },
   {
     id: "snap_video",
-    label: "스냅·영상",
+    label: "결혼식 날 사진·영상",
     group: "vendor",
     keywords: ["스냅", "본식스냅", "본식 스냅", "DVD", "영상", "작가", "촬영팀", "원본"],
   },
@@ -144,13 +144,13 @@ const SUBTOPIC_RULES: SubtopicRule[] = [
   },
   {
     id: "family_etiquette",
-    label: "상견례·혼주 예절",
+    label: "부모님 첫 만남·가족 예절",
     group: "relationship",
     keywords: ["상견례", "혼주", "부모님", "양가", "예절", "첫인사", "인사", "복장", "선물"],
   },
   {
     id: "guest_invitation",
-    label: "청첩장·하객",
+    label: "종이·모바일 초대장·하객",
     group: "prep",
     keywords: ["청첩장", "모바일청첩장", "하객", "축의금", "답례", "식권", "좌석", "초대"],
   },
@@ -368,9 +368,9 @@ function buildSubtopicSummary(
 
 function buildSubtopicAction(label: string, group: SubtopicRule["group"]) {
   if (group === "price") return "금액·포함·별도 조건을 한 줄로 남기면 나중에 평균 비교가 쉬워요.";
-  if (group === "vendor") return "좋았던 점과 아쉬웠던 점을 분리해서 남기면 다른 동기들이 바로 판단하기 좋아요.";
+  if (group === "vendor") return "좋았던 점과 아쉬웠던 점을 나눠 남기면 다른 사람이 비교할 때 상황을 이해하기 쉬워요.";
   if (group === "schedule") return "확정된 날짜는 준비 기록에 남겨두면 동기방 흐름과 내 일정이 이어져요.";
-  if (group === "relationship") return "정답이 필요한 질문은 상황을 조금 더 붙여 다시 물어보면 답변 품질이 올라가요.";
+  if (group === "relationship") return "누가 무엇을 원했고 어디서 막혔는지 함께 적으면 다른 사람이 같은 상황인지 비교하기 쉬워요.";
   return `${label}은 완료 여부를 짧게 남겨두면 다음 사람이 준비 순서를 따라오기 쉬워요.`;
 }
 
@@ -399,30 +399,30 @@ function buildSubtopicTitle(rule: SubtopicRule, sample: string, keywords: string
   if (rule.id === "venue_quote") {
     const bits: string[] = [];
     if (firstMoney) bits.push(`식대 ${firstMoney.replace(/\s+/g, "")}`);
-    if (guaranteeMatch?.[1]) bits.push(`보증 ${guaranteeMatch[1].replace(/\s+/g, "")}`);
-    if (/대관료.{0,8}별도|별도.{0,8}대관료/.test(sample)) bits.push("대관료 별도");
+    if (guaranteeMatch?.[1]) bits.push(`최소 결제 식사 인원 ${guaranteeMatch[1].replace(/\s+/g, "")}`);
+    if (/대관료.{0,8}별도|별도.{0,8}대관료/.test(sample)) bits.push("장소 사용료 별도");
     if (bits.length > 0) return `${bits.join(" · ")}라 총액 확인 필요`;
   }
 
   if (rule.id === "sdm_package" && firstMoney) {
     if (lastMoney && lastMoney !== firstMoney) {
-      return `스드메 ${firstMoney.replace(/\s+/g, "")}이 옵션 포함 ${lastMoney.replace(/\s+/g, "")}까지 올라감`;
+      return `사진·드레스·메이크업 ${firstMoney.replace(/\s+/g, "")} 견적이 별도 항목 포함 ${lastMoney.replace(/\s+/g, "")}`;
     }
-    return `스드메 ${firstMoney.replace(/\s+/g, "")} 견적 공유`;
+    return `사진·드레스·메이크업 ${firstMoney.replace(/\s+/g, "")} 견적 공유`;
   }
 
   if (rule.id === "dress") {
     if (placeCount?.[1] && /충분|괜찮|고민|어디까지/.test(sample)) {
-      return `드레스 투어 ${placeCount[1]}곳이면 충분한지 고민`;
+      return `드레스 매장 ${placeCount[1]}곳을 방문하면 충분한지 고민`;
     }
-    if (/피팅비/.test(sample)) return "드레스 피팅비와 투어 범위 비교";
+    if (/피팅비/.test(sample)) return "드레스 입어보기 비용과 방문 범위 비교";
   }
 
   if (rule.id === "snap_video") {
     if (/원본/.test(sample) && /지정비|작가/.test(sample)) {
-      return "본식 스냅 원본 제공·작가 지정비 확인 필요";
+      return "결혼식 날 촬영한 전체 사진 파일·촬영자 지정 비용 확인 필요";
     }
-    if (/DVD|영상/.test(sample)) return "본식 영상을 뺄지 남길지 고민";
+    if (/DVD|영상/.test(sample)) return "결혼식 날 영상을 뺄지 남길지 고민";
   }
 
   if (rule.id === "contract_payment") {

@@ -31,7 +31,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[#36534E] mb-5 font-medium uppercase">
             Wedding Hanbang Guide
           </p>
-          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#263832] leading-[1.2] tracking-[-0.01em] mb-6">
+          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#263832] leading-[1.2] tracking-normal mb-6">
             혼자 고민하지 마세요.
             <br />
             <em className="not-italic text-[#36534E]">함께 준비해요.</em>
@@ -56,8 +56,9 @@ export default function CommunityAboutPage() {
 
           <div className="space-y-6 text-[#263832]">
             <p className="text-base sm:text-lg leading-[1.85] font-light">
-              결혼 준비는 처음이라 모든 게 막막해요. 스드메 가격이 적정한지,
-              예식장 추가금이 정상인지, 어디서 정보를 얻어야 할지 알기 어려워요.
+              결혼 준비는 처음이라 모든 게 막막해요. 사진 촬영·드레스·메이크업
+              가격을 어떻게 비교할지, 결혼식장에 따로 내는 금액은 무엇인지,
+              어디서 정보를 얻어야 할지 알기 어려워요.
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
               인터넷에 떠도는 후기는 광고인지 진짜인지 구분이 안 가고,
@@ -66,7 +67,7 @@ export default function CommunityAboutPage() {
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
               <span className="font-medium text-[#36534E]">웨딩한방 커뮤니티</span>는
-              실제 경험한 신랑신부들이 솔직한 후기와 가격 정보를 나누고,
+              회원들이 자신이 겪은 일과 궁금한 점을 나누고,
               같은 시기에 결혼하는 동기들끼리 응원하는 공간이에요.
               혼자 고민하던 결정을 함께 풀어나가요.
             </p>
@@ -89,7 +90,7 @@ export default function CommunityAboutPage() {
               {
                 icon: MessageCircle,
                 title: "솔직한 후기 읽기",
-                desc: "스드메, 예식장, 신혼여행까지 — 직접 경험한 사람들의 가격, 사진, 평가를 한 번에 비교해요.",
+                desc: "사진 촬영·드레스·메이크업, 결혼식장, 신혼여행에 관해 회원이 작성한 후기와 질문을 찾아봐요. 일반 글의 경험 여부는 별도 인증되지 않을 수 있어요.",
                 color: "from-[#36534E]/15 to-[#36534E]/5",
                 iconColor: "text-[#36534E]",
               },
@@ -103,7 +104,7 @@ export default function CommunityAboutPage() {
               {
                 icon: Search,
                 title: "원하는 정보 빠르게 검색",
-                desc: "“강남 스튜디오”, “300만원대 스드메” 같은 키워드로 바로 관련 후기를 찾아요.",
+                desc: "“강남 사진 촬영”, “드레스 추가 금액”처럼 구체적인 말로 관련 후기를 찾아요.",
                 color: "from-[#7EB8D8]/15 to-[#7EB8D8]/5",
                 iconColor: "text-[#5A9CC0]",
               },
@@ -117,7 +118,7 @@ export default function CommunityAboutPage() {
               {
                 icon: TrendingUp,
                 title: "투표로 좋은 글 추천",
-                desc: "도움이 된 글에 투표하면 다른 예비부부도 빨리 찾을 수 있어요. 매주 BEST 글이 선정돼요.",
+                desc: "도움이 된 글에 반응하면 다른 예비부부도 더 빨리 찾을 수 있어요.",
                 color: "from-[#A8D8A8]/30 to-[#A8D8A8]/5",
                 iconColor: "text-sage-500",
               },
@@ -173,7 +174,7 @@ export default function CommunityAboutPage() {
                 bg: "#F0F9FF",
                 border: "#BAE6FD",
                 label: "일반",
-                desc: "직접 경험한 솔직한 글",
+                desc: "일반 회원이 작성한 글 · 경험 인증 아님",
               },
               {
                 Icon: Star,
@@ -189,7 +190,7 @@ export default function CommunityAboutPage() {
                 bg: "#F1F5F9",
                 border: "#CBD5E1",
                 label: "광고",
-                desc: "광고는 표시하고, 추천에서 제외",
+                desc: "업체 광고임을 글에 표시",
               },
             ].map((rule) => (
               <div

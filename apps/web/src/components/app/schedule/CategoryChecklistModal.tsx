@@ -81,6 +81,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   const { journey, updateJourney } = useAuthStore();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const template = CHECKLIST_MAP[categoryKey];
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
@@ -91,6 +92,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
     const timer = window.setTimeout(() => {
       const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
       setChecklist(merged);
+      setError("");
     }, 0);
     return () => window.clearTimeout(timer);
   }, [isOpen, categoryKey, template, existing?.checklist, existing?.status]);
@@ -116,8 +118,19 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       };
 
       setSaving(true);
-      await updateJourney({ progress: newProgress });
-      setSaving(false);
+      setError("");
+      try {
+        await updateJourney({ progress: newProgress });
+      } catch (saveError) {
+        setChecklist(checklist);
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : "체크리스트를 저장하지 못했습니다.",
+        );
+      } finally {
+        setSaving(false);
+      }
     },
     [checklist, saving, progress, categoryKey, existing, updateJourney]
   );
@@ -130,18 +143,28 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
     if (saving) return;
     const nextStatus = isNotApplicable ? calculateStatus(checklist) : "not_applicable";
     setSaving(true);
-    await updateJourney({
-      progress: {
-        ...progress,
-        [categoryKey]: {
-          ...(existing ?? { category: categoryKey }),
-          category: categoryKey,
-          status: nextStatus,
-          checklist,
-        },
-      } as Record<string, ProgressItem>,
-    });
-    setSaving(false);
+    setError("");
+    try {
+      await updateJourney({
+        progress: {
+          ...progress,
+          [categoryKey]: {
+            ...(existing ?? { category: categoryKey }),
+            category: categoryKey,
+            status: nextStatus,
+            checklist,
+          },
+        } as Record<string, ProgressItem>,
+      });
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "체크리스트 상태를 저장하지 못했습니다.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!template || !isOpen) return null;
@@ -258,6 +281,14 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
         {/* 팁 */}
         <div className="px-6 py-4 bg-white border-t border-[#F6F3F2]">
+          {error && (
+            <p
+              role="alert"
+              className="mb-3 rounded-lg border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
+            >
+              {error}
+            </p>
+          )}
           <div className="flex items-start gap-2.5">
             <Lightbulb className="w-5 h-5 text-[#C9A96E] flex-shrink-0 mt-0.5" />
             <p className="text-base text-[#504444] font-light leading-relaxed">

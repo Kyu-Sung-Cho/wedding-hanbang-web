@@ -1,23 +1,15 @@
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
-// 템플릿과 저장된 체크리스트 병합
-// status를 전달하면 체크리스트 데이터가 없을 때 status에 맞게 done 값 설정
+// 템플릿과 사용자가 직접 저장한 항목별 상태를 병합한다.
+// 카테고리 상태만으로 개별 항목의 완료 여부를 추정하지 않는다.
 export function mergeChecklist(
   template: ChecklistItem[],
   saved: ChecklistItem[] | undefined,
-  status?: ProgressItem["status"]
+  _status?: ProgressItem["status"]
 ): ChecklistItem[] {
+  // 기존 호출부와 저장 형식은 유지하되 카테고리 상태로 항목 완료를 추정하지 않는다.
+  void _status;
   if (!saved || saved.length === 0) {
-    // 체크리스트 데이터가 없으면 기존 status 기반으로 초기화
-    if (status === "completed") {
-      return template.map((item) => ({ ...item, done: true }));
-    }
-    if (status === "in_progress") {
-      // 진행중이면 앞쪽 절반을 완료 처리
-      const halfDone = Math.ceil(template.length / 2);
-      return template.map((item, i) => ({ ...item, done: i < halfDone }));
-    }
-    // not_started → 전부 false
     return template.map((item) => ({ ...item, done: false }));
   }
 

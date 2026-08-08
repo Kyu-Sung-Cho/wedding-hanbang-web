@@ -15,12 +15,16 @@ import {
 type ChatWithToolsOptions = Parameters<typeof rawChatWithToolsStream>[0];
 
 function chatWithToolsStream(
-  options: Omit<ChatWithToolsOptions, "maxInputTokens"> & {
+  options: Omit<ChatWithToolsOptions, "maxInputTokens" | "beforeProviderEgress"> & {
     maxInputTokens?: number;
+    beforeProviderEgress?: ChatWithToolsOptions["beforeProviderEgress"];
   },
 ) {
   return rawChatWithToolsStream({
     maxInputTokens: 64_000,
+    // 이 파일의 관심사는 count/limit/quota/스트림 계약이다. P0-5 egress gate는
+    // providerEgressGate.test.ts와 providerEgressCallerContract.test.ts가 고정한다.
+    beforeProviderEgress: () => {},
     ...options,
   });
 }
@@ -317,6 +321,7 @@ describe("OpenAI Responses adapter", () => {
       input: "안녕",
       tools: [],
       maxInputTokens: undefined as never,
+      beforeProviderEgress: vi.fn(),
       beforeGeneration: vi.fn(),
       client,
     })).rejects.toThrow("maxInputTokens must be a positive integer");

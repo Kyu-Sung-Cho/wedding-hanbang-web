@@ -17,7 +17,11 @@ vi.mock("next/navigation", () => ({
   notFound: mocks.notFound,
 }));
 
-import VendorPricePage, { generateMetadata, generateStaticParams } from "./page";
+import VendorPricePage, {
+  generateMetadata,
+  generateStaticParams,
+  resolveRequestedPriceRegion,
+} from "./page";
 
 describe("vendor detail preview stub", () => {
   beforeEach(() => {
@@ -58,5 +62,15 @@ describe("vendor detail preview stub", () => {
 
     await expect(generateStaticParams()).rejects.toThrow("SUPABASE_CONFIG_MISSING");
     expect(mocks.createPublicClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps only a supported region that belongs to the merged vendor", () => {
+    const available = ["seoul_gangnam3", "gangwon"];
+
+    expect(resolveRequestedPriceRegion("gangwon", available)).toBe("gangwon");
+    expect(resolveRequestedPriceRegion("busan", available)).toBeNull();
+    expect(resolveRequestedPriceRegion("not-a-region", available)).toBeNull();
+    expect(resolveRequestedPriceRegion(["gangwon"], available)).toBeNull();
+    expect(resolveRequestedPriceRegion(undefined, available)).toBeNull();
   });
 });

@@ -371,7 +371,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
             <section className="mt-4">
               <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1F]">
                 <MessageSquareText className="h-4 w-4 text-[#2F5F51]" />
-                예식장에 확인할 것
+                결혼식장에 확인할 것
               </div>
               <ol className="space-y-1.5">
                 {questions.slice(0, 5).map((question, index) => (

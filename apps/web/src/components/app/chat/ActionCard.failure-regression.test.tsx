@@ -56,7 +56,7 @@ describe("ActionCard actionable failures", () => {
       "delete_schedule_event",
       "event_id",
       "018f4dc8-3ac1-7f31-9c45-1b8b46bf6e90",
-      "삭제할 일정을 찾지 못했어요",
+      "일정 삭제는 지원하지 않아요",
     ],
     [
       "toggle_checklist_item",

@@ -5,6 +5,8 @@
 // 하이드레이션과 경쟁한다. 유휴 시점에 한 번만 동적 로드·초기화하고,
 // 그 전에 들어온 이벤트는 이 프라미스를 기다렸다가 순서대로 보낸다.
 // 로더가 한 곳에 있어야 초기화 전에 capture가 새는 일이 없다.
+import { analyticsCaptureTouchesSuppressedPath } from "@/lib/analyticsPrivacy";
+
 type PostHogModule = typeof import("posthog-js").default;
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
@@ -32,6 +34,14 @@ export function loadPostHog(): Promise<PostHogModule | null> {
             capture_pageview: false, // App Router 라우트 전환은 Provider에서 수동 캡처
             capture_pageleave: true,
             persistence: "localStorage+cookie",
+            // 필요한 퍼널 이벤트만 명시적으로 보낸다. DOM 문구와 입력값 자동 수집은 하지 않는다.
+            autocapture: false,
+            disable_session_recording: true,
+            before_send: (capture) => (
+              analyticsCaptureTouchesSuppressedPath(capture, window.location.pathname)
+                ? null
+                : capture
+            ),
           });
           resolve(posthog);
         })

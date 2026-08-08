@@ -1,4 +1,4 @@
-import { apiFetch, apiJson } from "./api";
+import { apiFetchForExpectedUser } from "./api";
 import { supabase } from "./supabase";
 
 const STAGING_BUCKET = "community-media-staging" as const;
@@ -47,6 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isValidSignedUpload(
   value: unknown,
   mimeType: CommunityMimeType,
+  expectedUserId: string,
 ): value is SignedUploadInit {
   if (!isRecord(value)
       || typeof value.uploadId !== "string" || !UUID_RE.test(value.uploadId)
@@ -56,10 +57,9 @@ function isValidSignedUpload(
       || typeof value.expiresAt !== "string" || Date.parse(value.expiresAt) <= Date.now()) {
     return false;
   }
-  return new RegExp(
-    `^[0-9a-f-]{36}/${value.uploadId.replace(/-/g, "\\-")}\\.${MEDIA_RULES[mimeType].extension}$`,
-    "i",
-  ).test(value.path);
+  return value.path.toLowerCase() === (
+    `${expectedUserId}/${value.uploadId}.${MEDIA_RULES[mimeType].extension}`
+  ).toLowerCase();
 }
 
 async function responseJson(response: Response): Promise<Record<string, unknown> | null> {
@@ -67,18 +67,38 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
   return isRecord(value) ? value : null;
 }
 
-async function finalizeWithRetry(uploadId: string): Promise<CommunityUploadResult> {
+async function verifiedUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser();
+  return error ? null : data.user?.id.toLowerCase() ?? null;
+}
+
+async function assertExpectedUser(expectedUserId: string): Promise<void> {
+  if (await verifiedUserId() !== expectedUserId.toLowerCase()) {
+    throw new Error("계정이 바뀌어 업로드를 중단했어요. 다시 선택해 주세요.");
+  }
+}
+
+async function finalizeWithRetry(
+  uploadId: string,
+  expectedUserId: string,
+): Promise<CommunityUploadResult> {
   let lastError = "업로드 완료를 확인하지 못했어요.";
   for (let attempt = 0; attempt < FINALIZE_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await apiFetch("/api/community/upload/finalize", {
-        method: "POST",
-        body: JSON.stringify({ uploadId }),
-      });
+      await assertExpectedUser(expectedUserId);
+      const response = await apiFetchForExpectedUser(
+        expectedUserId,
+        "/api/community/upload/finalize",
+        {
+          method: "POST",
+          body: JSON.stringify({ uploadId }),
+        },
+      );
       const finalized = await responseJson(response);
       if (response.ok
           && typeof finalized?.url === "string"
           && (finalized.type === "image" || finalized.type === "gif")) {
+        await assertExpectedUser(expectedUserId);
         return { url: finalized.url, type: finalized.type };
       }
 
@@ -96,7 +116,16 @@ async function finalizeWithRetry(uploadId: string): Promise<CommunityUploadResul
         resolve,
         Math.min(retryAfterMs, FINALIZE_MAX_DELAY_MS),
       ));
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof Error
+        && (
+          error.message === "API_SESSION_OWNER_MISMATCH"
+          || error.message.startsWith("계정이 바뀌어")
+        )
+      ) {
+        throw error;
+      }
       if (attempt === FINALIZE_MAX_ATTEMPTS - 1) break;
       const retryAfterMs = 250 * (attempt + 1);
       await new Promise((resolve) => setTimeout(
@@ -121,6 +150,9 @@ export async function uploadCommunityMedia(
     throw new Error("파일 용량을 확인할 수 없거나 너무 커요. 사진을 다시 선택해 주세요.");
   }
 
+  const ownerUserId = await verifiedUserId();
+  if (!ownerUserId) throw new Error("로그인이 필요해요.");
+
   const localResponse = await fetch(asset.uri);
   if (!localResponse.ok && localResponse.status !== 0) {
     throw new Error("선택한 파일을 읽지 못했어요.");
@@ -132,14 +164,20 @@ export async function uploadCommunityMedia(
     throw new Error("파일 용량을 확인해 주세요.");
   }
 
-  const signed: unknown = await apiJson("/api/community/upload", {
-    method: "POST",
-    body: JSON.stringify({ mimeType, size: bytes.byteLength }),
-  });
-  if (!isValidSignedUpload(signed, mimeType)) {
+  const initResponse = await apiFetchForExpectedUser(
+    ownerUserId,
+    "/api/community/upload",
+    {
+      method: "POST",
+      body: JSON.stringify({ mimeType, size: bytes.byteLength }),
+    },
+  );
+  const signed: unknown = await initResponse.json().catch(() => null);
+  if (!initResponse.ok || !isValidSignedUpload(signed, mimeType, ownerUserId)) {
     throw new Error("업로드 준비 응답을 확인할 수 없어요.");
   }
 
+  await assertExpectedUser(ownerUserId);
   const { error } = await supabase.storage
     .from(signed.bucket)
     .uploadToSignedUrl(signed.path, signed.token, bytes, {
@@ -149,5 +187,6 @@ export async function uploadCommunityMedia(
     });
   if (error) throw new Error("파일 전송에 실패했어요. 다시 시도해 주세요.");
 
-  return finalizeWithRetry(signed.uploadId);
+  await assertExpectedUser(ownerUserId);
+  return finalizeWithRetry(signed.uploadId, ownerUserId);
 }

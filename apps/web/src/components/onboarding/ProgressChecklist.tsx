@@ -10,7 +10,7 @@ interface ProgressChecklistProps {
 
 const STATUS_OPTIONS: { value: ChecklistStatus; label: string }[] = [
   { value: "not_started", label: "예정" },
-  { value: "in_progress", label: "진행중" },
+  { value: "in_progress", label: "준비 중" },
   { value: "completed", label: "완료" },
 ];
 
@@ -26,7 +26,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
           준비 현황
         </h2>
         <p className="text-[14px] text-taupe-400">
-          각 항목의 진행 상태를 선택해주세요
+          이미 시작한 분야가 있으면 현재 상태만 알려주세요
         </p>
       </div>
 
@@ -39,7 +39,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
           </div>
           <div className="text-center">
             <div className="text-[20px] font-bold text-rose-500">{inProgressCount}</div>
-            <div className="text-[10px] text-taupe-400">진행중</div>
+            <div className="text-[10px] text-taupe-400">준비 중</div>
           </div>
           <div className="text-center">
             <div className="text-[20px] font-bold text-taupe-400">{items.length - activeCount}</div>
@@ -60,8 +60,8 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
         </div>
         <div className="text-[11px] text-taupe-400 mt-2 text-center">
           {activeCount === 0
-            ? "아직 시작 전이시군요! 함께 준비해요"
-            : `${items.length - activeCount}개 항목이 남았어요`}
+            ? "아직 시작한 분야가 없어도 괜찮아요"
+            : `${activeCount}개 분야의 현재 상태를 입력했어요`}
         </div>
       </div>
 
@@ -127,7 +127,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange 
       </div>
 
       <p className="text-[12px] text-taupe-400 text-center">
-        체크하지 않은 항목은 AI가 우선 안내해드립니다
+        여기서는 분야별 상태만 저장하며, 세부 할 일은 다음 화면에서 직접 확인해요
       </p>
     </div>
   );

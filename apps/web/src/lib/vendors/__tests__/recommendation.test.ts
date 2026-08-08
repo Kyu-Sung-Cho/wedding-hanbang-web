@@ -79,7 +79,7 @@ describe("rankVendorRecommendations", () => {
       expect.arrayContaining([
         "선호 태그 2/2 일치: 자연광, 필름감성",
         "공시 기본가 120만원으로 예산 내",
-        "원본 제공 조건 충족",
+        "촬영한 전체 사진 파일 받기 조건 충족",
         "최신 공시 가격 기준",
       ]),
     );
@@ -111,7 +111,9 @@ describe("rankVendorRecommendations", () => {
       "unknown",
     ]);
     for (const result of response.results) {
-      expect(result.match_reasons).toContain("원본 제공 확인 필요");
+      expect(result.match_reasons).toContain(
+        "촬영한 전체 사진 파일 받기 확인 필요",
+      );
     }
   });
 

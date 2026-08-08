@@ -2,6 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+
+const PUBLIC_NON_AMBIENT_MUTATION_PATHS = new Set([
+  // Native signup and password recovery have no ambient cookie or Bearer yet.
+  // Both routes enforce their own bounded Turnstile proof before any write.
+  "/api/auth/signup",
+  "/api/auth/forgot-password",
+  // This read-only POST exists solely to prove whether the production write
+  // fence intercepted it before the handler.
+  "/api/release/write-fence-probe",
+]);
 
 function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   const { pathname } = request.nextUrl;
@@ -31,6 +42,26 @@ function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   } catch {
     return false;
   }
+}
+
+function isCommunitySafetyIntakePath(pathname: string): boolean {
+  return (
+    /^\/api\/community\/(?:posts|comments)\/[^/]+\/report$/.test(pathname)
+    || /^\/api\/community\/cohort\/[^/]+\/members\/[^/]+\/report$/.test(pathname)
+    || pathname === "/api/community/moderation/appeals"
+  );
+}
+
+function isCommunitySafetyExitRoute(pathname: string): boolean {
+  return (
+    /^\/api\/community\/responder-requests\/[^/]+\/decline$/.test(pathname)
+    || /^\/api\/community\/responder-capacity\/[^/]+\/revoke$/.test(pathname)
+  );
+}
+
+function isCommunitySafetyExitPath(request: NextRequest): boolean {
+  return request.method.toUpperCase() === "POST"
+    && isCommunitySafetyExitRoute(request.nextUrl.pathname);
 }
 
 export async function proxy(request: NextRequest) {
@@ -98,8 +129,6 @@ export async function proxy(request: NextRequest) {
     [
       "/api/auth/callback",
       "/api/auth/me",
-      "/api/community/cohort",
-      "/api/community/profile",
       "/api/couple/code",
       "/api/messages",
     ].includes(request.nextUrl.pathname) ||
@@ -130,9 +159,55 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  const isCommunityApiPath =
+    request.nextUrl.pathname === "/api/community"
+    || request.nextUrl.pathname.startsWith("/api/community/");
+  const communityRuntimeMode = process.env.COMMUNITY_RUNTIME_MODE;
+  const isCommunitySafetyIntake = isCommunitySafetyIntakePath(
+    request.nextUrl.pathname,
+  );
+  const isCommunitySafetyExit = isCommunitySafetyExitPath(request);
+  const isInvalidCommunitySafetyExitMethod =
+    isCommunitySafetyExitRoute(request.nextUrl.pathname)
+    && !isCommunitySafetyExit;
+  const isCommunityMutation = !["GET", "HEAD", "OPTIONS"].includes(
+    request.method.toUpperCase(),
+  );
+  const shouldFreezeCommunity =
+    isCommunityApiPath
+    && !isCommunitySafetyIntake
+    && !isCommunitySafetyExit
+    && (
+      communityRuntimeMode === "disabled"
+      || (
+        communityRuntimeMode === "read_only"
+        && (isCommunityMutation || isInvalidCommunitySafetyExitMethod)
+      )
+    );
+  if (shouldFreezeCommunity) {
+    return NextResponse.json(
+      {
+        error: communityRuntimeMode === "disabled"
+          ? "community_disabled"
+          : "community_read_only",
+      },
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": "60",
+        },
+      },
+    );
+  }
+
   if (
     isPreviewStubMode() &&
-    isApiPath
+    isApiPath &&
+    !(
+      request.nextUrl.pathname === "/api/demo/start" &&
+      request.method.toUpperCase() === "POST"
+    )
   ) {
     return NextResponse.json(
       { error: "preview_stub_api_disabled" },
@@ -140,6 +215,28 @@ export async function proxy(request: NextRequest) {
         status: 503,
         headers: { "Cache-Control": "no-store" },
       }
+    );
+  }
+
+  const isUnsafeApiMethod = isApiPath
+    && !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase());
+  const isRouteAuthenticatedServerMutation =
+    request.nextUrl.pathname.startsWith("/api/internal/");
+  if (
+    isUnsafeApiMethod
+    && !PUBLIC_NON_AMBIENT_MUTATION_PATHS.has(request.nextUrl.pathname)
+    && !isRouteAuthenticatedServerMutation
+    && !isTrustedMutationRequest(request)
+  ) {
+    return NextResponse.json(
+      { error: "untrusted_mutation_origin" },
+      {
+        status: 403,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+          Vary: "Authorization, Origin, Sec-Fetch-Site",
+        },
+      },
     );
   }
 

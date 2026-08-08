@@ -39,8 +39,6 @@ vi.mock("@/lib/amora/lifecycle", () => ({
     stage: "planning",
     stageLabel: "준비 단계",
     stageSummary: "확인할 일이 있어요.",
-    riskLevel: "attention",
-    riskScore: 70,
     guardrails: [{ cta: "확인하기" }],
     primaryAction: {
       id: "budget-check",
@@ -163,6 +161,21 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
     expect(rateLimitMocks.check).not.toHaveBeenCalled();
   });
 
+  it("fails closed before auth when TodayOne owns the in-app care surface", async () => {
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
+    vi.stubEnv("AMORA_TODAY_ONE_ENABLED", "true");
+
+    const response = await POST(request());
+
+    await expect(response.json()).resolves.toMatchObject({
+      triggered: false,
+      reason: "proactive_chat_disabled",
+    });
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(rateLimitMocks.check).not.toHaveBeenCalled();
+  });
+
   it("writes no shared moment when the atomic RPC reports non-unanimous consent", async () => {
     vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
     vi.mocked(createClientFromRequest).mockResolvedValue({
@@ -179,7 +192,10 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
         single: vi.fn(async () => {
           if (table === "profiles") return { data: { couple_id: "couple-1", name: "Member" }, error: null };
           if (table === "wedding_journeys") {
-            return { data: { wedding_date: "2026-07-17", progress: {} }, error: null };
+            return {
+              data: { wedding_date: "2026-07-17", progress: {}, state_revision: 3 },
+              error: null,
+            };
           }
           return { data: null, error: null };
         }),
@@ -189,7 +205,10 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
       };
       return builder;
     });
-    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    const rpc = vi.fn().mockResolvedValue({
+      data: { state: "consent_required" },
+      error: null,
+    });
     vi.mocked(createAdminClient).mockReturnValue({ from, rpc } as never);
 
     const response = await POST(request());
@@ -199,11 +218,71 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
       triggered: false,
       reason: "consent_required",
     });
-    expect(rpc).toHaveBeenCalledWith("insert_amora_care_message", expect.objectContaining({
-      p_couple_id: "couple-1",
-    }));
+    expect(rpc).toHaveBeenCalledWith(
+      "insert_amora_moment_care_message",
+      expect.objectContaining({
+        p_couple_id: "couple-1",
+        p_expected_journey_revision: 3,
+      }),
+    );
     expect(directInsert).not.toHaveBeenCalled();
     expect(completeChatRequest).not.toHaveBeenCalled();
+  });
+
+  it("does not persist a moment when its journey source revision became stale", async () => {
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "member-1" } } }) },
+    } as never);
+
+    const from = vi.fn((table: string) => {
+      const builder = {
+        select: vi.fn(() => builder),
+        eq: vi.fn(() => builder),
+        in: vi.fn(() => builder),
+        single: vi.fn(async () => {
+          if (table === "profiles") {
+            return { data: { couple_id: "couple-1", name: "Member" }, error: null };
+          }
+          if (table === "wedding_journeys") {
+            return {
+              data: {
+                wedding_date: "2026-07-17",
+                progress: {},
+                state_revision: 7,
+              },
+              error: null,
+            };
+          }
+          return { data: null, error: null };
+        }),
+        then(resolve: (value: unknown) => void) {
+          resolve({ data: [], error: null });
+        },
+      };
+      return builder;
+    });
+    const rpc = vi.fn().mockResolvedValue({
+      data: { state: "source_stale" },
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from, rpc } as never);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "source_stale",
+    });
+    expect(rpc).toHaveBeenCalledWith("insert_amora_moment_care_message", {
+      p_couple_id: "couple-1",
+      p_expected_journey_revision: 7,
+      p_content: "내일 일정을 확인해봐요.",
+      p_metadata: expect.objectContaining({
+        client_request_id: "moment:wedding_day:d1:2026-07-17",
+      }),
+    });
   });
 
   it("never completes a lifecycle claim when the consent-fenced RPC persisted no message", async () => {

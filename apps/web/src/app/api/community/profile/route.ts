@@ -8,7 +8,8 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { sanitizeText } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,6 +17,8 @@ export const revalidate = 0;
 function getServiceClient() {
   return createAdminClient();
 }
+
+const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
 
 type ServiceClient = ReturnType<typeof getServiceClient>;
 
@@ -66,11 +69,14 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
-        { status: 401 }
+        { status: 401, headers: PRIVATE_NO_STORE },
       );
     }
 
-    const { data: profile, error } = await supabase
+    // The base profile contains private counters and moderation state. Auth is
+    // verified above; only the server-role boundary may read the caller's row.
+    const serviceClient = getServiceClient();
+    const { data: profile, error } = await serviceClient
       .from("community_profiles")
       .select("*")
       .eq("user_id", user.id)
@@ -80,11 +86,10 @@ export async function GET(req: NextRequest) {
       console.error("Get community profile error:", error);
       return NextResponse.json(
         { error: "프로필을 불러오지 못했습니다." },
-        { status: 500 }
+        { status: 500, headers: PRIVATE_NO_STORE },
       );
     }
 
-    const serviceClient = getServiceClient();
     const { count: actualPostCount } = await serviceClient
       .from("community_posts")
       .select("id", { count: "exact", head: true })
@@ -93,47 +98,126 @@ export async function GET(req: NextRequest) {
       .eq("under_review", false);
 
     if (!profile) {
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-
-      const { data: newProfile, error: createError } = await createCommunityProfile(
-        serviceClient,
-        user.id,
-        getSafeDefaultCommunityNickname(userProfile?.name, user.id),
-        actualPostCount ?? 0
+      return NextResponse.json(
+        {
+          profile: null,
+          actualPostCount: actualPostCount ?? 0,
+        },
+        { headers: PRIVATE_NO_STORE },
       );
-
-      if (createError) {
-        console.error("Create community profile error:", createError);
-        return NextResponse.json(
-          { error: "프로필 생성에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        profile: newProfile,
-        actualPostCount: actualPostCount ?? 0,
-      });
     }
 
-    return NextResponse.json({
-      profile,
-      actualPostCount: actualPostCount ?? 0,
-    });
+    return NextResponse.json(
+      {
+        profile,
+        actualPostCount: actualPostCount ?? 0,
+      },
+      { headers: PRIVATE_NO_STORE },
+    );
   } catch (err) {
     console.error("Get community profile error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: PRIVATE_NO_STORE },
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "올바르지 않은 요청 출처입니다." },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  try {
+    const supabase = await createClientFromRequest(req);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:profile:create", req, user.id),
+      { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+    );
+    if (limited) return limited;
+
+    const serviceClient = getServiceClient();
+    const { data: existing, error: existingError } = await serviceClient
+      .from("community_profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (existingError) {
+      return NextResponse.json(
+        { error: "프로필 상태를 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
+
+    const { count: actualPostCount } = await serviceClient
+      .from("community_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("author_id", user.id)
+      .in("visibility", ["public", "members"])
+      .eq("under_review", false);
+
+    if (existing) {
+      return NextResponse.json({
+        profile: existing,
+        actualPostCount: actualPostCount ?? 0,
+      });
+    }
+
+    const { data: created, error: createError } = await createCommunityProfile(
+      serviceClient,
+      user.id,
+      getSafeDefaultCommunityNickname(null, user.id),
+      actualPostCount ?? 0,
+    );
+    if (createError || !created) {
+      // Concurrent explicit initialization is idempotent: if another request
+      // won the user_id uniqueness race, return that exact persisted profile.
+      const { data: racedProfile } = await serviceClient
+        .from("community_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (racedProfile) {
+        return NextResponse.json({
+          profile: racedProfile,
+          actualPostCount: actualPostCount ?? 0,
+        });
+      }
+      return NextResponse.json(
+        { error: "프로필 생성에 실패했습니다." },
+        { status: 503 },
+      );
+    }
+
+    return NextResponse.json(
+      { profile: created, actualPostCount: actualPostCount ?? 0 },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("Create community profile error:", error);
+    return NextResponse.json(
+      { error: "프로필 생성 중 오류가 발생했습니다." },
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "올바르지 않은 요청 출처입니다." },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
   try {
     const supabase = await createClientFromRequest(req);
     const {
@@ -147,7 +231,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:profile:update", req, user.id),
       { maxRequests: 5, windowMs: 60 * 60 * 1000 }
     );

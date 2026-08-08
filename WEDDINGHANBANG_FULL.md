@@ -197,7 +197,7 @@ wedding-hanbang-web/
 | Styling | Tailwind CSS | 4 |
 | State | Zustand | ^5.0.11 |
 | Auth/DB | Supabase (PostgreSQL + Auth + Realtime + Storage) | @supabase/ssr ^0.8.0, supabase-js ^2.95.3 |
-| AI | Anthropic Claude API | @anthropic-ai/sdk ^0.74.0 (Opus 4.7) |
+| AI | OpenAI Responses API | openai ^6.46.0 (gpt-5.6-terra / gpt-5.6-luna) |
 | 결제 | 토스페이먼츠 | @tosspayments/tosspayments-sdk ^2.5.0 |
 | 이메일 | Resend | ^6.9.1 |
 | Animation | Framer Motion | ^12.34.0 |
@@ -1815,9 +1815,10 @@ PENDING_PAYMENT (결제 대기)
 - `invitation-photos`
 - `chat-attachments`
 
-### 21.4 Anthropic Claude
-- 모델: **Claude Opus 4.7** (`claude-opus-4-7`)
-- 기능: Tool Use (27개), Streaming, 1M context
+### 21.4 OpenAI
+- 모델: **gpt-5.6-terra**(주) / **gpt-5.6-luna**(빠름)
+- 환경변수: `OPENAI_API_KEY`, `AMORA_OPENAI_ENABLED`
+- 기능: Tool Use, Streaming
 - 최대 Tool 라운드: 5
 - 타임아웃: 60초
 

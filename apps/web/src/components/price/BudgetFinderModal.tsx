@@ -79,7 +79,7 @@ export function BudgetFinderModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.12em] text-[#8F6662]">BUDGET FINDER</p>
-            <h2 id="budget-finder-title" className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#243832]">
+            <h2 id="budget-finder-title" className="mt-1 text-2xl font-bold tracking-normal text-[#243832]">
               내 예산으로 조합 찾기
             </h2>
           </div>
@@ -105,7 +105,7 @@ export function BudgetFinderModal({
                 aria-label="최대 예산(만원)"
                 className="min-w-0 flex-1 bg-transparent text-base font-bold tabular-nums outline-none"
               />
-              <span className="text-sm text-[#243832]/65">만원</span>
+              <span className="text-sm text-[#243832]/75">만원</span>
             </span>
           </label>
           <label className="text-sm font-semibold text-[#243832]">

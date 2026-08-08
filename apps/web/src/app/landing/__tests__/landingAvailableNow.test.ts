@@ -3,6 +3,10 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  CURRENT_WEDDING_CODE_SCENE_CONFIG,
+  weddingCodeSceneCountLabel,
+} from "@/lib/weddingCode/scene/config";
 
 /**
  * "지금 가입 없이 되는 것" 섹션의 계약.
@@ -93,6 +97,32 @@ describe("landing available-now section", () => {
     // 이 넷은 아모라를 열지 않으므로 둘 다 틀린 동작이 된다.
     expect(withoutComments(section)).not.toContain("TrackedLandingLink");
     expect(section, "보조 링크는 공유 레시피를 쓴다").toContain("${secondaryLink}");
+  });
+
+  it("names the scene count the destination screen actually asks", () => {
+    // 이 카드를 누르면 곧바로 웨딩코드 화면이 열린다. 여기 적힌 장면 수가 그 화면의
+    // 문항 수와 다르면 한 클릭 만에 숫자가 달라진다 — 실제로 "열여섯"으로 적힌 채
+    // 도착 화면은 "스무"였다.
+    //
+    // landingContent.ts는 클라이언트 컴포넌트가 import하므로 거기서 설정을 끌어오면
+    // 문항 은행이 랜딩 번들에 실린다. 그래서 숫자는 손으로 적고, 대조는 여기서 한다.
+    const live = weddingCodeSceneCountLabel(
+      CURRENT_WEDDING_CODE_SCENE_CONFIG.questions.length,
+    );
+    expect(availableNowBlock, `라이브 설정은 ${live} 장면이다`)
+      .toContain(`${live} 장면에 각자 답하면`);
+    expect(availableNowBlock, `라이브 설정은 ${live} 장면이다`)
+      .toContain(`${live} 장면 답해보기`);
+
+    // 다른 표기가 함께 남아 있으면 위 두 단언은 통과하면서 화면에는 두 숫자가 보인다.
+    // 주석은 벗기고 본다 — 왜 바꿨는지 설명하려면 옛 표기를 인용해야 하는데, 자기
+    // 설명에 걸려 넘어지는 가드는 가드가 아니다. 실제 렌더에 닿는 문자열만 본다.
+    const rendered = availableNowBlock
+      .replace(/\/\*[\s\S]*?\*\//gu, "")
+      .replace(/^[	 ]*\/\/.*$/gmu, "");
+    for (const other of ["열두", "열여섯", "스무", "스물네"].filter((n) => n !== live)) {
+      expect(rendered, `옛 표기 "${other}"가 남아 있다`).not.toContain(other);
+    }
   });
 
   it("keeps unverified claims out of every landing surface, not just this section", () => {

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { GET, POST } from "./route";
+import { DELETE, GET, POST } from "./route";
 
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
@@ -15,6 +15,15 @@ const MESSAGE_ID = "44444444-4444-4444-8444-444444444444";
 const CURRENT_VERSION = "55555555-5555-4555-8555-555555555555";
 const OLD_VERSION = "66666666-6666-4666-8666-666666666666";
 const RESOLUTION = "총예산 상한선을 함께 확인해요";
+const V2_DRAFT = {
+  empathy: "요청자가 답답함을 느꼈다고 전했어요.",
+  translation: "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+  data: "상대방의 예산 상한은 아직 확인되지 않았어요.",
+  resolution: RESOLUTION,
+  origin: "user_requested",
+  evidenceScope: "requester_summary_only",
+  schemaVersion: 2,
+} as const;
 
 function query(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {};
@@ -39,6 +48,106 @@ describe("GET /api/amora/mediation/accept", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["POST", "DELETE"] as const)(
+    "rejects a cross-site %s before parsing or authentication",
+    async (method) => {
+      const request = new Request("http://localhost/api/amora/mediation/accept", {
+        method,
+        headers: {
+          "Content-Type": "text/plain",
+          Origin: "https://evil.example",
+          "Sec-Fetch-Site": "cross-site",
+        },
+        body: JSON.stringify({
+          messageId: MESSAGE_ID,
+          expectedProposalVersion: CURRENT_VERSION,
+          expectedRosterFingerprint: "0".repeat(32),
+        }),
+      });
+
+      const response = method === "POST" ? await POST(request) : await DELETE(request);
+
+      expect(response.status).toBe(403);
+      expect(createClientFromRequest).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects a provenance-less legacy proposal before opening confirmation", async () => {
+    const currentRoster = fingerprint(USER_ID, PARTNER_ID);
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })) },
+      from: vi.fn((table: string) => table === "profiles"
+        ? query({ data: { couple_id: COUPLE_ID }, error: null })
+        : query({
+          data: {
+            id: MESSAGE_ID,
+            sender_type: "ai",
+            role: "assistant",
+            visibility: "shared",
+            metadata: {
+              mediation: {
+                empathy: "요청자가 답답함을 느꼈다고 전했어요.",
+                translation: "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+                data: "상대방의 예산 상한은 아직 확인되지 않았어요.",
+                resolution: RESOLUTION,
+                proposalVersion: CURRENT_VERSION,
+                rosterFingerprint: currentRoster,
+              },
+            },
+          },
+          error: null,
+        })),
+    } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn(() => query({ data: [], error: null })),
+    } as unknown as ReturnType<typeof createAdminClient>);
+
+    const response = await GET(new Request(
+      `http://localhost/api/amora/mediation/accept?messageId=${MESSAGE_ID}`
+        + `&expectedProposalVersion=${CURRENT_VERSION}`
+        + `&expectedRosterFingerprint=${currentRoster}`,
+    ));
+
+    expect(response.status).toBe(404);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects a v2 proposal when any required mediation field is missing", async () => {
+    const currentRoster = fingerprint(USER_ID, PARTNER_ID);
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })) },
+      from: vi.fn((table: string) => table === "profiles"
+        ? query({ data: { couple_id: COUPLE_ID }, error: null })
+        : query({
+          data: {
+            id: MESSAGE_ID,
+            sender_type: "ai",
+            role: "assistant",
+            visibility: "shared",
+            metadata: {
+              mediation: {
+                ...V2_DRAFT,
+                data: undefined,
+                proposalVersion: CURRENT_VERSION,
+                rosterFingerprint: currentRoster,
+              },
+            },
+          },
+          error: null,
+        })),
+    } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
+
+    const response = await GET(new Request(
+      `http://localhost/api/amora/mediation/accept?messageId=${MESSAGE_ID}`
+        + `&expectedProposalVersion=${CURRENT_VERSION}`
+        + `&expectedRosterFingerprint=${currentRoster}`,
+    ));
+
+    expect(response.status).toBe(404);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
   it("counts only the exact current proposal version and roster", async () => {
     const currentRoster = fingerprint(USER_ID, PARTNER_ID);
     vi.mocked(createClientFromRequest).mockResolvedValue({
@@ -55,7 +164,7 @@ describe("GET /api/amora/mediation/accept", () => {
             visibility: "shared",
             metadata: {
               mediation: {
-                resolution: RESOLUTION,
+                ...V2_DRAFT,
                 proposalVersion: CURRENT_VERSION,
                 rosterFingerprint: currentRoster,
               },
@@ -134,7 +243,7 @@ describe("GET /api/amora/mediation/accept", () => {
             visibility: "shared",
             metadata: {
               mediation: {
-                resolution: RESOLUTION,
+                ...V2_DRAFT,
                 proposalVersion: CURRENT_VERSION,
                 rosterFingerprint: currentRoster,
               },
@@ -169,7 +278,7 @@ describe("GET /api/amora/mediation/accept", () => {
             visibility: "shared",
             metadata: {
               mediation: {
-                resolution: RESOLUTION,
+                ...V2_DRAFT,
                 proposalVersion: CURRENT_VERSION,
                 rosterFingerprint: currentRoster,
               },
@@ -186,7 +295,11 @@ describe("GET /api/amora/mediation/accept", () => {
 
     const response = await POST(new Request("http://localhost/api/amora/mediation/accept", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost",
+        "Sec-Fetch-Site": "same-origin",
+      },
       body: JSON.stringify({
         messageId: MESSAGE_ID,
         expectedProposalVersion: CURRENT_VERSION,

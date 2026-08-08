@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const previousMediaPublishing =
+  process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED;
+
 const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   createAdminClient: vi.fn(),
   hasActiveAccountDeletion: vi.fn(async () => false),
+  checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true })),
   checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn((prefix: string, _request: Request, userId?: string) =>
     `${prefix}:${userId ?? "anonymous"}`
   ),
+  isTrustedMutationRequest: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -22,9 +27,17 @@ vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
   hasActiveAccountDeletion: mocks.hasActiveAccountDeletion,
 }));
 
+vi.mock("@/lib/community/writeAccess", () => ({
+  checkCommunityWriteAccess: mocks.checkCommunityWriteAccess,
+}));
+
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimitPersistent: mocks.checkRateLimitPersistent,
   rateLimitKey: mocks.rateLimitKey,
+}));
+
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: mocks.isTrustedMutationRequest,
 }));
 
 import { POST } from "./route";
@@ -92,6 +105,7 @@ function adminHarness(options: { signError?: boolean; insertError?: boolean } = 
 describe("POST /api/community/upload (signed upload initiation)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = "true";
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.hasActiveAccountDeletion.mockReset();
     mocks.hasActiveAccountDeletion.mockResolvedValue(false);
@@ -100,7 +114,27 @@ describe("POST /api/community/upload (signed upload initiation)", () => {
   });
 
   afterEach(() => {
+    if (previousMediaPublishing === undefined) {
+      delete process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED;
+    } else {
+      process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = previousMediaPublishing;
+    }
     vi.restoreAllMocks();
+  });
+
+  it("fails closed before storage setup when controlled-beta media is off", async () => {
+    process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = "false";
+
+    const response = await POST(
+      jsonRequest({ mimeType: "image/png", size: 8 }) as never,
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COMMUNITY_MEDIA_PUBLISHING_DISABLED",
+    });
+    expect(mocks.checkCommunityWriteAccess).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("fails closed when the service client is not configured", async () => {

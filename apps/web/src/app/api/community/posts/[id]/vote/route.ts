@@ -1,6 +1,8 @@
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 type PostVoteType = 0 | 1;
 
@@ -13,6 +15,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
@@ -27,7 +35,7 @@ export async function POST(
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:post:vote", req, user.id),
       { maxRequests: 60, windowMs: 60 * 1000 }
     );
@@ -40,6 +48,16 @@ export async function POST(
         { error: "게시물 좋아요는 좋아요 또는 취소만 가능합니다." },
         { status: 400 }
       );
+    }
+
+    if (voteType !== 0) {
+      const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+      if (!writeAccess.allowed) {
+        return NextResponse.json(
+          { error: writeAccess.message, code: writeAccess.code },
+          { status: writeAccess.status },
+        );
+      }
     }
 
     const { data: visiblePost } = await supabase

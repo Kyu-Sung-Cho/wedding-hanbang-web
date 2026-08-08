@@ -77,7 +77,7 @@ export default function CohortCard({
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
         <p className="mb-4 text-[11px] leading-relaxed text-[#36534E]">
-          ✨ 정확한 날짜 몰라도 OK — 대략적인 분기로 가입할 수 있어요. 나중에 변경 가능합니다.
+          결혼식 날짜가 아직 정확하지 않아도 분기만 골라 참여할 수 있어요. 분기는 나중에 바꿀 수 있습니다.
         </p>
 
         <div className="mb-3 grid grid-cols-2 gap-2">

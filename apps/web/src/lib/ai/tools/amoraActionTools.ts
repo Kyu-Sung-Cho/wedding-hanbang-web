@@ -59,7 +59,7 @@ function getDefaultActionHref(categoryKey?: string, source?: AmoraActionSource) 
   if (source === "budget") return weddingPath("/budget");
   if (source === "schedule") return weddingPath("/schedule");
   if (categoryKey === "invitation") return weddingPath("/schedule");
-  // 가족 조율 페이지는 제거됐다(2026-07-25) — 사회·답례품처럼 가족 합의가 필요한
+  // 가족 조율 페이지는 제거됐다(2026-07-25) — 진행·감사 선물처럼 가족 합의가 필요한
   // 항목은 일반 안내보다 아모라와 상황을 정리하는 쪽으로 보낸다.
   if (categoryKey === "mc" || categoryKey === "gift") return weddingPath("/chat");
   return weddingPath("/lounge");

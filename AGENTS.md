@@ -2,8 +2,9 @@
 
 ## 최상위 원칙
 
-- 모든 제품 판단은 `PRINCIPLES.md`의 여섯 원칙을 따른다. 충돌 시 우선순위는
-  P1 > P3 > P2 > P4 > P5 > P6이다.
+- 모든 제품 판단은 `PRINCIPLES.md`의 여섯 원칙을 따른다. P6의 법령·보안·운영
+  조건은 다른 원칙과 교환할 수 없는 출시 게이트다. 그 조건을 통과한 선택지끼리는
+  P1 > P3 > P2 > P4 > P5 순서로 판단한다.
 - 시각·UI 판단 전에는 `DESIGN.md`를 읽는다.
 - AI 호출은 `ai_interactions_log`, 커플의 확정 의사결정은 `decision_nodes`에
   기록한다. 모델의 문장만으로 저장 성공을 간주하지 않는다.
@@ -14,10 +15,13 @@
 
 ## 프로젝트 개요
 
-웨딩한방은 한국 예비부부가 일정, 예산, 업체, 커뮤니티 정보와 커플 의사결정을
-한곳에서 관리하는 소비자 웹·모바일 서비스다. 아모라는 사용자의 조건과 선택을
-기억하고, 근거를 구분하며, 승인된 행동만 실행하는 OpenAI 기반 결혼 준비
-동반자다.
+현재 모바일 우선 MVP에서 웨딩한방은 아모라에게 결혼 준비를 말하면
+예산·체크리스트·일정이 함께 정리되는 서비스다. 모바일 앱이 소비자의 주 제품이고,
+웹은 유입·설명·정책·고객지원·관리자 운영과 데스크톱 연속성을 담당한다. 아모라가
+제품의 중심이고, 커뮤니티는 실제 경험을 찾고 질문하는 보조 축이다. 업체·예약·축의금은
+장기 범위에는 남아 있지만 핵심 흐름보다 먼저 전면 확장하지 않는다. 현재 제품 방향은
+`docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`, 앱 출시 완료 기준은
+`docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`를 따른다.
 
 현재 저장소는 모노레포다.
 
@@ -44,13 +48,47 @@
 
 ## 현재 기준 문서
 
+- **새 컴퓨터·새 LLM의 모델 중립 진입점**(현재 배포 판정 · source 확인 · 금지 작업 ·
+  P0-5 첫 RED test): `START_HERE.md`
+- 문서 권한·상태 해석: `docs/README.md`
+- **현재 아모라 개인정보·보안 작업 진행과 프로덕션 판정**(CURRENT FACTUAL HANDOFF ·
+  P0/P1 · PR/CI/DB/Mobile 증거 · 다른 컴퓨터 재개 · production NO-GO):
+  `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+- **현재 전체 작업 트리·릴리스 인계**(exact inventory · 사용자와 확정한 결정 ·
+  GitHub/Web/DB/Community/Mobile 개별 상태 · rollback · 남은 게이트):
+  `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+- **다른 컴퓨터 개발 인계**(clone · 환경변수 · 웹/모바일 연결 · 검증 · 이어서 할 일):
+  `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
+- **2026-08-02 커뮤니티·전체 구현 보충 인계**(검색·신뢰·아모라 연결 · 구현/후속 구분):
+  `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+- **현재 아모라 대화 기반**(lane·segment · privacy fence · retry · 기억 복구 · 위기 안전):
+  `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
+- **아모라 개인정보 경계·소비자 안전 목표 아키텍처**(TARGET ARCHITECTURE · 현재 P0가 남아
+  있어 production NO-GO):
+  `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
+- **현재 아모라 통합 케어 계약**(W0~W5 · 실행 경계 · 평가 기준):
+  `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
+- **neutral couple member 전환 제안**(PLAN · 미구현 · 미배포):
+  `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
+- **UI 작업용 선택적 Lazyweb 런북**(기기별 MCP·보안 경계·재설치, 제품 정본 아님):
+  `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
+- **현재 모바일 우선 MVP 제품 계약**(한 줄 정의 · 제품 위계 · 전면/비전면 범위 · 핵심 지표):
+  `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+- 과거 로컬 저장소 전체 감사(2026-07-30 source snapshot):
+  `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`
+- 현재 Supabase successor controller 계약:
+  `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
+- 현재 커뮤니티 production release gate:
+  `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
 - 제품·디자인: `DESIGN.md`
 - 아모라 제품·기술 기준: `docs/AMORA_ENGINE_V2_2026-07-16.md`
-- 현행 운영 릴리스:
+- 과거 아모라 V2 운영 릴리스 계획:
   `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
-- 현재 인수인계:
+- 과거 업체 공시 브랜치 인수인계:
   `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
-- **가장 최신 인계**(웨딩코드 v0.6 · 오늘 한 마디 · 로컬 dev 띄우는 법 · 깨면 안 되는 불변식 9개):
+- 과거 CTO 인계(2026-07-30 소비자 신뢰 감사 · 웨딩코드 · 견적 체크):
+  `docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md`
+- 이전 세션 인계(웨딩코드 v0.6 · 오늘 한 마디 · 로컬 dev 띄우는 법 · 깨면 안 되는 불변식 9개):
   `docs/operations/SESSION_HANDOFF_2026-07-29.md`
 - **다른 컴퓨터에서 이어받을 때 먼저 읽는 문서**(가짜 가드 5건 · 검증 명령 · 남은 일):
   `docs/operations/SESSION_HANDOFF_2026-07-28.md`

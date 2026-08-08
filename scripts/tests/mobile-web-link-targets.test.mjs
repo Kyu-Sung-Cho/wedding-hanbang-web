@@ -45,7 +45,42 @@ function webRoutes() {
 /** next.config.ts의 redirect·rewrite source도 살아 있는 주소로 인정한다. */
 function configuredSources() {
   const source = readFileSync(resolve(REPO_ROOT, "apps", "web", "next.config.ts"), "utf8");
-  return new Set([...source.matchAll(/source:\s*[`"']([^`"']+)[`"']/g)].map((m) => m[1]));
+  // headers의 `/(.*)`까지 포함하면 모든 죽은 링크가 통과한다. 내비게이션을 바꾸는
+  // redirects·rewrites 구간만 읽는다.
+  const navigationConfig = source.split(/\n\s*async headers\(\)/)[0];
+  return [...navigationConfig.matchAll(/source:\s*[`"']([^`"']+)[`"']/g)]
+    .map((match) => match[1])
+    .filter((pattern) => !pattern.includes("${"));
+}
+
+/** `/wedding/community/:path*` 같은 Next.js source 패턴을 실제 URL과 대조한다. */
+function matchesConfiguredSource(urlPath, sourcePattern) {
+  const urlSegments = urlPath.split("/").filter(Boolean);
+  const sourceSegments = sourcePattern.split("/").filter(Boolean);
+
+  let urlIndex = 0;
+  for (let sourceIndex = 0; sourceIndex < sourceSegments.length; sourceIndex += 1) {
+    const sourceSegment = sourceSegments[sourceIndex];
+    const parameter = /^:([A-Za-z0-9_]+)(?:\((.*)\))?([*+?])?$/.exec(sourceSegment);
+
+    if (!parameter) {
+      if (sourceSegment !== urlSegments[urlIndex]) return false;
+      urlIndex += 1;
+      continue;
+    }
+
+    const [, , customPattern, modifier] = parameter;
+    if (modifier === "*") {
+      return sourceIndex === sourceSegments.length - 1;
+    }
+
+    const value = urlSegments[urlIndex];
+    if (value === undefined) return modifier === "?";
+    if (customPattern && !new RegExp(`^(?:${customPattern})$`).test(value)) return false;
+    urlIndex += 1;
+  }
+
+  return urlIndex === urlSegments.length;
 }
 
 function stripComments(source) {
@@ -88,7 +123,12 @@ test("모바일이 여는 웹 경로가 모두 실재한다", () => {
     for (const raw of paths) {
       const path = raw.length > 1 && raw.endsWith("/") ? raw.slice(0, -1) : raw;
       if (path.startsWith("/api/")) continue; // API 라우트는 별도 계약이 검사한다
-      if (routes.has(path) || sources.has(path)) continue;
+      if (
+        routes.has(path)
+        || sources.some((source) => matchesConfiguredSource(path, source))
+      ) {
+        continue;
+      }
       dead.push(`${relative(MOBILE_DIR, file)} → ${path}`);
     }
   }

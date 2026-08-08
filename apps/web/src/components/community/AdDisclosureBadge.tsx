@@ -32,7 +32,7 @@ export default function AdDisclosureBadge({
   const iconSize = size === "sm" ? "w-3 h-3" : "w-3.5 h-3.5";
 
   return (
-    <div className="relative inline-block group">
+    <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
       <span
         className={`inline-flex items-center rounded-full font-medium border ${sizeClass}`}
         style={{
@@ -46,10 +46,10 @@ export default function AdDisclosureBadge({
         {opt.label}
       </span>
       {adDisclosure === "sponsored" && sponsorshipDetail && (
-        <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-10 min-w-[200px] max-w-[280px] bg-[#1A1A1F] text-white text-xs rounded-lg p-2.5 shadow-lg">
-          {sponsorshipDetail}
-        </div>
+        <span className="max-w-full break-words text-[11px] font-medium leading-[1.45] text-[#8F6662]">
+          받은 혜택: {sponsorshipDetail}
+        </span>
       )}
-    </div>
+    </span>
   );
 }

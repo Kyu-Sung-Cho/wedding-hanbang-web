@@ -9,6 +9,8 @@ import {
 
 export const VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID =
   "VENDOR_DISCLOSURE_STATIC_RELEASE_CONTRACT_INVALID";
+export const VENDOR_DISCLOSURE_CONTROLLER_NOT_READY =
+  "VENDOR_DISCLOSURE_RELEASE_CONTROLLER_NOT_READY";
 export const VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED =
   "VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED";
 export const VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID =
@@ -47,9 +49,9 @@ function blocked(code: string, message: string): never {
  *
  * The repository's shared successor validator is the only source of truth for
  * the static predecessor and migration contract. Passing that static contract
- * is necessary, but it is not deployment authorization. Production remains
- * fail-closed until a reviewed controller and external signed authorization
- * verifier are implemented together.
+ * is necessary, but it is not deployment authorization. Production opens only
+ * when that validator returns a pinned controller-ready contract and the owner
+ * separately pins the exact release manifest hash.
  */
 export function assertVendorDisclosureProductionBuild({
   repoRoot,
@@ -60,8 +62,9 @@ export function assertVendorDisclosureProductionBuild({
 }): void {
   if (environment.VERCEL_ENV !== "production") return;
 
+  let releaseContract;
   try {
-    validateSuccessorReleaseContract({ repoRoot });
+    releaseContract = validateSuccessorReleaseContract({ repoRoot });
   } catch (error) {
     if (error instanceof SuccessorReleaseContractError) {
       blocked(
@@ -72,6 +75,17 @@ export function assertVendorDisclosureProductionBuild({
     blocked(
       VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
       "shared successor release contract could not be verified",
+    );
+  }
+
+  if (
+    releaseContract.deploymentBlocked !== false
+    || releaseContract.controllerReady !== true
+    || !releaseContract.controllerManifest
+  ) {
+    blocked(
+      VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
+      "the successor release is not controller-ready; hosted evidence contracts and the pinned controller manifest must be complete before production authorization",
     );
   }
 

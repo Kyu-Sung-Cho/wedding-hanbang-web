@@ -9,7 +9,7 @@ const apiUrl = new URL("../lib/api.ts", import.meta.url);
 const legacyListUrl = new URL("../../app/vendors/index.tsx", import.meta.url);
 const legacyDetailUrl = new URL("../../app/vendors/[id].tsx", import.meta.url);
 const entryUrls = [
-  new URL("../../app/(tabs)/dashboard.tsx", import.meta.url),
+  new URL("../lib/dashboardExperience.mjs", import.meta.url),
   new URL("../../app/(tabs)/profile.tsx", import.meta.url),
   new URL("../../app/bookings/index.tsx", import.meta.url),
 ];
@@ -53,7 +53,7 @@ test("mobile price entry opens the current vendor disclosure explorer", async ()
 // 그게 있는 줄 알 방법이 없었다 — 주간 최대 가치가 앱에서 발견 불가였다.
 test("mobile price entries say what the destination actually holds", async () => {
   const entries = [
-    ["dashboard", new URL("../../app/(tabs)/dashboard.tsx", import.meta.url)],
+    ["dashboard", new URL("../lib/dashboardExperience.mjs", import.meta.url)],
     ["profile", new URL("../../app/(tabs)/profile.tsx", import.meta.url)],
   ];
 

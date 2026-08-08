@@ -8,10 +8,102 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
-import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
+import { buildOAuthCallbackUrl } from "@/lib/auth/safeRedirect";
+import {
+  cleanOptionalText,
+  isRecord,
+  normalizeEmail,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 function getAdminSupabase() {
   return createAdminClient();
+}
+
+/**
+ * 이미 계정이 있는 주소로 가입을 시도했을 때, 계정 주인에게 길을 알려준다.
+ *
+ * 밖에서 보는 응답은 신규 가입과 완전히 같아야 하므로(계정 존재 여부가 새면 안 된다)
+ * 이 함수는 무엇이 실패하든 조용히 끝난다. 실패를 호출부로 올리면 응답 모양이나
+ * 응답 시간이 달라져 그 자체가 신호가 된다.
+ *
+ * 링크는 비밀번호 재설정 링크다. 비밀번호를 잊어 다시 가입한 경우가 가장 흔하고,
+ * 그 링크 하나로 계정을 되찾을 수 있기 때문이다.
+ */
+async function sendExistingAccountNotice({
+  email,
+  name,
+  siteUrl,
+  supabase,
+}: {
+  email: string;
+  name: string;
+  siteUrl: string;
+  supabase: ReturnType<typeof getAdminSupabase>;
+}): Promise<void> {
+  try {
+    if (!process.env.RESEND_API_KEY) return;
+
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: `${siteUrl}/reset-password` },
+    });
+    const recoveryLink = error ? null : data?.properties?.action_link ?? null;
+
+    const safeName = escapeHtml(name);
+    const loginUrl = `${siteUrl}/login`;
+    // 링크를 만들지 못해도 메일은 보낸다. 아무것도 안 오는 것이 지금의 문제였다.
+    const recoveryBlock = recoveryLink
+      ? `
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="${recoveryLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+              비밀번호 새로 정하기
+            </a>
+          </div>
+          <p style="font-size: 12px; color: #B5ADA3; word-break: break-all; text-align: center; margin-bottom: 32px; padding: 16px; background: #FAF7F2; border-radius: 12px;">
+            ${recoveryLink}
+          </p>`
+      : `
+          <div style="text-align: center; margin-bottom: 32px;">
+            <a href="${loginUrl}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+              로그인하러 가기
+            </a>
+          </div>`;
+
+    await new Resend(process.env.RESEND_API_KEY).emails.send({
+      from: "웨딩한방 <noreply@hanbang.ai>",
+      to: email,
+      subject: "웨딩한방 — 이미 가입된 계정이 있어요",
+      html: `
+        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
+          </div>
+          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
+            이미 가입된 계정이 있어요
+          </h1>
+          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
+            안녕하세요, <strong>${safeName}</strong>님<br>
+            이 주소로 가입을 시도하셨는데, 이미 계정이 있어요.<br>
+            비밀번호가 기억나지 않으시면 아래에서 새로 정하실 수 있어요.
+          </p>
+          ${recoveryBlock}
+          <p style="font-size: 13px; color: #928980; text-align: center; margin-bottom: 24px;">
+            로그인은 <a href="${loginUrl}" style="color: #4A4A52;">${loginUrl}</a> 에서 하실 수 있어요.
+          </p>
+          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
+            본인이 시도하신 게 아니라면 이 메일을 무시하셔도 괜찮아요. 계정은 그대로 안전합니다.
+          </p>
+        </div>
+      `,
+    });
+  } catch (sendError) {
+    // 응답은 어떤 경우에도 동일해야 한다.
+    console.error("existing account notice failed:", sendError);
+  }
 }
 
 function escapeHtml(value: string): string {
@@ -36,11 +128,30 @@ function isStrongPassword(value: unknown): value is string {
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed } = await request.json();
-    const email = normalizeEmail(rawEmail);
-    const name = cleanOptionalText(rawName, 60);
+    const rawBody = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: rawBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.text);
+    } catch {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+    if (!isRecord(body)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
+
+    const email = normalizeEmail(body.email);
+    const password = body.password;
+    const name = cleanOptionalText(body.name, 60);
+    const requestedRedirect = cleanOptionalText(body.redirect, 500);
     // 마케팅 수신 동의 기록 — 명시적 true만 동의로 저장 (미전달=false, 웹 폼은 현재 미수집)
-    const marketingConsent = marketingAgreed === true;
+    const marketingConsent = body.marketingAgreed === true;
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
@@ -52,22 +163,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Caller-controlled client headers are not attestation. Web and mobile
-    // must both present a server-verifiable Turnstile token before any admin
-    // link generation or email-provider call can occur.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request), "signup");
+    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (ipLimited) return ipLimited;
+
+    // Caller-controlled client headers are not attestation. Web and native
+    // clients without an ambient session must present a server-verifiable
+    // Turnstile token. The IP limiter runs first so invalid traffic cannot
+    // consume an unbounded number of verification-provider calls.
+    const turnstile = await verifyTurnstile(
+      typeof body.turnstileToken === "string" ? body.turnstileToken : undefined,
+      getClientIp(request),
+      "signup",
+    );
     if (!turnstile.ok) {
       return NextResponse.json(
         { error: "봇 확인에 실패했습니다. 페이지를 새로고침하고 다시 시도해주세요." },
         { status: 400 }
       );
     }
-
-    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
-      maxRequests: 5,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (ipLimited) return ipLimited;
 
     const emailLimited = await checkRateLimitPersistent(
       rateLimitSubjectKey("signup-email", normalizeEmailForRateLimit(email)),
@@ -79,13 +195,17 @@ export async function POST(request: Request) {
     if (emailLimited) return emailLimited;
 
     const supabase = getAdminSupabase();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai";
+    const callbackSearch = requestedRedirect
+      ? `?${new URLSearchParams({ redirect: requestedRedirect })}`
+      : "";
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "signup",
       email,
       password,
       options: {
         data: { name, marketing_agreed: marketingConsent },
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"}/api/auth/callback`,
+        redirectTo: buildOAuthCallbackUrl(callbackSearch, siteUrl),
       },
     });
 
@@ -94,6 +214,17 @@ export async function POST(request: Request) {
         error.message.includes("already been registered") ||
         error.message.includes("already registered")
       ) {
+        // 응답은 신규 가입과 똑같이 유지한다 — 여기서 "이미 가입된 이메일"이라고 답하면
+        // 어떤 주소가 우리 서비스에 있는지 밖에서 확인할 수 있게 된다.
+        //
+        // 그런데 예전에는 응답만 같고 메일을 **아무것도 보내지 않았다**. 예전에 가입한
+        // 걸 잊고 다시 가입한 사람은 "가입 확인 이메일을 보냈어요"를 보고 받은편지함을
+        // 계속 새로고침했고, 로그인하면 "이메일 인증이 완료되지 않았습니다" 한 줄만
+        // 나왔다. 재발송 수단도 없어 가입도 로그인도 못 하는 상태에 갇혔다.
+        //
+        // 그래서 응답은 그대로 두고 계정 주인에게 실제로 길을 보낸다. 이 경로가
+        // 곧 재발송 경로이기도 하다 — 같은 주소로 다시 가입을 시도하면 메일이 온다.
+        await sendExistingAccountNotice({ email, name, siteUrl, supabase });
         return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
       }
       console.error("generateLink error:", error);

@@ -27,10 +27,20 @@ import {
   Search,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { apiJson } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 import {
+  parseCommunityDecisionFeed,
+  parseCommunityDecisionInbox,
+  type CommunityDecisionFeed,
+  type CommunityDecisionFeedMode,
+  type CommunityDecisionInbox,
+} from "@hanbang/shared/community-decision-feed";
+import { apiJson, optionalAuthGetJson } from "@/lib/api";
+import {
+  captureCommunityCacheScope,
+  getCachedCommunityCohort,
   getCachedCommunityFeed,
+  isCommunityCacheScopeCurrent,
+  putCachedCommunityCohort,
   putCachedCommunityPost,
   putCachedCommunityFeed,
   putCachedCommunityPosts,
@@ -40,6 +50,17 @@ import {
   CommunityAvatar,
   type CommunityAvatarRole,
 } from "@/components/community/CommunityAvatar";
+import { CommunityTrustBadges } from "@/components/community/CommunityTrustBadges";
+import {
+  parseCommunityPostTrust,
+  type CommunityAdDisclosure,
+  type CommunityContentOrigin,
+} from "@/lib/communityTrust.mjs";
+import {
+  AppHeader,
+  EmptyState,
+  SectionHeader,
+} from "@/components/ui/AppUI";
 
 /* ───── 타입 ───── */
 
@@ -54,6 +75,11 @@ interface PostItem {
   view_count: number;
   image_urls?: string[] | null;
   created_at: string;
+  content_origin: CommunityContentOrigin;
+  ad_disclosure: CommunityAdDisclosure;
+  sponsorship_detail: string | null;
+  is_resolved: boolean;
+  under_review: boolean;
   author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
 }
 
@@ -72,32 +98,6 @@ interface MyCohort {
   room: CohortRoom;
 }
 
-type CohortCache = {
-  myCohort: MyCohort | null;
-  cohortRooms: CohortRoom[];
-  cachedAt: number;
-};
-
-type CommunityPostRow = {
-  id: string;
-  author_id: string | null;
-  category: string;
-  title: string;
-  content: string;
-  images: string[] | null;
-  upvote_count: number | null;
-  downvote_count: number | null;
-  comment_count: number | null;
-  view_count: number | null;
-  created_at: string;
-};
-
-type CommunityAuthorRow = {
-  user_id: string;
-  nickname: string | null;
-  rank: string | null;
-};
-
 type ApiPostItem = PostItem & {
   images?: string[] | null;
 };
@@ -114,96 +114,52 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORIES = ["all", "is_normal", "tour_review", "tips_v2", "ama", "free"];
 const POSTS_INITIAL_LIMIT = 12;
-const COHORT_CACHE_TTL_MS = 60_000;
-const MOBILE_COMMUNITY_POST_SELECT =
-  "id, author_id, category, title, content, images, upvote_count, downvote_count, comment_count, view_count, created_at" as const;
 
-let cohortCache: CohortCache | null = null;
+const DECISION_MODE_LABELS: Record<CommunityDecisionFeedMode, string> = {
+  for_you: "둘러보기",
+  needs_help: "내 경험 필요",
+  outcomes: "결과",
+};
 
-function communityReadablePostOrFilter(viewerId: string): string {
-  return [
-    "and(visibility.eq.public,under_review.eq.false)",
-    "and(visibility.eq.members,under_review.eq.false)",
-    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
-    `and(under_review.eq.true,author_id.eq.${viewerId})`,
-  ].join(",");
-}
+const DECISION_STATE_LABELS: Record<string, string> = {
+  open: "경험 답변 기다리는 중",
+  answered: "경험 답변 도착",
+  resolved: "실행해 보는 중",
+  followup_scheduled: "결과 기다리는 중",
+  completed: "결과 기록됨",
+  closed: "마감",
+};
 
-function fallbackAuthor(): PostItem["author"] {
-  return { nickname: "익명", rank: "sprout", role: null };
-}
+const DECISION_STAGE_LABELS: Record<string, string> = {
+  vendor_search: "업체 탐색",
+  contract_review: "계약 검토",
+  contracted: "계약 후",
+  dispute_or_cancellation: "분쟁·취소",
+};
 
 async function fetchPostsFromApi(cat: string): Promise<PostItem[]> {
   const params = cat === "all" ? "" : `&category=${cat}`;
-  const data = await apiJson<{ posts: PostItem[] }>(
+  const data = await optionalAuthGetJson<{ posts?: unknown }>(
     `/api/community/posts?sort=new&limit=${POSTS_INITIAL_LIMIT}${params}`
   );
-  return ((data.posts ?? []) as ApiPostItem[]).map((post) => ({
-    ...post,
-    image_urls: post.image_urls ?? post.images ?? [],
-  }));
-}
+  if (!Array.isArray(data.posts)) throw new Error("community feed contract invalid");
 
-async function fetchPostsFromSupabase(cat: string): Promise<PostItem[]> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user?.id;
-
-  let query = supabase
-    .from("community_posts")
-    .select(MOBILE_COMMUNITY_POST_SELECT)
-    .order("created_at", { ascending: false })
-    .limit(POSTS_INITIAL_LIMIT);
-
-  if (cat !== "all") {
-    query = query.eq("category", cat);
-  }
-
-  query = userId
-    ? query.or(communityReadablePostOrFilter(userId))
-    : query.eq("visibility", "public").eq("under_review", false);
-
-  const { data: postRows, error: postError } = await query;
-  if (postError) throw postError;
-
-  const posts = (postRows ?? []) as CommunityPostRow[];
-  const authorIds = [
-    ...new Set(posts.map((post) => post.author_id).filter((id): id is string => Boolean(id))),
-  ];
-
-  let authorMap: Record<string, PostItem["author"]> = {};
-  if (authorIds.length > 0) {
-    const { data: authorRows, error: authorError } = await supabase
-      .from("community_profiles")
-      .select("user_id, nickname, rank")
-      .in("user_id", authorIds);
-
-    if (!authorError) {
-      authorMap = Object.fromEntries(
-        ((authorRows ?? []) as CommunityAuthorRow[]).map((author) => [
-          author.user_id,
-          {
-            nickname: author.nickname ?? "익명",
-            rank: author.rank ?? "sprout",
-            role: null,
-          },
-        ])
-      );
+  return data.posts.map((rawPost) => {
+    const trust = parseCommunityPostTrust(rawPost);
+    if (!trust || !rawPost || typeof rawPost !== "object" || Array.isArray(rawPost)) {
+      throw new Error("community feed trust metadata invalid");
     }
-  }
-
-  return posts.map((post) => ({
-    id: post.id,
-    title: post.title,
-    content: post.content,
-    category: post.category,
-    upvote_count: post.upvote_count ?? 0,
-    downvote_count: post.downvote_count ?? 0,
-    comment_count: post.comment_count ?? 0,
-    view_count: post.view_count ?? 0,
-    image_urls: post.images ?? [],
-    created_at: post.created_at,
-    author: post.author_id ? (authorMap[post.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
-  }));
+    const post = rawPost as ApiPostItem;
+    return {
+      ...post,
+      content_origin: trust.contentOrigin,
+      ad_disclosure: trust.adDisclosure,
+      sponsorship_detail: trust.sponsorshipDetail,
+      is_resolved: trust.isResolved,
+      under_review: trust.underReview,
+      image_urls: post.image_urls ?? post.images ?? [],
+    };
+  });
 }
 
 function timeAgo(dateStr: string): string {
@@ -386,6 +342,11 @@ function CohortExploreSection({ rooms }: { rooms: CohortRoom[] }) {
 function QuickActionsBar() {
   const actions = [
     {
+      icon: <MessageSquarePlus size={14} color={colors.rose[500]} />,
+      label: "자유 글쓰기",
+      onPress: () => router.push({ pathname: "/community/post/write" }),
+    },
+    {
       icon: <Zap size={14} color={colors.rose[500]} />,
       label: "15초 후기",
       onPress: () => router.push("/community/quick-review"),
@@ -425,105 +386,333 @@ function QuickActionsBar() {
   );
 }
 
+type DecisionFeedItem = CommunityDecisionFeed["items"][number];
+type DecisionCommercialRelationship = DecisionFeedItem["commercialRelationship"];
+
+const DECISION_COMMERCIAL_RELATIONSHIP_LABELS: Record<
+  DecisionCommercialRelationship,
+  string
+> = {
+  none: "없음",
+  gift: "제품·서비스 제공",
+  discount: "할인·혜택 제공",
+  refund: "비용 환급",
+  affiliate: "제휴 수익 발생",
+  paid: "원고료·광고비 지급",
+  employee: "업체 임직원",
+  owner_or_family: "업체 소유주·가족",
+  platform_research_compensation: "플랫폼 조사 참여 보상",
+};
+
+function commercialRelationshipSummary(
+  relationship: DecisionCommercialRelationship,
+  sponsorshipDetail: string | null,
+) {
+  const detail = sponsorshipDetail?.trim();
+  return [
+    DECISION_COMMERCIAL_RELATIONSHIP_LABELS[relationship],
+    detail ? `상세 ${detail}` : null,
+  ].filter((value): value is string => value !== null).join(" · ");
+}
+
+function DecisionThreadCard({ item }: { item: DecisionFeedItem }) {
+  const condition = [
+    item.coarseRegion,
+    DECISION_STAGE_LABELS[item.preparationStage] ?? item.preparationStage,
+  ].filter(Boolean).join(" · ");
+  const totalAnswers =
+    item.qualifiedPeerAnswerCount + item.qualifiedProfessionalAnswerCount;
+  const questionDisclosure = item.commercialRelationship !== "none"
+    || Boolean(item.sponsorshipDetail?.trim())
+    ? `질문 이해관계 공개 · ${commercialRelationshipSummary(
+        item.commercialRelationship,
+        item.sponsorshipDetail,
+      )}`
+    : null;
+  const outcomeDisclosure = item.outcome
+    ? `결과 이해관계 공개 · ${commercialRelationshipSummary(
+        item.outcome.commercialRelationship,
+        item.outcome.sponsorshipDetail,
+      )}`
+    : null;
+  const accessibilityParts = [
+    item.title,
+    DECISION_STATE_LABELS[item.state] ?? item.state,
+    condition || "조건 정보 없음",
+    `찾는 답 ${item.desiredAnswer}`,
+  ];
+  if (questionDisclosure) accessibilityParts.push(questionDisclosure);
+  if (item.outcome) {
+    accessibilityParts.push(
+      `작성자가 돌아와 남긴 결과 ${item.outcome.resultSummary}`,
+      `적용 조건 ${item.outcome.applicableConditions}`,
+    );
+  }
+  if (outcomeDisclosure) accessibilityParts.push(outcomeDisclosure);
+  accessibilityParts.push(totalAnswers > 0
+    ? `자격·조건 확인 답변 ${totalAnswers}개`
+    : "자격·조건 확인 답변을 기다리는 중");
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.decisionCard,
+        pressed && styles.decisionCardPressed,
+      ]}
+      onPress={() => router.push({
+        pathname: "/community/decision/[id]" as never,
+        params: { id: item.threadId },
+      })}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityParts.join(". ")}
+    >
+      <View style={styles.decisionMetaRow}>
+        <View style={styles.decisionStateBadge}>
+          <Text style={styles.decisionStateText}>
+            {DECISION_STATE_LABELS[item.state] ?? item.state}
+          </Text>
+        </View>
+        <Text style={styles.decisionOrigin}>회원 작성 · {item.author.nickname}</Text>
+      </View>
+
+      <Text style={styles.decisionTitle} numberOfLines={2}>{item.title}</Text>
+      <Text style={styles.decisionCondition} numberOfLines={1}>
+        {condition || "조건 정보 없음"}
+      </Text>
+
+      <View style={styles.decisionQuestionBox}>
+        <Text style={styles.decisionQuestionLabel}>이 답을 찾고 있어요</Text>
+        <Text style={styles.decisionQuestionText} numberOfLines={2}>
+          {item.desiredAnswer}
+        </Text>
+      </View>
+
+      {questionDisclosure && (
+        <Text
+          style={styles.decisionDisclosure}
+          numberOfLines={3}
+          accessibilityLabel={questionDisclosure}
+        >
+          {questionDisclosure}
+        </Text>
+      )}
+
+      {item.outcome && (
+        <View style={styles.decisionOutcomeBox}>
+          <Text style={styles.decisionOutcomeLabel}>작성자가 돌아와 남긴 결과</Text>
+          <Text style={styles.decisionOutcomeText} numberOfLines={3}>
+            {item.outcome.resultSummary}
+          </Text>
+          <Text style={styles.decisionOutcomeCondition} numberOfLines={2}>
+            적용 조건 · {item.outcome.applicableConditions}
+          </Text>
+          {outcomeDisclosure && (
+            <Text
+              style={[styles.decisionDisclosure, styles.decisionOutcomeDisclosure]}
+              numberOfLines={3}
+              accessibilityLabel={outcomeDisclosure}
+            >
+              {outcomeDisclosure}
+            </Text>
+          )}
+        </View>
+      )}
+
+      <View style={styles.decisionFooterRow}>
+        <Text style={styles.decisionAnswerCount}>
+          {totalAnswers > 0
+            ? `자격·조건 확인 답변 ${totalAnswers}개`
+            : "자격·조건 확인 답변을 기다리는 중"}
+        </Text>
+        <ChevronRight size={17} color={colors.taupe[400]} />
+      </View>
+    </Pressable>
+  );
+}
+
+function DecisionInboxLink({
+  label,
+  count,
+  targetId,
+}: {
+  label: string;
+  count: number;
+  targetId: string;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.decisionInboxLink,
+        pressed && styles.decisionInboxLinkPressed,
+      ]}
+      onPress={() => router.push({
+        pathname: "/community/decision/[id]" as never,
+        params: { id: targetId },
+      })}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${count}개`}
+    >
+      <View style={styles.decisionInboxTextWrap}>
+        <Text style={styles.decisionInboxLabel}>{label}</Text>
+        <Text style={styles.decisionInboxCount}>{count}</Text>
+      </View>
+      <ChevronRight size={16} color={colors.taupe[400]} />
+    </Pressable>
+  );
+}
+
 /* ───── 메인 화면 ───── */
 
 export default function CommunityScreen() {
+  const [initialCohortCache] = useState(() =>
+    getCachedCommunityCohort<MyCohort, CohortRoom>(),
+  );
   const [posts, setPosts] = useState<PostItem[]>(() => getCachedCommunityFeed<PostItem>("all") ?? []);
   const [loading, setLoading] = useState(() => !getCachedCommunityFeed<PostItem>("all"));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [category, setCategory] = useState("all");
-  const [myCohort, setMyCohort] = useState<MyCohort | null>(() => cohortCache?.myCohort ?? null);
-  const [cohortRooms, setCohortRooms] = useState<CohortRoom[]>(() => cohortCache?.cohortRooms ?? []);
-  const [cohortLoading, setCohortLoading] = useState(() => !cohortCache);
+  const [myCohort, setMyCohort] = useState<MyCohort | null>(initialCohortCache?.myCohort ?? null);
+  const [cohortRooms, setCohortRooms] = useState<CohortRoom[]>(initialCohortCache?.cohortRooms ?? []);
+  const [cohortLoading, setCohortLoading] = useState(() => !initialCohortCache);
+  const [decisionMode, setDecisionMode] = useState<CommunityDecisionFeedMode>("for_you");
+  const [decisionFeed, setDecisionFeed] = useState<CommunityDecisionFeed | null>(null);
+  const [decisionInbox, setDecisionInbox] = useState<CommunityDecisionInbox | null>(null);
+  const [decisionInboxError, setDecisionInboxError] = useState(false);
+  const [decisionLoading, setDecisionLoading] = useState(true);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const feedListRef = useRef<FlatList<PostItem>>(null);
   const fabScale = useRef(new Animated.Value(1)).current;
   const hasFocusedRef = useRef(false);
+  const decisionRequestSequence = useRef(0);
 
   // 게시글 로드
   const loadPosts = useCallback(async (cat: string, options?: { silent?: boolean }) => {
+    const cacheScope = captureCommunityCacheScope();
     try {
       setError(false);
-      let nextPosts: PostItem[];
+      const nextPosts = await fetchPostsFromApi(cat);
 
-      try {
-        nextPosts = await fetchPostsFromApi(cat);
-      } catch {
-        nextPosts = await fetchPostsFromSupabase(cat);
-      }
+      if (!isCommunityCacheScopeCurrent(cacheScope)) return;
 
-      putCachedCommunityFeed(cat, nextPosts);
-      putCachedCommunityPosts(nextPosts);
+      putCachedCommunityFeed(cat, nextPosts, cacheScope);
+      putCachedCommunityPosts(nextPosts, cacheScope);
       setPosts(nextPosts);
     } catch {
+      if (!isCommunityCacheScopeCurrent(cacheScope)) return;
       if (!options?.silent) setPosts([]);
       if (!options?.silent) setError(true);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isCommunityCacheScopeCurrent(cacheScope)) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   // 동기방 로드
   const loadCohortData = useCallback(async (options?: { silent?: boolean }) => {
-    if (
-      cohortCache &&
-      Date.now() - cohortCache.cachedAt < COHORT_CACHE_TTL_MS &&
-      !options?.silent
-    ) {
-      setMyCohort(cohortCache.myCohort);
-      setCohortRooms(cohortCache.cohortRooms);
+    const cacheScope = captureCommunityCacheScope();
+    const cachedCohort = getCachedCommunityCohort<MyCohort, CohortRoom>();
+    if (cachedCohort && !options?.silent) {
+      setMyCohort(cachedCohort.myCohort);
+      setCohortRooms(cachedCohort.cohortRooms);
       setCohortLoading(false);
       return;
     }
 
     try {
-      // 내 동기방
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user?.id;
+      const cohortData = await apiJson<{
+        room: CohortRoom | null;
+        availableRooms?: CohortRoom[];
+      }>("/api/community/cohort");
+      if (!isCommunityCacheScopeCurrent(cacheScope)) return;
 
-      const membershipPromise = userId
-        ? supabase
-            .from("cohort_members")
-            .select("room_id, room:cohort_rooms(*)")
-            .eq("user_id", userId)
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null });
-
-      const roomsPromise = supabase
-        .from("cohort_rooms")
-        .select("*")
-        .eq("is_active", true)
-        .order("year")
-        .order("month")
-        .limit(10);
-
-      const [{ data: membership }, { data: rooms }] = await Promise.all([
-        membershipPromise,
-        roomsPromise,
-      ]);
-
-      const nextMyCohort = membership?.room
+      const nextMyCohort = cohortData.room
         ? {
-            room_id: membership.room_id,
-            room: membership.room as unknown as CohortRoom,
+            room_id: cohortData.room.id,
+            room: cohortData.room,
           }
         : null;
-      const nextRooms = (rooms as CohortRoom[]) ?? [];
+      const nextRooms = cohortData.availableRooms ?? [];
 
-      cohortCache = {
+      putCachedCommunityCohort({
         myCohort: nextMyCohort,
         cohortRooms: nextRooms,
-        cachedAt: Date.now(),
-      };
+      }, cacheScope);
 
       setMyCohort(nextMyCohort);
       setCohortRooms(nextRooms);
     } catch {
       // 동기방 로드 실패 시 무시
     } finally {
-      setCohortLoading(false);
+      if (isCommunityCacheScopeCurrent(cacheScope)) {
+        setCohortLoading(false);
+      }
     }
+  }, []);
+
+  const loadDecisionData = useCallback(async (
+    mode: CommunityDecisionFeedMode,
+    options?: { silent?: boolean },
+  ) => {
+    const requestSequence = ++decisionRequestSequence.current;
+    const cacheScope = captureCommunityCacheScope();
+    if (!options?.silent) {
+      setDecisionFeed(null);
+      setDecisionError(null);
+      setDecisionInboxError(false);
+      setDecisionLoading(true);
+    }
+
+    const [feedResult, inboxResult] = await Promise.allSettled([
+      optionalAuthGetJson<unknown>(`/api/community/decision-threads?mode=${mode}&limit=6`),
+      apiJson<unknown>("/api/community/decision-threads/inbox"),
+    ]);
+    if (
+      requestSequence !== decisionRequestSequence.current
+      || !isCommunityCacheScopeCurrent(cacheScope)
+    ) return;
+
+    if (feedResult.status === "fulfilled") {
+      const parsedFeed = parseCommunityDecisionFeed(feedResult.value, mode);
+      if (parsedFeed) {
+        setDecisionFeed(parsedFeed);
+        setDecisionError(null);
+      } else if (!options?.silent) {
+        setDecisionFeed(null);
+        setDecisionError("결정 질문 응답을 확인하지 못했어요.");
+      }
+    } else if (!options?.silent) {
+      setDecisionFeed(null);
+      const message = feedResult.reason instanceof Error
+        && feedResult.reason.message.includes("로그인")
+        ? feedResult.reason.message
+        : "결정 질문을 불러오지 못했어요.";
+      setDecisionError(message);
+    }
+
+    if (inboxResult.status === "fulfilled") {
+      const parsedInbox = parseCommunityDecisionInbox(inboxResult.value);
+      if (parsedInbox) {
+        setDecisionInbox(parsedInbox);
+        setDecisionInboxError(false);
+      } else {
+        if (!options?.silent) setDecisionInbox(null);
+        setDecisionInboxError(true);
+      }
+    } else {
+      const guestWithoutSession = inboxResult.reason instanceof Error
+        && inboxResult.reason.message === "로그인이 필요합니다.";
+      if (guestWithoutSession) {
+        setDecisionInbox(null);
+        setDecisionInboxError(false);
+      } else {
+        if (!options?.silent) setDecisionInbox(null);
+        setDecisionInboxError(true);
+      }
+    }
+    setDecisionLoading(false);
   }, []);
 
   useEffect(() => {
@@ -540,6 +729,10 @@ export default function CommunityScreen() {
     loadPosts(category);
   }, [category, loadPosts]);
 
+  useEffect(() => {
+    void loadDecisionData(decisionMode);
+  }, [decisionMode, loadDecisionData]);
+
   useFocusEffect(
     useCallback(() => {
       if (!hasFocusedRef.current) {
@@ -549,7 +742,8 @@ export default function CommunityScreen() {
 
       loadPosts(category, { silent: true });
       loadCohortData({ silent: true });
-    }, [category, loadCohortData, loadPosts])
+      void loadDecisionData(decisionMode, { silent: true });
+    }, [category, decisionMode, loadCohortData, loadDecisionData, loadPosts])
   );
 
   useEffect(() => {
@@ -568,6 +762,16 @@ export default function CommunityScreen() {
     setRefreshing(true);
     loadPosts(category);
     loadCohortData({ silent: true });
+    void loadDecisionData(decisionMode, { silent: true });
+  }
+
+  function handleDecisionModeChange(mode: CommunityDecisionFeedMode) {
+    if (mode === decisionMode) return;
+    decisionRequestSequence.current += 1;
+    setDecisionFeed(null);
+    setDecisionError(null);
+    setDecisionLoading(true);
+    setDecisionMode(mode);
   }
 
   /* ── PostCard 렌더 ── */
@@ -603,6 +807,16 @@ export default function CommunityScreen() {
               <Text style={styles.postAuthor} numberOfLines={1}>{nickname}</Text>
               <Text style={styles.postDot}>·</Text>
               <Text style={styles.postTime} numberOfLines={1}>{timeAgo(item.created_at)}</Text>
+            </View>
+
+            <View style={styles.postTrustRow}>
+              <CommunityTrustBadges
+                contentOrigin={item.content_origin}
+                adDisclosure={item.ad_disclosure}
+                sponsorshipDetail={item.sponsorship_detail}
+                isResolved={item.is_resolved}
+                underReview={item.under_review}
+              />
             </View>
 
             {/* 제목 */}
@@ -649,27 +863,154 @@ export default function CommunityScreen() {
     );
   }
 
-  /* ── 상단 헤더 컨텐츠 (FlatList ListHeaderComponent) ── */
+  /* ── 피드 우선 헤더 ── */
+
+  function renderDecisionSection() {
+    const inboxCount = decisionInbox
+      ? decisionInbox.waitingReplies.count
+        + decisionInbox.experienceNeeded.count
+        + decisionInbox.returnedOutcomes.count
+      : 0;
+    const visibleDecisionFeed = decisionFeed?.mode === decisionMode
+      ? decisionFeed
+      : null;
+    const hasItems = (visibleDecisionFeed?.items.length ?? 0) > 0;
+    return (
+      <View style={styles.decisionSection}>
+        <SectionHeader
+          eyebrow="경험이 결정으로 이어지는 곳"
+          title="계약·추가비용 결정 질문"
+        />
+        <Text style={styles.decisionSectionCopy}>
+          비슷한 조건의 실제 경험을 확인하고, 선택한 답이 어떤 결과로 이어졌는지까지 봅니다.
+        </Text>
+
+        {decisionInbox && inboxCount > 0 && (
+          <View style={styles.decisionInbox}>
+            <Text style={styles.decisionInboxTitle}>내 결정 알림</Text>
+            {decisionInbox.waitingReplies.count > 0
+              && decisionInbox.waitingReplies.targetQuestionId && (
+                <DecisionInboxLink
+                  label="답변을 기다리는 질문"
+                  count={decisionInbox.waitingReplies.count}
+                  targetId={decisionInbox.waitingReplies.targetQuestionId}
+                />
+              )}
+            {decisionInbox.experienceNeeded.count > 0
+              && decisionInbox.experienceNeeded.targetThreadId && (
+                <DecisionInboxLink
+                  label="내 경험이 필요한 질문"
+                  count={decisionInbox.experienceNeeded.count}
+                  targetId={decisionInbox.experienceNeeded.targetThreadId}
+                />
+              )}
+            {decisionInbox.returnedOutcomes.count > 0
+              && decisionInbox.returnedOutcomes.targetThreadId && (
+                <DecisionInboxLink
+                  label="내 답변 뒤 돌아온 결과"
+                  count={decisionInbox.returnedOutcomes.count}
+                  targetId={decisionInbox.returnedOutcomes.targetThreadId}
+                />
+              )}
+          </View>
+        )}
+
+        {decisionInboxError && (
+          <View style={styles.decisionInboxError} accessibilityRole="alert">
+            <Text style={styles.decisionEmptyTitle}>내 결정 알림을 불러오지 못했어요.</Text>
+            <Text style={styles.decisionEmptyCopy}>
+              알림 없음으로 처리하지 않았어요. 잠시 후 새로고침해 주세요.
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.decisionTabs} accessibilityRole="tablist">
+          {(Object.keys(DECISION_MODE_LABELS) as CommunityDecisionFeedMode[])
+            .map((mode) => {
+              const active = decisionMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  style={[
+                    styles.decisionTab,
+                    active && styles.decisionTabActive,
+                  ]}
+                  onPress={() => handleDecisionModeChange(mode)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[
+                    styles.decisionTabText,
+                    active && styles.decisionTabTextActive,
+                  ]}>
+                    {DECISION_MODE_LABELS[mode]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+        </View>
+
+        {decisionLoading && !visibleDecisionFeed ? (
+          <Text style={styles.decisionStatusText}>결정 질문을 확인하고 있어요.</Text>
+        ) : decisionError ? (
+          <View style={styles.decisionEmpty} accessibilityRole="alert">
+            <Text style={styles.decisionEmptyTitle}>{decisionError}</Text>
+            <Text style={styles.decisionEmptyCopy}>
+              불러오기 실패를 활동 없음으로 표시하지 않았어요. 잠시 후 새로고침해 주세요.
+            </Text>
+          </View>
+        ) : hasItems ? (
+          <View style={styles.decisionCardList}>
+            {visibleDecisionFeed?.items.map((item) => (
+              <DecisionThreadCard key={item.threadId} item={item} />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.decisionEmpty}>
+            <Text style={styles.decisionEmptyTitle}>
+              {decisionMode === "needs_help"
+                ? "지금 내 경험이 필요한 배정 질문은 없어요."
+                : decisionMode === "outcomes"
+                  ? "검수를 마치고 공개된 결과가 아직 없어요."
+                  : "공개된 결정 질문이 아직 없어요."}
+            </Text>
+            <Text style={styles.decisionEmptyCopy}>
+              없는 활동을 꾸며 보여주지 않고, 실제 기록이 생기면 여기에 표시합니다.
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
 
   function renderHeader() {
     return (
       <View>
-        {/* 내 동기방 또는 찾기 CTA */}
-        <View style={styles.cohortSection}>
-          {cohortLoading ? null : myCohort ? (
-            <MyCohortCard cohort={myCohort} />
-          ) : (
-            <CohortJoinCTA />
-          )}
+        {renderDecisionSection()}
+        <View style={styles.feedIntro}>
+          <SectionHeader
+            eyebrow="커뮤니티 최신글"
+            title={category === "all" ? "지금 올라온 이야기" : (CATEGORY_LABELS[category] ?? category)}
+          />
+          <Text style={styles.feedIntroCopy}>
+            회원 작성 여부와 이해관계를 확인하며, 자유롭게 묻고 경험을 나눌 수 있어요.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  function renderDiscoveryFooter() {
+    return (
+      <View style={styles.discoveryFooter}>
+        <View style={styles.discoveryDivider} />
+        <View style={styles.discoveryHeading}>
+          <SectionHeader eyebrow="보조 탐색" title="주제와 동기방 더 보기" />
+          <Text style={styles.discoveryCopy}>
+            먼저 실제 글을 읽고, 더 필요한 주제나 같은 시기의 동기방을 찾아보세요.
+          </Text>
         </View>
 
-        {/* 동기방 탐색 */}
-        {!cohortLoading && <CohortExploreSection rooms={cohortRooms} />}
-
-        {/* 퀵 액션 바 */}
-        <QuickActionsBar />
-
-        {/* 카테고리 칩 */}
         <View style={styles.chipRow}>
           <FlatList
             horizontal
@@ -686,7 +1027,11 @@ export default function CommunityScreen() {
                     active && styles.chipActive,
                     pressed && { transform: [{ scale: 0.96 }] },
                   ]}
-                  onPress={() => setCategory(cat)}
+                  onPress={() => {
+                    if (cat === category) return;
+                    feedListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                    setCategory(cat);
+                  }}
                 >
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>
                     {cat === "all" ? "전체" : (CATEGORY_LABELS[cat] ?? cat)}
@@ -698,20 +1043,24 @@ export default function CommunityScreen() {
           />
         </View>
 
-        {/* 피드 제목 */}
-        <View style={styles.feedTitleRow}>
-          <Text style={styles.feedTitle}>게시판</Text>
+        <QuickActionsBar />
+
+        <View style={styles.cohortSection}>
+          {cohortLoading ? null : myCohort ? (
+            <MyCohortCard cohort={myCohort} />
+          ) : (
+            <CohortJoinCTA />
+          )}
         </View>
+
+        {!cohortLoading && <CohortExploreSection rooms={cohortRooms} />}
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>커뮤니티</Text>
-      </View>
+      <AppHeader title="커뮤니티" subtitle="사람의 경험으로 결정하고 결과를 돌려주는 곳" />
 
       {/* 피드 */}
       {loading ? (
@@ -721,9 +1070,10 @@ export default function CommunityScreen() {
           <SkeletonCard index={1} />
           <SkeletonCard index={2} />
           <SkeletonCard index={3} />
+          {renderDiscoveryFooter()}
         </ScrollView>
       ) : error ? (
-        <View style={{ flex: 1 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.feedList}>
           {renderHeader()}
           <ErrorRetry
             message="게시글을 불러올 수 없어요"
@@ -732,13 +1082,16 @@ export default function CommunityScreen() {
               loadPosts(category);
             }}
           />
-        </View>
+          {renderDiscoveryFooter()}
+        </ScrollView>
       ) : (
         <FlatList
+          ref={feedListRef}
           data={posts}
           keyExtractor={(p) => p.id}
           renderItem={renderPost}
           ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderDiscoveryFooter}
           contentContainerStyle={styles.feedList}
           removeClippedSubviews
           maxToRenderPerBatch={10}
@@ -752,13 +1105,11 @@ export default function CommunityScreen() {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIconWrap}>
-                <MessageSquarePlus size={40} color={colors.rose[500]} />
-              </View>
-              <Text style={styles.emptyTitle}>아직 작성된 글이 없어요</Text>
-              <Text style={styles.emptyText}>첫 번째 글의 주인공이 되어보세요!</Text>
-            </View>
+            <EmptyState
+              icon={<MessageSquarePlus size={40} color={colors.rose[500]} />}
+              title="아직 최신 글이 없어요"
+              description="아래 자유 글쓰기에서 첫 이야기를 나눌 수 있어요. 결정 질문은 오른쪽 아래 버튼으로 시작합니다."
+            />
           }
         />
       )}
@@ -767,9 +1118,11 @@ export default function CommunityScreen() {
       <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
         <Pressable
           style={styles.fabInner}
-          onPress={() => router.push({ pathname: "/community/post/write" })}
+          onPress={() => router.push("/community/decision/write" as never)}
           onPressIn={handleFabPressIn}
           onPressOut={handleFabPressOut}
+          accessibilityRole="button"
+          accessibilityLabel="경험 기반 결정 질문 쓰기"
         >
           <PenSquare size={22} color="#FFFFFF" />
         </Pressable>
@@ -783,17 +1136,290 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+  decisionSection: {
+    paddingTop: 18,
+    paddingBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  decisionSectionCopy: {
+    marginTop: -6,
+    paddingHorizontal: 20,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  decisionInbox: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    padding: 12,
+    gap: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.gold.DEFAULT + "35",
+    backgroundColor: colors.gold.DEFAULT + "0D",
+  },
+  decisionInboxTitle: {
+    marginBottom: 2,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  decisionInboxError: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.rose[500] + "35",
+    backgroundColor: colors.rose[500] + "0A",
+  },
+  decisionInboxLink: {
+    minHeight: 40,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 10,
     backgroundColor: colors.surface,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontFamily: "NotoSerifKR_500Medium",
+  decisionInboxLinkPressed: {
+    opacity: 0.72,
+  },
+  decisionInboxTextWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  decisionInboxLabel: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
     color: colors.noir[800],
+  },
+  decisionInboxCount: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    overflow: "hidden",
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 22,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+    backgroundColor: colors.rose[500] + "14",
+  },
+  decisionTabs: {
+    marginTop: 16,
+    marginHorizontal: 20,
+    padding: 4,
+    flexDirection: "row",
+    gap: 4,
+    borderRadius: 13,
+    backgroundColor: colors.ivory[200],
+  },
+  decisionTab: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+  },
+  decisionTabActive: {
+    backgroundColor: colors.surface,
+    shadowColor: colors.noir[800],
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  decisionTabText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.taupe[500],
+  },
+  decisionTabTextActive: {
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  decisionCardList: {
+    marginTop: 12,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  decisionCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  decisionCardPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
+  },
+  decisionMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  decisionStateBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: colors.rose[500] + "12",
+  },
+  decisionStateText: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+  },
+  decisionOrigin: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[500],
+  },
+  decisionTitle: {
+    marginTop: 12,
+    fontSize: 17,
+    lineHeight: 24,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  decisionCondition: {
+    marginTop: 5,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  decisionQuestionBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[100],
+  },
+  decisionQuestionLabel: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.taupe[500],
+  },
+  decisionQuestionText: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.noir[800],
+  },
+  decisionOutcomeBox: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.gold.DEFAULT + "35",
+    backgroundColor: colors.gold.DEFAULT + "0D",
+  },
+  decisionOutcomeLabel: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.gold.DEFAULT,
+  },
+  decisionOutcomeText: {
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.noir[800],
+  },
+  decisionOutcomeCondition: {
+    marginTop: 6,
+    fontSize: 11,
+    lineHeight: 17,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  decisionDisclosure: {
+    marginTop: 10,
+    fontSize: 11,
+    lineHeight: 17,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.rose[500],
+  },
+  decisionOutcomeDisclosure: {
+    marginTop: 8,
+  },
+  decisionFooterRow: {
+    marginTop: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  decisionAnswerCount: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.textSecondary,
+  },
+  decisionStatusText: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  decisionEmpty: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[100],
+  },
+  decisionEmptyTitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  decisionEmptyCopy: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+
+  feedIntro: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 2,
+  },
+  feedIntroCopy: {
+    marginTop: -6,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  discoveryFooter: {
+    paddingTop: 24,
+    paddingBottom: 20,
+  },
+  discoveryDivider: {
+    height: 1,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    backgroundColor: colors.border,
+  },
+  discoveryHeading: {
+    paddingHorizontal: 20,
+  },
+  discoveryCopy: {
+    marginTop: -6,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
   },
 
   // 내 동기방 섹션
@@ -981,14 +1607,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // 피드 제목
-  feedTitleRow: { paddingHorizontal: 20, paddingBottom: 4 },
-  feedTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.noir[800],
-  },
-
   // 피드 리스트
   feedList: { paddingBottom: 144 },
 
@@ -1033,6 +1651,7 @@ const styles = StyleSheet.create({
     maxWidth: 110,
   },
   postTime: { fontSize: 12, color: colors.taupe[400], flexShrink: 0 },
+  postTrustRow: { marginBottom: 9 },
 
   postTitle: {
     fontSize: 16,
@@ -1073,25 +1692,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: "NotoSansKR_500Medium",
   },
-
-  // 빈 상태
-  empty: { alignItems: "center", paddingTop: 80, gap: 8 },
-  emptyIconWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.rose.glow,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
-  },
-  emptyText: { fontSize: 14, color: colors.textTertiary },
 
   // FAB
   fab: {

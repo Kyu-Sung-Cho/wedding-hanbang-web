@@ -141,7 +141,7 @@ const CATEGORY_ATTRIBUTE_FIELD_REGISTRIES = {
     original_files_policy: defineAttributeField(
       z.enum(ORIGINAL_FILES_POLICIES).optional(),
       {
-        label: "원본 제공",
+        label: "촬영한 전체 사진 파일 받기",
         input: "select",
         options: ORIGINAL_FILES_POLICIES,
         internal: false,
@@ -149,7 +149,7 @@ const CATEGORY_ATTRIBUTE_FIELD_REGISTRIES = {
       },
     ),
     parents_shot: defineAttributeField(z.boolean().nullable().optional(), {
-      label: "혼주 촬영 가능",
+      label: "부모님 사진 촬영 가능",
       input: "nullable_boolean",
       internal: false,
       countsTowardCompleteness: true,
@@ -195,7 +195,7 @@ const CATEGORY_ATTRIBUTE_FIELD_REGISTRIES = {
     fitting_fee_krw: defineAttributeField(
       z.number().int().nonnegative().nullable().optional(),
       {
-        label: "피팅비",
+        label: "드레스 입어보기 비용",
         input: "nullable_number",
         unit: "krw",
         internal: false,
@@ -221,13 +221,13 @@ const CATEGORY_ATTRIBUTE_FIELD_REGISTRIES = {
       countsTowardCompleteness: true,
     }),
     parents_makeup: defineAttributeField(z.boolean().nullable().optional(), {
-      label: "혼주 메이크업 가능",
+      label: "부모님 헤어·메이크업 가능",
       input: "nullable_boolean",
       internal: false,
       countsTowardCompleteness: true,
     }),
     mens_grooming: defineAttributeField(z.boolean().nullable().optional(), {
-      label: "남성 그루밍 가능",
+      label: "남성 헤어·메이크업 가능",
       input: "nullable_boolean",
       internal: false,
       countsTowardCompleteness: true,
@@ -235,7 +235,7 @@ const CATEGORY_ATTRIBUTE_FIELD_REGISTRIES = {
   },
   hall: {
     hall_type: defineAttributeField(z.enum(HALL_TYPES).optional(), {
-      label: "예식장 유형",
+      label: "결혼식장 유형",
       input: "select",
       options: HALL_TYPES,
       internal: false,
@@ -324,10 +324,10 @@ export type VendorAttributesFor<C extends VendorAttributeCategory> = z.output<
 >;
 
 export const VENDOR_ATTRIBUTE_CATEGORY_LABELS = {
-  studio: "스튜디오",
+  studio: "웨딩 사진 촬영",
   dress: "드레스",
-  makeup: "메이크업",
-  hall: "예식장",
+  makeup: "헤어·메이크업",
+  hall: "결혼식장",
 } as const satisfies Record<VendorAttributeCategory, string>;
 
 const COMMON_ATTRIBUTE_FIELD_DEFINITIONS = definitionsFromRegistry(

@@ -20,17 +20,21 @@ export default function CommunityAmoraLauncher() {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(false);
-  const isCommunityWriteRoute = stripWeddingBasePath(pathname) === "/community/post/write";
+  const communityPath = stripWeddingBasePath(pathname);
+  const isLauncherSuppressedRoute =
+    communityPath === "/start-here" ||
+    communityPath === "/community/post/write" ||
+    communityPath === "/community/quote-check";
   const loginPromptRef = useAccessibleModal({
-    open: loginPromptOpen && !isCommunityWriteRoute,
+    open: loginPromptOpen && !isLauncherSuppressedRoute,
     onClose: () => setLoginPromptOpen(false),
   });
 
   useEffect(() => {
-    if (!isCommunityWriteRoute) return;
+    if (!isLauncherSuppressedRoute) return;
     setChatPanelOpen(false);
     setLoginPromptOpen(false);
-  }, [isCommunityWriteRoute]);
+  }, [isLauncherSuppressedRoute]);
 
   async function handleOpenAmora() {
     if (checkingAuth) return;
@@ -71,7 +75,7 @@ export default function CommunityAmoraLauncher() {
     }
   }
 
-  if (isCommunityWriteRoute) return null;
+  if (isLauncherSuppressedRoute) return null;
 
   return (
     <>
@@ -128,7 +132,7 @@ export default function CommunityAmoraLauncher() {
             </div>
 
             <p id="community-amora-login-description" className="mt-4 text-[14px] font-medium leading-[1.75] text-[#5d6879]">
-              커뮤니티 글은 누구나 볼 수 있지만, 아모라 상담은 내 예식일과 준비 정보를 바탕으로 답해야 해서 로그인이 필요해요.
+              커뮤니티 글은 누구나 볼 수 있지만, 아모라 상담은 내 결혼식 날짜와 준비 정보를 바탕으로 답해야 해서 로그인이 필요해요.
             </p>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto]">

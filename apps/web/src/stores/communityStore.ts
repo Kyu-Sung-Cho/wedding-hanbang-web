@@ -9,10 +9,21 @@ import type {
   TimePeriod,
   InitialCommunityFeed,
   CreatePostInput,
+  UpdatePostInput,
   CreateCommentInput,
 } from "@/types/community.types";
+import {
+  hasGuestCommunityDraftHandoff,
+  isCommunityFeedSessionKey,
+  purgeCommunityBrowserPrivacyCache,
+  scopedCommunitySessionCacheKey,
+} from "@/lib/community/viewerPrivacyCache";
 
 interface CommunityState {
+  // Viewer ownership boundary. null is the guest scope.
+  viewerId: string | null;
+  privacyEpoch: number;
+
   // 피드
   posts: PostWithAuthor[];
   currentCategory: CommunityCategory | null;
@@ -43,13 +54,19 @@ interface CommunityState {
   fetchMorePosts: () => Promise<void>;
   fetchPostDetail: (id: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<void>;
-  createPost: (input: CreatePostInput) => Promise<string | null>;
-  updatePost: (id: string, input: Partial<CreatePostInput>) => Promise<boolean>;
+  createPost: (
+    input: CreatePostInput,
+    options?: { idempotencyKey?: string },
+  ) => Promise<string | null>;
+  updatePost: (id: string, input: UpdatePostInput) => Promise<boolean>;
   deletePost: (id: string) => Promise<boolean>;
   votePost: (postId: string, voteType: 1 | 0) => Promise<void>;
   voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   toggleBookmark: (postId: string) => Promise<void>;
-  createComment: (input: CreateCommentInput) => Promise<boolean>;
+  createComment: (
+    input: CreateCommentInput,
+    options?: { idempotencyKey?: string },
+  ) => Promise<boolean>;
   updateComment: (commentId: string, content: string) => Promise<boolean>;
   deleteComment: (commentId: string) => Promise<boolean>;
   incrementView: (postId: string) => Promise<void>;
@@ -61,6 +78,8 @@ interface CommunityState {
   setTag: (tag: string | null) => void;
   setAuthorId: (authorId: string | null) => void;
   clearError: () => void;
+  bindViewer: (viewerId: string | null) => void;
+  purgePrivacyState: () => void;
   reset: () => void;
 }
 
@@ -78,14 +97,39 @@ interface CachedFeed {
   ts: number;
 }
 
+interface ViewerSnapshot {
+  viewerId: string | null;
+  privacyEpoch: number;
+}
+
+function captureViewerSnapshot(state: CommunityState): ViewerSnapshot {
+  return {
+    viewerId: state.viewerId,
+    privacyEpoch: state.privacyEpoch,
+  };
+}
+
+function isViewerSnapshotCurrent(
+  getState: () => CommunityState,
+  snapshot: ViewerSnapshot,
+): boolean {
+  const current = getState();
+  return current.viewerId === snapshot.viewerId
+    && current.privacyEpoch === snapshot.privacyEpoch;
+}
+
 function feedCacheKey(
+  viewerId: string | null,
   category: CommunityCategory | null,
   sort: PostSort,
   period: TimePeriod,
   tag: string | null,
   authorId: string | null,
 ): string {
-  return `community:feed:${category ?? "all"}:${sort}:${sort === "top" ? period : "_"}:${tag ?? "_"}:${authorId ?? "_"}`;
+  return scopedCommunitySessionCacheKey(
+    `community:feed:${category ?? "all"}:${sort}:${sort === "top" ? period : "_"}:${tag ?? "_"}:${authorId ?? "_"}`,
+    viewerId,
+  );
 }
 
 function readFeedCache(key: string): CachedFeed | null {
@@ -117,8 +161,8 @@ function writeFeedCache(key: string, value: CachedFeed): void {
 // vote/bookmark는 in-memory state만 갱신해도 30s 안엔 stale 캐시 보일 수 있지만,
 // 백그라운드 refetch가 바로 정정하므로 무시.
 function shouldSkipFreshFeedNetwork(sort: PostSort): boolean {
-  // Latest feed should always revalidate so newly published posts appear promptly.
-  return sort !== "new";
+  // 최신/답변 상태 피드는 작은 변화가 글의 포함 여부 자체를 바꾸므로 항상 재검증한다.
+  return sort !== "new" && sort !== "unanswered" && sort !== "resolved";
 }
 
 function invalidateFeedCache(): void {
@@ -127,7 +171,7 @@ function invalidateFeedCache(): void {
     const keys: string[] = [];
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i);
-      if (k && k.startsWith("community:feed:")) keys.push(k);
+      if (k && isCommunityFeedSessionKey(k)) keys.push(k);
     }
     keys.forEach((k) => sessionStorage.removeItem(k));
   } catch {
@@ -136,6 +180,8 @@ function invalidateFeedCache(): void {
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
+  viewerId: null,
+  privacyEpoch: 0,
   posts: [],
   currentCategory: null,
   currentSort: "new",
@@ -173,8 +219,24 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPosts: async (reset = true) => {
-    const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId } = get();
-    const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId);
+    const {
+      viewerId,
+      privacyEpoch,
+      currentCategory,
+      currentSort,
+      currentPeriod,
+      currentTag,
+      currentAuthorId,
+    } = get();
+    const viewerSnapshot = { viewerId, privacyEpoch };
+    const cacheKey = feedCacheKey(
+      viewerId,
+      currentCategory,
+      currentSort,
+      currentPeriod,
+      currentTag,
+      currentAuthorId,
+    );
 
     // SWR — reset일 때만 캐시 먹임 (페이지네이션엔 의미 없음)
     let usingFreshCache = false;
@@ -211,17 +273,20 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       const posts = data.posts ?? [];
       const total = data.total ?? 0;
       const hasMore = data.hasMore ?? false;
       set({ posts, total, hasMore, currentPage: 1, isLoading: false, errorMessage: null, lastSyncedAt: new Date().toISOString() });
       writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set({ isLoading: false, errorMessage: "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." });
     }
   },
 
   fetchMorePosts: async () => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
     set({ isLoading: true, errorMessage: null });
@@ -240,6 +305,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set((s) => ({
         posts: [...s.posts, ...data.posts],
         hasMore: data.hasMore,
@@ -249,11 +315,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         lastSyncedAt: new Date().toISOString(),
       }));
     } catch {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set({ isLoading: false, errorMessage: "다음 글을 불러오지 못했습니다." });
     }
   },
 
   fetchPostDetail: async (id) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     set((state) => ({
       postLoading: true,
       currentPost: null,
@@ -265,13 +333,16 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/posts/${id}`);
       if (!res.ok) throw new Error();
       const post = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set({ currentPost: post, postLoading: false });
     } catch {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set({ postLoading: false, errorMessage: "게시글 상세를 불러오지 못했습니다." });
     }
   },
 
   fetchComments: async (postId) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     set((state) => ({
       commentsLoading: true,
       errorMessage: null,
@@ -283,24 +354,33 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const res = await fetch(`/api/community/comments?postId=${postId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set((state) =>
         state.commentsPostId === postId
           ? { comments: data.comments ?? data, commentsLoading: false }
           : state
       );
     } catch {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       if (get().commentsPostId !== postId) return;
       set({ commentsLoading: false, errorMessage: "댓글을 불러오지 못했습니다." });
     }
   },
 
-  createPost: async (input) => {
+  createPost: async (input, options) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
+      const idempotencyKey =
+        options?.idempotencyKey ?? globalThis.crypto.randomUUID();
       const res = await fetch("/api/community/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify(input),
       });
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return null;
       if (!res.ok) {
         // 서버가 구체적인 에러를 주면 그대로 노출 (예: "내용을 입력해주세요.", 컬럼 없음 등)
         let serverMsg: string | null = null;
@@ -319,6 +399,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         post?: PostWithAuthor & { id: string };
         id?: string;
       };
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return null;
       const newPost = data.post;
       const id = newPost?.id ?? data.id ?? null;
 
@@ -342,28 +423,69 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       set({ errorMessage: null, lastSyncedAt: new Date().toISOString() });
       return id;
     } catch {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return null;
       set({ errorMessage: "게시글 작성 중 오류가 발생했습니다." });
       return null;
     }
   },
 
   updatePost: async (id, input) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const res = await fetch(`/api/community/posts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (res.ok) invalidateFeedCache();
-      return res.ok;
+      const data = (await res.json().catch(() => null)) as {
+        post?: Partial<PostDetail> & { id?: string };
+        error?: string;
+      } | null;
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
+
+      if (!res.ok) {
+        set({
+          errorMessage:
+            typeof data?.error === "string"
+              ? data.error
+              : "게시글 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        });
+        return false;
+      }
+
+      const returnedPost = data?.post;
+      if (returnedPost?.id === id) {
+        set((state) => ({
+          posts: state.posts.map((post) =>
+            post.id === id ? { ...post, ...returnedPost } : post
+          ),
+          currentPost:
+            state.currentPost?.id === id
+              ? { ...state.currentPost, ...returnedPost }
+              : state.currentPost,
+          errorMessage: null,
+          lastSyncedAt: new Date().toISOString(),
+        }));
+      } else {
+        set({ errorMessage: null, lastSyncedAt: new Date().toISOString() });
+      }
+
+      invalidateFeedCache();
+      return true;
     } catch {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
+      set({
+        errorMessage: "게시글 수정 중 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.",
+      });
       return false;
     }
   },
 
   deletePost: async (id) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const res = await fetch(`/api/community/posts/${id}`, { method: "DELETE" });
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
       if (res.ok) {
         set((s) => ({ posts: s.posts.filter((p) => p.id !== id) }));
         invalidateFeedCache();
@@ -375,6 +497,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   votePost: async (postId, voteType) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const res = await fetch(`/api/community/posts/${postId}/vote`, {
         method: "POST",
@@ -386,6 +509,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         throw new Error(errorData?.error ?? "좋아요 처리에 실패했습니다.");
       }
       const data = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       const upvoteCount = Math.max(0, data.upvote_count ?? 0);
       const downvoteCount = Math.max(0, data.downvote_count ?? 0);
       const userVote: 1 | null = voteType === 1 ? 1 : null;
@@ -402,11 +526,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           : s.currentPost,
       }));
     } catch (error) {
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       throw error;
     }
   },
 
   voteComment: async (commentId, voteType) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const res = await fetch(`/api/community/comments/${commentId}/vote`, {
         method: "POST",
@@ -415,6 +541,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       });
       if (!res.ok) return;
       const data = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
 
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
         if (c.id === commentId) return { ...c, upvote_count: data.upvote_count, user_vote: voteType === 0 ? null : voteType };
@@ -426,10 +553,22 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   toggleBookmark: async (postId) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
-      const res = await fetch(`/api/community/posts/${postId}/bookmark`, { method: "POST" });
+      const state = get();
+      const visiblePost = state.currentPost?.id === postId
+        ? state.currentPost
+        : state.posts.find((post) => post.id === postId);
+      if (!visiblePost) return;
+      const desiredBookmarked = !visiblePost.user_bookmarked;
+      const res = await fetch(`/api/community/posts/${postId}/bookmark`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookmarked: desiredBookmarked }),
+      });
       if (!res.ok) return;
       const data = await res.json();
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       set((s) => ({
         posts: s.posts.map((p) =>
           p.id === postId
@@ -451,22 +590,62 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     } catch { /* ignore */ }
   },
 
-  createComment: async (input) => {
+  createComment: async (input, options) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
+      const idempotencyKey =
+        options?.idempotencyKey ?? globalThis.crypto.randomUUID();
       const res = await fetch("/api/community/comments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify(input),
       });
       if (!res.ok) return false;
+      const responseBody = (await res.json().catch(() => null)) as {
+        post_comment_count?: unknown;
+      } | null;
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
+      const postCommentCount =
+        typeof responseBody?.post_comment_count === "number"
+        && Number.isSafeInteger(responseBody.post_comment_count)
+        && responseBody.post_comment_count >= 0
+          ? responseBody.post_comment_count
+          : null;
       // 댓글 다시 불러오기
       await get().fetchComments(input.post_id);
-      // 글 댓글 수 업데이트
-      set((s) => ({
-        currentPost: s.currentPost?.id === input.post_id
-          ? { ...s.currentPost, comment_count: s.currentPost.comment_count + 1 }
-          : s.currentPost,
-      }));
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
+      invalidateFeedCache();
+      // 첫 답변이 달린 글은 즉시 "답변 기다려요" 피드에서 빠져야 한다.
+      set((s) => {
+        const postWasVisible = s.posts.some((post) => post.id === input.post_id);
+        const leavesUnansweredFeed = s.currentSort === "unanswered" && postWasVisible;
+
+        return {
+          posts: leavesUnansweredFeed
+            ? s.posts.filter((post) => post.id !== input.post_id)
+            : s.posts.map((post) =>
+                post.id === input.post_id
+                  ? {
+                      ...post,
+                      comment_count:
+                        postCommentCount ?? post.comment_count + 1,
+                    }
+                  : post,
+              ),
+          total: leavesUnansweredFeed ? Math.max(0, s.total - 1) : s.total,
+          currentPost:
+            s.currentPost?.id === input.post_id
+              ? {
+                  ...s.currentPost,
+                  comment_count:
+                    postCommentCount ?? s.currentPost.comment_count + 1,
+                }
+              : s.currentPost,
+        };
+      });
       return true;
     } catch {
       return false;
@@ -474,6 +653,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   updateComment: async (commentId, content) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     const trimmed = content.trim();
     if (!trimmed) return false;
 
@@ -488,6 +668,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const data = (await res.json().catch(() => null)) as {
         comment?: Partial<CommentWithAuthor>;
       } | null;
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
       const nextContent = data?.comment?.content ?? trimmed;
       const nextUpdatedAt = data?.comment?.updated_at ?? new Date().toISOString();
 
@@ -507,8 +688,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   deleteComment: async (commentId) => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const res = await fetch(`/api/community/comments/${commentId}`, { method: "DELETE" });
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
       if (!res.ok) return false;
       // 소프트 삭제 반영
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
@@ -530,11 +713,21 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchProfile: async () => {
+    const viewerSnapshot = captureViewerSnapshot(get());
     try {
-      const res = await fetch("/api/community/profile");
+      let res = await fetch("/api/community/profile", { cache: "no-store" });
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
       if (!res.ok) return;
-      const data = await res.json();
-      set({ communityProfile: data });
+      let data = (await res.json()) as { profile?: CommunityProfile | null };
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (!data.profile) {
+        res = await fetch("/api/community/profile", { method: "POST" });
+        if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+        if (!res.ok) return;
+        data = (await res.json()) as { profile?: CommunityProfile | null };
+      }
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      if (data.profile) set({ communityProfile: data.profile });
     } catch { /* ignore */ }
   },
 
@@ -592,13 +785,49 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   clearError: () => set({ errorMessage: null }),
 
-  reset: () => {
-    set({
+  bindViewer: (viewerId) => {
+    const normalizedViewerId = viewerId?.trim() || null;
+    const previousViewerId = get().viewerId;
+    if (previousViewerId === normalizedViewerId) return;
+    purgeCommunityBrowserPrivacyCache({
+      preserveGuestDraftHandoff:
+        previousViewerId === null
+        && normalizedViewerId !== null
+        && normalizedViewerId !== "demo"
+        && hasGuestCommunityDraftHandoff(),
+    });
+    set((state) => ({
+      viewerId: normalizedViewerId,
+      privacyEpoch: state.privacyEpoch + 1,
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
       errorMessage: null, lastSyncedAt: null,
       currentPost: null, comments: [], commentsPostId: null, postLoading: false, commentsLoading: false,
       communityProfile: null,
-    });
+    }));
+  },
+
+  purgePrivacyState: () => {
+    purgeCommunityBrowserPrivacyCache();
+    set((state) => ({
+      privacyEpoch: state.privacyEpoch + 1,
+      posts: [], currentPage: 1, hasMore: true, isLoading: true, total: 0,
+      errorMessage: null, lastSyncedAt: null,
+      currentPost: null, comments: [], commentsPostId: null, postLoading: false, commentsLoading: false,
+      communityProfile: null,
+    }));
+  },
+
+  reset: () => {
+    purgeCommunityBrowserPrivacyCache();
+    set((state) => ({
+      viewerId: null,
+      privacyEpoch: state.privacyEpoch + 1,
+      posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
+      currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
+      errorMessage: null, lastSyncedAt: null,
+      currentPost: null, comments: [], commentsPostId: null, postLoading: false, commentsLoading: false,
+      communityProfile: null,
+    }));
   },
 }));

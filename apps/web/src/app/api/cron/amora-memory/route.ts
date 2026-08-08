@@ -2,18 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AMORA_MEMORY_CURSOR_SUMMARY,
-  AMORA_MEMORY_MAX_BATCH,
   compileAmoraMemory,
-  extractTrustedMomentMemoryKeys,
-  prepareAmoraMemoryBatch,
   shouldDeferAmoraMemoryBatch,
   type AmoraMemoryVisibility,
-  type MemoryCompilerMessage,
 } from "@/lib/ai/amoraMemoryCompiler";
+import {
+  AMORA_MEMORY_SOURCE_READ_LIMIT,
+  prepareTrustedAmoraMemoryBatch,
+} from "@/lib/ai/amoraMemorySourceScope";
 import {
   getAmoraMemoryEnablement,
   isAuxiliaryMemoryRuntimeEnabled,
 } from "@/lib/ai/amoraMemoryQueue";
+import { repairMissingAmoraMemoryJobs } from "@/lib/ai/amoraMemoryRepair";
 import {
   AmoraMemoryBudgetDeferredError,
   assertAmoraMemoryProviderBudget,
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const MAX_JOBS_PER_RUN = 3;
+const MAX_REPAIR_CANDIDATES_PER_RUN = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type MemoryJob = {
@@ -42,13 +44,7 @@ type ChatRow = {
   sender_type: "bride" | "groom" | "ai";
   role: "user" | "assistant";
   content: string;
-  metadata: {
-    client_request_id?: string;
-    target?: string;
-    moment?: {
-      memoryKeys?: unknown;
-    };
-  } | null;
+  metadata: Record<string, unknown> | null;
   visibility: AmoraMemoryVisibility;
   created_at: string;
 };
@@ -144,7 +140,7 @@ async function processJob(
     .or("metadata->>target.is.null,metadata->>target.neq.partner")
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
-    .limit(AMORA_MEMORY_MAX_BATCH);
+    .limit(AMORA_MEMORY_SOURCE_READ_LIMIT);
   messagesQuery = messagesQuery.eq("visibility", job.visibility);
   const resetAt = typeof setting.memory_reset_at === "string" ? setting.memory_reset_at : null;
   const resetDominatesCursor = Boolean(resetAt && (!previousCreatedAt || resetAt >= previousCreatedAt));
@@ -164,7 +160,11 @@ async function processJob(
   const { data: rows, error: messagesError } = await messagesQuery;
   if (messagesError) throw new Error("MEMORY_MESSAGES_LOOKUP_FAILED");
   const messages = ((rows ?? []) as ChatRow[]).filter((row) => {
-    if (row.metadata?.target === "partner" || row.content.trim().length === 0) return false;
+    if (
+      row.visibility !== job.visibility
+      || row.metadata?.target === "partner"
+      || row.content.trim().length === 0
+    ) return false;
     if (!resetDominatesCursor && previousCreatedAt && previousMessageId) {
       const followsCursor = row.created_at > previousCreatedAt
         || (row.created_at === previousCreatedAt && row.id > previousMessageId);
@@ -180,29 +180,20 @@ async function processJob(
     return "deferred";
   }
 
-  const compilerMessages: MemoryCompilerMessage[] = messages.map((row) => {
-    const isAssistant = row.sender_type === "ai" || row.role === "assistant";
-    const sourceActorRole = isAssistant
-      ? null
-      : row.sender_id === couple.bride_id
-        ? "bride" as const
-        : row.sender_id === couple.groom_id
-          ? "groom" as const
-          : null;
-    return {
-      id: row.id,
-      role: isAssistant ? "assistant" : "user",
-      content: row.content,
-      sourceActorRole,
-      // Only a canonical AI/assistant row can carry a server-authored care
-      // taxonomy hint. Its text is still excluded from provider evidence.
-      trustedMomentMemoryKeys: row.sender_type === "ai" && row.role === "assistant"
-        ? extractTrustedMomentMemoryKeys(row.metadata)
-        : [],
-    };
+  const batch = prepareTrustedAmoraMemoryBatch(messages, {
+    brideId: couple.bride_id,
+    groomId: couple.groom_id,
   });
-  const batch = prepareAmoraMemoryBatch(compilerMessages);
-  if (batch.messages.length === 0) throw new Error("MEMORY_BATCH_EMPTY");
+  if (batch.messages.length === 0) {
+    if (batch.blockedByUnresolvedSource) {
+      // A concurrent Amora reply can arrive after this fetch. Do not advance
+      // past its W0/W1 user row; the later reply enqueue will safely retry from
+      // the unchanged cursor instead of losing that source forever.
+      await finishJob(job.id, job.attempt_count, true);
+      return "deferred";
+    }
+    throw new Error("MEMORY_BATCH_EMPTY");
+  }
   let compilation: Awaited<ReturnType<typeof compileAmoraMemory>>;
   try {
     compilation = await compileAmoraMemory({
@@ -210,6 +201,9 @@ async function processJob(
       userId: job.user_id,
       visibility: job.visibility,
       messages: batch.messages,
+      // 예산 초과로 미룰 작업이면 대화 원문이 토큰 계산 요청으로도 나가면 안 된다.
+      // 그래서 같은 검사를 모든 provider 요청 앞에서 한 번 더 건다.
+      beforeProviderEgress: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
       beforeGeneration: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
     });
   } catch (error) {
@@ -268,6 +262,12 @@ export async function GET(request: NextRequest) {
   }
 
   const stats = {
+    repairScanned: 0,
+    repairQueued: 0,
+    repairDuplicate: 0,
+    repairSkipped: 0,
+    repairFailed: 0,
+    repairUnavailable: false,
     claimed: 0,
     compiled: 0,
     deferred: 0,
@@ -275,6 +275,33 @@ export async function GET(request: NextRequest) {
     cancelled: 0,
     failed: 0,
   };
+
+  // A response can be atomically persisted while the immediately-following,
+  // runtime-gated enqueue RPC loses its result. Drain the bounded ID-only
+  // repair outbox before the queue, but never let repair availability block
+  // older jobs.
+  try {
+    const repair = await repairMissingAmoraMemoryJobs(
+      createAdminClient(),
+      MAX_REPAIR_CANDIDATES_PER_RUN,
+    );
+    if (repair.status === "unavailable") {
+      stats.repairUnavailable = true;
+    } else {
+      stats.repairScanned = repair.scanned;
+      stats.repairQueued = repair.queued;
+      stats.repairDuplicate = repair.duplicate;
+      stats.repairSkipped = repair.skipped;
+      stats.repairFailed = repair.failed;
+    }
+  } catch {
+    // The helper validates its fixed bound and normally contains transport
+    // failures. This last fence protects the pre-existing queue drain from an
+    // unexpected local regression without logging message text or raw errors.
+    stats.repairUnavailable = true;
+    console.error("[amora-memory-cron] repair unavailable", "internal_error");
+  }
+
   for (let index = 0; index < MAX_JOBS_PER_RUN; index += 1) {
     const admin = createAdminClient();
     const { data, error } = await admin.rpc("claim_amora_memory_job", { p_lease_seconds: 300 });

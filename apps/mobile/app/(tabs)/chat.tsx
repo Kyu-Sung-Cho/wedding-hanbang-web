@@ -7,23 +7,50 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { supabase } from "@/lib/supabase";
-import { normalizeMediationBlock } from "@/lib/amoraMediation";
+import type {
+  BudgetImpactPreview,
+  BudgetImpactWarning,
+} from "@hanbang/shared";
 import {
+  createEmptyAmoraChatLaneRecord,
+  resolveAmoraChatLane,
+  updateAmoraChatLaneRecord,
+  type AmoraChatLane,
+  type AmoraChatLaneRecord,
+  type AmoraChatTarget,
+} from "@hanbang/shared/chat-lane";
+import {
+  buildUnmatchedAmoraCrisisRecoveryCard,
+  isAmoraCrisisRecoveryCardId,
+} from "@hanbang/shared/amora-crisis-recovery";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { supabase } from "@/lib/supabase";
+import {
+  assertAmoraRequestActor,
+  assertSharedActionActor,
+} from "@/lib/amoraSharedActionActorFence.mjs";
+import { normalizeMediationBlock } from "@/lib/amoraMediation";
+import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
+import {
+  getAmoraActionApprovalPolicy,
   getPendingAmoraAction,
+  getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  getSharedActionApprovalPresentation,
+  parseSharedActionApplicationClaim,
+  parseSharedActionApprovalStatus,
   type PendingActionDisabledReason,
+  type SharedActionApplicationClaim,
+  type SharedActionApprovalStatus,
 } from "@/lib/pendingAmoraAction";
 import {
   chatVisibilityForScope,
   isMessageInAiContext,
   isMessageInChatScope,
   selectChatScope,
-  updateChatScopeDraft,
   type ChatScope,
-  type ChatScopeDrafts,
 } from "@/lib/chatPrivacyScope";
 import { PlaceCards } from "@/components/chat/PlaceCards";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
@@ -31,6 +58,11 @@ import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
+const CHAT_INGEST_TIMEOUT_MS = 30_000;
+const PARTNER_CONNECTION_CHANGED_NOTICE =
+  "상대방 연결 상태가 바뀌어 메시지를 보내지 않았어요. 잘못 전달되지 않도록 작성 중인 초안은 삭제했어요.";
+const NEW_CHAT_MESSAGE_REQUIRED_NOTICE =
+  "같은 요청을 다시 보내도 해결되지 않아요. 내용을 확인한 뒤 새 메시지로 보내주세요.";
 
 interface ToolExecutionResult {
   toolName: string;
@@ -43,9 +75,14 @@ interface ToolExecutionResult {
 interface ChatMessageMetadata {
   target?: string;
   client_request_id?: string;
+  partner_recipient_id?: string;
   client_visible_request_id?: string;
   mediation?: unknown;
   pending_amora_action?: unknown;
+  pending_amora_action_journey_revision?: unknown;
+  pending_amora_action_impact_preview?: unknown;
+  confirmed_amora_action_id?: string;
+  in_reply_to_user_message_id?: string;
   toolResults?: ToolExecutionResult[];
   [key: string]: unknown;
 }
@@ -55,6 +92,8 @@ type ViewerRole = "bride" | "groom" | null;
 
 interface ChatMessage {
   id: string;
+  couple_id: string;
+  sender_id: string | null;
   role: "user" | "assistant";
   sender_type: "bride" | "groom" | "ai";
   content: string;
@@ -63,7 +102,7 @@ interface ChatMessage {
   visibility: ChatMessageVisibility;
 }
 
-type MessageTarget = "ai" | "partner";
+type MessageTarget = AmoraChatTarget;
 type ChatApiMessage = Pick<ChatMessage, "role" | "content">;
 
 interface ChatRequestBody {
@@ -78,45 +117,318 @@ interface ChatRequestBody {
 
 interface AiDraft {
   text: string;
+  sourceLane: AmoraChatLane;
+  target: "ai";
   clientRequestId: string;
-  startedAt: string;
   coupleId: string;
   userId: string;
   senderType: "bride" | "groom";
   senderName: string;
-  context: ChatApiMessage[];
+  requestedVisibility: ChatMessageVisibility;
   visibility: ChatMessageVisibility;
+  providerAttachmentCount: number;
+  durableUserMessageId?: string;
+  recoveredProviderAttachmentState?: "none" | "discarded_by_safety_policy";
+  sessionGeneration: number;
   confirmedActionId?: string;
+  amoraSourceMessageId?: string;
+}
+
+interface AiMessageIngestExpected {
+  coupleId: string;
+  userId: string;
+  senderType: "bride" | "groom";
+  text: string;
+  clientRequestId: string;
+  target: MessageTarget;
+  providerAttachmentCount: number;
+  partnerRecipientId?: string;
+  confirmedActionId?: string;
+}
+
+type AiSafetyResolution = "non_immediate_safety" | "immediate_crisis";
+
+type AiMessageIngestResult =
+  | {
+      outcome: "persisted";
+      reused: boolean;
+      effectiveVisibility: ChatMessageVisibility;
+      safetyPrivacyRedirected: boolean;
+      safetyResolution: AiSafetyResolution | null;
+      message: ChatMessage;
+    }
+  | {
+      outcome: "ephemeral_safety";
+      effectiveVisibility: ChatMessageVisibility;
+      safetyPrivacyRedirected: boolean;
+      partnerDeliveryHeld: boolean;
+      safetyResolution: AiSafetyResolution;
+      classification: string | null;
+      response: string;
+      rawDisclosurePersisted: boolean | null;
+      rawDisclosureVisibility: ChatMessageVisibility | null;
+    };
+
+type RawDisclosurePersistence = "none" | "shared" | "private_only" | "unknown";
+
+interface EphemeralSafetyPersistencePresentation {
+  notice: string;
+  persistence: RawDisclosurePersistence;
+  rawDisclosureShared: boolean | null;
 }
 
 interface AiRequest {
   body: ChatRequestBody;
   tempId: string;
   serverRequestKey: string;
+  lane: Exclude<AmoraChatLane, "shared_partner">;
+  sessionGeneration: number;
 }
 
 interface PartnerDraft {
   text: string;
-  startedAt: string;
+  target: "partner";
+  clientRequestId: string;
+  partnerRecipientId: string;
   coupleId: string;
   userId: string;
   senderType: "bride" | "groom";
+  requestedVisibility: "shared";
   visibility: "shared";
+  providerAttachmentCount: 0;
+  sessionGeneration: number;
 }
 
 type SendFailure =
-  | { kind: "partner_insert"; message: string; draft: PartnerDraft }
-  | { kind: "ai_insert"; message: string; draft: AiDraft }
-  | { kind: "ai_response"; message: string; request: AiRequest };
+  | {
+      kind: "partner_ingest";
+      message: string;
+      draft: PartnerDraft;
+      canRetry: boolean;
+      unavailableReason: string | null;
+    }
+  | {
+      kind: "ai_insert";
+      message: string;
+      draft: AiDraft;
+      canRetry: boolean;
+      unavailableReason: string | null;
+    }
+  | {
+      kind: "ai_response";
+      message: string;
+      request: AiRequest;
+      canRetry: boolean;
+      unavailableReason: string | null;
+    };
 
-function sendFailureVisibility(failure: SendFailure): ChatMessageVisibility {
-  return failure.kind === "ai_response"
-    ? failure.request.body.visibility
-    : failure.draft.visibility;
+type PartnerRecipientVerification = "verified" | "unlinked" | "unavailable";
+
+type ProviderAttachmentState = "none" | "present" | "discarded_by_safety_policy";
+
+interface ColdStartAiRecoveryContext {
+  coupleId: string;
+  userId: string;
+  senderType: "bride" | "groom";
+  visibility: ChatMessageVisibility;
+}
+
+interface ColdStartAiRecovery {
+  disposition: "resumable" | "reattach_required";
+  lane: Exclude<AmoraChatLane, "shared_partner">;
+  userMessageId: string;
+  clientRequestId: string;
+  content: string;
+  visibility: ChatMessageVisibility;
+  providerAttachmentState: ProviderAttachmentState | "unknown";
+  providerAttachmentCount: number | null;
+}
+
+function mergeColdStartRecoveryHistory(
+  boundedHistory: readonly ChatMessage[],
+  supplementalCanonicalTurns: readonly (ChatMessage | null)[],
+): ChatMessage[] {
+  const messagesById = new Map<string, ChatMessage>();
+  for (const message of boundedHistory) messagesById.set(message.id, message);
+  for (const message of supplementalCanonicalTurns) {
+    if (message) messagesById.set(message.id, message);
+  }
+
+  return [...messagesById.values()].sort((left, right) => {
+    const byCreatedAt =
+      new Date(left.created_at ?? 0).getTime()
+      - new Date(right.created_at ?? 0).getTime();
+    return byCreatedAt || left.id.localeCompare(right.id);
+  });
+}
+
+function findColdStartAiRecovery(
+  messages: readonly ChatMessage[],
+  context: ColdStartAiRecoveryContext,
+): ColdStartAiRecovery | null {
+  const ownPrivateVisibility: ChatMessageVisibility = `${context.senderType}_private`;
+  if (
+    context.visibility !== "shared"
+    && context.visibility !== ownPrivateVisibility
+  ) return null;
+
+  const canonicalLaneMessages = messages
+    .filter((message) => (
+      message.couple_id === context.coupleId
+      && message.visibility === context.visibility
+      && message.metadata?.target !== "partner"
+    ))
+    .sort((left, right) => {
+      const byCreatedAt =
+        new Date(left.created_at ?? 0).getTime()
+        - new Date(right.created_at ?? 0).getTime();
+      return byCreatedAt || left.id.localeCompare(right.id);
+    });
+  const latestLaneRow = canonicalLaneMessages[canonicalLaneMessages.length - 1];
+  const candidate = [...canonicalLaneMessages].reverse().find((message) => (
+    message.couple_id === context.coupleId
+    && message.sender_id === context.userId
+    && message.sender_type === context.senderType
+    && message.role === "user"
+    && message.visibility === context.visibility
+    && (
+      message.metadata?.target === undefined
+      || message.metadata.target === "ai"
+    )
+    && message.metadata?.pinned_safety_card !== true
+  ));
+  if (!candidate?.metadata) return null;
+  if (latestLaneRow?.id !== candidate.id) return null;
+
+  const metadata = candidate.metadata;
+  const providerAttachmentState: ProviderAttachmentState | "unknown" =
+    metadata.provider_attachment_state === "none"
+    || metadata.provider_attachment_state === "present"
+    || metadata.provider_attachment_state === "discarded_by_safety_policy"
+    ? metadata.provider_attachment_state
+    : "unknown";
+  const providerAttachmentCount = Number.isSafeInteger(
+    metadata.provider_attachment_count,
+  ) && (metadata.provider_attachment_count as number) >= 0
+    ? metadata.provider_attachment_count as number
+    : null;
+  const providerAttachmentManifest = metadata.provider_attachment_manifest;
+  const hasCanonicalV2AttachmentManifest =
+    metadata.amora_ingest_contract_version === 2
+    && providerAttachmentState === "present"
+    && providerAttachmentCount !== null
+    && providerAttachmentCount > 0
+    && Array.isArray(providerAttachmentManifest)
+    && providerAttachmentManifest.length === providerAttachmentCount
+    && providerAttachmentManifest.every((entry) => {
+      if (!isRecord(entry) || Object.keys(entry).length !== 3) return false;
+      return typeof entry.media_type === "string"
+        && entry.media_type.length > 0
+        && Number.isSafeInteger(entry.byte_length)
+        && (entry.byte_length as number) > 0
+        && typeof entry.sha256 === "string"
+        && /^[0-9a-f]{64}$/.test(entry.sha256);
+    });
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const hasSupportedIngestContract =
+    metadata.amora_ingest_contract_version === 1
+    || hasCanonicalV2AttachmentManifest;
+  if (
+    !hasSupportedIngestContract
+    || metadata.ai_response_requested !== true
+    || typeof metadata.client_request_id !== "string"
+    || !uuidPattern.test(candidate.id)
+    || !uuidPattern.test(metadata.client_request_id)
+    || metadata.confirmed_amora_action_id !== undefined
+  ) return null;
+
+  const visibleRequestKey = `chat:${context.userId}:${metadata.client_request_id}`;
+  const hasAssistantReply = messages.some((message) => (
+    message.couple_id === context.coupleId
+    && message.sender_type === "ai"
+    && message.role === "assistant"
+    && message.visibility === candidate.visibility
+    && (
+      message.metadata?.in_reply_to_user_message_id === candidate.id
+      || message.metadata?.client_visible_request_id === visibleRequestKey
+      || message.metadata?.client_request_id === visibleRequestKey
+      || message.metadata?.client_visible_request_id === metadata.client_request_id
+      || message.metadata?.client_request_id === metadata.client_request_id
+    )
+  ));
+  if (hasAssistantReply) return null;
+
+  const disposition = providerAttachmentCount === 0
+    && (
+      providerAttachmentState === "none"
+      || providerAttachmentState === "discarded_by_safety_policy"
+    )
+    ? "resumable"
+    : "reattach_required";
+
+  return {
+    disposition,
+    lane: context.visibility === "shared" ? "shared_ai" : "private_ai",
+    userMessageId: candidate.id,
+    clientRequestId: metadata.client_request_id,
+    content: candidate.content,
+    visibility: candidate.visibility,
+    providerAttachmentState,
+    providerAttachmentCount,
+  };
+}
+
+function aiLaneForVisibility(
+  visibility: ChatMessageVisibility,
+): Exclude<AmoraChatLane, "shared_partner"> {
+  return visibility === "shared" ? "shared_ai" : "private_ai";
+}
+
+async function verifyPartnerDraftRecipient(
+  draft: PartnerDraft,
+): Promise<PartnerRecipientVerification> {
+  const [
+    { data: couple, error: coupleError },
+    { data: partner, error: partnerError },
+  ] = await Promise.all([
+    supabase.from("couples")
+      .select("bride_id, groom_id")
+      .eq("id", draft.coupleId)
+      .maybeSingle(),
+    supabase.from("couple_profile_directory")
+      .select("id")
+      .eq("couple_id", draft.coupleId)
+      .eq("id", draft.partnerRecipientId)
+      .maybeSingle(),
+  ]);
+
+  if (coupleError || partnerError) return "unavailable";
+  if (!couple || !partner) return "unlinked";
+
+  const expectedSelfId = draft.senderType === "bride"
+    ? couple.bride_id
+    : couple.groom_id;
+  const expectedPartnerId = draft.senderType === "bride"
+    ? couple.groom_id
+    : couple.bride_id;
+  const rosterIsValid = Boolean(
+    couple.bride_id
+    && couple.groom_id
+    && couple.bride_id !== couple.groom_id
+    && expectedSelfId === draft.userId
+    && expectedPartnerId === draft.partnerRecipientId
+    && partner.id === draft.partnerRecipientId,
+  );
+
+  return rosterIsValid ? "verified" : "unlinked";
 }
 
 type ChatStreamEvent = {
   type?: string;
+  code?: unknown;
+  retryable?: unknown;
+  retryPolicy?: unknown;
   content?: unknown;
   fullContent?: unknown;
   text?: unknown;
@@ -134,12 +446,27 @@ type ChatStreamState = {
   error: boolean;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+  failure: {
+    serverCode: string | null;
+    retryable: boolean;
+    retryPolicy: "same_request" | "new_message" | null;
+  } | null;
 };
 
 interface ChatStreamCompletion {
   text: string;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+}
+
+type AmoraSharedActionMethod = "GET" | "POST" | "DELETE" | "PUT";
+
+interface PendingActionApprovalState {
+  actionId: string;
+  messageId: string;
+  status: SharedActionApprovalStatus | null;
+  error: string | null;
+  mutation: "confirm" | "withdraw" | null;
 }
 
 type ChatStreamUpdateCallback = (
@@ -152,9 +479,123 @@ class ChatTransportError extends Error {
   constructor(
     public readonly code: "AUTH" | "CANCELLED" | "EMPTY" | "HTTP" | "NETWORK" | "STREAM" | "TIMEOUT",
     public readonly status?: number,
+    streamFailure?: {
+      serverCode: string | null;
+      retryable: boolean;
+      retryPolicy: "same_request" | "new_message" | null;
+    },
   ) {
     super(code);
     this.name = "ChatTransportError";
+    this.serverCode = streamFailure?.serverCode ?? null;
+    this.retryable = streamFailure?.retryable ?? null;
+    this.retryPolicy = streamFailure?.retryPolicy ?? null;
+  }
+
+  public readonly serverCode: string | null;
+  public readonly retryable: boolean | null;
+  public readonly retryPolicy: "same_request" | "new_message" | null;
+}
+
+class AiMessageIngestError extends Error {
+  constructor(
+    public readonly status: number | null,
+    public readonly serverCode: string | null,
+    public readonly retryPolicy: "same_request" | "new_message",
+    public readonly retryAfterMs: number | null = null,
+  ) {
+    super(serverCode ?? "AI_MESSAGE_INGEST_FAILED");
+    this.name = "AiMessageIngestError";
+    this.retryable = retryPolicy === "same_request";
+  }
+
+  public readonly retryable: boolean;
+}
+
+function parseRetryAfterMs(
+  value: string | null,
+  nowMs = Date.now(),
+): number | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  const seconds = /^\d+$/.test(normalized) ? Number(normalized) : Number.NaN;
+  const unboundedMs = Number.isSafeInteger(seconds)
+    ? seconds * 1_000
+    : Date.parse(normalized) - nowMs;
+  if (!Number.isFinite(unboundedMs) || unboundedMs < 0) return null;
+  return Math.min(unboundedMs, 5 * 60_000);
+}
+
+function getAiMessageIngestFailureMessage(
+  error: unknown,
+  isConfirmedAction: boolean,
+): string {
+  if (error instanceof AiMessageIngestError) {
+    if (error.status === 401) {
+      return "로그인이 만료됐어요. 다시 로그인한 뒤 메시지를 보내 주세요.";
+    }
+    if (error.status === 403) {
+      return "현재 대화 권한을 확인하지 못했어요. 연결 상태를 새로고침해 주세요.";
+    }
+    if (error.status === 409) {
+      return "같은 전송 식별 정보가 다른 메시지와 충돌했어요. 내용을 확인해 새 메시지로 보내주세요.";
+    }
+    if (error.status === 429) {
+      const retrySeconds = error.retryAfterMs === null
+        ? null
+        : Math.max(1, Math.ceil(error.retryAfterMs / 1_000));
+      return retrySeconds === null
+        ? "요청이 잠시 몰렸어요. 조금 뒤 같은 메시지로 다시 시도해 주세요."
+        : `요청이 잠시 몰렸어요. ${retrySeconds}초 후 같은 메시지로 다시 시도해 주세요.`;
+    }
+  }
+  if (isConfirmedAction) {
+    return "반영 요청을 끝내지 못했어요. 확인은 유지되니 이어서 완료해 주세요.";
+  }
+  if (error instanceof AiMessageIngestError && error.retryable) {
+    return "전송 결과를 확인하지 못했어요. 같은 메시지로 다시 확인해 주세요.";
+  }
+  return "질문을 안전하게 저장하지 못했어요. 내용을 확인해 새 메시지로 보내주세요.";
+}
+
+function getEphemeralSafetyPersistencePresentation(
+  rawDisclosurePersisted: boolean | null,
+  rawDisclosureVisibility: ChatMessageVisibility | null,
+  partnerDeliveryHeld: boolean,
+): EphemeralSafetyPersistencePresentation {
+  const wasShared = rawDisclosurePersisted === true
+    && (rawDisclosureVisibility === "shared" || partnerDeliveryHeld);
+  const persistence: RawDisclosurePersistence = rawDisclosurePersisted === false
+    ? "none"
+    : wasShared
+      ? "shared"
+      : rawDisclosureVisibility === "bride_private"
+          || rawDisclosureVisibility === "groom_private"
+        ? "private_only"
+        : "unknown";
+  const rawDisclosureShared = rawDisclosurePersisted === null
+    || persistence === "unknown"
+    ? null
+    : wasShared;
+  const notice = rawDisclosurePersisted === false
+    ? "안전을 위해 이 내용은 상대방에게 공유하거나 저장하지 않았어요."
+    : rawDisclosurePersisted === null
+      ? "이 내용의 이전 저장·전달 여부를 지금 확인하지 못했어요. 추가 공유와 AI 전송은 멈추고 안전 안내만 보여드려요."
+      : wasShared
+        ? "이 내용은 이전 전송에서 이미 상대방에게 전달·저장됐어요. 지금은 추가 공유와 AI 전송을 멈추고 안전 안내만 보여드려요."
+        : persistence === "private_only"
+          ? "이 내용은 이전 전송에서 비공개 대화에 이미 저장됐어요. 지금은 추가 전송을 멈추고 안전 안내만 보여드려요."
+          : "이 내용은 이전 전송에서 이미 저장됐지만 저장 범위는 지금 확인하지 못했어요. 추가 공유와 AI 전송은 멈추고 안전 안내만 보여드려요.";
+  return { notice, persistence, rawDisclosureShared };
+}
+
+class AmoraSharedActionRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly userMessage: string,
+  ) {
+    super(userMessage);
+    this.name = "AmoraSharedActionRequestError";
   }
 }
 
@@ -174,6 +615,8 @@ function chatMessageFromRealtimeRow(value: unknown): ChatMessage | null {
     || row.sender_type === "ai";
   if (
     typeof row.id !== "string"
+    || typeof row.couple_id !== "string"
+    || (row.sender_id !== null && typeof row.sender_id !== "string")
     || !validRole
     || !validSender
     || typeof row.content !== "string"
@@ -184,6 +627,8 @@ function chatMessageFromRealtimeRow(value: unknown): ChatMessage | null {
   const metadata = asChatMessageMetadata(row.metadata);
   return {
     id: row.id,
+    couple_id: row.couple_id,
+    sender_id: row.sender_id,
     role: row.role as ChatMessage["role"],
     sender_type: row.sender_type as ChatMessage["sender_type"],
     content: row.content,
@@ -191,6 +636,156 @@ function chatMessageFromRealtimeRow(value: unknown): ChatMessage | null {
     created_at: row.created_at,
     visibility,
   };
+}
+
+function parseAiMessageIngestResult(
+  status: number,
+  value: unknown,
+  expected: AiMessageIngestExpected,
+  retryAfterMs: number | null = null,
+): AiMessageIngestResult {
+  if (status >= 200 && status < 300 && isRecord(value)) {
+    const effectiveVisibility = normalizeChatVisibility(value.effectiveVisibility);
+    const ownPrivateVisibility: ChatMessageVisibility = `${expected.senderType}_private`;
+    const expectedTarget = expected.target;
+    const expectedPartnerDeliveryHeld = expectedTarget === "partner";
+    const rawDisclosurePersisted = typeof value.rawDisclosurePersisted === "boolean"
+      || value.rawDisclosurePersisted === null
+      ? value.rawDisclosurePersisted
+      : undefined;
+    const rawDisclosureVisibility = normalizeChatVisibility(value.rawDisclosureVisibility);
+    const rawDisclosureVisibilityIsValid = value.rawDisclosureVisibility === undefined
+      || value.rawDisclosureVisibility === null
+      || rawDisclosureVisibility !== null;
+    const rawDisclosureVisibilityMatchesPersistence = rawDisclosurePersisted === true
+      || rawDisclosureVisibility === null;
+    const safetyResolution = value.safetyResolution === "non_immediate_safety"
+      || value.safetyResolution === "immediate_crisis"
+      ? value.safetyResolution
+      : null;
+    const ephemeralSafetyResolutionMatches = safetyResolution === "immediate_crisis"
+      || (
+        expectedTarget === "partner"
+        && safetyResolution === "non_immediate_safety"
+      );
+    if (
+      status === 200
+      && value.outcome === "ephemeral_safety"
+      && effectiveVisibility === ownPrivateVisibility
+      && typeof value.safetyPrivacyRedirected === "boolean"
+      && value.partnerDeliveryHeld === expectedPartnerDeliveryHeld
+      && safetyResolution !== null
+      && ephemeralSafetyResolutionMatches
+      && (typeof value.classification === "string" || value.classification === null)
+      && typeof value.response === "string"
+      && value.response.trim().length > 0
+      && value.response.length <= 4_000
+      && rawDisclosurePersisted !== undefined
+      && rawDisclosureVisibilityIsValid
+      && rawDisclosureVisibilityMatchesPersistence
+    ) {
+      return {
+        outcome: "ephemeral_safety",
+        effectiveVisibility,
+        safetyPrivacyRedirected: value.safetyPrivacyRedirected,
+        partnerDeliveryHeld: expectedPartnerDeliveryHeld,
+        safetyResolution,
+        classification: value.classification,
+        response: value.response,
+        rawDisclosurePersisted,
+        rawDisclosureVisibility,
+      };
+    }
+    const message = chatMessageFromRealtimeRow(value.message);
+    const targetMatches = expectedTarget === "partner"
+      ? message?.metadata?.target === "partner"
+        && typeof expected.partnerRecipientId === "string"
+        && message.metadata.partner_recipient_id === expected.partnerRecipientId
+      : (
+          message?.metadata?.target === undefined
+          || message.metadata.target === "ai"
+        )
+        && message?.metadata?.partner_recipient_id === undefined;
+    const persistedVisibilityMatchesTarget = expectedTarget === "partner"
+      ? effectiveVisibility === "shared"
+      : effectiveVisibility === "shared" || effectiveVisibility === ownPrivateVisibility;
+    const canonicalConfirmedActionId =
+      typeof message?.metadata?.confirmed_amora_action_id === "string"
+        ? message.metadata.confirmed_amora_action_id
+        : null;
+    const expectedConfirmedActionId = expected.confirmedActionId ?? null;
+    const confirmedActionMatches = value.safetyPrivacyRedirected === true
+      ? canonicalConfirmedActionId === null
+      : canonicalConfirmedActionId === expectedConfirmedActionId;
+    const canonicalProviderAttachmentCount = value.safetyPrivacyRedirected === true
+      ? 0
+      : expected.providerAttachmentCount;
+    const canonicalProviderAttachmentState = value.safetyPrivacyRedirected === true
+      && expected.providerAttachmentCount > 0
+      ? "discarded_by_safety_policy"
+      : canonicalProviderAttachmentCount > 0
+        ? "present"
+        : "none";
+    const ingestContractMatches =
+      message?.metadata?.amora_ingest_contract_version === 1
+      && message.metadata.ai_response_requested === (expectedTarget === "ai")
+      && message.metadata.provider_attachment_state === canonicalProviderAttachmentState
+      && message.metadata.provider_attachment_count === canonicalProviderAttachmentCount;
+    const safetyContractMatches = value.safetyPrivacyRedirected === true
+      ? effectiveVisibility === ownPrivateVisibility
+        && safetyResolution === "non_immediate_safety"
+      : safetyResolution === null;
+    if (
+      value.outcome === "persisted"
+      && typeof value.reused === "boolean"
+      && status === (value.reused ? 200 : 201)
+      && typeof value.safetyPrivacyRedirected === "boolean"
+      && safetyContractMatches
+      && confirmedActionMatches
+      && ingestContractMatches
+      && targetMatches
+      && effectiveVisibility !== null
+      && persistedVisibilityMatchesTarget
+      && message !== null
+      && message.couple_id === expected.coupleId
+      && message.sender_id === expected.userId
+      && message.sender_type === expected.senderType
+      && message.role === "user"
+      && message.content === expected.text
+      && message.visibility === effectiveVisibility
+      && message.metadata?.client_request_id === expected.clientRequestId
+    ) {
+      return {
+        outcome: "persisted",
+        reused: value.reused,
+        effectiveVisibility,
+        safetyPrivacyRedirected: value.safetyPrivacyRedirected,
+        safetyResolution,
+        message,
+      };
+    }
+  }
+  const serverCode = isRecord(value)
+    && typeof value.code === "string"
+    && /^[A-Z0-9_]{1,96}$/.test(value.code)
+    ? value.code
+    : null;
+  const retryPolicy = status === 408
+    || status === 429
+    || status >= 500
+    || (status >= 200 && status < 300)
+    || (
+      isRecord(value)
+      && value.retryPolicy === "same_request"
+    )
+    ? "same_request"
+    : "new_message";
+  throw new AiMessageIngestError(
+    status,
+    serverCode,
+    retryPolicy,
+    status === 429 ? retryAfterMs : null,
+  );
 }
 
 function canViewerSeeChatMessage(message: ChatMessage, viewerRole: ViewerRole): boolean {
@@ -255,14 +850,78 @@ function asChatStreamEvent(value: unknown): ChatStreamEvent | null {
     : null;
 }
 
+function reconcileMobileAmoraCrisisRecovery(
+  messages: readonly ChatMessage[],
+  userId: string,
+  coupleId: string,
+  viewerRole: ViewerRole,
+): ChatMessage[] {
+  const canonicalMessages = messages.filter(
+    (message) => !isAmoraCrisisRecoveryCardId(message.id),
+  );
+  if (!viewerRole || !userId || !coupleId) return [...canonicalMessages];
+
+  const card = buildUnmatchedAmoraCrisisRecoveryCard(
+    canonicalMessages.map((message) => ({
+      id: message.id,
+      coupleId: message.couple_id,
+      senderId: message.sender_id,
+      senderRole: message.sender_type,
+      role: message.role,
+      content: message.content,
+      visibility: message.visibility,
+      target: message.metadata?.target === "partner"
+        ? "partner"
+        : message.metadata?.target === "ai"
+          ? "ai"
+          : null,
+      createdAt: message.created_at ?? "",
+      inReplyToUserMessageId:
+        message.metadata?.in_reply_to_user_message_id ?? null,
+    })),
+    { userId, coupleId, role: viewerRole },
+  );
+  if (!card) return [...canonicalMessages];
+
+  return [
+    ...canonicalMessages,
+    {
+      id: card.id,
+      couple_id: coupleId,
+      sender_id: null,
+      role: "assistant",
+      sender_type: "ai",
+      content: card.content,
+      metadata: card.metadata,
+      created_at: card.createdAt,
+      visibility: card.visibility,
+    },
+  ];
+}
+
 function applyChatEvent(
   event: ChatStreamEvent,
   state: ChatStreamState,
 ): boolean {
   if (event.type === "error") {
+    const retryPolicy = event.retryPolicy === "same_request"
+      || event.retryPolicy === "new_message"
+      ? event.retryPolicy
+      : null;
     state.streamed = "";
     state.completed = null;
     state.error = true;
+    state.failure = {
+      serverCode: typeof event.code === "string" && event.code.length > 0
+        ? event.code
+        : null,
+      retryable: retryPolicy === "same_request"
+        ? true
+        : retryPolicy === "new_message"
+          ? false
+          : event.retryable === true,
+      retryPolicy,
+    };
     return false;
   }
 
@@ -322,6 +981,7 @@ function createChatStreamParser(
     error: false,
     toolResults: [],
     metadata: null,
+    failure: null,
   };
   let buffer = "";
   let raw = "";
@@ -422,7 +1082,7 @@ function createChatStreamParser(
       }
     }
 
-    if (state.error) throw new ChatTransportError("STREAM");
+    if (state.error) throw new ChatTransportError("STREAM", undefined, state.failure ?? undefined);
     return cleanAiText(state.completed ?? state.streamed, true);
   }
 
@@ -556,6 +1216,40 @@ function reconcileChatStreamUpdate(
   return previous;
 }
 
+function parseChatHttpFailure(text: string): NonNullable<ChatStreamState["failure"]> {
+  const failClosed = {
+    serverCode: null,
+    retryable: false,
+    retryPolicy: null,
+  } satisfies NonNullable<ChatStreamState["failure"]>;
+  if (!text || text.length > 4_096) return failClosed;
+
+  try {
+    const value: unknown = JSON.parse(text);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return failClosed;
+    const record = value as Record<string, unknown>;
+    const retryPolicy = record.retryPolicy === "same_request"
+      || record.retryPolicy === "new_message"
+      ? record.retryPolicy
+      : null;
+    const serverCode = typeof record.code === "string"
+      && /^[A-Z0-9_]{1,96}$/.test(record.code)
+      ? record.code
+      : null;
+    return {
+      serverCode,
+      retryable: retryPolicy === "same_request"
+        ? true
+        : retryPolicy === "new_message"
+          ? false
+          : record.retryable === true,
+      retryPolicy,
+    };
+  } catch {
+    return failClosed;
+  }
+}
+
 function streamChatWithXhr(
   body: ChatRequestBody,
   accessToken: string,
@@ -608,7 +1302,11 @@ function streamChatWithXhr(
     xhr.onload = () => {
       consumeAvailableText();
       if (xhr.status < 200 || xhr.status >= 300) {
-        rejectOnce(new ChatTransportError("HTTP", xhr.status));
+        rejectOnce(new ChatTransportError(
+          "HTTP",
+          xhr.status,
+          parseChatHttpFailure(xhr.responseText ?? ""),
+        ));
         return;
       }
       try {
@@ -658,18 +1356,93 @@ function waitForUnlessAborted<T>(operation: PromiseLike<T>, signal: AbortSignal)
   });
 }
 
+async function requestAiMessageIngest(
+  draft: AiDraft | PartnerDraft,
+): Promise<AiMessageIngestResult> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (sessionError || !accessToken) {
+    throw new AiMessageIngestError(401, "AUTH_REQUIRED", "new_message");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CHAT_INGEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/chat/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        coupleId: draft.coupleId,
+        content: draft.text,
+        clientRequestId: draft.clientRequestId,
+        requestedVisibility: draft.requestedVisibility,
+        target: draft.target,
+        providerAttachmentCount: draft.target === "partner"
+          ? 0
+          : draft.providerAttachmentCount,
+        ...("confirmedActionId" in draft && draft.confirmedActionId
+          ? { confirmedActionId: draft.confirmedActionId }
+          : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch {
+    throw new AiMessageIngestError(null, null, "same_request");
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // A malformed response can hide a committed INSERT. The only safe retry
+    // is the same immutable client request id, which the server reconciles.
+  }
+  const expectedCanonicalMetadata = "confirmedActionId" in draft && draft.confirmedActionId
+    ? {
+        confirmed_amora_action_id: draft.confirmedActionId,
+        client_request_id: draft.clientRequestId,
+      }
+    : { client_request_id: draft.clientRequestId };
+  return parseAiMessageIngestResult(response.status, payload, {
+    coupleId: draft.coupleId,
+    userId: draft.userId,
+    senderType: draft.senderType,
+    text: draft.text,
+    clientRequestId: expectedCanonicalMetadata.client_request_id,
+    target: draft.target,
+    providerAttachmentCount: draft.target === "partner"
+      ? 0
+      : draft.providerAttachmentCount,
+    ...(draft.target === "partner"
+      ? { partnerRecipientId: draft.partnerRecipientId }
+      : {}),
+    ...(expectedCanonicalMetadata.confirmed_amora_action_id
+      ? { confirmedActionId: expectedCanonicalMetadata.confirmed_amora_action_id }
+      : {}),
+  }, parseRetryAfterMs(response.headers.get("Retry-After")));
+}
+
 async function requestChatStream(
   body: ChatRequestBody,
   signal: AbortSignal,
   onUpdate: ChatStreamUpdateCallback,
   onQuota: (remaining: number) => void,
   onDoneMetadata: (metadata: Record<string, unknown>) => void,
+  expectedUserId: string | null,
 ): Promise<ChatStreamCompletion> {
   const { data: sessionData } = await waitForUnlessAborted(
     supabase.auth.getSession(),
     signal,
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
+  // 쓴 사람과 지금 토큰의 주인이 다르면 보내지 않는다. 저장된 뒤에 되돌릴 수 없다.
+  assertAmoraRequestActor(expectedUserId, sessionData.session?.user.id);
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new ChatTransportError("AUTH");
 
@@ -688,6 +1461,8 @@ async function requestChatStream(
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
   if (refreshError || !refreshed.session?.access_token) throw new ChatTransportError("AUTH");
+  // 세션 갱신은 다른 계정으로 바뀔 수 있는 지점이므로 재시도 전에 다시 대조한다.
+  assertAmoraRequestActor(expectedUserId, refreshed.session.user.id);
   return streamChatWithXhr(
     body,
     refreshed.session.access_token,
@@ -698,7 +1473,155 @@ async function requestChatStream(
   );
 }
 
+async function requestAmoraSharedActionWithToken(
+  actionId: string,
+  messageId: string,
+  method: AmoraSharedActionMethod,
+  accessToken: string,
+): Promise<unknown> {
+  const actionUrl = `${API_BASE}/api/amora/shared-actions/${encodeURIComponent(actionId)}`;
+  const response = await fetch(
+    method === "GET"
+      ? `${actionUrl}?messageId=${encodeURIComponent(messageId)}`
+      : actionUrl,
+    {
+      method,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
+      },
+      ...(method === "GET" ? {} : { body: JSON.stringify({ messageId }) }),
+    },
+  );
+  const value: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const serverMessage = isRecord(value)
+      && typeof value.error === "string"
+      && value.error === value.error.trim()
+      && value.error.length > 0
+      && value.error.length <= 500
+      ? value.error
+      : "공동 확인 상태를 안전하게 처리하지 못했어요.";
+    throw new AmoraSharedActionRequestError(response.status, serverMessage);
+  }
+  return value;
+}
+
+async function requestAmoraSharedAction(
+  actionId: string,
+  messageId: string,
+  method: AmoraSharedActionMethod,
+  expectedUserId: string | null,
+): Promise<unknown> {
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  // 누른 사람과 지금 토큰의 주인이 다르면 요청 자체를 보내지 않는다. 응답을 받은 뒤에
+  // 버리는 것으로는 늦다. 그때는 서버가 이미 다른 사람의 승인으로 기록한 뒤다.
+  assertSharedActionActor(expectedUserId, data.session?.user.id);
+  if (!accessToken) throw new ChatTransportError("AUTH");
+  try {
+    return await requestAmoraSharedActionWithToken(
+      actionId,
+      messageId,
+      method,
+      accessToken,
+    );
+  } catch (error) {
+    if (!(error instanceof AmoraSharedActionRequestError) || error.status !== 401) {
+      throw error;
+    }
+  }
+  const { data: refreshed, error } = await supabase.auth.refreshSession();
+  if (error || !refreshed.session?.access_token) {
+    throw new ChatTransportError("AUTH");
+  }
+  // 세션 갱신은 다른 계정으로 바뀔 수 있는 지점이므로 같은 사람인지 다시 본다.
+  assertSharedActionActor(expectedUserId, refreshed.session.user.id);
+  return requestAmoraSharedActionWithToken(
+    actionId,
+    messageId,
+    method,
+    refreshed.session.access_token,
+  );
+}
+
+async function requestAmoraSharedActionStatus(
+  actionId: string,
+  messageId: string,
+  expectedUserId: string | null,
+): Promise<SharedActionApprovalStatus> {
+  const value = await requestAmoraSharedAction(actionId, messageId, "GET", expectedUserId);
+  const status = parseSharedActionApprovalStatus(value);
+  if (!status) throw new ChatTransportError("STREAM");
+  return status;
+}
+
+async function requestAmoraSharedActionApproval(
+  actionId: string,
+  messageId: string,
+  method: "POST" | "DELETE",
+  expectedUserId: string | null,
+): Promise<SharedActionApprovalStatus> {
+  const value = await requestAmoraSharedAction(actionId, messageId, method, expectedUserId);
+  const status = parseSharedActionApprovalStatus(value);
+  if (!status) throw new ChatTransportError("STREAM");
+  return status;
+}
+
+async function requestAmoraApplicationClaim(
+  actionId: string,
+  messageId: string,
+  expectedUserId: string | null,
+): Promise<SharedActionApplicationClaim> {
+  const value = await requestAmoraSharedAction(actionId, messageId, "PUT", expectedUserId);
+  const claim = parseSharedActionApplicationClaim(value);
+  if (!claim) throw new ChatTransportError("STREAM");
+  return claim;
+}
+
+function getAmoraSharedActionFailureMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (error instanceof AmoraSharedActionRequestError) return error.userMessage;
+  if (error instanceof ChatTransportError && error.code === "AUTH") {
+    return "로그인이 만료됐어요. 다시 로그인한 뒤 재시도해 주세요.";
+  }
+  return fallback;
+}
+
+/**
+ * 서버가 밝힌 사유 코드를 앱의 말로 옮긴다.
+ *
+ * 서버가 보낸 문장 자체는 화면에 그리지 않는다 — 내부 정보가 실릴 수 있고, 그
+ * 결정은 `chatStream.test.mjs`가 "hides server details"로 고정하고 있다. 대신 코드만
+ * 읽고 앱이 자기 문구를 고른다.
+ *
+ * 코드까지 무시하면 한도를 다 쓴 사람이 "다시 시도해 주세요"를 받고 몇 번을 눌러도
+ * 같은 결과를 만난다. 자기 통신 문제인 줄 알고 계속 누르게 된다.
+ */
+function getServerCodeFailureMessage(serverCode: string | null): string | null {
+  switch (serverCode) {
+    case "COST_GUARD_COUPLE_QUOTA":
+      return "베타 기간에 드리는 무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
+    case "COST_GUARD_GLOBAL_DAILY":
+      return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
+    case "COST_GUARD_GLOBAL_BUDGET":
+      return "오늘 아모라의 안전 한도에 도달했어요. 잠시 후 다시 시도해 주세요.";
+    case "COST_GUARD_UNAVAILABLE":
+      return "아모라 사용량을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
+    default:
+      return null;
+  }
+}
+
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
+  // 왜 막혔는지 서버가 코드로 밝힌 경우에는 그것부터 전한다.
+  if (error instanceof ChatTransportError) {
+    const reason = getServerCodeFailureMessage(error.serverCode);
+    if (reason) return reason;
+  }
   if (timedOut || (error instanceof ChatTransportError && error.code === "TIMEOUT")) {
     return "답변이 평소보다 오래 걸렸어요. 같은 요청으로 다시 이어갈 수 있어요.";
   }
@@ -708,6 +1631,16 @@ function getAiFailureMessage(error: unknown, timedOut: boolean): string {
     if (error.status === 429) return "요청이 잠시 몰렸어요. 조금 뒤에 다시 시도해 주세요.";
   }
   return "답변을 가져오지 못했어요. 입력한 질문은 저장되어 있으니 다시 시도해 주세요.";
+}
+
+function canRetrySameChatRequest(error: unknown, timedOut = false): boolean {
+  if (timedOut) return true;
+  if (!(error instanceof ChatTransportError)) return false;
+  if (error.retryable !== null) return error.retryable;
+  // No terminal server decision exists for transport loss, so replaying the
+  // same idempotency key remains the only safe retry. Legacy terminal/HTTP
+  // failures without an explicit contract fail closed.
+  return error.code === "NETWORK" || error.code === "TIMEOUT";
 }
 
 function ThinkingDots() {
@@ -729,6 +1662,79 @@ function ThinkingDots() {
   );
 }
 
+const BUDGET_WARNING_COPY: Record<BudgetImpactWarning, string> = {
+  allocated_over_total: "변경 후 배분 합계가 총예산보다 커요.",
+  recorded_spend_over_total: "기록 지출 합계가 변경 후 총예산보다 커요.",
+  category_recorded_spend_over_budget:
+    "일부 항목의 기록 지출이 해당 배정 예산보다 커요.",
+};
+
+function formatWon(value: number): string {
+  const absolute = Math.abs(value).toLocaleString("ko-KR");
+  return value < 0 ? `-${absolute}원` : `${absolute}원`;
+}
+
+function formatSignedWon(value: number): string {
+  if (value === 0) return "변동 없음";
+  return `${value > 0 ? "+" : "-"}${Math.abs(value).toLocaleString("ko-KR")}원`;
+}
+
+function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
+  const rows = [
+    {
+      label: "총예산",
+      current: preview.current.totalBudget,
+      proposed: preview.proposed.totalBudget,
+      delta: preview.delta.totalBudget,
+    },
+    {
+      label: "배분 합계",
+      current: preview.current.allocatedBudget,
+      proposed: preview.proposed.allocatedBudget,
+      delta: preview.delta.allocatedBudget,
+    },
+    {
+      label: "기록 지출",
+      current: preview.current.recordedSpend,
+      proposed: preview.proposed.recordedSpend,
+      delta: preview.delta.recordedSpend,
+    },
+    {
+      label: "배분 후 남는 금액",
+      current: preview.current.unallocatedBudget,
+      proposed: preview.proposed.unallocatedBudget,
+      delta: preview.delta.unallocatedBudget,
+    },
+  ];
+
+  return (
+    <View style={st.budgetImpactCard}>
+      <Text style={st.budgetImpactTitle}>변경 영향</Text>
+      {rows.map((row) => (
+        <View key={row.label} style={st.budgetImpactRow}>
+          <Text style={st.budgetImpactLabel}>{row.label}</Text>
+          <Text style={st.budgetImpactValue}>
+            {formatWon(row.current)} → {formatWon(row.proposed)}{" "}
+            <Text style={st.budgetImpactDelta}>({formatSignedWon(row.delta)})</Text>
+          </Text>
+        </View>
+      ))}
+      {preview.warnings.length > 0 && (
+        <View style={st.budgetImpactWarnings}>
+          {preview.warnings.map((warning) => (
+            <Text key={warning} style={st.budgetImpactWarningText}>
+              • {BUDGET_WARNING_COPY[warning]}
+            </Text>
+          ))}
+        </View>
+      )}
+      <Text style={st.budgetImpactDisclaimer}>
+        기록 지출은 사용자가 명시적으로 입력한 금액이며, 결제 증거나 결제 완료를 뜻하지 않아요.
+      </Text>
+    </View>
+  );
+}
+
 export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -737,36 +1743,58 @@ export default function ChatScreen() {
   const [userRole, setUserRole] = useState<ViewerRole>(null);
   const [userName, setUserName] = useState("사용자");
   const [partnerName, setPartnerName] = useState<string | null>(null);
+  const [hasLinkedPartner, setHasLinkedPartner] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [target, setTarget] = useState<MessageTarget>("ai");
   const [activeScope, setActiveScope] = useState<ChatScope>("shared");
-  const [inputByScope, setInputByScope] = useState<ChatScopeDrafts>({
-    shared: "",
-    private: "",
-  });
-  const input = inputByScope[activeScope];
+  const [inputByLane, setInputByLane] = useState<AmoraChatLaneRecord<string>>(
+    () => createEmptyAmoraChatLaneRecord(() => ""),
+  );
+  const activeLane = resolveAmoraChatLane(activeScope, target, hasLinkedPartner);
+  const input = activeLane ? inputByLane[activeLane] : "";
   const setActiveInput = useCallback((nextInput: SetStateAction<string>) => {
-    setInputByScope((currentDrafts) => {
-      const currentInput = currentDrafts[activeScope];
+    if (!activeLane) return;
+    setInputByLane((currentDrafts) => {
+      const currentInput = currentDrafts[activeLane];
       const resolvedInput = typeof nextInput === "function"
         ? nextInput(currentInput)
         : nextInput;
-      return updateChatScopeDraft(currentDrafts, activeScope, resolvedInput);
+      const lane = activeLane;
+      return updateAmoraChatLaneRecord(currentDrafts, lane, resolvedInput);
     });
-  }, [activeScope]);
-  const [sendFailure, setSendFailure] = useState<SendFailure | null>(null);
+  }, [activeLane]);
+  const [sendFailuresByLane, setSendFailuresByLane] = useState<
+    AmoraChatLaneRecord<SendFailure | null>
+  >(() => createEmptyAmoraChatLaneRecord(() => null));
+  const [coldStartAiRecoveryByLane, setColdStartAiRecoveryByLane] = useState<
+    AmoraChatLaneRecord<ColdStartAiRecovery | null>
+  >(() => createEmptyAmoraChatLaneRecord(() => null));
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
+  const [pendingActionNotice, setPendingActionNotice] = useState<{
+    actionId: string;
+    message: string;
+  } | null>(null);
+  const [pendingActionApproval, setPendingActionApproval] =
+    useState<PendingActionApprovalState | null>(null);
+  const [partnerSafetyNotice, setPartnerSafetyNotice] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const activeControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const hasLinkedPartnerRef = useRef(false);
+  const linkedPartnerIdRef = useRef<string | null>(null);
+  const chatSessionGenerationRef = useRef(createChatSessionGenerationGuard());
+  // 공동 승인은 "누가 눌렀는가"가 동의의 주체다. 핸들러가 이 값을 동기적으로 읽어
+  // 요청에 실으면, 요청이 나가는 사이 계정이 바뀌어도 fence가 불일치를 잡는다.
+  const sessionUserIdRef = useRef<string | null>(null);
   const sendingRef = useRef(false);
+  const safetyHoldLockRef = useRef(false);
   const applyingPendingActionRef = useRef<string | null>(null);
   const persistedAiRequestKeysRef = useRef(new Set<string>());
   const previousMessageCountRef = useRef(0);
@@ -777,19 +1805,187 @@ export default function ChatScreen() {
     [activeScope, messages, userRole],
   );
   const visibleMessages = useMemo(() => [...scopedMessages].reverse(), [scopedMessages]);
-  const selectedVisibility = chatVisibilityForScope(activeScope, userRole);
-  const activeSendFailure = sendFailure && selectedVisibility
-    && sendFailureVisibility(sendFailure) === selectedVisibility
-    ? sendFailure
+  const activeW5PersistenceState = useMemo<{
+    rawDisclosurePersisted: boolean | null;
+    persistence: RawDisclosurePersistence;
+  } | null>(() => {
+    const latestMessage = scopedMessages[scopedMessages.length - 1];
+    if (
+      latestMessage?.metadata?.pinned_safety_card !== true
+      || latestMessage.metadata.question_scope !== "W5_safety_override"
+    ) return null;
+    const persisted = latestMessage.metadata.raw_disclosure_persisted;
+    const declaredPersistence = latestMessage.metadata.raw_disclosure_persistence;
+    const persistence: RawDisclosurePersistence = declaredPersistence === "none"
+      || declaredPersistence === "shared"
+      || declaredPersistence === "private_only"
+      || declaredPersistence === "unknown"
+      ? declaredPersistence
+      : persisted === false
+        ? "none"
+        : "unknown";
+    return {
+      rawDisclosurePersisted: typeof persisted === "boolean" ? persisted : null,
+      persistence,
+    };
+  }, [scopedMessages]);
+  const hasActiveW5SafetyCard = activeW5PersistenceState !== null;
+  const activeSendFailure = activeLane ? sendFailuresByLane[activeLane] : null;
+  const activeColdStartAiRecovery = activeLane
+    ? coldStartAiRecoveryByLane[activeLane]
     : null;
-  const latestSharedMessageId = [...messages]
-    .reverse()
-    .find((message) => message.visibility === "shared")?.id ?? null;
+  const isConfirmedActionRecovery =
+    activeSendFailure?.kind === "ai_insert"
+    && typeof activeSendFailure.draft.confirmedActionId === "string";
+  const latestSharedMessage = useMemo(
+    () => [...messages]
+      .reverse()
+      .find((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+      )) ?? null,
+    [messages],
+  );
+  const latestSharedMessageId = latestSharedMessage?.id ?? null;
+  const latestPendingAction = useMemo(
+    () => latestSharedMessage ? getPendingAmoraAction(latestSharedMessage) : null,
+    [latestSharedMessage],
+  );
+  const latestPendingApprovalPolicy = latestPendingAction
+    ? getAmoraActionApprovalPolicy(latestPendingAction.tool, latestPendingAction.input)
+    : "blocked";
+
+  const isCurrentChatSession = useCallback((generation: number) => (
+    mountedRef.current && chatSessionGenerationRef.current.isCurrent(generation)
+  ), []);
+
+  const setLaneFailure = useCallback((
+    lane: AmoraChatLane,
+    failure: SendFailure | null,
+  ) => {
+    setSendFailuresByLane((current) => (
+      current[lane] === failure
+        ? current
+        : updateAmoraChatLaneRecord(current, lane, failure)
+    ));
+  }, []);
+
+  const resetChatSessionState = useCallback(() => {
+    activeControllerRef.current?.abort();
+    activeControllerRef.current = null;
+    if (channelRef.current) {
+      void supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    hasLinkedPartnerRef.current = false;
+    linkedPartnerIdRef.current = null;
+    sendingRef.current = false;
+    safetyHoldLockRef.current = false;
+    applyingPendingActionRef.current = null;
+    persistedAiRequestKeysRef.current.clear();
+    previousMessageCountRef.current = 0;
+    setMessages([]);
+    setStreaming(false);
+    setCoupleId(null);
+    setUserId(null);
+    setUserRole(null);
+    setUserName("사용자");
+    setPartnerName(null);
+    setHasLinkedPartner(false);
+    setInitialLoaded(false);
+    setTarget("ai");
+    setActiveScope("shared");
+    setInputByLane(createEmptyAmoraChatLaneRecord(() => ""));
+    setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
+    setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
+    setQuotaRemaining(null);
+    setDismissedPendingActionIds(new Set());
+    setApplyingPendingActionId(null);
+    setPendingActionNotice(null);
+    setPendingActionApproval(null);
+    setPartnerSafetyNotice(null);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (
+      !latestPendingAction
+      || !latestSharedMessageId
+      || latestPendingApprovalPolicy !== "couple"
+    ) {
+      setPendingActionApproval(null);
+      return;
+    }
+
+    const actionId = latestPendingAction.actionId;
+    const messageId = latestSharedMessageId;
+    const expiresAt = latestPendingAction.expiresAt;
+    let active = true;
+
+    setPendingActionApproval({
+      actionId,
+      messageId,
+      status: null,
+      error: null,
+      mutation: null,
+    });
+
+    const loadStatus = async () => {
+      if (!active || Date.now() >= expiresAt) return;
+      try {
+        const status = await requestAmoraSharedActionStatus(
+          actionId,
+          messageId,
+          sessionUserIdRef.current,
+        );
+        if (!active) return;
+        setPendingActionApproval((current) => (
+          current?.actionId === actionId && current.messageId === messageId
+            ? { ...current, status, error: null }
+            : current
+        ));
+      } catch (error) {
+        if (!active) return;
+        setPendingActionApproval((current) => (
+          current?.actionId === actionId && current.messageId === messageId
+            ? {
+                ...current,
+                error: getAmoraSharedActionFailureMessage(
+                  error,
+                  "공동 확인 상태를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+                ),
+              }
+            : current
+        ));
+      }
+    };
+
+    void loadStatus();
+    const refreshTimer = setInterval(() => void loadStatus(), 5_000);
+    return () => {
+      active = false;
+      clearInterval(refreshTimer);
+    };
+  }, [
+    latestPendingAction,
+    latestPendingApprovalPolicy,
+    latestSharedMessageId,
+  ]);
+
+  useEffect(() => {
+    hasLinkedPartnerRef.current = hasLinkedPartner;
+    if (hasLinkedPartner) return;
+    linkedPartnerIdRef.current = null;
+    setTarget((current) => current === "partner" ? "ai" : current);
+    setInputByLane((current) => updateAmoraChatLaneRecord(current, "shared_partner", ""));
+    setSendFailuresByLane((current) => (
+      updateAmoraChatLaneRecord(current, "shared_partner", null)
+    ));
+  }, [hasLinkedPartner]);
 
   const scrollToLatest = useCallback((animated = true, delay = 40) => {
     setTimeout(() => {
@@ -799,48 +1995,313 @@ export default function ChatScreen() {
 
   useEffect(() => {
     mountedRef.current = true;
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setInitialLoaded(true); return; }
-      setUserId(user.id);
+    let authReloadTimer: ReturnType<typeof setTimeout> | null = null;
+    let observedAuthUserId: string | null | undefined;
 
-      const { data: profile } = await supabase.from("profiles").select("name, role, couple_id").eq("id", user.id).single();
-      if (!profile?.couple_id) { setInitialLoaded(true); return; }
+    function scheduleChatSessionReload() {
+      chatSessionGenerationRef.current.invalidate();
+      resetChatSessionState();
+      if (authReloadTimer) clearTimeout(authReloadTimer);
+      authReloadTimer = setTimeout(() => {
+        authReloadTimer = null;
+        if (mountedRef.current) void loadChatSession();
+      }, 0);
+    }
+
+    async function loadChatSession() {
+      const generation = chatSessionGenerationRef.current.begin();
+      resetChatSessionState();
+      const isCurrentGeneration = () => isCurrentChatSession(generation);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!isCurrentGeneration()) return;
+      sessionUserIdRef.current = user?.id ?? null;
+      observedAuthUserId = user?.id ?? null;
+      if (!user) {
+        setInitialLoaded(true);
+        return;
+      }
+      const reloadIdentity = () => {
+        if (!isCurrentChatSession(generation)) return;
+        scheduleChatSessionReload();
+      };
+
+      const { data: profile } = await supabase.from("profiles")
+        .select("name, role, couple_id")
+        .eq("id", user.id)
+        .single();
+      if (!isCurrentGeneration()) return;
+      const reloadWhenProfileIdentityChanges = (payload: { new: Record<string, unknown> }) => {
+        if (!isCurrentGeneration()) return;
+        const nextProfile = payload.new;
+        if (
+          nextProfile.couple_id !== profile?.couple_id
+          || nextProfile.role !== profile?.role
+        ) reloadIdentity();
+      };
+      setUserId(user.id);
+      if (!profile?.couple_id) {
+        const identityChannel = supabase.channel(`chat-identity:${user.id}:${generation}`)
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, reloadWhenProfileIdentityChanges)
+          .subscribe();
+        if (!isCurrentGeneration()) {
+          void supabase.removeChannel(identityChannel);
+          return;
+        }
+        channelRef.current = identityChannel;
+        setInitialLoaded(true);
+        return;
+      }
+
       const viewerRole: ViewerRole = profile.role === "bride" || profile.role === "groom"
         ? profile.role
         : null;
       setCoupleId(profile.couple_id);
-      if (profile.name) setUserName(profile.name);
-      if (viewerRole) setUserRole(viewerRole);
+      setUserName(profile.name || "사용자");
+      setUserRole(viewerRole);
 
-      // 파트너
-      const { data: partners } = await supabase.from("couple_profile_directory").select("name").eq("couple_id", profile.couple_id).neq("id", user.id);
-      if (partners?.[0]) setPartnerName(partners?.[0]?.name ?? "");
+      const [
+        { data: couple },
+        { data: partners },
+      ] = await Promise.all([
+        supabase.from("couples")
+          .select("bride_id, groom_id")
+          .eq("id", profile.couple_id)
+          .maybeSingle(),
+        supabase.from("couple_profile_directory")
+          .select("id, name")
+          .eq("couple_id", profile.couple_id)
+          .neq("id", user.id),
+      ]);
+      if (!isCurrentGeneration()) return;
 
-      // 대화 이력
-      const { data: history } = await supabase.from("chat_messages")
-        .select("id, role, sender_type, content, metadata, created_at, visibility")
-        .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
+      const expectedSelfId = viewerRole === "bride"
+        ? couple?.bride_id
+        : viewerRole === "groom"
+          ? couple?.groom_id
+          : null;
+      const expectedPartnerId = viewerRole === "bride"
+        ? couple?.groom_id
+        : viewerRole === "groom"
+          ? couple?.bride_id
+          : null;
+      const linkedPartner = typeof expectedPartnerId === "string"
+        ? partners?.find((partner) => partner.id === expectedPartnerId) ?? null
+        : null;
+      const partnerIsVerified = Boolean(
+        viewerRole
+        && couple?.bride_id
+        && couple?.groom_id
+        && couple.bride_id !== couple.groom_id
+        && expectedSelfId === user.id
+        && linkedPartner,
+      );
+      hasLinkedPartnerRef.current = partnerIsVerified;
+      linkedPartnerIdRef.current = partnerIsVerified ? expectedPartnerId ?? null : null;
+      setHasLinkedPartner(partnerIsVerified);
+      setPartnerName(partnerIsVerified ? linkedPartner?.name || "파트너" : null);
+      const reloadWhenCoupleRosterChanges = (payload: { new: Record<string, unknown> }) => {
+        if (!isCurrentGeneration() || !couple) return;
+        const nextCouple = payload.new;
+        if (
+          nextCouple.bride_id !== couple.bride_id
+          || nextCouple.groom_id !== couple.groom_id
+        ) reloadIdentity();
+      };
 
-      if (history?.length) {
-        const historyMessages = history
-          .map((message) => chatMessageFromRealtimeRow(message))
-          .filter((message): message is ChatMessage => (
-            message !== null && canViewerSeeChatMessage(message, viewerRole)
-          ));
-        for (const message of historyMessages) {
-          const metadata = message.metadata;
-          const persistedRequestKey = metadata?.client_visible_request_id ?? metadata?.client_request_id;
-          if (message.sender_type === "ai" && persistedRequestKey) {
-            persistedAiRequestKeysRef.current.add(persistedRequestKey);
-          }
+      const chatMessageSelect =
+        "id, couple_id, sender_id, role, sender_type, content, metadata, created_at, visibility";
+      const privateVisibility: ChatMessageVisibility | null = viewerRole
+        ? `${viewerRole}_private`
+        : null;
+      const latestOwnSharedAiUserRequest = viewerRole
+        ? supabase.from("chat_messages")
+          .select(chatMessageSelect)
+          .eq("couple_id", profile.couple_id)
+          .eq("sender_id", user.id)
+          .eq("sender_type", viewerRole)
+          .eq("role", "user")
+          .eq("visibility", "shared")
+          .or("metadata->>target.is.null,metadata->>target.eq.ai")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+      const latestPrivateCanonicalRequest = privateVisibility
+        ? supabase.from("chat_messages")
+          .select(chatMessageSelect)
+          .eq("couple_id", profile.couple_id)
+          .eq("visibility", privateVisibility)
+          .or("metadata->>target.is.null,metadata->>target.eq.ai")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+      const latestOwnPrivateAiUserRequest = privateVisibility && viewerRole
+        ? supabase.from("chat_messages")
+          .select(chatMessageSelect)
+          .eq("couple_id", profile.couple_id)
+          .eq("sender_id", user.id)
+          .eq("sender_type", viewerRole)
+          .eq("role", "user")
+          .eq("visibility", privateVisibility)
+          .or("metadata->>target.is.null,metadata->>target.eq.ai")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+
+      const [
+        { data: history },
+        {
+          data: latestSharedCanonical,
+          error: latestSharedCanonicalError,
+        },
+        {
+          data: latestOwnSharedAiUser,
+          error: latestOwnSharedAiUserError,
+        },
+        {
+          data: latestPrivateCanonical,
+          error: latestPrivateCanonicalError,
+        },
+        {
+          data: latestOwnPrivateAiUser,
+          error: latestOwnPrivateAiUserError,
+        },
+      ] = await Promise.all([
+        supabase.from("chat_messages")
+          .select(chatMessageSelect)
+          .eq("couple_id", profile.couple_id)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(200),
+        supabase.from("chat_messages")
+          .select(chatMessageSelect)
+          .eq("couple_id", profile.couple_id)
+          .eq("visibility", "shared")
+          .or("metadata->>target.is.null,metadata->>target.neq.partner")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        latestOwnSharedAiUserRequest,
+        latestPrivateCanonicalRequest,
+        latestOwnPrivateAiUserRequest,
+      ]);
+      if (!isCurrentGeneration()) return;
+
+      const normalizedBoundedHistory = (history ?? [])
+        .map((message) => chatMessageFromRealtimeRow(message))
+        .filter((message): message is ChatMessage => (
+          message !== null && canViewerSeeChatMessage(message, viewerRole)
+        ));
+      const sharedSupplementalCanonicalTurns =
+        latestSharedCanonicalError || latestOwnSharedAiUserError
+          ? []
+          : [latestSharedCanonical, latestOwnSharedAiUser];
+      const privateSupplementalCanonicalTurns =
+        latestPrivateCanonicalError || latestOwnPrivateAiUserError
+          ? []
+          : [latestPrivateCanonical, latestOwnPrivateAiUser];
+      const supplementalCanonicalTurns = [
+        ...sharedSupplementalCanonicalTurns,
+        ...privateSupplementalCanonicalTurns,
+      ]
+        .map((message) => chatMessageFromRealtimeRow(message))
+        .filter((message): message is ChatMessage => (
+          message !== null && canViewerSeeChatMessage(message, viewerRole)
+        ));
+      const boundedHistory = mergeColdStartRecoveryHistory(
+        normalizedBoundedHistory,
+        supplementalCanonicalTurns,
+      );
+      const historyMessages = boundedHistory
+        .sort((left, right) => {
+          const byCreatedAt =
+            new Date(left.created_at ?? 0).getTime()
+            - new Date(right.created_at ?? 0).getTime();
+          return byCreatedAt || left.id.localeCompare(right.id);
+        });
+      for (const message of historyMessages) {
+        const metadata = message.metadata;
+        const persistedRequestKey = metadata?.client_visible_request_id ?? metadata?.client_request_id;
+        if (message.sender_type === "ai" && persistedRequestKey) {
+          persistedAiRequestKeysRef.current.add(persistedRequestKey);
         }
-        setMessages(historyMessages);
+      }
+      setMessages(reconcileMobileAmoraCrisisRecovery(
+        historyMessages,
+        user.id,
+        profile.couple_id,
+        viewerRole,
+      ));
+
+      const canonicalShared = historyMessages.filter((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+        && message.metadata?.pinned_safety_card !== true
+      ));
+      const durableConfirmation = canonicalShared[canonicalShared.length - 1];
+      const confirmedActionId = durableConfirmation?.metadata?.confirmed_amora_action_id;
+      const confirmationClientRequestId =
+        durableConfirmation?.metadata?.client_request_id;
+      if (
+        durableConfirmation
+        && durableConfirmation.sender_type === viewerRole
+        && durableConfirmation.role === "user"
+        && typeof confirmedActionId === "string"
+        && typeof confirmationClientRequestId === "string"
+        && viewerRole
+      ) {
+        setLaneFailure("shared_ai", {
+          kind: "ai_insert",
+          message: "확인은 안전하게 저장됐어요. 반영을 이어서 완료해 주세요.",
+          canRetry: true,
+          unavailableReason: null,
+          draft: {
+            text: durableConfirmation.content,
+            sourceLane: "shared_ai",
+            target: "ai",
+            clientRequestId: confirmationClientRequestId,
+            coupleId: profile.couple_id,
+            userId: user.id,
+            senderType: viewerRole,
+            senderName: profile.name ?? "사용자",
+            requestedVisibility: "shared",
+            visibility: "shared",
+            providerAttachmentCount: 0,
+            sessionGeneration: generation,
+            confirmedActionId,
+          },
+        });
+      } else if (viewerRole) {
+        const sharedRecovery = findColdStartAiRecovery(historyMessages, {
+          coupleId: profile.couple_id,
+          userId: user.id,
+          senderType: viewerRole,
+          visibility: "shared",
+        });
+        const privateRecovery = findColdStartAiRecovery(historyMessages, {
+          coupleId: profile.couple_id,
+          userId: user.id,
+          senderType: viewerRole,
+          visibility: `${viewerRole}_private`,
+        });
+        setColdStartAiRecoveryByLane((current) => ({
+          ...current,
+          shared_ai: sharedRecovery,
+          private_ai: privateRecovery,
+          shared_partner: null,
+        }));
       }
 
-      // Realtime
-      const ch = supabase.channel(`chat:${profile.couple_id}`)
+      const ch = supabase.channel(`chat:${profile.couple_id}:${generation}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+          if (!isCurrentChatSession(generation)) return;
           const incoming = chatMessageFromRealtimeRow(payload.new);
           if (!incoming || !canViewerSeeChatMessage(incoming, viewerRole)) return;
           const incomingMetadata = incoming.metadata;
@@ -849,43 +2310,97 @@ export default function ChatScreen() {
             : undefined;
           if (incomingRequestKey) {
             persistedAiRequestKeysRef.current.add(incomingRequestKey);
-            setSendFailure((failure) =>
-              failure?.kind === "ai_response" && failure.request.serverRequestKey === incomingRequestKey
-                ? null
-                : failure
-            );
+            const lane = aiLaneForVisibility(incoming.visibility);
+            setSendFailuresByLane((current) => {
+              const failure = current[lane];
+              return failure?.kind === "ai_response"
+                && failure.request.serverRequestKey === incomingRequestKey
+                ? updateAmoraChatLaneRecord(current, lane, null)
+                : current;
+            });
           }
-          setMessages((prev) => {
-            return mergeRealtimeMessage(prev, incoming, incomingRequestKey ?? null);
+          const lane = aiLaneForVisibility(incoming.visibility);
+          setColdStartAiRecoveryByLane((current) => {
+            const recovery = current[lane];
+            if (!recovery) return current;
+            const visibleRecoveryKey =
+              `chat:${user.id}:${recovery.clientRequestId}`;
+            const answersRecovery =
+              incomingMetadata?.in_reply_to_user_message_id === recovery.userMessageId
+              || incomingRequestKey === visibleRecoveryKey
+              || incomingRequestKey === recovery.clientRequestId;
+            const supersedesRecovery =
+              incoming.id !== recovery.userMessageId
+              && incomingMetadata?.target !== "partner";
+            return answersRecovery || supersedesRecovery
+              ? updateAmoraChatLaneRecord(current, lane, null)
+              : current;
           });
+          setMessages((previous) => reconcileMobileAmoraCrisisRecovery(
+            mergeRealtimeMessage(previous, incoming, incomingRequestKey ?? null),
+            user.id,
+            profile.couple_id,
+            viewerRole,
+          ));
         })
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+          if (!isCurrentChatSession(generation)) return;
           const updated = chatMessageFromRealtimeRow(payload.new);
           const updatedId = updated?.id
             ?? (payload.new as Record<string, unknown> | null)?.id;
           if (typeof updatedId !== "string") return;
           setMessages((previous) => {
             if (!updated || !canViewerSeeChatMessage(updated, viewerRole)) {
-              return previous.filter((message) => message.id !== updatedId);
+              return reconcileMobileAmoraCrisisRecovery(
+                previous.filter((message) => message.id !== updatedId),
+                user.id,
+                profile.couple_id,
+                viewerRole,
+              );
             }
             if (!previous.some((message) => message.id === updated.id)) return previous;
-            return previous.map((message) => message.id === updated.id ? updated : message);
+            return reconcileMobileAmoraCrisisRecovery(
+              previous.map((message) => message.id === updated.id ? updated : message),
+              user.id,
+              profile.couple_id,
+              viewerRole,
+            );
           });
         })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, reloadWhenProfileIdentityChanges)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "couples", filter: `id=eq.${profile.couple_id}` }, reloadWhenCoupleRosterChanges)
         .subscribe();
+      if (!isCurrentGeneration()) {
+        void supabase.removeChannel(ch);
+        return;
+      }
       channelRef.current = ch;
       setInitialLoaded(true);
-    })();
+    }
+
+    void loadChatSession();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextAuthUserId = session?.user.id ?? null;
+      // 아래 early return보다 먼저 갱신한다. 승인 요청이 결박할 대상은 항상 지금 사람이다.
+      sessionUserIdRef.current = nextAuthUserId;
+      if (nextAuthUserId === observedAuthUserId) return;
+      observedAuthUserId = nextAuthUserId;
+      scheduleChatSessionReload();
+    });
+
     return () => {
       mountedRef.current = false;
+      chatSessionGenerationRef.current.invalidate();
+      if (authReloadTimer) clearTimeout(authReloadTimer);
+      subscription.unsubscribe();
       activeControllerRef.current?.abort();
       activeControllerRef.current = null;
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, []);
+  }, [isCurrentChatSession, resetChatSessionState, setLaneFailure]);
 
   useEffect(() => {
     if (!initialLoaded || scopedMessages.length === 0) return;
@@ -905,89 +2420,242 @@ export default function ChatScreen() {
   function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
 
   async function findDurableUserMessage(
-    draft: Pick<AiDraft, "text" | "startedAt" | "coupleId" | "userId" | "senderType" | "visibility">,
-    intendedTarget: MessageTarget,
+    draft: AiDraft,
+    intendedTarget: "ai",
   ): Promise<ChatMessage | null> {
-    const { data, error } = await supabase.from("chat_messages")
-      .select("id, role, sender_type, content, metadata, created_at, visibility")
+    if (intendedTarget !== draft.target) return null;
+    let query = supabase.from("chat_messages")
+      .select("id, couple_id, sender_id, role, sender_type, content, metadata, created_at, visibility")
       .eq("couple_id", draft.coupleId)
       .eq("sender_id", draft.userId)
       .eq("sender_type", draft.senderType)
       .eq("role", "user")
-      .eq("content", draft.text)
-      .eq("visibility", draft.visibility)
-      .gte("created_at", draft.startedAt)
+      .eq("visibility", draft.visibility);
+    query = draft.confirmedActionId
+      ? query.contains("metadata", {
+          confirmed_amora_action_id: draft.confirmedActionId,
+        })
+      : query.contains("metadata", {
+          client_request_id: draft.clientRequestId,
+        });
+    if (draft.durableUserMessageId) {
+      query = query.eq("id", draft.durableUserMessageId);
+    }
+    const { data, error } = await query
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(1)
+      .maybeSingle();
 
     if (error || !data) return null;
-    const match = data.find((row) => {
-      const metadata = row.metadata as ChatMessageMetadata | null;
-      return intendedTarget === "partner"
-        ? metadata?.target === "partner"
-        : metadata?.target !== "partner";
-    });
-    if (!match) return null;
-    return chatMessageFromRealtimeRow(match);
+    const durableMessage = chatMessageFromRealtimeRow(data);
+    const metadata = durableMessage?.metadata;
+    const confirmedActionMatches = draft.confirmedActionId
+      ? metadata?.confirmed_amora_action_id === draft.confirmedActionId
+      : metadata?.confirmed_amora_action_id === undefined;
+    const legacyConfirmedActionRow = Boolean(
+      draft.confirmedActionId
+      && !draft.durableUserMessageId
+      && metadata?.amora_ingest_contract_version === undefined
+      && metadata?.ai_response_requested === undefined
+      && metadata?.provider_attachment_state === undefined
+      && metadata?.provider_attachment_count === undefined,
+    );
+    const providerAttachmentStateMatches = draft.recoveredProviderAttachmentState
+      ? metadata?.provider_attachment_state === draft.recoveredProviderAttachmentState
+      : draft.providerAttachmentCount === 0
+        ? metadata?.provider_attachment_state === "none"
+          || metadata?.provider_attachment_state === "discarded_by_safety_policy"
+        : metadata?.provider_attachment_state === "present";
+    const ingestContractMatches = legacyConfirmedActionRow || (
+      metadata?.amora_ingest_contract_version === 1
+      && metadata.ai_response_requested === true
+      && metadata.provider_attachment_count === draft.providerAttachmentCount
+      && providerAttachmentStateMatches
+    );
+    if (
+      !durableMessage
+      || (
+        typeof draft.durableUserMessageId === "string"
+        && durableMessage.id !== draft.durableUserMessageId
+      )
+      || durableMessage.couple_id !== draft.coupleId
+      || durableMessage.sender_id !== draft.userId
+      || durableMessage.sender_type !== draft.senderType
+      || durableMessage.role !== "user"
+      || durableMessage.content !== draft.text
+      || durableMessage.visibility !== draft.visibility
+      || metadata?.client_request_id !== draft.clientRequestId
+      || (
+        metadata?.target !== undefined
+        && metadata.target !== "ai"
+      )
+      || metadata?.partner_recipient_id !== undefined
+      || !confirmedActionMatches
+      || !ingestContractMatches
+    ) return null;
+    if (draft.durableUserMessageId) {
+      const visibleRequestKey = `chat:${draft.userId}:${draft.clientRequestId}`;
+      const answerCorrelationFilter = [
+        `metadata->>in_reply_to_user_message_id.eq.${durableMessage.id}`,
+        `metadata->>client_visible_request_id.eq.${visibleRequestKey}`,
+        `metadata->>client_request_id.eq.${visibleRequestKey}`,
+        `metadata->>client_visible_request_id.eq.${draft.clientRequestId}`,
+        `metadata->>client_request_id.eq.${draft.clientRequestId}`,
+      ].join(",");
+      const { data: answerRows, error: answerLookupError } = await supabase
+        .from("chat_messages")
+        .select("id")
+        .eq("couple_id", draft.coupleId)
+        .eq("sender_type", "ai")
+        .eq("role", "assistant")
+        .eq("visibility", draft.visibility)
+        .or(answerCorrelationFilter)
+        .limit(1);
+      if (answerLookupError || (answerRows ?? []).length > 0) return null;
+    }
+    return durableMessage;
   }
 
-  async function sendPartnerDraft(draft: PartnerDraft, reconcileFirst: boolean) {
+  async function sendPartnerDraft(draft: PartnerDraft) {
+    const lane: AmoraChatLane = "shared_partner";
+    if (!isCurrentChatSession(draft.sessionGeneration)) return;
+    if (
+      !hasLinkedPartnerRef.current
+      || linkedPartnerIdRef.current !== draft.partnerRecipientId
+    ) {
+      hasLinkedPartnerRef.current = false;
+      linkedPartnerIdRef.current = null;
+      setHasLinkedPartner(false);
+      setPartnerName(null);
+      setTarget("ai");
+      setInputByLane((current) => updateAmoraChatLaneRecord(current, lane, ""));
+      setLaneFailure(lane, null);
+      setPartnerSafetyNotice(PARTNER_CONNECTION_CHANGED_NOTICE);
+      return;
+    }
     setStreaming(true);
-    setSendFailure(null);
+    setLaneFailure(lane, null);
     try {
-      let durableMessage = reconcileFirst
-        ? await findDurableUserMessage(draft, "partner")
-        : null;
-
-      if (!durableMessage) {
-        const { data, error } = await supabase.from("chat_messages")
-          .insert({
-            couple_id: draft.coupleId,
-            sender_id: draft.userId,
-            sender_type: draft.senderType,
-            role: "user",
-            content: draft.text,
-            metadata: { target: "partner" },
-            visibility: draft.visibility,
-          })
-          .select("id, role, sender_type, content, metadata, created_at, visibility")
-          .single();
-
-        const insertedMessage = !error && data
-          ? chatMessageFromRealtimeRow(data)
-          : null;
-        durableMessage = insertedMessage ?? await findDurableUserMessage(draft, "partner");
+      const recipientVerification = await verifyPartnerDraftRecipient(draft);
+      if (!isCurrentChatSession(draft.sessionGeneration)) return;
+      if (recipientVerification === "unlinked") {
+        hasLinkedPartnerRef.current = false;
+        linkedPartnerIdRef.current = null;
+        setHasLinkedPartner(false);
+        setPartnerName(null);
+        setTarget("ai");
+        setInputByLane((current) => updateAmoraChatLaneRecord(current, lane, ""));
+        setLaneFailure(lane, null);
+        setPartnerSafetyNotice(PARTNER_CONNECTION_CHANGED_NOTICE);
+        return;
+      }
+      if (recipientVerification === "unavailable") {
+        throw new Error("partner recipient verification unavailable");
       }
 
-      if (!durableMessage) throw new Error("partner message was not persisted");
-      if (mountedRef.current) {
+      const ingestResult = await requestAiMessageIngest(draft);
+      if (!isCurrentChatSession(draft.sessionGeneration)) return;
+      if (ingestResult.outcome === "ephemeral_safety") {
+        if (!ingestResult.partnerDeliveryHeld) {
+          throw new Error("partner safety hold was not confirmed");
+        }
+        const safetyCardId =
+          `amora-server-partner-safety:${draft.userId}:${draft.clientRequestId}`;
+        const safetyPersistence = getEphemeralSafetyPersistencePresentation(
+          ingestResult.rawDisclosurePersisted,
+          ingestResult.rawDisclosureVisibility,
+          ingestResult.partnerDeliveryHeld,
+        );
+        const safetyCard: ChatMessage = {
+          id: safetyCardId,
+          couple_id: draft.coupleId,
+          sender_id: null,
+          role: "assistant",
+          sender_type: "ai",
+          content: `${safetyPersistence.notice}\n\n${ingestResult.response}`,
+          metadata: {
+            response_origin: ingestResult.safetyResolution === "immediate_crisis"
+              ? "server_authoritative_partner_crisis_hold"
+              : "server_authoritative_partner_safety_hold",
+            ...(ingestResult.classification
+              ? { safety_classification: ingestResult.classification }
+              : {}),
+            question_scope: ingestResult.safetyResolution === "immediate_crisis"
+              ? "W5_safety_override"
+              : "W2_high_risk_adjacent",
+            memory_eligible: false,
+            persistence_status: "ephemeral_local_only",
+            pinned_safety_card: true,
+            ...(ingestResult.rawDisclosurePersisted === null
+              ? {}
+              : { raw_disclosure_persisted: ingestResult.rawDisclosurePersisted }),
+            ...(safetyPersistence.rawDisclosureShared === null
+              ? {}
+              : { raw_disclosure_shared: safetyPersistence.rawDisclosureShared }),
+            raw_disclosure_persistence: safetyPersistence.persistence,
+          },
+          created_at: new Date().toISOString(),
+          visibility: ingestResult.effectiveVisibility,
+        };
+        setMessages((previous) => previous.some((message) => message.id === safetyCardId)
+          ? previous
+          : [...previous, safetyCard]
+        );
+        setInputByLane((current) => (
+          current[lane].trim() === draft.text
+            ? updateAmoraChatLaneRecord(current, lane, "")
+            : current
+        ));
+        setLaneFailure(lane, null);
+        setPartnerSafetyNotice(null);
+        setQuotaRemaining(null);
+        setActiveScope("private");
+        setTarget("ai");
+        safetyHoldLockRef.current = true;
+        return;
+      }
+      const durableMessage = ingestResult.message;
+      if (isCurrentChatSession(draft.sessionGeneration)) {
         setMessages((previous) => previous.some((message) => message.id === durableMessage.id)
           ? previous
           : [...previous, durableMessage]
         );
-        setActiveInput((current) => current.trim() === draft.text ? "" : current);
+        setInputByLane((current) => (
+          current[lane].trim() === draft.text
+            ? updateAmoraChatLaneRecord(current, lane, "")
+            : current
+        ));
       }
-    } catch {
-      if (mountedRef.current) {
-        setSendFailure({
-          kind: "partner_insert",
-          message: "메시지를 저장하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
+    } catch (error) {
+      if (isCurrentChatSession(draft.sessionGeneration)) {
+        const canRetry = !(error instanceof AiMessageIngestError) || error.retryable;
+        const statusNeedsDifferentAction = error instanceof AiMessageIngestError
+          && (error.status === 401 || error.status === 403);
+        setLaneFailure(lane, {
+          kind: "partner_ingest",
+          message: error instanceof AiMessageIngestError
+            ? getAiMessageIngestFailureMessage(error, false)
+            : "메시지 전송 결과를 확인하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
           draft,
+          canRetry,
+          unavailableReason: canRetry || statusNeedsDifferentAction
+            ? null
+            : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
         });
       }
     } finally {
-      if (mountedRef.current) setStreaming(false);
+      if (isCurrentChatSession(draft.sessionGeneration)) setStreaming(false);
     }
   }
 
   async function streamAiRequest(request: AiRequest) {
-    if (!mountedRef.current) return;
+    if (!isCurrentChatSession(request.sessionGeneration)) return;
     if (persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
-      setSendFailure(null);
+      setLaneFailure(request.lane, null);
       setStreaming(false);
       return;
     }
-    setSendFailure(null);
+    setLaneFailure(request.lane, null);
     setQuotaRemaining(null);
     setStreaming(true);
     setMessages((previous) => {
@@ -999,6 +2667,8 @@ export default function ChatScreen() {
       if (hasPersistedAnswer) return previous;
       const placeholder: ChatMessage = {
         id: request.tempId,
+        couple_id: request.body.coupleId,
+        sender_id: null,
         role: "assistant",
         sender_type: "ai",
         content: "",
@@ -1036,12 +2706,12 @@ export default function ChatScreen() {
         request.body,
         controller.signal,
         (partialText, toolResults, metadata) => {
-          if (!mountedRef.current) return;
+          if (!isCurrentChatSession(request.sessionGeneration)) return;
           pendingUpdate = { text: partialText, toolResults, metadata };
           if (renderFrame !== null) return;
           renderFrame = requestAnimationFrame(() => {
             renderFrame = null;
-            if (!mountedRef.current) return;
+            if (!isCurrentChatSession(request.sessionGeneration)) return;
             setMessages((previous) => reconcileChatStreamUpdate(
               previous,
               request.tempId,
@@ -1051,7 +2721,7 @@ export default function ChatScreen() {
           });
         },
         (remaining) => {
-          if (mountedRef.current) setQuotaRemaining(remaining);
+          if (isCurrentChatSession(request.sessionGeneration)) setQuotaRemaining(remaining);
         },
         (metadata) => {
           completionPendingAction = getPendingAmoraAction({
@@ -1060,39 +2730,61 @@ export default function ChatScreen() {
             metadata: { pending_amora_action: metadata.pending_amora_action },
           });
         },
+        sessionUserIdRef.current,
       );
       cancelPendingRender();
-      if (mountedRef.current) {
+      if (isCurrentChatSession(request.sessionGeneration)) {
+        const crisisBoundCompletion: ChatStreamCompletion =
+          completion.metadata?.response_origin === "deterministic_crisis_safety"
+          && !completion.metadata.in_reply_to_user_message_id
+            ? {
+                ...completion,
+                metadata: {
+                  ...completion.metadata,
+                  in_reply_to_user_message_id: request.body.userMessageId,
+                },
+              }
+            : completion;
         const completedUpdate: ChatStreamCompletion = completionPendingAction
           ? {
-              ...completion,
+              ...crisisBoundCompletion,
               metadata: {
-                ...(completion.metadata ?? {}),
+                ...(crisisBoundCompletion.metadata ?? {}),
                 pending_amora_action: completionPendingAction,
               },
             }
-          : completion;
-        setMessages((previous) => reconcileChatStreamUpdate(
-          previous,
-          request.tempId,
-          request.serverRequestKey,
-          completedUpdate,
+          : crisisBoundCompletion;
+        setMessages((previous) => reconcileMobileAmoraCrisisRecovery(
+          reconcileChatStreamUpdate(
+            previous,
+            request.tempId,
+            request.serverRequestKey,
+            completedUpdate,
+          ),
+          userId ?? "",
+          request.body.coupleId,
+          userRole,
         ));
         scrollToLatest(true);
       }
     } catch (error) {
-      const cancelledByUnmount =
-        !mountedRef.current &&
+      const cancelledByInactiveSession =
+        !isCurrentChatSession(request.sessionGeneration) &&
         error instanceof ChatTransportError &&
         error.code === "CANCELLED";
-      if (!cancelledByUnmount && mountedRef.current) {
+      if (!cancelledByInactiveSession && isCurrentChatSession(request.sessionGeneration)) {
         cancelPendingRender();
         setMessages((previous) => previous.filter((message) => message.id !== request.tempId));
         if (!persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
-          setSendFailure({
+          const canRetry = canRetrySameChatRequest(error, timedOut);
+          setLaneFailure(request.lane, {
             kind: "ai_response",
             message: getAiFailureMessage(error, timedOut),
             request,
+            canRetry,
+            unavailableReason: canRetry
+              ? null
+              : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
           });
         }
       }
@@ -1100,96 +2792,314 @@ export default function ChatScreen() {
       cancelPendingRender();
       clearTimeout(timeout);
       if (activeControllerRef.current === controller) activeControllerRef.current = null;
-      if (mountedRef.current) setStreaming(false);
+      if (isCurrentChatSession(request.sessionGeneration)) setStreaming(false);
     }
   }
 
   async function sendAiDraft(draft: AiDraft, reconcileFirst: boolean) {
+    const draftLane = aiLaneForVisibility(draft.visibility);
+    if (!isCurrentChatSession(draft.sessionGeneration)) return;
+    if (
+      draft.durableUserMessageId
+      && (
+        draft.providerAttachmentCount !== 0
+        || (
+          draft.recoveredProviderAttachmentState !== "none"
+          && draft.recoveredProviderAttachmentState !== "discarded_by_safety_policy"
+        )
+      )
+    ) return;
     setStreaming(true);
-    setSendFailure(null);
+    setLaneFailure(draftLane, null);
     try {
       let durableMessage = reconcileFirst
         ? await findDurableUserMessage(draft, "ai")
         : null;
-
-      if (!durableMessage) {
-        const { data, error } = await supabase.from("chat_messages")
-          .insert({
-            couple_id: draft.coupleId,
-            sender_id: draft.userId,
-            sender_type: draft.senderType,
-            role: "user",
-            content: draft.text,
-            visibility: draft.visibility,
-          })
-          .select("id, role, sender_type, content, metadata, created_at, visibility")
-          .single();
-
-        const insertedMessage = !error && data
-          ? chatMessageFromRealtimeRow(data)
-          : null;
-        durableMessage = insertedMessage ?? await findDurableUserMessage(draft, "ai");
+      if (!isCurrentChatSession(draft.sessionGeneration)) return;
+      if (draft.durableUserMessageId && !durableMessage) {
+        setLaneFailure(draftLane, {
+          kind: "ai_insert",
+          message: "저장된 질문을 안전하게 다시 확인하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.",
+          draft,
+          canRetry: true,
+          unavailableReason: null,
+        });
+        setStreaming(false);
+        return;
+      }
+      if (
+        !durableMessage
+        && reconcileFirst
+        && draft.confirmedActionId
+        && draft.amoraSourceMessageId
+      ) {
+        const claim = await requestAmoraApplicationClaim(
+          draft.confirmedActionId,
+          draft.amoraSourceMessageId,
+          sessionUserIdRef.current,
+        );
+        if (!isCurrentChatSession(draft.sessionGeneration)) return;
+        if (!claim.applicationGranted) {
+          setPendingActionNotice({
+            actionId: draft.confirmedActionId,
+            message: "다른 화면에서 반영을 진행 중이에요. 잠시 후 다시 시도해 주세요.",
+          });
+          setStreaming(false);
+          return;
+        }
       }
 
-      if (!durableMessage) throw new Error("user message was not persisted");
+      let safetyPrivacyRedirected = durableMessage !== null
+        && durableMessage.visibility !== draft.requestedVisibility;
+      if (!durableMessage) {
+        const ingestResult = await requestAiMessageIngest(draft);
+        if (!isCurrentChatSession(draft.sessionGeneration)) return;
+        if (ingestResult.outcome === "ephemeral_safety") {
+          const safetyCardId =
+            `amora-server-crisis-preflight:${draft.userId}:${draft.clientRequestId}`;
+          const safetyPersistence = getEphemeralSafetyPersistencePresentation(
+            ingestResult.rawDisclosurePersisted,
+            ingestResult.rawDisclosureVisibility,
+            ingestResult.partnerDeliveryHeld,
+          );
+          const safetyCard: ChatMessage = {
+            id: safetyCardId,
+            couple_id: draft.coupleId,
+            sender_id: null,
+            role: "assistant",
+            sender_type: "ai",
+            content: `${safetyPersistence.notice}\n\n${ingestResult.response}`,
+            metadata: {
+              response_origin: "server_authoritative_crisis_fallback",
+              ...(ingestResult.classification
+                ? { safety_classification: ingestResult.classification }
+                : {}),
+              question_scope: "W5_safety_override",
+              memory_eligible: false,
+              persistence_status: "ephemeral_local_only",
+              pinned_safety_card: true,
+              ...(ingestResult.rawDisclosurePersisted === null
+                ? {}
+                : { raw_disclosure_persisted: ingestResult.rawDisclosurePersisted }),
+              ...(safetyPersistence.rawDisclosureShared === null
+                ? {}
+                : { raw_disclosure_shared: safetyPersistence.rawDisclosureShared }),
+              raw_disclosure_persistence: safetyPersistence.persistence,
+            },
+            created_at: new Date().toISOString(),
+            visibility: ingestResult.effectiveVisibility,
+          };
+          setMessages((previous) => previous.some((message) => message.id === safetyCardId)
+            ? previous
+            : [...previous, safetyCard]
+          );
+          setInputByLane((current) => (
+            current[draft.sourceLane].trim() === draft.text
+              ? updateAmoraChatLaneRecord(current, draft.sourceLane, "")
+              : current
+          ));
+          setQuotaRemaining(null);
+          setActiveScope("private");
+          setTarget("ai");
+          safetyHoldLockRef.current = true;
+          setStreaming(false);
+          return;
+        }
+        durableMessage = ingestResult.message;
+        safetyPrivacyRedirected = ingestResult.safetyPrivacyRedirected;
+      }
+
+      if (!durableMessage) throw new Error("AI user message was not persisted");
+      const effectiveVisibility = durableMessage.visibility;
+      const canonicalUserMessage = durableMessage;
+      const effectiveLane = aiLaneForVisibility(effectiveVisibility);
+      setLaneFailure(draftLane, null);
+      if (effectiveLane !== draftLane) setLaneFailure(effectiveLane, null);
+
+      const safetyPrivacyCard: ChatMessage | null = safetyPrivacyRedirected
+        ? {
+            id: `amora-safety-privacy-preflight:${draft.userId}:${draft.clientRequestId}`,
+            couple_id: canonicalUserMessage.couple_id,
+            sender_id: null,
+            role: "assistant",
+            sender_type: "ai",
+            content: "민감한 안전 관련 내용이라 상대방에게 공유하지 않고 나만 상담으로 옮겼어요.",
+            metadata: {
+              response_origin: "server_authoritative_safety_privacy_route",
+              question_scope: "W2_high_risk_adjacent",
+              memory_eligible: false,
+              persistence_status: "ephemeral_local_only",
+              pinned_safety_card: true,
+              raw_disclosure_persisted: true,
+              raw_disclosure_shared: false,
+              raw_disclosure_persistence: "private_only",
+            },
+            created_at: new Date().toISOString(),
+            visibility: effectiveVisibility,
+          }
+        : null;
 
       const serverRequestKey = `chat:${draft.userId}:${draft.clientRequestId}`;
+      const canonicalContext = messages
+        .filter((message) =>
+          message.id !== canonicalUserMessage.id
+          && (!message.id.startsWith("temp_") || Boolean(message.content.trim()))
+          && message.metadata?.target !== "partner"
+          && message.metadata?.pinned_safety_card !== true
+          && isMessageInAiContext(
+            message.visibility,
+            effectiveVisibility,
+          )
+        )
+        .slice(-39)
+        .map(({ role, content }) => ({ role, content }));
+      const canonicalConfirmedActionId =
+        typeof canonicalUserMessage.metadata?.confirmed_amora_action_id === "string"
+          ? canonicalUserMessage.metadata.confirmed_amora_action_id
+          : undefined;
       const request: AiRequest = {
         tempId: `temp_${draft.clientRequestId}`,
         serverRequestKey,
+        lane: effectiveLane,
+        sessionGeneration: draft.sessionGeneration,
         body: {
           messages: [
-            ...draft.context,
-            { role: "user", content: durableMessage.content },
+            ...canonicalContext,
+            { role: "user", content: canonicalUserMessage.content },
           ],
-          coupleId: draft.coupleId,
+          coupleId: canonicalUserMessage.couple_id,
           senderName: draft.senderName,
-          clientRequestId: draft.clientRequestId,
-          userMessageId: durableMessage.id,
-          visibility: draft.visibility,
-          confirmedActionId: draft.confirmedActionId,
+          clientRequestId: canonicalUserMessage.metadata!.client_request_id!,
+          userMessageId: canonicalUserMessage.id,
+          visibility: effectiveVisibility,
+          ...(canonicalConfirmedActionId
+            ? { confirmedActionId: canonicalConfirmedActionId }
+            : {}),
         },
       };
 
-      if (mountedRef.current) {
-        setMessages((previous) => previous.some((message) => message.id === durableMessage.id)
-          ? previous
-          : [...previous, durableMessage]
-        );
-        setActiveInput((current) => current.trim() === draft.text ? "" : current);
+      if (isCurrentChatSession(draft.sessionGeneration)) {
+        if (effectiveVisibility !== "shared") {
+          setActiveScope("private");
+          setTarget("ai");
+        }
+        setMessages((previous) => {
+          const withDurableMessage = previous.some((message) => message.id === canonicalUserMessage.id)
+            ? previous
+            : [...previous, canonicalUserMessage];
+          return safetyPrivacyCard
+            && !withDurableMessage.some((message) => message.id === safetyPrivacyCard.id)
+            ? [...withDurableMessage, safetyPrivacyCard]
+            : withDurableMessage;
+        });
+        setInputByLane((current) => (
+          current[draft.sourceLane].trim() === draft.text
+            ? updateAmoraChatLaneRecord(current, draft.sourceLane, "")
+            : current
+        ));
       }
-      if (!mountedRef.current) return;
+      if (!isCurrentChatSession(draft.sessionGeneration)) return;
       await streamAiRequest(request);
-    } catch {
-      if (mountedRef.current) {
-        setSendFailure({
+    } catch (error) {
+      if (isCurrentChatSession(draft.sessionGeneration)) {
+        const canRetry = error instanceof AiMessageIngestError && error.retryable;
+        setLaneFailure(draftLane, {
           kind: "ai_insert",
-          message: "질문을 저장하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
+          message: getAiMessageIngestFailureMessage(
+            error,
+            typeof draft.confirmedActionId === "string",
+          ),
           draft,
+          canRetry,
+          unavailableReason: canRetry ? null : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
         });
         setStreaming(false);
       }
     }
   }
 
+  async function handleColdStartAiRecovery() {
+    const recovery = activeColdStartAiRecovery;
+    if (
+      !recovery
+      || recovery.disposition !== "resumable"
+      || streaming
+      || sendingRef.current
+      || !coupleId
+      || !userId
+      || !userRole
+    ) return;
+    if (
+      recovery.providerAttachmentCount !== 0
+      || (
+        recovery.providerAttachmentState !== "none"
+        && recovery.providerAttachmentState !== "discarded_by_safety_policy"
+      )
+    ) return;
+
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    if (!isCurrentChatSession(sessionGeneration)) return;
+    const draft: AiDraft = {
+      text: recovery.content,
+      sourceLane: recovery.lane,
+      target: "ai",
+      clientRequestId: recovery.clientRequestId,
+      coupleId,
+      userId,
+      senderType: userRole,
+      senderName: userName,
+      requestedVisibility: recovery.visibility,
+      visibility: recovery.visibility,
+      providerAttachmentCount: 0,
+      durableUserMessageId: recovery.userMessageId,
+      recoveredProviderAttachmentState: recovery.providerAttachmentState,
+      sessionGeneration,
+    };
+
+    sendingRef.current = true;
+    setColdStartAiRecoveryByLane((current) => (
+      updateAmoraChatLaneRecord(current, recovery.lane, null)
+    ));
+    setActiveScope(recovery.visibility === "shared" ? "shared" : "private");
+    setTarget("ai");
+    try {
+      await sendAiDraft(draft, true);
+    } finally {
+      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
+    }
+  }
+
   async function handleRetry() {
-    if (!sendFailure || streaming || sendingRef.current) return;
-    const failure = sendFailure;
+    if (!activeSendFailure || !activeLane || streaming || sendingRef.current) return;
+    const failure = activeSendFailure;
+    if (!failure.canRetry) return;
+    const sessionGeneration = failure.kind === "ai_response"
+      ? failure.request.sessionGeneration
+      : failure.draft.sessionGeneration;
+    if (!isCurrentChatSession(sessionGeneration)) return;
     sendingRef.current = true;
     try {
-      if (failure.kind === "partner_insert") {
-        setActiveInput(failure.draft.text);
-        await sendPartnerDraft(failure.draft, true);
+      if (failure.kind === "partner_ingest") {
+        setInputByLane((current) => (
+          updateAmoraChatLaneRecord(current, "shared_partner", failure.draft.text)
+        ));
+        await sendPartnerDraft(failure.draft);
         return;
       }
       if (failure.kind === "ai_insert") {
-        setActiveInput(failure.draft.text);
+        setInputByLane((current) => (
+          updateAmoraChatLaneRecord(
+            current,
+            failure.draft.sourceLane,
+            failure.draft.text,
+          )
+        ));
         await sendAiDraft(failure.draft, true);
         return;
       }
       await streamAiRequest(failure.request);
     } finally {
-      sendingRef.current = false;
+      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
     }
   }
 
@@ -1204,66 +3114,169 @@ export default function ChatScreen() {
       || !userId
       || !userRole
       || !activeVisibility
+      || !activeLane
     ) return;
+    const crisisPreflight = planAmoraCrisisDelivery({
+      userText: text,
+      requestedVisibility: activeVisibility,
+      target,
+      senderRole: userRole,
+    });
+    const effectiveVisibility = crisisPreflight.effectiveVisibility;
+    const effectiveLane = aiLaneForVisibility(effectiveVisibility);
+    if (crisisPreflight.disposition === "local_safety_hold") {
+      if (safetyHoldLockRef.current) return;
+      safetyHoldLockRef.current = true;
+      const privacyNotice = crisisPreflight.partnerDeliveryHeld
+        ? "안전을 위해 이 메시지는 상대방에게 보내거나 저장하지 않았어요."
+        : "안전을 위해 이 내용은 상대방에게 공유하거나 저장하지 않았어요.";
+      const safetyCard: ChatMessage = {
+        id: `amora-crisis-preflight:${userId}:${Date.now()}`,
+        couple_id: coupleId,
+        sender_id: null,
+        role: "assistant",
+        sender_type: "ai",
+        content: `${privacyNotice}\n\n${crisisPreflight.response}`,
+        metadata: {
+          response_origin: crisisPreflight.safetyResolution === "immediate_crisis"
+            ? "client_deterministic_crisis_preflight"
+            : "client_deterministic_safety_privacy_preflight",
+          ...(crisisPreflight.classification
+            ? { safety_classification: crisisPreflight.classification.kind }
+            : {}),
+          question_scope: crisisPreflight.safetyResolution === "immediate_crisis"
+            ? "W5_safety_override"
+            : "W2_high_risk_adjacent",
+          memory_eligible: false,
+          persistence_status: "ephemeral_local_only",
+          pinned_safety_card: true,
+          raw_disclosure_persisted: false,
+        },
+        created_at: new Date().toISOString(),
+        visibility: crisisPreflight.effectiveVisibility,
+      };
+      setMessages((previous) => previous.some((message) => message.id === safetyCard.id)
+        ? previous
+        : [...previous, safetyCard]
+      );
+      setInputByLane((current) => (
+        current[activeLane].trim() === text
+          ? updateAmoraChatLaneRecord(current, activeLane, "")
+          : current
+      ));
+      setLaneFailure(activeLane, null);
+      setPartnerSafetyNotice(null);
+      setActiveScope("private");
+      setTarget("ai");
+      return;
+    }
+    const partnerRecipientId = linkedPartnerIdRef.current;
+    if (target === "partner" && (!hasLinkedPartnerRef.current || !partnerRecipientId)) {
+      hasLinkedPartnerRef.current = false;
+      linkedPartnerIdRef.current = null;
+      setHasLinkedPartner(false);
+      setPartnerName(null);
+      setTarget("ai");
+      setInputByLane((current) => (
+        updateAmoraChatLaneRecord(current, "shared_partner", "")
+      ));
+      setLaneFailure("shared_partner", null);
+      setPartnerSafetyNotice(PARTNER_CONNECTION_CHANGED_NOTICE);
+      return;
+    }
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    if (!isCurrentChatSession(sessionGeneration)) return;
     sendingRef.current = true;
     try {
-      setSendFailure(null);
-      const startedAt = new Date().toISOString();
+      setLaneFailure(activeLane, null);
+      if (effectiveLane !== activeLane) setLaneFailure(effectiveLane, null);
+      setColdStartAiRecoveryByLane((current) => (
+        updateAmoraChatLaneRecord(current, activeLane, null)
+      ));
+      const clientRequestId = Crypto.randomUUID();
 
       if (target === "partner") {
-        if (activeVisibility !== "shared") return;
+        if (activeVisibility !== "shared" || !partnerRecipientId) return;
         await sendPartnerDraft({
           text,
-          startedAt,
+          target: "partner",
+          clientRequestId,
+          partnerRecipientId,
           coupleId,
           userId,
           senderType: userRole,
+          requestedVisibility: "shared",
           visibility: "shared",
-        }, false);
+          providerAttachmentCount: 0,
+          sessionGeneration,
+        });
         return;
       }
 
-      const context = messages
-        .filter((message) =>
-          (!message.id.startsWith("temp_") || Boolean(message.content.trim())) &&
-          message.metadata?.target !== "partner" &&
-          isMessageInAiContext(message.visibility, activeVisibility)
-        )
-        .slice(-39)
-        .map(({ role, content }) => ({ role, content }));
+      if (
+        crisisPreflight.disposition === "private_safety_route"
+        && crisisPreflight.safetyPrivacyRedirected
+      ) {
+        setActiveScope("private");
+        setTarget("ai");
+      }
+
       await sendAiDraft({
         text,
-        clientRequestId: Crypto.randomUUID(),
-        startedAt,
+        sourceLane: activeLane,
+        target: "ai",
+        clientRequestId,
         coupleId,
         userId,
         senderType: userRole,
         senderName: userName,
-        context,
-        visibility: activeVisibility,
+        requestedVisibility: activeVisibility,
+        visibility: effectiveVisibility,
+        providerAttachmentCount: 0,
+        sessionGeneration,
       }, false);
     } finally {
-      sendingRef.current = false;
+      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
     }
   }
 
   function handleInputChange(value: string) {
+    if (!activeLane) return;
+    safetyHoldLockRef.current = false;
     setActiveInput(value);
-    setSendFailure((failure) =>
-      failure?.kind === "partner_insert" || failure?.kind === "ai_insert"
-        ? null
-        : failure
-    );
+    setSendFailuresByLane((current) => {
+      const failure = current[activeLane];
+      return failure?.kind === "partner_ingest" || failure?.kind === "ai_insert"
+        ? updateAmoraChatLaneRecord(current, activeLane, null)
+        : current;
+    });
   }
 
   function handleTargetChange(nextTarget: MessageTarget) {
-    if (streaming || sendingRef.current || (activeScope === "private" && nextTarget === "partner")) return;
+    if (
+      streaming
+      || sendingRef.current
+      || (activeScope === "private" && nextTarget === "partner")
+      || (nextTarget === "partner" && !hasLinkedPartner)
+    ) return;
+    safetyHoldLockRef.current = false;
     setTarget(nextTarget);
-    setSendFailure((failure) =>
-      failure?.kind === "partner_insert" || failure?.kind === "ai_insert"
-        ? null
-        : failure
-    );
+  }
+
+  function handleAiSuggestion(value: string) {
+    if (streaming || sendingRef.current) return;
+    safetyHoldLockRef.current = false;
+    const lane: Exclude<AmoraChatLane, "shared_partner"> = activeScope === "private"
+      ? "private_ai"
+      : "shared_ai";
+    setTarget("ai");
+    setInputByLane((current) => updateAmoraChatLaneRecord(current, lane, value));
+    setSendFailuresByLane((current) => {
+      const failure = current[lane];
+      return failure?.kind === "ai_insert"
+        ? updateAmoraChatLaneRecord(current, lane, null)
+        : current;
+    });
   }
 
   async function handleApplyPendingAction(actionId: string) {
@@ -1275,46 +3288,198 @@ export default function ChatScreen() {
       || !userId
       || !userRole
     ) return;
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    if (!isCurrentChatSession(sessionGeneration)) return;
 
-    const latestSharedMessage = [...messages]
-      .reverse()
-      .find((message) => message.visibility === "shared");
-    const action = latestSharedMessage ? getPendingAmoraAction(latestSharedMessage) : null;
+    if (!latestSharedMessage) return;
+    const action = getPendingAmoraAction(latestSharedMessage);
+    const approvalPolicy = action
+      ? getAmoraActionApprovalPolicy(action.tool, action.input)
+      : "blocked";
     if (
       !action
       || action.actionId !== actionId
+      || approvalPolicy === "blocked"
       || getPendingActionDisabledReason(action, Date.now(), true, false) !== null
     ) return;
 
     sendingRef.current = true;
     applyingPendingActionRef.current = actionId;
+    setActiveScope("shared");
+    setTarget("ai");
     setApplyingPendingActionId(actionId);
+    setPendingActionNotice(null);
+    if (approvalPolicy === "couple") {
+      setPendingActionApproval((current) => (
+        current?.actionId === actionId && current.messageId === latestSharedMessage.id
+          ? { ...current, error: null, mutation: "confirm" }
+          : {
+              actionId,
+              messageId: latestSharedMessage.id,
+              status: null,
+              error: null,
+              mutation: "confirm",
+            }
+      ));
+    }
     try {
-      const context = messages
-        .filter((message) => (
-          (!message.id.startsWith("temp_") || Boolean(message.content.trim()))
-          && message.metadata?.target !== "partner"
-          && isMessageInAiContext(message.visibility, "shared")
-        ))
-        .slice(-39)
-        .map(({ role, content }) => ({ role, content }));
+      if (approvalPolicy === "couple") {
+        const approvalStatus = await requestAmoraSharedActionApproval(
+          actionId,
+          latestSharedMessage.id,
+          "POST",
+          sessionUserIdRef.current,
+        );
+        if (!isCurrentChatSession(sessionGeneration)) return;
+        setPendingActionApproval((current) => (
+          current?.actionId === actionId
+            ? { ...current, status: approvalStatus, error: null, mutation: null }
+            : current
+        ));
+        if (!approvalStatus.ready) return;
+      }
+
+      const claim = await requestAmoraApplicationClaim(
+        actionId,
+        latestSharedMessage.id,
+        sessionUserIdRef.current,
+      );
+      if (!isCurrentChatSession(sessionGeneration)) return;
+      if (!claim.applicationGranted) {
+        const retrySeconds = Math.max(
+          1,
+          Math.ceil(claim.retryAfterMs / 1_000),
+        );
+        setPendingActionNotice({
+          actionId,
+          message:
+            `다른 화면에서 반영을 시작했어요. ${retrySeconds}초 뒤에도 반영되지 않으면 다시 눌러 주세요.`,
+        });
+        return;
+      }
       const content = "좋아요. 제안한 변경을 적용해 주세요.";
       await sendAiDraft({
         text: content,
+        sourceLane: "shared_ai",
+        target: "ai",
         clientRequestId: Crypto.randomUUID(),
-        startedAt: new Date().toISOString(),
         coupleId,
         userId,
         senderType: userRole,
         senderName: userName,
-        context,
+        requestedVisibility: "shared",
         visibility: "shared",
+        providerAttachmentCount: 0,
+        sessionGeneration,
         confirmedActionId: actionId,
+        amoraSourceMessageId: latestSharedMessage.id,
       }, false);
+    } catch (error) {
+      if (isCurrentChatSession(sessionGeneration)) {
+        if (approvalPolicy === "couple") {
+          setPendingActionApproval((current) => (
+            current?.actionId === actionId
+              ? {
+                  ...current,
+                  error: getAmoraSharedActionFailureMessage(
+                    error,
+                    "내 확인을 안전하게 저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
+                  ),
+                  mutation: null,
+                }
+              : current
+          ));
+        }
+        if (approvalPolicy !== "couple") {
+          setPendingActionNotice({
+            actionId,
+            message: getAiFailureMessage(error, false),
+          });
+        }
+      }
     } finally {
-      applyingPendingActionRef.current = null;
-      setApplyingPendingActionId(null);
-      sendingRef.current = false;
+      if (isCurrentChatSession(sessionGeneration)) {
+        applyingPendingActionRef.current = null;
+        setApplyingPendingActionId(null);
+        sendingRef.current = false;
+        if (approvalPolicy === "couple") {
+          setPendingActionApproval((current) => (
+            current?.actionId === actionId
+              ? { ...current, mutation: null }
+              : current
+          ));
+        }
+      }
+    }
+  }
+
+  async function handleWithdrawPendingAction(actionId: string) {
+    if (
+      streaming
+      || sendingRef.current
+      || applyingPendingActionRef.current
+      || !latestSharedMessage
+    ) return;
+    const action = getPendingAmoraAction(latestSharedMessage);
+    const approval = pendingActionApproval?.actionId === actionId
+      && pendingActionApproval.messageId === latestSharedMessage.id
+      ? pendingActionApproval
+      : null;
+    if (
+      !action
+      || action.actionId !== actionId
+      || getAmoraActionApprovalPolicy(action.tool, action.input) !== "couple"
+      || getPendingActionDisabledReason(action, Date.now(), true, false) !== null
+      || approval?.status?.requiredCount !== 2
+      || !approval.status.accepted
+      || approval.mutation !== null
+    ) return;
+
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    if (!isCurrentChatSession(sessionGeneration)) return;
+    applyingPendingActionRef.current = actionId;
+    setPendingActionNotice(null);
+    setPendingActionApproval((current) => (
+      current?.actionId === actionId
+        ? { ...current, error: null, mutation: "withdraw" }
+        : current
+    ));
+    try {
+      const status = await requestAmoraSharedActionApproval(
+        actionId,
+        latestSharedMessage.id,
+        "DELETE",
+        sessionUserIdRef.current,
+      );
+      if (!isCurrentChatSession(sessionGeneration)) return;
+      setPendingActionApproval((current) => (
+        current?.actionId === actionId
+          ? { ...current, status, error: null, mutation: null }
+          : current
+      ));
+    } catch (error) {
+      if (!isCurrentChatSession(sessionGeneration)) return;
+      setPendingActionApproval((current) => (
+        current?.actionId === actionId
+          ? {
+              ...current,
+              error: getAmoraSharedActionFailureMessage(
+                error,
+                "내 확인을 안전하게 취소하지 못했어요. 잠시 후 다시 시도해 주세요.",
+              ),
+              mutation: null,
+            }
+          : current
+      ));
+    } finally {
+      if (isCurrentChatSession(sessionGeneration)) {
+        applyingPendingActionRef.current = null;
+        setPendingActionApproval((current) => (
+          current?.actionId === actionId
+            ? { ...current, mutation: null }
+            : current
+        ));
+      }
     }
   }
 
@@ -1332,6 +3497,7 @@ export default function ChatScreen() {
   function renderMessage({ item }: { item: ChatMessage }) {
     const isAi = item.sender_type === "ai";
     const isMe = item.sender_type === userRole;
+    const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
     const placeResults = (item.metadata?.toolResults ?? []).filter(
@@ -1353,9 +3519,69 @@ export default function ChatScreen() {
           pendingAction,
           nowMs,
           item.id === latestSharedMessageId,
-          streaming || applyingPendingActionId !== null,
+          streaming,
         )
       : null;
+    const approvalPolicy = pendingAction
+      ? getAmoraActionApprovalPolicy(pendingAction.tool, pendingAction.input)
+      : "blocked";
+    const requiresCoupleApproval = approvalPolicy === "couple";
+    const matchingApproval = pendingAction
+      && pendingActionApproval?.actionId === pendingAction.actionId
+      && pendingActionApproval.messageId === item.id
+      ? pendingActionApproval
+      : null;
+    const approvalPresentation = getSharedActionApprovalPresentation(
+      matchingApproval?.status ?? null,
+    );
+    const approvalLoading = requiresCoupleApproval
+      && (
+        !matchingApproval
+        || (matchingApproval.status === null && matchingApproval.error === null)
+      );
+    const approvalCopy = requiresCoupleApproval
+      ? matchingApproval?.error ?? approvalPresentation.copy
+      : approvalPolicy === "blocked"
+        ? "이 변경은 안전 정책상 모바일에서 바로 반영할 수 없어요. 아모라에게 최신 제안을 다시 요청해 주세요."
+        : null;
+    const approvalMutation = matchingApproval?.mutation ?? null;
+    const pendingActionControlDisabled = pendingActionDisabledReason !== null
+      || approvalPolicy === "blocked"
+      || approvalLoading
+      || approvalPresentation.waitingForPartner
+      || approvalMutation !== null
+      || applyingPendingActionId !== null;
+    const canWithdrawApproval = requiresCoupleApproval
+      && pendingActionDisabledReason === null
+      && approvalPresentation.canWithdraw
+      && approvalMutation === null
+      && applyingPendingActionId === null;
+    const impactPreview = pendingAction
+      ? getPendingAmoraBudgetImpactPreview(item, pendingAction)
+      : null;
+    const applyLabel = applyingPendingActionId === pendingAction?.actionId
+      ? "적용 요청 중…"
+      : approvalMutation === "confirm"
+        ? "내 확인 저장 중…"
+        : approvalMutation === "withdraw"
+          ? "내 확인 취소 중…"
+          : approvalLoading
+            ? "확인 상태 불러오는 중…"
+            : requiresCoupleApproval && matchingApproval?.error
+              ? "내 확인 다시 시도"
+            : requiresCoupleApproval
+              ? approvalPresentation.applyLabel
+              : "이대로 적용";
+    const applyAccessibilityLabel = requiresCoupleApproval
+      ? matchingApproval?.status?.ready
+        || matchingApproval?.status?.requiredCount === 1
+        || (
+          matchingApproval?.status?.accepted === false
+          && (matchingApproval.status.acceptedCount ?? 0) > 0
+        )
+        ? "이 공동 변경을 확인하고 바로 반영"
+        : "이 공동 변경을 확인"
+      : "확인한 내용을 이대로 적용";
     const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
@@ -1368,14 +3594,31 @@ export default function ChatScreen() {
         )}
         <View style={[
           st.messageBody,
+          isPinnedSafetyCard && st.safetyMessageBody,
           (mediationBlock || pendingAction) && st.mediationMessageBody,
           hasPlaceResults && st.placeMessageBody,
         ]}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
           {shouldRenderBubble && (
-            <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
-              {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
-            </View>
+            isPinnedSafetyCard ? (
+              <View
+                style={st.safetyCard}
+                accessible
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                accessibilityLabel={`긴급 안전 안내. ${item.content}`}
+              >
+                <View style={st.safetyCardHeading} accessibilityElementsHidden>
+                  <ShieldCheck size={18} color={colors.danger} />
+                  <Text style={st.safetyCardTitle}>긴급 안전 안내</Text>
+                </View>
+                <Text style={st.safetyCardText}>{item.content}</Text>
+              </View>
+            ) : (
+              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+                {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
+              </View>
+            )
           )}
           {placeResults.map((result, index) => (
             <PlaceCards key={`${result.toolName}-${index}`} result={result} />
@@ -1394,10 +3637,15 @@ export default function ChatScreen() {
                   <ShieldCheck size={18} color="#795252" />
                 </View>
                 <View style={st.pendingActionCopy}>
-                  <Text style={st.pendingActionTitle}>적용하기 전에 확인해 주세요</Text>
+                  <Text style={st.pendingActionTitle}>
+                    {requiresCoupleApproval
+                      ? "두 분 확인이 필요한 변경이에요"
+                      : "적용하기 전에 확인해 주세요"}
+                  </Text>
                   <Text style={st.pendingActionConfirmation}>{pendingAction.confirmation}</Text>
                 </View>
               </View>
+              {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
               {pendingActionDisabledReason && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
                   {pendingActionDisabledReason === "expired"
@@ -1405,26 +3653,69 @@ export default function ChatScreen() {
                     : pendingActionDisabledReason === "not_latest"
                       ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
                       : "현재 답변이 끝나면 다시 확인할 수 있어요."}
+                  </Text>
+              )}
+              {approvalCopy && (
+                <View
+                  style={[
+                    st.pendingActionApprovalStatus,
+                    matchingApproval?.error && st.pendingActionApprovalError,
+                  ]}
+                  accessibilityLiveRegion="polite"
+                >
+                  <Users
+                    size={15}
+                    color={matchingApproval?.error ? "#8A3D31" : "#2F5F51"}
+                  />
+                  <Text style={[
+                    st.pendingActionApprovalText,
+                    matchingApproval?.error && st.pendingActionApprovalErrorText,
+                  ]}>
+                    {approvalCopy}
+                  </Text>
+                </View>
+              )}
+              {pendingActionNotice?.actionId === pendingAction.actionId && (
+                <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
+                  {pendingActionNotice.message}
                 </Text>
               )}
               <View style={st.pendingActionControls}>
                 <Pressable
                   style={({ pressed }) => [
                     st.pendingActionButton,
-                    pressed && !pendingActionDisabledReason && { opacity: 0.82 },
-                    pendingActionDisabledReason && st.pendingActionButtonDisabled,
+                    pressed && !pendingActionControlDisabled && { opacity: 0.82 },
+                    pendingActionControlDisabled && st.pendingActionButtonDisabled,
                   ]}
                   onPress={() => handleApplyPendingAction(pendingAction.actionId)}
-                  disabled={pendingActionDisabledReason !== null}
+                  disabled={pendingActionControlDisabled}
                   accessibilityRole="button"
-                  accessibilityLabel="확인한 내용을 이대로 적용"
-                  accessibilityState={{ disabled: pendingActionDisabledReason !== null }}
+                  accessibilityLabel={applyAccessibilityLabel}
+                  accessibilityState={{ disabled: pendingActionControlDisabled }}
                 >
-                  <Check size={16} color="#FFF" />
-                  <Text style={st.pendingActionButtonText}>
-                    {applyingPendingActionId === pendingAction.actionId ? "적용 요청 중…" : "이대로 적용"}
-                  </Text>
+                  {applyingPendingActionId === pendingAction.actionId
+                  || approvalMutation === "confirm"
+                  || approvalLoading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Check size={16} color="#FFF" />
+                  )}
+                  <Text style={st.pendingActionButtonText}>{applyLabel}</Text>
                 </Pressable>
+                {canWithdrawApproval && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      st.pendingActionDismiss,
+                      pressed && { opacity: 0.72 },
+                    ]}
+                    onPress={() => handleWithdrawPendingAction(pendingAction.actionId)}
+                    accessibilityRole="button"
+                    accessibilityLabel="내 공동 변경 확인 취소"
+                  >
+                    <RotateCcw size={16} color="#795252" />
+                    <Text style={st.pendingActionWithdrawText}>내 확인 취소</Text>
+                  </Pressable>
+                )}
                 <Pressable
                   style={({ pressed }) => [st.pendingActionDismiss, pressed && { opacity: 0.72 }]}
                   onPress={() => setDismissedPendingActionIds((current) => {
@@ -1473,7 +3764,7 @@ export default function ChatScreen() {
           <Pressable
             disabled={streaming || userRole === null}
             accessibilityRole="tab"
-            accessibilityLabel="나만 상담, 상대방에게 보이지 않음"
+            accessibilityLabel="나만 상담, 서비스에 저장되며 상대방에게 보이지 않음"
             accessibilityState={{ selected: activeScope === "private", disabled: streaming || userRole === null }}
             style={[st.scopeBtn, activeScope === "private" && st.privateScopeBtnActive]}
             onPress={() => handleScopeChange("private")}
@@ -1487,15 +3778,29 @@ export default function ChatScreen() {
           accessibilityLiveRegion="polite"
         >
           {activeScope === "private"
-            ? "현재 범위 · 나만 (상담) — 상대방에게 보이지 않아요"
-            : "현재 범위 · 함께 대화 — 파트너에게 보여요"}
+            ? hasActiveW5SafetyCard
+              ? activeW5PersistenceState.persistence === "none"
+                ? "현재 안전 안내 · 입력 내용은 저장되지 않았어요. 안전 안내는 이 화면에만 표시되고 상대방에게 보이지 않아요"
+                : activeW5PersistenceState.persistence === "shared"
+                  ? "현재 안전 안내 · 입력 내용은 이전 전송에서 이미 상대방에게 전달·저장됐어요. 지금은 추가 공유를 멈췄어요"
+                  : activeW5PersistenceState.persistence === "private_only"
+                    ? "현재 안전 안내 · 입력 내용은 이전 전송에서 비공개 대화에 저장됐어요. 지금은 추가 전송을 멈췄어요"
+                    : activeW5PersistenceState.rawDisclosurePersisted === true
+                      ? "현재 안전 안내 · 입력 내용은 이전 전송에서 저장됐지만 저장 범위는 확인하지 못했어요. 지금은 추가 전송을 멈췄어요"
+                      : "현재 안전 안내 · 입력 내용의 이전 저장·전달 여부를 확인하지 못했어요. 지금은 추가 공유를 멈췄어요"
+              : "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
+            : hasLinkedPartner
+              ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
+              : "현재 범위 · 함께 대화 — 파트너 연결 후 함께 볼 수 있어요"}
         </Text>
       </View>
 
       {activeScope === "shared" && (
         <View style={st.targetRow}>
           <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, !isP && st.targetActive]} onPress={() => handleTargetChange("ai")}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
-          <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, isP && st.targetPartner]} onPress={() => handleTargetChange("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+          {hasLinkedPartner && (
+            <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, isP && st.targetPartner]} onPress={() => handleTargetChange("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+          )}
         </View>
       )}
 
@@ -1515,16 +3820,20 @@ export default function ChatScreen() {
               }
               title={activeScope === "private" ? "나만의 상담을 시작해볼까요?" : "안녕하세요, 아모라예요"}
               description={activeScope === "private"
-                ? "이 범위의 대화는 상대방에게 보이지 않아요.\n아모라에게 편하게 이야기해 주세요."
-                : "결혼 준비 뭐든 물어보세요.\n파트너에게도 메시지를 보낼 수 있어요."}
+                ? "이 범위의 대화는 서비스에 저장되지만 상대방에게는 보이지 않아요.\n아모라에게 편하게 이야기해 주세요."
+                : hasLinkedPartner
+                  ? "결혼 준비 뭐든 물어보세요.\n파트너에게도 메시지를 보낼 수 있어요."
+                  : "결혼 준비 뭐든 물어보세요.\n파트너 연결 전에는 아모라와 먼저 준비할 수 있어요."}
             />
-            <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { handleTargetChange("ai"); handleInputChange(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
+            {!isP && (
+              <View style={st.suggestions}>{["웨딩 사진 촬영 예산을 정리해줘", "지금 먼저 할 일 세 가지를 알려줘", "결혼식장 계약 전에 무엇을 확인해야 해?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => handleAiSuggestion(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
+            )}
           </View>
         ) : (
           <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
         )}
 
-        {quotaRemaining !== null && !streaming && (
+        {!hasActiveW5SafetyCard && quotaRemaining !== null && !streaming && (
           <View style={st.quotaBar} accessibilityLiveRegion="polite">
             <Text style={st.quotaText}>
               {quotaRemaining > 0
@@ -1542,22 +3851,77 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {activeSendFailure && (
+        {partnerSafetyNotice && (
+          <View style={st.failureBar} accessibilityLiveRegion="assertive">
+            <Text style={st.failureText} accessibilityRole="alert">
+              {partnerSafetyNotice}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
+              onPress={() => setPartnerSafetyNotice(null)}
+              accessibilityRole="button"
+              accessibilityLabel="상대방 연결 변경 안내 확인"
+            >
+              <Text style={st.retryText}>확인</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!hasActiveW5SafetyCard && !activeSendFailure && activeColdStartAiRecovery && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText}>
+              {activeColdStartAiRecovery.disposition === "reattach_required"
+                ? activeColdStartAiRecovery.providerAttachmentState === "present"
+                  ? "첨부파일이 포함된 질문이에요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
+                  : "이 질문의 첨부 상태를 확인할 수 없어요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
+                : "저장된 질문의 아모라 답변을 이어받을 수 있어요."}
+            </Text>
+            {activeColdStartAiRecovery.disposition === "resumable" && (
+              <Pressable
+                style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
+                onPress={handleColdStartAiRecovery}
+                disabled={streaming}
+                accessibilityRole="button"
+                accessibilityLabel="저장된 질문의 아모라 답변 이어받기"
+                accessibilityState={{ disabled: streaming }}
+              >
+                <Text style={st.retryText}>답변 이어받기</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {!hasActiveW5SafetyCard && activeSendFailure && (
           <View style={st.failureBar} accessibilityLiveRegion="polite">
             <Text style={st.failureText} accessibilityRole="alert">
               {activeSendFailure.message}
             </Text>
-            <Pressable
-              style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
-              onPress={handleRetry}
-              disabled={streaming}
-              accessibilityRole="button"
-              accessibilityLabel={activeSendFailure.kind === "ai_response" ? "아모라 답변 다시 받기" : "메시지 다시 보내기"}
-            >
-              <Text style={st.retryText}>
-                {activeSendFailure.kind === "ai_response" ? "답변 다시 받기" : "다시 보내기"}
-              </Text>
-            </Pressable>
+            {activeSendFailure.unavailableReason && (
+              <Text style={st.failureText}>{activeSendFailure.unavailableReason}</Text>
+            )}
+            {activeSendFailure.canRetry && (
+              <Pressable
+                style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
+                onPress={handleRetry}
+                disabled={streaming}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isConfirmedActionRecovery
+                    ? "확인한 변경 반영 계속하기"
+                    : activeSendFailure.kind === "ai_response"
+                      ? "아모라 답변 다시 받기"
+                      : "메시지 다시 보내기"
+                }
+              >
+                <Text style={st.retryText}>
+                  {isConfirmedActionRecovery
+                    ? "반영 계속하기"
+                    : activeSendFailure.kind === "ai_response"
+                      ? "답변 다시 받기"
+                      : "다시 보내기"}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -1608,6 +3972,7 @@ const st = StyleSheet.create({
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
   messageBody: { maxWidth: "78%" },
+  safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
@@ -1620,6 +3985,10 @@ const st = StyleSheet.create({
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, lineHeight: 22 },
+  safetyCard: { width: "100%", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.ivory[50] },
+  safetyCardHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
+  safetyCardTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
+  safetyCardText: { marginTop: 8, fontSize: 14, lineHeight: 22, color: colors.textPrimary },
   pendingActionCard: { width: "100%", marginTop: 8, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: "#FFFCF8" },
   pendingActionHeading: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   pendingActionIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "#F2E8DE" },
@@ -1627,12 +3996,26 @@ const st = StyleSheet.create({
   pendingActionTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
   pendingActionConfirmation: { marginTop: 4, fontSize: 14, lineHeight: 21, color: colors.noir.soft },
   pendingActionStatus: { marginTop: 10, fontSize: 12, lineHeight: 18, color: "#795252" },
+  pendingActionApprovalStatus: { marginTop: 10, flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 12, backgroundColor: "#F2F7F4" },
+  pendingActionApprovalError: { backgroundColor: "#FFF2EF" },
+  pendingActionApprovalText: { flex: 1, fontSize: 12, lineHeight: 18, color: "#2F5F51" },
+  pendingActionApprovalErrorText: { color: "#8A3D31" },
   pendingActionControls: { marginTop: 12, gap: 8 },
   pendingActionButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "#2F5F51" },
   pendingActionButtonDisabled: { backgroundColor: colors.taupe[400] },
   pendingActionButtonText: { fontSize: 14, fontWeight: "700", color: "#FFF" },
   pendingActionDismiss: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: colors.surface },
   pendingActionDismissText: { fontSize: 14, fontWeight: "600", color: colors.noir.soft },
+  pendingActionWithdrawText: { fontSize: 14, fontWeight: "600", color: "#795252" },
+  budgetImpactCard: { marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#E5D8CE", backgroundColor: "rgba(255,255,255,0.82)" },
+  budgetImpactTitle: { marginBottom: 6, fontSize: 12, fontWeight: "700", color: colors.noir[800] },
+  budgetImpactRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 10, paddingVertical: 3 },
+  budgetImpactLabel: { width: 86, fontSize: 11, lineHeight: 17, color: "#746866" },
+  budgetImpactValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "600", color: "#3D3434" },
+  budgetImpactDelta: { fontWeight: "400", color: "#867976" },
+  budgetImpactWarnings: { marginTop: 8, gap: 3, paddingHorizontal: 9, paddingVertical: 8, borderRadius: 9, backgroundColor: "#FFF2EF" },
+  budgetImpactWarningText: { fontSize: 11, lineHeight: 17, color: "#8A3D31" },
+  budgetImpactDisclaimer: { marginTop: 8, fontSize: 10, lineHeight: 15, color: "#746866" },
   quotaBar: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 16, paddingRight: 8, backgroundColor: colors.ivory.warm, borderTopWidth: 1, borderTopColor: colors.border },
   quotaText: { flex: 1, fontSize: 13, lineHeight: 19, color: colors.noir.soft },
   quotaDismiss: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12 },

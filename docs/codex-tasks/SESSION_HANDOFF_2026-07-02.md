@@ -1,5 +1,13 @@
 # Session Handoff - 2026-07-02
 
+> [!CAUTION]
+> **SUPERSEDED HISTORICAL HANDOFF**
+>
+> 이 문서의 배포 완료·브랜치·테스트 상태는 2026-07-02 당시 기록이다. 현재 실행
+> 절차나 완료 증거로 사용하지 않는다. 현재 기준은 `../README.md`,
+> `../MVP_PRODUCT_DIRECTION_2026-07-30.md`와
+> `../operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`를 따른다.
+
 This handoff is for continuing Wedding Hanbang work from another computer without re-discovering the latest state.
 
 ## Current Git State

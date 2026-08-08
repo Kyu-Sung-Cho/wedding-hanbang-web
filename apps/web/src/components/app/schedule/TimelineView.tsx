@@ -18,13 +18,16 @@ import {
   CalendarDays,
   Plus,
   Pencil,
-  Trash2,
+  Ban,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import {
   findCategoryScheduleEvent,
+  getScheduleEventAssigneeLabel,
+  getScheduleEventStatus,
   sanitizeUserFacingScheduleMemo,
+  type ScheduleEventAssigneeContext,
 } from "@/utils/scheduleEvents";
 import type { ChecklistItem, ProgressItem, ScheduleEvent } from "@/types/database.types";
 
@@ -61,42 +64,38 @@ interface Phase {
   categories: typeof CATEGORY_CHECKLISTS;
 }
 
-function buildPhases(): Phase[] {
-  const phase1 = CATEGORY_CHECKLISTS.filter((c) => c.ddayStart >= 300);
-  const phase2 = CATEGORY_CHECKLISTS.filter(
-    (c) => c.ddayStart >= 200 && c.ddayStart < 300
-  );
-  const phase3 = CATEGORY_CHECKLISTS.filter(
-    (c) => c.ddayStart >= 100 && c.ddayStart < 200
-  );
-  const phase4 = CATEGORY_CHECKLISTS.filter((c) => c.ddayStart < 100);
+const PHASE_DEFINITIONS = [
+  { label: "준비 시작", matches: (days: number) => days >= 300 },
+  { label: "주요 항목 정하기", matches: (days: number) => days >= 200 && days < 300 },
+  { label: "세부 준비", matches: (days: number) => days >= 100 && days < 200 },
+  { label: "마무리 준비", matches: (days: number) => days < 100 },
+] as const;
 
-  return [
-    {
-      label: "초기 준비",
-      period: "12~10개월 전",
-      dday: "D-360 ~ D-270",
-      categories: phase1,
-    },
-    {
-      label: "핵심 계약",
-      period: "10~6개월 전",
-      dday: "D-270 ~ D-120",
-      categories: phase2,
-    },
-    {
-      label: "세부 준비",
-      period: "6~3개월 전",
-      dday: "D-180 ~ D-30",
-      categories: phase3,
-    },
-    {
-      label: "마무리",
-      period: "3개월 ~ D-day",
-      dday: "D-90 ~ D-14",
-      categories: phase4,
-    },
-  ].filter((p) => p.categories.length > 0);
+function formatPhaseRange(categories: typeof CATEGORY_CHECKLISTS) {
+  const startDays = categories.map((category) => category.ddayStart);
+  const earliest = Math.max(...startDays);
+  const latest = Math.min(...startDays);
+  const earliestMonths = Math.round(earliest / 30);
+  const latestMonths = Math.round(latest / 30);
+
+  return {
+    dday: earliest === latest ? `D-${earliest}` : `D-${earliest} ~ D-${latest}`,
+    period:
+      earliestMonths === latestMonths
+        ? `약 ${earliestMonths}개월 전`
+        : `약 ${earliestMonths}~${latestMonths}개월 전`,
+  };
+}
+
+export function buildPhases(): Phase[] {
+  return PHASE_DEFINITIONS.flatMap(({ label, matches }) => {
+    const categories = CATEGORY_CHECKLISTS.filter((category) =>
+      matches(category.ddayStart),
+    );
+    if (categories.length === 0) return [];
+
+    return [{ label, categories, ...formatPhaseRange(categories) }];
+  });
 }
 
 interface Props {
@@ -104,8 +103,9 @@ interface Props {
   onToggleChecklistItem: (categoryKey: string, item: ChecklistItem) => Promise<void>;
   events?: ScheduleEvent[];
   onEditEvent?: (event: ScheduleEvent) => void;
-  onDeleteEvent?: (eventId: string) => void;
+  onCancelEvent?: (eventId: string) => Promise<void> | void;
   onAddEvent?: () => void;
+  assigneeContext?: ScheduleEventAssigneeContext;
 }
 
 function formatShortDate(dateString: string): string {
@@ -118,13 +118,21 @@ export default function TimelineView({
   onToggleChecklistItem,
   events = [],
   onEditEvent,
-  onDeleteEvent,
+  onCancelEvent,
   onAddEvent,
+  assigneeContext = {},
 }: Props) {
   const phases = useMemo(() => buildPhases(), []);
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [togglingItem, setTogglingItem] = useState<string | null>(null);
+  const [pendingCancelEventId, setPendingCancelEventId] = useState<string | null>(null);
+  const [cancellingEventId, setCancellingEventId] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState("");
+  const activeEvents = useMemo(
+    () => events.filter((event) => getScheduleEventStatus(event) !== "cancelled"),
+    [events],
+  );
 
   const getCategoryData = useCallback(
     (key: string) => {
@@ -138,7 +146,8 @@ export default function TimelineView({
       );
       const { done, total } = getChecklistCounts(merged);
       const status = existing?.status ?? "not_started";
-      return { done, total, status, merged };
+      const hasItemProgress = Boolean(existing?.checklist?.length);
+      return { done, total, status, merged, hasItemProgress };
     },
     [progress]
   );
@@ -147,8 +156,13 @@ export default function TimelineView({
     async (categoryKey: string, item: ChecklistItem) => {
       if (togglingItem) return;
       setTogglingItem(item.id);
+      setOperationError("");
       try {
         await onToggleChecklistItem(categoryKey, item);
+      } catch {
+        setOperationError(
+          "체크리스트를 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
+        );
       } finally {
         setTogglingItem(null);
       }
@@ -156,9 +170,41 @@ export default function TimelineView({
     [togglingItem, onToggleChecklistItem]
   );
 
+  const confirmCancelEvent = useCallback(
+    async (eventId: string) => {
+      if (!onCancelEvent || cancellingEventId) return;
+      setCancellingEventId(eventId);
+      setOperationError("");
+      try {
+        await onCancelEvent(eventId);
+        setPendingCancelEventId(null);
+      } catch {
+        setOperationError(
+          "일정 취소 요청을 보내지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
+        );
+      } finally {
+        setCancellingEventId(null);
+      }
+    },
+    [cancellingEventId, onCancelEvent],
+  );
+
   return (
-    <div className="relative">
-      <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-[#795252] via-[#946a6a] to-[#C9A96E] max-md:left-[15px]" />
+    <>
+      <p className="mb-3 rounded-[12px] border border-[#eadfc9]/70 bg-[#fffdf7] px-4 py-3 text-[12px] leading-5 text-[#626b69]">
+        D-day 구간은 준비 순서를 정리하기 위한 기본 제안입니다. 실제 계약서와 업체·가족과 정한 날짜를
+        먼저 따르세요.
+      </p>
+      {operationError && (
+        <p
+          role="alert"
+          className="mb-3 rounded-[12px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[12px] leading-5 text-[#8C3E3E]"
+        >
+          {operationError}
+        </p>
+      )}
+      <div className="relative">
+        <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-[#795252] max-md:left-[15px]" />
 
       {phases.map((phase, pi) => {
         const isPhaseExpanded = expandedPhase === pi;
@@ -209,7 +255,7 @@ export default function TimelineView({
                     {phase.label}
                   </span>
                   <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">
-                    {phase.period}
+                    기본 제안 · {phase.period}
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -234,7 +280,7 @@ export default function TimelineView({
                       const data = getCategoryData(cat.key);
                       const isCatExpanded = expandedCategory === cat.key;
                       const Icon = ICON_MAP[cat.icon] ?? Building2;
-                      const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
+                      const scheduledEvent = findCategoryScheduleEvent(activeEvents, cat.key, cat.label);
                       const percent =
                         data.total > 0
                           ? Math.round((data.done / data.total) * 100)
@@ -265,27 +311,44 @@ export default function TimelineView({
                                     STATUS_COLORS[data.status]
                                   }`}
                                 >
-                                  {STATUS_LABELS[data.status]}
+                                  {data.hasItemProgress || data.status === "not_started"
+                                    ? STATUS_LABELS[data.status]
+                                    : `${STATUS_LABELS[data.status]}으로 입력`}
                                 </span>
                                 {scheduledEvent && (
                                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] font-semibold text-[#36534E]">
                                     <CalendarDays className="h-3 w-3" />
-                                    일정 {formatShortDate(scheduledEvent.date)}
+                                    {getScheduleEventStatus(scheduledEvent) === "completed"
+                                      ? "완료"
+                                      : `일정 ${formatShortDate(scheduledEvent.date)}`}
+                                  </span>
+                                )}
+                                {scheduledEvent && (
+                                  <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                                    {getScheduleEventAssigneeLabel(
+                                      scheduledEvent.assignee,
+                                      assigneeContext,
+                                    )}
                                   </span>
                                 )}
                               </div>
-                              {/* 진행률 바 */}
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#efe6d7]">
-                                  <div
-                                    className="h-full rounded-full bg-[#36534E] transition-all duration-500"
-                                    style={{ width: `${percent}%` }}
-                                  />
+                              {data.hasItemProgress || data.status === "not_started" ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#efe6d7]">
+                                    <div
+                                      className="h-full rounded-full bg-[#36534E] transition-all duration-500"
+                                      style={{ width: `${percent}%` }}
+                                    />
+                                  </div>
+                                  <span className="flex-shrink-0 text-[12px] font-medium text-[#7a8290]">
+                                    {data.done}/{data.total}
+                                  </span>
                                 </div>
-                                <span className="flex-shrink-0 text-[12px] font-medium text-[#7a8290]">
-                                  {data.done}/{data.total}
+                              ) : (
+                                <span className="text-[12px] font-medium text-[#7a8290]">
+                                  세부 항목 확인 전
                                 </span>
-                              </div>
+                              )}
                             </div>
 
                             <div className="flex-shrink-0">
@@ -303,6 +366,11 @@ export default function TimelineView({
                               className="overflow-hidden"
                             >
                               <div className="mb-2 ml-10 mr-1 mt-1 border-l-2 border-[#36534E]/15 pl-3 sm:ml-12">
+                                {scheduledEvent?.completionCriteria && (
+                                  <p className="mb-2 rounded-lg bg-[#f7faf6] px-3 py-2 text-[12px] font-medium leading-5 text-[#526056]">
+                                    완료 기준 · {scheduledEvent.completionCriteria}
+                                  </p>
+                                )}
                                 {data.merged.map((item) => (
                                   <div
                                     key={item.id}
@@ -352,7 +420,7 @@ export default function TimelineView({
       {/* 카테고리 미지정 커스텀 일정 */}
       {(() => {
         const allCatKeys = CATEGORY_CHECKLISTS.map(c => c.key);
-        const uncategorized = events.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
+        const uncategorized = activeEvents.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
         if (uncategorized.length === 0 && !onAddEvent) return null;
         return (
           <div
@@ -384,17 +452,86 @@ export default function TimelineView({
                         <CalendarDays className="w-5 h-5 text-[#C9A96E]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-serif-kr text-base font-normal text-[#1A1A1F]">{evt.title}</p>
-                        <p className="text-sm text-[#B5ADA3]">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p
+                            className={`font-serif-kr text-base font-normal ${
+                              getScheduleEventStatus(evt) === "completed"
+                                ? "text-[#6D806E] line-through"
+                                : "text-[#1A1A1F]"
+                            }`}
+                          >
+                            {evt.title}
+                          </p>
+                          <span className="rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                            {getScheduleEventStatus(evt) === "completed"
+                              ? "완료"
+                              : "예정"}
+                          </span>
+                          <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                            {getScheduleEventAssigneeLabel(
+                              evt.assignee,
+                              assigneeContext,
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-sm text-[#7a8290]">
                           {evt.date}
+                          {evt.time ? ` · ${evt.time}` : ""}
                           {sanitizeUserFacingScheduleMemo(evt.memo)
                             ? ` · ${sanitizeUserFacingScheduleMemo(evt.memo)}`
                             : ""}
                         </p>
+                        {evt.completionCriteria && (
+                          <p className="mt-1 text-[12px] font-medium leading-5 text-[#526056]">
+                            완료 기준 · {evt.completionCriteria}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-4 h-4" /></button>}
-                        {onDeleteEvent && <button onClick={() => onDeleteEvent(evt.id)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
+                      <div className="flex items-center gap-1">
+                        {pendingCancelEventId === evt.id ? (
+                          <>
+                            <span className="sr-only">일정 취소 요청</span>
+                            <button
+                              type="button"
+                              onClick={() => void confirmCancelEvent(evt.id)}
+                              disabled={Boolean(cancellingEventId)}
+                              className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2d4642] disabled:opacity-50"
+                            >
+                              {cancellingEventId === evt.id ? "요청 중..." : "취소 요청 보내기"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPendingCancelEventId(null)}
+                              disabled={Boolean(cancellingEventId)}
+                              className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[#504444] hover:bg-[#EFEBEA] disabled:opacity-50"
+                            >
+                              닫기
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                            {onEditEvent && (
+                              <button
+                                type="button"
+                                aria-label={`${evt.title} 일정 수정`}
+                                onClick={() => onEditEvent(evt)}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] hover:bg-[#f6f3f2] hover:text-[#795252]"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                            {onCancelEvent && (
+                              <button
+                                type="button"
+                                aria-label={`${evt.title} 일정 취소 요청`}
+                                onClick={() => setPendingCancelEventId(evt.id)}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] hover:bg-[#f7f3ec] hover:text-[#36534E]"
+                              >
+                                <Ban className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -404,6 +541,7 @@ export default function TimelineView({
           </div>
         );
       })()}
-    </div>
+      </div>
+    </>
   );
 }

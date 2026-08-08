@@ -80,7 +80,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
             <textarea
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
-              placeholder="예: 드레스 피팅 1회 무료 제공받음"
+              placeholder="예: 드레스 입어보기 비용 1회 제공받음"
               rows={3}
               className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none resize-none text-sm"
             />

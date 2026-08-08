@@ -1,6 +1,8 @@
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
+import { getCommunityPollActorProjection } from "@/lib/community/pollProjection";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
 import type { InitialCommunityFeed, PollSummary, PostWithAuthor } from "@/types/community.types";
 
@@ -45,22 +47,42 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
     if (postIds.length > 0) {
       const { data: polls, error: pollError } = await supabase
         .from("community_polls")
-        .select("id, post_id, question, total_voters, closes_at")
+        .select("id, post_id")
         .in("post_id", postIds);
 
       if (pollError) {
         console.error("[community.initialFeed] poll query failed:", pollError);
       } else {
+        const serviceClient = createAdminClient();
+        const projections = await Promise.all(
+          (polls ?? []).map(async (poll) => {
+            try {
+              return await getCommunityPollActorProjection(
+                serviceClient,
+                null,
+                poll.id as string,
+              );
+            } catch (error) {
+              console.error(
+                "[community.initialFeed] poll projection failed:",
+                error,
+              );
+              return null;
+            }
+          }),
+        );
         pollSummaryMap = new Map(
-          (polls ?? []).map((poll) => [
-            poll.post_id as string,
-            {
-              id: poll.id as string,
-              question: poll.question as string,
-              total_voters: poll.total_voters as number,
-              closes_at: poll.closes_at as string | null,
-            },
-          ]),
+          projections
+            .filter((poll): poll is NonNullable<typeof poll> => poll !== null)
+            .map((poll) => [
+              poll.post_id,
+              {
+                id: poll.id,
+                question: poll.question,
+                total_voters: poll.total_voters,
+                closes_at: poll.closes_at,
+              },
+            ]),
         );
       }
     }

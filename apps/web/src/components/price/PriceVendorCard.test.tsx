@@ -171,7 +171,9 @@ describe("PriceVendorCard", () => {
     });
 
     expect(container.textContent).toContain("추가금 1개");
-    const details = container.querySelector("details")!;
+    const details = container.querySelector<HTMLDetailsElement>(
+      'details[data-add-on-breakdown="true"]',
+    )!;
     await act(async () => {
       details.open = true;
       details.dispatchEvent(new Event("toggle", { bubbles: true }));
@@ -302,6 +304,55 @@ describe("PriceVendorCard", () => {
     expect(container.textContent).toContain("지역 미표기");
   });
 
+  it("keeps a fixed header while long names and aliases remain recoverable", async () => {
+    const longName = "LongUnbrokenVendorNameWithoutAnyNaturalWrapOpportunity1234567890";
+    const longAlias = "LongUnbrokenAlternateLabelWithoutAnyNaturalWrapOpportunity0987654321";
+    const vendor: PriceVendor = {
+      id: "long-header-vendor",
+      slug: "long-header-vendor",
+      name: longName,
+      aliases: [longAlias],
+      category: "studio",
+      regionCode: "seoul_etc",
+      regionCodes: ["seoul_etc", "seoul_gangnam3", "busan"],
+      offers: [],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    const header = container.querySelector<HTMLElement>('[data-card-header="true"]');
+    const nameLink = container.querySelector<HTMLAnchorElement>(`a[title="${longName}"]`);
+    const alias = container.querySelector<HTMLElement>('[data-card-alias="true"]');
+    expect(header?.className).toContain("h-32");
+    expect(header?.className).toContain("overflow-hidden");
+    expect(nameLink?.className).toContain("line-clamp-2");
+    expect(nameLink?.className).toContain("[overflow-wrap:anywhere]");
+    expect(alias?.className).toContain("min-h-4");
+    expect(alias?.className).toContain("truncate");
+    expect(alias?.getAttribute("title")).toBe(`다른 표기 · ${longAlias}`);
+
+    const denseHeaderClassName = header?.className;
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={{ ...vendor, name: "짧은 이름", aliases: [], regionCodes: undefined }}
+          isWishlisted={false}
+          onToggleWishlist={() => {}}
+        />,
+      );
+    });
+
+    const sparseHeader = container.querySelector<HTMLElement>('[data-card-header="true"]');
+    const emptyAlias = container.querySelector<HTMLElement>('[data-card-alias="true"]');
+    expect(sparseHeader?.className).toBe(denseHeaderClassName);
+    expect(emptyAlias).not.toBeNull();
+    expect(emptyAlias?.textContent).toBe("");
+  });
+
   it("접어서 보여주고 펼치면 대행사 전부가 나온다", async () => {
     // 병합 뒤 한 업체가 대행사 9곳까지 간다. 전부 세우면 카드가 너무 길고,
     // 가로 컬럼으로 되돌리면 375px에서 대부분이 화면 밖으로 밀린다.
@@ -333,8 +384,16 @@ describe("PriceVendorCard", () => {
       );
     });
 
-    // 두 지역 모두 배지로 노출된다.
-    expect(container.textContent).toContain("서울 강남권");
+    // 첫 지역만 배지로 두고 나머지는 개수로 접지만, 전체 지역 의미는
+    // 스크린리더 이름과 툴팁에 그대로 남긴다.
+    const regions = container.querySelector<HTMLElement>('[data-card-regions="true"]');
+    expect(regions?.children[0]?.textContent).toBe("서울 강남 외");
+    expect(regions?.children[1]?.textContent).toBe("외 1곳");
+    expect(regions?.textContent).not.toContain("서울 강남권");
+    expect(regions?.getAttribute("aria-label")).toBe(
+      "공시 지역: 서울 강남 외, 서울 강남권",
+    );
+    expect(regions?.getAttribute("title")).toBe("서울 강남 외, 서울 강남권");
     // 가격 폭이 먼저 보인다.
     expect(container.textContent).toContain("대행사 5곳");
     // 기본은 3곳만, 가장 싼 "대행사 마"(100만원)가 먼저.
@@ -348,5 +407,235 @@ describe("PriceVendorCard", () => {
       toggle?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(container.textContent).toContain("대행사 가");
+  });
+
+  it("keeps information-heavy and sparse cards on the same compact collapsed structure", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-compact",
+      slug: "vendor-compact",
+      name: "정보량 비교 스튜디오",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      offers: ["가", "나", "다"].map((label, index) => ({
+        id: `compact-offer-${index}`,
+        agencyId: `compact-agency-${index}`,
+        agencyName: `대행사 ${label}`,
+        minimumKrw: (index + 1) * 1_000_000,
+        maximumKrw: (index + 1) * 1_000_000,
+        priceNote: `${label} 대행사의 아주 긴 구성 설명`.repeat(20),
+        baseSpec: null,
+        options: [],
+      })),
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    expect(container.querySelector("article")?.className).toContain("flex");
+    expect(container.querySelector("article")?.className).not.toContain("h-full");
+    const compactSummary = container.querySelector<HTMLElement>(
+      '[aria-label="정보량 비교 스튜디오 공시 가격 요약"]',
+    );
+    expect(compactSummary?.textContent).toContain("100~300만원");
+    expect(compactSummary?.className).toContain("h-28");
+    expect(container.textContent).toContain("대행사 3곳 공시");
+
+    const priceDetails = container.querySelector<HTMLDetailsElement>(
+      'details[data-price-breakdown="true"]',
+    );
+    expect(priceDetails).not.toBeNull();
+    expect(priceDetails?.open).toBe(false);
+    expect(priceDetails?.textContent).toContain("가격 항목 3개 보기");
+    expect(priceDetails?.textContent).toContain("아주 긴 구성 설명");
+    expect(container.querySelector('[data-card-actions="true"]')?.className).toContain("mt-auto");
+  });
+
+  it("preserves an upper-bound-only price in the compact summary", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-upper-bound",
+      slug: "vendor-upper-bound",
+      name: "상한가 공시 업체",
+      aliases: [],
+      category: "hall",
+      regionCode: "busan",
+      offers: [{
+        id: "offer-upper-bound",
+        agencyId: null,
+        agencyName: "업체 직접 공시",
+        minimumKrw: null,
+        maximumKrw: 1_000_000,
+        priceNote: null,
+        baseSpec: null,
+        options: [],
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    const summary = container.querySelector('[role="group"][aria-label="상한가 공시 업체 공시 가격 요약"]');
+    expect(summary?.textContent).toContain("최대 100만원");
+  });
+
+  it("separates agency prices from a direct disclosure while summarizing both paths", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-mixed-source",
+      slug: "vendor-mixed-source",
+      name: "혼합 경로 공시 업체",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_gangnam3",
+      offers: [
+        {
+          id: "offer-agency-a",
+          agencyId: "agency-a",
+          agencyName: "대행사 A",
+          minimumKrw: 1_000_000,
+          maximumKrw: 1_000_000,
+          priceNote: null,
+          baseSpec: null,
+          options: [],
+        },
+        {
+          id: "offer-agency-b",
+          agencyId: "agency-b",
+          agencyName: "대행사 B",
+          minimumKrw: 2_000_000,
+          maximumKrw: 2_000_000,
+          priceNote: null,
+          baseSpec: null,
+          options: [],
+        },
+        {
+          id: "offer-direct",
+          agencyId: null,
+          agencyName: "업체 직접 공시",
+          minimumKrw: 5_000_000,
+          maximumKrw: 5_000_000,
+          priceNote: null,
+          baseSpec: null,
+          options: [],
+        },
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    const summary = container.querySelector('[role="group"][aria-label="혼합 경로 공시 업체 공시 가격 요약"]');
+    // 요약은 대행사 오퍼(100~200만)만으로 만든다. 이 단언은 한동안 "100~500만원"이었고,
+    // 그 500만은 대행사를 거치지 않은 행에서 왔다 — 예식장 패키지처럼 기준이 다른
+    // 행을 같은 범위에 넣으면 실제로 살 수 없는 상한이 만들어진다. 그 행은 아래
+    // "대행사를 거치지 않은 공시" 블록에 원문 그대로 남는다.
+    expect(summary?.textContent).toContain("100~200만원");
+    expect(summary?.textContent).toContain("대행사 2곳 + 직접 공시");
+
+    const agencyBreakdown = container.querySelector(
+      '[aria-label="혼합 경로 공시 업체 대행사별 공시가"]',
+    );
+    expect(agencyBreakdown?.textContent).toContain("100~200만원");
+    expect(agencyBreakdown?.textContent).not.toContain("500만원");
+  });
+
+  it("labels merged spellings as alternate labels instead of claiming they are former names", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-alias",
+      slug: "vendor-alias",
+      name: "가을",
+      aliases: ["가을스튜디오"],
+      category: "studio",
+      regionCode: "seoul_gangnam3",
+      offers: [],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    expect(container.textContent).toContain("다른 표기 · 가을스튜디오");
+    expect(container.textContent).not.toContain("구. 가을스튜디오");
+  });
+
+  it("states a missing add-on disclosure without claiming that add-ons do not exist", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-no-options",
+      slug: "vendor-no-options",
+      name: "추가금 미공시 스튜디오",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      offers: [{
+        id: "offer-no-options",
+        agencyId: "agency-no-options",
+        agencyName: "대행사 없음표시",
+        minimumKrw: 1_000_000,
+        maximumKrw: 1_000_000,
+        priceNote: null,
+        baseSpec: null,
+        options: [],
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    expect(container.textContent).toContain("추가금 공시 항목 없음");
+    expect(container.textContent).toContain("추가금이 없다는 뜻은 아니에요");
+  });
+
+  it("adds the active region to both detail links without changing the canonical default", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-region-link",
+      slug: "vendor-region-link",
+      name: "지역 링크 스튜디오",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      regionCodes: ["seoul_etc", "busan"],
+      offers: [],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    const canonicalLinks = container.querySelectorAll<HTMLAnchorElement>(
+      'a[href="/price/vendor/vendor-region-link"]',
+    );
+    expect(canonicalLinks).toHaveLength(2);
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={vendor}
+          activeRegionCode="busan"
+          isWishlisted={false}
+          onToggleWishlist={() => {}}
+        />,
+      );
+    });
+
+    const regionalLinks = container.querySelectorAll<HTMLAnchorElement>(
+      'a[href="/price/vendor/vendor-region-link?region=busan"]',
+    );
+    expect(regionalLinks).toHaveLength(2);
+    expect(container.querySelector('a[href="/price/vendor/vendor-region-link"]')).toBeNull();
   });
 });

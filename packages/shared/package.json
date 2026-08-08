@@ -8,7 +8,15 @@
     ".": "./src/index.ts",
     "./types": "./src/types/index.ts",
     "./constants": "./src/constants/index.ts",
-    "./utils": "./src/utils/index.ts"
+    "./utils": "./src/utils/index.ts",
+    "./chat-lane": "./src/utils/chatLane.ts",
+    "./amora-crisis-classifier": "./src/safety/amoraCrisisClassifier.ts",
+    "./amora-crisis": "./src/safety/amoraCrisisSafety.ts",
+    "./amora-crisis-delivery": "./src/safety/amoraCrisisDelivery.ts",
+    "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts",
+    "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
+    "./community-notification": "./src/contracts/communityNotification.mjs",
+    "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

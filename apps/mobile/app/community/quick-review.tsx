@@ -8,19 +8,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Star } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { apiFetch } from "@/lib/api";
 import { AppHeader, PrimaryButton } from "@/components/ui/AppUI";
 
 const CATEGORIES = [
-  { key: "venue", label: "예식장" },
-  { key: "studio", label: "스튜디오" },
-  { key: "dress", label: "드레스" },
-  { key: "makeup", label: "메이크업" },
-  { key: "snap", label: "스냅" },
-  { key: "ring", label: "예물" },
-  { key: "honeymoon", label: "신혼여행" },
-  { key: "bouquet", label: "부케" },
-  { key: "invitation", label: "청첩장" },
+  { key: "venue", label: PLANNING_CATEGORY_LABELS.venue },
+  { key: "studio", label: PLANNING_CATEGORY_LABELS.studio },
+  { key: "dress", label: PLANNING_CATEGORY_LABELS.dress },
+  { key: "makeup", label: PLANNING_CATEGORY_LABELS.makeup },
+  { key: "snap", label: PLANNING_CATEGORY_LABELS.snap },
+  { key: "ring", label: PLANNING_CATEGORY_LABELS.ring },
+  { key: "honeymoon", label: PLANNING_CATEGORY_LABELS.honeymoon },
+  { key: "bouquet", label: PLANNING_CATEGORY_LABELS.bouquet },
+  { key: "invitation", label: PLANNING_CATEGORY_LABELS.invitation },
   { key: "other", label: "기타" },
 ];
 

@@ -3,6 +3,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -45,6 +46,9 @@ function clearRequestRpcError(code: string | undefined) {
  */
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }

@@ -2,6 +2,7 @@ import { inflateRawSync } from "node:zlib";
 
 export const AMORA_MAX_ATTACHMENTS = 5;
 export const AMORA_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const AMORA_MAX_TOTAL_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 export const AMORA_ATTACHMENT_MEDIA_TYPES = [
   "image/jpeg",
@@ -447,7 +448,7 @@ export function validateAmoraAttachments(input: unknown): ValidatedAmoraAttachme
     throw new AmoraAttachmentValidationError("TOO_MANY_ATTACHMENTS");
   }
 
-  return input.map((raw): ValidatedAmoraAttachment => {
+  const attachments = input.map((raw): ValidatedAmoraAttachment => {
     if (!isRecord(raw) || typeof raw.mediaType !== "string") {
       throw new AmoraAttachmentValidationError("INVALID_ATTACHMENT");
     }
@@ -481,4 +482,17 @@ export function validateAmoraAttachments(input: unknown): ValidatedAmoraAttachme
       ...(typeof raw.fileName === "string" ? { fileName: raw.fileName } : {}),
     };
   });
+  let totalBytes = 0;
+  for (const attachment of attachments) {
+    const padding = attachment.base64.endsWith("==")
+      ? 2
+      : attachment.base64.endsWith("=")
+        ? 1
+        : 0;
+    totalBytes += Math.floor((attachment.base64.length * 3) / 4) - padding;
+    if (totalBytes > AMORA_MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw new AmoraAttachmentValidationError("ATTACHMENT_TOO_LARGE");
+    }
+  }
+  return attachments;
 }

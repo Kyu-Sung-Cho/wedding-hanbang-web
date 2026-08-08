@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+const supabaseMocks = vi.hoisted(() => ({
+  signOut: vi.fn(),
+}));
+
 // Mock Supabase client before importing the store
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { signOut: vi.fn().mockResolvedValue({}) },
+    auth: { signOut: supabaseMocks.signOut },
   }),
 }));
 
@@ -18,6 +22,7 @@ import { useCommunityStore } from "../communityStore";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+const PLAN_CHANGE_REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 
 // Helper to set demo cookie
 function setDemoCookie(value: boolean) {
@@ -45,6 +50,9 @@ function resetStore() {
 describe("useAuthStore", () => {
   beforeEach(() => {
     resetStore();
+    sessionStorage.clear();
+    localStorage.clear();
+    supabaseMocks.signOut.mockReset().mockResolvedValue({});
     mockFetch.mockReset();
     setDemoCookie(false);
   });
@@ -52,6 +60,17 @@ describe("useAuthStore", () => {
   // ─── initialize() ───
 
   describe("initialize()", () => {
+    it("uses a server-verified demo session immediately without waiting for auth/me", async () => {
+      await useAuthStore.getState().initialize({ initialDemo: true });
+
+      const state = useAuthStore.getState();
+      expect(state.isDemo).toBe(true);
+      expect(state.isInitialized).toBe(true);
+      expect(state.isLoading).toBe(false);
+      expect(state.user?.id).toBe("demo");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it("sets isInitialized to true after completion", async () => {
       mockFetch.mockResolvedValue({ ok: false });
       await useAuthStore.getState().initialize();
@@ -82,6 +101,57 @@ describe("useAuthStore", () => {
       expect(state.couple).toEqual(fakeData.couple);
       expect(state.journey).toEqual(fakeData.journey);
       expect(state.isDemo).toBe(false);
+    });
+
+    it("does not let a late initialize response replace a newer journey refresh", async () => {
+      useAuthStore.setState({
+        user: { id: "u1", email: "test@example.com" },
+        journey: { id: "initial", couple_id: "c1" } as never,
+        isInitialized: true,
+      });
+
+      type AuthMeResponse = {
+        ok: boolean;
+        json: () => Promise<{
+          user: { id: string; email: string };
+          profile: null;
+          couple: { id: string };
+          partner: null;
+          journey: { id: string; couple_id: string };
+        }>;
+      };
+      let resolveInitialize!: (value: AuthMeResponse) => void;
+      const initializeResponse = new Promise<AuthMeResponse>((resolve) => {
+        resolveInitialize = resolve;
+      });
+      mockFetch
+        .mockReturnValueOnce(initializeResponse)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            user: { id: "u1" },
+            journey: { id: "newer", couple_id: "c1" },
+          }),
+        });
+
+      const initialize = useAuthStore.getState().initialize({ force: true });
+      await expect(
+        useAuthStore.getState().refreshJourney("u1"),
+      ).resolves.toBe(true);
+
+      resolveInitialize({
+        ok: true,
+        json: async () => ({
+          user: { id: "u1", email: "test@example.com" },
+          profile: null,
+          couple: { id: "c1" },
+          partner: null,
+          journey: { id: "older", couple_id: "c1" },
+        }),
+      });
+      await initialize;
+
+      expect(useAuthStore.getState().journey?.id).toBe("newer");
     });
 
     it("enters demo mode when /api/auth/me returns no user and demo cookie is set", async () => {
@@ -141,14 +211,30 @@ describe("useAuthStore", () => {
         journey: { id: "j1", couple_id: "c1", wedding_date: "2026-10-01", total_budget: 10_000_000, venue: null, progress: {}, created_at: "", updated_at: "" },
       });
 
-      await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" });
+      const result = await useAuthStore.getState().updateJourney({
+        wedding_date: "2026-12-01",
+      });
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
+      expect(result.status).toBe("applied");
+      expect(useAuthStore.getState().journey?.state_revision).toBe(1);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("calls /api/journey PATCH in non-demo mode", async () => {
-      const updatedJourney = { id: "j1", couple_id: "c1", wedding_date: "2026-12-01" };
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: updatedJourney }) });
+      const updatedJourney = {
+        id: "j1",
+        couple_id: "c1",
+        wedding_date: "2026-12-01",
+        state_revision: 1,
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: updatedJourney,
+        }),
+      });
 
       useAuthStore.setState({ isDemo: false, journey: { id: "j1", couple_id: "c1" } as never });
       await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" });
@@ -157,16 +243,185 @@ describe("useAuthStore", () => {
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
     });
 
-    it("silently ignores PATCH failure in non-demo mode", async () => {
+    it("keeps shared state unchanged while a partner approval is pending", async () => {
+      const originalJourney = {
+        id: "j1",
+        couple_id: "c1",
+        wedding_date: "2026-10-01",
+        total_budget: 10_000_000,
+        venue: null,
+        progress: {},
+        state_revision: 4,
+        created_at: "",
+        updated_at: "",
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "pending_partner",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          summary: "총예산을 3,000만원으로 변경",
+        }),
+      });
+      useAuthStore.setState({ isDemo: false, journey: originalJourney });
+
+      const result = await useAuthStore.getState().updateJourney({
+        total_budget: 30_000_000,
+      });
+
+      expect(result).toEqual({
+        status: "pending_partner",
+        requestId: PLAN_CHANGE_REQUEST_ID,
+        summary: "총예산을 3,000만원으로 변경",
+      });
+      expect(useAuthStore.getState().journey).toEqual(originalJourney);
+      expect(lastFetchBody()).toMatchObject({
+        total_budget: 30_000_000,
+        expected_revision: 4,
+      });
+    });
+
+    it.each([
+      [
+        "a malformed pending request id",
+        {
+          status: "pending_partner",
+          requestId: "not-a-request-id",
+          summary: "총예산 변경",
+        },
+      ],
+      [
+        "an applied journey for another couple",
+        {
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: {
+            couple_id: "another-couple",
+            state_revision: 5,
+          },
+        },
+      ],
+      [
+        "an applied journey that did not advance the revision",
+        {
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: {
+            couple_id: "c1",
+            state_revision: 4,
+          },
+        },
+      ],
+    ])("fails closed on %s", async (_label, payload) => {
+      const originalJourney = {
+        id: "j1",
+        couple_id: "c1",
+        wedding_date: "2026-10-01",
+        total_budget: 10_000_000,
+        venue: null,
+        progress: {},
+        state_revision: 4,
+        created_at: "",
+        updated_at: "",
+      };
+      useAuthStore.setState({ isDemo: false, journey: originalJourney });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => payload,
+      });
+
+      await expect(
+        useAuthStore.getState().updateJourney({
+          total_budget: 30_000_000,
+        }),
+      ).rejects.toThrow("저장 결과를 안전하게 확인하지 못했습니다.");
+      expect(useAuthStore.getState().journey).toEqual(originalJourney);
+    });
+
+    it("reconciles instead of applying a late stale PATCH response", async () => {
+      useAuthStore.setState({
+        user: { id: "u1", email: "test@example.com" },
+        isDemo: false,
+        journey: {
+          id: "initial",
+          couple_id: "c1",
+          wedding_date: "2026-10-01",
+        } as never,
+      });
+
+      type JourneyResponse = {
+        ok: boolean;
+        json: () => Promise<{
+          status: "applied";
+          requestId: string;
+          journey: { id: string; couple_id: string; state_revision: number };
+          user?: { id: string };
+        }>;
+      };
+      let resolvePatch!: (value: JourneyResponse) => void;
+      const patchResponse = new Promise<JourneyResponse>((resolve) => {
+        resolvePatch = resolve;
+      });
+      mockFetch
+        .mockReturnValueOnce(patchResponse)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            user: { id: "u1" },
+            journey: { id: "newer-refresh", couple_id: "c1" },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            user: { id: "u1" },
+            journey: { id: "reconciled", couple_id: "c1" },
+          }),
+        });
+
+      const patch = useAuthStore.getState().updateJourney({
+        wedding_date: "2026-12-01",
+      });
+      await expect(
+        useAuthStore.getState().refreshJourney("u1"),
+      ).resolves.toBe(true);
+
+      resolvePatch({
+        ok: true,
+        json: async () => ({
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: {
+            id: "late-stale-patch",
+            couple_id: "c1",
+            state_revision: 1,
+          },
+        }),
+      });
+      await patch;
+
+      await vi.waitFor(() => {
+        expect(useAuthStore.getState().journey?.id).toBe("reconciled");
+      });
+      expect(useAuthStore.getState().journey?.id).not.toBe(
+        "late-stale-patch",
+      );
+    });
+
+    it("propagates PATCH failure so the editor cannot report false success", async () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
       useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
 
-      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.not.toThrow();
+      await expect(
+        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),
+      ).rejects.toThrow("Network error");
     });
 
-    it("does nothing when journey is null in demo mode", async () => {
+    it("fails explicitly when journey is null in demo mode", async () => {
       useAuthStore.setState({ isDemo: true, journey: null });
-      await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" });
+      await expect(
+        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),
+      ).rejects.toThrow("결혼 준비 정보를 찾을 수 없습니다.");
       expect(useAuthStore.getState().journey).toBeNull();
     });
 
@@ -188,7 +443,14 @@ describe("useAuthStore", () => {
     }
 
     it("progress 전체가 아니라 변경된 키만 progress_patch로 보낸다", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: {} }) });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: { couple_id: "c1", state_revision: 1 },
+        }),
+      });
       setJourneyWithProgress({
         venue: { category: "venue", status: "in_progress", budget: 100 },
         studio: { category: "studio", status: "not_started" },
@@ -203,12 +465,20 @@ describe("useAuthStore", () => {
       expect(body.progress).toBeUndefined();
       expect(body.progress_patch).toEqual({ venue: { category: "venue", status: "in_progress", budget: 200 } });
       expect(body.progress_remove_keys).toEqual([]);
+      expect(body.expected_revision).toBe(0);
       // 변경 안 된 studio는 patch에 포함되지 않는다 (스테일 롤백 방지의 핵심)
       expect((body.progress_patch as Record<string, unknown>).studio).toBeUndefined();
     });
 
     it("스냅샷에서 삭제된 키는 progress_remove_keys로 보낸다", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: {} }) });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: { couple_id: "c1", state_revision: 1 },
+        }),
+      });
       setJourneyWithProgress({
         venue: { category: "venue", status: "in_progress" },
         custom_123: { category: "custom_123", label: "웨딩카" },
@@ -233,7 +503,14 @@ describe("useAuthStore", () => {
     });
 
     it("progress와 total_budget을 함께 보내면 patch와 다른 필드가 공존한다", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ journey: {} }) });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: "applied",
+          requestId: PLAN_CHANGE_REQUEST_ID,
+          journey: { couple_id: "c1", state_revision: 1 },
+        }),
+      });
       setJourneyWithProgress({});
 
       await useAuthStore.getState().updateJourney({
@@ -249,6 +526,75 @@ describe("useAuthStore", () => {
   });
 
   // ─── updateJourneyLocal() ───
+
+  describe("refreshJourney()", () => {
+    it("keeps a late older response from replacing a newer journey", async () => {
+      useAuthStore.setState({
+        user: { id: "u1", email: "test@example.com" },
+        journey: { id: "initial", couple_id: "c1" } as never,
+      });
+
+      type AuthMeResponse = {
+        ok: boolean;
+        json: () => Promise<{
+          user: { id: string };
+          journey: { id: string; couple_id: string };
+        }>;
+      };
+      let resolveFirst!: (value: AuthMeResponse) => void;
+      let resolveSecond!: (value: AuthMeResponse) => void;
+      const firstResponse = new Promise<AuthMeResponse>((resolve) => {
+        resolveFirst = resolve;
+      });
+      const secondResponse = new Promise<AuthMeResponse>((resolve) => {
+        resolveSecond = resolve;
+      });
+      mockFetch
+        .mockReturnValueOnce(firstResponse)
+        .mockReturnValueOnce(secondResponse);
+
+      const first = useAuthStore.getState().refreshJourney("u1");
+      const second = useAuthStore.getState().refreshJourney("u1");
+
+      resolveSecond({
+        ok: true,
+        json: async () => ({
+          user: { id: "u1" },
+          journey: { id: "newer", couple_id: "c1" },
+        }),
+      });
+      await expect(second).resolves.toBe(true);
+
+      resolveFirst({
+        ok: true,
+        json: async () => ({
+          user: { id: "u1" },
+          journey: { id: "older", couple_id: "c1" },
+        }),
+      });
+      await expect(first).resolves.toBe(false);
+      expect(useAuthStore.getState().journey?.id).toBe("newer");
+    });
+
+    it("rejects a journey response owned by a different session user", async () => {
+      useAuthStore.setState({
+        user: { id: "u1", email: "test@example.com" },
+        journey: { id: "initial", couple_id: "c1" } as never,
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          user: { id: "u2" },
+          journey: { id: "other-user", couple_id: "c2" },
+        }),
+      });
+
+      await expect(
+        useAuthStore.getState().refreshJourney("u1"),
+      ).resolves.toBe(false);
+      expect(useAuthStore.getState().journey?.id).toBe("initial");
+    });
+  });
 
   describe("updateJourneyLocal()", () => {
     it("updates journey in state without any fetch", () => {
@@ -343,5 +689,81 @@ describe("useAuthStore", () => {
       expect(state.isDemo).toBe(false);
       expect(state.isInitialized).toBe(false);
     });
+
+    it("purges the outgoing account's community memory, caches, and draft", () => {
+      useAuthStore.setState({
+        user: { id: "user-a", email: "a@example.com" },
+        isInitialized: true,
+      });
+      useCommunityStore.getState().bindViewer("user-a");
+      useCommunityStore.setState({
+        posts: [{ id: "a-private" } as never],
+      });
+      sessionStorage.setItem("community:viewer:user-a:landing", "A");
+      localStorage.setItem("community:post-draft:v2:user-a", "A-draft");
+
+      useAuthStore.getState().reset();
+
+      expect(useCommunityStore.getState()).toMatchObject({
+        viewerId: null,
+        posts: [],
+      });
+      expect(sessionStorage.getItem("community:viewer:user-a:landing")).toBeNull();
+      expect(localStorage.getItem("community:post-draft:v2:user-a")).toBeNull();
+    });
+  });
+
+  it("purges auth and community state before sign-out I/O finishes", async () => {
+    let resolveSignOut: (() => void) | undefined;
+    supabaseMocks.signOut.mockReturnValueOnce(
+      new Promise((resolve) => { resolveSignOut = () => resolve({}); }),
+    );
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@example.com" },
+      isInitialized: true,
+    });
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.setState({ posts: [{ id: "a-private" } as never] });
+
+    const pending = useAuthStore.getState().signOut();
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useCommunityStore.getState()).toMatchObject({
+      viewerId: null,
+      posts: [],
+    });
+
+    resolveSignOut?.();
+    await pending;
+  });
+
+  it("rebinds and purges community state before committing an account switch", async () => {
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@example.com" },
+      isInitialized: true,
+    });
+    useCommunityStore.getState().bindViewer("user-a");
+    useCommunityStore.setState({ posts: [{ id: "a-private" } as never] });
+    sessionStorage.setItem("community:viewer:user-a:trending", "A");
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: "user-b", email: "b@example.com" },
+        profile: { id: "user-b", name: "B" },
+        couple: null,
+        partner: null,
+        journey: null,
+      }),
+    });
+
+    await useAuthStore.getState().initialize({ force: true });
+
+    expect(useAuthStore.getState().user?.id).toBe("user-b");
+    expect(useCommunityStore.getState()).toMatchObject({
+      viewerId: "user-b",
+      posts: [],
+    });
+    expect(sessionStorage.getItem("community:viewer:user-a:trending")).toBeNull();
   });
 });

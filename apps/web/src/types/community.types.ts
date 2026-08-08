@@ -10,11 +10,30 @@ export type CommunityCategory =
   | "free";          // 자유게시판
 
 export type PostVisibility = "public" | "members" | "draft";
-export type PostSort = "hot" | "new" | "top" | "my_cohort" | "my_posts";
+export type PostSort =
+  | "hot"
+  | "new"
+  | "top"
+  | "unanswered"
+  | "resolved"
+  | "my_cohort"
+  | "my_posts";
 export type TimePeriod = "week" | "month" | "all";
 export type AdDisclosure = "general" | "sponsored" | "ad";
+export type CommunityContentOrigin =
+  | "member"
+  | "operator"
+  | "ai"
+  | "industry_professional"
+  | "legacy_unverified";
 export type CommunityRank = "sprout" | "preparing" | "expert" | "master" | "senior";
-export type ReportReason = "spam" | "abuse" | "ad" | "inappropriate" | "other";
+export type ReportReason =
+  | "spam"
+  | "abuse"
+  | "ad"
+  | "privacy"
+  | "inappropriate"
+  | "other";
 export type CohortThreadTopic = "price" | "review" | "concern" | "chat";
 export type CohortContractCategory = "venue" | "studio" | "dress" | "makeup" | "snap" | "ring" | "honeymoon" | "other";
 export type CohortEventType =
@@ -79,6 +98,8 @@ export interface SlideMedia {
 export interface CommunityPost {
   id: string;
   author_id: string;
+  /** 서버가 기록한 콘텐츠 작성 출처. 닉네임이나 프로필 역할로 추론하지 않는다. */
+  content_origin: CommunityContentOrigin;
   category: CommunityCategory;
   title: string;
   content: string;
@@ -150,20 +171,26 @@ export interface PollOption {
   position: number;
   label: string;
   image_url: string | null;
-  vote_count: number;
+  /** 결과 비공개 상태에서는 서버가 0이 아닌 null을 반환한다. */
+  vote_count: number | null;
 }
 
 export interface Poll {
   id: string;
   post_id: string;
+  /** 투표 정의(질문·옵션·규칙)의 낙관적 동시성 버전. */
+  version: number;
   question: string;
   allow_multiple: boolean;
   is_anonymous: boolean;
   hide_results_until_voted: boolean;
   closes_at: string | null;
-  total_voters: number;
-  total_votes: number;
+  /** 결과 비공개 상태에서는 집계 수치를 노출하지 않는다. */
+  total_voters: number | null;
+  total_votes: number | null;
   created_at: string;
+  /** actor projection이 현재 사용자에게 결과를 숨겼는지 여부. */
+  results_hidden?: boolean;
 }
 
 export interface PollWithOptions extends Poll {
@@ -176,7 +203,7 @@ export interface PollWithOptions extends Poll {
 export interface PollSummary {
   id: string;
   question: string;
-  total_voters: number;
+  total_voters: number | null;
   closes_at: string | null;
 }
 
@@ -215,6 +242,8 @@ export interface CommunityComment {
   post_id: string;
   parent_id: string | null;
   author_id: string;
+  /** 서버가 기록한 콘텐츠 작성 출처. 닉네임이나 프로필 역할로 추론하지 않는다. */
+  content_origin: CommunityContentOrigin;
   content: string;
   upvote_count: number;
   is_deleted: boolean;
@@ -331,6 +360,9 @@ export interface UpdatePostInput {
   visibility?: PostVisibility;
   vendor_tags?: string[];
   tags?: string[];
+  ad_disclosure?: AdDisclosure;
+  sponsorship_detail?: string | null;
+  price_data?: PriceData | null;
   is_resolved?: boolean;
   /** @deprecated 레거시 호환 */
   cost_data?: CostShareData | null;

@@ -1,5 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import {
+  WEDDING_BUDGET_TENDENCY_OPTIONS,
+  WEDDING_GUEST_COUNT_OPTIONS,
+  WEDDING_PRIORITY_OPTIONS,
+  WEDDING_STYLE_OPTIONS,
+} from "@hanbang/shared";
 
 import { determineStage } from "@/lib/ai/stage-router";
 import {
@@ -9,11 +15,94 @@ import {
 } from "@/lib/couples/membershipRpc";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { upsertMomentEvent } from "@/utils/scheduleEvents";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import {
+  getEvents,
+  getScheduleEventStatus,
+  inspectScheduleEvents,
+  upsertMomentEvent,
+} from "@/utils/scheduleEvents";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { PROGRESS_CHECKLIST_ITEMS } from "@/types/onboarding.types";
 
 const ONBOARDING_JOIN_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
-const DEFAULT_TOTAL_BUDGET = 20_000_000;
+const MAX_ONBOARDING_BODY_BYTES = 128 * 1024;
+const REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UNSAFE_DISPLAY_CHARACTER = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+const CHECKLIST_STATUSES: ReadonlySet<string> = new Set([
+  "not_started",
+  "in_progress",
+  "completed",
+  "not_applicable",
+]);
+const PROGRESS_CATEGORY_KEYS: ReadonlySet<string> = new Set(
+  PROGRESS_CHECKLIST_ITEMS.map(({ key }) => key),
+);
+const PROGRESS_ITEM_KEYS: ReadonlySet<string> = new Set(["status", "spent"]);
+const PREFERENCE_KEYS: ReadonlySet<string> = new Set([
+  "weddingStyle",
+  "priorities",
+  "budgetTendency",
+  "guestCount",
+]);
+const WEDDING_STYLE_VALUES: ReadonlySet<string> = new Set(
+  WEDDING_STYLE_OPTIONS.map(({ value }) => value),
+);
+const WEDDING_PRIORITY_VALUES: ReadonlySet<string> = new Set(
+  WEDDING_PRIORITY_OPTIONS.map(({ value }) => value),
+);
+const WEDDING_BUDGET_TENDENCY_VALUES: ReadonlySet<string> = new Set(
+  WEDDING_BUDGET_TENDENCY_OPTIONS.map(({ value }) => value),
+);
+const WEDDING_GUEST_COUNT_VALUES: ReadonlySet<string> = new Set(
+  WEDDING_GUEST_COUNT_OPTIONS.map(({ value }) => value),
+);
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+};
+
+type NormalizedOnboardingBudget =
+  | { ok: true; totalBudgetWon: number | null }
+  | { ok: false };
+
+function normalizeOnboardingBudget(value: unknown): NormalizedOnboardingBudget {
+  if (value === undefined || value === null || value === "" || value === 0) {
+    return { ok: true, totalBudgetWon: null };
+  }
+
+  // 기존 웹과 배포 전 클라이언트는 원 단위 숫자를 전송한다.
+  if (typeof value === "number") {
+    return isValidWeddingWonAmount(value) && value > 0
+      ? { ok: true, totalBudgetWon: value }
+      : { ok: false };
+  }
+
+  if (!isRecord(value)) return { ok: false };
+  const keys = Object.keys(value).sort();
+  if (keys.length !== 2 || keys[0] !== "amount" || keys[1] !== "unit") {
+    return { ok: false };
+  }
+
+  const { amount, unit } = value;
+  if (
+    typeof amount !== "number"
+    || !Number.isSafeInteger(amount)
+    || amount <= 0
+    || (unit !== "won" && unit !== "manwon")
+  ) {
+    return { ok: false };
+  }
+
+  const totalBudgetWon = unit === "manwon"
+    ? amount * 10_000
+    : amount;
+  return isValidWeddingWonAmount(totalBudgetWon) && totalBudgetWon > 0
+    ? { ok: true, totalBudgetWon }
+    : { ok: false };
+}
 
 function getAdmin() {
   return createAdminClient();
@@ -28,12 +117,153 @@ class OnboardingPersistenceError extends Error {
   }
 }
 
-function asProgress(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
+class SanggyeonryeDateConflictError extends Error {
+  constructor(
+    readonly existingDate: string,
+    readonly requestedDate: string,
+  ) {
+    super("The authoritative sanggyeonrye date differs from onboarding input.");
+    this.name = "SanggyeonryeDateConflictError";
+  }
+}
+
+class ScheduleEventsRepairRequiredError extends Error {
+  constructor() {
+    super("Stored schedule events must be repaired before onboarding can append an event.");
+    this.name = "ScheduleEventsRepairRequiredError";
+  }
+}
+
+function privateResponse(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: PRIVATE_NO_STORE_HEADERS,
+  });
+}
+
+function persistenceCauseText(error: OnboardingPersistenceError): string {
+  const cause = error.cause;
+  if (isRecord(cause)) {
+    return ["code", "message", "details", "hint"]
+      .map((key) => cause[key])
+      .filter((value): value is string => typeof value === "string")
+      .join(" ");
+  }
+  return typeof cause === "string" ? cause : "";
+}
+
+function hasOnlyKeys(
+  value: Record<string, unknown>,
+  allowedKeys: ReadonlySet<string>,
+): boolean {
+  return Object.keys(value).every((key) => allowedKeys.has(key));
+}
+
+function parsePreferences(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value) || !hasOnlyKeys(value, PREFERENCE_KEYS)) return null;
+
+  const {
+    weddingStyle,
+    priorities = [],
+    budgetTendency,
+    guestCount,
+  } = value;
+  if (
+    weddingStyle !== undefined
+    && weddingStyle !== null
+    && (
+      typeof weddingStyle !== "string"
+      || !WEDDING_STYLE_VALUES.has(weddingStyle)
+    )
+  ) {
+    return null;
+  }
+  if (
+    !Array.isArray(priorities)
+    || priorities.length > 3
+    || priorities.some(
+      (priority) =>
+        typeof priority !== "string"
+        || !WEDDING_PRIORITY_VALUES.has(priority),
+    )
+    || new Set(priorities).size !== priorities.length
+  ) {
+    return null;
+  }
+  if (
+    budgetTendency !== undefined
+    && budgetTendency !== null
+    && (
+      typeof budgetTendency !== "string"
+      || !WEDDING_BUDGET_TENDENCY_VALUES.has(budgetTendency)
+    )
+  ) {
+    return null;
+  }
+  if (
+    guestCount !== undefined
+    && guestCount !== null
+    && (
+      typeof guestCount !== "string"
+      || !WEDDING_GUEST_COUNT_VALUES.has(guestCount)
+    )
+  ) {
+    return null;
   }
 
-  return value as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+  if (typeof weddingStyle === "string") normalized.weddingStyle = weddingStyle;
+  if (priorities.length > 0) normalized.priorities = priorities;
+  if (typeof budgetTendency === "string") {
+    normalized.budgetTendency = budgetTendency;
+  }
+  if (typeof guestCount === "string") normalized.guestCount = guestCount;
+  return normalized;
+}
+
+function parseOnboardingProgress(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) return null;
+
+  const normalized: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "__events") return null;
+    if (key === "__preferences") {
+      const preferences = parsePreferences(item);
+      if (!preferences) return null;
+      if (Object.keys(preferences).length > 0) {
+        normalized.__preferences = preferences;
+      }
+      continue;
+    }
+    if (
+      !PROGRESS_CATEGORY_KEYS.has(key)
+      || !isRecord(item)
+      || !hasOnlyKeys(item, PROGRESS_ITEM_KEYS)
+      || typeof item.status !== "string"
+      || !CHECKLIST_STATUSES.has(item.status)
+    ) {
+      return null;
+    }
+
+    const hasSpent = Object.hasOwn(item, "spent");
+    if (
+      hasSpent
+      && (
+        item.status !== "completed"
+        || !isValidWeddingWonAmount(item.spent)
+      )
+    ) {
+      return null;
+    }
+    if (item.status === "not_started" && !hasSpent) continue;
+    normalized[key] = hasSpent
+      ? { status: item.status, spent: item.spent }
+      : { status: item.status };
+  }
+  return normalized;
 }
 
 function storedProgress(value: unknown): Record<string, unknown> {
@@ -45,19 +275,68 @@ function storedProgress(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function hasSanggyeonryeEvent(progress: Record<string, unknown>): boolean {
-  const events = progress.__events;
-  if (events === undefined) return false;
-  if (!Array.isArray(events)) {
-    throw new OnboardingPersistenceError("journey progress validation");
+function getAuthoritativeSanggyeonryeDate(
+  progress: Record<string, unknown>,
+): string | null {
+  const dates = [
+    ...new Set(
+      getEvents(progress)
+        .filter(
+          (event) =>
+            getScheduleEventStatus(event) !== "cancelled"
+            && event.momentType === "sanggyeonrye",
+        )
+        .map((event) => event.date),
+    ),
+  ];
+  if (dates.length > 1) {
+    throw new OnboardingPersistenceError(
+      "multiple authoritative sanggyeonrye dates",
+    );
   }
+  return dates[0] ?? null;
+}
 
-  return events.some(
-    (event) =>
-      Boolean(event) &&
-      typeof event === "object" &&
-      (event as { momentType?: unknown }).momentType === "sanggyeonrye",
-  );
+function hasSanggyeonryeEvent(
+  progress: Record<string, unknown>,
+  expectedDate?: string,
+): boolean {
+  const date = getAuthoritativeSanggyeonryeDate(progress);
+  return date !== null && (expectedDate === undefined || date === expectedDate);
+}
+
+function upsertStableOnboardingSanggyeonryeEvent(
+  progress: Record<string, unknown>,
+  date: string,
+): Record<string, unknown> {
+  if (hasSanggyeonryeEvent(progress, date)) return progress;
+
+  const result = upsertMomentEvent(progress, {
+    momentType: "sanggyeonrye",
+    date,
+    title: "양쪽 부모님 첫 만남",
+  });
+  if (!result.created) return result.newProgress;
+
+  // A retry while a two-person request is pending must produce the exact same
+  // intent digest. Generic schedule helpers use random IDs and wall-clock
+  // timestamps, so onboarding gives this imported event stable provenance.
+  const stableEvent = {
+    ...result.event,
+    id: `onboarding:sanggyeonrye:${date}`,
+    sourceKey: "onboarding:sanggyeonrye",
+    createdAt: `${date}T00:00:00.000Z`,
+    updatedAt: `${date}T00:00:00.000Z`,
+  };
+  const events = Array.isArray(result.newProgress.__events)
+    ? result.newProgress.__events.map((event) =>
+        isRecord(event) && event.id === result.event.id ? stableEvent : event
+      )
+    : [stableEvent];
+  return {
+    ...result.newProgress,
+    __events: events,
+  };
 }
 
 async function ensureProfileExists(
@@ -100,6 +379,7 @@ async function completeProfile(
     .from("profiles")
     .update({ onboarding_completed: true, onboarding_step: 5 })
     .eq("id", userId)
+    .eq("couple_id", coupleId)
     .select("id, couple_id")
     .single();
 
@@ -110,6 +390,8 @@ async function completeProfile(
 
 type JourneyInput = {
   coupleId: string;
+  actorUserId: string;
+  isLinked: boolean;
   weddingDate: string | null;
   venue: string | null;
   totalBudget: number | null;
@@ -117,10 +399,255 @@ type JourneyInput = {
   sanggyeonryeDate: string | null;
 };
 
+type OnboardingPlanOutcome = {
+  status:
+    | "unchanged"
+    | "applied"
+    | "pending_partner"
+    | "rejected"
+    | "stale";
+  requestId?: string;
+  summary?: string;
+  fullPlanApplied: boolean;
+  sanggyeonryeApplied: boolean;
+  routineProgressDeferred: boolean;
+};
+
+type PlanChangeRpcClient = {
+  rpc: (
+    name: "submit_couple_plan_change",
+    args: {
+      p_couple_id: string;
+      p_actor_user_id: string;
+      p_expected_revision: number;
+      p_changes: Record<string, unknown>;
+      p_surface: "/dashboard";
+      p_summary: string;
+    },
+  ) => Promise<{
+    data: unknown;
+    error: { code?: string; message?: string } | null;
+  }>;
+};
+
+type ExistingJourneyPlan = {
+  wedding_date?: string | null;
+  venue?: string | null;
+  total_budget?: number | null;
+};
+
+function parseInitialPlanResult(
+  value: unknown,
+  coupleId: string,
+  expectedRevision: number,
+  expectedSanggyeonryeDate: string | null,
+  routineProgressDeferred: boolean,
+): OnboardingPlanOutcome {
+  if (!isRecord(value)
+      || typeof value.requestId !== "string"
+      || !REQUEST_ID_PATTERN.test(value.requestId)
+      || typeof value.summary !== "string"
+      || value.summary.length < 1
+      || value.summary.length > 240
+      || value.summary !== value.summary.trim()) {
+    throw new OnboardingPersistenceError("initial plan response validation");
+  }
+
+  if (value.status === "pending_partner") {
+    if (value.requiredCount !== 2
+        || value.acceptedCount !== 1
+        || value.isHighImpact !== true
+        || value.journey !== null) {
+      throw new OnboardingPersistenceError("initial plan pending validation");
+    }
+    return {
+      status: "pending_partner",
+      requestId: value.requestId,
+      summary: value.summary,
+      fullPlanApplied: false,
+      sanggyeonryeApplied: false,
+      routineProgressDeferred,
+    };
+  }
+
+  if (value.status === "rejected" || value.status === "stale") {
+    if (value.requiredCount !== 2
+        || value.acceptedCount !== 1
+        || value.isHighImpact !== true
+        || value.appliedRevision !== null
+        || value.journey !== null) {
+      throw new OnboardingPersistenceError("initial plan terminal validation");
+    }
+    return {
+      status: value.status,
+      requestId: value.requestId,
+      summary: value.summary,
+      fullPlanApplied: false,
+      sanggyeonryeApplied: false,
+      routineProgressDeferred,
+    };
+  }
+
+  if (value.status !== "applied"
+      || (value.requiredCount !== 1 && value.requiredCount !== 2)
+      || value.acceptedCount !== value.requiredCount
+      || value.appliedRevision !== expectedRevision + 1
+      || typeof value.isHighImpact !== "boolean"
+      || !isRecord(value.journey)
+      || value.journey.couple_id !== coupleId
+      || value.journey.state_revision !== expectedRevision + 1) {
+    throw new OnboardingPersistenceError("initial plan applied validation");
+  }
+
+  if (
+    expectedSanggyeonryeDate
+    && !hasSanggyeonryeEvent(
+      storedProgress(value.journey.progress),
+      expectedSanggyeonryeDate,
+    )
+  ) {
+    throw new OnboardingPersistenceError("initial plan schedule verification");
+  }
+
+  return {
+    status: "applied",
+    requestId: value.requestId,
+    summary: value.summary,
+    fullPlanApplied: true,
+    sanggyeonryeApplied: expectedSanggyeonryeDate !== null,
+    routineProgressDeferred,
+  };
+}
+
+async function submitInitialJourneyPlan(
+  admin: AdminClient,
+  input: JourneyInput,
+  expectedRevision: number,
+  options: {
+    includeInputProgress?: boolean;
+    progressPatch?: Record<string, unknown>;
+    current?: ExistingJourneyPlan;
+    routineProgressDeferred?: boolean;
+  } = {},
+): Promise<OnboardingPlanOutcome> {
+  const includeInputProgress = options.includeInputProgress ?? true;
+  const progressPatch =
+    options.progressPatch
+    ?? (includeInputProgress ? input.progress : {});
+  const changes: Record<string, unknown> = {};
+  if (input.weddingDate && input.weddingDate !== options.current?.wedding_date) {
+    changes.wedding_date = input.weddingDate;
+  }
+  if (input.venue && input.venue !== options.current?.venue) {
+    changes.venue = input.venue;
+  }
+  if (input.totalBudget && input.totalBudget !== options.current?.total_budget) {
+    changes.total_budget = input.totalBudget;
+  }
+  if (Object.keys(progressPatch).length > 0) {
+    changes.progress_patch = progressPatch;
+  }
+  if (Object.keys(changes).length === 0) {
+    return {
+      status: "unchanged",
+      fullPlanApplied: false,
+      sanggyeonryeApplied: false,
+      routineProgressDeferred: options.routineProgressDeferred ?? false,
+    };
+  }
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new OnboardingPersistenceError("journey revision validation");
+  }
+
+  const { data, error } = await (admin as unknown as PlanChangeRpcClient).rpc(
+    "submit_couple_plan_change",
+    {
+      p_couple_id: input.coupleId,
+      p_actor_user_id: input.actorUserId,
+      p_expected_revision: expectedRevision,
+      p_changes: changes,
+      p_surface: "/dashboard",
+      p_summary: "온보딩에서 입력한 결혼 준비 정보를 저장해요.",
+    },
+  );
+  if (error) {
+    throw new OnboardingPersistenceError("initial plan submission", error);
+  }
+  return parseInitialPlanResult(
+    data,
+    input.coupleId,
+    expectedRevision,
+    input.sanggyeonryeDate !== null
+      && hasSanggyeonryeEvent(progressPatch, input.sanggyeonryeDate)
+      ? input.sanggyeonryeDate
+      : null,
+    options.routineProgressDeferred ?? false,
+  );
+}
+
+function hasHighImpactScalarChange(
+  input: JourneyInput,
+  current: ExistingJourneyPlan,
+): boolean {
+  return (
+    Boolean(input.weddingDate)
+      && input.weddingDate !== current.wedding_date
+  ) || (
+    Boolean(input.venue)
+      && input.venue !== current.venue
+  ) || (
+    Boolean(input.totalBudget)
+      && input.totalBudget !== current.total_budget
+  );
+}
+
+function buildSanggyeonryeProgressPatch(
+  existingProgress: Record<string, unknown>,
+  requestedDate: string | null,
+): Record<string, unknown> {
+  if (!requestedDate) return {};
+  const inspection = inspectScheduleEvents(existingProgress);
+  if (
+    inspection.malformedContainer
+    || inspection.rejectedCount > 0
+    || inspection.truncatedCount > 0
+  ) {
+    // Schedule helpers intentionally expose only validated, bounded events.
+    // Appending to that filtered view would replace the raw array and silently
+    // discard legacy or malformed entries, so preserve it for explicit repair.
+    throw new ScheduleEventsRepairRequiredError();
+  }
+  const existingDates = [
+    ...new Set(
+      inspection.events
+        .filter(
+          (event) =>
+            getScheduleEventStatus(event) !== "cancelled"
+            && event.momentType === "sanggyeonrye",
+        )
+        .map((event) => event.date),
+    ),
+  ];
+  if (existingDates.length > 1) {
+    throw new ScheduleEventsRepairRequiredError();
+  }
+  const existingDate = existingDates[0] ?? null;
+  if (existingDate && existingDate !== requestedDate) {
+    throw new SanggyeonryeDateConflictError(existingDate, requestedDate);
+  }
+  if (existingDate === requestedDate) return {};
+
+  const updated = upsertStableOnboardingSanggyeonryeEvent(
+    existingProgress,
+    requestedDate,
+  );
+  return { __events: updated.__events };
+}
+
 async function readJourney(admin: AdminClient, coupleId: string) {
   const { data, error } = await admin
     .from("wedding_journeys")
-    .select("id, progress")
+    .select("id, wedding_date, venue, total_budget, progress, state_revision")
     .eq("couple_id", coupleId)
     .maybeSingle();
 
@@ -143,25 +670,42 @@ async function ensureJourney(admin: AdminClient, input: JourneyInput) {
       .from("wedding_journeys")
       .insert({
         couple_id: input.coupleId,
-        wedding_date: input.weddingDate,
-        venue: input.venue,
-        total_budget: input.totalBudget ?? DEFAULT_TOTAL_BUDGET,
-        progress: input.progress,
+        wedding_date: null,
+        venue: null,
+        total_budget: 0,
+        progress: {},
       })
-      .select("id, progress")
+      .select("id, progress, state_revision")
       .single();
 
     if (!insertError && inserted) {
-      if (typeof inserted.id !== "string") {
+      if (typeof inserted.id !== "string"
+          || inserted.state_revision !== 0) {
         throw new OnboardingPersistenceError("journey creation verification");
       }
-      if (
-        input.sanggyeonryeDate &&
-        !hasSanggyeonryeEvent(storedProgress(inserted.progress))
-      ) {
-        throw new OnboardingPersistenceError("journey creation verification");
-      }
-      return;
+      const highImpactScalarChange = hasHighImpactScalarChange(input, {
+        wedding_date: null,
+        venue: null,
+        total_budget: 0,
+      });
+      const routineProgressDeferred =
+        input.isLinked
+        && highImpactScalarChange
+        && Object.keys(input.progress).length > 0;
+      const progressPatch = {
+        ...(routineProgressDeferred ? {} : input.progress),
+        ...buildSanggyeonryeProgressPatch({}, input.sanggyeonryeDate),
+      };
+      return submitInitialJourneyPlan(
+        admin,
+        input,
+        inserted.state_revision,
+        {
+          includeInputProgress: false,
+          progressPatch,
+          routineProgressDeferred,
+        },
+      );
     }
 
     // A lost-response retry or the partner can win the unique(couple_id)
@@ -176,54 +720,47 @@ async function ensureJourney(admin: AdminClient, input: JourneyInput) {
     }
   }
 
-  if (!input.sanggyeonryeDate) return;
+  const existingProgress = storedProgress(journey.progress);
+  const mayInitializeProgress =
+    journey.progress === null
+    || (isRecord(journey.progress) && Object.keys(journey.progress).length === 0);
+  const current = {
+    wedding_date:
+      typeof journey.wedding_date === "string" ? journey.wedding_date : null,
+    venue: typeof journey.venue === "string" ? journey.venue : null,
+    total_budget:
+      typeof journey.total_budget === "number" ? journey.total_budget : null,
+  };
+  const routineProgressRequested = Object.keys(input.progress).length > 0;
+  const routineProgressDeferred =
+    routineProgressRequested
+    && (
+      !mayInitializeProgress
+      || (input.isLinked && hasHighImpactScalarChange(input, current))
+    );
+  const progressPatch = {
+    ...(mayInitializeProgress && !routineProgressDeferred ? input.progress : {}),
+    ...buildSanggyeonryeProgressPatch(
+      existingProgress,
+      input.sanggyeonryeDate,
+    ),
+  };
 
-  // Compare-and-swap the complete JSON value. `apply_journey_progress_patch`
-  // is atomic for top-level keys but replaces the whole __events array, so a
-  // simultaneous partner edit to that same array could be lost. The exact old
-  // value predicate makes that race a zero-row update; we then re-read and
-  // merge again without overwriting either writer.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const rawProgress = journey.progress;
-    const existingProgress = storedProgress(rawProgress);
-    if (hasSanggyeonryeEvent(existingProgress)) return;
-
-    const { newProgress } = upsertMomentEvent(existingProgress, {
-      momentType: "sanggyeonrye",
-      date: input.sanggyeonryeDate,
-      title: "상견례",
-    });
-
-    let update = admin
-      .from("wedding_journeys")
-      .update({ progress: newProgress })
-      .eq("id", journey.id);
-    update =
-      rawProgress === null
-        ? update.is("progress", null)
-        : update.filter("progress", "eq", JSON.stringify(rawProgress));
-
-    const { data: updated, error: updateError } = await update
-      .select("progress")
-      .maybeSingle();
-    if (updateError) {
-      throw new OnboardingPersistenceError("sanggyeonrye merge", updateError);
-    }
-    if (updated) {
-      if (!hasSanggyeonryeEvent(storedProgress(updated.progress))) {
-        throw new OnboardingPersistenceError("sanggyeonrye merge verification");
-      }
-      return;
-    }
-
-    const reloaded = await readJourney(admin, input.coupleId);
-    if (!reloaded) {
-      throw new OnboardingPersistenceError("journey disappeared during merge");
-    }
-    journey = reloaded;
-  }
-
-  throw new OnboardingPersistenceError("sanggyeonrye merge contention");
+  return submitInitialJourneyPlan(
+    admin,
+    input,
+    Number(journey.state_revision),
+    {
+      // An existing shared plan is authoritative. Onboarding may propose the
+      // user's explicit date, venue and total, but must not replace the
+      // partner's checklist or preferences wholesale. A truly neutral
+      // bootstrap row is the sole safe case where onboarding may initialize it.
+      includeInputProgress: false,
+      progressPatch,
+      current,
+      routineProgressDeferred,
+    },
+  );
 }
 
 function validDate(value: unknown): value is string {
@@ -239,16 +776,41 @@ function validDate(value: unknown): value is string {
 
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return privateResponse({ error: "허용되지 않은 요청입니다." }, 403);
+    }
+    const rawBody = await readBoundedUtf8Text(
+      request,
+      MAX_ONBOARDING_BODY_BYTES,
+    );
+    if (!rawBody.ok) {
+      return privateResponse(
+        {
+          error: rawBody.reason === "too_large"
+            ? "요청 내용이 너무 큽니다."
+            : "요청을 읽지 못했습니다.",
+        },
+        rawBody.reason === "too_large" ? 413 : 400,
+      );
+    }
+    let body: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(rawBody.text);
+      if (!isRecord(parsed)) throw new Error("body must be an object");
+      body = parsed;
+    } catch {
+      return privateResponse({ error: "요청 형식이 올바르지 않습니다." }, 400);
+    }
+
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return privateResponse({ error: "인증이 필요합니다." }, 401);
     }
 
-    const body = await request.json();
     const {
       role: rawRole,
       coupleAction: rawCoupleAction,
@@ -261,54 +823,87 @@ export async function POST(request: Request) {
     } = body;
 
     if (rawRole !== "bride" && rawRole !== "groom") {
-      return NextResponse.json({ error: "유효하지 않은 역할입니다." }, { status: 400 });
+      return privateResponse({ error: "유효하지 않은 역할입니다." }, 400);
     }
     const role: CoupleRole = rawRole;
 
     if (rawCoupleAction !== "create" && rawCoupleAction !== "join") {
-      return NextResponse.json({ error: "유효하지 않은 커플 연결 방식입니다." }, { status: 400 });
+      return privateResponse({ error: "유효하지 않은 커플 연결 방식입니다." }, 400);
     }
     const coupleAction: MembershipAction = rawCoupleAction;
 
     let normalizedInviteCode: string | null = null;
     if (coupleAction === "join") {
-      const limited = checkRateLimit(
+      const limited = await checkRateLimitPersistent(
         rateLimitKey("onboarding_couple_join", request, user.id),
         ONBOARDING_JOIN_RATE,
+        { failClosed: true },
       );
-      if (limited) return limited;
+      if (limited) {
+        limited.headers.set(
+          "Cache-Control",
+          PRIVATE_NO_STORE_HEADERS["Cache-Control"],
+        );
+        return limited;
+      }
 
       if (typeof partnerInviteCode !== "string") {
-        return NextResponse.json({ error: "파트너 초대 코드를 입력해주세요." }, { status: 400 });
+        return privateResponse({ error: "파트너 초대 코드를 입력해주세요." }, 400);
       }
 
       normalizedInviteCode = partnerInviteCode.trim().toUpperCase();
       if (!/^WH-[A-Z0-9]{6,12}$/.test(normalizedInviteCode)) {
-        return NextResponse.json({ error: "초대 코드 형식이 올바르지 않습니다." }, { status: 400 });
+        return privateResponse({ error: "초대 코드 형식이 올바르지 않습니다." }, 400);
       }
     }
 
+    const hasWeddingDateInput =
+      rawWeddingDate !== undefined
+      && rawWeddingDate !== null
+      && rawWeddingDate !== "";
+    if (hasWeddingDateInput && !validDate(rawWeddingDate)) {
+      return privateResponse({ error: "결혼식 날짜 형식이 올바르지 않습니다." }, 400);
+    }
     const weddingDate = validDate(rawWeddingDate) ? rawWeddingDate : null;
-    const venue =
-      typeof rawVenue === "string" && rawVenue.trim()
-        ? rawVenue.trim().slice(0, 100)
-        : null;
-    const budgetNumber = Number(rawTotalBudget);
-    const totalBudget =
-      Number.isFinite(budgetNumber) && budgetNumber > 0 && budgetNumber <= 10_000_000_000
-        ? Math.round(budgetNumber)
-        : null;
+    if (rawVenue !== undefined && rawVenue !== null && typeof rawVenue !== "string") {
+      return privateResponse({ error: "예식장 형식이 올바르지 않습니다." }, 400);
+    }
+    const normalizedVenue = typeof rawVenue === "string" ? rawVenue.trim() : "";
+    if (
+      Array.from(normalizedVenue).length > 100
+      || UNSAFE_DISPLAY_CHARACTER.test(normalizedVenue)
+    ) {
+      return privateResponse({ error: "예식장 이름을 다시 확인해주세요." }, 400);
+    }
+    const venue = normalizedVenue || null;
+    const normalizedBudget = normalizeOnboardingBudget(rawTotalBudget);
+    if (!normalizedBudget.ok) {
+      return privateResponse(
+        { error: "총 예산은 10억 원 이하의 금액으로 입력해주세요." },
+        400,
+      );
+    }
+    const totalBudget = normalizedBudget.totalBudgetWon;
+    const hasSanggyeonryeDateInput =
+      rawSanggyeonryeDate !== undefined
+      && rawSanggyeonryeDate !== null
+      && rawSanggyeonryeDate !== "";
+    if (hasSanggyeonryeDateInput && !validDate(rawSanggyeonryeDate)) {
+      return privateResponse(
+        { error: "양쪽 부모님 첫 만남 날짜 형식이 올바르지 않습니다." },
+        400,
+      );
+    }
     const sanggyeonryeDate = validDate(rawSanggyeonryeDate)
       ? rawSanggyeonryeDate
       : null;
-    const baseProgress = asProgress(progress);
-    const journeyProgress = sanggyeonryeDate
-      ? upsertMomentEvent(baseProgress, {
-          momentType: "sanggyeonrye",
-          date: sanggyeonryeDate,
-          title: "상견례",
-        }).newProgress
-      : baseProgress;
+    const baseProgress = parseOnboardingProgress(progress);
+    if (!baseProgress) {
+      return privateResponse(
+        { error: "준비 현황 형식이 올바르지 않습니다." },
+        400,
+      );
+    }
 
     const admin = getAdmin();
     await ensureProfileExists(admin, user);
@@ -323,121 +918,196 @@ export async function POST(request: Request) {
 
     if (rpcResponse.error) {
       console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
-      return NextResponse.json(
+      return privateResponse(
         { error: "커플 연결을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
-        { status: 500 },
+        500,
       );
     }
 
     const membership = parseMembershipRpcResponse(rpcResponse.data, role, coupleAction);
     if (!membership.ok) {
       console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
-      return NextResponse.json({ error: membership.message }, { status: membership.status });
+      return privateResponse({ error: membership.message }, membership.status);
     }
 
     try {
-      await completeProfile(admin, user.id, membership.coupleId);
-      await ensureJourney(admin, {
+      const planOutcome = await ensureJourney(admin, {
         coupleId: membership.coupleId,
+        actorUserId: user.id,
+        isLinked: coupleAction === "join" || membership.idempotent,
         weddingDate,
         venue,
         totalBudget,
-        progress: journeyProgress,
+        progress: baseProgress,
         sanggyeonryeDate,
       });
+      if (planOutcome.status === "rejected" || planOutcome.status === "stale") {
+        return privateResponse(
+          {
+            error:
+              planOutcome.status === "rejected"
+                ? "파트너가 이 계획에 동의하지 않았어요. 내용을 바꾸거나 해당 항목을 비워 다시 저장해주세요."
+                : "계획이 달라져 요청을 다시 확인해야 해요. 최신 내용을 확인한 뒤 다시 저장해주세요.",
+            planChange: {
+              status: planOutcome.status,
+              requestId: planOutcome.requestId,
+              summary: planOutcome.summary,
+            },
+          },
+          409,
+        );
+      }
+      // Completion is the final durable step. If plan persistence fails, the
+      // user must remain in onboarding so their inputs can be retried safely.
+      await completeProfile(admin, user.id, membership.coupleId);
+      const shouldRecordFullPlan = planOutcome.fullPlanApplied;
+      const shouldRecordSanggyeonrye = planOutcome.sanggyeonryeApplied;
+
+      // Optional memory enrichment is deliberately outside the core completion
+      // transaction. Pending partner decisions must never be recorded as facts.
+      void (async () => {
+        try {
+          const stageTag = determineStage(weddingDate);
+          const baseMeta = { hook: "onboarding", role, coupleAction };
+
+          if (weddingDate && shouldRecordFullPlan) {
+            await recordDecision({
+              coupleId: membership.coupleId,
+              userId: user.id,
+              category: "timeline",
+              title: "결혼식 날짜 확정",
+              chosenValue: { wedding_date: weddingDate },
+              decisionType: "decided",
+              stageTag,
+              source: "onboarding",
+              confidence: 0.95,
+              metadata: baseMeta,
+            });
+          }
+
+          if (venue && shouldRecordFullPlan) {
+            await recordDecision({
+              coupleId: membership.coupleId,
+              userId: user.id,
+              category: "venue",
+              title: venue,
+              chosenValue: { venue },
+              decisionType: "considering",
+              stageTag,
+              source: "onboarding",
+              confidence: 0.7,
+              metadata: baseMeta,
+            });
+          }
+
+          if (sanggyeonryeDate && shouldRecordSanggyeonrye) {
+            await recordDecision({
+              coupleId: membership.coupleId,
+              userId: user.id,
+              category: "timeline",
+              title: "양쪽 부모님 첫 만남 일정",
+              chosenValue: { sanggyeonrye_date: sanggyeonryeDate },
+              decisionType: "decided",
+              stageTag,
+              source: "onboarding",
+              confidence: 0.9,
+              metadata: baseMeta,
+            });
+          }
+
+          if (totalBudget && shouldRecordFullPlan) {
+            await recordDecision({
+              coupleId: membership.coupleId,
+              userId: user.id,
+              category: "budget",
+              title: "총 예산 설정",
+              chosenValue: { total_budget: totalBudget },
+              decisionType: "decided",
+              stageTag,
+              source: "onboarding",
+              confidence: 0.9,
+              metadata: baseMeta,
+            });
+          }
+        } catch (error) {
+          console.error("[onboarding recordDecision] optional enrichment failed", error);
+        }
+      })();
+
+      return privateResponse({
+        success: true,
+        coupleId: membership.coupleId,
+        inviteCode: membership.inviteCode,
+        created: membership.changed,
+        idempotent: membership.idempotent,
+        planChange: {
+          status: planOutcome.status,
+          requestId: planOutcome.requestId,
+          summary: planOutcome.summary,
+        },
+        routineProgress: planOutcome.routineProgressDeferred
+          ? {
+              status: "deferred",
+              message:
+                "입력한 준비 현황과 결혼식 선호는 이번 요청에 반영되지 않았어요. 계획 변경이 결정된 뒤 다시 입력해주세요.",
+            }
+          : undefined,
+      });
     } catch (error) {
+      if (error instanceof ScheduleEventsRepairRequiredError) {
+        return privateResponse(
+          {
+            error:
+              "저장된 일정 중 확인이 필요한 항목이 있어 양쪽 부모님 첫 만남 날짜를 저장하지 않았어요. 날짜 입력을 비우고 계속하거나, 기존 일정을 정리한 뒤 다시 시도해주세요.",
+            code: "SCHEDULE_EVENTS_REPAIR_REQUIRED",
+          },
+          409,
+        );
+      }
+      if (error instanceof SanggyeonryeDateConflictError) {
+        return privateResponse(
+          {
+            error:
+              `이미 저장된 양쪽 부모님 첫 만남 날짜(${error.existingDate})와 요청한 날짜(${error.requestedDate})가 달라요. 기존 일정을 확인한 뒤 다시 입력해주세요.`,
+            code: "SANGGYEONRYE_DATE_CONFLICT",
+            conflict: {
+              field: "sanggyeonryeDate",
+              existingDate: error.existingDate,
+              requestedDate: error.requestedDate,
+            },
+          },
+          409,
+        );
+      }
+      if (
+        error instanceof OnboardingPersistenceError
+        && /COUPLE_PLAN_CHANGE_UNSUPPORTED_MIXED_DELTA/i.test(
+          persistenceCauseText(error),
+        )
+      ) {
+        return privateResponse(
+          {
+            error:
+              "파트너 연결 상태가 방금 바뀌어 입력을 안전하게 저장하지 않았어요. 최신 상태로 다시 시도해주세요.",
+            code: "ONBOARDING_PLAN_RETRY_REQUIRED",
+          },
+          409,
+        );
+      }
       // The membership RPC is atomic and idempotent, so a retry finishes these
       // post-steps against the same couple instead of creating another couple.
       console.error(`[onboarding ${coupleAction}] completion failed`, error);
-      return NextResponse.json(
+      return privateResponse(
         { error: "온보딩 저장을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
-        { status: 500 },
+        500,
       );
     }
 
-    // Optional memory enrichment is deliberately outside the core completion
-    // transaction. It must not mutate or roll back the canonical onboarding data.
-    void (async () => {
-      try {
-        const stageTag = determineStage(weddingDate);
-        const baseMeta = { hook: "onboarding", role, coupleAction };
-
-        if (weddingDate) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "timeline",
-            title: "예식일 확정",
-            chosenValue: { wedding_date: weddingDate },
-            decisionType: "decided",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.95,
-            metadata: baseMeta,
-          });
-        }
-
-        if (venue) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "venue",
-            title: venue,
-            chosenValue: { venue },
-            decisionType: "considering",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.7,
-            metadata: baseMeta,
-          });
-        }
-
-        if (sanggyeonryeDate) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "timeline",
-            title: "상견례 일정",
-            chosenValue: { sanggyeonrye_date: sanggyeonryeDate },
-            decisionType: "decided",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.9,
-            metadata: baseMeta,
-          });
-        }
-
-        if (totalBudget) {
-          await recordDecision({
-            coupleId: membership.coupleId,
-            userId: user.id,
-            category: "budget",
-            title: "총 예산 설정",
-            chosenValue: { total_budget: totalBudget },
-            decisionType: "decided",
-            stageTag,
-            source: "onboarding",
-            confidence: 0.9,
-            metadata: baseMeta,
-          });
-        }
-      } catch (error) {
-        console.error("[onboarding recordDecision] optional enrichment failed", error);
-      }
-    })();
-
-    return NextResponse.json({
-      success: true,
-      coupleId: membership.coupleId,
-      inviteCode: membership.inviteCode,
-      created: membership.changed,
-      idempotent: membership.idempotent,
-    });
   } catch (error) {
     console.error("[onboarding] unexpected error", error);
-    return NextResponse.json(
+    return privateResponse(
       { error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요." },
-      { status: 500 },
+      500,
     );
   }
 }

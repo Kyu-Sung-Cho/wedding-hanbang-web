@@ -225,6 +225,7 @@ describe("vendorRowToVendor", () => {
     expect(vendor).not.toHaveProperty("businessNumber");
     expect(vendor).not.toHaveProperty("businessLicenseUrl");
     expect(vendor).not.toHaveProperty("notificationSettings");
+    expect(vendor).not.toHaveProperty("aiRecommend");
   });
 });
 

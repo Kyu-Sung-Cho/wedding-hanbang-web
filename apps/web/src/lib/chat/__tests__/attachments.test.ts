@@ -4,6 +4,7 @@ import {
   CHAT_ATTACHMENT_MAX_PROVIDER_BASE64_CHARS,
   CHAT_ATTACHMENT_SIZE_ERROR,
   CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+  createChatAttachmentBindings,
   dedupeChatAttachments,
   prepareChatAttachmentPayload,
 } from "../attachments";
@@ -64,6 +65,40 @@ describe("chat attachment helpers", () => {
         },
       ],
     });
+  });
+
+  it("binds each ordered provider attachment to its exact media type, byte length, and SHA-256", async () => {
+    const result = await createChatAttachmentBindings([
+      { base64: "aGVsbG8=", mediaType: "image/png", fileName: "first.png" },
+      { base64: "d29ybGQ=", mediaType: "application/pdf", fileName: "second.pdf" },
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      bindings: [
+        {
+          mediaType: "image/png",
+          byteLength: 5,
+          sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        },
+        {
+          mediaType: "application/pdf",
+          byteLength: 5,
+          sha256: "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7",
+        },
+      ],
+    });
+
+    const changedBytes = await createChatAttachmentBindings([
+      { base64: "SEVMTE8=", mediaType: "image/png", fileName: "first.png" },
+      { base64: "d29ybGQ=", mediaType: "application/pdf", fileName: "second.pdf" },
+    ]);
+    expect(changedBytes).toMatchObject({ ok: true });
+    if (changedBytes.ok) {
+      expect(changedBytes.bindings[0]?.sha256).not.toBe(
+        result.ok ? result.bindings[0]?.sha256 : undefined
+      );
+    }
   });
 
   it("rejects aggregate provider payload overflow and exceptional attachment objects", () => {

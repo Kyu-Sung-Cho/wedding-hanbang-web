@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
@@ -13,8 +13,22 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
+import MediationConsentDialog from "@/components/app/chat/MediationConsentDialog";
+import {
+  AmoraPersonalizationConfirmation,
+  AmoraQuickStart,
+} from "@/components/app/chat/AmoraPersonalizationPrompt";
+import {
+  clearPendingAmoraPersonalizationChoice,
+  readPendingAmoraPersonalizationChoice,
+  rememberPendingAmoraPersonalizationChoice,
+  resolveAmoraPersonalizationReply,
+  shouldOfferAmoraQuickStart,
+  type PendingAmoraPersonalizationChoice,
+} from "@/components/app/chat/amoraPersonalizationFlow";
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
+  getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   isPendingAmoraActionExpired,
 } from "@/components/app/chat/PendingAmoraActionCard";
@@ -27,8 +41,22 @@ import {
 } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
+import {
+  consumeDemoAmoraPrefill,
+  forgetDemoAmoraPrefill,
+  START_HERE_HANDOFF_QUERY_PARAM,
+} from "@/lib/chat/demoHandoff";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
+import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
+import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
+import {
+  resizeChatComposerToContent,
+  useChatComposerAutoResize,
+} from "./useChatComposerAutoResize";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
@@ -44,6 +72,43 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+}
+
+type ChatComposerLane = "shared_ai" | "shared_partner" | "private_ai";
+
+interface ChatComposerDraft {
+  input: string;
+  attachments: AttachmentItem[];
+  retryClientRequestId: string | null;
+  pendingAttachmentReads: number;
+}
+
+interface PendingSend {
+  text?: string;
+  target: ChatMessageTarget;
+}
+
+function createEmptyComposerDrafts(): Record<ChatComposerLane, ChatComposerDraft> {
+  return {
+    shared_ai: {
+      input: "",
+      attachments: [],
+      retryClientRequestId: null,
+      pendingAttachmentReads: 0,
+    },
+    shared_partner: {
+      input: "",
+      attachments: [],
+      retryClientRequestId: null,
+      pendingAttachmentReads: 0,
+    },
+    private_ai: {
+      input: "",
+      attachments: [],
+      retryClientRequestId: null,
+      pendingAttachmentReads: 0,
+    },
+  };
 }
 
 function fileInputKey(file: File): string {
@@ -89,6 +154,14 @@ const SENSITIVE_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "계좌 정보", pattern: /(계좌|예금주|은행명|계좌번호)/ },
   { label: "연락처", pattern: /(연락처|전화번호|카카오톡|카톡\s*ID|오픈채팅|오픈톡)/i },
   { label: "계약 식별 정보", pattern: /(계약번호|예약번호|주민등록|상세주소|집주소)/ },
+  {
+    label: "건강·임신·성생활 정보",
+    pattern: /(임신|난임|불임|유산|낙태|당뇨|암|우울증|공황장애|병력|진단명|복용약|성생활|성관계)/,
+  },
+  {
+    label: "민감한 가족관계",
+    pattern: /(?:부모님|아버지|어머니|엄마|아빠|시댁|친정|가족).{0,24}(?:이혼|재혼|별거|절연|사망|입양|폭력|학대|채무|빚)/,
+  },
 ];
 
 const SYSTEM_ACTION_TOOL_NAMES = new Set([
@@ -103,6 +176,8 @@ const SYSTEM_ACTION_TOOL_NAMES = new Set([
   "reset_category",
   "add_schedule_event",
   "update_schedule_event",
+  "cancel_schedule_event",
+  "restore_schedule_event",
   "delete_schedule_event",
   "toggle_checklist_item",
   "add_amora_action",
@@ -186,7 +261,8 @@ function buildCommunityTitle(question: string, category: CommunityCategory): str
 }
 
 function extractCommunityContext(userQuestion: string, amoraAnswer: string): string[] {
-  const text = `${normalizeChatText(userQuestion)} ${normalizeChatText(amoraAnswer).replace(/\*\*/g, "")}`;
+  const text = normalizeChatText(userQuestion);
+  void amoraAnswer;
   const items: string[] = [];
   const seen = new Set<string>();
   const add = (item: string) => {
@@ -200,19 +276,7 @@ function extractCommunityContext(userQuestion: string, amoraAnswer: string): str
   if (budgetMatch) add(`총 예산은 ${budgetMatch[1]}만원 정도로 보고 있어요.`);
 
   if (/(예식장|웨딩홀)[^.!?\n]{0,30}(미정|아직|정하지|못 정)/.test(text) || /아직[^.!?\n]{0,20}(예식장|웨딩홀)/.test(text)) {
-    add("예식장은 아직 확정하지 않았어요.");
-  }
-
-  if (/(호텔|컨벤션|웨딩홀|야외)/.test(text) && /(예식\s*형태|웨딩\s*형태|예식장\s*비중|비중)/.test(text)) {
-    add("예식 형태에 따라 예식장/스드메 비중이 달라질 수 있다고 들었어요.");
-  }
-
-  if (/스드메|스튜디오|드레스|메이크업/.test(text) && /예산|분배|비중|추가금|비용/.test(text)) {
-    add("스드메와 예식장 사이에서 어느 쪽에 더 비중을 둘지 고민 중이에요.");
-  }
-
-  if (/계약|환불|위약금|취소|추가금/.test(text) && /견적|계약|업체/.test(text)) {
-    add("계약 전에 빠뜨리기 쉬운 비용이나 조건이 있는지도 같이 보고 싶어요.");
+    add("결혼식장은 아직 확정하지 않았어요.");
   }
 
   return items.slice(0, 3);
@@ -239,7 +303,7 @@ function buildCommunityGuideBullets(question: string, category: CommunityCategor
 
   if (/웨딩홀|예식장|식대|보증|하객|대관료/.test(text)) {
     return [
-      "예식장 상담 때 먼저 확인하면 좋은 조건",
+      "결혼식장 상담 때 먼저 확인하면 좋은 조건",
       "식대나 보증 인원에서 놓치기 쉬운 부분",
       "실제로 계약 후에 알았으면 좋았을 점",
     ];
@@ -326,6 +390,10 @@ function hasSuccessfulSystemAction(message: ChatMessage): boolean {
   );
 }
 
+function isSafetyScopedChatMessage(message: ChatMessage): boolean {
+  return isAmoraCommunityBridgeSafetyScoped(message);
+}
+
 function getCommunityAskCue(
   aiMessage: ChatMessage,
   userMessage: ChatMessage,
@@ -364,6 +432,10 @@ function getCommunityAskCue(
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
   const { profile, couple, journey, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
+  const amoraPersonalization = useAmoraPersonalization(
+    !isDemo && Boolean(profile?.id),
+  );
+  const saveAmoraPersonalization = amoraPersonalization.save;
   const {
     messages,
     isStreaming,
@@ -371,6 +443,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     streamingContent,
     streamingToolResults,
     suggestions,
+    artifactVisibility,
     error,
     failedRequest,
     isRetrying,
@@ -380,17 +453,108 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    requestMediation: requestStructuredMediation,
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
     notifyTyping,
+    stopTyping,
     requestSharedClear,
     retryFailedMessage,
     dismissFailedMessageRetry,
   } = useChatStore();
-  const [input, setInput] = useState("");
+  const isConfirmedActionRecovery =
+    failedRequest?.recoveryKind === "confirmed_action";
+  const isInterruptedTurnRecovery =
+    failedRequest?.recoveryKind === "interrupted_turn";
+  const isRecoveryNotice = Boolean(failedRequest?.recoveryKind);
+  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
+  const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
+  const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
+  const activeComposerLane: ChatComposerLane = isPrivate
+    ? "private_ai"
+    : messageTarget === "partner"
+      ? "shared_partner"
+      : "shared_ai";
+  const [composerDrafts, setComposerDrafts] = useState<Record<ChatComposerLane, ChatComposerDraft>>(
+    createEmptyComposerDrafts,
+  );
+  const input = composerDrafts[activeComposerLane].input;
+  const attachments = composerDrafts[activeComposerLane].attachments;
+  const retryClientRequestId = composerDrafts[activeComposerLane].retryClientRequestId;
+  const pendingAttachmentReads = composerDrafts[activeComposerLane].pendingAttachmentReads;
+  const setDraftInput = useCallback((
+    lane: ChatComposerLane,
+    nextInput: SetStateAction<string>,
+  ) => {
+    setComposerDrafts((currentDrafts) => {
+      const currentDraft = currentDrafts[lane];
+      const resolvedInput = typeof nextInput === "function"
+        ? nextInput(currentDraft.input)
+        : nextInput;
+      return {
+        ...currentDrafts,
+        [lane]: {
+          ...currentDraft,
+          input: resolvedInput,
+          retryClientRequestId:
+            resolvedInput === currentDraft.input ? currentDraft.retryClientRequestId : null,
+        },
+      };
+    });
+  }, []);
+  const setInput = useCallback((nextInput: SetStateAction<string>) => {
+    setDraftInput(activeComposerLane, nextInput);
+  }, [activeComposerLane, setDraftInput]);
+  const setDraftAttachments = useCallback((
+    lane: ChatComposerLane,
+    nextAttachments: SetStateAction<AttachmentItem[]>,
+  ) => {
+    setComposerDrafts((currentDrafts) => {
+      const currentDraft = currentDrafts[lane];
+      const resolvedAttachments = typeof nextAttachments === "function"
+        ? nextAttachments(currentDraft.attachments)
+        : nextAttachments;
+      return {
+        ...currentDrafts,
+        [lane]: {
+          ...currentDraft,
+          attachments: resolvedAttachments,
+          retryClientRequestId:
+            resolvedAttachments === currentDraft.attachments
+              ? currentDraft.retryClientRequestId
+              : null,
+        },
+      };
+    });
+  }, []);
+  const setAttachments = useCallback((nextAttachments: SetStateAction<AttachmentItem[]>) => {
+    setDraftAttachments(activeComposerLane, nextAttachments);
+  }, [activeComposerLane, setDraftAttachments]);
+  const adjustPendingAttachmentReads = useCallback((lane: ChatComposerLane, delta: number) => {
+    setComposerDrafts((currentDrafts) => {
+      const currentDraft = currentDrafts[lane];
+      return {
+        ...currentDrafts,
+        [lane]: {
+          ...currentDraft,
+          pendingAttachmentReads: Math.max(0, currentDraft.pendingAttachmentReads + delta),
+        },
+      };
+    });
+  }, []);
+  const setDraftRetryClientRequestId = useCallback((
+    lane: ChatComposerLane,
+    clientRequestId: string | null,
+  ) => {
+    setComposerDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [lane]: { ...currentDrafts[lane], retryClientRequestId: clientRequestId },
+    }));
+  }, []);
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
-  const [pendingSend, setPendingSend] = useState<{ text?: string } | null>(null);
+  const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
   // 새 채팅 modal 단계 — closed | shared 옵션 선택 | shared 둘 다 추가확인 | private 확인
   const [clearStep, setClearStep] = useState<
     "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm"
@@ -403,22 +567,144 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const applyingPendingActionRef = useRef<string | null>(null);
   const [showNewChatBanner, setShowNewChatBanner] = useState(false);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
-  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
-  // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
-  const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
-  const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
+  const [pendingPersonalization, setPendingPersonalization] =
+    useState<PendingAmoraPersonalizationChoice | null>(null);
+  const senderRole = profile?.role === "bride" || profile?.role === "groom"
+    ? profile.role
+    : null;
   const myPrivateVisibility =
-    profile?.role === "groom"
+    senderRole === "groom"
       ? "groom_private"
-      : profile?.role === "bride"
+      : senderRole === "bride"
         ? "bride_private"
         : null;
+  const coupleId = couple?.id;
+  const linkedPartnerId = profile !== null
+    && typeof coupleId === "string"
+    && profile.couple_id === coupleId
+    && senderRole === "bride"
+    && couple?.bride_id === profile.id
+    && typeof couple?.groom_id === "string"
+    && couple.groom_id !== profile.id
+    ? couple.groom_id
+    : profile !== null
+      && typeof coupleId === "string"
+      && profile.couple_id === coupleId
+      && senderRole === "groom"
+      && couple?.groom_id === profile.id
+      && typeof couple?.bride_id === "string"
+      && couple.bride_id !== profile.id
+        ? couple.bride_id
+        : null;
+  const hasLinkedPartner = linkedPartnerId !== null;
+  const activeArtifactVisibility = isPrivate ? myPrivateVisibility : "shared";
+  const transientArtifactsVisible =
+    activeArtifactVisibility !== null && artifactVisibility === activeArtifactVisibility;
+  const sendInFlightRef = useRef<number | null>(null);
+  const composerEpochRef = useRef(0);
+  const greetingRequested = useRef(false);
+  const composerIdentity = `${profile?.id ?? "anonymous"}:${coupleId ?? "no-couple"}:${senderRole ?? "no-role"}`;
+  const composerIdentityRef = useRef(composerIdentity);
+  const hasLinkedPartnerRef = useRef(hasLinkedPartner);
+  const linkedPartnerIdRef = useRef(linkedPartnerId);
+  const partnerComposerEpochRef = useRef(0);
+  const sharedTypingContextRef = useRef<{
+    coupleId: string;
+    userId: string;
+    senderRole: "bride" | "groom";
+  } | null>(null);
+  const stopSharedTyping = useCallback(() => {
+    const context = sharedTypingContextRef.current;
+    if (!context) return;
+    sharedTypingContextRef.current = null;
+    stopTyping(context);
+  }, [stopTyping]);
   const sharedMessageCount = messages.filter((m) => m.visibility === "shared").length;
   const privateMessageCount = myPrivateVisibility
     ? messages.filter((m) => m.visibility === myPrivateVisibility).length
     : 0;
+
+  useEffect(() => {
+    if (composerIdentityRef.current === composerIdentity) return;
+    composerIdentityRef.current = composerIdentity;
+    composerEpochRef.current += 1;
+    sendInFlightRef.current = null;
+    greetingRequested.current = false;
+    stopSharedTyping();
+    setComposerDrafts((currentDrafts) => {
+      Object.values(currentDrafts).forEach((draft) => {
+        draft.attachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+      });
+      return createEmptyComposerDrafts();
+    });
+    setActiveTab("shared");
+    setMessageTarget("ai");
+    setPendingSend(null);
+  }, [composerIdentity, stopSharedTyping]);
+
+  useEffect(() => () => stopSharedTyping(), [stopSharedTyping]);
+
+  useEffect(() => {
+    const previousLinkedPartnerId = linkedPartnerIdRef.current;
+    linkedPartnerIdRef.current = linkedPartnerId;
+    hasLinkedPartnerRef.current = hasLinkedPartner;
+    if (previousLinkedPartnerId === linkedPartnerId || previousLinkedPartnerId === null) return;
+
+    partnerComposerEpochRef.current += 1;
+    setMessageTarget("ai");
+    setPendingSend(null);
+    setComposerDrafts((currentDrafts) => {
+      currentDrafts.shared_partner.attachments.forEach((attachment) => {
+        revokeObjectPreview(attachment.previewUrl);
+      });
+      return {
+        ...currentDrafts,
+        shared_partner: {
+          input: "",
+          attachments: [],
+          retryClientRequestId: null,
+          pendingAttachmentReads: 0,
+        },
+      };
+    });
+    useChatStore.setState({
+      error: "상대방 연결 정보가 바뀌었어요. 이전 상대용 미전송 초안과 첨부는 안전을 위해 삭제했어요. 전송 중이던 메시지는 대화에서 상태를 확인해주세요.",
+      artifactVisibility: "shared",
+    });
+  }, [hasLinkedPartner, linkedPartnerId]);
+
+  const handleScopeChange = useCallback((nextScope: "shared" | "private") => {
+    if (
+      isStreaming
+      || isSending
+      || (nextScope === "private" && (isDemo || !myPrivateVisibility))
+    ) return;
+    if (nextScope === "private") stopSharedTyping();
+    setActiveTab(nextScope);
+    setMessageTarget("ai");
+  }, [isDemo, isSending, isStreaming, myPrivateVisibility, stopSharedTyping]);
+
+  useEffect(() => {
+    if (!isDemo || activeTab !== "private") return;
+    const hasLocalSafetyCard = !!myPrivateVisibility && messages.some((message) => (
+      message.visibility === myPrivateVisibility
+      && message.metadata?.response_origin === "client_deterministic_crisis_preflight"
+    ));
+    if (hasLocalSafetyCard) return;
+    setActiveTab("shared");
+    setMessageTarget("ai");
+  }, [activeTab, isDemo, messages, myPrivateVisibility]);
+
+  const handleMessageTargetChange = useCallback((nextTarget: ChatMessageTarget) => {
+    if (
+      isStreaming
+      || isSending
+      || activeTab !== "shared"
+      || (nextTarget === "partner" && !hasLinkedPartner)
+    ) return;
+    setMessageTarget(nextTarget);
+  }, [activeTab, hasLinkedPartner, isSending, isStreaming]);
 
   useEffect(() => {
     const updateNow = () => setNowMs(Date.now());
@@ -426,7 +712,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const timer = window.setInterval(updateNow, 1000);
     return () => window.clearInterval(timer);
   }, []);
-  const [showMediationBanner, setShowMediationBanner] = useState(false);
+  const [mediationDismissed, setMediationDismissed] = useState(false);
+  const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
+  const showMediationBanner =
+    activeTab === "shared"
+    && !mediationDismissed
+    && !mediationConsentOpen
+    && shouldOfferMediation(messages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -439,34 +731,90 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeDialogRef = useRef<HTMLDivElement>(null);
   const closeActiveDialogRef = useRef<() => void>(() => {});
+  useChatComposerAutoResize(textareaRef, input);
 
-  // input 외부 비움(전송 후 등) 시 textarea 높이 리셋
-  useEffect(() => {
-    if (input === "" && textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  }, [input]);
-
-  // URL ?prefill=... 로 진입했을 때 (예: 견적 체크 → "아모라에게 이어서 묻기")
-  // input에 미리 채워주고 query string은 한 번 비움 (새로고침 시 재기입 방지).
+  // URL ?prefill=... 또는 로그인 없는 준비 순서에서 이어왔을 때 input에 초안을 채운다.
+  // 바로 여는 체험은 현재 탭, 가입을 거치는 흐름은 같은 브라우저 저장소에서
+  // 유효한 초안만 읽으며 URL에는 날짜를 남기지 않는다.
   const searchParams = useSearchParams();
   const router = useRouter();
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
-    const prefill = searchParams?.get("prefill");
-    if (!prefill) return;
+    const queryPrefill = searchParams?.get("prefill");
+    const startHereHandoffId = searchParams?.get(START_HERE_HANDOFF_QUERY_PARAM) ?? null;
+    let handoffPrefill: string | null = null;
+    if (startHereHandoffId) {
+      try {
+        // 가입 흐름에서는 redirect nonce와 묶인 브라우저 초안만 한 번 소비한다.
+        handoffPrefill = consumeDemoAmoraPrefill(
+          window.localStorage,
+          startHereHandoffId,
+        );
+      } catch {
+        // 저장소가 막혔거나 nonce가 맞지 않으면 가입 초안을 표시하지 않는다.
+      }
+      try {
+        forgetDemoAmoraPrefill(window.sessionStorage);
+      } catch {
+        // 현재 탭 저장소 정리가 막혀도 가입 초안 검증 결과는 유지한다.
+      }
+    } else {
+      try {
+        // 바로 여는 체험은 현재 탭의 초안만 허용한다.
+        handoffPrefill = consumeDemoAmoraPrefill(window.sessionStorage);
+      } catch {
+        // 브라우저 저장소를 막은 환경에서는 URL prefill만 사용한다.
+      }
+      try {
+        // 일반 채팅 진입에서는 이전 방문자의 가입 초안을 보여주지 않고 바로 폐기한다.
+        forgetDemoAmoraPrefill(window.localStorage);
+      } catch {
+        // 현재 탭 체험 초안이 유효하면 브라우저 공용 저장소 정리 실패와 무관하게 사용한다.
+      }
+    }
+    const prefill = startHereHandoffId
+      ? handoffPrefill
+      : queryPrefill ?? handoffPrefill;
+    const shouldCleanUrl = Boolean(queryPrefill) || Boolean(startHereHandoffId);
+    if (!prefill) {
+      if (shouldCleanUrl) {
+        const next = new URLSearchParams(searchParams?.toString());
+        next.delete("prefill");
+        next.delete(START_HERE_HANDOFF_QUERY_PARAM);
+        const qs = next.toString();
+        router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+      }
+      return;
+    }
     prefillAppliedRef.current = true;
-    setInput(prefill);
-    // URL 정리 — prefill만 제거
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("prefill");
-    const qs = next.toString();
-    router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+    setDraftInput("shared_ai", prefill);
+    // 질문 원문과 일회성 가입 표식은 입력창에 적용한 직후 주소에서 제거한다.
+    if (shouldCleanUrl) {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("prefill");
+      next.delete(START_HERE_HANDOFF_QUERY_PARAM);
+      const qs = next.toString();
+      router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+    }
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [searchParams, router]);
-  const greetingRequested = useRef(false);
-  const coupleId = couple?.id;
+  }, [searchParams, router, setDraftInput]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || isDemo) {
+      setPendingPersonalization(null);
+      return;
+    }
+    setPendingPersonalization(
+      readPendingAmoraPersonalizationChoice(profile.id, coupleId),
+    );
+  }, [coupleId, isDemo, profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || !amoraPersonalization.profile) return;
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [amoraPersonalization.profile, coupleId, profile?.id]);
 
   useEffect(() => {
     if (!isDemo || !coupleId || !profile) return;
@@ -489,6 +837,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         state.suggestions.length > 0
           ? state.suggestions
           : [...AMORA_DEMO_SUGGESTIONS],
+      artifactVisibility: "shared",
       error: null,
     }));
   }, [coupleId, isDemo, profile]);
@@ -794,12 +1143,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     followStreamRef.current = false; // 응답 완료 → 다음 발화까지 자동 follow 안 함
   }, [isStreaming, scrollContainerToBottom]);
 
-  // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
-  // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
-  // 서버에서 휴리스틱 + 회상 필터 + 턴 패턴 + (borderline) LLM 검증 → 트리거 시
-  // mediation 메시지를 직접 INSERT 하며 Realtime 으로 양쪽 클라이언트에 자동 전달.
-  // 단일 진실원본이라 양쪽 디바이스 동시 트리거하는 race condition 제거.
-
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
@@ -831,53 +1174,126 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const addFiles = useCallback((files: File[]) => {
     const remaining = MAX_ATTACHMENTS - attachments.length;
     if (remaining <= 0) return;
+    const originLane = activeComposerLane;
+    const originEpoch = composerEpochRef.current;
+    const originPartnerEpoch = partnerComposerEpochRef.current;
+    const originPartnerRecipientId = originLane === "shared_partner"
+      ? linkedPartnerIdRef.current
+      : null;
+    const originVisibility = activeArtifactVisibility;
 
-    uniqueFiles(files).forEach((file) => {
+    uniqueFiles(files).slice(0, remaining).forEach((file) => {
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
         useChatStore.setState({
           error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, PDF, DOCX만 가능해요.)`,
+          artifactVisibility: originVisibility,
+        });
+        return;
+      }
+      if (originLane === "shared_partner" && !file.type.startsWith("image/")) {
+        useChatStore.setState({
+          error: "PDF·Word 문서는 아모라에게만 첨부할 수 있어요. 아모라에게 전환해 분석을 요청해주세요.",
+          artifactVisibility: "shared",
         });
         return;
       }
       if (file.size > typeInfo.maxSize) {
         useChatStore.setState({
           error: `${typeInfo.label} 파일은 ${typeInfo.maxSize / 1024 / 1024}MB 이하로 줄인 뒤 다시 첨부해주세요.`,
+          artifactVisibility: originVisibility,
         });
         return;
       }
 
       const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result;
-        if (typeof result !== "string" || !result.includes(",")) {
-          useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
-          return;
+      let readFinished = false;
+      const originIsStillValid = () => (
+        composerEpochRef.current === originEpoch
+        && (
+          originLane !== "shared_partner"
+          || (
+            hasLinkedPartnerRef.current
+            && originPartnerRecipientId !== null
+            && partnerComposerEpochRef.current === originPartnerEpoch
+            && linkedPartnerIdRef.current === originPartnerRecipientId
+          )
+        )
+      );
+      const finishRead = () => {
+        if (readFinished) return;
+        readFinished = true;
+        if (
+          composerEpochRef.current === originEpoch
+          && (
+            originLane !== "shared_partner"
+            || partnerComposerEpochRef.current === originPartnerEpoch
+          )
+        ) {
+          adjustPendingAttachmentReads(originLane, -1);
         }
-        const base64 = result.split(",")[1];
-        const isImage = file.type.startsWith("image/");
-        const previewUrl = isImage ? URL.createObjectURL(file) : `file:${file.type}:${file.name}`;
-        const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name };
+      };
+      adjustPendingAttachmentReads(originLane, 1);
+      reader.onload = () => {
+        try {
+          if (!originIsStillValid()) return;
+          const result = reader.result;
+          if (typeof result !== "string" || !result.includes(",")) {
+            useChatStore.setState({
+              error: CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+              artifactVisibility: originVisibility,
+            });
+            return;
+          }
+          const base64 = result.split(",")[1];
+          const isImage = file.type.startsWith("image/");
+          const previewUrl = isImage ? URL.createObjectURL(file) : `file:${file.type}:${file.name}`;
+          const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name };
 
-        setAttachments((prev) => {
-          if (prev.length >= MAX_ATTACHMENTS) {
-            revokeObjectPreview(previewUrl);
-            return prev;
-          }
-          const key = chatAttachmentKey(attachment);
-          if (prev.some((item) => chatAttachmentKey(item) === key)) {
-            revokeObjectPreview(previewUrl);
-            return prev;
-          }
-          return [...prev, attachment];
-        });
+          setDraftAttachments(originLane, (prev) => {
+            if (prev.length >= MAX_ATTACHMENTS) {
+              revokeObjectPreview(previewUrl);
+              return prev;
+            }
+            const key = chatAttachmentKey(attachment);
+            if (prev.some((item) => chatAttachmentKey(item) === key)) {
+              revokeObjectPreview(previewUrl);
+              return prev;
+            }
+            return [...prev, attachment];
+          });
+        } finally {
+          finishRead();
+        }
       };
       reader.onerror = () => {
-        useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
+        if (originIsStillValid()) {
+          useChatStore.setState({
+            error: CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+            artifactVisibility: originVisibility,
+          });
+        }
+        finishRead();
       };
-      reader.readAsDataURL(file);
+      try {
+        reader.readAsDataURL(file);
+      } catch {
+        if (originIsStillValid()) {
+          useChatStore.setState({
+            error: CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+            artifactVisibility: originVisibility,
+          });
+        }
+        finishRead();
+      }
     });
-  }, [attachments.length]);
+  }, [
+    activeArtifactVisibility,
+    activeComposerLane,
+    adjustPendingAttachmentReads,
+    attachments.length,
+    setDraftAttachments,
+  ]);
 
   // ref 업데이트 (글로벌 paste에서 최신 addFiles 참조)
   useEffect(() => {
@@ -938,7 +1354,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       }
       return prev.filter((_, i) => i !== index);
     });
-  }, []);
+  }, [setAttachments]);
 
   // 파트너 typing freshness — broadcast 후 5초 안 → "지금 입력 중"으로 간주
   const partnerTypingActive =
@@ -961,57 +1377,234 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   })();
 
   const handleSend = useCallback(
-    async (text?: string) => {
-      if (isStreaming || isSending) return;
-      const content = text ?? input.trim();
-      if ((!content && attachments.length === 0) || !coupleId || !profile) return;
-
-      const currentAttachments = [...attachments];
-      const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
-      if (!attachmentCheck.ok) {
-        useChatStore.setState({ error: attachmentCheck.error });
+    async (text?: string, targetOverride?: ChatMessageTarget) => {
+      if (isStreaming || isSending || sendInFlightRef.current !== null) return;
+      const usesComposer = text === undefined;
+      const content = usesComposer ? input.trim() : text;
+      const currentAttachments = usesComposer ? [...attachments] : [];
+      const sourceLane = activeComposerLane;
+      const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
+      if (
+        (!content && currentAttachments.length === 0)
+        || !coupleId
+        || !profile
+        || !senderRole
+        || (usesComposer && pendingAttachmentReads > 0)
+      ) return;
+      // A private composer has no partner-directed lane. Even nested cards or
+      // future callers cannot override this privacy boundary.
+      const sendTarget = isPrivate ? "ai" : targetOverride ?? messageTarget;
+      const submittedPartnerEpoch = partnerComposerEpochRef.current;
+      const submittedPartnerRecipientId = sendTarget === "partner"
+        ? linkedPartnerId
+        : null;
+      const partnerRecipientIsStillCurrent = () => (
+        sendTarget !== "partner"
+        || (
+          submittedPartnerRecipientId !== null
+          && partnerComposerEpochRef.current === submittedPartnerEpoch
+          && linkedPartnerIdRef.current === submittedPartnerRecipientId
+        )
+      );
+      const requestedVisibility = isPrivate && sendTarget === "ai"
+        ? (senderRole === "groom" ? "groom_private" : "bride_private")
+        : "shared";
+      const crisisPreflight = planAmoraCrisisDelivery({
+        userText: content ?? "",
+        requestedVisibility,
+        target: sendTarget,
+        senderRole,
+      });
+      const visibility = crisisPreflight.effectiveVisibility;
+      const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
+      const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
+      const canTransmitAttachments = crisisPreflight.disposition === "continue";
+      const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
+      if (!isLocalSafetyHold && sendTarget === "partner" && !hasLinkedPartner) {
+        setMessageTarget("ai");
+        useChatStore.setState({
+          error: "연결된 상대방이 없어 보내지 않았어요. 상대방 연결을 다시 확인해주세요.",
+          artifactVisibility: "shared",
+        });
         return;
       }
-      setInput("");
-      setAttachments([]);
-      currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+      if (
+        canTransmitAttachments
+        &&
+        sendTarget === "partner"
+        && currentAttachments.some((attachment) => !attachment.mediaType.startsWith("image/"))
+      ) {
+        useChatStore.setState({
+          error: "PDF·Word 문서는 아모라에게만 첨부할 수 있어요. 아모라에게 전환해 분석을 요청해주세요.",
+          artifactVisibility: "shared",
+        });
+        return;
+      }
+
+      const submittedInput = usesComposer ? input : "";
+      const submittedEpoch = composerEpochRef.current;
+      if (canTransmitAttachments) {
+        const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
+        if (!attachmentCheck.ok) {
+          useChatStore.setState({
+            error: attachmentCheck.error,
+            artifactVisibility: visibility,
+          });
+          return;
+        }
+      }
+
+      const restoreComposer = (clientRequestId: string | null) => {
+        if (
+          isPrivateSafetyRoute
+          ||
+          !usesComposer
+          || composerEpochRef.current !== submittedEpoch
+          || !partnerRecipientIsStillCurrent()
+        ) return;
+        setComposerDrafts((currentDrafts) => {
+          const currentDraft = currentDrafts[submittedLane];
+          const existingKeys = new Set(currentDraft.attachments.map(chatAttachmentKey));
+          return {
+            ...currentDrafts,
+            [submittedLane]: {
+              ...currentDraft,
+              input: currentDraft.input || submittedInput,
+              attachments: [
+                ...currentDraft.attachments,
+                ...currentAttachments.filter(
+                  (attachment) => !existingKeys.has(chatAttachmentKey(attachment)),
+                ),
+              ],
+              retryClientRequestId: clientRequestId,
+            },
+          };
+        });
+      };
 
       // 기본 메시지 생성
       let defaultMsg = "";
       if (!content && currentAttachments.length > 0) {
-        const hasDoc = currentAttachments.some((a) =>
-          a.mediaType.includes("word") || a.mediaType.includes("spreadsheet") || a.mediaType.includes("ms-excel")
-        );
-        const hasPdf = currentAttachments.some((a) => a.mediaType === "application/pdf");
-        if (hasDoc) defaultMsg = "이 문서를 분석해주세요.";
-        else if (hasPdf) defaultMsg = "이 문서를 분석해주세요.";
-        else defaultMsg = "이 이미지를 분석해주세요.";
+        if (sendTarget === "partner") {
+          defaultMsg = "파일을 보냈어요. 확인해줘.";
+        } else {
+          const hasDocument = currentAttachments.some(
+            (attachment) => !attachment.mediaType.startsWith("image/"),
+          );
+          defaultMsg = hasDocument ? "이 문서를 분석해주세요." : "이 이미지를 분석해주세요.";
+        }
       }
 
-      // private mode + AI 대상일 때만 visibility 분리. 그 외는 shared.
-      const role = profile.role ?? "bride";
-      const visibility = isPrivate && messageTarget === "ai"
-        ? (role === "groom" ? "groom_private" : "bride_private")
-        : "shared";
+      sendInFlightRef.current = submittedEpoch;
+      if (activeTab === "shared") stopSharedTyping();
+      if (usesComposer) {
+        setComposerDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [sourceLane]: {
+            ...currentDrafts[sourceLane],
+            input: "",
+            attachments: [],
+            retryClientRequestId: submittedClientRequestId,
+          },
+        }));
+      }
+      if (isPrivateSafetyRoute) {
+        setActiveTab("private");
+        setMessageTarget("ai");
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+      }
 
-      await sendMessage({
-        content: content || defaultMsg,
-        senderId: profile.id,
-        senderRole: role,
-        coupleId,
-        senderName: profile.name ?? "사용자",
-        weddingContext: {
-          weddingDate: journey?.wedding_date ?? null,
-          budget: journey?.total_budget ?? 0,
-          venue: journey?.venue ?? null,
-          progress: journey?.progress ?? {},
-        },
-        images: currentAttachments.length > 0 ? currentAttachments : undefined,
-        target: messageTarget,
-        visibility,
-      });
+      try {
+        const outcome = await sendMessage({
+          content: content || defaultMsg,
+          senderId: profile.id,
+          senderRole,
+          coupleId,
+          senderName: profile.name ?? "사용자",
+          weddingContext: {
+            weddingDate: journey?.wedding_date ?? null,
+            budget: journey?.total_budget ?? 0,
+            venue: journey?.venue ?? null,
+            progress: journey?.progress ?? {},
+          },
+          images: canTransmitAttachments && currentAttachments.length > 0
+            ? currentAttachments
+            : undefined,
+          target: sendTarget,
+          ...(sendTarget === "partner" && linkedPartnerId
+            ? { partnerRecipientId: linkedPartnerId }
+            : {}),
+          visibility,
+          ...(submittedClientRequestId
+            ? { clientRequestId: submittedClientRequestId }
+            : {}),
+        });
+        if (outcome?.userMessage === "ephemeral_safety") {
+          setActiveTab("private");
+          setMessageTarget("ai");
+          setDraftRetryClientRequestId(submittedLane, null);
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+          return;
+        }
+        if (!partnerRecipientIsStillCurrent()) {
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+          return;
+        }
+        if (outcome?.userMessage === "persistence_unknown") {
+          restoreComposer(outcome.clientRequestId);
+          return;
+        }
+        if (outcome?.userMessage === "not_persisted") {
+          restoreComposer(submittedClientRequestId);
+          return;
+        }
+        if (usesComposer && composerEpochRef.current === submittedEpoch) {
+          setDraftRetryClientRequestId(sourceLane, null);
+        }
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+      } catch {
+        if (!partnerRecipientIsStillCurrent()) {
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+          return;
+        }
+        restoreComposer(submittedClientRequestId);
+        useChatStore.setState((state) => ({
+          error:
+            state.artifactVisibility === visibility && state.error
+              ? state.error
+              : "메시지를 저장하지 못했습니다. 입력 내용을 복구했어요.",
+          artifactVisibility: visibility,
+        }));
+      } finally {
+        if (composerEpochRef.current !== submittedEpoch) {
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+        }
+        if (sendInFlightRef.current === submittedEpoch) {
+          sendInFlightRef.current = null;
+        }
+      }
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate, isStreaming, isSending]
+    [
+      input,
+      attachments,
+      coupleId,
+      profile,
+      senderRole,
+      journey,
+      sendMessage,
+      messageTarget,
+      activeComposerLane,
+      retryClientRequestId,
+      pendingAttachmentReads,
+      isPrivate,
+      activeTab,
+      hasLinkedPartner,
+      linkedPartnerId,
+      isStreaming,
+      isSending,
+      setDraftRetryClientRequestId,
+      stopSharedTyping,
+    ]
   );
 
   const applyPendingAmoraAction = useCallback(async (actionId: string) => {
@@ -1130,48 +1723,187 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }
   }, [communityDraft, communityPosting]);
 
-  // 배너에서 수동 중재 요청
-  const handleManualMediation = useCallback(() => {
-    setShowMediationBanner(false);
-    setMessageTarget("ai");
+  const openMediationConsent = useCallback(() => {
+    setMediationConsentOpen(true);
+  }, []);
 
-    // 최근 대화에서 갈등 주제 추출
-    const recentConflictMsgs = messages
-      .filter((m) => m.sender_role !== "ai")
-      .slice(-5);
-    const lastTopic = recentConflictMsgs.length > 0
-      ? recentConflictMsgs[recentConflictMsgs.length - 1].content.slice(0, 50)
-      : "결혼 준비";
+  const cancelMediationConsent = useCallback(() => {
+    setMediationConsentOpen(false);
+    setMediationDismissed(true);
+  }, []);
 
-    handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
-  }, [messages, handleSend]);
+  const confirmMediationConsent = useCallback(
+    async (requesterSummary: string) => {
+      if (
+        !coupleId
+        || !profile
+        || (profile.role !== "bride" && profile.role !== "groom")
+      ) return;
+      setMediationConsentOpen(false);
+      setMediationDismissed(true);
+      setMessageTarget("ai");
+      await requestStructuredMediation({
+        coupleId,
+        senderRole: profile.role,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        conflictContext: requesterSummary,
+      });
+    },
+    [coupleId, journey, profile, requestStructuredMediation],
+  );
 
   // 사용자가 직접 send 버튼/엔터/제안 칩으로 보낼 때 게이트 — 파트너가 입력 중이거나
   // AI가 파트너 메시지에 응답 중이면 confirm 모달.
   const attemptSend = useCallback(
-    (text?: string) => {
+    (text?: string, targetOverride?: ChatMessageTarget) => {
       const content = text ?? input.trim();
-      if ((!content && attachments.length === 0) || !coupleId || !profile) return;
+      if (
+        (!content && attachments.length === 0)
+        || !coupleId
+        || !profile
+        || pendingAttachmentReads > 0
+      ) return;
+      const sendTarget = isPrivate ? "ai" : targetOverride ?? messageTarget;
 
       const aiByMe = aiResponding && aiResponding.triggered_by_user_id === profile.id;
       const partnerInteracting = partnerTypingActive || (aiResponding && !aiByMe);
 
       if (partnerInteracting) {
-        setPendingSend({ text });
+        setPendingSend({ text, target: sendTarget });
         return;
       }
-      void handleSend(text);
+      void handleSend(text, sendTarget);
     },
     [
       input,
       attachments.length,
       coupleId,
       profile,
+      pendingAttachmentReads,
+      isPrivate,
+      messageTarget,
       partnerTypingActive,
       aiResponding,
       handleSend,
     ]
   );
+  const sendToAmora = useCallback(
+    (text: string) => attemptSend(text, "ai"),
+    [attemptSend],
+  );
+
+  const personalizationReply = resolveAmoraPersonalizationReply(
+    messages,
+    profile?.id ?? null,
+    coupleId ?? null,
+    pendingPersonalization,
+  );
+  const personalizationReplyMessageId =
+    personalizationReply.replyMessageId;
+
+  useEffect(() => {
+    if (
+      !profile?.id ||
+      !coupleId ||
+      !pendingPersonalization ||
+      !initialLoadDone ||
+      amoraPersonalization.status !== "ready" ||
+      personalizationReply.state !== "stale"
+    ) {
+      return;
+    }
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [
+    amoraPersonalization.status,
+    coupleId,
+    initialLoadDone,
+    pendingPersonalization,
+    personalizationReply.state,
+    profile?.id,
+  ]);
+
+  const showPersonalizationConfirmation =
+    activeTab === "shared" &&
+    amoraPersonalization.status === "ready" &&
+    !amoraPersonalization.profile &&
+    Boolean(personalizationReplyMessageId) &&
+    Boolean(pendingPersonalization) &&
+    !isStreaming &&
+    !isSending;
+  const showAmoraQuickStart = shouldOfferAmoraQuickStart({
+    enabled:
+      !isDemo &&
+      initialLoadDone &&
+      Boolean(coupleId) &&
+      Boolean(profile),
+    status: amoraPersonalization.status,
+    hasSavedProfile: Boolean(amoraPersonalization.profile),
+    hasPendingChoice: Boolean(pendingPersonalization),
+    busy:
+      isStreaming ||
+      isSending ||
+      Boolean(aiResponding) ||
+      partnerTypingActive ||
+      input.trim().length > 0 ||
+      attachments.length > 0,
+    activeTab,
+    currentUserId: profile?.id ?? null,
+    messages,
+  });
+
+  const handlePersonalizationSelect = useCallback(
+    (option: AmoraQuickStartOption) => {
+      if (!showAmoraQuickStart || !profile || !coupleId) return;
+      const pending = rememberPendingAmoraPersonalizationChoice({
+        currentUserId: profile.id,
+        coupleId,
+        option,
+        existingUserMessageIds: messages
+          .filter(
+            (message) =>
+              message.sender_id === profile.id &&
+              message.sender_role !== "ai",
+          )
+          .map((message) => message.id),
+      });
+      if (!pending) return;
+      setPendingPersonalization(pending);
+      setMessageTarget("ai");
+      void handleSend(option.message, "ai");
+    },
+    [coupleId, handleSend, messages, profile, showAmoraQuickStart],
+  );
+
+  const confirmAmoraPersonalization = useCallback(async () => {
+    if (!pendingPersonalization) return;
+    const saved = await saveAmoraPersonalization(
+      pendingPersonalization.option.changes,
+    );
+    if (saved) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+      setPendingPersonalization(null);
+    }
+  }, [pendingPersonalization, saveAmoraPersonalization]);
+
+  const dismissAmoraPersonalization = useCallback(() => {
+    if (pendingPersonalization) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+    }
+    setPendingPersonalization(null);
+  }, [pendingPersonalization]);
 
   // "새 채팅" 버튼 클릭 — activeTab 따라 적절한 modal 단계로
   const openNewChatModal = useCallback(() => {
@@ -1340,7 +2072,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 <div className="max-h-[72dvh] overflow-y-auto px-5 py-4">
                   <div className="rounded-xl border border-[#F0E6D8] bg-[#FFF9EB] px-4 py-3">
                     <p className="text-sm leading-relaxed text-[#6E5732]">
-                      커뮤니티에 공개되는 글입니다. 이름, 전화번호, 이메일, 계좌, 계약번호가 들어가 있으면 지우고 올려주세요.
+                      커뮤니티에 공개되는 글입니다. 이름과 생년월일, 연락처, 정확한
+                      주소, 건강·임신·성생활·민감한 가족관계, 계약·예약번호가
+                      들어가 있으면 지우고 올려주세요. 사진 속 글자도 직접 확인해
+                      주세요.
                     </p>
                   </div>
 
@@ -1440,6 +2175,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         );
       })()}
 
+      {mediationConsentOpen && (
+        <MediationConsentDialog
+          onCancel={cancelMediationConsent}
+          onConfirm={confirmMediationConsent}
+        />
+      )}
+
     <div className="h-full flex flex-col w-full">
       {/* 상단 통합 툴바 — 탭(함께/나만) + 액션(검색·정보·새채팅) 한 줄
           ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
@@ -1447,11 +2189,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           가운데 정렬. */}
       <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
         {/* 탭 — 좌측 차지 (메인 동작) */}
-        <div className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
+        <div
+          className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
+          role="group"
+          aria-label="대화 공개 범위"
+        >
           <button
-            onClick={() => { setActiveTab("shared"); setMessageTarget("ai"); }}
-            disabled={isStreaming}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            type="button"
+            onClick={() => handleScopeChange("shared")}
+            disabled={isStreaming || isSending}
+            aria-pressed={activeTab === "shared"}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "shared"
                 ? "bg-white text-[#795252] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
                 : "text-[#928980] hover:text-[#504444]"
@@ -1464,20 +2212,28 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             )}
           </button>
           <button
-            onClick={() => { setActiveTab("private"); setMessageTarget("ai"); }}
-            disabled={isStreaming}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            type="button"
+            onClick={() => handleScopeChange("private")}
+            disabled={isDemo || isStreaming || isSending || !myPrivateVisibility}
+            aria-pressed={activeTab === "private"}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "private"
                 ? "bg-white text-[#5a6147] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
                 : "text-[#928980] hover:text-[#504444]"
             }`}
-            title="아모라와 1:1 — 상대방에게 보이지 않습니다"
+            title={
+              isDemo
+                ? "계정 이용 시 파트너 비공개 상담을 사용할 수 있어요"
+                : "아모라와 1:1 — 상대방에게 보이지 않습니다"
+            }
           >
             <Lock className="w-4 h-4" />
             나만 (상담)
-            {privateMessageCount > 0 && (
+            {isDemo ? (
+              <span className="hidden text-xs text-[#928980] sm:inline">(계정)</span>
+            ) : privateMessageCount > 0 ? (
               <span className="text-xs text-[#B5ADA3] hidden sm:inline">({privateMessageCount})</span>
-            )}
+            ) : null}
           </button>
         </div>
 
@@ -1524,38 +2280,43 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             <button
               onClick={openNewChatModal}
               className="flex items-center justify-center w-9 h-9 rounded-lg text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
-              aria-label="새 채팅"
-              title="새 채팅"
+              aria-label="대화 화면 정리"
+              title="대화 화면 정리"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
           )}
         </div>
       </div>
+      <p
+        role="status"
+        aria-live="polite"
+        className={`mx-auto -mt-1 mb-1 w-full max-w-[70rem] px-3 text-[0.6875rem] leading-relaxed ${
+          activeTab === "private" ? "text-[#5a6147]" : "text-[#795252]"
+        }`}
+      >
+        {isDemo
+          ? "현재 범위 · 체험용 함께 대화 — 체험 대화와 변경은 계정의 준비 기록에 남지 않아요"
+          : activeTab === "private"
+          ? "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
+          : "현재 범위 · 함께 대화 — 파트너에게 보여요"}
+      </p>
 
-      {/* AI 생성 배지 — 채팅 전체에 한 번만 표시 (메시지별 footer 대체).
-          AI 기본법(2026.1.22) 표시 의무를 충족하면서 가독성 회복. */}
-      <div className="sr-only">
-        <div
-          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] leading-tight text-[#928980]"
-          title="아모라 답변은 OpenAI GPT-5.6 Luna·Terra가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
+      {/* 아모라 답변이 AI 생성임을 화면에서도 항상 확인할 수 있게 한 번 표시한다. */}
+      <div className="mx-auto mb-1 flex w-full max-w-[70rem] flex-wrap items-center gap-x-2 gap-y-1 px-3 text-[0.6875rem] leading-5 text-[#5F5A55]">
+        <span className="inline-flex min-h-6 items-center gap-1 font-semibold text-[#795252]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#795252]" aria-hidden="true" />
+          AI 생성 답변
+        </span>
+        <span aria-hidden="true" className="text-[#928980]">·</span>
+        <span>계약·가격·중요 일정은 원문을 다시 확인해 주세요</span>
+        <span aria-hidden="true" className="text-[#928980]">·</span>
+        <a
+          href="/ai-policy"
+          className="inline-flex min-h-6 items-center font-semibold underline decoration-dotted underline-offset-2 transition-colors hover:text-[#795252]"
         >
-          <span className="inline-flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/50" />
-            AI 생성
-          </span>
-          <span className="text-[#D5C9C0]">·</span>
-          <span>출처: 공정위 표준계약서 · 소비자원 참가격</span>
-          <span className="text-[#D5C9C0]">·</span>
-          <span>전문가 검토 권장</span>
-          <span className="text-[#D5C9C0]">·</span>
-          <a
-            href="/ai-policy"
-            className="underline decoration-dotted underline-offset-2 hover:text-[#795252] transition-colors"
-          >
-            AI 정책
-          </a>
-        </div>
+          AI 정책
+        </a>
       </div>
 
       {/* 검색 바 — 헤더 아래 토글 */}
@@ -1586,10 +2347,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
         <div className="mx-2 mb-2 p-3.5 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
+          <p className="text-sm text-[#795252]">
+            대화가 길어졌어요. 이전 메시지를 화면에서 정리해도 원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
+          </p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
             <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
-            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
+            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">화면 정리</button>
           </div>
         </div>
       )}
@@ -1612,9 +2375,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1a: 함께 대화 — 옵션 선택 */}
             {clearStep === "shared_choose" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">함께 대화 새 채팅</h3>
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">함께 대화 화면 정리</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
-                  지금 대화를 정리하고 싶으세요? 두 가지 방법 중 골라주세요.
+                  화면에 보이는 이전 대화를 정리할 방법을 골라주세요. 원문 데이터와
+                  아모라가 참고하는 기존 맥락은 그대로 유지돼요.
                   <br />
                   <span className="text-[#928980] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
                 </p>
@@ -1625,17 +2389,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   >
                     <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
                     <div className="text-[12px] text-[#504444]">
-                      상대방 화면은 그대로. 내 화면에서만 새로 시작합니다. 데이터 보존됨.
+                      상대방 화면은 그대로 두고, 내 화면에서만 이전 메시지를 정리해요.
                     </div>
                   </button>
                   <button
                     onClick={() => setClearStep("shared_confirm_both")}
                     className="w-full text-left px-4 py-3 rounded-xl border border-[#E8DDD3] bg-[#FAF7F2]/50 hover:bg-[#FAF7F2] transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-[#795252] mb-1">둘 다 새로 시작 (상대방 동의 필요)</div>
+                    <div className="text-[14.5px] font-medium text-[#795252] mb-1">둘의 화면 함께 정리 (상대방 동의 필요)</div>
                     <div className="text-[12px] text-[#504444]">
                       상대방에게 동의 요청을 보내요. 상대방이 [동의] 누르면 양쪽 화면이
-                      깨끗하게 정리됩니다. <strong>데이터는 보존</strong>돼서 안전해요.
+                      함께 정리돼요. <strong>원문과 아모라의 기존 맥락은 유지</strong>돼요.
                     </div>
                   </button>
                 </div>
@@ -1655,12 +2419,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1b: 함께 대화 둘 다 — 동의 요청 확인 */}
             {clearStep === "shared_confirm_both" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">상대방에게 동의 요청 보낼게요</h3>
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">둘의 화면 정리 동의를 요청할게요</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
                   채팅에 동의 카드가 올라가고 상대방이 [동의] 누르면 양쪽 화면이
                   정리됩니다. 거절되면 그대로 유지돼요.
                   <br />
-                  <span className="text-[#928980] text-[12.5px]">데이터는 보존되므로 안전합니다 (view-reset).</span>
+                  <span className="text-[#928980] text-[12.5px]">
+                    원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
+                  </span>
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
@@ -1691,11 +2457,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 2: 나만 (상담) — 단순 확인 */}
             {clearStep === "private_confirm" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">비공개 상담 기록</h3>
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">비공개 상담 화면 정리</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
-                  지금까지의 비공개 상담 기록을 정리하시겠어요?
+                  화면만 정리할지, 비공개 대화·기억까지 삭제할지 선택해주세요.
                   <br />
-                  <span className="text-[#928980] text-[12.5px]">상대방은 영향받지 않습니다 (애초에 못 봤음).</span>
+                  <span className="text-[#928980] text-[12.5px]">
+                    상대방의 비공개 상담에는 영향이 없어요.
+                  </span>
                 </p>
                 <div className="space-y-2">
                   <button
@@ -1703,14 +2471,22 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     className="w-full text-left px-4 py-3 rounded-xl border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
                   >
                     <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
-                    <div className="text-[12px] text-[#504444]">데이터는 보존. 화면만 새로 시작.</div>
+                    <div className="text-[12px] text-[#504444]">
+                      원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
+                    </div>
                   </button>
                   <button
                     onClick={() => performClear("delete_private")}
                     className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-red-600 mb-1">영구 삭제</div>
-                    <div className="text-[12px] text-[#504444]">DB에서 완전히 삭제. <strong>복구 불가</strong>.</div>
+                    <div className="text-[14.5px] font-medium text-red-600 mb-1">
+                      비공개 대화·아모라 기억 삭제
+                    </div>
+                    <div className="text-[12px] leading-relaxed text-[#504444]">
+                      이 대화와 아모라가 만든 요약·기억을 삭제하고 비공개 기억
+                      사용을 꺼요. 별도 저장 메모·법적/보안 로그·백업은 각 보관
+                      정책에 따라 처리돼요.
+                    </div>
                   </button>
                 </div>
                 <div className="mt-5 flex justify-end">
@@ -1769,7 +2545,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
           const recentAiIds = new Set(
             filteredMessages
-              .filter((m) => m.sender_role === "ai")
+              .filter((m) => (
+                m.sender_role === "ai"
+                && !isSafetyScopedChatMessage(m)
+              ))
               .slice(-3)
               .map((m) => m.id)
           );
@@ -1781,6 +2560,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ))?.id ?? null;
           return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
+            const isPinnedSafetyCard = msg.metadata?.pinned_safety_card === true;
+            const isCommunityFallbackEligible = !isSafetyScopedChatMessage(msg);
             const hasToolResults =
               msg.sender_role === "ai" &&
               msg.metadata?.toolResults &&
@@ -1803,13 +2584,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               msg.visibility === myPrivateVisibility &&
               previousHumanMessage?.visibility === myPrivateVisibility;
             const canConsiderCommunityFallback =
+              isCommunityFallbackEligible &&
               !isDemo &&
               msg.sender_role === "ai" &&
               !pendingActionCandidate &&
               !hasSuccessfulSystemAction(msg) &&
               recentAiIds.has(msg.id) &&
+              !!previousHumanMessage &&
               previousHumanMessage?.sender_id === profile?.id &&
-              (isSharedCommunityFallback || isPrivateCommunityFallback);
+              (isSharedCommunityFallback || isPrivateCommunityFallback) &&
+              !isSafetyScopedChatMessage(previousHumanMessage);
             const communityAskCue = canConsiderCommunityFallback && previousHumanMessage
               ? getCommunityAskCue(
                 msg,
@@ -1836,22 +2620,50 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   isStreaming || isSending,
                 )
               : null;
+            const pendingBudgetImpactPreview = pendingAction
+              ? getPendingAmoraBudgetImpactPreview(msg, pendingAction)
+              : null;
 
             return (
               <div
                 key={msg.id}
                 className="animate-fade-in"
               >
-                <ChatBubble
-                  message={msg}
-                  isCurrentUser={isCurrentUser}
-                  currentUserRole={profile?.role}
-                  isRecentAi={recentAiIds.has(msg.id)}
-                  onNegativeFeedback={markCommunityFallbackAvailable}
-                />
+                {isPinnedSafetyCard ? (
+                  <div
+                    data-amora-safety-card="true"
+                    role="alert"
+                    aria-live="assertive"
+                    aria-label="긴급 안전 안내"
+                    className="ml-11 max-w-[94%] rounded-2xl border border-danger-500/30 bg-danger-500/[0.04] px-4 py-4 shadow-sm sm:ml-14 sm:max-w-[53.75rem]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle
+                        aria-hidden="true"
+                        className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger-500"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-danger-700">긴급 안전 안내</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#263832]">
+                          {msg.content}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <ChatBubble
+                    message={msg}
+                    isCurrentUser={isCurrentUser}
+                    currentUserRole={profile?.role}
+                    isRecentAi={recentAiIds.has(msg.id)}
+                    onNegativeFeedback={markCommunityFallbackAvailable}
+                  />
+                )}
                 {pendingAction && (
                   <PendingAmoraActionCard
                     action={pendingAction}
+                    impactPreview={pendingBudgetImpactPreview}
+                    messageId={msg.id}
                     disabledReason={pendingActionDisabledReason}
                     isApplying={applyingPendingActionId === pendingAction.actionId}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
@@ -1875,7 +2687,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   // 내용까지 동일한 반복 호출만 줄이고 서로 다른 정상 결과는 모두 보존한다.
                   deduplicateToolResults(msg.metadata!.toolResults!).map((result, i) =>
                     VENDOR_TOOL_NAMES.has(result.toolName) ? (
-                      <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={attemptSend} disabled={isStreaming} />
+                      <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={sendToAmora} disabled={isStreaming} />
                     ) : (
                       <div
                         key={`${msg.id}-tool-${i}`}
@@ -1886,19 +2698,37 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       </div>
                     )
                   )}
+                {pendingPersonalization &&
+                  msg.id === personalizationReplyMessageId &&
+                  showPersonalizationConfirmation && (
+                    <AmoraPersonalizationConfirmation
+                      option={pendingPersonalization.option}
+                      saving={amoraPersonalization.saving}
+                      error={amoraPersonalization.error}
+                      onConfirm={() => void confirmAmoraPersonalization()}
+                      onDismiss={dismissAmoraPersonalization}
+                    />
+                  )}
               </div>
             );
           });
         })()}
 
-        {isStreaming && (
+        {showAmoraQuickStart && (
+          <AmoraQuickStart
+            disabled={isStreaming || isSending}
+            onSelect={handlePersonalizationSelect}
+          />
+        )}
+
+        {isStreaming && transientArtifactsVisible && (
           <div className="animate-fade-in">
-            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={attemptSend} />
+            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={sendToAmora} />
           </div>
         )}
 
         {/* 파트너 typing 인디케이터 — 본인이 streaming 중이 아닐 때만 (중복 방지) */}
-        {!isStreaming && partnerTypingActive && presence.partnerTyping && (() => {
+        {activeTab === "shared" && !isStreaming && partnerTypingActive && presence.partnerTyping && (() => {
           const isBride = presence.partnerTyping.sender_role === "bride";
           const avatarBg = isBride
             ? "bg-gradient-to-br from-[#C4967E] to-[#E8C4B8]"
@@ -1922,9 +2752,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         })()}
 
         {/* AI 응답 중 인디케이터 — 본인이 streaming 중이 아니고 파트너 메시지에 응답 중일 때 */}
-        {!isStreaming && aiResponding && profile && aiResponding.triggered_by_user_id !== profile.id && (
+        {activeTab === "shared" && !isStreaming && aiResponding && profile && aiResponding.triggered_by_user_id !== profile.id && (
           <div className="animate-fade-in">
-            <StreamingBubble toolResults={[]} onSend={attemptSend} />
+            <StreamingBubble toolResults={[]} onSend={sendToAmora} />
           </div>
         )}
 
@@ -1946,7 +2776,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 쿼터 소진 예고 — 갑작스런 차단(429) 대신 미리 안내 */}
-      {quotaRemaining !== null && !isStreaming && (
+      {transientArtifactsVisible && quotaRemaining !== null && !isStreaming && (
         <div className="mx-2 mt-2 flex items-center justify-between rounded-xl bg-[#f6efe5] p-3 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
           <p className="text-[13px] font-medium text-[#6d625a]">
             {quotaRemaining > 0
@@ -1964,14 +2794,26 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 에러 메시지 */}
-      {error && !isStreaming && (
+      {transientArtifactsVisible && error && !isStreaming && (
         <div
-          className="mx-2 mt-2 rounded-xl border border-red-100 bg-red-50 p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
-          role="alert"
+          className={`mx-2 mt-2 rounded-xl border p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${
+            isRecoveryNotice
+              ? "border-[#B9DAD5] bg-[#F0F8F6]"
+              : "border-red-100 bg-red-50"
+          }`}
+          role={isRecoveryNotice ? "status" : "alert"}
         >
-          <p className="text-sm leading-relaxed text-red-700">{error}</p>
+          <p
+            className={`text-sm leading-relaxed ${
+              isRecoveryNotice ? "text-[#245B56]" : "text-red-700"
+            }`}
+          >
+            {error}
+          </p>
           {failedRequest?.unavailableReason && (
-            <p className="mt-1 text-xs leading-relaxed text-red-600">
+            <p className={`mt-1 text-xs leading-relaxed ${
+              isRecoveryNotice ? "text-[#356B66]" : "text-red-600"
+            }`}>
               {failedRequest.unavailableReason}
             </p>
           )}
@@ -1981,18 +2823,36 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 type="button"
                 onClick={() => void retryFailedMessage()}
                 disabled={isStreaming || isRetrying}
-                className="min-h-9 rounded-lg bg-red-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`min-h-9 rounded-lg px-3.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isRecoveryNotice
+                    ? "bg-[#2F766F] hover:bg-[#245B56]"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
               >
-                {isRetrying ? "다시 시도 중..." : "다시 시도"}
+                {isConfirmedActionRecovery
+                  ? isRetrying
+                    ? "반영 확인 중..."
+                    : "반영 계속하기"
+                  : isInterruptedTurnRecovery
+                    ? isRetrying
+                      ? "답변 확인 중..."
+                      : "답변 이어받기"
+                  : isRetrying
+                    ? "다시 시도 중..."
+                    : "다시 시도"}
               </button>
             )}
             <button
               type="button"
               onClick={dismissFailedMessageRetry}
               disabled={isStreaming || isRetrying}
-              className="min-h-9 rounded-lg border border-red-200 bg-white px-3.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`min-h-9 rounded-lg border bg-white px-3.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                isRecoveryNotice
+                  ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
+                  : "border-red-200 text-red-700 hover:bg-red-100"
+              }`}
             >
-              닫기
+              {isRecoveryNotice ? "나중에" : "닫기"}
             </button>
           </div>
         </div>
@@ -2041,8 +2901,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 type="button"
                 onClick={() => {
                   const t = pendingSend.text;
+                  const target = pendingSend.target;
                   setPendingSend(null);
-                  void handleSend(t);
+                  void handleSend(t, target);
                 }}
                 className="min-h-11 flex-1 px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
               >
@@ -2058,7 +2919,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="px-2 pt-2">
           <div className="relative bg-white rounded-xl px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <button
-              onClick={() => { setShowMediationBanner(false); }}
+              onClick={() => {
+                setMediationDismissed(true);
+              }}
               className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
             >
               <X className="w-4 h-4" />
@@ -2075,7 +2938,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   아모라가 중립적으로 의견 조율을 도와드릴게요
                 </p>
                 <button
-                  onClick={handleManualMediation}
+                  onClick={openMediationConsent}
                   className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
@@ -2088,9 +2951,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 제안 버튼 — 입력창과 충분한 간격 유지 */}
-      {suggestions.length > 0 && !isStreaming && (
+      {messageTarget === "ai" &&
+        transientArtifactsVisible &&
+        suggestions.length > 0 &&
+        !isStreaming &&
+        !showAmoraQuickStart &&
+        !showPersonalizationConfirmation && (
         <div className="px-2 pt-2 pb-4 sm:pb-5 border-t border-[#F0EFED]/60 mt-2">
-          <SuggestionButtons suggestions={suggestions} onSelect={attemptSend} disabled={isStreaming} />
+          <SuggestionButtons
+            suggestions={suggestions}
+            onSelect={sendToAmora}
+            disabled={isStreaming || isSending}
+          />
         </div>
       )}
 
@@ -2117,8 +2989,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   </div>
                 )}
                 <button
+                  type="button"
                   onClick={() => removeAttachment(i)}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                  aria-label={`${att.fileName} 첨부 제거`}
+                  className="absolute -right-4 -top-4 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white opacity-80 shadow-sm transition-opacity hover:opacity-100 focus-visible:opacity-100"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2128,11 +3002,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         )}
 
         {/* 대상 토글 — 한 단계 컴팩트 (px/py/font 톤다운) */}
-        {activeTab === "shared" && (
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1">
+        {activeTab === "shared" && hasLinkedPartner && (
+          <div
+            className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1"
+            role="group"
+            aria-label="메시지 받을 대상"
+          >
             <button
-              onClick={() => setMessageTarget("ai")}
-              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-colors whitespace-nowrap ${
+              type="button"
+              onClick={() => handleMessageTargetChange("ai")}
+              disabled={isStreaming || isSending}
+              aria-pressed={messageTarget === "ai"}
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "ai"
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
@@ -2142,8 +3023,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               아모라에게
             </button>
             <button
-              onClick={() => setMessageTarget("partner")}
-              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-[0.8125rem] font-medium transition-colors whitespace-nowrap ${
+              type="button"
+              onClick={() => handleMessageTargetChange("partner")}
+              disabled={isStreaming || isSending}
+              aria-pressed={messageTarget === "partner"}
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                   : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
@@ -2166,16 +3050,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <input
             ref={fileInputRef}
             type="file"
-            accept={Object.keys(ALLOWED_TYPES).join(",")}
+            accept={Object.keys(ALLOWED_TYPES)
+              .filter((mediaType) => messageTarget !== "partner" || mediaType.startsWith("image/"))
+              .join(",")}
             multiple
             onChange={handleFileSelect}
             className="hidden"
           />
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
-            title="파일 첨부 (이미지, PDF, Word)"
+            aria-label="파일 첨부"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-[#B5ADA3] transition-colors hover:bg-[#795252]/5 hover:text-[#795252] disabled:cursor-not-allowed disabled:opacity-30"
+            title={
+              messageTarget === "partner"
+                ? "사진 첨부 (PDF·Word 문서는 아모라에게만 가능)"
+                : "파일 첨부 (이미지, PDF, Word)"
+            }
           >
             <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -2184,15 +3076,31 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ref={textareaRef}
             rows={1}
             value={input}
+            aria-label={
+              messageTarget === "partner"
+                ? "상대방에게 보낼 메시지 입력"
+                : isPrivate
+                  ? "나만의 아모라 상담 메시지 입력"
+                  : "함께 보는 아모라 메시지 입력"
+            }
             onChange={(e) => {
               setInput(e.target.value);
-              // auto-resize: 줄 수에 따라 높이 자동 조절 (최대 ~5줄)
-              const ta = e.currentTarget;
-              ta.style.height = "auto";
-              ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+              resizeChatComposerToContent(e.currentTarget, e.target.value);
               // typing broadcast — 디바운스는 store 내부에서 처리, 여기선 매 입력마다 콜
-              if (coupleId && profile?.id && (profile.role === "bride" || profile.role === "groom")) {
-                notifyTyping({ coupleId, userId: profile.id, senderRole: profile.role });
+              if (
+                activeTab === "shared"
+                && messageTarget === "partner"
+                && coupleId
+                && profile?.id
+                && (profile.role === "bride" || profile.role === "groom")
+              ) {
+                const typingContext = {
+                  coupleId,
+                  userId: profile.id,
+                  senderRole: profile.role,
+                };
+                sharedTypingContextRef.current = typingContext;
+                notifyTyping(typingContext);
               }
             }}
             onKeyDown={(e) => {
@@ -2212,15 +3120,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 ? "상대방에게 메시지…"
                 : isPrivate
                   ? "아모라에게 솔직히…"
-                  : "무엇이든 물어보세요…"
+                  : "결혼 준비에서 궁금한 점을 물어보세요…"
             }
             disabled={isStreaming || isSending}
-            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[10rem] overflow-y-auto"
           />
           <button
+            type="button"
             onClick={() => attemptSend()}
-            disabled={(!input.trim() && attachments.length === 0) || isStreaming || isSending}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+            disabled={
+              (!input.trim() && attachments.length === 0)
+              || !senderRole
+              || isStreaming
+              || isSending
+              || pendingAttachmentReads > 0
+            }
+            aria-label={
+              messageTarget === "partner"
+                ? "상대방에게 메시지 보내기"
+                : isPrivate
+                  ? "나만의 아모라 상담 메시지 보내기"
+                  : "함께 보는 아모라 메시지 보내기"
+            }
+            className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
                 : isPrivate

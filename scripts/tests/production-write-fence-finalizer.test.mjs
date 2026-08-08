@@ -1103,6 +1103,31 @@ test("renderer rejects injection and any missing or duplicated template token", 
   const rendered = renderProductionWriteFenceFinalizerSql(template, evidence);
   assert.match(rendered, new RegExp(OWNER));
   assert.ok(rendered.length < 28_000, `compacted SQL length=${rendered.length}`);
+  const successorDigests = {
+    expectedTableContractSha256: "4".repeat(64),
+    expectedReleaseMigrationContractSha256: "5".repeat(64),
+  };
+  const successorEvidence = {
+    ...evidence,
+    postExpandTableContractSha256:
+      successorDigests.expectedTableContractSha256,
+    postExpandMigrationContractSha256:
+      successorDigests.expectedReleaseMigrationContractSha256,
+  };
+  const successorRendered = renderProductionWriteFenceFinalizerSql(
+    template,
+    successorEvidence,
+    successorDigests,
+  );
+  assert.match(
+    successorRendered,
+    new RegExp(successorDigests.expectedTableContractSha256),
+  );
+  assert.throws(
+    () => renderProductionWriteFenceFinalizerSql(template, successorEvidence),
+    (error) => error instanceof ProductionWriteFenceFinalizerError
+      && error.code === "FINALIZER_EVIDENCE_INVALID",
+  );
   assert.throws(
     () => renderProductionWriteFenceFinalizerSql(template, {
       ...evidence,
@@ -1126,6 +1151,63 @@ test("renderer rejects injection and any missing or duplicated template token", 
     ),
     (error) => error instanceof ProductionWriteFenceFinalizerError
       && error.code === "FINALIZER_TEMPLATE_INVALID",
+  );
+});
+
+test("successor outcome evidence summary binds all five private receipt and raw hashes", () => {
+  const records = [
+    "backup",
+    "finalizer",
+    "hostedRestore",
+    "hostedStaging",
+    "storage",
+  ].map((name, index) => ({
+    name,
+    receiptSha256: ["1", "2", "3", "4", "5"][index].repeat(64),
+    rawEvidenceSha256: ["6", "7", "8", "9", "a"][index].repeat(64),
+    verifiedAt: "2026-07-31T00:00:00Z",
+    expiresAt: "2026-07-31T00:30:00Z",
+  }));
+  const successorRuntimeEvidenceSetSha256 = sha256Text(
+    `${records.map((record) => [
+      record.name,
+      record.receiptSha256,
+      record.rawEvidenceSha256,
+      record.verifiedAt,
+      record.expiresAt,
+    ].join(":")).join("\n")}\n`,
+  );
+  const receipt = {
+    startedAt: "2026-07-31T00:05:00.000Z",
+    successorRuntimeEvidence: records,
+    successorRuntimeEvidenceSetSha256,
+  };
+  assert.equal(
+    productionWriteFenceFinalizerTestHooks
+      .validateSuccessorRuntimeEvidenceSummary(receipt),
+    true,
+  );
+  assert.equal(
+    productionWriteFenceFinalizerTestHooks
+      .validateSuccessorRuntimeEvidenceSummary({
+        ...receipt,
+        successorRuntimeEvidence: records.map((record, index) =>
+          index === 0
+            ? { ...record, rawEvidenceSha256: "f".repeat(64) }
+            : record),
+      }),
+    false,
+  );
+  assert.equal(
+    productionWriteFenceFinalizerTestHooks
+      .validateSuccessorRuntimeEvidenceSummary({
+        ...receipt,
+        successorRuntimeEvidence: records.map((record, index) =>
+          index === 0
+            ? { ...record, expiresAt: receipt.startedAt }
+            : record),
+      }),
+    false,
   );
 });
 
@@ -1202,6 +1284,80 @@ test("manifest must pin the strict finalization contract before runtime can proc
       }),
       (error) => error instanceof ProductionWriteFenceFinalizerError
         && error.code === "FINALIZATION_CONTRACT_INVALID",
+    );
+  } finally {
+    await cleanupFixture(fixture);
+  }
+});
+
+test("a deployment-blocked successor prevents predecessor finalizer selection", async () => {
+  const fixture = await createFixture();
+  try {
+    const predecessorMigrationFile =
+      "20260716090000_finalizer_predecessor_fixture.sql";
+    const predecessorMigrationSql = "select 'predecessor';\n";
+    await mkdir(join(fixture.repoRoot, "supabase/migrations"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(fixture.repoRoot, "supabase/migrations", predecessorMigrationFile),
+      predecessorMigrationSql,
+      "utf8",
+    );
+    const predecessor = JSON.parse(
+      await readFile(fixture.manifestPath, "utf8"),
+    );
+    predecessor.expandMigrations = [{
+      file: predecessorMigrationFile,
+      sha256: sha256Text(predecessorMigrationSql),
+    }];
+    await writeJson(fixture.manifestPath, predecessor);
+    const predecessorText = await readFile(fixture.manifestPath, "utf8");
+
+    const successorMigrationFile =
+      "20260718120000_finalizer_successor_fixture.sql";
+    const successorMigrationSql = "select 'successor';\n";
+    await writeFile(
+      join(fixture.repoRoot, "supabase/migrations", successorMigrationFile),
+      successorMigrationSql,
+      "utf8",
+    );
+    await writeJson(
+      join(
+        fixture.repoRoot,
+        "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+      ),
+      {
+        release: "vendor-disclosure-v2-20260718",
+        projectRef: PROJECT_REF,
+        status: "deployment_blocked",
+        predecessorManifest: {
+          file:
+            "supabase/release-manifests/amora-engine-v2-20260716.json",
+          sha256: sha256Text(predecessorText),
+        },
+        requiredRemoteHead: "20260716090000",
+        migrationFloor: "20260718120000",
+        expandMigrations: [{
+          file: successorMigrationFile,
+          sha256: sha256Text(successorMigrationSql),
+        }],
+        deploymentEvidence: {
+          backup: "missing",
+          finalizer: "missing",
+          hostedRestore: "missing",
+          hostedStaging: "missing",
+          storage: "missing",
+        },
+      },
+    );
+
+    await assert.rejects(
+      productionWriteFenceFinalizerTestHooks.loadFinalizationManifest(
+        fixture.repoRoot,
+      ),
+      (error) => error instanceof ProductionWriteFenceFinalizerError
+        && error.code === "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
     );
   } finally {
     await cleanupFixture(fixture);

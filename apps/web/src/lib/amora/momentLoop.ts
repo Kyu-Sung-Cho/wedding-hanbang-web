@@ -1,5 +1,5 @@
 import { MOMENTS, WEDDING_RELATIVE_MOMENTS, type MomentCell, type MomentDefinition, type MomentType } from "@/constants/moments";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { ymdInKst, kstMidnightFromYmd, addDaysUtc } from "@/lib/utils/kstDate";
 import type { ScheduleEvent } from "@/types/database.types";
 
@@ -20,7 +20,9 @@ export interface DueMomentCell {
   cellKind: MomentCellKind;
   /** 모멘트 실제 날짜 (YYYY-MM-DD, KST) */
   momentDate: string;
-  /** 발화 중복 방지 키: momentType:cellKind:momentDate (같은 타입 복수 이벤트 대응) */
+  /** 일정 기반 셀의 정본 일정 ID. 예식일 파생 셀에는 없다. */
+  sourceEventId?: string;
+  /** 발화 중복 방지 키. 일정 기반 셀은 event ID까지 포함한다. */
   dedupeKey: string;
   /** 발화 본문 (체크리스트·대본 포함 조립 완료) */
   message: string;
@@ -81,7 +83,8 @@ function cellPriority(def: MomentDefinition, cellKind: MomentCellKind): number {
 function buildCell(
   def: MomentDefinition,
   cellKind: MomentCellKind,
-  momentDateYmd: string
+  momentDateYmd: string,
+  sourceEventId?: string,
 ): DueMomentCell | null {
   const cell = cellKind === "d3" ? def.d3 : cellKind === "d1" ? def.d1 : def.dAfter;
   if (!cell) return null;
@@ -90,7 +93,10 @@ function buildCell(
     momentLabel: def.label,
     cellKind,
     momentDate: momentDateYmd,
-    dedupeKey: `${def.type}:${cellKind}:${momentDateYmd}`,
+    ...(sourceEventId ? { sourceEventId } : {}),
+    dedupeKey: [def.type, cellKind, momentDateYmd, sourceEventId]
+      .filter(Boolean)
+      .join(":"),
     message: composeMessage(cell),
     memoryKeys: cellKind === "dAfter" ? def.memoryKeys : [],
     priority: cellPriority(def, cellKind),
@@ -101,13 +107,14 @@ function buildCell(
 function dueCellForDate(
   def: MomentDefinition,
   momentDate: Date,
-  today: Date
+  today: Date,
+  sourceEventId?: string,
 ): DueMomentCell | null {
   const days = daysUntil(momentDate, today);
   const ymd = ymdInKst(momentDate);
-  if (days === 3) return buildCell(def, "d3", ymd);
-  if (days === 1) return buildCell(def, "d1", ymd);
-  if (days === -1) return buildCell(def, "dAfter", ymd);
+  if (days === 3) return buildCell(def, "d3", ymd, sourceEventId);
+  if (days === 1) return buildCell(def, "d1", ymd, sourceEventId);
+  if (days === -1) return buildCell(def, "dAfter", ymd, sourceEventId);
   return null;
 }
 
@@ -125,12 +132,16 @@ export function buildDueMomentCells(input: BuildMomentCellsInput): DueMomentCell
   // 1) 유저 일정 입력 기반 모멘트 (momentType 태깅된 이벤트)
   const events: ScheduleEvent[] = getEvents(progress);
   for (const event of events) {
+    // 완료·취소 일정은 더 이상 출발 전 확인이나 사후 안부의 근거가
+    // 아니다. 특히 취소 기록은 감사 이력을 보존하되 케어 후보에서는
+    // 반드시 제외한다.
+    if (getScheduleEventStatus(event) !== "planned") continue;
     if (!event.momentType) continue;
     const def = MOMENTS[event.momentType as MomentType];
     if (!def || def.trigger !== "event") continue;
     const momentDate = toKstMidnight(event.date);
     if (!momentDate) continue;
-    const due = dueCellForDate(def, momentDate, today);
+    const due = dueCellForDate(def, momentDate, today, event.id);
     if (due) cells.push(due);
   }
 

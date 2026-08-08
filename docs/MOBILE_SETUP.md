@@ -1,5 +1,13 @@
 # 웨딩한방 모바일 앱 셋업 가이드
 
+> [!IMPORTANT]
+> **2026-07-31 현재 설치·Node 이중 버전·QR timeout 대안·EAS 안전 게이트는
+> `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`가 우선한다.**
+>
+> 아래 문서는 초기 Phase 0의 기기별 설명을 보존한 참고 기록이다. 현재 production
+> EAS build·submit은 저장소 gate에서 의도적으로 차단되며, 전역 EAS CLI 설치나
+> wrapper 우회로 진행하지 않는다.
+
 > Phase 0 완료 상태에서 **본인 폰에 앱 실행**까지의 단계
 
 ## 1. 로컬 실행 (Expo Go)

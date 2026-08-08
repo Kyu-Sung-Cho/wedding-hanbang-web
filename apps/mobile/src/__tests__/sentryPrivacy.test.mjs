@@ -7,7 +7,13 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
-const sourcePath = resolve(testDir, "../lib/sentryPrivacy.ts");
+// 규칙 본체는 `@hanbang/shared`로 옮겼다. 웹·모바일이 서로 다른 Sentry SDK를 쓰지만
+// 개인정보를 지우는 기준이 두 벌로 갈라지면 한쪽만 고쳐진다. 모바일의 얇은 어댑터가
+// 아니라 그 공유 규칙을 여기서 검증한다.
+const sourcePath = resolve(
+  testDir,
+  "../../../../packages/shared/src/safety/sentryScrub.ts",
+);
 const source = await readFile(sourcePath, "utf8");
 const transpiled = ts.transpileModule(source, {
   compilerOptions: {

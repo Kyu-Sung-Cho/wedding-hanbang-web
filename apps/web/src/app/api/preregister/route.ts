@@ -12,10 +12,11 @@ import {
   cleanOptionalEnum,
   cleanOptionalIsoDate,
   cleanOptionalText,
-  isBodyTooLarge,
   isRecord,
   normalizeEmail,
+  readBoundedUtf8Text,
 } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,11 @@ function getServiceClient() {
 
 export async function POST(request: NextRequest) {
   try {
-    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json(
+        { error: "신뢰할 수 없는 요청입니다." },
+        { status: 403, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
     }
 
     const ipLimited = await checkRateLimitPersistent(rateLimitKey("preregister", request), {
@@ -38,7 +42,20 @@ export async function POST(request: NextRequest) {
     });
     if (ipLimited) return ipLimited;
 
-    const body = await request.json();
+    const rawBody = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: rawBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.text);
+    } catch {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
@@ -71,15 +88,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const emailLimited = await checkRateLimitPersistent(
-      rateLimitSubjectKey("preregister-email", email),
-      {
-        maxRequests: 3,
-        windowMs: 24 * 60 * 60 * 1000,
-      },
-    );
-    if (emailLimited) return emailLimited;
-
     const turnstile = await verifyTurnstile(
       typeof body.turnstileToken === "string" ? body.turnstileToken : null,
       getClientIp(request),
@@ -91,6 +99,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const emailLimited = await checkRateLimitPersistent(
+      rateLimitSubjectKey("preregister-email", email),
+      {
+        maxRequests: 3,
+        windowMs: 24 * 60 * 60 * 1000,
+      },
+    );
+    if (emailLimited) return emailLimited;
 
     const supabase = getServiceClient();
 

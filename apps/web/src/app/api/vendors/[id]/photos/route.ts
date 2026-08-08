@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
@@ -27,6 +28,9 @@ function normalizePhotoUrl(value: unknown): string | null {
 // 사진 좋아요 토글
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    if (!isTrustedMutationRequest(req)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {

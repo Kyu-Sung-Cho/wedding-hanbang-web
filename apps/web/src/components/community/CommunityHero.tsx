@@ -10,7 +10,7 @@ interface CommunityHeroProps {
 }
 
 export default function CommunityHero({ postCount = 0, topVendor }: CommunityHeroProps) {
-  const displayCount = postCount > 0 ? `${postCount.toLocaleString("ko-KR")}개 글` : "실시간 글";
+  const displayCount = postCount > 0 ? `${postCount.toLocaleString("ko-KR")}개 글` : "아직 게시글 없음";
 
   // 로그인 유저에겐 hero 숨김 — 이미 커뮤니티를 이해한 재방문자라 매번 안내 노출이 불필요.
   // 비로그인엔 그대로 노출하여 온보딩 컨텍스트 제공.

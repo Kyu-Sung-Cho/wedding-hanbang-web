@@ -155,10 +155,16 @@ export default function AmoraMediationCard({
     }
   }
 
+  // 이 카드에 담긴 말은 요청한 사람이 직접 쓴 요약뿐이다. 상대의 메시지는 서버가
+  // 모델에 보내지도 않는다. 그러니 아모라가 양쪽 이야기를 다 듣고 정리한 것처럼 쓰면
+  // 사실이 아니고, 그 카드를 읽는 상대는 아모라가 저쪽 편을 들었다고 이해한다.
+  // 웹 카드와 같은 문구를 쓴다 — 같은 사실을 두 화면이 다르게 말하면 안 된다.
+  const requesterSummaryOnly = block.requesterSummaryOnly === true;
+
   const sections = [
     {
       key: "empathy",
-      title: "느껴진 감정",
+      title: requesterSummaryOnly ? "요청자가 전한 감정" : "전해진 감정",
       Icon: Heart,
       color: "#8B6B24",
       backgroundColor: "#FEF9E8",
@@ -167,7 +173,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "translation",
-      title: "두 사람이 말한 내용",
+      title: requesterSummaryOnly ? "요청자가 전한 상황" : "상황 정리",
       Icon: MessagesSquare,
       color: colors.noir[800],
       backgroundColor: "#F2F7F5",
@@ -176,7 +182,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "data",
-      title: "확인된 사실 · 아직 확인할 점",
+      title: requesterSummaryOnly ? "상대방에게 확인할 점" : "확인할 내용",
       Icon: BarChart3,
       color: colors.textSecondary,
       backgroundColor: colors.ivory[100],
@@ -197,13 +203,22 @@ export default function AmoraMediationCard({
   if (sections.length === 0) return null;
 
   return (
-    <View style={styles.container} accessibilityLabel="아모라의 대화 정리 초안">
+    <View
+      style={styles.container}
+      accessibilityLabel={requesterSummaryOnly
+        ? "요청자 요약 기반 조율 초안"
+        : "확인 출처가 없는 이전 조율 초안"}
+    >
       <View style={styles.intro}>
         <Scale size={16} color={colors.noir[800]} />
         <View style={styles.introTextWrap}>
-          <Text style={styles.introTitle}>아모라의 대화 정리 초안</Text>
+          <Text style={styles.introTitle}>
+            {requesterSummaryOnly ? "요청자 요약 기반 조율 초안" : "확인 출처가 없는 이전 조율 초안"}
+          </Text>
           <Text style={styles.introCopy}>
-            아모라가 두 분의 대화를 정리한 초안이에요. 사실과 조건은 두 분이 직접 확인해 주세요.
+            {requesterSummaryOnly
+              ? "요청자가 직접 적은 요약을 바탕으로 만든 조율 초안이에요. 상대방의 생각은 아직 확인되지 않았어요."
+              : "확인 출처가 없는 이전 조율 초안이에요. 내용은 참고만 하고 새 공동 결정으로 확인하려면 조율 초안을 다시 요청해 주세요."}
           </Text>
         </View>
       </View>

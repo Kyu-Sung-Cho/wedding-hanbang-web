@@ -4,6 +4,7 @@ import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 // 아모라 서비스 계정 ID (환경변수 또는 고정값)
 const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
@@ -64,6 +65,12 @@ const SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 '아모라'입니다.
 - 확실하지 않은 내용은 확실하지 않다고 말하기`;
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { authorized, userId } = await verifyAdmin(req);
     if (!authorized) {
@@ -175,6 +182,14 @@ export async function POST(req: NextRequest) {
       maxOutputTokens: 300,
       instructions: SYSTEM_PROMPT,
       input: userContent,
+      // 위의 kill switch 검사 뒤에 DB 조회가 두 번 있다. 그 사이에 기능이 꺼질 수
+      // 있으므로 어떤 provider 요청보다 먼저 스위치를 다시 확인한다. 유료 생성
+      // 게이트는 토큰 계산 뒤에 오므로 계산 요청을 막지 못한다.
+      beforeProviderEgress: () => {
+        if (process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED !== "true") {
+          throw new CommunityAiCommentUnavailableError();
+        }
+      },
       beforeGeneration: async () => {
         let reservation;
         try {
@@ -238,6 +253,7 @@ export async function POST(req: NextRequest) {
         post_id: postId,
         parent_id: null,
         author_id: AMORA_USER_ID,
+        content_origin: "ai",
         content: aiText,
         upvote_count: 0,
         is_deleted: false,
@@ -247,51 +263,15 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (commentError) {
-      // is_ai 컬럼이 없는 경우 fallback (컬럼 미생성 시)
-      const { data: fallbackComment, error: fallbackError } = await serviceClient
-        .from("community_comments")
-        .insert({
-          post_id: postId,
-          parent_id: null,
-          author_id: AMORA_USER_ID,
-          content: aiText,
-          upvote_count: 0,
-          is_deleted: false,
-        })
-        .select("*")
-        .single();
-
-      if (fallbackError) {
-        console.error("AI comment insert error:", fallbackError);
-        return NextResponse.json({ error: "댓글 저장 실패" }, { status: 500 });
-      }
-
-      // comment_count 증가
-      await serviceClient
-        .from("community_posts")
-        .select("comment_count")
-        .eq("id", postId)
-        .single()
-        .then(({ data }) => {
-          return serviceClient
-            .from("community_posts")
-            .update({ comment_count: (data?.comment_count ?? 0) + 1 })
-            .eq("id", postId);
-        });
-
-      return NextResponse.json({
-        comment: {
-          ...fallbackComment,
-          author: {
-            nickname: "아모라 AI",
-            rank: "master",
-            avatar_url: null,
-            wedding_year: null,
-            wedding_month: null,
-          },
-          is_ai: true,
+      // 출처 플래그를 저장하지 못한 AI 답변을 일반 회원 답변처럼 남기지 않는다.
+      console.error("AI comment origin persistence error:", commentError);
+      return NextResponse.json(
+        {
+          error: "AI 답변의 출처를 안전하게 저장하지 못했습니다.",
+          code: "COMMUNITY_AI_ORIGIN_PERSISTENCE_FAILED",
         },
-      }, { status: 201 });
+        { status: 500 },
+      );
     }
 
     // comment_count 증가

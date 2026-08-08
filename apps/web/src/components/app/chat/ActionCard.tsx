@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
@@ -15,6 +16,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 import { formatWon } from "@/lib/formatWon";
 
@@ -64,7 +66,7 @@ function getTitle(result: ToolExecutionResult) {
     case "update_task_status":
       return "일정 업데이트";
     case "update_venue":
-      return "예식장 설정";
+      return "결혼식장 설정";
     case "get_budget_summary":
       return "예산 현황";
     case "get_schedule_summary":
@@ -73,14 +75,18 @@ function getTitle(result: ToolExecutionResult) {
       return "일정 추가";
     case "update_schedule_event":
       return "일정 변경";
+    case "cancel_schedule_event":
+      return "일정 취소";
+    case "restore_schedule_event":
+      return "취소 일정 복원";
     case "delete_schedule_event":
-      return "일정 삭제";
+      return "과거 일정 삭제 영수증";
     case "get_schedule_events":
       return "등록 일정";
     case "log_wedding_event":
       return "웨딩 일정 기록";
     case "get_my_bookings":
-      return "예약 현황";
+      return "아모라 예약 요청 기록";
     case "get_market_price":
       return "결혼 비용 시세";
     case "get_wedding_info":
@@ -90,8 +96,8 @@ function getTitle(result: ToolExecutionResult) {
     case "update_category_budget": {
       const hasBudget = result.toolInput.budget !== undefined;
       const hasSpent = result.toolInput.spent !== undefined;
-      if (hasBudget && hasSpent) return "카테고리 예산·지출 변경";
-      if (hasSpent) return "카테고리 지출 변경";
+      if (hasBudget && hasSpent) return "카테고리 예산·기록 지출 변경";
+      if (hasSpent) return "카테고리 기록 지출 변경";
       return "카테고리 예산 변경";
     }
     case "add_amora_action":
@@ -116,18 +122,7 @@ function getAccentColor(toolName: string) {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  meeting: "상견례", venue: "예식장", studio: "스튜디오", dress: "드레스/턱시도",
-  makeup: "메이크업", snap: "스냅/영상", ring: "예물", yedan: "예단",
-  hanbok: "한복", shoes: "웨딩구두", bouquet: "부케", honeymoon: "신혼여행",
-  houseware: "혼수", housing: "신혼집", invitation: "청첩장", gift: "답례품",
-  mc: "사회/축가", ham: "함", pyebaek: "폐백", reserve: "예비비",
-};
-
-const CATEGORY_RATIOS: Record<string, number> = {
-  meeting: 0.01, venue: 0.20, studio: 0.10, dress: 0.07, makeup: 0.05,
-  snap: 0.04, ring: 0.12, yedan: 0.05, hanbok: 0.03, shoes: 0.01,
-  bouquet: 0.01, honeymoon: 0.12, houseware: 0.07, housing: 0.00,
-  invitation: 0.02, gift: 0.02, mc: 0.01, ham: 0.01, pyebaek: 0.01, reserve: 0.05,
+  ...PLANNING_CATEGORY_LABELS,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -139,8 +134,12 @@ const STATUS_LABELS: Record<string, string> = {
 const INTERNAL_ID_FAILURE_COPY: Record<string, string> = {
   update_schedule_event:
     "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+  cancel_schedule_event:
+    "취소할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+  restore_schedule_event:
+    "복원할 취소 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
   delete_schedule_event:
-    "삭제할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+    "일정 삭제는 지원하지 않아요. 일정 목록에서 취소를 다시 선택해 주세요.",
   toggle_checklist_item:
     "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
 };
@@ -173,16 +172,9 @@ function getUserFacingDisplayMessage(result: ToolExecutionResult): string {
     : INTERNAL_ID_FAILURE_COPY[result.toolName] ?? GENERIC_INTERNAL_ID_FAILURE_COPY;
 }
 
-function readLegacyProgressSpent(item: ProgressItem | undefined): number {
+function readExplicitProgressSpent(item: ProgressItem | undefined): number {
   const spent = readWonAmount(item?.spent);
-  if (spent !== null) return spent;
-
-  const legacyCost = readWonAmount(item?.cost);
-  if (legacyCost === null) return 0;
-  const normalized = legacyCost > 0 && legacyCost < 100_000
-    ? legacyCost * 10_000
-    : legacyCost;
-  return readWonAmount(normalized) ?? 0;
+  return spent ?? 0;
 }
 
 // 예산 현황 미니 카드
@@ -199,18 +191,20 @@ function BudgetMiniCard() {
   if (!totalBudget) return null;
 
   const topCategories = ["venue", "studio", "dress", "makeup", "ring", "honeymoon"];
-  const items = topCategories.map((key) => {
+  const items = topCategories.flatMap((key) => {
     const item = progress[key];
-    const budget = readWonAmount(item?.budget)
-      ?? Math.round(totalBudget * (CATEGORY_RATIOS[key] ?? 0));
-    const spent = readLegacyProgressSpent(item);
-    const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-    return { key, label: CATEGORY_LABELS[key], budget, spent, pct };
+    const budget = readWonAmount(item?.budget);
+    const spent = readExplicitProgressSpent(item);
+    if (budget === null && spent === 0) return [];
+    const pct = budget !== null && budget > 0
+      ? Math.round((spent / budget) * 100)
+      : null;
+    return [{ key, label: CATEGORY_LABELS[key], budget, spent, pct }];
   });
 
   let totalSpent = 0;
   for (const key of Object.keys(CATEGORY_LABELS)) {
-    totalSpent += readLegacyProgressSpent(progress[key]);
+    totalSpent += readExplicitProgressSpent(progress[key]);
     if (!Number.isSafeInteger(totalSpent)) return null;
   }
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
@@ -218,21 +212,26 @@ function BudgetMiniCard() {
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06]">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm text-[#928980]">총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
+        <span className="text-sm text-[#928980]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
         <span className={`text-sm font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
       </div>
+      <p className="mt-2 text-[11px] leading-4 text-[#928980]">
+        기록 지출은 결제 완료 여부와 별도예요.
+      </p>
       <div className="space-y-1.5">
         {items.map((cat) => (
           <div key={cat.key} className="flex items-center gap-2 text-sm">
             <span className="text-[#928980] w-[64px] flex-shrink-0 truncate">{cat.label}</span>
             <div className="flex-1 h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full ${cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
-                style={{ width: `${Math.min(cat.pct, 100)}%` }}
+                className={`h-full rounded-full ${cat.pct !== null && cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
+                style={{ width: `${cat.pct === null ? 0 : Math.min(cat.pct, 100)}%` }}
               />
             </div>
             <span className="w-[64px] flex-shrink-0 text-right text-[#1A1A1F]">{formatWon(cat.spent)}</span>
-            <span className={`w-[36px] text-right flex-shrink-0 font-medium ${cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>{cat.pct}%</span>
+            <span className={`w-[44px] text-right flex-shrink-0 font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>
+              {cat.pct !== null ? `${cat.pct}%` : cat.budget === 0 ? "0원" : "미입력"}
+            </span>
           </div>
         ))}
       </div>
@@ -302,9 +301,9 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
 
   if (changedBudget === null && changedSpent === null) return null;
   const changeLabel = changedBudget !== null && changedSpent !== null
-    ? "예산·지출"
+    ? "예산·기록 지출"
     : changedSpent !== null
-      ? "지출"
+      ? "기록 지출"
       : "예산";
 
   return (
@@ -325,7 +324,7 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
           )}
           {changedSpent !== null && (
             <div className="flex items-center justify-end gap-2">
-              <span className="text-xs text-[#928980]">변경된 지출</span>
+              <span className="text-xs text-[#928980]">변경된 기록 지출</span>
               <strong className="text-sm font-semibold text-[#36534E]">
                 {formatWon(changedSpent)}
               </strong>
@@ -527,6 +526,9 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
 function ScheduleMiniCard() {
   const { journey, updateJourney } = useAuthStore();
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
 
   const categories = ["meeting", "venue", "studio", "dress", "makeup", "ring", "honeymoon", "houseware"];
   const items = categories.map((key) => {
@@ -539,6 +541,7 @@ function ScheduleMiniCard() {
   }).filter(c => c.total > 0);
 
   const handleToggle = async (catKey: string, itemId: string) => {
+    if (savingItemId) return;
     const existing = progress[catKey];
     if (!existing?.checklist) return;
     const newChecklist = existing.checklist.map((item) =>
@@ -547,18 +550,46 @@ function ScheduleMiniCard() {
     const doneCount = newChecklist.filter((c) => c.done).length;
     const totalCount = newChecklist.length;
     const newStatus = doneCount === 0 ? "not_started" : doneCount === totalCount ? "completed" : "in_progress";
-    await updateJourney({
-      progress: {
-        ...progress,
-        [catKey]: { ...existing, checklist: newChecklist, status: newStatus },
-      },
-    });
+    setSavingItemId(itemId);
+    setSaveError("");
+    setSaveNotice("");
+    try {
+      const result = await updateJourney({
+        progress: {
+          ...progress,
+          [catKey]: { ...existing, checklist: newChecklist, status: newStatus },
+        },
+      });
+      if (result.status === "pending_partner") {
+        setSaveNotice(
+          `${result.summary} 상대방 확인 전에는 반영되지 않습니다.`,
+        );
+      }
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "체크 상태를 저장하지 못했습니다.",
+      );
+    } finally {
+      setSavingItemId(null);
+    }
   };
 
   if (items.length === 0) return null;
 
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
+      {saveNotice && (
+        <p role="status" className="rounded-lg bg-[#F2F8F5] px-3 py-2 text-xs text-[#315B49]">
+          {saveNotice}
+        </p>
+      )}
+      {saveError && (
+        <p role="alert" className="rounded-lg bg-[#FFF7F7] px-3 py-2 text-xs text-[#8A3535]">
+          {saveError}
+        </p>
+      )}
       {items.map((cat) => (
         <div key={cat.key}>
           <div className="flex items-center gap-2 text-sm mb-1">
@@ -573,10 +604,12 @@ function ScheduleMiniCard() {
           </div>
           {/* 체크리스트 항목 (최대 3개만 표시) */}
           {progress[cat.key]?.checklist?.slice(0, 3).map((item: { id: string; label: string; done?: boolean }) => (
-            <div
+            <button
+              type="button"
               key={item.id}
-              onClick={() => handleToggle(cat.key, item.id)}
-              className="flex items-center gap-2 py-1 pl-2 cursor-pointer hover:bg-black/[0.02] rounded"
+              disabled={Boolean(savingItemId)}
+              onClick={() => void handleToggle(cat.key, item.id)}
+              className="flex w-full items-center gap-2 rounded py-1 pl-2 text-left hover:bg-black/[0.02] disabled:cursor-wait disabled:opacity-60"
             >
               <div className="flex-shrink-0">
                 {item.done ? (
@@ -590,7 +623,7 @@ function ScheduleMiniCard() {
               <span className={`text-sm ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
                 {item.label}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       ))}
@@ -606,12 +639,17 @@ export default function ActionCard({ result }: ActionCardProps) {
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면
   // 빨간 X 카드가 6개 줄줄이 나와 "AI 웨딩플래너인데 깨진 화면"으로 보였음.
   // 동일 결과 반복은 ChatSidePanel에서 내용 기준으로 한 번만 표시한다.
-  const msg = getUserFacingDisplayMessage(result);
+  const isLegacyScheduleDelete = result.toolName === "delete_schedule_event";
+  const msg = isLegacyScheduleDelete
+    ? "과거 일정 삭제 처리 기록입니다. 현재 일정 상태를 다시 확인해 주세요. 일정 삭제는 지원하지 않아요. 새 변경은 일정 목록에서 취소나 복원을 다시 선택해 주세요."
+    : getUserFacingDisplayMessage(result);
   if (!result.success && msg === "") return null;
 
   const icon = getIcon(result.toolName);
   const title = getTitle(result);
-  const accentColor = getAccentColor(result.toolName);
+  const accentColor = isLegacyScheduleDelete
+    ? "border-[#B89785]/30 bg-[#B89785]/5"
+    : getAccentColor(result.toolName);
 
   const isBudgetSummary = result.success && result.toolName === "get_budget_summary";
   const isBudgetChange = result.success && (
@@ -633,9 +671,13 @@ export default function ActionCard({ result }: ActionCardProps) {
         className={`rounded-xl border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
       >
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="text-[#C4967E]">{icon}</span>
+          <span className={isLegacyScheduleDelete ? "text-[#B89785]" : "text-[#C4967E]"}>
+            {icon}
+          </span>
           <span className="text-sm font-semibold text-[#1A1A1F]">{title}</span>
-          {result.success ? (
+          {isLegacyScheduleDelete ? (
+            <Info className="w-4 h-4 text-[#B89785] ml-auto" />
+          ) : result.success ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto" />
           ) : (
             <XCircle className="w-4 h-4 text-red-400 ml-auto" />

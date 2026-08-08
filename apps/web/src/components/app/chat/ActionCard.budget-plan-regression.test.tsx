@@ -65,11 +65,11 @@ describe("ActionCard remaining budget mutation results", () => {
 
     const plan = container.querySelector('[aria-label="예산안 적용 결과"]');
     expect(plan?.textContent).toContain("3,000만원");
-    expect(plan?.textContent).toContain("예식장");
+    expect(plan?.textContent).toContain("결혼식장");
     expect(plan?.textContent).toContain("1,200만원");
-    expect(plan?.textContent).toContain("예물");
+    expect(plan?.textContent).toContain("결혼반지·기념 선물");
     expect(plan?.textContent).toContain("300만원");
-    expect(plan?.textContent).toContain("예비비");
+    expect(plan?.textContent).toContain("예비비·사용처 미정");
     expect(plan?.textContent).toContain("1,500만원");
   });
 
@@ -87,10 +87,10 @@ describe("ActionCard remaining budget mutation results", () => {
       );
     });
 
-    const change = container.querySelector('[aria-label="포토부스 예산·지출 변경 결과"]');
+    const change = container.querySelector('[aria-label="포토부스 예산·기록 지출 변경 결과"]');
     expect(change?.textContent).toContain("변경된 예산");
     expect(change?.textContent).toContain("80만원");
-    expect(change?.textContent).toContain("변경된 지출");
+    expect(change?.textContent).toContain("변경된 기록 지출");
     expect(change?.textContent).toContain("10만원");
   });
   it.each([

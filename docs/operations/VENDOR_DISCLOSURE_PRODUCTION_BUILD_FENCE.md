@@ -17,10 +17,22 @@ migration directory set one common static contract. If the shared validator
 rejects any part of that contract, the build fails with
 `VENDOR_DISCLOSURE_STATIC_RELEASE_CONTRACT_INVALID`.
 
-Passing the static contract still always fails with
-`VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED`. Preview and local
-builds remain unaffected. There is deliberately no build-side fixture or JSON
-shape that can turn this interim fence into a successful production build.
+Passing the shared static contract does not by itself open a production build.
+The current `deployment_blocked` manifest fails with
+`VENDOR_DISCLOSURE_RELEASE_CONTROLLER_NOT_READY`. A future, fully validated
+`controller_ready` manifest must additionally be acknowledged by setting
+`VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION` to the normalized release-manifest
+SHA-256. A missing value fails with
+`VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED`; a different value
+fails with `VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID`. Only an exact
+value lets this interim build-side fence return successfully. Preview and local
+builds remain unaffected.
+
+That environment value is a manual operator acknowledgement of the exact
+manifest, not a cryptographic signature, hosted evidence, or permission to
+report the release as production-ready. Repository policy remains NO-GO until
+the external signed controller integration and real provider receipts described
+below are complete.
 
 The eventual production build must also bind the complete public catalog, not
 an operator-selected lower bound. The sole source is `v_public_prices` filtered
@@ -43,17 +55,23 @@ who can write the repository and are not production authorization.
 
 ## Required integration before authorization
 
-The shared successor validator currently accepts only the blocked manifest
-shape. Changing the manifest to `deployment_authorized`, replacing `missing`
-with receipt pins, or adding synthetic v1 receipts therefore fails before any
-claimed evidence is considered. This is intentional fail-closed behavior, not
-a completed authorization path.
+The shared successor validator accepts the current blocked shape and one
+strict future `controller_ready` shape. The latter hash-pins a separate
+Supabase controller contract and private runtime receipt schemas; by itself it
+does not authorize a Vercel production release. The exact-manifest environment
+acknowledgement above can satisfy the interim build fence only after that
+strict state validates, and it does not replace external signed authorization.
+Changing the manifest to `deployment_authorized`, replacing `missing` with
+path/hash-only receipts, or adding synthetic success JSON still fails before
+any claimed evidence is considered. This is intentional fail-closed behavior,
+not a completed release-authorization path.
 
-Before any status change, one reviewed external signed-authorization contract
-must be implemented and consumed by all of:
+Before a production release can be reported as authorized, one reviewed external
+signed-authorization contract must be implemented and consumed by all of:
 
 1. the successor release validator;
-2. the production release controller; and
+2. the production release controller after its private five-receipt Supabase
+   evidence gate; and
 3. `apps/web/next.config.ts`.
 
 The signed authorization must bind the exact catalog source, filter, count and

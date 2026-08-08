@@ -3,7 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { cleanOptionalText, isRecord, normalizeEmail } from "@/utils/requestValidation";
+import {
+  cleanOptionalText,
+  isRecord,
+  normalizeEmail,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+
+const MAX_BODY_BYTES = 16 * 1024;
+const ADMIN_ACTIONS = new Set(["login", "initial-setup", "create-admin"]);
 
 function getServiceClient() {
   return createAdminClient();
@@ -78,23 +87,47 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "신뢰할 수 없는 요청입니다." },
+      { status: 403, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
+  }
+
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (!ADMIN_PASSWORD) {
     return NextResponse.json({ error: "서버 설정 오류" }, { status: 500 });
   }
 
   try {
-    const body = await req.json();
+    const limited = await checkRateLimitPersistent(rateLimitKey("admin-auth:post", req), {
+      maxRequests: 8,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (limited) return limited;
+
+    const rawBody = await readBoundedUtf8Text(req, MAX_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 데이터가 너무 큽니다." : "잘못된 요청입니다." },
+        { status: rawBody.reason === "too_large" ? 413 : 400 },
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.text);
+    } catch {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
     if (!isRecord(body)) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
     const action = typeof body.action === "string" ? body.action : "login";
-    const limited = await checkRateLimitPersistent(rateLimitKey(`admin-auth:${action}`, req), {
-      maxRequests: 8,
-      windowMs: 15 * 60 * 1000,
-    });
-    if (limited) return limited;
+    if (!ADMIN_ACTIONS.has(action)) {
+      return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    }
 
     if (!safeEqualString(body.setupPassword, ADMIN_PASSWORD)) {
       return NextResponse.json(
@@ -153,8 +186,9 @@ export async function POST(req: Request) {
         ) {
           return NextResponse.json({ error: "이미 등록된 이메일입니다." }, { status: 409 });
         }
+        console.error("Initial admin Auth creation failed:", createError.message);
         return NextResponse.json(
-          { error: `계정 생성 실패: ${createError.message}` },
+          { error: "관리자 계정을 생성하지 못했습니다." },
           { status: 500 }
         );
       }
@@ -237,8 +271,9 @@ export async function POST(req: Request) {
         ) {
           return NextResponse.json({ error: "이미 등록된 이메일입니다." }, { status: 409 });
         }
+        console.error("Admin Auth creation failed:", createError.message);
         return NextResponse.json(
-          { error: `계정 생성 실패: ${createError.message}` },
+          { error: "관리자 계정을 생성하지 못했습니다." },
           { status: 500 }
         );
       }

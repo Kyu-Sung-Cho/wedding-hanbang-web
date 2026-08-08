@@ -1,20 +1,48 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Bell, Check, AlertTriangle, Info } from "lucide-react";
+import {
+  X,
+  Bell,
+  Check,
+  AlertTriangle,
+  Info,
+  Users,
+  Loader2,
+} from "lucide-react";
 import type { ComputedNotification } from "@/hooks/useNotifications";
+import { useAuthStore } from "@/stores/authStore";
 
 const PRIORITY_STYLES: Record<string, { icon: React.ElementType; accent: string; bg: string }> = {
   high: { icon: AlertTriangle, accent: "text-red-500", bg: "bg-red-50" },
   medium: { icon: Bell, accent: "text-[#C4967E]", bg: "bg-[#C4967E]/5" },
   low: { icon: Info, accent: "text-[#928980]", bg: "bg-[#FAF8F5]" },
 };
+const PARTNER_STYLE = {
+  icon: Users,
+  accent: "text-[#36534E]",
+  bg: "bg-[#36534E]/8",
+};
+
+function formatNotificationTime(value: string | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
 interface Props {
   notifications: ComputedNotification[];
   onDismiss: (id: string) => void;
   onDismissAll: () => void;
   onCategoryClick: (categoryKey: string) => void;
+  onOpen?: (notification: ComputedNotification) => void;
   onClose: () => void;
 }
 
@@ -23,8 +51,87 @@ export default function NotificationPanel({
   onDismiss,
   onDismissAll,
   onCategoryClick,
+  onOpen,
   onClose,
 }: Props) {
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<{
+    notificationId: string;
+    message: string;
+  } | null>(null);
+
+  const resolvePlanChange = async (
+    notification: ComputedNotification,
+    decision: "accept" | "reject" | "cancel",
+  ) => {
+    if (!notification.actionId || resolvingId) return;
+    const decisionUserId = useAuthStore.getState().user?.id;
+    if (!decisionUserId) {
+      setDecisionError({
+        notificationId: notification.id,
+        message: "로그인 정보를 다시 확인한 뒤 처리해 주세요.",
+      });
+      return;
+    }
+    setResolvingId(notification.id);
+    setDecisionError(null);
+    try {
+      const response = await fetch(
+        `/api/couple-plan-changes/${encodeURIComponent(notification.actionId)}`,
+        {
+          method: decision === "accept" ? "POST" : "DELETE",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: "{}",
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { status?: unknown; error?: unknown }
+        | null;
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "변경 요청을 처리하지 못했습니다.",
+        );
+      }
+      const expectedStatus = decision === "accept" ? "applied" : "rejected";
+      if (payload?.status !== expectedStatus) {
+        throw new Error(
+          decision === "accept"
+            ? "변경 반영 상태를 확인하지 못했어요. 최신 화면에서 다시 확인해 주세요."
+            : decision === "cancel"
+              ? "취소 처리 상태를 확인하지 못했어요. 최신 화면에서 다시 확인해 주세요."
+              : "거절 처리 상태를 확인하지 못했어요. 최신 화면에서 다시 확인해 주세요.",
+        );
+      }
+      if (decision === "accept") {
+        const synchronized = await useAuthStore
+          .getState()
+          .refreshJourney(decisionUserId);
+        if (!synchronized) {
+          throw new Error(
+            "변경은 반영됐지만 최신 내용을 불러오지 못했어요. 화면을 새로고침해 주세요.",
+          );
+        }
+      }
+      onDismiss(notification.id);
+    } catch (error) {
+      setDecisionError({
+        notificationId: notification.id,
+        message:
+          error instanceof Error
+            ? error.message
+            : "변경 요청을 처리하지 못했습니다.",
+      });
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
   return (
     <>
       {/* 오버레이 */}
@@ -44,6 +151,7 @@ export default function NotificationPanel({
           <div className="flex items-center gap-2">
             {notifications.length > 0 && (
               <button
+                type="button"
                 onClick={onDismissAll}
                 className="text-[11px] text-[#928980] hover:text-[#C4967E] transition-colors"
               >
@@ -51,7 +159,9 @@ export default function NotificationPanel({
               </button>
             )}
             <button
+              type="button"
               onClick={onClose}
+              aria-label="알림 닫기"
               className="w-7 h-7 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAF8F5] transition-colors"
             >
               <X className="w-3.5 h-3.5" />
@@ -77,8 +187,22 @@ export default function NotificationPanel({
             <div className="py-2">
               <AnimatePresence>
                 {notifications.map((n) => {
-                  const style = PRIORITY_STYLES[n.priority] ?? PRIORITY_STYLES.low;
+                  const style = n.type === "partner"
+                    ? PARTNER_STYLE
+                    : PRIORITY_STYLES[n.priority] ?? PRIORITY_STYLES.low;
                   const Icon = style.icon;
+                  const createdAt = formatNotificationTime(n.createdAt);
+                  const isPlanApproval =
+                    n.type === "partner"
+                    && n.eventKind === "approval_requested"
+                    && n.toolName === "manual_plan_change"
+                    && Boolean(n.actionId);
+                  const isPlanPending =
+                    n.type === "partner"
+                    && n.eventKind === "approval_pending"
+                    && n.toolName === "manual_plan_change"
+                    && Boolean(n.actionId);
+                  const isResolving = resolvingId === n.id;
 
                   return (
                     <motion.div
@@ -108,24 +232,87 @@ export default function NotificationPanel({
                           <p className="text-[12px] text-[#928980] font-light mt-0.5 leading-relaxed">
                             {n.message}
                           </p>
+                          {createdAt && n.createdAt && (
+                            <time
+                              dateTime={n.createdAt}
+                              className="block text-[10px] text-[#B5ADA3] mt-1"
+                            >
+                              {createdAt}
+                            </time>
+                          )}
                           <div className="flex items-center gap-2 mt-2">
+                            {isPlanApproval && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={Boolean(resolvingId)}
+                                  onClick={() => void resolvePlanChange(n, "accept")}
+                                  className="inline-flex items-center gap-1 rounded-md bg-[#36534E] px-2.5 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
+                                >
+                                  {isResolving && (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  )}
+                                  확인하고 반영
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={Boolean(resolvingId)}
+                                  onClick={() => void resolvePlanChange(n, "reject")}
+                                  className="rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[#795252] disabled:opacity-50"
+                                >
+                                  이번 요청 거절
+                                </button>
+                              </>
+                            )}
+                            {isPlanPending && (
+                              <button
+                                type="button"
+                                disabled={Boolean(resolvingId)}
+                                onClick={() => void resolvePlanChange(n, "cancel")}
+                                className="inline-flex items-center gap-1 rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[#795252] disabled:opacity-50"
+                              >
+                                {isResolving && (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                )}
+                                요청 취소
+                              </button>
+                            )}
                             {n.categoryKey && (
                               <button
+                                type="button"
                                 onClick={() => onCategoryClick(n.categoryKey!)}
                                 className="text-[11px] text-[#C4967E] hover:underline"
                               >
                                 체크리스트 보기
                               </button>
                             )}
+                            {n.type === "partner" && n.href && onOpen && (
+                              <button
+                                type="button"
+                                onClick={() => onOpen(n)}
+                                className="text-[11px] text-[#36534E] hover:underline"
+                              >
+                                {isPlanApproval || isPlanPending
+                                  ? "변경 내용 확인"
+                                  : "내용 보기"}
+                              </button>
+                            )}
                             {n.isNew && (
                               <button
+                                type="button"
                                 onClick={() => onDismiss(n.id)}
+                                aria-label={`${n.title} 읽음으로 표시`}
                                 className="text-[11px] text-[#B5ADA3] hover:text-[#928980]"
                               >
                                 읽음
                               </button>
                             )}
                           </div>
+                          {decisionError?.notificationId === n.id && (
+                            <p role="alert" className="mt-2 text-[11px] leading-5 text-[#9A3F3F]">
+                              {decisionError.message}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </motion.div>

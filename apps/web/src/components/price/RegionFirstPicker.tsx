@@ -34,7 +34,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
         <h2 id="region-first-heading" className="mt-2 text-xl font-bold sm:text-2xl">
           어느 지역에서 준비하세요?
         </h2>
-        <p className="mt-2 text-sm leading-6 text-[#36534E]/75">
+        <p className="mt-2 text-sm leading-6 text-[#36534E]/85">
           같은 업체라도 어느 대행사를 끼는지에 따라 가격이 달라요. 지역을 고르면 그
           지역 대행사가 공시한 가격만 보여드릴게요.
         </p>
@@ -71,7 +71,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
 /**
  * 공시 업체가 적은 지역에서 왜 적은지 알려준다.
  *
- * 지역별 공급이 크게 기울어 있다(2026-07-26 실측: 서울 강남권 509 · 인천 5 · 대구 6).
+ * 지역별 공급이 크게 기울어 있다(2026-07-30 실측: 서울 강남권 490 · 인천 5 · 대구 6).
  * 얇은 지역을 고른 사람에게 한두 곳만 덩그러니 보여주면 "이 서비스 별거 없네"로
  * 읽힌다. 실제로는 "공시한 업체만 싣는다"는 원칙의 결과다 — 그 이유를 말하고
  * 빠져나갈 길을 준다.

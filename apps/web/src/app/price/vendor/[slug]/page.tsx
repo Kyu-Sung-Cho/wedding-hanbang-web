@@ -7,7 +7,6 @@ import { cache } from "react";
 import { VendorAvatar } from "@/components/price/VendorAvatar";
 import VendorDetailActions from "@/components/vendor-price/VendorDetailActions";
 import { krwRangeLabel } from "@/lib/format/krw";
-import { marketPriceProvider } from "@/lib/marketPrice/provider";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "@/lib/price/categoryJsonLd";
@@ -36,7 +35,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   studio: "스튜디오",
   dress: "드레스",
   makeup: "메이크업",
-  hall: "예식장",
+  hall: "결혼식장",
 };
 
 const REGION_LABELS: Record<string, string> = {
@@ -55,6 +54,20 @@ const REGION_LABELS: Record<string, string> = {
   gwangju: "광주",
   jeju: "제주",
 };
+
+export function resolveRequestedPriceRegion(
+  value: string | string[] | undefined,
+  availableRegionCodes: string[],
+): string | null {
+  if (
+    typeof value !== "string"
+    || !Object.prototype.hasOwnProperty.call(REGION_LABELS, value)
+    || !availableRegionCodes.includes(value)
+  ) {
+    return null;
+  }
+  return value;
+}
 
 const loadProfile = cache((slug: string) =>
   loadPublicVendorPriceProfile(createPublicClient(), slug)
@@ -183,7 +196,7 @@ const ATTRIBUTE_VALUE_LABELS: Record<string, string> = {
   convention: "컨벤션",
   house: "하우스",
   chapel: "채플",
-  public: "공공 예식장",
+  public: "공공 결혼식장",
   small: "스몰웨딩",
   bright: "밝은 홀",
   dark: "어두운 홀",
@@ -238,8 +251,10 @@ function publicAttributeRows(
 
 export default async function VendorPricePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ region?: string | string[] }>;
 }) {
   if (isPreviewStubMode()) notFound();
   const { slug } = await params;
@@ -247,6 +262,24 @@ export default async function VendorPricePage({
 
   const profile = await loadProfile(slug);
   if (!profile) notFound();
+  const requestedSearchParams = searchParams ? await searchParams : {};
+  const requestedRegion = resolveRequestedPriceRegion(
+    requestedSearchParams.region,
+    profile.identity.regionCodes,
+  );
+  // URL을 임의로 바꿔 가격이 하나도 없는 화면이 되지 않도록, 실제 현재 공시가
+  // 있는 지역만 상세 문맥으로 채택한다.
+  const activeRegionCode = requestedRegion && profile.prices.some((price) => (
+    price.is_current && price.region_code === requestedRegion
+  ))
+    ? requestedRegion
+    : null;
+  const visiblePrices = activeRegionCode
+    ? profile.prices.filter((price) => price.region_code === activeRegionCode)
+    : profile.prices;
+  const visibleRegionCodes = activeRegionCode
+    ? [activeRegionCode]
+    : profile.identity.regionCodes;
 
   const attributes = publicAttributeRows(profile.vendor.category, profile.attributes);
   const externalLinks = [
@@ -258,16 +291,16 @@ export default async function VendorPricePage({
   // 업체명+지역으로 구성한 네이버 지도 "검색" 링크(오배정 불가: 결과는 사용자가 봄).
   const naverSearchHref = `https://map.naver.com/p/search/${encodeURIComponent(
     [profile.vendor.displayName.replace(/^[[(][^\])]{1,8}[\])]\s*/u, ""),
-      profile.vendor.region_code ? REGION_LABELS[profile.vendor.region_code] ?? "" : ""]
+      activeRegionCode
+        ? REGION_LABELS[activeRegionCode]
+        : profile.vendor.region_code
+          ? REGION_LABELS[profile.vendor.region_code] ?? ""
+          : ""]
       .filter(Boolean).join(" "),
   )}`;
-  const currentPrices = profile.prices.filter((price) => price.is_current);
+  const currentPrices = visiblePrices.filter((price) => price.is_current);
   if (currentPrices.length === 0) notFound();
-  const historyPeriods = [...new Set(profile.prices.map((price) => price.period_label))];
-  const currentPeriod = currentPrices[0]?.period_label ?? profile.prices[0]?.period_label ?? "기준 시점 미정";
-  const marketDistribution = process.env.NEXT_PUBLIC_FEATURE_MARKET_OVERLAY === "true"
-    ? await marketPriceProvider.getDistribution(profile.vendor.id)
-    : null;
+  const historyPeriods = [...new Set(visiblePrices.map((price) => price.period_label))];
   // 위약금·환불은 계약 직전에 가장 알고 싶은 정보다. 뷰가 아직 없으면 로더가
   // 빈 배열을 돌려주므로 페이지는 그대로 뜬다.
   const policies = await loadPolicies(profile.identity.vendorIds.join(","));
@@ -276,6 +309,9 @@ export default async function VendorPricePage({
     policies.flatMap((policy) => (policy.sourceAgency ? [policy.sourceAgency] : [])),
   ).size;
   const categoryLabel = CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category;
+  const regionQuery = activeRegionCode
+    ? `?region=${encodeURIComponent(activeRegionCode)}`
+    : "";
   const structuredData = buildPriceVendorStructuredData({
     vendorName: profile.vendor.displayName,
     vendorSlug: profile.identity.canonicalSlug,
@@ -284,7 +320,7 @@ export default async function VendorPricePage({
   });
 
   return (
-    <main className="min-h-screen bg-[#FBF8F2] text-[#243832]">
+    <div className="min-h-screen bg-[#FBF8F2] text-[#243832] [overflow-wrap:anywhere]">
       {structuredData.map((data, index) => (
         <script
           key={index}
@@ -295,7 +331,7 @@ export default async function VendorPricePage({
       <div className="mx-auto w-full max-w-4xl px-5 py-8 sm:px-8 sm:py-12">
         {/* 카테고리 목록은 RSC 페이로드가 커서 미리 받지 않는다(허브와 동일 정책). */}
         <Link
-          href={`/price/${profile.vendor.category}`}
+          href={`/price/${profile.vendor.category}${regionQuery}`}
           prefetch={false}
           className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#36534E] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#36534E]"
         >
@@ -304,10 +340,10 @@ export default async function VendorPricePage({
         </Link>
 
         <header className="mt-8 border-b border-[#243832]/15 pb-8">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-[#36534E]/75">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[#36534E]/85">
             <span>{CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category}</span>
             {/* 같은 샵을 여러 지역 대행사가 취급하면 지역도 여러 개다(목록 카드와 같은 기준). */}
-            {profile.identity.regionCodes.map((regionCode) => (
+            {visibleRegionCodes.map((regionCode) => (
               <span key={regionCode} className="contents">
                 <span aria-hidden="true">·</span>
                 <span>{REGION_LABELS[regionCode] ?? regionCode}</span>
@@ -321,7 +357,9 @@ export default async function VendorPricePage({
             </h1>
           </div>
           {profile.vendor.aliases.length > 0 ? (
-            <p className="mt-2 text-sm text-[#36534E]/65">구. {profile.vendor.aliases.join(" · ")}</p>
+            <p className="mt-2 text-sm text-[#36534E]/85">
+              다른 표기 · {profile.vendor.aliases.join(" · ")}
+            </p>
           ) : null}
           {/* 업체명 괄호에서 뗀 법인명. 공시 의무 주체라 정보 가치가 있어 버리지
               않고 여기로 옮긴다 — 이름에 그대로 두면 검색으로 못 찾는다. */}
@@ -351,7 +389,7 @@ export default async function VendorPricePage({
               형제 슬러그의 id를 쓰면 같은 샵이 두 번 찜된다. */}
           <VendorDetailActions
             vendorId={profile.identity.canonicalVendorId}
-            redirectPath={`/price/vendor/${profile.identity.canonicalSlug}`}
+            redirectPath={`/price/vendor/${profile.identity.canonicalSlug}${regionQuery}`}
           />
         </header>
 
@@ -363,6 +401,20 @@ export default async function VendorPricePage({
             </div>
             <span className="text-xs text-[#36534E]/65">승인된 공시만 표시</span>
           </div>
+
+          {activeRegionCode ? (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#36534E]/15 bg-white px-4 py-3 text-sm">
+              <p className="font-semibold">
+                현재 {REGION_LABELS[activeRegionCode]} 공시 가격만 표시하고 있어요.
+              </p>
+              <Link
+                href={`/price/vendor/${profile.identity.canonicalSlug}`}
+                className="inline-flex min-h-11 items-center font-bold text-[#8F5150] underline decoration-[#8F5150]/35 underline-offset-4"
+              >
+                전체 지역 가격 보기
+              </Link>
+            </div>
+          ) : null}
 
           {currentPrices.length === 0 ? (
             <div className="mt-6 border-y border-[#243832]/12 py-10 text-center">
@@ -380,14 +432,14 @@ export default async function VendorPricePage({
                         {price.agency?.name ? ` · ${price.agency.name}` : " · 대행사를 거치지 않은 공시"}
                       </p>
                       <h3 className="mt-1 text-lg font-bold">{price.item_name}</h3>
-                      {price.base_spec ? <p className="mt-1 text-sm text-[#36534E]/75">{price.base_spec}</p> : null}
+                      {price.base_spec ? <p className="mt-1 text-sm text-[#36534E]/85">{price.base_spec}</p> : null}
                     </div>
                     <p className="shrink-0 text-lg font-bold tabular-nums">
                       {krwRangeLabel(price.price_min_krw, price.price_max_krw)}
                     </p>
                   </div>
                   {[price.vat_note, price.price_note].filter(Boolean).length > 0 ? (
-                    <p className="mt-3 text-sm text-[#36534E]/75">
+                    <p className="mt-3 text-sm text-[#36534E]/85">
                       {[price.vat_note, price.price_note].filter(Boolean).join(" · ")}
                     </p>
                   ) : null}
@@ -436,7 +488,7 @@ export default async function VendorPricePage({
             <p className="mt-2 text-sm text-[#36534E]/70">발행된 기준 시점별 가격 변화를 확인하세요.</p>
             <div className="mt-5 overflow-x-auto rounded-xl border border-[#243832]/12 bg-white">
               <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="bg-[#F5ECE4] text-xs text-[#36534E]/75">
+                <thead className="bg-[#F5ECE4] text-xs text-[#36534E]/85">
                   <tr>
                     <th className="px-4 py-3 font-bold">공시 시점</th>
                     <th className="px-4 py-3 font-bold">대행사</th>
@@ -445,11 +497,11 @@ export default async function VendorPricePage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#243832]/10">
-                  {profile.prices.map((price) => (
+                  {visiblePrices.map((price) => (
                     <tr key={`history-${price.id}`}>
                       <td className="px-4 py-3 font-medium">{disclosureRoundLabel()}</td>
-                      <td className="px-4 py-3 text-[#36534E]/75">{price.agency?.name ?? "업체 직접"}</td>
-                      <td className="px-4 py-3 text-[#36534E]/75">{price.item_name}</td>
+                      <td className="px-4 py-3 text-[#36534E]/85">{price.agency?.name ?? "업체 직접"}</td>
+                      <td className="px-4 py-3 text-[#36534E]/85">{price.item_name}</td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">{krwRangeLabel(price.price_min_krw, price.price_max_krw)}</td>
                     </tr>
                   ))}
@@ -458,35 +510,6 @@ export default async function VendorPricePage({
             </div>
           </section>
         ) : null}
-
-        <section aria-labelledby="market-distribution-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
-          <h2 id="market-distribution-heading" className="text-2xl font-bold">실거래 분포</h2>
-          {marketDistribution ? (
-            <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-white p-5 text-center">
-              {[
-                ["하위 25%", marketDistribution.p25Krw],
-                ["중앙값", marketDistribution.medianKrw],
-                ["상위 25%", marketDistribution.p75Krw],
-              ].map(([label, value]) => (
-                <div key={String(label)}>
-                  <p className="text-xs text-[#36534E]/65">{label}</p>
-                  <p className="mt-1 font-bold">{krwRangeLabel(value as number, value as number)}</p>
-                </div>
-              ))}
-              <p className="col-span-3 mt-3 text-xs text-[#36534E]/60">익명 실거래 {marketDistribution.sampleSize}건 기준</p>
-            </div>
-          ) : (
-            <div className="mt-5 rounded-2xl border border-[#B89785]/30 bg-white p-5 sm:p-6">
-              <p className="font-bold text-[#243832]">실거래 데이터 준비 중 — 내 계약 정보를 공유하면 다른 커플의 실거래 분포를 먼저 볼 수 있어요.</p>
-              <Link
-                href="/wedding/community/quote-check"
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#36534E] px-4 text-sm font-bold text-white"
-              >
-                내 견적 확인하고 공유하기
-              </Link>
-            </div>
-          )}
-        </section>
 
         {attributes.length > 0 ? (
           <section aria-labelledby="attribute-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
@@ -505,7 +528,7 @@ export default async function VendorPricePage({
         {policies.length > 0 ? (
           <section aria-labelledby="policy-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
             <h2 id="policy-heading" className="text-2xl font-bold">계약 전 확인 · 위약금과 환불</h2>
-            <p className="mt-2 text-sm leading-6 text-[#36534E]/75">
+            <p className="mt-2 text-sm leading-6 text-[#36534E]/85">
               업체가 공시한 원문 그대로예요. 웨딩한방이 요약하거나 해석하지 않았고,
               계약 시점·조건에 따라 달라질 수 있으니 계약서에 같은 내용이 적혀 있는지 꼭 확인하세요.
             </p>
@@ -590,6 +613,6 @@ export default async function VendorPricePage({
           <p>본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.</p>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

@@ -44,6 +44,8 @@ export interface WeddingJourney {
   venue: string | null;
   total_budget: number;
   progress: Record<string, ProgressItem>;
+  /** Monotonic database-owned token used to reject stale Amora proposals. */
+  state_revision?: number;
   created_at: string;
   updated_at: string;
 }
@@ -96,15 +98,51 @@ export interface ProgressItem {
   payer?: PayerType;
 }
 
+export type ScheduleEventStatus = "planned" | "completed" | "cancelled";
+
+export interface ScheduleEventCancellation {
+  cancelledAt: string;
+  cancelledByProfileId: string;
+  reason?: string;
+}
+
+/**
+ * 일정 담당자는 보는 사람 기준의 "나/상대방"을 저장하지 않는다.
+ * 커플 구성원은 프로필 UUID, 공동 담당은 couple, 외부 담당은 사용자가
+ * 직접 입력한 짧은 역할명만 저장해 다른 구성원이 보아도 의미가 바뀌지 않는다.
+ */
+export type ScheduleEventAssignee =
+  | {
+      kind: "member";
+      profileId: string;
+    }
+  | {
+      kind: "couple";
+    }
+  | {
+      kind: "external";
+      label: string;
+    };
+
 export interface ScheduleEvent {
   id: string;
   date: string;
+  /** 사용자가 입력한 현지 시각. 시간대 변환 없이 HH:mm으로 표시한다. */
+  time?: string;
   title: string;
   memo?: string;
   categoryKey?: string;
   sourceKey?: string;
   /** 모멘트 루프 트리거 — constants/moments.ts의 MomentType. 같은 타입 복수 이벤트 허용(예: 청첩장 모임 그룹별) */
   momentType?: string;
+  /** 기존 일정에 값이 없으면 planned로 해석한다. */
+  status?: ScheduleEventStatus;
+  /** status가 cancelled일 때만 존재하는 감사 정보. 일반 삭제를 대신한다. */
+  cancellation?: ScheduleEventCancellation;
+  /** 일을 끝냈다고 판단할 수 있는 사용자가 입력한 기준. */
+  completionCriteria?: string;
+  /** 값이 없으면 담당 미정. 구성원 이름은 이 JSON에 복사하지 않는다. */
+  assignee?: ScheduleEventAssignee;
   createdAt: string;
   updatedAt: string;
 }
@@ -122,10 +160,14 @@ export type ChatMessageTarget = "ai" | "partner";
 export type ChatMessageVisibility = "shared" | "bride_private" | "groom_private";
 
 export interface PendingAmoraAction {
-  version: 1;
+  version: 2;
   actionId: string;
   tool: string;
   input: Record<string, unknown>;
+  /** Server-computed SHA-256 of the canonical exact tool input. */
+  inputDigest: string;
+  /** Server-computed SHA-256 of the exact tool name and canonical input. */
+  operationKey: string;
   /** Canonical, server-authored Korean description of the exact mutation. */
   confirmation: string;
   /** Server epoch milliseconds. */
@@ -136,15 +178,61 @@ export interface PendingAmoraAction {
 
 export interface ChatMessageMetadata {
   roomId?: string;
+  /** Browser/server idempotency key, protected by a per-couple unique index. */
+  client_request_id?: string;
+  /** Provider attachment cardinality bound by server ingest for cold-start recovery. */
+  provider_attachment_count?: number;
+  /** Versioned server-authored contract for interrupted-turn recovery. */
+  amora_ingest_contract_version?: 1 | 2;
+  /** Whether this durable user row intentionally requested an Amora answer. */
+  ai_response_requested?: boolean;
+  /** Whether provider-only attachment bytes are needed to resume this turn. */
+  provider_attachment_state?:
+    | "none"
+    | "present"
+    | "discarded_by_safety_policy";
+  /** Ordered exact-byte bindings for v2 provider attachments; never raw bytes or file names. */
+  provider_attachment_manifest?: Array<{
+    media_type: string;
+    byte_length: number;
+    sha256: string;
+  }>;
+  /** Exact opposite roster member for a partner-directed user message. */
+  partner_recipient_id?: string;
   suggestions?: string[];
   toolResults?: ToolExecutionResult[];
   imageUrls?: string[];
   imagePaths?: string[];
   target?: ChatMessageTarget; // "ai" = 아모라에게, "partner" = 상대방에게
+  /** Durable user message this AI row answers; used for exact UI correlation. */
+  in_reply_to_user_message_id?: string;
+  /** Fixed server boundary or client-only recovery origin; never raw user text. */
+  response_origin?:
+    | "deterministic_crisis_safety"
+    | "client_deterministic_crisis_preflight"
+    | "client_deterministic_safety_privacy_preflight"
+    | "client_deterministic_crisis_recovery";
+  safety_classification?: import("@hanbang/shared/amora-crisis-classifier").AmoraCrisisKind;
+  safety_contact_policy?: string;
+  question_scope?: string;
+  memory_eligible?: boolean;
+  persistence_status?: string;
+  pinned_safety_card?: boolean;
+  /** Whether this safety delivery persisted the raw disclosure anywhere. */
+  raw_disclosure_persisted?: boolean;
+  /** Whether the raw disclosure was made visible to the linked partner. */
+  raw_disclosure_shared?: boolean;
+  /** Durable scope used for the raw disclosure, if any. */
+  raw_disclosure_persistence?: "none" | "private_only" | "shared" | "unknown";
+  /** Client echo consumed by the DB application lease trigger. */
+  confirmed_amora_action_id?: string;
+  /** Proposal-time wedding_journeys state token enforced by the database. */
+  pending_amora_action_journey_revision?: number;
+  /** Server-computed current→proposed budget effect, bound to action + revision. */
+  pending_amora_action_impact_preview?: import("@hanbang/shared").BudgetImpactPreview;
   lifecycle?: {
     stage?: string;
-    riskLevel?: string;
-    riskScore?: number;
+    severity?: string;
     primaryActionId?: string;
     href?: string;
   };
@@ -160,6 +248,12 @@ export interface ChatMessageMetadata {
     translation?: string;
     data?: string;
     resolution?: string;
+    /** Server-owned source contract for a user-requested mediation draft. */
+    origin?: "user_requested";
+    /** Only the requester's explicit summary was used as fresh evidence. */
+    evidenceScope?: "requester_summary_only";
+    /** Confirmation is available only for the complete v2 contract. */
+    schemaVersion?: 2;
     /** DB-issued consent revision; clients must echo it when confirming. */
     proposalVersion?: string;
     /** DB-issued fingerprint of the couple roster at proposal creation. */

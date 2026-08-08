@@ -1,6 +1,4 @@
 import { MetadataRoute } from "next";
-import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
-import { communityPostPath } from "@/lib/community/routes";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES } from "@/lib/price/catalog";
 import {
@@ -11,25 +9,6 @@ import {
 import { createPublicClient } from "@/lib/supabase/public";
 
 const BASE_URL = "https://hanbang.ai";
-
-type SitemapPostRow = {
-  id: string;
-  updated_at: string;
-};
-
-type SitemapPostBuilder = {
-  eq(column: string, value: unknown): SitemapPostBuilder;
-  order(column: string, options: { ascending: boolean }): SitemapPostBuilder;
-  limit(count: number): Promise<{ data: SitemapPostRow[] | null }>;
-};
-
-type SitemapPostQuery = {
-  select(columns: string): SitemapPostBuilder;
-};
-
-type SitemapPublicClient = {
-  from(table: "community_posts"): SitemapPostQuery;
-};
 
 type SitemapVendorRow = {
   official_price_id: string;
@@ -63,6 +42,12 @@ function publicationDate(value: string | null): Date | null {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
+    {
+      url: `${BASE_URL}/landing`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 1.0,
+    },
     {
       url: `${BASE_URL}/wedding`,
       lastModified: new Date(),
@@ -105,29 +90,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return staticPages;
   }
 
-  let communityPages: MetadataRoute.Sitemap = [];
   let vendorPages: MetadataRoute.Sitemap = [];
-  try {
-    const supabase = createPublicClient() as unknown as SitemapPublicClient;
-    const { data: posts } = await supabase
-      .from("community_posts")
-      .select("id, updated_at")
-      .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
-      .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
-      .order("updated_at", { ascending: false })
-      .limit(5000);
-
-    if (posts) {
-      communityPages = posts.map((post) => ({
-        url: `${BASE_URL}${communityPostPath(post.id)}`,
-        lastModified: new Date(post.updated_at),
-        changeFrequency: "weekly" as const,
-        priority: 0.6,
-      }));
-    }
-  } catch {
-    // Keep sitemap.xml available even if the dynamic community post query fails.
-  }
 
   const supabase = createPublicClient() as unknown as SitemapVendorClient;
   const latestPublicationBySlug = new Map<string, Date>();
@@ -166,5 +129,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     };
   });
 
-  return [...staticPages, ...vendorPages, ...communityPages];
+  return [...staticPages, ...vendorPages];
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from "react";
-import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
+import { Send, Sparkles, X, Maximize2, EyeOff, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -11,8 +11,22 @@ import ActionCard from "./ActionCard";
 import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
+import MediationConsentDialog from "./MediationConsentDialog";
+import {
+  AmoraPersonalizationConfirmation,
+  AmoraQuickStart,
+} from "./AmoraPersonalizationPrompt";
+import {
+  clearPendingAmoraPersonalizationChoice,
+  readPendingAmoraPersonalizationChoice,
+  rememberPendingAmoraPersonalizationChoice,
+  resolveAmoraPersonalizationReply,
+  shouldOfferAmoraQuickStart,
+  type PendingAmoraPersonalizationChoice,
+} from "./amoraPersonalizationFlow";
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
+  getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
@@ -25,7 +39,11 @@ import {
 } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
+import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
+import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
+import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
+import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
@@ -38,6 +56,10 @@ interface AttachmentItem {
   fileName: string;
 }
 
+function revokeObjectPreview(previewUrl: string) {
+  if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+}
+
 function fileInputKey(file: File): string {
   return `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
 }
@@ -48,15 +70,21 @@ interface ChatSidePanelProps {
 }
 
 type ChatScope = "shared" | "private";
+type ChatComposerLane = "shared_ai" | "shared_partner" | "private_ai";
 
 interface ChatComposerDraft {
   input: string;
   attachments: AttachmentItem[];
+  retryClientRequestId: string | null;
 }
 
 export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const router = useRouter();
   const { profile, couple, journey, isDemo } = useAuthStore();
+  const amoraPersonalization = useAmoraPersonalization(
+    isOpen && !isDemo && Boolean(profile?.id),
+  );
+  const saveAmoraPersonalization = amoraPersonalization.save;
   const {
     messages,
     isStreaming,
@@ -64,13 +92,16 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     streamingContent,
     streamingToolResults,
     suggestions,
+    artifactVisibility,
     error,
+    quotaRemaining,
     failedRequest,
     isRetrying,
     initialLoadDone,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    requestMediation: requestStructuredMediation,
     clearMessages,
     subscribeToMessages,
     retryFailedMessage,
@@ -78,36 +109,71 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   } = useChatStore();
 
   const [activeScope, setActiveScope] = useState<ChatScope>("shared");
-  const [composerDrafts, setComposerDrafts] = useState<Record<ChatScope, ChatComposerDraft>>({
-    shared: { input: "", attachments: [] },
-    private: { input: "", attachments: [] },
+  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  const activeComposerLane: ChatComposerLane = activeScope === "private"
+    ? "private_ai"
+    : messageTarget === "partner"
+      ? "shared_partner"
+      : "shared_ai";
+  const [composerDrafts, setComposerDrafts] = useState<Record<ChatComposerLane, ChatComposerDraft>>({
+    shared_ai: { input: "", attachments: [], retryClientRequestId: null },
+    shared_partner: { input: "", attachments: [], retryClientRequestId: null },
+    private_ai: { input: "", attachments: [], retryClientRequestId: null },
   });
-  const input = composerDrafts[activeScope].input;
-  const attachments = composerDrafts[activeScope].attachments;
+  const input = composerDrafts[activeComposerLane].input;
+  const attachments = composerDrafts[activeComposerLane].attachments;
+  const retryClientRequestId = composerDrafts[activeComposerLane].retryClientRequestId;
   const setInput = useCallback((nextInput: SetStateAction<string>) => {
     setComposerDrafts((currentDrafts) => {
-      const currentDraft = currentDrafts[activeScope];
+      const currentDraft = currentDrafts[activeComposerLane];
       const resolvedInput = typeof nextInput === "function"
         ? nextInput(currentDraft.input)
         : nextInput;
       return {
         ...currentDrafts,
-        [activeScope]: { ...currentDraft, input: resolvedInput },
+        [activeComposerLane]: {
+          ...currentDraft,
+          input: resolvedInput,
+          retryClientRequestId:
+            resolvedInput === currentDraft.input ? currentDraft.retryClientRequestId : null,
+        },
       };
     });
-  }, [activeScope]);
-  const setAttachments = useCallback((nextAttachments: SetStateAction<AttachmentItem[]>) => {
+  }, [activeComposerLane]);
+  const setDraftAttachments = useCallback((
+    lane: ChatComposerLane,
+    nextAttachments: SetStateAction<AttachmentItem[]>,
+  ) => {
     setComposerDrafts((currentDrafts) => {
-      const currentDraft = currentDrafts[activeScope];
+      const currentDraft = currentDrafts[lane];
       const resolvedAttachments = typeof nextAttachments === "function"
         ? nextAttachments(currentDraft.attachments)
         : nextAttachments;
       return {
         ...currentDrafts,
-        [activeScope]: { ...currentDraft, attachments: resolvedAttachments },
+        [lane]: {
+          ...currentDraft,
+          attachments: resolvedAttachments,
+          retryClientRequestId:
+            resolvedAttachments === currentDraft.attachments
+              ? currentDraft.retryClientRequestId
+              : null,
+        },
       };
     });
-  }, [activeScope]);
+  }, []);
+  const setAttachments = useCallback((nextAttachments: SetStateAction<AttachmentItem[]>) => {
+    setDraftAttachments(activeComposerLane, nextAttachments);
+  }, [activeComposerLane, setDraftAttachments]);
+  const setDraftRetryClientRequestId = useCallback((
+    lane: ChatComposerLane,
+    clientRequestId: string | null,
+  ) => {
+    setComposerDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [lane]: { ...currentDrafts[lane], retryClientRequestId: clientRequestId },
+    }));
+  }, []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
@@ -116,9 +182,23 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
   const applyingPendingActionRef = useRef<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
-  const [showMediationBanner, setShowMediationBanner] = useState(false);
+  const [isSubmitLocked, setIsSubmitLocked] = useState(false);
+  const submitInFlightRef = useRef(false);
+  const composerSessionGenerationRef = useRef(0);
+  const [pendingFileReads, setPendingFileReads] = useState<Record<ChatComposerLane, number>>({
+    shared_ai: 0,
+    shared_partner: 0,
+    private_ai: 0,
+  });
+  const pendingFileReadsRef = useRef<Record<ChatComposerLane, number>>({
+    shared_ai: 0,
+    shared_partner: 0,
+    private_ai: 0,
+  });
+  const [pendingPersonalization, setPendingPersonalization] =
+    useState<PendingAmoraPersonalizationChoice | null>(null);
   const [mediationDismissed, setMediationDismissed] = useState(false);
+  const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const greetingRequested = useRef(false);
   const subscribed = useRef(false);
@@ -126,12 +206,43 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const coupleId = couple?.id;
-  const hasCouplePartner = !!(couple?.bride_id && couple?.groom_id);
   const senderRole = profile?.role === "bride" || profile?.role === "groom"
     ? profile.role
     : null;
+  const linkedPartnerId = profile !== null
+    && typeof coupleId === "string"
+    && profile.couple_id === coupleId
+    && senderRole === "bride"
+    && couple?.bride_id === profile.id
+    && typeof couple?.groom_id === "string"
+    && couple.groom_id !== profile.id
+    ? couple.groom_id
+    : profile !== null
+      && typeof coupleId === "string"
+      && profile.couple_id === coupleId
+      && senderRole === "groom"
+      && couple?.groom_id === profile.id
+      && typeof couple?.bride_id === "string"
+      && couple.bride_id !== profile.id
+        ? couple.bride_id
+        : null;
+  const hasCouplePartner = linkedPartnerId !== null;
   const myPrivateVisibility = senderRole ? `${senderRole}_private` as const : null;
+  const composerSessionKey = [
+    profile?.id ?? "anonymous",
+    coupleId ?? "no-couple",
+    senderRole ?? "no-role",
+  ].join(":");
+  const composerSessionKeyRef = useRef(composerSessionKey);
+  const linkedPartnerIdRef = useRef(linkedPartnerId);
+  const partnerComposerEpochRef = useRef(0);
   const activeVisibility = activeScope === "shared" ? "shared" : myPrivateVisibility;
+  const isActiveFileReadPending = pendingFileReads[activeComposerLane] > 0;
+  const isComposerBusy =
+    isStreaming || isSending || isSubmitLocked || isActiveFileReadPending;
+  const hasProviderOnlyAttachment = attachments.some(
+    (attachment) => !attachment.mediaType.startsWith("image/"),
+  );
   const scopedMessages = useMemo(
     () => messages.filter((message) => (
       activeScope === "shared"
@@ -140,12 +251,85 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     )),
     [activeScope, messages, myPrivateVisibility],
   );
-  const errorMatchesActiveScope = !failedRequest
-    || (!!activeVisibility && failedRequest.visibility === activeVisibility);
+  const artifactsMatchActiveVisibility =
+    !!activeVisibility && artifactVisibility === activeVisibility;
+  const errorMatchesActiveVisibility = artifactsMatchActiveVisibility
+    && (!failedRequest || failedRequest.visibility === activeVisibility);
+  const isConfirmedActionRecovery =
+    failedRequest?.recoveryKind === "confirmed_action";
+  const isInterruptedTurnRecovery =
+    failedRequest?.recoveryKind === "interrupted_turn";
+  const isRecoveryNotice = Boolean(failedRequest?.recoveryKind);
+  const showMediationBanner =
+    !mediationDismissed
+    && !mediationConsentOpen
+    && shouldOfferMediation(messages);
+
+  useEffect(() => {
+    if (composerSessionKeyRef.current === composerSessionKey) return;
+    composerSessionKeyRef.current = composerSessionKey;
+    composerSessionGenerationRef.current += 1;
+    greetingRequested.current = false;
+    submitInFlightRef.current = false;
+    pendingFileReadsRef.current = {
+      shared_ai: 0,
+      shared_partner: 0,
+      private_ai: 0,
+    };
+    setPendingFileReads({ shared_ai: 0, shared_partner: 0, private_ai: 0 });
+    setComposerDrafts({
+      shared_ai: { input: "", attachments: [], retryClientRequestId: null },
+      shared_partner: { input: "", attachments: [], retryClientRequestId: null },
+      private_ai: { input: "", attachments: [], retryClientRequestId: null },
+    });
+    setActiveScope("shared");
+    setMessageTarget("ai");
+    setIsSubmitLocked(false);
+    setIsDragging(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [composerSessionKey]);
+
+  useEffect(() => {
+    const previousLinkedPartnerId = linkedPartnerIdRef.current;
+    linkedPartnerIdRef.current = linkedPartnerId;
+    if (previousLinkedPartnerId === linkedPartnerId || previousLinkedPartnerId === null) return;
+
+    partnerComposerEpochRef.current += 1;
+    pendingFileReadsRef.current = {
+      ...pendingFileReadsRef.current,
+      shared_partner: 0,
+    };
+    setPendingFileReads((current) => ({ ...current, shared_partner: 0 }));
+    setComposerDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      shared_partner: { input: "", attachments: [], retryClientRequestId: null },
+    }));
+    setMessageTarget("ai");
+    useChatStore.setState({
+      error: "상대방 연결 정보가 바뀌었어요. 이전 상대용 미전송 초안과 첨부는 안전을 위해 삭제했어요. 전송 중이던 메시지는 대화에서 상태를 확인해주세요.",
+      artifactVisibility: "shared",
+    });
+  }, [linkedPartnerId]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || isDemo) {
+      setPendingPersonalization(null);
+      return;
+    }
+    setPendingPersonalization(
+      readPendingAmoraPersonalizationChoice(profile.id, coupleId),
+    );
+  }, [coupleId, isDemo, profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || !amoraPersonalization.profile) return;
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [amoraPersonalization.profile, coupleId, profile?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,6 +352,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     initialControl?.focus();
 
     const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (mediationConsentOpen) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
@@ -200,16 +385,37 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       document.removeEventListener("keydown", handleDialogKeyDown);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [isOpen]);
+  }, [isOpen, mediationConsentOpen]);
 
   const handleScopeChange = useCallback((nextScope: ChatScope) => {
-    if (isStreaming || isSending || (nextScope === "private" && !myPrivateVisibility)) return;
+    if (
+      isStreaming
+      || isSending
+      || submitInFlightRef.current
+      || pendingFileReadsRef.current[activeComposerLane] > 0
+      || (nextScope === "private" && !myPrivateVisibility)
+    ) return;
     setActiveScope(nextScope);
     setMessageTarget("ai");
     // Suggestions are derived from the previous answer and have no scope field.
     // Discard them on a scope change rather than showing private-derived copy in shared chat.
     useChatStore.setState({ suggestions: [] });
-  }, [isStreaming, isSending, myPrivateVisibility]);
+  }, [activeComposerLane, isStreaming, isSending, myPrivateVisibility]);
+
+  const handleMessageTargetChange = useCallback((nextTarget: ChatMessageTarget) => {
+    if (
+      isStreaming
+      || isSending
+      || submitInFlightRef.current
+      || pendingFileReadsRef.current[activeComposerLane] > 0
+      || activeScope !== "shared"
+      || (nextTarget === "partner" && !hasCouplePartner)
+    ) return;
+    setMessageTarget(nextTarget);
+    // Suggestions are generated for an Amora reply. Never carry them into a
+    // partner-directed composer where one tap would change the recipient.
+    useChatStore.setState({ suggestions: [] });
+  }, [activeComposerLane, activeScope, hasCouplePartner, isSending, isStreaming]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -251,6 +457,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         state.suggestions.length > 0
           ? state.suggestions
           : [...AMORA_DEMO_SUGGESTIONS],
+      artifactVisibility: "shared",
       error: null,
     }));
   }, [isOpen, isDemo, coupleId, profile]);
@@ -307,80 +514,82 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     }
   }, [isOpen, messages, isStreaming, streamingContent]);
 
-  // 갈등 감지: 점수 기반 + 패턴 분석
-  useEffect(() => {
-    if (mediationDismissed) return;
-
-    const timer = window.setTimeout(() => {
-      const CONFLICT_SIGNALS: { keywords: string[]; weight: number }[] = [
-        { keywords: ["싸우자", "싸웠", "다퉜", "말 안 해", "무시하", "대화가 안", "말이 안 통", "이해를 못 해"], weight: 5 },
-        { keywords: ["왜 맨날 너만", "나만 양보", "너는 맨날", "맨날 나한테", "내 말은 안 듣", "관심이 없", "니가 알아서"], weight: 4 },
-        { keywords: ["난 반대", "절대 안 돼", "그건 싫어", "왜 그걸 해야", "말도 안 돼", "너무 비싸다고", "돈이 어디 있", "예산 초과"], weight: 3 },
-        { keywords: ["속상해", "서운해", "답답해", "화나", "짜증나", "지쳤어", "힘들어"], weight: 2 },
-        { keywords: ["비싸", "별로", "아깝", "싫어", "안돼", "그만"], weight: 1 },
-      ];
-
-      const recentPartnerMsgs = messages
-        .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-        .slice(-6);
-
-      if (recentPartnerMsgs.length < 3) {
-        setShowMediationBanner(false);
-        return;
-      }
-
-      const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
-      const bothSides = senders.size >= 2;
-
-      let totalScore = 0;
-      let messagesWithConflict = 0;
-
-      for (const msg of recentPartnerMsgs) {
-        let msgScore = 0;
-        for (const signal of CONFLICT_SIGNALS) {
-          for (const kw of signal.keywords) {
-            if (msg.content.includes(kw)) {
-              msgScore += signal.weight;
-              break;
-            }
-          }
-        }
-        if (msgScore > 0) {
-          messagesWithConflict++;
-          totalScore += msgScore;
-        }
-      }
-
-      if (bothSides) totalScore = Math.round(totalScore * 1.5);
-
-      const THRESHOLD = 7;
-      const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2;
-      setShowMediationBanner(isConflict);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [messages, mediationDismissed]);
-
   // 첨부파일 처리
+  const adjustPendingFileReads = useCallback((lane: ChatComposerLane, delta: 1 | -1) => {
+    const nextCount = Math.max(0, pendingFileReadsRef.current[lane] + delta);
+    pendingFileReadsRef.current = {
+      ...pendingFileReadsRef.current,
+      [lane]: nextCount,
+    };
+    setPendingFileReads((current) => ({ ...current, [lane]: nextCount }));
+  }, []);
+
   const processFile = useCallback((file: File) => {
+    const submittedLane = activeComposerLane;
+    const submittedVisibility = activeVisibility;
+    const submittedSessionGeneration = composerSessionGenerationRef.current;
+    const submittedPartnerEpoch = partnerComposerEpochRef.current;
+    const submittedPartnerRecipientId = submittedLane === "shared_partner"
+      ? linkedPartnerIdRef.current
+      : null;
+    const partnerDraftIsStillCurrent = () => (
+      submittedLane !== "shared_partner"
+      || (
+        submittedPartnerRecipientId !== null
+        && partnerComposerEpochRef.current === submittedPartnerEpoch
+        && linkedPartnerIdRef.current === submittedPartnerRecipientId
+      )
+    );
+    if (submittedLane === "shared_partner" && !file.type.startsWith("image/")) {
+      useChatStore.setState({
+        error: "파트너에게 보내는 첨부파일은 이미지 형식만 지원해요.",
+        artifactVisibility: "shared",
+      });
+      return;
+    }
     const typeInfo = ALLOWED_TYPES[file.type];
     if (!typeInfo) {
       useChatStore.setState({
         error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, PDF, DOCX만 가능해요.)`,
+        artifactVisibility: submittedVisibility,
       });
       return;
     }
     if (file.size > typeInfo.maxSize) {
       useChatStore.setState({
         error: `${typeInfo.label} 파일은 ${typeInfo.maxSize / 1024 / 1024}MB 이하로 줄인 뒤 다시 첨부해주세요.`,
+        artifactVisibility: submittedVisibility,
       });
       return;
     }
 
     const reader = new FileReader();
+    let readFinished = false;
+    const finishRead = () => {
+      if (readFinished) return;
+      readFinished = true;
+      if (
+        composerSessionGenerationRef.current !== submittedSessionGeneration
+        || !partnerDraftIsStillCurrent()
+      ) return;
+      adjustPendingFileReads(submittedLane, -1);
+    };
+    adjustPendingFileReads(submittedLane, 1);
     reader.onload = () => {
+      if (
+        composerSessionGenerationRef.current !== submittedSessionGeneration
+        || !partnerDraftIsStillCurrent()
+      ) {
+        finishRead();
+        return;
+      }
       const base64Full = reader.result;
       if (typeof base64Full !== "string" || !base64Full.includes(",")) {
-        useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
+        useChatStore.setState({
+          error: CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+          artifactVisibility: submittedVisibility,
+        });
+        finishRead();
         return;
       }
       const base64Data = base64Full.split(",")[1];
@@ -390,18 +599,39 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         previewUrl: file.type.startsWith("image/") ? base64Full : "",
         fileName: file.name,
       };
-      setAttachments((prev) => {
+      setDraftAttachments(submittedLane, (prev) => {
         if (prev.length >= MAX_ATTACHMENTS) return prev;
         const key = chatAttachmentKey(attachment);
         if (prev.some((item) => chatAttachmentKey(item) === key)) return prev;
         return [...prev, attachment];
       });
+      finishRead();
     };
     reader.onerror = () => {
-      useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
+      if (
+        composerSessionGenerationRef.current !== submittedSessionGeneration
+        || !partnerDraftIsStillCurrent()
+      ) {
+        finishRead();
+        return;
+      }
+      useChatStore.setState({
+        error: CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+        artifactVisibility: submittedVisibility,
+      });
+      finishRead();
     };
-    reader.readAsDataURL(file);
-  }, [setAttachments]);
+    reader.onabort = finishRead;
+    try {
+      reader.readAsDataURL(file);
+    } catch {
+      useChatStore.setState({
+        error: CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+        artifactVisibility: submittedVisibility,
+      });
+      finishRead();
+    }
+  }, [activeComposerLane, activeVisibility, adjustPendingFileReads, setDraftAttachments]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -439,10 +669,20 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   }, [processFile]);
 
   const handleSend = useCallback(
-    async (text?: string) => {
-      if (isStreaming || isSending) return;
-      const content = text ?? input.trim();
-      const currentAttachments = [...attachments];
+    async (text?: string, targetOverride?: ChatMessageTarget) => {
+      if (
+        isStreaming
+        || isSending
+        || submitInFlightRef.current
+        || pendingFileReadsRef.current[activeComposerLane] > 0
+      ) return;
+      const usesComposer = text === undefined;
+      const content = usesComposer ? input.trim() : text;
+      const submittedInput = usesComposer ? input : "";
+      const currentAttachments = usesComposer ? [...attachments] : [];
+      const sourceLane = activeComposerLane;
+      const submittedSessionGeneration = composerSessionGenerationRef.current;
+      const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
       if (
         (!content && currentAttachments.length === 0)
         || !coupleId
@@ -451,14 +691,81 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         || !activeVisibility
       ) return;
 
-      const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
-      if (!attachmentCheck.ok) {
-        useChatStore.setState({ error: attachmentCheck.error });
+      const submittedTarget = activeScope === "private"
+        ? "ai"
+        : targetOverride ?? messageTarget;
+      const crisisPreflight = planAmoraCrisisDelivery({
+        userText: content ?? "",
+        requestedVisibility: activeVisibility,
+        target: submittedTarget,
+        senderRole,
+      });
+      const effectiveVisibility = crisisPreflight.effectiveVisibility;
+      const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
+      const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
+      const canTransmitAttachments = crisisPreflight.disposition === "continue";
+      const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
+      if (canTransmitAttachments) {
+        const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
+        if (!attachmentCheck.ok) {
+          useChatStore.setState({
+            error: attachmentCheck.error,
+            artifactVisibility: activeVisibility,
+          });
+          return;
+        }
+      }
+      const submittedPartnerEpoch = partnerComposerEpochRef.current;
+      const submittedPartnerRecipientId = submittedTarget === "partner"
+        ? linkedPartnerId
+        : null;
+      const partnerRecipientIsStillCurrent = () => (
+        submittedTarget !== "partner"
+        || (
+          submittedPartnerRecipientId !== null
+          && partnerComposerEpochRef.current === submittedPartnerEpoch
+          && linkedPartnerIdRef.current === submittedPartnerRecipientId
+        )
+      );
+      if (!isLocalSafetyHold && submittedTarget === "partner" && !hasCouplePartner) {
+        setMessageTarget("ai");
+        useChatStore.setState({
+          error: "연결된 상대방이 없어 보내지 않았어요. 상대방 연결을 다시 확인해주세요.",
+          artifactVisibility: "shared",
+        });
         return;
       }
 
-      setInput("");
-      setAttachments([]);
+      submitInFlightRef.current = true;
+      setIsSubmitLocked(true);
+
+      if (usesComposer) {
+        setInput("");
+        setAttachments([]);
+      }
+      if (isPrivateSafetyRoute) {
+        setActiveScope("private");
+        setMessageTarget("ai");
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+      }
+
+      const restoreComposer = () => {
+        if (
+          isPrivateSafetyRoute
+          ||
+          !usesComposer
+          || composerSessionGenerationRef.current !== submittedSessionGeneration
+          || !partnerRecipientIsStillCurrent()
+        ) return;
+        setInput((current) => current || submittedInput);
+        setAttachments((current) => {
+          const existingKeys = new Set(current.map(chatAttachmentKey));
+          return [
+            ...current,
+            ...currentAttachments.filter((attachment) => !existingKeys.has(chatAttachmentKey(attachment))),
+          ];
+        });
+      };
 
       // 첨부만 있고 텍스트 없으면 기본 메시지 생성
       let finalContent = content;
@@ -467,26 +774,74 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           a.mediaType.includes("word") || a.mediaType.includes("spreadsheet") || a.mediaType.includes("ms-excel")
         );
         const hasPdf = currentAttachments.some((a) => a.mediaType === "application/pdf");
-        if (hasDoc || hasPdf) finalContent = "이 문서를 분석해주세요.";
+        if (submittedTarget === "partner") finalContent = "이 이미지를 확인해주세요.";
+        else if (hasDoc || hasPdf) finalContent = "이 문서를 분석해주세요.";
         else finalContent = "이 이미지를 분석해주세요.";
       }
 
-      await sendMessage({
-        content: finalContent,
-        senderId: profile.id,
-        senderRole,
-        coupleId,
-        senderName: profile.name ?? "사용자",
-        weddingContext: {
-          weddingDate: journey?.wedding_date ?? null,
-          budget: journey?.total_budget ?? 0,
-          venue: journey?.venue ?? null,
-          progress: journey?.progress ?? {},
-        },
-        images: currentAttachments.length > 0 ? currentAttachments : undefined,
-        target: activeScope === "private" ? "ai" : messageTarget,
-        visibility: activeVisibility,
-      });
+      try {
+        const outcome = await sendMessage({
+          content: finalContent,
+          senderId: profile.id,
+          senderRole,
+          coupleId,
+          senderName: profile.name ?? "사용자",
+          weddingContext: {
+            weddingDate: journey?.wedding_date ?? null,
+            budget: journey?.total_budget ?? 0,
+            venue: journey?.venue ?? null,
+            progress: journey?.progress ?? {},
+          },
+          images: canTransmitAttachments && currentAttachments.length > 0
+            ? currentAttachments
+            : undefined,
+          target: submittedTarget,
+          ...(submittedTarget === "partner" && linkedPartnerId
+            ? { partnerRecipientId: linkedPartnerId }
+            : {}),
+          visibility: effectiveVisibility,
+          ...(submittedClientRequestId
+            ? { clientRequestId: submittedClientRequestId }
+            : {}),
+        });
+        if (composerSessionGenerationRef.current !== submittedSessionGeneration) return;
+        if (outcome?.userMessage === "ephemeral_safety") {
+          setActiveScope("private");
+          setMessageTarget("ai");
+          setDraftRetryClientRequestId(submittedLane, null);
+          currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+          return;
+        }
+        if (!partnerRecipientIsStillCurrent()) return;
+        if (outcome?.userMessage === "persistence_unknown") {
+          restoreComposer();
+          setDraftRetryClientRequestId(submittedLane, outcome.clientRequestId);
+        } else if (outcome?.userMessage === "not_persisted") {
+          restoreComposer();
+          setDraftRetryClientRequestId(
+            submittedLane,
+            outcome.clientRequestId ?? submittedClientRequestId,
+          );
+        } else {
+          setDraftRetryClientRequestId(sourceLane, null);
+        }
+      } catch {
+        if (
+          composerSessionGenerationRef.current !== submittedSessionGeneration
+          || !partnerRecipientIsStillCurrent()
+        ) return;
+        restoreComposer();
+        setDraftRetryClientRequestId(submittedLane, submittedClientRequestId);
+        useChatStore.setState((state) => ({
+          error: state.error ?? "메시지를 저장하지 못했습니다. 입력 내용을 복구했어요.",
+          artifactVisibility: state.artifactVisibility ?? effectiveVisibility,
+        }));
+      } finally {
+        if (composerSessionGenerationRef.current === submittedSessionGeneration) {
+          submitInFlightRef.current = false;
+          setIsSubmitLocked(false);
+        }
+      }
     },
     [
       input,
@@ -497,30 +852,168 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       journey,
       sendMessage,
       messageTarget,
+      hasCouplePartner,
+      linkedPartnerId,
       activeScope,
       activeVisibility,
+      activeComposerLane,
+      retryClientRequestId,
       setInput,
       setAttachments,
+      setDraftRetryClientRequestId,
       isStreaming,
       isSending,
     ]
   );
+  const handleAmoraSend = useCallback(
+    (text: string) => handleSend(text, "ai"),
+    [handleSend],
+  );
 
-  // 중재 요청
-  const requestMediation = useCallback(() => {
-    setShowMediationBanner(false);
+  const personalizationReply = resolveAmoraPersonalizationReply(
+    messages,
+    profile?.id ?? null,
+    coupleId ?? null,
+    pendingPersonalization,
+  );
+  const personalizationReplyMessageId =
+    personalizationReply.replyMessageId;
+
+  useEffect(() => {
+    if (
+      !profile?.id ||
+      !coupleId ||
+      !pendingPersonalization ||
+      !initialLoadDone ||
+      amoraPersonalization.status !== "ready" ||
+      personalizationReply.state !== "stale"
+    ) {
+      return;
+    }
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [
+    amoraPersonalization.status,
+    coupleId,
+    initialLoadDone,
+    pendingPersonalization,
+    personalizationReply.state,
+    profile?.id,
+  ]);
+
+  const showPersonalizationConfirmation =
+    activeScope === "shared" &&
+    amoraPersonalization.status === "ready" &&
+    !amoraPersonalization.profile &&
+    Boolean(personalizationReplyMessageId) &&
+    Boolean(pendingPersonalization) &&
+    !isStreaming &&
+    !isSending &&
+    input.trim().length === 0 &&
+    attachments.length === 0;
+  const showAmoraQuickStart = shouldOfferAmoraQuickStart({
+    enabled:
+      isOpen &&
+      !isDemo &&
+      initialLoadDone &&
+      Boolean(coupleId) &&
+      Boolean(profile),
+    status: amoraPersonalization.status,
+    hasSavedProfile: Boolean(amoraPersonalization.profile),
+    hasPendingChoice: Boolean(pendingPersonalization),
+    busy:
+      isStreaming ||
+      isSending ||
+      input.trim().length > 0 ||
+      attachments.length > 0,
+    activeTab: activeScope,
+    currentUserId: profile?.id ?? null,
+    messages,
+  });
+
+  const handlePersonalizationSelect = useCallback(
+    (option: AmoraQuickStartOption) => {
+      if (!showAmoraQuickStart || !profile || !coupleId) return;
+      const pending = rememberPendingAmoraPersonalizationChoice({
+        currentUserId: profile.id,
+        coupleId,
+        option,
+        existingUserMessageIds: messages
+          .filter(
+            (message) =>
+              message.sender_id === profile.id &&
+              message.sender_role !== "ai",
+          )
+          .map((message) => message.id),
+      });
+      if (!pending) return;
+      setPendingPersonalization(pending);
+      setMessageTarget("ai");
+      void handleSend(option.message, "ai");
+    },
+    [coupleId, handleSend, messages, profile, showAmoraQuickStart],
+  );
+
+  const confirmAmoraPersonalization = useCallback(async () => {
+    if (!pendingPersonalization) return;
+    const saved = await saveAmoraPersonalization(
+      pendingPersonalization.option.changes,
+    );
+    if (saved) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+      setPendingPersonalization(null);
+    }
+  }, [pendingPersonalization, saveAmoraPersonalization]);
+
+  const dismissAmoraPersonalization = useCallback(() => {
+    if (pendingPersonalization) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+    }
+    setPendingPersonalization(null);
+  }, [pendingPersonalization]);
+
+  const openMediationConsent = useCallback(() => {
+    setMediationConsentOpen(true);
+  }, []);
+
+  const cancelMediationConsent = useCallback(() => {
+    setMediationConsentOpen(false);
     setMediationDismissed(true);
-    setMessageTarget("ai");
+  }, []);
 
-    const recentPartnerMsgs = messages
-      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-      .slice(-3);
-    const lastTopic = recentPartnerMsgs.length > 0
-      ? recentPartnerMsgs[recentPartnerMsgs.length - 1].content.slice(0, 30)
-      : "결혼 준비";
-
-    handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
-  }, [messages, handleSend]);
+  const confirmMediationConsent = useCallback(
+    async (requesterSummary: string) => {
+      if (!coupleId || !profile || !senderRole) return;
+      setMediationConsentOpen(false);
+      setMediationDismissed(true);
+      setMessageTarget("ai");
+      await requestStructuredMediation({
+        coupleId,
+        senderRole,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        conflictContext: requesterSummary,
+      });
+    },
+    [
+      coupleId,
+      journey,
+      profile,
+      requestStructuredMediation,
+      senderRole,
+    ],
+  );
 
   const applyPendingAmoraAction = useCallback(async (actionId: string) => {
     if (
@@ -669,11 +1162,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               <button
                 type="button"
                 onClick={() => setShowClearConfirm(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-red-50"
-                title="대화 초기화"
-                aria-label="현재 대화 범위 초기화"
+                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-[#F6F3F2]"
+                title="대화 화면 정리"
+                aria-label="현재 대화 범위를 내 화면에서 정리"
               >
-                <Trash2 className="w-4 h-4 text-taupe-500 hover:text-red-400" />
+                <EyeOff className="w-4 h-4 text-taupe-500" />
               </button>
             )}
             <button
@@ -723,7 +1216,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <button
                   type="button"
                   onClick={() => handleScopeChange("shared")}
-                  disabled={isStreaming}
+                  disabled={isComposerBusy}
                   aria-pressed={activeScope === "shared"}
                   className={`min-h-11 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     activeScope === "shared"
@@ -736,7 +1229,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <button
                   type="button"
                   onClick={() => handleScopeChange("private")}
-                  disabled={isStreaming || !myPrivateVisibility}
+                  disabled={isComposerBusy || !myPrivateVisibility}
                   aria-pressed={activeScope === "private"}
                   title="아모라와 1:1 — 서비스에 저장되지만 상대방에게는 보이지 않습니다"
                   className={`flex min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -763,28 +1256,66 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               </p>
             </div>
 
-            {/* 초기화 확인 */}
+            {/* 대화 화면 정리 확인 */}
             {showClearConfirm && (
-              <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-xs text-red-600">
-                  {activeScope === "private" ? "나만의 상담을 내 화면에서 정리할까요?" : "함께 대화를 내 화면에서 정리할까요?"}
+              <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-xl border border-[#E8DDD3] bg-[#FAF7F2] p-2.5">
+                <p className="text-xs leading-relaxed text-[#504444]">
+                  {activeScope === "private"
+                    ? "나만의 상담 이전 메시지를 내 화면에서만 숨길까요?"
+                    : "함께 대화의 이전 메시지를 내 화면에서만 숨길까요?"}
+                  <span className="mt-1 block text-[#795252]">
+                    서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.
+                  </span>
                 </p>
-                <div className="flex gap-1.5">
+                <div className="flex shrink-0 gap-1.5">
                   <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button type="button" onClick={handleClearChat} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button type="button" onClick={handleClearChat} className="min-h-11 rounded-lg bg-[#795252] px-3 text-[0.6875rem] text-white hover:bg-[#946a6a]">내 화면에서만 숨기기</button>
                 </div>
               </div>
             )}
 
+            {quotaRemaining !== null
+              && !isStreaming
+              && messageTarget === "ai"
+              && artifactsMatchActiveVisibility && (
+              <div className="mx-3 mt-2 flex items-center justify-between rounded-xl bg-[#f6efe5] p-2.5">
+                <p className="text-xs font-medium leading-relaxed text-[#6d625a]">
+                  {quotaRemaining > 0
+                    ? `베타 무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
+                    : "베타 무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => useChatStore.setState({ quotaRemaining: null })}
+                  className="ml-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[#b5ada3] hover:text-[#6d625a]"
+                  aria-label="상담 횟수 안내 닫기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {/* 에러 표시 */}
-            {error && errorMatchesActiveScope && (
+            {error && errorMatchesActiveVisibility && (
               <div
-                className="mx-3 mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5"
-                role="alert"
+                className={`mx-3 mt-2 rounded-xl border p-2.5 ${
+                  isRecoveryNotice
+                    ? "border-[#B9DAD5] bg-[#F0F8F6]"
+                    : "border-red-200 bg-red-50"
+                }`}
+                role={isRecoveryNotice ? "status" : "alert"}
               >
-                <p className="text-xs leading-relaxed text-red-700">{error}</p>
+                <p
+                  className={`text-xs leading-relaxed ${
+                    isRecoveryNotice ? "text-[#245B56]" : "text-red-700"
+                  }`}
+                >
+                  {error}
+                </p>
                 {failedRequest?.unavailableReason && (
-                  <p className="mt-1 text-[0.6875rem] leading-relaxed text-red-600">
+                  <p className={`mt-1 text-[0.6875rem] leading-relaxed ${
+                    isRecoveryNotice ? "text-[#356B66]" : "text-red-600"
+                  }`}>
                     {failedRequest.unavailableReason}
                   </p>
                 )}
@@ -793,19 +1324,37 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                     <button
                       type="button"
                       onClick={() => void retryFailedMessage()}
-                      disabled={isStreaming || isRetrying}
-                      className="min-h-11 rounded-lg bg-red-600 px-3 text-[0.6875rem] font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={isComposerBusy || isRetrying}
+                      className={`min-h-11 rounded-lg px-3 text-[0.6875rem] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isRecoveryNotice
+                          ? "bg-[#2F766F] hover:bg-[#245B56]"
+                          : "bg-red-600 hover:bg-red-700"
+                      }`}
                     >
-                      {isRetrying ? "다시 시도 중..." : "다시 시도"}
+                      {isConfirmedActionRecovery
+                        ? isRetrying
+                          ? "반영 확인 중..."
+                          : "반영 계속하기"
+                        : isInterruptedTurnRecovery
+                          ? isRetrying
+                            ? "답변 확인 중..."
+                            : "답변 이어받기"
+                        : isRetrying
+                          ? "다시 시도 중..."
+                          : "다시 시도"}
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={dismissFailedMessageRetry}
-                    disabled={isStreaming || isRetrying}
-                    className="min-h-11 rounded-lg border border-red-200 bg-white px-3 text-[0.6875rem] font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isComposerBusy || isRetrying}
+                    className={`min-h-11 rounded-lg border bg-white px-3 text-[0.6875rem] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isRecoveryNotice
+                        ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
+                        : "border-red-200 text-red-700 hover:bg-red-100"
+                    }`}
                   >
-                    닫기
+                    {isRecoveryNotice ? "나중에" : "닫기"}
                   </button>
                 </div>
               </div>
@@ -846,6 +1395,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         isStreaming || isSending,
                       )
                     : null;
+                  const pendingBudgetImpactPreview = pendingAction
+                    ? getPendingAmoraBudgetImpactPreview(msg, pendingAction)
+                    : null;
 
                   return (
                     <div key={msg.id} className="animate-fade-in">
@@ -858,6 +1410,8 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       {pendingAction && (
                         <PendingAmoraActionCard
                           action={pendingAction}
+                          impactPreview={pendingBudgetImpactPreview}
+                          messageId={msg.id}
                           disabledReason={pendingActionDisabledReason}
                           isApplying={applyingPendingActionId === pendingAction.actionId}
                           onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
@@ -869,19 +1423,39 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         // 문구가 같아도 입력/출력이 다른 정상 작업 카드는 모두 보존한다.
                         deduplicateToolResults(msg.metadata!.toolResults!).map((result, i) =>
                           VENDOR_TOOL_NAMES.has(result.toolName) ? (
-                            <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleSend} disabled={isStreaming} />
+                            <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleAmoraSend} disabled={isComposerBusy} />
                           ) : (
                             <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
                           )
+                        )}
+                      {pendingPersonalization &&
+                        msg.id === personalizationReplyMessageId &&
+                        showPersonalizationConfirmation && (
+                          <AmoraPersonalizationConfirmation
+                            option={pendingPersonalization.option}
+                            saving={amoraPersonalization.saving}
+                            error={amoraPersonalization.error}
+                            onConfirm={() => void confirmAmoraPersonalization()}
+                            onDismiss={dismissAmoraPersonalization}
+                          />
                         )}
                     </div>
                   );
                 });
               })()}
 
-              {isStreaming && (
+              {showAmoraQuickStart && (
+                <AmoraQuickStart
+                  disabled={isComposerBusy}
+                  onSelect={handlePersonalizationSelect}
+                />
+              )}
+
+              {isStreaming
+                && messageTarget === "ai"
+                && artifactsMatchActiveVisibility && (
                 <div className="animate-fade-in">
-                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} />
+                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleAmoraSend} />
                 </div>
               )}
 
@@ -894,7 +1468,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-3 py-3 shadow-sm">
                   <button
                     type="button"
-                    onClick={() => { setShowMediationBanner(false); setMediationDismissed(true); }}
+                    onClick={() => setMediationDismissed(true)}
                     className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-[#B5ADA3] hover:text-[#928980]"
                     aria-label="조율 상담 제안 숨기기"
                   >
@@ -910,7 +1484,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       </p>
                       <button
                         type="button"
-                        onClick={requestMediation}
+                        onClick={openMediationConsent}
                         className="mt-1.5 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-3 text-[0.6875rem] font-medium text-white transition-colors hover:shadow-md"
                       >
                         <Sparkles className="w-3 h-3" />
@@ -923,9 +1497,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             )}
 
             {/* 제안 버튼 — 입력창과 충분한 간격 */}
-            {suggestions.length > 0 && !isStreaming && (
+            {messageTarget === "ai" &&
+              artifactsMatchActiveVisibility &&
+              suggestions.length > 0 &&
+              !isStreaming &&
+              !showAmoraQuickStart &&
+              !showPersonalizationConfirmation && (
               <div className="px-3 pt-2 pb-4 border-t border-[#F0EFED]/60 mt-2">
-                <SuggestionButtons suggestions={suggestions} onSelect={handleSend} disabled={isStreaming} />
+                <SuggestionButtons
+                  suggestions={suggestions}
+                  onSelect={handleAmoraSend}
+                  disabled={isComposerBusy}
+                />
               </div>
             )}
 
@@ -946,6 +1529,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                     <button
                       type="button"
                       onClick={() => removeAttachment(i)}
+                      disabled={isComposerBusy}
                       className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center rounded-full text-red-600 opacity-70 transition-opacity hover:bg-red-50 hover:opacity-100 focus:opacity-100"
                       aria-label={`${att.fileName} 첨부 제거`}
                     >
@@ -955,15 +1539,28 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 ))}
               </div>
             )}
+            {messageTarget === "ai" && hasProviderOnlyAttachment && (
+              <p
+                role="note"
+                className="px-4 pb-1 text-[0.6875rem] leading-relaxed text-[#795252]"
+              >
+                PDF·DOCX 파일은 아모라 분석에만 사용되며 대화 첨부로 저장되지 않아요.
+              </p>
+            )}
 
             {/* 입력 영역 */}
             <div className="px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-1">
               {/* 대상 토글 (커플 연동 시) */}
               {activeScope === "shared" && hasCouplePartner && (
-                <div className="flex items-center gap-1.5 mb-1.5">
+                <div
+                  className="flex items-center gap-1.5 mb-1.5"
+                  role="group"
+                  aria-label="메시지 받을 대상"
+                >
                   <button
                     type="button"
-                    onClick={() => setMessageTarget("ai")}
+                    onClick={() => handleMessageTargetChange("ai")}
+                    disabled={isComposerBusy}
                     aria-pressed={messageTarget === "ai"}
                     className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
@@ -976,7 +1573,8 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMessageTarget("partner")}
+                    onClick={() => handleMessageTargetChange("partner")}
+                    disabled={isComposerBusy}
                     aria-pressed={messageTarget === "partner"}
                     className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
@@ -995,7 +1593,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
+                  disabled={isComposerBusy || attachments.length >= MAX_ATTACHMENTS}
                   className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-black/[0.04] disabled:opacity-30"
                   title="파일 첨부"
                   aria-label="파일 첨부"
@@ -1005,7 +1603,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={Object.keys(ALLOWED_TYPES).join(",")}
+                  accept={Object.keys(ALLOWED_TYPES)
+                    .filter((mediaType) => (
+                      activeComposerLane !== "shared_partner" || mediaType.startsWith("image/")
+                    ))
+                    .join(",")}
                   multiple
                   onChange={handleFileSelect}
                   className="hidden"
@@ -1021,15 +1623,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       handleSend();
                     }
                   }}
-                  placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "무엇이든 물어보세요..."}
-                  disabled={isStreaming || isSending}
+                  placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "결혼 준비에서 궁금한 점을 물어보세요…"}
+                  disabled={isComposerBusy}
                   aria-label="메시지 입력"
                   className="flex-1 px-2 py-2 text-[0.8125rem] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
                 <button
                   type="button"
                   onClick={() => handleSend()}
-                  disabled={(!input.trim() && attachments.length === 0) || isStreaming || isSending}
+                  disabled={
+                    (!input.trim() && attachments.length === 0)
+                    || isComposerBusy
+                  }
                   aria-label="메시지 보내기"
                   className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
                     messageTarget === "partner"
@@ -1044,6 +1649,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           </>
         )}
       </div>
+      {mediationConsentOpen && (
+        <MediationConsentDialog
+          onCancel={cancelMediationConsent}
+          onConfirm={confirmMediationConsent}
+        />
+      )}
     </>
   );
 }

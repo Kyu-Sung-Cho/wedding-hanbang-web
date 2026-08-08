@@ -1,6 +1,6 @@
 export default function PriceCategoryLoading() {
   return (
-    <main className="min-h-screen bg-[#FBF8F2] text-[#243832]" aria-busy="true" aria-label="공시 가격 목록 불러오는 중">
+    <div className="min-h-screen bg-[#FBF8F2] text-[#243832]" aria-busy="true" aria-label="공시 가격 목록 불러오는 중">
       <div className="animate-pulse border-b border-[#243832]/10 bg-white px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <div className="h-3 w-36 rounded bg-[#E2D3C8]" />
@@ -17,6 +17,6 @@ export default function PriceCategoryLoading() {
         </div>
         <p className="sr-only">최신 발행 가격과 추가금을 확인하고 있어요.</p>
       </div>
-    </main>
+    </div>
   );
 }

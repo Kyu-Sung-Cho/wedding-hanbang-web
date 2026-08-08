@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -28,16 +28,27 @@ import {
   X,
 } from "lucide-react";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
 import ServiceGuide from "@/components/app/ServiceGuide";
+import TodayOneCard from "@/components/app/TodayOneCard";
 import WeeklyCard from "@/components/app/WeeklyCard";
 import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { useAuthStore } from "@/stores/authStore";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
+import {
+  getJoinedDashboardMarkerSnapshot,
+  getDashboardCompanionCopy,
+  JOINED_PLAN_REVIEW_PROMPT,
+  notifyJoinedDashboardMarkerChanged,
+  removeJoinedDashboardMarker,
+  subscribeJoinedDashboardMarker,
+} from "@/lib/amora/dashboardCompanion";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 type Status = "not_started" | "in_progress" | "completed";
 
@@ -45,7 +56,6 @@ interface CategoryMeta {
   key: string;
   label: string;
   group: string;
-  due: string;
   icon: LucideIcon;
   tasks: string[];
 }
@@ -53,65 +63,57 @@ interface CategoryMeta {
 const categories: CategoryMeta[] = [
   {
     key: "venue",
-    label: "웨딩홀",
+    label: PLANNING_CATEGORY_LABELS.venue,
     group: "장소",
-    due: "D-270 권장",
     icon: Building2,
-    tasks: ["후보 3곳 비교", "식대와 대관료 확인", "계약 변경 조건 확인"],
+    tasks: ["장소 후보 비교", "식사비와 장소 사용료 확인", "계약 취소·변경 조건 확인"],
   },
   {
     key: "studio",
-    label: "스튜디오",
-    group: "스드메",
-    due: "D-150 권장",
+    label: PLANNING_CATEGORY_LABELS.studio,
+    group: "사진·의상·메이크업",
     icon: Camera,
-    tasks: ["촬영 스타일 정하기", "원본·보정 포함 여부 확인", "촬영 일정 확정"],
+    tasks: ["사진 분위기 정하기", "받는 사진 수와 보정 사진 수 확인", "촬영 일정 확정"],
   },
   {
     key: "snap",
-    label: "본식 스냅/영상",
+    label: PLANNING_CATEGORY_LABELS.snap,
     group: "기록",
-    due: "D-120 권장",
     icon: Video,
-    tasks: ["스냅·영상 범위 결정", "작가 포트폴리오 3곳 비교", "당일 촬영 동선 협의"],
+    tasks: ["사진·영상 중 필요한 것 정하기", "업체가 실제로 찍은 결과 비교", "당일 촬영 동선 협의"],
   },
   {
     key: "dress",
-    label: "드레스",
-    group: "스드메",
-    due: "D-120 권장",
+    label: PLANNING_CATEGORY_LABELS.dress,
+    group: "사진·의상·메이크업",
     icon: Shirt,
-    tasks: ["샵 후보 비교", "투어 일정 잡기", "본식 드레스 셀렉"],
+    tasks: ["드레스 매장 후보 비교", "입어볼 날짜 정하기", "결혼식 날 입을 드레스 선택"],
   },
   {
     key: "makeup",
-    label: "메이크업",
-    group: "스드메",
-    due: "D-60 권장",
+    label: PLANNING_CATEGORY_LABELS.makeup,
+    group: "사진·의상·메이크업",
     icon: Palette,
-    tasks: ["원하는 무드 정리", "리허설 일정 확인", "혼주 메이크업 포함 여부 확인"],
+    tasks: ["원하는 분위기 정리", "미리 받아볼 날짜 확인", "부모님 헤어·메이크업 포함 여부 확인"],
   },
   {
     key: "ring",
-    label: "예물",
+    label: PLANNING_CATEGORY_LABELS.ring,
     group: "계약",
-    due: "D-120 권장",
     icon: Gem,
-    tasks: ["예산 정하기", "브랜드와 공방 비교", "수령 일정 확인"],
+    tasks: ["예산 정하기", "브랜드와 반지 제작 매장 비교", "받을 날짜 확인"],
   },
   {
     key: "honeymoon",
-    label: "신혼여행",
+    label: PLANNING_CATEGORY_LABELS.honeymoon,
     group: "여행",
-    due: "D-30 권장",
     icon: Plane,
     tasks: ["여행지 확정", "항공·숙소 예약", "여권·보험 확인"],
   },
   {
     key: "houseware",
-    label: "혼수",
+    label: PLANNING_CATEGORY_LABELS.houseware,
     group: "생활",
-    due: "D-60 권장",
     icon: Home,
     tasks: ["필수 품목 정리", "가전 견적 비교", "배송 일정 확인"],
   },
@@ -124,7 +126,7 @@ const statusMeta: Record<Status, { label: string; tone: string; dot: string }> =
     dot: "bg-[#c8bda8]",
   },
   in_progress: {
-    label: "진행중",
+    label: "진행 중",
     tone: "border-[#dfc88f] bg-[#fff8ec] text-[#9d6f36]",
     dot: "bg-[#b68a3a]",
   },
@@ -145,7 +147,7 @@ function getChecklistProgress(progress: Record<string, ProgressItem>, key: strin
   const template = CHECKLIST_MAP[key];
   const saved = progress[key]?.checklist;
   const status = getStatus(progress, key);
-  if (!template) return { done: status === "completed" ? 1 : 0, total: 1 };
+  if (!template) return { done: 0, total: 0 };
   const merged = mergeChecklist(template.items, saved as ChecklistItem[] | undefined, status);
   return getChecklistCounts(merged);
 }
@@ -189,8 +191,11 @@ function getStatusSummary(progress: Record<string, ProgressItem>) {
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
     if (key.startsWith("__")) return sum;
-    const value = item.spent ?? item.cost ?? 0;
-    return sum + value;
+    // 명시적으로 기록한 지출만 합산한다. 이전 cost 값은 용도가
+    // 확인되지 않았으므로 예산 사용이나 결제 완료로 승격하지 않는다.
+    const value = isValidWeddingWonAmount(item.spent) ? item.spent : 0;
+    const next = sum + value;
+    return Number.isSafeInteger(next) ? next : sum;
   }, 0);
 }
 
@@ -198,12 +203,36 @@ export default function DashboardPage() {
   const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const joinedHandoffVisible = useSyncExternalStore(
+    subscribeJoinedDashboardMarker,
+    getJoinedDashboardMarkerSnapshot,
+    () => false,
+  );
   const [selectedCategory, setSelectedCategory] = useState<CategoryMeta | null>(null);
+  const [journeyNotice, setJourneyNotice] = useState("");
+  const [journeyError, setJourneyError] = useState("");
+  const companionCopy = getDashboardCompanionCopy(Boolean(partner));
+  const amoraPromptHref = weddingPath(
+    `/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`,
+  );
+  const joinedReviewHref = weddingPath(
+    `/chat?${new URLSearchParams({ prefill: JOINED_PLAN_REVIEW_PROMPT })}`,
+  );
 
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
   const totalBudget = journey?.total_budget ?? 0;
   const spentBudget = useMemo(() => getSpent(progress), [progress]);
-  const budgetPercent = totalBudget > 0 ? Math.min(100, Math.round((spentBudget / totalBudget) * 100)) : 0;
+  const hasTotalBudget = totalBudget > 0;
+  const budgetPercent = hasTotalBudget
+    ? Math.round((spentBudget / totalBudget) * 100)
+    : 0;
+  const budgetBarPercent = Math.min(100, Math.max(0, budgetPercent));
+  const budgetUsageValue = hasTotalBudget ? `${budgetPercent}%` : "미입력";
+  const budgetUsageNote = hasTotalBudget
+    ? `${formatWon(spentBudget)} 기록 / ${formatWon(totalBudget)} · 결제 확인과 별도`
+    : spentBudget > 0
+      ? `기록 지출 ${formatWon(spentBudget)} · 총 예산 입력 전`
+      : "총 예산을 입력해주세요";
   const dday = getDday(journey?.wedding_date);
   const summary = useMemo(() => getStatusSummary(progress), [progress]);
   const progressPercent = summary.totalItems > 0 ? Math.round((summary.doneItems / summary.totalItems) * 100) : 0;
@@ -211,7 +240,11 @@ export default function DashboardPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return getEvents(progress as Record<string, unknown>)
-      .filter((event) => new Date(event.date) >= today)
+      .filter(
+        (event) =>
+          getScheduleEventStatus(event) === "planned"
+          && new Date(event.date) >= today,
+      )
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 3);
   }, [progress]);
@@ -254,6 +287,16 @@ export default function DashboardPage() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
+  function dismissJoinedHandoff() {
+    const nextUrl = removeJoinedDashboardMarker(
+      window.location.pathname,
+      window.location.search,
+      window.location.hash,
+    );
+    window.history.replaceState(window.history.state, "", nextUrl);
+    notifyJoinedDashboardMarkerChanged();
+  }
+
   async function updateCategoryStatus(key: string, status: Status) {
     const currentProgress = { ...progress };
     const existing = currentProgress[key];
@@ -262,7 +305,23 @@ export default function DashboardPage() {
       category: key,
       status,
     };
-    await updateJourney({ progress: currentProgress });
+    setJourneyNotice("");
+    setJourneyError("");
+    try {
+      const result = await updateJourney({ progress: currentProgress });
+      setJourneyNotice(
+        result.status === "pending_partner"
+          ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
+          : "준비 상태를 저장했어요.",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "준비 상태를 저장하지 못했습니다.";
+      setJourneyError(message);
+      throw error;
+    }
   }
 
   const ddayLabel =
@@ -279,36 +338,117 @@ export default function DashboardPage() {
     },
     {
       icon: ClipboardCheck,
-      label: "남은 체크",
+      label: "확인할 항목",
       value: `${remainingItems}개`,
-      note: `${summary.doneItems}/${summary.totalItems}개 완료`,
+      note: `${summary.doneItems}/${summary.totalItems}개 직접 체크`,
       href: "/schedule",
     },
     {
       icon: Wallet,
-      label: "예산 사용",
-      value: `${budgetPercent}%`,
-      note: `${formatWon(spentBudget)} / ${formatWon(totalBudget)}`,
+      label: "기록 지출 비율",
+      value: budgetUsageValue,
+      note: budgetUsageNote,
       href: "/budget",
     },
     {
       icon: Users,
-      label: "커플 연결",
-      value: partner ? "연결됨" : "대기 중",
-      note: partner ? `${partner.name ?? "파트너"}님과 함께 준비 중` : "초대 코드로 함께 관리할 수 있어요",
+      label: "준비 방식",
+      value: partner ? "함께 준비" : "혼자 준비",
+      note: partner
+        ? `${partner.name ?? "파트너"}님과 같은 계획을 보고 있어요`
+        : "원할 때 파트너를 초대할 수 있어요",
       href: "/settings",
     },
   ];
 
   return (
     <div className="space-y-5 text-[#061a34]">
+      {journeyNotice && (
+        <div
+          role="status"
+          className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+        >
+          {journeyNotice}
+        </div>
+      )}
+      {journeyError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
+        >
+          {journeyError}
+        </div>
+      )}
+      {joinedHandoffVisible && partner && (
+        <section
+          data-testid="joined-plan-handoff"
+          className="rounded-[20px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[0_12px_34px_rgba(54,83,78,0.08)] md:p-6"
+          aria-labelledby="joined-plan-title"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
+              <HeartHandshake className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-[#607044]">
+                함께 준비 시작
+              </p>
+              <h2
+                id="joined-plan-title"
+                className="mt-1 font-serif-kr text-[24px] font-medium leading-tight text-[#243832]"
+              >
+                이제 이 계획을 함께 봐요
+              </h2>
+              <p className="mt-2 text-[13px] font-medium leading-6 text-[#5D6879]">
+                이제 두 분이 함께 보는 현재 계획이에요. 이 화면을 열면서 새로 저장하거나 변경한 내용은 없어요.
+              </p>
+            </div>
+          </div>
+
+          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <HandoffMetric
+              label="결혼식 날짜"
+              value={formatDate(journey?.wedding_date)}
+            />
+            <HandoffMetric label="장소" value={journey?.venue || "장소 미정"} />
+            <HandoffMetric
+              label="총 예산"
+              value={hasTotalBudget ? formatWon(totalBudget) : "미입력"}
+            />
+            <HandoffMetric
+              label="준비 진행"
+              value={`${progressPercent}%`}
+              note={`${summary.doneItems}/${summary.totalItems}개 체크`}
+            />
+          </dl>
+
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Link
+              href={joinedReviewHref}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E] sm:w-auto"
+            >
+              함께 확인할 내용 찾기
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={dismissJoinedHandoff}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 sm:w-auto"
+            >
+              이 내용 확인했어요
+            </button>
+          </div>
+        </section>
+      )}
       {couple && !partner && inviteCode && (
         <section className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-[15px] font-semibold text-[#071629]">커플과 함께 준비할 수 있어요.</p>
+              <p className="text-[15px] font-semibold text-[#071629]">
+                지금은 혼자 준비해도 괜찮아요
+              </p>
               <p className="mt-1 text-[13px] font-medium text-[#5d6879]">
-                초대 코드를 공유하면 같은 예산, 일정, 체크리스트를 함께 볼 수 있습니다.
+                함께 보고 싶을 때 이 코드를 공유하면 같은 예산과 일정, 할 일을 볼 수 있어요.
               </p>
             </div>
             <button
@@ -323,7 +463,9 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* 신규 유저(예식일 미정): 0% 나열 대신 첫 행동 1개 / 기존 유저: 이번 주 한 장 */}
+      {!isDemo && <TodayOneCard />}
+
+      {/* 결혼식 날짜가 없으면 첫 행동 하나를, 있으면 이번 주 내용을 보여준다. */}
       {!journey?.wedding_date ? (
         <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
@@ -331,7 +473,7 @@ export default function DashboardPage() {
             <Sparkles className="h-4 w-4" />
           </p>
           <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.3] text-[#061a34] md:text-[28px]">
-            예식일 하나만 알려주세요
+            결혼식 날짜를 알려주세요
           </h2>
           <p className="mt-2 max-w-[520px] text-[14px] font-medium leading-[1.6] text-[#38475c]">
             날짜를 입력하면 남은 기간에 맞춰 &lsquo;이번 주 한 장&rsquo;과 일정을 정리할 수 있어요.
@@ -342,7 +484,7 @@ export default function DashboardPage() {
               href={weddingPath("/settings")}
               className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E]"
             >
-              예식일 입력하기
+              결혼식 날짜 입력하기
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
@@ -364,19 +506,19 @@ export default function DashboardPage() {
       <section className="grid gap-4 lg:grid-cols-2" data-tutorial-target="dashboard-hero">
         <div className="flex h-full flex-col rounded-[20px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
-            우리 둘의 웨딩 라운지
+            {companionCopy.loungeLabel}
             <Sparkles className="h-4 w-4" />
           </p>
           <h1 className="mt-3 font-serif-kr text-[29px] font-medium leading-[1.2] text-[#061a34] md:text-[36px]">
-            결혼 준비 현황
+            {companionCopy.statusHeading}
           </h1>
           <p className="mt-2.5 max-w-[520px] text-[14px] font-medium leading-[1.55] text-[#38475c]">
-            일정, 예산, 체크리스트를 한눈에 확인해요.
+            {companionCopy.description}
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-            <MetricCard label="예식일" value={ddayLabel} note={formatDate(journey?.wedding_date)} />
-            <MetricCard label="진행률" value={`${progressPercent}%`} note={`${summary.doneItems}/${summary.totalItems}개 체크`} />
-            <MetricCard label="예산 사용" value={`${budgetPercent}%`} note={`${formatWon(spentBudget)} / ${formatWon(totalBudget)}`} />
+            <MetricCard label="결혼식 날짜" value={ddayLabel} note={formatDate(journey?.wedding_date)} />
+            <MetricCard label="체크 진행" value={`${progressPercent}%`} note={`${summary.doneItems}/${summary.totalItems}개 직접 체크`} />
+            <MetricCard label="기록 지출 비율" value={budgetUsageValue} note={budgetUsageNote} />
           </div>
         </div>
 
@@ -392,18 +534,19 @@ export default function DashboardPage() {
             <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
           </div>
           <Link
-            href={weddingPath("/chat")}
+            href={amoraPromptHref}
             className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[#36534E]"
           >
-            아모라에게 다음 할 일 묻기
+            {companionCopy.amoraCtaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
           <div className="mt-auto grid grid-cols-3 gap-2">
             {nextCategories.length > 0 ? (
-              nextCategories.map((category) => {
-                const Icon = category.icon;
-                const status = getStatus(progress, category.key);
-                return (
+               nextCategories.map((category) => {
+                 const Icon = category.icon;
+                 const status = getStatus(progress, category.key);
+                 const counts = getChecklistProgress(progress, category.key);
+                 return (
                   <button
                     key={category.key}
                     type="button"
@@ -414,10 +557,10 @@ export default function DashboardPage() {
                       <Icon className="h-[18px] w-[18px]" />
                     </span>
                     <span className="mt-2 block min-w-0">
-                      <span className="block truncate text-[13px] font-semibold text-white">{category.label}</span>
-                      <span className="mt-0.5 block truncate text-[11px] font-medium text-white/62">
-                        {category.due} · {statusMeta[status].label}
-                      </span>
+                       <span className="block truncate text-[13px] font-semibold text-white">{category.label}</span>
+                       <span className="mt-0.5 block truncate text-[11px] font-medium text-white/62">
+                         {counts.done}/{counts.total}개 직접 체크 · {statusMeta[status].label}
+                       </span>
                     </span>
                   </button>
                 );
@@ -492,7 +635,7 @@ export default function DashboardPage() {
                         </span>
                       </span>
                       <span className="mt-1 block text-[11px] font-medium text-[#7a8290]">
-                        {category.group} · {category.due}
+                        {category.group}
                       </span>
                     </span>
                   </span>
@@ -514,7 +657,7 @@ export default function DashboardPage() {
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
-                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">지출 흐름</h2>
+                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">기록 지출 흐름</h2>
               </div>
               <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="예산 관리로 이동">
                 <Wallet className="h-4 w-4" />
@@ -523,17 +666,24 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-semibold text-[#7a8290]">사용 금액</p>
+                  <p className="text-[11px] font-semibold text-[#7a8290]">기록 지출</p>
                   <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
                 </div>
-                <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">{budgetPercent}%</p>
+                <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
+                  {hasTotalBudget ? `${budgetPercent}%` : "계산 전"}
+                </p>
               </div>
               <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-                <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetPercent}%` }} />
+                <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetBarPercent}%` }} />
               </span>
+              <p className="mt-2 text-[10px] font-medium text-[#7a8290]">
+                기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
+              </p>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
-              <span>총 예산 {formatWon(totalBudget)}</span>
+              <span>
+                {hasTotalBudget ? `총 예산 ${formatWon(totalBudget)}` : "총 예산 미입력"}
+              </span>
               <Link href={weddingPath("/budget")} className="inline-flex items-center font-semibold text-[#36534E]">
                 자세히
                 <ArrowRight className="ml-1 h-3 w-3" />
@@ -596,6 +746,7 @@ export default function DashboardPage() {
       </section>
 
       <CategoryPanel
+        key={selectedCategory?.key ?? "closed"}
         category={selectedCategory}
         status={selectedCategory ? getStatus(progress, selectedCategory.key) : "not_started"}
         onClose={() => setSelectedCategory(null)}
@@ -618,6 +769,30 @@ function MetricCard({ label, value, note }: { label: string; value: string; note
   );
 }
 
+function HandoffMetric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-[14px] border border-[#DCE5D8] bg-white/88 p-3">
+      <dt className="text-[10px] font-semibold text-[#71806D]">{label}</dt>
+      <dd className="mt-1 truncate text-[13px] font-semibold text-[#243832]">
+        {value}
+      </dd>
+      {note && (
+        <dd className="mt-0.5 truncate text-[10px] font-medium text-[#7A8290]">
+          {note}
+        </dd>
+      )}
+    </div>
+  );
+}
+
 function CategoryPanel({
   category,
   status,
@@ -629,8 +804,27 @@ function CategoryPanel({
   onClose: () => void;
   onStatusChange: (key: string, status: Status) => Promise<void>;
 }) {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
   if (!category) return null;
   const Icon = category.icon;
+  const handleStatusChange = async (nextStatus: Status) => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await onStatusChange(category.key, nextStatus);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "준비 상태를 저장하지 못했습니다.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#061a34]/45 px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
       <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[#eadfc9] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.22)]">
@@ -640,7 +834,7 @@ function CategoryPanel({
               <Icon className="h-6 w-6" />
             </span>
             <div>
-              <p className="text-[12px] font-semibold text-[#9d6f36]">{category.group} · {category.due}</p>
+              <p className="text-[12px] font-semibold text-[#9d6f36]">{category.group}</p>
               <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[#071629]">{category.label}</h2>
             </div>
           </div>
@@ -660,17 +854,26 @@ function CategoryPanel({
               <button
                 key={nextStatus}
                 type="button"
-                onClick={() => void onStatusChange(category.key, nextStatus)}
+                disabled={saving}
+                onClick={() => void handleStatusChange(nextStatus)}
                 className={`rounded-full border px-3 py-3 text-[13px] font-semibold ${
                   status === nextStatus
                     ? "border-[#061a34] bg-[#061a34] text-white"
                     : "border-[#eadfc9] bg-white text-[#5d6879]"
-                }`}
+                } disabled:opacity-50`}
               >
                 {statusMeta[nextStatus].label}
               </button>
             ))}
           </div>
+          {saveError && (
+            <p
+              role="alert"
+              className="mb-5 rounded-xl border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
+            >
+              {saveError}
+            </p>
+          )}
 
           <div className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-5">
             <p className="mb-3 text-[13px] font-semibold text-[#9d6f36]">먼저 확인할 것</p>

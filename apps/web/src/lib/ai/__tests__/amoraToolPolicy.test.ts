@@ -3,7 +3,6 @@ import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import {
   AMORA_TOOL_POLICY_NAMES,
   selectAmoraPendingProposalTools,
-  selectAmoraPendingProposalToolsWithCarryover,
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
 
@@ -28,7 +27,6 @@ describe("selectAmoraTools", () => {
       "get_schedule_summary",
       "get_wedding_info",
       "get_amora_actions",
-      "get_my_bookings",
     ]);
     expect(selected.length).toBeLessThan(BETA_SAFE_TOOLS.length);
   });
@@ -39,15 +37,14 @@ describe("selectAmoraTools", () => {
       "get_budget_summary",
       "get_market_price",
       "simulate_guest_guarantee",
-      "search_vendors",
     ]));
     expect(selected).not.toContain("update_budget");
     expect(selected).not.toContain("apply_budget_plan");
   });
 
-  it("routes nearby search only to non-vendor local places", () => {
-    expect(names("강남역 근처 상견례 식당 찾아줘")).toContain("search_nearby_places");
+  it("keeps local-place and vendor discovery outside the focused MVP", () => {
     for (const query of [
+      "강남역 근처 상견례 식당 찾아줘",
       "강남 근처 웨딩 스튜디오 찾아줘",
       "서울 근처 결혼식장 찾아줘",
       "근처 결혼 준비 업체 찾아줘",
@@ -61,6 +58,23 @@ describe("selectAmoraTools", () => {
     }
   });
 
+  it("does not expose marketplace or booking tools in the current MVP", () => {
+    const safeNames = new Set(BETA_SAFE_TOOLS.map((tool) => tool.name));
+    for (const retiredName of [
+      "search_vendors",
+      "check_vendor_availability",
+      "recommend_vendors",
+      "get_vendor_detail",
+      "get_available_slots",
+      "create_booking",
+      "get_my_bookings",
+      "cancel_booking",
+      "search_nearby_places",
+    ]) {
+      expect(safeNames.has(retiredName)).toBe(false);
+    }
+  });
+
   it("unlocks only matching mutations when write intent is explicit", () => {
     const selected = names("총 예산을 4천만원으로 변경해줘", "budget_optimizer");
     expect(selected).toContain("update_budget");
@@ -69,6 +83,38 @@ describe("selectAmoraTools", () => {
     expect(selected).not.toContain("add_custom_category");
     expect(selected).not.toContain("add_schedule_event");
     expect(selected).not.toContain("update_venue");
+  });
+
+  it("routes schedule cancellation and restoration to distinct soft-state tools", () => {
+    const cancellation = names("드레스 피팅 일정을 취소해줘");
+    expect(cancellation).toContain("cancel_schedule_event");
+    expect(cancellation).not.toContain("restore_schedule_event");
+    expect(cancellation).not.toContain("update_schedule_event");
+    expect(cancellation).not.toContain("delete_schedule_event");
+
+    const restoration = names("취소한 드레스 피팅 일정을 다시 살려줘");
+    expect(restoration).toContain("restore_schedule_event");
+    expect(restoration).toContain("get_schedule_events");
+    expect(restoration).not.toContain("cancel_schedule_event");
+    expect(restoration).not.toContain("delete_schedule_event");
+
+    for (const shorthand of [
+      "아까 취소한 드레스 피팅 다시 살려줘",
+      "상견례 취소한 거 되돌려줘",
+    ]) {
+      const selected = names(shorthand);
+      expect(selected).toContain("restore_schedule_event");
+      expect(selected).toContain("get_schedule_events");
+      expect(selected).not.toContain("cancel_schedule_event");
+    }
+  });
+
+  it.each([
+    "취소한 드레스 피팅 다시 살려주면 어떨까?",
+    "친구가 취소한 드레스 피팅 다시 살려줬대",
+    "취소한 건 아니야, 드레스 피팅 다시 살려줘",
+  ])("does not turn hypothetical, third-party, or negated restore wording into a mutation: %s", (text) => {
+    expect(names(text)).not.toContain("restore_schedule_event");
   });
 
   it.each([
@@ -215,32 +261,6 @@ describe("selectAmoraTools", () => {
     }).map((tool) => tool.name);
 
     expect(selected).not.toContain("update_budget");
-  });
-});
-
-describe("selectAmoraPendingProposalToolsWithCarryover", () => {
-  const proposal = (userText: string, previousUserText: string | null) =>
-    selectAmoraPendingProposalToolsWithCarryover({
-      availableTools: BETA_SAFE_TOOLS,
-      userText,
-      previousUserText,
-      specialistType: "general",
-    }).map((tool) => tool.name);
-
-  it("keeps the current-turn selection when the last turn carries domain intent", () => {
-    expect(proposal("총예산 4천만원으로 바꿔줘", null)).toContain("update_budget");
-  });
-
-  it("carries the proposal window from the previous user turn on a generic consent", () => {
-    // "응, 해줘"는 도메인 어휘가 없어 자체로는 제안 0개 — 직전 턴에서 이월돼야
-    // 모델이 pending 표식을 낼 수 있고, 확인 버튼 플로우가 이어진다.
-    expect(proposal("응 맞아, 그대로 적용해줘", null)).toEqual([]);
-    expect(proposal("응 맞아, 그대로 적용해줘", "총예산 4천만원으로 바꿔줘"))
-      .toContain("update_budget");
-  });
-
-  it("never widens beyond what the previous turn itself would allow", () => {
-    expect(proposal("응 좋아", "오늘 날씨 어때?")).toEqual([]);
   });
 });
 

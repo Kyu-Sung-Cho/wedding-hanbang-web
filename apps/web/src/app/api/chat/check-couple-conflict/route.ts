@@ -40,7 +40,11 @@ import {
 } from "@/lib/ai/amoraRequestPolicy";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
-import { getAmoraMemoryEnablement } from "@/lib/ai/amoraMemoryQueue";
+import {
+  AmoraPrivacyContextError,
+  getAmoraMemoryEnablement,
+  getAmoraPrivacyEpoch,
+} from "@/lib/ai/amoraMemoryQueue";
 import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
 import { classifyAmoraCrisis } from "@/lib/ai/amoraCrisisSafety";
 import {
@@ -59,12 +63,15 @@ import {
   runAmoraProviderCallWithLedger,
   type AtomicAmoraChatResponseFinalization,
 } from "@/lib/ai/amoraProviderCallLedger";
+import { readBoundedUtf8Text } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MEDIATION_COOLDOWN_MIN = 10;
 const RECENT_MESSAGE_LIMIT = 20;
 const MAX_MEDIATION_SYSTEM_CHARS = 48_000;
 const MAX_MEDIATION_MESSAGE_CHARS = 1_200;
 const MAX_CONFLICT_CONTEXT_CHARS = 2_000;
+const MAX_REQUEST_BODY_BYTES = 4 * 1024;
 
 type MemoryClassifiableDecision = {
   memory_key: string | null;
@@ -82,6 +89,54 @@ function getAdminClient() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { triggered: false, reason: "untrusted_origin" },
+      { status: 403 },
+    );
+  }
+  // Product contract: mediation is user-requested, never a hidden automatic
+  // mode. Keep the legacy detector available only for explicit local test/dev
+  // evaluation while production remains hard-disabled even if an environment
+  // variable is accidentally enabled. The main /api/chat mediation request is
+  // the supported requester-summary-only path.
+  if (
+    process.env.NODE_ENV === "production"
+    || process.env.AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED !== "true"
+  ) {
+    return NextResponse.json(
+      { triggered: false, reason: "explicit_mediation_required" },
+      {
+        status: 410,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
+  }
+  const boundedBody = await readBoundedUtf8Text(req, MAX_REQUEST_BODY_BYTES);
+  if (!boundedBody.ok) {
+    return NextResponse.json(
+      {
+        triggered: false,
+        reason: boundedBody.reason === "too_large"
+          ? "request_too_large"
+          : "invalid_request_body",
+      },
+      { status: boundedBody.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  let body: { coupleId?: string } = {};
+  try {
+    const parsed = boundedBody.text.length > 0 ? JSON.parse(boundedBody.text) : {};
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new TypeError("request body must be a JSON object");
+    }
+    body = parsed as { coupleId?: string };
+  } catch {
+    return NextResponse.json(
+      { triggered: false, reason: "invalid_request_body" },
+      { status: 400 },
+    );
+  }
   let conflictCheckClaim: {
     coupleId: string;
     messageDigest: string;
@@ -94,6 +149,7 @@ export async function POST(req: NextRequest) {
     visibility: "shared";
   } | null = null;
   let durableClaimAttemptCount: number | null = null;
+  let initialPrivacyEpoch: number | null = null;
   try {
     // ── 1. 인증 + 커플 확인 ───────────────────────────────────
     const supabase = await createClientFromRequest(req);
@@ -104,7 +160,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as { coupleId?: string };
     const requestCoupleId = body.coupleId;
 
     const admin = getAdminClient();
@@ -121,6 +176,37 @@ export async function POST(req: NextRequest) {
     if (requestCoupleId && requestCoupleId !== coupleId) {
       return NextResponse.json({ triggered: false, reason: "couple_mismatch" }, { status: 403 });
     }
+
+    try {
+      initialPrivacyEpoch = await getAmoraPrivacyEpoch(
+        coupleId,
+        "shared",
+        supabase,
+      );
+    } catch {
+      return NextResponse.json(
+        { triggered: false, reason: "privacy_context_unavailable" },
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store", "Retry-After": "2" },
+        },
+      );
+    }
+    const assertPrivacyEpochStillCurrent = async () => {
+      if (initialPrivacyEpoch === null) {
+        throw new AmoraPrivacyContextError(
+          "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
+        );
+      }
+      const currentEpoch = await getAmoraPrivacyEpoch(
+        coupleId,
+        "shared",
+        supabase,
+      );
+      if (currentEpoch !== initialPrivacyEpoch) {
+        throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
+      }
+    };
 
     // ── 2. cooldown 락 — 최근 10분 mediation 메시지 검사 ──────
     const cooldownCutoff = new Date(Date.now() - MEDIATION_COOLDOWN_MIN * 60 * 1000).toISOString();
@@ -352,6 +438,7 @@ export async function POST(req: NextRequest) {
         recentSharedMessages: recentMessages,
         pastConflicts,
         windowMinutes: 5,
+        beforeProviderEgress: assertPrivacyEpochStillCurrent,
         runProviderCall: (call) => runAmoraProviderCallWithLedger(
           {
             userId: user.id,
@@ -368,7 +455,14 @@ export async function POST(req: NextRequest) {
               getAmoraProviderCallCostReservationMicrousd("fast"),
             ),
           },
-          call,
+          async (beforeGeneration) => {
+            const result = await call(async () => {
+              await assertPrivacyEpochStillCurrent();
+              await beforeGeneration();
+            });
+            await assertPrivacyEpochStillCurrent();
+            return result;
+          },
         ),
       });
     }
@@ -516,6 +610,29 @@ export async function POST(req: NextRequest) {
       confidence: (d.confidence as number | null) ?? 0.5,
       source: d.source as string,
       createdAt: d.created_at as string,
+      vendorDeliveryStatus:
+        ((d.chosen_value as Record<string, unknown> | null)?.vendor_delivery_status as string | undefined)
+        ?? ((d.metadata as Record<string, unknown> | null)?.vendor_delivery_status as string | undefined)
+        ?? null,
+      vendorConfirmationStatus:
+        ((d.chosen_value as Record<string, unknown> | null)?.vendor_confirmation_status as string | undefined)
+        ?? ((d.metadata as Record<string, unknown> | null)?.vendor_confirmation_status as string | undefined)
+        ?? null,
+      internalRequestStatus:
+        ((d.chosen_value as Record<string, unknown> | null)?.internal_request_status as string | undefined)
+        ?? null,
+      vendorCancellationStatus:
+        ((d.chosen_value as Record<string, unknown> | null)?.vendor_cancellation_status as string | undefined)
+        ?? ((d.metadata as Record<string, unknown> | null)?.vendor_cancellation_status as string | undefined)
+        ?? null,
+      refundStatus:
+        ((d.chosen_value as Record<string, unknown> | null)?.refund_status as string | undefined)
+        ?? ((d.metadata as Record<string, unknown> | null)?.refund_status as string | undefined)
+        ?? null,
+      completionEvidence:
+        ((d.chosen_value as Record<string, unknown> | null)?.completion_evidence as string | undefined)
+        ?? ((d.metadata as Record<string, unknown> | null)?.completion_evidence as string | undefined)
+        ?? null,
     }));
 
     const pastConflictsForPrompt = decisionsData
@@ -595,23 +712,33 @@ export async function POST(req: NextRequest) {
             getAmoraProviderCallCostReservationMicrousd("primary"),
           ),
         },
-        (beforeGeneration) => createOpenAIResponseWithAudit({
-          modelRole: "primary",
-          maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
-          maxOutputTokens: 800,
-          beforeGeneration,
-          auditPersistence: "external_provider_receipt",
-          instructions: systemPrompt,
-          input: messageList,
-          audit: {
-            userId: user.id,
-            coupleId,
-            interactionType: "amora_director",
-            specialistType: "general",
-            userInput: null,
-            metadata: { source: "auto_conflict_detection", score: detection.score },
-          },
-        }),
+        async (beforeGeneration) => {
+          const result = await createOpenAIResponseWithAudit({
+            modelRole: "primary",
+            maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+            maxOutputTokens: 800,
+            // 두 사람의 갈등 대화 원문은 토큰 계산 요청에도 그대로 실린다.
+            // 유료 생성 게이트는 계산 뒤에 오므로 계산 자체를 보호하지 못한다.
+            beforeProviderEgress: assertPrivacyEpochStillCurrent,
+            beforeGeneration: async () => {
+              await assertPrivacyEpochStillCurrent();
+              await beforeGeneration();
+            },
+            auditPersistence: "external_provider_receipt",
+            instructions: systemPrompt,
+            input: messageList,
+            audit: {
+              userId: user.id,
+              coupleId,
+              interactionType: "amora_director",
+              specialistType: "general",
+              userInput: null,
+              metadata: { source: "auto_conflict_detection", score: detection.score },
+            },
+          });
+          await assertPrivacyEpochStillCurrent();
+          return result;
+        },
         {
           buildAtomicChatResponse: (providerResult) => {
             const prepared = extractMediation(providerResult.text);
@@ -623,12 +750,18 @@ export async function POST(req: NextRequest) {
             if (!durableClaim || durableClaimAttemptCount === null) {
               throw new Error("AMORA_MEDIATION_CLAIM_GENERATION_MISSING");
             }
+            if (initialPrivacyEpoch === null) {
+              throw new AmoraPrivacyContextError(
+                "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
+              );
+            }
             return {
               coupleId,
               userId: user.id,
               requestKey: durableClaim.requestKey,
               visibility: "shared",
               claimAttemptCount: durableClaimAttemptCount,
+              expectedPrivacyEpoch: initialPrivacyEpoch,
               content: prepared.cleanText,
               metadata: {
                 kind: "mediation",
@@ -683,6 +816,14 @@ export async function POST(req: NextRequest) {
         reason: "race_lost",
       });
     }
+    if (committed?.outcome === "privacy_context_changed") {
+      durableClaim = null;
+      durableClaimAttemptCount = null;
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        reason: "privacy_context_changed",
+      });
+    }
     if (committed?.outcome !== "persisted" || !committed.message?.id) {
       throw new Error("AMORA_MEDIATION_ATOMIC_COMMIT_MISSING");
     }
@@ -699,14 +840,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("check-couple-conflict 에러:", err);
+    const privacyError = err instanceof AmoraPrivacyContextError ? err : null;
     if (durableClaim) {
-      await failChatRequest({ ...durableClaim, failureCode: "MEDIATION_FAILED" }, getAdminClient())
+      await failChatRequest({
+        ...durableClaim,
+        failureCode: privacyError?.code ?? "MEDIATION_FAILED",
+      }, getAdminClient())
         .catch((claimError) => console.error("[check-couple-conflict] claim failure marker failed", claimError));
     }
     if (conflictCheckClaim) {
       await failAmoraConflictCheck({
         ...conflictCheckClaim,
-        failureCode: "CONFLICT_CHECK_FAILED",
+        failureCode: privacyError?.code ?? "CONFLICT_CHECK_FAILED",
       }, getAdminClient()).catch((claimError) => {
         console.error("[check-couple-conflict] conflict-check failure marker failed", claimError);
       });
@@ -714,9 +859,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         triggered: false,
-        reason: "internal_error",
+        reason: privacyError
+          ? privacyError.code === "AMORA_PRIVACY_CONTEXT_CHANGED"
+            ? "privacy_context_changed"
+            : "privacy_context_unavailable"
+          : "internal_error",
       },
-      { status: 500 },
+      {
+        status: privacyError
+          ? privacyError.code === "AMORA_PRIVACY_CONTEXT_CHANGED" ? 409 : 503
+          : 500,
+        headers: { "Cache-Control": "no-store" },
+      },
     );
   }
 }

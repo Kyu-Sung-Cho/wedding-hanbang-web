@@ -1,4 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
+import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
+
+type PrivacySnapshotFixture = {
+  version: 2;
+  privacyEpoch: number;
+  actorRole: "bride" | "groom";
+  rosterFingerprint: string;
+  memory: Record<
+    "shared" | "bride_private" | "groom_private",
+    { enabled: boolean; resetAt: string | null }
+  >;
+  personalization: {
+    exists: boolean;
+    revision: number | null;
+  };
+};
 
 const mocks = vi.hoisted(() => {
   class PersistenceError extends Error {
@@ -6,6 +24,14 @@ const mocks = vi.hoisted(() => {
   }
   class ClaimError extends Error {
     readonly code = "CHAT_REQUEST_CLAIM_FAILED";
+  }
+  class PrivacyContextError extends Error {
+    constructor(readonly code:
+      | "AMORA_PRIVACY_CONTEXT_UNAVAILABLE"
+      | "AMORA_PRIVACY_CONTEXT_CHANGED") {
+      super(code);
+      this.name = "AmoraPrivacyContextError";
+    }
   }
   class CostGuardError extends Error {
     readonly code: string;
@@ -30,7 +56,10 @@ const mocks = vi.hoisted(() => {
   const atomicResponses: Array<{
     content: string;
     metadata: Record<string, unknown>;
+    expectedPrivacyEpoch: number;
   }> = [];
+  const atomicFinalizations: Array<Record<string, unknown>> = [];
+  let atomicOutcome: "persisted" | "privacy_context_changed" = "persisted";
   const journal: Array<Record<string, unknown>> = [];
   const loadJournal = vi.fn(async () => journal);
   const buildJournalCheckpoint = vi.fn((callIndex: number, result: {
@@ -61,6 +90,7 @@ const mocks = vi.hoisted(() => {
       stageTag: string | null;
       specialistType: string | null;
       visibility: "shared" | "bride_private" | "groom_private";
+      expectedPrivacyEpoch: number;
     };
     onAtomicChatResponseFinalized?: (result: unknown) => void;
     buildToolRoundCheckpoint?: (result: unknown) => unknown;
@@ -81,29 +111,39 @@ const mocks = vi.hoisted(() => {
       atomicResponses.push({
         content: atomic.content,
         metadata: atomic.metadata,
+        expectedPrivacyEpoch: atomic.expectedPrivacyEpoch,
       });
-      options?.onAtomicChatResponseFinalized?.({
-        outcome: "persisted",
-        message: {
-          id: "20000000-0000-4000-8000-000000000001",
-          createdAt: "2026-07-15T00:00:00.000Z",
-          content: atomic.content,
-          metadata: atomic.metadata,
-          stageTag: atomic.stageTag,
-          specialistType: atomic.specialistType,
-          visibility: atomic.visibility,
-          reused: false,
-        },
-      });
+      const finalized = atomicOutcome === "privacy_context_changed"
+        ? { outcome: "privacy_context_changed", message: null }
+        : {
+            outcome: "persisted",
+            message: {
+              id: "20000000-0000-4000-8000-000000000001",
+              createdAt: "2026-07-15T00:00:00.000Z",
+              content: atomic.content,
+              metadata: atomic.metadata,
+              stageTag: atomic.stageTag,
+              specialistType: atomic.specialistType,
+              visibility: atomic.visibility,
+              reused: false,
+            },
+          };
+      atomicFinalizations.push(finalized);
+      options?.onAtomicChatResponseFinalized?.(finalized);
     }
     return result;
   });
 
   return {
     provider: vi.fn(),
+    buildMultimodal: vi.fn((text: string) => text),
     mammothExtract: vi.fn(),
     providerLedger,
     executeTool: vi.fn(),
+    extractSuggestions: vi.fn((text: string) => ({
+      cleanText: text,
+      suggestions: [] as string[],
+    })),
     persist: vi.fn(),
     findPersisted: vi.fn(),
     reconcile: vi.fn(),
@@ -139,13 +179,53 @@ const mocks = vi.hoisted(() => {
           required: ["date", "title"],
         },
       },
+      {
+        name: "cancel_schedule_event",
+        description: "Cancel schedule",
+        input_schema: {
+          type: "object",
+          properties: {
+            event_id: { type: "string" },
+            expected_title: { type: "string" },
+            expected_date: { type: "string" },
+            reason: { type: "string" },
+          },
+          required: ["event_id", "expected_title", "expected_date"],
+        },
+      },
       { name: "get_wedding_info", description: "Read wedding info", input_schema: {} },
       { name: "analyze_quote", description: "Analyze quote", input_schema: {} },
     ],
     canonicalRows: [] as Array<Record<string, unknown>>,
+    canonicalRequestBindingId:
+      "00000000-0000-4000-8000-000000000099" as string | null,
+    summaryRows: [] as Array<Record<string, unknown>>,
+    decisionRows: [] as Array<Record<string, unknown>>,
+    journeyRow: {
+      progress: {},
+      total_budget: 0,
+      wedding_date: null,
+      venue: null,
+    } as Record<string, unknown>,
+    activeSegment: null as Record<string, unknown> | null,
+    activeSegmentError: null as { code: string; message: string } | null,
+    chatHistoryEq: vi.fn(),
+    chatHistorySelect: vi.fn(),
+    chatHistoryLimit: vi.fn(),
+    summaryEq: vi.fn(),
+    summarySelect: vi.fn(),
+    segmentEq: vi.fn(),
     profileProjectionRows: [] as Array<Record<string, unknown>>,
     profileProjectionError: null as { code: string } | null,
+    personalizationRow: null as Record<string, unknown> | null,
+    personalizationError: null as { code: string } | null,
+    personalizationEq: vi.fn(),
+    privacySnapshotSequence: [] as Array<PrivacySnapshotFixture | Error>,
+    getPrivacySnapshot: vi.fn(),
+    getPrivacyEpoch: vi.fn(),
+    assertPrivacySnapshotCurrent: vi.fn(),
     journeyError: null as { code: string; message: string } | null,
+    journeyStateRevision: 0 as number | null,
     directoryError: null as { code: string; message: string } | null,
     bookingsError: null as { code: string; message: string } | null,
     summariesError: null as { code: string; message: string } | null,
@@ -156,36 +236,76 @@ const mocks = vi.hoisted(() => {
       bride_private: false,
       groom_private: false,
     },
+    auxiliaryMemoryRuntimeEnabled: false,
     chatHistoryOr: vi.fn(),
     requestFrom: vi.fn(),
     profileSourceSelect: vi.fn(),
     authenticatedUser: { id: "00000000-0000-4000-8000-000000000001" } as { id: string } | null,
+    userProfile: {
+      couple_id: "10000000-0000-4000-8000-000000000001",
+      role: "bride" as "bride" | "groom",
+      is_admin: false,
+      name: "Test customer",
+    },
     signedDemo: false,
     demoSessionToken: "signed-demo-test-token",
     reserve,
     atomicResponses,
+    atomicFinalizations,
+    get atomicOutcome() {
+      return atomicOutcome;
+    },
+    set atomicOutcome(value: "persisted" | "privacy_context_changed") {
+      atomicOutcome = value;
+    },
     journal,
     loadJournal,
     buildJournalCheckpoint,
     rateLimit: vi.fn(),
     adminFrom: vi.fn(),
+    adminRpc: vi.fn(),
+    storageFrom: vi.fn(),
+    storageInfo: vi.fn(),
+    storageDownload: vi.fn(),
+    storageDownloadStream: vi.fn(),
     enqueueMemory: vi.fn(),
+    verifyMemoryRepair: vi.fn(),
     PersistenceError,
     ClaimError,
+    PrivacyContextError,
     CostGuardError,
   };
 });
 
 function queryResult(data: unknown, hooks: {
   onOr?: (value: string) => void;
+  onEq?: (column: string, value: unknown) => void;
   onSelect?: (value: string) => unknown;
   onSelectError?: (value: string) => unknown;
+  onLimit?: (value: number) => void;
+  filterEqColumns?: readonly string[];
 } = {}) {
   const result: { data: unknown; error: unknown } = { data, error: null };
   const query: Record<string, unknown> = {};
-  for (const method of ["eq", "neq", "order", "limit", "in", "is", "not", "insert"]) {
+  for (const method of ["neq", "order", "in", "is", "not", "insert"]) {
     query[method] = vi.fn(() => query);
   }
+  query.limit = vi.fn((value: number) => {
+    hooks.onLimit?.(value);
+    return query;
+  });
+  query.eq = vi.fn((column: string, value: unknown) => {
+    hooks.onEq?.(column, value);
+    if (Array.isArray(result.data) && hooks.filterEqColumns?.includes(column)) {
+      result.data = result.data.filter((candidate) => (
+        typeof candidate === "object"
+        && candidate !== null
+        && !Array.isArray(candidate)
+        && (candidate as Record<string, unknown>)[column] === value
+      ));
+    }
+    return query;
+  });
   query.select = vi.fn((value: string) => {
     const selected = hooks.onSelect?.(value);
     if (selected !== undefined) result.data = selected;
@@ -219,12 +339,44 @@ vi.mock("@/lib/supabase/server", () => ({
     from: mocks.requestFrom.mockImplementation((table: string) => {
       if (table === "wedding_journeys") {
         return queryResult(
-          { progress: {}, total_budget: 0, wedding_date: null, venue: null },
+          {
+            ...mocks.journeyRow,
+            state_revision: mocks.journeyStateRevision,
+          },
           { onSelectError: () => mocks.journeyError },
         );
       }
       if (table === "chat_messages") {
-        return queryResult(mocks.canonicalRows, { onOr: mocks.chatHistoryOr });
+        const canonicalRows = mocks.canonicalRows.map((row) => {
+          const existingMetadata = typeof row.metadata === "object"
+            && row.metadata !== null
+            && !Array.isArray(row.metadata)
+            ? row.metadata as Record<string, unknown>
+            : {};
+          if (
+            mocks.canonicalRequestBindingId
+            && row.role === "user"
+            && row.sender_type !== "ai"
+            && existingMetadata.target !== "partner"
+            && typeof existingMetadata.client_request_id !== "string"
+          ) {
+            return {
+              ...row,
+              metadata: {
+                ...existingMetadata,
+                client_request_id: mocks.canonicalRequestBindingId,
+              },
+            };
+          }
+          return row;
+        });
+        return queryResult(canonicalRows, {
+          onOr: mocks.chatHistoryOr,
+          onEq: mocks.chatHistoryEq,
+          onSelect: mocks.chatHistorySelect,
+          onLimit: mocks.chatHistoryLimit,
+          filterEqColumns: ["id"],
+        });
       }
       if (table === "couple_profile_directory") {
         return queryResult(mocks.directoryRows, {
@@ -237,18 +389,32 @@ vi.mock("@/lib/supabase/server", () => ({
         });
       }
       if (table === "chat_summaries") {
-        return queryResult([], {
+        return queryResult(mocks.summaryRows, {
+          onEq: mocks.summaryEq,
+          onSelect: mocks.summarySelect,
           onSelectError: () => mocks.summariesError,
+        });
+      }
+      if (table === "conversation_segments") {
+        return queryResult(mocks.activeSegment, {
+          onEq: mocks.segmentEq,
+          onSelectError: () => mocks.activeSegmentError,
         });
       }
       if (table === "decision_nodes") {
         return queryResult([], {
           onSelect: (selection) => selection.includes("source_message:chat_messages")
             ? (mocks.profileSourceSelect(), mocks.profileProjectionRows)
-            : [],
+            : mocks.decisionRows,
           onSelectError: (selection) => selection.includes("source_message:chat_messages")
             ? mocks.profileProjectionError
             : mocks.decisionsError,
+        });
+      }
+      if (table === "amora_personalization_preferences") {
+        return queryResult(mocks.personalizationRow, {
+          onEq: mocks.personalizationEq,
+          onSelectError: () => mocks.personalizationError,
         });
       }
       return queryResult([]);
@@ -258,12 +424,19 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
+    rpc: mocks.adminRpc,
+    storage: {
+      from: mocks.storageFrom.mockImplementation(() => ({
+        info: mocks.storageInfo,
+        download: mocks.storageDownload,
+      })),
+    },
     from: mocks.adminFrom.mockImplementation((table: string) => {
       if (table === "profiles") {
         return queryResult({
-          couple_id: "10000000-0000-4000-8000-000000000001",
-          role: "bride",
-          is_admin: false,
+          couple_id: mocks.userProfile.couple_id,
+          role: mocks.userProfile.role,
+          is_admin: mocks.userProfile.is_admin,
           name: "테스트 고객",
         });
       }
@@ -305,7 +478,7 @@ vi.mock("@/lib/ai/chatRequestClaim", () => ({
 vi.mock("@/lib/ai/openai", () => ({
   chatWithToolsStream: mocks.provider,
   buildToolResultInput: mocks.buildToolResult,
-  buildMultimodalContent: vi.fn((text: string) => text),
+  buildMultimodalContent: mocks.buildMultimodal,
 }));
 
 vi.mock("@/lib/ai/modelConfig", () => ({
@@ -313,8 +486,11 @@ vi.mock("@/lib/ai/modelConfig", () => ({
 }));
 
 vi.mock("@/lib/ai/prompts", () => ({
-  getWeddingPlannerSystemPrompt: vi.fn((context: { amoraProfiles?: unknown }) =>
-    `system\nprofiles=${JSON.stringify(context.amoraProfiles ?? null)}`
+  getWeddingPlannerSystemPrompt: vi.fn((context: {
+    amoraProfiles?: unknown;
+    helpPreference?: unknown;
+  }) =>
+    `system\ncontext=${JSON.stringify(context)}\nprofiles=${JSON.stringify(context.amoraProfiles ?? null)}\nhelpPreference=${JSON.stringify(context.helpPreference ?? null)}`
   ),
 }));
 
@@ -339,7 +515,7 @@ vi.mock("@/lib/ai/amoraTurnJournal", () => ({
 vi.mock("@/lib/ai/toolExecutor", () => ({ executeTool: mocks.executeTool }));
 vi.mock("mammoth", () => ({ extractRawText: mocks.mammothExtract }));
 vi.mock("@/lib/ai/chatSuggestions", () => ({
-  extractSuggestions: vi.fn((text: string) => ({ cleanText: text, suggestions: [] })),
+  extractSuggestions: mocks.extractSuggestions,
 }));
 vi.mock("@/lib/ai/dissatisfaction", () => ({ detectDissatisfaction: vi.fn(() => null) }));
 vi.mock("@/lib/ai/stage-router", () => ({
@@ -354,19 +530,29 @@ vi.mock("@/lib/compliance/ai-log", () => ({
 }));
 vi.mock("@/lib/ai/summarize", () => ({ maybeSummarize: vi.fn(async () => undefined) }));
 vi.mock("@/lib/ai/extract-decision", () => ({ maybeExtractDecision: vi.fn(async () => undefined) }));
-vi.mock("@/lib/ai/mediation", () => ({
-  extractMediation: vi.fn((text: string) => ({ cleanText: text, mediation: null })),
-}));
 vi.mock("@/lib/ai/classify-excavation", () => ({
   maybeClassifyExcavation: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/ai/amoraMemoryQueue", () => ({
-  getAmoraMemoryEnablement: vi.fn(async () => mocks.memoryEnablement),
+  AmoraPrivacyContextError: mocks.PrivacyContextError,
+  getAmoraPrivacyContextSnapshot: mocks.getPrivacySnapshot,
+  getAmoraPrivacyEpoch: mocks.getPrivacyEpoch,
+  assertAmoraPrivacyContextSnapshotCurrent:
+    mocks.assertPrivacySnapshotCurrent,
   enqueueAmoraMemoryJob: mocks.enqueueMemory.mockResolvedValue("disabled"),
+  isAuxiliaryMemoryRuntimeEnabled: vi.fn(
+    () => mocks.auxiliaryMemoryRuntimeEnabled,
+  ),
+}));
+
+vi.mock("@/lib/ai/amoraMemoryRepair", () => ({
+  verifyAmoraMemoryEnqueueRepairCandidate: mocks.verifyMemoryRepair,
 }));
 
 import { POST } from "@/app/api/chat/route";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import {
   docxRequiredEntries,
   makeDocxZipFixture,
@@ -375,6 +561,13 @@ import { createAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "00000000-0000-4000-8000-000000000099";
+const BUDGET_PENDING_IDENTITY = (() => {
+  const { inputDigest, operationKey } = getAmoraToolOperationIdentity(
+    "update_budget",
+    { total_budget: 30_000_000 },
+  );
+  return { inputDigest, operationKey };
+})();
 
 function request(
   overrides: Record<string, unknown> = {},
@@ -383,7 +576,11 @@ function request(
 ): Request {
   return new Request(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: {
+      "Content-Type": "application/json",
+      "Sec-Fetch-Site": "same-origin",
+      ...headers,
+    },
     body: JSON.stringify({
       messages: [{ role: "user", content: "예산을 바꿔줘" }],
       coupleId: COUPLE_ID,
@@ -393,6 +590,45 @@ function request(
       ...overrides,
     }),
   });
+}
+
+async function bindCanonicalProviderAttachments(
+  attachments: readonly { mediaType: string; base64: string }[],
+): Promise<void> {
+  const current = mocks.canonicalRows[0];
+  if (!current) throw new Error("canonical user row fixture is missing");
+  const manifest = attachments.map((attachment) => {
+    const bytes = Buffer.from(attachment.base64, "base64");
+    return {
+      media_type: attachment.mediaType,
+      byte_length: bytes.byteLength,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+  });
+  const imagePaths = (
+    await Promise.all(manifest.map((entry, attachmentIndex) => (
+      createChatImageObjectPathV2({
+        coupleId: COUPLE_ID,
+        senderId: mocks.authenticatedUser?.id ?? "",
+        clientRequestId: REQUEST_ID,
+        attachmentIndex,
+        mediaType: entry.media_type,
+        sha256: entry.sha256,
+      })
+    )))
+  ).filter((path): path is string => path !== null);
+  mocks.canonicalRows[0] = {
+    ...current,
+    metadata: {
+      client_request_id: REQUEST_ID,
+      amora_ingest_contract_version: 2,
+      ai_response_requested: true,
+      provider_attachment_state: "present",
+      provider_attachment_count: attachments.length,
+      provider_attachment_manifest: manifest,
+      ...(imagePaths.length > 0 ? { imagePaths } : {}),
+    },
+  };
 }
 
 function providerResult(overrides: Record<string, unknown> = {}) {
@@ -405,6 +641,94 @@ function providerResult(overrides: Record<string, unknown> = {}) {
     model: "gpt-5.6-luna",
     ...overrides,
   };
+}
+
+function setCanonicalConfirmedBudgetAction(
+  actionId: string,
+  currentUserText = "응",
+) {
+  const now = Date.now();
+  mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+    {
+      id: "30000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: currentUserText,
+      metadata: null,
+      visibility: "shared",
+      created_at: "2026-07-15T00:01:00.000Z",
+    },
+    {
+      id: "20000000-0000-4000-8000-000000000009",
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: "총예산을 3,000만 원으로 바꿀까요?",
+      metadata: {
+        pending_amora_action: {
+          version: 2,
+          actionId,
+          tool: "update_budget",
+          input: { total_budget: 30_000_000 },
+          ...BUDGET_PENDING_IDENTITY,
+          confirmation:
+            "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
+          issuedAt: now - 1_000,
+          expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
+        },
+      },
+      visibility: "shared",
+      created_at: "2026-07-15T00:00:00.000Z",
+    },
+  );
+}
+
+function privacySnapshot(
+  overrides: Partial<PrivacySnapshotFixture> = {},
+): PrivacySnapshotFixture {
+  const personalizationExists = mocks.personalizationRow !== null;
+  const personalizationRevision =
+    personalizationExists
+    && Number.isSafeInteger(mocks.personalizationRow?.revision)
+    && (mocks.personalizationRow?.revision as number) >= 1
+      ? (mocks.personalizationRow?.revision as number)
+      : personalizationExists
+        ? 1
+        : null;
+  return {
+    version: 2,
+    privacyEpoch: 7,
+    actorRole: mocks.userProfile.role,
+    rosterFingerprint: "a".repeat(32),
+    memory: {
+      shared: {
+        enabled: mocks.memoryEnablement.shared,
+        resetAt: null,
+      },
+      bride_private: {
+        enabled: mocks.memoryEnablement.bride_private,
+        resetAt: null,
+      },
+      groom_private: {
+        enabled: mocks.memoryEnablement.groom_private,
+        resetAt: null,
+      },
+    },
+    personalization: {
+      exists: personalizationExists,
+      revision: personalizationRevision,
+    },
+    ...overrides,
+  };
+}
+
+function privacyContextError(
+  code:
+    | "AMORA_PRIVACY_CONTEXT_UNAVAILABLE"
+    | "AMORA_PRIVACY_CONTEXT_CHANGED",
+) {
+  return Object.assign(new Error(code), { code });
 }
 
 function persisted(content: string) {
@@ -467,19 +791,175 @@ function projectionRow({
   };
 }
 
+function setSensitiveStoredProviderContext(currentUserText: string) {
+  mocks.memoryEnablement.shared = true;
+  mocks.journeyRow = {
+    wedding_date: "2027-05-01",
+    total_budget: 44_444_444,
+    venue: "PRIVATE_VENUE_SENTINEL",
+    progress: {
+      __events: [{
+        date: "2027-01-01",
+        title: "PRIVATE_SCHEDULE_SENTINEL",
+      }],
+      __preferences: {
+        weddingStyle: "PRIVATE_PREFERENCE_SENTINEL",
+      },
+      venue: { memo: "PRIVATE_PROGRESS_SENTINEL" },
+    },
+  };
+  mocks.directoryRows.splice(0, mocks.directoryRows.length,
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "PRIVATE_BRIDE_SENTINEL",
+      role: "bride",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      name: "PRIVATE_GROOM_SENTINEL",
+      role: "groom",
+    },
+  );
+  mocks.summaryRows.push({
+    summary: "PRIVATE_SUMMARY_SENTINEL",
+    summary_type: "factual",
+    visibility: "shared",
+    created_at: "2026-07-14T00:00:00.000Z",
+    message_count: 2,
+    to_message_id: "30000000-0000-4000-8000-000000000099",
+  });
+  mocks.decisionRows.push(
+    {
+      category: "venue",
+      decision_type: "selection",
+      title: "PRIVATE_DECISION_SENTINEL",
+      chosen_value: { value: "PRIVATE_DECISION_VALUE_SENTINEL" },
+      reasoning: null,
+      confidence: 0.9,
+      stage_tag: "planning_0",
+      source: "test",
+      visibility: "shared",
+      created_at: "2026-07-13T00:00:00.000Z",
+      memory_key: null,
+      superseded_at: null,
+      metadata: null,
+    },
+    {
+      category: "conflict_resolution",
+      decision_type: "agreement",
+      title: "PRIVATE_CONFLICT_SENTINEL",
+      chosen_value: { value: "PRIVATE_CONFLICT_VALUE_SENTINEL" },
+      reasoning: null,
+      confidence: 0.9,
+      stage_tag: "planning_0",
+      source: "test",
+      visibility: "shared",
+      created_at: "2026-07-12T00:00:00.000Z",
+      memory_key: null,
+      superseded_at: null,
+      metadata: null,
+    },
+  );
+  mocks.profileProjectionRows.push(projectionRow({
+    value: "PRIVATE_PROFILE_SENTINEL",
+  }));
+  mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+    {
+      id: "30000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: currentUserText,
+      metadata: null,
+      visibility: "shared",
+      created_at: "2026-07-15T00:02:00.000Z",
+    },
+    {
+      id: "20000000-0000-4000-8000-000000000099",
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: "PRIVATE_ASSISTANT_HISTORY_SENTINEL",
+      metadata: null,
+      visibility: "shared",
+      created_at: "2026-07-15T00:01:00.000Z",
+    },
+    {
+      id: "30000000-0000-4000-8000-000000000099",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: "PRIVATE_USER_HISTORY_SENTINEL",
+      metadata: null,
+      visibility: "shared",
+      created_at: "2026-07-15T00:00:00.000Z",
+    },
+  );
+}
+
+// 이 fake들은 chatWithToolsStream의 실제 계약을 모사한다. 실제 구현은
+// `beforeProviderEgress` → `inputTokens.count` → `beforeGeneration` →
+// `responses.create` 순서이므로(P0-5), fake도 egress gate를 가장 먼저 실행해야
+// 라우트의 개인정보 fence가 테스트에서도 진짜와 같은 지점에 걸린다.
 function providerAfterPreGeneration(result: ReturnType<typeof providerResult>) {
   mocks.provider.mockImplementationOnce(async (options: {
+    beforeProviderEgress?: () => Promise<void>;
     beforeGeneration?: () => Promise<void>;
   }) => {
+    await options.beforeProviderEgress?.();
     await options.beforeGeneration?.();
     return result;
   });
 }
 
+function providerNetworkAfterPreGeneration(
+  result: ReturnType<typeof providerResult>,
+) {
+  const networkBoundary = vi.fn();
+  mocks.provider.mockImplementationOnce(async (options: {
+    beforeProviderEgress?: () => Promise<void>;
+    beforeGeneration?: () => Promise<void>;
+  }) => {
+    await options.beforeProviderEgress?.();
+    await options.beforeGeneration?.();
+    networkBoundary();
+    return result;
+  });
+  return networkBoundary;
+}
+
 describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "false");
+    // A privacy fence can reject before chatWithToolsStream consumes a queued
+    // one-shot implementation. Do not let that test-only queue leak forward.
+    mocks.provider.mockReset();
+    mocks.extractSuggestions.mockReset();
+    mocks.extractSuggestions.mockImplementation((text: string) => ({
+      cleanText: text,
+      suggestions: [],
+    }));
     mocks.authenticatedUser = { id: "00000000-0000-4000-8000-000000000001" };
+    mocks.userProfile = {
+      couple_id: COUPLE_ID,
+      role: "bride",
+      is_admin: false,
+      name: "Test customer",
+    };
+    mocks.activeSegment = {
+      id: "60000000-0000-4000-8000-000000000001",
+      status: "active",
+    };
+    mocks.activeSegmentError = null;
+    mocks.summaryRows.splice(0);
+    mocks.decisionRows.splice(0);
+    mocks.journeyRow = {
+      progress: {},
+      total_budget: 0,
+      wedding_date: null,
+      venue: null,
+    };
     mocks.signedDemo = false;
     mocks.demoSessionToken = "signed-demo-test-token";
     mocks.memoryEnablement = {
@@ -487,11 +967,56 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       bride_private: false,
       groom_private: false,
     };
+    mocks.auxiliaryMemoryRuntimeEnabled = false;
+    mocks.canonicalRequestBindingId = REQUEST_ID;
+    mocks.privacySnapshotSequence.splice(0);
+    mocks.getPrivacySnapshot.mockReset();
+    mocks.getPrivacySnapshot.mockImplementation(async () => {
+      const next = mocks.privacySnapshotSequence.shift();
+      if (next instanceof Error) throw next;
+      return next ?? privacySnapshot();
+    });
+    mocks.getPrivacyEpoch.mockResolvedValue(7);
+    mocks.assertPrivacySnapshotCurrent.mockReset();
+    mocks.assertPrivacySnapshotCurrent.mockImplementation((
+      initial: PrivacySnapshotFixture,
+      current: PrivacySnapshotFixture,
+      visibilities: Array<keyof PrivacySnapshotFixture["memory"]>,
+    ) => {
+      if (
+        initial.version !== current.version
+        || initial.privacyEpoch !== current.privacyEpoch
+        || initial.actorRole !== current.actorRole
+        || initial.rosterFingerprint !== current.rosterFingerprint
+        || initial.personalization.exists !== current.personalization.exists
+        || initial.personalization.revision
+          !== current.personalization.revision
+      ) {
+        throw privacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
+      }
+      for (const candidate of visibilities) {
+        if (
+          initial.memory[candidate].enabled
+          && (
+            !current.memory[candidate].enabled
+            || initial.memory[candidate].resetAt
+              !== current.memory[candidate].resetAt
+          )
+        ) {
+          throw privacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
+        }
+      }
+    });
     mocks.profileProjectionRows.splice(0);
     mocks.atomicResponses.splice(0);
+    mocks.atomicFinalizations.splice(0);
+    mocks.atomicOutcome = "persisted";
     mocks.journal.splice(0);
     mocks.profileProjectionError = null;
+    mocks.personalizationRow = null;
+    mocks.personalizationError = null;
     mocks.journeyError = null;
+    mocks.journeyStateRevision = 0;
     mocks.directoryError = null;
     mocks.bookingsError = null;
     mocks.summariesError = null;
@@ -512,6 +1037,31 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.chooseModelRole.mockReturnValue("fast");
     mocks.failClaim.mockResolvedValue(undefined);
     mocks.rateLimit.mockResolvedValue(null);
+    mocks.adminRpc.mockResolvedValue({
+      data: { authorized: true },
+      error: null,
+    });
+    mocks.storageInfo.mockReset();
+    mocks.storageInfo.mockResolvedValue({
+      data: { size: 5, contentType: "image/png" },
+      error: null,
+    });
+    mocks.storageDownloadStream.mockReset();
+    mocks.storageDownloadStream.mockResolvedValue({
+      data: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("hello"));
+          controller.close();
+        },
+      }),
+      error: null,
+    });
+    mocks.storageDownload.mockReset();
+    mocks.storageDownload.mockImplementation(() => ({
+      asStream: mocks.storageDownloadStream,
+    }));
+    mocks.verifyMemoryRepair.mockReset();
+    mocks.verifyMemoryRepair.mockResolvedValue({ status: "unavailable" });
     mocks.persist.mockImplementation(async ({ cleanText }: { cleanText: string }) => persisted(cleanText));
     mocks.completeClaim.mockResolvedValue(undefined);
     mocks.executeTool.mockResolvedValue({
@@ -525,11 +1075,108 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       sender_id: "00000000-0000-4000-8000-000000000001",
       sender_type: "bride",
       role: "user",
-      content: "CANONICAL_DB_USER 총 예산을 4천만원으로 변경해줘",
-      metadata: null,
+      content: "CANONICAL_DB_USER 우리 결혼 총 예산을 4천만원으로 변경해줘",
+      metadata: { client_request_id: REQUEST_ID },
       visibility: "shared",
       created_at: "2026-07-15T00:00:00.000Z",
     });
+  });
+
+  it("rejects a cross-site cookie mutation before durable or paid work", async () => {
+    const response = await POST(request({}, {
+      "Sec-Fetch-Site": "cross-site",
+      Origin: "https://evil.example",
+    }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "UNTRUSTED_MUTATION_REQUEST",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("bounds a chunked oversized body before reading its tail or starting auth and paid work", async () => {
+    const chunk = new Uint8Array(8 * 1024 * 1024);
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        if (pulls <= 2) {
+          controller.enqueue(chunk);
+          return;
+        }
+        if (pulls === 3) {
+          controller.enqueue(new Uint8Array([0]));
+          return;
+        }
+        throw new Error("oversized request tail must not be consumed");
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const oversized = new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Sec-Fetch-Site": "same-origin",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const response = await POST(oversized);
+
+    expect(response.status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(pulls).toBe(3);
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(mocks.requestFrom).not.toHaveBeenCalled();
+    expect(mocks.adminFrom).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("allows an authenticated native Bearer mutation without browser fetch metadata", async () => {
+    mocks.provider.mockResolvedValue(providerResult({
+      fullText: "확인했어요.",
+      usage: { input_tokens: 5, output_tokens: 2 },
+    }));
+
+    const response = await POST(request({}, {
+      Authorization: "Bearer native-session-token",
+      "Sec-Fetch-Site": "",
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.claim).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows only the cryptographically signed demo to omit browser fetch metadata", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValue(providerResult({
+      fullText: "체험 답변",
+      usage: { input_tokens: 5, output_tokens: 2 },
+    }));
+
+    const response = await POST(request({
+      isDemo: true,
+      coupleId: "demo-couple",
+      userMessageId: undefined,
+    }, {
+      "Sec-Fetch-Site": "",
+      Cookie: "demo_session=signed-demo-test-token",
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
   });
 
   it("returns canonical crisis guidance before limiter, attachments, persistence, model, cost, tools, or memory", async () => {
@@ -555,14 +1202,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         content: "총예산을 3,000만 원으로 바꿀까요?",
         metadata: {
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId,
             tool: "update_budget",
             input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
             confirmation:
               "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
             issuedAt: now - 1_000,
-            expiresAt: now + 10 * 60 * 1_000,
+            expiresAt: now + 24 * 60 * 60 * 1_000,
           },
         },
         visibility: "shared",
@@ -579,6 +1227,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
     expect(body).toContain("자살예방상담전화 109");
     expect(body).toContain("경찰 112");
+    expect(body).toContain('"question_scope":"W5_safety_override"');
     expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
     expect(body).not.toContain(disclosure);
     expect(mocks.rateLimit).not.toHaveBeenCalled();
@@ -647,17 +1296,296 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
   });
 
+  it("routes reporter aggression to de-escalation guidance without victim-only services", async () => {
+    const disclosure = "나 지금 신랑 죽이러 갈 거야";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: disclosure,
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: disclosure }],
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("다가가거나 따라가지");
+    expect(body).toContain("칼이나 흉기");
+    expect(body).toContain("경찰 112");
+    expect(body).toContain("소방 119");
+    expect(body).not.toContain("여성긴급전화 1366");
+    expect(body).toContain(
+      '"safety_classification":"interpersonal_danger_reporter_aggressor"',
+    );
+    expect(body).toContain('"question_scope":"W5_safety_override"');
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("keeps reporter aggression and third-party self-harm in one deterministic boundary", async () => {
+    const disclosure =
+      "친구가 죽고 싶다고 해. 내가 남편에게 칼을 휘두를 거야";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: disclosure,
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: disclosure }],
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("행동을 멈추고");
+    expect(body).toContain("그 사람의 안전");
+    expect(body).toContain("자살예방상담전화 109");
+    expect(body).toContain("경찰 112");
+    expect(body).toContain("소방 119");
+    expect(body).not.toContain("여성긴급전화 1366");
+    expect(body).toContain(
+      '"safety_classification":"combined_reporter_aggressor_third_party_self_harm"',
+    );
+    expect(body).not.toContain(disclosure);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("keeps aggression and both self-harm directions in one deterministic boundary", async () => {
+    const disclosure =
+      "친구가 죽고 싶다고 해. 내가 남편을 죽이고 나도 죽을 거야";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: disclosure,
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: disclosure }],
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("행동을 멈추고");
+    expect(body).toContain("칼이나 흉기를 들고 있다면 바닥에 내려놓고");
+    expect(body).toContain("상대방 사이의 거리를");
+    expect(body).toContain("본인도 죽거나 다치고 싶은 마음");
+    expect(body).toContain("혼자 있지 말고");
+    expect(body).toContain("그 사람의 안전도");
+    expect(body).toContain("자살예방상담전화 109");
+    expect(body).toContain("경찰 112");
+    expect(body).toContain("소방 119");
+    expect(body).not.toContain("여성긴급전화 1366");
+    expect(body).toContain(
+      '"safety_classification":"combined_reporter_aggressor_multi_party_self_harm"',
+    );
+    expect(body).not.toContain(disclosure);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "가정폭력 예방 교육 사례를 분석해\n지금 남편이 나를 때리고 있어",
+    "가정폭력 예방 교육 사례를 분석해; 지금 남편이 나를 때리고 있어",
+    "영화 장면을 분석해\n지금 남편이 칼로 나를 위협하고 있어",
+  ])("does not let a meta clause hide an independently bounded current crisis: %s", async (
+    disclosure,
+  ) => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: disclosure,
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: disclosure }],
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("더 안전한 곳으로 이동하세요");
+    expect(body).toContain("경찰 112");
+    expect(body).toContain("소방 119");
+    expect(body).toContain(
+      '"safety_classification":"interpersonal_danger"',
+    );
+    expect(body).not.toContain(disclosure);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["나 지금 뛰어내리려고 옥상에 있어", "자살예방상담전화 109", false],
+    ["졸피뎀 30알 먹었어", "자살예방상담전화 109", false],
+    [
+      "결혼 준비 너무 힘들어 죽겠는데, 남편이 지금 칼을 들고 있어",
+      "여성긴급전화 1366",
+      false,
+    ],
+    [
+      "남편이 나를 죽이겠다고 한 건 아니지만 나는 죽고 싶어",
+      "자살예방상담전화 109",
+      false,
+    ],
+    [
+      "친구는 약을 많이 먹지 않았지만 나는 수면제 30알 먹었어",
+      "자살예방상담전화 109",
+      false,
+    ],
+    ["예비신랑이 지금 죽겠다고 해", "그 사람의 안전", true],
+    ["남친이 지금 죽고 싶다고 해", "그 사람의 안전", true],
+    ["상대방이 옥상에서 뛰어내리려고 해", "그 사람의 안전", true],
+  ] as const)("returns the fixed W5 boundary for expanded crisis phrasing: %s", async (
+    disclosure,
+    expectedGuidance,
+    thirdParty,
+  ) => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: disclosure,
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: disclosure }],
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain(expectedGuidance);
+    expect(body).not.toContain(disclosure);
+    if (thirdParty) {
+      expect(body).toContain("함께 전화");
+      expect(body).not.toContain("지금 이 말을 혼자 감당");
+    }
+    expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
   it("applies the same deterministic safety boundary to authenticated mediation", async () => {
+    const sentinel = "MEDIATION_W5_SENTINEL";
     const response = await POST(request({
       requestKind: "mediation",
       userMessageId: undefined,
-      conflictContext: "남편이 지금 제 목을 조르고 있어요",
+      conflictContext: `남편이 지금 제 목을 조르고 있어요 ${sentinel}`,
     }));
 
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("경찰 112");
     expect(body).toContain("소방 119");
+    expect(body).not.toContain(sentinel);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+
+  it("fails a non-immediate W2 mediation safety summary closed before provider or durable insert", async () => {
+    const sentinel = "MEDIATION_W2_SENTINEL";
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext:
+        `작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해 ${sentinel}`,
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+
+  // 중재 요청의 답은 `visibility: "shared"`로 저장된다. 아래 문장들은 질문 범위
+  // 분류가 안전 사유 고위험으로 판정하지만, 위 두 테스트가 쓰는 탐지기
+  // (classifyAmoraCrisis / assessAmoraSafetyText)는 하나도 잡지 못한다. 그래서
+  // 전부 모델까지 갔고, 답은 공유 레인에 남았다 — 측정상 12개 중 11개.
+  //
+  // 답의 문구를 안전하게 바꾸는 것으로는 못 막는다. 상대에게 도착하는 것은 문구가
+  // 아니라 "파트너가 아모라에게 안전 관련해서 뭔가 물었다"는 사실이기 때문이다.
+  it.each([
+    "예식장 정하는 걸로 싸웠는데 제 폰을 매일 확인하고 카톡도 다 봐요",
+    "헤어지자고 하면 가만 안 둔다고 해요",
+    "제 월급을 다 가져가요",
+    "가족을 못 만나게 해요",
+    "화나면 물건을 던지고 저를 때린 적도 있어요",
+    "손찌검을 한 적이 있어요",
+    "저를 밀쳐서 넘어진 적 있어요",
+    "한 번 때린 뒤로는 안 그런다고 하는데요",
+    "목을 조른 적도 있어요",
+    "화나면 물건을 집어 던져요",
+    "계약금 환불 얘기하다가 저를 때린 적도 있어요",
+  ])(
+    "closes a scope-classified safety mediation before provider or durable insert: %s",
+    async (conflictContext) => {
+      const response = await POST(request({
+        requestKind: "mediation",
+        userMessageId: undefined,
+        conflictContext,
+      }));
+
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+      });
+      // 공유 레인에 아무것도 안 남는다는 것이 이 테스트의 전부다.
+      expect(mocks.persist).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(0);
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.providerLedger).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["too short", "네"],
+    ["too long", "가".repeat(601)],
+  ])("rejects a mediation summary that is %s before any provider work", async (_label, conflictContext) => {
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext,
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "중재 맥락 형식이 올바르지 않습니다.",
+    });
     expect(mocks.rateLimit).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
@@ -770,7 +1698,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       id: "fc_1",
       type: "function_call",
       call_id: "call_invalid",
-      name: "update_budget",
+      name: "get_wedding_info",
       arguments: "{not-json",
       status: "completed",
     };
@@ -778,7 +1706,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .mockResolvedValueOnce(providerResult({
         toolCalls: [{
           callId: "call_invalid",
-          name: "update_budget",
+          name: "get_wedding_info",
           input: {},
           parseError: "invalid_json",
         }],
@@ -816,6 +1744,16 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it("disables tools after two rounds, orders all ledger calls, and keeps the turn event cost-neutral", async () => {
+    mocks.executeTool.mockImplementation(async (
+      toolName: string,
+      toolInput: Record<string, unknown>,
+    ) => ({
+      toolName,
+      toolInput,
+      toolOutput: { wedding_date: null, total_budget: 0 },
+      success: true,
+      displayMessage: "현재 결혼 준비 정보를 확인했어요.",
+    }));
     for (let round = 0; round < 2; round++) {
       mocks.provider.mockResolvedValueOnce(providerResult({
         toolCalls: [{
@@ -894,6 +1832,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       costUsd: null,
       metadata: {
         stage_tag: "planning_0",
+        question_scope: "W0_wedding_core",
         tools_used: ["get_wedding_info", "get_wedding_info"],
         tool_rounds: 2,
         exceeded_max_rounds: true,
@@ -945,6 +1884,21 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         }],
       }))
       .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_after_place_lock",
+          name: "get_wedding_info",
+          input: {},
+        }],
+        outputItems: [{
+          id: "fc_after_place_lock",
+          type: "function_call",
+          call_id: "call_after_place_lock",
+          name: "get_wedding_info",
+          arguments: "{}",
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({
         fullText: "검색 결과를 카드에 표시했어요.",
       }));
 
@@ -954,18 +1908,25 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       const body = await response.text();
 
       expect(body).toContain("외부 식당명");
-      expect(mocks.provider).toHaveBeenCalledTimes(2);
+      expect(mocks.provider).toHaveBeenCalledTimes(3);
       expect(mocks.provider.mock.calls[0]?.[0]?.toolChoice).toEqual({
         type: "function",
         name: "search_nearby_places",
       });
       expect(mocks.provider.mock.calls[1]?.[0]?.tools).toEqual([]);
+      expect(mocks.provider.mock.calls[2]?.[0]?.tools).toEqual([]);
+      expect(mocks.executeTool).toHaveBeenCalledTimes(1);
 
       const [, modelOutput] = mocks.buildToolResult.mock.calls[0] as [string, string];
       expect(modelOutput).toContain('"status":"rendered_in_client"');
       expect(modelOutput).not.toContain("외부 식당명");
       expect(modelOutput).not.toContain("강남 상견례 식당");
       expect(modelOutput).not.toContain("pstatic.net");
+      const [, lockedOutput] = mocks.buildToolResult.mock.calls[1] as [string, string];
+      expect(JSON.parse(lockedOutput)).toMatchObject({
+        success: false,
+        error_code: "TOOL_NOT_AVAILABLE_FOR_TURN",
+      });
 
       expect(mocks.persist).not.toHaveBeenCalled();
       expect(mocks.atomicResponses).toEqual([
@@ -1034,6 +1995,305 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).not.toContain("PARTNER_ONLY_PRIVATE_WORDS");
   });
 
+  it("sends a historical danger sentinel zero times even when its assistant claims trusted W0 provenance", async () => {
+    const priorId = "30000000-0000-4000-8000-000000000031";
+    const dangerSentinel = "HISTORICAL_DANGER_SENTINEL";
+    const rejectedAssistantSentinel = "REJECTED_DANGER_REPLY_SENTINEL";
+    const currentText = "CANONICAL_CURRENT 우리 결혼 예산을 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: {
+          client_request_id: REQUEST_ID,
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000031",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: rejectedAssistantSentinel,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: `${dangerSentinel} 신랑이 지금 칼을 들고 나를 죽이겠다고 해`,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 요청만 안전하게 답했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    const envelope = JSON.stringify(mocks.provider.mock.calls[0]?.[0]);
+    expect(envelope.split(dangerSentinel)).toHaveLength(1);
+    expect(envelope).not.toContain(rejectedAssistantSentinel);
+    expect(envelope).toContain(currentText);
+  });
+
+  it("keeps a complete server-proven W0 pair with the current bound user row", async () => {
+    const priorId = "30000000-0000-4000-8000-000000000032";
+    const priorUserSentinel = "TRUSTED_W0_USER_SENTINEL";
+    const priorAssistantSentinel = "TRUSTED_W0_ASSISTANT_SENTINEL";
+    const currentText = "CANONICAL_CURRENT 우리 결혼 예산을 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000032",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: `${priorAssistantSentinel} 두 스튜디오의 차이를 정리했어요.`,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: `${priorUserSentinel} 웨딩 스튜디오 두 곳을 비교해줘`,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "연결된 준비 맥락을 이어서 답했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).toContain(priorUserSentinel);
+    expect(providerInput).toContain(priorAssistantSentinel);
+    expect(providerInput).toContain(currentText);
+  });
+
+  it("keeps the legacy provider-context read path while segment cutover is disabled", async () => {
+    mocks.activeSegment = null;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "Legacy context remains available while the flag is off.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.requestFrom).not.toHaveBeenCalledWith("conversation_segments");
+    expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith(
+      "segment_id",
+      expect.anything(),
+    );
+    // The focused canonical user-row read always carries segment_id so a W3
+    // follow-up can bind itself even before general segment cutover. Ordinary
+    // W0/W1 provider history remains on the legacy unsegmented read here.
+    expect(String(mocks.chatHistorySelect.mock.calls[0]?.[0]))
+      .toContain("segment_id");
+    expect(String(mocks.chatHistorySelect.mock.calls.at(-1)?.[0]))
+      .not.toContain("segment_id");
+  });
+
+  it.each([
+    {
+      visibility: "shared" as const,
+      role: "bride" as const,
+      actorId: "00000000-0000-4000-8000-000000000001",
+      segmentId: "60000000-0000-4000-8000-000000000001",
+    },
+    {
+      visibility: "bride_private" as const,
+      role: "bride" as const,
+      actorId: "00000000-0000-4000-8000-000000000001",
+      segmentId: "60000000-0000-4000-8000-000000000002",
+    },
+    {
+      visibility: "groom_private" as const,
+      role: "groom" as const,
+      actorId: "00000000-0000-4000-8000-000000000002",
+      segmentId: "60000000-0000-4000-8000-000000000003",
+    },
+  ])(
+    "scopes provider messages and summaries to the exact active $visibility segment",
+    async ({ visibility, role, actorId, segmentId }) => {
+      vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
+      mocks.authenticatedUser = { id: actorId };
+      mocks.userProfile = {
+        couple_id: COUPLE_ID,
+        role,
+        is_admin: false,
+        name: "Segment test customer",
+      };
+      mocks.activeSegment = { id: segmentId };
+      mocks.memoryEnablement[visibility] = true;
+      mocks.canonicalRows.splice(0, mocks.canonicalRows.length, {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: actorId,
+        sender_type: role,
+        role: "user",
+        content: `ACTIVE_${visibility}_CONTEXT 결혼 예산을 함께 정리해줘`,
+        metadata: null,
+        visibility,
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      });
+      mocks.summaryRows.push({
+        summary: `ACTIVE_${visibility}_SUMMARY`,
+        summary_type: "factual",
+        visibility,
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+        message_count: 1,
+        to_message_id: "30000000-0000-4000-8000-000000000001",
+      });
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: "Segment-scoped response",
+        usage: { input_tokens: 10, output_tokens: 3 },
+      }));
+
+      const response = await POST(request({ visibility }));
+      expect(response.status).toBe(200);
+      await response.text();
+
+      expect(mocks.segmentEq).toHaveBeenCalledWith("couple_id", COUPLE_ID);
+      expect(mocks.segmentEq).toHaveBeenCalledWith("visibility", visibility);
+      expect(mocks.segmentEq).toHaveBeenCalledWith("status", "active");
+      expect(mocks.chatHistoryEq).toHaveBeenCalledWith("segment_id", segmentId);
+      expect(mocks.summaryEq).toHaveBeenCalledWith("segment_id", segmentId);
+      expect(mocks.chatHistorySelect).toHaveBeenCalledWith(
+        expect.stringContaining("segment_id"),
+      );
+      expect(mocks.summarySelect).toHaveBeenCalledWith(
+        expect.stringContaining("segment_id"),
+      );
+      expect(mocks.chatHistoryOr).toHaveBeenCalledWith(
+        "metadata->>target.is.null,metadata->>target.neq.partner",
+      );
+      expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input))
+        .toContain(`ACTIVE_${visibility}_CONTEXT`);
+      expect(mocks.log).toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["missing", null, null],
+    ["lookup error", null, { code: "PGRST500", message: "database unavailable" }],
+    ["invalid id", { id: "not-a-uuid" }, null],
+  ] as const)(
+    "fails closed before provider work when the active segment is %s",
+    async (_label, activeSegment, activeSegmentError) => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
+      mocks.activeSegment = activeSegment;
+      mocks.activeSegmentError = activeSegmentError;
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+      });
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.failClaim).toHaveBeenCalled();
+      errorSpy.mockRestore();
+    },
+  );
+
+  it("fails closed when a provider-bound message cannot prove the active segment id", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
+    mocks.activeSegment = { id: "60000000-0000-4000-8000-000000000001" };
+    // The legacy-shaped fixture intentionally has no segment_id.
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE",
+    });
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("fails closed when a memory summary is not bound to the same active segment", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const activeSegmentId = "60000000-0000-4000-8000-000000000001";
+    vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
+    mocks.activeSegment = { id: activeSegmentId };
+    mocks.memoryEnablement.shared = true;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      segment_id: activeSegmentId,
+    };
+    mocks.summaryRows.push({
+      summary: "WRONG_SEGMENT_SUMMARY",
+      summary_type: "factual",
+      visibility: "shared",
+      segment_id: "60000000-0000-4000-8000-000000000099",
+      created_at: "2026-07-15T00:00:00.000Z",
+      message_count: 1,
+      to_message_id: "30000000-0000-4000-8000-000000000001",
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE",
+    });
+    expect(mocks.summaryEq).toHaveBeenCalledWith("segment_id", activeSegmentId);
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   afterEach(() => {
     delete process.env.AMORA_EVAL_SECRET;
     vi.unstubAllEnvs();
@@ -1042,7 +2302,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   it("keeps durable tools available and puts the mixed-emotion write rule at the final prompt boundary", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
-      content: "숨 막히지만 총 예산은 4천만원으로 변경해줘",
+      content: "숨 막히지만 우리 결혼 총 예산은 4천만원으로 변경해줘",
     };
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "변경 요청을 확인했어요.",
@@ -1067,6 +2327,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.systemPrompt).toContain(
       "request_kind: chat",
     );
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W0_wedding_core",
+    );
     expect(providerArgs?.systemPrompt).toContain("persistence: durable");
     expect(providerArgs?.systemPrompt).toContain("감정 표현과 섞여 있어도 실행 역할이 우선");
     expect(providerArgs?.systemPrompt).not.toContain("[체험 상담 저장 경계]");
@@ -1086,7 +2349,428 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
-  it("resumes a settled tool round from the durable journal without regenerating its provider call", async () => {
+  it("rejects a different client request id for the same durable user row before claiming", async () => {
+    const response = await POST(request({
+      clientRequestId: "00000000-0000-4000-8000-000000000098",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_REQUEST_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("rejects a durable user row without its canonical request id before claiming", async () => {
+    mocks.canonicalRequestBindingId = null;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: null,
+    };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_REQUEST_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cold-start text-only replay when the durable row requires an attachment", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "present",
+        provider_attachment_count: 1,
+      },
+    };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("continues a user-approved text-only recovery when the v1 contract matches", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+      },
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "중단된 답변을 이어서 정리했어요.",
+      usage: { input_tokens: 6, output_tokens: 4 },
+    }));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.claim).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects different attachment bytes even when the ordered count and media type match", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "이 첨부를 확인해줘",
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 2,
+        ai_response_requested: true,
+        provider_attachment_state: "present",
+        provider_attachment_count: 1,
+        provider_attachment_manifest: [{
+          media_type: "image/png",
+          byte_length: 5,
+          sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        }],
+        imagePaths: [await createChatImageObjectPathV2({
+          coupleId: COUPLE_ID,
+          senderId: mocks.authenticatedUser?.id ?? "",
+          clientRequestId: REQUEST_ID,
+          attachmentIndex: 0,
+          mediaType: "image/png",
+          sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        })],
+      },
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "이 첨부를 확인해줘" }],
+      attachments: [{
+        mediaType: "image/png",
+        base64: "SEVMTE8=",
+        fileName: "changed.png",
+      }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects canonical image paths that are not bound to the v2 attachment digest", async () => {
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "첨부 이미지와 분석 바이트를 함께 확인해줘",
+    };
+    await bindCanonicalProviderAttachments([attachment]);
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        ...(mocks.canonicalRows[0]?.metadata as Record<string, unknown>),
+        imagePaths: [
+          `${COUPLE_ID}/${mocks.authenticatedUser?.id}/40000000-0000-4000-8000-000000000001.png`,
+        ],
+      },
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "첨부를 확인했어요.",
+      usage: { input_tokens: 6, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "첨부 이미지와 분석 바이트를 함께 확인해줘" }],
+      attachments: [{ ...attachment, fileName: "image.png" }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_CONTRACT_INVALID",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects changed Storage object bytes before the v2 attachment reaches the provider", async () => {
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "첨부 이미지와 분석 바이트를 함께 확인해줘",
+    };
+    await bindCanonicalProviderAttachments([attachment]);
+    mocks.storageDownloadStream.mockResolvedValueOnce({
+      data: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("world"));
+          controller.close();
+        },
+      }),
+      error: null,
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "첨부를 확인했어요.",
+      usage: { input_tokens: 6, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "첨부 이미지와 분석 바이트를 함께 확인해줘" }],
+      attachments: [{ ...attachment, fileName: "image.png" }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_STORAGE_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.storageFrom).toHaveBeenCalledWith("chat-image");
+    expect(mocks.storageDownload).toHaveBeenCalledTimes(1);
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing canonical v2 image object before claim or provider work", async () => {
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "Check the attached image",
+    };
+    await bindCanonicalProviderAttachments([attachment]);
+    mocks.storageInfo.mockResolvedValueOnce({
+      data: null,
+      error: { statusCode: 404, message: "object not found" },
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "Check the attached image" }],
+      attachments: [{ ...attachment, fileName: "image.png" }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_STORAGE_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.storageInfo).toHaveBeenCalledTimes(1);
+    expect(mocks.storageDownload).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("continues to the provider when the ordered v2 attachment bytes match exactly", async () => {
+    const mediaType = "image/png";
+    const base64 = "aGVsbG8=";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "이 첨부를 확인해줘",
+    };
+    await bindCanonicalProviderAttachments([{ mediaType, base64 }]);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "첨부 내용을 확인했어요.",
+      usage: { input_tokens: 6, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "이 첨부를 확인해줘" }],
+      attachments: [{ mediaType, base64, fileName: "private-name.png" }],
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.claim).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a v2 retry when the same attachment bytes are supplied in a different order", async () => {
+    const first = { mediaType: "image/png", base64: "aGVsbG8=" };
+    const second = { mediaType: "application/pdf", base64: "d29ybGQ=" };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "두 첨부를 순서대로 확인해줘",
+    };
+    await bindCanonicalProviderAttachments([first, second]);
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "두 첨부를 순서대로 확인해줘" }],
+      attachments: [
+        { ...second, fileName: "second.pdf" },
+        { ...first, fileName: "first.png" },
+      ],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("never starts a new provider call for a positive-count v1 attachment row", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "구형 첨부를 확인해줘",
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "present",
+        provider_attachment_count: 1,
+      },
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "구형 첨부를 확인해줘" }],
+      attachments: [{
+        mediaType: "image/png",
+        base64: "aGVsbG8=",
+        fileName: "legacy.png",
+      }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-demo attachment provider request without an exact durable user message id", async () => {
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "첨부를 확인해줘",
+    };
+    await bindCanonicalProviderAttachments([attachment]);
+
+    const response = await POST(request({
+      userMessageId: undefined,
+      messages: [{ role: "user", content: "첨부를 확인해줘" }],
+      attachments: [{ ...attachment, fileName: "missing-binding.png" }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_BINDING_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("replays an already persisted answer before consuming mismatched resent attachment bytes", async () => {
+    const original = { mediaType: "image/png", base64: "aGVsbG8=" };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "첨부 답변을 이어줘",
+    };
+    await bindCanonicalProviderAttachments([original]);
+    mocks.findPersisted.mockResolvedValue({
+      ...persisted("이미 저장된 첨부 답변이에요."),
+      reused: true,
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "첨부 답변을 이어줘" }],
+      attachments: [{
+        mediaType: "image/png",
+        base64: "SEVMTE8=",
+        fileName: "changed-after-completion.png",
+      }],
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("이미 저장된 첨부 답변이에요.");
+    expect(mocks.reconcile).toHaveBeenCalledTimes(1);
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects an internally inconsistent v1 attachment contract before paid work", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 1,
+      },
+    };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_CONTRACT_INVALID",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a canonical v2 manifest whose declared total exceeds the provider limit", async () => {
+    const oversizedPart = Math.floor(AMORA_MAX_TOTAL_ATTACHMENT_BYTES / 2) + 1;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 2,
+        ai_response_requested: true,
+        provider_attachment_state: "present",
+        provider_attachment_count: 2,
+        provider_attachment_manifest: [
+          {
+            media_type: "application/pdf",
+            byte_length: oversizedPart,
+            sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+          },
+          {
+            media_type: "application/pdf",
+            byte_length: oversizedPart,
+            sha256: "486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7",
+          },
+        ],
+      },
+    };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_ATTACHMENT_CONTRACT_INVALID",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.storageDownload).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("blocks a legacy mutation checkpoint while continuing the reclaimed turn", async () => {
     const reasoning = {
       id: "rs_resume",
       type: "reasoning",
@@ -1119,22 +2803,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       }],
       outputItems: [reasoning, functionCall],
     });
-    mocks.executeTool.mockResolvedValue({
-      toolName: "update_budget",
-      toolInput: { total_budget: 30_000_000 },
-      toolOutput: { total_budget: 30_000_000, previous_budget: 10_000_000 },
-      success: true,
-      displayMessage: "예산을 변경했어요.",
-    });
     mocks.provider.mockResolvedValueOnce(providerResult({
-      fullText: "예산 변경을 안전하게 반영했어요.",
+      fullText: "확인 절차가 없는 변경은 실행하지 않았어요.",
       outputItems: [{ id: "msg_resume", type: "message" }],
       usage: { input_tokens: 20, output_tokens: 4 },
     }));
 
     const response = await POST(request());
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("예산 변경을 안전하게 반영했어요.");
+    expect(await response.text()).toContain("실행하지 않았어요.");
 
     expect(mocks.loadJournal).toHaveBeenCalledWith(expect.objectContaining({
       attemptCount: 2,
@@ -1146,9 +2823,80 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect.any(Function),
       expect.any(Object),
     );
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const continuationInput = mocks.provider.mock.calls[0]?.[0]?.input as unknown[];
+    expect(continuationInput).toEqual(expect.arrayContaining([
+      reasoning,
+      functionCall,
+      expect.objectContaining({
+        type: "function_call_output",
+        call_id: "call_resume",
+      }),
+    ]));
+    expect(JSON.stringify(continuationInput)).toContain(
+      "MODEL_MUTATION_TOOL_BLOCKED",
+    );
+  });
+
+  it("resumes an allowed read checkpoint without regenerating its provider call", async () => {
+    const reasoning = {
+      id: "rs_resume_read",
+      type: "reasoning",
+      summary: [],
+      encrypted_content: "opaque-resume-read-reasoning",
+    };
+    const functionCall = {
+      id: "fc_resume_read",
+      type: "function_call",
+      call_id: "call_resume_read",
+      name: "get_wedding_info",
+      arguments: "{}",
+      status: "completed",
+    };
+    mocks.claim.mockResolvedValue({
+      action: "acquired",
+      attemptCount: 2,
+      reclaimed: true,
+    });
+    mocks.journal.push({
+      version: 1,
+      callIndex: 1,
+      phase: "tool_round",
+      toolCalls: [{
+        callId: "call_resume_read",
+        name: "get_wedding_info",
+        input: {},
+        inputDigest: "c".repeat(64),
+        operationKey: "d".repeat(64),
+      }],
+      outputItems: [reasoning, functionCall],
+    });
+    mocks.executeTool.mockResolvedValue({
+      toolName: "get_wedding_info",
+      toolInput: {},
+      toolOutput: { wedding_date: null, total_budget: 0 },
+      success: true,
+      displayMessage: "현재 결혼 준비 정보를 확인했어요.",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 결혼 준비 정보를 확인했어요.",
+      outputItems: [{ id: "msg_resume_read", type: "message" }],
+      usage: { input_tokens: 20, output_tokens: 4 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("현재 결혼 준비 정보를 확인했어요.");
+
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLedger).toHaveBeenCalledWith(
+      expect.objectContaining({ callIndex: 2, phase: "tool_round" }),
+      expect.any(Function),
+      expect.any(Object),
+    );
     expect(mocks.executeTool).toHaveBeenCalledWith(
-      "update_budget",
-      { total_budget: 30_000_000 },
+      "get_wedding_info",
+      {},
       expect.objectContaining({ providerCallIndex: 1 }),
     );
     const continuationInput = mocks.provider.mock.calls[0]?.[0]?.input as unknown[];
@@ -1157,7 +2905,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       functionCall,
       expect.objectContaining({
         type: "function_call_output",
-        call_id: "call_resume",
+        call_id: "call_resume_read",
       }),
     ]));
   });
@@ -1246,7 +2994,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).toHaveBeenCalledWith(
       "update_budget",
       { total_budget: 30_000_000 },
-      expect.objectContaining({ pendingActionId: actionId }),
+      expect.objectContaining({
+        pendingActionId: actionId,
+        actorProfileId: "00000000-0000-4000-8000-000000000001",
+      }),
     );
     expect(mocks.executeTool).toHaveBeenCalledWith(
       "get_wedding_info",
@@ -1256,6 +3007,98 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input))
       .toContain("SERVER_CONFIRMED_ACTION_RESULT");
+  });
+
+  it("keeps the schedule actor and internal event ID out of confirmed-action provider feedback", async () => {
+    const now = Date.now();
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const eventId = "22222222-2222-4222-8222-222222222222";
+    const actorId = "00000000-0000-4000-8000-000000000001";
+    const input = {
+      event_id: eventId,
+      expected_title: "드레스 최종 피팅",
+      expected_date: "2026-08-20",
+      reason: "업체 일정 변경",
+    };
+    const pendingAction = extractAmoraPendingAction({
+      text: `[pending_action]${JSON.stringify({
+        tool: "cancel_schedule_event",
+        input,
+      })}[/pending_action]`,
+      allowedTools: mocks.safeTools,
+      now,
+      createActionId: () => actionId,
+    }).pendingAction;
+    expect(pendingAction).not.toBeNull();
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: actorId,
+        sender_type: "bride",
+        role: "user",
+        content: "응",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "드레스 최종 피팅 일정을 취소 상태로 남길까요?",
+        metadata: { pending_amora_action: pendingAction },
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "cancel_schedule_event",
+      toolInput: input,
+      toolOutput: {
+        event: {
+          id: eventId,
+          date: "2026-08-20",
+          title: "드레스 최종 피팅",
+          status: "cancelled",
+          cancellation: {
+            cancelledAt: "2026-08-02T03:04:05.000Z",
+            cancelledByProfileId: actorId,
+            reason: "업체 일정 변경",
+          },
+        },
+      },
+      success: true,
+      displayMessage: "드레스 최종 피팅 일정을 취소 상태로 남겼어요.",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "취소 기록을 남겼어요.",
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응" }],
+      confirmedActionId: actionId,
+    }));
+    const responseText = await response.text();
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).not.toContain(eventId);
+    expect(responseText).not.toContain("cancelledByProfileId");
+    const streamedToolResult = responseText
+      .split(/\r?\n/)
+      .find((line) => line.includes('"type":"tool_result"')) ?? "";
+    expect(streamedToolResult).not.toContain(actorId);
+
+    const confirmedResultInput = String((
+      mocks.provider.mock.calls[0]?.[0]?.input as Array<{ content?: unknown }>
+    ).find((item) => String(item.content).includes(
+      "SERVER_CONFIRMED_ACTION_RESULT",
+    ))?.content);
+    expect(confirmedResultInput).toContain("드레스 최종 피팅");
+    expect(confirmedResultInput).toContain("업체 일정 변경");
+    expect(confirmedResultInput).not.toContain(eventId);
+    expect(confirmedResultInput).not.toContain(actorId);
+    expect(confirmedResultInput).not.toContain("cancelledByProfileId");
   });
 
   it("passes the durable normal-chat user message into the request claim", async () => {
@@ -1298,6 +3141,188 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         "구조화 중재 최종 안전 계약",
       );
     }
+  });
+
+  it("does not promote a mediation marker from an ordinary chat response", async () => {
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "일반 상담 답변이에요.",
+        "[mediation]",
+        "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+        "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+        "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+        "합의안: 두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+        "[/mediation]",
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 20 },
+    }));
+
+    const response = await POST(request({ requestKind: "chat" }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.content).toBe("일반 상담 답변이에요.");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+  });
+
+  it("demotes a marker-only ordinary chat response to readable text", async () => {
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "[mediation]",
+        "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+        "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+        "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+        "합의안: 두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+        "[/mediation]",
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 20 },
+    }));
+
+    const response = await POST(request({ requestKind: "chat" }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.content).toContain(
+      "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+  });
+
+  it("stamps a complete requested mediation draft with server-owned v2 provenance", async () => {
+    const providerText = [
+      "요청자가 전한 내용을 바탕으로 정리했어요.",
+      "[mediation]",
+      "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+      "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+      "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+      "합의안: 두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+      "[/mediation]",
+    ].join("\n");
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(providerText);
+      return providerResult({
+        fullText: providerText,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      });
+    });
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: "예산 상한에 대한 생각이 다른 것 같아요.",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).not.toContain("[mediation]");
+    expect(body).not.toContain("[/mediation]");
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      memory_eligible: false,
+      mediation: {
+        empathy: "요청자가 답답함을 느꼈다고 전했어요.",
+        translation: "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+        data: "상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+        resolution: "두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+        origin: "user_requested",
+        evidenceScope: "requester_summary_only",
+        schemaVersion: 2,
+      },
+    });
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.atomicFinalizations[0]).toMatchObject({
+      message: {
+        stageTag: null,
+        specialistType: "general",
+        metadata: expect.objectContaining({ memory_eligible: false }),
+      },
+    });
+  });
+
+  it("demotes a W2 mediation request to ordinary no-memory guidance", async () => {
+    const providerText = [
+      "[mediation]",
+      "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+      "통역: 계약금 환불 판단을 원한다고 전했어요.",
+      "데이터: 법적 권리와 의무는 자격 있는 전문가에게 확인해야 해요.",
+      "합의안: 두 분이 계약서를 다시 확인해 보세요.",
+      "[/mediation]",
+    ].join("\n");
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: providerText,
+      usage: { input_tokens: 10, output_tokens: 20 },
+    }));
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext: "예식장 계약금 환불이 가능한지 법적으로 판단해줘",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.tools).toEqual([]);
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W2_high_risk_adjacent",
+    );
+    expect(providerArgs?.systemPrompt).not.toContain(
+      "구조화 중재 최종 안전 계약",
+    );
+    expect(mocks.chooseModelRole).toHaveBeenCalled();
+    expect(mocks.providerLedger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelRole: "fast",
+        specialistType: "general",
+        stageTag: null,
+      }),
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(body).not.toContain("[mediation]");
+    expect(body).not.toContain("공감:");
+    expect(body).not.toContain("통역:");
+    expect(body).not.toContain("데이터:");
+    expect(body).not.toContain("합의안:");
+    expect(body).toContain("자격 있는 전문가나 공식 기관");
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W2_high_risk_adjacent",
+      memory_eligible: false,
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("uses only the requester's explicit summary as mediation conversation evidence", async () => {
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "요청자가 전한 내용을 바탕으로 정리했어요.",
+        "[mediation]",
+        "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+        "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+        "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+        "합의안: 두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+        "[/mediation]",
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 20 },
+    }));
+
+    const requesterSummary = "REQUESTER_SUMMARY_ONLY 예산 상한을 조율하고 싶어요.";
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: requesterSummary,
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).toContain(requesterSummary);
+    expect(providerInput).not.toContain("CANONICAL_DB_USER");
   });
 
   it("lets a signed demo session reach OpenAI without a Supabase user or durable writes", async () => {
@@ -1346,8 +3371,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
   it("bounds oversized tool feedback before it is sent into the next provider call", async () => {
     mocks.executeTool.mockResolvedValueOnce({
-      toolName: "update_budget",
-      toolInput: { total_budget: 30_000_000 },
+      toolName: "get_wedding_info",
+      toolInput: {},
       toolOutput: { rows: "x".repeat(40_000), ending: "fine-print" },
       success: true,
       displayMessage: "updated",
@@ -1356,12 +3381,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .mockResolvedValueOnce(providerResult({
         toolCalls: [{
           callId: "call_large",
-          name: "update_budget",
-          input: { total_budget: 30_000_000 },
+          name: "get_wedding_info",
+          input: {},
         }],
         outputItems: [{ id: "fc_large", type: "function_call" }],
       }))
-      .mockResolvedValueOnce(providerResult({ fullText: "예산을 반영했어요." }));
+      .mockResolvedValueOnce(providerResult({ fullText: "현재 정보를 확인했어요." }));
 
     const response = await POST(request());
     expect(response.status).toBe(200);
@@ -1376,8 +3401,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   it("never executes more than eight model-requested tools in one user turn", async () => {
     const toolCalls = Array.from({ length: 10 }, (_, index) => ({
       callId: `call_limit_${index}`,
-      name: "update_budget",
-      input: { total_budget: 30_000_000 + index },
+      name: "get_wedding_info",
+      input: { index },
     }));
     mocks.provider
       .mockResolvedValueOnce(providerResult({
@@ -1424,6 +3449,1345 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .toContain("[서버 발급 후속 확인 계약]");
   });
 
+  it.each([
+    {
+      userText: "주식 투자 예산을 3천만원으로 바꿔줘",
+      expectedScope: "W4_out_of_scope",
+    },
+    {
+      userText: "예식장 계약이 법적으로 무효인지 판정해줘",
+      expectedScope: "W2_high_risk_adjacent",
+    },
+    {
+      userText: "그냥 오늘 너무 힘들어",
+      expectedScope: "W3_social_care",
+    },
+  ])("enforces $expectedScope as the final no-tool and no-memory ceiling", async ({
+    userText,
+    expectedScope,
+  }) => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 요청에 맞는 안전한 범위에서 답할게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.tools).toEqual([]);
+    expect(providerArgs?.systemPrompt).toContain(
+      `question_scope: ${expectedScope}`,
+    );
+    expect(providerArgs?.systemPrompt).not.toContain(
+      "[서버 발급 후속 확인 계약]",
+    );
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ question_scope: expectedScope }),
+    }));
+  });
+
+  it.each([
+    {
+      userText: "임신 중인데 결혼식 전에 이 약을 먹어도 돼?",
+      expectedScope: "W2_high_risk_adjacent",
+    },
+    {
+      userText: "안녕, 오늘 어때?",
+      expectedScope: "W3_social_care",
+    },
+    {
+      userText: "삼성전자 주식 사도 돼?",
+      expectedScope: "W4_out_of_scope",
+    },
+  ])("sends only the current turn in the minimized $expectedScope provider envelope", async ({
+    userText,
+    expectedScope,
+  }) => {
+    setSensitiveStoredProviderContext(userText);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 요청만 보고 답할게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    const envelope = JSON.stringify({
+      systemPrompt: providerArgs?.systemPrompt,
+      input: providerArgs?.input,
+    });
+    expect(envelope).toContain(userText);
+    expect(providerArgs?.systemPrompt).toContain(`question_scope: ${expectedScope}`);
+    for (const sentinel of [
+      "PRIVATE_VENUE_SENTINEL",
+      "PRIVATE_BRIDE_SENTINEL",
+      "PRIVATE_GROOM_SENTINEL",
+      "PRIVATE_PROGRESS_SENTINEL",
+      "PRIVATE_SCHEDULE_SENTINEL",
+      "PRIVATE_PREFERENCE_SENTINEL",
+      "PRIVATE_SUMMARY_SENTINEL",
+      "PRIVATE_DECISION_SENTINEL",
+      "PRIVATE_CONFLICT_SENTINEL",
+      "PRIVATE_PROFILE_SENTINEL",
+      "PRIVATE_ASSISTANT_HISTORY_SENTINEL",
+      "PRIVATE_USER_HISTORY_SENTINEL",
+      "44444444",
+    ]) {
+      expect(envelope).not.toContain(sentinel);
+    }
+    expect(mocks.providerLedger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        specialistType: "general",
+        stageTag: null,
+      }),
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(mocks.atomicFinalizations[0]).toMatchObject({
+      outcome: "persisted",
+      message: {
+        stageTag: null,
+        specialistType: "general",
+      },
+    });
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      specialistType: "general",
+      metadata: expect.objectContaining({ stage_tag: null }),
+    }));
+  });
+
+  it("answers an explanation follow-up from one exact linked wedding exchange without tools or memory", async () => {
+    const currentText = "왜?";
+    const priorText = "웨딩 스튜디오 두 곳을 비교해줘";
+    const assistantText = "첫 번째는 자연광, 두 번째는 야간 연출이 강해요.";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: assistantText,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "자연광이 두 분의 편안한 분위기 선호와 더 잘 맞기 때문이에요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W4_out_of_scope",
+    );
+    expect(providerArgs?.systemPrompt).toContain(
+      "context_mode: linked_context_only",
+    );
+    expect(providerArgs?.systemPrompt).toContain("capabilities: none");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: priorText },
+      { role: "assistant", content: assistantText },
+      { role: "user", content: currentText },
+    ]);
+    expect(providerArgs?.tools).toEqual([]);
+    expect(providerArgs?.systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
+    expect(JSON.stringify(providerArgs)).not.toContain("PRIVATE_");
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(3);
+    expect(mocks.chatHistoryEq).toHaveBeenCalledWith("segment_id", segmentId);
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W4_out_of_scope",
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+      context_mode: "linked_context_only",
+    });
+    expect(new Set(
+      mocks.requestFrom.mock.calls.map(([table]) => table),
+    )).toEqual(new Set(["conversation_segments", "chat_messages"]));
+  });
+
+  it("keeps an exact linked follow-up inside the requester's private visibility", async () => {
+    const currentText = "왜?";
+    const priorText = "드레스 예산 안에서 두 선택지를 비교해줘";
+    const assistantText = "첫 번째는 예산 여유가 크고, 두 번째는 원하는 소재에 더 가까워요.";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const segmentId = "60000000-0000-4000-8000-000000000002";
+    mocks.activeSegment = { id: segmentId, status: "active" };
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "bride_private",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: assistantText,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "bride_private",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility: "bride_private",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "예산 초과 위험을 줄이는 쪽을 먼저 권했기 때문이에요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("context_mode: linked_context_only");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: priorText },
+      { role: "assistant", content: assistantText },
+      { role: "user", content: currentText },
+    ]);
+    expect(providerArgs?.tools).toEqual([]);
+    expect(mocks.chatHistoryEq).toHaveBeenCalledWith(
+      "visibility",
+      "bride_private",
+    );
+    expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith(
+      "visibility",
+      "shared",
+    );
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses[0]).toMatchObject({
+      metadata: {
+        context_mode: "linked_context_only",
+        memory_eligible: false,
+      },
+    });
+    expect(mocks.atomicFinalizations[0]).toMatchObject({
+      message: { visibility: "bride_private" },
+    });
+  });
+
+  it("continues a selection follow-up from one linked W1 exchange without widening capabilities", async () => {
+    const currentText = "첫 번째가 좋아";
+    const priorText = "신혼집 이사 비용 때문에 부부 재정을 어떻게 나눌지 대화하고 싶어";
+    const assistantText = "첫 번째는 공동 생활비만 합치고, 두 번째는 전액을 합치는 방식이에요.";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: assistantText,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W1_wedding_adjacent",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "공동 생활비만 합치는 방식이 더 편하신 거군요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("question_scope: W4_out_of_scope");
+    expect(providerArgs?.systemPrompt).toContain("context_mode: linked_context_only");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: priorText },
+      { role: "assistant", content: assistantText },
+      { role: "user", content: currentText },
+    ]);
+    expect(providerArgs?.tools).toEqual([]);
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["W2_high_risk_adjacent", "그거 법적으로 판단해줘"],
+    ["W4_out_of_scope", "그걸로 삼성전자 주식 사줘"],
+  ])("never launders current %s authority through an exact prior wedding exchange", async (
+    expectedScope,
+    currentText,
+  ) => {
+    const priorText = "웨딩 스튜디오 두 곳을 비교해줘";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "PRIOR_ASSISTANT_MUST_NOT_CROSS_SCOPE",
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 요청의 안전한 범위에서만 답할게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain(`question_scope: ${expectedScope}`);
+    expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    expect(JSON.stringify(providerArgs)).not.toContain("PRIOR_ASSISTANT_MUST_NOT_CROSS_SCOPE");
+    expect(providerArgs?.tools).toEqual([]);
+    expect(mocks.requestFrom).not.toHaveBeenCalledWith("conversation_segments");
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ambiguous explanation current-only when the assistant reply link is missing", async () => {
+    const currentText = "왜?";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    const unlinkedAssistant = "UNLINKED_ASSISTANT_MUST_NOT_REPLAY";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: unlinkedAssistant,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000010",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "웨딩 스튜디오 두 곳을 비교해줘",
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "어떤 부분의 이유인지 한 번만 더 알려주세요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("question_scope: W4_out_of_scope");
+    expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
+    expect(providerArgs?.input).toEqual([{ role: "user", content: currentText }]);
+    expect(JSON.stringify(providerArgs)).not.toContain(unlinkedAssistant);
+    expect(providerArgs?.tools).toEqual([]);
+  });
+
+  it("carries only one exact linked exchange for an explicit W3 follow-up", async () => {
+    const currentText = "그게 너무 속상해";
+    const priorText = "예식장 계약 때문에 파트너와 의견이 달라요";
+    const assistantText = "예식장 계약 조건을 하나씩 다시 확인해볼 수 있어요.";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: assistantText,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "계약 이야기 뒤라서 더 마음이 무거웠겠어요.",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"type":"done"');
+    expect(mocks.provider.mock.calls[0]?.[0]?.input).toEqual([
+      { role: "user", content: priorText },
+      { role: "assistant", content: assistantText },
+      { role: "user", content: currentText },
+    ]);
+    expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(3);
+    expect(mocks.chatHistorySelect).toHaveBeenCalledWith(
+      expect.stringContaining("segment_id"),
+    );
+    expect(mocks.chatHistoryEq).toHaveBeenCalledWith("segment_id", segmentId);
+    expect(new Set(mocks.requestFrom.mock.calls.map(([table]) => table)))
+      .toEqual(new Set(["chat_messages", "conversation_segments"]));
+    expect(mocks.segmentEq).toHaveBeenCalledWith("couple_id", COUPLE_ID);
+    expect(mocks.segmentEq).toHaveBeenCalledWith("visibility", "shared");
+    expect(mocks.segmentEq).toHaveBeenCalledWith("status", "active");
+    expect(mocks.requestFrom.mock.calls.filter(
+      ([table]) => table === "conversation_segments",
+    )).toHaveLength(1);
+    expect(mocks.getPrivacyEpoch).toHaveBeenCalled();
+    expect(mocks.getPrivacySnapshot).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({ expectedPrivacyEpoch: 7 }),
+    ]);
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("keeps a topic-breaking W3 turn current-only after a wedding exchange", async () => {
+    const currentText = "그거랑 상관없이 오늘 너무 힘들어";
+    const priorText = "PRIVATE_PRIOR_WEDDING_CONTEXT 예식장 후보를 비교해줘";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "PRIVATE_PRIOR_ASSISTANT_CONTEXT 두 후보의 조건을 비교했어요.",
+        metadata: { in_reply_to_user_message_id: priorId },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "오늘 힘든 마음부터 짧게 같이 살펴볼게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("question_scope: W3_social_care");
+    expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
+    expect(providerArgs?.input).toEqual([{ role: "user", content: currentText }]);
+    expect(JSON.stringify(providerArgs)).not.toContain("PRIVATE_PRIOR_");
+    expect(mocks.requestFrom).not.toHaveBeenCalledWith("conversation_segments");
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("does not replay a fully linked W3 exchange from a closed segment", async () => {
+    const warningSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const currentText = "그게 너무 속상해";
+    const closedSegmentId = "60000000-0000-4000-8000-000000000098";
+    const activeSegmentId = "60000000-0000-4000-8000-000000000001";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const closedUserText =
+      "예식장 계약 CLOSED_SEGMENT_USER_TEXT_MUST_NOT_REPLAY 때문에 의견이 달라요";
+    const closedAssistantText = "CLOSED_SEGMENT_ASSISTANT_MUST_NOT_REPLAY";
+    mocks.activeSegment = { id: activeSegmentId, status: "active" };
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: {
+          client_request_id: "00000000-0000-4000-8000-000000000098",
+        },
+        visibility: "shared",
+        segment_id: closedSegmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: closedAssistantText,
+        metadata: { in_reply_to_user_message_id: priorId },
+        visibility: "shared",
+        segment_id: closedSegmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: closedUserText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: closedSegmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 말씀만 놓고 곁에 있을게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+      clientRequestId: "00000000-0000-4000-8000-000000000098",
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider.mock.calls[0]?.[0]?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    const providerEnvelope = JSON.stringify(mocks.provider.mock.calls[0]?.[0]);
+    expect(providerEnvelope).not.toContain(closedUserText);
+    expect(providerEnvelope).not.toContain(closedAssistantText);
+    expect(mocks.requestFrom).toHaveBeenCalledWith("conversation_segments");
+    expect(mocks.segmentEq).toHaveBeenCalledWith("status", "active");
+    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(3);
+    expect(new Set(mocks.requestFrom.mock.calls.map(([table]) => table)))
+      .toEqual(new Set(["chat_messages", "conversation_segments"]));
+    warningSpy.mockRestore();
+  });
+
+  it("falls back to current-only W3 when the active segment lookup is unavailable", async () => {
+    const warningSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const currentText = "그게 너무 속상해";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const unavailableText =
+      "예식장 계약 UNAVAILABLE_ACTIVE_SEGMENT_TEXT_MUST_NOT_REPLAY 때문에 의견이 달라요";
+    mocks.activeSegment = null;
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "UNAVAILABLE_ACTIVE_SEGMENT_ASSISTANT_MUST_NOT_REPLAY",
+        metadata: { in_reply_to_user_message_id: priorId },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: unavailableText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 말씀만 놓고 곁에 있을게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider.mock.calls[0]?.[0]?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]))
+      .not.toContain(unavailableText);
+    expect(mocks.requestFrom).toHaveBeenCalledWith("conversation_segments");
+    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(3);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(new Set(mocks.requestFrom.mock.calls.map(([table]) => table)))
+      .toEqual(new Set(["chat_messages", "conversation_segments"]));
+    warningSpy.mockRestore();
+  });
+
+  it("does not read the active segment for W3 without an explicit continuity reference", async () => {
+    const currentText = "그냥 오늘 너무 힘들어";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length, {
+      id: "30000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: currentText,
+      metadata: null,
+      visibility: "shared",
+      segment_id: "60000000-0000-4000-8000-000000000001",
+      created_at: "2026-07-15T00:00:00.000Z",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 말씀만 놓고 곁에 있을게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider.mock.calls[0]?.[0]?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    expect(mocks.requestFrom).not.toHaveBeenCalledWith("conversation_segments");
+    expect(new Set(mocks.requestFrom.mock.calls.map(([table]) => table)))
+      .toEqual(new Set(["chat_messages"]));
+  });
+
+  it("keeps W3 current-only when an otherwise linked row belongs to an older segment", async () => {
+    const currentText = "그게 너무 속상해";
+    const currentSegmentId = "60000000-0000-4000-8000-000000000001";
+    const oldSegmentId = "60000000-0000-4000-8000-000000000099";
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    const oldText = "OLD_SEGMENT_WEDDING_TEXT_MUST_NOT_CROSS";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: currentSegmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "OLD_SEGMENT_ASSISTANT_MUST_NOT_CROSS",
+        metadata: { in_reply_to_user_message_id: priorId },
+        visibility: "shared",
+        segment_id: oldSegmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: oldText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: oldSegmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 말씀만 놓고 곁에 있을게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider.mock.calls[0]?.[0]?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]))
+      .not.toContain(oldText);
+    expect(mocks.chatHistoryEq).toHaveBeenCalledWith(
+      "segment_id",
+      currentSegmentId,
+    );
+  });
+
+  it("falls back to current-only W3 when the assistant reply binding is absent", async () => {
+    const currentText = "그게 너무 속상해";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "이 문장은 연결 근거가 없어 전달되면 안 돼요.",
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000010",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "예식장 계약 때문에 파트너와 의견이 달라요",
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 말씀만 놓고 곁에 있을게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider.mock.calls[0]?.[0]?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+  });
+
+  it("keeps mediation requester-summary-only across the entire provider envelope", async () => {
+    const requesterSummary = "예산을 어디에서 줄일지 의견이 달라요";
+    setSensitiveStoredProviderContext("PRIVATE_CANONICAL_CURRENT_SENTINEL");
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "두 분이 확인할 기준부터 정리할게요.",
+        "[mediation]",
+        "공감: 의견을 맞추는 과정이 쉽지 않으셨겠어요.",
+        "통역: 요청자가 전한 예산 쟁점만 정리했어요.",
+        "데이터: 상대방에게 줄이기 어려운 항목을 확인해주세요.",
+        "합의안: 각자 지킬 항목 하나씩을 먼저 정해보세요.",
+        "[/mediation]",
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 20 },
+    }));
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext: requesterSummary,
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    const envelope = JSON.stringify({
+      systemPrompt: providerArgs?.systemPrompt,
+      input: providerArgs?.input,
+    });
+    expect(envelope).toContain(requesterSummary);
+    for (const sentinel of [
+      "PRIVATE_CANONICAL_CURRENT_SENTINEL",
+      "PRIVATE_VENUE_SENTINEL",
+      "PRIVATE_BRIDE_SENTINEL",
+      "PRIVATE_GROOM_SENTINEL",
+      "PRIVATE_SCHEDULE_SENTINEL",
+      "PRIVATE_PREFERENCE_SENTINEL",
+      "PRIVATE_SUMMARY_SENTINEL",
+      "PRIVATE_DECISION_SENTINEL",
+      "PRIVATE_CONFLICT_SENTINEL",
+      "PRIVATE_PROFILE_SENTINEL",
+      "PRIVATE_ASSISTANT_HISTORY_SENTINEL",
+      "PRIVATE_USER_HISTORY_SENTINEL",
+      "44444444",
+    ]) {
+      expect(envelope).not.toContain(sentinel);
+    }
+  });
+
+  it("does not add a terminal privacy read for a current-only W4 turn", async () => {
+    const userText = "삼성전자 주식 사도 돼?";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.getPrivacyEpoch.mockReset();
+    mocks.getPrivacyEpoch.mockResolvedValue(7);
+    // 실제 SDK 계약을 모사하는 fake를 쓴다. 그래야 egress gate 읽기까지 세어진다.
+    providerAfterPreGeneration(providerResult({
+      fullText: "결혼 준비 밖의 투자 추천은 하지 않을게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    // Replay preflight, initial current-only epoch, the pre-egress fence that
+    // guards token counting, the pre-generation fence, and the post-provider
+    // fence. There is deliberately no further terminal-release read.
+    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(5);
+  });
+
+  it("keeps the minimized private-mode guard without disclosing the stored actor role", async () => {
+    const userText = "삼성전자 주식 사도 돼?";
+    setSensitiveStoredProviderContext(userText);
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      visibility: "bride_private",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "결혼 준비 밖의 투자 추천은 하지 않을게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const systemPrompt = String(mocks.provider.mock.calls[0]?.[0]?.systemPrompt);
+    expect(systemPrompt).toContain("사용자의 개인 비공개 대화");
+    expect(systemPrompt).not.toContain("신부 분이");
+    expect(systemPrompt).not.toContain("PRIVATE_BRIDE_SENTINEL");
+    expect(systemPrompt).not.toContain("PRIVATE_GROOM_SENTINEL");
+  });
+
+  it.each([
+    {
+      label: "W2",
+      currentUserText: "임신 중인데 결혼식 전에 이 약을 먹어도 돼?",
+      overrides: {},
+    },
+    {
+      label: "W3",
+      currentUserText: "안녕, 오늘 어때?",
+      overrides: {},
+    },
+    {
+      label: "high-confidence W4",
+      currentUserText: "삼성전자 주식 사도 돼?",
+      overrides: {},
+    },
+    {
+      label: "low-confidence W4 without a bounded reference",
+      currentUserText: "이거 어떻게 하면 돼?",
+      overrides: {},
+    },
+    {
+      label: "initial greeting",
+      currentUserText: null,
+      overrides: {
+        requestKind: "initial_greeting",
+        userMessageId: undefined,
+      },
+    },
+    {
+      label: "mediation",
+      currentUserText: null,
+      overrides: {
+        requestKind: "mediation",
+        userMessageId: undefined,
+        conflictContext: "예산을 어디에서 줄일지 의견이 달라요",
+      },
+    },
+  ])("skips irrelevant stored-context reads for $label", async ({
+    currentUserText,
+    overrides,
+  }) => {
+    if (currentUserText) {
+      mocks.canonicalRows[0] = {
+        ...mocks.canonicalRows[0],
+        content: currentUserText,
+      };
+    }
+    mocks.getPrivacySnapshot.mockRejectedValue(
+      new Error("PRIVATE_SNAPSHOT_SENTINEL"),
+    );
+    mocks.journeyError = { code: "PGRST500", message: "JOURNEY_SENTINEL" };
+    mocks.directoryError = { code: "PGRST500", message: "DIRECTORY_SENTINEL" };
+    mocks.summariesError = { code: "PGRST500", message: "SUMMARY_SENTINEL" };
+    mocks.decisionsError = { code: "PGRST500", message: "DECISION_SENTINEL" };
+    mocks.profileProjectionError = { code: "PGRST500" };
+    mocks.personalizationError = { code: "PGRST500" };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 요청만으로 답했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      ...overrides,
+      ...(currentUserText
+        ? { messages: [{ role: "user", content: currentUserText }] }
+        : {}),
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.getPrivacySnapshot).not.toHaveBeenCalled();
+    for (const table of [
+      "wedding_journeys",
+      "couple_profile_directory",
+      "chat_summaries",
+      "decision_nodes",
+      "amora_personalization_preferences",
+      "conversation_segments",
+    ]) {
+      expect(mocks.requestFrom).not.toHaveBeenCalledWith(table);
+    }
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the privacy/context fail-closed path for W0", async () => {
+    const userText = "우리 결혼 총 예산을 4천만원으로 변경해줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.getPrivacySnapshot.mockRejectedValue(new Error("snapshot unavailable"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("keeps a confirmed action on the full fail-closed context path even with a mixed W2 question", async () => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const userText = "응, 예산 적용해줘. 그리고 임신 중인데 이 약 먹어도 돼?";
+    setCanonicalConfirmedBudgetAction(actionId, userText);
+    mocks.getPrivacySnapshot.mockRejectedValue(new Error("snapshot unavailable"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      confirmedActionId: actionId,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
+    });
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("keeps wedding-adjacent discussion read-only while retaining bounded wedding context", async () => {
+    const userText = "신혼집 이사 비용 때문에 부부 재정을 어떻게 나눌지 대화하고 싶어";
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "두 분이 먼저 맞출 기준부터 정리해볼게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.tools.map((tool: { name: string }) => tool.name))
+      .toEqual(["get_wedding_info"]);
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W1_wedding_adjacent",
+    );
+    expect(providerArgs?.systemPrompt).not.toContain(
+      "[서버 발급 후속 확인 계약]",
+    );
+    expect(mocks.enqueueMemory).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a provider tool call that exceeds the server question-scope ceiling", async () => {
+    const userText = "주식 투자 예산을 3천만원으로 바꿔줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_scope_escape",
+          name: "get_wedding_info",
+          input: {},
+        }],
+        outputItems: [{
+          id: "fc_scope_escape",
+          type: "function_call",
+          call_id: "call_scope_escape",
+          name: "get_wedding_info",
+          arguments: "{}",
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({
+        fullText: "아모라는 결혼 준비 범위에서 도울게요.",
+      }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const [, output] = mocks.buildToolResult.mock.calls[0] as [string, string];
+    expect(JSON.parse(output)).toMatchObject({
+      success: false,
+      error_code: "QUESTION_SCOPE_TOOL_BLOCKED",
+    });
+    expect(mocks.provider.mock.calls[1]?.[0]?.tools).toEqual([]);
+  });
+
+  it("never executes a provider-requested mutation even inside W0", async () => {
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_model_mutation",
+          name: "update_budget",
+          input: { total_budget: 30_000_000 },
+        }],
+        outputItems: [{
+          id: "fc_model_mutation",
+          type: "function_call",
+          call_id: "call_model_mutation",
+          name: "update_budget",
+          arguments: JSON.stringify({ total_budget: 30_000_000 }),
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({
+        fullText: "변경은 확인 절차를 거쳐야 해요.",
+      }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const [, output] = mocks.buildToolResult.mock.calls[0] as [string, string];
+    expect(JSON.parse(output)).toMatchObject({
+      success: false,
+      error_code: "MODEL_MUTATION_TOOL_BLOCKED",
+    });
+  });
+
+  it("rejects a read tool that was not offered by the current intent policy", async () => {
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_unoffered_read",
+          name: "analyze_quote",
+          input: {},
+        }],
+        outputItems: [{
+          id: "fc_unoffered_read",
+          type: "function_call",
+          call_id: "call_unoffered_read",
+          name: "analyze_quote",
+          arguments: "{}",
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({
+        fullText: "현재 요청 범위 안에서 답할게요.",
+      }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const [, output] = mocks.buildToolResult.mock.calls[0] as [string, string];
+    expect(JSON.parse(output)).toMatchObject({
+      success: false,
+      error_code: "TOOL_NOT_AVAILABLE_FOR_TURN",
+    });
+  });
+
+  it("replaces and audits an affirmative persistence claim that has no server receipt", async () => {
+    const providerText =
+      "예산 우선순위를 먼저 정해보는 게 좋아요. 총예산을 3,000만 원으로 반영했어요.";
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(providerText);
+      return providerResult({
+        fullText: providerText,
+        usage: { input_tokens: 10, output_tokens: 8 },
+      });
+    });
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(body).toContain('"type":"text_clear"');
+    expect(body).not.toContain("3,000만 원으로 반영했어요");
+    expect(body).toContain("실제 실행 결과가 확인되지 않아");
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({
+        content: expect.stringContaining("아직 반영되지 않았어요"),
+        metadata: expect.objectContaining({
+          persistence_claim_corrected: true,
+          persistence_claim_removed_count: 1,
+        }),
+      }),
+    ]);
+  });
+
+  it("never flashes an unsupported completion claim on an ordinary streamed chat", async () => {
+    const providerText =
+      "차근차근 같이 볼게요. 드레스 투어 일정을 저장했어요.";
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.("차근차근 같이 볼게요. ");
+      options.onTextDelta?.("드레스 투어 일정을 저장했어요.");
+      return providerResult({
+        fullText: providerText,
+        usage: { input_tokens: 10, output_tokens: 8 },
+      });
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "안녕, 처음 왔어" }],
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).toContain("차근차근 같이 볼게요.");
+    expect(body).not.toContain("드레스 투어 일정을 저장했어요");
+    expect(body).toContain("실제 실행 결과가 확인되지 않아");
+    expect(body).toContain('"type":"text_clear"');
+  });
+
   it("does not treat canonical assistant prose plus a generic approval as write authority", async () => {
     mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
       {
@@ -1465,6 +4829,141 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
+  it("keeps one exact prior wedding request as context only for a narrow confirmation", async () => {
+    const now = Date.now();
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    const priorId = "30000000-0000-4000-8000-000000000008";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "응, 해줘",
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "요청 내용을 확인해볼게요.",
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+          pending_amora_action: {
+            version: 2,
+            actionId: "11111111-1111-4111-8111-111111111111",
+            tool: "update_budget",
+            input: { total_budget: 40_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
+            confirmation: "총 예산을 4천만원으로 변경할까요?",
+            issuedAt: now - 1_000,
+            expiresAt: now + 60_000,
+          },
+        },
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "우리 결혼 총 예산을 4천만원으로 바꿔줘",
+        metadata: null,
+        visibility: "shared",
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "아직 변경하지 않았어요.\n[pending_action]{\"tool\":\"update_budget\",\"input\":{\"total_budget\":40000000}}[/pending_action]",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응, 해줘" }],
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W4_out_of_scope",
+    );
+    expect(providerArgs?.systemPrompt).toContain(
+      "context_mode: linked_context_only",
+    );
+    expect(providerArgs?.systemPrompt).not.toContain(
+      "[서버 발급 후속 확인 계약]",
+    );
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: "우리 결혼 총 예산을 4천만원으로 바꿔줘" },
+      { role: "assistant", content: "요청 내용을 확인해볼게요." },
+      { role: "user", content: "응, 해줘" },
+    ]);
+    expect(providerArgs?.tools).toEqual([]);
+    expect(body).not.toContain("[pending_action]");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "pending_amora_action",
+    );
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("does not inherit a partner's shared wedding request for a short reply", async () => {
+    const currentText = "응";
+    const partnerWeddingRequest = "우리 결혼 총 예산을 4천만원으로 바꿔줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000002",
+        sender_id: "00000000-0000-4000-8000-000000000002",
+        sender_type: "groom",
+        role: "user",
+        content: partnerWeddingRequest,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "무엇을 확인하신 건지 한 번만 더 알려주세요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W4_out_of_scope",
+    );
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    expect(providerArgs?.tools).toEqual([]);
+    expect(JSON.stringify(providerArgs)).not.toContain(partnerWeddingRequest);
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
   it("does not treat a generic reply as authority even when the previous message has a pending action", async () => {
     const now = Date.now();
     mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
@@ -1486,14 +4985,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         content: "다음 변경을 적용할까요?",
         metadata: {
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId: "11111111-1111-4111-8111-111111111111",
             tool: "update_budget",
             input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
             confirmation:
               "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
             issuedAt: now - 1_000,
-            expiresAt: now - 1_000 + 10 * 60 * 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
           },
         },
         visibility: "shared",
@@ -1537,14 +5037,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         content: "총예산을 3,000만 원으로 바꿀까요?",
         metadata: {
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId,
             tool: "update_budget",
             input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
             confirmation:
               "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
             issuedAt: now - 1_000,
-            expiresAt: now - 1_000 + 10 * 60 * 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
           },
         },
         visibility: "shared",
@@ -1581,9 +5082,594 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.tools).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "update_budget" }),
     ]));
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W0_wedding_core",
+    );
     expect(providerArgs?.systemPrompt).toContain(actionId);
     expect(JSON.stringify(providerArgs?.input)).toContain("SERVER_CONFIRMED_ACTION_RESULT");
     expect(JSON.stringify(providerArgs?.input)).toContain("update_budget");
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "authorize_amora_shared_action_execution",
+      {
+        p_action_id: actionId,
+        p_confirmation_message_id: "30000000-0000-4000-8000-000000000001",
+        p_couple_id: COUPLE_ID,
+        p_source_message_id: "20000000-0000-4000-8000-000000000009",
+        p_user_id: "00000000-0000-4000-8000-000000000001",
+      },
+    );
+  });
+
+  it.each([
+    {
+      userText: "응, 예산 적용해줘. 그리고 임신 중인데 이 약 먹어도 돼?",
+      expectedScope: "W2_high_risk_adjacent",
+    },
+    {
+      userText: "응, 예산 적용해줘. 그리고 삼성전자 주식 사도 돼?",
+      expectedScope: "W4_out_of_scope",
+    },
+  ])("executes only the approved action while $expectedScope still governs the mixed current question", async ({
+    userText,
+    expectedScope,
+  }) => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, userText);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "승인된 예산 변경 결과와 별개로 안전한 범위에서 안내할게요.",
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      confirmedActionId: actionId,
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "update_budget",
+      { total_budget: 30_000_000 },
+      expect.objectContaining({
+        currentUserText: userText,
+        pendingActionId: actionId,
+      }),
+    );
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.tools).toEqual([]);
+    expect(providerArgs?.systemPrompt).toContain(
+      `question_scope: ${expectedScope}`,
+    );
+    expect(JSON.stringify(providerArgs?.input))
+      .toContain("SERVER_CONFIRMED_ACTION_RESULT");
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ question_scope: expectedScope }),
+    }));
+  });
+
+  it("never exposes provider prose for a confirmed mutation receipt", async () => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const providerFalseSuccess = "완료됐어요. 예산과 일정까지 모두 저장했어요.";
+    const serverDisplayMessage = "총예산을 3,000만 원으로 변경했어요.";
+    setCanonicalConfirmedBudgetAction(actionId);
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "update_budget",
+      toolInput: { total_budget: 30_000_000 },
+      toolOutput: { committed: true },
+      success: true,
+      displayMessage: serverDisplayMessage,
+    });
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(providerFalseSuccess);
+      return providerResult({
+        fullText: providerFalseSuccess,
+        usage: { input_tokens: 10, output_tokens: 6 },
+      });
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응" }],
+      confirmedActionId: actionId,
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).not.toContain(providerFalseSuccess);
+    expect(body).toContain(serverDisplayMessage);
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({ content: serverDisplayMessage }),
+    ]);
+    const confirmedResultInput = String((
+      mocks.provider.mock.calls[0]?.[0]?.input as Array<{ content?: unknown }>
+    ).find((item) => String(item.content).includes(
+      "SERVER_CONFIRMED_ACTION_RESULT",
+    ))?.content);
+    expect(confirmedResultInput).toContain('"success":true');
+    expect(confirmedResultInput).toContain(serverDisplayMessage);
+  });
+
+  it("uses a failed mutation receipt instead of a provider success claim", async () => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const providerFalseSuccess = "예산 변경 완료했어요.";
+    const serverFailureMessage = "예산은 변경되지 않았어요. 입력값을 다시 확인해주세요.";
+    setCanonicalConfirmedBudgetAction(actionId);
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "update_budget",
+      toolInput: { total_budget: 30_000_000 },
+      toolOutput: { error: "invalid_budget" },
+      success: false,
+      displayMessage: serverFailureMessage,
+    });
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(providerFalseSuccess);
+      return providerResult({ fullText: providerFalseSuccess });
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응" }],
+      confirmedActionId: actionId,
+    }));
+    const body = await response.text();
+
+    expect(body).not.toContain(providerFalseSuccess);
+    expect(body).toContain(serverFailureMessage);
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({ content: serverFailureMessage }),
+    ]);
+  });
+
+  it("rechecks privacy before reserving or executing a confirmed side effect", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const now = Date.now();
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "응",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "총예산을 3,000만 원으로 바꿀까요?",
+        metadata: {
+          pending_amora_action: {
+            version: 2,
+            actionId,
+            tool: "update_budget",
+            input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
+            confirmation:
+              "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
+            issuedAt: now - 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
+          },
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.memoryEnablement.shared = true;
+    const initial = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:00:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    const withdrawn = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: false,
+          resetAt: "2026-07-31T00:01:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    mocks.privacySnapshotSequence.push(initial, withdrawn);
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응" }],
+      confirmedActionId: actionId,
+    }));
+    const body = await response.text();
+
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.persist).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("binds every replay of one confirmation to one durable request key", async () => {
+    const now = Date.now();
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "적용을 계속해 주세요.",
+        metadata: {
+          client_request_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          confirmed_amora_action_id: actionId,
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "총예산을 3,000만 원으로 바꿀까요?",
+        metadata: {
+          pending_amora_action: {
+            version: 2,
+            actionId,
+            tool: "update_budget",
+            input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
+            confirmation:
+              "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
+            issuedAt: now - 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
+          },
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValue(providerResult({
+      fullText: "총예산을 반영했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const first = await POST(request({
+      clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      messages: [{ role: "user", content: "적용을 계속해 주세요." }],
+      confirmedActionId: actionId,
+    }));
+    expect(first.status).toBe(200);
+    await first.text();
+    const second = await POST(request({
+      clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      messages: [{ role: "user", content: "적용을 계속해 주세요." }],
+      confirmedActionId: actionId,
+    }));
+    expect(second.status).toBe(200);
+    await second.text();
+
+    const firstRequestKey = mocks.claim.mock.calls[0]?.[0]?.requestKey;
+    const secondRequestKey = mocks.claim.mock.calls[1]?.[0]?.requestKey;
+    expect(firstRequestKey).toBe(secondRequestKey);
+    expect(firstRequestKey).not.toContain("aaaaaaaa");
+    expect(mocks.atomicResponses).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          confirmed_amora_action_id: actionId,
+        }),
+      }),
+    ]));
+  });
+
+  it("rejects a high-impact action before cost or mutation when both confirmations are absent", async () => {
+    const now = Date.now();
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    mocks.adminRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "55000", message: "AMORA_SHARED_ACTION_APPROVAL_REQUIRED" },
+    });
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "두 사람 확인을 마쳤어요.",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "총예산을 3,000만 원으로 바꿀까요?",
+        metadata: {
+          pending_amora_action: {
+            version: 2,
+            actionId,
+            tool: "update_budget",
+            input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
+            confirmation:
+              "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
+            issuedAt: now - 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
+          },
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "두 사람 확인을 마쳤어요." }],
+      confirmedActionId: actionId,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_SHARED_ACTION_APPROVAL_REQUIRED",
+    });
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("keeps reversible schedule additions on the one-confirmation path", async () => {
+    const now = Date.now();
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const pendingAction = extractAmoraPendingAction({
+      text: '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-08-01","title":"드레스 피팅"}}[/pending_action]',
+      allowedTools: mocks.safeTools,
+      now,
+      createActionId: () => actionId,
+    }).pendingAction;
+    expect(pendingAction).not.toBeNull();
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "일정을 추가해 주세요.",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: pendingAction?.confirmation,
+        metadata: { pending_amora_action: pendingAction },
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "add_schedule_event",
+      toolInput: { date: "2026-08-01", title: "드레스 피팅" },
+      toolOutput: { event_id: "evt_1" },
+      success: true,
+      displayMessage: "일정을 추가했어요.",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "일정을 추가했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "일정을 추가해 주세요." }],
+      confirmedActionId: actionId,
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "authorize_amora_shared_action_execution",
+      {
+        p_action_id: actionId,
+        p_confirmation_message_id: "30000000-0000-4000-8000-000000000001",
+        p_couple_id: COUPLE_ID,
+        p_source_message_id: "20000000-0000-4000-8000-000000000009",
+        p_user_id: "00000000-0000-4000-8000-000000000001",
+      },
+    );
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "add_schedule_event",
+      { date: "2026-08-01", title: "드레스 피팅" },
+      expect.objectContaining({ pendingActionId: actionId }),
+    );
+  });
+
+  it("rejects a pending action before tools when no application lease was granted", async () => {
+    const now = Date.now();
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const pendingAction = extractAmoraPendingAction({
+      text: '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-08-01","title":"드레스 피팅"}}[/pending_action]',
+      allowedTools: mocks.safeTools,
+      now,
+      createActionId: () => actionId,
+    }).pendingAction;
+    expect(pendingAction).not.toBeNull();
+    mocks.adminRpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "55000",
+        message: "AMORA_SHARED_ACTION_APPLICATION_CLAIM_REQUIRED",
+      },
+    });
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "일정을 추가해 주세요.",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000009",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: pendingAction?.confirmation,
+        metadata: { pending_amora_action: pendingAction },
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "일정을 추가해 주세요." }],
+      confirmedActionId: actionId,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_SHARED_ACTION_APPLICATION_CLAIM_REQUIRED",
+    });
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("recovers a private durable request when only newer Amora context is shared", async () => {
+    const privateUserMessageId = "30000000-0000-4000-8000-000000000001";
+    const privateUserText = "결혼식 예산을 다시 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "공유 대화의 더 새로운 아모라 답변",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: privateUserMessageId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: privateUserText,
+        metadata: null,
+        visibility: "bride_private",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "개인 대화를 이어서 답할게요.",
+      usage: { input_tokens: 10, output_tokens: 6 },
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      userMessageId: privateUserMessageId,
+      messages: [{ role: "user", content: privateUserText }],
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a private durable request when its own lane has newer Amora context", async () => {
+    const privateUserMessageId = "30000000-0000-4000-8000-000000000001";
+    const privateUserText = "결혼식 예산을 다시 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "개인 대화의 더 새로운 아모라 답변",
+        metadata: null,
+        visibility: "bride_private",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: privateUserMessageId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: privateUserText,
+        metadata: null,
+        visibility: "bride_private",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+    );
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      userMessageId: privateUserMessageId,
+      messages: [{ role: "user", content: privateUserText }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_NOT_LATEST",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("recovers a shared durable request when only newer Amora context is private", async () => {
+    const sharedUserMessageId = "30000000-0000-4000-8000-000000000001";
+    const sharedUserText = "결혼식 예산을 다시 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "개인 대화의 더 새로운 아모라 답변",
+        metadata: null,
+        visibility: "bride_private",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: sharedUserMessageId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: sharedUserText,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "공유 대화를 이어서 답할게요.",
+      usage: { input_tokens: 10, output_tokens: 6 },
+    }));
+
+    const response = await POST(request({
+      visibility: "shared",
+      userMessageId: sharedUserMessageId,
+      messages: [{ role: "user", content: sharedUserText }],
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a stale durable confirmation when newer Amora context already exists", async () => {
@@ -1618,14 +5704,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         content: "총예산을 3,000만 원으로 바꿀까요?",
         metadata: {
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId,
             tool: "update_budget",
             input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
             confirmation:
               "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
             issuedAt: now - 1_000,
-            expiresAt: now - 1_000 + 10 * 60 * 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
           },
         },
         visibility: "shared",
@@ -1675,14 +5762,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         content: "총예산을 3,000만 원으로 바꿀까요?",
         metadata: {
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId,
             tool: "update_budget",
             input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
             confirmation:
               "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
             issuedAt: now - 1_000,
-            expiresAt: now - 1_000 + 10 * 60 * 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
           },
         },
         visibility: "shared",
@@ -1729,14 +5817,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         content: "다음 변경을 적용할까요?",
         metadata: {
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId: "11111111-1111-4111-8111-111111111111",
             tool: "update_budget",
             input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
             confirmation:
               "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
             issuedAt: now - 1_000,
-            expiresAt: now - 1_000 + 10 * 60 * 1_000,
+            expiresAt: now - 1_000 + 24 * 60 * 60 * 1_000,
           },
         },
         visibility: "shared",
@@ -1777,15 +5866,45 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect.objectContaining({
         content: canonicalConfirmation,
         metadata: expect.objectContaining({
-        pending_amora_action: expect.objectContaining({
-          version: 1,
-          tool: "update_budget",
-          input: { total_budget: 30_000_000 },
-          confirmation: canonicalConfirmation,
+          pending_amora_action: expect.objectContaining({
+            version: 2,
+            tool: "update_budget",
+            input: { total_budget: 30_000_000 },
+            ...BUDGET_PENDING_IDENTITY,
+            confirmation: canonicalConfirmation,
+          }),
+          pending_amora_action_journey_revision: 0,
+          pending_amora_action_impact_preview: expect.objectContaining({
+            version: 1,
+            kind: "budget_change",
+            tool: "update_budget",
+            inputDigest: BUDGET_PENDING_IDENTITY.inputDigest,
+            sourceRevision: 0,
+            recordedSpendBasis: "explicit_spent_only",
+            current: expect.objectContaining({ totalBudget: 0 }),
+            proposed: expect.objectContaining({ totalBudget: 30_000_000 }),
+            delta: expect.objectContaining({ totalBudget: 30_000_000 }),
+          }),
         }),
       }),
-      }),
     ]);
+  });
+
+  it("does not persist an executable proposal without a proposal-time journey revision", async () => {
+    mocks.journeyStateRevision = null;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).toContain('"type":"error"');
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.persist).not.toHaveBeenCalled();
   });
 
   it("rejects remote attachments before a durable claim or quota reservation", async () => {
@@ -1820,15 +5939,18 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it("rejects an unsafe DOCX archive before a durable claim or quota reservation", async () => {
+    const mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const base64 = makeDocxZipFixture(docxRequiredEntries([{
+      name: "word/bomb.bin",
+      data: Buffer.from("x"),
+      method: 8,
+      uncompressedSize: 10 * 1024 * 1024,
+    }])).toString("base64");
+    await bindCanonicalProviderAttachments([{ mediaType, base64 }]);
     const response = await POST(request({
       attachments: [{
-        mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        base64: makeDocxZipFixture(docxRequiredEntries([{
-          name: "word/bomb.bin",
-          data: Buffer.from("x"),
-          method: 8,
-          uncompressedSize: 10 * 1024 * 1024,
-        }])).toString("base64"),
+        mediaType,
+        base64,
         fileName: "bomb.docx",
       }],
     }));
@@ -1845,11 +5967,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it("rejects excessive extracted DOCX text before a durable claim or quota reservation", async () => {
+    const mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const base64 = makeDocxZipFixture(docxRequiredEntries()).toString("base64");
+    await bindCanonicalProviderAttachments([{ mediaType, base64 }]);
     mocks.mammothExtract.mockResolvedValueOnce({ value: "x".repeat(200_001) });
     const response = await POST(request({
       attachments: [{
-        mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        base64: makeDocxZipFixture(docxRequiredEntries()).toString("base64"),
+        mediaType,
+        base64,
         fileName: "long.docx",
       }],
     }));
@@ -1864,11 +5989,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).not.toHaveBeenCalled();
   });
 
-  it("keeps a bounded normal DOCX compatible with document analysis", async () => {
+  it("validates but strips a W4 DOCX before the minimized provider envelope", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
       content: "이 Word 문서를 봐줘",
     };
+    const mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const base64 = makeDocxZipFixture(docxRequiredEntries()).toString("base64");
+    await bindCanonicalProviderAttachments([{ mediaType, base64 }]);
     mocks.mammothExtract.mockResolvedValueOnce({ value: "계약금은 300만원입니다." });
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "문서 내용을 살펴봤어요.",
@@ -1878,41 +6006,123 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const response = await POST(request({
       messages: [{ role: "user", content: "이 Word 문서를 봐줘" }],
       attachments: [{
-        mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        base64: makeDocxZipFixture(docxRequiredEntries()).toString("base64"),
+        mediaType,
+        base64,
         fileName: "contract.docx",
+      }],
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.mammothExtract).toHaveBeenCalledTimes(1);
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).not.toContain("contract.docx");
+    expect(providerInput).not.toContain("계약금은 300만원입니다.");
+    expect(providerInput).toContain("이 Word 문서를 봐줘");
+    expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
+      "question_scope: W4_out_of_scope",
+    );
+    expect(body).not.toContain("문서 내용을 살펴봤어요");
+    expect(body).toContain("결혼 준비 관련 파일이라면");
+    expect(body).toContain("파일을 다시 첨부");
+    expect(mocks.atomicResponses[0]?.content).toContain("파일을 다시 첨부");
+  });
+
+  it("keeps only the current explicit W2 attachment while stripping stored history", async () => {
+    const userText = "웨딩홀 계약금 환불이 가능한지 법적으로 봐줘";
+    setSensitiveStoredProviderContext(userText);
+    const mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const base64 = makeDocxZipFixture(docxRequiredEntries()).toString("base64");
+    await bindCanonicalProviderAttachments([{ mediaType, base64 }]);
+    mocks.mammothExtract.mockResolvedValueOnce({
+      value: "W2_ATTACHMENT_CONTENT_SENTINEL",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "법률 판단 없이 확인할 항목만 정리할게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      attachments: [{
+        mediaType,
+        base64,
+        fileName: "W2_ATTACHMENT_FILE_SENTINEL.docx",
       }],
     }));
     expect(response.status).toBe(200);
     await response.text();
 
-    expect(mocks.mammothExtract).toHaveBeenCalledTimes(1);
-    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
-    expect(providerInput).toContain("contract.docx");
-    expect(providerInput).toContain("계약금은 300만원입니다.");
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    const envelope = JSON.stringify({
+      systemPrompt: providerArgs?.systemPrompt,
+      input: providerArgs?.input,
+    });
+    expect(envelope).toContain(userText);
+    expect(envelope).not.toContain("W2_ATTACHMENT_FILE_SENTINEL.docx");
+    expect(envelope).toContain("attachment-1.docx");
+    expect(envelope).toContain("W2_ATTACHMENT_CONTENT_SENTINEL");
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W2_high_risk_adjacent",
+    );
+    for (const sentinel of [
+      "PRIVATE_BRIDE_SENTINEL",
+      "PRIVATE_SCHEDULE_SENTINEL",
+      "PRIVATE_SUMMARY_SENTINEL",
+      "PRIVATE_DECISION_SENTINEL",
+      "PRIVATE_CONFLICT_SENTINEL",
+      "PRIVATE_PROFILE_SENTINEL",
+      "PRIVATE_ASSISTANT_HISTORY_SENTINEL",
+      "PRIVATE_USER_HISTORY_SENTINEL",
+    ]) {
+      expect(envelope).not.toContain(sentinel);
+    }
+    expect(mocks.providerLedger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        specialistType: "contract_reviewer",
+        stageTag: null,
+      }),
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(mocks.atomicFinalizations[0]).toMatchObject({
+      message: {
+        specialistType: "contract_reviewer",
+        stageTag: null,
+      },
+    });
   });
 
   it("routes a server-accepted PDF to document analysis tools", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
-      content: "이 첨부를 봐줘",
+      content: "이 웨딩 견적 PDF를 봐줘",
     };
+    const mediaType = "application/pdf";
+    const base64 = "JVBERi0xLjQK";
+    await bindCanonicalProviderAttachments([{ mediaType, base64 }]);
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "견적서를 살펴볼게요.",
       usage: { input_tokens: 10, output_tokens: 3 },
     }));
 
     const response = await POST(request({
-      messages: [{ role: "user", content: "이 첨부를 봐줘" }],
+      messages: [{ role: "user", content: "이 웨딩 견적 PDF를 봐줘" }],
       attachments: [{
-        mediaType: "application/pdf",
-        base64: "JVBERi0xLjQK",
+        mediaType,
+        base64,
         fileName: "quote.pdf",
       }],
     }));
     expect(response.status).toBe(200);
     await response.text();
 
+    expect(mocks.buildMultimodal).toHaveBeenCalledWith(
+      expect.any(String),
+      [expect.objectContaining({ fileName: "attachment-1.pdf" })],
+    );
+    expect(JSON.stringify(mocks.buildMultimodal.mock.calls)).not.toContain("quote.pdf");
     const toolNames = mocks.provider.mock.calls[0]?.[0]?.tools
       .map((tool: { name: string }) => tool.name);
     expect(toolNames).toContain("analyze_quote");
@@ -1951,7 +6161,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }));
   });
 
-  it("clears a streamed draft and emits no durable done event when the atomic terminal commit is unconfirmed", async () => {
+  it("does not expose a buffered draft or durable done event when the atomic terminal commit is unconfirmed", async () => {
     mocks.provider.mockImplementationOnce(async (options: {
       beforeGeneration?: () => Promise<void>;
       onTextDelta?: (value: string) => void;
@@ -1973,10 +6183,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toContain("아직 커밋되지 않은 초안");
-    expect(body.lastIndexOf('"type":"text_clear"')).toBeGreaterThan(
-      body.indexOf("아직 커밋되지 않은 초안"),
-    );
+    expect(body).not.toContain("아직 커밋되지 않은 초안");
+    expect(body).toContain('"type":"text_clear"');
     expect(body).toContain('"type":"error"');
     expect(body).not.toContain('"type":"done"');
     expect(mocks.persist).not.toHaveBeenCalled();
@@ -1995,6 +6203,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
 
     expect(body).toContain('"code":"AMORA_INPUT_TOO_LARGE"');
+    expect(body).toContain('"retryable":false');
+    expect(body).toContain('"retryPolicy":"new_message"');
     expect(body).toContain("대화나 첨부파일 내용이 너무 길어요");
     expect(body).not.toContain("SECRET_PROVIDER_INPUT_DETAILS");
     expect(mocks.reserve).not.toHaveBeenCalled();
@@ -2023,6 +6233,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain('"code":"AMORA_INPUT_COUNT_UNAVAILABLE"');
+    expect(body).toContain('"retryable":true');
+    expect(body).toContain('"retryPolicy":"same_request"');
     expect(body).toContain("입력 분량을 확인하는 중 문제가 생겼어요");
     expect(body).not.toContain("SECRET_COUNT_ENDPOINT_DETAILS");
     expect(mocks.reserve).not.toHaveBeenCalled();
@@ -2068,7 +6280,6 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it.each([
-    ["bookingsError", "BOOKINGS_CONTEXT_UNAVAILABLE"],
     ["directoryError", "COUPLE_DIRECTORY_UNAVAILABLE"],
     ["decisionsError", "DECISIONS_CONTEXT_UNAVAILABLE"],
   ] as const)(
@@ -2099,6 +6310,747 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(await response.json()).toMatchObject({ code: "MEMORY_CONTEXT_UNAVAILABLE" });
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("fails closed before context reads when the initial privacy snapshot is unavailable", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.privacySnapshotSequence.push(
+      privacyContextError("AMORA_PRIVACY_CONTEXT_UNAVAILABLE"),
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_PRIVACY_CONTEXT_UNAVAILABLE",
+    });
+    expect(mocks.requestFrom).not.toHaveBeenCalledWith("chat_summaries");
+    expect(mocks.profileSourceSelect).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    errorSpy.mockRestore();
+  });
+
+  it("does not atomically persist or display a reply when privacy changes during generation", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.memoryEnablement.shared = true;
+    const initial = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:00:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    const withdrawn = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: false,
+          resetAt: "2026-07-31T00:01:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    // Initial context read, pre-count recheck, pre-generation recheck, then
+    // the new post-provider/pre-atomic recheck observes withdrawal.
+    mocks.privacySnapshotSequence.push(initial, initial, initial, withdrawn);
+    const networkBoundary = providerNetworkAfterPreGeneration(providerResult({
+      fullText: "저장되거나 표시되면 안 되는 답변",
+    }));
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(networkBoundary).toHaveBeenCalledTimes(1);
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(body).toContain('"retryable":false');
+    expect(body).toContain('"retryPolicy":"new_message"');
+    expect(body).not.toContain("저장되거나 표시되면 안 되는 답변");
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.atomicFinalizations).toEqual([]);
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("discards a stored-context reply when the atomic privacy epoch changes at commit", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const privateDraft = "PRIVATE_PROVIDER_DRAFT_MUST_NEVER_FLASH";
+    mocks.atomicOutcome = "privacy_context_changed";
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeGeneration?.();
+      options.onTextDelta?.(privateDraft);
+      return providerResult({ fullText: privateDraft });
+    });
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(body).not.toContain(privateDraft);
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({ expectedPrivacyEpoch: 7 }),
+    ]);
+    expect(mocks.atomicFinalizations).toEqual([
+      expect.objectContaining({
+        outcome: "privacy_context_changed",
+        message: null,
+      }),
+    ]);
+    // The privacy-fenced database finalizer already failed this exact claim.
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("withholds every stored-context tool payload when the terminal privacy commit is rejected", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const currentUserText = "예식장 정보를 확인해줘";
+    const toolRoundDraft = "PRIVATE_TOOL_ROUND_PROVIDER_DRAFT";
+    const finalDraft = "PRIVATE_FINAL_PROVIDER_DRAFT";
+    const privateToolResult = "PRIVATE_TOOL_RESULT_MUST_NOT_FLASH";
+    setSensitiveStoredProviderContext(currentUserText);
+    mocks.atomicOutcome = "privacy_context_changed";
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "get_wedding_info",
+      toolInput: { source: "PRIVATE_TOOL_INPUT_MUST_NOT_FLASH" },
+      toolOutput: { weddingVenue: privateToolResult },
+      success: true,
+      displayMessage: privateToolResult,
+    });
+    mocks.provider
+      .mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(toolRoundDraft);
+        return providerResult({
+          fullText: toolRoundDraft,
+          toolCalls: [{
+            callId: "call_private_tool_round",
+            name: "get_wedding_info",
+            input: { source: "PRIVATE_TOOL_INPUT_MUST_NOT_FLASH" },
+          }],
+          outputItems: [{
+            id: "fc_private_tool_round",
+            type: "function_call",
+            call_id: "call_private_tool_round",
+            name: "get_wedding_info",
+            arguments: '{"source":"PRIVATE_TOOL_INPUT_MUST_NOT_FLASH"}',
+            status: "completed",
+          }],
+        });
+      })
+      .mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(finalDraft);
+        return providerResult({ fullText: finalDraft });
+      });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentUserText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(body).not.toContain(toolRoundDraft);
+    expect(body).not.toContain(finalDraft);
+    expect(body).not.toContain("PRIVATE_TOOL_INPUT_MUST_NOT_FLASH");
+    expect(body).not.toContain(privateToolResult);
+    expect(body).not.toContain('"type":"tool_start"');
+    expect(body).not.toContain('"type":"tool_result"');
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.buildJournalCheckpoint).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+    expect(mocks.atomicFinalizations).toEqual([
+      expect.objectContaining({
+        outcome: "privacy_context_changed",
+        message: null,
+      }),
+    ]);
+    // The privacy-fenced database finalizer already failed this exact claim.
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("withholds every terminal payload until durable memory enqueue is confirmed", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const currentUserText = "예식장 정보를 확인해줘";
+    const toolRoundDraft = "PRIVATE_TOOL_ROUND_DRAFT_BEFORE_MEMORY_PROOF";
+    const finalDraft = "PRIVATE_FINAL_DRAFT_BEFORE_MEMORY_PROOF";
+    const toolResult = "PRIVATE_TOOL_RESULT_BEFORE_MEMORY_PROOF";
+    const suggestion = "PRIVATE_SUGGESTION_BEFORE_MEMORY_PROOF";
+    setSensitiveStoredProviderContext(currentUserText);
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    mocks.enqueueMemory.mockResolvedValueOnce("failed");
+    mocks.extractSuggestions.mockReturnValueOnce({
+      cleanText: finalDraft,
+      suggestions: [suggestion],
+    });
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "get_wedding_info",
+      toolInput: {},
+      toolOutput: { venue: toolResult },
+      success: true,
+      displayMessage: toolResult,
+    });
+    mocks.provider
+      .mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(toolRoundDraft);
+        return providerResult({
+          fullText: toolRoundDraft,
+          toolCalls: [{
+            callId: "call_memory_proof",
+            name: "get_wedding_info",
+            input: {},
+          }],
+          outputItems: [{
+            id: "fc_memory_proof",
+            type: "function_call",
+            call_id: "call_memory_proof",
+            name: "get_wedding_info",
+            arguments: "{}",
+            status: "completed",
+          }],
+        });
+      })
+      .mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(finalDraft);
+        return providerResult({ fullText: finalDraft });
+      });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentUserText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED");
+    for (const protectedValue of [
+      toolRoundDraft,
+      finalDraft,
+      toolResult,
+      suggestion,
+    ]) {
+      expect(body).not.toContain(protectedValue);
+    }
+    expect(body).not.toContain('"type":"tool_start"');
+    expect(body).not.toContain('"type":"tool_result"');
+    expect(body).not.toContain('"type":"text_delta"');
+    expect(body).not.toContain('"type":"suggestions"');
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      memory_enqueue_requested: true,
+    });
+    errorSpy.mockRestore();
+  });
+
+  it("withholds the normal terminal when privacy changes while memory enqueue resolves disabled", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const currentUserText = "예식장 정보를 확인해줘";
+    const toolDraft = "NORMAL_PRIVACY_RACE_TOOL_DRAFT";
+    const finalDraft = "NORMAL_PRIVACY_RACE_FINAL_DRAFT";
+    const toolResult = "NORMAL_PRIVACY_RACE_TOOL_RESULT";
+    const suggestion = "NORMAL_PRIVACY_RACE_SUGGESTION";
+    setSensitiveStoredProviderContext(currentUserText);
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    mocks.getPrivacyEpoch.mockReset();
+    mocks.getPrivacyEpoch.mockResolvedValue(7);
+    mocks.enqueueMemory.mockImplementationOnce(async () => {
+      // Consent/reset changes after the atomic terminal commit but before the
+      // memory reconciliation returns its fail-open `disabled` result.
+      mocks.getPrivacyEpoch.mockResolvedValue(8);
+      return "disabled";
+    });
+    mocks.extractSuggestions.mockReturnValueOnce({
+      cleanText: finalDraft,
+      suggestions: [suggestion],
+    });
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "get_wedding_info",
+      toolInput: {},
+      toolOutput: { venue: toolResult },
+      success: true,
+      displayMessage: toolResult,
+    });
+    mocks.provider
+      .mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(toolDraft);
+        return providerResult({
+          fullText: toolDraft,
+          toolCalls: [{
+            callId: "call_normal_privacy_race",
+            name: "get_wedding_info",
+            input: {},
+          }],
+          outputItems: [{
+            id: "fc_normal_privacy_race",
+            type: "function_call",
+            call_id: "call_normal_privacy_race",
+            name: "get_wedding_info",
+            arguments: "{}",
+            status: "completed",
+          }],
+        });
+      })
+      .mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(finalDraft);
+        return providerResult({ fullText: finalDraft });
+      });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentUserText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"code":"AMORA_PRIVACY_CONTEXT_CHANGED"');
+    expect(body).toContain('"retryPolicy":"new_message"');
+    for (const protectedValue of [
+      toolDraft,
+      finalDraft,
+      toolResult,
+      suggestion,
+    ]) {
+      expect(body).not.toContain(protectedValue);
+    }
+    expect(body).not.toContain('"type":"tool_start"');
+    expect(body).not.toContain('"type":"tool_result"');
+    expect(body).not.toContain('"type":"text_delta"');
+    expect(body).not.toContain('"type":"suggestions"');
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicFinalizations).toEqual([
+      expect.objectContaining({ outcome: "persisted" }),
+    ]);
+    expect(mocks.enqueueMemory).toHaveBeenCalledTimes(1);
+    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(2);
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("withholds the MAX_TOOL_ROUNDS terminal when privacy changes during memory reconciliation", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const currentUserText = "예식장 정보를 두 번 확인해줘";
+    const finalDraft = "MAX_PRIVACY_RACE_FINAL_DRAFT";
+    const suggestion = "MAX_PRIVACY_RACE_SUGGESTION";
+    setSensitiveStoredProviderContext(currentUserText);
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    mocks.getPrivacyEpoch.mockReset();
+    mocks.getPrivacyEpoch.mockResolvedValue(7);
+    mocks.enqueueMemory.mockImplementationOnce(async () => {
+      mocks.getPrivacyEpoch.mockResolvedValue(8);
+      return "disabled";
+    });
+    mocks.extractSuggestions.mockReturnValueOnce({
+      cleanText: finalDraft,
+      suggestions: [suggestion],
+    });
+    mocks.executeTool.mockImplementation(async (
+      toolName: string,
+      toolInput: Record<string, unknown>,
+    ) => ({
+      toolName,
+      toolInput,
+      toolOutput: { private: `MAX_PRIVACY_RACE_RESULT_${String(toolInput.round)}` },
+      success: true,
+      displayMessage: `MAX_PRIVACY_RACE_RESULT_${String(toolInput.round)}`,
+    }));
+    for (let round = 0; round < 2; round++) {
+      mocks.provider.mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+        onTextDelta?: (value: string) => void;
+      }) => {
+        await options.beforeGeneration?.();
+        options.onTextDelta?.(`MAX_PRIVACY_RACE_DRAFT_${round}`);
+        return providerResult({
+          fullText: `MAX_PRIVACY_RACE_DRAFT_${round}`,
+          toolCalls: [{
+            callId: `call_max_privacy_race_${round}`,
+            name: "get_wedding_info",
+            input: { round },
+          }],
+          outputItems: [{
+            id: `fc_max_privacy_race_${round}`,
+            type: "function_call",
+            call_id: `call_max_privacy_race_${round}`,
+            name: "get_wedding_info",
+            arguments: JSON.stringify({ round }),
+            status: "completed",
+          }],
+        });
+      });
+    }
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeGeneration?.();
+      options.onTextDelta?.(finalDraft);
+      return providerResult({ fullText: finalDraft });
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentUserText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"code":"AMORA_PRIVACY_CONTEXT_CHANGED"');
+    for (const protectedValue of [
+      "MAX_PRIVACY_RACE_DRAFT_0",
+      "MAX_PRIVACY_RACE_DRAFT_1",
+      "MAX_PRIVACY_RACE_RESULT_0",
+      "MAX_PRIVACY_RACE_RESULT_1",
+      finalDraft,
+      suggestion,
+    ]) {
+      expect(body).not.toContain(protectedValue);
+    }
+    expect(body).not.toContain('"type":"tool_start"');
+    expect(body).not.toContain('"type":"tool_result"');
+    expect(body).not.toContain('"type":"text_delta"');
+    expect(body).not.toContain('"type":"suggestions"');
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.provider).toHaveBeenCalledTimes(3);
+    expect(mocks.atomicFinalizations).toEqual([
+      expect.objectContaining({ outcome: "persisted" }),
+    ]);
+    expect(mocks.enqueueMemory).toHaveBeenCalledTimes(1);
+    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(2);
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("does not reserve, call the provider network, or persist after memory consent is withdrawn", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.memoryEnablement.shared = true;
+    const initial = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:00:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    const withdrawn = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: false,
+          resetAt: "2026-07-31T00:01:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    mocks.privacySnapshotSequence.push(initial, withdrawn);
+    const networkBoundary = providerNetworkAfterPreGeneration(providerResult({
+      fullText: "생성되면 안 되는 답변",
+    }));
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(networkBoundary).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("does not cross the provider boundary when the memory reset boundary changes", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.memoryEnablement.shared = true;
+    const initial = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:00:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    const reset = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:02:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    mocks.privacySnapshotSequence.push(initial, reset);
+    const networkBoundary = providerNetworkAfterPreGeneration(providerResult({
+      fullText: "생성되면 안 되는 답변",
+    }));
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(networkBoundary).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    errorSpy.mockRestore();
+  });
+
+  it.each([
+    [
+      "deleted",
+      { exists: false, revision: null },
+    ],
+    [
+      "updated",
+      { exists: true, revision: 3 },
+    ],
+  ] as const)(
+    "does not cross the provider boundary when personalization is %s",
+    async (_change, currentPersonalization) => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      mocks.personalizationRow = {
+        decision_start: "compare_first",
+        answer_detail: "brief",
+        support_order: "listen_first",
+        work_mode: "hybrid",
+        family_order: "couple_first",
+        tone_style: "adaptive",
+        revision: 2,
+        confirmed_at: "2026-07-31T01:00:00.000Z",
+        updated_at: "2026-07-31T02:00:00.000Z",
+      };
+      const initial = privacySnapshot();
+      const changed = privacySnapshot({
+        personalization: currentPersonalization,
+      });
+      mocks.privacySnapshotSequence.push(initial, changed);
+      const networkBoundary = providerNetworkAfterPreGeneration(providerResult({
+        fullText: "생성되면 안 되는 답변",
+      }));
+
+      const response = await POST(request());
+      const body = await response.text();
+
+      expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+      expect(networkBoundary).not.toHaveBeenCalled();
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toEqual([]);
+      expect(mocks.persist).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    },
+  );
+
+  it("fails closed before reservation when the final privacy recheck errors", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.privacySnapshotSequence.push(
+      privacySnapshot(),
+      privacyContextError("AMORA_PRIVACY_CONTEXT_UNAVAILABLE"),
+    );
+    const networkBoundary = providerNetworkAfterPreGeneration(providerResult({
+      fullText: "생성되면 안 되는 답변",
+    }));
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_UNAVAILABLE");
+    expect(networkBoundary).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.persist).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("rechecks again after provider input counting and before generation", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.memoryEnablement.shared = true;
+    const initial = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:00:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    const reset = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:05:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    mocks.privacySnapshotSequence.push(
+      initial,
+      privacySnapshot({ memory: initial.memory }),
+      reset,
+    );
+    const inputCountBoundary = vi.fn();
+    const generationBoundary = vi.fn();
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+    }) => {
+      // 실제 계약과 같은 순서: egress gate가 토큰 계산보다도 먼저다.
+      await options.beforeProviderEgress?.();
+      inputCountBoundary();
+      await options.beforeGeneration?.();
+      generationBoundary();
+      return providerResult({ fullText: "생성되면 안 되는 답변" });
+    });
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(inputCountBoundary).toHaveBeenCalledTimes(1);
+    expect(generationBoundary).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    errorSpy.mockRestore();
+  });
+
+  it("allows a scope enabled after the prompt was built to finish without rebuilding it", async () => {
+    const initial = privacySnapshot();
+    const newlyEnabled = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:03:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    mocks.privacySnapshotSequence.push(initial, newlyEnabled);
+    const networkBoundary = providerNetworkAfterPreGeneration(providerResult({
+      fullText: "일반 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(body).toContain('"type":"done"');
+    expect(networkBoundary).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.profileSourceSelect).not.toHaveBeenCalled();
+    expect(mocks.requestFrom).not.toHaveBeenCalledWith("chat_summaries");
+  });
+
+  it("rechecks privacy after every provider round before executing a tool", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.memoryEnablement.shared = true;
+    const initial = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: true,
+          resetAt: "2026-07-31T00:00:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    const stillCurrent = privacySnapshot({
+      memory: initial.memory,
+    });
+    const withdrawn = privacySnapshot({
+      memory: {
+        shared: {
+          enabled: false,
+          resetAt: "2026-07-31T00:04:00.000Z",
+        },
+        bride_private: { enabled: false, resetAt: null },
+        groom_private: { enabled: false, resetAt: null },
+      },
+    });
+    mocks.privacySnapshotSequence.push(
+      initial,
+      stillCurrent,
+      privacySnapshot({ memory: initial.memory }),
+      withdrawn,
+    );
+    const networkBoundary = vi.fn();
+    mocks.provider.mockImplementation(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      networkBoundary();
+      if (networkBoundary.mock.calls.length === 1) {
+        return providerResult({
+          toolCalls: [{
+            callId: "call_privacy_round",
+            name: "get_wedding_info",
+            input: {},
+          }],
+          outputItems: [{
+            id: "fc_privacy_round",
+            type: "function_call",
+            call_id: "call_privacy_round",
+            name: "get_wedding_info",
+            arguments: "{}",
+            status: "completed",
+          }],
+        });
+      }
+      return providerResult({ fullText: "생성되면 안 되는 두 번째 답변" });
+    });
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(networkBoundary).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+    expect(mocks.persist).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   });
 
@@ -2185,6 +7137,106 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.requestFrom).not.toHaveBeenCalledWith("chat_summaries");
   });
 
+  it("scopes a valid personal help style to the authenticated actor and prompt", async () => {
+    mocks.personalizationRow = {
+      decision_start: "compare_first",
+      answer_detail: "brief",
+      support_order: "listen_first",
+      work_mode: "hybrid",
+      family_order: "couple_first",
+      tone_style: "calm_clear",
+      revision: 2,
+      confirmed_at: "2026-07-31T01:00:00.000Z",
+      updated_at: "2026-07-31T02:00:00.000Z",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "개인 도움 방식 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.personalizationEq).toHaveBeenCalledWith(
+      "owner_user_id",
+      "00000000-0000-4000-8000-000000000001",
+    );
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
+      'helpPreference={"decisionStart":"compare_first","answerDetail":"brief","supportOrder":"listen_first","workMode":"hybrid","familyOrder":"couple_first","toneStyle":"calm_clear"}',
+    );
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      in_reply_to_user_message_id:
+        "30000000-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("fails an invalid or unavailable personal help style neutral without leaking it", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mocks.personalizationRow = {
+      decision_start: "SECRET_PERSONALITY_CLASS",
+      answer_detail: "brief",
+      support_order: "listen_first",
+      work_mode: "hybrid",
+      family_order: "couple_first",
+      tone_style: "expert_roleplay",
+      revision: 1,
+      confirmed_at: "2026-07-31T01:00:00.000Z",
+      updated_at: "2026-07-31T01:00:00.000Z",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "중립 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const malformedResponse = await POST(request());
+    expect(malformedResponse.status).toBe(200);
+    await malformedResponse.text();
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
+      .toContain("helpPreference=null");
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
+      .not.toContain("SECRET_PERSONALITY_CLASS");
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
+      .not.toContain("expert_roleplay");
+    expect(warning).toHaveBeenCalledWith(
+      "[chat] personalization row failed closed",
+    );
+
+    vi.clearAllMocks();
+    mocks.personalizationRow = null;
+    mocks.personalizationError = { code: "PGRST500" };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "오류에서도 중립 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+    mocks.claim.mockResolvedValue({
+      action: "acquired",
+      attemptCount: 1,
+      reclaimed: false,
+    });
+    mocks.reserve.mockResolvedValue({ allowed: true, remaining: 99 });
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        ...((mocks.canonicalRows[0]?.metadata as Record<string, unknown> | null) ?? {}),
+        client_request_id: "00000000-0000-4000-8000-000000000098",
+      },
+    };
+
+    const unavailableResponse = await POST(request({
+      clientRequestId: "00000000-0000-4000-8000-000000000098",
+    }));
+    expect(unavailableResponse.status).toBe(200);
+    await unavailableResponse.text();
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
+      .toContain("helpPreference=null");
+    expect(warning).toHaveBeenCalledWith(
+      "[chat] personalization lookup failed",
+      { code: "PGRST500" },
+    );
+    warning.mockRestore();
+  });
+
   it("does not query profile sources or summaries for a disabled private scope", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
@@ -2213,7 +7265,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   it("keeps private chat read-only even when the user asks for a shared-state change", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
-      content: "총 예산을 4천만원으로 변경해줘",
+      content: "우리 결혼 총 예산을 4천만원으로 변경해줘",
       visibility: "bride_private",
     };
     mocks.provider.mockResolvedValueOnce(providerResult({
@@ -2386,10 +7438,19 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   it("adds a server-owned non-persistence notice when demo AI omits it", async () => {
     mocks.authenticatedUser = null;
     mocks.signedDemo = true;
-    providerAfterPreGeneration(providerResult({
-      fullText: "날짜가 정해지니 갑자기 현실로 다가와 숨 막힐 수 있어요.",
-      usage: { input_tokens: 10, output_tokens: 3 },
-    }));
+    const providerFalseSuccess =
+      "날짜가 정해지니 갑자기 현실로 다가와 숨 막힐 수 있어요. 말씀하신 결혼 날짜는 실제 일정에 저장했어요.";
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeGeneration?.();
+      options.onTextDelta?.(providerFalseSuccess);
+      return providerResult({
+        fullText: providerFalseSuccess,
+        usage: { input_tokens: 10, output_tokens: 3 },
+      });
+    });
 
     const response = await POST(request({
       coupleId: "demo-couple",
@@ -2400,6 +7461,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
+    expect(body).not.toContain(providerFalseSuccess);
+    expect(body).not.toContain("실제 일정에 저장했어요");
     expect(body).toContain("실제 일정에는 아직 저장되지 않았어요");
     expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({
       cleanText: expect.stringContaining("실제 일정에는 아직 저장되지 않았어요"),
@@ -2539,5 +7602,117 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("persists the exact server memory scope and withholds done when the first enqueue is unconfirmed", async () => {
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    providerAfterPreGeneration(providerResult({
+      fullText: "결혼 예산을 함께 정리해볼게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+    mocks.enqueueMemory.mockResolvedValueOnce("failed");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"type":"error"');
+    expect(body).toContain('"code":"AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED"');
+    expect(body).toContain('"retryable":true');
+    expect(body).toContain('"retryPolicy":"same_request"');
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+          memory_enqueue_requested: true,
+        }),
+      }),
+    ]);
+    expect(mocks.enqueueMemory).toHaveBeenCalledWith({
+      coupleId: COUPLE_ID,
+      userId: "00000000-0000-4000-8000-000000000001",
+      visibility: "shared",
+      toMessageId: "20000000-0000-4000-8000-000000000001",
+      admin: undefined,
+    });
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      interactionType: "chat_turn",
+      success: false,
+      errorMessage: "AMORA_MEMORY_ENQUEUE_RETRY_REQUIRED",
+      metadata: expect.objectContaining({
+        question_scope: "W0_wedding_core",
+      }),
+    }));
+    errorSpy.mockRestore();
+  });
+
+  it("emits done when an immediate enqueue failure has an exact durable repair proof", async () => {
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    providerAfterPreGeneration(providerResult({
+      fullText: "결혼 예산을 함께 정리해볼게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+    mocks.enqueueMemory.mockResolvedValueOnce("failed");
+    mocks.verifyMemoryRepair.mockResolvedValueOnce({ status: "confirmed" });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"type":"done"');
+    expect(body).not.toContain('"type":"error"');
+    expect(mocks.verifyMemoryRepair).toHaveBeenCalledWith(expect.objectContaining({
+      coupleId: COUPLE_ID,
+      userId: "00000000-0000-4000-8000-000000000001",
+      visibility: "shared",
+      toMessageId: "20000000-0000-4000-8000-000000000001",
+    }));
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      interactionType: "chat_turn",
+      success: true,
+    }));
+    errorSpy.mockRestore();
+  });
+
+  it("persists a false enqueue marker when auxiliary memory runtime is disabled", async () => {
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = false;
+    providerAfterPreGeneration(providerResult({
+      fullText: "결혼 예산을 함께 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W0_wedding_core",
+      memory_eligible: true,
+      memory_enqueue_requested: false,
+    });
+  });
+
+  it("persists a false enqueue marker when current memory consent is disabled", async () => {
+    mocks.memoryEnablement.shared = false;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    providerAfterPreGeneration(providerResult({
+      fullText: "결혼 예산을 함께 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W0_wedding_core",
+      memory_eligible: true,
+      memory_enqueue_requested: false,
+    });
   });
 });

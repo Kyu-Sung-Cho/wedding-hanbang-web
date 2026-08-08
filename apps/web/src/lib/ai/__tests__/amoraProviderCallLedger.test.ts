@@ -126,7 +126,7 @@ function makeAdmin(options: {
       finalizeIndex += 1;
       return result;
     }
-    if (name === "finalize_amora_chat_response") {
+    if (name === "finalize_amora_chat_response_with_privacy_fence") {
       const results = options.chatResponseFinalize ?? [{
         data: [{
           finalized: true,
@@ -352,6 +352,7 @@ describe("runAmoraProviderCallWithLedger", () => {
           requestKey: chatRequestKey,
           visibility: "shared",
           claimAttemptCount: 1,
+          expectedPrivacyEpoch: 7,
           content: "terminal answer",
           metadata: { suggestions: ["next"] },
           stageTag: "exploring",
@@ -362,7 +363,7 @@ describe("runAmoraProviderCallWithLedger", () => {
     )).resolves.toBe(result);
 
     expect(rpc).toHaveBeenCalledWith(
-      "finalize_amora_chat_response",
+      "finalize_amora_chat_response_with_privacy_fence",
       expect.objectContaining({
         p_receipt_id: RECEIPT_ID,
         p_receipt_claim_token: CLAIM_TOKEN,
@@ -371,6 +372,7 @@ describe("runAmoraProviderCallWithLedger", () => {
         p_chat_request_key: chatRequestKey,
         p_chat_visibility: "shared",
         p_chat_claim_attempt_count: 1,
+        p_expected_privacy_epoch: 7,
         p_message_content: "terminal answer",
         p_message_metadata: { suggestions: ["next"] },
         p_provider_attempted: true,
@@ -380,7 +382,7 @@ describe("runAmoraProviderCallWithLedger", () => {
     expect(rpc.mock.calls.some(([name]) =>
       name === "finalize_amora_provider_call_receipt")).toBe(false);
     const atomicParams = rpc.mock.calls.find(([name]) =>
-      name === "finalize_amora_chat_response")?.[1];
+      name === "finalize_amora_chat_response_with_privacy_fence")?.[1];
     expect(atomicParams).not.toHaveProperty("p_metadata");
     expect(atomicParams).toHaveProperty("p_receipt_metadata");
     expect(finalized).toHaveBeenCalledWith(expect.objectContaining({
@@ -431,6 +433,7 @@ describe("runAmoraProviderCallWithLedger", () => {
           requestKey,
           visibility: "shared",
           claimAttemptCount: 2,
+          expectedPrivacyEpoch: 7,
           content: "retry-safe answer",
           metadata: {},
           stageTag: null,
@@ -441,12 +444,68 @@ describe("runAmoraProviderCallWithLedger", () => {
     );
 
     expect(rpc.mock.calls.filter(([name]) =>
-      name === "finalize_amora_chat_response")).toHaveLength(2);
+      name === "finalize_amora_chat_response_with_privacy_fence")).toHaveLength(2);
     expect(rpc.mock.calls.some(([name]) =>
       name === "finalize_amora_provider_call_receipt")).toBe(false);
     expect(finalized).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.objectContaining({ reused: true }),
     }));
+  });
+
+  it("returns a null-message privacy outcome from the atomic finalizer", async () => {
+    const { rpc } = makeAdmin({
+      chatResponseFinalize: [{
+        data: [{
+          finalized: true,
+          receipt_status: "settled",
+          outcome: "privacy_context_changed",
+          message_id: null,
+          message_created_at: null,
+          message_content: null,
+          message_metadata: null,
+          message_stage_tag: null,
+          message_specialist_type: null,
+          message_visibility: null,
+          message_reused: false,
+        }],
+        error: null,
+      }],
+    });
+    const finalized = vi.fn();
+    const requestKey =
+      "chat:10000000-0000-4000-8000-000000000001:70000000-0000-4000-8000-000000000099";
+
+    await runAmoraProviderCallWithLedger(
+      { ...context, requestKey },
+      async (beforeGeneration) => {
+        await beforeGeneration();
+        return successResult();
+      },
+      {
+        buildAtomicChatResponse: () => ({
+          coupleId: context.coupleId,
+          userId: context.userId,
+          requestKey,
+          visibility: "shared",
+          claimAttemptCount: 3,
+          expectedPrivacyEpoch: 11,
+          content: "must be discarded",
+          metadata: {},
+          stageTag: null,
+          specialistType: "general",
+        }),
+        onAtomicChatResponseFinalized: finalized,
+      },
+    );
+
+    expect(rpc).toHaveBeenCalledWith(
+      "finalize_amora_chat_response_with_privacy_fence",
+      expect.objectContaining({ p_expected_privacy_epoch: 11 }),
+    );
+    expect(finalized).toHaveBeenCalledWith({
+      outcome: "privacy_context_changed",
+      message: null,
+    });
   });
 
   it("keeps the receipt reserved and fails closed when every atomic terminal commit attempt fails", async () => {
@@ -470,6 +529,7 @@ describe("runAmoraProviderCallWithLedger", () => {
           requestKey,
           visibility: "shared",
           claimAttemptCount: 1,
+          expectedPrivacyEpoch: 7,
           content: "must not be split-finalized",
           metadata: {},
           stageTag: null,
@@ -478,7 +538,7 @@ describe("runAmoraProviderCallWithLedger", () => {
       },
     )).rejects.toThrow(/not committed/i);
     expect(rpc.mock.calls.filter(([name]) =>
-      name === "finalize_amora_chat_response")).toHaveLength(3);
+      name === "finalize_amora_chat_response_with_privacy_fence")).toHaveLength(3);
     expect(rpc.mock.calls.some(([name]) =>
       name === "finalize_amora_provider_call_receipt")).toBe(false);
   });
@@ -573,6 +633,31 @@ describe("runAmoraProviderCallWithLedger", () => {
         p_provider_attempted: true,
         p_usage_status: "unknown",
         p_actual_cost_microusd: null,
+      }),
+    );
+  });
+
+  it("settles a paid post-provider privacy mismatch as a named failed receipt", async () => {
+    const { rpc } = makeAdmin();
+    const privacyError = Object.assign(
+      new Error("AMORA_PRIVACY_CONTEXT_CHANGED"),
+      { code: "AMORA_PRIVACY_CONTEXT_CHANGED" },
+    );
+
+    await expect(
+      runAmoraProviderCallWithLedger(context, async (beforeGeneration) => {
+        await beforeGeneration();
+        throw privacyError;
+      }),
+    ).rejects.toBe(privacyError);
+
+    expect(rpc).toHaveBeenCalledWith(
+      "finalize_amora_provider_call_receipt",
+      expect.objectContaining({
+        p_provider_attempted: true,
+        p_usage_status: "unknown",
+        p_error_message: "privacy_context_changed",
+        p_success: false,
       }),
     );
   });
@@ -767,7 +852,7 @@ describe("runAmoraProviderCallWithLedger", () => {
       name === "finalize_amora_provider_call_receipt")).toBe(false);
   });
 
-  it("fails closed after generation when a requested atomic checkpoint has an invalid shape", async () => {
+  it("settles known usage as failed when a requested atomic checkpoint has an invalid shape", async () => {
     const { rpc } = makeAdmin();
     const messageDigest = "b".repeat(64);
 
@@ -800,8 +885,97 @@ describe("runAmoraProviderCallWithLedger", () => {
       },
     )).rejects.toThrow(/checkpoint/i);
 
-    expect(rpc.mock.calls.some(([name]) => name.startsWith("finalize_")))
-      .toBe(false);
+    expect(rpc).toHaveBeenCalledWith(
+      "finalize_amora_provider_call_receipt",
+      expect.objectContaining({
+        p_receipt_id: RECEIPT_ID,
+        p_claim_token: CLAIM_TOKEN,
+        p_provider_attempted: true,
+        p_usage_status: "complete",
+        p_actual_cost_microusd: 1_230,
+        p_success: false,
+        p_error_message: "post_provider_payload_invalid",
+        p_tokens_input: 1_200,
+        p_tokens_output: 240,
+      }),
+    );
+    const failedSettlement = rpc.mock.calls.find(([name]) =>
+      name === "finalize_amora_provider_call_receipt")?.[1];
+    expect(failedSettlement).not.toHaveProperty("p_checkpoint");
+    expect(failedSettlement).not.toHaveProperty("p_message_content");
+  });
+
+  it("rethrows the exact payload-builder error after settlement and permits a fresh request-key retry", async () => {
+    const { rpc } = makeAdmin();
+    const builderError = new Error("ATOMIC_PAYLOAD_BUILDER_SENTINEL");
+
+    await expect(runAmoraProviderCallWithLedger(
+      context,
+      async (beforeGeneration) => {
+        await beforeGeneration();
+        return successResult();
+      },
+      {
+        buildAtomicChatResponse: () => {
+          throw builderError;
+        },
+      },
+    )).rejects.toBe(builderError);
+
+    const retryResult = successResult();
+    await expect(runAmoraProviderCallWithLedger(
+      { ...context, requestKey: "request_retry_124" },
+      async (beforeGeneration) => {
+        await beforeGeneration();
+        return retryResult;
+      },
+    )).resolves.toBe(retryResult);
+
+    const settlements = rpc.mock.calls.filter(([name]) =>
+      name === "finalize_amora_provider_call_receipt");
+    expect(settlements).toHaveLength(2);
+    expect(settlements[0]?.[1]).toEqual(expect.objectContaining({
+      p_success: false,
+      p_error_message: "post_provider_payload_invalid",
+      p_usage_status: "complete",
+      p_actual_cost_microusd: 1_230,
+    }));
+    expect(settlements[1]?.[1]).toEqual(expect.objectContaining({
+      p_success: true,
+      p_error_message: null,
+      p_usage_status: "complete",
+      p_actual_cost_microusd: 1_230,
+    }));
+  });
+
+  it("keeps the original payload error when failed settlement itself remains unconfirmed", async () => {
+    const failure = { data: null, error: { message: "database unavailable" } };
+    const { rpc } = makeAdmin({ finalize: [failure, failure, failure] });
+    const builderError = new Error("ATOMIC_PAYLOAD_VALIDATION_SENTINEL");
+
+    await expect(runAmoraProviderCallWithLedger(
+      context,
+      async (beforeGeneration) => {
+        await beforeGeneration();
+        return successResult();
+      },
+      {
+        buildAtomicChatResponse: () => {
+          throw builderError;
+        },
+      },
+    )).rejects.toBe(builderError);
+
+    const settlements = rpc.mock.calls.filter(([name]) =>
+      name === "finalize_amora_provider_call_receipt");
+    expect(settlements).toHaveLength(3);
+    for (const [, params] of settlements) {
+      expect(params).toEqual(expect.objectContaining({
+        p_success: false,
+        p_error_message: "post_provider_payload_invalid",
+        p_actual_cost_microusd: 1_230,
+      }));
+    }
   });
 
   it("does not release a verified result when atomic receipt checkpointing is unconfirmed", async () => {

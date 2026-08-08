@@ -18,7 +18,7 @@ export default function NotFound() {
     <main className="flex min-h-screen items-center justify-center bg-[#FBF8F2] px-5 py-16 text-[#243832]">
       <div className="w-full max-w-md">
         <p className="text-sm font-bold text-[#8F6662]">404</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em]">찾으시는 페이지가 없어요</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-normal">찾으시는 페이지가 없어요</h1>
         <p className="mt-3 text-sm leading-6 text-[#243832]/70">
           주소가 바뀌었거나 삭제된 페이지일 수 있어요. 아래에서 이어서 준비해 보세요.
         </p>

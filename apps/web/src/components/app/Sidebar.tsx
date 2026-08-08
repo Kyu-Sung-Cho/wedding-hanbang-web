@@ -4,17 +4,12 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Banknote,
-  BarChart3,
-  Bookmark,
-  Building2,
-  BookOpen,
-  CalendarClock,
   CalendarCheck,
   LayoutDashboard,
   LogOut,
   MessageCircle,
   Settings,
+  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -22,32 +17,21 @@ import Logo from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
-const hiddenInComingSoon = ["/money"];
-
 type SidebarMenuItem = {
   legacyPath: string;
-  /** /wedding 베이스패스 밖 표면일 때만 사용 (없으면 weddingLinkProps 경유) */
-  absolutePath?: string;
   icon: ComponentType<{ className?: string }>;
   label: string;
   tutorialTarget?: string;
 };
 
 const menuItems: SidebarMenuItem[] = [
-  { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
-  { legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
-  // 상담 바로 아래 — 저장한 말은 대화의 연장이지 별도 기능이 아니다.
-  { legacyPath: "/saved", icon: Bookmark, label: "저장한 이야기" },
-  { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
-  { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
-  // 공시 가격은 /wedding 베이스패스 밖 최상위 표면이라 절대 경로로 직접 연결한다.
-  { legacyPath: "/price", absolutePath: "/price", icon: BarChart3, label: "공시 가격", tutorialTarget: "service-nav-market" },
-  { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
-  { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
+  { legacyPath: "/chat", icon: MessageCircle, label: "아모라", tutorialTarget: "service-nav-amora" },
+  { legacyPath: "/lounge", icon: LayoutDashboard, label: "오늘 할 일", tutorialTarget: "service-nav-lounge" },
+  { legacyPath: "/schedule", icon: CalendarCheck, label: "할 일·일정", tutorialTarget: "service-nav-schedule" },
+  { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },
+  { legacyPath: "/community", icon: Users, label: "커뮤니티", tutorialTarget: "service-nav-community" },
   { legacyPath: "/settings", icon: Settings, label: "설정" },
-].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));
+];
 
 interface SidebarProps {
   isOpen: boolean;
@@ -66,7 +50,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         month: "2-digit",
         day: "2-digit",
       })
-    : "예식일 미정";
+    : "결혼식 날짜 미정";
 
   return (
     <>
@@ -99,7 +83,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               return (
                 <Link
                   key={item.legacyPath}
-                  {...(item.absolutePath ? { href: item.absolutePath } : weddingLinkProps(item.legacyPath))}
+                  {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${

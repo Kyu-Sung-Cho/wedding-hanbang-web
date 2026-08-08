@@ -1,36 +1,36 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { isRecord, isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 512;
 
 function getServiceClient() {
   return createAdminClient();
 }
 
-async function refreshBookmarkCount(
-  serviceClient: ReturnType<typeof getServiceClient>,
-  postId: string
-) {
-  await serviceClient.rpc("community_update_bookmark_count", {
-    p_post_id: postId,
-  });
-
-  const { data } = await serviceClient
-    .from("community_posts")
-    .select("bookmark_count")
-    .eq("id", postId)
-    .single();
-
-  return Math.max(0, data?.bookmark_count ?? 0);
-}
-
-// 북마크 토글
+// 북마크 상태 설정
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json(
+        { error: "잘못된 게시글 ID입니다." },
+        { status: 400, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
     const supabase = await createClientFromRequest(req);
     const serviceClient = getServiceClient();
     const {
@@ -44,62 +44,81 @@ export async function POST(
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:bookmark", req, user.id),
       { maxRequests: 30, windowMs: 60 * 1000 }
     );
     if (rlResult) return rlResult;
 
-    const { data: existing } = await supabase
-      .from("community_bookmarks")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("post_id", id)
-      .maybeSingle();
-
-    let bookmarked: boolean;
-
-    if (existing) {
-      const { error } = await serviceClient
-        .from("community_bookmarks")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("post_id", id);
-
-      if (error) {
-        console.error("Bookmark delete error:", error);
-        return NextResponse.json(
-          { error: "북마크 처리에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-
-      bookmarked = false;
-    } else {
-      const { error } = await serviceClient
-        .from("community_bookmarks")
-        .insert({
-          user_id: user.id,
-          post_id: id,
-        });
-
-      if (error && error.code !== "23505") {
-        console.error("Bookmark insert error:", error);
-        return NextResponse.json(
-          { error: "북마크 처리에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-
-      bookmarked = true;
+    const rawBody = await readBoundedUtf8Text(req, MAX_BODY_BYTES);
+    if (!rawBody.ok) {
+      return NextResponse.json(
+        { error: rawBody.reason === "too_large" ? "요청 본문이 너무 큽니다." : "잘못된 요청입니다." },
+        {
+          status: rawBody.reason === "too_large" ? 413 : 400,
+          headers: { "Cache-Control": "private, no-store" },
+        },
+      );
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.text);
+    } catch {
+      return NextResponse.json(
+        { error: "잘못된 요청입니다." },
+        { status: 400, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+    if (
+      !isRecord(body)
+      || Object.keys(body).some((key) => key !== "bookmarked")
+      || typeof body.bookmarked !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "북마크 상태를 확인해 주세요." },
+        { status: 400, headers: { "Cache-Control": "private, no-store" } },
+      );
     }
 
-    const bookmarkCount = await refreshBookmarkCount(serviceClient, id);
+    if (body.bookmarked) {
+      const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+      if (!writeAccess.allowed) {
+        return NextResponse.json(
+          { error: writeAccess.message, code: writeAccess.code },
+          { status: writeAccess.status }
+        );
+      }
+    }
 
-    return NextResponse.json({
-      bookmarked,
-      bookmark_count: bookmarkCount,
-    });
+    const { data: result, error } = await serviceClient.rpc(
+      "community_set_post_bookmark",
+      {
+        p_user_id: user.id,
+        p_post_id: id,
+        p_bookmarked: body.bookmarked,
+      },
+    );
+    if (
+      error
+      || !isRecord(result)
+      || typeof result.bookmarked !== "boolean"
+      || !Number.isSafeInteger(result.bookmark_count)
+      || (result.bookmark_count as number) < 0
+    ) {
+      console.error("Atomic bookmark intent error:", error);
+      return NextResponse.json(
+        { error: "북마크 상태를 안전하게 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        bookmarked: result.bookmarked,
+        bookmark_count: result.bookmark_count,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (err) {
     console.error("Bookmark toggle error:", err);
     return NextResponse.json(

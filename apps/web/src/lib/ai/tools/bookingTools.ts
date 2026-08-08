@@ -10,6 +10,7 @@ import {
   todayKstMidnight,
   ymdInKst,
 } from "@/lib/utils/kstDate";
+import { getEvents, isScheduleEventCancellation } from "@/utils/scheduleEvents";
 import {
   formatWon,
   requireDestructiveConfirmation,
@@ -384,6 +385,7 @@ export async function executeGetAvailableSlots(
     .select("booking_date, booking_time")
     .eq("vendor_id", vendorId)
     .in("booking_date", dateStrings)
+    .neq("vendor_delivery_status", "not_sent")
     .neq("status", "cancelled");
 
   if (staffId) {
@@ -468,16 +470,16 @@ export async function executeGetAvailableSlots(
   let displayMessage: string;
   if (primarySlots.length > 0) {
     displayMessage = filterLabel
-      ? `${vendor.name} ${filterLabel} 예약 가능 시간 ${primarySlots.length}개: ${primarySlotSummary}`
-      : `${vendor.name} 예약 가능 시간 ${primarySlots.length}개: ${primarySlotSummary}`;
+      ? `${vendor.name} ${filterLabel} 아모라 등록 가능 시간 후보 ${primarySlots.length}개: ${primarySlotSummary}. 실제 가능 여부와 최종 확정은 업체 확인이 필요해요.`
+      : `${vendor.name} 아모라 등록 가능 시간 후보 ${primarySlots.length}개: ${primarySlotSummary}. 실제 가능 여부와 최종 확정은 업체 확인이 필요해요.`;
   } else if (fallbackSlots.length > 0) {
     displayMessage = targetDate
-      ? `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 예약은 진행하지 않았고, 다른 날짜 후보 ${fallbackSlots.length}개를 참고용으로 보여드릴게요: ${fallbackSlotSummary}`
-      : `${vendor.name} ${filterLabel}에는 빈 시간이 없어요. 대신 ${fallbackSlots.length}개 슬롯이 가능해요: ${fallbackSlotSummary}`;
+      ? `${vendor.name} ${filterLabel}에는 아모라에 등록된 후보가 없어요. 예약 요청은 기록하지 않았고, 다른 날짜 참고 후보 ${fallbackSlots.length}개를 보여드릴게요: ${fallbackSlotSummary}. 업체 최종 확인이 필요해요.`
+      : `${vendor.name} ${filterLabel}에는 아모라에 등록된 후보가 없어요. 인접 시기 참고 후보 ${fallbackSlots.length}개: ${fallbackSlotSummary}. 업체 최종 확인이 필요해요.`;
   } else {
     displayMessage = filterLabel
-      ? `${vendor.name}은(는) ${filterLabel}에 예약 가능한 시간이 없습니다.`
-      : `${vendor.name}은(는) 조회 범위 (${fmtYMD(rangeStart)} ~ ${fmtYMD(rangeEnd)}) 내에 예약 가능한 시간이 없습니다.`;
+      ? `${vendor.name}은(는) ${filterLabel}에 아모라에 등록된 가능 시간 후보가 없어요. 실제 가능 여부는 업체에 확인해 주세요.`
+      : `${vendor.name}은(는) 조회 범위 (${fmtYMD(rangeStart)} ~ ${fmtYMD(rangeEnd)})에 아모라에 등록된 가능 시간 후보가 없어요. 실제 가능 여부는 업체에 확인해 주세요.`;
   }
 
   return {
@@ -494,17 +496,11 @@ export async function executeGetAvailableSlots(
       exactDateAvailable: targetDate ? primarySlots.length > 0 : null,
       fallbackSlots: primarySlots.length === 0 ? fallbackSlots : [],
       filterLabel: filterLabel || null,
-      _debug: {
-        slotSource,
-        slotsLoaded: slots.length,
-        rangeStart: fmtYMD(rangeStart),
-        rangeEnd: fmtYMD(rangeEnd),
-        expanded: availableSlots.length,
-        primary: primarySlots.length,
-        fallback: fallbackSlots.length,
-        targetMonthResolved: targetMonth ?? null,
-        targetDateResolved: targetDate ?? null,
-      },
+      availabilityScope: "amora_internal_candidates",
+      vendorConfirmationRequired: true,
+      candidateSource: slotSource,
+      resolvedTargetMonth: targetMonth ?? null,
+      resolvedTargetDate: targetDate ?? null,
     },
     success: true,
     displayMessage,
@@ -528,6 +524,15 @@ export async function executeCreateBooking(
       toolOutput: { error: "invalid_booking_input" },
       success: false,
       displayMessage: "예약을 만들려면 업체, 정확한 날짜(YYYY-MM-DD), 정각 시간(HH:00)이 필요합니다.",
+    };
+  }
+  if (!ctx.actorProfileId || !UUID_RE.test(ctx.actorProfileId)) {
+    return {
+      toolName: "create_booking",
+      toolInput: input,
+      toolOutput: { error: "booking_intent_actor_required" },
+      success: false,
+      displayMessage: "현재 커플 구성원 정보를 확인하지 못해 아모라 방문·상담 후보를 기록하지 않았습니다.",
     };
   }
 
@@ -579,21 +584,6 @@ export async function executeCreateBooking(
   }
 
   const admin = getAdminClient(); // 입력 검증 통과 후에만 생성
-  const { data: vendor } = await admin
-    .from("vendors")
-    .select("name, category")
-    .eq("id", vendorId)
-    .eq("status", "approved") // 비노출 업체 예약 생성 차단 — 과거 대화 카드의 [vendor:ID] 잔재 방어
-    .single();
-
-  if (!vendor) {
-    return {
-      toolName: "create_booking", toolInput: input,
-      toolOutput: {}, success: false,
-      displayMessage: "업체를 찾을 수 없습니다.",
-    };
-  }
-
   const { data: profiles } = await admin
     .from("profiles")
     .select("name, role, phone")
@@ -605,57 +595,14 @@ export async function executeCreateBooking(
   const groomName = groomProfile?.name || "";
   const contactPhone = brideProfile?.phone || groomProfile?.phone || "";
 
-  let amount = 0;
-  let productName = "";
-  if (productId) {
-    const { data: product } = await admin
-      .from("vendor_products")
-      .select("name, price, discount_price, is_active")
-      .eq("id", productId)
-      .eq("vendor_id", vendorId)
-      .maybeSingle();
-    if (!product) {
-      return {
-        toolName: "create_booking", toolInput: input,
-        toolOutput: { error: "invalid_product_vendor", vendorId, productId },
-        success: false,
-        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약을 진행하지 않았습니다. 업체 상품을 다시 확인해 주세요.",
-      };
-    }
-    if (product.is_active === false) {
-      return {
-        toolName: "create_booking", toolInput: input,
-        toolOutput: { error: "inactive_product", vendorId, productId },
-        success: false,
-        displayMessage: "선택한 상품은 현재 예약 가능한 상품이 아니라 예약을 진행하지 않았습니다.",
-      };
-    }
-    productName = product.name;
-    amount = product.discount_price || product.price || 0;
-  }
-
-  let staffName = "";
-  if (staffId) {
-    const { data: staff } = await admin
-      .from("vendor_staff")
-      .select("name, role")
-      .eq("id", staffId)
-      .eq("vendor_id", vendorId)
-      .maybeSingle();
-    if (!staff) {
-      return {
-        toolName: "create_booking", toolInput: input,
-        toolOutput: { error: "invalid_staff_vendor", vendorId, staffId },
-        success: false,
-        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 예약을 진행하지 않았습니다. 담당자 정보를 다시 확인해 주세요.",
-      };
-    }
-    staffName = staff.role ? `${staff.name} ${staff.role}` : staff.name;
-  }
-
-  const { data: bookingIdResult, error: rpcError } = await admin.rpc("create_booking_atomic", {
+  // The RPC resolves an exact durable replay before it reads live catalog
+  // state. Performing vendor/product/staff preflight reads here would break a
+  // safe retry after the catalog changed, so all authorization and catalog
+  // validation stays inside the transaction.
+  const { data: bookingIdResult, error: rpcError } = await admin.rpc("create_amora_booking_intent_atomic", {
     p_vendor_id: vendorId,
     p_couple_id: ctx.coupleId,
+    p_actor_profile_id: ctx.actorProfileId,
     p_booking_date: date,
     p_booking_time: time,
     p_product_id: productId ?? null,
@@ -664,7 +611,6 @@ export async function executeCreateBooking(
     p_bride_name: brideName,
     p_groom_name: groomName,
     p_contact_phone: contactPhone,
-    p_amount: amount,
     p_memo: memo,
   });
 
@@ -727,16 +673,30 @@ export async function executeCreateBooking(
         displayMessage: `같은 업체의 ${date} ${time}에 이미 다른 활성 예약이 있어 중복 예약을 만들지 않았습니다. 기존 예약을 먼저 확인해 주세요.`,
       };
     }
+    if (msg.includes("booking_intent_already_cancelled")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "booking_intent_already_cancelled" }, success: false,
+        displayMessage: "같은 날짜와 시간의 아모라 방문·상담 후보 기록은 이미 취소되어 새 기록으로 되살리지 않았습니다.",
+      };
+    }
+    if (msg.includes("booking_joint_approval_required")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "booking_joint_approval_required" }, success: false,
+        displayMessage: "두 분 커플의 방문·상담 후보 기록은 두 분의 공동 승인을 안전하게 남길 수 있을 때까지 만들지 않습니다.",
+      };
+    }
     throw rpcError;
   }
 
   const bookingId = bookingIdResult as unknown as string;
   if (!UUID_RE.test(bookingId)) {
-    throw new Error("create_booking_atomic returned an invalid booking id");
+    throw new Error("create_amora_booking_intent_atomic returned an invalid booking id");
   }
   const { data: persistedBooking, error: persistedBookingError } = await admin
     .from("vendor_bookings")
-    .select("id, amount, status, product_id, staff_id")
+    .select("id, amount, status, product_id, staff_id, vendor_delivery_status, intent_created_by_profile_id, intent_vendor_name_snapshot, intent_vendor_category_snapshot, intent_product_name_snapshot")
     .eq("id", bookingId)
     .eq("couple_id", ctx.coupleId)
     .single();
@@ -746,7 +706,9 @@ export async function executeCreateBooking(
   if (
     persistedBooking.product_id !== productId ||
     persistedBooking.staff_id !== staffId ||
-    typeof persistedBooking.status !== "string"
+    typeof persistedBooking.status !== "string" ||
+    persistedBooking.vendor_delivery_status !== "not_sent" ||
+    !UUID_RE.test(String(persistedBooking.intent_created_by_profile_id ?? ""))
   ) {
     throw new Error("Created booking verification mismatch");
   }
@@ -763,6 +725,30 @@ export async function executeCreateBooking(
     amount: persistedAmount,
     status: persistedBooking.status,
   };
+  if (
+    typeof persistedBooking.intent_vendor_name_snapshot !== "string" ||
+    !persistedBooking.intent_vendor_name_snapshot.trim() ||
+    typeof persistedBooking.intent_vendor_category_snapshot !== "string" ||
+    !persistedBooking.intent_vendor_category_snapshot.trim()
+  ) {
+    throw new Error("Created booking returned invalid immutable context");
+  }
+  const vendor = { name: persistedBooking.intent_vendor_name_snapshot };
+  const productName = typeof persistedBooking.intent_product_name_snapshot === "string"
+    ? persistedBooking.intent_product_name_snapshot
+    : "";
+  let staffName = "";
+  if (staffId) {
+    const { data: staff } = await admin
+      .from("vendor_staff")
+      .select("name, role")
+      .eq("id", staffId)
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    if (staff?.name) {
+      staffName = staff.role ? `${staff.name} ${staff.role}` : staff.name;
+    }
+  }
 
   let scheduleAdded = false;
   let budgetUpdated = false;
@@ -776,6 +762,8 @@ export async function executeCreateBooking(
   let projectionRetryable = true;
   let projectionAttemptCount = 0;
   let projectionErrorCode: string | null = null;
+  let projectionNeedsReview = false;
+  let projectionReviewReason: string | null = null;
   try {
     const projection = await processBookingProjectionJob(admin, {
       bookingId: booking.id,
@@ -784,6 +772,8 @@ export async function executeCreateBooking(
     projectionRetryable = projection?.retryable ?? true;
     projectionAttemptCount = projection?.attemptCount ?? 0;
     projectionErrorCode = projection?.errorCode ?? null;
+    projectionNeedsReview = projection?.needsReview === true;
+    projectionReviewReason = projection?.reviewReason ?? null;
     const syncResult = projection?.sync;
 
     if (
@@ -792,6 +782,8 @@ export async function executeCreateBooking(
       "scheduleAdded" in syncResult
     ) {
       scheduleAdded = syncResult.scheduleAdded;
+      projectionNeedsReview = projectionNeedsReview || syncResult.needsReview;
+      projectionReviewReason = projectionReviewReason ?? syncResult.reviewReason;
       budgetUpdated = syncResult.budgetUpdated;
       budgetExceededBy = syncResult.budgetExceededBy;
       categoryBudgetLimit = syncResult.categoryBudgetLimit;
@@ -802,7 +794,7 @@ export async function executeCreateBooking(
       ctx.weddingContext.progress =
         syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
     } else if (projectionStatus !== "completed") {
-      console.error("[create_booking] schedule/budget projection is not complete:", {
+      console.error("[create_booking] schedule projection is not complete:", {
         bookingId: booking.id,
         status: projectionStatus,
         errorCode: projectionErrorCode,
@@ -815,32 +807,37 @@ export async function executeCreateBooking(
     console.error("[create_booking] projection processing failed; durable retry remains queued:", syncErr);
   }
 
-  const syncNote = scheduleAdded
-    ? budgetUpdated
-      ? " (일정·예산에 자동 반영했어요)"
-      : " (일정에 자동 등록했어요)"
-    : "";
+  const quoteNote = booking.amount > 0
+    ? ` 요청 금액 ${formatWon(booking.amount)}은 견적이며 결제 기록에는 더하지 않았어요.`
+    : " 요청 금액은 아직 정해지지 않았고 결제 기록에는 더하지 않았어요.";
+  const syncNote = scheduleAdded ? " 일정에 자동 등록했어요." : "";
 
   const overNote = budgetExceededBy > 0
     ? `\n\n⚠️ 다만 ${categoryLabelForOver} 카테고리 예산 ${formatWon(categoryBudgetLimit)} 중에 ${formatWon(budgetExceededBy)} 초과예요. 다른 카테고리 줄이거나 총 예산 조정 검토해보시겠어요?`
     : "";
   const projectionNote = projectionStatus === "pending_retry"
-    ? "\n\n예약은 정상 접수됐지만 일정·예산 반영이 잠시 지연되고 있어요. 저장된 작업을 자동으로 다시 반영할게요. 예약을 다시 만들 필요는 없어요."
+    ? "\n\n아모라 안 요청 기록은 저장됐지만 일정 반영이 잠시 지연되고 있어요. 저장된 작업을 자동으로 다시 반영할게요. 같은 기록을 다시 만들 필요는 없어요."
     : projectionStatus === "failed"
-      ? "\n\n예약은 정상 접수됐지만 일정·예산 자동 반영이 재시도 한도를 넘었어요. 예약을 다시 만들지 말고 고객지원에 알려주세요."
-      : "";
+      ? "\n\n아모라 안 요청 기록은 저장됐지만 일정 자동 반영이 재시도 한도를 넘었어요. 같은 기록을 다시 만들지 말고 고객지원에 알려주세요."
+      : projectionNeedsReview
+        ? "\n\n기존 금액 기록의 출처가 불명확해 일정만 안전하게 보존했고 지출 금액은 자동으로 바꾸지 않았어요. 확인이 필요합니다."
+        : "";
 
   return {
     toolName: "create_booking",
     toolInput: input,
     toolOutput: {
       bookingId: booking.id,
+      internalRequestRecorded: true,
+      vendorDeliveryStatus: "not_sent",
+      vendorConfirmationStatus: "unconfirmed",
       vendorName: vendor.name,
       productName,
       staffName,
       date,
       time,
-      amount: booking.amount,
+      quotedAmount: booking.amount,
+      amountBasis: "quote",
       status: booking.status,
       scheduleAdded,
       budgetUpdated,
@@ -854,10 +851,12 @@ export async function executeCreateBooking(
       projectionRetryable,
       projectionAttemptCount,
       projectionErrorCode,
-      fullyApplied: projectionStatus === "completed",
+      projectionNeedsReview,
+      projectionReviewReason,
+      fullyApplied: projectionStatus === "completed" && !projectionNeedsReview,
     },
     success: true,
-    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}${projectionNote}`,
+    displayMessage: `${vendor.name} 예약 건은 아모라 안에 예약 요청을 기록했어요. 업체에 전달되거나 확정된 상태는 아니에요. (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${quoteNote}${overNote}${projectionNote}`,
   };
 }
 
@@ -870,7 +869,7 @@ export async function executeGetMyBookings(
 
   let query = admin
     .from("vendor_bookings")
-    .select("id, vendor_id, product_id, staff_id, booking_date, booking_time, status, amount, memo, created_at")
+    .select("id, vendor_id, product_id, staff_id, booking_date, booking_time, status, amount, memo, created_at, vendor_delivery_status, intent_vendor_name_snapshot, intent_product_name_snapshot")
     .eq("couple_id", ctx.coupleId)
     .order("booking_date", { ascending: true });
 
@@ -887,8 +886,15 @@ export async function executeGetMyBookings(
   if (!bookings || bookings.length === 0) {
     return {
       toolName: "get_my_bookings", toolInput: input,
-      toolOutput: { bookings: [] }, success: true,
-      displayMessage: statusFilter ? `${statusFilter} 상태의 예약이 없습니다.` : "현재 예약이 없습니다.",
+      toolOutput: {
+        bookings: [],
+        recordScope: "amora_internal_request_records",
+        vendorDeliveryStatus: "unconfirmed",
+      },
+      success: true,
+      displayMessage: statusFilter
+        ? `${statusFilter} 내부 상태의 아모라 예약 요청 기록이 없어요.`
+        : "현재 아모라 예약 요청 기록이 없어요. 업체 예약 현황을 뜻하지 않아요.",
     };
   }
 
@@ -906,13 +912,19 @@ export async function executeGetMyBookings(
 
   const enriched = bookings.map((booking) => ({
     bookingId: booking.id,
-    vendorName: vendorMap.get(booking.vendor_id) ?? "알 수 없음",
-    productName: booking.product_id ? (productMap.get(booking.product_id) ?? "") : "",
+    vendorName: booking.vendor_delivery_status === "not_sent"
+      ? booking.intent_vendor_name_snapshot || "업체명 미확인"
+      : vendorMap.get(booking.vendor_id) ?? "업체명 미확인",
+    productName: booking.vendor_delivery_status === "not_sent"
+      ? booking.intent_product_name_snapshot ?? ""
+      : booking.product_id ? (productMap.get(booking.product_id) ?? "") : "",
     date: booking.booking_date,
     time: booking.booking_time,
     dateTimeLabel: `${booking.booking_date} ${booking.booking_time}`,
     status: booking.status,
-    amount: booking.amount ?? 0,
+    statusScope: "amora_internal_record" as const,
+    quotedAmount: booking.amount ?? 0,
+    amountBasis: "quote" as const,
   }));
   const bookingSummary = enriched.slice(0, 5)
     .map((booking) => `${booking.vendorName} ${booking.dateTimeLabel}${booking.productName ? ` / ${booking.productName}` : ""}`)
@@ -920,9 +932,13 @@ export async function executeGetMyBookings(
 
   return {
     toolName: "get_my_bookings", toolInput: input,
-    toolOutput: { bookings: enriched },
+    toolOutput: {
+      bookings: enriched,
+      recordScope: "amora_internal_request_records",
+      vendorDeliveryStatus: "unconfirmed",
+    },
     success: true,
-    displayMessage: `${enriched.length}건의 예약이 있습니다: ${bookingSummary}${enriched.length > 5 ? " ..." : ""}`,
+    displayMessage: `${enriched.length}건의 아모라 예약 요청 기록이 있어요: ${bookingSummary}${enriched.length > 5 ? " ..." : ""}. 업체 전달·확정 상태는 별도로 확인해야 해요.`,
   };
 }
 
@@ -934,7 +950,7 @@ export async function executeCancelBooking(
   const confirmation = requireDestructiveConfirmation(
     "cancel_booking",
     input,
-    "예약을 취소하려면 먼저 사용자 확인이 필요합니다. 취소할 예약을 다시 확인해주세요."
+    "아모라 예약 요청 기록을 취소 상태로 표시하려면 먼저 사용자 확인이 필요해요. 표시할 기록을 다시 확인해 주세요. 업체 취소와 환불은 별도예요."
   );
   if (confirmation) return confirmation;
 
@@ -946,6 +962,18 @@ export async function executeCancelBooking(
       displayMessage: "",
     };
   }
+  if (
+    typeof ctx.actorProfileId !== "string"
+    || !UUID_RE.test(ctx.actorProfileId)
+  ) {
+    return {
+      toolName: "cancel_booking",
+      toolInput: input,
+      toolOutput: { error: "booking_actor_missing" },
+      success: false,
+      displayMessage: "현재 아모라 예약 요청 기록의 취소 표시를 요청한 구성원을 안전하게 확인하지 못해 적용하지 않았어요.",
+    };
+  }
 
   const admin = getAdminClient(); // 확인 게이트·ID 검증 통과 후에만 생성
   const { data: rawBooking, error: cancelError } = await admin.rpc(
@@ -953,6 +981,7 @@ export async function executeCancelBooking(
     {
       p_booking_id: bookingId,
       p_couple_id: ctx.coupleId,
+      p_actor_profile_id: ctx.actorProfileId,
     }
   );
 
@@ -973,6 +1002,13 @@ export async function executeCancelBooking(
         displayMessage: "진행 중이거나 완료된 예약은 취소할 수 없습니다. 업체에 직접 문의해주세요.",
       };
     }
+    if (message.includes("booking_joint_approval_required")) {
+      return {
+        toolName: "cancel_booking", toolInput: input,
+        toolOutput: { error: "booking_joint_approval_required" }, success: false,
+        displayMessage: "두 분 커플의 아모라 후보 기록 취소는 두 분의 공동 승인을 안전하게 남길 수 있을 때까지 적용하지 않습니다.",
+      };
+    }
     throw cancelError;
   }
 
@@ -987,6 +1023,10 @@ export async function executeCancelBooking(
     booking_time?: unknown;
     status?: unknown;
     amount?: unknown;
+    actual_amount?: unknown;
+    cancelled_at?: unknown;
+    cancelled_by_profile_id?: unknown;
+    cancel_reason?: unknown;
     idempotent?: unknown;
   };
   if (
@@ -1011,13 +1051,41 @@ export async function executeCancelBooking(
   if (amount !== null && !Number.isFinite(amount)) {
     throw new Error("cancel_booking_atomic returned an invalid amount");
   }
+  const actualAmount = booking.actual_amount === null
+    ? null
+    : typeof booking.actual_amount === "number"
+      ? booking.actual_amount
+      : typeof booking.actual_amount === "string"
+        && /^\d+(?:\.\d+)?$/.test(booking.actual_amount)
+        ? Number(booking.actual_amount)
+        : Number.NaN;
+  if (
+    actualAmount !== null
+    && (!Number.isFinite(actualAmount) || actualAmount < 0)
+  ) {
+    throw new Error("cancel_booking_atomic returned an invalid actual amount");
+  }
+  const cancellation = {
+    cancelledAt: booking.cancelled_at,
+    cancelledByProfileId: booking.cancelled_by_profile_id,
+    ...(typeof booking.cancel_reason === "string"
+      ? { reason: booking.cancel_reason }
+      : {}),
+  };
+  if (
+    !isScheduleEventCancellation(cancellation)
+    || (!booking.idempotent
+      && cancellation.cancelledByProfileId !== ctx.actorProfileId)
+  ) {
+    throw new Error("cancel_booking_atomic returned invalid cancellation audit data");
+  }
 
   if (!UUID_RE.test(booking.vendor_id)) {
     return {
       toolName: "cancel_booking", toolInput: input,
       toolOutput: { error: "invalid_booking_result" },
       success: false,
-      displayMessage: "예약 취소 결과를 안전하게 확인하지 못했습니다.",
+      displayMessage: "아모라 예약 요청 기록의 취소 표시 결과를 안전하게 확인하지 못했어요. 업체 취소는 진행되지 않았어요.",
     };
   }
 
@@ -1027,21 +1095,27 @@ export async function executeCancelBooking(
     .eq("id", booking.vendor_id)
     .single();
   const vendorName = vendor?.name ?? "업체";
-  const categoryKey = (vendor?.category as string | null) ?? null;
   let productName = "";
   if (booking.product_id) {
     const { data: product } = await admin.from("vendor_products").select("name").eq("id", booking.product_id).single();
     productName = product?.name ?? "";
   }
 
-  let scheduleRemoved = false;
-  let budgetReverted = false;
+  let scheduleCancelled = false;
+  let completedSchedulePreserved = false;
+  let recordedSpendPreserved = false;
+  let quoteContributionCorrected = false;
+  let quoteCorrectionAmount = 0;
   let syncedNewSpent: number | null = null;
-  let syncedEventIdRemoved: string | null = null;
+  let syncedEvent: ScheduleEvent | null = null;
+  let syncedEventId: string | null = null;
+  let syncedCategoryKey: string | null = null;
   let projectionStatus: BookingProjectionDeliveryStatus = "pending_retry";
   let projectionRetryable = true;
   let projectionAttemptCount = 0;
   let projectionErrorCode: string | null = null;
+  let projectionNeedsReview = false;
+  let projectionReviewReason: string | null = null;
   try {
     const projection = await processBookingProjectionJob(admin, {
       bookingId: booking.id,
@@ -1050,21 +1124,34 @@ export async function executeCancelBooking(
     projectionRetryable = projection?.retryable ?? true;
     projectionAttemptCount = projection?.attemptCount ?? 0;
     projectionErrorCode = projection?.errorCode ?? null;
+    projectionNeedsReview = projection?.needsReview === true;
+    projectionReviewReason = projection?.reviewReason ?? null;
     const syncResult = projection?.sync;
 
     if (
       projectionStatus === "completed" &&
       syncResult?.persisted &&
-      "scheduleRemoved" in syncResult
+      "scheduleCancelled" in syncResult
     ) {
-      scheduleRemoved = syncResult.scheduleRemoved;
-      budgetReverted = syncResult.budgetReverted;
+      scheduleCancelled = syncResult.scheduleCancelled;
+      completedSchedulePreserved = syncResult.completedSchedulePreserved;
+      projectionNeedsReview = projectionNeedsReview || syncResult.needsReview;
+      projectionReviewReason = projectionReviewReason ?? syncResult.reviewReason;
+      recordedSpendPreserved = syncResult.recordedSpendPreserved;
+      quoteContributionCorrected = syncResult.quoteContributionCorrected;
+      quoteCorrectionAmount = syncResult.quoteCorrectionAmount;
       syncedNewSpent = syncResult.syncedNewSpent;
-      syncedEventIdRemoved = syncResult.syncedEventIdRemoved;
+      syncedEventId = syncResult.syncedEventId;
+      syncedCategoryKey = syncResult.syncedCategoryKey;
+      syncedEvent = syncedEventId
+        ? getEvents(syncResult.nextProgress).find(
+            (event) => event.id === syncedEventId,
+          ) ?? null
+        : null;
       ctx.weddingContext.progress =
         syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
     } else if (projectionStatus !== "completed") {
-      console.error("[cancel_booking] schedule/budget projection is not complete:", {
+      console.error("[cancel_booking] schedule cancellation projection is not complete:", {
         bookingId: booking.id,
         status: projectionStatus,
         errorCode: projectionErrorCode,
@@ -1077,16 +1164,24 @@ export async function executeCancelBooking(
     console.error("[cancel_booking] projection processing failed; durable retry remains queued:", syncErr);
   }
 
-  const revertNote = scheduleRemoved
-    ? budgetReverted
-      ? " (일정·예산에서도 자동 정리했어요)"
-      : " (일정에서도 자동 정리했어요)"
-    : "";
-  const projectionNote = projectionStatus === "pending_retry"
-    ? "\n\n예약 취소는 완료됐지만 일정·예산 정리가 잠시 지연되고 있어요. 저장된 작업을 자동으로 다시 반영할게요. 취소 요청을 다시 보낼 필요는 없어요."
-    : projectionStatus === "failed"
-      ? "\n\n예약 취소는 완료됐지만 일정·예산 자동 정리가 재시도 한도를 넘었어요. 취소 요청을 다시 보내지 말고 고객지원에 알려주세요."
+  const cancellationNote = scheduleCancelled
+    ? " 관련 일정은 삭제하지 않고 취소 상태로 남겼어요."
+    : completedSchedulePreserved
+      ? " 연결 일정은 이미 완료 기록이라 취소로 바꾸지 않고 그대로 보존했어요."
       : "";
+  const spendNote = recordedSpendPreserved
+    ? " 이미 기록된 실제 지출은 그대로 보존했어요."
+    : quoteContributionCorrected
+      ? ` 과거에 지출로 잘못 반영된 견적 ${formatWon(quoteCorrectionAmount)}만 바로잡았어요.`
+      : "";
+  const refundNote = " 환불 여부와 금액은 확인되지 않았어요. 업체의 취소·환불 조건을 확인해 주세요.";
+  const projectionNote = projectionStatus === "pending_retry"
+    ? "\n\n아모라 안 취소 표시는 저장됐지만 일정 취소 상태와 기록 검증이 잠시 지연되고 있어요. 저장된 작업을 자동으로 다시 반영할게요. 같은 취소 표시를 다시 보낼 필요는 없어요."
+    : projectionStatus === "failed"
+      ? "\n\n아모라 안 취소 표시는 저장됐지만 일정 취소 상태와 기록 검증이 재시도 한도를 넘었어요. 같은 취소 표시를 다시 보내지 말고 고객지원에 알려주세요."
+      : projectionNeedsReview
+        ? "\n\n기존 금액 기록의 출처가 불명확해 지출 금액은 자동으로 바꾸지 않았어요. 확인이 필요합니다."
+        : "";
 
   return {
     toolName: "cancel_booking",
@@ -1099,18 +1194,36 @@ export async function executeCancelBooking(
       time: booking.booking_time,
       status: "cancelled",
       idempotent: booking.idempotent,
-      scheduleRemoved,
-      budgetReverted,
-      syncedEventIdRemoved,
-      syncedCategoryKey: budgetReverted ? categoryKey : null,
+      internalCancellationRecorded: true,
+      vendorCancellationStatus: "unconfirmed",
+      quotedAmount: amount ?? 0,
+      actualAmount,
+      amountBasis: actualAmount === null ? "quote" : "actual",
+      cancellation,
+      scheduleCancelled,
+      completedSchedulePreserved,
+      recordedSpendPreserved,
+      quoteContributionCorrected,
+      quoteCorrectionAmount,
+      refundStatus: "unknown",
+      // Deprecated compatibility fields stay false: cancellation is neither
+      // hard deletion nor proof of a refund/spend reversal.
+      scheduleRemoved: false,
+      budgetReverted: false,
+      syncedEvent,
+      syncedEventId,
+      syncedEventIdRemoved: null,
+      syncedCategoryKey,
       syncedNewSpent,
       projectionStatus,
       projectionRetryable,
       projectionAttemptCount,
       projectionErrorCode,
-      fullyApplied: projectionStatus === "completed",
+      projectionNeedsReview,
+      projectionReviewReason,
+      fullyApplied: projectionStatus === "completed" && !projectionNeedsReview,
     },
     success: true,
-    displayMessage: `${vendorName} 예약이 취소되었습니다. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})${revertNote}${projectionNote}`,
+    displayMessage: `${vendorName} 아모라 안 예약 기록을 취소 상태로 표시했어요. 업체 취소는 전달되거나 확정되지 않았어요. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})${cancellationNote}${spendNote}${refundNote}${projectionNote}`,
   };
 }

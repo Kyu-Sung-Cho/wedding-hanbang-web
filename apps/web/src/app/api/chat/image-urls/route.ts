@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 
@@ -123,6 +124,9 @@ function attachmentPathsForMessage(message: VisibleChatMessage): string[] {
 
 export async function POST(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     if (isBodyTooLarge(request, MAX_REQUEST_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }

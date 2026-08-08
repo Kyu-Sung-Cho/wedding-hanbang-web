@@ -19,22 +19,24 @@ export const START_HERE_DATE_HANDOFF_KEY = "hanbang:start-here-date:v1";
 export function readStartHereDateHandoff(): string | null {
   if (typeof window === "undefined") return null;
 
-  let value: string | null = null;
-  try {
-    value = window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY);
-  } catch {
-    // 저장소가 막힌 환경이면 아래 fragment 경로로 넘어온다.
+  // **주소가 저장값을 이긴다.** 반대로 두면 `#date=`로 방금 지정하고 들어온 사람이
+  // 오래된 저장값을 받는다 — 세션이 남아 있는 브라우저에서 링크로 다시 들어올 때
+  // 실제로 그렇게 된다. 저장소는 fragment를 못 쓰는 환경의 경로다.
+  let fragmentValue: string | null = null;
+  const match = /[#&]date=([^&]+)/u.exec(window.location.hash);
+  if (match) {
+    try {
+      fragmentValue = decodeURIComponent(match[1]);
+    } catch {
+      fragmentValue = null;
+    }
   }
 
-  if (!value) {
-    const match = /[#&]date=([^&]+)/u.exec(window.location.hash);
-    if (match) {
-      try {
-        value = decodeURIComponent(match[1]);
-      } catch {
-        value = null;
-      }
-    }
+  let storedValue: string | null = null;
+  try {
+    storedValue = window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY);
+  } catch {
+    // 저장소가 막힌 환경이면 fragment 경로만 쓴다.
   }
 
   clearStartHereDateHandoff();
@@ -43,12 +45,14 @@ export function readStartHereDateHandoff(): string | null {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }
 
-  if (!value) return null;
-  // 넘겨받은 값이 그대로 입력칸에 들어가므로 형식과 유효성을 여기서 잠근다.
-  // 지난 날짜는 도착 화면에서 빈 결과가 되므로 아예 받지 않는다 — 세션이 오래
-  // 열려 있으면 어제 넘긴 날짜가 오늘은 과거일 수 있다.
-  const dday = daysUntilWedding(value);
-  return dday !== null && dday >= 0 ? value : null;
+  // 지난 날짜를 거르는 것은 **저장값에만** 적용한다. 세션이 오래 열려 있으면 어제
+  // 넘긴 날짜가 오늘은 과거일 수 있어서다. 주소로 방금 지정한 날짜는 지났더라도
+  // 그대로 넘긴다 — 도착 화면이 "이미 지난 날짜예요"라고 정정 상태를 보여주는 쪽이,
+  // 사용자가 넣은 값을 말없이 버리는 것보다 낫다.
+  if (fragmentValue) return fragmentValue;
+  if (!storedValue) return null;
+  const dday = daysUntilWedding(storedValue);
+  return dday !== null && dday >= 0 ? storedValue : null;
 }
 
 export function clearStartHereDateHandoff(): void {

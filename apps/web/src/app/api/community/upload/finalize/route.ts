@@ -23,6 +23,12 @@ import {
   type CommunityUploadSession,
 } from "@/lib/community/uploadSession";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import {
+  COMMUNITY_MEDIA_DISABLED_CODE,
+  isCommunityMediaPublishingEnabled,
+} from "@/lib/community/mediaPublishingGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -324,6 +330,11 @@ async function publishAndVerify(
 }
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutationRequest(req)) {
+    return json(
+      { error: "올바르지 않은 요청 출처예요.", code: "UNTRUSTED_ORIGIN" }, 403);
+  }
+
   const uploadId = await readUploadId(req);
   if (!uploadId) {
     return json({ error: "올바르지 않은 업로드 요청이에요.", code: "INVALID_FINALIZE_REQUEST" }, 400);
@@ -332,6 +343,26 @@ export async function POST(req: NextRequest) {
   const requestClient = await createClientFromRequest(req);
   const { data: { user } } = await requestClient.auth.getUser();
   if (!user) return json({ error: "로그인이 필요해요.", code: "AUTH_REQUIRED" }, 401);
+
+  if (!isCommunityMediaPublishingEnabled()) {
+    return json(
+      {
+        error: "통제 베타에서는 커뮤니티 이미지 발행을 아직 사용할 수 없어요.",
+        code: COMMUNITY_MEDIA_DISABLED_CODE,
+      },
+      503,
+      { "Retry-After": "3600" },
+    );
+  }
+
+  const writeAccess = await checkCommunityWriteAccess(requestClient, user.id);
+  if (!writeAccess.allowed) {
+    return json(
+      { error: writeAccess.message, code: writeAccess.code },
+      writeAccess.status,
+      writeAccess.status === 503 ? { "Retry-After": "30" } : {},
+    );
+  }
 
   const finalizeGates = [
     {

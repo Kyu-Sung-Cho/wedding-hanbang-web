@@ -58,7 +58,8 @@ function titleFromUrl(url: string): string {
       schedule: "일정 관리",
       chat: "AI 채팅",
       settings: "설정",
-      fitting: "AI 드레스 피팅",
+      fitting: "AI 드레스 미리 보기",
+      "quote-check": "견적 체크",
     };
     return (segment && map[segment]) || "웨딩한방";
   } catch {

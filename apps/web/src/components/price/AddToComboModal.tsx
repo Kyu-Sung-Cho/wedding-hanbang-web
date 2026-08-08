@@ -40,9 +40,13 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
   }, [open, vendor]);
 
   const rawOffer = vendor?.offers.find((value) => value.id === offerId) ?? firstPricedOffer;
-  const offer = rawOffer && rawOffer.options.length === 0 && hydratedOptions?.get(rawOffer.id)?.length
-    ? { ...rawOffer, options: hydratedOptions.get(rawOffer.id)! }
-    : rawOffer;
+  const offer = useMemo(() => {
+    if (!rawOffer) return undefined;
+    const resolvedOptions = hydratedOptions?.get(rawOffer.id);
+    return rawOffer.options.length === 0 && resolvedOptions?.length
+      ? { ...rawOffer, options: resolvedOptions }
+      : rawOffer;
+  }, [hydratedOptions, rawOffer]);
   const customManwonValue = /^\d+(?:\.\d+)?$/.test(customManwon.trim())
     ? Number(customManwon)
     : Number.NaN;
@@ -51,7 +55,10 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
     ? customKrw
     : null;
   const customInputError = customManwon.trim() !== "" && validCustomKrw === null;
-  const options = useMemo(() => offer?.options.filter(({ id }) => selectedOptionIds.has(id)) ?? [], [offer, selectedOptionIds]);
+  const options = useMemo(
+    () => offer?.options.filter(({ id }) => selectedOptionIds.has(id)) ?? [],
+    [offer, selectedOptionIds],
+  );
   const optionMinimumTotal = options.reduce((sum, option) => sum + (option.minimumKrw ?? 0), 0);
   const optionMaximumTotal = options.every((option) => option.maximumKrw !== null)
     ? options.reduce((sum, option) => sum + (option.maximumKrw ?? 0), 0)
@@ -102,7 +109,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.12em] text-[#8F6662]">조합에 담기</p>
-            <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#243832]">{vendor.name}</h2>
+            <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-normal text-[#243832]">{vendor.name}</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-[#243832] hover:bg-white">
             <X aria-hidden="true" className="size-5" />
@@ -122,7 +129,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
                   <span className="font-semibold text-[#243832]">{candidate.agencyName}</span>
                   <span className="font-bold tabular-nums text-[#243832]">{krwRangeLabel(candidate.minimumKrw, candidate.maximumKrw)}</span>
                 </span>
-                {candidate.baseSpec ? <span className="mt-1 block text-xs leading-5 text-[#243832]/65">{candidate.baseSpec}</span> : null}
+                {candidate.baseSpec ? <span className="mt-1 block text-xs leading-5 text-[#243832]/75">{candidate.baseSpec}</span> : null}
               </span>
             </label>
           ))}
@@ -193,7 +200,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
 
         <div className="sticky bottom-0 -mx-5 mt-6 border-t border-[#243832]/10 bg-[#FBF8F2]/95 px-5 pb-[max(0px,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-7 sm:px-7">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-[#243832]/65">
+            <span className="text-sm font-semibold text-[#243832]/75">
               {validCustomKrw === null ? "기본·옵션 공시가 합계" : "입력 견적·옵션 공시가 합계"}
             </span>
             <strong className="text-xl tabular-nums text-[#243832]">{krwRangeLabel(totalMinimumKrw, totalMaximumKrw)}</strong>

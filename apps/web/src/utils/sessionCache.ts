@@ -7,9 +7,18 @@
 export async function withSessionCache<T>(
   key: string,
   ttlMs: number,
-  fetcher: () => Promise<T>
+  fetcher: () => Promise<T>,
+  options?: { shouldCache?: () => boolean },
 ): Promise<T> {
   if (typeof window === "undefined") return fetcher();
+  const ownsCache = () => {
+    try {
+      return options?.shouldCache?.() ?? true;
+    } catch {
+      return false;
+    }
+  };
+  if (!ownsCache()) return fetcher();
   try {
     const raw = sessionStorage.getItem(key);
     if (raw) {
@@ -20,6 +29,7 @@ export async function withSessionCache<T>(
     /* JSON 파싱 실패 — 무시하고 fresh fetch */
   }
   const fresh = await fetcher();
+  if (!ownsCache()) return fresh;
   try {
     sessionStorage.setItem(
       key,

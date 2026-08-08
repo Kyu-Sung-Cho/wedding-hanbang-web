@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getOrCreateModerationOperationKey,
+  settleModerationOperationKey,
+} from "@/lib/community/adminModerationIdempotency";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, CalendarCheck,
@@ -243,6 +247,7 @@ export default function AdminPage() {
   const [reportFilter, setReportFilter] = useState<ReportStatus | "all">("pending");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportActionId, setReportActionId] = useState<string | null>(null);
+  const moderationOperationKeys = useRef(new Map<string, string>());
 
   const loadReports = useCallback(async (filter: ReportStatus | "all" = "pending") => {
     setReportLoading(true);
@@ -263,46 +268,112 @@ export default function AdminPage() {
     status: ReportStatus,
     action?: "deactivate_member"
   ) {
+    const reason = window.prompt(
+      action === "deactivate_member"
+        ? "동기방 이용 제한 사유를 입력해 주세요."
+        : "신고 검토 사유를 입력해 주세요. 감사 기록에 남습니다."
+    );
+    if (!reason?.trim()) return;
+
+    const requestBody = { status, action, reason: reason.trim() };
+    const endpoint = `/api/admin/reports/${reportId}`;
+    const commandFingerprint = `${endpoint}:${JSON.stringify(requestBody)}`;
+    const operationKey = getOrCreateModerationOperationKey(
+      moderationOperationKeys.current,
+      commandFingerprint,
+    );
+
     setReportActionId(reportId);
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}`, {
+      const res = await fetch(endpoint, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, action }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": operationKey,
+        },
+        body: JSON.stringify(requestBody),
       });
+      settleModerationOperationKey(
+        moderationOperationKeys.current,
+        commandFingerprint,
+        res.status,
+      );
       if (res.ok) {
         await loadReports(reportFilter);
+      } else {
+        if (res.status >= 500) {
+          window.alert(
+            "조치 결과를 확인하지 못했습니다. 같은 상태와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+          );
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        window.alert(data?.error ?? "신고 상태를 기록하지 못했습니다.");
       }
+    } catch {
+      window.alert(
+        "네트워크 응답을 확인하지 못했습니다. 같은 상태와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+      );
     } finally {
       setReportActionId(null);
     }
   }
 
-  // 신고된 글에 직접 조치 — 숨김 / 복원 / 강제 삭제
+  // 신고 대상 게시글 조치. 실제 삭제 대신 복구 가능한 비공개 처리를 사용한다.
   async function moderatePost(
     reportId: string,
     postId: string,
-    action: "hide" | "unhide" | "delete"
+    action: "hide" | "restore" | "soft_delete"
   ) {
-    if (action === "delete") {
-      const ok = window.confirm(
-        "이 게시글을 영구 삭제하시겠어요?\n댓글, 투표, 북마크, 폴까지 모두 함께 삭제되며 복구 불가합니다."
-      );
-      if (!ok) return;
-    }
+    const labels = {
+      hide: "임시 숨김",
+      restore: "공개 복원",
+      soft_delete: "이용 제한",
+    } as const;
+    const reason = window.prompt(
+      `${labels[action]} 사유를 입력해 주세요. 작성자 통지와 감사 기록에 남습니다.`
+    );
+    if (!reason?.trim()) return;
+
+    const requestBody = { action, reason: reason.trim() };
+    const endpoint = `/api/admin/posts/${postId}/moderate`;
+    const commandFingerprint = `${endpoint}:${JSON.stringify(requestBody)}`;
+    const operationKey = getOrCreateModerationOperationKey(
+      moderationOperationKeys.current,
+      commandFingerprint,
+    );
+
     setReportActionId(reportId);
     try {
-      const res = await fetch(`/api/admin/posts/${postId}/moderate`, {
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": operationKey,
+        },
+        body: JSON.stringify(requestBody),
       });
+      settleModerationOperationKey(
+        moderationOperationKeys.current,
+        commandFingerprint,
+        res.status,
+      );
       if (res.ok) {
         await loadReports(reportFilter);
       } else {
+        if (res.status >= 500) {
+          window.alert(
+            "조치 결과를 확인하지 못했습니다. 같은 조치와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+          );
+          return;
+        }
         const data = await res.json().catch(() => ({}));
-        window.alert(data?.error ?? "조치 실패");
+        window.alert(data?.error ?? "조치를 기록하지 못했습니다.");
       }
+    } catch {
+      window.alert(
+        "네트워크 응답을 확인하지 못했습니다. 같은 조치와 사유로 다시 시도하면 중복 처리 없이 확인합니다.",
+      );
     } finally {
       setReportActionId(null);
     }
@@ -555,6 +626,9 @@ export default function AdminPage() {
             <p className="text-sm text-taupe-500 mt-1">{adminEmail}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3 max-md:justify-center">
+            <Link href="/admin/community" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#36534E] border border-[#C7D1C2] rounded-lg hover:bg-[#F7F1E8] transition-colors">
+              <Shield className="w-3.5 h-3.5" /> 커뮤니티 통제실
+            </Link>
             <Link href="/admin/price" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#36534E] border border-[#C7D1C2] rounded-lg hover:bg-[#F7F1E8] transition-colors">
               공시 가격 검수
             </Link>
@@ -1548,7 +1622,7 @@ export default function AdminPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#2E7D5A] text-white rounded-lg hover:bg-[#246548] transition-colors disabled:opacity-50"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            처리됨으로 표시
+                            {isMemberReport ? "처리됨으로 표시" : "확정하고 콘텐츠 숨김"}
                           </button>
                         )}
                         {isMemberReport && (
@@ -1602,7 +1676,7 @@ export default function AdminPage() {
                           {r.post.visibility === "draft" && (
                             <button
                               type="button"
-                              onClick={() => moderatePost(r.id, r.post!.id, "unhide")}
+                              onClick={() => moderatePost(r.id, r.post!.id, "restore")}
                               disabled={reportActionId === r.id}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2E7D5A] text-[#2E7D5A] rounded-lg hover:bg-[#2E7D5A] hover:text-white transition-colors disabled:opacity-50"
                             >
@@ -1611,11 +1685,11 @@ export default function AdminPage() {
                           )}
                           <button
                             type="button"
-                            onClick={() => moderatePost(r.id, r.post!.id, "delete")}
+                            onClick={() => moderatePost(r.id, r.post!.id, "soft_delete")}
                             disabled={reportActionId === r.id}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
                           >
-                            강제 삭제
+                            이용 제한
                           </button>
                           <span className="text-[11px] text-taupe-400">
                             현재: {r.post.visibility === "draft" ? "숨김" : r.post.visibility}

@@ -8,7 +8,12 @@ const memorySource = readFileSync(new URL("../../app/settings/amora-memory.tsx",
 
 test("native settings exposes Amora memory controls without a sessionless WebView", () => {
   assert.match(settingsSource, /router\.push\("\/settings\/amora-memory"/);
-  assert.match(memorySource, /apiJson<MemoryResponse>\("\/api\/amora\/memory"\)/);
+  // 여전히 네이티브에서 직접 호출한다(WebView 아님). P0-4 이후로는 그 호출이
+  // 요청 시작 사용자에 결박돼야 하므로 결박된 형태까지 함께 고정한다.
+  assert.match(
+    memorySource,
+    /apiJsonForExpectedUser<MemoryResponse>\([\s\S]*?"\/api\/amora\/memory"/,
+  );
   assert.doesNotMatch(memorySource, /WebView|Linking\.openURL/);
 });
 
@@ -19,7 +24,10 @@ test("mobile memory deletion and full reset require explicit confirmation", () =
   assert.match(memorySource, /action: "clear_scope"/);
 });
 
-test("native proactive-care switch persists explicit server consent", () => {
-  assert.match(settingsSource, /care_notifications_enabled: value/);
-  assert.match(settingsSource, /apiFetch\("\/api\/profile"/);
+test("native settings hides proactive-care opt-in while preserving legacy opt-out", () => {
+  assert.doesNotMatch(settingsSource, /care_notifications_enabled: value/);
+  assert.doesNotMatch(settingsSource, /care_notifications_enabled: true/);
+  assert.match(settingsSource, /care_notifications_enabled: false/);
+  assert.match(settingsSource, /legacyCareConsentActive \?/);
+  assert.doesNotMatch(settingsSource, /아모라 먼저 챙기기/);
 });

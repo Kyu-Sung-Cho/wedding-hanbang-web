@@ -59,4 +59,46 @@ describe("quoteMarketTools", () => {
       error: "quote_price must be a positive number.",
     });
   });
+
+  it("does not report user-declared not-needed items as unconfirmed", () => {
+    const first = executeAnalyzeQuoteWithTrustEngine({
+      category: "studio",
+      region: "seoul",
+      quote_price: 300,
+    });
+    const checklist = first.toolOutput as {
+      checklistItems: Array<{ id: string; name: string }>;
+    };
+    const notNeeded = checklist.checklistItems[0];
+    const result = executeAnalyzeQuoteWithTrustEngine({
+      category: "studio",
+      region: "seoul",
+      quote_price: 300,
+      included_items: [],
+      not_needed_items: [notNeeded.name],
+      checklist_confirmed: true,
+    });
+    const output = result.toolOutput as {
+      missingItems: Array<{ name: string }>;
+      notNeededItems: Array<{ name: string }>;
+    };
+
+    expect(result.success).toBe(true);
+    expect(output.notNeededItems.map((item) => item.name)).toContain(notNeeded.name);
+    expect(output.missingItems.map((item) => item.name)).not.toContain(notNeeded.name);
+  });
+
+  it("can finish the second step even when every item remains unconfirmed", () => {
+    const result = executeAnalyzeQuoteWithTrustEngine({
+      category: "studio",
+      region: "seoul",
+      quote_price: 300,
+      included_items: [],
+      not_needed_items: [],
+      checklist_confirmed: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput).not.toMatchObject({ mode: "checklist" });
+  });
 });

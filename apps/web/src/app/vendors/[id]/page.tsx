@@ -50,7 +50,7 @@ export default async function LegacyVendorDetailPage({
             <p className="text-xs font-bold tracking-[0.12em] text-[#8F6662]">
               {profile.periodLabel} · 자동 추출 · 검수 전
             </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-[-0.03em]">
+            <h1 className="mt-2 text-3xl font-bold tracking-normal">
               {profile.vendor.name}
             </h1>
             <span className="mt-3 inline-flex rounded-full bg-[#36534E]/8 px-2.5 py-1 text-xs font-bold text-[#36534E]/75">

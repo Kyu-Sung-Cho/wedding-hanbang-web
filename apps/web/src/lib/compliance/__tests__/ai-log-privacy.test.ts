@@ -104,6 +104,51 @@ describe("logAIInteraction privacy boundary", () => {
     expect(inserted?.metadata).not.toHaveProperty("endpoint");
   });
 
+  it("round-trips only the six exact server-issued Amora question scopes", async () => {
+    const scopes = [
+      "W0_wedding_core",
+      "W1_wedding_adjacent",
+      "W2_high_risk_adjacent",
+      "W3_social_care",
+      "W4_out_of_scope",
+      "W5_safety_override",
+    ] as const;
+
+    for (const questionScope of scopes) {
+      await logAIInteraction({
+        interactionType: "chat_turn",
+        metadata: { question_scope: questionScope },
+      });
+    }
+
+    expect(db.insert).toHaveBeenCalledTimes(scopes.length);
+    expect(db.insert.mock.calls.map(([inserted]) => (
+      inserted?.metadata?.question_scope
+    ))).toEqual(scopes);
+  });
+
+  it("drops malformed question-scope strings and structured payloads", async () => {
+    const malformedScopes = [
+      "W2_high_risk_adjacent user text",
+      "w2_high_risk_adjacent",
+      "W9_unknown",
+      { scope: "W0_wedding_core" },
+      ["W0_wedding_core"],
+      null,
+    ];
+    for (const questionScope of malformedScopes) {
+      await logAIInteraction({
+        interactionType: "chat_turn",
+        metadata: { question_scope: questionScope },
+      });
+    }
+
+    expect(db.insert).toHaveBeenCalledTimes(malformedScopes.length);
+    for (const [inserted] of db.insert.mock.calls) {
+      expect(inserted?.metadata).not.toHaveProperty("question_scope");
+    }
+  });
+
   it("returns false and emits an operational signal when the durable row is missing", async () => {
     db.insert.mockResolvedValue({ error: { message: "database unavailable" } });
 

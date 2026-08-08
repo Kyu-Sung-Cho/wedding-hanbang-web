@@ -550,6 +550,9 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       modelRole: "fast",
       maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 750,
+      // 꺼진 경로의 차단은 토큰 계산보다 먼저 걸려야 한다. 계산 요청도 프로필
+      // 원문과 대화를 그대로 제공자에 보낸다.
+      beforeProviderEgress: blockLegacyAuxiliaryProviderGeneration,
       beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: PROFILE_SYSTEM_PROMPT,
       input:

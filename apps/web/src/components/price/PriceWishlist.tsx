@@ -117,7 +117,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#FBF8F2] px-4 pb-16 pt-10 text-[#243832] sm:px-6 sm:pt-14">
+    <div className="min-h-screen bg-[#FBF8F2] px-4 pb-16 pt-10 text-[#243832] sm:px-6 sm:pt-14">
       <div className="mx-auto max-w-4xl">
         <header className="mb-7">
           <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">
@@ -125,7 +125,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-[-0.035em] sm:text-4xl">
+              <h1 className="text-3xl font-bold tracking-normal sm:text-4xl">
                 찜한 공식 가격 업체
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#243832]/70">
@@ -152,7 +152,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                 className="flex min-h-12 items-center justify-between rounded-2xl border border-[#243832]/10 bg-white px-4 text-sm"
               >
                 <span className="font-semibold">{PRICE_CATEGORY_LABELS[category]}</span>
-                <span className="tabular-nums text-[#243832]/55">{status === "ready" ? count : "–"}</span>
+                <span className="tabular-nums text-[#243832]/75">{status === "ready" ? count : "–"}</span>
               </div>
             );
           })}
@@ -227,7 +227,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                   <h2 id={`wishlist-${category}`} className="text-lg font-bold">
                     {PRICE_CATEGORY_LABELS[category]}
                   </h2>
-                  <span className="text-sm tabular-nums text-[#243832]/55">{vendors.length}개</span>
+                  <span className="text-sm tabular-nums text-[#243832]/75">{vendors.length}개</span>
                 </div>
                 {vendors.length > 0 ? (
                   <div className="space-y-4">
@@ -261,7 +261,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           <PriceDisclosureFooter />
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -281,7 +281,7 @@ function StateCard({
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         {icon}
       </span>
-      <h2 className="mt-5 text-xl font-bold tracking-[-0.02em]">{title}</h2>
+      <h2 className="mt-5 text-xl font-bold tracking-normal">{title}</h2>
       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#243832]/70">{description}</p>
       <div className="mt-6">{children}</div>
     </section>

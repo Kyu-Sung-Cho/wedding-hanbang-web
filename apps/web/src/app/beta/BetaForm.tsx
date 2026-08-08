@@ -8,6 +8,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import { readStoredUtm } from "@/utils/utm";
+import { BETA_COUPLE_ROLE_SUPPORT_COPY } from "@/constants/coupleRoleSupport";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -91,7 +92,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <div className="w-12 h-12 rounded-full bg-rose-light/20 flex items-center justify-center mb-6">
           <Check className="w-6 h-6 text-rose-light" />
         </div>
-        <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-5 tracking-[-0.005em]">
+        <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-5 tracking-normal">
           신청 <em className="not-italic text-rose-light">접수 완료</em>
         </h2>
         <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
@@ -129,7 +130,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <>
           {/* 진척 — 숫자는 sans-serif + tabular-nums (Cormorant "1"이 Roman "I"로 보이는 이슈 방지) */}
           <div className="flex items-baseline gap-3 mb-3">
-            <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-[-0.02em]">
+            <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-normal">
               {current}
             </span>
             <span className="text-white/40 text-lg font-light tabular-nums">/ {total}쌍</span>
@@ -176,7 +177,10 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
-        <Field label="역할" required>
+        <fieldset className="block" aria-describedby="beta-role-support-note">
+          <legend className="text-[11px] tracking-[0.2em] text-white/60 mb-2.5 block font-medium">
+            역할<span className="text-rose-light ml-1">*</span>
+          </legend>
           <div className="flex gap-3">
             {([
               { value: "bride" as const, label: "신부" },
@@ -187,6 +191,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
                 type="button"
                 onClick={() => setRole(opt.value)}
                 disabled={submitting}
+                aria-pressed={role === opt.value}
                 className={`flex-1 py-3 text-sm font-medium rounded-xl border transition-colors ${
                   role === opt.value
                     ? "bg-rose-light/20 border-rose-light text-white"
@@ -197,7 +202,14 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
               </button>
             ))}
           </div>
-        </Field>
+          <div
+            id="beta-role-support-note"
+            className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/50"
+          >
+            <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.current}</p>
+            <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.planned}</p>
+          </div>
+        </fieldset>
 
         <Field label="예식 예정일">
           <DatePickerPopover

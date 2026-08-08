@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isRecord } from "@/utils/requestValidation";
+import { isScheduleEventCancellation } from "@/utils/scheduleEvents";
+import type { ScheduleEventCancellation } from "@/types/database.types";
 import {
   syncBookingProgressAfterCancel,
   syncBookingProgressAfterCreate,
@@ -33,7 +35,9 @@ interface BookingProjectionClaim {
   booking: {
     date: string;
     time: string;
-    amount: number;
+    quotedAmount: number;
+    actualAmount: number | null;
+    cancellation: ScheduleEventCancellation | null;
     status: string;
     vendorId: string;
     productId: string | null;
@@ -51,6 +55,8 @@ export interface BookingProjectionDeliveryResult {
   attemptCount: number;
   retryAfterSeconds?: number;
   errorCode?: string;
+  needsReview?: boolean;
+  reviewReason?: string | null;
   sync?: BookingProjectionSyncResult;
 }
 
@@ -86,7 +92,15 @@ function optionalUuid(value: unknown): string | null | undefined {
 function parseClaim(value: unknown): BookingProjectionClaim | null {
   if (!isRecord(value) || !isRecord(value.booking)) return null;
   const booking = value.booking;
-  const amount = finiteNonNegative(booking.amount);
+  const quotedAmount = finiteNonNegative(booking.quotedAmount);
+  const actualAmount = booking.actualAmount === null
+    ? null
+    : finiteNonNegative(booking.actualAmount);
+  const cancellation = booking.cancellation === null
+    ? null
+    : isScheduleEventCancellation(booking.cancellation)
+      ? booking.cancellation
+      : undefined;
   const generation = positiveInteger(value.generation);
   const attemptCount = positiveInteger(value.attemptCount);
   const productId = optionalUuid(booking.productId);
@@ -101,7 +115,11 @@ function parseClaim(value: unknown): BookingProjectionClaim | null {
     typeof value.claimToken !== "string" || !UUID_RE.test(value.claimToken) ||
     typeof booking.date !== "string" || !ISO_DATE_RE.test(booking.date) ||
     typeof booking.time !== "string" || !TIME_RE.test(booking.time) ||
-    amount === null ||
+    quotedAmount === null ||
+    (booking.actualAmount !== null && actualAmount === null) ||
+    cancellation === undefined ||
+    (value.desiredState === "active" && cancellation !== null) ||
+    (value.desiredState === "cancelled" && cancellation === null) ||
     typeof booking.status !== "string" ||
     typeof booking.vendorId !== "string" || !UUID_RE.test(booking.vendorId) ||
     productId === undefined ||
@@ -122,7 +140,9 @@ function parseClaim(value: unknown): BookingProjectionClaim | null {
     booking: {
       date: booking.date,
       time: booking.time,
-      amount,
+      quotedAmount,
+      actualAmount,
+      cancellation,
       status: booking.status,
       vendorId: booking.vendorId,
       productId,
@@ -187,7 +207,7 @@ async function readQueuedStatus(
 ): Promise<BookingProjectionDeliveryResult> {
   const { data, error } = await client
     .from("booking_projection_jobs")
-    .select("desired_state, status, attempt_count, last_error_code")
+    .select("desired_state, status, attempt_count, last_error_code, needs_review, review_reason")
     .eq("booking_id", bookingId)
     .maybeSingle();
   if (error || !isRecord(data)) {
@@ -206,12 +226,17 @@ async function readQueuedStatus(
     : null;
   const attemptCount = finiteNonNegative(data.attempt_count) ?? 0;
   if (data.status === "completed") {
+    const needsReview = data.needs_review === true;
     return {
       bookingId,
       desiredState,
       status: "completed",
       retryable: false,
       attemptCount,
+      needsReview,
+      reviewReason: needsReview && typeof data.review_reason === "string"
+        ? data.review_reason
+        : null,
     };
   }
   if (data.status === "failed") {
@@ -299,9 +324,14 @@ export async function processBookingProjectionJob(
             id: claim.bookingId,
             date: claim.booking.date,
             time: claim.booking.time,
-            amount: claim.booking.amount,
+            amount: claim.booking.quotedAmount,
+            actualAmount: claim.booking.actualAmount,
           },
-          vendorId: claim.booking.vendorId,
+          vendor: {
+            id: claim.booking.vendorId,
+            name: claim.booking.vendorName,
+            category: claim.booking.vendorCategory,
+          },
           productId: claim.booking.productId,
           staffId: claim.booking.staffId,
           projectionClaim: {
@@ -313,7 +343,9 @@ export async function processBookingProjectionJob(
           coupleId: claim.coupleId,
           booking: {
             id: claim.bookingId,
-            amount: claim.booking.amount,
+            amount: claim.booking.quotedAmount,
+            actualAmount: claim.booking.actualAmount,
+            cancellation: claim.booking.cancellation!,
           },
           vendor: {
             id: claim.booking.vendorId,
@@ -334,6 +366,9 @@ export async function processBookingProjectionJob(
             nextProgress: {},
             scheduleAdded: false,
             scheduleUpdated: false,
+            terminalSchedulePreserved: false,
+            needsReview: false,
+            reviewReason: null,
             budgetUpdated: false,
             budgetExceededBy: 0,
             categoryBudgetLimit: 0,
@@ -351,12 +386,21 @@ export async function processBookingProjectionJob(
           }
         : {
             nextProgress: {},
+            scheduleCancelled: false,
+            completedSchedulePreserved: false,
+            terminalSchedulePreserved: false,
+            needsReview: false,
+            reviewReason: null,
+            recordedSpendPreserved: false,
+            quoteContributionCorrected: false,
+            quoteCorrectionAmount: 0,
             scheduleRemoved: false,
             budgetReverted: false,
             revertedAmount: 0,
             categoryBudgetLimit: 0,
             categoryLabel: claim.booking.vendorCategory,
             syncedEventIdRemoved: null,
+            syncedEventId: null,
             syncedCategoryKey: null,
             syncedNewSpent: null,
           }),
@@ -370,6 +414,8 @@ export async function processBookingProjectionJob(
       status: "completed",
       retryable: false,
       attemptCount: claim.attemptCount,
+      needsReview: sync.needsReview,
+      reviewReason: sync.reviewReason,
       sync,
     };
   }
@@ -431,14 +477,8 @@ export async function processBookingProjectionJob(
   // If apply committed but its response was lost, the failure-resolution RPC
   // observes the already-completed row with a stale token. Completion wins.
   if (finished.result.status === "completed") {
-    return {
-      bookingId: claim.bookingId,
-      desiredState: claim.desiredState,
-      status: "completed",
-      retryable: false,
-      attemptCount,
-      sync,
-    };
+    const durable = await readQueuedStatus(client, claim.bookingId);
+    return { ...durable, desiredState: claim.desiredState, sync };
   }
   if (finished.result.status === "failed") {
     return {

@@ -6,6 +6,18 @@ function getServiceClient() {
   return createAdminClient();
 }
 
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Authorization, Cookie",
+};
+
+function json(body: unknown, init?: { status?: number }) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: PRIVATE_NO_STORE_HEADERS,
+  });
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -20,11 +32,11 @@ export async function GET(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     if (!roomId) {
-      return NextResponse.json({ error: "동기방 정보가 필요합니다." }, { status: 400 });
+      return json({ error: "동기방 정보가 필요합니다." }, { status: 400 });
     }
 
     const serviceClient = getServiceClient();
@@ -38,27 +50,44 @@ export async function GET(
 
     const memberIds = new Set((memberships ?? []).map((m) => m.user_id as string));
     if (!memberIds.has(user.id) || !memberIds.has(userId)) {
-      return NextResponse.json(
+      return json(
         { error: "같은 동기방 멤버만 볼 수 있습니다." },
         { status: 403 }
       );
     }
 
+    const { data: viewerCanSee, error: blockCheckError } =
+      await serviceClient.rpc("community_viewer_can_see" as never, {
+        p_viewer_user_id: user.id,
+        p_other_user_id: userId,
+      } as never);
+    if (blockCheckError || typeof viewerCanSee !== "boolean") {
+      console.error("[community/profile public] block check failed", {
+        category: "viewer_control_unavailable",
+        code: blockCheckError?.code ?? "invalid_result",
+      });
+      return json(
+        { error: "프로필 접근 권한을 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
+    if (!viewerCanSee) {
+      return json({ error: "프로필을 찾을 수 없습니다." }, { status: 404 });
+    }
+
     const { data: profile, error: profileError } = await serviceClient
-      .from("community_profiles")
-      .select(
-        "user_id, nickname, avatar_url, rank, wedding_year, wedding_month, wedding_completed, post_count, comment_count, total_upvotes_received, created_at"
-      )
+      .from("community_public_profiles")
+      .select("user_id, nickname, avatar_url, badge, rank")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (profileError) {
       console.error("[community/profile public] profile error:", profileError);
-      return NextResponse.json({ error: "프로필을 불러오지 못했습니다." }, { status: 500 });
+      return json({ error: "프로필을 불러오지 못했습니다." }, { status: 500 });
     }
 
     if (!profile) {
-      return NextResponse.json({ error: "프로필을 찾을 수 없습니다." }, { status: 404 });
+      return json({ error: "프로필을 찾을 수 없습니다." }, { status: 404 });
     }
 
     const { data: posts } = await serviceClient
@@ -70,12 +99,12 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(10);
 
-    return NextResponse.json({
+    return json({
       profile,
       posts: posts ?? [],
     });
   } catch (err) {
     console.error("[community/profile public] unexpected:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

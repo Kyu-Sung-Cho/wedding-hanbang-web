@@ -34,6 +34,9 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
     expect(html).not.toContain("undefined");
     expect(html).not.toContain("이용률");
     expect(html).not.toContain("~");
+    expect(html).toContain("이용 안 함");
+    expect(html).toContain("확인 필요");
+    expect(html).not.toContain("미포함");
   });
 
   it("does not render removed price or usage fields in analysis mode", () => {
@@ -84,5 +87,18 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
     expect(html).not.toContain("과거 고정 평균가 출처");
     expect(html).not.toContain("평균보다 비싼 견적");
     expect(html).not.toContain("기준 시세 중위가");
+  });
+
+  it("shows not-needed items separately from items that still need confirmation", () => {
+    const html = render({
+      quotePrice: 320,
+      category: "studio",
+      missingItems: [{ name: "앨범 페이지 수", category: "studio", severity: "high" }],
+      includedItems: [],
+      notNeededItems: [{ name: "야외 촬영", category: "studio", severity: "medium" }],
+    });
+
+    expect(html).toContain("아직 확인하지 않은 항목 1개");
+    expect(html).toContain("이용 안 함 1개");
   });
 });

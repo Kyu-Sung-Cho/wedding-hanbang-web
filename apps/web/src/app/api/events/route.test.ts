@@ -44,6 +44,8 @@ function request(body: unknown) {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      origin: "https://hanbang.ai",
+      "sec-fetch-site": "same-origin",
       "x-real-ip": "203.0.113.10",
     },
     body: JSON.stringify(body),

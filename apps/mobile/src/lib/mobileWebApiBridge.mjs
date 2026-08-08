@@ -222,6 +222,7 @@ export function createMobileWebApiSessionRefreshGate() {
 }
 
 export async function fetchMobileWebApiWithSession({
+  expectedUserId,
   initialSession,
   fetchWithAccessToken,
   refreshSession,
@@ -230,6 +231,16 @@ export async function fetchMobileWebApiWithSession({
     throw new Error("MOBILE_WEB_API_SESSION_FETCH_INVALID");
   }
   const initial = normalizeMobileWebApiSession(initialSession);
+  if (
+    expectedUserId !== undefined
+    && (
+      typeof expectedUserId !== "string"
+      || expectedUserId.length === 0
+      || initial?.userId !== expectedUserId
+    )
+  ) {
+    throw new Error("MOBILE_WEB_API_SESSION_OWNER_MISMATCH");
+  }
   if (!initial) {
     return buildMobileWebApiUnauthorizedResponse();
   }
@@ -243,7 +254,11 @@ export async function fetchMobileWebApiWithSession({
   } catch {
     return buildMobileWebApiUnauthorizedResponse();
   }
-  if (!refreshed || refreshed.userId !== initial.userId) {
+  if (
+    !refreshed
+    || refreshed.userId !== initial.userId
+    || (expectedUserId !== undefined && refreshed.userId !== expectedUserId)
+  ) {
     return buildMobileWebApiUnauthorizedResponse();
   }
 

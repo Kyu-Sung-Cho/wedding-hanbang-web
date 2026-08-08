@@ -1,6 +1,8 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import type { CohortEventType } from "@/types/community.types";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 async function ensureActiveMember(
   supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
@@ -65,7 +67,7 @@ export async function GET(
 
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
-        .from("community_profiles")
+        .from("community_public_profiles")
         .select("user_id, nickname, avatar_url, rank")
         .in("user_id", userIds);
 
@@ -100,6 +102,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { id: roomId } = await params;
     const supabase = await createClientFromRequest(req);
@@ -109,6 +117,14 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status }
+      );
     }
 
     const member = await ensureActiveMember(supabase, roomId, user.id);

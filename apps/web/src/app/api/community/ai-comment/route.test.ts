@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
 
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
+
 const mocks = vi.hoisted(() => ({
   verifyAdmin: vi.fn(),
   checkRateLimit: vi.fn(),

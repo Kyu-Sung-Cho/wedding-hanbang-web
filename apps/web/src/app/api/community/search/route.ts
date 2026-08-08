@@ -4,7 +4,7 @@ import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { isCommunityCategory } from "@/lib/community/routes";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
 
 type CommunityPostWithAuthorId = {
@@ -13,6 +13,18 @@ type CommunityPostWithAuthorId = {
 } & Record<string, unknown>;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClientFromRequest>>;
+
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Authorization, Cookie, Origin, Sec-Fetch-Site",
+};
+
+function json(body: unknown, init?: { status?: number }) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: PRIVATE_NO_STORE_HEADERS,
+  });
+}
 
 async function attachAuthorProfiles(
   supabase: SupabaseServerClient,
@@ -43,7 +55,7 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     if (!q || q.trim().length === 0) {
-      return NextResponse.json(
+      return json(
         { error: "검색어를 입력해주세요." },
         { status: 400 }
       );
@@ -51,14 +63,14 @@ export async function GET(req: NextRequest) {
 
     // 검색어 최대 길이 제한
     if (q.length > 100) {
-      return NextResponse.json(
+      return json(
         { error: "검색어는 100자 이내로 입력해주세요." },
         { status: 400 }
       );
     }
 
     // Rate limit: 30 searches per minute per IP
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:search", req),
       { maxRequests: 30, windowMs: 60 * 1000 }
     );
@@ -78,6 +90,7 @@ export async function GET(req: NextRequest) {
       })
       .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
       .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
+      .eq("ad_disclosure", "general")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -95,7 +108,7 @@ export async function GET(req: NextRequest) {
       const safeTerm = cleanPostgrestSearchTerm(q, 100);
       const escaped = safeTerm ? escapePostgrestLikePattern(safeTerm) : "";
       if (!escaped) {
-        return NextResponse.json(
+        return json(
           { error: "검색어를 입력해주세요." },
           { status: 400 }
         );
@@ -106,6 +119,7 @@ export async function GET(req: NextRequest) {
         .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
         .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
         .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
+        .eq("ad_disclosure", "general")
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -121,7 +135,7 @@ export async function GET(req: NextRequest) {
 
       if (fallbackError) {
         console.error("Community search fallback error:", fallbackError);
-        return NextResponse.json(
+        return json(
           { error: "검색에 실패했습니다." },
           { status: 500 }
         );
@@ -155,7 +169,7 @@ export async function GET(req: NextRequest) {
       }));
 
       const total = fallbackCount ?? 0;
-      return NextResponse.json({
+      return json({
         posts: postsWithVotes,
         total,
         hasMore: offset + limit < total,
@@ -190,14 +204,14 @@ export async function GET(req: NextRequest) {
     }));
 
     const total = count ?? 0;
-    return NextResponse.json({
+    return json({
       posts: postsWithVotes,
       total,
       hasMore: offset + limit < total,
     });
   } catch (err) {
     console.error("Community search error:", err);
-    return NextResponse.json(
+    return json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
     );

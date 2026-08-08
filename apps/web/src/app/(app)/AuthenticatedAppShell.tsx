@@ -23,7 +23,10 @@ export default async function AuthenticatedAppShell({
   }
 
   return (
-    <AppClientLayout banner={isDemo ? <DemoModeBanner /> : null}>
+    <AppClientLayout
+      banner={isDemo ? <DemoModeBanner /> : null}
+      initialDemo={isDemo}
+    >
       {children}
     </AppClientLayout>
   );

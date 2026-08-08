@@ -2,7 +2,6 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { recordDecision } from "@/lib/memory/record-decision";
 import {
   processBookingProjectionJob,
   type BookingProjectionDeliveryResult,
@@ -13,6 +12,7 @@ import {
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const BOOKING_TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
 
@@ -52,6 +52,10 @@ function parseBookingRequestBody(body: unknown): BookingRequestBody | null {
 
 export async function POST(req: Request) {
   try {
+    if (!isTrustedMutationRequest(req)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
+
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -83,35 +87,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "커플 정보가 필요합니다." }, { status: 404 });
     }
 
-    // 상품 금액 조회
     const admin = createAdminClient();
-    if (productId) {
-      const { data: product, error: productError } = await admin
-        .from("vendor_products")
-        .select("name")
-        .eq("id", productId)
-        .eq("vendor_id", vendorId)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (productError || !product) {
-        if (productError) {
-          console.error("Booking product lookup failed", { code: productError.code });
-        }
-        return NextResponse.json(
-          { error: "선택한 상품을 확인할 수 없습니다." },
-          { status: productError ? 503 : 400 }
-        );
-      }
-    }
-
-    // Atomic booking via Postgres RPC — TOCTOU 방어.
-    // 이전엔 capacity COUNT → INSERT 를 client 호출 2단계로 수행해 동시 호출 시
-    // 둘 다 capacity 통과 후 둘 다 INSERT → max_bookings 초과. RPC 가 timeslot row
-    // FOR UPDATE 락 + COUNT + INSERT 단일 트랜잭션 → 직렬화.
-    // RPC는 service_role 전용(20260611150000) — couple_id는 위에서 본인 프로필로 검증됨.
-    const { data: bookingId, error: rpcError } = await admin.rpc("create_booking_atomic", {
+    // 업체 예약과 분리된 아모라 내부 후보 기록을 원자적으로 만든다. 이 RPC는
+    // 업체 슬롯을 점유하지 않으며, considering 결정 노드까지 같은 트랜잭션에 남긴다.
+    const { data: bookingId, error: rpcError } = await admin.rpc("create_amora_booking_intent_atomic", {
       p_vendor_id: vendorId,
       p_couple_id: profile.couple_id,
+      p_actor_profile_id: user.id,
       p_booking_date: date,
       p_booking_time: time,
       p_product_id: productId || null,
@@ -120,8 +102,6 @@ export async function POST(req: Request) {
       p_bride_name: brideName || "",
       p_groom_name: groomName || "",
       p_contact_phone: contactPhone || "",
-      // Backward-compatible parameter only. The RPC derives canonical price.
-      p_amount: 0,
       p_memo: memo || "",
     });
 
@@ -148,6 +128,18 @@ export async function POST(req: Request) {
           { status: 409 }
         );
       }
+      if (msg.includes("booking_intent_already_cancelled")) {
+        return NextResponse.json(
+          { error: "같은 날짜와 시간의 아모라 후보 기록은 이미 취소되었습니다. 새 요청으로 되살리지 않았습니다." },
+          { status: 409 },
+        );
+      }
+      if (msg.includes("booking_joint_approval_required")) {
+        return NextResponse.json(
+          { error: "두 분 커플의 방문·상담 후보 기록은 공동 승인 기능이 준비될 때까지 만들 수 없습니다." },
+          { status: 409 },
+        );
+      }
       if (msg.includes("invalid_booking_input")) {
         return NextResponse.json({ error: "예약 요청 형식이 올바르지 않습니다." }, { status: 400 });
       }
@@ -168,6 +160,30 @@ export async function POST(req: Request) {
     if (fetchError || !booking) {
       console.error("Booking fetch after RPC error:", fetchError);
       return NextResponse.json({ error: "예약 조회에 실패했습니다." }, { status: 500 });
+    }
+    const verifiedIntent = booking as typeof booking & {
+      vendor_delivery_status?: unknown;
+      intent_created_by_profile_id?: unknown;
+      intent_vendor_name_snapshot?: unknown;
+      intent_vendor_category_snapshot?: unknown;
+    };
+    if (
+      verifiedIntent.vendor_delivery_status !== "not_sent" ||
+      verifiedIntent.intent_created_by_profile_id !== user.id ||
+      booking.vendor_id !== vendorId ||
+      booking.couple_id !== profile.couple_id ||
+      booking.product_id !== (productId || null) ||
+      booking.staff_id !== (staffId || null) ||
+      typeof verifiedIntent.intent_vendor_name_snapshot !== "string" ||
+      !verifiedIntent.intent_vendor_name_snapshot.trim() ||
+      typeof verifiedIntent.intent_vendor_category_snapshot !== "string" ||
+      !verifiedIntent.intent_vendor_category_snapshot.trim()
+    ) {
+      console.error("Booking intent returned an unsafe delivery state", { bookingId });
+      return NextResponse.json(
+        { error: "아모라 요청 기록 상태를 안전하게 확인하지 못했습니다." },
+        { status: 500 },
+      );
     }
     const persistedAmount = Number(booking.amount ?? 0);
     if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
@@ -199,62 +215,46 @@ export async function POST(req: Request) {
       };
     }
     if (projection.status !== "completed") {
-      console.error("[bookings] schedule/budget projection is not complete:", {
+      console.error("[bookings] schedule projection is not complete:", {
         bookingId,
         status: projection.status,
         errorCode: projection.errorCode,
       });
     }
 
-    // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)
-    if (booking && profile.couple_id) {
-      void (async () => {
-        try {
-          const { data: vendor } = await admin
-            .from("vendors")
-            .select("name, category")
-            .eq("id", vendorId)
-            .eq("status", "approved")
-            .maybeSingle();
-          const v = vendor as { name: string; category: string } | null;
-
-          await recordDecision({
-            coupleId: profile.couple_id,
-            userId: user.id,
-            category: v?.category ?? "vendor",
-            title: `예약: ${v?.name ?? "업체"}`,
-            chosenValue: {
-              vendor_id: vendorId,
-              vendor_name: v?.name ?? null,
-              booking_date: date,
-              booking_time: time,
-              amount: persistedAmount,
-            },
-            decisionType: "booked",
-            source: "vendor_booking",
-            sourceRefId: (booking as { id: string }).id,
-            metadata: { hook: "bookings", booking_type: "consultation" },
-          });
-        } catch (err) {
-          console.error("[bookings recordDecision] 실패 (무시):", err);
-        }
-      })();
-    }
-
+    // considering 결정 감사는 create_amora_booking_intent_atomic 안에서 이미 완료됐다.
     const createSync = projection.sync && "scheduleAdded" in projection.sync
       ? projection.sync
       : null;
-    const fullyApplied = projection.status === "completed";
+    const projectionNeedsReview = projection.needsReview === true
+      || projection.sync?.needsReview === true;
+    const projectionReviewReason = projection.reviewReason
+      ?? projection.sync?.reviewReason
+      ?? null;
+    const fullyApplied = projection.status === "completed" && !projectionNeedsReview;
     const message = fullyApplied
-      ? "예약이 접수되었고 일정·예산에도 반영되었습니다."
+      ? "아모라 안에 예약 요청을 기록하고 일정에 반영했습니다. 업체에 전달되거나 확정된 상태는 아닙니다. 예약 요청 금액은 견적이며 결제·지출 기록에는 더하지 않았습니다."
+      : projectionNeedsReview
+        ? "아모라 안에 방문·상담 후보를 기록하고 일정은 보존했지만, 기존 금액 기록의 출처가 불명확해 지출 금액은 자동으로 바꾸지 않았습니다. 확인이 필요합니다. 업체 전달·확정 상태는 아닙니다."
       : projection.status === "pending_retry"
-        ? "예약은 정상 접수되었지만 일정·예산 반영이 지연되고 있습니다. 저장된 작업을 자동 재시도하므로 예약을 다시 만들 필요는 없습니다."
-        : "예약은 정상 접수되었지만 일정·예산 자동 반영이 재시도 한도를 넘었습니다. 예약을 다시 만들지 말고 고객지원에 알려주세요.";
+        ? "아모라 안에 예약 요청을 기록했지만 일정 반영이 지연되고 있습니다. 업체에 전달되거나 확정된 상태는 아닙니다. 예약 요청 금액은 견적이며 결제·지출 기록에는 더하지 않았습니다. 저장된 작업을 자동 재시도하므로 같은 기록을 다시 만들 필요는 없습니다."
+        : "아모라 안에 예약 요청을 기록했지만 일정 자동 반영이 재시도 한도를 넘었습니다. 업체에 전달되거나 확정된 상태는 아닙니다. 예약 요청 금액은 견적이며 결제·지출 기록에는 더하지 않았습니다. 같은 기록을 다시 만들지 말고 고객지원에 알려주세요.";
+    const bookingResponse = Object.fromEntries(
+      Object.entries(booking).filter(([key]) => key !== "amount"),
+    );
 
     return NextResponse.json({
-      bookingAccepted: true,
+      internalRequestRecorded: true,
+      vendorDeliveryStatus: "not_sent",
+      vendorConfirmationStatus: "unconfirmed",
       fullyApplied,
-      booking,
+      projectionNeedsReview,
+      projectionReviewReason,
+      booking: {
+        ...bookingResponse,
+        quotedAmount: persistedAmount,
+        amountBasis: "quote",
+      },
       sync: {
         persisted: fullyApplied,
         scheduleAdded: createSync?.scheduleAdded ?? false,

@@ -6,7 +6,11 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { careChannelsAvailable } from "@/lib/care/careConsent";
+import {
+  isAmoraProactiveChatEnabled,
+} from "@/lib/features/amoraCareFlags";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import {
   cleanOptionalKoreanMobile,
   cleanOptionalText,
@@ -39,7 +43,7 @@ function careAvailabilityFor(user: { email_confirmed_at?: string | null }) {
   return {
     outboundEnabled: process.env.AMORA_CARE_OUTBOUND_ENABLED === "true",
     // 인앱 선제 대화는 이메일과 독립 스위치다 — 둘 중 하나만 켜져도 동의할 수 있어야 한다.
-    proactiveChatEnabled: process.env.AMORA_PROACTIVE_CHAT_ENABLED === "true",
+    proactiveChatEnabled: isAmoraProactiveChatEnabled(),
     emailVerified:
       typeof user.email_confirmed_at === "string" &&
       user.email_confirmed_at.trim().length > 0,
@@ -116,6 +120,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }

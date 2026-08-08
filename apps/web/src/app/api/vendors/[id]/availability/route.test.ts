@@ -67,6 +67,9 @@ function fakeAdmin(options: { bookingError?: boolean; approved?: boolean } = {})
             lte() {
               return query;
             },
+            neq() {
+              return query;
+            },
             or() {
               return query;
             },

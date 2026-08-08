@@ -1,5 +1,5 @@
 // 프로필/설정 화면
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
   Alert,
   Linking,
   RefreshControl,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as Application from "expo-application";
 import {
   ChevronRight,
@@ -28,9 +30,12 @@ import {
   Users,
   ThumbsUp,
   Info,
+  Ban,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiJson } from "@/lib/api";
+import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
@@ -49,6 +54,12 @@ interface ActivityStats {
   commentCount: number;
   bookmarkCount: number;
   totalUpvotes: number;
+}
+
+interface CommunityProfileStats {
+  post_count?: number | null;
+  comment_count?: number | null;
+  total_upvotes_received?: number | null;
 }
 
 function calcDday(dateStr: string | null): number | null {
@@ -77,6 +88,8 @@ export default function ProfileScreen() {
     totalUpvotes: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     const {
@@ -114,11 +127,18 @@ export default function ProfileScreen() {
     }
 
     // 커뮤니티 활동 통계
-    const { data: communityProfile } = await supabase
-      .from("community_profiles")
-      .select("post_count, comment_count, total_upvotes_received")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    let communityProfile: CommunityProfileStats | null = null;
+    let actualPostCount = 0;
+    try {
+      const payload = await apiJson<{
+        profile: CommunityProfileStats | null;
+        actualPostCount?: number;
+      }>("/api/community/profile");
+      communityProfile = payload.profile;
+      actualPostCount = payload.actualPostCount ?? 0;
+    } catch (error) {
+      console.warn("[profile] community stats unavailable", error);
+    }
 
     // 북마크 수
     const { count: bookmarkCount } = await supabase
@@ -127,7 +147,7 @@ export default function ProfileScreen() {
       .eq("user_id", user.id);
 
     setStats({
-      postCount: communityProfile?.post_count ?? 0,
+      postCount: actualPostCount || communityProfile?.post_count || 0,
       commentCount: communityProfile?.comment_count ?? 0,
       bookmarkCount: bookmarkCount ?? 0,
       totalUpvotes: communityProfile?.total_upvotes_received ?? 0,
@@ -144,9 +164,11 @@ export default function ProfileScreen() {
     });
   }, []);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -154,16 +176,37 @@ export default function ProfileScreen() {
     setRefreshing(false);
   }, [loadProfile]);
 
-  async function handleLogout() {
+  async function performLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await signOut();
+      router.replace("/(auth)/login");
+    } catch {
+      const message = "로그아웃하지 못했어요. 연결을 확인하고 다시 시도해주세요.";
+      setLogoutError(message);
+      if (Platform.OS !== "web") {
+        Alert.alert("로그아웃 실패", message);
+      }
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  function handleLogout() {
+    if (Platform.OS === "web") {
+      void performLogout();
+      return;
+    }
+
     Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
       { text: "취소", style: "cancel" },
       {
         text: "로그아웃",
         style: "destructive",
-        onPress: async () => {
-          await supabase.auth.signOut();
-          router.replace("/(auth)/login");
-        },
+        onPress: () => void performLogout(),
       },
     ]);
   }
@@ -312,6 +355,11 @@ export default function ProfileScreen() {
               icon={Users}
               label="내 동기방"
               onPress={() => router.push({ pathname: "/community/cohort-discovery" })}
+            />
+            <MenuItem
+              icon={Ban}
+              label="차단 관리"
+              onPress={() => router.push({ pathname: "/community/blocked-users" as never })}
               isLast
             />
           </View>
@@ -348,10 +396,22 @@ export default function ProfileScreen() {
             pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
           ]}
           onPress={handleLogout}
+          disabled={loggingOut}
         >
-          <LogOut size={18} color={colors.danger} />
-          <Text style={styles.logoutText}>로그아웃</Text>
+          {loggingOut ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <LogOut size={18} color={colors.danger} />
+          )}
+          <Text style={styles.logoutText}>
+            {loggingOut ? "로그아웃 중" : "로그아웃"}
+          </Text>
         </Pressable>
+        {logoutError ? (
+          <Text style={styles.logoutError} accessibilityRole="alert">
+            {logoutError}
+          </Text>
+        ) : null}
 
         {/* 하단 약관 링크 */}
         <View style={styles.footerLinks}>
@@ -639,6 +699,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "NotoSansKR_500Medium",
     color: colors.danger,
+  },
+  logoutError: {
+    marginHorizontal: 24,
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.danger,
+    textAlign: "center",
   },
 
   /* 하단 약관 링크 */

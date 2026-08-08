@@ -20,6 +20,7 @@ import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
 import AdDisclosureBadge from "./AdDisclosureBadge";
+import ContentOriginBadge from "./ContentOriginBadge";
 import { communityPostPath, communityPostUrl } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -194,7 +195,11 @@ export default function PostCard({ post }: PostCardProps) {
                 <span className="text-xs sm:text-sm text-[#635b51]">{timeAgo(post.created_at)}</span>
 
                 {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
-                  <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
+                  <AdDisclosureBadge
+                    adDisclosure={post.ad_disclosure}
+                    sponsorshipDetail={post.sponsorship_detail}
+                    size="sm"
+                  />
                 )}
               </div>
             </div>
@@ -248,7 +253,9 @@ export default function PostCard({ post }: PostCardProps) {
                       </span>
                       <span className="shrink-0 text-[#B5ADA3]">·</span>
                       <span className="shrink-0 tabular-nums">
-                        {post.poll.total_voters.toLocaleString()}명
+                        {post.poll.total_voters === null
+                          ? "참여 후 공개"
+                          : `${post.poll.total_voters.toLocaleString()}명`}
                       </span>
                       {isClosed && (
                         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#e5d8ca] text-[#635b51]">
@@ -264,8 +271,13 @@ export default function PostCard({ post }: PostCardProps) {
 
           {/* 하단 — 닉네임 길어지면 액션이 자연스럽게 wrap */}
           <div className="flex items-center justify-between flex-wrap gap-y-2 gap-x-3 mt-auto pt-2">
-            <div className="flex items-center space-x-2 min-w-0">
-              <Link href={weddingPath(`/community?author_id=${post.author_id}`)} className="shrink-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Link
+                href={weddingPath(
+                  `/community?author_id=${post.author_id}&feed=all#community-feed`,
+                )}
+                className="shrink-0"
+              >
                 <Avatar
                   nickname={author.nickname}
                   avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
@@ -276,6 +288,7 @@ export default function PostCard({ post }: PostCardProps) {
               <span className="text-sm text-[#635b51] truncate max-w-[140px] sm:max-w-none">
                 {author.nickname}
               </span>
+              <ContentOriginBadge origin={post.content_origin} />
             </div>
 
             <div className="flex items-center gap-2.5 sm:gap-3 text-[#635b51] flex-shrink-0 ml-auto">
@@ -307,7 +320,9 @@ export default function PostCard({ post }: PostCardProps) {
                 className="flex items-center gap-1 hover:text-[#36534E] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
-                <span className="text-sm">{(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}</span>
+                <span className="text-sm">
+                  {(post.comment_count ?? 0) > 0 ? `답변 ${post.comment_count}` : "첫 답변"}
+                </span>
               </Link>
 
               <span className="flex items-center gap-1 text-[#635b51]">

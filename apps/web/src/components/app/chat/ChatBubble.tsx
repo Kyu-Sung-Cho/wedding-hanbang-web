@@ -8,6 +8,12 @@ import { useChatStore } from "@/stores/chatStore";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import {
+  addStoredChatFeedback,
+  parseStoredChatFeedback,
+  type StoredChatFeedbackRating,
+  type StoredChatFeedbackState,
+} from "@/lib/ai/chatFeedbackState";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -21,20 +27,15 @@ interface ChatBubbleProps {
 // 이미 피드백한 메시지 ID를 로컬에 저장 (페이지 리로드 시에도 유지)
 const FEEDBACK_STORAGE_KEY = "hanbang_chat_feedback";
 
-function getFeedbackState(): Record<string, "good" | "bad"> {
+function getFeedbackState(): StoredChatFeedbackState {
   if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(localStorage.getItem(FEEDBACK_STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
+  return parseStoredChatFeedback(localStorage.getItem(FEEDBACK_STORAGE_KEY));
 }
 
-function setFeedbackState(messageId: string, rating: "good" | "bad") {
+function setFeedbackState(messageId: string, rating: StoredChatFeedbackRating) {
   if (typeof window === "undefined") return;
   try {
-    const state = getFeedbackState();
-    state[messageId] = rating;
+    const state = addStoredChatFeedback(getFeedbackState(), messageId, rating);
     localStorage.setItem(FEEDBACK_STORAGE_KEY, JSON.stringify(state));
   } catch {
     // localStorage 사용 불가 시 무시
@@ -138,7 +139,7 @@ function ChatImageAttachments({
 }
 
 // AI 메시지 피드백 UI
-function AiFeedbackRow({
+export function AiFeedbackRow({
   messageId,
   onNegativeFeedback,
 }: {
@@ -180,9 +181,12 @@ function AiFeedbackRow({
 
   if (status === "submitted") {
     return (
-      <div className="mt-2 flex items-center gap-1.5 text-sm text-[#B5ADA3]">
+      <div
+        role="status"
+        className="mt-2 flex items-center gap-1.5 text-sm text-[#B5ADA3]"
+      >
         <Check className="w-4 h-4" />
-        <span>반영됐어요</span>
+        <span>의견을 남겼어요</span>
       </div>
     );
   }
@@ -196,12 +200,14 @@ function AiFeedbackRow({
             value={correction}
             onChange={(e) => setCorrection(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleBadSubmit(); }}
-            placeholder="어떻게 하면 좋을까요?"
+            placeholder="예: 더 짧게, 덜 딱딱하게"
             className="flex-1 text-base px-3 py-2 rounded-lg border border-[#E8E0D8] bg-[#FAF8F5] text-[#1A1A1F] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
             autoFocus
             disabled={isSubmitting}
           />
           <button
+            type="button"
+            aria-label="의견 보내기"
             onClick={handleBadSubmit}
             disabled={isSubmitting || !correction.trim()}
             className="p-2 rounded-lg bg-[#C4967E]/10 text-[#9A6B62] hover:bg-[#C4967E]/20 disabled:opacity-40 transition-colors"
@@ -209,13 +215,21 @@ function AiFeedbackRow({
             <Send className="w-4 h-4" />
           </button>
         </div>
+        <p className="text-xs leading-relaxed text-[#928980]">
+          이 의견과 해당 공유 답변은 품질 확인용 기록에 저장돼요. 민감정보는
+          적지 마세요. 다음 답변을 바로 바꾸려면 채팅에 그대로 말씀해 주세요.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="mt-2 flex items-center gap-3 opacity-0 group-hover/ai:opacity-100 transition-opacity duration-200">
+    <div
+      data-testid="amora-feedback-row"
+      className="mt-2 flex items-center gap-3 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover/ai:opacity-100 sm:focus-within:opacity-100"
+    >
       <button
+        type="button"
         onClick={handleGood}
         disabled={isSubmitting}
         className="flex items-center gap-1.5 text-sm text-[#B5ADA3] hover:text-[#C4967E] transition-colors disabled:opacity-40"
@@ -225,6 +239,7 @@ function AiFeedbackRow({
         <span>도움됐어요</span>
       </button>
       <button
+        type="button"
         onClick={handleBadClick}
         disabled={isSubmitting}
         className="flex items-center gap-1.5 text-sm text-[#B5ADA3] hover:text-[#928980] transition-colors disabled:opacity-40"

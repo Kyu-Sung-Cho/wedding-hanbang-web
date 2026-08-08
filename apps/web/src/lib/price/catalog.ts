@@ -18,6 +18,14 @@ export type PriceOffer = {
   itemName?: string;
   agencyId: string | null;
   agencyName: string;
+  /**
+   * 이 가격 행이 귀속된 지역. 스드메는 대행사 경로, 예식장은 업체 지역이다.
+   *
+   * 병합된 업체는 여러 지역의 가격을 한 카드에 모으므로 업체 대표 regionCode만으로는
+   * 선택 지역의 가격 행을 가릴 수 없다. 공개 카탈로그는 행마다 이 값을 채운다.
+   * optional은 관리자 미리보기 등 기존 비공개 카탈로그와의 호환을 위한 경계다.
+   */
+  regionCode?: string | null;
   minimumKrw: number | null;
   maximumKrw: number | null;
   priceNote: string | null;
@@ -163,6 +171,15 @@ export function filterPriceCatalog(
 ): PriceVendor[] {
   const query = normalizedSearchValue(filter.search ?? "");
   const agencyIds = new Set(filter.agencyIds ?? []);
+  const offersInRegion = (vendor: PriceVendor): PriceOffer[] => {
+    const selectedRegion = filter.regionCode;
+    if (!selectedRegion) return vendor.offers;
+    return vendor.offers.filter((offer) => (
+      offer.regionCode === undefined
+        ? vendorRegionCodes(vendor).includes(selectedRegion)
+        : offer.regionCode === selectedRegion
+    ));
+  };
   // 대행사를 안 골랐어도 **비교 가능한 오퍼만** 본다 — 전체 오퍼를 쓰면 예식장
   // 패키지 행이 정렬·가격대 필터의 기준이 되어 없는 가격을 주장하게 된다.
   const offersFor = (vendor: PriceVendor) => agencyIds.size === 0
@@ -185,6 +202,18 @@ export function filterPriceCatalog(
     // 병합된 업체는 여러 대행사 지역에서 닿을 수 있다 — 하나라도 맞으면 노출한다.
     .filter((vendor) => !filter.regionCode
       || vendorRegionCodes(vendor).includes(filter.regionCode))
+    .map((vendor) => {
+      const offers = offersInRegion(vendor);
+      if (offers === vendor.offers) return vendor;
+      return {
+        ...vendor,
+        offers,
+        // 필터된 가격은 선택 지역의 행만 남는다. 카드 배지도 전체 취급 지역이
+        // 아니라 현재 비교 중인 지역 하나를 가리켜야 가격과 지역이 어긋나지 않는다.
+        regionCode: filter.regionCode ?? vendor.regionCode,
+        regionCodes: filter.regionCode ? [filter.regionCode] : vendor.regionCodes,
+      };
+    })
     .filter((vendor) => agencyIds.size === 0 || offersFor(vendor).length > 0)
     .filter((vendor) => {
       // 예산대 탐색은 "이 예산으로 살 수 있는 상품이 있는가"를 묻는 것이다.

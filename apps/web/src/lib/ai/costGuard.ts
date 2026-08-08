@@ -150,14 +150,14 @@ const DENY_GLOBAL_BUDGET: CostGuardResult = {
   allowed: false,
   reason: "global_budget",
   message:
-    "오늘 아모라의 안전 예산에 도달해 잠시 쉬어가고 있어요. 비용 상태를 확인한 뒤 다시 열어드릴게요.",
+    "오늘 아모라의 안전 예산에 도달해 현재는 상담을 시작할 수 없어요. 잠시 후 다시 시도해 주세요.",
 };
 
 const DENY_COUPLE: CostGuardResult = {
   allowed: false,
   reason: "couple_quota",
   message:
-    "베타 기간 무료 상담을 모두 사용하셨어요. 더 많은 상담은 곧 열릴 예정이에요 — 그때 가장 먼저 알려드릴게요.",
+    "이 커플에 제공된 베타 무료 상담 한도를 모두 사용했어요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
 };
 
 const DENY_UNAVAILABLE: CostGuardResult = {

@@ -65,7 +65,7 @@ describe("booking progress sync", () => {
     const result = await syncBookingProgressAfterCreate(client, {
       coupleId: "00000000-0000-4000-8000-000000000001",
       booking,
-      vendorId: vendor.id,
+      vendor,
       projectionClaim,
     });
 
@@ -75,6 +75,10 @@ describe("booking progress sync", () => {
       expect.objectContaining({
         p_booking_id: booking.id,
         p_desired_state: "active",
+        p_amount: 0,
+        p_event: expect.objectContaining({
+          memo: "아모라 내부 방문·상담 후보 견적 · 150만원 · 결제·지출 기록 아님 · 업체 전달·확정 미확인",
+        }),
         p_generation: projectionClaim.generation,
         p_claim_token: projectionClaim.claimToken,
       }),
@@ -122,7 +126,16 @@ describe("booking progress sync", () => {
 
     const result = await syncBookingProgressAfterCancel(client, {
       coupleId: "00000000-0000-4000-8000-000000000001",
-      booking: { id: booking.id, amount: booking.amount },
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: null,
+        cancellation: {
+          cancelledAt: "2026-08-02T12:30:00.000Z",
+          cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+          reason: "예약 취소",
+        },
+      },
       vendor,
       projectionClaim,
     });
@@ -143,7 +156,7 @@ describe("booking progress sync", () => {
     expect(fallbackUpdate).not.toHaveBeenCalled();
   });
 
-  it("adds a booking event and increments the matching category spent", () => {
+  it("adds a booking schedule without treating the quoted request amount as recorded spend", () => {
     const result = buildBookingCreatedProgressPatch({
       progress: {
         dress: {
@@ -159,20 +172,27 @@ describe("booking progress sync", () => {
     });
 
     expect(result.scheduleAdded).toBe(true);
-    expect(result.budgetUpdated).toBe(true);
-    expect(result.syncedCategoryKey).toBe("dress");
-    expect(result.syncedNewSpent).toBe(1_700_000);
-    expect(result.budgetExceededBy).toBe(700_000);
+    expect(result.budgetUpdated).toBe(false);
+    expect(result.syncedCategoryKey).toBeNull();
+    expect(result.syncedNewSpent).toBeNull();
+    expect(result.budgetExceededBy).toBe(0);
     expect(result.syncedEvent.id).toBe(`evt_booking_${booking.id}`);
     expect(result.syncedEvent.sourceKey).toBe(`booking:${booking.id}`);
     expect(result.syncedEvent.title).toContain("B드레스");
-    expect(result.syncedEvent.memo).toBe("예약 자동 등록 · 150만원");
+    expect(result.syncedEvent.memo).toBe(
+      "아모라 내부 방문·상담 후보 견적 · 150만원 · 결제·지출 기록 아님 · 업체 전달·확정 미확인",
+    );
     expect(result.syncedEvent.memo).not.toContain(booking.id.slice(0, 8));
     expect(result.patch).toHaveProperty("__events");
     expect(result.patch.__booking_costs).toMatchObject({
-      [booking.id]: { amount: booking.amount, categoryKey: "dress" },
+      [booking.id]: {
+        amount: 0,
+        categoryKey: "dress",
+        basis: "none",
+        quotedAmount: booking.amount,
+      },
     });
-    expect(result.patch).toHaveProperty("dress");
+    expect(result.patch).not.toHaveProperty("dress");
   });
 
   it("keeps a non-whole 만원 booking amount exact in the user-visible memo", () => {
@@ -182,7 +202,9 @@ describe("booking progress sync", () => {
       vendor,
     });
 
-    expect(result.syncedEvent.memo).toBe("예약 자동 등록 · 15,000원");
+    expect(result.syncedEvent.memo).toBe(
+      "아모라 내부 방문·상담 후보 견적 · 15,000원 · 결제·지출 기록 아님 · 업체 전달·확정 미확인",
+    );
     expect(result.syncedEvent.memo).not.toContain(booking.id.slice(0, 8));
   });
 
@@ -215,7 +237,8 @@ describe("booking progress sync", () => {
     expect(result.budgetUpdated).toBe(false);
     expect(result.syncedNewSpent).toBeNull();
     expect(result.nextProgress.dress).toMatchObject({ spent: 1_500_000 });
-    expect(result.syncedEvent.title).toContain("13:00");
+    expect(result.syncedEvent.title).toBe(existingEvent.title);
+    expect(result.syncedEvent.time).toBe("13:00");
     expect(result.syncedEvent.createdAt).toBe(existingEvent.createdAt);
   });
 
@@ -234,6 +257,14 @@ describe("booking progress sync", () => {
   it("adjusts category spent by only the outcome delta for synced bookings", () => {
     const result = buildBookingOutcomeProgressPatch({
       progress: {
+        __booking_costs: {
+          [booking.id]: {
+            amount: booking.amount,
+            categoryKey: "dress",
+            basis: "actual",
+            quotedAmount: booking.amount,
+          },
+        },
         __events: [{
           id: `evt_booking_${booking.id}`,
           date: booking.date,
@@ -264,14 +295,26 @@ describe("booking progress sync", () => {
     expect(result.budgetExceededBy).toBe(0);
     expect(result.patch.dress).toMatchObject({ spent: 1_900_000 });
     expect(result.patch.__booking_costs).toMatchObject({
-      [booking.id]: { amount: 1_900_000, categoryKey: "dress" },
+      [booking.id]: {
+        amount: 1_900_000,
+        categoryKey: "dress",
+        basis: "actual",
+        quotedAmount: booking.amount,
+      },
     });
   });
 
   it("uses stored booking cost contribution when an outcome is edited later", () => {
     const result = buildBookingOutcomeProgressPatch({
       progress: {
-        __booking_costs: { [booking.id]: 1_900_000 },
+        __booking_costs: {
+          [booking.id]: {
+            amount: 1_900_000,
+            categoryKey: "dress",
+            basis: "actual",
+            quotedAmount: booking.amount,
+          },
+        },
         dress: {
           label: "드레스",
           budget: 2_000_000,
@@ -318,9 +361,47 @@ describe("booking progress sync", () => {
     expect(result.syncedNewSpent).toBe(1_900_000);
   });
 
+  it("adds the full explicit actual amount after a quote-only booking projection", () => {
+    const created = buildBookingCreatedProgressPatch({
+      progress: {
+        dress: {
+          label: "드레스",
+          budget: 3_000_000,
+          spent: 200_000,
+        },
+      },
+      booking,
+      vendor,
+    });
+
+    const outcome = buildBookingOutcomeProgressPatch({
+      progress: created.nextProgress,
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        previousActualAmount: null,
+        actualAmount: 1_900_000,
+      },
+      vendor,
+    });
+
+    expect(outcome.previousContribution).toBe(0);
+    expect(outcome.budgetDelta).toBe(1_900_000);
+    expect(outcome.syncedNewSpent).toBe(2_100_000);
+    expect(outcome.patch.dress).toMatchObject({ spent: 2_100_000 });
+  });
+
   it("subtracts the previous booking contribution when actual amount is zero", () => {
     const result = buildBookingOutcomeProgressPatch({
       progress: {
+        __booking_costs: {
+          [booking.id]: {
+            amount: 1_900_000,
+            categoryKey: "dress",
+            basis: "actual",
+            quotedAmount: booking.amount,
+          },
+        },
         __events: [{
           id: `evt_booking_${booking.id}`,
           date: booking.date,
@@ -332,32 +413,49 @@ describe("booking progress sync", () => {
         dress: {
           label: "드레스",
           budget: 2_000_000,
-          spent: 1_500_000,
+          spent: 1_900_000,
         },
       },
       booking: {
         id: booking.id,
         amount: 1_500_000,
-        previousActualAmount: null,
+        previousActualAmount: 1_900_000,
         actualAmount: 0,
       },
       vendor,
     });
 
     expect(result.budgetUpdated).toBe(true);
-    expect(result.previousContribution).toBe(1_500_000);
-    expect(result.budgetDelta).toBe(-1_500_000);
+    expect(result.previousContribution).toBe(1_900_000);
+    expect(result.budgetDelta).toBe(-1_900_000);
     expect(result.syncedNewSpent).toBe(0);
     expect(result.patch.dress).toMatchObject({ spent: 0 });
     expect(result.patch.__booking_costs).toMatchObject({
-      [booking.id]: { amount: 0, categoryKey: "dress" },
+      [booking.id]: {
+        amount: 0,
+        categoryKey: "dress",
+        basis: "actual",
+        quotedAmount: booking.amount,
+      },
     });
   });
 
-  it("removes full-id booking events and subtracts stored actual cost on cancellation", () => {
+  it("soft-cancels a stable booking event without treating cancellation as a refund", () => {
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      reason: "예약 취소",
+    };
     const result = buildBookingCancelledProgressPatch({
       progress: {
-        __booking_costs: { [booking.id]: 1_900_000 },
+        __booking_costs: {
+          [booking.id]: {
+            amount: 1_900_000,
+            categoryKey: "dress",
+            basis: "actual",
+            quotedAmount: booking.amount,
+          },
+        },
         __events: [{
           id: `evt_booking_${booking.id}`,
           date: booking.date,
@@ -375,23 +473,89 @@ describe("booking progress sync", () => {
       booking: {
         id: booking.id,
         amount: 1_500_000,
+        actualAmount: 1_900_000,
+        cancellation,
       },
       vendor,
     });
 
-    expect(result.scheduleRemoved).toBe(true);
-    expect(result.budgetReverted).toBe(true);
-    expect(result.revertedAmount).toBe(1_900_000);
-    expect(result.syncedEventIdRemoved).toBe(`evt_booking_${booking.id}`);
-    expect(result.syncedNewSpent).toBe(0);
-    expect(result.patch.__events).toEqual([]);
-    expect(result.patch.dress).toMatchObject({ spent: 0 });
-    expect(result.patch.__booking_costs).toEqual({});
+    expect(result.scheduleCancelled).toBe(true);
+    expect(result.recordedSpendPreserved).toBe(true);
+    expect(result.quoteContributionCorrected).toBe(false);
+    expect(result.scheduleRemoved).toBe(false);
+    expect(result.budgetReverted).toBe(false);
+    expect(result.syncedEventId).toBe(`evt_booking_${booking.id}`);
+    expect(result.syncedNewSpent).toBeNull();
+    expect(result.patch.__events).toEqual([
+      expect.objectContaining({
+        id: `evt_booking_${booking.id}`,
+        status: "cancelled",
+        cancellation,
+      }),
+    ]);
+    expect(result.nextProgress.dress).toMatchObject({ spent: 1_900_000 });
+    expect(result.nextProgress.__booking_costs).toEqual({
+      [booking.id]: {
+        amount: 1_900_000,
+        categoryKey: "dress",
+        basis: "actual",
+        quotedAmount: booking.amount,
+      },
+    });
   });
 
-  it("still removes legacy short-id booking events on cancellation", () => {
+  it("projects an explicit actual amount before cancellation and then preserves it", () => {
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      reason: "예약 취소",
+    };
+    const created = buildBookingCreatedProgressPatch({
+      progress: {
+        dress: {
+          label: "드레스",
+          budget: 3_000_000,
+          spent: 200_000,
+        },
+      },
+      booking,
+      vendor,
+    });
+
+    const result = buildBookingCancelledProgressPatch({
+      progress: created.nextProgress,
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: 1_900_000,
+        cancellation,
+      },
+      vendor,
+    });
+
+    expect(result.scheduleCancelled).toBe(true);
+    expect(result.recordedSpendPreserved).toBe(true);
+    expect(result.quoteContributionCorrected).toBe(false);
+    expect(result.nextProgress.dress).toMatchObject({ spent: 2_100_000 });
+    expect(result.nextProgress.__booking_costs).toEqual({
+      [booking.id]: {
+        amount: 1_900_000,
+        categoryKey: "dress",
+        basis: "actual",
+        quotedAmount: booking.amount,
+      },
+    });
+  });
+
+  it("soft-cancels a legacy short-id event without guessing whether legacy spend was real", () => {
+    const cancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      reason: "예약 취소",
+    };
     const result = buildBookingCancelledProgressPatch({
       progress: {
+        __booking_costs: { [booking.id]: booking.amount },
         __events: [{
           id: "evt_booking_11111111",
           date: booking.date,
@@ -408,14 +572,208 @@ describe("booking progress sync", () => {
       booking: {
         id: booking.id,
         amount: 1_500_000,
+        actualAmount: null,
+        cancellation,
       },
       vendor,
     });
 
-    expect(result.scheduleRemoved).toBe(true);
-    expect(result.budgetReverted).toBe(true);
-    expect(result.revertedAmount).toBe(1_500_000);
-    expect(result.syncedEventIdRemoved).toBe("evt_booking_11111111");
-    expect(result.syncedNewSpent).toBe(0);
+    expect(result.scheduleCancelled).toBe(true);
+    expect(result.scheduleRemoved).toBe(false);
+    expect(result.budgetReverted).toBe(false);
+    expect(result.quoteContributionCorrected).toBe(false);
+    expect(result.quoteCorrectionAmount).toBe(0);
+    expect(result.needsReview).toBe(true);
+    expect(result.reviewReason).toBe("LEGACY_BOOKING_CONTRIBUTION_PROVENANCE_AMBIGUOUS");
+    expect(result.recordedSpendPreserved).toBe(false);
+    expect(result.syncedEventId).toBe("evt_booking_11111111");
+    expect(result.syncedNewSpent).toBeNull();
+    expect(result.patch.__events).toEqual([
+      expect.objectContaining({
+        id: "evt_booking_11111111",
+        status: "cancelled",
+        cancellation,
+      }),
+    ]);
+    expect(result.patch).not.toHaveProperty("dress");
+    expect(result.patch).not.toHaveProperty("__booking_costs");
+    expect(result.nextProgress.dress).toMatchObject({ spent: 1_500_000 });
+    expect(result.nextProgress.__booking_costs).toEqual({
+      [booking.id]: booking.amount,
+    });
+  });
+
+  it("preserves spend when a legacy event has no exact contribution ledger", () => {
+    const result = buildBookingCancelledProgressPatch({
+      progress: {
+        __events: [{
+          id: "evt_booking_11111111",
+          date: booking.date,
+          title: "B드레스 상담",
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
+        }],
+        dress: { label: "드레스", budget: 2_800_000, spent: 1_500_000 },
+      },
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: null,
+        cancellation: {
+          cancelledAt: "2026-08-02T12:30:00.000Z",
+          cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+          reason: "예약 취소",
+        },
+      },
+      vendor,
+    });
+
+    expect(result.scheduleCancelled).toBe(true);
+    expect(result.quoteContributionCorrected).toBe(false);
+    expect(result.quoteCorrectionAmount).toBe(0);
+    expect(result.syncedNewSpent).toBeNull();
+    expect(result.nextProgress.dress).toMatchObject({ spent: 1_500_000 });
+    expect(result.patch).not.toHaveProperty("dress");
+  });
+
+  it("fails closed when malformed schedule data could hide a booking event", () => {
+    expect(() => buildBookingCancelledProgressPatch({
+      progress: {
+        __events: [
+          {
+            id: `evt_booking_${booking.id}`,
+            date: booking.date,
+            title: "B드레스 상담",
+            sourceKey: `booking:${booking.id}`,
+          },
+        ],
+      },
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: null,
+        cancellation: {
+          cancelledAt: "2026-08-02T12:30:00.000Z",
+          cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+          reason: "예약 취소",
+        },
+      },
+      vendor,
+    })).toThrow("invalid_booking_schedule_projection");
+  });
+
+  it("preserves a completed schedule event instead of downgrading it to cancelled", () => {
+    const result = buildBookingCancelledProgressPatch({
+      progress: {
+        __events: [{
+          id: `evt_booking_${booking.id}`,
+          sourceKey: `booking:${booking.id}`,
+          date: booking.date,
+          title: "B드레스 상담",
+          status: "completed",
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-07-01T00:00:00.000Z",
+        }],
+        dress: { label: "드레스", budget: 2_800_000, spent: 0 },
+      },
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: null,
+        cancellation: {
+          cancelledAt: "2026-08-02T13:00:00.000Z",
+          cancelledByProfileId: "80000000-0000-4000-8000-000000000001",
+          reason: "재조정 필요",
+        },
+      },
+      vendor,
+    });
+
+    expect(result.scheduleCancelled).toBe(false);
+    expect(result.completedSchedulePreserved).toBe(true);
+    expect(result.nextProgress.__events).toEqual([
+      expect.objectContaining({ status: "completed" }),
+    ]);
+  });
+
+  it("keeps the first cancellation audit record unchanged on an idempotent rerun", () => {
+    const originalCancellation = {
+      cancelledAt: "2026-08-02T12:30:00.000Z",
+      cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      reason: "예약 취소",
+    };
+    const result = buildBookingCancelledProgressPatch({
+      progress: {
+        __events: [{
+          id: `evt_booking_${booking.id}`,
+          sourceKey: `booking:${booking.id}`,
+          date: booking.date,
+          title: "B드레스 상담",
+          status: "cancelled",
+          cancellation: originalCancellation,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: originalCancellation.cancelledAt,
+        }],
+        __booking_costs: {
+          [booking.id]: {
+            amount: 0,
+            categoryKey: "dress",
+            basis: "none",
+            quotedAmount: booking.amount,
+          },
+        },
+        dress: { label: "드레스", budget: 2_800_000, spent: 0 },
+      },
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: null,
+        cancellation: {
+          cancelledAt: "2026-08-02T13:00:00.000Z",
+          cancelledByProfileId: "80000000-0000-4000-8000-000000000001",
+          reason: "재시도",
+        },
+      },
+      vendor,
+    });
+
+    expect(result.scheduleCancelled).toBe(false);
+    expect(result.quoteContributionCorrected).toBe(false);
+    expect(result.patch).toEqual({});
+    expect(result.nextProgress.__events).toEqual([
+      expect.objectContaining({ cancellation: originalCancellation }),
+    ]);
+  });
+
+  it("rejects duplicate booking event identities instead of cancelling an arbitrary match", () => {
+    const event = {
+      date: booking.date,
+      title: "B드레스 상담",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    };
+    expect(() => buildBookingCancelledProgressPatch({
+      progress: {
+        __events: [
+          { ...event, id: `evt_booking_${booking.id}` },
+          {
+            ...event,
+            id: "evt_booking_other",
+            sourceKey: `booking:${booking.id}`,
+          },
+        ],
+      },
+      booking: {
+        id: booking.id,
+        amount: booking.amount,
+        actualAmount: null,
+        cancellation: {
+          cancelledAt: "2026-08-02T12:30:00.000Z",
+          cancelledByProfileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+          reason: "예약 취소",
+        },
+      },
+      vendor,
+    })).toThrow("ambiguous_booking_schedule_projection");
   });
 });

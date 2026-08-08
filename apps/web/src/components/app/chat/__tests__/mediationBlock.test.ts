@@ -36,6 +36,9 @@ describe("normalizeMediationBlock", () => {
       translation: undefined,
       data: undefined,
       resolution: undefined,
+      origin: undefined,
+      evidenceScope: undefined,
+      schemaVersion: undefined,
       proposalVersion: undefined,
       rosterFingerprint: undefined,
     });
@@ -45,13 +48,20 @@ describe("normalizeMediationBlock", () => {
     expect(normalizeMediationBlock([])).toBeNull();
   });
 
-  it("fails closed unless both exact revision fields are valid", () => {
+  it("opens confirmation only for a complete requester-summary v2 proposal", () => {
     expect(getExpectedMediationRevision({
       resolution: "초안 내용은 표시해요",
       proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+      rosterFingerprint: "0123456789abcdef0123456789abcdef",
     })).toBeNull();
     expect(getExpectedMediationRevision({
-      resolution: "초안 내용은 표시해요",
+      empathy: "요청자가 답답함을 느꼈다고 전했어요.",
+      translation: "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+      data: "상대방의 예산 상한은 아직 확인되지 않았어요.",
+      resolution: "같이 검토할 선택안이에요.",
+      origin: "user_requested",
+      evidenceScope: "requester_summary_only",
+      schemaVersion: 2,
       proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
       rosterFingerprint: "0123456789abcdef0123456789abcdef",
     })).toEqual({

@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "웨딩 견적 확인 질문 체크리스트 | 웨딩한방",
   description:
-    "사용자가 입력한 견적에서 포함 여부를 다시 확인할 항목과 계약 전 업체에 물어볼 질문을 정리합니다. 가격 적정성이나 법적 판단을 대신하지 않습니다.",
+    "사용자가 고른 항목 상태를 바탕으로 견적서에서 다시 확인할 내용과 계약 전 업체에 물어볼 질문을 정리합니다. 가격 적정성이나 법적 판단을 대신하지 않습니다.",
   alternates: { canonical: "/wedding/community/quote-check" },
   openGraph: {
     title: "웨딩 견적 확인 질문 체크리스트",

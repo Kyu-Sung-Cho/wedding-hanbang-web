@@ -388,6 +388,14 @@ export function PriceExplorer({
     + (minimumKrw !== null ? 1 : 0)
     + (maximumKrw !== null ? 1 : 0)
     + (wishlistOnly ? 1 : 0);
+  const hasRecoverableFilters = Boolean(
+    searchInput.trim()
+    || regionCode
+    || agencyIds.length > 0
+    || minimumManwon
+    || maximumManwon
+    || wishlistOnly,
+  );
 
   const resetFilters = () => {
     chooseRegion("");
@@ -486,7 +494,7 @@ export function PriceExplorer({
       });
     }
     setShowBudgetFinder(false);
-    setFeedback("예산 안의 스드메 조합을 담았어요.");
+    setFeedback("예산 안의 사진·드레스·메이크업 조합을 담았어요.");
   };
 
   const restoreLatestCombo = () => {
@@ -518,7 +526,7 @@ export function PriceExplorer({
     }
     if (comboSaveBusy.current) return;
     const payload = {
-      name: "내 스드메 조합",
+      name: "내 사진·드레스·메이크업 조합",
       selections: {
         studio: comboPayloadSelection(selections.studio),
         dress: comboPayloadSelection(selections.dress),
@@ -577,10 +585,10 @@ export function PriceExplorer({
   const shareCombo = async () => {
     const names = (["studio", "dress", "makeup"] as const)
       .flatMap((comboCategory) => selections[comboCategory]?.vendorName ?? []);
-    const text = `웨딩한방에서 고른 스드메 조합: ${names.join(" · ")}`;
+    const text = `웨딩한방에서 고른 사진·드레스·메이크업 조합: ${names.join(" · ")}`;
     try {
       if (typeof navigator.share === "function") {
-        await navigator.share({ title: "나의 스드메 조합", text, url: window.location.href });
+        await navigator.share({ title: "사진·드레스·메이크업 조합", text, url: window.location.href });
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(`${text}\n${window.location.href}`);
         setFeedback("공유할 내용을 복사했어요.");
@@ -597,7 +605,9 @@ export function PriceExplorer({
   const displayVendors = filtered.slice(0, visibleCount).map((vendor) => agencyIds.length === 0
     ? vendor
     : { ...vendor, offers: vendor.offers.filter(({ agencyId }) => agencyId === null || agencyIds.includes(agencyId)) });
-  const Root = surface === "app" ? "div" : "main";
+  // 공개 가격 레이아웃이 이미 유일한 <main>을 제공한다. 앱 표면과 공개 표면 모두
+  // 여기서는 중립 컨테이너를 써 중첩·중복 main landmark를 만들지 않는다.
+  const Root = "div";
   const totalVendorCount = new Set(PRICE_CATEGORIES.flatMap((value) => (
     catalog.categories[value].map((vendor) => vendor.id)
   ))).size;
@@ -616,36 +626,36 @@ export function PriceExplorer({
       {surface === "app" ? (
         <section className="border-b border-[#243832]/10 bg-white px-4 py-6 sm:px-6" aria-labelledby="vendor-hub-title">
           <p className="text-[11px] font-bold tracking-[0.16em] text-[#8F6662]">WEDDING HANBANG</p>
-          <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-[-0.04em]">
+          <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-normal">
             {preview ? "업체 공시가 검수 미리보기" : "업체 탐색"}
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[#243832]/65">
+          <p className="mt-2 text-sm leading-6 text-[#243832]/75">
             {preview
               ? "자동 추출된 검수 전 데이터입니다. 업체·가격·연결 정보의 정확성이 보장되지 않습니다."
               : "출처가 확인된 공식 가격 업체를 비교하고, 마음에 드는 후보를 저장해 보세요."}
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2" aria-label="업체 탐색 현황">
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#243832]/55">
+              <p className="text-[11px] font-bold text-[#243832]/75">
                 {preview ? "자동 추출 업체" : "공식 가격 업체"}
               </p>
               <p className="mt-1 text-xl font-bold tabular-nums">{totalVendorCount}</p>
             </div>
             {preview ? (
               <div className="rounded-2xl bg-[#F5ECE4] px-3 py-4">
-                <p className="text-[11px] font-bold text-[#243832]/55">검수 상태</p>
+                <p className="text-[11px] font-bold text-[#243832]/75">검수 상태</p>
                 <p className="mt-1 text-sm font-bold text-[#36534E]">읽기 전용</p>
               </div>
             ) : (
               <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
-                <p className="text-[11px] font-bold text-[#243832]/55">찜한 업체</p>
+                <p className="text-[11px] font-bold text-[#243832]/75">찜한 업체</p>
                 <p className="mt-1 text-xl font-bold tabular-nums">
                   {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
                 </p>
               </Link>
             )}
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#243832]/55">가격 카테고리</p>
+              <p className="text-[11px] font-bold text-[#243832]/75">가격 카테고리</p>
               <p className="mt-1 text-xl font-bold tabular-nums">
                 {PRICE_CATEGORIES.filter((value) => catalog.counts[value] > 0).length}
               </p>
@@ -671,8 +681,10 @@ export function PriceExplorer({
               <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">
                 {preview ? "관리자 검수용 자동 추출 데이터" : "한국소비자원 참가격 공시"}
               </p>
-              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-[-0.04em] text-[#243832] sm:text-4xl">
-                {preview ? "스드메·예식장 공시가 검수" : "스드메·예식장 공시가 비교"}
+              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-normal text-[#243832] sm:text-4xl">
+                {preview
+                  ? "사진·드레스·메이크업·결혼식장 공시 가격 검수"
+                  : "사진·드레스·메이크업·결혼식장 공시 가격 비교"}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex rounded-full bg-[#F5ECE4] px-3 py-1.5 text-xs font-bold text-[#7C5754]">
@@ -687,7 +699,7 @@ export function PriceExplorer({
               {/* 허브(/price)는 위약금을 앞세우는데 카테고리로 들어오면 그 말이 사라져,
                   위약금을 보러 온 사람이 여기서 훅을 잃었다. 정작 원문은 한 번 더 들어간
                   업체 상세에 있으므로 그 경로를 여기서 짚어 준다. */}
-              <p className="mt-2 text-sm leading-6 text-[#243832]/65">
+              <p className="mt-2 text-sm leading-6 text-[#243832]/75">
                 {preview
                   ? "일반 사용자에게는 보이지 않으며, 검수 완료 전 저장·추천에 사용하지 않습니다."
                   : "업체별 기본가와 추가금을 한 화면에서 확인하고, 업체를 누르면 취소 위약금·환불 규정 원문까지 그대로 볼 수 있어요."}
@@ -754,12 +766,12 @@ export function PriceExplorer({
           <div className="flex gap-2">
             {/* 좁은 화면에서는 여백을 줄여 입력 폭을 확보한다(오른쪽에 필터 버튼이 붙는다).
                 색은 라운지 팔레트(#243832·#B89785) 기준 — 구 팔레트(#1D3557·#B5977A)로
-                되돌리지 말 것. 그리고 "이전 상호로도 검색된다"는 힌트는 placeholder에
+                되돌리지 말 것. 그리고 "다른 표기로도 검색된다"는 힌트는 placeholder에
                 보이게 둔다(업체 개명이 잦아 sr-only로 숨기면 사용자가 모른다). */}
             <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-xl bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785] sm:gap-3 sm:px-4">
               <Search aria-hidden="true" className="size-4 shrink-0 text-[#243832]/45" />
               <span className="sr-only">업체명 검색</span>
-              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 이전 상호 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#243832]/40" />
+              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 다른 표기 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#243832]/40" />
             </label>
             <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-xl border border-[#243832]/12 bg-white px-4 text-sm font-bold text-[#243832] md:hidden">
               <Filter aria-hidden="true" className="size-4" />
@@ -770,7 +782,7 @@ export function PriceExplorer({
 
           <div className={`${filtersOpen ? "block" : "hidden"} mt-4 border-t border-[#243832]/10 pt-4 md:block`}>
             <div className="grid gap-4 md:grid-cols-4">
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 지역
                 <select value={regionCode} onChange={(event) => {
                   chooseRegion(event.target.value);
@@ -779,21 +791,21 @@ export function PriceExplorer({
                   {PRICE_REGION_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 최소 가격
                 <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785]">
                   <input value={minimumManwon} onChange={(event) => setMinimumManwon(event.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
                   <span className="text-xs font-medium text-[#243832]/50">만원</span>
                 </span>
               </label>
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 최대 가격
                 <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785]">
                   <input value={maximumManwon} onChange={(event) => setMaximumManwon(event.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="제한 없음" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
                   <span className="text-xs font-medium text-[#243832]/50">만원</span>
                 </span>
               </label>
-              <label className="text-xs font-bold text-[#243832]/65">
+              <label className="text-xs font-bold text-[#243832]/75">
                 정렬
                 <select value={sort} onChange={(event) => {
                   setSort(event.target.value as "name" | "lowest_price");
@@ -806,7 +818,7 @@ export function PriceExplorer({
 
             {activeAgencies.length > 0 ? (
               <fieldset className="mt-4">
-                <legend className="text-xs font-bold text-[#243832]/65">대행사</legend>
+                <legend className="text-xs font-bold text-[#243832]/75">대행사</legend>
                 {/* 대행사가 수십 개라 가로 스크롤(스크롤바 숨김)로는 칸을 뚫고 나가
                     잘려 보였다 — 줄바꿈으로 전부 칸 안에 담고, 기본은 일부만 +
                     "모두 보기"로 펼친다. 선택된 칩은 접힌 상태에서도 항상 보인다. */}
@@ -857,7 +869,7 @@ export function PriceExplorer({
                 찜한 업체만
               </button> : null}
               {activeFilterCount > 0 ? (
-                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#243832]/65 hover:bg-[#FBF8F2]">
+                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#243832]/75 hover:bg-[#FBF8F2]">
                   <RotateCcw aria-hidden="true" className="size-3.5" />
                   필터 초기화
                 </button>
@@ -933,18 +945,26 @@ export function PriceExplorer({
             </section>
           ) : null}
 
-        <div className="mt-6 flex items-center justify-between gap-3">
-          <p className="text-sm text-[#243832]/65"><strong className="font-bold text-[#243832]">{filtered.length}</strong>개 업체</p>
-          {debouncedSearch ? <p className="max-w-[65%] truncate text-xs text-[#243832]/50">‘{debouncedSearch}’ 검색 결과</p> : null}
+        <div className="mt-6 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div>
+            <p className="text-sm text-[#243832]/75"><strong className="font-bold text-[#243832]">{filtered.length}</strong>개 업체</p>
+            {!preview ? (
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-[#243832]/70">
+                이름이 같거나 같은 업체로 확인된 표기는 한 카드로 모았어요. 지점·동명 업체로 확인된 표기는 따로 보여드려요.
+              </p>
+            ) : null}
+          </div>
+          {debouncedSearch ? <p className="max-w-full truncate text-xs text-[#243832]/50 sm:max-w-[35%]">‘{debouncedSearch}’ 검색 결과</p> : null}
         </div>
 
         {displayVendors.length > 0 ? (
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
             {displayVendors.map((vendor) => (
               <PriceVendorCard
                 key={vendor.id}
                 vendor={vendor}
                 agencyOrder={cardAgencyOrder}
+                activeRegionCode={regionCode || undefined}
                 isWishlisted={wishlistedIds.has(vendor.id)}
                 wishlistBusy={preview || wishlistHydrationStatus !== "ready" || wishlistBusyIds.has(vendor.id)}
                 onToggleWishlist={toggleWishlist}
@@ -959,15 +979,13 @@ export function PriceExplorer({
               category={category}
               regionCode={regionCode || undefined}
               hasOtherFilters={Boolean(debouncedSearch || minimumManwon || maximumManwon || wishlistOnly || agencyIds.length > 0)}
-              onResetFilters={() => {
+              surface={surface}
+              preview={preview}
+              onResetFilters={hasRecoverableFilters ? () => {
                 setSearchInput("");
                 setDebouncedSearch("");
-                setRegionCode("");
-                setAgencyIds([]);
-                setMinimumManwon("");
-                setMaximumManwon("");
-                setWishlistOnly(false);
-              }}
+                resetFilters();
+              } : undefined}
             />
           </div>
         )}

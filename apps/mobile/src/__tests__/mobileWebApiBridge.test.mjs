@@ -175,6 +175,30 @@ test("an expired account A request never retries its body with account B credent
   assert.deepEqual(usedTokens, ["expired-a"]);
 });
 
+test("an owner-bound request sends no network call when the current session belongs to another account", async () => {
+  let networkCalls = 0;
+  let refreshCalls = 0;
+
+  await assert.rejects(
+    fetchMobileWebApiWithSession({
+      expectedUserId: "user-a",
+      initialSession: { userId: "user-b", accessToken: "current-b" },
+      async fetchWithAccessToken() {
+        networkCalls += 1;
+        return new Response("{}", { status: 200 });
+      },
+      async refreshSession() {
+        refreshCalls += 1;
+        return { userId: "user-b", accessToken: "refreshed-b" };
+      },
+    }),
+    /MOBILE_WEB_API_SESSION_OWNER_MISMATCH/,
+  );
+
+  assert.equal(networkCalls, 0);
+  assert.equal(refreshCalls, 0);
+});
+
 test("concurrent refreshes are shared only by the exact initial account session", async () => {
   const gate = createMobileWebApiSessionRefreshGate();
   let resolveRefresh;

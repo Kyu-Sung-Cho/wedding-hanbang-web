@@ -22,6 +22,7 @@ import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 interface PollEditorProps {
   value: CreatePollInput | null;
   onChange: (next: CreatePollInput | null) => void;
+  mediaUploadsEnabled?: boolean;
 }
 
 interface DraftOption {
@@ -42,7 +43,11 @@ const DEADLINE_PRESETS: Array<{ key: string; label: string; hours: number | null
   { key: "1w", label: "1주", hours: 24 * 7 },
 ];
 
-export default function PollEditor({ value, onChange }: PollEditorProps) {
+export default function PollEditor({
+  value,
+  onChange,
+  mediaUploadsEnabled = true,
+}: PollEditorProps) {
   const enabled = value !== null;
 
   const [draftQuestion, setDraftQuestion] = useState(value?.question ?? "");
@@ -74,7 +79,10 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
       deadlinePreset: string;
     }) => {
       const validOptions = next.options
-        .map((o) => ({ label: o.label.trim(), image_url: o.image_url || null }))
+        .map((o) => ({
+          label: o.label.trim(),
+          image_url: mediaUploadsEnabled ? o.image_url || null : null,
+        }))
         .filter((o) => o.label.length > 0);
 
       // 마감일 계산
@@ -95,7 +103,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
         closes_at,
       });
     },
-    [onChange]
+    [mediaUploadsEnabled, onChange]
   );
 
   const updateAndSync = useCallback(
@@ -130,7 +138,10 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
     onChange({
       question: draftQuestion.trim(),
       options: draftOptions
-        .map((o) => ({ label: o.label.trim(), image_url: o.image_url || null }))
+        .map((o) => ({
+          label: o.label.trim(),
+          image_url: mediaUploadsEnabled ? o.image_url || null : null,
+        }))
         .filter((o) => o.label.length > 0),
       allow_multiple: allowMultiple,
       is_anonymous: isAnonymous,
@@ -166,6 +177,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
   };
 
   const handleImageUpload = async (idx: number, file: File) => {
+    if (!mediaUploadsEnabled) return;
     setError(null);
     if (!file.type.startsWith("image/")) {
       setError("이미지 파일만 업로드할 수 있습니다.");
@@ -257,6 +269,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
         {draftOptions.map((opt, idx) => (
           <div key={idx} className="flex items-stretch gap-2">
             {/* 이미지 미리보기 / 업로드 */}
+            {mediaUploadsEnabled && (
             <div className="shrink-0 relative">
               {opt.image_url ? (
                 <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#e5d8ca] bg-[#f6efe5]">
@@ -305,6 +318,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
                 }}
               />
             </div>
+            )}
 
             {/* 텍스트 입력 */}
             <div className="flex-1 flex items-center bg-[#f6efe5] border border-[#e5d8ca] rounded-lg overflow-hidden focus-within:border-[#36534E] focus-within:ring-1 focus-within:ring-[#36534E]/30 transition-colors">

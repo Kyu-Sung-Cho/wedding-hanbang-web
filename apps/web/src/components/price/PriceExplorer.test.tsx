@@ -232,7 +232,7 @@ describe("PriceExplorer", () => {
         : jsonResponse({
             combos: [{
               id: "combo-latest",
-              name: "지난주 스드메 조합",
+              name: "지난주 사진·드레스·메이크업 조합",
               created_at: "2026-07-20T05:00:00.000Z",
               selections: {
                 studio: {
@@ -258,8 +258,8 @@ describe("PriceExplorer", () => {
     const restoreButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
     expect(container.querySelector('[aria-label="최근 저장 조합"]')?.textContent)
-      .toContain("지난주 스드메 조합");
-    expect(container.querySelector('aside[aria-label="스드메 조합"]')).toBeNull();
+      .toContain("지난주 사진·드레스·메이크업 조합");
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')).toBeNull();
     expect(restoreButton).toBeDefined();
 
     await act(async () => {
@@ -267,7 +267,7 @@ describe("PriceExplorer", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('aside[aria-label="스드메 조합"]')?.textContent)
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')?.textContent)
       .toContain(firstVendor.name);
     expect(container.querySelector('[role="status"]')?.textContent)
       .toContain("현재 공시 정보로 확인해 불러왔어요");
@@ -280,7 +280,7 @@ describe("PriceExplorer", () => {
     });
     expect(container.querySelector('[role="group"][aria-label="현재 조합 교체 확인"]')?.textContent)
       .toContain("현재 담은 조합을 바꿀까요?");
-    expect(container.querySelector('aside[aria-label="스드메 조합"]')?.textContent)
+    expect(container.querySelector('aside[aria-label="사진·드레스·메이크업 조합"]')?.textContent)
       .toContain(firstVendor.name);
 
     const cancelButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
@@ -522,6 +522,23 @@ describe("PriceExplorer", () => {
     expect(categoryNav?.querySelectorAll("a").length).toBe(4);
   });
 
+  it("does not stretch a collapsed card when the neighboring card is expanded", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input).includes("/api/favorites")
+        ? jsonResponse({ vendorIds: [] })
+        : jsonResponse({ combos: [] }),
+    )));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    const grid = container.querySelector("article")?.parentElement;
+    expect(grid?.className).toContain("items-start");
+    expect(container.querySelector("article")?.className).not.toContain("h-full");
+  });
+
   // 병합 이후 목록은 여러 지역이 섞인다 — 어느 지역 가격인지 모른 채 보게 두지
   // 않으려고 지역을 먼저 묻는다. 단, 막아 세우진 않고 목록은 그대로 렌더한다.
   it("asks for a region first, then remembers the choice", async () => {
@@ -549,6 +566,10 @@ describe("PriceExplorer", () => {
     expect(container.querySelector("#region-first-heading")).toBeNull();
     expect(container.textContent).toContain("지역 바꾸기");
     expect(window.localStorage.getItem("hanbang.price.region")).toBe("gangwon");
+    expect(
+      container.querySelector('a[href^="/price/vendor/vendor-merged"]')
+        ?.getAttribute("href"),
+    ).toBe("/price/vendor/vendor-merged?region=gangwon");
   });
 
   // 공시 업체가 얇은 지역을 고르면 한두 곳만 덩그러니 보인다. 왜 적은지 말하지

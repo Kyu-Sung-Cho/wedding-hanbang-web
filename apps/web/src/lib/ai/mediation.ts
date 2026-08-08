@@ -11,11 +11,18 @@
  *   [/mediation]
  *
  * - 마커가 없으면 그대로 통과 (null 반환).
- * - 4필드 중 일부만 있어도 graceful (있는 것만 채워서 반환).
+ * - 4필드가 모두 검증된 경우에만 승인 가능한 카드 데이터로 반환.
+ * - 일부 필드만 있으면 마커를 제거한 일반 텍스트로 강등.
  * - 본문 텍스트에서 마커 블록은 통째로 제거해서 UI에 노출되지 않게 함.
  *
  * 파싱 실패해도 절대 throw하지 않음 — fallback은 일반 텍스트 그대로.
  */
+
+import { AMORA_REQUESTER_SUMMARY_MEDIATION } from "@hanbang/shared/mediation-provenance";
+import {
+  screenAmoraTrustClaims,
+  type AmoraTrustClaimKind,
+} from "./amoraTrustClaims";
 
 export interface MediationBlock {
   empathy?: string;
@@ -23,6 +30,15 @@ export interface MediationBlock {
   data?: string;
   resolution?: string;
 }
+
+// 표식 자체는 공유 계약에 둔다. 앱도 같은 기준으로 "이 초안이 누구 말인가"를
+// 판별해야 하는데, 각자 갖고 있으면 한쪽만 고쳐진다.
+export const AMORA_USER_REQUESTED_MEDIATION_V2 = AMORA_REQUESTER_SUMMARY_MEDIATION;
+
+export type UserRequestedMediationV2 = Required<MediationBlock>
+  & typeof AMORA_USER_REQUESTED_MEDIATION_V2;
+
+const MAX_MEDIATION_FIELD_CHARS = 500;
 
 const MEDIATION_RE = /\[mediation\]([\s\S]*?)\[\/mediation\]/i;
 
@@ -32,6 +48,86 @@ const FIELD_PATTERNS: Array<{ key: keyof MediationBlock; regex: RegExp }> = [
   { key: "data", regex: /^\s*데이터\s*[:：]\s*(.+?)\s*$/m },
   { key: "resolution", regex: /^\s*합의안\s*[:：]\s*(.+?)\s*$/m },
 ];
+
+const FIELD_LABELS: Record<keyof MediationBlock, string> = {
+  empathy: "공감",
+  translation: "통역",
+  data: "데이터",
+  resolution: "합의안",
+};
+
+function isCompleteMediationBlock(
+  block: MediationBlock,
+): block is Required<MediationBlock> {
+  return FIELD_PATTERNS.every(({ key }) => Boolean(block[key]?.trim()));
+}
+
+/**
+ * 카드 네 필드를 아모라 출력 검사층에 통과시킨다.
+ *
+ * `extractMediation`이 `[mediation]` 블록을 본문에서 잘라내기 때문에, 본문을 보는
+ * 검사층(`composeAmoraPersistenceTerminal`)은 카드 안을 한 번도 보지 못했다. 그래서
+ * 보증("100% 문제 없어요"), 비교 압박("다른 커플들은 보통 …"), 사람에 대한 판정
+ * ("두 분은 잘 맞아요"), 그리고 반영되지 않은 저장 주장("예산 3천만원으로
+ * 저장해뒀어요")이 카드 안에서는 그대로 살아남아 양쪽에게 저장됐다. 중재 카드는
+ * 수락하면 공동 결정으로 기록되므로, 검사를 건너뛰기에 가장 나쁜 자리였다.
+ *
+ * 검사로 필드가 통째로 비면 카드를 만들지 않는다(`isCompleteMediationBlock` 실패).
+ * 걸러낸 문장을 기워 붙인 카드보다 카드가 없는 편이 안전하다.
+ */
+export function screenMediationBlock(block: MediationBlock): {
+  block: MediationBlock;
+  removedKinds: AmoraTrustClaimKind[];
+} {
+  const screened: MediationBlock = {};
+  const removedKinds = new Set<AmoraTrustClaimKind>();
+
+  for (const { key } of FIELD_PATTERNS) {
+    const value = block[key];
+    if (typeof value !== "string" || !value.trim()) continue;
+    const result = screenAmoraTrustClaims(value);
+    for (const kind of result.removedKinds) removedKinds.add(kind);
+    if (result.text) screened[key] = result.text;
+  }
+
+  return { block: screened, removedKinds: [...removedKinds] };
+}
+
+export function toUserRequestedMediationV2(
+  block: MediationBlock,
+): UserRequestedMediationV2 | null {
+  const { block: screened } = screenMediationBlock(block);
+  if (!isCompleteMediationBlock(screened)) return null;
+  return { ...screened, ...AMORA_USER_REQUESTED_MEDIATION_V2 };
+}
+
+export function mediationBlockToOrdinaryText(block: MediationBlock): string {
+  return FIELD_PATTERNS
+    .flatMap(({ key }) => block[key] ? [`${FIELD_LABELS[key]}: ${block[key]}`] : [])
+    .join("\n\n");
+}
+
+export function readUserRequestedMediationV2(
+  value: unknown,
+): UserRequestedMediationV2 | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.origin !== AMORA_USER_REQUESTED_MEDIATION_V2.origin
+    || candidate.evidenceScope !== AMORA_USER_REQUESTED_MEDIATION_V2.evidenceScope
+    || candidate.schemaVersion !== AMORA_USER_REQUESTED_MEDIATION_V2.schemaVersion
+  ) return null;
+
+  const block: MediationBlock = {};
+  for (const { key } of FIELD_PATTERNS) {
+    const field = candidate[key];
+    if (typeof field !== "string") return null;
+    const normalized = field.trim();
+    if (!normalized || normalized.length > MAX_MEDIATION_FIELD_CHARS) return null;
+    block[key] = normalized;
+  }
+  return toUserRequestedMediationV2(block);
+}
 
 /**
  * 응답 텍스트에서 mediation 블록을 추출.
@@ -59,18 +155,23 @@ export function extractMediation(text: string): {
     }
   }
 
-  // 4필드 모두 비어 있으면 카드로 만들 가치 없음 — null 처리, 본문은 마커 제거만.
-  const hasAny = Object.values(block).some((v) => Boolean(v && v.trim()));
-
   // 마커 블록 제거 + 주변 빈 줄 정리
   const cleanText = text
     .replace(MEDIATION_RE, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+  if (!isCompleteMediationBlock(block)) {
+    const ordinaryText = mediationBlockToOrdinaryText(block);
+    return {
+      cleanText: [cleanText, ordinaryText].filter(Boolean).join("\n\n"),
+      mediation: null,
+    };
+  }
+
   return {
     cleanText,
-    mediation: hasAny ? block : null,
+    mediation: block,
   };
 }
 

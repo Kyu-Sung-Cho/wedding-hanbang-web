@@ -7,9 +7,14 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
+  validateSuccessorReleaseContract,
+} from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
+import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
   VendorDisclosureProductionBuildBlocked,
+  VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
@@ -40,6 +45,27 @@ function sha256(text: string): string {
 
 function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+interface ReleaseFixtureManifest {
+  release: string;
+  projectRef: string;
+  status: string;
+  predecessorManifest: {
+    file: string;
+    sha256: string;
+  };
+  requiredRemoteHead: string;
+  migrationFloor: string;
+  expandMigrations: Array<{
+    file: string;
+    sha256: string;
+  }>;
+  deploymentEvidence: Record<string, unknown>;
+  controllerContract?: {
+    file: string;
+    sha256: string;
+  };
 }
 
 type Fixture = Awaited<ReturnType<typeof createBlockedFixture>>;
@@ -79,7 +105,7 @@ async function createBlockedFixture() {
   const predecessorText = json(predecessor);
   await writeFile(join(repoRoot, PREDECESSOR_FILE), predecessorText, "utf8");
 
-  const manifest = {
+  const manifest: ReleaseFixtureManifest = {
     release: RELEASE,
     projectRef: PROJECT_REF,
     status: "deployment_blocked",
@@ -104,6 +130,246 @@ async function createBlockedFixture() {
   await writeFile(manifestPath, json(manifest), "utf8");
 
   return { repoRoot, manifest, manifestPath, migrationDirectory };
+}
+
+function staticRuntimeEvidenceContracts(
+  release: string,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).map(
+      ([name, requirement]) => {
+        const slug = name.replace(/([A-Z])/g, "-$1").toLowerCase();
+        return [name, {
+          kind: requirement.kind,
+          receiptFileName: `${release}-${slug}-evidence.json`,
+          rawEvidenceFileName: `${release}-${slug}-raw.json`,
+          rawEvidenceSource: requirement.rawEvidenceSource,
+          maximumAgeMinutes: requirement.maximumAgeMinutes,
+          requiredChecks: [...requirement.requiredChecks],
+        }];
+      },
+    ),
+  );
+}
+
+async function createControllerReadyFixture(): Promise<Fixture> {
+  const fixture = await createBlockedFixture();
+  const baselineTables = ["profiles"];
+  const baselineTablesSha256 = sha256(`${baselineTables.join("\n")}\n`);
+  const predecessor = {
+    release: "amora-engine-v2-20260716",
+    projectRef: PROJECT_REF,
+    expandMigrations: [{
+      file: PREDECESSOR_MIGRATION,
+      sha256: sha256("select 'predecessor';\n"),
+    }],
+    historicalEffectAudit: [],
+    preApplyChecks: [{ id: "predecessor-precheck" }],
+    postPushChecks: [],
+    postApplyChecks: [{ id: "predecessor-postcheck" }],
+    manualPlatformOperations: [{ id: "predecessor-manual-operation" }],
+    rollbackArtifacts: [{ id: "predecessor-rollback-artifact" }],
+    manualControlEvidence: {
+      receiptFileName: "predecessor-write-fence.json",
+      signedUploadTokenTtlMinutes: 120,
+      signedUploadGraceMinutes: 10,
+      storageStabilityWindowMinutes: 5,
+    },
+    backupContract: {
+      excludedEphemeralTables: [],
+      ephemeralRebuildContract: "not-required",
+      expectedOrigin: "supabase-production",
+      providerPhysicalBackup: {
+        maximumAgeHours: 24,
+        requirePhysicalBackup: true,
+        requiredStatus: "COMPLETED",
+        restoreCapability: "different-project",
+      },
+      hostedRestoreEvidence: {
+        maximumAgeMinutes: 1_440,
+        receiptFileName: "predecessor-hosted-restore.json",
+        requiredChecks: ["differentProjectVerified"],
+        requiredTargetIsolation: "different-supabase-project",
+      },
+      supabaseCli: {
+        binarySha256: "a".repeat(64),
+        version: "2.0.0",
+      },
+    },
+    postExpandBackupContract: {
+      expectedTables: baselineTables,
+      expectedTableContractSha256: baselineTablesSha256,
+      verifier: {
+        file: "scripts/vendor-disclosure-db-verify-backup.ps1",
+        sha256: "b".repeat(64),
+      },
+      requiredReceiptValues: {
+        PGliteJsonbRoundTripVerified: true,
+        PlaintextWrittenToDisk: false,
+        SourceCanonicalDigestsVerified: true,
+        Verified: true,
+      },
+    },
+    finalizationContract: {
+      id: "production-write-fence-exact-owner-finalizer",
+      requiredLeasePhase: "deployment-canary",
+      confirmationIncludesCanarySha256: true,
+    },
+    requiredDocuments: ["docs/release-controller.md"],
+  };
+  const predecessorText = json(predecessor);
+  await writeFile(
+    join(fixture.repoRoot, PREDECESSOR_FILE),
+    predecessorText,
+    "utf8",
+  );
+  fixture.manifest.predecessorManifest.sha256 = sha256(predecessorText);
+
+  const releaseVersions = fixture.manifest.expandMigrations.map(
+    (entry) => entry.file.slice(0, 14),
+  );
+  const rollbackContract = {
+    version: 1,
+    strategy: "forward-fix-feature-off",
+    migrationRollback: "prohibited",
+    featureOffReceiptFileName:
+      `${fixture.manifest.release}-feature-off-rollback.json`,
+    maximumAgeMinutes: 30,
+    requiredControls: {
+      AMORA_AUXILIARY_MEMORY_ENABLED: "false",
+      AMORA_CARE_OUTBOUND_ENABLED: "false",
+      AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+      AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
+      AMORA_TODAY_ONE_ENABLED: "false",
+      AMORA_OPENAI_ENABLED: "false",
+      AMORA_PROACTIVE_CHAT_ENABLED: "false",
+      AMORA_COST_GUARD_ENABLED: "true",
+      WEDDING_COURT_ENABLED: "false",
+      WEDDING_PAYMENT_LEDGER_ENABLED: "false",
+    },
+    requiredChecks: [
+      "databaseWriteFenceHeld",
+      "storageWriteFenceHeld",
+      "authSignupDisabled",
+      "webWriteFenceEnabled",
+      "chatPartnerRecipientBoundaryHeld",
+      "conversationSegmentScopeBoundaryHeld",
+    ],
+  };
+  const controllerContract = {
+    contractVersion: 1,
+    release: fixture.manifest.release,
+    projectRef: fixture.manifest.projectRef,
+    historicalEffectAudit: predecessor.historicalEffectAudit,
+    preApplyChecks: predecessor.preApplyChecks,
+    postPushChecks: predecessor.postPushChecks,
+    postApplyChecks: [{
+      id: "vendor-disclosure-successor-postcheck",
+      expectedEvidence: {
+        account_deletion_auth_fk_contract_count: 1,
+        chat_partner_recipient_insert_policy_count: 1,
+        chat_partner_recipient_select_policy_count: 1,
+        chat_partner_recipient_trigger_count: 1,
+        conversation_segment_active_index_count: 3,
+        conversation_segment_rls_policy_count: 1,
+        conversation_segment_rpc_acl_count: 1,
+        conversation_segment_scope_fk_count: 2,
+        couple_plan_change_auth_user_fk_count: 4,
+        couple_plan_change_display_guard_count: 1,
+        couple_plan_change_idempotency_index_count: 1,
+        couple_plan_change_journey_write_fence_count: 4,
+        couple_plan_change_terminal_event_count: 3,
+        couple_plan_change_write_boundary_trigger_count: 1,
+        chat_feedback_auth_delete_fk_count: 1,
+        payment_ledger_fk_contract_count: 3,
+        successor_created_table_count: 0,
+        successor_feature_flags_off_count: 10,
+        successor_migration_head_count: 1,
+        wedding_court_auth_delete_fk_count: 1,
+      },
+    }],
+    forwardOnlySecurityOperations: [],
+    manualPlatformOperations: predecessor.manualPlatformOperations,
+    rollbackArtifacts: predecessor.rollbackArtifacts,
+    manualControlEvidence: {
+      ...predecessor.manualControlEvidence,
+      receiptFileName:
+        `${fixture.manifest.release}-production-write-fence.json`,
+    },
+    backupContract: {
+      id:
+        `pre-${fixture.manifest.release}-current-remote-backup`,
+      version: 2,
+      format: "hbam2-encrypted-current-user",
+      expectedTableCount: baselineTables.length,
+      expectedTables: baselineTables,
+      expectedTableContractSha256: baselineTablesSha256,
+      expectedMigrationHead: fixture.manifest.requiredRemoteHead,
+      excludedEphemeralTables:
+        predecessor.backupContract.excludedEphemeralTables,
+      ephemeralRebuildContract:
+        predecessor.backupContract.ephemeralRebuildContract,
+      expectedCommitBinding: "release-expected-commit",
+      expectedOrigin: predecessor.backupContract.expectedOrigin,
+      verifier: predecessor.postExpandBackupContract.verifier,
+      providerPhysicalBackup:
+        predecessor.backupContract.providerPhysicalBackup,
+      hostedRestoreEvidence: {
+        ...predecessor.backupContract.hostedRestoreEvidence,
+        receiptFileName:
+          `${fixture.manifest.release}-hosted-restore-evidence.json`,
+      },
+      supabaseCli: predecessor.backupContract.supabaseCli,
+      requiredReceiptValues:
+        predecessor.postExpandBackupContract.requiredReceiptValues,
+    },
+    postExpandBackupContract: {
+      id: `post-${fixture.manifest.release}-backup`,
+      version: 2,
+      expectedTableCount: baselineTables.length,
+      expectedTables: baselineTables,
+      expectedTableContractSha256: baselineTablesSha256,
+      expectedReleaseMigrationBaselineHead:
+        fixture.manifest.requiredRemoteHead,
+      expectedReleaseMigrationHead: releaseVersions.at(-1),
+      expectedReleaseMigrationVersions: releaseVersions,
+      expectedReleaseMigrationContractSha256:
+        sha256(`${releaseVersions.join("\n")}\n`),
+      capture: {
+        file: "scripts/vendor-disclosure-db-backup.ps1",
+        sha256: "c".repeat(64),
+      },
+      verifier: {
+        file: "scripts/vendor-disclosure-db-verify-backup.ps1",
+        sha256: "d".repeat(64),
+      },
+    },
+    finalizationContract: {
+      ...predecessor.finalizationContract,
+      version: 2,
+    },
+    rollbackContract,
+    requiredDocuments: predecessor.requiredDocuments,
+  };
+  const controllerContractText = json(controllerContract);
+  const controllerContractRelativePath =
+    "supabase/release-contracts/vendor-disclosure-production-controller-v1.json";
+  const controllerContractPath = join(
+    fixture.repoRoot,
+    ...controllerContractRelativePath.split("/"),
+  );
+  await mkdir(join(controllerContractPath, ".."), { recursive: true });
+  await writeFile(controllerContractPath, controllerContractText, "utf8");
+
+  fixture.manifest.status = "controller_ready";
+  fixture.manifest.deploymentEvidence =
+    staticRuntimeEvidenceContracts(fixture.manifest.release);
+  fixture.manifest.controllerContract = {
+    file: controllerContractRelativePath,
+    sha256: sha256(controllerContractText),
+  };
+  await writeManifest(fixture);
+  return fixture;
 }
 
 function assertProduction(repoRoot: string) {
@@ -156,16 +422,10 @@ describe("vendor disclosure production build fence", () => {
       "missing",
       "missing",
     ]);
-
-    const error = expectBlockedWithCode(
-      () => assertProduction(repoRoot),
-      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
-    );
-    expect(error.message).toMatch(/static validation is not production authorization/i);
   });
 
-  it("blocks a statically valid fixture without an owner authorization signature", async () => {
-    const fixture = await createBlockedFixture();
+  it("requires an owner authorization signature after the controller is ready", async () => {
+    const fixture = await createControllerReadyFixture();
     const error = expectBlockedWithCode(
       () => assertProduction(fixture.repoRoot),
       VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
@@ -174,7 +434,7 @@ describe("vendor disclosure production build fence", () => {
   });
 
   it("blocks when the owner authorization signature does not match the release manifest", async () => {
-    const fixture = await createBlockedFixture();
+    const fixture = await createControllerReadyFixture();
     expectBlockedWithCode(
       () => assertVendorDisclosureProductionBuild({
         repoRoot: fixture.repoRoot,
@@ -187,8 +447,26 @@ describe("vendor disclosure production build fence", () => {
     );
   });
 
-  it("allows a statically valid fixture when the owner signs the exact release manifest", async () => {
+  it("rejects an exact manifest signature while hosted evidence is missing", async () => {
     const fixture = await createBlockedFixture();
+    expectBlockedWithCode(
+      () => assertVendorDisclosureProductionBuild({
+        repoRoot: fixture.repoRoot,
+        environment: {
+          VERCEL_ENV: "production",
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION:
+            expectedProductionAuthorizationSha256(fixture.repoRoot),
+        },
+      }),
+      VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
+    );
+  });
+
+  it("allows a controller-ready fixture when the owner signs the exact release manifest", async () => {
+    const fixture = await createControllerReadyFixture();
+    expect(() => validateSuccessorReleaseContract({
+      repoRoot: fixture.repoRoot,
+    })).not.toThrow();
     expect(() => assertVendorDisclosureProductionBuild({
       repoRoot: fixture.repoRoot,
       environment: {

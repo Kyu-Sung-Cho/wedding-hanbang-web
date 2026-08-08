@@ -11,6 +11,8 @@ export const IDEMPOTENT_ASSIGNMENT_TOOLS = [
   "delete_category",
   "reset_category",
   "update_schedule_event",
+  "cancel_schedule_event",
+  "restore_schedule_event",
   "delete_schedule_event",
   "toggle_checklist_item",
   "update_amora_action",

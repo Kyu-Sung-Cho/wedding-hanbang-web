@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   createAdminClient: vi.fn(),
   hasActiveAccountDeletion: vi.fn(async () => false),
+  checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true })),
   claimCommunityUploadSession: vi.fn(),
   markCommunityUploadCompleted: vi.fn(async () => true),
   rejectCommunityUploadSession: vi.fn(async () => true),
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn((prefix: string, _request: Request, userId?: string) =>
     `${prefix}:${userId ?? "anonymous"}`),
+  isTrustedMutationRequest: vi.fn(() => true),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -23,6 +25,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
   hasActiveAccountDeletion: mocks.hasActiveAccountDeletion,
+}));
+vi.mock("@/lib/community/writeAccess", () => ({
+  checkCommunityWriteAccess: mocks.checkCommunityWriteAccess,
 }));
 vi.mock("@/lib/supabase/destinationFence", () => ({
   verifyRuntimeSupabaseServiceDestination: mocks.verifyRuntimeSupabaseServiceDestination,
@@ -36,6 +41,10 @@ vi.mock("@/lib/community/uploadSession", () => ({
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimitPersistent: mocks.checkRateLimitPersistent,
   rateLimitKey: mocks.rateLimitKey,
+}));
+
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: mocks.isTrustedMutationRequest,
 }));
 
 import { POST } from "./route";
@@ -54,6 +63,7 @@ const SOURCE_BYTES = Buffer.concat([
 ]);
 const oldUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const oldKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const oldMediaPublishing = process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED;
 
 function sha256(bytes: Uint8Array) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -191,6 +201,7 @@ function pngRange(status = 206, contentRange = `bytes 0-63/${SOURCE_BYTES.byteLe
 describe("POST /api/community/upload/finalize", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = "true";
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://project.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-secret";
     mocks.verifyRuntimeSupabaseServiceDestination.mockReturnValue({
@@ -228,8 +239,27 @@ describe("POST /api/community/upload/finalize", () => {
     else process.env.NEXT_PUBLIC_SUPABASE_URL = oldUrl;
     if (oldKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     else process.env.SUPABASE_SERVICE_ROLE_KEY = oldKey;
+    if (oldMediaPublishing === undefined) {
+      delete process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED;
+    } else {
+      process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = oldMediaPublishing;
+    }
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("fails closed before claiming a session when controlled-beta media is off", async () => {
+    process.env.COMMUNITY_MEDIA_PUBLISHING_ENABLED = "false";
+
+    const response = await POST(request() as never);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COMMUNITY_MEDIA_PUBLISHING_DISABLED",
+    });
+    expect(mocks.checkCommunityWriteAccess).not.toHaveBeenCalled();
+    expect(mocks.claimCommunityUploadSession).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("fully decodes and sanitizes staging, publishes exact re-encoded bytes, then checkpoints their hash", async () => {

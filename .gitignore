@@ -84,6 +84,10 @@ Thumbs.db
 apps/web/*.png
 apps/web/.screenshots/
 apps/web/.screenshots-test/
+# 저장소 루트에서 수집한 브라우저 QA 캡처도 로컬 증거이며 소스가 아니다.
+/artifacts/
+# Lazyweb 입력 캡처와 임시 보고서 상태는 기기별 로컬 증거이며 소스가 아니다.
+/.lazyweb/
 test-results/
 apps/web/src/app/internal/wedding-code-research/page.tsx
 apps/web/.wedding-code-research.lock

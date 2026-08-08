@@ -4,7 +4,7 @@
 // 왜 필요한가: 이 저장소가 반복해서 밟은 함정이 "글의 약속과 도착 화면이 어긋나는
 // 것"이다. 유통 글은 2026-06-12에 쓰였고 그 뒤 제품이 여러 번 바뀌었는데 글은 그대로였다.
 // 2026-07-29 전수 대조에서 5건이 나왔고 그중 둘은 세어 보면 바로 들키는 종류였다
-// (스튜디오 313 → 실제 297, 드레스 215 → 실제 205). 502→412 사고와 같은 자리다.
+// (스튜디오 313 → 실제 297, 드레스 215 → 실제 205). 502→414 사고와 같은 자리다.
 //
 // 이 스크립트가 잡는 것:
 //   1. 카테고리별 업체 수 주장 vs 공개 카탈로그 실측
@@ -86,11 +86,12 @@ async function loadLiveCounts() {
   });
 
   // 목록 카드와 같은 병합 규칙을 쓴다. 규칙이 갈리면 이 대조 자체가 거짓말이 된다.
-  const { canonicalVendorName, isSameNameDifferentBusiness } = await import(
-    // tsx 없이 돌 수 있게, 병합 규칙은 소스에서 직접 읽어 최소한만 재현한다.
+  const { vendorIdentityKey } = await import(
+    // package script가 tsx로 실행하므로 목록과 같은 공개 함수를 그대로 쓴다.
+    // 규칙을 이 파일에 다시 쓰면 row-scoped slug 병합이 추가될 때 즉시 갈린다.
     "../../apps/web/src/lib/price/vendorIdentity.ts"
   ).catch(() => ({}));
-  if (!canonicalVendorName) return "no-ts-loader";
+  if (!vendorIdentityKey) return "no-ts-loader";
 
   const rows = [];
   const PAGE = 200;
@@ -114,10 +115,7 @@ async function loadLiveCounts() {
   for (const row of rows) {
     const category = row.price_category === "venue" ? "hall" : row.price_category;
     if (!CATEGORY_LABELS[category] || !row.vendor_name || !row.vendor_slug) continue;
-    const canonical = canonicalVendorName(category, row.vendor_name);
-    const key = !canonical || isSameNameDifferentBusiness(category, canonical)
-      ? `slug:${row.vendor_slug}`
-      : `${category}|${canonical}`;
+    const key = vendorIdentityKey(category, row.vendor_name, row.vendor_slug);
     if (!seen.has(category)) seen.set(category, new Set());
     seen.get(category).add(key);
   }

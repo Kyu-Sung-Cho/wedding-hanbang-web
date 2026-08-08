@@ -1,5 +1,5 @@
 // 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 이미지 첨부 + 미리보기
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Image,
 } from "react-native";
@@ -11,6 +11,7 @@ import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 import { uploadCommunityMedia } from "@/lib/communityUpload";
 import * as ImagePicker from "expo-image-picker";
+import * as Crypto from "expo-crypto";
 import { AppHeader } from "@/components/ui/AppUI";
 
 const CATEGORIES = [
@@ -30,6 +31,8 @@ const AD_OPTIONS = [
 const TITLE_MAX = 200;
 const CONTENT_MAX = 50000;
 const MAX_IMAGES = 5;
+const COMMUNITY_MEDIA_UI_ENABLED =
+  process.env.EXPO_PUBLIC_COMMUNITY_MEDIA_PUBLISHING_ENABLED === "true";
 interface SelectedImage {
   uri: string;
   fileName: string;
@@ -48,9 +51,15 @@ export default function WritePostScreen() {
   const [isPreview, setIsPreview] = useState(false);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [uploadProgress, setUploadProgress] = useState("");
+  const pendingPostCommandRef = useRef<{
+    fingerprint: string;
+    idempotencyKey: string;
+    body: Record<string, unknown>;
+  } | null>(null);
 
   // 갤러리에서 이미지 선택
   async function pickImages() {
+    if (!COMMUNITY_MEDIA_UI_ENABLED) return;
     if (images.length >= MAX_IMAGES) {
       Alert.alert("알림", `이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있어요.`);
       return;
@@ -89,6 +98,12 @@ export default function WritePostScreen() {
 
   // 이미지 바이트는 Vercel 함수를 거치지 않고 private signed path로 직접 전송.
   async function uploadImages(): Promise<string[]> {
+    if (!COMMUNITY_MEDIA_UI_ENABLED) {
+      if (images.length > 0) {
+        throw new Error("통제 베타에서는 커뮤니티 이미지를 발행할 수 없어요.");
+      }
+      return [];
+    }
     if (images.length === 0) return [];
 
     const urls: string[] = [];
@@ -115,26 +130,52 @@ export default function WritePostScreen() {
 
     setSubmitting(true);
     try {
-      // 이미지 업로드
-      const imageUrls = await uploadImages();
+      const fingerprint = JSON.stringify({
+        category,
+        title: title.trim(),
+        content: content.trim(),
+        adDisclosure,
+        sponsorDetail: adDisclosure === "sponsored" ? sponsorDetail.trim() : null,
+        images: images.map((image) => ({
+          uri: image.uri,
+          fileName: image.fileName,
+          fileSize: image.fileSize ?? null,
+        })),
+      });
+      if (pendingPostCommandRef.current?.fingerprint !== fingerprint) {
+        // Keep both finalized upload URLs and the command key after a network
+        // failure. Retrying unchanged input must not create orphan uploads or a
+        // second post when the first response was lost.
+        const imageUrls = COMMUNITY_MEDIA_UI_ENABLED ? await uploadImages() : [];
+        pendingPostCommandRef.current = {
+          fingerprint,
+          idempotencyKey: Crypto.randomUUID(),
+          body: {
+            category,
+            title: title.trim(),
+            content: content.trim(),
+            visibility: "public",
+            ad_disclosure: adDisclosure,
+            sponsorship_detail:
+              adDisclosure === "sponsored" ? sponsorDetail.trim() : undefined,
+            ...(imageUrls.length > 0 && { images: imageUrls }),
+          },
+        };
+      }
+      const pendingCommand = pendingPostCommandRef.current;
+      if (!pendingCommand) throw new Error("게시글 요청을 준비하지 못했어요");
 
       const res = await apiFetch("/api/community/posts", {
         method: "POST",
-        body: JSON.stringify({
-          category,
-          title: title.trim(),
-          content: content.trim(),
-          visibility: "public",
-          ad_disclosure: adDisclosure,
-          sponsorship_detail: adDisclosure === "sponsored" ? sponsorDetail.trim() : undefined,
-          ...(imageUrls.length > 0 && { images: imageUrls }),
-        }),
+        headers: { "Idempotency-Key": pendingCommand.idempotencyKey },
+        body: JSON.stringify(pendingCommand.body),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "게시글 작성에 실패했어요");
       }
+      pendingPostCommandRef.current = null;
 
       Alert.alert("완료", "게시글이 작성되었어요!", [
         { text: "확인", onPress: () => router.back() },
@@ -217,7 +258,7 @@ export default function WritePostScreen() {
           </View>
           <Text style={styles.previewTitle}>{title || "제목을 입력해주세요"}</Text>
           <Text style={styles.previewBody}>{content || "내용을 입력해주세요"}</Text>
-          {images.length > 0 && (
+          {COMMUNITY_MEDIA_UI_ENABLED && images.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -338,50 +379,54 @@ export default function WritePostScreen() {
             {content.length.toLocaleString()}/{CONTENT_MAX.toLocaleString()}
           </Text>
 
-          {/* 이미지 첨부 */}
-          <Text style={styles.fieldLabel}>사진 첨부</Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.imagePickerBtn,
-              pressed && { borderColor: colors.rose[500] },
-            ]}
-            onPress={pickImages}
-          >
-            <ImagePlus size={20} color={colors.rose[500]} />
-            <Text style={styles.imagePickerText}>
-              사진 추가 ({images.length}/{MAX_IMAGES})
-            </Text>
-          </Pressable>
+          {COMMUNITY_MEDIA_UI_ENABLED && (
+            <>
+              {/* 이미지 첨부 */}
+              <Text style={styles.fieldLabel}>사진 첨부</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.imagePickerBtn,
+                  pressed && { borderColor: colors.rose[500] },
+                ]}
+                onPress={pickImages}
+              >
+                <ImagePlus size={20} color={colors.rose[500]} />
+                <Text style={styles.imagePickerText}>
+                  사진 추가 ({images.length}/{MAX_IMAGES})
+                </Text>
+              </Pressable>
 
-          {/* 선택된 이미지 썸네일 */}
-          {images.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.thumbRow}
-              contentContainerStyle={styles.thumbRowContent}
-            >
-              {images.map((img, idx) => (
-                <View key={img.uri} style={styles.thumbWrapper}>
-                  <Image source={{ uri: img.uri }} style={styles.thumb} />
-                  <Pressable
-                    style={styles.thumbRemove}
-                    onPress={() => removeImage(idx)}
-                    hitSlop={8}
-                  >
-                    <X size={12} color="#FFF" />
-                  </Pressable>
+              {/* 선택된 이미지 썸네일 */}
+              {images.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.thumbRow}
+                  contentContainerStyle={styles.thumbRowContent}
+                >
+                  {images.map((img, idx) => (
+                    <View key={img.uri} style={styles.thumbWrapper}>
+                      <Image source={{ uri: img.uri }} style={styles.thumb} />
+                      <Pressable
+                        style={styles.thumbRemove}
+                        onPress={() => removeImage(idx)}
+                        hitSlop={8}
+                      >
+                        <X size={12} color="#FFF" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+
+              {/* 업로드 진행 상태 */}
+              {uploadProgress !== "" && (
+                <View style={styles.uploadProgressRow}>
+                  <ActivityIndicator size="small" color={colors.rose[500]} />
+                  <Text style={styles.uploadProgressText}>{uploadProgress}</Text>
                 </View>
-              ))}
-            </ScrollView>
-          )}
-
-          {/* 업로드 진행 상태 */}
-          {uploadProgress !== "" && (
-            <View style={styles.uploadProgressRow}>
-              <ActivityIndicator size="small" color={colors.rose[500]} />
-              <Text style={styles.uploadProgressText}>{uploadProgress}</Text>
-            </View>
+              )}
+            </>
           )}
         </ScrollView>
         </DismissKeyboard>

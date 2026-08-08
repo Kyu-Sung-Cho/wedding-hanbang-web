@@ -27,6 +27,75 @@ export interface NormalizedWeddingPreferences {
   guestCount?: string | null;
 }
 
+/**
+ * 총예산이 덮는 범위. 같은 "3천만원"도 결혼식만인지 신혼집까지인지에 따라 이후 계산과
+ * 조언이 완전히 달라진다. 금액 크기로 추정하지 않고 사용자가 확인한 항목만 기록한다.
+ */
+export const BUDGET_SCOPE_ITEMS = [
+  "wedding",
+  "studio",
+  "rings",
+  "honeymoon",
+  "appliances",
+  "housing",
+] as const;
+
+export type BudgetScopeItem = typeof BUDGET_SCOPE_ITEMS[number];
+
+/**
+ * 사용자와 모델에게 보여줄 이름. 결혼 준비가 처음인 사람도 바로 알 수 있는 말만 쓴다.
+ * `스드메`, `예물` 같은 업계 용어는 쓰지 않는다(`mvpDirection.test.ts`의 쉬운 말 계약).
+ * 항목을 늘리면 여기도 함께 늘린다.
+ */
+export const BUDGET_SCOPE_LABELS: Record<BudgetScopeItem, string> = {
+  wedding: "결혼식",
+  studio: "사진·드레스·메이크업",
+  rings: "결혼반지",
+  honeymoon: "신혼여행",
+  appliances: "가전·가구",
+  housing: "신혼집",
+};
+
+export interface NormalizedBudgetScope {
+  /** 사용자가 총액에 포함한다고 확인한 항목 */
+  included: BudgetScopeItem[];
+  /** 사용자가 총액에서 뺀다고 확인한 항목 */
+  excluded: BudgetScopeItem[];
+  /** 아직 확인하지 않은 항목. 포함으로 추정하지 않는다. */
+  unknown: BudgetScopeItem[];
+  confirmedAt: string | null;
+}
+
+/**
+ * `progress.__budgetScope`를 읽어 확인된 것과 확인되지 않은 것을 분리한다.
+ * 알 수 없는 항목명과 상태값은 추정하지 않고 버린다. 원문이 아니라 열거값만 다루므로
+ * 개인 상담 원문을 보존하지 않는 기존 결정과 충돌하지 않는다.
+ */
+export function normalizeBudgetScope(progress: unknown): NormalizedBudgetScope {
+  const raw = isRecord(progress) ? progress.__budgetScope : undefined;
+  const record = isRecord(raw) ? raw : {};
+  const included: BudgetScopeItem[] = [];
+  const excluded: BudgetScopeItem[] = [];
+  const unknown: BudgetScopeItem[] = [];
+
+  for (const item of BUDGET_SCOPE_ITEMS) {
+    const state = record[item];
+    if (state === "included") included.push(item);
+    else if (state === "excluded") excluded.push(item);
+    // 확인하지 않은 항목은 포함으로 추정하지 않는다. 알 수 없는 키는 위 루프가
+    // 허용 목록만 읽으므로 자동으로 무시된다.
+    else unknown.push(item);
+  }
+
+  const confirmedAtRaw = boundedString(record.confirmedAt, 10);
+  return {
+    included,
+    excluded,
+    unknown,
+    confirmedAt: confirmedAtRaw && isValidYmd(confirmedAtRaw) ? confirmedAtRaw : null,
+  };
+}
+
 export interface NormalizedAmoraWeddingContext {
   weddingDate: string | null;
   budget: number;
@@ -115,6 +184,15 @@ function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedS
   const events: NormalizedScheduleEvent[] = [];
   for (const rawEvent of rawEvents.slice(0, MAX_PROGRESS_ARRAY_ITEMS)) {
     if (!isRecord(rawEvent)) continue;
+    if (
+      rawEvent.status === "cancelled"
+      || (rawEvent.status !== undefined
+        && rawEvent.status !== "planned"
+        && rawEvent.status !== "completed")
+      || rawEvent.cancellation !== undefined
+    ) {
+      continue;
+    }
     const date = normalizeWeddingDate(rawEvent.date);
     const title = boundedString(rawEvent.title, 300);
     if (!date || !title) continue;

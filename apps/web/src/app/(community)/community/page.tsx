@@ -10,6 +10,7 @@ import { canUseServerInitialCommunityFeed, normalizeCommunityFeedQuery } from "@
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { EMPTY_AGENCY_SPREAD_SUMMARY } from "@/lib/price/agencySpread";
 import { loadLandingAgencySpread } from "@/lib/price/landingAgencySpread";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,24 @@ const loadSharedAgencySpread = unstable_cache(
 );
 
 export const metadata = {
-  title: "웨딩한방 — 스드메 공시가·위약금 원문과 예비부부 커뮤니티",
+  title: "웨딩한방 — 결혼 준비를 아모라와 정리하세요",
   description:
-    "업체가 공시한 기본가·추가금과 취소 위약금 규정 원문을 그대로 확인하고, "
-    + "먼저 겪은 예비부부들의 글도 함께 보세요. 요약도, 어디가 낫다는 판정도 하지 않습니다.",
+    "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다. "
+    + "실제 경험이 필요할 때는 예비부부 커뮤니티에서 찾아보고 질문하세요.",
+  alternates: { canonical: "/wedding" },
+  openGraph: {
+    title: "웨딩한방 — 결혼 준비를 아모라와 정리하세요",
+    description:
+      "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다.",
+    url: "/wedding",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "웨딩한방 — 결혼 준비를 아모라와 정리하세요",
+    description:
+      "아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리됩니다.",
+  },
 };
 
 export default async function CommunityFeedPage({
@@ -47,10 +62,16 @@ export default async function CommunityFeedPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialQuery = normalizeCommunityFeedQuery(resolvedSearchParams);
   const previewStub = isPreviewStubMode();
+  const viewerResult = previewStub
+    ? null
+    : await (await createClient()).auth.getUser();
+  const confirmedAnonymous = Boolean(
+    viewerResult && !viewerResult.error && !viewerResult.data.user,
+  );
 
   // 피드와 공시 요약은 서로를 기다릴 이유가 없다 — 직렬로 두면 첫 화면 대기가 합쳐진다.
   const [initialFeed, agencySpread] = await Promise.all([
-    !previewStub && canUseServerInitialCommunityFeed(initialQuery)
+    confirmedAnonymous && canUseServerInitialCommunityFeed(initialQuery)
       ? loadSharedInitialFeed()
       : undefined,
     previewStub ? EMPTY_AGENCY_SPREAD_SUMMARY : loadSharedAgencySpread(),

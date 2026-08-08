@@ -33,7 +33,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Sparkles, Flower, Heart, Mic, Box,
 };
 
-// Atelier 스타일: 왼쪽 스트립 + 로즈 그라데이션 (긴급도에 따른 농도 차이)
+// 기본 일정과의 거리만 구분한다. 실제 업체·가족 일정의 긴급도를 판정하지 않는다.
 const URGENCY_STYLES: Record<string, {
   stripBg: string;
   iconBox: string;
@@ -46,7 +46,7 @@ const URGENCY_STYLES: Record<string, {
     stripBg: "bg-[#795252]",
     iconBox: "bg-[#795252]/10",
     iconColor: "text-[#795252]",
-    bar: "bg-gradient-to-r from-[#795252] to-[#946a6a]",
+    bar: "bg-[#795252]",
     badgeBg: "bg-[#795252]",
     badgeText: "text-white",
   },
@@ -54,7 +54,7 @@ const URGENCY_STYLES: Record<string, {
     stripBg: "bg-[#946a6a]",
     iconBox: "bg-[#946a6a]/10",
     iconColor: "text-[#946a6a]",
-    bar: "bg-gradient-to-r from-[#946a6a] to-[#b48585]",
+    bar: "bg-[#946a6a]",
     badgeBg: "bg-[#946a6a]",
     badgeText: "text-white",
   },
@@ -95,7 +95,7 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
           <div className="flex min-w-0 items-center gap-2.5">
             <Clock className="h-4 w-4 shrink-0 text-[#36534E]" />
             <h3 className="min-w-0 truncate text-[14px] font-semibold text-[#071629]">
-              임박 체크리스트
+              날짜를 정할 항목
             </h3>
             <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">{items.length}건</span>
           </div>
@@ -172,6 +172,9 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
               );
             })}
           </div>
+          <p className="border-t border-[#eadfc9]/70 px-4 py-3 text-[11px] leading-5 text-[#7a8290]">
+            표시 순서는 기본 일정 기준이며, 업체나 가족과 정한 실제 날짜가 우선입니다.
+          </p>
         </div>
       )}
     </div>

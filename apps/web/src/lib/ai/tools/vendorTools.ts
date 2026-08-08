@@ -331,7 +331,7 @@ export async function executeSearchVendors(
   const admin = getAdminClient();
   let query = admin
     .from("vendors")
-    .select("id, slug, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend")
+    .select("id, slug, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags")
     .eq("status", "approved")
     .limit(boundedToolLimit(input.limit, 5, MAX_LEGACY_VENDOR_SEARCH_RESULTS));
 
@@ -389,7 +389,6 @@ export async function executeSearchVendors(
       rating: vendor.rating,
       reviewCount: vendor.review_count,
       tags: vendor.tags,
-      aiRecommend: vendor.ai_recommend,
       link: weddingPath(`/vendors/${vendor.id}`),
     });
 
@@ -472,7 +471,7 @@ export async function executeCheckVendorAvailability(
         toolInput: input,
         toolOutput: { error: "invalid_product_vendor", vendorId, productId },
         success: false,
-        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약 가능 시간을 확인하지 않았습니다.",
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 방문·상담 시간 후보를 확인하지 않았습니다.",
       };
     }
   }
@@ -525,6 +524,7 @@ export async function executeCheckVendorAvailability(
     .select("booking_date, booking_time")
     .eq("vendor_id", vendorId)
     .in("booking_date", dateStrings)
+    .neq("vendor_delivery_status", "not_sent")
     .neq("status", "cancelled");
 
   if (productOwnsSchedule && productId) {
@@ -565,7 +565,7 @@ export async function executeCheckVendorAvailability(
     toolOutput: { vendorName: vendor.name, slots: availableSlots, count: availableSlots.length },
     success: true,
     displayMessage: availableSlots.length > 0
-      ? `${vendor.name}의 예약 가능 시간 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((slot) => `${slot.dateTimeLabel}(잔여${slot.remaining}석)`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}`
+      ? `${vendor.name}에 등록된 방문·상담 시간 후보 ${availableSlots.length}개: ${availableSlots.slice(0, 5).map((slot) => `${slot.dateTimeLabel}(참고 잔여 ${slot.remaining})`).join(", ")}${availableSlots.length > 5 ? " ..." : ""}. 실제 가능 여부와 예약 확정은 업체 확인이 필요해요.`
       : `${vendor.name}은(는) 현재 예약 가능한 시간이 없습니다.`,
   };
 }
@@ -750,7 +750,7 @@ export async function executeRecommendVendors(
 
   let query = admin
     .from("vendors")
-    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend, description")
+    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, description")
     .eq("status", "approved")
     .eq("category", dbCat)
     .order("rating", { ascending: false })
@@ -848,7 +848,6 @@ export async function executeRecommendVendors(
   const days = ["월", "화", "수", "목", "금", "토", "일"];
   const results = selected.map((vendor) => {
     const reasons: string[] = [];
-    if (vendor.ai_recommend) reasons.push("한방 큐레이션 후보");
     if (mood) {
       const moodScore = (vendor as Record<string, unknown>)._moodScore as number ?? 0;
       if (moodScore > 0) reasons.push(`'${mood}' 분위기 매칭`);
@@ -866,7 +865,7 @@ export async function executeRecommendVendors(
       reasons.push(`${location} 지역`);
     }
     if (vendor.review_count > 10) reasons.push(`리뷰 ${vendor.review_count}개`);
-    if (reasons.length === 0) reasons.push("카테고리 인기 업체");
+    if (reasons.length === 0) reasons.push("조건과 일치하는 검색 결과");
 
     return {
       id: vendor.id,

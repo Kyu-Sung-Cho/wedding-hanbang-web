@@ -1,4 +1,5 @@
 import AuthenticatedAppShell from "./AuthenticatedAppShell";
+import JourneyRealtimeSync from "@/components/app/JourneyRealtimeSync";
 
 /**
  * (app) 그룹 서버 컴포넌트 가드.
@@ -18,5 +19,10 @@ export default async function AppServerGuard({
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthenticatedAppShell>{children}</AuthenticatedAppShell>;
+  return (
+    <AuthenticatedAppShell>
+      <JourneyRealtimeSync />
+      {children}
+    </AuthenticatedAppShell>
+  );
 }

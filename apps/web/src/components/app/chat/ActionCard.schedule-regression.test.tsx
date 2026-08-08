@@ -60,7 +60,7 @@ describe("ActionCard schedule mutation regression", () => {
       root.render(<ActionCard result={result()} />);
     });
 
-    const change = container.querySelector('[aria-label="드레스/턱시도 상태 변경 결과"]');
+    const change = container.querySelector('[aria-label="드레스·예식 정장 상태 변경 결과"]');
     expect(change?.textContent).toContain("완료");
     expect(container.textContent).not.toContain("후보 예식장 찾기");
     expect(container.textContent).not.toContain("1/2");
@@ -86,7 +86,7 @@ describe("ActionCard schedule mutation regression", () => {
       );
     });
 
-    const change = container.querySelector('[aria-label="예식장 체크리스트 변경 결과"]');
+    const change = container.querySelector('[aria-label="결혼식장 체크리스트 변경 결과"]');
     expect(change?.textContent).toContain("견적 비교");
     expect(change?.textContent).toContain("완료");
     expect(container.textContent).not.toContain("후보 예식장 찾기");

@@ -175,7 +175,7 @@ export function buildWeddingSettingsPatch(
       venue !== null &&
       (Array.from(venue).length > 120 || hasControlCharacter(venue))
     ) {
-      throw new Error("예식장은 120자 이내로 입력해주세요.");
+      throw new Error("결혼식장 이름은 120자 이내로 입력해주세요.");
     }
     addChange(changes, expected, "venue", venue, snapshot.venue);
   }

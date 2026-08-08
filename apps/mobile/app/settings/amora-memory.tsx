@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -22,7 +22,12 @@ import {
   X,
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
-import { apiJson } from "@/lib/api";
+import { apiJsonForExpectedUser } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import {
+  createOwnerCoupleSessionFence,
+  type OwnerCoupleSessionToken,
+} from "@/lib/ownerCoupleSessionFence.mjs";
 import {
   AppHeader,
   AppText,
@@ -83,23 +88,120 @@ export default function AmoraMemoryScreen() {
   const [editing, setEditing] = useState<MemoryItem | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editValue, setEditValue] = useState("");
+  const sessionFenceRef = useRef(createOwnerCoupleSessionFence()).current;
+  const loadSequenceRef = useRef(0);
+
+  // 계정·커플이 바뀌면 이전 identity에 묶인 화면 상태를 렌더 뒤가 아니라 즉시 비운다.
+  const clearIdentityBoundState = useCallback(() => {
+    setData(null);
+    setActiveVisibility("shared");
+    setEditing(null);
+    setEditTitle("");
+    setEditValue("");
+    setError(null);
+  }, []);
+
+  const isOwnerCurrent = useCallback(async (sequence: number, ownerId: string) => {
+    if (loadSequenceRef.current !== sequence) return false;
+    const { data: sessionData } = await supabase.auth.getSession();
+    return sessionData.session?.user.id.toLowerCase() === ownerId.toLowerCase()
+      && loadSequenceRef.current === sequence;
+  }, []);
+
+  const isLoadCommitCurrent = useCallback(async (
+    sequence: number,
+    token: OwnerCoupleSessionToken,
+  ) => {
+    if (
+      loadSequenceRef.current !== sequence
+      || !sessionFenceRef.isCurrent(token)
+    ) return false;
+    const { data: sessionData } = await supabase.auth.getSession();
+    return sessionData.session?.user.id.toLowerCase() === token.ownerId
+      && loadSequenceRef.current === sequence
+      && sessionFenceRef.isCurrent(token);
+  }, [sessionFenceRef]);
 
   const load = useCallback(async () => {
+    const sequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = sequence;
     setLoading(true);
     setError(null);
     try {
-      const payload = await apiJson<MemoryResponse>("/api/amora/memory");
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (loadSequenceRef.current !== sequence) return;
+      const ownerId = sessionData.session?.user.id ?? null;
+      if (sessionFenceRef.setOwner(ownerId)) clearIdentityBoundState();
+      if (!ownerId) {
+        clearIdentityBoundState();
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("couple_id")
+        .eq("id", ownerId)
+        .single();
+      if (!(await isOwnerCurrent(sequence, ownerId))) return;
+
+      if (!profile?.couple_id) {
+        sessionFenceRef.clearCouple(ownerId);
+        clearIdentityBoundState();
+        setError("커플 연결을 확인한 뒤 기억을 볼 수 있어요.");
+        return;
+      }
+
+      if (sessionFenceRef.setIdentity(ownerId, profile.couple_id)) {
+        clearIdentityBoundState();
+      }
+      const token = sessionFenceRef.capture();
+      if (!token || !(await isLoadCommitCurrent(sequence, token))) return;
+
+      const payload = await apiJsonForExpectedUser<MemoryResponse>(
+        token.ownerId,
+        "/api/amora/memory",
+      );
+      // 응답을 기다리는 사이 계정이나 커플이 바뀌었으면 한 글자도 반영하지 않는다.
+      if (!(await isLoadCommitCurrent(sequence, token))) return;
       setData(payload);
       const available = payload.settings.map((setting) => setting.visibility);
       setActiveVisibility((current) => available.includes(current) ? current : available[0] ?? "shared");
     } catch (loadError) {
+      if (loadSequenceRef.current !== sequence) return;
       setError(loadError instanceof Error ? loadError.message : "기억을 불러오지 못했어요.");
     } finally {
-      setLoading(false);
+      if (loadSequenceRef.current === sequence) setLoading(false);
     }
-  }, []);
+  }, [
+    clearIdentityBoundState,
+    isLoadCommitCurrent,
+    isOwnerCurrent,
+    sessionFenceRef,
+  ]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    let disposed = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const ownerId = session?.user.id ?? null;
+        if (!sessionFenceRef.setOwner(ownerId)) return;
+        loadSequenceRef.current += 1;
+        clearIdentityBoundState();
+        setLoading(true);
+        setTimeout(() => {
+          if (!disposed) void load();
+        }, 0);
+      },
+    );
+    return () => {
+      disposed = true;
+      loadSequenceRef.current += 1;
+      sessionFenceRef.setOwner(null);
+      subscription.unsubscribe();
+    };
+  }, [clearIdentityBoundState, load, sessionFenceRef]);
 
   const setting = data?.settings.find((item) => item.visibility === activeVisibility);
   const memories = useMemo(
@@ -108,7 +210,12 @@ export default function AmoraMemoryScreen() {
   );
 
   async function patch(body: Record<string, unknown>) {
-    await apiJson("/api/amora/memory", {
+    // 쓰기도 같은 identity에 결박한다. 계정 전환 중이면 요청 자체를 보내지 않는다.
+    const token = sessionFenceRef.capture();
+    if (!token) {
+      throw new Error("계정을 확인하고 있어요. 잠시 후 다시 시도해주세요.");
+    }
+    await apiJsonForExpectedUser(token.ownerId, "/api/amora/memory", {
       method: "PATCH",
       body: JSON.stringify(body),
     });

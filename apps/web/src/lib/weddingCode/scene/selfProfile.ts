@@ -1,0 +1,279 @@
+import {
+  WEDDING_CODE_V06_AXES,
+  WEDDING_CODE_V06_QUESTIONS,
+  type WeddingCodeV06Axis,
+  type WeddingCodeV06AxisKey,
+  type WeddingCodeV06OptionValue,
+  type WeddingCodeV06Question,
+} from "@/constants/weddingCodeV06";
+import {
+  WEDDING_CODE_CHECK_PHRASE,
+  WEDDING_CODE_SELF_READING,
+  type WeddingCodeReadableConstructKey,
+  type WeddingCodeSelfLean,
+} from "@/constants/weddingCodeSelfReading";
+import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
+
+/**
+ * 개인 결과 — **내가 고른 답의 집계**.
+ *
+ * ## 판정과 무엇이 다른가
+ *
+ * 심리검사는 응답에서 **보이지 않는 특성**을 추정한다(「당신은 신중한 사람입니다」).
+ * 여기서는 추정하지 않는다. 계산하는 것은 세 가지뿐이다.
+ *
+ * 1. 같은 축 네 장면에서 어느 쪽 답을 몇 번 골랐나 — **셈**
+ * 2. 그 답의 실제 문장 — **인용**
+ * 3. 한 번도 고르지 않은 쪽이 무엇인가 — **부재**
+ *
+ * 셋 다 사용자가 30초 전에 직접 남긴 사실이고, 화면에서 근거(장면과 문장)와 함께
+ * 보여주므로 사용자가 직접 반증할 수 있다. 유형·점수·등급·궁합·관계 예측은 만들지 않는다.
+ *
+ * ## 왜 「부재」까지 세나
+ *
+ * 자기 파악에서 실제로 새로운 정보는 **자기가 안 고른 것**이다. 금액을 먼저 보는 사람은
+ * 자기가 그런다는 걸 대체로 안다. 네 장면 내내 「우리가 원하는 느낌인지」를 한 번도
+ * 먼저 고르지 않았다는 사실은 보여주기 전에는 모른다. 그래서 `missingPhrases`가 있다.
+ */
+
+const READABLE_CONSTRUCTS = new Set<string>(Object.keys(WEDDING_CODE_CHECK_PHRASE));
+
+export type WeddingCodeSelfQuote = Readonly<{ scene: string; label: string }>;
+
+export type WeddingCodeSelfAxisReading = Readonly<{
+  axis: WeddingCodeV06AxisKey;
+  /** 축 이름은 주제 이름이지 유형 이름이 아니다. */
+  axisLabel: string;
+  lean: WeddingCodeSelfLean;
+  title: string;
+  leftLabel: string;
+  rightLabel: string;
+  leftCount: number;
+  rightCount: number;
+  answered: number;
+  /** 많이 고른 쪽 문장을 먼저. 균형이면 양쪽에서 하나씩. */
+  evidence: readonly WeddingCodeSelfQuote[];
+  /** 한 번도 고르지 않은 쪽 문장. 비어 있으면 양쪽 다 고른 것이다. */
+  missingPhrases: readonly string[];
+  tellPartner: string;
+  watchOut: string;
+}>;
+
+export type WeddingCodeRepeatedCheck = Readonly<{
+  construct: WeddingCodeReadableConstructKey;
+  phrase: string;
+  count: number;
+}>;
+
+export type WeddingCodeSelfProfile = Readonly<{
+  answered: number;
+  total: number;
+  complete: boolean;
+  /** 열여섯 장면 전체에서 가장 자주 먼저 고른 확인. 동률이면 모두 담는다. */
+  repeated: readonly WeddingCodeRepeatedCheck[];
+  axes: readonly WeddingCodeSelfAxisReading[];
+}>;
+
+export type WeddingCodeSelfProfileOptions = Readonly<{
+  questions?: readonly WeddingCodeV06Question[];
+  axes?: readonly WeddingCodeV06Axis[];
+}>;
+
+/**
+ * 한 선택지가 대표하는 확인 대상.
+ *
+ * 선택지에는 가중치가 여러 개 붙을 수 있고(`decisionPaceRisk`처럼 사용자에게 노출하지
+ * 않는 것도 있다), 대표값은 가장 무거운 **공개 가능한** 구성개념 하나다. 노출 금지
+ * 구성개념은 여기서 조용히 걸러진다.
+ */
+function primaryConstruct(
+  question: WeddingCodeV06Question,
+  value: WeddingCodeV06OptionValue,
+): WeddingCodeReadableConstructKey | null {
+  const option = question.options.find((item) => item.value === value);
+  if (!option) return null;
+  const readable = option.weights
+    .filter((weight) => READABLE_CONSTRUCTS.has(weight.construct))
+    .sort((a, b) => b.value - a.value);
+  return (readable[0]?.construct as WeddingCodeReadableConstructKey) ?? null;
+}
+
+function sideOf(
+  question: WeddingCodeV06Question,
+  value: WeddingCodeV06OptionValue,
+  axis: WeddingCodeV06Axis,
+): "left" | "right" | null {
+  const option = question.options.find((item) => item.value === value);
+  if (!option) return null;
+  const left = axis.left.constructs as readonly string[];
+  return option.weights.some((weight) => left.includes(weight.construct)) ? "left" : "right";
+}
+
+/** 그 축에서 그 편에 놓인 선택지들이 대표하는 확인 대상(중복 제거). */
+function phrasesForSide(
+  questions: readonly WeddingCodeV06Question[],
+  axis: WeddingCodeV06Axis,
+  side: "left" | "right",
+): readonly string[] {
+  const phrases: string[] = [];
+  for (const question of questions) {
+    if (question.axis !== axis.key) continue;
+    for (const option of question.options) {
+      if (sideOf(question, option.value, axis) !== side) continue;
+      const construct = primaryConstruct(question, option.value);
+      if (!construct) continue;
+      const phrase = WEDDING_CODE_CHECK_PHRASE[construct];
+      if (!phrases.includes(phrase)) phrases.push(phrase);
+    }
+  }
+  return phrases;
+}
+
+/**
+ * 응답 하나에서 개인 결과를 만든다.
+ *
+ * 답하지 않은 문항은 세지 않는다 — 안 고른 것을 고른 것처럼 집계하면 이 제품에서
+ * 제일 나쁜 종류의 거짓말이 된다.
+ */
+export function buildWeddingCodeSelfProfile(
+  answers: WeddingCodeV06Answers,
+  options: WeddingCodeSelfProfileOptions = {},
+): WeddingCodeSelfProfile {
+  const questions = options.questions ?? WEDDING_CODE_V06_QUESTIONS;
+  const axes = options.axes ?? WEDDING_CODE_V06_AXES;
+
+  const counts = new Map<WeddingCodeReadableConstructKey, number>();
+  let answeredTotal = 0;
+
+  const axisReadings: WeddingCodeSelfAxisReading[] = [];
+
+  for (const axis of axes) {
+    const axisQuestions = questions.filter((question) => question.axis === axis.key);
+    const leftQuotes: WeddingCodeSelfQuote[] = [];
+    const rightQuotes: WeddingCodeSelfQuote[] = [];
+    const chosenPhrases = new Set<string>();
+
+    for (const question of axisQuestions) {
+      const value = answers[question.key];
+      if (!value) continue;
+      const option = question.options.find((item) => item.value === value);
+      const side = sideOf(question, value, axis);
+      if (!option || !side) continue;
+
+      answeredTotal += 1;
+      const construct = primaryConstruct(question, value);
+      if (construct) {
+        counts.set(construct, (counts.get(construct) ?? 0) + 1);
+        chosenPhrases.add(WEDDING_CODE_CHECK_PHRASE[construct]);
+      }
+      (side === "left" ? leftQuotes : rightQuotes).push({
+        scene: question.scene,
+        label: option.label,
+      });
+    }
+
+    const leftCount = leftQuotes.length;
+    const rightCount = rightQuotes.length;
+    const answered = leftCount + rightCount;
+    const lean: WeddingCodeSelfLean =
+      leftCount === rightCount ? "mixed" : leftCount > rightCount ? "left" : "right";
+
+    const dominant = lean === "right" ? rightQuotes : leftQuotes;
+    const other = lean === "right" ? leftQuotes : rightQuotes;
+    const evidence =
+      lean === "mixed"
+        ? [leftQuotes[0], rightQuotes[0]].filter(Boolean).slice(0, 2)
+        : [...dominant.slice(0, 2), ...other.slice(0, 1)].slice(0, 2);
+
+    // 「한 번도 안 고른 것」은 고르지 않은 편 전체가 아니라, 그 편에서 실제로 한 번도
+    // 대표되지 않은 확인 대상이다. 축 A는 한 편에 확인 대상이 둘이라 부분적으로 빌 수 있다.
+    const unchosenSide = lean === "left" ? "right" : lean === "right" ? "left" : null;
+    const missingPhrases = unchosenSide
+      ? phrasesForSide(questions, axis, unchosenSide).filter(
+        (phrase) => !chosenPhrases.has(phrase),
+      )
+      : [];
+
+    const copy = WEDDING_CODE_SELF_READING[axis.key][lean];
+    axisReadings.push({
+      axis: axis.key,
+      axisLabel: axis.labelKo,
+      lean,
+      title: copy.title,
+      leftLabel: axis.left.labelKo,
+      rightLabel: axis.right.labelKo,
+      leftCount,
+      rightCount,
+      answered,
+      evidence,
+      missingPhrases,
+      tellPartner: copy.tellPartner,
+      watchOut: copy.watchOut,
+    });
+  }
+
+  const max = Math.max(0, ...counts.values());
+  const repeated: WeddingCodeRepeatedCheck[] = max === 0
+    ? []
+    : [...counts.entries()]
+      .filter(([, count]) => count === max)
+      .map(([construct, count]) => ({
+        construct,
+        phrase: WEDDING_CODE_CHECK_PHRASE[construct],
+        count,
+      }))
+      // 같은 응답이면 언제 열어도 같은 순서로 보여야 한다.
+      .sort((a, b) => a.construct.localeCompare(b.construct));
+
+  return {
+    answered: answeredTotal,
+    total: questions.length,
+    complete: answeredTotal === questions.length,
+    repeated,
+    axes: axisReadings,
+  };
+}
+
+/**
+ * 「네 장면 중 세 곳에서」처럼 셈을 그대로 읽어주는 사실 문장.
+ *
+ * 카피 상수가 아니라 여기서 만든다 — 숫자가 화면에 뜨는 문장은 반드시 실제 응답에서
+ * 나와야 하고, 손으로 쓴 문장이 그 자리를 대신하면 안 되기 때문이다.
+ */
+export function describeSelfAxisReading(reading: WeddingCodeSelfAxisReading): string {
+  const { leftCount, rightCount, answered, leftLabel, rightLabel } = reading;
+  if (answered === 0) return "이 주제는 아직 답하지 않았어요.";
+  if (reading.lean === "mixed") {
+    return `네 장면 중 ${leftLabel} 쪽이 ${leftCount}곳, ${rightLabel} 쪽이 ${rightCount}곳이었어요.`;
+  }
+  const count = Math.max(leftCount, rightCount);
+  const label = leftCount > rightCount ? leftLabel : rightLabel;
+  return `답한 ${answered}장면 중 ${count}곳에서 ${label} 쪽 문장을 골랐어요.`;
+}
+
+/**
+ * 받침에 맞는 조사를 고른다.
+ *
+ * 문항 문구가 바뀔 때마다 사람이 「을/를」을 다시 손보게 두면 언젠가 틀린 채로 나간다.
+ * 인용부호로 끝나는 문장이 많아서, 따옴표·괄호를 걷어낸 **마지막 한글 글자**로 판단한다.
+ */
+export function withJosa(word: string, withBatchim: string, withoutBatchim: string): string {
+  const stripped = word.replace(/[”"’'’」』)\]\s]+$/u, "");
+  const last = stripped.charCodeAt(stripped.length - 1);
+  if (Number.isNaN(last) || last < 0xac00 || last > 0xd7a3) return `${word}${withoutBatchim}`;
+  return `${word}${(last - 0xac00) % 28 === 0 ? withoutBatchim : withBatchim}`;
+}
+
+/** 한 번도 고르지 않은 확인이 있으면 그것을 말한다. 없으면 조용히 비운다. */
+export function describeSelfAxisAbsence(
+  reading: WeddingCodeSelfAxisReading,
+): string | null {
+  if (reading.missingPhrases.length === 0) return null;
+  const quoted = reading.missingPhrases.map((phrase) => `“${phrase}”`);
+  const joined = quoted
+    .slice(0, -1)
+    .map((phrase) => withJosa(phrase, "과", "와"))
+    .concat(quoted[quoted.length - 1])
+    .join(" ");
+  return `${withJosa(joined, "을", "를")} 먼저 보는 답은 한 번도 고르지 않았어요.`;
+}

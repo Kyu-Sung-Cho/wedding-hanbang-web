@@ -1,5 +1,6 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { objectParticle } from "@/lib/ai/tools/toolTypes";
+import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
@@ -13,7 +14,6 @@ export type AmoraLifecycleStage =
   | "wedding_day"
   | "aftercare";
 
-export type AmoraRiskLevel = "calm" | "watch" | "urgent";
 export type AmoraGuardrailSeverity = "critical" | "warning" | "steady" | "celebrate";
 export type AmoraActionIconKey =
   | "calendar"
@@ -23,7 +23,6 @@ export type AmoraActionIconKey =
   | "chat"
   | "invitation"
   | "script"
-  | "money"
   | "community";
 
 export interface AmoraGuardrail {
@@ -60,9 +59,6 @@ export interface AmoraLifecyclePlan {
   stage: AmoraLifecycleStage;
   stageLabel: string;
   stageSummary: string;
-  riskLevel: AmoraRiskLevel;
-  riskLabel: string;
-  riskScore: number;
   progressPercent: number;
   totalDone: number;
   totalItems: number;
@@ -87,37 +83,37 @@ const PHASES = [
   { id: "foundation", label: "기초 결정", keys: ["meeting", "venue"] },
   { id: "core", label: "핵심 계약", keys: ["studio", "dress", "makeup", "ring"] },
   { id: "life", label: "생활 준비", keys: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
-  { id: "final", label: "본식 마무리", keys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
+  { id: "final", label: "결혼식 마무리", keys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
 ];
 
 const STAGE_COPY: Record<AmoraLifecycleStage, { label: string; summary: string }> = {
   setup: {
-    label: "웨딩 라운지 세팅",
-    summary: "예식일과 예산을 먼저 잡으면 아모라가 모든 알림을 정확히 맞출 수 있어요.",
+    label: "기본 정보 입력",
+    summary: "결혼식 날짜와 예산을 입력하면 아모라가 준비 일정을 날짜에 맞춰 정리해요.",
   },
   foundation: {
     label: "기초 결정기",
-    summary: "상견례, 예식장, 큰 예산 방향을 안정적으로 잡아야 이후 선택이 쉬워져요.",
+    summary: "양쪽 부모님의 첫 만남, 결혼식장, 전체 예산처럼 큰 결정을 정리하는 시기예요.",
   },
   core_contracts: {
     label: "핵심 계약기",
-    summary: "스드메와 예물은 견적의 빠진 항목을 먼저 확인하고 계약하는 구간이에요.",
+    summary: "사진 촬영·드레스·헤어·메이크업과 결혼반지·기념 선물의 견적 내용을 확인하고 계약하는 시기예요.",
   },
   detail_planning: {
     label: "세부 준비기",
-    summary: "청첩장, 혼수, 신혼여행, 가족 합의처럼 놓치기 쉬운 일을 정리할 때예요.",
+    summary: "종이·모바일 초대장, 가전·가구·생활용품, 신혼여행, 가족 합의처럼 놓치기 쉬운 일을 정리할 때예요.",
   },
   final_countdown: {
-    label: "본식 카운트다운",
-    summary: "대본, 하객 안내, 답례품, 당일 동선을 실수 없이 잠그는 구간이에요.",
+    label: "결혼식 전 최종 확인",
+    summary: "진행 대본, 하객 안내, 결혼식에 온 분께 드릴 선물, 당일 이동 순서를 마지막으로 확인하는 시기예요.",
   },
   wedding_day: {
-    label: "본식 당일",
+    label: "결혼식 당일",
     summary: "오늘은 새 결정을 줄이고, 동선과 전달사항만 차분히 확인하면 돼요.",
   },
   aftercare: {
-    label: "식후 감사 정리",
-    summary: "감사 인사, 축의금 기록, 후기, 앨범 수령까지 마무리해야 진짜 끝나요.",
+    label: "결혼식 뒤 감사 정리",
+    summary: "감사 인사, 사진·영상·앨범 받기와 빌린 물품 반납처럼 남은 일을 정리해요.",
   },
 };
 
@@ -129,11 +125,9 @@ function toDate(value: BuildAmoraLifecyclePlanInput["weddingDate"]): Date | null
 
 function getDday(weddingDate: Date | null, now: Date): number | null {
   if (!weddingDate) return null;
-  const weddingMidnight = new Date(weddingDate);
-  weddingMidnight.setHours(0, 0, 0, 0);
-  const todayMidnight = new Date(now);
-  todayMidnight.setHours(0, 0, 0, 0);
-  return Math.ceil((weddingMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+  const weddingMidnight = kstMidnightFromYmd(ymdInKst(weddingDate));
+  const todayMidnight = kstMidnightFromYmd(ymdInKst(now));
+  return Math.round((weddingMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function getStage(dday: number | null): AmoraLifecycleStage {
@@ -174,9 +168,11 @@ function getOverallCounts(progress: Record<string, ProgressItem | unknown>) {
 function getSpentBudget(progress: Record<string, ProgressItem | unknown>): number {
   return Object.entries(progress).reduce((sum, [key, value]) => {
     if (key.startsWith("__")) return sum;
-    const item = value as { spent?: unknown; cost?: unknown } | undefined;
-    const amount = Number(item?.spent ?? item?.cost ?? 0);
-    return Number.isFinite(amount) ? sum + amount : sum;
+    const item = value as { spent?: unknown } | undefined;
+    const amount = item?.spent;
+    return typeof amount === "number" && Number.isFinite(amount) && amount >= 0
+      ? sum + amount
+      : sum;
   }, 0);
 }
 
@@ -221,8 +217,8 @@ function makeCategoryGuardrail(
     id: `category_${key}_${severity}`,
     title: `${label}${objectParticle(label)} 놓치지 않게 볼게요`,
     body: isOverdue
-      ? `권장 마감보다 ${Math.abs(daysUntilDeadline)}일 늦었어요. 오늘 체크리스트에서 빠진 항목부터 잠가요.`
-      : `권장 마감까지 ${daysUntilDeadline}일 남았어요. 지금 열어두면 급하게 결정하지 않아도 돼요.`,
+      ? `기본 일정의 확인 시점보다 ${Math.abs(daysUntilDeadline)}일 지났어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`
+      : `기본 일정의 확인 시점까지 ${daysUntilDeadline}일 남았어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`,
     href: weddingPath("/schedule"),
     cta: "체크리스트",
     severity,
@@ -255,8 +251,8 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
   if (!weddingDate) {
     guardrails.push({
       id: "missing_wedding_date",
-      title: "예식일을 먼저 잡아둘게요",
-      body: "D-day가 있어야 일정, 청첩장, 본식 준비, 식후 감사 인사까지 정확히 이어져요.",
+      title: "결혼식 날짜를 먼저 입력해 주세요",
+      body: "결혼식 날짜가 있어야 일정, 초대장 전달, 당일 준비, 결혼식 뒤 감사 인사를 날짜에 맞춰 정리할 수 있어요.",
       href: weddingPath("/settings"),
       cta: "날짜 설정",
       severity: "critical",
@@ -267,8 +263,8 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
   if (totalBudget <= 0) {
     guardrails.push({
       id: "missing_total_budget",
-      title: "전체 예산을 세우면 실수가 줄어요",
-      body: "아모라가 견적과 숨은 추가금을 예산 안에서 같이 봐줄 수 있어요.",
+      title: "전체 예산을 입력하면 비교 기준이 생겨요",
+      body: "아모라가 견적 금액과 견적에 포함되지 않은 항목을 예산과 함께 정리할 수 있어요.",
       href: weddingPath("/budget"),
       cta: "예산 입력",
       severity: weddingDate ? "warning" : "steady",
@@ -277,8 +273,8 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
   } else if (budgetPercent >= 100) {
     guardrails.push({
       id: "budget_over_limit",
-      title: "예산을 이미 넘었어요",
-      body: "계약 전 항목, 추가금, 부모님 분담 항목을 다시 나눠서 정리해야 해요.",
+      title: "기록 지출 합계가 전체 예산보다 커요",
+      body: "직접 기록한 금액 기준이며 결제 완료 여부와는 별도예요. 누락·중복을 확인하고 계약 전 항목, 추가금, 가족 분담 항목을 다시 나눠서 정리해요.",
       href: weddingPath("/budget"),
       cta: "예산 보기",
       severity: "critical",
@@ -288,7 +284,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     guardrails.push({
       id: "budget_near_limit",
       title: "예산 여유가 줄고 있어요",
-      body: "남은 큰 지출을 먼저 표시하고, 견적서에 빠진 비용이 없는지 점검하세요.",
+      body: "앞으로 예상하는 큰 금액을 먼저 표시하고, 견적서에 빠진 비용이 없는지 점검하세요.",
       href: weddingPath("/budget"),
       cta: "예산 점검",
       severity: "warning",
@@ -327,7 +323,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       guardrails.push({
         id: "quote_before_contract",
         title: "받은 견적은 계약 전 한번 점검해요",
-        body: "원본, 수정본, 헬퍼비, 얼리스타트처럼 나중에 붙는 비용을 먼저 확인해요.",
+        body: "받는 사진 파일 수, 보정해 주는 사진 수, 드레스를 돕는 직원 비용, 이른 시간 추가 비용을 확인해요.",
         href: weddingPath("/community/quote-check"),
         cta: "견적 체크리스트",
         severity: "warning",
@@ -338,8 +334,8 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     if (dday <= 45) {
       guardrails.push({
         id: "final_script_ready",
-        title: "본식 문구와 진행을 준비해요",
-        body: "사회자 대본, 부모님 편지, 하객 안내, 감사 인사 초안을 아모라와 함께 잡아두면 당일이 편해져요.",
+        title: "결혼식 문구와 진행 순서를 준비해요",
+        body: "결혼식을 진행하는 사람이 읽을 대본, 부모님 편지, 하객 안내, 감사 인사 초안을 아모라와 함께 정리해 두세요.",
         href: weddingPath("/chat"),
         cta: "아모라와 준비",
         severity: dday <= 14 ? "critical" : "warning",
@@ -352,20 +348,20 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     guardrails.push({
       id: "aftercare_thanks",
       title: "식 후 감사 인사까지 같이 챙길게요",
-      body: "축의금 정리, 감사 문자, 업체 후기, 앨범 수령 일정을 이어서 관리하세요.",
+      body: "감사 인사를 보낼 사람과 문구를 정리하고, 아직 받지 못한 사진·영상·앨범 일정을 확인하세요.",
       href: weddingPath("/chat"),
       cta: "감사 문구",
       severity: "warning",
       iconKey: "script",
     });
     guardrails.push({
-      id: "aftercare_money",
-      title: "받은 마음을 기록해둘게요",
-      body: "축의금과 참석 여부를 남기면 나중에 감사 인사와 경조사 왕래를 놓치지 않아요.",
-      href: weddingPath("/money"),
-      cta: "축의금 정리",
+      id: "aftercare_tasks",
+      title: "결혼식 뒤 남은 일을 일정에 모아두세요",
+      body: "사진·영상·앨범 받기, 빌린 물품 반납, 업체와 다시 확인할 날짜를 할 일·일정에 적어두세요.",
+      href: weddingPath("/schedule"),
+      cta: "남은 일 정리",
       severity: "steady",
-      iconKey: "money",
+      iconKey: "schedule",
     });
   }
 
@@ -391,18 +387,6 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     return order[a.severity] - order[b.severity];
   });
 
-  const riskScore = Math.min(
-    100,
-    orderedGuardrails.reduce((score, item) => {
-      if (item.severity === "critical") return score + 34;
-      if (item.severity === "warning") return score + 18;
-      if (item.severity === "steady") return score + 6;
-      return score;
-    }, budgetPercent >= 100 ? 10 : 0)
-  );
-  const riskLevel: AmoraRiskLevel = riskScore >= 55 ? "urgent" : riskScore >= 20 ? "watch" : "calm";
-  const riskLabel = riskLevel === "urgent" ? "지금 점검" : riskLevel === "watch" ? "주의 관찰" : "안정";
-
   const quickActions: AmoraQuickAction[] = [
     {
       id: "quote",
@@ -427,7 +411,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     },
     {
       id: "script",
-      label: dday !== null && dday < 0 ? "감사 인사" : "본식 문구",
+      label: dday !== null && dday < 0 ? "감사 인사" : "결혼식 문구",
       text: "식 전후 문구는 아모라와 함께",
       href: weddingPath("/chat"),
       iconKey: "script",
@@ -439,9 +423,6 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     stage,
     stageLabel: stageCopy.label,
     stageSummary: stageCopy.summary,
-    riskLevel,
-    riskLabel,
-    riskScore,
     progressPercent,
     totalDone: overall.done,
     totalItems: overall.total,

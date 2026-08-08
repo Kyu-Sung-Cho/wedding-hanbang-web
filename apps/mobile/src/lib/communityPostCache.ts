@@ -1,4 +1,10 @@
 import type { CommunityAvatarRole } from "@/components/community/CommunityAvatar";
+import type {
+  CommunityAdDisclosure,
+  CommunityContentOrigin,
+} from "./communityTrust.mjs";
+import { createCommunityCacheStore } from "./communityCacheStore.mjs";
+import type { CommunityCacheScopeToken } from "./communityCacheSession.mjs";
 
 export type CachedCommunityAuthor = {
   nickname: string;
@@ -8,10 +14,15 @@ export type CachedCommunityAuthor = {
 
 export type CachedCommunityPost = {
   id: string;
+  author_id?: string;
   title: string;
   content: string;
   category: string;
-  ad_disclosure?: string | null;
+  content_origin: CommunityContentOrigin;
+  ad_disclosure: CommunityAdDisclosure;
+  sponsorship_detail: string | null;
+  is_resolved: boolean;
+  under_review: boolean;
   upvote_count: number;
   downvote_count: number;
   comment_count: number;
@@ -23,81 +34,89 @@ export type CachedCommunityPost = {
 
 export type CachedCommunityComment = {
   id: string;
+  author_id?: string;
   content: string;
   created_at: string;
+  content_origin: CommunityContentOrigin;
   author: CachedCommunityAuthor;
 };
 
-const POST_TTL_MS = 2 * 60_000;
-const COMMENT_TTL_MS = 30_000;
+export type CachedCommunityCohort<TMyCohort, TCohortRoom> = {
+  myCohort: TMyCohort | null;
+  cohortRooms: TCohortRoom[];
+};
 
-const postCache = new Map<string, { post: CachedCommunityPost; cachedAt: number }>();
-const commentCache = new Map<string, { comments: CachedCommunityComment[]; cachedAt: number }>();
-const feedCache = new Map<string, { posts: CachedCommunityPost[]; cachedAt: number }>();
+export type { CommunityCacheScopeToken };
+
+const communityCache = createCommunityCacheStore();
+
+export function setCommunityCacheViewer(viewerId: string | null) {
+  return communityCache.setViewer(viewerId);
+}
+
+export function captureCommunityCacheScope() {
+  return communityCache.capture();
+}
+
+export function isCommunityCacheScopeCurrent(token: CommunityCacheScopeToken | null) {
+  return communityCache.isCurrent(token);
+}
 
 export function getCachedCommunityFeed<T extends CachedCommunityPost>(
   category: string | null | undefined,
 ) {
-  if (!category) return null;
-
-  return (feedCache.get(category)?.posts as T[] | undefined) ?? null;
+  return communityCache.getFeed<T>(category);
 }
 
 export function putCachedCommunityFeed<T extends CachedCommunityPost>(
   category: string,
   posts: T[],
+  token?: CommunityCacheScopeToken,
 ) {
-  feedCache.set(category, { posts, cachedAt: Date.now() });
+  return communityCache.putFeed(category, posts, token);
 }
 
 export function clearCommunityCaches() {
-  postCache.clear();
-  commentCache.clear();
-  feedCache.clear();
+  communityCache.clear();
 }
 
 export function getCachedCommunityPost(id: string | null | undefined) {
-  if (!id) return null;
-
-  const cached = postCache.get(id);
-  if (!cached) return null;
-
-  if (Date.now() - cached.cachedAt > POST_TTL_MS) {
-    postCache.delete(id);
-    return null;
-  }
-
-  return cached.post;
+  return communityCache.getPost<CachedCommunityPost>(id);
 }
 
-export function putCachedCommunityPost(post: CachedCommunityPost) {
-  postCache.set(post.id, { post, cachedAt: Date.now() });
+export function putCachedCommunityPost(
+  post: CachedCommunityPost,
+  token?: CommunityCacheScopeToken,
+) {
+  return communityCache.putPost(post, token);
 }
 
-export function putCachedCommunityPosts(posts: CachedCommunityPost[]) {
-  const cachedAt = Date.now();
-  for (const post of posts) {
-    postCache.set(post.id, { post, cachedAt });
-  }
+export function putCachedCommunityPosts(
+  posts: CachedCommunityPost[],
+  token?: CommunityCacheScopeToken,
+) {
+  return communityCache.putPosts(posts, token);
 }
 
 export function getCachedCommunityComments(postId: string | null | undefined) {
-  if (!postId) return null;
-
-  const cached = commentCache.get(postId);
-  if (!cached) return null;
-
-  if (Date.now() - cached.cachedAt > COMMENT_TTL_MS) {
-    commentCache.delete(postId);
-    return null;
-  }
-
-  return cached.comments;
+  return communityCache.getComments<CachedCommunityComment>(postId);
 }
 
 export function putCachedCommunityComments(
   postId: string,
   comments: CachedCommunityComment[],
+  token?: CommunityCacheScopeToken,
 ) {
-  commentCache.set(postId, { comments, cachedAt: Date.now() });
+  return communityCache.putComments(postId, comments, token);
+}
+
+export function getCachedCommunityCohort<TMyCohort, TCohortRoom>() {
+  return communityCache.getCohort<CachedCommunityCohort<TMyCohort, TCohortRoom>>();
+}
+
+export function putCachedCommunityCohort<TMyCohort, TCohortRoom>(
+  cohort: CachedCommunityCohort<TMyCohort, TCohortRoom>,
+  token?: CommunityCacheScopeToken,
+) {
+  return communityCache.putCohort(cohort, token);
 }

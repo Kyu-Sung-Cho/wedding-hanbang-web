@@ -4,7 +4,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ChecklistSchedulePrompt } from "./ScheduleContent";
+import {
+  ChecklistSchedulePrompt,
+  getScheduleEventMutationBlockReason,
+  SCHEDULE_EVENT_REPAIR_MESSAGE,
+} from "./ScheduleContent";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -74,5 +78,88 @@ describe("checklist schedule memo privacy", () => {
       date: "2027-05-01",
       memo: SAFE_MEMO,
     });
+  });
+
+  it("disables date writes when stored events need repair but still allows checklist-only completion", async () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    await act(async () => {
+      root.render(
+        <ChecklistSchedulePrompt
+          pending={{
+            categoryKey: "studio",
+            itemId: "book-studio",
+            itemLabel: "스튜디오 예약",
+            categoryLabel: "스튜디오",
+          }}
+          onClose={vi.fn()}
+          onComplete={onComplete}
+          scheduleMutationBlockReason={SCHEDULE_EVENT_REPAIR_MESSAGE}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const buttons = container.querySelectorAll<HTMLButtonElement>("button");
+    const saveWithDate = buttons.item(2);
+    expect(container.textContent).toContain(SCHEDULE_EVENT_REPAIR_MESSAGE);
+    expect(saveWithDate.disabled).toBe(true);
+
+    await act(async () => {
+      saveWithDate.click();
+      await Promise.resolve();
+    });
+    expect(onComplete).not.toHaveBeenCalled();
+
+    await act(async () => {
+      buttons.item(1).click();
+      await Promise.resolve();
+    });
+    expect(onComplete).toHaveBeenCalledWith({});
+  });
+});
+
+describe("schedule event mutation integrity", () => {
+  const validEvent = {
+    id: "event-1",
+    date: "2027-05-01",
+    title: "스튜디오",
+    createdAt: "2026-07-19T00:00:00.000Z",
+    updatedAt: "2026-07-19T00:00:00.000Z",
+  };
+
+  it("allows a fully valid stored event array", () => {
+    expect(
+      getScheduleEventMutationBlockReason({ __events: [validEvent] }),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["a malformed container", { __events: { event: validEvent } }],
+    [
+      "a rejected legacy event",
+      {
+        __events: [
+          validEvent,
+          {
+            id: "legacy-event",
+            date: "2027-06-01",
+            title: "레거시 일정",
+          },
+        ],
+      },
+    ],
+    [
+      "a truncated event array",
+      {
+        __events: Array.from({ length: 501 }, (_, index) => ({
+          ...validEvent,
+          id: `event-${index}`,
+        })),
+      },
+    ],
+  ])("blocks writes for %s instead of rebuilding a filtered array", (_label, progress) => {
+    expect(getScheduleEventMutationBlockReason(progress)).toBe(
+      SCHEDULE_EVENT_REPAIR_MESSAGE,
+    );
   });
 });

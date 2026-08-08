@@ -1,8 +1,16 @@
+import {
+  AMORA_USER_REQUESTED_MEDIATION_V2,
+  readUserRequestedMediationV2,
+} from "@/lib/ai/mediation";
+
 export interface MediationBlock {
   empathy?: string;
   translation?: string;
   data?: string;
   resolution?: string;
+  origin?: "user_requested";
+  evidenceScope?: "requester_summary_only";
+  schemaVersion?: 2;
   proposalVersion?: string;
   rosterFingerprint?: string;
 }
@@ -32,6 +40,17 @@ export function normalizeMediationBlock(value: unknown): MediationBlock | null {
     translation: normalizedField(candidate.translation),
     data: normalizedField(candidate.data),
     resolution: normalizedField(candidate.resolution, MAX_RESOLUTION_LENGTH),
+    origin: candidate.origin === AMORA_USER_REQUESTED_MEDIATION_V2.origin
+      ? AMORA_USER_REQUESTED_MEDIATION_V2.origin
+      : undefined,
+    evidenceScope:
+      candidate.evidenceScope === AMORA_USER_REQUESTED_MEDIATION_V2.evidenceScope
+        ? AMORA_USER_REQUESTED_MEDIATION_V2.evidenceScope
+        : undefined,
+    schemaVersion:
+      candidate.schemaVersion === AMORA_USER_REQUESTED_MEDIATION_V2.schemaVersion
+        ? AMORA_USER_REQUESTED_MEDIATION_V2.schemaVersion
+        : undefined,
     proposalVersion: typeof candidate.proposalVersion === "string"
       && UUID_PATTERN.test(candidate.proposalVersion)
       ? candidate.proposalVersion.toLowerCase()
@@ -49,7 +68,8 @@ export function getExpectedMediationRevision(
   block: MediationBlock,
 ): ExpectedMediationRevision | null {
   if (
-    typeof block.proposalVersion !== "string"
+    !isRequesterSummaryMediationV2(block)
+    || typeof block.proposalVersion !== "string"
     || !UUID_PATTERN.test(block.proposalVersion)
     || typeof block.rosterFingerprint !== "string"
     || !ROSTER_FINGERPRINT_PATTERN.test(block.rosterFingerprint)
@@ -59,4 +79,8 @@ export function getExpectedMediationRevision(
     expectedProposalVersion: block.proposalVersion.toLowerCase(),
     expectedRosterFingerprint: block.rosterFingerprint,
   };
+}
+
+export function isRequesterSummaryMediationV2(block: MediationBlock): boolean {
+  return readUserRequestedMediationV2(block) !== null;
 }

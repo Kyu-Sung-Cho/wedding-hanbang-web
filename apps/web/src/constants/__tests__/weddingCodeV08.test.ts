@@ -1,0 +1,223 @@
+import { describe, expect, it } from "vitest";
+
+import type { WeddingCodeV06Option } from "../weddingCodeV06";
+import {
+  WEDDING_CODE_V08_AXES,
+  WEDDING_CODE_V08_NEXT_STEPS,
+  WEDDING_CODE_V08_QUESTIONS,
+  WEDDING_CODE_V08_VERSION,
+} from "../weddingCodeV08";
+
+/** `as const`가 선택지를 리터럴로 좁혀서 `candid` 없는 갈래에는 그 속성이 아예 없다. */
+const optionsOf = (question: (typeof WEDDING_CODE_V08_QUESTIONS)[number]) =>
+  question.options as readonly WeddingCodeV06Option[];
+
+describe("웨딩코드 v0.8 문항", () => {
+  it("새 공유 링크 버전과 20개 문항을 고정한다", () => {
+    expect(WEDDING_CODE_V08_VERSION).toBe("v0.8-code");
+    expect(WEDDING_CODE_V08_QUESTIONS).toHaveLength(20);
+    expect(new Set(WEDDING_CODE_V08_QUESTIONS.map((question) => question.key)).size).toBe(20);
+  });
+
+  it("각 축에 다섯 문항, 각 문항에 좌우 두 선택지를 둔다", () => {
+    for (const axis of WEDDING_CODE_V08_AXES) {
+      const questions = WEDDING_CODE_V08_QUESTIONS.filter((question) => question.axis === axis.key);
+      expect(questions, axis.key).toHaveLength(5);
+
+      const left = new Set<string>(axis.left.constructs);
+      const right = new Set<string>(axis.right.constructs);
+      for (const question of questions) {
+        let leftCount = 0;
+        let rightCount = 0;
+        for (const option of question.options) {
+          const ownWeights = option.weights.filter(
+            (weight) => left.has(weight.construct) || right.has(weight.construct),
+          );
+          expect(ownWeights, `${question.key}${option.value}`).toHaveLength(1);
+          if (left.has(ownWeights[0].construct)) leftCount += 1;
+          if (right.has(ownWeights[0].construct)) rightCount += 1;
+          expect(ownWeights[0].value).toBe(2);
+        }
+        expect(leftCount, `${question.key} left`).toBe(2);
+        expect(rightCount, `${question.key} right`).toBe(2);
+      }
+    }
+  });
+
+  it("선택지 위치가 축 방향과 한 패턴으로 굳지 않는다", () => {
+    const patterns = new Set<string>();
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      const axis = WEDDING_CODE_V08_AXES.find((item) => item.key === question.axis)!;
+      const left = new Set<string>(axis.left.constructs);
+      patterns.add(
+        question.options
+          .map((option) =>
+            option.weights.some((weight) => left.has(weight.construct)) ? "L" : "R",
+          )
+          .join(""),
+      );
+    }
+    expect(patterns).toEqual(new Set(["LLRR", "LRLR", "RRLL", "RLRL"]));
+  });
+
+  it("초보자가 뜻을 추측해야 하는 웨딩 업계 용어와 모호한 대상을 쓰지 않는다", () => {
+    const banned =
+      /스드메|예식장|본식|폐백|상견례|전통 인사|원판|헬퍼비|피팅|컨펌|워크인|혼주|부토니에|얼리스타트|양가|업체나 장소|전체.*사진 파일|사진 파일.*전체|모르는 조항|두 집안이 처음 만날|이거|그거|저거|넘겼다|느낌이 오면|마음에 남을|믿음이 가면|걱정돼 보인다/;
+
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      for (const text of [
+        question.scene,
+        question.question,
+        ...question.options.map((option) => option.label),
+      ]) {
+        expect(text, `${question.key}: ${text}`).not.toMatch(banned);
+      }
+    }
+  });
+
+  it("금액과 횟수에는 단위를 적고 한글 숫자만 던지지 않는다", () => {
+    const allText = WEDDING_CODE_V08_QUESTIONS.flatMap((question) => [
+      question.scene,
+      question.question,
+      ...question.options.map((option) => option.label),
+    ]).join("\n");
+
+    expect(allText).not.toMatch(/삼백|백오십|삼십/);
+    expect(allText).toContain("300만원");
+    expect(allText).toContain("150만원");
+    expect(allText).toContain("30만원");
+  });
+
+  it("모든 선택지는 혼자 읽어도 뜻이 있는 문장이고 서로 반복되지 않는다", () => {
+    const labels = WEDDING_CODE_V08_QUESTIONS.flatMap((question) =>
+      question.options.map((option) => option.label),
+    );
+    expect(new Set(labels).size).toBe(labels.length);
+
+    for (const label of labels) {
+      expect(label.length, label).toBeGreaterThanOrEqual(12);
+      expect(label.length, label).toBeLessThanOrEqual(42);
+      expect(label, label).toMatch(/다$/);
+    }
+  });
+
+  /**
+   * v0.7 초안이 실패한 방식이 정확히 이것이었다: 64개 선택지 중 54개(84%)가
+   * 「~하고 싶다」·「~면 좋겠다」였다. 전부 바르고 신중한 희망 사항이라 고를 때
+   * 자기를 돌아볼 일이 없고, 캡처해서 보낼 문장도 안 생긴다. 카피는 손대면 원래대로
+   * 밋밋해지므로 비율을 통과 조건으로 고정한다.
+   */
+  it("선택지가 희망 사항으로 몰리지 않는다", () => {
+    const labels = WEDDING_CODE_V08_QUESTIONS.flatMap((question) =>
+      question.options.map((option) => option.label),
+    );
+    const wishful = labels.filter((label) => /(고 싶다|좋겠다|싶었다)$/.test(label));
+    expect(wishful.length / labels.length).toBeLessThanOrEqual(0.4);
+
+    // 한 문항 안에서 네 선택지가 전부 같은 어미로 끝나면 고르는 재미가 없다.
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      const endings = new Set(
+        question.options.map((option) => option.label.slice(-3)),
+      );
+      expect(endings.size, question.key).toBeGreaterThan(1);
+    }
+  });
+
+  /**
+   * 네 선택지가 전부 사회적으로 옳으면 사람들은 자기가 한 일이 아니라 좋아 보이는 답을
+   * 고른다. 그 답이 그대로 아모라 도움 방식 제안이 되므로, 이건 재미 문제이면서
+   * 동시에 신호 오염 문제다.
+   */
+  it("문항마다 조금 찔리는 답이 하나 이상 있다", () => {
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      const candid = optionsOf(question).filter((option) => option.candid);
+      expect(candid.length, question.key).toBeGreaterThanOrEqual(1);
+      // 전부 찔리는 답이면 고를 수 있는 답이 없어진다.
+      expect(candid.length, question.key).toBeLessThan(question.options.length);
+    }
+    /**
+     * **축마다** 양쪽에 있어야 한다. 전체 합계만 보면 놓친다 — 실제로 v0.7에서
+     * preparationMode 축의 candid 4개가 전부 「맡아서 정리한다」 쪽에만 있었다.
+     * 사람들이 찔리는 답을 피하면 그 축은 반대쪽으로 구조적으로 기운다.
+     */
+    for (const axis of WEDDING_CODE_V08_AXES) {
+      const left = new Set<string>(axis.left.constructs);
+      const sides = WEDDING_CODE_V08_QUESTIONS
+        .filter((question) => question.axis === axis.key)
+        .flatMap((question) =>
+          optionsOf(question)
+            .filter((option) => option.candid)
+            .map((option) =>
+              option.weights.some((weight) => left.has(weight.construct)) ? "L" : "R",
+            ),
+        );
+      expect(sides.filter((side) => side === "L").length, `${axis.key} 좌`).toBeGreaterThan(0);
+      expect(sides.filter((side) => side === "R").length, `${axis.key} 우`).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * 축당 문항이 짝수면 정확히 반반인 자리가 생기고, 그 자리에서는 코드 글자를 정할 수
+   * 없다. 4문항일 때 축마다 26%였고, 네 글자가 모두 나올 확률은 30%뿐이었다.
+   */
+  it("축당 문항이 홀수라 다 답하면 글자를 정할 수 있다", () => {
+    for (const axis of WEDDING_CODE_V08_AXES) {
+      const count = WEDDING_CODE_V08_QUESTIONS.filter(
+        (question) => question.axis === axis.key,
+      ).length;
+      expect(count % 2, axis.key).toBe(1);
+    }
+  });
+
+  /**
+   * 솔직한 답과 자책하는 답은 다르다. 같은 행동이라도 「고르는 게 지쳐서 그냥
+   * 정해달라고 했다」처럼 쓰면 고르는 순간 자기 흠을 인정하는 문장이 된다. 그러면
+   * 사람들이 그 답을 피하고, 피한 만큼 축이 기운다 — 불편함과 편향이 같이 온다.
+   */
+  it("선택지가 고른 사람을 탓하는 말로 쓰이지 않는다", () => {
+    const blaming = /솔직히|그냥 |하소연|잘랐다|통보|지쳐서|어차피|귀찮/;
+    const judging = /잘못|실수|후회할|틀린|현명|안일|무책임|이기적/;
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      for (const option of optionsOf(question)) {
+        expect(option.label, `${question.key}${option.value}`).not.toMatch(blaming);
+        expect(option.label, `${question.key}${option.value}`).not.toMatch(judging);
+      }
+      // 장면과 질문도 어느 행동이 옳다고 미리 정해두지 않는다.
+      expect(question.scene, question.key).not.toMatch(judging);
+      expect(question.question, question.key).not.toMatch(judging);
+    }
+  });
+
+  /**
+   * 부모님이 안 계시거나, 결혼식을 하지 않거나, 사진 촬영을 안 하는 사람도 있다.
+   * 그런 사람에게 네 개 중 하나를 억지로 고르게 하면 불편할 뿐 아니라, 고르지도 않은
+   * 답이 결과와 아모라 제안에 실린다. 다음 대화 문구도 안 겪은 상황을 단정하지 않는다.
+   */
+  it("다음 대화가 사용자의 상황을 단정하지 않는다", () => {
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      const nextStep = WEDDING_CODE_V08_NEXT_STEPS[question.key];
+      expect(nextStep, question.key).not.toMatch(/해야만|반드시|당연히|잘못/);
+      // 제안이지 지시가 아니다.
+      expect(nextStep, question.key).toMatch(/보세요|됩니다|하세요|마세요/);
+    }
+  });
+
+  it("장면은 겪은 사람이 알아볼 만큼 구체적이다", () => {
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      expect(question.scene.length, question.key).toBeGreaterThanOrEqual(18);
+      expect(question.scene.length, question.key).toBeLessThanOrEqual(48);
+    }
+    // 열여섯 번 같은 질문을 던지면 퀴즈가 아니라 체크리스트가 된다.
+    const prompts = new Set(WEDDING_CODE_V08_QUESTIONS.map((question) => question.question));
+    expect(prompts.size).toBeGreaterThanOrEqual(12);
+  });
+
+  it("각 문항에 그 장면에서 바로 쓸 다음 대화가 있다", () => {
+    expect(Object.keys(WEDDING_CODE_V08_NEXT_STEPS)).toHaveLength(20);
+    for (const question of WEDDING_CODE_V08_QUESTIONS) {
+      const nextStep = WEDDING_CODE_V08_NEXT_STEPS[question.key];
+      expect(nextStep.length, question.key).toBeGreaterThanOrEqual(35);
+      expect(nextStep, question.key).not.toMatch(/최소 세 번|매번|반드시 갈|성공|이혼|궁합|유형/);
+    }
+  });
+});

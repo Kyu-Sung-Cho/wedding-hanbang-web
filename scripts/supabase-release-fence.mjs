@@ -23,7 +23,8 @@ const manifestPath = join(
   "release-manifests",
   "amora-engine-v2-20260716.json"
 );
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const predecessorReleaseManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+let manifest = predecessorReleaseManifest;
 const successorManifestPath = join(repoRoot, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
 const args = new Set(process.argv.slice(2));
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -233,7 +234,44 @@ function verifyManualControlEvidence() {
 
 function verifyBackupContract() {
   const contract = manifest.backupContract;
-  if (contract?.id !== BASELINE_CONTRACT_ID
+  const successorContract = manifest.status === "controller_ready"
+    && manifest.rollbackContract
+    && contract?.version === 2;
+  const successorInvalid = successorContract && (
+    contract.format !== "hbam2-encrypted-current-user"
+    || contract.expectedMigrationHead !== manifest.requiredRemoteHead
+    || !Array.isArray(contract.expectedTables)
+    || contract.expectedTables.length !== contract.expectedTableCount
+    || contract.expectedTableCount < 1
+    || new Set(contract.expectedTables).size !== contract.expectedTables.length
+    || contract.expectedTables.some((table, index) =>
+      !/^[a-z][a-z0-9_]{1,62}$/.test(table)
+      || (index > 0 && table <= contract.expectedTables[index - 1]))
+    || sha256TextList(contract.expectedTables)
+      !== contract.expectedTableContractSha256
+    || contract.expectedCommitBinding !== "release-expected-commit"
+    || !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\.git$/.test(
+      contract.expectedOrigin ?? "",
+    )
+    || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(contract.verifier?.file ?? "")
+    || !SHA256.test(contract.verifier?.sha256 ?? "")
+    || contract.providerPhysicalBackup?.maximumAgeHours !== 26
+    || contract.providerPhysicalBackup?.requiredStatus !== "COMPLETED"
+    || contract.providerPhysicalBackup?.requirePhysicalBackup !== true
+    || contract.providerPhysicalBackup?.restoreCapability
+      !== "completed-physical-backup"
+    || contract.hostedRestoreEvidence?.receiptFileName
+      !== `${manifest.release}-hosted-restore-evidence.json`
+    || contract.hostedRestoreEvidence?.maximumAgeMinutes !== 1_440
+    || contract.hostedRestoreEvidence?.requiredTargetIsolation
+      !== "different-supabase-project"
+    || JSON.stringify(contract.hostedRestoreEvidence?.requiredChecks)
+      !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
+    || !/^\d+\.\d+\.\d+$/.test(contract.supabaseCli?.version ?? "")
+    || !UPPER_SHA256.test(contract.supabaseCli?.binarySha256 ?? "")
+  );
+  const predecessorInvalid = !successorContract && (
+    contract?.id !== BASELINE_CONTRACT_ID
       || contract.version !== 1
       || contract.expectedTableCount !== 14
       || contract.excludedEphemeralTables?.length !== 2
@@ -257,10 +295,18 @@ function verifyBackupContract() {
       || JSON.stringify(contract.hostedRestoreEvidence?.requiredChecks)
         !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
       || !/^\d+\.\d+\.\d+$/.test(contract.supabaseCli?.version ?? "")
-      || !UPPER_SHA256.test(contract.supabaseCli?.binarySha256 ?? "")) {
-    fail("current 14-table backup contract and ephemeral rebuild contract are missing or invalid");
+      || !UPPER_SHA256.test(contract.supabaseCli?.binarySha256 ?? "")
+  );
+  if (successorInvalid || predecessorInvalid) {
+    fail("current-remote backup contract and ephemeral rebuild contract are missing or invalid");
   }
   verifyHashPinnedArtifact(contract.verifier, "current-baseline verifier");
+}
+
+function sha256TextList(values) {
+  return createHash("sha256")
+    .update(`${values.join("\n")}\n`, "utf8")
+    .digest("hex");
 }
 
 function verifyExtendedReleaseContracts(
@@ -559,15 +605,23 @@ if (successorContract) {
   console.log(
     `Successor release manifest verified (${successorContract.manifest.release}; ${successorContract.manifest.status}; ${successorContract.migrationCount} migrations; predecessor head ${successorContract.predecessorHead}).`,
   );
+  if (successorContract.controllerReady) {
+    manifest = successorContract.controllerManifest;
+    verifyPredecessorManifest();
+    verifyStaticManifest();
+    console.log(
+      `Controller-ready successor release body verified (${manifest.expandMigrations.length} exact pending migrations; remote head ${manifest.requiredRemoteHead}).`,
+    );
+  }
 }
 
 if (args.has("--refuse-direct-push")) {
   fail("direct push/history-repair entry points are disabled; follow docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md");
 }
 if (args.has("--remote")) {
-  if (successorContract?.manifest.status === "deployment_blocked") {
+  if (successorContract?.deploymentBlocked) {
     fail(
-      `successor release ${successorContract.manifest.release} is deployment_blocked until hosted staging, backup, restore, storage and finalizer evidence are pinned`,
+      `successor release ${successorContract.manifest.release} is deployment_blocked until the reviewed controller contract is pinned and fresh private hosted-staging, backup, restore, storage and finalizer evidence is supplied`,
     );
   }
   verifyRemotePending();

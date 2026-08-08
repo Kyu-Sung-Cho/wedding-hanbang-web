@@ -15,9 +15,9 @@ export interface CommunityCategoryInfo {
 export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   {
     key: "is_normal",
-    label: "이거 정상인가요?",
-    shortLabel: "정상인가요?",
-    description: "가격, 협상, 업체 응대가 적절한지 묻는 공간입니다. 아모라가 평균과 비교해 참고할 맥락을 더해줘요.",
+    label: "이 가격·조건 괜찮나요?",
+    shortLabel: "가격·조건 질문",
+    description: "가격, 계약 조건, 업체의 설명이 이해되지 않을 때 다른 사람에게 묻는 공간입니다.",
     icon: "HelpCircle",
     color: "text-[#C4967E]",
     bgColor: "bg-[#FAF8F5]",
@@ -26,9 +26,9 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   },
   {
     key: "tour_review",
-    label: "투어/이용 후기",
+    label: "방문·이용 후기",
     shortLabel: "후기",
-    description: "스튜디오, 드레스, 메이크업, 예식장 투어와 이용 후기를 공유합니다.",
+    description: "사진 촬영, 드레스, 헤어·메이크업, 결혼식장을 방문하거나 이용한 경험을 공유합니다.",
     icon: "Camera",
     color: "text-[#C4967E]",
     bgColor: "bg-[#FAF8F5]",
@@ -37,8 +37,8 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   },
   {
     key: "tips_v2",
-    label: "꿀팁",
-    shortLabel: "꿀팁",
+    label: "준비 팁",
+    shortLabel: "준비 팁",
     description: "계약 전 질문, 숨은 비용, 준비 순서처럼 도움이 되는 팁을 모읍니다.",
     icon: "Lightbulb",
     color: "text-[#C9A96E]",
@@ -79,7 +79,7 @@ export const AD_DISCLOSURE_OPTIONS = [
     key: "general",
     label: "일반 글",
     shortLabel: "일반",
-    description: "직접 경험하거나 궁금해서 작성하는 글입니다. 혜택이나 대가를 받지 않았어요.",
+    description: "혜택이나 대가를 받지 않은 일반 회원 글입니다. 경험 여부가 자동 인증되지는 않아요.",
     color: "#0284C7",
     bgColor: "#F0F9FF",
     borderColor: "#BAE6FD",
@@ -109,12 +109,12 @@ export const AD_DISCLOSURE_OPTIONS = [
 ] as const;
 
 export const COHORT_CONTRACT_CATEGORIES = [
-  { key: "venue", label: "예식장" },
-  { key: "studio", label: "스튜디오" },
+  { key: "venue", label: "결혼식장" },
+  { key: "studio", label: "웨딩 사진 촬영" },
   { key: "dress", label: "드레스" },
-  { key: "makeup", label: "메이크업" },
-  { key: "snap", label: "본식 스냅/영상" },
-  { key: "ring", label: "예물(반지)" },
+  { key: "makeup", label: "헤어·메이크업" },
+  { key: "snap", label: "결혼식 날 사진·영상" },
+  { key: "ring", label: "결혼반지" },
   { key: "honeymoon", label: "신혼여행" },
   { key: "other", label: "기타" },
 ] as const;

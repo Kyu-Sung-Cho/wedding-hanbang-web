@@ -6,6 +6,7 @@ import "react-native-url-polyfill/auto";
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { createBrowserAuthStorage } from "./webAuthStorage.mjs";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -20,6 +21,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // 인증 토큰은 AsyncStorage로 fallback하지 않는다.
 const SECURE_CHUNK_SIZE = 1800;
 const memorySessionCache = new Map<string, string>();
+const browserAuthStorage = createBrowserAuthStorage();
 
 function isTransientSecureStoreError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -41,7 +43,9 @@ function chunkKey(key: string, index: number) {
 
 const LargeSecureStore = {
   async getItem(key: string): Promise<string | null> {
-    if (Platform.OS === "web") return null;
+    if (Platform.OS === "web") {
+      return browserAuthStorage.getItem(key);
+    }
 
     try {
       const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key));
@@ -73,7 +77,9 @@ const LargeSecureStore = {
     }
   },
   async setItem(key: string, value: string): Promise<void> {
-    if (Platform.OS === "web") return;
+    if (Platform.OS === "web") {
+      return browserAuthStorage.setItem(key, value);
+    }
 
     await this.removeItem(key);
 
@@ -93,7 +99,9 @@ const LargeSecureStore = {
     memorySessionCache.set(key, value);
   },
   async removeItem(key: string): Promise<void> {
-    if (Platform.OS === "web") return;
+    if (Platform.OS === "web") {
+      return browserAuthStorage.removeItem(key);
+    }
     const chunkCountValue = await SecureStore.getItemAsync(chunkMetaKey(key)).catch(() => null);
     const chunkCount = Number(chunkCountValue);
     await SecureStore.deleteItemAsync(secureStoreKey(key)).catch(() => {});

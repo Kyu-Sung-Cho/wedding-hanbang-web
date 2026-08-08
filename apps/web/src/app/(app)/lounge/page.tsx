@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   ArrowRight,
   Bookmark,
@@ -20,17 +26,27 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
 import WeeklyCard from "@/components/app/WeeklyCard";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import {
+  getDashboardCompanionCopy,
+  getJoinedDashboardMarkerSnapshot,
+  JOINED_PLAN_REVIEW_PROMPT,
+  notifyJoinedDashboardMarkerChanged,
+  removeJoinedDashboardMarker,
+  subscribeJoinedDashboardMarker,
+} from "@/lib/amora/dashboardCompanion";
 import { buildAmoraLifecyclePlan, type AmoraGuardrailSeverity } from "@/lib/amora/lifecycle";
 import { getAmoraActions, mergeAmoraActions, type AmoraActionItem, type AmoraActionStatus } from "@/lib/amora/actions";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 type Status = ProgressItem["status"];
 
@@ -103,19 +119,19 @@ const DEMO_DIGEST: CohortDigest = {
   generatedAt: new Date().toISOString(),
   messageCount: 18,
   imageCount: 2,
-  lead: "이번 주는 드레스 투어와 스냅 예약 이야기가 가장 많았어요.",
+  lead: "이번 주는 드레스 매장 방문과 결혼식 날 사진 촬영 예약 이야기가 가장 많았어요.",
   topicBreakdown: [
     { topic: "price", label: "가격", count: 7 },
     { topic: "review", label: "후기", count: 6 },
     { topic: "concern", label: "고민", count: 5 },
   ],
   highlights: [
-    "드레스 투어는 피팅비와 헬퍼비를 따로 확인했다는 이야기가 많았어요.",
-    "본식 스냅은 원본 제공 범위와 보정본 수를 먼저 비교하는 흐름이 있었어요.",
+    "드레스 매장 방문 전에는 입어보는 비용과 촬영 날 드레스를 돕는 직원 비용을 따로 확인했다는 이야기가 많았어요.",
+    "결혼식 날 사진 촬영은 받는 사진 파일 수와 보정해 주는 사진 수를 먼저 비교하는 흐름이 있었어요.",
   ],
   questions: [
-    { topic: "price", label: "가격", text: "스냅 원본 제공이면 보통 추가금이 붙나요?" },
-    { topic: "concern", label: "고민", text: "드레스 투어를 몇 곳까지 가보는 게 적당할까요?" },
+    { topic: "price", label: "가격", text: "촬영한 사진 파일을 받으려면 별도 금액을 내야 하나요?" },
+    { topic: "concern", label: "고민", text: "드레스 매장은 몇 곳까지 방문해 보는 게 좋을까요?" },
   ],
   nextActions: ["내 견적서의 포함 항목을 한 줄씩 나눠서 확인해보세요."],
   empty: false,
@@ -133,6 +149,17 @@ function formatDate(value: string | null | undefined) {
   return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 }
 
+function formatFullDate(value: string | null | undefined) {
+  if (!value) return "날짜 미정";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "날짜 미정";
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
   const status = progress[key]?.status;
   if (status === "completed" || status === "in_progress" || status === "not_started") return status;
@@ -142,8 +169,11 @@ function getStatus(progress: Record<string, ProgressItem>, key: string): Status 
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
     if (key.startsWith("__")) return sum;
-    const amount = Number(item.spent ?? item.cost ?? 0);
-    return Number.isFinite(amount) ? sum + amount : sum;
+    // 명시적으로 기록한 지출만 합산한다. legacy cost는 용도 확인 전까지
+    // 예산 사용·지출·결제 완료 수치에서 제외한다.
+    const amount = isValidWeddingWonAmount(item.spent) ? item.spent : 0;
+    const next = sum + amount;
+    return Number.isSafeInteger(next) ? next : sum;
   }, 0);
 }
 
@@ -183,13 +213,15 @@ function getDdayLabel(dday: number | null) {
   return `D+${Math.abs(dday)}`;
 }
 
-function getUpcomingEvents(progress: Record<string, ProgressItem>): ScheduleEvent[] {
+export function getUpcomingEvents(progress: Record<string, ProgressItem>): ScheduleEvent[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return getEvents(progress as Record<string, unknown>)
     .filter((event) => {
       const date = new Date(event.date);
-      return !Number.isNaN(date.getTime()) && date >= today;
+      return getScheduleEventStatus(event) === "planned"
+        && !Number.isNaN(date.getTime())
+        && date >= today;
     })
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 4);
@@ -220,7 +252,7 @@ function actionToPriority(action: AmoraActionItem): LoungePriority {
 function buildPriorities(plan: ReturnType<typeof buildAmoraLifecyclePlan>, actions: AmoraActionItem[], events: ScheduleEvent[]) {
   const primary: LoungePriority = {
     id: plan.primaryAction.id,
-    eyebrow: plan.riskLabel,
+    eyebrow: plan.primaryAction.dueLabel ?? "아모라가 정리한 다음 일",
     title: plan.primaryAction.title,
     body: plan.primaryAction.body,
     href: normalizeHref(plan.primaryAction.href),
@@ -275,6 +307,7 @@ function buildDemoSavedPosts(): PostWithAuthor[] {
     {
       id: "demo-bookmark-1",
       author_id: "demo",
+      content_origin: "operator",
       category: "tips_v2",
       title: "계약 전 확인하면 좋은 체크포인트 정리",
       content: "기본 금액, 필수 추가금, 선택 옵션을 한 줄씩 분리해서 확인하면 나중에 비교하기 쉽습니다.",
@@ -326,10 +359,15 @@ function buildDemoSavedPosts(): PostWithAuthor[] {
 }
 
 export default function LoungePage() {
-  const { user, profile, partner, couple, journey, isDemo } = useAuthStore();
+  const { user, partner, journey, isDemo } = useAuthStore();
   const userId = user?.id ?? null;
   const [savedPosts, setSavedPosts] = useState<PostWithAuthor[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
+  const joinedHandoffVisible = useSyncExternalStore(
+    subscribeJoinedDashboardMarker,
+    getJoinedDashboardMarkerSnapshot,
+    () => false,
+  );
   const [storedActions, setStoredActions] = useState<AmoraActionItem[]>([]);
   const [actionUpdatingId, setActionUpdatingId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -364,7 +402,14 @@ export default function LoungePage() {
   const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
   const budgetWidth = Math.min(100, Math.max(0, budgetPercent));
   const progressPercent = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;
-  const partnerLabel = partner?.name ? `${partner.name}님과 함께` : couple ? "커플 연결 대기 중" : "커플 정보 없음";
+  const companionCopy = getDashboardCompanionCopy(Boolean(partner));
+  const partnerLabel = partner?.name
+    ? `${partner.name}님과 같은 계획을 보고 있어요`
+    : "원할 때 파트너를 초대할 수 있어요";
+  const joinedReviewLink = weddingLinkProps(
+    `/chat?${new URLSearchParams({ prefill: JOINED_PLAN_REVIEW_PROMPT })}`,
+  );
+  const showJoinedHandoff = joinedHandoffVisible && Boolean(partner);
 
   // 모멘트 루프 시동 — 로그인 후 첫 화면이 라운지이므로 여기서 한 번 깨운다.
   // (예전엔 dashboard에만 있었는데 그 라우트가 라운지로 리다이렉트되면서
@@ -430,7 +475,7 @@ export default function LoungePage() {
     if (isDemo) {
       setCohortState({
         room: DEMO_COHORT_ROOM,
-        lastMessage: "스냅 원본 제공 범위는 계약서에 꼭 적어두자는 이야기가 나왔어요.",
+        lastMessage: "결혼식 날 받는 사진 파일 수는 계약서에 적어두자는 이야기가 나왔어요.",
         loading: false,
         digest: DEMO_DIGEST,
       });
@@ -520,25 +565,107 @@ export default function LoungePage() {
     }
   };
 
+  const dismissJoinedHandoff = () => {
+    const nextUrl = removeJoinedDashboardMarker(
+      window.location.pathname,
+      window.location.search,
+      window.location.hash,
+    );
+    window.history.replaceState(window.history.state, "", nextUrl);
+    notifyJoinedDashboardMarkerChanged();
+  };
+
   return (
     <div className="space-y-5 text-[#061a34]">
+      {showJoinedHandoff && (
+        <section
+          data-testid="joined-plan-handoff"
+          className="rounded-[22px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[0_14px_36px_rgba(54,83,78,0.09)] md:p-6"
+          aria-labelledby="joined-plan-title"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
+              <HeartHandshake className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-[#607044]">
+                함께 준비 시작
+              </p>
+              <h2
+                id="joined-plan-title"
+                className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[#243832] md:text-[30px]"
+              >
+                이제 이 계획을 함께 봐요
+              </h2>
+              <p className="mt-2 text-[13px] font-medium leading-6 text-[#5D6879]">
+                이제 두 분이 함께 보는 현재 계획이에요. 이 화면을 열면서 새로 저장하거나 변경한 내용은 없어요.
+              </p>
+            </div>
+          </div>
+
+          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <HandoffMetric
+              label="결혼식 날짜"
+              value={formatFullDate(journey?.wedding_date)}
+            />
+            <HandoffMetric label="장소" value={journey?.venue || "장소 미정"} />
+            <HandoffMetric
+              label="총 예산"
+              value={totalBudget > 0 ? formatWon(totalBudget) : "미입력"}
+            />
+            <HandoffMetric
+              label="준비 진행"
+              value={`${progressPercent}%`}
+              note={`${summary.done}/${summary.total}개 체크`}
+            />
+          </dl>
+
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Link
+              {...joinedReviewLink}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+            >
+              함께 확인할 내용 찾기
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Link>
+            <button
+              type="button"
+              onClick={dismissJoinedHandoff}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+            >
+              이 내용 확인했어요
+            </button>
+          </div>
+        </section>
+      )}
+      {!showJoinedHandoff && (
+        <div className="lg:hidden">
+          <DailyAmoraFocusBridge
+            partnerLinked={Boolean(partner)}
+            focusTitle={priorities[0]?.title ?? null}
+          />
+        </div>
+      )}
       <section className="grid gap-4 lg:grid-cols-[1.12fr_0.88fr]">
         <div className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
                 <Sparkles className="h-4 w-4" />
-                {plan.stageLabel}
+                {companionCopy.loungeLabel}
               </p>
               <h1 className="mt-4 font-serif-kr text-[32px] font-medium leading-[1.18] text-[#061a34] md:text-[42px]">
-                {profile?.name ? `${profile.name}님의 오늘 준비` : "오늘의 웨딩 준비"}
+                {companionCopy.statusHeading}
               </h1>
               <p className="mt-2 max-w-[560px] text-[14px] font-medium leading-[1.7] text-[#38475c]">
-                {plan.stageSummary}
+                {companionCopy.description}
+              </p>
+              <p className="mt-2 max-w-[560px] text-[12px] font-medium leading-[1.6] text-[#7A8290]">
+                {plan.stageLabel} · {plan.stageSummary}
               </p>
             </div>
             <div className="min-w-[116px] rounded-[18px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-right">
-              <p className="text-[11px] font-semibold text-[#9d6f36]">예식일</p>
+              <p className="text-[11px] font-semibold text-[#9d6f36]">결혼식 날짜</p>
               <p className="mt-1 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">
                 {getDdayLabel(plan.dday)}
               </p>
@@ -548,20 +675,22 @@ export default function LoungePage() {
 
           <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
             <MetricTile
-              label="진행률"
+              label="체크 진행"
               value={`${progressPercent}%`}
-              note={`${summary.done}/${summary.total}개 체크`}
+              note={`${summary.done}/${summary.total}개 직접 체크`}
               icon={<ClipboardCheck className="h-4 w-4" />}
             />
             <MetricTile
-              label="예산 사용"
-              value={`${budgetPercent}%`}
-              note={`${formatWon(spentBudget)} / ${formatWon(totalBudget)}`}
+              label="기록 지출 비율"
+              value={totalBudget > 0 ? `${budgetPercent}%` : "미입력"}
+              note={totalBudget > 0
+                ? `${formatWon(spentBudget)} 기록 / ${formatWon(totalBudget)} · 결제 확인과 별도`
+                : `${formatWon(spentBudget)} 기록 · 총 예산 입력 전`}
               icon={<Wallet className="h-4 w-4" />}
             />
             <MetricTile
-              label="커플 상태"
-              value={partner ? "연결됨" : "대기"}
+              label="준비 방식"
+              value={partner ? "함께 준비" : "혼자 준비"}
               note={partnerLabel}
               icon={<Users className="h-4 w-4" />}
             />
@@ -577,6 +706,14 @@ export default function LoungePage() {
             <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
           </div>
           <div className="mt-5 space-y-3">
+            {!showJoinedHandoff && (
+              <div className="hidden lg:block">
+                <DailyAmoraFocusBridge
+                  partnerLinked={Boolean(partner)}
+                  focusTitle={priorities[0]?.title ?? null}
+                />
+              </div>
+            )}
             {priorities.map((item, index) => (
               <PriorityCard
                 key={item.id}
@@ -649,7 +786,7 @@ export default function LoungePage() {
           {
             icon: MessageCircle,
             title: "아모라가 해석",
-            body: "내 예식일, 예산, 진행 단계에 맞게 바꿉니다.",
+            body: "내 결혼식 날짜, 예산, 진행 단계에 맞게 바꿉니다.",
             href: weddingPath("/chat"),
           },
           {
@@ -694,6 +831,30 @@ function MetricTile({
       </div>
       <p className="mt-2 truncate font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{value}</p>
       <p className="mt-1.5 truncate text-[11px] font-medium text-[#5d6879]">{note}</p>
+    </div>
+  );
+}
+
+function HandoffMetric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-[14px] border border-[#DCE5D8] bg-white/88 p-3">
+      <dt className="text-[10px] font-semibold text-[#71806D]">{label}</dt>
+      <dd className="mt-1 truncate text-[13px] font-semibold text-[#243832]">
+        {value}
+      </dd>
+      {note && (
+        <dd className="mt-0.5 truncate text-[10px] font-medium text-[#7A8290]">
+          {note}
+        </dd>
+      )}
     </div>
   );
 }
@@ -784,10 +945,10 @@ function CategoryRow({
 }) {
   const deadline =
     item.daysUntilDeadline === null
-      ? "마감 계산 전"
+      ? "기본 확인 순서"
       : item.daysUntilDeadline < 0
-        ? `${Math.abs(item.daysUntilDeadline)}일 지남`
-        : `${item.daysUntilDeadline}일 남음`;
+        ? `기본 확인 시점에서 ${Math.abs(item.daysUntilDeadline)}일 지남`
+        : `기본 확인 시점까지 ${item.daysUntilDeadline}일`;
 
   return (
     <Link
@@ -821,33 +982,55 @@ function BudgetPanel({
   budgetPercent: number;
   budgetWidth: number;
 }) {
-  const remaining = Math.max(0, totalBudget - spentBudget);
-  const tone = totalBudget <= 0 ? "예산 미정" : budgetPercent >= 100 ? "초과" : budgetPercent >= 85 ? "주의" : "안정";
+  const balance = totalBudget - spentBudget;
+  const overrun = totalBudget > 0 && balance < 0;
+  const balanceLabel = totalBudget <= 0
+    ? "기록 지출"
+    : overrun
+      ? "총 예산보다 더 기록된 금액"
+      : "남은 예산";
+  const balanceValue = totalBudget <= 0 ? spentBudget : Math.abs(balance);
+  const tone = totalBudget <= 0
+    ? "예산 미정"
+    : budgetPercent > 100
+      ? "기록 초과"
+      : budgetPercent === 100
+        ? "한도 도달"
+        : budgetPercent >= 85
+          ? "주의"
+          : "안정";
 
   return (
     <section className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
-          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">지출 안전선</h2>
+          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">기록 지출 현황</h2>
         </div>
         <span className="rounded-full bg-[#fff8ec] px-3 py-1 text-[12px] font-semibold text-[#36534E]">{tone}</span>
       </div>
       <div className="mt-4">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold text-[#7a8290]">남은 예산</p>
-            <p className="mt-1 font-serif-kr text-[28px] font-medium leading-none text-[#071629]">{formatWon(remaining)}</p>
+            <p className="text-[11px] font-semibold text-[#7a8290]">{balanceLabel}</p>
+            <p className="mt-1 font-serif-kr text-[28px] font-medium leading-none text-[#071629]">
+              {formatWon(balanceValue)}
+            </p>
           </div>
-          <p className="text-[13px] font-semibold text-[#36534E]">{budgetPercent}% 사용</p>
+          <p className="text-[13px] font-semibold text-[#36534E]">
+            {totalBudget > 0 ? `${budgetPercent}% 기록` : "비율 계산 전"}
+          </p>
         </div>
         <span className="mt-3 block h-2 overflow-hidden rounded-full bg-[#efe6d7]">
           <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetWidth}%` }} />
         </span>
         <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
-          <span>{formatWon(spentBudget)} 사용</span>
+          <span>{formatWon(spentBudget)} 기록 지출</span>
           <span>총 {formatWon(totalBudget)}</span>
         </div>
+        <p className="mt-2 text-[10px] font-medium leading-4 text-[#7a8290]">
+          기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
+        </p>
       </div>
       <Link {...weddingLinkProps("/budget")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
         예산 관리 열기
@@ -881,7 +1064,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
         ) : (
           <div className="rounded-[14px] border border-dashed border-[#eadfc9] bg-[#fffdf7] p-4">
             <p className="text-[13px] font-semibold text-[#071629]">가까운 일정이 없어요.</p>
-            <p className="mt-1 text-[11px] font-medium leading-[1.5] text-[#7a8290]">상담, 투어, 피팅 날짜를 넣으면 여기서 먼저 보여드려요.</p>
+            <p className="mt-1 text-[11px] font-medium leading-[1.5] text-[#7a8290]">상담, 업체 방문, 옷을 입어보는 날짜를 넣으면 여기서 먼저 보여드려요.</p>
           </div>
         )}
       </div>

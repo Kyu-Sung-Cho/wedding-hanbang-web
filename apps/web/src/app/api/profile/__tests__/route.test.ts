@@ -11,6 +11,10 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock("@/utils/trustedMutation", () => ({
+  isTrustedMutationRequest: vi.fn(() => true),
+}));
+
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimit: vi.fn(() => null),
   rateLimitKey: vi.fn(() => "profile:update:user-1"),

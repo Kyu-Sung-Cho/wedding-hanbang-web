@@ -6,6 +6,7 @@ import {
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -382,6 +383,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const { authorized, userId } = await verifyAdmin(request);
   if (!authorized || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -10,6 +10,7 @@ import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
+import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
 
 export default function OnboardingPage() {
@@ -19,6 +20,8 @@ export default function OnboardingPage() {
   const [inviteCodeResult, setInviteCodeResult] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [pendingPlanNotice, setPendingPlanNotice] = useState("");
+  const [deferredProgressNotice, setDeferredProgressNotice] = useState("");
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -67,6 +70,24 @@ export default function OnboardingPage() {
     }
   };
 
+  const getCompletionRedirectSearch = () => {
+    const requestedPath = getAuthRedirectPath(
+      window.location.search,
+      window.location.origin,
+    );
+    // 랜딩에서 시작한 명시적 목적지가 있으면 가입 전 맥락을 우선 보존한다.
+    // 별도 목적지 없이 파트너에게 참여한 경우에만 연결 결과를 대시보드에 알린다.
+    if (
+      store.coupleAction !== "join"
+      || requestedPath !== "/wedding/lounge"
+    ) {
+      return window.location.search;
+    }
+    return `?${new URLSearchParams({
+      redirect: buildJoinedDashboardRedirect(),
+    })}`;
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError("");
@@ -74,17 +95,15 @@ export default function OnboardingPage() {
     try {
       const progress: Record<string, unknown> = {};
       store.progressChecklist.forEach((item) => {
-        // 입력은 만원 단위 → 원 단위로 변환 (완료 항목만).
-        // 저장은 반드시 spent/budget(원 단위)에 한다. 레거시 cost 필드는 읽는 쪽이
-        // "10만 미만이면 만원 단위"로 해석하므로, 여기에 원 단위를 넣으면
-        // 10만원 미만 항목의 지출이 10,000배로 부풀어 오른다.
+        // 입력한 실제 지출만 원 단위로 저장한다. 계획 예산은 사용자가 예산
+        // 화면에서 별도로 입력하며, 실제 지출을 예산으로 추정하지 않는다.
         const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
         progress[item.key] = costInWon
-          ? { status: item.status, spent: costInWon, budget: costInWon }
+          ? { status: item.status, spent: costInWon }
           : { status: item.status };
       });
 
-      // 웨딩 스타일 선호도 저장
+      // 결혼식 선호도 저장
       progress.__preferences = {
         weddingStyle: store.preferences.weddingStyle,
         priorities: store.preferences.priorities,
@@ -103,7 +122,9 @@ export default function OnboardingPage() {
           weddingDate: store.weddingDateUndecided ? null : store.weddingDate,
           venue: store.venueUndecided ? null : store.venue,
           sanggyeonryeDate: store.sanggyeonryeUndecided ? null : store.sanggyeonryeDate,
-          totalBudget: store.approximateBudget,
+          totalBudget: store.approximateBudget > 0
+            ? { amount: store.approximateBudget, unit: "won" }
+            : null,
           progress,
         }),
       });
@@ -118,14 +139,33 @@ export default function OnboardingPage() {
       // 온보딩 완료 쿠키 설정
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
+      if (typeof data.inviteCode === "string") {
+        setInviteCodeResult(data.inviteCode);
+      }
+
+      const isPendingPartner =
+        data.planChange?.status === "pending_partner"
+        && typeof data.planChange.summary === "string";
+      const hasDeferredRoutineProgress =
+        data.routineProgress?.status === "deferred"
+        && typeof data.routineProgress.message === "string";
+      if (isPendingPartner) {
+        setPendingPlanNotice(data.planChange.summary);
+      }
+      if (hasDeferredRoutineProgress) {
+        setDeferredProgressNotice(data.routineProgress.message);
+      }
+      if (isPendingPartner || hasDeferredRoutineProgress) {
+        return;
+      }
+
       // 초대코드가 있고 "새로 시작하기"인 경우 모달 표시
       if (data.inviteCode && store.coupleAction === "create") {
-        setInviteCodeResult(data.inviteCode);
         setShowInviteModal(true);
         // 리다이렉트 하지 않음 → 모달에서 사용자가 직접 이동
       } else {
         window.location.href = getAuthRedirectPath(
-          window.location.search,
+          getCompletionRedirectSearch(),
           window.location.origin,
         );
       }
@@ -159,13 +199,26 @@ export default function OnboardingPage() {
     }
   };
 
+  const continueAfterPendingPlan = () => {
+    setPendingPlanNotice("");
+    setDeferredProgressNotice("");
+    if (inviteCodeResult && store.coupleAction === "create") {
+      setShowInviteModal(true);
+      return;
+    }
+    window.location.href = getAuthRedirectPath(
+      getCompletionRedirectSearch(),
+      window.location.origin,
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
       <div className="w-full max-w-[480px]">
         {/* 로고 */}
         <div className="text-center mb-8">
           <Logo size="md" />
-          <p className="text-[13px] text-taupe-400 mt-2">웨딩 준비 시작하기</p>
+          <p className="text-[13px] text-taupe-400 mt-2">결혼 준비 시작하기</p>
         </div>
 
         {/* 스텝 인디케이터 */}
@@ -299,6 +352,63 @@ export default function OnboardingPage() {
 
       {/* 초대코드 모달 */}
       <AnimatePresence>
+        {(pendingPlanNotice || deferredProgressNotice) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pending-plan-title"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-[400px] rounded-3xl bg-white p-8 text-center shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+            >
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#795252]/10 text-2xl">
+                🤝
+              </div>
+              <h3
+                id="pending-plan-title"
+                className="mb-2 text-[20px] font-semibold text-noir-800"
+              >
+                {pendingPlanNotice
+                  ? "파트너 확인을 요청했어요"
+                  : "저장되지 않은 입력이 있어요"}
+              </h3>
+              {pendingPlanNotice && (
+                <p className="mb-3 text-[13px] leading-relaxed text-taupe-500">
+                  {pendingPlanNotice}
+                </p>
+              )}
+              {pendingPlanNotice && (
+                <p
+                  className={`${deferredProgressNotice ? "mb-3" : "mb-6"} text-[12px] leading-relaxed text-taupe-400`}
+                >
+                  아직 계획에는 반영되지 않았어요. 두 사람이 모두 확인하면 자동으로 반영됩니다.
+                </p>
+              )}
+              {deferredProgressNotice && (
+                <p className="mb-6 text-[12px] leading-relaxed text-rose-700">
+                  {deferredProgressNotice}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={continueAfterPendingPlan}
+                className="w-full rounded-2xl bg-[#795252] py-3 text-[14px] font-medium text-white transition-colors hover:bg-[#946a6a]"
+              >
+                확인하고 계속하기
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showInviteModal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -357,7 +467,7 @@ export default function OnboardingPage() {
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >
-                웨딩 준비 계속하기
+                결혼 준비 계속하기
               </button>
             </motion.div>
           </motion.div>

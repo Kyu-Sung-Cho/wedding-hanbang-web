@@ -9,13 +9,29 @@ import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { signInWithOAuth } from "@/lib/auth";
+import {
+  OAUTH_PROVIDER_UNAVAILABLE,
+  isOAuthProviderEnabled,
+  signInWithOAuth,
+} from "@/lib/auth";
+
+const SOCIAL_PROVIDER_LABEL = {
+  kakao: "카카오",
+  google: "구글",
+  apple: "Apple",
+} as const;
 
 // Supabase 에러 메시지 한국어 변환
 function translateError(message: string): string {
-  if (message.includes("Invalid login")) return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  // 소셜로만 가입한 계정에는 비밀번호가 없다. 그 사람에게 "비밀번호가 틀렸다"고 하면
+  // 존재하지 않는 것을 계속 맞히려 애쓴다. 그렇다고 "이 계정은 구글이에요"라고 말하면
+  // 가입 여부가 밖으로 드러나므로, 어느 쪽인지는 말하지 않고 나가는 길만 가리킨다.
+  if (message.includes("Invalid login")) {
+    return "이메일과 비밀번호가 맞지 않아요. 카카오·구글·Apple로 시작한 계정이라면 비밀번호가 아직 없을 수 있어요 — 아래 '비밀번호 찾기'에서 정하실 수 있어요.";
+  }
   if (message.includes("Email not confirmed")) return "이메일 인증이 완료되지 않았습니다.";
   if (message.includes("Too many requests")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
   if (message.includes("User not found")) return "등록되지 않은 이메일입니다.";
@@ -32,8 +48,13 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState<null | "email" | "kakao" | "apple">(null);
+  const [loading, setLoading] = useState<null | "email" | "kakao" | "apple" | "google">(null);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const kakaoOAuthEnabled = isOAuthProviderEnabled("kakao");
+  const appleOAuthEnabled = isOAuthProviderEnabled("apple");
+  const googleOAuthEnabled = isOAuthProviderEnabled("google");
+  const hasSocialLogin = kakaoOAuthEnabled || appleOAuthEnabled || googleOAuthEnabled;
 
   // 로고 페이드인 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,16 +75,27 @@ export default function LoginScreen() {
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  const emailInvalid = emailTouched && email.length > 0 && !isValidEmail(email);
+  const emailInvalid =
+    emailTouched &&
+    email.trim().length > 0 &&
+    !isValidEmail(email.trim());
   const isFormDisabled = loading !== null;
+
+  function showLoginError(title: string, message: string) {
+    setLoginError(message);
+    if (Platform.OS !== "web") {
+      Alert.alert(title, message);
+    }
+  }
 
   // 이메일 로그인
   async function handleEmailLogin() {
     if (!email.trim() || !password) return;
     if (!isValidEmail(email.trim())) {
-      Alert.alert("알림", "올바른 이메일 형식을 입력해주세요.");
+      showLoginError("알림", "올바른 이메일 형식을 입력해주세요.");
       return;
     }
+    setLoginError(null);
     setLoading("email");
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -71,20 +103,22 @@ export default function LoginScreen() {
         password,
       });
       if (error) {
-        Alert.alert("로그인 실패", translateError(error.message));
+        showLoginError("로그인 실패", translateError(error.message));
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      // 루트가 onboarding_completed를 다시 확인한 뒤 올바른 화면으로 보낸다.
+      router.replace("/");
     } catch {
-      Alert.alert("오류", "로그인에 실패했어요. 다시 시도해주세요.");
+      showLoginError("오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
       setLoading(null);
     }
   }
 
   // 소셜 로그인
-  async function handleSocialLogin(provider: "kakao" | "apple") {
+  async function handleSocialLogin(provider: "kakao" | "apple" | "google") {
     if (loading) return;
+    setLoginError(null);
     setLoading(provider);
     try {
       const result = await signInWithOAuth(provider);
@@ -92,10 +126,16 @@ export default function LoginScreen() {
         setLoading(null);
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다.
+      router.replace("/");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "로그인에 실패했어요";
-      Alert.alert("로그인 오류", message);
+      // 앱이 쓴 안내만 그대로 보여준다. Supabase가 던진 원문은 사람이 읽을 수 없고
+      // 내부 상태를 드러내므로, 무엇이 안 됐는지만 우리 말로 알린다.
+      const message =
+        err instanceof Error && err.name === OAUTH_PROVIDER_UNAVAILABLE
+          ? err.message
+          : `${SOCIAL_PROVIDER_LABEL[provider]} 로그인을 지금 마치지 못했어요. 잠시 후 다시 시도하시거나 이메일 로그인을 이용해주세요.`;
+      showLoginError("로그인 오류", message);
     } finally {
       setLoading(null);
     }
@@ -126,7 +166,7 @@ export default function LoginScreen() {
             />
             <Text style={styles.title}>웨딩한방</Text>
             <Text style={styles.subtitle}>
-              AI 웨딩 플래너와 함께{"\n"}우리답게 결혼을 준비하세요
+              결혼 준비, 아모라와 정리하세요
             </Text>
           </Animated.View>
 
@@ -136,7 +176,10 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, emailInvalid && styles.inputError]}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setLoginError(null);
+                }}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="이메일 주소를 입력해주세요"
                 placeholderTextColor={colors.taupe[400]}
@@ -156,7 +199,10 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    setLoginError(null);
+                  }}
                   placeholder="비밀번호"
                   placeholderTextColor={colors.taupe[400]}
                   secureTextEntry={!showPassword}
@@ -175,6 +221,12 @@ export default function LoginScreen() {
               </View>
               <Text style={styles.fieldHint}>6자 이상</Text>
             </View>
+
+            {loginError ? (
+              <Text style={styles.loginError} accessibilityRole="alert">
+                {loginError}
+              </Text>
+            ) : null}
 
             <Pressable
               style={[styles.emailBtn, (!email.trim() || !password || emailInvalid) && { opacity: 0.4 }]}
@@ -201,15 +253,18 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* 구분선 */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>또는</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          {hasSocialLogin ? (
+            <>
+              {/* 구분선 */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>또는</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-          {/* 소셜 로그인 */}
-          <View style={[styles.socialButtons, isFormDisabled && { opacity: 0.5 }]}>
+              {/* 소셜 로그인 */}
+              <View style={[styles.socialButtons, isFormDisabled && { opacity: 0.5 }]}>
+            {kakaoOAuthEnabled ? (
             <Pressable
               style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("kakao")}
@@ -228,7 +283,32 @@ export default function LoginScreen() {
                 </View>
               )}
             </Pressable>
+            ) : null}
 
+            {googleOAuthEnabled ? (
+            <Pressable
+              style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.8 }]}
+              onPress={() => handleSocialLogin("google")}
+              disabled={loading !== null}
+              accessibilityLabel="구글로 로그인"
+              accessibilityRole="button"
+            >
+              {loading === "google" ? (
+                <ActivityIndicator color={colors.textPrimary} />
+              ) : (
+                <View style={styles.socialInner}>
+                  <Ionicons
+                    name="logo-google"
+                    size={20}
+                    color={colors.textPrimary}
+                  />
+                  <Text style={styles.googleText}>구글로 계속하기</Text>
+                </View>
+              )}
+            </Pressable>
+            ) : null}
+
+            {appleOAuthEnabled ? (
             <Pressable
               style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("apple")}
@@ -240,12 +320,25 @@ export default function LoginScreen() {
                 <ActivityIndicator color={colors.textPrimary} />
               ) : (
                 <View style={styles.socialInner}>
-                  <Text style={styles.appleIcon}>{"\uF8FF"}</Text>
+                  <Ionicons
+                    name="logo-apple"
+                    size={20}
+                    color={colors.textPrimary}
+                  />
                   <Text style={styles.appleText}>Apple로 계속하기</Text>
                 </View>
               )}
             </Pressable>
-          </View>
+            ) : null}
+              </View>
+            </>
+          ) : (
+            <Text style={styles.socialUnavailable}>
+              {Platform.OS === "web"
+                ? "소셜 로그인은 설치한 앱에서 이용할 수 있어요."
+                : "소셜 로그인은 현재 준비 중이에요. 이메일 로그인을 이용해주세요."}
+            </Text>
+          )}
 
           <Text style={styles.disclaimer}>
             계속하면 이용약관과 개인정보처리방침에{"\n"}동의하는 것으로 간주됩니다
@@ -305,6 +398,16 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginTop: 6,
     marginLeft: 4,
+  },
+  loginError: {
+    borderRadius: 12,
+    backgroundColor: colors.rose.pale,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.danger,
+    lineHeight: 20,
   },
   fieldHint: {
     fontSize: 12,
@@ -396,6 +499,21 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
     color: "#191919",
   },
+  googleButton: {
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleText: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textPrimary,
+  },
   appleButton: {
     width: "100%",
     height: 52,
@@ -406,14 +524,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  appleIcon: {
-    fontSize: 18,
-    color: colors.textPrimary,
-  },
   appleText: {
     fontSize: 15,
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textPrimary,
+  },
+  socialUnavailable: {
+    marginTop: 24,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    textAlign: "center",
   },
 
   disclaimer: {

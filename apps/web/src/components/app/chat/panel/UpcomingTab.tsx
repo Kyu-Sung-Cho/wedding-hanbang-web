@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
-import { getEvents } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -15,13 +16,8 @@ const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  meeting: "상견례", venue: "예식장", studio: "스튜디오",
-  dress: "드레스/턱시도", makeup: "메이크업", ring: "예물(반지)",
-  hanbok: "한복", yedan: "예단", honeymoon: "신혼여행",
-  houseware: "혼수(가전/가구)", housing: "신혼집", invitation: "청첩장",
-  snap: "본식스냅/영상", shoes: "웨딩구두", bouquet: "부케/꽃장식",
-  gift: "답례품", mc: "사회/축가", ham: "함", pyebaek: "폐백",
-  etiquette: "예절가이드",
+  ...PLANNING_CATEGORY_LABELS,
+  etiquette: "결혼 예절 참고",
 };
 
 function formatEventDate(dateStr: string): string {
@@ -74,7 +70,7 @@ export default function UpcomingTab() {
   const upcomingEvents: ScheduleEvent[] = useMemo(() => {
     if (!todayStr) return [];
     return getEvents(progress as Record<string, unknown>)
-      .filter((e) => e.date >= todayStr)
+      .filter((e) => e.date >= todayStr && getScheduleEventStatus(e) === "planned")
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 10);
   }, [progress, todayStr]);

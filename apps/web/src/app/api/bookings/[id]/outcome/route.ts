@@ -14,6 +14,7 @@ import {
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 export const dynamic = "force-dynamic";
 
@@ -184,6 +185,10 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
+    }
+
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
       return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
@@ -212,7 +217,7 @@ export async function PATCH(
 
     const admin = createAdminClient();
     const { data: atomicData, error: atomicError } = await admin.rpc(
-      "complete_vendor_booking_outcome",
+      "complete_amora_booking_outcome_atomic",
       {
         p_booking_id: id,
         p_customer_id: user.id,
@@ -233,6 +238,12 @@ export async function PATCH(
         return NextResponse.json(
           { error: "예약 결과 입력값이 올바르지 않습니다." },
           { status: 400 },
+        );
+      }
+      if (message.includes("booking_joint_approval_required")) {
+        return NextResponse.json(
+          { error: "두 분 커플의 완료·지출 기록은 공동 승인 기능이 준비될 때까지 저장할 수 없습니다." },
+          { status: 409 },
         );
       }
       console.error("Booking outcome atomic RPC error:", atomicError);
@@ -297,9 +308,16 @@ export async function PATCH(
     const createSync = projection.sync && "scheduleAdded" in projection.sync
       ? projection.sync
       : null;
-    const fullyApplied = projection.status === "completed";
+    const projectionNeedsReview = projection.needsReview === true
+      || projection.sync?.needsReview === true;
+    const projectionReviewReason = projection.reviewReason
+      ?? projection.sync?.reviewReason
+      ?? null;
+    const fullyApplied = projection.status === "completed" && !projectionNeedsReview;
     const message = fullyApplied
-      ? "예약 결과가 저장되었고 예산에도 반영되었습니다."
+      ? "사용자가 입력한 완료·지출 기록을 저장하고 예산에 반영했습니다. 결제 증빙이나 업체 확인을 뜻하지는 않습니다."
+      : projectionNeedsReview
+        ? "사용자 완료·지출 기록은 저장했지만 기존 금액 기록의 출처가 불명확해 예산 금액은 자동으로 바꾸지 않았습니다. 확인이 필요합니다."
       : projection.status === "pending_retry"
         ? "예약 결과는 저장되었지만 예산 반영이 지연되고 있습니다. 자동 재시도하므로 결과를 다시 입력할 필요는 없습니다."
         : "예약 결과는 저장되었지만 예산 자동 반영이 재시도 한도를 넘었습니다. 결과를 다시 입력하지 말고 고객지원에 알려주세요.";
@@ -307,6 +325,8 @@ export async function PATCH(
     return NextResponse.json({
       outcomeAccepted: true,
       fullyApplied,
+      projectionNeedsReview,
+      projectionReviewReason,
       booking: {
         id: atomicOutcome.booking.id,
         status: atomicOutcome.booking.status,

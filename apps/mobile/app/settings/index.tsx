@@ -1,5 +1,5 @@
 // 설정 화면 — 프로필/결혼정보 직접 편집 + 알림, 계정관리, 앱 정보
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
   Linking,
   Animated,
-  Switch,
   Modal,
+  Platform,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -43,14 +43,8 @@ import {
   type CoupleConnectionState,
 } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
+import { signOut } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
-import {
-  canChangeCareConsent,
-  hasActiveCareConsent,
-  maskSignupEmail,
-  parseCareAvailability,
-  type CareAvailability,
-} from "@/lib/careSettings";
 import {
   buildWeddingSettingsPatch,
   createLatestSettingsLoadGate,
@@ -59,33 +53,13 @@ import {
   type WeddingSettingsSnapshot,
 } from "@/lib/weddingSettings";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { purgeCommunityDecisionPendingForOwnerWithRetry } from "@/lib/communityDecisionPending";
+import { hasActiveCareConsent } from "@/lib/careSettings";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
-
-// AsyncStorage 키
-const NOTIF_PUSH_KEY = "@hanbang/notif_push";
-const NOTIF_COMMUNITY_KEY = "@hanbang/notif_community";
-const NOTIF_PARTNER_KEY = "@hanbang/notif_partner";
+import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
+import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
 
 type SettingsData = WeddingSettingsData;
-
-type MobileProfile = {
-  id: string;
-  name: string | null;
-  role: "bride" | "groom" | null;
-  couple_id: string | null;
-  care_notifications_enabled: boolean;
-  care_notifications_consented_at: string | null;
-};
-
-type ProfileResponse = {
-  profile?: MobileProfile;
-  careAvailability?: unknown;
-  communityProfileSynced?: boolean;
-  communityNickname?: string | null;
-  error?: string;
-  code?: string;
-};
 
 type CoupleCodeResponse = {
   inviteCode?: unknown;
@@ -98,23 +72,18 @@ export default function SettingsScreen() {
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
   const [settingsSnapshot, setSettingsSnapshot] =
     useState<WeddingSettingsSnapshot | null>(null);
+  const [legacyCareConsentActive, setLegacyCareConsentActive] = useState(false);
+  const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const checkScale = useRef(new Animated.Value(0)).current;
   const settingsLoadGate = useRef(createLatestSettingsLoadGate()).current;
-
-  // 알림 설정 상태
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [communityNotifEnabled, setCommunityNotifEnabled] = useState(true);
-  const [partnerNotifEnabled, setPartnerNotifEnabled] = useState(true);
-  const [careNotificationsEnabled, setCareNotificationsEnabled] = useState(false);
-  const [careSaving, setCareSaving] = useState(false);
-  const [careDeliveryEmail, setCareDeliveryEmail] = useState<string | null>(null);
-  const [careAvailability, setCareAvailability] = useState<CareAvailability | null>(null);
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -132,76 +101,6 @@ export default function SettingsScreen() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [resettingCouple, setResettingCouple] = useState(false);
 
-  // 알림 설정 로드
-  useEffect(() => {
-    (async () => {
-      try {
-        const [push, community, partner] = await Promise.all([
-          AsyncStorage.getItem(NOTIF_PUSH_KEY),
-          AsyncStorage.getItem(NOTIF_COMMUNITY_KEY),
-          AsyncStorage.getItem(NOTIF_PARTNER_KEY),
-        ]);
-        // 기본값: 켜짐 (null이면 true)
-        if (push !== null) setPushEnabled(push === "true");
-        if (community !== null) setCommunityNotifEnabled(community === "true");
-        if (partner !== null) setPartnerNotifEnabled(partner === "true");
-      } catch (err) {
-        console.error("알림 설정 로드 오류:", err);
-      }
-    })();
-  }, []);
-
-  // 알림 토글 핸들러
-  const togglePush = useCallback(async (value: boolean) => {
-    setPushEnabled(value);
-    await AsyncStorage.setItem(NOTIF_PUSH_KEY, String(value));
-  }, []);
-
-  const toggleCommunity = useCallback(async (value: boolean) => {
-    setCommunityNotifEnabled(value);
-    await AsyncStorage.setItem(NOTIF_COMMUNITY_KEY, String(value));
-  }, []);
-
-  const togglePartner = useCallback(async (value: boolean) => {
-    setPartnerNotifEnabled(value);
-    await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
-  }, []);
-
-  const toggleCare = useCallback(async (value: boolean) => {
-    if (careSaving) return;
-    if (value && !canChangeCareConsent(false, careAvailability)) {
-      Alert.alert("현재 준비 중이에요", "아모라 먼저 챙기기 발송을 시작하면 여기서 켤 수 있어요.");
-      return;
-    }
-    setCareSaving(true);
-    try {
-      const response = await apiFetch("/api/profile", {
-        method: "PATCH",
-        body: JSON.stringify({ care_notifications_enabled: value }),
-      });
-      const payload = await response.json().catch(() => ({})) as ProfileResponse;
-      const nextAvailability = parseCareAvailability(payload.careAvailability);
-      setCareAvailability(nextAvailability);
-      if (!response.ok) throw new Error(payload.error ?? "설정을 저장하지 못했어요.");
-      if (!payload.profile || !nextAvailability) {
-        throw new Error("저장된 동의 상태를 확인하지 못했어요.");
-      }
-
-      const actualConsentState = hasActiveCareConsent(payload.profile);
-      setCareNotificationsEnabled(actualConsentState);
-      if (actualConsentState !== value) {
-        throw new Error("저장된 동의 상태가 요청과 달라요. 잠시 후 다시 시도해주세요.");
-      }
-    } catch (toggleError) {
-      Alert.alert(
-        "설정을 저장하지 못했어요",
-        toggleError instanceof Error ? toggleError.message : "다시 시도해주세요.",
-      );
-    } finally {
-      setCareSaving(false);
-    }
-  }, [careAvailability, careSaving]);
-
   // 현재 데이터 로드
   useEffect(() => {
     const loadToken = settingsLoadGate.begin();
@@ -209,6 +108,7 @@ export default function SettingsScreen() {
     setLoading(true);
     setLoadError(null);
     setSettingsSnapshot(null);
+    setLegacyCareConsentActive(false);
 
     (async () => {
       try {
@@ -233,20 +133,11 @@ export default function SettingsScreen() {
         }
         const parsedSettings = parseWeddingSettingsResponse(settingsPayload);
 
-        const nextCareAvailability = parseCareAvailability(parsedSettings.careAvailability);
-        if (!nextCareAvailability) {
-          throw new Error("아모라 케어 발송 상태를 확인하지 못했어요.");
-        }
-        const nextCareDeliveryEmail = nextCareAvailability.emailVerified
-          ? maskSignupEmail(user.email)
-          : null;
-
         const profile = parsedSettings.profile;
         if (!profile || profile.id !== user.id) {
           throw new Error("내 프로필을 확인하지 못했어요.");
         }
 
-        const nextCareNotificationsEnabled = hasActiveCareConsent(profile);
         let nextPartnerName: string | null = null;
         let nextCoupleConnection = resolveCoupleConnectionState(null);
 
@@ -283,11 +174,9 @@ export default function SettingsScreen() {
         const loadedData = parsedSettings.data;
 
         if (loadToken.isCurrent()) {
-          setCareAvailability(nextCareAvailability);
-          setCareDeliveryEmail(nextCareDeliveryEmail);
-          setCareNotificationsEnabled(nextCareNotificationsEnabled);
           setPartnerName(nextPartnerName);
           setCoupleConnection(nextCoupleConnection);
+          setLegacyCareConsentActive(hasActiveCareConsent(profile));
           setData(loadedData);
           setInitialData(loadedData);
           setSettingsSnapshot(parsedSettings.snapshot);
@@ -347,7 +236,19 @@ export default function SettingsScreen() {
           typeof responseBody.error === "string"
             ? responseBody.error
             : "설정을 저장하지 못했어요.";
-        if (response.status === 409) setLoadError(errorMessage);
+        const errorCode =
+          typeof responseBody === "object" &&
+          responseBody !== null &&
+          "code" in responseBody &&
+          typeof responseBody.code === "string"
+            ? responseBody.code
+            : null;
+        // 409에는 두 종류가 섞여 있다. 화면 데이터가 낡아 다시 불러와야 하는 경우에만
+        // 로드 오류로 바꾼다. 저장이 거부된 것은 화면이 깨진 것이 아니므로, 그때
+        // 화면을 통째로 날리면 사람이 방금 입력한 값까지 잃는다.
+        if (response.status === 409 && errorCode === "SETTINGS_CHANGED") {
+          setLoadError(errorMessage);
+        }
         throw new Error(errorMessage);
       }
 
@@ -377,6 +278,38 @@ export default function SettingsScreen() {
       Alert.alert("오류", translated);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRevokeLegacyCareConsent() {
+    setRevokingLegacyCareConsent(true);
+    try {
+      const response = await apiFetch("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ care_notifications_enabled: false }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message =
+          typeof payload === "object" &&
+          payload !== null &&
+          "error" in payload &&
+          typeof payload.error === "string"
+            ? payload.error
+            : "수신 동의를 해제하지 못했어요.";
+        throw new Error(message);
+      }
+      setLegacyCareConsentActive(false);
+      Alert.alert("해제 완료", "이전 이메일 수신 동의를 해제했어요.");
+    } catch (error) {
+      Alert.alert(
+        "해제 실패",
+        error instanceof Error
+          ? error.message
+          : "수신 동의를 해제하지 못했어요. 잠시 후 다시 시도해주세요.",
+      );
+    } finally {
+      setRevokingLegacyCareConsent(false);
     }
   }
 
@@ -471,17 +404,38 @@ export default function SettingsScreen() {
     );
   }
 
+  async function performLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await signOut();
+      router.replace("/(auth)/login");
+    } catch {
+      const message = "로그아웃하지 못했어요. 연결을 확인하고 다시 시도해주세요.";
+      setLogoutError(message);
+      if (Platform.OS !== "web") {
+        Alert.alert("로그아웃 실패", message);
+      }
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   // 로그아웃
   function handleLogout() {
+    if (Platform.OS === "web") {
+      void performLogout();
+      return;
+    }
+
     Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
       { text: "취소", style: "cancel" },
       {
         text: "로그아웃",
         style: "destructive",
-        onPress: async () => {
-          await supabase.auth.signOut();
-          router.replace("/(auth)/login");
-        },
+        onPress: () => void performLogout(),
       },
     ]);
   }
@@ -508,6 +462,14 @@ export default function SettingsScreen() {
                   style: "destructive",
                   onPress: async () => {
                     try {
+                      const {
+                        data: { session: deletionSession },
+                        error: deletionSessionError,
+                      } = await supabase.auth.getSession();
+                      if (deletionSessionError || !deletionSession?.user.id) {
+                        throw new Error("계정의 기기 데이터를 안전하게 정리할 사용자를 확인하지 못했어요.");
+                      }
+                      const deletionOwnerId = deletionSession.user.id;
                       const res = await apiFetch("/api/auth/delete", {
                         method: "DELETE",
                         body: JSON.stringify({ reason: "mobile_request" }),
@@ -522,10 +484,37 @@ export default function SettingsScreen() {
                           body.error ?? "탈퇴 요청을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
                         );
                       }
-
                       const finishSignOut = async () => {
-                        await supabase.auth.signOut();
+                        const { decisionDataPurged } = await signOut({
+                          continueOnDecisionPurgeFailure: true,
+                        });
                         router.replace("/(auth)/login");
+                        if (!decisionDataPurged) {
+                          Alert.alert(
+                            "기기 임시 데이터 정리가 남아 있어요",
+                            "계정 삭제 요청은 접수됐지만 이 기기의 비공개 결정 초안과 재시도 명령 정리는 아직 완료로 확인되지 않았어요.",
+                            [
+                              {
+                                text: "다시 정리",
+                                onPress: () => {
+                                  void purgeCommunityDecisionPendingForOwnerWithRetry(
+                                    deletionOwnerId,
+                                  ).then(() => {
+                                    Alert.alert(
+                                      "기기 데이터 정리 완료",
+                                      "이 계정의 비공개 결정 임시 데이터를 모두 정리했어요.",
+                                    );
+                                  }).catch(() => {
+                                    Alert.alert(
+                                      "기기 데이터 정리 미완료",
+                                      "아직 안전하게 정리됐다고 확인할 수 없어요. 앱을 종료하지 말고 다시 시도해주세요.",
+                                    );
+                                  });
+                                },
+                              },
+                            ],
+                          );
+                        }
                       };
                       if (body.pending) {
                         Alert.alert(
@@ -559,27 +548,6 @@ export default function SettingsScreen() {
         ? "신랑"
         : data?.role ?? "-";
   const phase = coupleConnection.phase;
-  const careConsentChangeAllowed = canChangeCareConsent(
-    careNotificationsEnabled,
-    careAvailability,
-  );
-  const careStatus = !careAvailability
-    ? "상태 확인 중"
-    : !careAvailability.outboundEnabled
-      ? careNotificationsEnabled ? "발송 일시중지" : "준비 중"
-      : careDeliveryEmail ? "사용 가능" : "이메일 인증 필요";
-  const careDescription = !careAvailability
-    ? careNotificationsEnabled
-      ? "아모라 케어 발송 상태를 확인하고 있어요. 기존 동의는 언제든 해제할 수 있어요."
-      : "아모라 케어 발송 상태를 확인하고 있어요."
-    : !careAvailability.outboundEnabled
-      ? careNotificationsEnabled
-        ? "아모라 먼저 챙기기 발송이 일시중지됐어요. 기존 동의는 유지되며 언제든 해제할 수 있어요."
-        : "아모라 먼저 챙기기는 현재 준비 중이에요. 발송을 시작하면 여기서 켤 수 있어요."
-      : careDeliveryEmail
-        ? `상견례·청첩장 모임 전후 안내를 가입 이메일 ${careDeliveryEmail}로 보내요. 파트너 연결 후 두 분 각각 동의해야 시작되고, 언제든 여기서 해제할 수 있어요.`
-        : "상견례·청첩장 모임 전후 아모라 케어를 준비해요. 가입 이메일 인증을 마치면 이메일 안내도 받을 수 있어요. 파트너 연결 후 두 분 각각 동의해야 시작돼요.";
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -698,7 +666,7 @@ export default function SettingsScreen() {
           <View style={styles.divider} />
 
           <View style={styles.field}>
-            <Text style={styles.label}>예식장</Text>
+            <Text style={styles.label}>결혼식장</Text>
             <TextInput
               style={[
                 styles.textInput,
@@ -706,7 +674,7 @@ export default function SettingsScreen() {
               ]}
               value={data?.venue ?? ""}
               onChangeText={(v) => updateField("venue", v)}
-              placeholder="예식장 이름"
+              placeholder="결혼식장 이름"
               placeholderTextColor={colors.taupe[400]}
               maxLength={120}
               onFocus={() => setFocusedField("venue")}
@@ -776,70 +744,32 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>알림 설정</Text>
         </View>
         <Surface style={styles.card}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <View style={styles.careLabelRow}>
-                <Text style={styles.toggleLabel}>아모라 먼저 챙기기</Text>
-                <View style={styles.careStatusBadge}>
-                  <Text style={styles.careStatusText}>{careStatus}</Text>
-                </View>
-              </View>
-              <Text style={styles.toggleHint}>{careDescription}</Text>
-            </View>
-            <Switch
-              value={careNotificationsEnabled}
-              onValueChange={(value) => void toggleCare(value)}
-              disabled={careSaving || !careConsentChangeAllowed}
-              trackColor={{ false: colors.ivory[200], true: colors.sage.pale }}
-              thumbColor={careNotificationsEnabled ? colors.success : colors.taupe[400]}
-              accessibilityLabel="아모라 먼저 챙기기"
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>푸시 알림</Text>
-              <Text style={styles.toggleHint}>일정, 예산 알림을 받아요</Text>
-            </View>
-            <Switch
-              value={pushEnabled}
-              onValueChange={togglePush}
-              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
-              thumbColor={pushEnabled ? colors.rose[500] : colors.taupe[400]}
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>커뮤니티 알림</Text>
-              <Text style={styles.toggleHint}>댓글, 좋아요 알림을 받아요</Text>
-            </View>
-            <Switch
-              value={communityNotifEnabled}
-              onValueChange={toggleCommunity}
-              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
-              thumbColor={communityNotifEnabled ? colors.rose[500] : colors.taupe[400]}
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>파트너 메시지 알림</Text>
-              <Text style={styles.toggleHint}>파트너가 보낸 메시지 알림</Text>
-            </View>
-            <Switch
-              value={partnerNotifEnabled}
-              onValueChange={togglePartner}
-              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
-              thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
-            />
-          </View>
+          <ActionRow
+            icon={<Bell size={18} color={colors.noir[800]} />}
+            title="기기 알림 설정"
+            description="알림 허용 여부는 휴대폰 설정에서 바꿀 수 있어요"
+            onPress={() => void Linking.openSettings()}
+            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+          />
+          <CommunityReplyPushPreferenceControl />
+          <TodayOnePreferenceControl />
+          {legacyCareConsentActive ? (
+            <>
+              <View style={styles.divider} />
+              <ActionRow
+                icon={<Bell size={18} color={colors.noir[800]} />}
+                title="이전 이메일 수신 동의 해제"
+                description="예전에 동의한 아모라 이메일 수신을 해제해요"
+                onPress={() => void handleRevokeLegacyCareConsent()}
+                disabled={revokingLegacyCareConsent}
+                right={
+                  revokingLegacyCareConsent
+                    ? <ActivityIndicator size="small" color={colors.rose[500]} />
+                    : undefined
+                }
+              />
+            </>
+          ) : null}
         </Surface>
 
         {/* 섹션 4: 파트너 관리 */}
@@ -960,9 +890,20 @@ export default function SettingsScreen() {
 
           <ActionRow
             icon={<LogOut size={18} color={colors.noir[800]} />}
-            title="로그아웃"
+            title={loggingOut ? "로그아웃 중" : "로그아웃"}
             onPress={handleLogout}
+            disabled={loggingOut}
+            right={
+              loggingOut
+                ? <ActivityIndicator size="small" color={colors.rose[500]} />
+                : undefined
+            }
           />
+          {logoutError ? (
+            <Text style={styles.inlineError} accessibilityRole="alert">
+              {logoutError}
+            </Text>
+          ) : null}
         </Surface>
 
         {/* 섹션 6: 앱 정보 */}
@@ -1147,6 +1088,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
   },
+  inlineError: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.danger,
+  },
 
   // 섹션
   sectionHeader: {
@@ -1206,45 +1153,6 @@ const styles = StyleSheet.create({
 
   saveButton: {
     marginBottom: 24,
-  },
-
-  // 알림 토글 행
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 2,
-  },
-  toggleInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  careLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  careStatusBadge: {
-    borderRadius: 999,
-    backgroundColor: colors.rose.glow,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  careStatusText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.rose[500],
-  },
-  toggleLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.noir[800],
-  },
-  toggleHint: {
-    fontSize: 12,
-    color: colors.taupe[400],
-    marginTop: 2,
   },
 
   // 커플 코드

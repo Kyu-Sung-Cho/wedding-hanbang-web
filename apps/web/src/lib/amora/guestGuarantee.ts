@@ -1,3 +1,9 @@
+import {
+  kstMidnightFromYmd,
+  todayKstMidnight,
+} from "@/lib/utils/kstDate";
+import { isValidScheduleYmd } from "@/utils/scheduleEvents";
+
 export type GuestGuaranteeRiskLevel = "low" | "medium" | "high";
 
 export interface GuestGuaranteeInput {
@@ -54,8 +60,8 @@ const RISK_LABELS: Record<GuestGuaranteeRiskLevel, string> = {
 
 const FIELD_LABELS: Record<string, string> = {
   estimatedGuests: "예상 하객 수",
-  guaranteedGuests: "보증 인원",
-  mealPriceManwon: "1인 식대",
+  guaranteedGuests: "계약상 최소 결제 식사 인원",
+  mealPriceManwon: "한 사람당 식사비",
   noShowRatePercent: "계산에 사용할 불참률",
 };
 
@@ -88,12 +94,10 @@ function toScenario(
 }
 
 function daysUntil(ymd?: string): number | null {
-  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
-  const [year, month, day] = ymd.split("-").map(Number);
-  const target = Date.UTC(year, month - 1, day);
-  const now = new Date();
-  const kstNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Math.ceil((target - kstNow) / 86400000);
+  if (!ymd || !isValidScheduleYmd(ymd)) return null;
+  return Math.ceil(
+    (kstMidnightFromYmd(ymd).getTime() - todayKstMidnight().getTime()) / 86_400_000,
+  );
 }
 
 function buildVenueMessage(input: {
@@ -104,12 +108,12 @@ function buildVenueMessage(input: {
   expectedAttendanceGuests: number;
 }) {
   const intro = input.venueName
-    ? `${input.venueName} 보증 인원 확인차 문의드립니다.`
-    : "보증 인원 확인차 문의드립니다.";
+    ? `${input.venueName}의 계약상 최소 결제 식사 인원 확인차 문의드립니다.`
+    : "계약상 최소 결제 식사 인원 확인차 문의드립니다.";
   return `${intro}
-현재 예상 하객은 ${input.estimatedGuests}명이고, 노쇼를 감안한 참석 예상은 약 ${input.expectedAttendanceGuests}명입니다.
-계약서 기준 보증 인원 ${input.guaranteedGuests}명, 식대 1인 ${input.mealPriceManwon}만원으로 이해했는데 맞을까요?
-최종 인원 변경 가능 마감일, 보증 인원 하향 가능 여부, 초과 인원 정산 기준을 문서로 확인 부탁드립니다.`;
+현재 예상 하객은 ${input.estimatedGuests}명이고, 제가 입력한 불참률로 계산한 인원은 ${input.expectedAttendanceGuests}명입니다.
+계약서 기준 최소 결제 식사 인원은 ${input.guaranteedGuests}명, 한 사람당 식사비는 ${input.mealPriceManwon}만원으로 이해했는데 맞을까요?
+최종 인원을 알릴 날짜, 최소 결제 식사 인원을 줄일 수 있는지, 초과 인원 계산 기준을 문서로 확인 부탁드립니다.`;
 }
 
 export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuaranteeResult {
@@ -145,8 +149,8 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
       mode: "input_needed",
       riskLevel: "medium",
       riskLabel: RISK_LABELS.medium,
-      summaryTitle: "보증 인원 계산에 필요한 값이 조금 부족해요",
-      summaryText: `${labels}만 알려주시면 식대 손실과 조정 기준을 바로 계산할 수 있습니다.`,
+      summaryTitle: "식사비 계산에 필요한 값이 부족해요",
+      summaryText: `${labels}을 알려주시면 입력한 불참률에 따른 단순 계산값을 보여드릴 수 있어요.`,
       venueName,
       estimatedGuests,
       confirmedRsvpGuests,
@@ -160,11 +164,11 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
       emptySeatLossManwon: null,
       scenarios: [],
       missingFields,
-      recommendation: `한 번에 이렇게 알려주시면 됩니다: 예상 180명, 보증 200명, 식대 7.5만원, 계산할 불참률 5%.`,
+      recommendation: "예상 하객 수, 계약상 최소 결제 식사 인원, 한 사람당 식사비, 직접 정한 계산용 불참률을 알려주세요.",
       vendorQuestions: [
         "최종 인원 통보 마감일은 언제인가요?",
-        "보증 인원 하향 조정이 가능한 마지막 날짜가 있나요?",
-        "보증 초과 인원은 당일 식대 단가로만 정산되나요?",
+        "계약상 최소 결제 식사 인원을 줄일 수 있는 마지막 날짜가 있나요?",
+        "최소 결제 식사 인원을 넘으면 같은 식사비로 계산되나요?",
       ],
       venueMessage: "",
       sourceNote: "사용자 입력값 기반 시뮬레이션입니다. 업체별 계약 조건은 별도 확인이 필요합니다.",
@@ -202,8 +206,8 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
     riskLevel === "high"
       ? "최종 인원 통보 마감일을 업체에 바로 확인해 주세요"
       : riskLevel === "medium"
-        ? "입력한 불참률 시나리오와 보증 인원 사이에 차이가 있어요"
-        : "입력한 불참률 시나리오에서는 보증 인원 이상으로 계산돼요";
+      ? "입력한 불참률 계산값과 최소 결제 식사 인원 사이에 차이가 있어요"
+        : "입력한 불참률 계산값은 최소 결제 식사 인원 이상이에요";
 
   const deadlineText =
     deadlineDays === null
@@ -214,20 +218,20 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
 
   const summaryText =
     emptySeats > 0
-      ? `사용자가 지정한 불참률 ${noShowRatePercent}%로 계산하면 참석 시나리오는 ${expectedAttendanceGuests}명입니다. 보증 ${guaranteedGuests}명과의 차이는 ${emptySeats}명, 식대 차이 후보는 약 ${emptySeatLossManwon}만원입니다. ${deadlineText}`
-      : `사용자가 지정한 불참률 ${noShowRatePercent}%로 계산하면 참석 시나리오는 ${expectedAttendanceGuests}명이고 보증 인원 이상입니다. 식대 계산값은 약 ${expectedMealTotalManwon}만원입니다. ${deadlineText}`;
+      ? `사용자가 지정한 불참률 ${noShowRatePercent}%를 단순 적용한 값은 ${expectedAttendanceGuests}명입니다. 계약상 최소 결제 식사 인원 ${guaranteedGuests}명과의 차이는 ${emptySeats}명이고, 그 차이에 해당하는 식사비 계산값은 약 ${emptySeatLossManwon}만원입니다. ${deadlineText}`
+      : `사용자가 지정한 불참률 ${noShowRatePercent}%를 단순 적용한 값은 ${expectedAttendanceGuests}명으로, 계약상 최소 결제 식사 인원 이상입니다. 식사비 계산값은 약 ${expectedMealTotalManwon}만원입니다. ${deadlineText}`;
 
   const recommendation =
     emptySeats > 0
-      ? `업체가 허용하면 보증 인원을 사용자 시나리오의 ${expectedAttendanceGuests}명 쪽으로 조정할 수 있는지 먼저 서면으로 물어보세요. 실제 변경 가능 범위와 정산 기준은 계약 조건을 따라야 합니다.`
-      : "보증 인원을 더 낮추기보다 초과 인원 정산 방식과 좌석·식사 여유분을 확인하는 쪽이 좋습니다.";
+      ? "계약상 최소 결제 식사 인원을 줄일 수 있는지와 가능한 범위를 업체에 서면으로 물어보세요. 입력한 불참률은 예측값이 아니므로 그 계산 인원에 맞춰 계약을 바꾸기 전에 실제 참석 확인과 계약 조건을 함께 봐야 합니다."
+      : "현재 계산만으로 최소 결제 식사 인원을 바꿀 필요가 있는지는 정할 수 없어요. 초과 인원 계산 방식과 좌석·식사 준비 기준을 계약서에서 확인하세요.";
 
   const vendorQuestions = [
     "최종 인원 통보 마감일은 언제인가요?",
-    "보증 인원 하향 조정이 가능한 마지막 날짜와 최소 단위가 있나요?",
-    "보증 인원보다 적게 오면 식대는 보증 인원 기준으로 전액 정산되나요?",
-    "보증 인원을 넘는 하객은 같은 식대 단가로 당일 추가 정산되나요?",
-    "어린이, 업체 스태프, 혼주 식사는 같은 단가로 계산되나요?",
+    "계약상 최소 결제 식사 인원을 줄일 수 있는 마지막 날짜와 변경 단위가 있나요?",
+    "실제 참석자가 최소 결제 식사 인원보다 적으면 식사비는 어떤 인원을 기준으로 계산하나요?",
+    "최소 결제 식사 인원을 넘는 하객은 같은 식사비로 당일 추가 계산되나요?",
+    "어린이, 업체 직원, 두 사람의 부모님 식사는 같은 금액으로 계산되나요?",
   ];
 
   return {
