@@ -47,6 +47,12 @@ export default function PrivacyPage() {
                   <li>프로필 사진, 커뮤니티 게시 콘텐츠(사진·영상·글)</li>
                   <li>청첩장 정보(인사말, 일시, 장소, 계좌번호)</li>
                   <li>축의금 관리 데이터(이름, 관계, 금액)</li>
+                  {/* 저장하면서 고지하지 않고 있었다. `profiles.phone`(형식 CHECK),
+                      PATCH /api/profile의 p_phone, 설정 화면의 입력칸과 동의
+                      체크박스가 모두 플래그 없이 살아 있다. 같은 문서 제4조는 이미
+                      "연락처를 파트너에 제공"한다고 적혀 있어, 수집 고지 없이 제공만
+                      고지된 상태였다. */}
+                  <li>휴대폰 번호(입력 시 · 알림 수신 동의 여부 포함)</li>
                   <li>마케팅 수신 동의 여부</li>
                 </ul>
               </div>
@@ -150,7 +156,18 @@ export default function PrivacyPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (정보주체의 권리)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 언제든지 자신의 개인정보를 조회·수정·삭제·처리정지 요청할 수 있습니다.</li>
-              <li>이용 내역 확인 및 탈퇴는 설정 페이지에서 직접 처리할 수 있습니다.</li>
+              {/* "설정 페이지에서 직접 처리할 수 있습니다"라고 적혀 있었으나 사실이
+                  아니었다. 운영에서 DELETE /api/auth/delete는 503
+                  ACCOUNT_DELETION_INTAKE_DISABLED를 돌려준다(실측). 설정 화면의
+                  탈퇴 흐름은 끝까지 있고 마지막에 고객센터 안내가 표시되므로,
+                  "신청할 수 있다"는 참이고 "직접 처리된다"만 거짓이다.
+                  자동 접수 게이트가 켜지면 이 문장을 원래대로 되돌린다. */}
+              <li>
+                이용 내역은 설정 페이지에서 확인할 수 있습니다. 탈퇴는 설정 페이지에서 신청할 수 있으며,
+                현재 자동 접수는 준비 중이라 신청 시 고객센터(
+                <a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>
+                ) 안내가 표시됩니다. 해당 주소로 요청하시면 회사가 확인 후 처리합니다.
+              </li>
               <li>그 외 권리 행사는 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 요청할 수 있으며, 회사는 지체 없이 조치합니다.</li>
             </ol>
           </section>
