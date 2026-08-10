@@ -84,7 +84,36 @@ const SOCIAL_CARE_PATTERN =
 const WEDDING_ADJACENT_PATTERN =
   /신혼\s*(?:집|이사|생활)|부부\s*재정|공동\s*재정|가사\s*분담|가족\s*대화|부모님과\s*(?:대화|관계)/iu;
 const WEDDING_CORE_SIGNAL_PATTERN =
-  /결혼|웨딩|예식|본식|상견례|스드메|웨딩홀|예식장|신부|신랑|드레스|턱시도|메이크업|스튜디오|청첩장|하객|축의금|예단|예물|폐백|부케|혼수|신혼\s*여행|허니문|답례|보증\s*인원|식대|스냅/iu;
+  /결혼|웨딩|예식|본식|상견례|스드메|웨딩홀|예식장|신부|신랑|드레스|턱시도|메이크업|스튜디오|청첩장|하객|축의금|예단|예물|폐백|부케|혼수|신혼\s*여행|허니문|답례|보증\s*인원|식대|스냅|혼주|보정본/iu;
+// 배우자·시가·처가를 **가리키기만 하는** 발화. "남편은 무관심하고 나만 다 하고 있어",
+// "시어머니가 나를 싫어해" 같은 것이 여기 온다.
+//
+// 이건 결혼 준비 정보가 아니라 **한쪽이 관계에 대해 하는 진술**이다. 답은 해야 한다 —
+// 커플 사이에서 실제로 일어나는 일이고, W4로 떨어뜨려 되묻는 것이 이 제품에서 가장
+// 비싼 오답이다. 하지만 **장기 기억에는 넣지 않는다.** 커플이 함께 쓰는 제품에서
+// 한쪽의 불만이 기록으로 쌓이면 안 된다.
+//
+// 이 형태는 새로 만든 것이 아니다. 중재 요청이 이미 같은 이유로 W1 + 기억 off를
+// 쓴다 — "한쪽 당사자의 요약이지 둘이 확정한 사실이 아니다"(아래 mediation 분기).
+//
+// 같은 문장에 웨딩 낱말이 있으면("상견례에서 시어머니가 예단 얘기를 꺼냈어") 위쪽
+// WEDDING_CORE에서 이미 W0로 잡히므로 여기까지 오지 않는다.
+const RELATIONSHIP_CONFIDANT_PATTERN =
+  /남편|아내|배우자|시어머니|시어머님|시아버지|시아버님|시댁|처가|장인어른|장모님/iu;
+// 아래 낱말은 그 자체로 결혼을 뜻하지 않는다. 그런데 아모라 대화에서는 압도적으로
+// 결혼 준비 발화다("지금 뭐부터 해야 해?", "이 견적 800만원인데 괜찮아?").
+// 목록에 없어서 W4로 떨어지면 도구 0개 + 저장 문맥 삭제 + "이 요청이 결혼 준비의 어떤
+// 결정과 연결되는지" 되묻기가 나간다. 감정을 털어놓은 사람에게 이 되묻기를 하는 것이
+// 이 제품에서 대가가 가장 큰 오답이다.
+//
+// 그래서 승격하되 **같은 문장에 다른 영역 신호가 있으면 승격하지 않는다.**
+// 낱말만 넣으면 "회사 일 뭐부터 해야 해?"가 결혼 권한을 얻는다. 맨 앞의
+// EXPLICIT_NON_WEDDING_STATE_PATTERN은 `회사`+`예산|일정` 조합을 요구하므로
+// 이 어휘를 막지 못한다 — 그물이 있다고 믿고 낱말만 더하면 그대로 샌다.
+const AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN =
+  /견적|추가금|뭐\s*부터|무엇\s*부터|어디\s*서?\s*부터|뭐\s*먼저|늦었|늦은\s*(?:거|건|걸|편)|디데이|d-\s*\d+|호칭|(?:사진|스냅|촬영|앨범)\s*원본|원본\s*(?:사진|파일)|예산(?:을|이|은|도)?\s*.{0,8}(?:초과|넘었|모자라|부족|줄여|아껴)/iu;
+const NON_WEDDING_DOMAIN_HINT_PATTERN =
+  /회사|업무|직장|출근|퇴사|이직|취업|면접|프로젝트|시험|자격증|숙제|과제|이사|입주|전세|월세|창업|개업|다이어트|운동|여행|유학|군대|병원|수술|인테리어|리모델링|공사|자동차|차량/iu;
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
   /(?:회사|업무|직장|프로젝트|식당|레스토랑|맛집|병원|미용실).{0,12}(?:예산|일정|스케줄|예약|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
@@ -278,6 +307,30 @@ export function classifyAmoraQuestionScope({
     return {
       scope: "W0_wedding_core",
       allowsLongTermMemory: true,
+      confidence: "high",
+      needsClarification: false,
+    };
+  }
+  // WEDDING_CORE 다음, WEDDING_ADJACENT 앞이어야 한다. 앞이면 "신혼여행 뭐부터
+  // 준비해?"가 여행 힌트에 막히고, 뒤면 "남편이랑 뭐부터 해야 할지 모르겠어"가
+  // 남편 때문에 W1로 내려앉는다.
+  if (
+    AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN.test(normalizedText)
+    && !NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
+  ) {
+    return {
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+      confidence: "high",
+      needsClarification: false,
+    };
+  }
+  // 답은 하되 기록하지 않는다. 위 AMBIGUOUS 블록보다 뒤여야 한다 —
+  // "남편이랑 뭐부터 해야 할지 모르겠어"는 관계 진술이 아니라 준비 질문이다.
+  if (RELATIONSHIP_CONFIDANT_PATTERN.test(normalizedText)) {
+    return {
+      scope: "W1_wedding_adjacent",
+      allowsLongTermMemory: false,
       confidence: "high",
       needsClarification: false,
     };
