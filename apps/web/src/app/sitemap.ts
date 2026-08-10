@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+import { MANNERS_PARTS } from "@/lib/manners/data";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES } from "@/lib/price/catalog";
 import {
@@ -66,6 +67,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    {
+      url: `${BASE_URL}/manners`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...MANNERS_PARTS.map((part) => ({
+      url: `${BASE_URL}/manners/${part.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     ...PRICE_CATEGORIES.map((category) => ({
       url: `${BASE_URL}/price/${category}`,
       lastModified: new Date(),
