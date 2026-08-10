@@ -1,0 +1,805 @@
+# 7축 × 15단계 매트릭스 (105셀)
+
+> 2026-08-10 · 운영 origin/main 기준 · 코드 변경 없음
+> **A 완결 / B 부분 / C 표시 / D 부재 / E 봉인**
+> 각 셀의 핵심은 **사용자가 손에 쥐는 것**이다.
+
+## 판정 한눈에
+
+| 단계 | ① 시점 | ② 결정 | ③ 비용 | ④ 업체 | ⑤ 관계 | ⑥ 정보 | ⑦ 정서 |
+|---|---|---|---|---|---|---|---|
+| 1. 결심 직후 | B | B | B | E | B | B | B |
+| 2. 상견례 | B | B | C | E | B | D | B |
+| 3. 예식장 | B | B | B | B | B | B | B |
+| 4. 스드메 | B | B | B | E | B | B | C |
+| 5. 예물·예단·혼수 | C | C | B | D | C | D | C |
+| 6. 신혼집 | D | C | C | D | C | D | C |
+| 7. 청첩장 | B | C | B | D | B | B | B |
+| 8. 하객 관리 | A | B | B | B | B | B | B |
+| 9. 신혼여행 | A | C | B | E | B | B | B |
+| 10. 본식 세부 | B | C | B | B | B | C | B |
+| 11. 리허설·최종점검 | B | B | B | B | B | B | B |
+| 12. 본식 당일 | C | D | B | D | B | D | B |
+| 13. 식후 정산 | C | B | B | B | B | B | B |
+| 14. 혼인신고·행정 | D | B | D | N/A | D | D | D |
+| 15. 신혼 정착 | C | B | B | D | B | D | B |
+
+---
+
+## 셀 상세
+
+### 1. 결심 직후
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 카테고리 19개에 붙은 D-360~D-30 정렬 순서 한 벌 — 결혼 예정일을 넣지 않았으면 아무것도 없음.
+
+이 단계의 마감이 코드에 없다. MOMENTS 12종 중 결심 직후에 발화하는 것은 0개(전부 event 트리거이거나 wedding_relative -30일 이후). 알림은 결혼일이 있어야 계산되는데 결심 직후는 정확히 날짜 미정 구간이라 useNotifications가 빈 배열을 돌려준다. 먼저 연락하는 3경로(care 이메일 cron·proactive 인앱·today-one 카드) 모두 env 기본 false.
+
+`packages/shared/src/constants/weddingPlanning.ts:41-47(ddayStart/ddayDeadline, 주석 "화면 정렬용 기본 확인 시작점이며 실제 마감일이 아니다"), :52-86(meeting/venue D-360 시작); apps/web/src/constants/notifications.ts:12-30(n_venue_start·n_budget_setup D-360); apps/web/src/hooks/useNotifications.ts:346-352(weddingDate 없으면 즉시 [] 반환); apps/web/src/components/app/TopNav.tsx:62(종 아이콘이 유일한 렌더 경로); apps/web/src/lib/features/amoraCareFlags.ts:5-12 + apps/web/.env.example:120,124,141(먼저 말하는 3경로 기본 false)`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 본인이 이미 아는 숫자를 다시 정리한 표 한 장 — 모르는 항목 칸에는 전부 "아직 정하지 않음".
+
+결정 4개(총예산 규모·포함 범위·항목별 배분·어디부터) 중 제품이 결론까지 데려가는 것은 0개. 사용자가 숫자를 주면 합계를 맞춰줄 뿐이고, 숫자를 모르면 미배정으로 남긴다. 온보딩이 받은 우선순위·예산성향(WEDDING_PRIORITY_OPTIONS 6종/BUDGET_TENDENCY 3종)은 금액으로 변환하는 것이 명시적으로 금지돼 사실상 소비되지 않는다. 판정을 하지 않고 결론에 도달시킬 실현 경로가 이미 저장소 안에 있다: ①lib/price/publicListData.ts의 hall/studio/dress/makeup 공시 실측치를 지역·구성으로 필터한 분포(하위25·중위·상위25) 노출 — 이는 판정이 아니라 위치 표시다 ②lib/price/budgetFinder.ts는 이미 "예산 상한 안의 실제 조합"을 계산하는데 대상이 studio·dress·makeup뿐이고(:4) 결과가 sessionStorage에만 남는다(lib/price/comboStore.ts:31). 둘 다 채팅에서 호출할 도구가 없다.
+
+`apps/web/src/lib/ai/prompts.ts:1009-1041(비용 계산 엔진 — 확인된 값만), :1024("'사진이 중요해요' 같은 정성 선호만 있으면 임의의 +%를 만들지 말고"), :1084("선호만으로 금액 만들기" 금지), :1088("평균이나 관행을 사용자 값처럼 적용" 금지); apps/web/src/lib/ai/tools.ts:119-168(apply_budget_plan, 133행 "선호도나 평균을 근거로 금액 또는 비율을 새로 만들지 말고"); apps/web/src/constants/marketPrices.ts:1-9,171-179(시세 데이터 전량 []·규칙 문장만 반환); apps/web/src/lib/ai/tools/quoteMarketTools.ts:9-22(get_market_price가 "/price로 가세요" 문구만 반환); packages/shared/src/constants/weddingPreferences.ts:26-58(priorities·budgetTendency 수집) vs apps/web/src/lib/ai/prompts.ts:481-499(참고값으로만 주입, 금액 변환 불가)`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 내가 직접 적어 넣은 금액의 합계와 "초과" 빨간 글씨 한 줄.
+
+추가금 사전 경고가 문구뿐이고 금액이 없다(HIDDEN_COSTS는 "포함 범위 확인" 안내만). 계약금액↔예산 연동 경로가 없다 — analyze_contract_readiness에 contract_amount를 넣어도 read-only라 예산에 들어가지 않는다(lib/ai/mutationTools.ts에 미포함). 결제 시점(계약금·중도금·잔금)을 담는 PaymentLedger는 플래그 뒤에 있다. 초과 감지는 사후 통보이고 그마저 today-one 플래그가 켜져야 한다.
+
+`apps/web/src/components/app/budget/BudgetContent.tsx:53-74(카테고리 20개), :876-890(handleSpentChange 수기 지출 기록), :1439-1450(항목 합계 초과·미배분 문구); apps/web/src/lib/care/todayOneBudget.ts:157-228(초과 3종 감지: 기록지출>총예산·항목지출>항목예산·배분합>총예산) + apps/web/src/lib/features/amoraCareFlags.ts:5-7(AMORA_TODAY_ONE_ENABLED 기본 false); apps/web/src/components/app/budget/BudgetContent.tsx:85-96(HIDDEN_COSTS 문구 10종, 금액 없음); apps/web/src/lib/features/weddingLaunchFlags.ts:9-11 + apps/web/.env.example:94(PaymentLedger 기본 false); apps/web/src/lib/ai/prompts.ts:800("spent 필드는 사용자가 기록한 금액일 뿐 결제 완료 증거가 아닙니다")`
+
+**④ 업체조율 — E**
+> 손에 쥐는 것: "지금은 그 기능이 없어요"라는 문장 한 줄.
+
+봉인은 명시적이고 코드 주석에 해제 조건(사용자 가치 검증 + 거래·개인정보 고지)까지 적혀 있다. 다만 이 단계에서 제휴 없이도 가능한 조율(업체 첫 연락 시 물어볼 항목·문의 문장)은 계약 단계 도구(analyze_contract_readiness)에만 있어 아직 닿지 않는다.
+
+`apps/web/src/lib/ai/tools.ts:1062-1083(BETA_DISABLED_TOOL_NAMES — search_vendors·check_vendor_availability·recommend_vendors·get_vendor_detail·get_available_slots·create_booking·get_my_bookings·cancel_booking·search_nearby_places, 주석 "현재 제품 계약 밖인 업체 추천·예약·조회는 모델에 제공하지 않는다"); apps/web/src/lib/ai/prompts.ts:1189-1206("찾아볼게요", "예약해 드릴게요" 발화 자체 금지)`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 공감·통역·확인할 것·합의안 4줄 카드 하나 — 그것도 사용자가 조율을 명시적으로 요청했을 때만.
+
+양가 지원·분담의 기본안을 제시하는 것이 프롬프트에서 금지돼 있어("관습처럼 배정하지 않습니다") 중재가 "둘이 확인해보세요"에서 멈춘다. 분담 기록 필드(PAYER_OPTIONS)는 있지만 그 값을 근거로 다음 대화를 이끄는 경로가 없다.
+
+`apps/web/src/lib/ai/conflict-detector.ts:1-16(휴리스틱 <5 즉시 false, 5~9만 LLM 검증); apps/web/src/lib/ai/prompts.ts:1303-1334(중재 규칙 + [mediation] 4줄 카드), :985("두 가족의 지원, 대출, 각자 저축 비율은 사용자가 먼저 말했거나 현금 흐름 계획을 요청했을 때만", "가족별 부담을 관습처럼 배정하지 않습니다"); apps/web/src/components/app/budget/BudgetContent.tsx:99-104(PAYER_OPTIONS 두 사람/신부 가족/신랑 가족/두 가족); apps/web/src/components/app/chat/ChatContent.tsx:2231,2301("나만 (상담)" 비공개 탭 — 상대방에게 안 보임); apps/web/src/app/(auth)/onboarding/page.tsx:146-160(pending_partner — 한쪽 변경은 상대 확인 전까지 미반영)`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 업체가 쓰는 말 16가지와 그때 되받을 문장 — 숫자는 /price를 따로 열어야 나온다.
+
+"총 얼마쯤 드나요"에 답할 숫자가 채팅 안에 하나도 없다. 시세 상수를 통째로 비웠고(설계 의도), 대체 소스인 /price 공시 DB는 채팅에서 읽을 도구가 없다(get_market_price는 안내문만). vendorAsymmetry 16건은 출처 필드가 비어 있어 "어디서 나온 얘기냐"에 답할 수 없다.
+
+`apps/web/src/constants/vendorAsymmetry.ts:30-60(VENDOR_ASYMMETRY 16개 — 당일 계약 압박·특별 할인·정가 앵커·계약금 선납 등, pattern/truth/defense 3단, source는 선택 필드이고 인용된 4건에는 없음); apps/web/src/constants/hiddenCosts.ts:18,369-376(41개 + getHiddenCostContext); apps/web/src/lib/ai/prompts.ts:1185,1187(프롬프트 주입); apps/web/src/constants/marketPrices.ts:1-9("Real disclosure figures must never live in source code", 데이터 전량 []); apps/web/src/app/price/page.tsx:33-38(공시 4카테고리·기준 회차), :21(위약금·환불 원문 831건)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 내가 설정에서 고른 말투·도움 방식에 맞춘 한두 문장. 위험 신호일 때만 112/119.
+
+이 단계 특유의 불안("얼마 드는지 몰라서 무섭다", "뭐부터인지 모르겠다")을 인지하는 전용 경로가 없다. 위기 분류기는 자해·폭력 전용이라 웨딩 번아웃·비용 불안은 걸리지 않는다. 게다가 프롬프트가 D-day·진행률로 감정을 추정하는 것을 금지해(:837,856) 제품이 먼저 알아채는 경로 자체를 닫았다 — 사용자가 직접 말해야만 지지가 작동한다.
+
+`apps/web/src/lib/ai/prompts.ts:520-527(helpPreference.supportOrder — listen_first/action_first/ask_each_time), :914-917(해결 서두르지 말 것, 심각한 경우 전문 상담 제안), :837,856(D-day로 감정 상태 규정 금지); packages/shared/src/safety/amoraCrisisDelivery.ts:44-49(비즉시 안전 신호는 파트너 전달 보류 + 112/119 안내), packages/shared/src/safety/amoraCrisisClassifier.ts:1-10(위기 분류는 자해·대인폭력 계열 9종)`
+
+
+### 2. 상견례
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 일정 화면에 뜬 날짜 한 줄. 선제 발화 플래그가 꺼져 있으면 그게 전부.
+
+타이밍 계산·중복 방지·KST 처리까지 완성돼 있는데 배달 경로가 전부 기본 off다. 더 나쁜 조합이 있다: today-one을 켜면 amoraCareFlags.ts:9-12에 의해 proactive가 꺼지고, today-one은 모멘트 본문(체크리스트 5개 + 부모님께 보낼 대본)을 버리므로 켤수록 내용이 사라진다. 즉 "먼저 챙기는" 유일한 완전 경로는 proactive 한 갈래뿐이다.
+
+`packages/shared/src/constants/weddingPlanning.ts:52-68(meeting ddayStart 360 / deadline 300, 항목 6개); apps/web/src/app/api/onboarding/route.ts:315,326-327(온보딩 날짜 → progress.__events에 momentType:"sanggyeonrye" 저장); apps/web/src/lib/amora/momentLoop.ts:132-150(D-3/D-1/D+1 셀 계산); 출구 3개 모두 게이트: apps/web/src/app/api/cron/care-moments/route.ts:465(AMORA_CARE_OUTBOUND_ENABLED!="true"면 큐 격리), apps/web/src/app/api/chat/proactive/route.ts:88-90, apps/web/src/app/api/amora/today-one/route.ts:18 — .env.example:120,124,141 전부 false; apps/web/src/lib/care/todayOne.ts:243-249(today-one은 cell.message/checklist`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 확인 항목 5개와 부모님께 보낼 문장 1개 — 단, 선제 발화가 켜져 있을 때만. 아니면 커뮤니티에 직접 글 쓰는 버튼 하나.
+
+결정 7개(날짜·장소·참석 범위·식사비 부담·이 자리에서 정할 것/미룰 것·선물 여부·복장) 중 제품이 결론까지 데려가는 것은 0개. 장소는 도구가 봉인, 예단·식사비는 "정답 없음" 전제로 회피, 복장·호칭은 데이터 자체가 삭제됐다. 판정 없이 결론에 도달시킬 경로는 이미 반쯤 깔려 있다: lib/community/decisionThreadApi.ts:19-61의 decision thread가 applicability를 applies/conditions_differ/need_more_info/taken_as_next_action로 받고, cohort digest에 family_etiquette 토픽이 이미 있다(app/api/community/cohort/[id]/digest/route.ts:145-150). "같은 지역·같은 가족 구성의 선배 커플이 실제로 어떻게 했는지의 분포"는 판정이 아니다. 현재는 사용자가 스스로 글을 써야 하고 답이 올지는 응답자 공급에 달렸다.
+
+`apps/web/src/constants/moments.ts:87-115(sanggyeonrye d3/d1/dAfter — "꼭 논의할 것과 다음으로 미룰 것을 파트너와 맞춰보자", 체크리스트 5개, d1.script 부모님께 보낼 문장 1개, dAfter가 "실제로 합의된 내용과 아직 의견만 나온 내용"을 나눠 정리시킴, memoryKeys=yedan_agreement·wedding_timing_agreement·family_dynamics); apps/web/src/lib/ai/amoraMemoryCompiler.ts:62(memoryKeys 수집); packages/shared/src/constants/weddingPlanning.ts:60-66(meeting 체크 6개 — 항목 이름만); apps/web/src/lib/ai/prompts.ts:1373-1379("누구에게나 적용되는 하나의 정답이 없다고 먼저 전제", "예단 금액을 보편적 기준처럼 제시하지 말고", "[etiquette:번호] 태그를 출력하지 마세요"); apps/web/src/lib/ai/tools.ts:1079(search_nearby_places 봉인 — 정의부 :1000-1016`
+
+**③ 비용통제 — C**
+> 손에 쥐는 것: "부모님 첫 만남"이라고 이름 붙은 빈 입력칸 두 개(예산/지출).
+
+칸은 있는데 채울 근거가 하나도 없다. 식사비도 예단·예물도 금액 기준이 코드에 없고 프롬프트가 제시를 금지한다. 사용자가 스스로 숫자를 넣기 전에는 아무 행동도 일어나지 않고, 넣은 뒤에도 초과 통보(플래그 뒤)가 전부다. 이 단계에서 실제로 돈이 나가는 항목은 식사비와 선물인데 둘 다 사전 경고 경로가 없다.
+
+`apps/web/src/components/app/budget/BudgetContent.tsx:54(meeting="부모님 첫 만남"이 예산 카테고리로 존재, 예산·지출 입력칸); packages/shared/src/constants/weddingPlanning.ts:14(라벨), :63-66("서로 드릴 선물이 필요한지 합의", "가전·가구와 두 가족에게 드릴 선물의 비용 분담 이야기"); apps/web/src/constants/moments.ts:102("식사비 결제 방식은 당사자끼리 미리 합의" — 금액 아님); apps/web/src/lib/ai/prompts.ts:1376(축하금·두 가족 선물 금액을 보편 기준으로 제시 금지); apps/web/src/lib/care/todayOneBudget.ts:178-183(항목 초과 감지는 예산·지출 둘 다 입력돼야 작동)`
+
+**④ 업체조율 — E**
+> 손에 쥐는 것: "예약 확인"이라고 적힌 체크 항목 한 줄.
+
+검색·예약은 봉인(E)이 명확하지만, 제휴가 전혀 필요 없는 부분은 부재(D)다: 식당에 보낼 문의 문장(룸 유무·인원 변경·주차·좌석 배치·취소 기준)이 없고, 식당이 뭐라고 답했는지 남길 곳이 없다. contractShield의 messageToVendor 구조를 그대로 쓸 수 있는데 카테고리에 식당이 없어 닿지 않는다.
+
+`apps/web/src/lib/ai/tools.ts:1000-1016(search_nearby_places 정의 — 설명 예시가 "강남역 근처 양쪽 부모님이 만나기 좋은 식당"), :1076-1079(create_booking·get_my_bookings·cancel_booking·search_nearby_places 전부 BETA_DISABLED); apps/web/src/constants/moments.ts:99-100("예약·참석 인원 최종 확인", "이동이 불편한 분을 고려해 좌석·접근성 확인" — 제휴 없이 되는 유일한 조율); apps/web/src/lib/amora/contractShield.ts 카테고리 7종(venue·sdm_package·studio·dress·makeup·snap·other — 식당 없음); apps/web/src/app/api/amora/notes/route.ts:16-20(저장 노트는 AI 메시지 원문 스냅샷 4,000자, 업체 응답 기록 필드 아님)`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 파트너 몰래 털어놓을 수 있는 비공개 채팅 탭 하나와, "피하고 싶은 주제를 미리 맞춰라"는 조언.
+
+"어머니가 예단 얘기를 꺼내셨는데 어떡하죠"에 대한 답이 두 단계에서 막힌다. ①어떤 요구가 과한지 보통인지 판단할 근거를 제품이 전부 지웠고(⑥ 참조) ②말 꺼내는 법 코칭이 있는 대본은 예약 통보용 1개뿐이다(moments.ts:105-106) — "예단은 생략하고 싶다"를 부모님께 전하는 문장은 없다. 중재 카드는 "상대방에게 확인할 점"을 적는 데서 끝나고 그 확인 결과를 다시 받아 결론으로 닫는 경로가 없다.
+
+`apps/web/src/constants/moments.ts:100-103("오늘 다룰 주제와 피하고 싶은 주제를 파트너와 합의", "대화가 부담스러울 때 쉬어갈 신호 정하기"), :105-106(부모님께 보낼 대본 1개), :113(memoryKeys에 family_dynamics); apps/web/src/components/app/chat/ChatContent.tsx:2231,2301("나만 (상담)" 탭 — "서비스에 저장되며 상대방에게는 보이지 않아요"), :578-580(bride_private/groom_private), :2523-2527(탭별 필터); apps/web/src/lib/ai/prompts.ts:1373-1377(성별 역할·방문 순서·비용 부담을 의무처럼 단정 금지), :1303-1334(중재); apps/web/src/lib/ai/conflict-detector.ts:1-16; apps/web/src/app/api/community/cohort/[id]/digest/route.ts:145-150(family_etiquette 토픽 키워드에 상견례·혼주·예절·복장)`
+
+**⑥ 정보비대칭 — D**
+> 손에 쥐는 것: 아무것도 없음.
+
+이 단계에서 소비자만 모르는 것(예단·예물 관행과 지역차, 식사비 관례, 호칭, 복장, "요즘은 생략한다"는 실태)에 대해 제품이 보유한 데이터가 0이다. 근거 부실을 이유로 자진 삭제했고 부활은 테스트로 봉인했는데 대체 데이터를 넣지 않았다. 남은 것은 커뮤니티 사용자 생성 콘텐츠뿐이라 제품이 아는 것이 아니다. E가 아닌 D로 본 이유: 업체 제휴 같은 외부 조건이 아니라 대체 소스 부재이기 때문.
+
+`apps/web/src/lib/etiquette/ 에 __tests__/publicEtiquetteSafety.test.ts만 남음 — :59에서 constants/etiquetteData.ts의 부재를 단언해 부활을 금지; apps/web/src/lib/ai/prompts.ts:1379("상세 가이드는 근거를 재검토 중입니다. 예전 챕터 링크용 [etiquette:번호] 태그를 출력하지 마세요."), :1376(예단·축의금 금액 기준 제시 금지); apps/web/src/constants/vendorAsymmetry.ts:10-13(카테고리 4종이 전부 업체 상대 — negotiation/scam/redFlag/secret, 가족 관습 0건); apps/web/src/constants/marketPrices.ts(데이터 전량 []); apps/mobile/app/etiquette/ 에 _layout.tsx만 존재하고 index가 없어 열리지 않는 죽은 라우트`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: "떨리는 게 자연스러워" 한 문장 — 선제 발화가 켜져 있을 때만.
+
+이 단계 특유의 불안을 정확히 겨냥한 문안이 실제로 쓰여 있다는 점에서 설계는 A급인데, 배달 경로가 ①과 같은 플래그 뒤에 있고 today-one 경로에서는 본문이 통째로 버려진다(lib/care/todayOne.ts:243-249). 앱을 열어 스스로 물어보는 것 외에는 이 문장에 닿을 방법이 없다. 위기 분류기는 상견례 스트레스를 잡지 않는다.
+
+`apps/web/src/constants/moments.ts:94("무슨 이야기를 해야 할지 걱정될 수 있어"), :97("서로 편하게 대화할 수 있도록 필요한 것만 마지막으로 맞춰보자"), :103("대화가 부담스러울 때 쉬어갈 신호 정하기"), :109("잘 마쳤네. 고생했어"), :67(family_greeting d1 "떨리는 게 자연스러워. 정답을 맞히는 자리가 아니라 서로 인사하는 자리야"); apps/web/src/lib/ai/prompts.ts:520-527(supportOrder), :914-916; packages/shared/src/safety/amoraCrisisClassifier.ts:1-10(자해·대인폭력 계열만 분류)`
+
+
+### 3. 예식장
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 종 아이콘 안의 "결혼식장 후보 확인하기" 카드 한 장.
+
+두 소스의 마감이 어긋난다: 체크리스트는 venue 마감을 D-270으로 두는데 긴급 알림 n_venue_urgent는 D-60에야 뜬다 — 인기 홀이 이미 마감된 시점이다. venue_tour 모멘트는 event 트리거라 사용자가 투어 일정을 먼저 입력해야 하고, 놓쳤을 때 먼저 연락하는 경로는 1단계와 같은 플래그 뒤에 있다.
+
+`packages/shared/src/constants/weddingPlanning.ts:70-86(venue ddayStart 360 / deadline 270, 항목 8개); apps/web/src/constants/notifications.ts:12-20(n_venue_start D-360 high), :111-119(n_venue_urgent D-60 high); apps/web/src/constants/moments.ts:117-142(venue_tour, trigger:"event" — 사용자가 방문 일정을 먼저 넣어야 발화); apps/web/src/lib/ai/tools.ts:253,526(add_schedule_event / log_wedding_event로 일정 입력 가능, 둘 다 BETA_SAFE); apps/web/src/hooks/useNotifications.ts:346-352 + components/app/TopNav.tsx:62(종 아이콘, 결혼일 필수)`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 업체에 그대로 보낼 문의 문장 1건과 확인 안 된 계약 조항 목록 — 어느 홀로 할지는 여전히 본인이 고른다.
+
+결정 6개 중 (d)보증인원·(e)식사비 총액은 숫자로 결론이 난다(A급). (f)계약 여부는 "문서로 확인 안 된 항목"까지만 데려가고 마지막 한 걸음은 의도적으로 안 밟는다. (a)어느 홀·(b)홀 형태·(c)날짜/시간대는 아무것도 없다. 가장 큰 구멍은 데이터가 있는데 못 쓰는 것이다: /price의 hall 공시(장소 사용료·식사비·최소 식사 인원, 출처·기준 회차 있음)를 채팅이 읽을 도구가 없고, 예산 조합 계산기는 hall을 명시적으로 제외했으며, 견적 진단도 예식장을 지원하지 않는다. 판정 없이 결론에 도달시킬 방법: 사용자가 받은 견적을 같은 지역·같은 보증인원 조건의 공시 값들과 대조해 위치만 표시(판정 아님), budgetFinder를 hall까지 확장, quote-check에 venue 카테고리 추가.
+
+`apps/web/src/lib/ai/tools.ts:956-999(simulate_guest_guarantee — 예상하객·보증인원·1인식대·불참률) + apps/web/src/lib/amora/guestGuarantee.ts:152,205,241(input_needed / summaryTitle / 식사비 총액 산출) — 숫자가 나오는 유일한 지점; apps/web/src/lib/ai/tools.ts:872-955(analyze_contract_readiness) + apps/web/src/lib/amora/contractShield.ts:164-192(venue 전용 조항 3개: 최소 식사 인원·식사 공간/대기실/주차·외부 업체 이용), :422-500(blockers/warnings/vendorQuestions/clausesToRequest 산출); apps/web/src/app/price/page.tsx:36(hall 공시 = "장소 사용료·식사비와 계약상 최소 식사 인원 등 조건"); 단절: apps/web/src/lib/ai/tools/quoteMarketTools.ts:9-22(get_market_price는 /price 안내문만), apps/w`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: "보증 200명·식대 7.5만이면 식사비 ○○○만원" 같은 계산 결과 한 줄.
+
+보증인원 시뮬은 이 제품에서 가장 완결에 가까운 비용 통제 기능인데 결과가 예산 화면에 들어가지 않는다 — 사용자가 숫자를 보고 직접 venue 칸에 옮겨 적어야 한다. 계약금·중도금·잔금 일정은 contractShield가 "적혀 있나요?"라고 물을 뿐 받아 적는 곳이 없고, 그 그릇인 PaymentLedger는 플래그 뒤에 있다.
+
+`apps/web/src/components/app/budget/BudgetContent.tsx:55(venue 예산·지출 칸), :89(HIDDEN_COSTS.venue 경고 1줄 — 진행자·축가·영상·꽃 장식·폐백 공간의 포함 범위); apps/web/src/lib/amora/guestGuarantee.ts(보증인원 미달 식사비 계산 = 추가금 사전 경고의 실체) + apps/web/src/lib/ai/tools/riskSupportTools.ts:100-120(expectedMealTotalManwon 반환); apps/web/src/lib/amora/contractShield.ts:114-119(payment_schedule 조항 — "처음/중간/마지막 금액과 결제일이 적혀 있나요?"로 묻기만); apps/web/src/lib/ai/mutationTools.ts:4-31(analyze_contract_readiness·simulate_guest_guarantee는 쓰기 도구가 아님 → 계약금액이 예산에 반영되지 않음); apps/web/src/lib/features/weddingLaunchFlags.ts:9-11(PaymentLedger 플래그 off)`
+
+**④ 업체조율 — B**
+> 손에 쥐는 것: 업체에 그대로 보낼 문의 5문항과 받아둘 증빙 7가지 목록.
+
+봉인(검색·빈날짜·예약)과 부재를 구분하면, 제휴 없이 가능한 조율은 대부분 실재하고 품질도 높다. 빠진 것은 왕복이다: 업체가 뭐라고 답했는지 남기는 구조화된 필드가 없다. oral_promises는 도구 입력으로만 받고 저장되지 않으며(riskSupportTools.ts:81, read-only), 저장 노트는 AI 메시지 원문 스냅샷이라 shared 메시지만 저장 가능하다(lib/amora/savedNoteSource.ts:39-58). 그래서 "세 군데 다녀왔는데 어디가 뭘 포함한다고 했더라"가 해결되지 않는다.
+
+`봉인(E) 부분: apps/web/src/lib/ai/tools.ts:1069-1078(search_vendors·check_vendor_availability·get_available_slots·create_booking 등), apps/web/src/lib/ai/prompts.ts:1189-1206. 제휴 없이 실재하는 조율: apps/web/src/lib/amora/contractShield.ts:397-404(buildMessageToVendor — 업체에 붙여넣을 문의 5문항 + "확인되는 대로 계약 여부를 결정하겠습니다"), :475-478(vendorQuestions 최대 7), :406-420(evidenceToSave, venue면 "보증 인원·식대·최종 인원 통보 마감일 캡처" 추가), :479-482(clausesToRequest 최대 6); apps/web/src/constants/moments.ts:127,132,134(venue_tour d1 — "현장에서 바로 계약하자고 하면 이 말로 답해도 돼" + "오늘은 둘러보러 온 거라서요, 견적서만 받아갈게요" + "오늘 결제 가능한 상한과 숙려 시간을 둘이 미리 합의"); apps/web`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 양쪽 하객 수를 넣어 나온 식사비 숫자 하나 — 둘이 같이 볼 수 있는 근거.
+
+중재 전략 목록에 "A. 다른 업체에서 같은 가치 찾기 (도구로 검색)"와 "B. 전체 예산 재배치 (도구로 시뮬레이션)"가 남아 있는데(prompts.ts:1312-1313) 해당 도구는 봉인돼 있다. 프롬프트 조립기의 비활성 도구 필터는 줄 안에 도구 이름 문자열이 있어야 지우는데(lib/ai/amoraPromptComposer.ts:311-316) 이 두 줄에는 이름이 없어 그대로 통과한다 — 모델이 없는 능력을 전제로 중재안을 낼 수 있는 실제 경로다. 또 양가 하객 수 이견 자체를 인지하는 전용 신호가 없어, 사용자가 먼저 말해야 conflict-detector가 걸린다.
+
+`apps/web/src/lib/amora/guestGuarantee.ts(양쪽 하객 수를 넣으면 식사비가 숫자로 나와 논쟁이 계산 가능해짐); apps/web/src/lib/ai/prompts.ts:872-874("양가 이야기는 가족 간 기대치 차이일 수 있지만 다른 이유도 있습니다. 편들지 말고"), :1311-1316(해결 전략 A~F); apps/web/src/components/app/chat/ChatContent.tsx:2231(비공개 상담 탭); apps/web/src/lib/ai/amoraPendingAction.ts(쓰기 전 승인 카드); apps/web/src/lib/ai/conflict-detector.ts`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 공시 가격 표 한 장(웹에서 직접 열었을 때)과 계약서에서 찾아볼 조항 이름 목록.
+
+이 단계는 제품이 실제로 아는 것이 가장 많은 지점이다(출처·기준 시점까지 있는 공시 데이터 + venue 전용 계약 조항 + 업체 협상 전술 16종). 그런데 세 조각이 서로 연결되지 않는다: /price는 비로그인 공개 웹이고, 채팅은 그 데이터를 읽을 도구가 없고, /price에서 고른 조합은 세션 저장소에만 남으며 hall은 그 조합 대상에서도 빠져 있다. 사용자가 세 화면을 직접 왕복하며 손으로 옮겨야 한다.
+
+`apps/web/src/app/price/page.tsx:36(hall 공시 항목 = 장소 사용료·식사비·계약상 최소 식사 인원), :21(위약금·환불 원문 831건 — 주석에 2026-07-26 운영 실조회·2026-08-08 업체 수 재측정 기록), apps/web/src/lib/price/period.ts(disclosureRoundLabel — 기준 회차 표기), apps/web/src/lib/price/labels.ts:10-25(지역 14구분); apps/web/src/lib/amora/contractShield.ts:164-192(venue 조항 3개 — 외부 업체 반입 조건 포함); apps/web/src/constants/vendorAsymmetry.ts:32-38(당일 계약 압박: pattern/truth/defense); apps/web/src/components/app/budget/BudgetContent.tsx:89; 단절: apps/web/src/lib/ai/tools/quoteMarketTools.ts:9-22, apps/web/src/lib/price/comboStore.ts:31(선택이 sessionStorage에만), apps`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: "오늘은 둘러보러 온 거라서요, 견적서만 받아갈게요" 한 문장 — 투어 일정을 미리 넣고 선제 발화가 켜져 있을 때만.
+
+현장 계약 압박이라는 이 단계 고유 불안에 대해 정서 지지와 행동 대본이 결합된 유일한 콘텐츠가 있는데, venue_tour가 event 트리거라 사용자가 투어 일정을 먼저 입력해야 하고 배달은 플래그 뒤다 — 즉 가장 필요한 사람(아직 일정 관리 습관이 없는 초보)에게 안 닿는다. 계약 후 후회를 다루는 경로는 없고, 프롬프트가 결정 재평가를 금지해(:865-866) "어제 계약했는데 잘못한 것 같아요"에 되짚어줄 길을 스스로 닫았다.
+
+`apps/web/src/constants/moments.ts:127("현장에서 바로 계약하자고 하면 이 말로 답해도 돼"), :132("오늘 결제 가능한 상한과 숙려 시간을 둘이 미리 합의"), :134(대본), :137-138(dAfter "결혼식장 다녀오느라 고생했어"); apps/web/src/constants/vendorAsymmetry.ts:32-38(neg_artificial_urgency), :47-53(neg_sunk_cost_trap 계약금 선납 압박); apps/web/src/lib/ai/prompts.ts:865-866("한 번 결정하면 → 절대 '다른 것도 괜찮았을 텐데' 식의 말 하지 마세요"), :520-527(supportOrder)`
+
+
+### 4. 스드메
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 앱을 열었을 때 뜨는 '드레스 준비 확인하기' 카드, 그리고 방문 일정을 직접 등록해 둔 경우에만 사흘 전 준비물 목록 이메일
+
+3개 단계 중 유일하게 먼저 말하는 경로가 실제로 발화한다(care-moments 크론 등록 확인). 그러나 두 겹의 조건부다. ①D-day 알림은 hooks/useNotifications.ts:345의 useMemo — 브라우저에서 계산되므로 사용자가 앱을 열어야만 존재한다. ②크론 이메일은 moments 셀에만 걸리는데, 모멘트는 사용자가 일정을 등록해야 생긴다. 게다가 ddayStart/ddayDeadline은 weddingPlanning.ts:42-45에서 '화면 정렬용 기본 확인 시작점이며 실제 계약 시작일이 아니다', '실제 마감일이 아니다'라고 스스로 부인한다 — 즉 코드에 이 단계의 마감이 없다고 명시돼 있다. 놓쳤을 때 먼저 연락하는 경로는 없다.
+
+`packages/shared/src/constants/weddingPlanning.ts:88-135 (studio 300/150, dress 300/120, makeup 240/60) · constants/notifications.ts:30-61,120-124 (n_studio_start D-300, n_dress_start D-300, n_makeup_start D-240, n_makeup_rehearsal D-60) · constants/moments.ts:144-222 (dress_tour/studio_shoot/dress_fitting 각 D-3·D-1·D+1) · vercel.json crons /api/cron/care-moments */5 * * * * · hooks/useNotifications.ts:345-380`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 업체에 그대로 복사해 보낼 질문 최대 6개와 문의 문구 한 단락
+
+사용자가 실제로 내려야 하는 결정은 (a)업체 3곳 중 어디 (b)이 견적 380만원이 적정한가 (c)패키지 vs 개별 (d)원본·야외촬영 추가할까 인데, 제품은 (b)~(d)의 '무엇을 물어볼지'만 주고 답은 전부 업체에게서 받아오라고 돌려보낸다. 가격축은 상수 0으로 봉인돼 있어 판정 회피가 아니라 계산 자체가 없다. 판정 없이 결론에 도달시킬 방법 세 가지가 이미 재료로 존재한다 ①/price 공시 카탈로그는 studio·dress·makeup이 실재하는(lib/price/catalog.ts:1) 유일한 단계이므로, quote-check 결과에 같은 구성 조건 공시 N건 대비 사용자 견적의 분위(位)를 붙이면 대조이지 판정이 아니다 — 지금은 median이 0일 때 '출처와 기준 시점 확인하기' 링크만 준다(page.tsx:422-432) ②hiddenCosts 43개가 severity를 갖고 있으므로 'critical 3개에 서면 답을 받기 전에는 계약금을 넣지 않는다' 같은 절차적 결론은 가격 판정 없이 성립한다 ③체크 결과가 저장되지 않아 업체 3곳을 같은 기준으로 비교할 수 없다 — 저장만 해도 비교표가 된다. 다만 대화 중 결정은 decision_nodes에 studio/dress/makeup 범주로 남아 이후 턴에 주입되므로 이 축의 절반은 작동한다.
+
+`lib/amora/quoteCheck.ts:112-124 getMarketMedian이 void category; void region; void scope; 후 median: 0 고정 반환 · quoteCheck.ts:7-12 무판정 원칙 주석, :11 '사용자가 입력한 견적 금액(가격 적정성 판정에는 사용하지 않음)' · quoteCheck.ts:160 recommendedAction '계약 판단은 그 답을 보고 하면 됩니다' · app/(community)/community/quote-check/page.tsx:100-107 POST 본문에 가격 자체가 없음 · page.tsx:196 '선택한 내용은 저장하지 않습니다' · lib/ai/extract-decision.ts:33 ALLOWED_CATEGORIES에 studio/dress/makeup 포함 · lib/ai/prompts.ts:640-715 pastDecisions 최근 50개 주입`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 카테고리별 예산·기록지출 숫자와 초과 여부, 그리고 추가금이 생길 수 있는 지점 43개 목록
+
+지출 기록·초과 감지·추가금 사전 경고 세 가지는 실제로 있다. 빠진 것은 두 개다. ①결제 시점(계약금·중도금·잔금) 원장은 구현돼 있으나 환경 플래그 뒤에 있고 .env.example 기본값이 false다 — 운영 환경 실제 값은 리포지토리에 없어 확인 못 했다. ②계약금액↔예산 연동이 없다: analyze_contract_readiness가 contract_amount·deposit_amount를 입력받지만(lib/ai/tools/riskSupportTools.ts:74-75) 그 금액이 예산 카테고리로 흘러가지 않는다. 계약서를 점검한 직후에도 사용자가 예산 화면에 같은 숫자를 손으로 다시 넣어야 한다.
+
+`lib/ai/tools.ts:91-117 update_category_budget(budget·spent, studio/dress/makeup 포함) · components/app/budget/BudgetContent.tsx:1135-1139 예산 초과 표시 · lib/ai/amoraBudgetImpactPreview.ts:1-40 승인 전 예산 영향 미리보기 · constants/hiddenCosts.ts 43개(studio 14·dress 11·makeup 11·common 7) · components/app/budget/PaymentLedger.tsx:105-108,295 (계약 총액·지급 기록·남은 금액·잔금일) · lib/features/weddingLaunchFlags.ts:9-11 · apps/web/.env.example:94 WEDDING_PAYMENT_LEDGER_ENABLED=false`
+
+**④ 업체조율 — E**
+> 손에 쥐는 것: 복사해서 업체에 보낼 문의 문구와 질문 6개 — 답을 받아 적어둘 자리는 없음
+
+봉인(E)과 부재(D)를 나누면: 예약·조회·추천은 명시적 봉인이다(주석이 재개 조건을 적어 두었다). 제휴 없이 가능한 조율은 절반만 있다 — 보낼 문장과 확인 항목은 좋은 수준으로 있으나, 업체 응대 기록과 약속 사항 저장이 끊긴다. ProgressItem에 vendor·notes 필드가 존재하는데도 아모라가 쓸 수 있는 도구가 없다(update_task_status는 status만, update_venue는 결혼식장 이름만). 그래서 '드레스샵 A가 헬퍼비 15만원이라고 문자로 답했다'를 남길 곳이 제품 안에 없고, 사용자는 결국 카톡을 뒤진다. 업체 커뮤니케이션 이력 경로는 부재다.
+
+`lib/ai/tools.ts:1068-1082 BETA_DISABLED_TOOL_NAMES 12개(search_vendors, check_vendor_availability, recommend_vendors, get_vendor_detail, get_available_slots, create_booking, get_my_bookings, cancel_booking 포함) · tools.ts:1063-1066 재개 조건 주석 '사용자 가치 검증과 최신 거래·개인정보 고지를 별도 출시 조건으로 통과' · lib/amora/quoteCheck.ts:206-230 contractQuestions·negotiationScript · quote-check/page.tsx:449-455 질문 복사 버튼 · lib/ai/tools.ts:477-522 add_amora_action(category_key studio/dress/makeup, source 'quote') · types/database.types.ts:94-95 ProgressItem.vendor·notes · tools.ts:56-60 update_task_status는 status만 기록`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 공감·통역·데이터·합의안 4칸이 채워진 중재 카드 한 장 — 합의안까지 나오므로 결론에 가장 근접한 축
+
+이 단계의 커플 이견(드레스 가격, 원본 추가 구매)은 disagree/emotion 패턴에 실제로 걸리고 자동 중재가 발화하며, 카드가 '합의안'까지 낸다 — 3개 단계 중 유일하게 결론 형태의 산출물이 나온다. B에 머무는 이유는 두 가지다. ①커플 연결(신부1·신랑1)이 전제라 한 명만 쓰는 사용자에게는 자동 경로가 아예 없고, 수동 [MEDIATION_REQUEST]는 사용자가 먼저 요청해야 한다. ②드레스 결정에 부모가 개입한 형태('어머니가 이 드레스로 하라셔')는 conflictSafety.ts:16-23의 제3자 필터에 걸려 점수가 무효화된다(conflict-detector.ts:281-284에서 continue) — 주석 :29-30이 의도적 false negative임을 밝힌다.
+
+`lib/ai/conflict-detector.ts:110-140 disagree('의견이달라','돈이어디서나')·emotion 카테고리 · conflict-detector.ts:255 senderRole bride/groom만 스캔 · lib/ai/conflictSafety.ts:16-23,32-39 제3자 주어 무효화 · app/api/chat/check-couple-conflict/route.ts:689 자동 [MEDIATION_REQUEST] · stores/chatStore.ts:2783 사용자 요청 중재 · lib/ai/mediation.ts:45-57 · lib/ai/prompts.ts:1324-1329 공감·통역·데이터·합의안 4필드 · constants/coupleRoleSupport.ts`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 업체가 먼저 말하지 않는 확인 항목 43개와 영업 수법 16개, 그리고 '가격은 /price에서 직접 비교하라'는 안내
+
+3개 단계 중 유일하게 이 축이 실질적으로 채워져 있다(공시 가격 카테고리가 존재하는 유일한 단계이기도 하다). 결론이 안 나는 지점은 채널 단절이다: getMarketPriceContext(marketPrices.ts:177)가 모델에게 '업체 공시가 검색·추천 도구를 사용하라'고 지시하지만 그 도구 3종은 BETA_DISABLED다. amoraPromptComposer.ts:311-316의 필터는 줄 안에 도구 '식별자'가 있을 때만 그 줄을 지우는데 이 문장은 한국어 산문이라 살아남는다 — 모델이 갖고 있지 않은 도구를 쓰라는 지시가 프롬프트에 남는다. 결국 대화 안에서는 시세가 나오지 않고 prompts.ts:1231-1233대로 별도 페이지로 넘긴다. 사용자는 대화를 떠나 /price에서 스스로 대조해야 하므로 한 자리에서 끝나지 않는다.
+
+`constants/hiddenCosts.ts 43개 항목, 각 항목이 중립 checkQuestion 보유(:11-15 주석) · constants/vendorAsymmetry.ts:32-154 16개(negotiation·scam·redFlag·secret 각 4) · lib/price/catalog.ts:1 PRICE_CATEGORIES = studio, dress, makeup, hall · lib/price/publicListData.ts (v_public_prices, period_label) · constants/marketPrices.ts:171-179 getMarketPriceContext는 숫자 없이 규칙 문장만, :177 '업체 공시가 검색·추천 도구를 사용하고' · lib/ai/tools.ts:1068-1071 해당 도구 전부 차단 · lib/ai/amoraPromptComposer.ts:311-316 · lib/ai/prompts.ts:1231-1233, 1261-1266`
+
+**⑦ 정서지지 — C**
+> 손에 쥐는 것: 피팅·촬영 전날에 오는 '무리하지 않아도 돼' 한 문장 — 일정을 등록해 뒀을 때만
+
+이 단계 특유의 불안(촬영 전 체중 압박, 피팅 때 체형 지적)을 제품이 정확히 알고 있고 먼저 말하기까지 한다 — 인지 수준은 3개 단계 중 가장 높다. C인 이유는 그 문장 뒤에 아무 행동도 이어지지 않기 때문이다. 사용자가 '살 안 빠져서 너무 불안해요'라고 답해도 다음 단계가 없다: 페이스 조절 기능, 일정 재배치 제안, 상담 연결 어느 것도 없다. 전문가 연결은 자해·폭력 핫라인뿐이고 결혼 준비 스트레스 자체의 출구는 없다. 게다가 prompts.ts:850-856이 감정 추정을 강하게 금지해, 사용자가 먼저 말로 표현하지 않으면 제품은 불안을 읽지 않는다.
+
+`constants/moments.ts:181-183 studio_shoot d1 '몸이나 식사에 무리한 규칙을 만들 필요는 없어' · moments.ts:204-206 dress_fitting d3 '몸을 일정에 맞추려고 무리하지 않아도 돼' · moments.ts:190 dAfter '허리 안 아파?' · lib/ai/prompts.ts:524, 915 · prompts.ts:837, 850-856 감정 추정 금지 · packages/shared/src/safety/amoraCrisisSafety.ts:25-67 (109·1366·112·119) · amoraCrisisRecovery.ts:59`
+
+
+### 5. 예물·예단·혼수
+
+**① 시점관리 — C**
+> 손에 쥐는 것: 앱을 열면 뜨는 '반지 준비 확인하기'·'한복 준비 확인하기'·'새집 물품 확인하기' 카드 3장. 예단·함·폐백은 아무 신호도 없음
+
+반지·한복·가전은 D-day 카드가 있으나 예단은 15개 템플릿 어디에도 없다 — 이 단계에서 가장 촉박하고 가장 되돌리기 어려운 항목이 시점 신호 0이다. 모멘트도 0이라 care-moments 크론이 이 단계에 대해 발화할 것이 없다(스드메는 3개 보유). 결과적으로 먼저 연락하는 경로가 이 단계에는 존재하지 않고, 남은 카드 3장도 사용자가 앱을 열어야 계산된다(hooks/useNotifications.ts:345 useMemo). 체크리스트의 d-day는 weddingPlanning.ts:42-45가 마감이 아니라고 명시한다.
+
+`constants/notifications.ts:48-52 n_ring_start D-270, :66-70 n_hanbok_start D-180, :84-88 n_houseware_start D-180 · constants/notifications.ts 전체 15개에 yedan·ham·pyebaek 문자열 0건(grep -c = 0) · constants/moments.ts 12개 타입 중 이 단계 해당 0개 · lib/ai/tools.ts:534-546 log_wedding_event moment_type 8개에 해당 없음 · packages/shared/src/constants/weddingPlanning.ts:42-45 ddayStart/ddayDeadline 부인 주석`
+
+**② 의사결정 — C**
+> 손에 쥐는 것: '가족과 합의하세요'라고 적힌 확인 항목 6개, 그리고 합의하고 나면 금액을 적어둘 빈 칸
+
+이 단계의 결정은 (a)예단을 할 것인가 (b)한다면 얼마 (c)현금이냐 물품이냐 (d)혼수 분담 비율인데, 제품은 네 개 모두 '가족과 합의'라는 문구로 사용자에게 그대로 되돌려준다 — 선택지도, 비교도, 근거도, 분포도 없다. 결정 결과 저장도 새는 곳이 두 군데다. ①'우린 예단 안 하기로 했어'는 이 단계를 실제로 닫는 유일한 결론인데, 그 상태값 not_applicable이 타입에는 정확히 그 용도로 존재하지만 아모라의 update_task_status enum에는 없다 — 대화로는 저장할 수 없고 UI에서만 가능하다. ②저장돼도 decision_nodes 범주에 yedan·houseware가 없어 'other'로 떨어져 이후 턴에서 범주 정체성을 잃는다. 판정 없이 결론에 도달시킬 수단 세 가지: not_applicable을 도구 enum에 추가(사용자 선언의 저장이지 판정이 아니다), COHORT_CONTRACT_CATEGORIES에 yedan·houseware 추가(ring에 대해 이미 동작하는 구조를 그대로 확장하면 '비슷한 조건의 다른 커플은 어떻게 나눴나'가 분포로 나온다), decision_nodes 범주 확장.
+
+`packages/shared/src/constants/weddingPlanning.ts yedan_01 '두 가족에게 드릴 선물을 준비할지 가족과 합의', yedan_02 '준비할 품목과 전체 예산 정하기', ring_01 '결혼반지·기념 선물 전체 예산 정하기', houseware_01 '가전·가구 비용을 누가 얼마나 낼지 합의' · types/database.types.ts:86-90 status not_applicable(함·폐백·예단 생략 용도, 진행률 분모에서 제외) · lib/ai/tools.ts:57-60 update_task_status status enum = not_started/in_progress/completed (not_applicable 없음) · lib/ai/extract-decision.ts:33 ALLOWED_CATEGORIES에 ring·hanbok만 있고 yedan·houseware 없음 · lib/price/catalog.ts:1 · constants/communityCategories.ts:111-120 COHORT_CONTRACT_CATEGORIES에 ring 있음, yedan·houseware 없음`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 예단·혼수에 얼마 배정하고 얼마 썼는지 숫자, 그리고 누가 냈는지 화면에서만 보이는 분담 비율
+
+이 단계의 핵심인 양가 분담이 UI에는 제대로 있다 — 카테고리별 payer 선택과 '분담 현황' 집계(두 사람/신부 가족/신랑 가족/두 가족별 금액·비율)까지. 그런데 payer는 lib/ai 프로덕션 코드와 chat·amora API 전체에서 한 번도 읽히지 않는다(테스트 파일에만 존재). 즉 사용자가 예산 화면에서 '예단=신부 가족'으로 설정해도 아모라와의 대화에서는 그 사실이 존재하지 않는다 — 분담을 상의하러 대화에 들어가면 제품이 이미 알고 있는 답을 다시 묻는다. 추가금 사전 경고도 0이다: hiddenCosts 43개는 전부 스드메·공통이라 예물 공임, 한복 대여 추가비, 가전 설치비 같은 이 단계 고유 항목이 하나도 없다.
+
+`lib/ai/tools.ts:99-104 update_category_budget enum에 ring·hanbok·yedan·houseware·ham·pyebaek 포함(budget·spent 원 단위) · components/app/budget/BudgetContent.tsx:99-104 PAYER_OPTIONS 4종, :485,670 PayerSelector, :844-848 payerSummary, :1179 분담 현황 · types/database.types.ts:82,98 PayerType·ProgressItem.payer · lib/ai/ 전체에서 payer는 __tests__에만 등장(프로덕션 코드 0건), app/api/amora·app/api/chat에 0건 · constants/hiddenCosts.ts category는 studio/dress/makeup/common만 — 이 단계 항목 0개`
+
+**④ 업체조율 — D**
+> 손에 쥐는 것: '무엇을 물어보라'가 없는 상태에서, 스스로 적어 저장한 할 일 카드
+
+봉인이 아니라 부재다 — 귀금속·한복·가전 업종은 벤더 도구가 열려 있었더라도 제품 범위에 들어온 적이 없다(vendorTools는 웨딩 업체 전용). 계약 점검 도구에 진입은 되지만 category가 'other'로 떨어져 16개 조항 중 공통 7개만 적용되고, 이 단계 고유 위험(반지 하자·재세공 조건, 한복 완성 지연, 가전 설치·배송 파손 책임)에 대응하는 조항이 하나도 없다. 스드메에서는 최소한 복사해 보낼 질문 6개가 나오는데 여기서는 checkQuestion 자체가 0개라 그 산출물도 없다. 남는 것은 사용자가 스스로 문장을 만들어 저장하는 할 일 카드뿐이다.
+
+`lib/ai/tools/riskSupportTools.ts:9-17 ContractShieldCategory = venue·sdm_package·studio·dress·makeup·snap·other (예물·한복·가전 없음) · lib/amora/contractShield.ts:97-157 scopes:['all'] 7개, :167-247 카테고리 전용 9개는 venue·SDM 전용, :295-297 appliesToCategory · constants/hiddenCosts.ts 이 단계 항목 0개 · lib/ai/tools.ts:501-505 add_amora_action category_key에 ring·hanbok·yedan·houseware 존재`
+
+**⑤ 관계조율 — C**
+> 손에 쥐는 것: 부모님께 드릴 말을 다듬어주는 대화 한 번 — 내가 먼저 꺼냈을 때만
+
+감사 기준이 된 바로 그 문장 '어머니가 예단 얘기를 꺼내셨는데 어떡하죠'가 자동 갈등 감지에서 구조적으로 배제된다: conflictSafety.ts:16-23의 제3자 주어 목록에 '어머니가'가 그대로 들어 있고, 걸리면 conflict-detector.ts:281-284가 점수를 무효화하고 그 메시지를 건너뛴다. 주석이 오탐이 관계를 악화시키므로 보수적 false negative를 택했다고 밝히고 있어 버그가 아니라 설계다. 결과적으로 이 단계의 지배적 갈등 형태(양가)에 대해 제품이 먼저 중재를 시작하는 경로가 0이다. 있는 것: stage-router가 예단·양가 어휘로 sangkyeonrye_advisor를 붙여 '금액을 만들지 말고 감당 가능한 범위를 직접 말할 수 있게 도우라'는 코칭 지침을 주입한다 — 말 꺼내는 법 코칭은 설계돼 있으나 사용자가 먼저 물어야 발동한다. deck.ts에 '예단 얘기 나오면 우리 답은 뭐로 하지?'라는 정확한 카드가 있지만 /today는 비로그인 공개 페이지의 날짜 시드 랜덤 3장이라 사용자가 5단계에 있다는 사실과 무관하게 뜬다.
+
+`lib/ai/conflictSafety.ts:16-23 THIRD_PARTY_SUBJECTS(엄마가·어머니가·시어머니가·부모님이·시댁에서·친정에서 등), :32-39 looksLikeThirdPartyNarrative · lib/ai/conflict-detector.ts:281-284 해당 시 점수 무효화하고 continue, :29-30 의도적 false negative 주석 · conflict-detector.ts:84-140 CONFLICT_CATEGORIES 4개에 예단·혼수·양가·시댁 어휘 0 · lib/ai/stage-router.ts:44 sangkyeonrye_advisor 정규식에 예단·예물·양가·시댁 포함, :104-110 프롬프트 애드온 · lib/ai/prompts.ts:809 · lib/todayOneLine/deck.ts:177-183 yedan-first-mention, :324-331 drawThree 날짜 시드 랜덤 · app/today/page.tsx:12`
+
+**⑥ 정보비대칭 — D**
+> 손에 쥐는 것: 아무것도 없음
+
+이 단계에서 소비자가 모르고 업체·집안만 아는 것 — 예단 시세와 지역별 관행, 반지 다이아 등급과 공임 구조, 한복 대여와 맞춤의 가격차, 혼수 가전 패키지 할인의 실제 폭 — 중 제품이 알려주는 것이 하나도 없다. 예절 코퍼스는 2026-07-26 삭제됐을 뿐 아니라 테스트가 파일 부재를 단언해 되살리는 것을 막고 있다. 확인 항목(hiddenCosts) 0개, 함정 목록(vendorAsymmetry) 0개, 공시 가격 카테고리 없음, 하드코딩 시세도 전량 제거. 출처도 기준 시점도 논할 데이터 자체가 없다. 3개 단계 중 정보 비대칭이 가장 큰 영역에서 제품의 기여가 정확히 0이다.
+
+`lib/etiquette/__tests__/publicEtiquetteSafety.test.ts:58-62 expect(existsSync(resolve(webRoot,'src/constants/etiquetteData.ts'))).toBe(false) — 부활을 테스트로 금지 · constants/hiddenCosts.ts 카테고리 집계 studio 14·dress 11·makeup 11·common 7, 이 단계 0 · constants/vendorAsymmetry.ts:32-154 16개 전부 스드메·업체 계약 맥락 · lib/price/catalog.ts:1 PRICE_CATEGORIES에 없음 · constants/marketPrices.ts 데이터 전량 비움`
+
+**⑦ 정서지지 — C**
+> 손에 쥐는 것: 편들지 않는 위로 몇 문장
+
+이 단계의 불안은 금액 자체가 아니라 그 금액이 집안의 체면·서열로 읽히는 데서 온다('우리 집이 무시당하는 것 아닌가'). 제품은 이것을 인지는 한다 — prompts.ts:838이 양가 이야기를 편들지 말라고 정확히 다루고, stage-router 애드온이 '감당 가능한 범위를 직접 말할 수 있게' 돕는다. 그러나 인지 다음에 행동이 없다. 강압 통제 신호 탐지는 중재 요청에서만 문턱이 낮아지고 일반 대화에는 의도적으로 적용하지 않으므로, 예단 압박이 통제로 번지는 대화가 평범한 상담으로 처리된다. 전문가 연결은 자해·폭력 핫라인(109·1366·112·119)뿐이고 가족 갈등 상담 경로는 없다. 페이스 조절 기능도 없다.
+
+`lib/ai/prompts.ts:838 '양가 이야기는 가족 간 기대치 차이일 수 있지만 다른 이유도 있습니다. 편들지 말고, 사용자가 원하는 도움부터 확인하세요' · lib/ai/stage-router.ts:104-110 sangkyeonrye_advisor 애드온 · packages/shared/src/safety/amoraCrisisSafety.ts:25-67 · lib/ai/amoraQuestionScope.ts:225-233 hasCoerciveControlSignal은 requestKind==='mediation'일 때만 적용, :221-223 일반 대화 미적용 주석 · prompts.ts:524, 915`
+
+
+### 6. 신혼집
+
+**① 시점관리 — D**
+> 손에 쥐는 것: 아무것도 없음 — 체크리스트를 직접 열어야 항목 7개가 보인다
+
+3개 단계 중 유일하게 시점 신호가 전무하다. D-day 알림 0, 모멘트 0(따라서 care-moments 크론 발화 0), 저장 가능한 일정 종류 0. 신혼집은 준비 항목 중 리드타임이 가장 길고(계약→잔금→수리→입주) 예식 날짜와 물리적으로 묶여 있는데도, 제품이 '지금 시작해야 한다'거나 '이건 늦었다'고 말하는 코드가 한 줄도 없다. 유일한 시점 흔적인 체크리스트 d-day(180/60)조차 파일 주석이 실제 마감이 아니라고 부인한다.
+
+`constants/notifications.ts 15개 템플릿에 housing 문자열 0건(grep -c = 0); categoryKey 실측 = venue·studio·dress·ring·makeup·hanbok·honeymoon·houseware·invitation·gift·venue·makeup · constants/moments.ts 12개 타입에 입주·이사·주택계약 모멘트 없음 · lib/ai/tools.ts:534-546 log_wedding_event moment_type 8개에 없음 · packages/shared/src/constants/weddingPlanning.ts housing ddayStart 180/ddayDeadline 60, :42-45 마감 아님 명시`
+
+**② 의사결정 — C**
+> 손에 쥐는 것: 확인할 항목 7개와, 대출 얘기를 꺼내는 순간 우리 예산을 잊어버리는 상담
+
+체크리스트는 결정을 나열만 하고 선택지·비교·근거·추천을 하나도 주지 않으며, tip이 아예 '금융기관과 계약 문서에서 직접 확인하라'고 외부로 위임한다. 더 큰 문제는 범위 게이트다: '대출'이라는 낱말 하나가 결혼 핵심·인접 판정보다 먼저 검사돼 고위험으로 떨어지고, 그 순간 저장된 예산·진행·기억이 프롬프트에서 제거된다. 그래서 '전세 대출 한도가 오천 모자란데 집을 줄일까 예식을 줄일까'라는 이 단계의 중심 질문에 제품은 우리 예산을 모르는 상태로 답한다. 이 규칙은 '대출 상품 추천'과 '대출이 이만큼 나왔으니 예산을 재배치하자'를 구분하지 못한다 — 앞의 것은 HIGH_RISK_DOMAIN_PATTERN이 이미 `(?:대출|보험).{0,16}(?:상품|추천|골라|가입|금리|상환)`으로 정확히 잡고 있으므로, 낱말 단독 매칭인 CONCRETE 패턴에서 '대출'을 빼도 금융 자문 방어는 유지된다. 판정 없이 결론에 도달시킬 재료도 이미 있다: BUDGET_SCOPE가 housing 포함/제외를 삼분으로 갖고 있으므로 '신혼집을 총액에 넣었을 때와 뺐을 때 남는 예식 예산' 대조는 사용자 입력만으로 계산되며 금융 자문이 아니다. 지금 그 대조를 만들어주는 경로가 없다.
+
+`packages/shared/src/constants/weddingPlanning.ts:230-247 housing 체크리스트 7개(housing_01 '보증금으로 빌릴지, 살지, 매달 임대료를 낼지 정하기', housing_04 '대출이 필요하다면 금융기관에서 조건 확인'), :234 tip '대출이나 임대 조건은 금융기관과 계약 문서에서 직접 확인하세요' · lib/ai/amoraQuestionScope.ts:56 HIGH_RISK_DOMAIN_CONCRETE_PATTERN=/졸피뎀|보톡스|필러|전세\s*대출|대출|보험/ · amoraQuestionScope.ts:158-170 이 검사가 :85 WEDDING_ADJACENT_PATTERN·:87 WEDDING_CORE_SIGNAL_PATTERN보다 먼저 실행되고 W2_high_risk_adjacent + allowsLongTermMemory:false 반환 · lib/ai/amoraPromptComposer.ts:57-66 W2~W4는 저장된 이름·계획·기억·프로필·비공개 이력을 싣지 않음 · lib/ai/extract-decision.ts:33 ALLOWED_CATEGORIES에 housing 없음`
+
+**③ 비용통제 — C**
+> 손에 쥐는 것: 신혼집 칸에 내가 적어 넣은 숫자 하나 — 총액에 넣을지는 내가 정해야 함
+
+조사 힌트의 '신혼집이 예산에서 제외되는 설계'는 실소스와 다르다 — 하드 제외가 아니라 included/excluded/unknown 삼분이고, 금액 크기로 추정하지 말고 사용자에게 한 문장으로 확인하라는 설계다(prompts.ts:983-984, 1091). 그래서 판정은 D가 아니라 C다. 다만 그 설계의 결과가 이 축을 무력화한다: 사용자가 신혼집을 총액에서 빼면 예산 초과 경고가 결혼 준비 자금 중 가장 큰 덩어리를 반영하지 않은 채 초록불을 유지한다. 추가금 사전 경고도 0이다 — 중개수수료, 관리비, 수리·도배 비용, 이사 비용 같은 이 단계 고유의 뒤늦게 튀어나오는 돈이 hiddenCosts에 하나도 없다. 결제 시점(계약금·중도금·잔금)은 주택 계약에서 가장 명확한데도 housing_05가 단순 체크박스이고, PaymentLedger는 플래그 뒤에 있다.
+
+`components/app/budget/BudgetContent.tsx:67 { key: 'housing', label: PLANNING_CATEGORY_LABELS.housing, icon: 'Key' } · lib/ai/tools.ts:101 update_category_budget enum에 housing 포함 · lib/ai/amoraWeddingContext.ts:34-41 BUDGET_SCOPE_ITEMS에 housing 포함, :56 라벨 '신혼집', :74-77 '확인하지 않은 항목은 포함으로 추정하지 않는다' · lib/ai/prompts.ts:983-984, 1091 · BudgetContent.tsx:1135-1139 예산 초과 · constants/hiddenCosts.ts housing 항목 0개`
+
+**④ 업체조율 — D**
+> 손에 쥐는 것: 아무것도 없음 — 스스로 적은 메모 한 줄
+
+부동산 중개인은 제품의 '업체' 개념 안에 들어온 적이 없으므로 봉인(E)이 아니라 부재(D)다. 벤더 도구가 전부 열린다 해도 이 단계에는 적용되지 않는다. 계약 점검 도구에는 진입되지만 'other'로 떨어져 공통 7개 조항만 남고, 주택 임대차 고유 항목(특약, 확정일자, 전입신고, 등기 확인, 중개수수료 상한, 잔금일 조정)은 하나도 검사하지 않는다. 제휴 없이도 가능한 조율 — 중개인에게 보낼 확인 질문, 매물 응대 기록, 약속 사항 저장 — 도 전부 없고 남는 것은 할 일 카드에 사용자가 직접 쓴 문장뿐이다.
+
+`lib/ai/tools/riskSupportTools.ts:9-17 ContractShieldCategory에 housing 없음 → 'other' · lib/amora/contractShield.ts:295-297, :97-157 공통 7개만 적용 · lib/ai/tools.ts:1000-1015 search_nearby_places 스키마 '웨딩 사진 촬영·드레스·헤어·메이크업 업체가 아닌 일반 장소 검색에만 사용', :1077 BETA_DISABLED에 포함 · lib/ai/tools.ts:503 add_amora_action category_key에 housing 존재`
+
+**⑤ 관계조율 — C**
+> 손에 쥐는 것: 내가 먼저 꺼내면 편들지 않고 들어주는 대화 한 번
+
+이 단계의 갈등은 집값 분담 비율, 지역(직장 거리), 그리고 부모 지원금에 딸려 오는 발언권이다. 제품의 태도는 좋다 — prompts.ts:985가 가족별 부담을 관습처럼 배정하지 말라고 명시한다. 그런데 그 문장에 '대출'이 들어간 대화는 W2로 떨어져 예산 컨텍스트가 사라지고, 부모 지원을 언급한 문장은 제3자 필터로 갈등 점수가 무효화되며, 갈등 감지 어휘에 주거 관련 낱말이 하나도 없다. payer 필드는 housing 카테고리에도 붙지만 아모라가 읽지 못한다. deck.ts에 '우리 집이랑 예식 중에 뭐부터 줄일까?'라는 이 단계 정확한 문장이 있으나 /today의 날짜 시드 랜덤이라 필요한 시점에 뜨지 않는다. 결과적으로 사용자가 먼저 꺼내야 하고, 꺼내도 제품은 우리 재정을 모르는 채로 듣는다.
+
+`lib/ai/prompts.ts:985 '두 가족의 지원, 대출, 각자 저축 비율은 사용자가 먼저 말했거나 현금 흐름 계획을 요청했을 때만 다룹니다. 가족별 부담을 관습처럼 배정하지 않습니다.' · lib/ai/amoraQuestionScope.ts:85 WEDDING_ADJACENT_PATTERN에 신혼\s*(?:집|이사|생활)·부부 재정·공동 재정 포함 → W1 · amoraQuestionScope.ts:56,158-170 '대출' 포함 시 W2 선행 판정 · lib/ai/conflict-detector.ts:84-140 주거·집·이사 어휘 0 · lib/ai/conflictSafety.ts:16-23 부모 지원 발화 무효화 · components/app/budget/BudgetContent.tsx:793,1285 housing payer 존재하나 lib/ai 프로덕션 코드에서 미사용 · lib/todayOneLine/deck.ts:105-111`
+
+**⑥ 정보비대칭 — D**
+> 손에 쥐는 것: 아무것도 없음 — 오히려 대출을 물으면 우리 예산까지 잊는다
+
+이 단계에서 소비자가 모르고 상대만 아는 것은 전세사기·깡통전세 판별, 등기부와 확정일자·전입신고의 순서, 중개수수료 상한, 특약에 무엇을 넣어야 하는가다 — 금액으로도 위험도로도 결혼 준비 전체에서 가장 큰 정보 비대칭이다. 제품이 아는 것은 0이고, 설계상 알려주지 않기로 한 영역이다(대출·금융이 고위험 도메인으로 선분류되고 프롬프트가 결론을 단정하지 말라고 두 곳에서 지시). 이 자체가 잘못된 방어는 아니지만 결과는 명확하다: 사용자는 이 단계 전체를 제품 밖에서 해결해야 하며, 물어보면 대화의 문맥마저 잃는다.
+
+`전세·등기·확정일자·깡통전세·중개수수료 grep 결과 apps/web/src 전체에서 주거 계약 지식 0건(hiddenCosts.ts:193,251의 '보증금'은 드레스 대여·붙임머리 항목) · lib/ai/amoraQuestionScope.ts:56 '전세 대출'·'대출'이 고위험 도메인으로 분류 · lib/ai/prompts.ts:1378 및 lib/ai/stage-router.ts:138 '세금·대출 같은 행정 절차는 최신 공식 원문과 적용 조건을 확인하지 못하면 날짜·서류·법적 결론을 단정하지 마세요' · lib/price/catalog.ts:1 · constants/vendorAsymmetry.ts 주거 항목 0`
+
+**⑦ 정서지지 — C**
+> 손에 쥐는 것: 예산도 진행 상황도 모르는 채로 받는 위로 몇 문장
+
+이 단계 특유의 불안은 '집값이 예산을 넘어서 결혼 자체를 미뤄야 하나', '부모 지원 격차가 부끄럽다'처럼 준비 전체를 흔드는 종류다. 제품에는 이를 인지하는 신혼집 전용 경로가 없고(모멘트 0, 알림 0), 감정 어휘로 잡히면 W3_social_care로 분류되는데 W3는 저장 컨텍스트가 제거되므로 우리 예산과 진행을 모르는 상태의 일반 위로가 된다 — 정작 불안의 원인인 숫자를 아는 채로 응답할 수 없다. 위기 감지는 자해·폭력 전역 계층만 있고 그 아래 등급(결혼 연기 고민, 재정 압박)의 출구가 없다. 전문가 연결은 109·1366·112·119뿐이다.
+
+`lib/ai/amoraQuestionScope.ts:83 SOCIAL_CARE_PATTERN /힘들|지쳤|속상|답답|외로/ → W3_social_care, allowsLongTermMemory:false · lib/ai/amoraPromptComposer.ts:57-66 W2~W4 저장 컨텍스트 제거 · lib/ai/prompts.ts:524, 915 · packages/shared/src/safety/amoraCrisisSafety.ts:25-67, amoraCrisisRecovery.ts:59 · constants/moments.ts 이 단계 모멘트 0`
+
+
+### 7. 청첩장
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 앱을 직접 열었을 때만 보이는 벨 배지 하나 — '초대장과 하객 명단 확인하기'
+
+시작(D-120)·마감(D-45)은 코드에 있으나 먼저 발화하는 경로가 없다. NOTIFICATION_TEMPLATES는 useNotifications.ts:345 useMemo로 클라이언트에서 계산돼 TopNav 배지로만 뜬다(푸시·메일 아님). 실제 선제 발화 경로인 모멘트 루프는 invitation_meeting이 trigger:"event"라서(moments.ts:228) momentLoop.ts:139 `if (!event.momentType) continue`에 걸린다 — 사용자가 log_wedding_event로 모임 날짜를 먼저 말해야만 D-3/D-1/D+1이 발화한다. 말 안 하면 이 단계는 영원히 침묵. 또 배지는 `dday > ddayTrigger`만 검사해(useNotifications.ts:356) D-45 마감이 지나도 사라지거나 격상되지 않는다.
+
+`packages/shared/src/constants/weddingPlanning.ts:255-256 (invitation ddayStart:120 / ddayDeadline:45); apps/web/src/constants/notifications.ts:93-100 (n_invitation_start ddayTrigger 120); apps/web/src/hooks/useNotifications.ts:345-380 + components/app/TopNav.tsx:62; apps/web/src/constants/moments.ts:225-251 (invitation_meeting, trigger:"event"); apps/web/src/lib/amora/momentLoop.ts:132-146`
+
+**② 의사결정 — C**
+> 손에 쥐는 것: 체크박스 7개 — 내가 무엇을 정해야 하는지의 목록. 정하는 데 쓸 재료는 0개
+
+이 단계 결정은 ①종이/모바일 ②디자인 시안 ③문구 ④하객 명단·수량 ⑤발송일 5개다. 제품이 주는 건 이 5개를 그대로 문장으로 바꾼 체크리스트뿐 — 선택지도 비교도 근거도 없다. 문구 생성기·시안 비교·명단 도구·수량 산출식이 전부 부재(코드베이스 전체에 invitationText/invitationDraft/guestList 식별자 없음). 결정적으로 extract-decision.ts:33의 카테고리 배열은 studio/dress/makeup/venue/hanbok/ring/honeymoon만 담고 invitation이 없어, 사용자가 '모바일로 하기로 했어'라고 말해도 결정 노드로 저장되지 않는다 — 다음 단계로 넘어갈 상태가 남지 않는다. 판정 금지가 결론을 막는 지점: moments.ts:231 '식사비를 누가 내는지는 관계와 모임마다 달라서 정답은 없어'로 명시적 결론 회피. 판정 없이 결론 내는 대안: 수량은 판정이 아니라 산술이다 — 보증인원·예상 하객·명단 수를 이미 가진 값(guestGuarantee 입력)으로 '초대장 필요 부수 = 명단 세대수 + 여유분' 범위를 계산해 주면 판정 없이 ④가 끝난다. 발송일도 '업체가 답한 제작 소요일 + 사용자가 정한 여유일'을 역산하면 D-45 마감 대비 위치를 판정 없이 제시할 수 있다.
+
+`packages/shared/src/constants/weddingPlanning.ts:257-263 (체크리스트 7항목); apps/web/src/lib/ai/extract-decision.ts:33,107 (결정 카테고리 목록에 invitation 없음); apps/web/src/constants/moments.ts:231-232`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 예산칸 하나와 초과 시 빨간 표시 — 내가 숫자를 둘 다 직접 넣었을 때만
+
+지출 기록·초과 감지는 된다(BudgetContent.tsx:416). 빠진 것 셋: (1) 추가금 사전 경고가 없다 — BudgetContent.tsx:84-95의 HIDDEN_COSTS 맵은 studio/dress/makeup/venue/honeymoon/hanbok/gift/snap/ham/bouquet 10개 키를 갖는데 invitation만 빠져 있다(honeymoon은 있는데 invitation은 없다). hiddenCosts.ts 41개 항목도 타입 자체가 studio|dress|makeup|common이라 초대장 함정(인쇄 수정비·추가 부수 단가 급등·봉투/우표 별도·모바일 제작 저작권)을 담을 자리가 없다. (2) 계약금↔예산 연동 없음 — 결제 시점(계약금·중도금·잔금) 구분 필드가 예산 모델에 없다. (3) 청첩장 모임 식사비(moments.ts:231이 '돈 걸린 모멘트'로 moneyInvolved:true 표시)가 예산 어느 카테고리로도 흘러들지 않는다.
+
+`apps/web/src/components/app/budget/BudgetContent.tsx:68 (invitation 예산 카테고리), :416 const isOver = spent > budget && budget > 0, :84-95 (HIDDEN_COSTS 맵 — invitation 키 없음); apps/web/src/constants/hiddenCosts.ts:10 (category 타입이 studio|dress|makeup|common 뿐)`
+
+**④ 업체조율 — D**
+> 손에 쥐는 것: 아무것도 없음. 제작업체에 보낼 문장도, 확인 항목도, 응대 기록칸도 없다
+
+E(봉인)가 아니라 D(부재)다 — 제휴가 막힌 게 아니라 초대장이 업체 카테고리로 존재조차 하지 않는다(vendors/route.ts:10-19에 스튜디오·드레스·메이크업·예식장·스냅·한복·예물·신혼여행·기타 9종뿐). 제휴 없이도 가능한 조율(제작 소요일 확인 문장, 교정 횟수·수정비 질문, 오탈자 책임 소재, 추가 부수 단가, 배송일 확약)이 전부 없다. 대조: 같은 코드베이스의 stage 8은 guestGuarantee.ts:113-121에서 복붙 가능한 업체 문의 문장을 완성해 주므로 이건 역량 부족이 아니라 미구현이다. 유일하게 존재하는 복붙 대본(moments.ts:243 '시간 내줘서 고마워! …식사비는 우리가 준비했어')은 하객에게 하는 말이지 업체 대상이 아니다.
+
+`apps/web/src/app/api/vendors/route.ts:10-19 (CATEGORY_ALIASES 9종 — 청첩장/invitation 없음); apps/web/src/constants/vendorAsymmetry.ts:32-154 (16항목 전부 negotiation/scam/redFlag/secret, 초대장 제작 관련 0건); apps/web/src/constants/moments.ts:243`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 내 갈등 성향 축(familyIntegration vs coupleAutonomy) 점수 하나, 그리고 중재 카드 4칸(공감·통역·데이터·합의안)
+
+인지는 한다: prompts.ts:540-546이 '가족·하객 의견'을 4단계로 다루고 '가족 의견을 의무나 최종 결정으로 만들지 마세요'라고 못 박는다. weddingCodeV06.ts:277의 C3 문항은 이 단계 최대 갈등(직장 사람 초대 여부, 양가 요구 vs 우리 의사)을 정확히 겨냥한다. 커플 이견 경로도 실재(conflict-detector.ts:84-138 휴리스틱 4카테고리 + mediation.ts 4필드 카드)하고 파트너 비공개 상의도 가능(visibility bride_private/groom_private, conflict-detector.ts:52). 그런데 결론이 안 나는 이유: (1) C3는 중재가 아니라 자가진단 퀴즈다 — 결과는 축 점수일 뿐 '그래서 직장 상사를 부를까 말까'로 이어지지 않는다. (2) conflict-detector는 주제 무관 감정 패턴 매칭이라(84-138행에 청첩장·하객·명단 관련 패턴 0개) '명단 때문에 싸웠어'는 '싸웠어'로만 잡히고 쟁점이 명단이라는 걸 모른다. (3) mediation.ts의 '데이터' 칸을 채울 이 단계 전용 데이터가 없다. 빠진 것: 명단 경계 기준(누구까지 부르는가)을 양쪽이 각자 정하고 대조하는 경로.
+
+`apps/web/src/lib/ai/prompts.ts:540-546 (가족·하객 의견 처리 지침 4단계); apps/web/src/constants/weddingCodeV06.ts:274-284 (C3 '하객 명단에서 직장 사람들을 넣었다 지웠다 한 밤'); apps/web/src/lib/ai/conflict-detector.ts:84-138; apps/web/src/lib/ai/mediation.ts:44-50; apps/web/src/constants/moments.ts:231`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: '소요 기간을 확인하세요'라는 한 문장 — 확인 결과는 내가 어디선가 구해와야 한다
+
+함정의 이름만 알려주고 값은 안 준다. tip 한 줄(weddingPlanning.ts:254)이 '소요 기간'과 '발송할 날짜'가 중요하다는 사실은 알려주지만, 실제 소요일 범위도 발송 시점 관행(보통 언제 돌리는가)도 없다. vendorAsymmetry.ts 16항목은 전부 스드메·예식장 계약 협상용이라 초대장 특유의 비대칭(인쇄 교정 횟수와 그 초과비, 오탈자 재인쇄 책임, 추가 부수의 단가 급등 구간, 모바일 청첩장의 하객 개인정보 수집 범위, 봉투·우표 별도 여부)을 하나도 다루지 않는다. marketPrices.ts는 소스코드 시세를 전량 제거해 부수당 단가 기준선도 없다. 출처·기준시점 표기 대상 자체가 없다.
+
+`packages/shared/src/constants/weddingPlanning.ts:254 (tip '제작 업체의 실제 소요 기간과 발송할 날짜를 확인하세요'); apps/web/src/constants/vendorAsymmetry.ts:32-154 (16항목 중 초대장 0건); apps/web/src/constants/marketPrices.ts (시세 데이터 전량 빈 배열)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 파트너에게 던질 질문 한 줄 — '너는 청첩장에서 뭐부터 봤어?'
+
+이 단계 불안은 두 겹이다: 미적 완벽주의(시안 20개 사이 무한 루프)와 사회적 불안(누구를 뺐다는 게 드러날까). 제품은 첫 번째만 인지한다 — deck.ts:210이 '시안 스무 개 중 한 명은 세 시간, 한 명은 십 초'로 정확히 그 장면을 짚는다. 다만 이 카드의 `check` 필드가 빈 문자열(deck.ts:213)이라 대화만 열고 행동으로 닫지 않는다(같은 덱의 stage 8 카드 deck.ts:85는 check가 채워져 있어 대조된다). 두 번째 불안(초대 못 한 사람에게 드러나는 것)은 어느 경로도 인지하지 않는다. 위기 감지는 amoraQuestionScope.ts:80-83의 범용 경로뿐이고 이 단계 전용 격상 없음. 전문가 연결은 이 단계에 없다. moments.ts:242 D+1 '모임 재밌었어?'가 유일한 사후 안부인데, 이것도 사용자가 모임을 먼저 등록했을 때만 발화한다(①의 게이트와 동일).
+
+`apps/web/src/lib/todayOneLine/deck.ts:208-215 (invitation-three-hours-ten-seconds, kind:"heart", check:""); apps/web/src/lib/ai/amoraQuestionScope.ts:82-83 (SOCIAL_CARE_PATTERN), :87 (WEDDING_CORE_SIGNAL_PATTERN에 청첩장 포함); apps/web/src/constants/moments.ts:242`
+
+
+### 8. 하객 관리
+
+**① 시점관리 — A**
+> 손에 쥐는 것: 예식 33일 전 자동으로 도착하는 메일/채팅 — '최소 식사 인원 확정 날짜를 확인하라'는 마감 알림, 그리고 마감까지 남은 일수 숫자
+
+`apps/web/src/constants/moments.ts:253-273 (final_check, trigger:"wedding_relative", weddingOffsetDays:-30, 체크리스트 첫 항목이 '최소 식사 인원의 확정 날짜 확인'); apps/web/src/lib/amora/momentLoop.ts:148-156 (예식일 기준 자동 산출); apps/web/src/app/api/cron/care-moments/route.ts:1-22,223 (메일 발송); apps/web/src/app/api/chat/proactive/route.ts:171-190 (인앱 삽입); apps/web/src/lib/amora/guestGuarantee.ts:105-110,203-215`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 숫자 네 개(예상 참석 인원·결제 대상 인원·식사비 총액·빈자리 손실액)와 '이 계산만으로는 정할 수 없다'는 문장
+
+이 단계 결정은 ①누구를 부를까 ②보증인원을 몇으로 확정할까 ③보증을 낮출까 유지할까 3개다. ②③에 대해 simulate_guest_guarantee가 실제 숫자를 만들어 내는 건 이 감사 범위에서 가장 강한 의사결정 지원이다. 그런데 결론에 못 닿는 이유 셋: (1) 진입이 막힌다 — amoraToolPolicy.ts:58의 BUDGET_INTENT는 /예산|비용|금액|가격|견적|시세|돈|식대|지출|썼|결제/라서 '하객 200명인데 보증인원이 250명이래요'처럼 이 단계에서 가장 자연스러운 발화에는 '보증'·'하객'·'인원'이 모두 미포함이라 도구가 모델에 아예 전달되지 않는다(amoraToolPolicy.ts:175 `if (hasBudgetIntent) addAll(selected, BUDGET_READ_TOOLS)`). '식대'나 '예산'을 사용자가 우연히 말해야 열린다. (2) 범위가 안 나온다 — 타입은 conservative/expected/optimistic 3시나리오를 선언해 놓고(guestGuarantee.ts:22-30) 구현은 expected 하나만 넣는다(:185-193). 대조군이 없으니 '250명이 무리한 숫자인가'를 위치로 판단할 수 없다. (3) ①(명단)은 도구가 0개 — GUEST_RELATIONS 6분류가 constants/communityCategories.ts:139에 정의돼 있으나 코드베이스 어디서도 import되지 않는 죽은 상수다. 판정 없이 결론 내는 대안: 3시나리오는 이미 타입에 있으므로 채우기만 하면 '내 불참률 가정이 범위 어디에 있는가'가 판정 없이 나온다. 보증인원 자체도 '결제 대상 인원이 보증선 아래로 떨어지는 불참률 임계치는 몇 %'라는 손익분기 역산으로 답하면 추천 없이 결론이 선다.
+
+`apps/web/src/lib/amora/guestGuarantee.ts:185-193 (scenarios 배열에 "expected" 1개만 push), :219 ('정할 수 없어요'), :22-30 (GuestGuaranteeScenario 타입은 conservative|expected|optimistic 3종 선언); apps/web/src/lib/ai/amoraToolPolicy.ts:11-15,58,175 (simulate_guest_guarantee는 BUDGET_READ_TOOLS이고 BUDGET_INTENT 게이트 뒤에 있음); apps/web/src/constants/communityCategories.ts:139-146 (GUEST_RELATIONS — 어디서도 import되지 않는 죽은 상수)`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 채팅창에 한 번 떴다 사라지는 식사비 총액 숫자, 그리고 결혼식이 끝난 뒤 손으로 입력한 축의금 CSV 파일
+
+계산과 기록은 둘 다 있는데 서로도, 예산과도 연결이 없다. (1) guestGuarantee 결과는 휘발성이다 — riskSupportTools.ts:104-123의 executeSimulateGuestGuarantee는 saveProgress를 호출하지 않는다(같은 파일이 아닌 scheduleTools.ts:583은 호출한다 — 저장 경로가 없는 게 아니라 이 도구만 안 쓴다). 예식장 식사비가 전체 예산에서 가장 큰 단일 변동비인데 예산 카테고리로 흘러들지 않아, 다음에 물으면 사용자가 네 숫자를 처음부터 다시 불러야 한다. (2) 축의금 장부(money/page.tsx)는 received_at 기준 사후 기록이고 예산·식사비와 교차 참조가 전무하다(코드베이스에서 budget 쪽이 moneyStore나 congratulatory를 import하는 지점 0건). 그래서 이 단계 최대 질문인 '축의금으로 식대가 커버되는가'가 두 화면 모두에 숫자가 있는데도 어디서도 계산되지 않는다. (3) 추가금 사전 경고는 vendorQuestions 문장으로만 존재하고(guestGuarantee.ts:222-228) 금액 반영 경로는 없다. 결제 시점(계약금·중도금·잔금) 구분 없음.
+
+`apps/web/src/lib/amora/guestGuarantee.ts:196-201 (expectedMealTotalManwon·emptySeatLossManwon 계산); apps/web/src/lib/ai/tools/riskSupportTools.ts:104-123 (ToolExecutionResult 반환만 — 저장 호출 없음); apps/web/src/app/(app)/money/page.tsx:61-67 (stats: total/groomTotal/brideTotal/count/avg), :143-153 (CSV 내보내기); apps/web/src/types/money.types.ts:1-3`
+
+**④ 업체조율 — B**
+> 손에 쥐는 것: 예식장에 그대로 붙여넣을 문의 메시지 한 통 + 물어볼 질문 5개
+
+제휴 없이 가능한 조율의 모범 사례다 — E(봉인)도 D(부재)도 아니고, 사용자가 직접 연락할 때 쓸 문장을 완성해서 준다. buildVenueMessage(guestGuarantee.ts:113-121)는 업체명·예상 인원·계산 인원·보증 인원·식대를 실제 값으로 채워 넣은 문의문이고, ProtectionToolCard.tsx:391에 복사 버튼이 달려 실제로 손에 쥔다. 질문 5개(:222-228)도 이 단계 핵심 비대칭(초과 인원 계산 기준, 어린이/업체 직원/부모님 식대 동일 적용 여부)을 정확히 겨냥한다. A가 아닌 단 하나의 이유: 업체가 답한 내용을 되받아 저장하는 경로가 없다. 응대 기록·약속 사항 저장 필드가 없어서, '마감일이 D-25래요'라는 답을 들어도 guestGuarantee의 noticeDeadlineYmd로 되돌아가 꽂히지 않고 사용자가 매번 다시 입력해야 한다(③의 휘발성과 같은 뿌리). 구두 약속을 증빙으로 고정하는 analyze_contract_readiness의 oralPromises 필드(riskSupportTools.ts:88)가 옆에 있는데도 이 도구와 이어지지 않는다.
+
+`apps/web/src/lib/amora/guestGuarantee.ts:113-121 (buildVenueMessage — 완성된 복붙 문의문), :222-228 (vendorQuestions 5개); apps/web/src/components/app/chat/ProtectionToolCard.tsx:387-393 (CopyButton), :297-308`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 신랑측 합계와 신부측 합계 두 숫자가 나란히 놓인 화면
+
+이 단계 양가 갈등은 두 형태로 나타난다: 명단 배분(양가 몇 대 몇으로 부를 것인가)과 축의금 귀속(누구 손님의 축의금이 누구 몫인가). 제품은 후자를 인지한다 — money.types.ts:5의 Side 필드와 money/page.tsx:63-64의 좌우 분리 집계는 이 긴장을 정확히 데이터 모델에 반영한 것이다. 그런데 집계에서 멈춘다: 두 숫자를 나란히 보여줄 뿐 정산 기준(각자 손님 몫인가, 합쳐서 나누는가, 부모님 손님은 부모님 몫인가)에 대해 어떤 선택지도 제시하지 않고, 합의 결과를 저장하는 필드도 없다. 전자(명단 배분)는 weddingCodeV06.ts:277의 C3 자가진단 문항으로만 존재하고 중재로 이어지지 않는다. 커플 이견·비공개 상의 경로는 있으나(conflict-detector.ts:52 visibility, mediation.ts 4필드) 이 단계 전용 데이터가 없어 '데이터' 칸을 채울 수 없다. prompts.ts:899가 '누가 얼마나 준비했는지 한 사람의 말만으로 판정하지 마세요'로 판정을 막는데, 대안 경로(양쪽이 각자 기준을 적고 대조하는 구조)가 제공되지 않아 결론이 안 난다.
+
+`apps/web/src/types/money.types.ts:5 (Side = groom|bride|both); apps/web/src/app/(app)/money/page.tsx:63-64 (groomTotal/brideTotal 분리 집계), :214-215; apps/web/src/constants/weddingCodeV06.ts:274-284 (C3); apps/web/src/lib/ai/prompts.ts:540-546, :899; apps/web/src/lib/ai/conflict-detector.ts:84-138`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 계약 전에 서면으로 확인할 항목 3가지(미달 시 정산 방식·각보증 적용 여부·인원 조정 가능 시점)
+
+이 배치에서 정보 비대칭을 가장 잘 다루는 셀이다. deck.ts:85의 check 필드는 소비자가 모르고 업체만 아는 것을 정확히 집는다 — 특히 '각보증(신랑측·신부측 따로) 적용 여부'는 계약서를 읽어도 모르고 당해봐야 아는 항목이다. vendorQuestions 5개(guestGuarantee.ts:222-228)도 어린이·업체 직원·부모님 식대 동일 적용처럼 실제 정산 분쟁 지점을 짚는다. 그럼에도 B인 이유: 이 단계에서 가장 비대칭이 큰 단일 수치인 '통상 불참률'을 제품이 의도적으로 제공하지 않는다. tools.ts:983이 모델에게 '업계 평균이나 기본값을 추정하지 말고, 모르면 계산 전에 사용자에게 확인'하라고 지시하므로, 사용자는 자기가 전혀 모르는 값을 스스로 지어내야 계산이 돌아간다(guestGuarantee.ts:143-147에서 미입력 시 input_needed로 반려). marketPrices.ts가 시세를 전량 비운 상태라 1인 식대 기준선도 없다. 출처·기준시점 표기는 sourceNote 한 줄(guestGuarantee.ts:230)로 '사용자 입력값 기반'임을 밝히는 데 그치고, 인용할 외부 출처 자체가 없다. 판정 없이 결론 내는 대안: 불참률을 추천하지 않아도 '입력한 값이 몇 %일 때 보증선을 넘고 몇 %일 때 미달하는가'라는 임계치 제시는 판정이 아니다.
+
+`apps/web/src/lib/todayOneLine/deck.ts:80-87 (guest-list-below-minimum, check 필드에 '각보증(신랑측·신부측 따로) 적용 여부'); apps/web/src/lib/amora/guestGuarantee.ts:222-228; apps/web/src/lib/ai/tools.ts:981-984 (no_show_rate_percent — '업계 평균이나 기본값을 추정하지 말고, 모르면 계산 전에 사용자에게 확인'); apps/web/src/constants/marketPrices.ts`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 파트너에게 던질 질문 한 줄과, 확인할 항목 3가지가 붙은 카드
+
+이 단계 특유의 불안은 '아무도 안 오면 어쩌지'와 '빈자리가 드러나면 창피하다'는 사회적 노출 공포다. deck.ts:82의 장면('명단 세어보니 보증인원보다 마흔 명 모자랐던 날')은 이 불안을 정면으로 인지하고, 같은 카드의 check 필드가 확인 항목까지 붙여 대화를 행동으로 닫는다 — stage 7의 빈 check와 대조되는 이 배치 최고 수준이다. B에 머무는 이유: (1) 불안을 처리하는 언어가 없다 — guestGuarantee의 riskLabel은 '마감 확인'·'차이 확인'(guestGuarantee.ts:56-60) 같은 사무적 문구이고, 빈자리 손실액을 만원 단위로 제시하는 순간(:200) 불안이 증폭될 수 있는데 이를 완충하는 문장이 결과 객체 어디에도 없다. (2) 카드는 사용자가 오늘의 덱을 열어야 만나는 수동 경로다 — 이 단계 전용 선제 정서 발화는 없다(final_check 모멘트는 체크리스트 5항목의 실무 알림이고 정서 문구가 없다, moments.ts:259-267). (3) 위기 감지·전문가 연결은 amoraQuestionScope.ts:80-83의 범용 경로뿐, 단계별 격상 없음.
+
+`apps/web/src/lib/todayOneLine/deck.ts:80-87 (say: '보증인원 이백 명, 우리한테 가능한 숫자야?'); apps/web/src/lib/amora/guestGuarantee.ts:165-166,199-201 (riskLabel '마감 확인'/'차이 확인'); apps/web/src/lib/ai/amoraQuestionScope.ts:80-83`
+
+
+### 9. 신혼여행
+
+**① 시점관리 — A**
+> 손에 쥐는 것: 출발 전날 자동으로 도착하는 출국 전 확인 체크리스트 5줄, 그리고 다음날 '잘 도착했어?' 안부
+
+`apps/web/src/constants/moments.ts:304-330 (honeymoon_departure, trigger:"wedding_relative", weddingOffsetDays:1, d1 + dAfter); apps/web/src/lib/amora/momentLoop.ts:148-156, :109-115 (D-1→d1, D+1→dAfter); apps/web/src/app/api/cron/care-moments/route.ts:223; packages/shared/src/constants/weddingPlanning.ts:200-201 (ddayStart:180 / ddayDeadline:30); apps/web/src/constants/notifications.ts:74-82`
+
+**② 의사결정 — C**
+> 손에 쥐는 것: 체크박스 8개, 그리고 내가 이미 다른 데서 정하고 온 결정을 아모라가 기억해 주는 것
+
+이 단계 결정은 ①목적지 ②시기·기간 ③항공·숙소 조합 ④패키지 vs 자유여행 ⑤보험 4~5개다. 제품이 제공하는 건 결정 항목을 문장으로 옮긴 체크리스트 8줄이 전부 — 선택지 제시도, 비교도, 근거도 0개다. 장소를 찾는 유일한 도구인 search_nearby_places는 tools.ts:1074에서 베타 차단이라 목적지 후보조차 못 낸다. 유의미한 차이 한 가지: stage 7과 달리 extract-decision.ts:33,107의 카테고리 배열에 honeymoon이 있어서, 사용자가 밖에서 정해 온 결정은 결정 노드로 저장되고 이후 대화에서 인용된다(prompts.ts:730 '지난주 스페인 정하신 거…'). 즉 결정을 '만드는' 기능은 0이고 '받아적는' 기능만 있다 — 정확히 C다. 판정 금지가 결론을 막는 지점: 목적지 추천은 취향 문제라 판정 회피가 타당하지만, 판정 없이 좁힐 수 있는 것들이 남아 있다 — 사용자가 이미 준 값(예식일 + 휴가 일수 + 예산 카테고리 금액)만으로 '이 기간에 비행시간 N시간 이내, 이 예산 범위'라는 제약 집합을 만들어 후보를 좁히는 것은 추천이 아니라 필터다. 우기·성수기 같은 시점 제약도 판정이 아니라 사실 조회다.
+
+`packages/shared/src/constants/weddingPlanning.ts:203-210 (체크리스트 8항목); apps/web/src/lib/ai/tools.ts:1074 (search_nearby_places가 BETA_DISABLED_TOOL_NAMES에 포함); apps/web/src/lib/ai/extract-decision.ts:33,107 (카테고리에 honeymoon 포함); apps/web/src/lib/ai/prompts.ts:730`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 예산칸 하나, 초과 시 빨간 표시, 그리고 '보험·선택 일정·현지 비용의 포함 범위를 예약 문서로 확인하라'는 경고 한 줄
+
+stage 7과 달리 추가금 사전 경고가 실재한다 — BudgetContent.tsx:90의 HIDDEN_COSTS.honeymoon은 이 단계 3대 함정(여행자보험 실제 보장 범위, 선택 관광 별도 결제, 현지 지불 비용)을 짚고 '예약 문서 기준 확인'이라는 검증 방법까지 붙인다. n_honeymoon_start(notifications.ts:80)도 가격과 함께 취소 조건 비교를 지시해 이 단계 최대 리스크(항공·숙소 취소 수수료)를 초기에 띄운다. 결론이 안 나는 이유: (1) 결제 시점 구분이 없다 — 신혼여행은 계약금(예약금)·잔금(출발 전 완납) 구조가 뚜렷한데 예산 모델에 결제 단계 필드가 없어 '언제 얼마가 빠져나가는가'를 알 수 없다. (2) 통화가 원화 단일이라 환율·현지 결제분이 실지출로 잡히지 않는다 — HIDDEN_COSTS가 '현지 비용'을 경고해 놓고 정작 기록할 칸이 없다. (3) 취소 수수료 구간(D-30/D-15/D-7 단계별)을 저장하는 필드가 없어 경고가 일회성 문장으로 끝나고 마감이 다가와도 재발화하지 않는다.
+
+`apps/web/src/components/app/budget/BudgetContent.tsx:65 (honeymoon 예산 카테고리), :90 (HIDDEN_COSTS honeymoon — '보험, 선택 일정, 현지 비용의 포함 범위' / '예약 문서 기준 확인'), :416 (isOver); apps/web/src/constants/notifications.ts:74-82 ('가격과 취소 조건을 함께 비교해 보세요'); apps/web/src/constants/communityCategories.ts (COHORT_CONTRACT_CATEGORIES에 honeymoon 포함)`
+
+**④ 업체조율 — E**
+> 손에 쥐는 것: '예약 확인서를 안전한 두 위치에 보관하라'는 지시 한 줄. 업체에 보낼 문장도, 예약 기록칸도 없다
+
+D가 아니라 E다 — 신혼여행은 vendors/route.ts:18에 정식 업체 카테고리로 등재돼 있고 검색·상세·예약·취소 도구가 스키마와 실행기까지 모두 구현돼 있는데, tools.ts:1058-1075가 이를 통째로 모델에서 차단한다. 차단 사유도 코드에 명시적이다(tools.ts:1054-1057 '현재 제품 계약 밖인 업체 추천·예약·조회는 모델에 제공하지 않는다… 다시 켤 때는 사용자 가치 검증과 최신 거래·개인정보 고지를 별도 출시 조건으로 통과해야 한다'). 즉 의도적 봉인이다. 다만 봉인과 별개로 제휴 없이도 가능한 조율이 함께 비어 있다는 점은 짚어야 한다: 항공사·숙소·여행사에 보낼 확인 문장(취소 수수료 구간, 좌석·객실 확약, 특별 요청 반영 여부), 예약 확인서 보관 경로, 업체 응대 이력이 전부 없다. stage 8이 guestGuarantee.ts:113-121로 제휴 없이 문의문을 완성해 주는 것과 대조된다. 현재 사용자가 받는 유일한 조율 지원은 moments.ts:318의 '예약 확인서를 안전한 두 위치에 보관' — 조율이 아니라 자기 보관 지시다.
+
+`apps/web/src/app/api/vendors/route.ts:18 ('신혼여행': ['신혼여행','honeymoon','travel'] — 업체 카테고리 실재); apps/web/src/lib/ai/tools.ts:1058-1075 (BETA_DISABLED_TOOL_NAMES에 search_vendors, check_vendor_availability, recommend_vendors, get_vendor_detail, get_available_slots, create_booking, get_my_bookings, cancel_booking, search_nearby_places 전부 포함), :1054-1057 (재개방 조건 주석); apps/web/src/constants/moments.ts:318`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: '선물은 의무가 아니다'라는 문장과, 양가 방문 순서를 둘이 합의하라는 항목
+
+이 단계 양가 갈등은 기념품 압박(어디까지 누구에게 사 와야 하는가)과 귀국 후 인사 순서(어느 집 먼저인가) 두 형태로 나타나고, 제품은 둘 다 인지한다. moments.ts:325가 선물을 의무에서 명시적으로 해제하고, family_visit_after(:332-347)는 방문 순서를 '둘이 합의'할 문제로 프레이밍하며 prompts.ts:1376이 신부측·신랑측 역할과 방문 순서를 성별 규칙으로 단정하지 말라고 못 박는다 — 인지 수준은 이 배치에서 가장 높다. 결론이 안 나는 이유: 합의하라고 말할 뿐 합의를 만드는 구조가 없다. 순서·대상·예산을 양쪽이 각자 적고 대조하는 경로가 없고, 합의 결과를 저장하는 필드도 없어 다음 명절(first_holiday 모멘트)에 재사용되지 않는다. 커플 이견(목적지·예산 선호 차이) 역시 conflict-detector.ts:84-138에 신혼여행 관련 패턴이 0개라 주제를 인식하지 못하고 감정 표현으로만 잡힌다.
+
+`apps/web/src/constants/moments.ts:324-327 (dAfter — '선물은 의무가 아니니, 필요할 때만 대상과 예산을 함께 정리하자'), :332-347 (family_visit_after, weddingOffsetDays:8 — '방문 순서와 이동 부담을 둘이 합의'); apps/web/src/lib/todayOneLine/deck.ts:280-287 (honeymoon-ticket-email); apps/web/src/lib/ai/prompts.ts:1376`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 출발 전 확인할 항목 5가지 — 여권·비자·경유 조건, 예약 확인서 이중 보관, 현지 결제 수단, 보험 보장 내용, 약 반입 규정
+
+함정의 목록은 정확하고 실질적이다. moments.ts:311-317의 5항목은 실제 출국 거부·현지 낭패로 이어지는 지점(여권 잔여 유효기간, 경유국 트랜싯 비자, 처방약 반입 규정)을 정확히 짚고, 특히 :309가 '목적지·국적·경유지마다 다르다'며 일반화 자체를 경고하는 건 정직하다. 그럼에도 B인 이유: 제품은 확인해야 할 것의 이름만 주고 값은 하나도 주지 않는다. sourceRefs(:329)가 official:destination_entry_rules·provider:airline_rules를 참조원으로 선언해 놓았지만 이는 내부 메타데이터일 뿐 사용자에게 링크·데이터·기준시점 어느 것도 제공되지 않는다 — 실제 조회는 전부 사용자 몫이다. 여행사·항공 업계 특유의 비대칭(패키지 가격의 선택관광 의존 구조, 항공권 유류할증료 변동, 성수기 요금 급등 시점, 취소 수수료 구간)은 vendorAsymmetry.ts 16항목이 전부 스드메·예식장용이라 한 건도 다루지 않는다. 또 이 정보는 출발 전날(D-1)에야 도착하는데, 여권 갱신은 수 주가 걸리므로 시점이 늦다 — 체크리스트의 honeymoon_06('여권과 비자 필요 여부 확인하고 갱신')은 D-180에 열리지만 수동 체크박스라 미완료를 감지해 격상하는 경로가 없다.
+
+`apps/web/src/constants/moments.ts:308-317 (d1 — '입국 조건은 목적지·국적·경유지마다 달라… 공식 안내와 항공사 안내에서 여권 유효기간·비자·경유 조건을 다시 확인', 체크리스트 5줄), :329 (sourceRefs: official:destination_entry_rules, provider:airline_rules, contract:travel_booking); packages/shared/src/constants/weddingPlanning.ts:199 (tip — 취소 조건·여권·비자); apps/web/src/constants/vendorAsymmetry.ts:32-154 (신혼여행 항목 0건)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 출발 전날과 도착 다음날, 요청하지 않아도 먼저 도착하는 안부 메시지
+
+이 배치에서 정서 지지가 실제로 작동하는 유일한 셀이다. stage 7·8의 정서 자산이 사용자가 덱을 열어야 만나는 수동 카드인 데 반해, honeymoon_departure는 trigger:"wedding_relative"라 사용자가 아무것도 등록하지 않아도 예식일만으로 자동 산출돼 발화한다(momentLoop.ts:148-156). 문구도 압박을 걷어내는 방향으로 설계돼 있다 — '답장은 여유 있을 때 해도 돼'(moments.ts:323), '귀국일을 일정에 넣어두고 싶다면 알려줘'(:326)처럼 응답 의무를 명시적으로 해제한다. B에 머무는 이유: (1) 이 단계 특유의 불안(결혼식 직후 소진 상태에서의 장거리 이동, 둘만의 첫 장기 여행에서 드러나는 성향 차이, 여행이 기대만 못할 때의 죄책감)을 인지하는 경로가 없다 — d1 체크리스트는 전부 서류·물품 실무다. (2) 위기 감지는 amoraQuestionScope.ts:80-83의 범용 경로뿐이고 이 단계 격상이나 전문가 연결이 없다. (3) 발화가 D-1과 D+1 두 점뿐이라 여행 기간 중은 완전한 공백이다.
+
+`apps/web/src/constants/moments.ts:322-327 (dAfter — '잘 도착했어? 답장은 여유 있을 때 해도 돼'), :306-310 (d1); apps/web/src/lib/todayOneLine/deck.ts:280-287; apps/web/src/lib/amora/momentLoop.ts:148-156 (예식일 기준 자동 발화)`
+
+
+### 10. 본식 세부
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 체크리스트 카테고리 옆의 "N일 남음" 배지 하나 — 그 날짜가 실제 마감이 아니라고 코드가 스스로 주석에 밝혀둔 배지.
+
+부케 주문 마감·답례품 최종 수량 확정일·사회자에게 식순 전달일 같은 이 단계의 진짜 마감이 코드에 한 줄도 없다. ddayDeadline은 자기 주석이 "실제 마감일이 아니다"라고 부인한다. 먼저 말하는 3경로(선제 채팅 .env.example:124 / 케어 이메일 :120 / TodayOne :141)가 전부 기본 off라 이 단계에서 아모라가 먼저 연락하는 일은 없다.
+
+`packages/shared/src/constants/weddingPlanning.ts:266-347(snap/shoes/bouquet/gift/mc 템플릿, ddayStart 120~90·ddayDeadline 30~14) · 같은 파일 43-46(주석: "화면 정렬용 기본 확인 시작점이며 실제 계약 시작일이 아니다") · apps/web/src/constants/notifications.ts:101-109(이 단계 알림 템플릿은 n_gift_start 1개뿐, snap/bouquet/mc 없음) · apps/web/src/lib/amora/lifecycle.ts:296-316(마감 가드레일), 334-344(D-45 final_script_ready) · apps/web/.env.example:120,124,141(케어 아웃바운드·선제 채팅·TodayOne 전부 기본 false)`
+
+**② 의사결정 — C**
+> 손에 쥐는 것: 체크박스 목록. 다 체크해도 "생화냐 조화냐", "지인 사회자냐 전문 사회자냐"는 처음 그대로 남는다.
+
+이 단계 결정 6개(본식스냅/영상 필요 여부·부케 소재·답례품 종류와 수량·축가 부탁 대상과 곡·사회자 지인vs전문·주례 유무) 중 제품이 선택지를 좁혀주는 것이 0개다. 판정 금지 때문이 아니라 데이터 자체가 없어서 못 한다: 견적 엔진 카테고리 제외, 공시가 카테고리 제외, 옵션 시세 배열 빈 값. 판정 없이 결론 내는 우회로 3가지 — (a) 부케는 "좋다/나쁘다" 대신 대조표(보관 가능 여부·예식장 반입 규정·비용이 발생하는 시점·촬영일과 예식일 각각 제공되는지)로 사용자가 스스로 고르게 한다. hiddenCosts.ts:325-331의 common_bouquet 질문이 이미 그 재료다. (b) 사회자는 사용자가 이미 입력한 하객 수와 식순 유무만으로 "확인해야 할 것 3개"로 좁힐 수 있다. (c) 커뮤니티 분포를 쓰려 해도 constants/communityCategories.ts:106-114의 COHORT_CONTRACT_CATEGORIES에 snap만 있고 bouquet·gift·mc가 없어 "비슷한 조건의 다른 커플은"조차 만들 수 없다. 결정 저장도 끊겼다 — 대화에서 결정을 뽑아 decision_nodes에 넣던 함수가 호출되지 않고, 테스트 mock만 남아 있다.
+
+`결정 목록 대비 제품 제공: packages/shared/src/constants/weddingPlanning.ts:273-281(snap_01~07), 306-313(bouquet_01~06), 322-330(gift_01~07), 339-346(mc_01~06) = 전부 "~정하기/~비교" 할 일 문장이고 선택지·비교·근거·추천 0 · apps/web/src/lib/amora/quoteCheck.ts:3(AmoraQuoteCategory=sdm_package|studio|dress|makeup — 이 단계 카테고리 전부 제외) · apps/web/src/lib/price/catalog.ts:1(PRICE_CATEGORIES=studio,dress,makeup,hall) · apps/web/src/constants/marketPrices.ts:114-118("축가/축하공연","본식 사회자","주례비","부케" 이름만), 154-165(OPTION_PRICES=[]), 141-146(getVenueOptionalItems→items:{}) · apps/web/src/lib/ai/prompts.ts:1181(모델에 주는 "카테고리 키" 목록에 snap·bouq`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 카테고리 예산칸 숫자 하나와 "포함 범위 확인" 툴팁 한 줄.
+
+이 단계에서 가장 잘 붙는 추가금 데이터 7개(hiddenCosts의 common)가 견적 체크 화면 매핑에서 빠져 있어 화면에 뜨지 않는다. 예산과 지출은 총액만 있고 "계약금 얼마 냈고 잔금이 언제 얼마"를 담을 필드가 없어, 답례품 수량 변경 마감이나 부케 잔금 같은 결제 시점 방어가 불가능하다. 사회자·축가(mc)는 예산 배지 목록에도 없다.
+
+`apps/web/src/components/app/budget/BudgetContent.tsx:85-96(포함범위 배지: snap·gift·bouquet 있음, mc 없음) · apps/web/src/constants/hiddenCosts.ts:299-355(공통/본식 7개: 당일 사진·당일 사진 파일 수·당일 영상·부케·폐백·차량 꽃장식·답례품) · apps/web/src/lib/amora/quoteCheck.ts:73-78(CATEGORY_RELEVANT_COSTS가 studio/dress/makeup만 매핑 → common 7개는 /quote-check 화면과 analyze_quote 결과에 절대 안 뜸) · apps/web/src/types/database.types.ts:83-97(ProgressItem에 budget·spent만, 계약금/중도금/잔금·결제일 필드 없음) · apps/web/src/lib/amora/lifecycle.ts:263-293(예산 초과·85% 경고)`
+
+**④ 업체조율 — B**
+> 손에 쥐는 것: 본식 스냅·영상 업체에 그대로 보낼 확인 질문 목록 + 복붙 메시지 1개. 부케·답례품·사회자는 모든 계약 공통 질문 6개.
+
+봉인(E)이 아니라 커버리지 부족이다. 스냅은 전용 조항(파일 수·보정본·사용권·외부 반입)까지 있는데 부케·답례품·사회자·축가는 "other"로 떨어져 총액·계약금·취소·변경 같은 일반 질문만 나온다. 그리고 어느 카테고리든 "업체가 뭐라고 답했는지"를 남길 자리가 없다 — ProgressItem.vendor 문자열 하나와 notes가 전부라, 통화로 받은 약속이 다음 단계로 이어지지 않는다.
+
+`apps/web/src/lib/amora/contractShield.ts:1-8(ContractShieldCategory에 "snap" 포함), 67-75(라벨 "결혼식 날 사진·영상"), 186-196(venue_external_vendor — 외부 스냅·영상·꽃·진행 업체 반입 조건), 244-254(copyright_usage), 398-400(buildMessageToVendor) · apps/web/src/lib/ai/tools.ts:872-880(analyze_contract_readiness category enum에 snap 있음, bouquet/gift/mc는 "other") · 업체 응대 이력 저장 테이블/컬럼 없음 — apps/web/src 및 supabase/migrations 전체에 vendor_contact·communication_log 문자열 0건`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 웨딩코드를 이미 둘 다 했다면 리포트의 질문 한 줄("그대로 하고 싶은 절차와 간단히 하고 싶은 절차는 각각 뭐예요?"). 안 했다면 중재를 직접 요청해서 얻는 조율 초안 1개.
+
+자산은 있는데 이 단계에 연결이 없다. 축가를 누구에게 부탁할지, 주례를 세울지, 폐백을 할지는 대부분 양가에서 먼저 말이 나오는 주제인데, 제품이 그 시점(D-90~D-14)에 웨딩코드 C3 리포트를 다시 꺼내오거나 중재를 제안하는 코드가 없다. 중재는 사용자가 먼저 버튼을 눌러야 시작되고, 요청자 요약만 근거로 쓰므로 상대 쪽 의견은 여전히 미확인으로 남는다.
+
+`apps/web/src/constants/weddingCodeV05.ts:240-251(C3 "전통 절차를 줄이고 싶을 때 — 폐백, 주례, 예물") · apps/web/src/lib/weddingCode/report.ts:520-532(커플 갭 리포트: "그대로 할 것/간단히 할 것/설명이 필요한 것으로 나누세요" + 첫 질문) · apps/web/src/components/app/chat/MediationConsentDialog.tsx:16 및 apps/web/src/stores/chatStore.ts:2783(요청 기반 중재 — 요청자가 직접 쓴 요약만 근거) · apps/web/src/types/database.types.ts:157-158(bride_private/groom_private 비공개 대화) · apps/web/src/app/api/chat/check-couple-conflict/route.ts:104-113(자동 갈등 감지는 production에서 하드 차단)`
+
+**⑥ 정보비대칭 — C**
+> 손에 쥐는 것: 업체에 물어볼 질문 문장 몇 개. 금액 감은 0 — 부케·사회자·주례비가 얼마쯤인지 알 수 있는 경로가 화면·모델 어디에도 없다.
+
+정보 비대칭 해소용으로 만든 16개 데이터(협상 압박 패턴·분쟁 패턴·경고 신호·업계가 안 알려주는 사실)가 완전한 사장 상태다. 프롬프트에는 "단정하지 마라"는 원칙만 들어가고 실제 내용은 안 들어가며, 화면에 렌더링하는 컴포넌트도 없다. 시세는 판정 금지 때문이 아니라 데이터 소스 자체가 비어 있어서(공시 카테고리가 studio/dress/makeup/hall 4개뿐) 이 단계 항목은 기준 시점조차 말할 수 없다. 결론에 도달시키려면 최소한 "이 항목은 예식장 옵션으로 붙는 경우가 있고, 견적서에 이름이 없으면 별도일 수 있다"는 사실 서술 + VENDOR_ASYMMETRY의 defense 문장을 노출하면 판정 없이 행동이 생긴다.
+
+`apps/web/src/constants/hiddenCosts.ts:299-355(당일 촬영 포함 여부·당일 사진 파일 수·당일 영상·부케·차량 꽃장식·답례품 확인 질문 — 실제로 프롬프트에 원칙과 함께 주입, prompts.ts:1185) · apps/web/src/constants/vendorAsymmetry.ts:30(VENDOR_ASYMMETRY 16개 정의), 96-104(scam_helper_extra: "본식 당일 헬퍼분 식대 별도예요" 통보 패턴), 158-168(getVendorAsymmetryContext는 원칙 문장만 반환 — 16개 항목 본문은 반환하지 않음) · 소비자 확인: VENDOR_ASYMMETRY 참조처가 정의 파일과 prompts.ts:4 import 두 곳뿐 · apps/web/src/constants/marketPrices.ts:114-118(옵션 이름만), 154-165(OPTION_PRICES=[]), 168-176(getCategoryMarketPrice→null)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 채팅에 직접 털어놓으면 돌아오는 일반적인 대화 한 턴. 먼저 오는 것은 없다.
+
+이 단계 특유의 불안은 "친구에게 축가를 부탁하기 미안하다", "사회를 부탁했는데 거절당했다", "부모님이 주례를 세우자고 하는데 우리는 싫다" 같은 부탁·거절의 부담인데, 제품이 이 형태를 인지하는 코드가 한 줄도 없다. 모멘트 12개 중 이 구간(D-120~D-14)을 덮는 것이 하나도 없어 선제 개입 자리도 비어 있다. 위기 분류기는 자해·폭력 신호 전용이라 이 결에는 걸리지 않는다.
+
+`apps/web/src/constants/moments.ts:14-26(MomentType 12개 — 이 단계에 해당하는 모멘트 없음) · apps/web/src/lib/ai/amoraVoice.ts:14-22(턴 역할 "곁에 있기"), 40-45(상황별 케어) · apps/web/src/lib/ai/prompts.ts:824-828(실수 방지 레이더에 관계 리스크 1줄) · packages/shared/src/safety/amoraCrisisClassifier.ts:1-11(위기 분류는 자해·대인폭력 전용) · apps/web/src/lib/ai/stage-router.ts:127-132(ceremony_coordinator 프롬프트는 실무 지시만, 정서 항목 없음)`
+
+
+### 11. 리허설·최종점검
+
+**① 시점관리 — B**
+> 손에 쥐는 것: 앱을 열고 종 아이콘을 눌렀을 때 나오는 알림 두 줄: "남은 준비 확인하기", "최종 하객 수 확인하기".
+
+이 단계 전용으로 설계된 final_check 모멘트가 실제로는 D-31 하루만, 그것도 세 발화 경로가 모두 기본 off라 나가지 않는다. 특히 TodayOne 경로는 플래그를 켜도 예식일 파생 모멘트를 sourceEventId 없다는 이유로 전부 버리므로, TodayOne을 켜는 순간 final_check는 영구히 발화 불가가 된다(선제 채팅도 같이 꺼지므로). 남는 건 사용자가 스스로 앱을 열어 종을 눌러야 보이는 알림 2개다.
+
+`apps/web/src/constants/moments.ts:253-272(final_check, trigger=wedding_relative, weddingOffsetDays=-30, d1 셀만 존재하고 d3·dAfter 없음) · apps/web/src/lib/amora/momentLoop.ts:107-119(dueCellForDate: d1은 daysUntil===1일 때만 → final_check 실제 발화일은 예식 D-31 하루 한 번) · apps/web/src/lib/care/todayOne.ts:229(if (!cell.sourceEventId ...) continue — 일정 기반이 아닌 예식일 파생 셀은 TodayOne에서 구조적으로 전부 버려짐) · apps/web/src/lib/features/amoraCareFlags.ts:9-12(TodayOne이 켜지면 선제 채팅은 자동으로 꺼짐) · apps/web/.env.example:124,141(둘 다 false) · apps/web/src/constants/notifications.ts:119-143(n_makeup_rehearsal D-60, n_final_check D-30, n_gu`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 사용자가 "식대"나 "비용" 같은 단어를 쓰면 → 숫자 하나(빈 좌석 몇 명·얼마) + 결혼식장에 그대로 보낼 메시지 1개. 안 쓰면 → 체크리스트 문장 몇 줄.
+
+제품 전체에서 가장 완결에 가까운 도구가 정작 필요한 시점에 모델에 안 열릴 수 있다. "하객 최종 인원 언제까지 알려야 해?"는 BUDGET_INTENT 정규식에 걸리지 않고, D-30 이내(execution_2)의 기본 specialist는 ceremony_coordinator라 budget 계열이 아니어서 simulate_guest_guarantee가 도구 목록에서 빠진다. "식대"를 사용자가 우연히 말해야만 열리는 구조다. 나머지 결정 — 리허설 메이크업을 받을지, 식순을 어디까지 확정할지, 사전 리허설 날짜를 언제로 잡을지 — 는 체크리스트 문장뿐이고 선택지·근거가 없다. 판정 없이 결론 내는 우회로: 불참률을 제품이 정하지 않는 원칙(guestGuarantee.ts:132-136)은 그대로 두되, 사용자가 이미 입력한 초대장 발송 수와 확답 인원으로 최소~최대 범위를 만들어 보증인원이 그 범위의 어디에 있는지 위치만 표시하면 판정이 아니면서 결론이 난다.
+
+`apps/web/src/lib/amora/guestGuarantee.ts:119-266(simulate: 예상 참석 인원 계산값·빈 좌석 수·빈 좌석 식사비 계산값·마감까지 남은 일수·업체 확인 질문 5개·업체에 보낼 메시지 완성본) · apps/web/src/lib/ai/tools.ts:956-995(도구 스키마, no_show_rate_percent는 사용자가 정한 값만) · apps/web/src/lib/ai/amoraToolPolicy.ts:11-15(BUDGET_READ_TOOLS에 simulate_guest_guarantee), :59(BUDGET_INTENT=/예산|비용|금액|가격|견적|시세|돈|식대|지출|썼|결제/ — "인원"·"보증"·"통보" 없음), :186,192(hasBudgetIntent일 때만 노출) · apps/web/src/lib/ai/stage-router.ts:29-33(D-30 이내는 execution_2), :51-57(execution_2 기본 specialist=ceremony_coordinator), :46(ceremony_coordinator 키워드에 "하객" 포함) · packages/shared/src/const`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: "기록 지출 합계가 전체 예산보다 커요" 경고 카드 하나(초과했을 때). 잔금이 언제 얼마인지는 여전히 손으로 적어야 한다.
+
+제품이 스스로 "남은 계약 금액 일정표를 만들라"고 지시하면서 그걸 담을 필드를 주지 않는다. 잔금 결제일이 데이터가 아니라 사용자의 메모라서, D-30에 "이번 주에 나갈 돈이 얼마"라는 질문에 제품이 답할 수 없다. 예산 경고는 총액 기준 사후 경고라 이 단계에 몰리는 잔금·헬퍼비·혼주 메이크업 추가금을 사전에 막지 못한다.
+
+`apps/web/src/constants/moments.ts:262-268(final_check 체크리스트: "남은 계약 금액 일정표 만들기 (누가·언제·얼마)", "계약별 남은 금액·감사 비용과 결제 수단 확인") · apps/web/src/types/database.types.ts:83-97(ProgressItem에 budget·spent만 — 계약금/중도금/잔금, 결제 예정일 필드 없음) · apps/web/src/lib/ai/tools.ts:936-939(analyze_contract_readiness의 payment_schedule은 자유 텍스트 입력일 뿐 저장 대상 아님) · apps/web/src/lib/amora/lifecycle.ts:273-293(예산 초과·85% 임박 경고) · apps/web/src/constants/hiddenCosts.ts:208-215(makeup_rehearsal severity critical — 리허설 메이크업 포함 여부 질문)`
+
+**④ 업체조율 — B**
+> 손에 쥐는 것: 결혼식장에 그대로 복사해 보낼 문장 1개와 서면으로 받아야 할 질문 5개.
+
+이 축에서 제품이 가장 실제로 일하는 지점이다. 다만 "보냈다/답을 받았다"를 기록할 자리가 없어서, 업체가 마감일을 며칠이라고 답했는지가 다음 단계로 이어지지 않는다. 그리고 결혼식장 외 업체(메이크업 리허설 시간, 사회자 대본 전달)에 대한 전용 문장은 없다.
+
+`apps/web/src/lib/amora/guestGuarantee.ts:103-117(buildVenueMessage — 결혼식장에 바로 보낼 완성 문장), :229-235(확인 질문 5개: 통보 마감일·보증 인원 축소 마지막 날짜와 변경 단위·미달 시 계산 기준·초과 시 당일 추가 계산·어린이·업체 직원·부모님 식사 계산) · apps/web/src/lib/amora/contractShield.ts:398-400(buildMessageToVendor) · apps/web/src/lib/ai/tools.ts:253-297(add_schedule_event — time 지원, 리허설 일정 저장 가능) · 업체 응대 기록 경로 없음(vendor_contact/communication_log 컬럼 0건)`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 웨딩코드 리포트를 봤다면 질문 한 줄: "초대하고 싶은 범위와 실제 보증인원 차이는 얼마나 나나요?"
+
+최종 하객 수는 양가 갈등이 가장 크게 터지는 지점이고 제품도 그걸 알고 있다(C4에 최고 우선순위 90을 줬다). 그런데 그 인식이 웨딩코드라는 1회성 검사 안에만 있고, D-30에 simulate_guest_guarantee가 빈 좌석 손실을 계산해줄 때 "이 숫자를 양가와 어떻게 나눌지"로 이어지는 배선이 없다. 두 자산이 같은 문제를 다루면서 서로를 모른다.
+
+`apps/web/src/constants/weddingCodeV05.ts:252-263(C4 "하객 수와 보증인원") · apps/web/src/lib/weddingCode/report.ts:534-546("먼저 예상 참석 인원과 보증인원의 차이를 계산하고, 그다음 양가 초대 원칙을 맞추세요. 비용표와 초대 원칙을 한 문서에 같이 두면 감정 싸움이 줄어듭니다", priority 90으로 전 항목 중 최상위) · apps/web/src/stores/chatStore.ts:2783 및 apps/web/src/components/app/chat/MediationConsentDialog.tsx:16(요청 기반 중재) · apps/web/src/types/database.types.ts:157-158(비공개 대화 경로) · apps/web/src/app/api/chat/check-couple-conflict/route.ts:104-113(자동 감지 production 차단)`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 업체에 물어볼 질문 5개. "보통 며칠 전까지 통보한다"는 관행 정보는 없다.
+
+소비자가 이 단계에서 모르는 것은 (a) 최종 인원 통보 마감이 보통 언제쯤인지 (b) 보증인원을 줄여준 사례가 있는지 (c) 리허설 메이크업이 원래 포함인지 별도인지다. 제품은 (c)만 답하고, (a)(b)는 전부 "업체에 물어보라"로 넘긴다. 통보 마감을 사용자가 입력해야만 남은 일수를 계산해준다 — 즉 사용자가 이미 아는 것만 계산해준다. 판정 없이 좁히려면 사용자가 올린 계약서에서 읽은 마감일들의 분포(출처=본인 자료)만으로도 "당신 계약서엔 몇 일 전이라고 적혀 있다"까지는 갈 수 있는데, 그 저장 필드가 없다.
+
+`apps/web/src/constants/hiddenCosts.ts:208-215(makeup_rehearsal, severity critical) · apps/web/src/lib/amora/quoteCheck.ts:73-78(makeup 카테고리에 매핑되어 /quote-check와 analyze_quote 결과에 실제 노출) · apps/web/src/lib/amora/guestGuarantee.ts:229-235(마감일·축소 가능 여부·계산 기준을 "업체에 물어볼 질문"으로 전환), :265(sourceNote: "예측이나 업계 평균이 아니며") · apps/web/src/constants/marketPrices.ts:168-176(getCategoryMarketPrice→null, 기준 시점 없음) · apps/web/src/constants/vendorAsymmetry.ts:158-168(16개 항목 본문 미노출)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 사용자가 먼저 채팅에서 물어봤을 때 나오는 "빠뜨린 게 걱정되면 계약서부터 순서대로" 정도의 답. 먼저 오지는 않는다.
+
+이 단계 불안("뭘 빠뜨렸는지 모르겠다")을 정확히 짚은 문장이 제품 안에 이미 쓰여 있는데, 그 문장을 배달하는 세 경로가 전부 꺼져 있다. 위기 감지는 자해·폭력 전용이라 "잠이 안 온다", "자꾸 울컥한다" 같은 이 단계 신호에는 걸리지 않고, 전문가 연결 경로도 이 결에는 없다.
+
+`apps/web/src/constants/moments.ts:259-261(final_check d1: "결혼식까지 한 달 남았어. 빠뜨린 것이 걱정된다면 계약서와 직접 정한 일정부터 차례로 확인해보자.") · apps/web/src/lib/ai/amoraVoice.ts:41,45("막막함", "급한 상황: 위로를 길게 하지 말고 지금 연락할 사람, 보낼 문장, 확인할 항목부터") · apps/web/src/lib/ai/prompts.ts:851-853(D-day만 보고 감정 상태를 규정하지 말라) · 발화 경로: apps/web/.env.example:124,141(off), apps/web/src/lib/care/todayOne.ts:229(예식일 파생 셀 제외)`
+
+
+### 12. 본식 당일
+
+**① 시점관리 — C**
+> 손에 쥐는 것: 결혼식 날 아침 라운지 주요 카드: "오늘은 흐름이 좋아요 — 후기 보기". 그 위에 한 줄 "결혼식 당일 · 오늘은 새 결정을 줄이고, 동선과 전달사항만 차분히 확인하면 돼요."
+
+결혼식 당일에 제품이 정확히 반대 방향으로 조용해진다. 종 알림은 dday<=0에서 코드로 전량 차단되고, 라이프사이클 가드레일은 dday>0 조건이라 전부 건너뛰며, 남은 분기가 없어 "커뮤니티에서 후기 보기"가 그날의 첫 카드가 된다. 당일용으로 잘 쓰인 wedding_day d1 체크리스트(잔금·감사 비용·결제 수단, 개인 소지품, 식순 최종 확인과 진행자 전달, 집합 시간·동선 공유 — moments.ts:286-291)는 전날 밤에 한 번 나갈 수 있을 뿐이고 그것도 플래그 off라 안 나간다. 최소 수정은 dday===0에도 wedding_day d1 체크리스트를 라운지 카드로 재노출하는 것이다.
+
+`apps/web/src/constants/moments.ts:274-302(wedding_day: d3·d1·dAfter 3셀 모두 존재) · apps/web/src/lib/care/todayOne.ts:229(sourceEventId 없는 예식일 파생 셀 전량 제외 → wedding_day 셀 TodayOne 도달 불가) · apps/web/src/lib/features/amoraCareFlags.ts:9-12 + apps/web/.env.example:120,124,141(선제 채팅·케어 이메일·TodayOne 전부 false) · apps/web/src/hooks/useNotifications.ts:352(if (dday <= 0) return [] — 결혼식 당일 종 알림 전량 소멸) · apps/web/src/lib/amora/lifecycle.ts:295(카테고리 마감 가드레일은 dday>0 조건), :334(final_script_ready도 dday>0 조건), :368-378(가드레일이 비면 all_steady "오늘은 흐름이 좋아요 … 커뮤니티에서 비슷한 단계의 실제 후기를 보며") · apps/web/src/app/(app)/lounge/`
+
+**② 의사결정 — D**
+> 손에 쥐는 것: 아무것도 없음.
+
+당일 결정은 실재한다 — 담당자가 늦는다, 비가 온다(야외 촬영 순서), 폐백을 생략하자는 말이 갑자기 나온다, 헬퍼비를 현장에서 더 달라고 한다. 제품은 이 중 어느 것도 인지하지 않고, 오히려 "새 결정을 줄이라"고 말한다. 판정 없이 결론에 도달시키는 방법은 있다: assignee와 time이 채워진 그날의 일정만 모아 시간순으로 한 화면에 보여주고(ScheduleEvent에 두 필드가 이미 있다 — database.types.ts:126-146), 각 항목에 "확정됨/미확정"만 표시하면 사용자가 무엇을 지금 결정해야 하는지 스스로 판단할 수 있다. 지금은 그 화면이 없다.
+
+`apps/web/src/lib/ai/tools.ts:11-1050(36개 도구 중 당일 상황용 0개 — 전부 예산·일정·체크리스트·견적·계약·보증인원) · apps/web/src/lib/ai/stage-router.ts:127-132(ceremony_coordinator: "결혼식장·업체·가족이 실제로 확정한 시간과 역할만 사용", "확인되지 않은 시간을 일정에 넣지 마세요" — 새 결정을 돕지 않는 방향의 지시) · apps/web/src/lib/amora/lifecycle.ts:110-113(wedding_day 카피 "오늘은 새 결정을 줄이고") · apps/web/src/lib/ai/extract-decision.ts:283(결정 저장 경로 미배선)`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 예산을 초과했다면 뜨는 경고 카드 하나. 축의금은 별도 화면(/wedding/money)에서 직접 기록.
+
+당일 추가금 사전 경고의 재료가 데이터로는 있는데(헬퍼 식대 현장 별도 통보 패턴) 노출 경로가 없어 경고가 나가지 않는다. 잔금을 어느 업체에 얼마씩 남겼는지가 필드로 없어서, 당일 아침에 "오늘 현장에서 나갈 돈 합계"를 제품이 계산할 수 없다. wedding_day d3가 그 정리를 지시하지만 그것도 발화 경로가 off다.
+
+`apps/web/src/constants/moments.ts:280-283(wedding_day d3: 축하금 접수·비용 정리·업체 잔금을 누가 어떤 방식으로 맡을지, 가족 공동 관리 돈의 보관·기록·정리 기준), :286-291(d1 체크리스트 첫 줄 "계약별 남은 금액·감사 비용과 확인된 결제 수단") · apps/web/src/lib/amora/lifecycle.ts:263-293(예산 가드레일에는 dday 조건이 없어 D-0에도 동작) · apps/web/src/constants/vendorAsymmetry.ts:96-104(scam_helper_extra: "본식 당일 헬퍼분 식대 별도예요" 통보 — 정의만 있고 노출 경로 없음) · apps/web/src/types/database.types.ts:83-97(잔금·결제일 필드 없음)`
+
+**④ 업체조율 — D**
+> 손에 쥐는 것: 아무것도 없음. 담당자 연락처는 각자 휴대폰 안에 있다.
+
+제품이 스스로 "당일 리스크는 담당자 연락처 없음, 타임라인 없음"이라고 프롬프트에 적어놓고, 담당자 연락처를 저장할 필드도 당일 타임라인을 만들 화면도 만들지 않았다. 이건 봉인(E)이 아니다 — 업체 제휴가 필요한 예약 도구는 별개고, 사용자가 직접 받은 담당자 이름·번호·집합 시간을 적어두는 것은 제휴 없이 되는 일인데 그 자리가 없다. ScheduleEvent에 time과 assignee가 이미 있으므로 당일 큐시트는 새 스키마 없이 뷰 하나로 만들 수 있다. 다만 add_schedule_event 도구 스키마(tools.ts:253-297)에는 assignee·completionCriteria가 없어 아모라는 담당자를 채워줄 수 없고 사용자가 화면에서 직접 입력해야 한다(EventFormModal.tsx:91-92).
+
+`apps/web/src/lib/ai/prompts.ts:827("당일 리스크: 담당자 연락처 없음, 타임라인 없음, 하객 안내 문구 없음, 준비물 누락" — 모델에게 감시하라고 지시) · apps/web/src/types/database.types.ts:113-124(ScheduleEventAssignee: member는 프로필 UUID, external은 "사용자가 직접 입력한 짧은 역할명"만 — 전화번호·연락 수단 필드 없음), :22(연락처 컬럼은 profiles.phone 하나뿐) · apps/web/src/components/app/schedule/TimelineView.tsx:59-68(PHASE_DEFINITIONS — 타임라인 뷰는 D-300~D-100 준비 단계 묶음이지 당일 큐시트가 아님) · apps/web/src/lib/ai/tools.ts:1068-1078(예약·업체 조회·연락 도구 전량 베타 차단) · 업체 응대 이력 테이블 없음`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 직접 중재를 요청하면 나오는 조율 초안 1개. 단계가 당일이라는 사실은 그 초안에 반영되지 않는다.
+
+당일 양가 충돌은 형태가 특수하다 — 축의금을 누가 받고 누가 보관하는가, 폐백을 하느냐 마느냐가 아침에 뒤집히는가, 사진 촬영 순서에서 어느 집이 먼저인가. 제품은 축의금 관리 주체만 한 줄 언급하고 나머지는 인지하지 않는다. 중재 경로는 살아 있지만 범용이라, 당일의 시간 압박(지금 5분 안에 정해야 함)에 맞춘 형태가 아니다.
+
+`apps/web/src/constants/moments.ts:282("가족이 함께 관리할 돈이 있다면 보관·기록·정리 기준을 당사자끼리 미리 합의해두자" — 당일 양가 마찰을 인지한 유일한 한 줄, d3라 D-3에만, 그것도 발화 경로 off), :297-299(dAfter: "정산은 두 사람이 준비됐을 때 해도 돼") · apps/web/src/stores/chatStore.ts:2783(요청 기반 중재는 단계와 무관하게 사용 가능) · apps/web/src/types/database.types.ts:157-158(비공개 대화) · apps/web/src/lib/ai/stage-router.ts:51-57(ceremony_3 단계 기본 specialist는 ceremony_coordinator — 관계 전문 addon 아님)`
+
+**⑥ 정보비대칭 — D**
+> 손에 쥐는 것: 아무것도 없음.
+
+당일에 소비자만 모르는 것들 — 헬퍼 식대를 현장에서 요구받는 관행, 원판 사진 추가 구매 권유가 언제 오는지, 사회자·주례에게 사례를 봉투로 준비하는 관행이 있는지 — 에 대해 제품이 말할 수 있는 문장이 0개다. 상수에 항목 이름은 남아 있는데 금액도 설명도 비어 있어, 이름만으로는 사용자가 아무 판단도 못 한다. 판정 없이 알려줄 수 있는 사실 서술("이 항목은 예식장 선택 옵션으로 붙는 경우가 있고, 견적서에 이름이 없으면 당일 별도 요청이 올 수 있다")조차 넣을 자리가 만들어져 있지 않다.
+
+`apps/web/src/constants/marketPrices.ts:114-118(VENUE_OPTIONAL_NAMES에 "본식 원판구매", "축주비", "본식드레스도우미", "본식 도우미", "주례비" — 이름 문자열만), :154-165(OPTION_PRICES=[]), :141-146(getVenueOptionalItems→items:{}) · apps/web/src/constants/vendorAsymmetry.ts:96-104(scam_helper_extra), 158-168(본문 미반환) · apps/web/src/constants/hiddenCosts.ts:299-355(common 7개는 전부 계약 전 확인용 질문이고 당일 현장 상황용 아님) · apps/web/src/lib/ai/prompts.ts:1189-1191(업체 관련은 사용자가 보낸 자료 안의 이름만 인용)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 라운지 상단 한 줄: "결혼식 당일 · 오늘은 새 결정을 줄이고, 동선과 전달사항만 차분히 확인하면 돼요."
+
+이 한 줄은 플래그와 무관하게 실제로 표시되는, 이 단계에서 유일하게 살아 있는 정서 지지다. 다만 그 바로 아래 주요 카드가 "오늘은 흐름이 좋아요 — 후기 보기"라 톤이 어긋난다. 당일 아침의 실제 불안(늦잠, 비, 부모님이 우실 것 같음, 축가 부탁한 친구가 연락 안 됨)을 인지하는 경로는 없고, 정서적으로 무너지는 신호에 대한 감지·연결도 자해·폭력 분류기 외에는 없다.
+
+`apps/web/src/constants/moments.ts:285(d1: "내일이야. 두 사람이 모든 일을 직접 해결할 필요는 없어. 담당자에게 최종 정보를 건네고, 오늘은 쉴 시간을 확보하자."), :296-299(dAfter: "진짜 결혼했네, 우리. 고생 많았어." + 정산은 준비됐을 때) · apps/web/src/lib/ai/prompts.ts:812("결혼식 당일과 직후에는 짧고 실행 가능한 문장, 연락처·시간·준비물 확인, 감사 인사 문구를 우선하세요") · apps/web/src/lib/amora/lifecycle.ts:110-113 + apps/web/src/app/(app)/lounge/page.tsx:664(라운지 한 줄로 실제 표시) · 발화 경로: apps/web/.env.example:120,124,141 및 apps/web/src/lib/care/todayOne.ts:229`
+
+
+### 13. 식후 정산
+
+**① 시점관리 — C**
+> 손에 쥐는 것: 라운지에 뜨는 고정 카드 2장(‘감사 인사·앨범 확인’, ‘남은 일 일정에 적어두기’) — 날짜도 마감도 붙어 있지 않다
+
+이 단계의 마감(업체 잔금일·최종 인원 통보일·앨범 수령 약속일)이 어디에도 ‘지났는지 검사되는 날짜’로 존재하지 않는다. PaymentLedger에 balanceDueDate 표시는 있으나(components/app/budget/PaymentLedger.tsx:293-297) 경과 판정 코드가 없고, 결혼식 당일부터 알림 벨은 영구히 빈 배열을 돌려준다. 먼저 말하는 경로 3개(proactive chat·today-one·care 이메일)는 .env.example 기준 전부 false.
+
+`lib/amora/lifecycle.ts:135(dday<0→aftercare), :114-116(스테이지 문구), :347-366(aftercare 카드 2장) / hooks/useNotifications.ts:353 if (dday <= 0) return []; / constants/notifications.ts:15-139(템플릿 15개 전부 ddayTrigger≥30, 사후 0개) / constants/moments.ts:274,295-300 + lib/amora/momentLoop.ts:115-118(D+1 dAfter 정확히 하루) / lib/features/amoraCareFlags.ts:9-12, apps/web/.env.example:120,124,141`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 숫자 4개(축의금 총액·인원·평균·신랑/신부 합계)와 식장에 물을 질문 5개
+
+이 단계의 결정 5개(부모님 하객 축의금 귀속 / 업체 잔금 지급·이의 / 보증인원 미달 식대 수용 / 앨범 셀렉 추가 결제 / 후기 공개) 중 제품이 결론까지 데려가는 것은 0개다. side 태그는 라벨일 뿐 배분 계산으로 이어지지 않고, 배분 규칙을 담을 필드 자체가 없다. 커뮤니티 결정 스레드는 topicCategory가 contract_extra_cost 하나로 고정되고 stage 4종(vendor_search·contract_review·contracted·dispute_or_cancellation)에 식후가 없어 이 단계 질문을 올릴 수 없다. 판정하지 않고 결론에 도달시키는 방법: side에 ‘부모님 하객’ 태그를 하나 더 두고 커플이 고른 배분 규칙을 그대로 적용해 두 숫자로 확정한 뒤 그 규칙을 decision_nodes에 저장 — 규칙 판정이 아니라 사용자가 고른 규칙의 실행이다.
+
+`app/(app)/money/page.tsx:61-68(총액·인원·평균·신랑/신부 4개 숫자), :144-156(CSV) / types/money.types.ts:16(side=groom|bride|both 라벨) / lib/amora/guestGuarantee.ts:205-240(식대 차액 계산 + 업체 질문 5개), lib/ai/tools.ts:956-995 / lib/community/decisionThreadApi.ts:26-36 + app/api/community/decision-threads/route.ts:204`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 지출 합계(예산 화면)와 축의금 합계(축의금 화면)라는 서로 만나지 않는 두 개의 숫자. 최종 정산액은 어디에도 없다
+
+수입(congratulatory_money)과 지출(progress.spent / wedding_payment_ledger)이 다른 테이블·다른 화면이고 코드상 참조 관계가 0이다. 계약금↔중도금↔잔금 결제 시점 관리는 PaymentLedger에만 있는데 기본 플래그가 꺼져 있어 API가 404를 반환한다. 식후 추가 청구에 대한 사전 경고는 vendorAsymmetry ‘시간 연장료 사후 청구’ 1건뿐이다.
+
+`components/app/budget/PaymentLedger.tsx:104-108(계약 총액·지급 기록·남은 금액 3개 합계) + lib/features/weddingLaunchFlags.ts:9-11 + apps/web/.env.example:94(WEDDING_PAYMENT_LEDGER_ENABLED=false) → app/api/payments/route.ts:20-28,72-79이 404 / app/(app)/money/page.tsx:61-68 / 축의금↔예산 참조 0건(components/app/budget/·lib/ 전역 grep에 congratulatory_money·moneyStore 참조 없음) / constants/vendorAsymmetry.ts:74`
+
+**④ 업체조율 — B**
+> 손에 쥐는 것: 식장에 보낼 질문 5개(식대 정산 한정). 앨범 수령 독촉이나 잔금 이의에 쓸 문장은 없다
+
+E와 D를 나누면 — 업체 조회·예약은 E(BETA_DISABLED_TOOL_NAMES로 의도적 봉인), 업체와 주고받은 약속을 남기는 기록면은 D(설계 자체가 없음). 제휴 없이도 가능한 조율 자산(요청 템플릿·확인 항목·응대 기록) 중 실제로 있는 것은 식대 질문 5개뿐이고, 식후에 가장 흔한 두 건(앨범/원본 수령 지연, 잔금 청구 이의)에 대한 질문 세트는 0개다.
+
+`lib/amora/guestGuarantee.ts:228-234(업체 질문 5개, 제휴 불필요) / lib/ai/tools.ts:1067-1080(BETA_DISABLED 12종에 search_vendors·get_vendor_detail·create_booking·get_my_bookings·cancel_booking 포함) / 업체 응대·약속 기록 경로 없음(vendor contact log 관련 테이블·API·컴포넌트 grep 0건)`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: 파트너 모르게 털어놓을 비공개 채팅 창 하나와, 갈등이 크게 번졌을 때만 뜨는 합의안 카드
+
+이 단계의 대표 갈등(부모님 하객 축의금 귀속, 양가 지출 정산)이 갈등 사전에 한 항목도 없다. ‘축의금 배분 의견이 안 맞아’는 disagree 1카테고리·weight 3이라 HARD_REJECT_SCORE 5에 못 미쳐 중재가 아예 시작되지 않는다. 또 제품이 이미 갖고 있는 side별 합계를 중재의 ‘데이터’ 필드에 넣는 경로가 없어, 중재가 열려도 숫자 없이 감정만 다룬다.
+
+`lib/ai/conflict-detector.ts:84-140(카테고리 4종 fight/blame/disagree/emotion 전부 감정·비난 어휘, 축의금·정산 토픽 0), :485(HARD_REJECT_SCORE=5 미만 즉시 false), :544(카테고리 2개 이상 또는 fight 필요) / lib/ai/mediation.ts:44-49(공감·통역·데이터·합의안 4필드) / app/api/amora/mediation/accept/route.ts:132(수락 시 decision_nodes 저장) / app/api/chat/route.ts:2504-2512(bride_private·groom_private 격리)`
+
+**⑥ 정보비대칭 — B**
+> 손에 쥐는 것: 계약 전에 물었어야 할 질문 목록. 식이 끝난 지금 바로 쓸 수 있는 건 ‘사후 청구’ 항목 1건
+
+보증인원 미달 시 실제 식대 계산 관행, 앨범 표준 제작 기간, 대여품 연체료 같은 ‘식후에만 드러나는’ 업계 상식이 0건이다. 남아 있는 항목들도 출처·데이터 기준 시점 표기가 없고, 소스코드 시세는 정책적으로 전량 비워져 있어 금액 비교의 근거가 되지 못한다.
+
+`constants/vendorAsymmetry.ts:66(사진 제공 범위가 모호할 때), :74(시간 연장료 사후 청구) / constants/hiddenCosts.ts:31-50,82(앨범 사진 수·페이지, 보정 사진 수, 액자, 셀렉 별도 비용 — 전부 계약 전 질문) / constants/marketPrices.ts(PRICE_PERIODS·SDM_PACKAGES 등 전량 [], getCategoryMarketPrice()→null)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: 사용자가 먼저 채팅을 열고 ‘식 끝났어’라고 말했을 때 돌아오는 축하 한 줄
+
+실측: ‘식 끝났어’, ‘식 끝나고 나니까 허무해요’는 WEDDING_CORE_SIGNAL_PATTERN(lib/ai/amoraQuestionScope.ts:87)에도 SOCIAL_CARE_PATTERN(:86)에도 안 걸려 W4_out_of_scope + needsClarification으로 떨어지고(:305-310), 그러면 아모라는 본문 답 대신 ‘이 요청이 결혼 준비의 어떤 결정과 연결되는지’를 되묻는다(:354-368). 식후 허탈감이라는 이 단계 고유 신호를 잡는 어휘가 0개다. 위기 감지·전문가 연결(109/1366)은 단계 무관하게 살아 있다.
+
+`constants/moments.ts:295-300(D+1 ‘진짜 결혼했네, 우리. 고생 많았어.’ + ‘정산은 두 사람이 준비됐을 때 해도 돼’) / lib/ai/prompts.ts:802(‘식 끝났어’에 짧게 축하) / lib/ai/stage-router.ts:140(지쳤으면 짧은 감사 문장 하나부터) / apps/web/.env.example:124(발화 경로 off) / packages/shared/src/safety/amoraCrisisRecovery.ts:59(109·1366)`
+
+
+### 14. 혼인신고·행정
+
+**① 시점관리 — D**
+> 손에 쥐는 것: 아무것도 없음
+
+혼인신고의 시작·마감이 상수·체크리스트·모멘트·알림 어디에도 날짜로 존재하지 않아, 먼저 말할 대상 자체가 정의돼 있지 않다.
+
+`packages/shared/src/constants/weddingPlanning.ts(카테고리 19·항목 132개 중 ‘혼인’ 문자열 0건, houseware_07·housing_07만 사후 성격) / constants/notifications.ts:15-139(템플릿 15개 전부 예식 전) / constants/moments.ts:20-26(모멘트 12종에 행정 없음) / lib/amora/lifecycle.ts:347-366(aftercare 카드 2장에 혼인신고 없음)`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: ‘공식 창구에서 확인하세요’ 수준의 안내와, 세무 질문이면 전문가에게 물을 질문 목록
+
+결론 불가의 원인이 둘이다. (1) 판정 금지 지침이 날짜·서류를 단정하지 말라고 명시하고 (2) 최신 공식 원문을 가져올 도구가 tools.ts 36개 중 0개다. 판정하지 않고 결론에 도달시키는 방법: 정부 공식 안내의 인용문과 조회 일자를 상수로 고정해 ‘우리 판단이 아니라 O월 O일자 원문’으로 제시하면 판정이 아니면서 사용자가 다음으로 넘어갈 수 있다. 현재는 그 원문을 담을 상수도 도구도 없다. 또한 실패가 어휘 하나에 달려 있다 — ‘결혼식 끝났는데 혼인신고 언제 해야 해?’처럼 ‘결혼’이 들어가면 W0로 통과하고, 빼면 되묻기만 한다.
+
+`lib/ai/stage-router.ts:47(settlement_companion이 ‘혼인신고’를 키워드로 포착), :138(‘최신 공식 원문과 적용 조건을 확인하지 못하면 날짜·서류·법적 결론을 단정하지 마세요’) / lib/ai/amoraQuestionScope.ts:54(세금+공제·증여세를 W2로 분류), :342-344(W2는 ‘공식 기관이나 자격 있는 전문가에게 확인할 질문’만 허용) / :87,:305-310(단독 ‘혼인신고 언제까지 해야 해?’는 core signal 어휘가 없어 W4+needsClarification — 실측 확인) / app/api/chat/route.ts:2393-2398,2497-2501(W4면 allowsStoredProviderContext=false → specialistType이 general로 강등돼 settlement_companion 지침조차 프롬프트에 안 들어감)`
+
+**③ 비용통제 — D**
+> 손에 쥐는 것: 아무것도 없음
+
+혼인신고 단계의 돈은 나가는 돈이 아니라 돌아오는 돈(세액공제·증여공제)인데, 그 계산은 정책적으로 차단돼 있고 대체 경로(공식 요건 인용·해당 여부 체크리스트)도 없다.
+
+`apps/web/src 전역 grep에 세액공제·연말정산·혼인공제 관련 코드 0건 / lib/ai/amoraQuestionScope.ts:54가 ‘세금…공제’·증여세를 W2로 차단, :343(‘법적 판단·투자 추천 금지, 도구 실행과 장기 기억 저장도 하지 마세요’)`
+
+**④ 업체조율 — N/A**
+> 손에 쥐는 것: 해당 없음
+
+업체 조율 축이 성립하지 않는 단계. 다만 공공 창구 응대(준비 서류·재방문 사유)를 기록하는 경로도 없어, ④를 ‘행정 창구 조율’로 확장하면 D가 된다.
+
+`이 단계의 상대는 구청·공공 창구이고, 제품의 vendor 개념(constants/vendorAsymmetry.ts:34-154, lib/ai/tools.ts:622-849)과 대응 관계가 없다`
+
+**⑤ 관계조율 — D**
+> 손에 쥐는 것: 아무것도 없음(비공개 채팅 창은 열려 있지만 이 단계 갈등을 인지하지 못한다)
+
+‘혼인신고를 언제 할지’는 커플 이견과 양가 압박이 동시에 걸리는 지점인데, 갈등 사전·중재 프롬프트·모멘트 어디에도 이 형태가 등장하지 않는다.
+
+`lib/ai/conflict-detector.ts:84-140(혼인신고 시점·성씨·본관 관련 어휘 0), :485,:544(단문 이견은 점수 5 미만·1카테고리라 트리거 불가) / lib/ai/stage-router.ts:44(sangkyeonrye_advisor 키워드는 예단·예물까지), :47(settlement_companion에 ‘혼인신고’는 있으나 갈등 처리 지침 없음)`
+
+**⑥ 정보비대칭 — D**
+> 손에 쥐는 것: 아무것도 없음
+
+신고 기간, 필요한 서류, 증인 요건, 세액공제 적용 조건처럼 ‘모르면 두 번 가야 하는’ 정보가 제품 안에 한 줄도 없다. 출처도 기준 시점도 없는 게 아니라 대상 자체가 없다.
+
+`lib/etiquette/ 아래에 __tests__/publicEtiquetteSafety.test.ts 하나만 남아 constants/etiquetteData.ts의 부활을 테스트로 금지(:59) / constants/ 아래 행정 절차 상수 파일 없음 / constants/marketPrices.ts 데이터 전량 0`
+
+**⑦ 정서지지 — D**
+> 손에 쥐는 것: 아무것도 없음(위기 신호가 있으면 109·1366 안내는 어느 단계에서든 뜬다)
+
+‘서류가 틀리면 어쩌지’, ‘이걸 하면 진짜 되돌릴 수 없다’ 같은 이 단계 특유의 불안을 인지하는 어휘·경로가 0개다.
+
+`lib/ai/prompts.ts:803이 혼인신고를 ‘도와주세요’ 목록에 넣은 유일한 줄이며 정서 관련 문구 없음 / lib/ai/stage-router.ts:140은 ‘짧은 감사 문장’으로 식후 감사에 한정 / packages/shared/src/safety/amoraCrisisSafety.ts:25-67(위기 대응은 단계 무관)`
+
+
+### 15. 신혼 정착
+
+**① 시점관리 — C**
+> 손에 쥐는 것: 직접 등록해 둔 일정이 있을 때 그 전날 오는 챙김 메시지 — 세 개의 발화 스위치가 꺼져 있으면 아무것도 오지 않는다
+
+첫 명절은 제품이 날짜를 모른다(공휴일 상수 없음). 사용자가 log_wedding_event로 넣어야만 D-3/D-1/D+1이 계산된다. 귀국 후 인사만 예식일+8일로 자동 계산되지만 발화 경로가 기본 off라 계산 결과가 도달하는 표면이 없다.
+
+`constants/moments.ts:330-337(family_visit_after, weddingOffsetDays 8 → d1=식+7, dAfter=식+9), :353-357(first_holiday는 trigger:"event" — 사용자가 직접 등록해야 존재) / lib/ai/tools.ts:526-545(log_wedding_event enum에 first_holiday 포함) / lib/amora/momentLoop.ts:115-118,149-156 / lib/features/amoraCareFlags.ts:9-12 + apps/web/.env.example:120,124,141 / packages/shared/src/constants/weddingPlanning.ts:214-244(houseware·housing 항목 14개, 마감·D-day 없음)`
+
+**② 의사결정 — B**
+> 손에 쥐는 것: 둘이 합의해야 할 항목 4개짜리 목록
+
+프레임은 있는데 결론이 저장되지 않는다. 합의 결과를 담는 것은 memoryKeys 문자열 2개뿐이고 그 수집 턴(dAfter)이 flag-gated다. 저장돼도 재사용처가 없다 — first_holiday는 1회성이고 두 번째 명절 모멘트가 없다. 신혼집·가사분담 대화는 W1이라 아모라가 아예 저장·수정을 못 하게 막혀 있어, 대화에서 나온 결정이 제품 상태로 남지 않는다.
+
+`constants/moments.ts:362-370(첫 명절 d1 체크리스트 4항목: 방문 순서 최종 확정 / 선물·용돈 총예산 합의 / 역할 분담 / 경계 합의), :339-343(귀국 후 인사 3항목) / :376(memoryKeys=holiday_order·holiday_gift_record), lib/amora/momentLoop.ts:101(memoryKeys는 dAfter 셀에서만 채워짐) / lib/ai/amoraQuestionScope.ts:86,338-341(신혼집·가사분담은 W1 → 읽기 전용, 도구 실행·저장 금지)`
+
+**③ 비용통제 — B**
+> 손에 쥐는 것: 신혼집·가전 카테고리에 내가 직접 적어 넣은 금액의 합계
+
+기록은 되는데 방어가 없다. 이 단계 특유의 추가금(설치비·사다리차·입주청소 추가·옵션 변경)에 대한 사전 경고가 0건이고, 결혼 예산과 신혼집 예산의 범위가 분리되지 않아 총액 대비 초과 판정이 무엇을 기준으로 하는지 사용자가 매번 다시 정해야 한다.
+
+`packages/shared/src/constants/weddingPlanning.ts:13-35(houseware=가전·가구·생활용품, housing=신혼집, reserve=예비비), :214-244(항목 14개) / lib/ai/tools.ts:91(update_category_budget는 BETA_DISABLED 12종에 없음 = 사용 가능) / constants/hiddenCosts.ts(41개 전부 studio·dress·makeup·common — houseware·housing 0건) / lib/ai/prompts.ts:983-992(신혼집 포함 범위를 매번 되묻는 지침)`
+
+**④ 업체조율 — D**
+> 손에 쥐는 것: 체크리스트 라벨 한 줄. 이사·가전·청소 업체에 보낼 문장도, 약속을 남길 곳도 없다
+
+제휴가 필요 없는 조율 자산(요청 템플릿·확인 항목·응대 기록)이 이 단계 업종에 대해 하나도 없다. E(봉인)가 아니라 D(부재)다 — 봉인된 업체 도구들도 전부 웨딩 업종 전제라 켜도 이 단계엔 쓸 수 없다.
+
+`constants/vendorAsymmetry.ts:34-154(16개 전부 웨딩 업체 상황) / constants/hiddenCosts.ts(카테고리 studio·dress·makeup·common만) / packages/shared/src/constants/weddingPlanning.ts:225,244(‘가구 구매 및 배송 일정 확인’, ‘입주 청소 및 이사 일정 확정’은 라벨 한 줄) / 업체 응대·약속 기록 경로 없음`
+
+**⑤ 관계조율 — B**
+> 손에 쥐는 것: ‘방문 순서를 둘이 정하자’는 프레임과 합의 항목 4개
+
+세 겹으로 막힌다. (1) 이 메시지가 도달하는 경로가 flag off이고 (2) 합의 결과를 저장·재사용하지 않으며 (3) 사용자가 먼저 물으면 실패한다 — 실측상 ‘명절에 어느 집 먼저 가야 해?’는 WEDDING_CORE_SIGNAL_PATTERN(lib/ai/amoraQuestionScope.ts:87)에 명절·시댁·처가가 하나도 없어 W4_out_of_scope로 떨어져 되묻기만 한다. stage-router의 시댁·처가 타이브레이크(:61)는 그 앞의 scope 게이트를 통과한 뒤에야 동작한다.
+
+`constants/moments.ts:358-360(첫 명절 D-3: ‘방문 순서와 역할 때문에 부담될 수 있어. 정해진 답은 없으니…’), :362-370(합의 항목 4개), :339(귀국 후 인사: 쉬는 시간부터 맞추기) / lib/ai/stage-router.ts:61,93-95(시댁·처가 발화를 정착 단계에서 settlement_companion으로 타이브레이크), :139(호칭·명절·방문 순서를 의무나 성별 역할처럼 안내 금지) / lib/ai/conflict-detector.ts:84-140(명절·시댁 토픽 0), :544`
+
+**⑥ 정보비대칭 — D**
+> 손에 쥐는 것: 아무것도 없음
+
+소비자가 모르고 업체·기관만 아는 것(설치 기사 추가비 관행, 입주 청소 견적 구성, 하자 보수 청구 기한)이 제품 안에 한 항목도 없다.
+
+`전입신고·관리비·가전 A/S·혼인 후 주택자금 관련 상수·문서 0건(apps/web/src 전역 grep) / constants/marketPrices.ts 데이터 전량 0 / lib/etiquette는 콘텐츠 삭제 후 부활 금지 테스트만 잔존(:59)`
+
+**⑦ 정서지지 — B**
+> 손에 쥐는 것: ‘일단 쉬어도 돼’ 한 줄 — 단, 사용자가 ‘힘들다’고 먼저 말했을 때
+
+이 단계 특유의 불안(명절 부담, 역할 쏠림, 관계 재조정)을 정확히 짚는 문구가 실제로 존재하는 유일한 단계인데, 그 문구가 사용자에게 닿는 경로 세 개가 모두 기본 꺼짐이다. 사용자가 먼저 말하는 경로는 감정 어휘(‘힘들’·‘지쳤’)에만 걸리고, ‘명절이 부담돼’ 같은 상황 서술은 W4로 떨어진다.
+
+`constants/moments.ts:339(‘먼저 쉬는 시간과 가능한 날짜를 파트너와 맞추고’), :358-360(‘부담될 수 있어’), :371-373(‘첫 명절 지나왔네. 즐거웠든 힘들었든 일단 쉬어도 돼’) / lib/ai/amoraQuestionScope.ts:86(‘힘들|지쳤|속상|답답|외로’는 단계 무관 W3_social_care) / lib/ai/stage-router.ts:139-140 / apps/web/.env.example:124,141(발화 경로 off)`
+
