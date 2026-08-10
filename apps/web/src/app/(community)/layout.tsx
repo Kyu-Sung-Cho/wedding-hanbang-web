@@ -48,7 +48,7 @@ function CommunityFooter() {
         <div>
           <FooterBrand />
           <p className="mt-3 text-[13px] font-medium text-white/70">
-            결혼 준비, 아모라와 정리하세요.
+            결혼 준비, 아모라와 처음부터 끝까지.
           </p>
           {/* Instagram·YouTube·Kakao 아이콘은 제거했다. 계정이 없는데 아이콘만 있었고
               셋 다 /wedding으로 돌아왔다 — 있는 척하는 링크는 신뢰를 깎는다.
