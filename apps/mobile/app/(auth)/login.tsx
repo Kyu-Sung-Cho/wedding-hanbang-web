@@ -166,7 +166,7 @@ export default function LoginScreen() {
             />
             <Text style={styles.title}>웨딩한방</Text>
             <Text style={styles.subtitle}>
-              결혼 준비, 아모라와 정리하세요
+              결혼 준비, 아모라와 처음부터 끝까지
             </Text>
           </Animated.View>
 

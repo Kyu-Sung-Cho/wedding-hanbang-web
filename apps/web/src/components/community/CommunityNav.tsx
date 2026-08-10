@@ -39,7 +39,7 @@ export default function CommunityNav({
             <Logo size="md" />
           </Link>
           <span className="hidden truncate border-l border-[#eadfc9] pl-4 text-[12px] font-semibold leading-none text-[#36534e] lg:inline">
-            결혼 준비, 아모라와 정리하세요.
+            결혼 준비, 아모라와 처음부터 끝까지.
           </span>
         </div>
 

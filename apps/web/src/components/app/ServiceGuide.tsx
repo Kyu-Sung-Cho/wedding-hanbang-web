@@ -35,10 +35,10 @@ function SlideWelcome() {
 
       {/* 타이틀 — 모바일 사이즈 다운 */}
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
-        결혼 준비,{"\n"}아모라와 정리하세요.
+        결혼 준비,{"\n"}아모라와 처음부터 끝까지.
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
-        아모라에게 결혼 준비를 말하면 예산·체크리스트·일정으로 이어서 정리할 수 있어요.
+        고민을 아모라에게 말하면, 두 분이 확인한 것만 예산·체크리스트·일정에 남아요.
       </p>
 
       {/* 3가지 핵심 가치 */}
