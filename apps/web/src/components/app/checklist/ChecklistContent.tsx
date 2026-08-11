@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Ban, CheckCircle2, ChevronRight, Circle, Search } from "lucide-react";
 
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
@@ -42,15 +42,33 @@ function matchesFilter(status: ProgressItem["status"], filter: Filter) {
 
 export default function ChecklistContent() {
   const { journey } = useAuthStore();
+  const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialCategory = searchParams.get("category");
+  const requestedCategory = searchParams.get("category");
+  const validRequestedCategory = requestedCategory
+    && CATEGORY_CHECKLISTS.some((category) => category.key === requestedCategory)
+    ? requestedCategory
+    : null;
   const [selectedCategory, setSelectedCategory] = useState(
-    initialCategory && CATEGORY_CHECKLISTS.some((category) => category.key === initialCategory)
-      ? initialCategory
-      : null,
+    validRequestedCategory,
   );
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    setSelectedCategory(validRequestedCategory);
+  }, [validRequestedCategory]);
+
+  const selectCategory = useCallback((categoryKey: string | null) => {
+    setSelectedCategory(categoryKey);
+    const params = new URLSearchParams(searchParams.toString());
+    if (categoryKey) params.set("category", categoryKey);
+    else params.delete("category");
+
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const progress = useMemo(
     () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
@@ -154,7 +172,7 @@ export default function ChecklistContent() {
                 <li key={template.key} className="rounded-[18px] border border-[#e5dece] bg-white p-4 shadow-[0_8px_24px_rgba(6,26,52,0.035)]">
                   <button
                     type="button"
-                    onClick={() => setSelectedCategory(template.key)}
+                    onClick={() => selectCategory(template.key)}
                     className="w-full rounded-[12px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
                     aria-label={`${template.label} 체크리스트 열기`}
                   >
@@ -209,7 +227,7 @@ export default function ChecklistContent() {
       <CategoryChecklistModal
         categoryKey={selectedCategory ?? ""}
         isOpen={Boolean(selectedCategory)}
-        onClose={() => setSelectedCategory(null)}
+        onClose={() => selectCategory(null)}
       />
     </main>
   );
