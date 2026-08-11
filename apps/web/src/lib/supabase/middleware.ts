@@ -3,9 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
-  "/lounge", "/dashboard", "/chat", "/budget", "/schedule", "/settings", "/bookings",
+  "/lounge", "/dashboard", "/chat", "/budget", "/checklist", "/schedule", "/settings", "/bookings",
   "/money", "/onboarding",
-  "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/schedule",
+  "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/checklist", "/wedding/schedule",
   "/wedding/settings", "/wedding/bookings",
   "/wedding/money", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",

@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+import { MANNERS_PARTS } from "@/lib/manners/data";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES } from "@/lib/price/catalog";
 import {
@@ -66,6 +67,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    // `/manners`가 아니라 `/wedding/manners`를 싣는다. weddingAppRoutes에 들어간
+    // 뒤로 `/manners`는 `/wedding/manners`로 리다이렉트되므로, 리다이렉트 원본을
+    // 사이트맵에 실으면 색인이 한 단계 낭비된다.
+    {
+      url: `${BASE_URL}/wedding/manners`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...MANNERS_PARTS.map((part) => ({
+      url: `${BASE_URL}/wedding/manners/${part.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     ...PRICE_CATEGORIES.map((category) => ({
       url: `${BASE_URL}/price/${category}`,
       lastModified: new Date(),

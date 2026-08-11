@@ -49,7 +49,7 @@ function WelcomeSlide() {
 
       <Text style={styles.welcomeTitle}>웨딩한방</Text>
       <Text style={styles.welcomeSubtitle}>
-        결혼 준비, 아모라와 정리하세요
+        결혼 준비, 아모라와 처음부터 끝까지
       </Text>
 
       {/* 피처 배지 3개 */}

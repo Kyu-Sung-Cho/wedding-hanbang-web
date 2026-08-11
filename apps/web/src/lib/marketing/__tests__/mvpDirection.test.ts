@@ -15,12 +15,17 @@ function blockBetween(value: string, start: string, end: string): string {
   return value.slice(startIndex, endIndex);
 }
 
+// 2026-08-08 파운더 결정으로 도구 중심 정의를 동반자 정의가 승계했다.
+// 정본: docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md
+// 세 변형(입니다/다/예요)을 한 상수에서 파생시키는 구조는 유지한다 — 이것이
+// 정의가 표면마다 갈라지는 것을 막는 유일한 장치다.
 const PRODUCT_DEFINITION =
-  "웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는 서비스입니다.";
+  "웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에 준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에 남기는 서비스입니다.";
+const PRODUCT_TAGLINE = "결혼 준비, 아모라와 처음부터 끝까지.";
 
 describe("web MVP product direction", () => {
   it("keeps one authoritative Amora-led product definition", () => {
-    const productContract = source("../../docs/MVP_PRODUCT_DIRECTION_2026-07-30.md")
+    const productContract = source("../../docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md")
       .replace(/\r?\n/g, " ");
     const principles = source("../../PRINCIPLES.md").replace(/\r?\n/g, " ");
     const hero = source("src/components/landing/redesign/TransformationHero.tsx");
@@ -41,7 +46,7 @@ describe("web MVP product direction", () => {
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");
     expect(community).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스예요."));
     for (const publicShell of [communityLayout, communityNav, priceLayout]) {
-      expect(publicShell).toContain("결혼 준비, 아모라와 정리하세요.");
+      expect(publicShell).toContain(PRODUCT_TAGLINE);
       expect(publicShell).not.toContain("예비부부의 고민과 경험이 모이는 곳");
       expect(publicShell).not.toContain("AI가 함께하는 가장 든든한 결혼 준비");
     }
@@ -107,11 +112,19 @@ describe("web MVP product direction", () => {
     );
     expect(landingProductLinks).not.toContain('href: "#community-bridge"');
 
-    for (const label of ["아모라", "할 일·일정", "예산", "커뮤니티"]) {
+    for (const label of ["아모라", "예산", "커뮤니티"]) {
       expect(publicNav).toContain(`label: "${label}"`);
       expect(signedInNav).toContain(`label: "${label}"`);
       expect(signedInQuickLinks).toContain(`label: "${label}"`);
     }
+
+    // 공개 내비게이션은 처음 보는 사람에게 준비 흐름을 한 덩어리로 설명하지만,
+    // 로그인 후 실행 화면에서는 체크리스트와 일정을 서로 다른 목적지로 제공한다.
+    expect(publicNav).toContain('label: "할 일·일정"');
+    expect(signedInNav).toContain('label: "웨딩 체크리스트"');
+    expect(signedInNav).toContain('label: "일정"');
+    expect(signedInQuickLinks).toContain('label: "체크리스트"');
+    expect(signedInQuickLinks).toContain('label: "일정"');
 
     for (const retiredPrimaryPath of [
       "/vendors",
@@ -169,7 +182,7 @@ describe("web MVP product direction", () => {
     const guide = source("src/components/app/ServiceGuide.tsx");
 
     expect(guide).toContain("결혼 준비,");
-    expect(guide).toContain("아모라와 정리하세요.");
+    expect(guide).toContain("아모라와 처음부터 끝까지.");
     expect(guide).toContain("해야 할 일과 날짜 정리");
     expect(guide).toContain("예상 금액과 실제로 쓴 금액");
 

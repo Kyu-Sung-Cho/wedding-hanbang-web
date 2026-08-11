@@ -27,7 +27,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { CHECKLIST_MAP } from "@/constants/checklists";
+import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import ServiceDashboardTutorial from "@/components/app/ServiceDashboardTutorial";
 import ServiceGuide from "@/components/app/ServiceGuide";
@@ -45,12 +45,12 @@ import {
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
 import { weddingPath } from "@/lib/weddingPaths";
-import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
+import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
-type Status = "not_started" | "in_progress" | "completed";
+type Status = "not_started" | "in_progress" | "completed" | "not_applicable";
 
 interface CategoryMeta {
   key: string;
@@ -135,11 +135,16 @@ const statusMeta: Record<Status, { label: string; tone: string; dot: string }> =
     tone: "border-[#cdd8bf] bg-[#f4f8ee] text-[#607044]",
     dot: "bg-[#7b8b56]",
   },
+  not_applicable: {
+    label: "해당 없음",
+    tone: "border-[#e3e0da] bg-[#f6f4f0] text-[#8b857c]",
+    dot: "bg-[#a7a198]",
+  },
 };
 
 function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
   const status = progress[key]?.status;
-  if (status === "completed" || status === "in_progress" || status === "not_started") return status;
+  if (status === "completed" || status === "in_progress" || status === "not_started" || status === "not_applicable") return status;
   return "not_started";
 }
 
@@ -175,17 +180,8 @@ function getDday(value: string | null | undefined) {
 }
 
 function getStatusSummary(progress: Record<string, ProgressItem>) {
-  return categories.reduce(
-    (acc, category) => {
-      const status = getStatus(progress, category.key);
-      acc[status] += 1;
-      const counts = getChecklistProgress(progress, category.key);
-      acc.doneItems += counts.done;
-      acc.totalItems += counts.total;
-      return acc;
-    },
-    { completed: 0, in_progress: 0, not_started: 0, doneItems: 0, totalItems: 0 }
-  );
+  const summary = summarizePlanningChecklist(CATEGORY_CHECKLISTS, progress);
+  return { doneItems: summary.done, totalItems: summary.total };
 }
 
 function getSpent(progress: Record<string, ProgressItem>) {
@@ -252,7 +248,7 @@ export default function DashboardPage() {
   const nextCategories = useMemo(
     () =>
       categories
-        .filter((category) => getStatus(progress, category.key) !== "completed")
+        .filter((category) => !["completed", "not_applicable"].includes(getStatus(progress, category.key)))
         .slice(0, 3),
     [progress]
   );
@@ -604,7 +600,7 @@ export default function DashboardPage() {
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
               <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
             </div>
-            <Link href={weddingPath("/schedule")} className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
               전체 체크리스트
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>

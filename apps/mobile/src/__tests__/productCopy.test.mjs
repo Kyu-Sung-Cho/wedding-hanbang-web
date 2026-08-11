@@ -49,7 +49,7 @@ test("active mobile journeys avoid perfection promises", () => {
 test("mobile onboarding keeps the Amora-led MVP promise in plain language", () => {
   const published = ACTIVE_PRODUCT_SOURCES.join("\n");
 
-  assert.match(published, /결혼 준비, 아모라와 정리하세요/);
+  assert.match(published, /결혼 준비, 아모라와 처음부터 끝까지/);
   assert.match(published, /해야 할 일과 날짜/);
   assert.match(published, /예상 금액과 실제로 쓴 금액/);
   assert.doesNotMatch(

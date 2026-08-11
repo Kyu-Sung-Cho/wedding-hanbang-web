@@ -3,8 +3,16 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../../", import.meta.url);
+// 2026-08-08 파운더 결정으로 도구 중심 정의를 동반자 정의가 승계했다.
+// 정본: docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md
 const currentProductDefinition =
-  "웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는 서비스입니다.";
+  "웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에 준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에 남기는 서비스입니다.";
+const currentProductDefinitionPlain = currentProductDefinition.replace(
+  "서비스입니다.",
+  "서비스다.",
+);
+const currentProductContractPath =
+  "docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md";
 const currentReleaseHandoffPath =
   "docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md";
 const crossMachineHandoffPath =
@@ -237,6 +245,11 @@ test("current MVP source is explicit and historical briefs cannot masquerade as 
     serviceOverview,
     oldMasterBrief,
     oldVendorHandoff,
+    currentContract,
+    principles,
+    startHere,
+    docsIndex,
+    claude,
   ] = await Promise.all([
     readFile(new URL("AGENTS.md", root), "utf8"),
     readFile(new URL("README.md", root), "utf8"),
@@ -253,13 +266,37 @@ test("current MVP source is explicit and historical briefs cannot masquerade as 
       ),
       "utf8",
     ),
+    readFile(new URL(currentProductContractPath, root), "utf8"),
+    readFile(new URL("PRINCIPLES.md", root), "utf8"),
+    readFile(new URL("START_HERE.md", root), "utf8"),
+    readFile(new URL("docs/README.md", root), "utf8"),
+    readFile(new URL("CLAUDE.md", root), "utf8"),
   ]);
 
-  for (const document of [readme, currentMvp, serviceOverview]) {
+  // 정의 강제는 "살아 있는 계약" 문서에만 건다. 날짜가 박힌 스냅샷은 제외한다.
+  for (const document of [readme, currentContract, serviceOverview, docsIndex, claude]) {
     assert.ok(
       normalized(document).includes(currentProductDefinition),
       "current product definition must stay exact",
     );
+  }
+  // 평서형 변형도 같은 문장에서 파생돼야 표면마다 정의가 갈라지지 않는다.
+  // AGENTS.md와 START_HERE.md는 이전에 어떤 테스트도 읽지 않아 개정에서 조용히
+  // 빠질 수 있었다 — 이번에 검사 대상으로 넣는다.
+  for (const document of [principles, agents, startHere]) {
+    assert.ok(
+      normalized(document).includes(currentProductDefinitionPlain),
+      "plain-form product definition must derive from the same sentence",
+    );
+  }
+  // 구 계약은 삭제하지 않고 강등한다. 후속 경로를 함께 적어야 추적이 끊기지 않는다.
+  assert.match(currentMvp, /상태: `SUPERSEDED`/);
+  assert.match(currentMvp, new RegExp(escaped(currentProductContractPath)));
+  assert.match(currentContract, /상태: `AUTHORITATIVE PRODUCT CONTRACT`/);
+  // 등록처 다섯 곳 전부. 하나라도 빠지면 AUTHORITATIVE 문서가 색인에서 유실된다
+  // (docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md에 실제로 있었던 사고다).
+  for (const document of [docsIndex, agents, startHere, claude, principles]) {
+    assert.match(document, new RegExp(escaped(currentProductContractPath)));
   }
 
   for (const document of [agents, readme, serviceOverview, oldMasterBrief, oldVendorHandoff]) {
@@ -343,9 +380,9 @@ test("document authority chain is complete and old status claims stay historical
     assert.match(document, new RegExp(escaped(auditPath)));
   }
 
-  assert.ok(
-    normalized(documents.currentRelease).includes(currentProductDefinition),
-  );
+  // 날짜가 박힌 릴리스 스냅샷에 "현재" 제품 정의를 강제하던 단언은 제거했다.
+  // 과거 기록은 그 시점의 사실을 담아야 하고, 계약이 바뀔 때마다 역사 문서를
+  // 고쳐 쓰면 기록이 거짓이 된다. 정의 강제는 살아 있는 계약 문서 8곳이 맡는다.
   assert.match(
     documents.currentRelease,
     /GitHub[\s\S]*PUSHED \/ DRAFT PR[\s\S]*pull\/79/,
@@ -410,7 +447,7 @@ test("document authority chain is complete and old status claims stay historical
     assert.match(documents.currentRelease, new RegExp(escaped(path)));
   }
 
-  assert.ok(normalized(documents.audit).includes(currentProductDefinition));
+  // 위와 같은 이유로 2026-07-30 감사 스냅샷에도 현재 정의를 강제하지 않는다.
   assert.match(documents.audit, /NOT COMMITTED \/ NOT PUSHED \/ NOT DEPLOYED/);
   assert.match(documents.audit, /모든 줄을 사람이 같은 깊이로 의미 검토했다.*뜻이 아니다/);
   for (const document of [documents.audit, documents.handoff]) {

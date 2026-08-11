@@ -4,6 +4,12 @@ function pluralDay(days) {
 
 export const HOME_SERVICES = Object.freeze([
   {
+    key: "checklist",
+    title: "체크리스트",
+    description: "준비 항목",
+    route: "/checklist",
+  },
+  {
     key: "schedule",
     title: "일정",
     description: "오늘 할 일",
@@ -51,9 +57,17 @@ export function formatLocalDateKey(date = new Date()) {
 export function calculateChecklistProgress(progress, categories) {
   if (!Array.isArray(categories) || categories.length === 0) return 0;
 
-  const categoryPercentages = categories.map((category) => {
+  let done = 0;
+  let total = 0;
+  for (const category of categories) {
     const categoryProgress = progress?.[category.key];
+    if (categoryProgress?.status === "not_applicable") continue;
     const doneById = new Map();
+
+    const items = Array.isArray(category.items) ? category.items : [];
+    for (const item of items) {
+      if (item && typeof item.id === "string") doneById.set(item.id, false);
+    }
 
     if (
       categoryProgress
@@ -61,8 +75,9 @@ export function calculateChecklistProgress(progress, categories) {
       && Array.isArray(categoryProgress.checklist)
     ) {
       for (const item of categoryProgress.checklist) {
-        if (item && typeof item.id === "string") {
+        if (item && typeof item.id === "string" && !doneById.has(`saved:${item.id}`)) {
           doneById.set(item.id, item.done === true);
+          doneById.set(`saved:${item.id}`, true);
         }
       }
     } else if (categoryProgress && typeof categoryProgress === "object") {
@@ -73,14 +88,14 @@ export function calculateChecklistProgress(progress, categories) {
       }
     }
 
-    const items = Array.isArray(category.items) ? category.items : [];
-    if (items.length === 0) return 0;
-    const doneCount = items.filter((item) => doneById.get(item.id) === true).length;
-    return (doneCount / items.length) * 100;
-  });
+    for (const key of [...doneById.keys()]) {
+      if (key.startsWith("saved:")) doneById.delete(key);
+    }
+    done += [...doneById.values()].filter(Boolean).length;
+    total += doneById.size;
+  }
 
-  const total = categoryPercentages.reduce((sum, percentage) => sum + percentage, 0);
-  return Math.round(total / categoryPercentages.length);
+  return total > 0 ? Math.round((done / total) * 100) : 0;
 }
 
 export function buildDashboardFocus({
@@ -118,7 +133,7 @@ export function buildDashboardFocus({
       title: `${urgent.categoryLabel} 준비를 먼저 확인해요`,
       description,
       ctaLabel: "체크리스트 열기",
-      route: "/schedule",
+      route: "/checklist",
     };
   }
 
@@ -161,7 +176,7 @@ export function buildDashboardFocus({
       description:
         "아직 여유가 있어요. 체크리스트를 보고 두 사람에게 맞는 순서로 준비해요.",
       ctaLabel: "준비 순서 보기",
-      route: "/schedule",
+      route: "/checklist",
     };
   }
 

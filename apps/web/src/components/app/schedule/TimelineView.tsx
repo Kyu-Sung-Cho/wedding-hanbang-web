@@ -48,12 +48,14 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-sage-500",
   in_progress: "bg-[#795252]",
   not_started: "bg-[#B5ADA3]",
+  not_applicable: "bg-[#8b857c]",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
   not_started: "시작전",
+  not_applicable: "해당 없음",
 };
 
 // 페이즈 정의
@@ -137,7 +139,7 @@ export default function TimelineView({
   const getCategoryData = useCallback(
     (key: string) => {
       const template = CHECKLIST_MAP[key];
-      if (!template) return { done: 0, total: 0, status: "not_started" as const };
+      if (!template) return { done: 0, total: 0, status: "not_started" as const, merged: [], hasItemProgress: false, excluded: false };
       const existing = progress[key];
       const merged = mergeChecklist(
         template.items,
@@ -147,7 +149,8 @@ export default function TimelineView({
       const { done, total } = getChecklistCounts(merged);
       const status = existing?.status ?? "not_started";
       const hasItemProgress = Boolean(existing?.checklist?.length);
-      return { done, total, status, merged, hasItemProgress };
+      const excluded = status === "not_applicable";
+      return { done: excluded ? 0 : done, total: excluded ? 0 : total, status, merged, hasItemProgress, excluded };
     },
     [progress]
   );
@@ -242,6 +245,8 @@ export default function TimelineView({
             <div className="w-full overflow-hidden rounded-[14px] border border-[#eadfc9]/70 bg-white shadow-[0_6px_18px_rgba(8,22,38,0.03)] transition-shadow hover:shadow-[0_8px_24px_rgba(8,22,38,0.055)]">
               {/* 페이즈 헤더 */}
               <button
+                type="button"
+                aria-expanded={isPhaseExpanded}
                 onClick={() =>
                   setExpandedPhase(isPhaseExpanded ? null : pi)
                 }
@@ -290,6 +295,8 @@ export default function TimelineView({
                         <div key={cat.key} className="mt-3">
                           {/* 카테고리 헤더 */}
                           <button
+                            type="button"
+                            aria-expanded={isCatExpanded}
                             onClick={() =>
                               setExpandedCategory(
                                 isCatExpanded ? null : cat.key
@@ -372,14 +379,21 @@ export default function TimelineView({
                                   </p>
                                 )}
                                 {data.merged.map((item) => (
-                                  <div
+                                  <button
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={item.done}
+                                    aria-disabled={data.excluded}
+                                    disabled={data.excluded || togglingItem === item.id}
                                     key={item.id}
                                     onClick={() =>
                                       handleToggle(cat.key, item)
                                     }
-                                    className={`-mx-2 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-[#FAFAF8] ${
+                                    className={`-mx-2 flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[#FAFAF8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed ${
                                       togglingItem === item.id
                                         ? "opacity-50 pointer-events-none"
+                                        : data.excluded
+                                          ? "opacity-45"
                                         : ""
                                     }`}
                                   >
@@ -401,7 +415,7 @@ export default function TimelineView({
                                     >
                                       {item.label}
                                     </span>
-                                  </div>
+                                  </button>
                                 ))}
                               </div>
                             </div>
