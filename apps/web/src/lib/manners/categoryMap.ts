@@ -27,6 +27,12 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
 
 export const MAPPED_MANNERS_CATEGORY_KEYS = Object.keys(CATEGORY_MANNERS_SLUG);
 
+export function categoryKeysForMannersPart(slug: string): string[] {
+  return Object.entries(CATEGORY_MANNERS_SLUG)
+    .filter(([, mappedSlug]) => mappedSlug === slug)
+    .map(([categoryKey]) => categoryKey);
+}
+
 /**
  * 카테고리에 대응하는 파트를 찾는다. 매핑이 없거나 slug가 실제 파트를 가리키지
  * 않으면 `null` — 호출부는 카드를 그리지 않는다. 죽은 링크를 만드는 것보다 낫다.

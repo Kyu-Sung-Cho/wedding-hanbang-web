@@ -61,6 +61,7 @@ interface WeddingHomeExperienceProps {
 }
 
 const SERVICE_ICONS = {
+  checklist: FileCheck2,
   schedule: CalendarDays,
   budget: WalletCards,
   prices: FileCheck2,
@@ -73,6 +74,7 @@ const SERVICE_COLORS: Record<
   DashboardHomeServiceKey,
   { icon: string; background: string }
 > = {
+  checklist: { icon: colors.noir[800], background: colors.sage.pale },
   schedule: { icon: colors.rose[600], background: colors.rose.glow },
   budget: { icon: colors.noir[800], background: colors.ivory[200] },
   prices: { icon: colors.sage[500], background: colors.sage.pale },
@@ -127,6 +129,9 @@ function openFocus(focus: DashboardFocus) {
     case "/schedule":
       router.push("/schedule");
       return;
+    case "/checklist":
+      router.push("/checklist");
+      return;
     case "/bookings":
       router.push({
         pathname: "/bookings",
@@ -142,6 +147,9 @@ function openService(service: DashboardHomeService) {
   switch (service.route) {
     case "/schedule":
       router.push("/schedule");
+      return;
+    case "/checklist":
+      router.push("/checklist");
       return;
     case "/budget":
       router.push("/budget");
@@ -394,7 +402,7 @@ export default function WeddingHomeExperience({
                       styles.simpleRow,
                       index > 0 && styles.simpleRowBorder,
                     ]}
-                    onPress={() => router.push("/schedule")}
+                    onPress={() => router.push("/checklist")}
                     accessibilityRole="button"
                   >
                     <View
@@ -430,7 +438,7 @@ export default function WeddingHomeExperience({
                 styles.partnerStrip,
                 pressed && styles.tilePressed,
               ]}
-              onPress={() => router.push("/schedule")}
+              onPress={() => router.push("/checklist")}
               accessibilityRole="button"
             >
               <View style={styles.partnerIcon}>

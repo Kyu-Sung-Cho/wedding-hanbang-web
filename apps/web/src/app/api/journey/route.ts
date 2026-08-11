@@ -21,6 +21,8 @@ const MAX_BODY_BYTES = 128 * 1024;
 const MAX_SUMMARY_CHARS = 240;
 const MAX_VENUE_CHARS = 120;
 const MAX_BUDGET_LABEL_CHARS = 200;
+const MAX_CHECKLIST_ID_CHARS = 120;
+const MAX_CHECKLIST_LABEL_CHARS = 400;
 const MAX_PROGRESS_DEPTH = 8;
 const MAX_PROGRESS_ARRAY_LENGTH = 500;
 const MAX_PROGRESS_OBJECT_KEYS = 300;
@@ -51,6 +53,12 @@ const BUDGET_ITEM_FIELDS = new Set([
 const KNOWN_BUDGET_CATEGORY_KEYS = new Set(
   Object.keys(PLANNING_CATEGORY_LABELS),
 );
+const VALID_CHECKLIST_STATUSES = new Set([
+  "not_started",
+  "in_progress",
+  "completed",
+  "not_applicable",
+]);
 const VALID_SURFACES = new Set(["/schedule", "/budget", "/dashboard"]);
 const SCHEDULE_PROGRESS_FIELDS = new Set([
   "__events",
@@ -176,6 +184,47 @@ function hasValidBudgetFields(progress: Record<string, unknown>) {
         && Array.from(item.label).length <= MAX_BUDGET_LABEL_CHARS
         && !hasUnsafeDisplayCharacter(item.label)
       ));
+  });
+}
+
+function hasValidChecklistFields(progress: Record<string, unknown>) {
+  return Object.entries(progress).every(([key, item]) => {
+    if (!KNOWN_BUDGET_CATEGORY_KEYS.has(key)) return true;
+    if (!isRecord(item)) return false;
+    if (hasOwn(item, "category") && item.category !== key) return false;
+    if (hasOwn(item, "status") && (
+      typeof item.status !== "string"
+      || !VALID_CHECKLIST_STATUSES.has(item.status)
+    )) return false;
+    if (!hasOwn(item, "checklist")) return true;
+    if (!Array.isArray(item.checklist)) return false;
+
+    const ids = new Set<string>();
+    let doneCount = 0;
+    for (const checklistItem of item.checklist) {
+      if (!isRecord(checklistItem)) return false;
+      if (
+        typeof checklistItem.id !== "string"
+        || !PROGRESS_KEY_PATTERN.test(checklistItem.id)
+        || Array.from(checklistItem.id).length > MAX_CHECKLIST_ID_CHARS
+        || ids.has(checklistItem.id)
+        || typeof checklistItem.label !== "string"
+        || Array.from(checklistItem.label.trim()).length === 0
+        || Array.from(checklistItem.label).length > MAX_CHECKLIST_LABEL_CHARS
+        || hasUnsafeDisplayCharacter(checklistItem.label)
+        || typeof checklistItem.done !== "boolean"
+      ) return false;
+      ids.add(checklistItem.id);
+      if (checklistItem.done) doneCount += 1;
+    }
+
+    if (!hasOwn(item, "status") || item.status === "not_applicable") return true;
+    const derivedStatus = doneCount === 0 || item.checklist.length === 0
+      ? "not_started"
+      : doneCount === item.checklist.length
+        ? "completed"
+        : "in_progress";
+    return item.status === derivedStatus;
   });
 }
 
@@ -346,7 +395,7 @@ function parsePatchBody(body: unknown): ParsePatchResult {
 
   if (hasProgress) {
     const progress = normalizeProgress(body.progress);
-    if (!progress || !hasValidBudgetFields(progress)) {
+    if (!progress || !hasValidBudgetFields(progress) || !hasValidChecklistFields(progress)) {
       return { ok: false, error: "진행 데이터 형식이 올바르지 않습니다." };
     }
     changes.progress = progress;
@@ -355,7 +404,7 @@ function parsePatchBody(body: unknown): ParsePatchResult {
   let progressPatch: Record<string, unknown> | null = null;
   if (hasProgressPatch) {
     progressPatch = normalizeProgress(body.progress_patch);
-    if (!progressPatch || !hasValidBudgetFields(progressPatch)) {
+    if (!progressPatch || !hasValidBudgetFields(progressPatch) || !hasValidChecklistFields(progressPatch)) {
       return { ok: false, error: "진행 패치 형식이 올바르지 않습니다." };
     }
     changes.progress_patch = progressPatch;

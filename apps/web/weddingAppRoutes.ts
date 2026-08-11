@@ -17,6 +17,7 @@ export const WEDDING_APP_ROUTES = [
   "chat",
   "saved",
   "budget",
+  "checklist",
   "schedule",
   "settings",
   "bookings",

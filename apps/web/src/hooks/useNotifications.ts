@@ -358,7 +358,7 @@ export function useNotifications(
 
         if (template.categoryKey) {
           const item = progress[template.categoryKey];
-          if (item?.status === "completed") return false;
+          if (item?.status === "completed" || item?.status === "not_applicable") return false;
         }
 
         if (template.type === "schedule" && !prefs.schedule) return false;

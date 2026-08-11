@@ -12,13 +12,14 @@ import { claimsNumbers, mannersTables } from "../types";
  *
  * ⚠️ 삭제된 라우트의 부활 방지 가드
  * (`src/lib/etiquette/__tests__/publicEtiquetteSafety.test.ts`)는 **유지 대상이다.**
- * 이 표면은 그 가드를 우회하려고 이름을 바꾼 게 아니라, 가드가 막은 것("출처 없는
- * 한 페이지짜리 일반 안내")을 실제로 하지 않기 때문에 다른 이름으로 존재한다.
+ * 2026-08-11 제품 계약은 이 표면을 독립 가이드로 승인했지만, 표 단위 근거와 시효를
+ * 강제하는 이 계약을 통과하는 경우에만 공개할 수 있다.
  */
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // 관행은 시간이 지나면 달라진다. 확인일이 없거나 미래면 신뢰할 수 없다.
-const TODAY = "2026-08-08";
+const TODAY = new Date().toISOString().slice(0, 10);
+const MAX_SOURCE_AGE_DAYS = 366;
 
 // 개인 블로그·카페는 1차 출처가 아니다. 삭제 사유의 절반이 근거 없는 수치였다.
 const NOT_A_SOURCE = /(^|\.)(blog|cafe|tistory|naver\.me|brunch|velog|medium)\./i;
@@ -113,12 +114,19 @@ describe("결혼 예절 안내 데이터 계약", () => {
     for (const part of MANNERS_PARTS) {
       if (!claimsNumbers(part)) continue;
       const tables = mannersTables(part);
-      const sourced = part.sources.length > 0;
       for (const table of tables) {
         expect(
-          sourced || table.unsourced === true,
-          `${part.slug} / "${table.title}": 출처도 없고 unsourced 표시도 없다`,
+          table.unsourced === true || (table.sourceRefs?.length ?? 0) > 0,
+          `${part.slug} / "${table.title}": 이 표를 직접 뒷받침하는 sourceRefs가 없다`,
         ).toBe(true);
+        if (table.unsourced) {
+          expect(table.sourceRefs ?? [], `${part.slug} / "${table.title}": 출처 없음 표에 출처 참조가 붙었다`).toEqual([]);
+        } else {
+          expect(new Set(table.sourceRefs).size, `${part.slug} / "${table.title}": sourceRefs 중복`).toBe(table.sourceRefs?.length);
+          for (const ref of table.sourceRefs ?? []) {
+            expect(Number.isInteger(ref) && ref >= 1 && ref <= part.sources.length, `${part.slug} / "${table.title}": 잘못된 sourceRef ${ref}`).toBe(true);
+          }
+        }
         // 표는 언제나 "이건 관행"이라고 자기 밑에 적는다. 헤더 한 번으로 안 된다 —
         // 사용자는 표만 캡처해서 옮긴다.
         expect(table.caption.length, `${part.slug} / "${table.title}": caption 없음`).toBeGreaterThan(10);
@@ -155,6 +163,11 @@ describe("결혼 예절 안내 데이터 계약", () => {
         expect(
           source.checkedAt <= TODAY,
           `${part.slug}: 확인일이 미래다 — ${source.checkedAt}`,
+        ).toBe(true);
+        const ageDays = (Date.parse(TODAY) - Date.parse(source.checkedAt)) / 86_400_000;
+        expect(
+          ageDays <= MAX_SOURCE_AGE_DAYS,
+          `${part.slug}: 출처 확인일이 ${Math.floor(ageDays)}일 전이다 — 다시 검토할 것`,
         ).toBe(true);
         expect(source.scope.trim().length, `${part.slug}: 적용 범위 없음`).toBeGreaterThan(0);
         // 진짜 URL을 붙였는데 그 페이지가 주장을 말하지 않는 것이 가장 흔한 실패다.

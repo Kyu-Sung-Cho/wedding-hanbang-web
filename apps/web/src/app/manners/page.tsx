@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 export const metadata: Metadata = {
   title: "결혼 예절 안내 — 웨딩한방",
@@ -25,13 +26,20 @@ export default function MannersIndexPage() {
   return (
     <div className="mx-auto w-full max-w-[900px] px-4 py-9 sm:px-6 sm:py-12">
       <header>
-        <h1 className="font-serif-kr text-[28px] font-normal leading-snug text-[#1b1c1c] sm:text-[34px]">
-          결혼 예절, 헷갈리는 것만 모았어요
+        <p className="text-[12px] font-semibold tracking-[0.14em] text-[#8F5150]">WEDDING MANNERS GUIDE</p>
+        <h1 className="mt-2 text-[30px] font-semibold leading-snug text-[#1b1c1c] sm:text-[36px]">
+          결혼 예절 가이드
         </h1>
         <p className="mt-3 max-w-[620px] text-[14.5px] leading-[1.85] text-[#3d4a45]">
-          축의금은 얼마가 흔한지, 하객으로 갈 때 뭘 조심하면 되는지, 축사에서 무슨 말을
-          피해야 하는지. 실제로 할 수 있는 말과 함께 적었어요.
+          축의금, 청첩장, 하객 매너처럼 정답이 하나가 아닌 문제를 근거와 실제 대화문으로 정리했어요.
+          여기서는 읽고 이해하고, 실제 준비는 웨딩 체크리스트에서 따로 관리합니다.
         </p>
+        <Link
+          {...weddingLinkProps("/checklist")}
+          className="mt-5 inline-flex rounded-full bg-[#36534e] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+        >
+          웨딩 체크리스트 열기
+        </Link>
         <p className="mt-4 rounded-xl border border-[#243832]/12 bg-[#243832]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
           여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다르고, 수치가
           있는 내용에는 어디서 확인했는지와 확인한 날짜를 함께 적어 뒀어요.
@@ -77,9 +85,9 @@ export default function MannersIndexPage() {
       </div>
 
       <p className="mt-12 text-[13px] leading-[1.75] text-[#3d4a45]/80">
-        우리 상황에서는 어떻게 하면 좋을지 막히면, 아모라에게 그대로 말해 보세요.{" "}
-        <Link href="/demo" prefetch={false} className="font-medium text-[#8F5150] underline underline-offset-2">
-          아모라 체험하기
+        우리 상황에서는 어떻게 적용할지 막히면, 가족 구성과 고민을 아모라에게 그대로 말해 보세요.{" "}
+        <Link {...weddingLinkProps("/chat")} className="font-medium text-[#8F5150] underline underline-offset-2">
+          아모라에게 물어보기
         </Link>
       </p>
     </div>

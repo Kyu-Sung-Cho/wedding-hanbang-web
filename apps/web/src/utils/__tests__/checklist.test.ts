@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { mergeChecklist, calculateStatus, getChecklistCounts } from "../checklist";
+import {
+  mergeChecklist,
+  calculateStatus,
+  getChecklistCounts,
+  summarizePlanningChecklist,
+} from "../checklist";
 import type { ChecklistItem } from "@/types/database.types";
 
 const makeItems = (ids: string[], doneStates: boolean[]): ChecklistItem[] =>
@@ -74,11 +79,52 @@ describe("mergeChecklist", () => {
       expect(mergeChecklist([], [])).toEqual([]);
     });
 
-    it("ignores saved items not present in template", () => {
+    it("preserves saved items not present in template", () => {
       const saved = makeItems(["z", "a"], [true, true]);
       const result = mergeChecklist(template, saved);
-      expect(result.length).toBe(template.length);
+      expect(result.map((item) => item.id)).toEqual(["a", "b", "c", "d", "z"]);
+      expect(result.at(-1)).toMatchObject({ id: "z", done: true });
     });
+
+    it("deduplicates repeated saved-only ids", () => {
+      const saved = [...makeItems(["z", "z"], [true, false]), ...makeItems(["a"], [true])];
+      const result = mergeChecklist(template, saved);
+      expect(result.filter((item) => item.id === "z")).toHaveLength(1);
+      expect(result.find((item) => item.id === "z")?.done).toBe(true);
+    });
+  });
+});
+
+describe("summarizePlanningChecklist", () => {
+  const templates = [
+    { key: "small", items: makeItems(["a"], [false]) },
+    { key: "large", items: makeItems(["b", "c", "d"], [false, false, false]) },
+  ];
+
+  it("excludes not_applicable categories from the denominator", () => {
+    expect(
+      summarizePlanningChecklist(templates, {
+        small: { status: "not_applicable", checklist: makeItems(["a"], [false]) },
+        large: { status: "in_progress", checklist: makeItems(["b", "c", "d"], [true, false, false]) },
+      }),
+    ).toMatchObject({ done: 1, total: 3, percent: 33, skippedCategories: 1 });
+  });
+
+  it("uses item-weighted progress instead of category averages", () => {
+    expect(
+      summarizePlanningChecklist(templates, {
+        small: { status: "completed", checklist: makeItems(["a"], [true]) },
+        large: { status: "not_started", checklist: makeItems(["b", "c", "d"], [false, false, false]) },
+      }).percent,
+    ).toBe(25);
+  });
+
+  it("returns a stable zero when every category is skipped", () => {
+    const result = summarizePlanningChecklist(templates, {
+      small: { status: "not_applicable" },
+      large: { status: "not_applicable" },
+    });
+    expect(result).toMatchObject({ done: 0, total: 0, percent: 0, skippedCategories: 2 });
   });
 });
 

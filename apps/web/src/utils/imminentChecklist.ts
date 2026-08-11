@@ -41,7 +41,6 @@ export function getImminentCategories(
     if (status === "completed" || status === "not_applicable") continue;
 
     const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
-    if (scheduledEvent) continue;
 
     // 마감일 = 결혼일 - ddayDeadline일
     const deadlineDate = new Date(weddingDate);
@@ -74,7 +73,7 @@ export function getImminentCategories(
       doneCount: done,
       totalCount: total,
       deadlineDaysLeft: daysLeft,
-      hasScheduledEvent: false,
+      hasScheduledEvent: Boolean(scheduledEvent),
       urgency,
     });
   }

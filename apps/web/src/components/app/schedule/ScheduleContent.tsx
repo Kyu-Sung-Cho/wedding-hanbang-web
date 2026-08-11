@@ -4,9 +4,9 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { CHECKLIST_MAP } from "@/constants/checklists";
+import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
+import { mergeChecklist, calculateStatus, summarizePlanningChecklist } from "@/utils/checklist";
 import {
   addEvent,
   cancelEvent,
@@ -34,12 +34,6 @@ import type {
   ProgressItem,
   WeddingJourney,
 } from "@/types/database.types";
-
-const CATEGORY_KEYS = [
-  "meeting", "venue", "studio", "dress", "makeup", "ring",
-  "hanbok", "yedan", "honeymoon", "houseware", "housing",
-  "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-];
 
 const DEMO_SCHEDULE_ACTOR_PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -237,17 +231,9 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   );
 
   // 전체 체크리스트 완료 수
-  const { totalDone, totalItems } = CATEGORY_KEYS.reduce(
-    (acc, key) => {
-      const template = CHECKLIST_MAP[key];
-      if (!template) return acc;
-      const existing = progress[key];
-      const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
-      const { done, total } = getChecklistCounts(merged);
-      return { totalDone: acc.totalDone + done, totalItems: acc.totalItems + total };
-    },
-    { totalDone: 0, totalItems: 0 }
-  );
+  const checklistSummary = summarizePlanningChecklist(CATEGORY_CHECKLISTS, progress);
+  const totalDone = checklistSummary.done;
+  const totalItems = checklistSummary.total;
 
   const today = new Date();
   const dday = weddingDate

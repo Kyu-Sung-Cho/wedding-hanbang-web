@@ -35,7 +35,7 @@ describe("manners entry points", () => {
     const sidebar = source("src/components/app/Sidebar.tsx");
 
     expect(sidebar).toContain('legacyPath: "/manners"');
-    expect(sidebar).toContain('label: "예절 안내"');
+    expect(sidebar).toContain('label: "예절 가이드"');
   });
 
   // 사이트맵은 리다이렉트 원본이 아니라 정본 주소를 실어야 한다.

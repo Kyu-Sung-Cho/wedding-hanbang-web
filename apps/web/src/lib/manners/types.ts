@@ -79,6 +79,8 @@ export type MannersBlock =
       limits: string;
       columns: string[];
       rows: string[][];
+      /** 이 표를 직접 뒷받침하는 part.sources의 1-based 인덱스. */
+      sourceRefs?: number[];
       /** 출처를 찾지 못한 표. 화면이 그렇게 알리고, 계약 테스트가 개수를 감시한다. */
       unsourced?: boolean;
     };

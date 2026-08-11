@@ -66,12 +66,13 @@ These moments need explicit source, rationale, and separation between AI suggest
 
 - `/onboarding`: role, couple link, wedding details, preferences.
 - `/budget`: total budget, spending, payer split, hidden costs.
-- `/schedule`: checklist, D-day timeline, events.
+- `/checklist`: canonical wedding checklist, completion, not-applicable state, guide links.
+- `/schedule`: dated events and the D-day timeline. Existing combined entry remains backward-compatible during migration.
 - `/vendors`: vendor discovery, qualification signals, favorites.
 - `/vendors/[id]`: vendor detail, products, reservation.
 - `/bookings`: reservation state and next action.
 - `/market-prices`: sourced price intelligence.
-- `/etiquette`: wedding etiquette and scripts.
+- `/manners`: sourced wedding manners guide and scripts. It never owns completion state.
 - `/settings`: account, partner, notifications, deletion.
 
 ## 4. Screen Standards

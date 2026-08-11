@@ -4,11 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { stripComments } from "../../testing/sourceText";
 
-// 가족 조율 페이지는 2026-07-26에 제거했다. 가족·지역마다 답이 달라서 일반 안내를
-// 한 페이지로 주는 것보다 아모라가 상황을 듣고 정리하는 쪽이 맞다는 판단이다.
-// 아모라의 가족 상담 능력은 그대로 두고 페이지만 없앴으므로, 이 테스트는
-// ①예전 예절 코퍼스가 되살아나지 않는지 ②사라진 라우트로 가는 죽은 링크가
-// 생기지 않는지를 지킨다.
+// 가족 조율 페이지는 2026-07-26에 제거했다. 2026-08-11 파운더 결정으로 출처 계약을
+// 통과한 `/manners` 가이드는 별도 표면이 됐지만, 삭제된 `/etiquette` 코퍼스와 모바일
+// 404 링크는 되살리지 않는다. 이 테스트는 그 레거시 경계를 계속 지킨다.
 const webRoot = process.cwd();
 const source = (path: string): string => readFileSync(resolve(webRoot, path), "utf8");
 
