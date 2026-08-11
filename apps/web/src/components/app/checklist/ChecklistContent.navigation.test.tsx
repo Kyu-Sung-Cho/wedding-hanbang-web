@@ -17,9 +17,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, prefetch: _prefetch, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean }) => (
-    <a href={typeof href === "string" ? href : "#"} {...props}>{children}</a>
-  ),
+  default: ({ children, href, prefetch, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean }) => {
+    void prefetch;
+    return <a href={typeof href === "string" ? href : "#"} {...props}>{children}</a>;
+  },
 }));
 
 vi.mock("@/stores/authStore", () => ({
