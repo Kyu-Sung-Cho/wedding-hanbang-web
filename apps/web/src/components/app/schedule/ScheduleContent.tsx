@@ -2,19 +2,17 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles, X } from "lucide-react";
+import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import { mergeChecklist, calculateStatus, summarizePlanningChecklist } from "@/utils/checklist";
+import { summarizePlanningChecklist } from "@/utils/checklist";
 import {
   addEvent,
   cancelEvent,
-  findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
   getScheduleEventStatus,
   inspectScheduleEvents,
-  sanitizeUserFacingScheduleMemo,
   restoreEvent,
   updateEvent,
   upsertCategoryEvent,
@@ -24,12 +22,10 @@ import {
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
-import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
-  ChecklistItem,
   ScheduleEvent,
   ProgressItem,
   WeddingJourney,
@@ -59,50 +55,6 @@ export function getScheduleEventMutationBlockReason(
     : null;
 }
 
-interface PendingChecklistSchedule {
-  categoryKey: string;
-  itemId: string;
-  itemLabel: string;
-  categoryLabel: string;
-  existingEvent?: ScheduleEvent;
-}
-
-function buildChecklistProgress(
-  baseProgress: Record<string, unknown>,
-  categoryKey: string,
-  itemId: string,
-  nextDone?: boolean
-): Record<string, unknown> {
-  const template = CHECKLIST_MAP[categoryKey];
-  if (!template) return baseProgress;
-
-  const existing = baseProgress[categoryKey] as ProgressItem | undefined;
-  const merged = mergeChecklist(
-    template.items,
-    existing?.checklist,
-    existing?.status
-  );
-  const current = merged.find((item) => item.id === itemId);
-  if (!current) return baseProgress;
-
-  const updated = merged.map((item) =>
-    item.id === itemId
-      ? { ...item, done: nextDone ?? !item.done }
-      : item
-  );
-  const newStatus = calculateStatus(updated);
-
-  return {
-    ...baseProgress,
-    [categoryKey]: {
-      ...(existing ?? { category: categoryKey }),
-      category: categoryKey,
-      status: newStatus,
-      checklist: updated,
-    },
-  };
-}
-
 interface ScheduleContentProps {
   /** 패널/오버레이 안에서 렌더되는지 여부. true면 풀스크린 chrome 제거. */
   embedded?: boolean;
@@ -111,15 +63,11 @@ interface ScheduleContentProps {
 export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
   const { journey, updateJourney, profile, partner, isDemo } = useAuthStore();
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
   // 이벤트 CRUD 상태
   const [eventFormMode, setEventFormMode] = useState<"add" | "edit" | null>(null);
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [selectedDateForAdd, setSelectedDateForAdd] = useState<string | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
-  const [pendingChecklistSchedule, setPendingChecklistSchedule] =
-    useState<PendingChecklistSchedule | null>(null);
   const [journeyNotice, setJourneyNotice] = useState("");
   const [journeyError, setJourneyError] = useState("");
 
@@ -239,88 +187,6 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const dday = weddingDate
     ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null;
-
-  const handleCategoryClick = useCallback((key: string) => {
-    setSelectedCategory(key);
-  }, []);
-
-  // 타임라인 인라인 체크리스트 토글
-  const handleToggleChecklistItem = useCallback(
-    async (categoryKey: string, itemId: string) => {
-      if (!journey) return;
-
-      const newProgress = buildChecklistProgress(
-        progress as unknown as Record<string, unknown>,
-        categoryKey,
-        itemId
-      );
-
-      await saveJourney({ progress: newProgress as unknown as Record<string, ProgressItem> });
-    },
-    [journey, progress, saveJourney]
-  );
-
-  const handleChecklistItemClick = useCallback(
-    async (categoryKey: string, item: ChecklistItem) => {
-      if (item.done) {
-        await handleToggleChecklistItem(categoryKey, item.id);
-        return;
-      }
-
-      const categoryLabel = CATEGORY_LABELS[categoryKey] ?? categoryKey;
-      const existingEvent = findCategoryScheduleEvent(activeEvents, categoryKey, categoryLabel);
-      setPendingChecklistSchedule({
-        categoryKey,
-        itemId: item.id,
-        itemLabel: item.label,
-        categoryLabel,
-        existingEvent,
-      });
-    },
-    [activeEvents, handleToggleChecklistItem]
-  );
-
-  const completeChecklistWithSchedule = useCallback(
-    async (data: { date?: string; memo?: string }) => {
-      if (!journey || !pendingChecklistSchedule) return;
-      if (data.date && blockUnsafeEventMutation()) return;
-
-      let nextProgress = progress as unknown as Record<string, unknown>;
-
-      if (data.date) {
-        const upserted = upsertCategoryEvent(
-          nextProgress,
-          {
-            date: data.date,
-            title: pendingChecklistSchedule.categoryLabel,
-            memo:
-              sanitizeUserFacingScheduleMemo(data.memo)?.trim()
-              || pendingChecklistSchedule.itemLabel,
-            categoryKey: pendingChecklistSchedule.categoryKey,
-          },
-          pendingChecklistSchedule.categoryLabel
-        );
-        nextProgress = upserted.newProgress;
-      }
-
-      nextProgress = buildChecklistProgress(
-        nextProgress,
-        pendingChecklistSchedule.categoryKey,
-        pendingChecklistSchedule.itemId,
-        true
-      );
-
-      await saveJourney({ progress: nextProgress as unknown as Record<string, ProgressItem> });
-      setPendingChecklistSchedule(null);
-    },
-    [
-      blockUnsafeEventMutation,
-      journey,
-      pendingChecklistSchedule,
-      progress,
-      saveJourney,
-    ]
-  );
 
   // 이벤트 CRUD
   const handleAddEvent = useCallback((date: string) => {
@@ -607,7 +473,6 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               {viewMode === "timeline" ? (
                 <TimelineView
                   progress={progress}
-                  onToggleChecklistItem={handleChecklistItemClick}
                   events={activeEvents}
                   onEditEvent={handleEditEvent}
                   onCancelEvent={handleCancelEvent}
@@ -634,10 +499,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
                   기본 일정 확인
                 </h3>
-                <ImminentAlerts
-                  items={imminentCategories}
-                  onCategoryClick={handleCategoryClick}
-                />
+                <ImminentAlerts items={imminentCategories} />
               </div>
             )}
 
@@ -803,20 +665,6 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </section>
         )}
 
-        {/* 체크리스트 모달 */}
-        <CategoryChecklistModal
-          categoryKey={selectedCategory ?? ""}
-          isOpen={!!selectedCategory}
-          onClose={() => setSelectedCategory(null)}
-        />
-
-        <ChecklistSchedulePrompt
-          pending={pendingChecklistSchedule}
-          onClose={() => setPendingChecklistSchedule(null)}
-          onComplete={completeChecklistWithSchedule}
-          scheduleMutationBlockReason={eventMutationBlockReason}
-        />
-
         {/* 이벤트 추가/수정 모달 */}
         <EventFormModal
           isOpen={eventFormMode !== null}
@@ -834,143 +682,5 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         />
       </div>
     </div>
-  );
-}
-
-export function ChecklistSchedulePrompt({
-  pending,
-  onClose,
-  onComplete,
-  scheduleMutationBlockReason,
-}: {
-  pending: PendingChecklistSchedule | null;
-  onClose: () => void;
-  onComplete: (data: { date?: string; memo?: string }) => Promise<void>;
-  scheduleMutationBlockReason?: string | null;
-}) {
-  const [date, setDate] = useState("");
-  const [memo, setMemo] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!pending) return;
-    setDate(pending.existingEvent?.date ?? "");
-    setMemo(
-      sanitizeUserFacingScheduleMemo(pending.existingEvent?.memo)
-      ?? pending.itemLabel,
-    );
-  }, [pending]);
-
-  if (!pending) return null;
-
-  const saveWithDate = async () => {
-    if (!date || saving) return;
-    setSaving(true);
-    try {
-      await onComplete({
-        date,
-        memo: sanitizeUserFacingScheduleMemo(memo),
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const completeOnly = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await onComplete({});
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <>
-      <div
-        onClick={onClose}
-        className="fixed inset-0 z-50 animate-fade-in bg-[#1A1A1F]/40 backdrop-blur-sm"
-      />
-      <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.2)] animate-fade-in">
-        <div className="flex items-start justify-between gap-4 border-b border-[#eadfc9] bg-[#fffdf7] px-6 py-5">
-          <div>
-            <p className="text-[12px] font-semibold text-[#36534E]">
-              체크리스트 일정 연결
-            </p>
-            <h3 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">
-              {pending.categoryLabel} 날짜도 정할까요?
-            </h3>
-            <p className="mt-2 text-[13px] font-medium leading-[1.6] text-[#5d6879]">
-              {pending.itemLabel}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f7f3ec]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="space-y-4 px-6 py-5">
-          <div>
-            <label className="mb-1.5 block text-[12px] font-semibold text-[#6d625a]">
-              날짜
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-[15px] font-medium text-[#071629] outline-none transition-all focus:border-[#36534E] focus:bg-white focus:ring-2 focus:ring-[#36534E]/15"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-[12px] font-semibold text-[#6d625a]">
-              메모
-            </label>
-            <textarea
-              value={memo}
-              onChange={(event) => setMemo(event.target.value)}
-              rows={4}
-              className="w-full resize-none rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[#071629] outline-none transition-all focus:border-[#36534E] focus:bg-white focus:ring-2 focus:ring-[#36534E]/15"
-            />
-          </div>
-          {pending.existingEvent && (
-            <p className="rounded-xl bg-[#36534E]/10 px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#36534E]">
-              이미 등록된 {pending.categoryLabel} 일정이 있어요. 저장하면 새로 만들지 않고 기존 일정 날짜를 바꿉니다.
-            </p>
-          )}
-          {scheduleMutationBlockReason && (
-            <p
-              role="alert"
-              className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
-            >
-              {scheduleMutationBlockReason}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-col-reverse gap-2 border-t border-[#eadfc9] bg-[#fffdf7] px-6 py-4 sm:flex-row sm:justify-between">
-          <button
-            type="button"
-            onClick={completeOnly}
-            disabled={saving}
-            className="rounded-full border border-[#eadfc9] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
-          >
-            날짜 없이 완료
-          </button>
-          <button
-            type="button"
-            onClick={saveWithDate}
-            disabled={saving || !date || Boolean(scheduleMutationBlockReason)}
-            className="rounded-full bg-[#36534E] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending.existingEvent ? "일정 수정하고 완료" : "일정 저장하고 완료"}
-          </button>
-        </div>
-      </section>
-    </>
   );
 }

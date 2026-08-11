@@ -18,7 +18,9 @@ import { claimsNumbers, mannersTables } from "../types";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // 관행은 시간이 지나면 달라진다. 확인일이 없거나 미래면 신뢰할 수 없다.
-const TODAY = new Date().toISOString().slice(0, 10);
+// 편집·검토 기준일은 서비스 운영 시간대(KST)다. UTC 자정 전후에 그날 확인한
+// 출처가 "미래"로 오판되는 것을 막는다(한국은 DST가 없어 항상 UTC+9).
+const TODAY = new Date(Date.now() + 9 * 60 * 60 * 1_000).toISOString().slice(0, 10);
 const MAX_SOURCE_AGE_DAYS = 366;
 
 // 개인 블로그·카페는 1차 출처가 아니다. 삭제 사유의 절반이 근거 없는 수치였다.
@@ -175,6 +177,19 @@ describe("결혼 예절 안내 데이터 계약", () => {
           source.supports.trim().length,
           `${part.slug}: ${source.url} 이 무엇을 뒷받침하는지 안 적혀 있다`,
         ).toBeGreaterThan(15);
+      }
+    }
+  });
+
+  it("주거 계약과 관계 안전 가이드는 공식 출처 없이 공개하지 않는다", () => {
+    for (const slug of ["money-home-conversation", "planning-conflicts"]) {
+      const part = MANNERS_PARTS.find((candidate) => candidate.slug === slug);
+      expect(part, `${slug}: 파트 없음`).toBeDefined();
+      expect(part?.sources.length, `${slug}: 고위험 안내에 출처 없음`).toBeGreaterThan(0);
+      for (const source of part?.sources ?? []) {
+        expect(new URL(source.url).hostname, `${slug}: 공공기관 출처가 아님`).toMatch(
+          /(?:^|\.)(?:go\.kr|or\.kr)$/,
+        );
       }
     }
   });

@@ -93,4 +93,40 @@ describe("vendor admin-preview onboarding boundary", () => {
       `https://hanbang.ai/login?redirect=%2Fwedding%2Fchat%3FstartHereHandoff%3D${handoff}`,
     );
   });
+
+  it("preserves a checklist detail deep link while an unauthenticated user signs in", async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
+
+    const response = await updateSession(
+      new NextRequest("https://hanbang.ai/wedding/checklist/meeting?from=guide"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?redirect=%2Fwedding%2Fchecklist%2Fmeeting%3Ffrom%3Dguide",
+    );
+  });
+
+  it("preserves a checklist detail deep link while onboarding finishes", async () => {
+    const response = await updateSession(
+      new NextRequest("https://hanbang.ai/wedding/checklist/meeting?from=schedule"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/wedding/onboarding?redirect=%2Fwedding%2Fchecklist%2Fmeeting%3Ffrom%3Dschedule",
+    );
+  });
+
+  it("lets demo mode open a checklist detail without an auth request", async () => {
+    const response = await updateSession(
+      new NextRequest("https://hanbang.ai/wedding/checklist/meeting", {
+        headers: { cookie: "demo_mode=true" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
 });

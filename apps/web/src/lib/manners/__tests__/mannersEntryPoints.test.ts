@@ -72,7 +72,20 @@ describe("manners entry points", () => {
       const part = mannersPartForCategory(key);
       expect(part, `카테고리 ${key}의 파트를 찾지 못했다`).not.toBeNull();
       expect(slugs).toContain(part?.slug);
+      const canonical = MANNERS_PARTS.find((candidate) => candidate.slug === part?.slug);
+      expect(part, `${key}: 클라이언트 링크 메타데이터가 서버 정본과 다르다`).toEqual({
+        slug: canonical?.slug,
+        title: canonical?.title,
+        subtitle: canonical?.subtitle,
+      });
     }
+  });
+
+  it("keeps the full guide body out of client entry-point metadata", () => {
+    const categoryMap = source("src/lib/manners/categoryMap.ts");
+
+    expect(categoryMap).not.toMatch(/from\s+["']\.\/data["']/);
+    expect(categoryMap).not.toContain("MANNERS_PARTS");
   });
 
   // 오타로 매핑이 조용히 꺼지는 것을 막는다.
@@ -83,11 +96,20 @@ describe("manners entry points", () => {
     expect(unknown, `없는 카테고리 키: ${unknown.join(", ")}`).toEqual([]);
   });
 
-  // 아직 파트가 없는 카테고리에 억지로 다른 파트를 붙이지 않는다.
-  it("returns null for categories the phase-1 parts do not cover", () => {
-    for (const key of ["meeting", "ring", "hanbok", "yedan", "honeymoon", "houseware", "housing", "ham", "pyebaek"]) {
-      expect(mannersPartForCategory(key), `${key}는 아직 덮이지 않는다`).toBeNull();
-    }
+  it("connects the expanded family guides to the matching checklist categories", () => {
+    expect(mannersPartForCategory("meeting")?.slug).toBe("family-meeting");
+    expect(mannersPartForCategory("ring")?.slug).toBe("gifts-and-traditions");
+    expect(mannersPartForCategory("hanbok")?.slug).toBe("traditional-greetings");
+    expect(mannersPartForCategory("yedan")?.slug).toBe("gifts-and-traditions");
+    expect(mannersPartForCategory("houseware")?.slug).toBe("money-home-conversation");
+    expect(mannersPartForCategory("housing")?.slug).toBe("money-home-conversation");
+    expect(mannersPartForCategory("ham")?.slug).toBe("gifts-and-traditions");
+    expect(mannersPartForCategory("pyebaek")?.slug).toBe("traditional-greetings");
+  });
+
+  // 아직 전용 파트가 없는 카테고리에 억지로 다른 파트를 붙이지 않는다.
+  it("returns null only when a verified guide does not exist", () => {
+    expect(mannersPartForCategory("honeymoon")).toBeNull();
     expect(mannersPartForCategory(undefined)).toBeNull();
     expect(mannersPartForCategory("")).toBeNull();
   });

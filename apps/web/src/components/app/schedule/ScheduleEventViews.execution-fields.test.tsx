@@ -89,7 +89,6 @@ describe("schedule execution field presentation", () => {
         <TimelineView
           progress={{}}
           events={[EVENT]}
-          onToggleChecklistItem={vi.fn()}
           assigneeContext={ASSIGNEE_CONTEXT}
         />,
       );
@@ -111,7 +110,6 @@ describe("schedule execution field presentation", () => {
         <TimelineView
           progress={{}}
           events={[EVENT]}
-          onToggleChecklistItem={vi.fn()}
           onCancelEvent={onCancelEvent}
           assigneeContext={ASSIGNEE_CONTEXT}
         />,
@@ -137,5 +135,43 @@ describe("schedule execution field presentation", () => {
       await Promise.resolve();
     });
     expect(onCancelEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens checklist categories on their dedicated pages instead of rendering inline checkboxes", async () => {
+    await act(async () => {
+      root.render(<TimelineView progress={{}} />);
+    });
+
+    const meetingLink = Array.from(container.querySelectorAll<HTMLAnchorElement>("a"))
+      .find((link) => link.textContent?.includes("부모님 첫 만남"));
+
+    expect(meetingLink?.getAttribute("href")).toBe("/wedding/checklist/meeting");
+    expect(container.querySelector('[role="checkbox"]')).toBeNull();
+    expect(container.textContent).toContain("부모님 첫 만남 체크리스트 전체 페이지 열기");
+  });
+
+  it("keeps a category event completion criterion visible for legacy status-only progress", async () => {
+    const categoryEvent: ScheduleEvent = {
+      ...EVENT,
+      id: "evt-meeting",
+      title: "부모님 첫 만남",
+      categoryKey: "meeting",
+    };
+    await act(async () => {
+      root.render(
+        <TimelineView
+          progress={{
+            meeting: { category: "meeting", status: "completed" },
+          }}
+          events={[categoryEvent]}
+          assigneeContext={ASSIGNEE_CONTEXT}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("세부 항목 확인 전");
+    expect(container.textContent).toContain(
+      "완료 기준 · 진행 순서와 도착 시간을 모두 확인",
+    );
   });
 });

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Bell, Menu, Search } from "lucide-react";
-import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
@@ -24,6 +23,7 @@ const pageTitles: Record<string, string> = {
 };
 
 const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
+  { prefix: "/checklist/", title: "웨딩 체크리스트" },
   { prefix: "/vendors/favorites", title: "찜한 업체" },
   { prefix: "/vendors", title: "업체 탐색" },
   { prefix: "/bookings", title: "예약 관리" },
@@ -52,7 +52,6 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
@@ -65,7 +64,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
   function handleCategoryClick(categoryKey: string) {
     setShowNotifications(false);
-    setSelectedCategory(categoryKey);
+    router.push(weddingPath(`/checklist/${categoryKey}`));
   }
 
   return (
@@ -176,12 +175,6 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           </div>
         </div>
       </header>
-
-      <CategoryChecklistModal
-        categoryKey={selectedCategory ?? ""}
-        isOpen={!!selectedCategory}
-        onClose={() => setSelectedCategory(null)}
-      />
     </>
   );
 }

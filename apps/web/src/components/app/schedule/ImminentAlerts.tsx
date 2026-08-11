@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Clock,
   ChevronDown,
@@ -26,6 +27,7 @@ import {
   Box,
 } from "lucide-react";
 import type { ImminentCategory } from "@/utils/imminentChecklist";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
@@ -70,10 +72,9 @@ const URGENCY_STYLES: Record<string, {
 
 interface Props {
   items: ImminentCategory[];
-  onCategoryClick: (key: string) => void;
 }
 
-export default function ImminentAlerts({ items, onCategoryClick }: Props) {
+export default function ImminentAlerts({ items }: Props) {
   const [expanded, setExpanded] = useState(true);
 
   if (items.length === 0) return null;
@@ -88,7 +89,10 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
     >
       {/* 헤더 */}
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="imminent-checklist-items"
         className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-white"
       >
         <div className="min-w-0 flex-1">
@@ -119,6 +123,7 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
       {/* 항목 목록 */}
       {expanded && (
         <div
+          id="imminent-checklist-items"
           className="overflow-hidden"
         >
           <div className="divide-y divide-[#F6F3F2]">
@@ -130,9 +135,9 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                 : 0;
 
               return (
-                <button
+                <Link
                   key={item.key}
-                  onClick={() => onCategoryClick(item.key)}
+                  {...weddingLinkProps(`/checklist/${item.key}`)}
                   className="w-full flex items-stretch hover:bg-[#FAFAF8] transition-colors text-left group"
                 >
                   {/* 좌측 컬러 스트립 */}
@@ -168,7 +173,7 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                       일정 필요
                     </span>
                   </div>
-                </button>
+                </Link>
               );
             })}
           </div>

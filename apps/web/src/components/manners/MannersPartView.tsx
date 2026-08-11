@@ -175,10 +175,10 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
 
 export default function MannersPartView({ part }: { part: MannersPart }) {
   const categoryKeys = categoryKeysForMannersPart(part.slug);
-  const primaryCategory = categoryKeys[0];
-  const checklistLabel = primaryCategory
-    ? PLANNING_CATEGORY_LABELS[primaryCategory as keyof typeof PLANNING_CATEGORY_LABELS]
-    : null;
+  const checklistLinks = categoryKeys.map((categoryKey) => ({
+    categoryKey,
+    label: PLANNING_CATEGORY_LABELS[categoryKey as keyof typeof PLANNING_CATEGORY_LABELS],
+  }));
   const lastCheckedAt = part.sources
     .map((source) => source.checkedAt)
     .sort()
@@ -220,20 +220,30 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         <div className="mt-5 rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-4">
           <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">읽은 뒤 준비하기</p>
           <p className="mt-1 text-[14px] leading-6 text-[#3d4a45]">
-            {checklistLabel
-              ? `${checklistLabel} 준비 항목을 열어 실제로 확인하고 저장할 수 있어요.`
+            {checklistLinks.length > 0
+              ? "관련 준비 항목을 열어 실제로 확인하고 저장할 수 있어요."
               : "우리 상황에 맞게 적용할 부분만 아모라와 정리해 보세요."}
           </p>
-          <Link
-            {...weddingLinkProps(
-              primaryCategory
-                ? `/checklist?category=${encodeURIComponent(primaryCategory)}`
-                : `/chat?${new URLSearchParams({ prefill: `${part.title} 내용을 우리 상황에 맞게 정리해줘` })}`,
-            )}
-            className="mt-3 inline-flex rounded-full bg-[#36534e] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
-          >
-            {checklistLabel ? `${checklistLabel} 체크리스트 열기` : "아모라에게 물어보기"}
-          </Link>
+          {checklistLinks.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {checklistLinks.map(({ categoryKey, label }) => (
+                <Link
+                  key={categoryKey}
+                  {...weddingLinkProps(`/checklist/${encodeURIComponent(categoryKey)}`)}
+                  className="inline-flex rounded-full bg-[#36534e] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+                >
+                  {label} 체크리스트
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <Link
+              {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: `${part.title} 내용을 우리 상황에 맞게 정리해줘` })}`)}
+              className="mt-3 inline-flex rounded-full bg-[#36534e] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+            >
+              아모라에게 물어보기
+            </Link>
+          )}
         </div>
       </header>
 

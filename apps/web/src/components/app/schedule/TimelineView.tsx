@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
-  Check,
+  ArrowRight,
   ChevronDown,
   ChevronUp,
   Building2,
@@ -21,6 +22,7 @@ import {
   Ban,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import {
   findCategoryScheduleEvent,
@@ -29,7 +31,7 @@ import {
   sanitizeUserFacingScheduleMemo,
   type ScheduleEventAssigneeContext,
 } from "@/utils/scheduleEvents";
-import type { ChecklistItem, ProgressItem, ScheduleEvent } from "@/types/database.types";
+import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Building2,
@@ -102,7 +104,6 @@ export function buildPhases(): Phase[] {
 
 interface Props {
   progress: Record<string, ProgressItem>;
-  onToggleChecklistItem: (categoryKey: string, item: ChecklistItem) => Promise<void>;
   events?: ScheduleEvent[];
   onEditEvent?: (event: ScheduleEvent) => void;
   onCancelEvent?: (eventId: string) => Promise<void> | void;
@@ -117,7 +118,6 @@ function formatShortDate(dateString: string): string {
 
 export default function TimelineView({
   progress,
-  onToggleChecklistItem,
   events = [],
   onEditEvent,
   onCancelEvent,
@@ -126,8 +126,6 @@ export default function TimelineView({
 }: Props) {
   const phases = useMemo(() => buildPhases(), []);
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [togglingItem, setTogglingItem] = useState<string | null>(null);
   const [pendingCancelEventId, setPendingCancelEventId] = useState<string | null>(null);
   const [cancellingEventId, setCancellingEventId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState("");
@@ -139,7 +137,7 @@ export default function TimelineView({
   const getCategoryData = useCallback(
     (key: string) => {
       const template = CHECKLIST_MAP[key];
-      if (!template) return { done: 0, total: 0, status: "not_started" as const, merged: [], hasItemProgress: false, excluded: false };
+      if (!template) return { done: 0, total: 0, status: "not_started" as const, hasItemProgress: false };
       const existing = progress[key];
       const merged = mergeChecklist(
         template.items,
@@ -150,27 +148,9 @@ export default function TimelineView({
       const status = existing?.status ?? "not_started";
       const hasItemProgress = Boolean(existing?.checklist?.length);
       const excluded = status === "not_applicable";
-      return { done: excluded ? 0 : done, total: excluded ? 0 : total, status, merged, hasItemProgress, excluded };
+      return { done: excluded ? 0 : done, total: excluded ? 0 : total, status, hasItemProgress };
     },
     [progress]
-  );
-
-  const handleToggle = useCallback(
-    async (categoryKey: string, item: ChecklistItem) => {
-      if (togglingItem) return;
-      setTogglingItem(item.id);
-      setOperationError("");
-      try {
-        await onToggleChecklistItem(categoryKey, item);
-      } catch {
-        setOperationError(
-          "체크리스트를 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
-        );
-      } finally {
-        setTogglingItem(null);
-      }
-    },
-    [togglingItem, onToggleChecklistItem]
   );
 
   const confirmCancelEvent = useCallback(
@@ -247,6 +227,7 @@ export default function TimelineView({
               <button
                 type="button"
                 aria-expanded={isPhaseExpanded}
+                aria-controls={`schedule-phase-${pi}`}
                 onClick={() =>
                   setExpandedPhase(isPhaseExpanded ? null : pi)
                 }
@@ -278,12 +259,12 @@ export default function TimelineView({
               {/* 페이즈 내 카테고리들 */}
               {isPhaseExpanded && (
                 <div
+                  id={`schedule-phase-${pi}`}
                   className="overflow-hidden"
                 >
                   <div className="border-t border-[#F6F3F2] px-4 pb-4">
                     {phase.categories.map((cat) => {
                       const data = getCategoryData(cat.key);
-                      const isCatExpanded = expandedCategory === cat.key;
                       const Icon = ICON_MAP[cat.icon] ?? Building2;
                       const scheduledEvent = findCategoryScheduleEvent(activeEvents, cat.key, cat.label);
                       const percent =
@@ -294,14 +275,8 @@ export default function TimelineView({
                       return (
                         <div key={cat.key} className="mt-3">
                           {/* 카테고리 헤더 */}
-                          <button
-                            type="button"
-                            aria-expanded={isCatExpanded}
-                            onClick={() =>
-                              setExpandedCategory(
-                                isCatExpanded ? null : cat.key
-                              )
-                            }
+                          <Link
+                            {...weddingLinkProps(`/checklist/${cat.key}`)}
                             className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-[#FAFAF8] sm:px-3"
                           >
                             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#f7f3ec]">
@@ -356,70 +331,16 @@ export default function TimelineView({
                                   세부 항목 확인 전
                                 </span>
                               )}
-                            </div>
-
-                            <div className="flex-shrink-0">
-                              {isCatExpanded ? (
-                                <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
-                              ) : (
-                                <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
+                              {scheduledEvent?.completionCriteria && (
+                                <p className="mt-1.5 text-[11.5px] leading-5 text-[#526056]">
+                                  완료 기준 · {scheduledEvent.completionCriteria}
+                                </p>
                               )}
                             </div>
-                          </button>
 
-                          {/* 인라인 체크리스트 */}
-                          {isCatExpanded && data.merged && (
-                            <div
-                              className="overflow-hidden"
-                            >
-                              <div className="mb-2 ml-10 mr-1 mt-1 border-l-2 border-[#36534E]/15 pl-3 sm:ml-12">
-                                {scheduledEvent?.completionCriteria && (
-                                  <p className="mb-2 rounded-lg bg-[#f7faf6] px-3 py-2 text-[12px] font-medium leading-5 text-[#526056]">
-                                    완료 기준 · {scheduledEvent.completionCriteria}
-                                  </p>
-                                )}
-                                {data.merged.map((item) => (
-                                  <button
-                                    type="button"
-                                    role="checkbox"
-                                    aria-checked={item.done}
-                                    aria-disabled={data.excluded}
-                                    disabled={data.excluded || togglingItem === item.id}
-                                    key={item.id}
-                                    onClick={() =>
-                                      handleToggle(cat.key, item)
-                                    }
-                                    className={`-mx-2 flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[#FAFAF8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed ${
-                                      togglingItem === item.id
-                                        ? "opacity-50 pointer-events-none"
-                                        : data.excluded
-                                          ? "opacity-45"
-                                        : ""
-                                    }`}
-                                  >
-                                    <div className="flex-shrink-0">
-                                      {item.done ? (
-                                        <div className="flex h-5 w-5 rounded-full bg-[#36534E] items-center justify-center">
-                                          <Check className="w-4 h-4 text-white" />
-                                        </div>
-                                      ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-[#B5ADA3] transition-colors hover:border-[#36534E]" />
-                                      )}
-                                    </div>
-                                    <span
-                                      className={`text-[14px] leading-snug ${
-                                        item.done
-                                          ? "text-[#B5ADA3] line-through"
-                                          : "text-[#504444]"
-                                      }`}
-                                    >
-                                      {item.label}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                            <ArrowRight className="h-4 w-4 flex-shrink-0 text-[#9d6f36]" aria-hidden="true" />
+                            <span className="sr-only">{cat.label} 체크리스트 전체 페이지 열기</span>
+                          </Link>
                         </div>
                       );
                     })}

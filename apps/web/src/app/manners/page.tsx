@@ -7,7 +7,7 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 export const metadata: Metadata = {
   title: "결혼 예절 안내 — 웨딩한방",
   description:
-    "축의금, 하객 매너, 축사처럼 결혼식에서 자주 헷갈리는 것들을 실제로 할 수 있는 말과 함께 정리했어요. 지역·모임마다 다를 수 있는 관행이라는 점을 함께 적었습니다.",
+    "첫인사, 상견례, 가족 지원, 축의금, 하객 매너처럼 결혼 전후에 자주 막히는 일을 실제로 할 수 있는 말과 함께 정리했어요.",
   // 정본 주소는 `/wedding/manners`다. `/manners`는 next.config의 리라이트 목록
   // (weddingAppRoutes)에 따라 여기로 리다이렉트되므로 canonical을 그쪽으로 두면
   // 색인이 리다이렉트 원본을 가리키게 된다.
@@ -31,7 +31,7 @@ export default function MannersIndexPage() {
           결혼 예절 가이드
         </h1>
         <p className="mt-3 max-w-[620px] text-[14.5px] leading-[1.85] text-[#3d4a45]">
-          축의금, 청첩장, 하객 매너처럼 정답이 하나가 아닌 문제를 근거와 실제 대화문으로 정리했어요.
+          첫인사, 상견례, 가족 지원, 축의금처럼 정답이 하나가 아닌 문제를 근거와 실제 대화문으로 정리했어요.
           여기서는 읽고 이해하고, 실제 준비는 웨딩 체크리스트에서 따로 관리합니다.
         </p>
         <Link

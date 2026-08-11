@@ -716,7 +716,9 @@ export async function PATCH(request: Request) {
 
     const limited = await checkRateLimitPersistent(
       rateLimitKey("journey:plan-change", request, user.id),
-      { maxRequests: 10, windowMs: 60 * 1000 },
+      // 체크박스는 항목마다 즉시 저장한다. 인증된 사용자 단위로 제한하되,
+      // 두 카테고리를 연달아 정리해도 정상 사용이 막히지 않는 범위를 허용한다.
+      { maxRequests: 30, windowMs: 60 * 1000 },
       { failClosed: true },
     );
     if (limited) return privateNoStore(limited);

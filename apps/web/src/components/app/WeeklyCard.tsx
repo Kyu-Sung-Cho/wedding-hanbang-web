@@ -137,7 +137,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
         {/* 알아둘 예절 — 임박한 카테고리에 맞는 파트가 있을 때만 그린다.
             없으면 가족 이야기 카드로 돌아간다. 2026-07-17에 사라졌던 자리이고,
-            그때와 달리 지금 파트는 출처·확인일이 붙은 것만 있다. */}
+            지금은 수치·법률·안전 주장을 출처 계약으로 따로 검증한다. */}
         {data.mannersPart ? (
           <Link
             {...weddingLinkProps(`/manners/${data.mannersPart.slug}`)}

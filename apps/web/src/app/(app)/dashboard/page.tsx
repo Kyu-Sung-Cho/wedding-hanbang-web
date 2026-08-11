@@ -25,7 +25,6 @@ import {
   Users,
   Video,
   Wallet,
-  X,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
@@ -44,7 +43,7 @@ import {
   removeJoinedDashboardMarker,
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
-import { weddingPath } from "@/lib/weddingPaths";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
@@ -57,7 +56,6 @@ interface CategoryMeta {
   label: string;
   group: string;
   icon: LucideIcon;
-  tasks: string[];
 }
 
 const categories: CategoryMeta[] = [
@@ -66,56 +64,48 @@ const categories: CategoryMeta[] = [
     label: PLANNING_CATEGORY_LABELS.venue,
     group: "장소",
     icon: Building2,
-    tasks: ["장소 후보 비교", "식사비와 장소 사용료 확인", "계약 취소·변경 조건 확인"],
   },
   {
     key: "studio",
     label: PLANNING_CATEGORY_LABELS.studio,
     group: "사진·의상·메이크업",
     icon: Camera,
-    tasks: ["사진 분위기 정하기", "받는 사진 수와 보정 사진 수 확인", "촬영 일정 확정"],
   },
   {
     key: "snap",
     label: PLANNING_CATEGORY_LABELS.snap,
     group: "기록",
     icon: Video,
-    tasks: ["사진·영상 중 필요한 것 정하기", "업체가 실제로 찍은 결과 비교", "당일 촬영 동선 협의"],
   },
   {
     key: "dress",
     label: PLANNING_CATEGORY_LABELS.dress,
     group: "사진·의상·메이크업",
     icon: Shirt,
-    tasks: ["드레스 매장 후보 비교", "입어볼 날짜 정하기", "결혼식 날 입을 드레스 선택"],
   },
   {
     key: "makeup",
     label: PLANNING_CATEGORY_LABELS.makeup,
     group: "사진·의상·메이크업",
     icon: Palette,
-    tasks: ["원하는 분위기 정리", "미리 받아볼 날짜 확인", "부모님 헤어·메이크업 포함 여부 확인"],
   },
   {
     key: "ring",
     label: PLANNING_CATEGORY_LABELS.ring,
     group: "계약",
     icon: Gem,
-    tasks: ["예산 정하기", "브랜드와 반지 제작 매장 비교", "받을 날짜 확인"],
   },
   {
     key: "honeymoon",
     label: PLANNING_CATEGORY_LABELS.honeymoon,
     group: "여행",
     icon: Plane,
-    tasks: ["여행지 확정", "항공·숙소 예약", "여권·보험 확인"],
   },
   {
     key: "houseware",
     label: PLANNING_CATEGORY_LABELS.houseware,
     group: "생활",
     icon: Home,
-    tasks: ["필수 품목 정리", "가전 견적 비교", "배송 일정 확인"],
   },
 ];
 
@@ -196,7 +186,7 @@ function getSpent(progress: Record<string, ProgressItem>) {
 }
 
 export default function DashboardPage() {
-  const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
+  const { partner, journey, couple, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
   const joinedHandoffVisible = useSyncExternalStore(
@@ -204,9 +194,6 @@ export default function DashboardPage() {
     getJoinedDashboardMarkerSnapshot,
     () => false,
   );
-  const [selectedCategory, setSelectedCategory] = useState<CategoryMeta | null>(null);
-  const [journeyNotice, setJourneyNotice] = useState("");
-  const [journeyError, setJourneyError] = useState("");
   const companionCopy = getDashboardCompanionCopy(Boolean(partner));
   const amoraPromptHref = weddingPath(
     `/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`,
@@ -293,33 +280,6 @@ export default function DashboardPage() {
     notifyJoinedDashboardMarkerChanged();
   }
 
-  async function updateCategoryStatus(key: string, status: Status) {
-    const currentProgress = { ...progress };
-    const existing = currentProgress[key];
-    currentProgress[key] = {
-      ...existing,
-      category: key,
-      status,
-    };
-    setJourneyNotice("");
-    setJourneyError("");
-    try {
-      const result = await updateJourney({ progress: currentProgress });
-      setJourneyNotice(
-        result.status === "pending_partner"
-          ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
-          : "준비 상태를 저장했어요.",
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "준비 상태를 저장하지 못했습니다.";
-      setJourneyError(message);
-      throw error;
-    }
-  }
-
   const ddayLabel =
     dday === null ? "D-day 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`;
   const nextEvent = upcomingEvents[0];
@@ -359,22 +319,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 text-[#061a34]">
-      {journeyNotice && (
-        <div
-          role="status"
-          className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
-        >
-          {journeyNotice}
-        </div>
-      )}
-      {journeyError && (
-        <div
-          role="alert"
-          className="rounded-xl border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
-        >
-          {journeyError}
-        </div>
-      )}
       {joinedHandoffVisible && partner && (
         <section
           data-testid="joined-plan-handoff"
@@ -543,10 +487,9 @@ export default function DashboardPage() {
                  const status = getStatus(progress, category.key);
                  const counts = getChecklistProgress(progress, category.key);
                  return (
-                  <button
+                  <Link
                     key={category.key}
-                    type="button"
-                    onClick={() => setSelectedCategory(category)}
+                    {...weddingLinkProps(`/checklist/${category.key}`)}
                     className="min-w-0 rounded-[14px] border border-white/10 bg-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.1]"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#ecd7a4]">
@@ -558,7 +501,7 @@ export default function DashboardPage() {
                          {counts.done}/{counts.total}개 직접 체크 · {statusMeta[status].label}
                        </span>
                     </span>
-                  </button>
+                  </Link>
                 );
               })
             ) : (
@@ -612,10 +555,9 @@ export default function DashboardPage() {
               const Icon = category.icon;
               const percent = counts.total > 0 ? Math.round((counts.done / counts.total) * 100) : 0;
               return (
-                <button
+                <Link
                   key={category.key}
-                  type="button"
-                  onClick={() => setSelectedCategory(category)}
+                  {...weddingLinkProps(`/checklist/${category.key}`)}
                   className="group rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-3 text-left transition-colors hover:border-[#d8bb86] hover:bg-white"
                 >
                   <span className="flex items-start gap-3">
@@ -642,7 +584,7 @@ export default function DashboardPage() {
                     <span>체크리스트</span>
                     <span>{counts.done}/{counts.total} 체크</span>
                   </span>
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -741,13 +683,6 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <CategoryPanel
-        key={selectedCategory?.key ?? "closed"}
-        category={selectedCategory}
-        status={selectedCategory ? getStatus(progress, selectedCategory.key) : "not_started"}
-        onClose={() => setSelectedCategory(null)}
-        onStatusChange={updateCategoryStatus}
-      />
       <GuideOpenButton eventName="hanbang:open-service-guide" label="처음이신가요? 이용 가이드 보기" />
       <ServiceGuide />
       <ServiceDashboardTutorial />
@@ -785,114 +720,6 @@ function HandoffMetric({
           {note}
         </dd>
       )}
-    </div>
-  );
-}
-
-function CategoryPanel({
-  category,
-  status,
-  onClose,
-  onStatusChange,
-}: {
-  category: CategoryMeta | null;
-  status: Status;
-  onClose: () => void;
-  onStatusChange: (key: string, status: Status) => Promise<void>;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-
-  if (!category) return null;
-  const Icon = category.icon;
-  const handleStatusChange = async (nextStatus: Status) => {
-    if (saving) return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      await onStatusChange(category.key, nextStatus);
-    } catch (error) {
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : "준비 상태를 저장하지 못했습니다.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#061a34]/45 px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
-      <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[#eadfc9] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.22)]">
-        <div className="flex items-start justify-between gap-4 border-b border-[#eadfc9] bg-[#fff8ec] p-5">
-          <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
-              <Icon className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="text-[12px] font-semibold text-[#9d6f36]">{category.group}</p>
-              <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[#071629]">{category.label}</h2>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfc9] bg-white text-[#5d6879]"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-5">
-          <div className="mb-5 grid grid-cols-3 gap-2">
-            {(["not_started", "in_progress", "completed"] as Status[]).map((nextStatus) => (
-              <button
-                key={nextStatus}
-                type="button"
-                disabled={saving}
-                onClick={() => void handleStatusChange(nextStatus)}
-                className={`rounded-full border px-3 py-3 text-[13px] font-semibold ${
-                  status === nextStatus
-                    ? "border-[#061a34] bg-[#061a34] text-white"
-                    : "border-[#eadfc9] bg-white text-[#5d6879]"
-                } disabled:opacity-50`}
-              >
-                {statusMeta[nextStatus].label}
-              </button>
-            ))}
-          </div>
-          {saveError && (
-            <p
-              role="alert"
-              className="mb-5 rounded-xl border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
-            >
-              {saveError}
-            </p>
-          )}
-
-          <div className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-5">
-            <p className="mb-3 text-[13px] font-semibold text-[#9d6f36]">먼저 확인할 것</p>
-            <div className="space-y-3">
-              {category.tasks.map((task) => (
-                <div key={task} className="flex items-center gap-3">
-                  <Check className="h-4 w-4 text-[#b68a3a]" />
-                  <span className="text-[14px] font-medium text-[#34445a]">{task}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
-              아모라에게 묻기
-            </Link>
-            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
-              일정에서 보기
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Ban, CheckCircle2, ChevronRight, Circle, Search } from "lucide-react";
 
-import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -71,33 +69,8 @@ function matchesFilter(status: ProgressItem["status"], filter: Filter) {
 
 export default function ChecklistContent() {
   const { journey } = useAuthStore();
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const requestedCategory = searchParams.get("category");
-  const validRequestedCategory = requestedCategory
-    && CATEGORY_CHECKLISTS.some((category) => category.key === requestedCategory)
-    ? requestedCategory
-    : null;
-  const [selectedCategory, setSelectedCategory] = useState(
-    validRequestedCategory,
-  );
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    setSelectedCategory(validRequestedCategory);
-  }, [validRequestedCategory]);
-
-  const selectCategory = useCallback((categoryKey: string | null) => {
-    setSelectedCategory(categoryKey);
-    const params = new URLSearchParams(searchParams.toString());
-    if (categoryKey) params.set("category", categoryKey);
-    else params.delete("category");
-
-    const queryString = params.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
 
   const progress = useMemo(
     () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
@@ -127,7 +100,7 @@ export default function ChecklistContent() {
   const remaining = Math.max(0, summary.total - summary.done);
 
   return (
-    <main className="mx-auto w-full max-w-[1120px] px-4 py-7 sm:px-6 sm:py-10">
+    <div className="mx-auto w-full max-w-[1120px] px-4 py-7 sm:px-6 sm:py-10">
       <header className="border-b border-[#eadfc9] pb-7">
         <p className="text-[12px] font-semibold tracking-[0.14em] text-[#9d6f36]">WEDDING CHECKLIST</p>
         <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">
@@ -207,11 +180,10 @@ export default function ChecklistContent() {
                 : Math.round((counts.done / counts.total) * 100);
               return (
                 <li key={template.key} className="rounded-[18px] border border-[#e5dece] bg-white p-4 shadow-[0_8px_24px_rgba(6,26,52,0.035)]">
-                  <button
-                    type="button"
-                    onClick={() => selectCategory(template.key)}
+                  <Link
+                    {...weddingLinkProps(`/checklist/${template.key}`)}
                     className="w-full rounded-[12px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
-                    aria-label={`${template.label} 체크리스트 열기`}
+                    aria-label={`${template.label} 체크리스트 페이지 열기`}
                   >
                     <div className="flex items-start gap-3">
                       <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
@@ -238,7 +210,7 @@ export default function ChecklistContent() {
                         <span className="block h-full rounded-full bg-[#36534e]" style={{ width: `${percent}%` }} />
                       </span>
                     )}
-                  </button>
+                  </Link>
                   {guide && (
                     <Link
                       {...weddingLinkProps(`/manners/${guide.slug}`)}
@@ -261,11 +233,6 @@ export default function ChecklistContent() {
         )}
       </section>
 
-      <CategoryChecklistModal
-        categoryKey={selectedCategory ?? ""}
-        isOpen={Boolean(selectedCategory)}
-        onClose={() => selectCategory(null)}
-      />
-    </main>
+    </div>
   );
 }

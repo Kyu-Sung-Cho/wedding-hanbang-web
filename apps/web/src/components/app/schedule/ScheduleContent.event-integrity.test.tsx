@@ -105,10 +105,6 @@ vi.mock("@/components/app/schedule/CalendarView", () => ({
   default: () => null,
 }));
 
-vi.mock("@/components/app/schedule/CategoryChecklistModal", () => ({
-  default: () => null,
-}));
-
 vi.mock("@/components/app/schedule/ImminentAlerts", () => ({
   default: () => null,
 }));

@@ -18,4 +18,12 @@ describe("weddingPath", () => {
       prefetch: false,
     });
   });
+
+  it("keeps a checklist category route internal while exposing its canonical URL", () => {
+    expect(weddingLinkProps("/checklist/meeting")).toEqual({
+      href: "/checklist/meeting",
+      as: "/wedding/checklist/meeting",
+      prefetch: false,
+    });
+  });
 });

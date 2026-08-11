@@ -682,6 +682,11 @@ describe("/api/journey PATCH couple plan-change contract", () => {
 
     expect(response.status).toBe(429);
     expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(checkRateLimitPersistent).toHaveBeenCalledWith(
+      "journey:test",
+      { maxRequests: 30, windowMs: 60 * 1000 },
+      { failClosed: true },
+    );
     expect(mocks.authFrom).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
   });
