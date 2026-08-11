@@ -38,6 +38,35 @@ export interface PreparationPriorityResult {
 const EMPTY: PreparationPriorityResult = { activeNow: [], visiblePriorities: [] };
 
 /**
+ * 시작점을 지난 항목의 순서 — **마감에 가장 가까운 것부터**.
+ *
+ * `daysUntilDeadline` 단순 오름차순으로 두면 안 된다. 이 값은 `dday - ddayDeadline`이고
+ * `dday`는 모든 후보에 **같은 값**이라 비교에서 상쇄된다 — 정렬이 `ddayDeadline`
+ * 내림차순 상수가 되어, 어떤 날짜를 넣어도 화면에 같은 3개가 나왔다. 결혼식 사흘 전
+ * 커플에게도 "양쪽 부모님 첫 만남 날짜 조율"이 1순위로 나갔다.
+ * (그 상수성을 브라우저로 확인하고 정상으로 오해한 기록이 랜딩 히어로 주석에 남아 있었다.
+ * 날짜를 여러 개 넣어봐도 결과가 같으면 그건 검증이 아니라 증상이다.)
+ *
+ * 그렇다고 "아직 안 지난 것"을 무조건 앞세워도 안 된다. 그러면 마감이 이제 막 7일 지난
+ * 상견례가, 여유가 143일이나 남은 항목 뒤로 밀린다. 놓친 지 얼마 안 된 일이야말로 지금
+ * 손대야 하는 일이다.
+ *
+ * 그래서 **마감까지의 거리(절댓값)** 로 정렬한다. 곧 닥칠 일과 막 지난 일이 함께 앞에 오고,
+ * 한참 전에 지나간 일과 아직 한참 남은 일이 함께 뒤로 간다. 거리가 같으면 아직 지나지
+ * 않은 쪽을 앞에 둔다 — 되돌릴 수 있는 쪽이 먼저다.
+ */
+function compareStartedByUrgency(
+  left: { daysUntilDeadline: number },
+  right: { daysUntilDeadline: number },
+): number {
+  const byDistance = Math.abs(left.daysUntilDeadline) - Math.abs(right.daysUntilDeadline);
+  if (byDistance !== 0) return byDistance;
+  const leftPassed = left.daysUntilDeadline < 0 ? 1 : 0;
+  const rightPassed = right.daysUntilDeadline < 0 ? 1 : 0;
+  return leftPassed - rightPassed;
+}
+
+/**
  * @param dday 결혼식까지 남은 일수. `daysUntilWedding()`의 반환값을 그대로 넣는다.
  *             `null`(날짜 없음)이거나 음수(이미 지난 날짜)면 빈 결과를 준다 —
  *             지난 날짜에 "지금 알아볼 것"을 말하면 틀린 안내가 된다.
@@ -63,7 +92,7 @@ export function computePreparationPriorities(
 
   const active = candidates
     .filter((category) => category.started)
-    .sort((left, right) => left.daysUntilDeadline - right.daysUntilDeadline)
+    .sort(compareStartedByUrgency)
     .slice(0, 3);
 
   const upcoming = candidates

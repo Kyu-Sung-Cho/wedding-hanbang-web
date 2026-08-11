@@ -35,12 +35,39 @@ describe("computePreparationPriorities", () => {
     expect(activeNow.length).toBeGreaterThan(0);
 
     for (const item of activeNow) expect(item.started).toBe(true);
-    // 시작한 항목은 마감이 가까운 순.
-    const deadlines = activeNow.map((p) => p.daysUntilDeadline);
-    expect([...deadlines].sort((a, b) => a - b)).toEqual(deadlines);
+    // 마감에 가까운 순 — 곧 닥칠 일과 막 지난 일이 함께 앞에 온다.
+    // "아직 안 지난 것을 무조건 앞"으로 두면 마감이 7일 지난 상견례가 여유 143일짜리
+    // 항목 뒤로 밀린다. 놓친 지 얼마 안 된 일이야말로 지금 손대야 하는 일이다.
+    const distances = activeNow.map((p) => Math.abs(p.daysUntilDeadline));
+    expect([...distances].sort((a, b) => a - b)).toEqual(distances);
     // 시작한 항목이 화면 앞자리를 차지한다.
     expect(visiblePriorities.slice(0, activeNow.length).map((p) => p.key))
       .toEqual(activeNow.map((p) => p.key));
+  });
+
+  it("actually changes with the date", () => {
+    // 이 가드가 없어서 상수 버그가 살아남았다. `daysUntilDeadline`은 `dday - ddayDeadline`
+    // 이라 `dday`가 비교에서 상쇄되고, 정렬이 날짜와 무관한 상수가 됐다. 결혼식 사흘 전
+    // 커플에게도 "양가 부모님 첫 만남"이 1순위로 나갔는데 어떤 테스트도 잡지 못했다.
+    // 여러 날짜를 넣어보고 **결과가 서로 달라야** 검증이다.
+    const shown = (dday: number) =>
+      computePreparationPriorities(dday).visiblePriorities.map((p) => p.key).join(",");
+
+    expect(shown(400)).not.toEqual(shown(120));
+    expect(shown(120)).not.toEqual(shown(30));
+    expect(shown(400)).not.toEqual(shown(30));
+
+    // 결혼식 직전에는 시작조차 하지 않은 먼 항목이 1순위로 오면 안 된다.
+    const soon = computePreparationPriorities(7).visiblePriorities;
+    const farthestStart = Math.max(...CATEGORY_CHECKLISTS.map((c) => c.ddayStart));
+    const farthest = CATEGORY_CHECKLISTS
+      .filter((c) => c.ddayStart === farthestStart)
+      .map((c) => c.key);
+    expect(farthest).toContain(
+      CATEGORY_CHECKLISTS.slice().sort((a, b) => b.ddayStart - a.ddayStart)[0].key,
+    );
+    expect(farthest, "가장 이른 준비가 결혼식 직전 1순위가 됐다")
+      .not.toContain(soon[0].key);
   });
 
   it("falls back to upcoming items when nothing has started yet", () => {
@@ -94,11 +121,28 @@ describe("computePreparationPriorities", () => {
     ).match(/body:\s*"(날짜를 넣으면[^"]+)"/u)?.[1];
     expect(heroBody, "히어로 본문을 찾지 못했다").toBeTruthy();
 
-    // 어떤 날짜를 넣어도 나오는 셋이 히어로가 약속한 이름이어야 한다.
-    for (const dday of [30, 120, 300, 500, 800]) {
-      for (const item of computePreparationPriorities(dday).visiblePriorities) {
-        expect(heroBody, `D-${dday}의 "${item.label}"이 히어로 예시에 없다`).toContain(item.label);
-      }
+    // ⚠️ 이 단언은 원래 "어떤 날짜를 넣어도 나오는 셋이 히어로가 약속한 이름이어야
+    // 한다"였다. 그 형태는 결과가 **날짜와 무관하게 상수일 때만** 통과하므로,
+    // 상수 버그를 잡기는커녕 계약으로 못 박고 있었다. 히어로 본문도 "…처럼"이라
+    // 예시 표현이지 정확히 그 셋을 약속하지 않는다.
+    //
+    // 지키려던 진짜 의도는 "히어로가 화면에 없는 이름을 말하지 않는다"이다.
+    // 그것만 남긴다: 히어로가 예로 든 이름은 (1) 실제 준비 항목의 라벨이어야 하고
+    // (2) 적어도 하나의 날짜에서 실제로 화면에 떠야 한다.
+    const heroNamed = CATEGORY_CHECKLISTS
+      .filter((category) => heroBody!.includes(category.label))
+      .map((category) => category.key);
+    expect(heroNamed.length, "히어로가 예로 든 이름 중 실제 준비 항목이 하나도 없다")
+      .toBeGreaterThanOrEqual(3);
+
+    const everShown = new Set(
+      [3, 30, 120, 300, 500, 800]
+        .flatMap((dday) => computePreparationPriorities(dday).visiblePriorities)
+        .map((p) => p.key),
+    );
+    for (const key of heroNamed) {
+      expect(everShown, `히어로가 예로 든 "${key}"가 어떤 날짜에서도 화면에 없다`)
+        .toContain(key);
     }
   });
 
