@@ -26,7 +26,7 @@ export async function generateMetadata({
   return {
     title: `${part.title} — 웨딩한방`,
     description: part.description,
-    alternates: { canonical: `https://hanbang.ai/manners/${part.slug}` },
+    alternates: { canonical: `https://hanbang.ai/wedding/manners/${part.slug}` },
   };
 }
 
@@ -39,7 +39,7 @@ export default async function MannersPartPage({ params }: { params: Promise<Para
     <>
       <nav aria-label="이동 경로" className="mx-auto w-full max-w-[760px] px-4 pt-6 sm:px-6">
         <Link
-          href="/manners"
+          href="/wedding/manners"
           prefetch={false}
           className="text-[13px] font-medium text-[#8F5150] underline underline-offset-2"
         >
