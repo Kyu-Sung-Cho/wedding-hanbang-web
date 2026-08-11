@@ -139,6 +139,118 @@ const PINNED_STATUS  = "evidence_pinned";
 (`corepack pnpm ingest scan|convert|extract|validate --state-dir <name>`,
 자동 변환 7건 · 시각 판독 1건 · 비용 $0).
 
+## 마이그레이션 세트 드리프트 (2026-08-11 실측)
+
+여기까지는 후속(successor) 매니페스트 이야기였다. 그 앞단에 **주 매니페스트**
+`supabase/release-manifests/amora-engine-v2-20260716.json`이 있고, 거기에는 별도의
+드리프트가 쌓여 있다. 정식 경로를 열 때 위 증거 5종보다 **먼저** 걸리는 벽이다.
+
+### 실측
+
+```
+매니페스트 migrationFloor          : 20260716090000
+매니페스트 expandMigrations         : 27건 (20260716090000 ~ 20260716117000)
+디스크의 release-era 마이그레이션    : 110건 (floor 이상 전부)
+매니페스트에 없는 파일               : 83건 (20260718120000 ~ 20260807090000)
+매니페스트에만 있고 디스크에 없는 것  : 0건
+```
+
+재현(저장소 루트):
+
+```bash
+node -e "const m=require('./supabase/release-manifests/amora-engine-v2-20260716.json'),fs=require('fs');const exp=m.expandMigrations.map(e=>e.file);const era=fs.readdirSync('supabase/migrations').filter(n=>/^\d{14}_.*\.sql$/.test(n)).filter(n=>n.slice(0,14)>=m.migrationFloor).sort();console.log('manifest',exp.length,'disk',era.length,'extra',era.filter(n=>!exp.includes(n)).length)"
+```
+
+컨트롤러는 release-era 파일 목록이 매니페스트와 **정확히 같을 때만** 통과시킨다
+(`scripts/lib/supabase-production-release-controller.mjs:842-849`). 하나라도 더 있으면
+`MIGRATION_SET_DRIFT`로 차단한다. 지금은 83건이 더 있다.
+
+83건은 커밋 몇 개가 만든 것이 아니라 2026-07-18 ~ 2026-08-07 3주 동안 공시·커뮤니티·
+아모라 작업이 매니페스트를 갱신하지 않고 쌓은 결과다. 최근 3건만 적으면:
+
+| 마이그레이션 | 도입 커밋 | 날짜 |
+|---|---|---|
+| `20260805120000_amora_log_wedding_event_couple_approval.sql` | `da71d5cc` | 2026-08-05 |
+| `20260806090000_amora_preparation_status.sql` | `a49216bd` | 2026-08-06 |
+| `20260807090000_amora_mediation_send_gate.sql` | `28e33a43` | 2026-08-07 |
+
+셋 다 `origin/main`에 있다. 특정 브랜치가 만든 문제가 아니라 main의 상태다.
+
+### 위험을 여는 게 아니라, 테스트 5건을 죽였다
+
+fence는 fail-closed다. 드리프트는 운영 쓰기 경로를 여는 게 아니라 더 세게 닫는다.
+실제 손해는 다른 곳에 있다.
+
+`scripts/tests/successor-release-evidence-contract.test.mjs` (2026-08-11 실측):
+
+```
+tests 14 / pass 9 / fail 5
+```
+
+5건 모두 원인이 같다. 컨트롤러가 각 테스트가 확인하려던 지점에 **도달하기 전에**
+`MIGRATION_SET_DRIFT`로 먼저 끝난다.
+
+```
+actual:   'MIGRATION_SET_DRIFT'
+expected: 'SUCCESSOR_CONTROLLER_CONTRACT_INVALID'
+```
+
+죽어 있는 5건:
+
+1. 차단 상태 매니페스트는 지금까지처럼 그대로 통과하고 차단으로 판정된다
+2. controller_ready는 현재 remote baseline, exact migration set, postcheck와
+   feature-off rollback을 함께 고정한다
+3. successor 또는 account-deletion table을 self-consistent backup list에서 빼도 차단한다
+4. 이전 14-table backup 또는 27-table post-expand/finalizer 계약 재사용은 차단한다
+5. postcheck 또는 feature-off rollback 계약을 약화하면 controller_ready가 되지 않는다
+
+이 문서 위쪽의 "⚠️ 매니페스트 파일을 지우지 마라", "status도 바꾸지 마라"를 지켜주던
+회귀 테스트가 그 5건이다. **지금은 아무것도 지키지 않는다.** 누가 후속 계약을
+약화시켜도 이 테스트들은 여전히 같은 이유로 실패할 뿐, 약화 자체를 잡지 못한다.
+
+같은 날 나머지 릴리스 테스트는 정상이다.
+
+```
+supabase-release-fence              pass 16 / fail 0
+supabase-production-release         pass 55 / fail 0
+ci-signal-integrity                 pass  5 / fail 0
+disclosure-round-pin                pass  3 / fail 0
+```
+
+### 어떤 게이트도 이 5건을 보지 않는다
+
+| 게이트 | 실제로 도는 것 | 이 5건을 보나 |
+|---|---|---|
+| GitHub Actions CI | `pnpm test:ingest` (`.github/workflows/ci.yml:148`) | ✗ |
+| `corepack pnpm qa:local` | `scripts/verify-local.mjs` — web·mobile·shared·design-tokens | ✗ |
+| pre-push 훅 | `turbo run typecheck lint test` (`.githooks/pre-push`) | ✗ |
+| `pnpm test:repo` · `pnpm test` · `pnpm supabase:release:test` | 이 파일 포함 | ✓ |
+
+이 테스트는 `test:repo` 목록에 들어 있다(`package.json`의 `test:repo`). 그런데
+**CI도 로컬 게이트도 `test:repo`를 돌리지 않는다.** 손으로 치기 전에는 초록불로
+보인다. 지금 이 문단이 그 사실의 유일한 기록이다.
+
+### 그대로 두는 이유
+
+2026-08-11 파운더 결정: **고치지 않고 둔다.** 근거 셋.
+
+- 위 "판단 — 이 경로를 지금 열지 않는다"대로 릴리스 경로를 열지 않는다.
+- fence가 fail-closed라 드리프트가 사고로 이어지지 않는다.
+- 매니페스트를 지금 맞추면 83건의 sha256과 순서를 고정해야 하는데, 그 고정은 실제
+  릴리스 시점의 파일 상태로 해야 정확하다. 미리 해두면 다시 어긋난다.
+
+### 열 때 이것부터
+
+정식 경로를 열게 되면 증거 5종보다 **먼저** 처리한다.
+
+1. `amora-engine-v2-20260716.json`의 `expandMigrations`를 그 시점의 release-era 전체로
+   다시 만든다. sha256은 위 "공통 함정 2"와 같은 CRLF→LF 정규화 해시다.
+2. 5건이 원래 확인하려던 경로(`SUCCESSOR_CONTROLLER_CONTRACT_INVALID`)에 다시
+   도달하는지 본다. 드리프트를 없애자마자 통과하면 정상이고, 그때부터 새로 실패하는
+   것이 있으면 그건 드리프트에 가려져 있던 진짜 결함이다.
+3. CI가 `test:repo`를 돌게 하거나, 최소한 `supabase:release:test`를 릴리스 전 필수
+   단계로 못 박는다. 지금 구조에서는 이 계약이 깨져도 아무도 모른다.
+
 ## 관련 기록
 
 - 신원 판정 3차: `VENDOR_IDENTITY_REVIEW_2026-08-05.md`
