@@ -328,6 +328,18 @@
     {
       "file": "20260804200000_community_post_service_write_boundary.sql",
       "sha256": "3671f4d1878889b05eaad419354b35f311d2ac27757ed557a5b0580e31d57afc"
+    },
+    {
+      "file": "20260805120000_amora_log_wedding_event_couple_approval.sql",
+      "sha256": "74f7e8109eafb3a1983f652436407b4d801b06ab21a3903d8e2ebdf5f3553f51"
+    },
+    {
+      "file": "20260806090000_amora_preparation_status.sql",
+      "sha256": "1947a237019126e7e262e75b03b9129b70e559e6733e948616923f3c6496339f"
+    },
+    {
+      "file": "20260807090000_amora_mediation_send_gate.sql",
+      "sha256": "27b4292cff613b727727bacc16e2600e8bb7df588cc367d87ecac77725506a82"
     }
   ],
   "deploymentEvidence": {
