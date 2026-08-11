@@ -112,11 +112,19 @@ describe("web MVP product direction", () => {
     );
     expect(landingProductLinks).not.toContain('href: "#community-bridge"');
 
-    for (const label of ["아모라", "할 일·일정", "예산", "커뮤니티"]) {
+    for (const label of ["아모라", "예산", "커뮤니티"]) {
       expect(publicNav).toContain(`label: "${label}"`);
       expect(signedInNav).toContain(`label: "${label}"`);
       expect(signedInQuickLinks).toContain(`label: "${label}"`);
     }
+
+    // 공개 내비게이션은 처음 보는 사람에게 준비 흐름을 한 덩어리로 설명하지만,
+    // 로그인 후 실행 화면에서는 체크리스트와 일정을 서로 다른 목적지로 제공한다.
+    expect(publicNav).toContain('label: "할 일·일정"');
+    expect(signedInNav).toContain('label: "웨딩 체크리스트"');
+    expect(signedInNav).toContain('label: "일정"');
+    expect(signedInQuickLinks).toContain('label: "체크리스트"');
+    expect(signedInQuickLinks).toContain('label: "일정"');
 
     for (const retiredPrimaryPath of [
       "/vendors",
