@@ -7,7 +7,10 @@ export const metadata: Metadata = {
   title: "결혼 예절 안내 — 웨딩한방",
   description:
     "축의금, 하객 매너, 축사처럼 결혼식에서 자주 헷갈리는 것들을 실제로 할 수 있는 말과 함께 정리했어요. 지역·모임마다 다를 수 있는 관행이라는 점을 함께 적었습니다.",
-  alternates: { canonical: "https://hanbang.ai/manners" },
+  // 정본 주소는 `/wedding/manners`다. `/manners`는 next.config의 리라이트 목록
+  // (weddingAppRoutes)에 따라 여기로 리다이렉트되므로 canonical을 그쪽으로 두면
+  // 색인이 리다이렉트 원본을 가리키게 된다.
+  alternates: { canonical: "https://hanbang.ai/wedding/manners" },
 };
 
 const AUDIENCE_LABEL = {
@@ -51,7 +54,7 @@ export default function MannersIndexPage() {
                 {parts.map((part) => (
                   <li key={part.slug}>
                     <Link
-                      href={`/manners/${part.slug}`}
+                      href={`/wedding/manners/${part.slug}`}
                       prefetch={false}
                       className="block h-full rounded-2xl border border-[#243832]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
                     >

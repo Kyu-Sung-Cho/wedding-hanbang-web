@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
   CalendarCheck,
   LayoutDashboard,
   LogOut,
@@ -30,6 +31,9 @@ const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/schedule", icon: CalendarCheck, label: "할 일·일정", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },
   { legacyPath: "/community", icon: Users, label: "커뮤니티", tutorialTarget: "service-nav-community" },
+  // 로그인 없이도 열리는 읽기 화면이지만 사이드바에 둔다 — 준비 중에 가장 자주
+  // 막히는 것이 "이럴 땐 어떻게 하지"라서, 찾으러 나가지 않고 여기서 열리는 게 맞다.
+  { legacyPath: "/manners", icon: BookOpen, label: "예절 안내" },
   { legacyPath: "/settings", icon: Settings, label: "설정" },
 ];
 

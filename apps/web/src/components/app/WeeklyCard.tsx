@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowRight, BookOpen, CalendarHeart, ListChecks, Sparkle
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
+import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
@@ -54,12 +55,16 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
     );
     const imminent = getImminentCategories(progress, validWedding, events).slice(0, 3);
 
+    // 알아둘 예절 — 가장 임박한 카테고리에 해당하는 파트가 있을 때만.
+    // 없으면 null이고, 그 자리는 아래에서 가족 이야기 카드가 대신한다.
+    const mannersPart = mannersPartForCategory(imminent[0]?.key);
+
     // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
     const openActions = (actions ?? getAmoraActions(progressRecord))
       .filter((action) => action.status === "open")
       .slice(0, 3);
 
-    return { brief, briefHref, imminent, openActions };
+    return { brief, briefHref, imminent, mannersPart, openActions };
   }, [weddingDate, totalBudget, progress, actions]);
 
   return (
@@ -130,23 +135,44 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           )}
         </div>
 
-        {/* 가족 조율은 정답을 주는 페이지 대신 아모라 대화로 — 가족·지역마다 달라
-            일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */}
-        <Link
-          {...weddingLinkProps("/chat")}
-          className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
-        >
-          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
-            <BookOpen className="h-3.5 w-3.5" />
-            가족 이야기
-          </p>
-          <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
-            정답보다 두 사람의 기준부터
-          </p>
-          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-            두 가족에게 드릴 선물·서로 부를 호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
-          </p>
-        </Link>
+        {/* 알아둘 예절 — 임박한 카테고리에 맞는 파트가 있을 때만 그린다.
+            없으면 가족 이야기 카드로 돌아간다. 2026-07-17에 사라졌던 자리이고,
+            그때와 달리 지금 파트는 출처·확인일이 붙은 것만 있다. */}
+        {data.mannersPart ? (
+          <Link
+            {...weddingLinkProps(`/manners/${data.mannersPart.slug}`)}
+            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+          >
+            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+              <BookOpen className="h-3.5 w-3.5" />
+              알아둘 예절
+            </p>
+            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+              {data.mannersPart.title}
+            </p>
+            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+              {data.mannersPart.subtitle}
+            </p>
+          </Link>
+        ) : (
+          /* 가족 조율은 정답을 주는 페이지 대신 아모라 대화로 — 가족·지역마다 달라
+             일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */
+          <Link
+            {...weddingLinkProps("/chat")}
+            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+          >
+            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+              <BookOpen className="h-3.5 w-3.5" />
+              가족 이야기
+            </p>
+            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+              정답보다 두 사람의 기준부터
+            </p>
+            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+              두 가족에게 드릴 선물·서로 부를 호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
+            </p>
+          </Link>
+        )}
 
         <Link
           {...weddingLinkProps("/community/quote-check")}
