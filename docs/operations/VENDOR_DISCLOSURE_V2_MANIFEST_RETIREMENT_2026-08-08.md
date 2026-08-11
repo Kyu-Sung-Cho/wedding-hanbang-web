@@ -141,32 +141,30 @@ const PINNED_STATUS  = "evidence_pinned";
 
 ## 마이그레이션 세트 드리프트 (2026-08-11 실측)
 
-여기까지는 후속(successor) 매니페스트 이야기였다. 그 앞단에 **주 매니페스트**
-`supabase/release-manifests/amora-engine-v2-20260716.json`이 있고, 거기에는 별도의
-드리프트가 쌓여 있다. 정식 경로를 열 때 위 증거 5종보다 **먼저** 걸리는 벽이다.
+> **2026-08-11 정정.** 이 절의 초판은 세 군데가 틀렸다. 실제로 막고 있던 것은
+> 후속 매니페스트에서 **3건**이 빠진 것이었고(83건이 아니다), **CI는 그것을 보고
+> 있었으며**(안 본다고 썼다), 그래서 "그대로 둔다"는 판단도 뒤집혔다. 아래는 고친
+> 내용이고, 틀렸던 서술은 무엇이 왜 틀렸는지와 함께 남긴다.
 
-### 실측
+### `MIGRATION_SET_DRIFT`는 두 곳에서 난다 — 초판이 둘을 섞었다
+
+| 검사 | 코드 | 무엇을 대조하나 | 누가 실행하나 |
+|---|---|---|---|
+| **후속 계약** | `scripts/lib/supabase-successor-release-contract.mjs:1157` | `vendor-disclosure-v2-20260718.json`의 `expandMigrations` ↔ floor(20260718120000) 이상 실제 파일 | `pnpm supabase:release:fence` → **CI의 `Static Release Contracts` 잡**, 프로덕션 빌드 펜스 |
+| 주 컨트롤러 | `scripts/lib/supabase-production-release-controller.mjs:848` | `amora-engine-v2-20260716.json`의 27건 ↔ floor(20260716090000) 이상 실제 파일 | `scripts/supabase-production-release.mjs`(**봉인된 apply 경로**)와 그 테스트뿐 |
+
+초판이 적은 "83건"은 아래쪽, 즉 **봉인돼서 실행되지 않는 경로**의 숫자다. fence는
+주 매니페스트의 파일 집합을 대조하지 않는다(실행 로그: `Static release manifest
+verified (27 migrations; ...)`). 그러니 그 83건은 CI 빨간불과 무관했다.
+
+### 실제로 막고 있던 것 — 후속 매니페스트에서 3건 누락
 
 ```
-매니페스트 migrationFloor          : 20260716090000
-매니페스트 expandMigrations         : 27건 (20260716090000 ~ 20260716117000)
-디스크의 release-era 마이그레이션    : 110건 (floor 이상 전부)
-매니페스트에 없는 파일               : 83건 (20260718120000 ~ 20260807090000)
-매니페스트에만 있고 디스크에 없는 것  : 0건
+매니페스트 migrationFloor    : 20260718120000
+매니페스트 expandMigrations   : 80건 (마지막 20260804200000)
+floor 이상 실제 파일          : 83건
+빠진 것                      : 3건
 ```
-
-재현(저장소 루트):
-
-```bash
-node -e "const m=require('./supabase/release-manifests/amora-engine-v2-20260716.json'),fs=require('fs');const exp=m.expandMigrations.map(e=>e.file);const era=fs.readdirSync('supabase/migrations').filter(n=>/^\d{14}_.*\.sql$/.test(n)).filter(n=>n.slice(0,14)>=m.migrationFloor).sort();console.log('manifest',exp.length,'disk',era.length,'extra',era.filter(n=>!exp.includes(n)).length)"
-```
-
-컨트롤러는 release-era 파일 목록이 매니페스트와 **정확히 같을 때만** 통과시킨다
-(`scripts/lib/supabase-production-release-controller.mjs:842-849`). 하나라도 더 있으면
-`MIGRATION_SET_DRIFT`로 차단한다. 지금은 83건이 더 있다.
-
-83건은 커밋 몇 개가 만든 것이 아니라 2026-07-18 ~ 2026-08-07 3주 동안 공시·커뮤니티·
-아모라 작업이 매니페스트를 갱신하지 않고 쌓은 결과다. 최근 3건만 적으면:
 
 | 마이그레이션 | 도입 커밋 | 날짜 |
 |---|---|---|
@@ -174,7 +172,10 @@ node -e "const m=require('./supabase/release-manifests/amora-engine-v2-20260716.
 | `20260806090000_amora_preparation_status.sql` | `a49216bd` | 2026-08-06 |
 | `20260807090000_amora_mediation_send_gate.sql` | `28e33a43` | 2026-08-07 |
 
-셋 다 `origin/main`에 있다. 특정 브랜치가 만든 문제가 아니라 main의 상태다.
+이 저장소는 **마이그레이션을 추가하면 후속 매니페스트에도 같이 넣는 것이 관행**이다.
+이 파일의 변경 이력 12건이 전부 그렇게 하고 있다. 2026-08-10 통합 병합이 48건은
+넣고 마지막 3건을 빠뜨렸다. 초판이 이것을 "3주 동안 쌓인 구조적 상태"로 읽은 것은
+주 매니페스트 쪽 숫자를 본 탓이다.
 
 ### 위험을 여는 게 아니라, 테스트 5건을 죽였다
 
@@ -205,10 +206,11 @@ expected: 'SUCCESSOR_CONTROLLER_CONTRACT_INVALID'
 5. postcheck 또는 feature-off rollback 계약을 약화하면 controller_ready가 되지 않는다
 
 이 문서 위쪽의 "⚠️ 매니페스트 파일을 지우지 마라", "status도 바꾸지 마라"를 지켜주던
-회귀 테스트가 그 5건이다. **지금은 아무것도 지키지 않는다.** 누가 후속 계약을
-약화시켜도 이 테스트들은 여전히 같은 이유로 실패할 뿐, 약화 자체를 잡지 못한다.
+회귀 테스트가 그 5건이다. 이 상태에서는 누가 후속 계약을 약화시켜도 이 테스트들이
+여전히 같은 이유로 실패할 뿐, 약화 자체를 잡지 못했다.
+(**아래 "고쳤다"에서 14/14로 복구됐다.**)
 
-같은 날 나머지 릴리스 테스트는 정상이다.
+같은 날 나머지 릴리스 테스트는 정상이었다.
 
 ```
 supabase-release-fence              pass 16 / fail 0
@@ -217,39 +219,85 @@ ci-signal-integrity                 pass  5 / fail 0
 disclosure-round-pin                pass  3 / fail 0
 ```
 
-### 어떤 게이트도 이 5건을 보지 않는다
+### CI는 보고 있었다
 
-| 게이트 | 실제로 도는 것 | 이 5건을 보나 |
-|---|---|---|
-| GitHub Actions CI | `pnpm test:ingest` (`.github/workflows/ci.yml:148`) | ✗ |
-| `corepack pnpm qa:local` | `scripts/verify-local.mjs` — web·mobile·shared·design-tokens | ✗ |
-| pre-push 훅 | `turbo run typecheck lint test` (`.githooks/pre-push`) | ✗ |
-| `pnpm test:repo` · `pnpm test` · `pnpm supabase:release:test` | 이 파일 포함 | ✓ |
+초판은 "어떤 게이트도 이걸 보지 않는다"고 적었다. **사실이 아니다.** CI의
+`Static Release Contracts (Non-Deploy)` 잡이 `pnpm supabase:release:fence`를 돌리고,
+그게 정확히 이 드리프트로 실패하고 있었다.
 
-이 테스트는 `test:repo` 목록에 들어 있다(`package.json`의 `test:repo`). 그런데
-**CI도 로컬 게이트도 `test:repo`를 돌리지 않는다.** 손으로 치기 전에는 초록불로
-보인다. 지금 이 문단이 그 사실의 유일한 기록이다.
+```
+2026-08-11T00:31:10Z  $ node ./scripts/supabase-release-fence.mjs
+  SUPABASE_RELEASE_FENCE_BLOCKED: MIGRATION_SET_DRIFT: successor migration set
+  or order drifted; expected=…20260804200000_community_post_service_write_boundary.sql;
+  received=…20260805120000…,20260806090000…,20260807090000…
+  [ELIFECYCLE] Command failed with exit code 1.
+```
 
-### 그대로 두는 이유
+**왜 안 보였나.** 2026-08-10 통합 병합 이후의 CI run은 전부 결제 문제로 잡이 2~3초
+만에 죽어 로그가 없었다. 초록불이 아니라 "원인 없는 빨간불"이었고, 그걸 결제 문제로만
+읽었다.
 
-2026-08-11 파운더 결정: **고치지 않고 둔다.** 근거 셋.
+```
+08-08 02:32  Static Release Contracts  success  82초   ← 정상
+08-08 14:49  Static Release Contracts  failure   2초   ← 결제로 즉사(로그 없음)
+   …            (전부 2초 즉사)
+08-11 00:31  Static Release Contracts  failure  55초   ← Pro 전환 뒤 첫 실측, 원인 노출
+```
 
-- 위 "판단 — 이 경로를 지금 열지 않는다"대로 릴리스 경로를 열지 않는다.
-- fence가 fail-closed라 드리프트가 사고로 이어지지 않는다.
-- 매니페스트를 지금 맞추면 83건의 sha256과 순서를 고정해야 하는데, 그 고정은 실제
-  릴리스 시점의 파일 상태로 해야 정확하다. 미리 해두면 다시 어긋난다.
+다만 초판의 다음 부분은 여전히 사실이다 — `successor-release-evidence-contract.test.mjs`
+자체는 `test:repo`에만 있고 CI·`qa:local`·pre-push 어디서도 돌지 않는다. 이번에는
+fence가 대신 잡아 줬을 뿐이다.
 
-### 열 때 이것부터
+| 게이트 | 실제로 도는 것 | fence를 보나 | 그 테스트 5건을 보나 |
+|---|---|---|---|
+| GitHub Actions CI | `test:ingest` + **`supabase:release:fence`**(Static Release Contracts) | ✓ | ✗ |
+| `corepack pnpm qa:local` | `scripts/verify-local.mjs` — web·mobile·shared·design-tokens | ✗ | ✗ |
+| pre-push 훅 | `turbo run typecheck lint test` (`.githooks/pre-push`) | ✗ | ✗ |
+| `pnpm test:repo` · `pnpm test` · `pnpm supabase:release:test` | 위 파일 포함 | — | ✓ |
 
-정식 경로를 열게 되면 증거 5종보다 **먼저** 처리한다.
+### 고쳤다 (2026-08-11, `85c4d7db`)
 
-1. `amora-engine-v2-20260716.json`의 `expandMigrations`를 그 시점의 release-era 전체로
-   다시 만든다. sha256은 위 "공통 함정 2"와 같은 CRLF→LF 정규화 해시다.
-2. 5건이 원래 확인하려던 경로(`SUCCESSOR_CONTROLLER_CONTRACT_INVALID`)에 다시
-   도달하는지 본다. 드리프트를 없애자마자 통과하면 정상이고, 그때부터 새로 실패하는
-   것이 있으면 그건 드리프트에 가려져 있던 진짜 결함이다.
-3. CI가 `test:repo`를 돌게 하거나, 최소한 `supabase:release:test`를 릴리스 전 필수
-   단계로 못 박는다. 지금 구조에서는 이 계약이 깨져도 아무도 모른다.
+초판의 "그대로 둔다"는 판단은 "CI가 이걸 안 본다"는 잘못된 전제 위에 있었다. 전제가
+무너졌으니 판단도 뒤집는다. 빠진 3건을 후속 매니페스트에 넣었다. **`status`는
+`deployment_blocked` 그대로이고 항목 추가뿐이다** — 위 "status도 바꾸지 마라"는
+그대로 유효하다.
+
+수정 후 실측:
+
+```
+pnpm supabase:release:fence          EXIT 0
+  Successor release manifest verified (vendor-disclosure-v2-20260718;
+  deployment_blocked; 83 migrations; predecessor head 20260716117000)
+successor-release-evidence-contract  14 / 14 통과
+pnpm test:repo                       실패 0건
+```
+
+죽어 있던 5건이 전부 살아났다 — **드리프트에 가려져 있던 진짜 결함은 없었다.**
+
+### ⚠️ 이 파일을 고치면 배포 서명도 다시 핀해야 한다
+
+`VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION`은 **이 매니페스트 파일의 sha256**이다
+(`apps/web/vendorDisclosureProductionBuildFence.ts:23-31`, CRLF→LF 정규화 후 해시).
+값이 어긋나면 프로덕션 빌드가 `..._AUTHORIZATION_INVALID`로 막힌다.
+
+```
+ad31d482 (마지막 성공 배포, 08-08 12:04)  3f5ead951bf404f6ebdd4c003f363d5bc89e8b177eefd9c651717f0704064de4
+7f437003 (첫 실패, 08-08 14:39)           bb3428d44432dc524af9d37fd00589153a6c6013c899575e83cbb099e9521c1c
+85c4d7db (이번 수정)                       9889c6d1955e87b6b15b6fc11cf212f85bdd8b93d5ba83494d24f9eb4be34f91
+```
+
+핀은 이번 수정이 아니라 **`7f437003`에서 이미 어긋나 있었다.** 운영 배포를 다시 열 때
+Vercel Production 환경변수를 맨 아래 값으로 갱신해야 한다.
+
+### 주 매니페스트 쪽 27 vs 110은 그대로 둔다
+
+봉인된 apply 경로에서만 평가되고 fence·CI 어디서도 실행되지 않는다. 정식 경로를 열
+때 증거 5종보다 먼저 처리하면 된다. 그때 `amora-engine-v2-20260716.json`의
+`expandMigrations`를 그 시점의 release-era 전체로 다시 만들고, sha256은 위
+"공통 함정 2"와 같은 CRLF→LF 정규화 해시로 계산한다.
+
+그리고 CI가 `test:repo`를 돌게 하거나, 최소한 `supabase:release:test`를 릴리스 전
+필수 단계로 못 박는다. 지금은 fence가 우연히 겹쳐서 잡아 줬을 뿐이다.
 
 ## 관련 기록
 
