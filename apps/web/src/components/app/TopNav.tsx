@@ -48,7 +48,10 @@ interface TopNavProps {
 export default function TopNav({ onMenuToggle }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const title = getPageTitle(stripWeddingBasePath(pathname));
+  const appPathname = stripWeddingBasePath(pathname);
+  const title = getPageTitle(appPathname);
+  const checklistOwnsPageHeading =
+    appPathname === "/checklist" || appPathname.startsWith("/checklist/");
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -85,7 +88,11 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             aria-label="웨딩한방 홈으로 이동"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
-            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
+            {checklistOwnsPageHeading ? (
+              <p className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</p>
+            ) : (
+              <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
+            )}
           </Link>
         </div>
 

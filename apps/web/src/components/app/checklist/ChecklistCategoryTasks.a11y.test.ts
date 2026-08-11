@@ -41,6 +41,8 @@ describe("dedicated checklist category page accessibility contract", () => {
 
   it("is a document page rather than a dialog or fixed overlay", () => {
     expect(pageSource).toContain("<h1");
+    expect(topNavSource).toContain('appPathname === "/checklist" || appPathname.startsWith("/checklist/")');
+    expect(topNavSource).toContain("checklistOwnsPageHeading ?");
     expect(pageSource).not.toContain('role="dialog"');
     expect(pageSource).not.toContain('aria-modal="true"');
     expect(pageSource).not.toContain("fixed inset-");
