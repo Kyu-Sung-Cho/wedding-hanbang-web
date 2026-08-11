@@ -26,11 +26,40 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: "skipped", label: "해당 없음" },
 ];
 
+const TEMPLATE_ITEM_COUNT = CATEGORY_CHECKLISTS.reduce(
+  (total, category) => total + category.items.length,
+  0,
+);
+
 const STATUS_LABEL: Record<ProgressItem["status"], string> = {
   not_started: "시작 전",
   in_progress: "준비 중",
   completed: "완료",
   not_applicable: "해당 없음",
+};
+
+// 화면에서는 처음 준비하는 사람도 이해할 수 있는 말을 먼저 쓰되, 검색에서는
+// 업체·가족과 실제로 주고받는 익숙한 용어도 놓치지 않는다.
+const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
+  meeting: ["상견례", "양가 부모님 만남"],
+  venue: ["웨딩홀", "예식장"],
+  studio: ["스튜디오", "웨딩촬영", "스드메"],
+  dress: ["웨딩드레스", "예복", "턱시도", "스드메"],
+  makeup: ["헤메", "메이크업", "스드메"],
+  ring: ["웨딩링", "웨딩밴드", "예물"],
+  hanbok: ["혼주 한복"],
+  yedan: ["예단", "이바지"],
+  honeymoon: ["허니문"],
+  houseware: ["혼수", "가전", "가구"],
+  housing: ["전세", "월세", "매매"],
+  invitation: ["청첩장", "모바일 청첩장"],
+  snap: ["본식 스냅", "스냅", "DVD", "본식 영상"],
+  shoes: ["웨딩 슈즈"],
+  bouquet: ["부케", "부토니에"],
+  gift: ["답례품"],
+  mc: ["사회자", "주례", "축가"],
+  ham: ["함"],
+  pyebaek: ["폐백"],
 };
 
 function matchesFilter(status: ProgressItem["status"], filter: Filter) {
@@ -86,7 +115,8 @@ export default function ChecklistContent() {
       const status = saved?.status ?? "not_started";
       const checklist = mergeChecklist(template.items, saved?.checklist, status);
       const counts = getChecklistCounts(checklist);
-      const searchable = `${template.label} ${template.tip} ${checklist.map((item) => item.label).join(" ")}`
+      const aliases = CATEGORY_SEARCH_ALIASES[template.key]?.join(" ") ?? "";
+      const searchable = `${template.label} ${aliases} ${template.tip} ${checklist.map((item) => item.label).join(" ")}`
         .toLocaleLowerCase("ko-KR");
       return { template, status, counts, guide: mannersPartForCategory(template.key), searchable };
     }).filter(({ status, searchable }) =>
@@ -106,7 +136,7 @@ export default function ChecklistContent() {
               웨딩 체크리스트
             </h1>
             <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[#5d6879] sm:text-[15px]">
-              상견례부터 신혼집까지 132개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
+              상견례부터 신혼집까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
           <div className="min-w-[240px] rounded-[18px] border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">
@@ -114,7 +144,14 @@ export default function ChecklistContent() {
               <span className="text-[13px] font-medium text-[#5d6879]">전체 진행률</span>
               <strong className="text-[30px] font-semibold leading-none text-[#36534e]">{summary.percent}%</strong>
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#efe9dc]">
+            <div
+              className="mt-3 h-2 overflow-hidden rounded-full bg-[#efe9dc]"
+              role="progressbar"
+              aria-label="전체 체크리스트 진행률"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={summary.percent}
+            >
               <div className="h-full rounded-full bg-[#36534e] transition-[width]" style={{ width: `${summary.percent}%` }} />
             </div>
             <p className="mt-2 text-[12px] text-[#7a8290]">

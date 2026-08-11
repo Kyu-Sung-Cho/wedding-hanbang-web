@@ -91,4 +91,25 @@ describe("ChecklistContent category deep links", () => {
     expect(container.querySelector('[data-testid="modal-close"]')).toBeNull();
   });
 
+  it("finds plain-language categories by familiar wedding terms", async () => {
+    await render();
+
+    const search = container.querySelector<HTMLInputElement>('input[type="search"]');
+    expect(search).not.toBeNull();
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    await act(async () => {
+      valueSetter?.call(search, "상견례");
+      search?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('button[aria-label="부모님 첫 만남 체크리스트 열기"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="결혼식장 체크리스트 열기"]'),
+    ).toBeNull();
+  });
 });
