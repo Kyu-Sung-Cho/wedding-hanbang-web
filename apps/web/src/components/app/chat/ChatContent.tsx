@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -2630,23 +2630,43 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 className="animate-fade-in"
               >
                 {isPinnedSafetyCard ? (
-                  <div
-                    data-amora-safety-card="true"
-                    role="alert"
-                    aria-live="assertive"
-                    aria-label="긴급 안전 안내"
-                    className="ml-11 max-w-[94%] rounded-2xl border border-danger-500/30 bg-danger-500/[0.04] px-4 py-4 shadow-sm sm:ml-14 sm:max-w-[53.75rem]"
-                  >
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle
-                        aria-hidden="true"
-                        className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger-500"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-danger-700">긴급 안전 안내</p>
-                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#263832]">
-                          {msg.content}
-                        </p>
+                  // 제품에서 가장 무거운 메시지일수록 누가 말하는지가 분명해야 한다.
+                  // 이 카드만 아모라의 얼굴과 이름 없이 나가면, 곁에 있는 사람이 걱정하는
+                  // 것이 아니라 시스템이 사용자를 위험군으로 표시한 것처럼 읽힌다.
+                  // 모바일(`apps/mobile/app/(tabs)/chat.tsx`)은 이미 이 카드에도
+                  // "아모라" 이름표와 ShieldCheck를 쓰고 있어, 웹을 그 기준에 맞춘다.
+                  //
+                  // ⚠️ `ChatBubble`을 재사용하지 않는다 — AI 분기가 저장 버튼을 무조건
+                  // 붙이고, 그 버튼은 본문을 서버에 영구 저장한다. 이 카드는
+                  // `ephemeral_local_only`라 저장·피드백 어포던스를 붙이면 안 된다.
+                  // 아바타·이름표 마크업만 복제한다.
+                  <div className="flex max-w-[94%] items-start gap-2 sm:max-w-[53.75rem] sm:gap-3">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] shadow-sm sm:h-11 sm:w-11">
+                      <Sparkles aria-hidden="true" className="h-4 w-4 text-white sm:h-5 sm:w-5" />
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <span className="text-base font-medium text-[#928980]">아모라</span>
+                      <div
+                        data-amora-safety-card="true"
+                        role="alert"
+                        aria-live="assertive"
+                        aria-label="긴급 안전 안내"
+                        className="rounded-2xl border border-danger-500/30 bg-danger-500/[0.04] px-4 py-4 shadow-sm"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* 경고 삼각형이 아니라 방패다. 색(danger)은 그대로 두어
+                              중요도와 대비는 유지하고, 의미만 '경고'에서 '보호'로 옮긴다. */}
+                          <ShieldCheck
+                            aria-hidden="true"
+                            className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger-500"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-danger-700">긴급 안전 안내</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#263832]">
+                              {msg.content}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

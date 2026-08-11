@@ -198,7 +198,7 @@ export async function executeTool(
         toolInput,
         toolOutput: { error_code: "TOOL_EXECUTION_FAILED" },
         success: false,
-        displayMessage: "처리 중 오류가 발생했습니다.",
+        displayMessage: "지금 그 정보를 가져오지 못했어요. 잠시 후 다시 물어봐 주세요.",
       };
     }
   }
@@ -212,7 +212,7 @@ export async function executeTool(
       toolName,
       toolInput,
       "IDEMPOTENCY_CONTEXT_MISSING",
-      "안전한 요청 식별자를 확인하지 못해 변경을 적용하지 않았습니다."
+      "이번 변경을 안전하게 처리할 준비가 되지 않아서, 아무것도 바꾸지 않았어요. 새 메시지로 다시 말씀해 주세요."
     );
   }
 
@@ -227,7 +227,7 @@ export async function executeTool(
       toolName,
       toolInput,
       "INVALID_PENDING_ACTION_ID",
-      "승인한 변경의 식별자를 안전하게 확인하지 못해 적용하지 않았습니다.",
+      "확인해 주신 그 변경이 맞는지 확인이 되지 않아서, 반영하지 않았어요. 번거롭지만 다시 한 번 말씀해 주세요.",
     );
   }
 
@@ -245,7 +245,7 @@ export async function executeTool(
       toolName,
       toolInput,
       "INVALID_TOOL_INPUT",
-      "도구 입력 형식이 올바르지 않아 변경을 적용하지 않았습니다."
+      "제가 정리한 값에 빠지거나 잘못된 부분이 있어서, 반영하지 않았어요. 어떤 값으로 바꿀지 다시 알려주세요."
     );
   }
 
@@ -311,7 +311,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_IDEMPOTENCY_UNAVAILABLE",
-      "변경 중복 방지 장치를 확인하지 못해 안전하게 중단했습니다."
+      "같은 변경이 두 번 들어가지 않게 확인하는 중에 문제가 생겨서, 아무것도 바꾸지 않고 멈췄어요. 잠시 후 다시 시도해 주세요."
     );
   }
 
@@ -323,7 +323,7 @@ async function executeMutatingToolWithLedger({
         toolName,
         toolInput,
         "TOOL_LEDGER_RESULT_INVALID",
-        "이전 변경 결과를 안전하게 확인하지 못했습니다. 상태를 직접 확인해 주세요.",
+        "앞선 변경이 어떻게 끝났는지 확인하지 못했어요. 지금 값이 맞는지 화면에서 먼저 확인해 주세요.",
       );
     }
     applyAmoraAtomicToolResultToContext(replayed, context);
@@ -334,7 +334,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_EXECUTION_IN_PROGRESS",
-      "같은 변경을 이미 처리 중이라 중복 실행하지 않았습니다."
+      "같은 변경을 이미 처리하고 있어서, 두 번 넣지 않았어요."
     );
   }
   if (claim.action === "uncertain") {
@@ -342,7 +342,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_EXECUTION_UNCERTAIN",
-      "이전 변경의 완료 여부가 불확실해 다시 실행하지 않았습니다. 현재 상태를 먼저 확인해 주세요."
+      "앞선 변경이 끝났는지 확실하지 않아서, 다시 실행하지 않았어요. 지금 값을 먼저 확인해 주세요."
     );
   }
   if (claim.action === "retry_new_operation_blocked") {
@@ -350,7 +350,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_RETRY_NEW_OPERATION_BLOCKED",
-      "이 요청은 재시도 중이라 이전에 확인되지 않은 새 변경을 적용하지 않았습니다. 현재 상태를 확인한 뒤 새 메시지로 요청해 주세요."
+      "이 요청은 앞서 보낸 것을 다시 보내는 중이라, 새로운 변경은 반영하지 않았어요. 지금 상태를 확인한 뒤 새 메시지로 말씀해 주세요."
     );
   }
   if (claim.action === "stale_attempt") {
@@ -358,7 +358,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_REQUEST_ATTEMPT_STALE",
-      "이미 더 최신 재시도가 시작되어 이 응답의 변경을 적용하지 않았습니다."
+      "더 최근 요청이 이미 시작돼서, 이 답변의 변경은 반영하지 않았어요."
     );
   }
   if (claim.action === "stale_context") {
@@ -366,7 +366,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_CONTEXT_STALE",
-      "그 사이 대화가 더 이어져 이전 맥락의 변경은 적용하지 않았습니다. 최신 대화에서 다시 확인해 주세요."
+      "그 사이 대화가 더 이어져서, 예전 맥락의 변경은 반영하지 않았어요. 지금 대화에서 다시 확인해 주세요."
     );
   }
   if (claim.action !== "acquired") {
@@ -374,7 +374,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_IDEMPOTENCY_CONFLICT",
-      "요청 식별자가 다른 변경과 충돌해 적용하지 않았습니다."
+      "다른 변경과 겹쳐서 반영하지 않았어요. 잠시 후 다시 시도해 주세요."
     );
   }
 
@@ -459,7 +459,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_EXECUTION_UNCERTAIN",
-      "변경 처리 중 결과를 확정하지 못했습니다. 중복 방지를 위해 다시 실행하지 않았습니다."
+      "변경이 끝났는지 확정하지 못했어요. 두 번 들어가지 않게 다시 실행하지는 않았어요. 지금 값을 먼저 확인해 주세요."
     );
   }
 
@@ -478,7 +478,7 @@ async function executeMutatingToolWithLedger({
       toolName,
       toolInput,
       "TOOL_EXECUTION_UNCERTAIN",
-      "변경 결과 기록을 확정하지 못했습니다. 현재 상태를 먼저 확인해 주세요."
+      "변경 기록을 확정하지 못했어요. 지금 값이 맞는지 먼저 확인해 주세요."
     );
   }
 

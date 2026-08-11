@@ -36,7 +36,7 @@ export default function Footer() {
               <Logo size="sm" variant="white" />
             </Link>
             <p className="text-ivory-50/60 text-sm leading-relaxed mt-5 font-light max-w-[320px]">
-              당신만의 AI 웨딩 플래너 &apos;아모라&apos;가 있는 곳.
+              당신만의 AI 파트너 &apos;아모라&apos;가 있는 곳.
             </p>
             <p className="text-ivory-50/40 text-xs mt-4">
               웨딩한방 · 한방그룹

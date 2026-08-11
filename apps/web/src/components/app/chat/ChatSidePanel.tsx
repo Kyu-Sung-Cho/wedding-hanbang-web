@@ -1154,7 +1154,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
             <div>
               <h3 className="text-sm font-medium text-noir-800">아모라 AI</h3>
-              <p className="text-[0.6875rem] text-taupe-400">웨딩 플래너</p>
+              <p className="text-[0.6875rem] text-taupe-400">AI 파트너</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
