@@ -14,7 +14,6 @@ import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
   VendorDisclosureProductionBuildBlocked,
-  VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
@@ -447,18 +446,58 @@ describe("vendor disclosure production build fence", () => {
     );
   });
 
-  it("rejects an exact manifest signature while hosted evidence is missing", async () => {
+  // 2026-08-11 계약 변경. 이 자리에는 "호스티드 증거가 없으면 서명이 맞아도 막는다"가
+  // 있었다(VENDOR_DISCLOSURE_RELEASE_CONTROLLER_NOT_READY). 그 조건은 매니페스트
+  // status가 `deployment_blocked`인 한 절대 참이 되지 않는데, 그 status는 운영 DB
+  // 쓰기 봉인 그 자체다. 그래서 "웹을 배포하려면 DB 쓰기를 먼저 열어라"가 됐고
+  // 2026-08-08 `7f437003`부터 웹 프로덕션 빌드가 전부 실패했다.
+  // 웹 배포와 DB 릴리스를 분리한다. DB 통제는 릴리스 컨트롤러가 계속 맡는다.
+  it("lets the owner ship the web build while the database release stays sealed", async () => {
     const fixture = await createBlockedFixture();
+    const manifest = fixture.manifest as unknown as { status: string };
+
+    expect(manifest.status).toBe("deployment_blocked");
+    expect(() => assertVendorDisclosureProductionBuild({
+      repoRoot: fixture.repoRoot,
+      environment: {
+        VERCEL_ENV: "production",
+        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION:
+          expectedProductionAuthorizationSha256(fixture.repoRoot),
+      },
+    })).not.toThrow();
+  });
+
+  // 서명은 여전히 유일한 관문이다. 봉인 상태에서도 서명 없이는 못 나간다.
+  it("still refuses a sealed-release build that carries no owner signature", async () => {
+    const fixture = await createBlockedFixture();
+    expectBlockedWithCode(
+      () => assertProduction(fixture.repoRoot),
+      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
+    );
+  });
+
+  // 마이그레이션이 늘면 매니페스트 해시가 바뀌어 서명이 무효가 된다. 이게 "코드가
+  // 요구하는 마이그레이션이 운영 DB에 있는지"를 사람이 다시 확인하게 만드는 장치다.
+  it("invalidates the owner signature whenever the migration set changes", async () => {
+    const fixture = await createBlockedFixture();
+    const signed = expectedProductionAuthorizationSha256(fixture.repoRoot);
+    const manifest = fixture.manifest as unknown as {
+      expandMigrations: { file: string; sha256: string }[];
+    };
+
+    manifest.expandMigrations.pop();
+    await writeManifest(fixture);
+
+    expect(expectedProductionAuthorizationSha256(fixture.repoRoot)).not.toBe(signed);
     expectBlockedWithCode(
       () => assertVendorDisclosureProductionBuild({
         repoRoot: fixture.repoRoot,
         environment: {
           VERCEL_ENV: "production",
-          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION:
-            expectedProductionAuthorizationSha256(fixture.repoRoot),
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: signed,
         },
       }),
-      VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
+      VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
     );
   });
 
