@@ -125,6 +125,8 @@ describe("selectAmoraTools", () => {
     ["토요일에 상견례야", "add_schedule_event"],
     ["예식장 계약했어", "update_task_status"],
     ["혼인신고 완료했어", "update_task_status"],
+    ["우리 혼인신고 완료했어", "update_task_status"],
+    ["우리 예식장 계약했어", "update_task_status"],
     ["하객 안내 진행 중이야", "update_task_status"],
     ["식 후 정산 완료했어", "update_task_status"],
     ["함께 정할 것 완료했어", "update_task_status"],
@@ -215,6 +217,39 @@ describe("selectAmoraTools", () => {
       specialistType: "general",
     });
     expect(general).toEqual([]);
+  });
+
+  it.each([
+    "혼인신고 완료했어",
+    "우리 혼인신고 완료했어",
+    "하객 안내 진행 중이야",
+    "식 후 정산 완료했어",
+    "함께 정할 것 완료했어",
+    "우리 상황에 맞춘 선택 준비 완료했어",
+  ])("lets an executable task declaration reach the confirmation-card path: %s", (userText) => {
+    const selected = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText,
+      specialistType: "general",
+    }).map((tool) => tool.name);
+
+    expect(selected).toContain("update_task_status");
+  });
+
+  it.each([
+    "친구 혼인신고 완료했대",
+    "우리 언니 혼인신고 완료했대",
+    "혼인신고 완료했다고 한 적 없어",
+    "혼인신고 완료했는지 확인해줘",
+    "혼인신고 완료했어? 아니야",
+  ])("keeps non-executable task wording out of the confirmation-card path: %s", (userText) => {
+    const selected = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText,
+      specialistType: "general",
+    }).map((tool) => tool.name);
+
+    expect(selected).not.toContain("update_task_status");
   });
 
   it("does not authorize a mutation from assistant prose and a generic approval", () => {
