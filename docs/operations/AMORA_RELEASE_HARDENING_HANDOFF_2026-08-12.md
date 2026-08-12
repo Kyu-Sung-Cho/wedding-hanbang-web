@@ -1,20 +1,22 @@
 # 아모라 릴리스 하드닝 구현·검증·배포 인수인계 — 2026-08-12
 
-> 상태: **LOCAL RELEASE CANDIDATE / FOCUSED SOURCE TESTS PASSED / HOSTED EVIDENCE MISSING / PRODUCTION NO-GO**
+> 상태: **REMOTE RELEASE CANDIDATE / EXACT-SHA SOURCE GATES PASSED / PROTECTED STUB PREVIEW / HOSTED PRODUCTION EVIDENCE MISSING / PRODUCTION NO-GO**
 >
-> 원격 기준: 작업 시작 시 확인한 `origin/main` `2a2125965b4d1b46bf8b6570093031b7632c93fb`
+> 통합한 원격 기준: `origin/main` `b58a329d0d03b81cf2f022ef51d197b084741c9d`
 >
-> 작업 기준 HEAD: `f716b8fd35e080014b08b4063b36e9310ac5c134`
+> 검증된 구현·Preview source SHA: `f8851f749890a172057f2e3a5360d11f3ea1163a`
 >
-> 작업 branch: `codex/amora-release-hardening-20260811`
+> 원격 branch: `codex/amora-release-hardening-20260811`
 >
-> 이 릴리스 후보 변경은 아직 commit·push·PR·Preview가 없다. 같은 이름의 remote branch도
-> 확인되지 않았다.
+> Draft PR: [#105](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/105)
+>
+> 보호된 stub Preview: deployment `dpl_AJEzS36JsP35THq85GL2d4WaXB6a` ·
+> `https://wedding-hanbang-me24b9s4q-hanbang.vercel.app`
 
 이 문서는 2026-08-11~12에 수행한 아모라 코드·보안·제품 감사를 실제 수정으로 연결한
-인수인계다. 문서의 테스트 수치는 5절에 적은 각 focused 실행 시점의 dirty worktree에만
-해당하며, 전체 저장소 GREEN이나 현재 시점의 재실행 결과를 뜻하지 않는다. 이후 파일이나
-SHA가 바뀌면 자동 상속하지 않는다.
+인수인계다. 구현은 exact SHA `f8851f74`에서 고정한 뒤 5절의 전체 source gate를 실행하고
+remote branch·Draft PR·접근 보호된 Vercel stub Preview로 게시했다. 이후 파일이나 SHA가
+바뀌면 이 검증과 Preview 판정을 자동 상속하지 않는다.
 
 가장 중요한 결론은 두 가지다.
 
@@ -274,8 +276,8 @@ profile·journey·settings·onboarding·couple code/link/reset·chat·password·
 
 ### 3.2 모바일 Stop과 첫 shared 전송 확인
 
-현재 source에 아래 계약을 구현했다. focused 회귀 테스트는 중간 snapshot에서 확인했지만,
-최신 고정 snapshot의 full mobile 재실행과 실제 기기 네트워크 경합 검증은 아직 대기 중이다.
+현재 source에 아래 계약을 구현했다. exact SHA `f8851f74`의 full mobile 511/511과 관련
+회귀가 통과했다. 실제 기기 네트워크 경합·중단 latency 검증은 아직 대기 중이다.
 
 - 하나의 operation controller가 durable ingest부터 AI stream까지 소유한다.
 - Stop은 현재 operation만 중단하고 composer와 scope control을 즉시 복구한다.
@@ -341,9 +343,9 @@ moment loop는 `momentType` 없는 일반 일정을 의도적으로 무시하지
   실제 위험 단서를 통째로 지우지 않는다.
 - third-party self-harm recipient와 `못 살겠어` 같은 한국어 경계를 별도 회귀 사례로 고정했다.
 
-focused safety suite는 이 dirty source snapshot에서 `402/402 PASS`를 직접 관측했다. 이는
-분류기 회귀 범위의 증거이지, 의료 진단·상담 품질·실제 신고 체계·hosted 모델 또는 실제
-기기 UX가 검증됐다는 뜻이 아니다.
+구현 중 dirty snapshot은 `402/402 PASS`, exact SHA `f8851f74`의 최종 focused suite는
+`410/410 PASS`였다. 이는 분류기 회귀 범위의 증거이지, 의료 진단·상담 품질·실제 신고
+체계·hosted 모델 또는 실제 기기 UX가 검증됐다는 뜻이 아니다.
 
 ### 3.5 prompt·voice·카피 drift
 
@@ -367,11 +369,45 @@ focused safety suite는 이 dirty source snapshot에서 `402/402 PASS`를 직접
 
 ---
 
-## 5. 작업 중 직접 관측한 focused 검증
+## 5. 검증·게시 영수증
 
-아래는 commit 전 dirty worktree의 서로 다른 focused 실행 시점에서 관측한 중간 증거다.
-현재 전체 worktree를 한 번에 재검증한 결과가 아니며, command 이후 동시 편집된 파일에는
-자동 상속하지 않는다.
+### 5.1 고정 구현 SHA의 전체 source gate
+
+아래 결과는 clean worktree의 exact SHA
+`f8851f749890a172057f2e3a5360d11f3ea1163a`에서 직접 관측했다. Web 전체 Vitest는 단일
+실행이 10분 동안 summary 없이 계속 worker를 교체해, 같은 고정 SHA에서 4개 결정적 shard를
+순차 실행했다. 네 shard가 모든 test file을 한 번씩 포함했고 종료 후 잔류 worker가 없었다.
+
+| 범위 | 결과 |
+|---|---:|
+| Web Vitest shard 1/4 | 162 files · 1,495 tests PASS |
+| Web Vitest shard 2/4 | 162 files · 1,398 tests PASS |
+| Web Vitest shard 3/4 | 161 files · 1,403 tests PASS |
+| Web Vitest shard 4/4 | 161 files · 2,223 tests PASS |
+| **Web Vitest 합계** | **646 files · 6,519 tests PASS · 0 fail** |
+| Mobile 전체 tests | 511/511 PASS · 0 fail/skip/cancel |
+| Mobile typecheck / lint | PASS / PASS |
+| `mobile:release-check` | 105/105 PASS · 0 warnings/failures; EAS provider 전 fail-closed도 계약대로 PASS |
+| safety classifier focused suite | 410/410 PASS — 실제 위기 대응 E2E 증거는 아님 |
+| root typecheck | web·mobile·shared·design-tokens·ingest PASS |
+| root lint | PASS — 기존 `browserStorageFallback.test.ts` unused eslint-disable warning 1건 |
+| root repository contracts | 280/280 PASS |
+| `supabase:release:test` | 189/189 PASS |
+| `supabase:release:fence` | PASS — manifest `deployment_blocked`, active migration 86개 정합성 확인 |
+| Web optimized source build | PASS — static pages 1,218/1,218, artifact 2,644 files scan; Production deployment 아님 |
+| post-`origin/main` 의미 병합 제품 회귀 | Web 142/142 + 51/51, Mobile 67/67, web/mobile typecheck PASS |
+| 독립 post-merge 적대 검수 | 새로 재현 가능한 P0/P1 없음 |
+
+일반 `git push`의 pre-push hook은 같은 unsharded Web Vitest가 summary 없이 장시간 실행돼
+완료 영수증을 만들지 못했다. 위 exact-SHA 4-shard 전체 통과와 나머지 전체 gate를 먼저
+확정한 뒤 `HANBANG_SKIP_PREPUSH=1`로 원격 게시했으며, 이 예외는 PR 본문에도 공개했다.
+테스트를 생략했다는 뜻이 아니라 장기 unsharded runner 대신 완결된 exact-SHA shard 영수증을
+사용했다는 뜻이다.
+
+### 5.2 작업 중 관측한 focused 증거
+
+아래는 구현 과정의 RED→GREEN과 좁은 계약을 증명한 보조 영수증이다. 5.1의 최종 고정
+snapshot을 대신하지 않으며 hosted·fleet·기기 증거도 아니다.
 
 | 범위 | 결과 |
 |---|---:|
@@ -379,7 +415,7 @@ focused safety suite는 이 dirty source snapshot에서 `402/402 PASS`를 직접
 | 신규 provider/invite/ingest PGlite 3 suites | 42/42 PASS |
 | provider kill-switch scale PGlite 전체 | 23/23 PASS — 만료 역사 grant 512건 비갱신 포함 |
 | provider wrapper/SDK/chat 경계 9 suites | 350/350 PASS |
-| safety classifier focused suite | 402/402 PASS — 분류기 source 회귀, 실제 위기 대응 E2E 아님 |
+| safety classifier 중간 focused suite | 402/402 PASS — 최종 고정 snapshot은 410/410, 실제 위기 대응 E2E 아님 |
 | invite replay/expiry PGlite latest focused | 12/12 PASS — hosted migration 적용 증거 아님 |
 | schedule web/momentLoop source·unit suites | 86/86 PASS — route/RPC/hosted E2E 아님 |
 | schedule mobile pure/source contracts | 22/22 PASS — native UI E2E 아님 |
@@ -390,17 +426,33 @@ focused safety suite는 이 dirty source snapshot에서 `402/402 PASS`를 직접
 | schedule shared TypeScript + web/mobile TypeScript·ESLint | PASS |
 | `git diff --check` | PASS |
 
+### 5.3 원격 게시와 격리 Preview
+
+- remote branch에 게시한 검증 product-code snapshot과 최초 Preview source가 exact SHA
+  `f8851f74`와 일치하는 것을 확인했다. 이후 docs-only publication commit은 branch tip을
+  바꿀 수 있으므로 현재 tip은 GitHub에서 별도로 조회한다.
+- Draft PR [#105](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/105)을 열었다.
+- Vercel deployment `dpl_AJEzS36JsP35THq85GL2d4WaXB6a`
+  (`https://wedding-hanbang-me24b9s4q-hanbang.vercel.app`)는 target `preview`, state `READY`다.
+- Preview는 Vercel deployment protection/SSO 뒤에 있으며 unauthenticated 요청은 인증으로
+  redirect된다.
+- 인증된 Vercel CLI read-only probe에서 `/api/journey`는 HTTP 503,
+  `Cache-Control: no-store`, body `{"error":"preview_stub_api_disabled"}`를 반환했다.
+- 같은 exact deployment의 read-only route smoke에서 `/`는 `/landing`으로 307,
+  `/start-here`는 200(PRERENDER), `/manners`는 `/wedding/manners/`로 307,
+  `/checklist`는 `/wedding/checklist/`로 307을 반환했다. 도착 페이지 `/landing`과
+  `/wedding/manners`는 200(PRERENDER), `/wedding/checklist`는 200(no-store)을 반환했다.
+  응답 body·cookie는 수집하지 않았다.
+- 이 결과는 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`의 API fail-closed를 증명한다. 운영
+  Supabase·실사용자 데이터·provider·Memory·push·media 기능을 검증하거나 허용하지 않는다.
+
 아직 완료 증거가 아닌 것:
 
-- full web Vitest — 마지막 실행은 124초에 timeout되어 PASS 증거가 아님
-- full mobile latest fixed snapshot — Stop·shared 확인·reconciliation과 후속 actor fence 수정
-  뒤 전체를 다시 실행해야 함. 과거 중간 full PASS를 현재 snapshot에 상속하지 않음
-- root typecheck/lint/test/build
-- exact commit SHA의 GitHub checks
-- Vercel Preview smoke
 - hosted Supabase migration/backup/restore/storage/finalizer
 - 실제 두 계정·두 기기·접근성 E2E
 - provider runtime enable canary
+- Production Web alias, 운영 DB apply, EAS build/submit
+- 실제 사용자 데이터가 포함된 Preview 또는 Production smoke
 
 ---
 
@@ -554,29 +606,28 @@ git diff --check
 dirty worktree이면 reset·clean·checkout으로 없애지 않는다. 이 문서와 `git diff`를 먼저 읽고
 현재 실행 중인 test process를 확인한다.
 
-외부 Preview는 운영 Supabase URL/key나 실제 사용자 데이터를 넣지 않은 격리 artifact만
-허용한다. 최소 조건은 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`, dummy 또는 명시적 non-production
-Supabase, provider·Memory·push·media·community write OFF, synthetic data, 접근 보호다. 하나라도
-증명할 수 없으면 Preview도 만들지 않는다. 이 Preview는 Production 승격 후보가 아니라 UI
-smoke용이며 Production alias·DB migration·실제 사용자 테스트는 계속 금지한다.
+현재 Preview는 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`와 Vercel deployment protection을 확인한
+격리 artifact다. 운영 Supabase·실제 사용자 데이터를 쓰지 않는 synthetic UI smoke만 허용한다.
+이 격리 또는 feature-off를 더 이상 증명할 수 없으면 즉시 사용을 중단한다. Preview는
+Production 승격 후보가 아니며 Production alias·DB migration·실제 사용자 테스트는 계속
+금지한다.
 
 그 다음 순서:
 
-1. 모바일 Stop·first shared confirmation·ambiguous ingest reconciliation과 actor fence의
+1. remote branch와 Draft PR #105의 실제 head를 조회하고, 검증된 구현 SHA `f8851f74` 이후
+   변경을 먼저 diff한다. 과거 검증을 새 product-code SHA에 자동 상속하지 않는다.
+2. 모바일 Stop·first shared confirmation·ambiguous ingest reconciliation과 actor fence의
    최신 source/test 계약을 대조하고, 같은 기능을 다시 구현하지 않는다.
-2. 변경이 없는 고정 worktree에서 full mobile tests와 full web Vitest를 단독 실행하고
-   command·수치·시각·HEAD·diff fingerprint를 기록한다.
-3. schedule focused suites 86/86과 22/22를 같은 고정 상태에서 재확인한다.
+3. product code가 바뀌었으면 가장 가까운 회귀부터 시작해 full mobile·4-shard Web Vitest,
+   root typecheck/lint/contracts/build를 다시 실행하고 exact SHA와 수치를 기록한다.
 4. 두 synthetic 계정으로 known/general/unknown moment의 추가·수정·해제, 파트너 승인·거절,
    실제 `progress.__events` 저장을 확인한다.
 5. D-3/D-1/D+1 후보의 중복 방지와 consent/feature-off 미전달을 격리된 hosted 환경에서
    확인하고, TalkBack·VoiceOver·큰 글자 실제 기기 일정 폼 QA를 수행한다.
-6. root typecheck, lint, `test:repo`, build를 실행한다.
-7. review checklist로 SQL lock, mixed-version rollout, LLM prompt, privacy leak를 재검토한다.
-8. 문서의 검증 표와 publication receipt를 실제 결과로 갱신한다.
-9. 의도별 commit을 만들기 전 generic headerless Phase A, 구형 direct password SDK, invite
+6. review checklist로 SQL lock, mixed-version rollout, LLM prompt, privacy leak를 재검토한다.
+7. generic headerless Phase A, 구형 direct password SDK, invite
    10→15자, direct-writer fleet의 배포 blocker를 release checklist에 별도 항목으로 남긴다.
-10. 의도별 commit을 만들고 remote SHA를 확인한다.
-11. Preview는 production data와 분리된 destination·feature-off receipt가 있을 때만 synthetic
-   입력 QA에 사용한다.
-12. Production은 hosted evidence와 fleet gate를 모두 닫은 뒤 별도 승인 절차로 진행한다.
+8. Preview는 현재 protection·stub receipt가 유지될 때만 synthetic 입력 QA에 사용한다.
+9. hosted evidence 5종, provider canary, fleet/min-version, backup/restore, Storage/finalizer,
+   두 기기·실기기 QA를 각각 별도 운영 영수증으로 닫는다.
+10. Production은 위 hosted evidence와 fleet gate를 모두 닫은 뒤 별도 승인 절차로 진행한다.

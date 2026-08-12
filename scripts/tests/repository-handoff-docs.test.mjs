@@ -28,7 +28,7 @@ const currentPrivacyHandoffPath =
   "docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md";
 const privacyArchitecturePath =
   "docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md";
-const currentLocalHardeningHandoffPath =
+const currentHardeningCandidateHandoffPath =
   "docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md";
 
 function escaped(value) {
@@ -68,39 +68,56 @@ test("handoff keeps production blocked until the successor controller has hosted
   assert.match(startHere, /hosted 증거[^\n]*완료로 표시하지 않는다/);
 });
 
-test("the 2026-08-12 handoff is the local source-status entrypoint without becoming production authorization", async () => {
+test("the 2026-08-12 handoff is the remote candidate entrypoint without becoming production authorization", async () => {
   const [startHere, readme, docsIndex, hardeningHandoff] = await Promise.all([
     readFile(new URL(modelNeutralStartPath, root), "utf8"),
     readFile(new URL("README.md", root), "utf8"),
     readFile(new URL("docs/README.md", root), "utf8"),
-    readFile(new URL(currentLocalHardeningHandoffPath, root), "utf8"),
+    readFile(new URL(currentHardeningCandidateHandoffPath, root), "utf8"),
   ]);
 
   for (const document of [startHere, readme, docsIndex]) {
-    assert.match(document, new RegExp(escaped(currentLocalHardeningHandoffPath)));
-    assert.match(document, /LOCAL RELEASE CANDIDATE/);
-    assert.match(document, /HOSTED EVIDENCE MISSING/);
+    assert.match(document, new RegExp(escaped(currentHardeningCandidateHandoffPath)));
+    assert.match(document, /REMOTE RELEASE CANDIDATE/);
+    assert.match(document, /PROTECTED STUB PREVIEW/);
+    assert.match(document, /HOSTED PRODUCTION EVIDENCE MISSING/);
     assert.match(document, /PRODUCTION NO-GO/);
   }
 
   assert.ok(
-    startHere.indexOf(currentLocalHardeningHandoffPath)
+    startHere.indexOf(currentHardeningCandidateHandoffPath)
       < startHere.indexOf(currentPrivacyHandoffPath),
-    "the current local handoff must precede the 2026-08-04 historical source-status record",
+    "the current remote candidate handoff must precede the 2026-08-04 historical source-status record",
   );
   assert.ok(
-    docsIndex.indexOf(currentLocalHardeningHandoffPath)
+    docsIndex.indexOf(currentHardeningCandidateHandoffPath)
       < docsIndex.indexOf(currentPrivacyHandoffPath),
-    "the docs authority index must route to the local candidate before its predecessor",
+    "the docs authority index must route to the remote candidate before its predecessor",
   );
   assert.match(startHere, /2026-08-04~05[^\n]*역사 기록/);
   assert.match(docsIndex, /2026-08-04[^\n]*이전 source-status 기록/);
 
   assert.match(
     hardeningHandoff,
-    /^> 상태: \*\*LOCAL RELEASE CANDIDATE \/ FOCUSED SOURCE TESTS PASSED \/ HOSTED EVIDENCE MISSING \/ PRODUCTION NO-GO\*\*$/m,
+    /^> 상태: \*\*REMOTE RELEASE CANDIDATE \/ EXACT-SHA SOURCE GATES PASSED \/ PROTECTED STUB PREVIEW \/ HOSTED PRODUCTION EVIDENCE MISSING \/ PRODUCTION NO-GO\*\*$/m,
   );
-  assert.match(hardeningHandoff, /이 릴리스 후보 변경은 아직 commit·push·PR·Preview가 없다/);
+  const publicationSection = hardeningHandoff.slice(
+    hardeningHandoff.indexOf("## 5. 검증·게시 영수증"),
+    hardeningHandoff.indexOf("## 6. successor manifest와 해시"),
+  );
+  assert.match(publicationSection, /f8851f749890a172057f2e3a5360d11f3ea1163a/);
+  assert.match(publicationSection, /Draft PR \[#105\]\(https:\/\/github\.com\/Kyu-Sung-Cho\/wedding-hanbang-web\/pull\/105\)/);
+  assert.match(publicationSection, /dpl_AJEzS36JsP35THq85GL2d4WaXB6a[\s\S]*target `preview`, state `READY`/);
+  assert.match(publicationSection, /https:\/\/wedding-hanbang-me24b9s4q-hanbang\.vercel\.app/);
+  assert.match(publicationSection, /deployment protection\/SSO/);
+  assert.match(publicationSection, /646 files · 6,519 tests PASS/);
+  assert.match(publicationSection, /Mobile 전체 tests[\s\S]*511\/511 PASS/);
+  assert.match(publicationSection, /mobile:release-check` \| 105\/105 PASS/);
+  assert.match(publicationSection, /root repository contracts \| 280\/280 PASS/);
+  assert.match(publicationSection, /supabase:release:test` \| 189\/189 PASS/);
+  assert.match(publicationSection, /static pages 1,218\/1,218/);
+  assert.match(publicationSection, /Web 142\/142 \+ 51\/51, Mobile 67\/67/);
+  assert.match(publicationSection, /HTTP 503[\s\S]*Cache-Control: no-store[\s\S]*preview_stub_api_disabled/);
   assert.match(hardeningHandoff, /hosted evidence 5종은 모두 `missing`/);
   assert.doesNotMatch(
     hardeningHandoff,
@@ -108,12 +125,12 @@ test("the 2026-08-12 handoff is the local source-status entrypoint without becom
   );
 });
 
-test("the local hardening handoff pins completed source work and every mixed-version production blocker", async () => {
+test("the remote hardening candidate pins completed source work and every mixed-version production blocker", async () => {
   const [startHere, readme, docsIndex, hardeningHandoff] = await Promise.all([
     readFile(new URL(modelNeutralStartPath, root), "utf8"),
     readFile(new URL("README.md", root), "utf8"),
     readFile(new URL("docs/README.md", root), "utf8"),
-    readFile(new URL(currentLocalHardeningHandoffPath, root), "utf8"),
+    readFile(new URL(currentHardeningCandidateHandoffPath, root), "utf8"),
   ]);
 
   for (const sourceContract of [
@@ -131,7 +148,7 @@ test("the local hardening handoff pins completed source work and every mixed-ver
     assert.match(normalized(docsIndex), sourceContract);
   }
 
-  assert.match(hardeningHandoff, /402\/402 PASS[\s\S]*실제 위기 대응 E2E 아님/);
+  assert.match(hardeningHandoff, /410\/410 PASS[\s\S]*실제 위기 대응 E2E 증거는 아님/);
   assert.match(hardeningHandoff, /provider DB runtime[\s\S]*disabled[\s\S]*canary가 없다/);
   assert.match(hardeningHandoff, /hosted staging·backup·restore·Storage·finalizer 증거 5종[\s\S]*`missing`/);
   assert.match(hardeningHandoff, /generic mutation actor contract는 Phase A[\s\S]*headerless legacy/);
@@ -142,10 +159,12 @@ test("the local hardening handoff pins completed source work and every mixed-ver
   assert.match(hardeningHandoff, /구형 chat direct-writer 0건 증거/);
   assert.match(hardeningHandoff, /tested DB backup\/restore[\s\S]*두 계정·두 기기·실제 모바일 기기 QA/);
   assert.match(hardeningHandoff, /NEXT_PUBLIC_PREVIEW_STUB_MODE=true/);
-  assert.match(hardeningHandoff, /하나라도[\s\S]*증명할 수 없으면 Preview도 만들지 않는다/);
-  assert.match(hardeningHandoff, /full mobile latest fixed snapshot[\s\S]*다시 실행해야 함/);
+  assert.match(hardeningHandoff, /격리 또는 feature-off를 더 이상 증명할 수 없으면 즉시 사용을 중단/);
+  assert.match(hardeningHandoff, /Mobile 전체 tests[\s\S]*511\/511 PASS/);
 
   for (const document of [startHere, readme, docsIndex]) {
+    assert.match(document, /f8851f749890a172057f2e3a5360d11f3ea1163a|`f8851f74`/);
+    assert.match(document, /(?:pull\/105|PR #105|Draft PR\s*\[#105\])/);
     assert.match(document, /headerless[\s\S]*Phase[- ]A|Phase[- ]A[\s\S]*headerless/);
     assert.match(document, /10자[\s\S]*15자/);
     assert.match(document, /NEXT_PUBLIC_PREVIEW_STUB_MODE=true/);

@@ -9,11 +9,14 @@
 > 2026-07-31 인수인계 snapshot: PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
 > (`agent/release-handoff-20260731`, **현재 개발 기준 아님**)
 >
-> 이 문서가 확인한 publication receipt 기준점: `7735a2ec21ee62bf8535b762d768a25369288f08`
+> 검증된 구현·Preview source SHA: `f8851f749890a172057f2e3a5360d11f3ea1163a`
 >
-> 현재 local release candidate source-status 정본:
+> 원격 후보: `codex/amora-release-hardening-20260811` · Draft PR
+> [#105](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/105)
+>
+> 현재 remote release candidate source-status 정본:
 > `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
-> — **LOCAL RELEASE CANDIDATE / HOSTED EVIDENCE MISSING / PRODUCTION NO-GO**
+> — **REMOTE RELEASE CANDIDATE / PROTECTED STUB PREVIEW / HOSTED PRODUCTION EVIDENCE MISSING / PRODUCTION NO-GO**
 
 이 문서는 Claude, GPT, Gemini, Copilot 등 특정 모델에 종속되지 않는 냉시작 진입점이다.
 현재 사실과 상세 근거를 모두 복제하지 않고, 새 작업자가 무엇을 먼저 확인하고 어떤 문서를
@@ -22,10 +25,10 @@
 문서에 적힌 과거 SHA나 snapshot branch를 현재 tip으로 가정하지 않는다. 작업을 시작할 때
 `origin/main`과 이어서 작업하라고 명시된 원격 branch를 Git과 GitHub에서 직접 확인한다.
 
-현재 shared worktree에서는 2026-08-12 handoff가 구현·검증 상태를 갱신한다. 아래
+현재 원격 후보에서는 2026-08-12 handoff가 구현·검증 상태를 갱신한다. 아래
 2026-08-04~05 진행 절과 P0 목록은 역사 기록이며 현재 작업 목록으로 실행하지 않는다.
-다만 새 handoff도 아직 commit·push·PR·Preview가 없는 local 문서이므로, 실제 코드·테스트와
-Git 상태보다 높은 배포 권한은 갖지 않는다.
+후보는 원격 branch·Draft PR·접근 보호된 stub Preview까지 게시됐지만, 실제 코드·테스트와
+Git 상태보다 높은 Production 배포 권한은 갖지 않는다.
 
 ---
 
@@ -43,16 +46,21 @@ Git 상태보다 높은 배포 권한은 갖지 않는다.
 ### 현재 상태
 
 - 많은 웹·모바일·커뮤니티·아모라 baseline 기능과 테스트가 현재 `main`에 구현돼 있다.
-- 그 위의 2026-08-12 하드닝 변경은 현재 local dirty worktree에만 있고 commit·push·PR·
-  Preview receipt가 없다.
+- 그 위의 2026-08-12 하드닝 변경은 remote branch와 Draft PR #105로 게시됐다. 검증된 구현
+  source SHA는 `f8851f749890a172057f2e3a5360d11f3ea1163a`다.
 - 개인정보와 커플 경계를 위한 2,083줄 목표 아키텍처가 문서화돼 있다.
 - 목표 아키텍처 전체가 product code, DB, Storage, 모바일 운영 환경에 구현된 것은 아니다.
 - 2026-08-12 handoff에 열거된 actor fence, provider grant, server-only ingest, attachment
   cleanup, invite replay, quota 분리, 모바일 Stop·첫 shared 확인·동일 요청 reconciliation,
-  위기 안전 분류기, schedule moment source 수정은 local 후보에 있다. focused source test와
+  위기 안전 분류기, schedule moment source 수정은 remote 후보에 있다. source test와
   hosted·fleet·E2E 검증을 구분하며, 이 문장을 모든 P0/P1 종료로 확대하지 않는다.
-- 현재 후보의 full web/mobile/root gate는 고정 snapshot에서 최종 재실행 중이거나 아직
-  대기 중이다. 과거 또는 중간 focused PASS를 최종 전체 GREEN으로 합산하지 않는다.
+- 고정 SHA에서 Web Vitest 646 files·6,519 tests, Mobile 511 tests, safety classifier 410 tests,
+  root typecheck/lint/repository contracts, Supabase release contracts와 Web build가 통과했다.
+  정확한 명령·범위는 상세 handoff §5를 따른다.
+- Vercel Preview는 deployment protection 뒤에서만 접근되고
+  `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`가 활성화됐다. `/api/journey`는 503
+  `preview_stub_api_disabled`와 `Cache-Control: no-store`로 fail-closed했다. 이는 synthetic
+  UI smoke artifact이며 실제 사용자·운영 DB 검증이 아니다.
 - Supabase release manifest는 `deployment_blocked`다.
 - 현재 GitHub의 Production Readiness job은 hosted 증거를 동적으로 판별하지 않고 항상
   fail-closed한다. hosted 증거 5종 수집 후 workflow/controller 갱신과 exact-SHA
@@ -90,6 +98,8 @@ Git 상태보다 높은 배포 권한은 갖지 않는다.
 | 목적 | SHA 또는 ref | 의미 |
 |---|---|---|
 | 현재 원격 개발 기준 | `origin/main` | 매 작업 시작 시 fetch 뒤 실제 SHA를 조회하는 유일한 기본 통합 기준 |
+| 검증된 구현·Preview source | `f8851f749890a172057f2e3a5360d11f3ea1163a` | 전체 source gate와 최초 보호 stub Preview가 연결된 exact SHA |
+| 현재 원격 후보 | `origin/codex/amora-release-hardening-20260811` | Draft PR #105의 head. 문서-only 갱신 뒤에는 실제 tip을 다시 조회 |
 | 구현·운영 보안 감사 기준 | `a4f3626e5f98772b340b358b00a562b4692254fd` | P0/P1 코드 경로와 운영 증거를 확인한 source 기준점 |
 | 두 핵심 인수인계 문서 최초 게시 | `aaddd8ee23e5c83ac99784eb57b9a57c4c56af73` | 상세 handoff와 목표 아키텍처를 원격에서 처음 복원할 수 있는 commit |
 | publication receipt 게시 | `7735a2ec21ee62bf8535b762d768a25369288f08` | 문서 최초 게시와 당시 CI/Preview 상태를 기록한 docs commit |
@@ -167,7 +177,7 @@ local dev의 실행 정본은 `apps/mobile/scripts/start-expo-dev.mjs`이며 Nod
 | 2 | `AGENTS.md` | 저장소 구조·코딩·검증·운영 작업 규칙은 무엇인가 |
 | 3 | `docs/README.md` | 현재 문서와 역사 문서를 어떻게 구분하는가 |
 | 4 | `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md` | 현재 제품·채널·MVP 우선순위는 무엇인가 (`docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계) |
-| 5 | `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md` | 현재 local 후보에서 무엇을 고쳤고 무엇이 아직 hosted 미검증인가 |
+| 5 | `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md` | 현재 remote 후보에서 무엇을 고쳤고 무엇이 아직 hosted 미검증인가 |
 | 6 | `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md` | 이전 source-status와 남은 목표·공격 모델은 무엇이었나(현재 상태는 5번이 갱신) |
 | 7 | `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md` | 개인정보·커플 경계의 목표 구조와 절대 출시 게이트는 무엇인가 |
 | 8 | 변경할 영역의 실제 코드·테스트·최신 migration | 문서 이후에도 유효한 실제 동작은 무엇인가 |
@@ -212,12 +222,12 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 
 | 표면 | 현재 판정 | 이유 |
 |---|---|---|
-| GitHub source와 문서 | 현재 local 후보 미게시 | 2026-08-12 변경은 commit·remote branch·PR이 없고 과거 handoff만 원격에 존재 |
-| Vercel Preview artifact | 현재 후보 receipt 없음 | 과거 Preview를 현재 dirty diff에 상속하지 않음 |
-| 격리 stub Preview | 조건부 가능 | 운영 Supabase·운영 secret 없이 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`, synthetic data, 기능 OFF, 접근 보호를 증명한 경우만 가능 |
-| 실제 사용자 데이터가 들어가는 Preview | NO-GO | 접근 보호·non-production destination·기능 OFF 영수증이 없음 |
-| Production Web | NO-GO | 현재 후보 미게시, full gate 미완료, hosted 증거 없음 |
-| Amora private/shared/direct | NO-GO | local source 보강을 hosted DB·fleet·두 기기 E2E로 검증하지 않음 |
+| GitHub source와 문서 | Draft 후보 게시됨 | remote branch와 Draft PR #105가 있으며 구현 검증 SHA는 `f8851f74` |
+| Vercel Preview artifact | READY·접근 보호 | deployment `dpl_AJEzS36JsP35THq85GL2d4WaXB6a`; Production alias 아님 |
+| 격리 stub Preview | synthetic QA만 가능 | `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`, Vercel SSO 보호, `/api/journey` 503·no-store 확인 |
+| 실제 사용자 데이터가 들어가는 Preview | NO-GO | 현재 artifact는 stub 전용이며 실제 사용자 QA용 destination·동의·기능별 운영 영수증이 없음 |
+| Production Web | NO-GO | source gate 통과와 별개로 hosted 증거·fleet·운영 승인 없음 |
+| Amora private/shared/direct | NO-GO | source 보강을 hosted DB·fleet·두 기기 E2E로 검증하지 않음 |
 | Supabase migration apply | BLOCKED | manifest `deployment_blocked`, hosted 증거 5종 missing |
 | Mobile Production build/submit | BLOCKED | release wrapper가 provider 호출 전에 의도적으로 차단 |
 | unit/PGlite/synthetic test | 가능 | Production·실사용자 데이터와 분리된 범위 |
@@ -243,7 +253,7 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 ## 7. 역사 기록 — 2026-08-04~05 P0-5 provider egress gate
 
 > **이 절 전체는 2026-08-04~05 역사 기록이다. `P0-5 OPEN`, 당시 branch, SHA, 테스트 수를
-> 현재 상태로 사용하지 않는다. 현재 local source 상태는
+> 현재 상태로 사용하지 않는다. 현재 remote candidate source 상태는
 > `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`와 실제 diff가 갱신한다.**
 > RED 테스트도 SDK gate도 호출부 배선도 이미 존재하므로 같은 작업을 다시 만들지 않는다.
 
@@ -519,7 +529,7 @@ corepack pnpm supabase:release:fence
    docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md를 읽으세요.
 4. 현재 판정은 Production NO-GO입니다. Production DB write/migration, Vercel Production,
    EAS Production, 실제 사용자 데이터 QA, Memory/push/media/provider 활성화를 하지 마세요.
-5. 2026-08-12 local handoff가 갱신한 actor fence, provider single-use grant, server-only ingest,
+5. 2026-08-12 remote candidate handoff가 갱신한 actor fence, provider single-use grant, server-only ingest,
    attachment cleanup, invite replay, quota 분리, schedule moment 수직을 먼저 현재 diff와
    대조하세요. §7~8의 2026-08-04~05 OPEN 목록을 현재 작업으로 다시 시작하지 마세요.
 6. 모바일 Stop·first shared confirmation·ambiguous ingest reconciliation은 source에

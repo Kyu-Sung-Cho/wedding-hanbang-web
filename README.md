@@ -4,8 +4,9 @@
 준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에
 남기는 서비스입니다.**
 
-현재 MVP는 모바일 앱의 아모라 핵심 흐름에 집중합니다. 웹은 유입·설명·정책·고객지원과
-데스크톱 연속성을 담당하고, 커뮤니티는 실제 경험을 찾고 질문하는 보조 축입니다.
+모바일 앱이 소비자의 주 제품이며, 현재 MVP는 아모라 핵심 흐름에 집중합니다. 웹은
+유입·설명·정책·고객지원과 데스크톱 연속성을 담당하고, 커뮤니티는 실제 경험을 찾고
+질문하는 보조 축입니다.
 업체·예약·축의금 기능은 저장소에 남아 있어도 현재 MVP의 전면 제품으로 소개하지
 않습니다. 아모라는 사용자의 승인 없이 일정·예산을 바꾸거나 검증되지 않은 업체 정보를
 확정 사실처럼 말하지 않습니다.
@@ -26,11 +27,12 @@
 - 원격 개발 기준: `origin/main` — 작업 시작 때 fetch한 실제 SHA가 정본이며, 과거
   integration branch나 로컬 중첩 clone을 현재 기준으로 추정하지 않습니다.
 - 새 컴퓨터·새 LLM의 모델 중립 진입점: `START_HERE.md`
-- 현재 모바일 우선 MVP 제품 계약: `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
-- 현재 아모라 릴리스 하드닝 local 후보와 source/hosted 경계(**LOCAL RELEASE CANDIDATE /
-  HOSTED EVIDENCE MISSING / PRODUCTION NO-GO**):
+- 현재 제품 계약: `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md`
+  (`docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계)
+- 현재 아모라 릴리스 하드닝 remote 후보와 source/hosted 경계(**REMOTE RELEASE CANDIDATE /
+  PROTECTED STUB PREVIEW / HOSTED PRODUCTION EVIDENCE MISSING / PRODUCTION NO-GO**):
   `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
-- 현재 아모라 개인정보·보안 진행과 production 판정(**구현 미완료 / NO-GO**):
+- 이전 아모라 개인정보·보안 source-status와 공격 모델 기록(**현재 상태는 2026-08-12 handoff가 갱신**):
   `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
 - 아모라 개인정보 경계 목표 아키텍처(**TARGET ARCHITECTURE / 구현 완료 증거 아님**):
   `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
@@ -75,17 +77,23 @@
 현재 릴리스 문서, Git HEAD, 테스트 결과, GitHub checks와 배포 receipt를 함께 확인해
 판정합니다.
 
-현재 local 후보에는 모바일 Stop·첫 shared 확인·ambiguous ingest reconciliation, 위기 안전
-분류기, provider single-use grant, server-only chat ingest, invite replay/expiry, Storage
-cleanup, settings·onboarding·dashboard·chat actor fence, 명시적 schedule moment 입력 보강이
-들어 있습니다. 이는 source 후보 상태이며 최종 전체 검증·hosted 증거가 아닙니다.
+현재 remote 후보인 Draft PR
+[#105](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/105)에는 모바일 Stop·첫
+shared 확인·ambiguous ingest reconciliation, 위기 안전 분류기, provider single-use grant,
+server-only chat ingest, invite replay/expiry, Storage cleanup,
+settings·onboarding·dashboard·chat actor fence, 명시적 schedule moment 입력 보강이 들어
+있습니다. 구현 검증 SHA `f8851f749890a172057f2e3a5360d11f3ea1163a`에서 Web
+Vitest 6,519개와 Mobile 511개를 포함한 source gate와 Web build가 통과했습니다. 보호된 Vercel
+Preview는 stub API가 503·no-store로 닫힌 synthetic UI artifact이며 hosted Production
+증거나 실제 사용자 흐름 검증이 아닙니다.
 
 Production은 계속 NO-GO입니다. successor manifest의 hosted 증거 5종, provider canary,
 구형 direct-writer와 headerless Phase-A client의 fleet drain, 구형 모바일의 직접 Supabase
 비밀번호 변경 경로, 10자 입력 UI와 새 15자 초대코드의 mixed-version 영향, backup·restore·
-Storage·finalizer·두 기기·실기기 QA가 닫히지 않았습니다. 외부 Preview가 필요하면 운영
-데이터·운영 Supabase와 분리한 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true` Preview만 허용하며,
-그 격리를 증명할 수 없으면 Preview도 만들지 않습니다.
+Storage·finalizer·두 기기·실기기 QA가 닫히지 않았습니다. 현재 보호된
+`NEXT_PUBLIC_PREVIEW_STUB_MODE=true` Preview는 synthetic UI smoke에만 사용합니다. 격리와
+feature-off 영수증이 유지되지 않으면 즉시 사용을 중단하며, 실제 사용자 데이터 QA에는
+사용하지 않습니다.
 
 ## 로컬 시작
 
