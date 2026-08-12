@@ -46,6 +46,7 @@ test("a mobile schedule patch always carries the exact journey revision", () => 
     { id: "missing-title", date: "2026-08-10" },
     { id: "bad-date", date: "2027-02-29", title: "깨진 일정" },
     { id: "blank-title", date: "2026-08-10", title: "  " },
+    { ...FIRST_EVENT, momentType: "future\u200bsupported_moment" },
   ]) {
     assert.throws(
       () => buildScheduleProgressPatch(7, [malformed]),
@@ -81,6 +82,47 @@ test("schedule drafts reject impossible dates, malformed times, and oversized te
   ]) {
     assert.deepEqual(validateScheduleEventDraft(draft), { ok: false, field });
   }
+});
+
+test("schedule drafts carry an explicit bounded care moment into the persisted event", () => {
+  assert.deepEqual(validateScheduleEventDraft({
+    date: "2028-02-29",
+    title: "가족과 저녁 식사",
+    momentType: "sanggyeonrye",
+  }), {
+    ok: true,
+    value: {
+      date: "2028-02-29",
+      title: "가족과 저녁 식사",
+      momentType: "sanggyeonrye",
+    },
+  });
+
+  assert.deepEqual(
+    validateScheduleEventDraft({
+      date: "2028-02-29",
+      title: "기존 중요 일정",
+      momentType: "future_supported_moment",
+    }),
+    {
+      ok: true,
+      value: {
+        date: "2028-02-29",
+        title: "기존 중요 일정",
+        momentType: "future_supported_moment",
+      },
+    },
+  );
+  assert.deepEqual(validateScheduleEventDraft({
+    date: "2028-02-29",
+    title: "일정",
+    momentType: "m".repeat(101),
+  }), { ok: false, field: "momentType" });
+  assert.deepEqual(validateScheduleEventDraft({
+    date: "2028-02-29",
+    title: "일정",
+    momentType: "future\u200bsupported_moment",
+  }), { ok: false, field: "momentType" });
 });
 
 test("editing targets the stable event id even after a partner reorders the array", () => {

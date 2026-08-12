@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseMembershipRpcResponse } from "../membershipRpc";
+import {
+  JOIN_COUPLE_SERVER_RPC,
+  joinCoupleThroughServerRpc,
+  parseMembershipRpcResponse,
+} from "../membershipRpc";
 
 const coupleId = "12345678-1234-4234-9234-123456789abc";
 
@@ -61,6 +65,70 @@ describe("parseMembershipRpcResponse", () => {
     );
 
     expect(result).toMatchObject({ ok: true, changed: true, idempotent: false });
+  });
+
+  it("requires the server RPC success receipt to echo the verified actor", () => {
+    const actorUserId = "00000000-0000-4000-8000-000000000001";
+    const accepted = parseMembershipRpcResponse(
+      {
+        success: true,
+        joined: true,
+        idempotent: false,
+        actor_user_id: actorUserId,
+        couple_id: coupleId,
+        invite_code: "WH-ABC123",
+        role: "bride",
+      },
+      "bride",
+      "join",
+      actorUserId,
+    );
+    expect(accepted).toMatchObject({ ok: true, changed: true });
+
+    const mismatched = parseMembershipRpcResponse(
+      {
+        success: true,
+        joined: true,
+        idempotent: false,
+        actor_user_id: "00000000-0000-4000-8000-000000000099",
+        couple_id: coupleId,
+        invite_code: "WH-ABC123",
+        role: "bride",
+      },
+      "bride",
+      "join",
+      actorUserId,
+    );
+    expect(mismatched).toMatchObject({
+      ok: false,
+      errorCode: "INVALID_RPC_RESPONSE",
+    });
+  });
+
+  it("uses only the actor-bound service RPC and never falls back to legacy", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const expected = { data: null, error: { code: "PGRST202", message: "missing" } };
+    const admin = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        return expected;
+      },
+    };
+
+    await expect(joinCoupleThroughServerRpc(admin, {
+      actorUserId: "00000000-0000-4000-8000-000000000001",
+      inviteCode: "WH-ABC123",
+      role: "groom",
+    })).resolves.toBe(expected);
+    expect(JOIN_COUPLE_SERVER_RPC).toBe("join_couple_server");
+    expect(calls).toEqual([{
+      name: "join_couple_server",
+      args: {
+        p_actor_user_id: "00000000-0000-4000-8000-000000000001",
+        p_invite_code: "WH-ABC123",
+        p_role: "groom",
+      },
+    }]);
   });
 
   it("maps stable error codes without exposing database text", () => {

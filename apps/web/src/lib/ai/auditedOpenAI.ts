@@ -25,6 +25,10 @@ import {
 } from "@/lib/ai/openai";
 import { createSafetyIdentifier } from "@/lib/ai/safetyIdentifier";
 import {
+  bindProviderEgressContent,
+  type ProviderEgressAuthorizer,
+} from "@/lib/ai/providerEgressBoundary";
+import {
   elapsedMs,
   logAIInteraction,
   startLatencyClock,
@@ -79,7 +83,7 @@ interface BaseAuditOptions {
    * input to the provider. No caller may opt out: an omitted gate fails closed
    * before any provider request. See handoff §8 P0-5 and §17.3.
    */
-  beforeProviderEgress: () => void | Promise<void>;
+  beforeProviderEgress: ProviderEgressAuthorizer;
   /** Required atomic paid-call gate; no audited caller may opt out. */
   beforeGeneration: () => void | Promise<void>;
   /**
@@ -249,9 +253,22 @@ async function createOpenAIResponseWithAuditInternal<T>(
         "[ai-config] beforeProviderEgress is required before any content-bearing provider request",
       );
     }
+    const inputCountRequest = {
+      model: request.model,
+      instructions: request.instructions,
+      input: request.input,
+      reasoning: request.reasoning,
+      text: request.text,
+    };
     options.signal?.throwIfAborted();
     try {
-      await options.beforeProviderEgress();
+      await options.beforeProviderEgress({
+        operation: "responses.input_tokens.count",
+        contentBinding: bindProviderEgressContent(
+          "responses.input_tokens.count",
+          inputCountRequest,
+        ),
+      });
     } catch (error) {
       providerEgressGateFailed = true;
       throw error;
@@ -260,13 +277,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
 
     try {
       const countPromise = client.responses.inputTokens.count(
-        {
-          model: request.model,
-          instructions: request.instructions,
-          input: request.input,
-          reasoning: request.reasoning,
-          text: request.text,
-        },
+        inputCountRequest,
         options.signal ? { signal: options.signal } : undefined,
       );
       const counted = await countPromise.withResponse();
@@ -316,6 +327,22 @@ async function createOpenAIResponseWithAuditInternal<T>(
       await options.beforeGeneration();
     } catch (error) {
       beforeGenerationFailed = true;
+      throw error;
+    }
+    options.signal?.throwIfAborted();
+    try {
+      // Input counting and generation are separate content-bearing egresses.
+      // Revoke/unlink and provider kill switches can change while counting, so
+      // the paid request must win a fresh authorization at its own boundary.
+      await options.beforeProviderEgress({
+        operation: "responses.create",
+        contentBinding: bindProviderEgressContent(
+          "responses.create",
+          request,
+        ),
+      });
+    } catch (error) {
+      providerEgressGateFailed = true;
       throw error;
     }
     options.signal?.throwIfAborted();

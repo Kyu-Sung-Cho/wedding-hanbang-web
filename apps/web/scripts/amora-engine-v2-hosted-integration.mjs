@@ -807,7 +807,11 @@ try {
   const couple = await createCouple(bride, "bride");
   const joined = expectSuccess(
     "join groom",
-    await groom.client.rpc("join_couple", { p_invite_code: couple.invite_code, p_role: "groom" }),
+    await admin.rpc("join_couple_server", {
+      p_actor_user_id: groom.id,
+      p_invite_code: couple.invite_code,
+      p_role: "groom",
+    }),
   );
   invariant(joined?.success === true && joined?.couple_id === couple.couple_id, "groom join failed");
 

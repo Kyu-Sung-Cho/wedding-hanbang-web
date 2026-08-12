@@ -35,6 +35,8 @@ import { OpenAIProviderError } from "@/lib/ai/openai";
 
 const RECEIPT_ID = "30000000-0000-4000-8000-000000000001";
 const CLAIM_TOKEN = "40000000-0000-4000-8000-000000000001";
+const EGRESS_GRANT_ID = "50000000-0000-4000-8000-000000000001";
+const EGRESS_GRANT_TOKEN = "50000000-0000-4000-8000-000000000002";
 
 const context = {
   userId: "10000000-0000-4000-8000-000000000001",
@@ -88,6 +90,24 @@ function makeAdmin(options: {
     if (name === "reserve_amora_provider_call") {
       return options.reserve ?? {
         data: [{ allowed: true, reason: null, remaining: 99 }],
+        error: null,
+      };
+    }
+    if (name === "issue_amora_provider_egress_grant") {
+      return {
+        data: [{
+          grant_id: EGRESS_GRANT_ID,
+          grant_token: EGRESS_GRANT_TOKEN,
+          issued: true,
+          expires_at: "2026-08-11T00:00:05.000Z",
+          reason: null,
+        }],
+        error: null,
+      };
+    }
+    if (name === "consume_amora_provider_egress_grant") {
+      return {
+        data: [{ consumed: true, reason: null }],
         error: null,
       };
     }
@@ -280,6 +300,58 @@ describe("runAmoraProviderCallWithLedger", () => {
         p_tokens_output: 240,
       }),
     );
+  });
+
+  it("exposes a receipt-bound authorizer that issues and consumes each exact provider egress", async () => {
+    const { rpc } = makeAdmin();
+    const scopedContext = {
+      ...context,
+      providerPrivacyScope: {
+        visibility: "shared" as const,
+        expectedPrivacyEpoch: 7,
+      },
+    };
+    type Authorize = (request: {
+      operation: "responses.input_tokens.count" | "responses.create";
+      contentBinding: string;
+    }) => void | Promise<void>;
+
+    await runAmoraProviderCallWithLedger(
+      scopedContext,
+      async (
+        beforeGeneration,
+        _reserveBeforeSideEffect,
+        authorizeProviderEgress?: Authorize,
+      ) => {
+        expect(authorizeProviderEgress).toBeTypeOf("function");
+        await authorizeProviderEgress?.({
+          operation: "responses.input_tokens.count",
+          contentBinding: "c".repeat(64),
+        });
+        await beforeGeneration();
+        await authorizeProviderEgress?.({
+          operation: "responses.create",
+          contentBinding: "d".repeat(64),
+        });
+        return successResult();
+      },
+    );
+
+    expect(rpc).toHaveBeenCalledWith(
+      "issue_amora_provider_egress_grant",
+      expect.objectContaining({
+        p_receipt_id: RECEIPT_ID,
+        p_receipt_claim_token: CLAIM_TOKEN,
+        p_actor_user_id: context.userId,
+        p_couple_id: context.coupleId,
+        p_visibility: "shared",
+        p_expected_privacy_epoch: 7,
+        p_operation: "responses.input_tokens.count",
+        p_content_binding: "c".repeat(64),
+      }),
+    );
+    expect(rpc.mock.calls.filter(([name]) =>
+      name === "consume_amora_provider_egress_grant")).toHaveLength(2);
   });
 
   it("atomically checkpoints a non-terminal tool round with its paid receipt", async () => {
@@ -770,6 +842,75 @@ describe("runAmoraProviderCallWithLedger", () => {
       "reserve_amora_provider_call",
       expect.objectContaining({
         p_cost_couple_id: "00000000-0000-4000-8000-000000000000",
+      }),
+    );
+  });
+
+  it("rejects a release-eval receipt whose user or couple scope is not null", async () => {
+    const { rpc } = makeAdmin();
+    const provider = vi.fn(async () => successResult());
+
+    await expect(runAmoraProviderCallWithLedger(
+      {
+        ...context,
+        source: "release_eval",
+        providerPrivacyScope: null,
+        costGuard: {
+          ...context.costGuard,
+          quotaScope: "release_eval",
+        },
+      },
+      provider,
+    )).rejects.toThrow(/receipt scope contract/i);
+
+    expect(provider).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalledWith(
+      "prepare_amora_provider_call_receipt",
+      expect.anything(),
+    );
+  });
+
+  it("uses the same null receipt scope for release-eval grant authorization", async () => {
+    const { rpc } = makeAdmin();
+    const releaseEvalContext = {
+      ...context,
+      userId: null,
+      coupleId: null,
+      source: "release_eval" as const,
+      providerPrivacyScope: null,
+      costGuard: {
+        ...context.costGuard,
+        quotaScope: "release_eval" as const,
+      },
+    };
+
+    await runAmoraProviderCallWithLedger(
+      releaseEvalContext,
+      async (beforeGeneration, _reserveBeforeSideEffect, authorizeEgress) => {
+        await authorizeEgress({
+          operation: "responses.input_tokens.count",
+          contentBinding: "a".repeat(64),
+        });
+        await beforeGeneration();
+        await authorizeEgress({
+          operation: "responses.create",
+          contentBinding: "b".repeat(64),
+        });
+        return successResult();
+      },
+    );
+
+    expect(rpc).toHaveBeenCalledWith(
+      "prepare_amora_provider_call_receipt",
+      expect.objectContaining({ p_user_id: null, p_log_couple_id: null }),
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      "issue_amora_provider_egress_grant",
+      expect.objectContaining({
+        p_actor_user_id: null,
+        p_couple_id: null,
+        p_visibility: null,
+        p_expected_privacy_epoch: null,
       }),
     );
   });

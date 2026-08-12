@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAmoraQuestionScopeInstruction,
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
 } from "@/lib/ai/amoraQuestionScope";
@@ -330,6 +331,72 @@ describe("Amora question-scope ceiling", () => {
     expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
   });
 
+  it.each([
+    "지금 뭐부터 해야 해?",
+    "D-90인데 늦은 거야?",
+    "이 견적 800만원인데 괜찮은 거야?",
+    "예산 초과했는데 어디서 줄여?",
+  ])("routes a real preparation utterance into W0 instead of a clarification: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+      confidence: "high",
+      needsClarification: false,
+    });
+  });
+
+  it.each([
+    "회사 일 뭐부터 해야 해?",
+    "이사 준비 뭐부터 해야 해?",
+    "시험 공부 뭐부터 시작할까?",
+    "인테리어 견적 800만원인데 괜찮아?",
+    "여행 예산 초과했는데 어디서 줄여?",
+    "병원 예약 늦었어",
+    "이직 준비가 늦은 건가?",
+  ])("does not let ambiguous preparation vocabulary borrow wedding authority: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
+  });
+
+  it.each([
+    "남편은 무관심하고 나만 다 하고 있어",
+    "아내가 요즘 나한테 말을 안 해",
+    "시어머니가 나를 싫어해",
+    "시댁에서 전화가 자꾸 와",
+    "처가에 뭐라고 말해야 할지 모르겠어",
+  ])("answers a one-sided relationship account but never stores it: %s", (userText) => {
+    const classification = classifyAmoraQuestionScope({ userText });
+
+    expect(classification).toMatchObject({
+      scope: "W1_wedding_adjacent",
+      allowsLongTermMemory: false,
+      needsClarification: false,
+    });
+    expect(
+      filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification).map((tool) => tool.name),
+    ).toContain("get_wedding_info");
+  });
+
+  it.each([
+    "상견례에서 시어머니가 예단 얘기를 꺼냈어",
+    "남편이랑 웨딩홀 보러 가기로 했어",
+    "남편이랑 뭐부터 해야 할지 모르겠어",
+  ])("still gives a preparation question full wedding authority: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+    });
+  });
+
+  it.each([
+    "혼주 준비는 뭐가 남았어?",
+    "보정본 언제 받아?",
+  ])("recognizes common wedding vocabulary without asking for scope proof: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      needsClarification: false,
+    });
+  });
+
   it("accepts generic state nouns only when the current message carries a wedding signal", () => {
     for (const userText of [
       "웨딩 예산을 정리해줘",
@@ -345,6 +412,37 @@ describe("Amora question-scope ceiling", () => {
       expect(classification.scope).toBe("W0_wedding_core");
       expect(classification.allowsLongTermMemory).toBe(true);
     }
+  });
+
+  it("answers an unclear turn like a person without opening tools or stored facts", () => {
+    const classification = classifyAmoraQuestionScope({ userText: "이거 어떻게 하면 돼?" });
+    expect(classification).toMatchObject({
+      scope: "W4_out_of_scope",
+      needsClarification: true,
+    });
+
+    const instruction = buildAmoraQuestionScopeInstruction(classification);
+
+    expect(instruction).toContain("먼저 사람처럼 반응하세요");
+    expect(instruction).toContain("그것부터 짧게 알아주고");
+    expect(instruction).not.toContain("본문 답이나 실행을 시작하지 말고");
+    expect(instruction).not.toContain("이 요청이 결혼 준비의 어떤 결정과 연결되는지");
+    expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
+    expect(instruction).toContain("확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고");
+    expect(instruction).toContain("저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요");
+  });
+
+  it("keeps a high-confidence out-of-scope task on the existing refusal boundary", () => {
+    const classification = classifyAmoraQuestionScope({
+      userText: "청첩장 웹사이트 TypeScript 코드를 대신 작성해줘",
+    });
+    expect(classification.needsClarification).toBe(false);
+
+    const instruction = buildAmoraQuestionScopeInstruction(classification);
+    expect(instruction).toContain(
+      "아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요",
+    );
+    expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
   });
 
   it("fails closed with one clarification boundary when the wedding connection is ambiguous", () => {

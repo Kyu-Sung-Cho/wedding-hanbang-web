@@ -4,7 +4,14 @@
 본문에 “완료”가 적혀 있다는 이유만으로 현재 제품·보안·배포 상태로 사용하지 않는다.
 
 새 컴퓨터나 새 LLM은 저장소 루트의 `START_HERE.md`에서 시작한다. 이 파일은 문서 권한을
-대체하지 않고, 아래 정본을 안전한 순서로 읽고 첫 P0 작업까지 진입하게 하는 색인이다.
+대체하지 않고, 아래 정본을 안전한 순서로 읽고 다음 최소 안전 작업까지 진입하게 하는
+색인이다.
+
+현재 shared worktree의 local release candidate source-status는
+`docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`가 갱신한다. 상태는
+**LOCAL RELEASE CANDIDATE / HOSTED EVIDENCE MISSING / PRODUCTION NO-GO**이며, 아직
+commit·push·PR·Preview receipt가 없다. 실제 source·tests·migration이 항상 우선하고 이
+문서는 production authorization이 아니다.
 
 ## 현재 권한 순서
 
@@ -12,9 +19,19 @@
 2. `AGENTS.md`
 3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
 4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:
-   `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
-   - 2026-08-04 현재 Git/PR/CI/DB/Mobile 증거, P0/P1, 개인정보 구현 경계,
-     다른 컴퓨터 재개 순서와 **production NO-GO** 판정의 현재 factual 정본
+   `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
+   - 현재 local dirty worktree의 모바일 Stop·첫 shared 확인·reconciliation, 위기 안전
+     분류기, provider single-use grant, server-only ingest, invite replay/expiry, Storage cleanup,
+     settings·onboarding·dashboard·chat actor fence, schedule moment 구현 수직과 focused 검증
+   - generic headerless Phase-A fleet, 구형 direct Supabase password binary, 구형 10자 invite
+     UI와 새 15자 code, direct-writer fleet, provider canary, hosted 증거 5종, backup·restore·
+     Storage·finalizer·두 기기·실기기 QA가 남아 있어 **PRODUCTION NO-GO**
+   - 아직 원격 publication receipt나 Preview가 없는 local 정본. Preview가 필요하면 운영
+     Supabase와 분리한 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true` 격리 stub만 조건부 허용
+   - 2026-08-04 이전 source-status 기록:
+     `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
+   - 당시 Git/PR/CI/DB/Mobile 증거, P0/P1 공격 모델, 개인정보 구현 경계와 다른 컴퓨터
+     재개 순서를 보존한다. 현재 local 구현 상태는 2026-08-12 문서와 실제 source가 갱신한다.
    - Amora·커뮤니티 local release candidate의 구현·파일·기존 검증 상세:
      `docs/operations/AMORA_COMMUNITY_IMPLEMENTATION_HANDOFF_2026-08-04.md`
    - Amora 대화 안전 두 wave와 이전 검증 스냅샷:

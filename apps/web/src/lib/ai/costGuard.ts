@@ -1,7 +1,8 @@
 // 아모라 AI 비용 가드레일 — 유통 테스트 전 지갑 보호용.
 //
 // 두 겹의 차단기:
-//  1) 커플당 누적 무료 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
+//  1) 상담 공간별 누적 무료 상한 — 공유는 커플, 비공개는 각 사용자에게
+//     분리된 불투명 UUID를 받아 한 사람의 비공개 사용량이 상대에게 드러나지 않는다.
 //  2) 전역 일일 턴 + 보수적 USD 예산 상한 — 정상 유저가 많아도 지갑에 천장.
 //
 // 두 함수:
@@ -25,7 +26,7 @@
 //
 // 환경변수로 조정 가능 (미설정 시 보수적 기본값):
 //   AMORA_COUPLE_QUOTA_ENABLED=false (커플별 한도만 해제, 전역 가드는 유지)
-//   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
+//   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100, 기존 배포 변수명 유지)
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
@@ -99,7 +100,7 @@ export interface CostGuardResult {
   allowed: boolean;
   reason?: "couple_quota" | "global_daily" | "global_budget" | "guard_unavailable";
   message?: string;
-  /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
+  /** 현재 상담 공간의 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐. */
   remaining?: number;
 }
 
@@ -157,7 +158,7 @@ const DENY_COUPLE: CostGuardResult = {
   allowed: false,
   reason: "couple_quota",
   message:
-    "이 커플에 제공된 베타 무료 상담 한도를 모두 사용했어요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
+    "현재 선택한 상담 공간의 베타 무료 상담 한도를 모두 사용했어요. 대화와 준비 기록은 그대로 보관돼요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
 };
 
 const DENY_UNAVAILABLE: CostGuardResult = {

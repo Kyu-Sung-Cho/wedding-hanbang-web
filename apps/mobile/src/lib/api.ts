@@ -2,8 +2,14 @@
 import { Alert } from "react-native";
 import { router } from "expo-router";
 import { fetch as expoFetch, type FetchRequestInit } from "expo/fetch";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 import { supabase } from "./supabase";
 import { signOut } from "./auth";
+import { bindExpectedMutationActorHeaders } from "./mutationActorHeaders.mjs";
 import {
   createMobileWebApiSessionRefreshGate,
   fetchMobileWebApiWithSession,
@@ -144,14 +150,17 @@ async function authenticatedApiFetch(
     throw new Error("API_SESSION_OWNER_MISMATCH");
   }
 
-  const fetchWithAccessToken = (accessToken: string) => fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  const fetchWithAccessToken = (accessToken: string) => {
+    const headers = new Headers(options.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
+  };
 
   if (!handleExpiredSession) {
     return fetchMobileWebApiWithSession({
@@ -176,8 +185,16 @@ async function authenticatedApiFetch(
       {
         text: "확인",
         onPress: () => {
-          void signOut()
-            .then(() => router.replace("/(auth)/login"))
+          void supabase.auth.getSession()
+            .then(async ({ data: { session: currentSession }, error }) => {
+              if (
+                error
+                || !initialSession
+                || currentSession?.user.id !== initialSession.userId
+              ) return;
+              await signOut({ expectedOwnerId: initialSession.userId });
+              router.replace("/(auth)/login");
+            })
             .catch((error: unknown) => {
               const message = error instanceof Error
                 ? error.message
@@ -206,7 +223,21 @@ export async function apiFetchForExpectedUser(
   path: string,
   options: RequestInit = {},
 ) {
-  return authenticatedApiFetch(path, options, true, expectedUserId);
+  const headers = bindExpectedMutationActorHeaders(
+    options.headers,
+    expectedUserId,
+    {
+      version: HANBANG_MUTATION_CONTRACT_VERSION,
+      versionHeader: HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+      actorHeader: HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+    },
+  );
+  return authenticatedApiFetch(
+    path,
+    { ...options, headers },
+    true,
+    expectedUserId,
+  );
 }
 
 // WebView의 허용 목록 기반 업체 API 브리지는 401 응답을 웹 화면에 그대로

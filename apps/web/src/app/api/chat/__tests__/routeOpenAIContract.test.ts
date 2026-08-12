@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => {
     }
   }
   const reserve = vi.fn();
+  const providerEgressAuthorizer = vi.fn(async () => undefined);
   const atomicResponses: Array<{
     content: string;
     metadata: Record<string, unknown>;
@@ -83,6 +84,7 @@ const mocks = vi.hoisted(() => {
   }, call: (
     beforeGeneration: () => Promise<void>,
     reserveBeforeSideEffect: () => Promise<void>,
+    authorizeProviderEgress: typeof providerEgressAuthorizer,
   ) => Promise<unknown>, options?: {
     buildAtomicChatResponse?: (result: unknown) => null | {
       content: string;
@@ -104,7 +106,11 @@ const mocks = vi.hoisted(() => {
       })();
       await reservationPromise;
     };
-    const result = await call(beforeGeneration, beforeGeneration);
+    const result = await call(
+      beforeGeneration,
+      beforeGeneration,
+      providerEgressAuthorizer,
+    );
     const atomic = options?.buildAtomicChatResponse?.(result) ?? null;
     options?.buildToolRoundCheckpoint?.(result);
     if (atomic) {
@@ -139,6 +145,7 @@ const mocks = vi.hoisted(() => {
     buildMultimodal: vi.fn((text: string) => text),
     mammothExtract: vi.fn(),
     providerLedger,
+    providerEgressAuthorizer,
     executeTool: vi.fn(),
     extractSuggestions: vi.fn((text: string) => ({
       cleanText: text,
@@ -558,6 +565,7 @@ import {
   makeDocxZipFixture,
 } from "@/lib/ai/__tests__/docxArchiveFixture";
 import { createAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
+import { deriveAmoraQuotaSubjectId } from "@/lib/ai/amoraQuotaSubject";
 
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "00000000-0000-4000-8000-000000000099";
@@ -928,6 +936,29 @@ function providerNetworkAfterPreGeneration(
   return networkBoundary;
 }
 
+function providerAcrossBothEgressBoundaries(
+  result: ReturnType<typeof providerResult>,
+) {
+  mocks.provider.mockImplementationOnce(async (options: {
+    beforeProviderEgress?: (request: {
+      operation: "responses.input_tokens.count" | "responses.create";
+      contentBinding: string;
+    }) => Promise<void>;
+    beforeGeneration?: () => Promise<void>;
+  }) => {
+    await options.beforeProviderEgress?.({
+      operation: "responses.input_tokens.count",
+      contentBinding: "c".repeat(64),
+    });
+    await options.beforeGeneration?.();
+    await options.beforeProviderEgress?.({
+      operation: "responses.create",
+      contentBinding: "d".repeat(64),
+    });
+    return result;
+  });
+}
+
 describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1154,6 +1185,28 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(response.status).toBe(200);
     await response.text();
     expect(mocks.claim).toHaveBeenCalledTimes(1);
+  });
+
+  it("binds both chat provider egresses to the durable receipt authorizer", async () => {
+    providerAcrossBothEgressBoundaries(providerResult({
+      fullText: "현재 권한으로 안전하게 답했어요.",
+      usage: { input_tokens: 5, output_tokens: 2 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.providerEgressAuthorizer.mock.calls).toEqual([
+      [{
+        operation: "responses.input_tokens.count",
+        contentBinding: "c".repeat(64),
+      }],
+      [{
+        operation: "responses.create",
+        contentBinding: "d".repeat(64),
+      }],
+    ]);
   });
 
   it("allows only the cryptographically signed demo to omit browser fetch metadata", async () => {
@@ -1831,6 +1884,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       cacheReadTokens: null,
       costUsd: null,
       metadata: {
+        visibility: "shared",
         stage_tag: "planning_0",
         question_scope: "W0_wedding_core",
         tools_used: ["get_wedding_info", "get_wedding_info"],
@@ -6174,7 +6228,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       });
     });
     mocks.providerLedger.mockImplementationOnce(async (_context, call, options) => {
-      const result = await call(async () => undefined, async () => undefined);
+      const result = await call(
+        async () => undefined,
+        async () => undefined,
+        mocks.providerEgressAuthorizer,
+      );
       options?.buildAtomicChatResponse?.(result);
       throw new Error("[ai-ledger] terminal chat response was not committed");
     });
@@ -7260,6 +7318,37 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.requestFrom).not.toHaveBeenCalledWith("chat_summaries");
     expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
       .not.toContain("PRIVATE_CONSENT_OFF_SECRET");
+  });
+
+  it("reserves a private actor quota subject instead of the couple's shared subject", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      visibility: "bride_private",
+    };
+    providerAcrossBothEgressBoundaries(providerResult({
+      fullText: "개인 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ visibility: "bride_private" }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.reserve).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        coupleId: deriveAmoraQuotaSubjectId({
+          coupleId: COUPLE_ID,
+          actorUserId: "00000000-0000-4000-8000-000000000001",
+          visibility: "bride_private",
+        }),
+      }),
+    );
+    expect(mocks.reserve.mock.calls[0]?.[1]?.coupleId).not.toBe(COUPLE_ID);
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      interactionType: "chat_turn",
+      metadata: expect.objectContaining({ visibility: "bride_private" }),
+    }));
   });
 
   it("keeps private chat read-only even when the user asks for a shared-state change", async () => {

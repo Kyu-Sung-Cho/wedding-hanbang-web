@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent } from "@/utils/rateLimit";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 import { PATCH } from "../route";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -145,6 +150,20 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       p_summary: "총예산: 40000000원",
     });
     expect(mocks.adminFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a plan change initiated by another account before any profile or plan write", async () => {
+    const response = await PATCH(request(undefined, {
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "55555555-5555-4555-8555-555555555555",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(mocks.authFrom).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("returns 202 with a server-derived summary and no optimistic journey for partner approval", async () => {

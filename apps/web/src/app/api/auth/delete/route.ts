@@ -9,6 +9,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
@@ -62,6 +63,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
         { status: 401, headers: NO_STORE_HEADERS },
+      );
+    }
+
+    const actorFence = verifyMutationActorFence(request.headers, user.id, {
+      allowLegacy: false,
+    });
+    if (!actorFence.ok) {
+      return NextResponse.json(
+        { error: actorFence.message, code: actorFence.code },
+        { status: actorFence.status, headers: NO_STORE_HEADERS },
       );
     }
 

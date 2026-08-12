@@ -42,6 +42,67 @@ describe("onboarding reliability", () => {
     expect(onboardingPage).toContain("deferredProgressNotice");
   });
 
+  it("binds the web onboarding form and its response to the initiating account", () => {
+    const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
+
+    expect(onboardingPage).toContain("formOwnerUserIdRef");
+    expect(onboardingPage).toContain(
+      "useOnboardingStore.getState().bindOwner(ownerUserId)",
+    );
+    expect(onboardingPage).toContain(
+      "[HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION",
+    );
+    expect(onboardingPage).toContain(
+      "[HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId",
+    );
+    expect(onboardingPage).toContain(
+      "ownerData?.user?.id !== expectedActorUserId",
+    );
+
+    const submitStart = onboardingPage.indexOf("const handleSubmit = async () =>");
+    const responseOwnerFence = onboardingPage.indexOf(
+      'const ownerResponse = await fetch("/api/auth/me"',
+      submitStart,
+    );
+    const responseRead = onboardingPage.indexOf(
+      "const data = await res.json()",
+      submitStart,
+    );
+    expect(responseOwnerFence).toBeGreaterThan(submitStart);
+    expect(responseRead).toBeGreaterThan(responseOwnerFence);
+    expect(onboardingPage.slice(submitStart)).toContain(
+      "formOwnerUserIdRef.current !== expectedActorUserId",
+    );
+  });
+
+  it("hides and purges the web onboarding draft across auth, focus, and visibility owner changes", () => {
+    const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
+
+    expect(onboardingPage).toContain("clearAccountOwnedOnboardingState");
+    for (const accountOwnedSetter of [
+      "clearOwner()",
+      "clearOwnerBoundInviteResult()",
+      "setShowInviteModal(false)",
+      "setCodeCopied(false)",
+      'setPendingPlanNotice("")',
+      'setDeferredProgressNotice("")',
+    ]) {
+      expect(onboardingPage).toContain(accountOwnedSetter);
+    }
+    expect(onboardingPage).toContain("supabase.auth.onAuthStateChange");
+    expect(onboardingPage).toContain('window.addEventListener("focus", handleOwnerFocus)');
+    expect(onboardingPage).toContain(
+      'document.addEventListener("visibilitychange", handleOwnerVisibility)',
+    );
+    expect(onboardingPage).toContain('ownerVerification === "ready"');
+    expect(onboardingPage).toContain("계정을 안전하게 확인하고 있어요");
+
+    const safeGate = onboardingPage.indexOf("if (!formOwnerReady)");
+    const form = onboardingPage.indexOf("<StepIndicator");
+    expect(safeGate).toBeGreaterThan(0);
+    expect(form).toBeGreaterThan(safeGate);
+  });
+
   it("keeps the API progress allowlist tied to shared runtime choices", () => {
     const onboardingRoute = source("src/app/api/onboarding/route.ts");
 

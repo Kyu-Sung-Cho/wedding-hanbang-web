@@ -49,6 +49,12 @@ import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { copyOwnerBoundInviteCode } from "@/lib/couples/settingsInviteActorFence";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 
 type Status = "not_started" | "in_progress" | "completed";
 
@@ -157,6 +163,26 @@ function formatWon(amount: number) {
   return `${Math.round(amount / 10000).toLocaleString("ko-KR")}만원`;
 }
 
+async function readCurrentDashboardActorId(): Promise<string | null> {
+  try {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload: unknown = await response.json().catch(() => null);
+    if (
+      typeof payload !== "object"
+      || payload === null
+      || !("user" in payload)
+      || typeof payload.user !== "object"
+      || payload.user === null
+      || !("id" in payload.user)
+      || typeof payload.user.id !== "string"
+    ) return null;
+    return payload.user.id;
+  } catch {
+    return null;
+  }
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "날짜 미정";
   const date = new Date(value);
@@ -200,8 +226,11 @@ function getSpent(progress: Record<string, ProgressItem>) {
 }
 
 export default function DashboardPage() {
-  const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
-  const [inviteCode, setInviteCode] = useState("");
+  const { user, partner, journey, couple, updateJourney, isDemo } = useAuthStore();
+  const [inviteCodeState, setInviteCodeState] = useState<{
+    ownerUserId: string;
+    value: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const joinedHandoffVisible = useSyncExternalStore(
     subscribeJoinedDashboardMarker,
@@ -257,15 +286,47 @@ export default function DashboardPage() {
     [progress]
   );
 
+  const inviteCode = inviteCodeState && user?.id
+    && inviteCodeState.ownerUserId === user.id
+    ? inviteCodeState.value
+    : "";
+
   useEffect(() => {
-    if (!couple || partner || inviteCode || isDemo) return;
-    fetch("/api/couple/code")
+    const expectedActorUserId = user?.id;
+    const alreadyLoadedForActor =
+      inviteCodeState?.ownerUserId === expectedActorUserId
+      && (inviteCodeState?.value.length ?? 0) > 0;
+    if (!couple || partner || alreadyLoadedForActor || isDemo || !expectedActorUserId) return;
+    const controller = new AbortController();
+    fetch("/api/couple/code", {
+      signal: controller.signal,
+      headers: {
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+      },
+    })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((data: { inviteCode?: string }) => {
-        if (data.inviteCode) setInviteCode(data.inviteCode);
+      .then(async (data: { inviteCode?: string }) => {
+        const responseOwnerId = await readCurrentDashboardActorId();
+        if (
+          !controller.signal.aborted
+          && data.inviteCode
+          && responseOwnerId === expectedActorUserId
+          && useAuthStore.getState().user?.id === expectedActorUserId
+        ) {
+          setInviteCodeState({
+            ownerUserId: expectedActorUserId,
+            value: data.inviteCode,
+          });
+        } else {
+          setInviteCodeState((current) =>
+            current?.ownerUserId === expectedActorUserId ? null : current,
+          );
+        }
       })
       .catch(() => {});
-  }, [couple, inviteCode, isDemo, partner]);
+    return () => controller.abort();
+  }, [couple, inviteCodeState, isDemo, partner, user?.id]);
 
   // 모멘트 루프 — 라운지 진입 시 아모라가 챙길 게 있는지 확인 (fire-and-forget, 발화는 채팅 shared로 들어옴)
   // sessionStorage 스로틀: StrictMode 이중 이펙트·잦은 재방문의 중복 호출 방지 (서버 dedupe의 1차 방어선)
@@ -281,8 +342,35 @@ export default function DashboardPage() {
   }, [isDemo]);
 
   async function copyCode() {
-    if (!inviteCode) return;
-    await navigator.clipboard.writeText(inviteCode);
+    const codeSnapshot = inviteCodeState;
+    if (
+      !codeSnapshot
+      || codeSnapshot.ownerUserId !== user?.id
+      || useAuthStore.getState().user?.id !== codeSnapshot.ownerUserId
+    ) return;
+    const didCopy = await copyOwnerBoundInviteCode({
+      connectionOwnerId: codeSnapshot.ownerUserId,
+      inviteCode: codeSnapshot.value,
+      readCurrentSettingsOwner: () => {
+        const currentOwnerId = useAuthStore.getState().user?.id ?? null;
+        return currentOwnerId === user?.id ? currentOwnerId : null;
+      },
+      readAuthenticatedOwner: readCurrentDashboardActorId,
+      writeText: (value) => navigator.clipboard.writeText(value),
+      purgeOwnerBoundSecret: () => {
+        setInviteCodeState((current) =>
+          current?.ownerUserId === codeSnapshot.ownerUserId ? null : current,
+        );
+        setCopied(false);
+      },
+    });
+    if (!didCopy) {
+      setInviteCodeState((current) =>
+        current?.ownerUserId === codeSnapshot.ownerUserId ? null : current,
+      );
+      setCopied(false);
+      return;
+    }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -298,6 +386,10 @@ export default function DashboardPage() {
   }
 
   async function updateCategoryStatus(key: string, status: Status) {
+    const expectedActorUserId = isDemo ? "demo" : user?.id;
+    if (!expectedActorUserId) {
+      throw new Error("현재 계정을 확인한 뒤 다시 시도해 주세요.");
+    }
     const currentProgress = { ...progress };
     const existing = currentProgress[key];
     currentProgress[key] = {
@@ -308,13 +400,21 @@ export default function DashboardPage() {
     setJourneyNotice("");
     setJourneyError("");
     try {
-      const result = await updateJourney({ progress: currentProgress });
+      const result = await updateJourney({ progress: currentProgress }, expectedActorUserId);
+      if (
+        !isDemo
+        && useAuthStore.getState().user?.id !== expectedActorUserId
+      ) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
           : "준비 상태를 저장했어요.",
       );
     } catch (error) {
+      if (
+        !isDemo
+        && useAuthStore.getState().user?.id !== expectedActorUserId
+      ) throw error;
       const message =
         error instanceof Error
           ? error.message

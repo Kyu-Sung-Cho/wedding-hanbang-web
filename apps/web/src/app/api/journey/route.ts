@@ -13,6 +13,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -664,6 +665,14 @@ export async function PATCH(request: Request) {
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return privateResponse({ error: "인증이 필요합니다." }, 401);
+
+    const actorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!actorFence.ok) {
+      return privateResponse({
+        error: actorFence.message,
+        code: actorFence.code,
+      }, actorFence.status);
+    }
 
     const limited = await checkRateLimitPersistent(
       rateLimitKey("journey:plan-change", request, user.id),

@@ -22,6 +22,7 @@ import { AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL } from "@/lib/ai/amoraRequestP
 import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
 import { AmoraCostGuardError } from "@/lib/ai/costGuard";
 import type { AmoraConflictDetectionCheckpoint } from "@/lib/ai/amoraConflictCheckClaim";
+import type { ProviderEgressAuthorizer } from "@/lib/ai/providerEgressBoundary";
 import {
   looksLikeThirdPartyNarrative,
   normalizeConflictText as normalize,
@@ -74,6 +75,7 @@ type ConflictVerificationProviderResult =
 export type ConflictVerificationProviderRunner = (
   call: (
     beforeGeneration: () => Promise<void>,
+    authorizeProviderEgress: ProviderEgressAuthorizer,
   ) => Promise<ConflictVerificationProviderResult>,
 ) => Promise<ConflictVerificationProviderResult>;
 
@@ -373,7 +375,7 @@ async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
   options: {
     /** Required gate ahead of every provider request, token counting included. */
-    beforeProviderEgress: () => void | Promise<void>;
+    beforeProviderEgress: ProviderEgressAuthorizer;
     reserveProviderTurn?: () => Promise<boolean>;
     runProviderCall?: ConflictVerificationProviderRunner;
   },
@@ -413,14 +415,19 @@ async function verifyWithLLM(
 
 판단 이유는 한국어 한 줄, 80자 이내로 작성하세요.`;
 
-  const callProvider = (beforeGeneration: () => Promise<void>) =>
+  const callProvider = (
+    beforeGeneration: () => Promise<void>,
+    beforeProviderEgress: ProviderEgressAuthorizer = options.beforeProviderEgress,
+  ) =>
     createOpenAIStructuredResponseWithAudit({
       modelRole: "fast",
       maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 100,
       // 갈등 판정 입력은 두 사람의 대화 원문이다. 토큰 계산 요청에도 그대로
       // 실리므로 유료 생성 게이트보다 앞선 gate가 따로 필요하다.
-      beforeProviderEgress: options.beforeProviderEgress,
+      // Keep the property explicit: the repository-wide caller-contract audit
+      // deliberately scans provider call objects for this fail-closed gate.
+      beforeProviderEgress: beforeProviderEgress,
       beforeGeneration,
       auditPersistence: options.runProviderCall
         ? "external_provider_receipt"
@@ -501,7 +508,7 @@ export async function detectCoupleConflict(params: {
    * Required privacy/kill-switch gate that runs before ANY content-bearing
    * provider request for this detection, token counting included.
    */
-  beforeProviderEgress: () => void | Promise<void>;
+  beforeProviderEgress: ProviderEgressAuthorizer;
   /** 첫 provider 호출 직전 한 번만 실행되고 이후 호출에서 재사용되는 원자 예약. */
   reserveProviderTurn?: () => Promise<boolean>;
   /** Durable per-provider receipt wrapper used by production callers. */
@@ -583,8 +590,14 @@ export async function detectCoupleConflict(params: {
   const conflictContext = h.conflictMessages.join(" / ").slice(0, 2_000);
   const runProviderCall = params.runProviderCall
     ? (call: Parameters<ConflictVerificationProviderRunner>[0]) =>
-        params.runProviderCall!(async (beforeGeneration) => {
-          const response = await call(beforeGeneration);
+        params.runProviderCall!(async (
+          beforeGeneration,
+          authorizeProviderEgress,
+        ) => {
+          const response = await call(
+            beforeGeneration,
+            authorizeProviderEgress,
+          );
           return {
             ...response,
             providerCheckpoint: {

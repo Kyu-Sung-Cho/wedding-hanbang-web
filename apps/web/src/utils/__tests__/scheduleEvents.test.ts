@@ -53,6 +53,7 @@ describe("getEvents", () => {
         "not-an-event",
         { ...valid, date: "2026-02-31" },
         { ...valid, momentType: 123 },
+        { ...valid, momentType: "future\u200bsupported_moment" },
         valid,
       ],
     })).toEqual([valid]);
@@ -203,6 +204,7 @@ describe("getEvents", () => {
     [{ date: "2027-05-01", title: "Valid", memo: "m".repeat(2_001) }, "memo"],
     [{ date: "2027-05-01", title: "Valid", categoryKey: "c".repeat(101) }, "categoryKey"],
     [{ date: "2027-05-01", title: "Valid", time: "24:00" }, "time"],
+    [{ date: "2027-05-01", title: "Valid", momentType: "future\u200bsupported_moment" }, "momentType"],
     [{ date: "2027-05-01", title: "Valid", status: "doing" }, "status"],
     [{
       date: "2027-05-01",
@@ -252,6 +254,39 @@ describe("getEvents", () => {
       status: "completed",
       completionCriteria: "수선 결과 확인",
     });
+  });
+
+  it("preserves, changes, and explicitly clears a care moment across schedule write paths", () => {
+    const created = addEvent({}, {
+      date: "2027-05-01",
+      title: "기존 중요 일정",
+      momentType: "future_supported_moment",
+    });
+
+    const titleOnlyUpdate = updateEvent(created.newProgress, created.newEvent.id, {
+      title: "제목만 수정",
+    });
+    expect(getEvents(titleOnlyUpdate)[0].momentType).toBe("future_supported_moment");
+
+    const cleared = updateEvent(titleOnlyUpdate, created.newEvent.id, {
+      momentType: undefined,
+    });
+    expect(getEvents(cleared)[0].momentType).toBeUndefined();
+
+    const categoryCreated = upsertCategoryEvent({}, {
+      date: "2027-05-02",
+      title: "결혼식장 둘러보기",
+      categoryKey: "venue",
+      momentType: "future_supported_moment",
+    });
+    const categoryUpdated = upsertCategoryEvent(categoryCreated.newProgress, {
+      date: "2027-05-02",
+      title: "결혼식장 둘러보기",
+      categoryKey: "venue",
+      momentType: "venue_tour",
+    });
+    expect(categoryUpdated.created).toBe(false);
+    expect(categoryUpdated.event.momentType).toBe("venue_tour");
   });
 
   it("soft-cancels and restores one stable id while preserving audit fields and unrelated progress", () => {

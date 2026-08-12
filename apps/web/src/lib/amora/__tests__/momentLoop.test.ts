@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildDueMomentCells } from "../momentLoop";
-import { MOMENTS } from "@/constants/moments";
+import { SCHEDULE_CARE_MOMENT_OPTIONS } from "@hanbang/shared";
+import { EVENT_MOMENT_TYPES, MOMENTS } from "@/constants/moments";
 import type { ScheduleEvent } from "@/types/database.types";
+import { addEvent } from "@/utils/scheduleEvents";
 
 // 기준 시각 고정: 2026-06-15 12:00 KST (= 03:00 UTC) → 오늘(KST) = 2026-06-15
 const NOW = new Date("2026-06-15T03:00:00Z");
@@ -27,6 +29,35 @@ function eventProgress(
 }
 
 describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
+  it("웹과 모바일의 선택 목록은 실제 event-triggered 모멘트 카탈로그와 일치한다", () => {
+    expect(SCHEDULE_CARE_MOMENT_OPTIONS.map((option) => option.value).sort()).toEqual(
+      [...EVENT_MOMENT_TYPES].sort(),
+    );
+    for (const option of SCHEDULE_CARE_MOMENT_OPTIONS) {
+      expect(MOMENTS[option.value]).toMatchObject({
+        label: option.label,
+        trigger: "event",
+      });
+    }
+  });
+
+  it("사용자가 명시적으로 고른 타입은 저장 payload를 거쳐 케어 셀로 이어진다", () => {
+    const { newProgress, newEvent } = addEvent({}, {
+      date: "2026-06-16",
+      title: "가족과 저녁 식사",
+      momentType: "sanggyeonrye",
+    });
+
+    expect(newEvent.momentType).toBe("sanggyeonrye");
+    expect(buildDueMomentCells({ progress: newProgress, now: NOW })).toEqual([
+      expect.objectContaining({
+        cellKind: "d1",
+        momentType: "sanggyeonrye",
+        sourceEventId: newEvent.id,
+      }),
+    ]);
+  });
+
   it("모멘트 3일 전이면 d3 셀이 나온다", () => {
     const cells = buildDueMomentCells({ progress: eventProgress("2026-06-18"), now: NOW });
     expect(cells).toHaveLength(1);
@@ -106,6 +137,13 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     };
     const cells = buildDueMomentCells({ progress, now: NOW });
     expect(cells).toHaveLength(0);
+  });
+
+  it("알 수 없는 기존 momentType은 보존 대상이지만 케어 발화로 추측하지 않는다", () => {
+    expect(buildDueMomentCells({
+      progress: eventProgress("2026-06-16", "future_supported_moment"),
+      now: NOW,
+    })).toEqual([]);
   });
 
   it("예식일 기반 자동 모멘트: 예식 3일 전이면 본식 d3가 발화한다", () => {

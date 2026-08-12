@@ -303,6 +303,7 @@ describe("provider all-egress gate (P0-5)", () => {
         "egress_gate",
         "count",
         "before_generation",
+        "egress_gate",
         "create",
       ]);
     });
@@ -440,7 +441,7 @@ describe("provider all-egress gate (P0-5)", () => {
         client,
       });
 
-      expect(beforeProviderEgress).toHaveBeenCalledTimes(1);
+      expect(beforeProviderEgress).toHaveBeenCalledTimes(2);
       expect(beforeGeneration).toHaveBeenCalledTimes(1);
       expect(create).toHaveBeenCalledTimes(1);
       expect(result.inputCountUnavailableReason).toBe("server_error");
@@ -460,6 +461,54 @@ describe("provider all-egress gate (P0-5)", () => {
 
       expect(beforeProviderEgress).toHaveBeenCalledTimes(1);
       expect(create).not.toHaveBeenCalled();
+    });
+
+    it("revalidates privacy after input counting and blocks generation when revocation wins", async () => {
+      const { client, count, create } = recordingClient();
+      const revocation = new SyntheticEgressGateError();
+      const beforeProviderEgress = vi.fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(revocation);
+
+      await expect(chatWithToolsStream({
+        tools: [],
+        beforeProviderEgress,
+        beforeGeneration: vi.fn(),
+        client,
+      })).rejects.toBe(revocation);
+
+      expect(count).toHaveBeenCalledTimes(1);
+      expect(beforeProviderEgress).toHaveBeenCalledTimes(2);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("binds each streaming authorization to its exact provider operation and content", async () => {
+      const { client } = recordingClient();
+      const beforeProviderEgress = vi.fn();
+
+      await chatWithToolsStream({
+        tools: [],
+        beforeProviderEgress,
+        beforeGeneration: vi.fn(),
+        client,
+      });
+
+      expect(beforeProviderEgress.mock.calls).toEqual([
+        [{
+          operation: "responses.input_tokens.count",
+          contentBinding: expect.stringMatching(/^[0-9a-f]{64}$/),
+        }],
+        [{
+          operation: "responses.create",
+          contentBinding: expect.stringMatching(/^[0-9a-f]{64}$/),
+        }],
+      ]);
+      expect(beforeProviderEgress.mock.calls[0]?.[0]?.contentBinding).not.toBe(
+        beforeProviderEgress.mock.calls[1]?.[0]?.contentBinding,
+      );
+      expect(JSON.stringify(beforeProviderEgress.mock.calls)).not.toContain(
+        SYNTHETIC_PRIVATE_MARKER,
+      );
     });
   });
 
@@ -555,7 +604,13 @@ describe("provider all-egress gate (P0-5)", () => {
         audit: { interactionType: "chat_turn" },
       });
 
-      expect(order).toEqual(["egress_gate", "count", "hook", "create"]);
+      expect(order).toEqual([
+        "egress_gate",
+        "count",
+        "hook",
+        "egress_gate",
+        "create",
+      ]);
     });
 
     it("fails closed with zero provider requests when no egress gate is supplied", async () => {
@@ -646,6 +701,32 @@ describe("provider all-egress gate (P0-5)", () => {
 
       expect(calls).toEqual([]);
       expectNoSyntheticMarkerReachedProvider(calls);
+    });
+
+    it("revalidates an audited generation after counting and blocks it when revocation wins", async () => {
+      const { client, count, create } = recordingClient({
+        nonStreamResponse: completedResponse(),
+      });
+      const revocation = new SyntheticEgressGateError();
+      const beforeProviderEgress = vi.fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(revocation);
+
+      await expect(createOpenAIResponseWithAudit({
+        modelRole: "fast",
+        instructions: SYNTHETIC_SYSTEM_MARKER,
+        input: SYNTHETIC_PRIVATE_MARKER,
+        maxInputTokens: 64_000,
+        maxOutputTokens: 100,
+        beforeProviderEgress,
+        beforeGeneration: vi.fn(),
+        client,
+        audit: { interactionType: "chat_turn" },
+      })).rejects.toBe(revocation);
+
+      expect(count).toHaveBeenCalledTimes(1);
+      expect(beforeProviderEgress).toHaveBeenCalledTimes(2);
+      expect(create).not.toHaveBeenCalled();
     });
   });
 });

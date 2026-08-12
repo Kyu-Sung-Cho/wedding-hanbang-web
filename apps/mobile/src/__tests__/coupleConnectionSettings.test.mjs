@@ -25,7 +25,10 @@ test("mobile sealed-single UI never tells the member to share an invite code", (
 });
 
 test("mobile restart uses the authenticated atomic reset endpoint", () => {
-  assert.match(settingsSource, /apiFetch\("\/api\/couple\/reset"/);
+  assert.match(
+    settingsSource,
+    /apiFetchForExpectedUser\(expectedActorUserId, "\/api\/couple\/reset"/,
+  );
   assert.match(settingsSource, /confirmText:\s*"초기화합니다"/);
   assert.match(settingsSource, /router\.replace\("\/onboarding"\)/);
 });

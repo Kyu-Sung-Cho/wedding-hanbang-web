@@ -389,7 +389,7 @@ test("mobile confirmation button sends and retries the exact server action id", 
   assert.match(chatSource, /const content = "좋아요\. 제안한 변경을 적용해 주세요\."/);
   assert.match(chatSource, /text: content/);
   assert.match(chatSource, /confirmedActionId: actionId/);
-  assert.match(chatSource, /await streamAiRequest\(failure\.request\)/);
+  assert.match(chatSource, /await streamAiRequest\(failure\.request, operation\)/);
 });
 
 test("mobile obtains the single application lease before sending a confirmation", () => {
@@ -426,10 +426,10 @@ test("mobile obtains the single application lease before sending a confirmation"
 
 test("mobile retry reconciles a durable confirmation before reacquiring its lease", () => {
   const senderStart = chatSource.indexOf(
-    "async function sendAiDraft(draft: AiDraft, reconcileFirst: boolean)",
+    "async function sendAiDraft(",
   );
   const senderEnd = chatSource.indexOf(
-    "async function handleRetry()",
+    "async function handleColdStartAiRecovery()",
     senderStart,
   );
   const sender = chatSource.slice(senderStart, senderEnd);

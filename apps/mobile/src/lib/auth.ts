@@ -131,12 +131,24 @@ export async function signInWithOAuth(provider: SupportedOAuthProvider) {
 
 export async function signOut(options: {
   continueOnDecisionPurgeFailure?: boolean;
+  expectedOwnerId?: string;
+  allowMissingSession?: boolean;
 } = {}) {
   let decisionDataPurged = true;
   if (Platform.OS !== "web") {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) throw sessionError;
-    const ownerId = sessionData.session?.user.id ?? null;
+    const sessionOwnerId = sessionData.session?.user.id ?? null;
+    if (
+      options.expectedOwnerId
+      && (
+        (sessionOwnerId !== null && sessionOwnerId !== options.expectedOwnerId)
+        || (sessionOwnerId === null && !options.allowMissingSession)
+      )
+    ) {
+      throw new Error("AUTH_SIGN_OUT_OWNER_CHANGED");
+    }
+    const ownerId = options.expectedOwnerId ?? sessionOwnerId;
     if (ownerId) {
       try {
         const { purgeCommunityDecisionPendingForOwnerWithRetry } = await import(
@@ -150,8 +162,51 @@ export async function signOut(options: {
         }
       }
     }
-    const { releasePushNotificationsForCurrentSession } = await import("./notifications");
-    await releasePushNotificationsForCurrentSession();
+    const { data: beforeRelease, error: beforeReleaseError } = await supabase.auth.getSession();
+    if (beforeReleaseError) throw beforeReleaseError;
+    const beforeReleaseOwnerId = beforeRelease.session?.user.id ?? null;
+    if (
+      options.expectedOwnerId
+      && (
+        (beforeReleaseOwnerId !== null && beforeReleaseOwnerId !== options.expectedOwnerId)
+        || (beforeReleaseOwnerId === null && !options.allowMissingSession)
+      )
+    ) {
+      throw new Error("AUTH_SIGN_OUT_OWNER_CHANGED");
+    }
+    if (beforeReleaseOwnerId !== null) {
+      const { releasePushNotificationsForCurrentSession } = await import("./notifications");
+      if (options.expectedOwnerId) {
+        await releasePushNotificationsForCurrentSession(options.expectedOwnerId);
+      } else {
+        await releasePushNotificationsForCurrentSession();
+      }
+    }
+    const { data: beforeLocalSignOut, error: beforeLocalSignOutError } =
+      await supabase.auth.getSession();
+    if (beforeLocalSignOutError) throw beforeLocalSignOutError;
+    const finalOwnerId = beforeLocalSignOut.session?.user.id ?? null;
+    if (
+      options.expectedOwnerId
+      && (
+        (finalOwnerId !== null && finalOwnerId !== options.expectedOwnerId)
+        || (finalOwnerId === null && !options.allowMissingSession)
+      )
+    ) {
+      throw new Error("AUTH_SIGN_OUT_OWNER_CHANGED");
+    }
+  }
+  if (options.expectedOwnerId) {
+    const { data: finalSessionData, error: finalSessionError } =
+      await supabase.auth.getSession();
+    if (finalSessionError) throw finalSessionError;
+    const finalSessionOwnerId = finalSessionData.session?.user.id ?? null;
+    if (
+      (finalSessionOwnerId !== null && finalSessionOwnerId !== options.expectedOwnerId)
+      || (finalSessionOwnerId === null && !options.allowMissingSession)
+    ) {
+      throw new Error("AUTH_SIGN_OUT_OWNER_CHANGED");
+    }
   }
   // 일반 기기 로그아웃은 다른 휴대폰의 준비 흐름과 알림 세션을 끊지 않는다.
   // 계정 삭제/모든 기기 로그아웃은 별도의 명시적 서버 경계를 사용한다.

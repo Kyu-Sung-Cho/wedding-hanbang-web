@@ -2,12 +2,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const supabaseMocks = vi.hoisted(() => ({
   signOut: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 // Mock Supabase client before importing the store
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { signOut: supabaseMocks.signOut },
+    auth: {
+      signOut: supabaseMocks.signOut,
+      getSession: supabaseMocks.getSession,
+    },
   }),
 }));
 
@@ -19,6 +23,11 @@ Object.defineProperty(window, "location", {
 
 import { useAuthStore } from "../authStore";
 import { useCommunityStore } from "../communityStore";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -53,6 +62,10 @@ describe("useAuthStore", () => {
     sessionStorage.clear();
     localStorage.clear();
     supabaseMocks.signOut.mockReset().mockResolvedValue({});
+    supabaseMocks.getSession.mockReset().mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
     mockFetch.mockReset();
     setDemoCookie(false);
   });
@@ -205,15 +218,35 @@ describe("useAuthStore", () => {
   // ─── updateJourney() ───
 
   describe("updateJourney()", () => {
+    beforeEach(() => {
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" } });
+    });
+
+    it("fails closed when an untyped legacy caller omits the initiating owner", async () => {
+      useAuthStore.setState({
+        isDemo: false,
+        journey: { id: "j1", couple_id: "c1" } as never,
+      });
+      const unsafeLegacyCall = useAuthStore.getState().updateJourney as unknown as (
+        updates: { wedding_date: string },
+      ) => Promise<unknown>;
+
+      await expect(
+        unsafeLegacyCall({ wedding_date: "2027-01-01" }),
+      ).rejects.toThrow(/계정/u);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it("updates local state only in demo mode", async () => {
       useAuthStore.setState({
         isDemo: true,
+        user: { id: "demo", email: "demo@hanbang.ai" },
         journey: { id: "j1", couple_id: "c1", wedding_date: "2026-10-01", total_budget: 10_000_000, venue: null, progress: {}, created_at: "", updated_at: "" },
       });
 
       const result = await useAuthStore.getState().updateJourney({
         wedding_date: "2026-12-01",
-      });
+      }, "demo");
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
       expect(result.status).toBe("applied");
       expect(useAuthStore.getState().journey?.state_revision).toBe(1);
@@ -237,10 +270,32 @@ describe("useAuthStore", () => {
       });
 
       useAuthStore.setState({ isDemo: false, journey: { id: "j1", couple_id: "c1" } as never });
-      await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" });
+      await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }, "u1");
 
-      expect(mockFetch).toHaveBeenCalledWith("/api/journey", expect.objectContaining({ method: "PATCH" }));
+      expect(mockFetch).toHaveBeenCalledWith("/api/journey", expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "u1",
+        }),
+      }));
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
+    });
+
+    it("does not send an account A plan change after the active store switches to B", async () => {
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u2", email: "b@example.com" },
+        journey: { id: "j2", couple_id: "c2", state_revision: 3 } as never,
+      });
+
+      await expect(
+        useAuthStore.getState().updateJourney(
+          { wedding_date: "2027-01-01" },
+          "u1",
+        ),
+      ).rejects.toThrow(/계정/u);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("keeps shared state unchanged while a partner approval is pending", async () => {
@@ -267,7 +322,7 @@ describe("useAuthStore", () => {
 
       const result = await useAuthStore.getState().updateJourney({
         total_budget: 30_000_000,
-      });
+      }, "u1");
 
       expect(result).toEqual({
         status: "pending_partner",
@@ -333,7 +388,7 @@ describe("useAuthStore", () => {
       await expect(
         useAuthStore.getState().updateJourney({
           total_budget: 30_000_000,
-        }),
+        }, "u1"),
       ).rejects.toThrow("저장 결과를 안전하게 확인하지 못했습니다.");
       expect(useAuthStore.getState().journey).toEqual(originalJourney);
     });
@@ -381,7 +436,7 @@ describe("useAuthStore", () => {
 
       const patch = useAuthStore.getState().updateJourney({
         wedding_date: "2026-12-01",
-      });
+      }, "u1");
       await expect(
         useAuthStore.getState().refreshJourney("u1"),
       ).resolves.toBe(true);
@@ -413,14 +468,18 @@ describe("useAuthStore", () => {
       useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
 
       await expect(
-        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),
+        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }, "u1"),
       ).rejects.toThrow("Network error");
     });
 
     it("fails explicitly when journey is null in demo mode", async () => {
-      useAuthStore.setState({ isDemo: true, journey: null });
+      useAuthStore.setState({
+        isDemo: true,
+        user: { id: "demo", email: "demo@hanbang.ai" },
+        journey: null,
+      });
       await expect(
-        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),
+        useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }, "demo"),
       ).rejects.toThrow("결혼 준비 정보를 찾을 수 없습니다.");
       expect(useAuthStore.getState().journey).toBeNull();
     });
@@ -459,7 +518,7 @@ describe("useAuthStore", () => {
       const prev = useAuthStore.getState().journey!.progress as Record<string, unknown>;
       await useAuthStore.getState().updateJourney({
         progress: { ...prev, venue: { category: "venue", status: "in_progress", budget: 200 } } as never,
-      });
+      }, "u1");
 
       const body = lastFetchBody();
       expect(body.progress).toBeUndefined();
@@ -487,7 +546,7 @@ describe("useAuthStore", () => {
       const prev = useAuthStore.getState().journey!.progress as Record<string, unknown>;
       const next = { ...prev } as Record<string, unknown>;
       delete next.custom_123;
-      await useAuthStore.getState().updateJourney({ progress: next as never });
+      await useAuthStore.getState().updateJourney({ progress: next as never }, "u1");
 
       const body = lastFetchBody();
       expect(body.progress_patch).toEqual({});
@@ -498,7 +557,7 @@ describe("useAuthStore", () => {
       setJourneyWithProgress({ venue: { category: "venue", status: "in_progress" } });
       const prev = useAuthStore.getState().journey!.progress as Record<string, unknown>;
 
-      await useAuthStore.getState().updateJourney({ progress: { ...prev } as never });
+      await useAuthStore.getState().updateJourney({ progress: { ...prev } as never }, "u1");
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -516,7 +575,7 @@ describe("useAuthStore", () => {
       await useAuthStore.getState().updateJourney({
         total_budget: 50_000_000,
         progress: { ring: { category: "ring", status: "completed" } } as never,
-      });
+      }, "u1");
 
       const body = lastFetchBody();
       expect(body.total_budget).toBe(50_000_000);
@@ -616,13 +675,28 @@ describe("useAuthStore", () => {
   // ─── updateProfile() ───
 
   describe("updateProfile()", () => {
+    it("fails closed when an untyped legacy caller omits the initiating owner", async () => {
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", name: "Account A" } as never,
+      });
+      const unsafeLegacyCall = useAuthStore.getState().updateProfile as unknown as (
+        updates: { name: string },
+      ) => Promise<void>;
+
+      await expect(unsafeLegacyCall({ name: "Stale form" })).rejects.toThrow(/계정/u);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it("updates name locally in demo mode", async () => {
       useAuthStore.setState({
         isDemo: true,
+        user: { id: "demo", email: "demo@hanbang.ai" },
         profile: { id: "demo", name: "김지은", email: "demo@hanbang.ai" } as never,
       });
 
-      await useAuthStore.getState().updateProfile({ name: "이지은" });
+      await useAuthStore.getState().updateProfile({ name: "이지은" }, "demo");
       expect(useAuthStore.getState().profile?.name).toBe("이지은");
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -631,17 +705,90 @@ describe("useAuthStore", () => {
       const updatedProfile = { id: "u1", name: "이지은", email: "test@example.com" };
       mockFetch.mockResolvedValue({ ok: true, json: async () => ({ profile: updatedProfile }) });
 
-      useAuthStore.setState({ isDemo: false, profile: { id: "u1", name: "김지은" } as never });
-      await useAuthStore.getState().updateProfile({ name: "이지은" });
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", name: "김지은" } as never,
+      });
+      await useAuthStore.getState().updateProfile({ name: "이지은" }, "u1");
 
-      expect(mockFetch).toHaveBeenCalledWith("/api/profile", expect.objectContaining({ method: "PATCH" }));
+      expect(mockFetch).toHaveBeenCalledWith("/api/profile", expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "u1",
+        }),
+      }));
       expect(useAuthStore.getState().profile?.name).toBe("이지은");
+    });
+
+    it("does not send a profile mutation when the loaded profile belongs to another account", async () => {
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u2", email: "new@example.com" },
+        profile: { id: "u1", name: "Old Account" } as never,
+      });
+
+      await expect(
+        useAuthStore.getState().updateProfile({ name: "Stale Intent" }, "u2"),
+      ).rejects.toThrow(/계정/u);
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().profile?.name).toBe("Old Account");
+    });
+
+    it("does not reinterpret account A's profile form as a B mutation after a complete store switch", async () => {
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u2", email: "b@example.com" },
+        profile: { id: "u2", name: "Account B" } as never,
+      });
+
+      await expect(
+        useAuthStore.getState().updateProfile({ name: "A's Stale Input" }, "u1"),
+      ).rejects.toThrow(/계정/u);
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().profile?.name).toBe("Account B");
+    });
+
+    it("does not apply account A's late profile response after the store switches to B", async () => {
+      let resolveResponse!: (value: {
+        ok: boolean;
+        json: () => Promise<{ profile: { id: string; name: string } }>;
+      }) => void;
+      mockFetch.mockReturnValueOnce(new Promise((resolve) => {
+        resolveResponse = resolve;
+      }));
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u1", email: "a@example.com" },
+        profile: { id: "u1", name: "Account A" } as never,
+      });
+
+      const pending = useAuthStore.getState().updateProfile({ name: "A's New Name" }, "u1");
+      useAuthStore.setState({
+        user: { id: "u2", email: "b@example.com" },
+        profile: { id: "u2", name: "Account B" } as never,
+      });
+      resolveResponse({
+        ok: true,
+        json: async () => ({ profile: { id: "u1", name: "A's New Name" } }),
+      });
+
+      await expect(pending).rejects.toThrow(/계정/u);
+      expect(useAuthStore.getState().profile).toMatchObject({
+        id: "u2",
+        name: "Account B",
+      });
     });
 
     it("updates cached community nickname when profile sync is requested", async () => {
       const updatedProfile = { id: "u1", name: "new-name", email: "test@example.com" };
       mockFetch.mockResolvedValue({ ok: true, json: async () => ({ profile: updatedProfile }) });
-      useAuthStore.setState({ isDemo: false, profile: { id: "u1", name: "old-name" } as never });
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", name: "old-name" } as never,
+      });
       useCommunityStore.setState({
         communityProfile: {
           user_id: "u1",
@@ -665,7 +812,7 @@ describe("useAuthStore", () => {
       await useAuthStore.getState().updateProfile({
         name: "new-name",
         sync_community_nickname: true,
-      });
+      }, "u1");
 
       expect(useCommunityStore.getState().communityProfile?.nickname).toBe("new-name");
     });
@@ -735,6 +882,39 @@ describe("useAuthStore", () => {
 
     resolveSignOut?.();
     await pending;
+  });
+
+  it("does not let an A-owned deletion completion sign out a newly active B session", async () => {
+    useAuthStore.setState({
+      user: { id: "user-b", email: "b@example.com" },
+      isInitialized: true,
+    });
+    supabaseMocks.getSession.mockResolvedValueOnce({
+      data: { session: { user: { id: "user-b" } } },
+      error: null,
+    });
+
+    await expect(useAuthStore.getState().signOut("user-a"))
+      .rejects.toThrow("AUTH_SIGN_OUT_OWNER_CHANGED");
+
+    expect(useAuthStore.getState().user?.id).toBe("user-b");
+    expect(supabaseMocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it("can locally finish an A-owned deletion after server auth has disappeared", async () => {
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@example.com" },
+      isInitialized: true,
+    });
+    supabaseMocks.getSession.mockResolvedValueOnce({
+      data: { session: null },
+      error: null,
+    });
+
+    await useAuthStore.getState().signOut("user-a");
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(supabaseMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
   it("rebinds and purges community state before committing an account switch", async () => {

@@ -108,12 +108,16 @@ import { POST } from "@/app/api/chat/route";
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "00000000-0000-4000-8000-000000000099";
 
-function request(body: Record<string, unknown>): Request {
+function request(
+  body: Record<string, unknown>,
+  extraHeaders: Record<string, string> = {},
+): Request {
   return new Request("http://localhost/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Sec-Fetch-Site": "same-origin",
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   });
@@ -147,6 +151,22 @@ describe("POST /api/chat safety ordering", () => {
   it("rejects malformed messages before claim, quota reservation, or provider work", async () => {
     const response = await POST(request(validBody({ messages: [{ role: "system", content: "x" }] })));
     expect(response.status).toBe(400);
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects an account-switched v2 stream before claim, quota, or provider work", async () => {
+    const response = await POST(request(validBody(), {
+      "X-Hanbang-Mutation-Contract-Version": "2",
+      "X-Hanbang-Expected-Actor-User-Id": "00000000-0000-4000-8000-000000000002",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
     expect(mocks.findPersisted).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();

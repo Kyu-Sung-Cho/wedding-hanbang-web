@@ -228,6 +228,12 @@ function assertValidScheduleEventDraft(data: ScheduleEventDraft): void {
   ) {
     throw new ScheduleEventValidationError("completionCriteria");
   }
+  if (
+    data.momentType !== undefined
+    && hasUnsafeDisplayCharacter(data.momentType)
+  ) {
+    throw new ScheduleEventValidationError("momentType");
+  }
   if (data.assignee !== undefined && !isScheduleEventAssignee(data.assignee)) {
     throw new ScheduleEventValidationError("assignee");
   }
@@ -242,6 +248,10 @@ function isScheduleEvent(value: unknown): value is ScheduleEvent {
     && isValidEventTimestamp(value.createdAt)
     && isValidEventTimestamp(value.updatedAt)
     && hasOnlyBoundedOptionalStrings(value)
+    && (
+      typeof value.momentType !== "string"
+      || !hasUnsafeDisplayCharacter(value.momentType)
+    )
     && (
       typeof value.completionCriteria !== "string"
       || !hasUnsafeDisplayCharacter(value.completionCriteria)
@@ -486,6 +496,7 @@ export function upsertCategoryEvent(
     memo: data.memo ?? existing.memo,
     categoryKey: data.categoryKey ?? existing.categoryKey,
     sourceKey: sourceKey ?? existing.sourceKey,
+    ...(Object.hasOwn(data, "momentType") ? { momentType: data.momentType } : {}),
     ...(Object.hasOwn(data, "status") ? { status: data.status } : {}),
     ...(Object.hasOwn(data, "completionCriteria")
       ? { completionCriteria: data.completionCriteria }
@@ -519,6 +530,7 @@ export function updateEvent(
       | "memo"
       | "categoryKey"
       | "sourceKey"
+      | "momentType"
       | "status"
       | "completionCriteria"
       | "assignee"

@@ -16,6 +16,11 @@ vi.mock("@/utils/trustedMutation", () => ({
 }));
 
 import { GET, POST } from "../route";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 
 type DbError = { code?: string; message?: string };
 type QueryResult = { data: unknown; error: DbError | null };
@@ -68,6 +73,8 @@ function couple(
     bride_id: string | null;
     groom_id: string | null;
     membership_sealed_at: string | null;
+    invite_code_issued_at: string | null;
+    invite_code_expires_at: string | null;
   }> = {},
 ) {
   return {
@@ -75,6 +82,8 @@ function couple(
     bride_id: USER_ID,
     groom_id: null,
     membership_sealed_at: null,
+    invite_code_issued_at: "2026-08-12T00:00:00.000Z",
+    invite_code_expires_at: "2099-08-19T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -109,8 +118,11 @@ function setup(
   return { admin, updates, filters, fromCalls };
 }
 
-function request(method: "GET" | "POST") {
-  return new Request("http://localhost/api/couple/code", { method });
+function request(
+  method: "GET" | "POST",
+  headers: Record<string, string> = {},
+) {
+  return new Request("http://localhost/api/couple/code", { method, headers });
 }
 
 describe("/api/couple/code roster epoch fence", () => {
@@ -124,6 +136,26 @@ describe("/api/couple/code roster epoch fence", () => {
       },
     });
   });
+
+  it.each(["GET", "POST"] as const)(
+    "%s rejects an account-switched v2 request before privileged access",
+    async (method) => {
+      const actorHeaders = {
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: PARTNER_ID,
+      };
+
+      const response = method === "GET"
+        ? await GET(request(method, actorHeaders))
+        : await POST(request(method, actorHeaders));
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "MUTATION_ACTOR_CHANGED",
+      });
+      expect(createAdminClientSpy).not.toHaveBeenCalled();
+    },
+  );
 
   it("GET returns no invite code and performs no regeneration for a sealed pair", async () => {
     const { admin, updates } = setup({
@@ -236,6 +268,41 @@ describe("/api/couple/code roster epoch fence", () => {
     expect(updates).toHaveLength(1);
     expect(filters).toContainEqual(["is", "membership_sealed_at", null]);
     expect(filters).toContainEqual(["is", "invite_code", null]);
+  });
+
+  it("rotates an expired code instead of disclosing it as active", async () => {
+    const { admin, filters } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: "WH-OLD123",
+              invite_code_issued_at: "2026-08-01T00:00:00.000Z",
+              invite_code_expires_at: "2026-08-08T00:00:00.000Z",
+            }),
+            error: null,
+          },
+        },
+        {
+          maybeSingle: {
+            data: couple({ invite_code: "WH-NEW123" }),
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      inviteCode: "WH-NEW123",
+      isFullyLinked: false,
+      isMembershipSealed: false,
+    });
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(filters).toContainEqual(["eq", "invite_code", "WH-OLD123"]);
   });
 
   it("rotates an unsealed code only when the expected old code still matches", async () => {

@@ -84,7 +84,13 @@ const SOCIAL_CARE_PATTERN =
 const WEDDING_ADJACENT_PATTERN =
   /신혼\s*(?:집|이사|생활)|부부\s*재정|공동\s*재정|가사\s*분담|가족\s*대화|부모님과\s*(?:대화|관계)/iu;
 const WEDDING_CORE_SIGNAL_PATTERN =
-  /결혼|웨딩|예식|본식|상견례|스드메|웨딩홀|예식장|신부|신랑|드레스|턱시도|메이크업|스튜디오|청첩장|하객|축의금|예단|예물|폐백|부케|혼수|신혼\s*여행|허니문|답례|보증\s*인원|식대|스냅/iu;
+  /결혼|웨딩|예식|본식|상견례|스드메|웨딩홀|예식장|신부|신랑|드레스|턱시도|메이크업|스튜디오|청첩장|하객|축의금|예단|예물|폐백|부케|혼수|신혼\s*여행|허니문|답례|보증\s*인원|식대|스냅|혼주|보정본/iu;
+const RELATIONSHIP_CONFIDANT_PATTERN =
+  /남편|아내|배우자|시어머니|시어머님|시아버지|시아버님|시댁|처가|장인어른|장모님/iu;
+const AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN =
+  /견적|추가금|뭐\s*부터|무엇\s*부터|어디\s*서?\s*부터|뭐\s*먼저|늦었|늦은\s*(?:거|건|걸|편)|디데이|d-\s*\d+|호칭|(?:사진|스냅|촬영|앨범)\s*원본|원본\s*(?:사진|파일)|예산(?:을|이|은|도)?\s*.{0,8}(?:초과|넘었|모자라|부족|줄여|아껴)/iu;
+const NON_WEDDING_DOMAIN_HINT_PATTERN =
+  /회사|업무|직장|출근|퇴사|이직|취업|면접|프로젝트|시험|자격증|숙제|과제|이사|입주|전세|월세|창업|개업|다이어트|운동|여행|유학|군대|병원|수술|인테리어|리모델링|공사|자동차|차량/iu;
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
   /(?:회사|업무|직장|프로젝트|식당|레스토랑|맛집|병원|미용실).{0,12}(?:예산|일정|스케줄|예약|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
@@ -282,6 +288,26 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
+  if (
+    AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN.test(normalizedText)
+    && !NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
+  ) {
+    return {
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+      confidence: "high",
+      needsClarification: false,
+    };
+  }
+  // 한쪽의 관계 진술에는 답하되, 공동 사실처럼 장기 기억에 넣지 않는다.
+  if (RELATIONSHIP_CONFIDANT_PATTERN.test(normalizedText)) {
+    return {
+      scope: "W1_wedding_adjacent",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    };
+  }
   if (WEDDING_ADJACENT_PATTERN.test(normalizedText)) {
     return {
       scope: "W1_wedding_adjacent",
@@ -359,7 +385,8 @@ export function buildAmoraQuestionScopeInstruction(
         ]
       : classification.needsClarification
         ? [
-            "- 지금 문장만으로 결혼 준비와의 연결을 확인할 수 없습니다. 본문 답이나 실행을 시작하지 말고, 이 요청이 결혼 준비의 어떤 결정과 연결되는지 묻는 부담이 작은 질문 하나만 하세요.",
+            "- 먼저 사람처럼 반응하세요. 감정이나 곤란함이 담긴 말이면 그것부터 짧게 알아주고, 그다음에 더 알고 싶은 것 하나만 물으세요. 사용자에게 결혼 준비와의 관련성을 증명하라고 요구하거나 ‘이게 결혼 준비의 어떤 부분인가요’ 같은 판정형 되물음을 쓰지 마세요.",
+            "- 다만 확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고, 저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요.",
             "- 도구 실행과 장기 기억 저장은 하지 마세요.",
           ]
         : [

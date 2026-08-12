@@ -76,6 +76,7 @@ const nextConfig: NextConfig = {
   // 이미지 최적화
   images: {
     formats: ["image/avif", "image/webp"],
+    qualities: [50, 75],
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30일 — Supabase Storage 이미지 장기 캐시
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },

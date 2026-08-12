@@ -264,9 +264,12 @@ export function invalidateCommunityPushNavigationForAuthChange() {
  * 로그아웃 전에 서버 바인딩 또는 기기 토큰 중 적어도 하나의 해제를 확인한다.
  * 둘 다 실패하면 계정 전환을 중단한다.
  */
-export async function releasePushNotificationsForCurrentSession() {
+export async function releasePushNotificationsForCurrentSession(expectedOwnerId?: string) {
   invalidateCommunityPushNavigationForAuthChange();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (expectedOwnerId && user?.id !== expectedOwnerId) {
+    throw new Error("PUSH_RELEASE_OWNER_CHANGED");
+  }
   const [currentToken, installationId] = await Promise.all([
     SecureStore.getItemAsync(PUSH_BOUND_TOKEN_KEY),
     SecureStore.getItemAsync(PUSH_INSTALLATION_ID_KEY),
@@ -274,10 +277,17 @@ export async function releasePushNotificationsForCurrentSession() {
 
   const result = await releasePushDeliveryOwnership({
     releaseServerToken: async () => {
-      if (userError) {
-        throw new Error(`Push token user lookup failed: ${userError.message}`);
+      const { data: { user: releaseUser }, error: releaseUserError } =
+        await supabase.auth.getUser();
+      if (userError || releaseUserError) {
+        throw new Error(
+          `Push token user lookup failed: ${(releaseUserError ?? userError)?.message ?? "unknown"}`,
+        );
       }
-      if (!user) throw new Error("Push token release requires a current user");
+      if (!releaseUser) throw new Error("Push token release requires a current user");
+      if (expectedOwnerId && releaseUser.id !== expectedOwnerId) {
+        throw new Error("PUSH_RELEASE_OWNER_CHANGED");
+      }
 
       if (currentToken && installationId && UUID_PATTERN.test(installationId)) {
         const { error } = await supabase.rpc("release_mobile_push_token", {

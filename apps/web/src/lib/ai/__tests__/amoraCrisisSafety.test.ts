@@ -997,6 +997,41 @@ describe("classifyAmoraCrisis", () => {
   });
 
   it.each([
+    ["남편이 문을 잠그고 나를 못 나가게 하고 있어", "coercive_control"],
+    ["남편이 베개로 내 얼굴을 누르고 있어", "physical_violence"],
+    ["남편이 숨을 못 쉬게 하고 있어", "physical_violence"],
+    ["남편이 머리채를 잡고 끌고 있어", "physical_violence"],
+    ["남편이 물건을 던져서 내가 맞았어", "physical_violence"],
+    ["남편이 나를 때리지 않지만 문을 잠그고 못 나가게 해", "coercive_control"],
+    ["남편이 나를 때린 건 아니고 밀쳤어", "physical_violence"],
+  ] as const)(
+    "routes a distinct current partner danger into the immediate private safety flow: %s",
+    (text, action) => {
+      expect(assessAmoraSafetyText(text)).toMatchObject({
+        resolution: "immediate_crisis",
+        kind: "interpersonal_danger",
+        responseDirection: "toward_reporter",
+        events: expect.arrayContaining([
+          expect.objectContaining({
+            target: "reporter",
+            action,
+            polarity: "affirmed",
+          }),
+        ]),
+      });
+      expect(classifyAmoraCrisis(text)).toEqual({ kind: "interpersonal_danger" });
+    },
+  );
+
+  it("does not treat a partner hitting a mosquito as violence toward the reporter", () => {
+    expect(assessAmoraSafetyText("남편이 모기를 때리고 있어")).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis("남편이 모기를 때리고 있어")).toBeNull();
+  });
+
+  it.each([
     "나 지금 신랑 죽이러 갈 거야",
     "남친 죽여버릴 거야",
     "칼 들고 남편 찾아갈 거야",
@@ -1162,6 +1197,258 @@ describe("classifyAmoraCrisis", () => {
         "결혼 준비 너무 힘들어 죽겠는데, 남편이 지금 칼을 들고 있어",
       ),
     ).toEqual({ kind: "interpersonal_danger" });
+  });
+
+  it.each([
+    "예산 때문에 못 살겠어 그냥 죽고 싶어",
+    "그냥 죽고 싶어 예산 때문에 못 살겠어",
+    "결혼 준비 때문에 못 살겠어 자살하고 싶어",
+    "예산 때문에 못 살겠어 그냥 사라지고 싶어",
+    "예산 때문에 죽고 싶고 못 살겠어",
+  ])("does not let a no-punctuation benign idiom hide self-harm intent: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "self_harm" });
+  });
+
+  it.each([
+    "예산 늘어나서 못 살겠어요",
+    "결혼 준비 때문에 못 살겠어",
+    "신혼집 견적 때문에 못 살겠어요",
+  ])("keeps a standalone planning idiom non-crisis: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "신혼집에서 남편이 지금 때려서 못 살겠어",
+    "예산 때문에 남편이 협박해서 못 살겠어요",
+    "웨딩홀 문제로 배우자가 칼로 위협해서 못 살겠어",
+    "하객 문제로 남편이 가둬서 못 살겠어",
+    "못 살겠어 예산 문제도 있고 남편이 지금 때리고 있어",
+  ])("does not let a no-punctuation planning idiom hide current partner violence: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+    });
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "케이크 칼로 사진 찍다가 남편이 칼로 위협해",
+    "케이크 칼로 자르고 있는데 남편이 지금 때려",
+    "배송 기사가 내 위치를 추적해서 집 앞에서 기다리는데 남편이 지금 때려",
+    "택배 기사가 내 위치 추적해서 문 앞 기다리고 있고 남편이 협박해",
+  ])("keeps danger outside a benign cake or delivery span: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+    });
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "케이크 칼로 사진 찍었어",
+    "케이크 칼로 자르는 중이야",
+    "배송 기사가 내 위치를 추적해서 집 앞에서 기다리는 중이야",
+    "택배 기사가 내 위치 추적해서 문 앞에서 기다려",
+  ])("keeps a standalone benign cake or delivery span non-crisis: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "영화에서 남편이 아내를 때리는 장면을 보다가 지금 남편이 나를 때려",
+    "뉴스에서 남편이 아내를 협박한 사건을 읽다가 지금 남편이 나를 협박해",
+    "게임에서 칼로 위협하는 장면인데 지금 남편이 칼로 나를 위협해",
+    "가정폭력 예방 교육 문구를 보다가 지금 남편이 나를 때려",
+  ])("keeps an explicit current disclosure after same-clause context: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+    });
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "남편이 나를 협박한 건 아니지만 지금 칼로 위협해",
+    "자해하지 않을 거야 그런데 남편이 지금 때려",
+    "남편이 예전에 때린 건 아니고 지금 때리고 있어",
+  ])("keeps current danger after a same-clause negation or historical phrase: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+    });
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "남편이 지금 정답을 때려 맞히는 중이야",
+    "신랑이 지금 드럼을 때려 연주하고 있어",
+    "배우자가 지금 공을 때려서 홈런 쳤어",
+    "지금 타자를 때려 잡는 투수 얘기야",
+    "신랑이 지금 케이크 장식을 때려 박고 있어",
+    "남편이 지금 협박 영화를 보고 있어",
+    "배우자가 지금 위협 탐지 교육 영상을 보는 중이야",
+  ])("does not turn sports, music, craft, or safety-media language into a crisis: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "배송 기사가 내 위치를 추적하는데 남편이 지금 나를 때려서 집 앞에서 기다려",
+    "케이크 칼을 들고 남편이 지금 나를 위협해서 사진을 찍었어",
+    "협박 영화를 남편이 지금 나를 때리면서 보고 있어",
+  ])("keeps real violence embedded inside a broad benign context span: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+    });
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+    expect(planAmoraCrisisDelivery({
+      userText: text,
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    })).toMatchObject({
+      disposition: "local_safety_hold",
+      effectiveVisibility: "bride_private",
+    });
+  });
+
+  it.each([
+    "영화에서 남편이 아내를 때리는 장면처럼 지금 남편이 나를 때려",
+    "뉴스에서 남편이 아내를 협박한 사건과 다르게 지금 남편이 나를 협박해",
+    "영화 속 장면 지금 남편이 나를 때려요",
+  ])("evaluates an explicit current-danger suffix after fiction or news: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "남편이 나를 협박하는 건 아니지만 나를 때려요",
+    "남편이 나를 협박한 건 아니지만 때리고 있어",
+    "남편이 예전에 때렸지만 요즘도 나를 때려요",
+  ])("keeps a current event local after negated or historical context: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "immediate_crisis",
+      kind: "interpersonal_danger",
+    });
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "엄마가 나를 때려요",
+    "아빠가 저를 협박해요",
+  ])("detects current violence by an explicitly named known other: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "친구가 나한테 죽고 싶다고 했어",
+    "친구가 나에게 죽고 싶다고 했어",
+  ])("keeps a reporter recipient phrase attributed to the known other: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "third_party_self_harm",
+    });
+  });
+
+  it.each([
+    "남편이 지금 공을 때려요",
+    "남편이 지금 드럼을 때려요",
+    "신랑이 지금 못을 망치로 때려요",
+    "남편이 영화에서 배우를 때려요",
+  ])("does not infer reporter violence from an explicit non-reporter hit object: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "뉴스 사건을 읽었는데 지금 엄마가 나를 가둬",
+    "뉴스 사건을 읽었어. 지금 엄마가 나를 가둬",
+    "뉴스 사건을 읽었는데 지금 엄마가 나를 감금해",
+    "뉴스 사건을 읽었는데 지금 엄마가 나를 죽이려고 해",
+  ])("keeps confinement or lethal danger after a fiction/news context: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "예산 때문에 못 살겠어 남편이 나를 때려",
+    "예산 때문에 못 살겠어 남편이 지금 나를 때려",
+    "예산 때문에 못 살겠고 남편이 나를 때려",
+  ])("does not let a planning idiom hide a bare current hit: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it.each([
+    "영화 장면인데 지금 남편이 나를 때리는 장면을 분석해",
+    "영화 장면에서 지금 남편이 나를 때리는 연기를 해",
+    "영화 장면인데 지금 남편이 아내를 때리는 장면을 분석해",
+  ])("keeps explicit fiction analysis or acting non-crisis: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "남편이 지금 나를 위협하는 게 아니라 정답을 때려 맞히는 중이야",
+    "남편이 지금 나를 때리는 게 아니라 공을 때려서 홈런 쳤어",
+  ])("scopes a negated danger before an explicit benign hit: %s", (text) => {
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it.each([
+    "영화 장면에서 남편이 나를 때리는 연기를 했는데 촬영 끝나고 남편이 실제로 나를 때려",
+    "영화 장면인데 지금 남편이 나를 때리는 장면을 분석하고 현실에서도 계속 나를 때려",
+    "남편이 나를 위협하는 게 아니라 정답을 때려 맞히다가 갑자기 나를 위협해",
+  ])("keeps affirmed real danger after a benign or negated span: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({
+      kind: "interpersonal_danger",
+    });
+  });
+
+  it("keeps an explicit media-analysis acting disclosure non-crisis", () => {
+    const text = "협박 영상을 분석하고 있는데 남편이 지금 나를 협박하는 연기를 해";
+    expect(assessAmoraSafetyText(text)).toMatchObject({
+      resolution: "no_safety_signal",
+      kind: null,
+    });
+    expect(classifyAmoraCrisis(text)).toBeNull();
   });
 
   it("does not let a negated partner threat hide the reporter's current self-harm intent", () => {

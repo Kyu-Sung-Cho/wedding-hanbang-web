@@ -4,6 +4,11 @@ import { requestAccountDeletion } from "@/lib/accountDeletion/communityStorageSa
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent } from "@/utils/rateLimit";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 import { DELETE } from "../route";
 
 vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
@@ -24,10 +29,15 @@ vi.mock("@/utils/rateLimit", () => ({
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 
-function deletionRequest(reason = "unsatisfied") {
+function deletionRequest(reason = "unsatisfied", headers: HeadersInit = {}) {
   return new Request("http://localhost/api/auth/delete", {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: USER_ID,
+      ...headers,
+    },
     body: JSON.stringify({ reason }),
   });
 }
@@ -46,6 +56,21 @@ describe("/api/auth/delete DELETE", () => {
       },
     } as never);
     vi.mocked(createAdminClient).mockReturnValue({ admin: true } as never);
+  });
+
+  it("rejects a headerless legacy deletion before creating a job", async () => {
+    const response = await DELETE(new Request("http://localhost/api/auth/delete", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "unsatisfied" }),
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CONTRACT_INVALID",
+    });
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
   });
 
   it("is a complete no-op unless deletion intake is explicitly enabled", async () => {
@@ -87,6 +112,22 @@ describe("/api/auth/delete DELETE", () => {
       "auth:delete:test-user",
       { maxRequests: 3, windowMs: 60 * 60 * 1000 },
     );
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
+  });
+
+  it("rejects a deletion confirmed on another account's screen before creating a job", async () => {
+    const response = await DELETE(deletionRequest("unsatisfied", {
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "22222222-2222-4222-8222-222222222222",
+    }));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
     expect(requestAccountDeletion).not.toHaveBeenCalled();
   });

@@ -1,5 +1,5 @@
 // 프로필/설정 화면
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ import { apiJson } from "@/lib/api";
 import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
+import { createLatestSettingsLoadGate } from "@/lib/weddingSettings";
 
 interface ProfileData {
   name: string | null;
@@ -62,6 +63,13 @@ interface CommunityProfileStats {
   total_upvotes_received?: number | null;
 }
 
+const EMPTY_ACTIVITY_STATS: ActivityStats = {
+  postCount: 0,
+  commentCount: 0,
+  bookmarkCount: 0,
+  totalUpvotes: 0,
+};
+
 function calcDday(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const wedding = new Date(dateStr);
@@ -81,21 +89,31 @@ function formatDdayLabel(dday: number): string {
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [stats, setStats] = useState<ActivityStats>({
-    postCount: 0,
-    commentCount: 0,
-    bookmarkCount: 0,
-    totalUpvotes: 0,
-  });
+  const [stats, setStats] = useState<ActivityStats>(EMPTY_ACTIVITY_STATS);
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const profileOwnerRef = useRef<string | null>(null);
+  const profileLoadGate = useRef(createLatestSettingsLoadGate()).current;
 
   const loadProfile = useCallback(async () => {
+    const loadToken = profileLoadGate.begin();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!loadToken.isCurrent()) return;
+    if (!user) {
+      profileOwnerRef.current = null;
+      setProfile(null);
+      setStats(EMPTY_ACTIVITY_STATS);
+      return;
+    }
+    const expectedActorUserId = user.id;
+    if (profileOwnerRef.current !== expectedActorUserId) {
+      profileOwnerRef.current = expectedActorUserId;
+      setProfile(null);
+      setStats(EMPTY_ACTIVITY_STATS);
+    }
 
     const { data } = await supabase
       .from("profiles")
@@ -146,6 +164,15 @@ export default function ProfileScreen() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
 
+    const {
+      data: { user: responseOwner },
+    } = await supabase.auth.getUser();
+    if (
+      !loadToken.isCurrent()
+      || responseOwner?.id !== expectedActorUserId
+      || profileOwnerRef.current !== expectedActorUserId
+    ) return;
+
     setStats({
       postCount: actualPostCount || communityProfile?.post_count || 0,
       commentCount: communityProfile?.comment_count ?? 0,
@@ -162,7 +189,25 @@ export default function ProfileScreen() {
       coupleId: data?.couple_id ?? null,
       partnerName,
     });
-  }, []);
+  }, [profileLoadGate]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const nextOwnerId = session?.user.id ?? null;
+        if (profileOwnerRef.current === nextOwnerId) return;
+        profileLoadGate.begin();
+        profileOwnerRef.current = nextOwnerId;
+        setProfile(null);
+        setStats(EMPTY_ACTIVITY_STATS);
+        setRefreshing(false);
+        setLoggingOut(false);
+        setLogoutError(null);
+        if (nextOwnerId !== null) void loadProfile();
+      },
+    );
+    return () => subscription.unsubscribe();
+  }, [loadProfile, profileLoadGate]);
 
   useFocusEffect(
     useCallback(() => {
@@ -176,28 +221,39 @@ export default function ProfileScreen() {
     setRefreshing(false);
   }, [loadProfile]);
 
-  async function performLogout() {
-    if (loggingOut) return;
+  async function performLogout(expectedActorUserId: string) {
+    if (
+      loggingOut
+      || profileOwnerRef.current !== expectedActorUserId
+    ) return;
 
     setLoggingOut(true);
     setLogoutError(null);
     try {
-      await signOut();
+      await signOut({ expectedOwnerId: expectedActorUserId });
       router.replace("/(auth)/login");
     } catch {
+      if (profileOwnerRef.current !== expectedActorUserId) return;
       const message = "로그아웃하지 못했어요. 연결을 확인하고 다시 시도해주세요.";
       setLogoutError(message);
       if (Platform.OS !== "web") {
         Alert.alert("로그아웃 실패", message);
       }
     } finally {
-      setLoggingOut(false);
+      if (profileOwnerRef.current === expectedActorUserId) {
+        setLoggingOut(false);
+      }
     }
   }
 
   function handleLogout() {
+    const expectedActorUserId = profileOwnerRef.current;
+    if (!expectedActorUserId) {
+      setLogoutError("현재 계정을 다시 확인한 뒤 로그아웃해 주세요.");
+      return;
+    }
     if (Platform.OS === "web") {
-      void performLogout();
+      void performLogout(expectedActorUserId);
       return;
     }
 
@@ -206,7 +262,7 @@ export default function ProfileScreen() {
       {
         text: "로그아웃",
         style: "destructive",
-        onPress: () => void performLogout(),
+        onPress: () => void performLogout(expectedActorUserId),
       },
     ]);
   }

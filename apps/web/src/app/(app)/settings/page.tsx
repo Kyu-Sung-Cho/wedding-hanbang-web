@@ -25,9 +25,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
-import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
   PriorityItem,
@@ -36,6 +34,10 @@ import type {
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
+import {
+  copyOwnerBoundInviteCode,
+  selectOwnerBoundCoupleConnection,
+} from "@/lib/couples/settingsInviteActorFence";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import {
   resolveCoupleConnectionState,
@@ -44,6 +46,9 @@ import {
   WEDDING_GUEST_COUNT_OPTIONS,
   WEDDING_PRIORITY_OPTIONS,
   WEDDING_STYLE_OPTIONS,
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
 } from "@hanbang/shared";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
@@ -65,15 +70,32 @@ type WeddingPreferenceState = Partial<{
   guestCount: GuestCount | null;
 }>;
 
-type ProfileUpdateResponse = {
-  profile?: Profile;
-  error?: string;
-};
-
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
+
+async function readCurrentWebActorId(): Promise<string | null> {
+  try {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload: unknown = await response.json().catch(() => null);
+    if (
+      typeof payload !== "object"
+      || payload === null
+      || !("user" in payload)
+      || typeof payload.user !== "object"
+      || payload.user === null
+      || !("id" in payload.user)
+      || typeof payload.user.id !== "string"
+    ) {
+      return null;
+    }
+    return payload.user.id;
+  } catch {
+    return null;
+  }
+}
 
 export default function SettingsPage() {
   const {
@@ -92,6 +114,7 @@ export default function SettingsPage() {
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
+  const [coupleConnectionOwnerId, setCoupleConnectionOwnerId] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
 
   // 수정 모드
@@ -120,8 +143,75 @@ export default function SettingsPage() {
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
   const [legacyCareConsentError, setLegacyCareConsentError] = useState("");
+  const renderedSettingsOwnerId = isDemo
+    ? "demo"
+    : user?.id && profile?.id === user.id
+      ? user.id
+      : null;
+  const [loadedSettingsOwnerId, setLoadedSettingsOwnerId] = useState<string | null>(null);
+  const [deleteConfirmationOwnerId, setDeleteConfirmationOwnerId] = useState<string | null>(null);
+  const [resetConfirmationOwnerId, setResetConfirmationOwnerId] = useState<string | null>(null);
+
+  // Adopt a new account only in the same effect that erases every draft and
+  // confirmation owned by the previous account. Before this effect runs,
+  // handlers retain the old owner and the v2 server fence rejects a B session.
+  useEffect(() => {
+    if (loadedSettingsOwnerId === renderedSettingsOwnerId) return;
+
+    setEditingName(false);
+    setEditingDate(false);
+    setEditingBudget(false);
+    setEditingVenue(false);
+    setNameInput("");
+    setDateInput("");
+    setBudgetInput("");
+    setVenueInput("");
+    setNameError("");
+    setJourneyError("");
+    setJourneyNotice("");
+    setShowDeleteModal(false);
+    setDeleteConfirmationOwnerId(null);
+    setDeleteConfirmText("");
+    setDeleteReason("");
+    setDeleteError("");
+    setShowResetWeddingModal(false);
+    setResetConfirmationOwnerId(null);
+    setResetWeddingConfirmText("");
+    setResetWeddingError("");
+    setDraftPrefs({});
+    setCopied(false);
+    setCoupleConnection(resolveCoupleConnectionState(null));
+    setCoupleConnectionOwnerId(null);
+    setLoadedSettingsOwnerId(renderedSettingsOwnerId);
+  }, [loadedSettingsOwnerId, renderedSettingsOwnerId]);
+
+  const currentSettingsMutationOwner = () => {
+    const expectedActorUserId = loadedSettingsOwnerId;
+    if (!expectedActorUserId || renderedSettingsOwnerId !== expectedActorUserId) {
+      return null;
+    }
+    const current = useAuthStore.getState();
+    if (expectedActorUserId === "demo") {
+      return current.isDemo && current.user?.id === "demo"
+        ? expectedActorUserId
+        : null;
+    }
+    return current.user?.id === expectedActorUserId
+      && current.profile?.id === expectedActorUserId
+      ? expectedActorUserId
+      : null;
+  };
+
+  const isCurrentSettingsOwner = (expectedActorUserId: string) => {
+    const current = useAuthStore.getState();
+    return expectedActorUserId === "demo"
+      ? current.isDemo && current.user?.id === "demo"
+      : current.user?.id === expectedActorUserId
+        && current.profile?.id === expectedActorUserId;
+  };
 
   useEffect(() => {
+    const effectOwnerId = isDemo ? "demo" : user?.id ?? null;
     const context = {
       partnerPresent: Boolean(partner),
       membershipSealedAt: couple?.membership_sealed_at,
@@ -131,6 +221,7 @@ export default function SettingsPage() {
 
     if (!couple) {
       setCoupleConnection(resolveCoupleConnectionState(null, context));
+      setCoupleConnectionOwnerId(effectOwnerId);
       return;
     }
 
@@ -140,6 +231,14 @@ export default function SettingsPage() {
         isFullyLinked: Boolean(couple.bride_id && couple.groom_id),
         isMembershipSealed: Boolean(couple.membership_sealed_at),
       }, context));
+      setCoupleConnectionOwnerId("demo");
+      return;
+    }
+
+    const expectedActorUserId = user?.id;
+    if (!expectedActorUserId) {
+      setCoupleConnection(resolveCoupleConnectionState(null, context));
+      setCoupleConnectionOwnerId(null);
       return;
     }
 
@@ -149,13 +248,27 @@ export default function SettingsPage() {
     // Clear any retained invite immediately. Local partner/seal evidence can
     // still identify linked or sealed states while the privileged API loads.
     setCoupleConnection(resolveCoupleConnectionState(null, context));
+    setCoupleConnectionOwnerId(expectedActorUserId);
 
-    fetch("/api/couple/code", { signal: controller.signal })
+    fetch("/api/couple/code", {
+      signal: controller.signal,
+      headers: {
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+      },
+    })
       .then(async (response) => {
         const payload: unknown = await response.json().catch(() => null);
         if (!response.ok) throw new Error("COUPLE_CONNECTION_LOOKUP_FAILED");
-        if (!cancelled) {
+        const responseOwnerId = await readCurrentWebActorId();
+        if (
+          !cancelled
+          && responseOwnerId === expectedActorUserId
+          && useAuthStore.getState().user?.id === expectedActorUserId
+          && useAuthStore.getState().profile?.id === expectedActorUserId
+        ) {
           setCoupleConnection(resolveCoupleConnectionState(payload, context));
+          setCoupleConnectionOwnerId(expectedActorUserId);
         }
       })
       .catch(() => {
@@ -166,51 +279,98 @@ export default function SettingsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [couple, isDemo, partner]);
+  }, [couple, isDemo, partner, user?.id]);
 
-  const phase = coupleConnection.phase;
-  const coupleCode = coupleConnection.inviteCode;
+  const safeCoupleOwnerId = currentSettingsMutationOwner();
+  const visibleCoupleConnection = selectOwnerBoundCoupleConnection(
+    coupleConnection,
+    coupleConnectionOwnerId,
+    safeCoupleOwnerId,
+  );
+  const phase = visibleCoupleConnection.phase;
+  const coupleCode = visibleCoupleConnection.inviteCode;
   const hasLegacyCareConsent =
     profile?.care_notifications_enabled === true &&
     typeof profile.care_notifications_consented_at === "string" &&
     profile.care_notifications_consented_at.trim().length > 0;
 
   const revokeLegacyCareConsent = async () => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId || expectedActorUserId === "demo") return;
     setRevokingLegacyCareConsent(true);
     setLegacyCareConsentError("");
     try {
-      await updateProfile({ care_notifications_enabled: false });
+      await updateProfile({ care_notifications_enabled: false }, expectedActorUserId);
     } catch {
-      setLegacyCareConsentError("수신 동의를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setLegacyCareConsentError("수신 동의를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
-      setRevokingLegacyCareConsent(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setRevokingLegacyCareConsent(false);
+      }
     }
   };
 
-  const handleCopy = () => {
-    if (!coupleCode) return;
-    navigator.clipboard.writeText(coupleCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId) return;
+
+    try {
+      const didCopy = await copyOwnerBoundInviteCode({
+        connectionOwnerId: coupleConnectionOwnerId,
+        inviteCode: coupleCode,
+        readCurrentSettingsOwner: currentSettingsMutationOwner,
+        readAuthenticatedOwner: readCurrentWebActorId,
+        writeText: (value) => navigator.clipboard.writeText(value),
+        purgeOwnerBoundSecret: () => {
+          setCoupleConnection(resolveCoupleConnectionState(null));
+          setCoupleConnectionOwnerId(null);
+          setCopied(false);
+        },
+      });
+      if (!didCopy) return;
+      setCopied(true);
+      setTimeout(() => {
+        if (currentSettingsMutationOwner() === expectedActorUserId) setCopied(false);
+      }, 2000);
+    } catch {
+      // Clipboard permission failures leave the code unchanged and unacknowledged.
+    }
   };
 
   const handleRegenerateCode = async () => {
-    if (!coupleConnection.canInvite) return;
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId || !visibleCoupleConnection.canInvite) return;
 
     setRegenerating(true);
     try {
-      if (isDemo) {
+      if (expectedActorUserId === "demo") {
         setCoupleConnection(resolveCoupleConnectionState({
           inviteCode: `WH-DEMO${Math.floor(Math.random() * 90 + 10)}`,
           isFullyLinked: false,
           isMembershipSealed: false,
         }));
+        setCoupleConnectionOwnerId("demo");
         return;
       }
 
-      const res = await fetch("/api/couple/code", { method: "POST" });
+      const res = await fetch("/api/couple/code", {
+        method: "POST",
+        headers: {
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+        },
+      });
       const payload: unknown = await res.json().catch(() => null);
       if (res.ok) {
+        const ownerResponse = await fetch("/api/auth/me", { cache: "no-store" });
+        const ownerData = ownerResponse.ok ? await ownerResponse.json() : null;
+        if (ownerData?.user?.id !== expectedActorUserId) {
+          setCoupleConnection(resolveCoupleConnectionState(null));
+          setCoupleConnectionOwnerId(null);
+          return;
+        }
         const inviteCode = typeof payload === "object" && payload !== null
           ? (payload as { inviteCode?: unknown }).inviteCode
           : null;
@@ -219,62 +379,72 @@ export default function SettingsPage() {
           isFullyLinked: false,
           isMembershipSealed: false,
         }));
+        setCoupleConnectionOwnerId(expectedActorUserId);
       } else {
         // A join can win the race after this screen loaded. Remove the old
         // code immediately and let the next canonical GET reveal the phase.
+        if (isCurrentSettingsOwner(expectedActorUserId)) {
+          setCoupleConnection(resolveCoupleConnectionState(null, {
+            partnerPresent: Boolean(partner),
+            membershipSealedAt: couple?.membership_sealed_at,
+          }));
+          setCoupleConnectionOwnerId(expectedActorUserId);
+        }
+      }
+    } catch {
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
         setCoupleConnection(resolveCoupleConnectionState(null, {
           partnerPresent: Boolean(partner),
           membershipSealedAt: couple?.membership_sealed_at,
         }));
+        setCoupleConnectionOwnerId(expectedActorUserId);
       }
-    } catch {
-      setCoupleConnection(resolveCoupleConnectionState(null, {
-        partnerPresent: Boolean(partner),
-        membershipSealedAt: couple?.membership_sealed_at,
-      }));
     } finally {
-      setRegenerating(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) setRegenerating(false);
     }
   };
 
   // 이름 저장
   const saveName = async () => {
     if (!nameInput.trim()) return;
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId) {
+      setNameError("계정이 바뀌었어요. 현재 계정의 설정을 다시 열어주세요.");
+      return;
+    }
     setSaving(true);
     setNameError("");
     try {
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nameInput.trim(),
-          sync_community_nickname: true,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as ProfileUpdateResponse;
-      if (!res.ok) {
-        setNameError(data.error ?? "이름 저장에 실패했습니다.");
-        return;
-      }
-      if (data.profile) {
-        useAuthStore.setState({ profile: data.profile });
-        useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
-      }
+      await updateProfile({
+        name: nameInput.trim(),
+        sync_community_nickname: true,
+      }, expectedActorUserId);
+      if (!isCurrentSettingsOwner(expectedActorUserId)) return;
       setEditingName(false);
-    } catch {
-      setNameError("이름 저장 중 오류가 발생했습니다.");
+    } catch (error) {
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setNameError(
+          error instanceof Error ? error.message : "이름 저장 중 오류가 발생했습니다.",
+        );
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) setSaving(false);
     }
   };
 
   // 날짜 저장
   const saveDate = async () => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId) return;
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
     try {
-      const result = await updateJourney({ wedding_date: dateInput || null });
+      const result = await updateJourney(
+        { wedding_date: dateInput || null },
+        expectedActorUserId,
+      );
+      if (!isCurrentSettingsOwner(expectedActorUserId)) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
@@ -282,13 +452,15 @@ export default function SettingsPage() {
       );
       setEditingDate(false);
     } catch (error) {
-      setJourneyError(
-        error instanceof Error
-          ? error.message
-          : "결혼일을 저장하지 못했습니다.",
-      );
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setJourneyError(
+          error instanceof Error
+            ? error.message
+            : "결혼일을 저장하지 못했습니다.",
+        );
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) setSaving(false);
     }
   };
 
@@ -296,11 +468,17 @@ export default function SettingsPage() {
   const saveBudget = async () => {
     const value = parseInt(budgetInput) * 10000;
     if (isNaN(value) || value <= 0) return;
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId) return;
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
     try {
-      const result = await updateJourney({ total_budget: value });
+      const result = await updateJourney(
+        { total_budget: value },
+        expectedActorUserId,
+      );
+      if (!isCurrentSettingsOwner(expectedActorUserId)) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
@@ -308,23 +486,31 @@ export default function SettingsPage() {
       );
       setEditingBudget(false);
     } catch (error) {
-      setJourneyError(
-        error instanceof Error
-          ? error.message
-          : "총예산을 저장하지 못했습니다.",
-      );
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setJourneyError(
+          error instanceof Error
+            ? error.message
+            : "총예산을 저장하지 못했습니다.",
+        );
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) setSaving(false);
     }
   };
 
   // 결혼식장 저장 — 빈 문자열은 null로 (미정 상태)
   const saveVenue = async () => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId) return;
     setSaving(true);
     setJourneyError("");
     setJourneyNotice("");
     try {
-      const result = await updateJourney({ venue: venueInput.trim() || null });
+      const result = await updateJourney(
+        { venue: venueInput.trim() || null },
+        expectedActorUserId,
+      );
+      if (!isCurrentSettingsOwner(expectedActorUserId)) return;
       setJourneyNotice(
         result.status === "pending_partner"
           ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
@@ -332,13 +518,15 @@ export default function SettingsPage() {
       );
       setEditingVenue(false);
     } catch (error) {
-      setJourneyError(
-        error instanceof Error
-          ? error.message
-          : "대표 식장을 저장하지 못했습니다.",
-      );
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setJourneyError(
+          error instanceof Error
+            ? error.message
+            : "대표 식장을 저장하지 못했습니다.",
+        );
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) setSaving(false);
     }
   };
 
@@ -366,6 +554,8 @@ export default function SettingsPage() {
       guestCount: GuestCount | null;
     }>
   ) => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId) return;
     const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
     const nextPrefs = { ...draftPrefs, ...partial };
     setDraftPrefs(nextPrefs);
@@ -373,9 +563,13 @@ export default function SettingsPage() {
     setJourneyError("");
     setJourneyNotice("");
     try {
-      const result = await updateJourney({
-        progress: { ...currentProgress, __preferences: nextPrefs } as never,
-      });
+      const result = await updateJourney(
+        {
+          progress: { ...currentProgress, __preferences: nextPrefs } as never,
+        },
+        expectedActorUserId,
+      );
+      if (!isCurrentSettingsOwner(expectedActorUserId)) return;
       if (result.status === "pending_partner") {
         setDraftPrefs(prefs ?? {});
         setJourneyNotice(
@@ -383,14 +577,18 @@ export default function SettingsPage() {
         );
       }
     } catch (error) {
-      setDraftPrefs(prefs ?? {});
-      setJourneyError(
-        error instanceof Error
-          ? error.message
-          : "웨딩 선호도를 저장하지 못했습니다.",
-      );
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setDraftPrefs(prefs ?? {});
+        setJourneyError(
+          error instanceof Error
+            ? error.message
+            : "웨딩 선호도를 저장하지 못했습니다.",
+        );
+      }
     } finally {
-      setPreferenceSaving(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setPreferenceSaving(false);
+      }
     }
   };
 
@@ -409,15 +607,61 @@ export default function SettingsPage() {
     { value: "other", label: "기타" },
   ];
 
+  const openDeleteConfirmation = () => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId || expectedActorUserId === "demo") return;
+    setDeleteConfirmationOwnerId(loadedSettingsOwnerId);
+    setDeleteConfirmText("");
+    setDeleteReason("");
+    setDeleteError("");
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteConfirmation = () => {
+    setShowDeleteModal(false);
+    setDeleteConfirmationOwnerId(null);
+    setDeleteConfirmText("");
+    setDeleteError("");
+    setDeleteReason("");
+  };
+
+  const openResetConfirmation = () => {
+    const expectedActorUserId = currentSettingsMutationOwner();
+    if (!expectedActorUserId || expectedActorUserId === "demo") return;
+    setResetConfirmationOwnerId(loadedSettingsOwnerId);
+    setResetWeddingConfirmText("");
+    setResetWeddingError("");
+    setShowResetWeddingModal(true);
+  };
+
+  const closeResetConfirmation = () => {
+    setShowResetWeddingModal(false);
+    setResetConfirmationOwnerId(null);
+    setResetWeddingConfirmText("");
+    setResetWeddingError("");
+  };
+
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "탈퇴합니다" || !deleteReason) return;
+    const expectedActorUserId = deleteConfirmationOwnerId;
+    if (
+      !expectedActorUserId
+      || expectedActorUserId !== currentSettingsMutationOwner()
+    ) {
+      closeDeleteConfirmation();
+      return;
+    }
     setDeleting(true);
     setDeleteError("");
 
     try {
       const res = await fetch("/api/auth/delete", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+        },
         body: JSON.stringify({ reason: deleteReason }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -426,45 +670,80 @@ export default function SettingsPage() {
         pending?: boolean;
       };
 
+      if (!res.ok && !data.pending) {
+        if (isCurrentSettingsOwner(expectedActorUserId)) {
+          setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
+        }
+        return;
+      }
+
+      const confirmExpectedDeletionOwner = async () => {
+        if (!isCurrentSettingsOwner(expectedActorUserId)) return false;
+        const currentActorId = await readCurrentWebActorId();
+        return isCurrentSettingsOwner(expectedActorUserId)
+          && (
+            currentActorId === null
+            || currentActorId === expectedActorUserId
+          );
+      };
+
+      if (!await confirmExpectedDeletionOwner()) {
+        closeDeleteConfirmation();
+        return;
+      }
+
       if (data.pending) {
         window.alert(
           data.message
             ?? "계정 삭제 요청을 안전하게 처리 중이에요. 새 파일 업로드는 제한돼요.",
         );
+        if (!await confirmExpectedDeletionOwner()) {
+          closeDeleteConfirmation();
+          return;
+        }
         try {
-          await signOut();
+          await signOut(expectedActorUserId);
         } finally {
           window.location.href = "/login";
         }
         return;
       }
 
-      if (!res.ok) {
-        setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
-        return;
-      }
-
       try {
-        await signOut();
+        await signOut(expectedActorUserId);
       } finally {
         window.location.href = "/login";
       }
     } catch {
-      setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
+      }
     } finally {
-      setDeleting(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) setDeleting(false);
     }
   };
 
   const handleResetWedding = async () => {
     if (resetWeddingConfirmText !== "초기화합니다") return;
+    const expectedActorUserId = resetConfirmationOwnerId;
+    if (
+      !expectedActorUserId
+      || expectedActorUserId !== currentSettingsMutationOwner()
+    ) {
+      closeResetConfirmation();
+      return;
+    }
     setResettingWedding(true);
     setResetWeddingError("");
 
     try {
       const res = await fetch("/api/couple/reset", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+        },
         body: JSON.stringify({ confirmText: resetWeddingConfirmText }),
       });
       const data = await res.json().catch(() => ({}));
@@ -474,12 +753,25 @@ export default function SettingsPage() {
         return;
       }
 
+      const currentActorId = await readCurrentWebActorId();
+      if (
+        currentActorId !== expectedActorUserId
+        || !isCurrentSettingsOwner(expectedActorUserId)
+      ) {
+        closeResetConfirmation();
+        return;
+      }
+
       document.cookie = "onboarding_complete=; path=/; max-age=0";
       window.location.href = "/onboarding";
     } catch {
-      setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setResetWeddingError("오류가 발생했습니다. 다시 시도해주세요.");
+      }
     } finally {
-      setResettingWedding(false);
+      if (isCurrentSettingsOwner(expectedActorUserId)) {
+        setResettingWedding(false);
+      }
     }
   };
 
@@ -840,7 +1132,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleCopy}
+                    onClick={() => void handleCopy()}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-white text-sm text-[#504444] shadow-sm hover:text-[#795252] transition-colors"
                   >
                     {copied ? (
@@ -859,7 +1151,7 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={handleRegenerateCode}
-                disabled={regenerating || !coupleConnection.canInvite}
+                disabled={regenerating || !visibleCoupleConnection.canInvite}
                 className="mt-2 text-sm text-[#B5ADA3] hover:text-[#795252] transition-colors disabled:opacity-50"
               >
                 {regenerating ? "재발급 중..." : "코드 재발급"}
@@ -928,11 +1220,7 @@ export default function SettingsPage() {
           {!isDemo && (
             <button
               type="button"
-              onClick={() => {
-                setResetWeddingConfirmText("");
-                setResetWeddingError("");
-                setShowResetWeddingModal(true);
-              }}
+              onClick={openResetConfirmation}
               className="mt-3 w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
             >
               <span className="flex items-center gap-3">
@@ -1115,7 +1403,7 @@ export default function SettingsPage() {
         className="flex flex-col gap-3"
       >
         <button
-          onClick={signOut}
+          onClick={() => { void signOut(); }}
           className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-white text-red-400 text-base font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
         >
           <LogOut className="w-5 h-5" />
@@ -1123,7 +1411,7 @@ export default function SettingsPage() {
         </button>
 
         <button
-          onClick={() => setShowDeleteModal(true)}
+          onClick={openDeleteConfirmation}
           className="w-full flex items-center justify-center gap-2 py-3.5 text-[#B5ADA3] text-base font-light hover:text-red-400 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
@@ -1179,7 +1467,7 @@ export default function SettingsPage() {
               <div className="mt-6 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowResetWeddingModal(false)}
+                  onClick={closeResetConfirmation}
                   className="flex-1 py-3 rounded-xl bg-[#F6F3F2] text-[#504444] font-medium hover:bg-[#EDE8E5] transition-colors"
                 >
                   취소
@@ -1275,12 +1563,7 @@ export default function SettingsPage() {
               </button>
 
               <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteConfirmText("");
-                  setDeleteError("");
-                  setDeleteReason("");
-                }}
+                onClick={closeDeleteConfirmation}
                 className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
               >
                 취소

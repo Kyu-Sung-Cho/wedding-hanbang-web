@@ -176,6 +176,32 @@ describe("프롬프트와 도구 목록이 어긋나지 않는다", () => {
     }
   });
 
+  it("도구 이름 없이 한국어 산문으로 비활성 도구를 약속하지 않는다", () => {
+    const proseToolPromises = [
+      /도구로\s*(검색|조회|추천|시뮬레이션)/,
+      /(검색|추천|조회)[^\n]{0,12}도구를\s*(사용|호출)/,
+    ];
+    const knownBadLines = [
+      "   - A. 다른 업체에서 같은 가치 찾기 (도구로 검색)",
+      "   - B. 전체 예산 재배치 (도구로 시뮬레이션)",
+      "- 가격이 필요하면 업체 공시가 검색·추천 도구를 사용하고, 결과에 출처와 기준 시점을 함께 표시합니다.",
+    ];
+
+    for (const line of knownBadLines) {
+      expect(
+        proseToolPromises.some((pattern) => pattern.test(line)),
+        `검사가 실제 결함 문장을 잡지 못한다: ${line}`,
+      ).toBe(true);
+    }
+
+    for (const { label, text } of prompts()) {
+      for (const pattern of proseToolPromises) {
+        expect(text, `${label} 프롬프트가 식별자 없이 비활성 도구를 약속한다: ${pattern}`)
+          .not.toMatch(pattern);
+      }
+    }
+  });
+
   it("살아 있는 도구는 계속 설명한다", () => {
     // 위 두 단언만 있으면 프롬프트에서 도구 안내를 전부 지워도 통과한다.
     // 실제로 쓰는 도구가 여전히 안내되는지 함께 고정한다.

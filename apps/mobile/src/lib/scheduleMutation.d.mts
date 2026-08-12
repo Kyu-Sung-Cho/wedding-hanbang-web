@@ -5,6 +5,7 @@ export interface ScheduleMutationEvent {
   time?: string;
   memo?: string;
   categoryKey?: string;
+  momentType?: string;
   createdAt?: string;
   status?: "planned" | "completed" | "cancelled";
   updatedAt?: string;
@@ -32,11 +33,12 @@ export type ScheduleEventDraftValidation =
         time?: string;
         memo?: string;
         categoryKey?: string;
+        momentType?: string;
       };
     }
   | {
       ok: false;
-      field: "draft" | "date" | "title" | "time" | "memo" | "categoryKey";
+      field: "draft" | "date" | "title" | "time" | "memo" | "categoryKey" | "momentType";
     };
 
 export function validateScheduleEventDraft(input: unknown): ScheduleEventDraftValidation;

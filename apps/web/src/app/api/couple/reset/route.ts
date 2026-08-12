@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 4 * 1024;
 
@@ -26,6 +27,16 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const actorFence = verifyMutationActorFence(request.headers, user.id, {
+      allowLegacy: false,
+    });
+    if (!actorFence.ok) {
+      return NextResponse.json(
+        { error: actorFence.message, code: actorFence.code },
+        { status: actorFence.status },
+      );
     }
 
     const limited = checkRateLimit(rateLimitKey("couple:reset", request, user.id), {

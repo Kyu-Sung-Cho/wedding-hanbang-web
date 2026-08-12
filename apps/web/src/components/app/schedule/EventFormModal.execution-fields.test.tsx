@@ -125,6 +125,91 @@ describe("EventFormModal execution fields", () => {
     );
   });
 
+  it("saves an explicitly selected Amora care moment without guessing from the title", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <EventFormModal
+          isOpen
+          mode="add"
+          event={null}
+          defaultDate="2027-05-01"
+          onSave={onSave}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const title = container.querySelector<HTMLInputElement>(
+      'input[name="schedule-title"]',
+    );
+    const moment = container.querySelector<HTMLSelectElement>(
+      'select[name="schedule-moment-type"]',
+    );
+    if (!title || !moment) throw new Error("Amora care field not rendered");
+
+    expect(moment.value).toBe("");
+    expect(moment.getAttribute("aria-describedby")).toBe(
+      "schedule-moment-type-help",
+    );
+    expect(container.textContent).toContain("선택하면 일정 전후에 아모라가");
+    expect(container.textContent).toContain("알림·케어 설정에 따라");
+
+    await act(async () => {
+      setValue(title, "가족과 저녁 식사");
+      setValue(moment, "sanggyeonrye");
+      findButton(container, "추가").click();
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      title: "가족과 저녁 식사",
+      momentType: "sanggyeonrye",
+    }));
+  });
+
+  it("preserves an unknown existing moment type unless the user explicitly changes it", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <EventFormModal
+          isOpen
+          mode="edit"
+          event={{
+            id: "evt-future-moment",
+            date: "2027-05-01",
+            title: "기존 중요 일정",
+            momentType: "future_supported_moment",
+            createdAt: "2026-07-01T00:00:00.000Z",
+            updatedAt: "2026-07-01T00:00:00.000Z",
+          }}
+          defaultDate={null}
+          onSave={onSave}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const moment = container.querySelector<HTMLSelectElement>(
+      'select[name="schedule-moment-type"]',
+    );
+    if (!moment) throw new Error("Amora care field not rendered");
+    expect(moment.value).toBe("future_supported_moment");
+    expect(moment.selectedOptions[0]?.textContent).toContain("기존 설정 유지");
+    expect(container.textContent).not.toContain("future_supported_moment");
+
+    await act(async () => {
+      findButton(container, "수정").click();
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      momentType: "future_supported_moment",
+    }));
+  });
+
   it("supports solo planning and requires a short role for an external assignee", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
 

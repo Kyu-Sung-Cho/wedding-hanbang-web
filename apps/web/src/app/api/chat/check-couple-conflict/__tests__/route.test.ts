@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   pastConflictRows: [] as Array<Record<string, unknown>>,
   persistentLimit: vi.fn(),
   providerLedger: vi.fn(),
+  providerEgressAuthorizer: vi.fn(async () => undefined),
   atomicOutcome: "persisted" as
     | "persisted"
     | "cooldown_race_lost"
@@ -335,13 +336,25 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     });
     mocks.userRpc.mockResolvedValue({ data: 7, error: null });
     mocks.auditedResponse.mockImplementation(async (options) => {
+      await options.beforeProviderEgress?.({
+        operation: "responses.input_tokens.count",
+        contentBinding: "c".repeat(64),
+      });
       await options.beforeGeneration?.();
+      await options.beforeProviderEgress?.({
+        operation: "responses.create",
+        contentBinding: "d".repeat(64),
+      });
       mocks.providerGeneration("primary");
       return { text: "중재 답변" };
     });
     mocks.persistentLimit.mockResolvedValue(null);
     mocks.providerLedger.mockImplementation(async (_context, call, options) => {
-      const result = await call(async () => undefined);
+      const result = await call(
+        async () => undefined,
+        async () => undefined,
+        mocks.providerEgressAuthorizer,
+      );
       const atomic = options?.buildAtomicChatResponse?.(result) ?? null;
       if (atomic) {
         mocks.atomicResponses.push(atomic);
@@ -369,7 +382,15 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     });
     mocks.reserveTurn.mockResolvedValue({ allowed: true });
     mocks.structuredResponse.mockImplementation(async (options) => {
+      await options.beforeProviderEgress?.({
+        operation: "responses.input_tokens.count",
+        contentBinding: "e".repeat(64),
+      });
       await options.beforeGeneration?.();
+      await options.beforeProviderEgress?.({
+        operation: "responses.create",
+        contentBinding: "f".repeat(64),
+      });
       mocks.providerGeneration("fast");
       return { data: { conflict: false, reason: "현재 갈등 아님" } };
     });
@@ -441,6 +462,33 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(response.status).toBe(410);
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
+  });
+
+  it("binds automatic mediation egress to the current shared privacy epoch", async () => {
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+
+    expect(mocks.providerLedger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "conflict_check",
+        providerPrivacyScope: {
+          visibility: "shared",
+          expectedPrivacyEpoch: 7,
+        },
+      }),
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(mocks.providerEgressAuthorizer.mock.calls).toEqual([
+      [{
+        operation: "responses.input_tokens.count",
+        contentBinding: "c".repeat(64),
+      }],
+      [{
+        operation: "responses.create",
+        contentBinding: "d".repeat(64),
+      }],
+    ]);
   });
 
   afterEach(() => {
@@ -545,6 +593,8 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
 
   it("fails the mediation claim when the roster epoch changes after generation", async () => {
     mocks.userRpc
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: 7, error: null })
       .mockResolvedValueOnce({ data: 7, error: null })
       .mockResolvedValueOnce({ data: 7, error: null })
       .mockResolvedValueOnce({ data: 8, error: null });
@@ -926,9 +976,13 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
       },
     );
     mocks.providerLedger.mockImplementationOnce(async (_context, call) =>
-      call(async () => {
-        throw new mocks.CostGuardError("cost guard rejected");
-      }));
+      call(
+        async () => {
+          throw new mocks.CostGuardError("cost guard rejected");
+        },
+        async () => undefined,
+        mocks.providerEgressAuthorizer,
+      ));
 
     const response = await POST(request());
 

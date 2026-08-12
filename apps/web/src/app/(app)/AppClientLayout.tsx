@@ -52,7 +52,8 @@ export default function AppClientLayout({
   const searchParams = useSearchParams();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
-  const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
+  const { initialize, isInitialized, isLoading, isDemo, user } = useAuthStore();
+  const actorScope = isDemo ? "demo" : user?.id ?? "anonymous";
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
   const vendorAdminPreview = (
@@ -82,6 +83,7 @@ export default function AppClientLayout({
 
   return (
     <div
+      key={actorScope}
       className={`${analyticsSuppressed ? "ph-no-capture " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh

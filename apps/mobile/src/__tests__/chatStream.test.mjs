@@ -98,6 +98,124 @@ function loadAiMessageIngestContract() {
   )();
 }
 
+function loadAiMessageIngestRecoveryContract() {
+  const recoveryFunctionNames = new Set([
+    "isRecord",
+    "parseAiMessageIngestResult",
+    "getAiMessageIngestRecovery",
+  ]);
+  const hasRecoveryFunction = sourceFile.statements.some((statement) =>
+    ts.isFunctionDeclaration(statement)
+    && statement.name?.text === "getAiMessageIngestRecovery"
+  );
+  if (!hasRecoveryFunction) return null;
+  const declarations = sourceFile.statements
+    .filter((statement) =>
+      (ts.isClassDeclaration(statement) && statement.name?.text === "AiMessageIngestError")
+      || (
+        ts.isFunctionDeclaration(statement)
+        && statement.name
+        && recoveryFunctionNames.has(statement.name.text)
+      )
+    )
+    .map((statement) => statement.getFullText(sourceFile))
+    .join("\n");
+  const transpiled = ts.transpileModule(declarations, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  return new Function(
+    `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, getAiMessageIngestRecovery };`,
+  )();
+}
+
+function loadAiMessageIngestRequest({ fetchImpl }) {
+  const requestDeclarations = sourceFile.statements
+    .filter((statement) =>
+      (ts.isClassDeclaration(statement) && statement.name?.text === "AiMessageIngestError")
+      || (
+        ts.isFunctionDeclaration(statement)
+        && (
+          statement.name?.text === "requestAiMessageIngest"
+          || statement.name?.text === "getAiMessageIngestRecovery"
+        )
+      )
+    )
+    .map((statement) => statement.getFullText(sourceFile))
+    .join("\n");
+  const transpiled = ts.transpileModule(requestDeclarations, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  const supabase = {
+    auth: {
+      getSession: async () => ({
+        data: {
+          session: {
+            access_token: "access-token",
+            user: { id: "22222222-2222-4222-8222-222222222222" },
+          },
+        },
+        error: null,
+      }),
+    },
+  };
+  const runtime = new Function(
+    "supabase",
+    "fetch",
+    "assertAmoraRequestActor",
+    "parseAiMessageIngestResult",
+    "parseRetryAfterMs",
+    `const API_BASE = "https://hanbang.ai";\nconst CHAT_INGEST_TIMEOUT_MS = 30000;\n${transpiled.outputText}\nreturn { requestAiMessageIngest, getAiMessageIngestRecovery };`,
+  )(
+    supabase,
+    fetchImpl,
+    (expected, actual) => assert.equal(actual, expected),
+    (_status, _payload, expected) => ({
+      outcome: "persisted",
+      reused: false,
+      effectiveVisibility: "shared",
+      safetyPrivacyRedirected: false,
+      message: {
+        id: "44444444-4444-4444-8444-444444444444",
+        couple_id: expected.coupleId,
+        sender_id: expected.userId,
+        role: "user",
+        sender_type: expected.senderType,
+        content: expected.text,
+        metadata: { client_request_id: expected.clientRequestId },
+        created_at: "2026-08-12T00:00:00.000Z",
+        visibility: "shared",
+      },
+    }),
+    () => null,
+  );
+  return Object.assign(runtime.requestAiMessageIngest, {
+    getRecovery: runtime.getAiMessageIngestRecovery,
+  });
+}
+
+function loadChatSendOperationGuard() {
+  const declaration = sourceFile.statements.find((statement) =>
+    ts.isFunctionDeclaration(statement)
+    && statement.name?.text === "createChatSendOperationGuard"
+  );
+  if (!declaration) return null;
+  const transpiled = ts.transpileModule(declaration.getFullText(sourceFile), {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  return new Function(
+    `${transpiled.outputText}\nreturn createChatSendOperationGuard;`,
+  )();
+}
+
 function loadColdStartAiRecoveryContract() {
   const recoveryFunctionNames = new Set([
     "isRecord",
@@ -362,6 +480,45 @@ test("XHR transport returns tool results even when the assistant text is empty",
   }
 });
 
+test("XHR chat transport binds the immutable operation owner with the generic mutation headers", async () => {
+  const requestHeaders = new Map();
+  class FakeXMLHttpRequest {
+    status = 200;
+    responseText = "data: {\"type\":\"done\",\"fullContent\":\"완료\"}\n\n";
+    timeout = 0;
+    open() {}
+    setRequestHeader(name, value) { requestHeaders.set(name, value); }
+    abort() { this.onabort?.(); }
+    send() { this.onload?.(); }
+  }
+
+  const original = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXMLHttpRequest;
+  try {
+    await streamChatWithXhr(
+      {},
+      "access-token",
+      {
+        aborted: false,
+        addEventListener() {},
+        removeEventListener() {},
+      },
+      () => {},
+      () => {},
+      () => {},
+      "22222222-2222-4222-8222-222222222222",
+    );
+
+    assert.equal(requestHeaders.get("X-Hanbang-Mutation-Contract-Version"), "2");
+    assert.equal(
+      requestHeaders.get("X-Hanbang-Expected-Actor-User-Id"),
+      "22222222-2222-4222-8222-222222222222",
+    );
+  } finally {
+    globalThis.XMLHttpRequest = original;
+  }
+});
+
 test("XHR HTTP errors preserve an explicit same-request retry contract without exposing server detail", async () => {
   class FakeXMLHttpRequest {
     status = 503;
@@ -591,11 +748,16 @@ test("mobile message rendering connects live place results to PlaceCards", () =>
     "function renderMessage",
     "const isP = activeScope",
   );
+  const messagePresentation = sourceBetween(
+    "function getMobileChatMessagePresentation",
+    "function asChatMessageMetadata",
+  );
 
   assert.ok(streamAiRequest.includes("reconcileChatStreamUpdate"));
   assert.ok(streamAiRequest.includes("toolResults"));
   assert.ok(streamAiRequest.includes("metadata"));
-  assert.ok(renderMessage.includes('result.toolName === "search_nearby_places"'));
+  assert.ok(messagePresentation.includes('result.toolName === "search_nearby_places"'));
+  assert.ok(renderMessage.includes("getMobileChatMessagePresentation"));
   assert.ok(renderMessage.includes("<PlaceCards"));
 });
 
@@ -604,9 +766,11 @@ test("AI transport stays behind the durable user-message gate", () => {
     "async function sendAiDraft",
     "async function handleRetry",
   );
-  const ingestGate = sendAiDraft.indexOf("await requestAiMessageIngest(draft)");
+  const ingestGate = sendAiDraft.search(
+    /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u,
+  );
   const durableGate = sendAiDraft.indexOf("durableMessage = ingestResult.message");
-  const transportCall = sendAiDraft.indexOf("await streamAiRequest(request)");
+  const transportCall = sendAiDraft.indexOf("await streamAiRequest(request, operation)");
   const inputClear = sendAiDraft.indexOf("setInputByLane((current)");
   const ephemeralBranch = sendAiDraft.slice(
     sendAiDraft.indexOf('if (ingestResult.outcome === "ephemeral_safety")'),
@@ -629,7 +793,7 @@ test("manual AI retry reuses the stored request instead of generating a new id",
     "async function handleSend",
   );
 
-  assert.ok(retryHandler.includes("await streamAiRequest(failure.request)"));
+  assert.ok(retryHandler.includes("await streamAiRequest(failure.request, operation)"));
   assert.equal(retryHandler.includes("Crypto.randomUUID()"), false);
 });
 
@@ -640,8 +804,10 @@ test("AI retry continues from an existing canonical user row without re-ingestin
   );
   const durableLookup = aiSend.indexOf('await findDurableUserMessage(draft, "ai")');
   const missingDurableGate = aiSend.indexOf("if (!durableMessage) {");
-  const ingestCall = aiSend.indexOf("await requestAiMessageIngest(draft)");
-  const providerCall = aiSend.indexOf("await streamAiRequest(request)");
+  const ingestCall = aiSend.search(
+    /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u,
+  );
+  const providerCall = aiSend.indexOf("await streamAiRequest(request, operation)");
 
   assert.ok(durableLookup >= 0);
   assert.ok(missingDurableGate > durableLookup);
@@ -1138,6 +1304,249 @@ test("AI message ingest accepts a reconciled 23505 row only as a reused 200 resu
   );
 });
 
+test("aborting a mobile send aborts the durable message ingest request", async () => {
+  let capturedSignal;
+  let releaseFetch;
+  const fetchResponse = new Promise((resolve) => {
+    releaseFetch = resolve;
+  });
+  const requestAiMessageIngest = loadAiMessageIngestRequest({
+    fetchImpl: async (_url, init) => {
+      capturedSignal = init.signal;
+      return fetchResponse;
+    },
+  });
+  const sendController = new globalThis.AbortController();
+  const request = requestAiMessageIngest({
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "이 전송을 중단해줘",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    requestedVisibility: "shared",
+    visibility: "shared",
+    providerAttachmentCount: 0,
+    sessionGeneration: 1,
+  }, sendController.signal);
+
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.ok(capturedSignal);
+  sendController.abort();
+  const ingestWasAborted = capturedSignal.aborted;
+  releaseFetch({
+    status: 201,
+    json: async () => ({}),
+    headers: { get: () => null },
+  });
+  await request;
+
+  assert.equal(ingestWasAborted, true);
+});
+
+test("v2 mobile actor binding remains body-compatible with the legacy ingest server", async () => {
+  let capturedInit;
+  const requestAiMessageIngest = loadAiMessageIngestRequest({
+    fetchImpl: async (_url, init) => {
+      capturedInit = init;
+      return {
+        status: 201,
+        json: async () => ({}),
+        headers: { get: () => null },
+      };
+    },
+  });
+  await requestAiMessageIngest({
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "계정 전환 없이 안전하게 보내줘",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    requestedVisibility: "shared",
+    visibility: "shared",
+    providerAttachmentCount: 0,
+    sessionGeneration: 1,
+  });
+
+  assert.equal(capturedInit.headers["X-Amora-Ingest-Contract-Version"], "2");
+  assert.equal(
+    capturedInit.headers["X-Amora-Expected-Actor-User-Id"],
+    "22222222-2222-4222-8222-222222222222",
+  );
+  assert.equal(capturedInit.headers["X-Hanbang-Mutation-Contract-Version"], "2");
+  assert.equal(
+    capturedInit.headers["X-Hanbang-Expected-Actor-User-Id"],
+    "22222222-2222-4222-8222-222222222222",
+  );
+  const body = JSON.parse(capturedInit.body);
+  assert.equal("expectedActorUserId" in body, false);
+  assert.deepEqual(Object.keys(body).sort(), [
+    "clientRequestId",
+    "content",
+    "coupleId",
+    "providerAttachmentCount",
+    "requestedVisibility",
+    "target",
+  ]);
+});
+
+test("a stopped send cannot finish over a newer mobile chat operation", () => {
+  const createChatSendOperationGuard = loadChatSendOperationGuard();
+  assert.equal(typeof createChatSendOperationGuard, "function");
+  const guard = createChatSendOperationGuard();
+  const stoppedOperation = guard.start(7);
+
+  assert.equal(guard.stopActive("user"), stoppedOperation);
+  assert.equal(stoppedOperation.controller.signal.aborted, true);
+  assert.equal(stoppedOperation.stopReason, "user");
+  assert.equal(
+    guard.current(),
+    stoppedOperation,
+    "the stopped operation must own the lock until its async work settles",
+  );
+
+  const currentOperation = guard.start(7);
+  assert.equal(guard.finish(stoppedOperation), false);
+  assert.equal(guard.current(), currentOperation);
+  assert.equal(currentOperation.controller.signal.aborted, false);
+  assert.equal(guard.finish(currentOperation), true);
+  assert.equal(guard.current(), null);
+});
+
+test("an ingest stop stays locked while abort settlement is deliberately delayed", async () => {
+  const createChatSendOperationGuard = loadChatSendOperationGuard();
+  const guard = createChatSendOperationGuard();
+  const operation = guard.start(11);
+  operation.phase = "ingest";
+  let releaseSettlement;
+  const delayedSettlement = new Promise((resolve) => {
+    releaseSettlement = resolve;
+  });
+  const finishAfterSettlement = delayedSettlement.then(() => guard.finish(operation));
+
+  guard.stopActive("user");
+  assert.equal(operation.controller.signal.aborted, true);
+  assert.equal(guard.current(), operation);
+  let finished = false;
+  void finishAfterSettlement.then(() => {
+    finished = true;
+  });
+  await Promise.resolve();
+  assert.equal(finished, false);
+  assert.equal(guard.current(), operation);
+
+  releaseSettlement();
+  assert.equal(await finishAfterSettlement, true);
+  assert.equal(guard.current(), null);
+});
+
+test("mobile Stop owns the current send from durable ingest through AI streaming", () => {
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+  const aiStream = sourceBetween(
+    "async function streamAiRequest",
+    "async function sendAiDraft",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleColdStartAiRecovery",
+  );
+  const stopHandler = sourceBetween(
+    "function handleStop",
+    "function handleInputChange",
+  );
+  const composer = sourceBetween(
+    "<View style={[st.inputBar",
+    "</KeyboardAvoidingView>",
+  );
+
+  assert.match(sourceText, /useRef\(createChatSendOperationGuard\(\)\)/u);
+  assert.match(partnerSend, /requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
+  assert.match(aiSend, /requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
+  assert.match(aiSend, /streamAiRequest\(request, operation\)/u);
+  assert.match(aiStream, /requestChatStream\([\s\S]*operation\.controller\.signal/u);
+  assert.match(stopHandler, /stopActive\("user"\)/u);
+  assert.match(stopHandler, /stoppedOperation\.phase === "ingest"[\s\S]*return/u);
+  assert.match(stopHandler, /finishChatSendOperation\(stoppedOperation\)/u);
+  assert.doesNotMatch(stopHandler, /setStreaming\(false\)|sendingRef\.current = false/u);
+  assert.match(composer, /streaming \? \(/u);
+  assert.match(composer, /onPress=\{handleStop\}/u);
+  assert.match(composer, /accessibilityRole="button"/u);
+  assert.match(composer, /accessibilityLabel="현재 메시지 전송 중단"/u);
+  assert.match(composer, />중단<\/Text>/u);
+});
+
+test("Stop during durable ingest keeps the immutable request until persistence is reconciled", () => {
+  const sendFailureType = sourceBetween(
+    "type SendFailure",
+    "type PartnerRecipientVerification",
+  );
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleColdStartAiRecovery",
+  );
+  const sendHandler = sourceBetween(
+    "async function handleSend",
+    "function handleStop",
+  );
+  const inputHandler = sourceBetween(
+    "function handleInputChange",
+    "function handleTargetChange",
+  );
+  const retryHandler = sourceBetween(
+    "async function handleRetry",
+    "async function handleSend",
+  );
+
+  assert.match(sendFailureType, /requiresReconciliation: boolean/u);
+  for (const sender of [partnerSend, aiSend]) {
+    assert.match(sender, /operation\.phase = "ingest"/u);
+    assert.match(sender, /operation\.stopReason === "user"[\s\S]*requiresReconciliation: true/u);
+    assert.match(sender, /draft,[\s\S]*canRetry: true/u);
+    assert.doesNotMatch(sender, /보내지 않았/u);
+  }
+  assert.match(sendHandler, /pendingIngestReconciliation/u);
+  assert.match(inputHandler, /failure\?\.requiresReconciliation/u);
+  assert.match(retryHandler, /failure\.draft/u);
+  assert.doesNotMatch(retryHandler, /Crypto\.randomUUID/u);
+  assert.match(sourceText, /저장 여부를 확인하고 이어가기/u);
+});
+
+test("stopping a reconciliation retry cannot clear its immutable-request fence early", () => {
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleColdStartAiRecovery",
+  );
+  const durableLookup = aiSend.indexOf('await findDurableUserMessage(draft, "ai")');
+  const firstAiFailureClear = aiSend.indexOf("setLaneFailure(draftLane, null)");
+
+  assert.ok(durableLookup >= 0);
+  assert.ok(
+    firstAiFailureClear > durableLookup,
+    "the reconciliation fence must survive until the canonical lookup is known",
+  );
+  assert.doesNotMatch(
+    partnerSend,
+    /setLaneFailure\(lane, null\);\s*try \{\s*const recipientVerification/u,
+  );
+  assert.match(
+    partnerSend,
+    /const durableMessage = ingestResult\.message;[\s\S]*setLaneFailure\(lane, null\)/u,
+  );
+});
+
 test("AI message ingest binds a shared confirmed action to the canonical metadata", () => {
   const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
   const expected = {
@@ -1254,6 +1663,189 @@ test("AI message ingest preserves the exact request after an explicit 503 same-r
   );
 });
 
+test("an ambiguous 504 ingest requires reconciliation of the same immutable request", () => {
+  const contract = loadAiMessageIngestRecoveryContract();
+  assert.ok(contract);
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "응답 전에 게이트웨이가 끊긴 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  let ingestError;
+  try {
+    contract.parseAiMessageIngestResult(504, { code: "EDGE_TIMEOUT" }, expected);
+    assert.fail("expected the uncertain 504 result to fail");
+  } catch (error) {
+    ingestError = error;
+  }
+
+  assert.deepEqual(contract.getAiMessageIngestRecovery(ingestError, false), {
+    canRetry: true,
+    requiresReconciliation: true,
+  });
+});
+
+test("partner and AI ingest failures persist the reconciliation requirement", () => {
+  const partnerSend = sourceBetween(
+    "async function sendPartnerDraft",
+    "async function streamAiRequest",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleColdStartAiRecovery",
+  );
+
+  for (const sender of [partnerSend, aiSend]) {
+    assert.match(
+      sender,
+      /const recovery = getAiMessageIngestRecovery\(error, (?:true|false)\)/u,
+    );
+    assert.match(sender, /canRetry: recovery\.canRetry/u);
+    assert.match(
+      sender,
+      /requiresReconciliation: recovery\.requiresReconciliation/u,
+    );
+  }
+});
+
+test("an unresolved ingest reconciliation locks every new-request composer path", () => {
+  const stateSetup = sourceBetween(
+    "const [sendFailuresByLane",
+    "const [quotaRemaining",
+  );
+  const retryHandler = sourceBetween(
+    "async function handleRetry",
+    "async function handleSend",
+  );
+  const sendHandler = sourceBetween(
+    "async function handleSend",
+    "async function handleConfirmSharedSend",
+  );
+  const inputHandler = sourceBetween(
+    "function handleInputChange",
+    "function handleTargetChange",
+  );
+  const moveToPrivateHandler = sourceBetween(
+    "function handleMoveSharedSendToPrivate",
+    "function handleStop",
+  );
+  const targetHandler = sourceBetween(
+    "function handleTargetChange",
+    "function handleAiSuggestion",
+  );
+  const suggestionHandler = sourceBetween(
+    "function handleAiSuggestion",
+    "async function handleApplyPendingAction",
+  );
+  const applyHandler = sourceBetween(
+    "async function handleApplyPendingAction",
+    "async function handleWithdrawPendingAction",
+  );
+  const scopeHandler = sourceBetween(
+    "function handleScopeChange",
+    "function renderMessage",
+  );
+  const composer = sourceBetween(
+    "<View style={[st.inputBar",
+    "</KeyboardAvoidingView>",
+  );
+
+  assert.match(
+    stateSetup,
+    /const pendingIngestReconciliation = Object\.values\(sendFailuresByLane\)[\s\S]*requiresReconciliation/u,
+  );
+  for (const handler of [
+    sendHandler,
+    inputHandler,
+    moveToPrivateHandler,
+    targetHandler,
+    suggestionHandler,
+    applyHandler,
+    scopeHandler,
+  ]) {
+    assert.match(handler, /pendingIngestReconciliation/u);
+  }
+  assert.match(composer, /editable=\{!streaming && !pendingIngestReconciliation\}/u);
+  assert.match(composer, /disabled=\{!input\.trim\(\) \|\| pendingIngestReconciliation\}/u);
+  assert.match(retryHandler, /sendPartnerDraft\(failure\.draft, operation\)/u);
+  assert.match(retryHandler, /sendAiDraft\(failure\.draft, true, operation\)/u);
+  assert.doesNotMatch(retryHandler, /Crypto\.randomUUID/u);
+});
+
+test("a network-unknown ingest retry sends the exact same client request id", async () => {
+  const requestIds = [];
+  let attempt = 0;
+  const requestAiMessageIngest = loadAiMessageIngestRequest({
+    fetchImpl: async (_url, init) => {
+      requestIds.push(JSON.parse(init.body).clientRequestId);
+      attempt += 1;
+      if (attempt === 1) throw new Error("socket closed after write");
+      return {
+        status: 201,
+        json: async () => ({}),
+        headers: { get: () => null },
+      };
+    },
+  });
+  const draft = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "네트워크가 끊긴 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    requestedVisibility: "shared",
+    visibility: "shared",
+    providerAttachmentCount: 0,
+    sessionGeneration: 1,
+  };
+
+  await assert.rejects(
+    requestAiMessageIngest(draft),
+    (error) => {
+      assert.deepEqual(requestAiMessageIngest.getRecovery(error, false), {
+        canRetry: true,
+        requiresReconciliation: true,
+      });
+      return true;
+    },
+  );
+  await requestAiMessageIngest(draft);
+
+  assert.deepEqual(requestIds, [draft.clientRequestId, draft.clientRequestId]);
+});
+
+test("a definite new-message ingest failure does not enter reconciliation mode", () => {
+  const contract = loadAiMessageIngestRecoveryContract();
+  assert.ok(contract);
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "충돌이 확인된 요청",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  assert.throws(
+    () => contract.parseAiMessageIngestResult(409, {
+      code: "USER_MESSAGE_REQUEST_CONFLICT",
+      retryPolicy: "new_message",
+    }, expected),
+    (error) => {
+      assert.deepEqual(contract.getAiMessageIngestRecovery(error, false), {
+        canRetry: false,
+        requiresReconciliation: false,
+      });
+      return true;
+    },
+  );
+});
+
 test("AI message ingest preserves the exact request across uncertain edge 5xx responses", () => {
   const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
   const expected = {
@@ -1355,7 +1947,13 @@ test("mobile honors bounded Retry-After seconds and HTTP dates from ingest", () 
 });
 
 test("AI message ingest treats a malformed successful envelope as an unknown committed outcome", () => {
-  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const contract = loadAiMessageIngestRecoveryContract();
+  assert.ok(contract);
+  const {
+    AiMessageIngestError,
+    getAiMessageIngestRecovery,
+    parseAiMessageIngestResult,
+  } = contract;
   const expected = {
     coupleId: "11111111-1111-4111-8111-111111111111",
     userId: "22222222-2222-4222-8222-222222222222",
@@ -1367,9 +1965,16 @@ test("AI message ingest treats a malformed successful envelope as an unknown com
 
   assert.throws(
     () => parseAiMessageIngestResult(201, null, expected),
-    (error) => error instanceof AiMessageIngestError
-      && error.retryable === true
-      && error.retryPolicy === "same_request",
+    (error) => {
+      assert.ok(error instanceof AiMessageIngestError);
+      assert.equal(error.retryable, true);
+      assert.equal(error.retryPolicy, "same_request");
+      assert.deepEqual(getAiMessageIngestRecovery(error, false), {
+        canRetry: true,
+        requiresReconciliation: true,
+      });
+      return true;
+    },
   );
 });
 
@@ -1963,15 +2568,14 @@ test("mobile cold-start stages a neutral CTA and resumes only after the user's c
   assert.match(resumeHandler, /durableUserMessageId: recovery\.userMessageId/);
   assert.match(resumeHandler, /providerAttachmentCount: 0/);
   assert.match(resumeHandler, /recoveredProviderAttachmentState: recovery\.providerAttachmentState/);
-  assert.match(resumeHandler, /await sendAiDraft\(draft, true\)/);
+  assert.match(resumeHandler, /await sendAiDraft\(draft, true, operation\)/);
   assert.doesNotMatch(resumeHandler, /requestAiMessageIngest|streamAiRequest/);
 
   assert.match(sourceText, /onPress=\{handleColdStartAiRecovery\}/);
   assert.match(sourceText, /답변 이어받기/);
-  assert.match(
-    sourceText,
-    /disposition === "reattach_required"[\s\S]*providerAttachmentState === "present"[\s\S]*첨부파일이 포함된 질문[\s\S]*첨부 상태를 확인할 수 없어요/,
-  );
+  assert.match(sourceText, /이 질문은 첨부파일이 있어 모바일에서 이어받을 수 없어요\. 웹에서 첨부파일을 다시 선택해 새 메시지로 보내 주세요\./);
+  assert.match(sourceText, /첨부 상태를 확인할 수 없어 모바일에서 이어받지 않았어요\. 웹에서 첨부파일을 다시 선택해 새 메시지로 보내 주세요\./);
+  assert.doesNotMatch(sourceText, /expo-image-picker|ImagePicker/);
 });
 
 test("cold-start resume revalidates the exact durable row and safe attachment state", () => {
@@ -2079,10 +2683,10 @@ test("mobile posts both AI and partner user rows through the Bearer ingest bound
   );
   assert.doesNotMatch(ingestRequest, /imagePaths|attachments/);
 
-  assert.match(aiSend, /await requestAiMessageIngest\(draft\)/);
+  assert.match(aiSend, /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
   assert.doesNotMatch(aiSend, /\.from\("chat_messages"\)[\s\S]*?\.insert\(/);
   assert.match(aiSend, /durableMessage = ingestResult\.message/);
-  assert.match(partnerSend, /await requestAiMessageIngest\(draft\)/);
+  assert.match(partnerSend, /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
   assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
   assert.doesNotMatch(partnerSend, /streamAiRequest|requestChatStream/);
 });
@@ -2104,7 +2708,8 @@ test("partner ingest exposes retry only for safe same-request failures", () => {
   assert.match(sendFailureType, /kind: "partner_ingest"[\s\S]*canRetry: boolean[\s\S]*unavailableReason: string \| null/);
   assert.match(partnerSend, /catch \(error\)/);
   assert.match(partnerSend, /getAiMessageIngestFailureMessage\(error, false\)/);
-  assert.match(partnerSend, /error instanceof AiMessageIngestError[\s\S]*error\.retryable/);
+  assert.match(partnerSend, /getAiMessageIngestRecovery\(error, true\)/);
+  assert.match(partnerSend, /canRetry: recovery\.canRetry/);
   assert.match(retryHandler, /if \(!failure\.canRetry\) return/);
   assert.match(sourceText, /activeSendFailure\.canRetry && \(/);
 });
@@ -2208,9 +2813,9 @@ test("mobile send path preserves the safety-effective visibility through persist
   assert.doesNotMatch(durableLookup, /\.eq\("content", draft\.text\)/);
   assert.match(durableLookup, /durableMessage\.content !== draft\.text/);
   assert.doesNotMatch(durableLookup, /draft\.startedAt/);
-  assert.match(partnerSend, /await requestAiMessageIngest\(draft\)/);
+  assert.match(partnerSend, /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
   assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
-  assert.match(aiSend, /const ingestResult = await requestAiMessageIngest\(draft\)/);
+  assert.match(aiSend, /const ingestResult = await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
   assert.match(aiSend, /durableMessage = ingestResult\.message/);
   assert.match(aiSend, /coupleId: canonicalUserMessage\.couple_id/);
   assert.match(aiSend, /clientRequestId: canonicalUserMessage\.metadata!\.client_request_id!/);
@@ -2392,10 +2997,10 @@ test("mobile UI exposes accessible shared/private scopes and renders only the se
   assert.match(sourceText, /selectChatScope\([\s\S]*nextScope,[\s\S]*userRole/);
   assert.match(sourceText, /accessibilityLabel="상담 공개 범위"/);
   assert.match(sourceText, /accessibilityRole="tab"/);
-  assert.match(sourceText, /accessibilityState=\{\{ selected: activeScope === "shared"/);
+  assert.match(sourceText, /accessibilityState=\{\{[\s\S]*selected: activeScope === "shared"/);
   assert.match(sourceText, />함께 대화<\/Text>/);
   assert.match(sourceText, />나만 \(상담\)<\/Text>/);
-  assert.match(sourceText, /현재 범위 · 함께 대화 — 파트너에게 보여요/);
+  assert.match(sourceText, /현재 범위 · 함께 대화 — 지금 저장되며, 연결된 파트너에게 보여요/);
   assert.match(sourceText, /현재 범위 · 나만 \(상담\) — 서비스에 저장되며 상대방에게는 보이지 않아요/);
   assert.match(sourceText, /activeScope === "shared" && \(/);
 });
@@ -2439,7 +3044,9 @@ test("partner delivery is fail-closed and AI suggestions never overwrite the par
   assert.doesNotMatch(suggestionHandler, /handleInputChange/);
 
   const verificationCallIndex = partnerSend.indexOf("await verifyPartnerDraftRecipient(draft)");
-  const ingestIndex = partnerSend.indexOf("await requestAiMessageIngest(draft)");
+  const ingestIndex = partnerSend.search(
+    /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u,
+  );
   assert.ok(verificationCallIndex >= 0, "partner recipient must be reverified before delivery");
   assert.ok(ingestIndex > verificationCallIndex, "recipient verification must finish before server ingest");
   assert.doesNotMatch(partnerSend, /\.insert\(/);

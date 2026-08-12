@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 
 import {
+  COUPLE_INVITE_EXPAND_REQUIRED_CODE,
+  isJoinCoupleServerRpcMissing,
+  joinCoupleThroughServerRpc,
   parseMembershipRpcResponse,
   type CoupleRole,
 } from "@/lib/couples/membershipRpc";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
@@ -22,6 +27,14 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const actorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!actorFence.ok) {
+      return NextResponse.json(
+        { error: actorFence.message, code: actorFence.code },
+        { status: actorFence.status },
+      );
     }
 
     const limited = checkRateLimit(
@@ -63,10 +76,22 @@ export async function POST(request: Request) {
     }
     const role: CoupleRole = profile.role;
 
-    const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
-      p_invite_code: normalizedInviteCode,
-      p_role: role,
-    });
+    const { data: joinResult, error: joinError } = await joinCoupleThroughServerRpc(
+      createAdminClient(),
+      {
+        actorUserId: user.id,
+        inviteCode: normalizedInviteCode,
+        role,
+      },
+    );
+
+    if (isJoinCoupleServerRpcMissing(joinError)) {
+      console.error("[couple link] server RPC expansion is missing");
+      return NextResponse.json({
+        error: "커플 연결 준비가 완료되지 않았습니다. 잠시 후 다시 시도해주세요.",
+        code: COUPLE_INVITE_EXPAND_REQUIRED_CODE,
+      }, { status: 503 });
+    }
 
     if (joinError) {
       console.error("[couple link] membership RPC failed", joinError);
@@ -76,7 +101,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const membership = parseMembershipRpcResponse(joinResult, role, "join");
+    const membership = parseMembershipRpcResponse(
+      joinResult,
+      role,
+      "join",
+      user.id,
+    );
     if (!membership.ok) {
       console.warn("[couple link] membership rejected", membership.errorCode);
       return NextResponse.json({ error: membership.message }, { status: membership.status });

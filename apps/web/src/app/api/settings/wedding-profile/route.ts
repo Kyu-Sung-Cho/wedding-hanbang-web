@@ -17,6 +17,7 @@ import { MAX_WEDDING_BUDGET_WON } from "@/lib/weddingBudget";
 import {
   isAmoraProactiveChatEnabled,
 } from "@/lib/features/amoraCareFlags";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const MAX_BUDGET_WON = MAX_WEDDING_BUDGET_WON;
@@ -393,6 +394,14 @@ export async function PATCH(request: Request) {
 
     const user = await authenticatedUser(request);
     if (!user) return privateResponse({ error: "인증이 필요합니다." }, 401);
+
+    const actorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!actorFence.ok) {
+      return privateResponse({
+        error: actorFence.message,
+        code: actorFence.code,
+      }, actorFence.status);
+    }
 
     const limited = checkRateLimit(
       rateLimitKey("wedding-settings:update", request, user.id),

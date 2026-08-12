@@ -74,14 +74,44 @@ const STATUS_LABELS: Record<string, string> = {
 interface Props {
   categoryKey: string;
   isOpen: boolean;
+  expectedOwnerId: string | null;
   onClose: () => void;
 }
 
-export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }: Props) {
+export default function CategoryChecklistModal(props: Props) {
+  const { user, isDemo } = useAuthStore();
+  const currentOwnerId = isDemo ? "demo" : user?.id ?? null;
+  if (
+    !props.isOpen
+    || !props.expectedOwnerId
+    || props.expectedOwnerId !== currentOwnerId
+  ) return null;
+
+  return (
+    <OwnedCategoryChecklistModal
+      key={`${props.expectedOwnerId}:${props.categoryKey}`}
+      {...props}
+      expectedOwnerId={props.expectedOwnerId}
+    />
+  );
+}
+
+function OwnedCategoryChecklistModal({
+  categoryKey,
+  isOpen,
+  expectedOwnerId,
+  onClose,
+}: Props & { expectedOwnerId: string }) {
   const { journey, updateJourney } = useAuthStore();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const isCurrentOwner = useCallback(() => {
+    const current = useAuthStore.getState();
+    return current.user?.id === expectedOwnerId
+      && (expectedOwnerId === "demo" ? current.isDemo : !current.isDemo);
+  }, [expectedOwnerId]);
 
   const template = CHECKLIST_MAP[categoryKey];
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
@@ -99,7 +129,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
   const toggleItem = useCallback(
     async (itemId: string) => {
-      if (saving) return;
+      if (saving || !isCurrentOwner()) return;
 
       const updated = checklist.map((c) =>
         c.id === itemId ? { ...c, done: !c.done } : c
@@ -120,7 +150,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       setSaving(true);
       setError("");
       try {
-        await updateJourney({ progress: newProgress });
+        await updateJourney({ progress: newProgress }, expectedOwnerId);
+        if (!isCurrentOwner()) return;
       } catch (saveError) {
         setChecklist(checklist);
         setError(
@@ -132,7 +163,16 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         setSaving(false);
       }
     },
-    [checklist, saving, progress, categoryKey, existing, updateJourney]
+    [
+      checklist,
+      saving,
+      progress,
+      categoryKey,
+      existing,
+      expectedOwnerId,
+      isCurrentOwner,
+      updateJourney,
+    ]
   );
 
   const isNotApplicable = existing?.status === "not_applicable";
@@ -140,7 +180,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   // 우리 결혼에는 해당 없는 항목(함·폐백·예단 등)을 끄고 켠다.
   // 끄면 진행률 분모와 마감 알림에서 빠져 "영구 미완료"로 남지 않는다.
   const toggleNotApplicable = async () => {
-    if (saving) return;
+    if (saving || !isCurrentOwner()) return;
     const nextStatus = isNotApplicable ? calculateStatus(checklist) : "not_applicable";
     setSaving(true);
     setError("");
@@ -155,7 +195,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             checklist,
           },
         } as Record<string, ProgressItem>,
-      });
+      }, expectedOwnerId);
+      if (!isCurrentOwner()) return;
     } catch (saveError) {
       setError(
         saveError instanceof Error

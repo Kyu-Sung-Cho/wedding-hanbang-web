@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -49,9 +50,6 @@ export async function POST(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return NextResponse.json({ error: "잘못된 요청 출처입니다." }, { status: 403 });
     }
-    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
-    }
 
     const supabase = await createClientFromRequest(request);
     const {
@@ -59,6 +57,24 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const mutationActorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!mutationActorFence.ok) {
+      return NextResponse.json(
+        {
+          error: mutationActorFence.message,
+          code: mutationActorFence.code,
+        },
+        {
+          status: mutationActorFence.status,
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+        },
+      );
+    }
+
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
 
     const limited = checkRateLimit(rateLimitKey("chat:clear-request", request, user.id), {

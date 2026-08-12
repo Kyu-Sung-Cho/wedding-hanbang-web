@@ -14,6 +14,7 @@ import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
   VendorDisclosureProductionBuildBlocked,
+  VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
@@ -446,39 +447,29 @@ describe("vendor disclosure production build fence", () => {
     );
   });
 
-  it("allows a signed blocked-status release while the controller-ready stage is deferred", async () => {
-    // 이 단언은 원래 반대였다 — `deployment_blocked` 상태에서는 서명이 맞아도
-    // "VENDOR_DISCLOSURE_CONTROLLER_NOT_READY" 코드로 막혔다.
-    //
-    // 그 단계를 2026-08-08에 유예했다. 이유는 fence 본문 주석에 적어 뒀는데
-    // 요약하면: 그 검사는 벤더 공시 v2를 위한 것인데 **모든 프로덕션 빌드**를 막아서,
-    // 아모라·랜딩처럼 무관한 변경까지 그 릴리스 일정에 묶였다. 실제로 그날 하루
-    // 아무것도 배포되지 못했다.
-    //
-    // 여기서 테스트를 지우지 않고 뒤집어 두는 이유는, 유예를 푸는 사람이 이 단언을
-    // 반드시 마주치게 하기 위해서다. 되살릴 때는 fence의 `enforceControllerReady`를
-    // true로 바꾸고 이 테스트를 원래대로(막힘 기대) 되돌린다.
+  it("blocks a signed release while the successor controller is not ready", async () => {
     const fixture = await createBlockedFixture();
-    expect(() => assertVendorDisclosureProductionBuild({
-      repoRoot: fixture.repoRoot,
-      environment: {
-        VERCEL_ENV: "production",
-        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION:
-          expectedProductionAuthorizationSha256(fixture.repoRoot),
-      },
-    })).not.toThrow();
+    expectBlockedWithCode(
+      () => assertVendorDisclosureProductionBuild({
+        repoRoot: fixture.repoRoot,
+        environment: {
+          VERCEL_ENV: "production",
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION:
+            expectedProductionAuthorizationSha256(fixture.repoRoot),
+        },
+      }),
+      VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
+    );
   });
 
-  it("still refuses a blocked-status release that is not signed", async () => {
-    // 유예한 것은 controller-ready 단계뿐이다. 소유자 서명은 그대로 강제된다 —
-    // 이게 남아 있어야 "누가 이 배포를 승인했는가"에 답할 수 있다.
+  it("checks controller readiness before an owner signature", async () => {
     const fixture = await createBlockedFixture();
     expectBlockedWithCode(
       () => assertVendorDisclosureProductionBuild({
         repoRoot: fixture.repoRoot,
         environment: { VERCEL_ENV: "production" },
       }),
-      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
+      VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,
     );
   });
 

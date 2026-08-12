@@ -40,12 +40,14 @@ const routeSource = readFileSync(
 function request(
   body: unknown = { coupleId: COUPLE_ID, mode: "delete_private" },
   trusted = true,
+  actorHeaders: Record<string, string> = {},
 ) {
   return new Request("http://localhost/api/chat/messages", {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
       ...(trusted ? { Origin: "http://localhost" } : { Origin: "https://attacker.invalid" }),
+      ...actorHeaders,
     },
     body: JSON.stringify(body),
   });
@@ -256,6 +258,22 @@ describe("/api/chat/messages private hard delete", () => {
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
+  it("rejects an account-switched v2 delete before RPC or service-role access", async () => {
+    const rpc = mockAuthenticatedRpc({ data: null, error: null });
+
+    const response = await DELETE(request(undefined, true, {
+      "X-Hanbang-Mutation-Contract-Version": "2",
+      "X-Hanbang-Expected-Actor-User-Id": GROOM_ID,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
   it("maps the database current-membership fence to a bounded 403", async () => {
     const rpc = mockAuthenticatedRpc({
       data: null,
@@ -384,12 +402,78 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
     mockPostAdmin();
     const req = postRequest(undefined, {
       Authorization: "Bearer mobile-access-token",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
     });
 
     const response = await POST(req);
 
     expect(response.status).toBe(201);
     expect(createClientFromRequest).toHaveBeenCalledWith(req);
+  });
+
+  it("temporarily accepts a headerless legacy Bearer ingest during the mixed-fleet phase", async () => {
+    mockPostAdmin();
+    const req = postRequest(undefined, {
+      Authorization: "Bearer mobile-access-token",
+    });
+
+    const response = await POST(req);
+
+    expect(response.status).toBe(201);
+    expect(createClientFromRequest).toHaveBeenCalledWith(req);
+  });
+
+  it("rejects a v2 native Bearer ingest without a draft actor binding", async () => {
+    const admin = mockPostAdmin();
+    const response = await POST(postRequest(undefined, {
+      Authorization: "Bearer mobile-access-token",
+      "X-Amora-Ingest-Contract-Version": "2",
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHAT_ACTOR_BINDING_REQUIRED",
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(planAmoraCrisisDelivery).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a native ingest when the draft actor differs from the Bearer owner", async () => {
+    const admin = mockPostAdmin();
+    const response = await POST(postRequest(undefined, {
+      Authorization: "Bearer mobile-access-token",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": GROOM_ID,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHAT_ACTOR_CHANGED",
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(planAmoraCrisisDelivery).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a generic account-switched v2 ingest before classification or service writes", async () => {
+    const admin = mockPostAdmin();
+    const response = await POST(postRequest(undefined, {
+      Origin: "http://localhost",
+      "X-Hanbang-Mutation-Contract-Version": "2",
+      "X-Hanbang-Expected-Actor-User-Id": GROOM_ID,
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(planAmoraCrisisDelivery).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
   });
 
   it("stores a server-bound zero attachment count for safe cold-start recovery", async () => {

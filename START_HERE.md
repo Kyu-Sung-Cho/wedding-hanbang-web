@@ -4,18 +4,28 @@
 >
 > 저장소: `Kyu-Sung-Cho/wedding-hanbang-web`
 >
-> 감사·인수인계 기준 integration branch: `agent/release-handoff-20260731`
+> 현재 원격 개발 기준: `origin/main` — 실제 tip은 작업 시작 때 직접 조회
 >
-> PR: [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
+> 2026-07-31 인수인계 snapshot: PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
+> (`agent/release-handoff-20260731`, **현재 개발 기준 아님**)
 >
 > 이 문서가 확인한 publication receipt 기준점: `7735a2ec21ee62bf8535b762d768a25369288f08`
+>
+> 현재 local release candidate source-status 정본:
+> `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
+> — **LOCAL RELEASE CANDIDATE / HOSTED EVIDENCE MISSING / PRODUCTION NO-GO**
 
 이 문서는 Claude, GPT, Gemini, Copilot 등 특정 모델에 종속되지 않는 냉시작 진입점이다.
 현재 사실과 상세 근거를 모두 복제하지 않고, 새 작업자가 무엇을 먼저 확인하고 어떤 문서를
 정본으로 읽으며 어디까지 안전하게 시작할 수 있는지를 고정한다.
 
-문서에 적힌 SHA를 현재 branch tip으로 가정하지 않는다. 작업을 시작할 때 Git과 GitHub를
-직접 확인한다.
+문서에 적힌 과거 SHA나 snapshot branch를 현재 tip으로 가정하지 않는다. 작업을 시작할 때
+`origin/main`과 이어서 작업하라고 명시된 원격 branch를 Git과 GitHub에서 직접 확인한다.
+
+현재 shared worktree에서는 2026-08-12 handoff가 구현·검증 상태를 갱신한다. 아래
+2026-08-04~05 진행 절과 P0 목록은 역사 기록이며 현재 작업 목록으로 실행하지 않는다.
+다만 새 handoff도 아직 commit·push·PR·Preview가 없는 local 문서이므로, 실제 코드·테스트와
+Git 상태보다 높은 배포 권한은 갖지 않는다.
 
 ---
 
@@ -30,15 +40,30 @@
 
 ### 현재 상태
 
-- 많은 웹·모바일·커뮤니티·아모라 기능과 테스트가 branch에 구현돼 있다.
+- 많은 웹·모바일·커뮤니티·아모라 baseline 기능과 테스트가 현재 `main`에 구현돼 있다.
+- 그 위의 2026-08-12 하드닝 변경은 현재 local dirty worktree에만 있고 commit·push·PR·
+  Preview receipt가 없다.
 - 개인정보와 커플 경계를 위한 2,083줄 목표 아키텍처가 문서화돼 있다.
 - 목표 아키텍처 전체가 product code, DB, Storage, 모바일 운영 환경에 구현된 것은 아니다.
-- 정적 코드 감사에서 P0 실패 가능 경로 5개가 열려 있다. 실제 사고가 확인됐다는 뜻은
-  아니지만, 자동 RED 테스트와 수정·hosted 증거가 없으므로 출시 차단 사항이다.
+- 2026-08-12 handoff에 열거된 actor fence, provider grant, server-only ingest, attachment
+  cleanup, invite replay, quota 분리, 모바일 Stop·첫 shared 확인·동일 요청 reconciliation,
+  위기 안전 분류기, schedule moment source 수정은 local 후보에 있다. focused source test와
+  hosted·fleet·E2E 검증을 구분하며, 이 문장을 모든 P0/P1 종료로 확대하지 않는다.
+- 현재 후보의 full web/mobile/root gate는 고정 snapshot에서 최종 재실행 중이거나 아직
+  대기 중이다. 과거 또는 중간 focused PASS를 최종 전체 GREEN으로 합산하지 않는다.
 - Supabase release manifest는 `deployment_blocked`다.
 - 현재 GitHub의 Production Readiness job은 hosted 증거를 동적으로 판별하지 않고 항상
   fail-closed한다. hosted 증거 5종 수집 후 workflow/controller 갱신과 exact-SHA
   재실행까지 필요하다.
+- `apps/web/vendorDisclosureProductionBuildFence.ts`도 같은 NO-GO를 강제한다. 운영자
+  서명이 있어도 manifest가 `deployment_blocked`이면 프로덕션 빌드는
+  `VENDOR_DISCLOSURE_RELEASE_CONTROLLER_NOT_READY`로 실패한다.
+- hosted 증거를 이번 코드 변경에서 만들거나 완료로 표시하지 않는다.
+- 일반 account mutation의 versioned actor header는 mixed-version Phase A라 headerless legacy
+  호출을 일부 허용한다. Phase B 강제는 supported fleet drain과 fresh 로그 증거 뒤에만 한다.
+- 설치된 구형 모바일의 직접 Supabase 비밀번호 변경 경로와 10자 초대코드 입력 UI는 현재
+  server source만으로 없앨 수 없다. minimum supported version·강제 업데이트 또는 fleet 0건
+  증거 없이는 관련 migration과 Production을 진행하지 않는다.
 
 ### 지금 가능한 일
 
@@ -60,8 +85,9 @@
 
 ## 2. SHA를 혼동하지 않는다
 
-| 목적 | SHA | 의미 |
+| 목적 | SHA 또는 ref | 의미 |
 |---|---|---|
+| 현재 원격 개발 기준 | `origin/main` | 매 작업 시작 시 fetch 뒤 실제 SHA를 조회하는 유일한 기본 통합 기준 |
 | 구현·운영 보안 감사 기준 | `a4f3626e5f98772b340b358b00a562b4692254fd` | P0/P1 코드 경로와 운영 증거를 확인한 source 기준점 |
 | 두 핵심 인수인계 문서 최초 게시 | `aaddd8ee23e5c83ac99784eb57b9a57c4c56af73` | 상세 handoff와 목표 아키텍처를 원격에서 처음 복원할 수 있는 commit |
 | publication receipt 게시 | `7735a2ec21ee62bf8535b762d768a25369288f08` | 문서 최초 게시와 당시 CI/Preview 상태를 기록한 docs commit |
@@ -71,9 +97,10 @@
 
 ```powershell
 git rev-parse HEAD
-git rev-parse '@{u}'
-git ls-remote origin refs/heads/agent/release-handoff-20260731
-gh pr view 79 --json headRefOid,state,isDraft,mergeStateStatus,reviewDecision,url
+git fetch --prune origin
+git rev-parse origin/main
+git ls-remote origin refs/heads/main
+gh api repos/Kyu-Sung-Cho/wedding-hanbang-web --jq .default_branch
 ```
 
 HEAD가 바뀌면 과거 테스트·Preview·배포 판정을 자동 상속하지 않는다.
@@ -88,10 +115,11 @@ HEAD가 바뀌면 과거 테스트·Preview·배포 판정을 자동 상속하�
 git clone https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git
 cd wedding-hanbang-web
 git fetch --prune origin
-git switch --track origin/agent/release-handoff-20260731
+git switch main
+git pull --ff-only origin main
 git status --short --branch
 git rev-parse HEAD
-git rev-parse '@{u}'
+git rev-parse origin/main
 git branch -vv
 corepack enable
 node --version
@@ -112,17 +140,12 @@ switch하지 않는다. 변경의 소유자와 의도를 확인해 보존 방법
 tree가 clean일 때만 다음을 실행한다.
 
 ```powershell
-git switch agent/release-handoff-20260731
+git switch main
+git pull --ff-only origin main
 git status --short --branch
 git rev-parse HEAD
-git rev-parse '@{u}'
+git rev-parse origin/main
 git branch -vv
-```
-
-working tree가 clean이고 단순히 upstream보다 뒤처진 경우에만 다음을 실행한다.
-
-```powershell
-git pull --ff-only
 ```
 
 dirty 또는 diverged이면 `reset`, `checkout`, `clean`, 강제 push로 상태를 없애지 않는다.
@@ -142,9 +165,10 @@ local dev의 실행 정본은 `apps/mobile/scripts/start-expo-dev.mjs`이며 Nod
 | 2 | `AGENTS.md` | 저장소 구조·코딩·검증·운영 작업 규칙은 무엇인가 |
 | 3 | `docs/README.md` | 현재 문서와 역사 문서를 어떻게 구분하는가 |
 | 4 | `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md` | 현재 제품·채널·MVP 우선순위는 무엇인가 |
-| 5 | `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md` | 무엇이 구현됐고 왜 Production NO-GO이며 다음 작업은 무엇인가 |
-| 6 | `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md` | 개인정보·커플 경계의 목표 구조와 절대 출시 게이트는 무엇인가 |
-| 7 | 변경할 영역의 실제 코드·테스트·최신 migration | 문서 이후에도 유효한 실제 동작은 무엇인가 |
+| 5 | `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md` | 현재 local 후보에서 무엇을 고쳤고 무엇이 아직 hosted 미검증인가 |
+| 6 | `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md` | 이전 source-status와 남은 목표·공격 모델은 무엇이었나(현재 상태는 5번이 갱신) |
+| 7 | `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md` | 개인정보·커플 경계의 목표 구조와 절대 출시 게이트는 무엇인가 |
+| 8 | 변경할 영역의 실제 코드·테스트·최신 migration | 문서 이후에도 유효한 실제 동작은 무엇인가 |
 
 모바일 내비게이션·화면 계층·아모라·업체 흐름을 바꾸면
 `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`도 먼저 읽는다. 시각·UI를 바꾸면
@@ -186,11 +210,12 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 
 | 표면 | 현재 판정 | 이유 |
 |---|---|---|
-| GitHub source와 문서 | 게시됨 | branch·상세 handoff·목표 아키텍처가 원격에 존재 |
-| Vercel Preview artifact | 빌드 가능 | Preview 성공은 Production 안전 증거가 아님 |
+| GitHub source와 문서 | 현재 local 후보 미게시 | 2026-08-12 변경은 commit·remote branch·PR이 없고 과거 handoff만 원격에 존재 |
+| Vercel Preview artifact | 현재 후보 receipt 없음 | 과거 Preview를 현재 dirty diff에 상속하지 않음 |
+| 격리 stub Preview | 조건부 가능 | 운영 Supabase·운영 secret 없이 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`, synthetic data, 기능 OFF, 접근 보호를 증명한 경우만 가능 |
 | 실제 사용자 데이터가 들어가는 Preview | NO-GO | 접근 보호·non-production destination·기능 OFF 영수증이 없음 |
-| Production Web | NO-GO | P0/P1, review, hosted 증거가 닫히지 않음 |
-| Amora private/shared/direct | NO-GO | actor·scope·provider egress 경계 P0가 열려 있음 |
+| Production Web | NO-GO | 현재 후보 미게시, full gate 미완료, hosted 증거 없음 |
+| Amora private/shared/direct | NO-GO | local source 보강을 hosted DB·fleet·두 기기 E2E로 검증하지 않음 |
 | Supabase migration apply | BLOCKED | manifest `deployment_blocked`, hosted 증거 5종 missing |
 | Mobile Production build/submit | BLOCKED | release wrapper가 provider 호출 전에 의도적으로 차단 |
 | unit/PGlite/synthetic test | 가능 | Production·실사용자 데이터와 분리된 범위 |
@@ -199,27 +224,41 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 아니다. `supabase:release:fence` PASS는 manifest와 정적 계약을 확인한다. 운영 DB 적용
 증거가 아니다.
 
+현재 Production 차단에는 hosted 증거 5종뿐 아니라 다음 mixed-version·운영 조건도 포함된다.
+
+- provider DB runtime은 disabled이고 hosted grant/canary가 없다.
+- generic mutation actor contract는 Phase A다. headerless legacy 허용 경로를 Phase B로 닫을
+  fleet drain·fresh traffic attestation이 없다.
+- 구형 설치 모바일은 비밀번호를 `/api/auth/password`가 아니라 Supabase Auth SDK로 직접
+  변경할 수 있다. current source 수정은 이미 배포된 binary를 회수하지 못한다.
+- 새 active invite는 `WH-` + 12자, 총 15자다. 구형 binary의 10자 입력 제한과 migration의
+  code rotation이 함께 있으면 구형 앱 사용자가 새 code를 입력할 수 없다.
+- 구형 chat direct-writer 0건, backup/restore, Storage contract/finalizer, 두 계정·두 기기,
+  TalkBack/VoiceOver 및 실제 기기 QA 증거가 없다.
+
 ---
 
-## 7. 첫 작업이었던 P0-5 provider egress gate
+## 7. 역사 기록 — 2026-08-04~05 P0-5 provider egress gate
 
-> **「작업 브랜치 경계」부터 「첫 RED 계약」까지는 2026-08-04 시작 시점의 지시와 문제
-> 서술이며 이미 수행됐다. 현재 사실은 이 절 끝의 「2026-08-05 진행 상태」를 먼저
-> 읽는다.** RED 테스트도 SDK gate도 호출부 배선도 이미 존재하므로 같은 작업을 다시
-> 만들지 않는다.
+> **이 절 전체는 2026-08-04~05 역사 기록이다. `P0-5 OPEN`, 당시 branch, SHA, 테스트 수를
+> 현재 상태로 사용하지 않는다. 현재 local source 상태는
+> `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`와 실제 diff가 갱신한다.**
+> RED 테스트도 SDK gate도 호출부 배선도 이미 존재하므로 같은 작업을 다시 만들지 않는다.
 
 새 기능부터 만들지 않는다. 첫 독립 작업은 AI provider로 원문이 나가기 전에 모든
 application privacy gate가 성공해야 한다는 실패 테스트였다.
 
 ### 작업 브랜치 경계
 
-`agent/release-handoff-20260731`는 감사·인수인계 기준 integration branch다. 이 branch에서
-product code를 직접 고치지 않는다. HEAD와 working tree가 안전한지 확인한 뒤 작은 하위
+2026-08-04 당시에는 `agent/release-handoff-20260731` snapshot에서 이 작업을 시작했다.
+그 branch는 현재 통합 기준이 아니며, 새 작업은 fetch한 `origin/main` 또는 사용자가 명시한
+최신 원격 branch를 기준으로 한다. HEAD와 working tree가 안전한지 확인한 뒤 작은 하위
 branch를 만들고, 첫 변경은 test-only로 제한한다.
 
 ```powershell
 git status --short --branch
-git switch -c codex/amora-p0-provider-egress-red
+git fetch --prune origin
+git switch -c codex/<task-name> origin/main
 ```
 
 같은 branch 이름이 이미 있으면 현재 작업을 설명하는 고유한 `codex/` 이름을 사용한다.
@@ -276,7 +315,7 @@ corepack pnpm --filter @hanbang/web exec vitest run `
 
 2026-08-05 실측: 위 4개 파일 `18 + 15 + 26 + 11 = 70 PASS`.
 
-### 2026-08-05 진행 상태 — P0-5는 여전히 OPEN
+### 2026-08-05 당시 진행 상태 — P0-5 OPEN 판정 기록
 
 branch `codex/amora-p0-provider-egress-red`에서 여기까지 했다. 아래 1차 기록은 base
 `5b33c95b` 기준이고, 2차 기록은 그 위 commit `b31194b9`(= 현재 원격
@@ -335,7 +374,7 @@ legacy auxiliary 4개 모듈은 **꺼짐 스위치가 토큰 계산 뒤에 던�
 막히고, 런타임에서도 provider 요청 0회로 거부한다. 따라서 **현재 코드의 알려진 호출부
 원문 반출 경로는 닫혔다.**
 
-그래도 **P0-5는 OPEN이고 `AI provider`는 계속 `MUST BE OFF`다.** 이 gate는 아직
+그래도 당시 판정은 **P0-5 OPEN, `AI provider` MUST BE OFF**였다. 이 gate는 아직
 in-memory 검사일 뿐이고, 상세 handoff §8 P0-5의 영구 수정이 요구하는 DB current
 principal·scope·privacy epoch·retention/provider policy·audit reservation·kill-switch
 claim, short TTL, exact content binding, 응답 commit 시 재검증, 나머지 SDK endpoint
@@ -385,15 +424,18 @@ export돼 있고, `new OpenAI(...)`나 `fetch("https://api.openai.com/...")`도 
 moderation·Files·embedding·tool/search가 실제로 필요해지면 그때 gate 뒤로 통합하고 이
 차단 목록에서 빼야 하며, 목록에서 빼는 변경 자체가 리뷰 대상이다.
 
-**P0-5는 계속 OPEN이고 `AI provider`는 계속 `MUST BE OFF`다.** 다음 최소 단위는 여전히
+당시에는 **P0-5 OPEN, `AI provider` MUST BE OFF** 판정을 유지했다. 다음 최소 단위는
 배선된 gate가 **DB에서** current principal·scope·privacy epoch·kill-switch를 claim하고
 short TTL과 exact content binding을 갖게 만드는 것이다(상세 handoff §16 카드 E).
 
 ---
 
-## 8. 이어서 닫을 P0
+## 8. 역사 기록 — 2026-08-05 당시 이어서 닫을 P0
 
-상세 공격 순서·코드 줄·필수 테스트·종료 영수증은 상세 handoff §8을 그대로 따른다.
+> 아래 OPEN 표시는 2026-08-05 당시 판정이다. 현재 실행 큐가 아니며, 2026-08-12 handoff와
+> 현재 source·tests로 다시 분류하지 않고 그대로 인용하지 않는다.
+
+당시 상세 공격 순서·코드 줄·필수 테스트·종료 영수증은 상세 handoff §8을 따랐다.
 
 1. P0-5: 최종 privacy gate 전 OpenAI token-count 원문 반출 — **OPEN**. SDK 경계 gate가
    필수화됐고 production 호출부 10곳이 모두 배선돼 알려진 원문 반출 경로는 닫혔지만,
@@ -467,19 +509,27 @@ corepack pnpm supabase:release:fence
 
 1. START_HERE.md를 처음부터 끝까지 읽으세요.
 2. git status --short --branch, git fetch --prune origin, git rev-parse HEAD,
-   git rev-parse '@{u}', gh pr view 79를 실행해 현재 source를 확인하세요.
+   git rev-parse origin/main을 실행하고 현재 branch upstream·remote branch·PR 존재 여부를
+   별도로 확인하세요. dirty worktree를 reset·clean하지 마세요.
 3. PRINCIPLES.md, AGENTS.md, docs/README.md,
+   docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md,
    docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md,
    docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md를 읽으세요.
 4. 현재 판정은 Production NO-GO입니다. Production DB write/migration, Vercel Production,
    EAS Production, 실제 사용자 데이터 QA, Memory/push/media/provider 활성화를 하지 마세요.
-5. P0-5의 provider all-egress RED 테스트와 SDK gate, 호출부 10곳 배선은 이미 있습니다
-   (§7 「2026-08-05 진행 상태」). 다시 만들지 말고 먼저 그 테스트를 실행해 현재 GREEN인지
-   확인한 다음, 배선된 gate가 DB에서 current principal·scope·privacy epoch·kill-switch를
-   claim하고 short TTL과 exact content binding을 갖게 만드는 것을 다음 최소 단위로 잡으세요.
-6. product code를 바꾸기 전에 현재 HEAD, dirty 파일, 확인한 근거, 변경할 파일, 표적 테스트,
+5. 2026-08-12 local handoff가 갱신한 actor fence, provider single-use grant, server-only ingest,
+   attachment cleanup, invite replay, quota 분리, schedule moment 수직을 먼저 현재 diff와
+   대조하세요. §7~8의 2026-08-04~05 OPEN 목록을 현재 작업으로 다시 시작하지 마세요.
+6. 모바일 Stop·first shared confirmation·ambiguous ingest reconciliation은 source에
+   구현돼 있으므로 같은 기능을 다시 만들지 마세요. 먼저 최신 diff와 회귀 테스트를 대조한
+   뒤 고정 snapshot의 full web/mobile, root typecheck/lint/test/build를 실행하세요. source
+   test를 hosted·fleet·실기기 증거로 과장하지 마세요.
+7. Production 전에 generic headerless Phase-A fleet, 구형 direct Supabase password binary,
+   10자 invite UI와 새 15자 code, direct chat writer, provider runtime/canary, hosted 증거 5종을
+   각각 별도 gate로 확인하세요. 하나라도 미확인이면 Production NO-GO를 유지하세요.
+8. product code를 바꾸기 전에 현재 HEAD, dirty 파일, 확인한 근거, 변경할 파일, 표적 테스트,
    중단 조건을 보고하세요.
-7. 완료 보고에는 직접 확인한 사실, 코드 기반 추론, 미확인 외부 증거를 분리하고 실제로
+9. 완료 보고에는 직접 확인한 사실, 코드 기반 추론, 미확인 외부 증거를 분리하고 실제로
    성공한 테스트만 PASS라고 적으세요.
 ```
 

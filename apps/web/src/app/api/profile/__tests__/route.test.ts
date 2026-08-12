@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 import { GET, PATCH } from "../route";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -356,6 +361,25 @@ describe("/api/profile PATCH", () => {
       p_force_community_nickname_sync: true,
     });
     expect(admin.from).not.toHaveBeenCalled();
+  });
+
+  it("rejects a v2 profile patch owned by another account before the atomic RPC", async () => {
+    const admin = mockAdminClient({});
+    const response = await PATCH(new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "00000000-0000-4000-8000-000000000002",
+      },
+      body: JSON.stringify({ name: "Stale Account Intent" }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(admin.rpc).not.toHaveBeenCalled();
   });
 
   it("updates an independent community nickname through the same atomic API", async () => {

@@ -158,6 +158,13 @@ test("logout uses a cached bound token, local Auth scope, and no direct bypass p
   );
   assert.match(apiSource, /import \{ signOut \} from "\.\/auth"/u);
   assert.doesNotMatch(apiSource, /supabase\.auth\.signOut\(/u);
-  assert.match(settingsSource, /await signOut\(\)/u);
+  assert.match(
+    apiSource,
+    /res\.status === 401[\s\S]{0,900}supabase\.auth\.getSession\(\)[\s\S]{0,500}currentSession\?\.user\.id !== initialSession\.userId[\s\S]{0,500}signOut\(\{ expectedOwnerId: initialSession\.userId \}\)/u,
+  );
+  assert.match(
+    settingsSource,
+    /await signOut\(\{ expectedOwnerId: expectedActorUserId \}\)/u,
+  );
   assert.doesNotMatch(settingsSource, /supabase\.auth\.signOut\(/u);
 });

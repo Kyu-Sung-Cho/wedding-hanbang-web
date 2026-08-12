@@ -2,11 +2,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Platform, Animated, Easing,
+  Alert, ActivityIndicator, Platform, Animated, Easing, AppState,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { ArrowLeft, ArrowRight, Heart, User, CheckCircle2, Sparkles, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
@@ -14,12 +14,16 @@ import {
   WEDDING_GUEST_COUNT_OPTIONS,
   WEDDING_PRIORITY_OPTIONS,
   WEDDING_STYLE_OPTIONS,
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
   type WeddingBudgetTendencyValue,
   type WeddingGuestCountValue,
   type WeddingPriorityValue,
   type WeddingStyleValue,
 } from "@hanbang/shared";
-import { apiFetch } from "@/lib/api";
+import { apiFetchForExpectedUser } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
 import {
   COUPLE_INVITE_CODE_MAX_LENGTH,
@@ -169,6 +173,14 @@ export default function OnboardingScreen() {
   const [budget, setBudget] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState("");
+  const [formOwnerUserId, setFormOwnerUserId] = useState<string | null>(null);
+  const [ownerVerification, setOwnerVerification] = useState<
+    "checking" | "ready" | "error"
+  >("checking");
+  const formOwnerUserIdRef = useRef<string | null>(null);
+  const formOwnerStillCurrentRef = useRef(false);
+  const ownerCheckGenerationRef = useRef(0);
+  const submissionGenerationRef = useRef(0);
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
   // 아직 다 치지 않은 상태를 틀렸다고 하지 않는다 — 타이핑 중에 빨간 글씨가 뜨면
   // 사람은 자기가 잘못한 줄 안다. 파트너 코드는 붙여넣는 경우가 많아 길이가 한 번에 찬다.
@@ -200,11 +212,125 @@ export default function OnboardingScreen() {
 
   const totalSteps = 5;
 
+  const clearAccountOwnedOnboardingState = useCallback(() => {
+    formOwnerUserIdRef.current = null;
+    formOwnerStillCurrentRef.current = false;
+    submissionGenerationRef.current += 1;
+    contentOpacity.stopAnimation();
+    contentSlide.stopAnimation();
+    brideScale.stopAnimation();
+    groomScale.stopAnimation();
+    contentOpacity.setValue(1);
+    contentSlide.setValue(0);
+    brideScale.setValue(1);
+    groomScale.setValue(1);
+    setFormOwnerUserId(null);
+    setStep(1);
+    setRole(null);
+    setCoupleAction("create");
+    setInviteCode("");
+    setWeddingDate("");
+    setWeddingDateUndecided(false);
+    setVenue("");
+    setBudget("");
+    setSubmitting(false);
+    setResultCode("");
+    setWeddingStyle(null);
+    setPriorities([]);
+    setBudgetTendency(null);
+    setGuestCount(null);
+  }, [brideScale, contentOpacity, contentSlide, groomScale]);
+
+  const gateOnboardingUntilOwnerVerified = useCallback(() => {
+    formOwnerStillCurrentRef.current = false;
+    setFormOwnerUserId(null);
+    setOwnerVerification("checking");
+  }, []);
+
+  const reconcileFormOwner = useCallback(async () => {
+    const generation = ownerCheckGenerationRef.current + 1;
+    ownerCheckGenerationRef.current = generation;
+    const previousOwnerUserId = formOwnerUserIdRef.current;
+    gateOnboardingUntilOwnerVerified();
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (ownerCheckGenerationRef.current !== generation) return;
+      if (!user) {
+        clearAccountOwnedOnboardingState();
+        setOwnerVerification("error");
+        Alert.alert("로그인이 필요해요", "다시 로그인한 뒤 온보딩을 이어가 주세요.");
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      if (previousOwnerUserId !== null && previousOwnerUserId !== user.id) {
+        clearAccountOwnedOnboardingState();
+      }
+      formOwnerUserIdRef.current = user.id;
+      formOwnerStillCurrentRef.current = true;
+      setFormOwnerUserId(user.id);
+      setOwnerVerification("ready");
+    } catch {
+      if (ownerCheckGenerationRef.current !== generation) return;
+      gateOnboardingUntilOwnerVerified();
+      setOwnerVerification("error");
+    }
+  }, [clearAccountOwnedOnboardingState, gateOnboardingUntilOwnerVerified]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentOwnerUserId = formOwnerUserIdRef.current;
+        const nextOwnerUserId = session?.user.id ?? null;
+        if (currentOwnerUserId === nextOwnerUserId) return;
+
+        // Auth event는 네트워크 재확인보다 먼저 A의 초안과 결과를 폐기한다.
+        ownerCheckGenerationRef.current += 1;
+        clearAccountOwnedOnboardingState();
+        gateOnboardingUntilOwnerVerified();
+        void reconcileFormOwner();
+      },
+    );
+
+    return () => {
+      ownerCheckGenerationRef.current += 1;
+      subscription.unsubscribe();
+    };
+  }, [
+    clearAccountOwnedOnboardingState,
+    gateOnboardingUntilOwnerVerified,
+    reconcileFormOwner,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      gateOnboardingUntilOwnerVerified();
+      void reconcileFormOwner();
+      return () => {
+        ownerCheckGenerationRef.current += 1;
+        gateOnboardingUntilOwnerVerified();
+      };
+    }, [gateOnboardingUntilOwnerVerified, reconcileFormOwner]),
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      ownerCheckGenerationRef.current += 1;
+      gateOnboardingUntilOwnerVerified();
+      if (nextState === "active") {
+        void reconcileFormOwner();
+      }
+    });
+    return () => subscription.remove();
+  }, [gateOnboardingUntilOwnerVerified, reconcileFormOwner]);
+
   const animateStepTransition = useCallback((nextStep: number) => {
     Animated.parallel([
       Animated.timing(contentOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
       Animated.timing(contentSlide, { toValue: -20, duration: 150, useNativeDriver: true }),
-    ]).start(() => {
+    ]).start(({ finished }) => {
+      if (!finished || !formOwnerStillCurrentRef.current) return;
       setStep(nextStep);
       contentSlide.setValue(20);
       Animated.parallel([
@@ -226,6 +352,7 @@ export default function OnboardingScreen() {
   }
 
   function canNext(): boolean {
+    if (!formOwnerUserId || !formOwnerStillCurrentRef.current) return false;
     switch (step) {
       case 1: return role !== null;
       case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
@@ -236,6 +363,18 @@ export default function OnboardingScreen() {
   }
 
   async function handleSubmit() {
+    const expectedActorUserId = formOwnerUserIdRef.current;
+    if (!expectedActorUserId || !formOwnerStillCurrentRef.current) {
+      Alert.alert("계정이 바뀌었어요", "현재 계정에서 온보딩을 다시 시작해 주세요.");
+      return;
+    }
+    const submissionGeneration = submissionGenerationRef.current + 1;
+    submissionGenerationRef.current = submissionGeneration;
+    const submissionOwnerStillCurrent = () => (
+      submissionGenerationRef.current === submissionGeneration
+      && formOwnerUserIdRef.current === expectedActorUserId
+      && formOwnerStillCurrentRef.current
+    );
     if (budgetEvaluation.status === "invalid") {
       Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
       return;
@@ -253,8 +392,12 @@ export default function OnboardingScreen() {
         },
       };
 
-      const res = await apiFetch("/api/onboarding", {
+      const res = await apiFetchForExpectedUser(expectedActorUserId, "/api/onboarding", {
         method: "POST",
+        headers: {
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+        },
         body: JSON.stringify({
           role,
           coupleAction,
@@ -266,7 +409,23 @@ export default function OnboardingScreen() {
         }),
       });
 
+      const { data: { user: responseOwner } } = await supabase.auth.getUser();
+      if (
+        !submissionOwnerStillCurrent()
+        || formOwnerUserIdRef.current !== expectedActorUserId
+        || responseOwner?.id !== expectedActorUserId
+      ) {
+        // 서버 세션이 먼저 바뀌고 auth event가 늦게 온 경우에도 A의 상태를 즉시 폐기한다.
+        if (formOwnerUserIdRef.current === expectedActorUserId) {
+          clearAccountOwnedOnboardingState();
+          gateOnboardingUntilOwnerVerified();
+          void reconcileFormOwner();
+        }
+        return;
+      }
+
       const data = await res.json();
+      if (!submissionOwnerStillCurrent()) return;
       if (!res.ok) {
         Alert.alert("오류", data.error ?? "저장에 실패했어요");
         return;
@@ -279,9 +438,19 @@ export default function OnboardingScreen() {
         router.replace("/(tabs)/dashboard");
       }
     } catch (err) {
-      Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
+      if (!submissionOwnerStillCurrent()) return;
+      const message = err instanceof Error ? err.message : "저장에 실패했어요";
+      Alert.alert(
+        "오류",
+        message === "API_SESSION_OWNER_MISMATCH"
+          || message === "MOBILE_WEB_API_SESSION_OWNER_MISMATCH"
+          ? "계정이 바뀌어 저장하지 않았어요. 현재 계정에서 다시 시작해 주세요."
+          : message,
+      );
     } finally {
-      setSubmitting(false);
+      if (submissionGenerationRef.current === submissionGeneration) {
+        setSubmitting(false);
+      }
     }
   }
 
@@ -302,6 +471,41 @@ export default function OnboardingScreen() {
   }
 
   const nextDisabled = (!canNext() && step < 5) || submitting;
+  const formOwnerReady =
+    ownerVerification === "ready"
+    && formOwnerUserId !== null
+    && formOwnerUserIdRef.current === formOwnerUserId
+    && formOwnerStillCurrentRef.current;
+
+  if (!formOwnerReady) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.ownerGate}>
+          {ownerVerification === "checking" ? (
+            <ActivityIndicator color={colors.noir[800]} />
+          ) : null}
+          <Text style={styles.ownerGateTitle}>
+            {ownerVerification === "error"
+              ? "계정을 확인하지 못했어요"
+              : "계정을 안전하게 확인하고 있어요"}
+          </Text>
+          <Text style={styles.ownerGateDescription}>
+            확인이 끝나기 전에는 이전 계정의 입력을 화면에 표시하지 않아요.
+          </Text>
+          {ownerVerification === "error" ? (
+            <Pressable
+              style={styles.ownerGateRetry}
+              onPress={() => void reconcileFormOwner()}
+              accessibilityRole="button"
+              accessibilityLabel="계정 다시 확인하기"
+            >
+              <Text style={styles.ownerGateRetryText}>다시 확인하기</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -654,6 +858,41 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 24, paddingBottom: 120 },
+  ownerGate: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  ownerGateTitle: {
+    fontSize: 18,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    textAlign: "center",
+  },
+  ownerGateDescription: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  ownerGateRetry: {
+    minHeight: 48,
+    minWidth: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    backgroundColor: colors.noir[800],
+  },
+  ownerGateRetryText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: "#FFFFFF",
+  },
 
   header: {
     flexDirection: "row",

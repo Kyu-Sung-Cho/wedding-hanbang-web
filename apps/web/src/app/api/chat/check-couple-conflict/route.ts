@@ -450,16 +450,30 @@ export async function POST(req: NextRequest) {
             specialistType: "general",
             callIndex: 1,
             phase: "conflict_verify",
+            providerPrivacyScope: {
+              visibility: "shared",
+              expectedPrivacyEpoch: initialPrivacyEpoch!,
+            },
             conflictCheckpointClaim: verificationClaim,
             costGuard: conflictCostGuard(
               getAmoraProviderCallCostReservationMicrousd("fast"),
             ),
           },
-          async (beforeGeneration) => {
-            const result = await call(async () => {
-              await assertPrivacyEpochStillCurrent();
-              await beforeGeneration();
-            });
+          async (
+            beforeGeneration,
+            _reserveBeforeSideEffect,
+            authorizeProviderEgress,
+          ) => {
+            const result = await call(
+              async () => {
+                await assertPrivacyEpochStillCurrent();
+                await beforeGeneration();
+              },
+              async (request) => {
+                await assertPrivacyEpochStillCurrent();
+                await authorizeProviderEgress(request);
+              },
+            );
             await assertPrivacyEpochStillCurrent();
             return result;
           },
@@ -708,18 +722,29 @@ export async function POST(req: NextRequest) {
           // the first receipt. Borderline verified conflicts already used #1.
           callIndex: detection.llmVerified ? 2 : 1,
           phase: "conflict_mediation",
+          providerPrivacyScope: {
+            visibility: "shared",
+            expectedPrivacyEpoch: initialPrivacyEpoch!,
+          },
           costGuard: conflictCostGuard(
             getAmoraProviderCallCostReservationMicrousd("primary"),
           ),
         },
-        async (beforeGeneration) => {
+        async (
+          beforeGeneration,
+          _reserveBeforeSideEffect,
+          authorizeProviderEgress,
+        ) => {
           const result = await createOpenAIResponseWithAudit({
             modelRole: "primary",
             maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
             maxOutputTokens: 800,
             // 두 사람의 갈등 대화 원문은 토큰 계산 요청에도 그대로 실린다.
             // 유료 생성 게이트는 계산 뒤에 오므로 계산 자체를 보호하지 못한다.
-            beforeProviderEgress: assertPrivacyEpochStillCurrent,
+            beforeProviderEgress: async (request) => {
+              await assertPrivacyEpochStillCurrent();
+              await authorizeProviderEgress(request);
+            },
             beforeGeneration: async () => {
               await assertPrivacyEpochStillCurrent();
               await beforeGeneration();

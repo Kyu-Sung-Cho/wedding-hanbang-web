@@ -47,6 +47,23 @@ function fixture(mutate) {
 
 const BACKUP_CONTRACT = { id: "amora-db-current-baseline", version: 1 };
 
+const ACTIVE_AMORA_SECURITY_MIGRATIONS = Object.freeze([
+  "20260811230000_amora_provider_egress_grant.sql",
+  "20260812030000_couple_invite_replay_hardening.sql",
+  "20260812090000_amora_server_only_chat_ingest.sql",
+]);
+
+const GATED_COUPLE_INVITE_PHASE_B_MIGRATION =
+  "20260812031000_revoke_legacy_join_couple.sql";
+
+const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
+  "amora_provider_egress_grants",
+  "amora_provider_runtime_control",
+  "couple_invite_join_attempts",
+  "couple_invite_join_runtime_state",
+  "couple_invite_redemptions",
+]);
+
 function createdPublicTablesForMigrations(root, migrations) {
   return successorCreatedPublicTables(root, migrations);
 }
@@ -688,6 +705,29 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
     result.controllerManifest.backupContract.expectedMigrationHead,
     state.manifest.requiredRemoteHead,
   );
+  const migrationFiles = state.manifest.expandMigrations.map(
+    (entry) => entry.file,
+  );
+  const firstSecurityMigration = migrationFiles.indexOf(
+    ACTIVE_AMORA_SECURITY_MIGRATIONS[0],
+  );
+  assert.notEqual(firstSecurityMigration, -1);
+  assert.deepEqual(
+    migrationFiles.slice(
+      firstSecurityMigration,
+      firstSecurityMigration + ACTIVE_AMORA_SECURITY_MIGRATIONS.length,
+    ),
+    ACTIVE_AMORA_SECURITY_MIGRATIONS,
+  );
+  assert.equal(
+    migrationFiles.includes(GATED_COUPLE_INVITE_PHASE_B_MIGRATION),
+    false,
+  );
+  assert.deepEqual(
+    state.createdTables.filter((table) =>
+      ACTIVE_AMORA_SECURITY_CREATED_TABLES.includes(table)),
+    ACTIVE_AMORA_SECURITY_CREATED_TABLES,
+  );
   assert.ok(state.createdTables.includes("couple_plan_change_requests"));
   assert.ok(state.createdTables.includes("couple_plan_change_acceptances"));
   assert.ok(state.createdTables.includes("conversation_segments"));
@@ -717,6 +757,13 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
     result.controllerManifest.postExpandBackupContract.expectedTables
       .includes("amora_memory_enqueue_repair_dead_letters"),
   );
+  for (const table of ACTIVE_AMORA_SECURITY_CREATED_TABLES) {
+    assert.ok(
+      result.controllerManifest.postExpandBackupContract.expectedTables
+        .includes(table),
+      `post-expand backup contract omitted ${table}`,
+    );
+  }
   assert.equal(
     result.controllerManifest.postApplyChecks[0].expectedEvidence
       .successor_created_table_count,
@@ -793,6 +840,7 @@ test("successor 또는 account-deletion table을 self-consistent backup list에�
   for (const omittedTable of [
     "couple_plan_change_requests",
     "account_deletion_jobs",
+    ...ACTIVE_AMORA_SECURITY_CREATED_TABLES,
   ]) {
     const root = readyStaticFixture({
       mutateContract: (contract) => {

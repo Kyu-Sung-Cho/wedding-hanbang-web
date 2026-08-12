@@ -115,7 +115,25 @@ interface ScheduleContentProps {
 }
 
 export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
-  const { journey, updateJourney, profile, partner, isDemo } = useAuthStore();
+  const { user, isDemo } = useAuthStore();
+  const mutationOwnerId = isDemo ? "demo" : user?.id ?? null;
+
+  // 계정이 바뀌면 A가 열어 둔 모든 일정 폼·확인 상태를 동기적으로 폐기한다.
+  return (
+    <OwnedScheduleContent
+      key={mutationOwnerId ?? "signed-out"}
+      embedded={embedded}
+      mutationOwnerId={mutationOwnerId}
+    />
+  );
+}
+
+function OwnedScheduleContent({
+  embedded,
+  mutationOwnerId,
+}: ScheduleContentProps & { mutationOwnerId: string | null }) {
+  const { journey, updateJourney, profile, partner } = useAuthStore();
+  const isDemo = mutationOwnerId === "demo";
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -128,6 +146,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     useState<PendingChecklistSchedule | null>(null);
   const [journeyNotice, setJourneyNotice] = useState("");
   const [journeyError, setJourneyError] = useState("");
+
+  const isCurrentMutationOwner = useCallback(() => {
+    const current = useAuthStore.getState();
+    return mutationOwnerId !== null
+      && current.user?.id === mutationOwnerId
+      && (mutationOwnerId === "demo" ? current.isDemo : !current.isDemo);
+  }, [mutationOwnerId]);
 
   const saveJourney = useCallback(
     async (
@@ -145,7 +170,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       setJourneyError("");
       setJourneyNotice("");
       try {
-        const result = await updateJourney(updates);
+        if (!mutationOwnerId || !isCurrentMutationOwner()) {
+          throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+        }
+        const result = await updateJourney(updates, mutationOwnerId);
+        if (!isCurrentMutationOwner()) {
+          throw new Error("계정이 바뀌어 저장 결과를 적용하지 않았습니다.");
+        }
         setJourneyNotice(
           result.status === "pending_partner"
             ? `${result.summary} ${
@@ -159,13 +190,15 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         );
         return result;
       } catch (error) {
-        setJourneyError(
-          "일정 변경을 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
-        );
+        if (isCurrentMutationOwner()) {
+          setJourneyError(
+            "일정 변경을 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
+          );
+        }
         throw error;
       }
     },
-    [partner, updateJourney],
+    [isCurrentMutationOwner, mutationOwnerId, partner, updateJourney],
   );
 
   const progress = useMemo(
@@ -821,6 +854,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         <CategoryChecklistModal
           categoryKey={selectedCategory ?? ""}
           isOpen={!!selectedCategory}
+          expectedOwnerId={mutationOwnerId}
           onClose={() => setSelectedCategory(null)}
         />
 

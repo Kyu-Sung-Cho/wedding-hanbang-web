@@ -23,6 +23,7 @@ import {
 } from "@/lib/ai/amoraAttachments";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 8 * 1024;
 // 20,000 Unicode code points can occupy up to 80KiB in UTF-8. Keep bounded
@@ -30,6 +31,9 @@ const MAX_BODY_BYTES = 8 * 1024;
 const MAX_POST_BODY_BYTES = 128 * 1024;
 const MAX_MESSAGE_CHARACTERS = 20_000;
 const MAX_IMAGE_PATHS = AMORA_MAX_ATTACHMENTS;
+const AMORA_INGEST_CONTRACT_VERSION_HEADER = "x-amora-ingest-contract-version";
+const AMORA_EXPECTED_ACTOR_HEADER = "x-amora-expected-actor-user-id";
+const AMORA_INGEST_ACTOR_CONTRACT_V2 = "2";
 const PROVIDER_ATTACHMENT_MEDIA_TYPES = new Set<string>(
   AMORA_ATTACHMENT_MEDIA_TYPES,
 );
@@ -390,6 +394,16 @@ export async function POST(request: Request) {
     if (!user) {
       return postJson({ error: "인증이 필요합니다.", code: "AUTH_REQUIRED" }, 401);
     }
+    const mutationActorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!mutationActorFence.ok) {
+      return postJson(
+        {
+          error: mutationActorFence.message,
+          code: mutationActorFence.code,
+        },
+        mutationActorFence.status,
+      );
+    }
     if (!isTrustedMutationRequest(request)) {
       return postJson(
         {
@@ -457,6 +471,51 @@ export async function POST(request: Request) {
         { error: "메시지 요청 형식이 올바르지 않습니다.", code: "INVALID_MESSAGE_REQUEST" },
         400,
       );
+    }
+
+    const ingestContractVersion = request.headers
+      .get(AMORA_INGEST_CONTRACT_VERSION_HEADER)
+      ?.trim() ?? null;
+    const rawExpectedActorUserId = request.headers
+      .get(AMORA_EXPECTED_ACTOR_HEADER)
+      ?.trim() ?? null;
+    const isLegacyActorContract = ingestContractVersion === null
+      && rawExpectedActorUserId === null;
+    // ROLLOUT_PHASE_A: headerless legacy callers remain temporarily accepted so
+    // old mobile/web clients and the v2 server can coexist. Phase B must make
+    // v2 mandatory only after fleet evidence proves legacy traffic has drained.
+    if (!isLegacyActorContract && ingestContractVersion !== AMORA_INGEST_ACTOR_CONTRACT_V2) {
+      return postJson(
+        {
+          error: "지원하지 않는 메시지 전송 계약입니다. 앱을 업데이트한 뒤 다시 시도해 주세요.",
+          code: "CHAT_INGEST_CONTRACT_UNSUPPORTED",
+        },
+        400,
+      );
+    }
+    if (!isLegacyActorContract) {
+      const expectedActorUserId = rawExpectedActorUserId
+        && isUuid(rawExpectedActorUserId)
+        ? rawExpectedActorUserId.toLowerCase()
+        : null;
+      if (!expectedActorUserId) {
+        return postJson(
+          {
+            error: "메시지 작성 계정을 확인할 수 없어요. 앱을 업데이트한 뒤 다시 시도해 주세요.",
+            code: "CHAT_ACTOR_BINDING_REQUIRED",
+          },
+          400,
+        );
+      }
+      if (expectedActorUserId !== user.id.toLowerCase()) {
+        return postJson(
+          {
+            error: "메시지를 작성한 계정이 바뀌어 보내지 않았어요.",
+            code: "CHAT_ACTOR_CHANGED",
+          },
+          409,
+        );
+      }
     }
     const content = body.content;
 
@@ -934,10 +993,6 @@ type ClearMode =
 // "새 채팅" — clearMode 따라 분기
 export async function DELETE(request: Request) {
   try {
-    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
-    }
-
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
@@ -953,6 +1008,17 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, deleted: 0 });
     }
 
+    const mutationActorFence = verifyMutationActorFence(request.headers, user!.id);
+    if (!mutationActorFence.ok) {
+      return NextResponse.json(
+        {
+          error: mutationActorFence.message,
+          code: mutationActorFence.code,
+        },
+        { status: mutationActorFence.status, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
+
     if (!isTrustedMutationRequest(request)) {
       return NextResponse.json(
         {
@@ -961,6 +1027,10 @@ export async function DELETE(request: Request) {
         },
         { status: 403, headers: PRIVATE_NO_STORE_HEADERS },
       );
+    }
+
+    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
     }
 
     const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {

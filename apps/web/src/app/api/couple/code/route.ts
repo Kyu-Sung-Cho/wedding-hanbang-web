@@ -2,11 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const INVITE_CODE_PATTERN = /^WH-[A-Z0-9]{6,12}$/;
 
 type CoupleRecord = {
   invite_code: string | null;
+  invite_code_issued_at: string | null;
+  invite_code_expires_at: string | null;
   bride_id: string | null;
   groom_id: string | null;
   membership_sealed_at: string | null;
@@ -50,6 +53,20 @@ function isFullyLinked(couple: CoupleRecord) {
   return Boolean(couple.bride_id && couple.groom_id);
 }
 
+function hasActiveInvite(couple: CoupleRecord, now = Date.now()) {
+  if (!validateInviteCode(couple.invite_code)) return false;
+  if (
+    typeof couple.invite_code_issued_at !== "string"
+    || typeof couple.invite_code_expires_at !== "string"
+  ) return false;
+  const issuedAt = Date.parse(couple.invite_code_issued_at);
+  const expiresAt = Date.parse(couple.invite_code_expires_at);
+  return Number.isFinite(issuedAt)
+    && Number.isFinite(expiresAt)
+    && expiresAt > issuedAt
+    && expiresAt > now;
+}
+
 async function loadCoupleContext(
   admin: ReturnType<typeof getAdmin>,
   userId: string,
@@ -82,7 +99,9 @@ async function loadCoupleById(
 ) {
   const { data, error } = await admin
     .from("couples")
-    .select("invite_code, bride_id, groom_id, membership_sealed_at")
+    .select(
+      "invite_code, invite_code_issued_at, invite_code_expires_at, bride_id, groom_id, membership_sealed_at",
+    )
     .eq("id", coupleId)
     .single();
 
@@ -144,7 +163,9 @@ async function compareAndSwapInviteCode(
     : query.eq("invite_code", expectedCode);
 
   const { data, error } = await query
-    .select("invite_code, bride_id, groom_id, membership_sealed_at")
+    .select(
+      "invite_code, invite_code_issued_at, invite_code_expires_at, bride_id, groom_id, membership_sealed_at",
+    )
     .maybeSingle();
   if (error) {
     throw new CoupleCodeError(
@@ -164,11 +185,11 @@ function activeCodeResponse(couple: CoupleRecord) {
       isMembershipSealed: true,
     };
   }
-  if (!validateInviteCode(couple.invite_code)) {
+  if (!hasActiveInvite(couple)) {
     throw new CoupleCodeError(
       500,
       "초대 코드를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
-      "STORED_INVITE_CODE_INVALID",
+      "STORED_INVITE_LIFECYCLE_INVALID",
     );
   }
   return {
@@ -205,17 +226,37 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
     }
 
+    const actorFence = verifyMutationActorFence(request.headers, authData.user.id);
+    if (!actorFence.ok) {
+      return NextResponse.json(
+        { error: actorFence.message, code: actorFence.code },
+        { status: actorFence.status },
+      );
+    }
+
     const admin = getAdmin();
     const { coupleId, couple } = await loadCoupleContext(admin, authData.user.id);
     if (couple.membership_sealed_at) {
       return NextResponse.json(activeCodeResponse(couple));
     }
-    if (couple.invite_code !== null) {
+    if (couple.invite_code !== null && !validateInviteCode(couple.invite_code)) {
+      throw new CoupleCodeError(
+        500,
+        "저장된 초대 코드를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        "STORED_INVITE_CODE_INVALID",
+      );
+    }
+    if (hasActiveInvite(couple)) {
       return NextResponse.json(activeCodeResponse(couple));
     }
 
     const generatedCode = await generateInviteCode(admin);
-    const updated = await compareAndSwapInviteCode(admin, coupleId, null, generatedCode);
+    const updated = await compareAndSwapInviteCode(
+      admin,
+      coupleId,
+      couple.invite_code,
+      generatedCode,
+    );
     if (updated) {
       if (!isMember(updated, authData.user.id)) {
         throw new CoupleCodeError(409, "커플 연결 상태가 변경됐어요.", "UPDATE_MEMBERSHIP_CHANGED");
@@ -245,6 +286,14 @@ export async function POST(request: Request) {
     }
     if (!authData.user) {
       return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });
+    }
+
+    const actorFence = verifyMutationActorFence(request.headers, authData.user.id);
+    if (!actorFence.ok) {
+      return NextResponse.json(
+        { error: actorFence.message, code: actorFence.code },
+        { status: actorFence.status },
+      );
     }
 
     const admin = getAdmin();

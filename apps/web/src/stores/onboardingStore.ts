@@ -14,6 +14,7 @@ import {
 } from "@/types/onboarding.types";
 
 interface OnboardingStoreState {
+  ownerUserId: string | null;
   currentStep: number;
   role: UserRole | null;
   coupleAction: "create" | "join" | null;
@@ -30,6 +31,8 @@ interface OnboardingStoreState {
   progressChecklist: ProgressChecklistItem[];
 
   setStep: (step: number) => void;
+  bindOwner: (userId: string) => void;
+  clearOwner: () => void;
   nextStep: () => void;
   prevStep: () => void;
   setRole: (role: UserRole) => void;
@@ -61,6 +64,7 @@ const initialPreferences: WeddingPreferences = {
 };
 
 const initialState = {
+  ownerUserId: null as string | null,
   currentStep: 1,
   role: null as UserRole | null,
   coupleAction: null as "create" | "join" | null,
@@ -81,6 +85,22 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
   ...initialState,
 
   setStep: (step) => set({ currentStep: step }),
+  bindOwner: (userId) => set((state) => (
+    state.ownerUserId === userId
+      ? state
+      : {
+          ...initialState,
+          ownerUserId: userId,
+          preferences: { ...initialPreferences },
+          progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })),
+      }
+  )),
+  clearOwner: () => set({
+    ...initialState,
+    ownerUserId: null,
+    preferences: { ...initialPreferences },
+    progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })),
+  }),
   nextStep: () => set((s) => ({ currentStep: Math.min(s.currentStep + 1, 5) })),
   prevStep: () => set((s) => ({ currentStep: Math.max(s.currentStep - 1, 1) })),
   setRole: (role) => set({ role }),
@@ -129,5 +149,10 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
       ),
     })),
   setChecklist: (items) => set({ progressChecklist: items }),
-  reset: () => set({ ...initialState, preferences: { ...initialPreferences }, progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })) }),
+  reset: () => set((state) => ({
+    ...initialState,
+    ownerUserId: state.ownerUserId,
+    preferences: { ...initialPreferences },
+    progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })),
+  })),
 }));

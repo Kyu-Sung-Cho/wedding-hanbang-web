@@ -1333,9 +1333,10 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
     expect(prompt).not.toContain("2025년 4월 기준");
   });
 
-  it("가격 컨텍스트가 고정 시세 대신 검수·발행된 공시 조회를 강제한다", () => {
+  it("가격 컨텍스트가 고정 시세 대신 출처가 보이는 공시 페이지를 안내한다", () => {
     expect(prompt).toContain("검수·발행된 업체별 공시 데이터");
-    expect(prompt).toContain("업체 공시가 검색·추천 도구");
+    expect(prompt).toContain("업체 공시가 페이지(/price)");
+    expect(prompt).not.toContain("검색·추천 도구");
     expect(prompt).not.toMatch(/조사 기준: 20\d{2}년 \d{1,2}월/);
     expect(prompt).not.toContain("한국소비자원 참가격 결혼서비스 통계");
   });

@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { X, Ban, CalendarDays } from "lucide-react";
+import {
+  isScheduleCareMomentType,
+  SCHEDULE_CARE_MOMENT_OPTIONS,
+} from "@hanbang/shared";
 import type {
   ScheduleEvent,
   ScheduleEventAssignee,
@@ -64,6 +68,7 @@ interface Props {
     title: string;
     memo?: string;
     categoryKey?: string;
+    momentType?: string;
     status: ScheduleEventStatus;
     completionCriteria?: string;
     assignee?: ScheduleEventAssignee;
@@ -87,6 +92,7 @@ export default function EventFormModal({
   const [time, setTime] = useState("");
   const [memo, setMemo] = useState("");
   const [categoryKey, setCategoryKey] = useState("");
+  const [momentType, setMomentType] = useState("");
   const [status, setStatus] = useState<ScheduleEventStatus>("planned");
   const [completionCriteria, setCompletionCriteria] = useState("");
   const [assigneeSelection, setAssigneeSelection] = useState("unassigned");
@@ -106,6 +112,7 @@ export default function EventFormModal({
       setTime(event.time ?? "");
       setMemo(sanitizeUserFacingScheduleMemo(event.memo) ?? "");
       setCategoryKey(event.categoryKey ?? "");
+      setMomentType(event.momentType ?? "");
       setStatus(getScheduleEventStatus(event));
       setCompletionCriteria(event.completionCriteria ?? "");
       setAssigneeSelection(
@@ -122,6 +129,7 @@ export default function EventFormModal({
       setTime("");
       setMemo("");
       setCategoryKey("");
+      setMomentType("");
       setStatus("planned");
       setCompletionCriteria("");
       setAssigneeSelection("unassigned");
@@ -224,6 +232,7 @@ export default function EventFormModal({
         title: title.trim(),
         memo: memo.trim() || undefined,
         categoryKey: categoryKey || undefined,
+        momentType: momentType || undefined,
         status,
         completionCriteria: completionCriteria.trim() || undefined,
         assignee,
@@ -425,6 +434,39 @@ export default function EventFormModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="schedule-moment-type"
+              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+            >
+              아모라가 챙길 중요한 날 <span className="normal-case tracking-normal">(선택)</span>
+            </label>
+            <select
+              id="schedule-moment-type"
+              name="schedule-moment-type"
+              value={momentType}
+              onChange={(e) => setMomentType(e.target.value)}
+              aria-describedby="schedule-moment-type-help"
+              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+            >
+              <option value="">일반 일정 · 따로 챙김 받지 않기</option>
+              {momentType && !isScheduleCareMomentType(momentType) && (
+                <option value={momentType}>기타 일정 · 기존 설정 유지</option>
+              )}
+              {SCHEDULE_CARE_MOMENT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p
+              id="schedule-moment-type-help"
+              className="mt-1.5 text-xs leading-5 text-[#7a746e]"
+            >
+              선택하면 일정 전후에 아모라가 준비물과 안부를 챙겨드릴 수 있어요. 알림·케어 설정에 따라 전달 시점은 달라질 수 있어요.
+            </p>
           </div>
 
           <div>

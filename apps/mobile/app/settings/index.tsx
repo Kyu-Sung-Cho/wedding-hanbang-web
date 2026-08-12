@@ -41,10 +41,13 @@ import { colors } from "@hanbang/design-tokens";
 import {
   resolveCoupleConnectionState,
   type CoupleConnectionState,
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
 } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetchForExpectedUser } from "@/lib/api";
 import {
   buildWeddingSettingsPatch,
   createLatestSettingsLoadGate,
@@ -55,6 +58,8 @@ import {
 import { clearCommunityCaches } from "@/lib/communityPostCache";
 import { purgeCommunityDecisionPendingForOwnerWithRetry } from "@/lib/communityDecisionPending";
 import { hasActiveCareConsent } from "@/lib/careSettings";
+import { canFinishOwnerBoundDeletion } from "@/lib/accountDeletionOwnerFence.mjs";
+import { copyOwnerBoundInviteSecret } from "@/lib/inviteClipboardActorFence.mjs";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
 import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
@@ -66,6 +71,13 @@ type CoupleCodeResponse = {
   isFullyLinked?: unknown;
   isMembershipSealed?: unknown;
 };
+
+function mutationActorHeaders(expectedActorUserId: string) {
+  return {
+    [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+    [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+  };
+}
 
 export default function SettingsScreen() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -84,6 +96,8 @@ export default function SettingsScreen() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const checkScale = useRef(new Animated.Value(0)).current;
   const settingsLoadGate = useRef(createLatestSettingsLoadGate()).current;
+  const settingsOwnerRef = useRef<string | null>(null);
+  const [settingsOwnerId, setSettingsOwnerId] = useState<string | null>(null);
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -92,14 +106,51 @@ export default function SettingsScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordModalOwnerId, setPasswordModalOwnerId] = useState<string | null>(null);
 
   // 파트너 관리
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
+  const [coupleConnectionOwnerId, setCoupleConnectionOwnerId] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
   const [resettingCouple, setResettingCouple] = useState(false);
+
+  // A 화면이 열린 채 인증 세션이 B로 바뀌면 A의 초안과 확인 UI를 먼저
+  // 폐기한다. 네이티브 Alert 자체가 남더라도 콜백은 아래에서 캡처한 A owner로
+  // 전송되어 expected-user transport와 서버 v2 fence가 B 변이를 막는다.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const knownOwnerId = settingsOwnerRef.current;
+        const nextOwnerId = session?.user.id ?? null;
+        if (knownOwnerId === null || knownOwnerId === nextOwnerId) return;
+
+        settingsOwnerRef.current = nextOwnerId;
+        setSettingsOwnerId(null);
+        setData(null);
+        setInitialData(null);
+        setSettingsSnapshot(null);
+        setLegacyCareConsentActive(false);
+        setPartnerName(null);
+        setCoupleConnection(resolveCoupleConnectionState(null));
+        setCoupleConnectionOwnerId(null);
+        setPasswordModalVisible(false);
+        setPasswordModalOwnerId(null);
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+        setLoadError(null);
+        setLoggingOut(false);
+        setLogoutError(null);
+        setLoadAttempt((attempt) => attempt + 1);
+      },
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // 현재 데이터 로드
   useEffect(() => {
@@ -107,8 +158,14 @@ export default function SettingsScreen() {
 
     setLoading(true);
     setLoadError(null);
+    setSettingsOwnerId(null);
+    setData(null);
+    setInitialData(null);
     setSettingsSnapshot(null);
     setLegacyCareConsentActive(false);
+    setPartnerName(null);
+    setCoupleConnection(resolveCoupleConnectionState(null));
+    setCoupleConnectionOwnerId(null);
 
     (async () => {
       try {
@@ -118,8 +175,12 @@ export default function SettingsScreen() {
         if (!user) {
           throw new Error("로그인이 만료됐어요. 다시 로그인한 뒤 시도해주세요.");
         }
+        settingsOwnerRef.current = user.id;
 
-        const settingsResponse = await apiFetch("/api/settings/wedding-profile");
+        const settingsResponse = await apiFetchForExpectedUser(
+          user.id,
+          "/api/settings/wedding-profile",
+        );
         const settingsPayload = await settingsResponse.json().catch(() => ({}));
         if (!settingsResponse.ok) {
           const errorMessage =
@@ -158,7 +219,12 @@ export default function SettingsScreen() {
             }
 
             // 커플 초대 코드 조회
-            const codeRes = await apiFetch("/api/couple/code");
+            const codeRes = await apiFetchForExpectedUser(user.id, "/api/couple/code", {
+              headers: {
+                [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+                [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: user.id,
+              },
+            });
             if (codeRes.ok) {
               const codeData = (await codeRes.json().catch(() => null)) as CoupleCodeResponse | null;
               nextCoupleConnection = resolveCoupleConnectionState(codeData, { partnerPresent });
@@ -173,9 +239,13 @@ export default function SettingsScreen() {
 
         const loadedData = parsedSettings.data;
 
-        if (loadToken.isCurrent()) {
+        const { data: { user: responseOwner } } = await supabase.auth.getUser();
+        if (loadToken.isCurrent() && responseOwner?.id === user.id) {
+          settingsOwnerRef.current = user.id;
+          setSettingsOwnerId(user.id);
           setPartnerName(nextPartnerName);
           setCoupleConnection(nextCoupleConnection);
+          setCoupleConnectionOwnerId(user.id);
           setLegacyCareConsentActive(hasActiveCareConsent(profile));
           setData(loadedData);
           setInitialData(loadedData);
@@ -214,6 +284,11 @@ export default function SettingsScreen() {
 
   async function handleSave() {
     if (!data || !settingsSnapshot) return;
+    const expectedActorUserId = settingsOwnerId;
+    if (!expectedActorUserId) {
+      Alert.alert("계정 확인 필요", "현재 계정의 설정을 다시 불러온 뒤 저장해 주세요.");
+      return;
+    }
     setSaving(true);
 
     try {
@@ -223,10 +298,15 @@ export default function SettingsScreen() {
         return;
       }
 
-      const response = await apiFetch("/api/settings/wedding-profile", {
+      const response = await apiFetchForExpectedUser(
+        expectedActorUserId,
+        "/api/settings/wedding-profile",
+        {
         method: "PATCH",
+        headers: mutationActorHeaders(expectedActorUserId),
         body: JSON.stringify(patch),
-      });
+        },
+      );
       const responseBody = await response.json().catch(() => ({}));
       if (!response.ok) {
         const errorMessage =
@@ -253,6 +333,10 @@ export default function SettingsScreen() {
       }
 
       const savedSettings = parseWeddingSettingsResponse(responseBody);
+      const { data: { user: responseOwner } } = await supabase.auth.getUser();
+      if (responseOwner?.id !== expectedActorUserId) {
+        throw new Error("계정이 바뀌어 저장 결과를 적용하지 않았어요.");
+      }
       setData(savedSettings.data);
       setInitialData(savedSettings.data);
       setSettingsSnapshot(savedSettings.snapshot);
@@ -275,17 +359,22 @@ export default function SettingsScreen() {
         : message.includes("network")
           ? "네트워크 오류가 발생했어요."
           : message;
-      Alert.alert("오류", translated);
+      if (settingsOwnerRef.current === expectedActorUserId) {
+        Alert.alert("오류", translated);
+      }
     } finally {
       setSaving(false);
     }
   }
 
   async function handleRevokeLegacyCareConsent() {
+    const expectedActorUserId = settingsOwnerId;
+    if (!expectedActorUserId) return;
     setRevokingLegacyCareConsent(true);
     try {
-      const response = await apiFetch("/api/profile", {
+      const response = await apiFetchForExpectedUser(expectedActorUserId, "/api/profile", {
         method: "PATCH",
+        headers: mutationActorHeaders(expectedActorUserId),
         body: JSON.stringify({ care_notifications_enabled: false }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -299,18 +388,31 @@ export default function SettingsScreen() {
             : "수신 동의를 해제하지 못했어요.";
         throw new Error(message);
       }
+      const { data: { user: responseOwner } } = await supabase.auth.getUser();
+      if (responseOwner?.id !== expectedActorUserId) return;
       setLegacyCareConsentActive(false);
       Alert.alert("해제 완료", "이전 이메일 수신 동의를 해제했어요.");
     } catch (error) {
-      Alert.alert(
-        "해제 실패",
-        error instanceof Error
-          ? error.message
-          : "수신 동의를 해제하지 못했어요. 잠시 후 다시 시도해주세요.",
-      );
+      if (settingsOwnerRef.current === expectedActorUserId) {
+        Alert.alert(
+          "해제 실패",
+          error instanceof Error
+            ? error.message
+            : "수신 동의를 해제하지 못했어요. 잠시 후 다시 시도해주세요.",
+        );
+      }
     } finally {
       setRevokingLegacyCareConsent(false);
     }
+  }
+
+  function closePasswordModal() {
+    setPasswordModalVisible(false);
+    setPasswordModalOwnerId(null);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
   }
 
   // 비밀번호 변경
@@ -327,42 +429,105 @@ export default function SettingsScreen() {
       Alert.alert("오류", "비밀번호가 일치하지 않아요.");
       return;
     }
+    const expectedActorUserId = passwordModalOwnerId;
+    if (
+      !expectedActorUserId
+      || settingsOwnerId !== expectedActorUserId
+      || settingsOwnerRef.current !== expectedActorUserId
+    ) {
+      closePasswordModal();
+      Alert.alert("계정 확인 필요", "현재 계정에서 비밀번호 변경을 다시 시작해 주세요.");
+      return;
+    }
 
     setPasswordSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-      if (error) throw error;
+      const response = await apiFetchForExpectedUser(
+        expectedActorUserId,
+        "/api/auth/password",
+        {
+          method: "PATCH",
+          headers: mutationActorHeaders(expectedActorUserId),
+          body: JSON.stringify({ password: newPassword }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "비밀번호를 변경하지 못했어요.");
+      }
+      const { data: { user: responseOwner } } = await supabase.auth.getUser();
+      if (responseOwner?.id !== expectedActorUserId) {
+        throw new Error("계정이 바뀌어 변경 결과를 적용하지 않았어요.");
+      }
 
       Alert.alert("완료", "비밀번호가 변경되었어요.");
-      setPasswordModalVisible(false);
-      setNewPassword("");
-      setConfirmPassword("");
+      closePasswordModal();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "비밀번호 변경 중 오류가 발생했어요";
-      Alert.alert("오류", message);
+      if (settingsOwnerRef.current === expectedActorUserId) {
+        const message =
+          err instanceof Error ? err.message : "비밀번호 변경 중 오류가 발생했어요";
+        Alert.alert("오류", message);
+      }
     } finally {
-      setPasswordSaving(false);
+      if (settingsOwnerRef.current === expectedActorUserId) {
+        setPasswordSaving(false);
+      }
     }
   }
 
   // 초대 코드 복사
   async function copyInviteCode() {
+    const expectedActorUserId = settingsOwnerId;
     const inviteCode = coupleConnection.inviteCode;
-    if (!inviteCode) return;
+    if (
+      !expectedActorUserId
+      || settingsOwnerRef.current !== expectedActorUserId
+      || coupleConnectionOwnerId !== expectedActorUserId
+      || !inviteCode
+    ) {
+      Alert.alert("계정 확인 필요", "현재 계정의 초대 코드를 다시 불러온 뒤 시도해 주세요.");
+      return;
+    }
     try {
-      await Clipboard.setStringAsync(inviteCode);
+      const didCopy = await copyOwnerBoundInviteSecret({
+        expectedOwnerId: expectedActorUserId,
+        secretOwnerId: coupleConnectionOwnerId,
+        secret: inviteCode,
+        readScreenOwner: () => settingsOwnerRef.current,
+        readAuthenticatedOwner: async () => {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          return currentUser?.id ?? null;
+        },
+        writeText: async (value) => {
+          await Clipboard.setStringAsync(value);
+        },
+        purgeOwnerBoundSecret: () => {
+          setCoupleConnection(resolveCoupleConnectionState(null));
+          setCoupleConnectionOwnerId(null);
+          setCodeCopied(false);
+        },
+      });
+      if (!didCopy) return;
       setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
+      setTimeout(() => {
+        if (settingsOwnerRef.current === expectedActorUserId) {
+          setCodeCopied(false);
+        }
+      }, 2000);
     } catch {
-      Alert.alert("오류", "코드 복사에 실패했어요.");
+      if (settingsOwnerRef.current === expectedActorUserId) {
+        Alert.alert("오류", "코드 복사에 실패했어요.");
+      }
     }
   }
 
   function handleStartNewCouple() {
     if (resettingCouple) return;
+    const expectedActorUserId = settingsOwnerId;
+    if (!expectedActorUserId) {
+      Alert.alert("계정 확인 필요", "현재 계정의 설정을 다시 불러온 뒤 시도해 주세요.");
+      return;
+    }
 
     Alert.alert(
       "새 커플로 다시 시작",
@@ -375,28 +540,36 @@ export default function SettingsScreen() {
           onPress: async () => {
             setResettingCouple(true);
             try {
-              const response = await apiFetch("/api/couple/reset", {
+              const response = await apiFetchForExpectedUser(expectedActorUserId, "/api/couple/reset", {
                 method: "POST",
+                headers: mutationActorHeaders(expectedActorUserId),
                 body: JSON.stringify({ confirmText: "초기화합니다" }),
               });
               const payload = (await response.json().catch(() => ({}))) as { error?: string };
               if (!response.ok) {
                 throw new Error(payload.error ?? "새 커플을 시작하지 못했어요.");
               }
+              const { data: { user: responseOwner } } = await supabase.auth.getUser();
+              if (responseOwner?.id !== expectedActorUserId) return;
 
               clearCommunityCaches();
               setPartnerName(null);
               setCoupleConnection(resolveCoupleConnectionState(null));
+              setCoupleConnectionOwnerId(null);
               setData((current) => current ? { ...current, coupleId: null } : current);
               setInitialData((current) => current ? { ...current, coupleId: null } : current);
               router.replace("/onboarding");
             } catch (error) {
-              Alert.alert(
-                "새 커플을 시작하지 못했어요",
-                error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
-              );
+              if (settingsOwnerRef.current === expectedActorUserId) {
+                Alert.alert(
+                  "새 커플을 시작하지 못했어요",
+                  error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
+                );
+              }
             } finally {
-              setResettingCouple(false);
+              if (settingsOwnerRef.current === expectedActorUserId) {
+                setResettingCouple(false);
+              }
             }
           },
         },
@@ -404,29 +577,43 @@ export default function SettingsScreen() {
     );
   }
 
-  async function performLogout() {
-    if (loggingOut) return;
+  async function performLogout(expectedActorUserId: string) {
+    if (
+      loggingOut
+      || settingsOwnerRef.current !== expectedActorUserId
+    ) return;
 
     setLoggingOut(true);
     setLogoutError(null);
     try {
-      await signOut();
+      await signOut({ expectedOwnerId: expectedActorUserId });
       router.replace("/(auth)/login");
     } catch {
+      if (settingsOwnerRef.current !== expectedActorUserId) return;
       const message = "로그아웃하지 못했어요. 연결을 확인하고 다시 시도해주세요.";
       setLogoutError(message);
       if (Platform.OS !== "web") {
         Alert.alert("로그아웃 실패", message);
       }
     } finally {
-      setLoggingOut(false);
+      if (settingsOwnerRef.current === expectedActorUserId) {
+        setLoggingOut(false);
+      }
     }
   }
 
   // 로그아웃
   function handleLogout() {
+    const expectedActorUserId = settingsOwnerId;
+    if (
+      !expectedActorUserId
+      || settingsOwnerRef.current !== expectedActorUserId
+    ) {
+      setLogoutError("현재 계정을 다시 확인한 뒤 로그아웃해 주세요.");
+      return;
+    }
     if (Platform.OS === "web") {
-      void performLogout();
+      void performLogout(expectedActorUserId);
       return;
     }
 
@@ -435,13 +622,18 @@ export default function SettingsScreen() {
       {
         text: "로그아웃",
         style: "destructive",
-        onPress: () => void performLogout(),
+        onPress: () => void performLogout(expectedActorUserId),
       },
     ]);
   }
 
   // 회원 탈퇴
   function handleDeleteAccount() {
+    const expectedActorUserId = settingsOwnerId;
+    if (!expectedActorUserId) {
+      Alert.alert("계정 확인 필요", "현재 계정의 설정을 다시 불러온 뒤 시도해 주세요.");
+      return;
+    }
     Alert.alert(
       "회원 탈퇴",
       "계정과 직접 소유한 데이터 삭제를 요청해요. 안전 확인이 필요한 경우 완료까지 시간이 걸릴 수 있어요.",
@@ -466,12 +658,16 @@ export default function SettingsScreen() {
                         data: { session: deletionSession },
                         error: deletionSessionError,
                       } = await supabase.auth.getSession();
-                      if (deletionSessionError || !deletionSession?.user.id) {
+                      if (
+                        deletionSessionError
+                        || deletionSession?.user.id !== expectedActorUserId
+                      ) {
                         throw new Error("계정의 기기 데이터를 안전하게 정리할 사용자를 확인하지 못했어요.");
                       }
-                      const deletionOwnerId = deletionSession.user.id;
-                      const res = await apiFetch("/api/auth/delete", {
+                      const deletionOwnerId = expectedActorUserId;
+                      const res = await apiFetchForExpectedUser(expectedActorUserId, "/api/auth/delete", {
                         method: "DELETE",
+                        headers: mutationActorHeaders(expectedActorUserId),
                         body: JSON.stringify({ reason: "mobile_request" }),
                       });
                       const body = (await res.json().catch(() => ({}))) as {
@@ -484,9 +680,39 @@ export default function SettingsScreen() {
                           body.error ?? "탈퇴 요청을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
                         );
                       }
+                      const {
+                        data: { session: responseSession },
+                      } = await supabase.auth.getSession();
+                      const responseSessionOwnerId = responseSession?.user.id ?? null;
+                      const {
+                        data: { user: responseOwner },
+                      } = await supabase.auth.getUser();
+                      if (!canFinishOwnerBoundDeletion({
+                        expectedOwnerId: deletionOwnerId,
+                        sessionOwnerId: responseSessionOwnerId,
+                        authenticatedOwnerId: responseOwner?.id ?? null,
+                        screenOwnerId: settingsOwnerRef.current,
+                      })) return;
                       const finishSignOut = async () => {
+                        const {
+                          data: { session: cleanupSession },
+                          error: cleanupSessionError,
+                        } = await supabase.auth.getSession();
+                        const cleanupSessionOwnerId = cleanupSession?.user.id ?? null;
+                        if (cleanupSessionError) return;
+                        const {
+                          data: { user: cleanupUser },
+                        } = await supabase.auth.getUser();
+                        if (!canFinishOwnerBoundDeletion({
+                          expectedOwnerId: deletionOwnerId,
+                          sessionOwnerId: cleanupSessionOwnerId,
+                          authenticatedOwnerId: cleanupUser?.id ?? null,
+                          screenOwnerId: settingsOwnerRef.current,
+                        })) return;
                         const { decisionDataPurged } = await signOut({
                           continueOnDecisionPurgeFailure: true,
+                          expectedOwnerId: deletionOwnerId,
+                          allowMissingSession: true,
                         });
                         router.replace("/(auth)/login");
                         if (!decisionDataPurged) {
@@ -521,15 +747,31 @@ export default function SettingsScreen() {
                           "삭제 요청 접수",
                           body.message
                             ?? "계정 삭제를 안전하게 처리 중이에요. 새 파일 업로드는 제한돼요.",
-                          [{ text: "확인", onPress: finishSignOut }],
+                          [{
+                            text: "확인",
+                            onPress: () => {
+                              void finishSignOut().catch((error) => {
+                                if (settingsOwnerRef.current === deletionOwnerId) {
+                                  Alert.alert(
+                                    "기기 데이터 정리 미완료",
+                                    error instanceof Error
+                                      ? error.message
+                                      : "현재 계정을 다시 확인한 뒤 로그아웃해 주세요.",
+                                  );
+                                }
+                              });
+                            },
+                          }],
                         );
                         return;
                       }
                       await finishSignOut();
                     } catch (err) {
-                      const message =
-                        err instanceof Error ? err.message : "탈퇴 처리 중 오류가 발생했어요";
-                      Alert.alert("오류", message);
+                      if (settingsOwnerRef.current === expectedActorUserId) {
+                        const message =
+                          err instanceof Error ? err.message : "탈퇴 처리 중 오류가 발생했어요";
+                        Alert.alert("오류", message);
+                      }
                     }
                   },
                 },
@@ -547,7 +789,13 @@ export default function SettingsScreen() {
       : data?.role === "groom"
         ? "신랑"
         : data?.role ?? "-";
-  const phase = coupleConnection.phase;
+  const hasCurrentSettingsOwner = settingsOwnerId !== null
+    && settingsOwnerId === settingsOwnerRef.current;
+  const visibleCoupleConnection = hasCurrentSettingsOwner
+    && coupleConnectionOwnerId === settingsOwnerId
+    ? coupleConnection
+    : resolveCoupleConnectionState(null);
+  const phase = visibleCoupleConnection.phase;
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -800,7 +1048,7 @@ export default function SettingsScreen() {
                   <Text style={styles.label}>커플 초대 코드</Text>
                   <View style={styles.codeRow}>
                     <View style={styles.codeBox}>
-                      <Text style={styles.codeText}>{coupleConnection.inviteCode}</Text>
+                      <Text style={styles.codeText}>{visibleCoupleConnection.inviteCode}</Text>
                     </View>
                     <Pressable
                       style={({ pressed }) => [
@@ -808,7 +1056,7 @@ export default function SettingsScreen() {
                         pressed && { opacity: 0.6 },
                       ]}
                       onPress={copyInviteCode}
-                      disabled={!coupleConnection.canInvite}
+                      disabled={!visibleCoupleConnection.canInvite}
                       accessibilityRole="button"
                       accessibilityLabel="커플 초대 코드 복사"
                     >
@@ -878,6 +1126,9 @@ export default function SettingsScreen() {
             icon={<Lock size={18} color={colors.noir[800]} />}
             title="비밀번호 변경"
             onPress={() => {
+              const expectedActorUserId = settingsOwnerId;
+              if (!expectedActorUserId) return;
+              setPasswordModalOwnerId(expectedActorUserId);
               setNewPassword("");
               setConfirmPassword("");
               setShowNewPassword(false);
@@ -958,11 +1209,11 @@ export default function SettingsScreen() {
         visible={passwordModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setPasswordModalVisible(false)}
+        onRequestClose={closePasswordModal}
       >
         <Pressable
           style={styles.modalOverlay}
-          onPress={() => setPasswordModalVisible(false)}
+          onPress={closePasswordModal}
         >
           <Pressable
             style={styles.modalContent}
@@ -972,7 +1223,7 @@ export default function SettingsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>비밀번호 변경</Text>
               <Pressable
-                onPress={() => setPasswordModalVisible(false)}
+                onPress={closePasswordModal}
                 hitSlop={12}
               >
                 <X size={22} color={colors.noir[800]} />

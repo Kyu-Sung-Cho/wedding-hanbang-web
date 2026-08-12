@@ -19,6 +19,10 @@ import {
   type NormalizedOpenAIUsage,
   type OpenAIUsageStatus,
 } from "@/lib/ai/openai";
+import type {
+  ProviderEgressAuthorizationRequest,
+  ProviderEgressAuthorizer,
+} from "@/lib/ai/providerEgressBoundary";
 import {
   calcCostUsd,
   elapsedMs,
@@ -67,6 +71,11 @@ interface AmoraProviderCallLedgerBaseContext {
     "receiptId" | "claimToken" | "requestKey"
   >;
   onCostReserved?: (result: CostGuardResult) => void;
+  /** Current database privacy capability for durable/couple-scoped egress. */
+  providerPrivacyScope?: {
+    visibility: ChatVisibility;
+    expectedPrivacyEpoch: number;
+  } | null;
 }
 
 export interface AmoraConflictCheckpointClaimIdentity {
@@ -162,11 +171,13 @@ const PRE_GENERATION_PROVIDER_CODES = new Set([
   "openai_not_enabled",
   "input_token_limit",
   "invalid_input_token_count",
+  "AMORA_PROVIDER_EGRESS_DENIED",
 ]);
 const SAFE_CORRELATION_PATTERN = /^[A-Za-z0-9_.:-]{1,240}$/;
 const SENSITIVE_LOG_VALUE_PATTERN = /(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{20,}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONFLICT_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
+const CONTENT_BINDING_PATTERN = /^[0-9a-f]{64}$/;
 const AMORA_PROVIDER_CALL_SOURCES = new Set<AmoraProviderCallSource>([
   "durable",
   "demo",
@@ -209,6 +220,30 @@ function safeMetadataToken(value: string | null | undefined): string | null {
     && !SENSITIVE_LOG_VALUE_PATTERN.test(value)
     ? value
     : null;
+}
+
+function assertProviderReceiptScopeContract(
+  context: AmoraProviderCallLedgerContext,
+): void {
+  const coupleScoped = context.source === "durable"
+    || context.source === "conflict_check";
+  if (coupleScoped) {
+    if (!context.userId || !context.coupleId) {
+      throw new Error("[ai-ledger] provider receipt scope contract invalid");
+    }
+    return;
+  }
+
+  // Demo and signed release evaluation use synthetic identities only for
+  // quota accounting. They must never turn those identities into a privacy-
+  // scoped provider capability or a foreign-key-bearing audit receipt.
+  if (
+    context.userId != null
+    || context.coupleId != null
+    || context.providerPrivacyScope != null
+  ) {
+    throw new Error("[ai-ledger] provider receipt scope contract invalid");
+  }
 }
 
 function reportOperationalError(message: string, code: string): void {
@@ -431,6 +466,7 @@ async function prepareProviderReceipt(
 }> {
   assertSafeCorrelation("requestKey", context.requestKey);
   if (context.sessionId) assertSafeCorrelation("sessionId", context.sessionId);
+  assertProviderReceiptScopeContract(context);
   if (!AMORA_PROVIDER_CALL_SOURCES.has(context.source)) {
     throw new Error("[ai-ledger] source is invalid");
   }
@@ -497,6 +533,100 @@ async function prepareProviderReceipt(
     );
     throw new Error("[ai-ledger] prepared receipt unavailable");
   }
+}
+
+function providerEgressDenied(
+  request: ProviderEgressAuthorizationRequest,
+): OpenAIProviderError {
+  return new OpenAIProviderError("[ai-egress] durable provider grant denied", {
+    category: "auth_config",
+    providerCode: "AMORA_PROVIDER_EGRESS_DENIED",
+    requestStage: request.operation === "responses.input_tokens.count"
+      ? "input_count"
+      : "generation",
+    usageStatus: "complete",
+  });
+}
+
+function createProviderEgressAuthorizer(
+  admin: ReturnType<typeof createAdminClient>,
+  receiptId: string,
+  claimToken: string,
+  context: AmoraProviderCallLedgerContext,
+): ProviderEgressAuthorizer {
+  return async (request): Promise<void> => {
+    if (!CONTENT_BINDING_PATTERN.test(request.contentBinding)) {
+      throw providerEgressDenied(request);
+    }
+
+    const coupleScoped = context.source === "durable"
+      || context.source === "conflict_check";
+    const privacyScope = context.providerPrivacyScope ?? null;
+    if (
+      coupleScoped
+      && (
+        !context.userId
+        || !context.coupleId
+        || !privacyScope
+        || !Number.isSafeInteger(privacyScope.expectedPrivacyEpoch)
+        || privacyScope.expectedPrivacyEpoch < 1
+      )
+    ) {
+      throw providerEgressDenied(request);
+    }
+    if (!coupleScoped && privacyScope) {
+      throw providerEgressDenied(request);
+    }
+
+    const { data: issueData, error: issueError } = await admin.rpc(
+      "issue_amora_provider_egress_grant",
+      {
+        p_receipt_id: receiptId,
+        p_receipt_claim_token: claimToken,
+        // Scope validation above makes these the exact identities written to
+        // the receipt. In particular, release_eval stays null/null rather
+        // than being upgraded into user-context authorization.
+        p_actor_user_id: context.userId ?? null,
+        p_couple_id: context.coupleId,
+        p_visibility: coupleScoped ? privacyScope!.visibility : null,
+        p_expected_privacy_epoch: coupleScoped
+          ? privacyScope!.expectedPrivacyEpoch
+          : null,
+        p_operation: request.operation,
+        p_content_binding: request.contentBinding,
+      },
+    );
+    const issued = Array.isArray(issueData) ? issueData[0] : issueData;
+    if (
+      issueError
+      || !isRecord(issued)
+      || issued.issued !== true
+      || typeof issued.grant_id !== "string"
+      || !UUID_PATTERN.test(issued.grant_id)
+      || typeof issued.grant_token !== "string"
+      || !UUID_PATTERN.test(issued.grant_token)
+    ) {
+      throw providerEgressDenied(request);
+    }
+
+    const { data: consumeData, error: consumeError } = await admin.rpc(
+      "consume_amora_provider_egress_grant",
+      {
+        p_grant_id: issued.grant_id,
+        p_grant_token: issued.grant_token,
+        p_content_binding: request.contentBinding,
+      },
+    );
+    const consumed = Array.isArray(consumeData) ? consumeData[0] : consumeData;
+    if (
+      consumeError
+      || !isRecord(consumed)
+      || consumed.consumed !== true
+      || consumed.reason !== null
+    ) {
+      throw providerEgressDenied(request);
+    }
+  };
 }
 
 async function finalizeProviderReceipt(
@@ -653,6 +783,7 @@ export async function runAmoraProviderCallWithLedger<
   call: (
     beforeGeneration: () => Promise<void>,
     reserveBeforeSideEffect: () => Promise<void>,
+    authorizeProviderEgress: ProviderEgressAuthorizer,
   ) => Promise<TResult>,
   options?: AmoraProviderCallLedgerOptions<TResult>,
 ): Promise<TResult> {
@@ -664,6 +795,12 @@ export async function runAmoraProviderCallWithLedger<
   const { admin, receiptId, claimToken } = await prepareProviderReceipt(
     context,
     configuredModel,
+  );
+  const authorizeProviderEgress = createProviderEgressAuthorizer(
+    admin,
+    receiptId,
+    claimToken,
+    context,
   );
   let providerBoundaryReached = false;
   let reservationPromise: Promise<void> | null = null;
@@ -687,7 +824,11 @@ export async function runAmoraProviderCallWithLedger<
 
   let result: TResult;
   try {
-    result = await call(reserveBeforeGeneration, reserveReceipt);
+    result = await call(
+      reserveBeforeGeneration,
+      reserveReceipt,
+      authorizeProviderEgress,
+    );
     if (!providerBoundaryReached) {
       reportOperationalError(
         "[ai-ledger] provider callback skipped the paid-call gate",

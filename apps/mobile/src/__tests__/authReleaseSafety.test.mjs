@@ -15,8 +15,12 @@ test("web logout runs without depending on the native Alert callback", () => {
 
   for (const source of logoutScreens) {
     assert.match(source, /Platform\.OS\s*===\s*["']web["']/);
-    assert.match(source, /void\s+performLogout\(\)/);
-    assert.match(source, /await\s+signOut\(\)/);
+    assert.match(source, /const expectedActorUserId\s*=/u);
+    assert.match(source, /void\s+performLogout\(expectedActorUserId\)/u);
+    assert.match(
+      source,
+      /await\s+signOut\(\{ expectedOwnerId: expectedActorUserId \}\)/u,
+    );
     assert.match(source, /setLogoutError\(/);
   }
 });

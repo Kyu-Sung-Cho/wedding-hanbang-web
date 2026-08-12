@@ -1,6 +1,7 @@
 const MAX_REVISION_BEFORE_UPDATE = Number.MAX_SAFE_INTEGER - 1;
 const MAX_SCHEDULE_EVENTS = 500;
 const MAX_CANCELLATION_REASON_LENGTH = 500;
+const MAX_MOMENT_TYPE_LENGTH = 100;
 const PROFILE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UNSAFE_DISPLAY_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
@@ -88,6 +89,12 @@ function hasValidScheduleEventCore(event) {
     && (event.memo === undefined || (typeof event.memo === "string" && event.memo.length <= 2_000))
     && (event.categoryKey === undefined
       || (typeof event.categoryKey === "string" && event.categoryKey.length <= 100))
+    && (event.momentType === undefined
+      || (
+        typeof event.momentType === "string"
+        && event.momentType.length <= MAX_MOMENT_TYPE_LENGTH
+        && !UNSAFE_DISPLAY_RE.test(event.momentType)
+      ))
     && (event.createdAt === undefined || isValidEventTimestamp(event.createdAt))
     && (event.updatedAt === undefined || isValidEventTimestamp(event.updatedAt));
 }
@@ -127,6 +134,15 @@ export function validateScheduleEventDraft(input) {
   if (categoryKey.length > 100) {
     return { ok: false, field: "categoryKey" };
   }
+  const momentType = typeof input.momentType === "string"
+    ? input.momentType.trim()
+    : "";
+  if (
+    momentType.length > MAX_MOMENT_TYPE_LENGTH
+    || UNSAFE_DISPLAY_RE.test(momentType)
+  ) {
+    return { ok: false, field: "momentType" };
+  }
 
   return {
     ok: true,
@@ -136,6 +152,7 @@ export function validateScheduleEventDraft(input) {
       ...(time ? { time } : {}),
       ...(memo ? { memo } : {}),
       ...(categoryKey ? { categoryKey } : {}),
+      ...(momentType ? { momentType } : {}),
     },
   };
 }

@@ -21,6 +21,7 @@ import {
 } from "@/lib/marketing/startHereDateHandoff";
 
 import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
+import { ymdInKst } from "@/lib/utils/kstDate";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
 
 import { landingContent } from "./landingContent";
@@ -95,7 +96,7 @@ export default function TransformationHero() {
   // 입력이 거부됐다는 사실이 어떤 경로로도 전달되지 않아, 사용자는 자기가 뭘
   // 잘못했는지 모른 채 결과가 사라지는 것만 본다.
   const isPastDate = dateText !== "" && !hasPreview;
-  const todayYmd = new Date().toISOString().slice(0, 10);
+  const todayYmd = ymdInKst();
 
   const startWithDate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -222,10 +223,8 @@ export default function TransformationHero() {
                 채워지고 결과가 그 자리에서 따라 움직인다 — 무엇으로 계산했는지
                 보이고 바로 고칠 수 있다.
                 버튼 세 개 대신 슬라이더인 이유: 값이 연속이라 손을 대는 동안 화면이
-                계속 반응한다. 다만 **바뀌는 것은 항목이 아니라 시급도다** — 어떤
-                날짜를 넣어도 항목 셋은 같고(정렬이 모든 항목에서 같은 D-day를 빼므로
-                상대 순서가 고정), 날짜가 실제로 가르는 것은 "시작할 때가 됐는지"와
-                "권장 마감까지 며칠"이다. 화면도 딱 그것만 움직인다. */}
+                계속 반응한다. 날짜가 바뀌면 지금 시작할 항목과 권장 마감까지 남은
+                기간을 다시 계산하고, 가까운 준비부터 세 가지로 추려 보여준다. */}
             <div className="mt-4">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <label

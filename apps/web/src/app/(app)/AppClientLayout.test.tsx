@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   isDemo: true,
   isInitialized: true,
+  userId: "10000000-0000-4000-8000-000000000001" as string | null,
   initializeCalls: [] as Array<{ initialDemo?: boolean } | undefined>,
   authSyncCalls: [] as boolean[],
   pageViewCalls: [] as boolean[],
@@ -64,8 +65,16 @@ vi.mock("@/stores/authStore", () => ({
     isInitialized: mocks.isInitialized,
     isLoading: false,
     isDemo: mocks.isDemo,
+    user: mocks.userId ? { id: mocks.userId } : null,
   }),
 }));
+
+function StatefulPage() {
+  const [draft, setDraft] = useState("empty");
+  return (
+    <button type="button" onClick={() => setDraft("account-a-draft")}>{draft}</button>
+  );
+}
 
 describe("AppClientLayout global Amora panel", () => {
   let root: Root;
@@ -76,6 +85,7 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.searchParams = new URLSearchParams();
     mocks.isDemo = true;
     mocks.isInitialized = true;
+    mocks.userId = "10000000-0000-4000-8000-000000000001";
     mocks.initializeCalls.length = 0;
     mocks.authSyncCalls.length = 0;
     mocks.pageViewCalls.length = 0;
@@ -136,6 +146,32 @@ describe("AppClientLayout global Amora panel", () => {
     await renderLayout();
     expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open"))
       .toBe("false");
+  });
+
+  it("remounts every account-owned page draft when the authenticated user changes", async () => {
+    mocks.isDemo = false;
+    await act(async () => {
+      root.render(
+        <AppClientLayout>
+          <StatefulPage />
+        </AppClientLayout>,
+      );
+    });
+
+    const draftButton = container.querySelector<HTMLButtonElement>("main button");
+    await act(async () => draftButton?.click());
+    expect(container.querySelector("main button")?.textContent).toBe("account-a-draft");
+
+    mocks.userId = "20000000-0000-4000-8000-000000000002";
+    await act(async () => {
+      root.render(
+        <AppClientLayout>
+          <StatefulPage />
+        </AppClientLayout>,
+      );
+    });
+
+    expect(container.querySelector("main button")?.textContent).toBe("empty");
   });
 
   it.each([

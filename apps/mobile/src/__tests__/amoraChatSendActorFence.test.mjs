@@ -40,6 +40,50 @@ test("the send path reuses the same actor rule as approvals", () => {
   );
 });
 
+test("a durable ingest compares the draft actor before starting the mutation", () => {
+  const source = readFileSync(CHAT_SCREEN_PATH, "utf8");
+  const start = source.indexOf("async function requestAiMessageIngest(");
+  assert.ok(start > 0, "requestAiMessageIngest를 찾지 못했다");
+  const end = source.indexOf("async function requestChatStream(", start);
+  assert.ok(end > start, "requestAiMessageIngest의 끝을 찾지 못했다");
+  const ingestPath = source.slice(start, end);
+
+  const sessionRead = ingestPath.indexOf("supabase.auth.getSession()");
+  const actorCheck = ingestPath.indexOf(
+    "assertAmoraRequestActor(draft.userId, sessionData.session?.user.id)",
+  );
+  const mutationStart = ingestPath.indexOf("fetch(`${API_BASE}/api/chat/messages`");
+
+  assert.ok(sessionRead >= 0, "전송 시점의 세션을 읽지 않는다");
+  assert.ok(actorCheck > sessionRead, "초안 작성자와 토큰 주인을 비교하지 않는다");
+  assert.ok(mutationStart > actorCheck, "actor 비교 전에 durable mutation을 시작한다");
+});
+
+test("a durable ingest sends a rollout-safe v2 actor header without changing the legacy body", () => {
+  const source = readFileSync(CHAT_SCREEN_PATH, "utf8");
+  const start = source.indexOf("async function requestAiMessageIngest(");
+  assert.ok(start > 0, "requestAiMessageIngest를 찾지 못했다");
+  const end = source.indexOf("async function requestChatStream(", start);
+  assert.ok(end > start, "requestAiMessageIngest의 끝을 찾지 못했다");
+  const ingestPath = source.slice(start, end);
+
+  assert.match(
+    ingestPath,
+    /"X-Amora-Ingest-Contract-Version": "2"/u,
+    "서버가 v2 actor 계약을 식별할 버전을 보내지 않는다",
+  );
+  assert.match(
+    ingestPath,
+    /"X-Amora-Expected-Actor-User-Id": draft\.userId/u,
+    "서버가 bearer와 비교할 초안 작성자를 헤더로 보내지 않는다",
+  );
+  assert.doesNotMatch(
+    ingestPath,
+    /expectedActorUserId:\s*draft\.userId/u,
+    "구버전 서버의 strict body allowlist를 깨는 actor 필드를 보낸다",
+  );
+});
+
 test("a draft written by A is never sent under B's token", () => {
   const source = readFileSync(CHAT_SCREEN_PATH, "utf8");
   const start = source.indexOf("async function requestChatStream(");
@@ -49,7 +93,7 @@ test("a draft written by A is never sent under B's token", () => {
   const sendPath = source.slice(start, end);
 
   const requirements = [
-    ["작성자 결박 파라미터", /expectedUserId/u],
+    ["작성자 결박 파라미터", /expectedActorUserId: string/u],
     ["첫 전송 전 대조", /assertAmoraRequestActor/u],
     // 갱신은 다른 계정으로 바뀔 수 있는 지점이다. 재시도 전에 다시 본다.
     [
@@ -66,7 +110,7 @@ test("a draft written by A is never sent under B's token", () => {
   }
 });
 
-test("the send call site passes the actor captured on screen", () => {
+test("the send call site reuses the actor captured in the immutable request", () => {
   const source = readFileSync(CHAT_SCREEN_PATH, "utf8");
   // 인자로 넘기는 콜백이 길어 문자 수로 자르면 호출 끝을 놓친다. 호출 구간만 정확히
   // 떼어내 검사한다.
@@ -78,7 +122,38 @@ test("the send call site passes the actor captured on screen", () => {
 
   assert.match(
     callSite,
-    /sessionUserIdRef\.current/u,
-    "전송 호출부가 화면이 캡처한 사용자를 넘기지 않는다",
+    /request\.body[\s\S]*request\.expectedActorUserId/u,
+    "전송 호출부가 불변 요청과 그 작성자를 함께 넘기지 않는다",
   );
+});
+
+test("stream transport keeps the draft owner immutable across the initial request and token refresh", () => {
+  const source = readFileSync(CHAT_SCREEN_PATH, "utf8");
+  const requestTypeStart = source.indexOf("interface AiRequest");
+  const requestTypeEnd = source.indexOf("type ChatSendOperationStopReason", requestTypeStart);
+  const streamStart = source.indexOf("async function requestChatStream(");
+  const streamEnd = source.indexOf("async function requestAmoraSharedActionWithToken(", streamStart);
+  const requestStart = source.indexOf("const request: AiRequest = {");
+  const requestEnd = source.indexOf("const canApplyKnownIngestResult", requestStart);
+
+  assert.ok(requestTypeStart > 0 && requestTypeEnd > requestTypeStart, "채팅 요청 계약을 찾지 못했다");
+  assert.ok(streamStart > 0 && streamEnd > streamStart, "스트림 전송 경로를 찾지 못했다");
+  assert.ok(requestStart > 0 && requestEnd > requestStart, "AI 요청 생성 경로를 찾지 못했다");
+
+  const requestContract = source.slice(requestTypeStart, requestTypeEnd);
+  const streamTransport = source.slice(streamStart, streamEnd);
+  const requestBuilder = source.slice(requestStart, requestEnd);
+
+  assert.match(requestContract, /expectedActorUserId: string/u);
+  assert.match(requestBuilder, /expectedActorUserId: draft\.userId/u);
+  assert.match(
+    streamTransport,
+    /assertAmoraRequestActor\(expectedActorUserId, sessionData\.session\?\.user\.id\)/u,
+  );
+  assert.match(
+    streamTransport,
+    /refreshSession\(\)[\s\S]{0,600}?assertAmoraRequestActor\(expectedActorUserId, refreshed\.session\.user\.id\)/u,
+  );
+  assert.doesNotMatch(streamTransport, /expectedUserId: string \| null/u);
+  assert.doesNotMatch(streamTransport, /sessionUserIdRef\.current/u);
 });

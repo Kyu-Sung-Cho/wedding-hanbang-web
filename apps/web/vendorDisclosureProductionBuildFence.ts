@@ -78,35 +78,10 @@ export function assertVendorDisclosureProductionBuild({
     );
   }
 
-  // ── controller-ready 요구는 **유예 중이다** (2026-08-08) ─────────────────────
-  //
-  // 이 검사는 벤더 공시 v2 릴리스를 위한 것이고, 매니페스트가
-  // `deployment_blocked`인 한 무조건 실패한다. 그 상태를 벗어나려면 호스팅 증거
-  // 5종(backup·storage 각 30분 신선도, hostedStaging, 별도 프로젝트 파괴적
-  // hostedRestore, finalizer 리허설)이 전부 있어야 한다.
-  //
-  // 문제는 이 검사가 **모든 프로덕션 빌드**를 막는다는 것이다. 벤더 공시와 무관한
-  // 변경(아모라, 랜딩)까지 그 릴리스 일정에 묶인다. 실제로 2026-08-08에 아모라
-  // 릴리스가 여기서 막혔고, 그 사이 다른 작업도 전부 배포되지 못했다.
-  //
-  // 이 단계는 2026-08-08 병합으로 **새로 추가된 것**이다. 그전까지 이 펜스는
-  // 정적 계약 + 소유자 서명 2단이었고 프로덕션은 그 기준으로 배포돼 왔다.
-  // 지금은 그 2단 기준으로 되돌려 둔다 — 없애는 게 아니라 **적용을 미루는 것**이다.
-  //
-  // **되살릴 시점**: 벤더 공시 v2를 실제로 공개할 때. 그때 매니페스트가
-  // `controller_ready`가 되고 증거 5종이 채워지므로 이 블록을 그대로 복원하면 된다.
-  // 그전에 복원하면 무엇도 배포할 수 없다.
-  //
-  // 계속 지키는 것: 정적 마이그레이션 계약(위)과 소유자 서명(아래). 즉 매니페스트에
-  // 등록되지 않은 마이그레이션이 섞이거나 소유자가 서명하지 않은 빌드는 여전히 막힌다.
-  const enforceControllerReady = false;
   if (
-    enforceControllerReady
-    && (
-      releaseContract.deploymentBlocked !== false
-      || releaseContract.controllerReady !== true
-      || !releaseContract.controllerManifest
-    )
+    releaseContract.deploymentBlocked !== false
+    || releaseContract.controllerReady !== true
+    || !releaseContract.controllerManifest
   ) {
     blocked(
       VENDOR_DISCLOSURE_CONTROLLER_NOT_READY,

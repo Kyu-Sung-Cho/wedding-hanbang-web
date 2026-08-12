@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 
 // 데모 모드 샘플 데이터
 function buildDemoChecklist(categoryKey: string, completedItemCount: number) {
@@ -159,6 +164,7 @@ interface AuthState {
     updates: Partial<
       Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">
     >,
+    expectedOwnerId: string,
   ) => Promise<JourneyUpdateResult>;
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
@@ -169,9 +175,10 @@ interface AuthState {
       sync_community_nickname?: boolean;
       /** 카톡·문자 케어 수신 동의 — 서버가 동의 시각으로 기록 */
       phone_care_consent?: boolean;
-    }
+    },
+    expectedOwnerId: string,
   ) => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (expectedOwnerId?: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -364,11 +371,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateJourney: async (updates) => {
+  updateJourney: async (updates, initiatingOwnerId) => {
     const { isDemo, journey, user, couple } = get();
+
+    if (!initiatingOwnerId || user?.id !== initiatingOwnerId) {
+      throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+    }
 
     // 데모 모드: 로컬만 업데이트
     if (isDemo) {
+      if (initiatingOwnerId !== "demo") {
+        throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+      }
       journeyWriteSequence += 1;
       const nextJourney = journey
         ? {
@@ -384,6 +398,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       return { status: "applied", journey: nextJourney };
     }
+
+    const expectedUserId = initiatingOwnerId;
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
     // 전체 전송은 이 클라이언트의 스테일 스냅샷으로 파트너/AI의 다른 키 변경을
@@ -423,11 +439,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     body.expected_revision = expectedRevision;
 
     const updateSequence = ++journeyWriteSequence;
-    const expectedUserId = user?.id ?? null;
     try {
       const res = await fetch("/api/journey", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedUserId,
+        },
         body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => null)) as
@@ -453,6 +472,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         && PLAN_CHANGE_REQUEST_ID_PATTERN.test(data.requestId)
         && isPlanChangeSummary(data.summary)
       ) {
+        if (get().user?.id !== expectedUserId) {
+          throw new Error("계정이 바뀌어 저장 결과를 적용하지 않았습니다.");
+        }
         return {
           status: "pending_partner",
           requestId: data.requestId,
@@ -483,16 +505,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error("저장 결과를 안전하게 확인하지 못했습니다.");
       }
       const current = get();
-      const sameUser =
-        expectedUserId === null
-        || current.user?.id === expectedUserId;
+      const sameUser = current.user?.id === expectedUserId;
+      if (!sameUser) {
+        throw new Error("계정이 바뀌어 저장 결과를 적용하지 않았습니다.");
+      }
       if (
         updateSequence === journeyWriteSequence
-        && sameUser
       ) {
         set({ journey: appliedJourney });
-      } else if (sameUser) {
-        void current.refreshJourney(expectedUserId ?? undefined);
+      } else {
+        void current.refreshJourney(expectedUserId);
       }
       return { status: "applied", journey: appliedJourney };
     } catch (err) {
@@ -501,10 +523,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateProfile: async (updates) => {
-    const { isDemo, profile } = get();
+  updateProfile: async (updates, initiatingOwnerId) => {
+    const { isDemo, profile, user } = get();
+
+    if (!initiatingOwnerId || user?.id !== initiatingOwnerId) {
+      throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+    }
 
     if (isDemo) {
+      if (initiatingOwnerId !== "demo") {
+        throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+      }
       const nextProfile = profile ? { ...profile, ...updates } : null;
       set({ profile: nextProfile });
       if (updates.sync_community_nickname && nextProfile?.name) {
@@ -513,10 +542,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    const expectedUserId = initiatingOwnerId;
+    if (
+      profile?.id !== expectedUserId
+    ) {
+      throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+    }
+
     try {
       const res = await fetch("/api/profile", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedUserId,
+        },
         body: JSON.stringify(updates),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -527,6 +567,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
       if (data.profile) {
+        const current = get();
+        if (
+          data.profile.id !== expectedUserId
+          || current.user?.id !== expectedUserId
+          || current.profile?.id !== expectedUserId
+        ) {
+          throw new Error("계정이 바뀌어 저장 결과를 적용하지 않았습니다.");
+        }
         set({ profile: data.profile });
         if (updates.sync_community_nickname) {
           useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
@@ -538,8 +586,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signOut: async () => {
+  signOut: async (expectedOwnerId) => {
     const supabase = createClient();
+    if (expectedOwnerId) {
+      const storeOwnerId = get().user?.id ?? null;
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      const sessionOwnerId = data.session?.user.id ?? null;
+      const latestStoreOwnerId = get().user?.id ?? null;
+      if (
+        (storeOwnerId !== null && storeOwnerId !== expectedOwnerId)
+        || (sessionOwnerId !== null && sessionOwnerId !== expectedOwnerId)
+        || (latestStoreOwnerId !== null && latestStoreOwnerId !== expectedOwnerId)
+      ) {
+        throw new Error("AUTH_SIGN_OUT_OWNER_CHANGED");
+      }
+    }
     // Purge auth and viewer-owned state before I/O so logout cannot paint or
     // refetch the outgoing account while the network request is pending.
     get().reset();

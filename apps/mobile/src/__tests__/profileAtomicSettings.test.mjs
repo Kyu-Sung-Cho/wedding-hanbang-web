@@ -18,7 +18,10 @@ test("mobile settings saves every editable identity and journey field through on
     ),
   );
 
-  assert.match(handleSave, /apiFetch\("\/api\/settings\/wedding-profile"/);
+  assert.match(
+    handleSave,
+    /apiFetchForExpectedUser\(\s*expectedActorUserId,\s*"\/api\/settings\/wedding-profile"/u,
+  );
   assert.equal((handleSave.match(/method:\s*"PATCH"/g) ?? []).length, 1);
   assert.doesNotMatch(handleSave, /\.from\("wedding_journeys"\)/);
   assert.doesNotMatch(handleSave, /parseInt\(/);

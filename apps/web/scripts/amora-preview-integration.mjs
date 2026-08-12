@@ -169,13 +169,20 @@ async function testPartnerRetentionAndConcurrency() {
   const couple = await createCouple(bride, "bride");
   const joined = expectSuccess(
     "join partner",
-    await groom.client.rpc("join_couple", { p_invite_code: couple.invite_code, p_role: "groom" })
+    await admin.rpc("join_couple_server", {
+      p_actor_user_id: groom.id,
+      p_invite_code: couple.invite_code,
+      p_role: "groom",
+    })
   );
   invariant(joined?.success === true && joined?.couple_id === couple.couple_id, "partner join failed");
 
   const durableUserMessage = expectSuccess(
     "insert tool freshness user message",
-    await bride.client.from("chat_messages").insert({
+    // Synthetic setup uses the verified operator/service boundary. Supported
+    // clients must go through POST /api/chat/messages and no longer receive
+    // authenticated table INSERT privileges.
+    await admin.from("chat_messages").insert({
       couple_id: couple.couple_id,
       sender_id: bride.id,
       sender_type: "bride",

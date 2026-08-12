@@ -16,12 +16,22 @@ import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 
 const mockFetch = vi.fn();
 const mockIngestFetch = vi.fn();
+const mockCleanupFetch = vi.fn<(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>>(async () => new Response(JSON.stringify({
+  deleted: [],
+  alreadyAbsent: [],
+}), {
+  status: 200,
+  headers: { "Content-Type": "application/json" },
+}));
 const mockGlobalFetch = vi.fn(
-  (input: RequestInfo | URL, init?: RequestInit) => (
-    String(input) === "/api/chat/messages"
-      ? mockIngestFetch(input, init)
-      : mockFetch(input, init)
-  ),
+  (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === "/api/chat/messages") return mockIngestFetch(input, init);
+    if (String(input) === "/api/chat/image-cleanup") return mockCleanupFetch(input, init);
+    return mockFetch(input, init);
+  },
 );
 const chatStoreSource = readFileSync(
   path.join(process.cwd(), "src/stores/chatStore.ts"),
@@ -123,6 +133,26 @@ const TEST_USER_UUID = "10000000-0000-4000-8000-000000000001";
 const TEST_OTHER_USER_UUID = "10000000-0000-4000-8000-000000000002";
 const TEST_CLIENT_REQUEST_UUID = "30000000-0000-4000-8000-000000000001";
 const TEST_CONFIRMED_ACTION_UUID = "40000000-0000-4000-8000-000000000001";
+
+function cleanupRequestBody(callIndex = 0) {
+  const init = mockCleanupFetch.mock.calls[callIndex]?.[1];
+  if (typeof init?.body !== "string") {
+    throw new Error(`cleanup request ${callIndex} has no JSON body`);
+  }
+  return JSON.parse(init.body) as {
+    coupleId: string;
+    expectedActorUserId: string;
+    paths: string[];
+  };
+}
+
+function expectCleanupPaths(expectedPaths: unknown[], callIndex = 0) {
+  expect(cleanupRequestBody(callIndex)).toEqual({
+    coupleId: TEST_COUPLE_UUID,
+    expectedActorUserId: TEST_USER_UUID,
+    paths: expectedPaths,
+  });
+}
 
 describe("booking projection local sync", () => {
   it("keeps recorded spend and soft-cancels the stable event", () => {
@@ -702,6 +732,8 @@ describe("unanswered Amora turn recovery", () => {
 describe("chat lifecycle isolation", () => {
   beforeEach(() => {
     useChatStore.getState().reset();
+    vi.mocked(captureEvent).mockClear();
+    mockCleanupFetch.mockClear();
     mockFrom.mockReset();
     mockFrom.mockImplementation((table?: string): Record<string, unknown> => {
       void table;
@@ -712,6 +744,7 @@ describe("chat lifecycle isolation", () => {
     mockRealtimeInsertHandler = null;
     mockChannel.mockClear();
     mockRemoveChannel.mockClear();
+    mockFetch.mockReset();
     mockIngestFetch.mockReset();
     mockIngestFetch.mockImplementation(defaultIngestFetch);
     vi.stubGlobal("fetch", mockGlobalFetch);
@@ -749,6 +782,172 @@ describe("chat lifecycle isolation", () => {
     expect(mockIngestFetch).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(useChatStore.getState().isSending).toBe(false);
+  });
+
+  it("binds canonical ingest and provider work to the account that started the send", async () => {
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce(completedChatResponse());
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "계정이 바뀌어도 이 초안의 주인은 고정되어야 해",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "첫 사용자",
+      weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome.userMessage).toBe("persisted");
+    const headers = new Headers(
+      (mockIngestFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+    );
+    expect(headers.get("X-Amora-Ingest-Contract-Version")).toBe("2");
+    expect(headers.get("X-Amora-Expected-Actor-User-Id")).toBe(TEST_USER_UUID);
+    expect(headers.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(headers.get("X-Hanbang-Expected-Actor-User-Id")).toBe(TEST_USER_UUID);
+
+    const providerHeaders = new Headers(
+      (mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+    );
+    expect(providerHeaders.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(providerHeaders.get("X-Hanbang-Expected-Actor-User-Id")).toBe(TEST_USER_UUID);
+  });
+
+  it("does not clear the next account when an old clear response arrives late", async () => {
+    const delayedClear = createDeferredResult<Response>();
+    mockIngestFetch.mockReset();
+    mockIngestFetch.mockReturnValueOnce(delayedClear.promise);
+    const clearing = useChatStore.getState().clearMessages(
+      TEST_COUPLE_UUID,
+      "view_reset_shared",
+    );
+    await vi.waitFor(() => expect(mockIngestFetch).toHaveBeenCalledTimes(1));
+
+    const headers = new Headers(
+      (mockIngestFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+    );
+    expect(headers.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(headers.get("X-Hanbang-Expected-Actor-User-Id")).toBe(TEST_USER_UUID);
+
+    const nextCoupleId = "20000000-0000-4000-8000-000000000002";
+    const nextMessage = {
+      id: "70000000-0000-4000-8000-000000000090",
+      couple_id: nextCoupleId,
+      sender_id: TEST_OTHER_USER_UUID,
+      sender_role: "groom" as const,
+      content: "다음 계정의 대화",
+      metadata: null,
+      visibility: "shared" as const,
+      created_at: "2026-08-12T00:00:00.000Z",
+    };
+    useChatStore.getState().reset();
+    useAuthStore.setState({
+      profile: {
+        id: TEST_OTHER_USER_UUID,
+        name: "다음 사용자",
+        role: "groom",
+        couple_id: nextCoupleId,
+      } as never,
+    });
+    useChatStore.setState({
+      messages: [nextMessage],
+      sharedClearedAt: "2026-08-12T00:01:00.000Z",
+      error: "다음 계정 상태",
+    });
+
+    delayedClear.resolve(new Response(JSON.stringify({
+      success: true,
+      clearedAt: "2026-08-12T00:02:00.000Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await clearing;
+
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [nextMessage],
+      sharedClearedAt: "2026-08-12T00:01:00.000Z",
+      error: "다음 계정 상태",
+    });
+  });
+
+  it("binds a shared-clear request to its frozen account and couple", async () => {
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    await expect(
+      useChatStore.getState().requestSharedClear(TEST_COUPLE_UUID),
+    ).resolves.toEqual({ ok: true });
+
+    const init = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    const headers = new Headers(init?.headers);
+    expect(headers.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(headers.get("X-Hanbang-Expected-Actor-User-Id")).toBe(TEST_USER_UUID);
+    expect(JSON.parse(String(init?.body))).toEqual({
+      action: "request",
+      coupleId: TEST_COUPLE_UUID,
+    });
+  });
+
+  it("does not apply a late shared-clear acceptance to the next account", async () => {
+    const delayedResponse = createDeferredResult<Response>();
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(delayedResponse.promise);
+    const responding = useChatStore.getState().respondToClearRequest(
+      "70000000-0000-4000-8000-000000000091",
+      "accept",
+    );
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const init = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    const headers = new Headers(init?.headers);
+    expect(headers.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(headers.get("X-Hanbang-Expected-Actor-User-Id")).toBe(TEST_USER_UUID);
+    expect(JSON.parse(String(init?.body))).toEqual({
+      action: "accept",
+      messageId: "70000000-0000-4000-8000-000000000091",
+      coupleId: TEST_COUPLE_UUID,
+    });
+
+    const nextCoupleId = "20000000-0000-4000-8000-000000000002";
+    const nextMessage = {
+      id: "70000000-0000-4000-8000-000000000092",
+      couple_id: nextCoupleId,
+      sender_id: TEST_OTHER_USER_UUID,
+      sender_role: "groom" as const,
+      content: "다음 계정의 공유 대화",
+      metadata: null,
+      visibility: "shared" as const,
+      created_at: "2026-08-12T00:03:00.000Z",
+    };
+    useChatStore.getState().reset();
+    useAuthStore.setState({
+      profile: {
+        id: TEST_OTHER_USER_UUID,
+        name: "다음 사용자",
+        role: "groom",
+        couple_id: nextCoupleId,
+      } as never,
+    });
+    useChatStore.setState({
+      messages: [nextMessage],
+      sharedClearedAt: "2026-08-12T00:04:00.000Z",
+    });
+
+    delayedResponse.resolve(new Response(JSON.stringify({
+      success: true,
+      action: "accept",
+      clearedAt: "2026-08-12T00:05:00.000Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await expect(responding).resolves.toEqual({
+      ok: false,
+      error: "계정이 바뀌어 응답 결과를 반영하지 않았어요.",
+    });
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [nextMessage],
+      sharedClearedAt: "2026-08-12T00:04:00.000Z",
+    });
   });
 
   it("fails closed before analytics, upload, or ingest when exact attachment hashing fails", async () => {
@@ -913,8 +1112,7 @@ describe("chat lifecycle isolation", () => {
     const delayedUpload = createDeferredResult<{ error: null }>();
     mockStorageUpload.mockReset();
     mockStorageUpload.mockReturnValueOnce(delayedUpload.promise);
-    mockStorageRemove.mockReset();
-    mockStorageRemove.mockResolvedValueOnce({ error: null });
+    mockCleanupFetch.mockClear();
     mockIngestFetch.mockClear();
     mockFetch.mockReset();
     mockFetch.mockResolvedValue(completedChatResponse("이전 계정의 답변"));
@@ -966,10 +1164,14 @@ describe("chat lifecycle isolation", () => {
     delayedUpload.resolve({ error: null });
     await sending;
 
-    expect(mockStorageRemove).toHaveBeenCalledTimes(1);
-    expect(mockStorageRemove).toHaveBeenCalledWith([
-      expect.stringMatching(new RegExp(`^${TEST_COUPLE_UUID}/${TEST_USER_UUID}/`)),
-    ]);
+    expect(mockCleanupFetch).toHaveBeenCalledTimes(1);
+    const cleanupBody = cleanupRequestBody();
+    expect(cleanupBody).toEqual({
+      coupleId: TEST_COUPLE_UUID,
+      expectedActorUserId: TEST_USER_UUID,
+      paths: [expect.stringMatching(new RegExp(`^${TEST_COUPLE_UUID}/${TEST_USER_UUID}/`))],
+    });
+    expect(mockStorageRemove).not.toHaveBeenCalled();
     expect(mockIngestFetch).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(useChatStore.getState()).toMatchObject({
@@ -1168,11 +1370,10 @@ describe("chat lifecycle isolation", () => {
   });
 
   it("ignores an old server safety result after attachment cleanup crosses sessions", async () => {
-    const delayedCleanup = createDeferredResult<{ error: null }>();
+    const delayedCleanup = createDeferredResult<Response>();
     mockStorageUpload.mockReset();
     mockStorageUpload.mockResolvedValueOnce({ error: null });
-    mockStorageRemove.mockReset();
-    mockStorageRemove.mockReturnValueOnce(delayedCleanup.promise);
+    mockCleanupFetch.mockReturnValueOnce(delayedCleanup.promise);
     mockIngestFetch.mockReset();
     mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({
       outcome: "ephemeral_safety",
@@ -1203,7 +1404,7 @@ describe("chat lifecycle isolation", () => {
       }],
       clientRequestId: TEST_CLIENT_REQUEST_UUID,
     });
-    await vi.waitFor(() => expect(mockStorageRemove).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(mockCleanupFetch).toHaveBeenCalledTimes(1));
 
     useChatStore.getState().reset();
     useAuthStore.setState({
@@ -1232,7 +1433,10 @@ describe("chat lifecycle isolation", () => {
       isSending: true,
     });
 
-    delayedCleanup.resolve({ error: null });
+    delayedCleanup.resolve(new Response(JSON.stringify({
+      deleted: [],
+      alreadyAbsent: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
     await sending;
 
     expect(useChatStore.getState()).toMatchObject({
@@ -1245,11 +1449,10 @@ describe("chat lifecycle isolation", () => {
   });
 
   it("does not append an old persisted row after privacy cleanup crosses sessions", async () => {
-    const delayedCleanup = createDeferredResult<{ error: null }>();
+    const delayedCleanup = createDeferredResult<Response>();
     mockStorageUpload.mockReset();
     mockStorageUpload.mockResolvedValueOnce({ error: null });
-    mockStorageRemove.mockReset();
-    mockStorageRemove.mockReturnValueOnce(delayedCleanup.promise);
+    mockCleanupFetch.mockReturnValueOnce(delayedCleanup.promise);
     mockIngestFetch.mockReset();
     mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({
       content: "서버가 비공개로 전환할 이전 계정 질문",
@@ -1283,7 +1486,7 @@ describe("chat lifecycle isolation", () => {
       }],
       clientRequestId: TEST_CLIENT_REQUEST_UUID,
     });
-    await vi.waitFor(() => expect(mockStorageRemove).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(mockCleanupFetch).toHaveBeenCalledTimes(1));
 
     useChatStore.getState().reset();
     useAuthStore.setState({
@@ -1313,7 +1516,10 @@ describe("chat lifecycle isolation", () => {
       isStreaming: true,
     });
 
-    delayedCleanup.resolve({ error: null });
+    delayedCleanup.resolve(new Response(JSON.stringify({
+      deleted: [],
+      alreadyAbsent: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
     await sending;
 
     expect(mockFetch).not.toHaveBeenCalled();
@@ -1878,6 +2084,7 @@ describe("chat lifecycle isolation", () => {
 describe("Amora crisis reload recovery", () => {
   beforeEach(() => {
     useChatStore.getState().reset();
+    mockCleanupFetch.mockClear();
     mockFetch.mockReset();
     mockIngestFetch.mockClear();
     mockGlobalFetch.mockClear();
@@ -2242,7 +2449,6 @@ describe("Amora crisis reload recovery", () => {
   it("discards an already-uploaded image when the server newly redirects the message to W2 private safety", async () => {
     const content = "Please help me understand this conversation screenshot";
     mockStorageUpload.mockResolvedValueOnce({ error: null });
-    mockStorageRemove.mockResolvedValueOnce({ error: null });
     mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({
       content,
       visibility: "bride_private",
@@ -2283,11 +2489,13 @@ describe("Amora crisis reload recovery", () => {
       safetyPrivacyRedirected: true,
     }));
     expect(mockStorageUpload).toHaveBeenCalledTimes(1);
-    expect(mockStorageRemove).toHaveBeenCalledWith([
+    expect(mockCleanupFetch).toHaveBeenCalledTimes(1);
+    expectCleanupPaths([
       expect.stringMatching(new RegExp(
         `^${TEST_COUPLE_UUID}/${TEST_USER_UUID}/[0-9a-f-]+\\.png$`,
       )),
     ]);
+    expect(mockStorageRemove).not.toHaveBeenCalled();
     const providerPayload = JSON.parse(String(
       (mockFetch.mock.calls.at(-1)?.[1] as RequestInit).body,
     )) as Record<string, unknown>;
@@ -2458,6 +2666,11 @@ describe("useChatStore quota warning", () => {
     });
 
     expect(useChatStore.getState().quotaRemaining).toBeNull();
+    const headers = new Headers(
+      (mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+    );
+    expect(headers.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(headers.get("X-Hanbang-Expected-Actor-User-Id")).toBe("user-1");
   });
 
   it("aborts an initial greeting and preserves the next session on reset", async () => {
@@ -2516,6 +2729,11 @@ describe("useChatStore quota warning", () => {
     });
 
     expect(useChatStore.getState().quotaRemaining).toBeNull();
+    const headers = new Headers(
+      (mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+    );
+    expect(headers.get("X-Hanbang-Mutation-Contract-Version")).toBe("2");
+    expect(headers.get("X-Hanbang-Expected-Actor-User-Id")).toBe("user-1");
   });
 
   it("aborts mediation before stale tool results can mutate the next account", async () => {
@@ -3086,6 +3304,7 @@ describe("useChatStore failed provider retry", () => {
     mockInsertSingle.mockReset();
     mockStorageUpload.mockReset();
     mockStorageRemove.mockReset();
+    mockCleanupFetch.mockClear();
     mockReconcileMaybeSingle.mockReset();
     mockReconcileMaybeSingle.mockResolvedValue({ data: null, error: null });
     mockReconcileQuery.select.mockClear();
@@ -3098,6 +3317,13 @@ describe("useChatStore failed provider retry", () => {
     vi.stubGlobal("fetch", mockGlobalFetch);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     document.cookie = "demo_mode=; Max-Age=0; path=/";
+  });
+
+  it("keeps browser cleanup behind the server boundary instead of direct Storage delete", () => {
+    expect(chatStoreSource).toContain('fetch("/api/chat/image-cleanup"');
+    expect(chatStoreSource).not.toMatch(
+      /\.from\(["']chat-image["']\)\s*\.remove\(/u,
+    );
   });
 
   it("admits only one persistence and provider request on an immediate double tap", async () => {
@@ -3341,6 +3567,7 @@ describe("useChatStore failed provider retry", () => {
       clientRequestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
     expect(mockStorageUpload).toHaveBeenCalledTimes(1);
+    expect(mockCleanupFetch).not.toHaveBeenCalled();
     expect(mockStorageRemove).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -3652,13 +3879,12 @@ describe("useChatStore failed provider retry", () => {
       clientRequestId: TEST_CLIENT_REQUEST_UUID,
     });
     expect(mockStorageUpload).toHaveBeenCalledTimes(2);
-    expect(mockStorageRemove).toHaveBeenCalledTimes(1);
-    expect(mockStorageRemove).toHaveBeenCalledWith([
+    expect(mockCleanupFetch).toHaveBeenCalledTimes(1);
+    expectCleanupPaths([
       mockStorageUpload.mock.calls[0][0],
     ]);
-    expect(mockStorageRemove.mock.calls[0][0]).not.toContain(
-      mockStorageUpload.mock.calls[1][0],
-    );
+    expect(cleanupRequestBody().paths).not.toContain(mockStorageUpload.mock.calls[1][0]);
+    expect(mockStorageRemove).not.toHaveBeenCalled();
     expect(mockIngestFetch).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -3703,9 +3929,11 @@ describe("useChatStore failed provider retry", () => {
         clientRequestId: TEST_CLIENT_REQUEST_UUID,
       });
       expect(mockStorageUpload).toHaveBeenCalledTimes(1);
-      expect(mockStorageRemove).toHaveBeenCalledWith([
+      expect(mockCleanupFetch).toHaveBeenCalledTimes(1);
+      expectCleanupPaths([
         mockStorageUpload.mock.calls[0][0],
       ]);
+      expect(mockStorageRemove).not.toHaveBeenCalled();
       expect(mockIngestFetch).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
     } finally {
@@ -3758,9 +3986,11 @@ describe("useChatStore failed provider retry", () => {
         clientRequestId: TEST_CLIENT_REQUEST_UUID,
       });
       expect(mockStorageUpload).toHaveBeenCalledTimes(1);
-      expect(mockStorageRemove).toHaveBeenCalledWith([
+      expect(mockCleanupFetch).toHaveBeenCalledTimes(1);
+      expectCleanupPaths([
         mockStorageUpload.mock.calls[0][0],
       ]);
+      expect(mockStorageRemove).not.toHaveBeenCalled();
       expect(mockIngestFetch).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
     } finally {
@@ -3804,12 +4034,58 @@ describe("useChatStore failed provider retry", () => {
         reason: "validation",
         clientRequestId: TEST_CLIENT_REQUEST_UUID,
       });
-      expect(mockStorageRemove).toHaveBeenCalledWith([
+      expect(mockCleanupFetch).toHaveBeenCalledTimes(1);
+      expectCleanupPaths([
         mockStorageUpload.mock.calls[0][0],
       ]);
+      expect(mockStorageRemove).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
     },
   );
+
+  it("retries one ambiguous cleanup response with the identical idempotent request", async () => {
+    mockStorageUpload.mockResolvedValueOnce({ error: null });
+    mockCleanupFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "temporarily unavailable" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        deleted: [],
+        alreadyAbsent: [],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      error: "invalid message",
+    }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "review this receipt",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      images: [{
+        base64: "aW1hZ2UtYnl0ZXM=",
+        mediaType: "image/png",
+        previewUrl: "blob:image-preview",
+        fileName: "receipt.png",
+      }],
+    });
+
+    expect(outcome.userMessage).toBe("not_persisted");
+    expect(mockCleanupFetch).toHaveBeenCalledTimes(2);
+    expect(cleanupRequestBody(1)).toEqual(cleanupRequestBody(0));
+    expect(mockStorageRemove).not.toHaveBeenCalled();
+  });
 
   it.each([408, 429, 500])(
     "keeps a newly created image when ingest persistence is uncertain with %s",
@@ -3846,6 +4122,7 @@ describe("useChatStore failed provider retry", () => {
         userMessage: "persistence_unknown",
         clientRequestId: TEST_CLIENT_REQUEST_UUID,
       });
+      expect(mockCleanupFetch).not.toHaveBeenCalled();
       expect(mockStorageRemove).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
     },
@@ -3878,6 +4155,7 @@ describe("useChatStore failed provider retry", () => {
       userMessage: "persistence_unknown",
       clientRequestId: TEST_CLIENT_REQUEST_UUID,
     });
+    expect(mockCleanupFetch).not.toHaveBeenCalled();
     expect(mockStorageRemove).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -3922,6 +4200,7 @@ describe("useChatStore failed provider retry", () => {
       reason: "validation",
       clientRequestId: TEST_CLIENT_REQUEST_UUID,
     });
+    expect(mockCleanupFetch).not.toHaveBeenCalled();
     expect(mockStorageRemove).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });

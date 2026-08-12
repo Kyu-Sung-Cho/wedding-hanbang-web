@@ -17,6 +17,7 @@ import {
   isBodyTooLarge,
   isRecord,
 } from "@/utils/requestValidation";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const PROFILE_READ_COLUMNS =
@@ -132,6 +133,14 @@ export async function PATCH(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const actorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!actorFence.ok) {
+      return NextResponse.json(
+        { error: actorFence.message, code: actorFence.code },
+        { status: actorFence.status },
+      );
     }
     const careAvailability = careAvailabilityFor(user);
 

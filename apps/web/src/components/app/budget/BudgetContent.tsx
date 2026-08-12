@@ -684,6 +684,25 @@ export default function BudgetContent({
   embedded = false,
   paymentLedgerEnabled = false,
 }: BudgetContentProps = {}) {
+  const { user, isDemo } = useAuthStore();
+  const mutationOwnerId = isDemo ? "demo" : user?.id ?? null;
+
+  // 계정 전환 시 A의 편집 입력·삭제 확인·모달을 B 화면으로 넘기지 않는다.
+  return (
+    <OwnedBudgetContent
+      key={mutationOwnerId ?? "signed-out"}
+      embedded={embedded}
+      paymentLedgerEnabled={paymentLedgerEnabled}
+      mutationOwnerId={mutationOwnerId}
+    />
+  );
+}
+
+function OwnedBudgetContent({
+  embedded,
+  paymentLedgerEnabled,
+  mutationOwnerId,
+}: BudgetContentProps & { mutationOwnerId: string | null }) {
   const { journey, updateJourney } = useAuthStore();
 
   const totalBudget = journey?.total_budget ?? 0;
@@ -702,6 +721,13 @@ export default function BudgetContent({
   const [journeyNotice, setJourneyNotice] = useState("");
   const [journeyError, setJourneyError] = useState("");
 
+  const isCurrentMutationOwner = useCallback(() => {
+    const current = useAuthStore.getState();
+    return mutationOwnerId !== null
+      && current.user?.id === mutationOwnerId
+      && (mutationOwnerId === "demo" ? current.isDemo : !current.isDemo);
+  }, [mutationOwnerId]);
+
   const saveJourney = useCallback(
     async (
       updates: Partial<
@@ -714,7 +740,13 @@ export default function BudgetContent({
       setJourneyError("");
       setJourneyNotice("");
       try {
-        const result = await updateJourney(updates);
+        if (!mutationOwnerId || !isCurrentMutationOwner()) {
+          throw new Error("계정이 바뀌어 저장하지 않았습니다. 현재 계정에서 다시 시도해 주세요.");
+        }
+        const result = await updateJourney(updates, mutationOwnerId);
+        if (!isCurrentMutationOwner()) {
+          throw new Error("계정이 바뀌어 저장 결과를 적용하지 않았습니다.");
+        }
         if (result.status === "pending_partner") {
           setJourneyNotice(
             `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`,
@@ -724,15 +756,17 @@ export default function BudgetContent({
         }
         return result;
       } catch (error) {
-        setJourneyError(
-          error instanceof Error
-            ? error.message
-            : "예산 변경을 저장하지 못했습니다.",
-        );
+        if (isCurrentMutationOwner()) {
+          setJourneyError(
+            error instanceof Error
+              ? error.message
+              : "예산 변경을 저장하지 못했습니다.",
+          );
+        }
         throw error;
       }
     },
-    [updateJourney],
+    [isCurrentMutationOwner, mutationOwnerId, updateJourney],
   );
 
 

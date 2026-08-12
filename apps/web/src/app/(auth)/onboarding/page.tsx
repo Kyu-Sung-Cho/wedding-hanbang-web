@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboardingStore";
 import Logo from "@/components/ui/Logo";
@@ -12,45 +12,230 @@ import WeddingStylePreferences from "@/components/onboarding/WeddingStylePrefere
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
+import { copyOwnerBoundInviteCode } from "@/lib/couples/settingsInviteActorFence";
+import { createClient } from "@/lib/supabase/client";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
+
+type OwnerBoundInviteCode = Readonly<{
+  code: string;
+  ownerUserId: string;
+}>;
+
+async function writeClipboardTextWithFallback(
+  value: string,
+  canWriteSensitiveFallback: () => Promise<boolean>,
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return;
+  } catch {
+    // Some webviews and permission policies expose Clipboard but reject it.
+  }
+
+  if (value.length > 0 && !await canWriteSensitiveFallback()) {
+    throw new Error("CLIPBOARD_OWNER_CHANGED");
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = value;
+  textArea.readOnly = true;
+  textArea.tabIndex = -1;
+  document.body.appendChild(textArea);
+  try {
+    textArea.select();
+    if (!document.execCommand("copy")) {
+      throw new Error("CLIPBOARD_FALLBACK_FAILED");
+    }
+  } finally {
+    textArea.remove();
+  }
+}
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [inviteCodeResult, setInviteCodeResult] = useState("");
+  const [inviteCodeResult, setInviteCodeResult] =
+    useState<OwnerBoundInviteCode | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
   const [deferredProgressNotice, setDeferredProgressNotice] = useState("");
+  const [formOwnerUserId, setFormOwnerUserId] = useState<string | null>(null);
+  const [ownerVerification, setOwnerVerification] = useState<
+    "checking" | "ready" | "error"
+  >("checking");
+  const formOwnerUserIdRef = useRef<string | null>(null);
+  const inviteCodeResultRef = useRef<OwnerBoundInviteCode | null>(null);
+  const ownerCheckGenerationRef = useRef(0);
+  const submissionGenerationRef = useRef(0);
+
+  const clearOwnerBoundInviteResult = useCallback((
+    expectedResult?: OwnerBoundInviteCode,
+  ) => {
+    if (expectedResult && inviteCodeResultRef.current !== expectedResult) return;
+    inviteCodeResultRef.current = null;
+    setInviteCodeResult(null);
+    setShowInviteModal(false);
+    setCodeCopied(false);
+  }, []);
+
+  const clearAccountOwnedOnboardingState = useCallback(() => {
+    submissionGenerationRef.current += 1;
+    useOnboardingStore.getState().clearOwner();
+    formOwnerUserIdRef.current = null;
+    setFormOwnerUserId(null);
+    setLoading(false);
+    setError("");
+    clearOwnerBoundInviteResult();
+    setPendingPlanNotice("");
+    setDeferredProgressNotice("");
+  }, [clearOwnerBoundInviteResult]);
+
+  const reconcileOnboardingOwner = useCallback(async () => {
+    const generation = ownerCheckGenerationRef.current + 1;
+    ownerCheckGenerationRef.current = generation;
+    const previousOwnerUserId = useOnboardingStore.getState().ownerUserId;
+
+    // focus/visibility 복귀 때 서버 owner가 확인되기 전에는 A의 폼을 숨긴다.
+    formOwnerUserIdRef.current = null;
+    setFormOwnerUserId(null);
+    setOwnerVerification("checking");
+
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      if (ownerCheckGenerationRef.current !== generation) return;
+      if (!res.ok) {
+        clearAccountOwnedOnboardingState();
+        window.location.href = "/login";
+        return;
+      }
+
+      const data = await res.json();
+      if (ownerCheckGenerationRef.current !== generation) return;
+      const ownerUserId = typeof data.user?.id === "string" ? data.user.id : null;
+      if (!ownerUserId) {
+        clearAccountOwnedOnboardingState();
+        window.location.href = "/login";
+        return;
+      }
+
+      if (previousOwnerUserId !== null && previousOwnerUserId !== ownerUserId) {
+        clearAccountOwnedOnboardingState();
+      }
+      useOnboardingStore.getState().bindOwner(ownerUserId);
+      formOwnerUserIdRef.current = ownerUserId;
+      setFormOwnerUserId(ownerUserId);
+      setError("");
+      setOwnerVerification("ready");
+
+      if (data.profile?.onboarding_completed) {
+        document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+        window.location.href = getAuthRedirectPath(
+          window.location.search,
+          window.location.origin,
+        );
+      }
+    } catch {
+      if (ownerCheckGenerationRef.current !== generation) return;
+      setOwnerVerification("error");
+      setError("계정을 안전하게 확인하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.");
+    }
+  }, [clearAccountOwnedOnboardingState]);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
-    const checkProfile = async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (!res.ok) {
-          window.location.href = "/login";
-          return;
-        }
-        const data = await res.json();
-        if (!data.profile) {
-          return; // 프로필 없으면 온보딩 진행
-        }
-        if (data.profile.onboarding_completed) {
-          document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-          window.location.href = getAuthRedirectPath(
-            window.location.search,
-            window.location.origin,
-          );
-        }
-      } catch {
-        // 에러 시 온보딩 계속 진행
+    const supabase = createClient();
+    void reconcileOnboardingOwner();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentOwnerUserId = useOnboardingStore.getState().ownerUserId;
+        const nextOwnerUserId = session?.user.id ?? null;
+        if (currentOwnerUserId === nextOwnerUserId) return;
+
+        // Auth event는 비동기 재확인보다 먼저 A의 초안·결과를 폐기한다.
+        ownerCheckGenerationRef.current += 1;
+        clearAccountOwnedOnboardingState();
+        setOwnerVerification("checking");
+        void reconcileOnboardingOwner();
+      },
+    );
+
+    const handleOwnerFocus = () => {
+      void reconcileOnboardingOwner();
+    };
+
+    const handleOwnerVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void reconcileOnboardingOwner();
+      } else {
+        formOwnerUserIdRef.current = null;
+        setFormOwnerUserId(null);
+        setOwnerVerification("checking");
       }
     };
-    checkProfile();
-  }, []);
+
+    window.addEventListener("focus", handleOwnerFocus);
+    document.addEventListener("visibilitychange", handleOwnerVisibility);
+
+    return () => {
+      ownerCheckGenerationRef.current += 1;
+      formOwnerUserIdRef.current = null;
+      subscription.unsubscribe();
+      window.removeEventListener("focus", handleOwnerFocus);
+      document.removeEventListener("visibilitychange", handleOwnerVisibility);
+    };
+  }, [clearAccountOwnedOnboardingState, reconcileOnboardingOwner]);
+
+  const formOwnerReady =
+    ownerVerification === "ready"
+    && formOwnerUserId !== null
+    && formOwnerUserIdRef.current === formOwnerUserId;
+  const inviteCodeForCurrentOwner =
+    formOwnerReady
+    && inviteCodeResult !== null
+    && inviteCodeResultRef.current === inviteCodeResult
+    && inviteCodeResult.ownerUserId === formOwnerUserId
+    && store.ownerUserId === formOwnerUserId
+      ? inviteCodeResult.code
+      : null;
+
+  if (!formOwnerReady) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
+        <div className="w-full max-w-[480px] text-center">
+          <Logo size="md" />
+          <div className="mt-8 rounded-3xl border border-black/[0.04] bg-white/80 p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur-[20px]">
+            <h1 className="text-[18px] font-semibold text-noir-800">
+              {ownerVerification === "error"
+                ? "계정을 확인하지 못했어요"
+                : "계정을 안전하게 확인하고 있어요"}
+            </h1>
+            <p className="mt-3 text-[13px] leading-relaxed text-taupe-500">
+              확인이 끝나기 전에는 이전 계정의 입력을 화면에 표시하지 않아요.
+            </p>
+            {ownerVerification === "error" && (
+              <button
+                type="button"
+                onClick={() => void reconcileOnboardingOwner()}
+                className="mt-6 w-full rounded-2xl bg-[#795252] py-3 text-[14px] font-medium text-white transition-colors hover:bg-[#946a6a]"
+              >
+                다시 확인하기
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const canProceed = () => {
+    if (!formOwnerUserId) return false;
     switch (store.currentStep) {
       case 1:
         return store.role !== null;
@@ -89,6 +274,17 @@ export default function OnboardingPage() {
   };
 
   const handleSubmit = async () => {
+    const expectedActorUserId = formOwnerUserIdRef.current;
+    if (!expectedActorUserId) {
+      setError("계정을 확인하지 못했어요. 다시 로그인한 뒤 이어가 주세요.");
+      return;
+    }
+    const submissionGeneration = submissionGenerationRef.current + 1;
+    submissionGenerationRef.current = submissionGeneration;
+    const submissionOwnerStillCurrent = () => (
+      submissionGenerationRef.current === submissionGeneration
+      && formOwnerUserIdRef.current === expectedActorUserId
+    );
     setLoading(true);
     setError("");
 
@@ -113,7 +309,11 @@ export default function OnboardingPage() {
 
       const res = await fetch("/api/onboarding", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+        },
         body: JSON.stringify({
           role: store.role,
           coupleAction: store.coupleAction,
@@ -129,7 +329,23 @@ export default function OnboardingPage() {
         }),
       });
 
+      const ownerResponse = await fetch("/api/auth/me", { cache: "no-store" });
+      const ownerData = ownerResponse.ok ? await ownerResponse.json() : null;
+      if (
+        !submissionOwnerStillCurrent()
+        || ownerData?.user?.id !== expectedActorUserId
+      ) {
+        // 서버 세션이 먼저 바뀌고 auth event가 늦게 온 경우에도 A의 상태를 즉시 폐기한다.
+        if (formOwnerUserIdRef.current === expectedActorUserId) {
+          clearAccountOwnedOnboardingState();
+          setOwnerVerification("checking");
+          void reconcileOnboardingOwner();
+        }
+        return;
+      }
+
       const data = await res.json();
+      if (!submissionOwnerStillCurrent()) return;
 
       if (!res.ok) {
         setError(data.error ?? "온보딩 저장에 실패했습니다.");
@@ -140,7 +356,12 @@ export default function OnboardingPage() {
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
       if (typeof data.inviteCode === "string") {
-        setInviteCodeResult(data.inviteCode);
+        const ownerBoundInviteCode = {
+          code: data.inviteCode,
+          ownerUserId: expectedActorUserId,
+        } satisfies OwnerBoundInviteCode;
+        inviteCodeResultRef.current = ownerBoundInviteCode;
+        setInviteCodeResult(ownerBoundInviteCode);
       }
 
       const isPendingPartner =
@@ -170,9 +391,12 @@ export default function OnboardingPage() {
         );
       }
     } catch {
+      if (formOwnerUserIdRef.current !== expectedActorUserId) return;
       setError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
-      setLoading(false);
+      if (submissionGenerationRef.current === submissionGeneration) {
+        setLoading(false);
+      }
     }
   };
 
@@ -181,33 +405,128 @@ export default function OnboardingPage() {
     await handleSubmit();
   };
 
-  const handleCopyCode = async () => {
+  const verifyCanonicalOnboardingOwner = async (expectedOwnerUserId: string) => {
+    const localOwnerStillCurrent = () => (
+      formOwnerUserId === expectedOwnerUserId
+      && formOwnerUserIdRef.current === expectedOwnerUserId
+      && useOnboardingStore.getState().ownerUserId === expectedOwnerUserId
+    );
+    if (!localOwnerStillCurrent()) return false;
+
     try {
-      await navigator.clipboard.writeText(inviteCodeResult);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
+      const ownerResponse = await fetch("/api/auth/me", { cache: "no-store" });
+      const ownerData = ownerResponse.ok ? await ownerResponse.json() : null;
+      const canonicalOwnerUserId = typeof ownerData?.user?.id === "string"
+        ? ownerData.user.id
+        : null;
+      if (
+        canonicalOwnerUserId !== expectedOwnerUserId
+        || !localOwnerStillCurrent()
+      ) {
+        if (localOwnerStillCurrent()) {
+          clearAccountOwnedOnboardingState();
+          setOwnerVerification("checking");
+          void reconcileOnboardingOwner();
+        }
+        return false;
+      }
+      return true;
     } catch {
-      // fallback
-      const textArea = document.createElement("textarea");
-      textArea.value = inviteCodeResult;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
+      return false;
     }
   };
 
-  const continueAfterPendingPlan = () => {
+  const handleCopyCode = async () => {
+    const resultToCopy = inviteCodeResult;
+    if (!resultToCopy) return;
+
+    const resultOwnerStillCurrent = () => (
+      inviteCodeResultRef.current === resultToCopy
+      && formOwnerUserId === resultToCopy.ownerUserId
+      && formOwnerUserIdRef.current === resultToCopy.ownerUserId
+      && useOnboardingStore.getState().ownerUserId === resultToCopy.ownerUserId
+    );
+
+    try {
+      const didCopy = await copyOwnerBoundInviteCode({
+        connectionOwnerId: resultToCopy.ownerUserId,
+        inviteCode: resultToCopy.code,
+        readCurrentSettingsOwner: () => (
+          resultOwnerStillCurrent() ? resultToCopy.ownerUserId : null
+        ),
+        readAuthenticatedOwner: async () => (
+          await verifyCanonicalOnboardingOwner(resultToCopy.ownerUserId)
+            ? resultToCopy.ownerUserId
+            : null
+        ),
+        writeText: (value) => writeClipboardTextWithFallback(value, async () => (
+          resultOwnerStillCurrent()
+          && await verifyCanonicalOnboardingOwner(resultToCopy.ownerUserId)
+          && resultOwnerStillCurrent()
+        )),
+        purgeOwnerBoundSecret: () => clearOwnerBoundInviteResult(resultToCopy),
+      });
+      if (!didCopy) return;
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      // Clipboard failures remain unacknowledged. The shared fence separately
+      // purges and clears any secret copied during a late account switch.
+    }
+  };
+
+  const continueAfterPendingPlan = async () => {
+    const expectedOwnerUserId = formOwnerUserId;
+    if (
+      !expectedOwnerUserId
+      || !await verifyCanonicalOnboardingOwner(expectedOwnerUserId)
+    ) {
+      if (inviteCodeResult) clearOwnerBoundInviteResult(inviteCodeResult);
+      setPendingPlanNotice("");
+      setDeferredProgressNotice("");
+      return;
+    }
     setPendingPlanNotice("");
     setDeferredProgressNotice("");
-    if (inviteCodeResult && store.coupleAction === "create") {
+    if (store.coupleAction === "create") {
+      if (!inviteCodeForCurrentOwner) {
+        if (inviteCodeResult) clearOwnerBoundInviteResult(inviteCodeResult);
+        return;
+      }
       setShowInviteModal(true);
       return;
     }
     window.location.href = getAuthRedirectPath(
       getCompletionRedirectSearch(),
+      window.location.origin,
+    );
+  };
+
+  const continueAfterInviteResult = async () => {
+    const resultToContinue = inviteCodeResult;
+    if (
+      !resultToContinue
+      || inviteCodeResultRef.current !== resultToContinue
+      || formOwnerUserIdRef.current !== resultToContinue.ownerUserId
+      || useOnboardingStore.getState().ownerUserId !== resultToContinue.ownerUserId
+    ) {
+      if (resultToContinue) clearOwnerBoundInviteResult(resultToContinue);
+      return;
+    }
+    if (!await verifyCanonicalOnboardingOwner(resultToContinue.ownerUserId)) {
+      clearOwnerBoundInviteResult(resultToContinue);
+      return;
+    }
+    if (
+      inviteCodeResultRef.current !== resultToContinue
+      || formOwnerUserIdRef.current !== resultToContinue.ownerUserId
+      || useOnboardingStore.getState().ownerUserId !== resultToContinue.ownerUserId
+    ) {
+      clearOwnerBoundInviteResult(resultToContinue);
+      return;
+    }
+    window.location.href = getAuthRedirectPath(
+      window.location.search,
       window.location.origin,
     );
   };
@@ -409,7 +728,7 @@ export default function OnboardingPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showInviteModal && (
+        {showInviteModal && inviteCodeForCurrentOwner && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -443,7 +762,7 @@ export default function OnboardingPage() {
 
               <div className="bg-ivory-100 rounded-2xl p-5 mb-5">
                 <p className="text-[28px] font-mono font-bold text-noir-800 tracking-[0.15em]">
-                  {inviteCodeResult}
+                  {inviteCodeForCurrentOwner}
                 </p>
               </div>
 
@@ -459,12 +778,7 @@ export default function OnboardingPage() {
               </button>
 
               <button
-                onClick={() => {
-                  window.location.href = getAuthRedirectPath(
-                    window.location.search,
-                    window.location.origin,
-                  );
-                }}
+                onClick={continueAfterInviteResult}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >
                 결혼 준비 계속하기

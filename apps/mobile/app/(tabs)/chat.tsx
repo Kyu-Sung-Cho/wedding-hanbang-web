@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  Keyboard, KeyboardAvoidingView, Modal, Platform, Animated, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
+import * as SecureStore from "expo-secure-store";
+import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock, RotateCcw, Square, Users } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import type {
   BudgetImpactPreview,
@@ -64,12 +65,92 @@ const PARTNER_CONNECTION_CHANGED_NOTICE =
 const NEW_CHAT_MESSAGE_REQUIRED_NOTICE =
   "같은 요청을 다시 보내도 해결되지 않아요. 내용을 확인한 뒤 새 메시지로 보내주세요.";
 
+function normalizeAmoraSharedSendIdentity(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(normalized)) {
+    throw new Error("AMORA_SHARED_SEND_IDENTITY_INVALID");
+  }
+  return normalized;
+}
+
+function amoraSharedSendAcknowledgementKey(userId: string, coupleId: string): string {
+  const ownerKey = normalizeAmoraSharedSendIdentity(userId).replaceAll("-", "");
+  const coupleKey = normalizeAmoraSharedSendIdentity(coupleId).replaceAll("-", "");
+  return `amora_shared_send_ack_v1_${ownerKey}_${coupleKey}`;
+}
+
+function createAmoraSharedSendAcknowledgement(userId: string, coupleId: string) {
+  return {
+    version: 1,
+    userId: normalizeAmoraSharedSendIdentity(userId),
+    coupleId: normalizeAmoraSharedSendIdentity(coupleId),
+    confirmed: true,
+  } as const;
+}
+
+function parseAmoraSharedSendAcknowledgement(
+  raw: string | null,
+  expectedUserId: string,
+  expectedCoupleId: string,
+): boolean {
+  if (typeof raw !== "string" || raw.length === 0 || raw.length > 512) return false;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (
+    Object.keys(record).sort().join(",") !== "confirmed,coupleId,userId,version"
+    || record.version !== 1
+    || record.confirmed !== true
+  ) return false;
+  try {
+    return normalizeAmoraSharedSendIdentity(String(record.userId))
+      === normalizeAmoraSharedSendIdentity(expectedUserId)
+      && normalizeAmoraSharedSendIdentity(String(record.coupleId))
+      === normalizeAmoraSharedSendIdentity(expectedCoupleId);
+  } catch {
+    return false;
+  }
+}
+
+async function loadAmoraSharedSendAcknowledgement(
+  userId: string,
+  coupleId: string,
+): Promise<boolean> {
+  const raw = await SecureStore.getItemAsync(
+    amoraSharedSendAcknowledgementKey(userId, coupleId),
+  );
+  return parseAmoraSharedSendAcknowledgement(raw, userId, coupleId);
+}
+
+async function saveAmoraSharedSendAcknowledgement(
+  userId: string,
+  coupleId: string,
+): Promise<void> {
+  await SecureStore.setItemAsync(
+    amoraSharedSendAcknowledgementKey(userId, coupleId),
+    JSON.stringify(createAmoraSharedSendAcknowledgement(userId, coupleId)),
+    { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
+  );
+}
+
 interface ToolExecutionResult {
   toolName: string;
   toolInput: Record<string, unknown>;
   toolOutput: Record<string, unknown>;
   success: boolean;
   displayMessage: string;
+}
+
+interface MobileToolReceipt {
+  toolName: string;
+  title: string;
+  success: boolean;
+  message: string;
 }
 
 interface ChatMessageMetadata {
@@ -179,10 +260,81 @@ interface EphemeralSafetyPersistencePresentation {
 
 interface AiRequest {
   body: ChatRequestBody;
+  expectedActorUserId: string;
   tempId: string;
   serverRequestKey: string;
   lane: Exclude<AmoraChatLane, "shared_partner">;
   sessionGeneration: number;
+}
+
+type ChatSendOperationStopReason = "user" | "session" | "superseded" | null;
+type ChatSendOperationPhase = "preflight" | "ingest" | "ingest_result" | "stream";
+
+interface ChatSendOperation {
+  controller: AbortController;
+  sessionGeneration: number;
+  phase: ChatSendOperationPhase;
+  stopReason: ChatSendOperationStopReason;
+}
+
+interface ChatSendOperationGuard {
+  start: (sessionGeneration: number) => ChatSendOperation;
+  stopActive: (reason: Exclude<ChatSendOperationStopReason, null>) => ChatSendOperation | null;
+  finish: (operation: ChatSendOperation) => boolean;
+  current: () => ChatSendOperation | null;
+}
+
+interface AmoraSharedSendAcknowledgementSession {
+  userId: string;
+  coupleId: string;
+  confirmed: boolean;
+}
+
+interface PendingSharedSendConfirmation {
+  userId: string;
+  coupleId: string;
+  sessionGeneration: number;
+  sourceLane: AmoraChatLane;
+  text: string;
+  saving: boolean;
+  error: string | null;
+}
+
+function createChatSendOperationGuard(): ChatSendOperationGuard {
+  let activeOperation: ChatSendOperation | null = null;
+  return {
+    start(sessionGeneration) {
+      if (activeOperation) {
+        if (activeOperation.stopReason === null) {
+          activeOperation.stopReason = "superseded";
+        }
+        activeOperation.controller.abort();
+      }
+      const operation: ChatSendOperation = {
+        controller: new AbortController(),
+        sessionGeneration,
+        phase: "preflight",
+        stopReason: null,
+      };
+      activeOperation = operation;
+      return operation;
+    },
+    stopActive(reason) {
+      if (!activeOperation) return null;
+      const operation = activeOperation;
+      operation.stopReason = reason;
+      operation.controller.abort();
+      return operation;
+    },
+    finish(operation) {
+      if (activeOperation !== operation) return false;
+      activeOperation = null;
+      return true;
+    },
+    current() {
+      return activeOperation;
+    },
+  };
 }
 
 interface PartnerDraft {
@@ -205,6 +357,7 @@ type SendFailure =
       message: string;
       draft: PartnerDraft;
       canRetry: boolean;
+      requiresReconciliation: boolean;
       unavailableReason: string | null;
     }
   | {
@@ -212,6 +365,7 @@ type SendFailure =
       message: string;
       draft: AiDraft;
       canRetry: boolean;
+      requiresReconciliation: boolean;
       unavailableReason: string | null;
     }
   | {
@@ -219,6 +373,7 @@ type SendFailure =
       message: string;
       request: AiRequest;
       canRetry: boolean;
+      requiresReconciliation: boolean;
       unavailableReason: string | null;
     };
 
@@ -510,6 +665,23 @@ class AiMessageIngestError extends Error {
   }
 
   public readonly retryable: boolean;
+}
+
+function getAiMessageIngestRecovery(
+  error: unknown,
+  allowUnknownRetry: boolean,
+): { canRetry: boolean; requiresReconciliation: boolean } {
+  if (error instanceof AiMessageIngestError) {
+    const requiresReconciliation = error.retryPolicy === "same_request";
+    return {
+      canRetry: requiresReconciliation,
+      requiresReconciliation,
+    };
+  }
+  return {
+    canRetry: allowUnknownRetry,
+    requiresReconciliation: false,
+  };
 }
 
 function parseRetryAfterMs(
@@ -827,6 +999,99 @@ function mergeToolResults(
     merged.push(result);
   }
   return merged;
+}
+
+function getMobileToolReceiptTitle(toolName: string): string {
+  if (toolName === "update_budget") return "예산 변경";
+  if (toolName === "update_schedule_event") return "일정 변경";
+  if (toolName === "add_amora_action") return "아모라 행동 저장";
+  if (toolName === "create_booking") return "아모라 예약 요청 기록";
+  return "작업 결과";
+}
+
+function containsInternalToolIdentifier(
+  result: ToolExecutionResult,
+  message: string,
+): boolean {
+  const inputIdentifiers = Object.entries(result.toolInput)
+    .filter(([key, value]) =>
+      /(?:^|_)(?:id|uuid)$/i.test(key)
+      && typeof value === "string"
+      && value.length > 0
+    )
+    .map(([, value]) => value as string);
+  return /\b(?:ID|UUID)\s*:/i.test(message)
+    || /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(message)
+    || /\b(?:act|booking|evt|msg|req|request|action)[_-][A-Za-z0-9_-]{6,}\b/i.test(message)
+    || inputIdentifiers.some((identifier) => message.includes(identifier));
+}
+
+function getUserFacingToolDisplayMessage(result: ToolExecutionResult): string {
+  const message = result.displayMessage.trim();
+  if (!message || !containsInternalToolIdentifier(result, message)) return message;
+  if (result.success) return "요청한 작업을 완료했어요.";
+  if (result.toolName === "update_schedule_event") {
+    return "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.";
+  }
+  if (result.toolName === "cancel_schedule_event") {
+    return "취소할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.";
+  }
+  if (result.toolName === "restore_schedule_event") {
+    return "복원할 취소 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.";
+  }
+  if (result.toolName === "delete_schedule_event") {
+    return "일정 삭제는 지원하지 않아요. 일정 목록에서 취소를 다시 선택해 주세요.";
+  }
+  if (result.toolName === "toggle_checklist_item") {
+    return "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.";
+  }
+  return "요청한 항목을 찾지 못했어요. 목록을 새로 불러온 뒤 다시 시도해 주세요.";
+}
+
+function getMobileChatMessagePresentation(
+  message: Pick<ChatMessage, "id" | "sender_type" | "content" | "metadata">,
+  streaming: boolean,
+): {
+  placeResults: ToolExecutionResult[];
+  receipts: MobileToolReceipt[];
+  hasPlaceResults: boolean;
+  isThinking: boolean;
+  shouldRenderBubble: boolean;
+} {
+  const toolResults = message.sender_type === "ai"
+    ? mergeToolResults([], message.metadata?.toolResults ?? [])
+    : [];
+  const placeResults = toolResults.filter(
+    (result) => result.toolName === "search_nearby_places",
+  );
+  const receipts = toolResults.flatMap((result): MobileToolReceipt[] => {
+    if (result.toolName === "search_nearby_places" || result.toolName === "get_wedding_info") {
+      return [];
+    }
+    const receiptMessage = getUserFacingToolDisplayMessage(result);
+    if (!receiptMessage) return [];
+    return [{
+      toolName: result.toolName,
+      title: getMobileToolReceiptTitle(result.toolName),
+      success: result.success,
+      message: receiptMessage,
+    }];
+  });
+  const hasPlaceResults = placeResults.length > 0;
+  const hasReceipts = receipts.length > 0;
+  const isThinking = message.sender_type === "ai"
+    && message.id.startsWith("temp_")
+    && !message.content
+    && !hasPlaceResults
+    && !hasReceipts
+    && streaming;
+  return {
+    placeResults,
+    receipts,
+    hasPlaceResults,
+    isThinking,
+    shouldRenderBubble: isThinking || Boolean(message.content.trim()),
+  };
 }
 
 function asChatMessageMetadata(value: unknown): ChatMessageMetadata | null {
@@ -1257,6 +1522,7 @@ function streamChatWithXhr(
   onUpdate: ChatStreamUpdateCallback,
   onQuota: (remaining: number) => void,
   onDoneMetadata: (metadata: Record<string, unknown>) => void,
+  expectedActorUserId: string,
 ): Promise<ChatStreamCompletion> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
@@ -1297,6 +1563,11 @@ function streamChatWithXhr(
     xhr.open("POST", `${API_BASE}/api/chat`, true);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    xhr.setRequestHeader("X-Hanbang-Mutation-Contract-Version", "2");
+    xhr.setRequestHeader(
+      "X-Hanbang-Expected-Actor-User-Id",
+      expectedActorUserId,
+    );
     xhr.timeout = CHAT_REQUEST_TIMEOUT_MS;
     xhr.onprogress = consumeAvailableText;
     xhr.onload = () => {
@@ -1358,14 +1629,22 @@ function waitForUnlessAborted<T>(operation: PromiseLike<T>, signal: AbortSignal)
 
 async function requestAiMessageIngest(
   draft: AiDraft | PartnerDraft,
+  operationSignal?: AbortSignal,
 ): Promise<AiMessageIngestResult> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   if (sessionError || !accessToken) {
     throw new AiMessageIngestError(401, "AUTH_REQUIRED", "new_message");
   }
+  assertAmoraRequestActor(draft.userId, sessionData.session?.user.id);
 
   const controller = new AbortController();
+  const abortForOperation = () => controller.abort();
+  if (operationSignal?.aborted) {
+    controller.abort();
+  } else {
+    operationSignal?.addEventListener("abort", abortForOperation, { once: true });
+  }
   const timeout = setTimeout(() => controller.abort(), CHAT_INGEST_TIMEOUT_MS);
   let response: Response;
   try {
@@ -1374,6 +1653,10 @@ async function requestAiMessageIngest(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
+        "X-Amora-Ingest-Contract-Version": "2",
+        "X-Amora-Expected-Actor-User-Id": draft.userId,
+        "X-Hanbang-Mutation-Contract-Version": "2",
+        "X-Hanbang-Expected-Actor-User-Id": draft.userId,
       },
       body: JSON.stringify({
         coupleId: draft.coupleId,
@@ -1394,6 +1677,7 @@ async function requestAiMessageIngest(
     throw new AiMessageIngestError(null, null, "same_request");
   } finally {
     clearTimeout(timeout);
+    operationSignal?.removeEventListener("abort", abortForOperation);
   }
 
   let payload: unknown = null;
@@ -1434,7 +1718,7 @@ async function requestChatStream(
   onUpdate: ChatStreamUpdateCallback,
   onQuota: (remaining: number) => void,
   onDoneMetadata: (metadata: Record<string, unknown>) => void,
-  expectedUserId: string | null,
+  expectedActorUserId: string,
 ): Promise<ChatStreamCompletion> {
   const { data: sessionData } = await waitForUnlessAborted(
     supabase.auth.getSession(),
@@ -1442,12 +1726,20 @@ async function requestChatStream(
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
   // 쓴 사람과 지금 토큰의 주인이 다르면 보내지 않는다. 저장된 뒤에 되돌릴 수 없다.
-  assertAmoraRequestActor(expectedUserId, sessionData.session?.user.id);
+  assertAmoraRequestActor(expectedActorUserId, sessionData.session?.user.id);
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new ChatTransportError("AUTH");
 
   try {
-    return await streamChatWithXhr(body, accessToken, signal, onUpdate, onQuota, onDoneMetadata);
+    return await streamChatWithXhr(
+      body,
+      accessToken,
+      signal,
+      onUpdate,
+      onQuota,
+      onDoneMetadata,
+      expectedActorUserId,
+    );
   } catch (error) {
     if (!(error instanceof ChatTransportError) || error.status !== 401 || signal.aborted) {
       throw error;
@@ -1462,7 +1754,7 @@ async function requestChatStream(
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
   if (refreshError || !refreshed.session?.access_token) throw new ChatTransportError("AUTH");
   // 세션 갱신은 다른 계정으로 바뀔 수 있는 지점이므로 재시도 전에 다시 대조한다.
-  assertAmoraRequestActor(expectedUserId, refreshed.session.user.id);
+  assertAmoraRequestActor(expectedActorUserId, refreshed.session.user.id);
   return streamChatWithXhr(
     body,
     refreshed.session.access_token,
@@ -1470,6 +1762,7 @@ async function requestChatStream(
     onUpdate,
     onQuota,
     onDoneMetadata,
+    expectedActorUserId,
   );
 }
 
@@ -1662,6 +1955,43 @@ function ThinkingDots() {
   );
 }
 
+function getMobileToolReceiptStatusLabel(receipt: MobileToolReceipt): string {
+  if (!receipt.success) return "작업 실패";
+  if (receipt.toolName === "create_booking") return "예약 요청 기록 완료";
+  if (receipt.toolName === "cancel_booking") return "예약 취소 기록 완료";
+  return "작업 완료";
+}
+
+function MobileToolReceiptCard({ receipt }: { receipt: MobileToolReceipt }) {
+  const statusLabel = getMobileToolReceiptStatusLabel(receipt);
+  const statusColor = receipt.success ? colors.success : colors.danger;
+  return (
+    <View
+      style={[st.toolReceiptCard, !receipt.success && st.toolReceiptCardFailure]}
+      accessible
+      accessibilityRole={receipt.success ? "summary" : "alert"}
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={`${statusLabel}. ${receipt.title}. ${receipt.message}`}
+    >
+      <View style={st.toolReceiptHeading} accessibilityElementsHidden>
+        <View
+          style={[
+            st.toolReceiptIcon,
+            { backgroundColor: receipt.success ? colors.sage.pale : colors.ivory[100] },
+          ]}
+        >
+          {receipt.success
+            ? <Check size={15} color={statusColor} />
+            : <X size={15} color={statusColor} />}
+        </View>
+        <Text style={st.toolReceiptTitle}>{receipt.title}</Text>
+        <Text style={[st.toolReceiptStatus, { color: statusColor }]}>{statusLabel}</Text>
+      </View>
+      <Text style={st.toolReceiptMessage}>{receipt.message}</Text>
+    </View>
+  );
+}
+
 const BUDGET_WARNING_COPY: Record<BudgetImpactWarning, string> = {
   allocated_over_total: "변경 후 배분 합계가 총예산보다 커요.",
   recorded_spend_over_total: "기록 지출 합계가 변경 후 총예산보다 커요.",
@@ -1769,6 +2099,9 @@ export default function ChatScreen() {
   const [coldStartAiRecoveryByLane, setColdStartAiRecoveryByLane] = useState<
     AmoraChatLaneRecord<ColdStartAiRecovery | null>
   >(() => createEmptyAmoraChatLaneRecord(() => null));
+  const pendingIngestReconciliation = Object.values(sendFailuresByLane).some(
+    (failure) => failure?.requiresReconciliation === true,
+  );
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
@@ -1782,10 +2115,16 @@ export default function ChatScreen() {
   const [pendingActionApproval, setPendingActionApproval] =
     useState<PendingActionApprovalState | null>(null);
   const [partnerSafetyNotice, setPartnerSafetyNotice] = useState<string | null>(null);
+  const [pendingSharedSendConfirmation, setPendingSharedSendConfirmation] =
+    useState<PendingSharedSendConfirmation | null>(null);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const activeControllerRef = useRef<AbortController | null>(null);
+  const activeChatOperationGuardRef = useRef(createChatSendOperationGuard());
+  const sharedSendAcknowledgementRef =
+    useRef<AmoraSharedSendAcknowledgementSession | null>(null);
+  const sharedSendConfirmationBusyRef =
+    useRef<PendingSharedSendConfirmation | null>(null);
   const mountedRef = useRef(true);
   const hasLinkedPartnerRef = useRef(false);
   const linkedPartnerIdRef = useRef<string | null>(null);
@@ -1859,6 +2198,28 @@ export default function ChatScreen() {
     mountedRef.current && chatSessionGenerationRef.current.isCurrent(generation)
   ), []);
 
+  const isCurrentChatOperation = useCallback((operation: ChatSendOperation) => (
+    operation.stopReason === null
+    && activeChatOperationGuardRef.current.current() === operation
+    && isCurrentChatSession(operation.sessionGeneration)
+  ), [isCurrentChatSession]);
+
+  const beginChatSendOperation = useCallback((sessionGeneration: number) => {
+    const operation = activeChatOperationGuardRef.current.start(sessionGeneration);
+    sendingRef.current = true;
+    setStreaming(true);
+    return operation;
+  }, []);
+
+  const finishChatSendOperation = useCallback((operation: ChatSendOperation) => {
+    if (!activeChatOperationGuardRef.current.finish(operation)) return false;
+    if (isCurrentChatSession(operation.sessionGeneration)) {
+      sendingRef.current = false;
+      setStreaming(false);
+    }
+    return true;
+  }, [isCurrentChatSession]);
+
   const setLaneFailure = useCallback((
     lane: AmoraChatLane,
     failure: SendFailure | null,
@@ -1871,14 +2232,15 @@ export default function ChatScreen() {
   }, []);
 
   const resetChatSessionState = useCallback(() => {
-    activeControllerRef.current?.abort();
-    activeControllerRef.current = null;
+    activeChatOperationGuardRef.current.stopActive("session");
     if (channelRef.current) {
       void supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
     hasLinkedPartnerRef.current = false;
     linkedPartnerIdRef.current = null;
+    sharedSendAcknowledgementRef.current = null;
+    sharedSendConfirmationBusyRef.current = null;
     sendingRef.current = false;
     safetyHoldLockRef.current = false;
     applyingPendingActionRef.current = null;
@@ -1904,6 +2266,7 @@ export default function ChatScreen() {
     setPendingActionNotice(null);
     setPendingActionApproval(null);
     setPartnerSafetyNotice(null);
+    setPendingSharedSendConfirmation(null);
   }, []);
 
   useEffect(() => {
@@ -2060,6 +2423,11 @@ export default function ChatScreen() {
       setUserName(profile.name || "사용자");
       setUserRole(viewerRole);
 
+      const sharedSendAcknowledged = await loadAmoraSharedSendAcknowledgement(
+        user.id,
+        profile.couple_id,
+      ).catch(() => false);
+      if (!isCurrentGeneration()) return;
       const [
         { data: couple },
         { data: partners },
@@ -2074,6 +2442,11 @@ export default function ChatScreen() {
           .neq("id", user.id),
       ]);
       if (!isCurrentGeneration()) return;
+      sharedSendAcknowledgementRef.current = {
+        userId: user.id,
+        coupleId: profile.couple_id,
+        confirmed: sharedSendAcknowledged,
+      };
 
       const expectedSelfId = viewerRole === "bride"
         ? couple?.bride_id
@@ -2261,6 +2634,7 @@ export default function ChatScreen() {
           kind: "ai_insert",
           message: "확인은 안전하게 저장됐어요. 반영을 이어서 완료해 주세요.",
           canRetry: true,
+          requiresReconciliation: false,
           unavailableReason: null,
           draft: {
             text: durableConfirmation.content,
@@ -2393,8 +2767,7 @@ export default function ChatScreen() {
       chatSessionGenerationRef.current.invalidate();
       if (authReloadTimer) clearTimeout(authReloadTimer);
       subscription.unsubscribe();
-      activeControllerRef.current?.abort();
-      activeControllerRef.current = null;
+      activeChatOperationGuardRef.current.stopActive("session");
       if (channelRef.current) {
         void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -2516,9 +2889,12 @@ export default function ChatScreen() {
     return durableMessage;
   }
 
-  async function sendPartnerDraft(draft: PartnerDraft) {
+  async function sendPartnerDraft(
+    draft: PartnerDraft,
+    operation: ChatSendOperation,
+  ) {
     const lane: AmoraChatLane = "shared_partner";
-    if (!isCurrentChatSession(draft.sessionGeneration)) return;
+    if (!isCurrentChatOperation(operation)) return;
     if (
       !hasLinkedPartnerRef.current
       || linkedPartnerIdRef.current !== draft.partnerRecipientId
@@ -2533,11 +2909,9 @@ export default function ChatScreen() {
       setPartnerSafetyNotice(PARTNER_CONNECTION_CHANGED_NOTICE);
       return;
     }
-    setStreaming(true);
-    setLaneFailure(lane, null);
     try {
       const recipientVerification = await verifyPartnerDraftRecipient(draft);
-      if (!isCurrentChatSession(draft.sessionGeneration)) return;
+      if (!isCurrentChatOperation(operation)) return;
       if (recipientVerification === "unlinked") {
         hasLinkedPartnerRef.current = false;
         linkedPartnerIdRef.current = null;
@@ -2553,8 +2927,18 @@ export default function ChatScreen() {
         throw new Error("partner recipient verification unavailable");
       }
 
-      const ingestResult = await requestAiMessageIngest(draft);
-      if (!isCurrentChatSession(draft.sessionGeneration)) return;
+      operation.phase = "ingest";
+      const ingestResult = await requestAiMessageIngest(
+        draft,
+        operation.controller.signal,
+      );
+      operation.phase = "ingest_result";
+      const canApplyKnownIngestResult = isCurrentChatOperation(operation)
+        || (
+          operation.stopReason === "user"
+          && isCurrentChatSession(draft.sessionGeneration)
+        );
+      if (!canApplyKnownIngestResult) return;
       if (ingestResult.outcome === "ephemeral_safety") {
         if (!ingestResult.partnerDeliveryHeld) {
           throw new Error("partner safety hold was not confirmed");
@@ -2615,7 +2999,7 @@ export default function ChatScreen() {
         return;
       }
       const durableMessage = ingestResult.message;
-      if (isCurrentChatSession(draft.sessionGeneration)) {
+      if (canApplyKnownIngestResult) {
         setMessages((previous) => previous.some((message) => message.id === durableMessage.id)
           ? previous
           : [...previous, durableMessage]
@@ -2625,39 +3009,57 @@ export default function ChatScreen() {
             ? updateAmoraChatLaneRecord(current, lane, "")
             : current
         ));
+        setLaneFailure(lane, null);
       }
     } catch (error) {
-      if (isCurrentChatSession(draft.sessionGeneration)) {
-        const canRetry = !(error instanceof AiMessageIngestError) || error.retryable;
+      if (
+        operation.stopReason === "user"
+        && operation.phase === "ingest"
+        && isCurrentChatSession(draft.sessionGeneration)
+      ) {
+        setLaneFailure(lane, {
+          kind: "partner_ingest",
+          message: "전송을 중단했지만 서버 저장이 끝났을 수 있어요. 중복 저장을 막으려면 같은 요청의 저장 여부를 확인하고 이어가 주세요.",
+          draft,
+          canRetry: true,
+          requiresReconciliation: true,
+          unavailableReason: null,
+        });
+        return;
+      }
+      if (operation.stopReason !== null) return;
+      if (isCurrentChatOperation(operation)) {
+        const recovery = getAiMessageIngestRecovery(error, true);
         const statusNeedsDifferentAction = error instanceof AiMessageIngestError
           && (error.status === 401 || error.status === 403);
         setLaneFailure(lane, {
           kind: "partner_ingest",
           message: error instanceof AiMessageIngestError
             ? getAiMessageIngestFailureMessage(error, false)
-            : "메시지 전송 결과를 확인하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
+              : "메시지 전송 결과를 확인하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
           draft,
-          canRetry,
-          unavailableReason: canRetry || statusNeedsDifferentAction
+          canRetry: recovery.canRetry,
+          requiresReconciliation: recovery.requiresReconciliation,
+          unavailableReason: recovery.canRetry || statusNeedsDifferentAction
             ? null
             : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
         });
       }
-    } finally {
-      if (isCurrentChatSession(draft.sessionGeneration)) setStreaming(false);
     }
   }
 
-  async function streamAiRequest(request: AiRequest) {
-    if (!isCurrentChatSession(request.sessionGeneration)) return;
+  async function streamAiRequest(
+    request: AiRequest,
+    operation: ChatSendOperation,
+  ) {
+    if (!isCurrentChatOperation(operation)) return;
+    operation.phase = "stream";
     if (persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
       setLaneFailure(request.lane, null);
-      setStreaming(false);
       return;
     }
     setLaneFailure(request.lane, null);
     setQuotaRemaining(null);
-    setStreaming(true);
     setMessages((previous) => {
       const hasPersistedAnswer = previous.some((message) =>
         !message.id.startsWith("temp_") &&
@@ -2681,9 +3083,6 @@ export default function ChatScreen() {
     });
     scrollToLatest(true);
 
-    const controller = new AbortController();
-    activeControllerRef.current?.abort();
-    activeControllerRef.current = controller;
     let timedOut = false;
     let completionPendingAction: ReturnType<typeof getPendingAmoraAction> = null;
     let pendingUpdate: ChatStreamCompletion = {
@@ -2698,20 +3097,20 @@ export default function ChatScreen() {
     };
     const timeout = setTimeout(() => {
       timedOut = true;
-      controller.abort();
+      operation.controller.abort();
     }, CHAT_REQUEST_TIMEOUT_MS);
 
     try {
       const completion = await requestChatStream(
         request.body,
-        controller.signal,
+        operation.controller.signal,
         (partialText, toolResults, metadata) => {
-          if (!isCurrentChatSession(request.sessionGeneration)) return;
+          if (!isCurrentChatOperation(operation)) return;
           pendingUpdate = { text: partialText, toolResults, metadata };
           if (renderFrame !== null) return;
           renderFrame = requestAnimationFrame(() => {
             renderFrame = null;
-            if (!isCurrentChatSession(request.sessionGeneration)) return;
+            if (!isCurrentChatOperation(operation)) return;
             setMessages((previous) => reconcileChatStreamUpdate(
               previous,
               request.tempId,
@@ -2721,7 +3120,7 @@ export default function ChatScreen() {
           });
         },
         (remaining) => {
-          if (isCurrentChatSession(request.sessionGeneration)) setQuotaRemaining(remaining);
+          if (isCurrentChatOperation(operation)) setQuotaRemaining(remaining);
         },
         (metadata) => {
           completionPendingAction = getPendingAmoraAction({
@@ -2730,10 +3129,10 @@ export default function ChatScreen() {
             metadata: { pending_amora_action: metadata.pending_amora_action },
           });
         },
-        sessionUserIdRef.current,
+        request.expectedActorUserId,
       );
       cancelPendingRender();
-      if (isCurrentChatSession(request.sessionGeneration)) {
+      if (isCurrentChatOperation(operation)) {
         const crisisBoundCompletion: ChatStreamCompletion =
           completion.metadata?.response_origin === "deterministic_crisis_safety"
           && !completion.metadata.in_reply_to_user_message_id
@@ -2768,11 +3167,16 @@ export default function ChatScreen() {
         scrollToLatest(true);
       }
     } catch (error) {
-      const cancelledByInactiveSession =
-        !isCurrentChatSession(request.sessionGeneration) &&
-        error instanceof ChatTransportError &&
-        error.code === "CANCELLED";
-      if (!cancelledByInactiveSession && isCurrentChatSession(request.sessionGeneration)) {
+      if (
+        operation.stopReason === "user"
+        && isCurrentChatSession(request.sessionGeneration)
+      ) {
+        cancelPendingRender();
+        setMessages((previous) => previous.filter((message) => message.id !== request.tempId));
+        return;
+      }
+      if (operation.stopReason !== null) return;
+      if (isCurrentChatOperation(operation)) {
         cancelPendingRender();
         setMessages((previous) => previous.filter((message) => message.id !== request.tempId));
         if (!persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
@@ -2782,6 +3186,7 @@ export default function ChatScreen() {
             message: getAiFailureMessage(error, timedOut),
             request,
             canRetry,
+            requiresReconciliation: false,
             unavailableReason: canRetry
               ? null
               : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
@@ -2791,14 +3196,16 @@ export default function ChatScreen() {
     } finally {
       cancelPendingRender();
       clearTimeout(timeout);
-      if (activeControllerRef.current === controller) activeControllerRef.current = null;
-      if (isCurrentChatSession(request.sessionGeneration)) setStreaming(false);
     }
   }
 
-  async function sendAiDraft(draft: AiDraft, reconcileFirst: boolean) {
+  async function sendAiDraft(
+    draft: AiDraft,
+    reconcileFirst: boolean,
+    operation: ChatSendOperation,
+  ) {
     const draftLane = aiLaneForVisibility(draft.visibility);
-    if (!isCurrentChatSession(draft.sessionGeneration)) return;
+    if (!isCurrentChatOperation(operation)) return;
     if (
       draft.durableUserMessageId
       && (
@@ -2809,22 +3216,20 @@ export default function ChatScreen() {
         )
       )
     ) return;
-    setStreaming(true);
-    setLaneFailure(draftLane, null);
     try {
       let durableMessage = reconcileFirst
         ? await findDurableUserMessage(draft, "ai")
         : null;
-      if (!isCurrentChatSession(draft.sessionGeneration)) return;
+      if (!isCurrentChatOperation(operation)) return;
       if (draft.durableUserMessageId && !durableMessage) {
         setLaneFailure(draftLane, {
           kind: "ai_insert",
           message: "저장된 질문을 안전하게 다시 확인하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.",
           draft,
           canRetry: true,
+          requiresReconciliation: false,
           unavailableReason: null,
         });
-        setStreaming(false);
         return;
       }
       if (
@@ -2838,13 +3243,12 @@ export default function ChatScreen() {
           draft.amoraSourceMessageId,
           sessionUserIdRef.current,
         );
-        if (!isCurrentChatSession(draft.sessionGeneration)) return;
+        if (!isCurrentChatOperation(operation)) return;
         if (!claim.applicationGranted) {
           setPendingActionNotice({
             actionId: draft.confirmedActionId,
             message: "다른 화면에서 반영을 진행 중이에요. 잠시 후 다시 시도해 주세요.",
           });
-          setStreaming(false);
           return;
         }
       }
@@ -2852,8 +3256,18 @@ export default function ChatScreen() {
       let safetyPrivacyRedirected = durableMessage !== null
         && durableMessage.visibility !== draft.requestedVisibility;
       if (!durableMessage) {
-        const ingestResult = await requestAiMessageIngest(draft);
-        if (!isCurrentChatSession(draft.sessionGeneration)) return;
+        operation.phase = "ingest";
+        const ingestResult = await requestAiMessageIngest(
+          draft,
+          operation.controller.signal,
+        );
+        operation.phase = "ingest_result";
+        const canApplyKnownIngestResult = isCurrentChatOperation(operation)
+          || (
+            operation.stopReason === "user"
+            && isCurrentChatSession(draft.sessionGeneration)
+          );
+        if (!canApplyKnownIngestResult) return;
         if (ingestResult.outcome === "ephemeral_safety") {
           const safetyCardId =
             `amora-server-crisis-preflight:${draft.userId}:${draft.clientRequestId}`;
@@ -2902,7 +3316,6 @@ export default function ChatScreen() {
           setActiveScope("private");
           setTarget("ai");
           safetyHoldLockRef.current = true;
-          setStreaming(false);
           return;
         }
         durableMessage = ingestResult.message;
@@ -2958,6 +3371,7 @@ export default function ChatScreen() {
           ? canonicalUserMessage.metadata.confirmed_amora_action_id
           : undefined;
       const request: AiRequest = {
+        expectedActorUserId: draft.userId,
         tempId: `temp_${draft.clientRequestId}`,
         serverRequestKey,
         lane: effectiveLane,
@@ -2978,7 +3392,13 @@ export default function ChatScreen() {
         },
       };
 
-      if (isCurrentChatSession(draft.sessionGeneration)) {
+      const canApplyKnownIngestResult = isCurrentChatOperation(operation)
+        || (
+          operation.stopReason === "user"
+          && operation.phase === "ingest_result"
+          && isCurrentChatSession(draft.sessionGeneration)
+        );
+      if (canApplyKnownIngestResult) {
         if (effectiveVisibility !== "shared") {
           setActiveScope("private");
           setTarget("ai");
@@ -2998,11 +3418,28 @@ export default function ChatScreen() {
             : current
         ));
       }
-      if (!isCurrentChatSession(draft.sessionGeneration)) return;
-      await streamAiRequest(request);
+      if (operation.stopReason === "user") return;
+      if (!isCurrentChatOperation(operation)) return;
+      await streamAiRequest(request, operation);
     } catch (error) {
-      if (isCurrentChatSession(draft.sessionGeneration)) {
-        const canRetry = error instanceof AiMessageIngestError && error.retryable;
+      if (
+        operation.stopReason === "user"
+        && operation.phase === "ingest"
+        && isCurrentChatSession(draft.sessionGeneration)
+      ) {
+        setLaneFailure(draftLane, {
+          kind: "ai_insert",
+          message: "전송을 중단했지만 서버 저장이 끝났을 수 있어요. 중복 저장을 막으려면 같은 요청의 저장 여부를 확인하고 이어가 주세요.",
+          draft,
+          canRetry: true,
+          requiresReconciliation: true,
+          unavailableReason: null,
+        });
+        return;
+      }
+      if (operation.stopReason !== null) return;
+      if (isCurrentChatOperation(operation)) {
+        const recovery = getAiMessageIngestRecovery(error, false);
         setLaneFailure(draftLane, {
           kind: "ai_insert",
           message: getAiMessageIngestFailureMessage(
@@ -3010,10 +3447,10 @@ export default function ChatScreen() {
             typeof draft.confirmedActionId === "string",
           ),
           draft,
-          canRetry,
-          unavailableReason: canRetry ? null : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
+          canRetry: recovery.canRetry,
+          requiresReconciliation: recovery.requiresReconciliation,
+          unavailableReason: recovery.canRetry ? null : NEW_CHAT_MESSAGE_REQUIRED_NOTICE,
         });
-        setStreaming(false);
       }
     }
   }
@@ -3025,6 +3462,7 @@ export default function ChatScreen() {
       || recovery.disposition !== "resumable"
       || streaming
       || sendingRef.current
+      || pendingIngestReconciliation
       || !coupleId
       || !userId
       || !userRole
@@ -3056,16 +3494,16 @@ export default function ChatScreen() {
       sessionGeneration,
     };
 
-    sendingRef.current = true;
+    const operation = beginChatSendOperation(sessionGeneration);
     setColdStartAiRecoveryByLane((current) => (
       updateAmoraChatLaneRecord(current, recovery.lane, null)
     ));
     setActiveScope(recovery.visibility === "shared" ? "shared" : "private");
     setTarget("ai");
     try {
-      await sendAiDraft(draft, true);
+      await sendAiDraft(draft, true, operation);
     } finally {
-      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
+      finishChatSendOperation(operation);
     }
   }
 
@@ -3077,13 +3515,13 @@ export default function ChatScreen() {
       ? failure.request.sessionGeneration
       : failure.draft.sessionGeneration;
     if (!isCurrentChatSession(sessionGeneration)) return;
-    sendingRef.current = true;
+    const operation = beginChatSendOperation(sessionGeneration);
     try {
       if (failure.kind === "partner_ingest") {
         setInputByLane((current) => (
           updateAmoraChatLaneRecord(current, "shared_partner", failure.draft.text)
         ));
-        await sendPartnerDraft(failure.draft);
+        await sendPartnerDraft(failure.draft, operation);
         return;
       }
       if (failure.kind === "ai_insert") {
@@ -3094,12 +3532,12 @@ export default function ChatScreen() {
             failure.draft.text,
           )
         ));
-        await sendAiDraft(failure.draft, true);
+        await sendAiDraft(failure.draft, true, operation);
         return;
       }
-      await streamAiRequest(failure.request);
+      await streamAiRequest(failure.request, operation);
     } finally {
-      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
+      finishChatSendOperation(operation);
     }
   }
 
@@ -3110,6 +3548,7 @@ export default function ChatScreen() {
       !text
       || streaming
       || sendingRef.current
+      || pendingIngestReconciliation
       || !coupleId
       || !userId
       || !userRole
@@ -3186,7 +3625,28 @@ export default function ChatScreen() {
     }
     const sessionGeneration = chatSessionGenerationRef.current.current();
     if (!isCurrentChatSession(sessionGeneration)) return;
-    sendingRef.current = true;
+    const sharedSendAcknowledgement = sharedSendAcknowledgementRef.current;
+    if (
+      effectiveVisibility === "shared"
+      && (
+        sharedSendAcknowledgement?.userId !== userId
+        || sharedSendAcknowledgement.coupleId !== coupleId
+        || !sharedSendAcknowledgement.confirmed
+      )
+    ) {
+      Keyboard.dismiss();
+      setPendingSharedSendConfirmation({
+        userId,
+        coupleId,
+        sessionGeneration,
+        sourceLane: activeLane,
+        text,
+        saving: false,
+        error: null,
+      });
+      return;
+    }
+    const operation = beginChatSendOperation(sessionGeneration);
     try {
       setLaneFailure(activeLane, null);
       if (effectiveLane !== activeLane) setLaneFailure(effectiveLane, null);
@@ -3209,7 +3669,7 @@ export default function ChatScreen() {
           visibility: "shared",
           providerAttachmentCount: 0,
           sessionGeneration,
-        });
+        }, operation);
         return;
       }
 
@@ -3234,18 +3694,123 @@ export default function ChatScreen() {
         visibility: effectiveVisibility,
         providerAttachmentCount: 0,
         sessionGeneration,
-      }, false);
+      }, false, operation);
     } finally {
-      if (isCurrentChatSession(sessionGeneration)) sendingRef.current = false;
+      finishChatSendOperation(operation);
     }
   }
 
+  async function handleConfirmSharedSend() {
+    const confirmation = pendingSharedSendConfirmation;
+    if (!confirmation || confirmation.saving || sharedSendConfirmationBusyRef.current) return;
+    if (
+      !isCurrentChatSession(confirmation.sessionGeneration)
+      || sessionUserIdRef.current !== confirmation.userId
+      || userId !== confirmation.userId
+      || coupleId !== confirmation.coupleId
+    ) {
+      setPendingSharedSendConfirmation(null);
+      return;
+    }
+
+    sharedSendConfirmationBusyRef.current = confirmation;
+    setPendingSharedSendConfirmation((current) => current === confirmation
+      ? { ...current, saving: true, error: null }
+      : current
+    );
+    try {
+      await saveAmoraSharedSendAcknowledgement(
+        confirmation.userId,
+        confirmation.coupleId,
+      );
+      if (
+        !isCurrentChatSession(confirmation.sessionGeneration)
+        || sessionUserIdRef.current !== confirmation.userId
+        || userId !== confirmation.userId
+        || coupleId !== confirmation.coupleId
+      ) return;
+      sharedSendAcknowledgementRef.current = {
+        userId: confirmation.userId,
+        coupleId: confirmation.coupleId,
+        confirmed: true,
+      };
+      setPendingSharedSendConfirmation(null);
+      if (
+        activeLane === confirmation.sourceLane
+        && inputByLane[confirmation.sourceLane].trim() === confirmation.text
+      ) await handleSend();
+    } catch {
+      if (isCurrentChatSession(confirmation.sessionGeneration)) {
+        setPendingSharedSendConfirmation((current) => (
+          current?.userId === confirmation.userId
+          && current.coupleId === confirmation.coupleId
+            ? {
+                ...current,
+                saving: false,
+                error: "함께 대화 확인을 안전하게 기록하지 못했어요. 메시지는 보내지 않았습니다. 다시 시도해 주세요.",
+              }
+            : current
+        ));
+      }
+    } finally {
+      if (sharedSendConfirmationBusyRef.current === confirmation) {
+        sharedSendConfirmationBusyRef.current = null;
+      }
+    }
+  }
+
+  function handleMoveSharedSendToPrivate() {
+    const confirmation = pendingSharedSendConfirmation;
+    if (!confirmation || confirmation.saving || pendingIngestReconciliation) return;
+    if (
+      !isCurrentChatSession(confirmation.sessionGeneration)
+      || sessionUserIdRef.current !== confirmation.userId
+      || userId !== confirmation.userId
+      || coupleId !== confirmation.coupleId
+    ) {
+      setPendingSharedSendConfirmation(null);
+      return;
+    }
+    const privateDraft = inputByLane.private_ai.trim();
+    if (privateDraft && privateDraft !== confirmation.text) {
+      setPendingSharedSendConfirmation((current) => current
+        ? {
+            ...current,
+            error: "나만 상담에 작성 중인 내용이 있어요. 기존 초안을 먼저 확인해 주세요.",
+          }
+        : current
+      );
+      return;
+    }
+    setInputByLane((current) => {
+      let next = updateAmoraChatLaneRecord(current, "private_ai", confirmation.text);
+      if (
+        confirmation.sourceLane !== "private_ai"
+        && current[confirmation.sourceLane].trim() === confirmation.text
+      ) {
+        next = updateAmoraChatLaneRecord(next, confirmation.sourceLane, "");
+      }
+      return next;
+    });
+    setPendingSharedSendConfirmation(null);
+    setActiveScope("private");
+    setTarget("ai");
+  }
+
+  function handleStop() {
+    const stoppedOperation = activeChatOperationGuardRef.current.stopActive("user");
+    if (!stoppedOperation) return;
+    if (stoppedOperation.phase === "ingest") return;
+    finishChatSendOperation(stoppedOperation);
+  }
+
   function handleInputChange(value: string) {
-    if (!activeLane) return;
+    if (!activeLane || pendingIngestReconciliation) return;
     safetyHoldLockRef.current = false;
     setActiveInput(value);
     setSendFailuresByLane((current) => {
       const failure = current[activeLane];
+      if (failure?.requiresReconciliation) return current;
       return failure?.kind === "partner_ingest" || failure?.kind === "ai_insert"
         ? updateAmoraChatLaneRecord(current, activeLane, null)
         : current;
@@ -3256,6 +3821,7 @@ export default function ChatScreen() {
     if (
       streaming
       || sendingRef.current
+      || pendingIngestReconciliation
       || (activeScope === "private" && nextTarget === "partner")
       || (nextTarget === "partner" && !hasLinkedPartner)
     ) return;
@@ -3264,7 +3830,7 @@ export default function ChatScreen() {
   }
 
   function handleAiSuggestion(value: string) {
-    if (streaming || sendingRef.current) return;
+    if (streaming || sendingRef.current || pendingIngestReconciliation) return;
     safetyHoldLockRef.current = false;
     const lane: Exclude<AmoraChatLane, "shared_partner"> = activeScope === "private"
       ? "private_ai"
@@ -3283,6 +3849,7 @@ export default function ChatScreen() {
     if (
       streaming
       || sendingRef.current
+      || pendingIngestReconciliation
       || applyingPendingActionRef.current
       || !coupleId
       || !userId
@@ -3304,6 +3871,7 @@ export default function ChatScreen() {
     ) return;
 
     sendingRef.current = true;
+    let operation: ChatSendOperation | null = null;
     applyingPendingActionRef.current = actionId;
     setActiveScope("shared");
     setTarget("ai");
@@ -3358,6 +3926,7 @@ export default function ChatScreen() {
         return;
       }
       const content = "좋아요. 제안한 변경을 적용해 주세요.";
+      operation = beginChatSendOperation(sessionGeneration);
       await sendAiDraft({
         text: content,
         sourceLane: "shared_ai",
@@ -3373,7 +3942,7 @@ export default function ChatScreen() {
         sessionGeneration,
         confirmedActionId: actionId,
         amoraSourceMessageId: latestSharedMessage.id,
-      }, false);
+      }, false, operation);
     } catch (error) {
       if (isCurrentChatSession(sessionGeneration)) {
         if (approvalPolicy === "couple") {
@@ -3398,10 +3967,11 @@ export default function ChatScreen() {
         }
       }
     } finally {
+      if (operation) finishChatSendOperation(operation);
       if (isCurrentChatSession(sessionGeneration)) {
         applyingPendingActionRef.current = null;
         setApplyingPendingActionId(null);
-        sendingRef.current = false;
+        if (!operation) sendingRef.current = false;
         if (approvalPolicy === "couple") {
           setPendingActionApproval((current) => (
             current?.actionId === actionId
@@ -3484,7 +4054,7 @@ export default function ChatScreen() {
   }
 
   function handleScopeChange(nextScope: ChatScope) {
-    if (streaming || sendingRef.current) return;
+    if (streaming || sendingRef.current || pendingIngestReconciliation) return;
     const nextSelection = selectChatScope(
       { scope: activeScope, target },
       nextScope,
@@ -3500,12 +4070,13 @@ export default function ChatScreen() {
     const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
-    const placeResults = (item.metadata?.toolResults ?? []).filter(
-      (result) => result.toolName === "search_nearby_places",
-    );
-    const hasPlaceResults = placeResults.length > 0;
-    const isThinking = isAi && item.id.startsWith("temp_") && !item.content && !hasPlaceResults && streaming;
-    const shouldRenderBubble = isThinking || Boolean(item.content.trim());
+    const {
+      placeResults,
+      receipts,
+      hasPlaceResults,
+      isThinking,
+      shouldRenderBubble,
+    } = getMobileChatMessagePresentation(item, streaming);
     const mediationBlock = isAi
       ? normalizeMediationBlock(item.metadata?.mediation)
       : null;
@@ -3597,6 +4168,7 @@ export default function ChatScreen() {
           isPinnedSafetyCard && st.safetyMessageBody,
           (mediationBlock || pendingAction) && st.mediationMessageBody,
           hasPlaceResults && st.placeMessageBody,
+          receipts.length > 0 && st.toolReceiptMessageBody,
         ]}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
           {shouldRenderBubble && (
@@ -3622,6 +4194,12 @@ export default function ChatScreen() {
           )}
           {placeResults.map((result, index) => (
             <PlaceCards key={`${result.toolName}-${index}`} result={result} />
+          ))}
+          {receipts.map((receipt, index) => (
+            <MobileToolReceiptCard
+              key={`${item.id}-${receipt.toolName}-${index}`}
+              receipt={receipt}
+            />
           ))}
           {mediationBlock && (
             <AmoraMediationCard
@@ -3743,18 +4321,107 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
+      <Modal
+        visible={pendingSharedSendConfirmation !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!pendingSharedSendConfirmation?.saving) {
+            setPendingSharedSendConfirmation(null);
+          }
+        }}
+      >
+        <View
+          style={st.sharedConfirmOverlay}
+          accessibilityViewIsModal
+          accessibilityLabel="첫 함께 대화 전송 확인"
+          importantForAccessibility="yes"
+        >
+          <View style={st.sharedConfirmSheet}>
+            <View style={st.sharedConfirmIcon}>
+              <Users size={18} color={colors.rose[600]} />
+            </View>
+            <Text style={st.sharedConfirmTitle}>함께 대화로 보낼까요?</Text>
+            <Text style={st.sharedConfirmBody}>
+              {hasLinkedPartner
+                ? "지금 함께 대화에 저장되며, 연결된 파트너가 이 내용을 볼 수 있어요."
+                : "지금 함께 대화에 저장되며, 파트너가 연결되면 이 내용을 볼 수 있어요."}
+            </Text>
+            <Text style={st.sharedConfirmHint}>
+              이 기기에서는 같은 커플의 함께 대화에 대해 다음부터 다시 묻지 않아요.
+            </Text>
+            {pendingSharedSendConfirmation?.error && (
+              <Text
+                style={st.sharedConfirmError}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+              >
+                {pendingSharedSendConfirmation.error}
+              </Text>
+            )}
+            <Pressable
+              style={({ pressed }) => [
+                st.sharedConfirmPrimary,
+                pressed && !pendingSharedSendConfirmation?.saving && { opacity: 0.8 },
+              ]}
+              onPress={() => void handleConfirmSharedSend()}
+              disabled={pendingSharedSendConfirmation?.saving}
+              accessibilityRole="button"
+              accessibilityLabel="함께 대화로 보내기"
+              accessibilityState={{ disabled: pendingSharedSendConfirmation?.saving === true }}
+            >
+              {pendingSharedSendConfirmation?.saving && (
+                <ActivityIndicator size="small" color="#FFF" />
+              )}
+              <Text style={st.sharedConfirmPrimaryText}>함께 대화로 보내기</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                st.sharedConfirmSecondary,
+                pressed && !pendingSharedSendConfirmation?.saving && { opacity: 0.72 },
+              ]}
+              onPress={handleMoveSharedSendToPrivate}
+              disabled={pendingSharedSendConfirmation?.saving}
+              accessibilityRole="button"
+              accessibilityLabel="나만 상담으로 바꾸기"
+              accessibilityState={{ disabled: pendingSharedSendConfirmation?.saving === true }}
+            >
+              <Lock size={15} color="#5a6147" />
+              <Text style={st.sharedConfirmSecondaryText}>나만 상담으로 바꾸기</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                st.sharedConfirmCancel,
+                pressed && !pendingSharedSendConfirmation?.saving && { opacity: 0.62 },
+              ]}
+              onPress={() => setPendingSharedSendConfirmation(null)}
+              disabled={pendingSharedSendConfirmation?.saving}
+              accessibilityRole="button"
+              accessibilityLabel="함께 대화 전송 취소"
+              accessibilityState={{ disabled: pendingSharedSendConfirmation?.saving === true }}
+            >
+              <Text style={st.sharedConfirmCancelText}>취소</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <View style={st.header}>
-        <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>AI 웨딩 플래너</Text></View></View>
+        <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>AI 파트너</Text></View></View>
         {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
       </View>
 
       <View style={st.scopeSection} accessibilityLabel="상담 공개 범위">
         <View style={st.scopeRow}>
           <Pressable
-            disabled={streaming}
+            disabled={streaming || pendingIngestReconciliation}
             accessibilityRole="tab"
-            accessibilityLabel="함께 대화, 파트너에게 보임"
-            accessibilityState={{ selected: activeScope === "shared", disabled: streaming }}
+            accessibilityLabel={hasLinkedPartner
+              ? "함께 대화, 저장되며 연결된 파트너에게 보임"
+              : "함께 대화, 저장되며 파트너 연결 시 보임"}
+            accessibilityState={{
+              selected: activeScope === "shared",
+              disabled: streaming || pendingIngestReconciliation,
+            }}
             style={[st.scopeBtn, activeScope === "shared" && st.scopeBtnActive]}
             onPress={() => handleScopeChange("shared")}
           >
@@ -3762,10 +4429,13 @@ export default function ChatScreen() {
             <Text style={[st.scopeText, activeScope === "shared" && st.scopeTextActive]}>함께 대화</Text>
           </Pressable>
           <Pressable
-            disabled={streaming || userRole === null}
+            disabled={streaming || pendingIngestReconciliation || userRole === null}
             accessibilityRole="tab"
             accessibilityLabel="나만 상담, 서비스에 저장되며 상대방에게 보이지 않음"
-            accessibilityState={{ selected: activeScope === "private", disabled: streaming || userRole === null }}
+            accessibilityState={{
+              selected: activeScope === "private",
+              disabled: streaming || pendingIngestReconciliation || userRole === null,
+            }}
             style={[st.scopeBtn, activeScope === "private" && st.privateScopeBtnActive]}
             onPress={() => handleScopeChange("private")}
           >
@@ -3790,16 +4460,42 @@ export default function ChatScreen() {
                       : "현재 안전 안내 · 입력 내용의 이전 저장·전달 여부를 확인하지 못했어요. 지금은 추가 공유를 멈췄어요"
               : "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
             : hasLinkedPartner
-              ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
-              : "현재 범위 · 함께 대화 — 파트너 연결 후 함께 볼 수 있어요"}
+              ? "현재 범위 · 함께 대화 — 지금 저장되며, 연결된 파트너에게 보여요"
+              : "현재 범위 · 함께 대화 — 지금 저장되며, 파트너가 연결되면 볼 수 있어요"}
         </Text>
       </View>
 
       {activeScope === "shared" && (
         <View style={st.targetRow}>
-          <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, !isP && st.targetActive]} onPress={() => handleTargetChange("ai")}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
+          <Pressable
+            disabled={streaming || pendingIngestReconciliation}
+            accessibilityRole="tab"
+            accessibilityLabel="아모라 AI 파트너와 대화"
+            accessibilityState={{
+              selected: !isP,
+              disabled: streaming || pendingIngestReconciliation,
+            }}
+            style={[st.targetBtn, !isP && st.targetActive]}
+            onPress={() => handleTargetChange("ai")}
+          >
+            <Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} />
+            <Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text>
+          </Pressable>
           {hasLinkedPartner && (
-            <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, isP && st.targetPartner]} onPress={() => handleTargetChange("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+            <Pressable
+              disabled={streaming || pendingIngestReconciliation}
+              accessibilityRole="tab"
+              accessibilityLabel={`${partnerName ?? "파트너"}와 대화`}
+              accessibilityState={{
+                selected: isP,
+                disabled: streaming || pendingIngestReconciliation,
+              }}
+              style={[st.targetBtn, isP && st.targetPartner]}
+              onPress={() => handleTargetChange("partner")}
+            >
+              <Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} />
+              <Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text>
+            </Pressable>
           )}
         </View>
       )}
@@ -3872,8 +4568,8 @@ export default function ChatScreen() {
             <Text style={st.failureText}>
               {activeColdStartAiRecovery.disposition === "reattach_required"
                 ? activeColdStartAiRecovery.providerAttachmentState === "present"
-                  ? "첨부파일이 포함된 질문이에요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
-                  : "이 질문의 첨부 상태를 확인할 수 없어요. 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
+                  ? "이 질문은 첨부파일이 있어 모바일에서 이어받을 수 없어요. 웹에서 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
+                  : "첨부 상태를 확인할 수 없어 모바일에서 이어받지 않았어요. 웹에서 첨부파일을 다시 선택해 새 메시지로 보내 주세요."
                 : "저장된 질문의 아모라 답변을 이어받을 수 있어요."}
             </Text>
             {activeColdStartAiRecovery.disposition === "resumable" && (
@@ -3906,7 +4602,9 @@ export default function ChatScreen() {
                 disabled={streaming}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  isConfirmedActionRecovery
+                  activeSendFailure.requiresReconciliation
+                    ? "중단된 전송의 저장 여부를 확인하고 이어가기"
+                    : isConfirmedActionRecovery
                     ? "확인한 변경 반영 계속하기"
                     : activeSendFailure.kind === "ai_response"
                       ? "아모라 답변 다시 받기"
@@ -3914,7 +4612,9 @@ export default function ChatScreen() {
                 }
               >
                 <Text style={st.retryText}>
-                  {isConfirmedActionRecovery
+                  {activeSendFailure.requiresReconciliation
+                    ? "저장 여부를 확인하고 이어가기"
+                    : isConfirmedActionRecovery
                     ? "반영 계속하기"
                     : activeSendFailure.kind === "ai_response"
                       ? "답변 다시 받기"
@@ -3926,11 +4626,23 @@ export default function ChatScreen() {
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming && !pendingIngestReconciliation} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming} accessibilityLabel="메시지 보내기" accessibilityRole="button">
-              {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
-            </Pressable>
+            {streaming ? (
+              <Pressable
+                style={({ pressed }) => [st.stopBtn, pressed && { opacity: 0.78 }]}
+                onPress={handleStop}
+                accessibilityLabel="현재 메시지 전송 중단"
+                accessibilityRole="button"
+              >
+                <Square size={12} color="#FFF" fill="#FFF" />
+                <Text style={st.stopBtnText}>중단</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || pendingIngestReconciliation) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || pendingIngestReconciliation} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+                {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
+              </Pressable>
+            )}
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
@@ -3940,6 +4652,19 @@ export default function ChatScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  sharedConfirmOverlay: { flex: 1, justifyContent: "flex-end", padding: 16, backgroundColor: "rgba(13, 13, 15, 0.38)" },
+  sharedConfirmSheet: { borderRadius: 22, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  sharedConfirmIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.rose.light, marginBottom: 12 },
+  sharedConfirmTitle: { fontSize: 18, lineHeight: 25, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  sharedConfirmBody: { marginTop: 8, fontSize: 14, lineHeight: 21, color: colors.textSecondary },
+  sharedConfirmHint: { marginTop: 6, marginBottom: 16, fontSize: 12, lineHeight: 18, color: colors.textTertiary },
+  sharedConfirmError: { marginBottom: 12, padding: 10, borderRadius: 10, fontSize: 12, lineHeight: 18, color: "#8A4444", backgroundColor: "#FDF2F2" },
+  sharedConfirmPrimary: { minHeight: 46, borderRadius: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.noir[800] },
+  sharedConfirmPrimaryText: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
+  sharedConfirmSecondary: { minHeight: 46, marginTop: 8, borderRadius: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "#F1F3EA" },
+  sharedConfirmSecondaryText: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: "#5a6147" },
+  sharedConfirmCancel: { minHeight: 42, marginTop: 2, alignItems: "center", justifyContent: "center" },
+  sharedConfirmCancelText: { fontSize: 13, color: colors.textTertiary },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
@@ -3975,6 +4700,7 @@ const st = StyleSheet.create({
   safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
+  toolReceiptMessageBody: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarAi: { backgroundColor: colors.noir[800] },
   avatarBride: { backgroundColor: "#F5E6DF" },
@@ -3985,6 +4711,13 @@ const st = StyleSheet.create({
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, lineHeight: 22 },
+  toolReceiptCard: { width: "100%", marginTop: 8, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.sage.pale, backgroundColor: colors.ivory[50] },
+  toolReceiptCardFailure: { borderColor: colors.rose.light, backgroundColor: colors.ivory[100] },
+  toolReceiptHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
+  toolReceiptIcon: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  toolReceiptTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.noir[800] },
+  toolReceiptStatus: { fontSize: 11, fontWeight: "700" },
+  toolReceiptMessage: { marginTop: 8, fontSize: 13, lineHeight: 20, color: colors.noir.soft },
   safetyCard: { width: "100%", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.ivory[50] },
   safetyCardHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
   safetyCardTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
@@ -4027,4 +4760,6 @@ const st = StyleSheet.create({
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
   sendBtnOff: { backgroundColor: colors.taupe[400] },
+  stopBtn: { minWidth: 68, height: 44, paddingHorizontal: 12, borderRadius: 16, backgroundColor: colors.noir[800], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  stopBtnText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
 });

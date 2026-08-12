@@ -31,6 +31,13 @@ const privacyEpochPath = resolve(
 const privacyEpoch = existsSync(privacyEpochPath)
   ? readFileSync(privacyEpochPath, "utf8")
   : "";
+const providerEgressGrantPath = resolve(
+  process.cwd(),
+  "../../supabase/migrations/20260811230000_amora_provider_egress_grant.sql",
+);
+const providerEgressGrant = existsSync(providerEgressGrantPath)
+  ? readFileSync(providerEgressGrantPath, "utf8")
+  : "";
 
 const BRIDE_ID = "00000000-0000-4000-8000-000000000001";
 const GROOM_ID = "00000000-0000-4000-8000-000000000002";
@@ -232,6 +239,7 @@ async function createDatabase() {
   await db.exec(atomicChatResponse);
   await db.exec(privacySnapshot);
   if (privacyEpoch) await db.exec(privacyEpoch);
+  if (providerEgressGrant) await db.exec(providerEgressGrant);
   return db;
 }
 
@@ -347,6 +355,513 @@ function fencedFinalizeSql(options: {
 }
 
 describe("atomic Amora privacy epoch migration", () => {
+  it("issues and consumes one short-lived content-bound grant at the current privacy epoch", async () => {
+    const db = await createDatabase();
+    try {
+      const expectedEpoch = await getSnapshotEpoch(db);
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.amora_provider_runtime_control
+        SET enabled = true
+        WHERE singleton = true
+      `);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const receipt = await prepareMainChat(db);
+      const issued = await db.query<{
+        grant_id: string;
+        grant_token: string;
+        issued: boolean;
+        expires_at: string;
+      }>(`
+        SELECT * FROM public.issue_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'shared', $5::bigint,
+          'responses.input_tokens.count', $6
+        )
+      `, [
+        receipt.receipt_id,
+        receipt.claim_token,
+        BRIDE_ID,
+        COUPLE_ID,
+        expectedEpoch,
+        "a".repeat(64),
+      ]);
+
+      expect(issued.rows[0]).toMatchObject({
+        grant_id: expect.any(String),
+        grant_token: expect.any(String),
+        issued: true,
+        expires_at: expect.any(Date),
+      });
+      const consumed = await db.query<{ consumed: boolean; reason: string | null }>(`
+        SELECT * FROM public.consume_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3
+        )
+      `, [
+        issued.rows[0]!.grant_id,
+        issued.rows[0]!.grant_token,
+        "a".repeat(64),
+      ]);
+      expect(consumed.rows).toEqual([{ consumed: true, reason: null }]);
+
+      const replay = await db.query<{ consumed: boolean; reason: string | null }>(`
+        SELECT * FROM public.consume_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3
+        )
+      `, [
+        issued.rows[0]!.grant_id,
+        issued.rows[0]!.grant_token,
+        "a".repeat(64),
+      ]);
+      expect(replay.rows).toEqual([{
+        consumed: false,
+        reason: "already_consumed",
+      }]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("rejects an issued grant when unlink or consent revocation advances the privacy epoch before consumption", async () => {
+    const db = await createDatabase();
+    try {
+      const expectedEpoch = await getSnapshotEpoch(db);
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.amora_provider_runtime_control
+        SET enabled = true
+        WHERE singleton = true
+      `);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const receipt = await prepareMainChat(db);
+      const binding = "b".repeat(64);
+      const issued = await db.query<{ grant_id: string; grant_token: string }>(`
+        SELECT grant_id, grant_token
+        FROM public.issue_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'shared', $5::bigint,
+          'responses.input_tokens.count', $6
+        )
+      `, [
+        receipt.receipt_id,
+        receipt.claim_token,
+        BRIDE_ID,
+        COUPLE_ID,
+        expectedEpoch,
+        binding,
+      ]);
+
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.amora_personalization_preferences
+        SET revision = revision + 1
+        WHERE owner_user_id = $1::uuid
+      `, [BRIDE_ID]);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const consumed = await db.query<{ consumed: boolean; reason: string }>(`
+        SELECT * FROM public.consume_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3
+        )
+      `, [issued.rows[0]!.grant_id, issued.rows[0]!.grant_token, binding]);
+
+      expect(consumed.rows).toEqual([{
+        consumed: false,
+        reason: "privacy_context_changed",
+      }]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("revokes each still-live unconsumed grant when the database provider kill switch wins", async () => {
+    const db = await createDatabase();
+    try {
+      const expectedEpoch = await getSnapshotEpoch(db);
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.amora_provider_runtime_control
+        SET enabled = true
+        WHERE singleton = true
+      `);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const receipt = await prepareMainChat(db);
+      const binding = "e".repeat(64);
+      const issued = await db.query<{ grant_id: string; grant_token: string }>(`
+        SELECT grant_id, grant_token
+        FROM public.issue_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'shared', $5::bigint,
+          'responses.input_tokens.count', $6
+        )
+      `, [
+        receipt.receipt_id,
+        receipt.claim_token,
+        BRIDE_ID,
+        COUPLE_ID,
+        expectedEpoch,
+        binding,
+      ]);
+      const disabled = await db.query<{
+        changed: boolean;
+        enabled: boolean;
+        version: number;
+      }>(`
+        SELECT * FROM public.set_amora_provider_runtime_control(
+          false, 1::bigint, 'incident_drill'
+        )
+      `);
+      expect(disabled.rows).toEqual([{
+        changed: true,
+        enabled: false,
+        version: 2,
+      }]);
+
+      const consumed = await db.query<{ consumed: boolean; reason: string }>(`
+        SELECT * FROM public.consume_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3
+        )
+      `, [issued.rows[0]!.grant_id, issued.rows[0]!.grant_token, binding]);
+      expect(consumed.rows).toEqual([{
+        consumed: false,
+        reason: "runtime_disabled",
+      }]);
+
+      const reenabled = await db.query<{
+        changed: boolean;
+        enabled: boolean;
+        version: number;
+      }>(`
+        SELECT * FROM public.set_amora_provider_runtime_control(
+          true, 2::bigint, 'incident_cleared'
+        )
+      `);
+      expect(reenabled.rows).toEqual([{
+        changed: true,
+        enabled: true,
+        version: 3,
+      }]);
+
+      const retry = await db.query<{ issued: boolean; reason: string }>(`
+        SELECT issued, reason
+        FROM public.issue_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'shared', $5::bigint,
+          'responses.input_tokens.count', $6
+        )
+      `, [
+        receipt.receipt_id,
+        receipt.claim_token,
+        BRIDE_ID,
+        COUPLE_ID,
+        expectedEpoch,
+        binding,
+      ]);
+      expect(retry.rows).toEqual([{
+        issued: false,
+        reason: "already_issued",
+      }]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("disables provider egress without rewriting accumulated expired grants", async () => {
+    const db = await createDatabase();
+    try {
+      const expectedEpoch = await getSnapshotEpoch(db);
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.amora_provider_runtime_control
+        SET enabled = true
+        WHERE singleton = true
+      `);
+      await db.exec(`
+        INSERT INTO public.ai_interactions_log(metadata)
+        SELECT jsonb_build_object(
+          'test_batch', 'expired-provider-kill-switch-history'
+        )
+        FROM generate_series(1, 512)
+      `);
+      await db.exec(`
+        WITH expiry_anchor AS (
+          SELECT clock_timestamp() - interval '1 day' AS issued_at
+        )
+        INSERT INTO public.amora_provider_egress_grants(
+          receipt_id,
+          receipt_claim_token,
+          actor_user_id,
+          couple_id,
+          visibility,
+          expected_privacy_epoch,
+          operation,
+          content_binding,
+          issued_at,
+          expires_at
+        )
+        SELECT
+          receipt.id,
+          gen_random_uuid(),
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          'responses.input_tokens.count',
+          repeat('2', 64),
+          expiry_anchor.issued_at,
+          expiry_anchor.issued_at + interval '5 seconds'
+        FROM public.ai_interactions_log AS receipt
+        CROSS JOIN expiry_anchor
+        WHERE receipt.metadata ->> 'test_batch'
+          = 'expired-provider-kill-switch-history'
+      `);
+      const historical = await db.query<{
+        grant_id: string;
+        grant_token: string;
+      }>(`
+        SELECT egress_grant.id AS grant_id, egress_grant.grant_token
+        FROM public.amora_provider_egress_grants AS egress_grant
+        JOIN public.ai_interactions_log AS receipt
+          ON receipt.id = egress_grant.receipt_id
+        WHERE receipt.metadata ->> 'test_batch'
+          = 'expired-provider-kill-switch-history'
+        ORDER BY egress_grant.id
+        LIMIT 1
+      `);
+
+      await setPersona(db, "service_role", BRIDE_ID);
+      const receipt = await prepareMainChat(db);
+      const liveBinding = "1".repeat(64);
+      const live = await db.query<{ grant_id: string; grant_token: string }>(`
+        SELECT grant_id, grant_token
+        FROM public.issue_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'shared', $5::bigint,
+          'responses.input_tokens.count', $6
+        )
+      `, [
+        receipt.receipt_id,
+        receipt.claim_token,
+        BRIDE_ID,
+        COUPLE_ID,
+        expectedEpoch,
+        liveBinding,
+      ]);
+      const disabled = await db.query<{
+        changed: boolean;
+        enabled: boolean;
+        version: number;
+      }>(`
+        SELECT * FROM public.set_amora_provider_runtime_control(
+          false, 1::bigint, 'expired_history_drill'
+        )
+      `);
+      expect(disabled.rows).toEqual([{
+        changed: true,
+        enabled: false,
+        version: 2,
+      }]);
+
+      await resetPersona(db);
+      const revoked = await db.query<{
+        expired_revoked: number;
+        live_revoked: number;
+      }>(`
+        SELECT
+          count(*) FILTER (
+            WHERE receipt.metadata ->> 'test_batch'
+              = 'expired-provider-kill-switch-history'
+              AND egress_grant.revoked_at IS NOT NULL
+          )::integer AS expired_revoked,
+          count(*) FILTER (
+            WHERE egress_grant.id = $1::uuid
+              AND egress_grant.revoked_at IS NOT NULL
+              AND egress_grant.revoke_reason = 'runtime_disabled'
+          )::integer AS live_revoked
+        FROM public.amora_provider_egress_grants AS egress_grant
+        JOIN public.ai_interactions_log AS receipt
+          ON receipt.id = egress_grant.receipt_id
+      `, [live.rows[0]!.grant_id]);
+      expect(revoked.rows).toEqual([{
+        expired_revoked: 0,
+        live_revoked: 1,
+      }]);
+
+      await setPersona(db, "service_role", BRIDE_ID);
+      const reenabled = await db.query<{
+        changed: boolean;
+        enabled: boolean;
+        version: number;
+      }>(`
+        SELECT * FROM public.set_amora_provider_runtime_control(
+          true, 2::bigint, 'expired_history_drill_cleared'
+        )
+      `);
+      expect(reenabled.rows).toEqual([{
+        changed: true,
+        enabled: true,
+        version: 3,
+      }]);
+
+      const expiredAfterReenable = await db.query<{
+        consumed: boolean;
+        reason: string;
+      }>(`
+        SELECT * FROM public.consume_amora_provider_egress_grant(
+          $1::uuid, $2::uuid, $3
+        )
+      `, [
+        historical.rows[0]!.grant_id,
+        historical.rows[0]!.grant_token,
+        "2".repeat(64),
+      ]);
+      expect(expiredAfterReenable.rows).toEqual([{
+        consumed: false,
+        reason: "expired",
+      }]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("indexes terminal-open provider grants by expiry for bounded kill-switch revocation", async () => {
+    const db = await createDatabase();
+    try {
+      const expiryIndex = await db.query<{
+        definition: string;
+        predicate: string;
+      }>(`
+        SELECT
+          pg_get_indexdef(index_class.oid) AS definition,
+          pg_get_expr(index_row.indpred, index_row.indrelid) AS predicate
+        FROM pg_catalog.pg_class AS index_class
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = index_class.relnamespace
+        JOIN pg_catalog.pg_index AS index_row
+          ON index_row.indexrelid = index_class.oid
+        WHERE namespace.nspname = 'public'
+          AND index_class.relname
+            = 'idx_amora_provider_egress_grants_open_expiry'
+      `);
+
+      expect(expiryIndex.rows).toHaveLength(1);
+      expect(expiryIndex.rows[0]!.definition).toMatch(
+        /amora_provider_egress_grants USING btree \(expires_at\)/i,
+      );
+      expect(expiryIndex.rows[0]!.predicate).toMatch(
+        /consumed_at IS NULL.*revoked_at IS NULL/i,
+      );
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
+  it("keeps provider grants content-free and exposes only service-role capability RPCs", async () => {
+    const db = await createDatabase();
+    try {
+      const contract = await db.query<{
+        columns: string[];
+        runtime_enabled: boolean;
+        anon_issue: boolean;
+        authenticated_issue: boolean;
+        service_issue: boolean;
+        anon_consume: boolean;
+        authenticated_consume: boolean;
+        service_consume: boolean;
+        app_table_grants: number;
+      }>(`
+        SELECT
+          (
+            SELECT array_agg(column_name ORDER BY ordinal_position)
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'amora_provider_egress_grants'
+          ) AS columns,
+          (
+            SELECT enabled
+            FROM public.amora_provider_runtime_control
+            WHERE singleton = true
+          ) AS runtime_enabled,
+          has_function_privilege(
+            'anon',
+            'public.issue_amora_provider_egress_grant(uuid,uuid,uuid,uuid,text,bigint,text,text)',
+            'EXECUTE'
+          ) AS anon_issue,
+          has_function_privilege(
+            'authenticated',
+            'public.issue_amora_provider_egress_grant(uuid,uuid,uuid,uuid,text,bigint,text,text)',
+            'EXECUTE'
+          ) AS authenticated_issue,
+          has_function_privilege(
+            'service_role',
+            'public.issue_amora_provider_egress_grant(uuid,uuid,uuid,uuid,text,bigint,text,text)',
+            'EXECUTE'
+          ) AS service_issue,
+          has_function_privilege(
+            'anon',
+            'public.consume_amora_provider_egress_grant(uuid,uuid,text)',
+            'EXECUTE'
+          ) AS anon_consume,
+          has_function_privilege(
+            'authenticated',
+            'public.consume_amora_provider_egress_grant(uuid,uuid,text)',
+            'EXECUTE'
+          ) AS authenticated_consume,
+          has_function_privilege(
+            'service_role',
+            'public.consume_amora_provider_egress_grant(uuid,uuid,text)',
+            'EXECUTE'
+          ) AS service_consume,
+          (
+            SELECT count(*)::integer
+            FROM information_schema.role_table_grants
+            WHERE table_schema = 'public'
+              AND table_name IN (
+                'amora_provider_runtime_control',
+                'amora_provider_egress_grants'
+              )
+              AND grantee IN ('anon', 'authenticated', 'service_role')
+          ) AS app_table_grants
+      `);
+      expect(contract.rows[0]).toMatchObject({
+        runtime_enabled: false,
+        anon_issue: false,
+        authenticated_issue: false,
+        service_issue: true,
+        anon_consume: false,
+        authenticated_consume: false,
+        service_consume: true,
+        app_table_grants: 0,
+      });
+      expect(contract.rows[0]!.columns).toEqual([
+        "id",
+        "grant_token",
+        "receipt_id",
+        "receipt_claim_token",
+        "actor_user_id",
+        "couple_id",
+        "visibility",
+        "expected_privacy_epoch",
+        "operation",
+        "content_binding",
+        "issued_at",
+        "expires_at",
+        "consumed_at",
+        "revoked_at",
+        "revoke_reason",
+      ]);
+      expect(contract.rows[0]!.columns).not.toEqual(
+        expect.arrayContaining(["content", "prompt", "input", "output"]),
+      );
+
+      await setPersona(db, "service_role", BRIDE_ID);
+      await expect(db.query(
+        "SELECT * FROM public.amora_provider_egress_grants",
+      )).rejects.toThrow(/permission denied/i);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
   it("commits through the existing atomic finalizer when the authenticated snapshot epoch is unchanged", async () => {
     const db = await createDatabase();
     try {

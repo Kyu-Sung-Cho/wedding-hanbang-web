@@ -24,6 +24,10 @@ import {
 } from "@/lib/ai/modelConfig";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { createSafetyIdentifier } from "@/lib/ai/safetyIdentifier";
+import {
+  bindProviderEgressContent,
+  type ProviderEgressAuthorizer,
+} from "@/lib/ai/providerEgressBoundary";
 
 let defaultClient: OpenAI | null = null;
 const schemaValidator = new Ajv({
@@ -525,7 +529,7 @@ export async function chatWithToolsStream(options: {
    * out: an omitted gate fails closed before any provider request. See handoff
    * §8 P0-5 and §17.3.
    */
-  beforeProviderEgress: () => void | Promise<void>;
+  beforeProviderEgress: ProviderEgressAuthorizer;
   /** Required atomic paid-call gate; callers cannot silently opt out. */
   beforeGeneration: () => void | Promise<void>;
   client?: OpenAI;
@@ -579,21 +583,28 @@ export async function chatWithToolsStream(options: {
       "[ai-config] beforeProviderEgress is required before any content-bearing provider request",
     );
   }
+  const inputCountRequest = {
+    model: modelConfig.model,
+    instructions: systemPrompt,
+    input,
+    tools: openAITools,
+    parallel_tool_calls: false,
+    reasoning: { effort: modelConfig.reasoningEffort },
+    text: { verbosity: modelConfig.verbosity },
+  };
   signal?.throwIfAborted();
-  await beforeProviderEgress();
+  await beforeProviderEgress({
+    operation: "responses.input_tokens.count",
+    contentBinding: bindProviderEgressContent(
+      "responses.input_tokens.count",
+      inputCountRequest,
+    ),
+  });
   signal?.throwIfAborted();
 
   try {
     const countPromise = client.responses.inputTokens.count(
-      {
-        model: modelConfig.model,
-        instructions: systemPrompt,
-        input,
-        tools: openAITools,
-        parallel_tool_calls: false,
-        reasoning: { effort: modelConfig.reasoningEffort },
-        text: { verbosity: modelConfig.verbosity },
-      },
+      inputCountRequest,
       signal ? { signal } : undefined
     );
     const counted = await countPromise.withResponse();
@@ -660,6 +671,18 @@ export async function chatWithToolsStream(options: {
   // close as possible to the first paid generation request.
   signal?.throwIfAborted();
   await beforeGeneration();
+  signal?.throwIfAborted();
+  // Counting and generation are two distinct content-bearing egresses. A
+  // privacy epoch, membership, or runtime kill switch may change while the
+  // provider is counting, so generation must win a fresh gate immediately
+  // before the SDK request as well.
+  await beforeProviderEgress({
+    operation: "responses.create",
+    contentBinding: bindProviderEgressContent(
+      "responses.create",
+      requestBody,
+    ),
+  });
   signal?.throwIfAborted();
 
   let stream: AsyncIterable<ResponseStreamEvent>;

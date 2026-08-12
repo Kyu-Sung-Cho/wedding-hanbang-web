@@ -12,7 +12,11 @@ import {
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
+import {
+  isScheduleCareMomentType,
+  sanitizeUserFacingScheduleMemo,
+  SCHEDULE_CARE_MOMENT_OPTIONS,
+} from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import {
@@ -109,6 +113,7 @@ const CATEGORY_OPTIONS = [
   ...CATEGORY_CHECKLISTS.map((category) => category.label),
   "기타",
 ];
+const UNSAFE_SCHEDULE_DISPLAY_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 function applyChecklistState(
   categories: Category[],
@@ -217,6 +222,14 @@ function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
       event.memo !== undefined
       && event.memo !== null
       && typeof event.memo !== "string"
+    )
+    || (
+      event.momentType !== undefined
+      && (
+        typeof event.momentType !== "string"
+        || event.momentType.length > 100
+        || UNSAFE_SCHEDULE_DISPLAY_RE.test(event.momentType)
+      )
     )
     || (
       event.status !== undefined
@@ -380,6 +393,7 @@ export default function ScheduleScreen() {
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
   const [formCategoryKey, setFormCategoryKey] = useState("");
+  const [formMomentType, setFormMomentType] = useState("");
   const [formMemo, setFormMemo] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -410,6 +424,7 @@ export default function ScheduleScreen() {
     setFormDate("");
     setFormTime("");
     setFormCategoryKey("");
+    setFormMomentType("");
     setFormMemo("");
   }, [progressAnim]);
 
@@ -928,6 +943,7 @@ export default function ScheduleScreen() {
     setFormDate(today);
     setFormTime("");
     setFormCategoryKey("");
+    setFormMomentType("");
     setFormMemo("");
     setModalVisible(true);
   }
@@ -954,6 +970,7 @@ export default function ScheduleScreen() {
     setFormDate(evt.date);
     setFormTime(evt.time ?? "");
     setFormCategoryKey(evt.categoryKey ?? "");
+    setFormMomentType(evt.momentType ?? "");
     setFormMemo(sanitizeUserFacingScheduleMemo(evt.memo) ?? "");
     setModalVisible(true);
   }
@@ -974,6 +991,7 @@ export default function ScheduleScreen() {
       title: formTitle,
       time: formTime,
       categoryKey: formCategoryKey,
+      momentType: formMomentType,
       memo: formMemo,
     });
     if (!draftValidation.ok) {
@@ -984,6 +1002,7 @@ export default function ScheduleScreen() {
         time: "시간을 00:00~23:59 형식으로 입력해 주세요.",
         memo: "메모는 2,000자 이내로 입력해 주세요.",
         categoryKey: "카테고리를 다시 선택해 주세요.",
+        momentType: "아모라가 챙길 중요한 날을 다시 선택해 주세요.",
       }[draftValidation.field];
       Alert.alert("입력 확인", message);
       return;
@@ -1009,6 +1028,7 @@ export default function ScheduleScreen() {
         ...(existingEvent ?? {}),
         id: existingEvent?.id ?? createEventId(),
         ...draftValidation.value,
+        momentType: draftValidation.value.momentType,
         createdAt: existingEvent?.createdAt ?? now,
         updatedAt: now,
       };
@@ -1027,8 +1047,6 @@ export default function ScheduleScreen() {
       } else {
         updatedEvents = [...currentEvents, newEvent];
       }
-
-      updatedEvents.sort((a, b) => a.date.localeCompare(b.date));
 
       const outcome = await submitScheduleEvents(
         sessionToken.ownerId,
@@ -1402,10 +1420,11 @@ export default function ScheduleScreen() {
   /* ── 임박 일정 (7일 이내) ── */
   const next7Days = getUpcomingDays(7);
   const activeEvents = events.filter((event) => !isCancelledScheduleEvent(event));
+  const orderedActiveEvents = [...activeEvents].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
   const cancelledEvents = events.filter(isCancelledScheduleEvent);
-  const upcomingEvents = activeEvents
-    .filter((e) => next7Days.includes(e.date))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const upcomingEvents = orderedActiveEvents.filter((e) => next7Days.includes(e.date));
 
   // 전체 진행률 계산
   const overallPercent = categories.length > 0
@@ -1795,7 +1814,7 @@ export default function ScheduleScreen() {
         {activeEvents.length > 0 && (
           <View style={styles.allEventsSection}>
             <Text style={styles.allEventsTitle}>전체 일정</Text>
-            {activeEvents.map((evt) => (
+            {orderedActiveEvents.map((evt) => (
               <Pressable
                 key={`all-${evt.id}`}
                 style={({ pressed }) => [
@@ -1925,6 +1944,65 @@ export default function ScheduleScreen() {
                   >
                     <Text style={[styles.chipText, formCategoryKey === cat && styles.chipTextActive]}>
                       {cat}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.fieldLabel}>아모라가 챙길 중요한 날 (선택)</Text>
+              <Text style={styles.fieldHelp}>
+                선택하면 일정 전후에 아모라가 준비물과 안부를 챙겨드릴 수 있어요. 알림·케어 설정에 따라 전달 시점은 달라질 수 있어요.
+              </Text>
+              <ScrollView
+                horizontal
+                accessibilityRole="radiogroup"
+                accessibilityLabel="아모라가 챙길 중요한 날"
+                showsHorizontalScrollIndicator={false}
+                style={styles.chipScroll}
+              >
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityLabel="아모라 챙김: 일반 일정"
+                  accessibilityState={{ checked: !formMomentType }}
+                  style={[styles.chip, !formMomentType && styles.chipActive]}
+                  onPress={() => setFormMomentType("")}
+                >
+                  <Text style={[styles.chipText, !formMomentType && styles.chipTextActive]}>
+                    일반 일정
+                  </Text>
+                </Pressable>
+                {formMomentType && !isScheduleCareMomentType(formMomentType) && (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityLabel="아모라 챙김: 기타 일정, 기존 설정 유지"
+                    accessibilityState={{ checked: true }}
+                    style={[styles.chip, styles.chipActive]}
+                    onPress={() => undefined}
+                  >
+                    <Text style={[styles.chipText, styles.chipTextActive]}>
+                      기타 일정 · 기존 설정 유지
+                    </Text>
+                  </Pressable>
+                )}
+                {SCHEDULE_CARE_MOMENT_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`아모라 챙김: ${option.label}`}
+                    accessibilityState={{ checked: formMomentType === option.value }}
+                    style={[
+                      styles.chip,
+                      formMomentType === option.value && styles.chipActive,
+                    ]}
+                    onPress={() => setFormMomentType(option.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        formMomentType === option.value && styles.chipTextActive,
+                      ]}
+                    >
+                      {option.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -2446,6 +2524,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 16,
   },
+  fieldHelp: {
+    marginTop: -2,
+    marginBottom: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textTertiary,
+  },
   input: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -2458,6 +2543,9 @@ const styles = StyleSheet.create({
   },
   chipScroll: { flexDirection: "row", marginBottom: 4 },
   chip: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,

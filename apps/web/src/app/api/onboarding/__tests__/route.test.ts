@@ -5,6 +5,11 @@ import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent } from "@/utils/rateLimit";
 import { POST } from "../route";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 
 vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
@@ -72,12 +77,16 @@ class FakeQuery implements PromiseLike<QueryResult> {
   }
 }
 
-function onboardingRequest(body: Record<string, unknown>) {
+function onboardingRequest(
+  body: Record<string, unknown>,
+  extraHeaders: Record<string, string> = {},
+) {
   return new Request("http://localhost/api/onboarding", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "sec-fetch-site": "same-origin",
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   });
@@ -103,6 +112,7 @@ function setupClients(
     },
     error: null,
   },
+  serverJoinRpc?: QueryResult,
 ) {
   const authClient = {
     auth: {
@@ -121,12 +131,28 @@ function setupClients(
   vi.mocked(createClientFromRequest).mockResolvedValue(authClient as never);
 
   const fromCalls: string[] = [];
+  const serverJoinMembershipData = membershipData !== null
+      && typeof membershipData === "object"
+      && !Array.isArray(membershipData)
+    ? {
+        ...(membershipData as Record<string, unknown>),
+        actor_user_id: "11111111-1111-4111-8111-111111111111",
+      }
+    : membershipData;
   const admin = {
     from: vi.fn((table: string) => {
       fromCalls.push(table);
       return new FakeQuery(handlers[table]?.shift() ?? {});
     }),
-    rpc: vi.fn().mockResolvedValue(adminRpc),
+    rpc: vi.fn(async (
+      functionName: string,
+      parameters?: Record<string, unknown>,
+    ) => {
+      void parameters;
+      return functionName === "join_couple_server"
+        ? serverJoinRpc ?? { data: serverJoinMembershipData, error: null }
+        : adminRpc;
+    }),
   };
   vi.mocked(createClient).mockReturnValue(admin as never);
 
@@ -228,6 +254,84 @@ describe("/api/onboarding POST", () => {
     expect(authClient.auth.getUser).toHaveBeenCalledTimes(1);
     expect(authClient.rpc).not.toHaveBeenCalled();
     expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects an account-switched v2 form before rate limiting or membership writes", async () => {
+    const { authClient } = setupClients({}, createSuccess);
+
+    const response = await POST(onboardingRequest({
+      role: "bride",
+      coupleAction: "join",
+      partnerInviteCode: "WH-ABC123",
+    }, {
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "22222222-2222-4222-8222-222222222222",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(authClient.auth.getUser).toHaveBeenCalledTimes(1);
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("lets a matching v2 form reach the existing join limiter", async () => {
+    const { authClient } = setupClients({}, createSuccess);
+    const limited = new Response(JSON.stringify({ error: "요청이 너무 많습니다." }), {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    });
+    vi.mocked(checkRateLimitPersistent).mockResolvedValueOnce(limited as never);
+
+    const response = await POST(onboardingRequest({
+      role: "bride",
+      coupleAction: "join",
+      partnerInviteCode: "WH-ABC123",
+    }, {
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "11111111-1111-4111-8111-111111111111",
+    }));
+
+    expect(response.status).toBe(429);
+    expect(checkRateLimitPersistent).toHaveBeenCalledTimes(1);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without legacy fallback when the Phase A server RPC is missing", async () => {
+    const joinSuccess = {
+      success: true,
+      joined: true,
+      idempotent: false,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      role: "bride",
+    };
+    const { authClient, admin } = setupClients(
+      {},
+      joinSuccess,
+      undefined,
+      { data: null, error: { code: "PGRST202", message: "missing" } },
+    );
+
+    const response = await POST(onboardingRequest({
+      role: "bride",
+      coupleAction: "join",
+      partnerInviteCode: "WH-ABC123",
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COUPLE_INVITE_EXPAND_REQUIRED",
+    });
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", {
+      p_actor_user_id: "11111111-1111-4111-8111-111111111111",
+      p_invite_code: "WH-ABC123",
+      p_role: "bride",
+    });
+    expect(authClient.rpc).not.toHaveBeenCalled();
   });
 
   it("rejects unsafe nested progress before membership or service access", async () => {
@@ -751,7 +855,7 @@ describe("/api/onboarding POST", () => {
         message: expect.stringContaining("다시 입력해주세요"),
       },
     });
-    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
     expect(admin.rpc).toHaveBeenCalledWith("submit_couple_plan_change", {
       p_couple_id: coupleId,
       p_actor_user_id: "11111111-1111-4111-8111-111111111111",
@@ -1331,7 +1435,12 @@ describe("/api/onboarding POST", () => {
         requestedDate: "2027-03-01",
       },
     });
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", {
+      p_actor_user_id: "11111111-1111-4111-8111-111111111111",
+      p_invite_code: "WH-ABC123",
+      p_role: "bride",
+    });
     expect(profileCompletion).not.toHaveBeenCalled();
   });
 
@@ -1396,7 +1505,12 @@ describe("/api/onboarding POST", () => {
       success: true,
       planChange: { status: "unchanged" },
     });
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", {
+      p_actor_user_id: "11111111-1111-4111-8111-111111111111",
+      p_invite_code: "WH-ABC123",
+      p_role: "bride",
+    });
     expect(profileCompletion).toHaveBeenCalledWith({
       onboarding_completed: true,
       onboarding_step: 5,
@@ -1658,9 +1772,13 @@ describe("/api/onboarding POST", () => {
 
     expect(firstResponse.status).toBe(200);
     expect(secondResponse.status).toBe(200);
-    expect(admin.rpc).toHaveBeenCalledTimes(2);
-    const firstChanges = admin.rpc.mock.calls[0]?.[1]?.p_changes;
-    const secondChanges = admin.rpc.mock.calls[1]?.[1]?.p_changes;
+    expect(admin.rpc).toHaveBeenCalledTimes(4);
+    const planCalls = admin.rpc.mock.calls.filter(
+      ([functionName]) => functionName === "submit_couple_plan_change",
+    );
+    expect(planCalls).toHaveLength(2);
+    const firstChanges = planCalls[0]?.[1]?.p_changes;
+    const secondChanges = planCalls[1]?.[1]?.p_changes;
     expect(secondChanges).toEqual(firstChanges);
     expect(firstChanges).toMatchObject({
       progress_patch: {

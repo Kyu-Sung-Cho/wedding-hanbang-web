@@ -49,9 +49,23 @@ import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 
 /** 서버가 이유를 밝히며 거절한 중재 요청. 그 문장을 사용자에게 그대로 보여준다. */
 const MEDIATION_REQUEST_REJECTED = "MediationRequestRejected";
+const AMORA_INGEST_CONTRACT_VERSION_HEADER = "X-Amora-Ingest-Contract-Version";
+const AMORA_EXPECTED_ACTOR_USER_ID_HEADER = "X-Amora-Expected-Actor-User-Id";
+
+function mutationActorHeaders(profileId: string): Record<string, string> {
+  return {
+    [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+    [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: profileId,
+  };
+}
 
 type ChatLifecycleBinding = {
   epoch: number;
@@ -1374,7 +1388,10 @@ async function executeChatProviderRequest(
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...mutationActorHeaders(lifecycleBinding.profileId),
+      },
       body: request.requestBody,
       signal: abortController.signal,
     });
@@ -2093,15 +2110,31 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const cleanupNewlyUploadedImages = async () => {
       if (newlyUploadedImagePaths.length === 0) return;
       const pathsToRemove = newlyUploadedImagePaths.splice(0);
-      try {
-        const cleanupResult = await supabase.storage
-          .from("chat-image")
-          .remove(pathsToRemove);
-        if (cleanupResult.error) {
-          logChatDiagnostic("새 채팅 이미지 고아 정리 실패", cleanupResult.error);
+      const cleanupBody = JSON.stringify({
+        coupleId,
+        expectedActorUserId: senderId,
+        paths: pathsToRemove,
+      });
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const response = await fetch("/api/chat/image-cleanup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: cleanupBody,
+          });
+          if (response.ok) return;
+          const retryable = response.status === 408 || response.status >= 500;
+          if (!retryable || attempt === 1) {
+            logChatDiagnostic("새 채팅 이미지 고아 정리 실패", {
+              status: response.status,
+            });
+            return;
+          }
+        } catch (error) {
+          if (attempt === 1) {
+            logChatDiagnostic("새 채팅 이미지 고아 정리 실패", error);
+          }
         }
-      } catch (error) {
-        logChatDiagnostic("새 채팅 이미지 고아 정리 실패", error);
       }
     };
     if (!isDemo) {
@@ -2193,7 +2226,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       try {
         ingestResponse = await fetch("/api/chat/messages", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...mutationActorHeaders(lifecycleBinding.profileId),
+            [AMORA_INGEST_CONTRACT_VERSION_HEADER]: "2",
+            [AMORA_EXPECTED_ACTOR_USER_ID_HEADER]: lifecycleBinding.profileId,
+          },
           body: JSON.stringify({
             coupleId,
             content,
@@ -2610,7 +2648,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const isDemo = document.cookie.includes("demo_mode=true");
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...mutationActorHeaders(lifecycleBinding.profileId),
+        },
         body: JSON.stringify({
           messages: [{ role: "user", content: `[${roleLabel}] [INITIAL_GREETING]` }],
           coupleId,
@@ -2787,7 +2828,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const clientRequestId = createClientRequestId();
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...mutationActorHeaders(lifecycleBinding.profileId),
+        },
         body: JSON.stringify({
           messages: mediationMessages,
           coupleId,
@@ -2893,16 +2937,23 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 대화 초기화
   clearMessages: async (coupleId, mode) => {
+    const lifecycleBinding = captureChatLifecycleBinding(coupleId);
+    if (!lifecycleBinding) return;
+    const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
     const isDemo = document.cookie.includes("demo_mode=true");
     // 서버 응답에서 받은 clearedAt 사용 — DB·클라이언트 동기화
     let serverClearedAt: string | null = null;
     if (!isDemo) {
       const res = await fetch("/api/chat/messages", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...mutationActorHeaders(lifecycleBinding.profileId),
+        },
         body: JSON.stringify({ coupleId, mode }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!isCurrentLifecycle()) return;
       if (!res.ok) {
         const message = typeof data?.error === "string" ? data.error : "채팅 정리에 실패했습니다.";
         set({ error: message });
@@ -2910,6 +2961,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       serverClearedAt = typeof data?.clearedAt === "string" ? data.clearedAt : null;
     }
+    if (!isCurrentLifecycle()) return;
     const nowIso = serverClearedAt ?? new Date().toISOString();
     if (mode === "view_reset_shared" || mode === "delete_shared") {
       writeLocalClearedAt(coupleId, "shared", nowIso);
@@ -2959,13 +3011,24 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // "둘 다 새로시작" 요청 보내기
   requestSharedClear: async (coupleId: string) => {
+    const lifecycleBinding = captureChatLifecycleBinding(coupleId);
+    if (!lifecycleBinding) {
+      return { ok: false, error: "현재 커플 계정을 확인한 뒤 다시 시도해 주세요." };
+    }
+    const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
     try {
       const res = await fetch("/api/chat/clear-request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...mutationActorHeaders(lifecycleBinding.profileId),
+        },
         body: JSON.stringify({ action: "request", coupleId }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!isCurrentLifecycle()) {
+        return { ok: false, error: "계정이 바뀌어 요청 결과를 반영하지 않았어요." };
+      }
       if (!res.ok) return { ok: false, error: data?.error ?? "요청 실패" };
       return { ok: true };
     } catch (err) {
@@ -2975,20 +3038,31 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 받은 요청에 동의/거절
   respondToClearRequest: async (messageId: string, action: "accept" | "decline") => {
+    const lifecycleBinding = captureActiveChatLifecycleBinding();
+    if (!lifecycleBinding) {
+      return { ok: false, error: "현재 커플 계정을 확인한 뒤 다시 시도해 주세요." };
+    }
+    const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
     try {
       const res = await fetch("/api/chat/clear-request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, messageId }),
+        headers: {
+          "Content-Type": "application/json",
+          ...mutationActorHeaders(lifecycleBinding.profileId),
+        },
+        body: JSON.stringify({ action, messageId, coupleId: lifecycleBinding.coupleId }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!isCurrentLifecycle()) {
+        return { ok: false, error: "계정이 바뀌어 응답 결과를 반영하지 않았어요." };
+      }
       if (!res.ok) return { ok: false, error: data?.error ?? "응답 실패" };
 
       // accept 의 경우 양쪽 cleared_at 이 갱신됨 — 본인 store 도 즉시 반영
       if (action === "accept" && typeof data?.clearedAt === "string") {
-        const activeCoupleId = useAuthStore.getState().couple?.id;
-        if (activeCoupleId) writeLocalClearedAt(activeCoupleId, "shared", data.clearedAt);
+        writeLocalClearedAt(lifecycleBinding.coupleId, "shared", data.clearedAt);
         set((s) => {
+          if (!isCurrentLifecycle()) return s;
           // cleared_at 이전 shared 메시지 제거 (clear-request 메시지 자체는
           // 동일 created_at 이라 살아남음 — 카드 상태 업데이트로 표시).
           const filtered = s.messages.filter((m) => {

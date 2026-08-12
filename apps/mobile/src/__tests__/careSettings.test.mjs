@@ -66,7 +66,10 @@ test("a paused outbound channel blocks opt-in while preserving opt-out", () => {
 });
 
 test("mobile settings reads its private profile through the authenticated server contract", () => {
-  assert.match(settingsSource, /apiFetch\("\/api\/settings\/wedding-profile"\)/);
+  assert.match(
+    settingsSource,
+    /apiFetchForExpectedUser\(\s*user\.id,\s*"\/api\/settings\/wedding-profile"/u,
+  );
   assert.doesNotMatch(settingsSource, /\.from\("profiles"\)/);
   assert.match(settingsSource, /profile\.id !== user\.id/);
 });
@@ -91,7 +94,7 @@ test("settings load commits legacy consent, partner, form, and snapshot only for
   assert.match(loadSource, /const loadToken = settingsLoadGate\.begin\(\)/);
   assert.match(
     loadSource,
-    /if \(loadToken\.isCurrent\(\)\) \{[\s\S]*setPartnerName[\s\S]*setCoupleConnection[\s\S]*setLegacyCareConsentActive[\s\S]*setData[\s\S]*setInitialData[\s\S]*setSettingsSnapshot/,
+    /if \(loadToken\.isCurrent\(\) && responseOwner\?\.id === user\.id\) \{[\s\S]*setPartnerName[\s\S]*setCoupleConnection[\s\S]*setLegacyCareConsentActive[\s\S]*setData[\s\S]*setInitialData[\s\S]*setSettingsSnapshot/,
   );
   assert.doesNotMatch(loadSource, /setCareAvailability|setCareDeliveryEmail|setCareNotificationsEnabled/);
   assert.match(loadSource, /return \(\) => loadToken\.cancel\(\)/);

@@ -524,11 +524,30 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
 
 // 진행 현황 미니 카드
 function ScheduleMiniCard() {
+  const { user, isDemo } = useAuthStore();
+  const mutationOwnerId = isDemo ? "demo" : user?.id ?? null;
+
+  return (
+    <OwnedScheduleMiniCard
+      key={mutationOwnerId ?? "signed-out"}
+      mutationOwnerId={mutationOwnerId}
+    />
+  );
+}
+
+function OwnedScheduleMiniCard({ mutationOwnerId }: { mutationOwnerId: string | null }) {
   const { journey, updateJourney } = useAuthStore();
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
+
+  const isCurrentMutationOwner = () => {
+    const current = useAuthStore.getState();
+    return mutationOwnerId !== null
+      && current.user?.id === mutationOwnerId
+      && (mutationOwnerId === "demo" ? current.isDemo : !current.isDemo);
+  };
 
   const categories = ["meeting", "venue", "studio", "dress", "makeup", "ring", "honeymoon", "houseware"];
   const items = categories.map((key) => {
@@ -541,7 +560,7 @@ function ScheduleMiniCard() {
   }).filter(c => c.total > 0);
 
   const handleToggle = async (catKey: string, itemId: string) => {
-    if (savingItemId) return;
+    if (savingItemId || !mutationOwnerId || !isCurrentMutationOwner()) return;
     const existing = progress[catKey];
     if (!existing?.checklist) return;
     const newChecklist = existing.checklist.map((item) =>
@@ -559,18 +578,21 @@ function ScheduleMiniCard() {
           ...progress,
           [catKey]: { ...existing, checklist: newChecklist, status: newStatus },
         },
-      });
+      }, mutationOwnerId);
+      if (!isCurrentMutationOwner()) return;
       if (result.status === "pending_partner") {
         setSaveNotice(
           `${result.summary} 상대방 확인 전에는 반영되지 않습니다.`,
         );
       }
     } catch (error) {
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : "체크 상태를 저장하지 못했습니다.",
-      );
+      if (isCurrentMutationOwner()) {
+        setSaveError(
+          error instanceof Error
+            ? error.message
+            : "체크 상태를 저장하지 못했습니다.",
+        );
+      }
     } finally {
       setSavingItemId(null);
     }

@@ -26,6 +26,39 @@ test("mobile schedule writes use the server CAS revision contract", () => {
   assert.match(scheduleSource, /PLAN_CHANGE_STALE/);
 });
 
+test("mobile schedule lets the user explicitly opt into a supported Amora care moment", () => {
+  assert.match(scheduleSource, /SCHEDULE_CARE_MOMENT_OPTIONS/);
+  assert.match(scheduleSource, /const \[formMomentType, setFormMomentType\] = useState\(""\)/);
+  assert.match(scheduleSource, /setFormMomentType\(evt\.momentType \?\? ""\)/);
+  assert.match(
+    scheduleSource,
+    /validateScheduleEventDraft\(\{[\s\S]*?momentType:\s*formMomentType,[\s\S]*?\}\)/,
+  );
+  assert.match(
+    scheduleSource,
+    /const newEvent:[\s\S]*?\.\.\.draftValidation\.value/,
+  );
+  assert.match(
+    scheduleSource,
+    /momentType:\s*draftValidation\.value\.momentType/,
+  );
+  assert.match(scheduleSource, /아모라가 챙길 중요한 날 \(선택\)/);
+  assert.match(scheduleSource, /선택하면 일정 전후에 아모라가 준비물과 안부를 챙겨드릴 수 있어요/);
+  assert.match(scheduleSource, /accessibilityRole="radio"/);
+  assert.match(scheduleSource, /accessibilityRole="radiogroup"/);
+  assert.match(scheduleSource, /기타 일정 · 기존 설정 유지/);
+  assert.match(scheduleSource, /chip:\s*\{[\s\S]*?minHeight:\s*44/);
+});
+
+test("mobile persists append-only event order and sorts only display copies", () => {
+  assert.doesNotMatch(scheduleSource, /updatedEvents\.sort\(/);
+  assert.match(
+    scheduleSource,
+    /const orderedActiveEvents = \[\.\.\.activeEvents\]\.sort\(/,
+  );
+  assert.match(scheduleSource, /orderedActiveEvents\.map\(\(evt\) =>/);
+});
+
 test("mobile schedule edit, cancellation, and restore target stable ids rather than array indexes", () => {
   assert.match(scheduleSource, /const \[editingEventId, setEditingEventId\]/);
   assert.match(scheduleSource, /openEditEventModal\(eventId: string\)/);

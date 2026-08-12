@@ -15,7 +15,7 @@ const sharedSource = readFileSync(
 test("mobile schedule load and edit both use the shared legacy-id sanitizer", () => {
   assert.match(
     scheduleSource,
-    /import\s*\{\s*sanitizeUserFacingScheduleMemo\s*\}\s*from\s*["']@hanbang\/shared["']/,
+    /import\s*\{[^}]*\bsanitizeUserFacingScheduleMemo\b[^}]*\}\s*from\s*["']@hanbang\/shared["']/,
   );
   assert.match(scheduleSource, /memo:\s*sanitizeUserFacingScheduleMemo\(event\.memo\)/);
   assert.match(

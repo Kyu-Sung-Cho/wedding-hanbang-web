@@ -23,6 +23,7 @@ const communityPrompt = source("src/app/api/community/ai-comment/route.ts");
 const aiNotice = source("src/components/common/AiNoticeFooter.tsx");
 const toolExecutor = source("src/lib/ai/toolExecutor.ts");
 const chatContent = source("src/components/app/chat/ChatContent.tsx");
+const mobileChat = source("../mobile/app/(tabs)/chat.tsx");
 
 describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 말을 한다", () => {
   it("아모라를 '플래너'로 소개하지 않는다", () => {
@@ -53,6 +54,11 @@ describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 �
     // 고지와 자기소개가 서로 다른 이름을 말하는 상태는 개명 전보다 나쁘다.
     expect(aiNotice).toContain("AI 파트너");
     expect(aiNotice).not.toContain("AI 플래너");
+  });
+
+  it("모바일 아모라 헤더도 같은 AI 파트너 정체성을 쓴다", () => {
+    expect(mobileChat).toContain(">AI 파트너</Text>");
+    expect(mobileChat).not.toContain(">AI 웨딩 플래너</Text>");
   });
 
   it("실행 위임 문장은 그대로 둔다", () => {

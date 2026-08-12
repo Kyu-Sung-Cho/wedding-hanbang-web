@@ -46,6 +46,9 @@ describe("hero image performance budget", () => {
     expect(source).toContain("lg:min-h-[min(720px,calc(100svh-4rem))]");
     expect(source).not.toContain("radial-gradient");
     expect(source).not.toContain("amora-hero-bouquet-custom");
+
+    const nextConfig = readFileSync(resolve(appRoot, "next.config.ts"), "utf8");
+    expect(nextConfig).toMatch(/qualities:\s*\[[^\]]*50[^\]]*\]/u);
   });
 
   it("generates the landing social card from the page's own copy", () => {

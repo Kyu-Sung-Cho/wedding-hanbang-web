@@ -29,7 +29,50 @@ type MembershipRpcPayload = {
   joined?: unknown;
   idempotent?: unknown;
   role?: unknown;
+  actor_user_id?: unknown;
 };
+
+type MembershipRpcTransportError = {
+  code?: string;
+  message?: string;
+} | null;
+
+export type MembershipRpcTransportResponse = {
+  data: unknown;
+  error: MembershipRpcTransportError;
+};
+
+type MembershipRpcClient = {
+  rpc: (
+    functionName: string,
+    parameters: Record<string, unknown>,
+  ) => PromiseLike<MembershipRpcTransportResponse>;
+};
+
+export const JOIN_COUPLE_SERVER_RPC = "join_couple_server";
+export const COUPLE_INVITE_EXPAND_REQUIRED_CODE =
+  "COUPLE_INVITE_EXPAND_REQUIRED";
+
+export function isJoinCoupleServerRpcMissing(error: unknown): boolean {
+  if (!error || typeof error !== "object" || Array.isArray(error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "PGRST202" || code === "42883";
+}
+
+export async function joinCoupleThroughServerRpc(
+  client: MembershipRpcClient,
+  input: {
+    actorUserId: string;
+    inviteCode: string;
+    role: CoupleRole;
+  },
+): Promise<MembershipRpcTransportResponse> {
+  return client.rpc(JOIN_COUPLE_SERVER_RPC, {
+    p_actor_user_id: input.actorUserId,
+    p_invite_code: input.inviteCode,
+    p_role: input.role,
+  });
+}
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -101,6 +144,14 @@ const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
     status: 409,
     message: "커플 연결 상태가 변경되었습니다. 다시 시도해주세요.",
   },
+  ROLE_MISMATCH: {
+    status: 409,
+    message: "파트너가 만든 커플과 반대 역할을 선택해 주세요.",
+  },
+  RATE_LIMITED: {
+    status: 429,
+    message: "초대 코드 확인을 너무 많이 시도했어요. 잠시 후 다시 시도해 주세요.",
+  },
 };
 
 function failureFor(errorCode: string): MembershipRpcFailure {
@@ -128,6 +179,7 @@ export function parseMembershipRpcResponse(
   value: unknown,
   expectedRole: CoupleRole,
   action: MembershipAction,
+  expectedActorUserId?: string,
 ): MembershipRpcOutcome {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return failureFor("INVALID_RPC_RESPONSE");
@@ -156,7 +208,11 @@ export function parseMembershipRpcResponse(
     typeof changed !== "boolean" ||
     typeof payload.idempotent !== "boolean" ||
     payload.idempotent === changed ||
-    payload.role !== expectedRole
+    payload.role !== expectedRole ||
+    (
+      expectedActorUserId !== undefined
+      && payload.actor_user_id !== expectedActorUserId
+    )
   ) {
     return failureFor("INVALID_RPC_RESPONSE");
   }

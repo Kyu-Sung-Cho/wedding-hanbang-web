@@ -121,6 +121,7 @@ import {
   takeRecentAmoraConversation,
 } from "@/lib/ai/amoraRequestPolicy";
 import { AmoraCostGuardError } from "@/lib/ai/costGuard";
+import { deriveAmoraQuotaSubjectId } from "@/lib/ai/amoraQuotaSubject";
 import {
   AMORA_CRISIS_CONTACT_POLICY_VERSION,
   buildAmoraCrisisResponse,
@@ -153,6 +154,7 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 import { createHash, randomUUID } from "node:crypto";
 import { isSupersededDecision } from "@/lib/ai/supersededDecisions";
 import { inspectScheduleEvents } from "@/utils/scheduleEvents";
@@ -671,6 +673,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
+  if (!isDemo) {
+    const mutationActorFence = verifyMutationActorFence(request.headers, user!.id);
+    if (!mutationActorFence.ok) {
+      return NextResponse.json(
+        {
+          error: mutationActorFence.message,
+          code: mutationActorFence.code,
+        },
+        {
+          status: mutationActorFence.status,
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+        },
+      );
+    }
+  }
+
   const actorId = user?.id ?? (isEvaluation ? EVAL_ACTOR_ID : DEMO_ACTOR_ID);
   const evalLimit = isEvaluation ? getEvalRequestLimit(request) : null;
 
@@ -787,6 +805,18 @@ export async function POST(request: Request) {
     }
     visibility = allowedPrivateVisibility;
   }
+
+  // A partner may see the shared allowance because every shared turn is
+  // visible to both people. Private usage must never change that number, so a
+  // durable private lane receives an actor-only opaque quota subject. Demo and
+  // signed evaluation keep their isolated synthetic ledger subjects.
+  const quotaSubjectId = !isDemo && !isEvaluation
+    ? deriveAmoraQuotaSubjectId({
+        coupleId,
+        actorUserId: actorId,
+        visibility,
+      })
+    : dataCoupleId;
 
   const visibleClientRequestKey = `chat:${actorId}:${rawClientRequestId}`;
   const durableClientRequestUuid =
@@ -3042,8 +3072,12 @@ export async function POST(request: Request) {
               callIndex: providerCallIndex,
               phase: "tool_round",
               stageTag,
+              providerPrivacyScope:
+                !isDemo && !isEvaluation && initialPrivacyEpoch !== null
+                  ? { visibility, expectedPrivacyEpoch: initialPrivacyEpoch }
+                  : null,
               costGuard: {
-                coupleId: dataCoupleId,
+                coupleId: quotaSubjectId,
                 isAdmin: userProfile?.is_admin === true,
                 quotaScope: isEvaluation
                   ? "release_eval"
@@ -3062,7 +3096,11 @@ export async function POST(request: Request) {
                 }
               },
             },
-            async (reserveBeforeGeneration, reserveBeforeSideEffect) => {
+            async (
+              reserveBeforeGeneration,
+              reserveBeforeSideEffect,
+              authorizeProviderEgress,
+            ) => {
               if (approvedPendingAction && round === 0) {
                 // Reserve this exact provider receipt before the durable
                 // action without marking the paid provider boundary. OpenAI
@@ -3094,7 +3132,10 @@ export async function POST(request: Request) {
                 // request on the privacy context, not just the billed one; the
                 // hook below repeats the check after counting and before the
                 // reservation.
-                beforeProviderEgress: assertPrivacyContextStillCurrent,
+                beforeProviderEgress: async (request) => {
+                  await assertPrivacyContextStillCurrent();
+                  await authorizeProviderEgress(request);
+                },
                 beforeGeneration: async () => {
                   await assertPrivacyContextStillCurrent();
                   await reserveBeforeGeneration();
@@ -3312,6 +3353,7 @@ export async function POST(request: Request) {
               cacheReadTokens: null,
               costUsd: null,
               metadata: {
+                visibility,
                 stage_tag: stageTag,
                 question_scope: questionScope.scope,
                 ...(boundedContinuity
@@ -3536,8 +3578,12 @@ export async function POST(request: Request) {
             callIndex: finalCallIndex,
             phase: "final_no_tool",
             stageTag,
+            providerPrivacyScope:
+              !isDemo && !isEvaluation && initialPrivacyEpoch !== null
+                ? { visibility, expectedPrivacyEpoch: initialPrivacyEpoch }
+                : null,
             costGuard: {
-              coupleId: dataCoupleId,
+              coupleId: quotaSubjectId,
               isAdmin: userProfile?.is_admin === true,
               quotaScope: isEvaluation
                 ? "release_eval"
@@ -3556,7 +3602,11 @@ export async function POST(request: Request) {
               }
             },
           },
-          async (reserveBeforeGeneration) => {
+          async (
+            reserveBeforeGeneration,
+            _reserveBeforeSideEffect,
+            authorizeProviderEgress,
+          ) => {
             const providerResult = await chatWithToolsStream({
               systemPrompt: noToolSystemPrompt,
               input: currentMessages,
@@ -3570,7 +3620,10 @@ export async function POST(request: Request) {
               maxOutputTokens: finalRequestPolicy.maxOutputTokens,
               // Fences OpenAI's input-token count, which precedes the paid
               // generation hook and already carries the full prompt.
-              beforeProviderEgress: assertPrivacyContextStillCurrent,
+              beforeProviderEgress: async (request) => {
+                await assertPrivacyContextStillCurrent();
+                await authorizeProviderEgress(request);
+              },
               beforeGeneration: async () => {
                 await assertPrivacyContextStillCurrent();
                 await reserveBeforeGeneration();
@@ -3758,6 +3811,7 @@ export async function POST(request: Request) {
           cacheReadTokens: null,
           costUsd: null,
           metadata: {
+            visibility,
             stage_tag: stageTag,
             question_scope: questionScope.scope,
             ...(boundedContinuity
@@ -3858,6 +3912,7 @@ export async function POST(request: Request) {
           cacheReadTokens: null,
           costUsd: null,
           metadata: {
+            visibility,
             stage_tag: stageTag,
             question_scope: questionScope.scope,
             ...(boundedContinuity

@@ -3,6 +3,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import {
+  HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
+  HANBANG_MUTATION_CONTRACT_VERSION,
+  HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
+} from "@hanbang/shared";
 import { GET, PATCH } from "../route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
@@ -48,10 +53,10 @@ function mockAdmin(
   return rpc;
 }
 
-function patchRequest(body: unknown) {
+function patchRequest(body: unknown, headers: HeadersInit = {}) {
   return new Request("http://localhost/api/settings/wedding-profile", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -148,6 +153,21 @@ describe("/api/settings/wedding-profile", () => {
       p_expected_total_budget: 30_000_000,
     });
     expect(response.headers.get("cache-control")).toContain("no-store");
+  });
+
+  it("rejects a v2 settings patch when the initiating screen belongs to another account", async () => {
+    const rpc = mockAdmin();
+
+    const response = await PATCH(patchRequest(validPatch(), {
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: "00000000-0000-4000-8000-000000000002",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MUTATION_ACTOR_CHANGED",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("sends only a changed journey field while retaining the couple fence", async () => {

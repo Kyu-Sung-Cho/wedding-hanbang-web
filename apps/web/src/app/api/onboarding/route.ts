@@ -9,10 +9,14 @@ import {
 
 import { determineStage } from "@/lib/ai/stage-router";
 import {
+  COUPLE_INVITE_EXPAND_REQUIRED_CODE,
+  isJoinCoupleServerRpcMissing,
+  joinCoupleThroughServerRpc,
   parseMembershipRpcResponse,
   type CoupleRole,
   type MembershipAction,
 } from "@/lib/couples/membershipRpc";
+import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -811,6 +815,14 @@ export async function POST(request: Request) {
       return privateResponse({ error: "인증이 필요합니다." }, 401);
     }
 
+    const actorFence = verifyMutationActorFence(request.headers, user.id);
+    if (!actorFence.ok) {
+      return privateResponse({
+        error: actorFence.message,
+        code: actorFence.code,
+      }, actorFence.status);
+    }
+
     const {
       role: rawRole,
       coupleAction: rawCoupleAction,
@@ -911,10 +923,22 @@ export async function POST(request: Request) {
     const rpcResponse =
       coupleAction === "create"
         ? await supabase.rpc("create_couple_for_current_user", { p_role: role })
-        : await supabase.rpc("join_couple", {
-            p_invite_code: normalizedInviteCode,
-            p_role: role,
+        : await joinCoupleThroughServerRpc(admin, {
+            actorUserId: user.id,
+            inviteCode: normalizedInviteCode!,
+            role,
           });
+
+    if (
+      coupleAction === "join"
+      && isJoinCoupleServerRpcMissing(rpcResponse.error)
+    ) {
+      console.error("[onboarding join] server RPC expansion is missing");
+      return privateResponse({
+        error: "커플 연결 준비가 완료되지 않았습니다. 잠시 후 다시 시도해주세요.",
+        code: COUPLE_INVITE_EXPAND_REQUIRED_CODE,
+      }, 503);
+    }
 
     if (rpcResponse.error) {
       console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
@@ -924,7 +948,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const membership = parseMembershipRpcResponse(rpcResponse.data, role, coupleAction);
+    const membership = parseMembershipRpcResponse(
+      rpcResponse.data,
+      role,
+      coupleAction,
+      coupleAction === "join" ? user.id : undefined,
+    );
     if (!membership.ok) {
       console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
       return privateResponse({ error: membership.message }, membership.status);

@@ -22,14 +22,19 @@
 
 ## 현재 기준 문서
 
+- 원격 개발 기준: `origin/main` — 작업 시작 때 fetch한 실제 SHA가 정본이며, 과거
+  integration branch나 로컬 중첩 clone을 현재 기준으로 추정하지 않습니다.
 - 새 컴퓨터·새 LLM의 모델 중립 진입점: `START_HERE.md`
 - 현재 모바일 우선 MVP 제품 계약: `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+- 현재 아모라 릴리스 하드닝 local 후보와 source/hosted 경계(**LOCAL RELEASE CANDIDATE /
+  HOSTED EVIDENCE MISSING / PRODUCTION NO-GO**):
+  `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
 - 현재 아모라 개인정보·보안 진행과 production 판정(**구현 미완료 / NO-GO**):
   `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
 - 아모라 개인정보 경계 목표 아키텍처(**TARGET ARCHITECTURE / 구현 완료 증거 아님**):
   `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md`
-- 현재 전체 작업 트리·릴리스 인계:
-  `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+- 2026-07-31 전체 작업 트리·릴리스 역사 snapshot(현재 branch 지시가 아님):
+  `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md` — 역사 기록
 - 다른 컴퓨터에서 clone·환경 복원·웹/모바일 연결을 재개하는 환경 복원 상세 보조 인계:
   `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
 - 2026-08-02 커뮤니티 설계·후속 전체 구현 상세 보충 인계:
@@ -68,6 +73,18 @@
 날짜가 오래된 감사·세션·릴리스 문서는 역사적 증거일 수 있습니다. 실제 완료 여부는
 현재 릴리스 문서, Git HEAD, 테스트 결과, GitHub checks와 배포 receipt를 함께 확인해
 판정합니다.
+
+현재 local 후보에는 모바일 Stop·첫 shared 확인·ambiguous ingest reconciliation, 위기 안전
+분류기, provider single-use grant, server-only chat ingest, invite replay/expiry, Storage
+cleanup, settings·onboarding·dashboard·chat actor fence, 명시적 schedule moment 입력 보강이
+들어 있습니다. 이는 source 후보 상태이며 최종 전체 검증·hosted 증거가 아닙니다.
+
+Production은 계속 NO-GO입니다. successor manifest의 hosted 증거 5종, provider canary,
+구형 direct-writer와 headerless Phase-A client의 fleet drain, 구형 모바일의 직접 Supabase
+비밀번호 변경 경로, 10자 입력 UI와 새 15자 초대코드의 mixed-version 영향, backup·restore·
+Storage·finalizer·두 기기·실기기 QA가 닫히지 않았습니다. 외부 Preview가 필요하면 운영
+데이터·운영 Supabase와 분리한 `NEXT_PUBLIC_PREVIEW_STUB_MODE=true` Preview만 허용하며,
+그 격리를 증명할 수 없으면 Preview도 만들지 않습니다.
 
 ## 로컬 시작
 

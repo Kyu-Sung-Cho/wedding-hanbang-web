@@ -44,13 +44,32 @@ interface TopNavProps {
 }
 
 export default function TopNav({ onMenuToggle }: TopNavProps) {
+  const { user, isDemo } = useAuthStore();
+  const currentOwnerId = isDemo ? "demo" : user?.id ?? null;
+
+  return (
+    <OwnedTopNav
+      key={currentOwnerId ?? "signed-out"}
+      onMenuToggle={onMenuToggle}
+      currentOwnerId={currentOwnerId}
+    />
+  );
+}
+
+function OwnedTopNav({
+  onMenuToggle,
+  currentOwnerId,
+}: TopNavProps & { currentOwnerId: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const title = getPageTitle(stripWeddingBasePath(pathname));
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<{
+    categoryKey: string;
+    ownerId: string;
+  } | null>(null);
   const today = useMemo(() => new Date(), []);
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
@@ -62,8 +81,9 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
   const { notifications, newCount, dismiss, dismissAll } = useNotifications(weddingDate, progress, prefs);
 
   function handleCategoryClick(categoryKey: string) {
+    if (!currentOwnerId) return;
     setShowNotifications(false);
-    setSelectedCategory(categoryKey);
+    setSelectedCategory({ categoryKey, ownerId: currentOwnerId });
   }
 
   return (
@@ -176,8 +196,9 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
       </header>
 
       <CategoryChecklistModal
-        categoryKey={selectedCategory ?? ""}
+        categoryKey={selectedCategory?.categoryKey ?? ""}
         isOpen={!!selectedCategory}
+        expectedOwnerId={selectedCategory?.ownerId ?? null}
         onClose={() => setSelectedCategory(null)}
       />
     </>

@@ -20,6 +20,8 @@ const currentPrivacyHandoffPath =
   "docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md";
 const privacyArchitecturePath =
   "docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md";
+const currentLocalHardeningHandoffPath =
+  "docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md";
 
 function escaped(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -28,6 +30,120 @@ function escaped(value) {
 function normalized(value) {
   return value.replace(/\s+/g, " ").trim();
 }
+
+test("new handoffs start from origin/main and archive the 2026-07-31 branch snapshot", async () => {
+  const [startHere, readme] = await Promise.all([
+    readFile(new URL(modelNeutralStartPath, root), "utf8"),
+    readFile(new URL("README.md", root), "utf8"),
+  ]);
+
+  assert.match(startHere, /현재 원격 개발 기준[^\n]*`origin\/main`/);
+  assert.match(startHere, /git switch main/);
+  assert.match(startHere, /git pull --ff-only origin main/);
+  assert.doesNotMatch(
+    startHere,
+    /git switch(?: --track)? (?:origin\/)?agent\/release-handoff-20260731/,
+  );
+  assert.match(readme, /원격 개발 기준[^\n]*`origin\/main`/);
+  assert.match(
+    readme,
+    /FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31\.md[^\n]*역사|역사[^\n]*FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31\.md/,
+  );
+});
+
+test("handoff keeps production blocked until the successor controller has hosted evidence", async () => {
+  const startHere = await readFile(new URL(modelNeutralStartPath, root), "utf8");
+
+  assert.match(startHere, /vendorDisclosureProductionBuildFence\.ts/);
+  assert.match(startHere, /VENDOR_DISCLOSURE_RELEASE_CONTROLLER_NOT_READY/);
+  assert.match(startHere, /서명이 있어도[^\n]*`deployment_blocked`[^\n]*프로덕션 빌드/);
+  assert.match(startHere, /hosted 증거[^\n]*완료로 표시하지 않는다/);
+});
+
+test("the 2026-08-12 handoff is the local source-status entrypoint without becoming production authorization", async () => {
+  const [startHere, readme, docsIndex, hardeningHandoff] = await Promise.all([
+    readFile(new URL(modelNeutralStartPath, root), "utf8"),
+    readFile(new URL("README.md", root), "utf8"),
+    readFile(new URL("docs/README.md", root), "utf8"),
+    readFile(new URL(currentLocalHardeningHandoffPath, root), "utf8"),
+  ]);
+
+  for (const document of [startHere, readme, docsIndex]) {
+    assert.match(document, new RegExp(escaped(currentLocalHardeningHandoffPath)));
+    assert.match(document, /LOCAL RELEASE CANDIDATE/);
+    assert.match(document, /HOSTED EVIDENCE MISSING/);
+    assert.match(document, /PRODUCTION NO-GO/);
+  }
+
+  assert.ok(
+    startHere.indexOf(currentLocalHardeningHandoffPath)
+      < startHere.indexOf(currentPrivacyHandoffPath),
+    "the current local handoff must precede the 2026-08-04 historical source-status record",
+  );
+  assert.ok(
+    docsIndex.indexOf(currentLocalHardeningHandoffPath)
+      < docsIndex.indexOf(currentPrivacyHandoffPath),
+    "the docs authority index must route to the local candidate before its predecessor",
+  );
+  assert.match(startHere, /2026-08-04~05[^\n]*역사 기록/);
+  assert.match(docsIndex, /2026-08-04[^\n]*이전 source-status 기록/);
+
+  assert.match(
+    hardeningHandoff,
+    /^> 상태: \*\*LOCAL RELEASE CANDIDATE \/ FOCUSED SOURCE TESTS PASSED \/ HOSTED EVIDENCE MISSING \/ PRODUCTION NO-GO\*\*$/m,
+  );
+  assert.match(hardeningHandoff, /이 릴리스 후보 변경은 아직 commit·push·PR·Preview가 없다/);
+  assert.match(hardeningHandoff, /hosted evidence 5종은 모두 `missing`/);
+  assert.doesNotMatch(
+    hardeningHandoff,
+    /^> 상태:.*(?:PRODUCTION GO|PRODUCTION READY)|^>.*(?:배포 완료|Production 배포 완료)/m,
+  );
+});
+
+test("the local hardening handoff pins completed source work and every mixed-version production blocker", async () => {
+  const [startHere, readme, docsIndex, hardeningHandoff] = await Promise.all([
+    readFile(new URL(modelNeutralStartPath, root), "utf8"),
+    readFile(new URL("README.md", root), "utf8"),
+    readFile(new URL("docs/README.md", root), "utf8"),
+    readFile(new URL(currentLocalHardeningHandoffPath, root), "utf8"),
+  ]);
+
+  for (const sourceContract of [
+    /Stop[\s\S]*first shared|Stop[\s\S]*첫 shared/,
+    /reconcil/i,
+    /safety classifier|위기 안전\s*분류기/i,
+    /provider[\s\S]*single-use grant/,
+    /server-only chat ingest|server-only ingest/i,
+    /invite replay\/expiry|invite replay·expiry/i,
+    /Storage cleanup/i,
+    /settings·onboarding·dashboard·chat actor fence/i,
+    /schedule moment/i,
+  ]) {
+    assert.match(normalized(readme), sourceContract);
+    assert.match(normalized(docsIndex), sourceContract);
+  }
+
+  assert.match(hardeningHandoff, /402\/402 PASS[\s\S]*실제 위기 대응 E2E 아님/);
+  assert.match(hardeningHandoff, /provider DB runtime[\s\S]*disabled[\s\S]*canary가 없다/);
+  assert.match(hardeningHandoff, /hosted staging·backup·restore·Storage·finalizer 증거 5종[\s\S]*`missing`/);
+  assert.match(hardeningHandoff, /generic mutation actor contract는 Phase A[\s\S]*headerless legacy/);
+  assert.match(hardeningHandoff, /Phase B[\s\S]*(?:fleet drain|fresh attestation)/);
+  assert.match(hardeningHandoff, /구형 모바일[\s\S]*직접 Supabase Auth password SDK/);
+  assert.match(hardeningHandoff, /minimum supported version|강제 업데이트/);
+  assert.match(hardeningHandoff, /구형 binary는[\s\S]{0,80}10자[\s\S]*총 15자/);
+  assert.match(hardeningHandoff, /구형 chat direct-writer 0건 증거/);
+  assert.match(hardeningHandoff, /tested DB backup\/restore[\s\S]*두 계정·두 기기·실제 모바일 기기 QA/);
+  assert.match(hardeningHandoff, /NEXT_PUBLIC_PREVIEW_STUB_MODE=true/);
+  assert.match(hardeningHandoff, /하나라도[\s\S]*증명할 수 없으면 Preview도 만들지 않는다/);
+  assert.match(hardeningHandoff, /full mobile latest fixed snapshot[\s\S]*다시 실행해야 함/);
+
+  for (const document of [startHere, readme, docsIndex]) {
+    assert.match(document, /headerless[\s\S]*Phase[- ]A|Phase[- ]A[\s\S]*headerless/);
+    assert.match(document, /10자[\s\S]*15자/);
+    assert.match(document, /NEXT_PUBLIC_PREVIEW_STUB_MODE=true/);
+    assert.match(document, /PRODUCTION NO-GO/);
+  }
+});
 
 test("repository handoff docs describe the current monorepo and release source of truth", async () => {
   const [agents, readme, webPackage] = await Promise.all([
@@ -113,7 +229,8 @@ test("new models have a fail-closed START_HERE contract", async () => {
   }
 
   assert.match(startHere, /PRODUCTION NO-GO/);
-  assert.match(startHere, /agent\/release-handoff-20260731/);
+  assert.match(startHere, /현재 원격 개발 기준[^\n]*origin\/main/);
+  assert.match(startHere, /agent\/release-handoff-20260731[^\n]*현재 개발 기준 아님/);
   assert.match(startHere, /P0-5/);
   assert.match(startHere, /inputTokens\.count/);
   assert.match(startHere, /responses\.create/);
@@ -122,11 +239,11 @@ test("new models have a fail-closed START_HERE contract", async () => {
   assert.match(startHere, /supabase:release:fence[\s\S]*DB 배포 가능으로 해석하지 않는다/);
   assert.match(startHere, /Production Readiness job.*hosted 증거를 동적으로 판별하지 않고[\s\S]*fail-closed/);
   assert.match(startHere, /workflow\/controller 갱신.*exact-SHA/);
-  assert.match(startHere, /감사·인수인계 기준 integration branch/);
-  assert.match(startHere, /git switch -c codex\/amora-p0-provider-egress-red/);
+  assert.match(startHere, /현재 원격 개발 기준/);
+  assert.match(startHere, /git switch -c codex\/<task-name> origin\/main/);
   assert.match(
     startHere,
-    /branch가 이미 있을 때[\s\S]*git status --short --branch[\s\S]*switch하지 않는다[\s\S]*git switch agent\/release-handoff-20260731/,
+    /branch가 이미 있을 때[\s\S]*git status --short --branch[\s\S]*switch하지 않는다[\s\S]*git switch main[\s\S]*git pull --ff-only origin main/,
   );
   assert.match(startHere, /apps\/mobile\/scripts\/start-expo-dev\.mjs/);
   assert.match(startHere, /Node `20\.19\.x`/);
@@ -440,7 +557,7 @@ test("document authority chain is complete and old status claims stay historical
   assert.match(documents.updateLog, /과거 배포 기록/);
 });
 
-test("current release inventory is exhaustive, minimal, and fail-closed", async () => {
+test("the archived 2026-07-31 release inventory remains an exact historical receipt", async () => {
   const inventory = JSON.parse(
     await readFile(new URL(currentReleaseInventoryPath, root), "utf8"),
   );

@@ -94,6 +94,20 @@ describe("TransformationHero product demo", () => {
     );
   });
 
+  it("uses the Korea calendar day for the earliest selectable wedding date", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-11T15:30:00.000Z")); // 2026-08-12 00:30 KST
+
+    try {
+      await act(async () => root.render(<TransformationHero />));
+
+      const dateInput = container.querySelector<HTMLInputElement>("#landing-wedding-date");
+      expect(dateInput?.min).toBe("2026-08-12");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("clears an interrupted date handoff before either date-less start path", async () => {
     window.sessionStorage.setItem(START_HERE_DATE_HANDOFF_KEY, "2027-05-01");
     await act(async () => root.render(<TransformationHero />));
