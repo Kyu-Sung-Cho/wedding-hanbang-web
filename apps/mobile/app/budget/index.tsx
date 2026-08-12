@@ -10,7 +10,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { PLANNING_CATEGORY_LABELS, type PlanningCategoryKey } from "@hanbang/shared/constants";
+import {
+  CHECKLIST_MAP,
+  PLANNING_CATEGORY_LABELS,
+  type PlanningCategoryKey,
+} from "@hanbang/shared/constants";
+import { getEffectivePlanningChecklistStatus } from "@hanbang/shared/planning-checklist";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import {
@@ -478,7 +483,10 @@ export default function BudgetScreen() {
     return 0;
   }
   function getCatStatus(key: string): string {
-    const s = progress[key]?.status ?? "not_started";
+    const template = CHECKLIST_MAP[key];
+    const s = template
+      ? getEffectivePlanningChecklistStatus(template.items, progress[key] as never)
+      : progress[key]?.status ?? "not_started";
     return s === "completed" ? "완료" : s === "in_progress" ? "진행중" : "예정";
   }
   function getCatPayer(key: string): PayerType {

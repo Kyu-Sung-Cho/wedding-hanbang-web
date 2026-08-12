@@ -77,6 +77,12 @@ export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  state?: PlanningChecklistItemState;
+  assignee?: PlanningChecklistAssignee | null;
+  dueDate?: string | null;
+  note?: string;
+  completedAt?: string | null;
+  completedByProfileId?: string | null;
 }
 
 export type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
@@ -95,6 +101,9 @@ export interface ProgressItem {
   vendor?: string;
   notes?: string;
   checklist?: ChecklistItem[];
+  checklistReviewedAt?: string;
+  checklistReviewedByProfileId?: string | null;
+  checklistReviewSource?: "manual" | "situation_profile";
   payer?: PayerType;
 }
 
@@ -293,3 +302,7 @@ export interface ChatSummary {
   message_count: number;
   created_at: string;
 }
+import type {
+  PlanningChecklistAssignee,
+  PlanningChecklistItemState,
+} from "@hanbang/shared/utils";

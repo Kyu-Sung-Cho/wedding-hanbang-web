@@ -117,6 +117,19 @@ describe("get_budget_summary — 실데이터 원칙 (상태 기반 추정 금�
     expect(result.displayMessage).not.toContain("기록된 지출 1,500만원");
   });
 
+  it("분야 상태만 완료인 이전 기록을 항목 완료로 모델에게 전달하지 않는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { category: "venue", status: "completed", budget: 20_000_000 },
+    }));
+    const categories = result.toolOutput.categories as Array<{
+      key: string;
+      status: string;
+    }>;
+
+    expect(categories.find((category) => category.key === "venue")?.status)
+      .toBe("not_started");
+  });
+
   it("입력하지 않은 항목의 예산을 추정하지 않는다고 명시한다", async () => {
     const result = await executeTool("get_budget_summary", {}, makeCtx());
     expect(result.displayMessage).toContain("입력된 금액만 표시");
@@ -387,14 +400,25 @@ describe("진행 상태 원자적 갱신", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(ctx.weddingContext.progress.venue).toEqual({
-      ...previousCategory,
+    expect(ctx.weddingContext.progress.venue).toMatchObject({
+      category: "venue",
       status: "in_progress",
+      budget: 20_000_000,
+      spent: 3_000_000,
+      memo: "채광 좋은 홀 우선",
+      checklist: expect.arrayContaining([
+        expect.objectContaining({ id: "venue_01", state: "in_progress", done: false }),
+        expect.objectContaining({ id: "contract", label: "contract", state: "todo", done: false }),
+      ]),
     });
     expect(mocks.rpc).toHaveBeenCalledWith("apply_journey_progress_item_patch", {
       p_couple_id: ctx.coupleId,
       p_item_key: "venue",
-      p_item_patch: { category: "venue", status: "in_progress" },
+      p_item_patch: {
+        category: "venue",
+        status: "in_progress",
+        checklist: expect.any(Array),
+      },
     });
   });
 

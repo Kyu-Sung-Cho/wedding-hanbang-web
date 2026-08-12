@@ -1,7 +1,7 @@
 # Successor Supabase release controller contract
 
 Date: 2026-07-31  
-Contract sync: 2026-08-02
+Contract sync: 2026-08-12
 Release: `vendor-disclosure-v2-20260718`  
 Current decision: **NO-GO**
 
@@ -9,14 +9,14 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
-The ordered successor manifest now contains 66 migrations and ends at
-`20260802240000_amora_memory_job_recovery.sql`. The 2026-08-01 and
-2026-08-02 migrations have repository contracts only and have not been applied
-to hosted Supabase. No current hosted pending-set query or apply receipt was
-created by this sync. The normalized manifest SHA-256 is
-`7019565f14ab03b60a033ddb5dd56a9c7cd3b4a810aa2fdb9aa9448431fb8cad` and the
+The ordered successor manifest now contains 86 migrations and ends at
+`20260812193000_checklist_disclosure_receipt.sql`. The three 2026-08-12
+checklist migrations are pinned repository contracts only; this sync did not
+query or apply them on hosted Supabase. No current hosted pending-set query or
+apply receipt was created by this sync. The normalized manifest SHA-256 is
+`fce0d4a511d20e7518d02398a29de04b3a8d7e6139d3e8ba07ff954498191d6b` and the
 ordered migration-version digest is
-`96bc9d77687b502482f3bc361a5bce8c01f450d6ffd1f77488094221fee78360`.
+`33ce070fcfbad7ea71fec65c27526f26cf2f43175df531fb4c4729a7b951b86a`.
 The work described here adds a fail-closed successor path to the Supabase
 release controller, static/remote fence and exact-owner finalizer. It does not
 change the manifest to `controller_ready`, create hosted evidence, run a remote
@@ -119,6 +119,12 @@ It also includes the ID-only
 `amora_memory_enqueue_repair_dead_letters` terminal audit, and the
 `amora_privacy_context_epochs` commit-fence table; omitting any of these tables
 from post-expand backup/restore evidence is a hard failure.
+The 2026-08-12 checklist set additionally creates
+`couple_reset_checklist_scrub_claims` and
+`couple_plan_change_disclosure_receipts`. Both tables must be present in the
+derived post-expand backup, hosted-restore and finalizer table contracts. The
+atomic checklist-v3 migration creates no table, but its version and SQL hash
+remain part of the exact ordered migration contract and cannot be omitted.
 Existing account-deletion tables remain inherited from the predecessor
 post-expand baseline. `chat_messages` and `chat_summaries` remain existing
 baseline tables, so their new nullable `segment_id` columns and scope foreign

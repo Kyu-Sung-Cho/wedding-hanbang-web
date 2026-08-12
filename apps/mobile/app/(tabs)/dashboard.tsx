@@ -6,9 +6,11 @@ import { router } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { hasChecklistReviewEvidence } from "@hanbang/shared/utils";
 import {
   calculateChecklistProgress,
   formatLocalDateKey,
+  getDashboardChecklistCategoryStatus,
   shouldSurfaceChecklistCategory,
 } from "@/lib/dashboardExperience.mjs";
 import { isActiveScheduleEvent } from "@/lib/scheduleMutation.mjs";
@@ -122,10 +124,9 @@ function calcUrgentTasks(
   const tasks: UrgentTask[] = [];
 
   for (const category of CATEGORY_CHECKLISTS) {
-    if (
-      category.introducedInVersion === 2
-      && !Object.prototype.hasOwnProperty.call(progress, category.key)
-    ) continue;
+    // 아직 검토하지 않은 분야는 실제 미완료나 지연으로 단정하지 않는다.
+    // 사용자가 해당 분야를 한 번 저장한 뒤에만 홈의 긴급 항목으로 승격한다.
+    if (!hasChecklistReviewEvidence(progress[category.key] as never)) continue;
     if (!shouldSurfaceChecklistCategory(category, dday)) continue;
 
     const categoryProgress = progress[category.key] as
@@ -136,25 +137,11 @@ function calcUrgentTasks(
         }
       | undefined;
 
-    if (categoryProgress?.status === "completed" || categoryProgress?.status === "not_applicable") continue;
-
-    let allDone = false;
-    if (
-      categoryProgress?.checklist
-      && Array.isArray(categoryProgress.checklist)
-    ) {
-      allDone =
-        categoryProgress.checklist.length > 0
-        && categoryProgress.checklist.every((item) => item.done);
-    } else if (categoryProgress && typeof categoryProgress === "object") {
-      const booleanValues = Object.values(categoryProgress).filter(
-        (value): value is boolean => typeof value === "boolean",
-      );
-      allDone =
-        booleanValues.length > 0
-        && booleanValues.every((value) => value === true);
-    }
-    if (allDone) continue;
+    const effectiveStatus = getDashboardChecklistCategoryStatus(
+      category,
+      categoryProgress,
+    );
+    if (effectiveStatus === "completed" || effectiveStatus === "not_applicable") continue;
 
     const remainingDays = dday - category.ddayDeadline;
     const urgency: UrgentTask["urgency"] =

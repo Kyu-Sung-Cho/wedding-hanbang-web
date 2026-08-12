@@ -9,12 +9,25 @@ export interface ScheduleApprovalNotificationCandidate {
 
 export interface ScheduleApprovalRequest extends ScheduleApprovalNotificationCandidate {
   summary: string;
+  proposal: ScheduleApprovalProposal;
+  disclosureReceipt?: string;
 }
+
+export type ScheduleApprovalProposal =
+  | { kind: "other" }
+  | { kind: "unavailable" }
+  | {
+      kind: "checklist_situation";
+      baseRevision: number;
+      progressPatch: Record<string, unknown>;
+    };
 
 export type ScheduleApprovalStatus = {
   requestId: string;
   status: "applied" | "pending_partner" | "stale" | "rejected";
   summary: string;
+  proposal: ScheduleApprovalProposal;
+  disclosureReceipt?: string;
 };
 
 export type ScheduleMutationSubmission =
@@ -76,6 +89,10 @@ export function mergeScheduleApprovalInbox(
 export function actOnScheduleApproval(input: {
   apiFetch: AuthenticatedApiFetch;
   coupleId: string;
-  request: Pick<ScheduleApprovalRequest, "requestId" | "role">;
+  request: Pick<
+    ScheduleApprovalRequest,
+    "requestId" | "role" | "proposal" | "disclosureReceipt"
+  >;
   action: ScheduleApprovalAction;
+  reviewedBaseRevision?: number;
 }): Promise<ScheduleApprovalActionResult>;

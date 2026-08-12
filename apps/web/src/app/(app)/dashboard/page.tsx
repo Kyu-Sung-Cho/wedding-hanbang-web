@@ -44,7 +44,12 @@ import {
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
-import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
+import {
+  getChecklistCounts,
+  getEffectivePlanningChecklistStatus,
+  mergeChecklist,
+  summarizePlanningChecklist,
+} from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
@@ -133,6 +138,13 @@ const statusMeta: Record<Status, { label: string; tone: string; dot: string }> =
 };
 
 function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
+  const template = CHECKLIST_MAP[key];
+  if (template) {
+    return getEffectivePlanningChecklistStatus(
+      template.items,
+      progress[key] as never,
+    );
+  }
   const status = progress[key]?.status;
   if (status === "completed" || status === "in_progress" || status === "not_started" || status === "not_applicable") return status;
   return "not_started";
@@ -489,6 +501,7 @@ export default function DashboardPage() {
                  return (
                   <Link
                     key={category.key}
+                    data-testid={`next-category-${category.key}`}
                     {...weddingLinkProps(`/checklist/${category.key}`)}
                     className="min-w-0 rounded-[14px] border border-white/10 bg-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.1]"
                   >
@@ -541,7 +554,7 @@ export default function DashboardPage() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
-              <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
+              <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">주요 8개 준비 상태</h2>
             </div>
             <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
               전체 체크리스트

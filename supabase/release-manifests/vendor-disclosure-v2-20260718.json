@@ -340,6 +340,18 @@
     {
       "file": "20260807090000_amora_mediation_send_gate.sql",
       "sha256": "27b4292cff613b727727bacc16e2600e8bb7df588cc367d87ecac77725506a82"
+    },
+    {
+      "file": "20260812180000_checklist_collaboration_approval.sql",
+      "sha256": "066b35e18f3af6bb1615bc6b803691cdf4c1a067f0f64891ef5b979c8d3c611a"
+    },
+    {
+      "file": "20260812192000_amora_atomic_checklist_v3.sql",
+      "sha256": "ead78c014e06a6222c6a0748cb06b72fd01ea3ebaa659d063ae8dd516473eb96"
+    },
+    {
+      "file": "20260812193000_checklist_disclosure_receipt.sql",
+      "sha256": "0ef9332092e066d5db67dd974fe68aef8a7231a7b2ffd25a2052956f782baf29"
     }
   ],
   "deploymentEvidence": {

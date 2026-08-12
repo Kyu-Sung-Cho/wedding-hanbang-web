@@ -65,4 +65,20 @@ describe("아모라 lifecycle 근거 경계", () => {
         .includes(guardrail.categoryKey ?? ""),
     )).toBe(false);
   });
+
+  it("does not let a legacy status-only completion suppress a checklist guardrail", () => {
+    const plan = buildAmoraLifecyclePlan({
+      weddingDate: "2026-08-20",
+      totalBudget: 50_000_000,
+      progress: {
+        meeting: { status: "not_applicable" },
+        venue: { status: "completed" },
+      },
+      now: new Date("2026-08-19T03:00:00Z"),
+    });
+
+    expect(plan.guardrails.some((guardrail) =>
+      guardrail.categoryKey === "venue",
+    )).toBe(true);
+  });
 });

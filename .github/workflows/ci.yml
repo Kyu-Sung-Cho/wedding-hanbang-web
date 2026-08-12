@@ -115,6 +115,9 @@ jobs:
       - name: Shared package typecheck
         run: pnpm --filter @hanbang/shared typecheck
 
+      - name: Shared package tests
+        run: pnpm --filter @hanbang/shared test
+
       - name: Design tokens typecheck
         run: pnpm --filter @hanbang/design-tokens typecheck
 

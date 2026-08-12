@@ -5,6 +5,11 @@ import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import {
+  CATEGORY_CHECKLISTS,
+  CHECKLIST_ITEM_GUIDANCE,
+} from "@hanbang/shared/constants";
+import { applyPlanningChecklistProfile } from "@hanbang/shared/utils";
 
 function migration(name: string) {
   return readFileSync(
@@ -33,6 +38,9 @@ const bookingQuoteSpendSoftCancelSql = migration(
 );
 const budgetProgressIntegritySql = migration(
   "20260802200000_journey_budget_progress_integrity.sql",
+);
+const checklistCollaborationApprovalSql = migration(
+  "20260812180000_checklist_collaboration_approval.sql",
 );
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
@@ -538,6 +546,15 @@ async function createDatabase(options: {
   return db;
 }
 
+async function createChecklistCollaborationDatabase(options: {
+  coupleProgress?: Record<string, unknown>;
+  soloProgress?: Record<string, unknown>;
+} = {}) {
+  const db = await createDatabase(options);
+  await db.exec(checklistCollaborationApprovalSql);
+  return db;
+}
+
 async function setServiceRole(db: PGlite) {
   await db.exec("SET ROLE service_role");
   await db.query(
@@ -991,6 +1008,642 @@ describe("journey budget progress integrity migration", () => {
         private_submit: false,
         validator: false,
       });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+});
+
+describe("checklist collaboration approval over the final wrapper chain", () => {
+  const baseCategory = {
+    category: "venue",
+    label: "예식장",
+    status: "not_started",
+    checklist: [
+      {
+        id: "venue_01",
+        label: "예식장 형태 정하기",
+        done: false,
+        state: "todo",
+      },
+    ],
+  };
+
+  it("submits the real empty-progress ceremony=no proposal with its full structured 7-category/53-item patch", async () => {
+    const db = await createChecklistCollaborationDatabase();
+    try {
+      await setServiceRole(db);
+      const application = applyPlanningChecklistProfile(
+        CATEGORY_CHECKLISTS,
+        {},
+        {
+          version: 1,
+          reviewedAt: "2026-08-12T09:00:00.000Z",
+          answers: {
+            ceremony: "no",
+            legalMarriage: "undecided",
+            travel: "undecided",
+            housing: "undecided",
+            internationalMarriage: null,
+            religiousCeremony: null,
+            remarriage: null,
+            childrenParticipating: null,
+            accessibilitySupport: null,
+            healthSupport: null,
+            petParticipation: null,
+            familyTradition: null,
+          },
+          autoExcludedItemIds: [],
+        },
+        CHECKLIST_ITEM_GUIDANCE,
+        BRIDE_ID,
+      );
+      const pending = await submit(db, {
+        changes: { progress_patch: application.progressPatch },
+        surface: "/dashboard",
+      });
+
+      expect(application.excludedItemIds).toHaveLength(53);
+      expect(Object.keys(application.categoryProgressPatch)).toHaveLength(7);
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: null,
+      });
+      expect(pending.summary).toContain("예식 미정→안함");
+      expect(pending.summary).toContain("분야 제외7/복원0");
+      expect(pending.summary).toContain("항목 제외53/복원0");
+      expect(pending.summary).toContain("목록 추가53/문구0");
+      expect(pending.summary).toContain("상세 확인");
+      expect(pending.summary.length).toBeLessThanOrEqual(240);
+
+      const stored = await db.query<{
+        changes: { progress_patch: Record<string, unknown> };
+      }>(
+        "SELECT changes FROM public.couple_plan_change_requests WHERE id = $1",
+        [pending.requestId],
+      );
+      expect(stored.rows[0].changes.progress_patch).toEqual(
+        application.progressPatch,
+      );
+
+      const applied = await accept(db, pending.requestId);
+      expect(applied).toMatchObject({ status: "applied", appliedRevision: 1 });
+      expect(applied.journey?.progress).toEqual(application.progressPatch);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("holds a first assignment over a legacy completed row without a mixed-delta false positive", async () => {
+    const legacyCategory = {
+      category: "venue",
+      label: "예식장",
+      status: "completed",
+      checklist: [{ id: "venue_01", completed: true }],
+    };
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: legacyCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const canonicalCategory = {
+        category: "venue",
+        label: "예식장",
+        status: "completed",
+        checklist: [{
+          id: "venue_01",
+          label: "예식장 형태 정하기",
+          done: true,
+          state: "completed",
+          assignee: { kind: "member", profileId: GROOM_ID },
+        }],
+      };
+      const pending = await submit(db, {
+        changes: { progress_patch: { venue: canonicalCategory } },
+        surface: "/dashboard",
+      });
+
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+      });
+      expect(pending.summary).toContain(
+        "venue_01 → 예식장 형태 정하기 문구 변경",
+      );
+      expect(pending.summary).toContain("담당: 미정 → 신랑");
+      const applied = await accept(db, pending.requestId);
+      expect(applied).toMatchObject({ status: "applied", appliedRevision: 1 });
+      expect(applied.journey?.progress).toMatchObject({
+        venue: canonicalCategory,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("holds a legacy completed status repair for 2/2 when a new template todo is materialized", async () => {
+    const legacyCategory = {
+      category: "venue",
+      label: "예식장",
+      status: "completed",
+      checklist: [{ id: "venue_01", completed: true }],
+    };
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: legacyCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const venueTemplate = CATEGORY_CHECKLISTS.find(
+        (categoryTemplate) => categoryTemplate.key === "venue",
+      );
+      expect(venueTemplate).toBeDefined();
+      const repairedCategory = {
+        category: "venue",
+        label: "예식장",
+        status: "in_progress",
+        checklist: venueTemplate!.items.map((item, index) => ({
+          ...item,
+          done: index === 0,
+          state: index === 0 ? "completed" : "todo",
+          ...(index === 0
+            ? { assignee: { kind: "member", profileId: GROOM_ID } }
+            : {}),
+        })),
+      };
+      const pending = await submit(db, {
+        changes: { progress_patch: { venue: repairedCategory } },
+        surface: "/dashboard",
+      });
+
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: null,
+      });
+      expect(pending.summary).toContain("담당 결정1건");
+      expect(pending.summary).toContain("목록 추가7/문구1");
+      expect(pending.summary).toContain("상태 보정1건");
+      expect(pending.summary).toContain("상세 확인");
+      expect(pending.summary.length).toBeLessThanOrEqual(240);
+      expect(pending.journey).toBeNull();
+
+      const applied = await accept(db, pending.requestId);
+      expect(applied).toMatchObject({
+        status: "applied",
+        acceptedCount: 2,
+        appliedRevision: 1,
+      });
+      expect(applied.journey?.progress).toMatchObject({
+        venue: repairedCategory,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("holds a status-only legacy completion for 2/2 when its first assignment materializes canonical todos", async () => {
+    const venueTemplate = CATEGORY_CHECKLISTS.find(
+      (categoryTemplate) => categoryTemplate.key === "venue",
+    );
+    expect(venueTemplate).toBeDefined();
+    const legacyCategory = {
+      category: "venue",
+      label: venueTemplate!.label,
+      status: "completed",
+    };
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: legacyCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const materializedCategory = {
+        category: "venue",
+        label: venueTemplate!.label,
+        status: "not_started",
+        checklist: venueTemplate!.items.map((item, index) => ({
+          ...item,
+          done: false,
+          state: "todo",
+          ...(index === 0
+            ? { assignee: { kind: "member", profileId: GROOM_ID } }
+            : {}),
+        })),
+      };
+      const pending = await submit(db, {
+        changes: { progress_patch: { venue: materializedCategory } },
+        surface: "/dashboard",
+      });
+
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: null,
+        journey: null,
+      });
+      expect(pending.summary).toContain("담당 결정1건");
+      expect(pending.summary).toContain("목록 추가8/문구0");
+      expect(pending.summary).toContain("상태 보정1건");
+      expect(pending.summary).toContain("완료 → 시작 전");
+
+      const applied = await accept(db, pending.requestId);
+      expect(applied).toMatchObject({
+        status: "applied",
+        requiredCount: 2,
+        acceptedCount: 2,
+        appliedRevision: 1,
+      });
+      expect(applied.journey?.progress).toMatchObject({
+        venue: materializedCategory,
+      });
+      const storedItems = (applied.journey?.progress as {
+        venue?: { checklist?: Array<Record<string, unknown>> };
+      } | undefined)?.venue?.checklist ?? [];
+      expect(storedItems).toHaveLength(venueTemplate!.items.length);
+      expect(storedItems.every((item) => item.done === false && item.state === "todo"))
+        .toBe(true);
+      expect(storedItems.every((item) => !("completedAt" in item))).toBe(true);
+      expect(storedItems.every((item) => !("completedByProfileId" in item))).toBe(true);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("holds a partner assignment for 2/2 and applies it only after acceptance", async () => {
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: baseCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const nextCategory = {
+        ...baseCategory,
+        checklist: [{
+          ...baseCategory.checklist[0],
+          assignee: { kind: "member", profileId: GROOM_ID },
+        }],
+      };
+      const pending = await submit(db, {
+        changes: { progress_patch: { venue: nextCategory } },
+        surface: "/dashboard",
+      });
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: null,
+      });
+      expect(pending.summary).toContain("예식장 형태 정하기");
+      expect(pending.summary).toContain("신랑");
+      expect(pending.summary).not.toContain(GROOM_ID);
+      expect(pending.journey).toBeNull();
+
+      const applied = await accept(db, pending.requestId);
+      expect(applied).toMatchObject({
+        status: "applied",
+        acceptedCount: 2,
+        appliedRevision: 1,
+      });
+      expect(applied.journey?.progress).toMatchObject({ venue: nextCategory });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("keeps absent-to-null assignee routine and holds object-to-null for 2/2", async () => {
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: baseCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const explicitNullCategory = {
+        ...baseCategory,
+        checklist: [{ ...baseCategory.checklist[0], assignee: null }],
+      };
+      const routine = await submit(db, {
+        changes: { progress_patch: { venue: explicitNullCategory } },
+        surface: "/dashboard",
+      });
+      expect(routine).toMatchObject({
+        status: "applied",
+        requiredCount: 1,
+        acceptedCount: 1,
+        isHighImpact: false,
+        appliedRevision: 1,
+      });
+
+      const assignedCategory = {
+        ...baseCategory,
+        checklist: [{
+          ...baseCategory.checklist[0],
+          assignee: { kind: "member", profileId: GROOM_ID },
+        }],
+      };
+      const assigned = await submit(db, {
+        revision: 1,
+        changes: { progress_patch: { venue: assignedCategory } },
+        surface: "/dashboard",
+      });
+      expect(assigned).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+      });
+      await accept(db, assigned.requestId);
+
+      const cleared = await submit(db, {
+        revision: 2,
+        changes: { progress_patch: { venue: explicitNullCategory } },
+        surface: "/dashboard",
+      });
+      expect(cleared).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+      });
+      expect(cleared.summary).toContain("신랑 → 미정");
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rejects a hidden note delta before creating an approval request", async () => {
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: baseCategory },
+    });
+    try {
+      await setServiceRole(db);
+      await expect(submit(db, {
+        changes: {
+          progress_patch: {
+            venue: {
+              ...baseCategory,
+              checklist: [{
+                ...baseCategory.checklist[0],
+                note: "영수증에 없는 메모",
+                assignee: { kind: "member", profileId: GROOM_ID },
+              }],
+            },
+          },
+        },
+        surface: "/dashboard",
+      })).rejects.toThrow(/COUPLE_PLAN_CHANGE_UNSUPPORTED_MIXED_DELTA/);
+      const count = await db.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM public.couple_plan_change_requests",
+      );
+      expect(count.rows[0].count).toBe(0);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("requires 2/2 for a linked category exclusion and applies it 1/1 for solo", async () => {
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: baseCategory },
+      soloProgress: { venue: baseCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const excludedCategory = {
+        ...baseCategory,
+        status: "not_applicable",
+      };
+
+      const pending = await submit(db, {
+        changes: { progress_patch: { venue: excludedCategory } },
+        surface: "/dashboard",
+      });
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: null,
+      });
+      expect(pending.summary).toContain("해당 없음");
+
+      const soloApplied = await submit(db, {
+        coupleId: SOLO_COUPLE_ID,
+        actorId: SOLO_ID,
+        changes: { progress_patch: { venue: excludedCategory } },
+        surface: "/dashboard",
+      });
+      expect(soloApplied).toMatchObject({
+        status: "applied",
+        requiredCount: 1,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: 1,
+      });
+      expect(soloApplied.summary).toContain("해당 없음");
+      expect(soloApplied.journey?.progress).toMatchObject({
+        venue: excludedCategory,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("holds an item-only situation profile for 2/2 and applies it 1/1 for solo", async () => {
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: baseCategory },
+      soloProgress: { venue: baseCategory },
+    });
+    try {
+      await setServiceRole(db);
+      const checklistProfile = {
+        version: 1,
+        reviewedAt: "2026-08-12T09:00:00.000Z",
+        answers: {
+          ceremony: "undecided",
+          legalMarriage: "undecided",
+          travel: "undecided",
+          housing: "undecided",
+          internationalMarriage: null,
+          religiousCeremony: false,
+          remarriage: null,
+          childrenParticipating: null,
+          accessibilitySupport: null,
+          healthSupport: null,
+          petParticipation: null,
+          familyTradition: null,
+        },
+        autoExcludedItemIds: ["venue_01"],
+      };
+      const itemOnlyCategory = {
+        ...baseCategory,
+        checklist: [{
+          ...baseCategory.checklist[0],
+          state: "not_applicable",
+        }],
+      };
+      const changes = {
+        progress_patch: {
+          __checklist_profile: checklistProfile,
+          venue: itemOnlyCategory,
+        },
+      };
+
+      const pending = await submit(db, { changes, surface: "/dashboard" });
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: null,
+      });
+      expect(pending.summary).toContain("종교 예식 미정→아님");
+      expect(pending.summary).toContain(
+        "항목 제외1[예식장·예식장 형태 정하기]/복원0",
+      );
+
+      const soloApplied = await submit(db, {
+        coupleId: SOLO_COUPLE_ID,
+        actorId: SOLO_ID,
+        changes,
+        surface: "/dashboard",
+      });
+      expect(soloApplied).toMatchObject({
+        status: "applied",
+        requiredCount: 1,
+        acceptedCount: 1,
+        isHighImpact: true,
+        appliedRevision: 1,
+      });
+      expect(soloApplied.summary).toContain(
+        "항목 제외1[예식장·예식장 형태 정하기]/복원0",
+      );
+      expect(soloApplied.journey?.progress).toMatchObject({
+        __checklist_profile: checklistProfile,
+        venue: itemOnlyCategory,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("holds a combined situation category and item restoration for 2/2", async () => {
+    const previousProfile = {
+      version: 1,
+      reviewedAt: "2026-08-12T09:00:00.000Z",
+      answers: {
+        ceremony: "undecided",
+        legalMarriage: "undecided",
+        travel: "undecided",
+        housing: "undecided",
+        internationalMarriage: null,
+        religiousCeremony: false,
+        remarriage: null,
+        childrenParticipating: null,
+        accessibilitySupport: null,
+        healthSupport: null,
+        petParticipation: null,
+        familyTradition: null,
+      },
+      autoExcludedItemIds: ["venue_01"],
+    };
+    const excludedCategory = {
+      ...baseCategory,
+      status: "not_applicable",
+      checklist: [{
+        ...baseCategory.checklist[0],
+        state: "not_applicable",
+      }],
+      checklistReviewedAt: previousProfile.reviewedAt,
+      checklistReviewedByProfileId: BRIDE_ID,
+      checklistReviewSource: "situation_profile",
+    };
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: {
+        __checklist_profile: previousProfile,
+        venue: excludedCategory,
+      },
+    });
+    try {
+      await setServiceRole(db);
+      const nextProfile = {
+        ...previousProfile,
+        reviewedAt: "2026-08-12T10:00:00.000Z",
+        answers: {
+          ...previousProfile.answers,
+          religiousCeremony: null,
+        },
+        autoExcludedItemIds: [],
+      };
+      const pending = await submit(db, {
+        changes: {
+          progress_patch: {
+            __checklist_profile: nextProfile,
+            venue: baseCategory,
+          },
+        },
+        surface: "/dashboard",
+      });
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        isHighImpact: true,
+      });
+      expect(pending.summary).toContain("종교 예식 아님→미정");
+      expect(pending.summary).toContain(
+        "분야 제외0/복원1[예식장 → 준비 목록]",
+      );
+      expect(pending.summary).toContain(
+        "항목 제외0/복원1[예식장·예식장 형태 정하기]",
+      );
+      expect(pending.summary).toContain("검토 기록 추가0/해제1[예식장]");
+
+      const applied = await accept(db, pending.requestId);
+      expect(applied).toMatchObject({ status: "applied", appliedRevision: 1 });
+      expect(applied.journey?.progress).toMatchObject({
+        __checklist_profile: nextProfile,
+        venue: baseCategory,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("continues to route a spent delta through the prior exact wrapper", async () => {
+    const db = await createChecklistCollaborationDatabase({
+      coupleProgress: { venue: { spent: 1_000_000 } },
+    });
+    try {
+      await setServiceRole(db);
+      const pending = await submit(db, {
+        changes: {
+          progress_patch: { venue: { spent: 2_000_000 } },
+        },
+        surface: "/budget",
+      });
+      expect(pending).toMatchObject({
+        status: "pending_partner",
+        requiredCount: 2,
+        isHighImpact: true,
+      });
+      expect(pending.summary).toContain("2000000");
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();

@@ -1,6 +1,7 @@
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProgressItem } from "@/types/database.types";
 
 const mocks = vi.hoisted(() => {
   const authState = {
@@ -108,10 +109,14 @@ function captureLatest(value: ReturnType<typeof useNotifications>) {
 
 function Harness({
   weddingDate = null,
+  progress = {},
+  prefs = PREFS_OFF,
 }: {
   weddingDate?: Date | null;
+  progress?: Record<string, ProgressItem>;
+  prefs?: NotificationPrefs;
 }) {
-  const value = useNotifications(weddingDate, {}, PREFS_OFF);
+  const value = useNotifications(weddingDate, progress, prefs);
   useEffect(() => {
     captureLatest(value);
   }, [value]);
@@ -125,6 +130,28 @@ function Harness({
     </div>
   );
 }
+
+describe("useNotifications checklist truth", () => {
+  it("alerts reviewed legacy status-only work but not an unreviewed category", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const weddingDate = new Date(Date.now() + 30 * 86_400_000);
+
+    await act(async () => {
+      root.render(<Harness
+        weddingDate={weddingDate}
+        prefs={{ schedule: true, budget: false }}
+        progress={{ venue: { status: "completed" } } as never}
+      />);
+    });
+
+    expect(container.textContent).toContain("결혼식장 후보 확인하기");
+    expect(container.textContent).not.toContain("사진 촬영 계획 확인하기");
+    await act(async () => root.unmount());
+    container.remove();
+  });
+});
 
 describe("useNotifications partner activity", () => {
   let root: Root;

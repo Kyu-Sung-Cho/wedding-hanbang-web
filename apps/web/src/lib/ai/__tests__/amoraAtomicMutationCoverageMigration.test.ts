@@ -22,6 +22,7 @@ const reserveBase = migration("20260704120000_create_amora_turn_reserve_rpc.sql"
 const costBudget = migration("20260716097000_amora_atomic_cost_budget.sql");
 const crashRecovery = migration("20260716110000_amora_crash_recovery_atomicity.sql");
 const mutationCoverage = migration("20260716112000_amora_atomic_mutation_coverage.sql");
+const checklistV3 = migration("20260812192000_amora_atomic_checklist_v3.sql");
 
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const USER_ID = "20000000-0000-4000-8000-000000000001";
@@ -155,6 +156,7 @@ async function createDatabase() {
   await db.exec(costBudget);
   await db.exec(crashRecovery);
   await db.exec(mutationCoverage);
+  await db.exec(checklistV3);
   await db.exec("SET ROLE service_role");
   await db.query("SELECT set_config('request.jwt.claim.role', 'service_role', false)");
   return db;
@@ -286,6 +288,218 @@ describe("Amora atomic mutation coverage migration", () => {
     }
   }, 30_000);
 
+  it("accepts the current v3 category-status projection with actor provenance", async () => {
+    const db = await createDatabase();
+    const expectedVenue = {
+      category: "venue",
+      status: "not_started",
+      budget: 10_000_000,
+    };
+    const toolInput = { category: "venue", status: "in_progress" };
+    const identity = getAmoraToolOperationIdentity("update_task_status", toolInput);
+    const context: ToolExecutionContext = {
+      coupleId: COUPLE_ID,
+      requestKey: REQUEST_KEY,
+      requestAttemptCount: 1,
+      providerCallIndex: 1,
+      actorProfileId: USER_ID,
+      weddingContext: {
+        weddingDate: EXPECTED_WEDDING_DATE,
+        budget: 50_000_000,
+        venue: "existing venue",
+        progress: {
+          venue: expectedVenue,
+          partner_note: { kept: true },
+        } as unknown as ToolExecutionContext["weddingContext"]["progress"],
+      },
+    };
+    try {
+      const operation = buildAmoraAtomicToolOperation(
+        "update_task_status",
+        toolInput,
+        context,
+        identity.operationKey,
+      );
+      expect(operation.result.success).toBe(true);
+      await insertExecution(
+        db,
+        "update_task_status",
+        identity.operationKey,
+        identity.inputDigest,
+      );
+      await apply(
+        db,
+        identity.operationKey,
+        identity.inputDigest,
+        toolInput,
+        operation.domainMutation,
+        {
+          toolName: operation.result.toolName,
+          toolOutput: operation.result.toolOutput,
+          success: operation.result.success,
+          displayMessage: operation.result.displayMessage,
+        },
+      );
+      const state = await db.query<{ venue: Record<string, unknown> }>(`
+        SELECT progress -> 'venue' AS venue
+        FROM public.wedding_journeys WHERE couple_id = $1::uuid
+      `, [COUPLE_ID]);
+      expect(state.rows[0]?.venue).toMatchObject({
+        status: "in_progress",
+        checklist: expect.arrayContaining([
+          expect.objectContaining({ state: "in_progress", done: false }),
+        ]),
+      });
+    } finally {
+      await db.exec("RESET ROLE").catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("preserves checklist v3 metadata, binds the completion actor, and rejects unknown fields", async () => {
+    const expectedVenue = {
+      category: "venue",
+      status: "not_started",
+      budget: 10_000_000,
+      checklist: [
+        {
+          id: "venue_01",
+          label: "원하는 결혼식장 형태 정하기",
+          done: false,
+          state: "todo",
+          assignee: { kind: "external", label: "venue coordinator" },
+          dueDate: "2099-02-01",
+          note: "keep this note",
+        },
+        {
+          id: "venue_03",
+          label: "장소 방문 날짜 예약하고 직접 확인",
+          done: false,
+          state: "todo",
+          assignee: { kind: "couple" },
+          dueDate: "2099-03-01",
+          note: "target metadata stays",
+        },
+      ],
+    };
+    const toolInput = {
+      category: "venue",
+      item_id: "venue_03",
+      done: true,
+    };
+    const identity = getAmoraToolOperationIdentity("toggle_checklist_item", toolInput);
+    const context: ToolExecutionContext = {
+      coupleId: COUPLE_ID,
+      requestKey: REQUEST_KEY,
+      requestAttemptCount: 1,
+      providerCallIndex: 1,
+      actorProfileId: USER_ID,
+      weddingContext: {
+        weddingDate: EXPECTED_WEDDING_DATE,
+        budget: 50_000_000,
+        venue: "existing venue",
+        progress: {
+          venue: expectedVenue,
+          partner_note: { kept: true },
+        } as unknown as ToolExecutionContext["weddingContext"]["progress"],
+      },
+    };
+    const operation = buildAmoraAtomicToolOperation(
+      "toggle_checklist_item",
+      toolInput,
+      context,
+      identity.operationKey,
+    );
+    expect(operation.result.success).toBe(true);
+
+    const seed = async (db: PGlite) => {
+      await db.query(
+        `UPDATE public.wedding_journeys
+         SET progress = jsonb_set(progress, '{venue}', $2::jsonb, true)
+         WHERE couple_id = $1::uuid`,
+        [COUPLE_ID, JSON.stringify(expectedVenue)],
+      );
+      await insertExecution(
+        db,
+        "toggle_checklist_item",
+        identity.operationKey,
+        identity.inputDigest,
+      );
+    };
+
+    const db = await createDatabase();
+    try {
+      await seed(db);
+      await apply(
+        db,
+        identity.operationKey,
+        identity.inputDigest,
+        toolInput,
+        operation.domainMutation,
+        {
+          toolName: operation.result.toolName,
+          toolOutput: operation.result.toolOutput,
+          success: operation.result.success,
+          displayMessage: operation.result.displayMessage,
+        },
+      );
+      const state = await db.query<{ checklist: Array<Record<string, unknown>> }>(`
+        SELECT progress #> '{venue,checklist}' AS checklist
+        FROM public.wedding_journeys WHERE couple_id = $1::uuid
+      `, [COUPLE_ID]);
+      const preserved = state.rows[0]?.checklist.find((item) => item.id === "venue_01");
+      const target = state.rows[0]?.checklist.find((item) => item.id === "venue_03");
+      expect(preserved).toMatchObject({
+        assignee: { kind: "external", label: "venue coordinator" },
+        dueDate: "2099-02-01",
+        note: "keep this note",
+      });
+      expect(target).toMatchObject({
+        assignee: { kind: "couple" },
+        dueDate: "2099-03-01",
+        note: "target metadata stays",
+        done: true,
+        state: "completed",
+        completedByProfileId: USER_ID,
+      });
+      expect(target?.completedAt).toEqual(expect.any(String));
+    } finally {
+      await db.exec("RESET ROLE").catch(() => undefined);
+      await db.close();
+    }
+
+    const forgedDb = await createDatabase();
+    try {
+      await seed(forgedDb);
+      const forgedMutation = structuredClone(operation.domainMutation);
+      const forgedValue = forgedMutation.value as {
+        checklist: Array<Record<string, unknown>>;
+      };
+      forgedValue.checklist[0] = {
+        ...forgedValue.checklist[0],
+        unexpectedPrivateField: true,
+      };
+      const forgedResult = structuredClone(operation.result);
+      forgedResult.toolOutput.progress_value = forgedMutation.value;
+      await expect(apply(
+        forgedDb,
+        identity.operationKey,
+        identity.inputDigest,
+        toolInput,
+        forgedMutation,
+        {
+          toolName: forgedResult.toolName,
+          toolOutput: forgedResult.toolOutput,
+          success: forgedResult.success,
+          displayMessage: forgedResult.displayMessage,
+        },
+      )).rejects.toThrow(/AMORA_ATOMIC_CHECKLIST_ITEM_INVALID/);
+    } finally {
+      await forgedDb.exec("RESET ROLE").catch(() => undefined);
+      await forgedDb.close();
+    }
+  }, 30_000);
+
   it("commits a whole budget plan atomically without retaining intake text", async () => {
     const db = await createDatabase();
     try {
@@ -362,6 +576,7 @@ describe("Amora atomic mutation coverage migration", () => {
       requestKey: REQUEST_KEY,
       requestAttemptCount: 1,
       providerCallIndex: 1,
+      actorProfileId: USER_ID,
       weddingContext: {
         weddingDate: "2027-05-01",
         budget: 50_000_000,

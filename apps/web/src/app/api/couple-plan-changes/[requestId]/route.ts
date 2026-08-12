@@ -18,6 +18,12 @@ export const revalidate = 0;
 
 const MAX_BODY_BYTES = 2 * 1024;
 const MAX_SUMMARY_CHARS = 240;
+const MAX_PROPOSAL_BYTES = 128 * 1024;
+const MAX_PROGRESS_KEYS = 300;
+const MAX_BASE_REVISION = Number.MAX_SAFE_INTEGER - 1;
+const PROGRESS_KEY_PATTERN = /^[a-zA-Z0-9_.:-]{1,80}$/;
+const DISCLOSURE_RECEIPT_PATTERN = /^[a-f0-9]{64}$/;
+const CHECKLIST_PROFILE_KEY = "__checklist_profile";
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
 };
@@ -34,15 +40,28 @@ type PlanChangeResult = {
   status: PlanChangeStatus;
   requiredCount: number;
   acceptedCount: number;
+  baseRevision: number;
   summary?: string;
   surface?: string;
   journey?: Record<string, unknown>;
 };
 
+type PlanChangeProposal =
+  | { kind: "other" }
+  | {
+      kind: "checklist_situation";
+      baseRevision: number;
+      progressPatch: Record<string, unknown>;
+    };
+type StoredPlanChangeProposal = {
+  proposal: PlanChangeProposal;
+  changeDigest: string;
+};
+
 type AuthContext = { userId: string; coupleId: string };
 type AuthResult = AuthContext | { error: Response };
-type EmptyBodyResult =
-  | { ok: true }
+type MutationBodyResult =
+  | { ok: true; disclosureReceipt?: string }
   | { ok: false; error: Response };
 
 function privateResponse(body: unknown, status = 200) {
@@ -85,6 +104,10 @@ function parsePlanChangeResult(
     || !Number.isSafeInteger(value.acceptedCount)
     || value.acceptedCount < 0
     || value.acceptedCount > value.requiredCount
+    || typeof value.baseRevision !== "number"
+    || !Number.isSafeInteger(value.baseRevision)
+    || value.baseRevision < 0
+    || value.baseRevision > MAX_BASE_REVISION
   ) {
     return null;
   }
@@ -143,9 +166,70 @@ function parsePlanChangeResult(
     status: value.status,
     requiredCount: value.requiredCount,
     acceptedCount: value.acceptedCount,
+    baseRevision: value.baseRevision,
     ...(typeof summary === "string" ? { summary } : {}),
     ...(typeof surface === "string" ? { surface } : {}),
     ...(journey ? { journey } : {}),
+  };
+}
+
+function parseStoredProposal(
+  value: unknown,
+  result: PlanChangeResult,
+): StoredPlanChangeProposal | null {
+  if (
+    !isRecord(value)
+    || Object.keys(value).length !== 5
+    || typeof value.base_revision !== "number"
+    || !Number.isSafeInteger(value.base_revision)
+    || value.base_revision < 0
+    || value.base_revision > MAX_BASE_REVISION
+    || value.base_revision !== result.baseRevision
+    || typeof value.change_digest !== "string"
+    || !DISCLOSURE_RECEIPT_PATTERN.test(value.change_digest)
+    || typeof value.is_high_impact !== "boolean"
+    || typeof value.surface_href !== "string"
+    || value.surface_href !== result.surface
+    || !isRecord(value.changes)
+  ) return null;
+
+  const progressPatch = value.changes.progress_patch;
+  const isChecklistSituation = isRecord(progressPatch)
+    && Object.prototype.hasOwnProperty.call(progressPatch, CHECKLIST_PROFILE_KEY);
+  if (!isChecklistSituation) {
+    return {
+      proposal: { kind: "other" },
+      changeDigest: value.change_digest,
+    };
+  }
+
+  if (
+    value.is_high_impact !== true
+    || value.surface_href !== "/schedule"
+    || Object.keys(value.changes).length !== 1
+    || !Object.prototype.hasOwnProperty.call(value.changes, "progress_patch")
+    || !isRecord(progressPatch)
+  ) return null;
+  const progressKeys = Object.keys(progressPatch);
+  if (
+    progressKeys.length < 1
+    || progressKeys.length > MAX_PROGRESS_KEYS
+    || progressKeys.some((key) => !PROGRESS_KEY_PATTERN.test(key))
+  ) return null;
+  try {
+    if (new TextEncoder().encode(JSON.stringify(progressPatch)).byteLength > MAX_PROPOSAL_BYTES) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return {
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: value.base_revision,
+      progressPatch,
+    },
+    changeDigest: value.change_digest,
   };
 }
 
@@ -156,6 +240,45 @@ function serviceErrorText(error: unknown) {
 
 function serviceErrorResponse(error: unknown) {
   const text = serviceErrorText(error);
+  if (/COUPLE_PLAN_CHANGE_DISCLOSURE_REQUIRED/i.test(text)) {
+    return privateResponse(
+      {
+        error: "변경 전체를 다시 확인한 뒤 동의해 주세요.",
+        code: "PLAN_CHANGE_DISCLOSURE_REQUIRED",
+      },
+      400,
+    );
+  }
+  if (/COUPLE_PLAN_CHANGE_DISCLOSURE_UNEXPECTED/i.test(text)) {
+    return privateResponse(
+      {
+        error: "이 변경 요청에는 확인 영수증을 사용할 수 없어요.",
+        code: "PLAN_CHANGE_DISCLOSURE_UNEXPECTED",
+      },
+      400,
+    );
+  }
+  if (/COUPLE_PLAN_CHANGE_DISCLOSURE_UNAVAILABLE/i.test(text)) {
+    return privateResponse(
+      {
+        error: "변경 전체를 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        code: "PLAN_CHANGE_DISCLOSURE_UNAVAILABLE",
+      },
+      503,
+    );
+  }
+  if (
+    /COUPLE_PLAN_CHANGE_DISCLOSURE_(?:MISMATCH|USED|EXPIRED|CONFLICT)/i
+      .test(text)
+  ) {
+    return privateResponse(
+      {
+        error: "확인한 변경 원본이 더 이상 최신이 아니에요. 변경 전체를 다시 확인해 주세요.",
+        code: "PLAN_CHANGE_DISCLOSURE_CONFLICT",
+      },
+      409,
+    );
+  }
   if (/COUPLE_PLAN_CHANGE_(?:NOT_FOUND|JOURNEY_NOT_FOUND)/i.test(text)) {
     return privateResponse(
       {
@@ -215,6 +338,7 @@ function resultBody(result: PlanChangeResult) {
     status: result.status,
     requiredCount: result.requiredCount,
     acceptedCount: result.acceptedCount,
+    baseRevision: result.baseRevision,
     ...(result.summary ? { summary: result.summary } : {}),
     ...(result.surface ? { surface: result.surface } : {}),
     ...(result.journey ? { journey: result.journey } : {}),
@@ -284,9 +408,9 @@ async function authenticatedContext(
   return { userId: user.id, coupleId: profile.couple_id };
 }
 
-async function parseEmptyMutationBody(
+async function parseMutationBody(
   request: Request,
-): Promise<EmptyBodyResult> {
+): Promise<MutationBodyResult> {
   const bodyResult = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
   if (!bodyResult.ok) {
     return {
@@ -311,7 +435,7 @@ async function parseEmptyMutationBody(
       error: privateResponse({ error: "잘못된 JSON 요청입니다." }, 400),
     };
   }
-  if (!isRecord(body) || Object.keys(body).length !== 0) {
+  if (!isRecord(body)) {
     return {
       ok: false,
       error: privateResponse(
@@ -320,7 +444,23 @@ async function parseEmptyMutationBody(
       ),
     };
   }
-  return { ok: true };
+  const keys = Object.keys(body);
+  if (keys.length === 0) return { ok: true };
+  if (
+    keys.length === 1
+    && keys[0] === "disclosureReceipt"
+    && typeof body.disclosureReceipt === "string"
+    && DISCLOSURE_RECEIPT_PATTERN.test(body.disclosureReceipt)
+  ) {
+    return { ok: true, disclosureReceipt: body.disclosureReceipt };
+  }
+  return {
+    ok: false,
+    error: privateResponse(
+      { error: "허용되지 않은 요청 항목이 있습니다." },
+      400,
+    ),
+  };
 }
 
 export async function GET(
@@ -336,7 +476,8 @@ export async function GET(
     const auth = await authenticatedContext(request, "read");
     if ("error" in auth) return auth.error;
 
-    const { data, error } = await createAdminClient().rpc(
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc(
       "get_couple_plan_change_status",
       {
         p_request_id: requestId.toLowerCase(),
@@ -357,7 +498,63 @@ export async function GET(
         503,
       );
     }
-    return privateResponse(resultBody(result));
+    if (result.status !== "pending_partner") {
+      return privateResponse(resultBody(result));
+    }
+
+    const { data: proposalRow, error: proposalError } = await admin
+      .from("couple_plan_change_requests")
+      .select("base_revision, changes, change_digest, is_high_impact, surface_href")
+      .eq("id", result.requestId)
+      .eq("couple_id", auth.coupleId)
+      .single();
+    const storedProposal = proposalError
+      ? null
+      : parseStoredProposal(proposalRow, result);
+    if (!storedProposal) {
+      console.error("Couple plan-change proposal could not be disclosed safely.");
+      return privateResponse(
+        {
+          error: "변경 내용을 빠짐없이 확인할 수 없어 승인할 수 없어요. 잠시 후 다시 시도해 주세요.",
+          code: "PLAN_CHANGE_DISCLOSURE_UNAVAILABLE",
+        },
+        503,
+      );
+    }
+    const { proposal, changeDigest } = storedProposal;
+    if (proposal.kind === "other") {
+      return privateResponse({ ...resultBody(result), proposal });
+    }
+
+    const { data: disclosureReceipt, error: disclosureError } = await admin.rpc(
+      "issue_checklist_plan_change_disclosure_receipt",
+      {
+        p_request_id: result.requestId,
+        p_couple_id: auth.coupleId,
+        p_actor_user_id: auth.userId,
+        p_expected_base_revision: proposal.baseRevision,
+        p_expected_change_digest: changeDigest,
+      },
+    );
+    if (disclosureError) return serviceErrorResponse(disclosureError);
+    if (
+      typeof disclosureReceipt !== "string"
+      || !DISCLOSURE_RECEIPT_PATTERN.test(disclosureReceipt)
+    ) {
+      console.error("Checklist disclosure receipt RPC returned an invalid result.");
+      return privateResponse(
+        {
+          error: "변경 내용을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+          code: "PLAN_CHANGE_DISCLOSURE_UNAVAILABLE",
+        },
+        503,
+      );
+    }
+    return privateResponse({
+      ...resultBody(result),
+      proposal,
+      disclosureReceipt,
+    });
   } catch (error) {
     console.error("Couple plan-change status API error:", error);
     return privateResponse({ error: "서버 오류" }, 500);
@@ -378,17 +575,32 @@ async function mutate(
       return privateResponse({ error: "잘못된 요청 출처입니다." }, 403);
     }
 
-    const body = await parseEmptyMutationBody(request);
+    const body = await parseMutationBody(request);
     if (!body.ok) return body.error;
+    if (rpcName === "reject_couple_plan_change" && body.disclosureReceipt) {
+      return privateResponse(
+        { error: "거절 요청에는 확인 영수증을 사용할 수 없어요." },
+        400,
+      );
+    }
 
     const auth = await authenticatedContext(request, "mutate");
     if ("error" in auth) return auth.error;
 
-    const { data, error } = await createAdminClient().rpc(rpcName, {
+    const rpcArgs = {
       p_request_id: requestId.toLowerCase(),
       p_couple_id: auth.coupleId,
       p_actor_user_id: auth.userId,
-    });
+      ...(rpcName === "accept_couple_plan_change"
+        ? { p_disclosure_receipt: body.disclosureReceipt ?? null }
+        : {}),
+    };
+    const { data, error } = await createAdminClient().rpc(
+      rpcName === "accept_couple_plan_change"
+        ? "accept_couple_plan_change_with_disclosure"
+        : rpcName,
+      rpcArgs,
+    );
     if (error) return serviceErrorResponse(error);
 
     const result = parsePlanChangeResult(data, auth.coupleId);

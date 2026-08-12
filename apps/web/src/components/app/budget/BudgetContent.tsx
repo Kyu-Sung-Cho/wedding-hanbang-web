@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_MAP } from "@/constants/checklists";
+import { getEffectivePlanningChecklistStatus } from "@/utils/checklist";
 import type {
   ProgressItem,
   PayerType,
@@ -782,7 +784,10 @@ export default function BudgetContent({
   const getStatusLabel = useCallback(
     (key: string) => {
       const item = progress[key];
-      const status = item?.status ?? "not_started";
+      const template = CHECKLIST_MAP[key];
+      const status = template
+        ? getEffectivePlanningChecklistStatus(template.items, item)
+        : item?.status ?? "not_started";
       return status === "completed" ? "완료" : status === "in_progress" ? "진행중" : "예정";
     },
     [progress]

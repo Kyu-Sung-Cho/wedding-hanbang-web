@@ -23,6 +23,7 @@ import type { ScheduleEvent } from "@/types/database.types";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { calculateStatus, mergeChecklist } from "@/utils/checklist";
+import { setPlanningChecklistCategoryStatus } from "@hanbang/shared/utils";
 import { isValidScheduleYmd } from "@/utils/scheduleEvents";
 import {
   kstMidnightFromYmd,
@@ -335,10 +336,49 @@ function buildTaskStatusOperation(
       "현재 준비 상태 데이터에 확인이 필요한 항목이 있어 변경하지 않았어요.",
     );
   }
+  const template = CHECKLIST_MAP[category];
+  if (!template) {
+    return noOpFailure(
+      "update_task_status",
+      toolInput,
+      "invalid_task_status",
+      "준비 항목 템플릿을 찾지 못해 변경하지 않았어요.",
+    );
+  }
+  const savedChecklist = isRecord(existing) && Array.isArray(existing.checklist)
+    ? existing.checklist
+    : undefined;
+  const currentStatus = isRecord(existing) && typeof existing.status === "string"
+    && PROGRESS_STATUSES.has(existing.status)
+    ? existing.status
+    : "not_started";
+  const changedAt = new Date().toISOString();
+  const actorProfileId = typeof context.actorProfileId === "string"
+    && PROFILE_UUID_RE.test(context.actorProfileId)
+    ? context.actorProfileId
+    : null;
+  const projected = setPlanningChecklistCategoryStatus(
+    template.items,
+    savedChecklist as Parameters<typeof mergeChecklist>[1],
+    currentStatus as Parameters<typeof mergeChecklist>[2],
+    status as Parameters<typeof setPlanningChecklistCategoryStatus>[3],
+    { completedAt: changedAt, completedByProfileId: actorProfileId },
+  );
+  const checklist = projected.checklist;
+  const derivedStatus = projected.status;
+  if (derivedStatus !== status) {
+    return noOpFailure(
+      "update_task_status",
+      toolInput,
+      "invalid_task_status",
+      "개별 항목과 카테고리 상태를 일치시킬 수 없어 변경하지 않았어요.",
+    );
+  }
   const value = {
     ...(existing ?? {}),
     category,
     status,
+    checklist,
   };
   if (isRecord(existing) && valuesEqual(existing, value)) {
     return noOpFailure(
@@ -774,7 +814,29 @@ function buildChecklistOperation(
       "해당 체크리스트 항목을 찾지 못했어요.",
     );
   }
-  const updated = merged.map((item) => item.id === itemId ? { ...item, done } : item);
+  const targetAlreadyDone = target.state === "completed" || target.done === true;
+  if (targetAlreadyDone === done) {
+    return noOpFailure(
+      "toggle_checklist_item",
+      toolInput,
+      "no_change",
+      "이미 같은 체크 상태로 저장되어 있어요.",
+    );
+  }
+  const changedAt = new Date().toISOString();
+  const actorProfileId = typeof context.actorProfileId === "string"
+    && PROFILE_UUID_RE.test(context.actorProfileId)
+    ? context.actorProfileId
+    : null;
+  const updated = merged.map((item) => item.id === itemId
+    ? {
+        ...item,
+        state: done ? "completed" as const : "todo" as const,
+        done,
+        completedAt: done ? changedAt : null,
+        completedByProfileId: done ? actorProfileId : null,
+      }
+    : item);
   const newStatus = calculateStatus(updated);
   const value = {
     ...(existing ?? {}),

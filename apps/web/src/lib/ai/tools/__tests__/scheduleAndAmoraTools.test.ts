@@ -112,7 +112,7 @@ describe("scheduleTools", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps schedule summary on the shared item-level and v2 opt-in contract", () => {
+  it("keeps legacy status-only review evidence without inventing execution progress", () => {
     const result = executeGetScheduleSummary(
       createContext({
         venue: { category: "venue", status: "completed" },
@@ -122,16 +122,39 @@ describe("scheduleTools", () => {
 
     expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
-      total: CATEGORY_CHECKLISTS.filter((category) => category.introducedInVersion === 1).length,
+      total: CATEGORY_CHECKLISTS.length,
       progress_percent: 0,
+      reviewed_categories: 2,
+      unreviewed_categories: CATEGORY_CHECKLISTS.length - 2,
+      reviewed_execution_percent: 0,
       available_new_categories: 8,
     });
-    expect(result.toolOutput.completed).toEqual(
-      expect.arrayContaining(["결혼식장"]),
+    expect(result.toolOutput.completed).toEqual([]);
+    expect(result.toolOutput.in_progress).toEqual([]);
+    expect(result.toolOutput.not_started).toEqual(
+      expect.arrayContaining(["결혼식장", "웨딩 사진 촬영"]),
     );
-    expect(result.toolOutput.in_progress).toEqual(
-      expect.arrayContaining(["웨딩 사진 촬영"]),
-    );
+  });
+
+  it("excludes an item-level not-applicable category from every schedule total and list", () => {
+    const venue = CATEGORY_CHECKLISTS.find((category) => category.key === "venue");
+    if (!venue) throw new Error("venue template missing");
+    const result = executeGetScheduleSummary(createContext({
+      venue: {
+        category: "venue",
+        status: "not_applicable",
+        checklist: venue.items.map((item) => ({
+          ...item,
+          done: false,
+          state: "not_applicable",
+        })),
+      },
+    }));
+
+    expect(result.toolOutput.total).toBe(CATEGORY_CHECKLISTS.length - 1);
+    expect(result.toolOutput.completed).not.toContain("결혼식장");
+    expect(result.toolOutput.in_progress).not.toContain("결혼식장");
+    expect(result.toolOutput.not_started).not.toContain("결혼식장");
   });
 
   it("accepts a schedule and checklist update for a new full-journey category", async () => {
@@ -153,6 +176,40 @@ describe("scheduleTools", () => {
       toolOutput: { category: "aftercare", item_id: "aftercare_01", done: true },
     });
     expect(checklist.displayMessage).toContain("결혼식 뒤 정산·감사·기록");
+  });
+
+  it("treats a completed-item replay as a no-op and preserves its audit", async () => {
+    const venueTemplate = CATEGORY_CHECKLISTS.find((category) => category.key === "venue");
+    if (!venueTemplate) throw new Error("venue template missing");
+    const completed = {
+      ...venueTemplate.items[0],
+      done: true,
+      state: "completed" as const,
+      completedAt: "2026-08-11T08:00:00.000Z",
+      completedByProfileId: "partner-profile-id",
+    };
+    const ctx = createContext({
+      venue: {
+        category: "venue",
+        status: "in_progress",
+        checklist: [completed],
+      },
+    });
+
+    const result = await executeToggleChecklistItem(
+      { category: "venue", item_id: completed.id, done: true },
+      ctx,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "no_change" },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+    const storedVenue = ctx.weddingContext.progress.venue as unknown as {
+      checklist?: unknown[];
+    };
+    expect(storedVenue.checklist?.[0]).toEqual(completed);
   });
 
   it("adds schedule events through the shared progress patch path", async () => {

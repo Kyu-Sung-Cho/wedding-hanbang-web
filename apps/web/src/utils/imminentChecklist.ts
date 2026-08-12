@@ -1,5 +1,10 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
-import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import {
+  getChecklistCounts,
+  getEffectivePlanningChecklistStatus,
+  hasChecklistReviewEvidence,
+  mergeChecklist,
+} from "@/utils/checklist";
 import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 
@@ -18,7 +23,7 @@ export interface ImminentCategory {
 /**
  * D-day 기준 임박 카테고리 계산
  * 마감일 = weddingDate - ddayDeadline (결혼식 N일 전까지 완료 권장)
- * 필터: status !== "completed" && 마감일까지 60일 이내
+ * 필터: 항목 근거로 계산한 status !== "completed" && 마감일까지 60일 이내
  */
 export function getImminentCategories(
   progress: Record<string, ProgressItem>,
@@ -48,7 +53,8 @@ export function getImminentCategories(
     if (relativeStage === "day" && cat.journeyStage !== "ceremony") continue;
     if (relativeStage === "after" && cat.ddayDeadline >= 0) continue;
     const item = progress[cat.key];
-    const status: ProgressItem["status"] = item?.status ?? "not_started";
+    if (!hasChecklistReviewEvidence(item)) continue;
+    const status = getEffectivePlanningChecklistStatus(cat.items, item as never);
     // 완료했거나 "해당 없음"으로 끈 항목은 마감 알림에서 제외한다.
     if (status === "completed" || status === "not_applicable") continue;
 
@@ -98,7 +104,7 @@ export function getImminentCategories(
 
 /**
  * 완료된 임박 카테고리 계산
- * 마감일 60일 이내이면서 status === "completed"인 카테고리
+ * 마감일 60일 이내이면서 항목 근거 status === "completed"인 카테고리
  */
 export function getCompletedImminentCategories(
   progress: Record<string, ProgressItem>,
@@ -125,7 +131,7 @@ export function getCompletedImminentCategories(
     if (relativeStage === "day" && cat.journeyStage !== "ceremony") continue;
     if (relativeStage === "after" && cat.ddayDeadline >= 0) continue;
     const item = progress[cat.key];
-    const status: ProgressItem["status"] = item?.status ?? "not_started";
+    const status = getEffectivePlanningChecklistStatus(cat.items, item as never);
     if (status !== "completed") continue;
 
     const deadlineDate = new Date(weddingDate);

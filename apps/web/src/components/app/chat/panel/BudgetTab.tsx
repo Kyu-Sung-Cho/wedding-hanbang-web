@@ -8,6 +8,7 @@ import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
+import { getEffectivePlanningChecklistStatus } from "@hanbang/shared/planning-checklist";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
@@ -55,7 +56,7 @@ export default function BudgetTab() {
       key: cat.key,
       label: cat.label,
       icon: cat.icon,
-      status: item?.status ?? "not_started",
+      status: getEffectivePlanningChecklistStatus(cat.items, item),
       budget: item?.budget ?? 0,
       spent: item?.spent ?? 0,
     };

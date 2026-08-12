@@ -119,6 +119,18 @@ describe("Dashboard solo, couple, and joined handoff", () => {
     );
   });
 
+  it("keeps a legacy status-only completed category in the next-work list", async () => {
+    await act(async () => {
+      root.render(<DashboardPage />);
+    });
+
+    const venue = container.querySelector('[data-testid="next-category-venue"]');
+    expect(venue).not.toBeNull();
+    expect(venue?.textContent).toContain("0/");
+    expect(venue?.textContent).toContain("직접 체크");
+    expect(venue?.textContent).toContain("예정");
+  });
+
   it("welcomes connected partners and leaves owner selection to them", async () => {
     useAuthStore.setState({ partner: PARTNER });
 

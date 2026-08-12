@@ -9,9 +9,14 @@ import {
 } from "react";
 
 import { NOTIFICATION_TEMPLATES } from "@/constants/notifications";
+import { CHECKLIST_MAP } from "@/constants/checklists";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
+import {
+  getEffectivePlanningChecklistStatus,
+  hasChecklistReviewEvidence,
+} from "@/utils/checklist";
 
 export interface ComputedNotification {
   id: string;
@@ -358,7 +363,13 @@ export function useNotifications(
 
         if (template.categoryKey) {
           const item = progress[template.categoryKey];
-          if (item?.status === "completed" || item?.status === "not_applicable") return false;
+          const checklistTemplate = CHECKLIST_MAP[template.categoryKey];
+          if (!checklistTemplate || !hasChecklistReviewEvidence(item)) return false;
+          const status = getEffectivePlanningChecklistStatus(
+            checklistTemplate.items,
+            item,
+          );
+          if (status === "completed" || status === "not_applicable") return false;
         }
 
         if (template.type === "schedule" && !prefs.schedule) return false;

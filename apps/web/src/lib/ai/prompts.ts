@@ -22,6 +22,9 @@ import {
   WEDDING_STYLE_OPTIONS,
   allowsCountdown,
   allowsUrgency,
+  getEffectivePlanningChecklistStatus,
+  getPlanningChecklistCounts,
+  mergePlanningChecklist,
   normalizePreparationStatus,
   summarizePlanningChecklist,
   type PlanningChecklistProgress,
@@ -70,12 +73,11 @@ function generateBehaviorInsights(context: {
 }): string[] {
   const insights: string[] = [];
   const budgetCategoryKeys = Object.keys(CATEGORY_LABELS);
-  const checklistCategoryKeys = CATEGORY_CHECKLISTS
+  const checklistCategoryTemplates = CATEGORY_CHECKLISTS
     .filter((category) => (
       category.introducedInVersion === 1
       || Object.prototype.hasOwnProperty.call(context.progress, category.key)
-    ))
-    .map((category) => category.key);
+    ));
   const checklistSummary = summarizePlanningChecklist(
     CATEGORY_CHECKLISTS,
     context.progress as Record<string, PlanningChecklistProgress | undefined>,
@@ -111,10 +113,11 @@ function generateBehaviorInsights(context: {
     }
   }
 
-  for (const key of checklistCategoryKeys) {
-    const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-    if (p.status === "not_applicable") continue;
-    if (!p.status || p.status === "not_started") notStartedCategories.push(key);
+  for (const category of checklistCategoryTemplates) {
+    const saved = context.progress[category.key] as PlanningChecklistProgress | undefined;
+    const status = getEffectivePlanningChecklistStatus(category.items, saved);
+    if (status === "not_applicable") continue;
+    if (status === "not_started") notStartedCategories.push(category.key);
   }
 
   // 인사이트 1: 예산이 많이 배분된 카테고리 — 중요도 추정은 금지
@@ -338,8 +341,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     .filter((category) => (
       category.introducedInVersion === 1
       || Object.prototype.hasOwnProperty.call(context.progress, category.key)
-    ))
-    .map((category) => [category.key, category.label] as const);
+    ));
   const checklistSummary = summarizePlanningChecklist(
     CATEGORY_CHECKLISTS,
     context.progress as Record<string, PlanningChecklistProgress | undefined>,
@@ -347,13 +349,27 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
 
   // 카테고리별 상세 현황 생성
   const categoryStatus = activeChecklistEntries
-    .map(([key, label]) => {
+    .map((category) => {
+      const { key, label } = category;
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-      const status = p.status === "not_applicable"
+      const effectiveStatus = getEffectivePlanningChecklistStatus(
+        category.items,
+        context.progress[key] as PlanningChecklistProgress | undefined,
+      );
+      const hasSavedChecklist = Array.isArray(p.checklist) && p.checklist.length > 0;
+      const mergedChecklist = mergePlanningChecklist(
+        category.items,
+        hasSavedChecklist
+          ? p.checklist as PlanningChecklistProgress["checklist"]
+          : undefined,
+        p.status as PlanningChecklistProgress["status"],
+      );
+      const checklistCounts = getPlanningChecklistCounts(mergedChecklist);
+      const status = effectiveStatus === "not_applicable"
         ? "➖해당 없음"
-        : p.status === "completed"
+        : effectiveStatus === "completed"
           ? "✅완료"
-          : p.status === "in_progress"
+          : effectiveStatus === "in_progress"
             ? "🔄진행중"
             : "⬜예정";
       const budgetTracked = Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, key);
@@ -370,9 +386,8 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
         : "";
       const vendor = p.vendor ? `업체: ${promptData(p.vendor, 200)}` : "";
       const notes = p.notes ? `메모: ${promptData(p.notes, 500)}` : "";
-      const checklist = Array.isArray(p.checklist) ? p.checklist as { id: string; label: string; done: boolean }[] : [];
-      const checklistInfo = checklist.length > 0
-        ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
+      const checklistInfo = hasSavedChecklist
+        ? `할일: ${checklistCounts.done}/${checklistCounts.total}완료`
         : "";
       const parts = [
         `${label}(${key}): ${status}${budgetTracked ? `, 예산: ${budget}` : ""}`,

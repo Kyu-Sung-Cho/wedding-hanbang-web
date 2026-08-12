@@ -45,7 +45,14 @@ import {
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
-import { summarizePlanningChecklist } from "@/utils/checklist";
+import {
+  getEffectivePlanningChecklistStatus,
+  summarizePlanningChecklist,
+} from "@/utils/checklist";
+import {
+  setPlanningChecklistCategoryStatus,
+  type PlanningChecklistStatus,
+} from "@hanbang/shared/utils";
 import {
   patchJourneyProgress,
   patchJourneyProgressItem,
@@ -709,8 +716,46 @@ async function executeUpdateTaskStatus(
   }
   const label = CHECKLIST_LABELS[category];
   const statusLabel = STATUS_LABELS[status];
+  const template = CATEGORY_CHECKLISTS.find((candidate) => candidate.key === category);
+  if (!template) {
+    return {
+      toolName: "update_task_status",
+      toolInput: input,
+      toolOutput: { error: "invalid_task_status" },
+      success: false,
+      displayMessage: "준비 항목 템플릿을 확인하지 못해 변경하지 않았습니다.",
+    };
+  }
+  const existing = ctx.weddingContext.progress[category] as unknown as
+    | (Record<string, unknown> & { checklist?: ProgressItem["checklist"] })
+    | undefined;
+  const projected = setPlanningChecklistCategoryStatus(
+    template.items,
+    Array.isArray(existing?.checklist) ? existing.checklist : undefined,
+    typeof existing?.status === "string"
+      ? existing.status as PlanningChecklistStatus
+      : "not_started",
+    status as PlanningChecklistStatus,
+    {
+      completedAt: new Date().toISOString(),
+      completedByProfileId: ctx.actorProfileId ?? null,
+    },
+  );
+  if (projected.status !== status) {
+    return {
+      toolName: "update_task_status",
+      toolInput: input,
+      toolOutput: { error: "task_status_projection_failed" },
+      success: false,
+      displayMessage: "개별 항목과 진행 상태를 일치시킬 수 없어 변경하지 않았습니다.",
+    };
+  }
 
-  await patchJourneyProgressItem(ctx, category, { category, status });
+  await patchJourneyProgressItem(ctx, category, {
+    category,
+    status: projected.status,
+    checklist: projected.checklist,
+  });
 
   return {
     toolName: "update_task_status",
@@ -1116,6 +1161,7 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   // 미입력 예산이나 상태를 근거로 금액을 추정하지 않는다.
   const categories = Object.keys(CATEGORY_LABELS).map((key) => {
     const p = (progress[key] ?? {}) as Record<string, unknown>;
+    const template = CATEGORY_CHECKLISTS.find((candidate) => candidate.key === key);
     const hasSetBudget = isValidWonAmount(p.budget);
     const allocated = hasSetBudget ? (p.budget as number) : null;
     const spent = isValidWonAmount(p.spent) ? (p.spent as number) : 0;
@@ -1131,7 +1177,9 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       allocated_is_set: hasSetBudget,
       spent,
       legacy_amount_unclassified: legacyAmountUnclassified,
-      status: (p.status as string) || "not_started",
+      status: template
+        ? getEffectivePlanningChecklistStatus(template.items, p)
+        : "not_started",
     };
   });
 

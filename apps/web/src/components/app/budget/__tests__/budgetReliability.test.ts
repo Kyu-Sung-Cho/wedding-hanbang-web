@@ -8,6 +8,10 @@ const webBudgetSource = readFileSync(
   resolve(process.cwd(), "src/components/app/budget/BudgetContent.tsx"),
   "utf8",
 );
+const chatBudgetTabSource = readFileSync(
+  resolve(process.cwd(), "src/components/app/chat/panel/BudgetTab.tsx"),
+  "utf8",
+);
 const mobileBudgetSource = readFileSync(
   resolve(process.cwd(), "../mobile/app/budget/index.tsx"),
   "utf8",
@@ -77,6 +81,14 @@ describe("예산 계산의 소비자 신뢰 경계", () => {
     expect(loungeSource).not.toMatch(/spent\s*\?\?\s*item\.cost/);
     expect(dashboardSource).toContain("명시적으로 기록한 지출만 합산");
     expect(loungeSource).toContain("명시적으로 기록한 지출만 합산");
+  });
+
+  it("웹과 모바일 예산 상태 라벨도 항목별 체크 근거를 정본으로 쓴다", () => {
+    expect(webBudgetSource).toContain("getEffectivePlanningChecklistStatus");
+    expect(chatBudgetTabSource).toContain("getEffectivePlanningChecklistStatus");
+    expect(mobileBudgetSource).toContain("getEffectivePlanningChecklistStatus");
+    expect(webBudgetSource).not.toMatch(/const status = item\?\.status \?\? "not_started"/);
+    expect(mobileBudgetSource).not.toMatch(/const s = progress\[key\]\?\.status \?\? "not_started"/);
   });
 
   it("모바일 분담 이름은 축약어 대신 처음 보는 사람도 이해할 수 있게 쓴다", () => {

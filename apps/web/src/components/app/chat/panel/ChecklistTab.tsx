@@ -8,7 +8,13 @@ import {
   ChevronRight, Circle,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
-import { mergeChecklist, getChecklistCounts, summarizePlanningChecklist } from "@/utils/checklist";
+import {
+  getChecklistCounts,
+  getEffectivePlanningChecklistStatus,
+  hasChecklistReviewEvidence,
+  mergeChecklist,
+  summarizePlanningChecklist,
+} from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, ChecklistItem } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
@@ -41,6 +47,7 @@ interface CategoryCheckItem {
   done: number;
   total: number;
   checklist: ChecklistItem[];
+  reviewed: boolean;
 }
 
 export default function ChecklistTab() {
@@ -59,13 +66,24 @@ export default function ChecklistTab() {
 
   const categories: CategoryCheckItem[] = CATEGORY_CHECKLISTS.map((cat) => {
     const item = progress[cat.key];
-    const status: ProgressItem["status"] = item?.status ?? "not_started";
     const template = CHECKLIST_MAP[cat.key];
     const merged = template
-      ? mergeChecklist(template.items, item?.checklist, status)
+      ? mergeChecklist(template.items, item?.checklist, item?.status)
       : [];
+    const status = template
+      ? getEffectivePlanningChecklistStatus(template.items, item)
+      : item?.status ?? "not_started";
     const { done, total } = getChecklistCounts(merged);
-    return { key: cat.key, label: cat.label, icon: cat.icon, status, done, total, checklist: merged };
+    return {
+      key: cat.key,
+      label: cat.label,
+      icon: cat.icon,
+      status,
+      done,
+      total,
+      checklist: merged,
+      reviewed: hasChecklistReviewEvidence(item),
+    };
   });
 
   const incomplete = categories.filter((c) => c.status !== "completed" && c.status !== "not_applicable");
@@ -114,7 +132,7 @@ export default function ChecklistTab() {
             )}
           </div>
           <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
-            {STATUS_LABELS[cat.status]}
+            {cat.reviewed ? STATUS_LABELS[cat.status] : "검토 필요"}
           </span>
         </button>
 

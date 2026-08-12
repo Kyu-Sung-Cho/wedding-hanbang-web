@@ -132,3 +132,67 @@ test("schedule requests bind the actual Bearer owner before any mutation network
   );
   assert.doesNotMatch(scheduleSource, /\bapiFetch\("\/api\/journey"/);
 });
+
+test("schedule checklist writes preserve review evidence and reject a fresh N/A race", () => {
+  const toggleItemSource = scheduleSource.slice(
+    scheduleSource.indexOf("async function toggleItem"),
+    scheduleSource.indexOf("async function toggleCategoryApplicability"),
+  );
+  const toggleCategorySource = scheduleSource.slice(
+    scheduleSource.indexOf("async function toggleCategoryApplicability"),
+    scheduleSource.indexOf("function getCategoryStats"),
+  );
+
+  assert.match(scheduleSource, /buildManualChecklistReviewEvidence/);
+  assert.match(scheduleSource, /hasChecklistItemMutationConflict/);
+  assert.match(
+    toggleItemSource,
+    /hasChecklistItemMutationConflict\(\{[\s\S]*categoryStatus:[\s\S]*existing\?\.status[\s\S]*freshItem/,
+  );
+  assert.match(toggleItemSource, /const reviewEvidence = buildManualChecklistReviewEvidence\(/);
+  assert.match(toggleItemSource, /\.\.\.reviewEvidence/);
+  assert.match(toggleCategorySource, /const reviewEvidence = buildManualChecklistReviewEvidence\(/);
+  assert.match(toggleCategorySource, /\.\.\.reviewEvidence/);
+});
+
+test("schedule category N/A and restore keep a stored checklist byte-for-byte", () => {
+  const toggleCategorySource = scheduleSource.slice(
+    scheduleSource.indexOf("async function toggleCategoryApplicability"),
+    scheduleSource.indexOf("function getCategoryStats"),
+  );
+
+  assert.match(toggleCategorySource, /const storedChecklist = Array\.isArray\(existing\.checklist\)/);
+  assert.match(toggleCategorySource, /checklist: storedChecklist \?\? mergedChecklist/);
+  assert.doesNotMatch(
+    toggleCategorySource,
+    /const checklist = mergePlanningChecklist\(template\.items, saved, existingStatus\)/,
+  );
+});
+
+test("schedule category applicability never reverses a partner's fresher choice", () => {
+  const toggleCategorySource = scheduleSource.slice(
+    scheduleSource.indexOf("async function toggleCategoryApplicability"),
+    scheduleSource.indexOf("function getCategoryStats"),
+  );
+
+  assert.match(
+    scheduleSource,
+    /toggleCategoryApplicability\(cat\.key, stats\.skipped\)/,
+  );
+  assert.match(
+    toggleCategorySource,
+    /expectedWasSkipped: boolean/,
+  );
+  assert.match(
+    toggleCategorySource,
+    /const freshWasSkipped = existing\.status === "not_applicable"/,
+  );
+  assert.match(
+    toggleCategorySource,
+    /if \(freshWasSkipped !== expectedWasSkipped\)[\s\S]*ScheduleMutationError\("target_changed"\)/,
+  );
+  assert.match(
+    toggleCategorySource,
+    /status: expectedWasSkipped[\s\S]*calculatePlanningChecklistStatus\(mergedChecklist\)[\s\S]*"not_applicable"/,
+  );
+});

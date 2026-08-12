@@ -1,5 +1,6 @@
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RFC3339_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+const DISCLOSURE_RECEIPT_PATTERN = /^[a-f0-9]{64}$/;
 const MANUAL_EVENT_KINDS = new Set([
   "approval_requested",
   "approval_pending",
@@ -32,6 +33,57 @@ function isSafeDisplayText(value, maximumCharacters) {
     && Array.from(value).length >= 1
     && Array.from(value).length <= maximumCharacters
     && !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value);
+}
+
+function jsonValuesAreSemanticallyEqual(left, right) {
+  const pending = [[left, right]];
+  const visited = new WeakMap();
+
+  while (pending.length > 0) {
+    const [leftValue, rightValue] = pending.pop();
+    if (Object.is(leftValue, rightValue)) continue;
+    if (
+      leftValue === null
+      || rightValue === null
+      || typeof leftValue !== "object"
+      || typeof rightValue !== "object"
+    ) return false;
+
+    const leftIsArray = Array.isArray(leftValue);
+    if (leftIsArray !== Array.isArray(rightValue)) return false;
+    const leftKeys = Object.keys(leftValue);
+    const rightKeys = Object.keys(rightValue);
+    if (leftKeys.length !== rightKeys.length) return false;
+
+    let visitedRights = visited.get(leftValue);
+    if (visitedRights?.has(rightValue)) continue;
+    if (!visitedRights) {
+      visitedRights = new WeakSet();
+      visited.set(leftValue, visitedRights);
+    }
+    visitedRights.add(rightValue);
+
+    for (const key of leftKeys) {
+      if (!Object.prototype.hasOwnProperty.call(rightValue, key)) return false;
+      pending.push([leftValue[key], rightValue[key]]);
+    }
+  }
+
+  return true;
+}
+
+function isSameChecklistSituationProposal(reviewed, latest) {
+  return isRecord(reviewed)
+    && reviewed.kind === "checklist_situation"
+    && Object.keys(reviewed).length === 3
+    && Number.isSafeInteger(reviewed.baseRevision)
+    && reviewed.baseRevision >= 0
+    && isRecord(reviewed.progressPatch)
+    && reviewed.baseRevision === latest.baseRevision
+    && jsonValuesAreSemanticallyEqual(
+      reviewed.progressPatch,
+      latest.progressPatch,
+    );
 }
 
 function invalidMutationResponse() {
@@ -196,6 +248,33 @@ function invalidApprovalStatus() {
   throw new Error("INVALID_SCHEDULE_APPROVAL_STATUS");
 }
 
+function parseApprovalProposal(value) {
+  if (value === undefined) return { kind: "unavailable" };
+  if (!isRecord(value)) return invalidApprovalStatus();
+  if (value.kind === "other" && Object.keys(value).length === 1) {
+    return { kind: "other" };
+  }
+  if (
+    value.kind !== "checklist_situation"
+    || Object.keys(value).length !== 3
+    || !Number.isSafeInteger(value.baseRevision)
+    || value.baseRevision < 0
+    || !isRecord(value.progressPatch)
+  ) return invalidApprovalStatus();
+  let serialized;
+  try {
+    serialized = JSON.stringify(value.progressPatch);
+  } catch {
+    return invalidApprovalStatus();
+  }
+  if (Array.from(serialized).length > 131_072) return invalidApprovalStatus();
+  return {
+    kind: "checklist_situation",
+    baseRevision: value.baseRevision,
+    progressPatch: value.progressPatch,
+  };
+}
+
 export function parseScheduleApprovalStatus(
   value,
   expectedRequestId,
@@ -254,10 +333,27 @@ export function parseScheduleApprovalStatus(
     return invalidApprovalStatus();
   }
 
+  const proposal = parseApprovalProposal(value.proposal);
+  if (
+    value.status === "pending_partner"
+    && proposal.kind === "checklist_situation"
+    && (
+      typeof value.disclosureReceipt !== "string"
+      || !DISCLOSURE_RECEIPT_PATTERN.test(value.disclosureReceipt)
+    )
+  ) {
+    return invalidApprovalStatus();
+  }
+
   return {
     requestId: value.requestId.toLowerCase(),
     status: value.status,
     summary: value.summary,
+    proposal,
+    ...(proposal.kind === "checklist_situation"
+      && typeof value.disclosureReceipt === "string"
+      ? { disclosureReceipt: value.disclosureReceipt }
+      : {}),
   };
 }
 
@@ -363,6 +459,10 @@ export async function fetchScheduleApprovalInbox({ apiFetch, ownerId, coupleId }
           request: {
             ...candidate,
             summary: latest.summary,
+            proposal: latest.proposal,
+            ...(latest.disclosureReceipt
+              ? { disclosureReceipt: latest.disclosureReceipt }
+              : {}),
           },
           partial: false,
           definitivelyRemovedId: null,
@@ -419,6 +519,7 @@ export async function actOnScheduleApproval({
   coupleId,
   request,
   action,
+  reviewedBaseRevision,
 }) {
   if (
     typeof apiFetch !== "function"
@@ -440,12 +541,24 @@ export async function actOnScheduleApproval({
     return { status: "terminal", terminalStatus: latest.status };
   }
 
+  if (action === "approve") {
+    if (latest.proposal.kind === "unavailable") return { status: "conflict" };
+    if (latest.proposal.kind === "checklist_situation" && (
+      !isSameChecklistSituationProposal(request.proposal, latest.proposal)
+      || reviewedBaseRevision !== latest.proposal.baseRevision
+    )) return { status: "conflict" };
+  }
+
   const method = action === "approve" ? "POST" : "DELETE";
+  const mutationBody = action === "approve"
+    && latest.proposal.kind === "checklist_situation"
+    ? JSON.stringify({ disclosureReceipt: latest.disclosureReceipt })
+    : "{}";
   let response;
   try {
     response = assertResponse(await apiFetch(
       `/api/couple-plan-changes/${requestId}`,
-      { method, body: "{}" },
+      { method, body: mutationBody },
     ));
   } catch {
     const recovered = await fetchLatestApprovalStatus(

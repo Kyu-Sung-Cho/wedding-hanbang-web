@@ -42,7 +42,13 @@ import { getAmoraActions, mergeAmoraActions, type AmoraActionItem, type AmoraAct
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
-import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
+import {
+  getChecklistCounts,
+  getEffectivePlanningChecklistStatus,
+  hasChecklistReviewEvidence,
+  mergeChecklist,
+  summarizePlanningChecklist,
+} from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
@@ -161,6 +167,13 @@ function formatFullDate(value: string | null | undefined) {
 }
 
 function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
+  const template = CATEGORY_CHECKLISTS.find((category) => category.key === key);
+  if (template) {
+    return getEffectivePlanningChecklistStatus(
+      template.items,
+      progress[key],
+    );
+  }
   const status = progress[key]?.status;
   if (
     status === "completed"
@@ -283,6 +296,7 @@ function getActiveCategories(progress: Record<string, ProgressItem>, dday: numbe
       if (dday === 0) return category.journeyStage === "ceremony";
       return category.ddayDeadline < 0;
     })
+    .filter((category) => hasChecklistReviewEvidence(progress[category.key]))
     .map((category) => {
     const counts = getChecklistProgress(progress, category.key);
     const status = getStatus(progress, category.key);

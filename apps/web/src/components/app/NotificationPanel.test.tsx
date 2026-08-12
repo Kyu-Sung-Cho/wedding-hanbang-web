@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import NotificationPanel from "./NotificationPanel";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import type { ComputedNotification } from "@/hooks/useNotifications";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -36,6 +37,54 @@ const PLAN_PENDING_NOTIFICATION: ComputedNotification = {
   actionId: "20000000-0000-4000-8000-000000000002",
   eventKind: "approval_pending",
   toolName: "manual_plan_change",
+};
+
+const SITUATION_APPROVAL_NOTIFICATION: ComputedNotification = {
+  ...PLAN_APPROVAL_NOTIFICATION,
+  id: "10000000-0000-4000-8000-000000000004",
+  href: "/schedule",
+  message: "상황: 질문 2개 · 분야 제외 1/복원 0 · 상세 확인",
+};
+const DISCLOSURE_RECEIPT = "d".repeat(64);
+const RECOVERY_DISCLOSURE_RECEIPT = "e".repeat(64);
+const RELOADED_DISCLOSURE_RECEIPT = "f".repeat(64);
+
+const CURRENT_PROFILE = {
+  version: 1,
+  reviewedAt: "2026-08-12T10:00:00.000Z",
+  answers: {
+    ceremony: "yes",
+    legalMarriage: "undecided",
+    travel: "undecided",
+    housing: "undecided",
+    internationalMarriage: null,
+    religiousCeremony: null,
+    remarriage: null,
+    childrenParticipating: null,
+    accessibilitySupport: null,
+    healthSupport: null,
+    petParticipation: null,
+    familyTradition: null,
+  },
+  autoExcludedItemIds: [],
+};
+
+const VENUE_TEMPLATE = CATEGORY_CHECKLISTS.find((category) => category.key === "venue");
+if (!VENUE_TEMPLATE) throw new Error("venue checklist template is required");
+
+const CURRENT_COMPLETED_VENUE = {
+  category: "venue",
+  label: VENUE_TEMPLATE.label,
+  status: "completed",
+  checklist: VENUE_TEMPLATE.items.map((item) => item.id === "venue_01"
+    ? {
+        ...item,
+        done: true,
+        state: "completed",
+        completedAt: "2026-08-11T09:00:00.000Z",
+        completedByProfileId: "30000000-0000-4000-8000-000000000001",
+      }
+    : { ...item, done: false, state: "todo" }),
 };
 
 describe("NotificationPanel partner history", () => {
@@ -163,6 +212,52 @@ describe("NotificationPanel partner history", () => {
     expect(onDismiss).toHaveBeenCalledWith(PLAN_APPROVAL_NOTIFICATION.id);
   });
 
+  it.each(["transport failure", "non-OK response"])(
+    "recovers an applied approval after a %s using one status GET without replay",
+    async (failureKind) => {
+      const onDismiss = vi.fn();
+      const refreshJourney = vi.fn().mockResolvedValue(true);
+      const fetchMock = vi.fn();
+      if (failureKind === "transport failure") {
+        fetchMock.mockRejectedValueOnce(new Error("connection closed"));
+      } else {
+        fetchMock.mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ error: "response lost" }),
+        });
+      }
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ status: "applied" }),
+      });
+      useAuthStore.setState({ refreshJourney });
+      vi.stubGlobal("fetch", fetchMock);
+
+      await act(async () => {
+        root.render(
+          <NotificationPanel
+            notifications={[PLAN_APPROVAL_NOTIFICATION]}
+            onDismiss={onDismiss}
+            onDismissAll={vi.fn()}
+            onCategoryClick={vi.fn()}
+            onClose={vi.fn()}
+          />,
+        );
+      });
+
+      const acceptButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === "확인하고 반영",
+      );
+      await act(async () => acceptButton?.click());
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST" });
+      expect(fetchMock.mock.calls[1][1]).not.toHaveProperty("method");
+      expect(refreshJourney).toHaveBeenCalledTimes(1);
+      expect(onDismiss).toHaveBeenCalledWith(PLAN_APPROVAL_NOTIFICATION.id);
+    },
+  );
+
   it("rejects a plan change without mutating the journey", async () => {
     const onDismiss = vi.fn();
     const refreshJourney = vi.fn().mockResolvedValue(true);
@@ -203,6 +298,352 @@ describe("NotificationPanel partner history", () => {
     );
     expect(refreshJourney).not.toHaveBeenCalled();
     expect(onDismiss).toHaveBeenCalledWith(PLAN_APPROVAL_NOTIFICATION.id);
+  });
+
+  it("requires the complete structured situation diff before partner approval", async () => {
+    const onDismiss = vi.fn();
+    const refreshJourney = vi.fn().mockResolvedValue(true);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          requestId: SITUATION_APPROVAL_NOTIFICATION.actionId,
+          status: "pending_partner",
+          requiredCount: 2,
+          acceptedCount: 1,
+          baseRevision: 7,
+          summary: SITUATION_APPROVAL_NOTIFICATION.message,
+          surface: "/schedule",
+          disclosureReceipt: DISCLOSURE_RECEIPT,
+          proposal: {
+            kind: "checklist_situation",
+            baseRevision: 7,
+            progressPatch: {
+              __checklist_profile: {
+                ...CURRENT_PROFILE,
+                reviewedAt: "2026-08-12T12:00:00.000Z",
+                answers: { ...CURRENT_PROFILE.answers, ceremony: "no" },
+              },
+            },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ status: "applied" }),
+      });
+    useAuthStore.setState({ refreshJourney });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(
+        <NotificationPanel
+          notifications={[SITUATION_APPROVAL_NOTIFICATION]}
+          currentProgress={{ __checklist_profile: CURRENT_PROFILE }}
+          currentRevision={7}
+          onDismiss={onDismiss}
+          onDismissAll={vi.fn()}
+          onCategoryClick={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const beforeLoad = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "변경 전체 보기 후 동의",
+    );
+    expect(beforeLoad).toBeDefined();
+
+    await act(async () => beforeLoad?.click());
+
+    expect(container.textContent).toContain("바뀌는 질문");
+    expect(container.textContent).toContain("예식: 진행 → 진행 안 함");
+    expect(container.textContent).toContain("영향 받는 분야");
+    expect(container.textContent).toContain("제외되는 항목");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const approve = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "확인하고 반영",
+    );
+    expect(approve).toBeDefined();
+    await act(async () => approve?.click());
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ disclosureReceipt: DISCLOSURE_RECEIPT }),
+    });
+    expect(onDismiss).toHaveBeenCalledWith(SITUATION_APPROVAL_NOTIFICATION.id);
+  });
+
+  it("discards an expired checklist receipt when recovery still finds the proposal pending", async () => {
+    const onDismiss = vi.fn();
+    const refreshJourney = vi.fn().mockResolvedValue(true);
+    const proposal = {
+      kind: "checklist_situation",
+      baseRevision: 7,
+      progressPatch: {
+        __checklist_profile: {
+          ...CURRENT_PROFILE,
+          reviewedAt: "2026-08-12T12:00:00.000Z",
+          answers: { ...CURRENT_PROFILE.answers, ceremony: "no" },
+        },
+      },
+    };
+    const pending = (disclosureReceipt: string) => ({
+      requestId: SITUATION_APPROVAL_NOTIFICATION.actionId,
+      status: "pending_partner",
+      requiredCount: 2,
+      acceptedCount: 1,
+      baseRevision: 7,
+      summary: SITUATION_APPROVAL_NOTIFICATION.message,
+      surface: "/schedule",
+      disclosureReceipt,
+      proposal,
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(pending(DISCLOSURE_RECEIPT)),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ error: "receipt expired" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(pending(RECOVERY_DISCLOSURE_RECEIPT)),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(pending(RELOADED_DISCLOSURE_RECEIPT)),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ status: "applied" }),
+      });
+    useAuthStore.setState({ refreshJourney });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(
+        <NotificationPanel
+          notifications={[SITUATION_APPROVAL_NOTIFICATION]}
+          currentProgress={{ __checklist_profile: CURRENT_PROFILE }}
+          currentRevision={7}
+          onDismiss={onDismiss}
+          onDismissAll={vi.fn()}
+          onCategoryClick={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const disclosureLoadButton = () => Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.className.includes("border-[#C7D1C2]"));
+    const approveButton = () => Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.className.includes("bg-[#36534E]"));
+
+    await act(async () => disclosureLoadButton()?.click());
+    expect(container.querySelector('button[aria-expanded="true"]')).not.toBeNull();
+
+    await act(async () => approveButton()?.click());
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ disclosureReceipt: DISCLOSURE_RECEIPT }),
+    });
+    expect(fetchMock.mock.calls[2][1]).not.toHaveProperty("method");
+    expect(container.querySelector("button[aria-expanded]")).toBeNull();
+    expect(disclosureLoadButton()).toBeDefined();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "최신 변경 전체를 다시 확인",
+    );
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    await act(async () => disclosureLoadButton()?.click());
+    expect(container.querySelector('button[aria-expanded="true"]')).not.toBeNull();
+    await act(async () => approveButton()?.click());
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ disclosureReceipt: RELOADED_DISCLOSURE_RECEIPT }),
+    });
+    expect(refreshJourney).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledWith(SITUATION_APPROVAL_NOTIFICATION.id);
+  });
+
+  it("explains a non-N/A category status change and cleared completion evidence", async () => {
+    const nextProfile = {
+      ...CURRENT_PROFILE,
+      reviewedAt: "2026-08-12T12:00:00.000Z",
+      answers: { ...CURRENT_PROFILE.answers, ceremony: "no" },
+      autoExcludedItemIds: ["venue_01"],
+    };
+    const nextVenue = {
+      ...CURRENT_COMPLETED_VENUE,
+      status: "in_progress",
+      checklist: VENUE_TEMPLATE.items.map((item) => item.id === "venue_01"
+        ? {
+            ...item,
+            done: false,
+            state: "not_applicable",
+            completedAt: null,
+            completedByProfileId: null,
+          }
+        : { ...item, done: false, state: "todo" }),
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        requestId: SITUATION_APPROVAL_NOTIFICATION.actionId,
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        baseRevision: 7,
+        summary: SITUATION_APPROVAL_NOTIFICATION.message,
+        surface: "/schedule",
+        disclosureReceipt: DISCLOSURE_RECEIPT,
+        proposal: {
+          kind: "checklist_situation",
+          baseRevision: 7,
+          progressPatch: {
+            __checklist_profile: nextProfile,
+            venue: nextVenue,
+          },
+        },
+      }),
+    }));
+
+    await act(async () => {
+      root.render(
+        <NotificationPanel
+          notifications={[SITUATION_APPROVAL_NOTIFICATION]}
+          currentProgress={{
+            __checklist_profile: CURRENT_PROFILE,
+            venue: CURRENT_COMPLETED_VENUE,
+          }}
+          currentRevision={7}
+          onDismiss={vi.fn()}
+          onDismissAll={vi.fn()}
+          onCategoryClick={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const load = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "변경 전체 보기 후 동의",
+    );
+    await act(async () => load?.click());
+
+    expect(container.textContent).toContain(
+      "결혼식장 · 제외 1 · 복원 0 · 상태 완료 → 진행 중",
+    );
+    expect(container.textContent).toContain(
+      "결혼식장 · 원하는 결혼식장 형태 정하기 · 자동 제외되며 기존 완료 기록(완료 일시·완료자)이 해제돼요",
+    );
+  });
+
+  it("fails closed when the situation proposal does not match the current revision", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        requestId: SITUATION_APPROVAL_NOTIFICATION.actionId,
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        baseRevision: 6,
+        summary: SITUATION_APPROVAL_NOTIFICATION.message,
+        surface: "/schedule",
+        disclosureReceipt: DISCLOSURE_RECEIPT,
+        proposal: {
+          kind: "checklist_situation",
+          baseRevision: 6,
+          progressPatch: {
+            __checklist_profile: CURRENT_PROFILE,
+          },
+        },
+      }),
+    }));
+
+    await act(async () => {
+      root.render(
+        <NotificationPanel
+          notifications={[SITUATION_APPROVAL_NOTIFICATION]}
+          currentProgress={{ __checklist_profile: CURRENT_PROFILE }}
+          currentRevision={7}
+          onDismiss={vi.fn()}
+          onDismissAll={vi.fn()}
+          onCategoryClick={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const load = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "변경 전체 보기 후 동의",
+    );
+    await act(async () => load?.click());
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "안전하게 비교하지 못해 동의를 막았어요",
+    );
+    expect(Array.from(container.querySelectorAll("button")).some(
+      (button) => button.textContent?.trim() === "확인하고 반영",
+    )).toBe(false);
+  });
+
+  it("fails closed when the server omits the checklist disclosure receipt", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        requestId: SITUATION_APPROVAL_NOTIFICATION.actionId,
+        status: "pending_partner",
+        requiredCount: 2,
+        acceptedCount: 1,
+        baseRevision: 7,
+        summary: SITUATION_APPROVAL_NOTIFICATION.message,
+        surface: "/schedule",
+        proposal: {
+          kind: "checklist_situation",
+          baseRevision: 7,
+          progressPatch: {
+            __checklist_profile: CURRENT_PROFILE,
+          },
+        },
+      }),
+    }));
+
+    await act(async () => {
+      root.render(
+        <NotificationPanel
+          notifications={[SITUATION_APPROVAL_NOTIFICATION]}
+          currentProgress={{ __checklist_profile: CURRENT_PROFILE }}
+          currentRevision={7}
+          onDismiss={vi.fn()}
+          onDismissAll={vi.fn()}
+          onCategoryClick={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+
+    const load = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "변경 전체 보기 후 동의",
+    );
+    await act(async () => load?.click());
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "변경 전체를 다시 불러와 주세요",
+    );
+    expect(Array.from(container.querySelectorAll("button")).some(
+      (button) => button.textContent?.trim() === "확인하고 반영",
+    )).toBe(false);
   });
 
   it("lets the initiator cancel a durable pending request after reload without offering self-approval", async () => {

@@ -15,7 +15,7 @@ import type { ProgressItem } from "@/types/database.types";
 /**
  * 주차 카드 — 라운지 최상단의 "이번 주 한 장".
  * 보유 데이터의 정적 조합(LLM 비용 0): 할 일 3 + 가족 조율 원칙 + 견적 확인 + 아모라 한 줄.
- * 원칙: 제로 지식 유저에게 132개 체크리스트를 보여주지 않는다 — 이번 주 것만.
+ * 원칙: 제로 지식 유저에게 218개 체크리스트를 보여주지 않는다 — 이번 주 것만.
  */
 
 interface WeeklyCardProps {

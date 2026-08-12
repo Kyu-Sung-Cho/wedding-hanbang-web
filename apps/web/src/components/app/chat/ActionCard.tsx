@@ -18,6 +18,15 @@ import {
 } from "lucide-react";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
+import { CHECKLIST_MAP } from "@/constants/checklists";
+import {
+  calculatePlanningChecklistStatus,
+  getEffectivePlanningChecklistStatus,
+  getPlanningChecklistCounts,
+  hasChecklistReviewEvidence,
+  mergePlanningChecklist,
+  normalizePlanningChecklistItem,
+} from "@hanbang/shared/utils";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 import { formatWon } from "@/lib/formatWon";
 
@@ -529,7 +538,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
 
 // 진행 현황 미니 카드
 function ScheduleMiniCard() {
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, profile, updateJourney } = useAuthStore();
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -538,23 +547,39 @@ function ScheduleMiniCard() {
   const categories = ["meeting", "venue", "studio", "dress", "makeup", "ring", "honeymoon", "houseware"];
   const items = categories.map((key) => {
     const item = progress[key];
-    const status = item?.status ?? "not_started";
-    const checklist = item?.checklist ?? [];
-    const done = checklist.filter((c: { done?: boolean }) => c.done).length;
-    const total = checklist.length;
-    return { key, label: CATEGORY_LABELS[key], status, done, total };
-  }).filter(c => c.total > 0);
+    const template = CHECKLIST_MAP[key];
+    if (!template) return null;
+    const checklist = mergePlanningChecklist(
+      template.items,
+      item?.checklist,
+      item?.status,
+    );
+    const status = getEffectivePlanningChecklistStatus(template.items, item);
+    const { done, total } = getPlanningChecklistCounts(checklist);
+    return { key, label: CATEGORY_LABELS[key], status, done, total, checklist };
+  }).filter((category): category is NonNullable<typeof category> => (
+    category !== null
+    && hasChecklistReviewEvidence(progress[category.key])
+    && category.status !== "not_applicable"
+  ));
 
   const handleToggle = async (catKey: string, itemId: string) => {
     if (savingItemId) return;
     const existing = progress[catKey];
-    if (!existing?.checklist) return;
-    const newChecklist = existing.checklist.map((item) =>
-      item.id === itemId ? { ...item, done: !item.done } : item
-    );
-    const doneCount = newChecklist.filter((c) => c.done).length;
-    const totalCount = newChecklist.length;
-    const newStatus = doneCount === 0 ? "not_started" : doneCount === totalCount ? "completed" : "in_progress";
+    if (!existing?.checklist || existing.status === "not_applicable") return;
+    const now = new Date().toISOString();
+    const newChecklist = existing.checklist.map((item) => {
+      if (item.id !== itemId) return item;
+      const completed = item.state === "completed" || (!item.state && item.done);
+      return normalizePlanningChecklistItem({
+        ...item,
+        done: !completed,
+        state: completed ? "todo" : "completed",
+        completedAt: !completed && profile?.id ? now : null,
+        completedByProfileId: !completed && profile?.id ? profile.id : null,
+      });
+    });
+    const newStatus = calculatePlanningChecklistStatus(newChecklist);
     setSavingItemId(itemId);
     setSaveError("");
     setSaveNotice("");
@@ -608,7 +633,7 @@ function ScheduleMiniCard() {
             </span>
           </div>
           {/* 체크리스트 항목 (최대 3개만 표시) */}
-          {progress[cat.key]?.checklist?.slice(0, 3).map((item: { id: string; label: string; done?: boolean }) => (
+          {cat.checklist.slice(0, 3).map((item) => (
             <button
               type="button"
               key={item.id}

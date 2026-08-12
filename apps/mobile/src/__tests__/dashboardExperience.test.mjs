@@ -8,6 +8,7 @@ import {
   buildDashboardFocus,
   calculateChecklistProgress,
   formatLocalDateKey,
+  getDashboardChecklistCategoryStatus,
   getWeddingMomentMessage,
   isChecklistCategoryActivated,
   shouldSurfaceChecklistCategory,
@@ -109,7 +110,7 @@ test("today uses the device calendar date instead of a UTC date slice", () => {
   assert.equal(formatLocalDateKey(localHalfPastMidnight), "2026-07-30");
 });
 
-test("home progress follows canonical checklist arrays and legacy booleans", () => {
+test("home progress follows the shared canonical checklist contract and ignores legacy booleans", () => {
   const categories = [
     { key: "venue", items: [{ id: "visit" }, { id: "contract" }] },
     { key: "photo", items: [{ id: "shoot" }] },
@@ -126,7 +127,43 @@ test("home progress follows canonical checklist arrays and legacy booleans", () 
     __events: [{ date: "2026-07-30", title: "ignored metadata" }],
   };
 
-  assert.equal(calculateChecklistProgress(progress, categories), 67);
+  assert.equal(calculateChecklistProgress(progress, categories), 33);
+});
+
+test("home progress does not turn legacy category statuses into item completions", () => {
+  const categories = [
+    { key: "venue", items: [{ id: "visit" }, { id: "contract" }] },
+    { key: "photo", items: [{ id: "shoot" }] },
+  ];
+  const progress = {
+    venue: { status: "completed" },
+    photo: { status: "in_progress" },
+  };
+
+  assert.equal(calculateChecklistProgress(progress, categories), 0);
+  assert.equal(
+    getDashboardChecklistCategoryStatus(categories[0], progress.venue),
+    "not_started",
+  );
+});
+
+test("home urgency status comes from item evidence rather than a legacy category label", () => {
+  const category = {
+    key: "venue",
+    items: [{ id: "visit", label: "방문", done: false }],
+  };
+
+  assert.equal(
+    getDashboardChecklistCategoryStatus(category, { status: "completed" }),
+    "not_started",
+  );
+  assert.equal(
+    getDashboardChecklistCategoryStatus(category, {
+      status: "completed",
+      checklist: [{ id: "visit", label: "방문", done: true, state: "completed" }],
+    }),
+    "completed",
+  );
 });
 
 test("home progress excludes categories marked not applicable", () => {
@@ -142,7 +179,7 @@ test("home progress excludes categories marked not applicable", () => {
   assert.equal(calculateChecklistProgress(progress, categories), 50);
 });
 
-test("new checklist categories join progress only after the couple starts them", () => {
+test("home progress includes unreviewed categories so it cannot show a false 100%", () => {
   const categories = [
     {
       key: "venue",
@@ -159,7 +196,7 @@ test("new checklist categories join progress only after the couple starts them",
     venue: { checklist: [{ id: "visit", done: true }, { id: "contract", done: false }] },
   };
 
-  assert.equal(calculateChecklistProgress(legacyProgress, categories), 50);
+  assert.equal(calculateChecklistProgress(legacyProgress, categories), 25);
   assert.equal(
     calculateChecklistProgress({ ...legacyProgress, aftercare: {} }, categories),
     25,
@@ -167,6 +204,22 @@ test("new checklist categories join progress only after the couple starts them",
   assert.equal(isChecklistCategoryActivated(categories[0], new Set()), true);
   assert.equal(isChecklistCategoryActivated(categories[1], new Set()), false);
   assert.equal(isChecklistCategoryActivated(categories[1], new Set(["aftercare"])), true);
+});
+
+test("home progress excludes item-level not-applicable work", () => {
+  const categories = [
+    { key: "ceremony", items: [{ id: "run" }, { id: "ritual" }] },
+  ];
+  const progress = {
+    ceremony: {
+      checklist: [
+        { id: "run", done: true, state: "completed" },
+        { id: "ritual", done: false, state: "not_applicable" },
+      ],
+    },
+  };
+
+  assert.equal(calculateChecklistProgress(progress, categories), 100);
 });
 
 test("D-day surfaces ceremony and post-wedding surfaces D+ categories", () => {

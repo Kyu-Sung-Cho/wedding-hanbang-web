@@ -158,6 +158,8 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
                   onDismiss={dismiss}
                   onDismissAll={dismissAll}
                   onCategoryClick={handleCategoryClick}
+                  currentProgress={journey?.progress ?? {}}
+                  currentRevision={journey?.state_revision ?? null}
                   onOpen={(notification) => {
                     const isPendingPlanDecision =
                       notification.type === "partner"

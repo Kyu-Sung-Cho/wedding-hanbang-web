@@ -2,7 +2,12 @@ import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { objectParticle } from "@/lib/ai/tools/toolTypes";
 import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
-import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
+import {
+  getChecklistCounts,
+  getEffectivePlanningChecklistStatus,
+  mergeChecklist,
+  summarizePlanningChecklist,
+} from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
 
 export type AmoraLifecycleStage =
@@ -149,7 +154,9 @@ function getProgressItem(progress: Record<string, ProgressItem | unknown>, key: 
 function getCategoryCompletion(progress: Record<string, ProgressItem | unknown>, key: string) {
   const template = CHECKLIST_MAP[key];
   const item = getProgressItem(progress, key);
-  const status = item?.status ?? "not_started";
+  const status = template
+    ? getEffectivePlanningChecklistStatus(template.items, item as never)
+    : item?.status ?? "not_started";
   const checklist = template ? mergeChecklist(template.items, item?.checklist, status) : [];
   const counts = getChecklistCounts(checklist);
   return { status, done: counts.done, total: counts.total };

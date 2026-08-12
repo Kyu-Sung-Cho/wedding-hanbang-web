@@ -1,3 +1,8 @@
+import {
+  getEffectivePlanningChecklistStatus,
+  summarizePlanningChecklist,
+} from "@hanbang/shared/planning-checklist";
+
 function pluralDay(days) {
   return `${Math.abs(days)}일`;
 }
@@ -56,51 +61,11 @@ export function formatLocalDateKey(date = new Date()) {
 
 export function calculateChecklistProgress(progress, categories) {
   if (!Array.isArray(categories) || categories.length === 0) return 0;
+  return summarizePlanningChecklist(categories, progress ?? {}).percent;
+}
 
-  let done = 0;
-  let total = 0;
-  const savedCategoryKeys = new Set(Object.keys(progress ?? {}));
-  for (const category of categories) {
-    if (!isChecklistCategoryActivated(category, savedCategoryKeys)) {
-      continue;
-    }
-
-    const categoryProgress = progress?.[category.key];
-    if (categoryProgress?.status === "not_applicable") continue;
-    const doneById = new Map();
-
-    const items = Array.isArray(category.items) ? category.items : [];
-    for (const item of items) {
-      if (item && typeof item.id === "string") doneById.set(item.id, false);
-    }
-
-    if (
-      categoryProgress
-      && typeof categoryProgress === "object"
-      && Array.isArray(categoryProgress.checklist)
-    ) {
-      for (const item of categoryProgress.checklist) {
-        if (item && typeof item.id === "string" && !doneById.has(`saved:${item.id}`)) {
-          doneById.set(item.id, item.done === true);
-          doneById.set(`saved:${item.id}`, true);
-        }
-      }
-    } else if (categoryProgress && typeof categoryProgress === "object") {
-      for (const [key, value] of Object.entries(categoryProgress)) {
-        if (typeof value === "boolean") {
-          doneById.set(key, value);
-        }
-      }
-    }
-
-    for (const key of [...doneById.keys()]) {
-      if (key.startsWith("saved:")) doneById.delete(key);
-    }
-    done += [...doneById.values()].filter(Boolean).length;
-    total += doneById.size;
-  }
-
-  return total > 0 ? Math.round((done / total) * 100) : 0;
+export function getDashboardChecklistCategoryStatus(category, saved) {
+  return getEffectivePlanningChecklistStatus(category?.items ?? [], saved);
 }
 
 export function isChecklistCategoryActivated(category, savedCategoryKeys) {

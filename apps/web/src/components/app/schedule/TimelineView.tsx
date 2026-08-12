@@ -23,7 +23,11 @@ import {
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import {
+  getChecklistCounts,
+  getEffectivePlanningChecklistStatus,
+  mergeChecklist,
+} from "@/utils/checklist";
 import {
   findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
@@ -153,7 +157,7 @@ export default function TimelineView({
         existing?.status
       );
       const { done, total } = getChecklistCounts(merged);
-      const status = existing?.status ?? "not_started";
+      const status = getEffectivePlanningChecklistStatus(template.items, existing);
       const hasItemProgress = Boolean(existing?.checklist?.length);
       const excluded = status === "not_applicable";
       return { done: excluded ? 0 : done, total: excluded ? 0 : total, status, hasItemProgress };

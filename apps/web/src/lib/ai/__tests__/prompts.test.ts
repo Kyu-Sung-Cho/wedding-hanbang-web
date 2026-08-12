@@ -34,6 +34,22 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it("treats a legacy status-only completion as reviewed work that still needs item confirmation", () => {
+    const weddingDate = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      weddingDate,
+      bookings: [],
+      preferences: { priorities: ["venue"] },
+      progress: { venue: { category: "venue", status: "completed" } },
+    });
+
+    expect(prompt).toContain("결혼식장(venue): ⬜예정");
+    expect(prompt).toContain("기한 위험:");
+    expect(prompt).toContain("결혼식장,");
+    expect(prompt).not.toContain("결혼식장(venue): ✅완료");
+  });
+
   it("never upgrades a legacy cost field into recorded spend or an over-budget claim", () => {
     const prompt = getWeddingPlannerSystemPrompt({
       ...baseContext,
@@ -1094,7 +1110,10 @@ describe("getWeddingPlannerSystemPrompt", () => {
       },
     });
 
-    expect(prompt).toContain("진행률: 1/132");
+    expect(prompt).toContain("진행률: 1/207");
+    expect(prompt).toContain("결혼식장(venue): 🔄진행중");
+    expect(prompt).toContain("할일: 1/8완료");
+    expect(prompt).not.toContain("할일: 1/1완료");
     expect(prompt).toContain("결혼식 뒤 정산·감사·기록(aftercare): ➖해당 없음");
     expect(prompt).not.toContain("결혼식 뒤 정산·감사·기록(aftercare): ⬜예정");
   });

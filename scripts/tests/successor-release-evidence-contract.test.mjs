@@ -109,6 +109,31 @@ test("1700 개인화 테이블은 successor 백업 대상과 보안 경계로 �
   );
 });
 
+test("checklist collaboration persistence is pinned to the exact successor backup set", () => {
+  const manifest = JSON.parse(readFileSync(
+    join(REPO_ROOT, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH),
+    "utf8",
+  ));
+  const checklistMigrations = manifest.expandMigrations.slice(-3);
+
+  assert.equal(manifest.expandMigrations.length, 86);
+  assert.deepEqual(
+    checklistMigrations.map((entry) => entry.file),
+    [
+      "20260812180000_checklist_collaboration_approval.sql",
+      "20260812192000_amora_atomic_checklist_v3.sql",
+      "20260812193000_checklist_disclosure_receipt.sql",
+    ],
+  );
+  assert.deepEqual(
+    createdPublicTablesForMigrations(REPO_ROOT, checklistMigrations),
+    [
+      "couple_plan_change_disclosure_receipts",
+      "couple_reset_checklist_scrub_claims",
+    ],
+  );
+});
+
 function expectBlocked(root, code) {
   try {
     validateSuccessorReleaseContract({ repoRoot: root });
@@ -716,6 +741,18 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
   assert.ok(
     result.controllerManifest.postExpandBackupContract.expectedTables
       .includes("amora_memory_enqueue_repair_dead_letters"),
+  );
+  assert.ok(
+    result.controllerManifest.postExpandBackupContract.expectedTables
+      .includes("couple_reset_checklist_scrub_claims"),
+  );
+  assert.ok(
+    result.controllerManifest.postExpandBackupContract.expectedTables
+      .includes("couple_plan_change_disclosure_receipts"),
+  );
+  assert.equal(
+    result.controllerManifest.postExpandBackupContract.expectedReleaseMigrationHead,
+    "20260812193000",
   );
   assert.equal(
     result.controllerManifest.postApplyChecks[0].expectedEvidence

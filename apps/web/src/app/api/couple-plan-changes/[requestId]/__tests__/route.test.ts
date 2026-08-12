@@ -13,6 +13,8 @@ import { DELETE, GET, POST } from "../route";
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const COUPLE_ID = "22222222-2222-4222-8222-222222222222";
 const REQUEST_ID = "33333333-3333-4333-8333-333333333333";
+const CHANGE_DIGEST = "c".repeat(64);
+const DISCLOSURE_RECEIPT = "d".repeat(64);
 
 const mocks = vi.hoisted(() => ({
   user: {
@@ -23,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   } as { couple_id: string | null } | null,
   profileError: null as unknown,
   authFrom: vi.fn(),
+  adminFrom: vi.fn(),
   rpc: vi.fn(),
 }));
 
@@ -45,7 +48,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(() => ({ rpc: mocks.rpc })),
+  createAdminClient: vi.fn(() => ({ rpc: mocks.rpc, from: mocks.adminFrom })),
 }));
 
 vi.mock("@/utils/rateLimit", () => ({
@@ -75,6 +78,7 @@ function result(status: "applied" | "pending_partner" | "stale" | "rejected") {
     status,
     requiredCount: 2,
     acceptedCount: status === "pending_partner" ? 1 : 2,
+    baseRevision: 7,
     summary: "총예산: 40000000원",
     surface: "/budget",
     ...(status === "applied"
@@ -101,6 +105,18 @@ describe("/api/couple-plan-changes/[requestId]", () => {
       }
       throw new Error(`unexpected auth table: ${table}`);
     });
+    mocks.adminFrom.mockImplementation((table: string) => {
+      if (table === "couple_plan_change_requests") {
+        return queryResult({
+          base_revision: 7,
+          changes: { total_budget: 40_000_000 },
+          change_digest: CHANGE_DIGEST,
+          is_high_impact: true,
+          surface_href: "/budget",
+        });
+      }
+      throw new Error(`unexpected admin table: ${table}`);
+    });
     vi.mocked(checkRateLimit).mockReturnValue(null);
     vi.mocked(checkRateLimitPersistent).mockResolvedValue(null);
     mocks.rpc.mockResolvedValue({ data: result("pending_partner"), error: null });
@@ -118,6 +134,7 @@ describe("/api/couple-plan-changes/[requestId]", () => {
       requestId: REQUEST_ID,
       status: "pending_partner",
       summary: "총예산: 40000000원",
+      proposal: { kind: "other" },
     });
     expect(mocks.rpc).toHaveBeenCalledWith(
       "get_couple_plan_change_status",
@@ -127,6 +144,84 @@ describe("/api/couple-plan-changes/[requestId]", () => {
         p_actor_user_id: USER_ID,
       },
     );
+  });
+
+  it("returns the immutable checklist situation proposal for full client-side disclosure", async () => {
+    const progressPatch = {
+      __checklist_profile: {
+        version: 1,
+        reviewedAt: "2026-08-12T12:00:00.000Z",
+        answers: {},
+        autoExcludedItemIds: [],
+      },
+    };
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ...result("pending_partner"), surface: "/schedule" },
+      error: null,
+    }).mockResolvedValueOnce({
+      data: DISCLOSURE_RECEIPT,
+      error: null,
+    });
+    mocks.adminFrom.mockImplementationOnce(() => queryResult({
+      base_revision: 7,
+      changes: { progress_patch: progressPatch },
+      change_digest: CHANGE_DIGEST,
+      is_high_impact: true,
+      surface_href: "/schedule",
+    }));
+
+    const response = await GET(
+      new Request(`http://localhost/api/couple-plan-changes/${REQUEST_ID}`),
+      context(),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      proposal: {
+        kind: "checklist_situation",
+        baseRevision: 7,
+        progressPatch,
+      },
+      disclosureReceipt: DISCLOSURE_RECEIPT,
+    });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      2,
+      "issue_checklist_plan_change_disclosure_receipt",
+      {
+        p_request_id: REQUEST_ID,
+        p_couple_id: COUPLE_ID,
+        p_actor_user_id: USER_ID,
+        p_expected_base_revision: 7,
+        p_expected_change_digest: CHANGE_DIGEST,
+      },
+    );
+  });
+
+  it("fails closed when a checklist situation request contains an undisclosed mixed change", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ...result("pending_partner"), surface: "/schedule" },
+      error: null,
+    });
+    mocks.adminFrom.mockImplementationOnce(() => queryResult({
+      base_revision: 7,
+      changes: {
+        progress_patch: { __checklist_profile: {} },
+        total_budget: 40_000_000,
+      },
+      change_digest: CHANGE_DIGEST,
+      is_high_impact: true,
+      surface_href: "/schedule",
+    }));
+
+    const response = await GET(
+      new Request(`http://localhost/api/couple-plan-changes/${REQUEST_ID}`),
+      context(),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "PLAN_CHANGE_DISCLOSURE_UNAVAILABLE",
+    });
   });
 
   it("accepts an empty object and returns 200 with the applied journey", async () => {
@@ -140,11 +235,67 @@ describe("/api/couple-plan-changes/[requestId]", () => {
       status: "applied",
       journey: expect.objectContaining({ couple_id: COUPLE_ID }),
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("accept_couple_plan_change", {
-      p_request_id: REQUEST_ID,
-      p_couple_id: COUPLE_ID,
-      p_actor_user_id: USER_ID,
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "accept_couple_plan_change_with_disclosure",
+      {
+        p_request_id: REQUEST_ID,
+        p_couple_id: COUPLE_ID,
+        p_actor_user_id: USER_ID,
+        p_disclosure_receipt: null,
+      },
+    );
+  });
+
+  it("requires the database-bound receipt before accepting a checklist situation", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "22023",
+        message: "COUPLE_PLAN_CHANGE_DISCLOSURE_REQUIRED",
+      },
     });
+
+    const response = await POST(mutationRequest("POST"), context());
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "PLAN_CHANGE_DISCLOSURE_REQUIRED",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "accept_couple_plan_change_with_disclosure",
+      expect.objectContaining({ p_disclosure_receipt: null }),
+    );
+  });
+
+  it("passes the exact disclosure receipt to the atomic acceptance RPC", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: result("applied"), error: null });
+
+    const response = await POST(
+      mutationRequest("POST", { disclosureReceipt: DISCLOSURE_RECEIPT }),
+      context(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "accept_couple_plan_change_with_disclosure",
+      {
+        p_request_id: REQUEST_ID,
+        p_couple_id: COUPLE_ID,
+        p_actor_user_id: USER_ID,
+        p_disclosure_receipt: DISCLOSURE_RECEIPT,
+      },
+    );
+  });
+
+  it.each([
+    ["a short receipt", { disclosureReceipt: "short" }],
+    ["a receipt with extra fields", { disclosureReceipt: DISCLOSURE_RECEIPT, extra: true }],
+  ])("rejects %s before authentication", async (_label, body) => {
+    const response = await POST(mutationRequest("POST", body), context());
+
+    expect(response.status).toBe(400);
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("returns 202 when this acceptance still awaits the partner", async () => {

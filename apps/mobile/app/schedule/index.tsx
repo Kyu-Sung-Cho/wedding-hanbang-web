@@ -12,10 +12,18 @@ import {
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import {
+  buildChecklistApprovalDisclosure,
+  type ChecklistApprovalCategoryChange,
+  type ChecklistApprovalDisclosure,
+  type ChecklistApprovalItemChange,
+} from "@hanbang/shared/checklist-approval-disclosure";
 import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
   mergePlanningChecklist,
+  normalizePlanningChecklistItem,
+  type PlanningChecklistItem,
   type PlanningChecklistStatus,
 } from "@hanbang/shared/utils";
 import { supabase } from "@/lib/supabase";
@@ -44,6 +52,12 @@ import {
   shouldSurfaceChecklistCategory,
 } from "@/lib/dashboardExperience.mjs";
 import {
+  buildChecklistCategoryOptions,
+  buildManualChecklistReviewEvidence,
+  hasChecklistItemMutationConflict,
+  readChecklistItemsSnapshot,
+} from "@/lib/checklistExperience.mjs";
+import {
   createScheduleSessionFence,
   type ScheduleSessionToken,
 } from "@/lib/scheduleSessionFence.mjs";
@@ -58,10 +72,43 @@ import {
 } from "@/components/ui/AppUI";
 
 /* ───── types ───── */
-interface ChecklistItem {
-  id: string;
-  label: string;
-  done: boolean;
+type ChecklistItem = PlanningChecklistItem;
+
+const CHECKLIST_STATUS_LABELS: Record<
+  ChecklistApprovalCategoryChange["beforeStatus"],
+  string
+> = {
+  not_started: "준비 전",
+  in_progress: "진행 중",
+  completed: "완료",
+  not_applicable: "해당 없음",
+};
+
+function describeCategoryImpact(category: ChecklistApprovalCategoryChange): string {
+  return [
+    `${category.categoryLabel} · 제외 ${category.excludedCount} · 복원 ${category.restoredCount}`,
+    category.applicabilityChanged ? `분야 ${category.afterApplicable ? "복원" : "제외"}` : "",
+    category.statusChanged && !category.applicabilityChanged
+      ? `상태 ${CHECKLIST_STATUS_LABELS[category.beforeStatus]} → ${CHECKLIST_STATUS_LABELS[category.afterStatus]}`
+      : "",
+    category.reviewChangeKind === "added"
+      ? "검토 기록 추가"
+      : category.reviewChangeKind === "cleared"
+        ? "검토 기록 해제"
+        : "",
+    category.addedCount > 0 || category.renamedCount > 0
+      ? `목록 추가 ${category.addedCount}/문구 갱신 ${category.renamedCount}`
+      : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function describeExcludedItem(item: ChecklistApprovalItemChange): string {
+  return [
+    `${item.categoryLabel} · ${item.label}`,
+    item.completionEvidenceCleared
+      ? "자동 제외되며 기존 완료 기록(완료 일시·완료자)이 해제돼요"
+      : "",
+  ].filter(Boolean).join(" · ");
 }
 
 interface Category {
@@ -71,15 +118,8 @@ interface Category {
   status: PlanningChecklistStatus;
 }
 
-function calculateLoadedChecklistProgress(
-  categories: Category[],
-  savedCategoryKeys: Set<string>,
-): number {
+function calculateLoadedChecklistProgress(categories: Category[]): number {
   const loadedProgress = Object.fromEntries(categories
-    .filter((category) => {
-      const template = CATEGORY_CHECKLISTS.find((item) => item.key === category.key);
-      return template ? isChecklistCategoryActivated(template, savedCategoryKeys) : false;
-    })
     .map((category) => [category.key, {
       status: category.status,
       checklist: category.items,
@@ -133,10 +173,21 @@ interface WeeklyAction {
   percent: number;
 }
 
-const CATEGORY_OPTIONS = [
-  ...CATEGORY_CHECKLISTS.map((category) => category.label),
-  "기타",
-];
+const CATEGORY_OPTIONS = buildChecklistCategoryOptions(CATEGORY_CHECKLISTS);
+
+function normalizeScheduleCategoryKey(value: string | undefined): string {
+  if (!value) return "";
+  const category = CATEGORY_OPTIONS.find((option) => (
+    option.key === value || option.label === value
+  ));
+  return category?.key ?? value;
+}
+
+function getScheduleCategoryLabel(value: string | undefined): string | null {
+  if (!value) return null;
+  return CATEGORY_OPTIONS.find((option) => option.key === normalizeScheduleCategoryKey(value))?.label
+    ?? value;
+}
 
 function applyChecklistState(
   categories: Category[],
@@ -151,7 +202,13 @@ function applyChecklistState(
         ? {
             ...category,
             items: category.items.map((item) =>
-              item.id === itemId ? { ...item, done } : item
+              item.id === itemId
+                ? normalizePlanningChecklistItem({
+                    ...item,
+                    done,
+                    state: done ? "completed" : "todo",
+                  })
+                : item
             ),
           }
         : category
@@ -381,6 +438,9 @@ export default function ScheduleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [rawProgress, setRawProgress] = useState<Record<string, unknown>>({});
+  const [journeyRevision, setJourneyRevision] = useState<number | null>(null);
+  const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set());
   const [approvalRequests, setApprovalRequests] = useState<ScheduleApprovalRequest[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [approvalError, setApprovalError] = useState(false);
@@ -429,6 +489,9 @@ export default function ScheduleScreen() {
     setSavedCategoryKeys(new Set());
     setEvents([]);
     setExpandedKey(null);
+    setRawProgress({});
+    setJourneyRevision(null);
+    setExpandedApprovalIds(new Set());
     setApprovalRequests([]);
     setApprovalError(false);
     setScheduleDataError(null);
@@ -498,6 +561,7 @@ export default function ScheduleScreen() {
       role: "requester",
       createdAt: new Date().toISOString(),
       summary: outcome.summary,
+      proposal: { kind: "unavailable" },
     }, ...current.filter((request) => request.requestId !== outcome.requestId)]);
     setApprovalError(false);
     const identity = approvalIdentityRef.current;
@@ -565,6 +629,8 @@ export default function ScheduleScreen() {
 
       setWeddingDate(journey.wedding_date ?? null);
       const prog = isRecord(journey.progress) ? journey.progress : {};
+      setRawProgress(prog);
+      setJourneyRevision(journey.state_revision);
 
       // 웹과 동일한 progress 구조:
       // progress[catKey] = { category, status, checklist: [{id, label, done}, ...], cost?, budget? }
@@ -580,7 +646,7 @@ export default function ScheduleScreen() {
       for (const cat of CATEGORY_CHECKLISTS) {
         const dbCatData = prog[cat.key] as {
           status?: string;
-          checklist?: Array<{ id: string; label?: string; done: boolean }>;
+          checklist?: PlanningChecklistItem[];
           [key: string]: unknown;
         } | undefined;
 
@@ -600,16 +666,22 @@ export default function ScheduleScreen() {
 
         const savedChecklist = Array.isArray(dbCatData?.checklist)
           ? dbCatData.checklist.map((item) => ({
+              ...item,
               id: item.id,
               label: item.label ?? cat.items.find((templateItem) => templateItem.id === item.id)?.label ?? "이전 준비 항목",
-              done: item.done === true,
             }))
           : Object.entries(dbDoneMap).map(([id, done]) => ({
               id,
               label: cat.items.find((item) => item.id === id)?.label ?? "이전 준비 항목",
               done,
             }));
-        const checkItems = mergePlanningChecklist(cat.items, savedChecklist);
+        const legacyStatus = dbCatData?.status === "completed"
+          || dbCatData?.status === "in_progress"
+          || dbCatData?.status === "not_started"
+          || dbCatData?.status === "not_applicable"
+          ? dbCatData.status
+          : undefined;
+        const checkItems = mergePlanningChecklist(cat.items, savedChecklist, legacyStatus);
         const itemStates: Record<string, boolean> = Object.fromEntries(
           checkItems.map((item) => [item.id, item.done]),
         );
@@ -627,7 +699,7 @@ export default function ScheduleScreen() {
 
       // 전체 진행률 애니메이션
       if (cats.length > 0) {
-        const totalPercent = calculateLoadedChecklistProgress(cats, loadedCategoryKeys);
+        const totalPercent = calculateLoadedChecklistProgress(cats);
         Animated.timing(progressAnim, {
           toValue: totalPercent,
           duration: 800,
@@ -643,6 +715,8 @@ export default function ScheduleScreen() {
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
       console.error("일정 로드 오류:", err);
       setEvents([]);
+      setRawProgress({});
+      setJourneyRevision(null);
       setScheduleDataError(
         err instanceof ScheduleMutationError && err.code === "invalid_snapshot"
           ? "integrity"
@@ -803,24 +877,55 @@ export default function ScheduleScreen() {
       }
 
       // 기존 DB의 카테고리 데이터
-      const existing = currentProgress[categoryKey] as Record<string, unknown> | undefined;
-      const existingChecklist = (existing?.checklist as Array<{ id: string; label: string; done: boolean }>) ?? [];
+      const existing = isRecord(currentProgress[categoryKey])
+        ? currentProgress[categoryKey]
+        : {};
+      const existingChecklist = readChecklistItemsSnapshot(existing.checklist) ?? [];
 
       // 체크리스트 배열 업데이트 (없으면 상수에서 생성)
-      const updatedChecklist = mergePlanningChecklist(catTemplate.items, existingChecklist).map((item) =>
-        item.id === itemId ? { ...item, done: nextDone } : item,
+      const now = new Date().toISOString();
+      const existingStatus = typeof existing.status === "string"
+        ? existing.status as PlanningChecklistStatus
+        : undefined;
+      const mergedChecklist = mergePlanningChecklist(
+        catTemplate.items,
+        existingChecklist,
+        existingStatus,
+      );
+      const freshItem = existingChecklist.find((item) => item.id === itemId)
+        ?? mergedChecklist.find((item) => item.id === itemId);
+      if (hasChecklistItemMutationConflict({
+        categoryStatus: typeof existing?.status === "string" ? existing.status : undefined,
+        expectedBaseline: null,
+        freshItem,
+      })) {
+        throw new ScheduleMutationError("target_changed");
+      }
+      const updatedChecklist = mergedChecklist.map((item) =>
+        item.id === itemId
+          ? normalizePlanningChecklistItem({
+              ...item,
+              done: nextDone,
+              state: nextDone ? "completed" : "todo",
+              completedAt: nextDone ? now : null,
+              completedByProfileId: nextDone ? sessionToken.ownerId : null,
+            })
+          : item,
       );
 
       // 전체 완료 상태 계산
-      const allDone = updatedChecklist.every((i) => i.done);
-      const anyDone = updatedChecklist.some((i) => i.done);
-      const status = allDone ? "completed" : anyDone ? "in_progress" : "not_started";
+      const status = calculatePlanningChecklistStatus(updatedChecklist);
+      const reviewEvidence = buildManualChecklistReviewEvidence(existing, {
+        now,
+        profileId: sessionToken.ownerId,
+      });
 
       currentProgress[categoryKey] = {
-        ...(existing ?? {}),
+        ...existing,
         category: categoryKey,
         status,
         checklist: updatedChecklist,
+        ...reviewEvidence,
       };
 
       const res = await apiFetchForExpectedUser(
@@ -894,13 +999,22 @@ export default function ScheduleScreen() {
           "그 사이 파트너가 준비 정보를 바꿨어요. 최신 내용에서 다시 선택해 주세요.",
         );
         await loadData();
+      } else if (error instanceof ScheduleMutationError && error.code === "target_changed") {
+        Alert.alert(
+          "이 분야의 최신 상태를 확인해 주세요",
+          "준비 목록에서 제외된 분야는 항목을 바로 바꿀 수 없어요. 먼저 목록을 다시 열어 주세요.",
+        );
+        await loadData();
       } else {
         Alert.alert("오류", "체크 상태를 저장하지 못했어요. 다시 시도해주세요.");
       }
     }
   }
 
-  async function toggleCategoryApplicability(categoryKey: string) {
+  async function toggleCategoryApplicability(
+    categoryKey: string,
+    expectedWasSkipped: boolean,
+  ) {
     const sessionToken = scheduleSessionFenceRef.capture();
     if (!sessionToken || !scheduleSessionFenceRef.isCurrent(sessionToken)) return;
     try {
@@ -911,20 +1025,30 @@ export default function ScheduleScreen() {
       const existing = isRecord(snapshot.progress[categoryKey])
         ? snapshot.progress[categoryKey]
         : {};
-      const saved = Array.isArray(existing.checklist)
-        ? existing.checklist.filter(isRecord).map((item) => ({
-            id: typeof item.id === "string" ? item.id : "",
-            label: typeof item.label === "string" ? item.label : "이전 준비 항목",
-            done: item.done === true,
-          })).filter((item) => item.id.length > 0)
-        : [];
-      const checklist = mergePlanningChecklist(template.items, saved);
-      const wasSkipped = existing.status === "not_applicable";
+      const storedChecklist = Array.isArray(existing.checklist)
+        ? existing.checklist as PlanningChecklistItem[]
+        : undefined;
+      const saved = readChecklistItemsSnapshot(existing.checklist) ?? [];
+      const existingStatus = typeof existing.status === "string"
+        ? existing.status as PlanningChecklistStatus
+        : undefined;
+      const mergedChecklist = mergePlanningChecklist(template.items, saved, existingStatus);
+      const freshWasSkipped = existing.status === "not_applicable";
+      if (freshWasSkipped !== expectedWasSkipped) {
+        throw new ScheduleMutationError("target_changed");
+      }
+      const reviewEvidence = buildManualChecklistReviewEvidence(existing, {
+        now: new Date().toISOString(),
+        profileId: sessionToken.ownerId,
+      });
       const nextCategory = {
         ...existing,
         category: categoryKey,
-        status: wasSkipped ? calculatePlanningChecklistStatus(checklist) : "not_applicable",
-        checklist,
+        status: expectedWasSkipped
+          ? calculatePlanningChecklistStatus(mergedChecklist)
+          : "not_applicable",
+        checklist: storedChecklist ?? mergedChecklist,
+        ...reviewEvidence,
       };
       const response = await apiFetchForExpectedUser(sessionToken.ownerId, "/api/journey", {
         method: "PATCH",
@@ -937,10 +1061,10 @@ export default function ScheduleScreen() {
       const outcome = parseScheduleMutationSubmission(await response.json());
       rememberPendingApproval(outcome, sessionToken);
       Alert.alert(
-        outcome.status === "pending_partner" ? "파트너 확인을 요청했어요" : wasSkipped ? "준비 목록에 다시 넣었어요" : "준비 목록에서 제외했어요",
+        outcome.status === "pending_partner" ? "파트너 확인을 요청했어요" : expectedWasSkipped ? "준비 목록에 다시 넣었어요" : "준비 목록에서 제외했어요",
         outcome.status === "pending_partner"
           ? "파트너가 동의하면 상태에 반영돼요."
-          : wasSkipped
+          : expectedWasSkipped
             ? "이전에 체크한 내용은 그대로 남아 있어요."
             : "진행률과 마감 알림에서 빠져요. 언제든 되돌릴 수 있어요.",
       );
@@ -951,6 +1075,11 @@ export default function ScheduleScreen() {
         showActiveScheduleRequestAlert();
       } else if (error instanceof ScheduleMutationError && error.code === "stale") {
         Alert.alert("최신 상태를 다시 불러왔어요", "최신 내용에서 다시 선택해 주세요.");
+      } else if (error instanceof ScheduleMutationError && error.code === "target_changed") {
+        Alert.alert(
+          "파트너가 이 분야의 상태를 먼저 바꿨어요",
+          "변경을 되돌리지 않았습니다. 최신 상태를 확인한 뒤 다시 선택해 주세요.",
+        );
       } else {
         Alert.alert("오류", "체크리스트 상태를 저장하지 못했어요. 다시 시도해 주세요.");
       }
@@ -1059,7 +1188,7 @@ export default function ScheduleScreen() {
     setFormTitle(evt.title);
     setFormDate(evt.date);
     setFormTime(evt.time ?? "");
-    setFormCategoryKey(evt.categoryKey ?? "");
+    setFormCategoryKey(normalizeScheduleCategoryKey(evt.categoryKey));
     setFormMemo(sanitizeUserFacingScheduleMemo(evt.memo) ?? "");
     setModalVisible(true);
   }
@@ -1396,6 +1525,9 @@ export default function ScheduleScreen() {
         coupleId: sessionToken.coupleId,
         request,
         action,
+        ...(request.proposal.kind === "checklist_situation"
+          ? { reviewedBaseRevision: request.proposal.baseRevision }
+          : {}),
       });
       if (
         !scheduleSessionFenceRef.isCurrent(sessionToken)
@@ -1478,6 +1610,37 @@ export default function ScheduleScreen() {
       || sessionToken.ownerId !== profileId
     ) return;
     if (action === "approve") {
+      if (request.proposal.kind === "unavailable") {
+        Alert.alert(
+          "변경 전체를 확인할 수 없어요",
+          "현재 일정은 유지했어요. 요청을 다시 불러온 뒤 변경 내용을 확인해 주세요.",
+        );
+        const identity = approvalIdentityRef.current;
+        if (identity) void loadApprovalRequests(identity);
+        return;
+      }
+      if (request.proposal.kind === "checklist_situation") {
+        const disclosure = journeyRevision === null
+          ? { status: "unsafe", reason: "missing_revision" } as const
+          : buildChecklistApprovalDisclosure({
+              currentProgress: rawProgress,
+              currentRevision: journeyRevision,
+              proposal: request.proposal,
+              templates: CATEGORY_CHECKLISTS,
+            });
+        if (disclosure.status !== "ready") {
+          Alert.alert(
+            "최신 변경 내용을 다시 확인해 주세요",
+            "현재 체크리스트와 요청의 기준이 달라 동의하지 않았어요. 최신 상태를 다시 불러올게요.",
+          );
+          void refreshScheduleAndApprovals();
+          return;
+        }
+        if (!expandedApprovalIds.has(request.requestId)) {
+          setExpandedApprovalIds((current) => new Set(current).add(request.requestId));
+          return;
+        }
+      }
       void executeApprovalAction(request, action, sessionToken);
       return;
     }
@@ -1514,7 +1677,7 @@ export default function ScheduleScreen() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // 전체 진행률 계산
-  const overallPercent = calculateLoadedChecklistProgress(categories, savedCategoryKeys);
+  const overallPercent = calculateLoadedChecklistProgress(categories);
   const dday = calcDday(weddingDate);
   const weeklyActions = getWeeklyActions(dday);
   const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;
@@ -1672,6 +1835,24 @@ export default function ScheduleScreen() {
                 ? approvalBusy.action
                 : null;
               const actionsDisabled = approvalBusy !== null;
+              const disclosure: ChecklistApprovalDisclosure | null =
+                request.proposal.kind === "checklist_situation"
+                  ? journeyRevision === null
+                    ? { status: "unsafe", reason: "missing_revision" }
+                    : buildChecklistApprovalDisclosure({
+                        currentProgress: rawProgress,
+                        currentRevision: journeyRevision,
+                        proposal: request.proposal,
+                        templates: CATEGORY_CHECKLISTS,
+                      })
+                  : null;
+              const disclosureExpanded = expandedApprovalIds.has(request.requestId);
+              const approvalDisclosureBlocked = request.role === "reviewer" && (
+                request.proposal.kind === "unavailable"
+                || (request.proposal.kind === "checklist_situation" && (
+                  disclosure?.status !== "ready" || !disclosureExpanded
+                ))
+              );
               return (
                 <View
                   key={request.requestId}
@@ -1697,6 +1878,89 @@ export default function ScheduleScreen() {
                       ? "동의하면 두 사람의 최신 일정에 반영돼요. 반영하지 않으면 기존 일정이 유지돼요."
                       : "승인 전에는 기존 일정이 유지돼요. 필요하면 이 요청을 철회할 수 있어요."}
                   </Text>
+                  {request.proposal.kind === "checklist_situation" ? (
+                    <View style={styles.approvalDisclosure}>
+                      {disclosure?.status === "ready" ? (
+                        <>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={disclosureExpanded ? "상황 설정 변경 상세 접기" : "상황 설정 변경 상세 펼치기"}
+                            accessibilityState={{ expanded: disclosureExpanded }}
+                            onPress={() => setExpandedApprovalIds((current) => {
+                              const next = new Set(current);
+                              if (next.has(request.requestId)) next.delete(request.requestId);
+                              else next.add(request.requestId);
+                              return next;
+                            })}
+                            style={({ pressed }) => [
+                              styles.approvalDisclosureToggle,
+                              pressed && styles.rowPressed,
+                            ]}
+                          >
+                            <View style={styles.approvalDisclosureToggleCopy}>
+                              <Text style={styles.approvalDisclosureTitle}>상황 설정 변경 전체 보기</Text>
+                              <Text style={styles.approvalDisclosureMeta}>
+                                질문 {disclosure.questionChanges.length}개 · 영향 분야 {disclosure.categories.length}개 · 제외 {disclosure.excludedItems.length}개 · 복원 {disclosure.restoredItems.length}개
+                              </Text>
+                            </View>
+                            {disclosureExpanded
+                              ? <ChevronUp size={18} color={colors.noir[800]} />
+                              : <ChevronDown size={18} color={colors.noir[800]} />}
+                          </Pressable>
+                          {disclosureExpanded ? (
+                            <View style={styles.approvalDisclosureBody}>
+                              <Text style={styles.approvalDisclosureTrust}>
+                                짧은 요약이 아니라 저장될 제안 원본을 현재 체크리스트와 직접 비교했어요.
+                              </Text>
+                              <Text style={styles.approvalDisclosureHeading}>바뀌는 질문</Text>
+                              {disclosure.questionChanges.length > 0 ? disclosure.questionChanges.map((change) => (
+                                <Text key={change.key} style={styles.approvalDisclosureRow}>
+                                  {change.label}: {change.before} → {change.after}
+                                </Text>
+                              )) : (
+                                <Text style={styles.approvalDisclosureEmpty}>답변 변경 없음</Text>
+                              )}
+                              <Text style={styles.approvalDisclosureHeading}>영향 받는 분야</Text>
+                              {disclosure.categories.map((category) => (
+                                <Text key={category.categoryKey} style={styles.approvalDisclosureRow}>
+                                  {describeCategoryImpact(category)}
+                                </Text>
+                              ))}
+                              <Text style={styles.approvalDisclosureHeading}>제외되는 항목</Text>
+                              {disclosure.excludedItems.length > 0 ? disclosure.excludedItems.map((item) => (
+                                <Text key={`exclude:${item.itemId}`} style={styles.approvalDisclosureRow}>
+                                  {describeExcludedItem(item)}
+                                </Text>
+                              )) : <Text style={styles.approvalDisclosureEmpty}>없음</Text>}
+                              <Text style={styles.approvalDisclosureHeading}>다시 준비 목록에 넣는 항목</Text>
+                              {disclosure.restoredItems.length > 0 ? disclosure.restoredItems.map((item) => (
+                                <Text key={`restore:${item.itemId}`} style={styles.approvalDisclosureRow}>
+                                  {item.categoryLabel} · {item.label}
+                                </Text>
+                              )) : <Text style={styles.approvalDisclosureEmpty}>없음</Text>}
+                              <Text style={styles.approvalDisclosureTotal}>
+                                반영 후 상황 설정이 자동 제외로 관리하는 항목 총 {disclosure.automaticExclusionTotal}개
+                              </Text>
+                            </View>
+                          ) : null}
+                        </>
+                      ) : (
+                        <View accessibilityRole="alert" style={styles.approvalDisclosureBlocked}>
+                          <AlertTriangle size={17} color={colors.warning} />
+                          <Text style={styles.approvalDisclosureBlockedText}>
+                            현재 내용과 요청 전체를 안전하게 비교하지 못해 동의를 막았어요. 거절은 가능하며, 다시 불러온 뒤 확인해 주세요.
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : request.proposal.kind === "unavailable" ? (
+                    <View accessibilityRole="alert" style={styles.approvalDisclosureBlocked}>
+                      <AlertTriangle size={17} color={colors.warning} />
+                      <Text style={styles.approvalDisclosureBlockedText}>
+                        변경 원본을 확인하지 못해 동의를 막았어요. 기존 일정은 유지돼요.
+                      </Text>
+                    </View>
+                  ) : null}
                   <View style={styles.approvalActions}>
                     {request.role === "reviewer" ? (
                       <>
@@ -1713,12 +1977,14 @@ export default function ScheduleScreen() {
                         <PrimaryButton
                           tone="rose"
                           style={styles.approvalActionButton}
-                          disabled={actionsDisabled}
+                          disabled={actionsDisabled || approvalDisclosureBlocked}
                           onPress={() => requestApprovalAction(request, "approve")}
                         >
                           {busyAction === "approve"
                             ? <ActivityIndicator color="#fff" />
-                            : "동의하고 반영"}
+                            : approvalDisclosureBlocked
+                              ? "변경 전체 보기 후 동의"
+                              : "동의하고 반영"}
                         </PrimaryButton>
                       </>
                     ) : (
@@ -1832,7 +2098,7 @@ export default function ScheduleScreen() {
                     ) : null}
                     {evt.categoryKey ? (
                       <View style={styles.eventCatBadge}>
-                        <Text style={styles.eventCatText}>{evt.categoryKey}</Text>
+                        <Text style={styles.eventCatText}>{getScheduleCategoryLabel(evt.categoryKey)}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -1842,7 +2108,7 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* 카테고리 체크리스트 — 웹 상수 기반, 항상 20개 카테고리 표시 */}
+        {/* 카테고리 체크리스트 — 공유 정본 기반, 전체 27개 분야 표시 */}
         {(
           categories.map((cat) => {
             const stats = getCategoryStats(cat.key);
@@ -1880,7 +2146,7 @@ export default function ScheduleScreen() {
                   <View style={styles.itemList}>
                     <Pressable
                       style={styles.itemRow}
-                      onPress={() => void toggleCategoryApplicability(cat.key)}
+                      onPress={() => void toggleCategoryApplicability(cat.key, stats.skipped)}
                       accessibilityRole="button"
                       accessibilityLabel={stats.skipped ? `${cat.label} 다시 준비 목록에 넣기` : `${cat.label} 준비 목록에서 제외하기`}
                     >
@@ -2046,12 +2312,12 @@ export default function ScheduleScreen() {
                 </Pressable>
                 {CATEGORY_OPTIONS.map((cat) => (
                   <Pressable
-                    key={cat}
-                    style={[styles.chip, formCategoryKey === cat && styles.chipActive]}
-                    onPress={() => setFormCategoryKey(cat)}
+                    key={cat.key}
+                    style={[styles.chip, formCategoryKey === cat.key && styles.chipActive]}
+                    onPress={() => setFormCategoryKey(cat.key)}
                   >
-                    <Text style={[styles.chipText, formCategoryKey === cat && styles.chipTextActive]}>
-                      {cat}
+                    <Text style={[styles.chipText, formCategoryKey === cat.key && styles.chipTextActive]}>
+                      {cat.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -2218,6 +2484,86 @@ const styles = StyleSheet.create({
   },
   approvalHint: {
     marginTop: 5,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  approvalDisclosure: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  approvalDisclosureToggle: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+  },
+  approvalDisclosureToggleCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  approvalDisclosureTitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "700",
+    color: colors.noir[800],
+  },
+  approvalDisclosureMeta: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.textSecondary,
+  },
+  approvalDisclosureBody: {
+    paddingBottom: 12,
+  },
+  approvalDisclosureTrust: {
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[200],
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.noir[800],
+  },
+  approvalDisclosureHeading: {
+    marginTop: 14,
+    marginBottom: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
+    color: colors.rose[600],
+  },
+  approvalDisclosureRow: {
+    paddingVertical: 3,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.noir[800],
+  },
+  approvalDisclosureEmpty: {
+    paddingVertical: 3,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textTertiary,
+  },
+  approvalDisclosureTotal: {
+    marginTop: 12,
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.textSecondary,
+  },
+  approvalDisclosureBlocked: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[200],
+  },
+  approvalDisclosureBlockedText: {
+    flex: 1,
     fontSize: 12,
     lineHeight: 18,
     color: colors.textSecondary,

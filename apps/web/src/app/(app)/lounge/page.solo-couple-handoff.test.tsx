@@ -108,6 +108,8 @@ describe("Live lounge solo, couple, and joined handoff", () => {
     expect(container.textContent).toContain("혼자 준비 중");
     expect(container.textContent).toContain("파트너 초대는 나중에 해도 괜찮아요");
     expect(container.textContent).not.toContain("커플 연결 대기 중");
+    expect(container.textContent).toContain("0/8 체크");
+    expect(container.textContent).toContain("예정");
 
     const link = findLink(container, "오늘 한 가지 시작하기");
     expect(new URL(link.href).searchParams.get("prefill")).toContain(

@@ -21,10 +21,21 @@ const mocks = vi.hoisted(() => ({
     couple_id: "22222222-2222-4222-8222-222222222222",
   } as { couple_id: string | null } | null,
   profileError: null as unknown,
+  couple: {
+    bride_id: "11111111-1111-4111-8111-111111111111",
+    groom_id: "55555555-5555-4555-8555-555555555555",
+  } as { bride_id: string | null; groom_id: string | null } | null,
+  coupleError: null as unknown,
   currentJourney: {
     progress: {},
     state_revision: 7,
-  } as { progress: Record<string, unknown>; state_revision: number } | null,
+  } as {
+    wedding_date?: string | null;
+    venue?: string | null;
+    total_budget?: number | null;
+    progress: Record<string, unknown>;
+    state_revision: number;
+  } | null,
   currentJourneyError: null as unknown,
   authFrom: vi.fn(),
   adminFrom: vi.fn(),
@@ -73,6 +84,39 @@ function journey(revision = 8) {
   };
 }
 
+const CHECKLIST_PROFILE_ANSWERS = {
+  ceremony: "no",
+  legalMarriage: "undecided",
+  travel: "undecided",
+  housing: "undecided",
+  internationalMarriage: null,
+  religiousCeremony: null,
+  remarriage: null,
+  childrenParticipating: null,
+  accessibilitySupport: null,
+  healthSupport: null,
+  petParticipation: null,
+  familyTradition: null,
+};
+
+function checklistProfile(
+  reviewedAt: string,
+  overrides: {
+    answers?: Record<string, unknown>;
+    autoExcludedItemIds?: string[];
+  } = {},
+) {
+  return {
+    version: 1,
+    reviewedAt,
+    answers: {
+      ...CHECKLIST_PROFILE_ANSWERS,
+      ...(overrides.answers ?? {}),
+    },
+    autoExcludedItemIds: overrides.autoExcludedItemIds ?? ["ceremony_01", "ceremony_02"],
+  };
+}
+
 function request(
   body: unknown = {
     expected_revision: 7,
@@ -97,6 +141,11 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     mocks.user = { id: USER_ID };
     mocks.profile = { couple_id: COUPLE_ID };
     mocks.profileError = null;
+    mocks.couple = {
+      bride_id: USER_ID,
+      groom_id: "55555555-5555-4555-8555-555555555555",
+    };
+    mocks.coupleError = null;
     mocks.currentJourney = { progress: {}, state_revision: 7 };
     mocks.currentJourneyError = null;
     mocks.authFrom.mockImplementation((table: string) => {
@@ -105,6 +154,9 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       }
       if (table === "wedding_journeys") {
         return queryResult(mocks.currentJourney, mocks.currentJourneyError);
+      }
+      if (table === "couples") {
+        return queryResult(mocks.couple, mocks.coupleError);
       }
       throw new Error(`unexpected auth table: ${table}`);
     });
@@ -341,10 +393,10 @@ describe("/api/journey PATCH couple plan-change contract", () => {
         venue: {
           category: "venue",
           label: "  예식장   계약  ",
-          status: "in_progress",
+          status: "not_started",
         },
       },
-      progress_remove_keys: ["studio"],
+      progress_remove_keys: ["custom_old"],
     }));
 
     expect(response.status).toBe(200);
@@ -356,10 +408,10 @@ describe("/api/journey PATCH couple plan-change contract", () => {
             venue: {
               category: "venue",
               label: "예식장 계약",
-              status: "in_progress",
+              status: "not_started",
             },
           },
-          progress_remove_keys: ["studio"],
+          progress_remove_keys: ["custom_old"],
         },
         p_surface: "/schedule",
         p_summary: "진행 상황: 1개 수정 · 1개 삭제",
@@ -485,6 +537,415 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it.each(["in_progress", "completed"])(
+    "rejects a new status-only %s checklist row",
+    async (status) => {
+      const response = await PATCH(request({
+        expected_revision: 7,
+        progress_patch: {
+          venue: { category: "venue", status },
+        },
+      }));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "CHECKLIST_ITEMS_REQUIRED",
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows an unchanged legacy status-only completion to round-trip", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: { category: "venue", status: "completed", budget: 10_000_000 },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: { category: "venue", status: "completed", budget: 11_000_000 },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("does not let a category patch omit existing budget or legacy metadata", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          budget: 10_000_000,
+          spent: 3_000_000,
+          vendor: "legacy vendor",
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: { category: "venue", status: "completed" },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHECKLIST_FIELDS_INVALID",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves a known retired item shape during a lossless budget round-trip", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 10_000_000,
+          checklist: [{ id: "venue_01", completed: false }],
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 11_000_000,
+          checklist: [{ id: "venue_01", completed: false }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: { checklist: Array<Record<string, unknown>> } } };
+    };
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist[0]).toEqual({
+      id: "venue_01",
+      completed: false,
+    });
+  });
+
+  it("does not invent a completion actor while canonicalizing a retired completed item", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          budget: 10_000_000,
+          checklist: [{ id: "venue_01", completed: true }],
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          budget: 11_000_000,
+          checklist: [{ id: "venue_01", completed: true }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: { checklist: Array<Record<string, unknown>> } } };
+    };
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist[0]).toEqual({
+      id: "venue_01",
+      completed: true,
+    });
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist[0])
+      .not.toHaveProperty("completedAt");
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist[0])
+      .not.toHaveProperty("completedByProfileId");
+  });
+
+  it("rejects changing a legacy status-only completion without materializing items", async () => {
+    mocks.currentJourney = {
+      progress: { venue: { category: "venue", status: "completed" } },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: { category: "venue", status: "in_progress" },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not let a status-only patch erase a materialized checklist", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "venue_01", label: "방문", done: false, state: "todo" }],
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: { category: "venue", status: "not_started", budget: 10_000_000 },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects deleting saved item identities or introducing an unknown item id", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            { id: "venue_01", label: "방문", done: true, state: "completed" },
+            { id: "venue_02", label: "견적", done: false, state: "todo" },
+          ],
+        },
+      },
+      state_revision: 7,
+    };
+    const missing = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          checklist: [{ id: "venue_01", label: "방문", done: true, state: "completed" }],
+        },
+      },
+    }));
+    expect(missing.status).toBe(400);
+
+    const unknown = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            { id: "venue_01", label: "방문", done: true, state: "completed" },
+            { id: "venue_02", label: "견적", done: false, state: "todo" },
+            { id: "hostile-new", label: "임의 항목", done: false, state: "todo" },
+          ],
+        },
+      },
+    }));
+    expect(unknown.status).toBe(400);
+
+    const reordered = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            { id: "venue_02", label: "견적", done: false, state: "todo" },
+            { id: "venue_01", label: "방문", done: true, state: "completed" },
+          ],
+        },
+      },
+    }));
+    expect(reordered.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a lossy rich-item round trip that omits saved metadata", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: false,
+            state: "waiting",
+            assignee: null,
+            dueDate: "2026-09-01",
+            note: "계약서 회신 대기",
+            completedAt: null,
+            completedByProfileId: null,
+          }],
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "venue_01", label: "방문", done: false }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHECKLIST_ITEM_FIELDS_REQUIRED",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("allows canonical template expansion without dropping a saved legacy item", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "custom-legacy-1", label: "우리 확인", done: false, state: "todo" }],
+        },
+      },
+      state_revision: 7,
+    };
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [
+            { id: "venue_01", label: "클라이언트 옛 라벨", done: false, state: "todo" },
+            { id: "custom-legacy-1", label: "우리 확인", done: false, state: "todo" },
+          ],
+        },
+      },
+    }));
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: { checklist: Array<Record<string, unknown>> } } };
+    };
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist.map((item) => item.id))
+      .toEqual(["venue_01", "custom-legacy-1"]);
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist[0]?.label)
+      .not.toBe("클라이언트 옛 라벨");
+  });
+
+  it("allows a new status-only category exclusion when there is no item history", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        ceremony: { category: "ceremony", status: "not_applicable" },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("does not let a whole-progress replacement omit a materialized checklist", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "venue_01", label: "방문", done: false, state: "todo" }],
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress: {
+        studio: { category: "studio", status: "not_started" },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not let a whole-progress replacement omit a legacy checklist category", async () => {
+    mocks.currentJourney = {
+      progress: {
+        studio: { category: "studio", status: "completed" },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress: {
+        venue: { category: "venue", status: "not_started" },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects deleting a saved checklist category or situation profile", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "venue_01", label: "방문", done: false, state: "todo" }],
+        },
+        __checklist_profile: {
+          version: 1,
+          reviewedAt: "2026-08-12T08:00:00.000Z",
+          answers: {},
+          autoExcludedItemIds: [],
+        },
+      },
+      state_revision: 7,
+    };
+
+    for (const key of ["venue", "__checklist_profile"]) {
+      const response = await PATCH(request({
+        expected_revision: 7,
+        progress_remove_keys: [key],
+      }));
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "CHECKLIST_DELETE_NOT_ALLOWED",
+      });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("still permits deleting an unrelated custom progress key", async () => {
+    mocks.currentJourney = {
+      progress: { custom_old: { label: "옛 사용자 항목" } },
+      state_revision: 7,
+    };
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_remove_keys: ["custom_old"],
+    }));
+    expect(response.status).toBe(200);
+  });
+
   it("validates new full-journey checklist categories with the same strict schema", async () => {
     const response = await PATCH(
       request({
@@ -520,6 +981,19 @@ describe("/api/journey PATCH couple plan-change contract", () => {
   });
 
   it("accepts a safe saved-only checklist item so older user data survives", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            { id: "venue_01", label: "옛 라벨", done: false },
+            { id: "custom-legacy-1", label: "직접 추가했던 항목", done: false },
+          ],
+        },
+      },
+      state_revision: 7,
+    };
     const response = await PATCH(request({
       expected_revision: 7,
       progress_patch: {
@@ -536,6 +1010,617 @@ describe("/api/journey PATCH couple plan-change contract", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.rpc).toHaveBeenCalledOnce();
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: { checklist: Array<Record<string, unknown>> } } };
+    };
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist[0]).toMatchObject({
+      completedByProfileId: USER_ID,
+      completedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    });
+  });
+
+  it("server-stamps a new completion even when a client omits or invents its audit time", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: true,
+            state: "completed",
+            completedAt: "1970-01-01T00:00:00.000Z",
+            completedByProfileId: USER_ID,
+          }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: { checklist: Array<Record<string, unknown>> } } };
+    };
+    const stored = rpcArgs.p_changes.progress_patch.venue.checklist[0];
+    expect(stored.completedByProfileId).toBe(USER_ID);
+    expect(stored.completedAt).not.toBe("1970-01-01T00:00:00.000Z");
+    expect(Date.parse(String(stored.completedAt))).toBeGreaterThan(Date.parse("2026-01-01T00:00:00.000Z"));
+  });
+
+  it("requires a materialized checklist and the authenticated actor for a new review marker", async () => {
+    const markerOnly = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklistReviewedAt: "2026-08-12T08:00:00.000Z",
+          checklistReviewedByProfileId: USER_ID,
+          checklistReviewSource: "manual",
+        },
+      },
+    }));
+    expect(markerOnly.status).toBe(400);
+
+    const partnerId = "55555555-5555-4555-8555-555555555555";
+    const forged = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "venue_01", label: "방문", done: false, state: "todo" }],
+          checklistReviewedAt: "2026-08-12T08:00:00.000Z",
+          checklistReviewedByProfileId: partnerId,
+          checklistReviewSource: "manual",
+        },
+      },
+    }));
+    expect(forged.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("server-stamps an actor-owned manual review marker", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{ id: "venue_01", label: "방문", done: false, state: "todo" }],
+          checklistReviewedAt: "1970-01-01T00:00:00.000Z",
+          checklistReviewedByProfileId: USER_ID,
+          checklistReviewSource: "manual",
+        },
+      },
+    }));
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: Record<string, unknown> } };
+    };
+    expect(rpcArgs.p_changes.progress_patch.venue).toMatchObject({
+      checklistReviewedByProfileId: USER_ID,
+      checklistReviewSource: "manual",
+    });
+    expect(rpcArgs.p_changes.progress_patch.venue.checklistReviewedAt)
+      .not.toBe("1970-01-01T00:00:00.000Z");
+  });
+
+  it("rejects a new unsupported field but preserves an unchanged legacy field", async () => {
+    const invalid = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: { category: "venue", status: "not_started", arbitrary_nested: { secret: true } },
+      },
+    }));
+    expect(invalid.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.currentJourney = {
+      progress: {
+        venue: { category: "venue", status: "not_started", arbitrary_nested: { legacy: true } },
+      },
+      state_revision: 7,
+    };
+    const legacy = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 10_000_000,
+          arbitrary_nested: { legacy: true },
+        },
+      },
+    }));
+    expect(legacy.status).toBe(200);
+  });
+
+  it("rejects malformed values hidden in allowlisted legacy category fields", async () => {
+    for (const invalidFields of [
+      { cost: { nested: true } },
+      { vendor: { nested: true } },
+      { notes: ["hidden"] },
+      { assigned_to: { id: USER_ID } },
+      { responsibility: 42 },
+      { dueDate: "2026-02-30" },
+      { due_date: "not-a-date" },
+    ]) {
+      const response = await PATCH(request({
+        expected_revision: 7,
+        progress_patch: {
+          venue: { category: "venue", status: "not_started", ...invalidFields },
+        },
+      }));
+      expect(response.status).toBe(400);
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves but never introduces an opaque legacy category cost", async () => {
+    mocks.currentJourney = {
+      progress: {
+        venue: { category: "venue", status: "not_started", cost: { legacy: true } },
+      },
+      state_revision: 7,
+    };
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 10_000_000,
+          cost: { legacy: true },
+        },
+      },
+    }));
+    expect(response.status).toBe(200);
+  });
+
+  it("accepts item execution state, stable assignee, due date, note and completion audit", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            {
+              id: "venue_01",
+              label: "방문",
+              done: true,
+              state: "completed",
+              assignee: { kind: "member", profileId: USER_ID },
+              dueDate: "2026-08-12",
+              note: "계약서와 사진을 함께 보관",
+              completedAt: "2026-08-12T07:30:00.000Z",
+              completedByProfileId: USER_ID,
+            },
+            {
+              id: "venue_02",
+              label: "답변 대기",
+              done: false,
+              state: "waiting",
+              assignee: { kind: "couple" },
+              dueDate: null,
+            },
+          ],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("accepts one minimal reviewed checklist profile with its auto-excluded item ids", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 10_000_000,
+        },
+        __checklist_profile: {
+          version: 1,
+          reviewedAt: "2026-08-12T08:00:00.000Z",
+          answers: {
+            ceremony: "yes",
+            legalMarriage: "undecided",
+            travel: "international",
+            housing: "rent",
+            internationalMarriage: null,
+            religiousCeremony: false,
+            remarriage: null,
+            childrenParticipating: false,
+            accessibilitySupport: null,
+            healthSupport: null,
+            petParticipation: false,
+            familyTradition: false,
+          },
+          autoExcludedItemIds: ["special_cases_03", "special_cases_10"],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc.mock.calls[0]?.[1]).toMatchObject({ p_surface: "/schedule" });
+  });
+
+  it("rejects a profile-only patch when only reviewedAt and set ordering changed", async () => {
+    mocks.currentJourney = {
+      wedding_date: "2027-05-01",
+      venue: "현재 예식장",
+      total_budget: 40_000_000,
+      progress: {
+        __checklist_profile: checklistProfile(
+          "2026-08-12T08:00:00.000Z",
+          { autoExcludedItemIds: ["ceremony_01", "ceremony_02"] },
+        ),
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      wedding_date: "2027-05-01",
+      venue: "현재 예식장",
+      total_budget: 40_000_000,
+      progress_patch: {
+        __checklist_profile: checklistProfile(
+          "2026-08-12T09:00:00.000Z",
+          { autoExcludedItemIds: ["ceremony_02", "ceremony_01"] },
+        ),
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHECKLIST_PROFILE_NO_CHANGES",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a legacy whole-progress profile replay with no effective delta", async () => {
+    const storedProfile = checklistProfile("2026-08-12T08:00:00.000Z");
+    const venue = {
+      category: "venue",
+      status: "not_started",
+      budget: 10_000_000,
+    };
+    mocks.currentJourney = {
+      progress: {
+        __checklist_profile: storedProfile,
+        venue,
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress: {
+        __checklist_profile: checklistProfile("2026-08-12T09:00:00.000Z"),
+        venue,
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHECKLIST_PROFILE_NO_CHANGES",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("allows the same profile receipt when a category or top-level value actually changes", async () => {
+    mocks.currentJourney = {
+      total_budget: 40_000_000,
+      progress: {
+        __checklist_profile: checklistProfile("2026-08-12T08:00:00.000Z"),
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 10_000_000,
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      total_budget: 41_000_000,
+      progress_patch: {
+        __checklist_profile: checklistProfile("2026-08-12T09:00:00.000Z"),
+        venue: {
+          category: "venue",
+          status: "not_started",
+          budget: 11_000_000,
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    const rpcInput = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch?: Record<string, unknown> } & Record<string, unknown>;
+      p_surface: string;
+    };
+    expect(rpcInput.p_surface).toBe("/budget");
+    expect(rpcInput.p_changes).toMatchObject({
+      total_budget: 41_000_000,
+      progress_patch: {
+        venue: { budget: 11_000_000 },
+      },
+    });
+    expect(rpcInput.p_changes.progress_patch).not.toHaveProperty("__checklist_profile");
+  });
+
+  it("allows a profile-only request when an answer actually changed", async () => {
+    mocks.currentJourney = {
+      progress: {
+        __checklist_profile: checklistProfile("2026-08-12T08:00:00.000Z"),
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        __checklist_profile: checklistProfile(
+          "2026-08-12T09:00:00.000Z",
+          { answers: { ceremony: "yes" }, autoExcludedItemIds: [] },
+        ),
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["unknown profile version", { version: 2 }],
+    ["invalid review timestamp", { reviewedAt: "today" }],
+    ["unknown answer", { answers: { petParticipation: "maybe" } }],
+    ["unknown item id", { autoExcludedItemIds: ["not_real_01"] }],
+    ["duplicate auto exclusions", { autoExcludedItemIds: ["venue_01", "venue_01"] }],
+  ])("rejects invalid checklist profile metadata: %s", async (_label, override) => {
+    const valid = {
+      version: 1,
+      reviewedAt: "2026-08-12T08:00:00.000Z",
+      answers: {
+        ceremony: "yes",
+        legalMarriage: "undecided",
+        travel: "domestic",
+        housing: "other",
+        internationalMarriage: null,
+        religiousCeremony: null,
+        remarriage: null,
+        childrenParticipating: null,
+        accessibilitySupport: null,
+        healthSupport: null,
+        petParticipation: null,
+        familyTradition: null,
+      },
+      autoExcludedItemIds: [],
+    };
+    const profile = {
+      ...valid,
+      ...override,
+      answers: {
+        ...valid.answers,
+        ...((override as { answers?: Record<string, unknown> }).answers ?? {}),
+      },
+    };
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: { __checklist_profile: profile },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["unknown item state", { done: false, state: "paused" }],
+    ["done-state mismatch", { done: true, state: "waiting" }],
+    ["invalid due date", { done: false, state: "todo", dueDate: "2026-02-30" }],
+    ["invalid member assignee", { done: false, state: "todo", assignee: { kind: "member", profileId: "me" } }],
+    ["empty external assignee", { done: false, state: "todo", assignee: { kind: "external", label: " " } }],
+    ["completion audit on open work", {
+      done: false,
+      state: "todo",
+      completedAt: "2026-08-12T07:30:00.000Z",
+      completedByProfileId: USER_ID,
+    }],
+  ])("rejects invalid item execution metadata: %s", async (_label, fields) => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: fields.state === "waiting" ? "in_progress" : "not_started",
+          checklist: [{ id: "venue_01", label: "방문", ...fields }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("accepts a stable assignee that belongs to the same sealed couple", async () => {
+    const partnerId = "55555555-5555-4555-8555-555555555555";
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: false,
+            state: "todo",
+            assignee: { kind: "member", profileId: partnerId },
+          }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.authFrom).toHaveBeenCalledWith("couples");
+  });
+
+  it("rejects attributing a completion to the partner instead of the authenticated actor", async () => {
+    const partnerId = "55555555-5555-4555-8555-555555555555";
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: true,
+            state: "completed",
+            completedAt: "2026-08-12T08:00:00.000Z",
+            completedByProfileId: partnerId,
+          }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining("본인"),
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves an existing partner completion audit while the actor updates another item", async () => {
+    const partnerId = "55555555-5555-4555-8555-555555555555";
+    const partnerCompletedAt = "2026-08-11T08:00:00.000Z";
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            {
+              id: "venue_01",
+              label: "방문",
+              done: true,
+              state: "completed",
+              completedAt: partnerCompletedAt,
+              completedByProfileId: partnerId,
+            },
+            { id: "venue_02", label: "견적", done: false, state: "todo" },
+          ],
+        },
+      },
+      state_revision: 7,
+    };
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          checklist: [
+            {
+              id: "venue_01",
+              label: "방문",
+              done: true,
+              state: "completed",
+              completedAt: partnerCompletedAt,
+              completedByProfileId: partnerId,
+            },
+            {
+              id: "venue_02",
+              label: "견적",
+              done: true,
+              state: "completed",
+              completedAt: "2026-08-12T08:00:00.000Z",
+              completedByProfileId: USER_ID,
+            },
+          ],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("allows a partner-completed item to be auto-excluded through a disclosed situation proposal", async () => {
+    const partnerId = "55555555-5555-4555-8555-555555555555";
+    mocks.currentJourney = {
+      progress: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: true,
+            state: "completed",
+            completedAt: "2026-08-11T08:00:00.000Z",
+            completedByProfileId: partnerId,
+          }],
+        },
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        __checklist_profile: checklistProfile("2026-08-12T09:00:00.000Z", {
+          autoExcludedItemIds: ["venue_01"],
+        }),
+        venue: {
+          category: "venue",
+          status: "not_applicable",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: false,
+            state: "not_applicable",
+          }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an assignee or completion actor outside the couple", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "completed",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: true,
+            state: "completed",
+            assignee: { kind: "member", profileId: "66666666-6666-4666-8666-666666666666" },
+            completedAt: "2026-08-12T08:00:00.000Z",
+            completedByProfileId: "66666666-6666-4666-8666-666666666666",
+          }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("rejects a non-canonical payer on a new budget patch", async () => {
@@ -617,8 +1702,8 @@ describe("/api/journey PATCH couple plan-change contract", () => {
   it("converts a legacy whole-progress replacement into an exact patch/remove contract", async () => {
     mocks.currentJourney = {
       progress: {
-        studio: { status: "completed" },
-        venue: { status: "not_started" },
+        custom_old: { status: "completed" },
+        venue: { status: "not_started", label: "기존 예식장" },
       },
       state_revision: 7,
     };
@@ -626,7 +1711,7 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     const response = await PATCH(request({
       expected_revision: 7,
       progress: {
-        venue: { status: "in_progress" },
+        venue: { status: "not_started", label: "새 예식장" },
       },
     }));
 
@@ -636,11 +1721,11 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       expect.objectContaining({
         p_changes: {
           progress_patch: {
-            venue: { status: "in_progress" },
+            venue: { status: "not_started", label: "새 예식장" },
           },
-          progress_remove_keys: ["studio"],
+          progress_remove_keys: ["custom_old"],
         },
-        p_summary: "진행 상황: 전체 변경",
+        p_summary: "진행 상황: 1개 수정 · 1개 삭제",
       }),
     );
   });
@@ -859,7 +1944,7 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       expected_revision: 7,
       total_budget: 40_000_000,
       progress_patch: {
-        venue: { status: "in_progress" },
+        venue: { status: "not_started" },
       },
     }));
 

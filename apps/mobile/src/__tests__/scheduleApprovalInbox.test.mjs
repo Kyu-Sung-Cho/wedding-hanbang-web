@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import { URL } from "node:url";
 
 import {
   actOnScheduleApproval,
@@ -16,6 +18,27 @@ const REQUEST_ID = "20000000-0000-4000-8000-000000000001";
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
 const PARTNER_ID = "10000000-0000-4000-8000-000000000002";
 const COUPLE_ID = "50000000-0000-4000-8000-000000000001";
+const DISCLOSURE_RECEIPT = "d".repeat(64);
+const REFRESHED_DISCLOSURE_RECEIPT = "e".repeat(64);
+const scheduleScreenSource = readFileSync(
+  new URL("../../app/schedule/index.tsx", import.meta.url),
+  "utf8",
+);
+
+test("the expanded mobile approval discloses status changes and cleared completion evidence", () => {
+  assert.match(
+    scheduleScreenSource,
+    /category\.statusChanged\s*&&\s*!category\.applicabilityChanged/,
+  );
+  assert.match(
+    scheduleScreenSource,
+    /상태 \$\{CHECKLIST_STATUS_LABELS\[category\.beforeStatus\]\} → \$\{CHECKLIST_STATUS_LABELS\[category\.afterStatus\]\}/,
+  );
+  assert.match(scheduleScreenSource, /item\.completionEvidenceCleared/);
+  assert.ok(scheduleScreenSource.includes(
+    "자동 제외되며 기존 완료 기록(완료 일시·완료자)이 해제돼요",
+  ));
+});
 
 test("a pending schedule submission keeps its opaque request reference for the approval inbox", () => {
   assert.deepEqual(parseScheduleMutationSubmission({
@@ -81,6 +104,132 @@ test("a reviewer approval performs a latest-status preflight before accepting", 
       body: "{}",
     },
   ]);
+});
+
+test("a checklist situation approval refreshes its random receipt for the exact reviewed proposal", async () => {
+  const reviewedProposal = {
+    kind: "checklist_situation",
+    baseRevision: 7,
+    progressPatch: {
+      __checklist_profile: { version: 1, answers: { travel: "yes", ceremony: "no" } },
+    },
+  };
+  const latestProposal = {
+    kind: "checklist_situation",
+    baseRevision: 7,
+    progressPatch: {
+      __checklist_profile: { answers: { ceremony: "no", travel: "yes" }, version: 1 },
+    },
+  };
+  let mutationCount = 0;
+  let mutationBody;
+  const fetcher = async (_path, options = {}) => {
+    if (!options.method) {
+      return response(200, {
+        ...pendingStatus(REQUEST_ID),
+        proposal: latestProposal,
+        disclosureReceipt: REFRESHED_DISCLOSURE_RECEIPT,
+      });
+    }
+    mutationCount += 1;
+    mutationBody = options.body;
+    return response(200, {
+      ...pendingStatus(REQUEST_ID),
+      proposal: latestProposal,
+      status: "applied",
+      acceptedCount: 2,
+      journey: { couple_id: COUPLE_ID, state_revision: 8 },
+    });
+  };
+  const request = {
+    requestId: REQUEST_ID,
+    role: "reviewer",
+    proposal: reviewedProposal,
+    disclosureReceipt: DISCLOSURE_RECEIPT,
+  };
+
+  assert.deepEqual(await actOnScheduleApproval({
+    apiFetch: fetcher,
+    coupleId: COUPLE_ID,
+    request,
+    action: "approve",
+  }), { status: "conflict" });
+  assert.equal(mutationCount, 0);
+
+  assert.deepEqual(await actOnScheduleApproval({
+    apiFetch: fetcher,
+    coupleId: COUPLE_ID,
+    request,
+    action: "approve",
+    reviewedBaseRevision: 7,
+  }), { status: "applied" });
+  assert.equal(mutationCount, 1);
+  assert.equal(
+    mutationBody,
+    JSON.stringify({ disclosureReceipt: REFRESHED_DISCLOSURE_RECEIPT }),
+  );
+});
+
+test("a checklist situation approval never posts when the reviewed proposal changed", async () => {
+  const reviewedProposal = {
+    kind: "checklist_situation",
+    baseRevision: 7,
+    progressPatch: { __checklist_profile: { version: 1, answers: { ceremony: "no" } } },
+  };
+  const latestProposal = {
+    kind: "checklist_situation",
+    baseRevision: 7,
+    progressPatch: { __checklist_profile: { version: 1, answers: { ceremony: "yes" } } },
+  };
+  let mutationCount = 0;
+  const fetcher = async (_path, options = {}) => {
+    if (options.method) mutationCount += 1;
+    return response(200, {
+      ...pendingStatus(REQUEST_ID),
+      proposal: latestProposal,
+      disclosureReceipt: REFRESHED_DISCLOSURE_RECEIPT,
+    });
+  };
+
+  assert.deepEqual(await actOnScheduleApproval({
+    apiFetch: fetcher,
+    coupleId: COUPLE_ID,
+    request: {
+      requestId: REQUEST_ID,
+      role: "reviewer",
+      proposal: reviewedProposal,
+      disclosureReceipt: DISCLOSURE_RECEIPT,
+    },
+    action: "approve",
+    reviewedBaseRevision: 7,
+  }), { status: "conflict" });
+  assert.equal(mutationCount, 0);
+});
+
+test("a pending checklist status is unusable without its exact disclosure receipt", () => {
+  const proposal = {
+    kind: "checklist_situation",
+    baseRevision: 7,
+    progressPatch: { __checklist_profile: { version: 1 } },
+  };
+  assert.throws(
+    () => parseScheduleApprovalStatus({
+      ...pendingStatus(REQUEST_ID),
+      proposal,
+    }, REQUEST_ID, COUPLE_ID),
+    /INVALID_SCHEDULE_APPROVAL_STATUS/,
+  );
+  assert.deepEqual(parseScheduleApprovalStatus({
+    ...pendingStatus(REQUEST_ID),
+    proposal,
+    disclosureReceipt: DISCLOSURE_RECEIPT,
+  }, REQUEST_ID, COUPLE_ID), {
+    requestId: REQUEST_ID,
+    status: "pending_partner",
+    summary: pendingStatus(REQUEST_ID).summary,
+    proposal,
+    disclosureReceipt: DISCLOSURE_RECEIPT,
+  });
 });
 
 test("a partner rejects an incoming request while its requester withdraws an outgoing request", async () => {
@@ -181,6 +330,7 @@ test("a schedule approval card is shown only after its latest server status is s
     requestId: REQUEST_ID,
     status: "pending_partner",
     summary: "일정: 드레스 피팅 · 2026-08-20 14:00",
+    proposal: { kind: "unavailable" },
   });
 
   assert.equal(parseScheduleApprovalStatus({
@@ -363,6 +513,7 @@ test("loading the schedule inbox confirms every active server request against it
       role: "reviewer",
       createdAt: "2026-08-02T12:00:00.000Z",
       summary: "일정: 드레스 피팅 · 2026-08-20 14:00",
+      proposal: { kind: "other" },
     }],
     definitivelyRemovedIds: [terminalRequestId],
     partial: false,
@@ -519,6 +670,7 @@ function pendingStatus(requestId) {
     acceptedCount: 1,
     summary: "일정: 드레스 피팅 · 2026-08-20 14:00",
     surface: "/schedule",
+    proposal: { kind: "other" },
   };
 }
 

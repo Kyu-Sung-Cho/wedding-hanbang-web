@@ -1,8 +1,6 @@
-export interface ChecklistItem {
-  id: string;
-  label: string;
-  done: boolean;
-}
+import type { PlanningChecklistItem } from "../utils/planningChecklist";
+
+export interface ChecklistItem extends PlanningChecklistItem {}
 
 /**
  * 일정·예산·아모라가 함께 쓰는 사용자용 준비 항목 이름.

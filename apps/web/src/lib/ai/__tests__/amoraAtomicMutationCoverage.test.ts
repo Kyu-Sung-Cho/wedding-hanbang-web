@@ -7,6 +7,8 @@ import {
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import { mergePlanningChecklist } from "@hanbang/shared/utils";
 
 const REQUEST_KEY =
   "chat:20000000-0000-4000-8000-000000000001:30000000-0000-4000-8000-000000000001";
@@ -17,6 +19,7 @@ function context(): ToolExecutionContext {
     requestKey: REQUEST_KEY,
     requestAttemptCount: 1,
     providerCallIndex: 1,
+    actorProfileId: "10000000-0000-4000-8000-000000000002",
     weddingContext: {
       weddingDate: "2027-05-01",
       budget: 50_000_000,
@@ -101,7 +104,14 @@ describe("Amora atomic mutation coverage", () => {
       kind: "journey_progress_entry_cas",
       key: "venue",
       expectedPresent: true,
-      value: { category: "venue", status: "in_progress", budget: 10_000_000 },
+      value: {
+        category: "venue",
+        status: "in_progress",
+        budget: 10_000_000,
+        checklist: expect.arrayContaining([
+          expect.objectContaining({ state: "in_progress", done: false }),
+        ]),
+      },
     });
     expect(budget.domainMutation).toMatchObject({
       kind: "journey_progress_entry_cas",
@@ -183,9 +193,85 @@ describe("Amora atomic mutation coverage", () => {
       key: "venue",
       value: expect.objectContaining({
         checklist: expect.arrayContaining([
-          expect.objectContaining({ id: "venue_03", done: true }),
+          expect.objectContaining({
+            id: "venue_03",
+            done: true,
+            state: "completed",
+            completedAt: expect.any(String),
+            completedByProfileId: "10000000-0000-4000-8000-000000000002",
+          }),
         ]),
       }),
+    });
+  });
+
+  it("turns a confirmed category completion into one item-level source of truth", () => {
+    const operation = buildAmoraAtomicToolOperation(
+      "update_task_status",
+      { category: "venue", status: "completed" },
+      context(),
+    );
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({
+      kind: "journey_progress_entry_cas",
+      key: "venue",
+      value: {
+        category: "venue",
+        status: "completed",
+        budget: 10_000_000,
+        checklist: expect.arrayContaining([
+          expect.objectContaining({
+            state: "completed",
+            done: true,
+            completedAt: expect.any(String),
+            completedByProfileId: "10000000-0000-4000-8000-000000000002",
+          }),
+        ]),
+      },
+    });
+  });
+
+  it("keeps a partner completion audit on replay and category completion", () => {
+    const ctx = context();
+    const venueTemplate = CATEGORY_CHECKLISTS.find((category) => category.key === "venue");
+    if (!venueTemplate) throw new Error("venue template missing");
+    const partnerAudit = {
+      completedAt: "2026-08-11T08:00:00.000Z",
+      completedByProfileId: "partner-profile-id",
+    };
+    ctx.weddingContext.progress.venue = {
+      category: "venue",
+      status: "in_progress",
+      checklist: venueTemplate.items.map((item, index) => index === 0
+        ? { ...item, done: true, state: "completed" as const, ...partnerAudit }
+        : item),
+    } as never;
+
+    const replay = buildAmoraAtomicToolOperation(
+      "toggle_checklist_item",
+      { category: "venue", item_id: venueTemplate.items[0].id, done: true },
+      ctx,
+    );
+    expect(replay.result).toMatchObject({ success: false, toolOutput: { error: "no_change" } });
+    expect(replay.domainMutation).toEqual({ kind: "none" });
+
+    const complete = buildAmoraAtomicToolOperation(
+      "update_task_status",
+      { category: "venue", status: "completed" },
+      ctx,
+    );
+    expectAtomicSuccess(complete);
+    expect(complete.domainMutation).toMatchObject({
+      kind: "journey_progress_entry_cas",
+      value: {
+        checklist: expect.arrayContaining([
+          expect.objectContaining({
+            id: venueTemplate.items[0].id,
+            ...partnerAudit,
+          }),
+        ]),
+      },
     });
   });
 
@@ -357,19 +443,43 @@ describe("Amora atomic mutation coverage", () => {
 
   it("does not report success for known no-op assignments", () => {
     const ctx = context();
+    const venueTemplate = CATEGORY_CHECKLISTS.find((category) => category.key === "venue");
+    if (!venueTemplate) throw new Error("venue template missing");
+    ctx.weddingContext.progress.venue = {
+      category: "venue",
+      status: "not_started",
+      budget: 10_000_000,
+      checklist: mergePlanningChecklist(venueTemplate.items, venueTemplate.items, "not_started"),
+    } as never;
     const cases = [
-      buildAmoraAtomicToolOperation("update_wedding_date", { wedding_date: "2027-05-01" }, ctx),
-      buildAmoraAtomicToolOperation("update_venue", { venue: "기존 예식장" }, ctx),
-      buildAmoraAtomicToolOperation("update_task_status", { category: "venue", status: "not_started" }, ctx),
-      buildAmoraAtomicToolOperation("update_category_budget", { category: "venue", budget: 10_000_000 }, ctx),
-      buildAmoraAtomicToolOperation("update_amora_action", { action_id: `act_${"3".repeat(32)}_${"a".repeat(24)}` }, ctx),
-    ];
+      ["date", buildAmoraAtomicToolOperation("update_wedding_date", { wedding_date: "2027-05-01" }, ctx)],
+      ["venue", buildAmoraAtomicToolOperation("update_venue", { venue: "기존 예식장" }, ctx)],
+      ["task", buildAmoraAtomicToolOperation("update_task_status", { category: "venue", status: "not_started" }, ctx)],
+      ["budget", buildAmoraAtomicToolOperation("update_category_budget", { category: "venue", budget: 10_000_000 }, ctx)],
+      ["action", buildAmoraAtomicToolOperation("update_amora_action", { action_id: `act_${"3".repeat(32)}_${"a".repeat(24)}` }, ctx)],
+    ] as const;
 
-    for (const operation of cases) {
-      expect(operation.result.success).toBe(false);
+    for (const [label, operation] of cases) {
+      expect(operation.result.success, label).toBe(false);
       expect(operation.domainMutation).toEqual({ kind: "none" });
       expect(operation.result.toolOutput.error).toMatch(/no_change|no_changes_requested/);
     }
+  });
+
+  it("repairs a legacy status-only row by materializing its canonical checklist", () => {
+    const ctx = context();
+    const operation = buildAmoraAtomicToolOperation(
+      "update_task_status",
+      { category: "venue", status: "not_started" },
+      ctx,
+    );
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({
+      kind: "journey_progress_entry_cas",
+      key: "venue",
+      value: { status: "not_started", checklist: expect.any(Array) },
+    });
   });
 
   it("projects committed results into the in-process context for later tool rounds", () => {
@@ -384,6 +494,32 @@ describe("Amora atomic mutation coverage", () => {
       category: "venue",
       status: "in_progress",
       budget: 10_000_000,
+    });
+  });
+
+  it("repairs a legacy category whose status says in progress but has no item evidence", () => {
+    const ctx = context();
+    ctx.weddingContext.progress.venue = {
+      category: "venue",
+      status: "in_progress",
+      budget: 10_000_000,
+    } as never;
+
+    const operation = buildAmoraAtomicToolOperation(
+      "update_task_status",
+      { category: "venue", status: "in_progress" },
+      ctx,
+    );
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({
+      kind: "journey_progress_entry_cas",
+      value: {
+        status: "in_progress",
+        checklist: expect.arrayContaining([
+          expect.objectContaining({ state: "in_progress", done: false }),
+        ]),
+      },
     });
   });
 });

@@ -1,7 +1,12 @@
 import type { ProgressItem, ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
-import { mergeChecklist, calculateStatus, summarizePlanningChecklist } from "@/utils/checklist";
+import {
+  calculateStatus,
+  getEffectivePlanningChecklistStatus,
+  mergeChecklist,
+  summarizePlanningChecklist,
+} from "@/utils/checklist";
 import {
   addEvent,
   cancelEvent,
@@ -25,25 +30,36 @@ import { type ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 const PROFILE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecutionResult {
-  const progress = ctx.weddingContext.progress;
-  const activeTemplates = CATEGORY_CHECKLISTS.filter((template) => (
-    template.introducedInVersion === 1
-    || Object.prototype.hasOwnProperty.call(progress, template.key)
-  )).filter((template) => progress[template.key]?.status !== "not_applicable");
+  const progress = ctx.weddingContext.progress as unknown as Record<string, ProgressItem>;
+  const activeTemplates = CATEGORY_CHECKLISTS.filter(
+    (template) => getEffectivePlanningChecklistStatus(
+      template.items,
+      progress[template.key],
+    ) !== "not_applicable",
+  );
   const allKeys = activeTemplates.map(({ key }) => key);
+  const derivedStatuses = new Map(
+    activeTemplates.map((template) => {
+      const saved = progress[template.key];
+      return [
+        template.key,
+        getEffectivePlanningChecklistStatus(template.items, saved),
+      ] as const;
+    }),
+  );
   const summary = summarizePlanningChecklist(
     CATEGORY_CHECKLISTS,
     progress as unknown as Record<string, ProgressItem>,
   );
 
   const completed = allKeys.filter(
-    (key) => progress[key]?.status === "completed"
+    (key) => derivedStatuses.get(key) === "completed"
   );
   const inProgress = allKeys.filter(
-    (key) => progress[key]?.status === "in_progress"
+    (key) => derivedStatuses.get(key) === "in_progress"
   );
   const notStarted = allKeys.filter(
-    (key) => !progress[key] || progress[key].status === "not_started"
+    (key) => derivedStatuses.get(key) === "not_started"
   );
 
   return {
@@ -55,10 +71,14 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
       in_progress: inProgress.map((key) => CHECKLIST_LABELS[key]),
       not_started: notStarted.map((key) => CHECKLIST_LABELS[key]),
       progress_percent: summary.percent,
+      reviewed_categories: summary.reviewedCategories,
+      unreviewed_categories: summary.unreviewedCategories,
+      coverage_percent: summary.coveragePercent,
+      reviewed_execution_percent: summary.executionPercent,
       available_new_categories: summary.availableNewCategories,
     },
     success: true,
-    displayMessage: `현재 진행률 ${summary.percent}% · 적용 중인 ${allKeys.length}개 분야 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개`,
+    displayMessage: `전체 준비 ${summary.percent}% · ${summary.reviewedCategories}/${CATEGORY_CHECKLISTS.length}개 분야 검토 · 검토한 분야 실행 ${summary.executionPercent}%`,
   };
 }
 
@@ -400,17 +420,33 @@ export async function executeToggleChecklistItem(
     (existing as { checklist?: { id: string; label: string; done: boolean }[] })?.checklist,
     (existing?.status as "not_started" | "in_progress" | "completed") ?? "not_started"
   );
-  const updated = merged.map((checklistItem) => (checklistItem.id === itemId ? { ...checklistItem, done } : checklistItem));
-  const newStatus = calculateStatus(updated);
-  const item = updated.find((checklistItem) => checklistItem.id === itemId);
-
-  if (!item) {
+  const currentItem = merged.find((checklistItem) => checklistItem.id === itemId);
+  if (!currentItem) {
     return {
       toolName: "toggle_checklist_item", toolInput: input,
       toolOutput: {}, success: false,
       displayMessage: "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
     };
   }
+  const currentDone = currentItem.state === "completed" || currentItem.done === true;
+  if (currentDone === done) {
+    return {
+      toolName: "toggle_checklist_item", toolInput: input,
+      toolOutput: { error: "no_change" }, success: false,
+      displayMessage: "이미 같은 체크 상태로 저장되어 있어요.",
+    };
+  }
+  const now = new Date().toISOString();
+  const updated = merged.map((checklistItem) => (checklistItem.id === itemId
+    ? {
+        ...checklistItem,
+        state: done ? "completed" as const : "todo" as const,
+        done,
+        completedAt: done ? now : null,
+        completedByProfileId: done ? ctx.actorProfileId ?? null : null,
+      }
+    : checklistItem));
+  const newStatus = calculateStatus(updated);
 
   await patchJourneyProgress(ctx, {
     [category]: {
@@ -421,9 +457,9 @@ export async function executeToggleChecklistItem(
 
   return {
     toolName: "toggle_checklist_item", toolInput: input,
-    toolOutput: { category, item_id: itemId, done, new_status: newStatus, item_label: item.label },
+    toolOutput: { category, item_id: itemId, done, new_status: newStatus, item_label: currentItem.label },
     success: true,
-    displayMessage: `${label} - "${item.label}" ${done ? "완료" : "미완료"}로 변경되었습니다.`,
+    displayMessage: `${label} - "${currentItem.label}" ${done ? "완료" : "미완료"}로 변경되었습니다.`,
   };
 }
 

@@ -79,6 +79,11 @@ export function calculateChecklistProgress(
   }[],
 ): number;
 
+export function getDashboardChecklistCategoryStatus(
+  category: { items?: readonly { id: string; label?: string }[] },
+  saved: unknown,
+): "not_started" | "in_progress" | "completed" | "not_applicable";
+
 export function isChecklistCategoryActivated(
   category: { key: string; introducedInVersion?: number },
   savedCategoryKeys: ReadonlySet<string>,

@@ -349,15 +349,7 @@ export function syncToolResult(result: ToolExecutionResult) {
       });
       break;
     case "update_task_status": {
-      const category = result.toolInput.category as string;
-      const status = result.toolInput.status as string;
-      const currentProgress = authStore.journey?.progress ?? {};
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentProgress,
-          [category]: { category, status } as { category: string; status: "not_started" | "in_progress" | "completed" },
-        },
-      });
+      void authStore.refreshJourney(authStore.user?.id);
       break;
     }
     case "update_venue":
@@ -513,21 +505,7 @@ export function syncToolResult(result: ToolExecutionResult) {
       break;
     }
     case "toggle_checklist_item": {
-      const currentP4 = authStore.journey?.progress ?? {};
-      const cat = result.toolInput.category as string;
-      const iId = result.toolInput.item_id as string;
-      const doneVal = result.toolInput.done as boolean;
-      const newStat = result.toolOutput.new_status as string;
-      const existingCat = currentP4[cat];
-      const cl = (existingCat?.checklist ?? []).map((c: { id: string; label: string; done: boolean }) =>
-        c.id === iId ? { ...c, done: doneVal } : c
-      );
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentP4,
-          [cat]: { ...(existingCat ?? { category: cat }), category: cat, status: newStat as "not_started" | "in_progress" | "completed", checklist: cl },
-        },
-      });
+      void authStore.refreshJourney(authStore.user?.id);
       break;
     }
     case "add_amora_action": {
@@ -1463,6 +1441,14 @@ async function executeChatProviderRequest(
     // 말은 없는 빈 말풍선이 남았다. 단 장소 검색 결과는 클라이언트에만 존재해
     // 저장하지 않으면 사라지므로, 그 경우에만 텍스트 없이도 저장한다.
     if (!gotDone || (!fullContent.trim() && ephemeralPlaceResults.length === 0)) {
+      const progressWasTouched = get().streamingToolResults.some(
+        (result) => result.success && PROGRESS_AFFECTING_TOOLS.has(result.toolName),
+      );
+      if (progressWasTouched) {
+        const authState = useAuthStore.getState();
+        await authState.refreshJourney(authState.user?.id);
+        if (!isCurrentLifecycle()) return;
+      }
       const terminalStreamError = terminalStream.error;
       const retryable = terminalStreamError
         ? terminalStreamError.retryPolicy === "same_request"
