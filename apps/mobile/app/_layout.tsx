@@ -136,6 +136,7 @@ function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
             <Stack.Screen name="schedule" options={{ headerShown: false }} />
+            <Stack.Screen name="checklist" options={{ headerShown: false }} />
             <Stack.Screen name="budget" options={{ headerShown: false }} />
             <Stack.Screen name="vendors" options={{ headerShown: false }} />
             <Stack.Screen name="settings" options={{ headerShown: false }} />

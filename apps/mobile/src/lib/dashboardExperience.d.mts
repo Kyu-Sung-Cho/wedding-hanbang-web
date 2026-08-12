@@ -36,6 +36,7 @@ export interface DashboardFocus {
   ctaLabel: string;
   route:
     | "/onboarding"
+    | "/checklist"
     | "/schedule"
     | "/bookings"
     | "/(tabs)/chat";
@@ -43,6 +44,7 @@ export interface DashboardFocus {
 }
 
 export type DashboardHomeServiceKey =
+  | "checklist"
   | "schedule"
   | "budget"
   | "prices"
@@ -55,6 +57,7 @@ export interface DashboardHomeService {
   title: string;
   description: string;
   route:
+    | "/checklist"
     | "/schedule"
     | "/budget"
     | "/market-prices"

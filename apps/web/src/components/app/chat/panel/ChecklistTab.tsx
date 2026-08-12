@@ -8,7 +8,7 @@ import {
   ChevronRight, Circle,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
-import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import { mergeChecklist, getChecklistCounts, summarizePlanningChecklist } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, ChecklistItem } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
@@ -23,12 +23,14 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-[#2E7D5A]",
   in_progress: "bg-rose-500",
   not_started: "bg-taupe-400",
+  not_applicable: "bg-[#8b857c]",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
   not_started: "시작전",
+  not_applicable: "해당 없음",
 };
 
 interface CategoryCheckItem {
@@ -66,11 +68,13 @@ export default function ChecklistTab() {
     return { key: cat.key, label: cat.label, icon: cat.icon, status, done, total, checklist: merged };
   });
 
-  const incomplete = categories.filter((c) => c.status !== "completed");
+  const incomplete = categories.filter((c) => c.status !== "completed" && c.status !== "not_applicable");
   const completed = categories.filter((c) => c.status === "completed");
-  const totalDone = categories.reduce((s, c) => s + c.done, 0);
-  const totalItems = categories.reduce((s, c) => s + c.total, 0);
-  const overallPercent = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
+  const skipped = categories.filter((c) => c.status === "not_applicable");
+  const summary = summarizePlanningChecklist(CATEGORY_CHECKLISTS, progress);
+  const totalDone = summary.done;
+  const totalItems = summary.total;
+  const overallPercent = summary.percent;
 
   const renderCategoryRow = (cat: CategoryCheckItem, dimmed?: boolean) => {
     const IconComp = ICON_MAP[cat.icon] ?? CheckCircle2;
@@ -187,6 +191,12 @@ export default function ChecklistTab() {
           {completed.length === 0 && (
             <p className="text-sm text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
           )}
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="해당 없음" count={skipped.length}>
+        <div className="flex flex-col gap-1">
+          {skipped.map((cat) => renderCategoryRow(cat, true))}
         </div>
       </CollapsibleSection>
     </div>

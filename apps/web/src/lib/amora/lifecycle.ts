@@ -2,7 +2,7 @@ import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { objectParticle } from "@/lib/ai/tools/toolTypes";
 import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
-import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
+import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
 
 export type AmoraLifecycleStage =
@@ -156,13 +156,11 @@ function getCategoryCompletion(progress: Record<string, ProgressItem | unknown>,
 }
 
 function getOverallCounts(progress: Record<string, ProgressItem | unknown>) {
-  return CATEGORY_CHECKLISTS.reduce(
-    (acc, cat) => {
-      const counts = getCategoryCompletion(progress, cat.key);
-      return { done: acc.done + counts.done, total: acc.total + counts.total };
-    },
-    { done: 0, total: 0 }
+  const summary = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    progress as Record<string, ProgressItem | undefined>,
   );
+  return { done: summary.done, total: summary.total };
 }
 
 function getSpentBudget(progress: Record<string, ProgressItem | unknown>): number {

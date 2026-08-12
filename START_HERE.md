@@ -33,10 +33,12 @@ Git 상태보다 높은 배포 권한은 갖지 않는다.
 
 ### 제품
 
-웨딩한방은 아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이 함께 정리되는
-서비스다. 모바일 앱이 소비자의 주 제품이고, 웹은 유입·설명·정책·고객지원·관리자 운영과
-데스크톱 연속성을 담당한다. 아모라가 중심이며 커뮤니티는 실제 경험을 찾고 질문하는 보조
-축이다.
+웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에
+준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에
+남기는 서비스다. 모바일 앱이 소비자의 주 제품이고, 웹은 유입·설명·정책·고객지원·관리자
+운영과 데스크톱 연속성을 담당한다. 아모라가 중심이며 커뮤니티는 실제 경험을 찾고
+질문하는 보조 축이다. 아모라의 정본 호칭은 **결혼 준비 동반자**이고, 관계·지식·선제
+케어·조건 공유는 별도 축이 아니라 그 안의 층이다.
 
 ### 현재 상태
 
@@ -164,7 +166,7 @@ local dev의 실행 정본은 `apps/mobile/scripts/start-expo-dev.mjs`이며 Nod
 | 1 | `PRINCIPLES.md` | 어떤 판단도 바꿀 수 없는 신뢰·보안·출시 원칙은 무엇인가 |
 | 2 | `AGENTS.md` | 저장소 구조·코딩·검증·운영 작업 규칙은 무엇인가 |
 | 3 | `docs/README.md` | 현재 문서와 역사 문서를 어떻게 구분하는가 |
-| 4 | `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md` | 현재 제품·채널·MVP 우선순위는 무엇인가 |
+| 4 | `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md` | 현재 제품·채널·MVP 우선순위는 무엇인가 (`docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계) |
 | 5 | `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md` | 현재 local 후보에서 무엇을 고쳤고 무엇이 아직 hosted 미검증인가 |
 | 6 | `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md` | 이전 source-status와 남은 목표·공격 모델은 무엇이었나(현재 상태는 5번이 갱신) |
 | 7 | `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md` | 개인정보·커플 경계의 목표 구조와 절대 출시 게이트는 무엇인가 |

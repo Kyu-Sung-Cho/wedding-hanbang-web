@@ -6,7 +6,7 @@ import {
   Animated, LayoutAnimation, AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, usePathname } from "expo-router";
 import {
   ChevronDown, ChevronUp, CheckCircle2, Circle,
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
@@ -17,6 +17,12 @@ import {
   sanitizeUserFacingScheduleMemo,
   SCHEDULE_CARE_MOMENT_OPTIONS,
 } from "@hanbang/shared";
+import {
+  calculatePlanningChecklistStatus,
+  mergePlanningChecklist,
+  summarizePlanningChecklist,
+  type PlanningChecklistStatus,
+} from "@hanbang/shared/utils";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import {
@@ -62,6 +68,7 @@ interface Category {
   key: string;
   label: string;
   items: ChecklistItem[];
+  status: PlanningChecklistStatus;
 }
 
 interface ScheduleEvent {
@@ -354,6 +361,8 @@ function showActiveScheduleRequestAlert() {
 
 /* ───── main screen ───── */
 export default function ScheduleScreen() {
+  const pathname = usePathname();
+  const checklistOnly = pathname.startsWith("/checklist");
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
@@ -576,14 +585,26 @@ export default function ScheduleScreen() {
           }
         }
 
-        const itemStates: Record<string, boolean> = {};
-        const checkItems: ChecklistItem[] = cat.items.map((item) => {
-          const done = dbDoneMap[item.id] ?? false;
-          itemStates[item.id] = done;
-          return { id: item.id, label: item.label, done };
-        });
+        const savedChecklist = Array.isArray(dbCatData?.checklist)
+          ? dbCatData.checklist.map((item) => ({
+              id: item.id,
+              label: item.label ?? cat.items.find((templateItem) => templateItem.id === item.id)?.label ?? "이전 준비 항목",
+              done: item.done === true,
+            }))
+          : Object.entries(dbDoneMap).map(([id, done]) => ({
+              id,
+              label: cat.items.find((item) => item.id === id)?.label ?? "이전 준비 항목",
+              done,
+            }));
+        const checkItems = mergePlanningChecklist(cat.items, savedChecklist);
+        const itemStates: Record<string, boolean> = Object.fromEntries(
+          checkItems.map((item) => [item.id, item.done]),
+        );
+        const status: PlanningChecklistStatus = dbCatData?.status === "not_applicable"
+          ? "not_applicable"
+          : calculatePlanningChecklistStatus(checkItems);
 
-        cats.push({ key: cat.key, label: cat.label, items: checkItems });
+        cats.push({ key: cat.key, label: cat.label, items: checkItems, status });
         progMap[cat.key] = itemStates;
       }
 
@@ -592,13 +613,10 @@ export default function ScheduleScreen() {
 
       // 전체 진행률 애니메이션
       if (cats.length > 0) {
-        const totalPercent = Math.round(
-          cats.reduce((sum, c) => {
-            const total = Object.keys(progMap[c.key] ?? {}).length;
-            const done = Object.values(progMap[c.key] ?? {}).filter(Boolean).length;
-            return sum + (total > 0 ? (done / total) * 100 : 0);
-          }, 0) / cats.length
-        );
+        const totalPercent = summarizePlanningChecklist(
+          CATEGORY_CHECKLISTS,
+          prog as Record<string, { status?: PlanningChecklistStatus; checklist?: ChecklistItem[] }>,
+        ).percent;
         Animated.timing(progressAnim, {
           toValue: totalPercent,
           duration: 800,
@@ -732,6 +750,10 @@ export default function ScheduleScreen() {
 
   /* ── 체크 토글 ── */
   async function toggleItem(categoryKey: string, itemId: string, currentDone: boolean) {
+    if (categories.find((category) => category.key === categoryKey)?.status === "not_applicable") {
+      Alert.alert("준비 목록에서 제외된 분야예요", "먼저 ‘다시 준비 목록에 넣기’를 눌러 주세요.");
+      return;
+    }
     const sessionToken = scheduleSessionFenceRef.capture();
     if (
       !coupleId
@@ -774,11 +796,9 @@ export default function ScheduleScreen() {
       const existingChecklist = (existing?.checklist as Array<{ id: string; label: string; done: boolean }>) ?? [];
 
       // 체크리스트 배열 업데이트 (없으면 상수에서 생성)
-      const updatedChecklist = catTemplate.items.map((item) => {
-        const dbItem = existingChecklist.find((c) => c.id === item.id);
-        const done = item.id === itemId ? nextDone : (dbItem?.done ?? false);
-        return { id: item.id, label: item.label, done };
-      });
+      const updatedChecklist = mergePlanningChecklist(catTemplate.items, existingChecklist).map((item) =>
+        item.id === itemId ? { ...item, done: nextDone } : item,
+      );
 
       // 전체 완료 상태 계산
       const allDone = updatedChecklist.every((i) => i.done);
@@ -869,11 +889,70 @@ export default function ScheduleScreen() {
     }
   }
 
+  async function toggleCategoryApplicability(categoryKey: string) {
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (!sessionToken || !scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+    try {
+      const snapshot = await fetchScheduleMutationSnapshot(sessionToken.coupleId);
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      const template = CATEGORY_CHECKLISTS.find((category) => category.key === categoryKey);
+      if (!template) throw new ScheduleMutationError("failed");
+      const existing = isRecord(snapshot.progress[categoryKey])
+        ? snapshot.progress[categoryKey]
+        : {};
+      const saved = Array.isArray(existing.checklist)
+        ? existing.checklist.filter(isRecord).map((item) => ({
+            id: typeof item.id === "string" ? item.id : "",
+            label: typeof item.label === "string" ? item.label : "이전 준비 항목",
+            done: item.done === true,
+          })).filter((item) => item.id.length > 0)
+        : [];
+      const checklist = mergePlanningChecklist(template.items, saved);
+      const wasSkipped = existing.status === "not_applicable";
+      const nextCategory = {
+        ...existing,
+        category: categoryKey,
+        status: wasSkipped ? calculatePlanningChecklistStatus(checklist) : "not_applicable",
+        checklist,
+      };
+      const response = await apiFetchForExpectedUser(sessionToken.ownerId, "/api/journey", {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: snapshot.stateRevision,
+          progress_patch: { [categoryKey]: nextCategory },
+        }),
+      });
+      if (!response.ok) throw new ScheduleMutationError(response.status === 409 ? "stale" : "failed");
+      const outcome = parseScheduleMutationSubmission(await response.json());
+      rememberPendingApproval(outcome, sessionToken);
+      Alert.alert(
+        outcome.status === "pending_partner" ? "파트너 확인을 요청했어요" : wasSkipped ? "준비 목록에 다시 넣었어요" : "준비 목록에서 제외했어요",
+        outcome.status === "pending_partner"
+          ? "파트너가 동의하면 상태에 반영돼요."
+          : wasSkipped
+            ? "이전에 체크한 내용은 그대로 남아 있어요."
+            : "진행률과 마감 알림에서 빠져요. 언제든 되돌릴 수 있어요.",
+      );
+      await loadData();
+    } catch (error) {
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      if (error instanceof ScheduleMutationError && error.code === "active_request") {
+        showActiveScheduleRequestAlert();
+      } else if (error instanceof ScheduleMutationError && error.code === "stale") {
+        Alert.alert("최신 상태를 다시 불러왔어요", "최신 내용에서 다시 선택해 주세요.");
+      } else {
+        Alert.alert("오류", "체크리스트 상태를 저장하지 못했어요. 다시 시도해 주세요.");
+      }
+      await loadData();
+    }
+  }
+
   function getCategoryStats(key: string) {
     const items = progress[key] ?? {};
     const total = Object.keys(items).length;
     const done = Object.values(items).filter(Boolean).length;
-    return { total, done, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
+    const skipped = categories.find((category) => category.key === key)?.status === "not_applicable";
+    return { total, done, skipped, percent: skipped || total === 0 ? 0 : Math.round((done / total) * 100) };
   }
 
   function getWeeklyActions(dday: number | null): WeeklyAction[] {
@@ -881,7 +960,7 @@ export default function ScheduleScreen() {
 
     const actionCandidates = CATEGORY_CHECKLISTS.flatMap((template) => {
       const stats = getCategoryStats(template.key);
-      if (stats.percent >= 100) return [];
+      if (stats.skipped || stats.percent >= 100) return [];
 
       if (dday !== null && dday > template.ddayStart) return [];
 
@@ -1427,12 +1506,13 @@ export default function ScheduleScreen() {
   const upcomingEvents = orderedActiveEvents.filter((e) => next7Days.includes(e.date));
 
   // 전체 진행률 계산
-  const overallPercent = categories.length > 0
-    ? Math.round(
-        categories.reduce((sum, c) => sum + getCategoryStats(c.key).percent, 0) /
-          categories.length
-      )
-    : 0;
+  const overallPercent = summarizePlanningChecklist(
+    categories.map((category) => ({ key: category.key, items: category.items })),
+    Object.fromEntries(categories.map((category) => [category.key, {
+      status: category.status,
+      checklist: category.items,
+    }])),
+  ).percent;
   const dday = calcDday(weddingDate);
   const weeklyActions = getWeeklyActions(dday);
   const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;
@@ -1454,10 +1534,10 @@ export default function ScheduleScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AppHeader
-        title="체크리스트"
-        subtitle="일정과 준비 항목을 같이 관리해요"
+        title={checklistOnly ? "웨딩 체크리스트" : "일정"}
+        subtitle={checklistOnly ? "부모님 첫 만남부터 신혼집까지 하나씩 확인해요" : "두 사람의 날짜와 약속을 관리해요"}
         onBack={() => router.back()}
-        right={
+        right={!checklistOnly ? (
           <Pressable
             onPress={openAddEventModal}
             hitSlop={12}
@@ -1469,7 +1549,7 @@ export default function ScheduleScreen() {
           >
             <Plus size={22} color={colors.rose[500]} />
           </Pressable>
-        }
+        ) : undefined}
       />
 
       <ScrollView
@@ -1532,7 +1612,13 @@ export default function ScheduleScreen() {
             <Text style={styles.summaryLabel}>전체 진행률</Text>
             <Text style={styles.summaryPercent}>{overallPercent}%</Text>
           </View>
-          <View style={styles.summaryBar}>
+          <View
+            style={styles.summaryBar}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel="전체 체크리스트 진행률"
+            accessibilityValue={{ min: 0, max: 100, now: overallPercent }}
+          >
             <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
           </View>
         </Surface>
@@ -1714,7 +1800,7 @@ export default function ScheduleScreen() {
         </Surface>
 
         {/* 임박 알림 섹션 */}
-        {upcomingEvents.length > 0 && (
+        {!checklistOnly && upcomingEvents.length > 0 && (
           <View style={styles.upcomingSection}>
             <View style={styles.upcomingHeader}>
               <CalendarDays size={18} color={colors.rose[500]} />
@@ -1765,13 +1851,16 @@ export default function ScheduleScreen() {
                 <Pressable
                   style={styles.catHeader}
                   onPress={() => handleExpandToggle(cat.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${cat.label} 체크리스트`}
+                  accessibilityState={{ expanded }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catStat}>{stats.done}/{stats.total} 완료</Text>
+                    <Text style={styles.catStat}>{stats.skipped ? "해당 없음 · 진행률에서 제외" : `${stats.done}/${stats.total} 완료`}</Text>
                   </View>
                   <View style={styles.catRight}>
-                    <Text style={styles.catPercent}>{stats.percent}%</Text>
+                    <Text style={styles.catPercent}>{stats.skipped ? "제외" : `${stats.percent}%`}</Text>
                     {expanded
                       ? <ChevronUp size={20} color={colors.textTertiary} />
                       : <ChevronDown size={20} color={colors.textTertiary} />
@@ -1779,12 +1868,25 @@ export default function ScheduleScreen() {
                   </View>
                 </Pressable>
 
-                <View style={styles.catBar}>
-                  <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
-                </View>
+                {!stats.skipped && (
+                  <View style={styles.catBar}>
+                    <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
+                  </View>
+                )}
 
                 {expanded && (
                   <View style={styles.itemList}>
+                    <Pressable
+                      style={styles.itemRow}
+                      onPress={() => void toggleCategoryApplicability(cat.key)}
+                      accessibilityRole="button"
+                      accessibilityLabel={stats.skipped ? `${cat.label} 다시 준비 목록에 넣기` : `${cat.label} 준비 목록에서 제외하기`}
+                    >
+                      <Ban size={22} color={colors.textTertiary} />
+                      <Text style={styles.itemLabel}>
+                        {stats.skipped ? "다시 준비 목록에 넣기" : "우리는 이건 안 해요"}
+                      </Text>
+                    </Pressable>
                     {cat.items.map((item) => (
                       <Pressable
                         key={item.id}
@@ -1793,6 +1895,10 @@ export default function ScheduleScreen() {
                           pressed && { transform: [{ scale: 0.98 }] },
                         ]}
                         onPress={() => toggleItem(cat.key, item.id, item.done)}
+                        disabled={stats.skipped}
+                        accessibilityRole="checkbox"
+                        accessibilityLabel={item.label}
+                        accessibilityState={{ checked: item.done, disabled: stats.skipped }}
                       >
                         {item.done
                           ? <CheckCircle2 size={22} color={colors.rose[500]} />
@@ -1811,7 +1917,7 @@ export default function ScheduleScreen() {
         )}
 
         {/* 전체 일정 목록 */}
-        {activeEvents.length > 0 && (
+        {!checklistOnly && activeEvents.length > 0 && (
           <View style={styles.allEventsSection}>
             <Text style={styles.allEventsTitle}>전체 일정</Text>
             {orderedActiveEvents.map((evt) => (
@@ -1831,7 +1937,7 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {cancelledEvents.length > 0 && (
+        {!checklistOnly && cancelledEvents.length > 0 && (
           <View style={styles.cancelledSection}>
             <Text style={styles.cancelledTitle}>취소됨</Text>
             <Text style={styles.cancelledHint}>

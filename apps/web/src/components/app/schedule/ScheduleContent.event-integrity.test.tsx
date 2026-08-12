@@ -41,9 +41,19 @@ const authState = vi.hoisted(
   }),
 );
 
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => authState,
-}));
+vi.mock("@/stores/authStore", () => {
+  const getAuthState = () => ({
+    ...authState,
+    user: {
+      id: authState.isDemo ? "demo" : authState.profile.id,
+    },
+  });
+  const useAuthStore = Object.assign(() => getAuthState(), {
+    getState: getAuthState,
+  });
+
+  return { useAuthStore };
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),

@@ -17,6 +17,7 @@ export const WEDDING_APP_ROUTES = [
   "chat",
   "saved",
   "budget",
+  "checklist",
   "schedule",
   "settings",
   "bookings",
@@ -25,4 +26,8 @@ export const WEDDING_APP_ROUTES = [
   "market-prices",
   "favorites",
   "onboarding",
+  // 예절 안내는 `src/app/manners`(라우트 그룹 밖)에 있고 로그인이 필요 없다.
+  // 목록에 넣는 이유는 앱 안에서 `/wedding/manners`로 링크하기 위해서다 —
+  // 리라이트가 없으면 사이드바·주차 카드의 링크가 그대로 404가 된다.
+  "manners",
 ] as const;

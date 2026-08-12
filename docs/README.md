@@ -17,7 +17,10 @@ commit·push·PR·Preview receipt가 없다. 실제 source·tests·migration이 
 
 1. `PRINCIPLES.md`
 2. `AGENTS.md`
-3. `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+3. `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md`
+   - 현재 제품 계약 정본. 한 줄 정의·아모라 호칭·전면 범위·내부/외부 언어 경계
+   - `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계했다(구 문서는 SUPERSEDED)
+   - 모바일 완료 기준: `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`
 4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:
    `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
    - 현재 local dirty worktree의 모바일 Stop·첫 shared 확인·reconciliation, 위기 안전
@@ -70,8 +73,9 @@ commit·push·PR·Preview receipt가 없다. 실제 source·tests·migration이 
 
 현재 제품 정의는 다음과 같다.
 
-**웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는
-서비스입니다.**
+**웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에
+준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에
+남기는 서비스입니다.**
 
 4번 문서는 이 제품 방향을 바꾸지 않고 GitHub, Web, DB, Community, Mobile의 현재
 상태를 각각 기록한다. exact 파일 목록은

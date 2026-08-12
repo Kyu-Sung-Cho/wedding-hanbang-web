@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useId, useRef } from "react";
 import {
   X,
   Check,
@@ -33,6 +33,7 @@ import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -74,24 +75,43 @@ const STATUS_LABELS: Record<string, string> = {
 interface Props {
   categoryKey: string;
   isOpen: boolean;
-  expectedOwnerId: string | null;
+  expectedOwnerId?: string | null;
   onClose: () => void;
 }
 
 export default function CategoryChecklistModal(props: Props) {
   const { user, isDemo } = useAuthStore();
   const currentOwnerId = isDemo ? "demo" : user?.id ?? null;
+
+  if (!props.isOpen) return null;
+
+  return (
+    <OwnerCapturedCategoryChecklistModal
+      {...props}
+      currentOwnerId={currentOwnerId}
+    />
+  );
+}
+
+function OwnerCapturedCategoryChecklistModal(
+  props: Props & { currentOwnerId: string | null },
+) {
+  const { currentOwnerId, ...modalProps } = props;
+  const [expectedOwnerId] = useState(
+    () => props.expectedOwnerId ?? currentOwnerId,
+  );
+
   if (
-    !props.isOpen
-    || !props.expectedOwnerId
-    || props.expectedOwnerId !== currentOwnerId
+    !expectedOwnerId
+    || expectedOwnerId !== currentOwnerId
+    || (props.expectedOwnerId != null && props.expectedOwnerId !== currentOwnerId)
   ) return null;
 
   return (
     <OwnedCategoryChecklistModal
-      key={`${props.expectedOwnerId}:${props.categoryKey}`}
-      {...props}
-      expectedOwnerId={props.expectedOwnerId}
+      key={`${expectedOwnerId}:${props.categoryKey}`}
+      {...modalProps}
+      expectedOwnerId={expectedOwnerId}
     />
   );
 }
@@ -106,6 +126,13 @@ function OwnedCategoryChecklistModal({
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const isCurrentOwner = useCallback(() => {
     const current = useAuthStore.getState();
@@ -123,9 +150,52 @@ function OwnedCategoryChecklistModal({
       const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
       setChecklist(merged);
       setError("");
+      setNotice("");
     }, 0);
     return () => window.clearTimeout(timer);
   }, [isOpen, categoryKey, template, existing?.checklist, existing?.status]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen]);
 
   const toggleItem = useCallback(
     async (itemId: string) => {
@@ -149,9 +219,19 @@ function OwnedCategoryChecklistModal({
 
       setSaving(true);
       setError("");
+      setNotice("");
       try {
-        await updateJourney({ progress: newProgress }, expectedOwnerId);
+        const result = await updateJourney(
+          { progress: newProgress },
+          expectedOwnerId,
+        );
         if (!isCurrentOwner()) return;
+        if (result.status === "pending_partner") {
+          setChecklist(checklist);
+          setNotice("상대방에게 확인을 요청했어요. 두 분이 확인하면 체크 상태에 반영돼요.");
+        } else {
+          setNotice("체크 상태를 저장했어요.");
+        }
       } catch (saveError) {
         setChecklist(checklist);
         setError(
@@ -184,8 +264,9 @@ function OwnedCategoryChecklistModal({
     const nextStatus = isNotApplicable ? calculateStatus(checklist) : "not_applicable";
     setSaving(true);
     setError("");
+    setNotice("");
     try {
-      await updateJourney({
+      const result = await updateJourney({
         progress: {
           ...progress,
           [categoryKey]: {
@@ -197,6 +278,13 @@ function OwnedCategoryChecklistModal({
         } as Record<string, ProgressItem>,
       }, expectedOwnerId);
       if (!isCurrentOwner()) return;
+      setNotice(
+        result.status === "pending_partner"
+          ? "상대방에게 확인을 요청했어요. 두 분이 확인하면 상태가 바뀌어요."
+          : isNotApplicable
+            ? "다시 준비 목록에 넣었어요. 이전 체크 상태는 그대로 남아 있어요."
+            : "이 분야를 진행률과 마감 알림에서 제외했어요.",
+      );
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -214,17 +302,23 @@ function OwnedCategoryChecklistModal({
   const { done, total } = getChecklistCounts(checklist);
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   const status = calculateStatus(checklist);
+  const relatedGuide = mannersPartForCategory(categoryKey);
 
   return (
     <>
       {/* 오버레이 */}
       <div
         onClick={onClose}
+        aria-hidden="true"
         className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
       />
 
       {/* 모달 */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 max-h-[84vh] flex flex-col overflow-hidden animate-fade-in"
       >
         {/* 헤더 */}
@@ -235,7 +329,7 @@ function OwnedCategoryChecklistModal({
                 <Icon className="w-5 h-5 text-[#795252]" />
               </div>
               <div>
-                <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{template.label}</h3>
+                <h3 id={titleId} className="text-2xl font-semibold text-[#1A1A1F]">{template.label}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
@@ -247,7 +341,10 @@ function OwnedCategoryChecklistModal({
               </div>
             </div>
             <button
+              ref={closeButtonRef}
+              type="button"
               onClick={onClose}
+              aria-label={`${template.label} 체크리스트 닫기`}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
             >
               <X className="w-4 h-4" />
@@ -255,7 +352,14 @@ function OwnedCategoryChecklistModal({
           </div>
 
           {/* 진행률 바 */}
-          <div className="w-full h-2 bg-[#F6F3F2] rounded-full overflow-hidden">
+          <div
+            className="w-full h-2 bg-[#F6F3F2] rounded-full overflow-hidden"
+            role="progressbar"
+            aria-label={`${template.label} 완료율`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={isNotApplicable ? 0 : percent}
+          >
             <div
               className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
               style={{ width: `${percent}%` }}
@@ -292,10 +396,14 @@ function OwnedCategoryChecklistModal({
         <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAF8]">
           <div className="flex flex-col gap-1">
             {checklist.map((item) => (
-              <div
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={item.done}
+                disabled={saving || isNotApplicable}
                 key={item.id}
                 onClick={() => toggleItem(item.id)}
-                className="flex items-center gap-3 py-3 px-3 rounded-xl cursor-pointer bg-white hover:bg-[#F6F3F2] transition-colors group"
+                className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
               >
                 <div className="flex-shrink-0">
                   {item.done ? (
@@ -315,7 +423,7 @@ function OwnedCategoryChecklistModal({
                 >
                   {item.label}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -330,6 +438,11 @@ function OwnedCategoryChecklistModal({
               {error}
             </p>
           )}
+          {notice && (
+            <p role="status" className="mb-3 rounded-lg border border-[#d9e2d3] bg-[#f6faf4] px-3 py-2 text-sm leading-5 text-[#506747]">
+              {notice}
+            </p>
+          )}
           <div className="flex items-start gap-2.5">
             <Lightbulb className="w-5 h-5 text-[#C9A96E] flex-shrink-0 mt-0.5" />
             <p className="text-base text-[#504444] font-light leading-relaxed">
@@ -338,18 +451,23 @@ function OwnedCategoryChecklistModal({
           </div>
 
           <Link
-            {...weddingLinkProps("/chat")}
+            {...weddingLinkProps(relatedGuide ? `/manners/${relatedGuide.slug}` : "/chat")}
             className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
               <BookOpen className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-serif-kr truncate text-base font-normal text-[#1A1A1F]">가족 조율 원칙</p>
-              <p className="text-sm text-[#B5ADA3]">가족·문화마다 다른 준비 기준 보기</p>
+              <p className="truncate text-base font-semibold text-[#1A1A1F]">
+                {relatedGuide ? relatedGuide.title : "아모라에게 물어보기"}
+              </p>
+              <p className="text-sm text-[#B5ADA3]">
+                {relatedGuide ? "관련 예절 가이드를 읽고 준비 기준 맞추기" : "우리 상황에 맞는 준비 순서 정리하기"}
+              </p>
             </div>
             <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#795252]" />
           </Link>
+          <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>
       </div>
     </>

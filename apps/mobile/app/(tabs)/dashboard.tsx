@@ -129,7 +129,7 @@ function calcUrgentTasks(
         }
       | undefined;
 
-    if (categoryProgress?.status === "completed") continue;
+    if (categoryProgress?.status === "completed" || categoryProgress?.status === "not_applicable") continue;
 
     let allDone = false;
     if (

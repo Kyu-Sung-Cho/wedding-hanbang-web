@@ -53,7 +53,7 @@ test("an overdue preparation item takes priority over lower-risk work", () => {
   });
 
   assert.equal(focus.kind, "urgent");
-  assert.equal(focus.route, "/schedule");
+  assert.equal(focus.route, "/checklist");
   assert.equal(focus.title, "결혼식장 준비를 먼저 확인해요");
   assert.match(focus.description, /4일/);
   assert.match(focus.description, /기본 확인 시점/);
@@ -124,13 +124,27 @@ test("home progress follows canonical checklist arrays and legacy booleans", () 
     __events: [{ date: "2026-07-30", title: "ignored metadata" }],
   };
 
-  assert.equal(calculateChecklistProgress(progress, categories), 75);
+  assert.equal(calculateChecklistProgress(progress, categories), 67);
+});
+
+test("home progress excludes categories marked not applicable", () => {
+  const categories = [
+    { key: "venue", items: [{ id: "visit" }, { id: "contract" }] },
+    { key: "pyebaek", items: [{ id: "greet" }] },
+  ];
+  const progress = {
+    venue: { checklist: [{ id: "visit", done: true }, { id: "contract", done: false }] },
+    pyebaek: { status: "not_applicable", checklist: [{ id: "greet", done: false }] },
+  };
+
+  assert.equal(calculateChecklistProgress(progress, categories), 50);
 });
 
 test("the home service map keeps every live consumer workflow within reach", () => {
   assert.deepEqual(
     HOME_SERVICES.map((service) => service.route),
     [
+      "/checklist",
       "/schedule",
       "/budget",
       "/market-prices",
@@ -139,7 +153,7 @@ test("the home service map keeps every live consumer workflow within reach", () 
       "/(tabs)/community",
     ],
   );
-  assert.equal(new Set(HOME_SERVICES.map((service) => service.key)).size, 6);
+  assert.equal(new Set(HOME_SERVICES.map((service) => service.key)).size, 7);
 });
 
 test("the quote check service opens the current non-storing consumer workflow", () => {

@@ -19,12 +19,14 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-[#2E7D5A]",
   in_progress: "bg-rose-500",
   not_started: "bg-taupe-400",
+  not_applicable: "bg-[#8b857c]",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
   not_started: "시작전",
+  not_applicable: "해당 없음",
 };
 
 function formatWon(n: number): string {
@@ -57,8 +59,8 @@ export default function BudgetTab() {
     };
   });
 
-  const incomplete = categories.filter((c) => c.status !== "completed");
-  const completed = categories.filter((c) => c.status === "completed");
+  const incomplete = categories.filter((c) => c.status !== "completed" && c.status !== "not_applicable");
+  const completed = categories.filter((c) => c.status === "completed" || c.status === "not_applicable");
   const totalSpent = categories.reduce((sum, c) => sum + c.spent, 0);
 
   return (
@@ -116,7 +118,7 @@ export default function BudgetTab() {
       </CollapsibleSection>
 
       {/* 완료 */}
-      <CollapsibleSection title="완료" count={completed.length}>
+      <CollapsibleSection title="완료·해당 없음" count={completed.length}>
         <div className="flex flex-col gap-1.5">
           {completed.map((cat) => {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;

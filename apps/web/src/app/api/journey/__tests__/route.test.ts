@@ -486,6 +486,43 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["unknown status", { status: "done", checklist: [] }],
+    ["non-boolean done", { status: "not_started", checklist: [{ id: "venue_01", label: "방문", done: "yes" }] }],
+    ["duplicate ids", { status: "in_progress", checklist: [
+      { id: "venue_01", label: "방문", done: true },
+      { id: "venue_01", label: "계약", done: false },
+    ] }],
+    ["mismatched derived status", { status: "completed", checklist: [{ id: "venue_01", label: "방문", done: false }] }],
+  ])("rejects invalid checklist fields: %s", async (_label, venue) => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: { venue: { category: "venue", ...venue } },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("accepts a safe saved-only checklist item so older user data survives", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "in_progress",
+          checklist: [
+            { id: "venue_01", label: "방문", done: true },
+            { id: "custom-legacy-1", label: "직접 추가했던 항목", done: false },
+          ],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
   it("rejects a non-canonical payer on a new budget patch", async () => {
     const response = await PATCH(request({
       expected_revision: 7,

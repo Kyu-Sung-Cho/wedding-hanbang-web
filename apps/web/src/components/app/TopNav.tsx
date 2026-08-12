@@ -16,7 +16,8 @@ const pageTitles: Record<string, string> = {
   "/chat": "아모라",
   "/budget": "예산",
   "/market-prices": "시세 정보",
-  "/schedule": "할 일·일정",
+  "/checklist": "웨딩 체크리스트",
+  "/schedule": "일정",
   "/favorites": "즐겨찾기",
   "/settings": "설정",
   "/money": "축의금 관리",
@@ -30,7 +31,8 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
 
 const quickLinks = [
   { linkProps: weddingLinkProps("/chat"), legacyPath: "/chat", label: "아모라" },
-  { linkProps: weddingLinkProps("/schedule"), legacyPath: "/schedule", label: "할 일·일정" },
+  { linkProps: weddingLinkProps("/checklist"), legacyPath: "/checklist", label: "체크리스트" },
+  { linkProps: weddingLinkProps("/schedule"), legacyPath: "/schedule", label: "일정" },
   { linkProps: weddingLinkProps("/budget"), legacyPath: "/budget", label: "예산" },
   { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" },
 ];
