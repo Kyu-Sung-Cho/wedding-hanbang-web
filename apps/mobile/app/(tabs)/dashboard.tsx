@@ -9,6 +9,7 @@ import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   calculateChecklistProgress,
   formatLocalDateKey,
+  shouldSurfaceChecklistCategory,
 } from "@/lib/dashboardExperience.mjs";
 import { isActiveScheduleEvent } from "@/lib/scheduleMutation.mjs";
 import ErrorRetry from "@/components/ErrorRetry";
@@ -116,11 +117,17 @@ function calcUrgentTasks(
   dday: number | null,
   progress: Record<string, unknown>,
 ): UrgentTask[] {
-  if (dday === null || dday <= 0) return [];
+  if (dday === null) return [];
 
   const tasks: UrgentTask[] = [];
 
   for (const category of CATEGORY_CHECKLISTS) {
+    if (
+      category.introducedInVersion === 2
+      && !Object.prototype.hasOwnProperty.call(progress, category.key)
+    ) continue;
+    if (!shouldSurfaceChecklistCategory(category, dday)) continue;
+
     const categoryProgress = progress[category.key] as
       | {
           status?: string;
@@ -156,8 +163,6 @@ function calcUrgentTasks(
         : remainingDays <= 14
           ? "soon"
           : "ontrack";
-
-    if (dday > category.ddayStart) continue;
 
     tasks.push({
       categoryKey: category.key,

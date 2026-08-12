@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -16,7 +16,7 @@ const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  ...PLANNING_CATEGORY_LABELS,
+  ...CHECKLIST_CATEGORY_LABELS,
   etiquette: "결혼 예절 참고",
 };
 

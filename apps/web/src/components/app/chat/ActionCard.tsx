@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 import { formatWon } from "@/lib/formatWon";
 
@@ -123,6 +124,10 @@ function getAccentColor(toolName: string) {
 
 const CATEGORY_LABELS: Record<string, string> = {
   ...PLANNING_CATEGORY_LABELS,
+};
+
+const CHECKLIST_LABELS: Record<string, string> = {
+  ...CHECKLIST_CATEGORY_LABELS,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -422,7 +427,7 @@ function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
     ? result.toolOutput.category
     : result.toolInput.category;
   const categoryLabel = typeof category === "string"
-    ? CATEGORY_LABELS[category] ?? category
+    ? CHECKLIST_LABELS[category] ?? category
     : "준비 항목";
 
   if (result.toolName === "update_task_status") {

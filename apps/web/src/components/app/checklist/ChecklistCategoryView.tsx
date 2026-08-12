@@ -8,6 +8,7 @@ import {
   Building2,
   Camera,
   CheckCircle2,
+  ExternalLink,
   Flower,
   Flower2,
   Gem,
@@ -84,6 +85,11 @@ function BulletList({ items, tone = "default" }: { items: string[]; tone?: "defa
   );
 }
 
+function formatWeddingRelativeDay(days: number) {
+  if (days === 0) return "D-day";
+  return days > 0 ? `D-${days}` : `D+${Math.abs(days)}`;
+}
+
 export default function ChecklistCategoryView({ categoryKey }: { categoryKey: string }) {
   const template = CHECKLIST_MAP[categoryKey];
   const guide = getChecklistCategoryGuide(categoryKey);
@@ -130,7 +136,7 @@ export default function ChecklistCategoryView({ categoryKey }: { categoryKey: st
             기본 확인 항목 {template.items.length}개
           </span>
           <span className="rounded-full border border-[#ddd5c7] bg-white px-3 py-1.5">
-            기본 확인 순서 D-{template.ddayStart} ~ D-{template.ddayDeadline}
+            기본 확인 순서 {formatWeddingRelativeDay(template.ddayStart)} ~ {formatWeddingRelativeDay(template.ddayDeadline)}
           </span>
         </div>
         <p className="mt-3 text-[11.5px] leading-5 text-[#7a827e]">
@@ -199,6 +205,37 @@ export default function ChecklistCategoryView({ categoryKey }: { categoryKey: st
             <BulletList items={guide.cautions} tone="warning" />
           </section>
 
+          {guide.sources && guide.sources.length > 0 ? (
+            <section id="official-sources" aria-labelledby="official-sources-heading" className="scroll-mt-24">
+              <div className="flex items-center gap-2.5">
+                <ExternalLink className="h-5 w-5 text-[#55716a]" />
+                <h2 id="official-sources-heading" className="text-[22px] font-semibold text-[#172a27]">
+                  공식 안내에서 다시 확인하기
+                </h2>
+              </div>
+              <p className="mt-2 text-[13px] leading-6 text-[#65706d]">
+                법·행정·건강·계약 조건은 바뀔 수 있어요. 아래 원문을 제출·서명 직전에 다시 확인하세요.
+              </p>
+              <ul className="mt-4 divide-y divide-[#e4ddd1] border-y border-[#e4ddd1]">
+                {guide.sources.map((source) => (
+                  <li key={source.url} className="py-4">
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#36534e] underline decoration-[#36534e]/30 underline-offset-4"
+                    >
+                      {source.label}
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                    </a>
+                    <p className="mt-1.5 text-[12.5px] leading-6 text-[#65706d]">{source.scope}</p>
+                    <p className="mt-1 text-[11.5px] text-[#7a827e]">{source.checkedAt} 원문 확인</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <section id="more-help" aria-labelledby="more-help-heading" className="scroll-mt-24">
             <div className="flex items-center gap-2.5">
               <BookOpen className="h-5 w-5 text-[#55716a]" />
@@ -243,6 +280,9 @@ export default function ChecklistCategoryView({ categoryKey }: { categoryKey: st
               ["#tips", "준비 팁"],
               ["#conversation", "대화 예시"],
               ["#cautions", "주의점"],
+              ...(guide.sources && guide.sources.length > 0
+                ? [["#official-sources", "공식 출처"]]
+                : []),
               ["#more-help", "관련 가이드"],
             ].map(([href, label]) => (
               <a key={href} href={href} className="block border-l-2 border-transparent px-3 py-2 text-[12.5px] font-medium text-[#65706d] hover:border-[#8f5150] hover:text-[#8f5150]">

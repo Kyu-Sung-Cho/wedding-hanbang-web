@@ -485,6 +485,40 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("validates new full-journey checklist categories with the same strict schema", async () => {
+    const response = await PATCH(
+      request({
+        expected_revision: 7,
+        progress: {
+          aftercare: {
+            status: "completed",
+            checklist: [
+              { id: "aftercare_01", label: "대여품 반납 확인", done: false },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects budget fields on checklist-only journey categories", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        aftercare: {
+          category: "aftercare",
+          status: "not_started",
+          spent: 100_000,
+        },
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("accepts a safe saved-only checklist item so older user data survives", async () => {
     const response = await PATCH(request({
       expected_revision: 7,

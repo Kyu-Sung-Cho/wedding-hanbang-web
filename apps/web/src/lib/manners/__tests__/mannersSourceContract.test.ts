@@ -74,8 +74,19 @@ const STATES_ITS_LIMITS = new RegExp(
 );
 
 describe("결혼 예절 안내 데이터 계약", () => {
-  it("파트가 실제로 실려 있다", () => {
-    expect(MANNERS_PARTS.length).toBeGreaterThan(0);
+  it("검증한 25개 파트가 모두 실려 있다", () => {
+    expect(MANNERS_PARTS).toHaveLength(25);
+  });
+
+  it("모든 파트가 먼저 읽을 수 있는 짧은 요약을 제공한다", () => {
+    for (const part of MANNERS_PARTS) {
+      expect(part.summary.length, `${part.slug}: summary는 3~5개`).toBeGreaterThanOrEqual(3);
+      expect(part.summary.length, `${part.slug}: summary는 3~5개`).toBeLessThanOrEqual(5);
+      for (const item of part.summary) {
+        expect(item.trim().length, `${part.slug}: 빈 summary`).toBeGreaterThan(0);
+        expect(item.length, `${part.slug}: summary가 너무 김 — ${item}`).toBeLessThanOrEqual(90);
+      }
+    }
   });
 
   it("슬러그는 고유하고 지워진 라우트 이름을 다시 쓰지 않는다", () => {
@@ -214,6 +225,10 @@ describe("결혼 예절 안내 데이터 계약", () => {
     MANNERS_PARTS.flatMap((part) => [
       { where: `${part.slug}/caveat`, text: part.caveat },
       { where: `${part.slug}/description`, text: part.description },
+      ...part.summary.map((text, index) => ({
+        where: `${part.slug}/summary/${index + 1}`,
+        text,
+      })),
       ...part.sections.flatMap((section) =>
         section.blocks.flatMap((block) => {
           const at = (label: string) => `${part.slug}/${section.heading}/${label}`;

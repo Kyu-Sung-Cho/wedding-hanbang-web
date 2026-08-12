@@ -47,7 +47,9 @@ export default function BudgetTab() {
   const totalBudget = journey?.total_budget ?? 0;
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
 
-  const categories: CategoryBudgetItem[] = CATEGORY_CHECKLISTS.map((cat) => {
+  const categories: CategoryBudgetItem[] = CATEGORY_CHECKLISTS.filter(
+    (cat) => cat.budgetTracked,
+  ).map((cat) => {
     const item = progress[cat.key];
     return {
       key: cat.key,

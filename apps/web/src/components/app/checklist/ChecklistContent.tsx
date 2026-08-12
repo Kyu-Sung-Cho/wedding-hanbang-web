@@ -14,6 +14,7 @@ import {
   mergeChecklist,
   summarizePlanningChecklist,
 } from "@/utils/checklist";
+import type { WeddingJourneyStage } from "@hanbang/shared/constants";
 
 type Filter = "all" | "active" | "completed" | "skipped";
 
@@ -39,6 +40,8 @@ const STATUS_LABEL: Record<ProgressItem["status"], string> = {
 // 화면에서는 처음 준비하는 사람도 이해할 수 있는 말을 먼저 쓰되, 검색에서는
 // 업체·가족과 실제로 주고받는 익숙한 용어도 놓치지 않는다.
 const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
+  foundation: ["결혼 결정", "공동 목표", "역할 분담", "가족 경계"],
+  contracts: ["총예산", "계약서", "취소", "환불", "추가금", "소비자 보호"],
   meeting: ["상견례", "양가 부모님 만남"],
   venue: ["웨딩홀", "예식장"],
   studio: ["스튜디오", "웨딩촬영", "스드메"],
@@ -58,7 +61,28 @@ const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
   mc: ["사회자", "주례", "축가"],
   ham: ["함"],
   pyebaek: ["폐백"],
+  guests: ["RSVP", "참석 여부", "교통", "숙박", "알레르기", "휠체어"],
+  ceremony: ["식순", "큐시트", "리허설", "본식 당일", "축의금", "비상"],
+  home_admin: ["전입신고", "확정일자", "임대차", "등기", "이사"],
+  health_admin: ["혼인신고", "증인", "예방접종", "여행 건강", "서류"],
+  aftercare: ["감사 인사", "정산", "반납", "사진 납품", "백업"],
+  special_cases: ["국제결혼", "종교", "무예식", "재혼", "다문화", "접근성"],
 };
+
+const JOURNEY_STAGES: ReadonlyArray<{
+  key: WeddingJourneyStage;
+  label: string;
+  description: string;
+}> = [
+  { key: "foundation", label: "1. 함께 기준 세우기", description: "두 사람의 결정과 가족 대화의 범위를 먼저 맞춰요." },
+  { key: "contracts", label: "2. 예산·계약 보호", description: "총액, 추가금, 변경·환불, 증빙을 계약 전후로 확인해요." },
+  { key: "home", label: "3. 신혼집·생활", description: "집과 물품뿐 아니라 권리 보호와 이사 행정까지 챙겨요." },
+  { key: "vendors", label: "4. 주요 업체·상품", description: "예약부터 수령·반납·납품 조건까지 확인해요." },
+  { key: "guests", label: "5. 초대·하객 운영", description: "참석 답변, 식이·접근성, 이동과 숙박을 함께 살펴요." },
+  { key: "ceremony", label: "6. 식순·본식 당일", description: "큐시트, 담당자, 비상 대응과 귀중품 인계를 준비해요." },
+  { key: "aftercare", label: "7. 결혼식 뒤 마감", description: "정산·감사·반납·사진과 행정 업무를 끝까지 닫아요." },
+  { key: "optional", label: "8. 우리에게 필요한 선택", description: "전통·종교·국제·무예식처럼 해당되는 준비만 골라요." },
+] as const;
 
 function matchesFilter(status: ProgressItem["status"], filter: Filter) {
   if (filter === "all") return true;
@@ -97,6 +121,11 @@ export default function ChecklistContent() {
     );
   }, [filter, progress, query]);
 
+  const stageGroups = useMemo(() => JOURNEY_STAGES.map((stage) => ({
+    ...stage,
+    categories: categories.filter(({ template }) => template.journeyStage === stage.key),
+  })).filter((stage) => stage.categories.length > 0), [categories]);
+
   const remaining = Math.max(0, summary.total - summary.done);
 
   return (
@@ -109,7 +138,7 @@ export default function ChecklistContent() {
               웨딩 체크리스트
             </h1>
             <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[#5d6879] sm:text-[15px]">
-              상견례부터 신혼집까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
+              결혼을 함께 결정하는 순간부터 결혼식 뒤 정착까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 담았어요. 지금 필요한 단계부터 하나씩 확인하세요.
             </p>
           </div>
           <div className="min-w-[240px] rounded-[18px] border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">
@@ -131,6 +160,11 @@ export default function ChecklistContent() {
               {summary.done}개 완료 · {remaining}개 남음
               {summary.skippedCategories > 0 ? ` · ${summary.skippedCategories}개 분야 제외` : ""}
             </p>
+            {summary.availableNewCategories > 0 && (
+              <p className="mt-1.5 text-[11px] leading-4 text-[#8f6331]">
+                새로 추가된 {summary.availableNewCategories}개 분야는 시작하면 진행률에 반영돼요.
+              </p>
+            )}
           </div>
         </div>
       </header>
@@ -172,9 +206,16 @@ export default function ChecklistContent() {
           <span className="text-[13px] text-[#7a8290]">{categories.length}개 분야</span>
         </div>
 
-        {categories.length > 0 ? (
-          <ul className="mt-3 grid gap-3 md:grid-cols-2">
-            {categories.map(({ template, status, counts, guide }) => {
+        {stageGroups.length > 0 ? (
+          <div className="mt-4 space-y-9">
+            {stageGroups.map((stage) => (
+              <section key={stage.key} aria-labelledby={`checklist-stage-${stage.key}`}>
+                <h3 id={`checklist-stage-${stage.key}`} className="text-[16px] font-semibold text-[#243832]">
+                  {stage.label}
+                </h3>
+                <p className="mt-1 text-[12.5px] leading-5 text-[#6b746f]">{stage.description}</p>
+                <ul className="mt-3 grid gap-3 md:grid-cols-2">
+                  {stage.categories.map(({ template, status, counts, guide }) => {
               const percent = status === "not_applicable" || counts.total === 0
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
@@ -201,7 +242,11 @@ export default function ChecklistContent() {
                           <ChevronRight className="h-4 w-4 shrink-0 text-[#a59d91]" />
                         </span>
                         <span className="mt-1 block text-[13px] leading-5 text-[#5d6879]">
-                          {status === "not_applicable" ? "진행률과 알림에서 제외됨" : `${counts.done}/${counts.total}개 완료 · ${STATUS_LABEL[status]}`}
+                          {status === "not_applicable"
+                            ? "진행률과 알림에서 제외됨"
+                            : template.introducedInVersion === 2 && !Object.prototype.hasOwnProperty.call(progress, template.key)
+                              ? `새로 추가됨 · ${counts.total}개 · 시작하면 진행률 반영`
+                              : `${counts.done}/${counts.total}개 완료 · ${STATUS_LABEL[status]}`}
                         </span>
                       </span>
                     </div>
@@ -221,8 +266,11 @@ export default function ChecklistContent() {
                   )}
                 </li>
               );
-            })}
-          </ul>
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         ) : (
           <div className="mt-3 rounded-[18px] border border-dashed border-[#dcd4c3] bg-[#fffdf7] px-5 py-12 text-center">
             <p className="text-[14px] font-medium text-[#5d6879]">검색 조건에 맞는 준비 항목이 없어요.</p>

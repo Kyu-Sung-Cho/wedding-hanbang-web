@@ -13,6 +13,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -52,6 +53,9 @@ const BUDGET_ITEM_FIELDS = new Set([
 ]);
 const KNOWN_BUDGET_CATEGORY_KEYS = new Set(
   Object.keys(PLANNING_CATEGORY_LABELS),
+);
+const KNOWN_CHECKLIST_CATEGORY_KEYS = new Set(
+  Object.keys(CHECKLIST_CATEGORY_LABELS),
 );
 const VALID_CHECKLIST_STATUSES = new Set([
   "not_started",
@@ -171,6 +175,13 @@ function hasValidBudgetFields(progress: Record<string, unknown>) {
       return !KNOWN_BUDGET_CATEGORY_KEYS.has(key)
         && !BUDGET_ITEM_FIELDS.has(key);
     }
+    // 전체 여정 체크리스트 전용 분야는 예산 정본이 아니다. 여기에 금액이 들어오면
+    // 합계 소비자마다 포함 여부가 갈리므로 저장 경계에서 차단한다.
+    if (
+      KNOWN_CHECKLIST_CATEGORY_KEYS.has(key)
+      && !KNOWN_BUDGET_CATEGORY_KEYS.has(key)
+      && [...BUDGET_PROGRESS_FIELDS].some((field) => hasOwn(item, field))
+    ) return false;
     return (!hasOwn(item, "budget") || isValidWeddingWonAmount(item.budget))
       && (!hasOwn(item, "spent") || isValidWeddingWonAmount(item.spent))
       && (!hasOwn(item, "payer") || (
@@ -189,7 +200,7 @@ function hasValidBudgetFields(progress: Record<string, unknown>) {
 
 function hasValidChecklistFields(progress: Record<string, unknown>) {
   return Object.entries(progress).every(([key, item]) => {
-    if (!KNOWN_BUDGET_CATEGORY_KEYS.has(key)) return true;
+    if (!KNOWN_CHECKLIST_CATEGORY_KEYS.has(key)) return true;
     if (!isRecord(item)) return false;
     if (hasOwn(item, "category") && item.category !== key) return false;
     if (hasOwn(item, "status") && (

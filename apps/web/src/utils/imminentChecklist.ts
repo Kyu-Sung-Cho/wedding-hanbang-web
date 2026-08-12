@@ -32,9 +32,21 @@ export function getImminentCategories(
   // 하루가 더 붙어, 같은 화면의 다른 위젯(lifecycle.ts)과 하루씩 어긋났다.
   const todayMidnight = new Date(now);
   todayMidnight.setHours(0, 0, 0, 0);
+  const weddingMidnight = new Date(weddingDate);
+  weddingMidnight.setHours(0, 0, 0, 0);
+  const relativeStage = todayMidnight > weddingMidnight
+    ? "after"
+    : todayMidnight.getTime() === weddingMidnight.getTime()
+      ? "day"
+      : "before";
   const result: ImminentCategory[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
+    const hasSavedCategory = Object.prototype.hasOwnProperty.call(progress, cat.key);
+    if (cat.introducedInVersion === 2 && !hasSavedCategory) continue;
+    if (relativeStage === "before" && cat.journeyStage === "aftercare") continue;
+    if (relativeStage === "day" && cat.journeyStage !== "ceremony") continue;
+    if (relativeStage === "after" && cat.ddayDeadline >= 0) continue;
     const item = progress[cat.key];
     const status: ProgressItem["status"] = item?.status ?? "not_started";
     // 완료했거나 "해당 없음"으로 끈 항목은 마감 알림에서 제외한다.
@@ -99,9 +111,19 @@ export function getCompletedImminentCategories(
   // 하루가 더 붙어, 같은 화면의 다른 위젯(lifecycle.ts)과 하루씩 어긋났다.
   const todayMidnight = new Date(now);
   todayMidnight.setHours(0, 0, 0, 0);
+  const weddingMidnight = new Date(weddingDate);
+  weddingMidnight.setHours(0, 0, 0, 0);
+  const relativeStage = todayMidnight > weddingMidnight
+    ? "after"
+    : todayMidnight.getTime() === weddingMidnight.getTime()
+      ? "day"
+      : "before";
   const result: ImminentCategory[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
+    if (relativeStage === "before" && cat.journeyStage === "aftercare") continue;
+    if (relativeStage === "day" && cat.journeyStage !== "ceremony") continue;
+    if (relativeStage === "after" && cat.ddayDeadline >= 0) continue;
     const item = progress[cat.key];
     const status: ProgressItem["status"] = item?.status ?? "not_started";
     if (status !== "completed") continue;

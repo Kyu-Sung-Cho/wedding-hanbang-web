@@ -189,6 +189,32 @@ describe("Amora atomic mutation coverage", () => {
     });
   });
 
+  it("accepts new full-journey categories for status, checklist, and action mutations", () => {
+    const ctx = context();
+    const status = buildAmoraAtomicToolOperation(
+      "update_task_status",
+      { category: "aftercare", status: "in_progress" },
+      ctx,
+    );
+    const checklist = buildAmoraAtomicToolOperation(
+      "toggle_checklist_item",
+      { category: "aftercare", item_id: "aftercare_01", done: true },
+      ctx,
+    );
+    const action = buildAmoraAtomicToolOperation(
+      "add_amora_action",
+      { title: "감사 인사 보내기", category_key: "aftercare" },
+      ctx,
+    );
+
+    for (const operation of [status, checklist, action]) expectAtomicSuccess(operation);
+    expect(status.result.displayMessage).toContain("결혼식 뒤 정산·감사·기록");
+    expect(checklist.result.displayMessage).toContain("결혼식 뒤 정산·감사·기록");
+    expect(action.result.toolOutput).toMatchObject({
+      action: expect.objectContaining({ categoryKey: "aftercare" }),
+    });
+  });
+
   it("logs a supported wedding event through the schedule CAS", () => {
     const ctx = context();
     const operation = buildAmoraAtomicToolOperation(

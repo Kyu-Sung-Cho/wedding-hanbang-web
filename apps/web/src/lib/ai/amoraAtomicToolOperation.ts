@@ -16,6 +16,7 @@ import {
 } from "@/utils/scheduleEvents";
 import {
   CATEGORY_LABELS,
+  CHECKLIST_LABELS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import type { ScheduleEvent } from "@/types/database.types";
@@ -313,7 +314,7 @@ function buildTaskStatusOperation(
   const status = toolInput.status;
   if (
     typeof category !== "string"
-    || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, category)
+    || !Object.prototype.hasOwnProperty.call(CHECKLIST_LABELS, category)
     || typeof status !== "string"
     || !Object.prototype.hasOwnProperty.call(STATUS_LABELS, status)
   ) {
@@ -367,7 +368,7 @@ function buildTaskStatusOperation(
         category,
         status,
       },
-      `${CATEGORY_LABELS[category]} 상태를 "${STATUS_LABELS[status]}"로 변경했어요.`,
+      `${CHECKLIST_LABELS[category]} 상태를 "${STATUS_LABELS[status]}"로 변경했어요.`,
     ),
   };
 }
@@ -812,7 +813,7 @@ function buildChecklistOperation(
         new_status: newStatus,
         item_label: target.label,
       },
-      `${CATEGORY_LABELS[category]}의 "${target.label}" 항목을 ${done ? "완료" : "미완료"}로 변경했어요.`,
+      `${CHECKLIST_LABELS[category]}의 "${target.label}" 항목을 ${done ? "완료" : "미완료"}로 변경했어요.`,
     ),
   };
 }
@@ -996,7 +997,7 @@ function buildAddActionOperation(
   const categoryKey = toolInput.category_key === undefined || toolInput.category_key === "general"
     ? null
     : typeof toolInput.category_key === "string"
-        && Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, toolInput.category_key)
+        && Object.prototype.hasOwnProperty.call(CHECKLIST_LABELS, toolInput.category_key)
       ? toolInput.category_key
       : undefined;
   if (categoryKey === undefined) {
@@ -1438,7 +1439,10 @@ export function buildAmoraAtomicToolOperation(
       || (time !== undefined && typeof time !== "string")
       || typeof title !== "string"
       || (memo !== undefined && typeof memo !== "string")
-      || (categoryKey !== undefined && typeof categoryKey !== "string")
+      || (categoryKey !== undefined && (
+        typeof categoryKey !== "string"
+        || (categoryKey !== "general" && !Object.prototype.hasOwnProperty.call(CHECKLIST_LABELS, categoryKey))
+      ))
     ) {
       return noOpFailure(
         toolName,

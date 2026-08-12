@@ -50,6 +50,8 @@ describe("ChecklistContent category deep links", () => {
     );
     expect(categoryLink?.getAttribute("href")).toBe("/wedding/checklist/meeting");
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.textContent).toContain("새로 추가된 8개 분야는 시작하면 진행률에 반영돼요.");
+    expect(container.textContent).toContain("새로 추가됨 · 10개 · 시작하면 진행률 반영");
   });
 
   it("finds plain-language categories by familiar wedding terms", async () => {

@@ -7,7 +7,7 @@ import type {
   ScheduleEventAssignee,
   ScheduleEventStatus,
 } from "@/types/database.types";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import {
   getScheduleEventStatus,
   isValidScheduleProfileId,
@@ -21,8 +21,7 @@ import {
 const CATEGORY_OPTIONS = [
   { key: "", label: "카테고리 선택 (선택사항)" },
   { key: "general", label: "일반 (모임, 상담 등)" },
-  ...Object.entries(PLANNING_CATEGORY_LABELS)
-    .filter(([key]) => key !== "reserve")
+  ...Object.entries(CHECKLIST_CATEGORY_LABELS)
     .map(([key, label]) => ({ key, label })),
 ];
 

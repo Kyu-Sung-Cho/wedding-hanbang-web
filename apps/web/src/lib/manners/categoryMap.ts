@@ -7,11 +7,12 @@ export type MannersPartLink = {
 /**
  * 웨딩 준비 카테고리 → 예절 안내 파트.
  *
- * 2026-07-17 `84b54e9f`가 지운 과거 매핑의 자리를 대신한다. 2026-08-12 가족 영역
- * 6파트를 검증해 추가하면서 19개 준비 분야 중 18개를 직접 연결한다. 신혼여행은
- * 여행 뒤 가족 인사 가이드를 별도로 검증할 때까지 억지로 다른 글에 연결하지 않는다.
+ * 각 체크리스트 카드가 가장 가까운 검증 완료 파트 하나를 바로 열 수 있게 한다.
+ * 한 분야와 연결된 나머지 파트는 상세 체크리스트의 `relatedMannersSlugs`에서 제공한다.
  */
 const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
+  foundation: "planning-timeline",
+  contracts: "cost-saving",
   meeting: "family-meeting",
   venue: "wedding-day",
   studio: "photo-manners",
@@ -20,7 +21,8 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   ring: "gifts-and-traditions",
   hanbok: "traditional-greetings",
   yedan: "gifts-and-traditions",
-  houseware: "money-home-conversation",
+  honeymoon: "post-honeymoon-thanks",
+  houseware: "shared-home-items",
   housing: "money-home-conversation",
   invitation: "invitation-sending",
   snap: "photo-manners",
@@ -30,11 +32,27 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   mc: "congratulatory-speech",
   ham: "gifts-and-traditions",
   pyebaek: "traditional-greetings",
+  guests: "guest-manners",
+  ceremony: "wedding-day",
+  home_admin: "money-home-conversation",
+  health_admin: "marriage-registration",
+  aftercare: "post-honeymoon-thanks",
+  special_cases: "religious-weddings",
 };
 
 // 이 모듈은 체크리스트·라운지 클라이언트에서도 쓴다. 300KB가 넘는 본문 data.ts를
 // import하지 않고 링크에 필요한 최소 정보만 둔다. 아래 테스트가 서버 정본과의 drift를 막는다.
 const MANNERS_LINK_BY_SLUG: Readonly<Record<string, MannersPartLink>> = {
+  "planning-timeline": {
+    slug: "planning-timeline",
+    title: "전체 준비 타임라인",
+    subtitle: "고정 날짜표보다 의존 관계와 마감부터",
+  },
+  "cost-saving": {
+    slug: "cost-saving",
+    title: "결혼 비용 절약 가이드",
+    subtitle: "깎기 전에, 새는 곳부터 막기",
+  },
   "family-meeting": {
     slug: "family-meeting",
     title: "상견례 준비와 대화",
@@ -60,6 +78,16 @@ const MANNERS_LINK_BY_SLUG: Readonly<Record<string, MannersPartLink>> = {
     title: "폐백과 전통 인사",
     subtitle: "누구나 편하게 참여할 수 있도록 순서를 고르는 법",
   },
+  "post-honeymoon-thanks": {
+    slug: "post-honeymoon-thanks",
+    title: "신혼여행 뒤 인사",
+    subtitle: "순서보다 고마운 마음을 분명하게",
+  },
+  "shared-home-items": {
+    slug: "shared-home-items",
+    title: "혼수와 공동생활 물품",
+    subtitle: "성별이 아니라 생활과 공간으로 고르기",
+  },
   "money-home-conversation": {
     slug: "money-home-conversation",
     title: "가족 지원·예산·신혼집 이야기",
@@ -79,6 +107,21 @@ const MANNERS_LINK_BY_SLUG: Readonly<Record<string, MannersPartLink>> = {
     slug: "congratulatory-speech",
     title: "축사·축가 예절",
     subtitle: "결혼식을 빛내는 한마디",
+  },
+  "guest-manners": {
+    slug: "guest-manners",
+    title: "하객 매너",
+    subtitle: "축하하는 마음이 잘 전해지도록",
+  },
+  "marriage-registration": {
+    slug: "marriage-registration",
+    title: "혼인신고와 법적 절차",
+    subtitle: "법적으로 부부가 되는 과정",
+  },
+  "religious-weddings": {
+    slug: "religious-weddings",
+    title: "종교 예식 준비",
+    subtitle: "종교 이름보다 실제 기관의 절차를 확인하기",
   },
 };
 

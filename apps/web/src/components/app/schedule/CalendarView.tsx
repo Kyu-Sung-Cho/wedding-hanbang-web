@@ -16,7 +16,7 @@ import {
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { ScheduleEvent } from "@/types/database.types";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import {
   getScheduleEventAssigneeLabel,
   getScheduleEventStatus,
@@ -27,7 +27,7 @@ import {
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  ...PLANNING_CATEGORY_LABELS,
+  ...CHECKLIST_CATEGORY_LABELS,
   etiquette: "결혼 예절 참고",
 };
 

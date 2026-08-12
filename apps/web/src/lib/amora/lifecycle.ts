@@ -292,6 +292,11 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
 
   if (weddingDate && dday !== null && dday > 0) {
     const deadlineItems = CATEGORY_CHECKLISTS
+      .filter((cat) => (
+        cat.introducedInVersion === 1
+        || Object.prototype.hasOwnProperty.call(progress, cat.key)
+      ))
+      .filter((cat) => cat.journeyStage !== "aftercare")
       .map((cat) => {
         const item = getCategoryCompletion(progress, cat.key);
         return {

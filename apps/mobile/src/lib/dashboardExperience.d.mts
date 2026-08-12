@@ -74,9 +74,24 @@ export function calculateChecklistProgress(
   progress: Record<string, unknown>,
   categories: readonly {
     key: string;
+    introducedInVersion?: number;
     items: readonly { id: string }[];
   }[],
 ): number;
+
+export function isChecklistCategoryActivated(
+  category: { key: string; introducedInVersion?: number },
+  savedCategoryKeys: ReadonlySet<string>,
+): boolean;
+
+export function shouldSurfaceChecklistCategory(
+  category: {
+    journeyStage?: string;
+    ddayStart: number;
+    ddayDeadline: number;
+  },
+  dday: number | null,
+): boolean;
 
 export function buildDashboardFocus(input: {
   weddingDate: string | null;

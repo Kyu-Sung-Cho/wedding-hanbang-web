@@ -124,6 +124,11 @@ describe("selectAmoraTools", () => {
     ["내년 5월 5일에 결혼해", "update_wedding_date"],
     ["토요일에 상견례야", "add_schedule_event"],
     ["예식장 계약했어", "update_task_status"],
+    ["혼인신고 완료했어", "update_task_status"],
+    ["하객 안내 진행 중이야", "update_task_status"],
+    ["식 후 정산 완료했어", "update_task_status"],
+    ["함께 정할 것 완료했어", "update_task_status"],
+    ["우리 상황에 맞춘 선택 준비 완료했어", "update_task_status"],
   ])("treats a concrete first-person declaration as an executable %s intent", (text, toolName) => {
     expect(names(text)).toContain(toolName);
   });
@@ -133,6 +138,12 @@ describe("selectAmoraTools", () => {
     "예산을 3천만 원으로 하면 어떨까?",
     "토요일에 상견례를 하면 좋을까?",
     "내년 5월 5일 결혼식은 어때?",
+    "친구는 혼인신고 완료했어",
+    "친구 혼인신고 완료했대",
+    "우리 언니 혼인신고 완료했대",
+    "혼인신고 완료했다고 한 적 없어",
+    "혼인신고 완료했는지 확인해줘",
+    "혼인신고 완료했어? 아니야",
   ])("does not turn third-party or hypothetical language into a mutation: %s", (text) => {
     const selected = names(text);
     expect(selected).not.toContain("update_budget");

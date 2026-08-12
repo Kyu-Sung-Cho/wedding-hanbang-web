@@ -126,6 +126,66 @@ describe("summarizePlanningChecklist", () => {
     });
     expect(result).toMatchObject({ done: 0, total: 0, percent: 0, skippedCategories: 2 });
   });
+
+  it("keeps completed legacy progress stable until a v2 category is started", () => {
+    const versionedTemplates = [
+      { key: "legacy", introducedInVersion: 1 as const, items: makeItems(["a", "b"], [false, false]) },
+      { key: "new", introducedInVersion: 2 as const, items: makeItems(["c", "d"], [false, false]) },
+    ];
+
+    expect(
+      summarizePlanningChecklist(versionedTemplates, {
+        legacy: { status: "completed", checklist: makeItems(["a", "b"], [true, true]) },
+      }),
+    ).toMatchObject({
+      done: 2,
+      total: 2,
+      percent: 100,
+      availableNewCategories: 1,
+      applicableCategories: 1,
+    });
+  });
+
+  it("adds only the v2 category whose progress key has been created", () => {
+    const versionedTemplates = [
+      { key: "legacy", introducedInVersion: 1 as const, items: makeItems(["a", "b"], [false, false]) },
+      { key: "new", introducedInVersion: 2 as const, items: makeItems(["c", "d"], [false, false]) },
+      { key: "later", introducedInVersion: 2 as const, items: makeItems(["e"], [false]) },
+    ];
+
+    expect(
+      summarizePlanningChecklist(versionedTemplates, {
+        legacy: { status: "completed", checklist: makeItems(["a", "b"], [true, true]) },
+        new: { status: "in_progress", checklist: makeItems(["c", "d"], [true, false]) },
+      }),
+    ).toMatchObject({
+      done: 3,
+      total: 4,
+      percent: 75,
+      availableNewCategories: 1,
+      applicableCategories: 2,
+    });
+  });
+
+  it("treats an explicitly skipped v2 category as handled without adding its items", () => {
+    const versionedTemplates = [
+      { key: "legacy", introducedInVersion: 1 as const, items: makeItems(["a"], [false]) },
+      { key: "new", introducedInVersion: 2 as const, items: makeItems(["b", "c"], [false, false]) },
+    ];
+
+    expect(
+      summarizePlanningChecklist(versionedTemplates, {
+        legacy: { status: "completed", checklist: makeItems(["a"], [true]) },
+        new: { status: "not_applicable" },
+      }),
+    ).toMatchObject({
+      done: 1,
+      total: 1,
+      percent: 100,
+      skippedCategories: 1,
+      availableNewCategories: 0,
+    });
+  });
 });
 
 describe("calculateStatus", () => {

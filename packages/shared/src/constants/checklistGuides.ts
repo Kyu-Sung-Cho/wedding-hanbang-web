@@ -1,6 +1,6 @@
-import type { PlanningCategoryKey } from "./weddingPlanning";
+import type { WeddingChecklistCategoryKey } from "./weddingPlanning";
 
-export type WeddingChecklistCategoryKey = Exclude<PlanningCategoryKey, "reserve">;
+export type { WeddingChecklistCategoryKey } from "./weddingPlanning";
 
 export type ChecklistConversationAudience =
   | "partner"
@@ -16,6 +16,15 @@ export interface ChecklistConversationGuide {
   note: string;
 }
 
+export interface ChecklistGuideSource {
+  label: string;
+  url: `https://${string}`;
+  /** 이 출처가 해당 가이드에서 뒷받침하는 범위. */
+  scope: string;
+  /** 사람이 원문을 마지막으로 확인한 날짜. */
+  checkedAt: `${number}-${number}-${number}`;
+}
+
 export interface ChecklistCategoryGuide {
   categoryKey: WeddingChecklistCategoryKey;
   introduction: string;
@@ -25,6 +34,8 @@ export interface ChecklistCategoryGuide {
   cautions: string[];
   conversations: ChecklistConversationGuide[];
   relatedMannersSlugs: string[];
+  /** 법·행정·보건처럼 바뀔 수 있는 안내의 공식 원문. */
+  sources?: ChecklistGuideSource[];
 }
 
 /**
@@ -36,6 +47,98 @@ export interface ChecklistCategoryGuide {
  * 직접 확인하도록 안내한다.
  */
 export const CHECKLIST_CATEGORY_GUIDES = {
+  foundation: {
+    categoryKey: "foundation",
+    introduction:
+      "결혼 준비의 첫 단계는 남들이 정한 순서를 따르는 일이 아니라 두 사람이 원하는 예식과 생활을 같은 언어로 확인하는 일이에요. 가족과 업체를 만나기 전에 결정권과 경계를 먼저 세워두세요.",
+    completion:
+      "예식·법률혼·일정·초대·돈·생활의 기본 방향과, 누가 결정하고 언제 다시 검토할지를 두 사람이 확인하면 끝나요.",
+    alignFirst: [
+      "예식과 혼인신고를 서로 별개의 결정으로 보고 원하는 여부와 시점 정하기",
+      "각자 꼭 지킬 것·양보할 수 있는 것·아직 모르는 것을 구분하기",
+      "가족의 의견을 들을 범위와 두 사람만 결정할 범위 정하기",
+    ],
+    tips: [
+      "한 번에 결론 내기 어려운 주제는 결정 날짜 대신 다음 확인 날짜를 적기",
+      "담당을 나눌 때 실행 담당과 최종 확인 담당을 따로 정하기",
+      "돈·건강·가족 정보는 상세 내용을 체크리스트에 쓰지 말고 확인 여부만 남기기",
+    ],
+    cautions: [
+      "예식을 원하지 않는 선택이나 법률혼을 미루는 선택을 준비 부족으로 취급하지 않기",
+      "가족의 지원을 두 사람의 결정권과 자동으로 맞바꾸지 않기",
+      "갈등 중에는 계약이나 가족 통보를 밀어붙이지 않고 다시 말할 시간을 정하기",
+    ],
+    conversations: [
+      {
+        audience: "partner",
+        label: "배우자에게",
+        title: "서로의 필수 기준을 확인할 때",
+        say: "남들이 하는 순서보다 우리에게 꼭 필요한 것부터 알고 싶어. 각자 꼭 지키고 싶은 것과 없어도 괜찮은 것을 먼저 적어볼까?",
+        note: "정답을 정하기 전에 우선순위 차이를 안전하게 꺼내는 말이에요.",
+      },
+      {
+        audience: "parents",
+        label: "부모님께",
+        title: "결정 범위를 설명할 때",
+        say: "의견을 듣고 싶은 부분과 저희가 먼저 합의해야 하는 부분을 나눠서 말씀드릴게요. 정리되지 않은 내용은 오늘 바로 결정하지 않겠습니다.",
+        note: "가족을 배제하지 않으면서 즉석 결정을 막는 경계예요.",
+      },
+    ],
+    relatedMannersSlugs: ["planning-conflicts", "small-wedding"],
+  },
+  contracts: {
+    categoryKey: "contracts",
+    introduction:
+      "계약 보호는 가장 싼 업체를 찾는 일이 아니라 최종 금액과 받을 서비스, 변경·취소 때의 책임을 서명 전에 같은 문서로 맞추는 일이에요. 광고·구두 설명과 계약서가 다르면 계약서를 기준으로 다시 질문하세요.",
+    completion:
+      "모든 계약의 당사자·항목별 총액·포함과 제외·결제·변경·환불·납품·개인정보 조건과 증빙 보관을 확인하면 끝나요.",
+    alignFirst: [
+      "총예산과 계약별 승인 권한, 한 사람이 단독으로 결정할 수 있는 범위 정하기",
+      "가격 외에 취소 가능성·담당자 신뢰·납품 안정성 중 중요한 기준 정하기",
+      "계약서와 영수증을 두 사람이 함께 볼 보관 장소와 이름 규칙 정하기",
+    ],
+    tips: [
+      "기본 상품과 선택 상품을 나눈 항목별 견적을 받고 최종 총액을 다시 계산하기",
+      "계약 당일 서두르지 말고 설명과 문서가 같은지 두 사람이 각각 읽기",
+      "변경 합의는 통화로 끝내지 말고 날짜·담당자·금액이 보이는 기록으로 남기기",
+    ],
+    cautions: [
+      "표준약관이나 분쟁 기준이 실제 계약 내용을 자동으로 대신한다고 단정하지 않기",
+      "할인 종료나 예약 경쟁을 이유로 빈 계약서 또는 확인하지 않은 선택 항목에 서명하지 않기",
+      "촬영 동의와 업체의 홍보 게시 동의를 하나의 동의로 묶어 넘기지 않기",
+    ],
+    conversations: [
+      {
+        audience: "vendor",
+        label: "업체에",
+        title: "최종 총액을 확인할 때",
+        say: "기본 상품과 선택 상품, 세금과 현장 추가 가능 비용까지 항목별로 적어주세요. 지금 선택한 조건의 최종 총액도 계약서에서 확인하고 싶습니다.",
+        note: "광고 가격이 아니라 실제로 지불할 범위를 문서화해요.",
+      },
+      {
+        audience: "vendor",
+        label: "업체에",
+        title: "변경과 취소 조건을 물을 때",
+        say: "날짜나 인원이 바뀌거나 진행이 어려워질 때 선택 가능한 변경과 환불 조건을 계약서 조항별로 설명해 주세요. 합의한 내용은 사본으로 받겠습니다.",
+        note: "불편한 상황일수록 서명 전에 구체적으로 물어요.",
+      },
+    ],
+    relatedMannersSlugs: ["cost-saving"],
+    sources: [
+      {
+        label: "찾기쉬운 생활법령정보 — 결혼준비자",
+        url: "https://www.easylaw.go.kr/CSP/SysChartRetrievePLst.laf?csmSeq=1894",
+        scope: "결혼준비대행·예식장·신혼여행·혼수 계약을 확인해야 하는 전체 범위",
+        checkedAt: "2026-08-12",
+      },
+      {
+        label: "찾기쉬운 생활법령정보 — 예식장 이용 계약",
+        url: "https://www.easylaw.go.kr/CSP/CnpClsMain.laf?ccfNo=2&cciNo=3&cnpClsNo=2&csmSeq=1894&menuType=cnpcls&popMenu=ov",
+        scope: "예식장 계약서의 항목별 비용·당사자 정보·변경과 계약 해제 확인",
+        checkedAt: "2026-08-12",
+      },
+    ],
+  },
   meeting: {
     categoryKey: "meeting",
     introduction:
@@ -777,8 +880,286 @@ export const CHECKLIST_CATEGORY_GUIDES = {
     ],
     relatedMannersSlugs: ["traditional-greetings", "wedding-day"],
   },
+  guests: {
+    categoryKey: "guests",
+    introduction:
+      "하객 준비는 명단 작성에서 끝나지 않아요. 참석 여부를 편하게 답할 방법, 식사와 이동 지원, 개인정보를 필요한 사람에게만 전달하는 흐름까지 설계해야 모두가 덜 불안합니다.",
+    completion:
+      "초대 기준·참석 답변·좌석·식사·접근 가능한 이동·숙박 안내·현장 담당과 연락처 정리를 확인하면 끝나요.",
+    alignFirst: [
+      "초대 범위와 동반인·어린이 참석 기준을 양쪽에 같은 원칙으로 적용하기",
+      "참석 답변과 건강·접근성 요청을 누가 받고 어디까지 공유할지 정하기",
+      "멀리 오거나 이동 지원이 필요한 사람에게 제공할 정보와 지원 범위 정하기",
+    ],
+    tips: [
+      "답변 마감일보다 먼저 장소에 전달할 최종 인원 변경 기한 확인하기",
+      "대중교통·주차·셔틀·휠체어 이동 경로를 실제 이용자의 관점에서 확인하기",
+      "연락처와 지원 요청은 행사가 끝난 뒤 불필요한 사본을 정리하기",
+    ],
+    cautions: [
+      "참석하지 못한다는 답을 관계에 대한 평가나 축하금 요청으로 바꾸지 않기",
+      "알레르기·장애·임신 같은 상세 사유를 좌석표나 단체방에 공개하지 않기",
+      "고령자나 장애인의 필요를 당사자에게 묻지 않고 가족이 대신 결정하지 않기",
+    ],
+    conversations: [
+      {
+        audience: "helper",
+        label: "하객에게",
+        title: "필요한 지원을 물을 때",
+        say: "참석하실 때 식사나 이동에서 미리 준비하면 좋은 점이 있으면 편하게 알려주세요. 필요한 담당자에게만 전달하고 다른 분께 공개하지 않을게요.",
+        note: "상세 사유를 요구하지 않고 필요한 지원만 확인해요.",
+      },
+      {
+        audience: "parents",
+        label: "부모님께",
+        title: "최종 명단을 맞출 때",
+        say: "장소에 전달할 최종 인원 기한이 정해졌어요. 중복 명단과 아직 답이 없는 분을 함께 확인하고, 참석을 재촉하지 않는 방식으로 한 번만 여쭤볼게요.",
+        note: "인원 확인과 참석 압박을 구분하는 표현이에요.",
+      },
+    ],
+    relatedMannersSlugs: ["guest-manners", "invitation-sending"],
+  },
+  ceremony: {
+    categoryKey: "ceremony",
+    introduction:
+      "결혼식 날은 두 사람이 모든 질문에 답하는 날이 아니라 미리 합의한 흐름을 담당자들이 실행하는 날이어야 해요. 하나의 진행표와 명확한 현장 책임자가 가장 큰 안전장치입니다.",
+    completion:
+      "식순·파일·연락망·현장 책임자·반입과 철수·리허설·비상 대체안·귀중품 인계를 한 표로 공유하면 끝나요.",
+    alignFirst: [
+      "꼭 남길 순서와 생략 가능한 순서를 구분하고 참여자의 동의를 확인하기",
+      "두 사람 대신 업체와 가족의 질문을 받을 현장 책임자 정하기",
+      "축의금·귀중품·대여품을 누가 언제 누구에게 인계할지 정하기",
+    ],
+    tips: [
+      "모든 업체가 같은 버전의 진행표와 연락망을 받았는지 확인하기",
+      "음악과 영상은 행사 장비에서 열어보고 다른 저장 장치에도 보관하기",
+      "리허설은 전체 공연보다 입장 신호·동선·마이크·가족 이동을 중심으로 하기",
+    ],
+    cautions: [
+      "현장 변경을 두 사람에게 직접 묻도록 두어 준비 시간을 빼앗지 않기",
+      "축의금 액수나 건강 상세를 공용 진행표·체크리스트에 기록하지 않기",
+      "날씨·교통·업체 지연 대안을 담당자 없이 막연히 준비됐다고 여기지 않기",
+    ],
+    conversations: [
+      {
+        audience: "helper",
+        label: "현장 책임자에게",
+        title: "판단 권한을 맡길 때",
+        say: "당일에는 이 진행표 안의 변경은 먼저 판단해 주세요. 비용이나 식순이 크게 바뀌는 일만 이 연락처로 확인하고, 저희에게는 직접 연락하지 않도록 안내해 주세요.",
+        note: "책임자의 권한과 다시 물어야 할 경계를 함께 정해요.",
+      },
+      {
+        audience: "vendor",
+        label: "장소와 업체에",
+        title: "비상 대체안을 맞출 때",
+        say: "도착 지연이나 장비 오류가 생기면 누가 어떤 순서로 연락하고 무엇으로 대체하는지 진행표에 적어주세요. 각 업체가 같은 내용을 보는지도 확인하고 싶습니다.",
+        note: "대안을 물건뿐 아니라 연락 순서까지 구체화해요.",
+      },
+    ],
+    relatedMannersSlugs: ["wedding-day", "congratulatory-speech"],
+  },
+  home_admin: {
+    categoryKey: "home_admin",
+    introduction:
+      "신혼집은 물건을 고르는 준비와 권리를 지키는 계약·행정 준비가 다릅니다. 계약 형태와 지역, 신고 시점에 따라 절차가 달라질 수 있으므로 송금 전후마다 공식 문서와 현재 안내를 다시 확인하세요.",
+    completion:
+      "명의·자금·권리 관계·계약 조건·잔금 전 재확인·해당 신고·입주 인계·주소 변경과 생활비 원칙을 확인하면 끝나요.",
+    alignFirst: [
+      "임차·매수와 계약 명의, 자금 부담, 예상 거주 기간을 한 표로 적기",
+      "가족 지원금의 반환 여부와 명의·의사결정에 붙는 조건 확인하기",
+      "감당 가능한 월 부담과 비상금, 큰 지출의 공동 승인 기준 정하기",
+    ],
+    tips: [
+      "권리 관계와 소유자·대리 권한은 말이 아니라 발급된 공식 문서로 확인하기",
+      "수리 약속과 입주 상태는 계약 문구·사진·인계 기록을 함께 남기기",
+      "신고·확정일자·보증 조건은 계약과 이사 시점의 정부·공공기관 안내로 다시 확인하기",
+    ],
+    cautions: [
+      "최대 대출 가능액을 지속해서 감당 가능한 예산과 같다고 보지 않기",
+      "잔금 직전 권리 변동을 다시 확인하지 않은 채 송금하지 않기",
+      "혼인 전 재산 약정이나 주택 권리를 체크리스트 문구만으로 법률 판단하지 않기",
+    ],
+    conversations: [
+      {
+        audience: "partner",
+        label: "배우자에게",
+        title: "명의와 부담을 맞출 때",
+        say: "계약 명의와 실제로 내는 돈, 매달 부담을 같은 표에 적어보자. 가족 지원이나 대출도 조건까지 확인해서 우리 둘이 같은 내용을 알고 서명했으면 해.",
+        note: "집 가격보다 권리와 지속 가능한 부담에서 시작해요.",
+      },
+      {
+        audience: "vendor",
+        label: "중개인에게",
+        title: "잔금 전 재확인을 요청할 때",
+        say: "계약 때 본 권리 관계가 잔금 전까지 바뀌지 않았는지 공식 문서로 다시 확인하고 싶습니다. 수리와 인계 약속도 계약서 문구와 함께 대조해 주세요.",
+        note: "처음 확인한 사실을 잔금 시점까지 고정된 것으로 보지 않아요.",
+      },
+    ],
+    relatedMannersSlugs: ["money-home-conversation"],
+    sources: [
+      {
+        label: "찾기쉬운 생활법령정보 — 결혼준비자",
+        url: "https://www.easylaw.go.kr/CSP/SysChartRetrievePLst.laf?csmSeq=1894",
+        scope: "신혼집 계약·주거 지원·부부재산약정의 공식 확인 경로",
+        checkedAt: "2026-08-12",
+      },
+      {
+        label: "정부24 — 전입신고",
+        url: "https://www.gov.kr/mw/AA020InfoCappView.do?CappBizCD=13100000016&HighCtgCD=A01010&tp_seq=01",
+        scope: "이사 뒤 전입신고의 현재 신청 방법과 준비사항 확인",
+        checkedAt: "2026-08-12",
+      },
+    ],
+  },
+  health_admin: {
+    categoryKey: "health_admin",
+    introduction:
+      "건강과 혼인신고는 예식 일정과 자동으로 묶이지 않아요. 건강 확인은 두 사람의 동의와 의료진 상담으로, 혼인신고는 선택한 시점의 법원·관할 기관 안내로 각각 확인하세요.",
+    completion:
+      "필요한 건강 상담의 완료 여부와 비상정보 공유 범위, 혼인신고 선택·현재 서류·특수 상황 절차·접수 상태를 확인하면 끝나요.",
+    alignFirst: [
+      "건강 정보를 어디까지 서로 공유하고 앱에는 무엇을 남기지 않을지 합의하기",
+      "임신 계획과 무관하게 각자 원하는 상담과 원하지 않는 검사를 존중하기",
+      "예식과 별개로 혼인신고 여부와 희망 시점, 서류 담당을 정하기",
+    ],
+    tips: [
+      "진단명·검사 결과 대신 필요한 행동을 확인했다는 상태만 체크리스트에 남기기",
+      "예방접종·복용약·여행 건강은 개인 상황을 의료진에게 설명하고 확인하기",
+      "혼인신고 서식과 추가 서류는 제출 직전에 대법원·관할 기관 원문으로 다시 확인하기",
+    ],
+    cautions: [
+      "건강검진이나 임신 준비를 결혼의 의무 또는 신뢰를 증명하는 절차로 만들지 않기",
+      "검사 결과를 상대방 동의 없이 가족·업체·앱의 공동 화면에 공개하지 않기",
+      "국제혼인·재외국민의 서류를 일반 혼인신고와 같다고 추정하지 않기",
+    ],
+    conversations: [
+      {
+        audience: "partner",
+        label: "배우자에게",
+        title: "건강 확인 범위를 정할 때",
+        say: "결혼 준비 때문에 검사를 의무처럼 만들고 싶지는 않아. 서로 안전하게 생활하는 데 필요한 상담과 비상정보를 어디까지 확인할지 각자 편한 범위부터 말해볼까?",
+        note: "동의와 실제 필요에서 건강 대화를 시작해요.",
+      },
+      {
+        audience: "partner",
+        label: "배우자에게",
+        title: "혼인신고 시점을 정할 때",
+        say: "예식 날짜와 별개로 혼인신고를 할지, 한다면 어떤 생활 계획에 맞춰 언제 할지 정해보자. 필요한 서류는 제출 전에 공식 안내에서 같이 확인하자.",
+        note: "법률혼을 예식의 자동 후속 단계가 아닌 공동 결정으로 다뤄요.",
+      },
+    ],
+    relatedMannersSlugs: ["marriage-registration"],
+    sources: [
+      {
+        label: "대법원 전자가족관계등록시스템 — 혼인 신고",
+        url: "https://efamily.scourt.go.kr/cs/CsBltnWrtGuide.do?bltnbordId=0000008&guideCd=0000008007&guideYn=Y",
+        scope: "혼인신고의 현재 신고 장소·서류·신분 확인 및 특수 상황 안내",
+        checkedAt: "2026-08-12",
+      },
+      {
+        label: "질병관리청 국가건강정보포털 — 임신 전 관리",
+        url: "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=6388",
+        scope: "임신을 계획하는 경우 의료진과 확인할 건강·복용약·예방접종 안내",
+        checkedAt: "2026-08-12",
+      },
+    ],
+  },
+  aftercare: {
+    categoryKey: "aftercare",
+    introduction:
+      "결혼식이 끝나도 계약과 생활은 아직 닫히지 않아요. 반납·정산·감사·사진 납품·백업·행정을 작은 후속 작업으로 나누면 누락과 두 사람의 피로를 함께 줄일 수 있습니다.",
+    completion:
+      "반납·최종 청구·환불·감사 연락·사진과 영상 수령·백업·선택한 행정·전체 예산 마감과 회고를 확인하면 끝나요.",
+    alignFirst: [
+      "행사 다음 날 바로 해야 할 반납과 천천히 해도 되는 납품·행정을 구분하기",
+      "축의금·선물·최종 청구를 두 사람이 확인할 방식과 안전한 별도 보관 장소 정하기",
+      "감사 연락을 양쪽 관계에 맞게 나누고 일률적인 공개 게시로 대신하지 않기",
+    ],
+    tips: [
+      "계약별 전달 날짜를 적고 지났을 때 먼저 보낼 확인 문구를 준비하기",
+      "받은 사진과 영상은 파일이 열리는지 확인한 뒤 서로 다른 장소에 백업하기",
+      "미해결 환불과 분쟁은 계약서·영수증·대화 기록을 한 묶음으로 보관하기",
+    ],
+    cautions: [
+      "축의금 상세 장부나 계좌 정보를 공용 체크리스트에 기록하지 않기",
+      "업체 결과물을 받기 전에 계약상 검수·수정 기한을 놓치지 않기",
+      "본식 직후 피곤한 상태에서 모든 정산과 관계 회고를 한 번에 끝내려 하지 않기",
+    ],
+    conversations: [
+      {
+        audience: "vendor",
+        label: "업체에",
+        title: "납품 상태를 확인할 때",
+        say: "계약서에 적힌 결과물과 전달 날짜를 기준으로 현재 진행 상태를 확인하고 싶습니다. 선택이나 수정 요청의 마지막 시점도 함께 알려주세요.",
+        note: "재촉보다 계약상 다음 행동을 명확히 묻는 표현이에요.",
+      },
+      {
+        audience: "partner",
+        label: "배우자에게",
+        title: "준비 과정을 돌아볼 때",
+        say: "정산이 끝나면 잘잘못보다 서로 고마웠던 점과 앞으로 생활에서 다르게 나누고 싶은 일을 하나씩 이야기해보자.",
+        note: "행사 평가를 관계의 승패로 만들지 않는 회고예요.",
+      },
+    ],
+    relatedMannersSlugs: ["return-gift", "photo-manners", "marriage-registration"],
+  },
+  special_cases: {
+    categoryKey: "special_cases",
+    introduction:
+      "국제혼인·종교식·무예식·재혼·자녀 동반·안전 보호처럼 모든 커플에게 해당하지 않는 준비가 있어요. 해당하는 항목만 켜고, 당사자의 선택과 개인정보를 행사 관행보다 먼저 두세요.",
+    completion:
+      "우리에게 해당하는 상황만 골라 공식 절차·참여 동의·지원·안전·개인정보·담당과 비용을 확인하면 끝나요. 해당하지 않으면 카테고리 전체를 건너뛰어도 됩니다.",
+    alignFirst: [
+      "두 사람에게 실제로 해당하는 상황과 가족·업체에 알려야 하는 범위 구분하기",
+      "종교·자녀·장애·건강 관련 참여는 당사자의 의사를 먼저 확인하기",
+      "법률·체류·재산 판단이 필요한 부분은 관할 공식기관이나 자격 있는 전문가에게 확인하기",
+    ],
+    tips: [
+      "국제 절차는 각 나라와 관할에 따라 달라질 수 있어 양쪽 공식기관을 따로 확인하기",
+      "통역·수어·쉬운 안내·조용한 공간은 실제 이용할 사람과 함께 점검하기",
+      "안전 우려가 있으면 주소·사진·참석 정보 공개와 현장 접근을 별도 계획으로 다루기",
+    ],
+    cautions: [
+      "재혼·무예식·비종교 선택을 설명하거나 사과해야 하는 예외로 취급하지 않기",
+      "자녀에게 촬영·호칭·행사 역할을 보호자끼리만 결정해 통보하지 않기",
+      "국적·체류·재산 문제에 일반 체크리스트를 개인 법률 자문처럼 적용하지 않기",
+    ],
+    conversations: [
+      {
+        audience: "parents",
+        label: "가족에게",
+        title: "우리 방식의 범위를 알릴 때",
+        say: "저희 상황에 필요한 절차와 하지 않기로 한 절차를 구분해 정리했어요. 이유를 증명하기보다 모두가 안전하고 편하게 참여할 수 있는 범위로 진행하려고 합니다.",
+        note: "다른 선택을 허락받는 구조가 되지 않도록 설명해요.",
+      },
+      {
+        audience: "vendor",
+        label: "업체에",
+        title: "지원과 개인정보를 요청할 때",
+        say: "당사자가 요청한 지원만 담당자에게 전달해 주세요. 건강이나 가족 상황의 상세 설명은 공유하지 말고, 사진 공개와 현장 접근 제한도 진행표에 반영해 주세요.",
+        note: "필요한 조치와 민감한 이유를 분리해 전달해요.",
+      },
+    ],
+    relatedMannersSlugs: ["small-wedding", "planning-conflicts", "marriage-registration"],
+    sources: [
+      {
+        label: "찾기쉬운 생활법령정보 — 결혼준비자",
+        url: "https://www.easylaw.go.kr/CSP/SysChartRetrievePLst.laf?csmSeq=1894",
+        scope: "혼인 성립·혼인신고·재산 약정 등 법적 절차의 공식 확인 출발점",
+        checkedAt: "2026-08-12",
+      },
+      {
+        label: "대법원 전자가족관계등록시스템 — 혼인 신고",
+        url: "https://efamily.scourt.go.kr/cs/CsBltnWrtGuide.do?bltnbordId=0000008&guideCd=0000008007&guideYn=Y",
+        scope: "국제혼인·재외국민 등 상황별 추가 신고 안내 확인",
+        checkedAt: "2026-08-12",
+      },
+    ],
+  },
 } satisfies Record<WeddingChecklistCategoryKey, ChecklistCategoryGuide>;
 
-export function getChecklistCategoryGuide(categoryKey: string) {
+export function getChecklistCategoryGuide(
+  categoryKey: string,
+): ChecklistCategoryGuide | null {
   return CHECKLIST_CATEGORY_GUIDES[categoryKey as WeddingChecklistCategoryKey] ?? null;
 }

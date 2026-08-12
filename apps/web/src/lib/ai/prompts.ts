@@ -1,4 +1,5 @@
-import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { CATEGORY_LABELS, CHECKLIST_LABELS } from "@/lib/ai/tools/planningConstants";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
@@ -22,6 +23,8 @@ import {
   allowsCountdown,
   allowsUrgency,
   normalizePreparationStatus,
+  summarizePlanningChecklist,
+  type PlanningChecklistProgress,
   type PreparationStatus,
 } from "@hanbang/shared";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
@@ -66,7 +69,17 @@ function generateBehaviorInsights(context: {
   };
 }): string[] {
   const insights: string[] = [];
-  const categoryKeys = Object.keys(CATEGORY_LABELS);
+  const budgetCategoryKeys = Object.keys(CATEGORY_LABELS);
+  const checklistCategoryKeys = CATEGORY_CHECKLISTS
+    .filter((category) => (
+      category.introducedInVersion === 1
+      || Object.prototype.hasOwnProperty.call(context.progress, category.key)
+    ))
+    .map((category) => category.key);
+  const checklistSummary = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    context.progress as Record<string, PlanningChecklistProgress | undefined>,
+  );
 
   // D-day까지 남은 일수
   let daysLeft = Infinity;
@@ -77,25 +90,16 @@ function generateBehaviorInsights(context: {
   }
 
   // 카테고리별 예산/지출/상태 집계
-  let completedCount = 0;
   const highBudgetCategories: string[] = [];
   const overBudgetCategories: string[] = [];
   const notStartedCategories: string[] = [];
 
-  for (const key of categoryKeys) {
+  for (const key of budgetCategoryKeys) {
     const p = (context.progress[key] ?? {}) as Record<string, unknown>;
     const catBudget = isValidWeddingWonAmount(p.budget) ? p.budget : 0;
     // `cost` is a legacy amount with no reliable budget/spend meaning. Only an
     // explicit `spent` field participates in spend-derived guidance.
     const catSpent = isValidWeddingWonAmount(p.spent) ? p.spent : 0;
-    const status = p.status as string | undefined;
-
-    if (status === "completed") {
-      completedCount++;
-    } else if (!status || status === "not_started") {
-      notStartedCategories.push(key);
-    }
-
     // 예산 대비 높은 배분 (전체 예산의 15% 이상)
     if (context.budget > 0 && catBudget > context.budget * 0.15) {
       highBudgetCategories.push(CATEGORY_LABELS[key] ?? key);
@@ -105,6 +109,12 @@ function generateBehaviorInsights(context: {
     if (catBudget > 0 && catSpent > catBudget) {
       overBudgetCategories.push(CATEGORY_LABELS[key] ?? key);
     }
+  }
+
+  for (const key of checklistCategoryKeys) {
+    const p = (context.progress[key] ?? {}) as Record<string, unknown>;
+    if (p.status === "not_applicable") continue;
+    if (!p.status || p.status === "not_started") notStartedCategories.push(key);
   }
 
   // 인사이트 1: 예산이 많이 배분된 카테고리 — 중요도 추정은 금지
@@ -136,11 +146,11 @@ function generateBehaviorInsights(context: {
     // 우선순위 중 아직 시작하지 않은 것
     const urgentPriorities = notStartedCategories
       .filter((k) => priorities.includes(k))
-      .map((k) => CATEGORY_LABELS[k] ?? k);
+      .map((k) => CHECKLIST_LABELS[k] ?? k);
     const urgentOthers = notStartedCategories
       .filter((k) => !priorities.includes(k))
       .slice(0, 3)
-      .map((k) => CATEGORY_LABELS[k] ?? k);
+      .map((k) => CHECKLIST_LABELS[k] ?? k);
     const urgentList = [...urgentPriorities, ...urgentOthers].slice(0, 4);
     if (urgentList.length > 0) {
       insights.push(
@@ -150,9 +160,9 @@ function generateBehaviorInsights(context: {
   }
 
   // 인사이트 4: 많은 카테고리 완료 → 경험 있는 사용자
-  if (completedCount >= categoryKeys.length * 0.5) {
+  if (checklistSummary.total > 0 && checklistSummary.percent >= 50) {
     insights.push(
-      `진행률 높음(${completedCount}/${categoryKeys.length} 완료). 세부 설명보다 핵심 정보 위주로 간결하게 답변. 남은 카테고리 마무리에 집중.`
+      `진행률 높음(${checklistSummary.done}/${checklistSummary.total}개 완료). 세부 설명보다 핵심 정보 위주로 간결하게 답변. 남은 항목 마무리에 집중.`
     );
   }
 
@@ -324,19 +334,35 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     context.groomName ? `신랑: ${promptData(context.groomName, 80)}` : null,
   ].filter(Boolean).join(", ");
 
-  // `__budgetScope`는 위 budgetInfo가 구조화해 전달하므로 원본을 다시 흘리지 않는다.
-  const progressEntries = Object.entries(context.progress)
-    .filter(([k]) => k !== "__events" && k !== "__budgetScope");
+  const activeChecklistEntries = CATEGORY_CHECKLISTS
+    .filter((category) => (
+      category.introducedInVersion === 1
+      || Object.prototype.hasOwnProperty.call(context.progress, category.key)
+    ))
+    .map((category) => [category.key, category.label] as const);
+  const checklistSummary = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    context.progress as Record<string, PlanningChecklistProgress | undefined>,
+  );
 
   // 카테고리별 상세 현황 생성
-  const categoryStatus = Object.entries(CATEGORY_LABELS)
+  const categoryStatus = activeChecklistEntries
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-      const status = p.status === "completed" ? "✅완료" : p.status === "in_progress" ? "🔄진행중" : "⬜예정";
-      const budget = isValidWeddingWonAmount(p.budget)
-        ? `${(p.budget / 10000).toLocaleString()}만원`
-        : "미설정";
-      const spent = isValidWeddingWonAmount(p.spent)
+      const status = p.status === "not_applicable"
+        ? "➖해당 없음"
+        : p.status === "completed"
+          ? "✅완료"
+          : p.status === "in_progress"
+            ? "🔄진행중"
+            : "⬜예정";
+      const budgetTracked = Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, key);
+      const budget = budgetTracked
+        ? isValidWeddingWonAmount(p.budget)
+          ? `${(p.budget / 10000).toLocaleString()}만원`
+          : "미설정"
+        : "";
+      const spent = budgetTracked && isValidWeddingWonAmount(p.spent)
         ? `기록 지출: ${(p.spent / 10000).toLocaleString()}만원`
         : "";
       const legacyAmount = Object.prototype.hasOwnProperty.call(p, "cost")
@@ -349,7 +375,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
         ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
         : "";
       const parts = [
-        `${label}(${key}): ${status}, 예산: ${budget}`,
+        `${label}(${key}): ${status}${budgetTracked ? `, 예산: ${budget}` : ""}`,
         spent,
         legacyAmount,
         vendor,
@@ -376,9 +402,8 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     ? `미배정 예산: ${(unallocated / 10000).toLocaleString()}만원`
     : "";
 
-  const completedCount = progressEntries
-    .filter(([, v]) => (v as { status: string }).status === "completed").length;
-  const totalCount = Object.keys(CATEGORY_LABELS).length;
+  const completedCount = checklistSummary.done;
+  const totalCount = checklistSummary.total;
 
   const formatWon = (amount: number) => `${(amount / 10000).toLocaleString()}만원`;
   const isPositiveAmount = (amount: number | null | undefined): amount is number =>
@@ -447,7 +472,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     if (upcoming.length > 0) {
       lines.push("  **다가오는 일정:**");
       for (const e of upcoming) {
-        const cat = e.categoryKey ? ` (${CATEGORY_LABELS[e.categoryKey] ?? promptData(e.categoryKey, 80)})` : "";
+        const cat = e.categoryKey ? ` (${CHECKLIST_LABELS[e.categoryKey] ?? promptData(e.categoryKey, 80)})` : "";
         const memo = e.memo ? ` - 메모 ${promptData(e.memo, 500)}` : "";
         lines.push(`  - ${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
       }

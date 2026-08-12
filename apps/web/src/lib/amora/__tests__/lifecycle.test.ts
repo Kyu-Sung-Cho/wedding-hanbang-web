@@ -51,4 +51,18 @@ describe("아모라 lifecycle 근거 경계", () => {
     expect(plan.dday).toBe(0);
     expect(plan.stage).toBe("wedding_day");
   });
+
+  it("does not turn unseen v2 checklist categories into urgent guardrails", () => {
+    const plan = buildAmoraLifecyclePlan({
+      weddingDate: "2026-08-20",
+      totalBudget: 50_000_000,
+      progress: {},
+      now: new Date("2026-08-19T03:00:00Z"),
+    });
+
+    expect(plan.guardrails.some((guardrail) =>
+      ["foundation", "contracts", "guests", "ceremony", "home_admin", "health_admin", "aftercare", "special_cases"]
+        .includes(guardrail.categoryKey ?? ""),
+    )).toBe(false);
+  });
 });

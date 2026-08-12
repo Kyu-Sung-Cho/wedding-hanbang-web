@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 
 import { WEDDING_APP_ROUTES } from "../../../../weddingAppRoutes";
 import { MANNERS_PARTS } from "../data";
@@ -90,10 +90,11 @@ describe("manners entry points", () => {
 
   // 오타로 매핑이 조용히 꺼지는 것을 막는다.
   it("only maps category keys that actually exist", () => {
-    const known = new Set(Object.keys(PLANNING_CATEGORY_LABELS));
+    const known = new Set(Object.keys(CHECKLIST_CATEGORY_LABELS));
     const unknown = MAPPED_MANNERS_CATEGORY_KEYS.filter((key) => !known.has(key));
 
     expect(unknown, `없는 카테고리 키: ${unknown.join(", ")}`).toEqual([]);
+    expect([...MAPPED_MANNERS_CATEGORY_KEYS].sort()).toEqual([...known].sort());
   });
 
   it("connects the expanded family guides to the matching checklist categories", () => {
@@ -101,15 +102,19 @@ describe("manners entry points", () => {
     expect(mannersPartForCategory("ring")?.slug).toBe("gifts-and-traditions");
     expect(mannersPartForCategory("hanbok")?.slug).toBe("traditional-greetings");
     expect(mannersPartForCategory("yedan")?.slug).toBe("gifts-and-traditions");
-    expect(mannersPartForCategory("houseware")?.slug).toBe("money-home-conversation");
+    expect(mannersPartForCategory("houseware")?.slug).toBe("shared-home-items");
     expect(mannersPartForCategory("housing")?.slug).toBe("money-home-conversation");
     expect(mannersPartForCategory("ham")?.slug).toBe("gifts-and-traditions");
     expect(mannersPartForCategory("pyebaek")?.slug).toBe("traditional-greetings");
+    expect(mannersPartForCategory("honeymoon")?.slug).toBe("post-honeymoon-thanks");
+    expect(mannersPartForCategory("foundation")?.slug).toBe("planning-timeline");
+    expect(mannersPartForCategory("contracts")?.slug).toBe("cost-saving");
+    expect(mannersPartForCategory("guests")?.slug).toBe("guest-manners");
+    expect(mannersPartForCategory("health_admin")?.slug).toBe("marriage-registration");
   });
 
-  // 아직 전용 파트가 없는 카테고리에 억지로 다른 파트를 붙이지 않는다.
-  it("returns null only when a verified guide does not exist", () => {
-    expect(mannersPartForCategory("honeymoon")).toBeNull();
+  it("returns null for non-checklist and empty keys", () => {
+    expect(mannersPartForCategory("reserve")).toBeNull();
     expect(mannersPartForCategory(undefined)).toBeNull();
     expect(mannersPartForCategory("")).toBeNull();
   });

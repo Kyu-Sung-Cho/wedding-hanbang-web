@@ -194,6 +194,15 @@ describe("StartHereClient first visit", () => {
     expect(mocks.push).toHaveBeenCalledWith("/wedding/chat");
   });
 
+  it("renders wedding-day and post-wedding checklist windows without negative D-minus copy", async () => {
+    window.history.replaceState({}, "", "/start-here");
+    await act(async () => root.render(<StartHereClient />));
+
+    expect(container.textContent).toContain("D-day");
+    expect(container.textContent).toContain("D+30");
+    expect(container.textContent).not.toContain("-30일 전");
+  });
+
   it("does not leave very-early planners at a dead end", async () => {
     window.history.replaceState({}, "", "/start-here#date=2030-05-01");
     await act(async () => {
@@ -217,7 +226,7 @@ describe("StartHereClient first visit", () => {
     );
   });
 
-  it("fills the 301–360 day boundary with one clearly labeled upcoming item", async () => {
+  it("includes the new shared-decision foundation at the 301–360 day boundary", async () => {
     window.history.replaceState({}, "", "/start-here#date=2027-07-01");
     await act(async () => {
       root.render(<StartHereClient />);
@@ -228,11 +237,10 @@ describe("StartHereClient first visit", () => {
 
     const priorityItems = container.querySelectorAll("#start-result-panel ol > li");
     expect(priorityItems).toHaveLength(3);
+    expect(priorityItems[0]?.textContent).toContain("함께 정할 것");
     expect(container.textContent).toContain("부모님 첫 만남");
     expect(container.textContent).toContain("결혼식장");
-    expect(container.textContent).toContain("웨딩 사진 촬영");
-    expect(container.textContent).toContain("다음 기본 확인 시작까지");
-    expect(container.textContent).toContain("지금은 기준만 미리 맞춰봐도 돼요");
+    expect(container.textContent).toContain("기본 확인 시점까지");
   });
 
   it("treats a past date as a correction state instead of expired priorities", async () => {

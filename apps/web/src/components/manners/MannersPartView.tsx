@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { MannersBlock, MannersPart, MannersSource } from "@/lib/manners/types";
 import { categoryKeysForMannersPart } from "@/lib/manners/categoryMap";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 /**
@@ -177,7 +177,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
   const categoryKeys = categoryKeysForMannersPart(part.slug);
   const checklistLinks = categoryKeys.map((categoryKey) => ({
     categoryKey,
-    label: PLANNING_CATEGORY_LABELS[categoryKey as keyof typeof PLANNING_CATEGORY_LABELS],
+    label: CHECKLIST_CATEGORY_LABELS[categoryKey as keyof typeof CHECKLIST_CATEGORY_LABELS],
   }));
   const lastCheckedAt = part.sources
     .map((source) => source.checkedAt)
@@ -209,6 +209,22 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
           {part.title}
         </h1>
         <p className="mt-3 text-[14px] leading-[1.8] text-[#3d4a45]">{part.description}</p>
+        <section
+          aria-labelledby={`part-summary-${part.slug}`}
+          className="mt-5 border-y border-[#c7d1c2] bg-[#f7faf5] px-4 py-4 sm:px-5"
+        >
+          <p id={`part-summary-${part.slug}`} className="text-[12px] font-semibold tracking-[0.1em] text-[#36534e]">
+            한눈에 보기
+          </p>
+          <ul className="mt-2.5 space-y-2">
+            {part.summary.map((item) => (
+              <li key={item} className="flex gap-2.5 text-[13.5px] leading-6 text-[#31423d]">
+                <span aria-hidden className="mt-[10px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#6d806e]" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
         {/* 삭제 사유였던 "가족·지역마다 답이 다르다"에 대한 답이다. 접거나 흐리지 않는다. */}
         <p className="mt-4 rounded-xl border border-[#243832]/12 bg-[#243832]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
           {part.caveat}

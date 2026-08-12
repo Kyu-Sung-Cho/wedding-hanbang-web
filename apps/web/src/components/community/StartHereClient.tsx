@@ -61,6 +61,8 @@ function buildUndatedAmoraPrefill(preset: Preset): string {
 }
 
 function beforeLabel(days: number): string {
+  if (days < 0) return `D+${Math.abs(days)}`;
+  if (days === 0) return "D-day";
   if (days < 30) return `${days}일 전`;
   return `${Math.round(days / 30)}개월 전`;
 }

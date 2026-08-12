@@ -9,6 +9,8 @@ import {
   calculateChecklistProgress,
   formatLocalDateKey,
   getWeddingMomentMessage,
+  isChecklistCategoryActivated,
+  shouldSurfaceChecklistCategory,
 } from "../lib/dashboardExperience.mjs";
 
 const emptyInput = {
@@ -138,6 +140,51 @@ test("home progress excludes categories marked not applicable", () => {
   };
 
   assert.equal(calculateChecklistProgress(progress, categories), 50);
+});
+
+test("new checklist categories join progress only after the couple starts them", () => {
+  const categories = [
+    {
+      key: "venue",
+      introducedInVersion: 1,
+      items: [{ id: "visit" }, { id: "contract" }],
+    },
+    {
+      key: "aftercare",
+      introducedInVersion: 2,
+      items: [{ id: "settle" }, { id: "thanks" }],
+    },
+  ];
+  const legacyProgress = {
+    venue: { checklist: [{ id: "visit", done: true }, { id: "contract", done: false }] },
+  };
+
+  assert.equal(calculateChecklistProgress(legacyProgress, categories), 50);
+  assert.equal(
+    calculateChecklistProgress({ ...legacyProgress, aftercare: {} }, categories),
+    25,
+  );
+  assert.equal(isChecklistCategoryActivated(categories[0], new Set()), true);
+  assert.equal(isChecklistCategoryActivated(categories[1], new Set()), false);
+  assert.equal(isChecklistCategoryActivated(categories[1], new Set(["aftercare"])), true);
+});
+
+test("D-day surfaces ceremony and post-wedding surfaces D+ categories", () => {
+  const venue = { journeyStage: "vendors", ddayStart: 360, ddayDeadline: 270 };
+  const ceremony = { journeyStage: "ceremony", ddayStart: 90, ddayDeadline: 0 };
+  const homeAdmin = { journeyStage: "home", ddayStart: 240, ddayDeadline: -30 };
+  const aftercare = { journeyStage: "aftercare", ddayStart: 0, ddayDeadline: -30 };
+
+  assert.equal(shouldSurfaceChecklistCategory(venue, 30), true);
+  assert.equal(shouldSurfaceChecklistCategory(aftercare, 30), false);
+  assert.equal(shouldSurfaceChecklistCategory(venue, 0), false);
+  assert.equal(shouldSurfaceChecklistCategory(ceremony, 0), true);
+  assert.equal(shouldSurfaceChecklistCategory(aftercare, 0), false);
+  assert.equal(shouldSurfaceChecklistCategory(venue, -10), false);
+  assert.equal(shouldSurfaceChecklistCategory(aftercare, -10), true);
+  assert.equal(shouldSurfaceChecklistCategory(homeAdmin, -10), true);
+  assert.equal(shouldSurfaceChecklistCategory(venue, null), true);
+  assert.equal(shouldSurfaceChecklistCategory(aftercare, null), false);
 });
 
 test("the home service map keeps every live consumer workflow within reach", () => {

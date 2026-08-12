@@ -18,6 +18,7 @@ const repoRoot = path.resolve(here, "..", "..");
 const SOURCES = [
   path.join(here, "parts.json"),
   path.join(here, "parts-family.json"),
+  path.join(here, "parts-life.json"),
 ];
 const TARGET = path.join(repoRoot, "apps", "web", "src", "lib", "manners", "data.ts");
 
@@ -25,16 +26,16 @@ const TARGET = path.join(repoRoot, "apps", "web", "src", "lib", "manners", "data
 const CATEGORIES = [
   { label: "가족이 처음 만날 때", slugs: ["first-family-visit", "family-meeting"] },
   { label: "가족과 함께 정할 때", slugs: ["gifts-and-traditions", "traditional-greetings", "money-home-conversation", "planning-conflicts"] },
-  { label: "청첩장과 준비", slugs: ["invitation-sending", "cost-saving", "small-wedding"] },
-  { label: "결혼식 당일", slugs: ["wedding-day", "guest-manners", "photo-manners"] },
+  { label: "청첩장과 준비", slugs: ["planning-timeline", "invitation-sending", "shared-home-items", "cost-saving", "small-wedding"] },
+  { label: "결혼식 당일", slugs: ["wedding-day", "religious-weddings", "guest-manners", "photo-manners"] },
   { label: "마음을 전하는 법", slugs: ["gift-money", "congratulatory-speech", "return-gift"] },
-  { label: "식이 끝난 뒤", slugs: ["marriage-registration"] },
+  { label: "식이 끝난 뒤", slugs: ["post-honeymoon-thanks", "first-holiday", "housewarming", "family-address", "family-events", "digital-manners", "marriage-registration"] },
 ];
 
 const HEADER = `import type { MannersCategory, MannersPart } from "./types";
 
 /**
- * 결혼 예절 안내 — 공개 가이드 16파트.
+ * 결혼 예절 안내 — 공개 가이드 25파트.
  *
  * **이 파일은 생성물이다.** 고치려면 \`scripts/manners/parts*.json\`을 고치고
  * \`node scripts/manners/generate.mjs\`를 돌린다. 여기서 직접 고치면 다음 재생성에서 사라진다.
@@ -65,7 +66,7 @@ function serialize(parts) {
   for (const slug of order) {
     const part = bySlug.get(slug);
     out += `  {\n    slug: ${j(part.slug)},\n    legacyNumber: ${part.number},\n`;
-    for (const key of ["title", "subtitle", "description", "audience", "caveat"]) {
+    for (const key of ["title", "subtitle", "description", "summary", "audience", "caveat"]) {
       out += `    ${key}: ${j(part[key])},\n`;
     }
     out += "    sections: [\n";

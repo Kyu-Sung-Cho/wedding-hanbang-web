@@ -101,6 +101,8 @@ export type MannersPart = {
   title: string;
   subtitle: string;
   description: string;
+  /** 목록과 상세 상단에서 먼저 읽는 핵심 요약. 짧고 실행 가능한 문장만 둔다. */
+  summary: string[];
   audience: MannersAudience;
   /** "지역·가족·모임마다 다를 수 있어요" 계열 고지. 화면 상단에 항상 보인다. */
   caveat: string;

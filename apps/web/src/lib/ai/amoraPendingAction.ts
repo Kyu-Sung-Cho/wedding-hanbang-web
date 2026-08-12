@@ -3,6 +3,7 @@ import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 
 const MAX_PENDING_ACTION_JSON_CHARS = 4_000;
@@ -112,6 +113,7 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
 };
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   general: "일반",
+  ...CHECKLIST_CATEGORY_LABELS,
   ...PLANNING_CATEGORY_LABELS,
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);

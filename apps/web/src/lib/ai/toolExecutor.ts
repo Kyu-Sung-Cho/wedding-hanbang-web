@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ToolExecutionResult } from "@/types/database.types";
+import type { ProgressItem, ToolExecutionResult } from "@/types/database.types";
 import {
   executeAnalyzeContractReadiness,
   executeSimulateGuestGuarantee,
@@ -41,8 +41,11 @@ import {
 } from "@/lib/ai/tools/amoraActionTools";
 import {
   CATEGORY_LABELS,
+  CHECKLIST_LABELS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { summarizePlanningChecklist } from "@/utils/checklist";
 import {
   patchJourneyProgress,
   patchJourneyProgressItem,
@@ -692,7 +695,7 @@ async function executeUpdateTaskStatus(
   const status = input.status;
   if (
     typeof category !== "string"
-    || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, category)
+    || !Object.prototype.hasOwnProperty.call(CHECKLIST_LABELS, category)
     || typeof status !== "string"
     || !Object.prototype.hasOwnProperty.call(STATUS_LABELS, status)
   ) {
@@ -704,7 +707,7 @@ async function executeUpdateTaskStatus(
       displayMessage: "준비 항목과 진행 상태를 확인하지 못해 변경하지 않았습니다.",
     };
   }
-  const label = CATEGORY_LABELS[category];
+  const label = CHECKLIST_LABELS[category];
   const statusLabel = STATUS_LABELS[status];
 
   await patchJourneyProgressItem(ctx, category, { category, status });
@@ -1172,10 +1175,10 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
     );
   }
 
-  const allKeys = Object.keys(CATEGORY_LABELS);
-  const completedCount = allKeys.filter(
-    (k) => progress[k]?.status === "completed"
-  ).length;
+  const summary = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    progress as unknown as Record<string, ProgressItem>,
+  );
 
   return {
     toolName: "get_wedding_info",
@@ -1185,13 +1188,14 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
       d_day: dDay,
       venue,
       total_budget: budget,
-      progress_percent: Math.round((completedCount / allKeys.length) * 100),
-      completed_count: completedCount,
-      total_categories: allKeys.length,
+      progress_percent: summary.percent,
+      completed_count: summary.completedCategories,
+      total_categories: summary.applicableCategories,
+      available_new_categories: summary.availableNewCategories,
     },
     success: true,
     displayMessage: weddingDate
-      ? `결혼 예정일: ${weddingDate} (D-${dDay}) / 예산: ${formatWon(budget)} / 진행률: ${Math.round((completedCount / allKeys.length) * 100)}%`
+      ? `결혼 예정일: ${weddingDate} (D-${dDay}) / 예산: ${formatWon(budget)} / 진행률: ${summary.percent}%`
       : `결혼 예정일 미설정 / 예산: ${formatWon(budget)}`,
   };
 }

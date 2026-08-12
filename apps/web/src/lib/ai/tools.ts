@@ -1,4 +1,11 @@
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
+
+const CHECKLIST_CATEGORY_KEYS = Object.keys(CHECKLIST_CATEGORY_LABELS);
+const SCHEDULE_CATEGORY_KEYS = ["general", ...CHECKLIST_CATEGORY_KEYS];
+const CHECKLIST_CATEGORY_DESCRIPTION = Object.entries(CHECKLIST_CATEGORY_LABELS)
+  .map(([key, label]) => `${key}=${label}`)
+  .join(", ");
 
 const PLANNING_CATEGORY_DESCRIPTION =
   "meeting=양쪽 부모님이 함께 만나는 자리, venue=결혼식장, studio=웨딩 사진 촬영, dress=드레스·예식 정장, makeup=헤어·메이크업, ring=결혼반지·기념 선물, hanbok=한복, yedan=두 가족에게 드릴 선물, honeymoon=신혼여행, houseware=가전·가구·생활용품, housing=신혼집, invitation=종이·모바일 초대장, snap=결혼식 날 사진·영상, shoes=결혼식 신발, bouquet=손에 드는 꽃·꽃 장식, gift=결혼식에 온 분께 드릴 선물, mc=결혼식 진행·축하 노래, ham=가족에게 전하는 전통 혼례 선물, pyebaek=결혼식 뒤 전통 인사";
@@ -46,12 +53,8 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description: `변경할 카테고리. ${PLANNING_CATEGORY_DESCRIPTION}`,
+          enum: CHECKLIST_CATEGORY_KEYS,
+          description: `변경할 카테고리. ${CHECKLIST_CATEGORY_DESCRIPTION}`,
         },
         status: {
           type: "string",
@@ -279,12 +282,8 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         category_key: {
           type: "string",
-          enum: [
-            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description: `관련 카테고리 (선택). 대표 준비 일정이면 반드시 넣습니다. general=일반, ${PLANNING_CATEGORY_DESCRIPTION}`,
+          enum: SCHEDULE_CATEGORY_KEYS,
+          description: `관련 카테고리 (선택). 대표 준비 일정이면 반드시 넣습니다. general=일반, ${CHECKLIST_CATEGORY_DESCRIPTION}`,
         },
         schedule_scope: {
           type: "string",
@@ -429,12 +428,8 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description: `카테고리. ${PLANNING_CATEGORY_DESCRIPTION}`,
+          enum: CHECKLIST_CATEGORY_KEYS,
+          description: `카테고리. ${CHECKLIST_CATEGORY_DESCRIPTION}`,
         },
         item_id: {
           type: "string",
@@ -494,11 +489,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         category_key: {
           type: "string",
-          enum: [
-            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
+          enum: SCHEDULE_CATEGORY_KEYS,
           description: "관련 카테고리. 불명확하면 general",
         },
         priority: {

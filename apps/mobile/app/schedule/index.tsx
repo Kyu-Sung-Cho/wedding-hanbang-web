@@ -16,7 +16,6 @@ import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
   mergePlanningChecklist,
-  summarizePlanningChecklist,
   type PlanningChecklistStatus,
 } from "@hanbang/shared/utils";
 import { supabase } from "@/lib/supabase";
@@ -39,6 +38,11 @@ import {
   restoreScheduleEventById,
   validateScheduleEventDraft,
 } from "@/lib/scheduleMutation.mjs";
+import {
+  calculateChecklistProgress,
+  isChecklistCategoryActivated,
+  shouldSurfaceChecklistCategory,
+} from "@/lib/dashboardExperience.mjs";
 import {
   createScheduleSessionFence,
   type ScheduleSessionToken,
@@ -65,6 +69,23 @@ interface Category {
   label: string;
   items: ChecklistItem[];
   status: PlanningChecklistStatus;
+}
+
+function calculateLoadedChecklistProgress(
+  categories: Category[],
+  savedCategoryKeys: Set<string>,
+): number {
+  const loadedProgress = Object.fromEntries(categories
+    .filter((category) => {
+      const template = CATEGORY_CHECKLISTS.find((item) => item.key === category.key);
+      return template ? isChecklistCategoryActivated(template, savedCategoryKeys) : false;
+    })
+    .map((category) => [category.key, {
+      status: category.status,
+      checklist: category.items,
+    }]));
+
+  return calculateChecklistProgress(loadedProgress, CATEGORY_CHECKLISTS);
 }
 
 interface ScheduleEvent {
@@ -352,6 +373,7 @@ export default function ScheduleScreen() {
   const checklistOnly = pathname.startsWith("/checklist");
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
+  const [savedCategoryKeys, setSavedCategoryKeys] = useState<Set<string>>(new Set());
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [weddingDate, setWeddingDate] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
@@ -404,6 +426,7 @@ export default function ScheduleScreen() {
     setWeddingDate(null);
     setCategories([]);
     setProgress({});
+    setSavedCategoryKeys(new Set());
     setEvents([]);
     setExpandedKey(null);
     setApprovalRequests([]);
@@ -548,6 +571,11 @@ export default function ScheduleScreen() {
       // CATEGORY_CHECKLISTS 상수가 소스 → DB의 checklist 배열에서 done 상태만 오버레이
       const cats: Category[] = [];
       const progMap: Record<string, Record<string, boolean>> = {};
+      const loadedCategoryKeys = new Set(
+        CATEGORY_CHECKLISTS
+          .filter((category) => Object.prototype.hasOwnProperty.call(prog, category.key))
+          .map((category) => category.key),
+      );
 
       for (const cat of CATEGORY_CHECKLISTS) {
         const dbCatData = prog[cat.key] as {
@@ -595,13 +623,11 @@ export default function ScheduleScreen() {
 
       setCategories(cats);
       setProgress(progMap);
+      setSavedCategoryKeys(loadedCategoryKeys);
 
       // 전체 진행률 애니메이션
       if (cats.length > 0) {
-        const totalPercent = summarizePlanningChecklist(
-          CATEGORY_CHECKLISTS,
-          prog as Record<string, { status?: PlanningChecklistStatus; checklist?: ChecklistItem[] }>,
-        ).percent;
+        const totalPercent = calculateLoadedChecklistProgress(cats, loadedCategoryKeys);
         Animated.timing(progressAnim, {
           toValue: totalPercent,
           duration: 800,
@@ -941,13 +967,14 @@ export default function ScheduleScreen() {
   }
 
   function getWeeklyActions(dday: number | null): WeeklyAction[] {
-    if (dday !== null && dday < 0) return [];
-
     const actionCandidates = CATEGORY_CHECKLISTS.flatMap((template) => {
+      if (
+        !isChecklistCategoryActivated(template, savedCategoryKeys)
+      ) return [];
+      if (!shouldSurfaceChecklistCategory(template, dday)) return [];
+
       const stats = getCategoryStats(template.key);
       if (stats.skipped || stats.percent >= 100) return [];
-
-      if (dday !== null && dday > template.ddayStart) return [];
 
       const category = categories.find((c) => c.key === template.key);
       const nextItem = category?.items.find((item) => !item.done);
@@ -1487,13 +1514,7 @@ export default function ScheduleScreen() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // 전체 진행률 계산
-  const overallPercent = summarizePlanningChecklist(
-    categories.map((category) => ({ key: category.key, items: category.items })),
-    Object.fromEntries(categories.map((category) => [category.key, {
-      status: category.status,
-      checklist: category.items,
-    }])),
-  ).percent;
+  const overallPercent = calculateLoadedChecklistProgress(categories, savedCategoryKeys);
   const dday = calcDday(weddingDate);
   const weeklyActions = getWeeklyActions(dday);
   const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;

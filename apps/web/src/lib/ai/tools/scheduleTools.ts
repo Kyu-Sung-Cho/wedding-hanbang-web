@@ -1,7 +1,7 @@
-import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
+import type { ProgressItem, ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
-import { mergeChecklist, calculateStatus } from "@/utils/checklist";
+import { mergeChecklist, calculateStatus, summarizePlanningChecklist } from "@/utils/checklist";
 import {
   addEvent,
   cancelEvent,
@@ -18,7 +18,7 @@ import {
   upsertMomentEvent,
 } from "@/utils/scheduleEvents";
 import { addDaysUtc, kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
-import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { CHECKLIST_LABELS } from "@/lib/ai/tools/planningConstants";
 import { patchJourneyProgress, saveProgress } from "@/lib/ai/tools/progressTools";
 import { type ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
@@ -26,7 +26,15 @@ const PROFILE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f
 
 export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecutionResult {
   const progress = ctx.weddingContext.progress;
-  const allKeys = CATEGORY_CHECKLISTS.map(({ key }) => key);
+  const activeTemplates = CATEGORY_CHECKLISTS.filter((template) => (
+    template.introducedInVersion === 1
+    || Object.prototype.hasOwnProperty.call(progress, template.key)
+  )).filter((template) => progress[template.key]?.status !== "not_applicable");
+  const allKeys = activeTemplates.map(({ key }) => key);
+  const summary = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    progress as unknown as Record<string, ProgressItem>,
+  );
 
   const completed = allKeys.filter(
     (key) => progress[key]?.status === "completed"
@@ -43,13 +51,14 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
     toolInput: {},
     toolOutput: {
       total: allKeys.length,
-      completed: completed.map((key) => CATEGORY_LABELS[key]),
-      in_progress: inProgress.map((key) => CATEGORY_LABELS[key]),
-      not_started: notStarted.map((key) => CATEGORY_LABELS[key]),
-      progress_percent: Math.round((completed.length / allKeys.length) * 100),
+      completed: completed.map((key) => CHECKLIST_LABELS[key]),
+      in_progress: inProgress.map((key) => CHECKLIST_LABELS[key]),
+      not_started: notStarted.map((key) => CHECKLIST_LABELS[key]),
+      progress_percent: summary.percent,
+      available_new_categories: summary.availableNewCategories,
     },
     success: true,
-    displayMessage: `전체 ${allKeys.length}개 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개 (${Math.round((completed.length / allKeys.length) * 100)}%)`,
+    displayMessage: `현재 진행률 ${summary.percent}% · 적용 중인 ${allKeys.length}개 분야 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개`,
   };
 }
 
@@ -92,6 +101,14 @@ export async function executeAddScheduleEvent(
   const title = input.title as string;
   const memo = input.memo as string | undefined;
   const categoryKey = input.category_key as string | undefined;
+
+  if (
+    categoryKey !== undefined
+    && categoryKey !== "general"
+    && !Object.prototype.hasOwnProperty.call(CHECKLIST_LABELS, categoryKey)
+  ) {
+    return scheduleValidationFailure("add_schedule_event", input, "category_key");
+  }
 
   if (!isValidScheduleYmd(date)) {
     return {
@@ -366,7 +383,7 @@ export async function executeToggleChecklistItem(
   const category = input.category as string;
   const itemId = input.item_id as string;
   const done = input.done as boolean;
-  const label = CATEGORY_LABELS[category] || category;
+  const label = CHECKLIST_LABELS[category] || category;
 
   const template = CHECKLIST_MAP[category];
   if (!template) {

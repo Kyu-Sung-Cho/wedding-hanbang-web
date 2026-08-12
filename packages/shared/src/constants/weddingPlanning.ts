@@ -35,25 +35,132 @@ export const PLANNING_CATEGORY_LABELS = {
 
 export type PlanningCategoryKey = keyof typeof PLANNING_CATEGORY_LABELS;
 
+/**
+ * 체크리스트 화면이 쓰는 전체 여정 이름.
+ *
+ * 예산/API의 정본인 `PLANNING_CATEGORY_LABELS`에는 비용을 기록하지 않는 운영·행정
+ * 카테고리를 섞지 않는다. 체크리스트가 필요로 하는 이름은 이 별도 정본에서 관리한다.
+ */
+export const CHECKLIST_CATEGORY_LABELS = {
+  meeting: PLANNING_CATEGORY_LABELS.meeting,
+  venue: PLANNING_CATEGORY_LABELS.venue,
+  studio: PLANNING_CATEGORY_LABELS.studio,
+  dress: PLANNING_CATEGORY_LABELS.dress,
+  makeup: PLANNING_CATEGORY_LABELS.makeup,
+  ring: PLANNING_CATEGORY_LABELS.ring,
+  hanbok: PLANNING_CATEGORY_LABELS.hanbok,
+  yedan: PLANNING_CATEGORY_LABELS.yedan,
+  honeymoon: PLANNING_CATEGORY_LABELS.honeymoon,
+  houseware: PLANNING_CATEGORY_LABELS.houseware,
+  housing: PLANNING_CATEGORY_LABELS.housing,
+  invitation: PLANNING_CATEGORY_LABELS.invitation,
+  snap: PLANNING_CATEGORY_LABELS.snap,
+  shoes: PLANNING_CATEGORY_LABELS.shoes,
+  bouquet: PLANNING_CATEGORY_LABELS.bouquet,
+  gift: PLANNING_CATEGORY_LABELS.gift,
+  mc: PLANNING_CATEGORY_LABELS.mc,
+  ham: PLANNING_CATEGORY_LABELS.ham,
+  pyebaek: PLANNING_CATEGORY_LABELS.pyebaek,
+  foundation: "함께 정할 것",
+  contracts: "전체 예산·계약 보호",
+  guests: "하객·참석 답변·이동",
+  ceremony: "식순·사전 연습·결혼식 날 운영",
+  home_admin: "신혼집 권리·이사 행정",
+  health_admin: "건강·서류·혼인신고",
+  aftercare: "결혼식 뒤 정산·감사·기록",
+  special_cases: "우리 상황에 맞춘 선택 준비",
+} as const;
+
+export type WeddingChecklistCategoryKey = keyof typeof CHECKLIST_CATEGORY_LABELS;
+
+export type WeddingJourneyStage =
+  | "foundation"
+  | "contracts"
+  | "home"
+  | "vendors"
+  | "guests"
+  | "ceremony"
+  | "aftercare"
+  | "optional";
+
 export interface CategoryChecklistTemplate {
-  key: string;
+  key: WeddingChecklistCategoryKey;
   label: string;
   icon: string;
   tip: string;
+  /** 체크리스트 화면에서 결혼 전 과정을 묶어 보여주는 안정적인 단계 키. */
+  journeyStage: WeddingJourneyStage;
+  /** 예산 카테고리와 직접 연결할 수 있는 기존 비용 분야인지 여부. */
+  budgetTracked: boolean;
+  /** 사용자 진행률 분모에 새 카테고리를 안전하게 도입하기 위한 콘텐츠 버전. */
+  introducedInVersion: 1 | 2;
   /** 화면 정렬용 기본 확인 시작점이며 실제 계약 시작일이 아니다. */
   ddayStart: number;
-  /** 화면 정렬용 기본 확인 시점이며 실제 마감일이 아니다. */
+  /** 화면 정렬용 기본 확인 시점이며 실제 마감일이 아니다. 음수는 결혼식 뒤를 뜻한다. */
   ddayDeadline: number;
   items: ChecklistItem[];
 }
 
 export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
+  // 전 과정 1: 두 사람이 먼저 정할 기준
+  {
+    key: "foundation",
+    label: CHECKLIST_CATEGORY_LABELS.foundation,
+    icon: "Heart",
+    tip: "가족이나 업체와 이야기하기 전에 두 사람이 원하는 결혼과 생활의 기준부터 맞춰보세요. 결정의 상세 내용은 두 사람만 볼 수 있는 안전한 곳에 남기고, 체크리스트에는 확인 여부만 기록하세요.",
+    journeyStage: "foundation",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 540,
+    ddayDeadline: 300,
+    items: [
+      { id: "foundation_01", label: "예식 진행 여부·형식과 법률혼(혼인신고) 여부·희망 시점을 각각 합의", done: false },
+      { id: "foundation_02", label: "원하는 결혼식 규모·형식·분위기와 생략할 것 정리", done: false },
+      { id: "foundation_03", label: "결혼식·입주·여행의 가능한 시기와 우선순위 합의", done: false },
+      { id: "foundation_04", label: "각자 꼭 원하는 것과 포기해도 되는 것 공유", done: false },
+      { id: "foundation_05", label: "가족 의견을 들을 범위와 두 사람의 최종 결정 방식 합의", done: false },
+      { id: "foundation_06", label: "초대할 사람의 범위와 서로 다른 관계를 존중할 기준 합의", done: false },
+      { id: "foundation_07", label: "돈·주거·일·가사처럼 함께 살기 전 필요한 대화 완료 여부 확인", done: false },
+      { id: "foundation_08", label: "준비 업무 담당과 두 사람 모두 확인할 결정 구분", done: false },
+      { id: "foundation_09", label: "준비 상황을 함께 점검할 주기와 갈등을 멈추고 다시 말할 방법 정하기", done: false },
+      { id: "foundation_10", label: "사진·연락처·가족 정보의 공유와 온라인 공개 범위 합의", done: false },
+    ],
+  },
+  {
+    key: "contracts",
+    label: CHECKLIST_CATEGORY_LABELS.contracts,
+    icon: "Package",
+    tip: "업체마다 계약이 달라질 수 있으므로 광고나 구두 설명만 믿지 말고, 최종 총액과 포함·제외 항목, 변경·취소 조건을 계약서에서 직접 확인하세요.",
+    journeyStage: "contracts",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 360,
+    ddayDeadline: 0,
+    items: [
+      { id: "contracts_01", label: "두 사람이 부담 가능한 전체 예산과 별도 예비 범위 합의", done: false },
+      { id: "contracts_02", label: "자금 출처와 가족 지원·빌린 돈의 조건을 당사자끼리 확인", done: false },
+      { id: "contracts_03", label: "계약금·중도금·잔금의 확인 담당과 지급 일정 관리 방법 정하기", done: false },
+      { id: "contracts_04", label: "계약 상대의 상호·연락처·사업자 정보와 실제 담당자 확인", done: false },
+      { id: "contracts_05", label: "기본 상품·선택 상품·세금·현장 추가 비용을 항목별 문서로 확인", done: false },
+      { id: "contracts_06", label: "포함되는 것과 별도로 준비하거나 결제할 것을 계약서에 구분", done: false },
+      { id: "contracts_07", label: "취소·날짜 변경·환불·행사 진행 불가 때의 조건 확인", done: false },
+      { id: "contracts_08", label: "받을 결과물의 수량·형식·전달 시점·수정 범위 확인", done: false },
+      { id: "contracts_09", label: "담당자 교체·다른 업체에 맡기는 경우·분실이나 파손의 대응 확인", done: false },
+      { id: "contracts_10", label: "사진·영상의 홍보 사용과 개인정보 처리 동의를 계약과 구분해 확인", done: false },
+      { id: "contracts_11", label: "서명한 계약서·견적·광고 화면·메시지·영수증 보관", done: false },
+      { id: "contracts_12", label: "실제 지출과 남은 결제·환불·분쟁 확인 상태를 정기적으로 함께 점검", done: false },
+    ],
+  },
+
   // 기본 확인 순서 1: 먼저 합의할 항목
   {
     key: "meeting",
     label: PLANNING_CATEGORY_LABELS.meeting,
     icon: "Users",
     tip: "두 사람이 양쪽 부모님과 처음 함께 만나는 일정입니다. 날짜·장소·참석자와 이 자리에서 나눌 주제를 미리 맞춰보세요.",
+    journeyStage: "foundation",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 360,
     ddayDeadline: 300,
     items: [
@@ -70,6 +177,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.venue,
     icon: "Building2",
     tip: "원하는 날짜에 가능한 장소가 적을 수 있습니다. 후보 날짜와 예상 하객 수를 정한 뒤 각 장소의 가능 일정과 계약 조건을 확인하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 360,
     ddayDeadline: 270,
     items: [
@@ -90,6 +200,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.studio,
     icon: "Camera",
     tip: "원하는 사진 분위기와 촬영 장소를 먼저 이야기한 뒤, 업체가 실제로 찍은 사진과 견적에 포함된 결과물을 비교하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 300,
     ddayDeadline: 150,
     items: [
@@ -108,6 +221,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.dress,
     icon: "Shirt",
     tip: "입었을 때의 편안함, 움직임, 원하는 분위기를 함께 보세요. 배우자가 입을 예식용 정장도 필요한지 따로 확인하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 300,
     ddayDeadline: 120,
     items: [
@@ -126,6 +242,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.makeup,
     icon: "Palette",
     tip: "결혼식 전에 헤어와 메이크업을 미리 받아볼지는 업체의 제공 범위와 두 사람의 필요에 따라 정하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 240,
     ddayDeadline: 60,
     items: [
@@ -144,6 +263,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.ring,
     icon: "Gem",
     tip: "결혼반지나 기념 선물을 준비한다면 누가 비용을 내는지, 전체 금액, 필요한 품목과 수령 날짜를 먼저 정리하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 270,
     ddayDeadline: 120,
     items: [
@@ -164,6 +286,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.hanbok,
     icon: "Flower2",
     tip: "한복을 입을 사람과 맞춤·대여 여부를 정한 뒤, 업체가 안내한 제작 또는 대여 기간과 수령 날짜를 확인하세요.",
+    journeyStage: "optional",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 180,
     ddayDeadline: 60,
     items: [
@@ -181,6 +306,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.yedan,
     icon: "Package",
     tip: "두 가족에게 선물을 준비할지는 가족과 먼저 합의하세요. 진행한다면 품목, 금액, 전달 방법을 적어두세요.",
+    journeyStage: "optional",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 180,
     ddayDeadline: 60,
     items: [
@@ -197,6 +325,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.honeymoon,
     icon: "Plane",
     tip: "여행지와 기간을 정한 뒤 항공·숙소의 취소 조건과 여권·비자 필요 여부를 공식 안내에서 확인하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 180,
     ddayDeadline: 30,
     items: [
@@ -215,6 +346,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.houseware,
     icon: "Home",
     tip: "가전·가구·생활용품은 실제로 필요한 목록과 공간 크기를 먼저 확인하고, 비용을 누가 얼마나 낼지 정리하세요.",
+    journeyStage: "home",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 180,
     ddayDeadline: 30,
     items: [
@@ -232,6 +366,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.housing,
     icon: "Key",
     tip: "예산, 출퇴근, 교통, 생활 편의를 함께 비교하세요. 대출이나 임대 조건은 금융기관과 계약 문서에서 직접 확인하세요.",
+    journeyStage: "home",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 180,
     ddayDeadline: 60,
     items: [
@@ -251,6 +388,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.invitation,
     icon: "Mail",
     tip: "종이와 모바일 중 필요한 형태를 정하고, 제작 업체의 실제 소요 기간과 발송할 날짜를 확인하세요.",
+    journeyStage: "guests",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 120,
     ddayDeadline: 45,
     items: [
@@ -268,6 +408,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.snap,
     icon: "Video",
     tip: "결혼식 날 사진과 영상은 서로 다른 상품일 수 있습니다. 촬영 시간, 받는 파일 수, 보정 범위, 전달 날짜를 각각 확인하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 120,
     ddayDeadline: 30,
     items: [
@@ -285,6 +428,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.shoes,
     icon: "Sparkles",
     tip: "옷 길이와 이동 동선을 고려해 신발 높이와 편안함을 확인하세요. 갈아 신을 신발이 필요한지도 함께 정하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 90,
     ddayDeadline: 30,
     items: [
@@ -301,6 +447,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.bouquet,
     icon: "Flower",
     tip: "손에 들 꽃이 필요하다면 원하는 분위기, 생화나 인조 꽃 여부, 전달 시간과 보관 방법을 업체와 확인하세요.",
+    journeyStage: "vendors",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 90,
     ddayDeadline: 14,
     items: [
@@ -317,6 +466,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.gift,
     icon: "Gift",
     tip: "하객 선물을 준비한다면 대상 인원, 한 사람당 금액, 수량 변경 기한과 남은 물품의 처리 조건을 확인하세요.",
+    journeyStage: "guests",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 90,
     ddayDeadline: 14,
     items: [
@@ -334,6 +486,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.mc,
     icon: "Mic",
     tip: "진행자와 축하 노래가 필요한지 정한 뒤, 맡을 사람과 순서, 필요한 장비, 사전 확인 날짜를 맞추세요.",
+    journeyStage: "ceremony",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 90,
     ddayDeadline: 14,
     items: [
@@ -350,6 +505,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.ham,
     icon: "Box",
     tip: "전통 혼례 선물인 함을 진행할지는 가족과 먼저 합의하세요. 진행한다면 내용물, 전달 방식, 날짜와 비용을 정리하세요.",
+    journeyStage: "optional",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 60,
     ddayDeadline: 7,
     items: [
@@ -366,6 +524,9 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     label: PLANNING_CATEGORY_LABELS.pyebaek,
     icon: "Heart",
     tip: "결혼식 뒤 전통 인사를 진행할지는 가족과 먼저 합의하세요. 진행한다면 의상, 음식, 장소와 비용을 각각 확인하세요.",
+    journeyStage: "optional",
+    budgetTracked: true,
+    introducedInVersion: 1,
     ddayStart: 60,
     ddayDeadline: 7,
     items: [
@@ -375,6 +536,154 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "pyebaek_04", label: "결혼식장 안에 진행할 장소가 있는지 확인", done: false },
       { id: "pyebaek_05", label: "진행 순서를 미리 확인", done: false },
       { id: "pyebaek_06", label: "입을 한복과 신발 확인", done: false },
+    ],
+  },
+
+  // 전 과정 2: 하객과 결혼식 날 운영
+  {
+    key: "guests",
+    label: CHECKLIST_CATEGORY_LABELS.guests,
+    icon: "Users",
+    tip: "하객 수만 세지 말고 참석 답변, 식사와 이동에 필요한 지원, 연락처 보호까지 한 흐름으로 관리하세요. 건강·접근성 요청의 상세 내용은 꼭 필요한 담당자에게만 전달하세요.",
+    journeyStage: "guests",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 150,
+    ddayDeadline: 7,
+    items: [
+      { id: "guests_01", label: "양쪽 초대 범위·동반인·어린이 참석 기준 합의", done: false },
+      { id: "guests_02", label: "연락처를 모으고 사용할 범위와 정리 시점 확인", done: false },
+      { id: "guests_03", label: "참석 답변 방법·마감 시점·확인 담당 정하기", done: false },
+      { id: "guests_04", label: "식사 조정·알레르기·이동 지원 요청의 확인 완료 여부만 기록", done: false },
+      { id: "guests_05", label: "가족·어린이·고령자와 이동 지원이 필요한 사람의 좌석 동선 확인", done: false },
+      { id: "guests_06", label: "최종 참석 인원과 변경 가능한 마지막 시점을 장소에 확인", done: false },
+      { id: "guests_07", label: "대중교통·주차·셔틀과 접근 가능한 이동 경로 안내", done: false },
+      { id: "guests_08", label: "멀리서 오는 사람에게 필요한 숙박 정보와 예약 기한 안내", done: false },
+      { id: "guests_09", label: "정보 수정·예식 변경·긴급 연락을 전달할 방법 준비", done: false },
+      { id: "guests_10", label: "접수·방명록·선물 보관·하객 안내 담당과 교대 시간 정하기", done: false },
+    ],
+  },
+  {
+    key: "ceremony",
+    label: CHECKLIST_CATEGORY_LABELS.ceremony,
+    icon: "Mic",
+    tip: "결혼식 날의 판단을 두 사람에게 몰아두지 않도록 하나의 진행표와 연락망을 만들고, 현장 책임자·비상 대체안·금품 인계 절차를 미리 정하세요.",
+    journeyStage: "ceremony",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 90,
+    ddayDeadline: 0,
+    items: [
+      { id: "ceremony_01", label: "예식 순서·대본·이름·호칭을 당사자와 함께 최종 확인", done: false },
+      { id: "ceremony_02", label: "입장·인사·축사·공연·전통 순서의 참여자와 생략 항목 확정", done: false },
+      { id: "ceremony_03", label: "음악·영상·발표 파일의 형식 확인과 별도 기기 백업", done: false },
+      { id: "ceremony_04", label: "전체 진행표와 장소·업체·도움 주는 사람의 연락망 공유", done: false },
+      { id: "ceremony_05", label: "현장에서 최종 판단할 책임자와 두 사람 대신 연락받을 사람 지정", done: false },
+      { id: "ceremony_06", label: "물품 반입·업체 도착·잔금 확인·철수 시간을 한 표로 정리", done: false },
+      { id: "ceremony_07", label: "해당 순서 참여자와 입장 신호·이동 동선·마이크 사용을 미리 맞춰보기", done: false },
+      { id: "ceremony_08", label: "날씨·교통 지연·업체 불참·응급 상황 때의 대체안 확인", done: false },
+      { id: "ceremony_09", label: "반지·의상·약·물·간단한 식사·비상용품의 위치와 담당 확인", done: false },
+      { id: "ceremony_10", label: "축의금·귀중품은 두 사람이 확인해 인계하고 상세 금액은 체크리스트에 저장하지 않기", done: false },
+      { id: "ceremony_11", label: "가족 단체사진 조합과 촬영을 원하지 않는 사람·장면 전달", done: false },
+      { id: "ceremony_12", label: "대여품 회수·분실물 확인·귀가 지원 담당 정하기", done: false },
+    ],
+  },
+
+  // 전 과정 3: 집·행정·건강
+  {
+    key: "home_admin",
+    label: CHECKLIST_CATEGORY_LABELS.home_admin,
+    icon: "Key",
+    tip: "주택 계약과 이사 행정의 요건은 계약 형태와 시점에 따라 달라질 수 있습니다. 송금이나 신고 전에 등기·계약 문서와 정부·공공기관의 최신 안내를 직접 확인하세요.",
+    journeyStage: "home",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 240,
+    ddayDeadline: -30,
+    items: [
+      { id: "home_admin_01", label: "임차·매수 여부와 계약 명의·자금 부담·예상 거주 기간 합의", done: false },
+      { id: "home_admin_02", label: "등기·건축물 정보·소유자와 대리 권한을 공식 문서로 확인", done: false },
+      { id: "home_admin_03", label: "선순위 권리·시세·보증금 반환 위험과 보증 이용 가능 여부 확인", done: false },
+      { id: "home_admin_04", label: "계약서의 수리·관리비·퇴거·반환 조건과 합의한 특약 확인", done: false },
+      { id: "home_admin_05", label: "잔금 보내기 직전 권리 변동을 다시 확인하고 영수증 보관", done: false },
+      { id: "home_admin_06", label: "해당되는 임대차 신고·확정일자 절차를 정부 안내에서 확인", done: false },
+      { id: "home_admin_07", label: "실제 이사 날짜에 맞춰 전입신고 방법과 준비 서류 확인", done: false },
+      { id: "home_admin_08", label: "입주 상태·하자·계량기·열쇠를 사진과 인계 문서로 확인", done: false },
+      { id: "home_admin_09", label: "이사·공과금·우편·인터넷과 주소 변경이 필요한 서비스를 정리", done: false },
+      { id: "home_admin_10", label: "공동생활비·비상금·빚 상환과 큰 지출의 공동 확인 기준 합의", done: false },
+      { id: "home_admin_11", label: "재산 약정이 필요하다면 혼인신고 전에 공식 절차와 전문가 상담 필요 여부 확인", done: false },
+    ],
+  },
+  {
+    key: "health_admin",
+    label: CHECKLIST_CATEGORY_LABELS.health_admin,
+    icon: "Heart",
+    tip: "건강 확인과 임신 준비는 모든 커플에게 같은 의무가 아닙니다. 두 사람의 동의와 필요에 따라 의료진·보건기관에 상담하고, 진단명이나 검사 결과는 체크리스트에 저장하지 마세요.",
+    journeyStage: "foundation",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 180,
+    ddayDeadline: -30,
+    items: [
+      { id: "health_admin_01", label: "서로 알아야 할 응급 연락·알레르기·복용약 정보의 공유 범위 합의", done: false },
+      { id: "health_admin_02", label: "원하는 경우 건강 상담이나 검진 필요 여부를 의료기관에서 확인", done: false },
+      { id: "health_admin_03", label: "임신을 계획한다면 예방접종·복용약·건강 상담 시점을 의료진과 확인", done: false },
+      { id: "health_admin_04", label: "해외여행이 있다면 여행지 감염병·예방접종·상비약을 공식 안내에서 확인", done: false },
+      { id: "health_admin_05", label: "혼인신고 여부와 희망 시점·신고할 곳을 두 사람이 확인", done: false },
+      { id: "health_admin_06", label: "혼인신고서와 증인 서명 등 현재 필요한 서류를 공식 안내에서 확인", done: false },
+      { id: "health_admin_07", label: "국제혼인·재외국민 등 해당 상황의 추가 서류와 인증 절차 확인", done: false },
+      { id: "health_admin_08", label: "혼인신고를 했다면 접수·처리 상태와 필요한 증명서 반영 확인", done: false },
+      { id: "health_admin_09", label: "직장 경조 제도·휴가·보험 등 필요한 신청의 현재 조건 확인", done: false },
+      { id: "health_admin_10", label: "신분·건강 서류는 안전하게 보관하고 불필요한 사본 삭제", done: false },
+    ],
+  },
+
+  // 전 과정 4: 결혼식 뒤와 조건부 준비
+  {
+    key: "aftercare",
+    label: CHECKLIST_CATEGORY_LABELS.aftercare,
+    icon: "CheckCircle2",
+    tip: "결혼식이 끝난 뒤에도 반납·정산·감사·사진 납품·생활 행정이 남습니다. D+30까지 한 번에 닫지 말고 계약별 납품일과 두 사람의 생활 일정에 맞춰 확인하세요.",
+    journeyStage: "aftercare",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 0,
+    ddayDeadline: -30,
+    items: [
+      { id: "aftercare_01", label: "대여 의상·소품·장비 반납과 보증금 반환 확인", done: false },
+      { id: "aftercare_02", label: "장소와 업체의 최종 계산서·잔금·추가 청구·환불 확인", done: false },
+      { id: "aftercare_03", label: "분실·파손·계약 불이행이 있다면 사진·계약서·대화 기록 보관", done: false },
+      { id: "aftercare_04", label: "축의금·선물은 두 사람이 확인해 안전하게 인계하고 상세 장부는 별도 보관", done: false },
+      { id: "aftercare_05", label: "가족·도움을 준 사람·업체에 각자 맞는 감사 연락", done: false },
+      { id: "aftercare_06", label: "사진·영상 전체 파일과 수정 파일의 전달 일정·선택·수정 요청 확인", done: false },
+      { id: "aftercare_07", label: "받은 사진·영상의 사용 권한을 확인하고 서로 다른 장소에 백업", done: false },
+      { id: "aftercare_08", label: "여행 중 지연·분실·진료가 있었다면 계약과 보험의 청구 절차 확인", done: false },
+      { id: "aftercare_09", label: "선택한 혼인신고·주소·주거 관련 후속 행정의 처리 상태 확인", done: false },
+      { id: "aftercare_10", label: "전체 지출을 마감하고 남은 환불·할부·빚의 처리 계획 합의", done: false },
+      { id: "aftercare_11", label: "준비 과정에서 고마웠던 점과 앞으로 다시 맞춰볼 생활 기준 대화", done: false },
+    ],
+  },
+  {
+    key: "special_cases",
+    label: CHECKLIST_CATEGORY_LABELS.special_cases,
+    icon: "Sparkles",
+    tip: "이 묶음은 모두 선택 사항입니다. 국제혼인·종교식·무예식·재혼·자녀 동반 등 두 사람에게 해당하는 항목만 확인하고, 해당하지 않으면 카테고리 전체를 건너뛰세요.",
+    journeyStage: "optional",
+    budgetTracked: false,
+    introducedInVersion: 2,
+    ddayStart: 360,
+    ddayDeadline: 0,
+    items: [
+      { id: "special_cases_01", label: "국제혼인이라면 두 나라의 혼인 성립·신고·번역·인증 절차를 각 공식기관에서 확인", done: false },
+      { id: "special_cases_02", label: "비자·체류·국적 관련 절차가 있다면 관할 기관의 현재 조건 확인", done: false },
+      { id: "special_cases_03", label: "종교 예식이라면 참여 의식·복장·교육·서류와 생략 가능한 절차 합의", done: false },
+      { id: "special_cases_04", label: "예식 없이 혼인신고나 모임만 한다면 알릴 사람·방식·시점 합의", done: false },
+      { id: "special_cases_05", label: "재혼이라면 이전 관계의 법적·재산·가족 경계를 필요한 전문가와 확인", done: false },
+      { id: "special_cases_06", label: "자녀가 함께한다면 참여 여부·호칭·사진 공개·돌봄을 자녀의 의사와 함께 확인", done: false },
+      { id: "special_cases_07", label: "장애·질환·임신·고령 등 지원이 필요하면 당사자가 원하는 지원만 담당자에게 전달", done: false },
+      { id: "special_cases_08", label: "통역·수어·쉬운 안내·조용한 공간 등 의사소통 지원 필요 여부 확인", done: false },
+      { id: "special_cases_09", label: "가족과 연락하지 않거나 안전 우려가 있다면 초대·주소·사진·현장 접근 보호 계획 수립", done: false },
+      { id: "special_cases_10", label: "선택한 특별 준비의 담당·비용·개인정보 공개 범위와 재확인 날짜 합의", done: false },
     ],
   },
 ];

@@ -112,7 +112,7 @@ describe("scheduleTools", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps schedule summary counts derived from category progress", () => {
+  it("keeps schedule summary on the shared item-level and v2 opt-in contract", () => {
     const result = executeGetScheduleSummary(
       createContext({
         venue: { category: "venue", status: "completed" },
@@ -122,8 +122,9 @@ describe("scheduleTools", () => {
 
     expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
-      total: CATEGORY_CHECKLISTS.length,
-      progress_percent: Math.round(100 / CATEGORY_CHECKLISTS.length),
+      total: CATEGORY_CHECKLISTS.filter((category) => category.introducedInVersion === 1).length,
+      progress_percent: 0,
+      available_new_categories: 8,
     });
     expect(result.toolOutput.completed).toEqual(
       expect.arrayContaining(["결혼식장"]),
@@ -131,6 +132,27 @@ describe("scheduleTools", () => {
     expect(result.toolOutput.in_progress).toEqual(
       expect.arrayContaining(["웨딩 사진 촬영"]),
     );
+  });
+
+  it("accepts a schedule and checklist update for a new full-journey category", async () => {
+    mockAdminClient({});
+    const ctx = createContext({});
+
+    const event = await executeAddScheduleEvent(
+      { date: "2026-10-11", title: "감사 인사 명단 확인", category_key: "aftercare" },
+      ctx,
+    );
+    const checklist = await executeToggleChecklistItem(
+      { category: "aftercare", item_id: "aftercare_01", done: true },
+      ctx,
+    );
+
+    expect(event).toMatchObject({ success: true });
+    expect(checklist).toMatchObject({
+      success: true,
+      toolOutput: { category: "aftercare", item_id: "aftercare_01", done: true },
+    });
+    expect(checklist.displayMessage).toContain("결혼식 뒤 정산·감사·기록");
   });
 
   it("adds schedule events through the shared progress patch path", async () => {

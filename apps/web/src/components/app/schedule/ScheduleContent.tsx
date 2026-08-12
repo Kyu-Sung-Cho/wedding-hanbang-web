@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { summarizePlanningChecklist } from "@/utils/checklist";
 import {
   addEvent,
@@ -34,7 +34,7 @@ import type {
 const DEMO_SCHEDULE_ACTOR_PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  ...PLANNING_CATEGORY_LABELS,
+  ...CHECKLIST_CATEGORY_LABELS,
   etiquette: "결혼 예절 참고",
 };
 

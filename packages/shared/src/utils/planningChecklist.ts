@@ -18,6 +18,8 @@ export interface PlanningChecklistProgress {
 export interface PlanningChecklistTemplateLike {
   key: string;
   items: PlanningChecklistItem[];
+  /** 생략되면 기존(v1) 템플릿으로 간주한다. */
+  introducedInVersion?: 1 | 2;
 }
 
 /**
@@ -87,14 +89,23 @@ export function summarizePlanningChecklist(
   skippedCategories: number;
   completedCategories: number;
   applicableCategories: number;
+  /** 화면에는 보이지만 아직 사용자가 시작하지 않아 진행률 분모에서 보류한 v2 분야 수. */
+  availableNewCategories: number;
 } {
   let done = 0;
   let total = 0;
   let skippedCategories = 0;
   let completedCategories = 0;
   let applicableCategories = 0;
+  let availableNewCategories = 0;
 
   for (const template of templates) {
+    const hasSavedCategory = Object.prototype.hasOwnProperty.call(progress, template.key);
+    if (template.introducedInVersion === 2 && !hasSavedCategory) {
+      availableNewCategories += 1;
+      continue;
+    }
+
     const saved = progress[template.key];
     if (saved?.status === "not_applicable") {
       skippedCategories += 1;
@@ -116,5 +127,6 @@ export function summarizePlanningChecklist(
     skippedCategories,
     completedCategories,
     applicableCategories,
+    availableNewCategories,
   };
 }

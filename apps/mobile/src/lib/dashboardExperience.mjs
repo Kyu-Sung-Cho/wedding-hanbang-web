@@ -59,7 +59,12 @@ export function calculateChecklistProgress(progress, categories) {
 
   let done = 0;
   let total = 0;
+  const savedCategoryKeys = new Set(Object.keys(progress ?? {}));
   for (const category of categories) {
+    if (!isChecklistCategoryActivated(category, savedCategoryKeys)) {
+      continue;
+    }
+
     const categoryProgress = progress?.[category.key];
     if (categoryProgress?.status === "not_applicable") continue;
     const doneById = new Map();
@@ -96,6 +101,22 @@ export function calculateChecklistProgress(progress, categories) {
   }
 
   return total > 0 ? Math.round((done / total) * 100) : 0;
+}
+
+export function isChecklistCategoryActivated(category, savedCategoryKeys) {
+  return (category?.introducedInVersion ?? 1) === 1
+    || savedCategoryKeys.has(category.key);
+}
+
+export function shouldSurfaceChecklistCategory(category, dday) {
+  if (dday === null) return category?.journeyStage !== "aftercare";
+  if (dday < 0) return category?.ddayDeadline < 0;
+  if (dday === 0) return category?.journeyStage === "ceremony";
+
+  return (
+    category?.journeyStage !== "aftercare"
+    && dday <= category.ddayStart
+  );
 }
 
 export function buildDashboardFocus({

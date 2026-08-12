@@ -69,10 +69,11 @@ interface Phase {
 }
 
 const PHASE_DEFINITIONS = [
-  { label: "준비 시작", matches: (days: number) => days >= 300 },
-  { label: "주요 항목 정하기", matches: (days: number) => days >= 200 && days < 300 },
-  { label: "세부 준비", matches: (days: number) => days >= 100 && days < 200 },
-  { label: "마무리 준비", matches: (days: number) => days < 100 },
+  { label: "준비 시작", matches: (category: (typeof CATEGORY_CHECKLISTS)[number]) => category.journeyStage !== "aftercare" && category.ddayStart >= 300 },
+  { label: "주요 항목 정하기", matches: (category: (typeof CATEGORY_CHECKLISTS)[number]) => category.journeyStage !== "aftercare" && category.ddayStart >= 200 && category.ddayStart < 300 },
+  { label: "세부 준비", matches: (category: (typeof CATEGORY_CHECKLISTS)[number]) => category.journeyStage !== "aftercare" && category.ddayStart >= 100 && category.ddayStart < 200 },
+  { label: "마무리 준비", matches: (category: (typeof CATEGORY_CHECKLISTS)[number]) => category.journeyStage !== "aftercare" && category.ddayStart < 100 },
+  { label: "결혼식 뒤 정리", matches: (category: (typeof CATEGORY_CHECKLISTS)[number]) => category.journeyStage === "aftercare", dday: "D-day ~ D+30", period: "결혼식 뒤 30일" },
 ] as const;
 
 function formatPhaseRange(categories: typeof CATEGORY_CHECKLISTS) {
@@ -83,7 +84,9 @@ function formatPhaseRange(categories: typeof CATEGORY_CHECKLISTS) {
   const latestMonths = Math.round(latest / 30);
 
   return {
-    dday: earliest === latest ? `D-${earliest}` : `D-${earliest} ~ D-${latest}`,
+    dday: earliest === latest
+      ? formatWeddingRelativeDay(earliest)
+      : `${formatWeddingRelativeDay(earliest)} ~ ${formatWeddingRelativeDay(latest)}`,
     period:
       earliestMonths === latestMonths
         ? `약 ${earliestMonths}개월 전`
@@ -91,14 +94,19 @@ function formatPhaseRange(categories: typeof CATEGORY_CHECKLISTS) {
   };
 }
 
+function formatWeddingRelativeDay(days: number) {
+  if (days === 0) return "D-day";
+  return days > 0 ? `D-${days}` : `D+${Math.abs(days)}`;
+}
+
 export function buildPhases(): Phase[] {
-  return PHASE_DEFINITIONS.flatMap(({ label, matches }) => {
+  return PHASE_DEFINITIONS.flatMap(({ label, matches, ...override }) => {
     const categories = CATEGORY_CHECKLISTS.filter((category) =>
-      matches(category.ddayStart),
+      matches(category),
     );
     if (categories.length === 0) return [];
 
-    return [{ label, categories, ...formatPhaseRange(categories) }];
+    return [{ label, categories, ...formatPhaseRange(categories), ...override }];
   });
 }
 
@@ -354,8 +362,8 @@ export default function TimelineView({
 
       {/* 카테고리 미지정 커스텀 일정 */}
       {(() => {
-        const allCatKeys = CATEGORY_CHECKLISTS.map(c => c.key);
-        const uncategorized = activeEvents.filter(e => !e.categoryKey || !allCatKeys.includes(e.categoryKey));
+        const allCatKeys = new Set<string>(CATEGORY_CHECKLISTS.map((category) => category.key));
+        const uncategorized = activeEvents.filter((event) => !event.categoryKey || !allCatKeys.has(event.categoryKey));
         if (uncategorized.length === 0 && !onAddEvent) return null;
         return (
           <div

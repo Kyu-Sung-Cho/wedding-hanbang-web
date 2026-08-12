@@ -68,7 +68,11 @@ const CUSTOM_BUDGET_CATEGORY_WRITE = /(?:예산\s*)?(?:카테고리|항목).*(?:
 const CATEGORY_BUDGET_WRITE = /(?:예산|비용|금액|지출|썼|결제).*(?:변경|바꿔|수정|설정|저장|기록|썼|결제)|(?:변경|바꿔|수정|설정|저장|기록).*(?:예산|비용|금액|지출)/i;
 const TOTAL_BUDGET_WRITE = /(?:총\s*)?(?:예산|비용).*(?:변경|바꿔|수정|설정|업데이트)|(?:변경|바꿔|수정|설정|업데이트).*(?:총\s*)?(?:예산|비용)/i;
 const WEDDING_DATE_WRITE = /(?:결혼식|예식|웨딩).*(?:날짜|예정일).*(?:변경|바꿔|수정|설정|정했)|(?:결혼식|예식|웨딩).*(?:\d{4}[-./년]|\d{1,2}월\s*\d{1,2}일).*(?:이야|야|로\s*정했)/i;
-const TASK_STATUS_WRITE = /(?:상견례|예식장|웨딩홀|스튜디오|드레스|메이크업|예물|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|답례품|폐백).*(?:완료|진행\s*중|시작\s*전)(?:했|으로|이야|야|$)/i;
+const CHECKLIST_DOMAIN = /(?:상견례|예식장|웨딩홀|스튜디오|드레스|메이크업|예물|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|답례품|폐백|함께\s*정할\s*것|전체\s*예산(?:·|\s*)계약\s*보호|계약\s*보호|하객(?:·|\s*)참석\s*답변(?:·|\s*)이동|하객(?:\s*안내|\s*회신)?|참석\s*답변|식순(?:·|\s*)사전\s*연습(?:·|\s*)결혼식\s*날\s*운영|식순|본식\s*운영|신혼집\s*권리(?:·|\s*)이사\s*행정|혼인신고|전입신고|이사\s*행정|건강(?:·|\s*)서류(?:·|\s*)혼인신고|건강\s*서류|식\s*후\s*정산|결혼식\s*뒤\s*정산(?:·|\s*)감사(?:·|\s*)기록|결혼식\s*뒤\s*정산|감사\s*인사|사진\s*납품|우리\s*상황에\s*맞춘\s*선택\s*준비|국제\s*혼인|종교\s*예식)/i;
+const TASK_STATUS_WRITE = new RegExp(
+  `^\\s*(?:(?:나는|저는|내가|제가|우리는|저희는|우리가|저희가)\\s*)?${CHECKLIST_DOMAIN.source}.{0,80}(?:완료(?:했어|했어요|했습니다|함|야|예요)?|진행\\s*중(?:이야|이에요|입니다)?|시작\\s*전(?:이야|이에요|입니다)?)[.!~\\s]*$`,
+  "i",
+);
 const CHECKLIST_WRITE = /(?:체크리스트|할\s*일|준비\s*항목).*(?:완료|체크|해제|되돌)/i;
 const SCHEDULE_UPDATE_WRITE = /(?:일정|스케줄).*(?:변경|바꿔|수정|옮겨|미뤄|당겨)/i;
 const SCHEDULE_ADD_WRITE = /(?:일정|스케줄).*(?:추가|등록|저장|잡아)|(?:추가|등록|저장).*(?:일정|스케줄)/i;
@@ -86,7 +90,7 @@ const VENUE_WRITE = /(?:웨딩홀|예식장|식장|장소|venue).*(?:변경|바�
 // d로 죽어 조용히 오작동한다(이 수리 중 실제로 한 번 밟았다).
 const KRW_AMOUNT = /(?:\d+(?:[.,]\d+)?\s*(?:억|천만|백만|십만|천|백|십|만)?\s*)+(?:억|천만|백만|십만|만)?\s*원/;
 const MONEY_AMOUNT = new RegExp(KRW_AMOUNT.source, "i");
-const NON_EXECUTABLE_DECLARATION = /(?:친구|지인|언니|오빠|누나|형|동생|남의|다른\s*사람).*(?:은|는|이|가)|(?:하면|한다면|했으면|일까|할까|어떨|어때|좋을까|괜찮을까|가정|예시|추천해|알려줘)|(?:아니야|아니다|취소|미정)/i;
+const NON_EXECUTABLE_DECLARATION = /(?:친구|지인|언니|오빠|누나|형|동생|부모님|엄마|아빠|동료|사촌|친척|남의|다른\s*사람)(?:은|는|이|가|의|\s)|(?:하면|한다면|했으면|일까|할까|했을까|했는지|했다고|했대|했다더라|라던데|어떨|어때|좋을까|괜찮을까|가정|예시|추천해|알려줘|확인해\s*줘)|(?:한\s*적\s*없|아니야|아니다|취소|미정)/i;
 const NON_EXECUTABLE_RESTORE = /(?:친구|지인|언니|오빠|누나|형|동생|남의|다른\s*사람).*(?:은|는|이|가)|(?:하면|한다면|했으면|일까|할까|어떨|어때|좋을까|괜찮을까|가정|예시|추천해|알려줘)|(?:아니야|아니다|미정)/i;
 const DIRECT_TOTAL_BUDGET_DECLARATION = new RegExp(
   /(?:총\s*)?(?:예산|비용)(?:은|이|을|를)?\s*/.source
@@ -102,7 +106,10 @@ const DIRECT_CATEGORY_BUDGET_DECLARATION = new RegExp(
 );
 const DIRECT_WEDDING_DATE_DECLARATION = /(?:(?:내년|올해)\s*)?(?:\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일(?:에|로)?\s*(?:결혼(?:식)?(?:해|해요|이야|이에요|예정이야|예정이에요)|(?:결혼식|예식)(?:으로\s*)?(?:정했어|정했어요))/i;
 const DIRECT_SCHEDULE_DECLARATION = /(?:(?:이번|다음)\s*)?(?:월|화|수|목|금|토|일)요일(?:에)?\s*(?:상견례|예식장\s*(?:상담|투어)|웨딩홀\s*(?:상담|투어)|드레스\s*(?:투어|피팅)|스튜디오\s*(?:촬영|상담)|메이크업\s*(?:상담|테스트)|청첩장\s*모임)(?:이야|야|이에요|예요|가|해|해요)/i;
-const DIRECT_TASK_STATUS_DECLARATION = /(?:상견례|예식장|웨딩홀|스튜디오|드레스|메이크업|예물|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|답례품|폐백).*(?:계약|예약|준비|주문)(?:했어|했어요|완료했어|완료했어요)/i;
+const DIRECT_TASK_STATUS_DECLARATION = new RegExp(
+  `^\\s*(?:(?:나는|저는|내가|제가|우리는|저희는|우리가|저희가)\\s*)?${CHECKLIST_DOMAIN.source}.{0,80}(?:계약|예약|준비|주문|안내|신고|정산|인사|납품)(?:했어|했어요|했습니다|완료했어|완료했어요|완료했습니다)[.!~\\s]*$`,
+  "i",
+);
 
 export interface AmoraToolRoutingMessage {
   role: "user" | "assistant";
@@ -210,8 +217,10 @@ export function selectAmoraTools({
     || (acceptsDirectDeclaration && DIRECT_WEDDING_DATE_DECLARATION.test(userText))) {
     selected.add("update_wedding_date");
   }
-  if (TASK_STATUS_WRITE.test(userText)
-    || (acceptsDirectDeclaration && DIRECT_TASK_STATUS_DECLARATION.test(userText))) {
+  if (acceptsDirectDeclaration && (
+    TASK_STATUS_WRITE.test(userText)
+    || DIRECT_TASK_STATUS_DECLARATION.test(userText)
+  )) {
     selected.add("update_task_status");
   }
   if (CHECKLIST_WRITE.test(userText)) selected.add("toggle_checklist_item");
