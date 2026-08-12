@@ -9,7 +9,7 @@
     "dev:ios": "node ./scripts/start-expo-dev.mjs --ios",
     "dev:android": "node ./scripts/start-expo-dev.mjs --android",
     "build": "expo export --platform all --output-dir .expo/export-smoke --clear",
-    "test": "node --test ./src/__tests__/*.test.mjs",
+    "test": "tsx --test ./src/__tests__/*.test.mjs",
     "eas:init": "pnpm dlx eas-cli@21.0.2 init",
     "eas:build:ios": "node ../../scripts/mobile-eas-release-gate.mjs build --platform ios --profile production --non-interactive --freeze-credentials",
     "eas:build:android": "node ../../scripts/mobile-eas-release-gate.mjs build --platform android --profile production --non-interactive --freeze-credentials",
@@ -76,6 +76,7 @@
     "async-limiter": "1.0.1",
     "babel-preset-expo": "54.0.12",
     "eslint": "^9.39.4",
+    "tsx": "4.23.1",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.62.1"
   }
