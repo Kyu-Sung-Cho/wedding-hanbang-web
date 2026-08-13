@@ -775,6 +775,10 @@ function answerForApplicabilityTag(
       return answers.accessibilitySupport;
     case "pet_participation":
       return answers.petParticipation;
+    case "travel":
+      return answers.travel === "undecided"
+        ? null
+        : answers.travel !== "none";
     case "overseas_travel":
       return answers.travel === "undecided"
         ? null

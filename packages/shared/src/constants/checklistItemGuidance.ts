@@ -22,6 +22,7 @@ export type ChecklistApplicabilityTag =
   | "pregnancy_or_health_support"
   | "accessibility_support"
   | "pet_participation"
+  | "travel"
   | "overseas_travel"
   | "rental_home"
   | "home_purchase"
@@ -318,21 +319,25 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
       "대기실·화장실·주차·수유·휴식·휠체어 접근 경로와 사진 촬영 공간을 실제 동선으로 확인하고 제한 사항을 기록했을 때 완료로 체크하세요.",
     sourceRefs: ["easylaw_accessibility"],
   },
+  honeymoon_01: {
+    applicabilityTags: ["travel"],
+  },
+  honeymoon_02: {
+    applicabilityTags: ["travel"],
+  },
   honeymoon_03: {
-    tip: "여권 영문명과 예약 이름을 한 글자씩 대조하고, 수하물·환승·변경·환불 조건을 결제 화면과 예약 확인서에서 확인하세요.",
-    applicabilityTags: ["overseas_travel"],
-    sourceRefs: ["foreign_ministry_travel_safety"],
+    tip: "탑승자 이름과 예약 정보를 한 글자씩 대조하고, 좌석·수하물·환승·변경·환불 조건을 결제 화면과 예약 확인서에서 확인하세요.",
+    applicabilityTags: ["travel"],
   },
   honeymoon_04: {
     tip: "도착 시각과 이동 방법, 체크인 조건, 접근성, 취소 마감과 현지 추가 결제 항목을 예약 확인서에 모아두세요.",
-    applicabilityTags: ["overseas_travel"],
+    applicabilityTags: ["travel"],
   },
   honeymoon_05: {
     completionCriteria:
       "여행 일정과 건강 상태에 맞는 보장·제외 항목, 청구 연락처와 필요한 증빙을 약관에서 확인하고 증권을 저장했을 때 완료로 체크하세요.",
     caution: "‘여행자 보험’이라는 이름만 보고 모든 사고가 보장된다고 가정하지 말고, 기존 질환·임신·액티비티·수하물 제외 조건을 확인하세요.",
-    applicabilityTags: ["overseas_travel"],
-    sourceRefs: ["foreign_ministry_travel_safety"],
+    applicabilityTags: ["travel"],
   },
   honeymoon_06: {
     completionCriteria:
@@ -340,6 +345,12 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
     caution: "국가별 입국 요건은 바뀔 수 있으므로 항공권 판매 화면이나 개인 후기만 믿지 말고 출발 직전에 다시 확인하세요.",
     applicabilityTags: ["overseas_travel"],
     sourceRefs: ["foreign_ministry_travel_safety"],
+  },
+  honeymoon_07: {
+    applicabilityTags: ["travel"],
+  },
+  honeymoon_08: {
+    applicabilityTags: ["overseas_travel"],
   },
   housing_03: {
     sourceRefs: ["easylaw_lease_safety"],

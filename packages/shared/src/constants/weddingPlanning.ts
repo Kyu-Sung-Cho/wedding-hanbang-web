@@ -322,7 +322,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "honeymoon",
     label: PLANNING_CATEGORY_LABELS.honeymoon,
     icon: "Plane",
-    tip: "여행지와 기간을 정한 뒤 항공·숙소의 취소 조건과 여권·비자 필요 여부를 공식 안내에서 확인하세요.",
+    tip: "여행지와 기간을 정한 뒤 교통·숙소의 취소 조건을 확인하고, 해외여행이라면 여권·비자 필요 여부를 공식 안내에서 확인하세요.",
     journeyStage: "vendors",
     budgetTracked: true,
     introducedInVersion: 1,
@@ -331,7 +331,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     items: [
       { id: "honeymoon_01", label: "국내 또는 해외 여행지 정하기", done: false },
       { id: "honeymoon_02", label: "여행 일정 및 기간 확정", done: false },
-      { id: "honeymoon_03", label: "항공권 예약", done: false },
+      { id: "honeymoon_03", label: "교통편 예약 (항공·철도 등)", done: false },
       { id: "honeymoon_04", label: "숙소 예약", done: false },
       { id: "honeymoon_05", label: "여행자 보험 가입", done: false },
       { id: "honeymoon_06", label: "여권과 비자 필요 여부 확인하고 갱신", done: false },
