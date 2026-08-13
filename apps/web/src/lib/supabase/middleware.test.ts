@@ -11,11 +11,13 @@ vi.mock("@supabase/ssr", () => ({
 }));
 
 import { updateSession } from "./middleware";
+import { createDemoSessionToken } from "@/lib/demoSession";
 
 describe("vendor admin-preview onboarding boundary", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("DEMO_SESSION_SECRET", "middleware-demo-session-test-secret");
     mocks.getUser.mockReset().mockResolvedValue({
       data: { user: { id: "signed-in-user" } },
     });
@@ -25,6 +27,21 @@ describe("vendor admin-preview onboarding boundary", () => {
   });
 
   afterEach(() => vi.unstubAllEnvs());
+
+  it("redirects a protected checklist deep link instead of rendering with missing preview credentials", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
+
+    const response = await updateSession(
+      new NextRequest("https://preview.example.test/wedding/checklist?from=guide"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://preview.example.test/login?redirect=%2Fwedding%2Fchecklist%3Ffrom%3Dguide",
+    );
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
 
   it.each([
     "/wedding/vendors?preview=1",
@@ -119,9 +136,12 @@ describe("vendor admin-preview onboarding boundary", () => {
   });
 
   it("lets demo mode open a checklist detail without an auth request", async () => {
+    const demoSession = createDemoSessionToken();
+    expect(demoSession).not.toBeNull();
+
     const response = await updateSession(
       new NextRequest("https://hanbang.ai/wedding/checklist/meeting", {
-        headers: { cookie: "demo_mode=true" },
+        headers: { cookie: `demo_mode=true; demo_session=${demoSession}` },
       }),
     );
 

@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
+
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
   "/lounge", "/dashboard", "/chat", "/budget", "/checklist", "/schedule", "/settings", "/bookings",
@@ -37,23 +39,33 @@ export async function updateSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
 
-  // Supabase 설정 없으면 스킵
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL.includes("your-project")
-  ) {
-    return supabaseResponse;
-  }
-
   // 공개 경로는 auth 체크 없이 즉시 통과 (핵심 최적화)
   const protectedType = isProtectedPath(pathname);
   if (!protectedType) {
     return supabaseResponse;
   }
 
-  // 데모 모드는 고객 앱 shell에만 허용한다. 관리자 보호 경로는 실제 인증 필요.
-  if (protectedType === "customer" && request.cookies.get("demo_mode")?.value === "true") {
+  const hasSignedDemoSession = protectedType === "customer"
+    && hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
+
+  // Preview stub에는 Supabase 키가 없다. 보호 화면을 그대로 통과시키면
+  // 서버 shell이 Supabase client를 만들다 RSC 전체가 깨지므로 서명된 데모만 허용한다.
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes("your-project")
+  ) {
+    if (hasSignedDemoSession) return supabaseResponse;
+
+    const url = protectedType === "customer"
+      ? buildCustomerGateRedirect(request, "/login")
+      : request.nextUrl.clone();
+    if (protectedType === "admin") url.pathname = "/admin/login";
+    return NextResponse.redirect(url);
+  }
+
+  // 데모 모드는 고객 앱 shell에만 허용하며 HMAC 서명까지 검증한다.
+  if (hasSignedDemoSession) {
     return supabaseResponse;
   }
 
