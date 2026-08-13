@@ -57,12 +57,18 @@ import {
 } from "./useChatComposerAutoResize";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
+import {
+  MANNERS_AMORA_QUERY_PARAM,
+  parseMannersAmoraSlug,
+  type MannersAmoraSlug,
+} from "@/lib/manners/amoraContract";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
+const MANNERS_AMORA_DRAFT = "이 예절 가이드를 우리 상황에 맞게 적용해줘";
 
 // 허용 파일 타입
 const ALLOWED_TYPES = CHAT_ATTACHMENT_TYPE_INFO;
@@ -81,6 +87,7 @@ interface ChatComposerDraft {
   attachments: AttachmentItem[];
   retryClientRequestId: string | null;
   pendingAttachmentReads: number;
+  mannersSlug: MannersAmoraSlug | null;
 }
 
 interface PendingSend {
@@ -95,18 +102,21 @@ function createEmptyComposerDrafts(): Record<ChatComposerLane, ChatComposerDraft
       attachments: [],
       retryClientRequestId: null,
       pendingAttachmentReads: 0,
+      mannersSlug: null,
     },
     shared_partner: {
       input: "",
       attachments: [],
       retryClientRequestId: null,
       pendingAttachmentReads: 0,
+      mannersSlug: null,
     },
     private_ai: {
       input: "",
       attachments: [],
       retryClientRequestId: null,
       pendingAttachmentReads: 0,
+      mannersSlug: null,
     },
   };
 }
@@ -484,6 +494,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const attachments = composerDrafts[activeComposerLane].attachments;
   const retryClientRequestId = composerDrafts[activeComposerLane].retryClientRequestId;
   const pendingAttachmentReads = composerDrafts[activeComposerLane].pendingAttachmentReads;
+  const mannersSlug = composerDrafts[activeComposerLane].mannersSlug;
   const setDraftInput = useCallback((
     lane: ChatComposerLane,
     nextInput: SetStateAction<string>,
@@ -551,6 +562,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     setComposerDrafts((currentDrafts) => ({
       ...currentDrafts,
       [lane]: { ...currentDrafts[lane], retryClientRequestId: clientRequestId },
+    }));
+  }, []);
+  const setDraftMannersSlug = useCallback((
+    lane: ChatComposerLane,
+    slug: MannersAmoraSlug | null,
+  ) => {
+    setComposerDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [lane]: { ...currentDrafts[lane], mannersSlug: slug },
     }));
   }, []);
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
@@ -665,6 +685,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           attachments: [],
           retryClientRequestId: null,
           pendingAttachmentReads: 0,
+          mannersSlug: null,
         },
       };
     });
@@ -740,7 +761,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const router = useRouter();
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
-    if (prefillAppliedRef.current) return;
+    if (prefillAppliedRef.current || !authInitialized || authLoading) return;
+    const rawMannersSlugValues = searchParams?.getAll(MANNERS_AMORA_QUERY_PARAM) ?? [];
+    const queryMannersSlug = rawMannersSlugValues.length === 1
+      ? parseMannersAmoraSlug(rawMannersSlugValues[0])
+      : null;
     const queryPrefill = searchParams?.get("prefill");
     const startHereHandoffId = searchParams?.get(START_HERE_HANDOFF_QUERY_PARAM) ?? null;
     let handoffPrefill: string | null = null;
@@ -773,13 +798,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         // 현재 탭 체험 초안이 유효하면 브라우저 공용 저장소 정리 실패와 무관하게 사용한다.
       }
     }
-    const prefill = startHereHandoffId
-      ? handoffPrefill
-      : queryPrefill ?? handoffPrefill;
-    const shouldCleanUrl = Boolean(queryPrefill) || Boolean(startHereHandoffId);
+    const prefill = queryMannersSlug
+      ? MANNERS_AMORA_DRAFT
+      : startHereHandoffId
+        ? handoffPrefill
+        : queryPrefill ?? handoffPrefill;
+    const shouldCleanUrl = rawMannersSlugValues.length > 0
+      || Boolean(queryPrefill)
+      || Boolean(startHereHandoffId);
     if (!prefill) {
       if (shouldCleanUrl) {
         const next = new URLSearchParams(searchParams?.toString());
+        next.delete(MANNERS_AMORA_QUERY_PARAM);
         next.delete("prefill");
         next.delete(START_HERE_HANDOFF_QUERY_PARAM);
         const qs = next.toString();
@@ -788,17 +818,30 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       return;
     }
     prefillAppliedRef.current = true;
+    if (queryMannersSlug) {
+      setActiveTab("shared");
+      setMessageTarget("ai");
+      setDraftMannersSlug("shared_ai", queryMannersSlug);
+    }
     setDraftInput("shared_ai", prefill);
     // 질문 원문과 일회성 가입 표식은 입력창에 적용한 직후 주소에서 제거한다.
     if (shouldCleanUrl) {
       const next = new URLSearchParams(searchParams.toString());
+      next.delete(MANNERS_AMORA_QUERY_PARAM);
       next.delete("prefill");
       next.delete(START_HERE_HANDOFF_QUERY_PARAM);
       const qs = next.toString();
       router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
     }
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [searchParams, router, setDraftInput]);
+  }, [
+    authInitialized,
+    authLoading,
+    searchParams,
+    router,
+    setDraftInput,
+    setDraftMannersSlug,
+  ]);
 
   useEffect(() => {
     if (!profile?.id || !coupleId || isDemo) {
@@ -1394,6 +1437,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       // A private composer has no partner-directed lane. Even nested cards or
       // future callers cannot override this privacy boundary.
       const sendTarget = isPrivate ? "ai" : targetOverride ?? messageTarget;
+      const selectedMannersSlug = usesComposer
+        && sourceLane === "shared_ai"
+        && sendTarget === "ai"
+        ? mannersSlug
+        : null;
       const submittedPartnerEpoch = partnerComposerEpochRef.current;
       const submittedPartnerRecipientId = sendTarget === "partner"
         ? linkedPartnerId
@@ -1419,6 +1467,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
       const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route";
       const canTransmitAttachments = crisisPreflight.disposition === "continue";
+      const submittedMannersSlug = canTransmitAttachments
+        && requestedVisibility === "shared"
+        ? selectedMannersSlug
+        : null;
       const submittedLane = isPrivateSafetyRoute ? "private_ai" : sourceLane;
       if (!isLocalSafetyHold && sendTarget === "partner" && !hasLinkedPartner) {
         setMessageTarget("ai");
@@ -1477,6 +1529,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 ),
               ],
               retryClientRequestId: clientRequestId,
+              mannersSlug: currentDraft.mannersSlug ?? submittedMannersSlug,
             },
           };
         });
@@ -1505,6 +1558,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             input: "",
             attachments: [],
             retryClientRequestId: submittedClientRequestId,
+            mannersSlug: null,
           },
         }));
       }
@@ -1538,6 +1592,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           ...(submittedClientRequestId
             ? { clientRequestId: submittedClientRequestId }
             : {}),
+          ...(submittedMannersSlug ? { mannersSlug: submittedMannersSlug } : {}),
         });
         if (outcome?.userMessage === "ephemeral_safety") {
           setActiveTab("private");
@@ -1593,6 +1648,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       journey,
       sendMessage,
       messageTarget,
+      mannersSlug,
       activeComposerLane,
       retryClientRequestId,
       pendingAttachmentReads,
@@ -2988,6 +3044,27 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 입력창 — ChatGPT 스타일로 reading width 유지 + 가운데 정렬 */}
       <div className="px-0 sm:px-2 pt-3 pb-2 w-full max-w-[53.75rem] mx-auto">
+        {activeComposerLane === "shared_ai" && mannersSlug && (
+          <div
+            className="mb-2 flex min-h-11 items-center justify-between gap-3 rounded-xl border border-[#C7D1C2] bg-[#F7F1E8] px-3 py-2 text-sm text-[#36534E]"
+            role="status"
+          >
+            <span className="flex min-w-0 items-center gap-2 font-medium">
+              <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">예절 가이드 참고 중</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setDraftMannersSlug("shared_ai", null)}
+              disabled={isStreaming || isSending}
+              aria-label="예절 가이드 참고 해제"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#36534E] transition-colors hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         {/* 첨부 미리보기 */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-2 px-1 sm:px-2 flex-wrap">

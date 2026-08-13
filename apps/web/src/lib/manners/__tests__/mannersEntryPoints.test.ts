@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { CHECKLIST_CATEGORY_LABELS } from "@hanbang/shared/constants";
+import { CHECKLIST_CATEGORY_GUIDES } from "@hanbang/shared/checklist-guides";
 
 import { WEDDING_APP_ROUTES } from "../../../../weddingAppRoutes";
 import { MANNERS_PARTS } from "../data";
@@ -64,8 +65,8 @@ describe("manners entry points", () => {
     }
   });
 
-  // 카테고리 매핑이 없는 파트를 가리키면 카드가 죽은 링크를 만든다.
-  it("maps every wedding category to a real part", () => {
+  // 대표 매핑이 있는 카테고리는 모두 실제 파트를 가리켜야 한다.
+  it("maps every representative wedding category to a real part", () => {
     const slugs = new Set(MANNERS_PARTS.map((part) => part.slug));
 
     for (const key of MAPPED_MANNERS_CATEGORY_KEYS) {
@@ -89,28 +90,45 @@ describe("manners entry points", () => {
   });
 
   // 오타로 매핑이 조용히 꺼지는 것을 막는다.
-  it("only maps category keys that actually exist", () => {
+  it("only maps category keys that actually exist and leaves the mixed situation hub unmapped", () => {
     const known = new Set(Object.keys(CHECKLIST_CATEGORY_LABELS));
     const unknown = MAPPED_MANNERS_CATEGORY_KEYS.filter((key) => !known.has(key));
 
     expect(unknown, `없는 카테고리 키: ${unknown.join(", ")}`).toEqual([]);
-    expect([...MAPPED_MANNERS_CATEGORY_KEYS].sort()).toEqual([...known].sort());
+    expect([...MAPPED_MANNERS_CATEGORY_KEYS, "special_cases"].sort()).toEqual([...known].sort());
+    expect(mannersPartForCategory("special_cases")).toBeNull();
   });
 
   it("connects the expanded family guides to the matching checklist categories", () => {
     expect(mannersPartForCategory("meeting")?.slug).toBe("family-meeting");
-    expect(mannersPartForCategory("ring")?.slug).toBe("gifts-and-traditions");
-    expect(mannersPartForCategory("hanbok")?.slug).toBe("traditional-greetings");
+    expect(mannersPartForCategory("ring")?.slug).toBe("cost-saving");
+    expect(mannersPartForCategory("hanbok")?.slug).toBe("cost-saving");
     expect(mannersPartForCategory("yedan")?.slug).toBe("gifts-and-traditions");
     expect(mannersPartForCategory("houseware")?.slug).toBe("shared-home-items");
     expect(mannersPartForCategory("housing")?.slug).toBe("money-home-conversation");
     expect(mannersPartForCategory("ham")?.slug).toBe("gifts-and-traditions");
     expect(mannersPartForCategory("pyebaek")?.slug).toBe("traditional-greetings");
-    expect(mannersPartForCategory("honeymoon")?.slug).toBe("post-honeymoon-thanks");
+    expect(mannersPartForCategory("honeymoon")?.slug).toBe("honeymoon-preparation");
     expect(mannersPartForCategory("foundation")?.slug).toBe("planning-timeline");
     expect(mannersPartForCategory("contracts")?.slug).toBe("cost-saving");
-    expect(mannersPartForCategory("guests")?.slug).toBe("guest-manners");
+    expect(mannersPartForCategory("guests")?.slug).toBe("invitation-sending");
     expect(mannersPartForCategory("health_admin")?.slug).toBe("marriage-registration");
+  });
+
+  it("keeps every checklist related guide link on a real public part", () => {
+    const slugs = new Set(MANNERS_PARTS.map((part) => part.slug));
+
+    for (const guide of Object.values(CHECKLIST_CATEGORY_GUIDES)) {
+      expect(guide.relatedMannersSlugs.length, `${guide.categoryKey}: 관련 예절 가이드가 없다`).toBeGreaterThan(0);
+      for (const slug of guide.relatedMannersSlugs) {
+        expect(slugs.has(slug), `${guide.categoryKey}: 없는 예절 가이드 ${slug}`).toBe(true);
+      }
+    }
+
+    expect(CHECKLIST_CATEGORY_GUIDES.honeymoon.relatedMannersSlugs).toEqual([
+      "honeymoon-preparation",
+      "post-honeymoon-thanks",
+    ]);
   });
 
   it("returns null for non-checklist and empty keys", () => {

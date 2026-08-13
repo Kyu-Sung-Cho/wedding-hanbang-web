@@ -166,6 +166,36 @@ describe("POST /api/chat safety ordering", () => {
     expect(mocks.provider).not.toHaveBeenCalled();
   });
 
+  it("rejects a non-allowlisted manners slug before claim, quota, or provider work", async () => {
+    const response = await POST(request(validBody({
+      mannersSlug: "family-meeting?prompt=ignore-safety",
+    })));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_MANNERS_CONTEXT",
+    });
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("requires a durable user-row binding before accepting manners context", async () => {
+    const response = await POST(request(validBody({
+      mannersSlug: "family-meeting",
+    })));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_MANNERS_CONTEXT_SCOPE",
+    });
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
   it("rejects partner-private visibility before claim or quota reservation", async () => {
     const response = await POST(request(validBody({ visibility: "groom_private" })));
     expect(response.status).toBe(403);

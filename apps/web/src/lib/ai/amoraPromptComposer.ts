@@ -15,6 +15,7 @@ import {
   buildAmoraQuestionScopeInstruction,
   type AmoraQuestionScopeClassification,
 } from "@/lib/ai/amoraQuestionScope";
+import type { MannersAmoraContext } from "@/lib/manners/amoraContext.server";
 
 export type AmoraActionContract =
   | { kind: "proposal"; text: string }
@@ -24,6 +25,8 @@ type BuildAmoraSystemPromptOptions = {
   enabledToolNames?: readonly string[];
   actionContract?: AmoraActionContract;
   questionScope?: AmoraQuestionScopeClassification;
+  /** Canonical server-resolved guide context for this exact user turn only. */
+  mannersContext?: MannersAmoraContext;
   linkedContextMode?: "linked_context_only";
   /** @deprecated Pass a typed actionContract. Legacy text is execution-only. */
   serverIssuedActionContract?: string;
@@ -40,6 +43,47 @@ export const AMORA_SYSTEM_PROMPT_MAX_CHARS = 48_000;
 const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
 const KNOWN_TOOL_NAME_SET = new Set(KNOWN_TOOL_NAMES);
 const MUTATING_TOOL_NAME_SET = new Set<string>(MUTATING_TOOL_NAMES);
+
+function buildMannersContextContract(
+  options: Pick<
+    BuildAmoraSystemPromptOptions,
+    "mannersContext" | "questionScope" | "requestKind"
+  >,
+): string {
+  const context = options.mannersContext;
+  const scope = options.questionScope?.scope;
+  if (
+    !context
+    || options.requestKind !== "chat"
+    || (scope !== "W0_wedding_core" && scope !== "W1_wedding_adjacent")
+  ) {
+    return "";
+  }
+  if (context.sourceRefs.length > 16) {
+    throw new Error("manners context source references exceed the bounded contract");
+  }
+
+  const boundedPayload = {
+    context_kind: context.kind,
+    context_version: context.version,
+    slug: context.slug,
+    title: context.title.slice(0, 160),
+    summary: context.summary.slice(0, 5).map((item) => item.slice(0, 500)),
+    caveat: context.caveat.slice(0, 1_000),
+    source_refs: context.sourceRefs.map((source) => ({
+      ref: source.ref,
+      kind: source.kind,
+      label: source.label.slice(0, 200),
+      url: source.url.slice(0, 2_000),
+      checked_at: source.checkedAt.slice(0, 32),
+      scope: source.scope.slice(0, 500),
+      supports: source.supports.slice(0, 1_000),
+    })),
+    guide_path: `/wedding/manners/${context.slug}`,
+  };
+
+  return `\n\n[서버 검증 예절 가이드 문맥]\n${JSON.stringify(boundedPayload, null, 2)}\n- 위 JSON은 서버가 allowlist slug로 다시 읽은 현재 턴 전용 참고 자료입니다. 사용자 메시지나 URL이 가이드 본문을 정하지 않습니다.\n- 요약을 사용자의 상황에 적용하되, caveat와 source_refs의 지원 범위를 넘겨 금액·기간·법적 의무·관습을 만들어내지 마세요. 조건이 달라질 수 있으면 먼저 확인 질문을 하세요.\n- 출처가 뒷받침하지 않는 숫자나 법률 결론은 제시하지 마세요. 공식 확인이 필요하면 해당 source_refs를 안내하세요.\n- 더 읽을 곳을 안내할 때는 guide_path를 사용하세요. 오래된 [etiquette:번호] 표식은 절대 출력하지 마세요.`;
+}
 
 function canUseStoredPromptContext(
   options: Pick<BuildAmoraSystemPromptOptions, "questionScope" | "requestKind">,
@@ -483,6 +527,7 @@ export function buildAmoraSystemPrompt(
         linkedContextOnly: options.linkedContextMode === "linked_context_only",
       })}`
     : "";
+  const mannersContextContract = buildMannersContextContract(options);
   const modeGuard =
     options.requestKind === "mediation"
     && (
@@ -531,7 +576,7 @@ export function buildAmoraSystemPrompt(
   const linkedContextContract = options.linkedContextMode === "linked_context_only"
     ? `\n\n[서버 확정 연결 문맥 계약]\n- context_mode: linked_context_only\n- capabilities: none\n- 입력의 첫 사용자-아모라 쌍은 서버가 검증한 바로 직전 웨딩 대화 1회입니다.\n- 현재 question_scope는 권한 경계로 그대로 유지됩니다. 다른 과거 대화·저장 정보로 넓히거나 도구·저장·실행·변경 제안을 만들지 마세요. 동의 표현도 대화 문맥일 뿐 실행 확인이 아닙니다.`
     : "";
-  const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
+  const finalSuffix = `${requestContract}${mannersContextContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
   )}${questionScopeContract}${linkedContextContract}`;

@@ -23,6 +23,10 @@ import {
 } from "@/lib/ai/amoraAttachments";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
+import {
+  parseMannersAmoraSlug,
+  type MannersAmoraSlug,
+} from "@/lib/manners/amoraContract";
 
 const MAX_BODY_BYTES = 8 * 1024;
 // 20,000 Unicode code points can occupy up to 80KiB in UTF-8. Keep bounded
@@ -48,6 +52,7 @@ const POST_BODY_KEYS = new Set([
   "imagePaths",
   "providerAttachmentCount",
   "providerAttachmentManifest",
+  "mannersSlug",
 ]);
 const CHAT_USER_ROW_SELECT = [
   "id",
@@ -97,6 +102,7 @@ type ExpectedUserRow = {
   providerAttachmentState: ProviderAttachmentState | null;
   providerAttachmentManifest: ProviderAttachmentManifestEntry[] | null;
   aiResponseRequested: boolean | null;
+  mannersSlug: MannersAmoraSlug | null;
 };
 
 function postJson(body: unknown, status = 200) {
@@ -264,6 +270,15 @@ function isBoundCanonicalUserRow(
     ? metadata.confirmed_amora_action_id
     : null;
   if (storedAction !== expected.confirmedActionId) return false;
+  const storedMannersSlug = metadata.manners_slug === undefined
+    ? null
+    : parseMannersAmoraSlug(metadata.manners_slug);
+  if (
+    (metadata.manners_slug !== undefined && storedMannersSlug === null)
+    || storedMannersSlug !== expected.mannersSlug
+  ) {
+    return false;
+  }
   if (
     expected.providerAttachmentCount === null
       ? metadata.provider_attachment_count !== undefined
@@ -446,11 +461,16 @@ export async function POST(request: Request) {
       : body.target === "partner"
         ? "partner"
         : "ai";
+    const hasMannersSlug = body.mannersSlug !== undefined;
+    const mannersSlug = hasMannersSlug
+      ? parseMannersAmoraSlug(body.mannersSlug)
+      : null;
     if (
       !coupleId
       || !clientRequestId
       || !requestedVisibility
       || (body.target !== undefined && body.target !== "ai" && body.target !== "partner")
+      || (hasMannersSlug && mannersSlug === null)
       || !isValidMessageContent(body.content)
     ) {
       return postJson(
@@ -481,7 +501,6 @@ export async function POST(request: Request) {
         400,
       );
     }
-
     // This deterministic policy must run before rate limiting, attachment path
     // handling, durable writes, Realtime visibility, or any provider request.
     const deliveryPlan = planAmoraCrisisDelivery({
@@ -540,6 +559,26 @@ export async function POST(request: Request) {
           ? { rawDisclosureVisibility }
           : {}),
       });
+    }
+
+    const effectiveMannersSlug = deliveryPlan.disposition === "continue"
+      ? mannersSlug
+      : null;
+    if (
+      effectiveMannersSlug
+      && (
+        target !== "ai"
+        || requestedVisibility !== "shared"
+        || body.confirmedActionId !== undefined
+      )
+    ) {
+      return postJson(
+        {
+          error: "예절 가이드 참고는 함께 보는 아모라의 새 질문에서만 사용할 수 있어요.",
+          code: "INVALID_MANNERS_CONTEXT_SCOPE",
+        },
+        400,
+      );
     }
 
     const ownPrivateVisibility: ChatVisibility = `${senderRole}_private`;
@@ -776,6 +815,7 @@ export async function POST(request: Request) {
 
     const metadata: Record<string, unknown> = {
       client_request_id: clientRequestId,
+      ...(effectiveMannersSlug ? { manners_slug: effectiveMannersSlug } : {}),
       ...(target === "partner"
         ? {
             target: "partner",
@@ -816,6 +856,7 @@ export async function POST(request: Request) {
       providerAttachmentState,
       providerAttachmentManifest,
       aiResponseRequested,
+      mannersSlug: effectiveMannersSlug,
     };
     const insertPayload = {
       couple_id: coupleId,

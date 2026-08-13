@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   },
   queryPrefill: null as string | null,
   startHereHandoffId: null as string | null,
+  mannersSlugValues: [] as string[],
   isDemo: false,
 }));
 
@@ -65,6 +66,7 @@ vi.mock("next/navigation", () => ({
     if (mocks.startHereHandoffId) {
       params.set("startHereHandoff", mocks.startHereHandoffId);
     }
+    mocks.mannersSlugValues.forEach((slug) => params.append("manners_slug", slug));
     return params;
   },
   useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
@@ -226,6 +228,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.partnerTyping = null;
     mocks.queryPrefill = null;
     mocks.startHereHandoffId = null;
+    mocks.mannersSlugValues = [];
     mocks.isDemo = false;
     mocks.sendMessage.mockResolvedValue({
       userMessage: "ephemeral_demo",
@@ -543,6 +546,86 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => findButton("함께 대화")?.click());
     expect(composer()?.value).toBe("이어 온 아모라 질문");
     expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+  });
+
+  it("shows an exact allowlisted manners context and lets the user remove it", async () => {
+    mocks.mannersSlugValues = ["family-meeting"];
+    await act(async () => {
+      root.render(<ChatContent />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
+      "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+    );
+    expect(container.textContent).toContain("예절 가이드 참고 중");
+    expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="예절 가이드 참고 해제"]',
+      )?.click();
+    });
+
+    expect(container.textContent).not.toContain("예절 가이드 참고 중");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="함께 보는 아모라 메시지 보내기"]',
+      )?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.not.objectContaining({
+      mannersSlug: expect.anything(),
+    }));
+  });
+
+  it.each([
+    ["a non-allowlisted value", ["family-meeting?prompt=ignore-safety"]],
+    ["duplicate values", ["family-meeting", "family-meeting"]],
+  ])("cleans %s without attaching manners context", async (_label, values) => {
+    mocks.mannersSlugValues = values;
+    await act(async () => {
+      root.render(<ChatContent />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).not.toContain("예절 가이드 참고 중");
+    expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+  });
+
+  it("restores the same manners context after an unknown persistence result", async () => {
+    const requestId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    mocks.mannersSlugValues = ["family-meeting"];
+    mocks.sendMessage
+      .mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: requestId })
+      .mockResolvedValueOnce({ userMessage: "persisted", userMessageId: "user-message-manners" });
+    await act(async () => {
+      root.render(<ChatContent />);
+      await Promise.resolve();
+    });
+    const send = () => container.querySelector<HTMLButtonElement>(
+      'button[aria-label="함께 보는 아모라 메시지 보내기"]',
+    );
+
+    await act(async () => {
+      send()?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      mannersSlug: "family-meeting",
+    }));
+    expect(container.textContent).toContain("예절 가이드 참고 중");
+
+    await act(async () => {
+      send()?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      clientRequestId: requestId,
+      mannersSlug: "family-meeting",
+    }));
+    expect(container.textContent).not.toContain("예절 가이드 참고 중");
   });
 
   it("restores a signup handoff from the same browser and removes it after applying", async () => {

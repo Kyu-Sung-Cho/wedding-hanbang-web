@@ -195,6 +195,12 @@ export interface ChatMessageMetadata {
   amora_ingest_contract_version?: 1 | 2;
   /** Whether this durable user row intentionally requested an Amora answer. */
   ai_response_requested?: boolean;
+  /**
+   * Server-validated manners guide selected for this exact user turn.
+   * Only the allowlisted slug is durable; guide prose and source URLs are
+   * resolved again from the canonical server corpus.
+   */
+  manners_slug?: import("@/lib/manners/amoraContract").MannersAmoraSlug;
   /** Whether provider-only attachment bytes are needed to resume this turn. */
   provider_attachment_state?:
     | "none"

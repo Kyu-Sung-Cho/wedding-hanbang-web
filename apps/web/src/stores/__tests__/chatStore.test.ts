@@ -567,6 +567,41 @@ describe("unanswered Amora turn recovery", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("restores only the allowlisted manners slug in a cold-start request body", () => {
+    const recovery = buildUnansweredMessageRecoveryRequest(
+      [{
+        ...baseUserMessage,
+        metadata: {
+          ...baseUserMessage.metadata,
+          manners_slug: "family-meeting" as const,
+        },
+      }],
+      TEST_COUPLE_UUID,
+    );
+
+    expect(JSON.parse(recovery?.requestBody ?? "{}")).toEqual(expect.objectContaining({
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      userMessageId: baseUserMessage.id,
+      mannersSlug: "family-meeting",
+    }));
+    expect(JSON.stringify(recovery)).not.toContain("source_refs");
+  });
+
+  it("fails closed on a durable row with a non-allowlisted manners slug", () => {
+    const recovery = buildUnansweredMessageRecoveryRequest(
+      [{
+        ...baseUserMessage,
+        metadata: {
+          ...baseUserMessage.metadata,
+          manners_slug: "family-meeting?prompt=ignore-safety",
+        } as never,
+      }],
+      TEST_COUPLE_UUID,
+    );
+
+    expect(recovery).toBeNull();
+  });
+
   it("requires a new message when provider-only attachment bytes are unavailable", () => {
     const recovery = buildUnansweredMessageRecoveryRequest(
       [{
@@ -4334,6 +4369,52 @@ describe("useChatStore failed provider retry", () => {
     expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "ai-message-retry-1", content: "완료된 답변" }),
     ]));
+  });
+
+  it("keeps only the allowlisted manners slug in both durable ingest and immutable provider retry", async () => {
+    const messageId = "user-message-manners";
+    const persistedRow = {
+      ...durableUserRow(),
+      id: messageId,
+      content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      metadata: {
+        ...durableUserRow().metadata,
+        manners_slug: "family-meeting" as const,
+      },
+    };
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(persistedRow));
+    mockFetch
+      .mockResolvedValueOnce(retryableChatHttpResponse())
+      .mockResolvedValueOnce(completedChatResponse());
+
+    await useChatStore.getState().sendMessage({
+      content: persistedRow.content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: { weddingDate: null, budget: 0, venue: null, progress: {} },
+      visibility: "shared",
+      mannersSlug: "family-meeting",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    const ingestBody = String((mockIngestFetch.mock.calls[0]?.[1] as RequestInit).body);
+    const firstBody = String((mockFetch.mock.calls[0]?.[1] as RequestInit).body);
+    expect(JSON.parse(ingestBody)).toEqual(expect.objectContaining({
+      mannersSlug: "family-meeting",
+    }));
+    expect(JSON.parse(firstBody)).toEqual(expect.objectContaining({
+      mannersSlug: "family-meeting",
+      userMessageId: messageId,
+    }));
+    expect(firstBody).not.toContain("source_refs");
+    expect(firstBody).not.toContain("상견례 준비와 대화");
+
+    await useChatStore.getState().retryFailedMessage();
+    expect((mockFetch.mock.calls[1]?.[1] as RequestInit).body).toBe(
+      (mockFetch.mock.calls[0]?.[1] as RequestInit).body,
+    );
   });
 
   it("keeps the exact explicit action confirmation id in the provider retry snapshot", async () => {

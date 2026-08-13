@@ -2430,6 +2430,128 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).toHaveBeenCalledTimes(1);
   });
 
+  it("binds a canonical manners slug to this W0 turn, prompt, and audit metadata", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+        manners_slug: "cost-saving",
+      },
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "두 가족의 기대를 먼저 확인해보세요.",
+      usage: { input_tokens: 8, output_tokens: 5 },
+    }));
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      }],
+      mannersSlug: "cost-saving",
+    }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("[서버 검증 예절 가이드 문맥]");
+    expect(providerArgs?.systemPrompt).toContain('"slug": "cost-saving"');
+    expect(providerArgs?.systemPrompt).toMatch(
+      /"kind": "(?:official|original|secondary)"/,
+    );
+    expect(providerArgs?.systemPrompt).toContain(
+      '"guide_path": "/wedding/manners/cost-saving"',
+    );
+    expect(providerArgs?.systemPrompt).not.toContain("[etiquette:1]");
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      interactionType: "chat_turn",
+      success: true,
+      metadata: expect.objectContaining({
+        manners_slug: "cost-saving",
+        manners_context_version: 1,
+      }),
+    }));
+  });
+
+  it("keeps only canonical manners identifiers in a failed AI audit", async () => {
+    const userText = "이 예절 가이드를 우리 상황에 맞게 적용해줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+        manners_slug: "family-meeting",
+      },
+    };
+    mocks.provider.mockRejectedValueOnce(Object.assign(
+      new Error("SECRET_MANNERS_PROVIDER_FAILURE"),
+      { providerCode: "input_token_limit", requestStage: "input_count" },
+    ));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      mannersSlug: "family-meeting",
+    }));
+    const responseBody = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(responseBody).toContain('"code":"AMORA_INPUT_TOO_LARGE"');
+    expect(responseBody).not.toContain("SECRET_MANNERS_PROVIDER_FAILURE");
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      interactionType: "chat_turn",
+      success: false,
+      metadata: expect.objectContaining({
+        manners_slug: "family-meeting",
+        manners_context_version: 1,
+      }),
+    }));
+    const auditPayload = JSON.stringify(mocks.log.mock.calls.at(-1)?.[0]);
+    expect(auditPayload).not.toContain("/wedding/manners/");
+    expect(auditPayload).not.toContain("source_refs");
+    errorSpy.mockRestore();
+  });
+
+  it("rejects a requested manners slug that is absent from the canonical user row", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+      },
+    };
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      }],
+      mannersSlug: "family-meeting",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_MANNERS_CONTEXT_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
   it("rejects different attachment bytes even when the ordered count and media type match", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],

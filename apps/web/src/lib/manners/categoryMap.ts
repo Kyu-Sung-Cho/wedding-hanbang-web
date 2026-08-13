@@ -7,21 +7,22 @@ export type MannersPartLink = {
 /**
  * 웨딩 준비 카테고리 → 예절 안내 파트.
  *
- * 각 체크리스트 카드가 가장 가까운 검증 완료 파트 하나를 바로 열 수 있게 한다.
+ * 각 체크리스트 카드가 가장 가까운 파트 하나를 바로 열 수 있게 한다.
  * 한 분야와 연결된 나머지 파트는 상세 체크리스트의 `relatedMannersSlugs`에서 제공한다.
+ * 여러 서로 다른 상황을 묶은 `special_cases`에는 하나의 대표 파트를 억지로 붙이지 않는다.
  */
 const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   foundation: "planning-timeline",
   contracts: "cost-saving",
   meeting: "family-meeting",
-  venue: "wedding-day",
+  venue: "cost-saving",
   studio: "photo-manners",
-  dress: "wedding-day",
-  makeup: "wedding-day",
-  ring: "gifts-and-traditions",
-  hanbok: "traditional-greetings",
+  dress: "cost-saving",
+  makeup: "cost-saving",
+  ring: "cost-saving",
+  hanbok: "cost-saving",
   yedan: "gifts-and-traditions",
-  honeymoon: "post-honeymoon-thanks",
+  honeymoon: "honeymoon-preparation",
   houseware: "shared-home-items",
   housing: "money-home-conversation",
   invitation: "invitation-sending",
@@ -32,12 +33,11 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   mc: "congratulatory-speech",
   ham: "gifts-and-traditions",
   pyebaek: "traditional-greetings",
-  guests: "guest-manners",
+  guests: "invitation-sending",
   ceremony: "wedding-day",
   home_admin: "money-home-conversation",
   health_admin: "marriage-registration",
   aftercare: "post-honeymoon-thanks",
-  special_cases: "religious-weddings",
 };
 
 // 이 모듈은 체크리스트·라운지 클라이언트에서도 쓴다. 300KB가 넘는 본문 data.ts를
@@ -80,8 +80,13 @@ const MANNERS_LINK_BY_SLUG: Readonly<Record<string, MannersPartLink>> = {
   },
   "post-honeymoon-thanks": {
     slug: "post-honeymoon-thanks",
-    title: "신혼여행 뒤 인사",
-    subtitle: "순서보다 고마운 마음을 분명하게",
+    title: "결혼식 뒤 감사와 마감",
+    subtitle: "고마운 사람과 남은 일을 차분히 정리하기",
+  },
+  "honeymoon-preparation": {
+    slug: "honeymoon-preparation",
+    title: "신혼여행 출발 전 준비",
+    subtitle: "예약보다 먼저 계약·입국·안전 조건을 함께 확인하기",
   },
   "shared-home-items": {
     slug: "shared-home-items",

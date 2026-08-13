@@ -37,6 +37,15 @@ import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGat
 import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import {
+  parseMannersAmoraSlug,
+  type MannersAmoraSlug,
+} from "@/lib/manners/amoraContract";
+import {
+  resolveMannersAmoraContext,
+  type MannersAmoraContext,
+} from "@/lib/manners/amoraContext.server";
+
+import {
   extractMediation,
   mediationBlockToOrdinaryText,
   toUserRequestedMediationV2,
@@ -156,6 +165,20 @@ import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { createHash, randomUUID } from "node:crypto";
 import { isSupersededDecision } from "@/lib/ai/supersededDecisions";
 import { inspectScheduleEvents } from "@/utils/scheduleEvents";
+
+function addTrustedMannersScopeSignal(
+  userText: string,
+  slug: MannersAmoraSlug | null,
+): string {
+  // The visible fixed draft deliberately avoids stuffing a title or corpus
+  // into the user message. A slug that survived both durable-row binding and
+  // the server allowlist is nevertheless an explicit wedding-guide action, so
+  // it may add only this domain signal for scope classification. The original
+  // text remains intact for safety/domain-risk checks and provider input.
+  return slug
+    ? `[서버 검증 결혼 준비 예절 가이드: ${slug}]\n${userText}`
+    : userText;
+}
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
@@ -637,6 +660,7 @@ export async function POST(request: Request) {
     confirmedActionId: bodyConfirmedActionId,
     requestKind: bodyRequestKind,
     visibility: bodyVisibility,
+    mannersSlug: bodyMannersSlug,
   } = body;
   const isDemo =
     bodyIsDemo === true &&
@@ -743,8 +767,51 @@ export async function POST(request: Request) {
       : bodyRequestKind === "mediation"
         ? "mediation"
         : "chat";
+  const hasMannersSlug = bodyMannersSlug !== undefined;
+  const requestedMannersSlug = hasMannersSlug
+    ? parseMannersAmoraSlug(bodyMannersSlug)
+    : null;
+  if (hasMannersSlug && requestedMannersSlug === null) {
+    return NextResponse.json(
+      {
+        error: "예절 가이드 참고 정보가 올바르지 않습니다.",
+        code: "INVALID_MANNERS_CONTEXT",
+      },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const requestedVisibility: "shared" | "bride_private" | "groom_private" =
     bodyVisibility === "bride_private" || bodyVisibility === "groom_private" ? bodyVisibility : "shared";
+  if (
+    requestedMannersSlug
+    && (
+      requestKind !== "chat"
+      || bodyConfirmedActionId !== undefined
+      || requestedVisibility !== "shared"
+      || (!isDemo && typeof bodyUserMessageId !== "string")
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: "예절 가이드 참고는 함께 보는 아모라의 새 질문에서만 사용할 수 있어요.",
+        code: "INVALID_MANNERS_CONTEXT_SCOPE",
+      },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const resolvedRequestedMannersContext: MannersAmoraContext | null =
+    requestedMannersSlug
+      ? resolveMannersAmoraContext(requestedMannersSlug)
+      : null;
+  if (requestedMannersSlug && !resolvedRequestedMannersContext) {
+    return NextResponse.json(
+      {
+        error: "예절 가이드 원문을 안전하게 확인하지 못했습니다.",
+        code: "MANNERS_CONTEXT_CORPUS_MISMATCH",
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   let visibility: "shared" | "bride_private" | "groom_private" = requestedVisibility;
 
   // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
@@ -879,6 +946,9 @@ export async function POST(request: Request) {
   let earlyCrisisUserText: string | null = null;
   let trustedCanonicalScopeUserRow: Record<string, unknown> | null = null;
   let canonicalProviderAttachmentContract: CanonicalProviderAttachmentContract | null = null;
+  let canonicalMannersSlug: MannersAmoraSlug | null = isDemo
+    ? requestedMannersSlug
+    : null;
   if (requestKind === "mediation") {
     earlyCrisisUserText = String(conflictContext).trim();
   } else if (requestKind === "chat") {
@@ -989,6 +1059,24 @@ export async function POST(request: Request) {
     const canonicalMetadata = isRecord(trustedCanonicalScopeUserRow.metadata)
       ? trustedCanonicalScopeUserRow.metadata
       : null;
+    const storedMannersSlug = canonicalMetadata?.manners_slug === undefined
+      ? null
+      : parseMannersAmoraSlug(canonicalMetadata.manners_slug);
+    if (
+      (canonicalMetadata?.manners_slug !== undefined && storedMannersSlug === null)
+      || storedMannersSlug !== requestedMannersSlug
+    ) {
+      return NextResponse.json(
+        {
+          error: "저장된 메시지의 예절 가이드 참고 정보와 현재 요청이 일치하지 않습니다.",
+          code: "USER_MESSAGE_MANNERS_CONTEXT_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    canonicalMannersSlug = storedMannersSlug;
     const canonicalRawRequestId = typeof canonicalMetadata?.client_request_id === "string"
       && CLIENT_REQUEST_ID_RE.test(canonicalMetadata.client_request_id)
       ? canonicalMetadata.client_request_id.toLowerCase()
@@ -1196,7 +1284,12 @@ export async function POST(request: Request) {
           requestKind,
         })
       : trustedCanonicalScopeUserRow && earlyCrisisUserText !== null
-        ? classifyAmoraQuestionScope({ userText: earlyCrisisUserText })
+        ? classifyAmoraQuestionScope({
+            userText: addTrustedMannersScopeSignal(
+              earlyCrisisUserText,
+              canonicalMannersSlug,
+            ),
+          })
         : null;
   const shouldAttemptBoundedContinuity =
     !isDemo
@@ -2363,10 +2456,27 @@ export async function POST(request: Request) {
   // 대화 1회만 별도 context-only 계약으로 전달하며, 권한은 현재 발화와
   // 서버가 검증한 confirmedActionId에서만 얻는다.
   const questionScope = classifyAmoraQuestionScope({
-    userText: lastUserText,
+    userText: addTrustedMannersScopeSignal(lastUserText, canonicalMannersSlug),
     requestKind,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
   });
+  const mannersContext = canonicalMannersSlug
+    && resolvedRequestedMannersContext?.slug === canonicalMannersSlug
+    && requestKind === "chat"
+    && bodyConfirmedActionId === undefined
+    && visibility === "shared"
+    && (
+      questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent"
+    )
+      ? resolvedRequestedMannersContext
+      : undefined;
+  const mannersLogMetadata = mannersContext
+    ? {
+        manners_slug: mannersContext.slug,
+        manners_context_version: mannersContext.version,
+      }
+    : {};
   const boundedContinuity =
     !isDemo
     && requestKind === "chat"
@@ -2622,6 +2732,7 @@ export async function POST(request: Request) {
       enabledToolNames: enabledTools.map((tool) => tool.name),
       actionContract,
       questionScope,
+      mannersContext,
       linkedContextMode: boundedContinuity?.mode,
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
@@ -3314,6 +3425,7 @@ export async function POST(request: Request) {
               metadata: {
                 stage_tag: stageTag,
                 question_scope: questionScope.scope,
+                ...mannersLogMetadata,
                 ...(boundedContinuity
                   ? { context_mode: boundedContinuity.mode }
                   : {}),
@@ -3760,6 +3872,7 @@ export async function POST(request: Request) {
           metadata: {
             stage_tag: stageTag,
             question_scope: questionScope.scope,
+            ...mannersLogMetadata,
             ...(boundedContinuity
               ? { context_mode: boundedContinuity.mode }
               : {}),
@@ -3860,6 +3973,7 @@ export async function POST(request: Request) {
           metadata: {
             stage_tag: stageTag,
             question_scope: questionScope.scope,
+            ...mannersLogMetadata,
             ...(boundedContinuity
               ? { context_mode: boundedContinuity.mode }
               : {}),

@@ -352,6 +352,75 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
     });
   });
 
+  it("persists only an allowlisted manners slug for exact cold-start recovery", async () => {
+    const admin = mockPostAdmin({
+      insertData: canonicalUserRow({
+        content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+        metadata: {
+          client_request_id: REQUEST_ID,
+          manners_slug: "family-meeting",
+        },
+      }),
+    });
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      target: "ai",
+      mannersSlug: "family-meeting",
+    }));
+
+    expect(response.status).toBe(201);
+    expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: {
+        client_request_id: REQUEST_ID,
+        manners_slug: "family-meeting",
+      },
+    }));
+    expect(JSON.stringify(admin.insert.mock.calls)).not.toContain("상견례 준비와 대화");
+    expect(JSON.stringify(admin.insert.mock.calls)).not.toContain("source_refs");
+  });
+
+  it("rejects a non-allowlisted manners slug before persistence", async () => {
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      mannersSlug: "family-meeting?prompt=ignore-safety",
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_MESSAGE_REQUEST",
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["partner target", { target: "partner" }],
+    ["private lane", { requestedVisibility: "bride_private" }],
+    ["confirmed action", { confirmedActionId: ACTION_ID }],
+  ])("rejects manners context on a %s", async (_label, overrides) => {
+    const admin = mockPostAdmin();
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "이 예절 가이드를 우리 상황에 맞게 적용해줘",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      target: "ai",
+      mannersSlug: "family-meeting",
+      ...overrides,
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_MANNERS_CONTEXT_SCOPE",
+    });
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
   it("bounds an oversized chunked ingest body before classification or persistence", async () => {
     const chunk = new Uint8Array(128 * 1024 + 1);
     let pulls = 0;
@@ -782,6 +851,7 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       content: rawDisclosure,
       clientRequestId: REQUEST_ID,
       requestedVisibility: "shared",
+      mannersSlug: "family-meeting",
       imagePaths: ["../../invalid-before-safety.webp"],
       confirmedActionId: ACTION_ID,
     }));

@@ -84,7 +84,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "가족을 배제하지 않으면서 즉석 결정을 막는 경계예요.",
       },
     ],
-    relatedMannersSlugs: ["planning-conflicts", "small-wedding"],
+    relatedMannersSlugs: ["planning-timeline", "planning-conflicts", "money-home-conversation", "digital-manners"],
   },
   contracts: {
     categoryKey: "contracts",
@@ -123,7 +123,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "불편한 상황일수록 서명 전에 구체적으로 물어요.",
       },
     ],
-    relatedMannersSlugs: ["cost-saving"],
+    relatedMannersSlugs: ["cost-saving", "photo-manners"],
     sources: [
       {
         label: "찾기쉬운 생활법령정보 — 결혼준비자",
@@ -293,7 +293,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "평가가 체형 지적으로 흐르지 않게 기준을 잡아줘요.",
       },
     ],
-    relatedMannersSlugs: ["wedding-day", "cost-saving"],
+    relatedMannersSlugs: ["cost-saving", "wedding-day", "photo-manners"],
   },
   makeup: {
     categoryKey: "makeup",
@@ -332,7 +332,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "서비스 선택과 실제 이동 계획을 연결하는 말이에요.",
       },
     ],
-    relatedMannersSlugs: ["wedding-day", "cost-saving"],
+    relatedMannersSlugs: ["cost-saving", "wedding-day", "photo-manners"],
   },
   ring: {
     categoryKey: "ring",
@@ -371,7 +371,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "구매 순간이 아니라 사용하는 기간 전체를 확인하는 질문이에요.",
       },
     ],
-    relatedMannersSlugs: ["gifts-and-traditions", "money-home-conversation"],
+    relatedMannersSlugs: ["cost-saving", "gifts-and-traditions"],
   },
   hanbok: {
     categoryKey: "hanbok",
@@ -410,7 +410,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "보이는 한 벌과 실제 대여 품목을 구분하는 질문이에요.",
       },
     ],
-    relatedMannersSlugs: ["traditional-greetings", "gifts-and-traditions"],
+    relatedMannersSlugs: ["cost-saving", "traditional-greetings"],
   },
   yedan: {
     categoryKey: "yedan",
@@ -488,7 +488,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "묶음 상품도 조건은 항목마다 다를 수 있어 분리해 확인해요.",
       },
     ],
-    relatedMannersSlugs: [],
+    relatedMannersSlugs: ["honeymoon-preparation", "post-honeymoon-thanks"],
   },
   houseware: {
     categoryKey: "houseware",
@@ -527,7 +527,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "제품 가격 외에 집에 들어오는 과정까지 확인해요.",
       },
     ],
-    relatedMannersSlugs: ["money-home-conversation", "cost-saving"],
+    relatedMannersSlugs: ["shared-home-items", "money-home-conversation", "cost-saving"],
   },
   housing: {
     categoryKey: "housing",
@@ -605,7 +605,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "명단을 제한하기 전에 필요한 정보를 함께 모아요.",
       },
     ],
-    relatedMannersSlugs: ["invitation-sending"],
+    relatedMannersSlugs: ["invitation-sending", "digital-manners"],
   },
   snap: {
     categoryKey: "snap",
@@ -644,7 +644,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "당일 찾는 시간을 줄이는 사전 안내예요.",
       },
     ],
-    relatedMannersSlugs: ["photo-manners", "wedding-day"],
+    relatedMannersSlugs: ["photo-manners", "digital-manners", "wedding-day"],
   },
   shoes: {
     categoryKey: "shoes",
@@ -917,7 +917,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "인원 확인과 참석 압박을 구분하는 표현이에요.",
       },
     ],
-    relatedMannersSlugs: ["guest-manners", "invitation-sending"],
+    relatedMannersSlugs: ["invitation-sending", "guest-manners", "gift-money"],
   },
   ceremony: {
     categoryKey: "ceremony",
@@ -995,7 +995,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "처음 확인한 사실을 잔금 시점까지 고정된 것으로 보지 않아요.",
       },
     ],
-    relatedMannersSlugs: ["money-home-conversation"],
+    relatedMannersSlugs: ["money-home-conversation", "marriage-registration", "shared-home-items"],
     sources: [
       {
         label: "찾기쉬운 생활법령정보 — 결혼준비자",
@@ -1101,7 +1101,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "행사 평가를 관계의 승패로 만들지 않는 회고예요.",
       },
     ],
-    relatedMannersSlugs: ["return-gift", "photo-manners", "marriage-registration"],
+    relatedMannersSlugs: ["return-gift", "photo-manners", "marriage-registration", "post-honeymoon-thanks"],
   },
   special_cases: {
     categoryKey: "special_cases",
@@ -1140,7 +1140,7 @@ export const CHECKLIST_CATEGORY_GUIDES = {
         note: "필요한 조치와 민감한 이유를 분리해 전달해요.",
       },
     ],
-    relatedMannersSlugs: ["small-wedding", "planning-conflicts", "marriage-registration"],
+    relatedMannersSlugs: ["marriage-registration", "religious-weddings", "small-wedding", "planning-conflicts"],
     sources: [
       {
         label: "찾기쉬운 생활법령정보 — 결혼준비자",

@@ -49,6 +49,10 @@ import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
+import {
+  parseMannersAmoraSlug,
+  type MannersAmoraSlug,
+} from "@/lib/manners/amoraContract";
 
 /** 서버가 이유를 밝히며 거절한 중재 요청. 그 문장을 사용자에게 그대로 보여준다. */
 const MEDIATION_REQUEST_REJECTED = "MediationRequestRejected";
@@ -289,6 +293,7 @@ interface ChatStoreState {
     partnerRecipientId?: string;
     confirmedActionId?: string;
     clientRequestId?: string;
+    mannersSlug?: MannersAmoraSlug;
   }) => Promise<ChatSendOutcome>;
   retryFailedMessage: () => Promise<void>;
   dismissFailedMessageRetry: () => void;
@@ -821,6 +826,7 @@ function isBoundUserMessageRow(
     providerAttachmentContractVersion: 1 | 2;
     providerAttachmentManifest: readonly ChatAttachmentBinding[];
     aiResponseRequested: boolean;
+    mannersSlug: MannersAmoraSlug | null;
   },
 ): boolean {
   if (
@@ -847,6 +853,9 @@ function isBoundUserMessageRow(
     ? record.partner_recipient_id.toLowerCase()
     : null;
   const rowManifest = record.provider_attachment_manifest;
+  const rowMannersSlug = record.manners_slug === undefined
+    ? null
+    : parseMannersAmoraSlug(record.manners_slug);
   const manifestMatches = expected.providerAttachmentContractVersion === 1
     ? rowManifest === undefined
     : Array.isArray(rowManifest)
@@ -870,7 +879,9 @@ function isBoundUserMessageRow(
     && manifestMatches
     && rowTarget === expected.target
     && rowPartnerRecipientId === (expected.partnerRecipientId?.toLowerCase() ?? null)
-    && rowConfirmation === expected.confirmedActionId;
+    && rowConfirmation === expected.confirmedActionId
+    && (record.manners_slug === undefined || rowMannersSlug !== null)
+    && rowMannersSlug === expected.mannersSlug;
 }
 
 function isCanonicalV2AttachmentManifest(value: unknown, count: number): boolean {
@@ -1098,11 +1109,14 @@ export function buildUnansweredMessageRecoveryRequest(
           metadata.provider_attachment_manifest,
           attachmentCount as number,
         );
+    const mannersContextIsConsistent = metadata.manners_slug === undefined
+      || parseMannersAmoraSlug(metadata.manners_slug) !== null;
     return message.sender_id === profile.id
       && message.sender_role === profile.role
       && EXPLICIT_ACTION_ID_PATTERN.test(message.id)
       && message.content.trim().length > 0
       && attachmentVersionIsConsistent
+      && mannersContextIsConsistent
       && metadata.ai_response_requested === true
       && typeof metadata.client_request_id === "string"
       && EXPLICIT_ACTION_ID_PATTERN.test(metadata.client_request_id)
@@ -1119,6 +1133,7 @@ export function buildUnansweredMessageRecoveryRequest(
   const clientRequestId = unanswered.metadata.client_request_id!.toLowerCase();
   const attachmentCount = unanswered.metadata.provider_attachment_count ?? 0;
   const requiresReattach = unanswered.metadata.provider_attachment_state === "present";
+  const mannersSlug = parseMannersAmoraSlug(unanswered.metadata.manners_slug);
   const scopedMessages = canonical
     .filter((message) => (
       compareChatMessageOrder(message, unanswered) <= 0
@@ -1154,6 +1169,7 @@ export function buildUnansweredMessageRecoveryRequest(
         clientRequestId,
         userMessageId: unanswered.id,
         visibility: unanswered.visibility,
+        ...(mannersSlug ? { mannersSlug } : {}),
       });
 
   return {
@@ -1780,7 +1796,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   sendMessage: async ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
-    confirmedActionId, clientRequestId: requestedClientRequestId, partnerRecipientId,
+    confirmedActionId, clientRequestId: requestedClientRequestId, partnerRecipientId, mannersSlug,
   }) => {
     const lifecycleBinding = captureActiveChatLifecycleBinding();
     // Durable Supabase account/couple scopes are UUID-bound. Signed demo and
@@ -1807,6 +1823,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
     const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
     const requestedVisibility = visibility ?? "shared";
+    const hasMannersSlug = mannersSlug !== undefined;
+    const parsedMannersSlug = hasMannersSlug
+      ? parseMannersAmoraSlug(mannersSlug)
+      : null;
+    if (hasMannersSlug && parsedMannersSlug === null) {
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
     const crisisPreflight = senderRole === "bride" || senderRole === "groom"
       ? planAmoraCrisisDelivery({
           userText: content,
@@ -1822,6 +1845,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         })
       : null;
     let finalVisibility = crisisPreflight?.effectiveVisibility ?? requestedVisibility;
+    const effectiveMannersSlug = crisisPreflight?.disposition === undefined
+      || crisisPreflight.disposition === "continue"
+      ? parsedMannersSlug
+      : null;
+    if (
+      effectiveMannersSlug !== null
+      && (
+        target !== "ai"
+        || requestedVisibility !== "shared"
+        || confirmedActionId !== undefined
+      )
+    ) {
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
     const effectiveConfirmedActionId = crisisPreflight?.disposition === "private_safety_route"
       ? undefined
       : confirmedActionId;
@@ -2024,6 +2061,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
     const msgMetadata: ChatMessageMetadata = {
       client_request_id: clientRequestId,
+      ...(effectiveMannersSlug ? { manners_slug: effectiveMannersSlug } : {}),
       amora_ingest_contract_version: providerAttachmentContractVersion,
       ai_response_requested: target === "ai",
       provider_attachment_state: target === "partner"
@@ -2072,6 +2110,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       providerAttachmentContractVersion,
       providerAttachmentManifest,
       aiResponseRequested: target === "ai",
+      mannersSlug: effectiveMannersSlug,
     };
 
     const imagePaths: string[] = [];
@@ -2186,6 +2225,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             clientRequestId,
             requestedVisibility,
             target,
+            ...(effectiveMannersSlug ? { mannersSlug: effectiveMannersSlug } : {}),
             providerAttachmentCount: target === "partner" ? 0 : attachments.length,
             ...(providerAttachmentManifest.length > 0
               ? { providerAttachmentManifest }
@@ -2501,6 +2541,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         clientRequestId,
         ...(persistedUserMessageId ? { userMessageId: persistedUserMessageId } : {}),
         visibility: finalVisibility,
+        ...(effectiveMannersSlug ? { mannersSlug: effectiveMannersSlug } : {}),
         ...(effectiveConfirmedActionId !== undefined
           ? { confirmedActionId: effectiveConfirmedActionId }
           : {}),

@@ -1,3 +1,5 @@
+import type { WeddingChecklistCategoryKey } from "@hanbang/shared/constants";
+
 /**
  * 결혼 예절 안내(manners) 데이터 계약.
  *
@@ -20,8 +22,19 @@
  * (`docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md` §9).
  */
 
-/** 수치·법률 주장을 뒷받침하는 1차 출처. 블로그·카페는 출처로 쓰지 않는다. */
+/**
+ * 근거의 발행 주체와 전달 단계를 숨기지 않기 위한 분류.
+ *
+ * - official: 정부·공공기관·법령정보시스템이 직접 공개한 자료
+ * - original: 민간 기관·조사 주체가 자기 규정·조사·안내를 직접 공개한 원문
+ * - secondary: 언론 등 제3자가 원자료를 인용·요약한 보도 또는 2차 자료
+ */
+export type MannersSourceKind = "official" | "original" | "secondary";
+
+/** 수치·법률 주장을 확인할 수 있는 공식 자료·기관 원문·책임 있는 보도. 블로그·카페는 쓰지 않는다. */
 export type MannersSource = {
+  /** 발행 주체와 전달 단계. 화면에서 사용자가 근거 수준을 바로 구분할 수 있게 항상 표시한다. */
+  kind: MannersSourceKind;
   /** 출처 이름. 예: "정부24 혼인신고 안내" */
   label: string;
   /** 원문 URL. 실제로 열어 확인한 것만 넣는다. */
@@ -52,6 +65,18 @@ export type MannersBlock =
   | { kind: "tip"; title?: string; items: string[] }
   | { kind: "warning"; title?: string; items: string[] }
   | { kind: "dialogue"; title?: string; lines: MannersDialogueLine[] }
+  | {
+      /** 27개 실행 분야를 선행 결정과 실제 마감 기준으로 연결하는 전 과정 지도. */
+      kind: "journeyMap";
+      title: string;
+      introduction: string;
+      stages: Array<{
+        title: string;
+        dependsOn: string;
+        deadlineRule: string;
+        categoryKeys: WeddingChecklistCategoryKey[];
+      }>;
+    }
   | {
       kind: "table";
       title: string;
@@ -87,6 +112,8 @@ export type MannersBlock =
 
 export type MannersSection = {
   heading: string;
+  /** 특정 신분·가족 선택처럼 해당 조건이 있는 사람만 펼쳐 보는 섹션. */
+  visibility?: "conditional";
   blocks: MannersBlock[];
 };
 
@@ -110,8 +137,15 @@ export type MannersPart = {
   sources: MannersSource[];
 };
 
+export type MannersCategoryTier = "core" | "lifecycle" | "situation";
+
 export type MannersCategory = {
+  /** 화면 문구가 바뀌어도 유지되는 목록 식별자. */
+  id: string;
+  /** 공통 흐름과 조건부 안내를 섞지 않기 위한 상위 정보 구조. */
+  tier: MannersCategoryTier;
   label: string;
+  description: string;
   slugs: string[];
 };
 

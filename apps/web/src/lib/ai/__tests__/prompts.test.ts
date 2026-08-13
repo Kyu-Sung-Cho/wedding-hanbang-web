@@ -715,6 +715,138 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).not.toContain("## 예절 가이드");
   });
 
+  it("injects only the bounded server-resolved manners contract in W0/W1", () => {
+    const mannersContext = {
+      kind: "verified_manners_guide" as const,
+      version: 1 as const,
+      slug: "family-meeting" as const,
+      title: "상견례 준비와 대화",
+      summary: ["두 가족이 편하게 인사할 기준을 먼저 맞춰요."],
+      caveat: "가족과 지역에 따라 방식이 달라질 수 있어요.",
+      sourceRefs: [
+        {
+          ref: 1,
+          kind: "official" as const,
+          label: "공식 확인 자료",
+          url: "https://example.go.kr/family-meeting",
+          checkedAt: "2026-08-13",
+          scope: "대화 준비 기준",
+          supports: "서로의 기대를 사전에 확인하는 절차",
+        },
+        {
+          ref: 2,
+          kind: "original" as const,
+          label: "기관 원문",
+          url: "https://example.org/original",
+          checkedAt: "2026-08-13",
+          scope: "기관 자체 안내",
+          supports: "기관이 직접 공개한 준비 안내",
+        },
+        {
+          ref: 3,
+          kind: "secondary" as const,
+          label: "책임 있는 보도",
+          url: "https://example.com/secondary",
+          checkedAt: "2026-08-13",
+          scope: "원자료를 인용한 보도",
+          supports: "원자료의 핵심 맥락",
+        },
+      ],
+    };
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        questionScope: {
+          scope: "W0_wedding_core",
+          allowsLongTermMemory: true,
+          confidence: "high",
+          needsClarification: false,
+        },
+        mannersContext,
+      },
+    );
+
+    expect(prompt).toContain("[서버 검증 예절 가이드 문맥]");
+    expect(prompt).toContain('"slug": "family-meeting"');
+    expect(prompt).toContain('"kind": "official"');
+    expect(prompt).toContain('"kind": "original"');
+    expect(prompt).toContain('"kind": "secondary"');
+    expect(prompt).toContain('"caveat": "가족과 지역에 따라 방식이 달라질 수 있어요."');
+    expect(prompt).toContain('"guide_path": "/wedding/manners/family-meeting"');
+    expect(prompt).toContain("출처가 뒷받침하지 않는 숫자나 법률 결론은 제시하지 마세요");
+
+    const highRiskPrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        questionScope: {
+          scope: "W2_high_risk_adjacent",
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+        mannersContext,
+      },
+    );
+    expect(highRiskPrompt).not.toContain("[서버 검증 예절 가이드 문맥]");
+    expect(highRiskPrompt).not.toContain("family-meeting");
+  });
+
+  it("keeps every canonical manners source reference or fails closed above the bound", () => {
+    const sourceRefs = Array.from({ length: 13 }, (_, index) => ({
+      ref: index + 1,
+      kind: "official" as const,
+      label: `공식 자료 ${index + 1}`,
+      url: `https://example.go.kr/source-${index + 1}`,
+      checkedAt: "2026-08-13",
+      scope: `확인 범위 ${index + 1}`,
+      supports: `근거 ${index + 1}`,
+    }));
+    const context = {
+      kind: "verified_manners_guide" as const,
+      version: 1 as const,
+      slug: "cost-saving" as const,
+      title: "비용 줄이기",
+      summary: ["필요한 기준부터 확인해요."],
+      caveat: "조건에 따라 달라져요.",
+      sourceRefs,
+    };
+    const options = {
+      requestKind: "chat" as const,
+      persistenceMode: "durable" as const,
+      questionScope: {
+        scope: "W0_wedding_core" as const,
+        allowsLongTermMemory: true,
+        confidence: "high" as const,
+        needsClarification: false,
+      },
+    };
+
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      { ...options, mannersContext: context },
+    );
+    expect(prompt).toContain('"ref": 13');
+    expect(prompt).toContain('"url": "https://example.go.kr/source-13"');
+
+    expect(() => buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        ...options,
+        mannersContext: {
+          ...context,
+          sourceRefs: Array.from({ length: 17 }, (_, index) => ({
+            ...sourceRefs[index % sourceRefs.length],
+            ref: index + 1,
+          })),
+        },
+      },
+    )).toThrow("manners context source references exceed the bounded contract");
+  });
+
   it("keeps every bounded role-attributed profile field inside the production prompt ceiling", () => {
     const projectedValue = (actor: "신부" | "신랑", sentinel: string) =>
       `${actor} 명시 · style:bounded_value = ${"가".repeat(1_900)}${sentinel}`;

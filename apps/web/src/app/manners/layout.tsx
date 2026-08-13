@@ -5,7 +5,7 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 
 // `/price`와 같은 이유로 루트 레이아웃만 쓰지 않는다 — 검색 유입이 들어오는 공개
 // 표면인데 로고·이동 경로·정책 링크가 없으면 사용자가 여기서 막힌다.
-// 클라이언트 JS는 0으로 둔다. 읽는 화면이라 상호작용이 필요 없다.
+// 본문 인덱스만 검색·필터를 위해 클라이언트로 두고, 공통 셸은 서버에서 렌더한다.
 
 const HEADER_LINKS = [
   { href: "/start-here", label: "지금 뭐부터?" },
@@ -23,6 +23,12 @@ const POLICY_LINKS = [
 export default function MannersLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-[#fffdf8]">
+      <a
+        href="#manners-main"
+        className="sr-only z-50 rounded-lg bg-[#243832] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        본문으로 바로가기
+      </a>
       <header className="border-b border-[#243832]/10 bg-[#fffdf8]">
         <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <Link
@@ -38,7 +44,12 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
             className="flex items-center gap-4 text-[13px] font-semibold text-[#243832] sm:gap-5 sm:text-sm"
           >
             {HEADER_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} prefetch={false} className="hover:text-[#8F5150]">
+              <Link
+                key={link.href}
+                href={link.href}
+                prefetch={false}
+                className="inline-flex min-h-11 items-center rounded-md hover:text-[#8F5150] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534e]"
+              >
                 {link.label}
               </Link>
             ))}
@@ -46,16 +57,21 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main id="manners-main" className="flex-1">{children}</main>
 
       <footer className="border-t border-[#243832]/10 bg-[#fffdf8]">
         <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           <p className="text-[13px] font-medium text-[#243832]/70">
             결혼 준비, 아모라와 처음부터 끝까지.
           </p>
-          <nav aria-label="정책" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-[#243832]/60">
+          <nav aria-label="정책" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-[#52605B]">
             {POLICY_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} prefetch={false} className="hover:text-[#8F5150]">
+              <Link
+                key={link.href}
+                href={link.href}
+                prefetch={false}
+                className="inline-flex min-h-11 items-center rounded-md hover:text-[#7D5753] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534e]"
+              >
                 {link.label}
               </Link>
             ))}

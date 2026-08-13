@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "../data";
 import { claimsNumbers, mannersTables } from "../types";
@@ -23,8 +24,74 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TODAY = new Date(Date.now() + 9 * 60 * 60 * 1_000).toISOString().slice(0, 10);
 const MAX_SOURCE_AGE_DAYS = 366;
 
-// 개인 블로그·카페는 1차 출처가 아니다. 삭제 사유의 절반이 근거 없는 수치였다.
+// 개인 블로그·카페는 검증 가능한 근거 자료로 쓰지 않는다. 삭제 사유의 절반이 근거 없는 수치였다.
 const NOT_A_SOURCE = /(^|\.)(blog|cafe|tistory|naver\.me|brunch|velog|medium)\./i;
+
+const SOURCE_KIND_BY_HOST = {
+  "www.hankookilbo.com": "secondary",
+  "zdnet.co.kr": "secondary",
+  "www.kca.go.kr": "official",
+  "stdict.korean.go.kr": "official",
+  "www.kyeonggi.com": "secondary",
+  "www.acrc.go.kr": "official",
+  "acrc.go.kr": "official",
+  "www.easylaw.go.kr": "official",
+  "easylaw.go.kr": "official",
+  "www.korea.kr": "official",
+  "www.boho.or.kr": "official",
+  "www.law.go.kr": "official",
+  "www.copyright.or.kr": "official",
+  "www.qia.go.kr": "official",
+  "www.elis.go.kr": "official",
+  "www.nongmin.com": "secondary",
+  "www.mt.co.kr": "secondary",
+  "www.beyondpost.co.kr": "secondary",
+  "www.dailysecu.com": "secondary",
+  "www.businesskorea.co.kr": "secondary",
+  "www.foodsafetykorea.go.kr": "official",
+  "www.mfds.go.kr": "official",
+  "www.price.go.kr": "official",
+  "www.ftc.go.kr": "official",
+  "www.gov.kr": "official",
+  "www.nts.go.kr": "official",
+  "www.nhis.or.kr": "official",
+  "call.nts.go.kr": "official",
+  "www.weather.go.kr": "official",
+  "wedding.seoulwomen.or.kr": "official",
+  "astro.kasi.re.kr": "official",
+  "www.kdca.go.kr": "official",
+  "mofe.go.kr": "official",
+  "nhuf.molit.go.kr": "official",
+  "www.molit.go.kr": "official",
+  "www.mogef.go.kr": "official",
+  "www.safetykorea.kr": "official",
+  "www.korean.go.kr": "official",
+  "1350.moel.go.kr": "official",
+  "kuui.catholic.or.kr": "original",
+  "cc.catholic.or.kr": "original",
+  "www.0404.go.kr": "official",
+  "nqs.kdca.go.kr": "official",
+} as const;
+
+const HIGH_RISK_GUIDE_SLUGS = [
+  "planning-timeline",
+  "planning-conflicts",
+  "money-home-conversation",
+  "invitation-sending",
+  "honeymoon-preparation",
+  "cost-saving",
+  "wedding-day",
+  "gift-money",
+  "guest-manners",
+  "photo-manners",
+  "marriage-registration",
+  "digital-manners",
+  "shared-home-items",
+  "family-events",
+  "congratulatory-speech",
+  "return-gift",
+  "small-wedding",
+] as const;
 
 // 견적·시세·업체에 판정하지 않는다는 제품 계약은 예절 안내에도 그대로 적용된다.
 // 품질 판정만 막는다. "일 최고 체감온도 33℃"(기상청 폭염주의보 기준)나 "최고음"처럼
@@ -74,8 +141,8 @@ const STATES_ITS_LIMITS = new RegExp(
 );
 
 describe("결혼 예절 안내 데이터 계약", () => {
-  it("검증한 25개 파트가 모두 실려 있다", () => {
-    expect(MANNERS_PARTS).toHaveLength(25);
+  it("검증한 26개 파트가 모두 실려 있다", () => {
+    expect(MANNERS_PARTS).toHaveLength(26);
   });
 
   it("모든 파트가 먼저 읽을 수 있는 짧은 요약을 제공한다", () => {
@@ -134,6 +201,10 @@ describe("결혼 예절 안내 데이터 계약", () => {
         ).toBe(true);
         if (table.unsourced) {
           expect(table.sourceRefs ?? [], `${part.slug} / "${table.title}": 출처 없음 표에 출처 참조가 붙었다`).toEqual([]);
+          expect(
+            JSON.stringify([table.title, table.rows]),
+            `${part.slug} / "${table.title}": 출처 없는 금액은 경고를 붙여도 기준점이 된다`,
+          ).not.toMatch(/\d[\d,.]*\s*(?:원|만\s*원)/);
         } else {
           expect(new Set(table.sourceRefs).size, `${part.slug} / "${table.title}": sourceRefs 중복`).toBe(table.sourceRefs?.length);
           for (const ref of table.sourceRefs ?? []) {
@@ -163,7 +234,7 @@ describe("결혼 예절 안내 데이터 계약", () => {
     }
   });
 
-  it("출처는 열 수 있는 1차 자료이고 확인일이 붙어 있다", () => {
+  it("출처는 열어 확인할 수 있는 근거 자료이고 확인일이 붙어 있다", () => {
     for (const part of MANNERS_PARTS) {
       for (const source of part.sources) {
         expect(source.label.trim().length, `${part.slug}: 출처 이름 없음`).toBeGreaterThan(0);
@@ -192,6 +263,38 @@ describe("결혼 예절 안내 데이터 계약", () => {
     }
   });
 
+  it("85개 근거의 발행 주체와 전달 단계를 보수적으로 전수 분류한다", () => {
+    const sources = MANNERS_PARTS.flatMap((part) =>
+      part.sources.map((source) => ({ part, source })),
+    );
+
+    expect(sources).toHaveLength(85);
+    expect(
+      sources.reduce<Record<string, number>>((counts, { source }) => {
+        counts[source.kind] = (counts[source.kind] ?? 0) + 1;
+        return counts;
+      }, {}),
+    ).toEqual({ official: 75, original: 2, secondary: 8 });
+
+    for (const { part, source } of sources) {
+      const hostname = new URL(source.url).hostname;
+      const expectedKind = SOURCE_KIND_BY_HOST[hostname as keyof typeof SOURCE_KIND_BY_HOST];
+      expect(expectedKind, `${part.slug}: 분류 계약에 없는 발행처 — ${hostname}`).toBeDefined();
+      expect(source.kind, `${part.slug}: ${source.label}의 근거 수준이 잘못됨`).toBe(expectedKind);
+    }
+  });
+
+  it("법·건강·계약·안전 안내에는 공식 근거가 최소 하나 있다", () => {
+    for (const slug of HIGH_RISK_GUIDE_SLUGS) {
+      const part = MANNERS_PARTS.find((candidate) => candidate.slug === slug);
+      expect(part, `${slug}: 고위험 가이드가 없음`).toBeDefined();
+      expect(
+        part?.sources.some((source) => source.kind === "official"),
+        `${slug}: 공식 근거 없이 고위험 안내를 공개함`,
+      ).toBe(true);
+    }
+  });
+
   it("주거 계약과 관계 안전 가이드는 공식 출처 없이 공개하지 않는다", () => {
     for (const slug of ["money-home-conversation", "planning-conflicts"]) {
       const part = MANNERS_PARTS.find((candidate) => candidate.slug === slug);
@@ -203,6 +306,15 @@ describe("결혼 예절 안내 데이터 계약", () => {
         );
       }
     }
+  });
+
+  it("야외 예식의 온열질환 대응은 질병관리청 근거를 두고, 축의금 세무는 근거 없이 단정하지 않는다", () => {
+    const smallWedding = MANNERS_PARTS.find((part) => part.slug === "small-wedding");
+    const giftMoney = MANNERS_PARTS.find((part) => part.slug === "gift-money");
+
+    expect(smallWedding?.sources.some((source) => new URL(source.url).hostname === "www.kdca.go.kr")).toBe(true);
+    expect(JSON.stringify(smallWedding)).not.toMatch(/32~43℃|상온 노출 2시간/);
+    expect(JSON.stringify(giftMoney)).not.toMatch(/국세청은 축의금|원칙적으로 혼주에게 귀속/);
   });
 
   it("판정하지 않는다", () => {
@@ -246,6 +358,15 @@ describe("결혼 예절 안내 데이터 계약", () => {
               ...block.rows.flatMap((row) =>
                 row.map((cell) => ({ where: at(`표 ${block.title}/셀`), text: cell })),
               ),
+            ];
+          }
+          if (block.kind === "journeyMap") {
+            return [
+              { where: at(`전체 지도 ${block.title}`), text: block.introduction },
+              ...block.stages.flatMap((stage) => [
+                { where: at(`전체 지도 ${stage.title}/선행 결정`), text: stage.dependsOn },
+                { where: at(`전체 지도 ${stage.title}/마감`), text: stage.deadlineRule },
+              ]),
             ];
           }
           return block.items.map((item) => ({ where: at(block.kind), text: item }));
@@ -370,6 +491,26 @@ describe("결혼 예절 안내 데이터 계약", () => {
     // 어느 카테고리에도 안 들어간 파트는 화면에서 도달할 수 없다.
     for (const slug of slugs) {
       expect(grouped.includes(slug), `카테고리에 없는 파트: ${slug}`).toBe(true);
+    }
+  });
+
+  it("전체 준비 지도는 체크리스트 27개 분야를 정확히 한 번씩 연결한다", () => {
+    const timeline = MANNERS_PARTS.find((part) => part.slug === "planning-timeline");
+    const maps = timeline?.sections.flatMap((section) =>
+      section.blocks.filter((block) => block.kind === "journeyMap"),
+    );
+
+    expect(maps).toHaveLength(1);
+    const keys = maps?.[0]?.stages.flatMap((stage) => stage.categoryKeys) ?? [];
+    const canonicalKeys = CATEGORY_CHECKLISTS.map((category) => category.key);
+
+    expect(keys).toHaveLength(canonicalKeys.length);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect([...keys].sort()).toEqual([...canonicalKeys].sort());
+    for (const stage of maps?.[0]?.stages ?? []) {
+      expect(stage.dependsOn.trim().length).toBeGreaterThan(20);
+      expect(stage.deadlineRule.trim().length).toBeGreaterThan(20);
+      expect(stage.categoryKeys.length).toBeGreaterThan(0);
     }
   });
 });
