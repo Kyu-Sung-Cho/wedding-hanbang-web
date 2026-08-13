@@ -8,12 +8,22 @@ import {
   CATEGORY_CHECKLISTS,
   CHECKLIST_ITEM_GUIDANCE,
 } from "@hanbang/shared/constants";
-import { applyPlanningChecklistProfile } from "@hanbang/shared/utils";
+import {
+  applyPlanningChecklistProfile,
+  type PlanningChecklistProfileV1,
+} from "@hanbang/shared/utils";
 
 const migrationSql = readFileSync(
   resolve(
     process.cwd(),
     "../../supabase/migrations/20260812180000_checklist_collaboration_approval.sql",
+  ),
+  "utf8",
+);
+const situationProfileV2Sql = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260813103000_checklist_situation_profile_v2_gathering.sql",
   ),
   "utf8",
 );
@@ -104,6 +114,7 @@ async function createDatabase() {
     RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT '기존 고영향 변경'::text $$;
   `);
   await db.exec(migrationSql);
+  await db.exec(situationProfileV2Sql);
   return db;
 }
 
@@ -163,13 +174,14 @@ async function summary(
   return result.rows[0].result;
 }
 
+// Final v2 SQL must keep accepting profiles already persisted by the v1 client.
 function profile(
   overrides: Partial<{
     reviewedAt: string;
-    answers: Record<string, unknown>;
+    answers: Partial<PlanningChecklistProfileV1["answers"]>;
     autoExcludedItemIds: string[];
   }> = {},
-) {
+): PlanningChecklistProfileV1 {
   return {
     version: 1,
     reviewedAt: overrides.reviewedAt ?? "2026-08-12T09:00:00.000Z",
@@ -786,13 +798,14 @@ describe("checklist collaboration approval migration", () => {
       CATEGORY_CHECKLISTS,
       {},
       {
-        version: 1,
+        version: 2,
         reviewedAt: "2026-08-12T09:00:00.000Z",
         answers: {
           ceremony: "no",
           legalMarriage: "undecided",
           travel: "undecided",
           housing: "undecided",
+          gathering: "undecided",
           internationalMarriage: null,
           religiousCeremony: null,
           remarriage: null,

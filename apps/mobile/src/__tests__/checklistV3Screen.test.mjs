@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { URL } from "node:url";
+import ts from "typescript";
 
 import {
   buildChecklistCategoryReviewPresentation,
@@ -34,6 +35,50 @@ test("mobile checklist is a dedicated daily execution screen, not a schedule ali
 test("housing profile copy keeps universal move work honest for an already-arranged home", () => {
   assert.match(checklistSource, /value: "other", label: "기타·이미 마련"/);
   assert.doesNotMatch(checklistSource, /기타\/해당 없음/);
+});
+
+test("the celebration gathering question is independent from ceremony and follows it immediately", () => {
+  const questionsSource = checklistSource.slice(
+    checklistSource.indexOf("const SITUATION_QUESTIONS"),
+    checklistSource.indexOf("function readSituationProfile"),
+  );
+  const questionKeys = [...questionsSource.matchAll(/\{ key: "([^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.deepEqual(questionKeys.slice(0, 2), ["ceremony", "gathering"]);
+  assert.match(
+    questionsSource,
+    /key: "gathering", label: "축하 식사·모임", help: "예식과 별개예요\. 가장 큰 모임 기준으로 골라 주세요\."/,
+  );
+  assert.match(
+    questionsSource,
+    /key: "gathering"[\s\S]*?value: "none", label: "따로 없음"[\s\S]*?value: "family_meal", label: "가족 식사만"[\s\S]*?value: "reception", label: "하객 피로연·축하 모임"[\s\S]*?value: "undecided", label: "아직 미정"/,
+  );
+});
+
+test("situation radios announce both the question and answer", () => {
+  assert.match(checklistSource, /accessibilityLabel=\{`\$\{question\.label\}: \$\{option\.label\}`\}/);
+});
+
+test("new situation saves emit profile version 2 with a gathering answer", () => {
+  assert.match(checklistSource, /const DEFAULT_SITUATION_ANSWERS[\s\S]*?gathering: "undecided"/);
+  assert.match(
+    checklistSource,
+    /applyPlanningChecklistProfile\([\s\S]*?version: 2,[\s\S]*?answers: situationDraft/,
+  );
+});
+
+test("an upgrade-required response preserves the draft and tells the user how to recover", () => {
+  const applySource = checklistSource.slice(
+    checklistSource.indexOf("async function applySituationProfile"),
+    checklistSource.indexOf("if (loading)"),
+  );
+  assert.match(
+    applySource,
+    /response\.status === 409[\s\S]*?payload\.code === "CHECKLIST_PROFILE_UPGRADE_REQUIRED"[\s\S]*?new ChecklistMutationError\("profile_upgrade_required"\)/,
+  );
+  assert.match(applySource, /앱 업데이트가 필요해요/);
+  assert.match(applySource, /앱을 업데이트한 뒤 이 화면을 새로고침해 주세요/);
+  assert.match(applySource, /지금 선택한 내용은 바꾸지 않았어요/);
 });
 
 test("TODAY FIRST empty-state and situation modal footer have separate render contracts", () => {
@@ -150,7 +195,7 @@ test("situation apply is pinned to the exact preview revision and patch", () => 
   assert.match(checklistSource, /createChecklistSituationPreviewPlan/);
   assert.match(checklistSource, /buildChecklistSituationPreviewSubmission/);
   assert.match(checklistSource, /const \[situationPreviewPlan, setSituationPreviewPlan\]/);
-  assert.match(checklistSource, /stateRevision: loadedChecklistSnapshot\.stateRevision/);
+  assert.match(checklistSource, /stateRevision: situationDraftBase\.stateRevision/);
   assert.match(checklistSource, /const submission = buildChecklistSituationPreviewSubmission\(previewPlan\)/);
   assert.match(checklistSource, /body: JSON\.stringify\(submission\)/);
 
@@ -162,6 +207,66 @@ test("situation apply is pinned to the exact preview revision and patch", () => 
   assert.doesNotMatch(applySource, /applyPlanningChecklistProfile/);
   assert.match(applySource, /setSituationPreviewPlan\(null\)/);
   assert.match(applySource, /setSituationPreviewVisible\(false\)/);
+});
+
+test("an open situation draft cannot overwrite a newer realtime profile", () => {
+  assert.match(checklistSource, /interface SituationDraftBase[\s\S]*?stateRevision: number;[\s\S]*?profileIdentity: string;/);
+  assert.match(checklistSource, /const \[situationDraftBase, setSituationDraftBase\]/);
+  assert.match(checklistSource, /const \[situationDraftDirty, setSituationDraftDirty\]/);
+  assert.match(checklistSource, /isSituationDraftBaseCurrent\(situationDraftBase, loadedChecklistSnapshot\)/);
+  assert.match(checklistSource, /setSituationExternalChange\(true\)/);
+  assert.match(checklistSource, /function reloadLatestSituationDraft\(\)/);
+  assert.match(checklistSource, /최신 설정 다시 불러오기/);
+  assert.match(checklistSource, /onPress=\{\(\) => updateSituationDraftAnswer\(question\.key, option\.value\)\}/);
+  assert.match(checklistSource, /onPress=\{reloadLatestSituationDraft\}/);
+  assert.match(checklistSource, /disabled=\{situationSaving \|\| situationExternalChange\}/);
+
+  const helperSource = checklistSource.slice(
+    checklistSource.indexOf("function getSituationProfileIdentity"),
+    checklistSource.indexOf("function isRecord"),
+  );
+  const sandbox = {};
+  const executableHelpers = ts.transpileModule(`
+    const PLANNING_CHECKLIST_PROFILE_KEY = "__checklist_profile";
+    ${helperSource}
+    globalThis.helpers = { createSituationDraftBase, isSituationDraftBaseCurrent };
+  `, {
+    compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  Function("globalThis", executableHelpers)(sandbox);
+  const { createSituationDraftBase, isSituationDraftBaseCurrent } = sandbox.helpers;
+  const opened = {
+    coupleId: "couple-1",
+    ownerId: "profile-1",
+    stateRevision: 7,
+    progress: { __checklist_profile: { version: 2, answers: { gathering: "none" } } },
+  };
+  const newerProfile = {
+    ...opened,
+    stateRevision: 8,
+    progress: { __checklist_profile: { version: 2, answers: { gathering: "family_meal" } } },
+  };
+  const draftBase = createSituationDraftBase(opened);
+  assert.equal(isSituationDraftBaseCurrent(draftBase, newerProfile), false);
+  assert.equal(isSituationDraftBaseCurrent(createSituationDraftBase(newerProfile), newerProfile), true);
+
+  const previewSource = checklistSource.slice(
+    checklistSource.indexOf("function previewSituationProfile"),
+    checklistSource.indexOf("async function applySituationProfile"),
+  );
+  assert.match(previewSource, /stateRevision: situationDraftBase\.stateRevision/);
+  assert.match(previewSource, /setSituationPreviewProfileIdentity\(situationDraftBase\.profileIdentity\)/);
+
+  const applySource = checklistSource.slice(
+    checklistSource.indexOf("async function applySituationProfile"),
+    checklistSource.indexOf("if (loading)"),
+  );
+  assert.match(applySource, /getSituationProfileIdentity\(loadedChecklistSnapshot\.progress\) !== situationPreviewProfileIdentity/);
+  assert.match(applySource, /\|\| situationExternalChange[\s\S]*?\) \{[\s\S]*?return;/);
+  assert.ok(
+    applySource.indexOf("getSituationProfileIdentity(loadedChecklistSnapshot.progress) !== situationPreviewProfileIdentity")
+      < applySource.indexOf("apiFetchForExpectedUser"),
+  );
 });
 
 test("mobile checklist serializes writes and binds them to the current identity", () => {

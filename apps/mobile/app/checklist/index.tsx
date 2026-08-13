@@ -124,6 +124,13 @@ interface LoadedChecklistSnapshot {
   stateRevision: number;
 }
 
+interface SituationDraftBase {
+  coupleId: string;
+  ownerId: string;
+  stateRevision: number;
+  profileIdentity: string;
+}
+
 type SituationPreviewPlan = ChecklistSituationPreviewPlan<
   PlanningChecklistProfileApplication["progressPatch"],
   PlanningChecklistProfile
@@ -142,7 +149,7 @@ interface SaveItemPatchOptions {
 }
 
 class ChecklistMutationError extends Error {
-  constructor(readonly code: "stale" | "active_request" | "invalid_snapshot" | "item_conflict" | "failed") {
+  constructor(readonly code: "stale" | "active_request" | "profile_upgrade_required" | "invalid_snapshot" | "item_conflict" | "failed") {
     super(code);
     this.name = "ChecklistMutationError";
   }
@@ -168,6 +175,7 @@ const LIST_FILTER_OPTIONS: Array<{ value: ListFilter; label: string }> = [
 
 const DEFAULT_SITUATION_ANSWERS: PlanningChecklistProfileAnswers = {
   ceremony: "undecided",
+  gathering: "undecided",
   legalMarriage: "undecided",
   travel: "undecided",
   housing: "undecided",
@@ -188,6 +196,7 @@ const SITUATION_QUESTIONS: Array<{
   options: Array<{ value: string | boolean | null; label: string }>;
 }> = [
   { key: "ceremony", label: "예식", help: "예식 없이 신고·모임만 하는 경우도 포함해요.", options: [{ value: "yes", label: "해요" }, { value: "no", label: "안 해요" }, { value: "undecided", label: "미정" }] },
+  { key: "gathering", label: "축하 식사·모임", help: "예식과 별개예요. 가장 큰 모임 기준으로 골라 주세요.", options: [{ value: "none", label: "따로 없음" }, { value: "family_meal", label: "가족 식사만" }, { value: "reception", label: "하객 피로연·축하 모임" }, { value: "undecided", label: "아직 미정" }] },
   { key: "legalMarriage", label: "법률혼(혼인신고)", help: "희망 여부만 저장하고 서류 상세는 저장하지 않아요.", options: [{ value: "yes", label: "해요" }, { value: "no", label: "안 해요" }, { value: "undecided", label: "미정" }] },
   { key: "travel", label: "신혼여행", help: "여권·비자 항목을 맞추는 데 사용해요.", options: [{ value: "domestic", label: "국내" }, { value: "international", label: "해외" }, { value: "none", label: "안 감" }, { value: "undecided", label: "미정" }] },
   { key: "housing", label: "신혼집", help: "임대·매수에만 필요한 확인을 구분해요.", options: [{ value: "rent", label: "임차" }, { value: "buy", label: "매수" }, { value: "other", label: "기타·이미 마련" }, { value: "undecided", label: "미정" }] },
@@ -203,6 +212,29 @@ const SITUATION_QUESTIONS: Array<{
 
 function readSituationProfile(value: unknown): PlanningChecklistProfile | null {
   return normalizePlanningChecklistProfile(value) ?? null;
+}
+
+function getSituationProfileIdentity(progress: Record<string, unknown>): string {
+  return JSON.stringify(progress[PLANNING_CHECKLIST_PROFILE_KEY] ?? null) ?? "null";
+}
+
+function createSituationDraftBase(snapshot: LoadedChecklistSnapshot): SituationDraftBase {
+  return {
+    coupleId: snapshot.coupleId,
+    ownerId: snapshot.ownerId,
+    stateRevision: snapshot.stateRevision,
+    profileIdentity: getSituationProfileIdentity(snapshot.progress),
+  };
+}
+
+function isSituationDraftBaseCurrent(
+  base: SituationDraftBase,
+  snapshot: LoadedChecklistSnapshot,
+): boolean {
+  return base.coupleId === snapshot.coupleId
+    && base.ownerId === snapshot.ownerId
+    && base.stateRevision === snapshot.stateRevision
+    && base.profileIdentity === getSituationProfileIdentity(snapshot.progress);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -338,9 +370,13 @@ export default function ChecklistScreen() {
   const [situationVisible, setSituationVisible] = useState(false);
   const [situationPreviewVisible, setSituationPreviewVisible] = useState(false);
   const [situationDraft, setSituationDraft] = useState<PlanningChecklistProfileAnswers>(DEFAULT_SITUATION_ANSWERS);
+  const [situationDraftBase, setSituationDraftBase] = useState<SituationDraftBase | null>(null);
+  const [situationDraftDirty, setSituationDraftDirty] = useState(false);
+  const [situationExternalChange, setSituationExternalChange] = useState(false);
   const [situationSaving, setSituationSaving] = useState(false);
   const [loadedChecklistSnapshot, setLoadedChecklistSnapshot] = useState<LoadedChecklistSnapshot | null>(null);
   const [situationPreviewPlan, setSituationPreviewPlan] = useState<SituationPreviewPlan | null>(null);
+  const [situationPreviewProfileIdentity, setSituationPreviewProfileIdentity] = useState<string | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
   const categoryOffsetsRef = useRef<Record<string, number>>({});
@@ -451,6 +487,10 @@ export default function ChecklistScreen() {
     setSituationVisible(false);
     setSituationPreviewVisible(false);
     setSituationPreviewPlan(null);
+    setSituationPreviewProfileIdentity(null);
+    setSituationDraftBase(null);
+    setSituationDraftDirty(false);
+    setSituationExternalChange(false);
     setLoadedChecklistSnapshot(null);
     setLoadError(false);
   }, []);
@@ -532,16 +572,33 @@ export default function ChecklistScreen() {
   }, [clearIdentityState, sessionFenceRef]);
 
   useEffect(() => {
-    if (!situationPreviewPlan || !loadedChecklistSnapshot) return;
     if (
-      situationPreviewPlan.stateRevision !== loadedChecklistSnapshot.stateRevision
-      || situationPreviewPlan.coupleId !== loadedChecklistSnapshot.coupleId
-      || situationPreviewPlan.ownerId !== loadedChecklistSnapshot.ownerId
-    ) {
-      setSituationPreviewPlan(null);
-      setSituationPreviewVisible(false);
+      !situationVisible
+      || situationSaving
+      || !situationDraftBase
+      || !loadedChecklistSnapshot
+      || isSituationDraftBaseCurrent(situationDraftBase, loadedChecklistSnapshot)
+    ) return;
+
+    setSituationPreviewPlan(null);
+    setSituationPreviewVisible(false);
+    setSituationPreviewProfileIdentity(null);
+    if (situationDraftDirty) {
+      setSituationExternalChange(true);
+      return;
     }
-  }, [loadedChecklistSnapshot, situationPreviewPlan]);
+
+    const rawLatestProfile = loadedChecklistSnapshot.progress[PLANNING_CHECKLIST_PROFILE_KEY];
+    setSituationDraft(readSituationProfile(rawLatestProfile)?.answers ?? DEFAULT_SITUATION_ANSWERS);
+    setSituationDraftBase(createSituationDraftBase(loadedChecklistSnapshot));
+    setSituationExternalChange(false);
+  }, [
+    loadedChecklistSnapshot,
+    situationDraftBase,
+    situationDraftDirty,
+    situationSaving,
+    situationVisible,
+  ]);
 
   useEffect(() => {
     void loadData();
@@ -1050,8 +1107,21 @@ export default function ChecklistScreen() {
   }
 
   function openSituationSetup() {
-    setSituationDraft(situationProfile?.answers ?? DEFAULT_SITUATION_ANSWERS);
+    if (!loadedChecklistSnapshot) {
+      Alert.alert(
+        "최신 준비 목록을 먼저 확인해 주세요",
+        "목록을 다시 불러온 뒤 상황 설정을 열어 주세요.",
+      );
+      void loadData();
+      return;
+    }
+    const rawLatestProfile = loadedChecklistSnapshot.progress[PLANNING_CHECKLIST_PROFILE_KEY];
+    setSituationDraft(readSituationProfile(rawLatestProfile)?.answers ?? DEFAULT_SITUATION_ANSWERS);
+    setSituationDraftBase(createSituationDraftBase(loadedChecklistSnapshot));
+    setSituationDraftDirty(false);
+    setSituationExternalChange(false);
     setSituationPreviewPlan(null);
+    setSituationPreviewProfileIdentity(null);
     setSituationPreviewVisible(false);
     setSituationVisible(true);
   }
@@ -1060,9 +1130,13 @@ export default function ChecklistScreen() {
     setSituationVisible(false);
     setSituationPreviewVisible(false);
     setSituationPreviewPlan(null);
+    setSituationPreviewProfileIdentity(null);
+    setSituationDraftBase(null);
+    setSituationDraftDirty(false);
+    setSituationExternalChange(false);
   }
 
-  function previewSituationProfile() {
+  function reloadLatestSituationDraft() {
     const sessionToken = sessionFenceRef.capture();
     if (
       !sessionToken
@@ -1072,9 +1146,65 @@ export default function ChecklistScreen() {
     ) {
       Alert.alert(
         "최신 준비 목록을 먼저 확인해 주세요",
-        "목록을 다시 불러온 뒤 상황 설정 미리보기를 만들어 주세요.",
+        "목록을 다시 불러온 뒤 상황 설정을 계속해 주세요.",
       );
       void loadData();
+      return;
+    }
+    const rawLatestProfile = loadedChecklistSnapshot.progress[PLANNING_CHECKLIST_PROFILE_KEY];
+    setSituationDraft(readSituationProfile(rawLatestProfile)?.answers ?? DEFAULT_SITUATION_ANSWERS);
+    setSituationDraftBase(createSituationDraftBase(loadedChecklistSnapshot));
+    setSituationDraftDirty(false);
+    setSituationExternalChange(false);
+    setSituationPreviewPlan(null);
+    setSituationPreviewProfileIdentity(null);
+    setSituationPreviewVisible(false);
+  }
+
+  function updateSituationDraftAnswer(
+    key: keyof PlanningChecklistProfileAnswers,
+    value: string | boolean | null,
+  ) {
+    if (
+      !situationDraftBase
+      || !loadedChecklistSnapshot
+      || !isSituationDraftBaseCurrent(situationDraftBase, loadedChecklistSnapshot)
+    ) {
+      setSituationPreviewPlan(null);
+      setSituationPreviewProfileIdentity(null);
+      setSituationPreviewVisible(false);
+      setSituationExternalChange(true);
+      return;
+    }
+    setSituationDraft((current) => ({
+      ...current,
+      [key]: value,
+    }) as PlanningChecklistProfileAnswers);
+    setSituationDraftDirty(true);
+    setSituationPreviewPlan(null);
+    setSituationPreviewProfileIdentity(null);
+    setSituationPreviewVisible(false);
+  }
+
+  function previewSituationProfile() {
+    const sessionToken = sessionFenceRef.capture();
+    if (
+      !sessionToken
+      || !loadedChecklistSnapshot
+      || !situationDraftBase
+      || loadedChecklistSnapshot.coupleId !== sessionToken.coupleId
+      || loadedChecklistSnapshot.ownerId !== sessionToken.ownerId
+      || situationExternalChange
+      || !isSituationDraftBaseCurrent(situationDraftBase, loadedChecklistSnapshot)
+    ) {
+      setSituationPreviewPlan(null);
+      setSituationPreviewProfileIdentity(null);
+      setSituationPreviewVisible(false);
+      setSituationExternalChange(true);
+      Alert.alert(
+        "최신 설정을 다시 불러와 주세요",
+        "다른 화면이나 파트너가 준비 설정을 변경했어요. 최신 설정을 불러온 뒤 미리보기를 다시 확인해 주세요.",
+      );
       return;
     }
     const rawLatestProfile = loadedChecklistSnapshot.progress[PLANNING_CHECKLIST_PROFILE_KEY];
@@ -1083,7 +1213,7 @@ export default function ChecklistScreen() {
       CATEGORY_CHECKLISTS,
       loadedChecklistSnapshot.progress,
       {
-        version: 1,
+        version: 2,
         reviewedAt: new Date().toISOString(),
         answers: situationDraft,
         autoExcludedItemIds: isCanonicalPlanningChecklistProfile(rawLatestProfile)
@@ -1098,17 +1228,20 @@ export default function ChecklistScreen() {
       application,
     )) {
       setSituationPreviewPlan(null);
+      setSituationPreviewProfileIdentity(null);
       setSituationPreviewVisible(false);
+      setSituationDraftDirty(false);
       Alert.alert("변경할 내용이 없어요", "이미 같은 상황 설정이 반영되어 있어요.");
       return;
     }
     const previewPlan = createChecklistSituationPreviewPlan({
       coupleId: sessionToken.coupleId,
       ownerId: sessionToken.ownerId,
-      stateRevision: loadedChecklistSnapshot.stateRevision,
+      stateRevision: situationDraftBase.stateRevision,
       application,
     });
     setSituationPreviewPlan(previewPlan);
+    setSituationPreviewProfileIdentity(situationDraftBase.profileIdentity);
     setSituationPreviewVisible(true);
   }
 
@@ -1118,16 +1251,24 @@ export default function ChecklistScreen() {
     if (
       !sessionToken
       || !previewPlan
+      || !loadedChecklistSnapshot
+      || !situationDraftBase
+      || !situationPreviewProfileIdentity
       || previewPlan.coupleId !== sessionToken.coupleId
       || previewPlan.ownerId !== sessionToken.ownerId
+      || previewPlan.stateRevision !== loadedChecklistSnapshot.stateRevision
+      || getSituationProfileIdentity(loadedChecklistSnapshot.progress) !== situationPreviewProfileIdentity
+      || !isSituationDraftBaseCurrent(situationDraftBase, loadedChecklistSnapshot)
+      || situationExternalChange
     ) {
       setSituationPreviewPlan(null);
+      setSituationPreviewProfileIdentity(null);
       setSituationPreviewVisible(false);
+      setSituationExternalChange(true);
       Alert.alert(
-        "미리보기를 다시 확인해 주세요",
-        "최신 준비 목록을 기준으로 제외·복원 항목을 다시 보여드릴게요.",
+        "최신 설정을 다시 불러와 주세요",
+        "다른 화면이나 파트너가 준비 설정을 변경했어요. 저장 요청은 보내지 않았습니다.",
       );
-      await loadData();
       return;
     }
     setSituationSaving(true);
@@ -1148,6 +1289,9 @@ export default function ChecklistScreen() {
           if (response.status === 409 && isRecord(payload) && payload.code === "PLAN_CHANGE_ACTIVE_REQUEST") {
             throw new ChecklistMutationError("active_request");
           }
+          if (response.status === 409 && isRecord(payload) && payload.code === "CHECKLIST_PROFILE_UPGRADE_REQUIRED") {
+            throw new ChecklistMutationError("profile_upgrade_required");
+          }
           throw new ChecklistMutationError("failed");
         }
         return {
@@ -1167,13 +1311,19 @@ export default function ChecklistScreen() {
     } catch (error) {
       if (error instanceof ChecklistMutationError && error.code === "stale") {
         setSituationPreviewPlan(null);
+        setSituationPreviewProfileIdentity(null);
         setSituationPreviewVisible(false);
+        setSituationExternalChange(true);
       }
       Alert.alert(
-        error instanceof ChecklistMutationError && error.code === "stale"
-          ? "준비 목록이 바뀌어 미리보기를 새로 만들어야 해요"
-          : "상황 설정을 저장하지 못했어요",
-        error instanceof ChecklistMutationError && error.code === "active_request"
+        error instanceof ChecklistMutationError && error.code === "profile_upgrade_required"
+          ? "앱 업데이트가 필요해요"
+          : error instanceof ChecklistMutationError && error.code === "stale"
+            ? "준비 목록이 바뀌어 미리보기를 새로 만들어야 해요"
+            : "상황 설정을 저장하지 못했어요",
+        error instanceof ChecklistMutationError && error.code === "profile_upgrade_required"
+          ? "앱을 업데이트한 뒤 이 화면을 새로고침해 주세요. 기존 상태와 지금 선택한 내용은 바꾸지 않았어요."
+          : error instanceof ChecklistMutationError && error.code === "active_request"
           ? "먼저 대기 중인 변경의 파트너 확인을 끝내 주세요."
           : error instanceof ChecklistMutationError && error.code === "stale"
             ? "기존 상태는 바꾸지 않았어요. 최신 내용에서 제외·복원 항목을 다시 확인해 주세요."
@@ -1805,6 +1955,26 @@ export default function ChecklistScreen() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {situationExternalChange ? (
+                <Surface
+                  tone="ivory"
+                  style={styles.situationConflict}
+                >
+                  <View accessibilityLiveRegion="assertive">
+                    <AppText variant="bodyStrong">최신 설정을 다시 불러와 주세요</AppText>
+                  </View>
+                  <AppText variant="caption">
+                    다른 화면이나 파트너가 준비 설정을 변경했어요. 지금 선택은 저장하지 않았습니다.
+                  </AppText>
+                  <PrimaryButton
+                    tone="ghost"
+                    onPress={reloadLatestSituationDraft}
+                    accessibilityLabel="최신 상황 설정 다시 불러오기"
+                  >
+                    최신 설정 다시 불러오기
+                  </PrimaryButton>
+                </Surface>
+              ) : null}
               {!situationPreviewVisible ? SITUATION_QUESTIONS.map((question) => (
                 <View key={question.key} style={styles.situationQuestion}>
                   <AppText variant="bodyStrong">{question.label}</AppText>
@@ -1815,13 +1985,15 @@ export default function ChecklistScreen() {
                       return (
                         <Pressable
                           key={`${question.key}:${String(option.value)}`}
-                          onPress={() => setSituationDraft((current) => ({
-                            ...current,
-                            [question.key]: option.value,
-                          }) as PlanningChecklistProfileAnswers)}
+                          onPress={() => updateSituationDraftAnswer(question.key, option.value)}
+                          disabled={situationExternalChange || situationSaving}
                           style={[styles.optionChip, selected && styles.optionChipActive]}
                           accessibilityRole="radio"
-                          accessibilityState={{ selected }}
+                          accessibilityLabel={`${question.label}: ${option.label}`}
+                          accessibilityState={{
+                            selected,
+                            disabled: situationExternalChange || situationSaving,
+                          }}
                         >
                           <Text style={[styles.optionChipLabel, selected && styles.optionChipLabelActive]}>
                             {option.label}
@@ -1888,7 +2060,7 @@ export default function ChecklistScreen() {
               <PrimaryButton
                 tone="rose"
                 style={styles.detailButton}
-                disabled={situationSaving}
+                disabled={situationSaving || situationExternalChange}
                 onPress={() => {
                   if (situationPreviewVisible) void applySituationProfile();
                   else previewSituationProfile();
@@ -1999,6 +2171,7 @@ const styles = StyleSheet.create({
   detailActions: { flexDirection: "row", gap: 10, paddingTop: 16 },
   detailButton: { flex: 1 },
   situationQuestion: { gap: 6, paddingVertical: 15, borderTopWidth: 1, borderTopColor: colors.border },
+  situationConflict: { gap: 10, padding: 14, marginBottom: 12 },
   previewIntro: { marginTop: 8, marginBottom: 12 },
   previewEmpty: { padding: 16, marginTop: 8 },
   previewRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },

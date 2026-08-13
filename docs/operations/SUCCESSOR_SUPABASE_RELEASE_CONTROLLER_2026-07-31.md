@@ -1,7 +1,7 @@
 # Successor Supabase release controller contract
 
 Date: 2026-07-31  
-Contract sync: 2026-08-12
+Contract sync: 2026-08-13
 Release: `vendor-disclosure-v2-20260718`  
 Current decision: **NO-GO**
 
@@ -9,14 +9,15 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
-The ordered successor manifest now contains 86 migrations and ends at
-`20260812193000_checklist_disclosure_receipt.sql`. The three 2026-08-12
-checklist migrations are pinned repository contracts only; this sync did not
-query or apply them on hosted Supabase. No current hosted pending-set query or
-apply receipt was created by this sync. The normalized manifest SHA-256 is
-`fce0d4a511d20e7518d02398a29de04b3a8d7e6139d3e8ba07ff954498191d6b` and the
+The ordered successor manifest now contains 87 migrations and ends at
+`20260813103000_checklist_situation_profile_v2_gathering.sql`. The three
+2026-08-12 checklist migrations and the 2026-08-13 situation-profile migration
+are pinned repository contracts only; this sync did not query or apply them on
+hosted Supabase. No current hosted pending-set query or apply receipt was
+created by this sync. The normalized manifest SHA-256 is
+`b5ed6b810493b7f3687121e9930b27900c8c2fd01b35bd518e3f919905b6a8dd` and the
 ordered migration-version digest is
-`33ce070fcfbad7ea71fec65c27526f26cf2f43175df531fb4c4729a7b951b86a`.
+`a853199e0f00b33fbeca3a95a18ff5fba775b44e143d61c853f513aa685dff27`.
 The work described here adds a fail-closed successor path to the Supabase
 release controller, static/remote fence and exact-owner finalizer. It does not
 change the manifest to `controller_ready`, create hosted evidence, run a remote
@@ -124,7 +125,9 @@ The 2026-08-12 checklist set additionally creates
 `couple_plan_change_disclosure_receipts`. Both tables must be present in the
 derived post-expand backup, hosted-restore and finalizer table contracts. The
 atomic checklist-v3 migration creates no table, but its version and SQL hash
-remain part of the exact ordered migration contract and cannot be omitted.
+remain part of the exact ordered migration contract and cannot be omitted. The
+2026-08-13 situation-profile v2 migration also creates no table; its version
+and SQL hash are nevertheless part of that same exact ordered contract.
 Existing account-deletion tables remain inherited from the predecessor
 post-expand baseline. `chat_messages` and `chat_summaries` remain existing
 baseline tables, so their new nullable `segment_id` columns and scope foreign

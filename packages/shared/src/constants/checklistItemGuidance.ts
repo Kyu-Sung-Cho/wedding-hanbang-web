@@ -12,6 +12,7 @@ export type ChecklistRelativeDueDays = number;
 
 export type ChecklistApplicabilityTag =
   | "ceremony"
+  | "family_meal"
   | "reception"
   | "legal_marriage"
   | "international_marriage"
@@ -172,7 +173,7 @@ const CATEGORY_PROFILES: Record<WeddingChecklistCategoryKey, CategoryGuidancePro
     completion: CONTRACT_COMPLETION,
     tip: "후보마다 같은 질문표를 사용해 공간, 식사, 접근성, 운영 인력, 최종 인원 변경 기한을 함께 비교하세요.",
     caution: "최소 인원·필수 상품·세금·장식 철거·주차처럼 총액을 바꾸는 조건을 구두 설명만으로 판단하지 마세요.",
-    applicabilityTags: ["ceremony", "reception"],
+    applicabilityTags: ["ceremony", "family_meal", "reception"],
   },
   studio: {
     completion: CONTRACT_COMPLETION,
@@ -274,7 +275,7 @@ const CATEGORY_PROFILES: Record<WeddingChecklistCategoryKey, CategoryGuidancePro
     completion: OPERATION_COMPLETION,
     tip: "참석 여부와 필요한 지원만 최소한으로 모으고, 최종 인원·좌석·식사·이동 정보를 같은 명단에서 관리하세요.",
     caution: "알레르기·장애·연락처 같은 민감 정보를 공개 문서에 적지 말고, 필요한 현장 담당자에게만 전달하세요.",
-    applicabilityTags: ["reception"],
+    applicabilityTags: ["ceremony", "family_meal", "reception"],
   },
   ceremony: {
     completion: OPERATION_COMPLETION,
@@ -326,9 +327,9 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
   venue_04: {
     completionCriteria:
       "메뉴·제공 방식·어린이 식사·알레르기 대응·음료·시식 여부와 최종 보증 인원 변경 기한을 견적에서 확인했을 때 완료로 체크하세요.",
-    tip: "하객의 식사 요청은 필요한 내용만 익명 수량으로 전달하고, 주방이 교차접촉까지 대응 가능한지 별도로 물어보세요.",
-    caution: "알레르기 대응을 단순 선호 메뉴와 같게 다루거나, 확인되지 않은 ‘완전 무첨가’를 하객에게 약속하지 마세요.",
-    applicabilityTags: ["reception"],
+    tip: "참석자의 식사 요청은 필요한 내용만 익명 수량으로 전달하고, 주방이 교차접촉까지 대응 가능한지 별도로 물어보세요.",
+    caution: "알레르기 대응을 단순 선호 메뉴와 같게 다루거나, 확인되지 않은 ‘완전 무첨가’를 참석자에게 약속하지 마세요.",
+    applicabilityTags: ["family_meal", "reception"],
     sourceRefs: ["food_safety_allergy"],
   },
   venue_06: {
@@ -336,7 +337,7 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
   },
   venue_08: {
     completionCriteria:
-      "대기실·화장실·주차·수유·휴식·휠체어 접근 경로와 사진 촬영 공간을 실제 동선으로 확인하고 제한 사항을 기록했을 때 완료로 체크하세요.",
+      "대기·휴식 공간, 화장실·주차·수유·휠체어 접근 경로와 사진 촬영 공간을 실제 동선으로 확인하고 제한 사항을 기록했을 때 완료로 체크하세요.",
     sourceRefs: ["easylaw_accessibility"],
   },
   honeymoon_01: {
@@ -424,6 +425,7 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
   guests_10: {
     completionCriteria:
       "접수·방명록·하객 안내·선물 보관 담당별 시작·교대·종료 시각과 귀중품 인계 상대를 연락망에서 확인했을 때 완료로 체크하세요.",
+    applicabilityTags: ["ceremony", "reception"],
   },
   ceremony_03: {
     completionCriteria:

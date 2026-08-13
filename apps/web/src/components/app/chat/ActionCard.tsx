@@ -556,7 +556,7 @@ function ScheduleMiniCard() {
     );
     const status = getEffectivePlanningChecklistStatus(template.items, item);
     const { done, total } = getPlanningChecklistCounts(checklist);
-    return { key, label: CATEGORY_LABELS[key], status, done, total, checklist };
+    return { key, label: CHECKLIST_LABELS[key], status, done, total, checklist };
   }).filter((category): category is NonNullable<typeof category> => (
     category !== null
     && hasChecklistReviewEvidence(progress[category.key])

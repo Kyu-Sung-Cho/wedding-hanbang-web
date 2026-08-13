@@ -13,6 +13,7 @@ import {
   parseScheduleApprovalStatus,
   parseScheduleMutationSubmission,
 } from "../lib/scheduleApprovalInbox.mjs";
+import { buildChecklistApprovalDisclosure } from "../../../../packages/shared/src/contracts/checklistApprovalDisclosure.mjs";
 
 const REQUEST_ID = "20000000-0000-4000-8000-000000000001";
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
@@ -38,6 +39,56 @@ test("the expanded mobile approval discloses status changes and cleared completi
   assert.ok(scheduleScreenSource.includes(
     "자동 제외되며 기존 완료 기록(완료 일시·완료자)이 해제돼요",
   ));
+});
+
+test("a reviewer sees the exact celebration gathering answer change", () => {
+  const disclosure = buildChecklistApprovalDisclosure({
+    currentProgress: {},
+    currentRevision: 7,
+    templates: [{
+      key: "guests",
+      label: "하객",
+      items: [{ id: "guests_01", label: "초대 범위 정하기" }],
+    }],
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: 7,
+      progressPatch: {
+        __checklist_profile: {
+          version: 2,
+          reviewedAt: "2026-08-13T10:30:00.000Z",
+          answers: {
+            ceremony: "undecided",
+            gathering: "family_meal",
+            legalMarriage: "undecided",
+            travel: "undecided",
+            housing: "undecided",
+            internationalMarriage: null,
+            religiousCeremony: null,
+            remarriage: null,
+            childrenParticipating: null,
+            accessibilitySupport: null,
+            healthSupport: null,
+            petParticipation: null,
+            familyTradition: null,
+          },
+          autoExcludedItemIds: [],
+        },
+      },
+    },
+  });
+
+  assert.equal(disclosure.status, "ready");
+  assert.deepEqual(disclosure.questionChanges, [{
+    key: "gathering",
+    label: "축하 식사·모임",
+    before: "아직 미정",
+    after: "가족 식사만",
+  }]);
+  assert.match(
+    scheduleScreenSource,
+    /\{change\.label\}: \{change\.before\} → \{change\.after\}/,
+  );
 });
 
 test("a pending schedule submission keeps its opaque request reference for the approval inbox", () => {

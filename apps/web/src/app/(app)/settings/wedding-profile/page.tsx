@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Check, Eye, ShieldCheck } from "lucide-react";
 
@@ -11,6 +11,7 @@ import type { ProgressItem } from "@/types/database.types";
 import { applyPlanningChecklistProfile } from "@/utils/checklist";
 import { CHECKLIST_ITEM_GUIDANCE } from "@hanbang/shared/constants";
 import {
+  DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,
   PLANNING_CHECKLIST_PROFILE_KEY,
   isCanonicalPlanningChecklistProfile,
   normalizePlanningChecklistProfile,
@@ -18,19 +19,11 @@ import {
 } from "@hanbang/shared/utils";
 
 const DEFAULT_ANSWERS: PlanningChecklistProfileAnswers = {
-  ceremony: "undecided",
-  legalMarriage: "undecided",
-  travel: "undecided",
-  housing: "undecided",
-  internationalMarriage: null,
-  religiousCeremony: null,
-  remarriage: null,
-  childrenParticipating: null,
-  accessibilitySupport: null,
-  healthSupport: null,
-  petParticipation: null,
-  familyTradition: null,
+  ...DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,
 };
+
+const EXTERNAL_PROFILE_CHANGE_MESSAGE =
+  "다른 화면이나 파트너가 준비 설정을 변경했어요. 최신 설정을 다시 불러온 뒤 변경 미리보기를 다시 확인해 주세요.";
 
 type TriChoice = { value: boolean | null; label: string };
 const TRI_CHOICES: TriChoice[] = [
@@ -41,21 +34,32 @@ const TRI_CHOICES: TriChoice[] = [
 
 function RadioGroup<T extends string>({
   legend,
+  help,
   name,
   value,
   options,
   onChange,
 }: {
   legend: string;
+  help?: string;
   name: string;
   value: T;
   options: ReadonlyArray<{ value: T; label: string }>;
   onChange: (value: T) => void;
 }) {
+  const helpId = `${name}-help`;
   return (
-    <fieldset className="border-b border-[#e7e0d5] py-5">
+    <fieldset
+      aria-describedby={help ? helpId : undefined}
+      className="border-b border-[#e7e0d5] py-5"
+    >
       <legend className="text-[14px] font-semibold text-[#243832]">{legend}</legend>
-      <div className="mt-3 flex flex-wrap gap-2">
+      {help && (
+        <p id={helpId} className="mt-1.5 text-[12.5px] leading-5 text-[#65706d]">
+          {help}
+        </p>
+      )}
+      <div className={help ? "mt-2.5 flex flex-wrap gap-2" : "mt-3 flex flex-wrap gap-2"}>
         {options.map((option) => (
           <label key={option.value} className={`cursor-pointer rounded-full border px-3.5 py-2 text-[12.5px] font-semibold ${value === option.value ? "border-[#36534e] bg-[#36534e] text-white" : "border-[#d9d1c2] bg-white text-[#5d6864]"}`}>
             <input className="sr-only" type="radio" name={name} value={option.value} checked={value === option.value} onChange={() => onChange(option.value)} />
@@ -103,14 +107,61 @@ export default function WeddingProfilePage() {
     [journey?.progress],
   );
   const rawStoredProfile = progress[PLANNING_CHECKLIST_PROFILE_KEY];
-  const storedProfile = normalizePlanningChecklistProfile(rawStoredProfile) ?? null;
+  const storedProfile = useMemo(
+    () => normalizePlanningChecklistProfile(rawStoredProfile) ?? null,
+    [rawStoredProfile],
+  );
   const storedProfileIsCanonical = isCanonicalPlanningChecklistProfile(rawStoredProfile);
+  const storedRevision = journey?.state_revision ?? 0;
+  const storedProfileIdentity = useMemo(
+    () => JSON.stringify(rawStoredProfile ?? null),
+    [rawStoredProfile],
+  );
   const [answers, setAnswers] = useState<PlanningChecklistProfileAnswers>(storedProfile?.answers ?? DEFAULT_ANSWERS);
+  const [draftBase, setDraftBase] = useState(() => ({
+    revision: storedRevision,
+    profileIdentity: storedProfileIdentity,
+  }));
+  const [draftDirty, setDraftDirty] = useState(false);
   const [preview, setPreview] = useState<ReturnType<typeof applyPlanningChecklistProfile> | null>(null);
   const [previewRevision, setPreviewRevision] = useState<number | null>(null);
+  const [previewProfileIdentity, setPreviewProfileIdentity] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const draftBaseIsStale = draftBase.revision !== storedRevision
+    || draftBase.profileIdentity !== storedProfileIdentity;
+
+  useEffect(() => {
+    if (saving) return;
+    if (draftDirty) {
+      if (!draftBaseIsStale) return;
+      setPreview(null);
+      setPreviewRevision(null);
+      setPreviewProfileIdentity(null);
+      setError(EXTERNAL_PROFILE_CHANGE_MESSAGE);
+      setNotice("");
+      return;
+    }
+
+    setAnswers({ ...(storedProfile?.answers ?? DEFAULT_ANSWERS) });
+    setDraftBase((current) => (
+      current.revision === storedRevision
+        && current.profileIdentity === storedProfileIdentity
+        ? current
+        : { revision: storedRevision, profileIdentity: storedProfileIdentity }
+    ));
+    setPreview(null);
+    setPreviewRevision(null);
+    setPreviewProfileIdentity(null);
+  }, [
+    draftBaseIsStale,
+    draftDirty,
+    saving,
+    storedProfile,
+    storedProfileIdentity,
+    storedRevision,
+  ]);
   const previewItems = useMemo(() => {
     if (!preview) return { excluded: [], restored: [] };
     const excludedIds = new Set(preview.profile.autoExcludedItemIds);
@@ -131,19 +182,43 @@ export default function WeddingProfilePage() {
     value: PlanningChecklistProfileAnswers[K],
   ) => {
     setAnswers((current) => ({ ...current, [key]: value }));
+    setDraftDirty(true);
     setPreview(null);
     setPreviewRevision(null);
+    setPreviewProfileIdentity(null);
     setNotice("");
   };
 
+  const reloadLatestProfile = () => {
+    setAnswers({ ...(storedProfile?.answers ?? DEFAULT_ANSWERS) });
+    setDraftBase({
+      revision: storedRevision,
+      profileIdentity: storedProfileIdentity,
+    });
+    setDraftDirty(false);
+    setPreview(null);
+    setPreviewRevision(null);
+    setPreviewProfileIdentity(null);
+    setError("");
+    setNotice("최신 설정을 불러왔어요. 내용을 다시 확인해 주세요.");
+  };
+
   const buildPreview = () => {
+    if (draftBaseIsStale) {
+      setPreview(null);
+      setPreviewRevision(null);
+      setPreviewProfileIdentity(null);
+      setError(EXTERNAL_PROFILE_CHANGE_MESSAGE);
+      setNotice("");
+      return;
+    }
     setError("");
     const reviewedAt = new Date().toISOString();
     const nextPreview = applyPlanningChecklistProfile(
       CATEGORY_CHECKLISTS,
       progress,
       {
-        version: 1,
+        version: 2,
         reviewedAt,
         answers,
         autoExcludedItemIds: storedProfileIsCanonical
@@ -167,19 +242,28 @@ export default function WeddingProfilePage() {
     ) {
       setPreview(null);
       setPreviewRevision(null);
+      setPreviewProfileIdentity(null);
+      setDraftDirty(false);
       setNotice("이미 같은 상황 설정이 반영되어 있어 저장할 변경이 없어요.");
       return;
     }
     setPreview(nextPreview);
-    setPreviewRevision(journey?.state_revision ?? 0);
+    setPreviewRevision(draftBase.revision);
+    setPreviewProfileIdentity(draftBase.profileIdentity);
+    setDraftDirty(true);
   };
 
   const confirmSave = async () => {
     if (!preview || saving) return;
-    if ((journey?.state_revision ?? 0) !== previewRevision) {
+    if (
+      storedRevision !== previewRevision
+      || storedProfileIdentity !== previewProfileIdentity
+      || draftBaseIsStale
+    ) {
       setPreview(null);
       setPreviewRevision(null);
-      setError("그 사이 준비 정보가 바뀌었어요. 최신 내용으로 변경 미리보기를 다시 확인해 주세요.");
+      setPreviewProfileIdentity(null);
+      setError(EXTERNAL_PROFILE_CHANGE_MESSAGE);
       return;
     }
     setSaving(true);
@@ -227,6 +311,8 @@ export default function WeddingProfilePage() {
       if (result.status === "applied") {
         setPreview(null);
         setPreviewRevision(null);
+        setPreviewProfileIdentity(null);
+        setDraftDirty(false);
       }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "상황 설정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
@@ -259,6 +345,19 @@ export default function WeddingProfilePage() {
       <section aria-labelledby="profile-questions-heading" className="mt-5">
         <h2 id="profile-questions-heading" className="text-[20px] font-semibold text-[#243832]">우리에게 해당하는 준비</h2>
         <RadioGroup legend="예식 여부" name="ceremony" value={answers.ceremony} options={[{ value: "yes", label: "예식 있어요" }, { value: "no", label: "무예식이에요" }, { value: "undecided", label: "아직 미정" }]} onChange={(value) => updateAnswer("ceremony", value)} />
+        <RadioGroup
+          legend="축하 식사·모임"
+          help="예식과 별개예요. 가장 큰 모임 기준으로 골라 주세요."
+          name="gathering"
+          value={answers.gathering}
+          options={[
+            { value: "none", label: "따로 없음" },
+            { value: "family_meal", label: "가족 식사만" },
+            { value: "reception", label: "하객 피로연·축하 모임" },
+            { value: "undecided", label: "아직 미정" },
+          ]}
+          onChange={(value) => updateAnswer("gathering", value)}
+        />
         <RadioGroup legend="법률혼 계획" name="legalMarriage" value={answers.legalMarriage} options={[{ value: "yes", label: "혼인신고 예정" }, { value: "no", label: "계획 없음" }, { value: "undecided", label: "아직 미정" }]} onChange={(value) => updateAnswer("legalMarriage", value)} />
         <RadioGroup legend="신혼여행 범위" name="travel" value={answers.travel} options={[{ value: "domestic", label: "국내" }, { value: "international", label: "해외" }, { value: "none", label: "여행 없음" }, { value: "undecided", label: "아직 미정" }]} onChange={(value) => updateAnswer("travel", value)} />
         <RadioGroup legend="주거 형태" name="housing" value={answers.housing} options={[{ value: "rent", label: "임차" }, { value: "buy", label: "매수" }, { value: "other", label: "기타·이미 마련" }, { value: "undecided", label: "아직 미정" }]} onChange={(value) => updateAnswer("housing", value)} />
@@ -319,7 +418,21 @@ export default function WeddingProfilePage() {
         </section>
       )}
 
-      {error && <p role="alert" className="mt-4 border border-[#e3bcbc] bg-[#fff7f6] px-4 py-3 text-[13px] text-[#8c3e3e]">{error}</p>}
+      {error && (
+        <div className="mt-4 border border-[#e3bcbc] bg-[#fff7f6] px-4 py-3 text-[13px] text-[#8c3e3e]">
+          <p id="profile-save-error" role="alert">{error}</p>
+          {draftDirty && draftBaseIsStale && (
+            <button
+              type="button"
+              aria-describedby="profile-save-error"
+              onClick={reloadLatestProfile}
+              className="mt-2 min-h-11 rounded-full border border-[#b97878] bg-white px-4 py-2 text-[12.5px] font-semibold text-[#7b3434] hover:bg-[#fff1ef]"
+            >
+              최신 설정 다시 불러오기
+            </button>
+          )}
+        </div>
+      )}
       <p role="status" aria-live="polite" className="mt-4 min-h-6 text-[12.5px] leading-6 text-[#5d746d]">{notice}</p>
     </div>
   );

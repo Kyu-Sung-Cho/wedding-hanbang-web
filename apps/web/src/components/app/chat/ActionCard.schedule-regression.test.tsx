@@ -95,7 +95,7 @@ describe("ActionCard schedule mutation regression", () => {
       );
     });
 
-    const change = container.querySelector('[aria-label="결혼식장 체크리스트 변경 결과"]');
+    const change = container.querySelector('[aria-label="예식·모임 장소 체크리스트 변경 결과"]');
     expect(change?.textContent).toContain("견적 비교");
     expect(change?.textContent).toContain("완료");
     expect(container.textContent).not.toContain("후보 예식장 찾기");
@@ -183,8 +183,8 @@ describe("ActionCard schedule mutation regression", () => {
       })} />);
     });
 
-    expect(container.textContent).toContain("결혼식장");
+    expect(container.textContent).toContain("예식·모임 장소");
     expect(container.textContent).toContain("0/8");
-    expect(container.textContent).toContain("원하는 결혼식장 형태 정하기");
+    expect(container.textContent).toContain("원하는 장소 형태 정하기");
   });
 });

@@ -89,7 +89,7 @@ test("legacy item completion is canonicalized without leaking its retired field"
   assert.equal(Object.prototype.hasOwnProperty.call(merged[0], "completed"), false);
 });
 
-test("a partial legacy situation profile becomes a complete repairable v1 profile", () => {
+test("a partial legacy v1 situation profile becomes a complete repairable v2 profile", () => {
   const partial = {
     version: 1,
     reviewedAt: "legacy-date",
@@ -100,7 +100,9 @@ test("a partial legacy situation profile becomes a complete repairable v1 profil
   assert.equal(isCanonicalPlanningChecklistProfile(partial), false);
   const normalized = normalizePlanningChecklistProfile(partial);
   assert.ok(normalized);
+  assert.equal(normalized.version, 2);
   assert.equal(normalized.answers.ceremony, "yes");
+  assert.equal(normalized.answers.gathering, "undecided");
   assert.equal(normalized.answers.legalMarriage, "undecided");
   assert.equal(normalized.answers.healthSupport, null);
   assert.deepEqual(normalized.autoExcludedItemIds, ["venue_01"]);

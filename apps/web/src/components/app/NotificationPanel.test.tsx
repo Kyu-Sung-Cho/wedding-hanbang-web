@@ -321,8 +321,13 @@ describe("NotificationPanel partner history", () => {
             progressPatch: {
               __checklist_profile: {
                 ...CURRENT_PROFILE,
+                version: 2,
                 reviewedAt: "2026-08-12T12:00:00.000Z",
-                answers: { ...CURRENT_PROFILE.answers, ceremony: "no" },
+                answers: {
+                  ...CURRENT_PROFILE.answers,
+                  ceremony: "no",
+                  gathering: "family_meal",
+                },
               },
             },
           },
@@ -358,6 +363,7 @@ describe("NotificationPanel partner history", () => {
 
     expect(container.textContent).toContain("바뀌는 질문");
     expect(container.textContent).toContain("예식: 진행 → 진행 안 함");
+    expect(container.textContent).toContain("축하 식사·모임: 아직 미정 → 가족 식사만");
     expect(container.textContent).toContain("영향 받는 분야");
     expect(container.textContent).toContain("제외되는 항목");
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -542,10 +548,10 @@ describe("NotificationPanel partner history", () => {
     await act(async () => load?.click());
 
     expect(container.textContent).toContain(
-      "결혼식장 · 제외 1 · 복원 0 · 상태 완료 → 진행 중",
+      "예식·모임 장소 · 제외 1 · 복원 0 · 상태 완료 → 진행 중",
     );
     expect(container.textContent).toContain(
-      "결혼식장 · 원하는 결혼식장 형태 정하기 · 자동 제외되며 기존 완료 기록(완료 일시·완료자)이 해제돼요",
+      "예식·모임 장소 · 원하는 장소 형태 정하기 · 자동 제외되며 기존 완료 기록(완료 일시·완료자)이 해제돼요",
     );
   });
 

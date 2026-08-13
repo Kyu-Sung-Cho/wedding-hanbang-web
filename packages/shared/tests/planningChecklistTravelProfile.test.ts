@@ -20,7 +20,7 @@ function applyTravelProfile(travel: PlanningChecklistProfile["answers"]["travel"
     CATEGORY_CHECKLISTS,
     {},
     {
-      version: 1,
+      version: 2,
       reviewedAt: REVIEWED_AT,
       answers: {
         ...DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,
@@ -113,7 +113,7 @@ test("new domestic semantics preserve saved work while restoring prior auto-excl
     "honeymoon_06",
   ];
   const previousProfile: PlanningChecklistProfile = {
-    version: 1,
+    version: 2,
     reviewedAt: "2026-08-12T00:00:00.000Z",
     answers: {
       ...DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,

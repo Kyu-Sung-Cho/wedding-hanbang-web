@@ -9,7 +9,11 @@ import {
   CATEGORY_CHECKLISTS,
   CHECKLIST_ITEM_GUIDANCE,
 } from "@hanbang/shared/constants";
-import { applyPlanningChecklistProfile } from "@hanbang/shared/utils";
+import {
+  applyPlanningChecklistProfile,
+  type PlanningChecklistProfile,
+  type PlanningChecklistProfileV1,
+} from "@hanbang/shared/utils";
 
 function migration(name: string) {
   return readFileSync(
@@ -41,6 +45,9 @@ const budgetProgressIntegritySql = migration(
 );
 const checklistCollaborationApprovalSql = migration(
   "20260812180000_checklist_collaboration_approval.sql",
+);
+const checklistSituationProfileV2Sql = migration(
+  "20260813103000_checklist_situation_profile_v2_gathering.sql",
 );
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
@@ -552,6 +559,7 @@ async function createChecklistCollaborationDatabase(options: {
 } = {}) {
   const db = await createDatabase(options);
   await db.exec(checklistCollaborationApprovalSql);
+  await db.exec(checklistSituationProfileV2Sql);
   return db;
 }
 
@@ -1030,6 +1038,153 @@ describe("checklist collaboration approval over the final wrapper chain", () => 
     ],
   };
 
+  it.each([
+    ["none", 78, "따로 없음"],
+    ["family_meal", 61, "가족 식사만"],
+    ["reception", 53, "하객 피로연·축하 모임"],
+  ] as const)(
+    "holds ceremony=no + gathering=%s for linked 2/2 with %i exact exclusions",
+    async (gathering, expectedExcludedCount, gatheringLabel) => {
+      const db = await createChecklistCollaborationDatabase();
+      try {
+        await setServiceRole(db);
+        const application = applyPlanningChecklistProfile(
+          CATEGORY_CHECKLISTS,
+          {},
+          {
+            version: 2,
+            reviewedAt: "2026-08-13T01:10:00.000Z",
+            answers: {
+              ceremony: "no",
+              legalMarriage: "undecided",
+              travel: "undecided",
+              housing: "undecided",
+              gathering,
+              internationalMarriage: null,
+              religiousCeremony: null,
+              remarriage: null,
+              childrenParticipating: null,
+              accessibilitySupport: null,
+              healthSupport: null,
+              petParticipation: null,
+              familyTradition: null,
+            },
+            autoExcludedItemIds: [],
+          },
+          CHECKLIST_ITEM_GUIDANCE,
+          BRIDE_ID,
+        );
+
+        expect(application.excludedItemIds).toHaveLength(
+          expectedExcludedCount,
+        );
+        const pending = await submit(db, {
+          changes: { progress_patch: application.progressPatch },
+          surface: "/dashboard",
+        });
+        expect(pending).toMatchObject({
+          status: "pending_partner",
+          requiredCount: 2,
+          acceptedCount: 1,
+          isHighImpact: true,
+          appliedRevision: null,
+          journey: null,
+        });
+        expect(pending.summary).toContain(
+          `축하 식사·모임 아직 미정→${gatheringLabel}`,
+        );
+        expect(pending.summary).toContain(
+          `항목 제외${expectedExcludedCount}/복원0`,
+        );
+        expect(pending.summary.length).toBeLessThanOrEqual(240);
+
+        const applied = await accept(db, pending.requestId);
+        expect(applied).toMatchObject({
+          status: "applied",
+          requiredCount: 2,
+          acceptedCount: 2,
+          appliedRevision: 1,
+        });
+        expect(applied.journey?.progress).toEqual(
+          application.progressPatch,
+        );
+      } finally {
+        await resetPersona(db).catch(() => undefined);
+        await db.close();
+      }
+    },
+  );
+
+  it.each([
+    ["budget", 10_000_000],
+    ["spent", 1_000_000],
+    ["payer", "couple"],
+    ["vendor", "Hidden vendor"],
+    ["notes", "영수증에 없는 분야 메모"],
+    ["assigned_to", GROOM_ID],
+    ["responsibility", "groom"],
+    ["dueDate", "2026-08-20"],
+    ["due_date", "2026-08-20"],
+  ] as const)(
+    "rejects hidden first-materialization category field %s in a family-meal proposal",
+    async (field, hiddenValue) => {
+      const db = await createChecklistCollaborationDatabase();
+      try {
+        await setServiceRole(db);
+        const application = applyPlanningChecklistProfile(
+          CATEGORY_CHECKLISTS,
+          {},
+          {
+            version: 2,
+            reviewedAt: "2026-08-13T01:10:00.000Z",
+            answers: {
+              ceremony: "no",
+              legalMarriage: "undecided",
+              travel: "undecided",
+              housing: "undecided",
+              gathering: "family_meal",
+              internationalMarriage: null,
+              religiousCeremony: null,
+              remarriage: null,
+              childrenParticipating: null,
+              accessibilitySupport: null,
+              healthSupport: null,
+              petParticipation: null,
+              familyTradition: null,
+            },
+            autoExcludedItemIds: [],
+          },
+          CHECKLIST_ITEM_GUIDANCE,
+          BRIDE_ID,
+        );
+        expect(application.excludedItemIds).toHaveLength(61);
+        expect(application.categoryProgressPatch.guests).toMatchObject({
+          status: "not_started",
+        });
+
+        await expect(submit(db, {
+          changes: {
+            progress_patch: {
+              ...application.progressPatch,
+              guests: {
+                ...application.categoryProgressPatch.guests,
+                [field]: hiddenValue,
+              },
+            },
+          },
+          surface: "/dashboard",
+        })).rejects.toThrow(/COUPLE_PLAN_CHANGE_UNSUPPORTED_MIXED_DELTA/);
+        const requestCount = await db.query<{ count: number }>(
+          "SELECT count(*)::integer AS count FROM public.couple_plan_change_requests",
+        );
+        expect(requestCount.rows[0].count).toBe(0);
+      } finally {
+        await resetPersona(db).catch(() => undefined);
+        await db.close();
+      }
+    },
+  );
+
   it("submits the real empty-progress ceremony=no proposal with its full structured 7-category/53-item patch", async () => {
     const db = await createChecklistCollaborationDatabase();
     try {
@@ -1038,13 +1193,14 @@ describe("checklist collaboration approval over the final wrapper chain", () => 
         CATEGORY_CHECKLISTS,
         {},
         {
-          version: 1,
+          version: 2,
           reviewedAt: "2026-08-12T09:00:00.000Z",
           answers: {
             ceremony: "no",
             legalMarriage: "undecided",
             travel: "undecided",
             housing: "undecided",
+            gathering: "undecided",
             internationalMarriage: null,
             religiousCeremony: null,
             remarriage: null,
@@ -1471,13 +1627,14 @@ describe("checklist collaboration approval over the final wrapper chain", () => 
     try {
       await setServiceRole(db);
       const checklistProfile = {
-        version: 1,
+        version: 2,
         reviewedAt: "2026-08-12T09:00:00.000Z",
         answers: {
           ceremony: "undecided",
           legalMarriage: "undecided",
           travel: "undecided",
           housing: "undecided",
+          gathering: "undecided",
           internationalMarriage: null,
           religiousCeremony: false,
           remarriage: null,
@@ -1488,7 +1645,7 @@ describe("checklist collaboration approval over the final wrapper chain", () => 
           familyTradition: null,
         },
         autoExcludedItemIds: ["venue_01"],
-      };
+      } satisfies PlanningChecklistProfile;
       const itemOnlyCategory = {
         ...baseCategory,
         checklist: [{
@@ -1542,8 +1699,8 @@ describe("checklist collaboration approval over the final wrapper chain", () => 
     }
   });
 
-  it("holds a combined situation category and item restoration for 2/2", async () => {
-    const previousProfile = {
+  it("upgrades a legacy v1 profile while holding a combined category and item restoration for 2/2", async () => {
+    const previousProfile: PlanningChecklistProfileV1 = {
       version: 1,
       reviewedAt: "2026-08-12T09:00:00.000Z",
       answers: {
@@ -1581,11 +1738,12 @@ describe("checklist collaboration approval over the final wrapper chain", () => 
     });
     try {
       await setServiceRole(db);
-      const nextProfile = {
-        ...previousProfile,
+      const nextProfile: PlanningChecklistProfile = {
+        version: 2 as const,
         reviewedAt: "2026-08-12T10:00:00.000Z",
         answers: {
           ...previousProfile.answers,
+          gathering: "undecided" as const,
           religiousCeremony: null,
         },
         autoExcludedItemIds: [],

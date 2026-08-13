@@ -71,6 +71,12 @@ const QUESTION_META = [
   ["legalMarriage", "법률혼(혼인신고)", { yes: "진행", no: "진행 안 함", undecided: "미정" }],
   ["travel", "신혼여행", { domestic: "국내", international: "해외", none: "안 감", undecided: "미정" }],
   ["housing", "신혼집", { rent: "임차", buy: "매수", other: "기타·이미 마련", undecided: "미정" }],
+  ["gathering", "축하 식사·모임", {
+    none: "따로 없음",
+    family_meal: "가족 식사만",
+    reception: "하객 피로연·축하 모임",
+    undecided: "아직 미정",
+  }],
   ["internationalMarriage", "국제혼인", { true: "해당", false: "해당 없음", null: "미정" }],
   ["religiousCeremony", "종교식", { true: "진행", false: "진행 안 함", null: "미정" }],
   ["remarriage", "재혼", { true: "해당", false: "해당 없음", null: "미정" }],
@@ -81,11 +87,15 @@ const QUESTION_META = [
   ["familyTradition", "전통 의례", { true: "진행", false: "진행 안 함", null: "미정" }],
 ];
 const QUESTION_KEYS = new Set(QUESTION_META.map(([key]) => key));
+const V1_QUESTION_KEYS = new Set(
+  QUESTION_META.map(([key]) => key).filter((key) => key !== "gathering"),
+);
 const DEFAULT_ANSWERS = Object.freeze({
   ceremony: "undecided",
   legalMarriage: "undecided",
   travel: "undecided",
   housing: "undecided",
+  gathering: "undecided",
   internationalMarriage: null,
   religiousCeremony: null,
   remarriage: null,
@@ -240,19 +250,22 @@ function validateCategory(value, categoryKey, currentRaw) {
   return true;
 }
 
-function validateAnswers(value) {
+function validateAnswers(value, version) {
+  const expectedKeys = version === 1 ? V1_QUESTION_KEYS : QUESTION_KEYS;
   if (
     !isRecord(value)
-    || Object.keys(value).length !== QUESTION_KEYS.size
-    || Object.keys(value).some((key) => !QUESTION_KEYS.has(key))
+    || Object.keys(value).length !== expectedKeys.size
+    || Object.keys(value).some((key) => !expectedKeys.has(key))
   ) return false;
   const triState = new Set(["yes", "no", "undecided"]);
   const travel = new Set(["domestic", "international", "none", "undecided"]);
   const housing = new Set(["rent", "buy", "other", "undecided"]);
+  const gathering = new Set(["none", "family_meal", "reception", "undecided"]);
   return triState.has(value.ceremony)
     && triState.has(value.legalMarriage)
     && travel.has(value.travel)
     && housing.has(value.housing)
+    && (version === 1 || gathering.has(value.gathering))
     && [
       "internationalMarriage",
       "religiousCeremony",
@@ -271,9 +284,9 @@ function readProfile(value, knownItemIds) {
     || Object.keys(value).length !== 4
     || !["version", "reviewedAt", "answers", "autoExcludedItemIds"]
       .every((key) => hasOwn(value, key))
-    || value.version !== 1
+    || (value.version !== 1 && value.version !== 2)
     || !isTimestamp(value.reviewedAt)
-    || !validateAnswers(value.answers)
+    || !validateAnswers(value.answers, value.version)
     || !Array.isArray(value.autoExcludedItemIds)
     || value.autoExcludedItemIds.length > knownItemIds.size
   ) return null;
@@ -285,7 +298,9 @@ function readProfile(value, knownItemIds) {
     ids.add(itemId);
   }
   return {
-    answers: value.answers,
+    answers: value.version === 1
+      ? { ...value.answers, gathering: "undecided" }
+      : value.answers,
     autoExcludedItemIds: ids,
   };
 }
@@ -301,9 +316,9 @@ function readCurrentProfile(
     || Object.keys(value).length !== 4
     || !["version", "reviewedAt", "answers", "autoExcludedItemIds"]
       .every((key) => hasOwn(value, key))
-    || value.version !== 1
+    || (value.version !== 1 && value.version !== 2)
     || !isTimestamp(value.reviewedAt)
-    || !validateAnswers(value.answers)
+    || !validateAnswers(value.answers, value.version)
     || !Array.isArray(value.autoExcludedItemIds)
     || value.autoExcludedItemIds.length > 500
   ) return null;
@@ -332,7 +347,9 @@ function readCurrentProfile(
     ) effectiveIds.add(itemId);
   }
   return {
-    answers: value.answers,
+    answers: value.version === 1
+      ? { ...value.answers, gathering: "undecided" }
+      : value.answers,
     autoExcludedItemIds: effectiveIds,
   };
 }

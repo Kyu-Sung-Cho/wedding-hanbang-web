@@ -23,7 +23,7 @@ function applyHousingProfile(housing: PlanningChecklistProfile["answers"]["housi
     CATEGORY_CHECKLISTS,
     {},
     {
-      version: 1,
+      version: 2,
       reviewedAt: REVIEWED_AT,
       answers: {
         ...DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,
@@ -142,7 +142,7 @@ test("housing=undecided excludes no housing work", () => {
 test("buy preserves completed official-document work and every saved metadata field", () => {
   const previousAutoExcludedItemIds = ["home_admin_06", "home_admin_07"];
   const previousProfile: PlanningChecklistProfile = {
-    version: 1,
+    version: 2,
     reviewedAt: "2026-08-12T00:00:00.000Z",
     answers: {
       ...DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,

@@ -12,6 +12,13 @@ const migrationSql = readFileSync(
   ),
   "utf8",
 );
+const situationProfileV2Sql = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260813103000_checklist_situation_profile_v2_gathering.sql",
+  ),
+  "utf8",
+);
 
 const USER_ID = "10000000-0000-4000-8000-000000000001";
 const PARTNER_ID = "10000000-0000-4000-8000-000000000002";
@@ -211,6 +218,7 @@ async function createDatabase(options: { legacyForeignRef?: boolean } = {}) {
       VALUES ('${REQUEST_ID}', '${COUPLE_ID}', 'pending');
   `);
   await db.exec(migrationSql);
+  await db.exec(situationProfileV2Sql);
   return db;
 }
 
