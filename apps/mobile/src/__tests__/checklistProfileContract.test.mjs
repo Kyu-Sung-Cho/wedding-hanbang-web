@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   applyPlanningChecklistProfile,
+  normalizePlanningChecklistProfile,
   PLANNING_CHECKLIST_PROFILE_KEY,
 } from "../../../../packages/shared/src/utils/planningChecklist.ts";
 
@@ -23,6 +24,7 @@ const guidance = {
 
 const baseAnswers = {
   ceremony: "undecided",
+  gathering: "undecided",
   legalMarriage: "undecided",
   travel: "undecided",
   housing: "undecided",
@@ -38,7 +40,7 @@ const baseAnswers = {
 
 function profile(answers, autoExcludedItemIds = []) {
   return {
-    version: 1,
+    version: 2,
     reviewedAt: "2026-08-12T09:00:00.000Z",
     answers: { ...baseAnswers, ...answers },
     autoExcludedItemIds,
@@ -59,8 +61,26 @@ test("mobile situation profile matches the exact API shape", () => {
     "version",
   ]);
   assert.deepEqual(Object.keys(result.profile.answers).sort(), Object.keys(baseAnswers).sort());
+  assert.equal(result.profile.version, 2);
+  assert.equal(result.profile.answers.gathering, "undecided");
   assert.equal(result.progressPatch[PLANNING_CHECKLIST_PROFILE_KEY], result.profile);
   assert.deepEqual(result.profile.autoExcludedItemIds, ["health"]);
+});
+
+test("a stored version 1 profile loads without guessing a celebration gathering", () => {
+  const legacyAnswers = { ...baseAnswers };
+  delete legacyAnswers.gathering;
+  const loaded = normalizePlanningChecklistProfile({
+    version: 1,
+    reviewedAt: "2026-08-12T09:00:00.000Z",
+    answers: { ...legacyAnswers, ceremony: "no" },
+    autoExcludedItemIds: ["health"],
+  });
+
+  assert.equal(loaded?.version, 2);
+  assert.equal(loaded?.answers.ceremony, "no");
+  assert.equal(loaded?.answers.gathering, "undecided");
+  assert.deepEqual(loaded?.autoExcludedItemIds, ["health"]);
 });
 
 test("changing a situation from false to true restores only its previous auto-exclusion", () => {

@@ -239,7 +239,7 @@ describe("StartHereClient first visit", () => {
     expect(priorityItems).toHaveLength(3);
     expect(priorityItems[0]?.textContent).toContain("함께 정할 것");
     expect(container.textContent).toContain("부모님 첫 만남");
-    expect(container.textContent).toContain("결혼식장");
+    expect(container.textContent).toContain("예식·모임 장소");
     expect(container.textContent).toContain("기본 확인 시점까지");
   });
 

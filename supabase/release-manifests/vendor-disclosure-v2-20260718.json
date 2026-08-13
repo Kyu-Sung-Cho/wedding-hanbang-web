@@ -352,6 +352,10 @@
     {
       "file": "20260812193000_checklist_disclosure_receipt.sql",
       "sha256": "0ef9332092e066d5db67dd974fe68aef8a7231a7b2ffd25a2052956f782baf29"
+    },
+    {
+      "file": "20260813103000_checklist_situation_profile_v2_gathering.sql",
+      "sha256": "5056cb1367be6787d6f66d83cf800caa71113ea46b149d4f20371353c52d6460"
     }
   ],
   "deploymentEvidence": {

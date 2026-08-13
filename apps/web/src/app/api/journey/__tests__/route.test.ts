@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent } from "@/utils/rateLimit";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import {
+  mergePlanningChecklist,
+  type PlanningChecklistItem,
+} from "@hanbang/shared/utils";
 import { PATCH } from "../route";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -115,6 +120,98 @@ function checklistProfile(
     },
     autoExcludedItemIds: overrides.autoExcludedItemIds ?? ["ceremony_01", "ceremony_02"],
   };
+}
+
+function checklistProfileV2(
+  reviewedAt: string,
+  overrides: {
+    answers?: Record<string, unknown>;
+    autoExcludedItemIds?: string[];
+  } = {},
+) {
+  return {
+    version: 2,
+    reviewedAt,
+    answers: {
+      ...CHECKLIST_PROFILE_ANSWERS,
+      gathering: "undecided",
+      ...(overrides.answers ?? {}),
+    },
+    autoExcludedItemIds: overrides.autoExcludedItemIds ?? ["ceremony_01", "ceremony_02"],
+  };
+}
+
+const CHECKLIST_COPY_COMPAT_FIXTURES = [
+  {
+    categoryKey: "venue",
+    historicalCategoryLabel: "결혼식장",
+    currentCategoryLabel: "예식·모임 장소",
+    items: [
+      ["venue_01", "원하는 결혼식장 형태 정하기", "원하는 장소 형태 정하기"],
+      ["venue_04", "하객 식사 메뉴와 1인당 금액 확인", "참석자 식사 메뉴와 1인당 금액 확인"],
+      ["venue_05", "결혼식 시간대 정하기", "예식·모임 시간대 정하기"],
+      ["venue_08", "대기실·주차장·사진 촬영 공간 확인", "대기·주차·사진 촬영 공간 확인"],
+    ],
+  },
+  {
+    categoryKey: "gift",
+    historicalCategoryLabel: "결혼식에 온 분께 드릴 선물",
+    currentCategoryLabel: "참석자에게 드릴 선물",
+    items: [[
+      "gift_07",
+      "결혼식장에 도착할 날짜와 장소 확인",
+      "예식·모임 장소에 도착할 날짜와 위치 확인",
+    ]],
+  },
+  {
+    categoryKey: "guests",
+    historicalCategoryLabel: "하객·참석 답변·이동",
+    currentCategoryLabel: "초대·참석 답변·이동",
+    items: [[
+      "guests_09",
+      "정보 수정·예식 변경·긴급 연락을 전달할 방법 준비",
+      "정보 수정·예식·모임 변경·긴급 연락을 전달할 방법 준비",
+    ]],
+  },
+] as const;
+
+function checklistCopyCompatProgress(
+  copy: "historical" | "current",
+  itemStates: Readonly<Record<string, string>> = {},
+  itemPatches: Readonly<Record<string, Record<string, unknown>>> = {},
+) {
+  const progress: Record<string, Record<string, unknown>> = {};
+  for (const fixture of CHECKLIST_COPY_COMPAT_FIXTURES) {
+    const template = CATEGORY_CHECKLISTS.find(
+      (category) => category.key === fixture.categoryKey,
+    );
+    if (!template) throw new Error(`missing checklist template: ${fixture.categoryKey}`);
+    const itemAliases = new Map<string, { historical: string; current: string }>(
+      fixture.items.map(([id, historical, current]) => [
+        id,
+        { historical, current },
+      ]),
+    );
+    progress[fixture.categoryKey] = {
+      category: fixture.categoryKey,
+      label: copy === "historical"
+        ? fixture.historicalCategoryLabel
+        : fixture.currentCategoryLabel,
+      status: "not_started",
+      checklist: template.items.map((item) => {
+        const alias = itemAliases.get(item.id);
+        const state = itemStates[item.id] ?? "todo";
+        return {
+          ...item,
+          label: alias ? alias[copy] : item.label,
+          done: state === "completed",
+          state,
+          ...(itemPatches[item.id] ?? {}),
+        };
+      }),
+    };
+  }
+  return progress;
 }
 
 function request(
@@ -849,6 +946,160 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       .not.toBe("클라이언트 옛 라벨");
   });
 
+  it("shows current canonical copy after merging historical saved labels", () => {
+    const historicalProgress = checklistCopyCompatProgress("historical");
+    for (const fixture of CHECKLIST_COPY_COMPAT_FIXTURES) {
+      const template = CATEGORY_CHECKLISTS.find(
+        (category) => category.key === fixture.categoryKey,
+      );
+      expect(template?.label).toBe(fixture.currentCategoryLabel);
+      const saved = historicalProgress[fixture.categoryKey]
+        ?.checklist as Array<Record<string, unknown>>;
+      const merged = mergePlanningChecklist(
+        template!.items,
+        saved as unknown as readonly PlanningChecklistItem[],
+      );
+      for (const [itemId, , currentLabel] of fixture.items) {
+        expect(merged.find((item) => item.id === itemId)?.label).toBe(currentLabel);
+      }
+    }
+  });
+
+  it("keeps every exact historical copy alias out of a routine item edit", async () => {
+    const historicalProgress = checklistCopyCompatProgress("historical");
+    mocks.currentJourney = { progress: historicalProgress, state_revision: 7 };
+    const currentProgress = checklistCopyCompatProgress(
+      "current",
+      {},
+      {
+        venue_01: { note: "두 곳 비교" },
+        gift_07: { note: "납품 시간 확인" },
+        guests_09: { note: "연락 담당 확인" },
+      },
+    );
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: currentProgress,
+    }));
+
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: Record<string, Record<string, unknown>> };
+    };
+    for (const fixture of CHECKLIST_COPY_COMPAT_FIXTURES) {
+      const category = rpcArgs.p_changes.progress_patch[fixture.categoryKey];
+      expect(category.label).toBe(fixture.historicalCategoryLabel);
+      const checklist = category.checklist as Array<Record<string, unknown>>;
+      for (const [itemId, historicalLabel] of fixture.items) {
+        expect(checklist.find((item) => item.id === itemId)?.label)
+          .toBe(historicalLabel);
+      }
+    }
+    expect((rpcArgs.p_changes.progress_patch.venue.checklist as Array<Record<string, unknown>>)
+      .find((item) => item.id === "venue_01")?.note).toBe("두 곳 비교");
+  });
+
+  it("keeps every exact historical copy alias out of a situation-profile change", async () => {
+    const historicalProgress = checklistCopyCompatProgress("historical");
+    mocks.currentJourney = {
+      progress: {
+        ...historicalProgress,
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T08:00:00.000Z",
+          { answers: { gathering: "reception" }, autoExcludedItemIds: [] },
+        ),
+      },
+      state_revision: 7,
+    };
+    const aliasItemIds = CHECKLIST_COPY_COMPAT_FIXTURES.flatMap(
+      (fixture) => fixture.items.map(([itemId]) => itemId),
+    );
+    const excludedStates = Object.fromEntries(
+      aliasItemIds.map((itemId) => [itemId, "not_applicable"]),
+    );
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        ...checklistCopyCompatProgress("current", excludedStates),
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T09:00:00.000Z",
+          {
+            answers: { gathering: "none" },
+            autoExcludedItemIds: aliasItemIds,
+          },
+        ),
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: Record<string, Record<string, unknown>> };
+    };
+    for (const fixture of CHECKLIST_COPY_COMPAT_FIXTURES) {
+      const category = rpcArgs.p_changes.progress_patch[fixture.categoryKey];
+      expect(category.label).toBe(fixture.historicalCategoryLabel);
+      const checklist = category.checklist as Array<Record<string, unknown>>;
+      for (const [itemId, historicalLabel] of fixture.items) {
+        expect(checklist.find((item) => item.id === itemId)).toMatchObject({
+          label: historicalLabel,
+          state: "not_applicable",
+        });
+      }
+    }
+    expect(rpcArgs.p_changes.progress_patch.__checklist_profile).toMatchObject({
+      version: 2,
+      answers: { gathering: "none" },
+    });
+  });
+
+  it("does not suppress arbitrary saved labels as copy aliases", async () => {
+    const historicalProgress = checklistCopyCompatProgress("historical");
+    const savedVenue = historicalProgress.venue;
+    const savedChecklist = savedVenue.checklist as Array<Record<string, unknown>>;
+    historicalProgress.venue = {
+      ...savedVenue,
+      label: "우리만의 장소 이름",
+      checklist: savedChecklist.map((item) => item.id === "venue_01"
+        ? { ...item, label: "우리만의 항목 이름" }
+        : item),
+    };
+    mocks.currentJourney = { progress: historicalProgress, state_revision: 7 };
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "22023",
+        message: "COUPLE_PLAN_CHANGE_UNSUPPORTED_MIXED_DELTA",
+      },
+    });
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: checklistCopyCompatProgress(
+        "current",
+        {},
+        { venue_01: { note: "두 곳 비교" } },
+      ),
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "PLAN_CHANGE_MIXED_DELTA_UNSUPPORTED",
+    });
+    const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as {
+      p_changes: { progress_patch: { venue: {
+        label: string;
+        checklist: Array<Record<string, unknown>>;
+      } } };
+    };
+    expect(rpcArgs.p_changes.progress_patch.venue.label).toBe("예식·모임 장소");
+    expect(rpcArgs.p_changes.progress_patch.venue.checklist
+      .find((item) => item.id === "venue_01")?.label)
+      .toBe("원하는 장소 형태 정하기");
+    expect(JSON.stringify(rpcArgs.p_changes)).not.toContain("우리만의");
+  });
+
   it("allows a new status-only category exclusion when there is no item history", async () => {
     const response = await PATCH(request({
       expected_revision: 7,
@@ -1251,6 +1502,150 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     expect(mocks.rpc.mock.calls[0]?.[1]).toMatchObject({ p_surface: "/schedule" });
   });
 
+  it("accepts an exact version 2 checklist profile with the gathering answer", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T08:00:00.000Z",
+          { autoExcludedItemIds: [] },
+        ),
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("accepts a profile-only v2 change when the gathering answer actually changed", async () => {
+    mocks.currentJourney = {
+      progress: {
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T08:00:00.000Z",
+          { answers: { gathering: "none" }, autoExcludedItemIds: [] },
+        ),
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T09:00:00.000Z",
+          { answers: { gathering: "reception" }, autoExcludedItemIds: [] },
+        ),
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("treats a v1 profile and v2 gathering=undecided as the same situation", async () => {
+    mocks.currentJourney = {
+      progress: {
+        __checklist_profile: checklistProfile("2026-08-12T08:00:00.000Z"),
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T09:00:00.000Z",
+          { autoExcludedItemIds: ["ceremony_02", "ceremony_01"] },
+        ),
+      },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHECKLIST_PROFILE_NO_CHANGES",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a v1 profile write when the stored situation profile is already v2", async () => {
+    mocks.currentJourney = {
+      progress: {
+        __checklist_profile: checklistProfileV2("2026-08-12T08:00:00.000Z"),
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        __checklist_profile: checklistProfile("2026-08-12T09:00:00.000Z"),
+      },
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHECKLIST_PROFILE_UPGRADE_REQUIRED",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("allows a routine checklist item patch to omit the already-stored v2 profile", async () => {
+    mocks.currentJourney = {
+      progress: {
+        __checklist_profile: checklistProfileV2(
+          "2026-08-12T08:00:00.000Z",
+          { autoExcludedItemIds: [] },
+        ),
+      },
+      state_revision: 7,
+    };
+
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: {
+        venue: {
+          category: "venue",
+          status: "not_started",
+          checklist: [{
+            id: "venue_01",
+            label: "방문",
+            done: false,
+            state: "todo",
+          }],
+        },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["v1 with a v2-only gathering answer", {
+      ...checklistProfile("2026-08-12T08:00:00.000Z"),
+      answers: {
+        ...checklistProfile("2026-08-12T08:00:00.000Z").answers,
+        gathering: "undecided",
+      },
+    }],
+    ["v2 without gathering", {
+      ...checklistProfile("2026-08-12T08:00:00.000Z"),
+      version: 2,
+    }],
+    ["v2 with an unknown gathering value", checklistProfileV2(
+      "2026-08-12T08:00:00.000Z",
+      { answers: { gathering: "after_party" } },
+    )],
+  ])("rejects a non-exact versioned checklist profile: %s", async (_label, profile) => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      progress_patch: { __checklist_profile: profile },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("rejects a profile-only patch when only reviewedAt and set ordering changed", async () => {
     mocks.currentJourney = {
       wedding_date: "2027-05-01",
@@ -1381,7 +1776,7 @@ describe("/api/journey PATCH couple plan-change contract", () => {
   });
 
   it.each([
-    ["unknown profile version", { version: 2 }],
+    ["unknown profile version", { version: 3 }],
     ["invalid review timestamp", { reviewedAt: "today" }],
     ["unknown answer", { answers: { petParticipation: "maybe" } }],
     ["unknown item id", { autoExcludedItemIds: ["not_real_01"] }],

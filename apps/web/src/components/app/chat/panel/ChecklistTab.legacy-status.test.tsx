@@ -38,7 +38,7 @@ describe("ChecklistTab legacy category truth", () => {
     await act(async () => root.render(<ChecklistTab />));
 
     const venue = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("결혼식장"),
+      (button) => button.textContent?.includes("예식·모임 장소"),
     );
     expect(venue?.textContent).toContain("0/8");
     expect(venue?.textContent).toContain("시작전");

@@ -8,7 +8,11 @@ import {
   summarizePlanningChecklist,
 } from "../checklist";
 import type { ChecklistItem } from "@/types/database.types";
-import { setPlanningChecklistCategoryStatus } from "@hanbang/shared/utils";
+import {
+  setPlanningChecklistCategoryStatus,
+  type PlanningChecklistProfileV1,
+  type PlanningChecklistProfileV1Answers,
+} from "@hanbang/shared/utils";
 
 const makeItems = (ids: string[], doneStates: boolean[]): ChecklistItem[] =>
   ids.map((id, i) => ({ id, label: `Task ${id}`, done: doneStates[i] }));
@@ -530,7 +534,7 @@ describe("applyPlanningChecklistProfile", () => {
     always: {},
     pet: { applicabilityTags: ["pet_participation"] },
   };
-  const baseAnswers = {
+  const legacyBaseAnswers: PlanningChecklistProfileV1Answers = {
     ceremony: "undecided" as const,
     legalMarriage: "undecided" as const,
     travel: "undecided" as const,
@@ -544,10 +548,14 @@ describe("applyPlanningChecklistProfile", () => {
     petParticipation: null,
     familyTradition: null,
   };
+  const baseAnswers = {
+    ...legacyBaseAnswers,
+    gathering: "undecided" as const,
+  };
 
   it("previews and excludes only explicitly inapplicable conditional items", () => {
     const result = applyPlanningChecklistProfile(profileTemplates, {}, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: { ...baseAnswers, ceremony: "no", petParticipation: false },
       autoExcludedItemIds: [],
@@ -563,11 +571,11 @@ describe("applyPlanningChecklistProfile", () => {
       .toMatchObject({ state: "todo", done: false });
   });
 
-  it("restores only items previously auto-excluded by the profile", () => {
-    const previousProfile = {
+  it("restores only items previously auto-excluded by a legacy v1 profile during v2 review", () => {
+    const previousProfile: PlanningChecklistProfileV1 = {
       version: 1 as const,
       reviewedAt: "2026-08-11T08:00:00.000Z",
-      answers: { ...baseAnswers, ceremony: "no" as const },
+      answers: { ...legacyBaseAnswers, ceremony: "no" as const },
       autoExcludedItemIds: ["ceremony"],
     };
     const progress = {
@@ -582,7 +590,7 @@ describe("applyPlanningChecklistProfile", () => {
     };
 
     const result = applyPlanningChecklistProfile(profileTemplates, progress, {
-      ...previousProfile,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: { ...baseAnswers, ceremony: "yes", petParticipation: true },
       autoExcludedItemIds: [],
@@ -607,7 +615,7 @@ describe("applyPlanningChecklistProfile", () => {
     };
 
     const excluded = applyPlanningChecklistProfile(profileTemplates, progress, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: { ...baseAnswers, ceremony: "no" },
       autoExcludedItemIds: [],
@@ -636,7 +644,7 @@ describe("applyPlanningChecklistProfile", () => {
         items: makeItems(["pet"], [false]),
       }];
       const first = applyPlanningChecklistProfile(templates, {}, {
-        version: 1,
+        version: 2,
         reviewedAt: "2026-08-12T08:00:00.000Z",
         answers: { ...baseAnswers, petParticipation: false },
         autoExcludedItemIds: [],
@@ -674,7 +682,7 @@ describe("applyPlanningChecklistProfile", () => {
       items: makeItems(["pet"], [false]),
     }];
     const first = applyPlanningChecklistProfile(oldTemplates, {}, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: { ...baseAnswers, petParticipation: false },
       autoExcludedItemIds: [],
@@ -706,7 +714,7 @@ describe("applyPlanningChecklistProfile", () => {
 
   it("materializes a decided category so situation review counts toward coverage", () => {
     const reviewed = applyPlanningChecklistProfile(profileTemplates, {}, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: { ...baseAnswers, ceremony: "yes", petParticipation: true },
       autoExcludedItemIds: [],
@@ -731,7 +739,7 @@ describe("applyPlanningChecklistProfile", () => {
       },
     };
     const undecided = applyPlanningChecklistProfile(templates, {}, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: {
         ...baseAnswers,
@@ -743,7 +751,7 @@ describe("applyPlanningChecklistProfile", () => {
     expect(undecided.categoryProgressPatch).not.toHaveProperty("international");
 
     const applicable = applyPlanningChecklistProfile(templates, {}, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: {
         ...baseAnswers,
@@ -757,7 +765,7 @@ describe("applyPlanningChecklistProfile", () => {
     });
 
     const inapplicable = applyPlanningChecklistProfile(templates, {}, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: {
         ...baseAnswers,
@@ -781,7 +789,7 @@ describe("applyPlanningChecklistProfile", () => {
       },
     };
     const result = applyPlanningChecklistProfile(profileTemplates, saved, {
-      version: 1,
+      version: 2,
       reviewedAt: "2026-08-12T08:00:00.000Z",
       answers: baseAnswers,
       autoExcludedItemIds: [],

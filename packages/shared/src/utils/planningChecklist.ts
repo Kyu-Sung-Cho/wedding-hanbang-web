@@ -89,7 +89,7 @@ export interface PlanningChecklistGuidanceLike {
 
 export type PlanningChecklistTriState = "yes" | "no" | "undecided";
 
-export interface PlanningChecklistProfileAnswers {
+export interface PlanningChecklistProfileV1Answers {
   ceremony: PlanningChecklistTriState;
   legalMarriage: PlanningChecklistTriState;
   travel: "domestic" | "international" | "none" | "undecided";
@@ -104,17 +104,42 @@ export interface PlanningChecklistProfileAnswers {
   familyTradition: boolean | null;
 }
 
+export type PlanningChecklistGathering =
+  | "none"
+  | "family_meal"
+  | "reception"
+  | "undecided";
+
+export interface PlanningChecklistProfileAnswers extends PlanningChecklistProfileV1Answers {
+  gathering: PlanningChecklistGathering;
+}
+
+interface PlanningChecklistProfileBase<TVersion extends 1 | 2, TAnswers> {
+  version: TVersion;
+  reviewedAt: string;
+  answers: TAnswers;
+  /** 이 설정이 자동 제외한 항목만 기록한다. 사용자가 직접 제외한 항목과 구분한다. */
+  autoExcludedItemIds: string[];
+}
+
+export interface PlanningChecklistProfileV1
+  extends PlanningChecklistProfileBase<1, PlanningChecklistProfileV1Answers> {}
+
 export interface PlanningChecklistProfile {
-  version: 1;
+  version: 2;
   reviewedAt: string;
   answers: PlanningChecklistProfileAnswers;
   /** 이 설정이 자동 제외한 항목만 기록한다. 사용자가 직접 제외한 항목과 구분한다. */
   autoExcludedItemIds: string[];
 }
 
+export type PlanningChecklistStoredProfile =
+  | PlanningChecklistProfileV1
+  | PlanningChecklistProfile;
+
 export const PLANNING_CHECKLIST_PROFILE_KEY = "__checklist_profile" as const;
 
-export const DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS: Readonly<PlanningChecklistProfileAnswers> = Object.freeze({
+export const DEFAULT_PLANNING_CHECKLIST_PROFILE_V1_ANSWERS: Readonly<PlanningChecklistProfileV1Answers> = Object.freeze({
   ceremony: "undecided",
   legalMarriage: "undecided",
   travel: "undecided",
@@ -129,29 +154,44 @@ export const DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS: Readonly<PlanningCheckl
   familyTradition: null,
 });
 
+export const DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS: Readonly<PlanningChecklistProfileAnswers> = Object.freeze({
+  ...DEFAULT_PLANNING_CHECKLIST_PROFILE_V1_ANSWERS,
+  gathering: "undecided",
+});
+
+const PLANNING_CHECKLIST_PROFILE_V1_ANSWER_KEYS = Object.keys(
+  DEFAULT_PLANNING_CHECKLIST_PROFILE_V1_ANSWERS,
+) as Array<keyof PlanningChecklistProfileV1Answers>;
+
 const PLANNING_CHECKLIST_PROFILE_ANSWER_KEYS = Object.keys(
   DEFAULT_PLANNING_CHECKLIST_PROFILE_ANSWERS,
 ) as Array<keyof PlanningChecklistProfileAnswers>;
 
 export function isCanonicalPlanningChecklistProfile(
   value: unknown,
-): value is PlanningChecklistProfile {
+): value is PlanningChecklistStoredProfile {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const candidate = value as Partial<PlanningChecklistProfile> & Record<string, unknown>;
+  const candidate = value as Record<string, unknown>;
+  const version = candidate.version;
+  const answerKeys = version === 1
+    ? PLANNING_CHECKLIST_PROFILE_V1_ANSWER_KEYS
+    : version === 2
+      ? PLANNING_CHECKLIST_PROFILE_ANSWER_KEYS
+      : null;
   if (
     Object.keys(candidate).length !== 4
     || !["version", "reviewedAt", "answers", "autoExcludedItemIds"].every((key) => (
       Object.prototype.hasOwnProperty.call(candidate, key)
     ))
-    || candidate.version !== 1
+    || answerKeys === null
     || typeof candidate.reviewedAt !== "string"
     || !Number.isFinite(Date.parse(candidate.reviewedAt))
     || new Date(candidate.reviewedAt).toISOString() !== candidate.reviewedAt
     || !candidate.answers
     || typeof candidate.answers !== "object"
     || Array.isArray(candidate.answers)
-    || Object.keys(candidate.answers).length !== PLANNING_CHECKLIST_PROFILE_ANSWER_KEYS.length
-    || !PLANNING_CHECKLIST_PROFILE_ANSWER_KEYS.every((key) => (
+    || Object.keys(candidate.answers).length !== answerKeys.length
+    || !answerKeys.every((key) => (
       Object.prototype.hasOwnProperty.call(candidate.answers, key)
     ))
     || !Array.isArray(candidate.autoExcludedItemIds)
@@ -162,6 +202,12 @@ export function isCanonicalPlanningChecklistProfile(
     || !(answers.legalMarriage === "yes" || answers.legalMarriage === "no" || answers.legalMarriage === "undecided")
     || !(answers.travel === "domestic" || answers.travel === "international" || answers.travel === "none" || answers.travel === "undecided")
     || !(answers.housing === "rent" || answers.housing === "buy" || answers.housing === "other" || answers.housing === "undecided")
+    || (version === 2 && !(
+      answers.gathering === "none"
+      || answers.gathering === "family_meal"
+      || answers.gathering === "reception"
+      || answers.gathering === "undecided"
+    ))
     || [
       "internationalMarriage",
       "religiousCeremony",
@@ -186,15 +232,15 @@ export function isCanonicalPlanningChecklistProfile(
 }
 
 /**
- * 구버전의 부분 상황 설정을 안전한 기본값 위에 올린다.
- * 새 저장은 항상 정확한 v1 모양을 쓰며, 알 수 없는 값은 추측하지 않고 미정으로 둔다.
+ * v1/v2의 부분 상황 설정을 안전한 최신 기본값 위에 올린다.
+ * 새 저장은 항상 정확한 v2 모양을 쓰며, 알 수 없는 값은 추측하지 않고 미정으로 둔다.
  */
 export function normalizePlanningChecklistProfile(
   value: unknown,
 ): PlanningChecklistProfile | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const candidate = value as Partial<PlanningChecklistProfile> & Record<string, unknown>;
-  if (candidate.version !== 1) return undefined;
+  const candidate = value as Partial<PlanningChecklistStoredProfile> & Record<string, unknown>;
+  if (candidate.version !== 1 && candidate.version !== 2) return undefined;
   const rawAnswers = candidate.answers && typeof candidate.answers === "object" && !Array.isArray(candidate.answers)
     ? candidate.answers as unknown as Record<string, unknown>
     : {};
@@ -203,6 +249,7 @@ export function normalizePlanningChecklistProfile(
   );
   const travel = rawAnswers.travel;
   const housing = rawAnswers.housing;
+  const gathering = rawAnswers.gathering;
   const optionalBoolean = (answer: unknown): boolean | null => (
     typeof answer === "boolean" ? answer : null
   );
@@ -212,7 +259,7 @@ export function normalizePlanningChecklistProfile(
       ))]
     : [];
   return {
-    version: 1,
+    version: 2,
     reviewedAt: typeof candidate.reviewedAt === "string" && Number.isFinite(Date.parse(candidate.reviewedAt))
       ? candidate.reviewedAt
       : new Date(0).toISOString(),
@@ -225,6 +272,14 @@ export function normalizePlanningChecklistProfile(
         : "undecided",
       housing: housing === "rent" || housing === "buy" || housing === "other" || housing === "undecided"
         ? housing
+        : "undecided",
+      gathering: candidate.version === 2 && (
+        gathering === "none"
+        || gathering === "family_meal"
+        || gathering === "reception"
+        || gathering === "undecided"
+      )
+        ? gathering
         : "undecided",
       internationalMarriage: optionalBoolean(rawAnswers.internationalMarriage),
       religiousCeremony: optionalBoolean(rawAnswers.religiousCeremony),
@@ -745,7 +800,9 @@ function readProgressCategory(value: unknown): PlanningChecklistProgress | undef
 }
 
 function readStoredChecklistProfile(value: unknown): PlanningChecklistProfile | undefined {
-  return isCanonicalPlanningChecklistProfile(value) ? value : undefined;
+  return isCanonicalPlanningChecklistProfile(value)
+    ? normalizePlanningChecklistProfile(value)
+    : undefined;
 }
 
 function answerForApplicabilityTag(
@@ -787,10 +844,16 @@ function answerForApplicabilityTag(
       return answers.housing === "undecided" ? null : answers.housing === "rent";
     case "home_purchase":
       return answers.housing === "undecided" ? null : answers.housing === "buy";
+    case "family_meal":
+      return answers.gathering === "undecided"
+        ? null
+        : answers.gathering === "family_meal";
+    case "reception":
+      return answers.gathering === "undecided"
+        ? null
+        : answers.gathering === "reception";
     case "family_tradition":
       return answers.familyTradition;
-    // 피로연은 예식 없이도 할 수 있어 ceremony 응답만으로 자동 제외하지 않는다.
-    case "reception":
     default:
       return null;
   }

@@ -76,6 +76,58 @@ const CHECKLIST_TEMPLATE_ITEMS_BY_CATEGORY = new Map(
     new Map(category.items.map((item) => [item.id, item.label])),
   ]),
 );
+// A canonical wording refresh must not hitch a hidden rename onto a routine or
+// situation-profile save. Keep this allowlist exact: arbitrary user copy must
+// still reach the approval classifier as a real label change.
+const CHECKLIST_CATEGORY_COPY_ALIASES = new Map<
+  WeddingChecklistCategoryKey,
+  { historical: string; current: string }
+>([
+  ["venue", { historical: "결혼식장", current: "예식·모임 장소" }],
+  ["gift", {
+    historical: "결혼식에 온 분께 드릴 선물",
+    current: "참석자에게 드릴 선물",
+  }],
+  ["guests", {
+    historical: "하객·참석 답변·이동",
+    current: "초대·참석 답변·이동",
+  }],
+]);
+const CHECKLIST_ITEM_COPY_ALIASES = new Map<
+  string,
+  { categoryKey: WeddingChecklistCategoryKey; historical: string; current: string }
+>([
+  ["venue_01", {
+    categoryKey: "venue",
+    historical: "원하는 결혼식장 형태 정하기",
+    current: "원하는 장소 형태 정하기",
+  }],
+  ["venue_04", {
+    categoryKey: "venue",
+    historical: "하객 식사 메뉴와 1인당 금액 확인",
+    current: "참석자 식사 메뉴와 1인당 금액 확인",
+  }],
+  ["venue_05", {
+    categoryKey: "venue",
+    historical: "결혼식 시간대 정하기",
+    current: "예식·모임 시간대 정하기",
+  }],
+  ["venue_08", {
+    categoryKey: "venue",
+    historical: "대기실·주차장·사진 촬영 공간 확인",
+    current: "대기·주차·사진 촬영 공간 확인",
+  }],
+  ["gift_07", {
+    categoryKey: "gift",
+    historical: "결혼식장에 도착할 날짜와 장소 확인",
+    current: "예식·모임 장소에 도착할 날짜와 위치 확인",
+  }],
+  ["guests_09", {
+    categoryKey: "guests",
+    historical: "정보 수정·예식 변경·긴급 연락을 전달할 방법 준비",
+    current: "정보 수정·예식·모임 변경·긴급 연락을 전달할 방법 준비",
+  }],
+]);
 const VALID_CHECKLIST_STATUSES = new Set([
   "not_started",
   "in_progress",
@@ -147,7 +199,7 @@ const CHECKLIST_LEGACY_CATEGORY_FIELDS = new Set([
   "due_date",
 ]);
 const VALID_CHECKLIST_REVIEW_SOURCES = new Set(["manual", "situation_profile"]);
-const CHECKLIST_PROFILE_ANSWER_KEYS = [
+const CHECKLIST_PROFILE_V1_ANSWER_KEYS = [
   "ceremony",
   "legalMarriage",
   "travel",
@@ -160,6 +212,10 @@ const CHECKLIST_PROFILE_ANSWER_KEYS = [
   "healthSupport",
   "petParticipation",
   "familyTradition",
+] as const;
+const CHECKLIST_PROFILE_V2_ANSWER_KEYS = [
+  ...CHECKLIST_PROFILE_V1_ANSWER_KEYS,
+  "gathering",
 ] as const;
 const VALID_SURFACES = new Set(["/schedule", "/budget", "/dashboard"]);
 const SCHEDULE_PROGRESS_FIELDS = new Set([
@@ -357,19 +413,19 @@ function hasValidChecklistProfile(value: unknown): boolean {
     !isRecord(value)
     || Object.keys(value).length !== CHECKLIST_PROFILE_KEYS.size
     || Object.keys(value).some((key) => !CHECKLIST_PROFILE_KEYS.has(key))
-    || value.version !== 1
+    || (value.version !== 1 && value.version !== 2)
     || !isCanonicalIsoTimestamp(value.reviewedAt)
     || !isRecord(value.answers)
   ) return false;
   const answers = value.answers;
+  const answerKeys = value.version === 1
+    ? CHECKLIST_PROFILE_V1_ANSWER_KEYS
+    : CHECKLIST_PROFILE_V2_ANSWER_KEYS;
+  const answerKeySet = new Set<string>(answerKeys);
   if (
-    Object.keys(answers).length !== CHECKLIST_PROFILE_ANSWER_KEYS.length
-    || CHECKLIST_PROFILE_ANSWER_KEYS.some((key) => !hasOwn(answers, key))
-    || Object.keys(answers).some(
-      (key) => !CHECKLIST_PROFILE_ANSWER_KEYS.includes(
-        key as (typeof CHECKLIST_PROFILE_ANSWER_KEYS)[number],
-      ),
-    )
+    Object.keys(answers).length !== answerKeys.length
+    || answerKeys.some((key) => !hasOwn(answers, key))
+    || Object.keys(answers).some((key) => !answerKeySet.has(key))
     || !Array.isArray(value.autoExcludedItemIds)
     || value.autoExcludedItemIds.length > KNOWN_CHECKLIST_ITEM_IDS.size
     || !value.autoExcludedItemIds.every(
@@ -381,6 +437,7 @@ function hasValidChecklistProfile(value: unknown): boolean {
   const triState = new Set(["yes", "no", "undecided"]);
   const travel = new Set(["domestic", "international", "none", "undecided"]);
   const housing = new Set(["rent", "buy", "other", "undecided"]);
+  const gathering = new Set(["none", "family_meal", "reception", "undecided"]);
   if (
     typeof answers.ceremony !== "string"
     || !triState.has(answers.ceremony)
@@ -390,6 +447,10 @@ function hasValidChecklistProfile(value: unknown): boolean {
     || !travel.has(answers.travel)
     || typeof answers.housing !== "string"
     || !housing.has(answers.housing)
+    || (value.version === 2 && (
+      typeof answers.gathering !== "string"
+      || !gathering.has(answers.gathering)
+    ))
   ) return false;
 
   return [
@@ -906,6 +967,18 @@ function canonicalizeChecklistServerProvenance(
       const currentValue = currentProgress[categoryKey];
       const current = isRecord(currentValue) ? currentValue : null;
       const nextCategory: Record<string, unknown> = { ...categoryValue };
+      const categoryCopyAlias = CHECKLIST_CATEGORY_COPY_ALIASES.get(categoryKey);
+      if (
+        categoryCopyAlias
+        && CHECKLIST_CATEGORY_LABELS[categoryKey] === categoryCopyAlias.current
+        && current?.label === categoryCopyAlias.historical
+        && (
+          nextCategory.label === categoryCopyAlias.historical
+          || nextCategory.label === categoryCopyAlias.current
+        )
+      ) {
+        nextCategory.label = categoryCopyAlias.historical;
+      }
 
       if (hasOwn(nextCategory, "checklistReviewedAt")) {
         const unchanged = current
@@ -928,19 +1001,36 @@ function canonicalizeChecklistServerProvenance(
         const templateItems = CHECKLIST_TEMPLATE_ITEMS_BY_CATEGORY.get(categoryKey);
         nextCategory.checklist = nextCategory.checklist.map((value) => {
           if (!isRecord(value)) return value;
+          const valueId = typeof value.id === "string" ? value.id : null;
           const currentItem = currentById.get(value.id);
           const currentCompleted = currentItem
             && (currentItem.state === "completed"
               || (currentItem.state === undefined && currentItem.done === true));
           const incomingCompleted = value.state === "completed"
             || (value.state === undefined && value.done === true);
+          const itemCopyAlias = valueId
+            ? CHECKLIST_ITEM_COPY_ALIASES.get(valueId)
+            : undefined;
+          const preservesHistoricalCopy = Boolean(
+            itemCopyAlias
+            && valueId !== null
+            && itemCopyAlias.categoryKey === categoryKey
+            && currentItem?.label === itemCopyAlias.historical
+            && templateItems?.get(valueId) === itemCopyAlias.current
+            && (
+              value.label === itemCopyAlias.historical
+              || value.label === itemCopyAlias.current
+            ),
+          );
           const normalizedValue = {
             ...value,
-            ...(typeof value.id === "string" && templateItems?.has(value.id)
-              ? { label: templateItems.get(value.id) }
-              : currentItem && typeof currentItem.label === "string"
-                ? { label: currentItem.label }
-                : {}),
+            ...(preservesHistoricalCopy && itemCopyAlias
+              ? { label: itemCopyAlias.historical }
+              : valueId && templateItems?.has(valueId)
+                ? { label: templateItems.get(valueId) }
+                : currentItem && typeof currentItem.label === "string"
+                  ? { label: currentItem.label }
+                  : {}),
           };
           if (currentCompleted || !incomingCompleted) return normalizedValue;
           return {
@@ -983,8 +1073,16 @@ function checklistProfilesHaveSameMeaning(
     || !isRecord(incomingProfile)
     || !hasValidChecklistProfile(currentProfile)
     || !hasValidChecklistProfile(incomingProfile)
-    || currentProfile.version !== incomingProfile.version
-    || !jsonValuesEqual(currentProfile.answers, incomingProfile.answers)
+    || !isRecord(currentProfile.answers)
+    || !isRecord(incomingProfile.answers)
+    || !jsonValuesEqual(
+      currentProfile.version === 1
+        ? { ...currentProfile.answers, gathering: "undecided" }
+        : currentProfile.answers,
+      incomingProfile.version === 1
+        ? { ...incomingProfile.answers, gathering: "undecided" }
+        : incomingProfile.answers,
+    )
     || !Array.isArray(currentProfile.autoExcludedItemIds)
     || !Array.isArray(incomingProfile.autoExcludedItemIds)
   ) return false;
@@ -1076,6 +1174,28 @@ function hasSemanticallyUnchangedChecklistProfile(
       incomingProgress[PLANNING_CHECKLIST_PROFILE_KEY],
     ),
   );
+}
+
+function downgradesChecklistProfile(
+  changes: Record<string, unknown>,
+  currentProgress: Record<string, unknown>,
+): boolean {
+  const incomingProgress = isRecord(changes.progress)
+    ? changes.progress
+    : isRecord(changes.progress_patch)
+      ? changes.progress_patch
+      : null;
+  if (!incomingProgress || !hasOwn(incomingProgress, PLANNING_CHECKLIST_PROFILE_KEY)) {
+    return false;
+  }
+  const currentProfile = currentProgress[PLANNING_CHECKLIST_PROFILE_KEY];
+  const incomingProfile = incomingProgress[PLANNING_CHECKLIST_PROFILE_KEY];
+  return isRecord(currentProfile)
+    && isRecord(incomingProfile)
+    && hasValidChecklistProfile(currentProfile)
+    && hasValidChecklistProfile(incomingProfile)
+    && currentProfile.version === 2
+    && incomingProfile.version === 1;
 }
 
 function removeNoOpJourneyChanges(
@@ -1752,6 +1872,15 @@ export async function PATCH(request: Request) {
     }
     const currentProgress = canonicalizeLegacyChecklistItems(currentJourney.progress)
       ?? currentJourney.progress;
+    if (downgradesChecklistProfile(parsed.value.changes, currentProgress)) {
+      return privateResponse(
+        {
+          error: "최신 상황 설정을 유지하려면 화면을 새로고침한 뒤 다시 저장해 주세요.",
+          code: "CHECKLIST_PROFILE_UPGRADE_REQUIRED",
+        },
+        409,
+      );
+    }
     const semanticallyUnchangedChecklistProfile = hasSemanticallyUnchangedChecklistProfile(
       parsed.value.changes,
       currentProgress,

@@ -28,6 +28,17 @@ const profile = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const profileV2 = (overrides: Record<string, unknown> = {}) => ({
+  version: 2,
+  reviewedAt: "2026-08-12T12:00:00.000Z",
+  answers: {
+    ...profile().answers,
+    gathering: "undecided",
+  },
+  autoExcludedItemIds: [],
+  ...overrides,
+});
+
 const ceremonyTemplate = CATEGORY_CHECKLISTS.find((category) => category.key === "ceremony")!;
 const legalTemplate = CATEGORY_CHECKLISTS.find((category) => category.key === "health_admin")!;
 const legalItem = legalTemplate.items.find((item) => item.id === "health_admin_05")!;
@@ -138,6 +149,95 @@ test("describes an already-arranged home without implying every move task is irr
     result.questionChanges.map(({ key, after }) => ({ key, after })),
     [{ key: "housing", after: "기타·이미 마련" }],
   );
+});
+
+test("discloses a version 2 gathering change as one user-readable celebration question", () => {
+  const result = buildChecklistApprovalDisclosure({
+    currentProgress: {
+      __checklist_profile: profileV2({
+        answers: { ...profileV2().answers, gathering: "none" },
+      }),
+    },
+    currentRevision: 5,
+    templates: CATEGORY_CHECKLISTS,
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: 5,
+      progressPatch: {
+        __checklist_profile: profileV2({
+          answers: { ...profileV2().answers, gathering: "reception" },
+        }),
+      },
+    },
+  });
+
+  assert.equal(result.status, "ready");
+  if (result.status !== "ready") return;
+  assert.deepEqual(result.questionChanges, [{
+    key: "gathering",
+    label: "축하 식사·모임",
+    before: "따로 없음",
+    after: "하객 피로연·축하 모임",
+  }]);
+});
+
+test("keeps a pending v1 proposal readable and treats its missing gathering as undecided", () => {
+  const result = buildChecklistApprovalDisclosure({
+    currentProgress: {
+      __checklist_profile: profile(),
+    },
+    currentRevision: 6,
+    templates: CATEGORY_CHECKLISTS,
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: 6,
+      progressPatch: {
+        __checklist_profile: profile({
+          answers: { ...profile().answers, ceremony: "no" },
+        }),
+      },
+    },
+  });
+
+  assert.equal(result.status, "ready");
+  if (result.status !== "ready") return;
+  assert.deepEqual(
+    result.questionChanges.map(({ key, before, after }) => ({ key, before, after })),
+    [{ key: "ceremony", before: "진행", after: "진행 안 함" }],
+  );
+});
+
+test("fails closed on answer keys that do not exactly match the profile version", () => {
+  const v1WithGathering = buildChecklistApprovalDisclosure({
+    currentProgress: {},
+    currentRevision: 7,
+    templates: CATEGORY_CHECKLISTS,
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: 7,
+      progressPatch: {
+        __checklist_profile: {
+          ...profile(),
+          answers: { ...profile().answers, gathering: "undecided" },
+        },
+      },
+    },
+  });
+  assert.deepEqual(v1WithGathering, { status: "unsafe", reason: "invalid_profile" });
+
+  const v2WithoutGathering = buildChecklistApprovalDisclosure({
+    currentProgress: {},
+    currentRevision: 7,
+    templates: CATEGORY_CHECKLISTS,
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: 7,
+      progressPatch: {
+        __checklist_profile: { ...profile(), version: 2 },
+      },
+    },
+  });
+  assert.deepEqual(v2WithoutGathering, { status: "unsafe", reason: "invalid_profile" });
 });
 
 test("fails closed when the proposal revision is not the current journey revision", () => {

@@ -132,7 +132,7 @@ describe("scheduleTools", () => {
     expect(result.toolOutput.completed).toEqual([]);
     expect(result.toolOutput.in_progress).toEqual([]);
     expect(result.toolOutput.not_started).toEqual(
-      expect.arrayContaining(["결혼식장", "웨딩 사진 촬영"]),
+      expect.arrayContaining(["예식·모임 장소", "웨딩 사진 촬영"]),
     );
   });
 
@@ -152,9 +152,9 @@ describe("scheduleTools", () => {
     }));
 
     expect(result.toolOutput.total).toBe(CATEGORY_CHECKLISTS.length - 1);
-    expect(result.toolOutput.completed).not.toContain("결혼식장");
-    expect(result.toolOutput.in_progress).not.toContain("결혼식장");
-    expect(result.toolOutput.not_started).not.toContain("결혼식장");
+    expect(result.toolOutput.completed).not.toContain("예식·모임 장소");
+    expect(result.toolOutput.in_progress).not.toContain("예식·모임 장소");
+    expect(result.toolOutput.not_started).not.toContain("예식·모임 장소");
   });
 
   it("accepts a schedule and checklist update for a new full-journey category", async () => {
