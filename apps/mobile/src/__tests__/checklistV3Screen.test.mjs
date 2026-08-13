@@ -31,6 +31,11 @@ test("mobile checklist is a dedicated daily execution screen, not a schedule ali
   assert.doesNotMatch(checklistSource, /legacyCompleted/);
 });
 
+test("housing profile copy keeps universal move work honest for an already-arranged home", () => {
+  assert.match(checklistSource, /value: "other", label: "기타·이미 마련"/);
+  assert.doesNotMatch(checklistSource, /기타\/해당 없음/);
+});
+
 test("TODAY FIRST empty-state and situation modal footer have separate render contracts", () => {
   const review = [{ categoryKey: "venue", categoryLabel: "결혼식장" }];
   const focusEmpty = buildChecklistEmptyFocusPresentation("today", review);

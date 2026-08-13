@@ -70,7 +70,7 @@ const QUESTION_META = [
   ["ceremony", "예식", { yes: "진행", no: "진행 안 함", undecided: "미정" }],
   ["legalMarriage", "법률혼(혼인신고)", { yes: "진행", no: "진행 안 함", undecided: "미정" }],
   ["travel", "신혼여행", { domestic: "국내", international: "해외", none: "안 감", undecided: "미정" }],
-  ["housing", "신혼집", { rent: "임차", buy: "매수", other: "기타·해당 없음", undecided: "미정" }],
+  ["housing", "신혼집", { rent: "임차", buy: "매수", other: "기타·이미 마련", undecided: "미정" }],
   ["internationalMarriage", "국제혼인", { true: "해당", false: "해당 없음", null: "미정" }],
   ["religiousCeremony", "종교식", { true: "진행", false: "진행 안 함", null: "미정" }],
   ["remarriage", "재혼", { true: "해당", false: "해당 없음", null: "미정" }],

@@ -4,9 +4,16 @@ import type { NextResponse } from "next/server";
 const DEMO_MODE_COOKIE = "demo_mode";
 const DEMO_SESSION_COOKIE = "demo_session";
 const DEMO_MAX_AGE_SECONDS = 24 * 60 * 60;
+const DEMO_SESSION_SECRET_MIN_BYTES = 32;
 
 function getDemoSecret(): string | null {
-  return process.env.DEMO_SESSION_SECRET || null;
+  const secret = process.env.DEMO_SESSION_SECRET;
+  if (
+    !secret ||
+    secret.trim().length === 0 ||
+    Buffer.byteLength(secret, "utf8") < DEMO_SESSION_SECRET_MIN_BYTES
+  ) return null;
+  return secret;
 }
 
 function signPayload(payload: string): string | null {

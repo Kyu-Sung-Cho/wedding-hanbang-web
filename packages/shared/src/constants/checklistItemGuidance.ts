@@ -32,7 +32,7 @@ export interface ChecklistItemGuidanceSource {
   title: string;
   url: string;
   /** 해당 링크와 안내 내용을 마지막으로 직접 확인한 날짜(YYYY-MM-DD). */
-  checkedAt: "2026-08-12";
+  checkedAt: "2026-08-12" | "2026-08-13";
 }
 
 export const CHECKLIST_ITEM_GUIDANCE_SOURCES = {
@@ -60,6 +60,26 @@ export const CHECKLIST_ITEM_GUIDANCE_SOURCES = {
     title: "찾기쉬운 생활법령 주택임대차 계약 전 확인사항",
     url: "https://www.easylaw.go.kr/CSP/CnpClsMainBtr.laf?ccfNo=2&cciNo=1&cnpClsNo=1&csmSeq=629&popMenu=ov",
     checkedAt: "2026-08-12",
+  },
+  court_real_estate_registry: {
+    title: "대한민국 법원 인터넷등기소 부동산 등기 열람 안내",
+    url: "https://www.iros.go.kr/index.jsp",
+    checkedAt: "2026-08-13",
+  },
+  gov24_building_register: {
+    title: "정부24 건축물대장 등본·초본 발급 및 열람 안내",
+    url: "https://www.gov.kr/mw/AA020InfoCappView.do?CappBizCD=15000000098",
+    checkedAt: "2026-08-13",
+  },
+  gov24_move_in_report: {
+    title: "정부24 전입신고 안내",
+    url: "https://www.gov.kr/mw/AA020InfoCappView.do?CappBizCD=13100000016",
+    checkedAt: "2026-08-13",
+  },
+  molit_real_transaction_prices: {
+    title: "국토교통부 실거래가공개시스템",
+    url: "https://rt.molit.go.kr/",
+    checkedAt: "2026-08-13",
   },
   foreign_ministry_travel_safety: {
     title: "외교부 해외안전여행 여행 전 점검·위기 대응 안내",
@@ -352,14 +372,21 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
   honeymoon_08: {
     applicabilityTags: ["overseas_travel"],
   },
+  housing_01: {
+    applicabilityTags: ["rental_home", "home_purchase"],
+  },
+  housing_02: {
+    applicabilityTags: ["rental_home", "home_purchase"],
+  },
   housing_03: {
-    sourceRefs: ["easylaw_lease_safety"],
+    applicabilityTags: ["rental_home", "home_purchase"],
   },
   housing_04: {
     caution: "사전 안내나 계산 결과를 승인으로 보지 말고, 실제 신청 가능 여부·금리·비용·상환 조건은 금융기관의 최종 서류에서 확인하세요.",
+    applicabilityTags: ["rental_home", "home_purchase"],
   },
   housing_05: {
-    sourceRefs: ["easylaw_lease_safety"],
+    applicabilityTags: ["rental_home", "home_purchase"],
   },
   bouquet_06: {
     completionCriteria:
@@ -423,20 +450,34 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
     completionCriteria:
       "대여품·개인 물품·분실물별 회수 담당과 보관 장소, 귀가 지원이 필요한 사람의 차량·동행·비상 연락을 확인했을 때 완료로 체크하세요.",
   },
+  home_admin_01: {
+    applicabilityTags: ["rental_home", "home_purchase"],
+  },
   home_admin_02: {
     completionCriteria:
       "등기·건축물 정보에서 주소·소유자·권리관계를 확인하고, 대리 계약이면 위임 범위와 신분을 공식 서류로 대조했을 때 완료로 체크하세요.",
-    sourceRefs: ["easylaw_lease_safety"],
+    tip: "매수라면 공식 실거래가와 현장 하자·예상 수리비를 별도로 확인하세요.",
+    applicabilityTags: ["rental_home", "home_purchase"],
+    sourceRefs: [
+      "court_real_estate_registry",
+      "gov24_building_register",
+      "molit_real_transaction_prices",
+    ],
   },
   home_admin_03: {
     completionCriteria:
       "선순위 권리와 시세·보증금 반환 위험을 확인하고, 해당되는 보증 상품의 가입 가능 여부와 제외 조건을 운영기관에서 확인했을 때 완료로 체크하세요.",
+    applicabilityTags: ["rental_home"],
     sourceRefs: ["easylaw_lease_safety"],
+  },
+  home_admin_04: {
+    applicabilityTags: ["rental_home"],
   },
   home_admin_05: {
     completionCriteria:
       "잔금 송금 직전에 최신 권리관계와 인도 상태를 다시 확인하고, 계약서의 수취인 계좌와 실제 수취인을 대조해 영수증을 보관했을 때 완료로 체크하세요.",
-    sourceRefs: ["easylaw_lease_safety"],
+    applicabilityTags: ["rental_home", "home_purchase"],
+    sourceRefs: ["court_real_estate_registry"],
   },
   home_admin_06: {
     completionCriteria:
@@ -448,8 +489,7 @@ const ITEM_OVERRIDES: Partial<Record<string, ChecklistItemGuidanceOverride>> = {
   home_admin_07: {
     completionCriteria:
       "실제 입주일과 관할 주소를 기준으로 전입신고 방법·준비 서류·연계 가능한 절차를 공식 안내에서 확인하고 접수 결과를 보관했을 때 완료로 체크하세요.",
-    applicabilityTags: ["rental_home"],
-    sourceRefs: ["molit_rental_reporting"],
+    sourceRefs: ["gov24_move_in_report"],
   },
   health_admin_03: {
     completionCriteria:

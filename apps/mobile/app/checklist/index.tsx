@@ -190,7 +190,7 @@ const SITUATION_QUESTIONS: Array<{
   { key: "ceremony", label: "예식", help: "예식 없이 신고·모임만 하는 경우도 포함해요.", options: [{ value: "yes", label: "해요" }, { value: "no", label: "안 해요" }, { value: "undecided", label: "미정" }] },
   { key: "legalMarriage", label: "법률혼(혼인신고)", help: "희망 여부만 저장하고 서류 상세는 저장하지 않아요.", options: [{ value: "yes", label: "해요" }, { value: "no", label: "안 해요" }, { value: "undecided", label: "미정" }] },
   { key: "travel", label: "신혼여행", help: "여권·비자 항목을 맞추는 데 사용해요.", options: [{ value: "domestic", label: "국내" }, { value: "international", label: "해외" }, { value: "none", label: "안 감" }, { value: "undecided", label: "미정" }] },
-  { key: "housing", label: "신혼집", help: "임대·매수에만 필요한 확인을 구분해요.", options: [{ value: "rent", label: "임차" }, { value: "buy", label: "매수" }, { value: "other", label: "기타/해당 없음" }, { value: "undecided", label: "미정" }] },
+  { key: "housing", label: "신혼집", help: "임대·매수에만 필요한 확인을 구분해요.", options: [{ value: "rent", label: "임차" }, { value: "buy", label: "매수" }, { value: "other", label: "기타·이미 마련" }, { value: "undecided", label: "미정" }] },
   { key: "internationalMarriage", label: "국제혼인", help: "국가·국적·비자 상세는 저장하지 않아요.", options: [{ value: true, label: "해당" }, { value: false, label: "해당 없음" }, { value: null, label: "미정" }] },
   { key: "religiousCeremony", label: "종교식", help: "종교의 종류나 신앙 정보는 저장하지 않아요.", options: [{ value: true, label: "해당" }, { value: false, label: "해당 없음" }, { value: null, label: "미정" }] },
   { key: "remarriage", label: "재혼", help: "관계 상세나 가족 정보는 저장하지 않아요.", options: [{ value: true, label: "해당" }, { value: false, label: "해당 없음" }, { value: null, label: "미정" }] },

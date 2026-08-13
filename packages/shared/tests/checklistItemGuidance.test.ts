@@ -68,6 +68,9 @@ test("법·행정·주거·여행·안전 근거는 확인일과 공식 HTTPS �
     "www.kca.go.kr",
     "efamily.scourt.go.kr",
     "www.easylaw.go.kr",
+    "www.gov.kr",
+    "www.iros.go.kr",
+    "rt.molit.go.kr",
     "rtms.molit.go.kr",
     "www.molit.go.kr",
     "www.0404.go.kr",
@@ -81,7 +84,10 @@ test("법·행정·주거·여행·안전 근거는 확인일과 공식 HTTPS �
     const url = new URL(source.url);
     assert.equal(url.protocol, "https:", `${sourceId}: HTTPS only`);
     assert.ok(allowedHosts.has(url.hostname), `${sourceId}: official host ${url.hostname}`);
-    assert.equal(source.checkedAt, "2026-08-12", `${sourceId}: checkedAt`);
+    assert.ok(
+      source.checkedAt === "2026-08-12" || source.checkedAt === "2026-08-13",
+      `${sourceId}: checkedAt`,
+    );
     assert.ok(source.title.length >= 5, `${sourceId}: title`);
   }
 

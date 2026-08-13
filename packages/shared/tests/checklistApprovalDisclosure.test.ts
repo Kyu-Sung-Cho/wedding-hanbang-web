@@ -116,6 +116,30 @@ test("discloses every changed answer, impacted category, exclusion and restorati
   assert.equal(result.automaticExclusionTotal, 1);
 });
 
+test("describes an already-arranged home without implying every move task is irrelevant", () => {
+  const result = buildChecklistApprovalDisclosure({
+    currentProgress: { __checklist_profile: profile() },
+    currentRevision: 4,
+    templates: CATEGORY_CHECKLISTS,
+    proposal: {
+      kind: "checklist_situation",
+      baseRevision: 4,
+      progressPatch: {
+        __checklist_profile: profile({
+          answers: { ...profile().answers, housing: "other" },
+        }),
+      },
+    },
+  });
+
+  assert.equal(result.status, "ready");
+  if (result.status !== "ready") return;
+  assert.deepEqual(
+    result.questionChanges.map(({ key, after }) => ({ key, after })),
+    [{ key: "housing", after: "기타·이미 마련" }],
+  );
+});
+
 test("fails closed when the proposal revision is not the current journey revision", () => {
   const result = buildChecklistApprovalDisclosure({
     currentProgress: {},
