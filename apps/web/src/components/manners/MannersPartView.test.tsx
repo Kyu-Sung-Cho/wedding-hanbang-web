@@ -146,6 +146,10 @@ describe("MannersPartView action links", () => {
     expect(conditional).toBeDefined();
     expect(conditional?.hasAttribute("open")).toBe(false);
     expect(conditional?.querySelector("summary")?.textContent).toContain("해당할 때만");
+    const conditionalHeading = conditional?.querySelector(
+      'summary [role="heading"][aria-level="2"]',
+    );
+    expect(conditionalHeading?.textContent).toContain("자녀의 성과 본");
     const conditionalTocLink = Array.from(
       container.querySelectorAll<HTMLAnchorElement>('nav[aria-label="이 글의 목차"] a'),
     ).find((link) => link.textContent?.includes("자녀의 성과 본"));

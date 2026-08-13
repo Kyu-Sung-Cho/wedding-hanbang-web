@@ -466,7 +466,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                     <summary
                       className={`flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden ${INTERACTIVE_FOCUS}`}
                     >
-                      <span>
+                      <span role="heading" aria-level={2}>
                         <span className="block text-[12px] font-semibold tracking-wide text-[#7D5753]">
                           해당할 때만
                         </span>

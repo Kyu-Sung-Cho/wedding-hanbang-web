@@ -2133,6 +2133,63 @@ describe("Amora crisis reload recovery", () => {
     expect(JSON.stringify(privacyCard?.metadata)).not.toContain(disclosure);
   });
 
+  it("drops manners context when the server redirects a shared message to private safety", async () => {
+    const content = "이 예절 가이드를 우리 상황에 맞게 적용해줘";
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({
+      id: "50000000-0000-4000-8000-000000000109",
+      content,
+      visibility: "bride_private",
+      created_at: "2026-08-03T00:01:00.000Z",
+    }), {
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+    }));
+    mockFetch
+      .mockResolvedValueOnce(retryableChatHttpResponse())
+      .mockResolvedValueOnce(completedChatResponse("안전하게 정리해볼게요"));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      mannersSlug: "family-meeting",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      userMessage: "persisted",
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+    }));
+    const ingestPayload = JSON.parse(String(
+      (mockIngestFetch.mock.calls[0]?.[1] as RequestInit).body,
+    ));
+    expect(ingestPayload.mannersSlug).toBe("family-meeting");
+    const providerPayload = JSON.parse(String(
+      (mockFetch.mock.calls[0]?.[1] as RequestInit).body,
+    ));
+    expect(providerPayload).toEqual(expect.objectContaining({
+      visibility: "bride_private",
+    }));
+    expect(providerPayload.mannersSlug).toBeUndefined();
+    const firstProviderBody = (mockFetch.mock.calls[0]?.[1] as RequestInit).body;
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      visibility: "bride_private",
+      canRetry: true,
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+
+    expect((mockFetch.mock.calls[1]?.[1] as RequestInit).body).toBe(firstProviderBody);
+    expect(JSON.parse(String(firstProviderBody)).mannersSlug).toBeUndefined();
+    expect(useChatStore.getState().failedRequest).toBeNull();
+  });
+
   it("honors a server safety fallback without calling the provider or copying raw text", async () => {
     const rawText = "웨딩 체크리스트를 알려줘";
     mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({

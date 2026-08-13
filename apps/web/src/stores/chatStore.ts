@@ -2419,6 +2419,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           : "none";
         expectedRow.providerAttachmentContractVersion = 1;
         expectedRow.providerAttachmentManifest = [];
+        expectedRow.mannersSlug = null;
       }
       const inserted = serverMessage as Record<string, unknown>;
       if (!isBoundUserMessageRow(inserted, expectedRow)) {
@@ -2528,6 +2529,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // The primitive-only snapshot was validated before any side effect.
     const attachmentPayload = serverSafetyPrivacyRedirected ? [] : attachments;
+    const providerMannersSlug = serverSafetyPrivacyRedirected ? null : effectiveMannersSlug;
 
     let requestBody: string;
     try {
@@ -2541,7 +2543,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         clientRequestId,
         ...(persistedUserMessageId ? { userMessageId: persistedUserMessageId } : {}),
         visibility: finalVisibility,
-        ...(effectiveMannersSlug ? { mannersSlug: effectiveMannersSlug } : {}),
+        ...(providerMannersSlug ? { mannersSlug: providerMannersSlug } : {}),
         ...(effectiveConfirmedActionId !== undefined
           ? { confirmedActionId: effectiveConfirmedActionId }
           : {}),
