@@ -7,6 +7,9 @@ import {
   getPostLoginRedirectPath,
 } from "@/lib/auth/safeRedirect";
 
+const OAUTH_SESSION_EXCHANGE_FAILED = "oauth_session_exchange_failed";
+const OAUTH_CALLBACK_FAILED = "oauth_callback_failed";
+
 function loginErrorDestination(
   origin: string,
   loginPath: string,
@@ -73,7 +76,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(loginErrorDestination(
         origin,
         loginPath,
-        sessionError.message,
+        OAUTH_SESSION_EXCHANGE_FAILED,
         requestedPostLoginPath,
       ));
     }
@@ -128,7 +131,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginErrorDestination(
       origin,
       loginPath,
-      msg,
+      OAUTH_CALLBACK_FAILED,
       requestedPostLoginPath,
     ));
   }

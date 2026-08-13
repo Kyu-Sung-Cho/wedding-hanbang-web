@@ -32,6 +32,12 @@ describe("login return journey", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "false");
+    vi.stubEnv(
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "https://abcdefghijklmnopqrst.supabase.co",
+    );
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test-public-anon-key");
     mocks.signInWithOAuth.mockResolvedValue({ error: null });
     mocks.createClient.mockReturnValue({
       auth: { signInWithOAuth: mocks.signInWithOAuth },
@@ -48,6 +54,100 @@ describe("login return journey", () => {
     await act(async () => root.unmount());
     container.remove();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("shows a demo-only recovery path when preview auth is intentionally disconnected", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    await act(async () => root.render(<LoginPage />));
+
+    expect(container.querySelector("h1")?.textContent).toBe("미리보기 체험");
+    expect(container.textContent).toContain(
+      "이 미리보기에서는 실제 계정 로그인을 사용하지 않아요",
+    );
+    expect(container.textContent).toContain(
+      "실제 계정의 준비 기록과 분리된 샘플 데이터",
+    );
+    expect(container.textContent).toContain(
+      "체험 연결을 위한 임시 정보와 쿠키는 사용할 수 있어요",
+    );
+    expect(container.querySelector('input[type="email"]')).toBeNull();
+    expect(container.textContent).not.toContain("빠르게 로그인하기");
+    expect(mocks.createClient).not.toHaveBeenCalled();
+
+    const demoButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("샘플 체크리스트로 체험하기"));
+    expect(demoButton).toBeDefined();
+
+    await act(async () => {
+      demoButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(fetch).toHaveBeenCalledWith("/api/demo/start", { method: "POST" });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("does not expose a Supabase configuration error from email login", async () => {
+    mocks.createClient.mockImplementationOnce(() => {
+      throw new Error(
+        "@supabase/ssr: Your project's URL and API key are required",
+      );
+    });
+    await act(async () => root.render(<LoginPage />));
+
+    const setInput = (input: HTMLInputElement | null, value: string) => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(input, value);
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+      input?.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    await act(async () => {
+      setInput(
+        container.querySelector<HTMLInputElement>('input[type="email"]'),
+        "test@example.com",
+      );
+      setInput(
+        container.querySelector<HTMLInputElement>('input[type="password"]'),
+        "Strong1!",
+      );
+    });
+    await act(async () => {
+      container.querySelector("form")?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("@supabase/ssr");
+    expect(container.textContent).not.toContain("API key");
+    expect(container.textContent).toContain(
+      "로그인 연결에 문제가 있어요. 잠시 후 다시 시도해 주세요.",
+    );
+  });
+
+  it("does not echo callback or provider diagnostics from the URL", async () => {
+    const rawDiagnostic = "Your project's URL and API key are required";
+    window.history.replaceState(
+      {},
+      "",
+      `/login?error=${encodeURIComponent(rawDiagnostic)}#error_description=${encodeURIComponent(rawDiagnostic)}`,
+    );
+
+    await act(async () => root.render(<LoginPage />));
+
+    expect(container.textContent).not.toContain(rawDiagnostic);
+    expect(container.textContent).not.toContain("API key");
+    expect(container.textContent).toContain(
+      "로그인을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    );
   });
 
   it("sends the requested internal destination through the OAuth callback", async () => {

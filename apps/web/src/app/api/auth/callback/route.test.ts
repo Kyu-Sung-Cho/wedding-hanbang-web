@@ -67,6 +67,43 @@ describe("OAuth callback post-login destination", () => {
     );
   });
 
+  it("redirects a failed session exchange with a stable error code", async () => {
+    const rawProviderError = "database connection refused for project abc";
+    const client = authenticatedClient();
+    client.auth.exchangeCodeForSession.mockResolvedValueOnce({
+      error: { message: rawProviderError },
+    });
+    mocks.createServerClient.mockReturnValue(client);
+
+    const response = await GET(new Request(
+      "https://hanbang.ai/api/auth/callback?code=one-time-code",
+    ));
+    const location = response.headers.get("location");
+
+    expect(location).toBe(
+      "https://hanbang.ai/login?error=oauth_session_exchange_failed",
+    );
+    expect(location).not.toContain(encodeURIComponent(rawProviderError));
+  });
+
+  it("redirects an unexpected callback exception with a stable error code", async () => {
+    const rawConfigurationError =
+      "@supabase/ssr: Your project's URL and API key are required";
+    mocks.createServerClient.mockImplementationOnce(() => {
+      throw new Error(rawConfigurationError);
+    });
+
+    const response = await GET(new Request(
+      "https://hanbang.ai/api/auth/callback?code=one-time-code",
+    ));
+    const location = response.headers.get("location");
+
+    expect(location).toBe(
+      "https://hanbang.ai/login?error=oauth_callback_failed",
+    );
+    expect(location).not.toContain(encodeURIComponent(rawConfigurationError));
+  });
+
   it.each([
     "https%3A%2F%2Fattacker.example%2Fsteal",
     "%2F%2Fattacker.example%2Fsteal",

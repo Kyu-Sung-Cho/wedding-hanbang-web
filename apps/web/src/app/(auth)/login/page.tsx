@@ -18,6 +18,7 @@ import {
   getStartHereHandoffIdFromRedirect,
   readDemoAmoraPrefill,
 } from "@/lib/chat/demoHandoff";
+import { isPreviewStubMode } from "@/lib/previewStub";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -34,6 +35,17 @@ function socialLoginFailureMessage(
   provider: keyof typeof SOCIAL_PROVIDER_LABEL,
 ): string {
   return `${SOCIAL_PROVIDER_LABEL[provider]} 로그인을 지금 이용할 수 없어요. 이메일로 로그인하거나 다른 방법을 이용해 주세요.`;
+}
+
+function emailLoginFailureMessage(): string {
+  return "로그인 연결에 문제가 있어요. 잠시 후 다시 시도해 주세요.";
+}
+
+function callbackLoginFailureMessage(errorCode: string | null): string {
+  if (errorCode === "no_code") {
+    return "로그인 요청을 확인하지 못했어요. 로그인부터 다시 시도해 주세요.";
+  }
+  return "로그인을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 // 비밀번호 강도 체크
@@ -60,6 +72,7 @@ function isPasswordValid(checks: PasswordCheck): boolean {
 }
 
 export default function LoginPage() {
+  const demoOnlyPreview = isPreviewStubMode();
   const [mode, setMode] = useState<LoginMode>("login");
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -115,12 +128,8 @@ export default function LoginPage() {
     const hashError = hashParams.get("error");
     const hashDescription = hashParams.get("error_description");
 
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+    if (hashDescription || hashError || callbackError) {
+      setError(callbackLoginFailureMessage(callbackError ?? hashError));
     }
   }, []);
 
@@ -245,7 +254,7 @@ export default function LoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            setError(emailLoginFailureMessage());
           }
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
@@ -282,7 +291,7 @@ export default function LoginPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      setError(emailLoginFailureMessage());
     } finally {
       setLoading(null);
     }
@@ -331,6 +340,46 @@ export default function LoginPage() {
 
         {/* 로그인 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+          {demoOnlyPreview ? (
+            <>
+              <h1 className="font-serif-kr text-[24px] font-light text-[#263832] text-center mb-2">
+                미리보기 체험
+              </h1>
+              <p className="text-[13px] text-[#635b51] text-center mb-6">
+                샘플 데이터로 준비 흐름을 확인하세요
+              </p>
+
+              <div
+                role="status"
+                className="mb-5 rounded-2xl border border-[#36534E]/15 bg-[#EEF4F1] px-4 py-4 text-left"
+              >
+                <p className="text-[13px] font-semibold text-[#263832]">
+                  이 미리보기에서는 실제 계정 로그인을 사용하지 않아요.
+                </p>
+                <p className="mt-1 text-[12px] leading-5 text-[#4E6A62]">
+                  실제 계정의 준비 기록과 분리된 샘플 데이터로 예절 가이드와 체크리스트를 안전하게 확인할 수 있어요.
+                </p>
+              </div>
+
+              {error ? (
+                <p role="alert" className="mb-4 px-1 text-[12px] text-[#9A6B62]">
+                  {error}
+                </p>
+              ) : null}
+
+              <button
+                onClick={handleDemo}
+                disabled={loading !== null}
+                className="w-full rounded-2xl bg-gradient-to-br from-[#36534E] to-[#2B423E] px-6 py-3.5 text-[14px] font-medium text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+              >
+                {loading === "demo" ? "체험 화면을 여는 중..." : "샘플 체크리스트로 체험하기"}
+              </button>
+
+              <p className="mt-4 text-center text-[11px] font-light leading-5 text-[#635b51]">
+                체험에서 바꾼 내용은 실제 계정의 준비 기록에 저장되지 않아요. 체험 연결을 위한 임시 정보와 쿠키는 사용할 수 있어요.
+              </p>
+            </>
+          ) : (
           <>
               {/* 정상 로그인 모드 */}
               <h1 className="font-serif-kr text-[24px] font-light text-[#263832] text-center mb-2">
@@ -632,6 +681,7 @@ export default function LoginPage() {
                 체험 대화와 변경은 계정의 준비 기록에 남지 않아요. 체험 연결을 위한 임시 정보와 쿠키는 사용할 수 있어요.
               </p>
           </>
+          )}
         </div>
 
         {/* 하단 링크 */}

@@ -32,6 +32,10 @@ function isPasswordValid(checks: PasswordCheck): boolean {
   return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
 }
 
+function authFailureMessage(): string {
+  return "로그인 연결에 문제가 있어요. 잠시 후 다시 시도해 주세요.";
+}
+
 export default function DemoLoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
@@ -59,11 +63,11 @@ export default function DemoLoginPage() {
     const hashDescription = hashParams.get("error_description");
 
     if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
+      setError(authFailureMessage());
     } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
+      setError(authFailureMessage());
     } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+      setError(authFailureMessage());
     }
   }, []);
 
@@ -82,14 +86,14 @@ export default function DemoLoginPage() {
       });
       if (oauthError) {
         console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        setError(authFailureMessage());
         setLoading(null);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("OAuth catch error:", msg);
       setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
+      setError(authFailureMessage());
     }
   };
 
@@ -142,7 +146,7 @@ export default function DemoLoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            setError(authFailureMessage());
           }
         } else {
           // 온보딩 완료 여부 확인
@@ -168,7 +172,7 @@ export default function DemoLoginPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      setError(authFailureMessage());
     } finally {
       setLoading(null);
     }

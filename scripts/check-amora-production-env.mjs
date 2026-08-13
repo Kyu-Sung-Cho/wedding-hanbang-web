@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
+
 /**
  * Prints only release-gate booleans. Never print environment variable values.
  * This must run in the actual Vercel Production builder/runtime; local
@@ -53,6 +55,61 @@ function isPlausibleSecret(value) {
   );
 }
 
+function decodeJwtJson(segment) {
+  try {
+    const value = JSON.parse(Buffer.from(segment, "base64url").toString("utf8"));
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function isConfiguredSupabaseAnonKey(value) {
+  if (typeof value !== "string" || value !== value.trim()) return false;
+  if (/(?:placeholder|example|test-only|replace-with|not-a-real)/i.test(value)) {
+    return false;
+  }
+  if (value === env.SUPABASE_SERVICE_ROLE_KEY || value.startsWith("sb_secret_")) {
+    return false;
+  }
+  if (!/^sb_publishable_[A-Za-z0-9_-]{24,}$/.test(value)) {
+    const parts = value.split(".");
+    if (parts.length !== 3 || parts.some((part) => !part)) return false;
+    if (!/^[A-Za-z0-9_-]{43}$/.test(parts[2])) return false;
+    const header = decodeJwtJson(parts[0]);
+    const payload = decodeJwtJson(parts[1]);
+    if (!header || !payload || header.alg !== "HS256") return false;
+    if (header.typ !== undefined && header.typ !== "JWT") return false;
+    if (payload.role !== "anon") return false;
+    if (payload.ref !== env.SUPABASE_EXPECTED_PROJECT_REF) return false;
+    const expectedUrl = env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const acceptedIssuers = new Set([
+      "supabase",
+      expectedUrl ? `${expectedUrl}/auth/v1` : "",
+      expectedUrl ? `${expectedUrl}/auth/v1/` : "",
+    ]);
+    if (typeof payload.iss !== "string" || !acceptedIssuers.has(payload.iss)) {
+      return false;
+    }
+    if (
+      typeof payload.exp !== "number"
+      || !Number.isSafeInteger(payload.exp)
+      || payload.exp <= Math.floor(Date.now() / 1000)
+    ) {
+      return false;
+    }
+  }
+
+  const expectedSha256 = env.SUPABASE_EXPECTED_ANON_KEY_SHA256;
+  return (
+    typeof expectedSha256 === "string"
+    && /^[a-f0-9]{64}$/.test(expectedSha256)
+    && createHash("sha256").update(value, "utf8").digest("hex") === expectedSha256
+  );
+}
+
 const checks = {
   openaiEnabledFlagPresent: Boolean(env.AMORA_OPENAI_ENABLED),
   openaiEnabled: env.AMORA_OPENAI_ENABLED === "true",
@@ -95,6 +152,8 @@ const checks = {
   profileMemoryConservative:
     env.AMORA_PROFILE_MEMORY_MODE === "conservative",
   supabaseUrlPresent: Boolean(env.NEXT_PUBLIC_SUPABASE_URL),
+  supabaseAnonKeyConfigured:
+    isConfiguredSupabaseAnonKey(env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
   supabaseServiceRolePresent: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
   supabaseDestinationPinned: hasPinnedSupabaseDestination(),
   adminBootstrapSecretConfigured: isPlausibleSecret(env.ADMIN_PASSWORD),

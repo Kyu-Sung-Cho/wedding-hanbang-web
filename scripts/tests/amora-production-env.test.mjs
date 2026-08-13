@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -9,6 +10,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PROJECT_REF = "abcdefghijklmnopqrst";
 
 function validEnv(overrides = {}) {
+  const anonKey = `sb_publishable_${"c".repeat(32)}`;
   return {
     PATH: process.env.PATH,
     SYSTEMROOT: process.env.SYSTEMROOT,
@@ -34,6 +36,9 @@ function validEnv(overrides = {}) {
     PRODUCTION_WRITE_FENCE_ENABLED: "false",
     AMORA_PROFILE_MEMORY_MODE: "conservative",
     NEXT_PUBLIC_SUPABASE_URL: `https://${PROJECT_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
+    SUPABASE_EXPECTED_ANON_KEY_SHA256:
+      createHash("sha256").update(anonKey, "utf8").digest("hex"),
     SUPABASE_SERVICE_ROLE_KEY: `sb_secret_${"b".repeat(32)}`,
     SUPABASE_EXPECTED_URL: `https://${PROJECT_REF}.supabase.co`,
     SUPABASE_EXPECTED_PROJECT_REF: PROJECT_REF,
@@ -64,6 +69,19 @@ function runBuildGate(env) {
   });
 }
 
+function legacySupabaseJwt({
+  role = "anon",
+  ref = PROJECT_REF,
+  exp = Math.floor(Date.now() / 1000) + 60 * 60,
+} = {}) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return [
+    encode({ alg: "HS256", typ: "JWT" }),
+    encode({ iss: "supabase", ref, role, exp }),
+    "s".repeat(43),
+  ].join(".");
+}
+
 test("the production environment gate accepts only an explicit safe configuration", () => {
   const result = runChecker(validEnv());
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -78,6 +96,62 @@ test("the production environment gate blocks a missing rate-limit HMAC secret", 
   const report = JSON.parse(result.stdout);
   assert.equal(report.pass, false);
   assert.deepEqual(report.failed, ["rateLimitSecretConfigured"]);
+});
+
+test("the production environment gate accepts only a client-safe public Supabase key", () => {
+  const serviceRoleKey = `sb_secret_${"b".repeat(32)}`;
+  for (const unsafe of [
+    "",
+    " ",
+    "placeholder_anon_key",
+    serviceRoleKey,
+    `sb_secret_${"z".repeat(32)}`,
+  ]) {
+    const result = runChecker(validEnv({
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: unsafe,
+      SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
+    }));
+    assert.equal(result.status, 1);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.pass, false);
+    assert.deepEqual(report.failed, ["supabaseAnonKeyConfigured"]);
+  }
+
+  for (const unsafeJwt of [
+    legacySupabaseJwt({ role: "service_role" }),
+    legacySupabaseJwt({ ref: "zyxwvutsrqponmlkjihg" }),
+    legacySupabaseJwt({ exp: Math.floor(Date.now() / 1000) - 1 }),
+  ]) {
+    const result = runChecker(validEnv({
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: unsafeJwt,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["supabaseAnonKeyConfigured"],
+    );
+  }
+
+  const validLegacyKey = legacySupabaseJwt();
+  const validLegacy = runChecker(validEnv({
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: validLegacyKey,
+    SUPABASE_EXPECTED_ANON_KEY_SHA256: createHash("sha256")
+      .update(validLegacyKey, "utf8")
+      .digest("hex"),
+  }));
+  assert.equal(validLegacy.status, 0, validLegacy.stderr || validLegacy.stdout);
+
+  for (const mismatch of [
+    `sb_publishable_${"x".repeat(32)}`,
+    legacySupabaseJwt({ exp: Math.floor(Date.now() / 1000) + 2 * 60 * 60 }),
+  ]) {
+    const result = runChecker(validEnv({ NEXT_PUBLIC_SUPABASE_ANON_KEY: mismatch }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["supabaseAnonKeyConfigured"],
+    );
+  }
 });
 
 test("the production environment gate requires an exact positive published-vendor count", () => {
