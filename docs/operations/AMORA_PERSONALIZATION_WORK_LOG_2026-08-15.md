@@ -1,12 +1,12 @@
 # 아모라 개인화 구현·감사 작업 기록 — 2026-08-15
 
-> 상태: **SOURCE IMPLEMENTED / LOCAL CODE GATES PASS / DIRTY UNCOMMITTED SNAPSHOT / HOSTED·DEVICE EVIDENCE MISSING / PRODUCTION NO-GO**
+> 상태: **RELEASE CANDIDATE PUBLISHED / VERCEL PREVIEW READY / LOCAL CODE GATES PASS / HOSTED·DEVICE EVIDENCE MISSING / PRODUCTION NO-GO**
 >
 > 작업 branch: `codex/amora-release-hardening-20260811`
 >
-> 기준 HEAD: `d333835272954e44fc182f7c7c421176faef0310`
+> 릴리스 후보 HEAD: `b4d4051bd198c24fc441a9e171fed259b9b253bd`
 >
-> 이 문서는 현재 작업 폴더의 미커밋 source와 로컬 검증 결과를 기록한다. 실제 사용자 만족도, 실기기 동작, hosted DB 적용 또는 Production 배포를 증명하지 않는다.
+> 이 문서는 릴리스 후보로 게시한 source와 로컬 검증 결과를 기록한다. 실제 사용자 만족도, 실기기 동작, hosted DB 적용 또는 Production 배포를 증명하지 않는다.
 
 ## 1. 이번 작업에서 고정한 제품 본질
 
@@ -459,15 +459,17 @@ TodayOne, action follow-up, mediation follow-up GET은 모두 카드 claim 또�
 
 ## 12. 배포 상태
 
-- 최종 로컬 snapshot: porcelain 332개 · staged 0개
+- 릴리스 후보 commit: `b4d4051bd198c24fc441a9e171fed259b9b253bd`
+- Draft PR: `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/105`
+- Vercel Preview: `4Pvi7gL4q1h8sp9rPjdsLkP17sZv` · READY · SSO 보호
 - source 구현: 있음
-- 로컬 code gate: 위 표 기준 PASS
-- 커밋·push: 이번 작업에서 하지 않음
+- 로컬 code gate: 위 표와 게시 전 최종 재검증 기준 PASS
+- GitHub Actions run `31886730103`: 코드 실행 전 Billing/Actions 지출 한도에서 차단됨
 - hosted migration: 하지 않음
-- Vercel/EAS Production 배포: 하지 않음
-- successor manifest: `deployment_blocked`
+- Vercel Production alias / EAS Production 배포: 하지 않음
+- successor manifest: `deployment_blocked` · migration 95개
 - hosted evidence 5종: 모두 `missing`
-- 결론: **Production NO-GO**
+- 결론: **PREVIEW 배포 완료 / Production NO-GO**
 
 ## 13. 결혼 질문의 깊이 조절과 저작권 안전 경계
 
