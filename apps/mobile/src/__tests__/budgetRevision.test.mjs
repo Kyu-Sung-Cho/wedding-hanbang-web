@@ -114,6 +114,7 @@ test("만원 input is parsed exactly and cannot use a parseInt prefix", () => {
 test("total and category writes bind the loaded revision and loaded progress snapshot", () => {
   const snapshot = parseBudgetJourney(journey(), COUPLE_A);
   assert.deepEqual(buildTotalBudgetMutation(snapshot, "4200"), {
+    expected_couple_id: COUPLE_A,
     expected_revision: 7,
     total_budget: 42_000_000,
   });
@@ -125,6 +126,7 @@ test("total and category writes bind the loaded revision and loaded progress sna
     payer: "both_parents",
   });
   assert.deepEqual(categoryMutation, {
+    expected_couple_id: COUPLE_A,
     expected_revision: 7,
     progress_patch: {
       venue: {
@@ -158,6 +160,7 @@ test("an existing canonical custom category can be edited without opening arbitr
     spentInput: "320",
     payer: "both_parents",
   }), {
+    expected_couple_id: COUPLE_A,
     expected_revision: 7,
     progress_patch: {
       custom_transport: {

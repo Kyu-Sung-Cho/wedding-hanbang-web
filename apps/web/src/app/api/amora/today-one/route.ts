@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   TODAY_ONE_CARE_ACTIONS,
+  TODAY_ONE_CARE_CONTRACT_VERSION,
+  TODAY_ONE_CARE_CONTRACT_VERSION_HEADER,
+  TODAY_ONE_CARE_LEGACY_CONTRACT_VERSION,
   validateTodayOneCareResponse,
   type TodayOneCareAction,
+  type TodayOneCareLegacyResponse,
   type TodayOneCareResponse,
 } from "@hanbang/shared";
 
@@ -13,8 +17,10 @@ import {
   mergeTodayOneCandidatesWithHistory,
   type TodayOneCandidate,
   type TodayOneExposure,
+  type TodayOneScheduleCandidate,
 } from "@/lib/care/todayOne";
 import { buildTodayOneBudgetGuardrailCandidates } from "@/lib/care/todayOneBudget";
+import { buildConfirmedDecisionFollowUpCandidates } from "@/lib/care/decisionFollowUp";
 import { isAmoraTodayOneEnabled } from "@/lib/features/amoraCareFlags";
 import { ymdInKst } from "@/lib/utils/kstDate";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -30,7 +36,7 @@ export const revalidate = 0;
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
-  Vary: "Origin, Sec-Fetch-Site, Authorization",
+  Vary: `Origin, Sec-Fetch-Site, Authorization, ${TODAY_ONE_CARE_CONTRACT_VERSION_HEADER}`,
 };
 const MAX_BODY_BYTES = 2 * 1024;
 const MAX_READS_PER_MINUTE = 60;
@@ -41,6 +47,10 @@ const MAX_SAFE_REVISION = 9_007_199_254_740_991;
 const SAFE_SOURCE_KEY_RE = /^[a-z0-9:_-]{1,200}$/;
 const SAFE_STATE_DIGEST_RE = /^[0-9a-f]{64}$/;
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+type TodayOneResponseContract =
+  | typeof TODAY_ONE_CARE_LEGACY_CONTRACT_VERSION
+  | typeof TODAY_ONE_CARE_CONTRACT_VERSION;
 const ACTION_KEYS = [
   "cardId",
   "expectedRevision",
@@ -61,6 +71,8 @@ type TodayOneContext = {
   totalBudget: unknown;
   progress: Record<string, unknown>;
   stateRevision: number;
+  actorRole: "bride" | "groom";
+  currentMemberUserIds: string[];
 };
 type PreferenceRow = {
   enabled: boolean;
@@ -124,15 +136,77 @@ function safeIsoTimestamp(value: unknown): value is string {
     && Number.isFinite(Date.parse(value));
 }
 
+function requestedResponseContract(
+  request: Request,
+): TodayOneResponseContract | NextResponse {
+  const requested = request.headers
+    .get(TODAY_ONE_CARE_CONTRACT_VERSION_HEADER)
+    ?.trim() ?? null;
+  if (requested === null || requested === String(TODAY_ONE_CARE_LEGACY_CONTRACT_VERSION)) {
+    return TODAY_ONE_CARE_LEGACY_CONTRACT_VERSION;
+  }
+  if (requested === String(TODAY_ONE_CARE_CONTRACT_VERSION)) {
+    return TODAY_ONE_CARE_CONTRACT_VERSION;
+  }
+  return response({
+    error: "지원하지 않는 오늘의 한 가지 응답 버전입니다. 앱을 업데이트해 주세요.",
+    code: "TODAY_ONE_CONTRACT_UNSUPPORTED",
+  }, 426);
+}
+
+function projectResponseContract(
+  result: TodayOneCareResponse,
+  contractVersion: TodayOneResponseContract,
+): TodayOneCareResponse | TodayOneCareLegacyResponse {
+  if (contractVersion === TODAY_ONE_CARE_CONTRACT_VERSION) return result;
+  const base = {
+    version: TODAY_ONE_CARE_LEGACY_CONTRACT_VERSION,
+    recipientUserId: result.recipientUserId,
+    claimedForDate: result.claimedForDate,
+  } as const;
+  if (result.state !== "ready" || !result.card) {
+    return { ...base, state: result.state };
+  }
+  if (result.card.kind === "decision_follow_up") {
+    return { ...base, state: "none" };
+  }
+  const legacyCard: NonNullable<TodayOneCareLegacyResponse["card"]> = {
+    id: result.card.id,
+    revision: result.card.revision,
+    sourceRevision: result.card.sourceRevision,
+    sourceKey: result.card.sourceKey,
+    kind: result.card.kind,
+    whyNow: result.card.whyNow,
+    confirmed: [...result.card.confirmed],
+    unknown: [...result.card.unknown],
+    nextAction: { ...result.card.nextAction },
+    impact: result.card.impact,
+    choices: result.card.choices.map((choice) => ({ ...choice })),
+    expiresAt: result.card.expiresAt,
+  };
+  return {
+    ...base,
+    state: "ready",
+    card: legacyCard,
+  };
+}
+
 function apiResult(
   result: TodayOneCareResponse,
-  options: { staleMessage?: string } = {},
+  options: {
+    staleMessage?: string;
+    contractVersion?: TodayOneResponseContract;
+  } = {},
 ) {
+  const projected = projectResponseContract(
+    result,
+    options.contractVersion ?? TODAY_ONE_CARE_CONTRACT_VERSION,
+  );
   if (result.state === "source_stale") {
     return response(
       {
         available: true,
-        result,
+        result: projected,
         code: "TODAY_ONE_SOURCE_STALE",
         error:
           options.staleMessage
@@ -141,7 +215,7 @@ function apiResult(
       409,
     );
   }
-  return response({ available: true, result });
+  return response({ available: true, result: projected });
 }
 
 function localResult(
@@ -150,7 +224,7 @@ function localResult(
   now: Date,
 ): TodayOneCareResponse {
   return {
-    version: 1,
+    version: TODAY_ONE_CARE_CONTRACT_VERSION,
     state,
     recipientUserId: userId,
     claimedForDate: ymdInKst(now),
@@ -212,6 +286,15 @@ async function loadContext(
     (profile.role === "bride" && couple?.bride_id === userId)
     || (profile.role === "groom" && couple?.groom_id === userId);
   if (!validRoster) return { ok: false, response: rosterFailure() };
+  const currentMemberUserIds = [couple?.bride_id, couple?.groom_id]
+    .filter((memberId): memberId is string => isUuid(memberId));
+  if (
+    (profile.role !== "bride" && profile.role !== "groom")
+    || currentMemberUserIds.length < 1
+    || currentMemberUserIds.length > 2
+    || new Set(currentMemberUserIds).size !== currentMemberUserIds.length
+    || !currentMemberUserIds.includes(userId)
+  ) return { ok: false, response: rosterFailure() };
 
   const { data: journey, error: journeyError } = await supabase
     .from("wedding_journeys")
@@ -250,8 +333,72 @@ async function loadContext(
       totalBudget: journey.total_budget,
       progress: journey.progress,
       stateRevision: journey.state_revision,
+      actorRole: profile.role,
+      currentMemberUserIds,
     },
   };
+}
+
+async function readPrivacyEpoch(
+  context: TodayOneContext,
+): Promise<number | NextResponse> {
+  const { data, error } = await context.supabase.rpc(
+    "get_own_amora_privacy_epoch",
+    {
+      p_couple_id: context.coupleId,
+      p_visibility: "shared",
+    },
+  );
+  if (error || !validRevision(data, 1)) {
+    console.error("[today-one] privacy epoch read failed", {
+      code: typeof error?.code === "string" ? error.code : "invalid-result",
+    });
+    return response(
+      {
+        error: "현재 커플 공유 범위를 안전하게 확인하지 못했어요.",
+        code: "TODAY_ONE_PRIVACY_CONTEXT_UNAVAILABLE",
+      },
+      503,
+    );
+  }
+  return data;
+}
+
+async function readDecisionFollowUpCandidates(
+  context: TodayOneContext,
+  now: Date,
+): Promise<TodayOneCandidate[] | NextResponse> {
+  const { data, error } = await context.supabase
+    .from("decision_nodes")
+    .select(
+      "id, couple_id, visibility, decision_type, title, source_ref_id, source_actor_role, user_confirmed_at, decided_at, superseded_at, metadata",
+    )
+    .eq("couple_id", context.coupleId)
+    .eq("visibility", "shared")
+    .in("decision_type", ["decided", "scheduled"])
+    .order("user_confirmed_at", { ascending: false })
+    .limit(40);
+  if (error || !Array.isArray(data)) {
+    console.error("[today-one] confirmed decision read failed", {
+      code: typeof error?.code === "string" ? error.code : "invalid-result",
+    });
+    return response(
+      {
+        error: "확인된 결정 기록을 안전하게 불러오지 못했어요.",
+        code: "TODAY_ONE_DECISION_CONTEXT_UNAVAILABLE",
+      },
+      503,
+    );
+  }
+  return buildConfirmedDecisionFollowUpCandidates({
+    coupleId: context.coupleId,
+    recipientUserId: context.userId,
+    actorRole: context.actorRole,
+    currentMemberUserIds: context.currentMemberUserIds,
+    stateRevision: context.stateRevision,
+    decisions: data,
+    now,
+  });
 }
 
 async function authenticate(
@@ -418,13 +565,68 @@ async function readExposureHistory(
 }
 
 function validateOwnedResult(value: unknown, userId: string) {
-  const validation = validateTodayOneCareResponse(value, userId);
+  const normalized = isRecord(value)
+    && value.version === TODAY_ONE_CARE_LEGACY_CONTRACT_VERSION
+    ? { ...value, version: TODAY_ONE_CARE_CONTRACT_VERSION }
+    : value;
+  const validation = validateTodayOneCareResponse(normalized, userId);
   return validation.ok ? validation.value : null;
 }
 
-function compileError(error: RpcError) {
+function attachScheduleCare(
+  result: TodayOneCareResponse,
+  scheduleCandidates: ReadonlyArray<TodayOneScheduleCandidate>,
+  userId: string,
+): TodayOneCareResponse | null {
+  if (result.state !== "ready" || !result.card) return result;
+  const source = scheduleCandidates.find((candidate) => (
+    candidate.kind === "schedule_moment"
+    && candidate.sourceKey === result.card?.sourceKey
+    && candidate.sourceRevision === result.card?.sourceRevision
+    && candidate.care !== undefined
+  ));
+  if (!source?.care) return result;
+
+  return validateOwnedResult({
+    ...result,
+    card: {
+      ...result.card,
+      care: {
+        ...source.care,
+        checklist: [...source.care.checklist],
+        relatedChecklist: { ...source.care.relatedChecklist },
+        ...(source.care.relatedBudget
+          ? { relatedBudget: { ...source.care.relatedBudget } }
+          : {}),
+        evidence: {
+          refs: source.care.evidence.refs.map((ref) => ({ ...ref })),
+          limitations: [...source.care.evidence.limitations],
+        },
+      },
+    },
+  }, userId);
+}
+
+function compileError(
+  error: RpcError,
+  userId: string,
+  now: Date,
+  contractVersion: TodayOneResponseContract,
+) {
   const text = rpcErrorText(error);
+  if (/AMORA_TODAY_ONE_DAILY_LIMIT_V2/i.test(text)) {
+    return apiResult(localResult(userId, "daily_limit", now), { contractVersion });
+  }
   if (/AMORA_TODAY_ONE_RECIPIENT_FORBIDDEN/i.test(text)) return rosterFailure();
+  if (/AMORA_TODAY_ONE_PRIVACY_CONTEXT_STALE/i.test(text)) {
+    return response(
+      {
+        error: "커플 연결이나 공유 설정이 바뀌었어요. 최신 상태에서 다시 확인해 주세요.",
+        code: "TODAY_ONE_PRIVACY_CONTEXT_CHANGED",
+      },
+      409,
+    );
+  }
   console.error("[today-one] compile RPC failed", {
     code: typeof error.code === "string" ? error.code : "unknown",
   });
@@ -478,6 +680,8 @@ export async function GET(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return response({ error: "잘못된 요청 출처입니다." }, 403);
     }
+    const contractVersion = requestedResponseContract(request);
+    if (contractVersion instanceof NextResponse) return contractVersion;
 
     const limited = checkRate(
       "amora-today-one:read",
@@ -494,14 +698,17 @@ export async function GET(request: Request) {
     const preference = await readPreference(context);
     if (preference instanceof NextResponse) return preference;
     if (!preference?.enabled || !preference.optedInAt) {
-      return apiResult(localResult(context.userId, "disabled", now));
+      return apiResult(localResult(context.userId, "disabled", now), { contractVersion });
     }
     if (
       preference.pausedUntil
       && new Date(preference.pausedUntil).getTime() > now.getTime()
     ) {
-      return apiResult(localResult(context.userId, "paused", now));
+      return apiResult(localResult(context.userId, "paused", now), { contractVersion });
     }
+
+    const initialPrivacyEpoch = await readPrivacyEpoch(context);
+    if (initialPrivacyEpoch instanceof NextResponse) return initialPrivacyEpoch;
 
     const scheduleCandidates = buildTodayOneScheduleCandidates({
         weddingDate: context.weddingDate,
@@ -514,12 +721,26 @@ export async function GET(request: Request) {
         progress: context.progress,
         stateRevision: context.stateRevision,
       });
-    if (scheduleCandidates.length === 0 && budgetCandidates.length === 0) {
-      return apiResult(localResult(context.userId, "none", now));
+    let decisionFollowUpCandidates: TodayOneCandidate[] = [];
+    if (contractVersion === TODAY_ONE_CARE_CONTRACT_VERSION) {
+      const result = await readDecisionFollowUpCandidates(context, now);
+      if (result instanceof NextResponse) return result;
+      decisionFollowUpCandidates = result;
+    }
+    if (
+      scheduleCandidates.length === 0
+      && budgetCandidates.length === 0
+      && decisionFollowUpCandidates.length === 0
+    ) {
+      return apiResult(localResult(context.userId, "none", now), { contractVersion });
     }
     const exposureHistory = await readExposureHistory(
       context,
-      [...scheduleCandidates, ...budgetCandidates],
+      [
+        ...scheduleCandidates,
+        ...budgetCandidates,
+        ...decisionFollowUpCandidates,
+      ],
       ymdInKst(now),
     );
     if (exposureHistory instanceof NextResponse) return exposureHistory;
@@ -527,29 +748,77 @@ export async function GET(request: Request) {
       exposureHistory,
       scheduleCandidates,
       budgetCandidates,
+      decisionFollowUpCandidates,
     );
 
     const admin = createAdminClient();
-    let lastNone: TodayOneCareResponse | null = null;
-    for (const candidate of candidates) {
-      const { data, error } = await admin.rpc("compile_amora_today_one_card", {
+    const { error: v2DailyError } = await admin.rpc(
+      "assert_amora_today_one_v1_claim_available_v2",
+      {
         p_couple_id: context.coupleId,
         p_recipient_user_id: context.userId,
-        p_source_key: candidate.sourceKey,
-        p_state_digest: candidate.sourceStateDigest,
-        p_source_revision: candidate.sourceRevision,
-        p_priority: candidate.priority,
-        p_presentation: {
-          kind: candidate.kind,
-          whyNow: candidate.whyNow,
-          confirmed: candidate.confirmed,
-          unknown: candidate.unknown,
-          nextAction: candidate.nextAction,
-          impact: candidate.impact,
-          choices: candidate.choices,
-        },
-      });
-      if (error) return compileError(error);
+      },
+    );
+    if (v2DailyError) {
+      const v2DailyText = rpcErrorText(v2DailyError);
+      if (/AMORA_TODAY_ONE_DAILY_LIMIT_V2/.test(v2DailyText)) {
+        return apiResult(localResult(context.userId, "daily_limit", now), { contractVersion });
+      }
+      // Rolling deploy compatibility: the coordinator does not exist until
+      // the additive v2 migration lands, so v1 remains available beforehand.
+      if (!/does not exist|PGRST202/i.test(v2DailyText)) {
+        console.error("[today-one] v2 daily coordinator failed", {
+          code: typeof v2DailyError.code === "string" ? v2DailyError.code : "unknown",
+        });
+        return response({ error: "오늘의 한 가지 사용 상태를 확인하지 못했어요." }, 503);
+      }
+    }
+    let lastNone: TodayOneCareResponse | null = null;
+    for (const candidate of candidates) {
+      const currentPrivacyEpoch = await readPrivacyEpoch(context);
+      if (currentPrivacyEpoch instanceof NextResponse) return currentPrivacyEpoch;
+      if (currentPrivacyEpoch !== initialPrivacyEpoch) {
+        return response(
+          {
+            error: "커플 연결이나 공유 설정이 바뀌었어요. 최신 상태에서 다시 확인해 주세요.",
+            code: "TODAY_ONE_PRIVACY_CONTEXT_CHANGED",
+          },
+          409,
+        );
+      }
+      const presentation = {
+        kind: candidate.kind,
+        whyNow: candidate.whyNow,
+        confirmed: candidate.confirmed,
+        unknown: candidate.unknown,
+        nextAction: candidate.nextAction,
+        impact: candidate.impact,
+        choices: candidate.choices,
+      };
+      const decisionId = candidate.kind === "decision_follow_up"
+        ? candidate.sourceKey.slice("decision:".length)
+        : null;
+      const { data, error } = candidate.kind === "decision_follow_up"
+        ? await admin.rpc("compile_amora_decision_follow_up_card", {
+            p_couple_id: context.coupleId,
+            p_recipient_user_id: context.userId,
+            p_decision_id: decisionId,
+            p_expected_privacy_epoch: initialPrivacyEpoch,
+            p_state_digest: candidate.sourceStateDigest,
+            p_source_revision: candidate.sourceRevision,
+            p_priority: candidate.priority,
+            p_presentation: presentation,
+          })
+        : await admin.rpc("compile_amora_today_one_card", {
+            p_couple_id: context.coupleId,
+            p_recipient_user_id: context.userId,
+            p_source_key: candidate.sourceKey,
+            p_state_digest: candidate.sourceStateDigest,
+            p_source_revision: candidate.sourceRevision,
+            p_priority: candidate.priority,
+            p_presentation: presentation,
+          });
+      if (error) return compileError(error, context.userId, now, contractVersion);
       const result = validateOwnedResult(data, context.userId);
       if (!result) {
         console.error("[today-one] compile RPC returned an invalid owner response");
@@ -559,9 +828,19 @@ export async function GET(request: Request) {
         lastNone = result;
         continue;
       }
-      return apiResult(result);
+      const consumerResult = contractVersion === TODAY_ONE_CARE_CONTRACT_VERSION
+        ? attachScheduleCare(result, scheduleCandidates, context.userId)
+        : result;
+      if (!consumerResult) {
+        console.error("[today-one] generated schedule care failed validation");
+        return response({ error: "오늘 확인할 안내의 형식을 확인하지 못했어요." }, 503);
+      }
+      return apiResult(consumerResult, { contractVersion });
     }
-    return apiResult(lastNone ?? localResult(context.userId, "none", now));
+    return apiResult(
+      lastNone ?? localResult(context.userId, "none", now),
+      { contractVersion },
+    );
   } catch (error) {
     console.error("[today-one] GET failed", error);
     return response({ error: "오늘 확인할 내용을 불러오지 못했어요." }, 500);
@@ -623,6 +902,8 @@ export async function POST(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return response({ error: "잘못된 요청 출처입니다." }, 403);
     }
+    const contractVersion = requestedResponseContract(request);
+    if (contractVersion instanceof NextResponse) return contractVersion;
     const body = await readActionBody(request);
     if (body instanceof NextResponse) return body;
     if (!hasOnlyKeys(body, ACTION_KEYS) || !ACTION_KEYS.every((key) => key in body)) {
@@ -684,7 +965,10 @@ export async function POST(request: Request) {
     if (!sourceIsCurrent) {
       return apiResult(
         localResult(context.userId, "source_stale", new Date()),
-        { staleMessage: "일정·예산 기록이나 카드 상태가 바뀌었어요. 최신 내용을 다시 확인해 주세요." },
+        {
+          staleMessage: "일정·예산 기록이나 카드 상태가 바뀌었어요. 최신 내용을 다시 확인해 주세요.",
+          contractVersion,
+        },
       );
     }
 
@@ -703,7 +987,7 @@ export async function POST(request: Request) {
       console.error("[today-one] owner action RPC returned an invalid response");
       return response({ error: "선택이 저장됐는지 확인하지 못했어요." }, 503);
     }
-    return apiResult(result);
+    return apiResult(result, { contractVersion });
   } catch (error) {
     console.error("[today-one] POST failed", error);
     return response(

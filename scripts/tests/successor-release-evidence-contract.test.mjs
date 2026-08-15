@@ -51,12 +51,67 @@ const ACTIVE_AMORA_SECURITY_MIGRATIONS = Object.freeze([
   "20260811230000_amora_provider_egress_grant.sql",
   "20260812030000_couple_invite_replay_hardening.sql",
   "20260812090000_amora_server_only_chat_ingest.sql",
+  "20260812100000_amora_today_one_decision_follow_up.sql",
+  "20260812120000_vendor_inquiry_handoff.sql",
+  "20260812130000_amora_action_follow_up_v2.sql",
+  "20260812140000_amora_mediation_outcome_follow_up.sql",
+  "20260814120000_amora_explicit_action_execution.sql",
+  "20260814130000_amora_core_criterion.sql",
+  "20260814140000_amora_couple_core_criterion.sql",
+  "20260815120000_amora_action_outcome_feedback.sql",
+  "20260815130000_amora_first_use_action_promotions.sql",
 ]);
 
 const GATED_COUPLE_INVITE_PHASE_B_MIGRATION =
   "20260812031000_revoke_legacy_join_couple.sql";
 
+const DECISION_FOLLOW_UP_MIGRATION = Object.freeze({
+  file: "20260812100000_amora_today_one_decision_follow_up.sql",
+  sha256: "65affa3d0fb9d9d2c29e5681b93deadfb079acd0f6b6e37aa3f33a3f99b5ab4e",
+});
+const VENDOR_INQUIRY_MIGRATION = Object.freeze({
+  file: "20260812120000_vendor_inquiry_handoff.sql",
+  sha256: "4d1e290e828ef958e92dd038dc3ef2d33dd37e20241dc83768f391c50329cd89",
+});
+const ACTION_FOLLOW_UP_V2_MIGRATION = Object.freeze({
+  file: "20260812130000_amora_action_follow_up_v2.sql",
+  sha256: "1048132e7328e6d397baee848ce0f79ac00585a168f5381d4ce9202defc61657",
+});
+const MEDIATION_OUTCOME_FOLLOW_UP_MIGRATION = Object.freeze({
+  file: "20260812140000_amora_mediation_outcome_follow_up.sql",
+  sha256: "150d7e221469b971fc97302aae5b854d8a62b526199428b4be312a5ecedadd79",
+});
+const EXPLICIT_ACTION_EXECUTION_MIGRATION = Object.freeze({
+  file: "20260814120000_amora_explicit_action_execution.sql",
+  sha256: "c3f63b696f489f2a58d4537aa2a293624d31b7ba6a99afaa22e41b47ff9f3a38",
+});
+const AMORA_CORE_CRITERION_MIGRATION = Object.freeze({
+  file: "20260814130000_amora_core_criterion.sql",
+  sha256: "fe3c37e8c70e22e09f06151f6d866cc2e2c8a5702e7a8e5a2340d7a3fc241fa1",
+});
+const AMORA_COUPLE_CORE_CRITERION_MIGRATION = Object.freeze({
+  file: "20260814140000_amora_couple_core_criterion.sql",
+  sha256: "f247c77641223f216df9f265ec79a36b79991e2debcce464ad55f57601f29160",
+});
+const AMORA_ACTION_OUTCOME_FEEDBACK_MIGRATION = Object.freeze({
+  file: "20260815120000_amora_action_outcome_feedback.sql",
+  sha256: "d6dbde267bc04222d969ee98b1cd733add5f09644b66ab4548aeb8304e611f01",
+});
+const AMORA_FIRST_USE_ACTION_PROMOTIONS_MIGRATION = Object.freeze({
+  file: "20260815130000_amora_first_use_action_promotions.sql",
+  sha256: "c4808671308c2ed0bb2be0a7c82b894b69c3d20c63f4547abb3bd61d64511090",
+});
+
 const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
+  "amora_action_follow_up_cards_v2",
+  "amora_action_follow_up_outcomes_v2",
+  "amora_couple_core_criterion_acceptances",
+  "amora_couple_core_criterion_proposals",
+  "amora_first_use_action_promotions",
+  "amora_first_use_action_proposal_bindings",
+  "amora_mediation_outcome_follow_up_cards",
+  "amora_mediation_outcome_follow_up_receipts",
+  "amora_mediation_private_safety_holds",
   "amora_provider_egress_grants",
   "amora_provider_runtime_control",
   "couple_invite_join_attempts",
@@ -144,6 +199,56 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.manifest.status, "deployment_blocked");
 });
 
+test("명시적 결정 후속 migration을 exact hash로 고정해도 배포 차단과 missing evidence를 보존한다", () => {
+  const root = fixture((manifest) => {
+    manifest.expandMigrations = manifest.expandMigrations.filter(
+      (entry) => entry.file !== VENDOR_INQUIRY_MIGRATION.file,
+    );
+    return manifest;
+  });
+  rmSync(
+    join(root, "supabase", "migrations", VENDOR_INQUIRY_MIGRATION.file),
+    { force: true },
+  );
+  const result = validateSuccessorReleaseContract({ repoRoot: root });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === DECISION_FOLLOW_UP_MIGRATION.file,
+    ),
+    DECISION_FOLLOW_UP_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("업체 문의 handoff migration을 exact hash로 고정해도 배포 차단을 보존한다", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === VENDOR_INQUIRY_MIGRATION.file,
+    ),
+    VENDOR_INQUIRY_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
 test("차단 상태에 backupContract만 몰래 넣어 둘 수 없다", () => {
   expectBlocked(
     fixture((m) => {
@@ -175,6 +280,153 @@ test("controller_ready인데 controllerContract pin이 없으면 형태 위반�
     }),
     "MANIFEST_SHAPE_INVALID",
   );
+});
+
+test("action follow-up v2 migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === ACTION_FOLLOW_UP_V2_MIGRATION.file,
+    ),
+    ACTION_FOLLOW_UP_V2_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("recipient-private mediation outcome migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === MEDIATION_OUTCOME_FOLLOW_UP_MIGRATION.file,
+    ),
+    MEDIATION_OUTCOME_FOLLOW_UP_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("explicit home-action execution migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === EXPLICIT_ACTION_EXECUTION_MIGRATION.file,
+    ),
+    EXPLICIT_ACTION_EXECUTION_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("owner-private core criterion migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === AMORA_CORE_CRITERION_MIGRATION.file,
+    ),
+    AMORA_CORE_CRITERION_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("couple-confirmed core criterion migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === AMORA_COUPLE_CORE_CRITERION_MIGRATION.file,
+    ),
+    AMORA_COUPLE_CORE_CRITERION_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("owner-private action outcome feedback migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === AMORA_ACTION_OUTCOME_FEEDBACK_MIGRATION.file,
+    ),
+    AMORA_ACTION_OUTCOME_FEEDBACK_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("first-use action promotion provenance migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === AMORA_FIRST_USE_ACTION_PROMOTIONS_MIGRATION.file,
+    ),
+    AMORA_FIRST_USE_ACTION_PROMOTIONS_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
 });
 
 function canonicalJsonSha256(value) {
@@ -213,6 +465,7 @@ function runtimeEvidenceFixture() {
       AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
       AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
       AMORA_TODAY_ONE_ENABLED: "false",
+      AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
@@ -555,6 +808,7 @@ function readyStaticFixture({
       AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
       AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
       AMORA_TODAY_ONE_ENABLED: "false",
+      AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
@@ -598,7 +852,7 @@ function readyStaticFixture({
         couple_plan_change_terminal_event_count: 3,
         couple_plan_change_write_boundary_trigger_count: 1,
         successor_created_table_count: createdTables.length,
-        successor_feature_flags_off_count: 10,
+        successor_feature_flags_off_count: 11,
         successor_migration_head_count: 1,
         wedding_court_auth_delete_fk_count: 1,
         chat_feedback_auth_delete_fk_count: 1,

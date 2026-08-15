@@ -40,7 +40,7 @@ describe("web MVP product direction", () => {
     expect(productContract).toContain(PRODUCT_DEFINITION);
     expect(principles).toContain(PRODUCT_DEFINITION.replace("서비스입니다.", "서비스다."));
     expect(landingContent).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
-    expect(landingContent).toContain("아모라 · 대화를 정리하는 AI");
+    expect(landingContent).toContain("아모라 · AI 결혼 준비 동반자");
     expect(landingContent).toContain("예산·할 일·일정");
     expect(hero).toContain("landingContent.hero.eyebrow");
     expect(communityPage).toContain("웨딩한방 — 결혼 준비를 아모라와 정리하세요");

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getAmoraActions, mergeAmoraActions, withUpdatedAmoraAction, type AmoraActionItem } from "../actions";
+import {
+  getAmoraActions,
+  mergeAmoraActions,
+  parseAmoraActionDueDateInput,
+  withUpdatedAmoraAction,
+  type AmoraActionItem,
+} from "../actions";
 
 const baseAction: AmoraActionItem = {
   id: "act_base",
@@ -12,6 +18,30 @@ const baseAction: AmoraActionItem = {
 };
 
 describe("아모라 액션", () => {
+  it("accepts only a real user-confirmed calendar date as an action deadline", () => {
+    expect(parseAmoraActionDueDateInput("2028-02-29")).toEqual({
+      ok: true,
+      dueDate: "2028-02-29",
+    });
+    expect(parseAmoraActionDueDateInput(" 2028-02-29 ")).toEqual({
+      ok: true,
+      dueDate: "2028-02-29",
+    });
+    expect(parseAmoraActionDueDateInput("")).toEqual({ ok: true, dueDate: undefined });
+    expect(parseAmoraActionDueDateInput(null)).toEqual({ ok: true, dueDate: undefined });
+    expect(parseAmoraActionDueDateInput("2026-02-31")).toEqual({ ok: false });
+    expect(parseAmoraActionDueDateInput("next Saturday")).toEqual({ ok: false });
+    expect(parseAmoraActionDueDateInput(20260814)).toEqual({ ok: false });
+  });
+
+  it("drops an impossible legacy deadline instead of presenting it as personalized truth", () => {
+    const [action] = getAmoraActions({
+      __amora_actions: [{ ...baseAction, dueDate: "2026-02-31" }],
+    });
+
+    expect(action.dueDate).toBeUndefined();
+  });
+
   it("progress에 저장된 legacy 액션을 정렬해서 읽는다", () => {
     const actions = getAmoraActions({
       __amora_actions: [

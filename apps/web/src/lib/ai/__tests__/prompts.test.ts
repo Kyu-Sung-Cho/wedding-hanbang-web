@@ -34,6 +34,88 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it("gives Amora the exact remaining saved checklist item instead of only a count", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      progress: {
+        venue: {
+          status: "in_progress",
+          checklist: [
+            { id: "venue_done", label: "이미 끝낸 장소 답사", done: true },
+            { id: "venue_next", label: "이번 주 남은 장소 답사", done: false },
+          ],
+        },
+      },
+    });
+
+    expect(prompt).toContain('남은 할일: "이번 주 남은 장소 답사"');
+    expect(prompt).toContain("저장된 남은 할일 중 관련 있는 항목을 먼저 후보로 사용하세요");
+    expect(prompt).not.toContain("이미 끝낸 장소 답사");
+  });
+
+  it("never offers checklist work from a completed or not-applicable category", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      progress: {
+        venue: {
+          status: "completed",
+          checklist: [
+            { id: "venue_stale", label: "완료 처리 뒤 남은 낡은 장소 항목", done: false },
+          ],
+        },
+        pyebaek: {
+          status: "not_applicable",
+          checklist: [
+            { id: "pyebaek_skip", label: "하지 않기로 한 전통 인사 항목", done: false },
+          ],
+        },
+      },
+    });
+
+    expect(prompt).not.toContain("완료 처리 뒤 남은 낡은 장소 항목");
+    expect(prompt).not.toContain("하지 않기로 한 전통 인사 항목");
+  });
+
+  it("projects only the first valid saved item for a duplicated checklist id", () => {
+    const prompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      bookings: [],
+      progress: {
+        invitation: {
+          status: "in_progress",
+          checklist: [
+            { id: "invitation_same", label: "먼저 저장된 초대장 문구 확인", done: false },
+            { id: "invitation_same", label: "중복된 초대장 문구 확인", done: false },
+            { id: "", label: "식별자 없는 초대장 항목", done: false },
+          ],
+        },
+      },
+    });
+
+    expect(prompt).toContain('할일: 0/1완료 | 남은 할일: "먼저 저장된 초대장 문구 확인"');
+    expect(prompt).not.toContain("중복된 초대장 문구 확인");
+    expect(prompt).not.toContain("식별자 없는 초대장 항목");
+  });
+
+  it("keeps every personalized first-action card grounded in current or stored facts", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    expect(prompt).toContain(
+      "‘확인된 내용’에는 현재 사용자 메시지 또는 위에 표시된 저장 기록에서 직접 확인되는 사실만 넣으세요",
+    );
+    expect(prompt).toContain(
+      "근거가 분명하지 않거나 지금도 유효한지 확신할 수 없으면 ‘아직 모르는 내용’으로 옮기세요",
+    );
+    expect(prompt).toContain(
+      "담당자·마감·예산·합의·긴급도는 명시된 값이 없으면 만들지 마세요",
+    );
+    expect(prompt).toContain(
+      "사용자가 방금 ‘끝냈다·바뀌었다·아니다’라고 말한 내용이 저장 기록보다 우선합니다",
+    );
+  });
+
   it("never upgrades a legacy cost field into recorded spend or an over-budget claim", () => {
     const prompt = getWeddingPlannerSystemPrompt({
       ...baseContext,
@@ -81,6 +163,16 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(dateRuleIndex).toBeGreaterThan(voiceIndex);
     expect(prompt).toContain("사람인 척하거나 실제 결혼·상담 경험을 지어내지 마세요");
     expect(prompt).toContain("반영되지 않았다는 사실");
+  });
+
+  it("introduces Amora with the canonical AI wedding companion identity", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    expect(prompt).toContain("AI 결혼 준비 동반자");
+    expect(prompt).not.toContain("AI 파트너");
+    expect(prompt).not.toContain("AI 결혼 준비 도우미");
+    expect(prompt).not.toContain("옆에 붙어 있는 파트너");
+    expect(prompt).toContain("사람인 척하거나 실제 결혼·상담 경험을 지어내지 마세요");
   });
 
   it("does not force a robotic three-suggestion ending on every reply", () => {
@@ -280,6 +372,34 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(truncated).toContain("특정 형식을 고정하지 마세요");
     expect(truncated).toContain("현재 메시지를 따르세요");
     expect(truncated).not.toContain("현실적인 안 하나를 먼저 제시");
+  });
+
+  it("personalizes how Amora helps without changing the factual next-action priority", () => {
+    const promptFor = (supportOrder: "listen_first" | "action_first") =>
+      getWeddingPlannerSystemPrompt({
+        ...baseContext,
+        bookings: [],
+        helpPreference: {
+          decisionStart: "recommend_first",
+          answerDetail: "adaptive",
+          supportOrder,
+          workMode: "hybrid",
+          familyOrder: "couple_first",
+          toneStyle: "warm",
+        },
+      });
+
+    const listenFirst = promptFor("listen_first");
+    const actionFirst = promptFor("action_first");
+    const factualPriority =
+      "확정된 마감 → 다른 준비를 막는 일 → 승인 대기 → 현재 준비 단계";
+
+    expect(listenFirst).toContain("해결책부터 쏟지 말고");
+    expect(actionFirst).toContain("지금 할 수 있는 행동 하나를 먼저 정리");
+    expect(listenFirst).toContain(factualPriority);
+    expect(actionFirst).toContain(factualPriority);
+    expect(listenFirst).toContain("도움을 보여주는 순서만 조절");
+    expect(actionFirst).toContain("도움을 보여주는 순서만 조절");
   });
 
   it.each([
@@ -649,6 +769,50 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(w1Prompt).toContain(AMORA_MEDIATION_TURN_GUARD.trim());
     expect(w2Prompt).not.toContain(AMORA_MEDIATION_TURN_GUARD.trim());
     expect(w2Prompt).toContain("question_scope: W2_high_risk_adjacent");
+  });
+
+  it("adds adaptive decision depth to a current wedding question", () => {
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        specialist: "sangkyeonrye_advisor",
+        requestKind: "chat",
+        persistenceMode: "durable",
+        currentUserText: "상견례를 처음 준비하는데 놓치는 것까지 알려줘",
+        questionScope: {
+          scope: "W0_wedding_core",
+          allowsLongTermMemory: true,
+          confidence: "high",
+          needsClarification: false,
+        },
+      },
+    );
+
+    expect(prompt).toContain("[서버 확정 결혼 결정 깊이 계약]");
+    expect(prompt).toContain("decision_depth: comprehensive");
+    expect(prompt).toContain("decision_topic: family_meeting");
+  });
+
+  it("never lets decision depth widen a high-risk question scope", () => {
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        specialist: "contract_reviewer",
+        requestKind: "chat",
+        persistenceMode: "durable",
+        currentUserText: "상견례 계약이 법적으로 무효인지 전부 판단해줘",
+        questionScope: {
+          scope: "W2_high_risk_adjacent",
+          highRiskReason: "domain",
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        },
+      },
+    );
+
+    expect(prompt).toContain("question_scope: W2_high_risk_adjacent");
+    expect(prompt).not.toContain("[서버 확정 결혼 결정 깊이 계약]");
   });
 
   it("preserves mandatory current context and tool contracts before truncating the static playbook", () => {
@@ -1205,6 +1369,18 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(AMORA_MEDIATION_TURN_GUARD).toContain("상대방의 관점은 아직 확인되지 않았습니다");
     expect(prompt).not.toContain("두 분의 실제 발화를 읽고");
     expect(prompt).not.toContain("양쪽이 실제로 한 말");
+  });
+
+  it("turns a requester-only summary into one grounded question and small mutual options", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    expect(prompt).toContain("감정이 직접 표현되지 않았다면 감정 이름을 만들어 채우지 마세요");
+    expect(prompt).toContain("가장 크게 갈리는 기준 한 가지");
+    expect(prompt).toContain("상대방에게 직접 확인할 질문 한 가지");
+    expect(prompt).toContain("작고 되돌릴 수 있는 선택지");
+    expect(prompt).toContain("반씩 양보");
+    expect(prompt).toContain("각자 꼭 지키고 싶은 조건 하나와 조정 가능한 조건 하나");
+    expect(prompt).toContain("본문은 자연스러운 두 문장 이내");
   });
 
   it("keeps the warmer demo greeting honest about non-persistence", () => {

@@ -2,6 +2,7 @@ import {
   AMORA_USER_REQUESTED_MEDIATION_V2,
   readUserRequestedMediationV2,
 } from "@/lib/ai/mediation";
+import { hasUnsafeStoredMediationRenderContent } from "@hanbang/shared/mediation-render-safety";
 
 export interface MediationBlock {
   empathy?: string;
@@ -13,6 +14,7 @@ export interface MediationBlock {
   schemaVersion?: 2;
   proposalVersion?: string;
   rosterFingerprint?: string;
+  renderSafetyFallback?: true;
 }
 
 export interface ExpectedMediationRevision {
@@ -35,6 +37,9 @@ function normalizedField(value: unknown, maxLength = MAX_FIELD_LENGTH): string |
 export function normalizeMediationBlock(value: unknown): MediationBlock | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
+  if (hasUnsafeStoredMediationRenderContent(candidate)) {
+    return { renderSafetyFallback: true };
+  }
   const block: MediationBlock = {
     empathy: normalizedField(candidate.empathy),
     translation: normalizedField(candidate.translation),
@@ -68,7 +73,9 @@ export function getExpectedMediationRevision(
   block: MediationBlock,
 ): ExpectedMediationRevision | null {
   if (
-    !isRequesterSummaryMediationV2(block)
+    block.renderSafetyFallback === true
+    || hasUnsafeStoredMediationRenderContent(block)
+    || !isRequesterSummaryMediationV2(block)
     || typeof block.proposalVersion !== "string"
     || !UUID_PATTERN.test(block.proposalVersion)
     || typeof block.rosterFingerprint !== "string"

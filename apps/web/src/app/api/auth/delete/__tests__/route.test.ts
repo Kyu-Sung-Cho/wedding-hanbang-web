@@ -65,9 +65,10 @@ describe("/api/auth/delete DELETE", () => {
       body: JSON.stringify({ reason: "unsatisfied" }),
     }));
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(426);
+    expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toMatchObject({
-      code: "MUTATION_ACTOR_CONTRACT_INVALID",
+      code: "CLIENT_UPDATE_REQUIRED",
     });
     expect(checkRateLimitPersistent).not.toHaveBeenCalled();
     expect(requestAccountDeletion).not.toHaveBeenCalled();

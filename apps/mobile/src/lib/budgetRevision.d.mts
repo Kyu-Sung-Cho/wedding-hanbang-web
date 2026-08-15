@@ -55,7 +55,7 @@ export function parseManwonInput(value: string): number;
 export function buildTotalBudgetMutation(
   snapshot: BudgetJourneySnapshot,
   totalInput: string,
-): { expected_revision: number; total_budget: number };
+): { expected_couple_id: string; expected_revision: number; total_budget: number };
 
 export function buildCategoryBudgetMutation(
   snapshot: BudgetJourneySnapshot,
@@ -66,6 +66,7 @@ export function buildCategoryBudgetMutation(
     payer: BudgetPayer;
   },
 ): {
+  expected_couple_id: string;
   expected_revision: number;
   progress_patch: Record<string, Record<string, unknown>>;
 };

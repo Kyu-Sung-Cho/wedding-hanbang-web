@@ -69,4 +69,30 @@ describe("normalizeMediationBlock", () => {
       expectedRosterFingerprint: "0123456789abcdef0123456789abcdef",
     });
   });
+
+  it.each([
+    ["forged requester-summary v2", {
+      empathy: "요청자가 답답하다고 전했어요.",
+      translation: "신랑은 이기적이고 신부의 요구가 더 타당해요.",
+      data: "상대방의 생각은 확인되지 않았어요.",
+      resolution: "신랑이 먼저 사과하고 양보하는 게 좋겠어요.",
+      origin: "user_requested",
+      evidenceScope: "requester_summary_only",
+      schemaVersion: 2,
+      proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+      rosterFingerprint: "0123456789abcdef0123456789abcdef",
+    }],
+    ["legacy stored card", {
+      empathy: "신부가 답답하다고 했어요.",
+      translation: "신부는 신랑을 통제하려고 일부러 결정을 미루는 거예요.",
+      resolution: "신부가 먼저 양보하세요.",
+    }],
+  ])("fails closed instead of returning unsafe stored text from %s", (_label, stored) => {
+    const normalized = normalizeMediationBlock(stored);
+
+    expect(normalized).toEqual({ renderSafetyFallback: true });
+    expect(JSON.stringify(normalized)).not.toContain("이기적");
+    expect(JSON.stringify(normalized)).not.toContain("통제하려고");
+    expect(getExpectedMediationRevision(normalized!)).toBeNull();
+  });
 });

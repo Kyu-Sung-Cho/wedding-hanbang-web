@@ -1,3 +1,5 @@
+import type { PlanningCategoryKey } from "./weddingPlanning";
+
 /**
  * 사용자가 일정에서 직접 선택할 수 있는 아모라 케어 모먼트.
  * 예식일 기준 자동 모먼트는 별도로 계산하므로 임의 일정에 붙이지 않는다.
@@ -16,9 +18,32 @@ export const SCHEDULE_CARE_MOMENT_OPTIONS = [
 export type ScheduleCareMomentType =
   (typeof SCHEDULE_CARE_MOMENT_OPTIONS)[number]["value"];
 
+export type ScheduleCareCategoryKey = PlanningCategoryKey | "general";
+
+const SCHEDULE_CARE_MOMENT_CATEGORY_KEYS: Readonly<
+  Record<ScheduleCareMomentType, ScheduleCareCategoryKey>
+> = {
+  family_greeting: "meeting",
+  sanggyeonrye: "meeting",
+  venue_tour: "venue",
+  dress_tour: "dress",
+  studio_shoot: "studio",
+  dress_fitting: "dress",
+  invitation_meeting: "invitation",
+  first_holiday: "general",
+};
+
 export function isScheduleCareMomentType(
   value: unknown,
 ): value is ScheduleCareMomentType {
   return typeof value === "string"
     && SCHEDULE_CARE_MOMENT_OPTIONS.some((option) => option.value === value);
+}
+
+export function getCanonicalCategoryKeyForMoment(
+  value: unknown,
+): ScheduleCareCategoryKey | null {
+  return isScheduleCareMomentType(value)
+    ? SCHEDULE_CARE_MOMENT_CATEGORY_KEYS[value]
+    : null;
 }

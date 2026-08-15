@@ -25,6 +25,8 @@ const CORE_COOKIE_MUTATIONS = [
   { file: "../app/api/auth/delete/route.ts", verbs: ["DELETE"] },
   { file: "../app/api/auth/password/route.ts", verbs: ["PATCH"] },
   { file: "../app/api/journey/route.ts", verbs: ["PATCH"] },
+  { file: "../app/api/bookings/[id]/inquiry-handoff/route.ts", verbs: ["PATCH"] },
+  { file: "../app/api/amora/couple-criterion/route.ts", verbs: ["POST", "PATCH", "DELETE"] },
   { file: "../app/api/events/route.ts", verbs: ["POST"] },
   { file: "../app/api/community/upload/route.ts", verbs: ["POST"] },
   { file: "../app/api/community/upload/finalize/route.ts", verbs: ["POST"] },

@@ -83,6 +83,8 @@ const checks = {
     env.AMORA_CONVERSATION_SEGMENT_READ_ENABLED === "false",
   todayOneDisabledForExpandDeploy:
     env.AMORA_TODAY_ONE_ENABLED === "false",
+  mediationOutcomeFollowUpDisabledForExpandDeploy:
+    env.AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED === "false",
   aiLogRetentionCronDisabledForExpandDeploy:
     env.AI_LOG_RETENTION_CRON_ENABLED === "false",
   accountDeletionIntakeDisabledForExpandDeploy:

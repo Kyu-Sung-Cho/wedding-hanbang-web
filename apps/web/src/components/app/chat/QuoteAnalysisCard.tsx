@@ -13,6 +13,8 @@ import {
   Shield,
 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { buildCanonicalQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
+import type { AmoraQuoteCategory, AmoraQuoteRegion } from "@/lib/amora/quoteCheck";
 
 interface QuoteAnalysisCardProps {
   result: ToolExecutionResult;
@@ -57,6 +59,64 @@ interface MissingItem {
   disguise: string;
 }
 
+interface CurrentMarketEvidence {
+  medianManwon: number;
+  comparatorLabel: string;
+  observationCount: number;
+  vendorCount: number;
+  sourcePeriod: string;
+  sourceUrl: string;
+  calculation: string;
+  comparisonBasis: string;
+  limitation: string;
+}
+
+function readCurrentMarketEvidence(
+  data: Record<string, unknown>,
+): CurrentMarketEvidence | null {
+  const medianManwon = data.marketMedian;
+  const comparatorLabel = data.marketComparatorLabel;
+  const evidence = data.marketEvidence;
+  if (
+    typeof medianManwon !== "number"
+    || !Number.isFinite(medianManwon)
+    || medianManwon <= 0
+    || typeof comparatorLabel !== "string"
+    || comparatorLabel.length === 0
+    || !evidence
+    || typeof evidence !== "object"
+    || Array.isArray(evidence)
+  ) return null;
+
+  const value = evidence as Record<string, unknown>;
+  if (
+    value.status !== "available"
+    || value.source !== "한국소비자원 참가격"
+    || typeof value.sourceUrl !== "string"
+    || !value.sourceUrl.startsWith("https://price.go.kr/")
+    || typeof value.sourcePeriod !== "string"
+    || typeof value.calculation !== "string"
+    || typeof value.comparisonBasis !== "string"
+    || typeof value.limitation !== "string"
+    || !Number.isInteger(value.observationCount)
+    || !Number.isInteger(value.vendorCount)
+    || (value.observationCount as number) < 3
+    || (value.vendorCount as number) < 3
+  ) return null;
+
+  return {
+    medianManwon,
+    comparatorLabel,
+    observationCount: value.observationCount as number,
+    vendorCount: value.vendorCount as number,
+    sourcePeriod: value.sourcePeriod,
+    sourceUrl: value.sourceUrl,
+    calculation: value.calculation,
+    comparisonBasis: value.comparisonBasis,
+    limitation: value.limitation,
+  };
+}
+
 export default function QuoteAnalysisCard({ result, onSend, disabled }: QuoteAnalysisCardProps) {
   const data = result.toolOutput as Record<string, unknown>;
   const mode = (data.mode as string) || "analysis";
@@ -70,7 +130,8 @@ export default function QuoteAnalysisCard({ result, onSend, disabled }: QuoteAna
 // ===== 체크리스트 모드 =====
 function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknown>; onSend?: (text: string) => void; disabled?: boolean }) {
   const quotePrice = (data.quotePrice as number) || 0;
-  const category = (data.category as string) || "sdm_package";
+  const category = (data.category as AmoraQuoteCategory) || "sdm_package";
+  const region = (data.region as AmoraQuoteRegion) || "seoul";
   const vendorName = (data.vendorName as string) || "";
   const checklistItems = (data.checklistItems as ChecklistItem[]) || [];
   const [submitted, setSubmitted] = useState(false);
@@ -88,15 +149,26 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
 
   const handleSubmit = () => {
     if (!onSend) return;
-    setSubmitted(true);
+    const includedItemIds = checklistItems.filter((item) => itemStates[item.id] === "included").map((item) => item.id);
+    const notNeededItemIds = checklistItems.filter((item) => itemStates[item.id] === "not_needed").map((item) => item.id);
+    const unknownItemIds = checklistItems.filter((item) => itemStates[item.id] === "unknown").map((item) => item.id);
 
-    const included = checklistItems.filter((i) => itemStates[i.id] === "included").map((i) => i.name);
-    const notNeeded = checklistItems.filter((i) => itemStates[i.id] === "not_needed").map((i) => i.name);
-    const unknown = checklistItems.filter((i) => itemStates[i.id] === "unknown").map((i) => i.name);
-
-    // AI에게 체크 결과를 보냄
-    const msg = `[quote_analysis] 견적 ${quotePrice}만원 (${vendorName || CATEGORY_LABELS[category]}) 항목 상태:\n포함: ${included.length > 0 ? included.join(", ") : "없음"}\n이용 안 함: ${notNeeded.length > 0 ? notNeeded.join(", ") : "없음"}\n확인 필요: ${unknown.length > 0 ? unknown.join(", ") : "없음"}`;
-    onSend(msg);
+    try {
+      onSend(buildCanonicalQuoteAnalysisMessage({
+        category,
+        region,
+        quotePriceManwon: quotePrice,
+        vendorName,
+        includedItemIds,
+        notNeededItemIds,
+        unknownItemIds,
+      }));
+      setSubmitted(true);
+    } catch {
+      // 오래된/불완전한 체크리스트 결과는 전송하지 않는다. 새 체크리스트를
+      // 요청하면 서버가 현재 category/region 기준의 전체 항목을 다시 만든다.
+      onSend("견적 체크리스트를 현재 기준으로 다시 열어줘");
+    }
   };
 
   const [showMore, setShowMore] = useState(false);
@@ -292,6 +364,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
   const notNeededItems = (data.notNeededItems as { name: string; category: string; severity: string }[]) || [];
   const statsNote = "가격 적정성을 판정하지 않습니다. 계약 항목 확인용 체크리스트입니다.";
   const vendorName = (data.vendorName as string) || "";
+  const marketEvidence = readCurrentMarketEvidence(data);
 
   const missingCritical = missingItems.filter((i) => i.severity === "critical");
   const missingHigh = missingItems.filter((i) => i.severity === "high");
@@ -326,8 +399,14 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
           <p className="text-lg font-semibold text-[#1A1A1F] mt-1">{quotePrice}만</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">업체 공시가</p>
-          <p className="text-sm font-semibold text-[#1A1A1F] mt-1">별도 확인</p>
+          <p className="text-sm text-[#B5ADA3]">
+            {marketEvidence ? "공시 기본가 하한 참고값" : "업체 공시가"}
+          </p>
+          <p className="text-sm font-semibold text-[#1A1A1F] mt-1">
+            {marketEvidence
+              ? `${marketEvidence.medianManwon.toLocaleString("ko-KR")}만`
+              : "별도 확인"}
+          </p>
         </div>
         <div className="px-3 py-3.5 text-center">
           <p className="text-sm text-[#B5ADA3]">먼저 확인</p>
@@ -337,11 +416,36 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         </div>
       </div>
 
-      {/* 가격 참고 — 과거 고정 평균가가 저장된 채팅에서도 수치를 재노출하지 않는다. */}
+      {/* 완전한 현재 공시 근거가 함께 있을 때만 자체 계산 참고값을 표시한다. */}
       <div className="px-5 py-3.5 border-b border-black/[0.06]">
-        <p className="text-sm text-[#1A1A1F]">
-          최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인해 주세요.
-        </p>
+        {marketEvidence ? (
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-[#1A1A1F]">
+              {marketEvidence.comparatorLabel}
+            </p>
+            <p className="text-xs leading-relaxed text-[#635B51]">
+              {marketEvidence.sourcePeriod} · 공시 {marketEvidence.observationCount}건 · 업체·대행사 {marketEvidence.vendorCount}곳
+            </p>
+            <p className="text-xs leading-relaxed text-[#635B51]">
+              {marketEvidence.calculation}. {marketEvidence.comparisonBasis}.
+            </p>
+            <p className="text-xs leading-relaxed text-[#928980]">
+              {marketEvidence.limitation}
+            </p>
+            <a
+              href={marketEvidence.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center text-xs font-semibold text-[#8F6662] underline underline-offset-2"
+            >
+              한국소비자원 참가격 원문 보기
+            </a>
+          </div>
+        ) : (
+          <p className="text-sm text-[#1A1A1F]">
+            최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인해 주세요.
+          </p>
+        )}
       </div>
 
       {/* 아직 확인하지 않은 항목 */}

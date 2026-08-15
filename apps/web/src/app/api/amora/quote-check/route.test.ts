@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   createAdminClient: vi.fn(),
+  loadPublicPriceCatalog: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -14,6 +15,14 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
+}));
+
+vi.mock("@/lib/supabase/public", () => ({
+  createPublicClient: () => ({ kind: "public-client" }),
+}));
+
+vi.mock("@/lib/price/publicListData", () => ({
+  loadPublicPriceCatalog: mocks.loadPublicPriceCatalog,
 }));
 
 vi.mock("@/utils/rateLimit", () => ({
@@ -47,6 +56,58 @@ function request(extra: Record<string, unknown> = {}) {
 describe("POST /api/amora/quote-check consent boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.loadPublicPriceCatalog.mockRejectedValue(new Error("catalog unavailable"));
+  });
+
+  it("uses the reviewed public catalog for a comparable checklist without storing the quote", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null } });
+    mocks.loadPublicPriceCatalog.mockResolvedValue({
+      periodLabel: "2025년 11월",
+      categories: {
+        studio: [100, 200, 300].map((minimumManwon, index) => ({
+          id: `vendor-${index}`,
+          slug: `vendor-${index}`,
+          name: `공시 업체 ${index}`,
+          aliases: [],
+          category: "studio",
+          regionCode: "seoul_etc",
+          regionCodes: ["seoul_etc"],
+          offers: [{
+            id: `offer-${index}`,
+            agencyId: `agency-${index}`,
+            agencyName: `공시 대행사 ${index}`,
+            regionCode: "seoul_etc",
+            minimumKrw: minimumManwon * 10_000,
+            maximumKrw: minimumManwon * 10_000,
+            priceNote: null,
+            baseSpec: "기본 구성",
+            options: [],
+          }],
+        })),
+        dress: [],
+        makeup: [],
+        hall: [],
+      },
+      counts: { studio: 3, dress: 0, makeup: 0, hall: 0 },
+      agencies: [],
+    });
+
+    const response = await POST(request({ region: "seoul" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.storageStatus).toBe("not_stored");
+    expect(body.analysis.marketMedianManwon).toBe(200);
+    expect(body.analysis.marketEvidence).toMatchObject({
+      status: "available",
+      observationCount: 3,
+      vendorCount: 3,
+      source: "한국소비자원 참가격",
+    });
+    expect(mocks.loadPublicPriceCatalog).toHaveBeenCalledWith(
+      { kind: "public-client" },
+      { optionCategories: [], priceCategories: ["studio"] },
+    );
   });
 
   it("does not open an admin storage path for an authenticated user without opt-in", async () => {

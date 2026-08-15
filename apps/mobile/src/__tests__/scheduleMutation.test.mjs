@@ -24,8 +24,9 @@ const SECOND_EVENT = Object.freeze({
 
 test("a mobile schedule patch always carries the exact journey revision", () => {
   assert.deepEqual(
-    buildScheduleProgressPatch(7, [FIRST_EVENT]),
+    buildScheduleProgressPatch("11111111-1111-4111-8111-111111111111", 7, [FIRST_EVENT]),
     {
+      expected_couple_id: "11111111-1111-4111-8111-111111111111",
       expected_revision: 7,
       progress_patch: { __events: [FIRST_EVENT] },
     },
@@ -33,13 +34,13 @@ test("a mobile schedule patch always carries the exact journey revision", () => 
 
   for (const revision of [-1, 1.5, "7", Number.MAX_SAFE_INTEGER]) {
     assert.throws(
-      () => buildScheduleProgressPatch(revision, [FIRST_EVENT]),
+      () => buildScheduleProgressPatch("11111111-1111-4111-8111-111111111111", revision, [FIRST_EVENT]),
       /INVALID_JOURNEY_REVISION/,
     );
   }
 
   assert.throws(
-    () => buildScheduleProgressPatch(7, [FIRST_EVENT, FIRST_EVENT]),
+    () => buildScheduleProgressPatch("11111111-1111-4111-8111-111111111111", 7, [FIRST_EVENT, FIRST_EVENT]),
     /DUPLICATE_SCHEDULE_EVENT_ID/,
   );
   for (const malformed of [
@@ -49,7 +50,7 @@ test("a mobile schedule patch always carries the exact journey revision", () => 
     { ...FIRST_EVENT, momentType: "future\u200bsupported_moment" },
   ]) {
     assert.throws(
-      () => buildScheduleProgressPatch(7, [malformed]),
+      () => buildScheduleProgressPatch("11111111-1111-4111-8111-111111111111", 7, [malformed]),
       /INVALID_SCHEDULE_EVENT/,
     );
   }
@@ -224,7 +225,7 @@ test("malformed cancellation audit data is rejected before any journey patch", (
     },
   };
 
-  assert.doesNotThrow(() => buildScheduleProgressPatch(7, [base]));
+  assert.doesNotThrow(() => buildScheduleProgressPatch("11111111-1111-4111-8111-111111111111", 7, [base]));
   for (const event of [
     { ...base, cancellation: undefined },
     { ...base, cancellation: { ...base.cancellation, unexpected: true } },
@@ -235,7 +236,7 @@ test("malformed cancellation audit data is rejected before any journey patch", (
     { ...FIRST_EVENT, status: "planned", cancellation: base.cancellation },
   ]) {
     assert.throws(
-      () => buildScheduleProgressPatch(7, [event]),
+      () => buildScheduleProgressPatch("11111111-1111-4111-8111-111111111111", 7, [event]),
       /INVALID_SCHEDULE_EVENT_CANCELLATION/,
     );
   }

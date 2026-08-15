@@ -16,6 +16,10 @@ import {
   isRequesterSummaryMediationV2,
   type MediationBlock,
 } from "./mediationBlock";
+import {
+  hasUnsafeStoredMediationRenderContent,
+  MEDIATION_RENDER_SAFETY_FALLBACK,
+} from "@hanbang/shared/mediation-render-safety";
 
 export type { MediationBlock } from "./mediationBlock";
 
@@ -35,6 +39,8 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
   const [saving, setSaving] = useState<"accept" | "revoke" | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const expectedRevision = getExpectedMediationRevision(block);
+  const renderSafetyFallback = block.renderSafetyFallback === true
+    || hasUnsafeStoredMediationRenderContent(block);
   const isRequesterSummaryV2 = isRequesterSummaryMediationV2(block);
   const expectedProposalVersion = expectedRevision?.expectedProposalVersion;
   const expectedRosterFingerprint = expectedRevision?.expectedRosterFingerprint;
@@ -127,6 +133,19 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
     } finally {
       setSaving(null);
     }
+  }
+
+  if (renderSafetyFallback) {
+    return (
+      <section
+        aria-label="표시가 제한된 조율 초안"
+        className="mt-3 overflow-hidden rounded-2xl border border-[#E2D3C8] bg-[#FFFDF9] px-4 py-4"
+      >
+        <p role="alert" className="text-sm leading-relaxed text-[#6D625B]">
+          {MEDIATION_RENDER_SAFETY_FALLBACK}
+        </p>
+      </section>
+    );
   }
 
   const sections = (isRequesterSummaryV2

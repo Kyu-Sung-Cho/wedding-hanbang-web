@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   buildTodayOneScheduleCandidates,
@@ -127,6 +128,31 @@ describe("in-app TodayOne schedule candidate compiler", () => {
     expect(candidates).toEqual([]);
   });
 
+  it("keeps a completed family event only for its D+1 review card", () => {
+    const candidates = buildTodayOneScheduleCandidates({
+      progress: {
+        __events: [event("evt_completed_sanggyeonrye", {
+          date: "2026-08-01",
+          title: "상견례",
+          status: "completed",
+        })],
+      },
+      stateRevision: 2,
+      now: NOW,
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      sourceEventId: "evt_completed_sanggyeonrye",
+      kind: "schedule_moment",
+      attentionWindow: "dAfter",
+      care: {
+        momentType: "sanggyeonrye",
+        attentionWindow: "dAfter",
+      },
+    });
+  });
+
   it("uses KST day boundaries and reports only confirmed schedule facts", () => {
     const candidates = buildTodayOneScheduleCandidates({
       progress: { __events: [event("evt_a")] },
@@ -143,6 +169,187 @@ describe("in-app TodayOne schedule candidate compiler", () => {
     });
     expect(candidates[0].unknown[0]).toContain("최신 변경 여부");
     expect(candidates[0].impact).toContain("실제 일정이나 외부 서비스는 바꾸지 않아요");
+  });
+
+  it("preserves the structured D-1 care for a parents' meeting instead of reducing it to title and date", () => {
+    const candidates = buildTodayOneScheduleCandidates({
+      progress: { __events: [event("evt_sanggyeonrye", { title: "부모님 첫 만남" })] },
+      stateRevision: 2,
+      now: NOW,
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      kind: "schedule_moment",
+      care: {
+        version: 1,
+        momentType: "sanggyeonrye",
+        attentionWindow: "d1",
+        guidance: "내일 양쪽 부모님이 함께 만나. 서로 편하게 대화할 수 있도록 필요한 것만 마지막으로 맞춰보자.",
+        checklist: [
+          "예약·참석 인원 최종 확인",
+          "이동이 불편한 분을 고려해 좌석·접근성 확인",
+          "오늘 다룰 주제와 피하고 싶은 주제를 파트너와 합의",
+          "식사비 결제 방식은 당사자끼리 미리 합의",
+          "대화가 부담스러울 때 쉬어갈 신호 정하기",
+        ],
+        script: "내일 ○시에 ○○로 예약했어요. 편하게 인사 나누는 자리로 생각해 주세요. 자세한 결정은 저희가 정리해서 다시 말씀드릴게요.",
+        relatedChecklist: {
+          categoryKey: "meeting",
+          categoryLabel: "부모님 첫 만남",
+        },
+        evidence: {
+          refs: [
+            { key: "canonical_schedule_event", label: "사용자가 저장한 일정" },
+            { key: "canonical_checklist_category", label: "부모님 첫 만남 체크리스트" },
+            { key: "curated_family_coordination_guidance", label: "가족 행사 중립 안내" },
+          ],
+          limitations: [
+            "가족마다 관습과 기대가 달라 정답으로 단정하지 않아요.",
+            "저장된 일정 밖의 최신 변경은 직접 확인해야 해요.",
+          ],
+        },
+      },
+    });
+  });
+
+  it("preserves checklist-only dress fitting care for D-1 without money or follow-up fields", () => {
+    const scheduledEvent = event("evt_dress_fitting", {
+      title: "드레스 수선·최종 확인",
+      momentType: "dress_fitting",
+      categoryKey: "dress",
+    });
+    const candidates = buildTodayOneScheduleCandidates({
+      progress: { __events: [scheduledEvent] },
+      stateRevision: 6,
+      now: NOW,
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      kind: "schedule_moment",
+      attentionWindow: "d1",
+      care: {
+        version: 1,
+        momentType: "dress_fitting",
+        attentionWindow: "d1",
+        guidance: "내일 드레스 수선 상태를 확인해. 입어보기만 하지 말고 실제로 움직여보자.",
+        checklist: [
+          "매장에서 요청했다면 결혼식 날 신을 높이와 비슷한 신발",
+          "파트너와 함께 입는다면 전체 비율 확인",
+          "앉기·걷기·팔 들기 테스트",
+          "면사포·장갑 등 함께 빌릴 물품 최종 확정",
+        ],
+        relatedChecklist: {
+          categoryKey: "dress",
+          categoryLabel: "드레스·예식 정장",
+        },
+      },
+    });
+    expect(candidates[0].care).not.toHaveProperty("relatedBudget");
+    expect(candidates[0].care).not.toHaveProperty("question");
+    expect(JSON.stringify(candidates[0].care)).not.toMatch(/계약|추가금|해지|위약|환불|예산/);
+
+    const semanticSnapshot = {
+      version: 1,
+      cellKind: "d1",
+      momentDate: "2026-08-03",
+      event: {
+        id: scheduledEvent.id,
+        date: scheduledEvent.date,
+        time: scheduledEvent.time,
+        title: scheduledEvent.title,
+        memo: null,
+        categoryKey: "dress",
+        sourceKey: null,
+        momentType: "dress_fitting",
+        status: "planned",
+        completionCriteria: null,
+        assignee: null,
+      },
+      care: candidates[0].care,
+    };
+    expect(candidates[0].sourceStateDigest).toBe(
+      createHash("sha256").update(JSON.stringify(semanticSnapshot), "utf8").digest("hex"),
+    );
+  });
+
+  it("keeps dress fitting D+1 generic and does not expose the catalog's fee question", () => {
+    const candidates = buildTodayOneScheduleCandidates({
+      progress: {
+        __events: [event("evt_dress_fitting_after", {
+          date: "2026-08-01",
+          title: "드레스 수선·최종 확인",
+          momentType: "dress_fitting",
+          categoryKey: "dress",
+          status: "completed",
+        })],
+      },
+      stateRevision: 7,
+      now: NOW,
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      kind: "schedule_moment",
+      attentionWindow: "dAfter",
+      nextAction: { label: "일정 열기", href: "/schedule" },
+    });
+    expect(candidates[0]).not.toHaveProperty("care");
+    expect(JSON.stringify(candidates[0])).not.toMatch(/직원 비용|예산|계약|추가금/);
+  });
+
+  it("preserves the D+1 question for a first family greeting without inventing a script", () => {
+    const candidates = buildTodayOneScheduleCandidates({
+      progress: {
+        __events: [event("evt_family_greeting", {
+          date: "2026-08-01",
+          title: "가족 첫인사",
+          momentType: "family_greeting",
+        })],
+      },
+      stateRevision: 3,
+      now: NOW,
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      care: {
+        version: 1,
+        momentType: "family_greeting",
+        attentionWindow: "dAfter",
+        guidance: "어제 잘 다녀왔어? 고생했어.",
+        checklist: [],
+        question: "분위기는 어땠어? 다음 만남에도 참고하고 싶은 호칭이나 취향이 있었다면, 저장해도 되는 내용만 알려줘.",
+        relatedChecklist: {
+          categoryKey: "meeting",
+          categoryLabel: "부모님 첫 만남",
+        },
+      },
+    });
+    expect(candidates[0].care).not.toHaveProperty("script");
+  });
+
+  it("preserves the legacy card shape for moments outside the first family-care vertical", () => {
+    const candidates = buildTodayOneScheduleCandidates({
+      progress: {
+        __events: [event("evt_dress", {
+          title: "드레스 매장 방문",
+          momentType: "dress_tour",
+        })],
+      },
+      stateRevision: 4,
+      now: NOW,
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      kind: "schedule_moment",
+      whyNow: "내일 드레스 매장 방문 일정이 있어요.",
+      confirmed: ["일정: 드레스 매장 방문", "날짜: 2026-08-03 18:00"],
+      nextAction: { label: "일정 열기", href: "/schedule" },
+    });
+    expect(candidates[0]).not.toHaveProperty("care");
   });
 
   it("bounds candidate work and never derives a budget-over card", () => {

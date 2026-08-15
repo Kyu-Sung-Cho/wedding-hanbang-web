@@ -374,6 +374,26 @@ describe("Amora pending actions", () => {
     expect(prompt).not.toContain('"confirmation"');
   });
 
+  it("tells the provider not to reopen a fully server-bound first action", () => {
+    const prompt = buildAmoraPendingActionPrompt(
+      ["add_amora_action"],
+      ["add_amora_action"],
+    );
+
+    expect(prompt).toContain("서버가 입력값을 모두 고정한 도구: add_amora_action");
+    expect(prompt).toContain("추가 값을 묻거나 만들지 말고");
+    expect(prompt).toContain("pending_action 표식 하나만");
+  });
+
+  it("does not describe a partially bound proposal as fully fixed", () => {
+    const prompt = buildAmoraPendingActionPrompt(
+      ["add_schedule_event"],
+      [],
+    );
+
+    expect(prompt).not.toContain("서버가 입력값을 모두 고정한 도구");
+  });
+
   // 같은 확정 발화도 첫 턴이면 표식을 내고, 앞 턴에서 다른 도구가 빈 결과를
   // 냈거나 이미 표식을 낸 뒤면 "도구가 없다"며 거절하는 일이 운영에서 관측됐다
   // (2026-07-25 실계정 E2E). 사용자는 이를 제품이 원래 못 하는 것으로 읽는다.

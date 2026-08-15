@@ -1,3 +1,7 @@
+import {
+  TODAY_ONE_SCHEDULE_CARE_CONTRACT_VERSION,
+  type TodayOneScheduleCarePayload,
+} from "@hanbang/shared";
 import { MOMENTS, WEDDING_RELATIVE_MOMENTS, type MomentCell, type MomentDefinition, type MomentType } from "@/constants/moments";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { ymdInKst, kstMidnightFromYmd, addDaysUtc } from "@/lib/utils/kstDate";
@@ -29,6 +33,8 @@ export interface DueMomentCell {
   /** D+1 셀일 때 기억 저장 대상 키 */
   memoryKeys: string[];
   priority: number;
+  /** 구조를 잃지 않고 TodayOne 카드까지 전달할 수 있는 제한된 케어 내용. */
+  care?: TodayOneScheduleCarePayload;
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
@@ -80,6 +86,50 @@ function cellPriority(def: MomentDefinition, cellKind: MomentCellKind): number {
   return base + (def.moneyInvolved ? 10 : 0);
 }
 
+function buildStructuredCare(
+  def: MomentDefinition,
+  cell: MomentCell,
+  cellKind: MomentCellKind,
+): TodayOneScheduleCarePayload | undefined {
+  const definition = def.todayOneCare;
+  if (
+    !definition
+    || !definition.attentionWindows.some((attentionWindow) => attentionWindow === cellKind)
+  ) return undefined;
+
+  const common = {
+    version: TODAY_ONE_SCHEDULE_CARE_CONTRACT_VERSION,
+    attentionWindow: cellKind,
+    guidance: cell.message,
+    checklist: [...(cell.checklist ?? [])],
+    ...(cell.script ? { script: cell.script } : {}),
+    evidence: {
+      refs: definition.evidence.refs.map((ref) => ({ ...ref })),
+      limitations: [...definition.evidence.limitations],
+    },
+  };
+
+  if (definition.momentType === "dress_fitting") {
+    if (cellKind !== "d3" && cellKind !== "d1") return undefined;
+    return {
+      ...common,
+      momentType: definition.momentType,
+      attentionWindow: cellKind,
+      relatedChecklist: { ...definition.relatedChecklist },
+    };
+  }
+
+  return {
+    ...common,
+    momentType: definition.momentType,
+    ...(cell.question ? { question: cell.question } : {}),
+    relatedChecklist: { ...definition.relatedChecklist },
+    ...(definition.relatedBudget
+      ? { relatedBudget: { ...definition.relatedBudget } }
+      : {}),
+  };
+}
+
 function buildCell(
   def: MomentDefinition,
   cellKind: MomentCellKind,
@@ -88,6 +138,7 @@ function buildCell(
 ): DueMomentCell | null {
   const cell = cellKind === "d3" ? def.d3 : cellKind === "d1" ? def.d1 : def.dAfter;
   if (!cell) return null;
+  const care = buildStructuredCare(def, cell, cellKind);
   return {
     momentType: def.type,
     momentLabel: def.label,
@@ -100,6 +151,7 @@ function buildCell(
     message: composeMessage(cell),
     memoryKeys: cellKind === "dAfter" ? def.memoryKeys : [],
     priority: cellPriority(def, cellKind),
+    ...(care ? { care } : {}),
   };
 }
 
@@ -132,16 +184,18 @@ export function buildDueMomentCells(input: BuildMomentCellsInput): DueMomentCell
   // 1) 유저 일정 입력 기반 모멘트 (momentType 태깅된 이벤트)
   const events: ScheduleEvent[] = getEvents(progress);
   for (const event of events) {
-    // 완료·취소 일정은 더 이상 출발 전 확인이나 사후 안부의 근거가
-    // 아니다. 특히 취소 기록은 감사 이력을 보존하되 케어 후보에서는
-    // 반드시 제외한다.
-    if (getScheduleEventStatus(event) !== "planned") continue;
+    // 취소 기록은 감사 이력만 보존하고 케어 후보에서는 제외한다.
+    // 완료 기록은 출발 전 독촉에는 쓰지 않되, 실제로 지나간 일정의
+    // D+1 안부·회고 근거로는 한 번 사용할 수 있어야 한다.
+    const eventStatus = getScheduleEventStatus(event);
+    if (eventStatus === "cancelled") continue;
     if (!event.momentType) continue;
     const def = MOMENTS[event.momentType as MomentType];
     if (!def || def.trigger !== "event") continue;
     const momentDate = toKstMidnight(event.date);
     if (!momentDate) continue;
     const due = dueCellForDate(def, momentDate, today, event.id);
+    if (eventStatus === "completed" && due?.cellKind !== "dAfter") continue;
     if (due) cells.push(due);
   }
 

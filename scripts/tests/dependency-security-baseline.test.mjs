@@ -38,7 +38,7 @@ test("dependency security floors and compatibility patches stay pinned", async (
     '"dompurify@<=3.4.12": "3.4.13"',
     '"js-yaml@>=3.0.0 <3.15.1": "3.15.1"',
     '"js-yaml@>=4.0.0 <4.3.1": "4.3.1"',
-    '"nanoid@<3.3.17": "3.3.17"',
+    '"nanoid@<3.3.18": "3.3.18"',
     'brace-expansion: "5.0.9"',
     'fast-uri: "3.1.5"',
     'sharp: "0.35.0"',

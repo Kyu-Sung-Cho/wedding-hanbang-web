@@ -1,4 +1,5 @@
 import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
+import { hasUnsafeStoredMediationRenderContent } from "@hanbang/shared/mediation-render-safety";
 import { apiJson } from "./api";
 
 export interface MediationBlock {
@@ -14,6 +15,7 @@ export interface MediationBlock {
    * 일방적 진술을 "두 분의 대화"라고 부르고 있었다.
    */
   requesterSummaryOnly?: boolean;
+  renderSafetyFallback?: true;
 }
 
 export interface MediationAcceptanceState {
@@ -44,6 +46,12 @@ function normalizedField(value: unknown, maxLength = MAX_FIELD_LENGTH): string |
 export function normalizeMediationBlock(value: unknown): MediationBlock | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
+  if (hasUnsafeStoredMediationRenderContent(candidate)) {
+    return {
+      renderSafetyFallback: true,
+      requesterSummaryOnly: false,
+    };
+  }
   const block: MediationBlock = {
     empathy: normalizedField(candidate.empathy),
     translation: normalizedField(candidate.translation),
@@ -71,7 +79,10 @@ export function getExpectedMediationRevision(
   block: MediationBlock,
 ): ExpectedMediationRevision | null {
   if (
-    typeof block.proposalVersion !== "string"
+    block.renderSafetyFallback === true
+    || block.requesterSummaryOnly !== true
+    || hasUnsafeStoredMediationRenderContent(block)
+    || typeof block.proposalVersion !== "string"
     || !UUID_PATTERN.test(block.proposalVersion)
     || typeof block.rosterFingerprint !== "string"
     || !ROSTER_FINGERPRINT_PATTERN.test(block.rosterFingerprint)

@@ -467,6 +467,54 @@ describe("runAmoraProviderCallWithLedger", () => {
     }));
   });
 
+  it.each([
+    ["ordinary", { suggestions: ["next"] }],
+    ["first-use", {
+      amora_first_use_promotion_id:
+        "90000000-0000-4000-8000-000000000001",
+      pending_amora_action: { tool: "add_amora_action" },
+    }],
+    ["untrusted marker", { amora_first_use_promotion_id: "not-a-uuid" }],
+  ])("routes %s atomic terminal metadata through the same lock order", async (
+    _caseName,
+    metadata,
+  ) => {
+    const { rpc } = makeAdmin();
+    const requestKey =
+      "chat:10000000-0000-4000-8000-000000000001:70000000-0000-4000-8000-000000000010";
+
+    await runAmoraProviderCallWithLedger(
+      { ...context, requestKey },
+      async (beforeGeneration) => {
+        await beforeGeneration();
+        return successResult();
+      },
+      {
+        buildAtomicChatResponse: () => ({
+          coupleId: context.coupleId,
+          userId: context.userId,
+          requestKey,
+          visibility: "shared",
+          claimAttemptCount: 1,
+          expectedPrivacyEpoch: 7,
+          content: "terminal answer",
+          metadata,
+          stageTag: "exploring",
+          specialistType: "general",
+        }),
+      },
+    );
+
+    expect(rpc).toHaveBeenCalledWith(
+      "finalize_amora_chat_response_with_privacy_fence",
+      expect.objectContaining({ p_message_metadata: metadata }),
+    );
+    expect(
+      rpc.mock.calls.some(([name]) =>
+        name === "finalize_amora_chat_response_with_privacy_fence_inner_v1"),
+    ).toBe(false);
+  });
+
   it("retries the same token-fenced atomic terminal commit and never falls back to split settlement", async () => {
     const failure = { data: null, error: { message: "connection lost" } };
     const committed = {

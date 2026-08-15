@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   requestSharedClear: vi.fn(),
   retryFailedMessage: vi.fn(),
   dismissFailedMessageRetry: vi.fn(),
+  applyMediationSafetyFence: vi.fn(),
   setChatState: vi.fn(),
   messages: [] as ChatMessage[],
   suggestions: [] as string[],
@@ -145,6 +146,7 @@ vi.mock("@/stores/chatStore", () => {
     requestSharedClear: mocks.requestSharedClear,
     retryFailedMessage: mocks.retryFailedMessage,
     dismissFailedMessageRetry: mocks.dismissFailedMessageRetry,
+    applyMediationSafetyFence: mocks.applyMediationSafetyFence,
   };
   const useChatStore = Object.assign(
     () => state,

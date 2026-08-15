@@ -8,6 +8,7 @@ import {
 } from "@/lib/amora/actionRepository";
 import {
   getAmoraActions,
+  parseAmoraActionDueDateInput,
   withUpdatedAmoraAction,
   type AmoraActionItem,
   type AmoraActionPriority,
@@ -124,7 +125,16 @@ export async function PATCH(
       updates.title = title;
     }
     if (body.description !== undefined) updates.description = cleanOptionalText(body.description, 500) ?? "";
-    if (body.due_date !== undefined) updates.dueDate = cleanOptionalText(body.due_date, 40) ?? "";
+    if (body.due_date !== undefined) {
+      const parsedDueDate = parseAmoraActionDueDateInput(body.due_date);
+      if (!parsedDueDate.ok) {
+        return NextResponse.json(
+          { error: "마감일을 YYYY-MM-DD 형식의 실제 날짜로 알려 주세요." },
+          { status: 400 },
+        );
+      }
+      updates.dueDate = parsedDueDate.dueDate ?? "";
+    }
     if (body.category_key !== undefined) updates.categoryKey = cleanOptionalText(body.category_key, 80) ?? "";
     if (body.priority !== undefined) {
       const priority = cleanOptionalEnum(body.priority, PRIORITY_VALUES) as AmoraActionPriority | null;

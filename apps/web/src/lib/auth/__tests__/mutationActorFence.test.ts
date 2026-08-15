@@ -29,8 +29,8 @@ describe("mutation actor rollout fence", () => {
       allowLegacy: false,
     })).toMatchObject({
       ok: false,
-      status: 400,
-      code: "MUTATION_ACTOR_CONTRACT_INVALID",
+      status: 426,
+      code: "CLIENT_UPDATE_REQUIRED",
     });
   });
 

@@ -216,6 +216,44 @@ function hasOnlyDeclaredTopLevelKeys(
   return Object.keys(input).every((key) => Object.prototype.hasOwnProperty.call(properties, key));
 }
 
+function getServerBoundInput(
+  tool: AiToolDefinition,
+): Record<string, unknown> | null {
+  const bound = tool.input_schema["x-amora-bound-input"];
+  if (bound === undefined) return {};
+  if (tool.name === "add_amora_action") {
+    if (
+      !isRecord(bound)
+      || Object.keys(bound).length !== 5
+      || typeof bound.title !== "string"
+      || typeof bound.description !== "string"
+      || bound.category_key !== "general"
+      || bound.priority !== "medium"
+      || bound.source !== "chat"
+    ) return null;
+    return {
+      title: bound.title,
+      description: bound.description,
+      category_key: bound.category_key,
+      priority: bound.priority,
+      source: bound.source,
+    };
+  }
+  if (
+    tool.name !== "add_schedule_event"
+    || !isRecord(bound)
+    || (Object.keys(bound).length !== 2 && Object.keys(bound).length !== 3)
+    || typeof bound.moment_type !== "string"
+    || typeof bound.category_key !== "string"
+    || (bound.date !== undefined && typeof bound.date !== "string")
+  ) return null;
+  return {
+    ...(typeof bound.date === "string" ? { date: bound.date } : {}),
+    moment_type: bound.moment_type,
+    category_key: bound.category_key,
+  };
+}
+
 function validateMarker(
   value: unknown,
   tools: readonly AiToolDefinition[],
@@ -225,14 +263,26 @@ function validateMarker(
   if (!isSafeJsonValue(value.input)) return null;
 
   const tool = tools.find((candidate) => candidate.name === value.tool);
-  if (!tool || !hasOnlyDeclaredTopLevelKeys(value.input, tool)) return null;
+  if (!tool) return null;
+  const fullyBoundAction = tool.name === "add_amora_action"
+    && tool.input_schema["x-amora-bound-input"] !== undefined;
+  if (!fullyBoundAction && !hasOnlyDeclaredTopLevelKeys(value.input, tool)) return null;
+  const serverBoundInput = getServerBoundInput(tool);
+  if (!serverBoundInput) return null;
+  const effectiveInput = fullyBoundAction
+    ? serverBoundInput
+    : { ...value.input, ...serverBoundInput };
+  if (
+    !isSafeJsonValue(effectiveInput)
+    || !hasOnlyDeclaredTopLevelKeys(effectiveInput, tool)
+  ) return null;
   const validator = getValidator(tool);
-  if (!validator || validator(value.input) !== true) return null;
+  if (!validator || validator(effectiveInput) !== true) return null;
 
-  const confirmation = formatCanonicalConfirmation(tool, value.input);
+  const confirmation = formatCanonicalConfirmation(tool, effectiveInput);
   if (!confirmation) return null;
 
-  return { tool: value.tool, input: value.input, confirmation };
+  return { tool: value.tool, input: effectiveInput, confirmation };
 }
 
 function formatNumber(value: number): string {
@@ -343,12 +393,15 @@ function formatCanonicalConfirmation(
 ): string | null {
   const toolLabel = TOOL_LABELS[tool.name];
   if (!toolLabel) return null;
+  const isFirstUseBoundAction = tool.name === "add_amora_action"
+    && tool.input_schema["x-amora-bound-input"] !== undefined;
   const declaredFields = isRecord(tool.input_schema.properties)
     ? Object.keys(tool.input_schema.properties)
     : [];
   const fieldLines = declaredFields
     .filter((key) =>
       !INTERNAL_CONFIRMATION_FIELDS.has(key)
+      && !(isFirstUseBoundAction && ["category_key", "priority", "source"].includes(key))
       && Object.prototype.hasOwnProperty.call(input, key)
     )
     .map((key) => `- ${FIELD_LABELS[key] ?? key}: ${formatFieldValue(key, input[key])}`);
@@ -493,11 +546,17 @@ export function resolveAmoraPendingAction({
 
 export function buildAmoraPendingActionPrompt(
   supportedToolNames: readonly string[],
+  fullyServerBoundToolNames: readonly string[] = [],
 ): string {
   return [
     "[서버 발급 후속 확인 계약]",
     "- 사용자의 확인이 필요한 변경을 제안하거나 적용 여부를 물을 때는, 그 답변 안에 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 사용자가 확인해도 실행할 방법이 없습니다.",
     `- 제안 가능한 변경 도구: ${supportedToolNames.join(", ")}`,
+    ...(fullyServerBoundToolNames.length > 0
+      ? [
+          `- 서버가 입력값을 모두 고정한 도구: ${fullyServerBoundToolNames.join(", ")}. 이 도구는 추가 값을 묻거나 만들지 말고 pending_action 표식 하나만 내세요. 표식 input은 서버가 다시 검증하며, 사용자에게 보이는 확인 카드는 서버가 만듭니다.`,
+        ]
+      : []),
     "- 표식 형식: [pending_action]{\"tool\":\"도구명\",\"input\":{...}}[/pending_action]",
     "- 모든 입력값이 확정됐을 때만 표식을 쓰세요. 값이 아직 모호하면 표식 없이 값부터 확인하세요. 보이는 확인 문장은 서버가 검증된 tool/input으로 직접 만듭니다.",
     "- 표식은 서버가 제거·검증하며, 사용자가 서버가 발급한 정확한 action_id를 바로 다음 공유 요청으로 확인한 경우에만 실행됩니다.",

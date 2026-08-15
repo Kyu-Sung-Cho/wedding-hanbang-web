@@ -992,8 +992,21 @@ describe("classifyAmoraCrisis", () => {
     "남친이 집에 가둬 두고 있어",
     "남친이 싫다는데 억지로 성관계하려고 해",
     "동의 없이 지금 옷을 벗기고 있어",
+    "성관계를 강요해",
+    "싫다는데 관계하자고 압박해",
+    "피임을 못하게 해",
+    "임신을 강요해",
   ])("detects natural current Korean interpersonal-danger phrasing: %s", (text) => {
     expect(classifyAmoraCrisis(text)).toEqual({ kind: "interpersonal_danger" });
+  });
+
+  it.each([
+    "성관계를 강요하는 건 아니야",
+    "피임을 못하게 하는 건 아니야",
+    "임신을 강요하는 건 아니야",
+    "피임 방법과 임신 계획을 함께 상의해",
+  ])("does not turn a negated or collaborative reproductive discussion into a crisis: %s", (text) => {
+    expect(classifyAmoraCrisis(text)).toBeNull();
   });
 
   it.each([

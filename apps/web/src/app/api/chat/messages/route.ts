@@ -24,6 +24,21 @@ import {
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
 import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
+import { sealMediationPrivateSafetyHold } from "@/lib/care/mediationPrivateSafetyHold";
+import { parseAmoraFirstUsePromotionSourceSeal } from "@/lib/ai/amoraFirstUsePromotion";
+import {
+  AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY,
+  buildAmoraScheduleCareFollowUpPrivateMetadata,
+  splitAmoraScheduleCareFollowUpAnswer,
+  parseAmoraScheduleCareFollowUpPrivateMetadata,
+  validateAmoraScheduleCareFollowUpBinding,
+  type AmoraScheduleCareFollowUpBinding,
+  type AmoraScheduleCareFollowUpPrivateMetadata,
+} from "@hanbang/shared/amora-schedule-care-follow-up";
+import {
+  resolveAmoraScheduleCareFollowUp,
+  type AmoraScheduleCareFollowUpResolutionFailure,
+} from "@/lib/care/scheduleCareFollowUp";
 
 const MAX_BODY_BYTES = 8 * 1024;
 // 20,000 Unicode code points can occupy up to 80KiB in UTF-8. Keep bounded
@@ -52,6 +67,8 @@ const POST_BODY_KEYS = new Set([
   "imagePaths",
   "providerAttachmentCount",
   "providerAttachmentManifest",
+  "firstUseSourceMessageId",
+  "scheduleCareFollowUp",
 ]);
 const CHAT_USER_ROW_SELECT = [
   "id",
@@ -101,6 +118,7 @@ type ExpectedUserRow = {
   providerAttachmentState: ProviderAttachmentState | null;
   providerAttachmentManifest: ProviderAttachmentManifestEntry[] | null;
   aiResponseRequested: boolean | null;
+  scheduleCareFollowUpMetadata: AmoraScheduleCareFollowUpPrivateMetadata | null;
 };
 
 function postJson(body: unknown, status = 200) {
@@ -251,6 +269,52 @@ function isBoundCanonicalUserRow(
   ) {
     return false;
   }
+  const storedScheduleCareFollowUp = parseAmoraScheduleCareFollowUpPrivateMetadata(
+    metadata[AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY],
+  );
+  if (expected.scheduleCareFollowUpMetadata === null) {
+    if (metadata[AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY] !== undefined) return false;
+  } else if (
+    !storedScheduleCareFollowUp
+    || storedScheduleCareFollowUp.card_id
+      !== expected.scheduleCareFollowUpMetadata.card_id
+    || storedScheduleCareFollowUp.card_revision
+      !== expected.scheduleCareFollowUpMetadata.card_revision
+    || storedScheduleCareFollowUp.source_revision
+      !== expected.scheduleCareFollowUpMetadata.source_revision
+  ) {
+    return false;
+  }
+  if (expected.scheduleCareFollowUpMetadata !== null) {
+    const expectedMetadataKeys = new Set<string>([
+      "client_request_id",
+      AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY,
+    ]);
+    if (expected.target === "partner") {
+      expectedMetadataKeys.add("target");
+      expectedMetadataKeys.add("partner_recipient_id");
+    }
+    if (expected.confirmedActionId !== null) {
+      expectedMetadataKeys.add("confirmed_amora_action_id");
+    }
+    if (expected.imagePaths.length > 0) expectedMetadataKeys.add("imagePaths");
+    if (expected.providerAttachmentCount !== null) {
+      expectedMetadataKeys.add("amora_ingest_contract_version");
+      expectedMetadataKeys.add("ai_response_requested");
+      expectedMetadataKeys.add("provider_attachment_state");
+      expectedMetadataKeys.add("provider_attachment_count");
+    }
+    if (expected.providerAttachmentManifest !== null) {
+      expectedMetadataKeys.add("provider_attachment_manifest");
+    }
+    const storedMetadataKeys = Object.keys(metadata);
+    if (
+      storedMetadataKeys.length !== expectedMetadataKeys.size
+      || storedMetadataKeys.some((key) => !expectedMetadataKeys.has(key))
+    ) {
+      return false;
+    }
+  }
   if (expected.target === "partner") {
     if (
       metadata.target !== "partner"
@@ -329,6 +393,120 @@ function isBoundSafetyRetryRow(
   }
   return row.metadata.target === undefined
     && row.metadata.partner_recipient_id === undefined;
+}
+
+function parseFirstUsePromotionRpcResult(value: unknown) {
+  if (
+    !isRecord(value)
+    || Object.keys(value).sort().join(",")
+      !== "promotionId,reused,sharedMessageId,version"
+    || value.version !== 1
+    || !isUuid(value.promotionId)
+    || !isUuid(value.sharedMessageId)
+    || typeof value.reused !== "boolean"
+  ) return null;
+  return {
+    promotionId: value.promotionId.toLowerCase(),
+    sharedMessageId: value.sharedMessageId.toLowerCase(),
+    reused: value.reused,
+  };
+}
+
+function isBoundFirstUsePromotionUserRow(
+  row: unknown,
+  expected: {
+    messageId: string;
+    coupleId: string;
+    ownerUserId: string;
+    senderRole: CoupleRole;
+    content: string;
+    currentClientRequestId: string;
+    promotionId: string;
+    reused: boolean;
+  },
+): row is Record<string, unknown> {
+  if (
+    !isRecord(row)
+    || row.id !== expected.messageId
+    || row.couple_id !== expected.coupleId
+    || row.sender_id !== expected.ownerUserId
+    || row.sender_type !== expected.senderRole
+    || row.role !== "user"
+    || row.content !== expected.content
+    || row.visibility !== "shared"
+    || !isRecord(row.metadata)
+  ) return false;
+  const metadata = row.metadata;
+  if (
+    Object.keys(metadata).sort().join(",") !== [
+      "ai_response_requested",
+      "amora_first_use_promotion_id",
+      "amora_ingest_contract_version",
+      "client_request_id",
+      "provider_attachment_count",
+      "provider_attachment_state",
+    ].sort().join(",")
+    || !isUuid(metadata.client_request_id)
+    || (!expected.reused && metadata.client_request_id !== expected.currentClientRequestId)
+    || metadata.amora_first_use_promotion_id !== expected.promotionId
+    || metadata.amora_ingest_contract_version !== 1
+    || metadata.ai_response_requested !== true
+    || metadata.provider_attachment_state !== "none"
+    || metadata.provider_attachment_count !== 0
+  ) return false;
+  return !JSON.stringify(metadata).includes("source_message");
+}
+
+function firstUsePromotionRpcFailure(error: unknown) {
+  const text = isRecord(error)
+    ? [error.code, error.message, error.details, error.hint]
+        .filter((value): value is string => typeof value === "string")
+        .join(" ")
+        .toUpperCase()
+    : "";
+  if (text.includes("AMORA_FIRST_USE_PROMOTION_CRITERION_CHANGED")) {
+    return postJson({ code: "FIRST_USE_PROMOTION_CRITERION_STALE" }, 409);
+  }
+  if (text.includes("AMORA_FIRST_USE_PROMOTION_SCOPE_CHANGED")) {
+    return postJson({ code: "FIRST_USE_PROMOTION_IDENTITY_CHANGED" }, 403);
+  }
+  if (
+    text.includes("AMORA_FIRST_USE_PROMOTION_SOURCE_STALE")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_JOURNEY_CHANGED")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_PRIVACY_CHANGED")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_ROSTER_CHANGED")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_SOURCE_INVALID")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_CONTENT_MISMATCH")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_REQUEST_CONFLICT")
+    || text.includes("AMORA_FIRST_USE_PROMOTION_PROPOSAL_MISMATCH")
+  ) {
+    return postJson({ code: "FIRST_USE_PROMOTION_STALE" }, 409);
+  }
+  return postJson({
+    code: "FIRST_USE_PROMOTION_UNAVAILABLE",
+    retryable: true,
+    retryPolicy: "same_request",
+  }, 503);
+}
+
+function scheduleCareFollowUpFailure(
+  reason: AmoraScheduleCareFollowUpResolutionFailure,
+) {
+  if (reason === "scope_changed") {
+    return postJson({ code: "SCHEDULE_CARE_FOLLOW_UP_SCOPE_CHANGED" }, 403);
+  }
+  if (reason === "privacy_unavailable" || reason === "source_unavailable") {
+    return postJson({
+      code: "SCHEDULE_CARE_FOLLOW_UP_UNAVAILABLE",
+      retryable: true,
+      retryPolicy: "same_request",
+    }, 503);
+  }
+  return postJson({
+    code: "SCHEDULE_CARE_FOLLOW_UP_STALE",
+    retryable: false,
+    retryPolicy: "refresh_source",
+  }, 409);
 }
 
 // 사용자가 해당 커플에 속하는지 + role 반환
@@ -455,6 +633,20 @@ export async function POST(request: Request) {
       ? body.clientRequestId.toLowerCase()
       : null;
     const requestedVisibility = parseVisibility(body.requestedVisibility);
+    const firstUseSourceMessageId = body.firstUseSourceMessageId === undefined
+      ? null
+      : isUuid(body.firstUseSourceMessageId)
+        ? body.firstUseSourceMessageId.toLowerCase()
+        : undefined;
+    const rawScheduleCareFollowUp = body.scheduleCareFollowUp === undefined
+      ? null
+      : validateAmoraScheduleCareFollowUpBinding(body.scheduleCareFollowUp);
+    const scheduleCareFollowUp: AmoraScheduleCareFollowUpBinding | null | undefined =
+      rawScheduleCareFollowUp === null
+        ? null
+        : rawScheduleCareFollowUp.ok
+          ? rawScheduleCareFollowUp.value
+          : undefined;
     const target: DeliveryTarget = body.target === undefined || body.target === "ai"
       ? "ai"
       : body.target === "partner"
@@ -464,6 +656,8 @@ export async function POST(request: Request) {
       !coupleId
       || !clientRequestId
       || !requestedVisibility
+      || firstUseSourceMessageId === undefined
+      || scheduleCareFollowUp === undefined
       || (body.target !== undefined && body.target !== "ai" && body.target !== "partner")
       || !isValidMessageContent(body.content)
     ) {
@@ -517,6 +711,15 @@ export async function POST(request: Request) {
         );
       }
     }
+    if ((firstUseSourceMessageId || scheduleCareFollowUp) && isLegacyActorContract) {
+      return postJson(
+        {
+          error: "이 안내를 안전하게 확인하려면 앱을 업데이트해 주세요.",
+          code: "CLIENT_UPDATE_REQUIRED",
+        },
+        426,
+      );
+    }
     const content = body.content;
 
     const admin = createAdminClient();
@@ -528,6 +731,7 @@ export async function POST(request: Request) {
       );
     }
     const senderRole: CoupleRole = ownership.role;
+    const ownPrivateVisibility: ChatVisibility = `${senderRole}_private`;
     if (target === "partner" && !ownership.partnerRecipientId) {
       return postJson(
         { error: "연결된 상대방을 확인하지 못했어요.", code: "PARTNER_NOT_LINKED" },
@@ -539,6 +743,19 @@ export async function POST(request: Request) {
         { error: "상대방에게 보내는 메시지는 함께 대화에서만 보낼 수 있어요.", code: "PARTNER_VISIBILITY_INVALID" },
         400,
       );
+    }
+    if (
+      scheduleCareFollowUp
+      && (
+        target !== "ai"
+        || requestedVisibility !== ownPrivateVisibility
+        || firstUseSourceMessageId !== null
+      )
+    ) {
+      return postJson({
+        error: "이 일정 안부는 현재 계정의 나만 상담에서 다시 시작해 주세요.",
+        code: "SCHEDULE_CARE_FOLLOW_UP_REQUEST_INVALID",
+      }, 400);
     }
 
     // This deterministic policy must run before rate limiting, attachment path
@@ -555,6 +772,11 @@ export async function POST(request: Request) {
       externalSafetySignal: hasAmoraSafetySignal(content, "chat"),
     });
     if (deliveryPlan.disposition === "local_safety_hold") {
+      const durableSafetyFenceConfirmed = await sealMediationPrivateSafetyHold({
+        client: admin,
+        coupleId,
+        recipientUserId: user.id,
+      });
       let rawDisclosurePersisted: boolean | null = null;
       let rawDisclosureVisibility: ChatVisibility | null = null;
       try {
@@ -594,14 +816,35 @@ export async function POST(request: Request) {
         safetyResolution: deliveryPlan.safetyResolution,
         classification: deliveryPlan.classification?.kind ?? null,
         response: deliveryPlan.response,
+        durableSafetyFenceConfirmed,
         rawDisclosurePersisted,
         ...(rawDisclosureVisibility
           ? { rawDisclosureVisibility }
           : {}),
-      });
+      }, durableSafetyFenceConfirmed || isLegacyActorContract ? 200 : 503);
     }
 
-    const ownPrivateVisibility: ChatVisibility = `${senderRole}_private`;
+    if (deliveryPlan.disposition === "private_safety_route") {
+      const durableSafetyFenceConfirmed = await sealMediationPrivateSafetyHold({
+        client: admin,
+        coupleId,
+        recipientUserId: user.id,
+      });
+      if (!durableSafetyFenceConfirmed) {
+        return postJson({
+          outcome: "ephemeral_safety",
+          effectiveVisibility: deliveryPlan.effectiveVisibility,
+          safetyPrivacyRedirected: true,
+          partnerDeliveryHeld: target === "partner",
+          safetyResolution: deliveryPlan.safetyResolution,
+          classification: null,
+          response: "상대방에게 공유하지 않고 안전 확인을 먼저 도와드릴게요.",
+          durableSafetyFenceConfirmed: false,
+          rawDisclosurePersisted: false,
+        }, isLegacyActorContract ? 200 : 503);
+      }
+    }
+
     const effectiveVisibility = deliveryPlan.effectiveVisibility;
     if (
       effectiveVisibility !== "shared"
@@ -611,6 +854,110 @@ export async function POST(request: Request) {
         { error: "비공개 대화 권한이 없습니다.", code: "CHAT_VISIBILITY_DENIED" },
         403,
       );
+    }
+
+    let scheduleCareFollowUpMetadata: AmoraScheduleCareFollowUpPrivateMetadata | null = null;
+    if (scheduleCareFollowUp) {
+      const hasNoImagePaths = body.imagePaths === undefined
+        || (Array.isArray(body.imagePaths) && body.imagePaths.length === 0);
+      if (
+        deliveryPlan.disposition !== "continue"
+        || effectiveVisibility !== ownPrivateVisibility
+        || body.confirmedActionId !== undefined
+        || !hasNoImagePaths
+        || body.providerAttachmentCount !== 0
+        || body.providerAttachmentManifest !== undefined
+      ) {
+        return postJson({
+          error: "이 일정 안부는 첨부나 다른 변경 없이 비공개 답변 그대로 보내 주세요.",
+          code: "SCHEDULE_CARE_FOLLOW_UP_REQUEST_INVALID",
+        }, 400);
+      }
+      scheduleCareFollowUpMetadata =
+        buildAmoraScheduleCareFollowUpPrivateMetadata(scheduleCareFollowUp);
+      if (!scheduleCareFollowUpMetadata) {
+        return postJson({ code: "SCHEDULE_CARE_FOLLOW_UP_STALE" }, 409);
+      }
+
+      const replayExpected: ExpectedUserRow = {
+        coupleId,
+        userId: user.id.toLowerCase(),
+        senderRole,
+        content,
+        clientRequestId,
+        target: "ai",
+        partnerRecipientId: null,
+        visibility: ownPrivateVisibility,
+        confirmedActionId: null,
+        imagePaths: [],
+        providerAttachmentCount: 0,
+        providerAttachmentState: "none",
+        providerAttachmentManifest: null,
+        aiResponseRequested: true,
+        scheduleCareFollowUpMetadata,
+      };
+      let existing: unknown = null;
+      let existingError: unknown = null;
+      try {
+        const existingResult = await admin
+          .from("chat_messages")
+          .select(CHAT_USER_ROW_SELECT)
+          .eq("couple_id", coupleId)
+          .eq("metadata->>client_request_id", clientRequestId)
+          .maybeSingle();
+        existing = existingResult.data;
+        existingError = existingResult.error;
+      } catch (error) {
+        existingError = error;
+      }
+      if (existingError) {
+        return postJson({
+          code: "USER_MESSAGE_PERSISTENCE_UNKNOWN",
+          retryable: true,
+          retryPolicy: "same_request",
+        }, 503);
+      }
+      if (existing) {
+        if (!isBoundCanonicalUserRow(existing, replayExpected)) {
+          return postJson({
+            code: "USER_MESSAGE_REQUEST_CONFLICT",
+            retryable: false,
+            retryPolicy: "new_message",
+          }, 409);
+        }
+        return postJson({
+          outcome: "persisted",
+          reused: true,
+          effectiveVisibility,
+          safetyPrivacyRedirected: deliveryPlan.safetyPrivacyRedirected,
+          message: existing,
+        });
+      }
+
+      const resolved = await resolveAmoraScheduleCareFollowUp({
+        client: supabase,
+        recipientUserId: user.id.toLowerCase(),
+        coupleId,
+        binding: scheduleCareFollowUp,
+      });
+      if (!resolved.ok) return scheduleCareFollowUpFailure(resolved.reason);
+      if (splitAmoraScheduleCareFollowUpAnswer(content, resolved.value.prompt) === null) {
+        return postJson({
+          code: "SCHEDULE_CARE_FOLLOW_UP_PROMPT_STALE",
+          retryable: false,
+          retryPolicy: "refresh_source",
+        }, 409);
+      }
+      const resolvedMetadata =
+        buildAmoraScheduleCareFollowUpPrivateMetadata(resolved.value.binding);
+      if (
+        !resolvedMetadata
+        || resolvedMetadata.card_id !== scheduleCareFollowUpMetadata.card_id
+        || resolvedMetadata.card_revision !== scheduleCareFollowUpMetadata.card_revision
+        || resolvedMetadata.source_revision !== scheduleCareFollowUpMetadata.source_revision
+      ) {
+        return postJson({ code: "SCHEDULE_CARE_FOLLOW_UP_STALE" }, 409);
+      }
     }
 
     const limited = await checkRateLimitPersistent(
@@ -730,6 +1077,137 @@ export async function POST(request: Request) {
         },
         400,
       );
+    }
+    if (
+      firstUseSourceMessageId
+      && (
+        target !== "ai"
+        || requestedVisibility !== "shared"
+        || effectiveVisibility !== "shared"
+        || deliveryPlan.disposition !== "continue"
+        || confirmedActionId !== null
+        || imagePaths.length > 0
+        || (requestedProviderAttachmentCount !== null
+          && requestedProviderAttachmentCount !== 0)
+        || providerAttachmentManifest !== null
+      )
+    ) {
+      return postJson(
+        {
+          error: "첫 실행 제안은 첨부나 다른 변경 없이 확인된 공동 초안 그대로 보내 주세요.",
+          code: "FIRST_USE_PROMOTION_REQUEST_INVALID",
+        },
+        400,
+      );
+    }
+    if (firstUseSourceMessageId) {
+      let sourceRow: unknown = null;
+      let sourceError: unknown = null;
+      try {
+        const sourceResult = await admin
+          .from("chat_messages")
+          .select(CHAT_USER_ROW_SELECT)
+          .eq("id", firstUseSourceMessageId)
+          .maybeSingle();
+        sourceRow = sourceResult.data;
+        sourceError = sourceResult.error;
+      } catch (error) {
+        sourceError = error;
+      }
+      const ownPrivateVisibility: ChatVisibility = `${senderRole}_private`;
+      if (sourceError) {
+        return postJson({
+          code: "FIRST_USE_PROMOTION_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        }, 503);
+      }
+      if (
+        !isRecord(sourceRow)
+        || sourceRow.id !== firstUseSourceMessageId
+        || sourceRow.couple_id !== coupleId
+        || sourceRow.sender_type !== "ai"
+        || sourceRow.role !== "assistant"
+        || sourceRow.visibility !== ownPrivateVisibility
+        || typeof sourceRow.content !== "string"
+        || !isRecord(sourceRow.metadata)
+      ) {
+        return postJson({ code: "FIRST_USE_PROMOTION_STALE" }, 409);
+      }
+      const sourceSeal = parseAmoraFirstUsePromotionSourceSeal({
+        content: sourceRow.content,
+        value: sourceRow.metadata.amora_first_use_action_promotion_v1,
+      });
+      if (!sourceSeal || sourceSeal.canonicalSharedText !== content) {
+        return postJson({ code: "FIRST_USE_PROMOTION_STALE" }, 409);
+      }
+
+      const promotionResult = await admin.rpc(
+        "ingest_amora_first_use_action_promotion_v1",
+        {
+          p_couple_id: coupleId,
+          p_owner_user_id: user.id.toLowerCase(),
+          p_source_private_message_id: firstUseSourceMessageId,
+          p_client_request_id: clientRequestId,
+          p_content: content,
+          p_source_content_digest: sourceSeal.metadata.sourceContentDigest,
+          p_canonical_action_input: sourceSeal.canonicalActionInput,
+          p_action_digest: sourceSeal.metadata.actionDigest,
+          p_shared_content_digest: sourceSeal.metadata.sharedContentDigest,
+        },
+      );
+      if (promotionResult.error) {
+        return firstUsePromotionRpcFailure(promotionResult.error);
+      }
+      const promotion = parseFirstUsePromotionRpcResult(promotionResult.data);
+      if (!promotion) {
+        return postJson({
+          code: "FIRST_USE_PROMOTION_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        }, 503);
+      }
+
+      let sharedRow: unknown = null;
+      let sharedError: unknown = null;
+      try {
+        const sharedResult = await admin
+          .from("chat_messages")
+          .select(CHAT_USER_ROW_SELECT)
+          .eq("id", promotion.sharedMessageId)
+          .maybeSingle();
+        sharedRow = sharedResult.data;
+        sharedError = sharedResult.error;
+      } catch (error) {
+        sharedError = error;
+      }
+      if (
+        sharedError
+        || !isBoundFirstUsePromotionUserRow(sharedRow, {
+          messageId: promotion.sharedMessageId,
+          coupleId,
+          ownerUserId: user.id.toLowerCase(),
+          senderRole,
+          content,
+          currentClientRequestId: clientRequestId,
+          promotionId: promotion.promotionId,
+          reused: promotion.reused,
+        })
+      ) {
+        return postJson({
+          code: "USER_MESSAGE_PERSISTENCE_UNKNOWN",
+          retryable: true,
+          retryPolicy: "same_request",
+        }, 503);
+      }
+      return postJson({
+        outcome: "persisted",
+        reused: promotion.reused,
+        ...(promotion.reused ? { reusedBy: "first_use_source" } : {}),
+        effectiveVisibility: "shared",
+        safetyPrivacyRedirected: false,
+        message: sharedRow,
+      }, promotion.reused ? 200 : 201);
     }
     if (providerAttachmentManifest !== null) {
       const imageStorage = admin.storage.from("chat-image");
@@ -857,6 +1335,12 @@ export async function POST(request: Request) {
       ...(confirmedActionId
         ? { confirmed_amora_action_id: confirmedActionId }
         : {}),
+      ...(scheduleCareFollowUpMetadata
+        ? {
+            [AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY]:
+              scheduleCareFollowUpMetadata,
+          }
+        : {}),
     };
     const expected: ExpectedUserRow = {
       coupleId,
@@ -875,6 +1359,7 @@ export async function POST(request: Request) {
       providerAttachmentState,
       providerAttachmentManifest,
       aiResponseRequested,
+      scheduleCareFollowUpMetadata,
     };
     const insertPayload = {
       couple_id: coupleId,

@@ -15,6 +15,10 @@ import {
   buildAmoraQuestionScopeInstruction,
   type AmoraQuestionScopeClassification,
 } from "@/lib/ai/amoraQuestionScope";
+import {
+  buildAmoraDecisionDepthInstruction,
+  classifyAmoraDecisionDepth,
+} from "@/lib/ai/amoraDecisionDepth";
 
 export type AmoraActionContract =
   | { kind: "proposal"; text: string }
@@ -31,6 +35,7 @@ type BuildAmoraSystemPromptOptions = {
   maxChars?: number;
   requestKind: "chat" | "initial_greeting" | "mediation";
   persistenceMode: "durable" | "demo";
+  currentUserText?: string;
 };
 
 // A 48k-character system prompt stays far below the 272k-token long-context
@@ -483,6 +488,20 @@ export function buildAmoraSystemPrompt(
         linkedContextOnly: options.linkedContextMode === "linked_context_only",
       })}`
     : "";
+  const allowsDecisionDepth =
+    options.requestKind === "chat"
+    && (
+      options.questionScope?.scope === "W0_wedding_core"
+      || options.questionScope?.scope === "W1_wedding_adjacent"
+    );
+  const decisionDepthInstruction = allowsDecisionDepth && options.currentUserText
+    ? buildAmoraDecisionDepthInstruction(
+        classifyAmoraDecisionDepth(options.currentUserText),
+      )
+    : "";
+  const decisionDepthContract = decisionDepthInstruction
+    ? `\n\n${decisionDepthInstruction}`
+    : "";
   const modeGuard =
     options.requestKind === "mediation"
     && (
@@ -534,7 +553,7 @@ export function buildAmoraSystemPrompt(
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${questionScopeContract}${linkedContextContract}`;
+  )}${questionScopeContract}${decisionDepthContract}${linkedContextContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {

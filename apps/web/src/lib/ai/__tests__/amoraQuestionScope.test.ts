@@ -7,8 +7,39 @@ import {
 } from "@/lib/ai/amoraQuestionScope";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { selectAmoraPendingProposalTools } from "@/lib/ai/amoraToolPolicy";
+import {
+  buildAmoraEntryPlan,
+  buildFirstUseCorrectionDraft,
+} from "../../../../../mobile/src/lib/amoraEntryPlan.mjs";
 
 describe("Amora question-scope ceiling", () => {
+  it("keeps every private first-use choice inside the stored wedding-context boundary", () => {
+    const plan = buildAmoraEntryPlan({
+      activeScope: "private",
+      hasLinkedPartner: false,
+    });
+    expect(plan).not.toBeNull();
+    if (!plan) throw new Error("PRIVATE_FIRST_USE_PLAN_MISSING");
+
+    for (const starter of plan.starters) {
+      expect(classifyAmoraQuestionScope({ userText: starter.prompt })).toMatchObject({
+        scope: "W0_wedding_core",
+        allowsLongTermMemory: true,
+        needsClarification: false,
+      });
+    }
+  });
+
+  it("keeps a first-action correction inside the wedding context it must revise", () => {
+    expect(classifyAmoraQuestionScope({
+      userText: `${buildFirstUseCorrectionDraft()}날짜는 10월이 아니라 11월이야`,
+    })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+      needsClarification: false,
+    });
+  });
+
   it("gives a disguised non-wedding investment-budget request no wedding proposal tools", () => {
     const userText = "주식 투자 예산을 3천만원으로 바꿔줘";
     const classification = classifyAmoraQuestionScope({ userText });

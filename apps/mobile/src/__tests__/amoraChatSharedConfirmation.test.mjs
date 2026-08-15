@@ -154,6 +154,10 @@ test("the first shared send pauses for one accurate accessible confirmation", ()
     "async function loadChatSession",
     "void loadChatSession();",
   );
+  const ownerBoundSessionLoads = sourceBetween(
+    "const [\n        sharedSendAcknowledged,",
+    "if (!isCurrentGeneration()) return;",
+  );
   const sendHandler = sourceBetween(
     "async function handleSend",
     "function handleStop",
@@ -169,8 +173,8 @@ test("the first shared send pauses for one accurate accessible confirmation", ()
 
   assert.match(sourceText, /useRef<AmoraSharedSendAcknowledgementSession \| null>\(null\)/u);
   assert.match(
-    loadSession,
-    /await loadAmoraSharedSendAcknowledgement\(\s*user\.id,\s*profile\.couple_id/u,
+    ownerBoundSessionLoads,
+    /^const \[\s*sharedSendAcknowledged,\s*dismissedOfferKeys,\s*deviceSafetyHold,\s*\] = await Promise\.all\(\[\s*loadAmoraSharedSendAcknowledgement\(\s*user\.id,\s*profile\.couple_id,?\s*\)\.catch\(\(\) => false\),\s*loadAmoraMediationOfferDismissals\(user\.id, profile\.couple_id\)\.catch\(\(\) => \[\]\),\s*hasPrivateMediationSafetyHold\(\{\s*ownerUserId: user\.id,\s*coupleId: profile\.couple_id,\s*\}\),\s*\]\);\s*$/u,
   );
   assert.match(
     loadSession,

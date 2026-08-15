@@ -3,6 +3,7 @@ import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { classifyAmoraCrisis } from "@/lib/ai/amoraCrisisSafety";
 import { classifyAmoraQuestionScope, hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { hasAmoraChatSafetySignal } from "@hanbang/shared/amora-chat-safety-signal";
 
 // 중재 요청의 답은 `visibility: "shared"`로 저장된다(stores/chatStore.ts). 그래서
 // 안전 신호가 있는 중재는 모델에 닿기 전에 끝나야 한다. 답의 문구를 안전하게 바꾸는
@@ -132,6 +133,18 @@ describe("안전 탐지기 두 갈래는 서로를 대신하지 못한다", () =
         }).effectiveVisibility,
         text,
       ).toBe("shared");
+    }
+  });
+
+  it("shares the ordinary-chat safety threshold with non-web clients", () => {
+    for (const text of [
+      ...B_ONLY_ANY_KIND,
+      "상견례 때 주먹밥 도시락을 준비했어요",
+      "비가 창문을 때리는 소리를 못 들었어요",
+      "결혼 준비 예산이 서로 달라요",
+    ]) {
+      expect(hasAmoraChatSafetySignal(text), text)
+        .toBe(hasAmoraSafetySignal(text, "chat"));
     }
   });
 

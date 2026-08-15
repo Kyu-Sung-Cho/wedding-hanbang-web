@@ -24,10 +24,18 @@ const aiNotice = source("src/components/common/AiNoticeFooter.tsx");
 const toolExecutor = source("src/lib/ai/toolExecutor.ts");
 const chatContent = source("src/components/app/chat/ChatContent.tsx");
 const mobileChat = source("../mobile/app/(tabs)/chat.tsx");
+const publicIdentitySurfaces = [
+  ["로그인", source("src/app/(auth)/login/page.tsx")],
+  ["체험 로그인", source("src/app/demo/login/page.tsx")],
+  ["가격-아모라 연결", source("src/components/price/PriceAmoraBridge.tsx")],
+  ["보조 랜딩 푸터", source("src/components/landing/Footer.tsx")],
+  ["보조 랜딩 히어로", source("src/components/landing/CelebrationHero.tsx")],
+  ["웹 채팅 사이드 패널", source("src/components/app/chat/ChatSidePanel.tsx")],
+] as const;
 
 describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 말을 한다", () => {
   it("아모라를 '플래너'로 소개하지 않는다", () => {
-    // 2026-08-09 파운더 확정: 아모라는 대행하는 플래너가 아니라 함께 걷는 파트너다.
+    // 2026-08-08 파운더 확정: 아모라는 대행하는 플래너가 아니라 결혼 준비 동반자다.
     // 모델이 자기 역할을 대행자로 잡으면 어미·거리감·정보 밀도가 전부 그 프레임을
     // 따라가므로, 이건 카피가 아니라 목소리 문제다.
     for (const [label, text] of [
@@ -44,20 +52,45 @@ describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 �
   });
 
   it("자기소개와 역할 정의가 서로 다른 말을 하지 않는다", () => {
-    expect(prompts).toContain("결혼 준비를 함께 걷는 AI 파트너입니다");
-    expect(voice).toContain("결혼 준비를 함께 걷는 AI 파트너입니다");
+    expect(prompts).toContain("AI 결혼 준비 동반자");
+    expect(voice).toContain("AI 결혼 준비 동반자");
+    expect(prompts).not.toContain("AI 결혼 준비 도우미");
+    expect(voice).not.toContain("AI 파트너");
     // 사람인 척 금지는 개명과 무관하게 남아 있어야 한다. "지인처럼"이지 "지인인 척"이 아니다.
     expect(voice).toContain("사람인 척하거나 실제 결혼·상담 경험을 지어내지 마세요");
   });
 
-  it("법적 AI 고지가 모델의 자기소개와 같은 이름을 쓴다", () => {
-    // 고지와 자기소개가 서로 다른 이름을 말하는 상태는 개명 전보다 나쁘다.
+  it("보조 AI 프롬프트도 아모라를 결혼 준비 동반자로 소개한다", () => {
+    for (const [label, text] of [
+      ["프로필 편집기 프롬프트", profilePrompt],
+      ["커뮤니티 댓글 프롬프트", communityPrompt],
+    ] as const) {
+      expect(text, `${label}의 아모라 호칭이 정본과 다르다`)
+        .toContain("AI 결혼 준비 동반자");
+      expect(text, `${label}가 아모라를 AI 파트너로 부른다`)
+        .not.toContain("AI 파트너");
+    }
+  });
+
+  it("일반 사용자 표면도 아모라를 AI 결혼 준비 동반자로 소개한다", () => {
+    for (const [label, text] of publicIdentitySurfaces) {
+      expect(text, `${label}의 아모라 호칭이 정본과 다르다`)
+        .toContain("AI 결혼 준비 동반자");
+      expect(text, `${label}에 폐기된 아모라 호칭이 남아 있다`)
+        .not.toMatch(/AI 파트너|AI 결혼 준비 도우미/u);
+    }
+  });
+
+  it("법적 AI 고지는 별도 검토 전에도 AI 사실과 플래너 비대행 경계를 지킨다", () => {
+    // PRODUCT_CONTRACT §2에 따라 법적 고지의 호칭 변경은 별도 검토 대상이다.
+    // 검토 전에는 기존 문구를 보존하되 AI라는 사실과 플래너 비대행 경계는 지킨다.
     expect(aiNotice).toContain("AI 파트너");
     expect(aiNotice).not.toContain("AI 플래너");
   });
 
-  it("모바일 아모라 헤더도 같은 AI 파트너 정체성을 쓴다", () => {
-    expect(mobileChat).toContain(">AI 파트너</Text>");
+  it("모바일 아모라 헤더도 같은 AI 결혼 준비 동반자 정체성을 쓴다", () => {
+    expect(mobileChat).toContain(">AI 결혼 준비 동반자</Text>");
+    expect(mobileChat).not.toContain(">AI 파트너</Text>");
     expect(mobileChat).not.toContain(">AI 웨딩 플래너</Text>");
   });
 

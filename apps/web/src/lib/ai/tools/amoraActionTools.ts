@@ -152,7 +152,14 @@ export async function executeAddAmoraAction(
     action = await insertAmoraActionRecord(getAdminClient(), ctx.coupleId, draftAction);
   } catch (error) {
     if (!isAmoraActionStorageUnavailable(error)) {
-      console.warn("amora action table insert skipped:", error instanceof Error ? error.message : String(error));
+      console.error("amora action table insert failed:", error instanceof Error ? error.message : String(error));
+      return {
+        toolName: "add_amora_action",
+        toolInput: input,
+        toolOutput: { error: "action table insert failed" },
+        success: false,
+        displayMessage: "아모라 행동 카드를 저장하지 못했습니다. 아무것도 반영하지 않았어요. 잠시 후 다시 시도해주세요.",
+      };
     }
   }
 

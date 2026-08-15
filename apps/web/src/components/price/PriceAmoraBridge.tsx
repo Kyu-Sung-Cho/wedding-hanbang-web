@@ -18,7 +18,7 @@ export function PriceAmoraBridge() {
         가격은 확인했는데, 뭐부터 해야 할지 막막하다면
       </h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#243832]/70">
-        로그인 전에는 AI 파트너 아모라 체험을 바로 열 수 있어요.
+        로그인 전에는 AI 결혼 준비 동반자 아모라 체험을 바로 열 수 있어요.
         화면의 이름·예산은 샘플이고 체험 대화와 변경은 계정 기록에 남지 않아요.
         이미 로그인했다면 계정 채팅에서 이어져요.
       </p>

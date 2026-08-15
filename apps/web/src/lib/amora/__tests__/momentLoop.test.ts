@@ -81,6 +81,54 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     expect(buildDueMomentCells({ progress, now: NOW })).toEqual([]);
   });
 
+  it("완료한 일정도 다음날에는 사후 안부와 회고를 한 번 이어간다", () => {
+    const progress = eventProgress("2026-06-14", "sanggyeonrye", "completed");
+    const cells = buildDueMomentCells({ progress, now: NOW });
+
+    expect(cells).toHaveLength(1);
+    expect(cells[0]).toMatchObject({
+      cellKind: "dAfter",
+      momentType: "sanggyeonrye",
+      sourceEventId: "evt_test",
+    });
+    expect(cells[0].memoryKeys).toEqual(MOMENTS.sanggyeonrye.memoryKeys);
+  });
+
+  it("드레스 최종 확인은 D-3/D-1에만 구조화하고 D+1은 일반 일정 안부로 남긴다", () => {
+    const d3 = buildDueMomentCells({
+      progress: eventProgress("2026-06-18", "dress_fitting"),
+      now: NOW,
+    })[0];
+    const d1 = buildDueMomentCells({
+      progress: eventProgress("2026-06-16", "dress_fitting"),
+      now: NOW,
+    })[0];
+    const dAfter = buildDueMomentCells({
+      progress: eventProgress("2026-06-14", "dress_fitting", "completed"),
+      now: NOW,
+    })[0];
+
+    for (const cell of [d3, d1]) {
+      expect(cell.care).toMatchObject({
+        version: 1,
+        momentType: "dress_fitting",
+        relatedChecklist: {
+          categoryKey: "dress",
+          categoryLabel: "드레스·예식 정장",
+        },
+      });
+      expect(cell.care).not.toHaveProperty("relatedBudget");
+      expect(cell.care).not.toHaveProperty("question");
+    }
+    expect(d3.care?.attentionWindow).toBe("d3");
+    expect(d1.care?.attentionWindow).toBe("d1");
+    expect(dAfter).toMatchObject({
+      momentType: "dress_fitting",
+      cellKind: "dAfter",
+    });
+    expect(dAfter).not.toHaveProperty("care");
+  });
+
   it("취소된 일정은 D-3, D-1, D+1 케어 후보에서 제외한다", () => {
     const progress = {
       __events: [{

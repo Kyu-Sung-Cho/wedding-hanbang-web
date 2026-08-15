@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
+import { buildCanonicalQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
+import { getQuoteCheckItems } from "@/lib/amora/quoteCheck";
 
 type PrivacySnapshotFixture = {
   version: 2;
@@ -200,6 +202,23 @@ const mocks = vi.hoisted(() => {
           required: ["event_id", "expected_title", "expected_date"],
         },
       },
+      {
+        name: "add_amora_action",
+        description: "Add one reviewed Amora action",
+        input_schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            due_date: { type: "string" },
+            category_key: { type: "string" },
+            priority: { type: "string" },
+            source: { type: "string" },
+            href: { type: "string" },
+          },
+          required: ["title"],
+        },
+      },
       { name: "get_wedding_info", description: "Read wedding info", input_schema: {} },
       { name: "analyze_quote", description: "Analyze quote", input_schema: {} },
     ],
@@ -277,6 +296,7 @@ const mocks = vi.hoisted(() => {
     storageDownloadStream: vi.fn(),
     enqueueMemory: vi.fn(),
     verifyMemoryRepair: vi.fn(),
+    resolveScheduleCareFollowUp: vi.fn(),
     PersistenceError,
     ClaimError,
     PrivacyContextError,
@@ -556,6 +576,10 @@ vi.mock("@/lib/ai/amoraMemoryRepair", () => ({
   verifyAmoraMemoryEnqueueRepairCandidate: mocks.verifyMemoryRepair,
 }));
 
+vi.mock("@/lib/care/scheduleCareFollowUp", () => ({
+  resolveAmoraScheduleCareFollowUp: mocks.resolveScheduleCareFollowUp,
+}));
+
 import { POST } from "@/app/api/chat/route";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
@@ -598,6 +622,71 @@ function request(
       ...overrides,
     }),
   });
+}
+
+const SCHEDULE_CARE_CARD_ID = "70000000-0000-4000-8000-000000000001";
+const SCHEDULE_CARE_QUESTION =
+  "실제로 합의된 내용과 아직 의견만 나온 내용을 나눠서 정리해볼까?";
+const SCHEDULE_CARE_CANONICAL_PROMPT = [
+  "어제 상견례는 잘 마쳤나요? 지금 기억나는 만큼만 편하게 적어주세요.",
+  SCHEDULE_CARE_QUESTION,
+  "",
+  "내 답:",
+].join("\n");
+const SCHEDULE_CARE_BINDING_METADATA = {
+  version: 1,
+  card_id: SCHEDULE_CARE_CARD_ID,
+  card_revision: 3,
+  source_revision: 0,
+} as const;
+
+function setBoundSanggyeonryeDAfterPrivateRow(
+  userText = "합의한 것과 더 이야기할 것을 나눠보고 싶어.",
+): void {
+  mocks.canonicalRows.splice(0, mocks.canonicalRows.length, {
+    id: "30000000-0000-4000-8000-000000000001",
+    sender_id: "00000000-0000-4000-8000-000000000001",
+    sender_type: "bride",
+    role: "user",
+    content: `${SCHEDULE_CARE_CANONICAL_PROMPT} ${userText.trim()}`,
+    metadata: {
+      client_request_id: REQUEST_ID,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      amora_schedule_care_follow_up_v1: SCHEDULE_CARE_BINDING_METADATA,
+    },
+    visibility: "bride_private",
+    created_at: "2026-08-15T00:00:00.000Z",
+  });
+}
+
+function resolvedSanggyeonryeDAfter() {
+  return {
+    ok: true as const,
+    value: {
+      recipientUserId: "00000000-0000-4000-8000-000000000001",
+      coupleId: COUPLE_ID,
+      actorRole: "bride" as const,
+      privacyEpoch: 7,
+      binding: {
+        cardId: SCHEDULE_CARE_CARD_ID,
+        cardRevision: 3,
+        sourceRevision: 0,
+      },
+      expiresAt: "2026-08-15T15:00:00.000Z",
+      sourceKey: "schedule:opaque:d_after",
+      sourceStateDigest: "a".repeat(64),
+      sourceEventId: "event_private_source",
+      momentType: "sanggyeonrye" as const,
+      attentionWindow: "dAfter" as const,
+      eventTitle: "양가 부모님 첫 만남",
+      eventDate: "2026-08-14 18:00",
+      question: SCHEDULE_CARE_QUESTION,
+      prompt: SCHEDULE_CARE_CANONICAL_PROMPT,
+    },
+  };
 }
 
 async function bindCanonicalProviderAttachments(
@@ -1068,10 +1157,21 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.chooseModelRole.mockReturnValue("fast");
     mocks.failClaim.mockResolvedValue(undefined);
     mocks.rateLimit.mockResolvedValue(null);
-    mocks.adminRpc.mockResolvedValue({
-      data: { authorized: true },
-      error: null,
-    });
+    mocks.adminRpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => (
+      name === "seal_amora_mediation_private_safety_hold"
+        ? {
+            data: {
+              version: 1,
+              recipientUserId: args?.p_recipient_user_id,
+              coupleId: args?.p_couple_id,
+              privacyEpoch: 7,
+              active: true,
+              expiresAt: "2026-09-13T00:00:00.000Z",
+            },
+            error: null,
+          }
+        : { data: { authorized: true }, error: null }
+    ));
     mocks.storageInfo.mockReset();
     mocks.storageInfo.mockResolvedValue({
       data: { size: 5, contentType: "image/png" },
@@ -1093,6 +1193,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }));
     mocks.verifyMemoryRepair.mockReset();
     mocks.verifyMemoryRepair.mockResolvedValue({ status: "unavailable" });
+    mocks.resolveScheduleCareFollowUp.mockReset();
+    mocks.resolveScheduleCareFollowUp.mockResolvedValue({
+      ok: false,
+      reason: "invalid_binding",
+    });
     mocks.persist.mockImplementation(async ({ cleanText }: { cleanText: string }) => persisted(cleanText));
     mocks.completeClaim.mockResolvedValue(undefined);
     mocks.executeTool.mockResolvedValue({
@@ -1294,6 +1399,31 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).not.toHaveBeenCalled();
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
     expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("keeps crisis guidance as a complete SSE response before every paid or durable side effect when the service seal fails", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "지금 남편이 칼로 위협하고 있어요",
+    };
+    mocks.adminRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "SERVICE_UNAVAILABLE", message: "unavailable" },
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "지금 남편이 칼로 위협하고 있어요" }],
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("1366");
+    expect(body).toContain('"durable_safety_fence_confirmed":false');
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
   it("still emits fixed crisis guidance when the ordinary limiter and attachment path would reject", async () => {
@@ -1543,7 +1673,46 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.log).not.toHaveBeenCalled();
   });
 
-  it("applies the same deterministic safety boundary to authenticated mediation", async () => {
+  it.each([
+    { role: "bride", visibility: "bride_private" },
+    { role: "groom", visibility: "groom_private" },
+  ] as const)(
+    "rejects $visibility mediation before replay, durable work, or provider use",
+    async ({ role, visibility }) => {
+      mocks.userProfile = {
+        ...mocks.userProfile,
+        role,
+      };
+
+      const response = await POST(request({
+        requestKind: "mediation",
+        userMessageId: undefined,
+        conflictContext: "예산 상한선을 두고 의견이 달라요.",
+        visibility,
+      }));
+
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toEqual({
+        error: "커플 중재는 공유 대화에서만 시작할 수 있어요.",
+        code: "MEDIATION_SHARED_VISIBILITY_REQUIRED",
+      });
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(mocks.findPersisted).not.toHaveBeenCalled();
+      expect(mocks.reconcile).not.toHaveBeenCalled();
+      expect(mocks.rateLimit).not.toHaveBeenCalled();
+      expect(mocks.claim).not.toHaveBeenCalled();
+      expect(mocks.providerLedger).not.toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(0);
+      expect(mocks.persist).not.toHaveBeenCalled();
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+      expect(mocks.log).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps an immediate crisis mediation summary out of the shared response lane", async () => {
     const sentinel = "MEDIATION_W5_SENTINEL";
     const response = await POST(request({
       requestKind: "mediation",
@@ -1551,11 +1720,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       conflictContext: `남편이 지금 제 목을 조르고 있어요 ${sentinel}`,
     }));
 
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).toContain("경찰 112");
-    expect(body).toContain("소방 119");
-    expect(body).not.toContain(sentinel);
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+    });
     expect(mocks.rateLimit).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
@@ -1571,6 +1739,31 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       userMessageId: undefined,
       conflictContext:
         `작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해 ${sentinel}`,
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "내가 남편을 밀쳤어. 조율해줘.",
+    "제가 아내 목을 졸랐어요. 중재해 주세요.",
+    "내가 신랑한테 화가 나서 물건을 던졌어.",
+    "내가 물건을 아내에게 던졌어. 조율해줘.",
+    "내가 여자친구에게 성관계를 강요했어. 합의안을 만들어줘.",
+  ])("closes a requester harm disclosure before shared mediation or provider use: %s", async (conflictContext) => {
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext,
     }));
 
     expect(response.status).toBe(422);
@@ -1795,6 +1988,221 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       }),
     ]));
   });
+
+  it("binds analyze_quote selection to an empty unconfirmed canonical payload when the user sent no tag", async () => {
+    const canonicalText = "이 300만원 웨딩 사진 촬영 계약 견적 구성을 확인해줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: canonicalText,
+    };
+    const providerInput = {
+      quote_price: 999,
+      category: "studio",
+      vendor_name: "provider vendor",
+      included_items: ["모델이 지어낸 포함 항목"],
+      not_needed_items: ["모델이 지어낸 불필요 항목"],
+      checklist_confirmed: true,
+    };
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{ callId: "call_quote_absent", name: "analyze_quote", input: providerInput }],
+        outputItems: [{
+          id: "fc_quote_absent",
+          type: "function_call",
+          call_id: "call_quote_absent",
+          name: "analyze_quote",
+          arguments: JSON.stringify(providerInput),
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({ fullText: "체크리스트를 확인해 주세요." }));
+
+    const response = await POST(request({ messages: [{ role: "user", content: canonicalText }] }));
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "analyze_quote" }),
+    ]));
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "analyze_quote",
+      expect.objectContaining({
+        included_items: [],
+        not_needed_items: [],
+        checklist_confirmed: false,
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it("overwrites provider category, region, quote, vendor, and arrays with the exact canonical v2 selection", async () => {
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    const studioIds = getQuoteCheckItems("studio", "seoul").map((item) => item.id);
+    const canonicalText = buildCanonicalQuoteAnalysisMessage({
+      category: "studio",
+      region: "seoul",
+      quotePriceManwon: 300,
+      vendorName: "테스트 계약 웨딩 스튜디오",
+      includedItemIds: studioIds.slice(0, 2),
+      notNeededItemIds: studioIds.slice(2, 3),
+      unknownItemIds: studioIds.slice(3),
+    });
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: canonicalText,
+    };
+    const providerInput = {
+      quote_price: 999,
+      category: "dress",
+      region: "busan",
+      vendor_name: "provider vendor",
+      included_items: ["provider included"],
+      not_needed_items: ["provider excluded"],
+      checklist_confirmed: false,
+    };
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{ callId: "call_quote_valid", name: "analyze_quote", input: providerInput }],
+        outputItems: [{
+          id: "fc_quote_valid",
+          type: "function_call",
+          call_id: "call_quote_valid",
+          name: "analyze_quote",
+          arguments: JSON.stringify(providerInput),
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({ fullText: "선택한 항목만 확인했어요." }));
+
+    const response = await POST(request({ messages: [{ role: "user", content: canonicalText }] }));
+
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "analyze_quote",
+      expect.objectContaining({
+        category: "studio",
+        region: "seoul",
+        included_items: studioIds.slice(0, 2),
+        not_needed_items: studioIds.slice(2, 3),
+        checklist_confirmed: true,
+        quote_price: 300,
+        vendor_name: "테스트 계약 웨딩 스튜디오",
+      }),
+      expect.any(Object),
+    );
+    const currentProviderInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(currentProviderInput).toContain("[quote_analysis_v2]");
+    expect(currentProviderInput).toContain("테스트 계약 웨딩 스튜디오");
+    expect(mocks.atomicResponses.at(-1)?.metadata).toMatchObject({
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+    });
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("rejects a legacy quote tag without executing provider-invented selections", async () => {
+    mocks.memoryEnablement.shared = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    const tagged = `[quote_analysis] 견적 300만원 (테스트 계약 웨딩) 항목 상태:
+포함: 야외 촬영
+이용 안 함: 없음
+확인 필요: 없음`;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: tagged,
+    };
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_quote_invalid",
+          name: "analyze_quote",
+          input: {
+            quote_price: 300,
+            category: "studio",
+            included_items: ["provider invented"],
+            checklist_confirmed: true,
+          },
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({ fullText: "다시 선택해 주세요." }));
+
+    const canonicalText = tagged;
+    const response = await POST(request({ messages: [{ role: "user", content: canonicalText }] }));
+
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const rejectedOutput = mocks.buildToolResult.mock.calls
+      .map((call) => JSON.parse(String(call[1])) as { error_code?: string })
+      .find((output) => output.error_code === "INVALID_QUOTE_ANALYSIS_SELECTION");
+    expect(rejectedOutput).toBeDefined();
+    expect(mocks.atomicResponses.at(-1)?.metadata).toMatchObject({
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+    });
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it.each(["forged", "partial", "duplicate"] as const)(
+    "rejects %s analyze_quote v2 item IDs before tool execution",
+    async (variant) => {
+      mocks.memoryEnablement.shared = true;
+      mocks.auxiliaryMemoryRuntimeEnabled = true;
+      const ids = getQuoteCheckItems("studio", "seoul").map((item) => item.id);
+      const valid = buildCanonicalQuoteAnalysisMessage({
+        category: "studio",
+        region: "seoul",
+        quotePriceManwon: 300,
+        vendorName: "테스트 스튜디오",
+        includedItemIds: ids.slice(0, 1),
+        notNeededItemIds: ids.slice(1, 2),
+        unknownItemIds: ids.slice(2),
+      });
+      const lines = valid.split("\n");
+      const payload = JSON.parse(lines[2]) as {
+        states: { included: string[]; notNeeded: string[]; unknown: string[] };
+      };
+      if (variant === "forged") payload.states.included.push("forged_item");
+      if (variant === "partial") payload.states.unknown.pop();
+      if (variant === "duplicate") payload.states.notNeeded.push(payload.states.included[0]);
+      const canonicalText = `${lines[0]}\n${lines[1]}\n${JSON.stringify(payload)}\n${lines[3]}`;
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: canonicalText };
+      mocks.provider
+        .mockResolvedValueOnce(providerResult({
+          toolCalls: [{
+            callId: `call_quote_${variant}`,
+            name: "analyze_quote",
+            input: {
+              category: "dress",
+              region: "busan",
+              quote_price: 999,
+              included_items: ["provider invented"],
+              checklist_confirmed: true,
+            },
+          }],
+        }))
+        .mockResolvedValueOnce(providerResult({ fullText: "체크리스트를 다시 열어주세요." }));
+
+      const response = await POST(request({ messages: [{ role: "user", content: canonicalText }] }));
+      await response.text();
+
+      expect(response.status).toBe(200);
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.buildToolResult.mock.calls.some((call) => (
+        (JSON.parse(String(call[1])) as { error_code?: string }).error_code
+          === "INVALID_QUOTE_ANALYSIS_SELECTION"
+      ))).toBe(true);
+      expect(mocks.atomicResponses.at(-1)?.metadata).toMatchObject({
+        memory_eligible: false,
+        memory_enqueue_requested: false,
+      });
+      expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    },
+  );
 
   it("disables tools after two rounds, orders all ledger calls, and keeps the turn event cost-neutral", async () => {
     mocks.executeTool.mockImplementation(async (
@@ -2168,6 +2576,144 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).toContain(currentText);
   });
 
+  it("sends only the strict header from a prior valid quote machine row on the next W0 turn", async () => {
+    const priorId = "30000000-0000-4000-8000-000000000033";
+    const assistantId = "20000000-0000-4000-8000-000000000033";
+    const currentText = "CANONICAL_CURRENT 우리 결혼 예산을 정리해줘";
+    const itemIds = getQuoteCheckItems("dress", "seoul").map((item) => item.id);
+    const quoteMachineContext = buildCanonicalQuoteAnalysisMessage({
+      category: "dress",
+      region: "seoul",
+      quotePriceManwon: 300,
+      vendorName: "테스트",
+      includedItemIds: [],
+      notNeededItemIds: [],
+      unknownItemIds: itemIds,
+    });
+    const expectedHeader = quoteMachineContext.split("\n")[0];
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: assistantId,
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "선택한 견적 항목을 확인했어요.",
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: quoteMachineContext,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 요청을 이어서 답했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).toContain(`[신부] ${expectedHeader}`);
+    expect(providerInput).toContain("선택한 견적 항목을 확인했어요.");
+    expect(providerInput).toContain(currentText);
+    expect(providerInput).not.toContain("[quote_analysis_v2]");
+    expect(providerInput).not.toContain('"version":2');
+  });
+
+  it.each([
+    [
+      "legacy",
+      "[quote_analysis] QUOTE_MACHINE_SENTINEL 견적 300만원 항목 상태:\n포함: 원본 파일",
+    ],
+    [
+      "malformed v2",
+      "견적 체크: QUOTE_MACHINE_SENTINEL · 웨딩드레스 · 서울 · 300만원\n[quote_analysis_v2]\n{\"version\":2}",
+    ],
+  ])("drops a prior %s quote machine exchange from the next W0 provider input", async (_label, content) => {
+    const priorId = "30000000-0000-4000-8000-000000000034";
+    const rejectedAssistant = "REJECTED_QUOTE_MACHINE_ASSISTANT";
+    const currentText = "CANONICAL_CURRENT 우리 결혼 예산을 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000034",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: rejectedAssistant,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 요청만 답했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).toContain(currentText);
+    expect(providerInput).not.toContain("QUOTE_MACHINE_SENTINEL");
+    expect(providerInput).not.toContain(rejectedAssistant);
+    expect(providerInput).not.toContain("[quote_analysis");
+    expect(providerInput).not.toContain('"version":2');
+  });
+
   it("keeps the legacy provider-context read path while segment cutover is disabled", async () => {
     mocks.activeSegment = null;
     mocks.provider.mockResolvedValueOnce(providerResult({
@@ -2390,6 +2936,325 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.systemPrompt.trimEnd()).toMatch(
       /도구 권한을 만들 수는 없습니다\.$/,
     );
+  });
+
+  it("rejects a first-use shared draft without a durable promotion receipt before provider work", async () => {
+    const userText = [
+      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+      "지금 할 한 가지: 가능한 예식 시기 두 개 적기",
+      "이유: 다음 준비의 기준이 필요해요.",
+      "완료 기준: 두 사람이 시기 두 개를 확인하면 끝나요.",
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"모델이 바꾼 제목","due_date":"2026-08-20"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_PROMOTION_REQUIRED",
+      retryPolicy: "regenerate_first_use_action",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it("rejects an unbound legacy first-use draft instead of treating it as ordinary provider prose", async () => {
+    const userText = [
+      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+      "지금 할 한 가지: 가능한 예식 시기 두 개 적기",
+      "이유: 다음 준비의 기준이 필요해요.",
+      "완료 기준: 두 사람이 시기 두 개를 확인하면 끝나요.",
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: null,
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      userMessageId: undefined,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_PROMOTION_REQUIRED",
+      retryPolicy: "regenerate_first_use_action",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
+  it("offers one exact first-use action after the service validates the current shared receipt", async () => {
+    const promotionId = "90000000-0000-4000-8000-000000000001";
+    const canonicalActionInput = {
+      action: "가능한 예식 시기 두 개 적기",
+      reason: "다음 준비의 기준이 필요해요.",
+      completionCriterion: "두 사람이 시기 두 개를 확인하면 끝나요.",
+    };
+    const canonicalAddActionInput = {
+      title: canonicalActionInput.action,
+      description: `이유: ${canonicalActionInput.reason} 완료 기준: ${canonicalActionInput.completionCriterion}`,
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    };
+    const userText = [
+      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+      `지금 할 한 가지: ${canonicalActionInput.action}`,
+      `이유: ${canonicalActionInput.reason}`,
+      `완료 기준: ${canonicalActionInput.completionCriterion}`,
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_first_use_promotion_id: promotionId,
+      },
+    };
+    mocks.adminRpc.mockImplementation(async (name: string) => (
+      name === "validate_amora_first_use_action_promotion_v1"
+        ? {
+            data: {
+              version: 1,
+              promotionId,
+              canonicalActionInput,
+              canonicalAddActionInput,
+            },
+            error: null,
+          }
+        : { data: { authorized: true }, error: null }
+    ));
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"모델이 바꾼 제목","due_date":"2026-08-20"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "validate_amora_first_use_action_promotion_v1",
+      {
+        p_couple_id: COUPLE_ID,
+        p_owner_user_id: "00000000-0000-4000-8000-000000000001",
+        p_shared_user_message_id: "30000000-0000-4000-8000-000000000001",
+        p_expected_privacy_epoch: 7,
+      },
+    );
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
+      "서버가 입력값을 모두 고정한 도구: add_amora_action",
+    );
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          amora_first_use_promotion_id: promotionId,
+          pending_amora_action: expect.objectContaining({
+            tool: "add_amora_action",
+            input: canonicalAddActionInput,
+          }),
+        }),
+      }),
+    ]);
+    expect(JSON.stringify(mocks.atomicResponses[0]?.metadata)).not.toContain(
+      "sourceMessageId",
+    );
+  });
+
+  it("keeps a server-guarded verification action proposal-capable without bypassing high-risk scope", async () => {
+    const promotionId = "90000000-0000-4000-8000-000000000003";
+    const canonicalActionInput = {
+      action: "계약·결제 상태 확인하기",
+      reason: "저장된 준비 기록만으로 계약·결제 상태를 확정할 수 없어 먼저 확인이 필요해요.",
+      completionCriterion: "계약서와 결제 내역에서 금액·상태·마감일을 확인해 둘이 볼 기록에 적으면 끝나요.",
+    };
+    const canonicalAddActionInput = {
+      title: canonicalActionInput.action,
+      description: `이유: ${canonicalActionInput.reason} 완료 기준: ${canonicalActionInput.completionCriterion}`,
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    };
+    const userText = [
+      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+      `지금 할 한 가지: ${canonicalActionInput.action}`,
+      `이유: ${canonicalActionInput.reason}`,
+      `완료 기준: ${canonicalActionInput.completionCriterion}`,
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_first_use_promotion_id: promotionId,
+      },
+    };
+    mocks.adminRpc.mockImplementation(async (name: string) => (
+      name === "validate_amora_first_use_action_promotion_v1"
+        ? {
+            data: {
+              version: 1,
+              promotionId,
+              canonicalActionInput,
+              canonicalAddActionInput,
+            },
+            error: null,
+          }
+        : { data: { authorized: true }, error: null }
+    ));
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"금액을 바로 보내기"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W0_wedding_core",
+      amora_first_use_promotion_id: promotionId,
+      pending_amora_action: expect.objectContaining({
+        tool: "add_amora_action",
+        input: canonicalAddActionInput,
+      }),
+    });
+  });
+
+  it("does not let a valid first-use receipt launder legal judgment into an action proposal", async () => {
+    const promotionId = "90000000-0000-4000-8000-000000000004";
+    const canonicalActionInput = {
+      action: "계약서 조항의 법적 효력 판단하기",
+      reason: "위약금 조항이 법적으로 유효한지 결론이 필요해요.",
+      completionCriterion: "계약 해지 권리를 확정하면 끝나요.",
+    };
+    const canonicalAddActionInput = {
+      title: canonicalActionInput.action,
+      description: `이유: ${canonicalActionInput.reason} 완료 기준: ${canonicalActionInput.completionCriterion}`,
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    };
+    const userText = [
+      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+      `지금 할 한 가지: ${canonicalActionInput.action}`,
+      `이유: ${canonicalActionInput.reason}`,
+      `완료 기준: ${canonicalActionInput.completionCriterion}`,
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_first_use_promotion_id: promotionId,
+      },
+    };
+    mocks.adminRpc.mockImplementation(async (name: string) => (
+      name === "validate_amora_first_use_action_promotion_v1"
+        ? {
+            data: {
+              version: 1,
+              promotionId,
+              canonicalActionInput,
+              canonicalAddActionInput,
+            },
+            error: null,
+          }
+        : { data: { authorized: true }, error: null }
+    ));
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"법적 효력 확정"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W2_high_risk_adjacent",
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "pending_amora_action",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_first_use_promotion_id",
+    );
+  });
+
+  it.each([
+    {
+      label: "forged receipt",
+      error: {
+        code: "22023",
+        message: "AMORA_FIRST_USE_PROMOTION_SOURCE_INVALID",
+      },
+      status: 409,
+      code: "AMORA_FIRST_USE_PROMOTION_STALE",
+    },
+    {
+      label: "service-role validation outage",
+      error: {
+        code: "42501",
+        message: "AMORA_FIRST_USE_PROMOTION_SERVICE_ROLE_REQUIRED",
+      },
+      status: 503,
+      code: "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+    },
+  ])("fails $label closed before provider work", async ({ error, status, code }) => {
+    const userText = [
+      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+      "지금 할 한 가지: 가능한 예식 시기 두 개 적기",
+      "이유: 다음 준비의 기준이 필요해요.",
+      "완료 기준: 두 사람이 시기 두 개를 확인하면 끝나요.",
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_first_use_promotion_id:
+          "90000000-0000-4000-8000-000000000001",
+      },
+    };
+    mocks.adminRpc.mockResolvedValueOnce({ data: null, error });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
   });
 
   it("rejects a request that is not bound to the authenticated user's durable message", async () => {
@@ -3297,6 +4162,185 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
+  it("drops provider suggestions from mediation turns so a biased action chip cannot bypass the card guard", async () => {
+    const providerText = [
+      "요청자가 전한 내용을 바탕으로 정리했어요.",
+      "[mediation]",
+      "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+      "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+      "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+      "합의안: 두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+      "[/mediation]",
+      "[suggestions]",
+      "신랑이 먼저 사과하기",
+      "[/suggestions]",
+    ].join("\n");
+    mocks.extractSuggestions.mockReturnValueOnce({
+      cleanText: providerText.replace(
+        "[suggestions]\n신랑이 먼저 사과하기\n[/suggestions]",
+        "",
+      ).trim(),
+      suggestions: ["신랑이 먼저 사과하기"],
+    });
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(providerText);
+      return providerResult({
+        fullText: providerText,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      });
+    });
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: "예산 상한에 대한 생각이 다른 것 같아요.",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("suggestions");
+    expect(body).not.toContain('"type":"suggestions"');
+    expect(body).not.toContain("신랑이 먼저 사과하기");
+  });
+
+  it("replaces a rejected one-sided mediation card with deterministic neutral guidance", async () => {
+    const biasedProviderText = [
+      "요청자가 전한 내용을 바탕으로 정리했어요.",
+      "[mediation]",
+      "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+      "통역: 요청자가 맞아요.",
+      "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+      "합의안: 민수님이 양보하고 사과하세요.",
+      "[/mediation]",
+    ].join("\n");
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(biasedProviderText);
+      return providerResult({
+        fullText: biasedProviderText,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      });
+    });
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: "예산 상한에 대한 생각이 다른 것 같아요.",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.atomicResponses[0]?.content).toContain("잘잘못이나 속마음을 단정하지 않고");
+    expect(mocks.atomicResponses[0]?.content).toContain("확인된 사실");
+    expect(mocks.atomicResponses[0]?.content).not.toContain("요청자가 맞아요");
+    expect(mocks.atomicResponses[0]?.content).not.toContain("민수님이 양보");
+    expect(body).toContain("잘잘못이나 속마음을 단정하지 않고");
+    expect(body).not.toContain("요청자가 맞아요");
+    expect(body).not.toContain("민수님이 양보");
+  });
+
+  it("promotes reverse-order financial authority detection through persistence and SSE", async () => {
+    const biasedProviderText = [
+      "요청자가 전한 내용을 바탕으로 정리했어요.",
+      "[mediation]",
+      "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+      "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+      "데이터: 신랑이 더 많은 비용을 부담할 수 있다고 전했어요.",
+      "합의안: 결정권은 돈을 70% 내는 신랑에게 있어야 해요.",
+      "[/mediation]",
+    ].join("\n");
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(biasedProviderText);
+      return providerResult({
+        fullText: biasedProviderText,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      });
+    });
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: "예산 기여 비율 때문에 의견이 달라요.",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.atomicResponses[0]?.content).toContain("확인된 사실");
+    expect(mocks.atomicResponses[0]?.content).not.toContain("결정권은");
+    expect(body).not.toContain("결정권은");
+  });
+
+  it("does not repeat an attributed insult or one-sided demand in persisted or streamed mediation output", async () => {
+    const biasedProviderText = [
+      "요청자가 전한 내용을 바탕으로 정리했어요.",
+      "[mediation]",
+      "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+      '통역: 요청자는 "신랑이 이기적이고 먼저 사과해야 한다"고 말했어요.',
+      "데이터: 상대방의 입장은 아직 확인되지 않았어요.",
+      "합의안: 두 사람이 각자 원하는 기준을 적어 비교해 보세요.",
+      "[/mediation]",
+    ].join("\n");
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(biasedProviderText);
+      return providerResult({
+        fullText: biasedProviderText,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      });
+    });
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: "사과 순서 때문에 의견이 달라요.",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.atomicResponses[0]?.content).toContain("확인된 사실");
+    expect(mocks.atomicResponses[0]?.content).not.toContain("신랑이 이기적");
+    expect(body).not.toContain("신랑이 이기적");
+  });
+
+  it("applies the same neutrality fallback when a mediation response omits its marker", async () => {
+    const biasedProviderText =
+      "사용자가 이기적이에요. 민수님이 먼저 사과하는 게 좋겠어요.";
+    mocks.provider.mockImplementationOnce(async (options: {
+      onTextDelta?: (value: string) => void;
+    }) => {
+      options.onTextDelta?.(biasedProviderText);
+      return providerResult({
+        fullText: biasedProviderText,
+        usage: { input_tokens: 10, output_tokens: 12 },
+      });
+    });
+
+    const response = await POST(request({
+      requestKind: "mediation",
+      conflictContext: "예산 상한에 대한 생각이 다른 것 같아요.",
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.atomicResponses[0]?.content).toContain("잘잘못이나 속마음을 단정하지 않고");
+    expect(mocks.atomicResponses[0]?.content).not.toContain("사용자가 이기적");
+    expect(mocks.atomicResponses[0]?.content).not.toContain("민수님이 먼저 사과");
+    expect(body).toContain("잘잘못이나 속마음을 단정하지 않고");
+    expect(body).not.toContain("사용자가 이기적");
+    expect(body).not.toContain("민수님이 먼저 사과");
+  });
+
   it("demotes a W2 mediation request to ordinary no-memory guidance", async () => {
     const providerText = [
       "[mediation]",
@@ -3306,6 +4350,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       "합의안: 두 분이 계약서를 다시 확인해 보세요.",
       "[/mediation]",
     ].join("\n");
+    mocks.extractSuggestions.mockReturnValueOnce({
+      cleanText: providerText,
+      suggestions: ["신랑의 법적 판단을 따르기"],
+    });
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: providerText,
       usage: { input_tokens: 10, output_tokens: 20 },
@@ -3342,6 +4390,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(body).not.toContain("통역:");
     expect(body).not.toContain("데이터:");
     expect(body).not.toContain("합의안:");
+    expect(body).not.toContain('"type":"suggestions"');
+    expect(body).not.toContain("신랑의 법적 판단을 따르기");
     expect(body).toContain("자격 있는 전문가나 공식 기관");
     expect(mocks.atomicResponses).toHaveLength(1);
     expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
@@ -3349,6 +4399,13 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       memory_eligible: false,
     });
     expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("suggestions");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_wedding_context_revision",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_first_use_grounding",
+    );
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
   });
 
@@ -3547,6 +4604,29 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
       metadata: expect.objectContaining({ question_scope: expectedScope }),
     }));
+  });
+
+  it("binds adaptive decision depth to the current canonical wedding question", async () => {
+    const userText = "상견례를 처음 준비하는데 놓치는 것까지 전부 알려줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "현재 상황에 필요한 준비만 골라서 볼게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const systemPrompt = mocks.provider.mock.calls[0]?.[0]?.systemPrompt;
+    expect(systemPrompt).toContain("[서버 확정 결혼 결정 깊이 계약]");
+    expect(systemPrompt).toContain("decision_depth: comprehensive");
+    expect(systemPrompt).toContain("decision_topic: family_meeting");
   });
 
   it.each([
@@ -4509,7 +5589,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     const response = await POST(request({
       visibility: "bride_private",
-      messages: [{ role: "user", content: userText }],
+      messages: [{
+        role: "user",
+        content: `${SCHEDULE_CARE_CANONICAL_PROMPT} ${userText}`,
+      }],
     }));
     expect(response.status).toBe(200);
     await response.text();
@@ -5938,6 +7021,42 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
             current: expect.objectContaining({ totalBudget: 0 }),
             proposed: expect.objectContaining({ totalBudget: 30_000_000 }),
             delta: expect.objectContaining({ totalBudget: 30_000_000 }),
+          }),
+        }),
+      }),
+    ]);
+  });
+
+  it("server-binds an important schedule date, moment, and category before persisting the approval card", async () => {
+    const userText = "2027년 2월 20일에 상견례야";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_schedule_event","input":{"date":"2027-02-27","title":"상견례"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).not.toContain("[pending_action]");
+    expect(mocks.atomicResponses).toEqual([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          pending_amora_action: expect.objectContaining({
+            tool: "add_schedule_event",
+            input: expect.objectContaining({
+              date: "2027-02-20",
+              title: "상견례",
+              moment_type: "sanggyeonrye",
+              category_key: "meeting",
+            }),
           }),
         }),
       }),
@@ -7784,7 +8903,200 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       question_scope: "W0_wedding_core",
       memory_eligible: true,
       memory_enqueue_requested: false,
+      amora_wedding_context_revision: 0,
+      amora_first_use_grounding: {
+        version: 1,
+        sourceRevision: 0,
+        confirmed: [],
+        unknowns: [
+          { key: "current_progress", label: "이미 마친 준비와 아직 남은 준비" },
+          { key: "wedding_date", label: "결혼식 날짜" },
+          { key: "next_schedule", label: "가장 가까운 중요한 일정" },
+        ],
+      },
     });
+  });
+
+  it("seals a safe canonical first action from a private provider response without private text", async () => {
+    const providerText = [
+      "지금 할 한 가지: 신라호텔 예약금 300만원 보내기",
+      "이유: 업체 계약에 필요한 금액이에요.",
+      "완료 기준: 2026-08-20까지 잔금 700만원을 보내면 끝나요.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      visibility: "bride_private",
+    };
+    providerAfterPreGeneration(providerResult({ fullText: providerText }));
+
+    const response = await POST(request({ visibility: "bride_private" }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      amora_first_use_action_promotion_v1: {
+        version: 1,
+        journeyRevision: 0,
+        privacyEpoch: 7,
+        rosterFingerprint: "a".repeat(32),
+        criterionDecisionId: null,
+        canonicalActionInput: {
+          action: "계약·결제 상태 확인하기",
+          reason: "저장된 준비 기록만으로 계약·결제 상태를 확정할 수 없어 먼저 확인이 필요해요.",
+          completionCriterion: "계약서와 결제 내역에서 금액·상태·마감일을 확인해 둘이 볼 기록에 적으면 끝나요.",
+        },
+        sourceContentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        actionDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        sharedContentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
+    });
+    const metadata = JSON.stringify(mocks.atomicResponses[0]?.metadata);
+    expect(metadata).not.toContain("신라호텔");
+    expect(metadata).not.toContain("300만원");
+    expect(metadata).not.toContain("700만원");
+    expect(metadata).not.toContain("sourceMessageId");
+  });
+
+  it.each([
+    {
+      label: "ordinary private prose",
+      visibility: "bride_private" as const,
+      providerText: "지금 준비 상태를 차근차근 같이 살펴볼게요.",
+    },
+    {
+      label: "an incomplete private action",
+      visibility: "bride_private" as const,
+      providerText: "지금 할 한 가지: 시기 후보 적기\n이유: 다음 준비의 기준이 필요해요.",
+    },
+    {
+      label: "a shared action-shaped response",
+      visibility: "shared" as const,
+      providerText: "지금 할 한 가지: 시기 후보 적기\n이유: 다음 준비의 기준이 필요해요.\n완료 기준: 후보 두 개를 적으면 끝나요.",
+    },
+  ])("does not attach a private first-use seal to $label", async ({
+    visibility,
+    providerText,
+  }) => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      visibility,
+    };
+    providerAfterPreGeneration(providerResult({ fullText: providerText }));
+
+    const response = await POST(request({ visibility }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_first_use_action_promotion_v1",
+    );
+  });
+
+  it("binds exact saved wedding progress to the first-use card metadata", async () => {
+    mocks.journeyStateRevision = 12;
+    mocks.journeyRow = {
+      wedding_date: "2099-05-22",
+      total_budget: 30_000_000,
+      venue: "정원홀",
+      progress: {
+        venue: {
+          checklist: [
+            { id: "venue_01", label: "원하는 결혼식장 형태 정하기", done: true },
+            { id: "venue_02", label: "비교할 장소 후보 정리", done: false },
+          ],
+        },
+        __events: [
+          { date: "2099-01-20", title: "부모님 첫 만남" },
+          { date: "2099-02-01", title: "웨딩 사진 촬영" },
+        ],
+      },
+    };
+    providerAfterPreGeneration(providerResult({
+      fullText: "저장된 준비 상태에서 다음 한 가지를 같이 정해볼게요.",
+    }));
+
+    const response = await POST(request());
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W0_wedding_core",
+      amora_wedding_context_revision: 12,
+      amora_first_use_grounding: {
+        version: 1,
+        sourceRevision: 12,
+        confirmed: [
+          { key: "wedding_date", label: "결혼식 날짜: 2099-05-22" },
+          { key: "next_schedule", label: "다음 일정: 2099-01-20 · 부모님 첫 만남" },
+          {
+            key: "current_progress",
+            label: "저장한 체크리스트: 1/2 완료 · 남아 있는 항목: 비교할 장소 후보 정리",
+          },
+        ],
+        unknowns: [],
+      },
+    });
+  });
+
+  it("binds the exact two-person criterion decision to the personalized action metadata", async () => {
+    const criterionDecisionId = "44444444-4444-4444-8444-444444444444";
+    const criterionValue = "우리 둘이 감당할 수 있는 범위 먼저 보기";
+    mocks.decisionRows.push({
+      id: criterionDecisionId,
+      couple_id: COUPLE_ID,
+      category: "preference",
+      decision_type: "decided",
+      title: "우리 기준",
+      chosen_value: { value: criterionValue },
+      reasoning: null,
+      confidence: 1,
+      stage_tag: null,
+      source: "manual",
+      visibility: "shared",
+      source_actor_role: null,
+      created_at: "2026-08-14T10:00:00.000Z",
+      memory_key: null,
+      superseded_at: null,
+      metadata: {
+        criterion_contract: "amora_couple_core_criterion_v1",
+        criterion_version: 1,
+        bride_user_id: "00000000-0000-4000-8000-000000000001",
+        groom_user_id: "00000000-0000-4000-8000-000000000002",
+        acceptance_count: 2,
+        explicit: true,
+      },
+    });
+    providerAfterPreGeneration(providerResult({
+      fullText: "우리 기준과 준비 상태를 함께 보고 다음 한 가지를 정리할게요.",
+    }));
+
+    const response = await POST(request());
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(criterionValue);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      amora_wedding_context_revision: 0,
+      amora_couple_criterion_decision_id: criterionDecisionId,
+    });
+  });
+
+  it("does not claim a personalized planning snapshot without a canonical journey revision", async () => {
+    mocks.journeyStateRevision = null;
+    providerAfterPreGeneration(providerResult({
+      fullText: "확인 가능한 준비 기록부터 다시 불러올게요.",
+    }));
+
+    const response = await POST(request());
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_wedding_context_revision",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_first_use_grounding",
+    );
   });
 
   it("persists a false enqueue marker when current memory consent is disabled", async () => {
@@ -7803,5 +9115,481 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       memory_eligible: true,
       memory_enqueue_requested: false,
     });
+  });
+
+  it("replays an exact committed D+1 answer before live schedule resolution", async () => {
+    setBoundSanggyeonryeDAfterPrivateRow();
+    mocks.findPersisted.mockResolvedValue({
+      ...persisted("이미 안전하게 저장된 상견례 정리예요."),
+      metadata: {
+        amora_schedule_care_follow_up_v1: SCHEDULE_CARE_BINDING_METADATA,
+      },
+      visibility: "bride_private",
+      reused: true,
+    });
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce({
+      ok: false,
+      reason: "card_stale",
+    });
+
+    const response = await POST(request({ visibility: "bride_private" }));
+    const body = await response.text();
+
+    expect(response.status, body).toBe(200);
+    expect(body).toContain("이미 안전하게 저장된 상견례 정리예요.");
+    expect(mocks.reconcile).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("fails a mismatched committed D+1 receipt closed without live resolution", async () => {
+    setBoundSanggyeonryeDAfterPrivateRow();
+    mocks.findPersisted.mockResolvedValue({
+      ...persisted("다른 카드에 저장된 답변"),
+      metadata: {
+        amora_schedule_care_follow_up_v1: {
+          ...SCHEDULE_CARE_BINDING_METADATA,
+          card_revision: SCHEDULE_CARE_BINDING_METADATA.card_revision + 1,
+        },
+      },
+      visibility: "bride_private",
+      reused: true,
+    });
+
+    const response = await POST(request({ visibility: "bride_private" }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHAT_REPLAY_INCONSISTENT",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.resolveScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("binds a current actor-private sanggyeonrye D+1 turn to canonical context and one private draft", async () => {
+    const userText = "상견례에서 합의한 것과 더 이야기할 것을 나눠보고 싶어.";
+    setBoundSanggyeonryeDAfterPrivateRow(userText);
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce(
+      resolvedSanggyeonryeDAfter(),
+    );
+    providerAfterPreGeneration(providerResult({
+      fullText: [
+        "말씀한 내용을 사실과 아직 논의 중인 내용으로 나눠볼게요.",
+        "[amora_schedule_care_action_draft]",
+        JSON.stringify({
+          version: 1,
+          title: "상견례에서 나온 항목을 둘이 구분하기",
+          reason: "합의된 내용과 아직 논의 중인 내용을 같은 기준으로 확인해요.",
+          completionCriterion: "두 목록을 나누고 서로 확인하면 끝나요.",
+        }),
+        "[/amora_schedule_care_action_draft]",
+      ].join(""),
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{ role: "user", content: userText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status, body).toBe(200);
+    expect(mocks.resolveScheduleCareFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: "00000000-0000-4000-8000-000000000001",
+        coupleId: COUPLE_ID,
+        binding: {
+          cardId: SCHEDULE_CARE_CARD_ID,
+          cardRevision: 3,
+          sourceRevision: 0,
+        },
+      }),
+    );
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("AMORA_SCHEDULE_CARE_D_AFTER_V1");
+    expect(providerArgs?.systemPrompt).toContain("양가 부모님 첫 만남");
+    expect(providerArgs?.systemPrompt).toContain("2026-08-14 18:00");
+    expect(providerArgs?.systemPrompt).toContain("실제로 합의된 내용");
+    expect(providerArgs?.systemPrompt).toContain("최대 한 개");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: userText },
+    ]);
+    expect(JSON.stringify(providerArgs?.input)).not.toContain(
+      SCHEDULE_CARE_CANONICAL_PROMPT,
+    );
+    expect(providerArgs?.tools).toEqual([]);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses[0]?.content).not.toContain(
+      "amora_schedule_care_action_draft",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W0_wedding_core",
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+      amora_schedule_care_follow_up_v1: SCHEDULE_CARE_BINDING_METADATA,
+      amora_schedule_care_action_draft_v1: {
+        version: 1,
+        title: "상견례에서 나온 항목을 둘이 구분하기",
+        reason: "합의된 내용과 아직 논의 중인 내용을 같은 기준으로 확인해요.",
+        completionCriterion: "두 목록을 나누고 서로 확인하면 끝나요.",
+      },
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "pending_amora_action",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_first_use_grounding",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_wedding_context_revision",
+    );
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    const persistedMetadata = JSON.stringify(mocks.atomicResponses[0]?.metadata);
+    expect(persistedMetadata).not.toContain("event_private_source");
+    expect(persistedMetadata).not.toContain("sourceStateDigest");
+    expect(persistedMetadata).not.toContain(SCHEDULE_CARE_CANONICAL_PROMPT);
+    expect(persistedMetadata).not.toContain(SCHEDULE_CARE_QUESTION);
+  });
+
+  it("does not grant D+1 context or draft metadata to an ordinary private turn", async () => {
+    const userText = "상견례 이야기를 비공개로 정리하고 싶어.";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: { client_request_id: REQUEST_ID },
+      visibility: "bride_private",
+    };
+    providerAfterPreGeneration(providerResult({
+      fullText: [
+        "함께 정리해볼게요.",
+        "[amora_schedule_care_action_draft]",
+        JSON.stringify({
+          version: 1,
+          title: "권한 없는 초안",
+          reason: "일반 비공개 턴이에요.",
+          completionCriterion: "바로 저장하면 끝나요.",
+        }),
+        "[/amora_schedule_care_action_draft]",
+      ].join(""),
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{ role: "user", content: userText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    expect(mocks.resolveScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).not.toContain(
+      "AMORA_SCHEDULE_CARE_D_AFTER_V1",
+    );
+    expect(mocks.atomicResponses[0]?.content).toBe("함께 정리해볼게요.");
+    expect(mocks.atomicResponses[0]?.content).not.toContain(
+      "amora_schedule_care_action_draft",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_schedule_care_follow_up_v1",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_schedule_care_action_draft_v1",
+    );
+  });
+
+  it("rejects malformed D+1 metadata before claims, cost, provider, tools, or writes", async () => {
+    setBoundSanggyeonryeDAfterPrivateRow();
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+        amora_schedule_care_follow_up_v1: {
+          ...SCHEDULE_CARE_BINDING_METADATA,
+          card_revision: 0,
+        },
+      },
+    };
+
+    const response = await POST(request({ visibility: "bride_private" }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_INVALID",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.resolveScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it.each([
+    {
+      reason: "scope_changed",
+      status: 403,
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_SCOPE_CHANGED",
+      retryPolicy: "new_message",
+    },
+    {
+      reason: "journey_stale",
+      status: 409,
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_STALE",
+      retryPolicy: "regenerate_schedule_care_follow_up",
+    },
+    {
+      reason: "card_stale",
+      status: 409,
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_STALE",
+      retryPolicy: "regenerate_schedule_care_follow_up",
+    },
+    {
+      reason: "source_unavailable",
+      status: 503,
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_UNAVAILABLE",
+      retryPolicy: "same_request",
+    },
+  ])("fails $reason D+1 resolution closed before durable or paid work", async ({
+    reason,
+    status,
+    code,
+    retryPolicy,
+  }) => {
+    setBoundSanggyeonryeDAfterPrivateRow();
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce({ ok: false, reason });
+
+    const response = await POST(request({ visibility: "bride_private" }));
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code, retryPolicy });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it.each([
+    {
+      label: "wrong resolved owner",
+      mutate: (value: ReturnType<typeof resolvedSanggyeonryeDAfter>["value"]) => ({
+        ...value,
+        recipientUserId: "00000000-0000-4000-8000-000000000009",
+      }),
+    },
+    {
+      label: "wrong resolved couple",
+      mutate: (value: ReturnType<typeof resolvedSanggyeonryeDAfter>["value"]) => ({
+        ...value,
+        coupleId: "00000000-0000-4000-8000-000000000099",
+      }),
+    },
+    {
+      label: "wrong resolved card revision",
+      mutate: (value: ReturnType<typeof resolvedSanggyeonryeDAfter>["value"]) => ({
+        ...value,
+        binding: { ...value.binding, cardRevision: value.binding.cardRevision + 1 },
+      }),
+    },
+  ])("rejects $label before claim, provider, cost, tools, or persistence", async ({
+    mutate,
+  }) => {
+    setBoundSanggyeonryeDAfterPrivateRow();
+    const resolution = resolvedSanggyeonryeDAfter();
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce({
+      ok: true,
+      value: mutate(resolution.value),
+    });
+
+    const response = await POST(request({ visibility: "bride_private" }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_SCOPE_CHANGED",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it.each([
+    {
+      label: "a changed canonical prompt prefix",
+      content: `${SCHEDULE_CARE_CANONICAL_PROMPT.replace("어제", "오늘")} 답변`,
+    },
+    {
+      label: "an empty answer suffix",
+      content: `${SCHEDULE_CARE_CANONICAL_PROMPT} `,
+    },
+  ])("rejects $label before claim, provider, cost, tools, or persistence", async ({
+    content,
+  }) => {
+    setBoundSanggyeonryeDAfterPrivateRow();
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content,
+    };
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce(
+      resolvedSanggyeonryeDAfter(),
+    );
+
+    const response = await POST(request({ visibility: "bride_private" }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_STALE",
+      retryPolicy: "regenerate_schedule_care_follow_up",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it("turns unsupported D+1 payment and agreement claims into a private verification draft", async () => {
+    const userText = "상견례에서 계약금과 예단 얘기가 나왔어.";
+    setBoundSanggyeonryeDAfterPrivateRow(userText);
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce(
+      resolvedSanggyeonryeDAfter(),
+    );
+    providerAfterPreGeneration(providerResult({
+      fullText: [
+        "양가가 예단 500만원과 결제 완료에 모두 합의했고 저장했어요.",
+        "[amora_schedule_care_action_draft]",
+        JSON.stringify({
+          version: 1,
+          title: "예단 500만원 결제 완료로 저장하기",
+          reason: "양가가 모두 동의한 것으로 확정됐어요.",
+          completionCriterion: "합의된 결제 사실로 기록하면 끝나요.",
+        }),
+        "[/amora_schedule_care_action_draft]",
+      ].join(""),
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{
+        role: "user",
+        content: `${SCHEDULE_CARE_CANONICAL_PROMPT} ${userText}`,
+      }],
+    }));
+    const body = await response.text();
+
+    expect(response.status, body).toBe(200);
+    expect(mocks.atomicResponses[0]?.content).toContain(
+      "확정된 합의나 결제 사실로 단정하지 않고",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      amora_schedule_care_action_draft_v1: {
+        version: 1,
+        title: "상견례에서 나온 내용을 둘이 확인하기",
+      },
+    });
+    expect(JSON.stringify(mocks.atomicResponses[0])).not.toContain("500만원");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "pending_amora_action",
+    );
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("guards unsupported D+1 claims when the provider omits the private draft marker", async () => {
+    const userText = "상견례에서 계약금과 예단 얘기가 나왔어.";
+    setBoundSanggyeonryeDAfterPrivateRow(userText);
+    mocks.resolveScheduleCareFollowUp.mockResolvedValueOnce(
+      resolvedSanggyeonryeDAfter(),
+    );
+    providerAfterPreGeneration(providerResult({
+      fullText: "양가 모두 예단 500만원 부담에 합의했어요.",
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{
+        role: "user",
+        content: `${SCHEDULE_CARE_CANONICAL_PROMPT} ${userText}`,
+      }],
+    }));
+    const body = await response.text();
+
+    expect(response.status, body).toBe(200);
+    expect(mocks.atomicResponses[0]?.content).toContain(
+      "확정된 합의나 결제 사실로 단정하지 않고",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      amora_schedule_care_action_draft_v1: {
+        version: 1,
+        title: "상견례에서 나온 내용을 둘이 확인하기",
+      },
+    });
+    expect(JSON.stringify(mocks.atomicResponses[0])).not.toContain("500만원");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "pending_amora_action",
+    );
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("routes the exact explicit shared bridge to only the existing add-action confirmation path", async () => {
+    const userText = [
+      "상견례 뒤 정리한 아래 내용을 둘이 볼 다음 할 일로 추가할 실행 카드로 제안해줘.",
+      "",
+      "다음 할 일: 상견례에서 나온 항목을 둘이 구분하기",
+      "이유: 합의된 내용과 아직 논의 중인 내용을 같은 기준으로 확인해요.",
+      "완료 기준: 두 목록을 나누고 서로 확인하면 끝나요.",
+      "",
+      "저장 전에는 확인 카드만 보여줘.",
+    ].join("\n");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: { client_request_id: REQUEST_ID },
+      visibility: "shared",
+    };
+    providerAfterPreGeneration(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"provider override","due_date":"2026-08-20"}}[/pending_action]',
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    const body = await response.text();
+
+    expect(response.status, body).toBe(200);
+    const systemPrompt = String(mocks.provider.mock.calls[0]?.[0]?.systemPrompt);
+    expect(systemPrompt).toContain("제안 가능한 변경 도구: add_amora_action");
+    expect(systemPrompt).toContain(
+      "서버가 입력값을 모두 고정한 도구: add_amora_action",
+    );
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      pending_amora_action: {
+        tool: "add_amora_action",
+        input: {
+          title: "상견례에서 나온 항목을 둘이 구분하기",
+          description:
+            "이유: 합의된 내용과 아직 논의 중인 내용을 같은 기준으로 확인해요. 완료 기준: 두 목록을 나누고 서로 확인하면 끝나요.",
+          category_key: "general",
+          priority: "medium",
+          source: "chat",
+        },
+      },
+    });
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.resolveScheduleCareFollowUp).not.toHaveBeenCalled();
   });
 });

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   subscribeToMessages: vi.fn(() => vi.fn()),
   retryFailedMessage: vi.fn(),
   dismissFailedMessageRetry: vi.fn(),
+  applyMediationSafetyFence: vi.fn(),
   applicationFetch: vi.fn(),
   setChatState: vi.fn(),
   suggestions: [] as string[],
@@ -66,11 +67,13 @@ const mocks = vi.hoisted(() => ({
     quotaRemaining: null as number | null,
     isStreaming: false,
     isSending: false,
+    mediationPersistentSafetyHold: false,
     streamingContent: "",
     failedRequest: null as null | {
       canRetry: boolean;
       unavailableReason: string | null;
       visibility: "shared" | "bride_private" | "groom_private";
+      requestKind?: "mediation";
       recoveryKind?: "confirmed_action" | "interrupted_turn" | "requires_reattach";
     },
   },
@@ -135,6 +138,7 @@ vi.mock("@/stores/chatStore", () => {
       failedRequest: mocks.chatState.failedRequest,
       isRetrying: false,
       initialLoadDone: mocks.initialLoadDone,
+      mediationPersistentSafetyHold: mocks.chatState.mediationPersistentSafetyHold,
       loadMessages: mocks.loadMessages,
       sendMessage: mocks.sendMessage,
       requestInitialGreeting: mocks.requestInitialGreeting,
@@ -143,6 +147,7 @@ vi.mock("@/stores/chatStore", () => {
       subscribeToMessages: mocks.subscribeToMessages,
       retryFailedMessage: mocks.retryFailedMessage,
       dismissFailedMessageRetry: mocks.dismissFailedMessageRetry,
+      applyMediationSafetyFence: mocks.applyMediationSafetyFence,
     }),
     {
       setState: mocks.setChatState,
@@ -196,6 +201,7 @@ describe("ChatSidePanel attachment sending", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    window.localStorage.clear();
     mocks.messages = [];
     mocks.suggestions = [];
     mocks.sendMessage.mockResolvedValue({
@@ -227,6 +233,7 @@ describe("ChatSidePanel attachment sending", () => {
     mocks.chatState.quotaRemaining = null;
     mocks.chatState.isStreaming = false;
     mocks.chatState.isSending = false;
+    mocks.chatState.mediationPersistentSafetyHold = false;
     mocks.chatState.streamingContent = "";
     mocks.chatState.failedRequest = null;
     mocks.applicationFetch.mockReset();
@@ -345,7 +352,7 @@ describe("ChatSidePanel attachment sending", () => {
         content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
         visibility: "shared",
         metadata: { target: "partner" },
-        created_at: "2026-07-31T00:00:00.000Z",
+        created_at: new Date(Date.now() - 2_000).toISOString(),
       },
       {
         id: "conflict-groom",
@@ -355,7 +362,7 @@ describe("ChatSidePanel attachment sending", () => {
         content: "난 절대 반대야. 그건 동의 못 해.",
         visibility: "shared",
         metadata: { target: "partner" },
-        created_at: "2026-07-31T00:00:01.000Z",
+        created_at: new Date(Date.now() - 1_000).toISOString(),
       },
     ];
 
@@ -368,6 +375,7 @@ describe("ChatSidePanel attachment sending", () => {
       container.querySelectorAll<HTMLButtonElement>("button"),
     ).find((button) => button.textContent?.includes("아모라에게 상담 요청하기"));
     expect(offerButton).toBeDefined();
+    expect(container.querySelector('[data-mediation-entry="manual"]')).toBeNull();
 
     await act(async () => offerButton?.click());
     expect(container.textContent).toContain(
@@ -384,6 +392,299 @@ describe("ChatSidePanel attachment sending", () => {
     expect(container.textContent).not.toContain("내가 전달할 상황 요약");
   });
 
+  it("lets a linked couple request help manually without creating or dismissing an event", async () => {
+    expect(container.textContent).toContain("의견이 엇갈렸다면 조율 도움 받기");
+
+    const manualEntry = container.querySelector<HTMLButtonElement>(
+      '[data-mediation-entry="manual"]',
+    );
+    await act(async () => manualEntry?.click());
+    expect(container.textContent).toContain("내가 전달할 상황 요약");
+
+    const cancelButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.trim() === "취소");
+    await act(async () => cancelButton?.click());
+
+    expect(mocks.requestMediation).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(Object.keys(window.localStorage)).not.toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^amora:mediation-offer-dismissal:v1:/),
+      ]),
+    );
+  });
+
+  it("closes a manual consent dialog when the owner session changes", async () => {
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        '[data-mediation-entry="manual"]',
+      )?.click();
+    });
+    expect(container.textContent).toContain("내가 전달할 상황 요약");
+
+    mocks.profileId = "user-2";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("내가 전달할 상황 요약");
+    expect(mocks.requestMediation).not.toHaveBeenCalled();
+  });
+
+  it("does not show manual or automatic mediation beside a visible shared safety card", async () => {
+    const now = Date.now();
+    mocks.messages = [{
+      id: "unexpected-shared-safety-card",
+      sender_id: null,
+      sender_role: "ai",
+      content: "안전 지원 안내",
+      visibility: "shared",
+      metadata: {
+        target: "ai",
+        pinned_safety_card: true,
+        safety_classification: "interpersonal_danger",
+      },
+      created_at: new Date(now - 3_000).toISOString(),
+    }, {
+      id: "shared-conflict-bride-after-safety",
+      sender_id: "user-1",
+      sender_role: "bride",
+      content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
+      visibility: "shared",
+      metadata: { target: "partner" },
+      created_at: new Date(now - 2_000).toISOString(),
+    }, {
+      id: "shared-conflict-groom-after-safety",
+      sender_id: "user-2",
+      sender_role: "groom",
+      content: "난 절대 반대야. 그건 동의 못 해.",
+      visibility: "shared",
+      metadata: { target: "partner" },
+      created_at: new Date(now - 1_000).toISOString(),
+    }];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-mediation-entry="manual"]')).toBeNull();
+    expect(container.textContent).not.toContain("아모라에게 상담 요청하기");
+  });
+
+  it("does not offer mediation in shared scope while the actor's private safety hold is unresolved", async () => {
+    const now = new Date().toISOString();
+    mocks.chatState.error = "조율 초안이 중단되었어요.";
+    mocks.chatState.failedRequest = {
+      canRetry: true,
+      unavailableReason: null,
+      visibility: "shared",
+      requestKind: "mediation",
+    };
+    mocks.messages = [
+      {
+        id: "private-safety-hold",
+        sender_id: null,
+        sender_role: "ai",
+        content: "비공개 안전 지원 안내",
+        visibility: "bride_private",
+        metadata: {
+          target: "ai",
+          pinned_safety_card: true,
+          question_scope: "W5_safety_override",
+        },
+        created_at: now,
+      },
+      {
+        id: "later-benign-private-reply",
+        sender_id: null,
+        sender_role: "ai",
+        content: "예산표를 정리해 드릴게요.",
+        visibility: "bride_private",
+        metadata: { target: "ai" },
+        created_at: now,
+      },
+      {
+        id: "shared-conflict-bride",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: now,
+      },
+      {
+        id: "shared-conflict-groom",
+        sender_id: "user-2",
+        sender_role: "groom",
+        content: "난 절대 반대야. 그건 동의 못 해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: now,
+      },
+    ];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-mediation-entry="manual"]')).toBeNull();
+    expect(container.textContent).not.toContain("대화 정리가 필요할까요?");
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .some((button) => button.textContent?.trim() === "다시 시도")).toBe(false);
+    expect(mocks.applyMediationSafetyFence).toHaveBeenCalledWith("couple-1");
+  });
+
+  it("hides every mediation entry, consent, and retry while the durable device hold is unresolved", async () => {
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        '[data-mediation-entry="manual"]',
+      )?.click();
+    });
+    expect(container.textContent).toContain("내가 전달할 상황 요약");
+
+    mocks.chatState.mediationPersistentSafetyHold = true;
+    mocks.chatState.error = "조율 초안이 중단되었어요.";
+    mocks.chatState.failedRequest = {
+      canRetry: true,
+      unavailableReason: null,
+      visibility: "shared",
+      requestKind: "mediation",
+    };
+    mocks.messages = [{
+      id: "shared-conflict-bride-under-device-hold",
+      sender_id: "user-1",
+      sender_role: "bride",
+      content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
+      visibility: "shared",
+      metadata: { target: "partner" },
+      created_at: new Date(Date.now() - 1_000).toISOString(),
+    }, {
+      id: "shared-conflict-groom-under-device-hold",
+      sender_id: "user-2",
+      sender_role: "groom",
+      content: "난 절대 반대야. 그건 동의 못 해.",
+      visibility: "shared",
+      metadata: { target: "partner" },
+      created_at: new Date().toISOString(),
+    }];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-mediation-entry="manual"]')).toBeNull();
+    expect(container.textContent).not.toContain("아모라에게 상담 요청하기");
+    expect(container.textContent).not.toContain("내가 전달할 상황 요약");
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .some((button) => button.textContent?.trim() === "다시 시도")).toBe(false);
+    expect(mocks.requestMediation).not.toHaveBeenCalled();
+    expect(mocks.retryFailedMessage).not.toHaveBeenCalled();
+  });
+
+  it("dismisses only the current conflict event and offers help for a later event", async () => {
+    const nowMs = Date.now();
+    mocks.messages = [
+      {
+        id: "old-conflict-bride",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: new Date(nowMs - 40 * 60 * 1_000).toISOString(),
+      },
+      {
+        id: "old-conflict-groom",
+        sender_id: "user-2",
+        sender_role: "groom",
+        content: "난 절대 반대야. 그건 동의 못 해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: new Date(nowMs - 40 * 60 * 1_000 + 1_000).toISOString(),
+      },
+    ];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("아모라에게 상담 요청하기");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="조율 상담 제안 숨기기"]',
+      )?.click();
+    });
+    expect(container.textContent).not.toContain("아모라에게 상담 요청하기");
+    const dismissalStorageKey = Object.keys(window.localStorage)
+      .find((key) => key.startsWith("amora:mediation-offer-dismissal:v1:"));
+    expect(dismissalStorageKey).toBeDefined();
+    const serializedDismissal = window.localStorage.getItem(dismissalStorageKey ?? "");
+    expect(serializedDismissal).not.toContain("너는 맨날");
+    const storedDismissal = JSON.parse(serializedDismissal ?? "{}") as {
+      expiresAt?: number;
+    };
+    expect(storedDismissal.expiresAt).toBeGreaterThan(Date.now());
+    expect(storedDismissal.expiresAt).toBeLessThanOrEqual(
+      Date.now() + 2 * 60 * 60 * 1_000,
+    );
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(container.textContent).not.toContain("아모라에게 상담 요청하기");
+
+    mocks.messages = [
+      ...mocks.messages,
+      {
+        id: "new-conflict-bride",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: "이번에도 너한테 너무 서운해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: new Date(nowMs - 10_000).toISOString(),
+      },
+      {
+        id: "new-conflict-groom",
+        sender_id: "user-2",
+        sender_role: "groom",
+        content: "이번에도 의견이 안 맞네.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: new Date(nowMs - 9_000).toISOString(),
+      },
+    ];
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("아모라에게 상담 요청하기");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="조율 상담 제안 숨기기"]',
+      )?.click();
+    });
+    mocks.profileId = "user-2";
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain("아모라에게 상담 요청하기");
+    });
+  });
+
   it("routes confirmed mediation through the structured request with only a self-summary", async () => {
     mocks.messages = [
       {
@@ -394,7 +695,7 @@ describe("ChatSidePanel attachment sending", () => {
         content: "너는 맨날 내 말을 안 들어서 너무 서운해. PARTNER_RAW_ONE",
         visibility: "shared",
         metadata: { target: "partner" },
-        created_at: "2026-07-31T00:00:00.000Z",
+        created_at: new Date(Date.now() - 2_000).toISOString(),
       },
       {
         id: "conflict-groom",
@@ -404,7 +705,7 @@ describe("ChatSidePanel attachment sending", () => {
         content: "난 절대 반대야. 그건 동의 못 해. PARTNER_RAW_TWO",
         visibility: "shared",
         metadata: { target: "partner" },
-        created_at: "2026-07-31T00:00:01.000Z",
+        created_at: new Date(Date.now() - 1_000).toISOString(),
       },
     ];
     mocks.requestMediation.mockResolvedValue(undefined);

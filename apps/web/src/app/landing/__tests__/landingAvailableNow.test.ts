@@ -92,6 +92,19 @@ describe("landing available-now section", () => {
     }
   });
 
+  it("describes the live quote checklist and its universal non-storage boundary", () => {
+    const quoteCard = availableNowBlock.slice(
+      availableNowBlock.indexOf('id: "quote-check"'),
+      availableNowBlock.indexOf('id: "wedding-code"'),
+    );
+
+    expect(quoteCard).toContain("받은 견적서에서 포함 여부를 직접 고르면");
+    expect(quoteCard).toContain("입력한 내용은 계정 여부와 관계없이 저장하지 않아요");
+    expect(quoteCard).not.toContain("받은 견적을 넣으면");
+    expect(quoteCard).not.toContain("로그인 없이 넣은 견적");
+    expect(quoteCard).not.toContain("amora_quote_checks");
+  });
+
   it("never routes these cards through the Amora start tracker", () => {
     // TrackedLandingLink는 landing_amora_start_click을 쏘고 날짜 handoff를 지운다.
     // 이 넷은 아모라를 열지 않으므로 둘 다 틀린 동작이 된다.

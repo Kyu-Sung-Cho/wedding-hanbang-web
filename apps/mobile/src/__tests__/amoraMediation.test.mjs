@@ -5,6 +5,10 @@ import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 // 앱과 웹이 같은 판정을 쓰는지 확인하려면 테스트도 그 실물을 써야 한다.
 import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
+import {
+  hasUnsafeStoredMediationRenderContent,
+  MEDIATION_RENDER_SAFETY_FALLBACK,
+} from "@hanbang/shared/mediation-render-safety";
 
 const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const cardPath = fileURLToPath(new URL("../components/chat/AmoraMediationCard.tsx", import.meta.url));
@@ -54,6 +58,7 @@ function loadAcceptanceClient(apiJson) {
   return new Function(
     "apiJson",
     "isRequesterSummaryMediationProvenance",
+    "hasUnsafeStoredMediationRenderContent",
     `${compiled.outputText}\nreturn {
       getMediationAcceptance,
       acceptMediationResolution: typeof acceptMediationResolution === "function"
@@ -73,7 +78,11 @@ function loadAcceptanceClient(apiJson) {
         : undefined,
       normalizeMediationBlock,
     };`,
-  )(apiJson, isRequesterSummaryMediationProvenance);
+  )(
+    apiJson,
+    isRequesterSummaryMediationProvenance,
+    hasUnsafeStoredMediationRenderContent,
+  );
 }
 
 test("opening a confirmable proposal loads the authenticated acceptance state", async () => {
@@ -148,6 +157,62 @@ test("untrusted mediation metadata is normalized before it can reach native text
   assert.equal(normalizeMediationBlock({ resolution: "가".repeat(501) }), null);
 });
 
+test("native normalization fails closed for biased forged-v2 and legacy stored cards", () => {
+  const { normalizeMediationBlock } = loadAcceptanceClient(async () => ({}));
+  const unsafeStoredCards = [
+    {
+      empathy: "요청자가 답답하다고 전했어요.",
+      translation: "신랑은 이기적이고 신부의 요구가 더 타당해요.",
+      data: "상대방의 생각은 확인되지 않았어요.",
+      resolution: "신랑이 먼저 사과하고 양보하는 게 좋겠어요.",
+      origin: "user_requested",
+      evidenceScope: "requester_summary_only",
+      schemaVersion: 2,
+      proposalVersion: EXPECTED_REVISION.expectedProposalVersion,
+      rosterFingerprint: EXPECTED_REVISION.expectedRosterFingerprint,
+    },
+    {
+      translation: "신부는 신랑을 통제하려고 일부러 결정을 미루는 거예요.",
+      resolution: "신부가 먼저 양보하세요.",
+    },
+    {
+      translation: "민수는 이기적이에요.",
+      resolution: "철수는 먼저 사과해야 해요.",
+    },
+  ];
+
+  for (const stored of unsafeStoredCards) {
+    const normalized = normalizeMediationBlock(stored);
+    assert.deepEqual(normalized, {
+      renderSafetyFallback: true,
+      requesterSummaryOnly: false,
+    });
+    assert.doesNotMatch(JSON.stringify(normalized), /이기적|더 타당|통제하려고|먼저 사과|먼저 양보/);
+  }
+});
+
+test("the native card independently replaces unsafe stored wording with a fixed notice", () => {
+  for (const required of [
+    "hasUnsafeStoredMediationRenderContent(block)",
+    "MEDIATION_RENDER_SAFETY_FALLBACK",
+  ]) {
+    assert.equal(cardSource.includes(required), true, `missing native render guard: ${required}`);
+  }
+  assert.match(MEDIATION_RENDER_SAFETY_FALLBACK, /원문을 표시하지 않았어요/);
+});
+
+test("native chat hides the stored AI body when mediation render safety falls back", () => {
+  const renderMessageStart = chatSource.indexOf("function renderMessage");
+  const renderMessageEnd = chatSource.indexOf("const isP =", renderMessageStart);
+  assert.ok(renderMessageStart >= 0 && renderMessageEnd > renderMessageStart);
+  const renderMessage = chatSource.slice(renderMessageStart, renderMessageEnd);
+
+  assert.match(
+    renderMessage,
+    /shouldRenderBubble\s*&&\s*mediationBlock\?\.renderSafetyFallback\s*!==\s*true/,
+  );
+});
+
 test("native normalization preserves the exact server proposal revision", () => {
   const { normalizeMediationBlock } = loadAcceptanceClient(async () => ({}));
 
@@ -178,10 +243,17 @@ test("native confirmation fails closed without both exact revision fields", () =
     resolution: "내용은 계속 표시해요",
     proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
     rosterFingerprint: "0123456789abcdef0123456789abcdef",
+    requesterSummaryOnly: true,
   }), {
     expectedProposalVersion: "123e4567-e89b-42d3-a456-426614174000",
     expectedRosterFingerprint: "0123456789abcdef0123456789abcdef",
   });
+  assert.equal(getExpectedMediationRevision({
+    resolution: "출처 계약이 없는 이전 초안",
+    proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+    rosterFingerprint: "0123456789abcdef0123456789abcdef",
+    requesterSummaryOnly: false,
+  }), null);
 });
 
 test("accepting a proposal posts its message id and displayed exact revision", async () => {

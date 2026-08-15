@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeAmoraQuoteCheck, getQuoteCheckItems } from "../quoteCheck";
 import type { AmoraQuoteCategory, AmoraQuoteRegion } from "../quoteCheck";
+import type { PriceCatalog, PriceOffer, PriceVendor } from "@/lib/price/catalog";
 
 const REGIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
 const CATEGORIES: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
@@ -14,7 +15,95 @@ function analyze(category: AmoraQuoteCategory, region: AmoraQuoteRegion, price: 
   });
 }
 
+function publicCatalog(
+  entries: Array<{
+    id: string;
+    category?: "studio" | "dress" | "makeup" | "hall";
+    regionCode: string | null;
+    minimumKrw: number | null;
+    agencyId?: string | null;
+  }>,
+): PriceCatalog {
+  const categories: PriceCatalog["categories"] = {
+    studio: [],
+    dress: [],
+    makeup: [],
+    hall: [],
+  };
+
+  for (const entry of entries) {
+    const category = entry.category ?? "studio";
+    const offer: PriceOffer = {
+      id: `offer-${entry.id}`,
+      agencyId: entry.agencyId === undefined ? `agency-${entry.id}` : entry.agencyId,
+      agencyName: "공시 대행사",
+      regionCode: entry.regionCode,
+      minimumKrw: entry.minimumKrw,
+      maximumKrw: entry.minimumKrw,
+      priceNote: null,
+      baseSpec: "기본 구성",
+      options: [],
+    };
+    const vendor: PriceVendor = {
+      id: `vendor-${entry.id}`,
+      slug: `vendor-${entry.id}`,
+      name: `공시 업체 ${entry.id}`,
+      aliases: [],
+      category,
+      regionCode: entry.regionCode,
+      regionCodes: entry.regionCode ? [entry.regionCode] : [],
+      offers: [offer],
+    };
+    categories[category].push(vendor);
+  }
+
+  return {
+    periodLabel: "2026Q3",
+    categories,
+    counts: {
+      studio: categories.studio.length,
+      dress: categories.dress.length,
+      makeup: categories.makeup.length,
+      hall: categories.hall.length,
+    },
+    agencies: [],
+  };
+}
+
 describe("런타임 공시가 경계", () => {
+  it("서울 스튜디오의 비교 가능한 공시 기본가 하한만으로 중간값을 계산한다", () => {
+    const catalog = publicCatalog([
+      { id: "seoul-low", regionCode: "seoul_gangnam3", minimumKrw: 1_000_000 },
+      { id: "seoul-mid", regionCode: "seoul_etc", minimumKrw: 2_000_000 },
+      { id: "seoul-high", regionCode: "seoul_etc", minimumKrw: 3_000_000 },
+      { id: "busan", regionCode: "busan", minimumKrw: 9_000_000 },
+      { id: "direct", regionCode: "seoul_etc", minimumKrw: 500_000, agencyId: null },
+    ]);
+
+    const result = analyzeAmoraQuoteCheck({
+      category: "studio",
+      region: "seoul",
+      quotePriceManwon: 250,
+      includedItemIds: [],
+    }, catalog);
+
+    expect(result.marketMedianManwon).toBe(200);
+    expect(result.priceDiffPercent).toBe(25);
+    expect(result.marketComparatorLabel).toContain("공시 기본가 하한 중간값");
+    expect(result.marketEvidence).toMatchObject({
+      status: "available",
+      observationCount: 3,
+      vendorCount: 3,
+      source: "한국소비자원 참가격",
+      sourcePeriod: "2025년 11월",
+      regionLabel: "서울",
+      calculation: "비교 가능한 업체·대행사별 공시 기본가 하한 3건의 중간값",
+      comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
+    });
+    expect(result.marketEvidence.sourceUrl).toMatch(/^https:\/\/price\.go\.kr\//u);
+    expect(JSON.stringify(result.marketEvidence)).not.toContain("2026Q3");
+  });
+
   it("소스에 고정한 중위가로 가격을 판정하지 않는다", () => {
     for (const category of CATEGORIES) {
       for (const region of REGIONS) {

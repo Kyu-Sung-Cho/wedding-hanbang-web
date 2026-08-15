@@ -115,6 +115,7 @@ export default function MediationConsentDialog({
           >
             상대방에게 직접 보낸 메시지나 비공개 대화는 자동으로 가져오지
             않아요. 아래에 내가 직접 적은 요약만 조율 요청으로 추가돼요.
+            생성된 초안은 함께 대화에 표시되어 상대방도 볼 수 있어요.
           </p>
         </div>
 

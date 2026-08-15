@@ -11,8 +11,11 @@ export type MutationActorFenceResult =
   | { ok: true; contract: "legacy" | "v2" }
   | {
       ok: false;
-      status: 400 | 409;
-      code: "MUTATION_ACTOR_CONTRACT_INVALID" | "MUTATION_ACTOR_CHANGED";
+      status: 400 | 409 | 426;
+      code:
+        | "MUTATION_ACTOR_CONTRACT_INVALID"
+        | "MUTATION_ACTOR_CHANGED"
+        | "CLIENT_UPDATE_REQUIRED";
       message: string;
     };
 
@@ -35,8 +38,8 @@ export function verifyMutationActorFence(
     if (options.allowLegacy === false) {
       return {
         ok: false,
-        status: 400,
-        code: "MUTATION_ACTOR_CONTRACT_INVALID",
+        status: 426,
+        code: "CLIENT_UPDATE_REQUIRED",
         message: "보안을 위해 앱을 최신 버전으로 업데이트한 뒤 다시 시도해주세요.",
       };
     }

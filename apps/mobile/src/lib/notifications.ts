@@ -267,7 +267,12 @@ export function invalidateCommunityPushNavigationForAuthChange() {
 export async function releasePushNotificationsForCurrentSession(expectedOwnerId?: string) {
   invalidateCommunityPushNavigationForAuthChange();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (expectedOwnerId && user?.id !== expectedOwnerId) {
+  if (userError) {
+    throw new Error(`Push token user lookup failed: ${userError.message}`);
+  }
+  if (!user) throw new Error("Push token release requires a current user");
+  const releaseOwnerId = expectedOwnerId ?? user.id;
+  if (user.id !== releaseOwnerId) {
     throw new Error("PUSH_RELEASE_OWNER_CHANGED");
   }
   const [currentToken, installationId] = await Promise.all([
@@ -275,20 +280,20 @@ export async function releasePushNotificationsForCurrentSession(expectedOwnerId?
     SecureStore.getItemAsync(PUSH_INSTALLATION_ID_KEY),
   ]);
 
-  const result = await releasePushDeliveryOwnership({
-    releaseServerToken: async () => {
-      const { data: { user: releaseUser }, error: releaseUserError } =
-        await supabase.auth.getUser();
-      if (userError || releaseUserError) {
-        throw new Error(
-          `Push token user lookup failed: ${(releaseUserError ?? userError)?.message ?? "unknown"}`,
-        );
-      }
-      if (!releaseUser) throw new Error("Push token release requires a current user");
-      if (expectedOwnerId && releaseUser.id !== expectedOwnerId) {
-        throw new Error("PUSH_RELEASE_OWNER_CHANGED");
-      }
+  const verifyReleaseOwner = async () => {
+    const { data: { user: currentUser }, error } = await supabase.auth.getUser();
+    if (error) {
+      throw new Error(`Push token user lookup failed: ${error.message}`);
+    }
+    if (!currentUser) throw new Error("Push token release requires a current user");
+    if (currentUser.id !== releaseOwnerId) {
+      throw new Error("PUSH_RELEASE_OWNER_CHANGED");
+    }
+  };
 
+  const result = await releasePushDeliveryOwnership({
+    verifyOwner: verifyReleaseOwner,
+    releaseServerToken: async () => {
       if (currentToken && installationId && UUID_PATTERN.test(installationId)) {
         const { error } = await supabase.rpc("release_mobile_push_token", {
           p_installation_id: installationId,

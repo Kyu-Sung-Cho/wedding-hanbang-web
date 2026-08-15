@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prepareAmoraMemoryBatch } from "@/lib/ai/amoraMemoryCompiler";
+import { buildCanonicalQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
 import {
   AMORA_MEMORY_SOURCE_READ_LIMIT,
   buildTrustedAmoraMemoryCompilerMessages,
@@ -7,11 +8,109 @@ import {
   selectTrustedAmoraMemoryUserIds,
   type AmoraMemorySourceScopeRow,
 } from "@/lib/ai/amoraMemorySourceScope";
+import { getQuoteCheckItems } from "@/lib/amora/quoteCheck";
 
 const USER_ID = "10000000-0000-4000-8000-000000000001";
 const ASSISTANT_ID = "10000000-0000-4000-8000-000000000002";
 
 describe("Amora memory source scope boundary", () => {
+  it("consumes a canonical quote-analysis exchange without trusting its machine row", () => {
+    const itemIds = getQuoteCheckItems("dress", "seoul").map((item) => item.id);
+    const quoteMachineContext = buildCanonicalQuoteAnalysisMessage({
+      category: "dress",
+      region: "seoul",
+      quotePriceManwon: 300,
+      vendorName: "테스트",
+      includedItemIds: [],
+      notNeededItemIds: [],
+      unknownItemIds: itemIds,
+    });
+    const rows: AmoraMemorySourceScopeRow[] = [
+      {
+        id: USER_ID,
+        sender_id: "20000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: quoteMachineContext,
+        metadata: { target: "ai" },
+        visibility: "shared",
+        created_at: "2026-08-03T00:00:00.000Z",
+      },
+      {
+        id: ASSISTANT_ID,
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "선택한 견적 항목을 확인했어요.",
+        metadata: {
+          in_reply_to_user_message_id: USER_ID,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-08-03T00:00:01.000Z",
+      },
+    ];
+
+    const batch = prepareTrustedAmoraMemoryBatch(rows, {
+      brideId: "20000000-0000-4000-8000-000000000001",
+      groomId: "20000000-0000-4000-8000-000000000002",
+    });
+
+    expect([...selectTrustedAmoraMemoryUserIds(rows)]).toEqual([]);
+    expect(batch.messages.map((message) => message.id)).toEqual([USER_ID, ASSISTANT_ID]);
+    expect(batch.input).toBe("");
+    expect(batch.input).not.toContain("[quote_analysis_v2]");
+    expect(batch.input).not.toContain('"version":2');
+  });
+
+  it.each([
+    [
+      "legacy",
+      "[quote_analysis] 견적 300만원 (테스트) 항목 상태:\n포함: 원본 파일\n이용 안 함: 앨범\n확인 필요: 추가금",
+    ],
+    [
+      "malformed v2",
+      "견적 체크: 테스트 · 웨딩드레스 · 서울 · 300만원\n[quote_analysis_v2]\n{\"version\":2}",
+    ],
+  ])("consumes %s quote machine context without exposing memory evidence", (_label, content) => {
+    const rows: AmoraMemorySourceScopeRow[] = [
+      {
+        id: USER_ID,
+        sender_id: "20000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content,
+        metadata: { target: "ai" },
+        visibility: "shared",
+        created_at: "2026-08-03T00:00:00.000Z",
+      },
+      {
+        id: ASSISTANT_ID,
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "체크리스트를 다시 열어주세요.",
+        metadata: {
+          in_reply_to_user_message_id: USER_ID,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared",
+        created_at: "2026-08-03T00:00:01.000Z",
+      },
+    ];
+
+    const batch = prepareTrustedAmoraMemoryBatch(rows, {
+      brideId: "20000000-0000-4000-8000-000000000001",
+      groomId: "20000000-0000-4000-8000-000000000002",
+    });
+
+    expect([...selectTrustedAmoraMemoryUserIds(rows)]).toEqual([]);
+    expect(batch.messages.map((message) => message.id)).toEqual([USER_ID, ASSISTANT_ID]);
+    expect(batch.input).toBe("");
+  });
+
   it("trusts a current W0 user row only when a canonical server AI reply binds it", () => {
     const trusted = selectTrustedAmoraMemoryUserIds([
       {

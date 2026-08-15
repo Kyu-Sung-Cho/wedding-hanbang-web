@@ -26,6 +26,12 @@ import { apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
 import {
+  buildOnboardingSubmissionPayload,
+  getOnboardingCoupleStepActions,
+  resolveOnboardingCompletion,
+  type OnboardingSubmissionMode,
+} from "@/lib/onboardingFirstValue.mjs";
+import {
   COUPLE_INVITE_CODE_MAX_LENGTH,
   COUPLE_INVITE_CODE_PLACEHOLDER,
   describeCoupleInviteCodeProblem,
@@ -77,6 +83,7 @@ const BUDGET_OPTIONS = WEDDING_BUDGET_TENDENCY_OPTIONS.map((option) => ({
   desc: option.description,
 }));
 const GUEST_OPTIONS = WEDDING_GUEST_COUNT_OPTIONS;
+const coupleStepActions = getOnboardingCoupleStepActions();
 
 // 축하 파티클 컴포넌트
 function CelebrationDots() {
@@ -362,7 +369,7 @@ export default function OnboardingScreen() {
     }
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(mode: OnboardingSubmissionMode = "detailed") {
     const expectedActorUserId = formOwnerUserIdRef.current;
     if (!expectedActorUserId || !formOwnerStillCurrentRef.current) {
       Alert.alert("계정이 바뀌었어요", "현재 계정에서 온보딩을 다시 시작해 주세요.");
@@ -375,22 +382,26 @@ export default function OnboardingScreen() {
       && formOwnerUserIdRef.current === expectedActorUserId
       && formOwnerStillCurrentRef.current
     );
-    if (budgetEvaluation.status === "invalid") {
+    if (mode === "detailed" && budgetEvaluation.status === "invalid") {
       Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
       return;
     }
 
     setSubmitting(true);
     try {
-      // 선호도 데이터를 progress.__preferences에 저장
-      const progress: Record<string, unknown> = {
-        __preferences: {
-          weddingStyle,
-          priorities,
-          budgetTendency,
-          guestCount,
-        },
-      };
+      const submissionPayload = buildOnboardingSubmissionPayload({
+        role,
+        coupleAction,
+        inviteCode,
+        weddingDate,
+        weddingDateUndecided,
+        venue,
+        totalBudget: budgetEvaluation.requestBudget,
+        weddingStyle,
+        priorities,
+        budgetTendency,
+        guestCount,
+      }, mode);
 
       const res = await apiFetchForExpectedUser(expectedActorUserId, "/api/onboarding", {
         method: "POST",
@@ -398,15 +409,7 @@ export default function OnboardingScreen() {
           [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
           [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
         },
-        body: JSON.stringify({
-          role,
-          coupleAction,
-          partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
-          weddingDate: weddingDateUndecided ? null : weddingDate || null,
-          venue: venue || null,
-          totalBudget: budgetEvaluation.requestBudget,
-          progress,
-        }),
+        body: JSON.stringify(submissionPayload),
       });
 
       const { data: { user: responseOwner } } = await supabase.auth.getUser();
@@ -431,11 +434,22 @@ export default function OnboardingScreen() {
         return;
       }
 
-      if (data.inviteCode && coupleAction === "create") {
-        setResultCode(data.inviteCode);
+      const completion = resolveOnboardingCompletion({
+        mode,
+        coupleAction,
+        inviteCode: data.inviteCode,
+      });
+
+      if (completion.kind === "invite_code") {
+        setResultCode(completion.inviteCode);
         animateStepTransition(5);
+      } else if (completion.pathname === "/(tabs)/chat") {
+        router.replace({
+          pathname: completion.pathname,
+          params: completion.params,
+        });
       } else {
-        router.replace("/(tabs)/dashboard");
+        router.replace(completion.pathname);
       }
     } catch (err) {
       if (!submissionOwnerStillCurrent()) return;
@@ -462,6 +476,14 @@ export default function OnboardingScreen() {
     } else {
       animateStepTransition(step + 1);
     }
+  }
+
+  function handlePrimaryFooterAction() {
+    if (step === 2) {
+      void handleSubmit(coupleStepActions.primary.intent);
+      return;
+    }
+    handleNext();
   }
 
   function handleBack() {
@@ -625,6 +647,17 @@ export default function OnboardingScreen() {
                   )}
                 </>
               )}
+
+              <View style={styles.roleSupportNotice}>
+                <Text style={styles.roleSupportText}>
+                  예식일·장소·예산·취향은 나중에 채워도 괜찮아요.
+                </Text>
+                <Text style={styles.roleSupportText}>
+                  {coupleAction === "create"
+                    ? "초대 코드는 설정에서 다시 확인할 수 있어요. 나머지는 준비하면서 하나씩 맞춰갈 수 있어요."
+                    : "입력한 초대 코드로 합류하고, 나머지는 준비하면서 하나씩 맞춰갈 수 있어요."}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -820,10 +853,19 @@ export default function OnboardingScreen() {
       <View style={styles.footer}>
         <Pressable
           style={[styles.nextBtn, !canNext() && step < 5 && styles.nextBtnDisabled]}
-          onPress={handleNext}
+          onPress={handlePrimaryFooterAction}
           disabled={nextDisabled}
           accessibilityRole="button"
-          accessibilityLabel={step === 4 ? "온보딩 시작하기" : step === 5 ? "대시보드로 이동" : "다음 단계"}
+          accessibilityLabel={step === 2
+            ? coupleStepActions.primary.label
+            : step === 4
+              ? "온보딩 시작하기"
+              : step === 5
+                ? "대시보드로 이동"
+                : "다음 단계"}
+          accessibilityHint={step === 2
+            ? coupleStepActions.primary.accessibilityHint
+            : undefined}
           accessibilityState={{ disabled: nextDisabled, busy: submitting }}
         >
           {submitting ? (
@@ -831,16 +873,36 @@ export default function OnboardingScreen() {
           ) : (
             <>
               <Text style={styles.nextText}>
-                {step === 4 ? "시작하기" : step === 5 ? "대시보드로 이동" : "다음"}
+                {step === 2
+                  ? coupleStepActions.primary.label
+                  : step === 4
+                    ? "시작하기"
+                    : step === 5
+                      ? "대시보드로 이동"
+                      : "다음"}
               </Text>
               {step < 5 && <ArrowRight size={20} color="#FFF" />}
             </>
           )}
         </Pressable>
 
+        {step === 2 && (
+          <Pressable
+            onPress={handleNext}
+            style={[styles.skipBtn, nextDisabled && styles.skipBtnDisabled]}
+            disabled={nextDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={coupleStepActions.secondary.label}
+            accessibilityHint="예식일·장소·예산·취향을 먼저 입력합니다."
+            accessibilityState={{ disabled: nextDisabled, busy: submitting }}
+          >
+            <Text style={styles.skipText}>{coupleStepActions.secondary.label}</Text>
+          </Pressable>
+        )}
+
         {step === 4 && (
           <Pressable
-            onPress={handleSubmit}
+            onPress={() => void handleSubmit()}
             style={styles.skipBtn}
             disabled={submitting}
             accessibilityRole="button"
@@ -1320,6 +1382,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   skipBtn: { alignItems: "center", paddingVertical: 8 },
+  skipBtnDisabled: { opacity: 0.4 },
   skipText: {
     fontSize: 14,
     fontFamily: "NotoSansKR_400Regular",

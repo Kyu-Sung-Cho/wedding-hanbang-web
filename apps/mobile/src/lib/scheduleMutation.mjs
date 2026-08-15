@@ -164,7 +164,10 @@ export function isWritableJourneyRevision(value) {
     && value <= MAX_REVISION_BEFORE_UPDATE;
 }
 
-export function buildScheduleProgressPatch(expectedRevision, events) {
+export function buildScheduleProgressPatch(expectedCoupleId, expectedRevision, events) {
+  if (typeof expectedCoupleId !== "string" || !PROFILE_UUID_RE.test(expectedCoupleId)) {
+    throw new Error("INVALID_COUPLE_ID");
+  }
   if (!isWritableJourneyRevision(expectedRevision)) {
     throw new Error("INVALID_JOURNEY_REVISION");
   }
@@ -198,6 +201,7 @@ export function buildScheduleProgressPatch(expectedRevision, events) {
   }
 
   return {
+    expected_couple_id: expectedCoupleId,
     expected_revision: expectedRevision,
     progress_patch: { __events: [...events] },
   };

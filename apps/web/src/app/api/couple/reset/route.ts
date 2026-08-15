@@ -6,6 +6,7 @@ import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 
 const MAX_BODY_BYTES = 4 * 1024;
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 
 interface ResetBody {
   confirmText?: string;
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     if (!actorFence.ok) {
       return NextResponse.json(
         { error: actorFence.message, code: actorFence.code },
-        { status: actorFence.status },
+        { status: actorFence.status, headers: NO_STORE_HEADERS },
       );
     }
 

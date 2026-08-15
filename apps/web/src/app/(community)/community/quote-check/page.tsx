@@ -440,6 +440,33 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
         이 결과는 가격이나 계약을 평가하지 않고, 사용자가 고른 항목 상태만 정리합니다.
       </p>
 
+      {result.marketEvidence.status === "available" ? (
+        <div className="mt-4 rounded-lg border border-[#e5d8ca] bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-[#9d6f36]">공시 참고값의 근거</p>
+              <p className="mt-1 text-sm font-semibold text-[#263832]">
+                {result.marketEvidence.sourcePeriod} · {result.marketEvidence.regionLabel} · {result.marketEvidence.categoryLabel}
+              </p>
+            </div>
+            <a
+              href={result.marketEvidence.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] px-3 text-xs font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4"
+            >
+              참가격 원문 보기
+            </a>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[#635b51]">
+            공시 {result.marketEvidence.observationCount}건 · 업체·대행사 {result.marketEvidence.vendorCount}곳 · {result.marketEvidence.calculation}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-[#928980]">
+            {result.marketEvidence.comparisonBasis}. {result.marketEvidence.limitation}
+          </p>
+        </div>
+      ) : null}
+
       {result.contractQuestions.length > 0 && (
       <div className="mt-5 rounded-lg bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

@@ -4,6 +4,15 @@ import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 
+import {
+  isPersistedFirstUseSourceMessageId,
+  validateFirstUsePromotionIngestReceipt,
+} from "../lib/amoraFirstUsePromotion.mjs";
+import {
+  readScheduleCareFollowUpBindingFromMetadata,
+  validateScheduleCareFollowUpIngestReceipt,
+} from "../lib/scheduleCarePrivateFollowUp.mjs";
+
 const sourcePath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const sourceText = readFileSync(sourcePath, "utf8");
 const sourceFile = ts.createSourceFile(
@@ -28,6 +37,7 @@ const functionNames = new Set([
   "mergePersistedMessageWithLocal",
   "mergeRealtimeMessage",
   "reconcileChatStreamUpdate",
+  "parseChatRetryPolicy",
   "parseChatHttpFailure",
   "streamChatWithXhr",
 ]);
@@ -94,8 +104,15 @@ function loadAiMessageIngestContract() {
     },
   });
   return new Function(
+    "isPersistedFirstUseSourceMessageId",
+    "validateFirstUsePromotionIngestReceipt",
+    "validateScheduleCareFollowUpIngestReceipt",
     `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, parseRetryAfterMs, getAiMessageIngestFailureMessage, getEphemeralSafetyPersistencePresentation };`,
-  )();
+  )(
+    isPersistedFirstUseSourceMessageId,
+    validateFirstUsePromotionIngestReceipt,
+    validateScheduleCareFollowUpIngestReceipt,
+  );
 }
 
 function loadAiMessageIngestRecoveryContract() {
@@ -127,8 +144,15 @@ function loadAiMessageIngestRecoveryContract() {
     },
   });
   return new Function(
+    "isPersistedFirstUseSourceMessageId",
+    "validateFirstUsePromotionIngestReceipt",
+    "validateScheduleCareFollowUpIngestReceipt",
     `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, getAiMessageIngestRecovery };`,
-  )();
+  )(
+    isPersistedFirstUseSourceMessageId,
+    validateFirstUsePromotionIngestReceipt,
+    validateScheduleCareFollowUpIngestReceipt,
+  );
 }
 
 function loadAiMessageIngestRequest({ fetchImpl }) {
@@ -237,8 +261,9 @@ function loadColdStartAiRecoveryContract() {
     },
   });
   return new Function(
+    "readScheduleCareFollowUpBindingFromMetadata",
     `${transpiled.outputText}\nreturn { mergeColdStartRecoveryHistory, findColdStartAiRecovery };`,
-  )();
+  )(readScheduleCareFollowUpBindingFromMetadata);
 }
 
 test("SSE parser survives arbitrary CRLF and JSON chunk boundaries", () => {
@@ -286,6 +311,34 @@ test("quota events report only non-negative integer remaining turns", () => {
   assert.equal(parser.finish(), "완료");
 });
 
+test("a completed safety SSE preserves guidance while reporting an unconfirmed durable fence", () => {
+  const metadata = [];
+  const parser = createChatStreamParser(
+    () => {},
+    () => {},
+    (value) => metadata.push(value),
+  );
+  parser.push(`data: ${JSON.stringify({
+    type: "done",
+    fullContent: "지금은 안전한 곳으로 이동하고 112에 도움을 요청해 주세요.",
+    metadata: {
+      response_origin: "deterministic_crisis_safety",
+      durable_safety_fence_confirmed: false,
+      persistence_status: "unconfirmed_ephemeral_fallback",
+    },
+  })}\n\n`);
+
+  assert.equal(
+    parser.finish(),
+    "지금은 안전한 곳으로 이동하고 112에 도움을 요청해 주세요.",
+  );
+  assert.deepEqual(metadata, [{
+    response_origin: "deterministic_crisis_safety",
+    durable_safety_fence_confirmed: false,
+    persistence_status: "unconfirmed_ephemeral_fallback",
+  }]);
+});
+
 test("stream error clears a visible draft and hides server details", () => {
   const updates = [];
   const parser = createChatStreamParser((text) => updates.push(text));
@@ -318,6 +371,29 @@ test("stream error preserves the explicit immutable retry contract without expos
       assert.equal(error.retryable, false);
       assert.equal(error.retryPolicy, "new_message");
       assert.equal(error.message.includes("private server detail"), false);
+      return true;
+    },
+  );
+});
+
+test("stream error preserves the explicit first-use regeneration policy", () => {
+  const parser = createChatStreamParser(() => {});
+  parser.push(`data: ${JSON.stringify({
+    type: "error",
+    code: "AMORA_FIRST_USE_PROMOTION_STALE",
+    message: "private currentness detail",
+    retryable: false,
+    retryPolicy: "regenerate_first_use_action",
+  })}\n\n`);
+
+  assert.throws(
+    () => parser.finish(),
+    (error) => {
+      assert.ok(error instanceof ChatTransportError);
+      assert.equal(error.serverCode, "AMORA_FIRST_USE_PROMOTION_STALE");
+      assert.equal(error.retryable, false);
+      assert.equal(error.retryPolicy, "regenerate_first_use_action");
+      assert.equal(error.message.includes("private currentness detail"), false);
       return true;
     },
   );
@@ -559,6 +635,53 @@ test("XHR HTTP errors preserve an explicit same-request retry contract without e
         assert.equal(error.retryable, true);
         assert.equal(error.retryPolicy, "same_request");
         assert.equal(error.message.includes("private memory reconciliation detail"), false);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.XMLHttpRequest = original;
+  }
+});
+
+test("XHR first-use refusal preserves regeneration instead of becoming a generic dead end", async () => {
+  class FakeXMLHttpRequest {
+    status = 409;
+    responseText = JSON.stringify({
+      error: "private promotion currentness detail",
+      code: "AMORA_FIRST_USE_PROMOTION_REQUIRED",
+      retryable: false,
+      retryPolicy: "regenerate_first_use_action",
+    });
+    timeout = 0;
+    open() {}
+    setRequestHeader() {}
+    abort() { this.onabort?.(); }
+    send() { this.onload?.(); }
+  }
+
+  const original = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXMLHttpRequest;
+  try {
+    await assert.rejects(
+      streamChatWithXhr(
+        {},
+        "access-token",
+        {
+          aborted: false,
+          addEventListener() {},
+          removeEventListener() {},
+        },
+        () => {},
+        () => {},
+        () => {},
+      ),
+      (error) => {
+        assert.ok(error instanceof ChatTransportError);
+        assert.equal(error.status, 409);
+        assert.equal(error.serverCode, "AMORA_FIRST_USE_PROMOTION_REQUIRED");
+        assert.equal(error.retryable, false);
+        assert.equal(error.retryPolicy, "regenerate_first_use_action");
+        assert.equal(error.message.includes("private promotion currentness detail"), false);
         return true;
       },
     );
@@ -1103,6 +1226,7 @@ test("AI message ingest recognizes a server W5 ephemeral fallback without a dura
     classification: "interpersonal_danger",
     response: "즉시 안전 안내",
     rawDisclosurePersisted: false,
+    durableSafetyFenceConfirmed: true,
   };
 
   assert.deepEqual(parseAiMessageIngestResult(200, payload, expected), {
@@ -1148,6 +1272,7 @@ test("partner ingest accepts server-authoritative W2 and W5 holds without persis
     classification: null,
     response: "상대방에게 보내지 않고 안전 안내를 보여드려요.",
     rawDisclosurePersisted: false,
+    durableSafetyFenceConfirmed: true,
   };
 
   for (const safetyResolution of ["non_immediate_safety", "immediate_crisis"]) {
@@ -1165,6 +1290,34 @@ test("partner ingest accepts server-authoritative W2 and W5 holds without persis
     }, expected),
     (error) => error instanceof AiMessageIngestError,
   );
+});
+
+test("mobile safety sealing is bounded and ordinary chat uses the shared web threshold", () => {
+  assert.match(sourceText, /MOBILE_DURABLE_SAFETY_SEAL_TIMEOUT_MS\s*=\s*4_000/u);
+  const helper = sourceText.slice(
+    sourceText.indexOf("async function sealDurableMediationPrivateSafetyHold"),
+    sourceText.indexOf("const PARTNER_CONNECTION_CHANGED_NOTICE"),
+  );
+  assert.match(helper, /new AbortController\(\)/u);
+  assert.match(helper, /signal:\s*timeoutController\.signal/u);
+  assert.match(helper, /clearTimeout\(timeoutId\)/u);
+  assert.match(sourceText, /externalSafetySignal:\s*hasAmoraChatSafetySignal\(text\)/u);
+});
+
+test("mobile deterministic safety guidance is committed before waiting for remote seal", () => {
+  const mediation = sourceText.slice(
+    sourceText.indexOf('if (mediationSafetyPlan.disposition === "local_safety_hold")'),
+    sourceText.indexOf("const clientRequestId = Crypto.randomUUID()", sourceText.indexOf('if (mediationSafetyPlan.disposition === "local_safety_hold")')),
+  );
+  assert.ok(mediation.indexOf("setMessages") < mediation.indexOf("await sealDurableMediationPrivateSafetyHold"));
+  assert.match(mediation, /durable_safety_fence_confirmed:\s*false/u);
+
+  const ordinary = sourceText.slice(
+    sourceText.indexOf("async function handleSend()"),
+    sourceText.indexOf("async function handleConfirmSharedSend()"),
+  );
+  assert.ok(ordinary.indexOf("setMessages") < ordinary.indexOf("await sealDurableMediationPrivateSafetyHold"));
+  assert.match(ordinary, /durable_safety_fence_confirmed:\s*false/u);
 });
 
 test("ephemeral safety validates prior-persistence visibility without inventing scope", () => {
@@ -1185,6 +1338,7 @@ test("ephemeral safety validates prior-persistence visibility without inventing 
     partnerDeliveryHeld: true,
     safetyResolution: "immediate_crisis",
     classification: "interpersonal_danger",
+    durableSafetyFenceConfirmed: true,
     response: "즉시 안전 안내",
   };
 
@@ -1260,6 +1414,88 @@ test("ephemeral safety derives truthful none, shared, private, and unknown prese
   assert.equal(persistenceUnknown.rawDisclosureShared, null);
   assert.match(persistenceUnknown.notice, /이전 저장·전달 여부를 지금 확인하지 못했어요/);
   assert.doesNotMatch(persistenceUnknown.notice, /저장하지 않았어요/);
+});
+
+test("first-use ingest accepts only an opaque promotion receipt and source-bound reuse", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "서버가 확정한 공동 실행 초안",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+    firstUseSourceMessageId: "44444444-4444-4444-8444-444444444444",
+  };
+  const message = {
+    id: "55555555-5555-4555-8555-555555555555",
+    couple_id: expected.coupleId,
+    sender_id: expected.userId,
+    role: "user",
+    sender_type: expected.senderType,
+    content: expected.text,
+    metadata: {
+      client_request_id: expected.clientRequestId,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      amora_first_use_promotion_id: "66666666-6666-4666-8666-666666666666",
+    },
+    created_at: "2026-08-15T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  assert.equal(parseAiMessageIngestResult(201, {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message,
+  }, expected).message.id, message.id);
+
+  const sourceReused = {
+    outcome: "persisted",
+    reused: true,
+    reusedBy: "first_use_source",
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    message: {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        client_request_id: "77777777-7777-4777-8777-777777777777",
+      },
+    },
+  };
+  assert.equal(
+    parseAiMessageIngestResult(200, sourceReused, expected).message.id,
+    message.id,
+  );
+  assert.throws(
+    () => parseAiMessageIngestResult(200, {
+      ...sourceReused,
+      reusedBy: undefined,
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
+  assert.throws(
+    () => parseAiMessageIngestResult(201, {
+      outcome: "persisted",
+      reused: false,
+      effectiveVisibility: "shared",
+      safetyPrivacyRedirected: false,
+      message: {
+        ...message,
+        metadata: {
+          ...message.metadata,
+          amora_first_use_promotion_id: expected.firstUseSourceMessageId,
+        },
+      },
+    }, expected),
+    (error) => error instanceof AiMessageIngestError,
+  );
 });
 
 test("AI message ingest accepts a reconciled 23505 row only as a reused 200 result", () => {
@@ -1343,6 +1579,45 @@ test("aborting a mobile send aborts the durable message ingest request", async (
   await request;
 
   assert.equal(ingestWasAborted, true);
+});
+
+test("mobile ingest sends a private first-use source id only on the bound draft", async () => {
+  const capturedBodies = [];
+  const requestAiMessageIngest = loadAiMessageIngestRequest({
+    fetchImpl: async (_url, init) => {
+      capturedBodies.push(JSON.parse(init.body));
+      return {
+        status: 201,
+        json: async () => ({}),
+        headers: { get: () => null },
+      };
+    },
+  });
+  const baseDraft = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "서버가 확정한 공동 실행 초안",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    requestedVisibility: "shared",
+    visibility: "shared",
+    providerAttachmentCount: 0,
+    sessionGeneration: 1,
+  };
+  const sourceMessageId = "44444444-4444-4444-8444-444444444444";
+
+  await requestAiMessageIngest({
+    ...baseDraft,
+    firstUseSourceMessageId: sourceMessageId,
+  });
+  await requestAiMessageIngest({
+    ...baseDraft,
+    clientRequestId: "55555555-5555-4555-8555-555555555555",
+  });
+
+  assert.equal(capturedBodies[0].firstUseSourceMessageId, sourceMessageId);
+  assert.equal("firstUseSourceMessageId" in capturedBodies[1], false);
 });
 
 test("v2 mobile actor binding remains body-compatible with the legacy ingest server", async () => {
@@ -1440,6 +1715,68 @@ test("an ingest stop stays locked while abort settlement is deliberately delayed
   releaseSettlement();
   assert.equal(await finishAfterSettlement, true);
   assert.equal(guard.current(), null);
+});
+
+test("first-use correction and skip invalidate the exact pending preview before it can stage a draft", () => {
+  const choiceHandlers = sourceBetween(
+    "function handleCorrectFirstUseAction",
+    "function handleRestoreFirstUseAction",
+  );
+  const continueHandler = sourceBetween(
+    "async function handleContinueFirstUseAction",
+    "function renderMessage",
+  );
+
+  assert.match(
+    choiceHandlers,
+    /handleCorrectFirstUseAction\(sourceMessageId: string\)[\s\S]*firstUsePromotionOperationGuardRef\.current\.cancel\(sourceMessageId\)/u,
+  );
+  assert.match(
+    choiceHandlers,
+    /handleSkipFirstUseAction\(sourceMessageId: string\)[\s\S]*firstUsePromotionOperationGuardRef\.current\.cancel\(sourceMessageId\)/u,
+  );
+  assert.match(continueHandler, /signal: operation\.controller\.signal/u);
+  assert.match(
+    continueHandler,
+    /!firstUsePromotionOperationGuardRef\.current\.isCurrent\(operation\)[\s\S]*return/u,
+  );
+  assert.doesNotMatch(choiceHandlers, /setActiveScope\("shared"\)|setTarget\("partner"\)/u);
+});
+
+test("first-use refusal offers an explicit private regeneration CTA without automatic writes", () => {
+  const streamHandler = sourceBetween(
+    "async function streamAiRequest",
+    "async function sendAiDraft",
+  );
+  const ingestHandler = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleOpenMediationRequest",
+  );
+  const recoveryHandler = sourceBetween(
+    "function handleRegenerateFirstUseAction",
+    "async function handleSend",
+  );
+  const failureSurface = sourceBetween(
+    "{!hasActiveW5SafetyCard && activeSendFailure",
+    "<View style={[st.inputBar",
+  );
+
+  assert.match(streamHandler, /getFirstUsePromotionSendRecovery\(\{/u);
+  assert.match(streamHandler, /firstUseRecovery,/u);
+  assert.match(ingestHandler, /getFirstUsePromotionSendRecovery\(\{/u);
+  assert.match(ingestHandler, /firstUseRecovery,/u);
+  assert.match(recoveryHandler, /firstUseComposerBindingRef\.current = null/u);
+  assert.match(recoveryHandler, /setPromotedFirstUseMessageId\(null\)/u);
+  assert.match(recoveryHandler, /setActiveScope\("private"\)/u);
+  assert.match(recoveryHandler, /setTarget\("ai"\)/u);
+  assert.doesNotMatch(
+    recoveryHandler,
+    /handleSend|sendAiDraft|requestAiMessageIngest|fetch\(|supabase|setActiveScope\("shared"\)/u,
+  );
+  assert.match(failureSurface, /activeFirstUseSendRecovery\.actionLabel/u);
+  assert.match(failureSurface, /onPress=\{handleRegenerateFirstUseAction\}/u);
+  assert.match(failureSurface, /나만 상담에서 첫 실행 제안 다시 만들기/u);
+  assert.match(failureSurface, /자동으로 보내거나 저장하지 않고 개인 상담의 확인 카드로 돌아갑니다/u);
 });
 
 test("mobile Stop owns the current send from durable ingest through AI streaming", () => {
@@ -1658,6 +1995,69 @@ test("AI message ingest preserves the exact request after an explicit 503 same-r
       assert.equal(error.serverCode, "USER_MESSAGE_PERSISTENCE_UNKNOWN");
       assert.equal(error.retryable, true);
       assert.equal(error.retryPolicy, "same_request");
+      return true;
+    },
+  );
+});
+
+test("AI message ingest maps first-use stale and currentness refusals to private regeneration", () => {
+  const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "검토한 공동 초안",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  for (const [status, code, retryPolicy] of [
+    [409, "FIRST_USE_PROMOTION_STALE", undefined],
+    [409, "FIRST_USE_PROMOTION_CRITERION_STALE", undefined],
+    [403, "FIRST_USE_PROMOTION_IDENTITY_CHANGED", undefined],
+    [409, "AMORA_FIRST_USE_PROMOTION_REQUIRED", "regenerate_first_use_action"],
+  ]) {
+    assert.throws(
+      () => parseAiMessageIngestResult(status, {
+        code,
+        ...(retryPolicy ? { retryPolicy } : {}),
+      }, expected),
+      (error) => {
+        assert.ok(error instanceof AiMessageIngestError);
+        assert.equal(error.serverCode, code);
+        assert.equal(error.retryable, false);
+        assert.equal(error.retryPolicy, "regenerate_first_use_action");
+        return true;
+      },
+    );
+  }
+});
+
+test("AI message ingest explains first-use regeneration without suggesting a blind resend", () => {
+  const {
+    AiMessageIngestError,
+    getAiMessageIngestFailureMessage,
+    parseAiMessageIngestResult,
+  } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "수정한 공동 초안",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+  };
+
+  assert.throws(
+    () => parseAiMessageIngestResult(409, {
+      code: "FIRST_USE_PROMOTION_STALE",
+    }, expected),
+    (error) => {
+      assert.ok(error instanceof AiMessageIngestError);
+      assert.equal(
+        getAiMessageIngestFailureMessage(error, false),
+        "이 행동을 우리 준비에 추가하거나 적용하지 않았어요. 최신 준비 상태와 다시 맞추려면 나만 상담에서 한 가지 제안을 다시 확인해 주세요.",
+      );
       return true;
     },
   );
@@ -2766,7 +3166,7 @@ test("a server partner W2 or W5 hold becomes one private local safety card", () 
 
 test("mobile send path preserves the safety-effective visibility through persistence, provider, and retry", () => {
   const requestBodyType = sourceBetween(
-    "interface ChatRequestBody",
+    "interface ChatRequestBase",
     "interface AiDraft",
   );
   const aiDraftType = sourceBetween(
@@ -2799,6 +3199,9 @@ test("mobile send path preserves the safety-effective visibility through persist
   );
 
   assert.match(requestBodyType, /visibility: ChatMessageVisibility/);
+  assert.match(requestBodyType, /type ChatRequestBody\s*=/);
+  assert.match(requestBodyType, /requestKind: "mediation"/);
+  assert.match(requestBodyType, /conflictContext: string/);
   assert.match(aiDraftType, /requestedVisibility: ChatMessageVisibility/);
   assert.match(aiDraftType, /visibility: ChatMessageVisibility/);
   assert.match(aiDraftType, /target: "ai"/);
@@ -2818,7 +3221,7 @@ test("mobile send path preserves the safety-effective visibility through persist
   assert.match(aiSend, /const ingestResult = await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
   assert.match(aiSend, /durableMessage = ingestResult\.message/);
   assert.match(aiSend, /coupleId: canonicalUserMessage\.couple_id/);
-  assert.match(aiSend, /clientRequestId: canonicalUserMessage\.metadata!\.client_request_id!/);
+  assert.match(aiSend, /clientRequestId: canonicalClientRequestId/);
   assert.match(aiSend, /userMessageId: canonicalUserMessage\.id/);
   assert.match(aiSend, /visibility: effectiveVisibility/);
   assert.doesNotMatch(aiSend, /body:[\s\S]*visibility: draft\.visibility/);
@@ -2871,7 +3274,10 @@ test("mobile crisis preflight holds every target locally before persistence or t
     holdBranch,
     /supabase|fetch\(|requestChatStream|streamAiRequest|sendPartnerDraft|sendAiDraft|\.upload\(|\.storage\b|captureEvent/,
   );
-  assert.doesNotMatch(holdBranch, /content:\s*text|metadata:[\s\S]{0,300}\btext\b/);
+  assert.doesNotMatch(
+    holdBranch,
+    /content:\s*text|\b(?:rawText|summary|reason|disclosure|userText)\s*:\s*text\b/,
+  );
 });
 
 test("mobile routes non-immediate shared AI safety text through the private lane end to end", () => {
@@ -2917,6 +3323,15 @@ test("mobile routes non-immediate shared AI safety text through the private lane
   assert.match(aiSend, /ingestResult\.safetyPrivacyRedirected/);
   assert.match(aiSend, /visibility: effectiveVisibility/);
   assert.doesNotMatch(aiSend, /body:[\s\S]*visibility: draft\.visibility/);
+  assert.match(
+    aiSend,
+    /const canonicalClientRequestId = canonicalUserMessage\.metadata!\.client_request_id!;/,
+  );
+  assert.match(
+    aiSend,
+    /const serverRequestKey = `chat:\$\{draft\.userId\}:\$\{canonicalClientRequestId\}`;/,
+  );
+  assert.match(aiSend, /clientRequestId: canonicalClientRequestId/);
   assert.match(privacyCardBranch, /response_origin: "server_authoritative_safety_privacy_route"/);
   assert.match(privacyCardBranch, /question_scope: "W2_high_risk_adjacent"/);
   assert.match(privacyCardBranch, /pinned_safety_card: true/);
@@ -2974,8 +3389,9 @@ test("mobile local safety hold is synchronously deduplicated until the draft cha
   const holdBranch = sendHandler.slice(holdIndex, normalPathIndex);
 
   assert.match(sourceText, /const safetyHoldLockRef = useRef\(false\)/);
-  assert.match(holdBranch, /if \(safetyHoldLockRef\.current\) return/);
-  assert.match(holdBranch, /safetyHoldLockRef\.current = true/);
+  assert.match(sendHandler, /safetyHoldWasLocked = safetyHoldLockRef\.current/);
+  assert.match(sendHandler, /safetyHoldLockRef\.current = true/);
+  assert.match(holdBranch, /if \(safetyHoldWasLocked\) return/);
   assert.match(
     holdBranch,
     /previous\.some\(\(message\) => message\.id === safetyCard\.id\)[\s\S]*previous[\s\S]*\[\.\.\.previous, safetyCard\]/,
@@ -3039,7 +3455,9 @@ test("partner delivery is fail-closed and AI suggestions never overwrite the par
   assert.match(sourceText, /const linkedPartnerIdRef = useRef<string \| null>\(null\)/);
   assert.match(sourceText, /updateAmoraChatLaneRecord\(current, "shared_partner", ""\)/);
   assert.match(sourceText, /hasLinkedPartner && \(/);
-  assert.match(sourceText, /!isP && \([\s\S]*st\.suggestions/);
+  assert.match(sourceText, /!isP \? \([\s\S]*<AmoraStarterCard/);
+  assert.match(sourceText, /<AmoraStarterCard[\s\S]*onSelect=\{handleAiSuggestion\}/);
+  assert.doesNotMatch(sourceText, /!isP && \([\s\S]*st\.suggestions/);
   assert.match(suggestionHandler, /"shared_ai"/);
   assert.doesNotMatch(suggestionHandler, /handleInputChange/);
 

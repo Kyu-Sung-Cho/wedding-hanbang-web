@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   TextInput,
@@ -12,12 +14,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import * as Crypto from "expo-crypto";
 import {
   AlertTriangle,
   CalendarCheck,
   CalendarDays,
   ChevronRight,
   Clock,
+  ExternalLink,
   FileCheck2,
   Star,
   Store,
@@ -32,6 +36,17 @@ import {
   createOwnerCoupleSessionFence,
   type OwnerCoupleSessionToken,
 } from "@/lib/ownerCoupleSessionFence.mjs";
+import {
+  buildVendorInquiryDecisionPrompt,
+  buildVendorInquiryMutationBody,
+  buildVendorInquiryShareMessage,
+  getVendorInquiryContactUrl,
+  parseVendorInquiryHandoffResponse,
+  type VendorInquiryContactChannel,
+  type VendorInquiryHandoffResponse,
+  type VendorInquiryOutcome,
+} from "@/lib/vendorInquiryHandoff.mjs";
+import { stagePrivateChatHandoff } from "@/lib/companionChatHandoff.mjs";
 import {
   AppHeader,
   AppText,
@@ -815,6 +830,7 @@ export default function BookingsScreen() {
         key={`${sessionOwnerId ?? "signed-out"}:${coupleId ?? "unlinked"}:${selectedBooking?.id ?? "closed"}`}
         booking={selectedBooking}
         identity={sessionFenceRef.capture()}
+        isIdentityCurrent={sessionFenceRef.isCurrent}
         onClose={() => setSelectedBooking(null)}
         onSaved={handleOutcomeSaved}
       />
@@ -825,11 +841,13 @@ export default function BookingsScreen() {
 function BookingDetailSheet({
   booking,
   identity,
+  isIdentityCurrent,
   onClose,
   onSaved,
 }: {
   booking: Booking | null;
   identity: OwnerCoupleSessionToken | null;
+  isIdentityCurrent: (token: OwnerCoupleSessionToken | null) => boolean;
   onClose: () => void;
   onSaved: (
     booking: BookingOutcomeResponse["booking"],
@@ -844,6 +862,11 @@ function BookingDetailSheet({
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeError, setOutcomeError] = useState<string | null>(null);
   const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
+  const [inquiry, setInquiry] = useState<VendorInquiryHandoffResponse | null>(null);
+  const [inquiryLoading, setInquiryLoading] = useState(false);
+  const [inquiryAction, setInquiryAction] = useState<string | null>(null);
+  const [inquiryError, setInquiryError] = useState<string | null>(null);
+  const inquiryMutationLockRef = useRef<symbol | null>(null);
 
   useEffect(() => {
     if (!booking) return;
@@ -854,6 +877,12 @@ function BookingDetailSheet({
     setSharePublicReview(false);
     setOutcomeError(null);
     setOutcomeMessage(null);
+    setInquiry(null);
+    setInquiryLoading(true);
+    setInquiryAction(null);
+    setInquiryError(null);
+    inquiryMutationLockRef.current = null;
+    void loadInquiryContext(booking.id);
   }, [booking?.id]);
 
   if (!booking || !identity) return null;
@@ -866,6 +895,157 @@ function BookingDetailSheet({
   const actualAmount = parseAmountInput(actualAmountText);
   const contractedAmount = parseAmountInput(contractedAmountText);
   const canSaveOutcome = completed && actualAmount !== null && rating !== null && !savingOutcome;
+
+  async function loadInquiryContext(expectedBookingId: string) {
+    try {
+      const response = await apiFetchForExpectedUser(
+        expectedOwnerId,
+        `/api/bookings/${expectedBookingId}/inquiry-handoff`,
+      );
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(bookingOutcomeError(payload));
+      const parsed = parseVendorInquiryHandoffResponse(payload, expectedBookingId);
+      if (!parsed) throw new Error("문의 인계 상태를 안전하게 확인하지 못했어요.");
+      const { data } = await supabase.auth.getSession();
+      if (
+        data.session?.user.id.toLowerCase() !== expectedOwnerId.toLowerCase()
+        || !isIdentityCurrent(expectedIdentity)
+      ) return;
+      setInquiry(parsed);
+    } catch (err) {
+      if (isIdentityCurrent(expectedIdentity)) {
+        setInquiryError(err instanceof Error ? err.message : "문의 인계를 불러오지 못했어요.");
+      }
+    } finally {
+      if (isIdentityCurrent(expectedIdentity)) setInquiryLoading(false);
+    }
+  }
+
+  async function updateInquiry(
+    action: "prepare" | "mark_sent" | "record_reply",
+    values: {
+      contactChannel?: VendorInquiryContactChannel;
+      userReportedOutcome?: VendorInquiryOutcome;
+    } = {},
+  ) {
+    if (!booking || inquiryMutationLockRef.current) return;
+    const expectedBookingId = booking.id;
+    const mutationBody = buildVendorInquiryMutationBody(
+      inquiry?.handoff ?? null,
+      action,
+      values,
+    );
+    if (!mutationBody) {
+      setInquiryError("문의 상태가 바뀌었어요. 최신 상태를 다시 확인해 주세요.");
+      return;
+    }
+    const mutationToken = Symbol("vendor-inquiry-mutation");
+    inquiryMutationLockRef.current = mutationToken;
+    setInquiryAction(action);
+    setInquiryError(null);
+    try {
+      const response = await apiFetchForExpectedUser(
+        expectedOwnerId,
+        `/api/bookings/${expectedBookingId}/inquiry-handoff`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(mutationBody),
+        },
+      );
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (
+          response.status === 409
+          && isRecord(payload)
+          && payload.code === "VENDOR_INQUIRY_HANDOFF_REVISION_CONFLICT"
+        ) {
+          await loadInquiryContext(expectedBookingId);
+        }
+        throw new Error(bookingOutcomeError(payload));
+      }
+      const parsed = parseVendorInquiryHandoffResponse(payload, expectedBookingId);
+      if (!parsed) throw new Error("문의 인계 상태를 안전하게 확인하지 못했어요.");
+      const { data } = await supabase.auth.getSession();
+      if (
+        data.session?.user.id.toLowerCase() !== expectedOwnerId.toLowerCase()
+        || !isIdentityCurrent(expectedIdentity)
+      ) return;
+      setInquiry(parsed);
+    } catch (err) {
+      if (isIdentityCurrent(expectedIdentity)) {
+        setInquiryError(err instanceof Error ? err.message : "문의 인계를 저장하지 못했어요.");
+      }
+    } finally {
+      if (inquiryMutationLockRef.current === mutationToken) {
+        inquiryMutationLockRef.current = null;
+        if (isIdentityCurrent(expectedIdentity)) setInquiryAction(null);
+      }
+    }
+  }
+
+  async function openPreparedInquiry() {
+    if (!(await canUseInquiryNativeEgress())) return;
+    const handoff = inquiry?.handoff;
+    const message = buildVendorInquiryShareMessage(handoff ?? null);
+    if (!handoff || !message) {
+      setInquiryError("내보낼 문의문을 안전하게 확인하지 못했어요.");
+      return;
+    }
+    if (!(await canUseInquiryNativeEgress())) return;
+    await Share.share({ message, title: `${inquiry.vendorName} 문의문` }).catch(() => undefined);
+  }
+
+  async function openContactPath() {
+    if (!(await canUseInquiryNativeEgress())) return;
+    const handoff = inquiry?.handoff;
+    const option = inquiry?.contactOptions.find(
+      (item) => item.channel === handoff?.contactChannel,
+    );
+    const url = getVendorInquiryContactUrl(option ?? null);
+    if (!url || !(await Linking.canOpenURL(url))) {
+      setInquiryError("이 기기에서 공개 연락 경로를 열 수 없어요. 문의문을 복사해 직접 연락해 주세요.");
+      return;
+    }
+    if (!(await canUseInquiryNativeEgress())) return;
+    await Linking.openURL(url);
+  }
+
+  async function continueInquiryWithAmora() {
+    if (!(await canUseInquiryNativeEgress())) return;
+    const prompt = buildVendorInquiryDecisionPrompt(inquiry);
+    if (!prompt) {
+      setInquiryError("답변 기록을 안전하게 이어가지 못했어요. 최신 상태를 다시 확인해 주세요.");
+      return;
+    }
+    const companionHandoff = stagePrivateChatHandoff({
+      handoffId: Crypto.randomUUID(),
+      ownerUserId: expectedOwnerId,
+      coupleId: expectedIdentity.coupleId,
+      prompt,
+    });
+    if (!companionHandoff) {
+      setInquiryError("아모라 상담 초안을 안전하게 준비하지 못했어요.");
+      return;
+    }
+    onClose();
+    router.push({
+      pathname: "/(tabs)/chat",
+      params: { companionHandoff },
+    });
+  }
+
+  async function canUseInquiryNativeEgress(): Promise<boolean> {
+    const { data } = await supabase.auth.getSession();
+    const current = data.session?.user.id.toLowerCase() === expectedOwnerId.toLowerCase()
+      && isIdentityCurrent(expectedIdentity);
+    if (!current) {
+      setInquiry(null);
+      setInquiryError(null);
+      onClose();
+      return false;
+    }
+    return true;
+  }
 
   async function saveOutcome() {
     if (!booking) return;
@@ -987,6 +1167,159 @@ function BookingDetailSheet({
                   <AppText variant="caption">{action.description}</AppText>
                 </View>
               </View>
+
+              {booking.status !== "cancelled" ? (
+                <View style={s.inquiryBox}>
+                  <View style={s.outcomeHeader}>
+                    <View style={s.outcomeTitleBlock}>
+                      <AppText variant="eyebrow">DIRECT INQUIRY HANDOFF</AppText>
+                      <AppText variant="bodyStrong">업체에 직접 문의하기</AppText>
+                    </View>
+                    <StatusPill
+                      label={
+                        inquiry?.handoff?.status === "replied"
+                          ? "답변 결과 기록"
+                          : inquiry?.handoff?.status === "sent"
+                            ? "내가 보냄 표시"
+                            : inquiry?.handoff
+                              ? "문의문 준비"
+                              : "미준비"
+                      }
+                      tone={inquiry?.handoff?.status === "replied" ? "success" : "neutral"}
+                    />
+                  </View>
+
+                  <AppText variant="caption">
+                    업체가 공개한 연락 경로와 저장된 날짜·상품으로 문의문을 준비해요. 아모라가 업체에 보내지 않아요.
+                  </AppText>
+
+                  {inquiryLoading ? (
+                    <AppText variant="caption">공개 연락 경로를 확인하고 있어요.</AppText>
+                  ) : null}
+
+                  {!inquiryLoading && inquiry && !inquiry.handoff ? (
+                    inquiry.contactOptions.length > 0 ? (
+                      <View style={s.contactOptionList}>
+                        {inquiry.contactOptions.map((option) => (
+                          <Pressable
+                            key={option.channel}
+                            style={s.contactOption}
+                            onPress={() => void updateInquiry("prepare", {
+                              contactChannel: option.channel,
+                            })}
+                            disabled={inquiryAction !== null}
+                            accessibilityRole="button"
+                          >
+                            <View style={s.contactOptionCopy}>
+                              <AppText variant="bodyStrong">{option.label}로 준비</AppText>
+                              <AppText variant="caption" numberOfLines={1}>{option.target}</AppText>
+                            </View>
+                            <ChevronRight size={17} color={colors.textTertiary} />
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : (
+                      <AppText variant="caption">
+                        확인 가능한 업체 공개 연락 경로가 없어요. 업체 공식 페이지에서 직접 확인해 주세요.
+                      </AppText>
+                    )
+                  ) : null}
+
+                  {inquiry?.handoff ? (
+                    <>
+                      <View style={s.inquiryDraft}>
+                        <AppText variant="caption">문의문</AppText>
+                        <AppText variant="body">{inquiry.handoff.inquiryMessage}</AppText>
+                      </View>
+                      <View style={s.inquiryActionRow}>
+                        <View style={s.inquiryHalfButton}>
+                          <PrimaryButton tone="ghost" onPress={openPreparedInquiry}>
+                            문의문 내보내기
+                          </PrimaryButton>
+                        </View>
+                        <View style={s.inquiryHalfButton}>
+                          <PrimaryButton tone="ghost" onPress={openContactPath}>
+                            <ExternalLink size={16} color={colors.noir[800]} />
+                            연락 경로 열기
+                          </PrimaryButton>
+                        </View>
+                      </View>
+
+                      {inquiry.handoff.status === "prepared" ? (
+                        <>
+                          <AppText variant="caption">
+                            위 동작은 기기에서 공유창이나 연락앱을 여는 것뿐이에요. 실제로 보냈다면 아래에 직접 표시해 주세요.
+                          </AppText>
+                          <PrimaryButton
+                            tone="noir"
+                            onPress={() => void updateInquiry("mark_sent")}
+                            disabled={inquiryAction !== null}
+                          >
+                            내가 직접 보냈어요
+                          </PrimaryButton>
+                        </>
+                      ) : null}
+
+                      {inquiry.handoff.status === "sent" ? (
+                        <View style={s.replyOutcomeBox}>
+                          <AppText variant="bodyStrong">업체 답변은 어땠나요?</AppText>
+                          <AppText variant="caption">
+                            답변 결과도 사용자가 직접 기록해요. 사용자 표시 · 업체 수신 증빙 아님.
+                          </AppText>
+                          <View style={s.outcomeChoiceRow}>
+                            {([
+                              ["available", "가능"],
+                              ["unavailable", "불가"],
+                              ["needs_follow_up", "추가 확인"],
+                              ["other", "기타"],
+                            ] as const).map(([value, label]) => (
+                              <Pressable
+                                key={value}
+                                style={s.outcomeChoice}
+                                onPress={() => void updateInquiry("record_reply", {
+                                  userReportedOutcome: value,
+                                })}
+                                disabled={inquiryAction !== null}
+                                accessibilityRole="button"
+                              >
+                                <AppText variant="caption">{label}</AppText>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </View>
+                      ) : null}
+
+                      {inquiry.handoff.status === "replied" ? (
+                        <View style={s.replyRecorded}>
+                          <AppText variant="bodyStrong">사용자가 기록한 답변 결과</AppText>
+                          <AppText variant="caption">
+                            {{
+                              available: "가능",
+                              unavailable: "불가",
+                              needs_follow_up: "추가 확인 필요",
+                              other: "기타",
+                            }[inquiry.handoff.userReportedOutcome ?? "other"]}
+                            {" · 업체 시스템 확인 아님"}
+                          </AppText>
+                          <AppText variant="caption">
+                            나만 상담 초안으로 열어요. 자동 전송·공유·저장은 하지 않아요.
+                          </AppText>
+                          <PrimaryButton
+                            tone="noir"
+                            onPress={() => void continueInquiryWithAmora()}
+                          >
+                            아모라와 다음 결정 정리
+                          </PrimaryButton>
+                        </View>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {inquiryError ? (
+                    <AppText variant="caption" style={s.errorText}>{inquiryError}</AppText>
+                  ) : null}
+                </View>
+              ) : null}
 
               {completed ? (
                 <View style={s.outcomeBox}>
@@ -1363,6 +1696,71 @@ const s = StyleSheet.create({
   noticeCopy: {
     flex: 1,
     gap: 2,
+  },
+  inquiryBox: {
+    gap: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 16,
+    marginBottom: 16,
+  },
+  contactOptionList: {
+    gap: 8,
+  },
+  contactOption: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[100],
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  contactOptionCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  inquiryDraft: {
+    gap: 6,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[100],
+    padding: 14,
+  },
+  inquiryActionRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  inquiryHalfButton: {
+    flex: 1,
+  },
+  replyOutcomeBox: {
+    gap: 10,
+    borderRadius: 14,
+    backgroundColor: colors.ivory[100],
+    padding: 14,
+  },
+  outcomeChoiceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  outcomeChoice: {
+    minHeight: 38,
+    justifyContent: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+  },
+  replyRecorded: {
+    gap: 4,
+    borderRadius: 14,
+    backgroundColor: "rgba(109,128,110,0.12)",
+    padding: 14,
   },
   outcomeBox: {
     gap: 14,

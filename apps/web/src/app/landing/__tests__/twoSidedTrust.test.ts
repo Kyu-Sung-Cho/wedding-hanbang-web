@@ -18,7 +18,9 @@ const footer = source("src/components/landing/redesign/LandingFooter.tsx");
 describe("landing two-sided trust contract", () => {
   it("leads with the concrete Amora loop, then makes its trust evidence verifiable", () => {
     expect(content).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
-    expect(content).toContain("아모라 · 대화를 정리하는 AI");
+    expect(content).toContain("아모라 · AI 결혼 준비 동반자");
+    expect(landing).toContain("AI 결혼 준비 동반자 아모라");
+    expect(landing).not.toContain("대화 정리 AI 아모라");
     expect(content).toContain("확인한 변경만 준비 기록에 반영해요");
     expect(content).toContain("결정은 둘이. 아모라는 정리.");
     expect(content).toContain("광고비 때문에 일반 추천 순서를 바꾸지 않아요");

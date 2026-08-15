@@ -400,6 +400,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const expectedUserId = initiatingOwnerId;
+    const expectedCoupleId = journey?.couple_id ?? couple?.id ?? null;
+    if (
+      typeof expectedCoupleId !== "string"
+      || expectedCoupleId.length === 0
+      || (journey?.couple_id && couple?.id && journey.couple_id !== couple.id)
+    ) {
+      throw new Error("커플 정보가 바뀌었어요. 최신 준비 기록을 다시 불러와 주세요.");
+    }
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
     // 전체 전송은 이 클라이언트의 스테일 스냅샷으로 파트너/AI의 다른 키 변경을
@@ -436,6 +444,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const expectedRevision = journey?.state_revision ?? 0;
+    body.expected_couple_id = expectedCoupleId;
     body.expected_revision = expectedRevision;
 
     const updateSequence = ++journeyWriteSequence;

@@ -11,6 +11,12 @@ import { ArrowLeft, Share2 } from "lucide-react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetchForWebBridge } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import {
+  consumeCompanionChatHandoff,
+  readPrivateChatHandoffPromptFromUrl,
+  stagePrivateChatHandoff,
+} from "@/lib/companionChatHandoff.mjs";
 import {
   MOBILE_WEB_API_PROTOCOL,
   MOBILE_WEB_API_NONCE_PROPERTY,
@@ -73,6 +79,7 @@ export default function WebViewScreen() {
   const safeUrl = normalizeMobileSiteUrl(url, SITE_ORIGIN);
   const webViewRef = useRef<WebView>(null);
   const documentEpochRef = useRef(0);
+  const nativeChatOpeningRef = useRef(false);
   const [bridgeNonce] = useState(() => Crypto.randomUUID());
   const [bridgeRequestGate] = useState(() => createMobileWebApiRequestGate());
   const [bridgeAuthRedirectGate] = useState(() => createMobileWebApiAuthRedirectGate());
@@ -103,8 +110,51 @@ export default function WebViewScreen() {
     router.back();
   }, [canGoBack]);
 
+  const openNativePrivateChat = useCallback(async (prompt: string) => {
+    if (nativeChatOpeningRef.current) return;
+    nativeChatOpeningRef.current = true;
+    let navigated = false;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const ownerUserId = data.session?.user.id ?? null;
+      if (!ownerUserId) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("couple_id")
+        .eq("id", ownerUserId)
+        .maybeSingle();
+      const coupleId = profile?.couple_id ?? null;
+      if (!coupleId) return;
+      const companionHandoff = stagePrivateChatHandoff({
+        handoffId: Crypto.randomUUID(),
+        ownerUserId,
+        coupleId,
+        prompt,
+      });
+      if (!companionHandoff) return;
+
+      const { data: latest } = await supabase.auth.getSession();
+      if (latest.session?.user.id.toLowerCase() !== ownerUserId.toLowerCase()) {
+        consumeCompanionChatHandoff(companionHandoff, ownerUserId, coupleId);
+        return;
+      }
+      navigated = true;
+      router.push({
+        pathname: "/(tabs)/chat",
+        params: { companionHandoff },
+      });
+    } finally {
+      if (!navigated) nativeChatOpeningRef.current = false;
+    }
+  }, []);
+
   // 설정된 동일 origin 링크는 WebView에서, 외부 링크는 브라우저에서 연다.
   const handleNavigation = useCallback((event: { url: string }) => {
+    const privateChatPrompt = readPrivateChatHandoffPromptFromUrl(event.url, SITE_ORIGIN);
+    if (privateChatPrompt) {
+      void openNativePrivateChat(privateChatPrompt);
+      return false;
+    }
     const nextUrl = normalizeMobileSiteUrl(event.url, SITE_ORIGIN);
     if (nextUrl) {
       setCurrentTitle(titleFromUrl(nextUrl));
@@ -117,7 +167,7 @@ export default function WebViewScreen() {
     }
 
     return false;
-  }, []);
+  }, [openNativePrivateChat]);
 
   const handleNavigationStateChange = useCallback((event: { url: string; canGoBack: boolean }) => {
     const nextUrl = normalizeMobileSiteUrl(event.url, SITE_ORIGIN);

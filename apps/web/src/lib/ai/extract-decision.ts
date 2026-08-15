@@ -10,7 +10,7 @@
 //   - 로그는 turn당 1건 (extraction_count 포함) + recordDecision 별 row 생성
 // 특징:
 //   - Fire-and-forget (main chat flow 비차단)
-//   - INITIAL_GREETING / MEDIATION_REQUEST / [quote_analysis] 스킵
+//   - INITIAL_GREETING / MEDIATION_REQUEST / quote analysis machine context 스킵
 //   - JSON 실패 시 silent drop
 //   - 예외 전부 내부 삼킴
 // =============================================
@@ -286,7 +286,11 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
     if (!userText) return;
     if (userText.includes("[INITIAL_GREETING]")) return;
     if (userText.includes("[MEDIATION_REQUEST]")) return;
-    if (userText.includes("[quote_analysis]")) return;
+    if (
+      userText.includes("[quote_analysis]")
+      || userText.includes("[quote_analysis_v2]")
+      || userText.includes("[/quote_analysis_v2]")
+    ) return;
     if (input.messages.length < 2) return;
 
     const recent = input.messages.slice(-CONTEXT_WINDOW_MESSAGES);

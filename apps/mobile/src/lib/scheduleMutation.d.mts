@@ -44,9 +44,11 @@ export type ScheduleEventDraftValidation =
 export function validateScheduleEventDraft(input: unknown): ScheduleEventDraftValidation;
 
 export function buildScheduleProgressPatch<T extends ScheduleMutationEvent>(
+  expectedCoupleId: string,
   expectedRevision: unknown,
   events: readonly T[],
 ): {
+  expected_couple_id: string;
   expected_revision: number;
   progress_patch: { __events: T[] };
 };

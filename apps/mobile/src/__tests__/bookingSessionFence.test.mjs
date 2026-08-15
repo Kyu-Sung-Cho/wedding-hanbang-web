@@ -75,4 +75,34 @@ test("the booking screen invalidates loads and clears account-bound UI on auth c
     source,
     /function handleOutcomeSaved\([\s\S]*?loadSequenceRef\.current \+= 1;[\s\S]*?setBookings/,
   );
+  assert.match(
+    source,
+    /parseVendorInquiryHandoffResponse\(payload, expectedBookingId\)[\s\S]*?isIdentityCurrent\(expectedIdentity\)/,
+  );
+  assert.match(
+    source,
+    /parseVendorInquiryHandoffResponse\(payload, expectedBookingId\)[\s\S]*?isIdentityCurrent\(expectedIdentity\)/,
+  );
+  assert.match(
+    source,
+    /buildVendorInquiryMutationBody\([\s\S]{0,120}inquiry\?\.handoff \?\? null,[\s\S]{0,80}action,[\s\S]{0,80}values/,
+  );
+  assert.match(source, /inquiryMutationLockRef\.current = mutationToken/);
+  assert.match(source, /body: JSON\.stringify\(mutationBody\)/);
+  assert.match(
+    source,
+    /response\.status === 409[\s\S]*?VENDOR_INQUIRY_HANDOFF_REVISION_CONFLICT[\s\S]*?loadInquiryContext\(expectedBookingId\)/,
+  );
+  assert.match(
+    source,
+    /async function openPreparedInquiry\(\)[\s\S]*?canUseInquiryNativeEgress\(\)[\s\S]*?canUseInquiryNativeEgress\(\)[\s\S]*?Share\.share/,
+  );
+  assert.match(
+    source,
+    /async function openContactPath\(\)[\s\S]*?canUseInquiryNativeEgress\(\)[\s\S]*?canUseInquiryNativeEgress\(\)[\s\S]*?Linking\.openURL/,
+  );
+  assert.match(
+    source,
+    /async function canUseInquiryNativeEgress[\s\S]*?supabase\.auth\.getSession\(\)[\s\S]*?expectedOwnerId[\s\S]*?isIdentityCurrent\(expectedIdentity\)[\s\S]*?setInquiry\(null\)[\s\S]*?onClose\(\)/,
+  );
 });

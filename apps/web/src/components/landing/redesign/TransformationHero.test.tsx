@@ -39,7 +39,7 @@ describe("TransformationHero product demo", () => {
     await act(async () => root.render(<TransformationHero />));
 
     expect(container.textContent).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
-    expect(container.textContent).toContain("아모라 · 대화를 정리하는 AI");
+    expect(container.textContent).toContain("아모라 · AI 결혼 준비 동반자");
     expect(container.textContent).toContain("아모라의 첫 번째 변경 제안");
     expect(container.textContent).toContain("이 일정을 추가할까요?");
     expect(container.textContent).toContain("10월 17일 오후 2시");

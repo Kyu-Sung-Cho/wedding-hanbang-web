@@ -148,6 +148,42 @@ describe("GET /api/amora/mediation/accept", () => {
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
+  it("rejects an already-stored v2 proposal that contains a one-sided verdict", async () => {
+    const currentRoster = fingerprint(USER_ID, PARTNER_ID);
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })) },
+      from: vi.fn((table: string) => table === "profiles"
+        ? query({ data: { couple_id: COUPLE_ID }, error: null })
+        : query({
+          data: {
+            id: MESSAGE_ID,
+            sender_type: "ai",
+            role: "assistant",
+            visibility: "shared",
+            metadata: {
+              mediation: {
+                ...V2_DRAFT,
+                translation: "신랑이 이기적이고 신부가 옳아요.",
+                resolution: "신랑이 양보하고 사과하세요.",
+                proposalVersion: CURRENT_VERSION,
+                rosterFingerprint: currentRoster,
+              },
+            },
+          },
+          error: null,
+        })),
+    } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
+
+    const response = await GET(new Request(
+      `http://localhost/api/amora/mediation/accept?messageId=${MESSAGE_ID}`
+        + `&expectedProposalVersion=${CURRENT_VERSION}`
+        + `&expectedRosterFingerprint=${currentRoster}`,
+    ));
+
+    expect(response.status).toBe(404);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
   it("counts only the exact current proposal version and roster", async () => {
     const currentRoster = fingerprint(USER_ID, PARTNER_ID);
     vi.mocked(createClientFromRequest).mockResolvedValue({

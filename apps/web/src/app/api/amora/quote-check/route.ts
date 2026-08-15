@@ -6,6 +6,9 @@ import {
   type AmoraQuoteCheckInput,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+import type { PriceCatalog, PriceCategory } from "@/lib/price/catalog";
+import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
+import { createPublicClient } from "@/lib/supabase/public";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -115,7 +118,19 @@ export async function POST(req: NextRequest) {
     });
     if (limited) return limited;
 
-    const analysis = analyzeAmoraQuoteCheck(input);
+    let catalog: PriceCatalog | undefined;
+    if (input.category !== "sdm_package") {
+      try {
+        catalog = await loadPublicPriceCatalog(createPublicClient(), {
+          optionCategories: [],
+          priceCategories: [input.category satisfies PriceCategory],
+        });
+      } catch {
+        // 공시 원문을 불러오지 못하면 견적 구성 체크는 계속하되 숫자는 만들지 않는다.
+        catalog = undefined;
+      }
+    }
+    const analysis = analyzeAmoraQuoteCheck(input, catalog);
 
     return NextResponse.json(
       { analysis, storageStatus: "not_stored" as const },

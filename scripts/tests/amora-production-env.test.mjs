@@ -28,6 +28,7 @@ function validEnv(overrides = {}) {
     AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
     AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
     AMORA_TODAY_ONE_ENABLED: "false",
+    AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
     AI_LOG_RETENTION_CRON_ENABLED: "false",
     ACCOUNT_DELETION_INTAKE_ENABLED: "false",
     ACCOUNT_DELETION_CRON_ENABLED: "false",
@@ -174,6 +175,19 @@ test("the expand deployment keeps TodayOne disabled", () => {
     assert.deepEqual(
       JSON.parse(result.stdout).failed,
       ["todayOneDisabledForExpandDeploy"],
+    );
+  }
+});
+
+test("the expand deployment keeps recipient-private mediation follow-up disabled", () => {
+  for (const unsafe of ["", "true", "FALSE"]) {
+    const result = runChecker(validEnv({
+      AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["mediationOutcomeFollowUpDisabledForExpandDeploy"],
     );
   }
 });

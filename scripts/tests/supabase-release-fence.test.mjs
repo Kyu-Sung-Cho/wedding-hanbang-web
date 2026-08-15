@@ -466,7 +466,7 @@ SELECT
   3 AS couple_plan_change_terminal_event_count,
   1 AS couple_plan_change_write_boundary_trigger_count,
   1 AS successor_migration_head_count,
-  10 AS successor_feature_flags_off_count,
+  11 AS successor_feature_flags_off_count,
   (
     SELECT count(*)::integer
     FROM pg_catalog.pg_constraint
@@ -534,7 +534,7 @@ ROLLBACK;
         couple_plan_change_terminal_event_count: 3,
         couple_plan_change_write_boundary_trigger_count: 1,
         successor_created_table_count: 0,
-        successor_feature_flags_off_count: 10,
+        successor_feature_flags_off_count: 11,
         successor_migration_head_count: 1,
         wedding_court_auth_delete_fk_count: 1,
         chat_feedback_auth_delete_fk_count: 1,
@@ -616,6 +616,7 @@ ROLLBACK;
         AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
         AMORA_CONVERSATION_SEGMENT_READ_ENABLED: "false",
         AMORA_TODAY_ONE_ENABLED: "false",
+        AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
         AMORA_OPENAI_ENABLED: "false",
         AMORA_PROACTIVE_CHAT_ENABLED: "false",
         AMORA_COST_GUARD_ENABLED: "true",

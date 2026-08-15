@@ -7,7 +7,7 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { PLANNING_CATEGORY_LABELS, type PlanningCategoryKey } from "@hanbang/shared/constants";
@@ -26,7 +26,10 @@ import {
   type BudgetIdentityToken,
   type BudgetMutationToken,
 } from "@/lib/budgetRevision.mjs";
-import { listBudgetCategories } from "@/lib/budgetCategoryRegistry.mjs";
+import {
+  buildVerifiedBudgetCategoryEditor,
+  listBudgetCategories,
+} from "@/lib/budgetCategoryRegistry.mjs";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 import ErrorRetry from "@/components/ErrorRetry";
 
@@ -156,6 +159,7 @@ function normalizeLegacyCostForReview(cost: unknown): number | null {
 }
 
 export default function BudgetScreen() {
+  const { category: requestedCategory } = useLocalSearchParams<{ category?: string | string[] }>();
   const [totalBudget, setTotalBudget] = useState(0);
   const [progress, setProgress] = useState<Record<string, ProgressItem>>({});
   const [coupleId, setCoupleId] = useState<string | null>(null);
@@ -177,6 +181,7 @@ export default function BudgetScreen() {
   const pendingApprovalRef = useRef<PendingBudgetApproval | null>(null);
   const totalEditBaseRef = useRef<BudgetEditBase | null>(null);
   const categoryEditBaseRef = useRef<BudgetEditBase | null>(null);
+  const handledCategoryDeepLinkRef = useRef<string | null>(null);
   const revisionCoordinatorRef = useRef<ReturnType<typeof createBudgetRevisionCoordinator> | null>(null);
   if (revisionCoordinatorRef.current === null) {
     revisionCoordinatorRef.current = createBudgetRevisionCoordinator();
@@ -191,6 +196,7 @@ export default function BudgetScreen() {
     setEditingKey(null);
     totalEditBaseRef.current = null;
     categoryEditBaseRef.current = null;
+    handledCategoryDeepLinkRef.current = null;
     setSaving(false);
     setSavingTotal(false);
     pendingApprovalRef.current = null;
@@ -382,6 +388,33 @@ export default function BudgetScreen() {
           }
         }
       }
+
+      if (
+        loadSequenceRef.current !== loadSequence
+        || !revisionCoordinator.isCurrent(latestSnapshot)
+      ) return null;
+      const deepLinkEditor = buildVerifiedBudgetCategoryEditor({
+        requestedCategory,
+        fixedCategories: BUDGET_CATEGORIES,
+        verifiedIdentity: latestSnapshot,
+      });
+      if (deepLinkEditor) {
+        const handledKey = [
+          deepLinkEditor.editBase.ownerId,
+          deepLinkEditor.editBase.coupleId,
+          deepLinkEditor.categoryKey,
+        ].join(":");
+        if (handledCategoryDeepLinkRef.current !== handledKey) {
+          totalEditBaseRef.current = null;
+          setEditingTotal(false);
+          categoryEditBaseRef.current = deepLinkEditor.editBase;
+          setBudgetInput(deepLinkEditor.budgetInput);
+          setSpentInput(deepLinkEditor.spentInput);
+          setPayerInput(deepLinkEditor.payerInput);
+          setEditingKey(deepLinkEditor.categoryKey);
+          handledCategoryDeepLinkRef.current = handledKey;
+        }
+      }
       return latestSnapshot;
     } catch (error) {
       if (
@@ -399,7 +432,12 @@ export default function BudgetScreen() {
         setRefreshing(false);
       }
     }
-  }, [clearIdentityBoundState, commitSnapshotToView, revisionCoordinator]);
+  }, [
+    clearIdentityBoundState,
+    commitSnapshotToView,
+    requestedCategory,
+    revisionCoordinator,
+  ]);
 
   useFocusEffect(
     useCallback(() => {

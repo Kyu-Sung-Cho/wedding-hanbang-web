@@ -1,4 +1,13 @@
 import { HIDDEN_COSTS, type HiddenCostItem } from "@/constants/hiddenCosts";
+import {
+  comparableOffers,
+  type PriceCatalog,
+  type PriceCategory,
+} from "@/lib/price/catalog";
+import {
+  DISCLOSURE_SOURCE_URL,
+  disclosureRoundLabel,
+} from "@/lib/price/period";
 
 export type AmoraQuoteCategory = "sdm_package" | "studio" | "dress" | "makeup";
 export type AmoraQuoteRegion = "seoul" | "gyeonggi" | "busan" | "daegu" | "other";
@@ -40,6 +49,7 @@ export interface AmoraQuoteCheckResult {
   marketComparatorLabel: string;
   /** 기준 중위가 대비 % — 참고 표시 전용, 판정 근거로 쓰지 않는다 */
   priceDiffPercent: number;
+  marketEvidence: AmoraMarketPriceEvidence;
   checkedItemCount: number;
   notNeededItemCount: number;
   missingCriticalCount: number;
@@ -55,6 +65,27 @@ export interface AmoraQuoteCheckResult {
   negotiationScript: string;
   sourceNote: string;
 }
+
+export type AmoraMarketPriceEvidence = {
+  status: "available" | "unavailable";
+  observationCount: number;
+  vendorCount: number;
+  source: "한국소비자원 참가격";
+  sourceUrl: string;
+  sourcePeriod: string;
+  categoryLabel: string;
+  regionLabel: string;
+  calculation: string;
+  comparisonBasis: string;
+  limitation: string;
+  unavailableReason?: "catalog_not_loaded" | "category_not_comparable" | "insufficient_sample";
+};
+
+export type AmoraMarketPriceBenchmark = {
+  medianManwon: number;
+  comparatorLabel: string;
+  evidence: AmoraMarketPriceEvidence;
+};
 
 export const AMORA_QUOTE_CATEGORY_LABELS: Record<AmoraQuoteCategory, string> = {
   sdm_package: "사진 촬영·드레스·메이크업 묶음 견적",
@@ -109,17 +140,108 @@ function toCheckItem(item: HiddenCostItem): AmoraQuoteCheckItem {
   };
 }
 
-function getMarketMedian(
+export function getAmoraMarketPriceBenchmark(
   category: AmoraQuoteCategory,
-  region: AmoraQuoteRegion,
-  scope: AmoraQuoteScope,
-): { median: number; comparatorLabel: string } {
-  void category;
-  void region;
-  void scope;
-  return {
-    median: 0,
+  region: AmoraQuoteRegion | "national",
+  catalog?: PriceCatalog,
+): AmoraMarketPriceBenchmark {
+  const categoryLabel = AMORA_QUOTE_CATEGORY_LABELS[category];
+  const regionLabel = region === "national" ? "전국" : AMORA_QUOTE_REGION_LABELS[region];
+  const unavailable = (
+    unavailableReason: AmoraMarketPriceEvidence["unavailableReason"],
+    observationCount = 0,
+    vendorCount = 0,
+  ) => ({
+    medianManwon: 0,
     comparatorLabel: "업체별 최신 공시가 확인 필요",
+    evidence: {
+      status: "unavailable" as const,
+      observationCount,
+      vendorCount,
+      source: "한국소비자원 참가격" as const,
+      sourceUrl: DISCLOSURE_SOURCE_URL,
+      sourcePeriod: disclosureRoundLabel(),
+      categoryLabel,
+      regionLabel,
+      calculation: "비교 가능한 공시 기본가 하한의 중간값",
+      comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
+      limitation: "개별 계약의 구성·옵션·시점이 달라 견적의 적정성이나 최종 결제액을 판정할 수 없습니다.",
+      unavailableReason,
+    },
+  });
+
+  if (!catalog) return unavailable("catalog_not_loaded");
+  if (category === "sdm_package") return unavailable("category_not_comparable");
+
+  const priceCategory = category satisfies PriceCategory;
+  const regionCodes = new Set(
+    region === "seoul"
+      ? ["seoul_gangnam3", "seoul_etc"]
+      : region === "gyeonggi"
+        ? ["gyeonggi", "incheon"]
+        : region === "busan"
+          ? ["busan"]
+          : region === "daegu"
+            ? ["daegu"]
+            : [],
+  );
+  const excludedFromOther = new Set([
+    "seoul_gangnam3",
+    "seoul_etc",
+    "gyeonggi",
+    "incheon",
+    "busan",
+    "daegu",
+  ]);
+  const observations: Array<{ vendorId: string; minimumKrw: number }> = [];
+
+  for (const vendor of catalog.categories[priceCategory]) {
+    for (const offer of comparableOffers(vendor)) {
+      const offerRegion = offer.regionCode;
+      const matchesRegion = region === "national"
+        ? typeof offerRegion === "string"
+        : region === "other"
+          ? typeof offerRegion === "string" && !excludedFromOther.has(offerRegion)
+          : typeof offerRegion === "string" && regionCodes.has(offerRegion);
+      if (!matchesRegion) continue;
+      if (
+        offer.minimumKrw === null
+        || !Number.isSafeInteger(offer.minimumKrw)
+        || offer.minimumKrw <= 0
+      ) continue;
+      observations.push({ vendorId: vendor.id, minimumKrw: offer.minimumKrw });
+    }
+  }
+
+  const vendorCount = new Set(observations.map(({ vendorId }) => vendorId)).size;
+  if (observations.length < 3 || vendorCount < 3) {
+    return unavailable("insufficient_sample", observations.length, vendorCount);
+  }
+
+  const sorted = observations.map(({ minimumKrw }) => minimumKrw).sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const medianWon = sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+  const median = Math.round(medianWon / 10_000);
+  const calculation = `비교 가능한 업체·대행사별 공시 기본가 하한 ${observations.length}건의 중간값`;
+
+  return {
+    medianManwon: median,
+    comparatorLabel: `${regionLabel} ${categoryLabel} 공시 기본가 하한 중간값 (${observations.length}건)`,
+    evidence: {
+      status: "available",
+      observationCount: observations.length,
+      vendorCount,
+      source: "한국소비자원 참가격",
+      sourceUrl: DISCLOSURE_SOURCE_URL,
+      sourcePeriod: disclosureRoundLabel(),
+      categoryLabel,
+      regionLabel,
+      calculation,
+      comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
+      limitation: "공시 기본가 하한의 참고 중간값이며 옵션·계약 조건·시점에 따른 실제 결제액과 견적 적정성을 뜻하지 않습니다.",
+    },
   };
 }
 
@@ -169,7 +291,10 @@ export function getQuoteCheckItems(
   return getRelevantCosts(category).map((item) => toCheckItem(item));
 }
 
-export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteCheckResult {
+export function analyzeAmoraQuoteCheck(
+  input: AmoraQuoteCheckInput,
+  catalog?: PriceCatalog,
+): AmoraQuoteCheckResult {
   const scope = regionToScope(input.region);
   const allItems = getRelevantCosts(input.category);
   const includedIdSet = new Set(input.includedItemIds);
@@ -181,10 +306,14 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
   const missing = allItems.filter(
     (item) => !includedIdSet.has(item.id) && !notNeededIdSet.has(item.id),
   );
-  const { median: marketMedianManwon, comparatorLabel: marketComparatorLabel } = getMarketMedian(
+  const {
+    medianManwon: marketMedianManwon,
+    comparatorLabel: marketComparatorLabel,
+    evidence: marketEvidence,
+  } = getAmoraMarketPriceBenchmark(
     input.category,
     input.region,
-    scope
+    catalog,
   );
   const priceDiffPercent =
     marketMedianManwon > 0
@@ -214,6 +343,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     marketMedianManwon,
     marketComparatorLabel,
     priceDiffPercent,
+    marketEvidence,
     checkedItemCount: included.length,
     notNeededItemCount: notNeeded.length,
     missingCriticalCount: missingCritical.length,
@@ -228,7 +358,8 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     contractQuestions,
     negotiationScript:
       "안녕하세요. 계약 전 확인차 문의드립니다. 아래 항목들이 견적에 포함인지, 미포함이면 항목별 추가금과 최대 상한이 얼마인지 문자로 남겨주실 수 있을까요?",
-    sourceNote:
-      "이 결과는 사용자가 ‘포함’, ‘이용 계획 없음’, ‘확인 필요’로 고른 상태만 정리하며 가격의 적정성을 판정하지 않습니다. 최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인하고, 실제 추가 비용은 업체 서면 견적을 확인하세요.",
+    sourceNote: marketEvidence.status === "available"
+      ? `이 결과는 견적의 적정성을 판정하지 않습니다. 참고값은 ${marketEvidence.source} ${marketEvidence.sourcePeriod} 공시 중 ${marketEvidence.calculation}이며, 실제 추가 비용과 계약 조건은 업체 서면 견적을 확인하세요.`
+      : "이 결과는 사용자가 ‘포함’, ‘이용 계획 없음’, ‘확인 필요’로 고른 상태만 정리하며 가격의 적정성을 판정하지 않습니다. 최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인하고, 실제 추가 비용은 업체 서면 견적을 확인하세요.",
   };
 }

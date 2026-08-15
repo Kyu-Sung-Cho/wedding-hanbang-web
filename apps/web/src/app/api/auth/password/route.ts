@@ -4,7 +4,7 @@ import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_BYTES = 2 * 1024;
@@ -27,10 +27,6 @@ export async function PATCH(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return response({ error: "잘못된 요청 출처입니다." }, 403);
     }
-    if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-      return response({ error: "요청 데이터가 너무 큽니다." }, 413);
-    }
-
     const supabase = await createClientFromRequest(request);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return response({ error: "인증이 필요합니다." }, 401);
@@ -55,10 +51,18 @@ export async function PATCH(request: Request) {
       return limited;
     }
 
-    const rawBody = await request.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-      return response({ error: "요청 데이터가 너무 큽니다." }, 413);
+    const rawBodyResult = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
+    if (!rawBodyResult.ok) {
+      return response(
+        {
+          error: rawBodyResult.reason === "too_large"
+            ? "요청 데이터가 너무 큽니다."
+            : "요청 데이터를 읽지 못했습니다.",
+        },
+        rawBodyResult.reason === "too_large" ? 413 : 400,
+      );
     }
+    const rawBody = rawBodyResult.text;
 
     let body: unknown;
     try {

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { buildCanonicalQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
+import { getQuoteCheckItems } from "@/lib/amora/quoteCheck";
 
 const mocks = vi.hoisted(() => ({
   createAdmin: vi.fn(),
@@ -314,6 +316,80 @@ describe("/api/cron/amora-memory source-pair recovery", () => {
       skipped: 0,
       failed: 0,
     });
+  });
+
+  it("advances past a quote machine exchange with zero decision sources", async () => {
+    const quoteUserId = "30000000-0000-4000-8000-000000000010";
+    const quoteAssistantId = "30000000-0000-4000-8000-000000000011";
+    const itemIds = getQuoteCheckItems("dress", "seoul").map((item) => item.id);
+    const quoteMachineContext = buildCanonicalQuoteAnalysisMessage({
+      category: "dress",
+      region: "seoul",
+      quotePriceManwon: 300,
+      vendorName: "테스트",
+      includedItemIds: [],
+      notNeededItemIds: [],
+      unknownItemIds: itemIds,
+    });
+    const harness = createProcessJobHarness({
+      coupleId,
+      brideId,
+      groomId,
+      rows: [
+        {
+          id: quoteUserId,
+          sender_id: brideId,
+          sender_type: "bride",
+          role: "user",
+          content: quoteMachineContext,
+          metadata: { target: "ai" },
+          visibility: "shared",
+          created_at: "2026-08-04T00:00:00.000Z",
+        },
+        {
+          id: quoteAssistantId,
+          sender_id: null,
+          sender_type: "ai",
+          role: "assistant",
+          content: "선택한 견적 항목을 확인했어요.",
+          metadata: {
+            in_reply_to_user_message_id: quoteUserId,
+            question_scope: "W0_wedding_core",
+            memory_eligible: true,
+          },
+          visibility: "shared",
+          created_at: "2026-08-04T00:00:01.000Z",
+        },
+      ],
+    });
+    harness.jobs.push({
+      id: "40000000-0000-4000-8000-000000000010",
+      couple_id: coupleId,
+      user_id: brideId,
+      visibility: "shared",
+      to_message_id: quoteAssistantId,
+      attempt_count: 1,
+      continuation_count: 1,
+    });
+    mocks.createAdmin.mockReturnValue(harness.admin);
+
+    const response = await GET(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      claimed: 1,
+      compiled: 1,
+      failed: 0,
+    });
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
+    expect(harness.commits).toContainEqual(expect.objectContaining({
+      p_job_id: "40000000-0000-4000-8000-000000000010",
+      p_to_message_id: quoteAssistantId,
+      p_memories: [],
+    }));
+    expect(JSON.stringify(mocks.structuredResponse.mock.calls))
+      .not.toContain("[quote_analysis_v2]");
+    expect(JSON.stringify(harness.commits)).not.toContain('"version":2');
   });
 
   it.each([

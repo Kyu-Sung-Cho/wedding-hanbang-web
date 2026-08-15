@@ -21,7 +21,7 @@ test("mobile schedule writes use the server CAS revision contract", () => {
   assert.match(scheduleSource, /isWritableJourneyRevision\(journey\.state_revision\)/);
   assert.match(
     scheduleSource,
-    /buildScheduleProgressPatch\(expectedRevision,\s*updatedEvents\)/,
+    /buildScheduleProgressPatch\(expectedCoupleId,\s*expectedRevision,\s*updatedEvents\)/,
   );
   assert.match(scheduleSource, /PLAN_CHANGE_STALE/);
 });
@@ -48,6 +48,61 @@ test("mobile schedule lets the user explicitly opt into a supported Amora care m
   assert.match(scheduleSource, /accessibilityRole="radiogroup"/);
   assert.match(scheduleSource, /기타 일정 · 기존 설정 유지/);
   assert.match(scheduleSource, /chip:\s*\{[\s\S]*?minHeight:\s*44/);
+});
+
+test("mobile schedule displays friendly category labels but persists canonical checklist keys", () => {
+  assert.match(
+    scheduleSource,
+    /CATEGORY_CHECKLISTS\.map\(\(category\)\s*=>\s*\(\{\s*key:\s*category\.key,\s*label:\s*category\.label,\s*\}\)\)/,
+  );
+  assert.match(scheduleSource, /key=\{category\.key\}/);
+  assert.match(scheduleSource, /formCategoryKey === category\.key/);
+  assert.match(scheduleSource, /setFormCategoryKey\(category\.key\)/);
+  assert.match(scheduleSource, /\{category\.label\}/);
+  assert.doesNotMatch(
+    scheduleSource,
+    /CATEGORY_CHECKLISTS\.map\(\(category\)\s*=>\s*category\.label\)/,
+  );
+});
+
+test("editing a legacy label-backed schedule upgrades it to the same canonical category key", () => {
+  assert.match(
+    scheduleSource,
+    /function canonicalScheduleCategoryKey\(value: string\)[\s\S]*?option\.key === value \|\| option\.label === value[\s\S]*?return option\?\.key \?\? value/,
+  );
+  assert.match(
+    scheduleSource,
+    /setFormCategoryKey\(canonicalScheduleCategoryKey\(evt\.categoryKey \?\? ""\)\)/,
+  );
+});
+
+test("an Amora care moment selects and persists its canonical checklist category", () => {
+  assert.match(scheduleSource, /getCanonicalCategoryKeyForMoment/);
+  assert.match(
+    scheduleSource,
+    /function selectCareMoment\(momentType: string\)[\s\S]*?setFormMomentType\(momentType\)[\s\S]*?getCanonicalCategoryKeyForMoment\(momentType\)[\s\S]*?setFormCategoryKey\(categoryKey\)/,
+  );
+  assert.match(
+    scheduleSource,
+    /const canonicalMomentCategoryKey = getCanonicalCategoryKeyForMoment\(formMomentType\)/,
+  );
+  assert.match(
+    scheduleSource,
+    /categoryKey:\s*canonicalMomentCategoryKey \?\? formCategoryKey/,
+  );
+  assert.match(
+    scheduleSource,
+    /outcome\.status === "applied"[\s\S]*?CATEGORY_CHECKLISTS\.some\(\(category\) => category\.key === appliedCategoryKey\)[\s\S]*?setExpandedKey\(appliedCategoryKey\)/,
+  );
+});
+
+test("stored canonical category keys are rendered with human labels", () => {
+  assert.match(
+    scheduleSource,
+    /function scheduleCategoryLabel\(value: string\)[\s\S]*?option\?\.label \?\? value/,
+  );
+  assert.match(scheduleSource, /\{scheduleCategoryLabel\(evt\.categoryKey\)\}/);
+  assert.doesNotMatch(scheduleSource, /\{evt\.categoryKey\}<\/Text>/);
 });
 
 test("mobile persists append-only event order and sorts only display copies", () => {

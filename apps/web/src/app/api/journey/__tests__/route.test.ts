@@ -15,6 +15,7 @@ import { PATCH } from "../route";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const COUPLE_ID = "22222222-2222-4222-8222-222222222222";
+const OTHER_COUPLE_ID = "55555555-5555-4555-8555-555555555555";
 const REQUEST_ID = "33333333-3333-4333-8333-333333333333";
 const JOURNEY_ID = "44444444-4444-4444-8444-444444444444";
 
@@ -85,14 +86,19 @@ function request(
   },
   headers: Record<string, string> = {},
 ) {
+  const requestBody = typeof body === "object" && body !== null && !Array.isArray(body)
+    ? { expected_couple_id: COUPLE_ID, ...body }
+    : body;
   return new Request("http://localhost/api/journey", {
     method: "PATCH",
     headers: {
       "content-type": "application/json",
       "sec-fetch-site": "same-origin",
+      [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+      [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: USER_ID,
       ...headers,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   });
 }
 
@@ -150,6 +156,69 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       p_summary: "총예산: 40000000원",
     });
     expect(mocks.adminFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale couple context before reading or mutating the current couple journey", async () => {
+    mocks.profile = { couple_id: OTHER_COUPLE_ID };
+
+    const response = await PATCH(request({
+      expected_couple_id: COUPLE_ID,
+      expected_revision: 0,
+      progress: { venue: { status: "in_progress" } },
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COUPLE_CONTEXT_CHANGED",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.authFrom).toHaveBeenCalledTimes(1);
+    expect(mocks.authFrom).toHaveBeenCalledWith("profiles");
+  });
+
+  it("requires an exact couple context on every journey mutation", async () => {
+    const response = await PATCH(new Request("http://localhost/api/journey", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "sec-fetch-site": "same-origin",
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: USER_ID,
+      },
+      body: JSON.stringify({ expected_revision: 7, total_budget: 40_000_000 }),
+    }));
+
+    expect(response.status).toBe(426);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CLIENT_UPDATE_REQUIRED",
+    });
+    expect(mocks.authFrom).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires the current actor contract even when the couple context is complete", async () => {
+    const response = await PATCH(new Request("http://localhost/api/journey", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "sec-fetch-site": "same-origin",
+      },
+      body: JSON.stringify({
+        expected_couple_id: COUPLE_ID,
+        expected_revision: 7,
+        total_budget: 40_000_000,
+      }),
+    }));
+
+    expect(response.status).toBe(426);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CLIENT_UPDATE_REQUIRED",
+    });
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(mocks.authFrom).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("rejects a plan change initiated by another account before any profile or plan write", async () => {
@@ -764,6 +833,8 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       headers: {
         "content-type": "application/json",
         "sec-fetch-site": "same-origin",
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: USER_ID,
       },
       body: "{",
     }));

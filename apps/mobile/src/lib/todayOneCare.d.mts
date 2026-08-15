@@ -1,5 +1,6 @@
 import type {
   TodayOneCareAction,
+  TodayOneCareKind,
   TodayOneCareResponse,
 } from "@hanbang/shared";
 
@@ -31,9 +32,33 @@ export declare function parseTodayOnePreferenceEnvelope(
   value: unknown,
 ): TodayOnePreferenceEnvelope | null;
 
+export declare function canRenderTodayOneFallback(
+  expectedOwnerUserId: unknown,
+  verifiedOwnerUserId: unknown,
+  expectedCoupleId: unknown,
+  verifiedCoupleId: unknown,
+): boolean;
+
 export declare function getTodayOneNativeRoute(
   href: unknown,
-): "/schedule" | "/budget" | null;
+): "/schedule" | "/budget" | "/dashboard" | null;
+
+export type TodayOneNativeKindPresentation =
+  | { readonly recordLabel: "일정"; readonly icon: "schedule" }
+  | { readonly recordLabel: "예산"; readonly icon: "budget" }
+  | { readonly recordLabel: "결정"; readonly icon: "decision" };
+
+export declare function getTodayOneNativeKindPresentation(
+  kind: TodayOneCareKind,
+): TodayOneNativeKindPresentation;
+export declare function getTodayOneNativeKindPresentation(
+  kind: unknown,
+): TodayOneNativeKindPresentation | null;
+
+export declare function isTodayOneCareCardCurrent(
+  card: unknown,
+  nowMs?: number,
+): boolean;
 
 export declare function buildTodayOneActionBody(
   card: Pick<TodayOneCareResponse["card"] extends infer T ? NonNullable<T> : never,

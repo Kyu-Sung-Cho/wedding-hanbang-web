@@ -4,6 +4,7 @@ import type {
   AmoraActionStatus,
   ProgressItem,
 } from "@/types/database.types";
+import { isValidScheduleYmd } from "@/utils/scheduleEvents";
 
 export type { AmoraActionPriority, AmoraActionSource, AmoraActionStatus };
 
@@ -27,6 +28,20 @@ export type ProgressWithAmoraActions = Record<string, ProgressItem | unknown>;
 const ACTIONS_KEY = "__amora_actions";
 export const MAX_ACTIONS = 80;
 
+export type AmoraActionDueDateInput =
+  | Readonly<{ ok: true; dueDate: string | undefined }>
+  | Readonly<{ ok: false }>;
+
+export function parseAmoraActionDueDateInput(value: unknown): AmoraActionDueDateInput {
+  if (value == null) return { ok: true, dueDate: undefined };
+  if (typeof value !== "string") return { ok: false };
+
+  const dueDate = value.trim();
+  if (!dueDate) return { ok: true, dueDate: undefined };
+  if (dueDate.length > 40 || !isValidScheduleYmd(dueDate)) return { ok: false };
+  return { ok: true, dueDate };
+}
+
 function isAction(value: unknown): value is AmoraActionItem {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<AmoraActionItem>;
@@ -34,8 +49,10 @@ function isAction(value: unknown): value is AmoraActionItem {
 }
 
 export function normalizeAmoraAction(item: AmoraActionItem): AmoraActionItem {
+  const parsedDueDate = parseAmoraActionDueDateInput(item.dueDate);
   return {
     ...item,
+    dueDate: parsedDueDate.ok ? parsedDueDate.dueDate : undefined,
     priority: item.priority ?? "medium",
     status: item.status ?? "open",
     source: item.source ?? "chat",

@@ -1,4 +1,5 @@
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { parseCanonicalQuoteAnalysisSelection } from "@/lib/ai/quoteAnalysisSelection";
 import {
   AMORA_MEMORY_MAX_BATCH,
   extractTrustedMomentMemoryKeys,
@@ -34,6 +35,10 @@ export type PreparedTrustedAmoraMemoryBatch = PreparedAmoraMemoryBatch & {
 
 function isMemoryEligibleScope(value: unknown): boolean {
   return value === "W0_wedding_core" || value === "W1_wedding_adjacent";
+}
+
+function isQuoteAnalysisMachineContext(content: string): boolean {
+  return parseCanonicalQuoteAnalysisSelection(content).status !== "absent";
 }
 
 export function hasTrustedAmoraMemoryEligibilityMetadata(
@@ -104,6 +109,7 @@ export function selectTrustedAmoraMemoryUserIds(
     if (!hasTrustedAmoraMemoryEligibilityMetadata(assistant.metadata)) continue;
     const source = canonicalAmoraReplySource(assistant, rowById);
     if (!source) continue;
+    if (isQuoteAnalysisMachineContext(source.content)) continue;
     const currentScope = classifyAmoraQuestionScope({
       userText: source.content,
     }).scope;
@@ -171,6 +177,7 @@ export function prepareTrustedAmoraMemoryBatch(
       row.role !== "user"
       || row.sender_id === null
       || resolvedUserIds.has(row.id)
+      || isQuoteAnalysisMachineContext(row.content)
       || !(
         (row.sender_type === "bride" && row.sender_id === couple.brideId)
         || (row.sender_type === "groom" && row.sender_id === couple.groomId)

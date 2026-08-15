@@ -50,6 +50,7 @@ vi.mock("@/stores/chatStore", () => {
       subscribeToMessages: mocks.subscribeToMessages,
       retryFailedMessage: vi.fn(),
       dismissFailedMessageRetry: vi.fn(),
+      applyMediationSafetyFence: vi.fn(),
     }),
     {
       setState: vi.fn(),

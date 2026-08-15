@@ -41,7 +41,11 @@ import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
-import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
+import {
+  assessMediationOffer,
+  hasUnresolvedPrivateMediationSafetyHold,
+} from "@/lib/chat/mediationOffer";
+import { useMediationOfferDismissal } from "@/lib/chat/useMediationOfferDismissal";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 
@@ -67,6 +71,14 @@ function fileInputKey(file: File): string {
 interface ChatSidePanelProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface MediationConsentContext {
+  ownerUserId: string;
+  coupleId: string;
+  source: "automatic" | "manual";
+  offerKey: string | null;
+  privateSafetyEpoch: number;
 }
 
 type ChatScope = "shared" | "private";
@@ -98,6 +110,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     failedRequest,
     isRetrying,
     initialLoadDone,
+    mediationPersistentSafetyHold,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
@@ -106,6 +119,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     subscribeToMessages,
     retryFailedMessage,
     dismissFailedMessageRetry,
+    applyMediationSafetyFence,
   } = useChatStore();
 
   const [activeScope, setActiveScope] = useState<ChatScope>("shared");
@@ -197,8 +211,8 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   });
   const [pendingPersonalization, setPendingPersonalization] =
     useState<PendingAmoraPersonalizationChoice | null>(null);
-  const [mediationDismissed, setMediationDismissed] = useState(false);
-  const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
+  const [mediationConsentContext, setMediationConsentContext] =
+    useState<MediationConsentContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const greetingRequested = useRef(false);
   const subscribed = useRef(false);
@@ -206,6 +220,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const coupleId = couple?.id;
+  const {
+    dismissedOfferKey: dismissedMediationOfferKey,
+    dismissalReady: mediationDismissalReady,
+    dismissOffer: dismissMediationOffer,
+  } = useMediationOfferDismissal(profile?.id, coupleId);
+  const mediationConsentOwned = mediationConsentContext !== null
+    && mediationConsentContext.ownerUserId === profile?.id
+    && mediationConsentContext.coupleId === coupleId;
   const senderRole = profile?.role === "bride" || profile?.role === "groom"
     ? profile.role
     : null;
@@ -260,10 +282,96 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const isInterruptedTurnRecovery =
     failedRequest?.recoveryKind === "interrupted_turn";
   const isRecoveryNotice = Boolean(failedRequest?.recoveryKind);
+  const mediationOfferClockMinute = Math.floor(nowMs / 60_000);
+  const mediationOfferAssessment = useMemo(
+    () => assessMediationOffer(messages, {
+      nowMs: mediationOfferClockMinute * 60_000,
+    }),
+    [mediationOfferClockMinute, messages],
+  );
+  const localPrivateMediationSafetyEpoch = myPrivateVisibility
+    ? messages.filter((message) => (
+        message.visibility === myPrivateVisibility
+        && message.sender_role === "ai"
+        && message.metadata?.pinned_safety_card === true
+      )).length
+    : 0;
+  const hasLocalPrivateMediationSafetyHold =
+    hasUnresolvedPrivateMediationSafetyHold(messages, senderRole);
+  const hasVisibleSharedSafetyCard = messages.some((message) => (
+    message.visibility === "shared"
+    && message.sender_role === "ai"
+    && (
+      message.metadata?.pinned_safety_card === true
+      || typeof message.metadata?.safety_classification === "string"
+    )
+  ));
+  const mediationRetryBlockedBySafety = failedRequest?.requestKind === "mediation"
+    && (
+      mediationPersistentSafetyHold
+      || hasVisibleSharedSafetyCard
+      || hasLocalPrivateMediationSafetyHold
+    );
+  useEffect(() => {
+    if (
+      coupleId
+      && (
+        mediationPersistentSafetyHold
+        || hasVisibleSharedSafetyCard
+        || hasLocalPrivateMediationSafetyHold
+      )
+    ) {
+      applyMediationSafetyFence(coupleId);
+    }
+  }, [
+    applyMediationSafetyFence,
+    coupleId,
+    hasLocalPrivateMediationSafetyHold,
+    hasVisibleSharedSafetyCard,
+    mediationPersistentSafetyHold,
+  ]);
+  const mediationConsentOpen = mediationConsentOwned
+    && mediationConsentContext.privateSafetyEpoch === localPrivateMediationSafetyEpoch
+    && !hasVisibleSharedSafetyCard
+    && !hasLocalPrivateMediationSafetyHold
+    && !mediationPersistentSafetyHold;
+  useEffect(() => {
+    if (
+      mediationConsentContext
+      && (
+        mediationPersistentSafetyHold
+        || hasVisibleSharedSafetyCard
+        || hasLocalPrivateMediationSafetyHold
+      )
+    ) {
+      setMediationConsentContext(null);
+    }
+  }, [
+    hasLocalPrivateMediationSafetyHold,
+    hasVisibleSharedSafetyCard,
+    mediationConsentContext,
+    mediationPersistentSafetyHold,
+  ]);
   const showMediationBanner =
-    !mediationDismissed
+    mediationDismissalReady
+    && mediationOfferAssessment.shouldOffer
+    && mediationOfferAssessment.offerKey !== null
+    && dismissedMediationOfferKey !== mediationOfferAssessment.offerKey
+    && !hasVisibleSharedSafetyCard
+    && !hasLocalPrivateMediationSafetyHold
+    && !mediationPersistentSafetyHold
+    && !mediationConsentOpen;
+  const showManualMediationEntry =
+    activeScope === "shared"
+    && hasCouplePartner
+    && mediationDismissalReady
+    && !showMediationBanner
+    && !hasVisibleSharedSafetyCard
+    && !hasLocalPrivateMediationSafetyHold
+    && !mediationPersistentSafetyHold
     && !mediationConsentOpen
-    && shouldOfferMediation(messages);
+    && !isStreaming
+    && !isSending;
 
   useEffect(() => {
     if (composerSessionKeyRef.current === composerSessionKey) return;
@@ -284,6 +392,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     });
     setActiveScope("shared");
     setMessageTarget("ai");
+    setMediationConsentContext(null);
     setIsSubmitLocked(false);
     setIsDragging(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -979,19 +1088,73 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   }, [pendingPersonalization]);
 
   const openMediationConsent = useCallback(() => {
-    setMediationConsentOpen(true);
-  }, []);
+    if (
+      !hasVisibleSharedSafetyCard
+      && !hasLocalPrivateMediationSafetyHold
+      && !mediationPersistentSafetyHold
+      && profile?.id
+      && coupleId
+      && mediationOfferAssessment.offerKey
+    ) {
+      setMediationConsentContext({
+        ownerUserId: profile.id,
+        coupleId,
+        source: "automatic",
+        offerKey: mediationOfferAssessment.offerKey,
+        privateSafetyEpoch: localPrivateMediationSafetyEpoch,
+      });
+    }
+  }, [coupleId, hasLocalPrivateMediationSafetyHold, hasVisibleSharedSafetyCard, localPrivateMediationSafetyEpoch, mediationOfferAssessment.offerKey, mediationPersistentSafetyHold, profile?.id]);
+
+  const openManualMediationConsent = useCallback(() => {
+    if (mediationPersistentSafetyHold || hasVisibleSharedSafetyCard || hasLocalPrivateMediationSafetyHold || !profile?.id || !coupleId) return;
+    setMediationConsentContext({
+      ownerUserId: profile.id,
+      coupleId,
+      source: "manual",
+      offerKey: null,
+      privateSafetyEpoch: localPrivateMediationSafetyEpoch,
+    });
+  }, [coupleId, hasLocalPrivateMediationSafetyHold, hasVisibleSharedSafetyCard, localPrivateMediationSafetyEpoch, mediationPersistentSafetyHold, profile?.id]);
 
   const cancelMediationConsent = useCallback(() => {
-    setMediationConsentOpen(false);
-    setMediationDismissed(true);
-  }, []);
+    if (
+      mediationConsentContext
+      && mediationConsentContext.ownerUserId === profile?.id
+      && mediationConsentContext.coupleId === coupleId
+      && mediationConsentContext.source === "automatic"
+      && mediationConsentContext.offerKey
+    ) {
+      dismissMediationOffer(mediationConsentContext.offerKey);
+    }
+    setMediationConsentContext(null);
+  }, [coupleId, dismissMediationOffer, mediationConsentContext, profile?.id]);
 
   const confirmMediationConsent = useCallback(
     async (requesterSummary: string) => {
-      if (!coupleId || !profile || !senderRole) return;
-      setMediationConsentOpen(false);
-      setMediationDismissed(true);
+      const consentContext = mediationConsentContext;
+      if (
+        !coupleId
+        || !profile
+        || !senderRole
+        || !consentContext
+        || consentContext.ownerUserId !== profile.id
+        || consentContext.coupleId !== coupleId
+        || consentContext.privateSafetyEpoch !== localPrivateMediationSafetyEpoch
+        || hasVisibleSharedSafetyCard
+        || hasLocalPrivateMediationSafetyHold
+        || mediationPersistentSafetyHold
+      ) {
+        setMediationConsentContext(null);
+        return;
+      }
+      if (
+        consentContext.source === "automatic"
+        && consentContext.offerKey
+      ) {
+        dismissMediationOffer(consentContext.offerKey);
+      }
+      setMediationConsentContext(null);
       setMessageTarget("ai");
       await requestStructuredMediation({
         coupleId,
@@ -1008,7 +1171,13 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     },
     [
       coupleId,
+      hasLocalPrivateMediationSafetyHold,
+      hasVisibleSharedSafetyCard,
+      localPrivateMediationSafetyEpoch,
+      dismissMediationOffer,
       journey,
+      mediationConsentContext,
+      mediationPersistentSafetyHold,
       profile,
       requestStructuredMediation,
       senderRole,
@@ -1154,7 +1323,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
             <div>
               <h3 className="text-sm font-medium text-noir-800">아모라 AI</h3>
-              <p className="text-[0.6875rem] text-taupe-400">AI 파트너</p>
+              <p className="text-[0.6875rem] text-taupe-400">AI 결혼 준비 동반자</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -1320,7 +1489,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   </p>
                 )}
                 <div className="mt-2 flex items-center gap-2">
-                  {failedRequest?.canRetry && (
+                  {failedRequest?.canRetry && !mediationRetryBlockedBySafety && (
                     <button
                       type="button"
                       onClick={() => void retryFailedMessage()}
@@ -1468,7 +1637,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-3 py-3 shadow-sm">
                   <button
                     type="button"
-                    onClick={() => setMediationDismissed(true)}
+                    onClick={() => {
+                      if (mediationOfferAssessment.offerKey) {
+                        dismissMediationOffer(mediationOfferAssessment.offerKey);
+                      }
+                    }}
                     className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-[#B5ADA3] hover:text-[#928980]"
                     aria-label="조율 상담 제안 숨기기"
                   >
@@ -1550,6 +1723,19 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
             {/* 입력 영역 */}
             <div className="px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-1">
+              {showManualMediationEntry && (
+                <div className="mb-1 flex justify-end">
+                  <button
+                    type="button"
+                    data-mediation-entry="manual"
+                    onClick={openManualMediationConsent}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[0.6875rem] font-medium text-[#795252] transition-colors hover:bg-[#795252]/5"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    의견이 엇갈렸다면 조율 도움 받기
+                  </button>
+                </div>
+              )}
               {/* 대상 토글 (커플 연동 시) */}
               {activeScope === "shared" && hasCouplePartner && (
                 <div

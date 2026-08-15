@@ -12,9 +12,12 @@ import {
   WalletCards,
 } from "lucide-react";
 import {
-  validateTodayOneCareResponse,
+  TODAY_ONE_CARE_CONTRACT_VERSION,
+  TODAY_ONE_CARE_CONTRACT_VERSION_HEADER,
+  validateCompatibleTodayOneCareResponse,
   type TodayOneCareAction,
   type TodayOneCareCard as TodayOneCareCardData,
+  type TodayOneCareKind,
   type TodayOneCareResponse,
 } from "@hanbang/shared";
 
@@ -49,7 +52,7 @@ function parsePayload(value: unknown, userId: string): ParsedPayload | null {
   const record = value as Record<string, unknown>;
   if (record.available === false) return { available: false };
   if (record.available !== true) return null;
-  const validation = validateTodayOneCareResponse(record.result, userId);
+  const validation = validateCompatibleTodayOneCareResponse(record.result, userId);
   if (!validation.ok) return null;
   return {
     available: true,
@@ -68,7 +71,10 @@ async function fetchSurface(): Promise<FetchResult> {
     method: "GET",
     credentials: "same-origin",
     cache: "no-store",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      [TODAY_ONE_CARE_CONTRACT_VERSION_HEADER]: String(TODAY_ONE_CARE_CONTRACT_VERSION),
+    },
   });
   return {
     ok: response.ok,
@@ -163,6 +169,15 @@ const ACTION_SUCCESS: Record<Exclude<TodayOneCareAction, "open_source">, string>
   mute_source: "현재 내용은 숨겼어요. 내용이 달라지면 다시 보여드려요.",
 };
 
+const KIND_PRESENTATIONS = {
+  schedule_moment: { recordLabel: "일정", ConfirmedIcon: CalendarClock },
+  budget_guardrail: { recordLabel: "예산", ConfirmedIcon: WalletCards },
+  decision_follow_up: { recordLabel: "결정", ConfirmedIcon: CheckCircle2 },
+} satisfies Record<
+  TodayOneCareKind,
+  { recordLabel: string; ConfirmedIcon: typeof CalendarClock }
+>;
+
 export default function TodayOneCard() {
   const router = useRouter();
   const userId = useAuthStore((state) => state.user?.id ?? null);
@@ -223,6 +238,7 @@ export default function TodayOneCard() {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          [TODAY_ONE_CARE_CONTRACT_VERSION_HEADER]: String(TODAY_ONE_CARE_CONTRACT_VERSION),
         },
         body: JSON.stringify({
           cardId: card.id,
@@ -323,9 +339,7 @@ export default function TodayOneCard() {
   }
 
   const card = view.result.card;
-  const isBudgetGuardrail = card.kind === "budget_guardrail";
-  const recordLabel = isBudgetGuardrail ? "예산" : "일정";
-  const ConfirmedIcon = isBudgetGuardrail ? WalletCards : CalendarClock;
+  const { recordLabel, ConfirmedIcon } = KIND_PRESENTATIONS[card.kind];
   const actions = new Set(card.choices.map((choice) => choice.action));
   return (
     <section
@@ -380,6 +394,85 @@ export default function TodayOneCard() {
               {card.unknown.map((item) => <li key={item}>· {item}</li>)}
             </ul>
           </div>
+        )}
+
+        {card.kind === "schedule_moment" && card.care && (
+          <section
+            className="border-t border-[#EFE4D7] pt-4"
+            aria-labelledby={`today-one-care-${card.id}`}
+          >
+            <p className="text-xs font-semibold text-[#8F6662]">
+              저장한 일정에 맞춰 같이 볼 내용
+            </p>
+            <h3
+              id={`today-one-care-${card.id}`}
+              className="mt-2 text-base font-semibold leading-7 text-[#243832]"
+            >
+              {card.care.guidance}
+            </h3>
+
+            {card.care.checklist.length > 0 && (
+              <ul className="mt-3 space-y-2" aria-label="일정 전 확인 목록">
+                {card.care.checklist.map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm leading-6 text-[#36534E]">
+                    <CheckCircle2
+                      className="mt-1 h-4 w-4 shrink-0 text-[#6D806E]"
+                      aria-hidden="true"
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {card.care.script && (
+              <blockquote className="mt-3 border-l-2 border-[#A77B74] pl-3 text-sm leading-6 text-[#6D5F58]">
+                <span className="block text-xs font-semibold text-[#7D5753]">이렇게 말해도 좋아요</span>
+                <span className="mt-1 block">{card.care.script}</span>
+              </blockquote>
+            )}
+
+            {card.care.question && (
+              <p className="mt-3 text-sm leading-6 text-[#36534E]">
+                {card.care.question}
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(
+                  `/checklist?category=${encodeURIComponent(card.care!.relatedChecklist.categoryKey)}`,
+                )}
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+              >
+                {card.care.relatedChecklist.categoryLabel} 체크리스트 보기
+              </button>
+
+              {card.care.relatedBudget && (
+                <button
+                  type="button"
+                  onClick={() => router.push(
+                    `/budget?category=${encodeURIComponent(card.care!.relatedBudget!.categoryKey)}`,
+                  )}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+                >
+                  {card.care.relatedBudget.categoryLabel} 관련 예산 보기
+                </button>
+              )}
+            </div>
+
+            <div className="mt-4 text-xs leading-5 text-[#6D806E]">
+              <p>
+                근거 · {card.care.evidence.refs.map((ref) => ref.label).join(" · ")}
+              </p>
+              <ul className="mt-1">
+                {card.care.evidence.limitations.map((item) => (
+                  <li key={item}>· {item}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
         )}
 
         <p className="rounded-xl bg-[#F7F1E8] px-4 py-3 text-xs leading-5 text-[#36534E]">

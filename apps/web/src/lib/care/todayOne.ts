@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type {
   TodayOneCareCard,
   TodayOneCareChoice,
+  TodayOneScheduleCarePayload,
 } from "@hanbang/shared";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import type { ScheduleEvent } from "@/types/database.types";
@@ -36,6 +37,7 @@ export type TodayOneCandidate = TodayOnePresentation & {
   sourceStateDigest: string;
   priority: number;
   attentionWindow?: "d3" | "d1" | "dAfter";
+  care?: TodayOneScheduleCarePayload;
 };
 
 export type TodayOneScheduleCandidate = TodayOneCandidate & {
@@ -202,6 +204,10 @@ function eventDateLine(event: ScheduleEvent): string {
   return `날짜: ${event.date}${event.time ? ` ${event.time}` : ""}`;
 }
 
+function sourceWindowKey(cellKind: "d3" | "d1" | "dAfter"): string {
+  return cellKind === "dAfter" ? "d_after" : cellKind;
+}
+
 /**
  * Compile only confirmed schedule facts into in-app candidates. This function
  * intentionally does not read budget/spend fields, call AI, or perform I/O.
@@ -228,18 +234,23 @@ export function buildTodayOneScheduleCandidates({
   for (const cell of dueCells) {
     if (!cell.sourceEventId || eventIdCounts.get(cell.sourceEventId) !== 1) continue;
     const event = eventsById.get(cell.sourceEventId);
+    const eventStatus = event ? getScheduleEventStatus(event) : null;
     if (
       !event
-      || getScheduleEventStatus(event) !== "planned"
+      || (
+        eventStatus !== "planned"
+        && !(eventStatus === "completed" && cell.cellKind === "dAfter")
+      )
       || !isSafeDisplayText(event.title, 120)
     ) continue;
 
-    const sourceKey = `schedule:${sha256(event.id).slice(0, 24)}:${cell.cellKind}`;
+    const sourceKey = `schedule:${sha256(event.id).slice(0, 24)}:${sourceWindowKey(cell.cellKind)}`;
     const sourceStateDigest = sha256(JSON.stringify({
       version: 1,
       cellKind: cell.cellKind,
       momentDate: cell.momentDate,
       event: semanticEventSnapshot(event),
+      ...(cell.care ? { care: cell.care } : {}),
     }));
 
     candidates.push({
@@ -256,6 +267,7 @@ export function buildTodayOneScheduleCandidates({
       choices: DEFAULT_CHOICES.map((choice) => ({ ...choice })),
       priority: cell.priority,
       attentionWindow: cell.cellKind,
+      ...(cell.care ? { care: cell.care } : {}),
     });
     if (candidates.length >= MAX_TODAY_ONE_CANDIDATES) break;
   }

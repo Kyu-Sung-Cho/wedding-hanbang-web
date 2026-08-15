@@ -71,6 +71,7 @@ const SCHEDULE_PROGRESS_FIELDS = new Set([
   "due_date",
 ]);
 const PATCH_KEYS = new Set([
+  "expected_couple_id",
   "expected_revision",
   "wedding_date",
   "total_budget",
@@ -100,6 +101,7 @@ type PlanChangeResult = {
 };
 
 type ParsedPatch = {
+  expectedCoupleId: string;
   expectedRevision: number;
   changes: Record<string, unknown>;
   summary: string;
@@ -319,9 +321,15 @@ function parsePatchBody(body: unknown): ParsePatchResult {
   if (
     !isRecord(body)
     || Object.keys(body).some((key) => !PATCH_KEYS.has(key))
+    || !hasOwn(body, "expected_couple_id")
     || !hasOwn(body, "expected_revision")
   ) {
     return { ok: false, error: "변경 요청 형식이 올바르지 않습니다." };
+  }
+
+  const expectedCoupleId = body.expected_couple_id;
+  if (typeof expectedCoupleId !== "string" || !isUuid(expectedCoupleId)) {
+    return { ok: false, error: "커플 기준 정보가 올바르지 않습니다." };
   }
 
   const expectedRevision = body.expected_revision;
@@ -461,6 +469,7 @@ function parsePatchBody(body: unknown): ParsePatchResult {
   return {
     ok: true,
     value: {
+      expectedCoupleId,
       expectedRevision,
       changes,
       summary,
@@ -715,7 +724,9 @@ export async function PATCH(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return privateResponse({ error: "인증이 필요합니다." }, 401);
 
-    const actorFence = verifyMutationActorFence(request.headers, user.id);
+    const actorFence = verifyMutationActorFence(request.headers, user.id, {
+      allowLegacy: false,
+    });
     if (!actorFence.ok) {
       return privateResponse({
         error: actorFence.message,
@@ -735,6 +746,12 @@ export async function PATCH(request: Request) {
       rawBody = JSON.parse(bodyResult.text);
     } catch {
       return privateResponse({ error: "잘못된 JSON 요청입니다." }, 400);
+    }
+    if (isRecord(rawBody) && !hasOwn(rawBody, "expected_couple_id")) {
+      return privateResponse({
+        error: "안전한 변경을 위해 앱을 최신 버전으로 업데이트한 뒤 다시 시도해 주세요.",
+        code: "CLIENT_UPDATE_REQUIRED",
+      }, 426);
     }
     const parsed = parsePatchBody(rawBody);
     if (!parsed.ok) return privateResponse({ error: parsed.error }, 400);
@@ -756,6 +773,15 @@ export async function PATCH(request: Request) {
     }
 
     const coupleId = profile.couple_id;
+    if (coupleId !== parsed.value.expectedCoupleId) {
+      return privateResponse(
+        {
+          error: "커플 정보가 바뀌었어요. 최신 준비 기록을 다시 불러와 주세요.",
+          code: "COUPLE_CONTEXT_CHANGED",
+        },
+        409,
+      );
+    }
     let rpcChanges = parsed.value.changes;
     if (hasOwn(rpcChanges, "progress")) {
       const nextProgress = rpcChanges.progress;

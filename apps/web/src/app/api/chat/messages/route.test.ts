@@ -9,6 +9,8 @@ import { checkRateLimitPersistent } from "@/utils/rateLimit";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
 import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
+import { buildAmoraFirstUsePromotionSourceSeal } from "@/lib/ai/amoraFirstUsePromotion";
+import { resolveAmoraScheduleCareFollowUp } from "@/lib/care/scheduleCareFollowUp";
 import { DELETE, POST } from "./route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
@@ -24,6 +26,9 @@ vi.mock("@/utils/rateLimit", () => ({
 vi.mock("@hanbang/shared/amora-crisis-delivery", () => ({
   planAmoraCrisisDelivery: vi.fn(),
 }));
+vi.mock("@/lib/care/scheduleCareFollowUp", () => ({
+  resolveAmoraScheduleCareFollowUp: vi.fn(),
+}));
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
@@ -31,6 +36,66 @@ const GROOM_ID = "00000000-0000-4000-8000-000000000002";
 const REQUEST_ID = "20000000-0000-4000-8000-000000000001";
 const ACTION_ID = "30000000-0000-4000-8000-000000000001";
 const MESSAGE_ID = "40000000-0000-4000-8000-000000000001";
+const SOURCE_MESSAGE_ID = "60000000-0000-4000-8000-000000000001";
+const PROMOTION_ID = "70000000-0000-4000-8000-000000000001";
+const FOLLOW_UP_CARD_ID = "80000000-0000-4000-8000-000000000001";
+const FOLLOW_UP_PROMPT = [
+  "어제 상견례에서 실제로 합의된 것과 아직 이야기 중인 것을 나만 아모라와 정리할게요.",
+  "",
+  "어제 분위기 어땠어? 실제로 합의된 내용과 아직 의견만 나온 내용을 나눠서 정리해볼까?",
+  "",
+  "내 답:",
+].join("\n");
+const FOLLOW_UP_CONTENT = `${FOLLOW_UP_PROMPT} 실제로 합의된 것은 예식 시기를 다시 확인하는 거예요.`;
+
+function resolvedFollowUp(prompt = FOLLOW_UP_PROMPT) {
+  return {
+    ok: true,
+    value: {
+      recipientUserId: USER_ID,
+      coupleId: COUPLE_ID,
+      actorRole: "bride" as const,
+      privacyEpoch: 5,
+      binding: {
+        cardId: FOLLOW_UP_CARD_ID,
+        cardRevision: 2,
+        sourceRevision: 7,
+      },
+      expiresAt: "2026-08-15T15:00:00.000Z",
+      sourceKey: "schedule:opaque:d_after",
+      sourceStateDigest: "a".repeat(64),
+      sourceEventId: "private-event-id-not-for-metadata",
+      momentType: "sanggyeonrye" as const,
+      attentionWindow: "dAfter" as const,
+      eventTitle: "상견례",
+      eventDate: "2026-08-14 12:30",
+      question: "어제 분위기 어땠어?",
+      prompt,
+    },
+  } as const;
+}
+
+function followUpRequest(overrides: Record<string, unknown> = {}, v2 = true) {
+  return postRequest({
+    coupleId: COUPLE_ID,
+    content: FOLLOW_UP_CONTENT,
+    clientRequestId: REQUEST_ID,
+    requestedVisibility: "bride_private",
+    providerAttachmentCount: 0,
+    scheduleCareFollowUp: {
+      cardId: FOLLOW_UP_CARD_ID,
+      cardRevision: 2,
+      sourceRevision: 7,
+    },
+    ...overrides,
+  }, v2 ? {
+    Authorization: "Bearer mobile-access-token",
+    "X-Amora-Ingest-Contract-Version": "2",
+    "X-Amora-Expected-Actor-User-Id": USER_ID,
+  } : {
+    Origin: "http://localhost",
+  });
+}
 const CLEARED_AT = "2026-07-31T01:02:03.000Z";
 const routeSource = readFileSync(
   resolve(process.cwd(), "src/app/api/chat/messages/route.ts"),
@@ -93,6 +158,13 @@ type PostAdminOptions = {
   reconcileError?: unknown;
   imageDownloadData?: Blob | null;
   imageDownloadError?: unknown;
+  safetyHoldRpcError?: unknown;
+  promotionSourceData?: Record<string, unknown> | null;
+  promotionSourceError?: unknown;
+  promotionSharedData?: Record<string, unknown> | null;
+  promotionSharedError?: unknown;
+  promotionRpcData?: Record<string, unknown> | null;
+  promotionRpcError?: unknown;
 };
 
 function canonicalUserRow(overrides: Record<string, unknown> = {}) {
@@ -112,6 +184,74 @@ function canonicalUserRow(overrides: Record<string, unknown> = {}) {
     created_at: "2026-08-03T00:00:00.000Z",
     ...overrides,
   };
+}
+
+const firstUseDraft = {
+  action: "예식 시기 후보 두 개 적기",
+  reason: "먼저 범위를 줄이면 장소를 찾기 쉬워져요.",
+  completionCriterion: "가능한 시기 두 개를 적으면 끝나요.",
+};
+const firstUseSharedText = [
+  "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+  `지금 할 한 가지: ${firstUseDraft.action}`,
+  `이유: ${firstUseDraft.reason}`,
+  `완료 기준: ${firstUseDraft.completionCriterion}`,
+  "저장 전에는 확인 카드만 보여줘.",
+].join("\n");
+const firstUseSourceContent = [
+  "한 가지만 먼저 해볼게요.",
+  `지금 할 한 가지: ${firstUseDraft.action}`,
+  `이유: ${firstUseDraft.reason}`,
+  `완료 기준: ${firstUseDraft.completionCriterion}`,
+].join("\n");
+const firstUseSourceSeal = buildAmoraFirstUsePromotionSourceSeal({
+  content: firstUseSourceContent,
+  grounding: {
+    version: 1,
+    sourceRevision: 7,
+    confirmed: [],
+    unknowns: [{ key: "current_progress", label: "이미 마친 준비와 아직 남은 준비" }],
+  },
+  sourceRevision: 7,
+  criterionDecisionId: null,
+  privacyEpoch: 5,
+  rosterFingerprint: "a".repeat(32),
+});
+
+function canonicalFirstUseSourceRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: SOURCE_MESSAGE_ID,
+    couple_id: COUPLE_ID,
+    sender_id: null,
+    sender_type: "ai",
+    sender_role: null,
+    role: "assistant",
+    content: firstUseSourceContent,
+    metadata: {
+      amora_first_use_action_promotion_v1: firstUseSourceSeal?.metadata,
+    },
+    stage_tag: null,
+    specialist_type: "general",
+    visibility: "bride_private",
+    segment_id: "50000000-0000-4000-8000-000000000001",
+    created_at: "2026-08-15T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function canonicalFirstUseSharedRow(overrides: Record<string, unknown> = {}) {
+  return canonicalUserRow({
+    content: firstUseSharedText,
+    metadata: {
+      client_request_id: REQUEST_ID,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      amora_first_use_promotion_id: PROMOTION_ID,
+    },
+    ...overrides,
+  });
 }
 
 function mockPostAdmin(options: PostAdminOptions = {}) {
@@ -149,8 +289,25 @@ function mockPostAdmin(options: PostAdminOptions = {}) {
     error: options.reconcileError ?? null,
   });
   const reconcileEqRequest = vi.fn(() => ({ maybeSingle: reconcileMaybeSingle }));
-  const reconcileEqCouple = vi.fn(() => ({ eq: reconcileEqRequest }));
-  const messageSelect = vi.fn(() => ({ eq: reconcileEqCouple }));
+  const messageByIdMaybeSingle = vi.fn(async (id: string) => ({
+    data: id === SOURCE_MESSAGE_ID
+      ? options.promotionSourceData === undefined
+        ? canonicalFirstUseSourceRow()
+        : options.promotionSourceData
+      : options.promotionSharedData === undefined
+        ? null
+        : options.promotionSharedData,
+    error: id === SOURCE_MESSAGE_ID
+      ? options.promotionSourceError ?? null
+      : options.promotionSharedError ?? null,
+  }));
+  const messageSelectEq = vi.fn((field: string, value: string) => {
+    if (field === "id") {
+      return { maybeSingle: () => messageByIdMaybeSingle(value) };
+    }
+    return { eq: reconcileEqRequest };
+  });
+  const messageSelect = vi.fn(() => ({ eq: messageSelectEq }));
 
   const from = vi.fn((table: string) => {
     if (table === "profiles") return { select: profileSelect };
@@ -176,8 +333,27 @@ function mockPostAdmin(options: PostAdminOptions = {}) {
     if (bucket !== "chat-image") throw new Error(`unexpected bucket: ${bucket}`);
     return { info: infoImage, download: downloadImage };
   });
+  const rpc = vi.fn(async (name: string) => name === "ingest_amora_first_use_action_promotion_v1"
+    ? {
+        data: options.promotionRpcData ?? null,
+        error: options.promotionRpcError ?? null,
+      }
+    : {
+        data: options.safetyHoldRpcError
+          ? null
+          : {
+              version: 1,
+              recipientUserId: USER_ID,
+              coupleId: COUPLE_ID,
+              privacyEpoch: 5,
+              active: true,
+              expiresAt: "2026-09-13T00:00:00.000Z",
+            },
+        error: options.safetyHoldRpcError ?? null,
+      });
   vi.mocked(createAdminClient).mockReturnValue({
     from,
+    rpc,
     storage: { from: storageFrom },
   } as never);
   return {
@@ -188,10 +364,12 @@ function mockPostAdmin(options: PostAdminOptions = {}) {
     messageSelect,
     coupleSelect,
     reconcileMaybeSingle,
+    messageByIdMaybeSingle,
     storageFrom,
     infoImage,
     downloadImage,
     downloadImageStream,
+    rpc,
   };
 }
 
@@ -332,6 +510,10 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       partnerDeliveryHeld: false,
       response: null,
     });
+    vi.mocked(resolveAmoraScheduleCareFollowUp).mockResolvedValue({
+      ok: false,
+      reason: "source_unavailable",
+    });
   });
 
   it("accepts same-origin cookie auth and writes one canonical AI-target user row", async () => {
@@ -368,6 +550,441 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       metadata: { client_request_id: REQUEST_ID },
       visibility: "shared",
     });
+  });
+
+  it("revalidates and persists one exact current D+1 binding only in the owner's private AI lane", async () => {
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+    vi.mocked(resolveAmoraScheduleCareFollowUp).mockResolvedValue(resolvedFollowUp());
+    const metadata = {
+      client_request_id: REQUEST_ID,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      amora_schedule_care_follow_up_v1: {
+        version: 1,
+        card_id: FOLLOW_UP_CARD_ID,
+        card_revision: 2,
+        source_revision: 7,
+      },
+    };
+    const admin = mockPostAdmin({
+      insertData: canonicalUserRow({
+        content: FOLLOW_UP_CONTENT,
+        visibility: "bride_private",
+        metadata,
+      }),
+    });
+
+    const response = await POST(followUpRequest());
+
+    expect(response.status).toBe(201);
+    expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({
+      couple_id: COUPLE_ID,
+      sender_id: USER_ID,
+      content: FOLLOW_UP_CONTENT,
+      visibility: "bride_private",
+      metadata,
+    }));
+    const body = await response.json();
+    expect(body.message.metadata).toEqual(metadata);
+    const durable = JSON.stringify(body.message.metadata);
+    expect(durable).not.toContain("상견례");
+    expect(durable).not.toContain("어제 분위기");
+    expect(durable).not.toContain("실제로 합의된");
+    expect(durable).not.toContain("예식 시기");
+    expect(durable).not.toContain("schedule:opaque");
+    expect(durable).not.toContain("private-event-id");
+  });
+
+  it("recovers an exact committed D+1 row before source revalidation on the same immutable retry", async () => {
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+    vi.mocked(resolveAmoraScheduleCareFollowUp).mockResolvedValue({
+      ok: false,
+      reason: "card_stale",
+    });
+    const metadata = {
+      client_request_id: REQUEST_ID,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      amora_schedule_care_follow_up_v1: {
+        version: 1,
+        card_id: FOLLOW_UP_CARD_ID,
+        card_revision: 2,
+        source_revision: 7,
+      },
+    };
+    const admin = mockPostAdmin({
+      reconcileData: canonicalUserRow({
+        content: FOLLOW_UP_CONTENT,
+        visibility: "bride_private",
+        metadata,
+      }),
+    });
+
+    const response = await POST(followUpRequest());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: "persisted",
+      reused: true,
+      effectiveVisibility: "bride_private",
+      message: { id: MESSAGE_ID, metadata },
+    });
+    expect(resolveAmoraScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.storageFrom).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before source revalidation when a D+1 request id belongs to another binding", async () => {
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+    const admin = mockPostAdmin({
+      reconcileData: canonicalUserRow({
+        content: FOLLOW_UP_CONTENT,
+        visibility: "bride_private",
+        metadata: {
+          client_request_id: REQUEST_ID,
+          amora_ingest_contract_version: 1,
+          ai_response_requested: true,
+          provider_attachment_state: "none",
+          provider_attachment_count: 0,
+          amora_schedule_care_follow_up_v1: {
+            version: 1,
+            card_id: FOLLOW_UP_CARD_ID,
+            card_revision: 3,
+            source_revision: 7,
+          },
+        },
+      }),
+    });
+
+    const response = await POST(followUpRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_REQUEST_CONFLICT",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(resolveAmoraScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.storageFrom).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("does not recover a D+1 retry row carrying raw source context outside the opaque binding", async () => {
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+    const admin = mockPostAdmin({
+      reconcileData: canonicalUserRow({
+        content: FOLLOW_UP_CONTENT,
+        visibility: "bride_private",
+        metadata: {
+          client_request_id: REQUEST_ID,
+          amora_ingest_contract_version: 1,
+          ai_response_requested: true,
+          provider_attachment_state: "none",
+          provider_attachment_count: 0,
+          amora_schedule_care_follow_up_v1: {
+            version: 1,
+            card_id: FOLLOW_UP_CARD_ID,
+            card_revision: 2,
+            source_revision: 7,
+          },
+          event_title: "raw source title must never persist",
+        },
+      }),
+    });
+
+    const response = await POST(followUpRequest());
+
+    expect(response.status).toBe(409);
+    expect(resolveAmoraScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.storageFrom).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["scope_changed", 403],
+    ["privacy_unavailable", 503],
+    ["source_unavailable", 503],
+    ["journey_stale", 409],
+    ["card_stale", 409],
+    ["signal_stale", 409],
+    ["moment_stale", 409],
+  ] as const)(
+    "does not consume a rate bucket or write when D+1 resolution is %s",
+    async (reason, status) => {
+      vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+        disposition: "continue",
+        classification: null,
+        effectiveVisibility: "bride_private",
+        safetyPrivacyRedirected: false,
+        partnerDeliveryHeld: false,
+        response: null,
+      });
+      vi.mocked(resolveAmoraScheduleCareFollowUp).mockResolvedValue({ ok: false, reason });
+      const admin = mockPostAdmin();
+
+      const response = await POST(followUpRequest());
+
+      expect(response.status).toBe(status);
+      expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+      expect(admin.storageFrom).not.toHaveBeenCalled();
+      expect(admin.insert).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["missing answer", FOLLOW_UP_PROMPT],
+    ["prefix edited", FOLLOW_UP_CONTENT.replace("나만", "함께")],
+    ["text inserted before prefix", `앞 문장 ${FOLLOW_UP_CONTENT}`],
+    ["different prompt", `${FOLLOW_UP_PROMPT.replace("상견례", "예식장")} 답`],
+  ])("rejects a %s without rate, attachment, or message writes", async (_label, content) => {
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+    vi.mocked(resolveAmoraScheduleCareFollowUp).mockResolvedValue(resolvedFollowUp());
+    const admin = mockPostAdmin();
+
+    const response = await POST(followUpRequest({ content }));
+
+    expect(response.status).toBe(409);
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.storageFrom).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["shared lane", { requestedVisibility: "shared" }, true],
+    ["partner target", { target: "partner", requestedVisibility: "shared" }, true],
+    ["legacy actor contract", {}, false],
+    [
+      "extra binding field",
+      {
+        scheduleCareFollowUp: {
+          cardId: FOLLOW_UP_CARD_ID,
+          cardRevision: 2,
+          sourceRevision: 7,
+          eventTitle: "상견례",
+        },
+      },
+      true,
+    ],
+    ["extra top-level field", { eventTitle: "상견례" }, true],
+  ] as const)("rejects %s before source resolution or persistence", async (_label, overrides, v2) => {
+    const admin = mockPostAdmin();
+
+    const response = await POST(followUpRequest(overrides, v2));
+
+    expect([400, 426]).toContain(response.status);
+    expect(resolveAmoraScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("requires the current zero-attachment AI envelope for a D+1 private ingest", async () => {
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue",
+      classification: null,
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false,
+      partnerDeliveryHeld: false,
+      response: null,
+    });
+    const admin = mockPostAdmin();
+
+    const response = await POST(followUpRequest({
+      providerAttachmentCount: undefined,
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "SCHEDULE_CARE_FOLLOW_UP_REQUEST_INVALID",
+    });
+    expect(resolveAmoraScheduleCareFollowUp).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("atomically promotes one current private source without exposing its id in shared metadata", async () => {
+    const sharedRow = canonicalFirstUseSharedRow();
+    const admin = mockPostAdmin({
+      promotionSharedData: sharedRow,
+      promotionRpcData: {
+        version: 1,
+        promotionId: PROMOTION_ID,
+        sharedMessageId: MESSAGE_ID,
+        reused: false,
+      },
+    });
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: firstUseSharedText,
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      providerAttachmentCount: 0,
+      firstUseSourceMessageId: SOURCE_MESSAGE_ID,
+    }, {
+      Authorization: "Bearer mobile-access-token",
+      Origin: "http://localhost",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    }));
+
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      outcome: "persisted",
+      reused: false,
+      effectiveVisibility: "shared",
+      message: {
+        id: MESSAGE_ID,
+        metadata: { amora_first_use_promotion_id: PROMOTION_ID },
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain(SOURCE_MESSAGE_ID);
+    expect(admin.insert).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "ingest_amora_first_use_action_promotion_v1",
+      {
+        p_couple_id: COUPLE_ID,
+        p_owner_user_id: USER_ID,
+        p_source_private_message_id: SOURCE_MESSAGE_ID,
+        p_client_request_id: REQUEST_ID,
+        p_content: firstUseSharedText,
+        p_source_content_digest: firstUseSourceSeal?.metadata.sourceContentDigest,
+        p_canonical_action_input: firstUseDraft,
+        p_action_digest: firstUseSourceSeal?.metadata.actionDigest,
+        p_shared_content_digest: firstUseSourceSeal?.metadata.sharedContentDigest,
+      },
+    );
+  });
+
+  it("reuses the one canonical shared row for the same private source on another request", async () => {
+    const earlierRequestId = "20000000-0000-4000-8000-000000000099";
+    const admin = mockPostAdmin({
+      promotionSharedData: canonicalFirstUseSharedRow({
+        metadata: {
+          ...canonicalFirstUseSharedRow().metadata,
+          client_request_id: earlierRequestId,
+        },
+      }),
+      promotionRpcData: {
+        version: 1,
+        promotionId: PROMOTION_ID,
+        sharedMessageId: MESSAGE_ID,
+        reused: true,
+      },
+    });
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: firstUseSharedText,
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      providerAttachmentCount: 0,
+      firstUseSourceMessageId: SOURCE_MESSAGE_ID,
+    }, {
+      Authorization: "Bearer mobile-access-token",
+      Origin: "http://localhost",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: "persisted",
+      reused: true,
+      reusedBy: "first_use_source",
+      message: { id: MESSAGE_ID },
+    });
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects stale, edited, or client-forged first-use provenance without a generic insert", async () => {
+    const staleAdmin = mockPostAdmin({
+      promotionRpcError: { message: "AMORA_FIRST_USE_PROMOTION_JOURNEY_CHANGED" },
+    });
+    const base = {
+      coupleId: COUPLE_ID,
+      content: firstUseSharedText,
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      providerAttachmentCount: 0,
+      firstUseSourceMessageId: SOURCE_MESSAGE_ID,
+    };
+    const headers = {
+      Authorization: "Bearer mobile-access-token",
+      Origin: "http://localhost",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    };
+
+    const stale = await POST(postRequest(base, headers));
+    expect(stale.status).toBe(409);
+    await expect(stale.json()).resolves.toMatchObject({
+      code: "FIRST_USE_PROMOTION_STALE",
+    });
+    expect(staleAdmin.insert).not.toHaveBeenCalled();
+
+    const editedAdmin = mockPostAdmin();
+    const edited = await POST(postRequest({
+      ...base,
+      content: `${firstUseSharedText} 바꿈`,
+    }, headers));
+    expect(edited.status).toBe(409);
+    expect(editedAdmin.rpc).not.toHaveBeenCalledWith(
+      "ingest_amora_first_use_action_promotion_v1",
+      expect.anything(),
+    );
+    expect(editedAdmin.insert).not.toHaveBeenCalled();
+
+    const forgedAdmin = mockPostAdmin();
+    const forged = await POST(postRequest({
+      ...base,
+      sourceRevision: 7,
+    }, headers));
+    expect(forged.status).toBe(400);
+    expect(forgedAdmin.rpc).not.toHaveBeenCalled();
+    expect(forgedAdmin.insert).not.toHaveBeenCalled();
   });
 
   it("bounds an oversized chunked ingest body before classification or persistence", async () => {
@@ -882,11 +1499,82 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       classification: "interpersonal_danger",
       response: "고정 안전 안내",
       rawDisclosurePersisted: false,
+      durableSafetyFenceConfirmed: true,
     });
     expect(JSON.stringify(payload)).not.toContain(rawDisclosure);
     expect(checkRateLimitPersistent).not.toHaveBeenCalled();
     expect(admin.insert).not.toHaveBeenCalled();
     expect(admin.messageSelect).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "seal_amora_mediation_private_safety_hold",
+      { p_couple_id: COUPLE_ID, p_recipient_user_id: USER_ID },
+    );
+  });
+
+  it("keeps fixed W5 guidance compatible with a legacy client when the durable seal fails", async () => {
+    const admin = mockPostAdmin({
+      safetyHoldRpcError: { code: "SERVICE_UNAVAILABLE", message: "unavailable" },
+    });
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "local_safety_hold",
+      safetyResolution: "immediate_crisis",
+      classification: { kind: "interpersonal_danger" },
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      response: "고정 안전 안내",
+    });
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "지금 위험해요",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: "ephemeral_safety",
+      response: "고정 안전 안내",
+      durableSafetyFenceConfirmed: false,
+    });
+    expect(admin.insert).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+  });
+
+  it("returns the same no-write W5 safety envelope as 503 to a v2 client when the durable seal fails", async () => {
+    const admin = mockPostAdmin({
+      safetyHoldRpcError: { code: "SERVICE_UNAVAILABLE", message: "unavailable" },
+    });
+    vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "local_safety_hold",
+      safetyResolution: "immediate_crisis",
+      classification: { kind: "interpersonal_danger" },
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      response: "고정 안전 안내",
+    });
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "지금 위험해요",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+    }, {
+      Origin: "http://localhost",
+      "x-amora-ingest-contract-version": "2",
+      "x-amora-expected-actor-user-id": USER_ID,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: "ephemeral_safety",
+      response: "고정 안전 안내",
+      durableSafetyFenceConfirmed: false,
+    });
+    expect(admin.insert).not.toHaveBeenCalled();
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
   });
 
   it("accepts a valid 20,000-character multibyte W5 message through deterministic safety routing", async () => {
@@ -923,6 +1611,50 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
     expect(checkRateLimitPersistent).not.toHaveBeenCalled();
     expect(admin.insert).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["legacy", { Origin: "http://localhost" }, 200],
+    ["v2", {
+      Origin: "http://localhost",
+      "x-amora-ingest-contract-version": "2",
+      "x-amora-expected-actor-user-id": USER_ID,
+    }, 503],
+  ])(
+    "keeps a %s W2 safety response private and write-free when the durable seal fails",
+    async (_contract, headers, expectedStatus) => {
+      const admin = mockPostAdmin({
+        safetyHoldRpcError: { code: "SERVICE_UNAVAILABLE", message: "unavailable" },
+      });
+      vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+        disposition: "private_safety_route",
+        safetyResolution: "non_immediate_safety",
+        classification: null,
+        effectiveVisibility: "bride_private",
+        safetyPrivacyRedirected: true,
+        partnerDeliveryHeld: false,
+        response: null,
+      });
+
+      const response = await POST(postRequest({
+        coupleId: COUPLE_ID,
+        content: "상대에게 보내기 전에 안전하게 확인해줘",
+        clientRequestId: REQUEST_ID,
+        requestedVisibility: "shared",
+        target: "ai",
+      }, headers));
+
+      expect(response.status).toBe(expectedStatus);
+      await expect(response.json()).resolves.toMatchObject({
+        outcome: "ephemeral_safety",
+        effectiveVisibility: "bride_private",
+        safetyPrivacyRedirected: true,
+        durableSafetyFenceConfirmed: false,
+        rawDisclosurePersisted: false,
+      });
+      expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+      expect(admin.insert).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ["persisted", canonicalUserRow({ content: "정책 변경 뒤 잡힌 위험 원문" }), null, true],
@@ -1014,6 +1746,10 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
         provider_attachment_count: 0,
       },
     }));
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "seal_amora_mediation_private_safety_hold",
+      { p_couple_id: COUPLE_ID, p_recipient_user_id: USER_ID },
+    );
   });
 
   it("rejects an attachment count smaller than the bound image path set", async () => {

@@ -1,17 +1,32 @@
 // 홈 — 우리의 결혼식, 오늘의 한 가지, 준비 서비스 (Supabase 실데이터)
-import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet } from "react-native";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { AppState, type AppStateStatus, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
+import { buildAmoraPreparationOverview } from "@hanbang/shared/amora-preparation-map";
 import { supabase } from "@/lib/supabase";
+import { apiFetchForExpectedUser } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
+  DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT,
   calculateChecklistProgress,
   formatLocalDateKey,
+  selectDashboardOpenAction,
+  type DashboardOpenAction,
 } from "@/lib/dashboardExperience.mjs";
+import { resolveActionReceiptHomeHandoff } from "@/lib/actionReceiptHomeHandoff.mjs";
 import { isActiveScheduleEvent } from "@/lib/scheduleMutation.mjs";
+import {
+  loadOwnerAmoraPersonalization,
+  type AmoraPersonalizationPreferences,
+} from "@/lib/amoraPersonalization.mjs";
+import { loadOwnerAmoraActionOutcomeFeedback } from "@/lib/amoraActionFeedback.mjs";
+import { loadOwnerAmoraCoreCriterion } from "@/lib/amoraCoreCriterion.mjs";
+import { loadOwnerAmoraCoupleCriterion } from "@/lib/amoraCoupleCriterion.mjs";
 import ErrorRetry from "@/components/ErrorRetry";
+import AmoraActionFollowUpV2 from "@/components/dashboard/AmoraActionFollowUpV2";
+import AmoraMediationOutcomeFollowUp from "@/components/dashboard/AmoraMediationOutcomeFollowUp";
 import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
 import WeddingHomeExperience, {
   type WeddingHomeData,
@@ -44,6 +59,210 @@ interface DashboardData extends WeddingHomeData {
   urgentTasks: UrgentTask[];
   bookingOutcomeTasks: BookingOutcomeTask[];
   partnerActivity: PartnerActivity | null;
+  personalization: Readonly<AmoraPersonalizationPreferences> | null;
+}
+
+async function loadPreferredOpenAmoraAction(
+  coupleId: string,
+): Promise<DashboardOpenAction | null> {
+  const { data, error } = await supabase
+    .from("amora_actions")
+    .select("id, couple_id, title, description, due_date, category_key, priority, source, status, follow_up_revision, created_at")
+    .eq("couple_id", coupleId)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT);
+  if (error) return null;
+  return selectDashboardOpenAction(data, coupleId, formatLocalDateKey());
+}
+
+async function readCurrentOpenAmoraAction({
+  actionId,
+  coupleId,
+}: {
+  actionId: string;
+  coupleId: string;
+}) {
+  const { data, error } = await supabase
+    .from("amora_actions")
+    .select("id, couple_id, title, description, due_date, category_key, priority, source, status, follow_up_revision, created_at")
+    .eq("id", actionId)
+    .eq("couple_id", coupleId)
+    .eq("status", "open")
+    .maybeSingle();
+  return error
+    ? { ok: false as const }
+    : { ok: true as const, value: data };
+}
+
+export interface DashboardLoadTicket {
+  sessionGeneration: number;
+  loadGeneration: number;
+}
+
+export interface DashboardIdentity {
+  ownerUserId: string;
+  coupleId: string | null;
+}
+
+export interface DashboardActionReceiptLease {
+  token: number;
+  identity: DashboardIdentity;
+  phase: "provisional" | "confirmed";
+}
+
+export function createDashboardLoadCoordinator() {
+  let sessionGeneration = 0;
+  let loadGeneration = 0;
+  let nextActionReceiptLeaseToken = 0;
+  let pinnedActionReceiptLease: DashboardActionReceiptLease | null = null;
+  let deferredReceiptReload = false;
+
+  const isCurrent = (ticket: DashboardLoadTicket) =>
+    ticket.sessionGeneration === sessionGeneration
+    && ticket.loadGeneration === loadGeneration;
+  const isSameIdentity = (
+    left: DashboardIdentity | null,
+    right: DashboardIdentity | null,
+  ) => left !== null
+    && right !== null
+    && left.ownerUserId === right.ownerUserId
+    && left.coupleId === right.coupleId;
+
+  return {
+    beginLoad(): DashboardLoadTicket {
+      loadGeneration += 1;
+      return { sessionGeneration, loadGeneration };
+    },
+    invalidateSession(): void {
+      sessionGeneration += 1;
+      loadGeneration += 1;
+      pinnedActionReceiptLease = null;
+      deferredReceiptReload = false;
+    },
+    currentSessionGeneration(): number {
+      return sessionGeneration;
+    },
+    isCurrent,
+    isSessionCurrent(expectedSessionGeneration: number): boolean {
+      return expectedSessionGeneration === sessionGeneration;
+    },
+    beginActionReceiptLease(
+      identity: DashboardIdentity,
+      expectedSessionGeneration: number,
+    ): number | null {
+      if (expectedSessionGeneration !== sessionGeneration) return null;
+      if (!identity.ownerUserId || !identity.coupleId) return null;
+      if (pinnedActionReceiptLease) return null;
+      nextActionReceiptLeaseToken += 1;
+      pinnedActionReceiptLease = {
+        token: nextActionReceiptLeaseToken,
+        identity: { ...identity },
+        phase: "provisional",
+      };
+      // An outcome can retire or revise the action before its canonical
+      // receipt is reread. Stop every older home load from unmounting it.
+      loadGeneration += 1;
+      deferredReceiptReload = true;
+      return pinnedActionReceiptLease.token;
+    },
+    confirmActionReceiptLease(
+      identity: DashboardIdentity,
+      token: number,
+    ): boolean {
+      if (
+        pinnedActionReceiptLease?.token !== token
+        || !isSameIdentity(pinnedActionReceiptLease.identity, identity)
+      ) return false;
+      pinnedActionReceiptLease.phase = "confirmed";
+      return true;
+    },
+    getPinnedActionReceiptLease(): DashboardActionReceiptLease | null {
+      return pinnedActionReceiptLease
+        ? {
+            token: pinnedActionReceiptLease.token,
+            identity: { ...pinnedActionReceiptLease.identity },
+            phase: pinnedActionReceiptLease.phase,
+          }
+        : null;
+    },
+    hasPinnedActionReceipt(identity?: DashboardIdentity): boolean {
+      if (!pinnedActionReceiptLease) return false;
+      return identity === undefined
+        || isSameIdentity(pinnedActionReceiptLease.identity, identity);
+    },
+    deferReloadForPinnedReceipt(identity?: DashboardIdentity): boolean {
+      if (!pinnedActionReceiptLease) return false;
+      if (
+        identity !== undefined
+        && !isSameIdentity(pinnedActionReceiptLease.identity, identity)
+      ) return false;
+      deferredReceiptReload = true;
+      return true;
+    },
+    releasePinnedActionReceipt(identity: DashboardIdentity, token: number): {
+      released: boolean;
+      hadDeferredReload: boolean;
+    } {
+      if (
+        pinnedActionReceiptLease?.token !== token
+        || !isSameIdentity(pinnedActionReceiptLease.identity, identity)
+      ) {
+        return { released: false, hadDeferredReload: false };
+      }
+      const hadDeferredReload = deferredReceiptReload;
+      pinnedActionReceiptLease = null;
+      deferredReceiptReload = false;
+      return { released: true, hadDeferredReload };
+    },
+    async verifyCurrentOwner(
+      ticket: DashboardLoadTicket,
+      expectedOwnerUserId: string,
+      readCurrentOwnerUserId: () => Promise<string | null>,
+    ): Promise<boolean> {
+      if (!isCurrent(ticket)) return false;
+      const currentOwnerUserId = await readCurrentOwnerUserId();
+      return isCurrent(ticket) && currentOwnerUserId === expectedOwnerUserId;
+    },
+    async verifyCurrentIdentity(
+      ticket: DashboardLoadTicket,
+      expectedIdentity: DashboardIdentity,
+      readCurrentIdentity: () => Promise<DashboardIdentity | null>,
+    ): Promise<boolean> {
+      if (!isCurrent(ticket)) return false;
+      const currentIdentity = await readCurrentIdentity();
+      return isCurrent(ticket)
+        && currentIdentity?.ownerUserId === expectedIdentity.ownerUserId
+        && currentIdentity?.coupleId === expectedIdentity.coupleId;
+    },
+    mergeForOwner<T extends { ownerUserId: string }>(
+      ticket: DashboardLoadTicket,
+      expectedOwnerUserId: string,
+      current: T | null,
+      patch: Partial<T>,
+    ): T | null {
+      if (
+        !isCurrent(ticket)
+        || !current
+        || current.ownerUserId !== expectedOwnerUserId
+      ) return current;
+      return { ...current, ...patch };
+    },
+    mergeForIdentity<T extends DashboardIdentity>(
+      ticket: DashboardLoadTicket,
+      expectedIdentity: DashboardIdentity,
+      current: T | null,
+      patch: Partial<T>,
+    ): T | null {
+      if (
+        !isCurrent(ticket)
+        || !current
+        || current.ownerUserId !== expectedIdentity.ownerUserId
+        || current.coupleId !== expectedIdentity.coupleId
+      ) return current;
+      return { ...current, ...patch };
+    },
+  };
 }
 
 const CATEGORY_LABEL_BY_KEY = Object.fromEntries(
@@ -268,7 +487,6 @@ async function loadPartnerActivity({
     }
 
     if (!categoryProgress.updated_at) {
-      recentCategories.push(category.label);
       continue;
     }
 
@@ -286,15 +504,108 @@ async function loadPartnerActivity({
 }
 
 export default function DashboardScreen() {
+  const routeParams = useLocalSearchParams<{
+    actionReceiptHandoff?: string | string[];
+  }>();
+  const actionReceiptHandoffParam = Array.isArray(routeParams.actionReceiptHandoff)
+    ? routeParams.actionReceiptHandoff[0] ?? null
+    : routeParams.actionReceiptHandoff ?? null;
+  const loadCoordinatorRef = useRef(createDashboardLoadCoordinator());
+  const consumedActionReceiptHandoffRef = useRef<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [careRefreshVersion, setCareRefreshVersion] = useState(0);
+  const [todayOneResumeRefreshVersion, setTodayOneResumeRefreshVersion] = useState(0);
+  const [actionReceiptReleaseVersion, setActionReceiptReleaseVersion] = useState(0);
+  const [sessionRefreshVersion, setSessionRefreshVersion] = useState(0);
   const [error, setError] = useState(false);
+  const [actionReceiptReadError, setActionReceiptReadError] = useState(false);
   const coupleIdRef = useRef<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const hasFocusedOnceRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const readCurrentOwnerUserId = useCallback(async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    return authError ? null : user?.id ?? null;
+  }, []);
+
+  const readCurrentIdentity = useCallback(async (): Promise<DashboardIdentity | null> => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return null;
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("couple_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profileError || !profile) return null;
+    const currentOwnerUserId = await readCurrentOwnerUserId();
+    if (currentOwnerUserId !== user.id) return null;
+    return {
+      ownerUserId: user.id,
+      coupleId: typeof profile.couple_id === "string" ? profile.couple_id : null,
+    };
+  }, [readCurrentOwnerUserId]);
+
+  const clearDashboardSession = useCallback(() => {
+    loadCoordinatorRef.current.invalidateSession();
+    coupleIdRef.current = null;
+    if (channelRef.current) {
+      void supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    setData(null);
+    setError(false);
+    setActionReceiptReadError(false);
+    setRefreshing(false);
+    setLoading(true);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      const coordinator = loadCoordinatorRef.current;
+      const pinnedLease = coordinator.getPinnedActionReceiptLease();
+      if (!pinnedLease) {
+        clearDashboardSession();
+        setSessionRefreshVersion((version) => version + 1);
+        return;
+      }
+      const expectedSessionGeneration = coordinator.currentSessionGeneration();
+      void readCurrentIdentity().then((currentIdentity) => {
+        if (!coordinator.isSessionCurrent(expectedSessionGeneration)) return;
+        if (
+          currentIdentity?.ownerUserId === pinnedLease.identity.ownerUserId
+          && currentIdentity?.coupleId === pinnedLease.identity.coupleId
+        ) {
+          coordinator.deferReloadForPinnedReceipt(pinnedLease.identity);
+          return;
+        }
+        clearDashboardSession();
+        setSessionRefreshVersion((version) => version + 1);
+      });
+    }, [clearDashboardSession, readCurrentIdentity]),
+  );
 
   const loadData = useCallback(async () => {
+    const loadTicket = loadCoordinatorRef.current.beginLoad();
+    const verifyLoadIdentity = async (expectedIdentity: DashboardIdentity) => {
+      const verified = await loadCoordinatorRef.current.verifyCurrentIdentity(
+        loadTicket,
+        expectedIdentity,
+        readCurrentIdentity,
+      );
+      if (!verified && loadCoordinatorRef.current.isCurrent(loadTicket)) {
+        clearDashboardSession();
+        setLoading(false);
+        setError(true);
+      }
+      return verified;
+    };
     try {
       setError(false);
       const {
@@ -302,6 +613,7 @@ export default function DashboardScreen() {
       } = await supabase.auth.getUser();
 
       if (!user) {
+        if (!loadCoordinatorRef.current.isCurrent(loadTicket)) return;
         setData(null);
         router.replace("/(auth)/login");
         return;
@@ -313,31 +625,89 @@ export default function DashboardScreen() {
         .eq("id", user.id)
         .single();
       if (profileError) throw profileError;
-
-      coupleIdRef.current = profile.couple_id ?? null;
+      const expectedIdentity: DashboardIdentity = {
+        ownerUserId: user.id,
+        coupleId: profile.couple_id ?? null,
+      };
 
       if (!profile.couple_id) {
+        if (!await verifyLoadIdentity(expectedIdentity)) return;
+        coupleIdRef.current = null;
         setData({
+          ownerUserId: user.id,
+          coupleId: null,
           name: profile.name ?? null,
           weddingDate: null,
           totalBudget: 0,
           progress: {},
           progressPercent: 0,
+          preparationOverview: null,
           todayTasks: [],
           dday: null,
           urgentTasks: [],
           bookingOutcomeTasks: [],
+          openAction: null,
+          receiptActionId: null,
+          actionFeedback: null,
           partnerActivity: null,
+          personalization: null,
+          coupleCriterionLoaded: false,
+          coupleCriterion: null,
+          coreCriterionLoaded: false,
+          coreCriterion: null,
         });
+        setActionReceiptReadError(false);
         return;
       }
 
-      const { data: journey, error: journeyError } = await supabase
-        .from("wedding_journeys")
-        .select("wedding_date, total_budget, progress")
-        .eq("couple_id", profile.couple_id)
-        .single();
+      let receiptAction: DashboardOpenAction | null = null;
+      let receiptActionId: string | null = null;
+      if (
+        actionReceiptHandoffParam
+        && consumedActionReceiptHandoffRef.current !== actionReceiptHandoffParam
+      ) {
+        if (!await verifyLoadIdentity(expectedIdentity)) return;
+        const receiptResolution = await resolveActionReceiptHomeHandoff({
+          handoffId: actionReceiptHandoffParam,
+          expectedOwnerUserId: user.id,
+          expectedCoupleId: profile.couple_id,
+          isResolutionCurrent: () =>
+            loadCoordinatorRef.current.isCurrent(loadTicket),
+          readCurrentOpenAction: readCurrentOpenAmoraAction,
+        });
+        if (!loadCoordinatorRef.current.isCurrent(loadTicket)) return;
+        if (receiptResolution.state === "retry") {
+          setActionReceiptReadError(true);
+          return;
+        }
+        consumedActionReceiptHandoffRef.current = actionReceiptHandoffParam;
+        if (receiptResolution.state === "focused") {
+          receiptAction = receiptResolution.action;
+          receiptActionId = receiptResolution.action.id;
+        }
+      }
+
+      const [journeyResult, openAction, actionFeedback] = await Promise.all([
+        supabase
+          .from("wedding_journeys")
+          .select("wedding_date, total_budget, progress")
+          .eq("couple_id", profile.couple_id)
+          .single(),
+        receiptAction
+          ? Promise.resolve(receiptAction)
+          : loadPreferredOpenAmoraAction(profile.couple_id),
+        loadOwnerAmoraActionOutcomeFeedback(
+          user.id,
+          profile.couple_id,
+          apiFetchForExpectedUser,
+        ),
+      ]);
+      const { data: journey, error: journeyError } = journeyResult;
       if (journeyError) throw journeyError;
+      if (!journey) throw new Error("wedding journey missing");
+      if (!await verifyLoadIdentity(expectedIdentity)) return;
+      if (loadCoordinatorRef.current.deferReloadForPinnedReceipt(expectedIdentity)) return;
+      coupleIdRef.current = expectedIdentity.coupleId;
 
       const progress =
         (journey.progress as Record<string, unknown> | null) ?? {};
@@ -357,58 +727,218 @@ export default function DashboardScreen() {
         }));
       const weddingDate = journey.wedding_date ?? null;
       const dday = calcDday(weddingDate);
+      const urgentTasks = calcUrgentTasks(dday, progress);
+      const preparationOverview = buildAmoraPreparationOverview({
+        topics: CATEGORY_CHECKLISTS,
+        progress,
+        attentionTopicKeys: urgentTasks.map((task) => task.categoryKey),
+      });
 
       const coreData: DashboardData = {
+        ownerUserId: user.id,
+        coupleId: profile.couple_id,
         name: profile.name,
         weddingDate,
         totalBudget: journey.total_budget ?? 0,
         progress,
         progressPercent,
+        preparationOverview,
         todayTasks,
         dday,
-        urgentTasks: calcUrgentTasks(dday, progress),
+        urgentTasks,
         bookingOutcomeTasks: [],
+        openAction,
+        receiptActionId: openAction?.id === receiptActionId
+          ? receiptActionId
+          : null,
+        actionFeedback,
         partnerActivity: null,
+        personalization: null,
+        coupleCriterionLoaded: false,
+        coupleCriterion: null,
+        coreCriterionLoaded: false,
+        coreCriterion: null,
       };
 
       // 홈의 핵심 맥락과 오늘의 행동을 먼저 그린 뒤, 보조 데이터를 이어 붙인다.
       setData(coreData);
+      setActionReceiptReadError(false);
       setLoading(false);
       setRefreshing(false);
 
-      const [bookingOutcomeTasks, partnerActivity] = await Promise.all([
+      const [
+        bookingOutcomeTasks,
+        partnerActivity,
+        personalization,
+        coupleCriterionResult,
+        coreCriterionResult,
+      ] = await Promise.all([
         loadBookingOutcomeTasks(profile.couple_id),
         loadPartnerActivity({
           coupleId: profile.couple_id,
           userId: user.id,
           progress,
         }),
+        loadOwnerAmoraPersonalization(user.id, apiFetchForExpectedUser),
+        loadOwnerAmoraCoupleCriterion(
+          user.id,
+          profile.couple_id,
+          apiFetchForExpectedUser,
+        ),
+        loadOwnerAmoraCoreCriterion(user.id, apiFetchForExpectedUser),
       ]);
 
+      if (!await verifyLoadIdentity(expectedIdentity)) return;
+      if (loadCoordinatorRef.current.deferReloadForPinnedReceipt(expectedIdentity)) return;
+
       setData((current) =>
-        current
-          ? { ...current, bookingOutcomeTasks, partnerActivity }
-          : current,
+        loadCoordinatorRef.current.mergeForIdentity(
+          loadTicket,
+          expectedIdentity,
+          current,
+          {
+            bookingOutcomeTasks,
+            partnerActivity,
+            personalization,
+            coupleCriterionLoaded: coupleCriterionResult.loaded,
+            coupleCriterion: coupleCriterionResult.value,
+            coreCriterionLoaded: coreCriterionResult.loaded,
+            coreCriterion: coreCriterionResult.criterion,
+          },
+        ),
       );
     } catch {
-      setError(true);
+      if (loadCoordinatorRef.current.isCurrent(loadTicket)) setError(true);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (loadCoordinatorRef.current.isCurrent(loadTicket)) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [actionReceiptHandoffParam, clearDashboardSession, readCurrentIdentity]);
 
   useEffect(() => {
     let active = true;
+    let reloadScheduled = false;
+    let initializationScheduled = false;
+    let restartScheduled = false;
+    let identityReconciliationScheduled = false;
+    let observedAuthUserId: string | null | undefined;
+    let subscribedIdentity: DashboardIdentity | null = null;
+    const scheduleReload = () => {
+      if (!active || reloadScheduled) return;
+      if (loadCoordinatorRef.current.deferReloadForPinnedReceipt()) return;
+      reloadScheduled = true;
+      queueMicrotask(() => {
+        reloadScheduled = false;
+        if (!active) return;
+        void loadData();
+      });
+    };
 
-    loadData().then(() => {
-      if (!active) return;
-      const coupleId = coupleIdRef.current;
-      if (!coupleId) return;
+    const restartDashboardSession = () => {
+      if (!active || restartScheduled) return;
+      restartScheduled = true;
+      subscribedIdentity = null;
+      clearDashboardSession();
+      setSessionRefreshVersion((version) => version + 1);
+    };
 
-      const channel = supabase
-        .channel(`dashboard:${coupleId}`)
+    const scheduleDashboardIdentityReconciliation = (
+      expectedIdentity: DashboardIdentity | null,
+    ) => {
+      if (!active || identityReconciliationScheduled) return;
+      if (!expectedIdentity) {
+        restartDashboardSession();
+        return;
+      }
+      identityReconciliationScheduled = true;
+      const expectedSessionGeneration =
+        loadCoordinatorRef.current.currentSessionGeneration();
+      queueMicrotask(async () => {
+        identityReconciliationScheduled = false;
+        if (
+          !active
+          || !loadCoordinatorRef.current.isSessionCurrent(
+            expectedSessionGeneration,
+          )
+        ) return;
+        const currentIdentity = await readCurrentIdentity();
+        if (
+          !active
+          || !loadCoordinatorRef.current.isSessionCurrent(
+            expectedSessionGeneration,
+          )
+        ) return;
+        if (
+          currentIdentity?.ownerUserId === expectedIdentity.ownerUserId
+          && currentIdentity?.coupleId === expectedIdentity.coupleId
+        ) {
+          setTodayOneResumeRefreshVersion((version) => version + 1);
+          scheduleReload();
+          return;
+        }
+        restartDashboardSession();
+      });
+    };
+
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
+        const previousAppState = appStateRef.current;
+        appStateRef.current = nextAppState;
+        if (previousAppState !== "active" && nextAppState === "active") {
+          scheduleDashboardIdentityReconciliation(
+            subscribedIdentity
+            ?? loadCoordinatorRef.current.getPinnedActionReceiptLease()?.identity
+            ?? null,
+          );
+        }
+      },
+    );
+
+    const initializeDashboardSession = async () => {
+      const subscriptionSessionGeneration =
+        loadCoordinatorRef.current.currentSessionGeneration();
+      await loadData();
+      if (
+        !active
+        || !loadCoordinatorRef.current.isSessionCurrent(
+          subscriptionSessionGeneration,
+        )
+      ) return;
+      const expectedIdentity = await readCurrentIdentity();
+      if (
+        !expectedIdentity
+        || coupleIdRef.current !== expectedIdentity.coupleId
+        || channelRef.current
+      ) return;
+
+      const coupleId = expectedIdentity.coupleId;
+      subscribedIdentity = expectedIdentity;
+      let channel = supabase
+        .channel(
+          `dashboard:${expectedIdentity.ownerUserId}:${coupleId ?? "unlinked"}:${subscriptionSessionGeneration}`,
+        )
         .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${expectedIdentity.ownerUserId}`,
+          },
+          () => {
+            if (
+              loadCoordinatorRef.current.isSessionCurrent(
+                subscriptionSessionGeneration,
+              )
+            ) scheduleDashboardIdentityReconciliation(expectedIdentity);
+          },
+        );
+
+      if (coupleId) {
+        channel = channel.on(
           "postgres_changes",
           {
             event: "UPDATE",
@@ -416,9 +946,14 @@ export default function DashboardScreen() {
             table: "wedding_journeys",
             filter: `couple_id=eq.${coupleId}`,
           },
-          loadData,
-        )
-        .on(
+          () => {
+            if (
+              loadCoordinatorRef.current.isSessionCurrent(
+                subscriptionSessionGeneration,
+              )
+            ) scheduleReload();
+          },
+        ).on(
           "postgres_changes",
           {
             event: "*",
@@ -426,27 +961,136 @@ export default function DashboardScreen() {
             table: "vendor_bookings",
             filter: `couple_id=eq.${coupleId}`,
           },
-          loadData,
-        )
-        .subscribe();
+          () => {
+            if (
+              loadCoordinatorRef.current.isSessionCurrent(
+                subscriptionSessionGeneration,
+              )
+            ) scheduleReload();
+          },
+        );
+      }
+      let hasSubscribed = false;
+      channel = channel.subscribe((status) => {
+        if (
+          !active
+          || !loadCoordinatorRef.current.isSessionCurrent(
+            subscriptionSessionGeneration,
+          )
+        ) return;
 
+        if (status === "SUBSCRIBED") {
+          if (!hasSubscribed) {
+            hasSubscribed = true;
+            return;
+          }
+
+          // 재연결은 오프라인 중 놓친 프로필 변경을 재전송하지 않는다.
+          scheduleDashboardIdentityReconciliation(expectedIdentity);
+        }
+      });
+
+      const currentIdentity = await readCurrentIdentity();
+      if (
+        !active
+        || !loadCoordinatorRef.current.isSessionCurrent(
+           subscriptionSessionGeneration,
+         )
+        || currentIdentity?.ownerUserId !== expectedIdentity.ownerUserId
+        || currentIdentity?.coupleId !== expectedIdentity.coupleId
+      ) {
+        void supabase.removeChannel(channel);
+        if (active) restartDashboardSession();
+        return;
+      }
       channelRef.current = channel;
-    });
+    };
+
+    const scheduleInitialization = () => {
+      if (!active || initializationScheduled) return;
+      initializationScheduled = true;
+      queueMicrotask(() => {
+        initializationScheduled = false;
+        if (!active) return;
+        void initializeDashboardSession();
+      });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        const nextOwnerUserId = session?.user.id ?? null;
+        if (event === "INITIAL_SESSION") {
+          observedAuthUserId = nextOwnerUserId;
+          return;
+        }
+        if (nextOwnerUserId === observedAuthUserId) return;
+        observedAuthUserId = nextOwnerUserId;
+        clearDashboardSession();
+        if (!nextOwnerUserId) {
+          setLoading(false);
+          router.replace("/(auth)/login");
+          return;
+        }
+        setSessionRefreshVersion((version) => version + 1);
+      },
+    );
+
+    scheduleInitialization();
 
     return () => {
       active = false;
+      appStateSubscription.remove();
+      subscription.unsubscribe();
+      loadCoordinatorRef.current.invalidateSession();
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [loadData]);
+  }, [
+    clearDashboardSession,
+    loadData,
+    readCurrentIdentity,
+    sessionRefreshVersion,
+  ]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    const pinnedLease = loadCoordinatorRef.current.getPinnedActionReceiptLease();
+    if (pinnedLease?.phase === "provisional") {
+      loadCoordinatorRef.current.deferReloadForPinnedReceipt(pinnedLease.identity);
+      setRefreshing(false);
+      return;
+    }
+    if (data && pinnedLease) {
+      const released = loadCoordinatorRef.current.releasePinnedActionReceipt(
+        {
+          ownerUserId: data.ownerUserId,
+          coupleId: data.coupleId,
+        },
+        pinnedLease.token,
+      );
+      if (released.released) {
+        setActionReceiptReleaseVersion((version) => version + 1);
+      }
+    }
     await loadData();
     setCareRefreshVersion((version) => version + 1);
-  }, [loadData]);
+  }, [data, loadData]);
+
+  if (actionReceiptReadError) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <ErrorRetry
+          message="방금 저장한 행동을 아직 확인하지 못했어요. 다른 행동을 보여주지 않고 다시 확인할게요."
+          onRetry={() => {
+            setLoading(true);
+            void loadData();
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   if (error && !data) {
     return (
@@ -469,7 +1113,103 @@ export default function DashboardScreen() {
         loading={loading}
         refreshing={refreshing}
         onRefresh={onRefresh}
-        todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
+        renderTodayOneCare={(companionFallback, focus) => {
+          if (!data?.coupleId) return companionFallback;
+
+          const todayOneCare = (
+            <TodayOneCareCard
+              refreshVersion={careRefreshVersion + todayOneResumeRefreshVersion}
+              fallback={companionFallback}
+              expectedOwnerUserId={data.ownerUserId}
+              expectedCoupleId={data.coupleId}
+            />
+          );
+          const mediatedCare = (
+            <AmoraMediationOutcomeFollowUp
+              refreshVersion={careRefreshVersion}
+              expectedOwnerUserId={data.ownerUserId}
+              expectedCoupleId={data.coupleId}
+              loadingFallback={companionFallback}
+              fallback={todayOneCare}
+            />
+          );
+
+          if (focus.kind !== "action" || !data.openAction) return mediatedCare;
+          if (focus.suppressActionFollowUpClaim) return companionFallback;
+          const openAction = data.openAction;
+          const receiptLeaseSessionGeneration =
+            loadCoordinatorRef.current.currentSessionGeneration();
+
+          const renderActionCare = (actionFallback: ReactNode) => (
+            <AmoraActionFollowUpV2
+              refreshVersion={careRefreshVersion}
+              receiptReleaseVersion={actionReceiptReleaseVersion}
+              expectedOwnerUserId={data.ownerUserId}
+              expectedCoupleId={data.coupleId}
+              preferredActionId={openAction.id}
+              preferredActionPresentation={
+                openAction.sourceRevision !== null && focus.selectionReason
+                  ? {
+                      id: openAction.id,
+                      title: openAction.title,
+                      sourceRevision: openAction.sourceRevision,
+                      selectionReason: focus.selectionReason,
+                    }
+                  : null
+              }
+              loadingFallback={companionFallback}
+              fallback={actionFallback}
+              onReceiptSubmissionStarted={(receiptIdentity) =>
+                loadCoordinatorRef.current.beginActionReceiptLease(
+                  receiptIdentity,
+                  receiptLeaseSessionGeneration,
+                )}
+              onReceiptSubmissionAborted={async (receiptIdentity, leaseToken) => {
+                const released =
+                  loadCoordinatorRef.current.releasePinnedActionReceipt(
+                    receiptIdentity,
+                    leaseToken,
+                  );
+                if (released.released && released.hadDeferredReload) {
+                  await loadData();
+                }
+              }}
+              onReceiptPinned={(receiptIdentity, leaseToken) =>
+                loadCoordinatorRef.current.confirmActionReceiptLease(
+                  receiptIdentity,
+                  leaseToken,
+                )}
+              onReceiptAcknowledged={async (_receipt, receiptIdentity, leaseToken) => {
+                loadCoordinatorRef.current.releasePinnedActionReceipt(
+                  receiptIdentity,
+                  leaseToken,
+                );
+                await loadData();
+              }}
+            />
+          );
+
+          if (focus.claimBeforeCare) return renderActionCare(mediatedCare);
+
+          const ordinaryActionCare = renderActionCare(companionFallback);
+          const todayOneBeforeOrdinaryAction = (
+            <TodayOneCareCard
+              refreshVersion={careRefreshVersion + todayOneResumeRefreshVersion}
+              fallback={ordinaryActionCare}
+              expectedOwnerUserId={data.ownerUserId}
+              expectedCoupleId={data.coupleId}
+            />
+          );
+          return (
+            <AmoraMediationOutcomeFollowUp
+              refreshVersion={careRefreshVersion}
+              expectedOwnerUserId={data.ownerUserId}
+              expectedCoupleId={data.coupleId}
+              loadingFallback={companionFallback}
+              fallback={todayOneBeforeOrdinaryAction}
+            />
+          );
+        }}
       />
     </SafeAreaView>
   );

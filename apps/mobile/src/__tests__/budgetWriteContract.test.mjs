@@ -20,6 +20,32 @@ test("budget loads one couple/revision identity and invalidates it on auth chang
   assert.match(budgetSource, /commitJourney\([\s\S]*profile\.couple_id/);
 });
 
+test("a category deep link opens only after the current owner and journey are verified", () => {
+  assert.match(budgetSource, /useLocalSearchParams<\{ category\?: string \| string\[\] \}>\(\)/);
+  assert.match(budgetSource, /buildVerifiedBudgetCategoryEditor/);
+  assert.match(budgetSource, /handledCategoryDeepLinkRef/);
+  assert.match(
+    budgetSource,
+    /const clearIdentityBoundState = useCallback\(\(\) => \{[\s\S]*handledCategoryDeepLinkRef\.current = null/,
+  );
+  assert.match(
+    budgetSource,
+    /revisionCoordinator\.isCurrent\(latestSnapshot\)[\s\S]*const deepLinkEditor = buildVerifiedBudgetCategoryEditor\(\{[\s\S]*verifiedIdentity: latestSnapshot/,
+  );
+  assert.match(
+    budgetSource,
+    /categoryEditBaseRef\.current = deepLinkEditor\.editBase[\s\S]*setBudgetInput\(deepLinkEditor\.budgetInput\)[\s\S]*setSpentInput\(deepLinkEditor\.spentInput\)[\s\S]*setPayerInput\(deepLinkEditor\.payerInput\)[\s\S]*setEditingKey\(deepLinkEditor\.categoryKey\)/,
+  );
+
+  const verifiedCommit = budgetSource.indexOf(
+    "const snapshot = revisionCoordinator.commitJourney",
+  );
+  const editorOpen = budgetSource.indexOf(
+    "const deepLinkEditor = buildVerifiedBudgetCategoryEditor",
+  );
+  assert.ok(verifiedCommit >= 0 && editorOpen > verifiedCommit);
+});
+
 test("budget writes use owner-bound requests, revision helpers, and atomic per-kind locks", () => {
   assert.match(budgetSource, /apiFetchForExpectedUser\(/);
   assert.doesNotMatch(budgetSource, /\bapiFetch\(/);

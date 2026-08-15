@@ -8,6 +8,7 @@ import { releasePushDeliveryOwnership } from "../lib/pushSessionLifecycle.mjs";
 test("push logout attempts both release boundaries and accepts either confirmation", async () => {
   const calls = [];
   const serverConfirmed = await releasePushDeliveryOwnership({
+    verifyOwner: async () => undefined,
     releaseServerToken: async () => {
       calls.push("server");
     },
@@ -27,6 +28,7 @@ test("push logout attempts both release boundaries and accepts either confirmati
   assert.deepEqual(calls.sort(), ["cache", "device", "server"]);
 
   const deviceConfirmed = await releasePushDeliveryOwnership({
+    verifyOwner: async () => undefined,
     releaseServerToken: async () => {
       throw new Error("offline");
     },
@@ -43,6 +45,7 @@ test("push logout attempts both release boundaries and accepts either confirmati
 test("push logout fails closed when neither boundary can be confirmed", async () => {
   await assert.rejects(
     releasePushDeliveryOwnership({
+      verifyOwner: async () => undefined,
       releaseServerToken: async () => {
         throw new Error("offline");
       },
@@ -56,6 +59,7 @@ test("push logout fails closed when neither boundary can be confirmed", async ()
 
   await assert.rejects(
     releasePushDeliveryOwnership({
+      verifyOwner: async () => undefined,
       releaseServerToken: async () => undefined,
       unregisterDeviceToken: async () => undefined,
       clearCachedNotifications: async () => {
@@ -64,6 +68,30 @@ test("push logout fails closed when neither boundary can be confirmed", async ()
     }),
     /PUSH_DELIVERY_OWNERSHIP_RELEASE_UNCONFIRMED/,
   );
+});
+
+test("an owner switch stops every push-release side effect before it starts", async () => {
+  const calls = [];
+
+  await assert.rejects(
+    releasePushDeliveryOwnership({
+      verifyOwner: async () => {
+        throw new Error("PUSH_RELEASE_OWNER_CHANGED");
+      },
+      releaseServerToken: async () => {
+        calls.push("server");
+      },
+      unregisterDeviceToken: async () => {
+        calls.push("device");
+      },
+      clearCachedNotifications: async () => {
+        calls.push("cache");
+      },
+    }),
+    /PUSH_RELEASE_OWNER_CHANGED/,
+  );
+
+  assert.deepEqual(calls, []);
 });
 
 test("mobile logout releases push ownership before Auth and cleans external sign-outs", async () => {

@@ -73,12 +73,13 @@ describe("/api/auth/password PATCH", () => {
     expect(authFetch).not.toHaveBeenCalled();
   });
 
-  it("rejects a headerless password mutation before changing credentials", async () => {
+  it("requires a client update for a headerless password mutation before changing credentials", async () => {
     const response = await PATCH(passwordRequest());
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(426);
+    expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toMatchObject({
-      code: "MUTATION_ACTOR_CONTRACT_INVALID",
+      code: "CLIENT_UPDATE_REQUIRED",
     });
     expect(authFetch).not.toHaveBeenCalled();
   });
@@ -105,6 +106,30 @@ describe("/api/auth/password PATCH", () => {
         body: JSON.stringify({ password: "new-password-123" }),
       }),
     );
+  });
+
+  it("rejects an oversized streamed body before the credential update", async () => {
+    const oversizedChunk = new TextEncoder().encode("x".repeat(2 * 1024 + 1));
+    const response = await PATCH(new Request("http://localhost/api/auth/password", {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer test.user.access-token",
+        "Content-Type": "application/json",
+        [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+        [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: USER_ID,
+      },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(oversizedChunk);
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" }));
+
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(authFetch).not.toHaveBeenCalled();
   });
 
   it("fails closed without the request-bound bearer even when cookies authenticate", async () => {

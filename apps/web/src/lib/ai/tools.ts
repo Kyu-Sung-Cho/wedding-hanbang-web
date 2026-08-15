@@ -1,4 +1,5 @@
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import { SCHEDULE_CARE_MOMENT_OPTIONS } from "@hanbang/shared/constants";
 
 const PLANNING_CATEGORY_DESCRIPTION =
   "meeting=양쪽 부모님이 함께 만나는 자리, venue=결혼식장, studio=웨딩 사진 촬영, dress=드레스·예식 정장, makeup=헤어·메이크업, ring=결혼반지·기념 선물, hanbok=한복, yedan=두 가족에게 드릴 선물, honeymoon=신혼여행, houseware=가전·가구·생활용품, housing=신혼집, invitation=종이·모바일 초대장, snap=결혼식 날 사진·영상, shoes=결혼식 신발, bouquet=손에 드는 꽃·꽃 장식, gift=결혼식에 온 분께 드릴 선물, mc=결혼식 진행·축하 노래, ham=가족에게 전하는 전통 혼례 선물, pyebaek=결혼식 뒤 전통 인사";
@@ -276,6 +277,12 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           type: "string",
           maxLength: 2000,
           description: "일정 메모 (선택). 예: '강남 드레스 매장 오후 2시'",
+        },
+        moment_type: {
+          type: "string",
+          enum: SCHEDULE_CARE_MOMENT_OPTIONS.map((option) => option.value),
+          description:
+            "아모라의 시점별 케어가 연결되는 표준 일정 종류 (선택). 현재 사용자 발화에 명시된 종류를 서버가 고정한 경우에만 넣고 추측하지 않습니다.",
         },
         category_key: {
           type: "string",
@@ -850,7 +857,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_market_price",
     description:
-      "한국소비자원 참가격 결혼서비스 표본 통계를 조회합니다. 사용자가 공식 평균·중간값 참고자료를 요청할 때 사용하며, 개별 견적의 적정성·업체 품질·최종 결제액 판정에는 사용하지 않습니다.",
+      "한국소비자원 참가격에 공개된 업체별 공시 기본가 하한을 조회합니다. 비교 가능한 업체·대행사가 각각 3곳 이상일 때만 아모라가 계산한 하한 중간값과 표본·계산법·기준 시점·원문을 함께 보여줍니다. 공공기관이 발표한 집계값으로 오해시키거나 개별 견적의 적정성·업체 품질·최종 결제액으로 표현하지 않습니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1017,7 +1024,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "analyze_quote",
     description:
-      "사진 촬영·드레스·메이크업 견적의 항목 상태를 정리합니다. 1단계에서는 included_items와 not_needed_items를 빈 배열로 호출해 체크리스트를 보여주세요. [quote_analysis] 결과가 온 2단계에서만 사용자가 고른 두 배열을 전달하고 checklist_confirmed=true로 호출하세요. 항목을 추측하지 마세요.",
+      "사진 촬영·드레스·메이크업 견적의 항목 상태를 정리합니다. 1단계에서는 included_items와 not_needed_items를 빈 배열로 호출해 체크리스트를 보여주세요. [quote_analysis_v2]가 온 2단계에서는 값을 추측·보완하지 말고 도구를 호출하세요. 서버가 category, region, 금액, 업체, 상태 ID와 확인 여부를 검증한 값으로 덮어씁니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1038,12 +1045,12 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         included_items: {
           type: "array",
           items: { type: "string" },
-          description: "견적 포함 항목. **1단계에서는 반드시 빈 배열 []로 호출하세요.** 2단계([quote_analysis] 태그 메시지)에서만 사용자가 체크한 항목을 넣으세요. 추측 금지.",
+          description: "견적 포함 항목. 1단계에서는 반드시 빈 배열 []입니다. 2단계 [quote_analysis_v2] 값은 서버가 검증 후 정확한 ID 배열로 덮어쓰므로 추측 금지.",
         },
         not_needed_items: {
           type: "array",
           items: { type: "string" },
-          description: "사용자가 이용하지 않겠다고 고른 항목. 1단계에서는 빈 배열, 2단계에서만 [quote_analysis]의 ‘이용 안 함’ 목록을 그대로 넣으세요.",
+          description: "사용자가 이용하지 않겠다고 고른 항목. 1단계에서는 빈 배열이며, 2단계 [quote_analysis_v2] 값은 서버가 검증 후 정확한 ID 배열로 덮어씁니다.",
         },
         checklist_confirmed: {
           type: "boolean",

@@ -46,6 +46,17 @@ test("active mobile journeys avoid perfection promises", () => {
   assert.match(published, /막막한 결혼 준비, 함께 풀어가요/);
 });
 
+test("the home trust promise stays inside Amora's implemented evidence boundary", () => {
+  const published = ACTIVE_PRODUCT_SOURCES.join("\n");
+
+  assert.match(published, /확인된 기록과 제안을 섞지 않아요/);
+  assert.match(published, /사용자가 저장한 준비 기록과 아모라의 제안을 나눠 보여드려요/);
+  assert.doesNotMatch(
+    published,
+    /업체가 공개한 가격·추가금·위약금 원문과 AI 추천을 구분해 보여드려요/,
+  );
+});
+
 test("mobile onboarding keeps the Amora-led MVP promise in plain language", () => {
   const published = ACTIVE_PRODUCT_SOURCES.join("\n");
 
@@ -139,6 +150,24 @@ test("mobile booking records stay inside the Amora execution and evidence bounda
   );
   assert.doesNotMatch(ACTIVE_PRODUCT_SOURCES.join("\n"), /실제 결제금액/);
   assert.doesNotMatch(ACTIVE_PRODUCT_SOURCES.join("\n"), /title: "상담 예약"/);
+});
+
+test("mobile vendor inquiry handoff stays user-operated and separates user reports from provider proof", () => {
+  const bookings = readFileSync(
+    fileURLToPath(new URL("../../app/bookings/index.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  assert.match(bookings, /업체에 직접 문의하기/);
+  assert.match(bookings, /공개 연락 경로/);
+  assert.match(bookings, /아모라가 업체에 보내지 않아요/);
+  assert.match(bookings, /내가 직접 보냈어요/);
+  assert.match(bookings, /사용자 표시 · 업체 수신 증빙 아님/);
+  assert.match(bookings, /답변 결과도 사용자가 직접 기록/);
+  assert.doesNotMatch(
+    bookings,
+    /업체에 전달 완료|업체 수신 확인|예약 확정 완료|아모라가 대신 보냈어요/,
+  );
 });
 
 test("mobile booking amounts identify user-entered records without claiming payment evidence", () => {

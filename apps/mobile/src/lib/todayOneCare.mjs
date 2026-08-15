@@ -8,6 +8,12 @@ const TODAY_ONE_ACTIONS = new Set([
   "mute_source",
 ]);
 
+const TODAY_ONE_NATIVE_KIND_PRESENTATIONS = Object.freeze({
+  schedule_moment: Object.freeze({ recordLabel: "일정", icon: "schedule" }),
+  budget_guardrail: Object.freeze({ recordLabel: "예산", icon: "budget" }),
+  decision_follow_up: Object.freeze({ recordLabel: "결정", icon: "decision" }),
+});
+
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -26,6 +32,24 @@ function isIsoTimestamp(value) {
     && value.length <= 40
     && /^\d{4}-\d{2}-\d{2}T/.test(value)
     && Number.isFinite(Date.parse(value));
+}
+
+export function canRenderTodayOneFallback(
+  expectedOwnerUserId,
+  verifiedOwnerUserId,
+  expectedCoupleId,
+  verifiedCoupleId,
+) {
+  return typeof expectedOwnerUserId === "string"
+    && typeof verifiedOwnerUserId === "string"
+    && typeof expectedCoupleId === "string"
+    && typeof verifiedCoupleId === "string"
+    && UUID_RE.test(expectedOwnerUserId)
+    && UUID_RE.test(verifiedOwnerUserId)
+    && UUID_RE.test(expectedCoupleId)
+    && UUID_RE.test(verifiedCoupleId)
+    && expectedOwnerUserId.toLowerCase() === verifiedOwnerUserId.toLowerCase()
+    && expectedCoupleId.toLowerCase() === verifiedCoupleId.toLowerCase();
 }
 
 export function parseTodayOneEnvelope(value) {
@@ -87,7 +111,23 @@ export function parseTodayOnePreferenceEnvelope(value) {
 }
 
 export function getTodayOneNativeRoute(href) {
-  return href === "/schedule" || href === "/budget" ? href : null;
+  return href === "/schedule" || href === "/budget" || href === "/dashboard"
+    ? href
+    : null;
+}
+
+export function getTodayOneNativeKindPresentation(kind) {
+  return typeof kind === "string"
+    && Object.prototype.hasOwnProperty.call(TODAY_ONE_NATIVE_KIND_PRESENTATIONS, kind)
+    ? TODAY_ONE_NATIVE_KIND_PRESENTATIONS[kind]
+    : null;
+}
+
+export function isTodayOneCareCardCurrent(card, nowMs = Date.now()) {
+  if (!isRecord(card) || !Number.isFinite(nowMs) || !isIsoTimestamp(card.expiresAt)) {
+    return false;
+  }
+  return Date.parse(card.expiresAt) > nowMs;
 }
 
 function isSafeRevision(value, minimum) {

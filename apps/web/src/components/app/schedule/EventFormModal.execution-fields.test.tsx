@@ -166,6 +166,7 @@ describe("EventFormModal execution fields", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       title: "가족과 저녁 식사",
       momentType: "sanggyeonrye",
+      categoryKey: "meeting",
     }));
   });
 

@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { describe, expect, it, vi } from "vitest";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { getQuoteCheckItems } from "@/lib/amora/quoteCheck";
+import { parseCanonicalQuoteAnalysisSelection } from "@/lib/ai/quoteAnalysisSelection";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
 
 function render(toolOutput: Record<string, unknown>) {
@@ -89,6 +93,56 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
     expect(html).not.toContain("기준 시세 중위가");
   });
 
+  it("shows a current public lower-bound median only with its full evidence and limitations", () => {
+    const html = render({
+      quotePrice: 250,
+      category: "studio",
+      marketMedian: 200,
+      marketComparatorLabel: "서울 사진 촬영 공시 기본가 하한 중간값 (3건)",
+      marketEvidence: {
+        status: "available",
+        observationCount: 3,
+        vendorCount: 3,
+        source: "한국소비자원 참가격",
+        sourceUrl: "https://price.go.kr/tprice/portal/wedding/main.do",
+        sourcePeriod: "2025년 11월",
+        categoryLabel: "사진 촬영",
+        regionLabel: "서울",
+        calculation: "비교 가능한 업체·대행사별 공시 기본가 하한 3건의 중간값",
+        comparisonBasis: "price_min_krw만 비교",
+        limitation: "옵션·계약 조건·실제 결제액과 견적 적정성을 뜻하지 않습니다.",
+      },
+      missingItems: [],
+      includedItems: [],
+    });
+
+    expect(html).toContain("공시 기본가 하한 참고값");
+    expect(html).toContain("200만");
+    expect(html).toContain("2025년 11월");
+    expect(html).toContain("공시 3건");
+    expect(html).toContain("업체·대행사 3곳");
+    expect(html).toContain("price_min_krw만 비교");
+    expect(html).toContain("옵션·계약 조건·실제 결제액과 견적 적정성을 뜻하지 않습니다.");
+    expect(html).toContain("https://price.go.kr/");
+    expect(html).not.toContain("공식 평균");
+    expect(html).not.toContain("결혼 비용 시세");
+  });
+
+  it("fails closed when a claimed benchmark is missing current public evidence", () => {
+    const html = render({
+      quotePrice: 250,
+      category: "studio",
+      marketMedian: 200,
+      marketEvidence: { status: "available", observationCount: 1 },
+      missingItems: [],
+      includedItems: [],
+    });
+
+    expect(html).toContain("별도 확인");
+    expect(html).not.toContain("200만");
+    expect(html).not.toContain("공시 기본가 하한 참고값");
+  });
+
   it("shows not-needed items separately from items that still need confirmation", () => {
     const html = render({
       quotePrice: 320,
@@ -100,5 +154,49 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
 
     expect(html).toContain("아직 확인하지 않은 항목 1개");
     expect(html).toContain("이용 안 함 1개");
+  });
+
+  it("submits a bounded v2 context with the exact checklist ID partition", async () => {
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
+      .IS_REACT_ACT_ENVIRONMENT = true;
+    const items = getQuoteCheckItems("studio", "seoul");
+    const result: ToolExecutionResult = {
+      toolName: "analyze_quote",
+      toolInput: {},
+      toolOutput: {
+        mode: "checklist",
+        quotePrice: 300,
+        category: "studio",
+        region: "seoul",
+        vendorName: "테스트 스튜디오",
+        checklistItems: items,
+      },
+      success: true,
+      displayMessage: "견적 체크",
+    };
+    const onSend = vi.fn();
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => root.render(<QuoteAnalysisCard result={result} onSend={onSend} />));
+    const submit = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("확인 질문 정리하기"));
+    await act(async () => submit?.click());
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    const message = String(onSend.mock.calls[0]?.[0]);
+    expect(message).toContain("[quote_analysis_v2]");
+    expect(parseCanonicalQuoteAnalysisSelection(message)).toMatchObject({
+      status: "valid",
+      category: "studio",
+      region: "seoul",
+      quotePriceManwon: 300,
+      vendorName: "테스트 스튜디오",
+      includedItems: [],
+      notNeededItems: [],
+      unknownItems: items.map((item) => item.id),
+    });
+
+    await act(async () => root.unmount());
   });
 });

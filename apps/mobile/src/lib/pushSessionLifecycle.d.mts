@@ -1,4 +1,5 @@
 export interface PushDeliveryReleaseDependencies {
+  verifyOwner: () => Promise<unknown>;
   releaseServerToken: () => Promise<unknown>;
   unregisterDeviceToken: () => Promise<unknown>;
   clearCachedNotifications: () => Promise<unknown>;

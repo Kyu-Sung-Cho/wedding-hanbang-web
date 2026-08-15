@@ -28,7 +28,7 @@ const EXPECTED_TITLES: Record<string, string> = {
   get_schedule_events: "등록 일정",
   log_wedding_event: "웨딩 일정 기록",
   get_my_bookings: "아모라 예약 요청 기록",
-  get_market_price: "결혼 비용 시세",
+  get_market_price: "업체 공시 기본가 참고",
 };
 
 function result(toolName: string): ToolExecutionResult {

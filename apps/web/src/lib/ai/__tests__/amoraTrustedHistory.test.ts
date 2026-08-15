@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
+import { buildCanonicalQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
+import { getQuoteCheckItems } from "@/lib/amora/quoteCheck";
 
 const CURRENT_ID = "30000000-0000-4000-8000-000000000003";
 
@@ -51,6 +53,38 @@ function assistantRow(
 }
 
 describe("selectAmoraTrustedHistoryRows", () => {
+  it("projects a prior valid quote machine row to its strict human header", () => {
+    const priorId = "30000000-0000-4000-8000-000000000001";
+    const assistantId = "20000000-0000-4000-8000-000000000001";
+    const itemIds = getQuoteCheckItems("dress", "seoul").map((item) => item.id);
+    const machineContext = buildCanonicalQuoteAnalysisMessage({
+      category: "dress",
+      region: "seoul",
+      quotePriceManwon: 300,
+      vendorName: "테스트",
+      includedItemIds: [],
+      notNeededItemIds: [],
+      unknownItemIds: itemIds,
+    });
+    const rows = [
+      userRow(priorId, machineContext),
+      assistantRow(assistantId, priorId),
+      userRow(CURRENT_ID, "우리 결혼 예산을 다시 정리해줘"),
+    ];
+
+    const selected = selectAmoraTrustedHistoryRows({
+      oldestFirstRows: rows,
+      currentUserMessageId: CURRENT_ID,
+      visibility: "shared",
+    });
+
+    expect(selected.map((row) => row.id)).toEqual([priorId, assistantId, CURRENT_ID]);
+    expect(selected[0]?.content).toBe(machineContext.split("\n")[0]);
+    expect(JSON.stringify(selected)).not.toContain("[quote_analysis_v2]");
+    expect(JSON.stringify(selected)).not.toContain('"version":2');
+    expect(rows[0]?.content).toBe(machineContext);
+  });
+
   it("keeps the current bound user row and one server-proven W0 exchange", () => {
     const priorId = "30000000-0000-4000-8000-000000000001";
     const assistantId = "20000000-0000-4000-8000-000000000001";

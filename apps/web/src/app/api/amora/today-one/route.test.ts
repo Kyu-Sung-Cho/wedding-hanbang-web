@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { validateTodayOneCareLegacyResponse } from "@hanbang/shared";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
@@ -76,6 +77,27 @@ const BUDGET_READY_RESPONSE = {
   },
 };
 
+const DECISION_READY_RESPONSE = {
+  ...READY_RESPONSE,
+  card: {
+    ...READY_RESPONSE.card,
+    sourceRevision: 8,
+    sourceKey: "decision:50000000-0000-4000-8000-000000000001",
+    kind: "decision_follow_up",
+    whyNow: "직접 확인한 결정이 반영된 뒤 하루가 지났어요. 지금도 이대로 진행할지 확인해 보세요.",
+    confirmed: ["결정: 총예산을 3천만원으로 확정"],
+    unknown: [],
+    nextAction: { label: "예산 열기", href: "/budget" },
+    impact: "확인만 하며 예산·일정·체크리스트를 자동으로 바꾸지 않아요.",
+    choices: [
+      { action: "open_source", label: "예산 열기" },
+      { action: "snooze", label: "나중에" },
+      { action: "dismiss", label: "오늘 닫기" },
+      { action: "mute_source", label: "내용이 바뀔 때까지 숨기기" },
+    ],
+  },
+};
+
 type TableResult = { data: unknown; error: unknown };
 
 function query(
@@ -111,6 +133,8 @@ function makeClient(options?: {
   exposureSignals?: Record<string, unknown>[];
   budgetExposureSignals?: Record<string, unknown>[];
   exposureStates?: Record<string, unknown>[];
+  decisions?: Record<string, unknown>[];
+  privacyEpochs?: number[];
   rpcResult?: { data: unknown; error: unknown };
 }) {
   const tables = {
@@ -172,10 +196,17 @@ function makeClient(options?: {
       { data: options?.exposureSignals ?? [], error: null },
       { data: options?.budgetExposureSignals ?? [], error: null },
     ),
+    decision_nodes: query(
+      { data: null, error: null },
+      { data: options?.decisions ?? [], error: null },
+    ),
   };
   const from = vi.fn((name: keyof typeof tables) => tables[name]);
-  const rpc = vi.fn().mockResolvedValue(
-    options?.rpcResult ?? {
+  const privacyEpochs = [...(options?.privacyEpochs ?? [5, 5])];
+  const rpc = vi.fn().mockImplementation((name: string) => Promise.resolve(
+    name === "get_own_amora_privacy_epoch"
+      ? { data: privacyEpochs.shift() ?? 5, error: null }
+      : options?.rpcResult ?? {
       data: {
         version: 1,
         state: "none",
@@ -184,7 +215,7 @@ function makeClient(options?: {
       },
       error: null,
     },
-  );
+  ));
   return {
     client: {
       auth: {
@@ -204,12 +235,25 @@ function makeClient(options?: {
 function post(body: unknown) {
   return new Request("http://localhost/api/amora/today-one", {
     method: "POST",
-    headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" },
+    headers: {
+      "content-type": "application/json",
+      "sec-fetch-site": "same-origin",
+      "x-amora-today-one-contract-version": "2",
+    },
     body: JSON.stringify(body),
   });
 }
 
 function get() {
+  return new Request("http://localhost/api/amora/today-one", {
+    headers: {
+      "sec-fetch-site": "same-origin",
+      "x-amora-today-one-contract-version": "2",
+    },
+  });
+}
+
+function legacyGet() {
   return new Request("http://localhost/api/amora/today-one", {
     headers: { "sec-fetch-site": "same-origin" },
   });
@@ -237,18 +281,54 @@ describe("/api/amora/today-one", () => {
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
-  it("compiles only a server-derived journey candidate through the service RPC", async () => {
+  it("returns structured schedule care without changing the frozen RPC presentation", async () => {
     vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
     const { client } = makeClient();
     vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
-    const compile = vi.fn().mockResolvedValue({ data: READY_RESPONSE, error: null });
+    const scheduleCandidate = buildTodayOneScheduleCandidates({
+      progress: {
+        __events: [{
+          id: "evt-1",
+          date: "2026-08-03",
+          time: "18:00",
+          title: "상견례",
+          momentType: "sanggyeonrye",
+          status: "planned",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+        }],
+      },
+      stateRevision: 7,
+      now: new Date("2026-08-02T03:00:00.000Z"),
+    })[0];
+    expect(scheduleCandidate).toBeDefined();
+    const rpcReady = {
+      ...READY_RESPONSE,
+      card: { ...READY_RESPONSE.card, sourceKey: scheduleCandidate.sourceKey },
+    };
+    const compile = vi.fn().mockResolvedValue({ data: rpcReady, error: null });
     vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
 
     const response = await GET(get());
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ available: true, result: READY_RESPONSE });
-    expect(compile).toHaveBeenCalledTimes(1);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      available: true,
+      result: {
+        version: 2,
+        card: {
+          sourceKey: scheduleCandidate.sourceKey,
+          care: {
+            momentType: "sanggyeonrye",
+            attentionWindow: "d1",
+            checklist: expect.arrayContaining(["예약·참석 인원 최종 확인"]),
+            relatedChecklist: { categoryKey: "meeting" },
+          },
+        },
+      },
+    });
+    expect(compile).toHaveBeenCalledTimes(2);
     expect(compile).toHaveBeenCalledWith(
       "compile_amora_today_one_card",
       expect.objectContaining({
@@ -261,6 +341,283 @@ describe("/api/amora/today-one", () => {
           confirmed: ["일정: 상견례", "날짜: 2026-08-03 18:00"],
         }),
       }),
+    );
+    const compileArgs = compile.mock.calls.find(([name]) => (
+      name === "compile_amora_today_one_card"
+    ))?.[1] as { p_presentation?: Record<string, unknown> } | undefined;
+    expect(compileArgs?.p_presentation).not.toHaveProperty("care");
+    expect(Object.keys(compileArgs?.p_presentation ?? {}).sort()).toEqual([
+      "choices",
+      "confirmed",
+      "impact",
+      "kind",
+      "nextAction",
+      "unknown",
+      "whyNow",
+    ]);
+    expect(JSON.stringify(body.result.card.care)).not.toMatch(/계약|추가금|해지|위약|환불/);
+  });
+
+  it("projects a headerless schedule response to the frozen v1 shape", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const { client } = makeClient();
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const scheduleCandidate = buildTodayOneScheduleCandidates({
+      progress: {
+        __events: [{
+          id: "evt-1",
+          date: "2026-08-03",
+          time: "18:00",
+          title: "상견례",
+          momentType: "sanggyeonrye",
+          status: "planned",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+        }],
+      },
+      stateRevision: 7,
+      now: new Date("2026-08-02T03:00:00.000Z"),
+    })[0];
+    expect(scheduleCandidate).toBeDefined();
+    const compile = vi.fn().mockResolvedValue({
+      data: {
+        ...READY_RESPONSE,
+        card: { ...READY_RESPONSE.card, sourceKey: scheduleCandidate.sourceKey },
+      },
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+
+    const response = await GET(legacyGet());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.result.version).toBe(1);
+    expect(body.result.card).not.toHaveProperty("care");
+    expect(validateTodayOneCareLegacyResponse(body.result, USER_ID)).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("does not inspect or expose decision follow-ups to a headerless v1 client", async () => {
+    const { client, tables } = makeClient({ decisions: [{ id: CARD_ID }] });
+    tables.wedding_journeys.single.mockResolvedValueOnce({
+      data: {
+        wedding_date: null,
+        total_budget: null,
+        progress: {},
+        state_revision: 8,
+      },
+      error: null,
+    });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+
+    const response = await GET(legacyGet());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      available: true,
+      result: {
+        version: 1,
+        state: "none",
+        recipientUserId: USER_ID,
+        claimedForDate: expect.any(String),
+      },
+    });
+    expect(tables.decision_nodes.select).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported response contract before claiming a card", async () => {
+    const { client } = makeClient();
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+
+    const response = await GET(new Request("http://localhost/api/amora/today-one", {
+      headers: {
+        "sec-fetch-site": "same-origin",
+        "x-amora-today-one-contract-version": "99",
+      },
+    }));
+
+    expect(response.status).toBe(426);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "TODAY_ONE_CONTRACT_UNSUPPORTED",
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("returns the D+1 family-greeting question through the consumer API", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const familyEvent = {
+      id: "evt-family",
+      date: "2026-08-01",
+      time: "18:00",
+      title: "가족 첫인사",
+      momentType: "family_greeting",
+      status: "planned",
+      createdAt: "2026-07-31T00:00:00.000Z",
+      updatedAt: "2026-07-31T00:00:00.000Z",
+    };
+    const { client, tables } = makeClient();
+    tables.wedding_journeys.single.mockResolvedValueOnce({
+      data: {
+        wedding_date: "2026-12-01",
+        total_budget: null,
+        progress: { __events: [familyEvent] },
+        state_revision: 7,
+      },
+      error: null,
+    });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const scheduleCandidate = buildTodayOneScheduleCandidates({
+      progress: { __events: [familyEvent] },
+      stateRevision: 7,
+      now: new Date("2026-08-02T03:00:00.000Z"),
+    })[0];
+    expect(scheduleCandidate).toBeDefined();
+    const compile = vi.fn().mockResolvedValue({
+      data: {
+        ...READY_RESPONSE,
+        card: {
+          ...READY_RESPONSE.card,
+          sourceKey: scheduleCandidate.sourceKey,
+        },
+      },
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+
+    const response = await GET(get());
+    const body = await response.json();
+
+    expect({ status: response.status, body }).toMatchObject({
+      status: 200,
+      body: {
+        available: true,
+        result: {
+          card: {
+            care: {
+              momentType: "family_greeting",
+              attentionWindow: "dAfter",
+              checklist: [],
+              question: "분위기는 어땠어? 다음 만남에도 참고하고 싶은 호칭이나 취향이 있었다면, 저장해도 되는 내용만 알려줘.",
+              relatedBudget: {
+                categoryKey: "meeting",
+                categoryLabel: "부모님 첫 만남",
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("returns dress fitting D-1 care without exposing budget fields to the compiler or consumer", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const dressEvent = {
+      id: "evt-dress-fitting",
+      date: "2026-08-03",
+      time: "18:00",
+      title: "드레스 수선·최종 확인",
+      categoryKey: "dress",
+      momentType: "dress_fitting",
+      status: "planned",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    };
+    const { client, tables } = makeClient();
+    tables.wedding_journeys.single.mockResolvedValueOnce({
+      data: {
+        wedding_date: "2026-12-01",
+        total_budget: null,
+        progress: { __events: [dressEvent] },
+        state_revision: 7,
+      },
+      error: null,
+    });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const scheduleCandidate = buildTodayOneScheduleCandidates({
+      progress: { __events: [dressEvent] },
+      stateRevision: 7,
+      now: new Date("2026-08-02T03:00:00.000Z"),
+    })[0];
+    expect(scheduleCandidate).toBeDefined();
+    const compile = vi.fn().mockResolvedValue({
+      data: {
+        ...READY_RESPONSE,
+        card: {
+          ...READY_RESPONSE.card,
+          sourceKey: scheduleCandidate.sourceKey,
+          whyNow: scheduleCandidate.whyNow,
+          confirmed: scheduleCandidate.confirmed,
+        },
+      },
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+
+    const response = await GET(get());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(compile).toHaveBeenCalledWith(
+      "compile_amora_today_one_card",
+      expect.objectContaining({
+        p_source_key: scheduleCandidate.sourceKey,
+        p_priority: 100,
+        p_presentation: expect.not.objectContaining({ care: expect.anything() }),
+      }),
+    );
+    expect(body).toMatchObject({
+      available: true,
+      result: {
+        card: {
+          care: {
+            momentType: "dress_fitting",
+            attentionWindow: "d1",
+            guidance: "내일 드레스 수선 상태를 확인해. 입어보기만 하지 말고 실제로 움직여보자.",
+            checklist: expect.arrayContaining(["앉기·걷기·팔 들기 테스트"]),
+            relatedChecklist: {
+              categoryKey: "dress",
+              categoryLabel: "드레스·예식 정장",
+            },
+          },
+        },
+      },
+    });
+    expect(body.result.card.care).not.toHaveProperty("relatedBudget");
+    expect(body.result.card.care).not.toHaveProperty("question");
+    expect(JSON.stringify(body.result.card.care)).not.toMatch(/계약|추가금|해지|위약|환불|예산/);
+  });
+
+  it("maps a v2 race detected inside the v1 compile transaction to the daily limit", async () => {
+    vi.setSystemTime(new Date("2026-08-02T03:00:00.000Z"));
+    const { client } = makeClient();
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const rpc = vi.fn().mockImplementation((name: string) => Promise.resolve(
+      name === "assert_amora_today_one_v1_claim_available_v2"
+        ? { data: null, error: null }
+        : {
+            data: null,
+            error: {
+              code: "P0001",
+              message: "AMORA_TODAY_ONE_DAILY_LIMIT_V2",
+            },
+          },
+    ));
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+
+    const response = await GET(get());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      available: true,
+      result: { state: "daily_limit", recipientUserId: USER_ID },
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "compile_amora_today_one_card",
+      expect.any(Object),
     );
   });
 
@@ -305,7 +662,7 @@ describe("/api/amora/today-one", () => {
     expect(tables.wedding_journeys.select).toHaveBeenCalledWith(
       "wedding_date, total_budget, progress, state_revision",
     );
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2);
     expect(compile).toHaveBeenCalledWith(
       "compile_amora_today_one_card",
       expect.objectContaining({
@@ -321,7 +678,85 @@ describe("/api/amora/today-one", () => {
     );
     expect(await response.json()).toEqual({
       available: true,
-      result: BUDGET_READY_RESPONSE,
+      result: { ...BUDGET_READY_RESPONSE, version: 2 },
+    });
+  });
+
+  it("compiles a follow-up only from a current-roster confirmed shared decision receipt", async () => {
+    vi.setSystemTime(new Date("2026-08-12T03:00:00.000Z"));
+    const requestId = "60000000-0000-4000-8000-000000000001";
+    const groomId = "10000000-0000-4000-8000-000000000002";
+    const confirmedAt = "2026-08-10T00:00:00.000Z";
+    const { client, tables } = makeClient({
+      decisions: [{
+        id: "50000000-0000-4000-8000-000000000001",
+        couple_id: COUPLE_ID,
+        visibility: "shared",
+        decision_type: "decided",
+        title: "총예산을 3천만원으로 확정",
+        source_ref_id: requestId,
+        source_actor_role: "bride",
+        user_confirmed_at: confirmedAt,
+        decided_at: confirmedAt,
+        superseded_at: null,
+        metadata: {
+          origin: "couple_plan_change_request",
+          requestId,
+          changeDigest: "a".repeat(64),
+          rosterFingerprint: "b".repeat(32),
+          expectedRevision: 7,
+          appliedRevision: 8,
+          requiredCount: 2,
+          acceptances: [
+            { userId: USER_ID, acceptedAt: confirmedAt },
+            { userId: groomId, acceptedAt: confirmedAt },
+          ],
+          surfaceHref: "/budget",
+        },
+      }],
+    });
+    tables.couples.single.mockResolvedValueOnce({
+      data: { bride_id: USER_ID, groom_id: groomId },
+      error: null,
+    });
+    tables.wedding_journeys.single.mockResolvedValueOnce({
+      data: {
+        wedding_date: "2026-12-01",
+        total_budget: null,
+        progress: {},
+        state_revision: 8,
+      },
+      error: null,
+    });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const compile = vi.fn().mockResolvedValue({
+      data: DECISION_READY_RESPONSE,
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc: compile } as never);
+
+    const response = await GET(get());
+
+    expect(response.status).toBe(200);
+    expect(tables.decision_nodes.select).toHaveBeenCalledWith(
+      "id, couple_id, visibility, decision_type, title, source_ref_id, source_actor_role, user_confirmed_at, decided_at, superseded_at, metadata",
+    );
+    expect(compile).toHaveBeenCalledWith(
+      "compile_amora_decision_follow_up_card",
+      expect.objectContaining({
+        p_decision_id: "50000000-0000-4000-8000-000000000001",
+        p_expected_privacy_epoch: 5,
+        p_source_revision: 8,
+        p_priority: 80,
+        p_presentation: expect.objectContaining({
+          kind: "decision_follow_up",
+          confirmed: ["결정: 총예산을 3천만원으로 확정"],
+        }),
+      }),
+    );
+    expect(await response.json()).toEqual({
+      available: true,
+      result: { ...DECISION_READY_RESPONSE, version: 2 },
     });
   });
 
@@ -367,7 +802,7 @@ describe("/api/amora/today-one", () => {
     const response = await GET(get());
 
     expect(response.status).toBe(200);
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2);
     expect(compile).toHaveBeenCalledWith(
       "compile_amora_today_one_card",
       expect.objectContaining({
@@ -375,7 +810,10 @@ describe("/api/amora/today-one", () => {
         p_priority: 110,
       }),
     );
-    expect(await response.json()).toEqual({ available: true, result: READY_RESPONSE });
+    expect(await response.json()).toEqual({
+      available: true,
+      result: { ...READY_RESPONSE, version: 2 },
+    });
   });
 
   it("updates today's changed source before trying a different higher-priority candidate", async () => {
@@ -426,7 +864,7 @@ describe("/api/amora/today-one", () => {
     const response = await GET(get());
 
     expect(response.status).toBe(200);
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2);
     expect(compile).toHaveBeenCalledWith(
       "compile_amora_today_one_card",
       expect.objectContaining({
@@ -484,7 +922,7 @@ describe("/api/amora/today-one", () => {
       "source_key",
       "budget:%",
     );
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2);
     expect(compile).toHaveBeenCalledWith(
       "compile_amora_today_one_card",
       expect.objectContaining({

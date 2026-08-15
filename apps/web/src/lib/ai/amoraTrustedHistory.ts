@@ -1,5 +1,6 @@
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { parseCanonicalQuoteAnalysisSelection } from "@/lib/ai/quoteAnalysisSelection";
 
 export type AmoraTrustedHistoryVisibility =
   | "shared"
@@ -92,6 +93,16 @@ function isSafeWeddingHistoryUser(row: AmoraTrustedHistoryRow): boolean {
     || questionScope.scope === "W1_wedding_adjacent";
 }
 
+function projectHistoricalUserRow<T extends AmoraTrustedHistoryRow>(row: T): T | null {
+  if (typeof row.content !== "string") return null;
+  const selection = parseCanonicalQuoteAnalysisSelection(row.content);
+  if (selection.status === "absent") return row;
+  if (selection.status === "invalid") return null;
+  const header = row.content.split(/\r?\n/u, 1)[0]?.trim();
+  if (!header) return null;
+  return { ...row, content: header };
+}
+
 /**
  * Selects only complete, server-proven, low-risk exchanges plus the exact
  * current bound user row. Every historical ambiguity is intentionally dropped.
@@ -129,7 +140,9 @@ export function selectAmoraTrustedHistoryRows<T extends AmoraTrustedHistoryRow>(
     ) {
       continue;
     }
-    trustedRows.push(userRow, assistantRow);
+    const projectedUserRow = projectHistoricalUserRow(userRow);
+    if (!projectedUserRow) continue;
+    trustedRows.push(projectedUserRow, assistantRow);
     index += 1;
   }
 

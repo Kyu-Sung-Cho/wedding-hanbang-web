@@ -4,17 +4,24 @@
  * Both actions are always attempted so a transient failure has a recovery path.
  */
 export async function releasePushDeliveryOwnership({
+  verifyOwner,
   releaseServerToken,
   unregisterDeviceToken,
   clearCachedNotifications,
 }) {
   if (
-    typeof releaseServerToken !== "function"
+    typeof verifyOwner !== "function"
+    || typeof releaseServerToken !== "function"
     || typeof unregisterDeviceToken !== "function"
     || typeof clearCachedNotifications !== "function"
   ) {
     throw new Error("INVALID_PUSH_RELEASE_DEPENDENCIES");
   }
+
+  // The device token and notification cache are installation-wide. Reverify
+  // the captured account after reading local state and before any release
+  // branch starts, so an A→B auth transition cannot unregister B's device.
+  await verifyOwner();
 
   const [server, device, cache] = await Promise.allSettled([
     releaseServerToken(),

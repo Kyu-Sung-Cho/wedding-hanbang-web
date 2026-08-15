@@ -18,6 +18,11 @@
 remote branch·Draft PR·접근 보호된 Vercel stub Preview로 게시했다. 이후 파일이나 SHA가
 바뀌면 이 검증과 Preview 판정을 자동 상속하지 않는다.
 
+> 2026-08-15 업데이트: 아래 exact SHA `f8851f74` 영수증은 역사 기록으로 보존한다. 이후
+> 개인화 구현과 현재 dirty source의 범위·검증·미완료 항목은
+> `docs/operations/AMORA_PERSONALIZATION_WORK_LOG_2026-08-15.md`가 이어받는다. 현재 source는
+> 아직 미커밋이며 hosted·device 증거가 없으므로 이 Preview나 Production 판정을 상속하지 않는다.
+
 가장 중요한 결론은 두 가지다.
 
 1. 아래에 열거한 source 결함은 fail-closed 계약과 회귀 테스트로 보강했다.
@@ -262,6 +267,95 @@ profile·journey·settings·onboarding·couple code/link/reset·chat·password·
   fleet drain, 그리고 가능한 Supabase Auth 정책 수준의 차단 능력을 확인해야 한다.
 - 이 source 보강을 모든 계정 전환 경쟁이 hosted 환경에서 증명됐다는 뜻으로 쓰지 않는다.
 
+### 2.8 명시적으로 확정된 결정의 후속 확인
+
+아모라는 대화의 감정이나 암시를 결정으로 추론하지 않는다. 두 사람이 명시적으로 승인해
+실제로 적용된 `couple_plan_change_request` receipt만 24시간 뒤 한 번 확인할 수 있다.
+
+현재 source 계약:
+
+- service-only DB wrapper가 현재 authenticated privacy epoch, profile backlink, couple roster,
+  shared·non-superseded decision, 요청 digest와 source actor, 정확한 양측 acceptance를 같은
+  transaction의 lock 아래 다시 확인한다.
+- private 상담 내용, 한 사람만의 의사, 임의의 감정·결정 추론은 follow-up 후보가 될 수 없다.
+- 원 결정의 정규화된 적용 값이 현재 journey에 그대로 남아 있을 때만 후보를 만든다. 이후의
+  무관한 journey 수정은 허용하지만, 결정 값을 되돌리거나 취소한 상태는 fail-closed한다.
+- 후보 생성은 journey·결정·memory를 다시 변경하지 않는다. Today One 카드도 exact
+  `/budget`, `/schedule`, `/dashboard` 목적지를 검증한 뒤에만 source-open receipt를 남긴다.
+- 웹·모바일은 이 종류를 일정이나 예산 기록으로 오표시하지 않고 `확인된 결정`으로 구분한다.
+
+주요 파일:
+
+- `supabase/migrations/20260812100000_amora_today_one_decision_follow_up.sql`
+- `apps/web/src/lib/care/decisionFollowUp.ts`
+- `apps/web/src/app/api/amora/today-one/route.ts`
+- `packages/shared/src/contracts/todayOneCare.ts`
+
+주의: 이 source 계약은 hosted migration 적용, 실제 두 계정·두 기기 전달, 24시간 운영 중복
+방지까지 증명한 것이 아니다. hosted evidence가 닫히기 전에는 production apply를 허용하지 않는다.
+
+### 2.9 양측 확정 중재의 수신자별 결과 확인
+
+`conflict_resolution`/`chat` 결정 중 정확히 두 사람이 같은 proposal revision을 승인한 경우만
+24시간 뒤 각 수신자에게 별도의 비공개 결과 카드를 만들 수 있다. 이 수직은 TodayOne v1/v2와
+`amora_actions`를 재사용하지 않는다.
+
+현재 source 계약:
+
+- 결과는 `resolved`, `changed`, `blocked`, `stop` 네 값뿐이며 자유서술, 원문, 요청자 요약,
+  상대 감정·의도는 API·테이블·영수증 계약에 없다. 모든 표시 문구도 shared strict contract의
+  고정 문자열이다.
+- service-only/FORCE RLS 테이블과 RPC가 actor, couple, profile backlink, privacy epoch, roster,
+  decision, source message, proposal acceptance를 잠그고 다시 확인한다. safety marker가 없거나
+  폭력·강압·비공개 safety hold가 있으면 카드를 만들거나 결과를 쓰지 않는다.
+- 한 사람의 결과는 그 사람의 카드와 bounded receipt만 바꾼다. shared decision/action이나
+  상대 카드에는 쓰지 않고 자동 재중재도 시작하지 않는다.
+- 동일 idempotency key 재요청은 canonical receipt를 재생하고, CAS·digest·owner·couple이
+  다르면 fail-closed한다. 24시간 대기 뒤 30일 응답 창이 지나면 새 카드를 만들지 않는다.
+- 모바일은 POST 응답, receipt 재조회, 카드 소비 재조회를 모두 확인하기 전 성공을 표시하지
+  않는다. 계정·커플 전환, 늦은 응답, 오프라인을 차단하고 44pt control과 live region을 둔다.
+- safety disposition은 안내 카드를 먼저 렌더하고, owner/couple UUID를 purpose-version과 함께
+  SHA-256 digest로 바꾼 generic key와 exact `{version:1,active:true}` marker만 저장한다. 모바일은
+  SecureStore+AsyncStorage, 웹은 localStorage+IndexedDB에 동시에 쓰고 어느 한 저장소의 marker도
+  read-any로 차단한다. key/value에는 원문, 사유, 분류, owner/couple UUID가 없다.
+  동시에 4초 제한의 service endpoint가 FORCE RLS/service-only
+  `amora_mediation_private_safety_holds`에 owner, couple, privacy epoch provenance, active,
+  revalidation expiry, version만 저장한다. endpoint/RPC가 503이어도 안내와 로컬 hold는 유지되고,
+  모바일 재시작·웹 새로고침 뒤 조율 제안/요청과 결과 후속은 fail-closed한다. 누락 외의 read
+  error·손상·stale/clock rollback state는 이 선택형 수직만 숨기며 일반 chat/action/TodayOne은
+  그대로 둔다.
+- `AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED`는 이번 release/runtime에서 exact `false`다.
+  source·DB가 준비됐다는 이유만으로 `true`로 바꾸지 않는다.
+
+주요 파일:
+
+- `supabase/migrations/20260812140000_amora_mediation_outcome_follow_up.sql`
+- `packages/shared/src/contracts/mediationOutcomeFollowUp.ts`
+- `apps/web/src/app/api/amora/mediation/follow-up/route.ts`
+- `apps/web/src/app/api/amora/mediation/follow-up/outcomes/route.ts`
+- `apps/web/src/app/api/amora/mediation/private-safety-hold/route.ts`
+- `apps/web/src/lib/care/mediationPrivateSafetyHoldBrowser.ts`
+- `apps/mobile/src/components/dashboard/AmoraMediationOutcomeFollowUp.tsx`
+- `apps/mobile/src/lib/privateMediationSafetyHold.ts`
+
+이 항목은 현재 working-tree source 검증이며 문서 상단의 과거 exact SHA 증거를 상속하지 않는다.
+hosted migration, 실제 두 계정·두 기기, TalkBack/VoiceOver 영수증이 없으므로 production apply와
+flag enable은 계속 금지한다.
+
+활성화 전 별도 blocker:
+
+- 새 hold table은 migration 시 비어 있으며 기존 device/local hold를 backfill하지 않는다.
+- 구형 모바일 W5는 local-only return이고 stale web asset도 새 opaque endpoint를 호출하지 않는다.
+  따라서 minimum safe mobile version 강제·fleet drain과 stale web asset/cache window 종료 증거가
+  모두 필요하다.
+- 과거 safety event gap은 다음 중 하나로 닫아야 한다: clean cohort에만 제한, 원문 없는 historical
+  hold backfill과 누락 negative proof, 또는 safety-hold 지원 클라이언트가 완전히 배포된 뒤 최소
+  31일 drain. 어느 것도 없으면 flag는 계속 `false`다.
+- enable 승인에는 실제 두 계정·두 기기 cross-device 차단, privacy epoch 변경 후 지속 차단,
+  seal 503 뒤 모바일 restart/웹 reload 차단, 각 로컬 저장소 단독 실패와 전체 저장소 불능률,
+  hosted seal health 증거가 함께 필요하다. 모든 로컬 저장소와 service seal이 동시에 실패하는
+  절대 보장은 불가능하므로 해당 storage-health 증거 없이 flag를 `true`로 바꾸지 않는다.
+
 ---
 
 ## 3. 제품·UX 보강
@@ -352,8 +446,33 @@ moment loop는 `momentType` 없는 일반 일정을 의도적으로 무시하지
 - 사용할 수 없는 업체 검색·예산 시뮬레이션 도구를 약속하는 prompt를 제거했다.
 - scope vocabulary와 clarification tone을 현재 classifier에 맞췄다.
 - 최신 `AI 파트너` voice를 과거 PR 전체 merge로 되돌리지 않고 필요한 hunk만 반영했다.
-- mediation이 requester 요약만 가진 경우 두 사람의 원문을 모두 들었다고 과대 귀속하지
-  않는 후속 검토가 계속 필요하다.
+- 조율은 사용자가 원할 때만 여는 선택 기능이다. 웹·모바일 모두 최근의 공유 파트너
+  발화에서 양측의 명시적인 의견 충돌이 보일 때 로컬에서 도움을 제안할 수 있지만, 관계나
+  갈등을 판정하거나 자동으로 조율 요청을 보내지는 않는다.
+- 요청 창에 당사자가 직접 입력한 요약만 provider에 전달한다. 상대방에게 보낸 원문과
+  비공개 상담은 자동 반입하지 않으며, 결과는 `requester_summary_only`로 표시하고 상대방
+  관점이 아직 확인되지 않았음을 명시한다.
+- 요청자가 표현하지 않은 감정을 만들어내지 않는다. 답변은 확인된 핵심 쟁점과 상대에게
+  확인할 질문 하나, 작고 상호적이며 되돌릴 수 있는 선택지 1~2개를 중심으로 짧게 만든다.
+  기계적인 4단계 문답, 무조건 반반 양보, 장문 체크리스트, 후속 suggestion chip은 조율
+  응답에서 허용하지 않는다.
+- 폭력·강압·자해·성적/재생산 강요·이동 감시·유포 협박 신호가 있거나 현재 사용자의
+  비공개 안전 hold가 열려 있으면 일반 조율 제안과 요청을 fail-closed한다. 중재 결과의
+  인격 비난·도덕적 우열·숨은 동기 단정·일방 사과/양보 명령도 승인 가능한 카드가 되지
+  못한다.
+- `함께`, `서로`, `동등` 같은 단어를 끼워 넣어 일방 사과·양보·결정권을 숨기는 출력과
+  돈·소득·비용 부담을 의사결정 권한으로 바꾸는 출력도 생성·저장·렌더·수락 경계에서
+  다시 검사한다. 저장된 legacy/위조 카드가 이 검사를 통과하지 못하면 원문 대신 고정된
+  안전 안내만 보이고 수락할 수 없다.
+- 안전 카드가 조율 요청 도중 도착하면 웹·모바일 모두 그 조율 요청만 중단하고, 늦은
+  partial/done 응답과 저장을 버리며, 같은 요청 재시도와 CTA도 폐기한다. 일반 상담의
+  진행 중 요청과 재시도는 함께 지우지 않는다.
+- 조율 결과는 한 사람의 확인만으로 공동 결정이 되지 않으며 두 사람이 각각 확인해야
+  `decision_nodes`로 남는다.
+- 이 source·offline eval은 안전·개인정보·결정적 회귀 계약의 증거다. 훈련된 인간
+  중재자와의 블라인드 비교, 실제 커플 만족도·갈등 악화율, live 모델 품질, 실제 기기
+  접근성은 **NOT VERIFIED**다. 따라서 “사람보다 낫다”, “갈등을 알아서 해결한다”,
+  “리스크가 없다”는 제품 주장을 해서는 안 된다.
 
 ---
 
@@ -424,6 +543,17 @@ snapshot을 대신하지 않으며 hosted·fleet·기기 증거도 아니다.
 | `supabase:release:fence` | PASS, manifest는 계속 `deployment_blocked` |
 | provider 관련 web TypeScript/ESLint | PASS |
 | schedule shared TypeScript + web/mobile TypeScript·ESLint | PASS |
+| recipient-private mediation focused Web 8 suites | 50/50 PASS — contract/compiler/safety/API/PGlite/flag |
+| recipient-private mediation PGlite | 8/8 PASS — service-only/FORCE RLS, lock/recheck, safety, idempotency, partner isolation; hosted 적용 증거 아님 |
+| 2026-08-15 current working-tree Mobile 전체 | 789/789 PASS — 실제 두 기기·실기기 접근성 E2E 아님 |
+| first-use provenance contract/API/DB/AI binding focused | 436/436 PASS — hosted PostgREST·실동시성 증거 아님 |
+| current working-tree Web Vitest 4 shards | 7,145/7,145 PASS |
+| current working-tree shared/web/mobile typecheck | PASS / PASS / PASS |
+| current working-tree web/mobile lint | PASS(기존 비관련 warning 1) / PASS |
+| rollout env + successor evidence focused | 17/17 + 18/18 PASS |
+| release fence/production controller/build-fence tests | 16/16 + 55/55 + 10/10 PASS |
+| current `supabase:release:test` | 198/198 PASS |
+| current `supabase:release:fence` | PASS — successor `deployment_blocked`, exact migration 95개 |
 | `git diff --check` | PASS |
 
 ### 5.3 원격 게시와 격리 Preview
@@ -463,6 +593,22 @@ snapshot을 대신하지 않으며 hosted·fleet·기기 증거도 아니다.
 1. `20260811230000_amora_provider_egress_grant.sql`
 2. `20260812030000_couple_invite_replay_hardening.sql`
 3. `20260812090000_amora_server_only_chat_ingest.sql`
+4. `20260812100000_amora_today_one_decision_follow_up.sql`
+5. `20260812120000_vendor_inquiry_handoff.sql`
+6. `20260812130000_amora_action_follow_up_v2.sql`
+7. `20260812140000_amora_mediation_outcome_follow_up.sql`
+8. `20260814120000_amora_explicit_action_execution.sql`
+9. `20260814130000_amora_core_criterion.sql`
+10. `20260814140000_amora_couple_core_criterion.sql`
+11. `20260815120000_amora_action_outcome_feedback.sql`
+12. `20260815130000_amora_first_use_action_promotions.sql`
+
+업체 문의 handoff의 `prepare`, `mark_sent`, `record_reply`는 화면이 읽은
+`expectedRevision`으로만 변경한다. 최초 `prepare`는 0, 기존 handoff는 현재 revision이
+필수다. 같은 요청의 응답 유실 재시도는 이미 같은 결과가 저장된 경우 현재 envelope로
+복구하고, 같은 revision에서 다른 결과가 경쟁하면 409
+`VENDOR_INQUIRY_HANDOFF_REVISION_CONFLICT`로 중단한 뒤 최신 상태를 다시 읽는다. `inspect`는
+revision을 보내지 않는다. 이 계약은 provider 전송·수신·예약 확정 증거를 만들지 않는다.
 
 LF 정규화 SHA-256:
 
@@ -471,8 +617,17 @@ LF 정규화 SHA-256:
 | provider egress | `e030763d1da01e4f514b2cd1581eb63b439ad3a3aaecc89e89d64bf10147c674` |
 | invite replay | `0037ba639289fecc12f935c7eeee57a3f3bfc173516b67d67b951d82cf411a19` |
 | server-only ingest | `98abb0e90f9a38546f4bb0d61b42bd196deb4805f9fc7a024cae24733bab7ade` |
+| explicit decision follow-up | `65affa3d0fb9d9d2c29e5681b93deadfb079acd0f6b6e37aa3f33a3f99b5ab4e` |
+| vendor inquiry handoff | `4d1e290e828ef958e92dd038dc3ef2d33dd37e20241dc83768f391c50329cd89` |
+| action follow-up v2 | `1048132e7328e6d397baee848ce0f79ac00585a168f5381d4ce9202defc61657` |
+| recipient-private mediation outcome follow-up | `150d7e221469b971fc97302aae5b854d8a62b526199428b4be312a5ecedadd79` |
+| explicit action execution | `c3f63b696f489f2a58d4537aa2a293624d31b7ba6a99afaa22e41b47ff9f3a38` |
+| owner-private core criterion | `fe3c37e8c70e22e09f06151f6d866cc2e2c8a5702e7a8e5a2340d7a3fc241fa1` |
+| couple core criterion | `f247c77641223f216df9f265ec79a36b79991e2debcce464ad55f57601f29160` |
+| owner-private action outcome feedback | `d6dbde267bc04222d969ee98b1cd733add5f09644b66ab4548aeb8304e611f01` |
+| first-use action promotion provenance | `c4808671308c2ed0bb2be0a7c82b894b69c3d20c63f4547abb3bd61d64511090` |
 
-`supabase/release-manifests/vendor-disclosure-v2-20260718.json`에는 세 migration과 exact
+`supabase/release-manifests/vendor-disclosure-v2-20260718.json`에는 위 12개 migration과 exact
 hash가 들어갔다. 신규 생성 테이블은 successor controller를 만들 때 post-expand backup
 inventory에 포함돼야 하며, 그 요구는
 `scripts/tests/successor-release-evidence-contract.test.mjs`가 정적으로 검사한다. 현재
@@ -563,12 +718,28 @@ fleet drain과 fresh attestation까지 확보한 뒤에만 release-candidate SQL
 - generic mutation actor contract는 Phase A다. headerless legacy 허용 경로의 fleet drain과
   Phase B 강제 gate를 닫지 않았다. reset/password/delete의 strict source 계약만으로 일반
   mutation까지 strict하다고 주장하지 않는다.
+- `/api/journey`의 `expected_couple_id`와 `/api/couple/reset`·`/api/auth/delete`의 actor-v2
+  계약은 다른 커플·다른 계정 쓰기를 막기 위해 fail-closed다. headerless 설치 앱에는
+  `426 CLIENT_UPDATE_REQUIRED`만 반환하고 쓰지 않는다. 구버전 요청을 다시 허용해 호환성을
+  가장하지 않는다. minimum supported mobile 강제 또는 실제 legacy traffic 0 증거 없이 이
+  strict 서버 artifact를 Production에 전환하면 기존 앱의 일정·예산 저장과 초기화·삭제가
+  막히므로 여전히 release blocker다.
+- Today One API의 headerless 응답은 동결된 v1(`schedule_moment|budget_guardrail`, `care` 없음)
+  으로 투영한다. `X-Amora-Today-One-Contract-Version: 2`를 보낸 현재 클라이언트에만
+  `decision_follow_up`과 구조화 일정 care를 제공한다. JSON `version`도 각각 1/2로 분리한다.
+- 안전 메시지 영속 홀드가 실패해도 `/api/chat`의 고정 안전 안내 SSE는 HTTP 200으로 끝내고
+  `durable_safety_fence_confirmed:false`로 저장 실패를 분리한다. `/api/chat/messages`는
+  headerless legacy에 같은 write-free 안내를 200으로, actor-v2에는 503으로 반환한다.
+  어느 경로도 provider·공유 저장·비용 발생을 허용하지 않는다.
 - 이미 설치된 구형 모바일의 직접 Supabase Auth password SDK 경로를 server source로 회수할
   수 없다. minimum supported version·강제 업데이트 또는 old-fleet 0건 증거가 없다.
 - 구형 binary는 invite를 10자까지만 입력할 수 있지만 새 active invite는 총 15자다.
   migration의 code rotation 전에 구형 fleet 0건과 사용자 재공유 절차가 필요하다.
 - 구형 chat direct-writer 0건 증거가 없어 server-only ingest migration을 hosted에 적용할 수
   없다.
+- mediation outcome follow-up flag는 exact `false`다. 구형 mobile local-only W5와 stale web
+  asset drain, 빈 hold table의 historical gap에 대한 clean cohort/opaque backfill+negative proof/
+  최소 31일 drain 중 하나, 그리고 503 restart·reload 및 two-device 증거가 없어 enable할 수 없다.
 - conversation segment migration과 read path는 source에 있으나 hosted 적용과
   `AMORA_CONVERSATION_SEGMENT_READ_ENABLED=true` 증거가 없다.
 - 현재 `대화 화면 정리`는 화면 필터이며 모델 문맥 초기화라고 주장하지 않는다.

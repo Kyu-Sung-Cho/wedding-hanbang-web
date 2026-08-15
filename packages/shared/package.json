@@ -14,9 +14,22 @@
     "./amora-crisis": "./src/safety/amoraCrisisSafety.ts",
     "./amora-crisis-delivery": "./src/safety/amoraCrisisDelivery.ts",
     "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts",
+    "./amora-chat-safety-signal": "./src/safety/amoraChatSafetySignal.ts",
+    "./mediation-offer": "./src/safety/mediationOffer.ts",
+    "./mediation-render-safety": "./src/safety/mediationRenderSafety.mjs",
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
     "./community-notification": "./src/contracts/communityNotification.mjs",
-    "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs"
+    "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
+    "./quote-analysis-presentation": "./src/contracts/quoteAnalysisPresentation.mjs",
+    "./amora-first-use-grounding": "./src/contracts/amoraFirstUseGrounding.mjs",
+    "./amora-first-use-action-claim": "./src/contracts/amoraFirstUseActionClaim.mjs",
+    "./amora-first-use-promotion": "./src/contracts/amoraFirstUsePromotion.mjs",
+    "./amora-core-criterion": "./src/contracts/amoraCoreCriterion.mjs",
+    "./amora-couple-criterion": "./src/contracts/amoraCoupleCriterion.mjs",
+    "./amora-action-outcome-feedback": "./src/contracts/amoraActionOutcomeFeedback.mjs",
+    "./amora-schedule-care-follow-up": "./src/contracts/amoraScheduleCareFollowUp.mjs",
+    "./amora-preparation-map": "./src/contracts/amoraPreparationMap.mjs",
+    "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   Save,
   ExternalLink,
@@ -35,6 +35,7 @@ import {
   Users,
   Copy,
   BrainCircuit,
+  SlidersHorizontal,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
@@ -80,6 +81,7 @@ function mutationActorHeaders(expectedActorUserId: string) {
 }
 
 export default function SettingsScreen() {
+  const { focus: requestedFocus } = useLocalSearchParams<{ focus?: string }>();
   const [data, setData] = useState<SettingsData | null>(null);
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
   const [settingsSnapshot, setSettingsSnapshot] =
@@ -906,6 +908,7 @@ export default function SettingsScreen() {
               placeholderTextColor={colors.taupe[400]}
               maxLength={10}
               keyboardType="numbers-and-punctuation"
+              autoFocus={requestedFocus === "weddingDate"}
               onFocus={() => setFocusedField("weddingDate")}
               onBlur={() => setFocusedField(null)}
             />
@@ -978,6 +981,13 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>아모라</Text>
         </View>
         <Surface style={styles.card}>
+          <ActionRow
+            icon={<SlidersHorizontal size={18} color={colors.noir[800]} />}
+            title="나만의 아모라"
+            description="말투·설명·결정·협업 방식을 내게 맞춰요"
+            onPress={() => router.push("/settings/amora-style" as const)}
+          />
+          <View style={styles.divider} />
           <ActionRow
             icon={<BrainCircuit size={18} color={colors.noir[800]} />}
             title="아모라가 기억하는 것"

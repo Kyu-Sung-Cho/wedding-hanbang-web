@@ -142,17 +142,24 @@ export function optionFromRow(row: PublicOptionRow): PriceOption | null {
 
 export async function loadPublicPriceCatalog(
   client: SupabaseClient,
-  options?: { optionCategories?: readonly PriceCategory[] },
+  options?: {
+    optionCategories?: readonly PriceCategory[];
+    priceCategories?: readonly PriceCategory[];
+  },
 ): Promise<PriceCatalog> {
   const priceRows = await collectPages<PublicPriceRow>(async (from, to) => {
-    const result = await client
+    let query = client
       .from("v_public_official_prices")
       .select(
         "id, period_label, vendor_id, vendor_slug, vendor_name, vendor_aliases, vendor_category, region_code, agency_id, agency_name, agency_display_name, price_category, item_name, base_spec, price_min_krw, price_max_krw, price_note, vat_note",
       )
       .eq("source", "kca_tprice")
       .eq("is_current", true)
-      .not("vendor_id", "is", null)
+      .not("vendor_id", "is", null);
+    if (options?.priceCategories && options.priceCategories.length > 0) {
+      query = query.in("price_category", [...options.priceCategories]);
+    }
+    const result = await query
       .order("period_label", { ascending: false })
       .order("vendor_name", { ascending: true })
       .order("id", { ascending: true })

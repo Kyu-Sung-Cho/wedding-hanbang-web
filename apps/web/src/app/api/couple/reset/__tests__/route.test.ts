@@ -46,9 +46,10 @@ describe("/api/couple/reset POST", () => {
   it("rejects a headerless legacy reset before the RPC", async () => {
     const response = await POST(resetRequest());
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(426);
+    expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toMatchObject({
-      code: "MUTATION_ACTOR_CONTRACT_INVALID",
+      code: "CLIENT_UPDATE_REQUIRED",
     });
     expect(rpc).not.toHaveBeenCalled();
   });

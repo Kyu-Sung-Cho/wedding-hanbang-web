@@ -1,23 +1,152 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
   analyzeAmoraQuoteCheck,
+  getAmoraMarketPriceBenchmark,
   getQuoteCheckItems,
   type AmoraQuoteCategory,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+import type { PriceCatalog, PriceCategory } from "@/lib/price/catalog";
+import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
+import { createPublicClient } from "@/lib/supabase/public";
 
-export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionResult {
+type PublicPriceCatalogLoader = (
+  priceCategories: readonly PriceCategory[],
+) => Promise<PriceCatalog>;
+
+async function loadPublishedPriceCatalog(
+  priceCategories: readonly PriceCategory[],
+): Promise<PriceCatalog> {
+  return loadPublicPriceCatalog(createPublicClient(), {
+    optionCategories: [],
+    priceCategories,
+  });
+}
+
+type ComparablePriceCategory = Exclude<PriceCategory, "hall">;
+
+const MARKET_TOOL_CATEGORY_MAP: Partial<Record<string, ComparablePriceCategory>> = {
+  studio: "studio",
+  dress: "dress",
+  makeup: "makeup",
+};
+
+export async function executeGetMarketPrice(
+  input: Record<string, unknown>,
+  loadCatalog: PublicPriceCatalogLoader = loadPublishedPriceCatalog,
+): Promise<ToolExecutionResult> {
+  const requestedCategory = typeof input.category === "string" ? input.category : "";
+  const category = MARKET_TOOL_CATEGORY_MAP[requestedCategory];
+  const isSdm = requestedCategory === "sdm";
+  const region = input.scope === "seoul" ? "seoul" : "national";
+
+  if (!category && !isSdm) {
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: {
+        status: "unsupported_comparison",
+        publicPath: "/price",
+        sourcePolicy: "reviewed_published_vendor_disclosures_only",
+      },
+      success: true,
+      displayMessage:
+        "현재 공시 자료만으로는 그 범위를 같은 조건의 숫자로 비교할 수 없어요. 항목별 업체 공시가와 조건을 확인해 주세요.",
+    };
+  }
+
+  let catalog: PriceCatalog;
+  try {
+    catalog = await loadCatalog(
+      isSdm ? ["studio", "dress", "makeup"] : [category!],
+    );
+  } catch {
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: {
+        status: "catalog_unavailable",
+        publicPath: `/price/${requestedCategory}`,
+        sourcePolicy: "reviewed_published_vendor_disclosures_only",
+      },
+      success: false,
+      displayMessage:
+        "지금 공시 가격 원문을 불러오지 못했어요. 숫자를 추정하지 않았으니 잠시 후 다시 확인해 주세요.",
+    };
+  }
+
+  if (isSdm) {
+    const componentBenchmarks = {
+      studio: getAmoraMarketPriceBenchmark("studio", region, catalog),
+      dress: getAmoraMarketPriceBenchmark("dress", region, catalog),
+      makeup: getAmoraMarketPriceBenchmark("makeup", region, catalog),
+    };
+    const benchmarks = Object.fromEntries(
+      Object.entries(componentBenchmarks).map(([name, benchmark]) => [
+        name,
+        benchmark.evidence.status === "available"
+          ? {
+              medianManwon: benchmark.medianManwon,
+              comparatorLabel: benchmark.comparatorLabel,
+              ...benchmark.evidence,
+            }
+          : benchmark.evidence,
+      ]),
+    );
+    const availableCount = Object.values(componentBenchmarks)
+      .filter(({ evidence }) => evidence.status === "available").length;
+
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: {
+        status: availableCount > 0 ? "available_by_component" : "insufficient_comparable_data",
+        publicPath: "/price",
+        sourcePolicy: "reviewed_published_vendor_disclosures_only",
+        benchmarks,
+      },
+      success: true,
+      displayMessage: availableCount > 0
+        ? "사진 촬영·드레스·헤어·메이크업은 기본 구성과 표본이 달라 각각의 공시 기본가 하한 중간값으로 보여드렸고, 묶음 합계로 더하지 않았어요."
+        : "사진 촬영·드레스·헤어·메이크업은 같은 조건으로 비교할 공시가 충분하지 않아 숫자를 만들지 않았어요.",
+    };
+  }
+
+  // 위 분기에서 SDM을 처리했으므로 여기서는 단일 카테고리만 남는다.
+  if (!category) throw new Error("UNREACHABLE_MARKET_CATEGORY");
+  const benchmark = getAmoraMarketPriceBenchmark(category, region, catalog);
+  if (benchmark.evidence.status === "unavailable") {
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: {
+        status: "insufficient_comparable_data",
+        publicPath: `/price/${requestedCategory}`,
+        sourcePolicy: "reviewed_published_vendor_disclosures_only",
+        evidence: benchmark.evidence,
+      },
+      success: true,
+      displayMessage:
+        `${benchmark.evidence.regionLabel} ${benchmark.evidence.categoryLabel}은 같은 조건으로 비교할 공시가 충분하지 않아 숫자를 만들지 않았어요. 업체별 원문을 확인해 주세요.`,
+    };
+  }
+
   return {
     toolName: "get_market_price",
     toolInput: input,
     toolOutput: {
-      status: "migrated_to_published_disclosures",
-      publicPath: "/price",
+      status: "available",
+      publicPath: `/price/${requestedCategory}`,
       sourcePolicy: "reviewed_published_vendor_disclosures_only",
+      benchmark: {
+        medianManwon: benchmark.medianManwon,
+        comparatorLabel: benchmark.comparatorLabel,
+        ...benchmark.evidence,
+      },
     },
     success: true,
     displayMessage:
-      "과거 고정 시세표는 종료했어요. 최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 함께 확인해 주세요.",
+      `${benchmark.comparatorLabel}은 ${benchmark.medianManwon.toLocaleString("ko-KR")}만원이에요. ${benchmark.evidence.sourcePeriod} 공시 기본가 하한의 참고값이며, 실제 계약 금액이나 견적 적정성 판정은 아니에요.`,
   };
 }
 
@@ -66,7 +195,10 @@ function resolveIncludedQuoteItemIds(
   return [...ids];
 }
 
-export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown>): ToolExecutionResult {
+export async function executeAnalyzeQuoteWithTrustEngine(
+  input: Record<string, unknown>,
+  loadCatalog: PublicPriceCatalogLoader = loadPublishedPriceCatalog,
+): Promise<ToolExecutionResult> {
   const quotePrice = Number(input.quote_price ?? 0);
   const category = parseQuoteCategory(input.category);
   const region = parseQuoteRegion(input.region);
@@ -115,6 +247,15 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
 
   const includedItemIds = resolveIncludedQuoteItemIds(category, region, includedItems);
   const notNeededItemIds = resolveIncludedQuoteItemIds(category, region, notNeededItems);
+  let catalog: PriceCatalog | undefined;
+  try {
+    catalog = await loadCatalog(
+      category === "sdm_package" ? ["studio", "dress", "makeup"] : [category],
+    );
+  } catch {
+    // 견적 구성 확인 자체는 계속 제공하되, 공시가 숫자는 만들지 않는다.
+    catalog = undefined;
+  }
   const analysis = analyzeAmoraQuoteCheck({
     category,
     region,
@@ -122,7 +263,7 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     includedItemIds,
     notNeededItemIds,
     vendorName,
-  });
+  }, catalog);
 
   const output = {
     quotePrice: analysis.quotePriceManwon,
@@ -131,6 +272,7 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     vendorName,
     marketMedian: analysis.marketMedianManwon,
     marketComparatorLabel: analysis.marketComparatorLabel,
+    marketEvidence: analysis.marketEvidence,
     priceDiff: analysis.marketMedianManwon > 0
       ? analysis.quotePriceManwon - analysis.marketMedianManwon
       : null,

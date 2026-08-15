@@ -331,6 +331,7 @@ describe("useAuthStore", () => {
       });
       expect(useAuthStore.getState().journey).toEqual(originalJourney);
       expect(lastFetchBody()).toMatchObject({
+        expected_couple_id: "c1",
         total_budget: 30_000_000,
         expected_revision: 4,
       });
@@ -465,7 +466,7 @@ describe("useAuthStore", () => {
 
     it("propagates PATCH failure so the editor cannot report false success", async () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
-      useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
+      useAuthStore.setState({ isDemo: false, journey: { id: "j1", couple_id: "c1" } as never });
 
       await expect(
         useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }, "u1"),
@@ -525,6 +526,7 @@ describe("useAuthStore", () => {
       expect(body.progress_patch).toEqual({ venue: { category: "venue", status: "in_progress", budget: 200 } });
       expect(body.progress_remove_keys).toEqual([]);
       expect(body.expected_revision).toBe(0);
+      expect(body.expected_couple_id).toBe("c1");
       // 변경 안 된 studio는 patch에 포함되지 않는다 (스테일 롤백 방지의 핵심)
       expect((body.progress_patch as Record<string, unknown>).studio).toBeUndefined();
     });

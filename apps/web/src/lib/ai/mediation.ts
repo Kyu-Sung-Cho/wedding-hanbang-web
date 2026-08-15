@@ -23,6 +23,10 @@ import {
   screenAmoraTrustClaims,
   type AmoraTrustClaimKind,
 } from "./amoraTrustClaims";
+import {
+  findMediationNeutralityViolations,
+  type MediationNeutralityViolationKind,
+} from "./mediationNeutrality";
 
 export interface MediationBlock {
   empathy?: string;
@@ -34,6 +38,9 @@ export interface MediationBlock {
 // 표식 자체는 공유 계약에 둔다. 앱도 같은 기준으로 "이 초안이 누구 말인가"를
 // 판별해야 하는데, 각자 갖고 있으면 한쪽만 고쳐진다.
 export const AMORA_USER_REQUESTED_MEDIATION_V2 = AMORA_REQUESTER_SUMMARY_MEDIATION;
+
+export const AMORA_MEDIATION_OUTPUT_GUARD_FALLBACK =
+  "지금 내용만으로는 어느 한쪽의 잘잘못이나 속마음을 단정하지 않고 정리하는 게 중요해요. 각자 확인된 사실과 원하는 기준을 한 가지씩 적어 주세요. 그 내용을 바탕으로 두 사람이 함께 고를 수 있는 선택지로 다시 정리해 드릴게요.";
 
 export type UserRequestedMediationV2 = Required<MediationBlock>
   & typeof AMORA_USER_REQUESTED_MEDIATION_V2;
@@ -78,19 +85,30 @@ function isCompleteMediationBlock(
 export function screenMediationBlock(block: MediationBlock): {
   block: MediationBlock;
   removedKinds: AmoraTrustClaimKind[];
+  neutralityViolations: MediationNeutralityViolationKind[];
 } {
   const screened: MediationBlock = {};
   const removedKinds = new Set<AmoraTrustClaimKind>();
+  const neutralityViolations = new Set<MediationNeutralityViolationKind>();
 
   for (const { key } of FIELD_PATTERNS) {
     const value = block[key];
     if (typeof value !== "string" || !value.trim()) continue;
+    for (const kind of findMediationNeutralityViolations(value)) {
+      neutralityViolations.add(kind);
+    }
     const result = screenAmoraTrustClaims(value);
     for (const kind of result.removedKinds) removedKinds.add(kind);
     if (result.text) screened[key] = result.text;
   }
 
-  return { block: screened, removedKinds: [...removedKinds] };
+  return {
+    // 편향 문장 하나만 지워서는 남은 필드에 같은 결론이 유지될 수 있다.
+    // 그래서 중립성 위반은 문장이 아니라 카드 전체를 닫는다.
+    block: neutralityViolations.size > 0 ? {} : screened,
+    removedKinds: [...removedKinds],
+    neutralityViolations: [...neutralityViolations],
+  };
 }
 
 export function toUserRequestedMediationV2(

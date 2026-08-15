@@ -36,7 +36,7 @@ export default function CelebrationHero() {
               className="h-px w-8 shrink-0 bg-[#8F6662]"
               aria-hidden="true"
             />
-            둘이 함께 쓰는 AI 결혼 준비 도우미 · 아모라
+            둘이 함께 쓰는 AI 결혼 준비 동반자 · 아모라
           </p>
 
           <h1

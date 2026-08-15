@@ -6,13 +6,14 @@ import {
   Animated, LayoutAnimation, AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, usePathname } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, usePathname } from "expo-router";
 import {
   ChevronDown, ChevronUp, CheckCircle2, Circle,
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
+  getCanonicalCategoryKeyForMoment,
   isScheduleCareMomentType,
   sanitizeUserFacingScheduleMemo,
   SCHEDULE_CARE_MOMENT_OPTIONS,
@@ -47,6 +48,7 @@ import {
   createScheduleSessionFence,
   type ScheduleSessionToken,
 } from "@/lib/scheduleSessionFence.mjs";
+import { buildVerifiedChecklistDeepLink } from "@/lib/scheduleChecklistNavigation.mjs";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   AppHeader,
@@ -117,9 +119,29 @@ interface WeeklyAction {
 }
 
 const CATEGORY_OPTIONS = [
-  ...CATEGORY_CHECKLISTS.map((category) => category.label),
-  "기타",
+  ...CATEGORY_CHECKLISTS.map((category) => ({
+    key: category.key,
+    label: category.label,
+  })),
+  { key: "general", label: "기타" },
 ];
+
+function canonicalScheduleCategoryKey(value: string): string {
+  if (!value) return "";
+
+  const option = CATEGORY_OPTIONS.find(
+    (option) => option.key === value || option.label === value,
+  );
+  return option?.key ?? value;
+}
+
+function scheduleCategoryLabel(value: string): string {
+  const option = CATEGORY_OPTIONS.find(
+    (option) => option.key === value || option.label === value,
+  );
+  return option?.label ?? value;
+}
+
 const UNSAFE_SCHEDULE_DISPLAY_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 function applyChecklistState(
@@ -317,13 +339,14 @@ async function fetchScheduleMutationSnapshot(coupleId: string) {
 
 async function submitScheduleEvents(
   expectedUserId: string,
+  expectedCoupleId: string,
   expectedRevision: number,
   updatedEvents: ScheduleEvent[],
 ): Promise<ScheduleMutationSubmission> {
   const response = await apiFetchForExpectedUser(expectedUserId, "/api/journey", {
     method: "PATCH",
     body: JSON.stringify(
-      buildScheduleProgressPatch(expectedRevision, updatedEvents),
+      buildScheduleProgressPatch(expectedCoupleId, expectedRevision, updatedEvents),
     ),
   });
   const payload: unknown = await response.json().catch(() => null);
@@ -362,6 +385,7 @@ function showActiveScheduleRequestAlert() {
 /* ───── main screen ───── */
 export default function ScheduleScreen() {
   const pathname = usePathname();
+  const { category: requestedCategoryKey } = useLocalSearchParams<{ category?: string }>();
   const checklistOnly = pathname.startsWith("/checklist");
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
@@ -392,6 +416,7 @@ export default function ScheduleScreen() {
   const approvalActionSequenceRef = useRef(0);
   const approvalBusyRef = useRef<number | null>(null);
   const approvalIdentityRef = useRef<{ ownerId: string; coupleId: string } | null>(null);
+  const handledChecklistDeepLinkRef = useRef<string | null>(null);
   const hasFocusedRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
 
@@ -420,6 +445,7 @@ export default function ScheduleScreen() {
     setProgress({});
     setEvents([]);
     setExpandedKey(null);
+    handledChecklistDeepLinkRef.current = null;
     setApprovalRequests([]);
     setApprovalError(false);
     setScheduleDataError(null);
@@ -610,6 +636,19 @@ export default function ScheduleScreen() {
 
       setCategories(cats);
       setProgress(progMap);
+      const checklistDeepLink = buildVerifiedChecklistDeepLink({
+        checklistOnly,
+        requestedCategoryKey,
+        availableCategoryKeys: cats.map((category) => category.key),
+        verifiedIdentity: identity,
+      });
+      if (
+        checklistDeepLink
+        && handledChecklistDeepLinkRef.current !== checklistDeepLink.handledKey
+      ) {
+        handledChecklistDeepLinkRef.current = checklistDeepLink.handledKey;
+        setExpandedKey(checklistDeepLink.categoryKey);
+      }
 
       // 전체 진행률 애니메이션
       if (cats.length > 0) {
@@ -643,7 +682,13 @@ export default function ScheduleScreen() {
         setLoading(false);
       }
     }
-  }, [clearIdentityBoundState, progressAnim, scheduleSessionFenceRef]);
+  }, [
+    checklistOnly,
+    clearIdentityBoundState,
+    progressAnim,
+    requestedCategoryKey,
+    scheduleSessionFenceRef,
+  ]);
 
   useEffect(() => {
     loadData().then((identity) => {
@@ -818,6 +863,7 @@ export default function ScheduleScreen() {
         {
         method: "PATCH",
         body: JSON.stringify({
+          expected_couple_id: sessionToken.coupleId,
           expected_revision: snapshot.stateRevision,
           progress_patch: { [categoryKey]: currentProgress[categoryKey] },
         }),
@@ -918,6 +964,7 @@ export default function ScheduleScreen() {
       const response = await apiFetchForExpectedUser(sessionToken.ownerId, "/api/journey", {
         method: "PATCH",
         body: JSON.stringify({
+          expected_couple_id: sessionToken.coupleId,
           expected_revision: snapshot.stateRevision,
           progress_patch: { [categoryKey]: nextCategory },
         }),
@@ -1015,6 +1062,12 @@ export default function ScheduleScreen() {
   }
 
   /* ── 이벤트 모달 ── */
+  function selectCareMoment(momentType: string) {
+    setFormMomentType(momentType);
+    const categoryKey = getCanonicalCategoryKeyForMoment(momentType);
+    if (categoryKey) setFormCategoryKey(categoryKey);
+  }
+
   function openAddEventModal() {
     setEditingEventId(null);
     const today = new Date().toISOString().slice(0, 10);
@@ -1048,7 +1101,7 @@ export default function ScheduleScreen() {
     setFormTitle(evt.title);
     setFormDate(evt.date);
     setFormTime(evt.time ?? "");
-    setFormCategoryKey(evt.categoryKey ?? "");
+    setFormCategoryKey(canonicalScheduleCategoryKey(evt.categoryKey ?? ""));
     setFormMomentType(evt.momentType ?? "");
     setFormMemo(sanitizeUserFacingScheduleMemo(evt.memo) ?? "");
     setModalVisible(true);
@@ -1065,11 +1118,12 @@ export default function ScheduleScreen() {
       || sessionToken.ownerId !== profileId
     ) return;
     const mutationCoupleId = sessionToken.coupleId;
+    const canonicalMomentCategoryKey = getCanonicalCategoryKeyForMoment(formMomentType);
     const draftValidation = validateScheduleEventDraft({
       date: formDate,
       title: formTitle,
       time: formTime,
-      categoryKey: formCategoryKey,
+      categoryKey: canonicalMomentCategoryKey ?? formCategoryKey,
       momentType: formMomentType,
       memo: formMemo,
     });
@@ -1129,6 +1183,7 @@ export default function ScheduleScreen() {
 
       const outcome = await submitScheduleEvents(
         sessionToken.ownerId,
+        sessionToken.coupleId,
         snapshot.stateRevision,
         updatedEvents,
       );
@@ -1142,6 +1197,14 @@ export default function ScheduleScreen() {
           "파트너 확인을 기다리고 있어요",
           "파트너가 동의하면 일정에 반영돼요. 승인 전에는 기존 일정이 유지돼요.",
         );
+      }
+      const appliedCategoryKey = draftValidation.value.categoryKey;
+      if (
+        outcome.status === "applied"
+        && appliedCategoryKey
+        && CATEGORY_CHECKLISTS.some((category) => category.key === appliedCategoryKey)
+      ) {
+        setExpandedKey(appliedCategoryKey);
       }
       await loadData();
     } catch (error) {
@@ -1220,6 +1283,7 @@ export default function ScheduleScreen() {
 
             const outcome = await submitScheduleEvents(
               sessionToken.ownerId,
+              sessionToken.coupleId,
               snapshot.stateRevision,
               mutation.events,
             );
@@ -1312,6 +1376,7 @@ export default function ScheduleScreen() {
             }
             const outcome = await submitScheduleEvents(
               sessionToken.ownerId,
+              sessionToken.coupleId,
               snapshot.stateRevision,
               mutation.events,
             );
@@ -1830,7 +1895,9 @@ export default function ScheduleScreen() {
                     ) : null}
                     {evt.categoryKey ? (
                       <View style={styles.eventCatBadge}>
-                        <Text style={styles.eventCatText}>{evt.categoryKey}</Text>
+                        <Text style={styles.eventCatText}>
+                          {scheduleCategoryLabel(evt.categoryKey)}
+                        </Text>
                       </View>
                     ) : null}
                   </View>
@@ -2042,14 +2109,22 @@ export default function ScheduleScreen() {
                 >
                   <Text style={[styles.chipText, !formCategoryKey && styles.chipTextActive]}>없음</Text>
                 </Pressable>
-                {CATEGORY_OPTIONS.map((cat) => (
+                {CATEGORY_OPTIONS.map((category) => (
                   <Pressable
-                    key={cat}
-                    style={[styles.chip, formCategoryKey === cat && styles.chipActive]}
-                    onPress={() => setFormCategoryKey(cat)}
+                    key={category.key}
+                    style={[
+                      styles.chip,
+                      formCategoryKey === category.key && styles.chipActive,
+                    ]}
+                    onPress={() => setFormCategoryKey(category.key)}
                   >
-                    <Text style={[styles.chipText, formCategoryKey === cat && styles.chipTextActive]}>
-                      {cat}
+                    <Text
+                      style={[
+                        styles.chipText,
+                        formCategoryKey === category.key && styles.chipTextActive,
+                      ]}
+                    >
+                      {category.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -2100,7 +2175,7 @@ export default function ScheduleScreen() {
                       styles.chip,
                       formMomentType === option.value && styles.chipActive,
                     ]}
-                    onPress={() => setFormMomentType(option.value)}
+                    onPress={() => selectCareMoment(option.value)}
                   >
                     <Text
                       style={[

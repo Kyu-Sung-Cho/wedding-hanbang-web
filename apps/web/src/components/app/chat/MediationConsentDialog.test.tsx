@@ -42,6 +42,9 @@ describe("MediationConsentDialog", () => {
     expect(container.textContent).toContain(
       "두 사람이 각각 확인해야 공동 결정으로 남아요",
     );
+    expect(container.textContent).toContain(
+      "생성된 초안은 함께 대화에 표시되어 상대방도 볼 수 있어요",
+    );
   });
 
   it("cancels without creating a request", async () => {

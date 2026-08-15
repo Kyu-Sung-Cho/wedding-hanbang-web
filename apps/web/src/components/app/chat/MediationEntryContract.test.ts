@@ -35,4 +35,64 @@ describe("structured mediation entry contract", () => {
     expect(main).toContain("결혼 준비에서 궁금한 점을 물어보세요…");
     expect(panel).toContain("결혼 준비에서 궁금한 점을 물어보세요…");
   });
+
+  it.each(["ChatContent.tsx", "ChatSidePanel.tsx"])(
+    "%s binds dismissal and consent to the assessed conflict event key",
+    (fileName) => {
+      const content = source(fileName);
+
+      expect(content).toMatch(/assessMediationOffer\(\s*messages(?:\s*,|\s*\))/);
+      expect(content).toContain("dismissedMediationOfferKey");
+      expect(content).toContain("mediationConsentContext");
+      expect(content).toContain("mediationConsentContext.ownerUserId === profile?.id");
+      expect(content).toContain("mediationConsentContext.coupleId === coupleId");
+      expect(content).toContain("setMediationConsentContext(null)");
+      expect(content).not.toContain("setMediationDismissed(true)");
+    },
+  );
+
+  it.each(["ChatContent.tsx", "ChatSidePanel.tsx"])(
+    "%s keeps the manual entry separate from automatic event dismissal",
+    (fileName) => {
+      const content = source(fileName);
+
+      expect(content).toContain('data-mediation-entry="manual"');
+      expect(content).toContain("의견이 엇갈렸다면 조율 도움 받기");
+      expect(content).toContain('source: "manual"');
+      expect(content).toContain('source: "automatic"');
+      expect(content).toContain('mediationConsentContext.source === "automatic"');
+    },
+  );
+
+  it.each(["ChatContent.tsx", "ChatSidePanel.tsx"])(
+    "%s suppresses every mediation entry for the current actor's unresolved private safety hold",
+    (fileName) => {
+      const content = source(fileName);
+
+      expect(content).toContain("hasLocalPrivateMediationSafetyHold");
+      expect(content).toContain("hasUnresolvedPrivateMediationSafetyHold(");
+      expect(content).not.toContain("latestLocalPrivateMessage");
+      expect(content).toMatch(
+        /showMediationBanner\s*=[\s\S]{0,320}!hasLocalPrivateMediationSafetyHold/,
+      );
+      expect(content).toMatch(
+        /showManualMediationEntry\s*=[\s\S]{0,320}!hasLocalPrivateMediationSafetyHold/,
+      );
+    },
+  );
+
+  it.each(["ChatContent.tsx", "ChatSidePanel.tsx"])(
+    "%s suppresses automatic and manual mediation for a visible shared safety card",
+    (fileName) => {
+      const content = source(fileName);
+
+      expect(content).toContain("hasVisibleSharedSafetyCard");
+      expect(content).toMatch(
+        /showMediationBanner\s*=[\s\S]{0,420}!hasVisibleSharedSafetyCard/,
+      );
+      expect(content).toMatch(
+        /showManualMediationEntry\s*=[\s\S]{0,420}!hasVisibleSharedSafetyCard/,
+      );
+    },
+  );
 });

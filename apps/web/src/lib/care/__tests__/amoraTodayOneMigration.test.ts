@@ -19,12 +19,21 @@ const budgetGuardrailMigrationSql = readFileSync(
   ),
   "utf8",
 );
+const decisionFollowUpMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260812100000_amora_today_one_decision_follow_up.sql",
+  ),
+  "utf8",
+);
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
 const GROOM_ID = "10000000-0000-4000-8000-000000000002";
 const OUTSIDER_ID = "10000000-0000-4000-8000-000000000003";
 const COUPLE_ID = "20000000-0000-4000-8000-000000000001";
 const OTHER_COUPLE_ID = "20000000-0000-4000-8000-000000000002";
+const DECISION_ID = "50000000-0000-4000-8000-000000000001";
+const REQUEST_ID = "60000000-0000-4000-8000-000000000001";
 
 const PRESENTATION = {
   kind: "schedule_moment",
@@ -56,6 +65,21 @@ const BUDGET_PRESENTATION = {
     { action: "snooze", label: "Remind me later" },
     { action: "dismiss", label: "Dismiss today" },
     { action: "mute_source", label: "Mute until this content changes" },
+  ],
+};
+
+const DECISION_FOLLOW_UP_PRESENTATION = {
+  kind: "decision_follow_up",
+  whyNow: "직접 확인한 결정이 반영된 뒤 하루가 지났어요. 지금도 이대로 진행할지 확인해 보세요.",
+  confirmed: ["결정: 총예산을 3천만원으로 확정"],
+  unknown: [],
+  nextAction: { label: "예산 열기", href: "/budget" },
+  impact: "확인만 하며 예산·일정·체크리스트를 자동으로 바꾸지 않아요.",
+  choices: [
+    { action: "open_source", label: "예산 열기" },
+    { action: "snooze", label: "나중에" },
+    { action: "dismiss", label: "오늘 닫기" },
+    { action: "mute_source", label: "내용이 바뀔 때까지 숨기기" },
   ],
 };
 
@@ -102,7 +126,61 @@ async function createDatabase(): Promise<PGlite> {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       couple_id uuid NOT NULL UNIQUE REFERENCES public.couples(id),
       state_revision bigint NOT NULL DEFAULT 0,
+      wedding_date date,
+      venue text,
+      total_budget bigint,
       progress jsonb NOT NULL DEFAULT '{}'::jsonb
+    );
+    CREATE TABLE public.amora_privacy_context_epochs (
+      couple_id uuid PRIMARY KEY REFERENCES public.couples(id),
+      epoch bigint NOT NULL CHECK (epoch >= 1)
+    );
+    CREATE TABLE public.decision_nodes (
+      id uuid PRIMARY KEY,
+      couple_id uuid NOT NULL REFERENCES public.couples(id),
+      decision_type text NOT NULL,
+      title text NOT NULL,
+      decided_at timestamptz,
+      source text NOT NULL,
+      source_ref_id uuid,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      visibility text NOT NULL,
+      source_actor_role text,
+      superseded_at timestamptz,
+      user_confirmed_at timestamptz
+    );
+    CREATE TABLE public.couple_plan_change_requests (
+      id uuid PRIMARY KEY,
+      couple_id uuid NOT NULL REFERENCES public.couples(id),
+      actor_user_id uuid NOT NULL REFERENCES auth.users(id),
+      base_revision bigint NOT NULL,
+      changes jsonb NOT NULL,
+      change_digest text NOT NULL,
+      roster_fingerprint text NOT NULL,
+      surface_href text NOT NULL,
+      summary text NOT NULL,
+      is_high_impact boolean NOT NULL,
+      required_count smallint NOT NULL,
+      status text NOT NULL,
+      created_at timestamptz NOT NULL,
+      expires_at timestamptz NOT NULL,
+      actor_accepted_at timestamptz NOT NULL,
+      applied_at timestamptz,
+      applied_by_user_id uuid REFERENCES auth.users(id),
+      applied_revision bigint,
+      schedule_mutation_kind text,
+      schedule_event_id text,
+      schedule_before_event jsonb,
+      schedule_after_event jsonb
+    );
+    CREATE TABLE public.couple_plan_change_acceptances (
+      request_id uuid NOT NULL REFERENCES public.couple_plan_change_requests(id),
+      couple_id uuid NOT NULL REFERENCES public.couples(id),
+      user_id uuid NOT NULL REFERENCES auth.users(id),
+      change_digest text NOT NULL,
+      roster_fingerprint text NOT NULL,
+      accepted_at timestamptz NOT NULL,
+      PRIMARY KEY (request_id, user_id)
     );
 
     INSERT INTO auth.users(id) VALUES
@@ -114,9 +192,14 @@ async function createDatabase(): Promise<PGlite> {
       ('${BRIDE_ID}', '${COUPLE_ID}', 'bride'),
       ('${GROOM_ID}', '${COUPLE_ID}', 'groom'),
       ('${OUTSIDER_ID}', '${OTHER_COUPLE_ID}', 'bride');
-    INSERT INTO public.wedding_journeys(couple_id, state_revision) VALUES
-      ('${COUPLE_ID}', 7),
-      ('${OTHER_COUPLE_ID}', 3);
+    INSERT INTO public.wedding_journeys(
+      couple_id, state_revision, total_budget
+    ) VALUES
+      ('${COUPLE_ID}', 7, 30000000),
+      ('${OTHER_COUPLE_ID}', 3, NULL);
+    INSERT INTO public.amora_privacy_context_epochs(couple_id, epoch) VALUES
+      ('${COUPLE_ID}', 5),
+      ('${OTHER_COUPLE_ID}', 1);
 
     GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
     GRANT EXECUTE ON FUNCTION auth.uid(), auth.role()
@@ -125,6 +208,7 @@ async function createDatabase(): Promise<PGlite> {
   `);
   await db.exec(migrationSql);
   await db.exec(budgetGuardrailMigrationSql);
+  await db.exec(decisionFollowUpMigrationSql);
   return db;
 }
 
@@ -175,6 +259,111 @@ async function compileCard(
   return result.rows[0].result;
 }
 
+async function compileDecisionFollowUpCard(
+  db: PGlite,
+  expectedPrivacyEpoch = 5,
+  sourceRevision = 7,
+): Promise<TodayOneResponse> {
+  const result = await db.query<{ result: TodayOneResponse }>(
+    `SELECT public.compile_amora_decision_follow_up_card(
+       $1::uuid, $2::uuid, $3::uuid, $4::bigint, $5::text,
+       $6::bigint, $7::integer, $8::jsonb
+     ) AS result`,
+    [
+      COUPLE_ID,
+      BRIDE_ID,
+      DECISION_ID,
+      expectedPrivacyEpoch,
+      "d".repeat(64),
+      sourceRevision,
+      80,
+      JSON.stringify(DECISION_FOLLOW_UP_PRESENTATION),
+    ],
+  );
+  return result.rows[0].result;
+}
+
+async function seedConfirmedDecision(db: PGlite) {
+  await db.exec(`
+    INSERT INTO public.couple_plan_change_requests(
+      id, couple_id, actor_user_id, base_revision, changes, change_digest,
+      roster_fingerprint, surface_href, summary, is_high_impact,
+      required_count, status, created_at, expires_at, actor_accepted_at,
+      applied_at, applied_by_user_id, applied_revision
+    ) VALUES (
+      '${REQUEST_ID}'::uuid,
+      '${COUPLE_ID}'::uuid,
+      '${BRIDE_ID}'::uuid,
+      6,
+      '{"total_budget":30000000}'::jsonb,
+      repeat('a', 64),
+      md5('${BRIDE_ID}:${GROOM_ID}'),
+      '/budget',
+      '총예산을 3천만원으로 확정',
+      true,
+      2,
+      'applied',
+      '2098-12-29T00:00:00.000Z'::timestamptz,
+      '2099-01-05T00:00:00.000Z'::timestamptz,
+      '2098-12-30T00:00:00.000Z'::timestamptz,
+      '2098-12-30T00:00:00.000Z'::timestamptz,
+      '${BRIDE_ID}'::uuid,
+      7
+    );
+    INSERT INTO public.couple_plan_change_acceptances(
+      request_id, couple_id, user_id, change_digest,
+      roster_fingerprint, accepted_at
+    ) VALUES
+      (
+        '${REQUEST_ID}'::uuid, '${COUPLE_ID}'::uuid, '${BRIDE_ID}'::uuid,
+        repeat('a', 64), md5('${BRIDE_ID}:${GROOM_ID}'),
+        '2098-12-30T00:00:00.000Z'::timestamptz
+      ),
+      (
+        '${REQUEST_ID}'::uuid, '${COUPLE_ID}'::uuid, '${GROOM_ID}'::uuid,
+        repeat('a', 64), md5('${BRIDE_ID}:${GROOM_ID}'),
+        '2098-12-30T00:00:00.000Z'::timestamptz
+      );
+    INSERT INTO public.decision_nodes(
+       id, couple_id, decision_type, title, decided_at, source,
+       source_ref_id, metadata, visibility, source_actor_role,
+       superseded_at, user_confirmed_at
+     ) VALUES (
+       '${DECISION_ID}'::uuid,
+       '${COUPLE_ID}'::uuid,
+       'decided',
+       '총예산을 3천만원으로 확정',
+       '2098-12-30T00:00:00.000Z'::timestamptz,
+       'manual',
+       '${REQUEST_ID}'::uuid,
+       jsonb_build_object(
+         'origin', 'couple_plan_change_request',
+         'requestId', '${REQUEST_ID}'::uuid,
+         'changeDigest', repeat('a', 64),
+         'rosterFingerprint', md5('${BRIDE_ID}:${GROOM_ID}'),
+         'expectedRevision', 6,
+         'appliedRevision', 7,
+         'requiredCount', 2,
+         'acceptances', (
+           SELECT jsonb_agg(
+             jsonb_build_object(
+               'userId', acceptance.user_id,
+               'acceptedAt', acceptance.accepted_at
+             ) ORDER BY acceptance.user_id
+           )
+           FROM public.couple_plan_change_acceptances AS acceptance
+           WHERE acceptance.request_id = '${REQUEST_ID}'::uuid
+         ),
+         'surfaceHref', '/budget'
+       ),
+       'shared',
+       'bride',
+       NULL,
+       '2098-12-30T00:00:00.000Z'::timestamptz
+     );
+  `);
+}
+
 async function setPreference(
   db: PGlite,
   userId: string,
@@ -215,15 +404,95 @@ async function actOnCard(
 }
 
 describe("in-app TodayOne storage migration", () => {
-  it("is rerun-safe and keeps schedule plus budget kinds exact", async () => {
+  it("atomically fences a confirmed-decision follow-up by the current privacy epoch", async () => {
     const db = await createDatabase();
     try {
       await resetPersona(db);
-      await db.exec(budgetGuardrailMigrationSql);
+      await db.exec(`
+        CREATE OR REPLACE FUNCTION public.amora_today_one_clock()
+        RETURNS timestamptz
+        LANGUAGE sql
+        STABLE
+        SECURITY INVOKER
+        SET search_path = pg_catalog
+        AS $$ SELECT '2099-01-02T03:00:00.000Z'::timestamptz $$
+      `);
+      await seedConfirmedDecision(db);
+      await db.exec(`
+        UPDATE public.wedding_journeys
+        SET state_revision = 8
+        WHERE couple_id = '${COUPLE_ID}'::uuid
+      `);
+      await setPreference(db, BRIDE_ID, true);
+      await setPersona(db, "service_role");
+
+      const ready = await compileDecisionFollowUpCard(db, 5, 8);
+      expect(ready).toMatchObject({
+        state: "ready",
+        card: {
+          sourceKey: `decision:${DECISION_ID}`,
+          kind: "decision_follow_up",
+          sourceRevision: 8,
+        },
+      });
+
+      await resetPersona(db);
+      await db.exec(`
+        DELETE FROM public.amora_today_one_recipient_states;
+        DELETE FROM public.amora_today_one_signals;
+        UPDATE public.wedding_journeys
+        SET state_revision = 9,
+            total_budget = 31000000
+        WHERE couple_id = '${COUPLE_ID}'::uuid
+      `);
+      await setPersona(db, "service_role");
+      const reversed = await compileDecisionFollowUpCard(db, 5, 9);
+      expect(reversed).toMatchObject({ state: "none" });
+
+      await resetPersona(db);
+      const reversedSignals = await db.query<{ count: number }>(`
+        SELECT count(*)::integer AS count
+        FROM public.amora_today_one_signals
+        WHERE source_key = 'decision:${DECISION_ID}'
+      `);
+      expect(reversedSignals.rows[0].count).toBe(0);
+      await db.exec(`
+        UPDATE public.wedding_journeys
+        SET state_revision = 10,
+            total_budget = 30000000
+        WHERE couple_id = '${COUPLE_ID}'::uuid;
+        UPDATE public.amora_privacy_context_epochs
+        SET epoch = 6
+        WHERE couple_id = '${COUPLE_ID}'::uuid
+      `);
+      await setPersona(db, "service_role");
+      await expect(compileDecisionFollowUpCard(db, 5, 10)).rejects.toMatchObject({
+        code: "40001",
+      });
+
+      await resetPersona(db);
+      const signals = await db.query<{ count: number }>(`
+        SELECT count(*)::integer AS count
+        FROM public.amora_today_one_signals
+        WHERE source_key = 'decision:${DECISION_ID}'
+      `);
+      expect(signals.rows[0].count).toBe(0);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("is rerun-safe and keeps schedule, budget, and decision follow-up kinds exact", async () => {
+    const db = await createDatabase();
+    try {
+      await resetPersona(db);
+      await db.exec(decisionFollowUpMigrationSql);
 
       const validation = await db.query<{
         schedule_valid: boolean;
         budget_valid: boolean;
+        decision_follow_up_valid: boolean;
         mismatched_href_valid: boolean;
         extra_field_valid: boolean;
         kind_constraint: string;
@@ -235,6 +504,9 @@ describe("in-app TodayOne storage migration", () => {
           public.amora_today_one_presentation_is_valid(
             '${JSON.stringify(BUDGET_PRESENTATION).replaceAll("'", "''")}'::jsonb
           ) AS budget_valid,
+          public.amora_today_one_presentation_is_valid(
+            '${JSON.stringify(DECISION_FOLLOW_UP_PRESENTATION).replaceAll("'", "''")}'::jsonb
+          ) AS decision_follow_up_valid,
           public.amora_today_one_presentation_is_valid(
             '${JSON.stringify({
               ...BUDGET_PRESENTATION,
@@ -255,11 +527,13 @@ describe("in-app TodayOne storage migration", () => {
       expect(validation.rows[0]).toMatchObject({
         schedule_valid: true,
         budget_valid: true,
+        decision_follow_up_valid: true,
         mismatched_href_valid: false,
         extra_field_valid: false,
       });
       expect(validation.rows[0].kind_constraint).toContain("schedule_moment");
       expect(validation.rows[0].kind_constraint).toContain("budget_guardrail");
+      expect(validation.rows[0].kind_constraint).toContain("decision_follow_up");
 
       await setPreference(db, BRIDE_ID, true);
       await setPersona(db, "service_role");

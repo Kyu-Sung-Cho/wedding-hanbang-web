@@ -61,6 +61,26 @@ describe("Amora atomic mutation coverage", () => {
     }
   });
 
+  it("exposes an optional canonical care-moment field on schedule additions", () => {
+    const tool = BETA_SAFE_TOOLS.find((candidate) => candidate.name === "add_schedule_event");
+    const schema = tool?.input_schema as {
+      properties?: Record<string, { enum?: string[] }>;
+      required?: string[];
+    } | undefined;
+
+    expect(schema?.properties?.moment_type?.enum).toEqual([
+      "family_greeting",
+      "sanggyeonrye",
+      "venue_tour",
+      "dress_tour",
+      "studio_shoot",
+      "dress_fitting",
+      "invitation_meeting",
+      "first_holiday",
+    ]);
+    expect(schema?.required).not.toContain("moment_type");
+  });
+
   it("builds CAS operations for wedding date, venue, task status, and category budget", () => {
     vi.setSystemTime(new Date("2026-07-17T00:00:00.000Z"));
     const ctx = context();
@@ -256,6 +276,52 @@ describe("Amora atomic mutation coverage", () => {
     });
     expect(operation.result.toolOutput).not.toHaveProperty("upserted");
     expect(operation.result.displayMessage).toContain("추가했어요");
+  });
+
+  it("preserves a server-bound care moment on the canonical schedule event", () => {
+    const operation = buildAmoraAtomicToolOperation(
+      "add_schedule_event",
+      {
+        date: "2027-02-20",
+        title: "상견례",
+        moment_type: "sanggyeonrye",
+        category_key: "meeting",
+        schedule_scope: "external_commitment",
+      },
+      context(),
+    );
+
+    expectAtomicSuccess(operation);
+    expect(operation.domainMutation).toMatchObject({
+      kind: "journey_progress_key_cas",
+      key: "__events",
+      value: [expect.objectContaining({
+        date: "2027-02-20",
+        title: "상견례",
+        momentType: "sanggyeonrye",
+        categoryKey: "meeting",
+        sourceKey: "category:meeting",
+      })],
+    });
+  });
+
+  it("rejects a care moment paired with a non-canonical category", () => {
+    const operation = buildAmoraAtomicToolOperation(
+      "add_schedule_event",
+      {
+        date: "2027-02-20",
+        title: "상견례",
+        moment_type: "sanggyeonrye",
+        category_key: "venue",
+      },
+      context(),
+    );
+
+    expect(operation.domainMutation).toEqual({ kind: "none" });
+    expect(operation.result).toMatchObject({
+      success: false,
+      toolOutput: { error: "moment_category_mismatch" },
+    });
   });
 
   it("records the exact previous schedule event and rejects timestamp-only updates", () => {

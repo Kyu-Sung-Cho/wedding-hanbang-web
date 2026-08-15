@@ -17,6 +17,10 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
+  hasUnsafeStoredMediationRenderContent,
+  MEDIATION_RENDER_SAFETY_FALLBACK,
+} from "@hanbang/shared/mediation-render-safety";
+import {
   acceptMediationResolution,
   canAcceptMediationResolution,
   canWithdrawMediationAcceptance,
@@ -48,6 +52,8 @@ export default function AmoraMediationCard({
   const [withdrawing, setWithdrawing] = useState(false);
   const [actionError, setActionError] = useState<AcceptanceActionError | null>(null);
   const expectedRevision = getExpectedMediationRevision(block);
+  const renderSafetyFallback = block.renderSafetyFallback === true
+    || hasUnsafeStoredMediationRenderContent(block);
   const expectedProposalVersion = expectedRevision?.expectedProposalVersion;
   const expectedRosterFingerprint = expectedRevision?.expectedRosterFingerprint;
   const canConfirm = Boolean(
@@ -153,6 +159,20 @@ export default function AmoraMediationCard({
     } finally {
       setWithdrawing(false);
     }
+  }
+
+  if (renderSafetyFallback) {
+    return (
+      <View
+        style={styles.safetyFallback}
+        accessibilityRole="alert"
+        accessibilityLabel={MEDIATION_RENDER_SAFETY_FALLBACK}
+      >
+        <Text style={styles.safetyFallbackText}>
+          {MEDIATION_RENDER_SAFETY_FALLBACK}
+        </Text>
+      </View>
+    );
   }
 
   // 이 카드에 담긴 말은 요청한 사람이 직접 쓴 요약뿐이다. 상대의 메시지는 서버가
@@ -418,6 +438,21 @@ export default function AmoraMediationCard({
 }
 
 const styles = StyleSheet.create({
+  safetyFallback: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ivory[100],
+  },
+  safetyFallbackText: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
   container: {
     gap: 10,
     marginTop: 8,

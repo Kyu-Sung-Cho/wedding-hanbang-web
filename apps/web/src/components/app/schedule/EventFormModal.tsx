@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { X, Ban, CalendarDays } from "lucide-react";
 import {
+  getCanonicalCategoryKeyForMoment,
   isScheduleCareMomentType,
   SCHEDULE_CARE_MOMENT_OPTIONS,
 } from "@hanbang/shared";
@@ -226,12 +227,13 @@ export default function EventFormModal({
     }
     setSaving(true);
     try {
+      const canonicalMomentCategoryKey = getCanonicalCategoryKeyForMoment(momentType);
       await onSave({
         date,
         time: time || undefined,
         title: title.trim(),
         memo: memo.trim() || undefined,
-        categoryKey: categoryKey || undefined,
+        categoryKey: canonicalMomentCategoryKey ?? (categoryKey || undefined),
         momentType: momentType || undefined,
         status,
         completionCriteria: completionCriteria.trim() || undefined,
@@ -447,7 +449,12 @@ export default function EventFormModal({
               id="schedule-moment-type"
               name="schedule-moment-type"
               value={momentType}
-              onChange={(e) => setMomentType(e.target.value)}
+              onChange={(e) => {
+                const nextMomentType = e.target.value;
+                setMomentType(nextMomentType);
+                const canonicalCategoryKey = getCanonicalCategoryKeyForMoment(nextMomentType);
+                if (canonicalCategoryKey) setCategoryKey(canonicalCategoryKey);
+              }}
               aria-describedby="schedule-moment-type-help"
               className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
             >

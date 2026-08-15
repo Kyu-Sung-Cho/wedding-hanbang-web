@@ -1,3 +1,8 @@
+import type {
+  TodayOneScheduleCareAttentionWindow,
+  TodayOneScheduleCareEvidenceRef,
+} from "@hanbang/shared";
+
 /**
  * 동반자 모멘트 카탈로그 v1
  * 근거: docs/MOMENT_CATALOG_2026-06-10.md (내부 자산 채굴 + 실제 여정 리서치)
@@ -36,6 +41,35 @@ export interface MomentCell {
   question?: string;
 }
 
+type MomentTodayOneCareDefinition = (
+  | {
+    momentType: "family_greeting" | "sanggyeonrye";
+    attentionWindows: readonly TodayOneScheduleCareAttentionWindow[];
+    relatedChecklist: {
+      categoryKey: "meeting";
+      categoryLabel: "부모님 첫 만남";
+    };
+    relatedBudget?: {
+      categoryKey: "meeting";
+      categoryLabel: "부모님 첫 만남";
+    };
+  }
+  | {
+    momentType: "dress_fitting";
+    attentionWindows: readonly ("d3" | "d1")[];
+    relatedChecklist: {
+      categoryKey: "dress";
+      categoryLabel: "드레스·예식 정장";
+    };
+    relatedBudget?: never;
+  }
+) & {
+  evidence: {
+    refs: TodayOneScheduleCareEvidenceRef[];
+    limitations: string[];
+  };
+};
+
 export interface MomentDefinition {
   type: MomentType;
   label: string;
@@ -51,6 +85,8 @@ export interface MomentDefinition {
   memoryKeys: string[];
   /** 내부 콘텐츠 소스 (예절 파트 P번호, 체크리스트 키) */
   sourceRefs: string[];
+  /** TodayOne이 구조를 보존해 보여주는 제한된 일정 케어 계약. */
+  todayOneCare?: MomentTodayOneCareDefinition;
 }
 
 export const MOMENTS: Record<MomentType, MomentDefinition> = {
@@ -82,6 +118,29 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     },
     memoryKeys: ["parent_preference", "family_atmosphere", "naming_convention"],
     sourceRefs: ["user_choice:family_custom", "etiquette:neutral_family_coordination"],
+    todayOneCare: {
+      momentType: "family_greeting",
+      attentionWindows: ["d3", "d1", "dAfter"],
+      relatedChecklist: {
+        categoryKey: "meeting",
+        categoryLabel: "부모님 첫 만남",
+      },
+      relatedBudget: {
+        categoryKey: "meeting",
+        categoryLabel: "부모님 첫 만남",
+      },
+      evidence: {
+        refs: [
+          { key: "canonical_schedule_event", label: "사용자가 저장한 일정" },
+          { key: "canonical_checklist_category", label: "부모님 첫 만남 체크리스트" },
+          { key: "curated_family_coordination_guidance", label: "가족 행사 중립 안내" },
+        ],
+        limitations: [
+          "가족마다 관습과 기대가 달라 정답으로 단정하지 않아요.",
+          "저장된 일정 밖의 최신 변경은 직접 확인해야 해요.",
+        ],
+      },
+    },
   },
 
   sanggyeonrye: {
@@ -112,6 +171,29 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     },
     memoryKeys: ["yedan_agreement", "wedding_timing_agreement", "family_dynamics"],
     sourceRefs: ["user_choice:family_custom", "provider:restaurant_reservation"],
+    todayOneCare: {
+      momentType: "sanggyeonrye",
+      attentionWindows: ["d3", "d1", "dAfter"],
+      relatedChecklist: {
+        categoryKey: "meeting",
+        categoryLabel: "부모님 첫 만남",
+      },
+      relatedBudget: {
+        categoryKey: "meeting",
+        categoryLabel: "부모님 첫 만남",
+      },
+      evidence: {
+        refs: [
+          { key: "canonical_schedule_event", label: "사용자가 저장한 일정" },
+          { key: "canonical_checklist_category", label: "부모님 첫 만남 체크리스트" },
+          { key: "curated_family_coordination_guidance", label: "가족 행사 중립 안내" },
+        ],
+        limitations: [
+          "가족마다 관습과 기대가 달라 정답으로 단정하지 않아요.",
+          "저장된 일정 밖의 최신 변경은 직접 확인해야 해요.",
+        ],
+      },
+    },
   },
 
   venue_tour: {
@@ -220,6 +302,22 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     },
     memoryKeys: ["final_dress_spec", "wedding_helper_fee"],
     sourceRefs: ["provider:dress_shop_policy", "user_choice:comfort"],
+    todayOneCare: {
+      momentType: "dress_fitting",
+      attentionWindows: ["d3", "d1"],
+      relatedChecklist: {
+        categoryKey: "dress",
+        categoryLabel: "드레스·예식 정장",
+      },
+      evidence: {
+        refs: [
+          { key: "canonical_schedule_event", label: "사용자가 저장한 일정" },
+          { key: "canonical_checklist_category", label: "드레스·예식 정장 체크리스트" },
+          { key: "current_schedule_care_catalog", label: "현재 일정 준비 안내" },
+        ],
+        limitations: ["저장된 일정 밖의 최신 변경은 직접 확인해야 해요."],
+      },
+    },
   },
 
   invitation_meeting: {

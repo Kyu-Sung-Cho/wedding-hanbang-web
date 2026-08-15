@@ -23,6 +23,11 @@ describe("public quote result retirement boundary", () => {
     expect(quoteCheckPage).not.toContain("가격 비교는 한국소비자원 평균");
     expect(quoteCheckPage).not.toContain('value="평균"');
     expect(quoteCheckPage).not.toContain('useState("320")');
+    expect(quoteCheckPage).toContain("result.marketEvidence.sourcePeriod");
+    expect(quoteCheckPage).toContain("result.marketEvidence.observationCount");
+    expect(quoteCheckPage).toContain("result.marketEvidence.vendorCount");
+    expect(quoteCheckPage).toContain("result.marketEvidence.comparisonBasis");
+    expect(quoteCheckPage).toContain("result.marketEvidence.sourceUrl");
     expect(publicPage).toContain("공개 견적 링크 제공을 종료");
     expect(publicPage).not.toContain("createAdminClient");
     expect(publicPage).not.toContain("amora_quote_checks");

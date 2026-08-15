@@ -196,6 +196,7 @@ function assertWritableSnapshot(snapshot) {
 export function buildTotalBudgetMutation(snapshot, totalInput) {
   assertWritableSnapshot(snapshot);
   return {
+    expected_couple_id: snapshot.coupleId,
     expected_revision: snapshot.stateRevision,
     total_budget: parseManwonInput(totalInput),
   };
@@ -246,6 +247,7 @@ export function buildCategoryBudgetMutation(snapshot, input) {
   };
 
   return {
+    expected_couple_id: snapshot.coupleId,
     expected_revision: snapshot.stateRevision,
     progress_patch: { [input.categoryKey]: next },
   };

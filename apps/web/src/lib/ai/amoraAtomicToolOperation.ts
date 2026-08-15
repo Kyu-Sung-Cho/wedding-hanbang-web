@@ -30,6 +30,7 @@ import {
 } from "@/lib/utils/kstDate";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { getCanonicalCategoryKeyForMoment } from "@hanbang/shared/constants";
 const MAX_VENUE_CHARS = 200;
 const MAX_ACTION_TITLE_CHARS = 120;
 const MAX_ACTION_DESCRIPTION_CHARS = 500;
@@ -1432,13 +1433,15 @@ export function buildAmoraAtomicToolOperation(
     const time = toolInput.time;
     const title = toolInput.title;
     const memo = toolInput.memo;
-    const categoryKey = toolInput.category_key;
+    const requestedCategoryKey = toolInput.category_key;
+    const momentType = toolInput.moment_type;
     if (
       typeof date !== "string"
       || (time !== undefined && typeof time !== "string")
       || typeof title !== "string"
       || (memo !== undefined && typeof memo !== "string")
-      || (categoryKey !== undefined && typeof categoryKey !== "string")
+      || (requestedCategoryKey !== undefined && typeof requestedCategoryKey !== "string")
+      || (momentType !== undefined && typeof momentType !== "string")
     ) {
       return noOpFailure(
         toolName,
@@ -1447,6 +1450,30 @@ export function buildAmoraAtomicToolOperation(
         "일정 날짜와 제목을 다시 확인해 주세요.",
       );
     }
+    const canonicalCategoryKey = momentType === undefined
+      ? null
+      : getCanonicalCategoryKeyForMoment(momentType);
+    if (momentType !== undefined && canonicalCategoryKey === null) {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "unsupported_moment_type",
+        "지원하는 웨딩 일정 종류를 다시 확인해 주세요.",
+      );
+    }
+    if (
+      canonicalCategoryKey !== null
+      && requestedCategoryKey !== undefined
+      && requestedCategoryKey !== canonicalCategoryKey
+    ) {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "moment_category_mismatch",
+        "일정 종류와 관련 카테고리가 맞지 않아 추가하지 않았어요.",
+      );
+    }
+    const categoryKey = canonicalCategoryKey ?? requestedCategoryKey;
 
     try {
       const mutation = addEvent(
@@ -1457,6 +1484,7 @@ export function buildAmoraAtomicToolOperation(
           title,
           memo,
           categoryKey,
+          momentType,
           sourceKey: categoryKey && categoryKey !== "general"
             ? getCategoryEventSourceKey(categoryKey)
             : undefined,

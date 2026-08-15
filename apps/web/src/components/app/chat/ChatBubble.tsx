@@ -14,6 +14,7 @@ import {
   type StoredChatFeedbackRating,
   type StoredChatFeedbackState,
 } from "@/lib/ai/chatFeedbackState";
+import { getVisibleQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -502,7 +503,9 @@ function renderAiMarkdown(text: string): React.ReactNode {
 
 // 사용자 메시지에서 선택 태그 제거 [vendor:...], [product:...], [staff:...], [date:...], [time:...]
 function stripSelectionTags(text: string): string {
-  return text.replace(/\[(?:vendor|product|staff|date|time):[^\]]*\]/g, "").trim();
+  return getVisibleQuoteAnalysisMessage(
+    text.replace(/\[(?:vendor|product|staff|date|time):[^\]]*\]/g, "").trim(),
+  );
 }
 
 export default function ChatBubble({
@@ -527,6 +530,7 @@ export default function ChatBubble({
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
     const mediationBlock = normalizeMediationBlock(message.metadata?.mediation);
+    const suppressUnsafeMediationBody = mediationBlock?.renderSafetyFallback === true;
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
@@ -547,28 +551,30 @@ export default function ChatBubble({
               </span>
             )}
           </span>
-          <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
-            aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
-          }`}>
-            <div className="text-sm sm:text-[0.9375rem] text-[#1A1A1F] leading-relaxed break-words">
-              {renderAiMarkdown(cleanText)}
+          {!suppressUnsafeMediationBody && (
+            <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
+              aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
+            }`}>
+              <div className="text-sm sm:text-[0.9375rem] text-[#1A1A1F] leading-relaxed break-words">
+                {renderAiMarkdown(cleanText)}
+              </div>
+              {partNumbers.length > 0 && (
+                <Link
+                  {...weddingLinkProps("/chat")}
+                  className="mt-3 flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
+                >
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
+                    <BookOpen className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-medium text-[#1A1A1F]">가족 이야기 더 나누기</p>
+                    <p className="text-sm text-[#928980]">가족·지역마다 달라서 정답은 없어요. 상황을 말해주면 같이 정리해요</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#C4967E]" />
+                </Link>
+              )}
             </div>
-            {partNumbers.length > 0 && (
-              <Link
-                {...weddingLinkProps("/chat")}
-                className="mt-3 flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
-              >
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
-                  <BookOpen className="h-5 w-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-medium text-[#1A1A1F]">가족 이야기 더 나누기</p>
-                  <p className="text-sm text-[#928980]">가족·지역마다 달라서 정답은 없어요. 상황을 말해주면 같이 정리해요</p>
-                </div>
-                <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#C4967E]" />
-              </Link>
-            )}
-          </div>
+          )}
           {mediationBlock && (
             <MediationCard
               key={`${message.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
@@ -585,7 +591,7 @@ export default function ChatBubble({
               과잉). */}
           {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
               나중에 다시 볼 말은 최근 것만이 아니다. */}
-          {!aiIsPrivate && (
+          {!aiIsPrivate && !suppressUnsafeMediationBody && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <SaveNoteButton messageId={message.id} content={cleanText} />
               {isRecentAi && (

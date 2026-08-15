@@ -224,6 +224,13 @@ export interface ChatMessageMetadata {
   raw_disclosure_shared?: boolean;
   /** Durable scope used for the raw disclosure, if any. */
   raw_disclosure_persistence?: "none" | "private_only" | "shared" | "unknown";
+  /**
+   * Whether the opaque durable safety seal was confirmed for this deterministic
+   * safety card. Boolean only — never a reason, classification, summary, or
+   * partner state. The server splits 200/503 on this value and the client uses it
+   * to decide follow-up eligibility; guidance itself must render regardless.
+   */
+  durable_safety_fence_confirmed?: boolean;
   /** Client echo consumed by the DB application lease trigger. */
   confirmed_amora_action_id?: string;
   /** Proposal-time wedding_journeys state token enforced by the database. */

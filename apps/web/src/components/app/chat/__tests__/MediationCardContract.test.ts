@@ -6,7 +6,9 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import ChatBubble from "../ChatBubble";
 import MediationCard from "../MediationCard";
+import type { ChatMessage } from "@/types/database.types";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -73,6 +75,78 @@ describe("Amora mediation card wiring", () => {
     expect(aiBranch).not.toContain("as MediationBlock");
     expect(aiBranch).toContain('key={`${message.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}');
     expect(aiBranch).toMatch(/<MediationCard[\s\S]*block=\{mediationBlock\}[\s\S]*messageId=\{message\.id\}/);
+  });
+
+  it("hides the entire stored AI body when its mediation draft fails render safety", async () => {
+    const unsafeBody = "신랑은 이기적이고 신부가 더 타당해요.";
+    const unsafeMessage: ChatMessage = {
+      id: MESSAGE_ID,
+      couple_id: "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+      sender_id: null,
+      sender_role: "ai",
+      content: unsafeBody,
+      metadata: {
+        mediation: {
+          translation: unsafeBody,
+          resolution: "신랑이 먼저 사과하고 양보하세요.",
+        },
+      },
+      visibility: "bride_private",
+      created_at: "2026-08-12T12:00:00.000Z",
+    };
+
+    await act(async () => {
+      root.render(createElement(ChatBubble, {
+        message: unsafeMessage,
+        isCurrentUser: false,
+      }));
+    });
+
+    expect(container.textContent).toContain("원문을 표시하지 않았어요");
+    expect(container.textContent).not.toContain(unsafeBody);
+    expect(container.textContent).not.toContain("먼저 사과하고 양보");
+  });
+
+  it("keeps ordinary AI and safe mediation bodies visible", async () => {
+    const baseMessage: ChatMessage = {
+      id: MESSAGE_ID,
+      couple_id: "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+      sender_id: null,
+      sender_role: "ai",
+      content: "오늘 확인할 일 세 가지를 정리했어요.",
+      metadata: null,
+      visibility: "bride_private",
+      created_at: "2026-08-12T12:00:00.000Z",
+    };
+
+    await act(async () => {
+      root.render(createElement(ChatBubble, {
+        message: baseMessage,
+        isCurrentUser: false,
+      }));
+    });
+    expect(container.textContent).toContain(baseMessage.content);
+
+    const safeMediationBody = "예산 상한선을 함께 확인할 선택안을 정리했어요.";
+    await act(async () => {
+      root.render(createElement(ChatBubble, {
+        message: {
+          ...baseMessage,
+          content: safeMediationBody,
+          metadata: {
+            mediation: {
+              data: "민수는 3천만원, 지수는 2천만원을 제안했어요.",
+              resolution: "서로 조정 가능한 범위를 하나씩 확인해 봐요.",
+            },
+          },
+        },
+        isCurrentUser: false,
+      }));
+    });
+
+    expect(container.textContent).toContain(safeMediationBody);
+    expect(container.textContent).toContain("서로 조정 가능한 범위");
+    expect(container.textContent).not.toContain("원문을 표시하지 않았어요");
   });
 
   it("sends the displayed exact revision with every acceptance operation", () => {
@@ -264,6 +338,34 @@ describe("Amora mediation card wiring", () => {
     expect(container.textContent).toContain("확인 출처가 없는 이전 조율 초안이에요");
     expect(container.textContent).not.toContain("요청자가 직접 적은 요약을 바탕으로");
     expect(container.textContent).not.toContain("이 선택안을 나는 확인했어요");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["forged v2", {
+      ...CONFIRMABLE_BLOCK,
+      translation: "신랑은 무책임하고 신부의 요구가 더 타당해요.",
+      resolution: "신랑이 먼저 사과하고 양보하는 게 좋겠어요.",
+    }],
+    ["legacy", {
+      empathy: "신부가 속상하다고 했어요.",
+      translation: "신부는 신랑을 조종하려고 일부러 이러는 거예요.",
+      resolution: "신부가 먼저 양보하세요.",
+    }],
+  ])("never renders unsafe original wording from a %s stored card", async (_label, block) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(createElement(MediationCard, { block, messageId: MESSAGE_ID }));
+    });
+    await flushAsyncUpdates();
+
+    expect(container.textContent).toContain("원문을 표시하지 않았어요");
+    for (const forbidden of ["무책임", "더 타당", "먼저 사과", "조종하려고", "먼저 양보"]) {
+      expect(container.textContent).not.toContain(forbidden);
+    }
+    expect(container.querySelector("button")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

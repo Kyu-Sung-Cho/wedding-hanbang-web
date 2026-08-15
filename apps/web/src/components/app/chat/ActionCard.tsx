@@ -88,7 +88,7 @@ function getTitle(result: ToolExecutionResult) {
     case "get_my_bookings":
       return "아모라 예약 요청 기록";
     case "get_market_price":
-      return "결혼 비용 시세";
+      return "업체 공시 기본가 참고";
     case "get_wedding_info":
       return "웨딩 정보";
     case "toggle_checklist_item":

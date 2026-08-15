@@ -352,6 +352,42 @@
     {
       "file": "20260812090000_amora_server_only_chat_ingest.sql",
       "sha256": "98abb0e90f9a38546f4bb0d61b42bd196deb4805f9fc7a024cae24733bab7ade"
+    },
+    {
+      "file": "20260812100000_amora_today_one_decision_follow_up.sql",
+      "sha256": "65affa3d0fb9d9d2c29e5681b93deadfb079acd0f6b6e37aa3f33a3f99b5ab4e"
+    },
+    {
+      "file": "20260812120000_vendor_inquiry_handoff.sql",
+      "sha256": "4d1e290e828ef958e92dd038dc3ef2d33dd37e20241dc83768f391c50329cd89"
+    },
+    {
+      "file": "20260812130000_amora_action_follow_up_v2.sql",
+      "sha256": "1048132e7328e6d397baee848ce0f79ac00585a168f5381d4ce9202defc61657"
+    },
+    {
+      "file": "20260812140000_amora_mediation_outcome_follow_up.sql",
+      "sha256": "150d7e221469b971fc97302aae5b854d8a62b526199428b4be312a5ecedadd79"
+    },
+    {
+      "file": "20260814120000_amora_explicit_action_execution.sql",
+      "sha256": "c3f63b696f489f2a58d4537aa2a293624d31b7ba6a99afaa22e41b47ff9f3a38"
+    },
+    {
+      "file": "20260814130000_amora_core_criterion.sql",
+      "sha256": "fe3c37e8c70e22e09f06151f6d866cc2e2c8a5702e7a8e5a2340d7a3fc241fa1"
+    },
+    {
+      "file": "20260814140000_amora_couple_core_criterion.sql",
+      "sha256": "f247c77641223f216df9f265ec79a36b79991e2debcce464ad55f57601f29160"
+    },
+    {
+      "file": "20260815120000_amora_action_outcome_feedback.sql",
+      "sha256": "d6dbde267bc04222d969ee98b1cd733add5f09644b66ab4548aeb8304e611f01"
+    },
+    {
+      "file": "20260815130000_amora_first_use_action_promotions.sql",
+      "sha256": "c4808671308c2ed0bb2be0a7c82b894b69c3d20c63f4547abb3bd61d64511090"
     }
   ],
   "deploymentEvidence": {

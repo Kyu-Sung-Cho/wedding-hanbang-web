@@ -16,6 +16,12 @@ import {
   isExistingChatImageUploadError,
 } from "@/lib/chat/attachmentStorage";
 import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
+import {
+  hasActiveBrowserMediationPrivateSafetyHold,
+  hasBrowserMediationPrivateSafetyHold,
+  sealBrowserMediationPrivateSafetyHold,
+} from "@/lib/care/mediationPrivateSafetyHoldBrowser";
+import { isUuid } from "@/utils/requestValidation";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -46,6 +52,7 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { hasUnresolvedPrivateMediationSafetyHold } from "@hanbang/shared/mediation-offer";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
@@ -67,6 +74,74 @@ function mutationActorHeaders(profileId: string): Record<string, string> {
   };
 }
 
+/**
+ * 안전 안내는 이 seal을 기다리지 않는다.
+ *
+ * 이 호출에 시간 제한이 없던 동안, 응답하지 않는 네트워크(끊긴 셀룰러, 프록시 홀드)에서
+ * 위기 카드가 무기한 뜨지 않았다. 사용자가 위기 문장을 보낸 바로 그 순간에 화면이
+ * 비어 있는 것이 이 제품이 만들 수 있는 가장 나쁜 실패다.
+ *
+ * 그래서 호출부는 카드를 **먼저** 그리고, 이 함수는 정해진 시간만 기다린다. 시간이
+ * 지나거나 실패하면 `false`를 돌려주고, 그 결과는 후속(follow-up) 자격만 잃게 한다 —
+ * 안내 자체는 절대 숨기지 않는다.
+ */
+const DURABLE_SAFETY_SEAL_TIMEOUT_MS = 4_000;
+
+async function sealDurableMediationPrivateSafetyHold(
+  lifecycleBinding: Readonly<ChatLifecycleBinding>,
+): Promise<boolean> {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(
+    () => timeoutController.abort(),
+    DURABLE_SAFETY_SEAL_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch("/api/amora/mediation/private-safety-hold", {
+      method: "POST",
+      signal: timeoutController.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...mutationActorHeaders(lifecycleBinding.profileId),
+      },
+      // This endpoint is deliberately opaque. Never add disclosure text,
+      // classification, a summary, or a reason to this body.
+      body: JSON.stringify({ coupleId: lifecycleBinding.coupleId }),
+    });
+    if (response.status !== 200) return false;
+    const value: unknown = await response.json();
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    return Object.keys(record).sort().join(",")
+        === "coupleId,recipientUserId,sealed,version"
+      && record.version === 1
+      && record.sealed === true
+      && record.coupleId === lifecycleBinding.coupleId.toLowerCase()
+      && record.recipientUserId === lifecycleBinding.profileId.toLowerCase();
+  } catch {
+    // 시간 초과(AbortError)도 여기로 온다. 실패는 fail-closed다 — 후속 자격 없음.
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/** 이미 그려진 안전 카드의 seal 확인 플래그만 올린다. 본문·다른 메타데이터는 건드리지 않는다. */
+function markDurableSafetyFenceConfirmed(
+  set: ChatStoreSet,
+  safetyCardId: string,
+): void {
+  set((state) => ({
+    messages: state.messages.map((message: ChatMessage) => (
+      message.id === safetyCardId
+        ? {
+            ...message,
+            metadata: { ...message.metadata, durable_safety_fence_confirmed: true },
+          }
+        : message
+    )),
+  }));
+}
+
 type ChatLifecycleBinding = {
   epoch: number;
   coupleId: string;
@@ -77,12 +152,25 @@ type ChatLifecycleBinding = {
 type ActiveProviderRequest = {
   controller: AbortController;
   lifecycleBinding: ChatLifecycleBinding;
+  requestKind?: "mediation";
+  mediationSafetyEpoch?: number;
 };
 
+type MediationRequestSnapshot = Readonly<{
+  lifecycleBinding: Readonly<ChatLifecycleBinding>;
+  intentKey: string;
+  clientRequestId: string;
+  requestBody: string;
+  safetyEpoch: number;
+}>;
+
 const activeProviderRequests = new Set<ActiveProviderRequest>();
+let retainedMediationRequest: MediationRequestSnapshot | null = null;
+let mediationSafetyEpoch = 0;
 
 function invalidateChatLifecycle() {
   chatLifecycleEpoch += 1;
+  retainedMediationRequest = null;
   for (const request of activeProviderRequests) {
     if (request.lifecycleBinding.epoch < chatLifecycleEpoch) {
       request.controller.abort();
@@ -126,6 +214,55 @@ function isChatLifecycleBindingCurrent(binding: ChatLifecycleBinding): boolean {
     && profile?.id === binding.profileId
     && profile.couple_id === binding.coupleId
     && profile.role === binding.role;
+}
+
+function isSameChatLifecycleBinding(
+  left: Readonly<ChatLifecycleBinding>,
+  right: Readonly<ChatLifecycleBinding>,
+): boolean {
+  return left.epoch === right.epoch
+    && left.coupleId === right.coupleId
+    && left.profileId === right.profileId
+    && left.role === right.role;
+}
+
+function hasCanonicalBrowserSafetyHoldBinding(
+  binding: Readonly<ChatLifecycleBinding>,
+): boolean {
+  return isUuid(binding.profileId) && isUuid(binding.coupleId);
+}
+
+function hasCurrentActorMediationSafetyFence(
+  messages: readonly ChatMessage[],
+  lifecycleBinding: Readonly<ChatLifecycleBinding>,
+): boolean {
+  const currentCoupleMessages = messages.filter(
+    (message) => message.couple_id === lifecycleBinding.coupleId,
+  );
+  return (hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+    && hasActiveBrowserMediationPrivateSafetyHold({
+      ownerUserId: lifecycleBinding.profileId,
+      coupleId: lifecycleBinding.coupleId,
+    })) || hasUnresolvedPrivateMediationSafetyHold(
+    currentCoupleMessages,
+    lifecycleBinding.role,
+  ) || currentCoupleMessages.some((message) => (
+    message.visibility === "shared"
+    && message.sender_role === "ai"
+    && (
+      message.metadata?.pinned_safety_card === true
+      || typeof message.metadata?.safety_classification === "string"
+    )
+  ));
+}
+
+function isMediationSafetyGuardCurrent(
+  safetyEpoch: number,
+  lifecycleBinding: Readonly<ChatLifecycleBinding>,
+  messages: readonly ChatMessage[],
+): boolean {
+  return safetyEpoch === mediationSafetyEpoch
+    && !hasCurrentActorMediationSafetyFence(messages, lifecycleBinding);
 }
 
 type ClearScope = "shared" | "private";
@@ -253,6 +390,10 @@ export interface FailedChatRequest {
   /** Immutable JSON snapshot, including safe base64 attachment copies. */
   requestBody: string;
   isDemo: boolean;
+  /** Provider-only retries for a requester-authored mediation draft. */
+  requestKind?: "mediation";
+  /** Invalidated as soon as a new shared/private safety hold reaches this actor. */
+  mediationSafetyEpoch?: number;
   /** A durable confirmation exists, but its application turn still needs resuming. */
   recoveryKind?: "confirmed_action" | "interrupted_turn" | "requires_reattach";
 }
@@ -268,6 +409,8 @@ interface ChatStoreState {
   artifactVisibility: ChatVisibility | null;
   error: string | null;
   initialLoadDone: boolean;
+  /** Unknown/read-error is true: this gates mediation surfaces only. */
+  mediationPersistentSafetyHold: boolean;
 
   /** 베타 무료 상담 잔여 횟수 — 임계 이하일 때만 서버가 알려줌(소진 예고 배너용). */
   quotaRemaining: number | null;
@@ -306,6 +449,7 @@ interface ChatStoreState {
   }) => Promise<ChatSendOutcome>;
   retryFailedMessage: () => Promise<void>;
   dismissFailedMessageRetry: () => void;
+  applyMediationSafetyFence: (coupleId: string) => void;
   requestInitialGreeting: (params: {
     coupleId: string;
     senderRole: MessageSenderRole;
@@ -673,7 +817,8 @@ async function parseSSEStream(
     onQuota?: (remaining: number) => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
     onError: (error: Extract<SSEEvent, { type: "error" }>) => void;
-  }
+  },
+  signal?: AbortSignal,
 ) {
   if (!res.body) throw new Error("AI 응답 스트림이 비어 있습니다.");
   const reader = res.body.getReader();
@@ -743,7 +888,22 @@ async function parseSSEStream(
   };
 
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await (signal
+      ? new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+          const abort = () => {
+            void reader.cancel().catch(() => undefined);
+            reject(new DOMException("The request was aborted.", "AbortError"));
+          };
+          if (signal.aborted) {
+            abort();
+            return;
+          }
+          signal.addEventListener("abort", abort, { once: true });
+          reader.read().then(resolve, reject).finally(() => {
+            signal.removeEventListener("abort", abort);
+          });
+        })
+      : reader.read());
     if (done) {
       buffer += decoder.decode();
       if (buffer.trim()) consumeBlock(buffer);
@@ -1367,7 +1527,24 @@ async function executeChatProviderRequest(
   lifecycleBinding: ChatLifecycleBinding,
 ): Promise<void> {
   const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
-  if (!isCurrentLifecycle() || get().isStreaming) return;
+  const isCurrentRequest = () => isCurrentLifecycle()
+    && (
+      request.requestKind !== "mediation"
+      || (
+        (
+          !hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+          || !get().mediationPersistentSafetyHold
+        )
+        &&
+        request.mediationSafetyEpoch !== undefined
+        && isMediationSafetyGuardCurrent(
+          request.mediationSafetyEpoch,
+          lifecycleBinding,
+          get().messages,
+        )
+      )
+    );
+  if (!isCurrentRequest() || get().isStreaming) return;
 
   set({
     isStreaming: true,
@@ -1381,7 +1558,16 @@ async function executeChatProviderRequest(
   });
 
   const abortController = new AbortController();
-  const activeProviderRequest = { controller: abortController, lifecycleBinding };
+  const activeProviderRequest: ActiveProviderRequest = {
+    controller: abortController,
+    lifecycleBinding,
+    ...(request.requestKind === "mediation"
+      ? {
+          requestKind: "mediation" as const,
+          mediationSafetyEpoch: request.mediationSafetyEpoch,
+        }
+      : {}),
+  };
   activeProviderRequests.add(activeProviderRequest);
   const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
@@ -1395,11 +1581,18 @@ async function executeChatProviderRequest(
       body: request.requestBody,
       signal: abortController.signal,
     });
-    if (!isCurrentLifecycle()) return;
+    if (!isCurrentRequest()) return;
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       const parsed = parseChatHttpError(errText);
+      if (
+        request.requestKind === "mediation"
+        && parsed.retryPolicy === "new_message"
+        && retainedMediationRequest?.requestBody === request.requestBody
+      ) {
+        retainedMediationRequest = null;
+      }
       logChatDiagnostic("AI API 요청 실패", {
         code: parsed.code,
         message: `HTTP ${res.status}`,
@@ -1437,14 +1630,14 @@ async function executeChatProviderRequest(
 
     await parseSSEStream(res, {
       onTextDelta: (content) => {
-        if (!isCurrentLifecycle()) return;
+        if (!isCurrentRequest()) return;
         set((state) => ({ streamingContent: state.streamingContent + content }));
       },
       onTextClear: () => {
-        if (isCurrentLifecycle()) set({ streamingContent: "" });
+        if (isCurrentRequest()) set({ streamingContent: "" });
       },
       onToolResult: (result) => {
-        if (!isCurrentLifecycle()) return;
+        if (!isCurrentRequest()) return;
         syncToolResult(result);
         if (PROGRESS_AFFECTING_TOOLS.has(result.toolName) && result.success) {
           progressTouched = true;
@@ -1454,23 +1647,25 @@ async function executeChatProviderRequest(
         }));
       },
       onSuggestions: (nextSuggestions) => {
-        if (isCurrentLifecycle()) set({ suggestions: nextSuggestions });
+        if (request.requestKind !== "mediation" && isCurrentRequest()) {
+          set({ suggestions: nextSuggestions });
+        }
       },
       onQuota: (remaining) => {
-        if (isCurrentLifecycle()) set({ quotaRemaining: remaining });
+        if (isCurrentRequest()) set({ quotaRemaining: remaining });
       },
       onDone: (content, metadata) => {
-        if (!isCurrentLifecycle()) return;
+        if (!isCurrentRequest()) return;
         fullContent = content;
         finalMetadata = metadata;
         gotDone = true;
       },
       onError: (streamError) => {
         terminalStream.error = streamError;
-        if (isCurrentLifecycle()) set({ error: streamError.message });
+        if (isCurrentRequest()) set({ error: streamError.message });
       },
-    });
-    if (!isCurrentLifecycle()) return;
+    }, abortController.signal);
+    if (!isCurrentRequest()) return;
 
     const completedToolResults = get().streamingToolResults;
     const ephemeralPlaceResults = completedToolResults.filter(
@@ -1488,6 +1683,13 @@ async function executeChatProviderRequest(
             ? false
             : terminalStreamError.retryable === true
         : true;
+      if (
+        request.requestKind === "mediation"
+        && terminalStreamError?.retryPolicy === "new_message"
+        && retainedMediationRequest?.requestBody === request.requestBody
+      ) {
+        retainedMediationRequest = null;
+      }
       set({
         failedRequest: terminalStreamError
           ? withRetryAvailability(
@@ -1521,6 +1723,7 @@ async function executeChatProviderRequest(
           }
         : {}),
     };
+    if (request.requestKind === "mediation") delete aiMetadata.suggestions;
     await saveAiMessage(set, {
       coupleId: request.coupleId,
       fullContent,
@@ -1528,19 +1731,25 @@ async function executeChatProviderRequest(
       isDemo: request.isDemo,
       visibility: request.visibility,
     });
-    if (!isCurrentLifecycle()) return;
+    if (!isCurrentRequest()) return;
 
     if (progressTouched) {
       const authState = useAuthStore.getState();
       await authState.refreshJourney(authState.user?.id);
-      if (!isCurrentLifecycle()) return;
+      if (!isCurrentRequest()) return;
     }
 
     // 저장까지 성공했을 때만 재시도 상태를 지운다. 서버가 보낸 안내(예: 일부 저장
     // 실패)는 사용자가 읽어야 하므로 여기서 함께 지우지 않는다.
+    if (
+      request.requestKind === "mediation"
+      && retainedMediationRequest?.requestBody === request.requestBody
+    ) {
+      retainedMediationRequest = null;
+    }
     set({ failedRequest: null });
   } catch (err) {
-    if (!isCurrentLifecycle()) return;
+    if (!isCurrentRequest()) return;
     logChatDiagnostic("AI 응답 처리 실패", err);
     const isAbort = err instanceof DOMException && err.name === "AbortError";
     const requestError = err instanceof ChatProviderRequestError ? err : null;
@@ -1560,7 +1769,7 @@ async function executeChatProviderRequest(
   } finally {
     clearTimeout(fetchTimeout);
     activeProviderRequests.delete(activeProviderRequest);
-    if (isCurrentLifecycle()) {
+    if (isCurrentRequest()) {
       set({
         isStreaming: false,
         isRetrying: false,
@@ -1581,6 +1790,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   artifactVisibility: null,
   error: null,
   initialLoadDone: false,
+  mediationPersistentSafetyHold: true,
   quotaRemaining: null,
   failedRequest: null,
   isSending: false,
@@ -1599,6 +1809,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       isLoading: true,
       error: null,
       initialLoadDone: false,
+      mediationPersistentSafetyHold: true,
       suggestions: [],
       artifactVisibility: get().failedRequest?.visibility ?? null,
     });
@@ -1621,6 +1832,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             .limit(1)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null });
+      const persistentSafetyHoldPromise = hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+        ? hasBrowserMediationPrivateSafetyHold({
+            ownerUserId: lifecycleBinding.profileId,
+            coupleId: lifecycleBinding.coupleId,
+          })
+        : Promise.resolve(false);
 
       // 본인 프로필의 view-reset timestamp 조회 (병렬)
       const [
@@ -1628,6 +1845,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         { data: messagesData, error: messagesErr },
         { data: latestCanonicalData, error: latestCanonicalError },
         { data: latestPrivateCanonicalData, error: latestPrivateCanonicalError },
+        mediationPersistentSafetyHold,
       ] = await Promise.all([
         supabase.auth.getUser().then(async ({ data: { user } }) => {
           if (!user) return { data: null };
@@ -1655,6 +1873,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           .limit(1)
           .maybeSingle(),
         latestPrivateCanonicalPromise,
+        persistentSafetyHoldPromise,
       ]);
 
       if (!isChatLifecycleBindingCurrent(lifecycleBinding)) return;
@@ -1722,6 +1941,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         failedRequest: nextFailedRequest,
         artifactVisibility: nextFailedRequest?.visibility ?? null,
         error: nextFailedRequest ? recoveryNotice(nextFailedRequest) : null,
+        mediationPersistentSafetyHold,
       });
     } catch (err) {
       if (!isChatLifecycleBindingCurrent(lifecycleBinding)) return;
@@ -1852,6 +2072,41 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           externalSafetySignal: hasAmoraSafetySignal(content, "chat"),
         })
       : null;
+    // seal을 **기다리지 않고** 시작만 한다. 안내 카드가 먼저 화면에 올라간 뒤에
+    // 결과를 받는다. 여기서 await하면 응답 없는 네트워크에서 위기 안내가 통째로 막힌다.
+    const localSealInFlight = crisisPreflight
+      && crisisPreflight.disposition !== "continue"
+      && hasCanonicalUuidBinding
+      ? sealBrowserMediationPrivateSafetyHold({
+          ownerUserId: lifecycleBinding.profileId,
+          coupleId: lifecycleBinding.coupleId,
+        }).catch(() => false)
+      : Promise.resolve(false);
+    const durableSealInFlight = crisisPreflight
+      && crisisPreflight.disposition !== "continue"
+      ? sealDurableMediationPrivateSafetyHold(lifecycleBinding)
+      : null;
+    /**
+     * 카드를 그린 뒤에 호출한다. seal이 확인되면 이미 그려진 카드의 플래그만 올린다.
+     * 그 사이 계정/커플이 바뀌었으면 이 카드는 이전 바인딩의 것이므로 걷어낸다 —
+     * 안내를 숨기는 게 아니라, 그 사용자의 세션이 끝난 것이다.
+     */
+    const settleDurableSafetyFence = async (safetyCardId: string): Promise<
+      { confirmed: boolean; lifecycleLost: boolean }
+    > => {
+      const [, confirmed] = await Promise.all([
+        localSealInFlight,
+        durableSealInFlight ?? Promise.resolve(true),
+      ]);
+      if (!isCurrentLifecycle()) {
+        set((state) => ({
+          messages: state.messages.filter((message) => message.id !== safetyCardId),
+        }));
+        return { confirmed, lifecycleLost: true };
+      }
+      if (confirmed) markDurableSafetyFenceConfirmed(set, safetyCardId);
+      return { confirmed, lifecycleLost: false };
+    };
     let finalVisibility = crisisPreflight?.effectiveVisibility ?? requestedVisibility;
     const effectiveConfirmedActionId = crisisPreflight?.disposition === "private_safety_route"
       ? undefined
@@ -1884,6 +2139,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           persistence_status: "ephemeral_local_only",
           pinned_safety_card: true,
           raw_disclosure_persisted: false,
+          // seal 확인 전이므로 fail-closed로 시작한다. 확인되면 아래에서 올린다.
+          durable_safety_fence_confirmed: false,
         },
         visibility: crisisPreflight.effectiveVisibility,
         created_at: new Date().toISOString(),
@@ -1896,7 +2153,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         failedRequest: null,
         error: null,
         artifactVisibility: crisisPreflight.effectiveVisibility,
+        mediationPersistentSafetyHold: true,
       }));
+      const { lifecycleLost } = await settleDurableSafetyFence(safetyCardId);
+      if (lifecycleLost) {
+        return { userMessage: "not_persisted", reason: "validation" };
+      }
       return {
         userMessage: "ephemeral_safety",
         safetyCardId,
@@ -1928,6 +2190,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           raw_disclosure_persisted: false,
           raw_disclosure_shared: false,
           raw_disclosure_persistence: "none",
+          // seal 확인 전이므로 fail-closed로 시작한다. 확인되면 아래에서 올린다.
+          durable_safety_fence_confirmed: false,
         },
         visibility: crisisPreflight.effectiveVisibility,
         created_at: new Date().toISOString(),
@@ -1938,7 +2202,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           : [...state.messages, safetyCard],
         suggestions: [],
         artifactVisibility: crisisPreflight.effectiveVisibility,
+        mediationPersistentSafetyHold: true,
       }));
+      const { confirmed: durableSafetyFenceConfirmed, lifecycleLost } =
+        await settleDurableSafetyFence(safetyCardId);
+      if (lifecycleLost) {
+        return { userMessage: "not_persisted", reason: "validation" };
+      }
+      if (!durableSafetyFenceConfirmed) {
+        return {
+          userMessage: "ephemeral_safety",
+          safetyCardId,
+          effectiveVisibility: crisisPreflight.effectiveVisibility,
+          safetyPrivacyRedirected: crisisPreflight.safetyPrivacyRedirected,
+          partnerDeliveryHeld: false,
+        };
+      }
     }
     const normalizedPartnerRecipientId = typeof partnerRecipientId === "string"
       ? partnerRecipientId.trim()
@@ -2287,14 +2566,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
 
       if (
-        ingestResponse.ok
+        (ingestResponse.status === 200 || ingestResponse.status === 503)
         && ingestPayload?.outcome === "ephemeral_safety"
+        && ingestPayload.durableSafetyFenceConfirmed === (ingestResponse.status === 200)
         && typeof ingestPayload.response === "string"
         && (
           ingestPayload.effectiveVisibility === "bride_private"
           || ingestPayload.effectiveVisibility === "groom_private"
         )
       ) {
+        const localSealInFlight = hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+          ? sealBrowserMediationPrivateSafetyHold({
+             ownerUserId: lifecycleBinding.profileId,
+             coupleId: lifecycleBinding.coupleId,
+            }).catch(() => false)
+          : Promise.resolve(false);
         if (newlyUploadedImagePaths.length > 0) {
           await cleanupNewlyUploadedImages();
           if (!isCurrentLifecycle()) {
@@ -2354,6 +2640,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
               ? {}
               : { raw_disclosure_shared: rawDisclosureShared }),
             raw_disclosure_persistence: rawDisclosurePersistence,
+            durable_safety_fence_confirmed:
+              ingestPayload.durableSafetyFenceConfirmed === true,
           },
           visibility: ingestPayload.effectiveVisibility,
           created_at: new Date().toISOString(),
@@ -2366,7 +2654,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           failedRequest: null,
           error: null,
           artifactVisibility: ingestPayload?.effectiveVisibility as ChatMessage["visibility"],
+          mediationPersistentSafetyHold: true,
         }));
+        await localSealInFlight;
+        if (!isCurrentLifecycle()) {
+          return { userMessage: "not_persisted", reason: "unexpected" };
+        }
         return {
           userMessage: "ephemeral_safety",
           safetyCardId,
@@ -2602,20 +2895,103 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   retryFailedMessage: async () => {
-    const state = get();
+    let state = get();
     if (state.isStreaming || state.isRetrying || !state.failedRequest) return;
     const lifecycleBinding = captureActiveChatLifecycleBinding();
     if (!lifecycleBinding) return;
-    if (!state.failedRequest.canRetry) {
-      set({ error: state.failedRequest.unavailableReason ?? ATTACHMENT_RETRY_UNAVAILABLE });
+    if (
+      state.failedRequest.requestKind === "mediation"
+      && hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+    ) {
+      const persistentSafetyHold = await hasBrowserMediationPrivateSafetyHold({
+        ownerUserId: lifecycleBinding.profileId,
+        coupleId: lifecycleBinding.coupleId,
+      });
+      if (!isChatLifecycleBindingCurrent(lifecycleBinding)) return;
+      set({ mediationPersistentSafetyHold: persistentSafetyHold });
+      state = get();
+      if (persistentSafetyHold) {
+        get().applyMediationSafetyFence(lifecycleBinding.coupleId);
+        return;
+      }
+    }
+    const failedRequest = state.failedRequest;
+    if (!failedRequest) return;
+    if (
+      failedRequest.requestKind === "mediation"
+      && (
+        (
+          hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+          && state.mediationPersistentSafetyHold
+        )
+        ||
+        failedRequest.mediationSafetyEpoch === undefined
+        || !isMediationSafetyGuardCurrent(
+          failedRequest.mediationSafetyEpoch,
+          lifecycleBinding,
+          state.messages,
+        )
+      )
+    ) {
+      get().applyMediationSafetyFence(lifecycleBinding.coupleId);
       return;
     }
-    await executeChatProviderRequest(set, get, state.failedRequest, true, lifecycleBinding);
+    if (!failedRequest.canRetry) {
+      set({ error: failedRequest.unavailableReason ?? ATTACHMENT_RETRY_UNAVAILABLE });
+      return;
+    }
+    await executeChatProviderRequest(set, get, failedRequest, true, lifecycleBinding);
   },
 
   dismissFailedMessageRetry: () => {
     if (get().isStreaming || get().isRetrying) return;
     set({ failedRequest: null, error: null, artifactVisibility: null });
+  },
+
+  applyMediationSafetyFence: (coupleId: string) => {
+    const lifecycleBinding = captureChatLifecycleBinding(coupleId);
+    if (
+      !lifecycleBinding
+      || !hasCurrentActorMediationSafetyFence(get().messages, lifecycleBinding)
+    ) return;
+    const hasRetainedMediationRequest = Boolean(
+      retainedMediationRequest
+      && isSameChatLifecycleBinding(
+        retainedMediationRequest.lifecycleBinding,
+        lifecycleBinding,
+      )
+    );
+    const activeMediationRequests = [...activeProviderRequests].filter((request) => (
+      request.requestKind === "mediation"
+      && isSameChatLifecycleBinding(request.lifecycleBinding, lifecycleBinding)
+    ));
+    const hasFailedMediationRequest = get().failedRequest?.requestKind === "mediation"
+      && get().failedRequest?.coupleId === coupleId;
+    if (
+      !hasRetainedMediationRequest
+      && activeMediationRequests.length === 0
+      && !hasFailedMediationRequest
+    ) return;
+
+    mediationSafetyEpoch += 1;
+    retainedMediationRequest = null;
+    for (const request of activeMediationRequests) request.controller.abort();
+    const abortedActiveMediation = activeMediationRequests.length > 0;
+    set((state) => ({
+      failedRequest: hasFailedMediationRequest ? null : state.failedRequest,
+      error: (
+        abortedActiveMediation
+        || ((hasFailedMediationRequest || hasRetainedMediationRequest) && !state.isStreaming)
+      )
+        ? null
+        : state.error,
+      isStreaming: abortedActiveMediation ? false : state.isStreaming,
+      isRetrying: abortedActiveMediation ? false : state.isRetrying,
+      streamingContent: abortedActiveMediation ? "" : state.streamingContent,
+      streamingToolResults: abortedActiveMediation ? [] : state.streamingToolResults,
+      suggestions: abortedActiveMediation ? [] : state.suggestions,
+      artifactVisibility: abortedActiveMediation ? null : state.artifactVisibility,
+    }));
   },
 
   // 첫 진입 시 AI 인사 (타임아웃 + gotDone 체크 추가)
@@ -2624,7 +3000,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const lifecycleBinding = captureChatLifecycleBinding(coupleId);
     if (!lifecycleBinding || lifecycleBinding.role !== senderRole) return;
     const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
-
     set({
       isStreaming: true,
       streamingContent: "",
@@ -2744,6 +3119,27 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const lifecycleBinding = captureChatLifecycleBinding(coupleId);
     if (!lifecycleBinding || lifecycleBinding.role !== senderRole) return;
     const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
+    if (hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)) {
+      const persistentSafetyHold = await hasBrowserMediationPrivateSafetyHold({
+        ownerUserId: lifecycleBinding.profileId,
+        coupleId: lifecycleBinding.coupleId,
+      });
+      if (!isCurrentLifecycle()) return;
+      set({ mediationPersistentSafetyHold: persistentSafetyHold });
+      if (persistentSafetyHold) return;
+    }
+    const requestMediationSafetyEpoch = mediationSafetyEpoch;
+    const isCurrentMediationRequest = () => isCurrentLifecycle()
+      && (
+        !hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+        || !get().mediationPersistentSafetyHold
+      )
+      && isMediationSafetyGuardCurrent(
+        requestMediationSafetyEpoch,
+        lifecycleBinding,
+        get().messages,
+      );
+    if (!isCurrentMediationRequest()) return;
 
     const requesterSummary = conflictContext.trim().slice(0, 600);
     if (requesterSummary.length < 4) {
@@ -2761,6 +3157,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       externalSafetySignal: hasAmoraSafetySignal(requesterSummary, "mediation"),
     });
     if (mediationSafetyPlan.disposition === "local_safety_hold") {
+      retainedMediationRequest = null;
       const safetyCardId = `amora-mediation-safety-hold:${coupleId}:${createClientRequestId()}`;
       const safetyCard: ChatMessage = {
         id: safetyCardId,
@@ -2781,6 +3178,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           raw_disclosure_persisted: false,
           raw_disclosure_shared: false,
           raw_disclosure_persistence: "none",
+          durable_safety_fence_confirmed: false,
         },
         visibility: mediationSafetyPlan.effectiveVisibility,
         created_at: new Date().toISOString(),
@@ -2792,7 +3190,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         error: null,
         quotaRemaining: null,
         failedRequest: null,
+        mediationPersistentSafetyHold: true,
       }));
+      const localSealInFlight = hasCanonicalBrowserSafetyHoldBinding(lifecycleBinding)
+        ? sealBrowserMediationPrivateSafetyHold({
+          ownerUserId: lifecycleBinding.profileId,
+          coupleId: lifecycleBinding.coupleId,
+        }).catch(() => false)
+        : Promise.resolve(false);
+      const [, durableSafetyFenceConfirmed] = await Promise.all([
+        localSealInFlight,
+        sealDurableMediationPrivateSafetyHold(lifecycleBinding),
+      ]);
+      if (isCurrentLifecycle() && durableSafetyFenceConfirmed) {
+        markDurableSafetyFenceConfirmed(set, safetyCardId);
+      }
       return;
     }
 
@@ -2809,7 +3221,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     });
 
     const abortController = new AbortController();
-    const activeProviderRequest = { controller: abortController, lifecycleBinding };
+    const activeProviderRequest: ActiveProviderRequest = {
+      controller: abortController,
+      lifecycleBinding,
+      requestKind: "mediation",
+      mediationSafetyEpoch: requestMediationSafetyEpoch,
+    };
     activeProviderRequests.add(activeProviderRequest);
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
@@ -2825,30 +3242,70 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }];
 
       const isDemo = document.cookie.includes("demo_mode=true");
-      const clientRequestId = createClientRequestId();
+      const requestIntentKey = JSON.stringify({
+        messages: mediationMessages,
+        coupleId,
+        senderName,
+        senderRole,
+        weddingContext,
+        isDemo,
+        requestKind: "mediation",
+        conflictContext: requesterSummary,
+        visibility: "shared",
+      });
+      const reusableSnapshot = retainedMediationRequest
+        && isSameChatLifecycleBinding(retainedMediationRequest.lifecycleBinding, lifecycleBinding)
+        && retainedMediationRequest.safetyEpoch === requestMediationSafetyEpoch
+        && retainedMediationRequest.intentKey === requestIntentKey
+          ? retainedMediationRequest
+          : null;
+      const mediationRequestSnapshot = reusableSnapshot ?? (() => {
+        const clientRequestId = createClientRequestId();
+        return Object.freeze({
+          lifecycleBinding: Object.freeze({ ...lifecycleBinding }),
+          intentKey: requestIntentKey,
+          clientRequestId,
+          safetyEpoch: requestMediationSafetyEpoch,
+          requestBody: JSON.stringify({
+            messages: mediationMessages,
+            coupleId,
+            senderName,
+            senderRole,
+            weddingContext,
+            isDemo,
+            clientRequestId,
+            requestKind: "mediation",
+            conflictContext: requesterSummary,
+            visibility: "shared",
+          }),
+        });
+      })();
+      retainedMediationRequest = mediationRequestSnapshot;
+      const failedMediationRequest: FailedChatRequest = {
+        clientRequestId: mediationRequestSnapshot.clientRequestId,
+        userMessageId: null,
+        coupleId,
+        content: requesterSummary,
+        visibility: "shared",
+        confirmedActionId: null,
+        attachmentCount: 0,
+        canRetry: true,
+        unavailableReason: null,
+        requestBody: mediationRequestSnapshot.requestBody,
+        isDemo,
+        requestKind: "mediation",
+        mediationSafetyEpoch: requestMediationSafetyEpoch,
+      };
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...mutationActorHeaders(lifecycleBinding.profileId),
         },
-        body: JSON.stringify({
-          messages: mediationMessages,
-          coupleId,
-          senderName,
-          senderRole,
-          weddingContext,
-          isDemo,
-          clientRequestId,
-          requestKind: "mediation",
-          conflictContext: requesterSummary,
-          visibility: "shared",
-        }),
+        body: mediationRequestSnapshot.requestBody,
         signal: abortController.signal,
       });
-      if (!isCurrentLifecycle()) return;
-
-      clearTimeout(fetchTimeout);
+      if (!isCurrentMediationRequest()) return;
 
       if (!res.ok) {
         // 서버가 이유를 문장으로 돌려준 경우(안전 프리플라이트 등)에는 그 문장을
@@ -2863,6 +3320,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             ? (failureBody as { error: string }).error
             : null;
         const failure = new Error(serverMessage ?? "AI 중재 요청 실패");
+        const retryPolicy = failureBody
+          && typeof failureBody === "object"
+          && (failureBody as { retryPolicy?: unknown }).retryPolicy === "new_message"
+            ? "new_message"
+            : failureBody
+              && typeof failureBody === "object"
+              && (failureBody as { retryPolicy?: unknown }).retryPolicy === "same_request"
+                ? "same_request"
+                : null;
+        if (
+          retryPolicy === "new_message"
+          && retainedMediationRequest === mediationRequestSnapshot
+        ) {
+          retainedMediationRequest = null;
+        }
         if (serverMessage) failure.name = MEDIATION_REQUEST_REJECTED;
         throw failure;
       }
@@ -2870,51 +3342,89 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       let fullContent = "";
       let finalMetadata: ChatMessageMetadata | null = null;
       let gotDone = false;
+      const terminalStream = {
+        error: null as Extract<SSEEvent, { type: "error" }> | null,
+      };
 
       await parseSSEStream(res, {
         onTextDelta: (content) => {
-          if (isCurrentLifecycle()) {
+          if (isCurrentMediationRequest()) {
             set((s) => ({ streamingContent: s.streamingContent + content }));
           }
         },
         onTextClear: () => {
-          if (isCurrentLifecycle()) set({ streamingContent: "" });
+          if (isCurrentMediationRequest()) set({ streamingContent: "" });
         },
         onToolResult: (result) => {
-          if (!isCurrentLifecycle()) return;
+          if (!isCurrentMediationRequest()) return;
           syncToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => {
-          if (isCurrentLifecycle()) set({ suggestions: sug });
+          // Mediation has its own two-person confirmation surface. Suggestion
+          // chips are an unguarded action channel and are never accepted here,
+          // even when an older server or replay emits them.
+          void sug;
         },
         onQuota: (remaining) => {
-          if (isCurrentLifecycle()) set({ quotaRemaining: remaining });
+          if (isCurrentMediationRequest()) set({ quotaRemaining: remaining });
         },
         onDone: (fc, meta) => {
-          if (!isCurrentLifecycle()) return;
+          if (!isCurrentMediationRequest()) return;
           fullContent = fc;
           finalMetadata = meta;
           gotDone = true;
         },
         onError: (streamError) => {
-          if (isCurrentLifecycle()) set({ error: streamError.message });
+          terminalStream.error = streamError;
+          if (isCurrentMediationRequest()) {
+            if (
+              streamError.retryPolicy === "new_message"
+              && retainedMediationRequest === mediationRequestSnapshot
+            ) {
+              retainedMediationRequest = null;
+            }
+            set({ error: streamError.message });
+          }
         },
-      });
-      if (!isCurrentLifecycle()) return;
+      }, abortController.signal);
+      if (!isCurrentMediationRequest()) return;
 
-      if (!gotDone && !fullContent && !get().error) {
-        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
+      if (!gotDone || !fullContent.trim()) {
+        const terminalStreamError = terminalStream.error;
+        const retryable = terminalStreamError
+          ? terminalStreamError.retryPolicy === "same_request"
+            ? true
+            : terminalStreamError.retryPolicy === "new_message"
+              ? false
+              : terminalStreamError.retryable === true
+          : true;
+        set({
+          failedRequest: terminalStreamError
+            ? withRetryAvailability(
+                failedMediationRequest,
+                retryable,
+                retryable ? null : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
+              )
+            : failedMediationRequest,
+          error: get().error ?? "AI 응답이 중단되었습니다. 다시 시도해주세요.",
+          streamingContent: "",
+        });
+        return;
       }
 
       if (fullContent) {
-        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
+        const aiMetadata: ChatMessageMetadata = { ...(finalMetadata ?? {}) };
+        delete aiMetadata.suggestions;
         const isDemo = document.cookie.includes("demo_mode=true");
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
-        if (!isCurrentLifecycle()) return;
+        if (!isCurrentMediationRequest()) return;
+      }
+      if (gotDone && retainedMediationRequest === mediationRequestSnapshot) {
+        retainedMediationRequest = null;
       }
     } catch (err) {
-      if (!isCurrentLifecycle()) return;
+      if (!isCurrentMediationRequest()) return;
       logChatDiagnostic("중재 요청 실패", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       const isServerRejection =
@@ -2929,7 +3439,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     } finally {
       clearTimeout(fetchTimeout);
       activeProviderRequests.delete(activeProviderRequest);
-      if (isCurrentLifecycle()) {
+      if (isCurrentMediationRequest()) {
         set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
       }
     }
@@ -3348,6 +3858,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       artifactVisibility: null,
       error: null,
       initialLoadDone: false,
+      mediationPersistentSafetyHold: true,
       quotaRemaining: null,
       failedRequest: null,
       isSending: false,

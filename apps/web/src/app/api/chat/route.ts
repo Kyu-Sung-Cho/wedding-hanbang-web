@@ -1,6 +1,33 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePreparationStatus } from "@hanbang/shared";
+import { buildAmoraFirstUseGrounding } from "@hanbang/shared/amora-first-use-grounding";
+import {
+  AMORA_SCHEDULE_CARE_ACTION_DRAFT_METADATA_KEY,
+  AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY,
+  buildAmoraScheduleCareFollowUpPrivateMetadata,
+  parseAmoraScheduleCareFollowUpPrivateMetadata,
+  splitAmoraScheduleCareFollowUpAnswer,
+  type AmoraScheduleCareFollowUpBinding,
+} from "@hanbang/shared/amora-schedule-care-follow-up";
+import {
+  isAmoraFirstUseSharedDraftText,
+  matchesAmoraFirstUsePendingAction,
+  parseAmoraFirstUsePromotionValidation,
+  type AmoraFirstUsePromotionValidation,
+} from "@/lib/ai/amoraFirstUsePromotionBinding";
+import { buildAmoraFirstUsePromotionSourceSeal } from "@/lib/ai/amoraFirstUsePromotion";
+import {
+  buildAmoraScheduleCareDAfterContext,
+  extractAmoraScheduleCareActionDraft,
+  parseAmoraScheduleCareSharedActionDraft,
+  selectAmoraScheduleCareSharedActionProposalTools,
+} from "@/lib/ai/amoraScheduleCareFollowUp";
+import {
+  resolveAmoraScheduleCareFollowUp,
+  type AmoraScheduleCareFollowUpResolutionFailure,
+  type ResolvedAmoraScheduleCareFollowUp,
+} from "@/lib/care/scheduleCareFollowUp";
 import {
   buildMultimodalContent,
   buildToolResultInput,
@@ -29,6 +56,10 @@ import {
   hasEphemeralPlaceSearchResult,
 } from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
+import {
+  bindCanonicalQuoteAnalysisInput,
+  parseCanonicalQuoteAnalysisSelection,
+} from "@/lib/ai/quoteAnalysisSelection";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
@@ -37,10 +68,14 @@ import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGat
 import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import {
+  AMORA_MEDIATION_OUTPUT_GUARD_FALLBACK,
   extractMediation,
   mediationBlockToOrdinaryText,
   toUserRequestedMediationV2,
 } from "@/lib/ai/mediation";
+import { findMediationNeutralityViolations } from "@/lib/ai/mediationNeutrality";
+import { buildMediationFollowUpSafetyMarker } from "@/lib/care/mediationFollowUpSafety";
+import { sealMediationPrivateSafetyHold } from "@/lib/care/mediationPrivateSafetyHold";
 import {
   AMORA_PROFILE_PROJECTION_QUERY_LIMIT,
   normalizeAmoraProfileProjectionRows,
@@ -59,6 +94,11 @@ import {
 import { reconcilePersistedAmoraMemoryEnqueue } from "@/lib/ai/amoraMemoryReplay";
 import { parseAmoraPersonalizationRow } from "@/lib/amora/personalization";
 import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
+import {
+  selectCurrentAmoraCoupleCriterionSnapshot,
+  selectCurrentAmoraCoreCriterion,
+  withoutAmoraCoreCriterionReceipts,
+} from "@/lib/ai/amoraCoreCriterion";
 import { isAmoraConversationSegmentReadEnabled } from "@/lib/ai/amoraConversationSegmentRead";
 import { resolveAmoraWeddingContext } from "@/lib/ai/amoraWeddingContext";
 import {
@@ -158,6 +198,7 @@ import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 import { createHash, randomUUID } from "node:crypto";
 import { isSupersededDecision } from "@/lib/ai/supersededDecisions";
 import { inspectScheduleEvents } from "@/utils/scheduleEvents";
+import { ymdInKst } from "@/lib/utils/kstDate";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
@@ -406,9 +447,13 @@ async function readChatActorProfile(actorId: string): Promise<ChatActorProfile |
   };
 }
 
-function getDoneMetadata(message: PersistedAiMessage): Record<string, unknown> {
+function getDoneMetadata(
+  message: PersistedAiMessage,
+  stripSuggestions = false,
+): Record<string, unknown> {
   const metadata = { ...(message.metadata ?? {}) };
   delete metadata.client_request_id;
+  if (stripSuggestions) delete metadata.suggestions;
   if (Array.isArray(metadata.toolResults)) {
     const persistableResults = getPersistableToolResults(
       metadata.toolResults as ToolExecutionResult[]
@@ -426,14 +471,17 @@ function getDoneMetadata(message: PersistedAiMessage): Record<string, unknown> {
   };
 }
 
-function replayPersistedMessage(message: PersistedAiMessage): Response {
+function replayPersistedMessage(
+  message: PersistedAiMessage,
+  stripSuggestions = false,
+): Response {
   const events: Array<Record<string, unknown>> = [];
-  const suggestions = getStoredSuggestions(message);
+  const suggestions = stripSuggestions ? [] : getStoredSuggestions(message);
   if (suggestions.length > 0) events.push({ type: "suggestions", suggestions });
   events.push({
     type: "done",
     fullContent: message.content ?? "",
-    metadata: getDoneMetadata(message),
+    metadata: getDoneMetadata(message, stripSuggestions),
   });
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
   return new Response(payload, { headers: SSE_HEADERS });
@@ -442,6 +490,7 @@ function replayPersistedMessage(message: PersistedAiMessage): Response {
 function replayEphemeralCrisisMessage(
   content: string,
   kind: AmoraCrisisKind,
+  durableSafetyFenceConfirmed = true,
 ): Response {
   const payload = `data: ${JSON.stringify({
     type: "done",
@@ -453,12 +502,19 @@ function replayEphemeralCrisisMessage(
       question_scope: "W5_safety_override",
       memory_eligible: false,
       persistence_status: "unconfirmed_ephemeral_fallback",
+      durable_safety_fence_confirmed: durableSafetyFenceConfirmed,
       stageTag: null,
       specialistType: null,
       replayed: false,
     },
   })}\n\n`;
-  return new Response(payload, { headers: SSE_HEADERS });
+  return new Response(payload, {
+    headers: SSE_HEADERS,
+    // The deterministic safety guidance is a successful, complete SSE reply.
+    // Durable hold persistence is reported independently in metadata so every
+    // supported client can render the guidance even when that write is down.
+    status: 200,
+  });
 }
 
 function isValidChatMessages(value: unknown): value is Array<{
@@ -491,6 +547,57 @@ function isValidChatMessages(value: unknown): value is Array<{
 // Service role 클라이언트 (RLS 우회 — 자동 피드백 저장용)
 function getServiceClient() {
   return createAdminClient();
+}
+
+function scheduleCareFollowUpFailureResponse(
+  reason: AmoraScheduleCareFollowUpResolutionFailure,
+): NextResponse {
+  if (reason === "scope_changed") {
+    return NextResponse.json(
+      {
+        error:
+          "이 비공개 안부 카드의 현재 사용자 또는 커플 연결이 달라졌어요. 새 카드에서 다시 시작해주세요.",
+        code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_SCOPE_CHANGED",
+        retryable: false,
+        retryPolicy: "new_message",
+      },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  if (reason === "privacy_unavailable" || reason === "source_unavailable") {
+    return NextResponse.json(
+      {
+        error:
+          "상견례 안부 카드의 현재 상태를 안전하게 확인하지 못했어요. 잠시 후 같은 요청으로 다시 시도해주세요.",
+        code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_UNAVAILABLE",
+        retryable: true,
+        retryPolicy: "same_request",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  if (reason === "invalid_binding") {
+    return NextResponse.json(
+      {
+        error:
+          "상견례 안부 카드의 연결 정보가 올바르지 않아요. 새 메시지에서 다시 시작해주세요.",
+        code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_INVALID",
+        retryable: false,
+        retryPolicy: "new_message",
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  return NextResponse.json(
+    {
+      error:
+        "상견례 안부 카드가 최신 준비 상태와 달라졌어요. 홈에서 새 카드를 열어 다시 정리해주세요.",
+      code: "AMORA_SCHEDULE_CARE_FOLLOW_UP_STALE",
+      retryable: false,
+      retryPolicy: "regenerate_schedule_care_follow_up",
+    },
+    { status: 409, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 // 자동 피드백 저장 (비동기, 에러 무시 — 채팅 흐름 방해 금지)
@@ -891,7 +998,7 @@ export async function POST(request: Request) {
     if (currentReplayPrivacyEpoch !== expectedReplayPrivacyEpoch) {
       throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
     }
-    return replayPersistedMessage(message);
+    return replayPersistedMessage(message, requestKind === "mediation");
   };
   const demoSessionToken = isDemo
     ? getCookieValue(request.headers.get("cookie"), "demo_session")
@@ -909,6 +1016,9 @@ export async function POST(request: Request) {
   let earlyCrisisUserText: string | null = null;
   let trustedCanonicalScopeUserRow: Record<string, unknown> | null = null;
   let canonicalProviderAttachmentContract: CanonicalProviderAttachmentContract | null = null;
+  let scheduleCareFollowUpBinding: AmoraScheduleCareFollowUpBinding | null = null;
+  let resolvedScheduleCareFollowUp: ResolvedAmoraScheduleCareFollowUp | null = null;
+  let scheduleCareFollowUpAnswer: string | null = null;
   if (requestKind === "mediation") {
     earlyCrisisUserText = String(conflictContext).trim();
   } else if (requestKind === "chat") {
@@ -957,16 +1067,108 @@ export async function POST(request: Request) {
     }
   }
 
+  // A schedule-care row carries a server-issued private capability. Validate
+  // its durable envelope before replay, but defer the live source resolution
+  // until after exact-completion recovery. A retry of an already committed
+  // response must remain recoverable even if the source card later expires.
+  if (
+    !isDemo
+    && requestKind === "chat"
+    && trustedCanonicalScopeUserRow !== null
+  ) {
+    const canonicalMetadata = isRecord(trustedCanonicalScopeUserRow.metadata)
+      ? trustedCanonicalScopeUserRow.metadata
+      : null;
+    const rawScheduleCareFollowUp =
+      canonicalMetadata?.[AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY];
+    if (rawScheduleCareFollowUp !== undefined) {
+      const expectedMetadataKeys = [
+        "client_request_id",
+        "amora_ingest_contract_version",
+        "ai_response_requested",
+        "provider_attachment_state",
+        "provider_attachment_count",
+        AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY,
+      ].sort();
+      const actualMetadataKeys = canonicalMetadata
+        ? Object.keys(canonicalMetadata).sort()
+        : [];
+      const parsedMetadata = parseAmoraScheduleCareFollowUpPrivateMetadata(
+        rawScheduleCareFollowUp,
+      );
+      if (
+        typeof bodyUserMessageId !== "string"
+        || visibility === "shared"
+        || !canonicalMetadata
+        || actualMetadataKeys.length !== expectedMetadataKeys.length
+        || actualMetadataKeys.some(
+          (key, index) => key !== expectedMetadataKeys[index],
+        )
+        || canonicalMetadata.amora_ingest_contract_version !== 1
+        || canonicalMetadata.ai_response_requested !== true
+        || canonicalMetadata.provider_attachment_state !== "none"
+        || canonicalMetadata.provider_attachment_count !== 0
+        || parsedMetadata === null
+      ) {
+        return scheduleCareFollowUpFailureResponse("invalid_binding");
+      }
+      scheduleCareFollowUpBinding = {
+        cardId: parsedMetadata.card_id,
+        cardRevision: parsedMetadata.card_revision,
+        sourceRevision: parsedMetadata.source_revision,
+      };
+      // The canonical prompt is server-authored data, not a user disclosure.
+      // Suppress the ordinary early classifier until replay misses and the
+      // resolver can authenticate the exact prompt and isolate its suffix.
+      earlyCrisisUserText = null;
+    }
+  }
+
   const earlySafetyAssessment = earlyCrisisUserText === null
     ? null
     : assessAmoraSafetyText(earlyCrisisUserText);
   const earlyCrisisClassification = earlyCrisisUserText === null
     ? null
     : classifyAmoraCrisis(earlyCrisisUserText);
+  // A mediation response is released on the shared lane. Even deterministic
+  // crisis guidance would reveal to the partner that the requester disclosed
+  // danger. The client can now open a private safety flow from this 422 without
+  // putting any content or safety metadata into shared chat.
+  if (earlyCrisisClassification && requestKind === "mediation") {
+    const durableSafetyFenceConfirmed = isDemo
+      ? true
+      : await sealMediationPrivateSafetyHold({
+        client: getServiceClient(),
+        coupleId,
+        recipientUserId: actorId,
+      });
+    return NextResponse.json(
+      {
+        error:
+          "이 내용은 커플 중재로 공유하기 전에 안전 확인과 비공개 지원이 먼저 필요해요.",
+        code: durableSafetyFenceConfirmed
+          ? "MEDIATION_SAFETY_PREFLIGHT_REQUIRED"
+          : "MEDIATION_PRIVATE_SAFETY_HOLD_SEAL_UNAVAILABLE",
+        durableSafetyFenceConfirmed,
+      },
+      {
+        status: durableSafetyFenceConfirmed ? 422 : 503,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
+  }
   if (earlyCrisisClassification) {
+    const durableSafetyFenceConfirmed = isDemo
+      ? true
+      : await sealMediationPrivateSafetyHold({
+        client: getServiceClient(),
+        coupleId,
+        recipientUserId: actorId,
+      });
     return replayEphemeralCrisisMessage(
       buildAmoraCrisisResponse(earlyCrisisClassification.kind),
       earlyCrisisClassification.kind,
+      durableSafetyFenceConfirmed,
     );
   }
   // 중재 요청의 답은 `visibility: "shared"`로 저장된다. 그러니 안전 신호가 있는
@@ -994,11 +1196,38 @@ export async function POST(request: Request) {
         && earlyMediationScope.highRiskReason === "safety")
     )
   ) {
+    const durableSafetyFenceConfirmed = isDemo
+      ? true
+      : await sealMediationPrivateSafetyHold({
+        client: getServiceClient(),
+        coupleId,
+        recipientUserId: actorId,
+      });
     return NextResponse.json(
       {
         error:
           "이 내용은 커플 중재로 공유하기 전에 안전 확인과 비공개 지원이 먼저 필요해요.",
-        code: "MEDIATION_SAFETY_PREFLIGHT_REQUIRED",
+        code: durableSafetyFenceConfirmed
+          ? "MEDIATION_SAFETY_PREFLIGHT_REQUIRED"
+          : "MEDIATION_PRIVATE_SAFETY_HOLD_SEAL_UNAVAILABLE",
+        durableSafetyFenceConfirmed,
+      },
+      {
+        status: durableSafetyFenceConfirmed ? 422 : 503,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
+  }
+
+  // The actor/private-lane and deterministic safety checks above keep their
+  // existing precedence. A non-safety mediation draft, however, is jointly
+  // actionable only on the shared lane; reject it before replay, claims,
+  // persistence, rate limiting, or any provider egress.
+  if (requestKind === "mediation" && requestedVisibility !== "shared") {
+    return NextResponse.json(
+      {
+        error: "커플 중재는 공유 대화에서만 시작할 수 있어요.",
+        code: "MEDIATION_SHARED_VISIBILITY_REQUIRED",
       },
       { status: 422, headers: { "Cache-Control": "no-store" } },
     );
@@ -1122,6 +1351,7 @@ export async function POST(request: Request) {
         imagePaths: canonicalImagePaths,
       };
     }
+
   }
 
   // Exact durable retries are recovery reads, not new turns. Once identity,
@@ -1150,6 +1380,32 @@ export async function POST(request: Request) {
         visibility,
       });
       if (existing?.id) {
+        if (scheduleCareFollowUpBinding) {
+          const persistedMetadata = isRecord(existing.metadata)
+            ? existing.metadata
+            : null;
+          const persistedBinding = parseAmoraScheduleCareFollowUpPrivateMetadata(
+            persistedMetadata?.[AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY],
+          );
+          if (
+            persistedBinding === null
+            || persistedBinding.card_id !== scheduleCareFollowUpBinding.cardId
+            || persistedBinding.card_revision
+              !== scheduleCareFollowUpBinding.cardRevision
+            || persistedBinding.source_revision
+              !== scheduleCareFollowUpBinding.sourceRevision
+          ) {
+            return NextResponse.json(
+              {
+                error: "저장된 상견례 답변의 연결 정보를 안전하게 확인하지 못했어요.",
+                code: "CHAT_REPLAY_INCONSISTENT",
+                retryable: false,
+                retryPolicy: "new_message",
+              },
+              { status: 503, headers: { "Cache-Control": "no-store" } },
+            );
+          }
+        }
         const reconciled = await reconcileChatRequest({
           coupleId,
           requestKey: clientRequestId,
@@ -1215,6 +1471,72 @@ export async function POST(request: Request) {
     }
   }
 
+  // No exact completion exists, so the private capability must still resolve
+  // against the current roster/privacy/journey/card/signal/candidate state
+  // before the ordinary limiter, claim, provider cost, tools, or persistence.
+  if (
+    scheduleCareFollowUpBinding !== null
+    && trustedCanonicalScopeUserRow !== null
+  ) {
+    const resolution = await resolveAmoraScheduleCareFollowUp({
+      client: supabase,
+      recipientUserId: actorId,
+      coupleId,
+      binding: scheduleCareFollowUpBinding,
+    });
+    if (!resolution.ok) {
+      return scheduleCareFollowUpFailureResponse(resolution.reason);
+    }
+    const resolved = resolution.value;
+    const actorRole = userProfile.role;
+    if (
+      resolved.recipientUserId !== actorId
+      || resolved.coupleId !== coupleId
+      || (actorRole !== "bride" && actorRole !== "groom")
+      || resolved.actorRole !== actorRole
+      || resolved.momentType !== "sanggyeonrye"
+      || resolved.attentionWindow !== "dAfter"
+      || resolved.binding.cardId !== scheduleCareFollowUpBinding.cardId
+      || resolved.binding.cardRevision
+        !== scheduleCareFollowUpBinding.cardRevision
+      || resolved.binding.sourceRevision
+        !== scheduleCareFollowUpBinding.sourceRevision
+      || !Number.isSafeInteger(resolved.privacyEpoch)
+      || resolved.privacyEpoch < 1
+    ) {
+      return scheduleCareFollowUpFailureResponse("scope_changed");
+    }
+    const canonicalContent = trustedCanonicalScopeUserRow.content;
+    const answer = typeof canonicalContent === "string"
+      ? splitAmoraScheduleCareFollowUpAnswer(
+          canonicalContent,
+          resolved.prompt,
+        )
+      : null;
+    if (answer === null) {
+      return scheduleCareFollowUpFailureResponse("moment_stale");
+    }
+    resolvedScheduleCareFollowUp = resolved;
+    scheduleCareFollowUpAnswer = answer;
+    earlyCrisisUserText = answer;
+
+    // The general early classifier intentionally skipped the canonical prompt.
+    // Re-run the same fixed crisis boundary now on the authenticated suffix.
+    const scheduleCareCrisis = classifyAmoraCrisis(answer);
+    if (scheduleCareCrisis) {
+      const durableSafetyFenceConfirmed = await sealMediationPrivateSafetyHold({
+        client: getServiceClient(),
+        coupleId,
+        recipientUserId: actorId,
+      });
+      return replayEphemeralCrisisMessage(
+        buildAmoraCrisisResponse(scheduleCareCrisis.kind),
+        scheduleCareCrisis.kind,
+        durableSafetyFenceConfirmed,
+      );
+    }
+  }
+
   const preliminaryQuestionScope = requestKind === "initial_greeting"
     ? classifyAmoraQuestionScope({
         userText: "[INITIAL_GREETING]",
@@ -1231,6 +1553,7 @@ export async function POST(request: Request) {
   const shouldAttemptBoundedContinuity =
     !isDemo
     && requestKind === "chat"
+    && resolvedScheduleCareFollowUp === null
     && bodyConfirmedActionId === undefined
     && typeof bodyUserMessageId === "string"
     && trustedCanonicalScopeUserRow !== null
@@ -1245,7 +1568,8 @@ export async function POST(request: Request) {
   const skipsIrrelevantProviderContextReads =
     bodyConfirmedActionId === undefined
     && (
-      requestKind === "initial_greeting"
+      resolvedScheduleCareFollowUp !== null
+      || requestKind === "initial_greeting"
       || requestKind === "mediation"
       || shouldAttemptBoundedContinuity
       || (
@@ -1561,6 +1885,13 @@ export async function POST(request: Request) {
       );
     }
   }
+  if (
+    resolvedScheduleCareFollowUp !== null
+    && initialPrivacyEpoch !== resolvedScheduleCareFollowUp.privacyEpoch
+  ) {
+    await releaseClaimBeforeStream("AMORA_SCHEDULE_CARE_FOLLOW_UP_SCOPE_CHANGED");
+    return scheduleCareFollowUpFailureResponse("scope_changed");
+  }
   const memoryEnablement = initialPrivacyContextSnapshot?.memory ?? {
     shared: { enabled: false, resetAt: null },
     bride_private: { enabled: false, resetAt: null },
@@ -1744,7 +2075,7 @@ export async function POST(request: Request) {
     skipsIrrelevantProviderContextReads
       ? Promise.resolve({ data: [], error: null })
       : supabase.from("decision_nodes")
-          .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
+          .select("id, couple_id, category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, source_actor_role, created_at, memory_key, superseded_at, metadata")
           .eq("couple_id", dataCoupleId)
           .order("created_at", { ascending: false })
           .limit(50),
@@ -1840,7 +2171,7 @@ export async function POST(request: Request) {
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
-  const canonicalJourneyStateRevision =
+  let canonicalJourneyStateRevision =
     isDemo
       ? 0
       : isRecord(journey)
@@ -1889,6 +2220,17 @@ export async function POST(request: Request) {
     // 서명된 체험 세션은 DB가 없으므로 제한적으로 정규화한 client context를 쓴다.
     allowClientContext: isDemo,
   });
+  const firstUseGrounding = canonicalJourneyStateRevision === null
+    ? null
+    : buildAmoraFirstUseGrounding({
+        sourceRevision: canonicalJourneyStateRevision,
+        todayYmd: ymdInKst(new Date()),
+        weddingDate: resolvedWeddingContext.weddingDate,
+        budget: resolvedWeddingContext.budget,
+        venue: resolvedWeddingContext.venue,
+        progress: resolvedWeddingContext.progress,
+        scheduleEvents: resolvedWeddingContext.scheduleEvents,
+      });
 
   // 프로필에서 신부/신랑 이름 추출
   const profiles = profilesResult.data ?? [];
@@ -2007,6 +2349,8 @@ export async function POST(request: Request) {
   // RLS는 partner private을 막지만 본인 private은 응답에 포함됨.
   // shared 응답엔 shared decision만, private 응답엔 shared + 같은 visibility만.
   const rawDecisions = (decisionsResult.data ?? []) as Array<{
+    id: string;
+    couple_id: string;
     category: string;
     decision_type: string;
     title: string;
@@ -2016,6 +2360,7 @@ export async function POST(request: Request) {
     stage_tag: string | null;
     source: string;
     visibility: "shared" | "bride_private" | "groom_private";
+    source_actor_role: "bride" | "groom" | null;
     created_at: string;
     memory_key: string | null;
     superseded_at: string | null;
@@ -2023,13 +2368,14 @@ export async function POST(request: Request) {
   }>;
   const isAutomaticMemory = (decision: typeof rawDecisions[number]) =>
     decision.memory_key !== null || typeof decision.metadata?.extracted_by === "string";
+  const decisionsWithoutCoreCriterion = withoutAmoraCoreCriterionReceipts(rawDecisions);
   const decisionsData =
     visibility === "shared"
-      ? rawDecisions.filter((d) =>
+      ? decisionsWithoutCoreCriterion.filter((d) =>
           d.visibility === "shared"
           && d.superseded_at === null
           && (sharedMemoryEnabledForTurn || !isAutomaticMemory(d)))
-      : rawDecisions.filter((d) =>
+      : decisionsWithoutCoreCriterion.filter((d) =>
           (d.visibility === "shared" || d.visibility === visibility)
           && d.superseded_at === null
           && (
@@ -2055,6 +2401,22 @@ export async function POST(request: Request) {
     { category: d.category, title: d.title, chosenValue: d.chosen_value },
     currentJourneyFacts,
   ));
+  const coreCriterion = visibility === "shared"
+    ? null
+    : selectCurrentAmoraCoreCriterion({
+        expectedOwnerUserId: actorId,
+        expectedVisibility: visibility,
+        newestFirstRows: rawDecisions,
+      });
+  const coupleCriterionSnapshot = memberIds.bride && memberIds.groom
+    ? selectCurrentAmoraCoupleCriterionSnapshot({
+        expectedCoupleId: dataCoupleId,
+        expectedBrideUserId: memberIds.bride,
+        expectedGroomUserId: memberIds.groom,
+        newestFirstRows: rawDecisions,
+      })
+    : null;
+  const coupleCriterion = coupleCriterionSnapshot?.value ?? null;
 
   const pastDecisions = liveDecisions.map((d) => ({
     category: d.category,
@@ -2118,6 +2480,7 @@ export async function POST(request: Request) {
       target?: string;
       pending_amora_action?: unknown;
       in_reply_to_user_message_id?: unknown;
+      amora_first_use_promotion_id?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
     segment_id?: string | null;
@@ -2282,6 +2645,168 @@ export async function POST(request: Request) {
     lastUserText = latestUserRow.content;
   }
 
+  // The durable row keeps the complete short composer prompt for audit and
+  // replay binding. From this point onward only the suffix attested by the
+  // user is eligible for classification, routing, or provider input.
+  if (
+    resolvedScheduleCareFollowUp !== null
+    && scheduleCareFollowUpAnswer !== null
+  ) {
+    lastUserText = scheduleCareFollowUpAnswer;
+  }
+
+  const currentCanonicalUserRow = !isDemo && requestKind === "chat"
+    ? [...canonicalRows].reverse().find((row) =>
+        row.role === "user"
+        && row.sender_type !== "ai"
+        && row.sender_id === actorId
+      ) ?? null
+    : null;
+  const scheduleCareSharedActionDraft = visibility === "shared"
+    ? parseAmoraScheduleCareSharedActionDraft(lastUserText)
+    : { status: "absent" as const };
+  const isFirstUseSharedDraft = !isDemo
+    && requestKind === "chat"
+    && visibility === "shared"
+    && isAmoraFirstUseSharedDraftText(lastUserText);
+  const storedFirstUsePromotionId =
+    currentCanonicalUserRow?.metadata?.amora_first_use_promotion_id;
+  let firstUsePromotionBinding: AmoraFirstUsePromotionValidation | null = null;
+  if (isFirstUseSharedDraft) {
+    if (
+      !isDurableUserMessageBound
+      || typeof storedFirstUsePromotionId !== "string"
+      || !isUuid(storedFirstUsePromotionId)
+    ) {
+      await releaseClaimBeforeStream("AMORA_FIRST_USE_PROMOTION_REQUIRED");
+      return NextResponse.json(
+        {
+          error: "이 실행 카드의 안전한 연결 정보가 없거나 만료됐어요. 개인 상담에서 한 가지 제안을 다시 만들어 공유해주세요.",
+          code: "AMORA_FIRST_USE_PROMOTION_REQUIRED",
+          retryable: false,
+          retryPolicy: "regenerate_first_use_action",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (initialPrivacyEpoch === null || !currentCanonicalUserRow) {
+      await releaseClaimBeforeStream("AMORA_FIRST_USE_PROMOTION_UNAVAILABLE");
+      return NextResponse.json(
+        {
+          error: "실행 카드의 현재 상태를 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+          code: "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    try {
+      const { data, error } = await getServiceClient().rpc(
+        "validate_amora_first_use_action_promotion_v1",
+        {
+          p_couple_id: dataCoupleId,
+          p_owner_user_id: actorId,
+          p_shared_user_message_id: currentCanonicalUserRow.id,
+          p_expected_privacy_epoch: initialPrivacyEpoch,
+        },
+      );
+      if (error) {
+        const failure = `${error.code ?? ""} ${error.message ?? ""}`;
+        const knownConflict =
+          !failure.includes("AMORA_FIRST_USE_PROMOTION_SERVICE_ROLE_REQUIRED")
+          && (
+            error.code === "22023"
+            || error.code === "23505"
+            || error.code === "40001"
+            || error.code === "42501"
+          );
+        await releaseClaimBeforeStream(
+          knownConflict
+            ? "AMORA_FIRST_USE_PROMOTION_STALE"
+            : "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+        );
+        return NextResponse.json(
+          {
+            error: knownConflict
+              ? "이 실행 카드는 현재 준비 상태와 달라졌어요. 개인 상담에서 다시 정리해 공유해주세요."
+              : "실행 카드의 현재 상태를 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+            code: knownConflict
+              ? "AMORA_FIRST_USE_PROMOTION_STALE"
+              : "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+            retryable: !knownConflict,
+            retryPolicy: knownConflict
+              ? "regenerate_first_use_action"
+              : "same_request",
+          },
+          {
+            status: knownConflict ? 409 : 503,
+            headers: { "Cache-Control": "no-store" },
+          },
+        );
+      }
+      firstUsePromotionBinding = parseAmoraFirstUsePromotionValidation({
+        value: data,
+        expectedPromotionId: storedFirstUsePromotionId,
+        expectedSharedText: lastUserText,
+      });
+      if (!firstUsePromotionBinding) {
+        await releaseClaimBeforeStream("AMORA_FIRST_USE_PROMOTION_MISMATCH");
+        return NextResponse.json(
+          {
+            error: "이 실행 카드의 내용과 안전한 연결 정보가 일치하지 않아요. 개인 상담에서 다시 정리해 공유해주세요.",
+            code: "AMORA_FIRST_USE_PROMOTION_MISMATCH",
+            retryable: false,
+            retryPolicy: "regenerate_first_use_action",
+          },
+          { status: 409, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      if (canonicalJourneyStateRevision === null) {
+        const journeyRevisionResult = await supabase
+          .from("wedding_journeys")
+          .select("state_revision")
+          .eq("couple_id", dataCoupleId)
+          .single();
+        const currentRevision = isRecord(journeyRevisionResult.data)
+          ? journeyRevisionResult.data.state_revision
+          : null;
+        if (
+          journeyRevisionResult.error
+          || typeof currentRevision !== "number"
+          || !Number.isSafeInteger(currentRevision)
+          || currentRevision < 0
+        ) {
+          await releaseClaimBeforeStream(
+            "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+          );
+          return NextResponse.json(
+            {
+              error: "실행 카드의 현재 준비 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+              code: "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+              retryable: true,
+              retryPolicy: "same_request",
+            },
+            { status: 503, headers: { "Cache-Control": "no-store" } },
+          );
+        }
+        canonicalJourneyStateRevision = currentRevision;
+      }
+    } catch (error) {
+      console.error("[chat] first-use promotion validation failed", error);
+      await releaseClaimBeforeStream("AMORA_FIRST_USE_PROMOTION_UNAVAILABLE");
+      return NextResponse.json(
+        {
+          error: "실행 카드의 현재 상태를 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+          code: "AMORA_FIRST_USE_PROMOTION_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+
   const previousCanonicalRow = canonicalRows.length >= 2
     ? canonicalRows[canonicalRows.length - 2]
     : null;
@@ -2392,10 +2917,23 @@ export async function POST(request: Request) {
   // 짧은 후속 말은 범위를 승격하지 않는다. 바로 앞의 정확히 연결된
   // 대화 1회만 별도 context-only 계약으로 전달하며, 권한은 현재 발화와
   // 서버가 검증한 confirmedActionId에서만 얻는다.
+  // Quote checklist messages carry server-bound machine context for this turn's
+  // analyze_quote call. They are never human memory evidence, including legacy
+  // or malformed marker variants.
+  const quoteAnalysisSelection = parseCanonicalQuoteAnalysisSelection(lastUserText);
   const questionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
-    hasApprovedWeddingAction: Boolean(approvedPendingAction),
+    // A service-validated first-use receipt proves this otherwise generic
+    // five-line draft came from the wedding journey. The classifier still
+    // evaluates crisis/domain-risk language before this W0 promotion, so the
+    // receipt cannot launder a legal, medical, financial, or safety request.
+    hasApprovedWeddingAction: Boolean(
+      approvedPendingAction
+      || firstUsePromotionBinding
+      || resolvedScheduleCareFollowUp
+      || scheduleCareSharedActionDraft.status === "valid",
+    ),
   });
   const boundedContinuity =
     !isDemo
@@ -2416,12 +2954,17 @@ export async function POST(request: Request) {
           segmentId: boundedContinuitySegmentId as string,
         })
       : null;
-  const memoryEnqueueRequested =
+  const allowsLongTermMemoryForTurn =
     questionScope.allowsLongTermMemory
+    && resolvedScheduleCareFollowUp === null
+    && quoteAnalysisSelection.status === "absent";
+  const memoryEnqueueRequested =
+    allowsLongTermMemoryForTurn
     && memoryEnabledForTurn
     && isAuxiliaryMemoryRuntimeEnabled();
   const allowsStoredProviderContext =
     requestKind === "chat"
+    && resolvedScheduleCareFollowUp === null
     && (
       questionScope.scope === "W0_wedding_core"
       || questionScope.scope === "W1_wedding_adjacent"
@@ -2578,10 +3121,12 @@ export async function POST(request: Request) {
   // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
   // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
   // 재설계 이후 운영에서 변경 실행 0건.)
-  const availableTools = filterAmoraToolsByQuestionScope(
-    visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name)),
-    questionScope,
-  );
+  const availableTools = resolvedScheduleCareFollowUp
+    ? []
+    : filterAmoraToolsByQuestionScope(
+        visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name)),
+        questionScope,
+      );
   const availableToolNameSet = new Set(
     availableTools.map((tool) => tool.name),
   );
@@ -2589,6 +3134,26 @@ export async function POST(request: Request) {
     filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, questionScope)
       .map((tool) => tool.name),
   );
+  const selectedPendingProposalTools =
+    scheduleCareSharedActionDraft.status === "valid"
+      ? selectAmoraScheduleCareSharedActionProposalTools(
+          PENDING_ACTION_TOOLS,
+          scheduleCareSharedActionDraft,
+        )
+      : scheduleCareSharedActionDraft.status === "invalid"
+        ? []
+        : selectAmoraPendingProposalTools({
+            availableTools: PENDING_ACTION_TOOLS,
+            userText: lastUserText,
+            specialistType,
+            attachmentKind,
+            // Relative dates on a confirmed important-moment declaration are
+            // resolved in KST and server-bound before provider output is
+            // accepted. The user still sees the exact date in the approval
+            // card before any shared write.
+            now: new Date(),
+            firstUseActionBinding: firstUsePromotionBinding,
+          });
   const pendingProposalTools =
     !isDemo
     && requestKind === "chat"
@@ -2596,12 +3161,7 @@ export async function POST(request: Request) {
     && visibility === "shared"
     && !approvedPendingAction
       ? filterAmoraToolsByQuestionScope(
-          selectAmoraPendingProposalTools({
-            availableTools: PENDING_ACTION_TOOLS,
-            userText: lastUserText,
-            specialistType,
-            attachmentKind,
-          }).filter(
+          selectedPendingProposalTools.filter(
             (tool) =>
               getAmoraActionApprovalPolicy(tool.name) !== "blocked",
           ),
@@ -2619,6 +3179,12 @@ export async function POST(request: Request) {
           kind: "proposal",
           text: buildAmoraPendingActionPrompt(
             pendingProposalTools.map((tool) => tool.name),
+            pendingProposalTools
+              .filter(
+                (tool) => tool.name === "add_amora_action"
+                  && tool.input_schema["x-amora-bound-input"] !== undefined,
+              )
+              .map((tool) => tool.name),
           ),
         }
       : undefined;
@@ -2640,18 +3206,31 @@ export async function POST(request: Request) {
     chatSummaries,
     preferences: preferences ?? undefined,
     helpPreference: personalizationProfile?.preferences ?? null,
+    coupleCriterion,
+    coreCriterion,
     amoraProfiles: consentedAmoraProfiles,
     pastDecisions,
     pastConflicts,
   };
+  const scheduleCareFollowUpContext = resolvedScheduleCareFollowUp
+    ? buildAmoraScheduleCareDAfterContext({
+        eventTitle: resolvedScheduleCareFollowUp.eventTitle,
+        eventDate: resolvedScheduleCareFollowUp.eventDate,
+        question: resolvedScheduleCareFollowUp.question,
+      }) + "\n\n"
+    : "";
   const buildSystemPromptForTools = (enabledTools: typeof BETA_SAFE_TOOLS) =>
-    cautionPrefix + privacyPrefix + buildAmoraSystemPrompt(promptContext, {
+    cautionPrefix
+    + privacyPrefix
+    + scheduleCareFollowUpContext
+    + buildAmoraSystemPrompt(promptContext, {
       specialist: specialistType,
       requestKind,
       persistenceMode: isDemo ? "demo" : "durable",
       enabledToolNames: enabledTools.map((tool) => tool.name),
       actionContract,
       questionScope,
+      currentUserText: lastUserText,
       linkedContextMode: boundedContinuity?.mode,
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
@@ -2676,10 +3255,12 @@ export async function POST(request: Request) {
         visibility,
       }).map(toCanonicalMessage)
     : typedMessages;
-  const providerMessages = allowsStoredProviderContext
-    ? takeRecentAmoraConversation(trustedStoredProviderMessages)
-    : boundedContinuity?.messages
-      ?? [{ role: "user" as const, content: lastUserText }];
+  const providerMessages = resolvedScheduleCareFollowUp
+    ? [{ role: "user" as const, content: scheduleCareFollowUpAnswer as string }]
+    : allowsStoredProviderContext
+      ? takeRecentAmoraConversation(trustedStoredProviderMessages)
+      : boundedContinuity?.messages
+        ?? [{ role: "user" as const, content: lastUserText }];
   const boundedTextAttachments = allowsCurrentAttachmentContext
     ? boundAmoraTextAttachments(textAttachments)
     : "";
@@ -2728,6 +3309,7 @@ export async function POST(request: Request) {
         });
   const shouldBufferProviderText = Boolean(approvedPendingAction)
     || pendingOfferEnabled
+    || resolvedScheduleCareFollowUp !== null
     || requestKind === "mediation"
     || requiresW4AttachmentReuploadGuidance
     || boundedContinuity !== null
@@ -2913,11 +3495,30 @@ export async function POST(request: Request) {
           });
         };
         const prepareTerminalResponse = (fullText: string) => {
-          const { cleanText: afterSuggest, suggestions } = extractSuggestions(
-            fullText,
-          );
+          const {
+            cleanText: afterSuggest,
+            suggestions: extractedSuggestions,
+          } = extractSuggestions(fullText);
+          // Strip the private internal marker on every path so a prompt-injected
+          // lookalike can never become visible. Only a live trusted D+1 binding
+          // below may promote the validated payload into assistant metadata.
+          const scheduleCareExtraction =
+            extractAmoraScheduleCareActionDraft(afterSuggest, {
+              guardUnsupportedHardClaims:
+                resolvedScheduleCareFollowUp !== null,
+            });
+          const afterScheduleCare = scheduleCareExtraction.cleanText;
+          // A mediation turn can become a jointly accepted decision. Provider
+          // suggestion chips are a separate visible output channel and would
+          // otherwise bypass the card/prose neutrality guard. Mediation has a
+          // dedicated confirm flow, so dropping all provider chips is the
+          // smallest fail-closed contract and does not remove user content.
+          const suggestions = requestKind === "mediation"
+            || resolvedScheduleCareFollowUp !== null
+              ? []
+              : extractedSuggestions;
           const pendingExtraction = extractAmoraPendingAction({
-            text: afterSuggest,
+            text: afterScheduleCare,
             allowedTools: pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
@@ -2945,10 +3546,25 @@ export async function POST(request: Request) {
           // Provider text is untrusted. Strip a stray marker from every turn,
           // but only the server-owned mediation request kind may promote it
           // into a confirmable shared card.
-          const mediation = isStructuredMediation
+          const screenedMediation = isStructuredMediation
             && extractedMediation
             ? toUserRequestedMediationV2(extractedMediation)
             : null;
+          const mediationRejectedByOutputGuard = Boolean(
+            isStructuredMediation
+            && (
+              (extractedMediation && !screenedMediation)
+              || findMediationNeutralityViolations(extractedMediationText).length > 0
+            ),
+          );
+          const mediation = mediationRejectedByOutputGuard
+            ? null
+            : screenedMediation;
+          const mediationFollowUpSafetyMarker = buildMediationFollowUpSafetyMarker({
+            requestKind,
+            questionScope: questionScope.scope,
+            hasScreenedMediationCard: mediation !== null,
+          });
           // 서버가 이미 고위험으로 판정했으면 모델이 무엇을 어떤 모양으로 써 보냈든
           // 합의안은 나가지 않는다. 예전에는 이 대체가 "완전한 4필드 블록이 왔고 블록
           // 밖 텍스트가 비어 있을 때"만 발동해서, 필드 하나가 빠진 블록이나 마커 없는
@@ -2956,6 +3572,8 @@ export async function POST(request: Request) {
           // 출력 형식에 달려 있으면 그건 안전장치가 아니다.
           const providerCleanText = isHighRiskMediation
             ? "이 사안은 합의안으로 단정하기보다 안전과 권리·건강에 관련된 확인이 먼저예요. 확인된 사실만 정리하고, 해당 분야의 자격 있는 전문가나 공식 기관에 문의할 질문을 준비해 주세요."
+            : mediationRejectedByOutputGuard
+              ? AMORA_MEDIATION_OUTPUT_GUARD_FALLBACK
             : !isStructuredMediation
               && extractedMediation
               && !extractedMediationText
@@ -2972,13 +3590,74 @@ export async function POST(request: Request) {
             demoUserText: lastUserText,
           });
           const persistenceSafeText = persistenceClaimGuard.text;
+          const firstUsePromotionSourceSeal =
+            !isDemo
+            && requestKind === "chat"
+            && visibility !== "shared"
+            && resolvedScheduleCareFollowUp === null
+            && canonicalJourneyStateRevision !== null
+            && firstUseGrounding !== null
+            && initialPrivacyEpoch !== null
+            && initialPrivacyContextSnapshot !== null
+              ? buildAmoraFirstUsePromotionSourceSeal({
+                  content: persistenceSafeText,
+                  grounding: firstUseGrounding,
+                  sourceRevision: canonicalJourneyStateRevision,
+                  criterionDecisionId:
+                    coupleCriterionSnapshot?.decisionId ?? null,
+                  privacyEpoch: initialPrivacyEpoch,
+                  rosterFingerprint:
+                    initialPrivacyContextSnapshot.rosterFingerprint,
+                })
+              : null;
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
             senderName: safeSenderName,
             question_scope: questionScope.scope,
-            memory_eligible: questionScope.allowsLongTermMemory,
+            memory_eligible: allowsLongTermMemoryForTurn,
             memory_enqueue_requested: memoryEnqueueRequested,
+            ...(canonicalJourneyStateRevision !== null
+              && requestKind === "chat"
+              && resolvedScheduleCareFollowUp === null
+              && (
+                questionScope.scope === "W0_wedding_core"
+                || questionScope.scope === "W1_wedding_adjacent"
+              )
+              ? {
+                  amora_wedding_context_revision:
+                    canonicalJourneyStateRevision,
+                  ...(coupleCriterionSnapshot
+                    ? {
+                        amora_couple_criterion_decision_id:
+                          coupleCriterionSnapshot.decisionId,
+                      }
+                    : {}),
+                  ...(firstUseGrounding
+                    ? { amora_first_use_grounding: firstUseGrounding }
+                    : {}),
+                  ...(firstUsePromotionSourceSeal
+                    ? {
+                        amora_first_use_action_promotion_v1:
+                          firstUsePromotionSourceSeal.metadata,
+                      }
+                    : {}),
+                }
+              : {}),
+            ...(resolvedScheduleCareFollowUp
+              ? {
+                  [AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY]:
+                    buildAmoraScheduleCareFollowUpPrivateMetadata(
+                      resolvedScheduleCareFollowUp.binding,
+                    ),
+                  ...(scheduleCareExtraction.draft
+                    ? {
+                        [AMORA_SCHEDULE_CARE_ACTION_DRAFT_METADATA_KEY]:
+                          scheduleCareExtraction.draft,
+                      }
+                    : {}),
+                }
+              : {}),
             ...(boundedContinuity
               ? {
                   context_mode: boundedContinuity.mode,
@@ -2996,11 +3675,23 @@ export async function POST(request: Request) {
               : {}),
             ...(suggestions.length > 0 ? { suggestions } : {}),
             ...(mediation ? { mediation } : {}),
+            ...(mediationFollowUpSafetyMarker
+              ? { mediation_follow_up_safety: mediationFollowUpSafetyMarker }
+              : {}),
             ...(pendingExtraction.pendingAction
               ? {
                   pending_amora_action: pendingExtraction.pendingAction,
                   pending_amora_action_journey_revision:
                     canonicalJourneyStateRevision,
+                  ...(matchesAmoraFirstUsePendingAction(
+                    pendingExtraction.pendingAction,
+                    firstUsePromotionBinding,
+                  )
+                    ? {
+                        amora_first_use_promotion_id:
+                          firstUsePromotionBinding.promotionId,
+                      }
+                    : {}),
                   ...(pendingBudgetImpactPreview
                     ? {
                         pending_amora_action_impact_preview:
@@ -3299,7 +3990,9 @@ export async function POST(request: Request) {
             await assertStoredContextTerminalReleasePrivacyEpochCurrent();
             if (insertResult.reused) {
               send({ type: "text_clear" });
-              const storedSuggestions = getStoredSuggestions(insertResult);
+              const storedSuggestions = requestKind === "mediation"
+                ? []
+                : getStoredSuggestions(insertResult);
               if (storedSuggestions.length > 0) {
                 send({ type: "suggestions", suggestions: storedSuggestions });
               }
@@ -3328,7 +4021,7 @@ export async function POST(request: Request) {
             send({
               type: "done",
               fullContent: insertResult.content ?? persistenceSafeText,
-              metadata: getDoneMetadata(insertResult),
+              metadata: getDoneMetadata(insertResult, requestKind === "mediation"),
             });
 
             if (insertResult.reused) {
@@ -3408,10 +4101,6 @@ export async function POST(request: Request) {
               buildToolResultInput(callId, rejectedResult),
             );
           };
-          // 유저가 보낸 canonical 마지막 메시지만 신뢰한다. Provider가 생성한
-          // output item을 다시 훑어 태그 권한을 추론하지 않는다.
-          const hasQuoteAnalysisTag = lastUserText.includes("[quote_analysis]");
-
           for (const toolUse of result.toolCalls) {
             toolCallCount += 1;
             if (toolCallCount > AMORA_MAX_TOOL_CALLS_PER_TURN) {
@@ -3499,22 +4188,33 @@ export async function POST(request: Request) {
               continue;
             }
 
-            toolsUsed.push(toolUse.name);
-
-            // analyze_quote 방어: [quote_analysis] 태그 없이 included_items가 있으면 강제로 비움
-            if (toolUse.name === "analyze_quote" && !hasQuoteAnalysisTag) {
-              const inp = toolUse.input as Record<string, unknown>;
-              if (Array.isArray(inp.included_items) && (inp.included_items as string[]).length > 0) {
-                inp.included_items = [];
-              }
+            if (
+              toolUse.name === "analyze_quote"
+              && quoteAnalysisSelection.status === "invalid"
+            ) {
+              rejectToolCall(
+                toolUse.callId,
+                toolUse.name,
+                "INVALID_QUOTE_ANALYSIS_SELECTION",
+                "견적 항목 선택 원문 형식이 올바르지 않습니다. 체크리스트에서 다시 선택해 주세요.",
+              );
+              continue;
             }
+
+            toolsUsed.push(toolUse.name);
+            const executableToolInput = toolUse.name === "analyze_quote"
+              ? bindCanonicalQuoteAnalysisInput(
+                  toolUse.input as Record<string, unknown>,
+                  quoteAnalysisSelection,
+                )
+              : toolUse.input;
 
             sendSensitiveToolEvent({
               type: "tool_start",
               toolName: toolUse.name,
-              toolInput: getClientSafeToolInput(toolUse.name, toolUse.input),
+              toolInput: getClientSafeToolInput(toolUse.name, executableToolInput),
             });
-            const execResult = await executeTool(toolUse.name, toolUse.input, {
+            const execResult = await executeTool(toolUse.name, executableToolInput, {
               ...executionContext,
               providerCallIndex,
             });
@@ -3760,7 +4460,9 @@ export async function POST(request: Request) {
         await assertStoredContextTerminalReleasePrivacyEpochCurrent();
         if (insertResult2.reused) {
           send({ type: "text_clear" });
-          const storedSuggestions = getStoredSuggestions(insertResult2);
+          const storedSuggestions = requestKind === "mediation"
+            ? []
+            : getStoredSuggestions(insertResult2);
           if (storedSuggestions.length > 0) {
             send({ type: "suggestions", suggestions: storedSuggestions });
           }
@@ -3786,7 +4488,7 @@ export async function POST(request: Request) {
         send({
           type: "done",
           fullContent: insertResult2.content ?? finalPersistenceSafeText,
-          metadata: getDoneMetadata(insertResult2),
+          metadata: getDoneMetadata(insertResult2, requestKind === "mediation"),
         });
 
         if (insertResult2.reused) {

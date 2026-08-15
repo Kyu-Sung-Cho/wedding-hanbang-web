@@ -4,7 +4,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { listBudgetCategories } from "../lib/budgetCategoryRegistry.mjs";
+import {
+  buildVerifiedBudgetCategoryEditor,
+  listBudgetCategories,
+  resolveCanonicalBudgetCategoryDeepLink,
+} from "../lib/budgetCategoryRegistry.mjs";
 
 const fixedCategories = [
   { key: "venue", label: "웨딩홀" },
@@ -56,6 +60,107 @@ test("non-budget metadata and unsafe custom labels cannot become budget rows", (
     { key: "custom_safe", label: "부케 보존" },
     { key: "custom_unsafe", label: "사용자 항목" },
   ]);
+});
+
+test("a budget deep link accepts only an exact canonical fixed category key", () => {
+  assert.equal(
+    resolveCanonicalBudgetCategoryDeepLink("venue", fixedCategories),
+    "venue",
+  );
+  assert.equal(
+    resolveCanonicalBudgetCategoryDeepLink("custom_1234", fixedCategories),
+    null,
+  );
+  assert.equal(
+    resolveCanonicalBudgetCategoryDeepLink("Venue", fixedCategories),
+    null,
+  );
+  assert.equal(
+    resolveCanonicalBudgetCategoryDeepLink(" venue ", fixedCategories),
+    null,
+  );
+  assert.equal(
+    resolveCanonicalBudgetCategoryDeepLink(["venue"], fixedCategories),
+    null,
+  );
+  assert.equal(
+    resolveCanonicalBudgetCategoryDeepLink("unknown", fixedCategories),
+    null,
+  );
+});
+
+test("a verified budget snapshot opens the existing category editor with only its stored values", () => {
+  const editor = buildVerifiedBudgetCategoryEditor({
+    requestedCategory: "venue",
+    fixedCategories,
+    verifiedIdentity: {
+      generation: 4,
+      ownerId: "11111111-1111-4111-8111-111111111111",
+      coupleId: "22222222-2222-4222-8222-222222222222",
+      totalBudget: 30_000_000,
+      stateRevision: 7,
+      progress: {
+        venue: {
+          budget: 12_000_000,
+          spent: 2_500_000,
+          payer: "groom_parents",
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(editor, {
+    categoryKey: "venue",
+    editBase: {
+      ownerId: "11111111-1111-4111-8111-111111111111",
+      coupleId: "22222222-2222-4222-8222-222222222222",
+      stateRevision: 7,
+    },
+    budgetInput: "1200",
+    spentInput: "250",
+    payerInput: "groom_parents",
+  });
+});
+
+test("a verified category with no recorded amounts opens blank instead of inventing zero", () => {
+  const editor = buildVerifiedBudgetCategoryEditor({
+    requestedCategory: "studio",
+    fixedCategories,
+    verifiedIdentity: {
+      generation: 1,
+      ownerId: "11111111-1111-4111-8111-111111111111",
+      coupleId: "22222222-2222-4222-8222-222222222222",
+      totalBudget: 0,
+      stateRevision: 0,
+      progress: {},
+    },
+  });
+
+  assert.equal(editor?.categoryKey, "studio");
+  assert.equal(editor?.budgetInput, "");
+  assert.equal(editor?.spentInput, "");
+  assert.equal(editor?.payerInput, "couple");
+});
+
+test("unverified identity or lossy stored amounts never open a deep-linked editor", () => {
+  assert.equal(buildVerifiedBudgetCategoryEditor({
+    requestedCategory: "venue",
+    fixedCategories,
+    verifiedIdentity: null,
+  }), null);
+
+  assert.equal(buildVerifiedBudgetCategoryEditor({
+    requestedCategory: "venue",
+    fixedCategories,
+    verifiedIdentity: {
+      generation: 1,
+      ownerId: "11111111-1111-4111-8111-111111111111",
+      coupleId: "22222222-2222-4222-8222-222222222222",
+      totalBudget: 30_000_000,
+      stateRevision: 2,
+      progress: { venue: { budget: 1_234_567, spent: 0 } },
+    },
+  }), null);
 });
 
 test("the mobile budget screen uses the unified registry for totals, payer splits, and rows", () => {

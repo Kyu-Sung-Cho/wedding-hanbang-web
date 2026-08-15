@@ -11,6 +11,7 @@ import {
   getAmoraActions,
   mergeAmoraActions,
   normalizeAmoraAction,
+  parseAmoraActionDueDateInput,
   type AmoraActionItem,
   type AmoraActionPriority,
   type AmoraActionSource,
@@ -145,6 +146,13 @@ export async function POST(request: Request) {
     if (!title) {
       return NextResponse.json({ error: "제목이 필요합니다." }, { status: 400 });
     }
+    const parsedDueDate = parseAmoraActionDueDateInput(body.due_date);
+    if (!parsedDueDate.ok) {
+      return NextResponse.json(
+        { error: "마감일을 YYYY-MM-DD 형식의 실제 날짜로 알려 주세요." },
+        { status: 400 },
+      );
+    }
 
     const admin = createAdminClient();
     const coupleId = await getCoupleIdForUser(admin, user.id);
@@ -157,7 +165,7 @@ export async function POST(request: Request) {
       id: createAmoraActionId(),
       title,
       description: cleanOptionalText(body.description, 500) ?? undefined,
-      dueDate: cleanOptionalText(body.due_date, 40) ?? undefined,
+      dueDate: parsedDueDate.dueDate,
       categoryKey: cleanOptionalText(body.category_key, 80) ?? undefined,
       priority: (cleanOptionalEnum(body.priority, PRIORITY_VALUES) as AmoraActionPriority | null) ?? "medium",
       status: (cleanOptionalEnum(body.status, STATUS_VALUES) as AmoraActionStatus | null) ?? "open",

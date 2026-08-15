@@ -16,6 +16,22 @@ import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 
 const mockFetch = vi.fn();
 const mockIngestFetch = vi.fn();
+const mockSafetyHoldFetch = vi.fn(async (
+  _input: RequestInfo | URL,
+  init?: RequestInit,
+) => {
+  const body = JSON.parse(String(init?.body)) as { coupleId: string };
+  const headers = new Headers(init?.headers);
+  return new Response(JSON.stringify({
+    version: 1,
+    sealed: true,
+    recipientUserId: headers.get("X-Hanbang-Expected-Actor-User-Id"),
+    coupleId: body.coupleId,
+  }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+});
 const mockCleanupFetch = vi.fn<(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -30,6 +46,9 @@ const mockGlobalFetch = vi.fn(
   (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input) === "/api/chat/messages") return mockIngestFetch(input, init);
     if (String(input) === "/api/chat/image-cleanup") return mockCleanupFetch(input, init);
+    if (String(input) === "/api/amora/mediation/private-safety-hold") {
+      return mockSafetyHoldFetch(input, init);
+    }
     return mockFetch(input, init);
   },
 );
@@ -1114,6 +1133,7 @@ describe("chat lifecycle isolation", () => {
     mockStorageUpload.mockReturnValueOnce(delayedUpload.promise);
     mockCleanupFetch.mockClear();
     mockIngestFetch.mockClear();
+    mockSafetyHoldFetch.mockClear();
     mockFetch.mockReset();
     mockFetch.mockResolvedValue(completedChatResponse("이전 계정의 답변"));
     document.cookie = "demo_mode=; Max-Age=0; path=/";
@@ -1383,6 +1403,7 @@ describe("chat lifecycle isolation", () => {
       safetyResolution: "non_immediate_safety",
       rawDisclosurePersisted: false,
       rawDisclosureVisibility: null,
+      durableSafetyFenceConfirmed: true,
       response: "이전 계정의 안전 안내",
     }), {
       status: 200,
@@ -2087,6 +2108,7 @@ describe("Amora crisis reload recovery", () => {
     mockCleanupFetch.mockClear();
     mockFetch.mockReset();
     mockIngestFetch.mockClear();
+    mockSafetyHoldFetch.mockClear();
     mockGlobalFetch.mockClear();
     mockInsert.mockClear();
     mockInsertSingle.mockReset();
@@ -2111,6 +2133,7 @@ describe("Amora crisis reload recovery", () => {
       error: null,
     });
     vi.stubGlobal("fetch", mockGlobalFetch);
+    window.localStorage.clear();
     document.cookie = "demo_mode=; Max-Age=0; path=/";
     useAuthStore.setState({
       profile: {
@@ -2184,6 +2207,13 @@ describe("Amora crisis reload recovery", () => {
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(captureEvent).not.toHaveBeenCalled();
+    expect(mockSafetyHoldFetch).toHaveBeenCalledTimes(1);
+    const sealRequest = mockSafetyHoldFetch.mock.calls[0]?.[1];
+    expect(JSON.parse(String(sealRequest?.body))).toEqual({ coupleId: "couple-1" });
+    expect(String(sealRequest?.body)).not.toContain(disclosure);
+    expect(new Headers(sealRequest?.headers).get(
+      "X-Hanbang-Expected-Actor-User-Id",
+    )).toBe("user-1");
 
     const safetyCard = useChatStore.getState().messages.find(
       (candidate) => candidate.metadata?.response_origin === "client_deterministic_crisis_preflight",
@@ -2227,6 +2257,183 @@ describe("Amora crisis reload recovery", () => {
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(useChatStore.getState().error).toBeNull();
+  });
+
+  it("keeps W5 guidance local and performs no downstream work when the opaque seal is unavailable", async () => {
+    const disclosure = "지금 남편이 칼로 위협하고 있어요";
+    mockSafetyHoldFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      code: "MEDIATION_PRIVATE_SAFETY_HOLD_SEAL_UNAVAILABLE",
+    }), { status: 503 }));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: disclosure,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({ userMessage: "ephemeral_safety" }));
+    expect(mockIngestFetch).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    const card = useChatStore.getState().messages.at(-1);
+    expect(card?.metadata).toEqual(expect.objectContaining({
+      durable_safety_fence_confirmed: false,
+      raw_disclosure_persisted: false,
+    }));
+    expect(JSON.stringify(card?.metadata)).not.toContain(disclosure);
+  });
+
+  it("keeps a failed W5 remote seal fail-closed after a browser refresh", async () => {
+    useAuthStore.setState({
+      profile: {
+        id: TEST_USER_UUID,
+        name: "Tester",
+        role: "bride",
+        couple_id: TEST_COUPLE_UUID,
+      } as never,
+    });
+    mockSafetyHoldFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      code: "MEDIATION_PRIVATE_SAFETY_HOLD_SEAL_UNAVAILABLE",
+    }), { status: 503 }));
+
+    await useChatStore.getState().sendMessage({
+      content: "지금 예비신랑이 칼로 위협하고 있어요",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    expect(window.localStorage.length).toBe(1);
+
+    useChatStore.getState().reset();
+    await useChatStore.getState().requestMediation({
+      coupleId: TEST_COUPLE_UUID,
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "결혼식 예산을 어떻게 나눌지 대화하고 싶어요",
+    });
+
+    expect(mockSafetyHoldFetch).toHaveBeenCalledTimes(1);
+    expect(mockIngestFetch).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useChatStore.getState().isStreaming).toBe(false);
+  });
+
+  it("renders crisis guidance without waiting for the durable seal", async () => {
+    // 안전 안내는 원격 seal보다 먼저다. seal fetch가 응답하지 않으면(끊긴 셀룰러,
+    // 프록시 홀드) 카드가 무기한 안 뜨는 구멍이 있었다 — 사용자가 위기 문장을 보낸
+    // 바로 그 순간에 화면이 비어 있게 된다.
+    // 계약: 카드는 즉시 뜬다. 원격 seal은 시간 제한 안에서만 기다리고, 실패하면
+    // 후속(follow-up) 자격만 잃는다. 안내를 숨기지 않는다.
+    const disclosure = "지금 남편이 칼로 위협하고 있어요";
+    let abortedByTimeout = false;
+    mockSafetyHoldFetch.mockImplementationOnce((_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        abortedByTimeout = true;
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    }));
+
+    const pending = useChatStore.getState().sendMessage({
+      content: disclosure,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    // seal이 아직 응답하지 않은 상태에서 카드가 이미 화면에 있어야 한다.
+    await vi.waitFor(() => {
+      const card = useChatStore.getState().messages.at(-1);
+      expect(card?.metadata?.pinned_safety_card).toBe(true);
+    }, { timeout: 2_000 });
+
+    const cardWhileSealPending = useChatStore.getState().messages.at(-1);
+    // seal이 확인되기 전에는 fail-closed — 후속 자격 없음.
+    expect(cardWhileSealPending?.metadata?.durable_safety_fence_confirmed).toBe(false);
+    expect(JSON.stringify(cardWhileSealPending?.metadata)).not.toContain(disclosure);
+
+    const outcome = await pending;
+    expect(outcome).toEqual(expect.objectContaining({ userMessage: "ephemeral_safety" }));
+    expect(abortedByTimeout, "원격 seal에 시간 제한이 없다").toBe(true);
+    expect(mockIngestFetch).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps W2 guidance local and skips ingest/provider when the opaque seal is unavailable", async () => {
+    const disclosure = "작년에 신랑이 칼 들고 죽인다고 했는데 지금은 안전해";
+    mockSafetyHoldFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      code: "MEDIATION_PRIVATE_SAFETY_HOLD_SEAL_UNAVAILABLE",
+    }), { status: 503 }));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: disclosure,
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+
+    expect(outcome).toEqual(expect.objectContaining({
+      userMessage: "ephemeral_safety",
+      effectiveVisibility: "bride_private",
+    }));
+    expect(mockIngestFetch).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(JSON.stringify(useChatStore.getState().messages.at(-1)?.metadata))
+      .not.toContain(disclosure);
+  });
+
+  it("ignores a late opaque-seal response after the account/couple lifecycle resets", async () => {
+    const delayed = createDeferredResult<Response>();
+    mockSafetyHoldFetch.mockReturnValueOnce(delayed.promise);
+    const sending = useChatStore.getState().sendMessage({
+      content: "지금 남편이 칼로 위협하고 있어요",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockSafetyHoldFetch).toHaveBeenCalledTimes(1));
+    useChatStore.getState().reset();
+    delayed.resolve(new Response(JSON.stringify({
+      version: 1,
+      sealed: true,
+      recipientUserId: "user-1",
+      coupleId: "couple-1",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    await expect(sending).resolves.toEqual({
+      userMessage: "not_persisted",
+      reason: "validation",
+    });
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(mockIngestFetch).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("moves non-immediate relationship safety content to private before storage", async () => {
@@ -2316,6 +2523,7 @@ describe("Amora crisis reload recovery", () => {
       classification: "interpersonal_danger",
       response: "고정 안전 안내와 112 연락 기준",
       rawDisclosurePersisted: false,
+      durableSafetyFenceConfirmed: true,
     }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -2355,6 +2563,57 @@ describe("Amora crisis reload recovery", () => {
     expect(JSON.stringify(safetyCard)).not.toContain(rawText);
   });
 
+  it("persists an opaque browser fence when server safety sealing returns 503", async () => {
+    useAuthStore.setState({
+      profile: {
+        id: TEST_USER_UUID,
+        name: "Tester",
+        role: "bride",
+        couple_id: TEST_COUPLE_UUID,
+      } as never,
+    });
+    mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      outcome: "ephemeral_safety",
+      effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: true,
+      partnerDeliveryHeld: false,
+      safetyResolution: "immediate_crisis",
+      classification: "interpersonal_danger",
+      response: "고정 안전 안내와 112 연락 기준",
+      rawDisclosurePersisted: false,
+      durableSafetyFenceConfirmed: false,
+    }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const outcome = await useChatStore.getState().sendMessage({
+      content: "빠른 체크리스트를 알려줘",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      target: "ai",
+      visibility: "shared",
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    expect(outcome).toEqual(expect.objectContaining({ userMessage: "ephemeral_safety" }));
+    expect(window.localStorage.length).toBe(1);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    useChatStore.getState().reset();
+    await useChatStore.getState().requestMediation({
+      coupleId: TEST_COUPLE_UUID,
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "하객 수를 함께 조율하고 싶어요",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useChatStore.getState().isStreaming).toBe(false);
+  });
+
   it("truthfully warns when a retried partner disclosure was already delivered and stored", async () => {
     const rawText = "평범한 일정 질문";
     mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({
@@ -2367,6 +2626,7 @@ describe("Amora crisis reload recovery", () => {
       response: "고정 안전 안내",
       rawDisclosurePersisted: true,
       rawDisclosureVisibility: "shared",
+      durableSafetyFenceConfirmed: true,
     }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -2416,6 +2676,7 @@ describe("Amora crisis reload recovery", () => {
       classification: "interpersonal_danger",
       response: "고정 안전 안내",
       rawDisclosurePersisted: null,
+      durableSafetyFenceConfirmed: true,
     }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -2565,6 +2826,29 @@ describe("Amora crisis reload recovery", () => {
     expect(panelBranch).toContain('setMessageTarget("ai")');
   });
 
+  it("gates every mediation surface on the durable browser safety hold", () => {
+    const contentManualEntry = chatContentSource.slice(
+      chatContentSource.indexOf("const showManualMediationEntry ="),
+      chatContentSource.indexOf("const messagesEndRef"),
+    );
+    const panelMediationSurface = chatSidePanelSource.slice(
+      chatSidePanelSource.indexOf("const mediationRetryBlockedBySafety ="),
+      chatSidePanelSource.indexOf("useEffect(() => {\n    if (composerSessionKeyRef.current"),
+    );
+
+    expect(contentManualEntry).toContain("!mediationPersistentSafetyHold");
+    expect(panelMediationSurface).toContain("mediationPersistentSafetyHold");
+    expect(panelMediationSurface).toMatch(
+      /mediationRetryBlockedBySafety[\s\S]*mediationPersistentSafetyHold/,
+    );
+    expect(panelMediationSurface).toMatch(
+      /showMediationBanner[\s\S]*!mediationPersistentSafetyHold/,
+    );
+    expect(panelMediationSurface).toMatch(
+      /showManualMediationEntry[\s\S]*!mediationPersistentSafetyHold/,
+    );
+  });
+
   it("routes non-immediate safety content through the private lane on both web surfaces", () => {
     const contentSend = chatContentSource.slice(
       chatContentSource.indexOf("const crisisPreflight = planAmoraCrisisDelivery"),
@@ -2631,6 +2915,7 @@ describe("useChatStore quota warning", () => {
     });
     mockFetch.mockReset();
     mockIngestFetch.mockClear();
+    mockSafetyHoldFetch.mockClear();
     mockGlobalFetch.mockClear();
     mockInsertSingle.mockReset();
     vi.stubGlobal("fetch", mockGlobalFetch);
@@ -2816,6 +3101,508 @@ describe("useChatStore quota warning", () => {
       isStreaming: true,
       streamingContent: "next session stream",
     });
+  });
+
+  it("times out a mediation stream that stalls after response headers and cancels its reader", async () => {
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    const cancel = vi.fn();
+    let closeStalledStream: () => void = () => undefined;
+    const stalledStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        closeStalledStream = () => controller.close();
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "text_delta", content: "partial draft" })}\n\n`,
+        ));
+      },
+      cancel,
+    });
+    mockFetch.mockResolvedValue(new Response(stalledStream, { status: 200 }));
+
+    const mediation = useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    try {
+      await vi.advanceTimersByTimeAsync(180_000);
+      const signal = (mockFetch.mock.calls[0]?.[1] as RequestInit).signal as AbortSignal;
+      expect(signal.aborted).toBe(true);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      await mediation;
+      expect(useChatStore.getState()).toMatchObject({
+        isStreaming: false,
+        streamingContent: "",
+        streamingToolResults: [],
+      });
+    } finally {
+      if (!cancel.mock.calls.length) closeStalledStream();
+      await mediation;
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries an uncertain mediation response with the exact original body and idempotency key", async () => {
+    mockFetch
+      .mockRejectedValueOnce(new TypeError("response lost after request upload"))
+      .mockResolvedValueOnce(completedChatResponse("Recovered mediation draft"));
+    const request = {
+      coupleId: "couple-1",
+      senderRole: "bride" as const,
+      senderName: "Tester",
+      weddingContext: {
+        weddingDate: null,
+        budget: 30_000_000,
+        venue: null,
+        progress: {},
+      } satisfies WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    };
+
+    await useChatStore.getState().requestMediation(request);
+    await useChatStore.getState().requestMediation(request);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const firstBody = String((mockFetch.mock.calls[0]?.[1] as RequestInit).body);
+    const retryBody = String((mockFetch.mock.calls[1]?.[1] as RequestInit).body);
+    expect(retryBody).toBe(firstBody);
+    const firstPayload = JSON.parse(firstBody) as { clientRequestId: string };
+    expect(firstPayload.clientRequestId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("never saves a partial mediation EOF and exposes the exact request for same-request retry", async () => {
+    const encoder = new TextEncoder();
+    const interruptedStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "text_delta", content: "partial draft" })}\n\n`,
+        ));
+        controller.close();
+      },
+    });
+    mockFetch
+      .mockResolvedValueOnce(new Response(interruptedStream, { status: 200 }))
+      .mockResolvedValueOnce(completedChatResponse("Recovered mediation draft"));
+    const request = {
+      coupleId: "couple-1",
+      senderRole: "bride" as const,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    };
+
+    await useChatStore.getState().requestMediation(request);
+
+    const firstBody = String((mockFetch.mock.calls[0]?.[1] as RequestInit).body);
+    const firstPayload = JSON.parse(firstBody) as { clientRequestId: string };
+    expect(useChatStore.getState().messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ sender_role: "ai", content: "partial draft" }),
+    ]));
+    expect(useChatStore.getState()).toMatchObject({
+      isStreaming: false,
+      streamingContent: "",
+      error: expect.stringContaining("중단"),
+      failedRequest: expect.objectContaining({
+        clientRequestId: firstPayload.clientRequestId,
+        userMessageId: null,
+        coupleId: request.coupleId,
+        visibility: "shared",
+        requestBody: firstBody,
+        canRetry: true,
+        unavailableReason: null,
+        requestKind: "mediation",
+      }),
+    });
+
+    await useChatStore.getState().retryFailedMessage();
+
+    expect(String((mockFetch.mock.calls[1]?.[1] as RequestInit).body)).toBe(
+      firstBody,
+    );
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sender_role: "ai", content: "Recovered mediation draft" }),
+    ]));
+    expect(useChatStore.getState().messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ sender_role: "ai", content: "partial draft" }),
+    ]));
+  });
+
+  it("discards an EOF mediation retry after a private safety card arrives", async () => {
+    const encoder = new TextEncoder();
+    mockFetch.mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "text_delta", content: "partial draft" })}\n\n`,
+        ));
+        controller.close();
+      },
+    }), { status: 200 }));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+    expect(useChatStore.getState().failedRequest?.requestKind).toBe("mediation");
+
+    useChatStore.setState((state) => ({
+      messages: [...state.messages, {
+        id: "private-safety-card-after-eof",
+        couple_id: "couple-1",
+        sender_id: null,
+        sender_role: "ai",
+        content: "비공개 안전 지원 안내",
+        metadata: { pinned_safety_card: true },
+        visibility: "bride_private",
+        created_at: "2026-08-12T05:00:00.000Z",
+      }],
+    }));
+    useChatStore.getState().applyMediationSafetyFence("couple-1");
+    await useChatStore.getState().retryFailedMessage();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().streamingContent).toBe("");
+  });
+
+  it("aborts an in-flight mediation after a private safety card and saves no provider output", async () => {
+    const delayedProvider = createDeferredResult<Response>();
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    const encoder = new TextEncoder();
+
+    const mediation = useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const providerSignal = (mockFetch.mock.calls[0]?.[1] as RequestInit).signal as AbortSignal;
+
+    useChatStore.setState((state) => ({
+      messages: [...state.messages, {
+        id: "private-safety-card-during-mediation",
+        couple_id: "couple-1",
+        sender_id: null,
+        sender_role: "ai",
+        content: "private safety guidance",
+        metadata: { pinned_safety_card: true },
+        visibility: "bride_private",
+        created_at: "2026-08-12T05:01:00.000Z",
+      }],
+    }));
+    useChatStore.getState().applyMediationSafetyFence("couple-1");
+
+    expect(providerSignal.aborted).toBe(true);
+    delayedProvider.resolve(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "text_delta", content: "unsafe partial mediation" })}\n\n`,
+        ));
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({
+            type: "done",
+            fullContent: "unsafe final mediation",
+            metadata: { serverMessageId: "unsafe-final-mediation" },
+          })}\n\n`,
+        ));
+        controller.close();
+      },
+    }), { status: 200 }));
+    await mediation;
+
+    expect(useChatStore.getState()).toMatchObject({
+      failedRequest: null,
+      isStreaming: false,
+      streamingContent: "",
+      streamingToolResults: [],
+    });
+    expect(useChatStore.getState().messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ content: "unsafe partial mediation" }),
+      expect.objectContaining({ content: "unsafe final mediation" }),
+    ]));
+  });
+
+  it("stores only the terminal mediation content after a normal done event", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "text_delta", content: "temporary mediation draft" })}\n\n`,
+        ));
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({
+            type: "done",
+            fullContent: "Final mediation draft",
+            metadata: { serverMessageId: "final-mediation-message" },
+          })}\n\n`,
+        ));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    expect(useChatStore.getState()).toMatchObject({
+      failedRequest: null,
+      error: null,
+      streamingContent: "",
+    });
+    expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "final-mediation-message",
+        sender_role: "ai",
+        content: "Final mediation draft",
+      }),
+    ]));
+    expect(useChatStore.getState().messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ sender_role: "ai", content: "temporary mediation draft" }),
+    ]));
+  });
+
+  it("drops mediation suggestions from both SSE state and persisted message metadata", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "suggestions", suggestions: ["신랑이 먼저 사과하기"] })}\n\n`,
+        ));
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({
+            type: "done",
+            fullContent: "Neutral mediation draft",
+            metadata: {
+              serverMessageId: "mediation-with-provider-suggestions",
+              suggestions: ["신랑이 먼저 사과하기"],
+            },
+          })}\n\n`,
+        ));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    expect(useChatStore.getState().suggestions).toEqual([]);
+    expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "mediation-with-provider-suggestions",
+        metadata: expect.not.objectContaining({ suggestions: expect.anything() }),
+      }),
+    ]));
+  });
+
+  it("treats an empty mediation EOF as an uncertain same-request failure", async () => {
+    const emptyStream = new ReadableStream({
+      start(controller) {
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(emptyStream, { status: 200 }));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [],
+      streamingContent: "",
+      error: expect.stringContaining("중단"),
+      failedRequest: expect.objectContaining({
+        requestKind: "mediation",
+        canRetry: true,
+        unavailableReason: null,
+      }),
+    });
+  });
+
+  it("does not treat a done event with empty mediation content as durable success", async () => {
+    mockFetch.mockResolvedValue(completedChatResponse("", {}));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [],
+      streamingContent: "",
+      error: expect.stringContaining("중단"),
+      failedRequest: expect.objectContaining({
+        requestKind: "mediation",
+        canRetry: true,
+        unavailableReason: null,
+      }),
+    });
+  });
+
+  it("clears a partial mediation draft and preserves an explicit same-request stream error", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "text_delta", content: "unsafe partial mediation" })}\n\n`,
+        ));
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({
+            type: "error",
+            message: "조율 초안을 끝까지 만들지 못했어요.",
+            code: "MEDIATION_STREAM_INTERRUPTED",
+            retryable: true,
+            retryPolicy: "same_request",
+          })}\n\n`,
+        ));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    expect(useChatStore.getState()).toMatchObject({
+      streamingContent: "",
+      error: "조율 초안을 끝까지 만들지 못했어요.",
+      failedRequest: expect.objectContaining({
+        requestKind: "mediation",
+        canRetry: true,
+        unavailableReason: null,
+      }),
+    });
+    expect(useChatStore.getState().messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ sender_role: "ai", content: "unsafe partial mediation" }),
+    ]));
+  });
+
+  it("discards an uncertain mediation snapshot when a new mediation intent starts", async () => {
+    mockFetch
+      .mockRejectedValueOnce(new TypeError("response lost after request upload"))
+      .mockResolvedValueOnce(completedChatResponse("New mediation draft"));
+    const baseRequest = {
+      coupleId: "couple-1",
+      senderRole: "bride" as const,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+    };
+
+    await useChatStore.getState().requestMediation({
+      ...baseRequest,
+      conflictContext: "We disagree about the budget order.",
+    });
+    await useChatStore.getState().requestMediation({
+      ...baseRequest,
+      conflictContext: "We now need to decide the guest count.",
+    });
+
+    const firstPayload = JSON.parse(
+      String((mockFetch.mock.calls[0]?.[1] as RequestInit).body),
+    ) as { clientRequestId: string; conflictContext: string };
+    const secondPayload = JSON.parse(
+      String((mockFetch.mock.calls[1]?.[1] as RequestInit).body),
+    ) as { clientRequestId: string; conflictContext: string };
+    expect(secondPayload.clientRequestId).not.toBe(firstPayload.clientRequestId);
+    expect(secondPayload.conflictContext).toBe("We now need to decide the guest count.");
+  });
+
+  it("does not reuse an uncertain mediation request after the account and couple change", async () => {
+    mockFetch
+      .mockRejectedValueOnce(new TypeError("response lost after request upload"))
+      .mockResolvedValueOnce(completedChatResponse("New couple mediation draft"));
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "First user",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+    const firstPayload = JSON.parse(
+      String((mockFetch.mock.calls[0]?.[1] as RequestInit).body),
+    ) as { clientRequestId: string };
+
+    useAuthStore.setState({
+      profile: {
+        id: "user-2",
+        couple_id: "couple-2",
+        role: "groom",
+      } as never,
+    });
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-2",
+      senderRole: "groom",
+      senderName: "Second user",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    });
+
+    const secondPayload = JSON.parse(
+      String((mockFetch.mock.calls[1]?.[1] as RequestInit).body),
+    ) as { coupleId: string; clientRequestId: string };
+    expect(secondPayload).toMatchObject({ coupleId: "couple-2" });
+    expect(secondPayload.clientRequestId).not.toBe(firstPayload.clientRequestId);
+  });
+
+  it("starts a new mediation request after a definitive new-message rejection", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: "Please revise the request.",
+        retryable: false,
+        retryPolicy: "new_message",
+      }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }))
+      .mockResolvedValueOnce(completedChatResponse("Revised mediation draft"));
+    const request = {
+      coupleId: "couple-1",
+      senderRole: "bride" as const,
+      senderName: "Tester",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "We disagree about the budget order.",
+    };
+
+    await useChatStore.getState().requestMediation(request);
+    await useChatStore.getState().requestMediation(request);
+
+    const firstPayload = JSON.parse(
+      String((mockFetch.mock.calls[0]?.[1] as RequestInit).body),
+    ) as { clientRequestId: string };
+    const secondPayload = JSON.parse(
+      String((mockFetch.mock.calls[1]?.[1] as RequestInit).body),
+    ) as { clientRequestId: string };
+    expect(secondPayload.clientRequestId).not.toBe(firstPayload.clientRequestId);
   });
 
   it("keeps the active send lock when greeting and mediation are requested mid-send", async () => {

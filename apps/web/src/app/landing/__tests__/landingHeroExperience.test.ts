@@ -40,7 +40,8 @@ function sourceWindowAround(copy: string, before = 500, after = 260): string {
 describe("landing hero product experience contract", () => {
   it("explains the product in plain language before asking for action", () => {
     expect(content).toContain("웨딩한방 · 둘이 함께 관리하는 결혼 준비 공간");
-    expect(content).toContain("아모라 · 대화를 정리하는 AI");
+    expect(content).toContain("아모라 · AI 결혼 준비 동반자");
+    expect(content).not.toContain("아모라 · 대화를 정리하는 AI");
     expect(content).toContain("먼저 살펴볼 준비 3가지");
     expect(content, "산출물을 개수로만 말하면 안 된다").not.toMatch(/지금 볼 세 가지가 나와요/u);
     expect(hero, "히어로가 아모라로 이어지지 않는다").toContain("아모라");

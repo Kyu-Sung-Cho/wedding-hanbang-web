@@ -34,6 +34,55 @@ function fakePublicClient(fixtures: Record<string, Array<Record<string, unknown>
 }
 
 describe("loadPublicPriceCatalog", () => {
+  it("loads only the requested public-price categories for an Amora evidence query", async () => {
+    const base = {
+      period_label: "2026Q3",
+      source: "kca_tprice",
+      is_current: true,
+      region_code: "seoul_etc",
+      agency_id: "agency-1",
+      agency_name: "공시 대행사",
+      agency_display_name: "공시 대행사",
+      price_min_krw: 1_000_000,
+      price_max_krw: 1_000_000,
+      price_note: null,
+      vat_note: null,
+      base_spec: "기본 구성",
+      vendor_aliases: [],
+    };
+    const client = fakePublicClient({
+      v_public_official_prices: [
+        {
+          ...base,
+          id: "studio-price",
+          vendor_id: "studio-vendor",
+          vendor_slug: "studio-vendor",
+          vendor_name: "공시 스튜디오",
+          vendor_category: "studio",
+          price_category: "studio",
+          item_name: "촬영 기본 구성",
+        },
+        {
+          ...base,
+          id: "dress-price",
+          vendor_id: "dress-vendor",
+          vendor_slug: "dress-vendor",
+          vendor_name: "공시 드레스",
+          vendor_category: "dress",
+          price_category: "dress",
+          item_name: "드레스 기본 구성",
+        },
+      ],
+    });
+
+    const catalog = await loadPublicPriceCatalog(client, {
+      optionCategories: [],
+      priceCategories: ["studio"],
+    });
+
+    expect(catalog.counts).toEqual({ studio: 1, dress: 0, makeup: 0, hall: 0 });
+  });
+
   it("groups current prices with approved raw option text but no source quotes", async () => {
     const base = {
       snapshot_id: "snapshot-current",

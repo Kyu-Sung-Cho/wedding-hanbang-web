@@ -12,7 +12,7 @@
 //   null — 해당 없음
 // 특징:
 //   - Fire-and-forget (main chat flow 비차단)
-//   - INITIAL_GREETING / MEDIATION_REQUEST / [quote_analysis] 스킵
+//   - INITIAL_GREETING / MEDIATION_REQUEST / quote analysis machine context 스킵
 //   - JSON 실패 → null 로 기록
 //   - 예외 전부 내부 삼킴
 // =============================================
@@ -210,7 +210,11 @@ export async function maybeClassifyExcavation(
     if (!userText || !aiText) return;
     if (userText.includes("[INITIAL_GREETING]")) return;
     if (userText.includes("[MEDIATION_REQUEST]")) return;
-    if (userText.includes("[quote_analysis]")) return;
+    if (
+      userText.includes("[quote_analysis]")
+      || userText.includes("[quote_analysis_v2]")
+      || userText.includes("[/quote_analysis_v2]")
+    ) return;
 
     // AI 응답이 너무 짧으면 기법 적용 가능성 낮음 (도구 카드 트리거, 단답 등)
     if (aiText.length < 30) return;
