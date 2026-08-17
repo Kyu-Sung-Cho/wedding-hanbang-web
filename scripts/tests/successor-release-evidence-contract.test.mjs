@@ -38,9 +38,34 @@ function fixture(mutate) {
     join(root, "supabase", "release-manifests"),
     { recursive: true },
   );
+  cpSync(
+    join(REPO_ROOT, "supabase", "release-contracts"),
+    join(root, "supabase", "release-contracts"),
+    { recursive: true },
+  );
   const manifestPath = join(root, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const mutated = mutate(manifest) ?? manifest;
+  const baselinePath = join(root, mutated.remoteBaselineContract.file);
+  const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+  const appliedHeadIndex = mutated.expandMigrations.findIndex(
+    (entry) => entry.file.startsWith(`${baseline.observedRemoteHead}_`),
+  );
+  if (appliedHeadIndex >= 0) {
+    const pending = mutated.expandMigrations.slice(appliedHeadIndex + 1);
+    baseline.release = mutated.release;
+    baseline.projectRef = mutated.projectRef;
+    baseline.predecessorHead = mutated.requiredRemoteHead;
+    baseline.appliedSuccessorMigrations = mutated.expandMigrations.slice(0, appliedHeadIndex + 1);
+    baseline.pendingSuccessorCount = pending.length;
+    baseline.firstPendingSuccessor = pending.at(0)?.file.slice(0, 14) ?? null;
+    baseline.lastPendingSuccessor = pending.at(-1)?.file.slice(0, 14) ?? null;
+    const baselineText = `${JSON.stringify(baseline, null, 2)}\n`;
+    writeFileSync(baselinePath, baselineText);
+    mutated.remoteBaselineContract.sha256 = createHash("sha256")
+      .update(baselineText, "utf8")
+      .digest("hex");
+  }
   writeFileSync(manifestPath, `${JSON.stringify(mutated, null, 2)}\n`);
   return root;
 }
@@ -60,6 +85,12 @@ const ACTIVE_AMORA_SECURITY_MIGRATIONS = Object.freeze([
   "20260814140000_amora_couple_core_criterion.sql",
   "20260815120000_amora_action_outcome_feedback.sql",
   "20260815130000_amora_first_use_action_promotions.sql",
+  "20260816120000_amora_preparation_topic_message_refs.sql",
+  "20260816130000_amora_first_use_deterministic_proposal.sql",
+  "20260816140000_amora_first_use_deterministic_application.sql",
+  "20260816150000_amora_provider_backed_add_action_application.sql",
+  "20260816160000_amora_atomic_action_href_parity.sql",
+  "20260816170000_amora_booking_outcome_provenance.sql",
 ]);
 
 const GATED_COUPLE_INVITE_PHASE_B_MIGRATION =
@@ -101,6 +132,30 @@ const AMORA_FIRST_USE_ACTION_PROMOTIONS_MIGRATION = Object.freeze({
   file: "20260815130000_amora_first_use_action_promotions.sql",
   sha256: "c4808671308c2ed0bb2be0a7c82b894b69c3d20c63f4547abb3bd61d64511090",
 });
+const AMORA_PREPARATION_TOPIC_MESSAGE_REFS_MIGRATION = Object.freeze({
+  file: "20260816120000_amora_preparation_topic_message_refs.sql",
+  sha256: "7da41bdbee2476a28bc93c8dd3921816e0971af3f8d2ef2f94421dfd5756a217",
+});
+const AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_MIGRATION = Object.freeze({
+  file: "20260816130000_amora_first_use_deterministic_proposal.sql",
+  sha256: "dfc943280ac6ecc1ce21503609933322f8b9f0a12c671319bef4b674b835f786",
+});
+const AMORA_FIRST_USE_DETERMINISTIC_APPLICATION_MIGRATION = Object.freeze({
+  file: "20260816140000_amora_first_use_deterministic_application.sql",
+  sha256: "a5a184155366fbdcb0b2ad2ded922dc6ce0b3cac480f9e45ae52e5bd0a0084a6",
+});
+const AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_MIGRATION = Object.freeze({
+  file: "20260816150000_amora_provider_backed_add_action_application.sql",
+  sha256: "1e7870be4051c4fd9017d6909b453739e8eda9fdd4100339d47d9a79d7777483",
+});
+const AMORA_ATOMIC_ACTION_HREF_PARITY_MIGRATION = Object.freeze({
+  file: "20260816160000_amora_atomic_action_href_parity.sql",
+  sha256: "afe0eabc7cc774d219715224906bfd328e0df011bb76f9caea69615a93a4af7c",
+});
+const AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION = Object.freeze({
+  file: "20260816170000_amora_booking_outcome_provenance.sql",
+  sha256: "9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457",
+});
 
 const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
   "amora_action_follow_up_cards_v2",
@@ -112,6 +167,7 @@ const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
   "amora_mediation_outcome_follow_up_cards",
   "amora_mediation_outcome_follow_up_receipts",
   "amora_mediation_private_safety_holds",
+  "amora_preparation_topic_message_refs",
   "amora_provider_egress_grants",
   "amora_provider_runtime_control",
   "couple_invite_join_attempts",
@@ -197,6 +253,30 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.deploymentBlocked, true);
   assert.equal(result.releaseCommit, null);
   assert.equal(result.manifest.status, "deployment_blocked");
+  assert.equal(result.remoteBaseline.observedRemoteHead, "20260727090000");
+  assert.equal(result.remoteBaseline.appliedMigrations.length, 32);
+  assert.equal(result.pendingMigrations.length, 69);
+  assert.equal(
+    result.pendingMigrations.at(0)?.file,
+    "20260730100000_retire_undisclosed_community_agents.sql",
+  );
+});
+
+test("the Production remote baseline pin rejects semantic drift even after re-hashing", () => {
+  const root = fixture((manifest) => manifest);
+  const manifestPath = join(root, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const baselinePath = join(root, manifest.remoteBaselineContract.file);
+  const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+  baseline.pendingSuccessorCount += 1;
+  const baselineText = `${JSON.stringify(baseline, null, 2)}\n`;
+  writeFileSync(baselinePath, baselineText, "utf8");
+  manifest.remoteBaselineContract.sha256 = createHash("sha256")
+    .update(baselineText, "utf8")
+    .digest("hex");
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  expectBlocked(root, "REMOTE_BASELINE_CONTRACT_INVALID");
 });
 
 test("명시적 결정 후속 migration을 exact hash로 고정해도 배포 차단과 missing evidence를 보존한다", () => {
@@ -427,6 +507,297 @@ test("first-use action promotion provenance migration stays exact-hash pinned an
     storage: "missing",
     finalizer: "missing",
   });
+});
+
+test("preparation topic message references migration stays exact-hash pinned and deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({
+    repoRoot: fixture((manifest) => manifest),
+  });
+  assert.deepEqual(
+    result.manifest.expandMigrations.find(
+      (entry) => entry.file === AMORA_PREPARATION_TOPIC_MESSAGE_REFS_MIGRATION.file,
+    ),
+    AMORA_PREPARATION_TOPIC_MESSAGE_REFS_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+});
+
+test("booking outcome provenance is the terminal successor migration and remains deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+  assert.equal(result.manifest.expandMigrations.length, 101);
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-1),
+    AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION,
+  );
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-2),
+    AMORA_ATOMIC_ACTION_HREF_PARITY_MIGRATION,
+  );
+  assert.equal(result.pendingMigrations.length, 69);
+  assert.deepEqual(
+    result.pendingMigrations.at(-1),
+    AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION,
+  );
+  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 69);
+  assert.equal(
+    result.remoteBaseline.contract.lastPendingSuccessor,
+    "20260816170000",
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.equal(result.manifest.status, "deployment_blocked");
+});
+
+test("provider-free first-use proposal adds no backup table and exposes one service-role-only finalizer", () => {
+  assert.deepEqual(
+    createdPublicTablesForMigrations(REPO_ROOT, [
+      AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_MIGRATION,
+    ]),
+    [],
+  );
+
+  const sql = readFileSync(
+    join(
+      REPO_ROOT,
+      "supabase",
+      "migrations",
+      AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_MIGRATION.file,
+    ),
+    "utf8",
+  );
+  const createSignature = String.raw`public\.finalize_amora_first_use_action_proposal_v1\s*\(\s*p_couple_id\s+uuid\s*,\s*p_owner_user_id\s+uuid\s*,\s*p_shared_user_message_id\s+uuid\s*,\s*p_chat_request_key\s+text\s*,\s*p_chat_claim_attempt_count\s+integer\s*,\s*p_expected_privacy_epoch\s+bigint\s*\)`;
+  const aclSignature = String.raw`public\.finalize_amora_first_use_action_proposal_v1\s*\(\s*uuid\s*,\s*uuid\s*,\s*uuid\s*,\s*text\s*,\s*integer\s*,\s*bigint\s*\)`;
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`CREATE\s+FUNCTION\s+${createSignature}[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*pg_catalog\s*,\s*public`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${aclSignature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${aclSignature}\s+TO\s+service_role`,
+      "i",
+    ),
+  );
+  assert.doesNotMatch(sql, /INSERT\s+INTO\s+public\.ai_interactions_log/i);
+});
+
+test("provider-free first-use application adds no backup table and exposes one service-role-only finalizer", () => {
+  assert.deepEqual(
+    createdPublicTablesForMigrations(REPO_ROOT, [
+      AMORA_FIRST_USE_DETERMINISTIC_APPLICATION_MIGRATION,
+    ]),
+    [],
+  );
+
+  const sql = readFileSync(
+    join(
+      REPO_ROOT,
+      "supabase",
+      "migrations",
+      AMORA_FIRST_USE_DETERMINISTIC_APPLICATION_MIGRATION.file,
+    ),
+    "utf8",
+  );
+  const createSignature = String.raw`public\.finalize_amora_first_use_action_application_v1\s*\(\s*p_couple_id\s+uuid\s*,\s*p_actor_user_id\s+uuid\s*,\s*p_source_proposal_message_id\s+uuid\s*,\s*p_confirmation_message_id\s+uuid\s*,\s*p_chat_request_key\s+text\s*,\s*p_chat_claim_attempt_count\s+integer\s*,\s*p_expected_privacy_epoch\s+bigint\s*\)`;
+  const aclSignature = String.raw`public\.finalize_amora_first_use_action_application_v1\s*\(\s*uuid\s*,\s*uuid\s*,\s*uuid\s*,\s*uuid\s*,\s*text\s*,\s*integer\s*,\s*bigint\s*\)`;
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`CREATE\s+FUNCTION\s+${createSignature}[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*pg_catalog\s*,\s*public`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${aclSignature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${aclSignature}\s+TO\s+service_role`,
+      "i",
+    ),
+  );
+  assert.doesNotMatch(sql, /INSERT\s+INTO\s+public\.ai_interactions_log/i);
+});
+
+test("provider-backed exact add-action approval adds no backup table and exposes one service-role-only finalizer", () => {
+  assert.deepEqual(
+    createdPublicTablesForMigrations(REPO_ROOT, [
+      AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_MIGRATION,
+    ]),
+    [],
+  );
+
+  const sql = readFileSync(
+    join(
+      REPO_ROOT,
+      "supabase",
+      "migrations",
+      AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_MIGRATION.file,
+    ),
+    "utf8",
+  );
+  const createSignature = String.raw`public\.finalize_amora_provider_backed_add_action_application_v1\s*\(\s*p_couple_id\s+uuid\s*,\s*p_actor_user_id\s+uuid\s*,\s*p_source_proposal_message_id\s+uuid\s*,\s*p_confirmation_message_id\s+uuid\s*,\s*p_chat_request_key\s+text\s*,\s*p_chat_claim_attempt_count\s+integer\s*,\s*p_expected_privacy_epoch\s+bigint\s*\)`;
+  const aclSignature = String.raw`public\.finalize_amora_provider_backed_add_action_application_v1\s*\(\s*uuid\s*,\s*uuid\s*,\s*uuid\s*,\s*uuid\s*,\s*text\s*,\s*integer\s*,\s*bigint\s*\)`;
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`CREATE\s+FUNCTION\s+${createSignature}[\s\S]*?SECURITY\s+DEFINER[\s\S]*?SET\s+search_path\s*=\s*pg_catalog\s*,\s*public`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${aclSignature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${aclSignature}\s+TO\s+service_role`,
+      "i",
+    ),
+  );
+  assert.doesNotMatch(sql, /INSERT\s+INTO\s+public\.ai_interactions_log/i);
+});
+
+test("atomic action href parity adds no backup table and postchecks private/public dispatcher ACLs and canonical values", () => {
+  assert.deepEqual(
+    createdPublicTablesForMigrations(REPO_ROOT, [
+      AMORA_ATOMIC_ACTION_HREF_PARITY_MIGRATION,
+    ]),
+    [],
+  );
+
+  const sql = readFileSync(
+    join(
+      REPO_ROOT,
+      "supabase",
+      "migrations",
+      AMORA_ATOMIC_ACTION_HREF_PARITY_MIGRATION.file,
+    ),
+    "utf8",
+  );
+  const privateSignature = String.raw`public\.apply_amora_atomic_tool_execution_pre_shared_revision\s*\(\s*uuid\s*,\s*text\s*,\s*text\s*,\s*integer\s*,\s*text\s*,\s*jsonb\s*,\s*jsonb\s*,\s*jsonb\s*\)`;
+  assert.match(
+    sql,
+    new RegExp(String.raw`ALTER\s+FUNCTION\s+${privateSignature}\s+OWNER\s+TO\s+postgres`, "i"),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${privateSignature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`,
+      "i",
+    ),
+  );
+  assert.match(sql, /WHEN v_value ->> 'categoryKey' IN \('mc', 'gift'\) THEN '\/wedding\/chat'/);
+  assert.match(sql, /char_length\(btrim\(regexp_replace\([\s\S]*?p_tool_input ->> 'title'/);
+  assert.match(sql, /NULLIF\(left\(btrim\(regexp_replace\([\s\S]*?p_tool_input ->> 'description'/);
+  for (const role of ["anon", "authenticated", "service_role"]) {
+    assert.match(
+      sql,
+      new RegExp(
+        String.raw`pg_catalog\.has_function_privilege\(\s*'${role}'\s*,\s*private_dispatcher\s*,\s*'EXECUTE'\s*\)`,
+        "i",
+      ),
+    );
+  }
+  for (const role of ["anon", "authenticated"]) {
+    assert.match(
+      sql,
+      new RegExp(
+        String.raw`pg_catalog\.has_function_privilege\(\s*'${role}'\s*,\s*public_dispatcher\s*,\s*'EXECUTE'\s*\)`,
+        "i",
+      ),
+    );
+  }
+  assert.match(
+    sql,
+    /NOT pg_catalog\.has_function_privilege\(\s*'service_role', public_dispatcher, 'EXECUTE'\s*\)/i,
+  );
+  assert.match(sql, /position\(old_href_fragment IN private_definition\) <> 0/i);
+  assert.match(
+    sql,
+    /length\(private_definition\)[\s\S]*?replace\(private_definition, new_href_fragment, ''\)[\s\S]*?IS DISTINCT FROM length\(new_href_fragment\)/i,
+  );
+  assert.match(sql, /AMORA_ATOMIC_ACTION_HREF_PARITY_POSTCONDITION_FAILED/);
+  assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
+});
+
+test("booking outcome provenance is exact-hash pinned, service-role-only and remains deployment-blocked", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-1),
+    AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+  assert.deepEqual(result.manifest.deploymentEvidence, {
+    hostedStaging: "missing",
+    backup: "missing",
+    hostedRestore: "missing",
+    storage: "missing",
+    finalizer: "missing",
+  });
+
+  const sql = readFileSync(
+    join(
+      REPO_ROOT,
+      "supabase",
+      "migrations",
+      AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION.file,
+    ),
+    "utf8",
+  );
+  const signature = String.raw`public\.complete_amora_booking_outcome_atomic\s*\(\s*uuid\s*,\s*uuid\s*,\s*numeric\s*,\s*numeric\s*,\s*integer\s*,\s*text\s*,\s*boolean\s*\)`;
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${signature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`,
+      "i",
+    ),
+  );
+  assert.match(
+    sql,
+    new RegExp(
+      String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${signature}\s+TO\s+service_role`,
+      "i",
+    ),
+  );
+  assert.match(sql, /IF auth\.role\(\) IS DISTINCT FROM 'service_role'/i);
+  assert.match(
+    sql,
+    /source_actor_role\s*=\s*CASE[\s\S]*?ELSE v_actor_role/i,
+  );
+  assert.match(sql, /'actor_profile_id'[\s\S]*?p_customer_id::text/i);
+  assert.match(sql, /'outcome_provenance_version'\s*,\s*1/i);
+  assert.match(
+    sql,
+    /user_confirmed_at\s*=\s*CASE[\s\S]*?ELSE v_confirmed_at[\s\S]*?decided_at\s*=\s*CASE[\s\S]*?ELSE v_confirmed_at/i,
+  );
+  assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
 });
 
 function canonicalJsonSha256(value) {
@@ -786,8 +1157,19 @@ function readyStaticFixture({
   );
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const predecessor = JSON.parse(readFileSync(predecessorPath, "utf8"));
+  const remoteBaseline = JSON.parse(readFileSync(
+    join(root, manifest.remoteBaselineContract.file),
+    "utf8",
+  ));
   const releaseVersions = manifest.expandMigrations.map((entry) => entry.file.slice(0, 14));
-  const baselineTables = predecessor.postExpandBackupContract.expectedTables;
+  const appliedBaselineTables = createdPublicTablesForMigrations(
+    root,
+    remoteBaseline.appliedSuccessorMigrations,
+  );
+  const baselineTables = [...new Set([
+    ...predecessor.postExpandBackupContract.expectedTables,
+    ...appliedBaselineTables,
+  ])].sort();
   const createdTables = createdPublicTablesForMigrations(
     root,
     manifest.expandMigrations,
@@ -845,6 +1227,14 @@ function readyStaticFixture({
         conversation_segment_rls_policy_count: 1,
         conversation_segment_rpc_acl_count: 1,
         conversation_segment_scope_fk_count: 2,
+        first_use_deterministic_application_rpc_acl_count: 1,
+        first_use_deterministic_proposal_rpc_acl_count: 1,
+        provider_backed_add_action_application_rpc_acl_count: 1,
+        atomic_action_private_dispatcher_acl_count: 1,
+        atomic_action_public_dispatcher_acl_count: 1,
+        atomic_action_href_whitespace_parity_count: 1,
+        booking_outcome_provenance_rpc_acl_count: 1,
+        booking_outcome_provenance_v1_actor_time_contract_count: 1,
         couple_plan_change_auth_user_fk_count: 4,
         couple_plan_change_display_guard_count: 1,
         couple_plan_change_idempotency_index_count: 1,
@@ -875,14 +1265,17 @@ function readyStaticFixture({
       expectedTableCount: baselineTables.length,
       expectedTables: baselineTables,
       expectedTableContractSha256: textDigest(baselineTables),
-      expectedMigrationHead: manifest.requiredRemoteHead,
+      expectedMigrationHead: remoteBaseline.observedRemoteHead,
       excludedEphemeralTables:
         predecessor.backupContract.excludedEphemeralTables,
       ephemeralRebuildContract:
         predecessor.backupContract.ephemeralRebuildContract,
       expectedCommitBinding: "release-expected-commit",
       expectedOrigin: predecessor.backupContract.expectedOrigin,
-      verifier: predecessor.postExpandBackupContract.verifier,
+      verifier: {
+        file: "scripts/vendor-disclosure-db-current-baseline-verify.ps1",
+        sha256: "e".repeat(64),
+      },
       providerPhysicalBackup:
         predecessor.backupContract.providerPhysicalBackup,
       hostedRestoreEvidence: {
@@ -901,7 +1294,7 @@ function readyStaticFixture({
         `${manifest.release}-post-expand-backup-verification.json`,
       expectedTableCount: postExpandTables.length,
       expectedTables: postExpandTables,
-      expectedReleaseMigrationBaselineHead: manifest.requiredRemoteHead,
+      expectedReleaseMigrationBaselineHead: remoteBaseline.observedRemoteHead,
       expectedReleaseMigrationHead: releaseVersions.at(-1),
       expectedReleaseMigrationVersions: releaseVersions,
       expectedTableContractSha256: textDigest(postExpandTables),
@@ -953,11 +1346,15 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
   assert.equal(result.controllerManifest.release, state.manifest.release);
   assert.equal(
     result.controllerManifest.expandMigrations.length,
-    state.manifest.expandMigrations.length,
+    result.pendingMigrations.length,
+  );
+  assert.equal(
+    result.controllerManifest.remoteBaselineMigrations.length,
+    result.remoteBaseline.appliedMigrations.length,
   );
   assert.equal(
     result.controllerManifest.backupContract.expectedMigrationHead,
-    state.manifest.requiredRemoteHead,
+    result.remoteBaseline.observedRemoteHead,
   );
   const migrationFiles = state.manifest.expandMigrations.map(
     (entry) => entry.file,
@@ -1088,6 +1485,66 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
       .conversation_segment_active_index_count,
     3,
   );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .first_use_deterministic_proposal_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .first_use_deterministic_application_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .provider_backed_add_action_application_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .atomic_action_private_dispatcher_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .atomic_action_public_dispatcher_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .atomic_action_href_whitespace_parity_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .booking_outcome_provenance_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .booking_outcome_provenance_v1_actor_time_contract_count,
+    1,
+  );
+});
+
+test("booking outcome ACL과 provenance v1 actor-time hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {
+  for (const field of [
+    "booking_outcome_provenance_rpc_acl_count",
+    "booking_outcome_provenance_v1_actor_time_contract_count",
+  ]) {
+    expectBlocked(
+      readyStaticFixture({
+        mutateContract(contract) {
+          contract.postApplyChecks[0].expectedEvidence
+            .booking_outcome_provenance_rpc_acl_count = 1;
+          contract.postApplyChecks[0].expectedEvidence
+            .booking_outcome_provenance_v1_actor_time_contract_count = 1;
+          contract.postApplyChecks[0].expectedEvidence[field] = 0;
+        },
+      }).root,
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+    );
+  }
 });
 
 test("successor 또는 account-deletion table을 self-consistent backup list에서 빼도 차단한다", () => {
@@ -1259,6 +1716,30 @@ test("postcheck 또는 feature-off rollback 계약을 약화하면 controller_re
     (contract) => {
       contract.postApplyChecks[0].expectedEvidence
         .conversation_segment_rpc_acl_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .first_use_deterministic_proposal_rpc_acl_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .first_use_deterministic_application_rpc_acl_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .provider_backed_add_action_application_rpc_acl_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .atomic_action_private_dispatcher_acl_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .atomic_action_public_dispatcher_acl_count = 0;
+    },
+    (contract) => {
+      contract.postApplyChecks[0].expectedEvidence
+        .atomic_action_href_whitespace_parity_count = 0;
     },
   ]) {
     expectBlocked(

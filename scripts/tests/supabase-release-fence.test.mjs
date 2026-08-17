@@ -18,6 +18,10 @@ import {
 import {
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
 } from "../lib/supabase-successor-release-contract.mjs";
+import {
+  attachSuccessorRemoteBaselineFixture,
+  SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
+} from "./helpers/successor-remote-baseline-fixture.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(testDir, "../..");
@@ -33,6 +37,10 @@ const readOnlyEnvelopeSource = join(
 const successorContractSource = join(
   repoRoot,
   "scripts/lib/supabase-successor-release-contract.mjs",
+);
+const successorRemoteBaselineSource = join(
+  repoRoot,
+  "scripts/lib/supabase-successor-remote-baseline.mjs",
 );
 
 function sha256(content) {
@@ -61,6 +69,10 @@ async function createFixture() {
   await cp(
     successorContractSource,
     join(root, "scripts/lib/supabase-successor-release-contract.mjs"),
+  );
+  await cp(
+    successorRemoteBaselineSource,
+    join(root, "scripts/lib/supabase-successor-remote-baseline.mjs"),
   );
 
   const historicalAudit = "select 'verified';\n";
@@ -411,13 +423,19 @@ async function addSuccessorRelease(root, {
       finalizer: "missing",
     },
   };
+  const successorBaseline = attachSuccessorRemoteBaselineFixture(successorManifest);
   await write(
     root,
     "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
-    `${JSON.stringify(successorManifest, null, 2)}\n`,
+    `${JSON.stringify(successorBaseline.manifest, null, 2)}\n`,
+  );
+  await write(
+    root,
+    SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
+    successorBaseline.contractText,
   );
   await write(root, `supabase/migrations/${migrationFile}`, migrationSql);
-  return successorManifest;
+  return successorBaseline.manifest;
 }
 
 function runtimeEvidenceContracts(release) {
@@ -459,6 +477,14 @@ SELECT
   1 AS conversation_segment_rls_policy_count,
   1 AS conversation_segment_rpc_acl_count,
   2 AS conversation_segment_scope_fk_count,
+  1 AS first_use_deterministic_proposal_rpc_acl_count,
+  1 AS first_use_deterministic_application_rpc_acl_count,
+  1 AS provider_backed_add_action_application_rpc_acl_count,
+  1 AS atomic_action_private_dispatcher_acl_count,
+  1 AS atomic_action_public_dispatcher_acl_count,
+  1 AS atomic_action_href_whitespace_parity_count,
+  1 AS booking_outcome_provenance_rpc_acl_count,
+  1 AS booking_outcome_provenance_v1_actor_time_contract_count,
   4 AS couple_plan_change_auth_user_fk_count,
   1 AS couple_plan_change_display_guard_count,
   1 AS couple_plan_change_idempotency_index_count,
@@ -527,6 +553,14 @@ ROLLBACK;
         conversation_segment_rls_policy_count: 1,
         conversation_segment_rpc_acl_count: 1,
         conversation_segment_scope_fk_count: 2,
+        first_use_deterministic_application_rpc_acl_count: 1,
+        first_use_deterministic_proposal_rpc_acl_count: 1,
+        provider_backed_add_action_application_rpc_acl_count: 1,
+        atomic_action_private_dispatcher_acl_count: 1,
+        atomic_action_public_dispatcher_acl_count: 1,
+        atomic_action_href_whitespace_parity_count: 1,
+        booking_outcome_provenance_rpc_acl_count: 1,
+        booking_outcome_provenance_v1_actor_time_contract_count: 1,
         couple_plan_change_auth_user_fk_count: 4,
         couple_plan_change_display_guard_count: 1,
         couple_plan_change_idempotency_index_count: 1,

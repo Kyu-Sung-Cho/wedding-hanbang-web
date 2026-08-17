@@ -13,6 +13,7 @@ import {
   calculateChecklistProgress,
   formatLocalDateKey,
   getWeddingMomentMessage,
+  listDashboardOpenActions,
   parseDashboardOpenAction,
   resolveDashboardServiceRoute,
   selectDashboardOpenAction,
@@ -759,12 +760,20 @@ test("an undated low priority action does not hide a heuristic checklist warning
   const focus = buildDashboardFocus({
     ...emptyInput,
     todayYmd: "2026-08-15",
-    urgentTasks: [{
-      categoryKey: "venue",
-      categoryLabel: "예식장",
-      urgency: "soon",
-      remainingDays: 3,
-    }],
+    urgentTasks: [
+      {
+        categoryKey: "meeting",
+        categoryLabel: "부모님 첫 만남",
+        urgency: "ontrack",
+        remainingDays: 20,
+      },
+      {
+        categoryKey: "venue",
+        categoryLabel: "예식장",
+        urgency: "soon",
+        remainingDays: 3,
+      },
+    ],
     openAction: {
       id: "act_low_without_date",
       title: "언젠가 하객 아이디어 정리하기",
@@ -779,6 +788,23 @@ test("an undated low priority action does not hide a heuristic checklist warning
 
   assert.equal(focus.kind, "urgent");
   assert.equal(focus.title, "예식장 준비를 먼저 확인해요");
+  assert.equal(focus.categoryKey, "venue");
+});
+
+test("the next checklist recommendation preserves its exact preparation category", () => {
+  const focus = buildDashboardFocus({
+    ...emptyInput,
+    urgentTasks: [{
+      categoryKey: "meeting",
+      categoryLabel: "부모님 첫 만남",
+      urgency: "ontrack",
+      remainingDays: 20,
+    }],
+  });
+
+  assert.equal(focus.kind, "next");
+  assert.equal(focus.route, "/checklist");
+  assert.equal(focus.categoryKey, "meeting");
 });
 
 test("a categorized Amora action opens the exact checklist instead of restarting chat", () => {
@@ -929,6 +955,55 @@ test("home selects the most time-sensitive confirmed action instead of the newes
   ], coupleId, "2026-08-15");
 
   assert.equal(selected?.id, "act_overdue");
+});
+
+test("topic action candidates reuse the same deterministic priority order as home", () => {
+  const coupleId = "22222222-2222-4222-8222-222222222222";
+  const base = {
+    couple_id: coupleId,
+    description: null,
+    category_key: "meeting",
+    source: "chat",
+    status: "open",
+    follow_up_revision: 1,
+  };
+  const values = [
+    {
+      ...base,
+      id: "act_later",
+      title: "나중에 장소 확인하기",
+      due_date: "2026-08-25",
+      priority: "high",
+      created_at: "2026-08-15T08:00:00.000Z",
+    },
+    {
+      ...base,
+      id: "act_overdue",
+      title: "지난 날짜 다시 확인하기",
+      due_date: "2026-08-14",
+      priority: "low",
+      created_at: "2026-08-10T08:00:00.000Z",
+    },
+    {
+      ...base,
+      id: "act_due_soon",
+      title: "이번 주 참석자 확인하기",
+      due_date: "2026-08-18",
+      priority: "medium",
+      created_at: "2026-08-12T08:00:00.000Z",
+    },
+  ];
+
+  const ordered = listDashboardOpenActions(values, coupleId, "2026-08-15");
+  assert.deepEqual(ordered.map((action) => action.id), [
+    "act_overdue",
+    "act_due_soon",
+    "act_later",
+  ]);
+  assert.equal(
+    selectDashboardOpenAction(values, coupleId, "2026-08-15")?.id,
+    ordered[0]?.id,
+  );
 });
 
 test("a current blocked result turns the same action into one bounded recovery step", () => {

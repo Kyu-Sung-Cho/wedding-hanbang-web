@@ -19,6 +19,8 @@ import {
   sep,
 } from "node:path";
 
+import { validateSuccessorRemoteBaselineContract } from "./supabase-successor-remote-baseline.mjs";
+
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
 
@@ -42,6 +44,7 @@ const BLOCKED_TOP_LEVEL_KEYS = [
   "predecessorManifest",
   "projectRef",
   "release",
+  "remoteBaselineContract",
   "requiredRemoteHead",
   "status",
 ];
@@ -834,6 +837,7 @@ function validateSuccessorControllerContract({
   manifest,
   predecessorManifest,
   releaseVersions,
+  remoteBaseline,
 }) {
   const releaseContractDir = join(repoRoot, "supabase", "release-contracts");
   const pin = manifest.controllerContract;
@@ -899,6 +903,14 @@ function validateSuccessorControllerContract({
     && check.expectedEvidence.conversation_segment_rls_policy_count === 1
     && check.expectedEvidence.conversation_segment_rpc_acl_count === 1
     && check.expectedEvidence.conversation_segment_scope_fk_count === 2
+    && check.expectedEvidence.first_use_deterministic_application_rpc_acl_count === 1
+    && check.expectedEvidence.first_use_deterministic_proposal_rpc_acl_count === 1
+    && check.expectedEvidence.provider_backed_add_action_application_rpc_acl_count === 1
+    && check.expectedEvidence.atomic_action_private_dispatcher_acl_count === 1
+    && check.expectedEvidence.atomic_action_public_dispatcher_acl_count === 1
+    && check.expectedEvidence.atomic_action_href_whitespace_parity_count === 1
+    && check.expectedEvidence.booking_outcome_provenance_rpc_acl_count === 1
+    && check.expectedEvidence.booking_outcome_provenance_v1_actor_time_contract_count === 1
     && check.expectedEvidence.couple_plan_change_auth_user_fk_count === 4
     && check.expectedEvidence.couple_plan_change_terminal_event_count === 3
     && check.expectedEvidence.couple_plan_change_journey_write_fence_count === 4
@@ -917,13 +929,21 @@ function validateSuccessorControllerContract({
       || !semanticPostcheck) {
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
-      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
+      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
     );
   }
 
   const predecessorPostExpand = predecessorManifest.postExpandBackupContract;
   const predecessorBackup = predecessorManifest.backupContract;
-  const baselineTables = predecessorPostExpand?.expectedTables;
+  const predecessorBaselineTables = predecessorPostExpand?.expectedTables;
+  const appliedBaselineTables = successorCreatedPublicTables(
+    repoRoot,
+    remoteBaseline.appliedMigrations,
+  );
+  const baselineTables = [...new Set([
+    ...(predecessorBaselineTables ?? []),
+    ...appliedBaselineTables,
+  ])].sort();
   const backup = contract.backupContract;
   if (!exactKeys(backup, [
     "ephemeralRebuildContract",
@@ -947,7 +967,7 @@ function validateSuccessorControllerContract({
       || backup.id === "pre-amora-current-remote-14-table-baseline"
       || backup.version !== 2
       || backup.format !== "hbam2-encrypted-current-user"
-      || backup.expectedMigrationHead !== manifest.requiredRemoteHead
+      || backup.expectedMigrationHead !== remoteBaseline.observedRemoteHead
       || !SHA256.test(backup.expectedTableContractSha256 ?? "")
       || !safeExactTableList(
         backup.expectedTables,
@@ -956,7 +976,7 @@ function validateSuccessorControllerContract({
       )
       || !exactArray(backup.expectedTables, baselineTables ?? [])
       || backup.expectedTableContractSha256
-        !== predecessorPostExpand?.expectedTableContractSha256
+        !== exactTextListSha256(baselineTables)
       || !exactArray(
         backup.excludedEphemeralTables,
         predecessorBackup?.excludedEphemeralTables ?? [],
@@ -966,8 +986,8 @@ function validateSuccessorControllerContract({
       || backup.expectedCommitBinding !== "release-expected-commit"
       || backup.expectedOrigin !== predecessorBackup?.expectedOrigin
       || !exactKeys(backup.verifier, ["file", "sha256"])
-      || backup.verifier.file !== predecessorPostExpand?.verifier?.file
-      || backup.verifier.sha256 !== predecessorPostExpand?.verifier?.sha256
+      || (remoteBaseline.appliedMigrations.length > 0
+        && backup.verifier.file === predecessorPostExpand?.verifier?.file)
       || !exactKeys(backup.providerPhysicalBackup, [
         "maximumAgeHours",
         "requirePhysicalBackup",
@@ -1023,7 +1043,8 @@ function validateSuccessorControllerContract({
   if (!postExpand
       || postExpand.id === "post-amora-engine-v2-27-table-backup"
       || postExpand.version !== 2
-      || postExpand.expectedReleaseMigrationBaselineHead !== manifest.requiredRemoteHead
+      || postExpand.expectedReleaseMigrationBaselineHead
+        !== remoteBaseline.observedRemoteHead
       || postExpand.expectedReleaseMigrationHead !== expectedHead
       || !exactArray(postExpand.expectedReleaseMigrationVersions, releaseVersions)
       || postExpand.expectedReleaseMigrationContractSha256
@@ -1065,15 +1086,61 @@ function validateSuccessorControllerContract({
   return {
     ...contract,
     predecessorManifest: manifest.predecessorManifest,
-    requiredRemoteHead: manifest.requiredRemoteHead,
+    requiredRemoteHead: remoteBaseline.observedRemoteHead,
     migrationFloor: manifest.migrationFloor,
     historicalReconciliation: [],
-    expandMigrations: manifest.expandMigrations,
+    remoteBaselineMigrations: remoteBaseline.appliedMigrations,
+    expandMigrations: remoteBaseline.pendingMigrations,
     appliedHotfixes: [],
     status: manifest.status,
     deploymentEvidence: manifest.deploymentEvidence,
     controllerContract: manifest.controllerContract,
   };
+}
+
+function validatePinnedRemoteBaseline(repoRoot, manifest) {
+  const pin = manifest.remoteBaselineContract;
+  if (!exactKeys(pin, ["file", "sha256"])
+      || typeof pin.file !== "string"
+      || !pin.file.startsWith("supabase/release-contracts/")
+      || basename(pin.file) !== "vendor-disclosure-production-baseline-v1-20260815.json"
+      || !SHA256.test(pin.sha256 ?? "")) {
+    invalid(
+      "REMOTE_BASELINE_PIN_INVALID",
+      "successor release must pin the exact Production remote baseline contract",
+    );
+  }
+  const path = resolve(repoRoot, pin.file);
+  const contractDirectory = join(repoRoot, "supabase", "release-contracts");
+  const metadata = existsSync(path) ? lstatSync(path) : null;
+  if (!inside(repoRoot, path)
+      || dirname(path) !== contractDirectory
+      || !metadata?.isFile()
+      || metadata.isSymbolicLink()) {
+    invalid("REMOTE_BASELINE_PIN_INVALID", "remote baseline contract file is unsafe or missing");
+  }
+  const text = readFileSync(path, "utf8");
+  if (canonicalTextSha256(text) !== pin.sha256) {
+    invalid("REMOTE_BASELINE_HASH_MISMATCH", "remote baseline contract hash drifted");
+  }
+  let contract;
+  try {
+    contract = JSON.parse(text);
+  } catch {
+    invalid("REMOTE_BASELINE_CONTRACT_INVALID", "remote baseline contract is not valid JSON");
+  }
+  try {
+    return {
+      pin,
+      contract,
+      ...validateSuccessorRemoteBaselineContract({ manifest, contract }),
+    };
+  } catch (error) {
+    invalid(
+      "REMOTE_BASELINE_CONTRACT_INVALID",
+      error instanceof Error ? error.message : "remote baseline contract is invalid",
+    );
+  }
 }
 
 export function validateSuccessorReleaseContract({
@@ -1160,12 +1227,14 @@ export function validateSuccessorReleaseContract({
     );
   }
   const releaseVersions = expectedFiles.map((file) => file.slice(0, 14));
+  const remoteBaseline = validatePinnedRemoteBaseline(root, manifest);
   const controllerManifest = deployment.released
     ? validateSuccessorControllerContract({
       repoRoot: root,
       manifest,
       predecessorManifest: predecessor.manifest,
       releaseVersions,
+      remoteBaseline,
     })
     : null;
   return {
@@ -1178,5 +1247,7 @@ export function validateSuccessorReleaseContract({
     releaseCommit: deployment.releaseCommit,
     controllerReady: deployment.released,
     controllerManifest,
+    remoteBaseline,
+    pendingMigrations: remoteBaseline.pendingMigrations,
   };
 }

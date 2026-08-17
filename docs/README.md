@@ -1,18 +1,27 @@
 # 문서 권한과 상태
 
+> 아모라의 현재 제품 목표·소비자 여정·구현 상태·개발 순서·완료 체크리스트는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`가 단일 실행 정본이다. 모든 아모라 작업은 그 문서의 `NOW`와 `AMR-*` ID에서 시작하고 작업 뒤 네 축 상태와 증거를 갱신한다.
+>
+> 2026-08-17 현재 후보는 HEAD `6855394f`, manifest 101개, 관찰 적용 32개, pending 69개, tail `20260816170000`, `deployment_blocked`다. 아래 `f8851f74`/2026-08-12 handoff 설명은 이전 release-candidate 역사이며 현재 후보 상태로 사용하지 않는다.
+
 `docs/`에는 현재 기준서와 과거 전략·감사·세션 기록이 함께 있다. 파일 날짜가 최신이거나
 본문에 “완료”가 적혀 있다는 이유만으로 현재 제품·보안·배포 상태로 사용하지 않는다.
+
+`docs/AMORA_2_0_BUILD_PLAN.md`는 superseded 역사 초안이고,
+`docs/AMORA_2_0_GAP_SURVEY.json`은 조사 근거다. 둘 다 실행 순서나 완료 상태를 정하지 않는다.
 
 새 컴퓨터나 새 LLM은 저장소 루트의 `START_HERE.md`에서 시작한다. 이 파일은 문서 권한을
 대체하지 않고, 아래 정본을 안전한 순서로 읽고 다음 최소 안전 작업까지 진입하게 하는
 색인이다.
 
-현재 remote release candidate source-status는
-`docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`가 갱신한다. 상태는
-**REMOTE RELEASE CANDIDATE / PROTECTED STUB PREVIEW / HOSTED PRODUCTION EVIDENCE MISSING /
-PRODUCTION NO-GO**다. remote branch와 Draft PR #105, 검증된 구현 SHA `f8851f74`, 접근
-보호된 stub Preview receipt가 있다. 실제 source·tests·migration이 항상 우선하고 이 문서는
-production authorization이 아니다.
+`docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`는 당시 remote release
+candidate와 보호된 stub Preview의 역사 영수증이다. 현재 상태는 마스터 계획과 실제
+source·tests·migration·release manifest를 다시 확인하며, 그 handoff는 production
+authorization이 아니다.
+
+당시 상태 표식은 **REMOTE RELEASE CANDIDATE / PROTECTED STUB PREVIEW /
+HOSTED PRODUCTION EVIDENCE MISSING / PRODUCTION NO-GO**였으며, 네 표식 모두 현재
+후보의 권한이나 배포 승인이 아닌 `HISTORICAL` 기록이다.
 
 ## 현재 권한 순서
 
@@ -22,9 +31,11 @@ production authorization이 아니다.
    - 현재 제품 계약 정본. 한 줄 정의·아모라 호칭·전면 범위·내부/외부 언어 경계
    - `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계했다(구 문서는 SUPERSEDED)
    - 모바일 완료 기준: `docs/MOBILE_PRODUCT_COMPLETION_STANDARD_2026-08-03.md`
-4. 현재 source snapshot·릴리스 상태·다른 컴퓨터 인수인계:
+4. 아모라 제품·개발 실행 정본:
+   `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`
+5. 2026-08-12 source snapshot·릴리스 역사·다른 컴퓨터 인수인계:
    `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
-   - 현재 remote 후보의 모바일 Stop·첫 shared 확인·reconciliation, 위기 안전
+   - 당시 remote 후보의 모바일 Stop·첫 shared 확인·reconciliation, 위기 안전
      분류기, provider single-use grant, server-only ingest, invite replay/expiry, Storage cleanup,
      settings·onboarding·dashboard·chat actor fence, schedule moment 구현 수직과 exact-SHA 검증
    - generic headerless Phase-A fleet, 구형 direct Supabase password binary, 구형 10자 invite
@@ -36,7 +47,7 @@ production authorization이 아니다.
    - 2026-08-04 이전 source-status 기록:
      `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md`
    - 당시 Git/PR/CI/DB/Mobile 증거, P0/P1 공격 모델, 개인정보 구현 경계와 다른 컴퓨터
-     재개 순서를 보존한다. 현재 remote 후보 상태는 2026-08-12 문서와 실제 source가 갱신한다.
+     재개 순서를 보존한다. 현재 후보 상태는 마스터 계획과 실제 source·tests·migration manifest가 갱신한다.
    - Amora·커뮤니티 이전 local release candidate의 구현·파일·기존 검증 상세:
      `docs/operations/AMORA_COMMUNITY_IMPLEMENTATION_HANDOFF_2026-08-04.md`
    - Amora 대화 안전 두 wave와 이전 검증 스냅샷:
@@ -62,14 +73,14 @@ production authorization이 아니다.
    - DecisionThread P0 현재 로컬 구현 상태
      (**LOCAL RELEASE CANDIDATE, exact Git·검증 상태는 현재 handoff 참조, 운영 NO-GO**):
      `docs/operations/COMMUNITY_DECISION_THREAD_P0_RELEASE_CANDIDATE_2026-08-04.md`
-5. 변경 영역의 현재 게이트
+6. 변경 영역의 현재 게이트
    - DB: `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
    - 커뮤니티: `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
    - 공시 production build:
      `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
    - WeddingCode: `docs/wedding-code/README.md`
-6. 변경 영역의 실제 코드·테스트·최신 migration
-7. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,
+7. 변경 영역의 실제 코드·테스트·최신 migration
+8. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,
    `docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md` 등
    날짜별 감사·인계 기록
 
@@ -79,7 +90,7 @@ production authorization이 아니다.
 준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에
 남기는 서비스입니다.**
 
-4번 문서는 이 제품 방향을 바꾸지 않고 GitHub, Web, DB, Community, Mobile의 현재
+5번 문서는 이 제품 방향을 바꾸지 않고 당시 GitHub, Web, DB, Community, Mobile의
 상태를 각각 기록한다. exact 파일 목록은
 `docs/operations/evidence/full-workspace-release-inventory-2026-07-31.json`에서
 `git status --porcelain=v1 -uall` 기준으로 확인한다.

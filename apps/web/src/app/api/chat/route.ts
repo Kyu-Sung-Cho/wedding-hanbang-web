@@ -17,6 +17,23 @@ import {
   type AmoraFirstUsePromotionValidation,
 } from "@/lib/ai/amoraFirstUsePromotionBinding";
 import { buildAmoraFirstUsePromotionSourceSeal } from "@/lib/ai/amoraFirstUsePromotion";
+import { parseAmoraFirstUseDeterministicProposal } from "@/lib/ai/amoraFirstUseDeterministicProposal";
+import {
+  AMORA_FIRST_USE_ACTION_APPLICATION_CONFIRMATION,
+  parseAmoraFirstUseActionApplicationSource,
+  parseAmoraFirstUseDeterministicApplication,
+  parsePersistedAmoraFirstUseDeterministicApplication,
+  requiresStrictAmoraFirstUseApplicationReplay,
+} from "@/lib/ai/amoraFirstUseDeterministicApplication";
+import {
+  AMORA_ADD_ACTION_PROPOSAL_ORIGIN,
+  AMORA_ADD_ACTION_PROPOSAL_ORIGIN_METADATA_KEY,
+  parseAmoraProviderBackedAddActionApplication,
+  parseAmoraProviderBackedAddActionApplicationSource,
+  parsePersistedAmoraProviderBackedAddActionApplication,
+  requiresStrictAmoraProviderBackedAddActionApplicationReplay,
+  shouldSealAmoraOrdinaryProviderAddActionProposal,
+} from "@/lib/ai/amoraProviderBackedAddActionApplication";
 import {
   buildAmoraScheduleCareDAfterContext,
   extractAmoraScheduleCareActionDraft,
@@ -1354,6 +1371,251 @@ export async function POST(request: Request) {
 
   }
 
+  const replayPersistedWithApplicationValidation = async (
+    message: PersistedAiMessage,
+    expectedReplayPrivacyEpoch: number,
+  ): Promise<Response> => {
+    const receiptRequiresStrictFirstUse =
+      requiresStrictAmoraFirstUseApplicationReplay(message.metadata);
+    const receiptRequiresStrictProviderBacked =
+      requiresStrictAmoraProviderBackedAddActionApplicationReplay(
+        message.metadata,
+      );
+    const confirmationMetadata = isRecord(trustedCanonicalScopeUserRow?.metadata)
+      ? trustedCanonicalScopeUserRow.metadata
+      : null;
+    const canonicalApplicationRequest =
+      requestKind === "chat"
+      && visibility === "shared"
+      && typeof bodyUserMessageId === "string"
+      && typeof bodyConfirmedActionId === "string"
+      && trustedCanonicalScopeUserRow
+      && trustedCanonicalScopeUserRow.id === bodyUserMessageId
+      && trustedCanonicalScopeUserRow.content
+        === AMORA_FIRST_USE_ACTION_APPLICATION_CONFIRMATION
+      && confirmationMetadata?.confirmed_amora_action_id
+        === bodyConfirmedActionId
+      && (canonicalProviderAttachmentContract?.count ?? 0) === 0
+        ? {
+            confirmationRow: trustedCanonicalScopeUserRow,
+            confirmationMessageId: bodyUserMessageId,
+            confirmedActionId: bodyConfirmedActionId,
+          }
+        : null;
+    if (
+      !receiptRequiresStrictFirstUse
+      && !receiptRequiresStrictProviderBacked
+      && !canonicalApplicationRequest
+    ) {
+      return replayPersistedWithMemoryReconciliation(
+        message,
+        expectedReplayPrivacyEpoch,
+      );
+    }
+    if (!canonicalApplicationRequest) {
+      const replayCode = receiptRequiresStrictProviderBacked
+        && !receiptRequiresStrictFirstUse
+          ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_REPLAY_INVALID"
+          : "AMORA_FIRST_USE_ACTION_APPLICATION_REPLAY_INVALID";
+      return NextResponse.json(
+        {
+          error: "저장된 행동 카드 결과의 요청 연결을 안전하게 확인하지 못했어요.",
+          code: replayCode,
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    const sourceLookup = await supabase
+      .from("chat_messages")
+      .select("id, content, sender_id, sender_type, role, metadata, visibility, created_at")
+      .eq("couple_id", coupleId)
+      .eq("visibility", "shared")
+      .eq("sender_type", "ai")
+      .eq("role", "assistant")
+      .is("sender_id", null)
+      .eq(
+        "metadata->pending_amora_action->>actionId",
+        canonicalApplicationRequest.confirmedActionId,
+      )
+      .or("metadata->>target.is.null,metadata->>target.neq.partner")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(2);
+    if (sourceLookup.error || !Array.isArray(sourceLookup.data)) {
+      const replayCode = receiptRequiresStrictProviderBacked
+        && !receiptRequiresStrictFirstUse
+          ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_REPLAY_UNAVAILABLE"
+          : "AMORA_FIRST_USE_ACTION_APPLICATION_REPLAY_UNAVAILABLE";
+      return NextResponse.json(
+        {
+          error: "저장된 행동 카드의 원래 제안을 확인하지 못했어요.",
+          code: replayCode,
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const currentCreatedAt =
+      typeof canonicalApplicationRequest.confirmationRow.created_at === "string"
+      ? canonicalApplicationRequest.confirmationRow.created_at
+      : null;
+    const sourceCandidates = (sourceLookup.data as Array<Record<string, unknown>>)
+      .filter((row) => {
+        const rowMetadata = isRecord(row.metadata) ? row.metadata : null;
+        const storedPendingAction = isRecord(rowMetadata?.pending_amora_action)
+          ? rowMetadata.pending_amora_action
+          : null;
+        return row.visibility === "shared"
+          && row.role === "assistant"
+          && row.sender_type === "ai"
+          && row.sender_id === null
+          && rowMetadata?.target !== "partner"
+          && storedPendingAction?.actionId
+            === canonicalApplicationRequest.confirmedActionId
+          && typeof row.created_at === "string"
+          && (
+            currentCreatedAt === null
+            || row.created_at < currentCreatedAt
+            || (
+              row.created_at === currentCreatedAt
+              && typeof row.id === "string"
+              && row.id < canonicalApplicationRequest.confirmationMessageId
+            )
+          );
+      });
+    const sourceRow = sourceCandidates.length === 1
+      ? sourceCandidates[0]
+      : null;
+    const sourceMetadata = sourceRow && isRecord(sourceRow.metadata)
+      ? sourceRow.metadata
+      : null;
+    const sourceRevision = sourceMetadata?.amora_wedding_context_revision;
+    const sourceRequiresStrictFirstUse = sourceCandidates.some((row) => {
+      const rowMetadata = isRecord(row.metadata) ? row.metadata : null;
+      return rowMetadata?.response_origin
+          === "server_authoritative_first_use_promotion"
+        || typeof rowMetadata?.amora_first_use_promotion_id === "string";
+    });
+    const sourceRequiresStrictProviderBacked = sourceCandidates.some((row) => {
+      const rowMetadata = isRecord(row.metadata) ? row.metadata : null;
+      return rowMetadata?.[AMORA_ADD_ACTION_PROPOSAL_ORIGIN_METADATA_KEY]
+        === AMORA_ADD_ACTION_PROPOSAL_ORIGIN;
+    });
+    const firstUseApplicationSource = sourceRow
+      && sourceRow.role === "assistant"
+      && sourceRow.sender_type === "ai"
+      && sourceRow.sender_id === null
+      && typeof sourceRow.id === "string"
+      && typeof sourceRow.content === "string"
+      && typeof sourceRow.created_at === "string"
+      && typeof sourceRevision === "number"
+      && Number.isSafeInteger(sourceRevision)
+      && sourceRevision >= 0
+        ? parseAmoraFirstUseActionApplicationSource({
+            sourceMessage: {
+              id: sourceRow.id,
+              content: sourceRow.content,
+              metadata: sourceRow.metadata,
+              createdAt: sourceRow.created_at,
+            },
+            confirmedActionId: canonicalApplicationRequest.confirmedActionId,
+            availableTools: PENDING_ACTION_TOOLS,
+            expectedJourneyRevision: sourceRevision,
+            expectedCriterionDecisionId: undefined,
+            now: Date.now(),
+            allowExpired: true,
+          })
+        : null;
+    const providerBackedApplicationSource = sourceRow
+      && sourceRow.role === "assistant"
+      && sourceRow.sender_type === "ai"
+      && sourceRow.sender_id === null
+      && typeof sourceRow.id === "string"
+      && typeof sourceRow.content === "string"
+      && typeof sourceRow.created_at === "string"
+      && typeof sourceRevision === "number"
+      && Number.isSafeInteger(sourceRevision)
+      && sourceRevision >= 0
+        ? parseAmoraProviderBackedAddActionApplicationSource({
+            sourceMessage: {
+              id: sourceRow.id,
+              content: sourceRow.content,
+              metadata: sourceRow.metadata,
+              createdAt: sourceRow.created_at,
+            },
+            confirmedActionId: canonicalApplicationRequest.confirmedActionId,
+            availableTools: PENDING_ACTION_TOOLS,
+            expectedJourneyRevision: sourceRevision,
+            now: Date.now(),
+            allowExpired: true,
+          })
+        : null;
+    if (
+      !firstUseApplicationSource
+      && !providerBackedApplicationSource
+      && !receiptRequiresStrictFirstUse
+      && !receiptRequiresStrictProviderBacked
+      && !sourceRequiresStrictFirstUse
+      && !sourceRequiresStrictProviderBacked
+    ) {
+      return replayPersistedWithMemoryReconciliation(
+        message,
+        expectedReplayPrivacyEpoch,
+      );
+    }
+    const parsedMessage = firstUseApplicationSource
+      ? parsePersistedAmoraFirstUseDeterministicApplication({
+          message,
+          expectedChatRequestKey: clientRequestId,
+          expectedVisibleRequestKey: visibleClientRequestKey,
+          expectedConfirmationMessageId:
+            canonicalApplicationRequest.confirmationMessageId,
+          expectedPendingAction: firstUseApplicationSource.pendingAction,
+          expectedJourneyRevision: firstUseApplicationSource.journeyRevision,
+          expectedPromotionId: firstUseApplicationSource.promotionId,
+        })
+      : providerBackedApplicationSource
+        ? parsePersistedAmoraProviderBackedAddActionApplication({
+            message,
+            expectedChatRequestKey: clientRequestId,
+            expectedVisibleRequestKey: visibleClientRequestKey,
+            expectedConfirmationMessageId:
+              canonicalApplicationRequest.confirmationMessageId,
+            expectedSourceMessageId:
+              providerBackedApplicationSource.sourceProposalMessageId,
+            expectedPendingAction:
+              providerBackedApplicationSource.pendingAction,
+            expectedJourneyRevision:
+              providerBackedApplicationSource.journeyRevision,
+            expectedCoupleId: coupleId,
+          })
+        : null;
+    if (!parsedMessage) {
+      const providerBackedStrictFailure =
+        receiptRequiresStrictProviderBacked
+        || sourceRequiresStrictProviderBacked;
+      return NextResponse.json(
+        {
+          error: "저장된 행동 카드 결과를 안전하게 확인하지 못했어요.",
+          code: providerBackedStrictFailure
+            ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_REPLAY_INVALID"
+            : "AMORA_FIRST_USE_ACTION_APPLICATION_REPLAY_INVALID",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    return replayPersistedWithMemoryReconciliation(
+      parsedMessage,
+      expectedReplayPrivacyEpoch,
+    );
+  };
+
   // Exact durable retries are recovery reads, not new turns. Once identity,
   // couple ownership, visibility, request/user binding, and the early crisis
   // override are established, recover the committed answer before ordinary
@@ -1418,7 +1680,7 @@ export async function POST(request: Request) {
             "Persisted response has no durable claim to reconcile",
           );
         }
-        return await replayPersistedWithMemoryReconciliation(
+        return await replayPersistedWithApplicationValidation(
           existing,
           replayPrivacyEpoch,
         );
@@ -1759,7 +2021,7 @@ export async function POST(request: Request) {
           visibility,
         });
         if (completed?.id === claim.messageId) {
-          return await replayPersistedWithMemoryReconciliation(
+          return await replayPersistedWithApplicationValidation(
             completed,
             replayPrivacyEpoch,
           );
@@ -2481,6 +2743,7 @@ export async function POST(request: Request) {
       pending_amora_action?: unknown;
       in_reply_to_user_message_id?: unknown;
       amora_first_use_promotion_id?: unknown;
+      confirmed_amora_action_id?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
     segment_id?: string | null;
@@ -2810,6 +3073,50 @@ export async function POST(request: Request) {
   const previousCanonicalRow = canonicalRows.length >= 2
     ? canonicalRows[canonicalRows.length - 2]
     : null;
+  const firstUseApplicationSource =
+    !isDemo
+    && requestKind === "chat"
+    && isDurableUserMessageBound
+    && visibility === "shared"
+    && previousCanonicalRow?.role === "assistant"
+    && previousCanonicalRow.sender_type === "ai"
+    && previousCanonicalRow.visibility === visibility
+      ? parseAmoraFirstUseActionApplicationSource({
+          sourceMessage: {
+            id: previousCanonicalRow.id,
+            content: previousCanonicalRow.content,
+            metadata: previousCanonicalRow.metadata,
+            createdAt: previousCanonicalRow.created_at,
+          },
+          confirmedActionId: bodyConfirmedActionId,
+          availableTools: PENDING_ACTION_TOOLS,
+          expectedJourneyRevision: canonicalJourneyStateRevision,
+          expectedCriterionDecisionId:
+            coupleCriterionSnapshot?.decisionId ?? null,
+          now: Date.now(),
+        })
+      : null;
+  const providerBackedAddActionApplicationSource =
+    !isDemo
+    && requestKind === "chat"
+    && isDurableUserMessageBound
+    && visibility === "shared"
+    && previousCanonicalRow?.role === "assistant"
+    && previousCanonicalRow.sender_type === "ai"
+    && previousCanonicalRow.visibility === visibility
+      ? parseAmoraProviderBackedAddActionApplicationSource({
+          sourceMessage: {
+            id: previousCanonicalRow.id,
+            content: previousCanonicalRow.content,
+            metadata: previousCanonicalRow.metadata,
+            createdAt: previousCanonicalRow.created_at,
+          },
+          confirmedActionId: bodyConfirmedActionId,
+          availableTools: PENDING_ACTION_TOOLS,
+          expectedJourneyRevision: canonicalJourneyStateRevision,
+          now: Date.now(),
+        })
+      : null;
   const approvedPendingAction =
     !isDemo
     && requestKind === "chat"
@@ -2818,12 +3125,14 @@ export async function POST(request: Request) {
     && previousCanonicalRow?.role === "assistant"
     && previousCanonicalRow.sender_type === "ai"
     && previousCanonicalRow.visibility === visibility
-      ? resolveAmoraPendingAction({
-          value: previousCanonicalRow.metadata?.pending_amora_action,
-          confirmedActionId: bodyConfirmedActionId,
-          allowedTools: PENDING_ACTION_TOOLS,
-          now: Date.now(),
-        })
+      ? firstUseApplicationSource?.pendingAction
+        ?? providerBackedAddActionApplicationSource?.pendingAction
+        ?? resolveAmoraPendingAction({
+            value: previousCanonicalRow.metadata?.pending_amora_action,
+            confirmedActionId: bodyConfirmedActionId,
+            allowedTools: PENDING_ACTION_TOOLS,
+            now: Date.now(),
+          })
       : null;
   if (bodyConfirmedActionId !== undefined && !approvedPendingAction) {
     await releaseClaimBeforeStream("AMORA_PENDING_ACTION_CONFIRMATION_REJECTED");
@@ -2935,6 +3244,456 @@ export async function POST(request: Request) {
       || scheduleCareSharedActionDraft.status === "valid",
     ),
   });
+  if (
+    firstUseApplicationSource
+    && approvedPendingAction
+    && lastUserText === AMORA_FIRST_USE_ACTION_APPLICATION_CONFIRMATION
+    && validatedAttachments.length === 0
+    && questionScope.scope === "W0_wedding_core"
+    && currentCanonicalUserRow
+    && canonicalJourneyStateRevision !== null
+    && initialPrivacyEpoch !== null
+    && requestClaimAcquired
+    && requestClaimAttemptCount !== null
+  ) {
+    let finalizedData: unknown;
+    try {
+      const { data, error } = await getServiceClient().rpc(
+        "finalize_amora_first_use_action_application_v1",
+        {
+          p_couple_id: dataCoupleId,
+          p_actor_user_id: actorId,
+          p_source_proposal_message_id:
+            firstUseApplicationSource.sourceProposalMessageId,
+          p_confirmation_message_id: currentCanonicalUserRow.id,
+          p_chat_request_key: clientRequestId,
+          p_chat_claim_attempt_count: requestClaimAttemptCount,
+          p_expected_privacy_epoch: initialPrivacyEpoch,
+        },
+      );
+      if (error) {
+        const serviceRoleFailure = `${error.code ?? ""} ${error.message ?? ""}`
+          .includes("AMORA_FIRST_USE_ACTION_APPLICATION_SERVICE_ROLE_REQUIRED");
+        const invariantFailure = error.code === "55000";
+        const knownConflict = !serviceRoleFailure && (
+          error.code === "22023"
+          || error.code === "23505"
+          || error.code === "23514"
+          || error.code === "40001"
+          || error.code === "42501"
+        );
+        await releaseClaimBeforeStream(
+          knownConflict
+            ? "AMORA_FIRST_USE_ACTION_APPLICATION_STALE"
+            : invariantFailure
+              ? "AMORA_FIRST_USE_ACTION_APPLICATION_INVARIANT_FAILED"
+              : "AMORA_FIRST_USE_ACTION_APPLICATION_UNAVAILABLE",
+        );
+        return NextResponse.json(
+          {
+            error: knownConflict
+              ? "이 실행 카드는 최신 준비 상태와 달라져 적용하지 않았어요. 최신 제안을 다시 확인해 주세요."
+              : invariantFailure
+                ? "행동 카드의 저장 결과를 안전하게 확인하지 못해 적용하지 않았어요."
+                : "행동 카드를 안전하게 저장하지 못했어요. 잠시 후 같은 요청으로 다시 시도해 주세요.",
+            code: knownConflict
+              ? "AMORA_FIRST_USE_ACTION_APPLICATION_STALE"
+              : invariantFailure
+                ? "AMORA_FIRST_USE_ACTION_APPLICATION_INVARIANT_FAILED"
+                : "AMORA_FIRST_USE_ACTION_APPLICATION_UNAVAILABLE",
+            retryable: !knownConflict && !invariantFailure,
+            retryPolicy: knownConflict
+              ? "regenerate_first_use_action"
+              : invariantFailure
+                ? "new_message"
+                : "same_request",
+          },
+          {
+            status: knownConflict ? 409 : 503,
+            headers: { "Cache-Control": "no-store" },
+          },
+        );
+      }
+      finalizedData = data;
+    } catch (error) {
+      console.error("[chat] deterministic first-use application failed", error);
+      await releaseClaimBeforeStream(
+        "AMORA_FIRST_USE_ACTION_APPLICATION_UNAVAILABLE",
+      );
+      return NextResponse.json(
+        {
+          error: "행동 카드를 안전하게 저장하지 못했어요. 잠시 후 같은 요청으로 다시 시도해 주세요.",
+          code: "AMORA_FIRST_USE_ACTION_APPLICATION_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    // The RPC owns the action, receipt, and exact chat claim in one commit.
+    // Never let parsing or release failures overwrite that terminal truth.
+    requestClaimAcquired = false;
+    requestClaimAttemptCount = null;
+    const persistedApplication = parseAmoraFirstUseDeterministicApplication({
+      value: finalizedData,
+      expectedChatRequestKey: clientRequestId,
+      expectedVisibleRequestKey: visibleClientRequestKey,
+      expectedConfirmationMessageId: currentCanonicalUserRow.id,
+      expectedPendingAction: approvedPendingAction,
+      expectedJourneyRevision: canonicalJourneyStateRevision,
+      expectedPromotionId: firstUseApplicationSource.promotionId,
+    });
+    if (!persistedApplication) {
+      console.error("[chat] deterministic first-use application was malformed", {
+        requestCorrelationId,
+      });
+      return NextResponse.json(
+        {
+          error: "저장된 행동 카드 결과를 안전하게 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+          code: "AMORA_FIRST_USE_ACTION_APPLICATION_INVALID",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    try {
+      return await replayPersistedWithMemoryReconciliation(
+        persistedApplication,
+        initialPrivacyEpoch,
+      );
+    } catch (error) {
+      console.error("[chat] deterministic first-use application release failed", error);
+      const privacyCode = getAmoraPrivacyContextErrorCode(error);
+      return NextResponse.json(
+        {
+          error: privacyCode
+            ? "개인정보 설정이 바뀌어 저장 결과를 바로 보여주지 않았어요. 최신 상태에서 다시 확인해 주세요."
+            : "저장된 행동 카드 결과를 안전하게 보여주지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+          code: privacyCode
+            ?? "AMORA_FIRST_USE_ACTION_APPLICATION_RELEASE_FAILED",
+          retryable: privacyCode === null,
+          retryPolicy: privacyCode === null ? "same_request" : "new_message",
+        },
+        {
+          status: privacyCode ? 409 : 503,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+  }
+  if (
+    providerBackedAddActionApplicationSource
+    && approvedPendingAction
+    && firstUseApplicationSource === null
+    && lastUserText === AMORA_FIRST_USE_ACTION_APPLICATION_CONFIRMATION
+    && currentCanonicalUserRow?.content
+      === AMORA_FIRST_USE_ACTION_APPLICATION_CONFIRMATION
+    && currentCanonicalUserRow.metadata?.confirmed_amora_action_id
+      === approvedPendingAction.actionId
+    && validatedAttachments.length === 0
+    && questionScope.scope === "W0_wedding_core"
+    && canonicalJourneyStateRevision
+      === providerBackedAddActionApplicationSource.journeyRevision
+    && initialPrivacyEpoch !== null
+    && requestClaimAcquired
+    && requestClaimAttemptCount !== null
+  ) {
+    let finalizedData: unknown;
+    try {
+      const { data, error } = await getServiceClient().rpc(
+        "finalize_amora_provider_backed_add_action_application_v1",
+        {
+          p_couple_id: dataCoupleId,
+          p_actor_user_id: actorId,
+          p_source_proposal_message_id:
+            providerBackedAddActionApplicationSource.sourceProposalMessageId,
+          p_confirmation_message_id: currentCanonicalUserRow.id,
+          p_chat_request_key: clientRequestId,
+          p_chat_claim_attempt_count: requestClaimAttemptCount,
+          p_expected_privacy_epoch: initialPrivacyEpoch,
+        },
+      );
+      if (error) {
+        const failure = `${error.code ?? ""} ${error.message ?? ""}`;
+        const serviceRoleFailure = failure.includes(
+          "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_SERVICE_ROLE_REQUIRED",
+        );
+        const invariantFailure = error.code === "55000"
+          || failure.includes(
+            "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_RESULT_INVALID",
+          )
+          || failure.includes(
+            "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_REPLAY_INVALID",
+          );
+        const retryableBusy = failure.includes(
+          "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_EXECUTION_BUSY",
+        );
+        const knownConflict = !serviceRoleFailure
+          && !invariantFailure
+          && !retryableBusy
+          && (
+            error.code === "22023"
+            || error.code === "23505"
+            || error.code === "23514"
+            || error.code === "40001"
+            || error.code === "42501"
+          );
+        await releaseClaimBeforeStream(
+          knownConflict
+            ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_STALE"
+            : invariantFailure
+              ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_INVARIANT_FAILED"
+              : "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_UNAVAILABLE",
+        );
+        return NextResponse.json(
+          {
+            error: knownConflict
+              ? "행동 카드 제안이 현재 준비 상태와 달라져 적용하지 않았어요. 최신 제안을 다시 확인해 주세요."
+              : invariantFailure
+                ? "행동 카드 저장 결과를 안전하게 확인하지 못해 적용하지 않았어요."
+                : "행동 카드를 안전하게 저장하지 못했어요. 같은 요청으로 다시 시도해 주세요.",
+            code: knownConflict
+              ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_STALE"
+              : invariantFailure
+                ? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_INVARIANT_FAILED"
+                : "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_UNAVAILABLE",
+            retryable: !knownConflict && !invariantFailure,
+            retryPolicy: knownConflict || invariantFailure
+              ? "new_message"
+              : "same_request",
+          },
+          {
+            status: knownConflict ? 409 : 503,
+            headers: { "Cache-Control": "no-store" },
+          },
+        );
+      }
+      finalizedData = data;
+    } catch (error) {
+      console.error(
+        "[chat] provider-backed add-action application failed",
+        error,
+      );
+      await releaseClaimBeforeStream(
+        "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_UNAVAILABLE",
+      );
+      return NextResponse.json(
+        {
+          error: "행동 카드를 안전하게 저장하지 못했어요. 같은 요청으로 다시 시도해 주세요.",
+          code: "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    // The service-only RPC owns the action, tool receipt, assistant receipt,
+    // and exact request claim in one transaction. Parsing may withhold an
+    // invalid public response, but it must never mark that committed claim as
+    // failed or fall through to a provider retry.
+    requestClaimAcquired = false;
+    requestClaimAttemptCount = null;
+    const persistedApplication =
+      parseAmoraProviderBackedAddActionApplication({
+        value: finalizedData,
+        expectedChatRequestKey: clientRequestId,
+        expectedVisibleRequestKey: visibleClientRequestKey,
+        expectedConfirmationMessageId: currentCanonicalUserRow.id,
+        expectedSourceMessageId:
+          providerBackedAddActionApplicationSource.sourceProposalMessageId,
+        expectedPendingAction: approvedPendingAction,
+        expectedJourneyRevision:
+          providerBackedAddActionApplicationSource.journeyRevision,
+        expectedCoupleId: coupleId,
+      });
+    if (!persistedApplication) {
+      console.error(
+        "[chat] provider-backed add-action application was malformed",
+        { requestCorrelationId },
+      );
+      return NextResponse.json(
+        {
+          error: "저장된 행동 카드 결과를 안전하게 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+          code: "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_INVALID",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    try {
+      return await replayPersistedWithMemoryReconciliation(
+        persistedApplication,
+        initialPrivacyEpoch,
+      );
+    } catch (error) {
+      console.error(
+        "[chat] provider-backed add-action application release failed",
+        error,
+      );
+      const privacyCode = getAmoraPrivacyContextErrorCode(error);
+      return NextResponse.json(
+        {
+          error: privacyCode
+            ? "개인정보 설정이 바뀌어 저장 결과를 바로 보여주지 않았어요. 최신 상태에서 다시 확인해 주세요."
+            : "저장된 행동 카드 결과를 안전하게 보여주지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+          code: privacyCode
+            ?? "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_RELEASE_FAILED",
+          retryable: privacyCode === null,
+          retryPolicy: privacyCode === null ? "same_request" : "new_message",
+        },
+        {
+          status: privacyCode ? 409 : 503,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+  }
+  if (
+    firstUsePromotionBinding
+    && questionScope.scope === "W0_wedding_core"
+    && currentCanonicalUserRow
+    && canonicalJourneyStateRevision !== null
+    && initialPrivacyEpoch !== null
+    && requestClaimAcquired
+    && requestClaimAttemptCount !== null
+  ) {
+    let finalizedData: unknown;
+    try {
+      const { data, error } = await getServiceClient().rpc(
+        "finalize_amora_first_use_action_proposal_v1",
+        {
+          p_couple_id: dataCoupleId,
+          p_owner_user_id: actorId,
+          p_shared_user_message_id: currentCanonicalUserRow.id,
+          p_chat_request_key: clientRequestId,
+          p_chat_claim_attempt_count: requestClaimAttemptCount,
+          p_expected_privacy_epoch: initialPrivacyEpoch,
+        },
+      );
+      if (error) {
+        const failure = `${error.code ?? ""} ${error.message ?? ""}`;
+        const serviceRoleFailure = failure.includes(
+          "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_SERVICE_ROLE_REQUIRED",
+        );
+        const invariantFailure = error.code === "55000";
+        const knownConflict = !serviceRoleFailure && (
+          error.code === "22023"
+          || error.code === "23505"
+          || error.code === "23514"
+          || error.code === "40001"
+          || error.code === "42501"
+        );
+        await releaseClaimBeforeStream(
+          knownConflict
+            ? "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_STALE"
+            : invariantFailure
+              ? "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_INVARIANT_FAILED"
+              : "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_UNAVAILABLE",
+        );
+        return NextResponse.json(
+          {
+            error: knownConflict
+              ? "실행 카드가 최신 준비 상태와 달라졌어요. 개인 상담에서 다시 정리해 공유해주세요."
+              : invariantFailure
+                ? "저장된 실행 카드의 연결 상태를 안전하게 확인하지 못했어요."
+              : "실행 카드를 안전하게 준비하지 못했어요. 잠시 후 같은 요청으로 다시 시도해주세요.",
+            code: knownConflict
+              ? "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_STALE"
+              : invariantFailure
+                ? "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_INVARIANT_FAILED"
+                : "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_UNAVAILABLE",
+            retryable: !knownConflict && !invariantFailure,
+            retryPolicy: knownConflict
+              ? "regenerate_first_use_action"
+              : invariantFailure
+                ? "new_message"
+                : "same_request",
+          },
+          {
+            status: knownConflict ? 409 : 503,
+            headers: { "Cache-Control": "no-store" },
+          },
+        );
+      }
+      finalizedData = data;
+    } catch (error) {
+      console.error("[chat] deterministic first-use proposal failed", error);
+      await releaseClaimBeforeStream(
+        "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_UNAVAILABLE",
+      );
+      return NextResponse.json(
+        {
+          error: "실행 카드를 안전하게 준비하지 못했어요. 잠시 후 같은 요청으로 다시 시도해주세요.",
+          code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    // A successful RPC has already atomically completed the exact claim. From
+    // here onward no failure marker may race that committed terminal result.
+    requestClaimAcquired = false;
+    requestClaimAttemptCount = null;
+    const persistedProposal = parseAmoraFirstUseDeterministicProposal({
+      value: finalizedData,
+      binding: firstUsePromotionBinding,
+      availableTools: PENDING_ACTION_TOOLS,
+      expectedChatRequestKey: clientRequestId,
+      expectedVisibleRequestKey: visibleClientRequestKey,
+      expectedSharedUserMessageId: currentCanonicalUserRow.id,
+      expectedJourneyRevision: canonicalJourneyStateRevision,
+      expectedCriterionDecisionId:
+        coupleCriterionSnapshot?.decisionId ?? null,
+      now: Date.now(),
+    });
+    if (!persistedProposal) {
+      console.error("[chat] deterministic first-use proposal was malformed", {
+        requestCorrelationId,
+      });
+      return NextResponse.json(
+        {
+          error: "저장된 실행 카드를 안전하게 확인하지 못했어요.",
+          code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_INVALID",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    try {
+      return await replayPersistedWithMemoryReconciliation(
+        persistedProposal,
+        initialPrivacyEpoch,
+      );
+    } catch (error) {
+      console.error("[chat] deterministic first-use proposal release failed", error);
+      const privacyCode = getAmoraPrivacyContextErrorCode(error);
+      return NextResponse.json(
+        {
+          error: privacyCode
+            ? "개인정보 설정이 바뀌어 실행 카드를 바로 보여주지 않았어요. 최신 상태에서 다시 확인해주세요."
+            : "저장된 실행 카드를 안전하게 확인하지 못했어요.",
+          code: privacyCode
+            ?? "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_RELEASE_FAILED",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        {
+          status: privacyCode ? 409 : 503,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+  }
   const boundedContinuity =
     !isDemo
     && requestKind === "chat"
@@ -3610,6 +4369,27 @@ export async function POST(request: Request) {
                     initialPrivacyContextSnapshot.rosterFingerprint,
                 })
               : null;
+          const sealsOrdinaryProviderAddActionProposal =
+            shouldSealAmoraOrdinaryProviderAddActionProposal({
+              pendingAction: pendingExtraction.pendingAction,
+              isDurableSharedW0:
+                !isDemo
+                && requestKind === "chat"
+                && visibility === "shared"
+                && questionScope.scope === "W0_wedding_core"
+                && isDurableUserMessageBound,
+              persistenceSourceIsProvider:
+                persistenceClaimGuard.source === "provider",
+              hasApprovedPendingAction: approvedPendingAction !== null,
+              hasFirstUseProvenance:
+                isFirstUseSharedDraft
+                || firstUsePromotionBinding !== null
+                || firstUseApplicationSource !== null,
+              scheduleCareDraftStatus: scheduleCareSharedActionDraft.status,
+              hasResolvedScheduleCareFollowUp:
+                resolvedScheduleCareFollowUp !== null,
+              attachmentCount: validatedAttachments.length,
+            });
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
@@ -3634,6 +4414,7 @@ export async function POST(request: Request) {
                       }
                     : {}),
                   ...(firstUseGrounding
+                    && !sealsOrdinaryProviderAddActionProposal
                     ? { amora_first_use_grounding: firstUseGrounding }
                     : {}),
                   ...(firstUsePromotionSourceSeal
@@ -3683,6 +4464,12 @@ export async function POST(request: Request) {
                   pending_amora_action: pendingExtraction.pendingAction,
                   pending_amora_action_journey_revision:
                     canonicalJourneyStateRevision,
+                  ...(sealsOrdinaryProviderAddActionProposal
+                    ? {
+                        [AMORA_ADD_ACTION_PROPOSAL_ORIGIN_METADATA_KEY]:
+                          AMORA_ADD_ACTION_PROPOSAL_ORIGIN,
+                      }
+                    : {}),
                   ...(matchesAmoraFirstUsePendingAction(
                     pendingExtraction.pendingAction,
                     firstUsePromotionBinding,

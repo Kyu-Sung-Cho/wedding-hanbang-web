@@ -4,18 +4,25 @@ import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction 
 import {
   View, Text, TextInput, Pressable, FlatList, ScrollView, StyleSheet,
   Keyboard, KeyboardAvoidingView, Modal, Platform, Animated, ActivityIndicator,
+  AccessibilityInfo,
+  type ViewToken,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowRight, Check, CheckCircle2, Send, ShieldCheck, SlidersHorizontal, Sparkles, Heart, X, Lock, RotateCcw, Square, Users } from "lucide-react-native";
-import { colors } from "@hanbang/design-tokens";
+import { colors, radius, spacing } from "@hanbang/design-tokens";
 import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
 } from "@hanbang/shared";
 import type { AmoraScheduleCareFollowUpBinding } from "@hanbang/shared/amora-schedule-care-follow-up";
+import {
+  isAmoraPreparationTopicMessageRefTopicKey,
+  type AmoraPreparationTopicMessageRefAudience,
+  type AmoraPreparationTopicMessageRefCollectionItem,
+} from "@hanbang/shared/amora-preparation-topic-message-ref";
 import {
   createEmptyAmoraChatLaneRecord,
   resolveAmoraChatLane,
@@ -65,7 +72,7 @@ import { PlaceCards } from "@/components/chat/PlaceCards";
 import AmoraStarterCard from "@/components/chat/AmoraStarterCard";
 import AmoraPersonalizationSheet from "@/components/chat/AmoraPersonalizationSheet";
 import AmoraFirstUseActionCard from "@/components/chat/AmoraFirstUseActionCard";
-import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
+import { AppText, EmptyState, IconBadge, PrimaryButton, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 import AmoraMediationConsentModal from "@/components/chat/AmoraMediationConsentModal";
 import {
@@ -98,8 +105,13 @@ import { stageActionReceiptHomeHandoff } from "@/lib/actionReceiptHomeHandoff.mj
 import {
   buildFirstUseCriterionCorrectionDraft,
   buildFirstUseCorrectionDraft,
+  getFirstUsePendingActionPresentation,
+  getFirstUseSharedDraftPresentation,
   getReviewedActionContinuationPresentation,
+  isFirstUseSharedActionDraftText,
+  planFirstUseSharedDraftPrivateRecovery,
   resolveAmoraChatEntry,
+  resolveAmoraFirstUseSessionResetScope,
   resolveFirstUseActionBubbleContent,
   selectPrivateActionDraftForBridge,
 } from "@/lib/amoraEntryPlan.mjs";
@@ -122,13 +134,30 @@ import {
 } from "@/lib/privateMediationSafetyHold";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import { getQuoteAnalysisMessagePresentation } from "@hanbang/shared/quote-analysis-presentation";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import {
+  isPreparationTopicMessageSaveEligible,
+  loadPreparationTopicMessageReferenceState,
+  loadPreparationTopicMessageReferences,
+  mergePreparationTopicResolvedConversation,
+  mutatePreparationTopicMessageReference,
+  PreparationTopicMessageRefError,
+  resolvePreparationTopicMessageReference,
+} from "@/lib/preparationTopicMessageRefs.mjs";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
 const CHAT_INGEST_TIMEOUT_MS = 30_000;
 const MOBILE_DURABLE_SAFETY_SEAL_TIMEOUT_MS = 4_000;
+const PREPARATION_TOPIC_OPTIONS = Object.freeze(
+  CATEGORY_CHECKLISTS.filter((topic) => (
+    isAmoraPreparationTopicMessageRefTopicKey(topic.key)
+  )).map((topic) => Object.freeze({ key: topic.key, label: topic.label })),
+);
 const reviewedActionContinuationPresentation =
   getReviewedActionContinuationPresentation();
+const firstUseSharedDraftPresentation =
+  getFirstUseSharedDraftPresentation();
 const SCHEDULE_CARE_FOLLOW_UP_STATUS_COPY: Record<
   ScheduleCareFollowUpEntryStatus,
   string
@@ -375,6 +404,44 @@ interface ChatMessage {
   visibility: ChatMessageVisibility;
 }
 
+interface TopicMessageSaveDialogState {
+  sourceMessageId: string;
+  audience: AmoraPreparationTopicMessageRefAudience;
+  references: readonly AmoraPreparationTopicMessageRefCollectionItem[];
+  partial: boolean;
+  selectedTopicKey: string | null;
+  selectedTopicReadState: "idle" | "loading" | "ready" | "error";
+  selectedTopicSavedState: "saved" | "removed" | null;
+  loading: boolean;
+  collectionLoaded: boolean;
+  saving: boolean;
+  error: string | null;
+}
+
+interface ResolvedTopicMessageFocus {
+  refId: string;
+  targetMessageId: string;
+  audience: AmoraPreparationTopicMessageRefAudience;
+}
+
+type TopicMessageFocusState =
+  | { status: "loading"; refId: string }
+  | { status: "ready"; refId: string; targetMessageId: string }
+  | { status: "error"; refId: string; message: string }
+  | null;
+
+function getTopicMessageFocusErrorCopy(error: unknown): string {
+  if (error instanceof PreparationTopicMessageRefError) {
+    if (error.code === "source_inaccessible") {
+      return "이 저장한 대화는 현재 계정에서 볼 수 없어요. 계정과 공개 범위를 확인해 주세요.";
+    }
+    if (error.code === "source_unavailable" || error.code === "invalid_request") {
+      return "저장한 대화 원문이 삭제되었거나 더 이상 열 수 없어요.";
+    }
+  }
+  return "저장한 대화 원문을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
+}
+
 function isMediationSafetyFenceMessage(
   message: ChatMessage,
   actorRole: ViewerRole,
@@ -396,6 +463,10 @@ type ScheduleCareFollowUpEntryStatus =
   | "draft_changed"
   | "composer_occupied"
   | ScheduleCareFollowUpPreviewStatus;
+type FirstUseComposerNotice =
+  | "composer_occupied"
+  | "draft_changed"
+  | "private_composer_occupied";
 type ChatApiMessage = Pick<ChatMessage, "role" | "content">;
 
 interface ChatRequestBase {
@@ -1803,7 +1874,11 @@ function reconcileChatStreamUpdate(
   const tempIndex = previous.findIndex((message) => message.id === tempId);
   const serverIndex = previous.findIndex((message) =>
     (serverMessageId !== null && message.id === serverMessageId)
-    || (message.sender_type === "ai" && messageRequestKey(message) === serverRequestKey)
+    || (
+      !message.id.startsWith("temp_")
+      && message.sender_type === "ai"
+      && messageRequestKey(message) === serverRequestKey
+    )
   );
 
   if (serverIndex >= 0) {
@@ -2519,11 +2594,15 @@ export default function ChatScreen() {
     scheduleCareCardId?: string | string[];
     scheduleCareCardRevision?: string | string[];
     scheduleCareSourceRevision?: string | string[];
+    topicMessageRefId?: string | string[];
   }>();
   const companionHandoffParam = Array.isArray(routeParams.companionHandoff)
     ? routeParams.companionHandoff[0] ?? null
     : routeParams.companionHandoff ?? null;
   const firstUseEntry = resolveAmoraChatEntry(routeParams.entry);
+  const topicMessageRefIdParam = Array.isArray(routeParams.topicMessageRefId)
+    ? routeParams.topicMessageRefId[0] ?? null
+    : routeParams.topicMessageRefId ?? null;
   const scheduleCareRouteBinding = useMemo(
     () => parseScheduleCareFollowUpRouteBinding({
       scheduleCareCardId: routeParams.scheduleCareCardId,
@@ -2557,6 +2636,15 @@ export default function ChatScreen() {
   const [personalizationVisible, setPersonalizationVisible] = useState(false);
   const [target, setTarget] = useState<MessageTarget>("ai");
   const [activeScope, setActiveScope] = useState<ChatScope>("shared");
+  const activeScopeRef = useRef<ChatScope>("shared");
+  const firstUseEntryRef = useRef(firstUseEntry);
+  const sessionReloadScopeRef = useRef<ChatScope>("shared");
+  useEffect(() => {
+    activeScopeRef.current = activeScope;
+  }, [activeScope]);
+  useEffect(() => {
+    firstUseEntryRef.current = firstUseEntry;
+  }, [firstUseEntry]);
   const [inputByLane, setInputByLane] = useState<AmoraChatLaneRecord<string>>(
     () => createEmptyAmoraChatLaneRecord(() => ""),
   );
@@ -2609,6 +2697,8 @@ export default function ChatScreen() {
     sourceMessageId: string;
     status: FirstUsePromotionUiStatus;
   } | null>(null);
+  const [firstUseComposerNotice, setFirstUseComposerNotice] =
+    useState<FirstUseComposerNotice | null>(null);
   const [scheduleCareFollowUpEntryStatus, setScheduleCareFollowUpEntryStatus] =
     useState<ScheduleCareFollowUpEntryStatus | null>(null);
   const [scheduleCareFollowUpRetryVersion, setScheduleCareFollowUpRetryVersion] = useState(0);
@@ -2626,6 +2716,17 @@ export default function ChatScreen() {
   const [mediationRequestError, setMediationRequestError] = useState<string | null>(null);
   const [dismissedMediationOfferKeys, setDismissedMediationOfferKeys] =
     useState<Set<string>>(() => new Set());
+  const [topicMessageSaveDialog, setTopicMessageSaveDialog] =
+    useState<TopicMessageSaveDialogState | null>(null);
+  const [topicMessageSaveNotice, setTopicMessageSaveNotice] = useState<{
+    messageId: string;
+    text: string;
+  } | null>(null);
+  const [resolvedTopicMessageFocus, setResolvedTopicMessageFocus] =
+    useState<ResolvedTopicMessageFocus | null>(null);
+  const [topicMessageFocusState, setTopicMessageFocusState] =
+    useState<TopicMessageFocusState>(null);
+  const [topicMessageFocusRetryVersion, setTopicMessageFocusRetryVersion] = useState(0);
   // Fail closed until the exact owner/couple SecureStore fence is read. This
   // state gates mediation only; ordinary chat and care remain available.
   const [hasDevicePrivateMediationSafetyHold, setHasDevicePrivateMediationSafetyHold] =
@@ -2652,6 +2753,7 @@ export default function ChatScreen() {
   // 공동 승인은 "누가 눌렀는가"가 동의의 주체다. 핸들러가 이 값을 동기적으로 읽어
   // 요청에 실으면, 요청이 나가는 사이 계정이 바뀌어도 fence가 불일치를 잡는다.
   const sessionUserIdRef = useRef<string | null>(null);
+  const sessionCoupleIdRef = useRef<string | null>(null);
   const sendingRef = useRef(false);
   const safetyHoldLockRef = useRef(false);
   const mediationSafetyEpochRef = useRef(0);
@@ -2662,6 +2764,27 @@ export default function ChatScreen() {
   const consumedCompanionHandoffRef = useRef<string | null>(null);
   const consumedScheduleCareEntryRef = useRef<string | null>(null);
   const consumedFirstUseEntryRef = useRef<string | null>(null);
+  const consumedTopicMessageFocusRef = useRef<string | null>(null);
+  const topicMessageSaveOperationRef = useRef(0);
+  const topicMessageSaveAbortControllerRef = useRef<AbortController | null>(null);
+  const topicMessageFocusScrollAttemptsRef = useRef(0);
+  const topicMessageFocusTargetRef = useRef<string | null>(null);
+  const announcedTopicMessageFocusRef = useRef<string | null>(null);
+  const topicMessageViewabilityHandlerRef = useRef(({
+    viewableItems,
+  }: {
+    viewableItems: Array<ViewToken<ChatMessage>>;
+  }) => {
+    const targetMessageId = topicMessageFocusTargetRef.current;
+    if (
+      !targetMessageId
+      || announcedTopicMessageFocusRef.current === targetMessageId
+      || !viewableItems.some((token) => token.item?.id === targetMessageId)
+    ) return;
+    announcedTopicMessageFocusRef.current = targetMessageId;
+    AccessibilityInfo.announceForAccessibility("저장한 원문으로 이동했어요");
+  });
+  const topicMessageViewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 35 });
   const scopedMessages = useMemo(
     () => messages.filter((message) => (
       isMessageInChatScope(message.visibility, activeScope, userRole)
@@ -2907,6 +3030,7 @@ export default function ChatScreen() {
   }, [applyMediationSafetyFence, hasMediationSafetyFence]);
 
   const resetChatSessionState = useCallback(() => {
+    const nextScope = sessionReloadScopeRef.current;
     activeChatOperationGuardRef.current.stopActive("session");
     if (channelRef.current) {
       void supabase.removeChannel(channelRef.current);
@@ -2914,6 +3038,7 @@ export default function ChatScreen() {
     }
     hasLinkedPartnerRef.current = false;
     linkedPartnerIdRef.current = null;
+    sessionCoupleIdRef.current = null;
     sharedSendAcknowledgementRef.current = null;
     sharedSendConfirmationBusyRef.current = null;
     sendingRef.current = false;
@@ -2923,6 +3048,13 @@ export default function ChatScreen() {
     applyingPendingActionRef.current = null;
     persistedAiRequestKeysRef.current.clear();
     previousMessageCountRef.current = 0;
+    topicMessageSaveOperationRef.current += 1;
+    topicMessageSaveAbortControllerRef.current?.abort();
+    topicMessageSaveAbortControllerRef.current = null;
+    consumedTopicMessageFocusRef.current = null;
+    topicMessageFocusScrollAttemptsRef.current = 0;
+    topicMessageFocusTargetRef.current = null;
+    announcedTopicMessageFocusRef.current = null;
     setMessages([]);
     setStreaming(false);
     setCoupleId(null);
@@ -2935,7 +3067,8 @@ export default function ChatScreen() {
     setInitialLoadError(null);
     setPersonalizationVisible(false);
     setTarget("ai");
-    setActiveScope("shared");
+    activeScopeRef.current = nextScope;
+    setActiveScope(nextScope);
     setInputByLane(createEmptyAmoraChatLaneRecord(() => ""));
     setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
     setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
@@ -2962,6 +3095,7 @@ export default function ChatScreen() {
     consumedScheduleCareEntryRef.current = null;
     setFirstUsePromotionPendingMessageId(null);
     setFirstUsePromotionUiState(null);
+    setFirstUseComposerNotice(null);
     setScheduleCareFollowUpEntryStatus(null);
     setDismissedScheduleCareActionMessageIds(new Set());
     setScheduleCareSharedDraftPendingMessageId(null);
@@ -2973,6 +3107,11 @@ export default function ChatScreen() {
     setMediationRequestError(null);
     setDismissedMediationOfferKeys(new Set());
     setHasDevicePrivateMediationSafetyHold(true);
+    setTopicMessageSaveDialog(null);
+    setTopicMessageSaveNotice(null);
+    setResolvedTopicMessageFocus(null);
+    setTopicMessageFocusState(null);
+    setTopicMessageFocusRetryVersion(0);
   }, []);
 
   useEffect(() => {
@@ -2987,6 +3126,7 @@ export default function ChatScreen() {
     const entryOwnerKey = `${userId}:${coupleId}:first_use`;
     if (consumedFirstUseEntryRef.current === entryOwnerKey) return;
     consumedFirstUseEntryRef.current = entryOwnerKey;
+    activeScopeRef.current = "private";
     setActiveScope("private");
     setTarget("ai");
   }, [coupleId, firstUseEntry, initialLoaded, userId, userRole]);
@@ -3269,9 +3409,18 @@ export default function ChatScreen() {
     mountedRef.current = true;
     let authReloadTimer: ReturnType<typeof setTimeout> | null = null;
     let observedAuthUserId: string | null | undefined;
+    const retainedReloadScope = resolveAmoraFirstUseSessionResetScope({
+      entry: firstUseEntryRef.current,
+      activeScope: activeScopeRef.current,
+      consumedFirstUseEntryOwnerKey: consumedFirstUseEntryRef.current,
+      currentUserId: sessionUserIdRef.current,
+      currentCoupleId: sessionCoupleIdRef.current,
+    });
+    sessionReloadScopeRef.current = retainedReloadScope;
 
-    function scheduleChatSessionReload() {
+    function scheduleChatSessionReload(nextScope: ChatScope) {
       chatSessionGenerationRef.current.invalidate();
+      sessionReloadScopeRef.current = nextScope;
       resetChatSessionState();
       if (authReloadTimer) clearTimeout(authReloadTimer);
       authReloadTimer = setTimeout(() => {
@@ -3303,7 +3452,7 @@ export default function ChatScreen() {
       }
       const reloadIdentity = () => {
         if (!isCurrentChatSession(generation)) return;
-        scheduleChatSessionReload();
+        scheduleChatSessionReload("shared");
       };
 
       const { data: profile, error: profileError } = await supabase.from("profiles")
@@ -3353,6 +3502,7 @@ export default function ChatScreen() {
         setInitialLoaded(true);
         return;
       }
+      sessionCoupleIdRef.current = profile.couple_id;
       setCoupleId(profile.couple_id);
       setUserName(profile.name || "사용자");
       setUserRole(viewerRole);
@@ -3427,7 +3577,16 @@ export default function ChatScreen() {
         if (
           nextCouple.bride_id !== couple.bride_id
           || nextCouple.groom_id !== couple.groom_id
-        ) reloadIdentity();
+        ) {
+          const nextScope = resolveAmoraFirstUseSessionResetScope({
+            entry: firstUseEntryRef.current,
+            activeScope: activeScopeRef.current,
+            consumedFirstUseEntryOwnerKey: consumedFirstUseEntryRef.current,
+            currentUserId: user.id,
+            currentCoupleId: profile.couple_id,
+          });
+          scheduleChatSessionReload(nextScope);
+        }
       };
 
       const chatMessageSelect =
@@ -3722,7 +3881,7 @@ export default function ChatScreen() {
       sessionUserIdRef.current = nextAuthUserId;
       if (nextAuthUserId === observedAuthUserId) return;
       observedAuthUserId = nextAuthUserId;
-      scheduleChatSessionReload();
+      scheduleChatSessionReload("shared");
     });
 
     return () => {
@@ -3731,6 +3890,9 @@ export default function ChatScreen() {
       if (authReloadTimer) clearTimeout(authReloadTimer);
       subscription.unsubscribe();
       activeChatOperationGuardRef.current.stopActive("session");
+      topicMessageSaveOperationRef.current += 1;
+      topicMessageSaveAbortControllerRef.current?.abort();
+      topicMessageSaveAbortControllerRef.current = null;
       const firstUsePromotionOperation = firstUsePromotionOperationGuardRef.current.current();
       if (firstUsePromotionOperation) {
         firstUsePromotionOperationGuardRef.current.cancel(
@@ -3756,7 +3918,126 @@ export default function ChatScreen() {
   ]);
 
   useEffect(() => {
+    if (!topicMessageRefIdParam) {
+      consumedTopicMessageFocusRef.current = null;
+      topicMessageFocusScrollAttemptsRef.current = 0;
+      topicMessageFocusTargetRef.current = null;
+      announcedTopicMessageFocusRef.current = null;
+      setResolvedTopicMessageFocus(null);
+      setTopicMessageFocusState(null);
+      return;
+    }
+    if (!initialLoaded || !userId || !userRole || !coupleId) return;
+
+    const expectedOwnerUserId = userId;
+    const expectedCoupleId = coupleId;
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    const focusOperationKey = [
+      expectedOwnerUserId,
+      expectedCoupleId,
+      topicMessageRefIdParam,
+      topicMessageFocusRetryVersion,
+    ].join(":");
+    if (consumedTopicMessageFocusRef.current === focusOperationKey) return;
+    consumedTopicMessageFocusRef.current = focusOperationKey;
+    topicMessageFocusScrollAttemptsRef.current = 0;
+    topicMessageFocusTargetRef.current = null;
+    announcedTopicMessageFocusRef.current = null;
+    setResolvedTopicMessageFocus(null);
+    setTopicMessageFocusState({ status: "loading", refId: topicMessageRefIdParam });
+
+    const isCurrentContext = () => (
+      isCurrentChatSession(sessionGeneration)
+      && sessionUserIdRef.current === expectedOwnerUserId
+      && sessionCoupleIdRef.current === expectedCoupleId
+      && consumedTopicMessageFocusRef.current === focusOperationKey
+    );
+
+    void resolvePreparationTopicMessageReference({
+      apiFetch: (path, options) => (
+        apiFetchForExpectedUser(expectedOwnerUserId, path, options)
+      ),
+      ownerId: expectedOwnerUserId,
+      coupleId: expectedCoupleId,
+      refId: topicMessageRefIdParam,
+      isCurrent: isCurrentContext,
+    }).then(async (resolved) => {
+      if (!isCurrentContext()) return;
+      const verifiedIdentity = await currentVerifiedChatIdentity();
+      if (!isCurrentContext()) return;
+      if (
+        verifiedIdentity?.userId !== expectedOwnerUserId
+        || verifiedIdentity.coupleId !== expectedCoupleId
+      ) {
+        setTopicMessageFocusState({
+          status: "error",
+          refId: topicMessageRefIdParam,
+          message: "계정이나 커플 연결이 바뀌어 저장한 대화를 열지 않았어요.",
+        });
+        return;
+      }
+
+      setActiveScope(resolved.target.lane === "shared" ? "shared" : "private");
+      setTarget("ai");
+      setMessages((currentMessages) => (
+        mergePreparationTopicResolvedConversation(
+          currentMessages,
+          resolved,
+          userRole,
+        ) as ChatMessage[]
+      ));
+      setResolvedTopicMessageFocus({
+        refId: resolved.reference.refId,
+        targetMessageId: resolved.target.messageId,
+        audience: resolved.reference.audience,
+      });
+      topicMessageFocusTargetRef.current = resolved.target.messageId;
+      setTopicMessageFocusState({
+        status: "ready",
+        refId: resolved.reference.refId,
+        targetMessageId: resolved.target.messageId,
+      });
+    }).catch((error: unknown) => {
+      if (!isCurrentContext()) return;
+      topicMessageFocusTargetRef.current = null;
+      setResolvedTopicMessageFocus(null);
+      setTopicMessageFocusState({
+        status: "error",
+        refId: topicMessageRefIdParam,
+        message: getTopicMessageFocusErrorCopy(error),
+      });
+    });
+  }, [
+    coupleId,
+    initialLoaded,
+    isCurrentChatSession,
+    topicMessageFocusRetryVersion,
+    topicMessageRefIdParam,
+    userId,
+    userRole,
+  ]);
+
+  useEffect(() => {
+    if (topicMessageFocusState?.status !== "ready") return;
+    const targetMessageId = topicMessageFocusState.targetMessageId;
+    const targetIndex = visibleMessages.findIndex((message) => message.id === targetMessageId);
+    if (targetIndex < 0) return;
+
+    const frame = requestAnimationFrame(() => {
+      flatListRef.current?.scrollToIndex({
+        index: visibleMessages.findIndex((message) => (
+          message.id === targetMessageId
+        )),
+        animated: true,
+        viewPosition: 0.5,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [topicMessageFocusState, visibleMessages]);
+
+  useEffect(() => {
     if (!initialLoaded || scopedMessages.length === 0) return;
+    if (topicMessageRefIdParam) return;
 
     const previousCount = previousMessageCountRef.current;
     previousMessageCountRef.current = scopedMessages.length;
@@ -3767,7 +4048,7 @@ export default function ChatScreen() {
     }
 
     scrollToLatest(true);
-  }, [initialLoaded, scopedMessages.length, scrollToLatest]);
+  }, [initialLoaded, scopedMessages.length, scrollToLatest, topicMessageRefIdParam]);
 
   function pressIn() { Animated.spring(sendBtnScale, { toValue: 0.88, useNativeDriver: true }).start(); }
   function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
@@ -4392,6 +4673,7 @@ export default function ChatScreen() {
           === draft.firstUseSourceMessageId
       ) {
         firstUseComposerBindingRef.current = null;
+        setFirstUseComposerNotice(null);
       }
       if (draft.scheduleCareFollowUp) {
         scheduleCareFollowUpComposerBindingRef.current = null;
@@ -4908,6 +5190,7 @@ export default function ChatScreen() {
       ? failure.draft.text
       : null;
     firstUseComposerBindingRef.current = null;
+    setFirstUseComposerNotice(null);
     setPromotedFirstUseMessageId(null);
     setFirstUsePromotionUiState(null);
     setFirstUsePromotionPendingMessageId(null);
@@ -5000,6 +5283,29 @@ export default function ChatScreen() {
           ? null
           : current
       ));
+    }
+    const boundFirstUseSourceMessageId = target === "ai"
+      && activeLane === "shared_ai"
+      && activeVisibility === "shared"
+      ? resolveFirstUseSourceMessageIdForSend(
+          firstUseComposerBindingRef.current,
+          {
+            ownerUserId: userId,
+            coupleId,
+            sharedText: text,
+          },
+        )
+      : null;
+    if (
+      target === "ai"
+      && activeLane === "shared_ai"
+      && activeVisibility === "shared"
+      && isFirstUseSharedActionDraftText(text)
+      && boundFirstUseSourceMessageId === null
+    ) {
+      Keyboard.dismiss();
+      setFirstUseComposerNotice("draft_changed");
+      return;
     }
     const crisisPreflight = planAmoraCrisisDelivery({
       userText: text,
@@ -5180,18 +5486,8 @@ export default function ChatScreen() {
       });
       return;
     }
-    const firstUseSourceMessageId = target === "ai"
-      && activeLane === "shared_ai"
-      && activeVisibility === "shared"
-      && effectiveVisibility === "shared"
-      ? resolveFirstUseSourceMessageIdForSend(
-          firstUseComposerBindingRef.current,
-          {
-            ownerUserId: userId,
-            coupleId,
-            sharedText: text,
-          },
-        )
+    const firstUseSourceMessageId = effectiveVisibility === "shared"
+      ? boundFirstUseSourceMessageId
       : null;
     const scheduleCareFollowUp = target === "ai"
       && activeLane === "private_ai"
@@ -5358,6 +5654,7 @@ export default function ChatScreen() {
     if (confirmation.sourceLane === "shared_ai") {
       const sourceMessageId = firstUseComposerBindingRef.current?.sourceMessageId ?? null;
       firstUseComposerBindingRef.current = null;
+      setFirstUseComposerNotice(null);
       if (sourceMessageId) {
         setPromotedFirstUseMessageId((current) => (
           current === sourceMessageId ? null : current
@@ -5379,19 +5676,35 @@ export default function ChatScreen() {
   function handleInputChange(value: string) {
     if (!activeLane || pendingIngestReconciliation) return;
     safetyHoldLockRef.current = false;
-    if (activeLane === "shared_ai" && firstUseComposerBindingRef.current) {
+    if (activeLane === "shared_ai") {
       const binding = firstUseComposerBindingRef.current;
-      const retainedBinding = reconcileFirstUseComposerBinding(binding, {
-        ownerUserId: userId,
-        coupleId,
-        sharedText: value,
-      });
-      firstUseComposerBindingRef.current = retainedBinding;
-      if (!retainedBinding) {
-        setPromotedFirstUseMessageId((current) => (
-          current === binding.sourceMessageId ? null : current
-        ));
+      const retainedBinding = binding
+        ? reconcileFirstUseComposerBinding(binding, {
+            ownerUserId: userId,
+            coupleId,
+            sharedText: value,
+          })
+        : null;
+      if (binding) {
+        firstUseComposerBindingRef.current = retainedBinding;
+        if (!retainedBinding) {
+          setPromotedFirstUseMessageId((current) => (
+            current === binding.sourceMessageId ? null : current
+          ));
+        }
       }
+      const isUnboundFirstUseDraft = retainedBinding === null
+        && isFirstUseSharedActionDraftText(value.trim());
+      setFirstUseComposerNotice((current) => {
+        if (isUnboundFirstUseDraft) {
+          return current === "private_composer_occupied"
+            ? current
+            : "draft_changed";
+        }
+        return current === "draft_changed" || current === "private_composer_occupied"
+          ? null
+          : current;
+      });
     }
     if (activeLane === "private_ai" && scheduleCareFollowUpComposerBindingRef.current) {
       const binding = scheduleCareFollowUpComposerBindingRef.current;
@@ -5420,6 +5733,14 @@ export default function ChatScreen() {
         ));
       }
     }
+    if (
+      activeLane === "private_ai"
+      && firstUseComposerNotice === "private_composer_occupied"
+      && !value.trim()
+      && isFirstUseSharedActionDraftText(inputByLane.shared_ai.trim())
+    ) {
+      setFirstUseComposerNotice("draft_changed");
+    }
     setActiveInput(value);
     setSendFailuresByLane((current) => {
       const failure = current[activeLane];
@@ -5428,6 +5749,53 @@ export default function ChatScreen() {
         ? updateAmoraChatLaneRecord(current, activeLane, null)
         : current;
     });
+  }
+
+  function handleFirstUseComposerNoticeAction() {
+    if (!firstUseComposerNotice) return;
+    if (firstUseComposerNotice === "composer_occupied") {
+      setFirstUseComposerNotice(null);
+      activeScopeRef.current = "shared";
+      setActiveScope("shared");
+      setTarget("ai");
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+      return;
+    }
+    const recovery = planFirstUseSharedDraftPrivateRecovery({
+      sharedText: inputByLane.shared_ai.trim(),
+      privateText: inputByLane.private_ai,
+    });
+    if (recovery.status === "not_applicable") {
+      setFirstUseComposerNotice(null);
+      activeScopeRef.current = "shared";
+      setActiveScope("shared");
+      setTarget("ai");
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+      return;
+    }
+    if (recovery.status === "private_occupied") {
+      setFirstUseComposerNotice("private_composer_occupied");
+      activeScopeRef.current = "private";
+      setActiveScope("private");
+      setTarget("ai");
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+      return;
+    }
+    let nextDrafts = updateAmoraChatLaneRecord(
+      inputByLane,
+      "private_ai",
+      recovery.privateDraft,
+    );
+    nextDrafts = updateAmoraChatLaneRecord(nextDrafts, "shared_ai", "");
+    inputByLaneRef.current = nextDrafts;
+    firstUseComposerBindingRef.current = null;
+    setInputByLane(nextDrafts);
+    setPendingSharedSendConfirmation(null);
+    setFirstUseComposerNotice(null);
+    activeScopeRef.current = "private";
+    setActiveScope("private");
+    setTarget("ai");
+    requestAnimationFrame(() => chatInputRef.current?.focus());
   }
 
   function handleTargetChange(nextTarget: MessageTarget) {
@@ -5486,6 +5854,7 @@ export default function ChatScreen() {
       });
       firstUseComposerBindingRef.current = retainedBinding;
       if (!retainedBinding) {
+        setFirstUseComposerNotice("draft_changed");
         setPromotedFirstUseMessageId((current) => (
           current === binding.sourceMessageId ? null : current
         ));
@@ -5716,6 +6085,7 @@ export default function ChatScreen() {
       nextScope,
       userRole,
     );
+    activeScopeRef.current = nextSelection.scope;
     setActiveScope(nextSelection.scope);
     setTarget(nextSelection.target);
   }
@@ -5818,8 +6188,11 @@ export default function ChatScreen() {
       || !userId
       || !userRole
       || !coupleId
-      || inputByLane.shared_ai.trim()
     ) return;
+    if (inputByLaneRef.current.shared_ai.trim()) {
+      setFirstUseComposerNotice("composer_occupied");
+      return;
+    }
     const expectedOwnerUserId = userId;
     const expectedCoupleId = coupleId;
     const sessionGeneration = chatSessionGenerationRef.current.current();
@@ -5854,6 +6227,7 @@ export default function ChatScreen() {
       }
       if (inputByLaneRef.current.shared_ai.trim()) {
         setFirstUsePromotionUiState(null);
+        setFirstUseComposerNotice("composer_occupied");
         return;
       }
       const binding = createFirstUseComposerBinding(preview);
@@ -5870,6 +6244,7 @@ export default function ChatScreen() {
       firstUseComposerBindingRef.current = binding;
       setInputByLane(nextDrafts);
       setFirstUsePromotionUiState(null);
+      setFirstUseComposerNotice(null);
       setPromotedFirstUseMessageId(sourceMessageId);
       setActiveScope("shared");
       setTarget("ai");
@@ -5982,6 +6357,7 @@ export default function ChatScreen() {
       );
       inputByLaneRef.current = nextDrafts;
       firstUseComposerBindingRef.current = null;
+      setFirstUseComposerNotice(null);
       setPromotedFirstUseMessageId(null);
       setInputByLane(nextDrafts);
       setDismissedScheduleCareActionMessageIds((current) => {
@@ -6010,9 +6386,384 @@ export default function ChatScreen() {
     setScheduleCareActionNotice(null);
   }
 
+  function beginTopicMessageSaveOperation() {
+    const operationId = topicMessageSaveOperationRef.current + 1;
+    topicMessageSaveOperationRef.current = operationId;
+    topicMessageSaveAbortControllerRef.current?.abort();
+    const operationController = new AbortController();
+    topicMessageSaveAbortControllerRef.current = operationController;
+    return { operationId, operationController };
+  }
+
+  function finishTopicMessageSaveOperation(
+    operationId: number,
+    operationController: AbortController,
+  ) {
+    if (
+      topicMessageSaveOperationRef.current === operationId
+      && topicMessageSaveAbortControllerRef.current === operationController
+    ) {
+      topicMessageSaveAbortControllerRef.current = null;
+    }
+  }
+
+  const closeTopicMessageSaveDialog = () => {
+    topicMessageSaveOperationRef.current += 1;
+    topicMessageSaveAbortControllerRef.current?.abort();
+    topicMessageSaveAbortControllerRef.current = null;
+    setTopicMessageSaveDialog(null);
+  };
+
+  async function handleOpenTopicMessageSaveDialog(sourceMessage: ChatMessage) {
+    if (!userId || !userRole || !coupleId) return;
+    const isStrictResolvedSource =
+      resolvedTopicMessageFocus?.targetMessageId === sourceMessage.id;
+    if (
+      !isStrictResolvedSource
+      && !isPreparationTopicMessageSaveEligible(sourceMessage, {
+        coupleId,
+        viewerRole: userRole,
+      })
+    ) return;
+
+    const expectedOwnerUserId = userId;
+    const expectedCoupleId = coupleId;
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    const { operationId, operationController } = beginTopicMessageSaveOperation();
+    const audience: AmoraPreparationTopicMessageRefAudience = isStrictResolvedSource
+      ? resolvedTopicMessageFocus.audience
+      : sourceMessage.visibility === "shared"
+        ? "couple_shared"
+        : "owner_private";
+    setTopicMessageSaveNotice((current) => (
+      current?.messageId === sourceMessage.id ? null : current
+    ));
+    setTopicMessageSaveDialog({
+      sourceMessageId: sourceMessage.id,
+      audience,
+      references: [],
+      partial: false,
+      selectedTopicKey: null,
+      selectedTopicReadState: "idle",
+      selectedTopicSavedState: null,
+      loading: true,
+      collectionLoaded: false,
+      saving: false,
+      error: null,
+    });
+
+    const isCurrentContext = () => (
+      isCurrentChatSession(sessionGeneration)
+      && sessionUserIdRef.current === expectedOwnerUserId
+      && sessionCoupleIdRef.current === expectedCoupleId
+      && topicMessageSaveOperationRef.current === operationId
+    );
+
+    try {
+      const collection = await loadPreparationTopicMessageReferences({
+        apiFetch: (path, options) => (
+          apiFetchForExpectedUser(expectedOwnerUserId, path, options)
+        ),
+        ownerId: expectedOwnerUserId,
+        coupleId: expectedCoupleId,
+        isCurrent: isCurrentContext,
+        signal: operationController.signal,
+      });
+      if (!isCurrentContext()) return;
+      const verifiedIdentity = await currentVerifiedChatIdentity();
+      if (!isCurrentContext()) return;
+      if (
+        verifiedIdentity?.userId !== expectedOwnerUserId
+        || verifiedIdentity.coupleId !== expectedCoupleId
+      ) {
+        setTopicMessageSaveDialog((current) => (
+          current?.sourceMessageId === sourceMessage.id
+            ? {
+                ...current,
+                loading: false,
+                error: "계정이나 커플 연결이 바뀌어 저장 정보를 열지 않았어요.",
+              }
+            : current
+        ));
+        return;
+      }
+      setTopicMessageSaveDialog((current) => (
+        current?.sourceMessageId === sourceMessage.id
+          ? {
+              ...current,
+              references: collection.references.filter((reference) => (
+                reference.messageId === sourceMessage.id
+              )),
+              partial: collection.partial,
+              loading: false,
+              collectionLoaded: true,
+              error: null,
+            }
+          : current
+      ));
+    } catch (error: unknown) {
+      if (!isCurrentContext()) return;
+      setTopicMessageSaveDialog((current) => (
+        current?.sourceMessageId === sourceMessage.id
+          ? {
+              ...current,
+              loading: false,
+              error: error instanceof PreparationTopicMessageRefError
+                && error.code === "stale_context"
+                ? "계정이나 커플 연결이 바뀌어 저장 정보를 열지 않았어요."
+                : error instanceof PreparationTopicMessageRefError
+                  && error.code === "timeout"
+                  ? "저장 정보를 확인하는 데 시간이 오래 걸렸어요. 다시 불러와 주세요."
+                : "저장 정보를 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.",
+            }
+          : current
+      ));
+    } finally {
+      finishTopicMessageSaveOperation(operationId, operationController);
+    }
+  }
+
+  async function handleSelectTopicMessageSaveTopic(topicKey: string) {
+    const dialog = topicMessageSaveDialog;
+    if (
+      !dialog
+      || !dialog.collectionLoaded
+      || dialog.loading
+      || dialog.saving
+      || !isAmoraPreparationTopicMessageRefTopicKey(topicKey)
+      || !userId
+      || !userRole
+      || !coupleId
+    ) return;
+    const sourceMessage = messagesRef.current.find((message) => (
+      message.id === dialog.sourceMessageId
+    ));
+    if (!sourceMessage) {
+      setTopicMessageSaveDialog({
+        ...dialog,
+        selectedTopicKey: topicKey,
+        selectedTopicReadState: "error",
+        selectedTopicSavedState: null,
+        error: "원문을 찾지 못해 저장 상태를 확인하지 않았어요. 대화를 다시 불러와 주세요.",
+      });
+      return;
+    }
+
+    const expectedOwnerUserId = userId;
+    const expectedCoupleId = coupleId;
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    const { operationId, operationController } = beginTopicMessageSaveOperation();
+    setTopicMessageSaveDialog((current) => (
+      current?.sourceMessageId === dialog.sourceMessageId
+        ? {
+            ...current,
+            selectedTopicKey: topicKey,
+            selectedTopicReadState: "loading",
+            selectedTopicSavedState: null,
+            error: null,
+          }
+        : current
+    ));
+
+    const isCurrentContext = () => (
+      isCurrentChatSession(sessionGeneration)
+      && sessionUserIdRef.current === expectedOwnerUserId
+      && sessionCoupleIdRef.current === expectedCoupleId
+      && topicMessageSaveOperationRef.current === operationId
+    );
+
+    try {
+      const state = await loadPreparationTopicMessageReferenceState({
+        apiFetch: (path, options) => (
+          apiFetchForExpectedUser(expectedOwnerUserId, path, options)
+        ),
+        ownerId: expectedOwnerUserId,
+        coupleId: expectedCoupleId,
+        topicKey,
+        messageId: dialog.sourceMessageId,
+        isCurrent: isCurrentContext,
+        signal: operationController.signal,
+      });
+      if (!isCurrentContext()) return;
+      setTopicMessageSaveDialog((current) => (
+        current?.sourceMessageId === dialog.sourceMessageId
+        && current.selectedTopicKey === topicKey
+          ? {
+              ...current,
+              audience: state.reference.audience,
+              selectedTopicReadState: "ready",
+              selectedTopicSavedState: state.reference.savedState,
+              error: null,
+            }
+          : current
+      ));
+    } catch (error: unknown) {
+      if (!isCurrentContext()) return;
+      setTopicMessageSaveDialog((current) => (
+        current?.sourceMessageId === dialog.sourceMessageId
+        && current.selectedTopicKey === topicKey
+          ? {
+              ...current,
+              selectedTopicReadState: "error",
+              selectedTopicSavedState: null,
+              error: error instanceof PreparationTopicMessageRefError
+                && error.code === "stale_context"
+                ? "계정이나 커플 연결이 바뀌어 저장 상태를 확인하지 않았어요."
+                : error instanceof PreparationTopicMessageRefError
+                  && error.code === "timeout"
+                  ? "저장 상태 확인이 오래 걸렸어요. 결과를 단정하지 않았으니 항목을 다시 눌러 주세요."
+                : "이 준비의 저장 상태를 확인하지 못했어요. 항목을 다시 눌러 주세요.",
+            }
+          : current
+      ));
+    } finally {
+      finishTopicMessageSaveOperation(operationId, operationController);
+    }
+  }
+
+  async function handleConfirmTopicMessageSave() {
+    const dialog = topicMessageSaveDialog;
+    if (
+      !dialog
+      || dialog.loading
+      || dialog.saving
+      || !dialog.selectedTopicKey
+      || dialog.selectedTopicReadState !== "ready"
+      || dialog.selectedTopicSavedState === null
+      || !isAmoraPreparationTopicMessageRefTopicKey(dialog.selectedTopicKey)
+      || !userId
+      || !userRole
+      || !coupleId
+    ) return;
+
+    const sourceMessage = messagesRef.current.find((message) => (
+      message.id === dialog.sourceMessageId
+    ));
+    if (!sourceMessage) {
+      setTopicMessageSaveDialog({
+        ...dialog,
+        error: "원문을 찾지 못해 준비에 연결하지 않았어요. 대화를 다시 불러와 주세요.",
+      });
+      return;
+    }
+    const isStrictResolvedSource =
+      resolvedTopicMessageFocus?.targetMessageId === sourceMessage.id;
+    if (
+      !isStrictResolvedSource
+      && !isPreparationTopicMessageSaveEligible(sourceMessage, {
+        coupleId,
+        viewerRole: userRole,
+      })
+    ) {
+      setTopicMessageSaveDialog({
+        ...dialog,
+        error: "현재 대화는 준비에 저장할 수 있는 원문으로 확인되지 않았어요.",
+      });
+      return;
+    }
+
+    const selectedTopic = PREPARATION_TOPIC_OPTIONS.find((topic) => (
+      topic.key === dialog.selectedTopicKey
+    ));
+    if (!selectedTopic) return;
+    const selectedTopicSavedState = dialog.selectedTopicSavedState;
+    const desiredState = selectedTopicSavedState === "saved" ? "removed" : "saved";
+    const expectedOwnerUserId = userId;
+    const expectedCoupleId = coupleId;
+    const sessionGeneration = chatSessionGenerationRef.current.current();
+    const { operationId, operationController } = beginTopicMessageSaveOperation();
+    setTopicMessageSaveDialog((current) => (
+      current?.sourceMessageId === dialog.sourceMessageId
+        ? { ...current, saving: true, error: null }
+        : current
+    ));
+
+    const isCurrentContext = () => (
+      isCurrentChatSession(sessionGeneration)
+      && sessionUserIdRef.current === expectedOwnerUserId
+      && sessionCoupleIdRef.current === expectedCoupleId
+      && topicMessageSaveOperationRef.current === operationId
+    );
+
+    try {
+      await mutatePreparationTopicMessageReference({
+        apiFetch: (path, options) => (
+          apiFetchForExpectedUser(expectedOwnerUserId, path, options)
+        ),
+        ownerId: expectedOwnerUserId,
+        coupleId: expectedCoupleId,
+        topicKey: dialog.selectedTopicKey,
+        messageId: dialog.sourceMessageId,
+        desiredState,
+        requestId: Crypto.randomUUID(),
+        isCurrent: isCurrentContext,
+        signal: operationController.signal,
+      });
+      if (!isCurrentContext()) return;
+      const verifiedIdentity = await currentVerifiedChatIdentity();
+      if (!isCurrentContext()) return;
+      if (
+        verifiedIdentity?.userId !== expectedOwnerUserId
+        || verifiedIdentity.coupleId !== expectedCoupleId
+      ) {
+        setTopicMessageSaveDialog((current) => (
+          current?.sourceMessageId === dialog.sourceMessageId
+            ? {
+                ...current,
+                saving: false,
+                error: "계정이나 커플 연결이 바뀌어 결과를 표시하지 않았어요. 다시 확인해 주세요.",
+              }
+            : current
+        ));
+        return;
+      }
+
+      setTopicMessageSaveDialog(null);
+      setTopicMessageSaveNotice({
+        messageId: dialog.sourceMessageId,
+        text: desiredState === "saved"
+          ? `${selectedTopic.label} 준비에 저장했어요.`
+          : `${selectedTopic.label} 준비에서 뺐어요. 대화 원문은 그대로 남아 있어요.`,
+      });
+      AccessibilityInfo.announceForAccessibility(
+        desiredState === "saved"
+          ? `${selectedTopic.label} 준비에 저장했어요.`
+          : `${selectedTopic.label} 준비에서 뺐어요.`,
+      );
+    } catch (error: unknown) {
+      if (!isCurrentContext()) return;
+      setTopicMessageSaveDialog((current) => (
+        current?.sourceMessageId === dialog.sourceMessageId
+          ? {
+              ...current,
+              saving: false,
+              error: error instanceof PreparationTopicMessageRefError
+                && error.code === "stale_revision"
+                ? "저장 상태가 방금 바뀌었어요. 최신 상태를 다시 확인한 뒤 한 번 더 눌러 주세요."
+                : error instanceof PreparationTopicMessageRefError
+                  && error.code === "timeout"
+                  ? "확인이 오래 걸려 변경 결과를 표시하지 않았어요. 다시 누르면 최신 저장 상태부터 확인해요."
+                : "준비 연결을 바꾸지 못했어요. 저장 상태를 다시 확인한 뒤 시도해 주세요.",
+            }
+          : current
+      ));
+    } finally {
+      finishTopicMessageSaveOperation(operationId, operationController);
+    }
+  }
+
   function renderMessage({ item }: { item: ChatMessage }) {
     const isAi = item.sender_type === "ai";
     const isMe = item.sender_type === userRole;
+    const isResolvedTopicSource =
+      resolvedTopicMessageFocus?.targetMessageId === item.id;
+    const canSaveToPreparationTopic = isResolvedTopicSource
+      || isPreparationTopicMessageSaveEligible(item, {
+        coupleId: coupleId ?? "",
+        viewerRole: userRole,
+      });
+    const isFocusedTopicOriginal = topicMessageFocusState?.status === "ready"
+      && topicMessageFocusState.targetMessageId === item.id;
     const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
@@ -6031,6 +6782,12 @@ export default function ChatScreen() {
     const pendingAction = pendingActionCandidate
       && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
       ? pendingActionCandidate
+      : null;
+    const pendingActionPresentation = pendingAction
+      ? getFirstUsePendingActionPresentation({
+          metadata: item.metadata,
+          pendingAction,
+        })
       : null;
     const firstUseActionDraft = selectPrivateActionDraftForBridge({
       activeScope,
@@ -6114,17 +6871,21 @@ export default function ChatScreen() {
               ? "내 확인 다시 시도"
             : requiresCoupleApproval
               ? approvalPresentation.applyLabel
-              : "이대로 적용";
-    const applyAccessibilityLabel = requiresCoupleApproval
-      ? matchingApproval?.status?.ready
-        || matchingApproval?.status?.requiredCount === 1
-        || (
-          matchingApproval?.status?.accepted === false
-          && (matchingApproval.status.acceptedCount ?? 0) > 0
-        )
-        ? "이 공동 변경을 확인하고 바로 반영"
-        : "이 공동 변경을 확인"
-      : "확인한 내용을 이대로 적용";
+              : pendingActionPresentation
+                ? pendingActionPresentation.applyLabel
+                : "이대로 적용";
+    const applyAccessibilityLabel = pendingActionPresentation
+      ? pendingActionPresentation.accessibilityLabel
+      : requiresCoupleApproval
+        ? matchingApproval?.status?.ready
+          || matchingApproval?.status?.requiredCount === 1
+          || (
+            matchingApproval?.status?.accepted === false
+            && (matchingApproval.status.acceptedCount ?? 0) > 0
+          )
+          ? "이 공동 변경을 확인하고 바로 반영"
+          : "이 공동 변경을 확인"
+        : "확인한 내용을 이대로 적용";
     const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
@@ -6142,8 +6903,14 @@ export default function ChatScreen() {
           scheduleCareActionDraft && st.mediationMessageBody,
           hasPlaceResults && st.placeMessageBody,
           receipts.length > 0 && st.toolReceiptMessageBody,
+          isFocusedTopicOriginal && st.focusedTopicMessageBody,
         ]}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
+          {isFocusedTopicOriginal && (
+            <Text style={st.focusedTopicMessageLabel} accessibilityLiveRegion="polite">
+              저장한 원문
+            </Text>
+          )}
           {shouldRenderBubble && mediationBlock?.renderSafetyFallback !== true && (
             isPinnedSafetyCard ? (
               <View
@@ -6210,7 +6977,6 @@ export default function ChatScreen() {
                 || !userRole
                 || !coupleId
                 || firstUsePromotionPendingMessageId === item.id
-                || Boolean(inputByLane.shared_ai.trim())
               }
               correctionDisabled={
                 streaming
@@ -6311,10 +7077,16 @@ export default function ChatScreen() {
                 </View>
                 <View style={st.pendingActionCopy}>
                   <Text style={st.pendingActionTitle}>
-                    {requiresCoupleApproval
+                    {pendingActionPresentation?.stageLabel
+                      ?? (requiresCoupleApproval
                       ? "두 분 확인이 필요한 변경이에요"
-                      : "적용하기 전에 확인해 주세요"}
+                      : "적용하기 전에 확인해 주세요")}
                   </Text>
+                  {pendingActionPresentation && (
+                    <Text style={st.firstUsePendingActionPrompt}>
+                      {pendingActionPresentation.prompt}
+                    </Text>
+                  )}
                   <Text style={st.pendingActionConfirmation}>{pendingAction.confirmation}</Text>
                 </View>
               </View>
@@ -6357,6 +7129,7 @@ export default function ChatScreen() {
                 <Pressable
                   style={({ pressed }) => [
                     st.pendingActionButton,
+                    pendingActionPresentation && st.firstUsePendingActionButton,
                     pressed && !pendingActionControlDisabled && { opacity: 0.82 },
                     pendingActionControlDisabled && st.pendingActionButtonDisabled,
                   ]}
@@ -6364,6 +7137,7 @@ export default function ChatScreen() {
                   disabled={pendingActionControlDisabled}
                   accessibilityRole="button"
                   accessibilityLabel={applyAccessibilityLabel}
+                  accessibilityHint={pendingActionPresentation?.accessibilityHint}
                   accessibilityState={{ disabled: pendingActionControlDisabled }}
                 >
                   {applyingPendingActionId === pendingAction.actionId
@@ -6407,13 +7181,62 @@ export default function ChatScreen() {
               </View>
             </View>
           )}
+          {isAi && canSaveToPreparationTopic && !streaming && !isThinking && (
+            <Pressable
+              style={({ pressed }) => [
+                st.topicMessageSaveAction,
+                pressed && st.topicMessageSaveActionPressed,
+              ]}
+              onPress={() => void handleOpenTopicMessageSaveDialog(item)}
+              accessibilityRole="button"
+              accessibilityLabel="이 아모라 답변을 준비에 저장"
+              accessibilityHint="준비 항목을 직접 고르는 창을 엽니다"
+            >
+              <CheckCircle2 size={15} color={colors.sage[500]} />
+              <Text style={st.topicMessageSaveActionText}>준비에 저장</Text>
+            </Pressable>
+          )}
+          {topicMessageSaveNotice?.messageId === item.id && (
+            <Text style={st.topicMessageSaveNotice} accessibilityLiveRegion="polite">
+              {topicMessageSaveNotice.text}
+            </Text>
+          )}
         </View>
       </View>
     );
   }
 
   const isP = activeScope === "shared" && target === "partner";
+  const stagedFirstUseSourceMessageId = activeScope === "shared"
+    && target === "ai"
+    && userId
+    && coupleId
+    ? resolveFirstUseSourceMessageIdForSend(
+        firstUseComposerBindingRef.current,
+        {
+          ownerUserId: userId,
+          coupleId,
+          sharedText: inputByLane.shared_ai,
+        },
+      )
+    : null;
+  const confirmedFirstUseSourceMessageId = pendingSharedSendConfirmation
+    ? resolveFirstUseSourceMessageIdForSend(
+        firstUseComposerBindingRef.current,
+        {
+          ownerUserId: pendingSharedSendConfirmation.userId,
+          coupleId: pendingSharedSendConfirmation.coupleId,
+          sharedText: pendingSharedSendConfirmation.text,
+        },
+      )
+    : null;
   const needsOnboarding = initialLoaded && userId !== null && coupleId === null;
+  const topicMessageDialogSource = topicMessageSaveDialog
+    ? messages.find((message) => message.id === topicMessageSaveDialog.sourceMessageId) ?? null
+    : null;
+  const selectedTopicMessageIsSaved =
+    topicMessageSaveDialog?.selectedTopicReadState === "ready"
+    && topicMessageSaveDialog.selectedTopicSavedState === "saved";
 
   if (initialLoadError) {
     return (
@@ -6518,6 +7341,160 @@ export default function ChatScreen() {
         onConfirm={handleConfirmMediationRequest}
       />
       <Modal
+        visible={topicMessageSaveDialog !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeTopicMessageSaveDialog}
+      >
+        <SafeAreaView
+          style={st.topicMessageSaveModal}
+          edges={["top", "bottom"]}
+          accessibilityViewIsModal
+        >
+          <View style={st.topicMessageSaveHeader}>
+            <AppText variant="subtitle">준비에 저장</AppText>
+            <Pressable
+              style={({ pressed }) => [
+                st.topicMessageSaveClose,
+                pressed && { opacity: 0.62 },
+              ]}
+              onPress={closeTopicMessageSaveDialog}
+              accessibilityRole="button"
+              accessibilityLabel="준비에 저장 닫기"
+            >
+              <X size={20} color={colors.noir[800]} />
+            </Pressable>
+          </View>
+          <View style={st.topicMessageSaveScope}>
+            <AppText variant="bodyStrong">어느 준비에서 다시 볼까요?</AppText>
+            <AppText variant="caption" style={st.topicMessageSaveScopeCopy}>
+              {topicMessageSaveDialog?.audience === "couple_shared"
+                ? "두 분 모두 볼 수 있어요. 함께 대화의 답변을 고른 준비 항목에서 다시 찾을 수 있어요."
+                : "상대방에게 보이지 않아요. 나만 상담의 답변은 나만 고른 준비 항목에서 볼 수 있어요."}
+            </AppText>
+          </View>
+          <ScrollView
+            style={st.topicMessageSaveScroll}
+            contentContainerStyle={st.topicMessageSaveList}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {topicMessageSaveDialog?.loading ? (
+              <View style={st.topicMessageSaveLoading} accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.rose[500]} />
+                <AppText variant="body">저장 상태를 확인하는 중이에요</AppText>
+              </View>
+            ) : null}
+            {topicMessageSaveDialog?.error ? (
+              <Text
+                style={st.topicMessageSaveError}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+              >
+                {topicMessageSaveDialog.error}
+              </Text>
+            ) : null}
+            {topicMessageSaveDialog
+              && !topicMessageSaveDialog.loading
+              && !topicMessageSaveDialog.collectionLoaded
+              && topicMessageDialogSource ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    st.topicMessageSaveRetry,
+                    pressed && { opacity: 0.72 },
+                  ]}
+                  onPress={() => void handleOpenTopicMessageSaveDialog(topicMessageDialogSource)}
+                  accessibilityRole="button"
+                  accessibilityLabel="준비 저장 상태 다시 불러오기"
+                >
+                  <RotateCcw size={16} color={colors.noir[800]} />
+                  <Text style={st.topicMessageSaveRetryText}>다시 불러오기</Text>
+                </Pressable>
+            ) : null}
+            {topicMessageSaveDialog?.collectionLoaded ? PREPARATION_TOPIC_OPTIONS.map((topic) => {
+              const selected = topicMessageSaveDialog.selectedTopicKey === topic.key;
+              const savedInCollection = topicMessageSaveDialog.references.some((reference) => (
+                reference.messageId === topicMessageSaveDialog.sourceMessageId
+                && reference.topicKey === topic.key
+              ));
+              const checkingExactState = selected
+                && topicMessageSaveDialog.selectedTopicReadState === "loading";
+              const saved = selected
+                && topicMessageSaveDialog.selectedTopicReadState === "ready"
+                ? topicMessageSaveDialog.selectedTopicSavedState === "saved"
+                : savedInCollection;
+              return (
+                <Pressable
+                  key={topic.key}
+                  style={({ pressed }) => [
+                    st.topicMessageSaveOption,
+                    selected && st.topicMessageSaveOptionSelected,
+                    pressed && { opacity: 0.76 },
+                  ]}
+                  onPress={() => void handleSelectTopicMessageSaveTopic(topic.key)}
+                  disabled={topicMessageSaveDialog.saving}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${topic.label}${checkingExactState ? ", 저장 상태 확인 중" : saved ? ", 이미 저장됨" : ""}`}
+                  accessibilityState={{
+                    checked: selected,
+                    disabled: topicMessageSaveDialog.saving,
+                    busy: checkingExactState,
+                  }}
+                >
+                  <View style={[
+                    st.topicMessageSaveRadio,
+                    selected && st.topicMessageSaveRadioSelected,
+                  ]} accessibilityElementsHidden>
+                    {selected ? <View style={st.topicMessageSaveRadioDot} /> : null}
+                  </View>
+                  <Text style={st.topicMessageSaveOptionLabel}>{topic.label}</Text>
+                  {checkingExactState ? (
+                    <ActivityIndicator size="small" color={colors.rose[500]} />
+                  ) : saved ? (
+                    <Text style={st.topicMessageSavedMark}>저장됨</Text>
+                  ) : null}
+                </Pressable>
+              );
+            }) : null}
+            {topicMessageSaveDialog?.partial ? (
+              <Text style={st.topicMessageSavePartial} accessibilityLiveRegion="polite">
+                일부 오래된 저장 기록을 확인하지 못했어요. 변경 전 최신 상태를 다시 확인해요.
+              </Text>
+            ) : null}
+          </ScrollView>
+          <View style={st.topicMessageSaveFooter}>
+            {selectedTopicMessageIsSaved ? (
+              <Text style={st.topicMessageSaveRemovalCopy} accessibilityLiveRegion="polite">
+                {topicMessageSaveDialog?.audience === "couple_shared"
+                  ? "이 준비에서 빼면 두 분 모두 이 준비 항목의 대화 링크를 볼 수 없어요. 원래 함께 대화는 그대로 남아요."
+                  : "이 준비에서 빼도 원래 나만 상담 대화는 그대로 남아요."}
+              </Text>
+            ) : null}
+            <PrimaryButton
+              style={st.topicMessageSavePrimary}
+              onPress={() => void handleConfirmTopicMessageSave()}
+              disabled={
+                !topicMessageSaveDialog?.collectionLoaded
+                || !topicMessageSaveDialog.selectedTopicKey
+                || topicMessageSaveDialog.selectedTopicReadState !== "ready"
+                || topicMessageSaveDialog.saving
+              }
+              accessibilityLabel={selectedTopicMessageIsSaved
+                ? "선택한 준비에서 이 대화 링크 빼기"
+                : "선택한 준비에 이 대화 저장"}
+            >
+              {topicMessageSaveDialog?.saving
+                ? "최신 상태 확인 중…"
+                : topicMessageSaveDialog?.selectedTopicReadState === "loading"
+                  ? "저장 상태 확인 중…"
+                : selectedTopicMessageIsSaved
+                  ? "이 준비에서 빼기"
+                  : "선택한 준비에 저장"}
+            </PrimaryButton>
+          </View>
+        </SafeAreaView>
+      </Modal>
+      <Modal
         visible={pendingSharedSendConfirmation !== null}
         transparent
         animationType="fade"
@@ -6543,6 +7520,11 @@ export default function ChatScreen() {
                 ? "지금 함께 대화에 저장되며, 연결된 파트너가 이 내용을 볼 수 있어요."
                 : "지금 함께 대화에 저장되며, 파트너가 연결되면 이 내용을 볼 수 있어요."}
             </Text>
+            {confirmedFirstUseSourceMessageId && (
+              <Text style={st.sharedConfirmPurpose}>
+                {firstUseSharedDraftPresentation.sendConfirmationCopy}
+              </Text>
+            )}
             <Text style={st.sharedConfirmHint}>
               이 기기에서는 같은 커플의 함께 대화에 대해 다음부터 다시 묻지 않아요.
             </Text>
@@ -6765,7 +7747,49 @@ export default function ChatScreen() {
             ) : null}
           </ScrollView>
         ) : (
-          <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
+          <FlatList
+            ref={flatListRef}
+            data={visibleMessages}
+            extraData={`${topicMessageFocusState?.status ?? "idle"}:${resolvedTopicMessageFocus?.targetMessageId ?? "none"}:${topicMessageSaveNotice?.messageId ?? "none"}`}
+            inverted
+            keyExtractor={(message) => message.id}
+            renderItem={renderMessage}
+            contentContainerStyle={st.messageList}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={Platform.OS === "android"}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            initialNumToRender={12}
+            onViewableItemsChanged={topicMessageViewabilityHandlerRef.current}
+            viewabilityConfig={topicMessageViewabilityConfigRef.current}
+            onScrollToIndexFailed={(info) => {
+              if (topicMessageFocusState?.status !== "ready") return;
+              topicMessageFocusScrollAttemptsRef.current += 1;
+              if (topicMessageFocusScrollAttemptsRef.current > 2) {
+                topicMessageFocusTargetRef.current = null;
+                setTopicMessageFocusState({
+                  status: "error",
+                  refId: topicMessageFocusState.refId,
+                  message: "저장한 대화 원문 위치를 찾지 못했어요. 다시 불러와 주세요.",
+                });
+                return;
+              }
+              const sessionGeneration = chatSessionGenerationRef.current.current();
+              flatListRef.current?.scrollToOffset({
+                offset: Math.max(0, info.averageItemLength * info.index),
+                animated: false,
+              });
+              setTimeout(() => {
+                if (!isCurrentChatSession(sessionGeneration)) return;
+                flatListRef.current?.scrollToIndex({
+                  index: info.index,
+                  animated: true,
+                  viewPosition: 0.5,
+                });
+              }, 160);
+            }}
+          />
         )}
 
         {activeScope === "shared" && hasLinkedPartner && !hasVisibleSharedMediationSafetyCard && !hasLocalPrivateMediationSafetyHold && !hasDevicePrivateMediationSafetyHold && shouldShowMediationOffer && mediationOffer.offerKey && (
@@ -6817,6 +7841,90 @@ export default function ChatScreen() {
               accessibilityLabel="사용량 안내 닫기"
             >
               <X size={17} color={colors.taupe[500]} />
+            </Pressable>
+          </View>
+        )}
+
+        {topicMessageFocusState?.status === "loading" && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText}>저장한 대화 원문을 불러오는 중이에요.</Text>
+            <ActivityIndicator size="small" color={colors.rose[500]} />
+          </View>
+        )}
+
+        {topicMessageFocusState?.status === "error" && (
+          <View style={st.failureBar} accessibilityLiveRegion="assertive">
+            <Text style={st.failureText} accessibilityRole="alert">
+              {topicMessageFocusState.message}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
+              onPress={() => {
+                consumedTopicMessageFocusRef.current = null;
+                setTopicMessageFocusState({
+                  status: "loading",
+                  refId: topicMessageFocusState.refId,
+                });
+                setTopicMessageFocusRetryVersion((version) => version + 1);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="저장한 대화 원문 다시 불러오기"
+            >
+              <Text style={st.retryText}>원문 다시 불러오기</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {stagedFirstUseSourceMessageId && (
+          <View
+            style={st.firstUseComposerStage}
+            accessible
+            accessibilityRole="summary"
+            accessibilityLabel={`${firstUseSharedDraftPresentation.accessibilityLabel}. ${firstUseSharedDraftPresentation.copy}`}
+          >
+            <Text style={st.firstUseComposerStageLabel}>
+              {firstUseSharedDraftPresentation.stageLabel}
+            </Text>
+            <Text style={st.firstUseComposerStageCopy}>
+              {firstUseSharedDraftPresentation.copy}
+            </Text>
+          </View>
+        )}
+
+        {firstUseComposerNotice && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText} accessibilityRole="alert">
+              {firstUseComposerNotice === "composer_occupied"
+                ? firstUseSharedDraftPresentation.composerOccupiedCopy
+                : firstUseComposerNotice === "private_composer_occupied"
+                  ? firstUseSharedDraftPresentation.privateComposerOccupiedCopy
+                : firstUseSharedDraftPresentation.draftChangedCopy}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                st.firstUseComposerNoticeAction,
+                pressed && { opacity: 0.72 },
+              ]}
+              onPress={handleFirstUseComposerNoticeAction}
+              accessibilityRole="button"
+              accessibilityLabel={firstUseComposerNotice === "composer_occupied"
+                ? firstUseSharedDraftPresentation.composerOccupiedActionLabel
+                : firstUseComposerNotice === "private_composer_occupied"
+                  ? firstUseSharedDraftPresentation.privateComposerOccupiedActionLabel
+                : firstUseSharedDraftPresentation.draftChangedActionLabel}
+              accessibilityHint={firstUseComposerNotice === "composer_occupied"
+                ? "같은 화면의 함께 대화 입력란으로 이동하며 자동으로 보내거나 저장하지 않습니다"
+                : firstUseComposerNotice === "private_composer_occupied"
+                  ? "나만 상담의 작성 중 초안을 열며 어느 초안도 지우거나 덮어쓰지 않습니다"
+                  : "현재 세 항목을 나만 상담 입력란으로 옮기고 함께 대화 초안을 비우며 자동으로 보내거나 저장하지 않습니다"}
+            >
+              <Text style={st.retryText}>
+                {firstUseComposerNotice === "composer_occupied"
+                  ? firstUseSharedDraftPresentation.composerOccupiedActionLabel
+                  : firstUseComposerNotice === "private_composer_occupied"
+                    ? firstUseSharedDraftPresentation.privateComposerOccupiedActionLabel
+                  : firstUseSharedDraftPresentation.draftChangedActionLabel}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -7042,7 +8150,25 @@ export default function ChatScreen() {
                 <Text style={st.stopBtnText}>중단</Text>
               </Pressable>
             ) : (
-              <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || pendingIngestReconciliation) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || pendingIngestReconciliation} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+              <Pressable
+                style={[
+                  st.sendBtn,
+                  stagedFirstUseSourceMessageId && st.firstUseComposerSendButton,
+                  isP && { backgroundColor: colors.rose[500] },
+                  (!input.trim() || pendingIngestReconciliation) && st.sendBtnOff,
+                ]}
+                onPress={handleSend}
+                onPressIn={pressIn}
+                onPressOut={pressOut}
+                disabled={!input.trim() || pendingIngestReconciliation}
+                accessibilityLabel={stagedFirstUseSourceMessageId
+                  ? "2단계 함께 볼 초안 보내기"
+                  : "메시지 보내기"}
+                accessibilityHint={stagedFirstUseSourceMessageId
+                  ? "첫 함께 대화 확인을 거쳐 저장하며 준비 기록에는 아직 반영하지 않습니다"
+                  : undefined}
+                accessibilityRole="button"
+              >
                 {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
               </Pressable>
             )}
@@ -7055,11 +8181,34 @@ export default function ChatScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  topicMessageSaveModal: { flex: 1, backgroundColor: colors.bg },
+  topicMessageSaveHeader: { minHeight: 60, paddingLeft: spacing[5], paddingRight: spacing[2], flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  topicMessageSaveClose: { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: radius.full },
+  topicMessageSaveScope: { paddingHorizontal: spacing[5], paddingTop: spacing[4], paddingBottom: spacing[3], backgroundColor: colors.surface },
+  topicMessageSaveScopeCopy: { marginTop: spacing[1], color: colors.textSecondary },
+  topicMessageSaveScroll: { flex: 1 },
+  topicMessageSaveList: { paddingHorizontal: spacing[5], paddingTop: spacing[3], paddingBottom: spacing[5], gap: spacing[2] },
+  topicMessageSaveLoading: { minHeight: 120, alignItems: "center", justifyContent: "center", gap: spacing[2] },
+  topicMessageSaveError: { padding: spacing[3], borderRadius: radius.lg, fontSize: 13, lineHeight: 20, color: colors.danger, backgroundColor: colors.rose.glow },
+  topicMessageSaveRetry: { minHeight: 48, paddingHorizontal: spacing[4], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing[2], borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  topicMessageSaveRetryText: { fontSize: 14, fontWeight: "600", color: colors.noir[800] },
+  topicMessageSaveOption: { minHeight: 48, paddingHorizontal: spacing[3], paddingVertical: spacing[2], flexDirection: "row", alignItems: "center", gap: spacing[3], borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  topicMessageSaveOptionSelected: { borderColor: colors.rose[500], backgroundColor: colors.rose.glow },
+  topicMessageSaveRadio: { width: 20, height: 20, alignItems: "center", justifyContent: "center", borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.taupe[400], backgroundColor: colors.surface },
+  topicMessageSaveRadioSelected: { borderColor: colors.rose[500] },
+  topicMessageSaveRadioDot: { width: 10, height: 10, borderRadius: radius.full, backgroundColor: colors.rose[500] },
+  topicMessageSaveOptionLabel: { flex: 1, fontSize: 15, lineHeight: 22, fontWeight: "600", color: colors.noir[800] },
+  topicMessageSavedMark: { fontSize: 12, lineHeight: 18, fontWeight: "600", color: colors.sage[500] },
+  topicMessageSavePartial: { marginTop: spacing[2], fontSize: 12, lineHeight: 18, color: colors.textTertiary },
+  topicMessageSaveFooter: { paddingHorizontal: spacing[5], paddingTop: spacing[3], paddingBottom: spacing[4], gap: spacing[2], borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  topicMessageSaveRemovalCopy: { fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  topicMessageSavePrimary: { minHeight: 48 },
   sharedConfirmOverlay: { flex: 1, justifyContent: "flex-end", padding: 16, backgroundColor: "rgba(13, 13, 15, 0.38)" },
   sharedConfirmSheet: { borderRadius: 22, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   sharedConfirmIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.rose.light, marginBottom: 12 },
   sharedConfirmTitle: { fontSize: 18, lineHeight: 25, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   sharedConfirmBody: { marginTop: 8, fontSize: 14, lineHeight: 21, color: colors.textSecondary },
+  sharedConfirmPurpose: { marginTop: 8, padding: 10, borderRadius: 10, fontSize: 12, lineHeight: 18, color: colors.sage[500], backgroundColor: colors.sage.pale },
   sharedConfirmHint: { marginTop: 6, marginBottom: 16, fontSize: 12, lineHeight: 18, color: colors.textTertiary },
   sharedConfirmError: { marginBottom: 12, padding: 10, borderRadius: 10, fontSize: 12, lineHeight: 18, color: "#8A4444", backgroundColor: "#FDF2F2" },
   sharedConfirmPrimary: { minHeight: 46, borderRadius: 14, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.noir[800] },
@@ -7109,6 +8258,7 @@ const st = StyleSheet.create({
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
   messageBody: { maxWidth: "78%" },
+  focusedTopicMessageBody: { padding: spacing[1], borderRadius: radius.xl, borderWidth: 2, borderColor: colors.sage[500], backgroundColor: colors.ivory[100] },
   safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
@@ -7119,6 +8269,7 @@ const st = StyleSheet.create({
   avatarGroom: { backgroundColor: "#E8EDF5" },
   avatarLetter: { fontSize: 8, fontWeight: "700", color: colors.noir[800] },
   senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
+  focusedTopicMessageLabel: { alignSelf: "flex-start", marginLeft: spacing[1], marginBottom: spacing[1], paddingHorizontal: spacing[2], paddingVertical: spacing[1], borderRadius: radius.full, overflow: "hidden", fontSize: 11, lineHeight: 16, fontWeight: "600", color: colors.sage[500], backgroundColor: colors.sage.pale },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
@@ -7136,6 +8287,10 @@ const st = StyleSheet.create({
   toolReceiptContinuationButtonText: { fontSize: 14, fontWeight: "700", color: colors.ivory[50] },
   quoteCheckAction: { minHeight: 44, marginTop: 12, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.noir[800] },
   quoteCheckActionText: { fontSize: 14, fontWeight: "700", color: colors.ivory[50] },
+  topicMessageSaveAction: { minHeight: 44, alignSelf: "flex-start", marginTop: spacing[2], paddingHorizontal: spacing[3], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing[2], borderRadius: radius.lg, backgroundColor: colors.ivory[100] },
+  topicMessageSaveActionPressed: { opacity: 0.68 },
+  topicMessageSaveActionText: { fontSize: 12, lineHeight: 18, fontWeight: "600", color: colors.sage[500] },
+  topicMessageSaveNotice: { marginTop: spacing[1], fontSize: 12, lineHeight: 18, color: colors.sage[500] },
   safetyCard: { width: "100%", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.ivory[50] },
   safetyCardHeading: { flexDirection: "row", alignItems: "center", gap: 8 },
   safetyCardTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
@@ -7152,6 +8307,7 @@ const st = StyleSheet.create({
   pendingActionIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "#F2E8DE" },
   pendingActionCopy: { flex: 1 },
   pendingActionTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
+  firstUsePendingActionPrompt: { marginTop: 4, fontSize: 14, lineHeight: 21, fontWeight: "600", color: colors.noir[800] },
   pendingActionConfirmation: { marginTop: 4, fontSize: 14, lineHeight: 21, color: colors.noir.soft },
   pendingActionStatus: { marginTop: 10, fontSize: 12, lineHeight: 18, color: "#795252" },
   pendingActionApprovalStatus: { marginTop: 10, flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 12, backgroundColor: "#F2F7F4" },
@@ -7160,6 +8316,7 @@ const st = StyleSheet.create({
   pendingActionApprovalErrorText: { color: "#8A3D31" },
   pendingActionControls: { marginTop: 12, gap: 8 },
   pendingActionButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "#2F5F51" },
+  firstUsePendingActionButton: { minHeight: 48 },
   pendingActionButtonDisabled: { backgroundColor: colors.taupe[400] },
   pendingActionButtonText: { fontSize: 14, fontWeight: "700", color: "#FFF" },
   pendingActionDismiss: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: colors.surface },
@@ -7186,6 +8343,10 @@ const st = StyleSheet.create({
   quotaBar: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 16, paddingRight: 8, backgroundColor: colors.ivory.warm, borderTopWidth: 1, borderTopColor: colors.border },
   quotaText: { flex: 1, fontSize: 13, lineHeight: 19, color: colors.noir.soft },
   quotaDismiss: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  firstUseComposerStage: { minHeight: 48, gap: 2, paddingHorizontal: 16, paddingVertical: 8, justifyContent: "center", borderTopWidth: 1, borderTopColor: colors.sage.pale, backgroundColor: colors.ivory[50] },
+  firstUseComposerStageLabel: { fontSize: 12, lineHeight: 18, fontWeight: "700", color: colors.sage[500] },
+  firstUseComposerStageCopy: { fontSize: 12, lineHeight: 18, color: colors.noir.soft },
+  firstUseComposerNoticeAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.noir[800] },
   failureBar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.ivory.warm, borderTopWidth: 1, borderTopColor: colors.rose.light },
   failureText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.noir.soft },
   retryBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.noir[800] },
@@ -7193,6 +8354,7 @@ const st = StyleSheet.create({
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
+  firstUseComposerSendButton: { width: 48, height: 48 },
   sendBtnOff: { backgroundColor: colors.taupe[400] },
   stopBtn: { minWidth: 68, height: 44, paddingHorizontal: 12, borderRadius: 16, backgroundColor: colors.noir[800], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   stopBtnText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },

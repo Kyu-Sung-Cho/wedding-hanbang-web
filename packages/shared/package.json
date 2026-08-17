@@ -29,6 +29,9 @@
     "./amora-action-outcome-feedback": "./src/contracts/amoraActionOutcomeFeedback.mjs",
     "./amora-schedule-care-follow-up": "./src/contracts/amoraScheduleCareFollowUp.mjs",
     "./amora-preparation-map": "./src/contracts/amoraPreparationMap.mjs",
+    "./amora-preparation-guide": "./src/contracts/amoraPreparationGuide.mjs",
+    "./amora-preparation-topic": "./src/contracts/amoraPreparationTopic.mjs",
+    "./amora-preparation-topic-message-ref": "./src/contracts/amoraPreparationTopicMessageRef.mjs",
     "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs"
   },
   "scripts": {

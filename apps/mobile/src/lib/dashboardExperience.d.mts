@@ -183,6 +183,12 @@ export function parseDashboardOpenAction(
   expectedCoupleId: string,
 ): DashboardOpenAction | null;
 
+export function listDashboardOpenActions(
+  values: unknown,
+  expectedCoupleId: string,
+  todayYmd: string,
+): readonly DashboardOpenAction[] | null;
+
 export function selectDashboardOpenAction(
   values: unknown,
   expectedCoupleId: string,

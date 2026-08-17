@@ -196,10 +196,10 @@ function getDashboardActionWhyNow(action, todayYmd) {
   return "저장된 열린 행동이에요.";
 }
 
-export function selectDashboardOpenAction(values, expectedCoupleId, todayYmd) {
+export function listDashboardOpenActions(values, expectedCoupleId, todayYmd) {
   if (!Array.isArray(values) || !isValidDashboardYmd(todayYmd)) return null;
   const dueSoonYmd = addDashboardDays(todayYmd, DASHBOARD_ACTION_DUE_SOON_DAYS);
-  const candidates = values
+  return Object.freeze(values
     .slice(0, DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT)
     .map((value) => parseDashboardOpenAction(value, expectedCoupleId))
     .filter(Boolean)
@@ -207,8 +207,12 @@ export function selectDashboardOpenAction(values, expectedCoupleId, todayYmd) {
       action,
       sortKey: getDashboardActionSortKey(action, todayYmd, dueSoonYmd),
     }))
-    .sort((left, right) => compareDashboardActionSortKeys(left.sortKey, right.sortKey));
-  return candidates[0]?.action ?? null;
+    .sort((left, right) => compareDashboardActionSortKeys(left.sortKey, right.sortKey))
+    .map(({ action }) => action));
+}
+
+export function selectDashboardOpenAction(values, expectedCoupleId, todayYmd) {
+  return listDashboardOpenActions(values, expectedCoupleId, todayYmd)?.[0] ?? null;
 }
 
 export function selectDashboardReceiptAction(values, expectedCoupleId, actionId) {
@@ -747,6 +751,7 @@ export function buildDashboardFocus({
       description,
       ctaLabel: "체크리스트 열기",
       route: "/checklist",
+      categoryKey: urgent.categoryKey,
     };
   }
 
@@ -764,6 +769,7 @@ export function buildDashboardFocus({
         "아직 여유가 있어요. 체크리스트를 보고 두 사람에게 맞는 순서로 준비해요.",
       ctaLabel: "준비 순서 보기",
       route: "/checklist",
+      categoryKey: nextTask.categoryKey,
     };
   }
 

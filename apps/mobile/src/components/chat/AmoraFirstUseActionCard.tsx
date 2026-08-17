@@ -3,7 +3,7 @@ import { ArrowRight, Lock, Pencil } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 
 import {
-  getReviewedActionContinuationPresentation,
+  getFirstUseActionContinuationPresentation,
   type GroundedFirstUseActionDraft,
 } from "@/lib/amoraEntryPlan.mjs";
 import {
@@ -40,7 +40,9 @@ export default function AmoraFirstUseActionCard({
     return (
       <View style={styles.container} accessibilityRole="summary">
         <Text style={styles.skippedTitle}>이번 제안은 넘겼어요</Text>
-        <Text style={styles.skippedCopy}>저장하거나 공유한 내용은 없어요.</Text>
+        <Text style={styles.skippedCopy}>
+          준비 기록이나 함께 대화에 추가된 내용은 없어요. 나만 상담은 그대로 남아요.
+        </Text>
         <Pressable
           style={({ pressed }) => [
             styles.restoreButton,
@@ -68,7 +70,7 @@ export default function AmoraFirstUseActionCard({
     && promotionPresentation.recovery !== "none"
     ? onRecovery
     : () => onContinue(draft);
-  const continuationPresentation = getReviewedActionContinuationPresentation();
+  const continuationPresentation = getFirstUseActionContinuationPresentation();
   const primaryLabel = promotionPresentation?.actionLabel
     ?? continuationPresentation.label;
 
@@ -76,7 +78,7 @@ export default function AmoraFirstUseActionCard({
     <View style={styles.container} accessibilityRole="summary">
       <View style={styles.privateLabel} accessibilityElementsHidden>
         <Lock size={13} color={colors.sage[500]} />
-        <Text style={styles.privateLabelText}>나만 상담에서 정리했어요</Text>
+        <Text style={styles.privateLabelText}>{continuationPresentation.stageLabel}</Text>
       </View>
 
       <View style={styles.section}>
@@ -185,7 +187,7 @@ export default function AmoraFirstUseActionCard({
           onPress={onSkip}
           accessibilityRole="button"
           accessibilityLabel="이번 개인화 제안 넘기기"
-          accessibilityHint="저장하거나 공유하지 않고 이 카드만 접습니다"
+          accessibilityHint="준비 기록이나 함께 대화를 바꾸지 않고 이 카드만 접습니다"
         >
           <Text style={styles.skipButtonText}>지금은 아니에요</Text>
         </Pressable>

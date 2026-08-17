@@ -37,6 +37,10 @@ import {
   externalGateSha256,
   runProductionCanaryHttpEvidence,
 } from "../lib/production-external-gate-provenance.mjs";
+import {
+  attachSuccessorRemoteBaselineFixture,
+  SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
+} from "./helpers/successor-remote-baseline-fixture.mjs";
 
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const RELEASE = "test-release";
@@ -1322,35 +1326,42 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
       successorMigrationSql,
       "utf8",
     );
+    const successorBaseline = attachSuccessorRemoteBaselineFixture({
+      release: "vendor-disclosure-v2-20260718",
+      projectRef: PROJECT_REF,
+      status: "deployment_blocked",
+      predecessorManifest: {
+        file:
+          "supabase/release-manifests/amora-engine-v2-20260716.json",
+        sha256: sha256Text(predecessorText),
+      },
+      requiredRemoteHead: "20260716090000",
+      migrationFloor: "20260718120000",
+      expandMigrations: [{
+        file: successorMigrationFile,
+        sha256: sha256Text(successorMigrationSql),
+      }],
+      deploymentEvidence: {
+        backup: "missing",
+        finalizer: "missing",
+        hostedRestore: "missing",
+        hostedStaging: "missing",
+        storage: "missing",
+      },
+    });
     await writeJson(
       join(
         fixture.repoRoot,
         "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
       ),
-      {
-        release: "vendor-disclosure-v2-20260718",
-        projectRef: PROJECT_REF,
-        status: "deployment_blocked",
-        predecessorManifest: {
-          file:
-            "supabase/release-manifests/amora-engine-v2-20260716.json",
-          sha256: sha256Text(predecessorText),
-        },
-        requiredRemoteHead: "20260716090000",
-        migrationFloor: "20260718120000",
-        expandMigrations: [{
-          file: successorMigrationFile,
-          sha256: sha256Text(successorMigrationSql),
-        }],
-        deploymentEvidence: {
-          backup: "missing",
-          finalizer: "missing",
-          hostedRestore: "missing",
-          hostedStaging: "missing",
-          storage: "missing",
-        },
-      },
+      successorBaseline.manifest,
     );
+    const baselinePath = join(
+      fixture.repoRoot,
+      SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
+    );
+    await mkdir(resolve(baselinePath, ".."), { recursive: true });
+    await writeFile(baselinePath, successorBaseline.contractText, "utf8");
 
     await assert.rejects(
       productionWriteFenceFinalizerTestHooks.loadFinalizationManifest(
@@ -1362,4 +1373,39 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   } finally {
     await cleanupFixture(fixture);
   }
+});
+
+test("the current 101-migration successor keeps finalization blocked through the booking outcome provenance tail", async () => {
+  const manifest = JSON.parse(await readFile(
+    join(
+      sourceRepoRoot,
+      "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+    ),
+    "utf8",
+  ));
+  assert.equal(manifest.expandMigrations.length, 101);
+  assert.deepEqual(
+    manifest.expandMigrations.slice(-3),
+    [
+      {
+        file: "20260816150000_amora_provider_backed_add_action_application.sql",
+        sha256: "1e7870be4051c4fd9017d6909b453739e8eda9fdd4100339d47d9a79d7777483",
+      },
+      {
+        file: "20260816160000_amora_atomic_action_href_parity.sql",
+        sha256: "afe0eabc7cc774d219715224906bfd328e0df011bb76f9caea69615a93a4af7c",
+      },
+      {
+        file: "20260816170000_amora_booking_outcome_provenance.sql",
+        sha256: "9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457",
+      },
+    ],
+  );
+  await assert.rejects(
+    productionWriteFenceFinalizerTestHooks.loadFinalizationManifest(
+      sourceRepoRoot,
+    ),
+    (error) => error instanceof ProductionWriteFenceFinalizerError
+      && error.code === "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+  );
 });

@@ -31,6 +31,9 @@ const manualScheduleSql = migration(
 const bookingQuoteSpendSoftCancelSql = migration(
   "20260802160000_booking_quote_spend_soft_cancel.sql",
 );
+const bookingOutcomeProvenanceSql = migration(
+  "20260816170000_amora_booking_outcome_provenance.sql",
+);
 const budgetProgressIntegritySql = migration(
   "20260802200000_journey_budget_progress_integrity.sql",
 );
@@ -43,6 +46,7 @@ const SOLO_COUPLE_ID = "20000000-0000-4000-8000-000000000002";
 const VENDOR_ID = "30000000-0000-4000-8000-000000000001";
 const BOOKING_ID = "40000000-0000-4000-8000-000000000001";
 const STALE_PROFILE_ID = "10000000-0000-4000-8000-000000000004";
+const REPLACEMENT_SOLO_ID = "10000000-0000-4000-8000-000000000005";
 const SHARED_PROPOSAL_ID = "50000000-0000-4000-8000-000000000001";
 const SHARED_CONFIRMATION_ID = "50000000-0000-4000-8000-000000000002";
 const SHARED_ACTION_ID = "60000000-0000-4000-8000-000000000001";
@@ -257,6 +261,11 @@ async function createDatabase(options: {
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    CREATE UNIQUE INDEX decision_nodes_booking_outcome_unique
+      ON public.decision_nodes (couple_id, source_ref_id, source, decision_type)
+      WHERE source = 'vendor_booking'
+        AND decision_type = 'completed'
+        AND source_ref_id IS NOT NULL;
     CREATE FUNCTION public.complete_vendor_booking_outcome(
       p_booking_id uuid,
       p_customer_id uuid,
@@ -293,7 +302,7 @@ async function createDatabase(options: {
       FROM public.vendors WHERE id = v_booking.vendor_id;
       INSERT INTO public.decision_nodes (
         couple_id, category, decision_type, title, chosen_value,
-        source, source_ref_id, user_confirmed_at, metadata
+        source, source_ref_id, decided_at, user_confirmed_at, metadata
       ) VALUES (
         v_booking.couple_id,
         COALESCE(v_vendor.category, 'vendor'),
@@ -303,8 +312,20 @@ async function createDatabase(options: {
         'vendor_booking',
         v_booking.id,
         now(),
+        now(),
         jsonb_build_object('origin', 'test_outcome_stub')
-      ) RETURNING id INTO v_decision_id;
+      )
+      ON CONFLICT (couple_id, source_ref_id, source, decision_type)
+        WHERE source = 'vendor_booking'
+          AND decision_type = 'completed'
+          AND source_ref_id IS NOT NULL
+      DO UPDATE SET
+        chosen_value = EXCLUDED.chosen_value,
+        decided_at = EXCLUDED.decided_at,
+        user_confirmed_at = EXCLUDED.user_confirmed_at,
+        metadata = EXCLUDED.metadata,
+        updated_at = now()
+      RETURNING id INTO v_decision_id;
       RETURN jsonb_build_object(
         'booking', jsonb_build_object(
           'id', v_booking.id,
@@ -534,6 +555,7 @@ async function createDatabase(options: {
   }
   await db.exec(manualScheduleSql);
   await db.exec(bookingQuoteSpendSoftCancelSql);
+  await db.exec(bookingOutcomeProvenanceSql);
   await db.exec(budgetProgressIntegritySql);
   return db;
 }
@@ -4184,6 +4206,10 @@ describe("Amora manual schedule fairness migration", () => {
         completion_evidence: string;
         vendor_name: string;
         vendor_confirmation_status: string;
+        source_actor_role: string;
+        user_confirmed_at: string;
+        actor_profile_id: string;
+        outcome_provenance_version: number;
       }>(
         `SELECT booking.status,
                 booking.actual_amount::integer AS actual_amount,
@@ -4206,7 +4232,12 @@ describe("Amora manual schedule fairness migration", () => {
                   AS completion_evidence,
                 completed.chosen_value ->> 'vendor_name' AS vendor_name,
                 completed.chosen_value ->> 'vendor_confirmation_status'
-                  AS vendor_confirmation_status
+                  AS vendor_confirmation_status,
+                completed.source_actor_role,
+                completed.user_confirmed_at::text AS user_confirmed_at,
+                completed.metadata ->> 'actor_profile_id' AS actor_profile_id,
+                (completed.metadata ->> 'outcome_provenance_version')::integer
+                  AS outcome_provenance_version
          FROM public.vendor_bookings AS booking
          JOIN public.decision_nodes AS completed
            ON completed.source_ref_id = booking.id
@@ -4224,10 +4255,863 @@ describe("Amora manual schedule fairness migration", () => {
         completion_evidence: "user_reported",
         vendor_name: "Hanbang Studio",
         vendor_confirmation_status: "unconfirmed",
+        source_actor_role: "bride",
+        user_confirmed_at: expect.any(String),
+        actor_profile_id: SOLO_ID,
+        outcome_provenance_version: 1,
       });
       await expect(db.query(
         "SELECT * FROM public.booking_outcome_write_authorizations",
       )).rejects.toThrow(/permission denied/i);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("orders created, confirmed, decided, and updated times in a delayed transaction", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+
+      await db.exec("BEGIN");
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 30));
+      await db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '지연 트랜잭션', false
+         )`,
+        [bookingId, SOLO_ID],
+      );
+      await db.exec("COMMIT");
+
+      const timestamps = await db.query<{
+        created_at: number;
+        confirmed_at: number;
+        decided_at: number;
+        updated_at: number;
+      }>(
+        `SELECT
+           extract(epoch FROM decision.created_at)::double precision
+             AS created_at,
+           extract(epoch FROM decision.user_confirmed_at)::double precision
+             AS confirmed_at,
+           extract(epoch FROM decision.decided_at)::double precision
+             AS decided_at,
+           extract(epoch FROM decision.updated_at)::double precision
+             AS updated_at
+         FROM public.decision_nodes AS decision
+         WHERE decision.source = 'vendor_booking'
+           AND decision.source_ref_id = $1
+           AND decision.decision_type = 'completed'`,
+        [bookingId],
+      );
+      const saved = timestamps.rows[0];
+      expect(saved?.created_at).toBeLessThanOrEqual(saved?.confirmed_at ?? 0);
+      expect(saved?.confirmed_at).toBe(saved?.decided_at);
+      expect(saved?.decided_at).toBeLessThanOrEqual(saved?.updated_at ?? 0);
+    } finally {
+      await db.exec("ROLLBACK").catch(() => undefined);
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("preserves the first actor and confirmation time on an exact outcome retry", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+
+      const first = await db.query<{
+        result: { decisionId: string };
+      }>(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '같은 완료 기록', false
+         ) AS result`,
+        [bookingId, SOLO_ID],
+      );
+      const firstState = await db.query<{
+        user_confirmed_at: string;
+        decided_at: string;
+      }>(
+        `SELECT
+           decision.user_confirmed_at::text AS user_confirmed_at,
+           decision.decided_at::text AS decided_at
+         FROM public.decision_nodes AS decision
+         WHERE decision.id = $1`,
+        [first.rows[0]?.result.decisionId],
+      );
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+
+      const replay = await db.query<{
+        result: { decisionId: string };
+      }>(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '같은 완료 기록', false
+         ) AS result`,
+        [bookingId, SOLO_ID],
+      );
+      const replayState = await db.query<{
+        completed_decisions: number;
+        user_confirmed_at: string;
+        decided_at: string;
+        actor_profile_id: string;
+        source_actor_role: string;
+      }>(
+        `SELECT
+           count(*)::integer AS completed_decisions,
+           min(decision.user_confirmed_at)::text AS user_confirmed_at,
+           min(decision.decided_at)::text AS decided_at,
+           min(decision.metadata ->> 'actor_profile_id') AS actor_profile_id,
+           min(decision.source_actor_role) AS source_actor_role
+         FROM public.decision_nodes AS decision
+         WHERE decision.source = 'vendor_booking'
+           AND decision.source_ref_id = $1
+           AND decision.decision_type = 'completed'`,
+        [bookingId],
+      );
+
+      expect(replay.rows[0]?.result.decisionId)
+        .toBe(first.rows[0]?.result.decisionId);
+      expect(replayState.rows[0]).toEqual({
+        completed_decisions: 1,
+        user_confirmed_at: firstState.rows[0]?.user_confirmed_at,
+        decided_at: firstState.rows[0]?.decided_at,
+        actor_profile_id: SOLO_ID,
+        source_actor_role: "bride",
+      });
+
+      await resetPersona(db);
+      await db.query(
+        `UPDATE public.decision_nodes
+         SET decided_at = user_confirmed_at - interval '1 second'
+         WHERE id = $1`,
+        [first.rows[0]?.result.decisionId],
+      );
+      const invalidBefore = await db.query<{
+        booking: Record<string, unknown>;
+        decision: Record<string, unknown>;
+        authorizations: number;
+      }>(
+        `SELECT
+           to_jsonb(booking) AS booking,
+           to_jsonb(decision) AS decision,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         JOIN public.decision_nodes AS decision
+           ON decision.source_ref_id = booking.id
+          AND decision.decision_type = 'completed'
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      await setServiceRole(db);
+      await expect(db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '같은 완료 기록', false
+         )`,
+        [bookingId, SOLO_ID],
+      )).rejects.toThrow(/booking_outcome_provenance_missing/);
+      await resetPersona(db);
+      const invalidAfter = await db.query<{
+        booking: Record<string, unknown>;
+        decision: Record<string, unknown>;
+        authorizations: number;
+      }>(
+        `SELECT
+           to_jsonb(booking) AS booking,
+           to_jsonb(decision) AS decision,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         JOIN public.decision_nodes AS decision
+           ON decision.source_ref_id = booking.id
+          AND decision.decision_type = 'completed'
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      expect(invalidAfter.rows[0]).toEqual(invalidBefore.rows[0]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("treats rating, review, and public visibility as part of the exact payload", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+      const record = async (
+        rating: number,
+        review: string,
+        sharePublicReview: boolean,
+      ) => {
+        const completed = await db.query<{
+          result: { decisionId: string };
+        }>(
+          `SELECT public.complete_amora_booking_outcome_atomic(
+             $1, $2, 650000, 500000, $3, $4, $5
+           ) AS result`,
+          [bookingId, SOLO_ID, rating, review, sharePublicReview],
+        );
+        const decision = await db.query<{ payload_digest: string }>(
+          `SELECT metadata ->> 'outcome_payload_digest' AS payload_digest
+           FROM public.decision_nodes
+           WHERE id = $1`,
+          [completed.rows[0]?.result.decisionId],
+        );
+        return {
+          decisionId: completed.rows[0]?.result.decisionId,
+          payloadDigest: decision.rows[0]?.payload_digest,
+        };
+      };
+
+      const original = await record(5, "원본 후기", false);
+      const ratingChanged = await record(4, "원본 후기", false);
+      const reviewChanged = await record(4, "수정 후기", false);
+      const publicChanged = await record(4, "수정 후기", true);
+
+      expect(new Set([
+        original.decisionId,
+        ratingChanged.decisionId,
+        reviewChanged.decisionId,
+        publicChanged.decisionId,
+      ])).toEqual(new Set([original.decisionId]));
+      expect(new Set([
+        original.payloadDigest,
+        ratingChanged.payloadDigest,
+        reviewChanged.payloadDigest,
+        publicChanged.payloadDigest,
+      ]).size).toBe(4);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("keeps the outcome wrapper service-only and the legacy writer private", async () => {
+    const db = await createDatabase();
+    try {
+      await resetPersona(db);
+      const acl = await db.query<{
+        wrapper_owner: string;
+        wrapper_security_definer: boolean;
+        wrapper_config_preserved: boolean;
+        anon_wrapper: boolean;
+        authenticated_wrapper: boolean;
+        service_wrapper: boolean;
+        anon_legacy: boolean;
+        authenticated_legacy: boolean;
+        service_legacy: boolean;
+      }>(
+        `SELECT
+           owner.rolname AS wrapper_owner,
+           wrapper.prosecdef AS wrapper_security_definer,
+           wrapper.proconfig @> ARRAY[
+             'search_path=pg_catalog, public',
+             'lock_timeout=5s',
+             'statement_timeout=20s'
+           ]::text[] AS wrapper_config_preserved,
+           has_function_privilege(
+             'anon', wrapper.oid, 'EXECUTE'
+           ) AS anon_wrapper,
+           has_function_privilege(
+             'authenticated', wrapper.oid, 'EXECUTE'
+           ) AS authenticated_wrapper,
+           has_function_privilege(
+             'service_role', wrapper.oid, 'EXECUTE'
+           ) AS service_wrapper,
+           has_function_privilege(
+             'anon', legacy_writer.oid, 'EXECUTE'
+           ) AS anon_legacy,
+           has_function_privilege(
+             'authenticated', legacy_writer.oid, 'EXECUTE'
+           ) AS authenticated_legacy,
+           has_function_privilege(
+             'service_role', legacy_writer.oid, 'EXECUTE'
+           ) AS service_legacy
+         FROM pg_catalog.pg_proc AS wrapper
+         JOIN pg_catalog.pg_roles AS owner ON owner.oid = wrapper.proowner
+         CROSS JOIN pg_catalog.pg_proc AS legacy_writer
+         WHERE wrapper.oid = to_regprocedure(
+                 'public.complete_amora_booking_outcome_atomic(uuid,uuid,numeric,numeric,integer,text,boolean)'
+               )
+           AND legacy_writer.oid = to_regprocedure(
+                 'public.complete_vendor_booking_outcome(uuid,uuid,numeric,numeric,integer,text,boolean)'
+               )`,
+      );
+      expect(acl.rows[0]).toEqual({
+        wrapper_owner: "postgres",
+        wrapper_security_definer: true,
+        wrapper_config_preserved: true,
+        anon_wrapper: false,
+        authenticated_wrapper: false,
+        service_wrapper: true,
+        anon_legacy: false,
+        authenticated_legacy: false,
+        service_legacy: false,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rejects ambiguous or profile-mismatched actor slots without writes", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+
+      await resetPersona(db);
+      await db.query(
+        `UPDATE public.couples
+         SET groom_id = $1
+         WHERE id = $2`,
+        [SOLO_ID, SOLO_COUPLE_ID],
+      );
+      await setServiceRole(db);
+      await expect(db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '중복 슬롯', false
+         )`,
+        [bookingId, SOLO_ID],
+      )).rejects.toThrow(/booking_outcome_actor_binding_invalid/);
+
+      await resetPersona(db);
+      await db.query(
+        `UPDATE public.couples
+         SET groom_id = NULL
+         WHERE id = $1`,
+        [SOLO_COUPLE_ID],
+      );
+      await db.query(
+        `UPDATE public.profiles
+         SET role = 'groom'
+         WHERE id = $1`,
+        [SOLO_ID],
+      );
+      await setServiceRole(db);
+      await expect(db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '역할 불일치', false
+         )`,
+        [bookingId, SOLO_ID],
+      )).rejects.toThrow(/booking_outcome_actor_binding_invalid/);
+
+      await resetPersona(db);
+      const state = await db.query<{
+        status: string;
+        completed_decisions: number;
+        authorizations: number;
+      }>(
+        `SELECT
+           booking.status,
+           (SELECT count(*)::integer
+            FROM public.decision_nodes AS decision
+            WHERE decision.source_ref_id = booking.id
+              AND decision.decision_type = 'completed') AS completed_decisions,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      expect(state.rows[0]).toEqual({
+        status: "pending",
+        completed_decisions: 0,
+        authorizations: 0,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rejects an exact retry by a replacement actor without changing outcome state", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+      await db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '같은 완료 기록', false
+         )`,
+        [bookingId, SOLO_ID],
+      );
+      const before = await db.query<{
+        booking: Record<string, unknown>;
+        decision: Record<string, unknown>;
+      }>(
+        `SELECT
+           jsonb_build_object(
+             'status', booking.status,
+             'actualAmount', booking.actual_amount,
+             'contractedAmount', booking.contracted_amount,
+             'updatedAt', booking.updated_at
+           ) AS booking,
+           jsonb_build_object(
+             'id', decision.id,
+             'sourceActorRole', decision.source_actor_role,
+             'userConfirmedAt', decision.user_confirmed_at,
+             'metadata', decision.metadata,
+             'updatedAt', decision.updated_at
+           ) AS decision
+         FROM public.vendor_bookings AS booking
+         JOIN public.decision_nodes AS decision
+           ON decision.source_ref_id = booking.id
+          AND decision.source = 'vendor_booking'
+          AND decision.decision_type = 'completed'
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+
+      await resetPersona(db);
+      await db.query(
+        "INSERT INTO auth.users(id) VALUES ($1)",
+        [REPLACEMENT_SOLO_ID],
+      );
+      await db.query(
+        `INSERT INTO public.profiles(id, couple_id, role)
+         VALUES ($1, $2, 'groom')`,
+        [REPLACEMENT_SOLO_ID, SOLO_COUPLE_ID],
+      );
+      await db.query(
+        `UPDATE public.couples
+         SET bride_id = NULL, groom_id = $1
+         WHERE id = $2`,
+        [REPLACEMENT_SOLO_ID, SOLO_COUPLE_ID],
+      );
+      await setServiceRole(db);
+
+      await expect(db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '같은 완료 기록', false
+         )`,
+        [bookingId, REPLACEMENT_SOLO_ID],
+      )).rejects.toThrow(/booking_outcome_replay_actor_mismatch/);
+
+      const after = await db.query<{
+        booking: Record<string, unknown>;
+        decision: Record<string, unknown>;
+      }>(
+        `SELECT
+           jsonb_build_object(
+             'status', booking.status,
+             'actualAmount', booking.actual_amount,
+             'contractedAmount', booking.contracted_amount,
+             'updatedAt', booking.updated_at
+           ) AS booking,
+           jsonb_build_object(
+             'id', decision.id,
+             'sourceActorRole', decision.source_actor_role,
+             'userConfirmedAt', decision.user_confirmed_at,
+             'metadata', decision.metadata,
+             'updatedAt', decision.updated_at
+           ) AS decision
+         FROM public.vendor_bookings AS booking
+         JOIN public.decision_nodes AS decision
+           ON decision.source_ref_id = booking.id
+          AND decision.source = 'vendor_booking'
+          AND decision.decision_type = 'completed'
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
+      await resetPersona(db);
+      const authorizationState = await db.query<{ count: number }>(
+        `SELECT count(*)::integer AS count
+         FROM public.booking_outcome_write_authorizations`,
+      );
+      expect(authorizationState.rows[0]?.count).toBe(0);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("records a changed outcome with the current replacement actor and a new time", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+      const first = await db.query<{
+        result: { decisionId: string };
+      }>(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '최초 완료 기록', false
+         ) AS result`,
+        [bookingId, SOLO_ID],
+      );
+      const before = await db.query<{
+        user_confirmed_at: string;
+        decided_at: string;
+        payload_digest: string;
+      }>(
+        `SELECT
+           decision.user_confirmed_at::text AS user_confirmed_at,
+           decision.decided_at::text AS decided_at,
+           decision.metadata ->> 'outcome_payload_digest' AS payload_digest
+         FROM public.decision_nodes AS decision
+         WHERE decision.id = $1`,
+        [first.rows[0]?.result.decisionId],
+      );
+
+      await resetPersona(db);
+      await db.query(
+        "INSERT INTO auth.users(id) VALUES ($1)",
+        [REPLACEMENT_SOLO_ID],
+      );
+      await db.query(
+        `INSERT INTO public.profiles(id, couple_id, role)
+         VALUES ($1, $2, 'groom')`,
+        [REPLACEMENT_SOLO_ID, SOLO_COUPLE_ID],
+      );
+      await db.query(
+        `UPDATE public.couples
+         SET bride_id = NULL, groom_id = $1
+         WHERE id = $2`,
+        [REPLACEMENT_SOLO_ID, SOLO_COUPLE_ID],
+      );
+      await setServiceRole(db);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+
+      const changed = await db.query<{
+        result: { decisionId: string };
+      }>(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 4, '수정한 완료 기록', true
+         ) AS result`,
+        [bookingId, REPLACEMENT_SOLO_ID],
+      );
+      const after = await db.query<{
+        source_actor_role: string;
+        actor_profile_id: string;
+        user_confirmed_at: string;
+        decided_at: string;
+        payload_digest: string;
+        provenance_version: number;
+        completed_decisions: number;
+      }>(
+        `SELECT
+           decision.source_actor_role,
+           decision.metadata ->> 'actor_profile_id' AS actor_profile_id,
+           decision.user_confirmed_at::text AS user_confirmed_at,
+           decision.decided_at::text AS decided_at,
+           decision.metadata ->> 'outcome_payload_digest' AS payload_digest,
+           (decision.metadata ->> 'outcome_provenance_version')::integer
+             AS provenance_version,
+           (SELECT count(*)::integer
+            FROM public.decision_nodes AS counted
+            WHERE counted.source_ref_id = $1
+              AND counted.source = 'vendor_booking'
+              AND counted.decision_type = 'completed') AS completed_decisions
+         FROM public.decision_nodes AS decision
+         WHERE decision.id = $2`,
+        [bookingId, changed.rows[0]?.result.decisionId],
+      );
+
+      expect(changed.rows[0]?.result.decisionId)
+        .toBe(first.rows[0]?.result.decisionId);
+      expect(after.rows[0]).toMatchObject({
+        source_actor_role: "groom",
+        actor_profile_id: REPLACEMENT_SOLO_ID,
+        provenance_version: 1,
+        completed_decisions: 1,
+      });
+      expect(after.rows[0]?.user_confirmed_at)
+        .not.toBe(before.rows[0]?.user_confirmed_at);
+      expect(after.rows[0]?.decided_at).toBe(after.rows[0]?.user_confirmed_at);
+      expect(before.rows[0]?.decided_at).toBe(before.rows[0]?.user_confirmed_at);
+      expect(after.rows[0]?.payload_digest)
+        .not.toBe(before.rows[0]?.payload_digest);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("does not attribute a provenance-null completed outcome to the current actor", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+      await db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '과거 완료 기록', false
+         )`,
+        [bookingId, SOLO_ID],
+      );
+
+      await resetPersona(db);
+      await db.query(
+        `UPDATE public.decision_nodes
+         SET source_actor_role = NULL,
+             user_confirmed_at = NULL,
+             metadata = metadata
+               - 'actor_profile_id'
+               - 'outcome_provenance_version'
+               - 'outcome_payload_digest'
+         WHERE source = 'vendor_booking'
+           AND source_ref_id = $1
+           AND decision_type = 'completed'`,
+        [bookingId],
+      );
+      const before = await db.query<{
+        booking: Record<string, unknown>;
+        decision: Record<string, unknown>;
+        authorizations: number;
+      }>(
+        `SELECT
+           to_jsonb(booking) AS booking,
+           to_jsonb(decision) AS decision,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         JOIN public.decision_nodes AS decision
+           ON decision.source_ref_id = booking.id
+          AND decision.source = 'vendor_booking'
+          AND decision.decision_type = 'completed'
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      await setServiceRole(db);
+
+      await expect(db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 660000, 500000, 4, '수정 시도', true
+         )`,
+        [bookingId, SOLO_ID],
+      )).rejects.toThrow(/booking_outcome_provenance_missing/);
+
+      await resetPersona(db);
+      const after = await db.query<{
+        booking: Record<string, unknown>;
+        decision: Record<string, unknown>;
+        authorizations: number;
+      }>(
+        `SELECT
+           to_jsonb(booking) AS booking,
+           to_jsonb(decision) AS decision,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         JOIN public.decision_nodes AS decision
+           ON decision.source_ref_id = booking.id
+          AND decision.source = 'vendor_booking'
+          AND decision.decision_type = 'completed'
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rolls back the booking, decision, projection, and capability when provenance recording fails", async () => {
+    const db = await createDatabase();
+    const bookingDate = "2099-07-20";
+    try {
+      await setServiceRole(db);
+      await db.query(
+        `INSERT INTO public.vendor_timeslots (
+           vendor_id, day, hour, available, max_bookings
+         ) VALUES (
+           $1,
+           (((EXTRACT(DOW FROM $2::date)::integer + 6) % 7)::smallint),
+           10, true, 1
+         )`,
+        [VENDOR_ID, bookingDate],
+      );
+      const created = await db.query<{ booking_id: string }>(
+        `SELECT public.create_amora_booking_intent_atomic(
+           $1, $2, $3, $4, '10:00'
+         ) AS booking_id`,
+        [VENDOR_ID, SOLO_COUPLE_ID, SOLO_ID, bookingDate],
+      );
+      const bookingId = created.rows[0]?.booking_id;
+
+      await resetPersona(db);
+      const before = await db.query<{
+        booking: Record<string, unknown>;
+        projection: Record<string, unknown>;
+        decisions: Record<string, unknown>[];
+        authorizations: number;
+      }>(
+        `SELECT
+           to_jsonb(booking) AS booking,
+           to_jsonb(job) AS projection,
+           (SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id)
+            FROM public.decision_nodes AS decision
+            WHERE decision.source_ref_id = booking.id) AS decisions,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         JOIN public.booking_projection_jobs AS job
+           ON job.booking_id = booking.id
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      await db.exec(`
+        ALTER TABLE public.decision_nodes
+          ADD CONSTRAINT test_reject_booking_outcome_provenance CHECK (
+            (metadata ->> 'outcome_provenance_version') IS DISTINCT FROM '1'
+          )
+      `);
+      await setServiceRole(db);
+
+      await expect(db.query(
+        `SELECT public.complete_amora_booking_outcome_atomic(
+           $1, $2, 650000, 500000, 5, '롤백 확인', false
+         )`,
+        [bookingId, SOLO_ID],
+      )).rejects.toThrow(/test_reject_booking_outcome_provenance/);
+
+      await resetPersona(db);
+      const after = await db.query<{
+        booking: Record<string, unknown>;
+        projection: Record<string, unknown>;
+        decisions: Record<string, unknown>[];
+        authorizations: number;
+      }>(
+        `SELECT
+           to_jsonb(booking) AS booking,
+           to_jsonb(job) AS projection,
+           (SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id)
+            FROM public.decision_nodes AS decision
+            WHERE decision.source_ref_id = booking.id) AS decisions,
+           (SELECT count(*)::integer
+            FROM public.booking_outcome_write_authorizations) AS authorizations
+         FROM public.vendor_bookings AS booking
+         JOIN public.booking_projection_jobs AS job
+           ON job.booking_id = booking.id
+         WHERE booking.id = $1`,
+        [bookingId],
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();

@@ -590,6 +590,13 @@ import {
 } from "@/lib/ai/__tests__/docxArchiveFixture";
 import { createAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 import { deriveAmoraQuotaSubjectId } from "@/lib/ai/amoraQuotaSubject";
+import { requiresStrictAmoraFirstUseApplicationReplay } from "@/lib/ai/amoraFirstUseDeterministicApplication";
+import {
+  parseAmoraProviderBackedAddActionApplication,
+  parseAmoraProviderBackedAddActionApplicationSource,
+  requiresStrictAmoraProviderBackedAddActionApplicationReplay,
+  shouldSealAmoraOrdinaryProviderAddActionProposal,
+} from "@/lib/ai/amoraProviderBackedAddActionApplication";
 
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "00000000-0000-4000-8000-000000000099";
@@ -737,6 +744,556 @@ function providerResult(overrides: Record<string, unknown> = {}) {
     usageStatus: "complete",
     model: "gpt-5.6-luna",
     ...overrides,
+  };
+}
+
+function configureDeterministicFirstUseProposal(overrides: {
+  promotionId?: string;
+  actionId?: string;
+  assistantMessageId?: string;
+  canonicalActionInput?: {
+    action: string;
+    reason: string;
+    completionCriterion: string;
+  };
+  outcome?: "persisted" | "replayed";
+  messageReused?: boolean;
+  finalError?: { code: string; message: string };
+  finalMetadata?: Record<string, unknown>;
+} = {}) {
+  const promotionId = overrides.promotionId
+    ?? "a1000000-0000-4000-8000-000000000001";
+  const actionId = overrides.actionId
+    ?? "a2000000-0000-4000-8000-000000000001";
+  const assistantMessageId = overrides.assistantMessageId
+    ?? "a3000000-0000-4000-8000-000000000001";
+  const issuedAt = Date.now();
+  const canonicalActionInput = overrides.canonicalActionInput ?? {
+    action: "가능한 예식 시기 두 개 적기",
+    reason: "다음 준비의 기준이 필요해요.",
+    completionCriterion: "두 사람이 시기 두 개를 확인하면 끝나요.",
+  };
+  const canonicalAddActionInput = {
+    title: canonicalActionInput.action,
+    description: `이유: ${canonicalActionInput.reason} 완료 기준: ${canonicalActionInput.completionCriterion}`,
+    category_key: "general",
+    priority: "medium",
+    source: "chat",
+  };
+  const userText = [
+    "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+    `지금 할 한 가지: ${canonicalActionInput.action}`,
+    `이유: ${canonicalActionInput.reason}`,
+    `완료 기준: ${canonicalActionInput.completionCriterion}`,
+    "저장 전에는 확인 카드만 보여줘.",
+  ].join("\n");
+  const baseTool = mocks.safeTools.find(
+    (tool) => tool.name === "add_amora_action",
+  )!;
+  const pendingAction = extractAmoraPendingAction({
+    text: `[pending_action]{"tool":"add_amora_action","input":{}}[/pending_action]`,
+    allowedTools: [{
+      ...baseTool,
+      input_schema: {
+        ...baseTool.input_schema,
+        "x-amora-bound-input": canonicalAddActionInput,
+      },
+    }],
+    now: issuedAt,
+    createActionId: () => actionId,
+  }).pendingAction!;
+  mocks.canonicalRows[0] = {
+    ...mocks.canonicalRows[0],
+    content: userText,
+    metadata: {
+      client_request_id: REQUEST_ID,
+      amora_first_use_promotion_id: promotionId,
+    },
+  };
+  mocks.adminRpc.mockImplementation(async (
+    name: string,
+    args?: Record<string, unknown>,
+  ) => {
+    if (name === "validate_amora_first_use_action_promotion_v1") {
+      return {
+        data: {
+          version: 1,
+          promotionId,
+          canonicalActionInput,
+          canonicalAddActionInput,
+        },
+        error: null,
+      };
+    }
+    if (name === "finalize_amora_first_use_action_proposal_v1") {
+      if (overrides.finalError) {
+        return { data: null, error: overrides.finalError };
+      }
+      const metadata = {
+        client_request_id: args?.p_chat_request_key,
+        client_visible_request_id:
+          "chat:00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000099",
+        in_reply_to_user_message_id:
+          "30000000-0000-4000-8000-000000000001",
+        question_scope: "W0_wedding_core",
+        memory_eligible: false,
+        memory_enqueue_requested: false,
+        amora_wedding_context_revision: 0,
+        pending_amora_action: pendingAction,
+        pending_amora_action_journey_revision: 0,
+        amora_first_use_promotion_id: promotionId,
+        response_origin: "server_authoritative_first_use_promotion",
+        provider_call_count: 0,
+        ...overrides.finalMetadata,
+      };
+      return {
+        data: [{
+          outcome: overrides.outcome ?? "persisted",
+          message_id: assistantMessageId,
+          message_created_at: new Date(issuedAt).toISOString(),
+          message_content: pendingAction.confirmation,
+          message_metadata: metadata,
+          message_stage_tag: null,
+          message_specialist_type: "general",
+          message_visibility: "shared",
+          message_reused: overrides.messageReused ?? false,
+        }],
+        error: null,
+      };
+    }
+    return { data: { authorized: true }, error: null };
+  });
+  const buildPersistedMessage = () => ({
+    id: assistantMessageId,
+    createdAt: new Date(issuedAt).toISOString(),
+    content: pendingAction.confirmation,
+    metadata: {
+      client_request_id:
+        "chat:00000000-0000-4000-8000-000000000001:09b9af76-f3d4-5f3c-8af6-2f2bddbf16e9",
+      client_visible_request_id:
+        "chat:00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000099",
+      in_reply_to_user_message_id:
+        "30000000-0000-4000-8000-000000000001",
+      question_scope: "W0_wedding_core",
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+      amora_wedding_context_revision: 0,
+      pending_amora_action: pendingAction,
+      pending_amora_action_journey_revision: 0,
+      amora_first_use_promotion_id: promotionId,
+      response_origin: "server_authoritative_first_use_promotion",
+      provider_call_count: 0,
+    },
+    stageTag: null,
+    specialistType: "general",
+    visibility: "shared" as const,
+    reused: true,
+  });
+  return {
+    userText,
+    pendingAction,
+    promotionId,
+    actionId,
+    assistantMessageId,
+    canonicalAddActionInput,
+    buildPersistedMessage,
+  };
+}
+
+const FIRST_USE_APPLICATION_CONFIRMATION =
+  "좋아요. 제안한 변경을 적용해 주세요.";
+
+function configureDeterministicFirstUseApplication(overrides: {
+  outcome?: "persisted" | "replayed";
+  messageReused?: boolean;
+  toolActionId?: string;
+  toolHref?: string;
+  responseOrigin?: string;
+  providerCallCount?: number;
+  finalError?: { code: string; message: string };
+} = {}) {
+  const proposal = configureDeterministicFirstUseProposal({
+    promotionId: "90000000-0000-4000-8000-000000000001",
+    actionId: "91000000-0000-4000-8000-000000000001",
+    assistantMessageId: "92000000-0000-4000-8000-000000000001",
+  });
+  const receiptMessageId = "93000000-0000-4000-8000-000000000001";
+  const confirmationRequestDigest = createHash("sha256")
+    .update(
+      `amora-confirmed-action-request\0${"30000000-0000-4000-8000-000000000001"}\0${proposal.actionId}`,
+      "utf8",
+    )
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  confirmationRequestDigest[12] = "5";
+  confirmationRequestDigest[16] = "8";
+  const confirmationRequestHex = confirmationRequestDigest.join("");
+  const confirmationRequestUuid = [
+    confirmationRequestHex.slice(0, 8),
+    confirmationRequestHex.slice(8, 12),
+    confirmationRequestHex.slice(12, 16),
+    confirmationRequestHex.slice(16, 20),
+    confirmationRequestHex.slice(20),
+  ].join("-");
+  const savedActionId = overrides.toolActionId
+    ?? `act_${confirmationRequestHex}_${proposal.pendingAction.operationKey.slice(0, 24)}`;
+  const sourceMessageCreatedAt = new Date(proposal.pendingAction.issuedAt).toISOString();
+  const confirmationMessageCreatedAt = new Date(
+    proposal.pendingAction.issuedAt + 1_000,
+  ).toISOString();
+  const receiptMessageCreatedAt = new Date(
+    proposal.pendingAction.issuedAt + 2_000,
+  ).toISOString();
+  const displayMessage =
+    `"${String(proposal.canonicalAddActionInput.title)}"을 아모라 행동 카드로 저장했어요.`;
+  const toolResult = {
+    toolName: "add_amora_action",
+    toolInput: proposal.canonicalAddActionInput,
+    toolOutput: {
+      action: {
+        id: savedActionId,
+        title: proposal.canonicalAddActionInput.title,
+        description: proposal.canonicalAddActionInput.description,
+        dueDate: null,
+        categoryKey: null,
+        priority: "medium",
+        status: "open",
+        source: "chat",
+        href: overrides.toolHref ?? "/wedding/lounge",
+      },
+    },
+    success: true,
+    displayMessage,
+  };
+
+  mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+    {
+      id: "30000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: FIRST_USE_APPLICATION_CONFIRMATION,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        confirmed_amora_action_id: proposal.actionId,
+      },
+      visibility: "shared",
+      created_at: confirmationMessageCreatedAt,
+    },
+    {
+      id: proposal.assistantMessageId,
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: proposal.pendingAction.confirmation,
+      metadata: {
+        client_request_id: "first-use-proposal-request",
+        client_visible_request_id: "first-use-proposal-visible-request",
+        in_reply_to_user_message_id:
+          "95000000-0000-4000-8000-000000000001",
+        question_scope: "W0_wedding_core",
+        memory_eligible: false,
+        memory_enqueue_requested: false,
+        amora_wedding_context_revision: 0,
+        pending_amora_action: proposal.pendingAction,
+        pending_amora_action_journey_revision: 0,
+        amora_first_use_promotion_id: proposal.promotionId,
+        response_origin: "server_authoritative_first_use_promotion",
+        provider_call_count: 0,
+      },
+      visibility: "shared",
+      created_at: sourceMessageCreatedAt,
+    },
+  );
+  mocks.adminRpc.mockImplementation(async (
+    name: string,
+    args?: Record<string, unknown>,
+  ) => {
+    if (name === "finalize_amora_first_use_action_application_v1") {
+      if (overrides.finalError) {
+        return { data: null, error: overrides.finalError };
+      }
+      return {
+        data: [{
+          outcome: overrides.outcome ?? "persisted",
+          tool_result: toolResult,
+          message_id: receiptMessageId,
+          message_created_at: receiptMessageCreatedAt,
+          message_content: displayMessage,
+          message_metadata: {
+            client_request_id: args?.p_chat_request_key,
+            client_visible_request_id:
+              `chat:00000000-0000-4000-8000-000000000001:${REQUEST_ID}`,
+            in_reply_to_user_message_id:
+              "30000000-0000-4000-8000-000000000001",
+            confirmed_amora_action_id: proposal.actionId,
+            question_scope: "W0_wedding_core",
+            memory_eligible: false,
+            memory_enqueue_requested: false,
+            amora_wedding_context_revision: 0,
+            amora_first_use_promotion_id: proposal.promotionId,
+            toolResults: [toolResult],
+            toolsUsed: ["add_amora_action"],
+            persistence_terminal_source: "server_mutation_receipts",
+            response_origin:
+              overrides.responseOrigin
+                ?? "server_authoritative_first_use_action_application",
+            provider_call_count: overrides.providerCallCount ?? 0,
+          },
+          message_stage_tag: null,
+          message_specialist_type: "general",
+          message_visibility: "shared",
+          message_reused: overrides.messageReused ?? false,
+        }],
+        error: null,
+      };
+    }
+    return { data: { authorized: true }, error: null };
+  });
+
+  return {
+    ...proposal,
+    displayMessage,
+    receiptMessageId,
+    savedActionId,
+    toolResult,
+    buildPersistedMessage: () => ({
+      id: receiptMessageId,
+      createdAt: receiptMessageCreatedAt,
+      content: displayMessage,
+      metadata: {
+        client_request_id:
+          `chat:00000000-0000-4000-8000-000000000001:${confirmationRequestUuid}`,
+        client_visible_request_id:
+          `chat:00000000-0000-4000-8000-000000000001:${REQUEST_ID}`,
+        in_reply_to_user_message_id:
+          "30000000-0000-4000-8000-000000000001",
+        confirmed_amora_action_id: proposal.actionId,
+        question_scope: "W0_wedding_core",
+        memory_eligible: false,
+        memory_enqueue_requested: false,
+        amora_wedding_context_revision: 0,
+        amora_first_use_promotion_id: proposal.promotionId,
+        toolResults: [toolResult],
+        toolsUsed: ["add_amora_action"],
+        persistence_terminal_source: "server_mutation_receipts",
+        response_origin:
+          overrides.responseOrigin
+            ?? "server_authoritative_first_use_action_application",
+        provider_call_count: overrides.providerCallCount ?? 0,
+      },
+      stageTag: null,
+      specialistType: "general",
+      visibility: "shared" as const,
+      reused: true,
+    }),
+  };
+}
+
+function configureProviderBackedAddActionApplication(overrides: {
+  outcome?: "persisted" | "replayed";
+  messageReused?: boolean;
+  responseOrigin?: string;
+  providerCallCount?: number;
+  sourceSeal?: unknown;
+  sourceMetadata?: Record<string, unknown>;
+  actionCategoryKey?: "general" | "mc" | "gift";
+  actionHref?: string;
+  actionTitle?: string;
+  actionDescription?: string;
+  actionDueDate?: string;
+} = {}) {
+  const actionId = "a2000000-0000-4000-8000-000000000099";
+  const sourceMessageId = "a3000000-0000-4000-8000-000000000099";
+  const receiptMessageId = "a4000000-0000-4000-8000-000000000099";
+  const issuedAt = Date.now();
+  const actionCategoryKey = overrides.actionCategoryKey ?? "general";
+  const actionInput = {
+    title: overrides.actionTitle ?? "후속 할 일 정리",
+    description:
+      overrides.actionDescription ?? "두 사람이 확인할 준비 행동",
+    category_key: actionCategoryKey,
+    priority: "medium",
+    source: "chat",
+    ...(overrides.actionDueDate === undefined
+      ? {}
+      : { due_date: overrides.actionDueDate }),
+    ...(overrides.actionHref === undefined
+      ? {}
+      : { href: overrides.actionHref }),
+  };
+  const pendingAction = extractAmoraPendingAction({
+    text: `[pending_action]${JSON.stringify({
+      tool: "add_amora_action",
+      input: actionInput,
+    })}[/pending_action]`,
+    allowedTools: mocks.safeTools,
+    now: issuedAt,
+    createActionId: () => actionId,
+  }).pendingAction!;
+  const confirmationRequestDigest = createHash("sha256")
+    .update(
+      `amora-confirmed-action-request\0${"30000000-0000-4000-8000-000000000001"}\0${actionId}`,
+      "utf8",
+    )
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  confirmationRequestDigest[12] = "5";
+  confirmationRequestDigest[16] = "8";
+  const confirmationRequestHex = confirmationRequestDigest.join("");
+  const confirmationRequestUuid = [
+    confirmationRequestHex.slice(0, 8),
+    confirmationRequestHex.slice(8, 12),
+    confirmationRequestHex.slice(12, 16),
+    confirmationRequestHex.slice(16, 20),
+    confirmationRequestHex.slice(20),
+  ].join("-");
+  const savedActionId =
+    `act_${confirmationRequestHex}_${pendingAction.operationKey.slice(0, 24)}`;
+  const sourceCreatedAt = new Date(issuedAt).toISOString();
+  const sourceRequestKey =
+    "chat:00000000-0000-4000-8000-000000000001:a6000000-0000-4000-8000-000000000099";
+  const confirmationCreatedAt = new Date(issuedAt + 1_000).toISOString();
+  const receiptCreatedAt = new Date(issuedAt + 2_000).toISOString();
+  const displayMessage = `"${actionInput.title}"을 아모라 행동 카드로 저장했어요.`;
+  const toolResult = {
+    toolName: "add_amora_action",
+    toolInput: actionInput,
+    toolOutput: {
+      action: {
+        id: savedActionId,
+        title: actionInput.title,
+        description: actionInput.description,
+        dueDate: null,
+        categoryKey: actionCategoryKey === "general" ? null : actionCategoryKey,
+        priority: "medium",
+        status: "open",
+        source: "chat",
+        href: overrides.actionHref
+          ?? (actionCategoryKey === "mc" || actionCategoryKey === "gift"
+            ? "/wedding/chat"
+            : "/wedding/lounge"),
+      },
+    },
+    success: true,
+    displayMessage,
+  };
+  const receiptMetadata = {
+    client_request_id:
+      `chat:00000000-0000-4000-8000-000000000001:${confirmationRequestUuid}`,
+    client_visible_request_id:
+      `chat:00000000-0000-4000-8000-000000000001:${REQUEST_ID}`,
+    in_reply_to_user_message_id:
+      "30000000-0000-4000-8000-000000000001",
+    confirmed_amora_action_id: actionId,
+    question_scope: "W0_wedding_core",
+    memory_eligible: false,
+    memory_enqueue_requested: false,
+    amora_wedding_context_revision: 0,
+    source_amora_action_message_id: sourceMessageId,
+    toolResults: [toolResult],
+    toolsUsed: ["add_amora_action"],
+    persistence_terminal_source: "server_mutation_receipts",
+    response_origin:
+      overrides.responseOrigin
+        ?? "server_authoritative_provider_backed_add_action_application",
+    provider_call_count: overrides.providerCallCount ?? 0,
+  };
+
+  mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+    {
+      id: "30000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: FIRST_USE_APPLICATION_CONFIRMATION,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        confirmed_amora_action_id: actionId,
+      },
+      visibility: "shared",
+      created_at: confirmationCreatedAt,
+    },
+    {
+      id: sourceMessageId,
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: pendingAction.confirmation,
+      metadata: {
+        client_request_id: sourceRequestKey,
+        in_reply_to_user_message_id:
+          "a7000000-0000-4000-8000-000000000099",
+        question_scope: "W0_wedding_core",
+        memory_eligible: false,
+        memory_enqueue_requested: false,
+        amora_wedding_context_revision: 0,
+        pending_amora_action: pendingAction,
+        pending_amora_action_journey_revision: 0,
+        amora_add_action_proposal_origin_v1:
+          overrides.sourceSeal ?? "ordinary_provider",
+        ...overrides.sourceMetadata,
+      },
+      visibility: "shared",
+      created_at: sourceCreatedAt,
+    },
+  );
+  mocks.adminRpc.mockImplementation(async (
+    name: string,
+    args?: Record<string, unknown>,
+  ) => {
+    if (name === "finalize_amora_provider_backed_add_action_application_v1") {
+      return {
+        data: [{
+          outcome: overrides.outcome ?? "persisted",
+          tool_result: toolResult,
+          message_id: receiptMessageId,
+          message_created_at: receiptCreatedAt,
+          message_content: displayMessage,
+          message_metadata: {
+            ...receiptMetadata,
+            client_request_id: args?.p_chat_request_key,
+          },
+          message_stage_tag: null,
+          message_specialist_type: "general",
+          message_visibility: "shared",
+          message_reused: overrides.messageReused ?? false,
+        }],
+        error: null,
+      };
+    }
+    return { data: { authorized: true }, error: null };
+  });
+
+  return {
+    actionId,
+    actionInput,
+    displayMessage,
+    pendingAction,
+    receiptMessageId,
+    receiptMetadata,
+    savedActionId,
+    sourceMessageId,
+    sourceRequestKey,
+    sourceMessage: {
+      id: sourceMessageId,
+      content: pendingAction.confirmation,
+      metadata: mocks.canonicalRows[1]?.metadata,
+      createdAt: sourceCreatedAt,
+    },
+    toolResult,
+    buildPersistedMessage: () => ({
+      id: receiptMessageId,
+      createdAt: receiptCreatedAt,
+      content: displayMessage,
+      metadata: receiptMetadata,
+      stageTag: null,
+      specialistType: "general",
+      visibility: "shared" as const,
+      reused: true,
+    }),
   };
 }
 
@@ -2997,150 +3554,1645 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
-  it("offers one exact first-use action after the service validates the current shared receipt", async () => {
-    const promotionId = "90000000-0000-4000-8000-000000000001";
-    const canonicalActionInput = {
-      action: "가능한 예식 시기 두 개 적기",
-      reason: "다음 준비의 기준이 필요해요.",
-      completionCriterion: "두 사람이 시기 두 개를 확인하면 끝나요.",
+  it.each([
+    {
+      label: "new",
+      outcome: "persisted",
+      messageReused: false,
+    },
+    {
+      label: "racing exact replay",
+      outcome: "replayed",
+      messageReused: true,
+    },
+  ] as const)(
+    "streams one $label first-use proposal without crossing a provider boundary",
+    async ({ outcome, messageReused }) => {
+      const {
+        promotionId,
+        actionId,
+        assistantMessageId,
+        pendingAction,
+        userText,
+      } = configureDeterministicFirstUseProposal({
+        promotionId: "90000000-0000-4000-8000-000000000001",
+        actionId: "91000000-0000-4000-8000-000000000001",
+        assistantMessageId: "92000000-0000-4000-8000-000000000001",
+        outcome,
+        messageReused,
+      });
+
+      const response = await POST(request({
+        messages: [{ role: "user", content: userText }],
+      }));
+      expect(response.status).toBe(200);
+      const responseText = await response.text();
+
+      expect(mocks.adminRpc).toHaveBeenCalledWith(
+        "validate_amora_first_use_action_promotion_v1",
+        {
+          p_couple_id: COUPLE_ID,
+          p_owner_user_id: "00000000-0000-4000-8000-000000000001",
+          p_shared_user_message_id: "30000000-0000-4000-8000-000000000001",
+          p_expected_privacy_epoch: 7,
+        },
+      );
+      const claimedRequestKey = mocks.claim.mock.calls[0]?.[0]?.requestKey;
+      expect(mocks.adminRpc).toHaveBeenCalledWith(
+        "finalize_amora_first_use_action_proposal_v1",
+        {
+          p_couple_id: COUPLE_ID,
+          p_owner_user_id: "00000000-0000-4000-8000-000000000001",
+          p_shared_user_message_id: "30000000-0000-4000-8000-000000000001",
+          p_chat_request_key: claimedRequestKey,
+          p_chat_claim_attempt_count: 1,
+          p_expected_privacy_epoch: 7,
+        },
+      );
+      expect(
+        mocks.adminRpc.mock.calls.filter(
+          ([name]) => name === "finalize_amora_first_use_action_proposal_v1",
+        ),
+      ).toHaveLength(1);
+      expect(responseText).toContain(
+        `"fullContent":${JSON.stringify(pendingAction.confirmation)}`,
+      );
+      expect(responseText).toContain(
+        `"serverMessageId":"${assistantMessageId}"`,
+      );
+      expect(responseText).toContain(
+        '"response_origin":"server_authoritative_first_use_promotion"',
+      );
+      expect(responseText).toContain('"provider_call_count":0');
+      expect(responseText).toContain(
+        `"amora_first_use_promotion_id":"${promotionId}"`,
+      );
+      expect(responseText).toContain(`"actionId":"${actionId}"`);
+      expect(responseText).toContain(`"replayed":${messageReused}`);
+      expect(responseText).not.toContain("sourceMessageId");
+      expect(mocks.providerLedger).not.toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.log).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toEqual([]);
+      },
+  );
+
+  it("applies the exact first-use action with one server receipt and no provider work", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    mocks.provider.mockRejectedValueOnce(new Error("provider must stay sealed"));
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+    expect(response.status, responseText).toBe(200);
+    const claimedRequestKey = mocks.claim.mock.calls[0]?.[0]?.requestKey;
+
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "finalize_amora_first_use_action_application_v1",
+      {
+        p_couple_id: COUPLE_ID,
+        p_actor_user_id: "00000000-0000-4000-8000-000000000001",
+        p_source_proposal_message_id: application.assistantMessageId,
+        p_confirmation_message_id:
+          "30000000-0000-4000-8000-000000000001",
+        p_chat_request_key: claimedRequestKey,
+        p_chat_claim_attempt_count: 1,
+        p_expected_privacy_epoch: 7,
+      },
+    );
+    expect(responseText).toContain(
+      `"fullContent":${JSON.stringify(application.displayMessage)}`,
+    );
+    expect(responseText).toContain(
+      `"serverMessageId":"${application.receiptMessageId}"`,
+    );
+    expect(responseText).toContain(
+      '"response_origin":"server_authoritative_first_use_action_application"',
+    );
+    expect(responseText).toContain('"provider_call_count":0');
+    expect(responseText).toContain('"toolName":"add_amora_action"');
+    expect(responseText).toContain(
+      `"id":"${application.savedActionId}"`,
+    );
+    expect(responseText).toContain('"status":"open"');
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it("releases a racing exact first-use application replay without provider work", async () => {
+    const application = configureDeterministicFirstUseApplication({
+      outcome: "replayed",
+      messageReused: true,
+    });
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).toContain('"replayed":true');
+    expect(responseText).toContain(
+      `"serverMessageId":"${application.receiptMessageId}"`,
+    );
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("replays a committed first-use application before its finalizer or provider", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    mocks.findPersisted.mockResolvedValue(application.buildPersistedMessage());
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).toContain('"replayed":true');
+    expect(mocks.reconcile).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) => name === "finalize_amora_first_use_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("withholds an exact deterministic application retry whose receipt markers were stripped", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    const persistedApplication = application.buildPersistedMessage();
+    const persistedMetadata = persistedApplication.metadata as Record<string, unknown>;
+    mocks.findPersisted.mockResolvedValue({
+      ...persistedApplication,
+      metadata: {
+        client_request_id: persistedMetadata.client_request_id,
+      },
+    });
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_ACTION_APPLICATION_REPLAY_INVALID",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ordinary provider-backed exact confirmation replay on the generic path", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    mocks.canonicalRows[1] = {
+      ...mocks.canonicalRows[1],
+      metadata: {
+        pending_amora_action: application.pendingAction,
+      },
     };
-    const canonicalAddActionInput = {
-      title: canonicalActionInput.action,
-      description: `이유: ${canonicalActionInput.reason} 완료 기준: ${canonicalActionInput.completionCriterion}`,
-      category_key: "general",
-      priority: "medium",
-      source: "chat",
+    mocks.findPersisted.mockResolvedValue({
+      ...persisted("ordinary provider-backed action confirmation"),
+      metadata: {
+        client_request_id: "ordinary-provider-request",
+        response_origin: "provider",
+        provider_call_count: 1,
+        model: "provider-model",
+      },
+      reused: true,
+    });
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).toContain("ordinary provider-backed action confirmation");
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("replays an exact first-use application beyond the ordinary context window", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    const currentCreatedAt = Date.parse(String(mocks.canonicalRows[0]?.created_at));
+    const newerRows = Array.from({ length: 60 }, (_, index) => ({
+      id: `b${String(index).padStart(7, "0")}-0000-4000-8000-000000000001`,
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: `더 최근의 일반 답변 ${index}`,
+      metadata: null,
+      visibility: "shared",
+      created_at: new Date(currentCreatedAt + (index + 1) * 1_000).toISOString(),
+    }));
+    mocks.canonicalRows.splice(1, 0, ...newerRows);
+    mocks.findPersisted.mockResolvedValue(application.buildPersistedMessage());
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).toContain(
+      `"serverMessageId":"${application.receiptMessageId}"`,
+    );
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(2);
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("rejects a strict application replay whose proposal row is user-owned", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    mocks.canonicalRows[1] = {
+      ...mocks.canonicalRows[1],
+      sender_id: "00000000-0000-4000-8000-000000000001",
     };
-    const userText = [
-      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
-      `지금 할 한 가지: ${canonicalActionInput.action}`,
-      `이유: ${canonicalActionInput.reason}`,
-      `완료 기준: ${canonicalActionInput.completionCriterion}`,
-      "저장 전에는 확인 카드만 보여줘.",
-    ].join("\n");
+    mocks.findPersisted.mockResolvedValue(application.buildPersistedMessage());
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_ACTION_APPLICATION_REPLAY_INVALID",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("classifies exact-key and partial-tamper application receipts without capturing legacy provider receipts", () => {
+    const application = configureDeterministicFirstUseApplication({
+      responseOrigin: "provider",
+      providerCallCount: 1,
+    });
+    const applicationMetadata = application.buildPersistedMessage().metadata;
+    expect(requiresStrictAmoraFirstUseApplicationReplay(applicationMetadata))
+      .toBe(true);
+    expect(requiresStrictAmoraFirstUseApplicationReplay({
+      confirmed_amora_action_id: application.actionId,
+      toolResults: [application.toolResult],
+      model: "legacy-provider-model",
+      provider_call_count: 1,
+    })).toBe(false);
+  });
+
+  it("keeps a committed first-use application claim complete when privacy changes before release", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const application = configureDeterministicFirstUseApplication();
+    mocks.getPrivacyEpoch.mockReset();
+    mocks.getPrivacyEpoch
+      .mockResolvedValueOnce(7)
+      .mockResolvedValueOnce(8);
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it.each([
+    {
+      label: "arbitrary action id",
+      overrides: { toolActionId: "act_forged" },
+    },
+    {
+      label: "arbitrary action href",
+      overrides: { toolHref: "/admin" },
+    },
+    {
+      label: "provider-owned origin",
+      overrides: { responseOrigin: "provider" },
+    },
+  ])("rejects a committed first-use application with $label without failing its claim", async ({ overrides }) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const application = configureDeterministicFirstUseApplication(overrides);
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_ACTION_APPLICATION_INVALID",
+      retryable: true,
+      retryPolicy: "same_request",
+    });
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it.each([
+    {
+      label: "arbitrary action href",
+      overrides: { toolHref: "/admin" },
+    },
+    {
+      label: "tampered origin",
+      overrides: { responseOrigin: "provider" },
+    },
+    {
+      label: "tampered origin and provider count",
+      overrides: { responseOrigin: "provider", providerCallCount: 1 },
+    },
+  ])("keeps an exact retry with $label behind the strict application replay gate", async ({ overrides }) => {
+    const application = configureDeterministicFirstUseApplication(overrides);
+    mocks.findPersisted.mockResolvedValue(application.buildPersistedMessage());
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_ACTION_APPLICATION_REPLAY_INVALID",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "stale application",
+      finalError: {
+        code: "40001",
+        message: "AMORA_FIRST_USE_ACTION_APPLICATION_STALE",
+      },
+      status: 409,
+      code: "AMORA_FIRST_USE_ACTION_APPLICATION_STALE",
+      retryPolicy: "regenerate_first_use_action",
+    },
+    {
+      label: "application infrastructure outage",
+      finalError: {
+        code: "08006",
+        message: "connection unavailable",
+      },
+      status: 503,
+      code: "AMORA_FIRST_USE_ACTION_APPLICATION_UNAVAILABLE",
+      retryPolicy: "same_request",
+    },
+  ] as const)("maps $label before provider work", async ({
+    finalError,
+    status,
+    code,
+    retryPolicy,
+  }) => {
+    const application = configureDeterministicFirstUseApplication({ finalError });
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code, retryPolicy });
+    expect(mocks.failClaim).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("keeps a mixed first-use confirmation on the provider-backed path", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    const mixedText = `${FIRST_USE_APPLICATION_CONFIRMATION} 그리고 예식장 비교 기준도 알려줘.`;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: mixedText,
+    };
+    mocks.executeTool.mockResolvedValueOnce(application.toolResult);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "행동 카드 결과와 예식장 비교 기준을 함께 안내할게요.",
+      usage: { input_tokens: 10, output_tokens: 6 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: mixedText }],
+      confirmedActionId: application.actionId,
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) => name === "finalize_amora_first_use_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "add_amora_action",
+      application.canonicalAddActionInput,
+      expect.objectContaining({ pendingActionId: application.actionId }),
+    );
+  });
+
+  it("keeps a first-use confirmation with an attachment on the provider-backed path", async () => {
+    const application = configureDeterministicFirstUseApplication();
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    await bindCanonicalProviderAttachments([attachment]);
+    mocks.executeTool.mockResolvedValueOnce(application.toolResult);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "행동 카드 결과와 첨부 내용을 함께 확인할게요.",
+      usage: { input_tokens: 10, output_tokens: 6 },
+    }));
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      attachments: [{ ...attachment, fileName: "context.png" }],
+      confirmedActionId: application.actionId,
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) => name === "finalize_amora_first_use_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "add_amora_action",
+      application.canonicalAddActionInput,
+      expect.objectContaining({ pendingActionId: application.actionId }),
+    );
+  });
+
+  it("seals only a newly persisted ordinary provider add-action proposal", async () => {
+    const userText = "예식장 후보 세 곳 비교를 액션으로 기억해 줘";
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
       content: userText,
-      metadata: {
-        client_request_id: REQUEST_ID,
-        amora_first_use_promotion_id: promotionId,
-      },
     };
-    mocks.adminRpc.mockImplementation(async (name: string) => (
-      name === "validate_amora_first_use_action_promotion_v1"
-        ? {
-            data: {
-              version: 1,
-              promotionId,
-              canonicalActionInput,
-              canonicalAddActionInput,
-            },
-            error: null,
-          }
-        : { data: { authorized: true }, error: null }
-    ));
     mocks.provider.mockResolvedValueOnce(providerResult({
-      fullText:
-        '[pending_action]{"tool":"add_amora_action","input":{"title":"모델이 바꾼 제목","due_date":"2026-08-20"}}[/pending_action]',
-      usage: { input_tokens: 10, output_tokens: 3 },
+      fullText: [
+        "둘이 확인할 다음 행동으로 정리했어요.",
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"예식장 후보 세 곳 비교","description":"둘이 같은 기준으로 후보를 비교해요."}}[/pending_action]',
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 4 },
     }));
 
     const response = await POST(request({
       messages: [{ role: "user", content: userText }],
     }));
-    expect(response.status).toBe(200);
-    await response.text();
+    const responseText = await response.text();
 
-    expect(mocks.adminRpc).toHaveBeenCalledWith(
-      "validate_amora_first_use_action_promotion_v1",
-      {
-        p_couple_id: COUPLE_ID,
-        p_owner_user_id: "00000000-0000-4000-8000-000000000001",
-        p_shared_user_message_id: "30000000-0000-4000-8000-000000000001",
-        p_expected_privacy_epoch: 7,
+    expect(response.status, responseText).toBe(200);
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      amora_add_action_proposal_origin_v1: "ordinary_provider",
+      pending_amora_action: {
+        tool: "add_amora_action",
+        input: {
+          title: "예식장 후보 세 곳 비교",
+          description: "둘이 같은 기준으로 후보를 비교해요.",
+        },
       },
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_first_use_grounding",
     );
-    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
-      "서버가 입력값을 모두 고정한 도구: add_amora_action",
-    );
-    expect(mocks.atomicResponses).toEqual([
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          amora_first_use_promotion_id: promotionId,
-          pending_amora_action: expect.objectContaining({
-            tool: "add_amora_action",
-            input: canonicalAddActionInput,
-          }),
-        }),
-      }),
-    ]);
-    expect(JSON.stringify(mocks.atomicResponses[0]?.metadata)).not.toContain(
-      "sourceMessageId",
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("does not stamp a private provider add-action response as an eligible shared proposal", async () => {
+    const userText = "예식장 후보 세 곳 비교를 액션으로 기억해 줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      visibility: "bride_private",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "개인 대화에서 참고할 다음 행동이에요.",
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"예식장 후보 비교"}}[/pending_action]',
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      visibility: "bride_private",
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_add_action_proposal_origin_v1",
     );
   });
 
+  it("does not stamp a W1 provider add-action marker as a W0 application source", async () => {
+    const userText = "신혼집 이사 비용 분담을 액션으로 기억해 줘";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "신혼집 논의에서 참고할 다음 행동이에요.",
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"이사 비용 분담 논의"}}[/pending_action]',
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W1_wedding_adjacent",
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty(
+      "amora_add_action_proposal_origin_v1",
+    );
+  });
+
+  it("does not stamp a demo provider add-action response as a durable application source", async () => {
+    const userText = "예식장 후보 세 곳 비교를 액션으로 기억해 줘";
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: [
+        "체험에서 참고할 다음 행동이에요.",
+        '[pending_action]{"tool":"add_amora_action","input":{"title":"예식장 후보 비교"}}[/pending_action]',
+      ].join("\n"),
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+      messages: [{ role: "user", content: userText }],
+      weddingContext: {
+        weddingDate: "2027-05-01",
+        budget: 30_000_000,
+        venue: null,
+        progress: {},
+      },
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.persist.mock.calls[0]?.[0]?.metadata).not.toHaveProperty(
+      "amora_add_action_proposal_origin_v1",
+    );
+  });
+
+  it.each([
+    {
+      label: "first-use grounding",
+      sourceMetadata: { amora_first_use_grounding: { version: 1 } },
+    },
+    {
+      label: "first-use promotion id",
+      sourceMetadata: {
+        amora_first_use_promotion_id:
+          "a5000000-0000-4000-8000-000000000099",
+      },
+    },
+    {
+      label: "first-use promotion seal",
+      sourceMetadata: { amora_first_use_action_promotion_v1: { version: 1 } },
+    },
+    {
+      label: "schedule-care action draft",
+      sourceMetadata: { amora_schedule_care_action_draft_v1: { version: 1 } },
+    },
+    {
+      label: "schedule-care follow-up provenance",
+      sourceMetadata: { amora_schedule_care_follow_up_v1: { version: 1 } },
+    },
+    {
+      label: "deterministic response origin",
+      sourceMetadata: {
+        response_origin: "server_authoritative_first_use_promotion",
+      },
+    },
+    {
+      label: "provider response origin",
+      sourceMetadata: { response_origin: "provider" },
+    },
+    {
+      label: "zero provider-call marker",
+      sourceMetadata: { provider_call_count: 0 },
+    },
+    {
+      label: "positive provider-call marker",
+      sourceMetadata: { provider_call_count: 1 },
+    },
+    {
+      label: "non-provider persistence source",
+      sourceMetadata: {
+        persistence_terminal_source: "server_mutation_receipts",
+      },
+    },
+    {
+      label: "provider persistence source",
+      sourceMetadata: { persistence_terminal_source: "provider" },
+    },
+    {
+      label: "missing canonical source request key",
+      sourceMetadata: { client_request_id: null },
+    },
+    {
+      label: "missing source user-message binding",
+      sourceMetadata: { in_reply_to_user_message_id: null },
+    },
+  ])("rejects a forged ordinary-provider source seal combined with $label", ({
+    sourceMetadata,
+  }) => {
+    const application = configureProviderBackedAddActionApplication({
+      sourceMetadata,
+    });
+
+    expect(parseAmoraProviderBackedAddActionApplicationSource({
+      sourceMessage: application.sourceMessage,
+      confirmedActionId: application.actionId,
+      availableTools: mocks.safeTools,
+      expectedJourneyRevision: 0,
+      now: Date.now(),
+    })).toBeNull();
+  });
+
+  it("accepts only the sealed ordinary provider source without deterministic provenance", () => {
+    const application = configureProviderBackedAddActionApplication();
+
+    expect(parseAmoraProviderBackedAddActionApplicationSource({
+      sourceMessage: application.sourceMessage,
+      confirmedActionId: application.actionId,
+      availableTools: mocks.safeTools,
+      expectedJourneyRevision: 0,
+      now: Date.now(),
+    })).toMatchObject({
+      sourceProposalMessageId: application.sourceMessageId,
+      pendingAction: application.pendingAction,
+      journeyRevision: 0,
+    });
+  });
+
+  it.each([
+    ["NBSP", "\u00a0"],
+    ["OGHAM SPACE MARK", "\u1680"],
+    ...Array.from(
+      { length: 0x200a - 0x2000 + 1 },
+      (_, index) => [`U+${(0x2000 + index).toString(16)}`, String.fromCodePoint(0x2000 + index)],
+    ),
+    ["NARROW NBSP", "\u202f"],
+    ["MEDIUM MATHEMATICAL SPACE", "\u205f"],
+    ["IDEOGRAPHIC SPACE", "\u3000"],
+  ])("does not seal or parse %s normalization drift in action text", (
+    _label,
+    whitespace,
+  ) => {
+    for (const overrides of [
+      { actionTitle: `A${whitespace}${whitespace}B` },
+      { actionDescription: `A${whitespace}${whitespace}B` },
+    ]) {
+      const application = configureProviderBackedAddActionApplication(overrides);
+
+      expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+        pendingAction: application.pendingAction,
+        isDurableSharedW0: true,
+        persistenceSourceIsProvider: true,
+        hasApprovedPendingAction: false,
+        hasFirstUseProvenance: false,
+        scheduleCareDraftStatus: "absent",
+        hasResolvedScheduleCareFollowUp: false,
+        attachmentCount: 0,
+      })).toBe(false);
+      expect(parseAmoraProviderBackedAddActionApplicationSource({
+        sourceMessage: application.sourceMessage,
+        confirmedActionId: application.actionId,
+        availableTools: mocks.safeTools,
+        expectedJourneyRevision: 0,
+        now: Date.now(),
+      })).toBeNull();
+    }
+  });
+
+  it.each(["title", "description", "href"] as const)(
+    "does not seal or parse non-BMP text in action %s",
+    (field) => {
+      const emoji = String.fromCodePoint(0x1f600);
+      const application = configureProviderBackedAddActionApplication({
+        ...(field === "title" ? { actionTitle: `A${emoji}B` } : {}),
+        ...(field === "description"
+          ? { actionDescription: `A${emoji}B` }
+          : {}),
+        ...(field === "href" ? { actionHref: `/A${emoji}B` } : {}),
+      });
+
+      expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+        pendingAction: application.pendingAction,
+        isDurableSharedW0: true,
+        persistenceSourceIsProvider: true,
+        hasApprovedPendingAction: false,
+        hasFirstUseProvenance: false,
+        scheduleCareDraftStatus: "absent",
+        hasResolvedScheduleCareFollowUp: false,
+        attachmentCount: 0,
+      })).toBe(false);
+      expect(parseAmoraProviderBackedAddActionApplicationSource({
+        sourceMessage: application.sourceMessage,
+        confirmedActionId: application.actionId,
+        availableTools: mocks.safeTools,
+        expectedJourneyRevision: 0,
+        now: Date.now(),
+      })).toBeNull();
+    },
+  );
+
+  it.each([
+    ["NEXT LINE", "\u0085"],
+    ["LINE SEPARATOR", "\u2028"],
+    ["PARAGRAPH SEPARATOR", "\u2029"],
+    ["BOM", "\ufeff"],
+  ])("rejects extractor-hostile %s at the seal boundary too", (
+    _label,
+    whitespace,
+  ) => {
+    const application = configureProviderBackedAddActionApplication();
+    const pendingAction = {
+      ...application.pendingAction,
+      input: {
+        ...application.pendingAction.input,
+        title: `A${whitespace}B`,
+      },
+    };
+
+    expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+      pendingAction,
+      isDurableSharedW0: true,
+      persistenceSourceIsProvider: true,
+      hasApprovedPendingAction: false,
+      hasFirstUseProvenance: false,
+      scheduleCareDraftStatus: "absent",
+      hasResolvedScheduleCareFollowUp: false,
+      attachmentCount: 0,
+    })).toBe(false);
+  });
+
+  it.each([
+    ["121-character title", { actionTitle: "a".repeat(121) }],
+    ["501-character description", { actionDescription: "a".repeat(501) }],
+    ["181-character href", { actionHref: `/${"a".repeat(180)}` }],
+    ["non-rooted href", { actionHref: "wedding/lounge" }],
+    ["padded due date", { actionDueDate: " 2026-08-20 " }],
+    ["invalid due date", { actionDueDate: "2026-02-30" }],
+  ] as const)("does not seal or parse an atomic-invalid %s", (
+    _label,
+    overrides,
+  ) => {
+    const application = configureProviderBackedAddActionApplication(overrides);
+
+    expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+      pendingAction: application.pendingAction,
+      isDurableSharedW0: true,
+      persistenceSourceIsProvider: true,
+      hasApprovedPendingAction: false,
+      hasFirstUseProvenance: false,
+      scheduleCareDraftStatus: "absent",
+      hasResolvedScheduleCareFollowUp: false,
+      attachmentCount: 0,
+    })).toBe(false);
+    expect(parseAmoraProviderBackedAddActionApplicationSource({
+      sourceMessage: application.sourceMessage,
+      confirmedActionId: application.actionId,
+      availableTools: mocks.safeTools,
+      expectedJourneyRevision: 0,
+      now: Date.now(),
+    })).toBeNull();
+  });
+
+  it.each([
+    ["120-character title", { actionTitle: "a".repeat(120) }],
+    ["500-character description", { actionDescription: "a".repeat(500) }],
+    ["180-character href", { actionHref: `/${"a".repeat(179)}` }],
+    ["exact due date", { actionDueDate: "2026-08-20" }],
+  ] as const)("keeps an atomic-valid %s eligible", (_label, overrides) => {
+    const application = configureProviderBackedAddActionApplication(overrides);
+
+    expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+      pendingAction: application.pendingAction,
+      isDurableSharedW0: true,
+      persistenceSourceIsProvider: true,
+      hasApprovedPendingAction: false,
+      hasFirstUseProvenance: false,
+      scheduleCareDraftStatus: "absent",
+      hasResolvedScheduleCareFollowUp: false,
+      attachmentCount: 0,
+    })).toBe(true);
+    expect(parseAmoraProviderBackedAddActionApplicationSource({
+      sourceMessage: application.sourceMessage,
+      confirmedActionId: application.actionId,
+      availableTools: mocks.safeTools,
+      expectedJourneyRevision: 0,
+      now: Date.now(),
+    })).not.toBeNull();
+  });
+
+  it.each(["\t", "\n", "\r"])(
+    "does not seal legacy-dispatcher edge whitespace %s in action text",
+    (whitespace) => {
+      for (const overrides of [
+        { actionTitle: `${whitespace}A` },
+        { actionDescription: `A${whitespace}` },
+      ]) {
+        const application = configureProviderBackedAddActionApplication(overrides);
+
+        expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+          pendingAction: application.pendingAction,
+          isDurableSharedW0: true,
+          persistenceSourceIsProvider: true,
+          hasApprovedPendingAction: false,
+          hasFirstUseProvenance: false,
+          scheduleCareDraftStatus: "absent",
+          hasResolvedScheduleCareFollowUp: false,
+          attachmentCount: 0,
+        })).toBe(false);
+        expect(parseAmoraProviderBackedAddActionApplicationSource({
+          sourceMessage: application.sourceMessage,
+          confirmedActionId: application.actionId,
+          availableTools: mocks.safeTools,
+          expectedJourneyRevision: 0,
+          now: Date.now(),
+        })).toBeNull();
+      }
+    },
+  );
+
+  it.each([
+    ["interior tab", { actionTitle: "A\tB" }],
+    ["plain-space edges", { actionDescription: " A " }],
+  ] as const)("keeps legacy-dispatcher-compatible %s eligible", (
+    _label,
+    overrides,
+  ) => {
+    const application = configureProviderBackedAddActionApplication(overrides);
+    expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+      pendingAction: application.pendingAction,
+      isDurableSharedW0: true,
+      persistenceSourceIsProvider: true,
+      hasApprovedPendingAction: false,
+      hasFirstUseProvenance: false,
+      scheduleCareDraftStatus: "absent",
+      hasResolvedScheduleCareFollowUp: false,
+      attachmentCount: 0,
+    })).toBe(true);
+  });
+
+  it.each([
+    { label: "private", isDurableSharedW0: false, persistenceSourceIsProvider: true },
+    { label: "W1", isDurableSharedW0: false, persistenceSourceIsProvider: true },
+    { label: "demo", isDurableSharedW0: false, persistenceSourceIsProvider: true },
+    { label: "non-provider terminal", isDurableSharedW0: true, persistenceSourceIsProvider: false },
+  ])("does not seal a $label provider add-action proposal", ({
+    isDurableSharedW0,
+    persistenceSourceIsProvider,
+  }) => {
+    const application = configureProviderBackedAddActionApplication();
+
+    expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+      pendingAction: application.pendingAction,
+      isDurableSharedW0,
+      persistenceSourceIsProvider,
+      hasApprovedPendingAction: false,
+      hasFirstUseProvenance: false,
+      scheduleCareDraftStatus: "absent",
+      hasResolvedScheduleCareFollowUp: false,
+      attachmentCount: 0,
+    })).toBe(false);
+  });
+
+  it.each(["mc", "gift"] as const)(
+    "does not seal or parse an omitted-href %s proposal while TS and SQL defaults differ",
+    async (actionCategoryKey) => {
+      const application = configureProviderBackedAddActionApplication({
+        actionCategoryKey,
+      });
+
+      expect(shouldSealAmoraOrdinaryProviderAddActionProposal({
+        pendingAction: application.pendingAction,
+        isDurableSharedW0: true,
+        persistenceSourceIsProvider: true,
+        hasApprovedPendingAction: false,
+        hasFirstUseProvenance: false,
+        scheduleCareDraftStatus: "absent",
+        hasResolvedScheduleCareFollowUp: false,
+        attachmentCount: 0,
+      })).toBe(false);
+      expect(parseAmoraProviderBackedAddActionApplicationSource({
+        sourceMessage: application.sourceMessage,
+        confirmedActionId: application.actionId,
+        availableTools: mocks.safeTools,
+        expectedJourneyRevision: 0,
+        now: Date.now(),
+      })).toBeNull();
+
+      const rpcResponse = await mocks.adminRpc(
+        "finalize_amora_provider_backed_add_action_application_v1",
+        {
+          p_chat_request_key:
+            application.receiptMetadata.client_request_id,
+        },
+      );
+      expect(parseAmoraProviderBackedAddActionApplication({
+        value: rpcResponse.data,
+        expectedChatRequestKey:
+          application.receiptMetadata.client_request_id,
+        expectedVisibleRequestKey:
+          application.receiptMetadata.client_visible_request_id,
+        expectedConfirmationMessageId:
+          application.receiptMetadata.in_reply_to_user_message_id,
+        expectedSourceMessageId: application.sourceMessageId,
+        expectedPendingAction: application.pendingAction,
+        expectedJourneyRevision: 0,
+        expectedCoupleId: COUPLE_ID,
+      })).toBeNull();
+    },
+  );
+
+  it.each(["mc", "gift"] as const)(
+    "keeps an explicit valid href eligible for a sealed %s proposal",
+    (actionCategoryKey) => {
+      const application = configureProviderBackedAddActionApplication({
+        actionCategoryKey,
+        actionHref: "/wedding/chat",
+      });
+
+      expect(parseAmoraProviderBackedAddActionApplicationSource({
+        sourceMessage: application.sourceMessage,
+        confirmedActionId: application.actionId,
+        availableTools: mocks.safeTools,
+        expectedJourneyRevision: 0,
+        now: Date.now(),
+      })).not.toBeNull();
+    },
+  );
+
+  it("applies an exact ordinary provider-generated add-action with one canonical server receipt and no provider work", async () => {
+    const application = configureProviderBackedAddActionApplication();
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "이 문장은 deterministic 경로에서 사용되면 안 돼요.",
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+    expect(response.status, responseText).toBe(200);
+    const claimedRequestKey = mocks.claim.mock.calls[0]?.[0]?.requestKey;
+
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "finalize_amora_provider_backed_add_action_application_v1",
+      {
+        p_couple_id: COUPLE_ID,
+        p_actor_user_id: "00000000-0000-4000-8000-000000000001",
+        p_source_proposal_message_id: application.sourceMessageId,
+        p_confirmation_message_id:
+          "30000000-0000-4000-8000-000000000001",
+        p_chat_request_key: claimedRequestKey,
+        p_chat_claim_attempt_count: 1,
+        p_expected_privacy_epoch: 7,
+      },
+    );
+    expect(responseText).toContain(
+      `"fullContent":${JSON.stringify(application.displayMessage)}`,
+    );
+    expect(responseText).toContain(
+      `"serverMessageId":"${application.receiptMessageId}"`,
+    );
+    expect(responseText).toContain(
+      '"response_origin":"server_authoritative_provider_backed_add_action_application"',
+    );
+    expect(responseText).toContain(
+      `"source_amora_action_message_id":"${application.sourceMessageId}"`,
+    );
+    expect(responseText).toContain('"provider_call_count":0');
+    expect(responseText).toContain('"toolName":"add_amora_action"');
+    expect(responseText).toContain(`"id":"${application.savedActionId}"`);
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toEqual([]);
+  });
+
+  it("releases a racing ordinary provider add-action application replay without provider work", async () => {
+    const application = configureProviderBackedAddActionApplication({
+      outcome: "replayed",
+      messageReused: true,
+    });
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).toContain('"replayed":true');
+    expect(responseText).toContain(
+      `"serverMessageId":"${application.receiptMessageId}"`,
+    );
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("replays a committed ordinary provider add-action application before its finalizer", async () => {
+    const application = configureProviderBackedAddActionApplication();
+    mocks.findPersisted.mockResolvedValue(application.buildPersistedMessage());
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(responseText).toContain('"replayed":true');
+    expect(responseText).toContain(
+      `"serverMessageId":"${application.receiptMessageId}"`,
+    );
+    expect(mocks.reconcile).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) =>
+          name === "finalize_amora_provider_backed_add_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("withholds a partial ordinary-provider application receipt instead of replaying it generically", async () => {
+    const application = configureProviderBackedAddActionApplication();
+    const persistedApplication = application.buildPersistedMessage();
+    mocks.findPersisted.mockResolvedValue({
+      ...persistedApplication,
+      metadata: {
+        client_request_id: application.receiptMetadata.client_request_id,
+        source_amora_action_message_id: application.sourceMessageId,
+      },
+    });
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: application.actionId,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_PROVIDER_BACKED_ADD_ACTION_APPLICATION_REPLAY_INVALID",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("classifies exact and partial ordinary-provider receipts without capturing legacy provider receipts", () => {
+    const application = configureProviderBackedAddActionApplication();
+    const applicationMetadata = application.buildPersistedMessage().metadata;
+
+    expect(
+      requiresStrictAmoraProviderBackedAddActionApplicationReplay(
+        applicationMetadata,
+      ),
+    ).toBe(true);
+    expect(requiresStrictAmoraProviderBackedAddActionApplicationReplay({
+      source_amora_action_message_id: application.sourceMessageId,
+    })).toBe(true);
+    expect(requiresStrictAmoraProviderBackedAddActionApplicationReplay({
+      confirmed_amora_action_id: application.actionId,
+      toolResults: [application.toolResult],
+      provider_call_count: 0,
+    })).toBe(true);
+    expect(requiresStrictAmoraProviderBackedAddActionApplicationReplay({
+      confirmed_amora_action_id: application.actionId,
+      toolResults: [application.toolResult],
+      provider_call_count: 1,
+      response_origin: "provider",
+      model: "legacy-provider-model",
+    })).toBe(false);
+  });
+
+  it.each(["mc", "gift"] as const)(
+    "keeps an omitted-href %s action confirmation off the deterministic finalizer",
+    async (actionCategoryKey) => {
+      const application = configureProviderBackedAddActionApplication({
+        actionCategoryKey,
+      });
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: "기존 provider-backed 승인 경로에서 처리했어요.",
+        usage: { input_tokens: 10, output_tokens: 4 },
+      }));
+
+      const response = await POST(request({
+        messages: [{
+          role: "user",
+          content: FIRST_USE_APPLICATION_CONFIRMATION,
+        }],
+        confirmedActionId: application.actionId,
+      }));
+      const responseText = await response.text();
+
+      expect(response.status, responseText).toBe(200);
+      expect(
+        mocks.adminRpc.mock.calls.filter(
+          ([name]) =>
+            name === "finalize_amora_provider_backed_add_action_application_v1",
+        ),
+      ).toHaveLength(0);
+      expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
+      expect(mocks.provider).toHaveBeenCalledTimes(1);
+      expect(mocks.reserve).toHaveBeenCalledTimes(1);
+      expect(mocks.executeTool).toHaveBeenCalledWith(
+        "add_amora_action",
+        application.actionInput,
+        expect.objectContaining({ pendingActionId: application.actionId }),
+      );
+    },
+  );
+
+  it("keeps a mixed ordinary-provider add-action confirmation on the existing provider path", async () => {
+    const application = configureProviderBackedAddActionApplication();
+    const mixedText =
+      `${FIRST_USE_APPLICATION_CONFIRMATION} 그리고 예식장 비교 기준도 알려줘.`;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: mixedText,
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "행동 카드 결과와 비교 기준을 함께 정리할게요.",
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: mixedText }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) =>
+          name === "finalize_amora_provider_backed_add_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "add_amora_action",
+      application.actionInput,
+      expect.objectContaining({ pendingActionId: application.actionId }),
+    );
+  });
+
+  it("keeps an attached ordinary-provider add-action confirmation on the existing provider path", async () => {
+    const application = configureProviderBackedAddActionApplication();
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    await bindCanonicalProviderAttachments([attachment]);
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "행동 카드 결과와 첨부 내용을 함께 확인할게요.",
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      attachments: [{ ...attachment, fileName: "context.png" }],
+      confirmedActionId: application.actionId,
+    }));
+    const responseText = await response.text();
+
+    expect(response.status, responseText).toBe(200);
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) =>
+          name === "finalize_amora_provider_backed_add_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "add_amora_action",
+      application.actionInput,
+      expect.objectContaining({ pendingActionId: application.actionId }),
+    );
+  });
+
+  it.each([
+    { label: "schedule-care add-action", scheduleCareMetadata: true },
+  ])("keeps an $label confirmation on the provider-backed path", async ({
+    scheduleCareMetadata,
+  }) => {
+    const actionId = "a2000000-0000-4000-8000-000000000099";
+    const issuedAt = Date.now();
+    const actionInput = {
+      title: "후속 할 일 정리",
+      description: "두 사람이 확인할 준비 행동",
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    };
+    const pendingAction = extractAmoraPendingAction({
+      text: `[pending_action]${JSON.stringify({
+        tool: "add_amora_action",
+        input: actionInput,
+      })}[/pending_action]`,
+      allowedTools: mocks.safeTools,
+      now: issuedAt,
+      createActionId: () => actionId,
+    }).pendingAction!;
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+        metadata: { client_request_id: REQUEST_ID },
+        visibility: "shared",
+        created_at: "2026-08-16T00:01:00.000Z",
+      },
+      {
+        id: "a3000000-0000-4000-8000-000000000099",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: pendingAction.confirmation,
+        metadata: {
+          pending_amora_action: pendingAction,
+          pending_amora_action_journey_revision: 0,
+          ...(scheduleCareMetadata
+            ? {
+                amora_schedule_care_action_draft_v1: {
+                  version: 1,
+                  title: actionInput.title,
+                },
+              }
+            : {}),
+        },
+        visibility: "shared",
+        created_at: new Date(issuedAt).toISOString(),
+      },
+    );
+    const displayMessage = `"${actionInput.title}"을 아모라 행동 카드로 저장했어요.`;
+    mocks.executeTool.mockResolvedValueOnce({
+      toolName: "add_amora_action",
+      toolInput: actionInput,
+      toolOutput: { action: { id: "act_ordinary", status: "open" } },
+      success: true,
+      displayMessage,
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "행동 카드 저장 결과를 확인했어요.",
+      usage: { input_tokens: 10, output_tokens: 4 },
+    }));
+
+    const response = await POST(request({
+      messages: [{
+        role: "user",
+        content: FIRST_USE_APPLICATION_CONFIRMATION,
+      }],
+      confirmedActionId: actionId,
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) => name === "finalize_amora_first_use_action_application_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.providerLedger).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      "add_amora_action",
+      actionInput,
+      expect.objectContaining({ pendingActionId: actionId }),
+    );
+  });
+
+  it.each([
+    {
+      label: "stale deterministic proposal state",
+      rpcError: {
+        code: "40001",
+        message: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_CLAIM_STALE",
+      },
+      status: 409,
+      code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_STALE",
+      retryPolicy: "regenerate_first_use_action",
+    },
+    {
+      label: "privacy context changed during deterministic finalization",
+      rpcError: {
+        code: "42501",
+        message: "AMORA_FIRST_USE_PROMOTION_SCOPE_CHANGED",
+      },
+      status: 409,
+      code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_STALE",
+      retryPolicy: "regenerate_first_use_action",
+    },
+    {
+      label: "deterministic proposal infrastructure outage",
+      rpcError: {
+        code: "42501",
+        message:
+          "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_SERVICE_ROLE_REQUIRED",
+      },
+      status: 503,
+      code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_UNAVAILABLE",
+      retryPolicy: "same_request",
+    },
+    {
+      label: "deterministic replay invariant failure",
+      rpcError: {
+        code: "55000",
+        message: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_REPLAY_INVALID",
+      },
+      status: 503,
+      code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_INVARIANT_FAILED",
+      retryPolicy: "new_message",
+    },
+  ])("maps $label without provider work", async ({
+    rpcError,
+    status,
+    code,
+    retryPolicy,
+  }) => {
+    const { userText } = configureDeterministicFirstUseProposal({
+      promotionId: "93000000-0000-4000-8000-000000000001",
+      finalError: rpcError,
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({
+      code,
+      retryPolicy,
+    });
+    expect(mocks.failClaim).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("replays an exact committed deterministic proposal without finalizer or provider work", async () => {
+    const {
+      userText,
+      actionId,
+      buildPersistedMessage,
+    } = configureDeterministicFirstUseProposal({
+      promotionId: "94000000-0000-4000-8000-000000000001",
+      actionId: "95000000-0000-4000-8000-000000000001",
+      assistantMessageId: "96000000-0000-4000-8000-000000000001",
+    });
+    mocks.findPersisted.mockResolvedValue(buildPersistedMessage());
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+    const responseText = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(responseText).toContain(`"actionId":"${actionId}"`);
+    expect(responseText).toContain('"replayed":true');
+    expect(mocks.reconcile).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) => name === "finalize_amora_first_use_action_proposal_v1",
+      ),
+    ).toHaveLength(0);
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("withholds a committed deterministic proposal when privacy changes and never fails its completed claim", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { userText } = configureDeterministicFirstUseProposal();
+    mocks.getPrivacyEpoch.mockReset();
+    mocks.getPrivacyEpoch
+      .mockResolvedValueOnce(7)
+      .mockResolvedValueOnce(8);
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(
+      mocks.adminRpc.mock.calls.filter(
+        ([name]) => name === "finalize_amora_first_use_action_proposal_v1",
+      ),
+    ).toHaveLength(1);
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("rejects fake provider metadata from a committed deterministic proposal without overwriting its claim", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { userText } = configureDeterministicFirstUseProposal({
+      finalMetadata: { model: "fake-provider-model" },
+    });
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_FIRST_USE_DETERMINISTIC_PROPOSAL_INVALID",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.failClaim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.log).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   it("keeps a server-guarded verification action proposal-capable without bypassing high-risk scope", async () => {
-    const promotionId = "90000000-0000-4000-8000-000000000003";
     const canonicalActionInput = {
       action: "계약·결제 상태 확인하기",
       reason: "저장된 준비 기록만으로 계약·결제 상태를 확정할 수 없어 먼저 확인이 필요해요.",
       completionCriterion: "계약서와 결제 내역에서 금액·상태·마감일을 확인해 둘이 볼 기록에 적으면 끝나요.",
     };
-    const canonicalAddActionInput = {
-      title: canonicalActionInput.action,
-      description: `이유: ${canonicalActionInput.reason} 완료 기준: ${canonicalActionInput.completionCriterion}`,
-      category_key: "general",
-      priority: "medium",
-      source: "chat",
-    };
-    const userText = [
-      "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
-      `지금 할 한 가지: ${canonicalActionInput.action}`,
-      `이유: ${canonicalActionInput.reason}`,
-      `완료 기준: ${canonicalActionInput.completionCriterion}`,
-      "저장 전에는 확인 카드만 보여줘.",
-    ].join("\n");
-    mocks.canonicalRows[0] = {
-      ...mocks.canonicalRows[0],
-      content: userText,
-      metadata: {
-        client_request_id: REQUEST_ID,
-        amora_first_use_promotion_id: promotionId,
-      },
-    };
-    mocks.adminRpc.mockImplementation(async (name: string) => (
-      name === "validate_amora_first_use_action_promotion_v1"
-        ? {
-            data: {
-              version: 1,
-              promotionId,
-              canonicalActionInput,
-              canonicalAddActionInput,
-            },
-            error: null,
-          }
-        : { data: { authorized: true }, error: null }
-    ));
-    mocks.provider.mockResolvedValueOnce(providerResult({
-      fullText:
-        '[pending_action]{"tool":"add_amora_action","input":{"title":"금액을 바로 보내기"}}[/pending_action]',
-      usage: { input_tokens: 10, output_tokens: 3 },
-    }));
+    const {
+      promotionId,
+      actionId,
+      canonicalAddActionInput,
+      userText,
+    } = configureDeterministicFirstUseProposal({
+      promotionId: "90000000-0000-4000-8000-000000000003",
+      actionId: "97000000-0000-4000-8000-000000000001",
+      assistantMessageId: "98000000-0000-4000-8000-000000000001",
+      canonicalActionInput,
+    });
 
     const response = await POST(request({
       messages: [{ role: "user", content: userText }],
     }));
-    await response.text();
+    const responseText = await response.text();
 
     expect(response.status).toBe(200);
-    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
-      question_scope: "W0_wedding_core",
-      amora_first_use_promotion_id: promotionId,
-      pending_amora_action: expect.objectContaining({
-        tool: "add_amora_action",
-        input: canonicalAddActionInput,
-      }),
-    });
+    expect(responseText).toContain('"question_scope":"W0_wedding_core"');
+    expect(responseText).toContain(
+      `"amora_first_use_promotion_id":"${promotionId}"`,
+    );
+    expect(responseText).toContain(`"actionId":"${actionId}"`);
+    expect(responseText).toContain(JSON.stringify(canonicalAddActionInput));
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
   it("does not let a valid first-use receipt launder legal judgment into an action proposal", async () => {

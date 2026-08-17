@@ -3507,6 +3507,39 @@ test("identity changes reset private session state and gate late async/realtime 
   assert.ok(timerIndex > resetIndex, "sensitive state reset must happen before deferred reload");
 });
 
+test("same-owner first-use reloads retain private scope without overriding explicit shared or identity changes", () => {
+  const resetSession = sourceBetween(
+    "const resetChatSessionState",
+    "useEffect(() => {",
+  );
+  const sessionEffect = sourceBetween(
+    "function scheduleChatSessionReload",
+    "async function findDurableUserMessage",
+  );
+  const firstUseEffectStart = sourceText.indexOf('firstUseEntry !== "first_use"');
+  const firstUseEffectEnd = sourceText.indexOf("]);", firstUseEffectStart);
+  const firstUseEffect = sourceText.slice(firstUseEffectStart, firstUseEffectEnd);
+  const scopeHandler = sourceBetween(
+    "function handleScopeChange",
+    "function handleCorrectFirstUseAction",
+  );
+
+  assert.match(sourceText, /resolveAmoraFirstUseSessionResetScope/);
+  assert.match(sourceText, /const activeScopeRef = useRef<ChatScope>\("shared"\)/);
+  assert.match(resetSession, /const nextScope = sessionReloadScopeRef\.current/);
+  assert.match(resetSession, /activeScopeRef\.current = nextScope[\s\S]*setActiveScope\(nextScope\)/);
+  assert.match(firstUseEffect, /activeScopeRef\.current = "private"[\s\S]*setActiveScope\("private"\)/);
+  assert.match(scopeHandler, /activeScopeRef\.current = nextSelection\.scope[\s\S]*setActiveScope\(nextSelection\.scope\)/);
+  assert.match(sourceText, /const retainedReloadScope = resolveAmoraFirstUseSessionResetScope/);
+  assert.match(sourceText, /sessionReloadScopeRef\.current = retainedReloadScope[\s\S]*void loadChatSession\(\)/);
+  assert.match(
+    sessionEffect,
+    /reloadWhenCoupleRosterChanges[\s\S]*resolveAmoraFirstUseSessionResetScope[\s\S]*scheduleChatSessionReload\(nextScope\)/,
+  );
+  assert.match(sessionEffect, /const reloadIdentity = \(\) => \{[\s\S]*scheduleChatSessionReload\("shared"\)/);
+  assert.match(sessionEffect, /onAuthStateChange[\s\S]*scheduleChatSessionReload\("shared"\)/);
+});
+
 test("mobile rebuilds and reconciles the shared crisis card behind the current owner/couple session fence", () => {
   const recoveryAdapter = sourceBetween(
     "function reconcileMobileAmoraCrisisRecovery",

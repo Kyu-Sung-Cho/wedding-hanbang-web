@@ -6,6 +6,10 @@
     "file": "supabase/release-manifests/amora-engine-v2-20260716.json",
     "sha256": "a17c37ce829a302d5e00945af3269fc227a30bd6ac7791ff8ea2d4103bf54a33"
   },
+  "remoteBaselineContract": {
+    "file": "supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json",
+    "sha256": "aec85a53a01e33a22ffab43424a6cfeff0b052775ae26c772f9c281c1f25b111"
+  },
   "requiredRemoteHead": "20260716117000",
   "migrationFloor": "20260718120000",
   "expandMigrations": [
@@ -388,6 +392,30 @@
     {
       "file": "20260815130000_amora_first_use_action_promotions.sql",
       "sha256": "c4808671308c2ed0bb2be0a7c82b894b69c3d20c63f4547abb3bd61d64511090"
+    },
+    {
+      "file": "20260816120000_amora_preparation_topic_message_refs.sql",
+      "sha256": "7da41bdbee2476a28bc93c8dd3921816e0971af3f8d2ef2f94421dfd5756a217"
+    },
+    {
+      "file": "20260816130000_amora_first_use_deterministic_proposal.sql",
+      "sha256": "dfc943280ac6ecc1ce21503609933322f8b9f0a12c671319bef4b674b835f786"
+    },
+    {
+      "file": "20260816140000_amora_first_use_deterministic_application.sql",
+      "sha256": "a5a184155366fbdcb0b2ad2ded922dc6ce0b3cac480f9e45ae52e5bd0a0084a6"
+    },
+    {
+      "file": "20260816150000_amora_provider_backed_add_action_application.sql",
+      "sha256": "1e7870be4051c4fd9017d6909b453739e8eda9fdd4100339d47d9a79d7777483"
+    },
+    {
+      "file": "20260816160000_amora_atomic_action_href_parity.sql",
+      "sha256": "afe0eabc7cc774d219715224906bfd328e0df011bb76f9caea69615a93a4af7c"
+    },
+    {
+      "file": "20260816170000_amora_booking_outcome_provenance.sql",
+      "sha256": "9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457"
     }
   ],
   "deploymentEvidence": {

@@ -4,14 +4,27 @@ import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 
 import {
+  buildAmoraFirstUseSharedDraft as buildWebFirstUseSharedDraft,
+  extractAmoraFirstUseActionDraft as extractWebFirstUseActionDraft,
+} from "@hanbang/shared/amora-first-use-promotion";
+
+import {
   buildFirstUseCriterionCorrectionDraft,
   buildFirstUseCorrectionDraft,
   buildFirstUseSharedActionDraft,
+  buildFirstUseSharedDraftPrivateCorrection,
   buildAmoraEntryPlan,
   buildAmoraHomeDraft,
   extractFirstUseActionDraft,
   extractFirstUseActionNarrative,
+  getFirstUseActionContinuationPresentation,
+  getFirstUseSharedDraftPresentation,
+  getFirstUsePendingActionPresentation,
   getReviewedActionContinuationPresentation,
+  isFirstUseSharedActionDraftText,
+  parseFirstUseSharedActionDraft,
+  planFirstUseSharedDraftPrivateRecovery,
+  resolveAmoraFirstUseSessionResetScope,
   resolveFirstUseActionBubbleContent,
   resolveAmoraChatEntry,
   selectPrivateActionDraftForBridge,
@@ -30,6 +43,34 @@ test("only the explicit first-use route opens the private personalization entry"
   assert.equal(resolveAmoraChatEntry("FIRST_USE"), null);
   assert.equal(resolveAmoraChatEntry("shared"), null);
   assert.equal(resolveAmoraChatEntry(null), null);
+});
+
+test("a first-use private session survives only a same-owner reload", () => {
+  const sameOwner = {
+    entry: "first_use",
+    activeScope: "private",
+    consumedFirstUseEntryOwnerKey: "user-1:couple-1:first_use",
+    currentUserId: "user-1",
+    currentCoupleId: "couple-1",
+  };
+
+  assert.equal(resolveAmoraFirstUseSessionResetScope(sameOwner), "private");
+  assert.equal(resolveAmoraFirstUseSessionResetScope({
+    ...sameOwner,
+    activeScope: "shared",
+  }), "shared", "an explicit shared selection must remain shared");
+  assert.equal(resolveAmoraFirstUseSessionResetScope({
+    ...sameOwner,
+    entry: null,
+  }), "shared", "normal chat reload semantics must not change");
+  assert.equal(resolveAmoraFirstUseSessionResetScope({
+    ...sameOwner,
+    currentUserId: "user-2",
+  }), "shared", "an account switch must not inherit private session intent");
+  assert.equal(resolveAmoraFirstUseSessionResetScope({
+    ...sameOwner,
+    currentCoupleId: "couple-2",
+  }), "shared", "a couple switch must not inherit private session intent");
 });
 
 test("the first-use chat route switches only a verified couple into a private AI draft", () => {
@@ -503,24 +544,364 @@ test("correcting a personalization premise starts one private editable sentence"
   );
 });
 
-test("the first action continuation explains the customer outcome without shared-draft jargon", () => {
+test("the mobile first-use shared parser recognizes exactly the five lines the web guard recognizes", () => {
+  const sharedText = [
+    "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+    "지금 할 한 가지: 이번 주말에 예식 시기 범위 정하기",
+    "이유: 장소를 보기 전에 두 사람의 기준을 맞추기 위해서",
+    "완료 기준: 가능한 달 두 개를 메모에 적기",
+    "저장 전에는 확인 카드만 보여줘.",
+  ].join("\n");
+
+  assert.deepEqual(parseFirstUseSharedActionDraft(sharedText), {
+    action: "이번 주말에 예식 시기 범위 정하기",
+    reason: "장소를 보기 전에 두 사람의 기준을 맞추기 위해서",
+    completionCriterion: "가능한 달 두 개를 메모에 적기",
+  });
+  assert.equal(isFirstUseSharedActionDraftText(sharedText), true);
+  assert.equal(Object.isFrozen(parseFirstUseSharedActionDraft(sharedText)), true);
+  assert.equal(
+    parseFirstUseSharedActionDraft(`${sharedText}\n일반 대화 한 줄`),
+    null,
+  );
+  assert.equal(isFirstUseSharedActionDraftText("이번 주말에 무엇부터 할까?"), false);
+});
+
+test("the mobile first-use shared parser matches web Unicode, length, and bracket fences", () => {
+  const buildRaw = (action, reason = "둘의 기준을 맞추기 위해서", criterion = "후보 두 개 적기") => [
+    "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+    `지금 할 한 가지: ${action}`,
+    `이유: ${reason}`,
+    `완료 기준: ${criterion}`,
+    "저장 전에는 확인 카드만 보여줘.",
+  ].join("\n");
+
+  assert.ok(parseFirstUseSharedActionDraft(buildRaw("가".repeat(120))));
+  assert.equal(parseFirstUseSharedActionDraft(buildRaw("가".repeat(121))), null);
+  assert.equal(
+    parseFirstUseSharedActionDraft(buildRaw("후보 [두 곳] 비교하기")),
+    null,
+  );
+  assert.equal(
+    parseFirstUseSharedActionDraft(buildRaw("후보\u200e 두 곳 비교하기")),
+    null,
+  );
+  assert.equal(
+    parseFirstUseSharedActionDraft(buildRaw("후보\u200d두 곳 비교하기")),
+    null,
+  );
+  assert.ok(
+    parseFirstUseSharedActionDraft(buildRaw("두 사람 👩‍👩 일정 비교하기")),
+    "a web-safe joined emoji remains visible text",
+  );
+});
+
+test("the independent mobile predicate stays in parity with the web promotion predicate", () => {
+  const canonical = buildFirstUseSharedActionDraft({
+    action: "두 사람 👩‍👩 일정 비교하기",
+    reason: "가능한 주말을 먼저 맞추기 위해서",
+    completionCriterion: "가능한 토요일 두 개 적기",
+  });
+  assert.ok(canonical);
+  const samples = [
+    canonical,
+    canonical.replace("토요일 두 개", "토요일 세 개"),
+    canonical.replace("일정 비교하기", "일정 [비교하기]"),
+    canonical.replace("일정 비교하기", "일정\u200e 비교하기"),
+    `${canonical}\n일반 대화`,
+    "이번 주말에 무엇부터 할까?",
+  ];
+
+  for (const sample of samples) {
+    const webDraft = extractWebFirstUseActionDraft(sample);
+    const webRecognizes = webDraft !== null
+      && buildWebFirstUseSharedDraft(webDraft) === sample;
+    assert.equal(
+      isFirstUseSharedActionDraftText(sample),
+      webRecognizes,
+      `mobile/web mismatch for ${JSON.stringify(sample)}`,
+    );
+  }
+});
+
+test("an edited first-use shared card becomes a bounded unsent private correction draft", () => {
+  const sharedText = [
+    "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+    "지금 할 한 가지: 토요일에 예식장 후보 세 곳 비교하기",
+    "이유: 이동 거리와 예산을 함께 보기 위해서",
+    "완료 기준: 둘 다 괜찮은 후보 두 곳 표시하기",
+    "저장 전에는 확인 카드만 보여줘.",
+  ].join("\n");
+  const privateDraft = buildFirstUseSharedDraftPrivateCorrection(sharedText);
+
+  assert.ok(privateDraft);
+  assert.match(privateDraft, /지금 할 한 가지: 토요일에 예식장 후보 세 곳 비교하기/u);
+  assert.match(privateDraft, /이유: 이동 거리와 예산을 함께 보기 위해서/u);
+  assert.match(privateDraft, /완료 기준: 둘 다 괜찮은 후보 두 곳 표시하기/u);
+  assert.match(privateDraft, /자동으로 보내거나 준비에 추가하지 말아 줘/u);
+  assert.ok(Array.from(privateDraft).length <= 900);
+  assert.deepEqual(planFirstUseSharedDraftPrivateRecovery({
+    sharedText,
+    privateText: "",
+  }), {
+    status: "ready",
+    privateDraft,
+  });
+  assert.equal(Object.isFrozen(planFirstUseSharedDraftPrivateRecovery({
+    sharedText,
+    privateText: "",
+  })), true);
+});
+
+test("first-use recovery preserves both drafts when the private composer is occupied", () => {
+  const sharedText = buildFirstUseSharedActionDraft({
+    action: "토요일에 예식장 후보 세 곳 비교하기",
+    reason: "이동 거리와 예산을 함께 보기 위해서",
+    completionCriterion: "둘 다 괜찮은 후보 두 곳 표시하기",
+  });
+  assert.ok(sharedText);
+
+  assert.deepEqual(planFirstUseSharedDraftPrivateRecovery({
+    sharedText,
+    privateText: "이미 작성 중인 나만 상담 초안",
+  }), { status: "private_occupied" });
+  assert.deepEqual(planFirstUseSharedDraftPrivateRecovery({
+    sharedText: "이번 주말에 무엇부터 할까?",
+    privateText: "",
+  }), { status: "not_applicable" });
+});
+
+test("the first action continuation truthfully names private storage and the first of three review stages", () => {
+  const presentation = getFirstUseActionContinuationPresentation();
+
+  assert.deepEqual(presentation, {
+    stageLabel: "1/3 · 나만 정리",
+    label: "함께 볼 초안 만들기",
+    accessibilityLabel: "1단계 나만 정리에서 함께 볼 초안 만들기",
+    accessibilityHint:
+      "확인한 세 항목을 같은 화면의 함께 대화 입력란에만 채우며 자동으로 보내거나 준비 기록에 추가하지 않습니다",
+    scopeCopy:
+      "나만 상담에 저장됐고 상대방에게는 보이지 않아요. 준비 기록은 아직 바뀌지 않았어요.",
+    promise:
+      "버튼을 누르면 같은 화면의 함께 대화 입력란에 초안만 채워져요. 직접 보내기 전에는 함께 대화에 저장되지 않아요.",
+  });
+  assert.doesNotMatch(
+    Object.values(presentation).join(" "),
+    /다음 화면|확인 전에는 저장하지/,
+  );
+  assert.equal(Object.isFrozen(presentation), true);
+});
+
+test("schedule-care keeps its ordinary reviewed-action continuation copy", () => {
   const presentation = getReviewedActionContinuationPresentation();
 
   assert.deepEqual(presentation, {
     label: "이 행동으로 준비 이어가기",
     accessibilityLabel: "확인한 행동으로 우리 준비 이어가기",
     accessibilityHint:
-      "확인한 세 항목만 다음 화면에 채우며 자동으로 보내거나 저장하지 않습니다",
+      "확인한 세 항목만 같은 화면의 함께 대화 입력란에 채우며 자동으로 보내거나 저장하지 않습니다",
     scopeCopy:
       "확인한 행동·이유·완료 기준만 우리 준비로 가져가요. 나만 상담 내용은 가져가지 않고, 연결된 파트너와 함께 볼 수 있어요.",
     promise:
-      "다음 화면에서 내용을 다시 확인하고 직접 보내야 추가돼요. 자동으로 보내거나 저장하지 않아요.",
+      "같은 화면에서 내용을 다시 확인하고 직접 보내야 추가돼요. 자동으로 보내거나 저장하지 않아요.",
   });
-  assert.doesNotMatch(
-    Object.values(presentation).join(" "),
-    /공동 대화|공동 준비 초안|둘이 볼 초안/,
-  );
+  assert.equal(Object.hasOwn(presentation, "stageLabel"), false);
   assert.equal(Object.isFrozen(presentation), true);
+});
+
+test("the staged shared draft distinguishes conversation storage from preparation changes", () => {
+  const presentation = getFirstUseSharedDraftPresentation();
+
+  assert.deepEqual(presentation, {
+    stageLabel: "2/3 · 함께 볼 초안",
+    copy: "직접 보내면 함께 대화에 저장돼요. 준비 기록에는 아직 반영되지 않아요.",
+    accessibilityLabel: "2단계 함께 볼 초안",
+    sendConfirmationCopy:
+      "이 확인은 함께 대화에 저장하는 단계예요. 준비에 추가하는 확인은 다음에 따로 해요.",
+    composerOccupiedCopy:
+      "함께 대화에 작성 중인 초안이 있어 덮어쓰지 않았어요. 작성 중인 내용을 먼저 확인해 주세요.",
+    composerOccupiedActionLabel: "작성 중 초안 보기",
+    draftChangedCopy:
+      "초안을 수정해 첫 준비 연결이 해제됐어요. 이 실행 카드 형식은 일반 함께 대화로 보낼 수 없어요. 현재 내용을 나만 상담에서 다시 맞춰 주세요.",
+    draftChangedActionLabel: "나만 상담에서 다시 맞추기",
+    privateComposerOccupiedCopy:
+      "나만 상담에 작성 중인 초안이 있어 덮어쓰지 않았어요. 함께 대화 초안도 그대로 두었어요. 작성 중인 내용을 먼저 확인해 주세요.",
+    privateComposerOccupiedActionLabel: "나만 상담 초안 보기",
+  });
+  assert.equal(Object.isFrozen(presentation), true);
+});
+
+test("the first-use shared composer exposes its stage and visible recovery without overwriting drafts", () => {
+  const chatSource = readFileSync(
+    fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  assert.match(chatSource, /getFirstUseSharedDraftPresentation/);
+  assert.match(chatSource, /type FirstUseComposerNotice =[\s\S]*"composer_occupied"[\s\S]*"draft_changed"[\s\S]*"private_composer_occupied"/);
+  assert.match(chatSource, /setFirstUseComposerNotice\("composer_occupied"\)/);
+  assert.match(chatSource, /setFirstUseComposerNotice\("draft_changed"\)/);
+  assert.match(chatSource, /firstUseSharedDraftPresentation\.stageLabel/);
+  assert.match(chatSource, /firstUseSharedDraftPresentation\.copy/);
+  assert.match(chatSource, /firstUseSharedDraftPresentation\.sendConfirmationCopy/);
+  assert.match(chatSource, /firstUseSharedDraftPresentation\.composerOccupiedCopy/);
+  assert.match(chatSource, /firstUseSharedDraftPresentation\.draftChangedCopy/);
+  assert.match(chatSource, /firstUseSharedDraftPresentation\.privateComposerOccupiedCopy/);
+  assert.match(chatSource, /firstUseComposerStage:[^}]*minHeight: 48/s);
+  assert.match(chatSource, /firstUseComposerNoticeAction:[^}]*minHeight: 48/s);
+
+  const continuationStart = chatSource.indexOf("async function handleContinueFirstUseAction");
+  const continuationEnd = chatSource.indexOf("async function handleStageScheduleCareSharedDraft", continuationStart);
+  assert.ok(continuationStart > 0 && continuationEnd > continuationStart);
+  const continuation = chatSource.slice(continuationStart, continuationEnd);
+  assert.match(continuation, /inputByLaneRef\.current\.shared_ai\.trim\(\)/);
+  assert.doesNotMatch(continuation, /handleSend|setActiveInput\(""\)/);
+});
+
+test("an unbound five-line first-use draft is stopped before shared persistence and recovers only on tap", () => {
+  const chatSource = readFileSync(
+    fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url)),
+    "utf8",
+  );
+  const sendStart = chatSource.indexOf("async function handleSend");
+  const crisisStart = chatSource.indexOf("const crisisPreflight", sendStart);
+  assert.ok(sendStart > 0 && crisisStart > sendStart);
+  const localSendPreflight = chatSource.slice(sendStart, crisisStart);
+  assert.match(localSendPreflight, /resolveFirstUseSourceMessageIdForSend/);
+  assert.match(localSendPreflight, /isFirstUseSharedActionDraftText\(text\)/);
+  assert.match(localSendPreflight, /boundFirstUseSourceMessageId === null/);
+  assert.match(localSendPreflight, /setFirstUseComposerNotice\("draft_changed"\)[\s\S]*return/);
+  assert.doesNotMatch(
+    localSendPreflight,
+    /beginChatSendOperation|sendAiDraft|sendPartnerDraft|fetch\(|apiFetch|supabase|insertChatMessage/,
+  );
+  assert.match(
+    chatSource.slice(crisisStart, chatSource.indexOf("const scheduleCareFollowUp", crisisStart)),
+    /const firstUseSourceMessageId = effectiveVisibility === "shared"[\s\S]*boundFirstUseSourceMessageId/,
+    "the still-bound canonical 2/3 draft keeps its verified source id",
+  );
+
+  const inputChangeStart = chatSource.indexOf("function handleInputChange");
+  const inputChangeEnd = chatSource.indexOf("function handleFirstUseComposerNoticeAction", inputChangeStart);
+  const inputChange = chatSource.slice(inputChangeStart, inputChangeEnd);
+  assert.match(inputChange, /isFirstUseSharedActionDraftText\(value\.trim\(\)\)/);
+  assert.match(
+    inputChange,
+    /current === "draft_changed" \|\| current === "private_composer_occupied"[\s\S]*\? null/,
+    "leaving the exact five-line format restores ordinary shared sending",
+  );
+
+  const recoveryStart = chatSource.indexOf("function handleFirstUseComposerNoticeAction");
+  const recoveryEnd = chatSource.indexOf("function handleTargetChange", recoveryStart);
+  assert.ok(recoveryStart > 0 && recoveryEnd > recoveryStart);
+  const recovery = chatSource.slice(recoveryStart, recoveryEnd);
+  assert.match(recovery, /planFirstUseSharedDraftPrivateRecovery/);
+  assert.match(recovery, /recovery\.status === "private_occupied"/);
+  assert.match(recovery, /setFirstUseComposerNotice\("private_composer_occupied"\)/);
+  assert.match(recovery, /updateAmoraChatLaneRecord\([\s\S]*"private_ai",\s*recovery\.privateDraft/);
+  assert.match(recovery, /updateAmoraChatLaneRecord\([\s\S]*"shared_ai",\s*""/);
+  assert.doesNotMatch(recovery, /handleSend|fetch\(|apiFetch|supabase|sendAiDraft|sendPartnerDraft/);
+});
+
+test("an exact deterministic first-use proposal exposes the final preparation confirmation stage", () => {
+  const pendingAction = {
+    version: 2,
+    actionId: "11111111-1111-4111-8111-111111111111",
+    tool: "add_amora_action",
+    input: {
+      title: "예식장 후보 두 곳 비교하기",
+      description: "이유: 기준을 맞춰요. 완료 기준: 후보 두 곳을 적어요.",
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    },
+    inputDigest: "a".repeat(64),
+    operationKey: "b".repeat(64),
+    confirmation: "예식장 후보 두 곳 비교하기를 다음 할 일로 제안했어요.",
+    issuedAt: 1_000,
+    expiresAt: 601_000,
+  };
+  const metadata = {
+    client_request_id: "request-key",
+    client_visible_request_id: "visible-request-key",
+    in_reply_to_user_message_id: "22222222-2222-4222-8222-222222222222",
+    question_scope: "W0_wedding_core",
+    memory_eligible: false,
+    memory_enqueue_requested: false,
+    amora_wedding_context_revision: 7,
+    pending_amora_action_journey_revision: 7,
+    amora_first_use_promotion_id: "33333333-3333-4333-8333-333333333333",
+    response_origin: "server_authoritative_first_use_promotion",
+    provider_call_count: 0,
+    pending_amora_action: pendingAction,
+  };
+
+  assert.deepEqual(
+    getFirstUsePendingActionPresentation({ metadata, pendingAction }),
+    {
+      stageLabel: "3/3 · 준비에 반영 전",
+      prompt: "이 내용을 다음 할 일로 추가할까요?",
+      applyLabel: "확인하고 준비에 추가",
+      accessibilityLabel: "3단계 준비에 반영 전, 확인하고 준비에 추가",
+      accessibilityHint: "확인하면 이 내용을 다음 할 일에 반영하는 기존 적용 절차를 시작합니다",
+    },
+  );
+});
+
+test("ordinary or incomplete pending actions cannot borrow the first-use final-stage copy", () => {
+  const pendingAction = {
+    version: 2,
+    actionId: "11111111-1111-4111-8111-111111111111",
+    tool: "add_amora_action",
+  };
+  const exactMetadata = {
+    client_request_id: "request-key",
+    client_visible_request_id: "visible-request-key",
+    in_reply_to_user_message_id: "22222222-2222-4222-8222-222222222222",
+    question_scope: "W0_wedding_core",
+    memory_eligible: false,
+    memory_enqueue_requested: false,
+    amora_wedding_context_revision: 7,
+    pending_amora_action_journey_revision: 7,
+    amora_first_use_promotion_id: "33333333-3333-4333-8333-333333333333",
+    response_origin: "server_authoritative_first_use_promotion",
+    provider_call_count: 0,
+    pending_amora_action: pendingAction,
+  };
+
+  const incompleteMetadata = {
+    ...exactMetadata,
+    client_visible_request_id: undefined,
+  };
+  assert.equal(getFirstUsePendingActionPresentation({
+    metadata: incompleteMetadata,
+    pendingAction,
+  }), null);
+  assert.equal(getFirstUsePendingActionPresentation({
+    metadata: { ...exactMetadata, response_origin: "ai_provider" },
+    pendingAction,
+  }), null);
+  assert.equal(getFirstUsePendingActionPresentation({
+    metadata: { ...exactMetadata, ai_provider: "anthropic" },
+    pendingAction,
+  }), null);
+});
+
+test("only the exact deterministic first-use pending card renders the third-stage prompt and action", () => {
+  const chatSource = readFileSync(
+    fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  assert.match(chatSource, /getFirstUsePendingActionPresentation\(\{/);
+  assert.match(chatSource, /metadata: item\.metadata/);
+  assert.match(chatSource, /pendingActionPresentation\?\.stageLabel/);
+  assert.match(chatSource, /pendingActionPresentation\.prompt/);
+  assert.match(chatSource, /pendingActionPresentation\.applyLabel/);
+  assert.match(chatSource, /pendingActionPresentation\.accessibilityLabel/);
+  assert.match(chatSource, /pendingActionPresentation\?\.accessibilityHint/);
+  assert.match(chatSource, /firstUsePendingActionButton:[^}]*minHeight: 48/s);
+  assert.match(chatSource, /pendingActionPresentation && st\.firstUsePendingActionButton/);
 });
 
 test("the personalized first action lets the user accept, revise, skip, and restore without hidden writes", () => {
@@ -533,13 +914,16 @@ test("the personalized first action lets the user accept, revise, skip, and rest
     "utf8",
   );
 
-  assert.match(bridgeSource, /getReviewedActionContinuationPresentation/);
+  assert.match(bridgeSource, /getFirstUseActionContinuationPresentation/);
+  assert.match(bridgeSource, /continuationPresentation\.stageLabel/);
   assert.match(bridgeSource, /continuationPresentation\.label/);
-  assert.doesNotMatch(bridgeSource, /둘이 볼 초안 만들기/);
   assert.match(bridgeSource, /조금 바꿀래요/);
   assert.match(bridgeSource, /지금은 아니에요/);
   assert.match(bridgeSource, /이번 제안은 넘겼어요/);
-  assert.match(bridgeSource, /저장하거나 공유한 내용은 없어요/);
+  assert.match(
+    bridgeSource,
+    /준비 기록이나 함께 대화에 추가된 내용은 없어요\. 나만 상담은 그대로 남아요\./,
+  );
   assert.match(bridgeSource, /다시 보기/);
   assert.match(bridgeSource, /onSkip/);
   assert.match(bridgeSource, /onRestore/);
@@ -711,8 +1095,7 @@ test("the private first-action bridge copies only the reviewed card into a share
   assert.match(bridgeSource, /continuationPresentation\.accessibilityLabel/);
   assert.match(bridgeSource, /continuationPresentation\.accessibilityHint/);
   assert.match(bridgeSource, /continuationPresentation\.promise/);
-  assert.doesNotMatch(bridgeSource, /둘이 볼 초안 만들기/);
-  assert.doesNotMatch(bridgeSource, /둘이 볼 공동 준비 초안으로 옮기기/);
+  assert.match(bridgeSource, /continuationPresentation\.stageLabel/);
   assert.match(bridgeSource, /minHeight: 48/);
   assert.doesNotMatch(bridgeSource, /fetch\(|apiFetch|supabase|handleSend/);
 
@@ -769,7 +1152,8 @@ test("a blank Amora conversation recommends one state review without making the 
   assert.equal(plan.title, "지금 어디부터 같이 볼까요?");
   assert.match(plan.description, /정해진 게 거의 없어도 괜찮아요/);
   assert.match(plan.description, /나에게 맞는 첫 행동/);
-  assert.match(plan.description, /나만 보는 초안/);
+  assert.match(plan.description, /나만 상담에 저장/);
+  assert.match(plan.description, /준비 기록은 직접 확인하기 전까지 바뀌지 않아요/);
   assert.deepEqual(
     plan.starters.map(({ id, label, recommended }) => ({ id, label, recommended })),
     [

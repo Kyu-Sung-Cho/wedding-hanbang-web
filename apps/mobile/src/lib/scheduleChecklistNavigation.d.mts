@@ -18,3 +18,20 @@ export interface VerifiedChecklistDeepLink {
 export function buildVerifiedChecklistDeepLink(
   input: VerifiedChecklistDeepLinkInput,
 ): VerifiedChecklistDeepLink | null;
+
+export interface VerifiedChecklistDeepLinkFocusTargetInput {
+  deepLink: VerifiedChecklistDeepLink | null;
+  laidOutCategoryKey: string;
+  layoutY: number;
+  focusedHandledKey: string | null;
+}
+
+export interface VerifiedChecklistDeepLinkFocusTarget {
+  categoryKey: string;
+  handledKey: string;
+  scrollY: number;
+}
+
+export function buildVerifiedChecklistDeepLinkFocusTarget(
+  input: VerifiedChecklistDeepLinkFocusTargetInput,
+): VerifiedChecklistDeepLinkFocusTarget | null;

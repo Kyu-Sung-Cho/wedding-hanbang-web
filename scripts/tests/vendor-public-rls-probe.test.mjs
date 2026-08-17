@@ -16,6 +16,10 @@ import {
   validateProbeEnvironment,
   VENDOR_DISCLOSURE_BASE_TABLES,
 } from "../vendor-public-rls-probe.mjs";
+import {
+  attachSuccessorRemoteBaselineFixture,
+  SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
+} from "./helpers/successor-remote-baseline-fixture.mjs";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
 const UUID_B = "22222222-2222-4222-8222-222222222222";
@@ -182,13 +186,18 @@ async function createReleaseFixture(t) {
     requiredRemoteHead: "20260716117000",
     status: "deployment_blocked",
   };
+  const successorBaseline = attachSuccessorRemoteBaselineFixture(manifest);
   await writeFile(
     join(repoRoot, "supabase", "release-manifests", "amora-engine-v2-20260716.json"),
     predecessorManifestText,
   );
   await writeFile(
     join(repoRoot, "supabase", "release-manifests", "vendor-disclosure-v2-20260718.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`,
+    `${JSON.stringify(successorBaseline.manifest, null, 2)}\n`,
+  );
+  await writeFile(
+    join(repoRoot, SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH),
+    successorBaseline.contractText,
   );
   await writeFile(
     join(

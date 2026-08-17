@@ -1,5 +1,7 @@
 # 웨딩한방·아모라 개발 인수인계 — 새 LLM은 여기서 시작
 
+> 아모라 제품 개발의 현재 단일 실행 정본은 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`다. 아모라 작업은 그 문서의 `NOW`와 `AMR-*` 작업 ID를 먼저 확인하고, 코드·검증·배포·사용자 검증 상태를 갱신한다. 아래 2026-08-12 release handoff와 과거 SHA는 역사·운영 근거이며 현재 제품 우선순위를 대신하지 않는다.
+
 > 상태: **CURRENT NAVIGATION ENTRYPOINT / IMPLEMENTATION INCOMPLETE / PRODUCTION NO-GO**
 >
 > 저장소: `Kyu-Sung-Cho/wedding-hanbang-web`
@@ -9,12 +11,12 @@
 > 2026-07-31 인수인계 snapshot: PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
 > (`agent/release-handoff-20260731`, **현재 개발 기준 아님**)
 >
-> 검증된 구현·Preview source SHA: `f8851f749890a172057f2e3a5360d11f3ea1163a`
+> 2026-08-12 당시 검증된 구현·Preview source SHA: `f8851f749890a172057f2e3a5360d11f3ea1163a` (**현재 기준 아님**)
 >
 > 원격 후보: `codex/amora-release-hardening-20260811` · Draft PR
 > [#105](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/105)
 >
-> 현재 remote release candidate source-status 정본:
+> 2026-08-12 remote release candidate 역사 영수증:
 > `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`
 > — **REMOTE RELEASE CANDIDATE / PROTECTED STUB PREVIEW / HOSTED PRODUCTION EVIDENCE MISSING / PRODUCTION NO-GO**
 
@@ -25,7 +27,7 @@
 문서에 적힌 과거 SHA나 snapshot branch를 현재 tip으로 가정하지 않는다. 작업을 시작할 때
 `origin/main`과 이어서 작업하라고 명시된 원격 branch를 Git과 GitHub에서 직접 확인한다.
 
-현재 원격 후보에서는 2026-08-12 handoff가 구현·검증 상태를 갱신한다. 아래
+현재 상태는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, 실제 Git, 테스트, migration manifest가 갱신한다. 2026-08-12 handoff와 아래
 2026-08-04~05 진행 절과 P0 목록은 역사 기록이며 현재 작업 목록으로 실행하지 않는다.
 후보는 원격 branch·Draft PR·접근 보호된 stub Preview까지 게시됐지만, 실제 코드·테스트와
 Git 상태보다 높은 Production 배포 권한은 갖지 않는다.
@@ -98,7 +100,7 @@ Git 상태보다 높은 Production 배포 권한은 갖지 않는다.
 | 목적 | SHA 또는 ref | 의미 |
 |---|---|---|
 | 현재 원격 개발 기준 | `origin/main` | 매 작업 시작 시 fetch 뒤 실제 SHA를 조회하는 유일한 기본 통합 기준 |
-| 검증된 구현·Preview source | `f8851f749890a172057f2e3a5360d11f3ea1163a` | 전체 source gate와 최초 보호 stub Preview가 연결된 exact SHA |
+| 2026-08-12 검증 구현·Preview source | `f8851f749890a172057f2e3a5360d11f3ea1163a` | 당시 source gate와 최초 보호 stub Preview가 연결된 역사 SHA. 현재 기준 아님 |
 | 현재 원격 후보 | `origin/codex/amora-release-hardening-20260811` | Draft PR #105의 head. 문서-only 갱신 뒤에는 실제 tip을 다시 조회 |
 | 구현·운영 보안 감사 기준 | `a4f3626e5f98772b340b358b00a562b4692254fd` | P0/P1 코드 경로와 운영 증거를 확인한 source 기준점 |
 | 두 핵심 인수인계 문서 최초 게시 | `aaddd8ee23e5c83ac99784eb57b9a57c4c56af73` | 상세 handoff와 목표 아키텍처를 원격에서 처음 복원할 수 있는 commit |
@@ -177,10 +179,11 @@ local dev의 실행 정본은 `apps/mobile/scripts/start-expo-dev.mjs`이며 Nod
 | 2 | `AGENTS.md` | 저장소 구조·코딩·검증·운영 작업 규칙은 무엇인가 |
 | 3 | `docs/README.md` | 현재 문서와 역사 문서를 어떻게 구분하는가 |
 | 4 | `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md` | 현재 제품·채널·MVP 우선순위는 무엇인가 (`docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계) |
-| 5 | `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md` | 현재 remote 후보에서 무엇을 고쳤고 무엇이 아직 hosted 미검증인가 |
-| 6 | `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md` | 이전 source-status와 남은 목표·공격 모델은 무엇이었나(현재 상태는 5번이 갱신) |
-| 7 | `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md` | 개인정보·커플 경계의 목표 구조와 절대 출시 게이트는 무엇인가 |
-| 8 | 변경할 영역의 실제 코드·테스트·최신 migration | 문서 이후에도 유효한 실제 동작은 무엇인가 |
+| 5 | `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md` | 아이디얼 아모라, 현재 후보, NOW와 단일 active vertical은 무엇인가 |
+| 6 | `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md` | 당시 remote 후보에서 무엇을 고쳤고 무엇이 hosted 미검증이었나 |
+| 7 | `docs/operations/AMORA_PRIVACY_SECURITY_WORK_PROGRESS_AND_RELEASE_HANDOFF_2026-08-04.md` | 이전 source-status와 목표·공격 모델은 무엇이었나 |
+| 8 | `docs/AMORA_ZERO_LEAK_PRIVACY_SECURITY_ARCHITECTURE_2026-08-04.md` | 개인정보·커플 경계의 목표 구조와 절대 출시 게이트는 무엇인가 |
+| 9 | 변경할 영역의 실제 코드·테스트·최신 migration | 문서 이후에도 유효한 실제 동작은 무엇인가 |
 
 모바일 내비게이션·화면 계층·아모라·업체 흐름을 바꾸면
 `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`도 먼저 읽는다. 시각·UI를 바꾸면
@@ -222,7 +225,7 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 
 | 표면 | 현재 판정 | 이유 |
 |---|---|---|
-| GitHub source와 문서 | Draft 후보 게시됨 | remote branch와 Draft PR #105가 있으며 구현 검증 SHA는 `f8851f74` |
+| GitHub source와 문서 | dirty local candidate · Draft 역사 존재 | 현재 HEAD·diff는 직접 조회하며 `f8851f74`는 2026-08-12 역사 SHA |
 | Vercel Preview artifact | READY·접근 보호 | deployment `dpl_AJEzS36JsP35THq85GL2d4WaXB6a`; Production alias 아님 |
 | 격리 stub Preview | synthetic QA만 가능 | `NEXT_PUBLIC_PREVIEW_STUB_MODE=true`, Vercel SSO 보호, `/api/journey` 503·no-store 확인 |
 | 실제 사용자 데이터가 들어가는 Preview | NO-GO | 현재 artifact는 stub 전용이며 실제 사용자 QA용 destination·동의·기능별 운영 영수증이 없음 |
@@ -253,8 +256,7 @@ Git에서 복사 기준으로 사용할 파일은 다음 두 개뿐이다.
 ## 7. 역사 기록 — 2026-08-04~05 P0-5 provider egress gate
 
 > **이 절 전체는 2026-08-04~05 역사 기록이다. `P0-5 OPEN`, 당시 branch, SHA, 테스트 수를
-> 현재 상태로 사용하지 않는다. 현재 remote candidate source 상태는
-> `docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md`와 실제 diff가 갱신한다.**
+> 현재 상태로 사용하지 않는다. 현재 상태는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`와 실제 Git·테스트·migration manifest가 갱신한다.**
 > RED 테스트도 SDK gate도 호출부 배선도 이미 존재하므로 같은 작업을 다시 만들지 않는다.
 
 새 기능부터 만들지 않는다. 첫 독립 작업은 AI provider로 원문이 나가기 전에 모든

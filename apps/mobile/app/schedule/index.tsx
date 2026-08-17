@@ -1,18 +1,20 @@
 // 체크리스트/일정 화면 — 카테고리 체크 + 일정 CRUD
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
   RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
-  Animated, LayoutAnimation, AppState,
+  AccessibilityInfo, Animated, LayoutAnimation, AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams, usePathname } from "expo-router";
+import * as Crypto from "expo-crypto";
 import {
   ChevronDown, ChevronUp, CheckCircle2, Circle,
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
+  buildAmoraPreparationTopicView,
   getCanonicalCategoryKeyForMoment,
   isScheduleCareMomentType,
   sanitizeUserFacingScheduleMemo,
@@ -24,6 +26,9 @@ import {
   summarizePlanningChecklist,
   type PlanningChecklistStatus,
 } from "@hanbang/shared/utils";
+import type {
+  AmoraPreparationTopicMessageRefCollectionItem,
+} from "@hanbang/shared/amora-preparation-topic-message-ref";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import {
@@ -45,11 +50,42 @@ import {
   validateScheduleEventDraft,
 } from "@/lib/scheduleMutation.mjs";
 import {
+  buildScheduleIdentitySnapshot,
   createScheduleSessionFence,
+  isSameScheduleIdentitySnapshot,
+  SCHEDULE_IDENTITY_RECONCILIATION_INTERVAL_MS,
+  type ScheduleIdentitySnapshot,
   type ScheduleSessionToken,
 } from "@/lib/scheduleSessionFence.mjs";
-import { buildVerifiedChecklistDeepLink } from "@/lib/scheduleChecklistNavigation.mjs";
+import {
+  buildVerifiedChecklistDeepLink,
+  buildVerifiedChecklistDeepLinkFocusTarget,
+  type VerifiedChecklistDeepLink,
+} from "@/lib/scheduleChecklistNavigation.mjs";
+import { buildPreparationTopicPresentation } from "@/lib/preparationTopicPresentation.mjs";
+import {
+  buildPreparationTopicAmoraHandoff,
+  buildPreparationTopicPersonalization,
+  loadPreparationTopicCoupleContext,
+  loadPreparationTopicOwnerContext,
+  type PreparationTopicCoupleContext,
+  type PreparationTopicOwnerContext,
+} from "@/lib/preparationTopicPersonalization.mjs";
+import {
+  loadPreparationTopicBudgetDecisions,
+  type PreparationTopicBudgetDecisionVerification,
+} from "@/lib/preparationTopicBudgetDecisions.mjs";
+import { loadPreparationTopicMessageReferences } from "@/lib/preparationTopicMessageRefs.mjs";
+import { loadPreparationTopicVendorBookings } from "@/lib/preparationTopicVendorBookings.mjs";
+import { stagePrivateChatHandoff } from "@/lib/companionChatHandoff.mjs";
+import {
+  DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT,
+  formatLocalDateKey,
+  listDashboardOpenActions,
+  type DashboardOpenAction,
+} from "@/lib/dashboardExperience.mjs";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import PreparationTopicSummary from "@/components/planning/PreparationTopicSummary";
 import {
   AppHeader,
   AppText,
@@ -125,6 +161,12 @@ const CATEGORY_OPTIONS = [
   })),
   { key: "general", label: "기타" },
 ];
+const PREPARATION_BUDGET_CATEGORY_KEYS = Object.freeze(
+  CATEGORY_CHECKLISTS.map((topic) => topic.key),
+);
+const PREPARATION_DECISION_RECEIPT_LIMIT = 80;
+const PREPARATION_BUDGET_DECISION_RECEIPT_LIMIT = 80;
+const PREPARATION_VENDOR_BOOKING_DECISION_LIMIT = 80;
 
 function canonicalScheduleCategoryKey(value: string): string {
   if (!value) return "";
@@ -389,6 +431,62 @@ export default function ScheduleScreen() {
   const checklistOnly = pathname.startsWith("/checklist");
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
+  const [preparationProgress, setPreparationProgress] = useState<Record<string, unknown>>({});
+  const [topicOpenActions, setTopicOpenActions] = useState<readonly DashboardOpenAction[]>([]);
+  const [topicActionReadState, setTopicActionReadState] = useState<
+    "loaded" | "unavailable"
+  >("loaded");
+  const [topicScheduleDecisionReceipts, setTopicScheduleDecisionReceipts] = useState<readonly unknown[]>([]);
+  const [topicDecisionReadState, setTopicDecisionReadState] = useState<
+    "loaded" | "partial" | "unavailable"
+  >("loaded");
+  const [topicBudgetDecisionReceipts, setTopicBudgetDecisionReceipts] = useState<
+    readonly unknown[]
+  >([]);
+  const [topicBudgetDecisionVerifications, setTopicBudgetDecisionVerifications] = useState<
+    readonly PreparationTopicBudgetDecisionVerification[]
+  >([]);
+  const [topicBudgetDecisionReadState, setTopicBudgetDecisionReadState] = useState<
+    "loaded" | "partial" | "unavailable"
+  >("loaded");
+  const [topicMessageReferences, setTopicMessageReferences] = useState<
+    readonly AmoraPreparationTopicMessageRefCollectionItem[]
+  >([]);
+  const [topicMessageReferenceReadState, setTopicMessageReferenceReadState] = useState<
+    "loaded" | "partial" | "unavailable"
+  >("loaded");
+  const [topicOwnerContext, setTopicOwnerContext] = useState<PreparationTopicOwnerContext>({
+    readState: "loading",
+    preferences: null,
+    coreCriterion: null,
+  });
+  const [topicCoupleContext, setTopicCoupleContext] = useState<PreparationTopicCoupleContext>({
+    readState: "loading",
+    confirmedCriterion: null,
+  });
+  const [topicCurrentCoupleMemberIds, setTopicCurrentCoupleMemberIds] = useState<
+    readonly string[]
+  >([]);
+  const [topicVendorBookingDecisionReceipts, setTopicVendorBookingDecisionReceipts] = useState<
+    readonly unknown[]
+  >([]);
+  const [topicVendorBookings, setTopicVendorBookings] = useState<readonly unknown[]>([]);
+  const [topicVendorBookingReadState, setTopicVendorBookingReadState] = useState<
+    "loaded" | "partial" | "unavailable"
+  >("loaded");
+  const [
+    topicCompletedVendorBookingDecisionReceipts,
+    setTopicCompletedVendorBookingDecisionReceipts,
+  ] = useState<readonly unknown[]>([]);
+  const [topicCompletedVendorBookings, setTopicCompletedVendorBookings] = useState<
+    readonly unknown[]
+  >([]);
+  const [
+    topicCompletedVendorBookingReadState,
+    setTopicCompletedVendorBookingReadState,
+  ] = useState<"loaded" | "partial" | "unavailable">("loaded");
+  const [topicJourneyRevision, setTopicJourneyRevision] = useState<number | null>(null);
+  const [topicDecisionNowIso, setTopicDecisionNowIso] = useState<string | null>(null);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [weddingDate, setWeddingDate] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
@@ -398,6 +496,7 @@ export default function ScheduleScreen() {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [approvalRequests, setApprovalRequests] = useState<ScheduleApprovalRequest[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(false);
+  const [approvalInitialReadSettled, setApprovalInitialReadSettled] = useState(false);
   const [approvalError, setApprovalError] = useState(false);
   const [scheduleDataError, setScheduleDataError] = useState<
     "integrity" | "load" | null
@@ -412,13 +511,149 @@ export default function ScheduleScreen() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const scheduleSessionFenceRef = useRef(createScheduleSessionFence()).current;
   const scheduleLoadSequenceRef = useRef(0);
+  const verifiedScheduleIdentityRef = useRef<ScheduleIdentitySnapshot | null>(null);
   const approvalLoadSequenceRef = useRef(0);
   const approvalActionSequenceRef = useRef(0);
   const approvalBusyRef = useRef<number | null>(null);
   const approvalIdentityRef = useRef<{ ownerId: string; coupleId: string } | null>(null);
   const handledChecklistDeepLinkRef = useRef<string | null>(null);
+  const pendingChecklistDeepLinkRef = useRef<VerifiedChecklistDeepLink | null>(null);
+  const focusedChecklistDeepLinkRef = useRef<string | null>(null);
+  const checklistScrollRef = useRef<ScrollView | null>(null);
+  const checklistCategoryLayoutRef = useRef(new Map<string, number>());
+  const checklistCategoryHeaderRef = useRef(new Map<string, View>());
+  const checklistFocusFrameRef = useRef<number | null>(null);
+  const approvalLoadingRef = useRef(false);
+  const approvalInitialReadSettledRef = useRef(false);
+  const [
+    pendingChecklistDeepLinkHandledKey,
+    setPendingChecklistDeepLinkHandledKey,
+  ] = useState<string | null>(null);
   const hasFocusedRef = useRef(false);
+  const scheduleScreenMountedRef = useRef(true);
+  const scheduleScreenFocusedRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
+
+  const cancelScheduledChecklistAccessibilityFocus = useCallback(() => {
+    if (checklistFocusFrameRef.current !== null) {
+      cancelAnimationFrame(checklistFocusFrameRef.current);
+      checklistFocusFrameRef.current = null;
+    }
+  }, []);
+
+  const cancelPendingChecklistDeepLinkFocus = useCallback(() => {
+    pendingChecklistDeepLinkRef.current = null;
+    setPendingChecklistDeepLinkHandledKey(null);
+    cancelScheduledChecklistAccessibilityFocus();
+  }, [cancelScheduledChecklistAccessibilityFocus]);
+
+  const focusPendingChecklistDeepLink = useCallback((laidOutCategoryKey: string) => {
+    if (
+      approvalLoadingRef.current
+      || !approvalInitialReadSettledRef.current
+      || !checklistScrollRef.current
+    ) return;
+
+    const layoutY = checklistCategoryLayoutRef.current.get(laidOutCategoryKey);
+    const target = buildVerifiedChecklistDeepLinkFocusTarget({
+      deepLink: pendingChecklistDeepLinkRef.current,
+      laidOutCategoryKey,
+      layoutY: layoutY ?? Number.NaN,
+      focusedHandledKey: focusedChecklistDeepLinkRef.current,
+    });
+    if (!target) return;
+
+    const header = checklistCategoryHeaderRef.current.get(target.categoryKey) ?? null;
+    if (!header) return;
+
+    focusedChecklistDeepLinkRef.current = target.handledKey;
+    pendingChecklistDeepLinkRef.current = null;
+    setPendingChecklistDeepLinkHandledKey(null);
+    checklistScrollRef.current.scrollTo({ y: target.scrollY, animated: false });
+    cancelScheduledChecklistAccessibilityFocus();
+    checklistFocusFrameRef.current = requestAnimationFrame(() => {
+      checklistFocusFrameRef.current = requestAnimationFrame(() => {
+        checklistFocusFrameRef.current = null;
+        if (focusedChecklistDeepLinkRef.current !== target.handledKey) return;
+        try {
+          if (Platform.OS === "web") {
+            header.focus();
+          } else {
+            AccessibilityInfo.sendAccessibilityEvent(header, "focus");
+          }
+        } catch {
+          AccessibilityInfo.announceForAccessibility("선택한 준비 체크리스트로 이동했어요");
+        }
+      });
+    });
+  }, [cancelScheduledChecklistAccessibilityFocus]);
+
+  const handleChecklistCategoryLayout = useCallback((categoryKey: string, layoutY: number) => {
+    checklistCategoryLayoutRef.current.set(categoryKey, layoutY);
+    focusPendingChecklistDeepLink(categoryKey);
+  }, [focusPendingChecklistDeepLink]);
+
+  const setChecklistCategoryHeaderRef = useCallback((categoryKey: string, node: View | null) => {
+    if (node) {
+      checklistCategoryHeaderRef.current.set(categoryKey, node);
+    } else {
+      checklistCategoryHeaderRef.current.delete(categoryKey);
+    }
+  }, []);
+
+  const preparationTopicViews = useMemo(
+    () => new Map(
+      CATEGORY_CHECKLISTS.map((category) => [
+        category.key,
+        buildAmoraPreparationTopicView({
+          topicKey: category.key,
+          topics: CATEGORY_CHECKLISTS,
+          progress: preparationProgress,
+          scheduleEvents: events,
+          budgetCategoryKeys: PREPARATION_BUDGET_CATEGORY_KEYS,
+          openActions: topicOpenActions,
+          actionReadState: topicActionReadState,
+          expectedCoupleId: coupleId ?? undefined,
+          currentJourneyRevision: topicJourneyRevision ?? undefined,
+          scheduleDecisionReceipts: topicScheduleDecisionReceipts,
+          decisionReadState: topicDecisionReadState,
+          budgetDecisionReceipts: topicBudgetDecisionReceipts,
+          budgetDecisionVerifications: topicBudgetDecisionVerifications,
+          budgetDecisionReadState: topicBudgetDecisionReadState,
+          currentCoupleMemberIds: topicCurrentCoupleMemberIds,
+          vendorBookingDecisionReceipts: topicVendorBookingDecisionReceipts,
+          vendorBookings: topicVendorBookings,
+          vendorBookingReadState: topicVendorBookingReadState,
+          completedVendorBookingDecisionReceipts:
+            topicCompletedVendorBookingDecisionReceipts,
+          completedVendorBookings: topicCompletedVendorBookings,
+          completedVendorBookingReadState: topicCompletedVendorBookingReadState,
+          nowIso: topicDecisionNowIso ?? undefined,
+        }),
+      ]),
+    ),
+    [
+      coupleId,
+      events,
+      preparationProgress,
+      topicActionReadState,
+      topicBudgetDecisionReadState,
+      topicBudgetDecisionReceipts,
+      topicBudgetDecisionVerifications,
+      topicDecisionNowIso,
+      topicDecisionReadState,
+      topicCurrentCoupleMemberIds,
+      topicCompletedVendorBookingDecisionReceipts,
+      topicCompletedVendorBookingReadState,
+      topicCompletedVendorBookings,
+      topicJourneyRevision,
+      topicOpenActions,
+      topicScheduleDecisionReceipts,
+      topicVendorBookingDecisionReceipts,
+      topicVendorBookingReadState,
+      topicVendorBookings,
+    ],
+  );
 
   // event modal
   const [modalVisible, setModalVisible] = useState(false);
@@ -433,6 +668,7 @@ export default function ScheduleScreen() {
 
   const clearIdentityBoundState = useCallback((nextProfileId: string | null) => {
     approvalIdentityRef.current = null;
+    verifiedScheduleIdentityRef.current = null;
     approvalLoadSequenceRef.current += 1;
     approvalActionSequenceRef.current += 1;
     approvalBusyRef.current = null;
@@ -443,9 +679,44 @@ export default function ScheduleScreen() {
     setWeddingDate(null);
     setCategories([]);
     setProgress({});
+    setPreparationProgress({});
+    setTopicOpenActions([]);
+    setTopicActionReadState("loaded");
+    setTopicScheduleDecisionReceipts([]);
+    setTopicDecisionReadState("loaded");
+    setTopicBudgetDecisionReceipts([]);
+    setTopicBudgetDecisionVerifications([]);
+    setTopicBudgetDecisionReadState("loaded");
+    setTopicMessageReferences([]);
+    setTopicMessageReferenceReadState("loaded");
+    setTopicOwnerContext({
+      readState: "loading",
+      preferences: null,
+      coreCriterion: null,
+    });
+    setTopicCoupleContext({
+      readState: "loading",
+      confirmedCriterion: null,
+    });
+    setTopicCurrentCoupleMemberIds([]);
+    setTopicVendorBookingDecisionReceipts([]);
+    setTopicVendorBookings([]);
+    setTopicVendorBookingReadState("loaded");
+    setTopicCompletedVendorBookingDecisionReceipts([]);
+    setTopicCompletedVendorBookings([]);
+    setTopicCompletedVendorBookingReadState("loaded");
+    setTopicJourneyRevision(null);
+    setTopicDecisionNowIso(null);
     setEvents([]);
     setExpandedKey(null);
+    cancelPendingChecklistDeepLinkFocus();
     handledChecklistDeepLinkRef.current = null;
+    focusedChecklistDeepLinkRef.current = null;
+    checklistCategoryLayoutRef.current.clear();
+    checklistCategoryHeaderRef.current.clear();
+    approvalLoadingRef.current = false;
+    approvalInitialReadSettledRef.current = false;
+    setApprovalInitialReadSettled(false);
     setApprovalRequests([]);
     setApprovalError(false);
     setScheduleDataError(null);
@@ -461,7 +732,7 @@ export default function ScheduleScreen() {
     setFormCategoryKey("");
     setFormMomentType("");
     setFormMemo("");
-  }, [progressAnim]);
+  }, [cancelPendingChecklistDeepLinkFocus, progressAnim]);
 
   const loadApprovalRequests = useCallback(async (
     identity: { ownerId: string; coupleId: string },
@@ -469,7 +740,12 @@ export default function ScheduleScreen() {
   ) => {
     const loadSequence = approvalLoadSequenceRef.current + 1;
     approvalLoadSequenceRef.current = loadSequence;
-    if (!options?.silent) setApprovalLoading(true);
+    if (!options?.silent) {
+      approvalLoadingRef.current = true;
+      approvalInitialReadSettledRef.current = false;
+      setApprovalLoading(true);
+      setApprovalInitialReadSettled(false);
+    }
     try {
       const result = await fetchScheduleApprovalInbox({
         apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
@@ -497,8 +773,16 @@ export default function ScheduleScreen() {
         setApprovalError(true);
       }
     } finally {
-      if (approvalLoadSequenceRef.current === loadSequence) {
+      const activeIdentity = approvalIdentityRef.current;
+      if (
+        approvalLoadSequenceRef.current === loadSequence
+        && activeIdentity?.ownerId === identity.ownerId
+        && activeIdentity.coupleId === identity.coupleId
+      ) {
+        approvalLoadingRef.current = false;
+        approvalInitialReadSettledRef.current = true;
         setApprovalLoading(false);
+        setApprovalInitialReadSettled(true);
       }
     }
   }, []);
@@ -545,12 +829,19 @@ export default function ScheduleScreen() {
         setProfileId(user.id);
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("couple_id")
         .eq("id", user.id)
         .single();
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
+
+      if (profileError) {
+        scheduleSessionFenceRef.clearCouple(user.id);
+        clearIdentityBoundState(user.id);
+        setScheduleDataError("load");
+        return null;
+      }
 
       if (!profile?.couple_id) {
         scheduleSessionFenceRef.clearCouple(user.id);
@@ -558,20 +849,281 @@ export default function ScheduleScreen() {
         return null;
       }
 
+      const { data: currentRoster, error: currentRosterError } = await supabase
+        .from("couples")
+        .select("id, bride_id, groom_id")
+        .eq("id", profile.couple_id)
+        .single();
+      if (scheduleLoadSequenceRef.current !== loadSequence) return null;
+
+      const currentIdentitySnapshot = buildScheduleIdentitySnapshot({
+        ownerId: user.id,
+        coupleId: profile.couple_id,
+        roster: currentRoster,
+      });
+      if (
+        currentRosterError
+        || !currentIdentitySnapshot
+      ) {
+        scheduleSessionFenceRef.clearCouple(user.id);
+        clearIdentityBoundState(user.id);
+        setScheduleDataError(currentRosterError ? "load" : "integrity");
+        return null;
+      }
+
       identity = { ownerId: user.id, coupleId: profile.couple_id };
       if (scheduleSessionFenceRef.setIdentity(identity.ownerId, identity.coupleId)) {
         clearIdentityBoundState(user.id);
       }
+      verifiedScheduleIdentityRef.current = currentIdentitySnapshot;
       setProfileId(identity.ownerId);
       setCoupleId(identity.coupleId);
       approvalIdentityRef.current = identity;
+      const topicMessageRefIdentity = identity;
+      const topicPersonalizationIdentity = identity;
+      const topicBudgetDecisionIdentity = identity;
+      const topicVendorBookingIdentity = identity;
+      const topicCompletedVendorBookingIdentity = identity;
+      const topicMessageRefSessionToken = scheduleSessionFenceRef.capture();
+      const topicOwnerContextSessionToken = scheduleSessionFenceRef.capture();
+      const topicCoupleContextSessionToken = scheduleSessionFenceRef.capture();
+      const topicBudgetDecisionSessionToken = scheduleSessionFenceRef.capture();
+      const topicVendorBookingSessionToken = scheduleSessionFenceRef.capture();
+      const topicCompletedVendorBookingSessionToken = scheduleSessionFenceRef.capture();
+      if (
+        !topicMessageRefSessionToken
+        || !topicOwnerContextSessionToken
+        || !topicCoupleContextSessionToken
+        || !topicBudgetDecisionSessionToken
+        || !topicVendorBookingSessionToken
+        || !topicCompletedVendorBookingSessionToken
+      ) {
+        throw new ScheduleMutationError("invalid_snapshot");
+      }
+      setTopicOwnerContext({
+        readState: "loading",
+        preferences: null,
+        coreCriterion: null,
+      });
+      setTopicCoupleContext({
+        readState: "loading",
+        confirmedCriterion: null,
+      });
+      const topicOwnerContextResultPromise = loadPreparationTopicOwnerContext({
+        ownerId: topicPersonalizationIdentity.ownerId,
+        apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
+          topicPersonalizationIdentity.ownerId,
+          path,
+          requestOptions,
+        ),
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicOwnerContextSessionToken)
+        ),
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
+      const topicCoupleContextResultPromise = loadPreparationTopicCoupleContext({
+        ownerId: topicPersonalizationIdentity.ownerId,
+        coupleId: topicPersonalizationIdentity.coupleId,
+        apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
+          topicPersonalizationIdentity.ownerId,
+          path,
+          requestOptions,
+        ),
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicCoupleContextSessionToken)
+        ),
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
+      const topicMessageReferenceResultPromise = loadPreparationTopicMessageReferences({
+        apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
+          topicMessageRefIdentity.ownerId,
+          path,
+          requestOptions,
+        ),
+        ownerId: topicMessageRefIdentity.ownerId,
+        coupleId: topicMessageRefIdentity.coupleId,
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicMessageRefSessionToken)
+        ),
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
 
-      const { data: journey, error: journeyError } = await supabase
-        .from("wedding_journeys")
-        .select("wedding_date, progress, state_revision")
-        .eq("couple_id", profile.couple_id)
-        .single();
-      if (scheduleLoadSequenceRef.current !== loadSequence) return null;
+      const topicVendorBookingResultPromise = loadPreparationTopicVendorBookings({
+        ownerId: topicVendorBookingIdentity.ownerId,
+        coupleId: topicVendorBookingIdentity.coupleId,
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicVendorBookingSessionToken)
+        ),
+        readCoupleRoster: async ({ coupleId: exactCoupleId, signal }) => {
+          const { data, error } = await supabase
+            .from("couples")
+            .select("id, bride_id, groom_id")
+            .eq("id", exactCoupleId)
+            .abortSignal(signal)
+            .single();
+          if (error) throw error;
+          return data;
+        },
+        readDecisionRows: async ({ coupleId: exactCoupleId, signal }) => {
+          const { data, error } = await supabase
+            .from("decision_nodes")
+            .select(
+              "id, couple_id, category, decision_type, title, chosen_value, confidence, source, source_ref_id, source_message_id, source_actor_role, user_confirmed_at, memory_key, metadata, visibility, decided_at, superseded_at, superseded_by, created_at, updated_at",
+            )
+            .eq("couple_id", exactCoupleId)
+            .eq("visibility", "shared")
+            .eq("source", "vendor_booking")
+            .eq("decision_type", "considering")
+            .is("memory_key", null)
+            .is("source_message_id", null)
+            .is("source_actor_role", null)
+            .is("user_confirmed_at", null)
+            .is("decided_at", null)
+            .is("superseded_at", null)
+            .is("superseded_by", null)
+            .contains("metadata", { hook: "booking_intent" })
+            .in("category", PREPARATION_BUDGET_CATEGORY_KEYS)
+            .order("updated_at", { ascending: false })
+            .limit(PREPARATION_VENDOR_BOOKING_DECISION_LIMIT + 1)
+            .abortSignal(signal);
+          if (error) throw error;
+          return data ?? [];
+        },
+        readBookingRows: async ({ coupleId: exactCoupleId, bookingIds, signal }) => {
+          const { data, error } = await supabase
+            .from("vendor_bookings")
+            .select(
+              "id, couple_id, vendor_id, product_id, status, vendor_delivery_status, is_paid, intent_created_by_profile_id, intent_vendor_name_snapshot, intent_vendor_category_snapshot, intent_product_name_snapshot, booking_date, booking_time, amount, contracted_amount, actual_amount, cancelled_at, cancelled_by_profile_id, cancel_reason, created_at, updated_at",
+            )
+            .eq("couple_id", exactCoupleId)
+            .in("id", bookingIds)
+            .eq("status", "pending")
+            .eq("vendor_delivery_status", "not_sent")
+            .eq("is_paid", false)
+            .limit(PREPARATION_VENDOR_BOOKING_DECISION_LIMIT)
+            .abortSignal(signal);
+          if (error) throw error;
+          return data ?? [];
+        },
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
+
+      const topicCompletedVendorBookingResultPromise = loadPreparationTopicVendorBookings({
+        ownerId: topicCompletedVendorBookingIdentity.ownerId,
+        coupleId: topicCompletedVendorBookingIdentity.coupleId,
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicCompletedVendorBookingSessionToken)
+        ),
+        readCoupleRoster: async ({ coupleId: exactCoupleId, signal }) => {
+          const { data, error } = await supabase
+            .from("couples")
+            .select("id, bride_id, groom_id")
+            .eq("id", exactCoupleId)
+            .abortSignal(signal)
+            .single();
+          if (error) throw error;
+          return data;
+        },
+        readDecisionRows: async ({ coupleId: exactCoupleId, signal }) => {
+          const { data, error } = await supabase
+            .from("decision_nodes")
+            .select(
+              "id, couple_id, category, decision_type, title, chosen_value, reasoning, confidence, source, source_ref_id, source_message_id, source_actor_role, user_confirmed_at, memory_key, metadata, visibility, decided_at, superseded_at, superseded_by, created_at, updated_at",
+            )
+            .eq("couple_id", exactCoupleId)
+            .eq("visibility", "shared")
+            .eq("source", "vendor_booking")
+            .eq("decision_type", "completed")
+            .is("memory_key", null)
+            .is("source_message_id", null)
+            .in("source_actor_role", ["bride", "groom"])
+            .not("user_confirmed_at", "is", null)
+            .not("decided_at", "is", null)
+            .is("superseded_at", null)
+            .is("superseded_by", null)
+            .contains("metadata", {
+              hook: "booking_outcome",
+              completion_evidence: "user_reported",
+              vendor_delivery_status: "not_sent",
+              vendor_confirmation_status: "unconfirmed",
+              outcome_provenance_version: 1,
+            })
+            .in("category", PREPARATION_BUDGET_CATEGORY_KEYS)
+            .order("decided_at", { ascending: false })
+            .limit(PREPARATION_VENDOR_BOOKING_DECISION_LIMIT + 1)
+            .abortSignal(signal);
+          if (error) throw error;
+          return data ?? [];
+        },
+        readBookingRows: async ({ coupleId: exactCoupleId, bookingIds, signal }) => {
+          const { data, error } = await supabase
+            .from("vendor_bookings")
+            .select(
+              "id, couple_id, vendor_id, product_id, status, vendor_delivery_status, is_paid, intent_created_by_profile_id, intent_vendor_name_snapshot, intent_vendor_category_snapshot, intent_product_name_snapshot, booking_date, booking_time, amount, contracted_amount, actual_amount, cancelled_at, cancelled_by_profile_id, cancel_reason, created_at, updated_at",
+            )
+            .eq("couple_id", exactCoupleId)
+            .in("id", bookingIds)
+            .eq("status", "completed")
+            .eq("vendor_delivery_status", "not_sent")
+            .eq("is_paid", false)
+            .is("cancelled_at", null)
+            .is("cancelled_by_profile_id", null)
+            .is("cancel_reason", null)
+            .not("actual_amount", "is", null)
+            .limit(PREPARATION_VENDOR_BOOKING_DECISION_LIMIT)
+            .abortSignal(signal);
+          if (error) throw error;
+          return data ?? [];
+        },
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
+
+      const [
+        { data: journey, error: journeyError },
+        { data: actionRows, error: actionError },
+        { data: decisionRows, error: decisionError },
+      ] = await Promise.all([
+        supabase
+          .from("wedding_journeys")
+          .select("wedding_date, progress, state_revision")
+          .eq("couple_id", identity.coupleId)
+          .single(),
+        supabase
+          .from("amora_actions")
+          .select(
+            "id, couple_id, title, description, due_date, category_key, priority, source, status, follow_up_revision, created_at",
+          )
+          .eq("couple_id", identity.coupleId)
+          .eq("status", "open")
+          .order("created_at", { ascending: false })
+          .limit(DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT),
+        supabase
+          .from("decision_nodes")
+          .select(
+            "id, couple_id, category, decision_type, title, chosen_value, source, source_ref_id, source_actor_role, user_confirmed_at, decided_at, metadata, visibility, superseded_at, memory_key",
+          )
+          .eq("couple_id", identity.coupleId)
+          .eq("visibility", "shared")
+          .eq("source", "schedule")
+          .eq("decision_type", "scheduled")
+          .is("memory_key", null)
+          .is("superseded_at", null)
+          .not("user_confirmed_at", "is", null)
+          .in("category", PREPARATION_BUDGET_CATEGORY_KEYS)
+          .order("decided_at", { ascending: false })
+          .limit(PREPARATION_DECISION_RECEIPT_LIMIT + 1),
+      ]);
+      if (
+        scheduleLoadSequenceRef.current !== loadSequence
+        || !scheduleSessionFenceRef.isCurrent(topicMessageRefSessionToken)
+        || topicMessageRefSessionToken.ownerId !== identity.ownerId
+        || topicMessageRefSessionToken.coupleId !== identity.coupleId
+      ) return null;
 
       if (
         journeyError
@@ -580,6 +1132,38 @@ export default function ScheduleScreen() {
       ) {
         throw new ScheduleMutationError("invalid_snapshot");
       }
+
+      if (actionError) {
+        setTopicOpenActions([]);
+        setTopicActionReadState("unavailable");
+      } else {
+        setTopicOpenActions(
+          listDashboardOpenActions(
+            actionRows,
+            identity.coupleId,
+            formatLocalDateKey(),
+          ) ?? [],
+        );
+        setTopicActionReadState("loaded");
+      }
+
+      if (decisionError) {
+        setTopicScheduleDecisionReceipts([]);
+        setTopicDecisionReadState("unavailable");
+      } else {
+        const normalizedDecisionRows = decisionRows ?? [];
+        setTopicScheduleDecisionReceipts(
+          normalizedDecisionRows.slice(0, PREPARATION_DECISION_RECEIPT_LIMIT),
+        );
+        setTopicDecisionReadState(
+          normalizedDecisionRows.length > PREPARATION_DECISION_RECEIPT_LIMIT
+            ? "partial"
+            : "loaded",
+        );
+      }
+      setTopicJourneyRevision(journey.state_revision);
+      setTopicDecisionNowIso(new Date().toISOString());
+      setTopicCurrentCoupleMemberIds(currentIdentitySnapshot.memberIds);
 
       setWeddingDate(journey.wedding_date ?? null);
       const prog = isRecord(journey.progress) ? journey.progress : {};
@@ -636,17 +1220,24 @@ export default function ScheduleScreen() {
 
       setCategories(cats);
       setProgress(progMap);
+      setPreparationProgress(prog);
       const checklistDeepLink = buildVerifiedChecklistDeepLink({
         checklistOnly,
         requestedCategoryKey,
         availableCategoryKeys: cats.map((category) => category.key),
         verifiedIdentity: identity,
       });
-      if (
-        checklistDeepLink
-        && handledChecklistDeepLinkRef.current !== checklistDeepLink.handledKey
-      ) {
+      if (!checklistDeepLink) {
+        cancelPendingChecklistDeepLinkFocus();
+        handledChecklistDeepLinkRef.current = null;
+        focusedChecklistDeepLinkRef.current = null;
+      } else if (handledChecklistDeepLinkRef.current !== checklistDeepLink.handledKey) {
+        cancelPendingChecklistDeepLinkFocus();
         handledChecklistDeepLinkRef.current = checklistDeepLink.handledKey;
+        pendingChecklistDeepLinkRef.current = checklistDeepLink;
+        approvalInitialReadSettledRef.current = false;
+        setApprovalInitialReadSettled(false);
+        setPendingChecklistDeepLinkHandledKey(checklistDeepLink.handledKey);
         setExpandedKey(checklistDeepLink.categoryKey);
       }
 
@@ -666,11 +1257,218 @@ export default function ScheduleScreen() {
       // 이벤트 추출
       setEvents(readScheduleEventsForDisplay(prog));
       setScheduleDataError(null);
+      const topicBudgetDecisionResultPromise = loadPreparationTopicBudgetDecisions({
+        ownerId: topicBudgetDecisionIdentity.ownerId,
+        coupleId: topicBudgetDecisionIdentity.coupleId,
+        currentJourneyRevision: journey.state_revision,
+        progress: prog,
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicBudgetDecisionSessionToken)
+        ),
+        apiFetch: (path, requestOptions) => apiFetchForExpectedUser(
+          topicBudgetDecisionIdentity.ownerId,
+          path,
+          requestOptions,
+        ),
+        readDecisionRows: async ({ coupleId: exactCoupleId, limit, signal }) => {
+          const { data, error } = await supabase
+            .from("decision_nodes")
+            .select(
+              "id, couple_id, category, decision_type, title, chosen_value, source, source_ref_id, source_actor_role, source_message_id, user_confirmed_at, decided_at, metadata, visibility, superseded_at, superseded_by, memory_key",
+            )
+            .eq("couple_id", exactCoupleId)
+            .eq("visibility", "shared")
+            .eq("category", "budget")
+            .eq("decision_type", "decided")
+            .eq("source", "manual")
+            .is("source_message_id", null)
+            .is("memory_key", null)
+            .is("superseded_at", null)
+            .is("superseded_by", null)
+            .not("source_actor_role", "is", null)
+            .not("user_confirmed_at", "is", null)
+            .not("decided_at", "is", null)
+            .contains("metadata", { origin: "couple_plan_change_request" })
+            .order("decided_at", { ascending: false })
+            .limit(Math.min(limit, PREPARATION_BUDGET_DECISION_RECEIPT_LIMIT + 1))
+            .abortSignal(signal);
+          if (error) throw error;
+          return data ?? [];
+        },
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
+      void topicMessageReferenceResultPromise.then((topicMessageReferenceResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicMessageRefSessionToken)
+          || topicMessageRefSessionToken.ownerId !== topicMessageRefIdentity.ownerId
+          || topicMessageRefSessionToken.coupleId !== topicMessageRefIdentity.coupleId
+          || activeIdentity?.ownerId !== topicMessageRefIdentity.ownerId
+          || activeIdentity?.coupleId !== topicMessageRefIdentity.coupleId
+        ) return;
+        if (!topicMessageReferenceResult.ok) {
+          setTopicMessageReferences([]);
+          setTopicMessageReferenceReadState("unavailable");
+          return;
+        }
+        setTopicMessageReferences(topicMessageReferenceResult.value.references);
+        setTopicMessageReferenceReadState(
+          topicMessageReferenceResult.value.partial ? "partial" : "loaded",
+        );
+      });
+      void topicOwnerContextResultPromise.then((topicOwnerContextResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicOwnerContextSessionToken)
+          || activeIdentity?.ownerId !== topicPersonalizationIdentity.ownerId
+          || activeIdentity?.coupleId !== topicPersonalizationIdentity.coupleId
+        ) return;
+        setTopicOwnerContext(topicOwnerContextResult.ok
+          ? topicOwnerContextResult.value
+          : {
+              readState: "unavailable",
+              preferences: null,
+              coreCriterion: null,
+            });
+      });
+      void topicCoupleContextResultPromise.then((topicCoupleContextResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicCoupleContextSessionToken)
+          || activeIdentity?.ownerId !== topicPersonalizationIdentity.ownerId
+          || activeIdentity?.coupleId !== topicPersonalizationIdentity.coupleId
+        ) return;
+        setTopicCoupleContext(topicCoupleContextResult.ok
+          ? topicCoupleContextResult.value
+          : {
+              readState: "unavailable",
+              confirmedCriterion: null,
+            });
+      });
+      void topicBudgetDecisionResultPromise.then((topicBudgetDecisionResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicBudgetDecisionSessionToken)
+          || topicBudgetDecisionSessionToken.ownerId !== topicBudgetDecisionIdentity.ownerId
+          || topicBudgetDecisionSessionToken.coupleId !== topicBudgetDecisionIdentity.coupleId
+          || activeIdentity?.ownerId !== topicBudgetDecisionIdentity.ownerId
+          || activeIdentity?.coupleId !== topicBudgetDecisionIdentity.coupleId
+        ) return;
+        if (!topicBudgetDecisionResult.ok) {
+          setTopicBudgetDecisionReceipts([]);
+          setTopicBudgetDecisionVerifications([]);
+          setTopicBudgetDecisionReadState("unavailable");
+          return;
+        }
+        setTopicBudgetDecisionReceipts(
+          topicBudgetDecisionResult.value.budgetDecisionReceipts,
+        );
+        setTopicBudgetDecisionVerifications(
+          topicBudgetDecisionResult.value.budgetDecisionVerifications,
+        );
+        setTopicBudgetDecisionReadState(
+          topicBudgetDecisionResult.value.partial ? "partial" : "loaded",
+        );
+      });
+      void topicVendorBookingResultPromise.then((topicVendorBookingResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicVendorBookingSessionToken)
+          || topicVendorBookingSessionToken.ownerId !== topicVendorBookingIdentity.ownerId
+          || topicVendorBookingSessionToken.coupleId !== topicVendorBookingIdentity.coupleId
+          || activeIdentity?.ownerId !== topicVendorBookingIdentity.ownerId
+          || activeIdentity?.coupleId !== topicVendorBookingIdentity.coupleId
+        ) return;
+        if (!topicVendorBookingResult.ok) {
+          setTopicVendorBookingDecisionReceipts([]);
+          setTopicVendorBookings([]);
+          setTopicVendorBookingReadState("unavailable");
+          return;
+        }
+        setTopicCurrentCoupleMemberIds(
+          topicVendorBookingResult.value.currentCoupleMemberIds,
+        );
+        setTopicVendorBookingDecisionReceipts(
+          topicVendorBookingResult.value.vendorBookingDecisionReceipts,
+        );
+        setTopicVendorBookings(topicVendorBookingResult.value.vendorBookings);
+        setTopicVendorBookingReadState(
+          topicVendorBookingResult.value.partial ? "partial" : "loaded",
+        );
+      });
+      void topicCompletedVendorBookingResultPromise.then((topicCompletedVendorBookingResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicCompletedVendorBookingSessionToken)
+          || topicCompletedVendorBookingSessionToken.ownerId
+            !== topicCompletedVendorBookingIdentity.ownerId
+          || topicCompletedVendorBookingSessionToken.coupleId
+            !== topicCompletedVendorBookingIdentity.coupleId
+          || activeIdentity?.ownerId !== topicCompletedVendorBookingIdentity.ownerId
+          || activeIdentity?.coupleId !== topicCompletedVendorBookingIdentity.coupleId
+        ) return;
+        if (!topicCompletedVendorBookingResult.ok) {
+          setTopicCompletedVendorBookingDecisionReceipts([]);
+          setTopicCompletedVendorBookings([]);
+          setTopicCompletedVendorBookingReadState("unavailable");
+          return;
+        }
+        setTopicCurrentCoupleMemberIds(
+          topicCompletedVendorBookingResult.value.currentCoupleMemberIds,
+        );
+        setTopicCompletedVendorBookingDecisionReceipts(
+          topicCompletedVendorBookingResult.value.vendorBookingDecisionReceipts,
+        );
+        setTopicCompletedVendorBookings(
+          topicCompletedVendorBookingResult.value.vendorBookings,
+        );
+        setTopicCompletedVendorBookingReadState(
+          topicCompletedVendorBookingResult.value.partial ? "partial" : "loaded",
+        );
+      });
       return identity;
     } catch (err) {
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
       console.error("일정 로드 오류:", err);
+      setWeddingDate(null);
+      setCategories([]);
+      setProgress({});
+      setPreparationProgress({});
       setEvents([]);
+      setTopicOpenActions([]);
+      setTopicActionReadState("unavailable");
+      setTopicScheduleDecisionReceipts([]);
+      setTopicDecisionReadState("unavailable");
+      setTopicBudgetDecisionReceipts([]);
+      setTopicBudgetDecisionVerifications([]);
+      setTopicBudgetDecisionReadState("unavailable");
+      setTopicMessageReferences([]);
+      setTopicMessageReferenceReadState("unavailable");
+      setTopicOwnerContext({
+        readState: "unavailable",
+        preferences: null,
+        coreCriterion: null,
+      });
+      setTopicCoupleContext({
+        readState: "unavailable",
+        confirmedCriterion: null,
+      });
+      setTopicCurrentCoupleMemberIds([]);
+      setTopicVendorBookingDecisionReceipts([]);
+      setTopicVendorBookings([]);
+      setTopicVendorBookingReadState("unavailable");
+      setTopicCompletedVendorBookingDecisionReceipts([]);
+      setTopicCompletedVendorBookings([]);
+      setTopicCompletedVendorBookingReadState("unavailable");
+      setTopicJourneyRevision(null);
+      setTopicDecisionNowIso(null);
       setScheduleDataError(
         err instanceof ScheduleMutationError && err.code === "invalid_snapshot"
           ? "integrity"
@@ -684,11 +1482,67 @@ export default function ScheduleScreen() {
     }
   }, [
     checklistOnly,
+    cancelPendingChecklistDeepLinkFocus,
     clearIdentityBoundState,
     progressAnim,
     requestedCategoryKey,
     scheduleSessionFenceRef,
   ]);
+
+  const openPreparationTopicAmora = useCallback((prompt: string) => {
+    const sessionToken = scheduleSessionFenceRef.capture();
+    const identity = approvalIdentityRef.current;
+    if (
+      !sessionToken
+      || !identity
+      || sessionToken.ownerId !== identity.ownerId
+      || sessionToken.coupleId !== identity.coupleId
+    ) return;
+
+    const companionHandoff = stagePrivateChatHandoff({
+      handoffId: Crypto.randomUUID(),
+      ownerUserId: identity.ownerId,
+      coupleId: identity.coupleId,
+      prompt,
+    });
+    if (!companionHandoff || !scheduleSessionFenceRef.isCurrent(sessionToken)) {
+      Alert.alert("아모라 연결을 준비하지 못했어요", "잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    router.push({
+      pathname: "/(tabs)/chat",
+      params: { companionHandoff },
+    });
+  }, [scheduleSessionFenceRef]);
+
+  useEffect(() => {
+    if (
+      !pendingChecklistDeepLinkHandledKey
+      || !approvalInitialReadSettled
+      || approvalLoading
+    ) return;
+
+    const pending = pendingChecklistDeepLinkRef.current;
+    if (!pending || pending.handledKey !== pendingChecklistDeepLinkHandledKey) return;
+    const frame = requestAnimationFrame(() => {
+      focusPendingChecklistDeepLink(pending.categoryKey);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    approvalInitialReadSettled,
+    approvalLoading,
+    focusPendingChecklistDeepLink,
+    pendingChecklistDeepLinkHandledKey,
+  ]);
+
+  useEffect(() => {
+    scheduleScreenMountedRef.current = true;
+    return () => {
+      scheduleScreenMountedRef.current = false;
+      pendingChecklistDeepLinkRef.current = null;
+      cancelScheduledChecklistAccessibilityFocus();
+    };
+  }, [cancelScheduledChecklistAccessibilityFocus]);
 
   useEffect(() => {
     loadData().then((identity) => {
@@ -727,30 +1581,167 @@ export default function ScheduleScreen() {
 
   // Realtime: 웹에서 체크리스트 변경 시 자동 갱신
   useEffect(() => {
-    if (!coupleId) return;
+    if (!profileId || !coupleId) return;
 
-    const channel = supabase.channel(`schedule:${coupleId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'wedding_journeys',
-        filter: `couple_id=eq.${coupleId}`,
-      }, () => {
-        loadData().then((identity) => {
-          if (identity) loadApprovalRequests(identity, { silent: true });
+    const subscribedOwnerId = profileId;
+    const subscribedCoupleId = coupleId;
+    const subscribedSessionToken = scheduleSessionFenceRef.capture();
+    if (
+      !subscribedSessionToken
+      || subscribedSessionToken.ownerId !== subscribedOwnerId
+      || subscribedSessionToken.coupleId !== subscribedCoupleId
+    ) return;
+
+    let active = true;
+    let hasSubscribedOnce = false;
+    let identityReconciliationInFlight = false;
+    const reloadSubscribedIdentity = async () => {
+      if (!active) return;
+      const identity = await loadData();
+      if (!identity || !scheduleScreenMountedRef.current) return;
+      const currentSessionToken = scheduleSessionFenceRef.capture();
+      if (
+        !currentSessionToken
+        || currentSessionToken.ownerId !== identity.ownerId
+        || currentSessionToken.coupleId !== identity.coupleId
+        || !scheduleSessionFenceRef.isCurrent(currentSessionToken)
+      ) return;
+      await loadApprovalRequests(identity, { silent: true });
+    };
+    const reloadIfStillSubscribed = () => {
+      if (
+        !active
+        || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
+      ) return;
+      void reloadSubscribedIdentity();
+    };
+    const invalidateSubscribedIdentity = (reason: "integrity" | "load") => {
+      if (
+        !active
+        || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
+      ) return;
+      scheduleLoadSequenceRef.current += 1;
+      scheduleSessionFenceRef.clearCouple(subscribedOwnerId);
+      clearIdentityBoundState(subscribedOwnerId);
+      setScheduleDataError(reason);
+      void reloadSubscribedIdentity();
+    };
+    const reconcileSubscribedIdentity = async () => {
+      if (
+        !active
+        || identityReconciliationInFlight
+        || appStateRef.current !== "active"
+        || !scheduleScreenFocusedRef.current
+        || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
+      ) return;
+
+      identityReconciliationInFlight = true;
+      try {
+        const { data: currentProfile, error: currentProfileError } = await supabase
+          .from("profiles")
+          .select("couple_id")
+          .eq("id", subscribedOwnerId)
+          .single();
+        if (
+          !active
+          || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
+        ) return;
+        if (
+          currentProfileError
+          || currentProfile?.couple_id !== subscribedCoupleId
+        ) {
+          invalidateSubscribedIdentity(currentProfileError ? "load" : "integrity");
+          return;
+        }
+
+        const { data: currentRoster, error: currentRosterError } = await supabase
+          .from("couples")
+          .select("id, bride_id, groom_id")
+          .eq("id", subscribedCoupleId)
+          .single();
+        if (
+          !active
+          || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
+        ) return;
+
+        const nextIdentitySnapshot = buildScheduleIdentitySnapshot({
+          ownerId: subscribedOwnerId,
+          coupleId: subscribedCoupleId,
+          roster: currentRoster,
         });
-      })
-      .subscribe();
+        if (
+          currentRosterError
+          || !nextIdentitySnapshot
+          || !isSameScheduleIdentitySnapshot(
+            verifiedScheduleIdentityRef.current,
+            nextIdentitySnapshot,
+          )
+        ) {
+          invalidateSubscribedIdentity(currentRosterError ? "load" : "integrity");
+        }
+      } catch {
+        invalidateSubscribedIdentity("load");
+      } finally {
+        identityReconciliationInFlight = false;
+      }
+    };
+
+    const identityReconciliationTimer = setInterval(() => {
+      void reconcileSubscribedIdentity();
+    }, SCHEDULE_IDENTITY_RECONCILIATION_INTERVAL_MS);
+
+    const channel = supabase.channel(
+      `schedule:${subscribedOwnerId}:${subscribedCoupleId}`,
+    )
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "wedding_journeys",
+        filter: `couple_id=eq.${subscribedCoupleId}`,
+      }, reloadIfStillSubscribed)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "amora_actions",
+        filter: `couple_id=eq.${subscribedCoupleId}`,
+      }, reloadIfStillSubscribed)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "vendor_bookings",
+        filter: `couple_id=eq.${subscribedCoupleId}`,
+      }, reloadIfStillSubscribed)
+      .subscribe((status) => {
+        if (
+          status !== "SUBSCRIBED"
+          || !active
+          || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
+        ) return;
+        if (!hasSubscribedOnce) {
+          hasSubscribedOnce = true;
+          return;
+        }
+        void reconcileSubscribedIdentity();
+      });
 
     channelRef.current = channel;
 
     return () => {
+      active = false;
+      clearInterval(identityReconciliationTimer);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [coupleId, loadApprovalRequests, loadData]);
+  }, [
+    clearIdentityBoundState,
+    coupleId,
+    loadApprovalRequests,
+    loadData,
+    profileId,
+    scheduleSessionFenceRef,
+  ]);
 
   const refreshScheduleAndApprovals = useCallback(async (
     options?: { silentApproval?: boolean },
@@ -765,11 +1756,15 @@ export default function ScheduleScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      scheduleScreenFocusedRef.current = true;
       if (!hasFocusedRef.current) {
         hasFocusedRef.current = true;
-        return;
+      } else {
+        void refreshScheduleAndApprovals({ silentApproval: true });
       }
-      void refreshScheduleAndApprovals({ silentApproval: true });
+      return () => {
+        scheduleScreenFocusedRef.current = false;
+      };
     }, [refreshScheduleAndApprovals]),
   );
 
@@ -1204,6 +2199,7 @@ export default function ScheduleScreen() {
         && appliedCategoryKey
         && CATEGORY_CHECKLISTS.some((category) => category.key === appliedCategoryKey)
       ) {
+        cancelPendingChecklistDeepLinkFocus();
         setExpandedKey(appliedCategoryKey);
       }
       await loadData();
@@ -1557,6 +2553,7 @@ export default function ScheduleScreen() {
   }
 
   function handleExpandToggle(key: string) {
+    cancelPendingChecklistDeepLinkFocus();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedKey(expandedKey === key ? null : key);
   }
@@ -1618,8 +2615,12 @@ export default function ScheduleScreen() {
       />
 
       <ScrollView
+        ref={checklistScrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={styles.list}
+        onPointerDown={cancelPendingChecklistDeepLinkFocus}
+        onTouchStart={cancelPendingChecklistDeepLinkFocus}
+        onScrollBeginDrag={cancelPendingChecklistDeepLinkFocus}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1646,6 +2647,48 @@ export default function ScheduleScreen() {
             >
               <Text style={styles.approvalRetryText}>다시 불러오기</Text>
             </Pressable>
+          </Surface>
+        ) : null}
+
+        {!scheduleDataError && topicActionReadState === "unavailable" ? (
+          <Surface style={styles.approvalSection}>
+            <View style={styles.approvalErrorCopy} accessibilityRole="alert">
+              <AlertTriangle size={18} color={colors.warning} />
+              <AppText variant="caption" style={styles.approvalErrorText}>
+                저장된 공동 행동을 지금 확인하지 못했어요. 체크리스트·일정·예산 기록은 그대로 보여드려요.
+              </AppText>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="공동 행동 다시 불러오기"
+              onPress={() => void loadData()}
+              style={styles.approvalRetry}
+            >
+              <Text style={styles.approvalRetryText}>다시 불러오기</Text>
+            </Pressable>
+          </Surface>
+        ) : null}
+
+        {!scheduleDataError && topicDecisionReadState !== "loaded" ? (
+          <Surface style={styles.approvalSection}>
+            <View style={styles.approvalErrorCopy} accessibilityRole="alert">
+              <AlertTriangle size={18} color={colors.warning} />
+              <AppText variant="caption" style={styles.approvalErrorText}>
+                {topicDecisionReadState === "unavailable"
+                  ? "확인한 일정 기록을 지금 불러오지 못했어요. 체크리스트·일정·예산·행동 기록은 그대로 보여드려요."
+                  : "확인한 일정 기록이 많아 최근 기록부터 보여드려요."}
+              </AppText>
+            </View>
+            {topicDecisionReadState === "unavailable" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="확인한 일정 기록 다시 불러오기"
+                onPress={() => void loadData()}
+                style={styles.approvalRetry}
+              >
+                <Text style={styles.approvalRetryText}>다시 불러오기</Text>
+              </Pressable>
+            ) : null}
           </Surface>
         ) : null}
 
@@ -1820,6 +2863,7 @@ export default function ScheduleScreen() {
                   pressed && styles.rowPressed,
                 ]}
                 onPress={() => {
+                  cancelPendingChecklistDeepLinkFocus();
                   setExpandedKey(action.categoryKey);
                 }}
               >
@@ -1908,26 +2952,63 @@ export default function ScheduleScreen() {
         )}
 
         {/* 카테고리 체크리스트 — 웹 상수 기반, 항상 20개 카테고리 표시 */}
-        {(
+        {!scheduleDataError && (
           categories.map((cat) => {
             const stats = getCategoryStats(cat.key);
             const expanded = expandedKey === cat.key;
+            const topicView = preparationTopicViews.get(cat.key) ?? null;
+            const topicPresentation = buildPreparationTopicPresentation(topicView);
+            const topicPersonalizationSection = buildPreparationTopicPersonalization({
+              ownerContext: topicOwnerContext,
+              coupleContext: topicCoupleContext,
+            });
+            const topicAmoraHandoff = topicPresentation?.nextAction
+              ? buildPreparationTopicAmoraHandoff({
+                  topicLabel: cat.label,
+                  statusLabel: topicPresentation.statusLabel,
+                  progressLabel: topicPresentation.progressLabel,
+                  nextAction: {
+                    title: topicPresentation.nextAction.title,
+                    reason: topicPresentation.nextAction.reason,
+                    completionCriterion: topicPresentation.nextAction.completionCriterion,
+                  },
+                  privateCriterion: topicOwnerContext.coreCriterion,
+                  useCoupleCriterion: Boolean(topicCoupleContext.confirmedCriterion),
+                })
+              : null;
+            const showProgressBar = topicView?.applicability === "applicable"
+              && topicView.status !== "decision_needed";
+            const categoryProgressLabel = topicPresentation?.progressLabel
+              ?? (stats.skipped ? "해당 없음 · 진행률에서 제외" : `${stats.done}/${stats.total} 완료`);
+            const categoryStatusLabel = topicPresentation?.statusLabel
+              ?? (stats.skipped ? "제외" : `${stats.percent}%`);
+            const categoryAccessibilityLabel = `${cat.label} 체크리스트, ${categoryStatusLabel}, ${categoryProgressLabel}`;
 
             return (
-              <View key={cat.key} style={styles.catCard}>
+              <View
+                key={cat.key}
+                style={styles.catCard}
+                onLayout={(event) => handleChecklistCategoryLayout(
+                  cat.key,
+                  event.nativeEvent.layout.y,
+                )}
+              >
                 <Pressable
+                  ref={(node) => setChecklistCategoryHeaderRef(cat.key, node)}
                   style={styles.catHeader}
                   onPress={() => handleExpandToggle(cat.key)}
+                  accessible
+                  collapsable={false}
                   accessibilityRole="button"
-                  accessibilityLabel={`${cat.label} 체크리스트`}
+                  accessibilityLabel={categoryAccessibilityLabel}
                   accessibilityState={{ expanded }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catStat}>{stats.skipped ? "해당 없음 · 진행률에서 제외" : `${stats.done}/${stats.total} 완료`}</Text>
+                    <Text style={styles.catStat}>{categoryProgressLabel}</Text>
                   </View>
                   <View style={styles.catRight}>
-                    <Text style={styles.catPercent}>{stats.skipped ? "제외" : `${stats.percent}%`}</Text>
+                    <Text style={styles.catPercent}>{categoryStatusLabel}</Text>
                     {expanded
                       ? <ChevronUp size={20} color={colors.textTertiary} />
                       : <ChevronDown size={20} color={colors.textTertiary} />
@@ -1935,7 +3016,7 @@ export default function ScheduleScreen() {
                   </View>
                 </Pressable>
 
-                {!stats.skipped && (
+                {showProgressBar && (
                   <View style={styles.catBar}>
                     <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
                   </View>
@@ -1943,6 +3024,30 @@ export default function ScheduleScreen() {
 
                 {expanded && (
                   <View style={styles.itemList}>
+                    <PreparationTopicSummary
+                      view={topicView}
+                      personalizationSection={topicPersonalizationSection}
+                      amoraHandoff={topicAmoraHandoff}
+                      messageReferenceRead={{
+                        state: topicMessageReferenceReadState,
+                        references: topicMessageReferences.filter(
+                          (reference) => reference.topicKey === cat.key,
+                        ),
+                      }}
+                      onOpenBudget={(categoryKey) => {
+                        router.push({
+                          pathname: "/budget",
+                          params: { category: categoryKey },
+                        });
+                      }}
+                      onOpenSavedConversation={(topicMessageRefId) => {
+                        router.push({
+                          pathname: "/(tabs)/chat",
+                          params: { topicMessageRefId },
+                        });
+                      }}
+                      onContinueWithAmora={openPreparationTopicAmora}
+                    />
                     <Pressable
                       style={styles.itemRow}
                       onPress={() => void toggleCategoryApplicability(cat.key)}

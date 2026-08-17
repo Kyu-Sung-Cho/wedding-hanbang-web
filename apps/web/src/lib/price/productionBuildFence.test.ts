@@ -11,6 +11,10 @@ import {
   validateSuccessorReleaseContract,
 } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
 import {
+  attachSuccessorRemoteBaselineFixture,
+  SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
+} from "../../../../../scripts/tests/helpers/successor-remote-baseline-fixture.mjs";
+import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
   VendorDisclosureProductionBuildBlocked,
@@ -61,6 +65,10 @@ interface ReleaseFixtureManifest {
     file: string;
     sha256: string;
   }>;
+  remoteBaselineContract: {
+    file: string;
+    sha256: string;
+  };
   deploymentEvidence: Record<string, unknown>;
   controllerContract?: {
     file: string;
@@ -105,7 +113,7 @@ async function createBlockedFixture() {
   const predecessorText = json(predecessor);
   await writeFile(join(repoRoot, PREDECESSOR_FILE), predecessorText, "utf8");
 
-  const manifest: ReleaseFixtureManifest = {
+  const manifestWithoutRemoteBaseline = {
     release: RELEASE,
     projectRef: PROJECT_REF,
     status: "deployment_blocked",
@@ -126,6 +134,20 @@ async function createBlockedFixture() {
       finalizer: "missing",
     },
   };
+  const remoteBaselineFixture = attachSuccessorRemoteBaselineFixture(
+    manifestWithoutRemoteBaseline,
+  );
+  const manifest: ReleaseFixtureManifest = remoteBaselineFixture.manifest;
+  const remoteBaselinePath = join(
+    repoRoot,
+    ...SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH.split("/"),
+  );
+  await mkdir(join(remoteBaselinePath, ".."), { recursive: true });
+  await writeFile(
+    remoteBaselinePath,
+    remoteBaselineFixture.contractText,
+    "utf8",
+  );
   const manifestPath = join(repoRoot, MANIFEST_FILE);
   await writeFile(manifestPath, json(manifest), "utf8");
 
@@ -275,6 +297,14 @@ async function createControllerReadyFixture(): Promise<Fixture> {
         conversation_segment_rls_policy_count: 1,
         conversation_segment_rpc_acl_count: 1,
         conversation_segment_scope_fk_count: 2,
+        first_use_deterministic_application_rpc_acl_count: 1,
+        first_use_deterministic_proposal_rpc_acl_count: 1,
+        provider_backed_add_action_application_rpc_acl_count: 1,
+        atomic_action_private_dispatcher_acl_count: 1,
+        atomic_action_public_dispatcher_acl_count: 1,
+        atomic_action_href_whitespace_parity_count: 1,
+        booking_outcome_provenance_rpc_acl_count: 1,
+        booking_outcome_provenance_v1_actor_time_contract_count: 1,
         couple_plan_change_auth_user_fk_count: 4,
         couple_plan_change_display_guard_count: 1,
         couple_plan_change_idempotency_index_count: 1,

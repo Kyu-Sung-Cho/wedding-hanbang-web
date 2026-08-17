@@ -8,6 +8,10 @@ import {
   getQuoteAnalysisExpectedItemIds,
   getQuoteAnalysisMessagePresentation,
 } from "@hanbang/shared/quote-analysis-presentation";
+import {
+  consumeActionReceiptHomeHandoff,
+  stageActionReceiptHomeHandoff,
+} from "../lib/actionReceiptHomeHandoff.mjs";
 
 const sourcePath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const sourceText = readFileSync(sourcePath, "utf8");
@@ -98,6 +102,48 @@ function loadReceiptContinuationContract() {
   });
   return new Function(
     `${transpiled.outputText}\nreturn { getMobileToolReceiptContinuation };`,
+  )();
+}
+
+function loadDoneOnlyApplicationContract() {
+  const functionNames = new Set([
+    "nonEmptyString",
+    "isRecord",
+    "asToolExecutionResult",
+    "mergeToolResults",
+    "asChatMessageMetadata",
+    "asChatStreamEvent",
+    "parseChatRetryPolicy",
+    "applyChatEvent",
+    "cleanAiText",
+    "createChatStreamParser",
+    "applyChatStreamUpdate",
+    "messageRequestKey",
+    "mergePersistedMessageWithLocal",
+    "reconcileChatStreamUpdate",
+  ]);
+  const declarations = sourceFile.statements
+    .filter((statement) =>
+      (
+        ts.isClassDeclaration(statement)
+        && statement.name?.text === "ChatTransportError"
+      )
+      || (
+        ts.isFunctionDeclaration(statement)
+        && statement.name
+        && functionNames.has(statement.name.text)
+      )
+    )
+    .map((statement) => statement.getFullText(sourceFile))
+    .join("\n");
+  const transpiled = ts.transpileModule(declarations, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  return new Function(
+    `${transpiled.outputText}\nreturn { createChatStreamParser, reconcileChatStreamUpdate };`,
   )();
 }
 
@@ -203,6 +249,128 @@ test("a persisted Amora action mutation is presented as an action receipt", () =
     message: "스튜디오 계약서 확인을 아모라 행동 카드로 저장했어요.",
     actionId: "act_first_use_1",
   }]);
+});
+
+test("a done-only provider-free first-use application reaches its receipt and user-triggered home continuation", () => {
+  const { createChatStreamParser, reconcileChatStreamUpdate } =
+    loadDoneOnlyApplicationContract();
+  const { getMobileChatMessagePresentation } = loadReceiptPresentationContract();
+  const { getMobileToolReceiptContinuation } = loadReceiptContinuationContract();
+  const serverMessageId = "90000000-0000-4000-8000-000000000009";
+  const ownerUserId = "20000000-0000-4000-8000-000000000002";
+  const coupleId = "30000000-0000-4000-8000-000000000003";
+  const handoffId = "10000000-0000-4000-8000-000000000001";
+  const confirmationRequestId = "40000000-0000-4000-8000-000000000004";
+  const operationKey = "b".repeat(64);
+  const requestKey = `chat:${ownerUserId}:${confirmationRequestId}`;
+  const actionId = `act_${confirmationRequestId.replaceAll("-", "")}_${operationKey.slice(0, 24)}`;
+  const actionTitle = "예식장 후보 두 곳 비교하기";
+  const actionDescription = "이유: 비교 기준을 맞춰요. 완료 기준: 후보 두 곳을 확인해요.";
+  const displayMessage = '"예식장 후보 두 곳 비교하기"을 아모라 행동 카드로 저장했어요.';
+  const toolResult = {
+    toolName: "add_amora_action",
+    toolInput: {
+      title: actionTitle,
+      description: actionDescription,
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    },
+    toolOutput: {
+      action: {
+        id: actionId,
+        title: actionTitle,
+        description: actionDescription,
+        dueDate: null,
+        categoryKey: null,
+        priority: "medium",
+        status: "open",
+        source: "chat",
+        href: "/wedding/lounge",
+      },
+    },
+    success: true,
+    displayMessage,
+  };
+  const updates = [];
+  const parser = createChatStreamParser((text, toolResults, metadata) => {
+    updates.push({ text, toolResults, metadata });
+  });
+
+  parser.push(`data: ${JSON.stringify({
+    type: "done",
+    fullContent: displayMessage,
+    metadata: {
+      serverMessageId,
+      response_origin: "server_authoritative_first_use_action_application",
+      provider_call_count: 0,
+      toolResults: [toolResult],
+    },
+  })}\n\n`);
+
+  const completion = {
+    text: parser.finish(),
+    toolResults: parser.getToolResults(),
+    metadata: parser.getMetadata(),
+  };
+  assert.equal(updates.length, 1, "the done event alone must publish the canonical receipt");
+  assert.equal(completion.metadata?.response_origin,
+    "server_authoritative_first_use_action_application");
+  assert.equal(completion.metadata?.provider_call_count, 0);
+  assert.deepEqual(completion.toolResults, [toolResult]);
+
+  const [message] = reconcileChatStreamUpdate(
+    [{
+      id: "temp_first-use-application-request",
+      role: "assistant",
+      sender_type: "ai",
+      content: "",
+      metadata: { client_request_id: requestKey },
+    }],
+    "temp_first-use-application-request",
+    requestKey,
+    completion,
+  );
+  assert.equal(message.id, serverMessageId);
+
+  const presentation = getMobileChatMessagePresentation(message, false);
+  assert.deepEqual(presentation.receipts, [{
+    toolName: "add_amora_action",
+    title: "아모라 행동 저장",
+    success: true,
+    message: displayMessage,
+    actionId,
+  }]);
+  const continuation = getMobileToolReceiptContinuation(presentation.receipts[0]);
+  assert.equal(continuation?.actionId, actionId);
+
+  assert.equal(stageActionReceiptHomeHandoff({
+    handoffId,
+    ownerUserId,
+    coupleId,
+    actionId: continuation?.actionId,
+    nowMs: 1_000,
+  }), handoffId);
+  assert.deepEqual(
+    consumeActionReceiptHomeHandoff(handoffId, ownerUserId, coupleId, 1_001),
+    { actionId },
+  );
+
+  const closedPresentation = getMobileChatMessagePresentation({
+    ...message,
+    metadata: {
+      ...message.metadata,
+      toolResults: [{
+        ...toolResult,
+        toolOutput: { action: { ...toolResult.toolOutput.action, status: "done" } },
+      }],
+    },
+  }, false);
+  assert.equal(
+    getMobileToolReceiptContinuation(closedPresentation.receipts[0]),
+    null,
+    "a non-open action must not create a home continuation",
+  );
 });
 
 test("a successful Amora action receipt offers one explicit continuation to the personalized home", () => {

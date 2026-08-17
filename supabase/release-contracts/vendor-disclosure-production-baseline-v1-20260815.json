@@ -1,0 +1,149 @@
+{
+  "contractVersion": 1,
+  "kind": "successor-production-ledger-baseline-v1",
+  "release": "vendor-disclosure-v2-20260718",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "predecessorHead": "20260716117000",
+  "observedRemoteHead": "20260727090000",
+  "appliedSuccessorMigrations": [
+    {
+      "file": "20260718120000_vendor_public_column_privilege_hotfix.sql",
+      "sha256": "0fefb5c6cf3a44c14923a71d78431cf92d082b0bb7b4c8e86eb9d22bf3c069e1"
+    },
+    {
+      "file": "20260718130000_vendor_disclosure_foundation.sql",
+      "sha256": "ffb97c12322c2e1429b7cc301460ad4258cc69170ec907145a8f0513792d5a61"
+    },
+    {
+      "file": "20260718140000_disclosure_source_previews.sql",
+      "sha256": "d6cf3de605e2be12846b5462fd6e36c3743aa5093373bc1e75e025cef03623f9"
+    },
+    {
+      "file": "20260718150000_price_snapshot_promotion.sql",
+      "sha256": "681490288b02ae48af4f529e0987dda2c0b3da3d679fb302344bef5ec221306c"
+    },
+    {
+      "file": "20260718160000_vendor_alias_proposals.sql",
+      "sha256": "050246e31040a2b32a5c4732b6e6ad8cd8674a6bb7f0e89a8c732e32c27fadc6"
+    },
+    {
+      "file": "20260718170000_admin_review_optimistic_concurrency.sql",
+      "sha256": "95fa130bd6692c998fccd35977fbc5996a5941cc1d9972abc905e94d114ace83"
+    },
+    {
+      "file": "20260718180000_disclosure_storage_privacy_fence.sql",
+      "sha256": "94dc7a16e3ca122c09d92d81c912ad17c991bbb7ab5cefac3093618fabfa24f5"
+    },
+    {
+      "file": "20260718190000_price_consumer_contract.sql",
+      "sha256": "279f89e05ab439cc0dc17f818d0db3f857f33d4c3d286681347fda026611fa2f"
+    },
+    {
+      "file": "20260718200000_price_publication_immutability.sql",
+      "sha256": "5a27574f7ba0da525c53cf0762e7272696fe2624bf7dc3a781eecf0fd17100fd"
+    },
+    {
+      "file": "20260718201000_admin_json_evidence.sql",
+      "sha256": "1cc0f89985171887dd36cb6f36255ebc4f63b156342cbbc4440347ad2874d79d"
+    },
+    {
+      "file": "20260718202000_price_upload_confirmation_queue.sql",
+      "sha256": "955234bd14faa1cb359abbaab022ad54e1d22f3dc02c3fc9e6cf7e04e05b44b7"
+    },
+    {
+      "file": "20260718203000_price_consumer_cross_contract_hardening.sql",
+      "sha256": "2f70cc7df464319aa8c8ac33b12ae8a4fc919e684c8d9e791d4cd8863b646b1c"
+    },
+    {
+      "file": "20260718204000_price_combo_idempotency.sql",
+      "sha256": "c604e59f47541b53d99a89e1f019db7d94cce3646ce93c7d6031f06e51667011"
+    },
+    {
+      "file": "20260718205000_legacy_demo_vendor_retirement.sql",
+      "sha256": "dfe4e515ea7fb46faad98c63e2b1aa7d4de1db54311b633e7d96173cdcf68159"
+    },
+    {
+      "file": "20260718206000_unverified_contract_clause_safety_fence.sql",
+      "sha256": "11262c3e89b14e5786f1dbbd1293e4cd6e8b2761149d13f5bfa2434a674190ce"
+    },
+    {
+      "file": "20260718207000_public_disclosure_evidence_privacy.sql",
+      "sha256": "b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512"
+    },
+    {
+      "file": "20260718208000_atomic_weighted_rate_limit.sql",
+      "sha256": "b5d95edfc33c1ec476fdcd1660643193e77278662f483a104548ae4dbab4113f"
+    },
+    {
+      "file": "20260718209000_price_combo_direct_write_fence.sql",
+      "sha256": "41f990258d2167bf6403657abc3fa863c18898b85439ce7e71f85bf08cd25335"
+    },
+    {
+      "file": "20260718210000_wedding_budget_product_contract.sql",
+      "sha256": "8b031fd6faf0654456bd7ce54758cc2f9949a88c58902352943603626bfb6fac"
+    },
+    {
+      "file": "20260720120000_disclosure_semantic_staging.sql",
+      "sha256": "fd4259d6f4137441abfb0e15eab9b8f43f57ff43f135b59ce33d5f03cc292fdf"
+    },
+    {
+      "file": "20260721120000_vendor_disclosure_atomic_batch_staging.sql",
+      "sha256": "b8585b4ec2cde1bef5913bfa518fcaa48a745a4016218d0cc9cfbda427b86bc6"
+    },
+    {
+      "file": "20260722193000_vendor_disclosure_storage_outcome_idempotency.sql",
+      "sha256": "a72b926a1f760bb3cda04545a6da29ff3079e0038a447ebc0d532371fad4c987"
+    },
+    {
+      "file": "20260722194000_vendor_disclosure_stage_ledger_hash_disambiguation.sql",
+      "sha256": "b10933ca814774a6536b91806e8c630d2cbe04b406cd1d81816a90889e00518c"
+    },
+    {
+      "file": "20260722195000_vendor_disclosure_ledger_cost_scale.sql",
+      "sha256": "63a4e2e6019e0aa35fc23d4de5a078021448fd375c93e7e70a63012c4cd7fba3"
+    },
+    {
+      "file": "20260722196000_official_price_option_source_occurrence.sql",
+      "sha256": "1f1fcc6e85195cc17c1a929c6dbaa02c7bb61840464c282bc877ce7b4c1fc7fd"
+    },
+    {
+      "file": "20260722197000_vendor_disclosure_exact_semantic_duplicate_canonicalization.sql",
+      "sha256": "2df865eedd9684438fcf77f1e388fd8804ccf72c609573e468e23b6bff8e08f2"
+    },
+    {
+      "file": "20260722198000_vendor_disclosure_preview_transport_identity.sql",
+      "sha256": "f0c83ccdbde175d71b6fa05deefde80ec48d119e7f12876926b9147f6cde28ee"
+    },
+    {
+      "file": "20260722199000_vendor_disclosure_local_price_overflow_quarantine.sql",
+      "sha256": "1dfd8685590bede3a014dcfaa1493cc7c93884dd93472e387901437e909fd816"
+    },
+    {
+      "file": "20260722200000_vendor_disclosure_dedupe_link_replay.sql",
+      "sha256": "7259b4cfde45aa5355763cc716e860d031558f235d5bca88ca39e2d76e4e6100"
+    },
+    {
+      "file": "20260726090000_public_vendor_policies.sql",
+      "sha256": "b2c789fc6a56fafdcbd1531dbcddc3ed22e6545bd7d4f6d7e7b01ab3b4b20e52"
+    },
+    {
+      "file": "20260726120000_amora_saved_notes.sql",
+      "sha256": "25d14623dd9bc4c24b1941bf037084d97eb54ba05d30901cc522e5f90a425de7"
+    },
+    {
+      "file": "20260727090000_fix_saved_note_message_ref_and_lock_messages.sql",
+      "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60"
+    }
+  ],
+  "pendingSuccessorCount": 69,
+  "firstPendingSuccessor": "20260730100000",
+  "lastPendingSuccessor": "20260816170000",
+  "requiredRuntimeChecks": [
+    "linked-project-exact",
+    "remote-only-version-count-zero",
+    "applied-successor-exact-prefix",
+    "applied-migration-names-exact",
+    "read-only-schema-preconditions-pass"
+  ],
+  "verificationLimit": "ledger-version-and-name-equality-without-stored-sql-statements"
+}

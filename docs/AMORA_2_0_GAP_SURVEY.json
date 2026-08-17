@@ -1,0 +1,419 @@
+{
+ "documentStatus": "EVIDENCE_ONLY",
+ "executionAuthority": "docs/AMORA_MASTER_DEVELOPMENT_PLAN.md",
+ "warning": "This survey is supporting evidence, not a current plan or completion ledger.",
+ "axes": [
+  {
+   "axis": "시작코스",
+   "reviewSummary": "인용된 파일:줄을 전부 직접 열어 확인했다. 사실 오류는 없었지만 **핵심 사실 하나가 조사에서 빠져 있고, 그 결과 '있음(라이브)' 5건이 과대 표기**다.\n\n**빠진 사실: 모바일 온보딩의 기본 경로는 폼이 아니라 quick_start다.** 스텝2의 채워진 주 버튼 라벨은 '아모라와 지금 시작하기'이고(apps/mobile/src/lib/onboardingFirstValue.mjs:1-14), 누르면 handleSubmit(\"quick_start\")로 즉시 제출되며(apps/mobile/app/onboarding/index.tsx:481-487, 853-887) weddingDate·venue·totalBudget=null, progress={}를 보내고(onboardingFirstValue.mjs:29-37) 곧장 `/(tabs)/chat?entry=first_use`로 나간다(:55-61). 스텝3·4(시기·예산·하객·우선순위·분위기)는 그 아래 **보조 텍스트 버튼 '정보를 먼저 입력할게요'**(index.tsx:889-901)를 누른 사람만 본다. 웹도 join 경로는 스텝2 직후 제출해 3·4·5를 건너뛴다(apps/web/src/app/(auth)/onboarding/page.tsx:626-630). 따라서 \"가입 직후 첫 경험이 X를 묻는다\"는 5개 항목은 전부 조건부이며 부분으로 내려야 한다.\n\n**status는 그대로지만 note가 틀린 곳(계획서가 그대로 받아쓰면 위험):**\n1. 항목1(시작 코스 없음) — 판정 자체는 유지(아모라가 9개 항목을 대화로 파악하지도, 산출물 5종을 만들지도 않으므로 '없음'이 맞다). 그러나 note의 \"모바일 루트는 /onboarding으로 보내고 그 화면은 5단계 폼이다\"는 절반만 맞다. 기본 버튼은 폼을 건너뛰고 채팅으로 나가며, first_use 승격 파이프라인(apps/mobile/src/lib/amoraFirstUsePromotion.mjs, amoraEntryPlan.mjs:120-126)이 이미 존재한다 — 시작 코스는 백지가 아니라 **이 진입점 위에 얹을 것**이다.\n2. 항목11(첫 미션·스타터, 부분 유지) — note의 \"이 화면이 첫 경험이 되는 건 quick_start로 빠져나온 경우뿐\"은 방향이 반대다. quick_start가 주 버튼이므로 **스타터 채팅이 모바일 기본 첫 화면**이고, '준비 진행 N%' 대시보드(WeddingHomeExperience.tsx:588-591)는 보조 경로 끝이다.\n3. 항목9(모르겠어요, 부분 유지) — 유보 지점은 3곳이 아니라 최소 4곳. 웹 스텝4의 '나중에 설정할게요'(page.tsx:641-648)가 누락됐다. 웹 canProceed()는 스텝3·4·5를 무조건 통과시킨다(page.tsx:237-256).\n4. 항목8(가족변수·참여방식, 부분 유지) — \"진입점은 빈 나만 상담 채팅의 버튼 하나뿐\"은 사실이 아니다. AmoraPersonalizationSheet는 대시보드에서도 열린다(TodayOneCareCard.tsx:909, AmoraActionFollowUpV2.tsx:635).\n\n**검증 결과 그대로 맞는 것:** 항목3 지역(온보딩·API·스토어·타입 전 표면 grep 0건 재확인), 항목8 문화선택(웹 스텝5 ProgressChecklist의 상태값은 예정/준비중/완료뿐 — '해당 없음'조차 없다, ProgressChecklist.tsx:11-15), 항목10 산출물 4종(첫 4주 계획·선택 지도 0건, amora_core_criterion은 apps/web/src/app/api/chat/route.ts 경로에서만 생성), 항목11 스타터 문구·실행 카드 헤딩(amoraEntryPlan.mjs:596-609, 643-672, 120-126) 전부 인용대로다.",
+   "items": [
+    {
+     "requirement": "가입 직후 아모라가 10~15분 대화로 상황을 파악하는 '시작 코스'가 있어야 한다",
+     "status": "없음",
+     "evidence": "apps/mobile/app/index.tsx:127-134, apps/mobile/app/onboarding/index.tsx:220,532-918, apps/web/src/app/(auth)/onboarding/page.tsx:544-602",
+     "note": "모바일 루트는 onboarding_completed=false면 /onboarding으로 보내고, 그 화면은 대화가 아니라 5단계 폼(역할→커플연결→결혼정보→스타일→완료)이다. 웹도 동일한 5스텝 폼(RoleSelection/CoupleLink/WeddingDetails/WeddingStylePreferences/ProgressChecklist)이며, 아모라가 진행하는 인테이크 대화는 어느 쪽에도 없다."
+    },
+    {
+     "requirement": "시작 코스가 '시기'를 묻는다",
+     "status": "부분",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:670-694, apps/web/src/components/onboarding/WeddingDetails.tsx:47,167",
+     "note": "모바일 스텝3·웹 스텝3에서 예식 예정일을 YYYY-MM-DD로 직접 입력받고 '아직 정하지 않았어요'(모바일)·'아직 미정'(웹) 유보가 있다. 다만 2.0이 말하는 '시기'(연·계절 범위)가 아니라 확정 날짜 한 개를 묻는 형태다.",
+     "correctedFrom": "있음(라이브)",
+     "correctionWhy": "두 가지가 겹친다. ①묻는 건 확정 날짜 하나뿐이고 유보를 고르면 아무것도 남지 않는다 — 모바일 apps/mobile/app/onboarding/index.tsx:671-694에서 '아직 정하지 않았어요'를 켜면 입력 필드 자체가 사라지고 apps/mobile/src/lib/onboardingFirstValue.mjs:41이 weddingDate를 null로 보낸다. 웹도 apps/web/src/components/onboarding/WeddingDetails.tsx:63-76의 '미정' 버튼이 onDateChange(null)을 호출한다. 즉 2.0의 '시기'(연·계절 범위)는 어느 쪽에도 저장되지 않고, 아직 못 정한 커플에게서는 시기 정보가 0이다. ②모바일에서 이 질문 화면(스텝3) 자체가 기본 경로가 아니다 — 스텝2의 채워진 주 버튼은 apps/mobile/app/onboarding/index.tsx:853-887 + :481-487이 handleSubmit('quick_start')를 호출하는 '아모라와 지금 시작하기'이고, 스텝3으로 가려면 아래 보조 텍스트 버튼 '정보를 먼저 입력할게요'(:889-901)를 눌러야 한다."
+    },
+    {
+     "requirement": "시작 코스가 '지역'을 묻는다",
+     "status": "없음",
+     "evidence": "근거 없음 (apps/web/src/components/onboarding, apps/mobile/app/onboarding, apps/web/src/app/api/onboarding/route.ts 전수 grep에서 '지역'/'region' 0건)",
+     "note": "지역 대신 결혼식장 이름 자유 입력만 있다(apps/mobile/app/onboarding/index.tsx:696-703). 자유 텍스트라 지역 키로 정규화되지 않고, 3단계 '현실 확인'(공시가·지역 중위가 비교)의 입력이 될 수 없다."
+    },
+    {
+     "requirement": "시작 코스가 '하객' 규모를 묻는다",
+     "status": "부분",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:807-821, packages/shared/src/constants/weddingPreferences.ts:60-66",
+     "note": "스텝4에서 5구간(50명 미만~300명 이상) 단일 선택. 웹도 같은 상수를 쓰는 WeddingStylePreferences에서 묻는다. 개별 '모르겠어요' 값은 없고 스텝 전체 건너뛰기만 가능하다.",
+     "correctedFrom": "있음(라이브)",
+     "correctionWhy": "선택지 5구간은 실재하지만(모바일 index.tsx:807-821, 웹 WeddingStylePreferences.tsx:192-212) 도달 조건이 세 겹으로 좁다. ①모바일 기본 경로(스텝2 주 버튼 quick_start, index.tsx:481-487,853-887)는 스텝4를 아예 렌더하지 않는다. ②보조 경로로 스텝4에 와도 '건너뛰기'가 곧바로 제출한다(index.tsx:903-914), 웹도 '나중에 설정할게요'가 있다(page.tsx:641-648). ③웹 join 경로는 스텝4 자체를 건너뛴다(page.tsx:626-630). 개별 '모르겠어요' 값도 없어 부분 응답이 불가능하다."
+    },
+    {
+     "requirement": "시작 코스가 '총예산'을 묻는다",
+     "status": "부분",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:705-734, apps/web/src/app/api/onboarding/route.ts:1047-1058",
+     "note": "만원 단위 숫자 1개를 선택 입력으로 받아 wedding_journeys.total_budget과 decision_nodes '총 예산 설정'으로 저장한다. 금액 하나만 남고 항목별 배분은 만들지 않는다.",
+     "correctedFrom": "있음(라이브)",
+     "correctionWhy": "질문 자체는 실재한다(모바일 index.tsx:705-734, 웹 WeddingDetails.tsx:139-173). 그러나 모바일 주 제품의 기본 경로에서는 묻지 않는다 — 스텝2 주 버튼이 quick_start 제출이고(index.tsx:481-487,853-887), apps/mobile/src/lib/onboardingFirstValue.mjs:29-37이 quick_start에서 weddingDate·venue·totalBudget을 전부 null, progress를 {}로 보낸 뒤 :55-61이 곧바로 채팅으로 보낸다. 스텝3은 보조 버튼을 누른 사람만 본다. 웹도 join 경로는 스텝2 직후 제출해 3·4·5를 통째로 건너뛴다(apps/web/src/app/(auth)/onboarding/page.tsx:626-630) — 합류하는 파트너에게는 총예산을 한 번도 묻지 않는다."
+    },
+    {
+     "requirement": "시작 코스가 '우선순위'를 묻는다",
+     "status": "부분",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:204-210,760-789, packages/shared/src/constants/weddingPreferences.ts:27-34",
+     "note": "6개 중 최대 3개 다중선택. 저장은 progress.__preferences.priorities 배열뿐이고(apps/mobile/src/lib/onboardingFirstValue.mjs:44-51), 순위가 아니라 집합이며 이후 미션 선정이나 선택 지도에 쓰이는 배선은 확인되지 않았다.",
+     "correctedFrom": "있음(라이브)",
+     "correctionWhy": "조사 자신의 note가 이미 구조 부재를 인정한다 — 순위가 아닌 집합이고(index.tsx:204-210,760-789) 저장은 progress.__preferences.priorities 배열뿐이며(onboardingFirstValue.mjs:44-51) 이후 사용 배선이 확인되지 않았다. 여기에 도달 조건까지 더해진다: 모바일 기본 경로는 스텝4를 건너뛰고(index.tsx:481-487,853-887 + onboardingFirstValue.mjs:29-37이 progress를 {}로 전송), 스텝4에 와도 '건너뛰기'(index.tsx:903-914)로 빠져나갈 수 있고, 웹 join은 스텝4가 없다(page.tsx:626-630). '묻고 → 기준·선택 지도로 이어진다'는 2.0 구조는 어느 지점에도 없으므로 '있음(라이브)'는 과대 표기다."
+    },
+    {
+     "requirement": "시작 코스가 '분위기'를 묻는다",
+     "status": "부분",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:744-758,792-805, packages/shared/src/constants/weddingPreferences.ts:1-22,39-55",
+     "note": "웨딩 스타일 4종(간결/격식/연출/편안) 단일 선택 + 예산 성향 3종이 같은 스텝4에 있다. 9개 항목 중 현재 온보딩이 실제로 묻는 것은 시기·하객·총예산·우선순위·분위기 5개다.",
+     "correctedFrom": "있음(라이브)",
+     "correctionWhy": "스타일 4종 단일선택은 스텝4 안에 있고(모바일 index.tsx:744-758, 웹 WeddingStylePreferences.tsx:84-110) 스텝4는 하객·우선순위와 같은 화면이라 같은 게이트를 공유한다 — 모바일 기본 경로(quick_start, index.tsx:481-487,853-887)는 이 화면에 도달하지 않고, 도달해도 '건너뛰기'(index.tsx:903-914)·웹 '나중에 설정할게요'(page.tsx:641-648)로 통째로 건너뛰며, 웹 join 경로는 렌더조차 되지 않는다(page.tsx:626-630). 즉 '가입 직후 첫 경험이 분위기를 묻는다'는 조건부로만 참이다."
+    },
+    {
+     "requirement": "시작 코스가 '문화선택'(예단·폐백·예물의 유지/축소/대체/생략)을 묻는다",
+     "status": "없음",
+     "evidence": "근거 없음 (apps/web/src/components/onboarding, apps/mobile/app/onboarding grep '예단|폐백|예물' 0건)",
+     "note": "온보딩 어디에도 문화 항목 자체를 고르는 질문이 없다. 가장 가까운 것은 나중에 체크리스트 항목을 '해당 없음'으로 꺼서 진행률 분모에서 빼는 처리뿐이다(apps/web/src/app/(app)/lounge/page.tsx:193-194) — 선택을 묻는 게 아니라 이미 있는 목록을 끄는 것이다."
+    },
+    {
+     "requirement": "시작 코스가 '가족변수'와 '참여방식'을 묻는다",
+     "status": "부분",
+     "evidence": "apps/mobile/src/components/chat/AmoraPersonalizationSheet.tsx:145-193,245-246, apps/mobile/src/components/chat/AmoraStarterCard.tsx:56-76, apps/web/src/constants/weddingCodeV06.ts:125,131",
+     "note": "온보딩에서는 둘 다 묻지 않는다. 참여방식=workMode('둘이 함께 확인'/'한 명이 먼저 정리'/'중요한 건 함께'), 가족변수=familyOrder('우리 둘 기준 먼저'/'관련된 의견부터 확인')는 존재하지만 기본값이 전부 ask_each_time이고 진입점은 빈 '나만 상담' 채팅의 '아모라 도움 방식 맞추기' 버튼 하나뿐이다. 웹 /wedding-code가 같은 축을 16장면으로 묻지만 가입 전 별도 페이지이고 모바일 진입점은 0건(apps/mobile 전체 grep 'wedding-code' 0건)."
+    },
+    {
+     "requirement": "모든 질문에 '모르겠어요/추천해주세요/나중에 정할게요'가 있어야 하고 필수 입력을 강제하지 않아야 한다",
+     "status": "부분",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:361-370,685-694,889-914, apps/mobile/src/lib/onboardingFirstValue.mjs:1-14,29-37, packages/shared/src/constants/weddingPreferences.ts:1-69",
+     "note": "유보는 3곳뿐이다 — 예식일 '아직 정하지 않았어요' 체크박스, 스텝4 '건너뛰기', 스텝2의 '아모라와 지금 시작하기'(quick_start는 날짜·장소·예산·취향을 전부 null로 보낸다). 반대로 선택지 상수 4종(스타일·우선순위·예산성향·하객수) 어디에도 '모르겠어요/추천해주세요/나중에' 값이 없고, canNext()는 스텝1 역할 선택과 join 경로의 초대코드를 통과 조건으로 막는다."
+    },
+    {
+     "requirement": "산출물 4종(기준 카드 / 선택 지도 / 첫 4주 계획 / 예산 초안)의 데이터 구조가 있어야 한다",
+     "status": "없음",
+     "evidence": "apps/web/src/app/api/onboarding/route.ts:985-1063, apps/mobile/src/lib/onboardingFirstValue.mjs:39-53",
+     "note": "온보딩 완료가 실제로 만드는 것은 profiles/couples 행, wedding_journeys.progress.__preferences, 상견례 이벤트 1건, decision_nodes 최대 4건(날짜·장소·상견례·총예산)뿐이다. 기준 카드에 가장 가까운 amora_core_criterion / amora_couple_core_criterion(apps/web/src/lib/ai/amoraCoreCriterion.ts)은 온보딩 산출물이 아니라 이후 채팅에서만 생기고, '선택 지도'·'첫 4주 계획'·예산 배분 초안은 저장소 전체 grep에서 0건이다."
+    },
+    {
+     "requirement": "산출물 '첫 미션'과 빈 화면 시작 제안(스타터)이 있어야 한다",
+     "status": "부분",
+     "evidence": "apps/mobile/src/lib/amoraEntryPlan.mjs:596-609,643-672,674-691, apps/mobile/app/(tabs)/chat.tsx:7718-7748, apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:588-591",
+     "note": "빈 채팅 스타터는 실재한다 — 제목 '지금 어디부터 같이 볼까요?', 버튼 '내 준비 상태부터 확인해줘' / '이번 주에 할 일 하나 정해줘' / '둘이 먼저 맞춰볼 게 있어요', 하단 '선택해도 바로 보내지 않아요. 문장을 보고 고칠 수 있어요.'(AmoraStarterCard.tsx:55). 미션 4·5단계에 해당하는 실행 카드('지금 할 한 가지'/'이유'/'완료 기준' → '3/3 · 준비에 반영 전')도 amoraEntryPlan.mjs:120-126,535-541에 있다. 그러나 이 화면이 첫 경험이 되는 건 quick_start로 빠져나온 경우뿐이고(onboardingFirstValue.mjs:55-69), 폼을 끝까지 채운 기본 경로는 '준비 진행 N%' 대시보드(모바일)와 lounge(웹 apps/web/src/app/(app)/lounge/page.tsx:617-618)로 떨어져 2.0이 폐기하려는 완료율 진행률을 첫 화면에서 그대로 본다."
+    }
+   ]
+  },
+  {
+   "axis": "기준과선택지도",
+   "reviewSummary": "12개 항목 중 인용된 파일:줄을 전부 직접 열어 검증했다. 유지 10개, 정정 2개.\n\n**정정 2건**\n1. \"진행률이 n/132 식 항목 계수가 아닌지\" 있음(라이브)→없음. 라벨이 사실과 반대로 읽히는 유일한 항목이고, 이 축에서 계획 누락 위험이 가장 크다(19카테고리·132항목 계수가 웹·모바일 양쪽에서 그대로 살아 있음).\n2. \"가입 직후 예산 초안\" 없음→부분. `apply_budget_plan`(tools.ts:119-150) + 예산 인터뷰/임시 초안 프롬프트(prompts.ts:1040-1145) + 원자 적용(amoraAtomicToolOperation.ts:464-593) + 카드 렌더(ActionCard.tsx:682)로 **항목별 배분안 생성·승인·적용 경로가 이미 라이브**다. 없는 건 \"가입 직후 자동\" 트리거뿐.\n\n**과대포장 여부 확인 결과 — 부풀림 없음**\n- \"커플 공동 기준 제안→동의→확정\" 있음(라이브)은 진짜다. 마이그레이션(20260814140000, 6-60줄: pending 유니크 인덱스·confirmed/cancelled/invalidated·양측 수락 테이블)뿐 아니라 API(apps/web/src/app/api/amora/couple-criterion/route.ts, 플래그 게이트 없음), 화면(apps/mobile/app/settings/amora-style.tsx:201-500, 923-940 제안/수락/취소 UI), 진입점 2개(apps/mobile/app/settings/index.tsx:988, apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:498-522의 criterionAction)까지 모두 연결돼 있다. \"합의 절차는 있고 기준 카드는 없다(value text 1줄)\"는 노트도 정확(120자 CHECK 확인).\n- not_applicable 있음(라이브)도 진짜다(database.types.ts:87-91 주석, apps/mobile/app/schedule/index.tsx:1952-1958 토글, planningChecklist.ts:97-101 분모 제외). \"카테고리 단위만, 사유란 없음, 항목 단위 생략 불가\"도 맞다(ChecklistItem은 id/label/done 3필드뿐).\n- \"문화 항목 5분류 없음\"·\"범위형 예산 없음\"·\"지역 커플 저장 없음\"도 재확인. 축소/대체 상태값은 packages/shared/src 전체에서 0건(진행 순서 설명문만), 예산은 total_budget BIGINT + budget?: number 단일 정수, 지역은 amora_quote_checks 일회성 입력과 PriceExplorer localStorage(PriceExplorer.tsx:145-158)뿐이라 커플 지속 기준 아님. community_profiles.region(20260408000000_community_v2.sql:48)이 있으나 커뮤니티 프로필용이라 커플 기준 아님 — 상태 변경 불필요.\n- \"모르겠어요 선택지 없음\"도 유지. 모바일 온보딩에 \"건너뛰기\" 버튼은 있으나(apps/mobile/app/onboarding/index.tsx:906-912) 스텝 단위 무응답이지 문항별 \"모르겠어요\" 값이 아니고, weddingCodeForm.ts:66의 \"아직 모르겠음\"은 파일 1줄에 CANDIDATE4_RETIRED로 격리된 폐기 코드라 근거로 못 쓴다.\n\n**노트 1건의 사실 오류(상태는 그대로 없음)**: 12번 항목 노트의 \"attentionTopics는 마감 임박 정렬일 뿐\"은 틀렸다. amoraPreparationMap.mjs:205-217은 마감이 아니라 상태 우선순위(needs_review→in_progress→attention→not_started)로 정렬하고, needs_review는 attentionReason='resolve_conflict'(같은 파일 102, 128, 143-152)로 붙는 충돌 표식이다. 그래도 \"기준·결정·약속·위험\" 4축과는 세는 대상이 다르므로 상태 없음은 유지.",
+   "items": [
+    {
+     "requirement": "커플의 \"기준\"(지역·하객·예산상한·우선순위·분위기)이 하나의 구조로 저장되는 필드/테이블",
+     "status": "부분",
+     "evidence": "apps/web/src/app/api/onboarding/route.ts:49-54, 218-226 / packages/shared/src/constants/weddingPreferences.ts:1-69",
+     "note": "저장 자리는 wedding_journeys.progress JSONB 안의 `__preferences` 하나뿐이고 담기는 값은 weddingStyle(분위기)·priorities(최대 3개)·budgetTendency·guestCount 4개다. 5축 중 **지역이 없고**, 예산상한은 별도 컬럼(wedding_journeys.total_budget)에 따로 산다. \"기준 카드\"라는 1급 엔티티(테이블/타입)는 없고 진행률 JSONB에 얹힌 부속 키다."
+    },
+    {
+     "requirement": "기준을 저장하는 정본 구조(기준 카드) — 여러 기준을 항목별로 보관",
+     "status": "부분",
+     "evidence": "supabase/migrations/20260814130000_amora_core_criterion.sql:38-56, 124-147 / packages/shared/src/contracts/amoraCoreCriterion.mjs:2",
+     "note": "2026-08-14에 들어온 `set_amora_core_criterion_v1`이 가장 \"기준\"에 가깝지만, 저장 단위가 **자유 텍스트 1줄(최대 120자) 딱 하나**다(AMORA_CORE_CRITERION_MAX_LENGTH=120). 전용 테이블도 없이 decision_nodes에 category='preference', decision_type='considering'으로 append되고, 최신 1건만 현재값으로 읽힌다. 지역·하객·상한 같은 **필드 분해가 전혀 없어** 이 값으로 탐색을 필터링할 수 없다."
+    },
+    {
+     "requirement": "두 사람이 합의한 공동 기준을 상태로 관리(제안→동의→확정)",
+     "status": "있음(라이브)",
+     "evidence": "supabase/migrations/20260814140000_amora_couple_core_criterion.sql:6-60 (amora_couple_core_criterion_proposals / _acceptances)",
+     "note": "제안(pending)·양측 수락·confirmed/cancelled/invalidated 상태기계와 커플당 pending 1건 유니크 인덱스까지 제대로 있고, 모바일 홈에 criterionAction으로 노출된다(apps/mobile/src/lib/dashboardExperience.mjs:827-874). 다만 여기서도 합의 대상은 **value text 1줄(1~120자)** 하나뿐이다. 즉 \"합의 절차\"는 있고 \"기준 카드\"는 없다."
+    },
+    {
+     "requirement": "지역 기준이 커플 단위로 저장되는 자리",
+     "status": "없음",
+     "evidence": "supabase/migrations/20260511030000_amora_quote_checks.sql:10 (region은 견적 진단 1건의 입력값) / apps/web/src/app/api/onboarding/route.ts:49-54 (preferences에 region 키 없음)",
+     "note": "region enum('seoul','gyeonggi','busan','daegu','other')은 amora_quote_checks 행마다 붙는 **일회성 입력**이고 커플의 지속 기준이 아니다. wedding_journeys에는 venue TEXT(식장 이름)만 있고 지역 필드가 없다."
+    },
+    {
+     "requirement": "문화 항목(예단·예물·폐백·한복·스드메)을 유지/축소/대체/생략/미정으로 다루는 구조",
+     "status": "없음",
+     "evidence": "근거 없음 (packages/shared/src/constants/weddingPlanning.ts:13-34, 163-379 전수 확인 — 상태 축 자체가 없음)",
+     "note": "hanbok·yedan·ham·pyebaek은 다른 15개와 똑같은 체크리스트 카테고리로만 존재한다(각각 items 6~7개). \"축소\"·\"대체\"라는 상태값은 코드 어디에도 없고, packages/shared/src 전체에서 해당 단어는 진행 순서 설명문(amoraPreparationGuide.mjs:194-207)에만 나온다. 선택 지도가 요구하는 5분류 중 코드가 표현할 수 있는 건 사실상 유지/생략 2개다."
+    },
+    {
+     "requirement": "not_applicable 같은 \"우리에겐 해당 없음\" 상태가 실제로 있나",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/types/database.types.ts:87-91 / apps/mobile/app/schedule/index.tsx:1952-1958 / packages/shared/src/utils/planningChecklist.ts:97-101",
+     "note": "ProgressItem.status에 not_applicable이 있고 주석도 \"작은결혼식·재혼 등에서 함·폐백·예단 생략\"을 명시한다. 진행률 분모에서도 제대로 빠진다. 그러나 **카테고리 단위 on/off 토글 하나**이고(\"준비 목록에서 제외\" ↔ \"다시 준비 목록에 넣기\"), 왜 뺐는지·대안이 뭔지 적는 자리가 없다. 항목(item) 단위 생략도 불가."
+    },
+    {
+     "requirement": "예산이 \"정답처럼 보이지 않는 범위형 배분\"으로 표현되는 구조",
+     "status": "없음",
+     "evidence": "supabase/migrations/20260210000000_onboarding_couple_chat.sql:30 (total_budget BIGINT DEFAULT 0) / apps/web/src/types/database.types.ts:92-94 (budget?: number; spent?: number)",
+     "note": "총예산도 카테고리 예산도 **단일 정수**다. min/max·범위·신뢰구간 필드가 스키마에도 타입에도 없다. 모바일 예산 화면은 이 단일값으로 사용률 %와 초과액을 계산한다(apps/mobile/app/budget/index.tsx:544, 561-569) — 범위가 아니라 정답 대비 초과로 보이는 구조."
+    },
+    {
+     "requirement": "가입 직후 자동 생성되는 \"예산 초안\"(항목별 배분안)",
+     "status": "부분",
+     "evidence": "근거 없음 (apps/web/src/app/api/onboarding/route.ts:75-109은 입력받은 총액을 그대로 저장할 뿐 배분 없음)",
+     "note": "온보딩은 총 예산을 만원 단위로 받아 total_budget에 넣는 것이 전부다. 카테고리 배분 비율표·초안 생성기가 저장소에 없고, 오히려 UI가 \"비워 두면 아모라가 금액을 대신 정하지 않습니다\"라고 명시한다(apps/web/src/components/onboarding/WeddingDetails.tsx:167 부근). 2.0의 산출물 5종 중 예산 초안은 생성 코드 자체가 부재.",
+     "correctedFrom": "없음",
+     "correctionWhy": "\"배분 생성 코드 자체가 부재\"는 사실이 아니다. 항목별 배분안을 만들고 적용하는 경로가 라이브로 존재한다 — apps/web/src/lib/ai/tools.ts:119-150의 `apply_budget_plan`은 20개 카테고리 enum별 `allocations`(카테고리+금액 배열)와 total_budget을 받고, 합계가 총액보다 작으면 잔여분을 reserve(아직 쓰임을 정하지 않은 금액)로 자동 처리한다. 초안 생성 절차도 프롬프트에 구현돼 있다: apps/web/src/lib/ai/prompts.ts:1040-1145는 \"원샷 모드… 임시 초안\"(1051줄), Step 1~8(포함 범위 확인→확정 금액→목표 금액→예비비·미배정→합계 검증→적용 전 확인), \"카테고리별 표(현재 값/제안 값/근거)\" 출력 형식을 지시한다. 실행 배선도 있다: apps/web/src/lib/ai/toolExecutor.ts:504·863(`apply_budget_plan_atomic`), apps/web/src/lib/ai/amoraAtomicToolOperation.ts:464-593(원자 적용·CAS), apps/web/src/components/app/chat/ActionCard.tsx:682(배분안 카드 렌더), apps/web/src/lib/ai/amoraToolPolicy.ts:560(사용자 예산 발화 시에만 도구 노출). 빠진 것은 \"**가입 직후 자동**\" 트리거와 온보딩 산출물화뿐이다(apps/web/src/app/api/onboarding/route.ts는 총액만 저장, apps/web/src/components/onboarding/WeddingDetails.tsx:167 \"비워 두면 아모라가 금액을 대신 정하지 않습니다\"). \"없음\"으로 두면 이미 있는 배분·승인·원자적용 계약을 모르고 초안 생성기를 처음부터 다시 설계하게 된다."
+    },
+    {
+     "requirement": "미정(모르겠어요)을 **이유와 함께** 기록하는 자리",
+     "status": "부분",
+     "evidence": "apps/web/src/components/onboarding/WeddingDetails.tsx:64-74, 92-103, 118-134, 158-167 (미정 = boolean/null) / supabase/migrations/20260424000000_moat_wiring.sql:55 (decision_nodes.reasoning TEXT)",
+     "note": "미정은 날짜·상견례일·식장·예산 4곳에서 \"미정\" 버튼으로 값을 null로 만드는 것이 전부이고 이유 필드가 없다. reasoning 컬럼은 존재하지만 채우는 주체가 AI 추출기이며(apps/web/src/lib/ai/extract-decision.ts:107-110, 154-157) type은 decision|preference뿐 — **\"아직 안 정함\"이라는 타입이 없다**. decision_type CHECK에도 undecided/deferred가 없다(exploring/considering/decided/scheduled/booked/completed)."
+    },
+    {
+     "requirement": "모든 질문에 모르겠어요/추천해주세요/나중에 정할게요 선택지",
+     "status": "없음",
+     "evidence": "packages/shared/src/constants/weddingPreferences.ts:1-69 (4개 옵션셋 전체에 해당 값 없음)",
+     "note": "분위기 4지선다·우선순위 6지선다·예산성향 3지선다·하객 5구간 어디에도 모르겠어요/추천해주세요 값이 없다. 서버 검증도 화이트리스트라 그 값이 오면 400이 된다(apps/web/src/app/api/onboarding/route.ts:175-216). 필드를 통째로 비우는 건 가능하지만 그건 \"모른다\"가 아니라 \"무응답\"으로 저장돼 아모라가 구분할 수 없다."
+    },
+    {
+     "requirement": "진행률이 n/132 식 항목 계수가 아닌지",
+     "status": "없음",
+     "evidence": "packages/shared/src/constants/weddingPlanning.ts (체크 항목 정확히 132개, 카테고리 19개) / apps/web/src/app/(app)/dashboard/page.tsx:616 / apps/mobile/src/lib/dashboardExperience.mjs:555-597",
+     "note": "정확히 2.0이 버리려는 그 계산이다. 웹 대시보드는 `note={`${summary.doneItems}/${summary.totalItems}개 직접 체크`}`로 **문자 그대로 \"n/132개\"**를 찍고, 모바일 홈은 같은 값으로 \"준비 진행 N%\" 바를 그린다(apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:588-591). not_applicable 카테고리만 분모에서 빠질 뿐 분모는 여전히 체크박스 개수다.",
+     "correctedFrom": "있음(라이브)",
+     "correctionWhy": "상태 라벨이 사실과 정반대로 읽힌다. 요구사항은 \"항목 계수가 **아닐** 것\"인데, 코드는 정확히 항목 계수다 — packages/shared/src/constants/weddingPlanning.ts:50 CATEGORY_CHECKLISTS는 카테고리 19개·체크 항목 132개(파일 내 items id 132개)이고, apps/web/src/app/(app)/dashboard/page.tsx:616이 `${summary.doneItems}/${summary.totalItems}개 직접 체크`를 문자 그대로 찍는다. 모바일도 apps/mobile/src/lib/dashboardExperience.mjs:555-596에서 done/total 항목 수로 퍼센트를 내고 apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:586-591이 \"준비 진행 N%\" 바로 그린다(packages/shared/src/utils/planningChecklist.ts:96-110도 동일 계산). 즉 이 요구사항은 **미충족**이다. \"있음(라이브)\"로 두면 계획서가 \"이미 됨\"으로 받아쓰고 진행률 재정의 작업이 통째로 빠진다. 같은 축의 다른 11개 항목이 있음=충족 규약을 쓰므로 라벨을 뒤집어야 한다(노트 내용 자체는 정확하니 그대로 유지)."
+    },
+    {
+     "requirement": "새 진행률 의미(기준 n개 중 m개 정함 / 이번 주 결정·약속 / 아직 안 정해도 되는 것 / 확인 필요한 위험)",
+     "status": "없음",
+     "evidence": "packages/shared/src/contracts/amoraPreparationMap.mjs:236-247 (summary는 topic 상태 카운트 + completedItems/totalItems/percent)",
+     "note": "가장 가까운 구조인 preparationOverview.summary조차 축이 다르다 — 세는 대상이 \"기준·결정·약속·위험\"이 아니라 topic 상태(unknown/not_started/in_progress/completed/not_applicable/needs_review)와 체크 항목 수다. \"아직 안 정해도 되는 것\"을 표현할 상태값(예: 지금은 불필요/시기상조)이 없고, \"확인 필요한 위험\"은 attentionTopics로 근사되지만(같은 파일 205-217) 마감 임박 정렬일 뿐 위험 판정이 아니다."
+    }
+   ]
+  },
+  {
+   "axis": "미션과오늘",
+   "reviewSummary": "12개 항목의 인용 파일:줄을 모두 직접 열어 확인했다. 상태 변경은 2건, 상태는 맞지만 **근거 서술이 사실과 달라 계획에 그대로 복사되면 위험한 것** 2건이 있다.\n\n## 상태 변경 2건 (corrections 참조)\n- 홈/대시보드 미션 중심: 부분 → **없음** (히어로 카드 이중 계상)\n- 여정 5장: 없음 → **부분** (현재 단계 표시가 모바일·웹 모두 라이브)\n\n## 상태는 유지하되 note를 반드시 고쳐야 할 2건\n**(2)우리 기준 정하기 — 상태 \"부분\"은 맞으나 근거가 틀렸다.** note의 \"기준을 정하는 단계로 진입해 결정하는 흐름이 아니라 이미 어딘가에서 정해진 값을 문구로 덧붙이는 수준\", \"화면이나 모델은 없다\"는 거짓이다. `apps/mobile/app/settings/amora-style.tsx`(1,772줄)에 전체 편집 화면이 있다: 886-926줄 \"꼭 지키고 싶은 기준\"(저장/변경/삭제, 미정 시 \"아직 정한 기준이 없어요\"), 927-1045줄 \"우리 기준\"(제안→상대 확인→확정, empty/waiting_partner/review_required 상태, 취소). 계약도 제안·수락 모델이다(`packages/shared/src/contracts/amoraCoupleCriterion.mjs`의 decisionId/pendingProposal/acceptedUserIds/confirmedAt). 진입점도 있다 — `apps/mobile/src/lib/dashboardExperience.mjs:830-853`이 홈 히어로 보조 CTA를 \"우리 기준 함께 정하기 / 내 기준 하나 알려주기 / 우리 기준 확인하기\"로 바꿔 `/settings/amora-style`로 보낸다(`WeddingHomeExperience.tsx:497-522`). **부분인 진짜 이유는 화면이 없어서가 아니라, 기준이 한 문장 2개(내 기준/우리 기준)뿐이라 축별 기준 카드·개수·미정 목록이 없고, 미션 안의 단계가 아니라 설정 화면이기 때문이다.** 이대로 두면 계획이 이미 있는 화면을 처음부터 다시 만든다.\n\n**시작 코스 — 상태 \"없음\"은 맞으나 \"끝나면 빈 대시보드로 간다\"가 틀렸다.** `apps/mobile/src/lib/onboardingFirstValue.mjs:1-13·54-68`에 quick_start 분기가 있어 커플 단계에서 \"아모라와 지금 시작하기\"를 누르면 날짜·예산·선호를 전부 비운 채 `/(tabs)/chat?entry=first_use`로 간다(수신부 `apps/mobile/app/(tabs)/chat.tsx:3117-3132` — 나만 상담 레인으로 전환). 5스텝 폼을 끝까지 가면 대시보드로 간다. 즉 대화형 시작 경로의 **껍데기는 이미 있고 내용물(10~15분 문진·산출물 5종)이 없는** 상태이므로, 계획은 새 진입점을 만들 게 아니라 이 분기를 채우면 된다. 또 3스텝에 \"아직 정하지 않았어요\" 체크박스가 있어(`apps/mobile/app/onboarding/index.tsx:686-694`) 항목12의 \"온보딩에 모름/나중에가 없다\"는 날짜를 제외한 4개 선호 질문에만 해당한다.\n\n## 검증 통과 (변경 없음)\n- **\"지금 할 한 가지\" 있음(라이브)** — 사실이다. `dashboardExperience.mjs:645-786` 캐스케이드를 줄 단위로 따라갔고, `apps/mobile/app/(tabs)/dashboard.tsx`와 `WeddingHomeExperience.tsx` 전체에 ENABLED/flag 식별자가 0건이며, `dashboard.tsx:1113-1121`에서 today-one 카드가 404여도 `companionFallback` 히어로가 남는다(`TodayOneCareCard.tsx:562-568`이 fallback 렌더). \"왜 지금인지\" 블록도 무플래그로 뜬다(`WeddingHomeExperience.tsx:417-419`).\n- **today-one 계열 있음(도달불가) 2건** — 플래그가 실제로 꺼져 있다. `apps/web/src/lib/features/amoraCareFlags.ts`는 `process.env.AMORA_TODAY_ONE_ENABLED === \"true\"` 정확 일치이고, `.env.example:141`은 false, **`apps/web/.env.local`에도 이 키가 아예 없다**(직접 확인). true로 켜는 곳은 테스트 mock뿐이다. v1 후속 카드 `AmoraActionFollowUpCard.tsx`는 어디서도 import되지 않는 사문이라 살아 있는 우회로가 아니고, 무플래그 히어로가 쓰는 `data.actionFeedback`조차 `amoraActionFeedback.mjs:26` → 같은 플래그로 404되는 `/api/amora/action-feedback`에서 온다. 다만 그 라우트의 404 분기(`route.ts:96-98`)가 `read_own_amora_action_outcome_feedback_v1` RPC 부재도 함께 처리하므로, **플래그만 켜면 살아난다고 가정하지 말 것**(DB 함수 존재 여부는 저장소에서 확인 불가).\n- 미션 엔티티 없음(단어경계 grep 0건 재현), 미션 5단계 연결 없음, 모바일 1차 내비 4탭(`_layout.tsx:201-235` 홈/아모라/커뮤니티/내 정보), 웹 사이드바 8개(`Sidebar.tsx:29-40`), 진행률 새 의미 부분(`preparationMapPresentation.mjs:1-8` 6종 라벨 확인, 이번 주 결정·약속 집계 코드는 웹 `WeeklyCard.tsx`까지 뒤졌지만 없음), 온보딩 선호 옵션에 모름/추천 없음(`weddingPreferences.ts` 전문 확인) — 모두 원문대로 유지.",
+   "items": [
+    {
+     "requirement": "제품 단위가 \"미션\"(결정 하나를 끝내는 짧은 과정)이라는 엔티티로 존재한다",
+     "status": "없음",
+     "evidence": "근거 없음 (apps/web/src, apps/mobile/src, apps/mobile/app, packages/shared/src 전체에 `mission`/`미션` 식별자 0건)",
+     "note": "미션이라는 단위, 미션 목록, 미션 상태, 미션 진입/완료 어디에도 없다. 제품 단위는 여전히 화면(체크리스트/일정/예산/채팅)과 개별 카드다."
+    },
+    {
+     "requirement": "\"지금 할 한 가지\"를 계산해서 보여주는 코드",
+     "status": "있음(라이브)",
+     "evidence": "apps/mobile/src/lib/dashboardExperience.mjs:645 (buildDashboardFocus), 호출부 apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:346·408",
+     "note": "단일 focus 하나를 결정론적 우선순위 캐스케이드로 고른다: 커플없음→setup(657) / 방금 저장한 행동 receipt / 날짜·행동 없음→setup(677) / 오늘 마감 action / 오늘 일정 todayTasks[0](700) / 상담 결과 기록(715) / high·7일내 action / overdue·soon 체크리스트(748) / 남은 action / next(765) / calm(777). 근거는 전부 저장된 기록(amora_actions, wedding_journeys, vendor_bookings, 체크리스트)이고 supabase 직접 조회다(apps/mobile/app/(tabs)/dashboard.tsx:68·411·691). 플래그 없음. 웹 대응은 apps/web/src/app/(app)/lounge/page.tsx:250 buildPriorities + apps/web/src/lib/amora/lifecycle.ts:235 primaryAction."
+    },
+    {
+     "requirement": "미션 5단계 중 (1)짧게 이해 (3)현실 확인이 구조(필드)로 존재",
+     "status": "있음(도달불가)",
+     "evidence": "packages/shared/src/contracts/todayOneCare.ts:116-133 (whyNow / confirmed[] / unknown[] / nextAction / impact), 렌더 apps/mobile/src/components/dashboard/TodayOneCareCard.tsx:692",
+     "note": "\"왜 지금(이해)\" + \"확인된 사실 / 아직 모르는 것(현실 확인)\" + \"다음 행동\"이 계약 수준의 필드로 분리돼 있다. 2.0이 말하는 구조에 가장 가까운 유일한 코드다. 다만 공급자는 /api/amora/today-one 이고 apps/web/src/app/api/amora/today-one/route.ts:676 에서 isAmoraTodayOneEnabled() 로 차단되며, 플래그 기본값은 apps/web/.env.example:141 `AMORA_TODAY_ONE_ENABLED=false`. 저장소 어디에도 true로 켜는 설정이 없다."
+    },
+    {
+     "requirement": "미션 5단계 중 (2)우리 기준 정하기가 미션 안의 단계로 존재",
+     "status": "부분",
+     "evidence": "packages/shared/src/contracts/amoraCoreCriterion.mjs:1, packages/shared/src/contracts/amoraCoupleCriterion.mjs:1, 표시부 apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:427-440",
+     "note": "기준(coreCriterion/coupleCriterion)이라는 데이터 계약은 있고 홈 히어로에 라벨로 곁들여 표시된다. 그러나 \"기준을 정하는 단계\"로 진입해 결정하는 흐름이 아니라, 이미 어딘가에서 정해진 값을 문구로 덧붙이는 수준이다. 기준 카드(여러 기준의 목록·개수·미정 상태)를 만드는 화면이나 모델은 없다."
+    },
+    {
+     "requirement": "미션 5단계 중 (5)반영 확인(행동 결과를 되받아 계획에 반영)",
+     "status": "있음(도달불가)",
+     "evidence": "apps/mobile/src/lib/amoraActionFollowUp.mjs:1-6 (completed/blocked/changed/not_sure), apps/mobile/src/lib/dashboardExperience.mjs:295-338 (buildDashboardRecoveryCopy), apps/mobile/src/components/dashboard/AmoraActionFollowUpV2.tsx",
+     "note": "행동 뒤 결과를 받아 다음 focus 문구를 바꾸는 루프가 실제로 구현돼 있다(막힘 사유별 회복 카피까지). 그러나 카드·결과 제출 경로가 전부 apps/web/src/app/api/amora/today-one/v2/route.ts:83 과 v2/outcomes/route.ts:89·146 에서 같은 플래그로 404 처리된다. 꺼지면 apps/mobile/app/(tabs)/dashboard.tsx:1114 의 fallback 으로 조용히 히어로 카드만 남아, 사용자에게는 반영 확인 단계가 아예 없는 제품이 된다."
+    },
+    {
+     "requirement": "미션 5단계가 하나의 과정으로 연결(이해→기준→현실확인→행동→반영확인)",
+     "status": "없음",
+     "evidence": "근거 없음 (apps/mobile/src/lib/dashboardExperience.mjs:645-786 은 단계 없이 focus 1개만 반환, 상태머신·step 필드 없음)",
+     "note": "조각(whyNow/confirmed/unknown = 1·3, ctaLabel+route = 4, follow-up = 5)은 있으나 이들을 하나의 미션 인스턴스로 묶는 식별자·진행 상태·단계 전이가 없다. 실제 구조는 \"채팅 + 개별 도구 + 하루 한 장 케어 카드\"다. (3)현실 확인의 공시가·사례는 홈 서비스 타일 /market-prices·/quote-check 로만 존재하고(dashboardExperience.mjs:494-535) 미션 단계로 연결되지 않는다."
+    },
+    {
+     "requirement": "홈/대시보드가 미션 중심으로 구성",
+     "status": "없음",
+     "evidence": "모바일 apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:549·565·568·605·708·752·765; 웹 apps/web/src/app/(app)/dashboard/page.tsx:562·566·602·674·696·828",
+     "note": "모바일 홈 카드: ①인사말 ②아모라 준비 포커스 히어로(지금 할 한 가지, 왜 지금, 근거 라벨, CTA — 플래그가 켜지면 TodayOne/조정 결과/행동 후속 카드로 대체) ③D-day+준비 진행 % ④\"내 결혼 준비\"(진행중/완료/확인필요/시작전/확인전/하지않기로함 요약 + 주의 토픽 3개) ⑤\"필요할 때 바로 꺼내 쓰기\" 서비스 타일 7개 ⑥신뢰 문구 ⑦맺음말. 웹 대시보드 카드: 함께준비 핸드오프, 초대코드, TodayOneCard, 날짜없음 안내 또는 WeeklyCard, 히어로(D-day·체크 진행%·기록 지출 비율)+\"지금 먼저 볼 것\", 요약 링크 4장, 준비 항목별 상태·기록 지출 흐름·다가오는 일정, 시작 가이드. 한 가지에 집중하는 카드가 맨 위에 있다는 점은 맞지만, 그 아래는 전부 메뉴·도구·전체 진행률이다.",
+     "correctedFrom": "부분",
+     "correctionWhy": "\"부분\"의 근거가 히어로 포커스 카드 1장인데, 그건 항목2(\"지금 할 한 가지\")에서 이미 있음(라이브)로 계상된 재료다. 같은 카드를 두 번 세어 홈이 절반쯤 미션화된 것처럼 보이게 만든다. 실제 구조는 0: 워킹트리 전체(apps/web/src, apps/mobile/src, apps/mobile/app, packages/shared/src)에 단어경계 grep으로 mission/Mission/미션 0건(항목1과 일치, 내가 직접 재현). 홈 렌더 순서를 열어보면 apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:525 이후 인사말→히어로→D-day·진행%→준비 요약→서비스 타일(apps/mobile/src/lib/dashboardExperience.mjs:494-534 HOME_SERVICES 7개: /checklist·/schedule·/budget·/market-prices·/quote-check·/bookings·커뮤니티)→신뢰문구 순으로, 미션 목록·현재 미션·미션 진입·미션 상태 어느 것도 없다. 웹도 apps/web/src/app/(app)/dashboard/page.tsx:562-696에서 TodayOneCard(플래그로 죽음)·WeeklyCard·D-day/체크%/지출% 지표 타일뿐이다. 히어로 재사용 가치는 항목2에 이미 기록돼 있으므로 없음으로 내려도 정보 손실이 없다."
+    },
+    {
+     "requirement": "모바일 1차 내비게이션 = 오늘 / 우리 여정 / 우리 계획 / 탐색 / 아모라",
+     "status": "부분",
+     "evidence": "apps/mobile/app/(tabs)/_layout.tsx:201-233 (홈 / 아모라 / 커뮤니티 / 내 정보)",
+     "note": "4탭이며 2.0과 겹치는 것은 \"아모라\" 하나뿐이다. \"홈\"은 오늘에 대응하지만 이름·내용 모두 오늘 화면이 아니라 종합 대시보드다. 우리 여정·우리 계획·탐색 탭은 없다(계획 도구는 홈 안 타일에서 /checklist·/schedule·/budget 으로 흩어져 들어간다). 웹 사이드바는 apps/web/src/components/app/Sidebar.tsx:30-38 로 아모라/오늘 할 일/웨딩 체크리스트/일정/예산/커뮤니티/예절 가이드/설정 — 여기서는 /lounge 라벨이 \"오늘 할 일\"이다."
+    },
+    {
+     "requirement": "진행률의 새 의미(기준 n개 중 m개 정함 / 이번 주 결정·약속 / 아직 안 정해도 되는 것 / 확인 필요한 위험)",
+     "status": "부분",
+     "evidence": "apps/mobile/src/lib/preparationMapPresentation.mjs:1-8 (진행중/완료/확인 필요/시작 전/확인 전/하지 않기로 함), 반면 apps/web/src/app/(app)/dashboard/page.tsx:617 `${summary.doneItems}/${summary.totalItems}개 직접 체크` 및 apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:588-591 `준비 진행 N%`",
+     "note": "모바일 준비 요약만 부분적으로 새 의미에 근접한다 — \"하지 않기로 함\"≈생략, \"확인 전\"≈미정, \"확인 필요\"≈위험 신호. 그러나 유지·축소·대체 구분이 없고, 기준을 몇 개 정했는지·이번 주 결정 몇 건/약속 몇 건인지 세는 코드가 없다. 웹과 모바일 상단은 여전히 완료 개수와 퍼센트다."
+    },
+    {
+     "requirement": "가입 직후 10~15분 아모라 대화형 \"시작 코스\"와 그 산출물(기준 카드/선택 지도/첫 4주 계획/예산 초안/첫 미션)",
+     "status": "없음",
+     "evidence": "apps/mobile/app/onboarding/index.tsx:1 (\"온보딩 화면 — 5단계 (역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 완료)\"), 옵션 정의 packages/shared/src/constants/weddingPreferences.ts:1-67, 종료 화면 apps/mobile/app/onboarding/index.tsx:826-845",
+     "note": "실제로는 폼 5스텝이다. 수집 항목은 역할·커플연결·날짜/예산·스타일 4택·우선순위 최대 3개·예산 성향 3택·하객 규모 5택뿐이고, 지역·문화선택(예단/폐백/예물)·가족변수·참여방식은 묻지 않는다. 마지막 화면은 \"준비 완료!\"와 초대코드이며 기준 카드·선택 지도·첫 4주 계획·예산 초안·첫 미션 중 어느 것도 생성하지 않는다. 끝나면 빈 대시보드로 간다."
+    },
+    {
+     "requirement": "여정 5장(기준→큰 조건→스타일→초대→마지막) 구조",
+     "status": "부분",
+     "evidence": "apps/web/src/lib/amora/lifecycle.ts:82-87 (PHASES 4개: 기초 결정/핵심 계약/생활 준비/결혼식 마무리), packages/shared/src/contracts/amoraPreparationCoverage.mjs:3-14 (JOURNEY_AXES 10개)",
+     "note": "\"비슷한 게 있다\"에 해당하는 두 가지가 있으나 둘 다 2.0의 장(章)이 아니다. PHASES는 체크리스트 카테고리 키를 4묶음으로 나눈 진행률 계산용이고(lifecycle.ts:177-203), JOURNEY_AXES는 커버리지 공백을 자체 진단하는 내부 감사 상수다(같은 파일 COVERAGE_GAPS). 사용자가 장 사이를 이동하거나 현재 장을 보는 화면은 없다.",
+     "correctedFrom": "없음",
+     "correctionWhy": "\"사용자가 장 사이를 이동하거나 현재 장을 보는 화면은 없다\"는 서술이 세 곳에서 사실과 다르다. (1) 모바일 주 제품에 현재 장 표시가 라이브다: apps/mobile/app/schedule/index.tsx:246-253 getPhaseLabel이 D-day로 6단계(초기 준비/핵심 계약/세부 준비/마무리 준비/최종 점검/결혼식 뒤 정리)를 만들고 2709·2716에서 \"…단계예요\"로 렌더된다(플래그 없음, 홈 타일 /schedule로 진입 가능). (2) 웹 apps/web/src/app/(app)/lounge/page.tsx:664가 plan.stageLabel · plan.stageSummary를 그대로 노출하며 문구는 apps/web/src/lib/amora/lifecycle.ts:164-186 STAGE_COPY(기초 결정기/핵심 계약기/세부 준비기/결혼식 전 최종 확인 등)다. (3) apps/web/src/components/app/schedule/TimelineView.tsx:92-101·127-128·212가 장별 아코디언으로 실제 이동까지 시킨다. 다만 셋 다 결정이 아니라 날짜로 갈리고, 어휘가 서로 다르며(6/6/4단계), \"기준 세우기\" 장이 없고, lifecycle.ts의 getPhases(150-205)가 만든 4장 진행도는 어디에도 렌더되지 않는다 — 그래서 있음이 아니라 부분이다. 이 정정이 중요한 이유: 계획이 \"없음\"으로 받아쓰면 이미 출시된 서로 충돌하는 단계 어휘 3종을 정리 대상에서 빠뜨린 채 네 번째 장 체계를 얹게 된다."
+    },
+    {
+     "requirement": "모든 질문에 \"모르겠어요/추천해주세요/나중에 정할게요\"가 있다",
+     "status": "부분",
+     "evidence": "있음: apps/mobile/src/lib/amoraActionFollowUp.mjs:5 `not_sure: \"아직 모르겠어요\"`, apps/web/src/lib/care/todayOne.ts:16-21 (나중에/오늘 닫기/숨기기). 없음: packages/shared/src/constants/weddingPreferences.ts:1-67 전 옵션 세트",
+     "note": "행동 결과 질문에는 \"아직 모르겠어요\"가 1급 선택지이고 그에 맞는 회복 카피까지 있다(dashboardExperience.mjs:306). 반면 온보딩 4개 질문(스타일·우선순위·예산 성향·하객 수)에는 모름/추천/나중에가 없다 — apps/mobile/app/onboarding/index.tsx:366 `case 4: return true` 로 조용히 건너뛸 수만 있어, 모른다는 답이 저장되지 않고 값이 비는 것과 구분되지 않는다."
+    }
+   ]
+  },
+  {
+   "axis": "아모라4역할",
+   "reviewSummary": "12개 항목을 인용된 파일:줄까지 전부 직접 열어 검증했다. 상태가 바뀌어야 하는 항목은 1개(안내자 선제 발화)다.\n\n【확인된 상태 오류 1건】\n- 안내자 선제 발화: \"라이브 경로 0개\"는 웹에서 틀렸다. chatStore.ts:2998/3037 → ChatContent.tsx:1032, ChatSidePanel.tsx:606이 플래그 없이 빈 대화에서 자동으로 initial_greeting을 쏜다. 있음(도달불가) → 부분.\n\n【검증 결과 유지된 항목】\n- 실행자 승인 흐름(있음(라이브)) — 부풀림 아님. 확인: 제안 추출(route.ts:4281)→봉인→모바일 승인 카드(chat.tsx:6825-6870, 예산 영향 미리보기 6858)→confirmed_amora_action_id 재요청(chat.tsx:2115, 4083)→서버 executeTool(route.ts:4203-4260)→영수증(chat.tsx:1476-1493)까지 실제로 이어지고 기능 플래그가 없다(AMORA_PENDING 관련 env 0건). 단 게이트 2개가 조사 결과에 안 적혀 있으니 계획서에 반영할 것: (a) route.ts:3872-3874, 3917-3928 — 승인 카드는 visibility === \"shared\"에서만 뜬다. 개인(\"나만 상담\") 대화에는 변경 제안 자체가 없다. (b) 홈 포커스 카드의 아모라 핸드오프는 chat.tsx:3160-3162에서 setActiveScope(\"private\")로 들어가므로, 대시보드에서 아모라로 넘어간 사용자는 실행자 경로에 도달하지 못한다.\n- undo 부분 / 계획자 도달불가 / 계획자 라이브 폼 4곳 / 미정 없음 / 해설자 용어 부분 / 현실확인 있음(라이브) / 오늘 한 가지 부분 / 핸드오프 부분 / 4역할 계약 없음 — 모두 근거대로 맞다. 특히 maybeExtractDecision 호출자 0건(테스트 2건뿐), recordDecision 라이브 호출자 = onboarding 4건 + favorites 1건뿐, decision_type CHECK에 미정 값 없음(moat_wiring.sql:50-51), 플래그 3개 모두 .env.example과 운영 문서에서 false 확인.\n\n【상태는 그대로지만 note가 틀린 곳 — 계획서가 받아쓰면 안 됨】\n- \"라이브 도구 24개\" 항목의 분류 오류: log_wedding_event는 읽기 전용이 아니라 쓰기 도구다(mutationTools.ts:26 CREATE_OR_APPEND_TOOLS, amoraToolPolicy.ts:46-50 ACTION_WRITE_TOOLS, toolExecutor.ts:535 executeLogWeddingEvent). 정정: 실행자 15개 / 계획자 읽기전용 5개(get_budget_summary, get_schedule_summary, get_wedding_info, get_schedule_events, get_amora_actions) / 해설자 4 / 안내자 0. 총 24개 수치와 \"계획자에 구조화 쓰기 도구가 없다\"는 결론은 유지된다.\n- 같은 항목의 \"라이브\"라는 말이 오해를 부른다: route.ts:3883-3886이 매 턴 모든 변경 도구를 모델 도구 목록에서 제거하므로, 실행자 15개는 모델이 직접 호출할 수 있는 도구가 아니라 정규식 의도 매칭(amoraToolPolicy.ts:496-517)으로 선택된 승인 제안으로만 실행된다.\n- 핸드오프 6곳 중 TodayOneCareCard(dashboard.tsx:1120)는 AMORA_TODAY_ONE_ENABLED(기본 false) 뒤라 라이브 진입점이 아니다. 항목 상태(부분)는 그대로.",
+   "items": [
+    {
+     "requirement": "실행자: 변경안 제안 → 승인 카드 → 실행 → 영수증(반영 확인)이 한 흐름으로 돌아야 한다",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/app/api/chat/route.ts:4281, 4462, 4203-4260 / apps/mobile/app/(tabs)/chat.tsx:6781-6880, 1476-1497 / packages/shared/src/contracts/amoraActionApproval.ts:42-82",
+     "note": "2.0 요구 구조 중 유일하게 끝까지 배선된 축이다. 모델 출력에서 pending action을 추출→서버가 actionId·inputDigest·journey revision으로 봉인→클라가 승인 카드(예산 영향 미리보기 포함)를 렌더→confirmed_amora_action_id로 재요청→서버가 executeTool 후 tool_result를 영수증으로 표시한다. 승인 주체도 단독/커플 2단계로 구분되고 TTL이 붙는다."
+    },
+    {
+     "requirement": "실행자: 실행 후 되돌리기(undo) 안내와 경로",
+     "status": "부분",
+     "evidence": "apps/web/src/lib/ai/tools.ts:383 (restore_schedule_event) / apps/web/src/lib/ai/tools/scheduleTools.ts:352",
+     "note": "일반 undo는 없다. 취소된 일정 1종만 restore_schedule_event로 복원 가능하고, 예산·체크리스트·행동카드 변경에는 되돌리기 도구도 UI 버튼도 없다. 모바일·웹 채팅 화면 전체에 undo 관련 식별자가 0건이다(chat.tsx, ChatContent.tsx grep). 프롬프트에 '되돌리기 어려운 결정' 경고 문장은 있으나(prompts.ts:567, 935) 실제 복구 경로가 아니다."
+    },
+    {
+     "requirement": "계획자: 사용자 답변을 선호/결정/미정/제약으로 구조화해 저장",
+     "status": "있음(도달불가)",
+     "evidence": "apps/web/src/lib/ai/amoraMemoryCompiler.ts:31, 60, 263 / apps/web/src/app/api/cron/amora-memory/route.ts:260 / apps/web/src/lib/ai/amoraMemoryQueue.ts:170 / apps/web/.env.example:117",
+     "note": "decision/preference/constraint/relationship/fact 5종 분류기가 구현돼 있지만 전부 AMORA_AUXILIARY_MEMORY_ENABLED(기본 false) 뒤의 cron 경로에서만 동작한다. 별도로 대화 중 결정 추출기 extract-decision.ts의 maybeExtractDecision(:283)은 저장소 전체에 호출자가 0건인 사문 코드다."
+    },
+    {
+     "requirement": "계획자: 실제로 살아 있는 구조화 저장 경로와 사용자 가시성",
+     "status": "부분",
+     "evidence": "apps/web/src/app/api/onboarding/route.ts:1003-1060 / apps/web/src/app/api/amora/criterion/route.ts:79 / apps/mobile/app/settings/amora-memory.tsx:67-73 / apps/mobile/app/settings/amora-style.tsx:213",
+     "note": "라이브 쓰기는 대화가 아니라 폼 4곳뿐이다 — 온보딩(날짜·식장·상견례·총예산 4건), 즐겨찾기, 중재 수락, 기준 카드(criterion). 보기는 되지만 '설정 > 아모라 기억'과 '설정 > 아모라 스타일' 안쪽이고, 2.0이 요구하는 기준 카드/선택 지도 같은 1차 표면이 아니다."
+    },
+    {
+     "requirement": "계획자: '아직 안 정해도 되는 것'(미정)을 1급 상태로 저장·표시",
+     "status": "없음",
+     "evidence": "supabase/migrations/20260424000000_moat_wiring.sql:50-51 / supabase/migrations/20260716090000_amora_memory_engine_v2.sql:657 / apps/mobile/app/settings/amora-memory.tsx:67-73",
+     "note": "decision_type은 exploring/considering/decided/scheduled/booked/completed이고 v2 RPC는 considering/decided만 허용한다. 미정을 표현하는 값이 없고 UI 라벨(확정한 선택/선호/꼭 지킬 조건/가족·커플 맥락/준비 정보/이전 대화 기억)에도 없다. 코드베이스의 '미정'은 전부 값이 비었을 때의 표시 문구(예: '날짜 미정')다. prompts.ts:1046이 '미정으로 남기라'고 지시하지만 담을 필드가 없다."
+    },
+    {
+     "requirement": "해설자: 용어 설명(보증인원·식대·스드메 추가금)을 제공하는 구조",
+     "status": "부분",
+     "evidence": "apps/web/src/lib/ai/prompts.ts:886-892, 3 / apps/web/src/constants/hiddenCosts.ts:18 / apps/web/src/lib/manners/data.ts:249",
+     "note": "도구가 아니라 하드코딩이다. 시스템 프롬프트에 '스드메·본식·혼주 등을 설명 없이 쓰지 말 것' 지침과 getHiddenCostContext 정적 주입이 있고, 별도로 예절 가이드 정적 데이터에 최소보증인원 설명이 있다. 라이브 도구 24개에 용어 조회·설명 도구는 없어서 모델이 프롬프트 밖 용어를 물으면 근거 없이 생성한다."
+    },
+    {
+     "requirement": "해설자: 현실 확인(공시가·사례·주의점)을 숫자 근거로 제공",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/lib/ai/tools.ts:858, 879, 963, 1025 / apps/web/src/lib/ai/toolExecutor.ts:556-565",
+     "note": "get_market_price(참가격 시세), simulate_guest_guarantee(보증인원·식대 계산기), analyze_quote(견적 항목 대조), analyze_contract_readiness 4개가 실행기까지 연결돼 있다. 미션 3단계(현실 확인)의 재료는 여기까지 있고, 이 결과를 기준·계획에 반영하는 뒷단(계획자)이 끊겨 있다."
+    },
+    {
+     "requirement": "안내자: 아모라가 먼저 '지금 이걸 하세요'를 말하는 경로",
+     "status": "부분",
+     "evidence": "apps/web/src/lib/features/amoraCareFlags.ts:5-16 / apps/web/.env.example:124, 141 / apps/web/src/lib/care/requestProactiveCare.ts:5 / apps/mobile/app/(tabs)/chat.tsx:630",
+     "note": "선제 대화 플래그 2개가 모두 기본 false다(AMORA_PROACTIVE_CHAT_ENABLED, AMORA_TODAY_ONE_ENABLED). 게다가 requestProactiveCare 호출부는 웹 3곳뿐이고 주 제품인 모바일에는 호출이 없다. 서버가 지원하는 initial_greeting 요청도 모바일·웹 클라가 보내지 않아(모바일은 chat|mediation만) 아모라가 먼저 입을 여는 라이브 경로는 0개다.",
+     "correctedFrom": "있음(도달불가)",
+     "correctionWhy": "\"모바일·웹 클라가 initial_greeting을 보내지 않아 아모라가 먼저 입을 여는 라이브 경로는 0개\"라는 서술이 웹에서 반증된다. apps/web/src/stores/chatStore.ts:2998 requestInitialGreeting가 :3037에서 requestKind:\"initial_greeting\"으로 /api/chat을 호출하고, 호출부가 실제로 2곳 있다 — apps/web/src/components/app/chat/ChatContent.tsx:1017-1043(메시지 0개 + initialLoadDone일 때 자동 실행, /chat 페이지 = apps/web/src/app/(app)/chat/page.tsx:6)와 apps/web/src/components/app/chat/ChatSidePanel.tsx:590-617(사이드패널, apps/web/src/app/(app)/AppClientLayout.tsx:21과 components/community/CommunityAmoraLauncher.tsx:82에서 마운트). 서버도 route.ts:883-884에서 kind를 받아 :2849-2858에서 [INITIAL_GREETING] 턴을 만들어 스트리밍한다. 이 경로에는 플래그가 전혀 없다(AMORA_PROACTIVE_CHAT_ENABLED/AMORA_TODAY_ONE_ENABLED는 이 경로를 게이트하지 않음). 다만 (a) 빈 대화일 때 1회뿐이고 (b) 프롬프트 계약(amoraVoice.ts:74)이 요구하는 건 '부담 없는 질문 하나 또는 지금 쓸 수 있는 도움 하나'이지 '지금 할 한 가지 지시'가 아니며 (c) 주 제품인 모바일에는 initial_greeting 송신이 0건(apps/mobile 전체 grep 0건)이므로 '있음(라이브)'가 아니라 '부분'이다. 선제 케어(requestProactiveCare, 플래그 2개 기본 false)에 대한 판정은 그대로 유효하다."
+    },
+    {
+     "requirement": "안내자: 오늘 할 한 가지를 먼저 제시하는 표면",
+     "status": "부분",
+     "evidence": "apps/mobile/src/lib/dashboardExperience.mjs:645-790 / apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx:190-236",
+     "note": "플래그 없이 살아 있는 '오늘, 이것부터' 포커스 카드가 있고 setup/today/booking/action/urgent/next/calm 7단 우선순위로 한 가지만 고른다. 다만 이건 아모라가 아니라 저장된 일정·체크리스트를 읽는 결정론적 규칙이고, 아모라는 사용자가 카드를 눌러야 등장한다. 2.0의 '안내자'는 아모라의 역할인데 지금은 대시보드 로직이 대신하고 있다."
+    },
+    {
+     "requirement": "아모라가 다른 화면에서 문맥을 이어받아 열리는 진입점",
+     "status": "부분",
+     "evidence": "apps/mobile/src/components/dashboard/TodayOneCareCard.tsx:503, 526 / WeddingHomeExperience.tsx:232 / AmoraActionFollowUpV2.tsx:528, 531 / apps/mobile/app/schedule/index.tsx:1502, 3045 / apps/mobile/app/bookings/index.tsx:1020 / apps/mobile/app/webview.tsx:128",
+     "note": "모바일 진입점은 채팅 탭 + stagePrivateChatHandoff/stageCompanionChatHandoff로 문맥을 넘기는 6곳(홈 포커스, 오늘의 케어 카드, 행동 후속, 일정, 예약, 웹뷰)이다. 웹은 /chat?prefill= 링크 다수. 다만 핸드오프는 입력창에 문장을 채워 넣기만 하고 자동 전송하지 않아(chat.tsx:3157-3161) 대화는 항상 사용자가 먼저 시작한다."
+    },
+    {
+     "requirement": "아모라 4역할(안내자·해설자·계획자·실행자)이 모델 계약에 역할로 명시",
+     "status": "없음",
+     "evidence": "apps/web/src/lib/ai/amoraVoice.ts:14-21, 72 / apps/web/src/lib/ai/prompts.ts:845, 879",
+     "note": "프롬프트에 4역할 계약이 있긴 한데 2.0과 다른 4개다 — 곁에 있기 / 탐색 / 결정 / 실행. 겹치는 건 '실행'뿐이고, 해설자·계획자에 해당하는 역할 이름이 없다. 게다가 이 4개는 턴마다 하나만 고르는 대화 모드이지 2.0의 지속적 능력 축이 아니다. 호칭은 '결혼 준비 동반자'로 정본과 일치한다(prompts.ts:845)."
+    },
+    {
+     "requirement": "라이브 도구 24개 이름과 4역할 분류",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/lib/ai/tools.ts:1057-1095 (BETA_DISABLED_TOOL_NAMES 12개 제외 후 BETA_SAFE_TOOLS) / apps/web/src/lib/ai/toolExecutor.ts:490-565 / apps/web/src/lib/ai/mutationTools.ts:4-33",
+     "note": "정의 36개 - 비활성 12개 = 라이브 24개. [실행자 14] update_budget, update_wedding_date, update_task_status, update_venue, update_category_budget, apply_budget_plan, add_custom_category, add_schedule_event, update_schedule_event, cancel_schedule_event, restore_schedule_event, toggle_checklist_item, add_amora_action, update_amora_action. [계획자 6, 전부 읽기 전용] get_budget_summary, get_schedule_summary, get_wedding_info, get_schedule_events, get_amora_actions, log_wedding_event. [해설자 4] get_market_price, simulate_guest_guarantee, analyze_quote, analyze_contract_readiness. [안내자 0]. 즉 도구 층에서 안내자는 도구가 없고, 계획자는 쓰기가 없어 읽기만 한다 — 4역할 중 2개가 도구로는 미배선이다."
+    }
+   ]
+  },
+  {
+   "axis": "신뢰복구0단계",
+   "reviewSummary": "12개 항목을 인용된 파일:줄로 전부 직접 열어 검증했다. 상태를 바꿔야 하는 항목은 1개(__hidden 일치, 부분→없음)다. 나머지 '있음(라이브)' 3개는 반박에 실패했다 — 실제로 라이브다.\n\n[있음(라이브) 3개 재검증 — 모두 유지]\n①취소 일정 제외: 인용된 9곳 외에 web의 모든 getEvents 호출부(dashboard:267, lounge:219, onboarding/route:287, UpcomingTab:72, WeeklyCard:53, momentLoop:185, todayOne:224, progressSync:466·701, scheduleTools:441, amoraAtomicToolOperation)와 mobile의 __events 독자 전부(dashboard.tsx:723 isActiveScheduleEvent, schedule/index.tsx:2563 isCancelledScheduleEvent)를 훑었다. 필터를 빠뜨린 집계를 찾지 못했다. AI 쪽도 amoraWeddingContext.ts:186-195가 status·cancellation을 함께 검사한 뒤 prompts.ts:484로 넘긴다.\n②mojibake: 보고서보다 넓게(.mts/.cjs/.js/.jsx/.yml/.html/.css 포함, U+FFFD·Ã/â€/ì/ë 시퀀스) 재스캔했다. 유일한 hit는 apps/mobile/src/__tests__/amoraEntryPlan.test.mjs:1417의 `assert.doesNotMatch(prompt, /�|.../)` — 깨진 문자가 아니라 깨진 문자를 금지하는 테스트다. 0건 판정 유지.\n③비활성 도구 미노출: BETA_DISABLED_TOOL_NAMES(tools.ts:1075-1090)는 13개가 아니라 12개다(숫자만 오타). WEDDING_TOOLS를 모델 경로로 직접 넘기는 곳은 없고(유일한 import는 amoraPromptComposer의 이름 목록용), route.ts:3851·3893·4595·4601이 전부 BETA_SAFE_TOOLS 파생이다.\n④프롬프트 명시(1267-1286): 문자열 실재 확인. 다만 이 섹션은 PRODUCT_SAFETY_HEADINGS(amoraPromptComposer.ts:257-260 — '판정 금지', '할루시네이션 방지' 2개뿐)에 없어 48k 절단 보호를 못 받고, 도구 0개 턴에서는 applyEnabledToolContract의 '도구' 포함 줄 제거(315-328)로 \"…도구가 없습니다\" 문장이 실제로 삭제된다. 그래도 \"예약해 드릴게요라고 말하지 마세요\"(1277-78)와 \"지금은 그 기능이 없다고 짧게 말하고\"(1282)는 두 경로 모두 살아남고, 정적 템플릿이 27.2k자라 절단도 실무상 도달하지 않아 '있음' 유지. 다만 이 섹션을 PRODUCT_SAFETY_HEADINGS에 넣는 건 값싼 보강이다.\n\n[근거가 틀렸지만 status는 유지되는 것 — 계획서가 이유를 베끼면 안 되는 2건]\n・요구사항 11(실행기 방어 심층, 부분): \"막는 층이 프롬프트뿐\"은 사실이 아니다. route.ts:4932(questionScopeToolNameCeiling)와 4948(availableToolNameSet)이 모델이 지어낸 도구 이름을 executeTool 도달 전에 QUESTION_SCOPE_TOOL_BLOCKED / TOOL_NOT_AVAILABLE_FOR_TURN으로 거부한다. 또 toolExecutor.ts:180-187이 delete_schedule_event 하나는 실행기 진입점에서 하드 차단한다(dispatch case가 '그대로 살아 있다'는 서술과 다름). BETA_DISABLED_TOOL_NAMES를 보는 코드가 없다는 핵심은 맞으므로 '부분' 유지 — 단 위험도는 보고서 서술보다 낮다.\n・요구사항 4의 note에 적힌 '합계 오차는 없다'는 위 correction대로 오류다.\n\n[과소평가 가능성 — status는 안 바꿨지만 계획서가 알아야 할 것]\n요구사항 5 note의 \"2.0의 새 진행률 구조는 어느 구현에도 없다\"는 지나치게 강하다. packages/shared/src/contracts/amoraPreparationMap.mjs:169 buildAmoraPreparationOverview + apps/mobile/src/lib/preparationMapPresentation.mjs:1-8이 이미 진행중/완료/확인 필요/시작 전/확인 전/하지 않기로 함 6버킷 카운트와 항목별 사유(REASON_LABELS)를 만들고, apps/mobile/app/(tabs)/dashboard.tsx:731 → WeddingHomeExperience.tsx:340,605-682에서 플래그 없이 모바일 홈에 렌더된다(도달 가능). 즉 \"2/132 완료\"를 대체하는 다버킷 구조의 골격은 주 제품에 이미 라이브다. 그래도 status를 '부분'으로 올리지 않은 이유: 2.0이 요구한 4요소 중 '기준 n개 중 m개'(amoraCoreCriterion·amoraCoupleCriterion은 기준 1개짜리 계약이라 셀 대상이 아님)와 '이번 주 결정 n개·약속 m개'가 없고, '하지 않기로 함'은 '아직 안 정해도 되는 것'과 의미가 다르며, 무엇보다 이 항목의 본 요구인 '정의 통일'은 확실히 없음(같은 화면에서 calculateChecklistProgress %와 병존)이기 때문이다. 계획서는 '없음'으로 유지하되 이 오버뷰를 재사용 기반으로 쓰면 된다.",
+   "items": [
+    {
+     "requirement": "예산 합계(총지출·배정액)를 계산하는 코드가 한 곳으로 통합돼 있어야 한다",
+     "status": "없음",
+     "evidence": "apps/web/src/components/app/budget/BudgetContent.tsx:835-840 / apps/web/src/components/app/chat/panel/BudgetTab.tsx:64 / apps/web/src/lib/ai/prompts.ts:412-419 / apps/web/src/lib/ai/toolExecutor.ts:1135 / apps/web/src/lib/ai/amoraBudgetImpactPreview.ts:73-103 / apps/web/src/lib/care/todayOneBudget.ts:150-154 / apps/web/src/app/(app)/dashboard/page.tsx:213-221 / apps/web/src/app/(app)/lounge/page.tsx:169-177 / apps/mobile/app/budget/index.tsx:542-547",
+     "note": "동일한 journey.progress에서 총지출·배정액을 각자 다시 더하는 독립 구현이 최소 9곳이다. 공유 유틸을 부르는 곳은 하나도 없고, 카테고리 집합·필터 조건이 구현마다 달라 같은 데이터에서 서로 다른 숫자가 나온다."
+    },
+    {
+     "requirement": "화면과 아모라가 같은 원천(source of truth)의 예산·일정 값을 읽어야 한다",
+     "status": "부분",
+     "evidence": "apps/web/src/app/api/chat/route.ts:2478-2484, apps/web/src/lib/ai/amoraWeddingContext.ts:240-256, apps/web/src/components/app/budget/BudgetContent.tsx:707-713",
+     "note": "원천 자체는 동일하다 — 인증 턴은 서버가 읽은 wedding_journeys 행만 쓰고(allowClientContext는 데모 전용), 화면도 같은 행을 authStore로 읽는다. 문제는 원천이 아니라 파생 공식이다. 같은 행에서 프롬프트·도구·화면이 각각 다른 합계를 만든다(아래 항목)."
+    },
+    {
+     "requirement": "커스텀 예산 카테고리가 모든 집계에서 동일하게 포함/제외돼야 한다",
+     "status": "없음",
+     "evidence": "apps/web/src/lib/ai/prompts.ts:415 / apps/web/src/lib/ai/toolExecutor.ts:1114 / apps/web/src/components/app/budget/BudgetContent.tsx:773-780 / apps/mobile/src/lib/budgetCategoryRegistry.mjs:136-141 / apps/web/src/lib/ai/amoraBudgetImpactPreview.ts:79",
+     "note": "프롬프트 주입과 get_budget_summary는 고정 20개 CATEGORY_LABELS만 더해 커스텀 항목을 빼고, 웹 예산 화면은 __로 시작하지 않는 모든 키를, 모바일은 custom_ 정규식에 맞는 키만, 예산 영향 미리보기는 __ 제외 전 키를 더한다. 커플이 커스텀 항목에 지출을 기록하면 화면의 '잔여'와 아모라가 말하는 '잔여'가 그 금액만큼 어긋난다."
+    },
+    {
+     "requirement": "숨긴(__hidden) 카테고리 처리가 웹·모바일·AI에서 일치해야 한다",
+     "status": "없음",
+     "evidence": "apps/web/src/components/app/budget/BudgetContent.tsx:713,834,848-853,1001-1013 / apps/mobile/src/lib/budgetCategoryRegistry.mjs:120-148 / apps/web/src/lib/ai/prompts.ts:412-419",
+     "note": "웹만 __hidden을 읽어 행을 감춘다. 모바일 레지스트리와 AI 집계에는 __hidden 개념이 아예 없다. 금액 자체는 숨김 시 삭제되므로(BudgetContent.tsx:1003-1008) 합계 오차는 없지만, 웹에서 숨긴 항목이 모바일 예산 목록에는 그대로 보인다(체크리스트가 있어 키가 남는 경우).",
+     "correctedFrom": "부분",
+     "correctionWhy": "\"부분\" 등급의 유일한 근거였던 '합계 오차는 없다'가 사실이 아니다. 숨김 시 금액이 지워지는 것(BudgetContent.tsx:1000-1013)은 맞지만, 그 뒤 같은 키에 금액을 다시 넣는 경로가 막혀 있지 않다. ①AI: toolExecutor.ts:721-760 executeUpdateCategoryBudget는 CATEGORY_LABELS 소속만 확인하고 __hidden을 아예 읽지 않은 채 patchJourneyProgress로 budget/spent를 쓴다(비활성 목록에도 없어 pending 승인 경로로 실제 도달 가능). ②모바일: budgetCategoryRegistry.mjs:120-148 listBudgetCategories는 fixedCategories 20개를 무조건 반환하고 __hidden 개념이 없어(apps/mobile·packages/shared 전체 grep 결과 __hidden 0건) 웹에서 숨긴 폐백·예단 행이 모바일 예산 화면에 그대로 편집 가능한 상태로 보인다. 그 상태에서 금액을 넣으면 웹 총계는 hiddenKeys로 그 행을 빼고(BudgetContent.tsx:713,834-836) AI·모바일 총계는 더해서, 같은 커플의 '기록 지출/잔여'가 그 금액만큼 영구히 갈린다. __hidden을 아는 코드는 웹 예산 화면과 (모델에 노출되지 않는) delete_category뿐이고 세 표면 중 어느 둘도 일치하지 않으므로 '일치' 요구는 전혀 충족되지 않는다."
+    },
+    {
+     "requirement": "진행률의 정의가 하나여야 한다(2.0은 '기준 5개 중 4개' 식 새 의미까지 요구)",
+     "status": "없음",
+     "evidence": "apps/web/src/lib/ai/prompts.ts:428-430 / apps/web/src/lib/ai/toolExecutor.ts:1176-1178,1188 / apps/web/src/lib/ai/tools/scheduleTools.ts:31,49 / packages/shared/src/utils/planningChecklist.ts:97-110 / apps/web/src/app/(app)/lounge/page.tsx:188-206 / apps/mobile/src/lib/dashboardExperience.mjs:555-597",
+     "note": "진행률 계산이 6개 구현·최소 4가지 정의로 갈린다. prompts.ts:428-430은 분자를 progress 전체 키에서, 분모는 고정 20개에서 세므로 커스텀 항목을 완료하면 completedCount가 totalCount를 넘을 수 있다. 2.0이 요구한 '기준 n개 중 m개 / 이번 주 결정·약속 / 안 정해도 되는 것 / 위험' 구조는 어느 구현에도 없다."
+    },
+    {
+     "requirement": "'해당 없음(not_applicable)' 상태가 화면에 올바르게 표시돼야 한다",
+     "status": "부분",
+     "evidence": "apps/web/src/components/app/budget/BudgetContent.tsx:816-823 / apps/mobile/app/budget/index.tsx:518-521 / apps/web/src/app/(app)/lounge/page.tsx:163-166,193-197",
+     "note": "잘못된 상태 표시가 실재한다. 웹·모바일 예산 화면의 상태 라벨은 completed/in_progress 외 전부 '예정'으로 접어서, 폐백·예단을 '하지 않기로 함'으로 끈 커플에게 '예정'이라고 표시한다. 라운지의 getStatus는 not_applicable을 반환하지 않아 바로 아래 not_applicable 분기(195행)가 도달 불가이고, 결과적으로 '해당 없음' 항목이 미시작으로 집계된다. 대조적으로 BudgetTab.tsx:25-30과 prompts.ts:372-373에는 정상 라벨이 있다."
+    },
+    {
+     "requirement": "취소 상태 일정이 모든 집계에서 제외돼야 한다",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/utils/scheduleEvents.ts:115 + ScheduleContent.tsx:216,220 / WeeklyCard.tsx:54 / CalendarView.tsx:73 / TimelineView.tsx:135 / dashboard/page.tsx:270 / apps/web/src/lib/ai/amoraWeddingContext.ts:186-195 / apps/web/src/app/api/chat/route.ts:2658 / apps/web/src/lib/amora/momentLoop.ts:191 / apps/mobile/src/lib/scheduleMutation.mjs:108-112",
+     "note": "일정 축은 예산 축과 달리 정리돼 있다. 웹은 getScheduleEventStatus, 모바일은 isActiveScheduleEvent, AI 컨텍스트·모멘트 루프·결정 대조까지 전부 cancelled와 cancellation 필드를 함께 검사해 제외한다. 취소 일정은 별도 '취소됨' 섹션(apps/mobile/app/schedule/index.tsx:2567,3112-3130)으로만 노출된다."
+    },
+    {
+     "requirement": "소스에 깨진 문자(mojibake)가 남아 있지 않아야 한다",
+     "status": "있음(라이브)",
+     "evidence": "apps/**, packages/**, supabase/** 전수 스캔(U+FFFD, UTF-8-as-latin1 ì/ë/í/â 시퀀스, Ã·â€·ï¿½) 결과 0건",
+     "note": "0단계 항목 중 유일하게 이미 해결된 것. .ts/.tsx/.mjs/.json/.sql/.md 어디에서도 깨진 문자를 찾지 못했다. 다만 '잘못된 상태 표시'는 남아 있다(위 not_applicable 항목)."
+    },
+    {
+     "requirement": "비활성 도구를 요청받았을 때 프롬프트가 할 수 없다고 명시해야 한다",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/lib/ai/prompts.ts:1267-1286",
+     "note": "실제 문자열: \"아모라에게는 업체를 찾거나, 빈 시간을 조회하거나, 예약을 잡거나 취소하는 도구가 없습니다.\" / \"\\\"찾아볼게요\\\", \\\"알아봐 드릴게요\\\", \\\"예약해 드릴게요\\\", \\\"취소해 드릴게요\\\"라고 말하지 마세요. 할 수 없는 일을 약속하는 것이 이 제품에서 가장 나쁜 실패입니다.\" / \"업체 추천이나 예약을 요청받으면, 지금은 그 기능이 없다고 짧게 말하고 실제로 되는 것으로 이어가세요\". 지난 대화의 예약 기록을 근거로 \"예약 접수·확정·취소 완료\"라고 말하는 것도 별도로 금지한다(1279-1281)."
+    },
+    {
+     "requirement": "비활성 도구가 모델에게 노출되지 않아야 한다",
+     "status": "있음(라이브)",
+     "evidence": "apps/web/src/lib/ai/tools.ts:1075-1094, apps/web/src/app/api/chat/route.ts:3851,3893",
+     "note": "search_vendors·recommend_vendors·get_vendor_detail·get_available_slots·create_booking·cancel_booking·search_nearby_places 등 13개가 BETA_DISABLED_TOOL_NAMES로 걸러져 BETA_SAFE_TOOLS에서 빠지고, 챗 라우트는 이 목록만 모델에 전달한다. amoraToolPolicy의 VENDOR_READ_TOOLS도 get_market_price 하나뿐이다."
+    },
+    {
+     "requirement": "비활성 도구가 실행기 단에서도 거부돼야 한다(방어 심층)",
+     "status": "부분",
+     "evidence": "apps/web/src/lib/ai/toolExecutor.ts:487-556 (특히 540-554)",
+     "note": "toolExecutor의 dispatch switch에는 search_vendors·create_booking·cancel_booking·delete_schedule_event 등 비활성 도구의 case가 그대로 살아 있고, BETA_DISABLED_TOOL_NAMES를 확인하는 코드가 없다. 현재는 도구 목록에 없어 모델이 부를 수 없지만, 이름을 지어낸 함수 호출이나 향후 다른 호출 경로가 생기면 막는 층이 프롬프트뿐이다."
+    },
+    {
+     "requirement": "예산 계산이 packages/shared의 공유 로직으로 내려가 있어야 한다",
+     "status": "없음",
+     "evidence": "packages/shared/src/contracts/budgetImpactPreview.ts:18-21,88-105 / packages/shared/src/utils/ (chatLane, coupleConnection, mobileOAuth, planningChecklist, scheduleMemo만 존재)",
+     "note": "shared에는 예산 스냅샷의 타입과 검증기(unallocated === total - allocated 같은 항등식 확인)만 있고 실제 합산 함수가 없다. 체크리스트 진행률은 shared에 summarizePlanningChecklist가 있지만 웹 대시보드만 쓰고 라운지·모바일·AI는 각자 재구현했다 — 통합의 골격은 있으나 예산 축에는 적용되지 않았다."
+    }
+   ]
+  }
+ ]
+}

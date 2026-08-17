@@ -36,3 +36,28 @@ export function buildVerifiedChecklistDeepLink(input) {
     handledKey: `${ownerId}:${coupleId}:${categoryKey}`,
   };
 }
+
+export function buildVerifiedChecklistDeepLinkFocusTarget(input) {
+  if (!isRecord(input) || !isRecord(input.deepLink)) return null;
+
+  const { categoryKey, handledKey } = input.deepLink;
+  if (
+    typeof categoryKey !== "string"
+    || categoryKey.length < 1
+    || categoryKey.length > 64
+    || typeof handledKey !== "string"
+    || handledKey.length < 1
+    || handledKey.length > 256
+    || input.laidOutCategoryKey !== categoryKey
+    || input.focusedHandledKey === handledKey
+    || typeof input.layoutY !== "number"
+    || !Number.isFinite(input.layoutY)
+    || input.layoutY < 0
+  ) return null;
+
+  return Object.freeze({
+    categoryKey,
+    handledKey,
+    scrollY: Math.max(0, input.layoutY - 8),
+  });
+}

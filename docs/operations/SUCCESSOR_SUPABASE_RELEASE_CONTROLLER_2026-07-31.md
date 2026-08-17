@@ -1,7 +1,7 @@
 # Successor Supabase release controller contract
 
 Date: 2026-07-31  
-Contract sync: 2026-08-02
+Contract sync: 2026-08-17
 Release: `vendor-disclosure-v2-20260718`  
 Current decision: **NO-GO**
 
@@ -9,18 +9,63 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
-The ordered successor manifest now contains 66 migrations and ends at
-`20260802240000_amora_memory_job_recovery.sql`. The 2026-08-01 and
-2026-08-02 migrations have repository contracts only and have not been applied
-to hosted Supabase. No current hosted pending-set query or apply receipt was
-created by this sync. The normalized manifest SHA-256 is
-`7019565f14ab03b60a033ddb5dd56a9c7cd3b4a810aa2fdb9aa9448431fb8cad` and the
-ordered migration-version digest is
-`96bc9d77687b502482f3bc361a5bce8c01f450d6ffd1f77488094221fee78360`.
+The ordered successor manifest now contains 101 migrations and ends at
+`20260816170000_amora_booking_outcome_provenance.sql`.
+The normalized-LF current manifest SHA-256 is
+`8ed341c23f92ff96f6bb0059a2447c1bb39b4645b8b392c748018b1657b142dd`;
+the terminal migration SHA-256 is
+`9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457`.
+
+On 2026-08-15, a linked, read-only Production ledger audit observed:
+
+- the manifest required head `20260716117000` exists remotely;
+- 32 successor versions are already present as one exact ordered prefix,
+  ending at `20260727090000`;
+- no remote-only migration version exists.
+
+Against the current 101-migration repository manifest, that observed prefix
+leaves 69 local successor migrations pending, from `20260730100000` through
+`20260816170000`. This suffix count is derived from the updated local manifest;
+it is not a new 2026-08-16 Production ledger observation.
+
+This proves migration-version continuity only. The old remote ledger rows have
+no stored SQL statements, so it does not prove byte-for-byte equality of the
+already-applied SQL. It is not hosted staging, backup, restore, storage, or
+finalizer evidence. No migration repair, database push, or Production write was
+performed. The existing manifest still names `20260716117000` as the required
+remote head and therefore cannot be used as-is by the current release
+controller against this observed Production baseline.
+
+The repository now pins the observation boundary in
+`supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json`
+(normalized-LF SHA-256
+`aec85a53a01e33a22ffab43424a6cfeff0b052775ae26c772f9c281c1f25b111`).
+The successor manifest hash-pins that file. Static validation requires its 32
+applied migrations to be the exact file/hash prefix of the 101-migration
+manifest and its 69 pending migrations to be the exact suffix. Re-hashing a
+semantically altered count, boundary, file, or migration hash is rejected.
+
+This baseline contract still does not authorize the current release controller
+to apply the suffix. The next controller tranche must consume the pinned
+historical prefix, use `20260727090000` as the effective pre-apply head, create
+a fresh current-remote backup contract that includes the schema effects of the
+32 applied migrations, and keep the remaining 69 migrations as the only
+ordered pending set. It must not rewrite Supabase migration history.
+
+The read-only check is reproducible with:
+
+```powershell
+corepack pnpm supabase:release:baseline
+```
+
+It validates the linked project, rejects remote-only versions and successor
+gaps, and emits only bounded counts and boundary versions. It performs only
+`supabase migration list --linked`.
+
 The work described here adds a fail-closed successor path to the Supabase
 release controller, static/remote fence and exact-owner finalizer. It does not
 change the manifest to `controller_ready`, create hosted evidence, run a remote
-probe, write production data or authorize a web deployment.
+mutation, write production data or authorize a web deployment.
 
 The manifest is the only source of the successor migration set. The controller
 and `supabase-release-fence.mjs --remote` must derive all of these values at
@@ -125,6 +170,28 @@ baseline tables, so their new nullable `segment_id` columns and scope foreign
 keys are verified by the successor postcheck rather than counted as new backup
 tables.
 
+The deterministic first-use proposal and terminal application migrations, the
+provider-backed exact add-action application migration, and the atomic-action
+href/whitespace parity migration create no table, so they do not enlarge the
+post-expand backup table set. The first three add
+`finalize_amora_first_use_action_proposal_v1(uuid,uuid,uuid,text,integer,bigint)`,
+`finalize_amora_first_use_action_application_v1(uuid,uuid,uuid,uuid,text,integer,bigint)`,
+and
+`finalize_amora_provider_backed_add_action_application_v1(uuid,uuid,uuid,uuid,text,integer,bigint)`.
+For each finalizer, the successor semantic postcheck must prove exactly one
+security-definer, Postgres-owned function with execute denied to `anon` and
+`authenticated` and granted only to `service_role`.
+
+The terminal parity migration updates only the existing atomic dispatcher. Its
+semantic postcheck must separately prove that the private dispatcher is
+Postgres-owned, security-definer and executable by no client or service role;
+that the public wrapper remains Postgres-owned, security-definer and executable
+only by `service_role`; and that the live private definition contains the exact
+`/wedding/chat` MC/gift fallback plus the canonical title/description
+whitespace rules, with every retired fragment absent. Omitting any finalizer
+ACL, dispatcher ACL or href/whitespace postcondition evidence keeps the release
+blocked.
+
 ## Postchecks, rollback and finalization
 
 At least one post-apply check must be successor-specific; inheriting only the
@@ -144,7 +211,10 @@ It must additionally prove exactly one partner-recipient insert policy, select
 policy and enforcement trigger; two conversation-segment scope foreign keys;
 three one-active-scope indexes; one segment SELECT RLS policy; and one exact
 authenticated start-RPC ACL contract. These checks protect altered existing
-tables and privileges that a new-table-only backup count cannot see.
+tables and privileges that a new-table-only backup count cannot see. The same
+postcheck must return exactly one provider-backed add-action finalizer ACL
+contract, one private dispatcher ACL contract, one public dispatcher ACL
+contract, and one href/whitespace parity contract.
 Omitting any of these evidence fields prevents `controller_ready`.
 
 Database migration rollback is prohibited after an ambiguous or completed
@@ -202,9 +272,12 @@ hosted evidence:
 ```powershell
 corepack pnpm supabase:release:test
 corepack pnpm supabase:release:fence
+corepack pnpm supabase:release:baseline
 ```
 
-Do not run direct `supabase db push`, do not create synthetic success receipts,
-and do not change `deployment_blocked` until the separate controller contract,
-all private raw evidence and every structured receipt have been reviewed for
-the exact clean release commit.
+The baseline command is the only command above that contacts Production, and it
+is read-only. It is not a deploy receipt. Do not run direct `supabase db push`,
+do not run `supabase migration repair`, do not create synthetic success
+receipts, and do not change `deployment_blocked` until the separate controller
+contract, all private raw evidence and every structured receipt have been
+reviewed for the exact clean release commit.

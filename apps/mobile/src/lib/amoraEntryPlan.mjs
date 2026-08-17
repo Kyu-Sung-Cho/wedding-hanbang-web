@@ -2,13 +2,39 @@ import { parseAmoraFirstUseGrounding } from "@hanbang/shared/amora-first-use-gro
 import { guardAmoraFirstUseActionClaim } from "@hanbang/shared/amora-first-use-action-claim";
 
 const PRIVATE_DESCRIPTION =
-  "정해진 게 거의 없어도 괜찮아요. 지금 가장 가까운 상황 하나만 고르면, 아모라가 나에게 맞는 첫 행동을 함께 정리해요. 선택한 내용은 먼저 나만 보는 초안으로 열리고, 확인 전에는 저장하거나 공유하지 않아요.";
+  "정해진 게 거의 없어도 괜찮아요. 지금 가장 가까운 상황 하나만 고르면, 아모라가 나에게 맞는 첫 행동을 함께 정리해요. 대화는 나만 상담에 저장되고 상대방에게 보이지 않으며, 준비 기록은 직접 확인하기 전까지 바뀌지 않아요.";
 
 const SHARED_DESCRIPTION =
   "두 사람이 지금 함께 볼 상황 하나만 골라주세요. 먼저 보낼 문장만 채워드리고, 확인 전에는 공유 기록을 바꾸지 않아요.";
 
 const EXTENDED_PICTOGRAPHIC_PATTERN = /^\p{Extended_Pictographic}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+// Mobile keeps an independent copy of the web promotion grammar so an
+// unbound first-use draft can be stopped before any shared persistence.
+const FIRST_USE_SHARED_UNSAFE_DISPLAY_PATTERN =
+  /[\p{Cc}\p{Zl}\p{Zp}\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069\u2060-\u2064\u206A-\u206F\uFEFF]/u;
+const FIRST_USE_SHARED_UNSAFE_FORMAT_EXCEPT_ZWJ_PATTERN = /(?!\u200D)\p{Cf}/u;
+const FIRST_USE_SHARED_BARE_ZWJ_PATTERN =
+  /(?:^|[^\p{Extended_Pictographic}])\u200D|\u200D(?:$|[^\p{Extended_Pictographic}])/u;
+const FIRST_USE_SHARED_UNSAFE_MULTILINE_PATTERN =
+  // eslint-disable-next-line no-control-regex -- Mirrors the web multiline trust-boundary grammar.
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u061C\u200E\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF]/u;
+const FIRST_USE_PROVIDER_METADATA_KEYS = Object.freeze([
+  "ai_provider",
+  "model",
+  "tokens_input",
+  "tokens_output",
+  "cache_creation_tokens",
+  "cache_read_tokens",
+  "cost_usd",
+  "provider_receipt_id",
+  "provider_request_id",
+  "provider_response_id",
+]);
+
+function isPlainRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
 function normalizeUuid(value) {
   if (typeof value !== "string") return null;
@@ -69,6 +95,28 @@ export function resolveAmoraChatEntry(value) {
   return entry === "first_use" ? "first_use" : null;
 }
 
+export function resolveAmoraFirstUseSessionResetScope({
+  entry,
+  activeScope,
+  consumedFirstUseEntryOwnerKey,
+  currentUserId,
+  currentCoupleId,
+}) {
+  if (
+    entry !== "first_use"
+    || activeScope !== "private"
+    || typeof currentUserId !== "string"
+    || !currentUserId
+    || typeof currentCoupleId !== "string"
+    || !currentCoupleId
+  ) return "shared";
+
+  return consumedFirstUseEntryOwnerKey
+    === `${currentUserId}:${currentCoupleId}:first_use`
+    ? "private"
+    : "shared";
+}
+
 const FIRST_USE_ACTION_HEADINGS = Object.freeze({
   "확인된 내용": "assumptions",
   "아직 모르는 내용": "unknowns",
@@ -103,6 +151,120 @@ function normalizeFirstUseActionField(value, maxLength) {
     || ["<", ">", "{", "}", "[", "]"].some((character) => normalized.includes(character))
   ) return null;
   return normalized;
+}
+
+function isFirstUseSharedSafeVisibleText(value, maxLength) {
+  return typeof value === "string"
+    && value === value.trim()
+    && value.length > 0
+    && Array.from(value).length <= maxLength
+    && !/[\r\n]/u.test(value)
+    && !FIRST_USE_SHARED_UNSAFE_DISPLAY_PATTERN.test(value)
+    && !FIRST_USE_SHARED_UNSAFE_FORMAT_EXCEPT_ZWJ_PATTERN.test(value)
+    && !FIRST_USE_SHARED_BARE_ZWJ_PATTERN.test(value);
+}
+
+function parseFirstUseSharedActionHeading(line) {
+  const visible = line
+    .trim()
+    .replace(/^[#>\s-]+/u, "")
+    .replaceAll("**", "")
+    .trim();
+  const match = /^(지금 할 한 가지|이유|완료 기준)(?:\s*[:：]\s*(.*)|\s*)$/u.exec(visible);
+  if (!match) return null;
+  return {
+    key: match[1] === "지금 할 한 가지"
+      ? "action"
+      : match[1] === "이유"
+        ? "reason"
+        : "completionCriterion",
+    inlineValue: (match[2] ?? "").trim(),
+  };
+}
+
+function normalizeFirstUseSharedActionField(value, maxLength) {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .replace(/^\s*(?:[-*•]|\d+[.)])\s*/u, "")
+    .replaceAll("**", "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (
+    !isFirstUseSharedSafeVisibleText(normalized, maxLength)
+    || ["<", ">", "{", "}", "[", "]"].some((character) => normalized.includes(character))
+  ) return null;
+  return normalized;
+}
+
+export function parseFirstUseSharedActionDraft(value) {
+  if (
+    typeof value !== "string"
+    || !value.trim()
+    || Array.from(value).length > 12_000
+    || FIRST_USE_SHARED_UNSAFE_MULTILINE_PATTERN.test(value)
+    || FIRST_USE_SHARED_UNSAFE_FORMAT_EXCEPT_ZWJ_PATTERN.test(value)
+    || FIRST_USE_SHARED_BARE_ZWJ_PATTERN.test(value)
+  ) return null;
+
+  const lines = value.split("\n");
+  const fields = {};
+  for (let index = 0; index < lines.length; index += 1) {
+    const heading = parseFirstUseSharedActionHeading(lines[index]);
+    if (!heading) continue;
+    if (fields[heading.key] !== undefined) return null;
+    let fieldValue = heading.inlineValue;
+    if (!fieldValue) {
+      let nextIndex = index + 1;
+      while (nextIndex < lines.length && !lines[nextIndex].trim()) nextIndex += 1;
+      if (
+        nextIndex >= lines.length
+        || parseFirstUseSharedActionHeading(lines[nextIndex])
+      ) return null;
+      fieldValue = lines[nextIndex];
+    }
+    const maxLength = heading.key === "action" ? 120 : 220;
+    const normalized = normalizeFirstUseSharedActionField(fieldValue, maxLength);
+    if (!normalized) return null;
+    fields[heading.key] = normalized;
+  }
+
+  if (
+    typeof fields.action !== "string"
+    || typeof fields.reason !== "string"
+    || typeof fields.completionCriterion !== "string"
+  ) return null;
+  const draft = Object.freeze({
+    action: fields.action,
+    reason: fields.reason,
+    completionCriterion: fields.completionCriterion,
+  });
+  return buildFirstUseSharedActionDraft(draft) === value ? draft : null;
+}
+
+export function isFirstUseSharedActionDraftText(value) {
+  return parseFirstUseSharedActionDraft(value) !== null;
+}
+
+export function buildFirstUseSharedDraftPrivateCorrection(value) {
+  const draft = parseFirstUseSharedActionDraft(value);
+  if (!draft) return null;
+  const privateDraft = [
+    "이 결혼 준비 실행 카드를 나만 상담에서 다시 맞춰줘.",
+    `지금 할 한 가지: ${draft.action}`,
+    `이유: ${draft.reason}`,
+    `완료 기준: ${draft.completionCriterion}`,
+    "준비 기록과 맞는지 먼저 확인하고, 자동으로 보내거나 준비에 추가하지 말아 줘.",
+  ].join("\n");
+  return Array.from(privateDraft).length <= 900 ? privateDraft : null;
+}
+
+export function planFirstUseSharedDraftPrivateRecovery({ sharedText, privateText }) {
+  const privateDraft = buildFirstUseSharedDraftPrivateCorrection(sharedText);
+  if (!privateDraft) return Object.freeze({ status: "not_applicable" });
+  if (typeof privateText !== "string" || privateText.trim()) {
+    return Object.freeze({ status: "private_occupied" });
+  }
+  return Object.freeze({ status: "ready", privateDraft });
 }
 
 function parseFirstUseActionResponse(value) {
@@ -318,19 +480,98 @@ export function buildFirstUseCriterionCorrectionDraft() {
   return "우리 기준이 바뀌었어요. 현재 우리 기준과 준비 기록으로 다음 한 가지를 다시 맞춰줘.";
 }
 
-const FIRST_USE_ACTION_CONTINUATION_PRESENTATION = Object.freeze({
+const REVIEWED_ACTION_CONTINUATION_PRESENTATION = Object.freeze({
   label: "이 행동으로 준비 이어가기",
   accessibilityLabel: "확인한 행동으로 우리 준비 이어가기",
   accessibilityHint:
-    "확인한 세 항목만 다음 화면에 채우며 자동으로 보내거나 저장하지 않습니다",
+    "확인한 세 항목만 같은 화면의 함께 대화 입력란에 채우며 자동으로 보내거나 저장하지 않습니다",
   scopeCopy:
     "확인한 행동·이유·완료 기준만 우리 준비로 가져가요. 나만 상담 내용은 가져가지 않고, 연결된 파트너와 함께 볼 수 있어요.",
   promise:
-    "다음 화면에서 내용을 다시 확인하고 직접 보내야 추가돼요. 자동으로 보내거나 저장하지 않아요.",
+    "같은 화면에서 내용을 다시 확인하고 직접 보내야 추가돼요. 자동으로 보내거나 저장하지 않아요.",
+});
+
+const FIRST_USE_ACTION_CONTINUATION_PRESENTATION = Object.freeze({
+  stageLabel: "1/3 · 나만 정리",
+  label: "함께 볼 초안 만들기",
+  accessibilityLabel: "1단계 나만 정리에서 함께 볼 초안 만들기",
+  accessibilityHint:
+    "확인한 세 항목을 같은 화면의 함께 대화 입력란에만 채우며 자동으로 보내거나 준비 기록에 추가하지 않습니다",
+  scopeCopy:
+    "나만 상담에 저장됐고 상대방에게는 보이지 않아요. 준비 기록은 아직 바뀌지 않았어요.",
+  promise:
+    "버튼을 누르면 같은 화면의 함께 대화 입력란에 초안만 채워져요. 직접 보내기 전에는 함께 대화에 저장되지 않아요.",
 });
 
 export function getReviewedActionContinuationPresentation() {
+  return REVIEWED_ACTION_CONTINUATION_PRESENTATION;
+}
+
+export function getFirstUseActionContinuationPresentation() {
   return FIRST_USE_ACTION_CONTINUATION_PRESENTATION;
+}
+
+const FIRST_USE_SHARED_DRAFT_PRESENTATION = Object.freeze({
+  stageLabel: "2/3 · 함께 볼 초안",
+  copy: "직접 보내면 함께 대화에 저장돼요. 준비 기록에는 아직 반영되지 않아요.",
+  accessibilityLabel: "2단계 함께 볼 초안",
+  sendConfirmationCopy:
+    "이 확인은 함께 대화에 저장하는 단계예요. 준비에 추가하는 확인은 다음에 따로 해요.",
+  composerOccupiedCopy:
+    "함께 대화에 작성 중인 초안이 있어 덮어쓰지 않았어요. 작성 중인 내용을 먼저 확인해 주세요.",
+  composerOccupiedActionLabel: "작성 중 초안 보기",
+  draftChangedCopy:
+    "초안을 수정해 첫 준비 연결이 해제됐어요. 이 실행 카드 형식은 일반 함께 대화로 보낼 수 없어요. 현재 내용을 나만 상담에서 다시 맞춰 주세요.",
+  draftChangedActionLabel: "나만 상담에서 다시 맞추기",
+  privateComposerOccupiedCopy:
+    "나만 상담에 작성 중인 초안이 있어 덮어쓰지 않았어요. 함께 대화 초안도 그대로 두었어요. 작성 중인 내용을 먼저 확인해 주세요.",
+  privateComposerOccupiedActionLabel: "나만 상담 초안 보기",
+});
+
+export function getFirstUseSharedDraftPresentation() {
+  return FIRST_USE_SHARED_DRAFT_PRESENTATION;
+}
+
+const FIRST_USE_PENDING_ACTION_PRESENTATION = Object.freeze({
+  stageLabel: "3/3 · 준비에 반영 전",
+  prompt: "이 내용을 다음 할 일로 추가할까요?",
+  applyLabel: "확인하고 준비에 추가",
+  accessibilityLabel: "3단계 준비에 반영 전, 확인하고 준비에 추가",
+  accessibilityHint: "확인하면 이 내용을 다음 할 일에 반영하는 기존 적용 절차를 시작합니다",
+});
+
+export function getFirstUsePendingActionPresentation(input) {
+  if (!isPlainRecord(input)) return null;
+  const { metadata, pendingAction } = input;
+  if (!isPlainRecord(metadata) || !isPlainRecord(pendingAction)) return null;
+  const sourceRevision = metadata.amora_wedding_context_revision;
+  if (
+    metadata.pending_amora_action !== pendingAction
+    || metadata.response_origin !== "server_authoritative_first_use_promotion"
+    || metadata.provider_call_count !== 0
+    || metadata.question_scope !== "W0_wedding_core"
+    || metadata.memory_eligible !== false
+    || metadata.memory_enqueue_requested !== false
+    || typeof metadata.client_request_id !== "string"
+    || metadata.client_request_id.length < 1
+    || metadata.client_request_id.length > 200
+    || typeof metadata.client_visible_request_id !== "string"
+    || metadata.client_visible_request_id.length < 1
+    || metadata.client_visible_request_id.length > 200
+    || typeof metadata.in_reply_to_user_message_id !== "string"
+    || !UUID_PATTERN.test(metadata.in_reply_to_user_message_id)
+    || typeof metadata.amora_first_use_promotion_id !== "string"
+    || !UUID_PATTERN.test(metadata.amora_first_use_promotion_id)
+    || !Number.isSafeInteger(sourceRevision)
+    || sourceRevision < 0
+    || metadata.pending_amora_action_journey_revision !== sourceRevision
+    || pendingAction.version !== 2
+    || pendingAction.tool !== "add_amora_action"
+    || typeof pendingAction.actionId !== "string"
+    || !UUID_PATTERN.test(pendingAction.actionId)
+    || FIRST_USE_PROVIDER_METADATA_KEYS.some((key) => Object.hasOwn(metadata, key))
+  ) return null;
+  return FIRST_USE_PENDING_ACTION_PRESENTATION;
 }
 
 export function buildFirstUseSharedActionDraft(value) {
