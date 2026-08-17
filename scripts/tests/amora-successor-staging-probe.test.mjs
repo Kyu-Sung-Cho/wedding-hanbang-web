@@ -1,16 +1,25 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { URL, fileURLToPath } from "node:url";
 
 import {
   AmoraSuccessorStagingProbeError,
+  createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedMessageRefResidue,
   readHostedMigrationLedger,
   runNeutralPreparationSpaceScenario,
+  runPreparationTopicMessageRefScenario,
   validateAmoraSuccessorStagingProbeConfig,
 } from "../lib/amora-successor-staging-probe.mjs";
 
 const STAGING_REF = "rgxdizztidbgwnsbadml";
 const PRODUCTION_REF = "slrtobkksjmxgzatjyqb";
+const cliSource = readFileSync(fileURLToPath(new URL(
+  "../amora-successor-staging-probe.mjs",
+  import.meta.url,
+)), "utf8");
 
 test("the Amora successor probe refuses the Production project before any hosted work", () => {
   assert.throws(
@@ -122,6 +131,274 @@ test("two synthetic users get one neutral preparation space with private pre-joi
   assert.equal(JSON.stringify(result).includes(inviteCode), false);
 });
 
+test("three synthetic users prove saved conversation sharing, private isolation, replay, removal, and zero residue", async () => {
+  const users = [
+    { id: "10000000-0000-4000-8000-000000000011", accessToken: "token-owner" },
+    { id: "10000000-0000-4000-8000-000000000012", accessToken: "token-partner" },
+    { id: "10000000-0000-4000-8000-000000000013", accessToken: "token-outsider" },
+  ];
+  const ownerCoupleId = "20000000-0000-4000-8000-000000000011";
+  const outsiderCoupleId = "20000000-0000-4000-8000-000000000012";
+  const sharedQuestionId = "30000000-0000-4000-8000-000000000011";
+  const sharedAnswerId = "40000000-0000-4000-8000-000000000011";
+  const privateQuestionId = "30000000-0000-4000-8000-000000000012";
+  const privateAnswerId = "40000000-0000-4000-8000-000000000012";
+  const sharedRefId = "50000000-0000-4000-8000-000000000011";
+  const privateRefId = "50000000-0000-4000-8000-000000000012";
+  const sharedQuestion = "상견례 날짜를 정할 때 무엇부터 확인할까요?";
+  const sharedAnswer = "양가가 피하기 어려운 날짜부터 두세 개만 먼저 모아 보세요.";
+  const privateQuestion = "제 예산 걱정은 상대에게 아직 보이지 않게 정리하고 싶어요.";
+  const privateAnswer = "혼자 감당 가능한 상한과 함께 상의할 범위를 나눠 보세요.";
+  let userIndex = 0;
+  let sharedSaveCount = 0;
+  let removed = false;
+  const deletedUsers = [];
+
+  const mutation = ({ messageId, audience, refId, savedState, revision, reused }) => ({
+    version: 1,
+    state: "ready",
+    recipientUserId: users[0].id,
+    coupleId: ownerCoupleId,
+    reused,
+    reference: {
+      topicKey: messageId === sharedAnswerId ? "meeting" : "housing",
+      messageId,
+      refId: savedState === "saved" ? refId : null,
+      audience,
+      savedState,
+      revision,
+    },
+  });
+  const listedRef = ({ refId, topicKey, messageId, audience, excerpt }) => ({
+    refId,
+    topicKey,
+    messageId,
+    audience,
+    revision: 1,
+    savedAt: "2026-08-18T01:00:02.000Z",
+    sourceCreatedAt: "2026-08-18T01:00:01.000Z",
+    excerpt,
+    canRemove: true,
+    canOpenOriginal: true,
+  });
+  const sharedListed = listedRef({
+    refId: sharedRefId,
+    topicKey: "meeting",
+    messageId: sharedAnswerId,
+    audience: "couple_shared",
+    excerpt: sharedAnswer,
+  });
+  const privateListed = listedRef({
+    refId: privateRefId,
+    topicKey: "housing",
+    messageId: privateAnswerId,
+    audience: "owner_private",
+    excerpt: privateAnswer,
+  });
+
+  const transport = {
+    async createSyntheticUser() {
+      return users[userIndex++];
+    },
+    async createNeutralPreparationSpace(user) {
+      if (user.id === users[0].id) {
+        return {
+          success: true,
+          created: true,
+          couple_id: ownerCoupleId,
+          invite_code: "WH-OWNER000001",
+          member_model_version: 2,
+        };
+      }
+      return {
+        success: true,
+        created: true,
+        couple_id: outsiderCoupleId,
+        invite_code: "WH-OTHER000001",
+        member_model_version: 2,
+      };
+    },
+    async joinNeutralPreparationSpaceServer() {
+      return {
+        success: true,
+        joined: true,
+        couple_id: ownerCoupleId,
+        member_model_version: 2,
+      };
+    },
+    async createPreparationTopicMessageFixtures() {
+      return {
+        sharedQuestionId,
+        sharedAnswerId,
+        privateQuestionId,
+        privateAnswerId,
+        sharedQuestion,
+        sharedAnswer,
+        privateQuestion,
+        privateAnswer,
+      };
+    },
+    async readPrivacyEpoch() {
+      return 7;
+    },
+    async callMessageRefRpcAsAuthenticated() {
+      return { denied: true };
+    },
+    async readMessageRefTableAsAuthenticated() {
+      return { denied: true };
+    },
+    async setMessageRefAsService(input) {
+      if (input.messageId === sharedAnswerId && input.desiredState === "saved") {
+        if (removed && input.expectedRevision === 0) return { ok: false, status: 409, body: {} };
+        sharedSaveCount += 1;
+        return {
+          ok: true,
+          status: 200,
+          body: mutation({
+            messageId: sharedAnswerId,
+            audience: "couple_shared",
+            refId: sharedRefId,
+            savedState: "saved",
+            revision: 1,
+            reused: sharedSaveCount > 1,
+          }),
+        };
+      }
+      if (input.messageId === privateAnswerId) {
+        return {
+          ok: true,
+          status: 200,
+          body: mutation({
+            messageId: privateAnswerId,
+            audience: "owner_private",
+            refId: privateRefId,
+            savedState: "saved",
+            revision: 1,
+            reused: false,
+          }),
+        };
+      }
+      removed = true;
+      return {
+        ok: true,
+        status: 200,
+        body: mutation({
+          messageId: sharedAnswerId,
+          audience: "couple_shared",
+          refId: sharedRefId,
+          savedState: "removed",
+          revision: 2,
+          reused: false,
+        }),
+      };
+    },
+    async listMessageRefsAsService({ recipientUserId, coupleId }) {
+      if (coupleId !== ownerCoupleId || recipientUserId === users[2].id) {
+        return { ok: false, status: 404, body: {} };
+      }
+      const references = removed
+        ? (recipientUserId === users[0].id ? [privateListed] : [])
+        : (recipientUserId === users[0].id ? [sharedListed, privateListed] : [sharedListed]);
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          version: 1,
+          state: "ready",
+          recipientUserId,
+          coupleId,
+          references,
+          partial: false,
+        },
+      };
+    },
+    async resolveMessageRefAsService({ recipientUserId, refId }) {
+      if ((refId === privateRefId && recipientUserId !== users[0].id)
+          || (refId === sharedRefId && removed)) {
+        return { ok: false, status: 404, body: {} };
+      }
+      const isShared = refId === sharedRefId;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          version: 1,
+          state: "ready",
+          recipientUserId,
+          coupleId: ownerCoupleId,
+          reference: {
+            refId,
+            topicKey: isShared ? "meeting" : "housing",
+            messageId: isShared ? sharedAnswerId : privateAnswerId,
+            audience: isShared ? "couple_shared" : "owner_private",
+            revision: 1,
+            savedAt: "2026-08-18T01:00:02.000Z",
+          },
+          target: {
+            messageId: isShared ? sharedAnswerId : privateAnswerId,
+            lane: isShared ? "shared" : "private",
+            content: isShared ? sharedAnswer : privateAnswer,
+            createdAt: "2026-08-18T01:00:01.000Z",
+          },
+          question: {
+            messageId: isShared ? sharedQuestionId : privateQuestionId,
+            lane: isShared ? "shared" : "private",
+            senderType: "bride",
+            content: isShared ? sharedQuestion : privateQuestion,
+            createdAt: "2026-08-18T01:00:00.000Z",
+          },
+        },
+      };
+    },
+    async deletePreparationTopicMessageFixtures() {},
+    async resetMembership() {},
+    async deleteSyntheticUser(userId) {
+      deletedUsers.push(userId);
+    },
+    async readMessageRefResidue() {
+      return { profiles: 0, couples: 0, chatMessages: 0, messageRefs: 0 };
+    },
+  };
+
+  const result = await runPreparationTopicMessageRefScenario({ transport });
+
+  assert.deepEqual(result.checks, {
+    ownerSpace: true,
+    partnerJoin: true,
+    outsiderSpace: true,
+    authenticatedRpcDenied: true,
+    authenticatedTableDenied: true,
+    sharedConcurrentReplay: true,
+    privateSave: true,
+    ownerList: true,
+    partnerListPrivacy: true,
+    outsiderIsolation: true,
+    sharedResolve: true,
+    privateResolve: true,
+    partnerPrivateDenied: true,
+    removeAndStaleRevision: true,
+    cleanup: true,
+  });
+  assert.deepEqual(result.residue, {
+    profiles: 0,
+    couples: 0,
+    chatMessages: 0,
+    messageRefs: 0,
+  });
+  assert.equal(result.syntheticUserCount, 3);
+  assert.deepEqual(deletedUsers.sort(), users.map(({ id }) => id).sort());
+  const serialized = JSON.stringify(result);
+  for (const secret of [
+    ...users.map(({ id }) => id),
+    ownerCoupleId,
+    outsiderCoupleId,
+    sharedQuestion,
+    sharedAnswer,
+    privateQuestion,
+    privateAnswer,
+  ]) assert.equal(serialized.includes(secret), false);
+});
+
 test("the staging transport obtains both legacy API roles without exposing unrelated keys", async () => {
   const requests = [];
   const keys = await loadSupabaseProjectApiKeys({
@@ -147,6 +424,119 @@ test("the staging transport obtains both legacy API roles without exposing unrel
   assert.equal(JSON.stringify(keys).includes("unused-publishable-key"), false);
 });
 
+test("the staging transport binds message-ref fixtures and RPCs to service versus user credentials", async () => {
+  const owner = {
+    id: "10000000-0000-4000-8000-000000000021",
+    accessToken: "owner-access-token",
+  };
+  const coupleId = "20000000-0000-4000-8000-000000000021";
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url: String(url), init });
+    if (String(url).includes("/profiles?")) {
+      return new Response(JSON.stringify([{
+        id: owner.id,
+        couple_id: coupleId,
+        role: "bride",
+      }]), { status: 200 });
+    }
+    if (String(url).endsWith("/rest/v1/chat_messages") && init.method === "POST") {
+      return new Response("", { status: 201 });
+    }
+    if (String(url).endsWith("/rest/v1/rpc/get_own_amora_privacy_epoch")) {
+      return new Response("7", { status: 200 });
+    }
+    if (String(url).includes("/rest/v1/amora_preparation_topic_message_refs")) {
+      return new Response(JSON.stringify({ code: "42501" }), { status: 401 });
+    }
+    if (String(url).endsWith("/rest/v1/rpc/set_amora_preparation_topic_message_ref_v1")) {
+      const body = JSON.parse(init.body);
+      if (init.headers.Authorization === `Bearer ${owner.accessToken}`) {
+        return new Response(JSON.stringify({ code: "42501" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({ request: body }), { status: 200 });
+    }
+    if (String(url).includes("/rest/v1/chat_messages?") && init.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+    return new Response("[]", { status: 200 });
+  };
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl,
+    runNonce: "message-ref-contract",
+  });
+
+  const fixtures = await transport.createPreparationTopicMessageFixtures({ owner, coupleId });
+  assert.equal(new Set([
+    fixtures.sharedQuestionId,
+    fixtures.sharedAnswerId,
+    fixtures.privateQuestionId,
+    fixtures.privateAnswerId,
+  ]).size, 4);
+  assert.equal(await transport.readPrivacyEpoch(owner, coupleId), 7);
+  assert.deepEqual(
+    await transport.callMessageRefRpcAsAuthenticated(owner, {
+      coupleId,
+      actorUserId: owner.id,
+      topicKey: "meeting",
+      messageId: fixtures.sharedAnswerId,
+      desiredState: "saved",
+      expectedRevision: 0,
+      requestId: "60000000-0000-4000-8000-000000000021",
+      expectedPrivacyEpoch: 7,
+    }),
+    { denied: true },
+  );
+  assert.deepEqual(await transport.readMessageRefTableAsAuthenticated(owner), {
+    denied: true,
+  });
+  const serviceMutation = await transport.setMessageRefAsService({
+    coupleId,
+    actorUserId: owner.id,
+    topicKey: "meeting",
+    messageId: fixtures.sharedAnswerId,
+    desiredState: "saved",
+    expectedRevision: 0,
+    requestId: "60000000-0000-4000-8000-000000000022",
+    expectedPrivacyEpoch: 7,
+  });
+  assert.equal(serviceMutation.ok, true);
+  await transport.deletePreparationTopicMessageFixtures([
+    fixtures.sharedQuestionId,
+    fixtures.sharedAnswerId,
+    fixtures.privateQuestionId,
+    fixtures.privateAnswerId,
+  ]);
+
+  const insertCall = calls.find(({ url, init }) => (
+    url.endsWith("/rest/v1/chat_messages") && init.method === "POST"
+  ));
+  assert.ok(insertCall);
+  const inserted = JSON.parse(insertCall.init.body);
+  assert.equal(inserted.length, 4);
+  assert.deepEqual(inserted.map(({ visibility }) => visibility), [
+    "shared", "shared", "bride_private", "bride_private",
+  ]);
+  assert.deepEqual(inserted.map(({ role }) => role), [
+    "user", "assistant", "user", "assistant",
+  ]);
+  assert.equal(inserted[1].metadata.in_reply_to_user_message_id, inserted[0].id);
+  assert.equal(inserted[3].metadata.in_reply_to_user_message_id, inserted[2].id);
+  const authenticatedRpcCall = calls.find(({ url, init }) => (
+    url.endsWith("/rest/v1/rpc/set_amora_preparation_topic_message_ref_v1")
+      && init.headers.Authorization === `Bearer ${owner.accessToken}`
+  ));
+  const serviceRpcCall = calls.find(({ url, init }) => (
+    url.endsWith("/rest/v1/rpc/set_amora_preparation_topic_message_ref_v1")
+      && init.headers.Authorization === "Bearer service-role-key-value"
+  ));
+  assert.ok(authenticatedRpcCall);
+  assert.ok(serviceRpcCall);
+});
+
 test("the hosted probe binds its receipt to the exact applied migration ledger", async () => {
   const ledger = await readHostedMigrationLedger({
     projectRef: STAGING_REF,
@@ -160,4 +550,66 @@ test("the hosted probe binds its receipt to the exact applied migration ledger",
   });
 
   assert.deepEqual(ledger, { count: 218, head: "20260816190000" });
+});
+
+test("the fixed read-only residue query counts protected message refs without exposing rows", async () => {
+  const requests = [];
+  const residue = await readHostedMessageRefResidue({
+    projectRef: STAGING_REF,
+    productionProjectRef: PRODUCTION_REF,
+    managementToken: "management-token-that-is-long-enough",
+    userIds: ["10000000-0000-4000-8000-000000000031"],
+    coupleIds: ["20000000-0000-4000-8000-000000000031"],
+    messageIds: ["30000000-0000-4000-8000-000000000031"],
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify([{
+        profiles: 0,
+        couples: 0,
+        chat_messages: 0,
+        message_refs: 0,
+      }]), { status: 201 });
+    },
+  });
+
+  assert.deepEqual(residue, {
+    profiles: 0,
+    couples: 0,
+    chatMessages: 0,
+    messageRefs: 0,
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(
+    requests[0].url,
+    `https://api.supabase.com/v1/projects/${STAGING_REF}/database/query/read-only`,
+  );
+  const requestBody = JSON.parse(requests[0].init.body);
+  assert.deepEqual(requestBody.parameters, [
+    ["10000000-0000-4000-8000-000000000031"],
+    ["20000000-0000-4000-8000-000000000031"],
+    ["30000000-0000-4000-8000-000000000031"],
+  ]);
+  assert.match(requestBody.query, /amora_preparation_topic_message_refs/);
+  assert.throws(
+    () => readHostedMessageRefResidue({
+      projectRef: PRODUCTION_REF,
+      productionProjectRef: PRODUCTION_REF,
+      managementToken: "management-token-that-is-long-enough",
+      userIds: ["10000000-0000-4000-8000-000000000031"],
+      coupleIds: ["20000000-0000-4000-8000-000000000031"],
+      messageIds: ["30000000-0000-4000-8000-000000000031"],
+    }),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "PRODUCTION_TARGET_FORBIDDEN",
+  );
+});
+
+test("the hosted receipt runs both neutral membership and message-ref privacy scenarios", () => {
+  assert.match(cliSource, /runNeutralPreparationSpaceScenario/);
+  assert.match(cliSource, /runPreparationTopicMessageRefScenario/);
+  assert.match(cliSource, /readHostedMessageRefResidue/);
+  assert.match(cliSource, /receiptVersion:\s*2/);
+  assert.match(cliSource, /scope:\s*"neutral-space-and-preparation-topic-message-refs"/);
+  assert.match(cliSource, /neutralPreparationSpace/);
+  assert.match(cliSource, /preparationTopicMessageRefs/);
 });

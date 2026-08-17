@@ -17,8 +17,10 @@ import {
   AmoraSuccessorStagingProbeError,
   createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedMessageRefResidue,
   readHostedMigrationLedger,
   runNeutralPreparationSpaceScenario,
+  runPreparationTopicMessageRefScenario,
   validateAmoraSuccessorStagingProbeConfig,
 } from "./lib/amora-successor-staging-probe.mjs";
 
@@ -138,23 +140,39 @@ async function main() {
       managementToken: config.managementToken,
     }),
   ]);
-  const scenario = await runNeutralPreparationSpaceScenario({
+  const neutralPreparationSpace = await runNeutralPreparationSpaceScenario({
     transport: createSupabaseStagingTransport({
       projectRef: config.projectRef,
       anonKey: keys.anonKey,
       serviceRoleKey: keys.serviceRoleKey,
     }),
   });
+  const preparationTopicMessageRefs = await runPreparationTopicMessageRefScenario({
+    transport: createSupabaseStagingTransport({
+      projectRef: config.projectRef,
+      anonKey: keys.anonKey,
+      serviceRoleKey: keys.serviceRoleKey,
+      messageRefResidueReader: (input) => readHostedMessageRefResidue({
+        projectRef: config.projectRef,
+        productionProjectRef: config.productionProjectRef,
+        managementToken: config.managementToken,
+        ...input,
+      }),
+    }),
+  });
   const receipt = {
-    receiptVersion: 1,
+    receiptVersion: 2,
     kind: "amora-successor-hosted-staging-probe",
-    scope: "neutral-preparation-space-two-account",
+    scope: "neutral-space-and-preparation-topic-message-refs",
     projectRef: config.projectRef,
     gitCommit,
     migrationLedger: ledger,
     startedAt,
     completedAt: new Date().toISOString(),
-    result: scenario,
+    result: {
+      neutralPreparationSpace,
+      preparationTopicMessageRefs,
+    },
   };
   const text = canonicalReceiptText(receipt);
   const receiptSha256 = createHash("sha256").update(text, "utf8").digest("hex");
@@ -167,8 +185,14 @@ async function main() {
     projectRef: receipt.projectRef,
     gitCommit: receipt.gitCommit,
     migrationLedger: receipt.migrationLedger,
-    checks: receipt.result.checks,
-    residue: receipt.result.residue,
+    checks: {
+      neutralPreparationSpace: receipt.result.neutralPreparationSpace.checks,
+      preparationTopicMessageRefs: receipt.result.preparationTopicMessageRefs.checks,
+    },
+    residue: {
+      neutralPreparationSpace: receipt.result.neutralPreparationSpace.residue,
+      preparationTopicMessageRefs: receipt.result.preparationTopicMessageRefs.residue,
+    },
     receiptPath: config.receiptOut,
     receiptSha256,
   }, null, 2)}\n`);
