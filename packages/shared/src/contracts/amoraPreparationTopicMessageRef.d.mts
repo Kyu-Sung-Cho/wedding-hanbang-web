@@ -1,5 +1,6 @@
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTRACT_VERSION: 1;
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT: 80;
+export const AMORA_PREPARATION_NOTES_PAGE_LIMIT: 24;
 
 export type AmoraPreparationTopicMessageRefAudience =
   | "couple_shared"
@@ -24,6 +25,31 @@ export interface AmoraPreparationTopicMessageRefCollectionResponse {
   recipientUserId: string;
   coupleId: string;
   references: AmoraPreparationTopicMessageRefCollectionItem[];
+  partial: boolean;
+}
+
+export interface AmoraPreparationNotesPageEntry {
+  refId: string;
+  topicKey: string;
+  messageId: string;
+  audience: AmoraPreparationTopicMessageRefAudience;
+  revision: number;
+  savedAt: string;
+  sourceCreatedAt: string;
+  questionExcerpt: string;
+  answerExcerpt: string;
+  canRemove: true;
+  canOpenOriginal: true;
+}
+
+export interface AmoraPreparationNotesPageResponse {
+  version: 1;
+  state: "ready";
+  recipientUserId: string;
+  coupleId: string;
+  snapshotAt: string;
+  entries: AmoraPreparationNotesPageEntry[];
+  nextCursor: string | null;
   partial: boolean;
 }
 
@@ -114,6 +140,12 @@ export function validateAmoraPreparationTopicMessageRefCollectionResponse(
 ): AmoraPreparationTopicMessageRefValidation<
   AmoraPreparationTopicMessageRefCollectionResponse
 >;
+
+export function validateAmoraPreparationNotesPageResponse(
+  value: unknown,
+  expectedRecipientUserId: string,
+  expectedCoupleId: string,
+): AmoraPreparationTopicMessageRefValidation<AmoraPreparationNotesPageResponse>;
 
 export function validateAmoraPreparationTopicMessageRefStateResponse(
   value: unknown,

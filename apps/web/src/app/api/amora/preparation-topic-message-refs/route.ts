@@ -1,12 +1,15 @@
 import {
+  AMORA_PREPARATION_NOTES_PAGE_LIMIT,
   AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT,
   isAmoraPreparationTopicMessageRefTopicKey,
   parseAmoraPreparationTopicMessageRefMutationRequest,
+  validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
   validateAmoraPreparationTopicMessageRefMutationResponse,
   validateAmoraPreparationTopicMessageRefStateResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
 import { NextResponse } from "next/server";
+import { Buffer } from "node:buffer";
 
 import { verifyMutationActorFence } from "@/lib/auth/mutationActorFence";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,6 +22,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const MAX_BODY_BYTES = 2_048;
+const MAX_NOTES_QUERY_CODE_POINTS = 120;
+const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
+const NOTES_QUERY_UNSAFE_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
   Vary: "Origin, Sec-Fetch-Site, Authorization",
@@ -150,12 +156,131 @@ function mapRpcError(error: { code?: unknown }) {
 
 type ReadQuery =
   | { mode: "list" }
-  | { mode: "state"; topicKey: string; messageId: string };
+  | { mode: "state"; topicKey: string; messageId: string }
+  | {
+      mode: "notes";
+      query: string;
+      limit: number;
+      cursor: {
+        snapshotAt: string;
+        savedAt: string;
+        refId: string;
+      } | null;
+    };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]) {
+  const keys = Object.keys(value);
+  return keys.length === expected.length
+    && expected.every((key) => Object.hasOwn(value, key));
+}
+
+function isIsoTime(value: unknown): value is string {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
+    && Number.isFinite(Date.parse(value));
+}
+
+function normalizeNotesQuery(value: string | null) {
+  if (value === null) return "";
+  if (Array.from(value).length > MAX_NOTES_QUERY_CODE_POINTS) return null;
+  const normalized = value.normalize("NFKC").replace(/\s+/gu, " ").trim();
+  return NOTES_QUERY_UNSAFE_RE.test(normalized) ? null : normalized;
+}
+
+function decodeNotesCursor(value: string | null, expectedQuery: string) {
+  if (value === null) return null;
+  if (!NOTES_CURSOR_RE.test(value)) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(value.slice(4), "base64url").toString("utf8"),
+    );
+    if (
+      !isRecord(parsed)
+      || !hasExactKeys(parsed, ["v", "snapshotAt", "savedAt", "refId", "query"])
+      || parsed.v !== 1
+      || !isIsoTime(parsed.snapshotAt)
+      || !isIsoTime(parsed.savedAt)
+      || Date.parse(parsed.savedAt) > Date.parse(parsed.snapshotAt)
+      || !isUuid(parsed.refId)
+      || parsed.query !== expectedQuery
+    ) return undefined;
+    return {
+      snapshotAt: parsed.snapshotAt,
+      savedAt: parsed.savedAt,
+      refId: parsed.refId.toLowerCase(),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function encodeNotesCursor(input: {
+  snapshotAt: string;
+  savedAt: string;
+  refId: string;
+  query: string;
+}) {
+  return `np1.${Buffer.from(JSON.stringify({
+    v: 1,
+    snapshotAt: input.snapshotAt,
+    savedAt: input.savedAt,
+    refId: input.refId,
+    query: input.query,
+  }), "utf8").toString("base64url")}`;
+}
+
+function parseNotesBoundary(value: unknown, snapshotAt: string) {
+  if (value === null) return null;
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, ["savedAt", "refId"])
+    || typeof value.savedAt !== "string"
+    || !isIsoTime(value.savedAt)
+    || Date.parse(value.savedAt) > Date.parse(snapshotAt)
+    || typeof value.refId !== "string"
+    || !isUuid(value.refId)
+  ) return undefined;
+  return { savedAt: value.savedAt, refId: value.refId.toLowerCase() };
+}
+
+function isStrictlyOlderNotesBoundary(
+  next: { savedAt: string; refId: string },
+  current: { savedAt: string; refId: string },
+) {
+  const nextSavedAt = Date.parse(next.savedAt);
+  const currentSavedAt = Date.parse(current.savedAt);
+  return nextSavedAt < currentSavedAt
+    || (nextSavedAt === currentSavedAt && next.refId < current.refId);
+}
 
 function parseReadQuery(request: Request): ReadQuery | null {
   const searchParams = new URL(request.url).searchParams;
   const entries = [...searchParams.entries()];
   if (entries.length === 0) return { mode: "list" };
+  if (searchParams.get("view") === "notes") {
+    const allowedKeys = new Set(["view", "q", "cursor", "limit"]);
+    if (
+      entries.some(([key]) => !allowedKeys.has(key))
+      || [...allowedKeys].some((key) => searchParams.getAll(key).length > 1)
+    ) return null;
+    const query = normalizeNotesQuery(searchParams.get("q"));
+    const rawLimit = searchParams.get("limit");
+    const limit = rawLimit === null ? AMORA_PREPARATION_NOTES_PAGE_LIMIT : Number(rawLimit);
+    if (
+      query === null
+      || !Number.isSafeInteger(limit)
+      || limit < 1
+      || limit > AMORA_PREPARATION_NOTES_PAGE_LIMIT
+      || (rawLimit !== null && String(limit) !== rawLimit)
+    ) return null;
+    const cursor = decodeNotesCursor(searchParams.get("cursor"), query);
+    if (cursor === undefined) return null;
+    return { mode: "notes", query, limit, cursor };
+  }
   if (
     entries.length !== 2
     || searchParams.getAll("topicKey").length !== 1
@@ -206,6 +331,85 @@ export async function GET(request: Request) {
       );
       if (!validated.ok) {
         console.error("[preparation-topic-message-refs] invalid list response", {
+          reason: validated.reason,
+        });
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);
+      }
+      return response(validated.value);
+    }
+
+    if (query.mode === "notes") {
+      const { data, error } = await createAdminClient().rpc(
+        "list_amora_preparation_notes_v1",
+        {
+          p_couple_id: context.coupleId,
+          p_recipient_user_id: context.userId,
+          p_expected_privacy_epoch: context.privacyEpoch,
+          p_query: query.query,
+          p_snapshot_at: query.cursor?.snapshotAt ?? null,
+          p_cursor_saved_at: query.cursor?.savedAt ?? null,
+          p_cursor_ref_id: query.cursor?.refId ?? null,
+          p_limit: query.limit,
+        },
+      );
+      if (error) return mapRpcError(error);
+      const nextBoundary = isRecord(data) && isIsoTime(data.snapshotAt)
+        ? parseNotesBoundary(data.nextBoundary, data.snapshotAt)
+        : undefined;
+      const snapshotMatchesCursor = query.cursor === null
+        || (isRecord(data) && data.snapshotAt === query.cursor.snapshotAt);
+      const nextBoundaryAdvances = query.cursor === null
+        || nextBoundary === null
+        || (
+          nextBoundary !== undefined
+          && isStrictlyOlderNotesBoundary(nextBoundary, query.cursor)
+        );
+      if (
+        !isRecord(data)
+        || !hasExactKeys(data, [
+          "version",
+          "state",
+          "recipientUserId",
+          "coupleId",
+          "snapshotAt",
+          "entries",
+          "nextBoundary",
+          "partial",
+        ])
+        || !Array.isArray(data.entries)
+        || data.entries.length > query.limit
+        || !isIsoTime(data.snapshotAt)
+        || nextBoundary === undefined
+        || !snapshotMatchesCursor
+        || !nextBoundaryAdvances
+      ) {
+        console.error("[preparation-topic-message-refs] invalid notes response");
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);
+      }
+      const notesPage = {
+        version: data.version,
+        state: data.state,
+        recipientUserId: data.recipientUserId,
+        coupleId: data.coupleId,
+        snapshotAt: data.snapshotAt,
+        entries: data.entries,
+        nextCursor: nextBoundary === null
+          ? null
+          : encodeNotesCursor({
+              snapshotAt: data.snapshotAt,
+              savedAt: nextBoundary.savedAt,
+              refId: nextBoundary.refId,
+              query: query.query,
+            }),
+        partial: data.partial,
+      };
+      const validated = validateAmoraPreparationNotesPageResponse(
+        notesPage,
+        context.userId,
+        context.coupleId,
+      );
+      if (!validated.ok) {
+        console.error("[preparation-topic-message-refs] invalid notes response", {
           reason: validated.reason,
         });
         return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);

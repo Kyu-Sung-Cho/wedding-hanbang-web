@@ -61,3 +61,16 @@ test("the notes screen is scan-first, privacy-explicit, and returns to exact sou
     /view\.state === "partial"[\s\S]{0,80}\? "확인된 기록"[\s\S]{0,80}: `\$\{view\.records\.length\}개`/u,
   );
 });
+
+test("question search and load-more keep the last verified snapshot until an exact page is ready", () => {
+  assert.match(notesSource, /loadAmoraPreparationNotesMessagePage/u);
+  assert.match(notesSource, /messageReferencePages/u);
+  assert.match(notesSource, /SEARCH_DEBOUNCE_MS = 350/u);
+  assert.match(notesSource, /nextCursor/u);
+  assert.match(notesSource, />질문</u);
+  assert.match(notesSource, />\s*더 보기\s*</u);
+  assert.match(notesSource, /새 검색을 확인하지 못해 이전 결과를 유지했어요/u);
+  assert.match(notesSource, /다음 기록을 확인하지 못해 지금까지 확인한 기록을 유지했어요/u);
+  assert.match(notesSource, /readCurrentNotesIdentity\(\)[\s\S]{0,500}isSameScheduleIdentitySnapshot/u);
+  assert.match(notesSource, /view\.state === "partial" \|\| hasMoreMessageReferences/u);
+});

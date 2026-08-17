@@ -26,6 +26,13 @@ const httpConflictMigration = readFileSync(
   ),
   "utf8",
 );
+const notesReadMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260818130000_amora_preparation_notes_read.sql",
+  ),
+  "utf8",
+);
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
 const GROOM_ID = "10000000-0000-4000-8000-000000000002";
@@ -105,6 +112,29 @@ type ResolvedRef = {
     content: string;
     createdAt: string;
   };
+};
+
+type NotesPage = {
+  version: 1;
+  state: "ready";
+  recipientUserId: string;
+  coupleId: string;
+  snapshotAt: string;
+  entries: Array<{
+    refId: string;
+    topicKey: string;
+    messageId: string;
+    audience: "couple_shared" | "owner_private";
+    revision: number;
+    savedAt: string;
+    sourceCreatedAt: string;
+    questionExcerpt: string;
+    answerExcerpt: string;
+    canRemove: true;
+    canOpenOriginal: true;
+  }>;
+  nextBoundary: { savedAt: string; refId: string } | null;
+  partial: boolean;
 };
 
 async function createDatabase() {
@@ -211,6 +241,7 @@ async function createDatabase() {
   `);
   await db.exec(migration);
   await db.exec(httpConflictMigration);
+  await db.exec(notesReadMigration);
   return db;
 }
 
@@ -327,7 +358,141 @@ async function resolveRef(
   return result.rows[0]!.value;
 }
 
+async function listNotes(
+  db: PGlite,
+  options: {
+    recipientId?: string;
+    expectedPrivacyEpoch?: number;
+    query?: string;
+    snapshotAt?: string | null;
+    cursorSavedAt?: string | null;
+    cursorRefId?: string | null;
+    limit?: number;
+  } = {},
+) {
+  const result = await db.query<{ value: NotesPage }>(`
+    SELECT public.list_amora_preparation_notes_v1(
+      $1::uuid, $2::uuid, $3::bigint, $4::text, $5::timestamptz,
+      $6::timestamptz, $7::uuid, $8::integer
+    ) AS value
+  `, [
+    COUPLE_ID,
+    options.recipientId ?? BRIDE_ID,
+    options.expectedPrivacyEpoch ?? 7,
+    options.query ?? "",
+    options.snapshotAt ?? null,
+    options.cursorSavedAt ?? null,
+    options.cursorRefId ?? null,
+    options.limit ?? 24,
+  ]);
+  return result.rows[0]!.value;
+}
+
 describe("Amora preparation topic message refs migration", () => {
+  it("searches exact visible questions and answers with a stable recipient-bound cursor", async () => {
+    const db = await createDatabase();
+    try {
+      await setPersona(db, "service_role");
+      await setIntent(db, { topicKey: "meeting" });
+      await setIntent(db, {
+        topicKey: "venue",
+        messageId: PRIVATE_ANSWER_ID,
+        requestId: "50000000-0000-4000-8000-000000000002",
+      });
+
+      const privateQuestionMatch = await listNotes(db, { query: "예산 걱정" });
+      expect(privateQuestionMatch.entries).toHaveLength(1);
+      expect(privateQuestionMatch.entries[0]).toMatchObject({
+        topicKey: "venue",
+        audience: "owner_private",
+        questionExcerpt: "제 예산 걱정은 상대에게 아직 보이지 않게 정리하고 싶어요.",
+        answerExcerpt: "먼저 혼자 감당 가능한 상한과 함께 상의할 범위를 나눠 보세요.",
+      });
+
+      const partnerPrivateSearch = await listNotes(db, {
+        recipientId: GROOM_ID,
+        query: "예산 걱정",
+      });
+      expect(partnerPrivateSearch.entries).toEqual([]);
+
+      const sharedAnswerMatch = await listNotes(db, { query: "두세 개" });
+      expect(sharedAnswerMatch.entries.map((entry) => entry.topicKey)).toEqual(["meeting"]);
+
+      const firstPage = await listNotes(db, { limit: 1 });
+      expect(firstPage.entries).toHaveLength(1);
+      expect(firstPage.nextBoundary).not.toBeNull();
+      const firstId = firstPage.entries[0]!.refId;
+
+      await setIntent(db, {
+        topicKey: "dress",
+        requestId: "50000000-0000-4000-8000-000000000003",
+      });
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.amora_preparation_topic_message_refs
+        SET saved_at = $1::timestamptz + interval '1 second'
+        WHERE topic_key = 'dress'
+      `, [firstPage.snapshotAt]);
+      await setPersona(db, "service_role");
+
+      const secondPage = await listNotes(db, {
+        snapshotAt: firstPage.snapshotAt,
+        cursorSavedAt: firstPage.nextBoundary!.savedAt,
+        cursorRefId: firstPage.nextBoundary!.refId,
+        limit: 1,
+      });
+      expect(secondPage.entries).toHaveLength(1);
+      expect(secondPage.entries[0]!.refId).not.toBe(firstId);
+      expect(secondPage.entries.map((entry) => entry.topicKey)).not.toContain("dress");
+      expect(secondPage.snapshotAt).toBe(firstPage.snapshotAt);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("fails closed for stale privacy, malformed cursors, unsafe search, and changed sources", async () => {
+    const db = await createDatabase();
+    try {
+      await setPersona(db, "service_role");
+      await setIntent(db);
+      await expect(listNotes(db, { expectedPrivacyEpoch: 6 }))
+        .rejects.toMatchObject({ code: "PT409" });
+      await expect(listNotes(db, { query: "unsafe\u200Dquery" }))
+        .rejects.toMatchObject({ code: "22023" });
+      await expect(listNotes(db, { limit: 25 }))
+        .rejects.toMatchObject({ code: "22023" });
+      await expect(listNotes(db, {
+        snapshotAt: "2026-08-18T08:00:00.000Z",
+        cursorSavedAt: null,
+        cursorRefId: SHARED_ANSWER_ID,
+      })).rejects.toMatchObject({ code: "22023" });
+      await expect(listNotes(db, {
+        snapshotAt: "2099-01-01T00:00:00.000Z",
+      })).rejects.toMatchObject({ code: "22023" });
+
+      await resetPersona(db);
+      await db.query(`
+        UPDATE public.chat_messages
+        SET content = content || ' changed'
+        WHERE id = $1::uuid
+      `, [SHARED_ANSWER_ID]);
+      await setPersona(db, "service_role");
+      const changed = await listNotes(db);
+      expect(changed).toMatchObject({ entries: [], partial: true });
+
+      await resetPersona(db);
+      const count = await db.query<{ count: number }>(`
+        SELECT count(*)::integer AS count
+        FROM public.amora_preparation_topic_message_refs
+      `);
+      expect(count.rows[0]?.count).toBe(1);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
   it("locks a deterministic roster snapshot before the couple and privacy epoch", async () => {
     const db = await createDatabase();
     try {
@@ -901,7 +1066,7 @@ describe("Amora preparation topic message refs migration", () => {
     }
   }, 30_000);
 
-  it("keeps tables opaque, exposes only four exact service RPCs, and preserves legacy notes", async () => {
+  it("keeps tables opaque, exposes only five exact service RPCs, and preserves legacy notes", async () => {
     const db = await createDatabase();
     try {
       const signatures = await db.query<{ name: string; argument_names: string[] }>(`
@@ -910,9 +1075,10 @@ describe("Amora preparation topic message refs migration", () => {
         JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
         WHERE namespace.nspname = 'public'
           AND procedure.proname IN (
-            'set_amora_preparation_topic_message_ref_v1',
-            'list_amora_preparation_topic_message_refs_v1',
-            'get_amora_preparation_topic_message_ref_state_v1',
+             'set_amora_preparation_topic_message_ref_v1',
+             'list_amora_preparation_topic_message_refs_v1',
+             'list_amora_preparation_notes_v1',
+             'get_amora_preparation_topic_message_ref_state_v1',
             'resolve_amora_preparation_topic_message_ref_v1'
           )
         ORDER BY procedure.proname
@@ -923,6 +1089,14 @@ describe("Amora preparation topic message refs migration", () => {
           argument_names: [
             "p_couple_id", "p_recipient_user_id", "p_topic_key",
             "p_message_id", "p_expected_privacy_epoch",
+          ],
+        },
+        {
+          name: "list_amora_preparation_notes_v1",
+          argument_names: [
+            "p_couple_id", "p_recipient_user_id", "p_expected_privacy_epoch",
+            "p_query", "p_snapshot_at", "p_cursor_saved_at", "p_cursor_ref_id",
+            "p_limit",
           ],
         },
         {
@@ -979,9 +1153,10 @@ describe("Amora preparation topic message refs migration", () => {
         JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
         WHERE namespace.nspname = 'public'
           AND procedure.proname IN (
-            'set_amora_preparation_topic_message_ref_v1',
-            'list_amora_preparation_topic_message_refs_v1',
-            'get_amora_preparation_topic_message_ref_state_v1',
+             'set_amora_preparation_topic_message_ref_v1',
+             'list_amora_preparation_topic_message_refs_v1',
+             'list_amora_preparation_notes_v1',
+             'get_amora_preparation_topic_message_ref_state_v1',
             'resolve_amora_preparation_topic_message_ref_v1'
           )
         ORDER BY procedure.proname
@@ -1032,6 +1207,7 @@ describe("Amora preparation topic message refs migration", () => {
 
       await setPersona(db, "authenticated");
       await expect(setIntent(db)).rejects.toMatchObject({ code: "42501" });
+      await expect(listNotes(db)).rejects.toMatchObject({ code: "42501" });
       await expect(db.query(
         "SELECT * FROM public.amora_preparation_topic_message_refs",
       )).rejects.toMatchObject({ code: "42501" });

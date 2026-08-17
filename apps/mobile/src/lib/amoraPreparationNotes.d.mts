@@ -21,6 +21,7 @@ export type AmoraPreparationNotesSavedConversationRecord = Readonly<{
   id: string;
   type: "saved_conversation";
   typeLabel: "저장 대화";
+  questionExcerpt?: string;
   excerpt: string;
   topicKeys: readonly string[];
   topicLabels: readonly string[];
@@ -77,6 +78,7 @@ export declare function buildAmoraPreparationNotes(input: Readonly<{
   coupleId: string;
   topics: readonly Readonly<{ key: string; label: string }>[];
   messageReferenceCollection: unknown;
+  messageReferencePages?: readonly unknown[];
   messageReferenceReadState: "loading" | "loaded" | "partial" | "unavailable";
   ownerCriterionResponse?: unknown;
   ownerCriterionReadState?: "loading" | "loaded" | "partial" | "unavailable";

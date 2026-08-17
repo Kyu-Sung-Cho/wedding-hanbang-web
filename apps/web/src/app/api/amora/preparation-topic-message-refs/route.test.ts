@@ -49,6 +49,32 @@ const collection = {
   partial: false,
 };
 
+const notesRpcPage = {
+  version: 1,
+  state: "ready",
+  recipientUserId: RECIPIENT,
+  coupleId: COUPLE,
+  snapshotAt: "2026-08-18T08:00:00.000Z",
+  entries: [{
+    refId: REF,
+    topicKey: "venue",
+    messageId: MESSAGE,
+    audience: "owner_private",
+    revision: 2,
+    savedAt: "2026-08-18T07:00:00.000Z",
+    sourceCreatedAt: "2026-08-18T06:00:00.000Z",
+    questionExcerpt: "예식장 계약 전에 무엇을 확인해야 할까?",
+    answerExcerpt: "대관 범위와 취소 조건을 서면에서 먼저 확인해요.",
+    canRemove: true,
+    canOpenOriginal: true,
+  }],
+  nextBoundary: {
+    savedAt: "2026-08-18T07:00:00.000Z",
+    refId: REF,
+  },
+  partial: false,
+};
+
 const state = {
   version: 1,
   state: "ready",
@@ -157,6 +183,88 @@ describe("/api/amora/preparation-topic-message-refs", () => {
     );
   });
 
+  it("reads a notes-only question-and-answer page and round-trips one opaque cursor", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: notesRpcPage, error: null })
+      .mockResolvedValueOnce({
+        data: { ...notesRpcPage, entries: [], nextBoundary: null },
+        error: null,
+      });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+
+    const first = await GET(getRequest("?view=notes&q=%EC%98%88%EC%8B%9D%EC%9E%A5%20%20%20%EA%B3%84%EC%95%BD&limit=12"));
+    const firstPayload = await first.json();
+
+    expect(first.status).toBe(200);
+    expect(firstPayload).toEqual({
+      ...notesRpcPage,
+      nextBoundary: undefined,
+      nextCursor: expect.stringMatching(/^np1\.[A-Za-z0-9_-]{16,512}$/u),
+    });
+    expect(firstPayload).not.toHaveProperty("nextBoundary");
+    expect(rpc).toHaveBeenNthCalledWith(1,
+      "list_amora_preparation_notes_v1",
+      {
+        p_couple_id: COUPLE,
+        p_recipient_user_id: RECIPIENT,
+        p_expected_privacy_epoch: 7,
+        p_query: "예식장 계약",
+        p_snapshot_at: null,
+        p_cursor_saved_at: null,
+        p_cursor_ref_id: null,
+        p_limit: 12,
+      },
+    );
+
+    const second = await GET(getRequest(
+      `?view=notes&q=%EC%98%88%EC%8B%9D%EC%9E%A5%20%EA%B3%84%EC%95%BD&limit=12&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+    ));
+    expect(second.status).toBe(200);
+    expect(rpc).toHaveBeenNthCalledWith(2,
+      "list_amora_preparation_notes_v1",
+      {
+        p_couple_id: COUPLE,
+        p_recipient_user_id: RECIPIENT,
+        p_expected_privacy_epoch: 7,
+        p_query: "예식장 계약",
+        p_snapshot_at: notesRpcPage.snapshotAt,
+        p_cursor_saved_at: notesRpcPage.nextBoundary.savedAt,
+        p_cursor_ref_id: REF,
+        p_limit: 12,
+      },
+    );
+  });
+
+  it("rejects a notes cursor page that changes snapshot or fails to advance", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: notesRpcPage, error: null })
+      .mockResolvedValueOnce({ data: notesRpcPage, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          ...notesRpcPage,
+          snapshotAt: "2026-08-18T09:00:00.000Z",
+          entries: [],
+          nextBoundary: null,
+        },
+        error: null,
+      });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+
+    const first = await GET(getRequest("?view=notes&limit=12"));
+    const firstPayload = await first.json();
+    expect(first.status).toBe(200);
+
+    const repeated = await GET(getRequest(
+      `?view=notes&limit=12&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+    ));
+    expect(repeated.status).toBe(503);
+
+    const changedSnapshot = await GET(getRequest(
+      `?view=notes&limit=12&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+    ));
+    expect(changedSnapshot.status).toBe(503);
+  });
+
   it("reads exact state only for one canonical topic and one source message", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: state, error: null });
     vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
@@ -214,6 +322,10 @@ describe("/api/amora/preparation-topic-message-refs", () => {
     `?topicKey=venue&topicKey=dress&messageId=${MESSAGE}`,
     `?topicKey=venue&messageId=${MESSAGE}&ownerId=${RECIPIENT}`,
     `?topicKey=guessed&messageId=${MESSAGE}`,
+    "?view=notes&view=notes",
+    "?view=notes&cursor=raw-timestamp",
+    "?view=notes&limit=25",
+    "?view=notes&unsupported=true",
   ])("rejects an ambiguous or expanding query before auth: %s", async (suffix) => {
     const response = await GET(getRequest(suffix));
     expect(response.status).toBe(400);

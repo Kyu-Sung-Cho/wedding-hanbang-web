@@ -96,6 +96,7 @@ const ACTIVE_AMORA_SECURITY_MIGRATIONS = Object.freeze([
   "20260818100000_restore_signup_profile_trigger.sql",
   "20260818110000_restore_couple_invite_nullable_contract.sql",
   "20260818120000_amora_message_ref_http_conflicts.sql",
+  "20260818130000_amora_preparation_notes_read.sql",
 ]);
 
 const GATED_COUPLE_INVITE_PHASE_B_MIGRATION =
@@ -180,6 +181,10 @@ const COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION = Object.freeze({
 const AMORA_MESSAGE_REF_HTTP_CONFLICTS_MIGRATION = Object.freeze({
   file: "20260818120000_amora_message_ref_http_conflicts.sql",
   sha256: "c3e269594e956cc96cb19b3c282c5c1865178baa6b468c944831de8d9b389358",
+});
+const AMORA_PREPARATION_NOTES_READ_MIGRATION = Object.freeze({
+  file: "20260818130000_amora_preparation_notes_read.sql",
+  sha256: "022707a3db67b6b7e7e06280011d210e184b2fd1d911947d416758a334a0f9d4",
 });
 
 const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
@@ -282,7 +287,7 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.manifest.status, "deployment_blocked");
   assert.equal(result.remoteBaseline.observedRemoteHead, "20260727090000");
   assert.equal(result.remoteBaseline.appliedMigrations.length, 32);
-  assert.equal(result.pendingMigrations.length, 74);
+  assert.equal(result.pendingMigrations.length, 75);
   assert.equal(
     result.pendingMigrations.at(0)?.file,
     "20260730100000_retire_undisclosed_community_agents.sql",
@@ -623,38 +628,42 @@ test("preparation topic message references migration stays exact-hash pinned and
   });
 });
 
-test("message-ref HTTP conflicts are the terminal successor migration and remain deployment-blocked", () => {
+test("preparation notes read is the terminal successor migration and remains deployment-blocked", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.equal(result.manifest.expandMigrations.length, 106);
+  assert.equal(result.manifest.expandMigrations.length, 107);
   assert.deepEqual(
     result.manifest.expandMigrations.at(-1),
-    AMORA_MESSAGE_REF_HTTP_CONFLICTS_MIGRATION,
+    AMORA_PREPARATION_NOTES_READ_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-2),
-    COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION,
+    AMORA_MESSAGE_REF_HTTP_CONFLICTS_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-3),
-    SIGNUP_PROFILE_TRIGGER_RESTORE_MIGRATION,
+    COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-4),
-    AMORA_PREPARATION_CATCH_UP_MIGRATION,
+    SIGNUP_PROFILE_TRIGGER_RESTORE_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-5),
+    AMORA_PREPARATION_CATCH_UP_MIGRATION,
+  );
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-6),
     AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
   );
-  assert.equal(result.pendingMigrations.length, 74);
+  assert.equal(result.pendingMigrations.length, 75);
   assert.deepEqual(
     result.pendingMigrations.at(-1),
-    AMORA_MESSAGE_REF_HTTP_CONFLICTS_MIGRATION,
+    AMORA_PREPARATION_NOTES_READ_MIGRATION,
   );
-  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 74);
+  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 75);
   assert.equal(
     result.remoteBaseline.contract.lastPendingSuccessor,
-    "20260818120000",
+    "20260818130000",
   );
   assert.equal(result.deploymentBlocked, true);
   assert.equal(result.manifest.status, "deployment_blocked");
@@ -852,9 +861,23 @@ test("atomic action href parity adds no backup table and postchecks private/publ
   assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
 });
 
+test("preparation notes read is exact-hash pinned and service-role-only", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+  assert.deepEqual(result.manifest.expandMigrations.at(-1), AMORA_PREPARATION_NOTES_READ_MIGRATION);
+  const sql = readFileSync(
+    join(REPO_ROOT, "supabase", "migrations", AMORA_PREPARATION_NOTES_READ_MIGRATION.file),
+    "utf8",
+  );
+  const signature = String.raw`public\.list_amora_preparation_notes_v1\s*\(\s*uuid\s*,\s*uuid\s*,\s*bigint\s*,\s*text\s*,\s*timestamptz\s*,\s*timestamptz\s*,\s*uuid\s*,\s*integer\s*\)`;
+  assert.match(sql, /IF auth\.role\(\) IS DISTINCT FROM 'service_role'/i);
+  assert.match(sql, new RegExp(String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${signature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`, "i"));
+  assert.match(sql, new RegExp(String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${signature}\s+TO\s+service_role`, "i"));
+  assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
+});
+
 test("booking outcome provenance is exact-hash pinned and service-role-only", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.deepEqual(result.manifest.expandMigrations.at(-6), AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION);
+  assert.deepEqual(result.manifest.expandMigrations.at(-7), AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION);
   assert.equal(result.deploymentBlocked, true);
   assert.deepEqual(result.manifest.deploymentEvidence, {
     hostedStaging: "missing",
@@ -905,7 +928,7 @@ test("booking outcome provenance is exact-hash pinned and service-role-only", ()
 test("neutral preparation space is the terminal exact-hash migration and keeps membership compatibility private", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-5),
+    result.manifest.expandMigrations.at(-6),
     AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
   );
   assert.equal(result.deploymentBlocked, true);
@@ -933,7 +956,7 @@ test("neutral preparation space is the terminal exact-hash migration and keeps m
 test("preparation catch-up pins service-only storage, finalizer ACL, and private actor binding", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-4),
+    result.manifest.expandMigrations.at(-5),
     AMORA_PREPARATION_CATCH_UP_MIGRATION,
   );
   assert.deepEqual(
@@ -974,7 +997,7 @@ test("preparation catch-up pins service-only storage, finalizer ACL, and private
 test("signup profile trigger restoration is exact-hash pinned and restores only the fail-closed trigger contract", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-3),
+    result.manifest.expandMigrations.at(-4),
     SIGNUP_PROFILE_TRIGGER_RESTORE_MIGRATION,
   );
   assert.deepEqual(
@@ -1008,7 +1031,7 @@ test("signup profile trigger restoration is exact-hash pinned and restores only 
 test("couple invite nullable restoration is exact-hash pinned and changes no row data", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-2),
+    result.manifest.expandMigrations.at(-3),
     COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION,
   );
   assert.deepEqual(
@@ -1476,6 +1499,7 @@ function readyStaticFixture({
         neutral_preparation_space_member_model_contract_count: 1,
         preparation_catch_up_rpc_acl_count: 1,
         preparation_catch_up_private_actor_binding_contract_count: 1,
+        preparation_notes_read_rpc_acl_count: 1,
         signup_profile_trigger_contract_count: 1,
         couple_invite_nullable_contract_count: 1,
         couple_plan_change_auth_user_fk_count: 4,
@@ -1790,6 +1814,11 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
   );
   assert.equal(
     result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .preparation_notes_read_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
       .signup_profile_trigger_contract_count,
     1,
   );
@@ -1838,6 +1867,18 @@ test("preparation catch-up ACL과 private actor binding hosted postcheck가 없�
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
     );
   }
+});
+
+test("preparation notes read ACL hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {
+  expectBlocked(
+    readyStaticFixture({
+      mutateContract(contract) {
+        contract.postApplyChecks[0].expectedEvidence
+          .preparation_notes_read_rpc_acl_count = 0;
+      },
+    }).root,
+    "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+  );
 });
 
 test("neutral preparation space ACL과 member-model hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {

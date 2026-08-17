@@ -10,6 +10,28 @@ export declare class AmoraPreparationNotesLoadError extends Error {
   constructor(code: AmoraPreparationNotesLoadErrorCode);
 }
 
+export declare function normalizeAmoraPreparationNotesQuery(
+  value: unknown,
+): string | null;
+
+export declare function loadAmoraPreparationNotesMessagePage(options: Readonly<{
+  ownerId: string;
+  coupleId: string;
+  query: string;
+  cursor?: string | null;
+  apiFetch: (
+    path: string,
+    options: Readonly<{
+      method: "GET";
+      headers: Readonly<{ Accept: "application/json" }>;
+      signal: AbortSignal;
+    }>,
+  ) => Promise<Readonly<{ ok: boolean; json(): Promise<unknown> }>>;
+  isCurrent: () => boolean;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}>): Promise<AmoraPreparationNotesPageResponse>;
+
 export type AmoraPreparationNotesReadState = "loaded" | "unavailable";
 
 export type AmoraPreparationNotesSources = Readonly<{
@@ -43,3 +65,6 @@ export declare function loadAmoraPreparationNotesSources(options: Readonly<{
   signal?: AbortSignal;
   timeoutMs?: number;
 }>): Promise<AmoraPreparationNotesSources>;
+import type {
+  AmoraPreparationNotesPageResponse,
+} from "@hanbang/shared/amora-preparation-topic-message-ref";

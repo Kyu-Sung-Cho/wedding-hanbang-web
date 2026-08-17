@@ -1,5 +1,7 @@
 import {
+  AMORA_PREPARATION_NOTES_PAGE_LIMIT,
   parseAmoraPreparationTopicMessageRefMutationRequest,
+  validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
   validateAmoraPreparationTopicMessageRefMutationResponse,
   validateAmoraPreparationTopicMessageRefResolveResponse,
@@ -11,6 +13,7 @@ const RECIPIENT = "11111111-1111-4111-8111-111111111111";
 const COUPLE = "22222222-2222-4222-8222-222222222222";
 const REF = "33333333-3333-4333-8333-333333333333";
 const MESSAGE = "44444444-4444-4444-8444-444444444444";
+const NOTES_CURSOR = "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 
 describe("Amora preparation-topic message-reference contract", () => {
   it("accepts only an exact recipient-bound bounded collection", () => {
@@ -51,6 +54,64 @@ describe("Amora preparation-topic message-reference contract", () => {
       RECIPIENT,
       COUPLE,
     )).toEqual({ ok: false, reason: "collection" });
+  });
+
+  it("accepts a privacy-bound notes page with question and answer excerpts plus one opaque cursor", () => {
+    const payload = {
+      version: 1,
+      state: "ready",
+      recipientUserId: RECIPIENT,
+      coupleId: COUPLE,
+      snapshotAt: "2026-08-18T08:00:00.000Z",
+      entries: [{
+        refId: REF,
+        topicKey: "venue",
+        messageId: MESSAGE,
+        audience: "owner_private",
+        revision: 2,
+        savedAt: "2026-08-18T07:00:00.000Z",
+        sourceCreatedAt: "2026-08-18T06:00:00.000Z",
+        questionExcerpt: "예식장 계약 전에 무엇을 확인해야 할까?",
+        answerExcerpt: "대관 범위와 취소 조건을 서면에서 먼저 확인해요.",
+        canRemove: true,
+        canOpenOriginal: true,
+      }],
+      nextCursor: NOTES_CURSOR,
+      partial: false,
+    };
+
+    expect(AMORA_PREPARATION_NOTES_PAGE_LIMIT).toBe(24);
+    expect(validateAmoraPreparationNotesPageResponse(
+      payload,
+      RECIPIENT,
+      COUPLE,
+    )).toEqual({ ok: true, value: payload });
+
+    for (const invalid of [
+      { ...payload, recipientUserId: "55555555-5555-4555-8555-555555555555" },
+      { ...payload, nextCursor: "2026-08-18T07:00:00.000Z" },
+      { ...payload, sourceDigest: "must-not-escape" },
+      {
+        ...payload,
+        entries: [{ ...payload.entries[0], questionExcerpt: "hidden\u200Dquestion" }],
+      },
+      {
+        ...payload,
+        entries: Array.from(
+          { length: AMORA_PREPARATION_NOTES_PAGE_LIMIT + 1 },
+          (_, index) => ({
+            ...payload.entries[0],
+            refId: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`,
+          }),
+        ),
+      },
+    ]) {
+      expect(validateAmoraPreparationNotesPageResponse(
+        invalid,
+        RECIPIENT,
+        COUPLE,
+      ).ok).toBe(false);
+    }
   });
 
   it("accepts only an exact explicit mutation and exact source state", () => {

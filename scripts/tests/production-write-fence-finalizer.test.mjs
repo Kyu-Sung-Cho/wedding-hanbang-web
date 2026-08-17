@@ -1375,7 +1375,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 106-migration successor keeps finalization blocked through the message-ref HTTP-conflict tail", async () => {
+test("the current 107-migration successor keeps finalization blocked through the preparation-notes read tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1383,9 +1383,9 @@ test("the current 106-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 106);
+  assert.equal(manifest.expandMigrations.length, 107);
   assert.deepEqual(
-    manifest.expandMigrations.slice(-8),
+    manifest.expandMigrations.slice(-9),
     [
       {
         file: "20260816150000_amora_provider_backed_add_action_application.sql",
@@ -1418,6 +1418,10 @@ test("the current 106-migration successor keeps finalization blocked through the
       {
         file: "20260818120000_amora_message_ref_http_conflicts.sql",
         sha256: "c3e269594e956cc96cb19b3c282c5c1865178baa6b468c944831de8d9b389358",
+      },
+      {
+        file: "20260818130000_amora_preparation_notes_read.sql",
+        sha256: "022707a3db67b6b7e7e06280011d210e184b2fd1d911947d416758a334a0f9d4",
       },
     ],
   );

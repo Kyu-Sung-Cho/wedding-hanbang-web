@@ -1,5 +1,6 @@
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTRACT_VERSION = 1;
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT = 80;
+export const AMORA_PREPARATION_NOTES_PAGE_LIMIT = 24;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -28,6 +29,7 @@ const AUDIENCES = new Set(["couple_shared", "owner_private"]);
 const UNSAFE_INLINE_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const UNSAFE_MULTILINE_RE =
   /[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000B-\u001F\u007F-\u009F]/u;
+const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -196,6 +198,83 @@ export function validateAmoraPreparationTopicMessageRefCollectionResponse(
   for (const reference of value.references) {
     const refId = reference.refId.toLowerCase();
     const topicMessage = `${reference.topicKey}:${reference.messageId.toLowerCase()}`;
+    if (refIds.has(refId) || topicMessages.has(topicMessage)) {
+      return { ok: false, reason: "collection" };
+    }
+    refIds.add(refId);
+    topicMessages.add(topicMessage);
+  }
+  return { ok: true, value };
+}
+
+function isPreparationNotesEntry(value, snapshotAt) {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "refId",
+      "topicKey",
+      "messageId",
+      "audience",
+      "revision",
+      "savedAt",
+      "sourceCreatedAt",
+      "questionExcerpt",
+      "answerExcerpt",
+      "canRemove",
+      "canOpenOriginal",
+    ])
+    && isUuid(value.refId)
+    && TOPIC_KEYS.has(value.topicKey)
+    && isUuid(value.messageId)
+    && AUDIENCES.has(value.audience)
+    && isPositiveRevision(value.revision)
+    && isIsoTime(value.savedAt)
+    && Date.parse(value.savedAt) <= Date.parse(snapshotAt)
+    && isIsoTime(value.sourceCreatedAt)
+    && Date.parse(value.sourceCreatedAt) <= Date.parse(value.savedAt)
+    && isSafeExcerpt(value.questionExcerpt)
+    && isSafeExcerpt(value.answerExcerpt)
+    && value.canRemove === true
+    && value.canOpenOriginal === true;
+}
+
+export function validateAmoraPreparationNotesPageResponse(
+  value,
+  expectedRecipientUserId,
+  expectedCoupleId,
+) {
+  const envelopeError = validateEnvelope(
+    value,
+    expectedRecipientUserId,
+    expectedCoupleId,
+  );
+  if (envelopeError) return envelopeError;
+  if (
+    !hasExactKeys(value, [
+      "version",
+      "state",
+      "recipientUserId",
+      "coupleId",
+      "snapshotAt",
+      "entries",
+      "nextCursor",
+      "partial",
+    ])
+    || value.state !== "ready"
+    || !isIsoTime(value.snapshotAt)
+    || !Array.isArray(value.entries)
+    || value.entries.length > AMORA_PREPARATION_NOTES_PAGE_LIMIT
+    || value.entries.some((entry) => !isPreparationNotesEntry(entry, value.snapshotAt))
+    || (value.nextCursor !== null && (
+      typeof value.nextCursor !== "string" || !NOTES_CURSOR_RE.test(value.nextCursor)
+    ))
+    || typeof value.partial !== "boolean"
+  ) return { ok: false, reason: "collection" };
+
+  const refIds = new Set();
+  const topicMessages = new Set();
+  for (const entry of value.entries) {
+    const refId = entry.refId.toLowerCase();
+    const topicMessage = `${entry.topicKey}:${entry.messageId.toLowerCase()}`;
     if (refIds.has(refId) || topicMessages.has(topicMessage)) {
       return { ok: false, reason: "collection" };
     }

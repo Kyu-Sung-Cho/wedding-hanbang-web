@@ -18,6 +18,10 @@ import {
   Users,
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
+import {
+  validateAmoraPreparationNotesPageResponse,
+  type AmoraPreparationNotesPageResponse,
+} from "@hanbang/shared/amora-preparation-topic-message-ref";
 
 import {
   AppHeader,
@@ -38,7 +42,9 @@ import {
   type AmoraPreparationNotesTypeFilter,
 } from "@/lib/amoraPreparationNotes.mjs";
 import {
+  loadAmoraPreparationNotesMessagePage,
   loadAmoraPreparationNotesSources,
+  normalizeAmoraPreparationNotesQuery,
   type AmoraPreparationNotesSources,
 } from "@/lib/amoraPreparationNotesLoader.mjs";
 import {
@@ -54,11 +60,17 @@ import {
 import { supabase } from "@/lib/supabase";
 
 type ScreenLoadState = "loading" | "ready" | "error";
+type MessagePageState = "idle" | "searching" | "loading_more";
+type MessagePageNotice = "search_error" | "more_error" | null;
 
 type NotesSnapshot = Readonly<{
   identity: ScheduleIdentitySnapshot;
   sources: AmoraPreparationNotesSources;
+  messageReferencePages: readonly AmoraPreparationNotesPageResponse[];
+  appliedQuery: string;
 }>;
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 const TOPICS = Object.freeze(
   CATEGORY_CHECKLISTS.map(({ key, label }) => Object.freeze({ key, label })),
@@ -121,6 +133,19 @@ function allSourcesUnavailable(sources: AmoraPreparationNotesSources): boolean {
     && sources.actionReadState === "unavailable";
 }
 
+function initialMessageReferencePages(
+  sources: AmoraPreparationNotesSources,
+  identity: ScheduleIdentitySnapshot,
+): readonly AmoraPreparationNotesPageResponse[] {
+  if (sources.messageReferenceReadState !== "loaded") return Object.freeze([]);
+  const parsed = validateAmoraPreparationNotesPageResponse(
+    sources.messageReferenceCollection,
+    identity.ownerId,
+    identity.coupleId,
+  );
+  return parsed.ok ? Object.freeze([parsed.value]) : Object.freeze([]);
+}
+
 function FilterChip({
   label,
   selected,
@@ -167,6 +192,7 @@ function NotesRecordRow({
     : "기준 확인하기";
   const accessibilityLabel = [
     record.typeLabel,
+    record.type === "saved_conversation" ? record.questionExcerpt : undefined,
     record.excerpt,
     topicLabel,
     record.scopeLabel,
@@ -186,6 +212,17 @@ function NotesRecordRow({
         </AppText>
         <StatusPill label={record.scopeLabel} tone={record.scope === "owner_private" ? "neutral" : "success"} />
       </View>
+      {record.type === "saved_conversation" && record.questionExcerpt ? (
+        <View style={styles.questionBlock}>
+          <AppText variant="eyebrow" style={styles.questionLabel}>질문</AppText>
+          <AppText variant="body" style={styles.questionExcerpt} numberOfLines={3}>
+            {record.questionExcerpt}
+          </AppText>
+        </View>
+      ) : null}
+      {record.type === "saved_conversation" && record.questionExcerpt ? (
+        <AppText variant="eyebrow" style={styles.answerLabel}>아모라 답변</AppText>
+      ) : null}
       <AppText variant="bodyStrong" style={styles.recordExcerpt} numberOfLines={4}>
         {record.excerpt}
       </AppText>
@@ -212,8 +249,12 @@ export default function AmoraPreparationNotesScreen() {
   const [topicFilter, setTopicFilter] = useState<AmoraPreparationNotesTopicFilter>("all");
   const [typeFilter, setTypeFilter] = useState<AmoraPreparationNotesTypeFilter>("all");
   const [usingLastVerified, setUsingLastVerified] = useState(false);
+  const [messagePageState, setMessagePageState] = useState<MessagePageState>("idle");
+  const [messagePageNotice, setMessagePageNotice] = useState<MessagePageNotice>(null);
   const loadSequenceRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
+  const messagePageSequenceRef = useRef(0);
+  const messagePageControllerRef = useRef<AbortController | null>(null);
   const identityRef = useRef<ScheduleIdentitySnapshot | null>(null);
   const lastVerifiedSnapshotRef = useRef<NotesSnapshot | null>(null);
   const notesScrollRef = useRef<ScrollView | null>(null);
@@ -240,6 +281,9 @@ export default function AmoraPreparationNotesScreen() {
         identityRef.current
         && !isSameScheduleIdentitySnapshot(identityRef.current, identity)
       ) {
+        messagePageSequenceRef.current += 1;
+        messagePageControllerRef.current?.abort();
+        messagePageControllerRef.current = null;
         lastVerifiedSnapshotRef.current = null;
         pendingRestoreOffsetRef.current = null;
         notesScrollOffsetRef.current = 0;
@@ -279,11 +323,13 @@ export default function AmoraPreparationNotesScreen() {
       ) throw new Error("AMORA_NOTES_IDENTITY_CHANGED");
 
       identityRef.current = finalIdentity;
+      const messageReferencePages = initialMessageReferencePages(sources, finalIdentity);
       const sourceProjection = buildAmoraPreparationNotes({
         ownerId: finalIdentity.ownerId,
         coupleId: finalIdentity.coupleId,
         topics: TOPICS,
         ...sources,
+        ...(messageReferencePages.length > 0 ? { messageReferencePages } : {}),
         openActions: sources.openActions ?? undefined,
         todayYmd: formatLocalDateKey(),
         query: "",
@@ -296,17 +342,25 @@ export default function AmoraPreparationNotesScreen() {
         && priorSnapshot
         && isSameScheduleIdentitySnapshot(priorSnapshot.identity, finalIdentity)
       ) {
+        setQuery(priorSnapshot.appliedQuery);
         setSnapshot(priorSnapshot);
         setUsingLastVerified(true);
         setLoadState("ready");
         return;
       }
 
-      const nextSnapshot = Object.freeze({ identity: finalIdentity, sources });
+      const nextSnapshot = Object.freeze({
+        identity: finalIdentity,
+        sources,
+        messageReferencePages,
+        appliedQuery: "",
+      });
       if (sourceProjection.state !== "read_error") {
         lastVerifiedSnapshotRef.current = nextSnapshot;
       }
       setSnapshot(nextSnapshot);
+      setMessagePageState("idle");
+      setMessagePageNotice(null);
       setLoadState("ready");
     } catch {
       if (!isCurrent()) return;
@@ -317,6 +371,9 @@ export default function AmoraPreparationNotesScreen() {
   }, []);
 
   const reload = useCallback(() => {
+    messagePageSequenceRef.current += 1;
+    messagePageControllerRef.current?.abort();
+    messagePageControllerRef.current = null;
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -328,6 +385,9 @@ export default function AmoraPreparationNotesScreen() {
       reload();
       return () => {
         loadSequenceRef.current += 1;
+        messagePageSequenceRef.current += 1;
+        messagePageControllerRef.current?.abort();
+        messagePageControllerRef.current = null;
         controllerRef.current?.abort();
         controllerRef.current = null;
       };
@@ -345,6 +405,131 @@ export default function AmoraPreparationNotesScreen() {
     return () => cancelAnimationFrame(frame);
   }, [loadState, snapshot]);
 
+  useEffect(() => {
+    if (loadState !== "ready" || !snapshot) return undefined;
+    const normalizedQuery = normalizeAmoraPreparationNotesQuery(query);
+    if (normalizedQuery === null) {
+      setMessagePageState("idle");
+      setMessagePageNotice("search_error");
+      return undefined;
+    }
+    if (normalizedQuery === snapshot.appliedQuery) {
+      setMessagePageState("idle");
+      setMessagePageNotice(null);
+      return undefined;
+    }
+
+    const baseSnapshot = snapshot;
+    const parentLoadSequence = loadSequenceRef.current;
+    const sequence = messagePageSequenceRef.current + 1;
+    messagePageSequenceRef.current = sequence;
+    messagePageControllerRef.current?.abort();
+    const controller = new AbortController();
+    messagePageControllerRef.current = controller;
+    setMessagePageState("searching");
+    setMessagePageNotice(null);
+
+    const isCurrent = () => (
+      !controller.signal.aborted
+      && loadSequenceRef.current === parentLoadSequence
+      && messagePageSequenceRef.current === sequence
+      && messagePageControllerRef.current === controller
+    );
+    const timeoutHandle = setTimeout(() => {
+      void (async () => {
+        let identityInvalid = false;
+        try {
+          const initialIdentity = await readCurrentNotesIdentity();
+          if (
+            !initialIdentity
+            || !isCurrent()
+            || !isSameScheduleIdentitySnapshot(baseSnapshot.identity, initialIdentity)
+          ) {
+            identityInvalid = isCurrent();
+            throw new Error("AMORA_NOTES_SEARCH_IDENTITY_CHANGED");
+          }
+          const page = await loadAmoraPreparationNotesMessagePage({
+            ownerId: initialIdentity.ownerId,
+            coupleId: initialIdentity.coupleId,
+            query: normalizedQuery,
+            cursor: null,
+            apiFetch: (path, options) => (
+              apiFetchForExpectedUser(initialIdentity.ownerId, path, options)
+            ),
+            isCurrent,
+            signal: controller.signal,
+          });
+          const finalIdentity = await readCurrentNotesIdentity();
+          if (
+            !finalIdentity
+            || !isCurrent()
+            || !isSameScheduleIdentitySnapshot(initialIdentity, finalIdentity)
+          ) {
+            identityInvalid = isCurrent();
+            throw new Error("AMORA_NOTES_SEARCH_IDENTITY_CHANGED");
+          }
+
+          const nextSources = Object.freeze({
+            ...baseSnapshot.sources,
+            messageReferenceCollection: page,
+            messageReferenceReadState: "loaded" as const,
+          });
+          const nextSnapshot = Object.freeze({
+            identity: finalIdentity,
+            sources: nextSources,
+            messageReferencePages: Object.freeze([page]),
+            appliedQuery: normalizedQuery,
+          });
+          const nextProjection = buildAmoraPreparationNotes({
+            ownerId: finalIdentity.ownerId,
+            coupleId: finalIdentity.coupleId,
+            topics: TOPICS,
+            ...nextSources,
+            messageReferencePages: nextSnapshot.messageReferencePages,
+            openActions: nextSources.openActions ?? undefined,
+            todayYmd: formatLocalDateKey(),
+            query: normalizedQuery,
+            scopeFilter,
+            topicFilter,
+            typeFilter,
+          });
+          if (nextProjection.state === "read_error") {
+            throw new Error("AMORA_NOTES_SEARCH_PAGE_INVALID");
+          }
+          if (!isCurrent()) return;
+          identityRef.current = finalIdentity;
+          lastVerifiedSnapshotRef.current = nextSnapshot;
+          setSnapshot(nextSnapshot);
+          setUsingLastVerified(false);
+          setMessagePageState("idle");
+          setMessagePageNotice(null);
+        } catch {
+          if (!isCurrent()) return;
+          if (identityInvalid) {
+            messagePageSequenceRef.current += 1;
+            controller.abort();
+            identityRef.current = null;
+            lastVerifiedSnapshotRef.current = null;
+            setSnapshot(null);
+            setUsingLastVerified(false);
+            setLoadState("error");
+            return;
+          }
+          setMessagePageState("idle");
+          setMessagePageNotice("search_error");
+        }
+      })();
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timeoutHandle);
+      controller.abort();
+      if (messagePageControllerRef.current === controller) {
+        messagePageControllerRef.current = null;
+      }
+    };
+  }, [loadState, query, scopeFilter, snapshot, topicFilter, typeFilter]);
+
   const view = useMemo(() => {
     if (!snapshot) return null;
     return buildAmoraPreparationNotes({
@@ -352,14 +537,24 @@ export default function AmoraPreparationNotesScreen() {
       coupleId: snapshot.identity.coupleId,
       topics: TOPICS,
       ...snapshot.sources,
+      ...(snapshot.messageReferencePages.length > 0
+        ? { messageReferencePages: snapshot.messageReferencePages }
+        : {}),
       openActions: snapshot.sources.openActions ?? undefined,
       todayYmd: formatLocalDateKey(),
-      query,
+      query: snapshot.appliedQuery,
       scopeFilter,
       topicFilter,
       typeFilter,
     });
-  }, [query, scopeFilter, snapshot, topicFilter, typeFilter]);
+  }, [scopeFilter, snapshot, topicFilter, typeFilter]);
+
+  const lastMessageReferencePage = snapshot?.messageReferencePages.at(-1) ?? null;
+  const hasMoreMessageReferences = lastMessageReferencePage?.nextCursor !== null
+    && lastMessageReferencePage?.nextCursor !== undefined;
+  const canLoadMoreMessageReferences = hasMoreMessageReferences
+    && messagePageState === "idle"
+    && normalizeAmoraPreparationNotesQuery(query) === snapshot?.appliedQuery;
 
   const resetFilters = useCallback(() => {
     setQuery("");
@@ -367,6 +562,118 @@ export default function AmoraPreparationNotesScreen() {
     setTopicFilter("all");
     setTypeFilter("all");
   }, []);
+
+  const loadMoreMessageReferences = useCallback(async () => {
+    const currentSnapshot = snapshot;
+    const currentLastPage = currentSnapshot?.messageReferencePages.at(-1) ?? null;
+    const normalizedQuery = normalizeAmoraPreparationNotesQuery(query);
+    if (
+      !currentSnapshot
+      || !currentLastPage?.nextCursor
+      || normalizedQuery === null
+      || normalizedQuery !== currentSnapshot.appliedQuery
+      || messagePageState !== "idle"
+    ) return;
+
+    const parentLoadSequence = loadSequenceRef.current;
+    const sequence = messagePageSequenceRef.current + 1;
+    messagePageSequenceRef.current = sequence;
+    messagePageControllerRef.current?.abort();
+    const controller = new AbortController();
+    messagePageControllerRef.current = controller;
+    setMessagePageState("loading_more");
+    setMessagePageNotice(null);
+    const isCurrent = () => (
+      !controller.signal.aborted
+      && loadSequenceRef.current === parentLoadSequence
+      && messagePageSequenceRef.current === sequence
+      && messagePageControllerRef.current === controller
+    );
+
+    let identityInvalid = false;
+    try {
+      const initialIdentity = await readCurrentNotesIdentity();
+      if (
+        !initialIdentity
+        || !isCurrent()
+        || !isSameScheduleIdentitySnapshot(currentSnapshot.identity, initialIdentity)
+      ) {
+        identityInvalid = isCurrent();
+        throw new Error("AMORA_NOTES_MORE_IDENTITY_CHANGED");
+      }
+      const page = await loadAmoraPreparationNotesMessagePage({
+        ownerId: initialIdentity.ownerId,
+        coupleId: initialIdentity.coupleId,
+        query: currentSnapshot.appliedQuery,
+        cursor: currentLastPage.nextCursor,
+        apiFetch: (path, options) => (
+          apiFetchForExpectedUser(initialIdentity.ownerId, path, options)
+        ),
+        isCurrent,
+        signal: controller.signal,
+      });
+      const finalIdentity = await readCurrentNotesIdentity();
+      if (
+        !finalIdentity
+        || !isCurrent()
+        || page.snapshotAt !== currentLastPage.snapshotAt
+        || !isSameScheduleIdentitySnapshot(initialIdentity, finalIdentity)
+      ) {
+        identityInvalid = isCurrent() && (
+          !finalIdentity
+          || !isSameScheduleIdentitySnapshot(initialIdentity, finalIdentity)
+        );
+        throw new Error("AMORA_NOTES_MORE_PAGE_INVALID");
+      }
+
+      const nextPages = Object.freeze([
+        ...currentSnapshot.messageReferencePages,
+        page,
+      ]);
+      const nextSnapshot = Object.freeze({
+        ...currentSnapshot,
+        identity: finalIdentity,
+        messageReferencePages: nextPages,
+      });
+      const nextProjection = buildAmoraPreparationNotes({
+        ownerId: finalIdentity.ownerId,
+        coupleId: finalIdentity.coupleId,
+        topics: TOPICS,
+        ...currentSnapshot.sources,
+        messageReferencePages: nextPages,
+        openActions: currentSnapshot.sources.openActions ?? undefined,
+        todayYmd: formatLocalDateKey(),
+        query: currentSnapshot.appliedQuery,
+        scopeFilter,
+        topicFilter,
+        typeFilter,
+      });
+      if (nextProjection.state === "read_error") {
+        throw new Error("AMORA_NOTES_MORE_PAGE_INVALID");
+      }
+      if (!isCurrent()) return;
+      identityRef.current = finalIdentity;
+      lastVerifiedSnapshotRef.current = nextSnapshot;
+      setSnapshot(nextSnapshot);
+      setUsingLastVerified(false);
+      setMessagePageState("idle");
+      setMessagePageNotice(null);
+    } catch {
+      if (!isCurrent()) return;
+      if (identityInvalid) {
+        messagePageSequenceRef.current += 1;
+        controller.abort();
+        identityRef.current = null;
+        lastVerifiedSnapshotRef.current = null;
+        setSnapshot(null);
+        setUsingLastVerified(false);
+        setLoadState("error");
+        return;
+      }
+      setMessagePageState("idle");
+      setMessagePageNotice("more_error");
+    }
+  }, [messagePageState, query, scopeFilter, snapshot, topicFilter, typeFilter]);
 
   const rememberReturnPosition = useCallback(() => {
     pendingRestoreOffsetRef.current = notesScrollOffsetRef.current;
@@ -491,6 +798,24 @@ export default function AmoraPreparationNotesScreen() {
           />
         </View>
 
+        {messagePageState === "searching" ? (
+          <AppText variant="caption" style={styles.searchStatus}>
+            질문과 아모라 답변에서 검색하고 있어요.
+          </AppText>
+        ) : messagePageNotice === "search_error" ? (
+          <Surface tone="ivory" style={styles.pageNotice}>
+            <AppText variant="caption" style={styles.noticeCopy}>
+              새 검색을 확인하지 못해 이전 결과를 유지했어요.
+            </AppText>
+          </Surface>
+        ) : messagePageNotice === "more_error" ? (
+          <Surface tone="ivory" style={styles.pageNotice}>
+            <AppText variant="caption" style={styles.noticeCopy}>
+              다음 기록을 확인하지 못해 지금까지 확인한 기록을 유지했어요.
+            </AppText>
+          </Surface>
+        ) : null}
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -543,7 +868,18 @@ export default function AmoraPreparationNotesScreen() {
         </ScrollView>
 
         {showNoRecords ? (
-          view.state === "empty" ? (
+          messagePageState === "searching" ? (
+            <LoadingState label="질문과 아모라 답변에서 찾고 있어요" />
+          ) : messagePageState === "loading_more" ? (
+            <LoadingState label="다음 기록을 확인하고 있어요" />
+          ) : canLoadMoreMessageReferences ? (
+            <EmptyState
+              icon={<BookOpenText size={25} color={colors.rose[500]} />}
+              title="확인할 다음 기록이 있어요"
+              description="지금 페이지에 표시할 기록이 없어도 빈 노트로 단정하지 않고 다음 기록을 확인해요."
+              action={<PrimaryButton tone="ghost" onPress={loadMoreMessageReferences}>더 보기</PrimaryButton>}
+            />
+          ) : view.state === "empty" ? (
             <EmptyState
               icon={<BookOpenText size={25} color={colors.rose[500]} />}
               title="저장된 준비 기록이 아직 없어요"
@@ -572,7 +908,7 @@ export default function AmoraPreparationNotesScreen() {
             <View style={styles.recordsHeader}>
               <AppText variant="subtitle">중요한 준비 기록</AppText>
               <AppText variant="caption" style={styles.recordCount}>
-                {usingLastVerified || view.state === "partial"
+                {usingLastVerified || view.state === "partial" || hasMoreMessageReferences
                   ? "확인된 기록"
                   : `${view.records.length}개`}
               </AppText>
@@ -584,6 +920,13 @@ export default function AmoraPreparationNotesScreen() {
                 onPress={() => openRecord(record)}
               />
             ))}
+            {messagePageState === "loading_more" ? (
+              <LoadingState label="다음 기록을 확인하고 있어요" />
+            ) : canLoadMoreMessageReferences ? (
+              <PrimaryButton tone="ghost" onPress={loadMoreMessageReferences}>
+                더 보기
+              </PrimaryButton>
+            ) : null}
           </View>
         )}
 
@@ -657,6 +1000,8 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     fontFamily: "NotoSansKR_400Regular",
   },
+  searchStatus: { color: colors.textSecondary, paddingHorizontal: spacing[2] },
+  pageNotice: { paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   filterRow: { gap: spacing[2], paddingRight: spacing[4] },
   filterChip: {
     minHeight: 44,
@@ -685,6 +1030,10 @@ const styles = StyleSheet.create({
   },
   recordTopLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[2] },
   recordType: { color: colors.rose[600] },
+  questionBlock: { gap: spacing[1] },
+  questionLabel: { color: colors.sage[500] },
+  questionExcerpt: { color: colors.textSecondary },
+  answerLabel: { color: colors.rose[600], marginBottom: -spacing[2] },
   recordExcerpt: { color: colors.noir[800] },
   recordMetaLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
   recordMeta: { flex: 1, color: colors.textTertiary },

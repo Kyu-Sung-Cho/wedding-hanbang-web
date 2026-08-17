@@ -1,4 +1,5 @@
 import {
+  validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
 import { parseAmoraCoreCriterionResponse } from "@hanbang/shared/amora-core-criterion";
@@ -85,6 +86,9 @@ function buildSavedConversationRecords(references, topics) {
         type: "saved_conversation",
         typeLabel: "저장 대화",
         excerpt: reference.excerpt,
+        ...(reference.questionExcerpt === undefined
+          ? {}
+          : { questionExcerpt: reference.questionExcerpt }),
         topicKeys: [reference.topicKey],
         topicLabels: [topicLabel],
         scope: reference.audience,
@@ -98,6 +102,7 @@ function buildSavedConversationRecords(references, topics) {
     }
     if (
       current.excerpt !== reference.excerpt
+      || current.questionExcerpt !== reference.questionExcerpt
       || current.sourceCreatedAt !== reference.sourceCreatedAt
       || current.topicKeys.includes(reference.topicKey)
     ) return null;
@@ -119,6 +124,95 @@ function buildSavedConversationRecords(references, topics) {
       topicLabels: Object.freeze(record.topicLabels),
       openOriginal: Object.freeze(record.openOriginal),
     }));
+}
+
+function sameNotesEntry(left, right) {
+  return left.refId === right.refId
+    && left.topicKey === right.topicKey
+    && left.messageId === right.messageId
+    && left.audience === right.audience
+    && left.revision === right.revision
+    && left.savedAt === right.savedAt
+    && left.sourceCreatedAt === right.sourceCreatedAt
+    && left.questionExcerpt === right.questionExcerpt
+    && left.answerExcerpt === right.answerExcerpt
+    && left.canRemove === right.canRemove
+    && left.canOpenOriginal === right.canOpenOriginal;
+}
+
+function sameNotesPage(left, right) {
+  return left.version === right.version
+    && left.state === right.state
+    && left.recipientUserId === right.recipientUserId
+    && left.coupleId === right.coupleId
+    && left.snapshotAt === right.snapshotAt
+    && left.nextCursor === right.nextCursor
+    && left.partial === right.partial
+    && left.entries.length === right.entries.length
+    && left.entries.every((entry, index) => sameNotesEntry(entry, right.entries[index]));
+}
+
+function isStrictlyAfterNotesEntry(previous, next) {
+  const previousSavedAt = Date.parse(previous.savedAt);
+  const nextSavedAt = Date.parse(next.savedAt);
+  return nextSavedAt < previousSavedAt
+    || (
+      nextSavedAt === previousSavedAt
+      && next.refId.toLowerCase() < previous.refId.toLowerCase()
+    );
+}
+
+function parseMessageReferencePages(input, firstPage) {
+  const rawPages = input.messageReferencePages === undefined
+    ? [firstPage]
+    : input.messageReferencePages;
+  if (
+    !Array.isArray(rawPages)
+    || rawPages.length < 1
+    || rawPages.length > 20
+  ) return null;
+
+  const pages = [];
+  for (const rawPage of rawPages) {
+    const parsed = validateAmoraPreparationNotesPageResponse(
+      rawPage,
+      input.ownerId,
+      input.coupleId,
+    );
+    if (!parsed.ok || parsed.value.snapshotAt !== firstPage.snapshotAt) return null;
+    pages.push(parsed.value);
+  }
+  if (!sameNotesPage(pages[0], firstPage)) return null;
+
+  const entries = [];
+  const refIds = new Set();
+  const topicMessages = new Set();
+  const nextCursors = new Set();
+  let previousEntry = null;
+  let partial = false;
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    const page = pages[pageIndex];
+    if (pageIndex < pages.length - 1 && page.nextCursor === null) return null;
+    if (page.nextCursor !== null) {
+      if (nextCursors.has(page.nextCursor)) return null;
+      nextCursors.add(page.nextCursor);
+    }
+    partial = partial || page.partial;
+    for (const entry of page.entries) {
+      const refId = entry.refId.toLowerCase();
+      const topicMessage = `${entry.topicKey}:${entry.messageId.toLowerCase()}`;
+      if (
+        refIds.has(refId)
+        || topicMessages.has(topicMessage)
+        || (previousEntry && !isStrictlyAfterNotesEntry(previousEntry, entry))
+      ) return null;
+      refIds.add(refId);
+      topicMessages.add(topicMessage);
+      entries.push(entry);
+      previousEntry = entry;
+    }
+  }
+  return { entries, partial };
 }
 
 function criterionRecord({ id, type, excerpt, scope, at, focus }) {
@@ -267,17 +361,35 @@ export function buildAmoraPreparationNotes(input) {
     input.messageReferenceReadState === "loaded"
     || input.messageReferenceReadState === "partial"
   ) {
-    const collection = validateAmoraPreparationTopicMessageRefCollectionResponse(
+    const notesPage = validateAmoraPreparationNotesPageResponse(
       input.messageReferenceCollection,
       input.ownerId,
       input.coupleId,
     );
-    if (collection.ok) {
-      const built = buildSavedConversationRecords(collection.value.references, topics);
+    const legacyCollection = notesPage.ok
+      ? null
+      : validateAmoraPreparationTopicMessageRefCollectionResponse(
+          input.messageReferenceCollection,
+          input.ownerId,
+          input.coupleId,
+        );
+    const notesPages = notesPage.ok
+      ? parseMessageReferencePages(input, notesPage.value)
+      : null;
+    const references = notesPage.ok && notesPages
+      ? notesPages.entries.map((entry) => ({
+          ...entry,
+          excerpt: entry.answerExcerpt,
+        }))
+      : legacyCollection?.ok ? legacyCollection.value.references : null;
+    if (references) {
+      const built = buildSavedConversationRecords(references, topics);
       if (built) {
         savedConversationRecords = built;
         messageReferenceSuccessfulSources = 1;
-        collectionPartial = collection.value.partial;
+        collectionPartial = notesPage.ok
+          ? notesPages?.partial === true
+          : legacyCollection?.ok === true && legacyCollection.value.partial;
       } else messageReferencesIncomplete = true;
     } else messageReferencesIncomplete = true;
   } else {
@@ -297,6 +409,7 @@ export function buildAmoraPreparationNotes(input) {
     && (
       normalizedSearch.length === 0
       || searchableText([
+        record.questionExcerpt ?? "",
         record.excerpt,
         record.typeLabel,
         ...record.topicLabels,

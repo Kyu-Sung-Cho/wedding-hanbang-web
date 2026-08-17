@@ -80,6 +80,125 @@ test("saved conversations become scope-labelled notes and the same source is gro
   });
 });
 
+test("a notes page searches the exact user question and keeps the server answer separate", () => {
+  const result = buildAmoraPreparationNotes({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [{ key: "venue", label: "예식장" }],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      snapshotAt: "2026-08-18T09:00:00.000Z",
+      entries: [{
+        refId: "40000000-0000-4000-8000-000000000004",
+        topicKey: "venue",
+        messageId: MESSAGE_ID,
+        audience: "owner_private",
+        revision: 1,
+        savedAt: "2026-08-18T08:00:00.000Z",
+        sourceCreatedAt: "2026-08-18T07:00:00.000Z",
+        questionExcerpt: "예식장 계약 전에 무엇을 확인해야 할까?",
+        answerExcerpt: "대관 범위와 취소 조건을 서면에서 먼저 확인해요.",
+        canRemove: true,
+        canOpenOriginal: true,
+      }],
+      nextCursor: "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwOTowMDowMC4wMDBaIn0",
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    query: "계약 전에",
+    scopeFilter: "all",
+    topicFilter: "all",
+    typeFilter: "all",
+  });
+
+  assert.equal(result.state, "ready");
+  assert.equal(result.records.length, 1);
+  assert.equal(result.records[0].questionExcerpt, "예식장 계약 전에 무엇을 확인해야 할까?");
+  assert.equal(result.records[0].excerpt, "대관 범위와 취소 조건을 서면에서 먼저 확인해요.");
+});
+
+test("cursor pages merge only inside one snapshot without duplicate saved references", () => {
+  const first = {
+    version: 1,
+    state: "ready",
+    recipientUserId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    snapshotAt: "2026-08-18T09:00:00.000Z",
+    entries: [{
+      refId: "40000000-0000-4000-8000-000000000004",
+      topicKey: "venue",
+      messageId: MESSAGE_ID,
+      audience: "owner_private",
+      revision: 1,
+      savedAt: "2026-08-18T08:00:00.000Z",
+      sourceCreatedAt: "2026-08-18T07:00:00.000Z",
+      questionExcerpt: "첫 질문",
+      answerExcerpt: "첫 답변",
+      canRemove: true,
+      canOpenOriginal: true,
+    }],
+    nextCursor: "np1.eyJmaXJzdFBhZ2VCb3VuZGFyeSI6dHJ1ZX0",
+    partial: false,
+  };
+  const second = {
+    ...first,
+    entries: [{
+      ...first.entries[0],
+      refId: "50000000-0000-4000-8000-000000000005",
+      messageId: "60000000-0000-4000-8000-000000000006",
+      savedAt: "2026-08-18T06:00:00.000Z",
+      sourceCreatedAt: "2026-08-18T05:00:00.000Z",
+      questionExcerpt: "둘째 질문",
+      answerExcerpt: "둘째 답변",
+    }],
+    nextCursor: null,
+  };
+  const base = {
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [{ key: "venue", label: "예식장" }],
+    messageReferenceCollection: first,
+    messageReferencePages: [first, second],
+    messageReferenceReadState: "loaded",
+    query: "",
+    scopeFilter: "all",
+    topicFilter: "all",
+    typeFilter: "all",
+  };
+
+  const merged = buildAmoraPreparationNotes(base);
+  assert.deepEqual(merged.records.map((record) => record.questionExcerpt), [
+    "첫 질문",
+    "둘째 질문",
+  ]);
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    messageReferencePages: [first, { ...second, snapshotAt: "2026-08-18T10:00:00.000Z" }],
+  }).state, "read_error");
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    messageReferencePages: [first, { ...second, entries: first.entries }],
+  }).state, "read_error");
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    messageReferencePages: [first, { ...second, nextCursor: first.nextCursor }],
+  }).state, "read_error");
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    messageReferenceCollection: {
+      ...first,
+      entries: [
+        first.entries[0],
+        { ...second.entries[0], savedAt: "2026-08-18T08:30:00.000Z" },
+      ],
+    },
+    messageReferencePages: undefined,
+  }).state, "read_error");
+});
+
 test("search and scope/type filters never turn a non-empty collection into an empty-account claim", () => {
   const base = {
     ownerId: OWNER_ID,
