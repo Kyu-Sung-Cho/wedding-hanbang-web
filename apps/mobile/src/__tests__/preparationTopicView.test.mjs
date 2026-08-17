@@ -1007,6 +1007,57 @@ test("an exact open action makes an otherwise unknown topic exploratory without 
   assert.deepEqual(view?.linkedActionIds, ["meeting-action"]);
 });
 
+test("a verified home action remains the exact topic next action even when another action ranks first later", () => {
+  const input = {
+    topicKey: "meeting",
+    topics,
+    progress: {},
+    scheduleEvents: [],
+    preferredActionRef: {
+      id: "home-selected-action",
+      revision: 7,
+    },
+    openActions: [{
+      id: "newer-topic-action",
+      title: "새로 들어온 다른 준비 확인하기",
+      dueDate: "2026-08-18",
+      priority: "high",
+      source: "chat",
+      categoryKey: "meeting",
+      sourceRevision: 2,
+      createdAt: "2026-08-17T01:00:00.000Z",
+    }, {
+      id: "home-selected-action",
+      title: "홈에서 고른 양가 일정 확인하기",
+      dueDate: "2026-08-20",
+      priority: "medium",
+      source: "chat",
+      categoryKey: "meeting",
+      sourceRevision: 7,
+      createdAt: "2026-08-16T01:00:00.000Z",
+    }],
+  };
+  const view = buildAmoraPreparationTopicView(input);
+
+  assert.equal(view?.nextAction?.title, "홈에서 고른 양가 일정 확인하기");
+  assert.deepEqual(view?.nextAction?.sourceRef, {
+    kind: "amora_action",
+    id: "home-selected-action",
+    revision: 7,
+  });
+
+  const staleView = buildAmoraPreparationTopicView({
+    ...input,
+    preferredActionRef: {
+      id: "home-selected-action",
+      revision: 8,
+    },
+  });
+  assert.notEqual(staleView?.nextAction?.title, "새로 들어온 다른 준비 확인하기");
+  assert.notEqual(staleView?.nextAction?.title, "홈에서 고른 양가 일정 확인하기");
+  assert.equal(staleView?.nextAction?.sourceRef, undefined);
+});
+
 test("a completed checklist with an open action stays in progress instead of claiming the topic is done", () => {
   const view = buildAmoraPreparationTopicView({
     topicKey: "meeting",

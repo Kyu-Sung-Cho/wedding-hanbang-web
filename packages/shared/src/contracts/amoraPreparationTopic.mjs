@@ -198,6 +198,29 @@ function readLinkedActions(topicKey, openActions) {
   }));
 }
 
+function selectPreferredLinkedAction(linkedActions, preferredActionRef) {
+  if (preferredActionRef === undefined || preferredActionRef === null) {
+    return linkedActions[0] ?? null;
+  }
+  if (
+    !isRecord(preferredActionRef)
+    || typeof preferredActionRef.id !== "string"
+    || !ACTION_ID_RE.test(preferredActionRef.id)
+    || (
+      preferredActionRef.revision !== null
+      && (
+        !Number.isSafeInteger(preferredActionRef.revision)
+        || preferredActionRef.revision < 1
+      )
+    )
+  ) return null;
+
+  return linkedActions.find((action) => (
+    action.id === preferredActionRef.id
+    && action.sourceRevision === preferredActionRef.revision
+  )) ?? null;
+}
+
 function isSafeRevision(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
@@ -1470,6 +1493,7 @@ export function buildAmoraPreparationTopicView({
   scheduleEvents,
   budgetCategoryKeys,
   openActions,
+  preferredActionRef,
   actionReadState = "loaded",
   expectedCoupleId,
   currentJourneyRevision,
@@ -1502,6 +1526,10 @@ export function buildAmoraPreparationTopicView({
   const linkedActions = normalizedActionReadState === "loaded"
     ? readLinkedActions(topicKey, openActions)
     : [];
+  const preferredLinkedAction = selectPreferredLinkedAction(
+    linkedActions,
+    preferredActionRef,
+  );
   const normalizedDecisionReadState = decisionReadState === "loaded"
     || decisionReadState === "partial"
     ? decisionReadState
@@ -1772,8 +1800,8 @@ export function buildAmoraPreparationTopicView({
         label: item.label,
         source: "unfinished_checklist",
       }))),
-      nextAction: linkedActions[0]
-        ? buildLinkedActionNextAction(linkedActions[0])
+      nextAction: preferredLinkedAction
+        ? buildLinkedActionNextAction(preferredLinkedAction)
         : nextItem === null
         ? null
         : Object.freeze({
@@ -1857,8 +1885,8 @@ export function buildAmoraPreparationTopicView({
             completionCriterion: "현재 준비 상태를 다시 저장하면 끝나요.",
             source: "conflict",
           })
-        : linkedActions[0]
-        ? buildLinkedActionNextAction(linkedActions[0])
+        : preferredLinkedAction
+        ? buildLinkedActionNextAction(preferredLinkedAction)
         : nextItem === null
         ? null
         : Object.freeze({

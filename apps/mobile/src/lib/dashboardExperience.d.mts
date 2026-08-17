@@ -74,6 +74,8 @@ export interface DashboardFocus {
     | "/bookings"
     | "/(tabs)/chat";
   categoryKey?: string;
+  actionId?: string;
+  actionRevision?: number | null;
   selectionReason?: string | null;
   claimBeforeCare?: boolean;
   suppressActionFollowUpClaim?: boolean;

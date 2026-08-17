@@ -680,6 +680,28 @@ test("home shows an exact confirmed action deadline without asking for it again"
   assert.match(focus.description, /세 개의 후보만 받아요/);
 });
 
+test("a checklist-bound home focus preserves the exact action identity and revision", () => {
+  const focus = buildDashboardFocus({
+    ...emptyInput,
+    openAction: {
+      id: "act_exact_meeting_step",
+      title: "양가에 가능한 날짜 물어보기",
+      description: null,
+      dueDate: "2026-08-20",
+      categoryKey: "meeting",
+      priority: "high",
+      source: "chat",
+      sourceRevision: 7,
+      createdAt: "2026-08-14T02:00:00.000Z",
+    },
+  });
+
+  assert.equal(focus.route, "/checklist");
+  assert.equal(focus.categoryKey, "meeting");
+  assert.equal(focus.actionId, "act_exact_meeting_step");
+  assert.equal(focus.actionRevision, 7);
+});
+
 test("home explains an overdue action using only its confirmed date", () => {
   const focus = buildDashboardFocus({
     ...emptyInput,

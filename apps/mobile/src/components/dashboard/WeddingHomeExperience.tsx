@@ -45,6 +45,7 @@ import {
   type DashboardUrgentTask,
 } from "@/lib/dashboardExperience.mjs";
 import { stageCompanionChatHandoff } from "@/lib/companionChatHandoff.mjs";
+import { buildChecklistDeepLinkParams } from "@/lib/scheduleChecklistNavigation.mjs";
 import { buildPreparationHomeSectionModel } from "@/lib/preparationMapPresentation.mjs";
 import type { AmoraPersonalizationPreferences } from "@/lib/amoraPersonalization.mjs";
 import type { AmoraCoreCriterion } from "@hanbang/shared/amora-core-criterion";
@@ -182,11 +183,24 @@ function openFocus(
       router.push("/schedule");
       return;
     case "/checklist":
-      router.push({
-        pathname: "/checklist",
-        params: focus.categoryKey ? { category: focus.categoryKey } : {},
-      });
-      return;
+      {
+        const params = focus.categoryKey
+          ? buildChecklistDeepLinkParams({
+              categoryKey: focus.categoryKey,
+              ...(focus.actionId !== undefined
+                ? {
+                    actionId: focus.actionId,
+                    actionRevision: focus.actionRevision,
+                  }
+                : {}),
+            })
+          : null;
+        router.push({
+          pathname: "/checklist",
+          params: params ?? {},
+        });
+        return;
+      }
     case "/budget":
       router.push({
         pathname: "/budget",

@@ -479,7 +479,15 @@ function showActiveScheduleRequestAlert() {
 /* ───── main screen ───── */
 export default function ScheduleScreen() {
   const pathname = usePathname();
-  const { category: requestedCategoryKey } = useLocalSearchParams<{ category?: string }>();
+  const {
+    category: requestedCategoryKey,
+    action: requestedActionId,
+    actionRevision: requestedActionRevision,
+  } = useLocalSearchParams<{
+    category?: string;
+    action?: string;
+    actionRevision?: string;
+  }>();
   const checklistOnly = pathname.startsWith("/checklist");
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
@@ -665,6 +673,27 @@ export default function ScheduleScreen() {
     }
   }, []);
 
+  const verifiedChecklistDeepLink = useMemo(() => buildVerifiedChecklistDeepLink({
+    checklistOnly,
+    requestedCategoryKey,
+    requestedActionId,
+    requestedActionRevision,
+    availableCategoryKeys: categories.map((category) => category.key),
+    availableActions: topicOpenActions,
+    verifiedIdentity: profileId && coupleId
+      ? { ownerId: profileId, coupleId }
+      : null,
+  }), [
+    categories,
+    checklistOnly,
+    coupleId,
+    profileId,
+    requestedActionId,
+    requestedActionRevision,
+    requestedCategoryKey,
+    topicOpenActions,
+  ]);
+
   const preparationTopicViews = useMemo(
     () => new Map(
       CATEGORY_CHECKLISTS.map((category) => [
@@ -676,6 +705,13 @@ export default function ScheduleScreen() {
           scheduleEvents: events,
           budgetCategoryKeys: PREPARATION_BUDGET_CATEGORY_KEYS,
           openActions: topicOpenActions,
+          preferredActionRef: verifiedChecklistDeepLink?.actionId
+            && verifiedChecklistDeepLink.categoryKey === category.key
+            ? {
+                id: verifiedChecklistDeepLink.actionId,
+                revision: verifiedChecklistDeepLink.actionRevision ?? null,
+              }
+            : undefined,
           actionReadState: topicActionReadState,
           expectedCoupleId: coupleId ?? undefined,
           currentJourneyRevision: topicJourneyRevision ?? undefined,
@@ -720,6 +756,7 @@ export default function ScheduleScreen() {
       topicVendorBookingDecisionReceipts,
       topicVendorBookingReadState,
       topicVendorBookings,
+      verifiedChecklistDeepLink,
     ],
   );
 
@@ -1258,17 +1295,18 @@ export default function ScheduleScreen() {
         throw new ScheduleMutationError("invalid_snapshot");
       }
 
-      if (actionError) {
-        setTopicOpenActions([]);
-        setTopicActionReadState("unavailable");
-      } else {
-        setTopicOpenActions(
-          listDashboardOpenActions(
+      const normalizedTopicOpenActions = actionError
+        ? []
+        : listDashboardOpenActions(
             actionRows,
             identity.coupleId,
             formatLocalDateKey(),
-          ) ?? [],
-        );
+          ) ?? [];
+      if (actionError) {
+        setTopicOpenActions(normalizedTopicOpenActions);
+        setTopicActionReadState("unavailable");
+      } else {
+        setTopicOpenActions(normalizedTopicOpenActions);
         setTopicActionReadState("loaded");
       }
 
@@ -1349,7 +1387,10 @@ export default function ScheduleScreen() {
       const checklistDeepLink = buildVerifiedChecklistDeepLink({
         checklistOnly,
         requestedCategoryKey,
+        requestedActionId,
+        requestedActionRevision,
         availableCategoryKeys: cats.map((category) => category.key),
+        availableActions: normalizedTopicOpenActions,
         verifiedIdentity: identity,
       });
       if (!checklistDeepLink) {
@@ -1636,6 +1677,8 @@ export default function ScheduleScreen() {
     cancelPendingChecklistDeepLinkFocus,
     clearIdentityBoundState,
     progressAnim,
+    requestedActionId,
+    requestedActionRevision,
     requestedCategoryKey,
     scheduleSessionFenceRef,
   ]);

@@ -371,7 +371,10 @@ test("schedule care opens its checklist only after the current couple is verifie
   });
 
   const categoriesCommit = scheduleSource.indexOf("setCategories(cats)");
-  const verifiedDeepLink = scheduleSource.indexOf("buildVerifiedChecklistDeepLink({");
+  const verifiedDeepLink = scheduleSource.indexOf(
+    "buildVerifiedChecklistDeepLink({",
+    categoriesCommit,
+  );
   assert.ok(
     categoriesCommit >= 0 && verifiedDeepLink > categoriesCommit,
     "the requested category must be applied after verified checklist data commits",

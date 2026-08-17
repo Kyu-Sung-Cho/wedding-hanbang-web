@@ -630,6 +630,8 @@ function buildDashboardActionFocus(openAction, todayYmd) {
     claimBeforeCare,
     ctaLabel,
     route,
+    actionId: openAction.id,
+    actionRevision: openAction.sourceRevision,
     ...(openAction.categoryKey ? { categoryKey: openAction.categoryKey } : {}),
   };
 }

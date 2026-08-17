@@ -3,15 +3,34 @@ export interface VerifiedChecklistIdentity {
   coupleId: string;
 }
 
+export function buildChecklistDeepLinkParams(input: Readonly<{
+  categoryKey: string;
+  actionId?: string;
+  actionRevision?: number | null;
+}>): Readonly<{
+  category: string;
+  action?: string;
+  actionRevision?: string;
+}> | null;
+
 export interface VerifiedChecklistDeepLinkInput {
   checklistOnly: boolean;
   requestedCategoryKey?: string;
+  requestedActionId?: string;
+  requestedActionRevision?: string;
   availableCategoryKeys: string[];
+  availableActions?: readonly Readonly<{
+    id: string;
+    categoryKey: string | null;
+    sourceRevision: number | null;
+  }>[];
   verifiedIdentity: VerifiedChecklistIdentity | null;
 }
 
 export interface VerifiedChecklistDeepLink {
   categoryKey: string;
+  actionId?: string;
+  actionRevision?: number | null;
   handledKey: string;
 }
 

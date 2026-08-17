@@ -139,6 +139,10 @@ export declare function buildAmoraPreparationTopicView(input: Readonly<{
   scheduleEvents?: readonly unknown[];
   budgetCategoryKeys?: readonly string[];
   openActions?: readonly unknown[];
+  preferredActionRef?: Readonly<{
+    id: string;
+    revision: number | null;
+  }>;
   actionReadState?: "loaded" | "unavailable";
   expectedCoupleId?: string;
   currentJourneyRevision?: number;
