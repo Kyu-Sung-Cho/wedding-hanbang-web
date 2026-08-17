@@ -191,6 +191,7 @@ describe("GET /api/amora/preparation-topic-message-refs/[refId]", () => {
   it.each([
     ["P0002", 404, "AMORA_PREPARATION_TOPIC_MESSAGE_REF_NOT_FOUND"],
     ["40001", 409, "AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONFLICT"],
+    ["PT409", 409, "AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONFLICT"],
     ["22023", 400, "AMORA_PREPARATION_TOPIC_MESSAGE_REF_REQUEST_INVALID"],
     ["XX000", 503, "AMORA_PREPARATION_TOPIC_MESSAGE_REF_UNAVAILABLE"],
   ])("maps SQLSTATE %s without exposing service details", async (code, status, publicCode) => {

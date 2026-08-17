@@ -1375,7 +1375,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 105-migration successor keeps finalization blocked through the invite-nullability tail", async () => {
+test("the current 106-migration successor keeps finalization blocked through the message-ref HTTP-conflict tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1383,9 +1383,9 @@ test("the current 105-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 105);
+  assert.equal(manifest.expandMigrations.length, 106);
   assert.deepEqual(
-    manifest.expandMigrations.slice(-7),
+    manifest.expandMigrations.slice(-8),
     [
       {
         file: "20260816150000_amora_provider_backed_add_action_application.sql",
@@ -1414,6 +1414,10 @@ test("the current 105-migration successor keeps finalization blocked through the
       {
         file: "20260818110000_restore_couple_invite_nullable_contract.sql",
         sha256: "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324",
+      },
+      {
+        file: "20260818120000_amora_message_ref_http_conflicts.sql",
+        sha256: "c3e269594e956cc96cb19b3c282c5c1865178baa6b468c944831de8d9b389358",
       },
     ],
   );

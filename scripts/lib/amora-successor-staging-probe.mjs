@@ -856,6 +856,13 @@ function isExactMutation(response, expected) {
     && value?.reference?.revision === expected.revision;
 }
 
+function isExactMessageRefConflict(response, message) {
+  return response?.ok === false
+    && response?.status === 409
+    && response?.body?.code === "PT409"
+    && response?.body?.message === message;
+}
+
 function exactListedReferences(response, expected) {
   const value = response?.body;
   if (
@@ -1154,11 +1161,6 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
       expectedRevision: 1,
       requestId: randomUUID(),
     });
-    const staleResave = await transport.setMessageRefAsService({
-      ...sharedInput,
-      expectedRevision: 0,
-      requestId: randomUUID(),
-    });
     const [afterRemoveList, afterRemoveResolve] = await Promise.all([
       transport.listMessageRefsAsService({
         coupleId: ownerSpace.couple_id,
@@ -1172,6 +1174,11 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
         expectedPrivacyEpoch: privacyEpoch,
       }),
     ]);
+    const staleResave = await transport.setMessageRefAsService({
+      ...sharedInput,
+      expectedRevision: 0,
+      requestId: randomUUID(),
+    });
     checks.removeAndStaleRevision = isExactMutation(removed, {
       recipientUserId: owner.id,
       coupleId: ownerSpace.couple_id,
@@ -1183,7 +1190,10 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
       revision: 2,
       reused: false,
     })
-      && staleResave?.ok === false
+      && isExactMessageRefConflict(
+        staleResave,
+        "AMORA_PREPARATION_TOPIC_MESSAGE_REF_REVISION_STALE",
+      )
       && exactListedReferences(afterRemoveList, {
         recipientUserId: owner.id,
         coupleId: ownerSpace.couple_id,

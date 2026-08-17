@@ -19,6 +19,13 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const httpConflictMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260818120000_amora_message_ref_http_conflicts.sql",
+  ),
+  "utf8",
+);
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
 const GROOM_ID = "10000000-0000-4000-8000-000000000002";
@@ -203,6 +210,7 @@ async function createDatabase() {
     GRANT EXECUTE ON FUNCTION auth.role() TO anon, authenticated, service_role;
   `);
   await db.exec(migration);
+  await db.exec(httpConflictMigration);
   return db;
 }
 
@@ -443,10 +451,10 @@ describe("Amora preparation topic message refs migration", () => {
       expect(replay).toEqual({ ...saved, reused: true });
       await expect(setIntent(db, {
         desiredState: "removed",
-      })).rejects.toMatchObject({ code: "40001" });
+      })).rejects.toMatchObject({ code: "PT409" });
       await expect(setIntent(db, {
         topicKey: "venue",
-      })).rejects.toMatchObject({ code: "40001" });
+      })).rejects.toMatchObject({ code: "PT409" });
 
       const removed = await setIntent(db, {
         desiredState: "removed",
@@ -480,7 +488,7 @@ describe("Amora preparation topic message refs migration", () => {
       await expect(resolveRef(db, saved.reference.refId!))
         .rejects.toMatchObject({ code: "P0002" });
 
-      await expect(setIntent(db)).rejects.toMatchObject({ code: "40001" });
+      await expect(setIntent(db)).rejects.toMatchObject({ code: "PT409" });
       expect((await getState(db)).reference).toMatchObject({
         savedState: "removed",
         revision: 2,
@@ -499,7 +507,7 @@ describe("Amora preparation topic message refs migration", () => {
         desiredState: "removed",
         expectedRevision: 1,
         requestId: "50000000-0000-4000-8000-000000000002",
-      })).rejects.toMatchObject({ code: "40001" });
+      })).rejects.toMatchObject({ code: "PT409" });
 
       await resetPersona(db);
       const rows = await db.query<{ count: number; state: string; revision: number }>(`
@@ -822,9 +830,9 @@ describe("Amora preparation topic message refs migration", () => {
         WHERE id = $1::uuid
       `, [SHARED_ANSWER_ID]);
       await setPersona(db, "service_role");
-      await expect(getState(db)).rejects.toMatchObject({ code: "40001" });
+      await expect(getState(db)).rejects.toMatchObject({ code: "PT409" });
       await expect(resolveRef(db, saved.reference.refId!))
-        .rejects.toMatchObject({ code: "40001" });
+        .rejects.toMatchObject({ code: "PT409" });
       expect(await listRefs(db)).toMatchObject({ references: [], partial: true });
 
       await resetPersona(db);
@@ -834,7 +842,7 @@ describe("Amora preparation topic message refs migration", () => {
         WHERE id IN ($1::uuid, $2::uuid)
       `, [SHARED_ANSWER_ID, SHARED_QUESTION_ID]);
       await setPersona(db, "service_role");
-      await expect(getState(db)).rejects.toMatchObject({ code: "40001" });
+      await expect(getState(db)).rejects.toMatchObject({ code: "PT409" });
       expect(await listRefs(db)).toMatchObject({ references: [], partial: true });
     } finally {
       await resetPersona(db).catch(() => undefined);
@@ -1072,7 +1080,7 @@ describe("Amora preparation topic message refs migration", () => {
         topicKey: "housing",
         messageId: PRIVATE_ANSWER_ID,
         expectedPrivacyEpoch: 6,
-      })).rejects.toMatchObject({ code: "40001" });
+      })).rejects.toMatchObject({ code: "PT409" });
 
       await resetPersona(db);
       const deleteActions = await db.query<{

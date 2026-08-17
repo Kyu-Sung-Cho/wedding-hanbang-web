@@ -249,7 +249,16 @@ test("three synthetic users prove saved conversation sharing, private isolation,
     },
     async setMessageRefAsService(input) {
       if (input.messageId === sharedAnswerId && input.desiredState === "saved") {
-        if (removed && input.expectedRevision === 0) return { ok: false, status: 409, body: {} };
+        if (removed && input.expectedRevision === 0) {
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              code: "PT409",
+              message: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_REVISION_STALE",
+            },
+          };
+        }
         sharedSaveCount += 1;
         return {
           ok: true,
