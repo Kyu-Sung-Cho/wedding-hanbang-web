@@ -24,11 +24,13 @@ import pg from "pg";
 
 import {
   assertSuccessorStagingBackupPlan,
+  assertSuccessorStagingMigrationLedger,
   assertSupabaseRootCertificate,
   createEncryptedBackupFile,
   parseSupabaseTemporaryDatabaseCredentials,
   verifyEncryptedBackupFile,
 } from "./lib/amora-successor-staging-backup.mjs";
+import { parseSupabaseMigrationList } from "./lib/supabase-successor-remote-baseline.mjs";
 
 const { Client } = pg;
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -156,20 +158,43 @@ function temporaryCredentials(cli, repoRoot, projectRef) {
   return parseSupabaseTemporaryDatabaseCredentials(result.stdout, projectRef);
 }
 
+function remoteMigrationLedger(cli, repoRoot, args) {
+  const result = spawnSync(cli, [
+    "migration",
+    "list",
+    "--linked",
+    "--workdir",
+    repoRoot,
+    "--agent",
+    "no",
+  ], {
+    cwd: repoRoot,
+    env: process.env,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+    windowsHide: true,
+  });
+  if (result.status !== 0 || typeof result.stdout !== "string") {
+    fail("Supabase could not provide the staging migration ledger");
+  }
+  const parsed = parseSupabaseMigrationList(result.stdout);
+  return assertSuccessorStagingMigrationLedger({
+    expectedHead: args.expectedMigrationHead,
+    expectedCount: args.expectedMigrationCount,
+    remoteVersions: parsed.remoteVersions,
+    remoteOnlyVersions: parsed.remoteOnlyVersions,
+  });
+}
+
 function quoteIdentifier(value) {
   if (!IDENTIFIER.test(value)) fail("database inventory contains an unsupported identifier");
   return `"${value}"`;
 }
 
-async function readSnapshotPlan(client, args, git) {
+async function readSnapshotPlan(client, args, git, ledger) {
   await client.query("begin transaction isolation level repeatable read read only");
   await client.query("set local statement_timeout = '60s'");
   await client.query("set local lock_timeout = '5s'");
-  const ledgerResult = await client.query(`
-    select count(*)::int as migration_count, max(version)::text as migration_head
-    from supabase_migrations.schema_migrations
-  `);
-  const ledger = ledgerResult.rows[0];
   const inventoryResult = await client.query(`
     select
       c.relname::text as table_name,
@@ -196,9 +221,9 @@ async function readSnapshotPlan(client, args, git) {
     actualCommit: git.actualCommit,
     originCommit: git.originCommit,
     trackedWorktreeClean: git.trackedWorktreeClean,
-    migrationHead: ledger.migration_head,
+    migrationHead: ledger.migrationHead,
     expectedMigrationHead: args.expectedMigrationHead,
-    migrationCount: ledger.migration_count,
+    migrationCount: ledger.migrationCount,
     expectedMigrationCount: args.expectedMigrationCount,
     tables,
   });
@@ -319,6 +344,7 @@ async function main() {
     trackedWorktreeClean: runGit(repoRoot, ["status", "--porcelain", "--untracked-files=no"]) === "",
   });
   const cli = await resolveSupabaseCli(repoRoot);
+  const ledger = remoteMigrationLedger(cli, repoRoot, args);
   const ca = assertSupabaseRootCertificate(await readFile(
     join(repoRoot, "scripts", "certs", "supabase-prod-ca-2021.crt"),
   ));
@@ -333,7 +359,7 @@ async function main() {
   await client.connect();
   let transactionOpen = false;
   try {
-    const snapshot = await readSnapshotPlan(client, args, git);
+    const snapshot = await readSnapshotPlan(client, args, git, ledger);
     transactionOpen = true;
     if (args.inspect) {
       await client.query("rollback");

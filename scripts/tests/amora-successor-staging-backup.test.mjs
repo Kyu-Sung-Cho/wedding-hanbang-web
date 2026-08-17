@@ -8,6 +8,7 @@ import { gunzipSync } from "node:zlib";
 
 import {
   assertSuccessorStagingBackupPlan,
+  assertSuccessorStagingMigrationLedger,
   assertSupabaseRootCertificate,
   createEncryptedBackupFile,
   createEncryptedBackupStream,
@@ -30,6 +31,32 @@ test("staging database TLS uses the exact pinned Supabase root certificate", asy
   const tampered = Buffer.from(certificate);
   tampered[tampered.length - 2] ^= 1;
   assert.throws(() => assertSupabaseRootCertificate(tampered));
+});
+
+test("staging backup accepts only the exact ordered CLI migration ledger", () => {
+  assert.deepEqual(assertSuccessorStagingMigrationLedger({
+    expectedHead: "20260727090000",
+    expectedCount: 3,
+    remoteVersions: ["20260726090000", "20260727080000", "20260727090000"],
+    remoteOnlyVersions: [],
+  }), {
+    migrationHead: "20260727090000",
+    migrationCount: 3,
+  });
+  for (const patch of [
+    { remoteVersions: ["20260726090000", "20260727090000", "20260727080000"] },
+    { remoteVersions: ["20260726090000", "20260727090000", "20260727090000"] },
+    { remoteVersions: ["20260726090000", "20260727080000"] },
+    { remoteOnlyVersions: ["20260727090000"] },
+  ]) {
+    assert.throws(() => assertSuccessorStagingMigrationLedger({
+      expectedHead: "20260727090000",
+      expectedCount: 3,
+      remoteVersions: ["20260726090000", "20260727080000", "20260727090000"],
+      remoteOnlyVersions: [],
+      ...patch,
+    }));
+  }
 });
 
 function validPlan(overrides = {}) {

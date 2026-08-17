@@ -72,6 +72,35 @@ export function assertSupabaseRootCertificate(bytes) {
   return text;
 }
 
+export function assertSuccessorStagingMigrationLedger(input) {
+  if (!exactKeys(input, [
+    "expectedHead",
+    "expectedCount",
+    "remoteVersions",
+    "remoteOnlyVersions",
+  ])
+      || !MIGRATION_VERSION.test(input.expectedHead ?? "")
+      || !Number.isSafeInteger(input.expectedCount)
+      || input.expectedCount < 1
+      || !Array.isArray(input.remoteVersions)
+      || !Array.isArray(input.remoteOnlyVersions)
+      || input.remoteOnlyVersions.length !== 0
+      || input.remoteVersions.length !== input.expectedCount
+      || input.remoteVersions.some((version) => !MIGRATION_VERSION.test(version))) {
+    invalid("staging migration ledger is malformed or not the exact expected set");
+  }
+  for (let index = 1; index < input.remoteVersions.length; index += 1) {
+    if (input.remoteVersions[index - 1] >= input.remoteVersions[index]) {
+      invalid("staging migration ledger is not strictly ordered and unique");
+    }
+  }
+  const migrationHead = input.remoteVersions.at(-1);
+  if (migrationHead !== input.expectedHead) {
+    invalid("staging migration ledger head does not match the expected baseline");
+  }
+  return Object.freeze({ migrationHead, migrationCount: input.remoteVersions.length });
+}
+
 export function parseSupabaseTemporaryDatabaseCredentials(script, expectedProjectRef) {
   if (typeof script !== "string"
       || script.length < 64
