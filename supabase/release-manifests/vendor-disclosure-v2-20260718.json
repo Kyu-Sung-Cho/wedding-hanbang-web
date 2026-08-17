@@ -8,7 +8,7 @@
   },
   "remoteBaselineContract": {
     "file": "supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json",
-    "sha256": "4d17746a7a3c3d60516332bb9c927d261fa21c6251621f56e3b9b403c7221958"
+    "sha256": "231dd7578f1ccc0f5c73e23126a60e7a788de97c589e6a8ea2b54840398eb347"
   },
   "requiredRemoteHead": "20260716117000",
   "migrationFloor": "20260718120000",
@@ -428,6 +428,10 @@
     {
       "file": "20260818100000_restore_signup_profile_trigger.sql",
       "sha256": "16fa1a4af7832c69e937faeaff7f88115699e377e1445f9c4cdc524b86f4a53a"
+    },
+    {
+      "file": "20260818110000_restore_couple_invite_nullable_contract.sql",
+      "sha256": "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324"
     }
   ],
   "deploymentEvidence": {

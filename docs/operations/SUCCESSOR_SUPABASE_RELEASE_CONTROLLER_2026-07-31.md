@@ -9,12 +9,12 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
-The ordered successor manifest now contains 104 migrations and ends at
-`20260818100000_restore_signup_profile_trigger.sql`.
+The ordered successor manifest now contains 105 migrations and ends at
+`20260818110000_restore_couple_invite_nullable_contract.sql`.
 The normalized-LF current manifest SHA-256 is
-`0138c050d1b9d573433304747a954026d3e21245b46519b74d167be22892c15c`;
+`fe64ca1be135716f948bd595ce68da3ee97f12fcf7890209b7ee1498260dc00d`;
 the terminal migration SHA-256 is
-`16fa1a4af7832c69e937faeaff7f88115699e377e1445f9c4cdc524b86f4a53a`.
+`b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324`.
 
 On 2026-08-15, a linked, read-only Production ledger audit observed:
 
@@ -23,9 +23,9 @@ On 2026-08-15, a linked, read-only Production ledger audit observed:
   ending at `20260727090000`;
 - no remote-only migration version exists.
 
-Against the current 104-migration repository manifest, that observed prefix
-leaves 72 local successor migrations pending, from `20260730100000` through
-`20260818100000`. This suffix count is derived from the updated local manifest;
+Against the current 105-migration repository manifest, that observed prefix
+leaves 73 local successor migrations pending, from `20260730100000` through
+`20260818110000`. This suffix count is derived from the updated local manifest;
 it is not a new 2026-08-16 Production ledger observation.
 
 This proves migration-version continuity only. The old remote ledger rows have
@@ -39,17 +39,17 @@ controller against this observed Production baseline.
 The repository now pins the observation boundary in
 `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json`
 (normalized-LF SHA-256
-`4d17746a7a3c3d60516332bb9c927d261fa21c6251621f56e3b9b403c7221958`).
+`231dd7578f1ccc0f5c73e23126a60e7a788de97c589e6a8ea2b54840398eb347`).
 The successor manifest hash-pins that file. Static validation requires its 32
-applied migrations to be the exact file/hash prefix of the 104-migration
-manifest and its 72 pending migrations to be the exact suffix. Re-hashing a
+applied migrations to be the exact file/hash prefix of the 105-migration
+manifest and its 73 pending migrations to be the exact suffix. Re-hashing a
 semantically altered count, boundary, file, or migration hash is rejected.
 
 This baseline contract still does not authorize the current release controller
 to apply the suffix. The next controller tranche must consume the pinned
 historical prefix, use `20260727090000` as the effective pre-apply head, create
 a fresh current-remote backup contract that includes the schema effects of the
-32 applied migrations, and keep the remaining 72 migrations as the only
+32 applied migrations, and keep the remaining 73 migrations as the only
 ordered pending set. It must not rewrite Supabase migration history.
 
 The read-only check is reproducible with:
@@ -287,7 +287,7 @@ automatic rerun.
 
 ## Pending successor scope classification — 2026-08-18
 
-이 표는 72개 ordered suffix를 선택 적용하기 위한 목록이 아니다. 모든 행은 같은 순서로 격리 staging에 적용해야 하며, `disposition`은 **제품 완료 주장과 probe 책임**만 구분한다. `active_dependency`는 현재 아모라 vertical이 직접 사용하고, `integrity_hardening`은 현재/parked 표면의 무결성 경계이며, `unrelated_feature_off`는 migration은 적용하되 명시 flag를 계속 끄고, `parked_product_surface`는 schema·ACL만 검증하고 소비자 기능 완료로 세지 않는다.
+이 표는 73개 ordered suffix를 선택 적용하기 위한 목록이 아니다. 모든 행은 같은 순서로 격리 staging에 적용해야 하며, `disposition`은 **제품 완료 주장과 probe 책임**만 구분한다. `active_dependency`는 현재 아모라 vertical이 직접 사용하고, `integrity_hardening`은 현재/parked 표면의 무결성 경계이며, `unrelated_feature_off`는 migration은 적용하되 명시 flag를 계속 끄고, `parked_product_surface`는 schema·ACL만 검증하고 소비자 기능 완료로 세지 않는다.
 
 | migration | SHA-256 | primary owner | disposition | runtime flag boundary | required hosted probe |
 |---|---|---|---|---|---|
@@ -363,6 +363,7 @@ automatic rerun.
 | `20260816180000_amora_neutral_preparation_space.sql` | `ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867` | `AMR-F10` | `active_dependency` | `AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED=false` | `hosted:first-value` |
 | `20260816190000_amora_preparation_catch_up.sql` | `637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce` | `AMR-F20` | `active_dependency` | `AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED=false` | `hosted:first-value` |
 | `20260818100000_restore_signup_profile_trigger.sql` | `16fa1a4af7832c69e937faeaff7f88115699e377e1445f9c4cdc524b86f4a53a` | `AMR-F10` | `integrity_hardening` | `always_on` | `hosted:first-value` |
+| `20260818110000_restore_couple_invite_nullable_contract.sql` | `b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324` | `AMR-F15` | `integrity_hardening` | `always_on` | `hosted:first-value` |
 
 <!-- AMORA:PENDING-SCOPE-CLASSIFICATION:END -->
 

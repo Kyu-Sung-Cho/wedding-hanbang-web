@@ -11,6 +11,11 @@ const migrationPath = resolve(
   "../../supabase/migrations/20260816180000_amora_neutral_preparation_space.sql",
 );
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, "utf8") : "";
+const nullableInviteMigrationPath = resolve(
+  process.cwd(),
+  "../../supabase/migrations/20260818110000_restore_couple_invite_nullable_contract.sql",
+);
+const nullableInviteMigration = readFileSync(nullableInviteMigrationPath, "utf8");
 
 const OWNER_ID = "00000000-0000-4000-8000-000000000001";
 const PARTNER_ID = "00000000-0000-4000-8000-000000000002";
@@ -45,12 +50,15 @@ async function createDatabase() {
 
     CREATE TABLE public.couples (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      invite_code text UNIQUE,
+      invite_code text NOT NULL UNIQUE,
       bride_id uuid,
       groom_id uuid,
       membership_sealed_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT couples_invite_lifecycle_valid CHECK (
+        invite_code IS NULL OR invite_code ~ '^WH-[A-Z0-9]{12}$'
+      )
     );
     CREATE TABLE public.profiles (
       id uuid PRIMARY KEY,
@@ -71,6 +79,16 @@ async function createDatabase() {
     CREATE TRIGGER trg_test_seal_couple
       BEFORE UPDATE ON public.couples
       FOR EACH ROW EXECUTE FUNCTION public.test_seal_couple();
+
+    CREATE FUNCTION public.test_manage_couple_invite_lifecycle() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      RETURN NEW;
+    END
+    $$;
+    CREATE TRIGGER trg_manage_couple_invite_lifecycle
+      BEFORE INSERT OR UPDATE OF invite_code ON public.couples
+      FOR EACH ROW EXECUTE FUNCTION public.test_manage_couple_invite_lifecycle();
 
     CREATE FUNCTION public.create_couple_for_current_user(p_role text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -121,8 +139,8 @@ async function createDatabase() {
     END
     $$;
 
-    CREATE FUNCTION public.join_couple_server(
-      p_actor_user_id uuid, p_invite_code text, p_role text
+    CREATE FUNCTION public.join_couple_invite_core(
+      p_actor_user_id uuid, p_invite_code text, p_role text, p_call_path text
     ) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path = pg_catalog, public
@@ -173,9 +191,22 @@ async function createDatabase() {
     END
     $$;
 
+    CREATE FUNCTION public.join_couple_server(
+      p_actor_user_id uuid, p_invite_code text, p_role text
+    ) RETURNS jsonb
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path = pg_catalog, public
+    AS $$
+      SELECT public.join_couple_invite_core(
+        p_actor_user_id, p_invite_code, p_role, 'server'
+      )
+    $$;
+
     REVOKE ALL ON FUNCTION public.create_couple_for_current_user(text)
       FROM PUBLIC, anon, authenticated, service_role;
     GRANT EXECUTE ON FUNCTION public.create_couple_for_current_user(text) TO authenticated;
+    REVOKE ALL ON FUNCTION public.join_couple_invite_core(uuid,text,text,text)
+      FROM PUBLIC, anon, authenticated, service_role;
     REVOKE ALL ON FUNCTION public.join_couple_server(uuid,text,text)
       FROM PUBLIC, anon, authenticated, service_role;
     GRANT EXECUTE ON FUNCTION public.join_couple_server(uuid,text,text) TO service_role;
@@ -186,11 +217,12 @@ async function createDatabase() {
     INSERT INTO public.profiles(id) VALUES
       ('${OWNER_ID}'), ('${PARTNER_ID}');
     INSERT INTO public.couples(id, invite_code, bride_id)
-    VALUES ('${LEGACY_COUPLE_ID}', 'WH-LEGACY00001', '${LEGACY_ID}');
+    VALUES ('${LEGACY_COUPLE_ID}', 'WH-LEGACY000001', '${LEGACY_ID}');
     INSERT INTO public.profiles(id, couple_id, role)
     VALUES ('${LEGACY_ID}', '${LEGACY_COUPLE_ID}', 'bride');
   `);
   if (migration) await db.exec(migration);
+  await db.exec(nullableInviteMigration);
   return db;
 }
 
@@ -199,6 +231,26 @@ afterEach(async () => {
 });
 
 describe("neutral preparation-space migration", () => {
+  it("restores the nullable invite contract required by one-time redemption", async () => {
+    const db = await createDatabase();
+    const column = await db.query<{ attnotnull: boolean }>(`
+      SELECT attnotnull
+      FROM pg_catalog.pg_attribute
+      WHERE attrelid = 'public.couples'::regclass
+        AND attname = 'invite_code'
+        AND attnum > 0
+        AND NOT attisdropped
+    `);
+
+    expect(column.rows).toEqual([{ attnotnull: false }]);
+    expect(nullableInviteMigration).toMatch(
+      /ALTER\s+TABLE\s+public\.couples\s+ALTER\s+COLUMN\s+invite_code\s+DROP\s+NOT\s+NULL/iu,
+    );
+    expect(nullableInviteMigration).not.toMatch(
+      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+public\.couples/iu,
+    );
+  });
+
   it("creates one roleless neutral space without exposing its compatibility slot", async () => {
     const db = await createDatabase();
     await setPersona(db, "authenticated", OWNER_ID);
@@ -322,7 +374,7 @@ describe("neutral preparation-space migration", () => {
     await setPersona(db, "service_role");
     const joinAttempt = await db.query<{ result: Record<string, unknown> }>(`
       SELECT public.join_neutral_preparation_space_server(
-        '${PARTNER_ID}', 'WH-LEGACY00001'
+        '${PARTNER_ID}', 'WH-LEGACY000001'
       ) AS result
     `);
     expect(joinAttempt.rows[0]?.result).toMatchObject({
