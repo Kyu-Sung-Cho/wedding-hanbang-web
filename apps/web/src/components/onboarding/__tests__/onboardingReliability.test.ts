@@ -59,7 +59,7 @@ describe("onboarding reliability", () => {
       "ownerData?.user?.id !== expectedActorUserId",
     );
 
-    const submitStart = onboardingPage.indexOf("const handleSubmit = async () =>");
+    const submitStart = onboardingPage.indexOf("const handleSubmit = async (");
     const responseOwnerFence = onboardingPage.indexOf(
       'const ownerResponse = await fetch("/api/auth/me"',
       submitStart,
@@ -156,5 +156,19 @@ describe("onboarding reliability", () => {
     expect(preferenceCopy).not.toContain("50명 이하");
     expect(preferenceCopy).not.toContain("스드메");
     expect(preferenceCopy).not.toContain("최고의 퀄리티");
+  });
+
+  it("uses the authenticated server capability for a roleless web quick start", () => {
+    const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
+    const authMeRoute = source("src/app/api/auth/me/route.ts");
+
+    expect(authMeRoute).toContain("neutralPreparationSpace");
+    expect(authMeRoute).toContain(
+      'process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true"',
+    );
+    expect(onboardingPage).toContain("parseNeutralPreparationSpaceCapability");
+    expect(onboardingPage).toContain("buildNeutralPreparationSpaceSubmission");
+    expect(onboardingPage).toContain("<NeutralPreparationStart");
+    expect(onboardingPage).toContain("neutralPreparationSpaceEnabled");
   });
 });

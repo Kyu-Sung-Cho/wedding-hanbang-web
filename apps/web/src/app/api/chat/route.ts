@@ -2104,6 +2104,41 @@ export async function POST(request: Request) {
     requestClaimAttemptCount = null;
   };
 
+  let memberModelVersion: 1 | 2 = 1;
+  if (
+    !isDemo
+    && process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true"
+  ) {
+    try {
+      const memberModelResult = await supabase
+        .from("couples")
+        .select("member_model_version")
+        .eq("id", dataCoupleId)
+        .maybeSingle();
+      const rawMemberModelVersion = isRecord(memberModelResult.data)
+        ? memberModelResult.data.member_model_version
+        : null;
+      if (
+        memberModelResult.error
+        || (rawMemberModelVersion !== 1 && rawMemberModelVersion !== 2)
+      ) {
+        throw new Error("invalid member model result");
+      }
+      memberModelVersion = rawMemberModelVersion;
+    } catch (error) {
+      console.error("[chat] member model lookup failed", error);
+      await releaseClaimBeforeStream("AMORA_MEMBER_MODEL_UNAVAILABLE");
+      return NextResponse.json(
+        {
+          error: "현재 준비 공간의 구성 방식을 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+          code: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+  const usesNeutralMemberPresentation = memberModelVersion === 2;
+
   const { visionAttachments, textAttachments } = processedAttachments;
 
   // Consent must be resolved before any auxiliary-memory read. Disabled
@@ -2494,10 +2529,15 @@ export async function POST(request: Request) {
         scheduleEvents: resolvedWeddingContext.scheduleEvents,
       });
 
-  // 프로필에서 신부/신랑 이름 추출
+  // v1 공간만 호환 역할 라벨을 provider context에 사용한다. v2 공간의
+  // bride/groom 값은 저장 경계를 위한 내부 슬롯일 뿐 사용자 정체성이 아니다.
   const profiles = profilesResult.data ?? [];
-  const brideName = profiles.find((p) => p.role === "bride")?.name ?? null;
-  const groomName = profiles.find((p) => p.role === "groom")?.name ?? null;
+  const brideName = usesNeutralMemberPresentation
+    ? null
+    : profiles.find((p) => p.role === "bride")?.name ?? null;
+  const groomName = usesNeutralMemberPresentation
+    ? null
+    : profiles.find((p) => p.role === "groom")?.name ?? null;
   const memberIds = {
     bride: profiles.find((profile) => profile.role === "bride")?.id ?? null,
     groom: profiles.find((profile) => profile.role === "groom")?.id ?? null,
@@ -2828,7 +2868,9 @@ export async function POST(request: Request) {
     if (row.sender_type === "ai" || row.role === "assistant") {
       return { role: "assistant" as const, content: row.content, id: row.id };
     }
-    const roleLabel = row.sender_type === "bride" ? "신부" : "신랑";
+    const roleLabel = usesNeutralMemberPresentation
+      ? row.sender_id === actorId ? "사용자" : "파트너"
+      : row.sender_type === "bride" ? "신부" : "신랑";
     const targetLabel = row.metadata?.target === "partner" ? "→상대방" : "";
     return {
       role: "user" as const,
@@ -2847,8 +2889,9 @@ export async function POST(request: Request) {
   let lastUserText: string;
 
   if (requestKind === "initial_greeting") {
-    const roleLabel =
-      userProfile.role === "groom"
+    const roleLabel = usesNeutralMemberPresentation
+      ? "사용자"
+      : userProfile.role === "groom"
         ? "신랑"
         : userProfile.role === "bride"
           ? "신부"
@@ -2859,8 +2902,9 @@ export async function POST(request: Request) {
       { role: "user", content: `[${roleLabel}] ${lastUserText}` },
     ];
   } else if (requestKind === "mediation") {
-    const roleLabel =
-      userProfile.role === "groom"
+    const roleLabel = usesNeutralMemberPresentation
+      ? "사용자"
+      : userProfile.role === "groom"
         ? "신랑"
         : userProfile.role === "bride"
           ? "신부"
@@ -3832,10 +3876,12 @@ export async function POST(request: Request) {
       ? routeSpecialist(lastUserText, stageTag)
       : "general" as const;
 
-  // Private 모드 안내 (신부/신랑이 단독으로 아모라에게 털어놓는 채팅)
+  // Private 모드 안내. v2의 bride/groom은 호환 슬롯이므로 prompt에 노출하지 않는다.
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
     ? (allowsStoredProviderContext
-      ? `[PRIVATE_MODE] 이 메시지는 ${visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n`
+      ? usesNeutralMemberPresentation
+        ? "[PRIVATE_MODE] 이 메시지는 사용자의 개인 비공개 대화입니다.\n"
+        : `[PRIVATE_MODE] 이 메시지는 ${visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n`
       : "[PRIVATE_MODE] 이 메시지는 사용자의 개인 비공개 대화입니다.\n") +
       `- 상대방을 비난하거나 편드는 발언 금지. 객관적·공감적으로.\n` +
       `- 이 대화 내용은 절대 상대방의 채팅(shared/상대방의 private)에서 언급·인용하지 마세요. 시스템이 격리하지만 아모라도 의식적으로 분리.\n` +

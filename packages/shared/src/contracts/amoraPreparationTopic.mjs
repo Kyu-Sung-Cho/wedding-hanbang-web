@@ -380,6 +380,194 @@ function hasExactKeys(value, expectedKeys) {
     && keys.every((key, index) => key === expectedKeys[index]);
 }
 
+const CATCH_UP_DECISION_KEYS = Object.freeze([
+  "category",
+  "chosen_value",
+  "confidence",
+  "couple_id",
+  "created_at",
+  "decided_at",
+  "decision_type",
+  "id",
+  "memory_key",
+  "metadata",
+  "options_considered",
+  "reasoning",
+  "source",
+  "source_actor_role",
+  "source_message_id",
+  "source_ref_id",
+  "stage_tag",
+  "superseded_at",
+  "superseded_by",
+  "title",
+  "updated_at",
+  "user_confirmed_at",
+  "visibility",
+]);
+const CATCH_UP_CHOSEN_KEYS = Object.freeze([
+  "reportedState",
+  "scope",
+  "source",
+  "topicKey",
+]);
+const CATCH_UP_METADATA_KEYS = Object.freeze([
+  "actor_profile_id",
+  "checklist_completion_changed",
+  "hook",
+  "payment_evidence",
+  "privacy_epoch",
+  "receipt_id",
+  "reported_state",
+  "request_id",
+  "scope",
+  "source",
+  "source_journey_revision",
+  "topic_key",
+  "vendor_confirmation_status",
+]);
+const CATCH_UP_DECISION_TYPES = Object.freeze({
+  completed: "completed",
+  in_progress: "considering",
+  unknown: "exploring",
+  not_applicable: "decided",
+});
+
+function isCatchUpCandidateForTopic(value, topicKey) {
+  return isRecord(value) && (
+    (isRecord(value.chosen_value) && value.chosen_value.topicKey === topicKey)
+    || (isRecord(value.metadata) && value.metadata.topic_key === topicKey)
+  );
+}
+
+function readUserReportedCatchUpRecords(
+  topicKey,
+  topicLabel,
+  expectedCoupleId,
+  currentCoupleMemberIds,
+  decisions,
+  nowIso,
+) {
+  const coupleId = typeof expectedCoupleId === "string"
+    ? expectedCoupleId.toLowerCase()
+    : "";
+  const nowMs = Date.parse(String(nowIso ?? ""));
+  if (
+    !UUID_RE.test(coupleId)
+    || !Array.isArray(currentCoupleMemberIds)
+    || !Array.isArray(decisions)
+    || !Number.isFinite(nowMs)
+  ) return [];
+
+  const memberIds = currentCoupleMemberIds.map((memberId) => (
+    typeof memberId === "string" ? memberId.toLowerCase() : ""
+  ));
+  if (
+    memberIds.length < 1
+    || memberIds.length > 2
+    || new Set(memberIds).size !== memberIds.length
+    || memberIds.some((memberId) => !UUID_RE.test(memberId))
+  ) return [];
+
+  const candidates = decisions.filter((decision) => (
+    isCatchUpCandidateForTopic(decision, topicKey)
+  ));
+  if (candidates.length !== 1) return [];
+
+  const decision = candidates[0];
+  const chosen = decision.chosen_value;
+  const metadata = decision.metadata;
+  if (
+    !hasExactKeys(decision, CATCH_UP_DECISION_KEYS)
+    || !hasExactKeys(chosen, CATCH_UP_CHOSEN_KEYS)
+    || !hasExactKeys(metadata, CATCH_UP_METADATA_KEYS)
+  ) return [];
+
+  const decisionId = typeof decision.id === "string" ? decision.id.toLowerCase() : "";
+  const receiptId = typeof decision.source_ref_id === "string"
+    ? decision.source_ref_id.toLowerCase()
+    : "";
+  const requestId = typeof metadata.request_id === "string"
+    ? metadata.request_id.toLowerCase()
+    : "";
+  const actorId = typeof metadata.actor_profile_id === "string"
+    ? metadata.actor_profile_id.toLowerCase()
+    : "";
+  const actorRole = decision.source_actor_role;
+  const state = chosen.reportedState;
+  const scope = chosen.scope;
+  const confirmedAt = decision.user_confirmed_at;
+  const confirmedMs = Date.parse(String(confirmedAt ?? ""));
+  const canonicalConfirmedAt = Number.isFinite(confirmedMs)
+    ? new Date(confirmedMs).toISOString()
+    : null;
+  const expectedVisibility = scope === "couple_shared"
+    ? "shared"
+    : actorRole === "bride"
+      ? "bride_private"
+      : actorRole === "groom"
+        ? "groom_private"
+        : null;
+
+  if (
+    !UUID_RE.test(decisionId)
+    || String(decision.couple_id ?? "").toLowerCase() !== coupleId
+    || decision.category !== "preparation_catch_up"
+    || !Object.hasOwn(CATCH_UP_DECISION_TYPES, state)
+    || decision.decision_type !== CATCH_UP_DECISION_TYPES[state]
+    || decision.title !== `${topicLabel} 준비 상태 기록`
+    || chosen.topicKey !== topicKey
+    || (scope !== "owner_private" && scope !== "couple_shared")
+    || chosen.source !== "user_reported"
+    || !Array.isArray(decision.options_considered)
+    || decision.options_considered.length !== 0
+    || decision.reasoning !== "사용자가 현재 준비 상태로 직접 확인한 기록입니다."
+    || decision.confidence !== 1
+    || decision.stage_tag !== null
+    || canonicalConfirmedAt === null
+    || confirmedAt !== canonicalConfirmedAt
+    || confirmedMs > nowMs
+    || decision.decided_at !== confirmedAt
+    || decision.created_at !== confirmedAt
+    || decision.updated_at !== confirmedAt
+    || decision.source !== "onboarding"
+    || !UUID_RE.test(receiptId)
+    || decision.source_message_id !== null
+    || decision.memory_key !== null
+    || (actorRole !== "bride" && actorRole !== "groom")
+    || !UUID_RE.test(actorId)
+    || !memberIds.includes(actorId)
+    || metadata.hook !== "amora_preparation_catch_up_v1"
+    || String(metadata.receipt_id ?? "").toLowerCase() !== receiptId
+    || !UUID_RE.test(requestId)
+    || metadata.topic_key !== topicKey
+    || metadata.reported_state !== state
+    || metadata.scope !== scope
+    || metadata.source !== "user_reported"
+    || !isSafeRevision(metadata.source_journey_revision)
+    || !Number.isSafeInteger(metadata.privacy_epoch)
+    || metadata.privacy_epoch < 1
+    || metadata.checklist_completion_changed !== false
+    || metadata.vendor_confirmation_status !== "unconfirmed"
+    || metadata.payment_evidence !== false
+    || decision.visibility !== expectedVisibility
+    || decision.superseded_at !== null
+    || decision.superseded_by !== null
+  ) return [];
+
+  return [Object.freeze({
+    decisionId,
+    receiptId,
+    state,
+    scope,
+    confirmedAt,
+    evidence: "user_reported",
+    checklistCompletionChanged: false,
+    vendorConfirmationStatus: "unconfirmed",
+    paymentEvidence: false,
+  })];
+}
+
 function readBudgetAcceptances(value, currentMemberIds, decidedMs) {
   if (!Array.isArray(value) || value.length !== currentMemberIds.length) return null;
   const currentMembers = new Set(currentMemberIds);
@@ -1287,6 +1475,8 @@ export function buildAmoraPreparationTopicView({
   currentJourneyRevision,
   scheduleDecisionReceipts,
   decisionReadState = "loaded",
+  catchUpDecisionReceipts,
+  catchUpReadState = "loaded",
   budgetDecisionReceipts,
   budgetDecisionVerifications,
   budgetDecisionReadState = "loaded",
@@ -1355,15 +1545,41 @@ export function buildAmoraPreparationTopicView({
     && hasUnresolvedBudgetDecisionCandidate
     ? "partial"
     : normalizedBudgetDecisionReadState;
+  const normalizedCatchUpReadState = catchUpReadState === "loaded"
+    || catchUpReadState === "partial"
+    ? catchUpReadState
+    : "unavailable";
+  const userReportedCatchUpRecords = normalizedCatchUpReadState !== "unavailable"
+    ? readUserReportedCatchUpRecords(
+        topicKey,
+        topic.label,
+        expectedCoupleId,
+        currentCoupleMemberIds,
+        catchUpDecisionReceipts,
+        nowIso,
+      )
+    : [];
+  const hasUnresolvedCatchUpCandidate = Array.isArray(catchUpDecisionReceipts)
+    && catchUpDecisionReceipts.some((decision) => (
+      isCatchUpCandidateForTopic(decision, topicKey)
+    ));
+  const effectiveCatchUpReadState = normalizedCatchUpReadState === "loaded"
+    && userReportedCatchUpRecords.length === 0
+    && hasUnresolvedCatchUpCandidate
+    ? "partial"
+    : normalizedCatchUpReadState;
   const decisionFields = Object.freeze({
     confirmedScheduleDecisions: Object.freeze(linkedDecisions),
     confirmedBudgetDecisions: Object.freeze(confirmedBudgetDecisions),
-    linkedDecisionIds: Object.freeze([
+    userReportedCatchUpRecords: Object.freeze(userReportedCatchUpRecords),
+    linkedDecisionIds: Object.freeze([...new Set([
       ...linkedDecisions.map((decision) => decision.id),
       ...confirmedBudgetDecisions.map((decision) => decision.id),
-    ]),
+      ...userReportedCatchUpRecords.map((record) => record.decisionId),
+    ])]),
     decisionReadState: normalizedDecisionReadState,
     budgetDecisionReadState: effectiveBudgetDecisionReadState,
+    catchUpReadState: effectiveCatchUpReadState,
   });
   const normalizedVendorBookingReadState = vendorBookingReadState === "loaded"
     || vendorBookingReadState === "partial"

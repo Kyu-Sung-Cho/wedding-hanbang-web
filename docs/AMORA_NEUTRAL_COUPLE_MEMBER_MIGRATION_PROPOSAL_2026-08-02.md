@@ -1,12 +1,59 @@
-# 아모라 중립 커플 member 모델 전환 제안
+# 아모라 중립 커플 member 모델 전환 제안과 Wave 1 C0 결정
 
-- 상태: **PROPOSED — 구현되지 않음**
+- 상태: **Wave 1 compatibility adapter LOCAL IMPLEMENTED / DEFAULT-OFF · normalized member 전환은 PROPOSED · HOSTED/PRODUCTION NO-GO**
 - 작성일: 2026-08-02
+- Wave 1 결정일: 2026-08-17
 - 장기 기능 플래그: **모두 OFF가 기본값**
 - 대상: 성별·성정체성 조합과 관계없이 연결할 수 있는 **정확히 2인의 파트너**
 - 비대상: 3인 이상 관계, 법적 혼인 가능 여부 판단, 가족관계·성별·호칭의 자동 추론
 
-이 문서는 현재 `bride/groom` 고정 모델을 안전하게 중립 `member` 모델로 옮기기 위한 설계 제안이다. 문서에 적힌 테이블, RPC, 플래그, 전환 단계는 현재 제품에 반영된 기능이 아니다. 실제 구현은 별도 migration, 코드 변경, 검증, 승인 과정을 거쳐야 한다.
+이 문서는 현재 `bride/groom` 고정 모델을 안전하게 중립 `member` 모델로 옮기기 위한 설계와 Wave 1의 물리 구현 결정을 함께 기록한다. Wave 1 compatibility adapter는 로컬 코드와 successor migration으로 구현됐지만 기본 OFF이며 hosted 적용·구버전 차단·2계정·실기기 검증 전에는 출시 기능이 아니다. 장기 normalized member 테이블과 전환 단계는 계속 별도 승인 대상이다.
+
+## 0. 2026-08-17 Wave 1 C0 결정
+
+첫 가치가 파트너 연결이나 성별 역할 선택에 막히지 않도록, Wave 1에서는 현재의 안전한 1인 `couple_id`를 **중립 준비 공간 compatibility adapter**로 사용한다. 장기 정본은 이 문서의 `couple_members` 모델이며, compatibility alias를 사람의 성별·역할 사실로 승격하지 않는다.
+
+### 0.1 논리 모델
+
+- 첫 질문과 첫 행동 이해는 준비 공간 생성 전에도 가능하며 DB write를 요구하지 않는다.
+- 첫 질문과 결과 카드는 write 없이 볼 수 있다. 사용자가 `아모라와 이 한 가지 정리하기`를 눌러 private 상담 진입을 명시적으로 선택할 때 중립 준비 공간을 만들며, 이때 상담 메시지나 준비 완료 사실은 아직 전송·저장하지 않는다.
+- 사용자는 `나`, 상대방 이름 또는 `파트너`로만 보며 `bride/groom`, slot 번호, compatibility role을 보지 않는다.
+- 개인 상담은 현재 사용자 소유, 커플 공유는 별도 명시적 공유와 현재 roster 승인 뒤에만 가능하다.
+- 예식일·예산·파트너·성별 역할은 첫 가치의 필수 입력이 아니다. 입력된 값만 관련 주제의 질문·행동·제약에 사용한다.
+
+### 0.2 Wave 1 물리 옵션
+
+- `couples.member_model_version`으로 legacy(`1`)와 neutral compatibility(`2`)를 구분한다.
+- 새 roleless create/join RPC는 role 인자를 받지 않고 서버가 비어 있는 legacy slot을 compatibility alias로만 선택한다.
+- 기존 `couples.bride_id/groom_id`, `profiles.role`, roster epoch, no-refill, private visibility, 승인 fingerprint는 Wave 1에서 그대로 유지한다. RLS를 완화하거나 클라이언트에서 alias를 선택하게 하지 않는다.
+- 신규 RPC와 API 응답은 compatibility role을 반환하지 않는다. 내부 DB 결과에 role이 필요해도 서버 경계를 넘기기 전에 제거한다.
+- `member_model_version=2`의 웹·모바일·AI 문맥은 compatibility role을 표시하거나 성별·책임·가족 호칭을 추론하면 안 된다.
+- 기존 couple과 기존 클라이언트 동작은 변경하지 않는다. neutral onboarding은 backend·web·mobile·최소 지원 버전 gate가 모두 준비되기 전 기본 OFF다.
+
+### 0.3 migration·rollback·승격 조건
+
+- migration은 expand-only다. 새 column/RPC를 추가하고 기존 column/RPC/RLS를 삭제하거나 재해석하지 않는다.
+- rollback은 neutral onboarding flag를 OFF로 돌리고 legacy read로 복귀한다. 생성된 v2 준비 공간이나 감사 기록을 자동 삭제하지 않는다.
+- roleless create/join의 동시성, idempotent retry, 잘못된 초대코드, 탈퇴 뒤 refill, partner-private 접근, old-client update gate가 검증되지 않으면 capability를 켜지 않는다.
+- 장기 `couple_members` 전환은 shadow parity, dual-write, hosted RLS, backup/restore가 독립 통과된 뒤에만 진행한다.
+
+### 0.4 명시적 비선택
+
+- 첫 가치를 위해 role 값을 클라이언트에서 몰래 `bride`로 보내지 않는다.
+- 중립처럼 보이는 UI만 먼저 노출하지 않는다.
+- 첫 이용에서 partner invite, 날짜, 예산, 긴 설문을 강제하지 않는다.
+- Wave 1 compatibility adapter를 장기 member 모델 완료로 주장하지 않는다.
+
+### 0.5 현재 로컬 구현과 미검증 경계
+
+- successor migration: `20260816180000_amora_neutral_preparation_space.sql`, SHA-256 `ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867`
+- DB: `couples.member_model_version` 1/2, authenticated roleless create RPC, service-only roleless join RPC, legacy slot은 호환 alias로만 유지
+- web/mobile: neutral onboarding과 AI participant label은 각각 `AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED=true`, `EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED=true`일 때만 활성화하고 기본값은 OFF. web capability는 `/api/auth/me`가 서버 환경값에서 계산하고, 클라이언트가 임의로 켜지 못함
+- 개인화 표시: `member_model_version=2`와 현재 사용자 slot이 정확히 결박될 때만 `나`·`파트너`, `내 가족`·`파트너 가족`을 사용. onboarding, chat, profile, settings, mediation, community, budget, preparation topic, money/CSV가 같은 neutral presentation 계약을 사용하고, identity가 모호하면 legacy role을 추측하지 않고 fail closed
+- first value: role·날짜·예산 없이 한 질문→한 행동·이유·완료 기준→owner/couple-bound private 초안. 초안은 자동 전송하지 않음
+- restart: self-reported stage만 device-only SecureStore에 24시간 저장하며 identity/draft 본문은 저장하지 않음. exact owner/couple 및 private user message 부재가 확인될 때만 복구
+- 로컬 증거: neutral migration 4/4, backend route/onboarding/membership 434/434, web neutral focused 108/108, mobile full 1033/1033, shared/web/mobile typecheck, scoped lint, diff-check, release 218/218+fence. 현 web parity 반영 뒤 root/web 전체 회귀와 build는 재실행 전이므로 완료 증거로 주장하지 않음
+- 미검증: hosted PostgreSQL/RLS/schema cache, 최소 지원 버전 강제, 2계정·2기기, iOS/Android 접근성, backup/restore, flag rollback, Preview/EAS/Production
 
 ## 1. 결론
 
@@ -20,7 +67,7 @@ UI 문구의 `신부/신랑`을 `파트너 1/2`로 바꾸는 것만으로는 포
 
 ## 2. 이번 감사에서 직접 확인한 현재 상태
 
-아래는 2026-08-02 로컬 작업 트리에서 확인한 사실이다.
+아래는 **Wave 1 구현 전인 2026-08-02 로컬 작업 트리**에서 확인한 역사적 사실이다. 2026-08-17 현재 로컬 구현은 Section 0.5를 우선한다.
 
 - `couples`는 `bride_id`, `groom_id` 두 slot을 사용한다.
 - `profiles.role`과 다수 TypeScript 타입은 `bride | groom`을 요구한다.
@@ -416,7 +463,7 @@ backfill 원칙:
 
 ## 13. proposed feature flags
 
-아래 이름과 동작은 제안이며 현재 구현되지 않았다. 초기값은 모두 OFF 또는 legacy다.
+아래 장기 normalized member 전환 flag 이름과 동작은 제안이며 현재 구현되지 않았다. 별도로 Wave 1 compatibility adapter는 web `AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED`, mobile `EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED`를 구현했지만 둘 다 기본값은 false이고 hosted 미적용이다.
 
 | 플래그 | 초기값 | 의미 |
 |---|---|---|
@@ -575,4 +622,4 @@ destructive cleanup 전 rollback은 데이터 삭제가 아니라 read 경로 �
 
 ## 18. 현재 작업 범위의 검증 경계
 
-이 문서를 작성한 작업에서는 production/staging 접속, browser QA, hosted Supabase migration, 배포, commit을 수행하지 않는다. 로컬 카피와 계약 테스트 변경만 구현하며, neutral schema/RPC/RLS/feature flag는 이 문서의 proposed 설계로 남긴다.
+현재 Wave 1 작업에서는 production/staging 접속, browser/device QA, hosted Supabase migration, 배포, commit을 수행하지 않았다. compatibility schema/RPC/feature flag는 로컬 구현됐고 release contract는 102/32/70/tail 161800으로 갱신됐지만 상태는 `deployment_blocked`다. 장기 normalized member schema/RLS 전환은 여전히 proposed 설계다.

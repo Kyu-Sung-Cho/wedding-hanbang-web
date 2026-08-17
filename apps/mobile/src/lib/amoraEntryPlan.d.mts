@@ -14,6 +14,11 @@ export interface AmoraEntryPlan {
 }
 
 export type AmoraChatEntry = "first_use";
+export type PlanningFoundationEntryStage =
+  | "starting"
+  | "already_preparing"
+  | "unknown"
+  | "later";
 
 export interface FirstUseActionDraft {
   action: string;
@@ -37,6 +42,28 @@ export interface GroundedFirstUseActionDraft extends FirstUseActionDraft {
 export function resolveAmoraChatEntry(
   value: string | string[] | null | undefined,
 ): AmoraChatEntry | null;
+
+export function resolvePlanningFoundationEntryStage(
+  value: string | string[] | null | undefined,
+): PlanningFoundationEntryStage | null;
+
+export function buildPlanningFoundationPrivateDraft(
+  value: unknown,
+): string | null;
+
+export interface AmoraParticipantPresentation {
+  avatarLabel: string;
+  senderLabel: string;
+  tone: "self" | "partner_neutral" | "bride" | "groom";
+}
+
+export function getAmoraParticipantPresentation(input: {
+  memberModelVersion: 1 | 2;
+  senderType: "bride" | "groom";
+  viewerRole: "bride" | "groom";
+  userName: unknown;
+  partnerName: unknown;
+}): Readonly<AmoraParticipantPresentation> | null;
 
 export function resolveAmoraFirstUseSessionResetScope(input: {
   entry: AmoraChatEntry | null;

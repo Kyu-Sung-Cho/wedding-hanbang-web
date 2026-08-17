@@ -44,19 +44,63 @@ export async function getCommunityAuthorMap(
 
   let roleMap: Record<string, UserRole | null> = {};
   try {
-    const { data: profiles, error: profileError } = await createAdminClient()
+    const neutralPreparationSpaceEnabled =
+      process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
+    const adminClient = createAdminClient();
+    const { data: profiles, error: profileError } = await adminClient
       .from("profiles")
-      .select("id, role")
+      .select((neutralPreparationSpaceEnabled ? "id, role, couple_id" : "id, role") as "id, role")
       .in("id", uniqueAuthorIds);
 
     if (profileError) {
       console.error("[community.authors] profile role lookup failed:", profileError);
     } else {
+      const internalProfiles = (profiles ?? []) as unknown as Array<{
+        id?: unknown;
+        role?: unknown;
+        couple_id?: unknown;
+      }>;
+      let memberModelByCoupleId: Record<string, 1 | 2> = {};
+      if (neutralPreparationSpaceEnabled) {
+        const coupleIds = [...new Set(internalProfiles.flatMap((profile) => (
+          typeof profile.couple_id === "string" ? [profile.couple_id] : []
+        )))];
+        if (coupleIds.length > 0) {
+          const { data: couples, error: coupleError } = await adminClient
+            .from("couples")
+            .select("id, member_model_version" as "id")
+            .in("id", coupleIds);
+          if (coupleError) {
+            console.error("[community.authors] member model lookup failed:", coupleError);
+          } else {
+            memberModelByCoupleId = Object.fromEntries(
+              ((couples ?? []) as unknown as Array<{
+                id?: unknown;
+                member_model_version?: unknown;
+              }>).flatMap((couple) => (
+                typeof couple.id === "string"
+                && (couple.member_model_version === 1 || couple.member_model_version === 2)
+                  ? [[couple.id, couple.member_model_version] as const]
+                  : []
+              )),
+            );
+          }
+        }
+      }
       roleMap = Object.fromEntries(
-        (profiles ?? []).map((profile) => [
-          profile.id as string,
-          isUserRole(profile.role) ? profile.role : null,
-        ])
+        internalProfiles.flatMap((profile) => typeof profile.id === "string" ? [[
+          profile.id,
+          isUserRole(profile.role)
+          && (
+            !neutralPreparationSpaceEnabled
+            || (
+              typeof profile.couple_id === "string"
+              && memberModelByCoupleId[profile.couple_id] === 1
+            )
+          )
+            ? profile.role
+            : null,
+        ] as const] : [])
       );
     }
   } catch (error) {

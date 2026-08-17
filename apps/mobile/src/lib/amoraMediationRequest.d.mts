@@ -10,6 +10,7 @@ export interface AmoraMediationRequestInput {
   summary: string;
   senderRole: "bride" | "groom";
   senderName: string;
+  memberModelVersion?: 1 | 2;
   coupleId: string;
   clientRequestId: string;
 }

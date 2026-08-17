@@ -1,14 +1,72 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC,
   JOIN_COUPLE_SERVER_RPC,
   joinCoupleThroughServerRpc,
+  joinNeutralPreparationSpaceThroughServerRpc,
   parseMembershipRpcResponse,
+  parseNeutralMembershipRpcResponse,
 } from "../membershipRpc";
 
 const coupleId = "12345678-1234-4234-9234-123456789abc";
 
 describe("parseMembershipRpcResponse", () => {
+  it("accepts only roleless version-2 preparation-space receipts", async () => {
+    const actorUserId = "00000000-0000-4000-8000-000000000001";
+    expect(parseNeutralMembershipRpcResponse({
+      success: true,
+      joined: true,
+      idempotent: false,
+      actor_user_id: actorUserId,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+    }, "join", actorUserId)).toEqual({
+      ok: true,
+      coupleId,
+      inviteCode: "WH-ABC123",
+      changed: true,
+      idempotent: false,
+      memberModelVersion: 2,
+    });
+
+    expect(parseNeutralMembershipRpcResponse({
+      success: true,
+      joined: true,
+      idempotent: false,
+      actor_user_id: actorUserId,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+      role: "groom",
+    }, "join", actorUserId)).toMatchObject({
+      ok: false,
+      errorCode: "INVALID_RPC_RESPONSE",
+    });
+
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const expected = { data: null, error: null };
+    await expect(joinNeutralPreparationSpaceThroughServerRpc({
+      rpc: async (name, args) => {
+        calls.push({ name, args });
+        return expected;
+      },
+    }, {
+      actorUserId,
+      inviteCode: "WH-ABC123",
+    })).resolves.toBe(expected);
+    expect(JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC)
+      .toBe("join_neutral_preparation_space_server");
+    expect(calls).toEqual([{
+      name: "join_neutral_preparation_space_server",
+      args: {
+        p_actor_user_id: actorUserId,
+        p_invite_code: "WH-ABC123",
+      },
+    }]);
+  });
+
   it("accepts a fresh create result", () => {
     expect(
       parseMembershipRpcResponse(

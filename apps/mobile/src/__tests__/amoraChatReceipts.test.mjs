@@ -9,7 +9,16 @@ import {
   getQuoteAnalysisMessagePresentation,
 } from "@hanbang/shared/quote-analysis-presentation";
 import {
-  consumeActionReceiptHomeHandoff,
+  resolvePlanningFoundationFirstValue,
+} from "@hanbang/shared/amora-planning-foundation";
+import {
+  buildFirstUseSharedActionDraft,
+  buildPlanningFoundationPrivateDraft,
+  getFirstUsePendingActionPresentation,
+  parseFirstUseSharedActionDraft,
+} from "../lib/amoraEntryPlan.mjs";
+import {
+  resolveActionReceiptHomeHandoff,
   stageActionReceiptHomeHandoff,
 } from "../lib/actionReceiptHomeHandoff.mjs";
 
@@ -251,7 +260,7 @@ test("a persisted Amora action mutation is presented as an action receipt", () =
   }]);
 });
 
-test("a done-only provider-free first-use application reaches its receipt and user-triggered home continuation", () => {
+test("one personalized first action reaches a canonical receipt and the same home action", async () => {
   const { createChatStreamParser, reconcileChatStreamUpdate } =
     loadDoneOnlyApplicationContract();
   const { getMobileChatMessagePresentation } = loadReceiptPresentationContract();
@@ -264,9 +273,82 @@ test("a done-only provider-free first-use application reaches its receipt and us
   const operationKey = "b".repeat(64);
   const requestKey = `chat:${ownerUserId}:${confirmationRequestId}`;
   const actionId = `act_${confirmationRequestId.replaceAll("-", "")}_${operationKey.slice(0, 24)}`;
-  const actionTitle = "예식장 후보 두 곳 비교하기";
-  const actionDescription = "이유: 비교 기준을 맞춰요. 완료 기준: 후보 두 곳을 확인해요.";
-  const displayMessage = '"예식장 후보 두 곳 비교하기"을 아모라 행동 카드로 저장했어요.';
+  const firstValue = resolvePlanningFoundationFirstValue({
+    preparationOverview: {
+      version: 1,
+      coverage: {
+        version: 1,
+        stage: "partial",
+        connectedTopicCount: 19,
+        journeyAxisCount: 10,
+        gapCount: 7,
+        issueCount: 0,
+      },
+      summary: {
+        totalTopics: 19,
+        unknownTopics: 19,
+        notStartedTopics: 0,
+        inProgressTopics: 0,
+        completedTopics: 0,
+        notApplicableTopics: 0,
+        needsReviewTopics: 0,
+        completedItems: 0,
+        totalItems: 95,
+        percent: 0,
+      },
+      topics: [],
+      attentionTopics: [],
+    },
+    selfReportedStage: "starting",
+  });
+  assert.equal(firstValue.kind, "action");
+  const privateDraft = buildPlanningFoundationPrivateDraft("starting");
+  assert.match(privateDraft ?? "", /자동|저장하지 말/u);
+  const sharedDraft = buildFirstUseSharedActionDraft({
+    action: firstValue.title,
+    reason: firstValue.reason,
+    completionCriterion: firstValue.completionCriterion,
+  });
+  assert.deepEqual(parseFirstUseSharedActionDraft(sharedDraft), {
+    action: firstValue.title,
+    reason: firstValue.reason,
+    completionCriterion: firstValue.completionCriterion,
+  });
+
+  const pendingActionId = "70000000-0000-4000-8000-000000000007";
+  const pendingAction = {
+    version: 2,
+    actionId: pendingActionId,
+    tool: "add_amora_action",
+    input: {
+      title: firstValue.title,
+      description: `이유: ${firstValue.reason} 완료 기준: ${firstValue.completionCriterion}`,
+      category_key: "general",
+      priority: "medium",
+      source: "chat",
+    },
+  };
+  assert.equal(getFirstUsePendingActionPresentation({
+    pendingAction,
+    metadata: {
+      client_request_id: "proposal-request",
+      client_visible_request_id: "proposal-visible-request",
+      in_reply_to_user_message_id: "80000000-0000-4000-8000-000000000008",
+      question_scope: "W0_wedding_core",
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+      amora_wedding_context_revision: 1,
+      pending_amora_action_journey_revision: 1,
+      amora_first_use_promotion_id: "60000000-0000-4000-8000-000000000006",
+      response_origin: "server_authoritative_first_use_promotion",
+      provider_call_count: 0,
+      pending_amora_action: pendingAction,
+    },
+  })?.applyLabel, "확인하고 준비에 추가");
+
+  const actionTitle = firstValue.title;
+  const actionDescription = pendingAction.input.description;
+  const displayMessage = `"${actionTitle}"을 아모라 행동 카드로 저장했어요.`;
   const toolResult = {
     toolName: "add_amora_action",
     toolInput: {
@@ -351,10 +433,32 @@ test("a done-only provider-free first-use application reaches its receipt and us
     actionId: continuation?.actionId,
     nowMs: 1_000,
   }), handoffId);
-  assert.deepEqual(
-    consumeActionReceiptHomeHandoff(handoffId, ownerUserId, coupleId, 1_001),
-    { actionId },
-  );
+  const homeResolution = await resolveActionReceiptHomeHandoff({
+    handoffId,
+    expectedOwnerUserId: ownerUserId,
+    expectedCoupleId: coupleId,
+    nowMs: 1_001,
+    isResolutionCurrent: () => true,
+    readCurrentOpenAction: async ({ actionId: requestedActionId, coupleId: requestedCoupleId }) => ({
+      ok: true,
+      value: {
+        id: requestedActionId,
+        couple_id: requestedCoupleId,
+        title: actionTitle,
+        description: actionDescription,
+        due_date: null,
+        category_key: null,
+        priority: "medium",
+        status: "open",
+        source: "chat",
+        follow_up_revision: null,
+        created_at: "2026-08-17T12:00:00.000Z",
+      },
+    }),
+  });
+  assert.equal(homeResolution.state, "focused");
+  assert.equal(homeResolution.action?.id, actionId);
+  assert.equal(homeResolution.action?.title, firstValue.title);
 
   const closedPresentation = getMobileChatMessagePresentation({
     ...message,

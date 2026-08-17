@@ -10,6 +10,15 @@ type MembershipRpcSuccess = {
   role: CoupleRole;
 };
 
+type NeutralMembershipRpcSuccess = {
+  ok: true;
+  coupleId: string;
+  inviteCode: string;
+  changed: boolean;
+  idempotent: boolean;
+  memberModelVersion: 2;
+};
+
 type MembershipRpcFailure = {
   ok: false;
   status: number;
@@ -18,6 +27,9 @@ type MembershipRpcFailure = {
 };
 
 export type MembershipRpcOutcome = MembershipRpcSuccess | MembershipRpcFailure;
+export type NeutralMembershipRpcOutcome =
+  | NeutralMembershipRpcSuccess
+  | MembershipRpcFailure;
 
 type MembershipRpcPayload = {
   success?: unknown;
@@ -30,6 +42,7 @@ type MembershipRpcPayload = {
   idempotent?: unknown;
   role?: unknown;
   actor_user_id?: unknown;
+  member_model_version?: unknown;
 };
 
 type MembershipRpcTransportError = {
@@ -50,6 +63,8 @@ type MembershipRpcClient = {
 };
 
 export const JOIN_COUPLE_SERVER_RPC = "join_couple_server";
+export const JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC =
+  "join_neutral_preparation_space_server";
 export const COUPLE_INVITE_EXPAND_REQUIRED_CODE =
   "COUPLE_INVITE_EXPAND_REQUIRED";
 
@@ -71,6 +86,19 @@ export async function joinCoupleThroughServerRpc(
     p_actor_user_id: input.actorUserId,
     p_invite_code: input.inviteCode,
     p_role: input.role,
+  });
+}
+
+export async function joinNeutralPreparationSpaceThroughServerRpc(
+  client: MembershipRpcClient,
+  input: {
+    actorUserId: string;
+    inviteCode: string;
+  },
+): Promise<MembershipRpcTransportResponse> {
+  return client.rpc(JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC, {
+    p_actor_user_id: input.actorUserId,
+    p_invite_code: input.inviteCode,
   });
 }
 
@@ -224,5 +252,75 @@ export function parseMembershipRpcResponse(
     changed,
     idempotent: payload.idempotent,
     role: expectedRole,
+  };
+}
+
+export function parseNeutralMembershipRpcResponse(
+  value: unknown,
+  action: MembershipAction,
+  expectedActorUserId?: string,
+): NeutralMembershipRpcOutcome {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return failureFor("INVALID_RPC_RESPONSE");
+  }
+
+  const payload = value as MembershipRpcPayload;
+  const errorCode =
+    typeof payload.error_code === "string" && payload.error_code.trim()
+      ? payload.error_code.trim()
+      : typeof payload.error === "string" && payload.error.trim()
+        ? LEGACY_ERROR_CODES[payload.error.trim()] ?? "UNKNOWN_RPC_ERROR"
+        : null;
+  if (errorCode) return failureFor(errorCode);
+
+  const expectedKeys = action === "create"
+    ? [
+        "couple_id",
+        "created",
+        "idempotent",
+        "invite_code",
+        "member_model_version",
+        "success",
+      ]
+    : [
+        "actor_user_id",
+        "couple_id",
+        "idempotent",
+        "invite_code",
+        "joined",
+        "member_model_version",
+        "success",
+      ];
+  const actualKeys = Object.keys(value as Record<string, unknown>).sort();
+  const changed = action === "create" ? payload.created : payload.joined;
+
+  if (
+    actualKeys.length !== expectedKeys.length
+    || actualKeys.some((key, index) => key !== expectedKeys[index])
+    || payload.success !== true
+    || typeof payload.couple_id !== "string"
+    || !UUID_PATTERN.test(payload.couple_id)
+    || typeof payload.invite_code !== "string"
+    || !/^WH-[A-Z0-9]{6,12}$/.test(payload.invite_code)
+    || typeof changed !== "boolean"
+    || typeof payload.idempotent !== "boolean"
+    || payload.idempotent === changed
+    || payload.member_model_version !== 2
+    || Object.hasOwn(payload, "role")
+    || (
+      expectedActorUserId !== undefined
+      && payload.actor_user_id !== expectedActorUserId
+    )
+  ) {
+    return failureFor("INVALID_RPC_RESPONSE");
+  }
+
+  return {
+    ok: true,
+    coupleId: payload.couple_id,
+    inviteCode: payload.invite_code,
+    changed,
+    idempotent: payload.idempotent,
+    memberModelVersion: 2,
   };
 }

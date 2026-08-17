@@ -269,7 +269,7 @@ test("the customer map carries full-journey coverage without inventing gap topic
     stage: "partial",
     connectedTopicCount: 19,
     journeyAxisCount: 10,
-    gapCount: 6,
+    gapCount: 7,
     issueCount: 0,
   });
   assert.equal(overview.topics.length, 19);

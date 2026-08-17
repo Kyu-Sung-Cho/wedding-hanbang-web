@@ -32,7 +32,11 @@
     "./amora-preparation-guide": "./src/contracts/amoraPreparationGuide.mjs",
     "./amora-preparation-topic": "./src/contracts/amoraPreparationTopic.mjs",
     "./amora-preparation-topic-message-ref": "./src/contracts/amoraPreparationTopicMessageRef.mjs",
-    "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs"
+    "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs",
+    "./amora-planning-foundation": "./src/contracts/amoraPlanningFoundation.mjs",
+    "./amora-budget-payer-presentation": "./src/contracts/amoraBudgetPayerPresentation.mjs",
+    "./amora-consumer-state": "./src/contracts/amoraConsumerState.mjs",
+    "./amora-preparation-catch-up": "./src/contracts/amoraPreparationCatchUp.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

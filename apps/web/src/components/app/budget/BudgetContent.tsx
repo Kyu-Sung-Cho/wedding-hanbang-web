@@ -42,6 +42,10 @@ import type {
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import Link from "next/link";
 import PaymentLedger from "./PaymentLedger";
+import {
+  resolveBudgetPayerOptions,
+  type BudgetPayerPresentationOption,
+} from "@hanbang/shared/amora-budget-payer-presentation";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
@@ -94,19 +98,6 @@ const HIDDEN_COSTS: Record<string, { warning: string; guidance: string }> = {
   ham: { warning: "장식, 운송, 주차의 포함 범위", guidance: "업체 서면 안내 확인" },
   bouquet: { warning: "꽃 보존, 예식 정장에 다는 꽃, 두 가족에게 드리는 꽃의 포함 범위", guidance: "업체 서면 안내 확인" },
 };
-
-// 분담 옵션
-const PAYER_OPTIONS: { value: PayerType; label: string }[] = [
-  { value: "couple", label: "두 사람" },
-  { value: "bride_parents", label: "예비 신부 가족" },
-  { value: "groom_parents", label: "예비 신랑 가족" },
-  { value: "both_parents", label: "두 가족" },
-];
-
-function getPayerLabel(payer?: PayerType): string {
-  const found = PAYER_OPTIONS.find((p) => p.value === payer);
-  return found?.label ?? "두 사람";
-}
 
 function formatWon(n: number): string {
   return `${Math.round(n / 10000).toLocaleString()}만원`;
@@ -170,15 +161,18 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
 function PayerSelector({
   value,
   onChange,
+  options,
 }: {
   value: PayerType;
   onChange: (v: PayerType) => Promise<void> | void;
+  options: readonly BudgetPayerPresentationOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const currentLabel = getPayerLabel(value);
+  const currentLabel = options.find((option) => option.value === value)?.label
+    ?? "분담 확인 필요";
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -193,19 +187,22 @@ function PayerSelector({
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
+        disabled={options.length === 0}
         onClick={() => {
+          if (options.length === 0) return;
           setError("");
           setOpen(!open);
         }}
         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-[#504444] hover:bg-[#f6f3f2] transition-colors"
-        title="분담 변경"
+        title={options.length === 0 ? "분담 기준을 확인할 수 없어요" : "분담 변경"}
       >
         <Users className="h-4 w-4" aria-hidden="true" />
         <span>{currentLabel}</span>
       </button>
       {open && (
         <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden">
-          {PAYER_OPTIONS.map((opt) => (
+          {options.map((opt) => (
             <button
               key={opt.value}
               disabled={saving}
@@ -397,6 +394,7 @@ function BudgetRow({
   onSpentReset,
   onPayerChange,
   onDelete,
+  payerOptions,
 }: {
   catKey: string;
   label: string;
@@ -411,6 +409,7 @@ function BudgetRow({
   onSpentReset: (key: string) => Promise<void> | void;
   onPayerChange: (key: string, payer: PayerType) => Promise<void> | void;
   onDelete?: (key: string) => Promise<void> | void;
+  payerOptions: readonly BudgetPayerPresentationOption[];
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
@@ -482,7 +481,11 @@ function BudgetRow({
 
       {/* 분담 선택 */}
       <div className="flex-shrink-0 max-md:w-auto">
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
+        <PayerSelector
+          value={payer}
+          options={payerOptions}
+          onChange={(v) => onPayerChange(catKey, v)}
+        />
       </div>
 
       {/* 지출 (편집 가능) */}
@@ -555,6 +558,7 @@ function BudgetCard({
   onSpentReset,
   onPayerChange,
   onDelete,
+  payerOptions,
 }: {
   catKey: string;
   label: string;
@@ -569,6 +573,7 @@ function BudgetCard({
   onSpentReset: (key: string) => Promise<void> | void;
   onPayerChange: (key: string, payer: PayerType) => Promise<void> | void;
   onDelete?: (key: string) => Promise<void> | void;
+  payerOptions: readonly BudgetPayerPresentationOption[];
 }) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
@@ -667,7 +672,11 @@ function BudgetCard({
             />
           </div>
         </div>
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
+        <PayerSelector
+          value={payer}
+          options={payerOptions}
+          onChange={(v) => onPayerChange(catKey, v)}
+        />
       </div>
     </div>
   );
@@ -703,7 +712,30 @@ function OwnedBudgetContent({
   paymentLedgerEnabled,
   mutationOwnerId,
 }: BudgetContentProps & { mutationOwnerId: string | null }) {
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, updateJourney, user, profile, couple, isDemo } = useAuthStore();
+
+  const payerOptions = useMemo(() => {
+    const viewerRole = profile?.role === "bride" || profile?.role === "groom"
+      ? profile.role
+      : null;
+    const memberModelVersion = isDemo
+      ? 1
+      : couple?.member_model_version === 1 || couple?.member_model_version === 2
+        ? couple.member_model_version
+        : null;
+    if (
+      memberModelVersion === 2
+      && (
+        !viewerRole
+        || !user?.id
+        || (viewerRole === "bride" && couple?.bride_id !== user.id)
+        || (viewerRole === "groom" && couple?.groom_id !== user.id)
+      )
+    ) {
+      return [];
+    }
+    return resolveBudgetPayerOptions({ memberModelVersion, viewerRole }) ?? [];
+  }, [couple, isDemo, profile?.role, user?.id]);
 
   const totalBudget = journey?.total_budget ?? 0;
   const progress = useMemo(
@@ -1208,8 +1240,13 @@ function OwnedBudgetContent({
                 <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">분담 현황</h3>
               </div>
             </div>
+            {payerOptions.length === 0 ? (
+              <p role="status" className="rounded-[14px] bg-[#f7f3ec] px-4 py-3 text-[13px] leading-6 text-[#5d6879]">
+                현재 계정의 분담 기준을 안전하게 확인하지 못했어요. 계정을 다시 확인한 뒤 보여드릴게요.
+              </p>
+            ) : (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {PAYER_OPTIONS.map((opt) => {
+              {payerOptions.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
                 return (
@@ -1243,6 +1280,7 @@ function OwnedBudgetContent({
                 );
               })}
             </div>
+            )}
           </div>
         )}
 
@@ -1317,6 +1355,7 @@ function OwnedBudgetContent({
                   spent={getCategorySpent(key)}
                   status={getStatusLabel(key)}
                   payer={getCategoryPayer(key)}
+                  payerOptions={payerOptions}
                   totalBudget={totalBudget}
                   onBudgetChange={handleBudgetChange}
                   onSpentChange={handleSpentChange}
@@ -1355,6 +1394,7 @@ function OwnedBudgetContent({
                 spent={getCategorySpent(key)}
                 status={getStatusLabel(key)}
                 payer={getCategoryPayer(key)}
+                payerOptions={payerOptions}
                 totalBudget={totalBudget}
                 onBudgetChange={handleBudgetChange}
                 onSpentChange={handleSpentChange}
@@ -1376,6 +1416,7 @@ function OwnedBudgetContent({
               spent={getCategorySpent(cat.key)}
               status={getStatusLabel(cat.key)}
               payer={getCategoryPayer(cat.key)}
+              payerOptions={payerOptions}
               totalBudget={totalBudget}
               onBudgetChange={handleBudgetChange}
               onSpentChange={handleSpentChange}

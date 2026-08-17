@@ -1,4 +1,6 @@
 import type {
+  AmoraPreparationCatchUpDraftSubmission,
+  PlanningFoundationSelfReportedStage,
   WeddingBudgetTendencyValue,
   WeddingGuestCountValue,
   WeddingPriorityValue,
@@ -49,6 +51,38 @@ export function buildOnboardingSubmissionPayload(
   input: OnboardingSubmissionInput,
   mode?: OnboardingSubmissionMode,
 ): OnboardingSubmissionPayload;
+
+export interface NeutralPreparationSpaceSubmissionInput {
+  coupleAction: "create" | "join";
+  inviteCode: string;
+  preparationCatchUp?: AmoraPreparationCatchUpDraftSubmission;
+}
+
+export type NeutralPreparationSpaceSubmissionPayload = Readonly<{
+  membershipMode: "neutral_preparation_space";
+  coupleAction: NeutralPreparationSpaceSubmissionInput["coupleAction"];
+  partnerInviteCode?: string;
+  weddingDate: null;
+  venue: null;
+  totalBudget: null;
+  progress: Readonly<Record<string, never>>;
+  preparationCatchUp?: AmoraPreparationCatchUpDraftSubmission;
+}>;
+
+export function buildNeutralPreparationSpaceSubmissionPayload(
+  input: NeutralPreparationSpaceSubmissionInput,
+): NeutralPreparationSpaceSubmissionPayload;
+
+export function resolveNeutralPreparationSpaceCompletion(input: {
+  foundationStage: PlanningFoundationSelfReportedStage;
+}): {
+  kind: "route";
+  pathname: "/(tabs)/chat";
+  params: {
+    entry: "first_use";
+    foundationStage: PlanningFoundationSelfReportedStage;
+  };
+};
 
 export type OnboardingCompletion =
   | {

@@ -6,13 +6,19 @@ import {
   WEDDING_PRIORITY_OPTIONS,
   WEDDING_STYLE_OPTIONS,
 } from "@hanbang/shared";
+import {
+  parseAmoraPreparationCatchUpDraftSubmission,
+  validateAmoraPreparationCatchUpReceipt,
+} from "@hanbang/shared/amora-preparation-catch-up";
 
 import { determineStage } from "@/lib/ai/stage-router";
 import {
   COUPLE_INVITE_EXPAND_REQUIRED_CODE,
   isJoinCoupleServerRpcMissing,
   joinCoupleThroughServerRpc,
+  joinNeutralPreparationSpaceThroughServerRpc,
   parseMembershipRpcResponse,
+  parseNeutralMembershipRpcResponse,
   type CoupleRole,
   type MembershipAction,
 } from "@/lib/couples/membershipRpc";
@@ -434,6 +440,26 @@ type PlanChangeRpcClient = {
   }>;
 };
 
+type PreparationCatchUpRpcClient = {
+  rpc: (
+    name: "finalize_amora_preparation_catch_up_v1",
+    args: {
+      p_couple_id: string;
+      p_actor_user_id: string;
+      p_request_id: string;
+      p_expected_privacy_epoch: number;
+      p_items: readonly Readonly<{
+        topicKey: string;
+        state: string;
+        scope: string;
+      }>[];
+    },
+  ) => Promise<{
+    data: unknown;
+    error: { code?: string; message?: string } | null;
+  }>;
+};
+
 type ExistingJourneyPlan = {
   wedding_date?: string | null;
   venue?: string | null;
@@ -825,6 +851,7 @@ export async function POST(request: Request) {
 
     const {
       role: rawRole,
+      membershipMode: rawMembershipMode,
       coupleAction: rawCoupleAction,
       partnerInviteCode,
       weddingDate: rawWeddingDate,
@@ -832,17 +859,63 @@ export async function POST(request: Request) {
       sanggyeonryeDate: rawSanggyeonryeDate,
       totalBudget: rawTotalBudget,
       progress,
+      preparationCatchUp: rawPreparationCatchUp,
     } = body;
 
-    if (rawRole !== "bride" && rawRole !== "groom") {
+    if (
+      rawMembershipMode !== undefined
+      && rawMembershipMode !== "neutral_preparation_space"
+    ) {
+      return privateResponse({ error: "유효하지 않은 준비 공간 방식입니다." }, 400);
+    }
+    const neutralPreparationSpace = rawMembershipMode === "neutral_preparation_space";
+    if (rawPreparationCatchUp !== undefined && !neutralPreparationSpace) {
+      return privateResponse({
+        error: "빠른 준비 정리는 중립 준비 공간에서만 사용할 수 있습니다.",
+        code: "AMORA_PREPARATION_CATCH_UP_REQUEST_INVALID",
+      }, 400);
+    }
+    const preparationCatchUp = rawPreparationCatchUp === undefined
+      ? null
+      : parseAmoraPreparationCatchUpDraftSubmission(rawPreparationCatchUp);
+    if (rawPreparationCatchUp !== undefined && preparationCatchUp === null) {
+      return privateResponse({
+        error: "준비 상태 미리보기를 다시 확인해 주세요.",
+        code: "AMORA_PREPARATION_CATCH_UP_REQUEST_INVALID",
+      }, 400);
+    }
+    if (
+      neutralPreparationSpace
+      && process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED !== "true"
+    ) {
+      return privateResponse({
+        error: "중립 준비 공간을 아직 사용할 수 없습니다.",
+        code: "NEUTRAL_PREPARATION_SPACE_UNAVAILABLE",
+      }, 404);
+    }
+    if (neutralPreparationSpace && rawRole !== undefined && rawRole !== null) {
+      return privateResponse({ error: "중립 준비 공간에는 역할을 보내지 않습니다." }, 400);
+    }
+    if (!neutralPreparationSpace && rawRole !== "bride" && rawRole !== "groom") {
       return privateResponse({ error: "유효하지 않은 역할입니다." }, 400);
     }
-    const role: CoupleRole = rawRole;
+    const role: CoupleRole | null = neutralPreparationSpace
+      ? null
+      : rawRole as CoupleRole;
 
     if (rawCoupleAction !== "create" && rawCoupleAction !== "join") {
       return privateResponse({ error: "유효하지 않은 커플 연결 방식입니다." }, 400);
     }
     const coupleAction: MembershipAction = rawCoupleAction;
+    if (
+      coupleAction === "join"
+      && preparationCatchUp?.items.some((item) => item.scope === "couple_shared")
+    ) {
+      return privateResponse({
+        error: "함께 보기 기록은 파트너 확인 흐름에서 따로 저장해 주세요.",
+        code: "AMORA_PREPARATION_CATCH_UP_SHARED_APPROVAL_REQUIRED",
+      }, 409);
+    }
 
     let normalizedInviteCode: string | null = null;
     if (coupleAction === "join") {
@@ -920,17 +993,23 @@ export async function POST(request: Request) {
     const admin = getAdmin();
     await ensureProfileExists(admin, user);
 
-    const rpcResponse =
-      coupleAction === "create"
-        ? await supabase.rpc("create_couple_for_current_user", { p_role: role })
+    const rpcResponse = neutralPreparationSpace
+      ? coupleAction === "create"
+        ? await supabase.rpc("create_neutral_preparation_space_for_current_user", {})
+        : await joinNeutralPreparationSpaceThroughServerRpc(admin, {
+            actorUserId: user.id,
+            inviteCode: normalizedInviteCode!,
+          })
+      : coupleAction === "create"
+        ? await supabase.rpc("create_couple_for_current_user", { p_role: role! })
         : await joinCoupleThroughServerRpc(admin, {
             actorUserId: user.id,
             inviteCode: normalizedInviteCode!,
-            role,
+            role: role!,
           });
 
     if (
-      coupleAction === "join"
+      (coupleAction === "join" || neutralPreparationSpace)
       && isJoinCoupleServerRpcMissing(rpcResponse.error)
     ) {
       console.error("[onboarding join] server RPC expansion is missing");
@@ -948,12 +1027,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const membership = parseMembershipRpcResponse(
-      rpcResponse.data,
-      role,
-      coupleAction,
-      coupleAction === "join" ? user.id : undefined,
-    );
+    const membership = neutralPreparationSpace
+      ? parseNeutralMembershipRpcResponse(
+          rpcResponse.data,
+          coupleAction,
+          coupleAction === "join" ? user.id : undefined,
+        )
+      : parseMembershipRpcResponse(
+          rpcResponse.data,
+          role!,
+          coupleAction,
+          coupleAction === "join" ? user.id : undefined,
+        );
     if (!membership.ok) {
       console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
       return privateResponse({ error: membership.message }, membership.status);
@@ -986,6 +1071,82 @@ export async function POST(request: Request) {
           409,
         );
       }
+      let preparationCatchUpReceipt: unknown;
+      if (preparationCatchUp) {
+        const { data: privacy, error: privacyError } = await admin
+          .from("amora_privacy_context_epochs")
+          .select("epoch")
+          .eq("couple_id", membership.coupleId)
+          .single();
+        if (
+          privacyError
+          || !isRecord(privacy)
+          || !Number.isSafeInteger(privacy.epoch)
+          || Number(privacy.epoch) < 1
+        ) {
+          return privateResponse({
+            error: "현재 준비 범위를 확인하지 못했어요. 같은 내용으로 다시 시도해 주세요.",
+            code: "AMORA_PREPARATION_CATCH_UP_UNAVAILABLE",
+          }, 503);
+        }
+        const { data: rawReceipt, error: catchUpError } = await (
+          admin as unknown as PreparationCatchUpRpcClient
+        ).rpc("finalize_amora_preparation_catch_up_v1", {
+          p_couple_id: membership.coupleId,
+          p_actor_user_id: user.id,
+          p_request_id: preparationCatchUp.requestId,
+          p_expected_privacy_epoch: Number(privacy.epoch),
+          p_items: preparationCatchUp.items,
+        });
+        if (catchUpError) {
+          if (catchUpError.code === "23514") {
+            preparationCatchUpReceipt = Object.freeze({
+              version: 1,
+              status: "canonical_existing",
+              next: Object.freeze({
+                kind: "continue_canonical",
+                route: "/schedule",
+              }),
+            });
+          } else if (catchUpError.code === "42501") {
+            return privateResponse({
+              error: "함께 보기 기록은 파트너 확인 흐름에서 따로 저장해 주세요.",
+              code: "AMORA_PREPARATION_CATCH_UP_SHARED_APPROVAL_REQUIRED",
+            }, 409);
+          } else if (catchUpError.code === "40001") {
+            return privateResponse({
+              error: "준비 공간이 바뀌었어요. 현재 상태를 다시 확인해 주세요.",
+              code: "AMORA_PREPARATION_CATCH_UP_CONTEXT_CHANGED",
+            }, 409);
+          } else {
+            return privateResponse({
+              error: "준비 상태 반영 여부를 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+              code: catchUpError.code === "55000"
+                ? "AMORA_PREPARATION_CATCH_UP_RECONCILIATION_REQUIRED"
+                : "AMORA_PREPARATION_CATCH_UP_UNAVAILABLE",
+              retryPolicy: "same_request",
+            }, 503);
+          }
+        } else {
+          const validatedReceipt = validateAmoraPreparationCatchUpReceipt(
+            rawReceipt,
+            membership.coupleId,
+            preparationCatchUp.requestId,
+            preparationCatchUp.items,
+          );
+          if (!validatedReceipt.ok) {
+            console.error("[onboarding catch-up] invalid canonical receipt", {
+              reason: validatedReceipt.reason,
+            });
+            return privateResponse({
+              error: "준비 상태 반영 여부를 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+              code: "AMORA_PREPARATION_CATCH_UP_INVALID_RECEIPT",
+              retryPolicy: "same_request",
+            }, 503);
+          }
+          preparationCatchUpReceipt = validatedReceipt.value;
+        }
+      }
       // Completion is the final durable step. If plan persistence fails, the
       // user must remain in onboarding so their inputs can be retried safely.
       await completeProfile(admin, user.id, membership.coupleId);
@@ -997,7 +1158,13 @@ export async function POST(request: Request) {
       void (async () => {
         try {
           const stageTag = determineStage(weddingDate);
-          const baseMeta = { hook: "onboarding", role, coupleAction };
+          const baseMeta = neutralPreparationSpace
+            ? {
+                hook: "onboarding",
+                membershipMode: "neutral_preparation_space",
+                coupleAction,
+              }
+            : { hook: "onboarding", role, coupleAction };
 
           if (weddingDate && shouldRecordFullPlan) {
             await recordDecision({
@@ -1074,6 +1241,7 @@ export async function POST(request: Request) {
           requestId: planOutcome.requestId,
           summary: planOutcome.summary,
         },
+        preparationCatchUp: preparationCatchUpReceipt,
         routineProgress: planOutcome.routineProgressDeferred
           ? {
               status: "deferred",

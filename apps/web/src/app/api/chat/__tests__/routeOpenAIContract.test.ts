@@ -257,6 +257,8 @@ const mocks = vi.hoisted(() => {
     summariesError: null as { code: string; message: string } | null,
     decisionsError: null as { code: string; message: string } | null,
     directoryRows: [] as Array<Record<string, unknown>>,
+    coupleMemberModelVersion: 1 as 1 | 2,
+    coupleMemberModelError: null as { code: string; message: string } | null,
     memoryEnablement: {
       shared: false,
       bride_private: false,
@@ -408,6 +410,14 @@ vi.mock("@/lib/supabase/server", () => ({
       if (table === "couple_profile_directory") {
         return queryResult(mocks.directoryRows, {
           onSelectError: () => mocks.directoryError,
+        });
+      }
+      if (table === "couples") {
+        return queryResult({
+          id: "10000000-0000-4000-8000-000000000001",
+          member_model_version: mocks.coupleMemberModelVersion,
+        }, {
+          onSelectError: () => mocks.coupleMemberModelError,
         });
       }
       if (table === "vendor_bookings") {
@@ -1609,6 +1619,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "false");
+    vi.stubEnv("AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED", "false");
     // A privacy fence can reject before chatWithToolsStream consumes a queued
     // one-shot implementation. Do not let that test-only queue leak forward.
     mocks.provider.mockReset();
@@ -1695,6 +1706,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.journeyError = null;
     mocks.journeyStateRevision = 0;
     mocks.directoryError = null;
+    mocks.coupleMemberModelVersion = 1;
+    mocks.coupleMemberModelError = null;
     mocks.bookingsError = null;
     mocks.summariesError = null;
     mocks.decisionsError = null;
@@ -3201,6 +3214,48 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).toContain(currentText);
     expect(providerInput).not.toContain("[quote_analysis_v2]");
     expect(providerInput).not.toContain('"version":2');
+  });
+
+  it("uses neutral participant labels for a version-two preparation space", async () => {
+    vi.stubEnv("AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED", "true");
+    mocks.coupleMemberModelVersion = 2;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 할 한 가지를 함께 정리했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerCall = mocks.provider.mock.calls[0]?.[0];
+    const providerInput = JSON.stringify(providerCall?.input);
+    const systemPrompt = String(providerCall?.systemPrompt);
+    expect(providerInput).toContain("[사용자] CANONICAL_DB_USER");
+    expect(providerInput).not.toContain("[신부] CANONICAL_DB_USER");
+    expect(systemPrompt).not.toContain("테스트 신부");
+    expect(systemPrompt).not.toContain("테스트 신랑");
+    expect(mocks.requestFrom).toHaveBeenCalledWith("couples");
+  });
+
+  it("fails closed before provider egress when a neutral member model cannot be verified", async () => {
+    vi.stubEnv("AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED", "true");
+    mocks.coupleMemberModelError = {
+      code: "PGRST500",
+      message: "member model unavailable",
+    };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({
+      failureCode: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+    }));
   });
 
   it.each([

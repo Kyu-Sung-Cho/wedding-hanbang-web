@@ -30,18 +30,19 @@ import {
   buildVerifiedBudgetCategoryEditor,
   listBudgetCategories,
 } from "@/lib/budgetCategoryRegistry.mjs";
+import {
+  resolveBudgetPayerOptions,
+  type BudgetPayerValue,
+} from "@/lib/neutralBudgetPayerPresentation.mjs";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 import ErrorRetry from "@/components/ErrorRetry";
 
 // 분담 타입 (웹과 동일)
-type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
+type PayerType = BudgetPayerValue;
+type CompatibilityRole = "bride" | "groom";
 
-const PAYER_OPTIONS: { value: PayerType; label: string }[] = [
-  { value: "couple", label: "두 사람" },
-  { value: "bride_parents", label: "예비 신부 가족" },
-  { value: "groom_parents", label: "예비 신랑 가족" },
-  { value: "both_parents", label: "두 가족" },
-];
+const NEUTRAL_PREPARATION_SPACE_ENABLED =
+  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 
 // 업체·상품마다 다른 포함/별도 확인 항목. 금액은 공시가 또는 사용자 견적에서만 표시한다.
 const HIDDEN_COSTS: Record<string, { warning: string; guidance: string }> = {
@@ -172,6 +173,10 @@ export default function BudgetScreen() {
   const [spentInput, setSpentInput] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
   const [payerInput, setPayerInput] = useState<PayerType>("couple");
+  const [payerPresentationContext, setPayerPresentationContext] = useState<{
+    memberModelVersion: 1 | 2;
+    viewerRole: CompatibilityRole | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingTotal, setSavingTotal] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<PendingBudgetApproval | null>(null);
@@ -192,6 +197,7 @@ export default function BudgetScreen() {
     setTotalBudget(0);
     setProgress({});
     setCoupleId(null);
+    setPayerPresentationContext(null);
     setEditingTotal(false);
     setEditingKey(null);
     totalEditBaseRef.current = null;
@@ -239,7 +245,7 @@ export default function BudgetScreen() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("couple_id")
+        .select("couple_id, role")
         .eq("id", user.id)
         .single();
       if (
@@ -248,6 +254,43 @@ export default function BudgetScreen() {
       ) return null;
       if (profileError || typeof profile?.couple_id !== "string") {
         throw new Error("INVALID_BUDGET_PROFILE");
+      }
+
+      const viewerRole: CompatibilityRole | null =
+        profile.role === "bride" || profile.role === "groom" ? profile.role : null;
+      let nextPayerPresentationContext: {
+        memberModelVersion: 1 | 2;
+        viewerRole: CompatibilityRole | null;
+      } = { memberModelVersion: 1, viewerRole };
+      if (NEUTRAL_PREPARATION_SPACE_ENABLED) {
+        const { data: rawPreparationSpace, error: preparationSpaceError } = await supabase
+          .from("couples")
+          .select("id, bride_id, groom_id, member_model_version" as "id, bride_id, groom_id")
+          .eq("id", profile.couple_id)
+          .single();
+        if (
+          loadSequenceRef.current !== loadSequence
+          || !revisionCoordinator.isLoadCurrent(loadToken)
+        ) return null;
+        const preparationSpace = rawPreparationSpace as unknown as Record<string, unknown> | null;
+        const memberModelVersion = preparationSpace?.member_model_version;
+        const expectedOwnerId = viewerRole === "bride"
+          ? preparationSpace?.bride_id
+          : viewerRole === "groom"
+            ? preparationSpace?.groom_id
+            : null;
+        if (
+          preparationSpaceError
+          || preparationSpace?.id !== profile.couple_id
+          || (memberModelVersion !== 1 && memberModelVersion !== 2)
+          || expectedOwnerId !== user.id
+        ) {
+          throw new Error("INVALID_BUDGET_MEMBER_MODEL");
+        }
+        nextPayerPresentationContext = { memberModelVersion, viewerRole };
+      }
+      if (!resolveBudgetPayerOptions(nextPayerPresentationContext)) {
+        throw new Error("INVALID_BUDGET_PAYER_PRESENTATION");
       }
 
       const { data: journey, error: journeyError } = await supabase
@@ -268,6 +311,7 @@ export default function BudgetScreen() {
       );
       if (!snapshot) throw new Error("INVALID_BUDGET_JOURNEY");
       commitSnapshotToView(snapshot);
+      setPayerPresentationContext(nextPayerPresentationContext);
       let latestSnapshot = snapshot;
 
       const pendingAtLoadStart = pendingApprovalRef.current;
@@ -882,6 +926,10 @@ export default function BudgetScreen() {
     );
   }
 
+  const payerOptions = payerPresentationContext
+    ? resolveBudgetPayerOptions(payerPresentationContext)
+    : null;
+
   if (loading) {
     return (
       <SafeAreaView style={s.container}>
@@ -890,11 +938,11 @@ export default function BudgetScreen() {
     );
   }
 
-  if (loadError) {
+  if (loadError || !payerOptions) {
     return (
       <SafeAreaView style={s.container}>
         <ErrorRetry
-          message={loadError}
+          message={loadError ?? "예산 분담 기준을 안전하게 확인하지 못했어요."}
           onRetry={() => {
             setLoading(true);
             void loadData();
@@ -1078,7 +1126,7 @@ export default function BudgetScreen() {
           <View style={s.payerSection}>
             <Text style={s.payerTitle}>분담 현황</Text>
             <View style={s.payerGrid}>
-              {PAYER_OPTIONS.map((opt) => {
+              {payerOptions.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
                 return (
@@ -1098,7 +1146,7 @@ export default function BudgetScreen() {
           const b = getCatBudget(cat.key), sp = getCatSpent(cat.key), st = getCatStatus(cat.key);
           const pct = b > 0 ? Math.min(100, Math.round((sp / b) * 100)) : 0;
           const hasHidden = !!HIDDEN_COSTS[cat.key];
-          const payerInfo = PAYER_OPTIONS.find((p) => p.value === getCatPayer(cat.key));
+          const payerInfo = payerOptions.find((p) => p.value === getCatPayer(cat.key));
           return (
             <Pressable key={cat.key} style={({ pressed }) => [s.catCard, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => openEdit(cat.key)}>
               <View style={s.catHead}>
@@ -1153,7 +1201,7 @@ export default function BudgetScreen() {
             <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="number-pad" editable={!saving} maxLength={6} accessibilityLabel="카테고리 기록 지출 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>분담</Text>
             <View style={s.payerRow}>
-              {PAYER_OPTIONS.map((opt) => (
+              {payerOptions.map((opt) => (
                 <Pressable
                   key={opt.value}
                   style={[s.payerOption, payerInput === opt.value && s.payerOptionActive]}

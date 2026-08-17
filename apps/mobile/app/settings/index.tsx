@@ -64,6 +64,10 @@ import { copyOwnerBoundInviteSecret } from "@/lib/inviteClipboardActorFence.mjs"
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
 import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
+import { resolvePreparationMemberPresentation } from "@/lib/neutralMemberPresentation.mjs";
+
+const NEUTRAL_PREPARATION_SPACE_ENABLED =
+  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 
 type SettingsData = WeddingSettingsData;
 
@@ -100,6 +104,7 @@ export default function SettingsScreen() {
   const settingsLoadGate = useRef(createLatestSettingsLoadGate()).current;
   const settingsOwnerRef = useRef<string | null>(null);
   const [settingsOwnerId, setSettingsOwnerId] = useState<string | null>(null);
+  const [memberModelVersion, setMemberModelVersion] = useState<1 | 2 | null>(null);
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -134,6 +139,7 @@ export default function SettingsScreen() {
         setData(null);
         setInitialData(null);
         setSettingsSnapshot(null);
+        setMemberModelVersion(null);
         setLegacyCareConsentActive(false);
         setPartnerName(null);
         setCoupleConnection(resolveCoupleConnectionState(null));
@@ -164,6 +170,7 @@ export default function SettingsScreen() {
     setData(null);
     setInitialData(null);
     setSettingsSnapshot(null);
+    setMemberModelVersion(null);
     setLegacyCareConsentActive(false);
     setPartnerName(null);
     setCoupleConnection(resolveCoupleConnectionState(null));
@@ -203,9 +210,28 @@ export default function SettingsScreen() {
 
         let nextPartnerName: string | null = null;
         let nextCoupleConnection = resolveCoupleConnectionState(null);
+        let nextMemberModelVersion: 1 | 2 | null = profile.couple_id
+          ? NEUTRAL_PREPARATION_SPACE_ENABLED ? null : 1
+          : null;
 
         // 파트너 정보 로드
         if (profile?.couple_id) {
+          if (NEUTRAL_PREPARATION_SPACE_ENABLED) {
+            const { data: preparationSpace, error: preparationSpaceError } = await supabase
+              .from("couples")
+              .select("member_model_version" as "bride_id")
+              .eq("id", profile.couple_id)
+              .maybeSingle();
+            const rawMemberModelVersion = (
+              preparationSpace as unknown as Record<string, unknown> | null
+            )?.member_model_version;
+            if (
+              !preparationSpaceError
+              && (rawMemberModelVersion === 1 || rawMemberModelVersion === 2)
+            ) {
+              nextMemberModelVersion = rawMemberModelVersion;
+            }
+          }
           let partnerPresent = false;
           try {
             // 파트너 이름 조회
@@ -245,6 +271,7 @@ export default function SettingsScreen() {
         if (loadToken.isCurrent() && responseOwner?.id === user.id) {
           settingsOwnerRef.current = user.id;
           setSettingsOwnerId(user.id);
+          setMemberModelVersion(nextMemberModelVersion);
           setPartnerName(nextPartnerName);
           setCoupleConnection(nextCoupleConnection);
           setCoupleConnectionOwnerId(user.id);
@@ -785,12 +812,12 @@ export default function SettingsScreen() {
     );
   }
 
-  const roleLabel =
-    data?.role === "bride"
-      ? "신부"
-      : data?.role === "groom"
-        ? "신랑"
-        : data?.role ?? "-";
+  const memberPresentation = resolvePreparationMemberPresentation({
+    memberModelVersion,
+    compatibilityRole: data?.role === "bride" || data?.role === "groom"
+      ? data.role
+      : null,
+  });
   const hasCurrentSettingsOwner = settingsOwnerId !== null
     && settingsOwnerId === settingsOwnerRef.current;
   const visibleCoupleConnection = hasCurrentSettingsOwner
@@ -879,14 +906,17 @@ export default function SettingsScreen() {
             <Text style={styles.fieldHint}>게시글, 댓글, 동기방에서 표시돼요</Text>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.field}>
-            <Text style={styles.label}>역할</Text>
-            <View style={styles.readOnlyField}>
-              <Text style={styles.readOnlyText}>{roleLabel}</Text>
-            </View>
-          </View>
+          {memberPresentation ? (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.field}>
+                <Text style={styles.label}>{memberPresentation.fieldLabel}</Text>
+                <View style={styles.readOnlyField}>
+                  <Text style={styles.readOnlyText}>{memberPresentation.valueLabel}</Text>
+                </View>
+              </View>
+            </>
+          ) : null}
         </Surface>
 
         {/* 섹션 2: 결혼 정보 */}

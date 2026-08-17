@@ -21,7 +21,7 @@ const presentationSource = await readFile(
 test("the collapsed checklist header uses the truthful topic presentation instead of a fake zero percent", () => {
   assert.match(
     scheduleSource,
-    /const topicPresentation = buildPreparationTopicPresentation\(topicView\)/,
+    /const topicPresentation = buildPreparationTopicPresentation\(\s*topicView,\s*undefined,\s*topicPayerPresentationContext,?\s*\)/,
   );
   assert.match(
     scheduleSource,
@@ -108,6 +108,41 @@ test("decision read failure and truncation stay visible without hiding other top
   assert.match(scheduleSource, /확인한 일정 기록을 지금 불러오지 못했어요/);
   assert.match(scheduleSource, /확인한 일정 기록이 많아 최근 기록부터 보여드려요/);
   assert.match(scheduleSource, /setTopicScheduleDecisionReceipts\(\[\]\)/);
+});
+
+test("user-reported catch-up records are an optional bounded private-aware read with session fencing", () => {
+  const optionalReadStart = scheduleSource.indexOf(
+    "const topicCatchUpResultPromise = loadPreparationTopicCatchUpRecords",
+  );
+  const coreAwaitStart = scheduleSource.indexOf("= await Promise.all([", optionalReadStart);
+  const coreAwaitEnd = scheduleSource.indexOf("]);", coreAwaitStart);
+  const optionalReadEnd = scheduleSource.indexOf(
+    "const topicVendorBookingResultPromise",
+    optionalReadStart,
+  );
+  assert.ok(optionalReadStart >= 0);
+  assert.ok(optionalReadEnd > optionalReadStart);
+  assert.ok(coreAwaitStart > optionalReadEnd && coreAwaitEnd > coreAwaitStart);
+  const optionalSource = scheduleSource.slice(optionalReadStart, optionalReadEnd);
+  assert.match(optionalSource, /\.from\("decision_nodes"\)/);
+  assert.match(optionalSource, /\.eq\("couple_id", exactCoupleId\)/);
+  assert.match(optionalSource, /\.eq\("category", "preparation_catch_up"\)/);
+  assert.match(optionalSource, /\.eq\("source", "onboarding"\)/);
+  assert.match(optionalSource, /\.contains\("metadata", \{ hook: "amora_preparation_catch_up_v1" \}\)/);
+  assert.doesNotMatch(optionalSource, /\.eq\("visibility", "shared"\)/);
+  assert.match(optionalSource, /\.limit\(limit\)/);
+  assert.doesNotMatch(
+    scheduleSource.slice(coreAwaitStart, coreAwaitEnd),
+    /topicCatchUpResultPromise|loadPreparationTopicCatchUpRecords/,
+  );
+  assert.match(scheduleSource, /catchUpDecisionReceipts: topicCatchUpDecisionReceipts/);
+  assert.match(scheduleSource, /catchUpReadState: topicCatchUpReadState/);
+  assert.match(
+    scheduleSource,
+    /void topicCatchUpResultPromise\.then\([\s\S]{0,1000}scheduleLoadSequenceRef\.current !== loadSequence[\s\S]{0,700}scheduleSessionFenceRef\.isCurrent\(topicCatchUpSessionToken\)[\s\S]{0,1000}setTopicCatchUpDecisionReceipts/,
+  );
+  assert.match(scheduleSource, /setTopicCatchUpReadState\("unavailable"\)/);
+  assert.match(scheduleSource, /setTopicCatchUpDecisionReceipts\(\[\]\)/);
 });
 
 test("the topic budget opens the existing budget editor with only the exact category key", () => {
@@ -415,7 +450,15 @@ test("bounded foreground roster reconciliation fails closed without unpublished 
   );
   assert.match(
     scheduleSource,
-    /const currentIdentitySnapshot = buildScheduleIdentitySnapshot\(\{[\s\S]{0,180}ownerId: user\.id[\s\S]{0,180}coupleId: profile\.couple_id[\s\S]{0,180}roster: currentRoster[\s\S]{0,500}identity = \{ ownerId: user\.id, coupleId: profile\.couple_id \}[\s\S]{0,300}verifiedScheduleIdentityRef\.current = currentIdentitySnapshot/,
+    /const currentIdentitySnapshot = buildScheduleIdentitySnapshot\(\{[\s\S]{0,180}ownerId: user\.id[\s\S]{0,180}coupleId: profile\.couple_id[\s\S]{0,180}roster: currentRoster/,
+  );
+  assert.match(
+    scheduleSource,
+    /const nextPayerPresentationContext = buildSchedulePayerPresentationContext\(\{[\s\S]{0,180}ownerId: user\.id[\s\S]{0,180}profileRole: profile\.role[\s\S]{0,180}preparationSpace: currentRoster/,
+  );
+  assert.match(
+    scheduleSource,
+    /identity = \{ ownerId: user\.id, coupleId: profile\.couple_id \}[\s\S]{0,400}verifiedScheduleIdentityRef\.current = currentIdentitySnapshot[\s\S]{0,180}verifiedPayerPresentationContextRef\.current = nextPayerPresentationContext/,
   );
   assert.match(
     scheduleSource,

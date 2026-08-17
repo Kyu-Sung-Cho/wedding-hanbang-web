@@ -1,5 +1,5 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
-// 신부=분홍(#F5E6DF), 신랑=파랑(#E8EDF5), AI=noir
+// 기존 공간은 역할별 색을 유지하고, 중립 준비공간은 나/파트너 표기만 사용한다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, ScrollView, StyleSheet,
@@ -16,6 +16,7 @@ import { colors, radius, spacing } from "@hanbang/design-tokens";
 import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
+  PlanningFoundationSelfReportedStage,
 } from "@hanbang/shared";
 import type { AmoraScheduleCareFollowUpBinding } from "@hanbang/shared/amora-schedule-care-follow-up";
 import {
@@ -103,9 +104,15 @@ import {
 } from "@/lib/scheduleCarePrivateFollowUp.mjs";
 import { stageActionReceiptHomeHandoff } from "@/lib/actionReceiptHomeHandoff.mjs";
 import {
+  clearPlanningFoundationDraftHandoff,
+  readPlanningFoundationDraftHandoff,
+} from "@/lib/planningFoundationDraftHandoff";
+import {
+  buildPlanningFoundationPrivateDraft,
   buildFirstUseCriterionCorrectionDraft,
   buildFirstUseCorrectionDraft,
   getFirstUsePendingActionPresentation,
+  getAmoraParticipantPresentation,
   getFirstUseSharedDraftPresentation,
   getReviewedActionContinuationPresentation,
   isFirstUseSharedActionDraftText,
@@ -113,6 +120,7 @@ import {
   resolveAmoraChatEntry,
   resolveAmoraFirstUseSessionResetScope,
   resolveFirstUseActionBubbleContent,
+  resolvePlanningFoundationEntryStage,
   selectPrivateActionDraftForBridge,
 } from "@/lib/amoraEntryPlan.mjs";
 import {
@@ -146,6 +154,8 @@ import {
 } from "@/lib/preparationTopicMessageRefs.mjs";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const NEUTRAL_PREPARATION_SPACE_ENABLED =
+  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
 const CHAT_INGEST_TIMEOUT_MS = 30_000;
 const MOBILE_DURABLE_SAFETY_SEAL_TIMEOUT_MS = 4_000;
@@ -2591,6 +2601,7 @@ export default function ChatScreen() {
   const routeParams = useLocalSearchParams<{
     companionHandoff?: string | string[];
     entry?: string | string[];
+    foundationStage?: string | string[];
     scheduleCareCardId?: string | string[];
     scheduleCareCardRevision?: string | string[];
     scheduleCareSourceRevision?: string | string[];
@@ -2600,6 +2611,9 @@ export default function ChatScreen() {
     ? routeParams.companionHandoff[0] ?? null
     : routeParams.companionHandoff ?? null;
   const firstUseEntry = resolveAmoraChatEntry(routeParams.entry);
+  const routePlanningFoundationStage = resolvePlanningFoundationEntryStage(
+    routeParams.foundationStage,
+  );
   const topicMessageRefIdParam = Array.isArray(routeParams.topicMessageRefId)
     ? routeParams.topicMessageRefId[0] ?? null
     : routeParams.topicMessageRefId ?? null;
@@ -2627,6 +2641,17 @@ export default function ChatScreen() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<ViewerRole>(null);
+  const [memberModelVersion, setMemberModelVersion] = useState<1 | 2>(1);
+  const [storedPlanningFoundationStage, setStoredPlanningFoundationStage] =
+    useState<PlanningFoundationSelfReportedStage | null>(null);
+  const [planningFoundationDraftRecoveryAllowed, setPlanningFoundationDraftRecoveryAllowed] =
+    useState(false);
+  const planningFoundationStage = planningFoundationDraftRecoveryAllowed
+    ? routePlanningFoundationStage ?? storedPlanningFoundationStage
+    : null;
+  const planningFoundationDraft = buildPlanningFoundationPrivateDraft(
+    planningFoundationStage,
+  );
   const [userName, setUserName] = useState("사용자");
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [hasLinkedPartner, setHasLinkedPartner] = useState(false);
@@ -2764,6 +2789,7 @@ export default function ChatScreen() {
   const consumedCompanionHandoffRef = useRef<string | null>(null);
   const consumedScheduleCareEntryRef = useRef<string | null>(null);
   const consumedFirstUseEntryRef = useRef<string | null>(null);
+  const consumedPlanningFoundationDraftRef = useRef<string | null>(null);
   const consumedTopicMessageFocusRef = useRef<string | null>(null);
   const topicMessageSaveOperationRef = useRef(0);
   const topicMessageSaveAbortControllerRef = useRef<AbortController | null>(null);
@@ -3048,6 +3074,7 @@ export default function ChatScreen() {
     applyingPendingActionRef.current = null;
     persistedAiRequestKeysRef.current.clear();
     previousMessageCountRef.current = 0;
+    consumedPlanningFoundationDraftRef.current = null;
     topicMessageSaveOperationRef.current += 1;
     topicMessageSaveAbortControllerRef.current?.abort();
     topicMessageSaveAbortControllerRef.current = null;
@@ -3060,6 +3087,9 @@ export default function ChatScreen() {
     setCoupleId(null);
     setUserId(null);
     setUserRole(null);
+    setMemberModelVersion(1);
+    setStoredPlanningFoundationStage(null);
+    setPlanningFoundationDraftRecoveryAllowed(false);
     setUserName("사용자");
     setPartnerName(null);
     setHasLinkedPartner(false);
@@ -3130,6 +3160,42 @@ export default function ChatScreen() {
     setActiveScope("private");
     setTarget("ai");
   }, [coupleId, firstUseEntry, initialLoaded, userId, userRole]);
+
+  // planning-foundation draft-only handoff
+  useEffect(() => {
+    if (
+      !planningFoundationStage
+      || !planningFoundationDraft
+      || !initialLoaded
+      || !userId
+      || !userRole
+      || !coupleId
+    ) return;
+
+    const draftOwnerKey = [
+      userId,
+      coupleId,
+      planningFoundationStage,
+    ].join(":");
+    if (consumedPlanningFoundationDraftRef.current === draftOwnerKey) return;
+    consumedPlanningFoundationDraftRef.current = draftOwnerKey;
+    setInputByLane((current) => (
+      current.private_ai.trim()
+        ? current
+        : updateAmoraChatLaneRecord(current, "private_ai", planningFoundationDraft)
+    ));
+    activeScopeRef.current = "private";
+    setActiveScope("private");
+    setTarget("ai");
+  }, [
+    coupleId,
+    firstUseEntry,
+    initialLoaded,
+    planningFoundationDraft,
+    planningFoundationStage,
+    userId,
+    userRole,
+  ]);
 
   useEffect(() => {
     if (
@@ -3511,6 +3577,7 @@ export default function ChatScreen() {
         sharedSendAcknowledged,
         dismissedOfferKeys,
         deviceSafetyHold,
+        storedFoundationStage,
       ] = await Promise.all([
         loadAmoraSharedSendAcknowledgement(
           user.id,
@@ -3521,16 +3588,24 @@ export default function ChatScreen() {
           ownerUserId: user.id,
           coupleId: profile.couple_id,
         }),
+        NEUTRAL_PREPARATION_SPACE_ENABLED
+          ? readPlanningFoundationDraftHandoff({
+              ownerUserId: user.id,
+              coupleId: profile.couple_id,
+            }).catch(() => null)
+          : Promise.resolve(null),
       ]);
       if (!isCurrentGeneration()) return;
       setHasDevicePrivateMediationSafetyHold(deviceSafetyHold);
       if (deviceSafetyHold) applyMediationSafetyFence();
       const [
-        { data: couple },
+        { data: couple, error: coupleError },
         { data: partners },
       ] = await Promise.all([
         supabase.from("couples")
-          .select("bride_id, groom_id")
+          .select((NEUTRAL_PREPARATION_SPACE_ENABLED
+            ? "bride_id, groom_id, member_model_version"
+            : "bride_id, groom_id") as "bride_id, groom_id")
           .eq("id", profile.couple_id)
           .maybeSingle(),
         supabase.from("couple_profile_directory")
@@ -3539,6 +3614,34 @@ export default function ChatScreen() {
           .neq("id", user.id),
       ]);
       if (!isCurrentGeneration()) return;
+
+      const coupleRecord: Record<string, unknown> | null = isRecord(couple)
+        ? couple
+        : null;
+      const brideId = typeof coupleRecord?.bride_id === "string"
+        ? coupleRecord.bride_id
+        : null;
+      const groomId = typeof coupleRecord?.groom_id === "string"
+        ? coupleRecord.groom_id
+        : null;
+      const rawMemberModelVersion = coupleRecord?.member_model_version;
+      if (
+        NEUTRAL_PREPARATION_SPACE_ENABLED
+        && (
+          coupleError
+          || !coupleRecord
+          || (rawMemberModelVersion !== 1 && rawMemberModelVersion !== 2)
+        )
+      ) {
+        setInitialLoadError("현재 준비 공간의 구성 방식을 확인하지 못했어요. 연결을 확인한 뒤 다시 불러와 주세요.");
+        setInitialLoaded(true);
+        return;
+      }
+      const resolvedMemberModelVersion: 1 | 2 =
+        NEUTRAL_PREPARATION_SPACE_ENABLED && rawMemberModelVersion === 2
+          ? 2
+          : 1;
+      setMemberModelVersion(resolvedMemberModelVersion);
       sharedSendAcknowledgementRef.current = {
         userId: user.id,
         coupleId: profile.couple_id,
@@ -3547,23 +3650,23 @@ export default function ChatScreen() {
       setDismissedMediationOfferKeys(new Set(dismissedOfferKeys));
 
       const expectedSelfId = viewerRole === "bride"
-        ? couple?.bride_id
+        ? brideId
         : viewerRole === "groom"
-          ? couple?.groom_id
+          ? groomId
           : null;
       const expectedPartnerId = viewerRole === "bride"
-        ? couple?.groom_id
+        ? groomId
         : viewerRole === "groom"
-          ? couple?.bride_id
+          ? brideId
           : null;
       const linkedPartner = typeof expectedPartnerId === "string"
         ? partners?.find((partner) => partner.id === expectedPartnerId) ?? null
         : null;
       const partnerIsVerified = Boolean(
         viewerRole
-        && couple?.bride_id
-        && couple?.groom_id
-        && couple.bride_id !== couple.groom_id
+        && brideId
+        && groomId
+        && brideId !== groomId
         && expectedSelfId === user.id
         && linkedPartner,
       );
@@ -3572,11 +3675,15 @@ export default function ChatScreen() {
       setHasLinkedPartner(partnerIsVerified);
       setPartnerName(partnerIsVerified ? linkedPartner?.name || "파트너" : null);
       const reloadWhenCoupleRosterChanges = (payload: { new: Record<string, unknown> }) => {
-        if (!isCurrentGeneration() || !couple) return;
+        if (!isCurrentGeneration() || !coupleRecord) return;
         const nextCouple = payload.new;
         if (
-          nextCouple.bride_id !== couple.bride_id
-          || nextCouple.groom_id !== couple.groom_id
+          nextCouple.bride_id !== brideId
+          || nextCouple.groom_id !== groomId
+          || (
+            NEUTRAL_PREPARATION_SPACE_ENABLED
+            && nextCouple.member_model_version !== rawMemberModelVersion
+          )
         ) {
           const nextScope = resolveAmoraFirstUseSessionResetScope({
             entry: firstUseEntryRef.current,
@@ -3673,6 +3780,27 @@ export default function ChatScreen() {
         latestOwnPrivateAiUserRequest,
       ]);
       if (!isCurrentGeneration()) return;
+
+      const planningFoundationRecoveryAllowed = Boolean(
+        resolvedMemberModelVersion === 2
+        && !latestOwnPrivateAiUserError
+        && !latestOwnPrivateAiUser,
+      );
+      setPlanningFoundationDraftRecoveryAllowed(planningFoundationRecoveryAllowed);
+      setStoredPlanningFoundationStage(
+        planningFoundationRecoveryAllowed ? storedFoundationStage : null,
+      );
+      if (
+        storedFoundationStage
+        && resolvedMemberModelVersion === 2
+        && !latestOwnPrivateAiUserError
+        && latestOwnPrivateAiUser
+      ) {
+        void clearPlanningFoundationDraftHandoff({
+          ownerUserId: user.id,
+          coupleId: profile.couple_id,
+        });
+      }
 
       const normalizedBoundedHistory = (history ?? [])
         .map((message) => chatMessageFromRealtimeRow(message))
@@ -5037,6 +5165,7 @@ export default function ChatScreen() {
       summary: normalized.summary,
       senderRole: userRole,
       senderName: userName,
+      memberModelVersion,
       coupleId: requestOwner.coupleId,
       clientRequestId,
     });
@@ -6767,6 +6896,17 @@ export default function ChatScreen() {
     const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
+    const participantPresentation = (
+      item.sender_type === "bride" || item.sender_type === "groom"
+    ) && userRole
+      ? getAmoraParticipantPresentation({
+          memberModelVersion,
+          senderType: item.sender_type,
+          viewerRole: userRole,
+          userName,
+          partnerName,
+        })
+      : null;
     const {
       placeResults,
       receipts,
@@ -6886,14 +7026,29 @@ export default function ChatScreen() {
           ? "이 공동 변경을 확인하고 바로 반영"
           : "이 공동 변경을 확인"
         : "확인한 내용을 이대로 적용";
-    const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
+    const bubbleBg = isAi
+      ? colors.surface
+      : isMe
+        ? colors.noir[800]
+        : participantPresentation?.tone === "partner_neutral"
+          ? colors.ivory[200]
+          : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
-          <View style={[st.avatar, isAi ? st.avatarAi : isBride ? st.avatarBride : st.avatarGroom]}>
-            {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <Text style={st.avatarLetter}>{isBride ? "신부" : "신랑"}</Text>}
+          <View style={[
+            st.avatar,
+            isAi
+              ? st.avatarAi
+              : participantPresentation?.tone === "partner_neutral"
+                ? st.avatarPartner
+                : isBride ? st.avatarBride : st.avatarGroom,
+          ]}>
+            {isAi
+              ? <Sparkles size={12} color={colors.gold.DEFAULT} />
+              : <Text style={st.avatarLetter}>{participantPresentation?.avatarLabel}</Text>}
           </View>
         )}
         <View style={[
@@ -6905,7 +7060,7 @@ export default function ChatScreen() {
           receipts.length > 0 && st.toolReceiptMessageBody,
           isFocusedTopicOriginal && st.focusedTopicMessageBody,
         ]}>
-          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
+          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : participantPresentation?.senderLabel ?? "파트너"}{isPartnerMsg ? " ♥" : ""}</Text>}
           {isFocusedTopicOriginal && (
             <Text style={st.focusedTopicMessageLabel} accessibilityLiveRegion="polite">
               저장한 원문
@@ -8265,6 +8420,7 @@ const st = StyleSheet.create({
   toolReceiptMessageBody: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarAi: { backgroundColor: colors.noir[800] },
+  avatarPartner: { backgroundColor: colors.ivory[200] },
   avatarBride: { backgroundColor: "#F5E6DF" },
   avatarGroom: { backgroundColor: "#E8EDF5" },
   avatarLetter: { fontSize: 8, fontWeight: "700", color: colors.noir[800] },

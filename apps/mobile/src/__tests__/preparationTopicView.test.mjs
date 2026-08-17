@@ -30,8 +30,138 @@ function withoutPlanReadState(view) {
   delete rest.currentCompletedVendorBookingRecords;
   delete rest.linkedCompletedVendorBookingIds;
   delete rest.completedVendorBookingReadState;
+  delete rest.userReportedCatchUpRecords;
+  delete rest.catchUpReadState;
   return rest;
 }
+
+function exactCatchUpDecision(overrides = {}) {
+  const actorId = "10000000-0000-4000-8000-000000000001";
+  const coupleId = "20000000-0000-4000-8000-000000000001";
+  const receiptId = "30000000-0000-4000-8000-000000000001";
+  const requestId = "40000000-0000-4000-8000-000000000001";
+  const decisionId = "50000000-0000-4000-8000-000000000001";
+  const confirmedAt = "2026-08-18T00:10:00.000Z";
+  return {
+    actorId,
+    coupleId,
+    receiptId,
+    decisionId,
+    decision: {
+      id: decisionId,
+      couple_id: coupleId,
+      category: "preparation_catch_up",
+      decision_type: "completed",
+      title: "부모님 첫 만남 준비 상태 기록",
+      chosen_value: {
+        topicKey: "meeting",
+        reportedState: "completed",
+        scope: "owner_private",
+        source: "user_reported",
+      },
+      options_considered: [],
+      reasoning: "사용자가 현재 준비 상태로 직접 확인한 기록입니다.",
+      confidence: 1,
+      stage_tag: null,
+      decided_at: confirmedAt,
+      source: "onboarding",
+      source_ref_id: receiptId,
+      source_message_id: null,
+      memory_key: null,
+      source_actor_role: "bride",
+      user_confirmed_at: confirmedAt,
+      metadata: {
+        hook: "amora_preparation_catch_up_v1",
+        receipt_id: receiptId,
+        request_id: requestId,
+        topic_key: "meeting",
+        reported_state: "completed",
+        scope: "owner_private",
+        source: "user_reported",
+        actor_profile_id: actorId,
+        source_journey_revision: 0,
+        privacy_epoch: 7,
+        checklist_completion_changed: false,
+        vendor_confirmation_status: "unconfirmed",
+        payment_evidence: false,
+      },
+      visibility: "bride_private",
+      superseded_at: null,
+      superseded_by: null,
+      created_at: confirmedAt,
+      updated_at: confirmedAt,
+      ...overrides,
+    },
+  };
+}
+
+test("an exact catch-up decision is shown as user-reported evidence without changing preparation truth", () => {
+  const { actorId, coupleId, receiptId, decisionId, decision } = exactCatchUpDecision();
+  const baseInput = {
+    topicKey: "meeting",
+    topics,
+    progress: {},
+    scheduleEvents: [],
+    expectedCoupleId: coupleId,
+    currentCoupleMemberIds: [actorId],
+    nowIso: "2026-08-18T00:20:00.000Z",
+  };
+  const baseline = buildAmoraPreparationTopicView(baseInput);
+  const view = buildAmoraPreparationTopicView({
+    ...baseInput,
+    catchUpDecisionReceipts: [decision],
+    catchUpReadState: "loaded",
+  });
+
+  assert.deepEqual(view?.userReportedCatchUpRecords, [{
+    decisionId,
+    receiptId,
+    state: "completed",
+    scope: "owner_private",
+    confirmedAt: "2026-08-18T00:10:00.000Z",
+    evidence: "user_reported",
+    checklistCompletionChanged: false,
+    vendorConfirmationStatus: "unconfirmed",
+    paymentEvidence: false,
+  }]);
+  assert.equal(view?.catchUpReadState, "loaded");
+  assert.deepEqual(view?.linkedDecisionIds, [decisionId]);
+  for (const key of ["applicability", "status", "progress", "facts", "unknowns", "nextAction"]) {
+    assert.deepEqual(view?.[key], baseline?.[key], key);
+  }
+});
+
+test("tampered or duplicate catch-up candidates fail closed as partial instead of false empty", () => {
+  const { actorId, coupleId, decision } = exactCatchUpDecision();
+  const input = {
+    topicKey: "meeting",
+    topics,
+    progress: {},
+    expectedCoupleId: coupleId,
+    currentCoupleMemberIds: [actorId],
+    nowIso: "2026-08-18T00:20:00.000Z",
+  };
+  for (const candidate of [
+    { ...decision, metadata: { ...decision.metadata, payment_evidence: true } },
+    { ...decision, metadata: { ...decision.metadata, actor_profile_id: "10000000-0000-4000-8000-000000000099" } },
+    { ...decision, visibility: "shared" },
+  ]) {
+    const view = buildAmoraPreparationTopicView({
+      ...input,
+      catchUpDecisionReceipts: [candidate],
+      catchUpReadState: "loaded",
+    });
+    assert.deepEqual(view?.userReportedCatchUpRecords, []);
+    assert.equal(view?.catchUpReadState, "partial");
+  }
+  const duplicate = buildAmoraPreparationTopicView({
+    ...input,
+    catchUpDecisionReceipts: [decision, { ...decision }],
+    catchUpReadState: "loaded",
+  });
+  assert.deepEqual(duplicate?.userReportedCatchUpRecords, []);
+  assert.equal(duplicate?.catchUpReadState, "partial");
+});
 
 test("a first-time topic stays unknown and asks for applicability before pretending work started", () => {
   const view = buildAmoraPreparationTopicView({

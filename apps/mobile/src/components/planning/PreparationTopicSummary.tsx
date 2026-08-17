@@ -5,6 +5,7 @@ import type { AmoraPreparationTopicDetail } from "@hanbang/shared/amora-preparat
 
 import { ActionRow, AppText, StatusPill } from "@/components/ui/AppUI";
 import { buildPreparationTopicPresentation } from "@/lib/preparationTopicPresentation.mjs";
+import type { PreparationTopicPayerPresentationContext } from "@/lib/preparationTopicPresentation.mjs";
 import type {
   PreparationTopicAmoraHandoff,
   PreparationTopicPersonalizationSection,
@@ -37,6 +38,7 @@ function GuideBulletSection({
 export default function PreparationTopicSummary({
   view,
   messageReferenceRead,
+  payerPresentationContext,
   personalizationSection,
   amoraHandoff,
   onOpenBudget,
@@ -47,6 +49,7 @@ export default function PreparationTopicSummary({
   messageReferenceRead?: NonNullable<
     Parameters<typeof buildPreparationTopicPresentation>[1]
   >;
+  payerPresentationContext?: PreparationTopicPayerPresentationContext | null;
   personalizationSection?: PreparationTopicPersonalizationSection | null;
   amoraHandoff?: PreparationTopicAmoraHandoff | null;
   onOpenBudget?: (categoryKey: string) => void;
@@ -60,7 +63,11 @@ export default function PreparationTopicSummary({
     setExpandedGuide(false);
   }, [view?.topicKey, view?.guideModules?.[0]?.moduleId]);
 
-  const presentation = buildPreparationTopicPresentation(view, messageReferenceRead);
+  const presentation = buildPreparationTopicPresentation(
+    view,
+    messageReferenceRead,
+    payerPresentationContext,
+  );
   if (!presentation) return null;
   const budgetAction = presentation.budgetAction;
   const guideSection = presentation.guideSection;
@@ -179,6 +186,37 @@ export default function PreparationTopicSummary({
             <View accessibilityRole="alert">
               <AppText variant="caption" style={styles.savedConversationNotice}>
                 {presentation.confirmedBudgetSection.notice}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {presentation.catchUpSection ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            {presentation.catchUpSection.title}
+          </Text>
+          {presentation.catchUpSection.items.map((item) => (
+            <View
+              key={item.key}
+              style={styles.confirmedRow}
+              accessible
+              accessibilityLabel={item.accessibilityLabel}
+            >
+              <View style={styles.confirmedDot} />
+              <View style={styles.confirmedCopy}>
+                <AppText variant="bodyStrong">{item.title}</AppText>
+                <AppText variant="caption" style={styles.confirmedMeta}>
+                  {item.meta}
+                </AppText>
+              </View>
+            </View>
+          ))}
+          {presentation.catchUpSection.notice ? (
+            <View accessibilityRole="alert">
+              <AppText variant="caption" style={styles.savedConversationNotice}>
+                {presentation.catchUpSection.notice}
               </AppText>
             </View>
           ) : null}

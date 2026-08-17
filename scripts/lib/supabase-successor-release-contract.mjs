@@ -753,6 +753,8 @@ const REQUIRED_ROLLBACK_CONTROLS = Object.freeze({
   AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
   AMORA_OPENAI_ENABLED: "false",
   AMORA_PROACTIVE_CHAT_ENABLED: "false",
+  AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED: "false",
+  EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED: "false",
   AMORA_COST_GUARD_ENABLED: "true",
   WEDDING_COURT_ENABLED: "false",
   WEDDING_PAYMENT_LEDGER_ENABLED: "false",
@@ -911,6 +913,10 @@ function validateSuccessorControllerContract({
     && check.expectedEvidence.atomic_action_href_whitespace_parity_count === 1
     && check.expectedEvidence.booking_outcome_provenance_rpc_acl_count === 1
     && check.expectedEvidence.booking_outcome_provenance_v1_actor_time_contract_count === 1
+    && check.expectedEvidence.neutral_preparation_space_rpc_acl_count === 2
+    && check.expectedEvidence.neutral_preparation_space_member_model_contract_count === 1
+    && check.expectedEvidence.preparation_catch_up_rpc_acl_count === 1
+    && check.expectedEvidence.preparation_catch_up_private_actor_binding_contract_count === 1
     && check.expectedEvidence.couple_plan_change_auth_user_fk_count === 4
     && check.expectedEvidence.couple_plan_change_terminal_event_count === 3
     && check.expectedEvidence.couple_plan_change_journey_write_fence_count === 4
@@ -929,7 +935,7 @@ function validateSuccessorControllerContract({
       || !semanticPostcheck) {
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
-      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
+      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, preparation catch-up service-role RPC and private actor binding, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
     );
   }
 

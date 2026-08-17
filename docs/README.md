@@ -2,7 +2,7 @@
 
 > 아모라의 현재 제품 목표·소비자 여정·구현 상태·개발 순서·완료 체크리스트는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`가 단일 실행 정본이다. 모든 아모라 작업은 그 문서의 `NOW`와 `AMR-*` ID에서 시작하고 작업 뒤 네 축 상태와 증거를 갱신한다.
 >
-> 2026-08-17 현재 후보는 HEAD `6855394f`, manifest 101개, 관찰 적용 32개, pending 69개, tail `20260816170000`, `deployment_blocked`다. 아래 `f8851f74`/2026-08-12 handoff 설명은 이전 release-candidate 역사이며 현재 후보 상태로 사용하지 않는다.
+> 2026-08-18 현재 로컬 후보는 HEAD `b3f8a712`, manifest 103개, 관찰 적용 32개, pending 71개, tail `20260816190000`, `deployment_blocked`다. 후보는 dirty·미커밋이며 hosted DB/Preview/EAS/Production에 배포되지 않았다. 아래 `f8851f74`/2026-08-12 handoff 설명은 이전 release-candidate 역사이며 현재 후보 상태로 사용하지 않는다.
 
 `docs/`에는 현재 기준서와 과거 전략·감사·세션 기록이 함께 있다. 파일 날짜가 최신이거나
 본문에 “완료”가 적혀 있다는 이유만으로 현재 제품·보안·배포 상태로 사용하지 않는다.

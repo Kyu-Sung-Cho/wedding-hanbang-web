@@ -1,4 +1,4 @@
-// 온보딩 화면 — 5단계 (역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 완료)
+// 온보딩 화면 — 중립 첫 가치(기능 플래그) + 기존 5단계 호환 경로
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
@@ -7,9 +7,11 @@ import {
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
+import * as Crypto from "expo-crypto";
 import { ArrowLeft, ArrowRight, Heart, User, CheckCircle2, Sparkles, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
+  resolvePlanningFoundationFirstValue,
   WEDDING_BUDGET_TENDENCY_OPTIONS,
   WEDDING_GUEST_COUNT_OPTIONS,
   WEDDING_PRIORITY_OPTIONS,
@@ -19,15 +21,25 @@ import {
   HANBANG_MUTATION_CONTRACT_VERSION_HEADER,
   type WeddingBudgetTendencyValue,
   type WeddingGuestCountValue,
+  type PlanningFoundationFirstValue,
+  type PlanningFoundationSelfReportedStage,
   type WeddingPriorityValue,
   type WeddingStyleValue,
 } from "@hanbang/shared";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
+import { stagePlanningFoundationDraftHandoff } from "@/lib/planningFoundationDraftHandoff";
 import {
+  clearPreparationCatchUpDraft,
+  readPreparationCatchUpDraft,
+  stagePreparationCatchUpDraft,
+} from "@/lib/preparationCatchUpDraft";
+import {
+  buildNeutralPreparationSpaceSubmissionPayload,
   buildOnboardingSubmissionPayload,
   getOnboardingCoupleStepActions,
+  resolveNeutralPreparationSpaceCompletion,
   resolveOnboardingCompletion,
   type OnboardingSubmissionMode,
 } from "@/lib/onboardingFirstValue.mjs";
@@ -38,6 +50,20 @@ import {
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
 } from "@hanbang/shared";
+import { PrimaryButton } from "@/components/ui/AppUI";
+import {
+  buildAmoraPreparationCatchUpPreview,
+  parseAmoraPreparationCatchUpCanonicalExisting,
+  validateAmoraPreparationCatchUpReceipt,
+  AMORA_PREPARATION_CATCH_UP_TOPICS,
+  type AmoraPreparationCatchUpDraftSubmission,
+  type AmoraPreparationCatchUpPreview,
+  type AmoraPreparationCatchUpReceipt,
+} from "@hanbang/shared/amora-preparation-catch-up";
+import {
+  AmoraPreparationCatchUp,
+  type AmoraPreparationCatchUpDraftItem,
+} from "@/components/onboarding/AmoraPreparationCatchUp";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
@@ -84,6 +110,317 @@ const BUDGET_OPTIONS = WEDDING_BUDGET_TENDENCY_OPTIONS.map((option) => ({
 }));
 const GUEST_OPTIONS = WEDDING_GUEST_COUNT_OPTIONS;
 const coupleStepActions = getOnboardingCoupleStepActions();
+const neutralFirstValueEnabled =
+  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
+
+const EMPTY_PLANNING_FOUNDATION_OVERVIEW = Object.freeze({
+  version: 1,
+  coverage: Object.freeze({
+    version: 1,
+    stage: "partial",
+    connectedTopicCount: 19,
+    journeyAxisCount: 10,
+    gapCount: 7,
+    issueCount: 0,
+  }),
+  summary: Object.freeze({
+    totalTopics: 19,
+    unknownTopics: 19,
+    notStartedTopics: 0,
+    inProgressTopics: 0,
+    completedTopics: 0,
+    notApplicableTopics: 0,
+    needsReviewTopics: 0,
+    completedItems: 0,
+    totalItems: 95,
+    percent: 0,
+  }),
+  topics: Object.freeze([]),
+  attentionTopics: Object.freeze([]),
+});
+
+function NeutralPlanningFoundation({
+  firstValue,
+  selectedStage,
+  coupleAction,
+  inviteCode,
+  inviteCodeProblem,
+  submitting,
+  catchUpPhase,
+  catchUpItems,
+  catchUpPreview,
+  catchUpRequestLocked,
+  catchUpReceipt,
+  onSelectStage,
+  onResetStage,
+  onChangeCoupleAction,
+  onChangeInviteCode,
+  onSubmit,
+  onChangeCatchUpItems,
+  onPreviewCatchUp,
+  onEditCatchUp,
+  onConfirmCatchUp,
+  onSkipCatchUp,
+  onContinueCatchUp,
+}: {
+  firstValue: PlanningFoundationFirstValue;
+  selectedStage: PlanningFoundationSelfReportedStage | null;
+  coupleAction: CoupleAction;
+  inviteCode: string;
+  inviteCodeProblem: string | null;
+  submitting: boolean;
+  catchUpPhase: "edit" | "preview";
+  catchUpItems: readonly AmoraPreparationCatchUpDraftItem[];
+  catchUpPreview: AmoraPreparationCatchUpPreview | null;
+  catchUpRequestLocked: boolean;
+  catchUpReceipt: AmoraPreparationCatchUpReceipt | null;
+  onSelectStage: (stage: PlanningFoundationSelfReportedStage) => void;
+  onResetStage: () => void;
+  onChangeCoupleAction: (action: CoupleAction) => void;
+  onChangeInviteCode: (code: string) => void;
+  onSubmit: () => void;
+  onChangeCatchUpItems: (items: readonly AmoraPreparationCatchUpDraftItem[]) => void;
+  onPreviewCatchUp: () => void;
+  onEditCatchUp: () => void;
+  onConfirmCatchUp: () => void;
+  onSkipCatchUp: () => void;
+  onContinueCatchUp: () => void;
+}) {
+  const isCatchUpAction = firstValue.kind === "action"
+    && firstValue.actionKey === "reconstruct_existing_preparation";
+  const readyToSubmit = selectedStage !== null
+    && firstValue.kind !== "question"
+    && firstValue.kind !== "unavailable"
+    && (coupleAction === "create" || isCoupleInviteCode(inviteCode));
+
+  if (catchUpReceipt) {
+    const labels = new Map(
+      AMORA_PREPARATION_CATCH_UP_TOPICS.map((topic) => [topic.topicKey, topic.topicLabel]),
+    );
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.foundationContent}>
+          <Text style={styles.foundationEyebrow}>AMORA · 현재 준비 정리</Text>
+          <Text style={styles.foundationTitle}>확인한 내용만 기록했어요</Text>
+          <Text style={styles.foundationDescription}>
+            직접 알려준 {catchUpReceipt.items.length}개 상태를 저장했어요. 체크리스트 완료율이나 업체·계약·결제 사실로 바꾸지 않았어요.
+          </Text>
+          <View style={styles.foundationActionCard}>
+            {catchUpReceipt.items.map((item) => (
+              <View key={item.decisionId} style={styles.catchUpReceiptItem}>
+                <CheckCircle2 size={18} color={colors.success} />
+                <View style={styles.catchUpReceiptCopy}>
+                  <Text style={styles.catchUpReceiptTopic}>
+                    {labels.get(item.topicKey) ?? item.topicKey}
+                  </Text>
+                  <Text style={styles.catchUpReceiptBoundary}>
+                    {item.state === "completed"
+                      ? "사용자가 완료로 기록 · 체크리스트 완료 증거 아님"
+                      : item.state === "in_progress"
+                        ? "사용자가 진행 중으로 기록 · 업체 진행 확인 아님"
+                        : item.state === "not_applicable"
+                          ? "사용자가 해당 없음으로 기록 · 언제든 변경 가능"
+                          : "아직 모름으로 유지 · 완료로 계산하지 않음"}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+          <View style={styles.foundationPrivacyNotice}>
+            <Text style={styles.foundationPrivacyTitle}>이제 현재 준비를 다시 계산해요</Text>
+            <Text style={styles.foundationPrivacyText}>
+              저장된 정본과 방금 직접 알려준 기록을 구분해서 보여드리고, 확인이 필요한 다음 한 가지를 안내할게요.
+            </Text>
+          </View>
+          <PrimaryButton
+            onPress={onContinueCatchUp}
+            accessibilityLabel="현재 준비 화면에서 이어가기"
+          >
+            현재 준비에서 이어가기
+          </PrimaryButton>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.foundationContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.foundationEyebrow}>AMORA · 첫 1분</Text>
+        <Text style={styles.foundationTitle}>
+          다 입력하지 않아도,{"\n"}지금 할 한 가지부터
+        </Text>
+        <Text style={styles.foundationDescription}>
+          역할·예식일·예산은 나중에 정해도 괜찮아요. 지금 상황에 가까운 답 하나로 시작할게요.
+        </Text>
+
+        {firstValue.kind === "question" ? (
+          <View style={styles.foundationQuestionBlock}>
+            <Text style={styles.foundationQuestion}>{firstValue.title}</Text>
+            <Text style={styles.foundationQuestionDescription}>
+              {firstValue.description}
+            </Text>
+            <View style={styles.foundationOptions}>
+              {firstValue.options.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={styles.foundationOption}
+                  onPress={() => onSelectStage(option.value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={option.label}
+                >
+                  <Text style={styles.foundationOptionText}>{option.label}</Text>
+                  <ArrowRight size={18} color={colors.textTertiary} />
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              style={styles.foundationLater}
+              onPress={() => onSelectStage(firstValue.secondaryAction.value)}
+              accessibilityRole="button"
+              accessibilityLabel={firstValue.secondaryAction.label}
+            >
+              <Text style={styles.foundationLaterText}>
+                {firstValue.secondaryAction.label}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {firstValue.kind === "action" ? (
+          <View style={styles.foundationActionCard}>
+            <View style={styles.foundationActionHeader}>
+              <Sparkles size={18} color={colors.rose[500]} />
+              <Text style={styles.foundationActionEyebrow}>내 첫 행동</Text>
+            </View>
+            <Text style={styles.foundationActionTitle}>{firstValue.title}</Text>
+            <Text style={styles.foundationActionLabel}>왜 이걸 먼저 하나요?</Text>
+            <Text style={styles.foundationActionBody}>{firstValue.reason}</Text>
+            <Text style={styles.foundationActionLabel}>어디까지 하면 끝인가요?</Text>
+            <Text style={styles.foundationActionBody}>
+              {firstValue.completionCriterion}
+            </Text>
+            <View style={styles.foundationSourceRow}>
+              <Text style={styles.foundationSourceLabel}>사용한 정보</Text>
+              <Text style={styles.foundationSourceValue}>
+                {firstValue.usedSources.map((item) => item.label).join(" · ")}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {firstValue.kind === "deferred" ? (
+          <View style={styles.foundationActionCard}>
+            <Text style={styles.foundationActionTitle}>{firstValue.title}</Text>
+            <Text style={styles.foundationActionBody}>{firstValue.description}</Text>
+          </View>
+        ) : null}
+
+        {selectedStage !== null ? (
+          <>
+            <Pressable
+              style={styles.foundationReset}
+              onPress={onResetStage}
+              accessibilityRole="button"
+              accessibilityLabel="준비 상태 답 다시 고르기"
+            >
+              <Text style={styles.foundationResetText}>답 다시 고르기</Text>
+            </Pressable>
+
+            <View style={styles.foundationMembershipCard}>
+              <Text style={styles.foundationMembershipTitle}>준비 공간</Text>
+              <Text style={styles.foundationMembershipDescription}>
+                혼자 먼저 시작해도 돼요. 파트너 연결은 지금 하거나 나중에 할 수 있어요.
+              </Text>
+              {coupleAction === "create" ? (
+                <Pressable
+                  onPress={() => onChangeCoupleAction("join")}
+                  accessibilityRole="button"
+                  accessibilityLabel="파트너 초대 코드로 합류"
+                >
+                  <Text style={styles.foundationMembershipLink}>
+                    파트너 초대 코드가 있어요
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  <TextInput
+                    style={styles.inviteCodeInput}
+                    value={inviteCode}
+                    onChangeText={onChangeInviteCode}
+                    placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_PLACEHOLDER})`}
+                    placeholderTextColor={colors.taupe[400]}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
+                    accessibilityLabel="파트너 초대 코드"
+                  />
+                  {inviteCodeProblem ? (
+                    <Text style={styles.inviteCodeProblem}>{inviteCodeProblem}</Text>
+                  ) : null}
+                  <Pressable
+                    onPress={() => onChangeCoupleAction("create")}
+                    accessibilityRole="button"
+                    accessibilityLabel="혼자 먼저 시작하기"
+                  >
+                    <Text style={styles.foundationMembershipLink}>
+                      혼자 먼저 시작할게요
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            <View style={styles.foundationPrivacyNotice}>
+              <Text style={styles.foundationPrivacyTitle}>내가 확인하기 전에는 바뀌지 않아요</Text>
+              <Text style={styles.foundationPrivacyText}>
+                고른 답은 준비 완료 사실로 저장되지 않아요. 먼저 나만 상담 초안에서 아모라와 확인해요.
+              </Text>
+            </View>
+
+            {isCatchUpAction ? (
+              <AmoraPreparationCatchUp
+                coupleAction={coupleAction}
+                phase={catchUpPhase}
+                items={catchUpItems}
+                preview={catchUpPreview}
+                submitting={submitting}
+                requestLocked={catchUpRequestLocked}
+                onChangeItems={onChangeCatchUpItems}
+                onPreview={onPreviewCatchUp}
+                onEdit={onEditCatchUp}
+                onConfirm={onConfirmCatchUp}
+                onSkip={onSkipCatchUp}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </ScrollView>
+
+      {selectedStage !== null && !isCatchUpAction ? (
+        <View style={styles.foundationFooter}>
+          <PrimaryButton
+            onPress={onSubmit}
+            disabled={!readyToSubmit || submitting}
+            accessibilityLabel={firstValue.kind === "deferred"
+              ? "정보 없이 아모라 시작하기"
+              : "아모라와 이 한 가지 정리하기"}
+            accessibilityState={{ disabled: !readyToSubmit || submitting, busy: submitting }}
+          >
+            {submitting
+              ? "준비 공간을 만들고 있어요"
+              : firstValue.kind === "deferred"
+                ? "정보 없이 아모라 시작하기"
+                : "아모라와 이 한 가지 정리하기"}
+          </PrimaryButton>
+        </View>
+      ) : null}
+    </SafeAreaView>
+  );
+}
 
 // 축하 파티클 컴포넌트
 function CelebrationDots() {
@@ -173,6 +510,17 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
   const [coupleAction, setCoupleAction] = useState<CoupleAction>("create");
+  const [foundationStage, setFoundationStage] =
+    useState<PlanningFoundationSelfReportedStage | null>(null);
+  const [catchUpPhase, setCatchUpPhase] = useState<"edit" | "preview">("edit");
+  const [catchUpItems, setCatchUpItems] =
+    useState<readonly AmoraPreparationCatchUpDraftItem[]>([]);
+  const [catchUpPreview, setCatchUpPreview] =
+    useState<AmoraPreparationCatchUpPreview | null>(null);
+  const [catchUpRequestId, setCatchUpRequestId] = useState<string | null>(null);
+  const [catchUpRequestLocked, setCatchUpRequestLocked] = useState(false);
+  const [catchUpReceipt, setCatchUpReceipt] =
+    useState<AmoraPreparationCatchUpReceipt | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [weddingDate, setWeddingDate] = useState("");
   const [weddingDateUndecided, setWeddingDateUndecided] = useState(false);
@@ -188,12 +536,18 @@ export default function OnboardingScreen() {
   const formOwnerStillCurrentRef = useRef(false);
   const ownerCheckGenerationRef = useRef(0);
   const submissionGenerationRef = useRef(0);
+  const catchUpDraftWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const catchUpDraftActionRef = useRef(false);
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
   // 아직 다 치지 않은 상태를 틀렸다고 하지 않는다 — 타이핑 중에 빨간 글씨가 뜨면
   // 사람은 자기가 잘못한 줄 안다. 파트너 코드는 붙여넣는 경우가 많아 길이가 한 번에 찬다.
   const inviteCodeProblem = coupleAction === "join" && inviteCode.length >= 4
     ? describeCoupleInviteCodeProblem(inviteCode)
     : null;
+  const planningFoundationFirstValue = resolvePlanningFoundationFirstValue({
+    preparationOverview: EMPTY_PLANNING_FOUNDATION_OVERVIEW,
+    selfReportedStage: foundationStage,
+  });
 
   // Step 4: 웨딩 스타일 선호도
   const [weddingStyle, setWeddingStyle] = useState<WeddingStyle | null>(null);
@@ -219,6 +573,15 @@ export default function OnboardingScreen() {
 
   const totalSteps = 5;
 
+  const resetCatchUpState = useCallback(() => {
+    setCatchUpPhase("edit");
+    setCatchUpItems([]);
+    setCatchUpPreview(null);
+    setCatchUpRequestId(null);
+    setCatchUpRequestLocked(false);
+    setCatchUpReceipt(null);
+  }, []);
+
   const clearAccountOwnedOnboardingState = useCallback(() => {
     formOwnerUserIdRef.current = null;
     formOwnerStillCurrentRef.current = false;
@@ -235,6 +598,8 @@ export default function OnboardingScreen() {
     setStep(1);
     setRole(null);
     setCoupleAction("create");
+    setFoundationStage(null);
+    resetCatchUpState();
     setInviteCode("");
     setWeddingDate("");
     setWeddingDateUndecided(false);
@@ -246,7 +611,7 @@ export default function OnboardingScreen() {
     setPriorities([]);
     setBudgetTendency(null);
     setGuestCount(null);
-  }, [brideScale, contentOpacity, contentSlide, groomScale]);
+  }, [brideScale, contentOpacity, contentSlide, groomScale, resetCatchUpState]);
 
   const gateOnboardingUntilOwnerVerified = useCallback(() => {
     formOwnerStillCurrentRef.current = false;
@@ -276,6 +641,26 @@ export default function OnboardingScreen() {
       }
       formOwnerUserIdRef.current = user.id;
       formOwnerStillCurrentRef.current = true;
+      const restoredCatchUp = await readPreparationCatchUpDraft({ ownerUserId: user.id });
+      if (
+        ownerCheckGenerationRef.current !== generation
+        || formOwnerUserIdRef.current !== user.id
+        || !formOwnerStillCurrentRef.current
+      ) return;
+      if (restoredCatchUp) {
+        const restoredPreview = buildAmoraPreparationCatchUpPreview({
+          version: 1,
+          items: restoredCatchUp.items,
+        });
+        if (restoredPreview) {
+          setFoundationStage("already_preparing");
+          setCatchUpItems(restoredCatchUp.items);
+          setCatchUpPhase(restoredCatchUp.phase);
+          setCatchUpPreview(restoredCatchUp.phase === "preview" ? restoredPreview : null);
+          setCatchUpRequestId(restoredCatchUp.requestId);
+          setCatchUpRequestLocked(restoredCatchUp.requestLocked);
+        }
+      }
       setFormOwnerUserId(user.id);
       setOwnerVerification("ready");
     } catch {
@@ -369,7 +754,143 @@ export default function OnboardingScreen() {
     }
   }
 
-  async function handleSubmit(mode: OnboardingSubmissionMode = "detailed") {
+  function handleSelectFoundationStage(stage: PlanningFoundationSelfReportedStage) {
+    if (stage !== foundationStage) resetCatchUpState();
+    setFoundationStage(stage);
+  }
+
+  function persistCatchUpDraft(input: {
+    phase: "edit" | "preview";
+    requestId: string | null;
+    requestLocked: boolean;
+    items: readonly AmoraPreparationCatchUpDraftItem[];
+  }) {
+    const ownerUserId = formOwnerUserIdRef.current;
+    if (!ownerUserId || !formOwnerStillCurrentRef.current) {
+      return Promise.reject(new Error("PREPARATION_CATCH_UP_DRAFT_OWNER_INVALID"));
+    }
+    const write = catchUpDraftWriteQueueRef.current
+      .catch(() => undefined)
+      .then(() => stagePreparationCatchUpDraft({ ownerUserId, ...input }));
+    catchUpDraftWriteQueueRef.current = write;
+    return write;
+  }
+
+  function handleCatchUpItemsChange(items: readonly AmoraPreparationCatchUpDraftItem[]) {
+    if (catchUpRequestLocked) return;
+    setCatchUpItems(items);
+    setCatchUpPhase("edit");
+    setCatchUpPreview(null);
+    setCatchUpRequestId(null);
+    if (items.length > 0) {
+      void persistCatchUpDraft({
+        phase: "edit",
+        requestId: null,
+        requestLocked: false,
+        items,
+      });
+    }
+  }
+
+  async function handleCatchUpPreview() {
+    const preview = buildAmoraPreparationCatchUpPreview({ version: 1, items: catchUpItems });
+    if (!preview) {
+      Alert.alert("준비 상태를 확인해 주세요", "확실한 주제를 한 개에서 세 개까지 골라주세요.");
+      return;
+    }
+    if (catchUpDraftActionRef.current) return;
+    catchUpDraftActionRef.current = true;
+    const requestId = catchUpRequestId ?? Crypto.randomUUID();
+    try {
+      await persistCatchUpDraft({
+        phase: "preview",
+        requestId,
+        requestLocked: false,
+        items: preview.operation.items,
+      });
+    } catch {
+      Alert.alert(
+        "미리보기를 안전하게 보관하지 못했어요",
+        "기기 저장소를 확인한 뒤 다시 시도해 주세요. 아직 준비 기록은 바뀌지 않았어요.",
+      );
+      return;
+    } finally {
+      catchUpDraftActionRef.current = false;
+    }
+    setCatchUpRequestId(requestId);
+    setCatchUpPreview(preview);
+    setCatchUpPhase("preview");
+  }
+
+  async function handleCatchUpEdit() {
+    if (catchUpRequestLocked || catchUpDraftActionRef.current) return;
+    catchUpDraftActionRef.current = true;
+    try {
+      await persistCatchUpDraft({
+        phase: "edit",
+        requestId: null,
+        requestLocked: false,
+        items: catchUpItems,
+      });
+    } catch {
+      Alert.alert("초안을 보관하지 못했어요", "기기 저장소를 확인한 뒤 다시 시도해 주세요.");
+      return;
+    } finally {
+      catchUpDraftActionRef.current = false;
+    }
+    setCatchUpPhase("edit");
+    setCatchUpPreview(null);
+    setCatchUpRequestId(null);
+  }
+
+  async function handleCatchUpConfirm() {
+    if (!catchUpPreview || !catchUpRequestId || foundationStage !== "already_preparing") {
+      Alert.alert("미리보기를 다시 확인해 주세요", "반영할 준비 상태를 먼저 확인해 주세요.");
+      return;
+    }
+    if (catchUpDraftActionRef.current) return;
+    catchUpDraftActionRef.current = true;
+    const catchUpSubmission: AmoraPreparationCatchUpDraftSubmission = {
+      version: 1,
+      requestId: catchUpRequestId,
+      items: catchUpPreview.operation.items.map((item) => ({
+        topicKey: item.topicKey,
+        state: item.state,
+        scope: item.scope,
+      })),
+    };
+    try {
+      await persistCatchUpDraft({
+        phase: "preview",
+        requestId: catchUpRequestId,
+        requestLocked: true,
+        items: catchUpSubmission.items,
+      });
+    } catch {
+      Alert.alert(
+        "확인 요청을 안전하게 보관하지 못했어요",
+        "기기 저장소를 확인한 뒤 다시 시도해 주세요. 서버에는 아직 보내지 않았어요.",
+      );
+      return;
+    } finally {
+      catchUpDraftActionRef.current = false;
+    }
+    setCatchUpRequestLocked(true);
+    void handleSubmit("neutral_first_value", foundationStage, catchUpSubmission);
+  }
+
+  async function handleCatchUpSkip() {
+    const ownerUserId = formOwnerUserIdRef.current;
+    if (ownerUserId) await clearPreparationCatchUpDraft({ ownerUserId });
+    resetCatchUpState();
+    void handleSubmit("neutral_first_value", foundationStage);
+  }
+
+  async function handleSubmit(
+    mode: OnboardingSubmissionMode | "neutral_first_value" = "detailed",
+    requestedFoundationStage: PlanningFoundationSelfReportedStage | null = foundationStage,
+    catchUpSubmission?: AmoraPreparationCatchUpDraftSubmission,
+  ) {
     const expectedActorUserId = formOwnerUserIdRef.current;
     if (!expectedActorUserId || !formOwnerStillCurrentRef.current) {
       Alert.alert("계정이 바뀌었어요", "현재 계정에서 온보딩을 다시 시작해 주세요.");
@@ -386,22 +907,31 @@ export default function OnboardingScreen() {
       Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
       return;
     }
+    if (mode === "neutral_first_value" && requestedFoundationStage === null) {
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const submissionPayload = buildOnboardingSubmissionPayload({
-        role,
-        coupleAction,
-        inviteCode,
-        weddingDate,
-        weddingDateUndecided,
-        venue,
-        totalBudget: budgetEvaluation.requestBudget,
-        weddingStyle,
-        priorities,
-        budgetTendency,
-        guestCount,
-      }, mode);
+      const submissionPayload = mode === "neutral_first_value"
+        ? buildNeutralPreparationSpaceSubmissionPayload({
+            coupleAction,
+            inviteCode,
+            preparationCatchUp: catchUpSubmission,
+          })
+        : buildOnboardingSubmissionPayload({
+            role,
+            coupleAction,
+            inviteCode,
+            weddingDate,
+            weddingDateUndecided,
+            venue,
+            totalBudget: budgetEvaluation.requestBudget,
+            weddingStyle,
+            priorities,
+            budgetTendency,
+            guestCount,
+          }, mode);
 
       const res = await apiFetchForExpectedUser(expectedActorUserId, "/api/onboarding", {
         method: "POST",
@@ -430,15 +960,69 @@ export default function OnboardingScreen() {
       const data = await res.json();
       if (!submissionOwnerStillCurrent()) return;
       if (!res.ok) {
+        if (data.code === "AMORA_PREPARATION_CATCH_UP_SHARED_APPROVAL_REQUIRED") {
+          setCatchUpRequestLocked(false);
+          setCatchUpPhase("edit");
+          setCatchUpPreview(null);
+          setCatchUpRequestId(null);
+          setCatchUpItems((items) => items.map((item) => ({
+            ...item,
+            scope: "owner_private",
+          })));
+        }
         Alert.alert("오류", data.error ?? "저장에 실패했어요");
         return;
       }
 
-      const completion = resolveOnboardingCompletion({
-        mode,
-        coupleAction,
-        inviteCode: data.inviteCode,
-      });
+      if (mode === "neutral_first_value") {
+        if (catchUpSubmission !== undefined) {
+          const canonicalExisting = parseAmoraPreparationCatchUpCanonicalExisting(
+            data.preparationCatchUp,
+          );
+          if (canonicalExisting) {
+            await clearPreparationCatchUpDraft({ ownerUserId: expectedActorUserId });
+            router.replace({
+              pathname: "/schedule",
+              params: { catchUpSource: "canonical_existing" },
+            });
+            return;
+          }
+          const validatedCatchUpReceipt = validateAmoraPreparationCatchUpReceipt(
+            data.preparationCatchUp,
+            data.coupleId,
+            catchUpSubmission.requestId,
+            catchUpSubmission.items,
+          );
+          if (!validatedCatchUpReceipt.ok) {
+            Alert.alert(
+              "반영 여부를 다시 확인해야 해요",
+              "같은 요청으로 다시 확인해 주세요. 새 요청을 만들거나 내용을 바꾸지 않았어요.",
+            );
+            return;
+          }
+          setCatchUpReceipt(validatedCatchUpReceipt.value);
+          await clearPreparationCatchUpDraft({ ownerUserId: expectedActorUserId });
+          return;
+        }
+        if (mode === "neutral_first_value" && catchUpSubmission === undefined) {
+          await stagePlanningFoundationDraftHandoff({
+            ownerUserId: expectedActorUserId,
+            coupleId: data.coupleId,
+            stage: requestedFoundationStage!,
+          });
+          if (!submissionOwnerStillCurrent()) return;
+        }
+      }
+
+      const completion = mode === "neutral_first_value"
+        ? resolveNeutralPreparationSpaceCompletion({
+            foundationStage: requestedFoundationStage!,
+          })
+        : resolveOnboardingCompletion({
+            mode,
+            coupleAction,
+            inviteCode: data.inviteCode,
+          });
 
       if (completion.kind === "invite_code") {
         setResultCode(completion.inviteCode);
@@ -526,6 +1110,60 @@ export default function OnboardingScreen() {
           ) : null}
         </View>
       </SafeAreaView>
+    );
+  }
+
+  if (neutralFirstValueEnabled) {
+    return (
+      <NeutralPlanningFoundation
+        firstValue={planningFoundationFirstValue}
+        selectedStage={foundationStage}
+        coupleAction={coupleAction}
+        inviteCode={inviteCode}
+        inviteCodeProblem={inviteCodeProblem}
+        submitting={submitting}
+        catchUpPhase={catchUpPhase}
+        catchUpItems={catchUpItems}
+        catchUpPreview={catchUpPreview}
+        catchUpRequestLocked={catchUpRequestLocked}
+        catchUpReceipt={catchUpReceipt}
+        onSelectStage={handleSelectFoundationStage}
+        onResetStage={() => {
+          if (formOwnerUserIdRef.current) {
+            void clearPreparationCatchUpDraft({
+              ownerUserId: formOwnerUserIdRef.current,
+            });
+          }
+          setFoundationStage(null);
+          resetCatchUpState();
+        }}
+        onChangeCoupleAction={(action) => {
+          setCoupleAction(action);
+          if (action === "join") {
+            handleCatchUpItemsChange(catchUpItems.map((item) => ({
+              ...item,
+              scope: "owner_private",
+            })));
+          }
+        }}
+        onChangeInviteCode={(value) => setInviteCode(normalizeCoupleInviteCode(value))}
+        onSubmit={() => void handleSubmit("neutral_first_value", foundationStage)}
+        onChangeCatchUpItems={handleCatchUpItemsChange}
+        onPreviewCatchUp={handleCatchUpPreview}
+        onEditCatchUp={handleCatchUpEdit}
+        onConfirmCatchUp={handleCatchUpConfirm}
+        onSkipCatchUp={() => void handleCatchUpSkip()}
+        onContinueCatchUp={() => {
+          if (!catchUpReceipt) return;
+          router.replace({
+            pathname: "/schedule",
+            params: {
+              catchUpReceiptId: catchUpReceipt.receiptId,
+              category: catchUpReceipt.items[0]?.topicKey,
+            },
+          });
+        }}
+      />
     );
   }
 
@@ -920,6 +1558,221 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 24, paddingBottom: 120 },
+  foundationContent: {
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 132,
+  },
+  foundationEyebrow: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  foundationTitle: {
+    fontSize: 30,
+    lineHeight: 40,
+    fontFamily: "NotoSerifKR_500Medium",
+    color: colors.noir[800],
+    marginBottom: 12,
+  },
+  foundationDescription: {
+    fontSize: 15,
+    lineHeight: 23,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginBottom: 32,
+  },
+  foundationQuestionBlock: {
+    gap: 10,
+  },
+  foundationQuestion: {
+    fontSize: 19,
+    lineHeight: 28,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  foundationQuestionDescription: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  foundationOptions: {
+    gap: 10,
+  },
+  foundationOption: {
+    minHeight: 58,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  foundationOptionText: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  foundationLater: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  foundationLaterText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.textSecondary,
+  },
+  foundationActionCard: {
+    padding: 20,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.rose.pale,
+    backgroundColor: colors.surface,
+    gap: 8,
+  },
+  catchUpReceiptItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 6,
+  },
+  catchUpReceiptCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  catchUpReceiptTopic: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  catchUpReceiptBoundary: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  foundationActionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 2,
+  },
+  foundationActionEyebrow: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+  },
+  foundationActionTitle: {
+    fontSize: 20,
+    lineHeight: 29,
+    fontFamily: "NotoSerifKR_500Medium",
+    color: colors.noir[800],
+    marginBottom: 8,
+  },
+  foundationActionLabel: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textTertiary,
+    marginTop: 4,
+  },
+  foundationActionBody: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  foundationSourceRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 3,
+  },
+  foundationSourceLabel: {
+    fontSize: 11,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.textTertiary,
+  },
+  foundationSourceValue: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  foundationReset: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  foundationResetText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.textSecondary,
+  },
+  foundationMembershipCard: {
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: colors.ivory[100],
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  foundationMembershipTitle: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  foundationMembershipDescription: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  foundationMembershipLink: {
+    minHeight: 40,
+    paddingTop: 10,
+    fontSize: 13,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+    textAlign: "center",
+  },
+  foundationPrivacyNotice: {
+    marginTop: 14,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  foundationPrivacyTitle: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  foundationPrivacyText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  foundationFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 20,
+    backgroundColor: colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
   ownerGate: {
     flex: 1,
     alignItems: "center",

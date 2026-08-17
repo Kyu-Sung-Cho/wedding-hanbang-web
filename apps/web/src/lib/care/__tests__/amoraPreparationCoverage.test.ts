@@ -54,13 +54,46 @@ describe("Amora preparation coverage audit", () => {
     expect(result.connectedChecklistTopics).toHaveLength(19);
     expect(result.connectedChecklistTopics.some((topic) => topic.topicKey === "reserve")).toBe(false);
     expect(result.axes.map((axis) => axis.axisKey)).toEqual(FULL_JOURNEY_AXIS_KEYS);
-    expect(result.gaps.map((gap) => gap.gapKey)).toEqual([
-      "planning_foundation",
-      "guest_operations",
-      "contract_payment_lifecycle",
-      "marriage_admin",
-      "wedding_day_operations",
-      "post_wedding_closeout",
+    expect(result.gaps.map((gap) => ({
+      gapKey: gap.gapKey,
+      disposition: gap.disposition,
+      surfaceOwner: gap.surfaceOwner,
+    }))).toEqual([
+      {
+        gapKey: "planning_foundation",
+        disposition: "now",
+        surfaceOwner: "onboarding_and_amora",
+      },
+      {
+        gapKey: "guest_operations",
+        disposition: "known_gap",
+        surfaceOwner: "preparation_map",
+      },
+      {
+        gapKey: "contract_record_safety",
+        disposition: "known_gap",
+        surfaceOwner: "preparation_topic",
+      },
+      {
+        gapKey: "contract_transaction_execution",
+        disposition: "parked",
+        surfaceOwner: "none",
+      },
+      {
+        gapKey: "marriage_admin",
+        disposition: "known_gap",
+        surfaceOwner: "preparation_map",
+      },
+      {
+        gapKey: "wedding_day_operations",
+        disposition: "known_gap",
+        surfaceOwner: "preparation_map",
+      },
+      {
+        gapKey: "post_wedding_closeout",
+        disposition: "known_gap",
+        surfaceOwner: "preparation_map",
+      },
     ]);
     expect(result.issues).toEqual([]);
     expect(result.isComplete).toBe(false);

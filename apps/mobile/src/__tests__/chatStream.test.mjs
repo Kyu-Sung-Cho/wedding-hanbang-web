@@ -3497,7 +3497,8 @@ test("identity changes reset private session state and gate late async/realtime 
   assert.match(sourceText, /if \(nextAuthUserId === observedAuthUserId\) return/);
   assert.match(sourceText, /chat-identity:/);
   assert.match(sourceText, /nextProfile\.couple_id !== profile\?\.couple_id/);
-  assert.match(sourceText, /nextCouple\.bride_id !== couple\.bride_id/);
+  assert.match(sourceText, /nextCouple\.bride_id !== brideId/);
+  assert.match(sourceText, /nextCouple\.groom_id !== groomId/);
   const invalidateIndex = reloadScheduler.indexOf("chatSessionGenerationRef.current.invalidate()");
   const resetIndex = reloadScheduler.indexOf("resetChatSessionState()");
   const timerIndex = reloadScheduler.indexOf("setTimeout");

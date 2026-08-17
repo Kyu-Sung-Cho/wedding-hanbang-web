@@ -64,6 +64,23 @@ test("mediation request contains only the requester's explicit summary", () => {
   assert.equal(JSON.stringify(body).includes("rawMessages"), false);
 });
 
+test("neutral preparation spaces label the requester without exposing compatibility roles", () => {
+  const body = buildAmoraMediationRequestBody({
+    summary: "준비 우선순위를 함께 정하고 싶어요.",
+    senderRole: "bride",
+    senderName: "민지",
+    memberModelVersion: 2,
+    coupleId: "30000000-0000-4000-8000-000000000003",
+    clientRequestId: "40000000-0000-4000-8000-000000000004",
+  });
+
+  assert.equal(
+    body.messages[0]?.content,
+    "[사용자] [MEDIATION_REQUEST] 내가 직접 작성한 조율 요청 요약: 준비 우선순위를 함께 정하고 싶어요.",
+  );
+  assert.doesNotMatch(body.messages[0]?.content ?? "", /신부|신랑/u);
+});
+
 test("mobile mediation checks safety and the initiating account before any shared request", () => {
   const source = readFileSync(
     new URL("../../app/(tabs)/chat.tsx", import.meta.url),

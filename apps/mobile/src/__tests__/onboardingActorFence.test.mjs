@@ -29,7 +29,7 @@ test("mobile onboarding sends the rollout-safe actor headers without changing it
     /\[HANBANG_EXPECTED_ACTOR_USER_ID_HEADER\]: expectedActorUserId/u,
   );
   assert.match(source, /body: JSON\.stringify\(submissionPayload\)/u);
-  const bodyStart = source.indexOf("const submissionPayload = buildOnboardingSubmissionPayload");
+  const bodyStart = source.indexOf("const submissionPayload = mode === \"neutral_first_value\"");
   const bodyEnd = source.indexOf("const res = await apiFetchForExpectedUser", bodyStart);
   assert.ok(bodyStart > 0 && bodyEnd > bodyStart);
   assert.doesNotMatch(

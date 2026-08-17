@@ -31,6 +31,8 @@ export interface Couple {
   invite_code: string | null;
   bride_id: string | null;
   groom_id: string | null;
+  /** 1=legacy bride/groom presentation, 2=roleless preparation-space presentation. */
+  member_model_version?: 1 | 2;
   /** 첫 2인 roster가 성립한 시각. 값이 있으면 빈 슬롯에 새 멤버를 초대할 수 없다. */
   membership_sealed_at: string | null;
   created_at: string;

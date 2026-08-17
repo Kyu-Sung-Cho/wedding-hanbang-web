@@ -1,15 +1,10 @@
 import { validateAmoraPreparationGuideModule } from "@hanbang/shared/amora-preparation-guide";
+import { resolveBudgetPayerOptions } from "./neutralBudgetPayerPresentation.mjs";
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-const BUDGET_PAYER_LABELS = Object.freeze({
-  couple: "두 사람",
-  bride_parents: "예비 신부 가족",
-  groom_parents: "예비 신랑 가족",
-  both_parents: "두 가족",
-});
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const UNSAFE_DISPLAY_TEXT_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const GUIDE_STATUSES = new Set(["not_started", "exploring", "in_progress"]);
@@ -25,7 +20,7 @@ function formatWon(value) {
     : `${value.toLocaleString("ko-KR")}원`;
 }
 
-function buildBudgetAction(summary) {
+function buildBudgetAction(summary, payerPresentationContext) {
   if (summary === null || summary === undefined) return null;
   if (!isRecord(summary) || typeof summary.categoryKey !== "string") return null;
 
@@ -41,7 +36,12 @@ function buildBudgetAction(summary) {
 
   const budget = formatWon(summary.budgetWon);
   const spent = formatWon(summary.spentWon);
-  const payer = BUDGET_PAYER_LABELS[summary.payer] ?? null;
+  const payerOptions = payerPresentationContext === null
+    ? null
+    : resolveBudgetPayerOptions(
+        payerPresentationContext ?? { memberModelVersion: 1, viewerRole: null },
+      );
+  const payer = payerOptions?.find((option) => option.value === summary.payer)?.label ?? null;
   const overrun = budget && spent && summary.spentWon > summary.budgetWon
     ? formatWon(summary.spentWon - summary.budgetWon)
     : null;
@@ -205,6 +205,61 @@ function buildConfirmedBudgetSection(decisions, readState) {
       ? "확인한 예산 기록을 지금 불러오지 못했어요."
       : state === "partial"
         ? "확인한 예산 기록 조회가 일부만 완료됐어요. 새로고침해 다시 확인해 주세요."
+        : null,
+  });
+}
+
+const CATCH_UP_STATE_LABELS = Object.freeze({
+  completed: "완료했다고 알려준 기록",
+  in_progress: "진행 중이라고 알려준 기록",
+  unknown: "아직 모른다고 남긴 기록",
+  not_applicable: "해당 없다고 알려준 기록",
+});
+
+function buildCatchUpSection(records, readState) {
+  const state = readState === undefined ? "loaded" : readState;
+  if (state !== "loaded" && state !== "partial" && state !== "unavailable") {
+    return null;
+  }
+  if (!Array.isArray(records) && state === "loaded") return null;
+  const safeRecords = Array.isArray(records) ? records : [];
+  const rows = (state === "unavailable" ? [] : safeRecords).flatMap((record) => {
+    if (!isRecord(record)) return [];
+    const title = CATCH_UP_STATE_LABELS[record.state];
+    const confirmedDate = formatConfirmedDate(record.confirmedAt);
+    if (
+      typeof record.decisionId !== "string"
+      || !UUID_RE.test(record.decisionId)
+      || typeof record.receiptId !== "string"
+      || !UUID_RE.test(record.receiptId)
+      || typeof title !== "string"
+      || (record.scope !== "owner_private" && record.scope !== "couple_shared")
+      || confirmedDate === null
+      || record.evidence !== "user_reported"
+      || record.checklistCompletionChanged !== false
+      || record.vendorConfirmationStatus !== "unconfirmed"
+      || record.paymentEvidence !== false
+    ) return [];
+    const audience = record.scope === "owner_private"
+      ? "나만 보는 사용자 기록"
+      : "함께 보는 사용자 기록";
+    const boundary = "체크리스트 완료·업체·계약·결제 증빙 아님";
+    return [{
+      key: "user-reported-catch-up",
+      title,
+      meta: `${audience} · ${confirmedDate} 입력 · ${boundary}`,
+      accessibilityLabel: `직접 알려준 현재 상태, ${title}, ${audience}, ${confirmedDate} 입력, ${boundary}`,
+    }];
+  });
+  if (rows.length > 1) return null;
+  if (rows.length === 0 && state === "loaded") return null;
+  return Object.freeze({
+    title: "직접 알려준 현재 상태",
+    items: Object.freeze(rows.map((row) => Object.freeze(row))),
+    notice: state === "unavailable"
+      ? "직접 알려준 준비 기록을 지금 불러오지 못했어요."
+      : state === "partial"
+        ? "직접 알려준 준비 기록 조회가 일부만 완료됐어요. 새로고침해 다시 확인해 주세요."
         : null,
   });
 }
@@ -540,7 +595,11 @@ function buildGuideSection(view) {
   });
 }
 
-export function buildPreparationTopicPresentation(view, messageReferenceRead) {
+export function buildPreparationTopicPresentation(
+  view,
+  messageReferenceRead,
+  payerPresentationContext,
+) {
   if (
     !isRecord(view)
     || view.version !== 1
@@ -610,6 +669,10 @@ export function buildPreparationTopicPresentation(view, messageReferenceRead) {
       view.confirmedBudgetDecisions,
       view.budgetDecisionReadState,
     ),
+    catchUpSection: buildCatchUpSection(
+      view.userReportedCatchUpRecords,
+      view.catchUpReadState,
+    ),
     bookingDecisionSection: buildBookingDecisionSection(
       view.currentVendorBookingRecords,
       view.vendorBookingReadState,
@@ -623,7 +686,7 @@ export function buildPreparationTopicPresentation(view, messageReferenceRead) {
       messageReferenceRead,
     ),
     guideSection: buildGuideSection(view),
-    budgetAction: buildBudgetAction(view.budgetSummary),
+    budgetAction: buildBudgetAction(view.budgetSummary, payerPresentationContext),
     actionReadNotice: view.actionReadState === "unavailable"
       ? "저장된 공동 행동은 지금 확인하지 못했어요. 아래 내용은 체크리스트와 일정 기준이에요."
       : null,

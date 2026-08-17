@@ -1375,7 +1375,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 101-migration successor keeps finalization blocked through the booking outcome provenance tail", async () => {
+test("the current 103-migration successor keeps finalization blocked through the preparation catch-up tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1383,9 +1383,9 @@ test("the current 101-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 101);
+  assert.equal(manifest.expandMigrations.length, 103);
   assert.deepEqual(
-    manifest.expandMigrations.slice(-3),
+    manifest.expandMigrations.slice(-5),
     [
       {
         file: "20260816150000_amora_provider_backed_add_action_application.sql",
@@ -1398,6 +1398,14 @@ test("the current 101-migration successor keeps finalization blocked through the
       {
         file: "20260816170000_amora_booking_outcome_provenance.sql",
         sha256: "9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457",
+      },
+      {
+        file: "20260816180000_amora_neutral_preparation_space.sql",
+        sha256: "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867",
+      },
+      {
+        file: "20260816190000_amora_preparation_catch_up.sql",
+        sha256: "637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce",
       },
     ],
   );

@@ -18,12 +18,105 @@ function withoutPlanFields(presentation) {
   delete rest.actionReadNotice;
   delete rest.confirmedScheduleSection;
   delete rest.confirmedBudgetSection;
+  delete rest.catchUpSection;
   delete rest.bookingDecisionSection;
   delete rest.completedBookingOutcomeSection;
   delete rest.savedConversationSection;
   delete rest.guideSection;
   return rest;
 }
+
+function presentCatchUp(records, catchUpReadState = "loaded") {
+  return buildPreparationTopicPresentation({
+    version: 1,
+    topicKey: "meeting",
+    label: "부모님 첫 만남",
+    applicability: "unknown",
+    status: "not_started",
+    progress: { completed: 0, total: 2, percent: 0 },
+    facts: [],
+    unknowns: [{ key: "applicability", label: "필요한 준비인지 확인 전", source: "no_saved_record" }],
+    nextAction: {
+      title: "부모님 첫 만남이 우리에게 필요한지 확인하기",
+      reason: "아직 확인한 준비 기록이 없어요.",
+      completionCriterion: "준비할지 하지 않을지 직접 정하면 끝나요.",
+      source: "applicability",
+    },
+    guideModules: [],
+    relatedMessageRefs: [],
+    linkedScheduleIds: [],
+    linkedBudgetCategoryKeys: [],
+    linkedActionIds: [],
+    confirmedScheduleDecisions: [],
+    confirmedBudgetDecisions: [],
+    userReportedCatchUpRecords: records,
+    linkedDecisionIds: [],
+    decisionReadState: "loaded",
+    budgetDecisionReadState: "loaded",
+    catchUpReadState,
+    conflicts: [],
+  });
+}
+
+test("user-reported catch-up state is a compact non-proof record without changing the next action", () => {
+  const decisionId = "50000000-0000-4000-8000-000000000001";
+  const receiptId = "30000000-0000-4000-8000-000000000001";
+  const record = {
+    decisionId,
+    receiptId,
+    state: "in_progress",
+    scope: "owner_private",
+    confirmedAt: "2026-08-18T00:10:00.000Z",
+    evidence: "user_reported",
+    checklistCompletionChanged: false,
+    vendorConfirmationStatus: "unconfirmed",
+    paymentEvidence: false,
+  };
+  const presentation = presentCatchUp([record]);
+  const baseline = presentCatchUp([]);
+
+  assert.deepEqual(presentation?.catchUpSection, {
+    title: "직접 알려준 현재 상태",
+    items: [{
+      key: "user-reported-catch-up",
+      title: "진행 중이라고 알려준 기록",
+      meta: "나만 보는 사용자 기록 · 8월 18일 입력 · 체크리스트 완료·업체·계약·결제 증빙 아님",
+      accessibilityLabel: "직접 알려준 현재 상태, 진행 중이라고 알려준 기록, 나만 보는 사용자 기록, 8월 18일 입력, 체크리스트 완료·업체·계약·결제 증빙 아님",
+    }],
+    notice: null,
+  });
+  const serialized = JSON.stringify(presentation?.catchUpSection);
+  assert.equal(serialized.includes(decisionId), false);
+  assert.equal(serialized.includes(receiptId), false);
+  for (const field of ["statusLabel", "progressLabel", "nextAction"]) {
+    assert.deepEqual(presentation?.[field], baseline?.[field], field);
+  }
+});
+
+test("catch-up read failures stay visible in a static non-clicking section", () => {
+  assert.deepEqual(presentCatchUp([], "partial")?.catchUpSection, {
+    title: "직접 알려준 현재 상태",
+    items: [],
+    notice: "직접 알려준 준비 기록 조회가 일부만 완료됐어요. 새로고침해 다시 확인해 주세요.",
+  });
+  assert.deepEqual(presentCatchUp([], "unavailable")?.catchUpSection, {
+    title: "직접 알려준 현재 상태",
+    items: [],
+    notice: "직접 알려준 준비 기록을 지금 불러오지 못했어요.",
+  });
+
+  const sectionStart = summarySource.indexOf("{presentation.catchUpSection ? (");
+  const sectionEnd = summarySource.indexOf(
+    "{presentation.completedBookingOutcomeSection ? (",
+    sectionStart,
+  );
+  assert.ok(sectionStart >= 0 && sectionEnd > sectionStart);
+  const sectionSource = summarySource.slice(sectionStart, sectionEnd);
+  assert.match(sectionSource, /style=\{styles\.confirmedRow\}/);
+  assert.match(sectionSource, /style=\{styles\.confirmedDot\}/);
+  assert.match(sectionSource, /style=\{styles\.confirmedCopy\}/);
+  assert.doesNotMatch(sectionSource, /Pressable|ActionRow|onPress|router|navigation/);
+});
 
 function presentConfirmedBudget(
   confirmedBudgetDecisions,
@@ -58,7 +151,7 @@ function presentConfirmedBudget(
   });
 }
 
-function presentBudget(summary) {
+function presentBudget(summary, payerPresentationContext) {
   return buildPreparationTopicPresentation({
     version: 1,
     topicKey: "meeting",
@@ -82,7 +175,7 @@ function presentBudget(summary) {
     budgetSummary: summary,
     actionReadState: "loaded",
     conflicts: [],
-  });
+  }, undefined, payerPresentationContext);
 }
 
 function completedOutcomeRecord(overrides = {}) {
@@ -942,6 +1035,42 @@ test("empty, over-budget, and malformed budget records stay explicit", () => {
     description: "저장된 금액 형식을 안전하게 읽지 못했어요.",
     canOpen: false,
   });
+});
+
+test("neutral preparation spaces present legacy budget payer keys relative to the viewer", () => {
+  const summary = {
+    state: "ready",
+    categoryKey: "meeting",
+    budgetWon: 3_000_000,
+    spentWon: 1_000_000,
+    payer: "bride_parents",
+  };
+
+  assert.equal(
+    presentBudget(summary)?.budgetAction?.description,
+    "분담 · 예비 신부 가족",
+  );
+  assert.equal(
+    presentBudget(summary, {
+      memberModelVersion: 2,
+      viewerRole: "bride",
+    })?.budgetAction?.description,
+    "분담 · 내 가족",
+  );
+  assert.equal(
+    presentBudget(summary, {
+      memberModelVersion: 2,
+      viewerRole: "groom",
+    })?.budgetAction?.description,
+    "분담 · 파트너 가족",
+  );
+
+  const unknownV2 = presentBudget(summary, {
+    memberModelVersion: 2,
+    viewerRole: null,
+  });
+  assert.equal(unknownV2?.budgetAction?.description, null);
+  assert.doesNotMatch(JSON.stringify(unknownV2), /예비 신부|예비 신랑/u);
 });
 
 test("an action-led topic says a plan is connected instead of calling it a schedule", () => {

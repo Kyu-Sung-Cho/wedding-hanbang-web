@@ -18,7 +18,11 @@ export function buildAmoraMediationRequestBody(input) {
   if (input?.senderRole !== "bride" && input?.senderRole !== "groom") {
     throw new Error("AMORA_MEDIATION_ROLE_INVALID");
   }
-  const roleLabel = input.senderRole === "bride" ? "신부" : "신랑";
+  const roleLabel = input.memberModelVersion === 2
+    ? "사용자"
+    : input.senderRole === "bride"
+      ? "신부"
+      : "신랑";
   return {
     messages: [{
       role: "user",

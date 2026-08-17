@@ -9,6 +9,7 @@ import {
 } from "@hanbang/shared/amora-first-use-promotion";
 
 import {
+  buildPlanningFoundationPrivateDraft,
   buildFirstUseCriterionCorrectionDraft,
   buildFirstUseCorrectionDraft,
   buildFirstUseSharedActionDraft,
@@ -20,6 +21,7 @@ import {
   getFirstUseActionContinuationPresentation,
   getFirstUseSharedDraftPresentation,
   getFirstUsePendingActionPresentation,
+  getAmoraParticipantPresentation,
   getReviewedActionContinuationPresentation,
   isFirstUseSharedActionDraftText,
   parseFirstUseSharedActionDraft,
@@ -27,6 +29,7 @@ import {
   resolveAmoraFirstUseSessionResetScope,
   resolveFirstUseActionBubbleContent,
   resolveAmoraChatEntry,
+  resolvePlanningFoundationEntryStage,
   selectPrivateActionDraftForBridge,
   verifyFirstUseActionPromotion,
 } from "../lib/amoraEntryPlan.mjs";
@@ -43,6 +46,131 @@ test("only the explicit first-use route opens the private personalization entry"
   assert.equal(resolveAmoraChatEntry("FIRST_USE"), null);
   assert.equal(resolveAmoraChatEntry("shared"), null);
   assert.equal(resolveAmoraChatEntry(null), null);
+});
+
+test("only an explicit planning-foundation self report can create a private draft", () => {
+  for (const stage of ["starting", "already_preparing", "unknown", "later"]) {
+    assert.equal(resolvePlanningFoundationEntryStage(stage), stage);
+    assert.equal(resolvePlanningFoundationEntryStage([stage]), stage);
+  }
+  assert.equal(resolvePlanningFoundationEntryStage(["starting", "unknown"]), null);
+  assert.equal(resolvePlanningFoundationEntryStage("completed"), null);
+  assert.equal(resolvePlanningFoundationEntryStage(null), null);
+
+  assert.equal(buildPlanningFoundationPrivateDraft("starting"), [
+    "결혼 준비를 이제 시작해요.",
+    "아직 확정된 준비 기록으로 저장하지 말고, 정한 것과 아직 모르는 것을 하나씩 나눠 주세요.",
+    "그다음 지금 할 한 가지와 완료 기준을 함께 정리해 주세요.",
+  ].join("\n"));
+  assert.match(
+    buildPlanningFoundationPrivateDraft("already_preparing"),
+    /확실히 준비했다고 말한 것만 최대 세 가지/,
+  );
+  assert.match(
+    buildPlanningFoundationPrivateDraft("unknown"),
+    /모르는 것을 틀린 답으로 보지 말고/,
+  );
+  assert.equal(buildPlanningFoundationPrivateDraft("later"), null);
+  assert.equal(buildPlanningFoundationPrivateDraft("completed"), null);
+});
+
+test("the planning-foundation handoff fills only an empty private composer and never sends", () => {
+  const chatSource = readFileSync(
+    fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  assert.match(chatSource, /foundationStage\?: string \| string\[\]/);
+  assert.match(
+    chatSource,
+    /resolvePlanningFoundationEntryStage\(\s*routeParams\.foundationStage,?\s*\)/,
+  );
+  assert.match(
+    chatSource,
+    /const consumedPlanningFoundationDraftRef = useRef<string \| null>\(null\)/,
+  );
+  const effectStart = chatSource.indexOf("// planning-foundation draft-only handoff");
+  const effectEnd = chatSource.indexOf("]);", effectStart);
+  assert.ok(effectStart > 0 && effectEnd > effectStart);
+  const effect = chatSource.slice(effectStart, effectEnd);
+  assert.match(effect, /!initialLoaded/);
+  assert.match(effect, /!userId/);
+  assert.match(effect, /!userRole/);
+  assert.match(effect, /!coupleId/);
+  assert.match(effect, /current\.private_ai\.trim\(\)/);
+  assert.match(effect, /updateAmoraChatLaneRecord\(current, "private_ai", planningFoundationDraft\)/);
+  assert.doesNotMatch(effect, /handleSend|fetch\(|apiFetch|supabase|insert\(|upsert\(/);
+});
+
+test("the planning-foundation draft resumes only for the exact owner before a private message exists", () => {
+  const chatSource = readFileSync(
+    fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.match(chatSource, /readPlanningFoundationDraftHandoff/u);
+  assert.match(chatSource, /clearPlanningFoundationDraftHandoff/u);
+  assert.match(
+    chatSource,
+    /readPlanningFoundationDraftHandoff\(\{[\s\S]{0,160}ownerUserId: user\.id,[\s\S]{0,160}coupleId: profile\.couple_id/u,
+  );
+  assert.match(
+    chatSource,
+    /const planningFoundationRecoveryAllowed = Boolean\([\s\S]{0,220}!latestOwnPrivateAiUserError[\s\S]{0,120}!latestOwnPrivateAiUser/u,
+  );
+  assert.match(
+    chatSource,
+    /setPlanningFoundationDraftRecoveryAllowed\(planningFoundationRecoveryAllowed\)/u,
+  );
+  assert.match(
+    chatSource,
+    /storedFoundationStage[\s\S]{0,220}latestOwnPrivateAiUser[\s\S]{0,220}clearPlanningFoundationDraftHandoff/u,
+  );
+  assert.match(chatSource, /setStoredPlanningFoundationStage\(null\)/u);
+  assert.match(chatSource, /setPlanningFoundationDraftRecoveryAllowed\(false\)/u);
+});
+
+test("neutral preparation spaces never expose compatibility bride or groom slots", () => {
+  assert.deepEqual(getAmoraParticipantPresentation({
+    memberModelVersion: 2,
+    senderType: "groom",
+    viewerRole: "bride",
+    userName: "민지",
+    partnerName: "하늘",
+  }), {
+    avatarLabel: "짝",
+    senderLabel: "하늘",
+    tone: "partner_neutral",
+  });
+  assert.deepEqual(getAmoraParticipantPresentation({
+    memberModelVersion: 2,
+    senderType: "bride",
+    viewerRole: "bride",
+    userName: "민지",
+    partnerName: null,
+  }), {
+    avatarLabel: "나",
+    senderLabel: "민지",
+    tone: "self",
+  });
+  assert.doesNotMatch(JSON.stringify(getAmoraParticipantPresentation({
+    memberModelVersion: 2,
+    senderType: "bride",
+    viewerRole: "groom",
+    userName: "민지",
+    partnerName: null,
+  })), /신부|신랑/);
+
+  assert.deepEqual(getAmoraParticipantPresentation({
+    memberModelVersion: 1,
+    senderType: "bride",
+    viewerRole: "groom",
+    userName: "민지",
+    partnerName: null,
+  }), {
+    avatarLabel: "신부",
+    senderLabel: "신부",
+    tone: "bride",
+  });
 });
 
 test("a first-use private session survives only a same-owner reload", () => {

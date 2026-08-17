@@ -91,6 +91,8 @@ const ACTIVE_AMORA_SECURITY_MIGRATIONS = Object.freeze([
   "20260816150000_amora_provider_backed_add_action_application.sql",
   "20260816160000_amora_atomic_action_href_parity.sql",
   "20260816170000_amora_booking_outcome_provenance.sql",
+  "20260816180000_amora_neutral_preparation_space.sql",
+  "20260816190000_amora_preparation_catch_up.sql",
 ]);
 
 const GATED_COUPLE_INVITE_PHASE_B_MIGRATION =
@@ -156,6 +158,14 @@ const AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION = Object.freeze({
   file: "20260816170000_amora_booking_outcome_provenance.sql",
   sha256: "9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457",
 });
+const AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION = Object.freeze({
+  file: "20260816180000_amora_neutral_preparation_space.sql",
+  sha256: "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867",
+});
+const AMORA_PREPARATION_CATCH_UP_MIGRATION = Object.freeze({
+  file: "20260816190000_amora_preparation_catch_up.sql",
+  sha256: "637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce",
+});
 
 const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
   "amora_action_follow_up_cards_v2",
@@ -167,6 +177,8 @@ const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
   "amora_mediation_outcome_follow_up_cards",
   "amora_mediation_outcome_follow_up_receipts",
   "amora_mediation_private_safety_holds",
+  "amora_preparation_catch_up_items",
+  "amora_preparation_catch_up_receipts",
   "amora_preparation_topic_message_refs",
   "amora_provider_egress_grants",
   "amora_provider_runtime_control",
@@ -255,7 +267,7 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.manifest.status, "deployment_blocked");
   assert.equal(result.remoteBaseline.observedRemoteHead, "20260727090000");
   assert.equal(result.remoteBaseline.appliedMigrations.length, 32);
-  assert.equal(result.pendingMigrations.length, 69);
+  assert.equal(result.pendingMigrations.length, 71);
   assert.equal(
     result.pendingMigrations.at(0)?.file,
     "20260730100000_retire_undisclosed_community_agents.sql",
@@ -347,6 +359,72 @@ test("알 수 없는 status와 과거 evidence_pinned 상태는 거부한다", (
         return m;
       }),
       "DEPLOYMENT_STATUS_INVALID",
+    );
+  }
+});
+
+test("the operations plan classifies every exact pending successor before hosted staging", () => {
+  const manifest = JSON.parse(readFileSync(
+    join(REPO_ROOT, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH),
+    "utf8",
+  ));
+  const baseline = JSON.parse(readFileSync(
+    join(REPO_ROOT, manifest.remoteBaselineContract.file),
+    "utf8",
+  ));
+  const operations = readFileSync(
+    join(
+      REPO_ROOT,
+      "docs",
+      "operations",
+      "SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md",
+    ),
+    "utf8",
+  );
+  const begin = "<!-- AMORA:PENDING-SCOPE-CLASSIFICATION:BEGIN -->";
+  const end = "<!-- AMORA:PENDING-SCOPE-CLASSIFICATION:END -->";
+  const beginIndex = operations.indexOf(begin);
+  const endIndex = operations.indexOf(end, beginIndex + begin.length);
+  assert.notEqual(beginIndex, -1, "pending classification begin marker is missing");
+  assert.notEqual(endIndex, -1, "pending classification end marker is missing");
+
+  const block = operations.slice(beginIndex, endIndex);
+  const rows = [...block.matchAll(
+    /^\| `([^`]+\.sql)` \| `([0-9a-f]{64})` \| `(AMR-[A-Z0-9]+)` \| `(active_dependency|integrity_hardening|unrelated_feature_off|parked_product_surface)` \| `([^`]+)` \| `([a-z][a-z0-9_-]*:[a-z0-9_-]+)` \|$/gmu,
+  )].map((match) => ({
+    file: match[1],
+    sha256: match[2],
+    owner: match[3],
+    disposition: match[4],
+    flag: match[5],
+    probe: match[6],
+  }));
+  const appliedFiles = new Set(
+    baseline.appliedSuccessorMigrations.map((entry) => entry.file),
+  );
+  const pending = manifest.expandMigrations.filter(
+    (entry) => !appliedFiles.has(entry.file),
+  );
+
+  assert.equal(rows.length, pending.length);
+  assert.deepEqual(
+    rows.map(({ file, sha256 }) => ({ file, sha256 })),
+    pending,
+  );
+  assert.equal(new Set(rows.map((row) => row.file)).size, pending.length);
+  assert.deepEqual(
+    new Set(rows.map((row) => row.disposition)),
+    new Set([
+      "active_dependency",
+      "integrity_hardening",
+      "unrelated_feature_off",
+      "parked_product_surface",
+    ]),
+  );
+  for (const row of rows) {
+    assert.ok(
+      row.flag === "always_on" || /^[A-Z][A-Z0-9_]+=(?:false|true)$/u.test(row.flag),
+      `${row.file} has no exact runtime flag boundary`,
     );
   }
 });
@@ -530,26 +608,26 @@ test("preparation topic message references migration stays exact-hash pinned and
   });
 });
 
-test("booking outcome provenance is the terminal successor migration and remains deployment-blocked", () => {
+test("preparation catch-up is the terminal successor migration and remains deployment-blocked", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.equal(result.manifest.expandMigrations.length, 101);
+  assert.equal(result.manifest.expandMigrations.length, 103);
   assert.deepEqual(
     result.manifest.expandMigrations.at(-1),
-    AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION,
+    AMORA_PREPARATION_CATCH_UP_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-2),
-    AMORA_ATOMIC_ACTION_HREF_PARITY_MIGRATION,
+    AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
   );
-  assert.equal(result.pendingMigrations.length, 69);
+  assert.equal(result.pendingMigrations.length, 71);
   assert.deepEqual(
     result.pendingMigrations.at(-1),
-    AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION,
+    AMORA_PREPARATION_CATCH_UP_MIGRATION,
   );
-  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 69);
+  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 71);
   assert.equal(
     result.remoteBaseline.contract.lastPendingSuccessor,
-    "20260816170000",
+    "20260816190000",
   );
   assert.equal(result.deploymentBlocked, true);
   assert.equal(result.manifest.status, "deployment_blocked");
@@ -747,12 +825,9 @@ test("atomic action href parity adds no backup table and postchecks private/publ
   assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
 });
 
-test("booking outcome provenance is exact-hash pinned, service-role-only and remains deployment-blocked", () => {
+test("booking outcome provenance is exact-hash pinned and service-role-only", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.deepEqual(
-    result.manifest.expandMigrations.at(-1),
-    AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION,
-  );
+  assert.deepEqual(result.manifest.expandMigrations.at(-3), AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION);
   assert.equal(result.deploymentBlocked, true);
   assert.deepEqual(result.manifest.deploymentEvidence, {
     hostedStaging: "missing",
@@ -800,6 +875,75 @@ test("booking outcome provenance is exact-hash pinned, service-role-only and rem
   assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
 });
 
+test("neutral preparation space is the terminal exact-hash migration and keeps membership compatibility private", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-2),
+    AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
+  );
+  assert.equal(result.deploymentBlocked, true);
+
+  const sql = readFileSync(
+    join(
+      REPO_ROOT,
+      "supabase",
+      "migrations",
+      AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION.file,
+    ),
+    "utf8",
+  );
+  const createSignature = String.raw`public\.create_neutral_preparation_space_for_current_user\s*\(\s*\)`;
+  const joinSignature = String.raw`public\.join_neutral_preparation_space_server\s*\(\s*uuid\s*,\s*text\s*\)`;
+  assert.match(sql, /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+member_model_version\s+smallint\s+NOT\s+NULL\s+DEFAULT\s+1/i);
+  assert.match(sql, /CHECK\s*\(member_model_version\s+IN\s*\(1,\s*2\)\)/i);
+  assert.match(sql, /CREATE\s+TRIGGER\s+trg_enforce_couple_member_model_version/i);
+  assert.match(sql, new RegExp(String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${createSignature}\s+TO\s+authenticated`, "i"));
+  assert.match(sql, new RegExp(String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${joinSignature}\s+TO\s+service_role`, "i"));
+  assert.match(sql, /RETURN\s+\(v_result\s+-\s+'role'\)\s*\|\|\s*jsonb_build_object\('member_model_version',\s*2\)/i);
+  assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
+});
+
+test("preparation catch-up pins service-only storage, finalizer ACL, and private actor binding", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-1),
+    AMORA_PREPARATION_CATCH_UP_MIGRATION,
+  );
+  assert.deepEqual(
+    createdPublicTablesForMigrations(REPO_ROOT, [AMORA_PREPARATION_CATCH_UP_MIGRATION]),
+    ["amora_preparation_catch_up_items", "amora_preparation_catch_up_receipts"],
+  );
+
+  const sql = readFileSync(
+    join(REPO_ROOT, "supabase", "migrations", AMORA_PREPARATION_CATCH_UP_MIGRATION.file),
+    "utf8",
+  );
+  const rpcSignature = String.raw`public\.finalize_amora_preparation_catch_up_v1\s*\(\s*uuid\s*,\s*uuid\s*,\s*uuid\s*,\s*bigint\s*,\s*jsonb\s*\)`;
+  for (const table of [
+    "amora_preparation_catch_up_receipts",
+    "amora_preparation_catch_up_items",
+  ]) {
+    assert.match(
+      sql,
+      new RegExp(String.raw`ALTER\s+TABLE\s+public\.${table}\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY`, "i"),
+    );
+    assert.match(
+      sql,
+      new RegExp(String.raw`REVOKE\s+ALL\s+ON\s+TABLE\s+public\.${table}[\s\S]*?FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`, "i"),
+    );
+  }
+  assert.match(
+    sql,
+    new RegExp(String.raw`REVOKE\s+ALL\s+ON\s+FUNCTION\s+${rpcSignature}\s+FROM\s+PUBLIC\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role`, "i"),
+  );
+  assert.match(
+    sql,
+    new RegExp(String.raw`GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+${rpcSignature}\s+TO\s+service_role`, "i"),
+  );
+  assert.match(sql, /category\s+IS\s+DISTINCT\s+FROM\s+'preparation_catch_up'/i);
+  assert.match(sql, /metadata\s*->>\s*'actor_profile_id'\s*=\s*auth\.uid\(\)::text/i);
+});
+
 function canonicalJsonSha256(value) {
   const canonicalJson = (candidate) => {
     if (candidate === null || typeof candidate !== "object") {
@@ -839,6 +983,8 @@ function runtimeEvidenceFixture() {
       AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
+      AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED: "false",
+      EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
       WEDDING_COURT_ENABLED: "false",
       WEDDING_PAYMENT_LEDGER_ENABLED: "false",
@@ -1193,6 +1339,8 @@ function readyStaticFixture({
       AMORA_MEDIATION_OUTCOME_FOLLOW_UP_ENABLED: "false",
       AMORA_OPENAI_ENABLED: "false",
       AMORA_PROACTIVE_CHAT_ENABLED: "false",
+      AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED: "false",
+      EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED: "false",
       AMORA_COST_GUARD_ENABLED: "true",
       WEDDING_COURT_ENABLED: "false",
       WEDDING_PAYMENT_LEDGER_ENABLED: "false",
@@ -1235,6 +1383,10 @@ function readyStaticFixture({
         atomic_action_href_whitespace_parity_count: 1,
         booking_outcome_provenance_rpc_acl_count: 1,
         booking_outcome_provenance_v1_actor_time_contract_count: 1,
+        neutral_preparation_space_rpc_acl_count: 2,
+        neutral_preparation_space_member_model_contract_count: 1,
+        preparation_catch_up_rpc_acl_count: 1,
+        preparation_catch_up_private_actor_binding_contract_count: 1,
         couple_plan_change_auth_user_fk_count: 4,
         couple_plan_change_display_guard_count: 1,
         couple_plan_change_idempotency_index_count: 1,
@@ -1242,7 +1394,7 @@ function readyStaticFixture({
         couple_plan_change_terminal_event_count: 3,
         couple_plan_change_write_boundary_trigger_count: 1,
         successor_created_table_count: createdTables.length,
-        successor_feature_flags_off_count: 11,
+        successor_feature_flags_off_count: 13,
         successor_migration_head_count: 1,
         wedding_court_auth_delete_fk_count: 1,
         chat_feedback_auth_delete_fk_count: 1,
@@ -1525,6 +1677,58 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
       .booking_outcome_provenance_v1_actor_time_contract_count,
     1,
   );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .neutral_preparation_space_rpc_acl_count,
+    2,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .neutral_preparation_space_member_model_contract_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .preparation_catch_up_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .preparation_catch_up_private_actor_binding_contract_count,
+    1,
+  );
+});
+
+test("preparation catch-up ACL과 private actor binding hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {
+  for (const field of [
+    "preparation_catch_up_rpc_acl_count",
+    "preparation_catch_up_private_actor_binding_contract_count",
+  ]) {
+    expectBlocked(
+      readyStaticFixture({
+        mutateContract(contract) {
+          contract.postApplyChecks[0].expectedEvidence[field] = 0;
+        },
+      }).root,
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+    );
+  }
+});
+
+test("neutral preparation space ACL과 member-model hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {
+  for (const field of [
+    "neutral_preparation_space_rpc_acl_count",
+    "neutral_preparation_space_member_model_contract_count",
+  ]) {
+    expectBlocked(
+      readyStaticFixture({
+        mutateContract(contract) {
+          contract.postApplyChecks[0].expectedEvidence[field] = 0;
+        },
+      }).root,
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+    );
+  }
 });
 
 test("booking outcome ACL과 provenance v1 actor-time hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {

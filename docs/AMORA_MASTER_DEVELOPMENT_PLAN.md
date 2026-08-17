@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.1 — LIVING EXECUTION BASELINE / RE-FREEZE REQUIRED`
+> 계획 버전: `v1.7 — ADVANCED-USER CATCH-UP LOCAL C2 VERIFIED`
 >
-> 마지막 갱신: 2026-08-17
+> 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 기준 HEAD: `6855394f4c363c851f016b7d9cfb9bc409944ce2`
+> 기준 HEAD: `b3f8a712866b0023bae6efa662f3d40ed8eb13c3`
 >
-> 현재 릴리스 상태: `deployment_blocked` · manifest 101개 · 관찰된 적용 32개 · 로컬 pending 69개 · tail `20260816170000`
+> 현재 릴리스 상태: `deployment_blocked` · manifest 103개 · 관찰된 적용 32개 · 로컬 pending 71개 · tail `20260816190000`
 >
 > 현재 작업 상태: worktree dirty · 미커밋 · hosted DB/현재 Preview/Production/EAS 미배포
 >
-> 현재 작업 스냅샷: tracked 수정 34파일 · untracked 90파일 · 전체 dirty 경로 124개 · candidate 대상 86개 · 무소유 `decisionMap` 2개 · 임시 산출물 36개 · tracked diff `+9,992/-351` · `origin/main`은 `b58a329d` · 현재 RC 원격 브랜치는 기준 HEAD와 동일
+> 현재 작업 스냅샷: 이전 86-path union RC는 기준 HEAD에 commit/push됨 · 그 위 dirty delta 140경로 = tracked 수정 62 + untracked 78 = active candidate 102 + 무소유 `decisionMap` HOLD 2 + 임시 산출물 36 · `origin/main`은 `b58a329d` · 현재 RC 원격 브랜치는 기준 HEAD와 동일
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -22,12 +22,13 @@
 
 | 항목 | 현재 값 |
 |---|---|
-| 작업 모드 | `PLAN/FREEZE` — 새 제품 기능 추가 중지 |
-| 현재 작업 | `AMR-REG01` — 동일 candidate snapshot에서 focused→type/lint→full/build 검증 ladder 실행 |
-| 다음 소비자 vertical | `AMR-F11~F18/F20` — 첫 10분 안에 행동·이유·완료 기준을 이해하고, 반영을 선택한 경우에만 승인·영수증·홈 복귀·결과 후속까지. hosted 전용 F19는 제외 |
+| 작업 모드 | `LOCAL PRODUCT VERTICAL` — 한 번에 첫 가치 흐름 하나만 구현 |
+| 현재 작업 | `STG-002 / AMR-REL12 IN_PROGRESS` — 승인된 격리 staging 연결·원장 read·71개 exact ordered dry-run 통과. 실제 apply 전 exact candidate commit/clean-worktree fence 진행 중 |
+| 최근 완료 제품 vertical | `FV-014 / AMR-F20 VERIFIED (LOCAL C2)` — 최대 3항목 preview·명시 승인·원자 receipt·주제 화면의 사용자 보고 기록까지 연결 |
+| 다음 소비자 vertical | `STG-001~007` 격리 staging 전체 ordered suffix 검증. Production ref·실사용자 데이터 사용 금지 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
-| 실행 순서 | inventory 재동결 → allowlist·hunk ledger → first-value 공개행동 계약/RED → local vertical → exact-SHA 재동결 → 격리 staging에 전체 ordered suffix → vertical E2E |
+| 실행 순서 | first-value local C2 → consumer-state composer → advanced-user catch-up → exact-SHA 재동결 → 격리 staging 전체 ordered suffix → 2계정·기기 E2E |
 | Production | `NO-GO` |
 
 문서를 처음 읽을 때는 `1. 아이디얼 아모라 → 3. 표준 준비 루프 → 4. 화면 계약 → 8. 현재 구현 상태 → 9. 실행 순서 → 17. 실행 백로그` 순서로 본다.
@@ -130,14 +131,27 @@
 
 | package | primary AMR | workflow | deps | 코드 | 검증 | 배포 | 사용자 검증 | snapshot·증거 | 다음 행동 | 갱신 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | — | `DIRECT` | — | `NOT-RUN` | HEAD `6855394f`; `git status --porcelain=v1 -uall`: 124개(34 tracked/90 untracked) = candidate 86 + unowned HOLD 2 + tmp 36; 새 tracked test는 release fixture parity 수정으로 `AMR-REG01/REL14`에 귀속 | 완료. snapshot 변경 시 즉시 재개 | 2026-08-17 |
-| `EX-002` | `AMR-AUDIT02` | `VERIFIED` | EX-001 | — | `DIRECT` | — | `NOT-RUN` | Section 23; canonical LF path/hash 86개 + HOLD 2 + tmp 36 verifier GREEN | 완료. snapshot 변경 시 EX-001부터 재실행 | 2026-08-17 |
-| `EX-003` | `AMR-AUDIT03` | `VERIFIED` | EX-002 | — | `DIRECT` | — | `NOT-RUN` | Section 22; 4파일·21 seam·changed point 5,328개, overlap/uncovered/multi-owned/empty seam 모두 0 | 완료. mixed hotspot 변경 시 ledger·manifest 재고정 | 2026-08-17 |
-| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | — | `DIRECT` | — | `NOT-RUN` | START_HERE/docs README는 2026-08-12 SHA를 historical로 한정; controller·README는 101/32/69/tail 161700/deployment_blocked와 일치 | 완료. source/release 숫자 변경 시 재검증 | 2026-08-17 |
-| `EX-005` | `AMR-REG01` | `VERIFIED` | EX-003/004 | — | `DIRECT` | — | `NOT-RUN` | 현재 candidate: root typecheck 4/4, lint 2/2(오류 0·기존 경고 1), release 216/216+fence, full test ingest 858/862(4 skip)·scripts 322/322·mobile 1005/1005·web 7,461, root build 2/2, diff-check PASS | 완료. candidate content 변경 시 즉시 무효화 | 2026-08-17 |
-| `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | — | `DIRECT` | — | `NOT-RUN` | union RC staging 86개(A 52/M 34), manifest path/hash mismatch 0, HOLD·tmp staged 0 | exact staged candidate를 commit한 뒤 원격·격리 staging readiness 확인 | 2026-08-17 |
+| `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | — | `DIRECT` | — | `NOT-RUN` | HEAD `b3f8a712`; dirty delta 140 = 62 tracked + 78 untracked = active candidate 102 + HOLD 2 + tmp 36 | snapshot 변경 시 즉시 재실행 | 2026-08-18 |
+| `EX-002` | `AMR-AUDIT02` | `VERIFIED` | EX-001 | — | `DIRECT` | — | `NOT-RUN` | Section 24에 current active 102 = M62+U40, HOLD 2, tmp 36의 canonical LF path/hash와 set digest 고정 | 파일·hash·상태가 바뀌면 즉시 무효화 | 2026-08-18 |
+| `EX-003` | `AMR-AUDIT03` | `VERIFIED` | EX-002 | — | `DIRECT` | — | `NOT-RUN` | Section 22: chat/schedule/web chat route/route test의 모든 current new-side changed line을 F15/F16/F20 primary seam에 단일 배정 | 네 파일 hunk/hash 변경 시 즉시 무효화 | 2026-08-18 |
+| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | — | `DIRECT` | — | `NOT-RUN` | master/controller가 HEAD `b3f8a712`, 103/32/71/tail 161900, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
+| `EX-005` | `AMR-REG01` | `VERIFIED` | EX-003/004 | — | `AUTOMATED` | — | `NOT-RUN` | root repo+mobile 및 web 699/701 files GREEN 뒤 test-only 2 files 75/75 재실행; mobile 1074/1074, release 220/220, root typecheck 4/4, lint 0 errors(기존 warning 1), web/mobile build, diff-check PASS | 제품·manifest·후보 파일 변경 시 즉시 상태 하향 | 2026-08-18 |
+| `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
 | `EX-008` | `AMR-C10` | `BLOCKED` | EX-006 | — | `NONE` | — | `NOT-RUN` | 전체 여정 matrix 미완성 | covered/not-applicable/known gap/parked 감사 | 2026-08-17 |
-| `FV-000` | `AMR-F10` | `BLOCKED` | EX-006/008 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | solo identity ADR 없음 | Wave 0 VERIFIED 뒤 C0 ADR 시작 | 2026-08-17 |
+| `FV-000` | `AMR-F10` | `VERIFIED` | EX-006/008 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | compatibility C0 문서 + 161800 roleless RPC/member-model migration; PGlite 4/4 | hosted migration·rollback rehearsal 전 feature flag OFF | 2026-08-17 |
+| `FV-001` | `AMR-F11` | `VERIFIED` | FV-000 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | legacy role/couple 선행 조건과 neutral flag 경계를 onboarding contract로 고정 | 기기에서 legacy/neutral 양쪽 확인 | 2026-08-17 |
+| `FV-002` | `AMR-F12` | `VERIFIED` | FV-001 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | planning-foundation starting/already-preparing/unknown/later dependency와 partial fail-closed fixture | 실제 사용자 이해 관찰 전 과장 금지 | 2026-08-17 |
+| `FV-003` | `AMR-F15` | `VERIFIED` | FV-000/002 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | roleless create/join, web/mobile neutral entry, AI·profile·settings·mediation·community member labels, budget/money relative family labels; backend 434/434 + targeted web 108/108 + types PASS | hosted·구버전 차단·2계정 필요 | 2026-08-17 |
+| `FV-004` | `AMR-F13` | `VERIFIED` | FV-002/003 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 한 질문, 명시 선택, 모르겠어요·나중에, no-hidden-write 화면 계약 | 작은 화면·200%·스크린리더 필요 | 2026-08-17 |
+| `FV-005` | `AMR-F14` | `VERIFIED` | FV-002/004 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 첫 행동·이유·완료 기준·사용 정보·수정 경로를 한 결과 상태에 표시 | 실기기 시각·이해도 관찰 필요 | 2026-08-17 |
+| `FV-006` | `AMR-T03/F17` | `VERIFIED` | FV-005 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | exact owner/couple private composer, empty-lane only, explicit send, auto-send·DB write 없음 | live provider/기기 왕복 필요 | 2026-08-17 |
+| `FV-007~009` | `AMR-F17~18` | `VERIFIED` | FV-006 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 한 personalized first action이 proposal→explicit apply→canonical receipt→same home action으로 이어지고 완료·막힘·변경·모름 후속을 보존; receipt 16/16·follow-up 33/33 | 실기기·2계정·live provider 검증 | 2026-08-17 |
+| `FV-010` | `AMR-F16` | `VERIFIED` | FV-006~009 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | device-only owner/couple stage handoff, 24h TTL, same-owner reload 복구, private-message 존재·account/couple switch 시 폐기, cold-start canonical receipt replay | 강제 종료·재로그인·저장소 차단 실기기 matrix | 2026-08-17 |
+| `FV-011` | `AMR-U01` | `VERIFIED` | FV-010/EX-002~005 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer 13/13, 독립 상태축 10,368조합, mobile 1046/1046, root typecheck·lint, web/mobile build PASS | 화면별 source-relevance adapter는 JRN-002에서 별도 연결; 실기기 FV-012 | 2026-08-17 |
+| `FV-014` | `AMR-F20` | `VERIFIED` | FV-002/003/007/011 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | empty/canonical-existing guard, 최대 3항목 preview·승인, 161900 원자 receipt, private actor binding, secure restart draft, 주제의 사용자 보고 projection; mobile 1074/1074·release 220/220 | EX-007 재동결 뒤 hosted·2계정·실기기 검증 | 2026-08-18 |
+| `EX-007` | `AMR-REG01` | `VERIFIED` | FV-001~012/FV-014/015 | — | `AUTOMATED` | — | `NOT-RUN` | current 102-path manifest·four-hotspot hunk ledger·161900 SHA·product/release/type/lint/build 증거를 같은 local candidate로 재고정 | Section 24 hash 또는 hunk 변화 시 EX-001부터 재실행 | 2026-08-18 |
+| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `DOC-CONTRACT` | `AUTOMATED` | — | `NOT-RUN` | 71개 suffix의 exact file/hash/order와 primary AMR·4 disposition·runtime flag·hosted probe를 운영 정본에 고정; contract 37/37 | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
+| `STG-002` | `AMR-REL12` | `IN_PROGRESS` | STG-001 | `LOCAL-DIRTY` | `AUTOMATED-PREFLIGHT` | `HOSTED-STAGING-READ` | `NOT-RUN` | approved staging `rgxdizztidbgwnsbadml` `ACTIVE_HEALTHY`; linked ledger 147/head `20260727090000`; `db push --dry-run --include-all`이 classified suffix 71개와 exact order 일치. Production write 0 | 102-path candidate를 exact commit으로 고정하고 clean worktree에서 staging ref fence 후 실제 ordered apply | 2026-08-18 |
 
 운영 규칙:
 
@@ -947,11 +961,16 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | ID | 기능 | 코드 | 검증 | 배포 | 사용자 검증 | 현재 문제 |
 |---|---|---|---|---|---|---|
 | AMR-F02 | 첫 10분 `planning_foundation` | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 역할·날짜·기본 정보는 있지만 첫 개인화 지도와 한 흐름으로 검증되지 않음 |
+| AMR-F10 | solo-first 준비공간 compatibility C0 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 161800·roleless RPC·member model v2·rollback flag 구현, hosted/구버전 gate 미검증 |
+| AMR-F11~15 | 최소 질문→개인화 첫 행동→비공개 초안 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | mobile 1033/1033와 web neutral focused 108/108; 역할·날짜·예산 강제 없이 한 질문·한 행동·명시적 private 진입을 검증. 실기기 접근성·사용자 이해도 미검증 |
+| AMR-F16 | 중단·재로그인 복구 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | device-only exact owner/couple stage handoff, 24h TTL, private message·account/couple 변경 시 폐기, cold-start canonical receipt replay를 검증. 강제 종료·재로그인 실기기 matrix 미검증 |
+| AMR-F17~18 | 승인·영수증·홈 복귀·결과 후속 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | proposal→명시 승인→canonical receipt→같은 홈 행동 및 완료·막힘·변경·모름 후속을 자동 검증. neutral 첫 세션의 실기기·2계정·live-provider E2E는 없음 |
+| AMR-F20 | 이미 준비 중 사용자의 catch-up | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 외부 자동 import 없이 최대 3항목 preview·명시 승인·161900 원자 영수증·secure restart·주제 사용자보고 projection 구현; hosted·2계정·실기기 미검증 |
 | AMR-H03 | 전체 준비를 의미로 보여 주는 진행 상태 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 홈 상단 큰 퍼센트를 상태 요약으로 교체하고 체크 퍼센트는 체크 도구 내부로 제한해야 함 |
 | AMR-T04 | 일정 이외 일반 결정의 안전한 주제 연결 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 예산·일부 booking receipt만 연결, 일반 decision 전체는 읽을 수 없음 |
 | AMR-M03 | `우리 준비 노트`의 중요한 대화·검증된 기준·지원 영수증 검색과 재개 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 주제 저장 참조는 있으나 아모라 헤더 진입·scope/topic/type 검색·현재 행동 복귀 UX가 없음 |
 | AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | default-off·비소급·전원 동의·결정적 필터 gate 전 auxiliary memory 활성화 금지 |
-| AMR-U01 | 독립 상태축의 공통 화면 합성 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | safety·freshness·applicability·approval·lifecycle·provenance·money를 pure composer 하나로 결합해야 함 |
+| AMR-U01 | 독립 상태축의 공통 화면 합성 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer·UI-facing contract·10,368 혼합 fixture 완료; 화면별 adapter·실기기 검증은 JRN-002/FV-012 소유 |
 | AMR-V01 | 광고·업체 공개 정보·경험·아모라 제안의 출처 disclosure | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 위험·카피 원칙은 있으나 surface 공통 source badge·상업 관계·확인일 계약과 관찰 gate가 미완성 |
 | AMR-E01 | 해결·저장 없이 듣고 정리하는 명시적 경청 lane | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 일반 chat no-tool 응답은 가능하나 사용자 선택·no-write 종료 계약이 한 흐름으로 고정되지 않음 |
 | AMR-L01 | 앱 안의 체계적 선제 리드 정책 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 홈 한 가지는 있으나 stale/quiet/re-entry 정책 전체가 한 계약으로 검증되지 않음 |
@@ -959,21 +978,21 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-C01 | 6개 독립 여정 공백의 공통 topic adapter | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 현재 19개 체크 카테고리 밖 상태 모델 없음 |
 | AMR-Q01 | 실제 고객·실기기·2계정·2기기 검증 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 코드 테스트만으로 소비자 이해와 신뢰를 증명할 수 없음 |
 | AMR-REL01 | 현재 로컬 후보의 hosted staging | `PARTIAL` | `AUTOMATED` | `BLOCKED` | `NOT-RUN` | local release contract는 있으나 5개 evidence class missing |
-| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | pending 69·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
+| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | pending 71·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
 
 ### 8.4 전달·릴리스 현실
 
-- 현재 HEAD와 RC 원격 브랜치는 `6855394f`로 일치하지만 `origin/main`은 `b58a329d`다.
+- 현재 HEAD와 RC 원격 브랜치는 `b3f8a712`로 일치하지만 `origin/main`은 `b58a329d`다.
 - Vercel의 READY Preview는 이전 `b4d4051b` 소스를 기준으로 하며, 현재 dirty tranche와 모바일 binary를 포함하지 않는다.
-- release manifest는 101개, 관찰된 successor 적용 prefix는 32개, pending은 69개, tail은 `20260816170000`이다.
+- release manifest는 103개, 관찰된 successor 적용 prefix는 32개, pending은 71개, tail은 `20260816190000`이다.
 - hosted staging, backup, hosted restore, Storage, finalizer evidence는 모두 missing이며 상태는 `deployment_blocked`다.
 - headerless Phase-A actor traffic, legacy direct password·10자 invite·direct chat writer fleet drain, provider runtime/grant canary의 fresh 운영 증거도 없다.
-- 이전 snapshot의 focused 참고 증거는 mobile 324/324, web dirty tranche 525/525, Supabase release 216/216이다. exact command·시각·로그·현재 candidate digest가 없고 이후 dirty 경로가 2개 늘었으므로 S0 완료 증거로 재사용하지 않는다. 전체 typecheck·lint·build·full suite와 실기기는 `AMR-REG01`에 남긴다.
+- 현재 first-value·neutral personalization delta의 직접 증거는 neutral migration 4/4, backend route/onboarding/membership 434/434, web neutral focused 108/108, `corepack pnpm test` root 324/324·mobile 1033/1033·web 699 files/7482 tests, root typecheck·lint(오류 0, 기존 경고 1)·web/mobile production build, diff-check, Supabase release 218/218+fence PASS다. 전체 test 뒤 money 화면의 React Compiler lint 1건을 구조만 단순화했고 현재 코드에서 관련 money/budget 12/12·web typecheck·전체 lint·전체 build를 다시 통과했다. 실기기·2계정·hosted 증거는 없다.
 - 따라서 `COMMITTED`와 `LOCAL-DIRTY`는 소스 상태일 뿐 현재 소비자 제공 상태가 아니다.
 
-### 8.5 dirty 후보 tranche inventory
+### 8.5 committed baseline과 현재 dirty delta
 
-현재 dirty 경로는 124개다. candidate 대상 제품·계약·릴리스·계획 경로 86개, 계획 작성 뒤 생긴 무소유 `decisionMap` prototype 2개, 파생 임시 산출물 36개로 나뉜다. 아래 16개 candidate tranche는 유지하되 새 2개는 current vertical과 guide freeze 밖이므로 `HOLD/EXCLUDE`한다.
+이전 86-path union candidate는 `b3f8a712`로 commit/push되었다. 현재 그 위 dirty delta는 118개이며 active first-value·neutral personalization·release·truth-doc candidate 80개, 무소유 `decisionMap` prototype 2개, 파생 임시 산출물 36개로 나뉜다. 아래 표는 committed baseline의 tranche 구성을 보존한 역사이며, 현재 80개 delta의 새 exact manifest는 현 local vertical 종료 뒤 다시 만든다. `decisionMap` 2개는 계속 `HOLD/EXCLUDE`한다.
 
 | # | tranche | 경로 수 | primary AMR | 핵심 경계 | disposition |
 |---:|---|---:|---|---|---|
@@ -992,7 +1011,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | 13 | ordinary provider add-action exact apply | 5 | A02/D13~17 | positive seal·provider-free exact application | `KEEP+FINALIZE` 별도 tranche |
 | 14 | web chat execution mixed hotspot | 2 | A01/A02,D13~17 | request claim·privacy·finalizer·provider boundary | union review 또는 hunk ledger 필수 |
 | 15 | shared export plumbing | 2 | T01/G01/M02 | runtime exports·package boundary | 관련 tranche와 함께 `KEEP` |
-| 16 | release baseline·controller·manifest | 15 | REL11/REL14/REG01/DOC01 | 101 migration·32 prefix·69 suffix·evidence gate·production build fence fixture parity | SQL freeze 뒤 마지막 finalize |
+| 16 | release baseline·controller·manifest | 15 | REL11/REL14/REG01/DOC01 | 현재 successor 102 migration·32 prefix·70 suffix·evidence gate·production build fence fixture parity | SQL freeze 뒤 마지막 finalize |
 | 17 | unscoped decision-map prototype | 2 | `UNOWNED` | `apps/web/src/constants/decisionMap/types.ts`, `venue.ts`; importer·실재 contract test 없음 | `HOLD / EXCLUDE FROM CANDIDATE`; 삭제 금지, 별도 재승인 없이는 구현 금지 |
 
 파생 임시 산출물 36개는 제품 후보에서 제외한다.
@@ -1022,7 +1041,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 - `START_HERE.md`와 `docs/README.md`의 `f8851f74`·2026-08-12 handoff는 역사 snapshot으로 명시했다.
 - 현재 실행 기준은 이 문서와 실제 Git·tests·migration manifest로 바꿨다.
-- 현재 기준은 HEAD `6855394f`, manifest 101, applied prefix 32, pending 69, tail 161700이다.
+- 현재 기준은 HEAD `b3f8a712`, manifest 103, applied prefix 32, pending 71, tail 161900이다.
 - 날짜별 product summary의 95~98 migration 숫자는 역사 기록으로만 유지한다.
 - `amoraEntryPlan.d.mts`, `dashboardExperience.d.mts`, `scheduleSessionFence.d.mts`는 LF→CRLF 경고가 있으나 현재 diff-check 오류는 아니다.
 
@@ -1035,9 +1054,9 @@ freeze 전에 다음 중 하나를 선택한다.
 | topic | 일정→예산→완료 booking→후보→evidence→remaining→budget action→next action 순 | 지금 한 가지와 이유·완료 기준이 앞에 있지 않음 | HT-003 |
 | personalization | topic에 여러 내/우리 기준 projection이 존재 | 주제 관련성 설명 없이 상시 노출될 위험 | HT-004 |
 | important records | 주제별 저장 대화·exact 원문 복귀는 있으나 global entry/search/filter가 없음 | 주제를 기억하지 못하면 중요한 상담과 현재 행동을 한눈에 회수할 수 없음 | HT-009 |
-| chat | first-use·scope·approval·receipt 기반은 강함 | 8,361줄 오케스트레이터에 lane·recovery가 집중 | EX-003, FV-006/007 |
-| schedule/topic | identity·realtime·evidence·focus·UI가 3,870줄에 집중 | optional lane mixed-state와 변경 회귀 위험 | EX-003, HT-007 |
-| web chat API | actor/privacy/claim/provider/finalizer가 5,423줄 route에 집중 | provider보다 상태 전이 결합이 병목 | EX-003, DX-003 |
+| chat | first-use·scope·approval·receipt 기반은 강함 | 8,517줄 오케스트레이터에 lane·recovery가 집중 | EX-003, FV-006/007 |
+| schedule/topic | identity·realtime·evidence·focus·UI가 4,044줄에 집중 | optional lane mixed-state와 변경 회귀 위험 | EX-003, HT-007 |
+| web chat API | actor/privacy/claim/provider/finalizer가 5,469줄 route에 집중 | provider보다 상태 전이 결합이 병목 | EX-003, DX-003 |
 | shared topic | 1,709줄 contract가 여러 receipt 종류를 결합 | evidence 추가가 전체 projection에 영향 | HT-007, 19.3 규칙 |
 
 대형 파일이라는 이유만으로 먼저 리팩터링하지 않는다. active vertical의 RED가 seam 필요성을 증명할 때만 최소 추출한다.
@@ -1080,34 +1099,34 @@ freeze 전에 다음 중 하나를 선택한다.
 
 목표: 인프라 작업보다 먼저 `아무것도 모르는 사용자가 무엇을 보고 무엇을 누르고 어디까지 가야 첫 가치인가`를 공개 행동으로 잠근다.
 
-- [ ] `AMR-F10` solo-first preparation-space ADR로 data model, RLS, existing app compatibility, migration, rollback을 확정한다.
-- [ ] `AMR-F11` 현재 onboarding이 bride/groom role과 couple create/join을 첫 가치 전에 요구하는 지점을 행동 테스트로 고정한다.
-- [ ] `AMR-F12` `planning_foundation`에서 다음 행동을 실제로 바꾸는 최소 입력·질문 dependency 표와 paired personalization fixture를 만든다.
-- [ ] `AMR-F13` 한 화면 한 결정, 3~5개 선택지, `모르겠어요`, `나중에`를 구현한다.
-- [ ] `AMR-F14` 입력 직후 `현재 확인된 것·아직 모르는 것·지금 한 가지·왜·완료 기준·사용한 근거·수정`을 같은 상태에서 만든다.
-- [ ] `AMR-F15` partner 가입과 성별 역할 없이 owner-private 첫 루프를 끝내는 compatibility contract를 구현한다.
-- [ ] `AMR-F16` 중단·앱 종료·재로그인·identity/revision 변경에서 정확히 재개하거나 fail-closed한다.
-- [ ] `AMR-F17` 첫 제안→설명/수정/보류→preview→승인→canonical receipt→홈·지도의 같은 action으로 돌아가는 로컬 E2E를 만든다.
-- [ ] `AMR-F18` 완료·막힘·변경·아직 모름 결과가 첫 다음 행동을 실제로 바꾸는 행동 테스트를 만든다.
-- [ ] `AMR-F20` 이미 준비 중인 신규 사용자의 `empty / canonical-existing / external-progress` 진입 guard와 항목별 catch-up preview·확인·receipt를 구현한다.
-- [ ] `AMR-U01` 4.7A의 독립 상태축과 CTA 우선순위를 pure composer/table fixture로 고정한다.
+- [x] `AMR-F10` solo-first preparation-space ADR로 data model, RLS, existing app compatibility, migration, rollback을 확정한다. — C0/local only; hosted gate는 별도
+- [x] `AMR-F11` 현재 onboarding이 bride/groom role과 couple create/join을 첫 가치 전에 요구하는 지점을 행동 테스트로 고정한다.
+- [x] `AMR-F12` `planning_foundation`에서 다음 행동을 실제로 바꾸는 최소 입력·질문 dependency 표와 paired personalization fixture를 만든다.
+- [x] `AMR-F13` 한 화면 한 결정, 3~5개 선택지, `모르겠어요`, `나중에`를 구현한다.
+- [x] `AMR-F14` 입력 직후 `현재 확인된 것·아직 모르는 것·지금 한 가지·왜·완료 기준·사용한 근거·수정`을 같은 상태에서 만든다.
+- [x] `AMR-F15` partner 가입과 성별 역할 없이 owner-private 첫 루프를 끝내는 compatibility contract를 구현한다. — feature flag default-off
+- [x] `AMR-F16` 중단·앱 종료·재로그인·identity/revision 변경에서 정확히 재개하거나 fail-closed한다. — local automated, 실기기 미검증
+- [x] `AMR-F17` 첫 제안→설명/수정/보류→preview→승인→canonical receipt→홈·지도의 같은 action으로 돌아가는 로컬 E2E를 만든다. — local automated, hosted·live-provider 미검증
+- [x] `AMR-F18` 완료·막힘·변경·아직 모름 결과가 첫 다음 행동을 실제로 바꾸는 행동 테스트를 만든다. — local automated
+- [x] `AMR-F20` 이미 준비 중인 신규 사용자의 `empty / canonical-existing / external-progress` 진입 guard와 항목별 catch-up preview·확인·receipt를 구현한다. — local automated, hosted·2계정·실기기 미검증
+- [x] `AMR-U01` 4.7A의 독립 상태축과 CTA 우선순위를 pure composer/table fixture로 고정한다. — 13/13 + 10,368 조합, local C2
 
 완료 기준:
 
-- [ ] 처음 온 solo 사용자가 partner 연결 없이 첫 행동과 이유·완료 기준을 설명한다.
-- [ ] role UI를 지우기 전에 one-member roster와 current RPC가 C0 설계·테스트로 증명된다.
-- [ ] 모르는 값을 임의로 채우지 않고도 유효한 다음 단계가 존재한다.
-- [ ] partial/stale/conflict에서는 추천하지 않고 확인 행동을 보여 준다.
+- [x] 처음 온 solo 사용자가 partner 연결 없이 첫 행동과 이유·완료 기준을 설명한다. — automated screen/contract 기준
+- [x] role UI를 지우기 전에 one-member compatibility roster와 current RPC가 C0 설계·PGlite 테스트로 증명된다. — hosted 미검증
+- [x] 모르는 값을 임의로 채우지 않고도 유효한 다음 단계가 존재한다.
+- [x] partial/stale/conflict에서는 추천하지 않고 확인 행동을 보여 준다.
 - [ ] 성공은 canonical receipt로만 말하고 같은 request는 같은 receipt를 재생한다.
 - [ ] 온보딩 완료가 아니라 첫 개인화 결과 이해가 C2까지 이어지고, 사용자가 반영을 선택한 경우에만 정본 반영·복귀가 이어진다.
-- [ ] 관련 입력 하나를 바꾸면 질문·행동·제약 중 실제 하나가 달라지고, 말투만 바꾸면 action ID·rank·source list는 그대로다.
+- [x] 관련 입력 하나를 바꾸면 질문·행동·제약 중 실제 하나가 달라지고, 말투만 바꾸면 action ID·rank·source list는 그대로다.
 - [ ] 흩어진 외부 기록이 있어도 자동 대량 write 없이 최대 세 항목을 확인해 현재 상태를 재구성하거나 건너뛰고 첫 가치로 간다.
 
 ### 단계 C. ordered suffix Hosted staging, product claim은 active vertical만
 
-목표: DB migration 역사를 골라 적용하거나 속이지 않는다. 69개 pending ordered suffix 전체를 migration별 owner·flag·probe와 함께 격리 staging에서 검증하되, 소비자 완료 주장은 단계 B의 active vertical로만 제한한다. Production 배포가 아니다.
+목표: DB migration 역사를 골라 적용하거나 속이지 않는다. 71개 pending ordered suffix 전체를 migration별 owner·flag·probe와 함께 격리 staging에서 검증하되, 소비자 완료 주장은 단계 B의 active vertical로만 제한한다. Production 배포가 아니다.
 
-- [ ] `AMR-REL11` 69개 suffix의 모든 migration을 `active dependency / integrity hardening / unrelated feature-off / parked product surface`로 분류하고 exact hash·owner·probe를 기록한다.
+- [x] `AMR-REL11` 71개 suffix의 모든 migration을 `active dependency / integrity hardening / unrelated feature-off / parked product surface`로 분류하고 exact hash·owner·probe를 기록한다. — operations contract 37/37
 - [ ] `AMR-REL12` 격리 hosted staging에 ordered suffix 전체를 적용한다. selective history·가짜 baseline·중간 tail을 만들지 않는다.
 - [ ] `AMR-REL13` 현재 remote backup과 별도 restore 프로젝트 복구를 검증한다.
 - [ ] `AMR-REL14` active RPC와 message-ref RLS/ACL/PostgREST schema cache를 확인한다.
@@ -1241,20 +1260,24 @@ Wave 3·4와 `JRN-001~005` 코드로 관찰 테스트를 실행하기 전에 `EX
 ### NOW: 다른 기능을 추가하기 전에 닫을 것
 
 1. [x] `AMR-PLAN01` 이 문서와 저장소 운영 규칙 연결
-2. [x] `AMR-AUDIT01` 124개 경로를 candidate 86·무소유 2·tmp 36으로 재감사
-3. [x] `AMR-AUDIT02` guide 5개 freeze, 161700 integrity IN·booking UI PARKED, tmp·decisionMap 제외, exact candidate allowlist 잠금
-4. [x] `AMR-AUDIT03` 네 mixed hotspot의 hunk/function 소유 ledger를 작성
+2. [x] `AMR-AUDIT01` 현재 delta 140개를 active candidate 102·무소유 2·tmp 36으로 재감사
+3. [x] `AMR-AUDIT02` 102개 active candidate의 exact path/hash를 잠그고 tmp·decisionMap 38개를 제외
+4. [x] `AMR-AUDIT03` mixed hotspot의 hunk/function 소유 ledger가 FV-011 뒤에도 동일함을 재검증
 5. [x] `AMR-DOC01` stale handoff current 문구와 release 숫자 drift를 교정
-6. [x] `AMR-REG01` 현재 freeze의 focused→full 회귀와 네 축 상태를 교정
-7. [x] `AMR-GIT01` review 가능한 union RC·exact staging 경계를 확정
+6. [x] `AMR-REG01` 현재 first-value delta의 root full test/build까지 재실행하고 네 축 상태를 재고정
+7. [x] `AMR-GIT01` 이전 86-path union RC를 `b3f8a712`로 commit/push; 현재 delta는 미커밋
 8. [ ] `AMR-C10` 초보자 전체 여정 coverage matrix를 read-only로 동결
-9. [ ] `AMR-F10` solo preparation-space data/RLS/migration/rollback C0 ADR
-10. [ ] `AMR-F11/F12` 첫 10분 상태 머신·최소 질문·solo-first 공개 행동 RED를 고정
+9. [x] `AMR-F10` solo preparation-space compatibility data/RLS/migration/rollback C0와 161800 local 구현
+10. [x] `AMR-F11~15` 첫 10분 최소 질문→개인화 행동→private draft 공개 행동을 C2 자동 검증
+11. [x] `AMR-F16~18` 첫 제안→승인→영수증→홈·결과 후속과 owner/couple-bound 재진입을 로컬 자동 검증
+12. [x] `AMR-U01` 안전·identity·scope·freshness·applicability·approval·lifecycle·provenance·money를 단일 pure composer와 10,368 혼합 fixture로 고정
 
-### NEXT: 소비자 가치가 가장 큰 제품 수직
+13. [x] `AMR-F20` 이미 준비 중 사용자의 최대 3항목 preview→명시 승인→원자 receipt→주제 사용자보고 복귀를 로컬 자동 검증
 
-1. `AMR-F13~F18/F20` 처음/이미 준비 중 사용자의 첫 10분 `planning_foundation` 로컬 vertical
-2. `AMR-REL11~17/F19` 69개 full ordered suffix 격리 staging·active vertical 2계정 검증
+### NEXT: 현재 제품 후보를 정직하게 고정하고 검증
+
+1. `STG-002~007` 격리 staging에서만 ordered apply·backup/restore·RLS/ACL·finalizer 검증 — exact clean commit/origin과 staging DB credential 필요
+2. 같은 candidate hash의 Preview/internal build에서 실기기·2계정·재시작·접근성 검증
 3. `AMR-H11~T15/M03` 홈·주제·채팅·우리 준비 노트 하나의 왕복
 4. `AMR-D11~17` 결정·실행·결과 루프
 5. `AMR-L11~14/L16~17` in-app 선제 리드·resume·persisted controls
@@ -1582,10 +1605,10 @@ workflow status: TODO
 
 | ID | 크기 | 의존성 | 변경 seam | 첫 RED/증거 | 완료 기준 |
 |---|---:|---|---|---|---|
-| `EX-001` inventory snapshot | 완료 | 없음 | `git status`, master plan | snapshot 뒤 무소유 path 2개 증가 | 124 = candidate 86 + unowned HOLD 2 + tmp 36, HEAD/count 고정 |
+| `EX-001` inventory snapshot | 반복 gate | 없음 | `git status`, master plan | snapshot 변경 시 이전 freeze를 current로 오인 | 현재 delta 140 = active candidate 102 + unowned HOLD 2 + tmp 36, HEAD/count 고정 |
 | `EX-002` candidate allowlist | 0.5일 | EX-001 | tranche manifest | guide/booking/tmp/decisionMap 포함 여부가 암묵적 | guide 5개 freeze, 161700 integrity IN·booking UI PARKED, tmp·decisionMap 제외, exact path/hash, 삭제 없음 |
 | `EX-003` mixed-file hunk ledger | 1일 | EX-002 | chat.tsx, schedule/index.tsx, route.ts, route test | path만으로 여러 AMR 완료 주장 가능 | 함수/hunk→AMR→테스트→risk가 전부 매핑 |
-| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | HEAD·101/32/69/161700을 current로, 과거값 historical로 표기 |
+| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | HEAD·103/32/71/161900을 current로, 과거값 historical로 표기 |
 | `EX-005` freeze regression | 완료 | EX-003/004 | shared/web/mobile/release 명령 | 이전 focused 수치만 존재 | 같은 freeze에서 focused→type/lint→full/build PASS, 변경 시 상태 하향 |
 | `EX-006` commit plan | 완료 | EX-005 | exact candidate manifest·staged index | review 단위가 불명확 | mixed hotspot 포함 union RC 1개, staged 86·HOLD/tmp 0·hash mismatch 0 |
 | `EX-008` whole-journey coverage inventory | 1일 | EX-006 | checklist·manners·planning gaps·product contract | 초보자 전체 누락을 설명하는 matrix 없음 | 모든 단계 covered/not-applicable/known gap/parked, 사용자 화면 소유자·근거 표시 |
@@ -1617,8 +1640,8 @@ Hard stop: 새 dirty path, migration hash 변화, 무소유 hunk, 테스트 수�
 
 | ID | 크기 | 의존성 | 변경 seam | 첫 RED/증거 | 완료 기준 |
 |---|---:|---|---|---|---|
-| `STG-001` ordered suffix classification | 0.5일 | EX-007 | migration dependency graph | 69개 suffix 안 active·parked·unrelated scope 혼재 | 모든 migration owner·flag·probe·product disposition과 exact hash 고정 |
-| `STG-002` isolated ordered apply | 1일 | STG-001 | hosted staging full suffix | `controller_ready=false`, evidence missing | 69개 exact hash·order 적용, selective history 없음, Production ref 금지 |
+| `STG-001` ordered suffix classification | 0.5일 | EX-007 | migration dependency graph | 71개 suffix 안 active·parked·unrelated scope 혼재 | 모든 migration owner·flag·probe·product disposition과 exact hash 고정 |
+| `STG-002` isolated ordered apply | 1일 | STG-001 | hosted staging full suffix | `controller_ready=false`, evidence missing | 71개 exact hash·order 적용, selective history 없음, Production ref 금지 |
 | `STG-003` backup/restore | 1.5일 | STG-002 | backup + separate restore | 복구 영수증 없음 | backup 생성, 별도 restore, 데이터/ACL 표본 검증 |
 | `STG-004` suffix privacy/atomic probes | 1.5~2일 | STG-002 | 모든 included RLS/ACL/RPC/PostgREST | anon/auth/service 공격·동시 확인 미실행 | message refs·first-use·provider apply·161700·Storage 경계, leak/duplicate 0 |
 | `STG-005` live-provider boundary | 1일 | STG-004 | provider+API+DB | mock/source contract만 존재 | AI가 필요한 첫 답은 로그, exact proposal/apply는 provider·AI log 0 |
@@ -1857,7 +1880,7 @@ AI는 DB를 직접 쓰지 않는다. 서버가 이미 canonical 결과를 아는
 ### Gate S0 — immutable candidate
 
 - 하나의 commit/hash와 hunk ownership ledger
-- 69개 pending ordered suffix 전체의 migration owner·product disposition·flag·probe·SHA 고정
+- 71개 pending ordered suffix 전체의 migration owner·product disposition·flag·probe·SHA 고정
 - `tmp/` 및 무관 산출물 제외
 - focused→type/lint→full test/build를 같은 commit에서 실행
 - 새 migration 또는 unowned hunk 발견 시 S0부터 다시 시작
@@ -1954,6 +1977,11 @@ Wave 3·4 구현
 | 2026-08-17 | AMR-DOC01 | 진입 문서와 release controller의 current/history 경계 및 101/32/69/tail 161700 상태를 실제 파일과 대조 | stale current 표기 0, 과거 SHA는 historical 한정, Production `deployment_blocked` 유지 · 제품 코드/commit/deploy 없음 |
 | 2026-08-17 | AMR-REG01 | stale production build-fence release fixture를 현재 remote-baseline·hosted evidence 계약으로 맞추고 동일 candidate에서 전체 검증 사다리를 재실행 | focused 10/10, release 216/216+fence, root typecheck/lint/full test/build PASS · Production 배포 없음 |
 | 2026-08-17 | AMR-GIT01 | mixed hotspot·DB·release·docs의 상호 의존을 보존하는 union RC 1개로 commit 경계를 고정하고 exact allowlist만 staging | staged 86(A52/M34), manifest path/hash mismatch 0, HOLD 2·tmp 36 staged 0 · commit 직전 |
+| 2026-08-17 | AMR-F10~16/REL14/DOC01 | roleless neutral 준비공간, 최소 planning-foundation 질문·첫 행동, owner/couple-bound 비공개 draft와 restart-safe stage handoff, 161800 release 계약을 local default-off로 구현 | focused 78/78 · mobile 1024/1024 · neutral migration 4/4 · backend 434/434 · release 218/218+fence · shared/web/mobile typecheck · mobile lint · diff-check PASS · 기기/2계정/hosted/배포 없음 |
+| 2026-08-17 | AMR-F15~18/REG01/DOC01 | neutral member 표시와 payer 표현을 모바일·웹 온보딩·채팅·프로필·설정·중재·커뮤니티·예산·준비주제·축의금까지 같은 server capability와 shared resolver로 연결하고 첫 행동의 승인·영수증·홈·후속·재진입을 로컬 완성 | root 324/324 · mobile 1033/1033 · web 699 files/7482 tests · lint 후 money/budget 12/12 · root typecheck/lint(오류 0, 기존 경고 1)/web·mobile build · diff-check PASS · 기기/2계정/hosted/배포 없음 |
+| 2026-08-17 | AMR-AUDIT02~03/REG01 | 현재 118-path dirty snapshot을 active 80·HOLD 2·tmp 36으로 재분리하고 active path/LF SHA·mixed hunk 소유·자동 회귀 증거를 같은 living plan에 재동결 | Section 22/23 CURRENT · active 80=M58+U22 · HOLD/tmp candidate 제외 · product tests/type/lint/build PASS · commit/deploy 없음 |
+| 2026-08-17 | AMR-U01/AUDIT02~03/REG01 | 독립 상태축의 공통 consumer-state composer와 UI-facing contract를 구현하고 새 3경로를 포함한 후보를 재동결 | focused 13/13·10,368축 matrix·mobile 1046/1046·root typecheck/lint(오류 0, 기존 경고 1)·web/mobile build PASS · active 83/HOLD 2/tmp 36 · 실기기/hosted/commit/deploy 없음 |
+| 2026-08-18 | AMR-F20/REL14 | 이미 준비 중 사용자의 최대 3항목 상태를 외부 자동 import 없이 preview·명시 승인하고, 161900 단일 트랜잭션 receipt·secure restart·주제의 별도 사용자보고 기록으로 연결 | catch-up contract 10/10 · migration 6/6 · web onboarding/API 72/72 · mobile 1074/1074 · release 220/220+fence · shared/web/mobile typecheck · mobile lint · hosted/기기/2계정/commit/deploy 없음 |
 
 ---
 
@@ -1965,164 +1993,153 @@ Wave 3·4 구현
 |---|---|---|
 | 소비자 가치 | `PLAN GO` | 첫 가치와 write 분리, 관련 개인화 paired fixture, 홈 퍼센트 제거, `우리 준비 노트`를 NEXT/Wave 3에 명시 |
 | UX·접근성 | `PLAN GO` | 준비 노트 정보 위계·상태·privacy·검색·exact 원문·한 손·200%·screen reader 계약 |
-| 기술 실행 | `LOCAL VERIFIED / COMMIT FREEZE IN PROGRESS` | 70 package↔registry 일치, orphan AMR 소유, mixed hotspot 21 seam 검증, focused→type/lint→full/build PASS. 현재 EX-006 exact staging 경계 고정 중 |
-| Hosted·Production | `NO-GO` | 69 migration pending, evidence 5종 missing, `deployment_blocked`; S0~S3와 별도 승인 필수 |
+| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP LOCAL C2 VERIFIED` | F10~18·U01·F20은 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up까지 연결됨. 현재 102-path active delta는 미커밋이며 EX-007 재동결·실기기·2계정·hosted 검증 전 |
+| Hosted·Production | `NO-GO` | 71 migration pending, evidence 5종 missing, `deployment_blocked`; S0~S3와 별도 승인 필수 |
 
-현재 `IN_PROGRESS` package는 없다. `EX-006 / AMR-GIT01`까지 검증됐으며 다음 변경은 exact staged candidate commit과 원격·격리 staging readiness 확인이다.
+`EX-007 / AMR-REG01`과 `STG-001 / AMR-REL11`까지 완료했다. 71개 ordered suffix는 exact hash·owner·flag·probe·product disposition으로 고정됐다. 승인된 staging ref `rgxdizztidbgwnsbadml`은 management API에서 `ACTIVE_HEALTHY`이고, 원격 migration ledger는 147개/head `20260727090000`이다. staging link에서 실행한 read-only `db push --dry-run --include-all`은 분류표와 같은 71개를 같은 순서로 반환했다. 실제 apply 전 102-path candidate를 exact commit으로 고정하고 clean-worktree/ref fence를 통과시킨다. Production에는 쓰지 않는다. `FV-014 / AMR-F20`은 local C2이고, 실기기·2계정·hosted 검증 전에는 소비자 완료나 배포 완료로 올리지 않는다. Production은 계속 `NO-GO`다.
 
 <!-- AMORA:HUNK-LEDGER:BEGIN -->
 
-## 22. EX-003 mixed-hotspot ownership ledger
+## 22. EX-003 current mixed-hotspot ownership ledger — `CURRENT / VALID AT CAPTURE`
 
-이 표는 현재 candidate에서 여러 vertical이 섞인 네 파일의 **변경된 new-side line**을 하나의 primary AMR에만 배정한다. 범위는 Section 23 candidate hash에 결박되어 있으며, 한 줄이라도 범위 밖이거나 두 primary에 겹치면 EX-003은 실패한다. secondary는 함께 회귀해야 하는 계약이지 변경 소유자가 아니다.
+기준 HEAD `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` 위의 현재 102-path active delta에서, 여러 vertical이 섞일 수 있는 네 파일의 **new-side changed line**을 아래 primary AMR에 정확히 한 번씩 배정한다. FV-014는 네 hotspot 중 `schedule/index.tsx`에만 새 optional catch-up lane을 추가했고, 그 hunk는 `SCH-F20`으로 분리했다. line 이동·새 hunk·파일 hash 변경이 생기면 이 표는 즉시 무효다.
 
 | seam | 파일 | changed-line 범위 | primary AMR | secondary | 소유 동작 | 필수 회귀 | 소비자 실패 |
 |---|---|---|---|---|---|---|---|
-| `CHAT-M02` | `apps/mobile/app/(tabs)/chat.tsx` | `7-107;137-158;407-465;1882-2638;2719-2787;3920-4051;6361-6913;7184-7209;7234-7496;7528-7877;8172-8293` | `AMR-M02` | `AMR-R01` | 저장 가능 AI 답변 판정, 주제 선택 저장·해제, opaque ref 원문 복귀, focus·재시도·접근성 UI | `preparationTopicMessageRefs.test.mjs`; web message-ref contract/API/migration; `preparationTopicScreenContract.test.mjs` | private/shared 원문 누출, 삭제된 원문을 다른 답으로 대체, partial을 빈 기록으로 오인 |
-| `CHAT-F16` | `apps/mobile/app/(tabs)/chat.tsx` | `108-136;159-406;466-1876;2639-2718;2788-3132;4052-5286;7878-8171` | `AMR-F16` | `AMR-F17,AMR-R01` | first-use scope 유지, session reset, binding 해제·복구, 앱 복귀 후 fail-closed continuation | `amoraEntryPlan.test.mjs`; `chatStream.test.mjs` | 비공개 초안이 공유로 바뀌거나, 편집한 초안이 막힌 채 전송됨 |
-| `CHAT-D17` | `apps/mobile/app/(tabs)/chat.tsx` | `1877-1881` | `AMR-D17` | `AMR-D15,AMR-A01,AMR-A02` | done-only receipt에서 temp assistant를 canonical server message id로 교체 | `amoraChatReceipts.test.mjs`; `chatStream.test.mjs` | DB 성공 뒤 임시 메시지가 남아 실패·중복처럼 보임 |
-| `CHAT-R01` | `apps/mobile/app/(tabs)/chat.tsx` | `3133-3919` | `AMR-R01` | `AMR-F16,AMR-M02` | owner/couple 변경·reload 때 generation 폐기, retained scope와 operation cleanup | `chatStream.test.mjs`; `amoraEntryPlan.test.mjs` | 이전 커플 응답·저장 dialog가 새 세션에 남음 |
-| `CHAT-F17` | `apps/mobile/app/(tabs)/chat.tsx` | `5287-6360;6914-7183;7210-7233;7497-7527;8294-8357` | `AMR-F17` | `AMR-F16,AMR-A01,AMR-T03` | first-use draft 결박, 공유 전 확인, 수정·보류·적용 presentation, canonical receipt handoff | `amoraEntryPlan.test.mjs`; `amoraChatReceipts.test.mjs`; route first-use contract | 사용자가 무엇이 공유·반영되는지 모른 채 승인하거나 성공 후 홈 연결을 잃음 |
-| `SCH-T01` | `apps/mobile/app/schedule/index.tsx` | `1-163;434-498;604-668;1223-1259;2955-3050` | `AMR-T01` | `AMR-T02,AMR-D01,AMR-D02,AMR-D03,AMR-G01,AMR-T14` | preparation topic state 합성, scan-first summary, 기존 checklist와 read-only 기록 결합 | `preparationTopicView.test.mjs`; `preparationTopicPresentation.test.mjs`; `preparationTopicScreenContract.test.mjs` | 기록이 진행률을 거짓 변경하거나 한 주제의 근거가 다른 주제에 보임 |
-| `SCH-D03` | `apps/mobile/app/schedule/index.tsx` | `164-169;1260-1300;1352-1377` | `AMR-D03` | `AMR-T14` | topic별 최신 applied budget receipt 조회·검증·partial 보존 | `preparationTopicBudgetDecisions.test.mjs`; `preparationTopicView.test.mjs`; screen contract | 다른 주제의 최신 receipt가 현재 주제 기록을 숨기거나 결제처럼 보임 |
-| `SCH-H12` | `apps/mobile/app/schedule/index.tsx` | `520-603;1518-1546;2202-2202;2556-2556;2618-2623;2866-2866` | `AMR-H12` | `AMR-R01` | 홈·주제 deep link exact focus, scroll·screen-reader focus 취소와 1회 소비 | `scheduleChecklistNavigation.test.mjs`; `dashboardExperience.test.mjs`; screen contract | 엉뚱한 주제를 열거나 사용자의 스크롤 뒤 강제로 다시 이동 |
-| `SCH-R01` | `apps/mobile/app/schedule/index.tsx` | `499-519;669-681;735-881;1485-1491;1547-1767` | `AMR-R01` | `AMR-T14` | owner/profile/exact roster 검증, 45초 foreground reconciliation, stale load 폐기 | `scheduleSessionFence` contracts; `preparationTopicScreenContract.test.mjs` | 연결 해제·계정 변경 뒤 이전 커플 데이터가 최대 화면 수명 동안 남음 |
-| `SCH-T14` | `apps/mobile/app/schedule/index.tsx` | `682-734;882-911;1168-1222;1445-1484;2653-2694` | `AMR-T14` | `AMR-R01` | identity-bound state reset, optional lane unavailable/partial 분리, 재시도 안내 | `preparationTopicScreenContract.test.mjs`; `preparationTopicPresentation.test.mjs` | 조회 실패가 ‘기록 없음’으로 보여 잘못된 안심을 줌 |
-| `SCH-T02` | `apps/mobile/app/schedule/index.tsx` | `912-938;1321-1351` | `AMR-T02` | `AMR-R01` | owner-private 기준과 confirmed couple criterion을 별도 bounded read로 결합 | `preparationTopicPersonalization.test.mjs`; screen contract | 개인 기준 존재나 내용이 파트너에게 노출되거나 무관한 개인화가 붙음 |
-| `SCH-M02` | `apps/mobile/app/schedule/index.tsx` | `939-953;1301-1320` | `AMR-M02` | `AMR-R01,AMR-T14` | 주제별 저장 대화 bounded collection을 identity fence 후 반영 | `preparationTopicMessageRefs.test.mjs`; screen contract | 다른 세션의 저장 대화 또는 부분 목록이 현재 주제 정본처럼 보임 |
-| `SCH-D02` | `apps/mobile/app/schedule/index.tsx` | `954-1126;1378-1443` | `AMR-D02` | `AMR-R01,AMR-T14` | not-sent 방문 후보와 provenance-v1 사용자 보고 완료를 독립 optional lane으로 조회 | `preparationTopicVendorBookings.test.mjs`; `preparationTopicView.test.mjs`; booking provenance SQL test | 업체 확정·결제 증빙이 아닌 내부 기록을 예약/결제 사실처럼 표시 |
-| `SCH-D01` | `apps/mobile/app/schedule/index.tsx` | `1136-1167` | `AMR-D01` | `AMR-T14` | 열린 행동과 canonical schedule decision receipt를 현재 revision에 결합 | `preparationTopicView.test.mjs`; screen contract | 오래되거나 불완전한 행동·일정이 현재 준비 사실로 보임 |
-| `SCH-T03` | `apps/mobile/app/schedule/index.tsx` | `1492-1517` | `AMR-T03` | `AMR-R01` | 주제의 현재 상태·다음 행동을 private chat draft로 stage하고 자동 전송 금지 | `preparationTopicPersonalization.test.mjs`; screen contract | 공유로 열리거나 사용자가 확인하기 전에 질문이 자동 전송됨 |
-| `WEB-A01` | `apps/web/src/app/api/chat/route.ts` | `20-29;3247-3387;3558-3696` | `AMR-A01` | `AMR-D14,AMR-D15,AMR-D17` | first-use proposal/application RPC, 성공 뒤 claim ownership 해제, canonical SSE release | route first-use/application set; 161300/161400 PGlite | 승인 없는 write, provider 재호출, 성공을 실패로 표시, 중복 action |
-| `WEB-A02` | `apps/web/src/app/api/chat/route.ts` | `30-36;3388-3557;4372-4472` | `AMR-A02` | `AMR-D14,AMR-D15,AMR-D17` | ordinary-provider positive seal, exact add-action application, legacy/mixed/attachment provider 보존 | route ordinary application set; 161500/161600 PGlite | schedule-care·legacy 제안을 잘못 최적화하거나 source seal 위조로 write |
-| `WEB-D15` | `apps/web/src/app/api/chat/route.ts` | `1374-1618;1683-1683;2024-2024` | `AMR-D15` | `AMR-A01,AMR-A02,AMR-D17` | 초기 persisted replay와 completed-claim replay 모두 strict source/receipt 재검증 | route strict replay/tamper/racing tests | 손상된 성공 receipt가 다음 retry에서 일반 답변으로 세탁됨 |
-| `WEB-D14` | `apps/web/src/app/api/chat/route.ts` | `2746-2746;3076-3136` | `AMR-D14` | `AMR-A01,AMR-A02` | confirmed action id와 immediate source를 authorization·policy 입력에 결박 | route authorization/ordinary/first-use negative matrix | 다른 proposal/action id를 현재 승인으로 바꿔치기 |
-| `WEBTEST-A01` | `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts` | `593-593;750-1093;3557-4113;5075-5195` | `AMR-A01` | `AMR-D14,AMR-D15,AMR-D17` | deterministic proposal/application fixture와 provider-0·replay·privacy·tamper 회귀 | 이 파일의 named first-use tests + 161300/161400 migration suites | mock shape가 SQL과 달라 실제 성공을 숨기거나 fail-open을 놓침 |
-| `WEBTEST-A02` | `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts` | `594-599;1094-1299;4114-5074` | `AMR-A02` | `AMR-D14,AMR-D15,AMR-D17` | ordinary positive seal/parser/application fixture, Unicode·href·legacy·mixed·attachment matrix | 이 파일의 named ordinary-provider tests + 161500/161600 migration suites | 잘못된 provider-free 범위 또는 TS↔SQL canonical drift를 통과시킴 |
+| `CHAT-F16` | `apps/mobile/app/(tabs)/chat.tsx` | `19;107-111;123;2604;2614-2616;2645-2654;2792;3077;3091-3092;3164-3199;3580;3591-3596;3784-3804` | `AMR-F16` | `AMR-F13,AMR-T03,AMR-R01` | planning-foundation stage를 owner/couple-bound device handoff에서 읽고, private composer가 비어 있을 때만 복구하며 기존 private message·identity 변경에서 폐기 | `planningFoundationDraftHandoff.test.mjs`; `amoraEntryPlan.test.mjs`; `chatStream.test.mjs` | 재로그인 뒤 초안 유실, 다른 커플 초안 노출, 사용 중인 private draft 덮어쓰기 |
+| `CHAT-F15` | `apps/mobile/app/(tabs)/chat.tsx` | `2;115;157-158;2644;3090;3602;3606-3608;3617-3644;3653;3655;3658;3660;3667-3669;3678;3681-3686;5168;6899-6909;7029-7035;7041-7051;7063;8423` | `AMR-F15` | `AMR-R01,AMR-P01` | server-derived member-model을 fail-closed로 확인하고 v2에서 나/파트너 라벨·중립 색·중립 중재 context를 사용하며 v1 호환 표현을 유지 | `neutralMemberPresentation.test.mjs`; `amoraMediationRequest.test.mjs`; `amoraChatSharedConfirmation.test.mjs`; `chatStream.test.mjs` | 역할 고정 표현 재노출, 확인 안 된 모델에서 잘못된 상대 표시, provider prompt에 호환 슬롯 이름 유출 |
+| `SCH-F15` | `apps/mobile/app/schedule/index.tsx` | `65-69;175-176;291-335;528-530;576-578;740;773;906;924-937;945-949;953;966-967;1613-1614;1793;1808-1821;1832-1836;1840-1843;3129-3133;3202` | `AMR-F15` | `AMR-R01,AMR-T14` | 준비주제 payer 표현을 current owner·exact roster·member-model에 결박하고 load/reconnect mismatch에서 상태를 폐기 | `neutralBudgetPayerPresentation.test.mjs`; `preparationTopicPresentation.test.mjs`; `preparationTopicScreenContract.test.mjs` | 다른 계정의 가족 구분 표시, 부분 조회를 정상 표시로 오인, 주제 카드와 상세 표현 불일치 |
+| `SCH-F20` | `apps/mobile/app/schedule/index.tsx` | `82;504-509;687-688;709-710;759-760;974;981;989;1046-1078;1477-1498;1599-1600` | `AMR-F20` | `AMR-T01,AMR-T14,AMR-R01` | owner-private/shared user-reported catch-up decision을 독립 optional read로 불러와 exact session·couple fence 뒤 준비주제에 투영하고 core checklist·status·progress를 바꾸지 않음 | `preparationTopicCatchUpRecords.test.mjs`; `preparationTopicView.test.mjs`; `preparationTopicPresentation.test.mjs`; `preparationTopicScreenContract.test.mjs` | 다른 사용자의 비공개 기록 노출, stale 결과 반영, partial 조회를 빈 정상으로 표시, 사용자 보고를 체크리스트·업체·계약·결제 사실로 과장 |
+| `WEB-F15` | `apps/web/src/app/api/chat/route.ts` | `2107-2141;2532-2533;2535-2540;2871-2873;2892-2894;2905-2907;3879;3882-3884` | `AMR-F15` | `AMR-P01,AMR-D14` | feature flag가 켜진 비-demo 요청에서 DB member-model을 provider 호출 전에 확인하고 v2 conversation/private prompt를 사용자·파트너 표현으로 생성 | `routeOpenAIContract.test.ts` neutral member-model cases; `neutralPreparationSpace.test.ts` | 검증 실패 뒤 provider 전송, 내부 bride/groom 슬롯·이름 노출, 웹·모바일 개인화 불일치 |
+| `WEBTEST-F15` | `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts` | `260-261;415-422;1622;1709-1710;3219-3260` | `AMR-F15` | `AMR-REG01` | couple member-model fixture와 v2 neutral provider-context·lookup failure no-egress 공개 회귀를 고정 | 이 파일 neutral participant/fail-closed tests; full route contract | mock 기본값 누락으로 legacy 회귀 은폐, lookup 실패가 provider 호출로 새어 나감 |
 
 검증 규칙:
 
 1. `git diff --unified=0`의 네 파일 new-side changed line은 위 범위 중 정확히 하나에 속해야 한다.
-2. 범위끼리 겹치면 실패한다. 파일 hash가 Section 23과 다르면 이 line ledger도 즉시 무효다.
-3. 각 primary AMR의 필수 회귀가 실패하면 해당 seam만이 아니라 candidate 전체를 `VERIFIED`로 올리지 않는다.
-4. line 이동·새 hunk·기능 변경이 생기면 이 표와 candidate manifest를 함께 다시 고정한다.
+2. 범위끼리 겹치거나 빠진 changed line이 있으면 실패한다.
+3. 각 primary AMR의 필수 회귀가 실패하면 candidate 전체를 `VERIFIED`로 올리지 않는다.
+4. Section 24의 해당 파일 hash가 달라지면 이 ledger도 즉시 무효다.
+5. 삭제된 base-side line은 new-side 소유 범위에 억지로 넣지 않고, 같은 diff hunk의 consumer behavior test로 검증한다.
 
 <!-- AMORA:HUNK-LEDGER:END -->
 
 <!-- AMORA:CANDIDATE-FREEZE:BEGIN -->
 
-## 23. EX-002 immutable candidate manifest
+## 23. EX-002 이전 union candidate manifest — `HISTORICAL / SUPERSEDED BY SECTION 24`
 
-이 블록은 `AMR-AUDIT02`의 실행 증거다. 현재 dirty snapshot 124개를 candidate 86개, 무소유 `HOLD` 2개, 비제품 임시 산출물 36개로 완전히 분할한다. `HOLD`와 `tmp/`는 삭제하지 않고 candidate에서만 제외한다.
+이 블록은 기준 HEAD `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` 위의 2026-08-17 당시 dirty snapshot을 보존한다. 현재 실행 기준이 아니며, current candidate는 Section 24만 사용한다. 당시 dirty 121개를 active candidate 83개, 무소유 `HOLD` 2개, 비제품 임시 산출물 36개로 분리했다. `HOLD`와 `tmp/`는 당시에도 candidate·commit·deploy에 포함하지 않았다.
 
 | 항목 | 고정 값 |
 |---|---|
-| 기준 HEAD | `6855394f4c363c851f016b7d9cfb9bc409944ce2` |
-| git snapshot | `124 = M 34 + U 90` |
-| candidate | `86 = M 34 + U 52` |
+| 기준 HEAD | `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` |
+| git snapshot | `121 = M 58 + U 63` |
+| active candidate | `83 = M 58 + U 25` |
 | 제외 | `HOLD 2 + tmp 36` |
 | content hash | strict UTF-8 decode 후 CRLF/CR을 LF로 정규화한 SHA-256 lowercase |
 | plan self-hash | 이 BEGIN~END 블록 전체를 BEGIN/END 두 marker만 남기도록 정규화한 뒤 같은 LF SHA-256 적용 |
 | set digest | path 오름차순의 `status<TAB>path<TAB>sha256<LF>` 전체 SHA-256 |
-| candidate set digest | `696e3559db0260561048af95aa2765a7e850231adc31032c24930ee71a1a1f71` |
+| candidate set digest | `ca707ea65193b698ffa90a631da2dd63411d44388a9af98f69c912b1f8aac2ed` |
 
-`M`은 tracked modified, `U`는 untracked다. 이 표의 경로·상태·hash가 하나라도 달라지거나 새 dirty 경로가 생기면 `EX-002`는 즉시 무효이며 `EX-001`부터 다시 실행한다.
+`M`은 tracked modified, `U`는 untracked다. 아래 경로·상태·hash가 하나라도 달라지거나 새 dirty 경로가 생기면 `EX-002`, Section 22 ledger, `EX-005`를 즉시 무효화하고 새 제품 편집을 중단한다.
 
-| 상태 | candidate path | canonical LF SHA-256 |
+| 상태 | active candidate path | canonical LF SHA-256 |
 |---|---|---|
-| `M` | `AGENTS.md` | `cd75c5eafb1be08d6c8e7662f16e574392512ee5c0f96a3e0f194eb07051ea2a` |
-| `M` | `apps/mobile/app/(tabs)/chat.tsx` | `ca4fe1671e2374d48fa35654b4ee5b3aada4843153e15d6e747ed1638ea4bbdc` |
-| `M` | `apps/mobile/app/schedule/index.tsx` | `c670a5b86d5e22ccf6f2f9f2f1db999f7b61ca67791ac81eb2b059960740b2bb` |
-| `M` | `apps/mobile/src/__tests__/amoraChatReceipts.test.mjs` | `f02e6d0e93b5e1f6542a19dd529b28526925502f53f4fb2a655f8172f2fa6c8a` |
-| `M` | `apps/mobile/src/__tests__/amoraEntryPlan.test.mjs` | `2a4174253fe10548b81b9574699ad58c041af1f172709f72c6587b80a540567f` |
-| `M` | `apps/mobile/src/__tests__/chatStream.test.mjs` | `0f4ba5242131584f8854bcdcb2a56baeccba30ffda72abe620c9a2ec6c81cfce` |
-| `M` | `apps/mobile/src/__tests__/dashboardExperience.test.mjs` | `e7d862a3f04d00d4c2eafd44b3f988abe99df67417f6b504500df375af8154f5` |
-| `U` | `apps/mobile/src/__tests__/preparationGuideModules.test.mjs` | `3c0c87c6a29ab0e79c9c5fce9ab2a48db1ebef5d1db5ab3112b1155c33255470` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicBudgetDecisions.test.mjs` | `57411bbe2bb7f6fee773a9614a8d3c20fdff6f44aae357dd2518cc47975befd9` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicMessageRefs.test.mjs` | `48b4abe10b7ddb54e7fefae706ea529f6b98ac7005c2c7a07fc2888759af2c81` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicPersonalization.test.mjs` | `12cd9ec8d874d7c83dc570d344664520e8a956f174999945ca8cedf7ace1dc78` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs` | `a5c7d5e9635f550168b6bc2505044fd1dd250541fe152e1be7ae2ad3a78ba58e` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs` | `aaddf9c44d4e443b3384dce523b78834281e3b978c9e43cf6932950fdbd087b0` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicVendorBookings.test.mjs` | `5709336268a2615dbcf1c224a123ae36fe6d046a9b8ab3f495ae53a0a1a99bd7` |
-| `U` | `apps/mobile/src/__tests__/preparationTopicView.test.mjs` | `81ce6d6886531fd7f35c18644e9b1b92c0d4921af5a982edb291db2eeca699dc` |
-| `U` | `apps/mobile/src/__tests__/scheduleChecklistNavigation.test.mjs` | `88268022b16f32e11b3bbc0ff75dc03dc46b56bc87b1cb028f38bb70a714173b` |
-| `M` | `apps/mobile/src/components/chat/AmoraFirstUseActionCard.tsx` | `d891d518db78a4a564a2cdaeb3fbe57c920474095d47fcb34ff07955a66dbd52` |
-| `U` | `apps/mobile/src/components/planning/PreparationTopicSummary.tsx` | `f84d351af38b88fc616d61aa02ca3e978ff68db136238d948d600cc81c6bc7b3` |
-| `M` | `apps/mobile/src/lib/amoraEntryPlan.d.mts` | `e2da7df38ddb3f410a4e61eb1da0d2e28bf362f145e3341ac9e1f3c2bbc96257` |
-| `M` | `apps/mobile/src/lib/amoraEntryPlan.mjs` | `98ec27ded45356197e22b85b14836ad71defa0e25c567b016c7a711493a62d5e` |
-| `M` | `apps/mobile/src/lib/dashboardExperience.d.mts` | `2b9b90d1efc1ad866925ec50423d6ccc355632789d758a496db41f26df30c15a` |
-| `M` | `apps/mobile/src/lib/dashboardExperience.mjs` | `b2e430d05b218aea07b7a2705ca47b76a32567e39212e70f8f502b866d0cdead` |
-| `U` | `apps/mobile/src/lib/preparationTopicBudgetDecisions.d.mts` | `f0be58dc6a48d9b22e09ece15125328f3c08582b9177720795a9ad1da6e59294` |
-| `U` | `apps/mobile/src/lib/preparationTopicBudgetDecisions.mjs` | `d2950b57efdf1614f23ab42b2bdee40d8774efcd4fbe5c2beede0c7fd1e73582` |
-| `U` | `apps/mobile/src/lib/preparationTopicMessageRefs.d.mts` | `cc7f417a8eac01f47d4bce55138ac8e3e880ba84dd3c0bc9f6dfd49ebd28103a` |
-| `U` | `apps/mobile/src/lib/preparationTopicMessageRefs.mjs` | `ae00758435d0c8e3f3e965cae4eea2f7f68764cae8b36a2a6437ee2079d0195d` |
-| `U` | `apps/mobile/src/lib/preparationTopicPersonalization.d.mts` | `bedfd5835784250472b804e1830672e91779237fcfa8342a5638a93896002689` |
-| `U` | `apps/mobile/src/lib/preparationTopicPersonalization.mjs` | `bfa26853bb88cf3b103dc14559e51b50916cb35dcab8077257dd259eeb3ec30c` |
-| `U` | `apps/mobile/src/lib/preparationTopicPresentation.d.mts` | `b33b26b0cc5009d103675c08a178cd87ce88a773a0d27a3cf16a0b1a9a9e3d8a` |
-| `U` | `apps/mobile/src/lib/preparationTopicPresentation.mjs` | `5b0e2adcfd256b3a20e98cc52b2622a315463605d20f0136594b8b815a86e596` |
-| `U` | `apps/mobile/src/lib/preparationTopicVendorBookings.d.mts` | `ae0f265b0712f79efd80d4791708c1a5014d9d0d6a97e54ae01fc5f7b9d21c54` |
-| `U` | `apps/mobile/src/lib/preparationTopicVendorBookings.mjs` | `029db8073957134e0a71dba52e867bbfd38643231b0d6911ea065ac495b9d12b` |
-| `M` | `apps/mobile/src/lib/scheduleChecklistNavigation.d.mts` | `0bf63311c49343049ec152f26bcccfc2f83599ed2972603f57080783cfadd31f` |
-| `M` | `apps/mobile/src/lib/scheduleChecklistNavigation.mjs` | `5f67600cbf71640117d5f0760ee4be918060ec46394c384ee342cdcae00fbcd0` |
-| `M` | `apps/mobile/src/lib/scheduleSessionFence.d.mts` | `6bbcb31651b0a9b81d1ea3ce90d1ba7b0a0a8654a9e9b4db0cf11edb2f4a2c19` |
-| `M` | `apps/mobile/src/lib/scheduleSessionFence.mjs` | `9ccf348532dc38faa570a74d38f5f1861f0e74e7f0b1d4eb96c632825124dcd1` |
-| `U` | `apps/web/src/app/api/amora/preparation-topic-message-refs/[refId]/route.test.ts` | `3eeba03dcb6728074755dd82bdb383b6314306f76584f78d51b38292f9e61826` |
-| `U` | `apps/web/src/app/api/amora/preparation-topic-message-refs/[refId]/route.ts` | `f62785d7aa39d09154af807c139b57efc218bb4cfaf528286cd2ef6e0dbf7569` |
-| `U` | `apps/web/src/app/api/amora/preparation-topic-message-refs/route.test.ts` | `bce3fd7aa52c95afe731aa797ade12e0099be142f1f987c1143774541896119f` |
-| `U` | `apps/web/src/app/api/amora/preparation-topic-message-refs/route.ts` | `d9e1fe7cc695eb81bf92907dab94b155db97b479e12d71f8692054cddf17f9b8` |
-| `M` | `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts` | `b8b63ddfa72e9b2d5d3511f8d113dcb1abd002200998904dcf5b7bfa3f2818ac` |
-| `M` | `apps/web/src/app/api/chat/route.ts` | `ef347f3f8f05620cdaf61ec7ba362a0ccf74a55bfa7ad524c8eb82c6c5c0ef67` |
-| `U` | `apps/web/src/lib/ai/__tests__/amoraAtomicActionHrefParityMigration.test.ts` | `c97662454415fd7e9046747ad3d956ea02aca0e555a31da30e4672760b76aad0` |
-| `M` | `apps/web/src/lib/ai/__tests__/amoraFirstUseActionPromotionMigration.test.ts` | `598eb5cadf1e54c1d7975134c799150fb41b1570e1bf065e893b685b6877402c` |
-| `M` | `apps/web/src/lib/ai/__tests__/amoraManualScheduleFairnessMigration.test.ts` | `4c09ccab70522503e68907af60c0efdf7f13b4d85d96490267ac671b894f1bfb` |
-| `U` | `apps/web/src/lib/ai/__tests__/amoraProviderBackedAddActionApplicationMigration.test.ts` | `cf05648fea0488e454c115bf38c4cf188fe186bf6bcdb81d31c0ef91a69d73ff` |
-| `U` | `apps/web/src/lib/ai/amoraFirstUseDeterministicApplication.ts` | `78dd55b90c4c38a3d0d5f86634467ed476f903f6a837a425bf86a8067549c5a1` |
-| `U` | `apps/web/src/lib/ai/amoraFirstUseDeterministicProposal.ts` | `bb7d67c39e527c1f86720000ae38decd385e2032f0ddb9c326dba7e828c966f6` |
-| `U` | `apps/web/src/lib/ai/amoraProviderBackedAddActionApplication.ts` | `72e2f6495231a426f90074eb0bde4890f3155ca480c21fb58bab5d8dd2bb52c7` |
-| `U` | `apps/web/src/lib/amora/__tests__/preparationTopicMessageRefContract.test.ts` | `60fa6d35fd32c6afb096ee2d90c3c8dd9591e0dc4c71d3cb9ecace7f02689fa4` |
-| `U` | `apps/web/src/lib/amora/__tests__/preparationTopicMessageRefsMigration.test.ts` | `c149a79e1714d4edbf81d643d89c9636f7e04ffaee8a45e87eccdec8d0fe558f` |
-| `M` | `apps/web/src/lib/price/productionBuildFence.test.ts` | `7a15f0aae023f04214774db60446d87fcc5a9dcfa2c2bf0b72b7852f6001399e` |
-| `U` | `docs/AMORA_2_0_BUILD_PLAN.md` | `0ab3464085538e53c076cbb7521ce9536fae376a5fa31e4ba00d4719c5bbac6b` |
-| `U` | `docs/AMORA_2_0_GAP_SURVEY.json` | `1ac50b327c5bd8f4e7167d1a27e73f3e1b36f8873ac20e3872ddb6c9f5cb1e79` |
-| `U` | `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md` | `05a97a5d7fe6a284ba931db78efc534d0ee3df797968bc141c70481561026cb4` |
-| `U` | `docs/AMORA_PRODUCT_DIRECTION_AND_IMPLEMENTATION_SUMMARY_2026-08-16.md` | `0f735158d0e9623094c53b5ae1f559880028c53588e35d725eb2fcbd3f46baf6` |
-| `M` | `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md` | `8eaa57a21828cfdb5b48738b115f5fbdb4827c2a8d29b3353119fa55c758625a` |
-| `M` | `docs/README.md` | `46ab88331a33cc92219d00c2ab1eeea5374d5fb53a22baffcfab5b69f876db99` |
-| `M` | `package.json` | `f36115ba61c0d91a61de88fd26f0f1a7c14f0f8c543b827f19e26449cd327b75` |
-| `M` | `packages/shared/package.json` | `83828b37f29e59a921711adb612a10c7343334035f9a5c2d13cfa2129a766ea0` |
-| `U` | `packages/shared/src/contracts/amoraPreparationGuide.d.mts` | `6bf71295468171db8e9aab591330e39cff80bf585604456a606022282eff3910` |
-| `U` | `packages/shared/src/contracts/amoraPreparationGuide.mjs` | `f7ab4f9081ac141d444cab27528027d2c44053c72d6ce4b84e5c0fa49cc4f2d9` |
-| `U` | `packages/shared/src/contracts/amoraPreparationTopic.d.mts` | `d67fae467f692f69e49145bf4e51f0efc51112df2a7b82d0642394465396a3f9` |
-| `U` | `packages/shared/src/contracts/amoraPreparationTopic.mjs` | `ae1f007f8949f7ac245be7177fc2bbe407935127d153e70842f666c3cba0fcbb` |
-| `U` | `packages/shared/src/contracts/amoraPreparationTopicMessageRef.d.mts` | `2f152c6aae6ccd71f061d0c5d9c1becde05490a64e2173369cf32da2cae51961` |
-| `U` | `packages/shared/src/contracts/amoraPreparationTopicMessageRef.mjs` | `377f32d33cbac6000c0c87762a8bd995132813ba3be19eb1824f5811c96f3d0d` |
-| `M` | `packages/shared/src/index.ts` | `81ad985b1efe30729423e0e2f469c48502f500553440cdc5c597fe9587212f79` |
-| `M` | `scripts/lib/supabase-successor-release-contract.mjs` | `b7ad7798e0d3b81961b389370c807b54caf35e025a827754d9a6e66f75594ba2` |
-| `U` | `scripts/lib/supabase-successor-remote-baseline.mjs` | `b9589daf17889171ac2381392cd8a982a22a5321c15a041d57778622cf5ebc3c` |
-| `U` | `scripts/supabase-successor-remote-baseline.mjs` | `b4cf3decdf06f9af09426930170dff6e92fac044660b49bfe0cc81ceed261f8a` |
-| `U` | `scripts/tests/helpers/successor-remote-baseline-fixture.mjs` | `c29d7e744d9d496c4ce00f60a4d89361622acaaafe309c95734356f19f4deb63` |
-| `M` | `scripts/tests/production-write-fence-finalizer.test.mjs` | `9171981a7e647be9fbb6a426ced29126ff0bc4e8459e5daa1ca5e7097107919c` |
-| `M` | `scripts/tests/successor-release-evidence-contract.test.mjs` | `cbf11216b4229b49606cce0bf0381c52af382711b61b60b7e91732b728516fb0` |
-| `M` | `scripts/tests/supabase-production-release.test.mjs` | `6bc7bea19cb8ceeef9d9f57645fa405647d1516c54d951ffba9d3a9360783068` |
-| `M` | `scripts/tests/supabase-release-fence.test.mjs` | `c03b6793030e65dfe107b8fca6d6e854f4023443f0cba2f8e2504cc07ef93f30` |
-| `U` | `scripts/tests/supabase-successor-remote-baseline.test.mjs` | `418eb99a9ae5e022605b30a007ea9d5e2c670d3b83ac321911f76706f17c409f` |
-| `M` | `scripts/tests/vendor-public-rls-probe.test.mjs` | `e411c4f1948f0e5846e43c0160a53cbfb9d2c9ef755206c1001109d99633be64` |
-| `M` | `START_HERE.md` | `8c2e539998f83383e8370f04cc6df0458409c947acde1d5c0bc07ce1235af6f5` |
-| `U` | `supabase/migrations/20260816120000_amora_preparation_topic_message_refs.sql` | `7da41bdbee2476a28bc93c8dd3921816e0971af3f8d2ef2f94421dfd5756a217` |
-| `U` | `supabase/migrations/20260816130000_amora_first_use_deterministic_proposal.sql` | `dfc943280ac6ecc1ce21503609933322f8b9f0a12c671319bef4b674b835f786` |
-| `U` | `supabase/migrations/20260816140000_amora_first_use_deterministic_application.sql` | `a5a184155366fbdcb0b2ad2ded922dc6ce0b3cac480f9e45ae52e5bd0a0084a6` |
-| `U` | `supabase/migrations/20260816150000_amora_provider_backed_add_action_application.sql` | `1e7870be4051c4fd9017d6909b453739e8eda9fdd4100339d47d9a79d7777483` |
-| `U` | `supabase/migrations/20260816160000_amora_atomic_action_href_parity.sql` | `afe0eabc7cc774d219715224906bfd328e0df011bb76f9caea69615a93a4af7c` |
-| `U` | `supabase/migrations/20260816170000_amora_booking_outcome_provenance.sql` | `9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457` |
-| `U` | `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json` | `aec85a53a01e33a22ffab43424a6cfeff0b052775ae26c772f9c281c1f25b111` |
-| `M` | `supabase/release-manifests/vendor-disclosure-v2-20260718.json` | `8ed341c23f92ff96f6bb0059a2447c1bb39b4645b8b392c748018b1657b142dd` |
+| `M` | `apps/mobile/.env.example` | `8dc4b9c83d67f82dc4455ea2b7226942864f204cd2812ca26c2fdbed095ac84f` |
+| `M` | `apps/mobile/app/(tabs)/chat.tsx` | `b25924efb3534002732027799af1b69d86ec54652e7356d57093c78f0703688d` |
+| `M` | `apps/mobile/app/(tabs)/profile.tsx` | `741dcbf5a2ee12062c7f10e097465c7fc4bbb3515886ff2fdb01b298d5418e00` |
+| `M` | `apps/mobile/app/budget/index.tsx` | `a2e0b4947fa9c44d05b2f30b8748ff9785c19205b8491ce5dbf741e2be473625` |
+| `M` | `apps/mobile/app/onboarding/index.tsx` | `2fe33183152aea9af1830f420f53df52f301ebc803b2442571c0f60d83c4dbdd` |
+| `M` | `apps/mobile/app/schedule/index.tsx` | `5d19fb315e213be85b6c199147bbfc9839d711d1496fd6eb62ac0c8cd5b1ba70` |
+| `M` | `apps/mobile/app/settings/index.tsx` | `d87964ff4854a35db8923b0234a01166f974d8d9dc2473ec366d3fd0b6ed096c` |
+| `M` | `apps/mobile/src/__tests__/amoraChatReceipts.test.mjs` | `56820d658ae0209ee100611102bd93c6a9ab48de1c5e52a7004ea2935400932b` |
+| `M` | `apps/mobile/src/__tests__/amoraChatSharedConfirmation.test.mjs` | `acd6e1351aee72773118db0dadb0615be2571927830d584edcbfb44fe90f218b` |
+| `U` | `apps/mobile/src/__tests__/amoraConsumerState.test.mjs` | `977f9942666fd27a2b7372158e75d6390d7dfa855b8a394521396c0271e05b21` |
+| `M` | `apps/mobile/src/__tests__/amoraEntryPlan.test.mjs` | `e399e687e9e2ccf6322e22cf3507b680735221e62dc1552ae975ae9ba2252804` |
+| `M` | `apps/mobile/src/__tests__/amoraMediationRequest.test.mjs` | `f095fa7d374349b34a4e552e9f73dfcb39cf639c7696cdf095019ea15ec4af98` |
+| `M` | `apps/mobile/src/__tests__/chatStream.test.mjs` | `d580a75ef9035d39f9810296b9c1bb654635faffb1978c640bf4d73f026f8617` |
+| `U` | `apps/mobile/src/__tests__/neutralBudgetPayerPresentation.test.mjs` | `381dd32c779763a282fa87c771d04696d7eaab23d3bf368f83519207e66e6f2b` |
+| `U` | `apps/mobile/src/__tests__/neutralMemberPresentation.test.mjs` | `4acd31d1035c25d04e754d3c3691a4416c2cd3fc072f7850f445829b6708bf53` |
+| `M` | `apps/mobile/src/__tests__/onboardingActorFence.test.mjs` | `2e4ec4fc8f050caa7b0dc23894bb0338050db44f605a0003e1900ca4c8e90d09` |
+| `M` | `apps/mobile/src/__tests__/onboardingFirstValue.test.mjs` | `5d91dd7a99c427a644a6d68e03926e8b07a503fa251185ee0c5ca94db6337b02` |
+| `U` | `apps/mobile/src/__tests__/planningFoundationDraftHandoff.test.mjs` | `1169608830937929cfb84771492d9bb015c5a346f5dcf7c239ec6ec5fb8bbd67` |
+| `U` | `apps/mobile/src/__tests__/planningFoundationFirstValue.test.mjs` | `f83b5eda44034b758540d2ef6a070545544e56efa68c2f28067e13465f7edf37` |
+| `M` | `apps/mobile/src/__tests__/preparationMap.test.mjs` | `9a24d93b69a09295fa3e3f346b550fb9592ef266577333bd5ccb4d9c3d4379ca` |
+| `M` | `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs` | `5902ee76587155b79f39b2130c312aaadff7affbf29eb28c1cc2be2a775e880d` |
+| `M` | `apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs` | `a9712f200e34f1133ea17bde7fdfd2f002160f14a3784633bf45db2aadaed1e4` |
+| `M` | `apps/mobile/src/components/planning/PreparationTopicSummary.tsx` | `dabcb6454decb96ac512665ce7e2cdedf0990efed115476f0c2841d91b768e96` |
+| `M` | `apps/mobile/src/lib/amoraEntryPlan.d.mts` | `5092516304d5cde66ef8b7c06ddc449f2c41894541ec3b02ed76a40d10358c55` |
+| `M` | `apps/mobile/src/lib/amoraEntryPlan.mjs` | `9979b333bb21319ca3c884cb9591bf42970ca2f25b3abf08397247f9cf2cc230` |
+| `M` | `apps/mobile/src/lib/amoraMediationRequest.d.mts` | `5ff16dd51834b02abdba7d779703ce22636eaf77702aa8d53009e6fe31ff3376` |
+| `M` | `apps/mobile/src/lib/amoraMediationRequest.mjs` | `3c10059edb9fb0b6365e3726ac788e61e9622411fb7eea9077c79aeb16c6ab0f` |
+| `U` | `apps/mobile/src/lib/neutralBudgetPayerPresentation.d.mts` | `34912212c5e88367973280077e3aadf60fb37bcc2d9145dbea910398e9a18901` |
+| `U` | `apps/mobile/src/lib/neutralBudgetPayerPresentation.mjs` | `3b0c1969e8fc63bec4ebc5f8ffb4e7a3fad50bccd9d1906116ac07b42a4d9980` |
+| `U` | `apps/mobile/src/lib/neutralMemberPresentation.d.mts` | `a9908b7461c4defb24be6756eb7347a9f3d05912e69a90fce9bec8cda503f4fc` |
+| `U` | `apps/mobile/src/lib/neutralMemberPresentation.mjs` | `23f935240ff8c7f0a220181c3fddfdb39837840e35a63fbc2081c8bc51dc015a` |
+| `M` | `apps/mobile/src/lib/onboardingFirstValue.d.mts` | `097a55fcef6762092b460f10e2e6fb79ae9fecf4db2b8062587a0a960625054b` |
+| `M` | `apps/mobile/src/lib/onboardingFirstValue.mjs` | `a9a143fe5b472054e59ef7bacc3ecc94a7fa64bd1b7a5e490593f6da8a391659` |
+| `U` | `apps/mobile/src/lib/planningFoundationDraftHandoff.d.mts` | `a9e986b794aa022e3893994cbe115762df4e42bbf1b42897489634e51228b958` |
+| `U` | `apps/mobile/src/lib/planningFoundationDraftHandoff.mjs` | `da5a1404b8e543d7b20f6ab2e57b7ed7fb74e947dd5277394b17b283ea8c7a6c` |
+| `U` | `apps/mobile/src/lib/planningFoundationDraftHandoff.ts` | `1e6241c43080feade8334f103317a595005cb42a790167e5dc5c416d937d2bbd` |
+| `M` | `apps/mobile/src/lib/preparationTopicPresentation.d.mts` | `c58a3aed96a7acec1feeab2bdf463f82487619890fdd29b5f08131bac497f058` |
+| `M` | `apps/mobile/src/lib/preparationTopicPresentation.mjs` | `e3fda583574147979abfa2f15d063ab0046df021e6aa91aece564e0c85d409ad` |
+| `M` | `apps/web/.env.example` | `923d0315f5f9c431fde8f6427237c93e70ab524494337229393c4d4bcb2ba769` |
+| `U` | `apps/web/src/app/(app)/money/page.neutral-presentation.test.ts` | `79f212f1f965b174984d0e0e259c7969a630806d0c163dabef3fd8c4535999ea` |
+| `M` | `apps/web/src/app/(app)/money/page.tsx` | `92cb7440ab669f8fd0cfa1862677ea998a61c0d6603b579f95dccb710208e441` |
+| `M` | `apps/web/src/app/(auth)/onboarding/page.tsx` | `e718c05d34a6d71a786e581bbacf54fd32ea5f7c1ab81c5cd670c459e8cf2e43` |
+| `M` | `apps/web/src/app/api/auth/me/route.ts` | `18fe5d93d14d4365f79c808427bc5de7bd965ce4c7f57f701826354d0a5dec66` |
+| `M` | `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts` | `9ada7a81ab9cdfe32add8f59478b1521c1045f9f13e0557d22cba734d0486737` |
+| `M` | `apps/web/src/app/api/chat/route.ts` | `7c970e8553f9ff538d7513243af1d9e4f7a7ad93118e6a6fb80e503acbaf29ec` |
+| `M` | `apps/web/src/app/api/onboarding/__tests__/route.test.ts` | `a82bbf55ceff273cec081469b1db42e6d9a607f340b878979048185b007b2651` |
+| `M` | `apps/web/src/app/api/onboarding/route.ts` | `8e2253a89b06b861069f3e34c0816d816978ec57ccb85c8f4096faf11e88996f` |
+| `M` | `apps/web/src/components/app/budget/__tests__/budgetReliability.test.ts` | `1fdadbb1825217f2d42eaa3332cd1d8b44b544d03fdeff0196faed1ea26dfc48` |
+| `M` | `apps/web/src/components/app/budget/BudgetContent.tsx` | `43d0cbe2ff175316839871695c55d688f2a57b019bb360b6b706db71cfbeb058` |
+| `M` | `apps/web/src/components/onboarding/__tests__/onboardingReliability.test.ts` | `b7cb8a012ecd521bf5815a23405c30801dc56cd2bae1d97eab00438e67851214` |
+| `U` | `apps/web/src/components/onboarding/NeutralPreparationStart.test.tsx` | `07d18b9b205ce18933152c9866dc1e08d89e902c16ea1336793a75000115b832` |
+| `U` | `apps/web/src/components/onboarding/NeutralPreparationStart.tsx` | `3df9ece492cdf40119537c5a1d39616656f2fd60d7240c8306aef9f06f1291f0` |
+| `M` | `apps/web/src/lib/care/__tests__/amoraPreparationCoverage.test.ts` | `78c2b6fbfcf8e9a9cd0d3a39ed4946d918ed0704447f04921a787880d43d5078` |
+| `M` | `apps/web/src/lib/community/__tests__/initialFeed.test.ts` | `02eed0dae2e70d1865f830e27462a252704d81fea4b7dd4b88b26940d5296492` |
+| `M` | `apps/web/src/lib/community/authorProfiles.ts` | `3492f05895984592999c18a54ae147ea81c2fcbc0213ffd3bdaa6d6357254d3a` |
+| `U` | `apps/web/src/lib/couples/__tests__/amoraNeutralPreparationSpaceMigration.test.ts` | `a2e38df517e44c8547d8c75758aa4e45258952fcc946d980357e05a98d21cb0b` |
+| `M` | `apps/web/src/lib/couples/__tests__/membershipRpc.test.ts` | `f841a1be558330c6364e863cc85cd86bc4a3e5335305986de8759e2bfb47826c` |
+| `M` | `apps/web/src/lib/couples/membershipRpc.ts` | `4e7aac2286b5d02a7e73db28155a64ab7006b433f8815b2381c9fdd8dea60f3f` |
+| `U` | `apps/web/src/lib/onboarding/neutralPreparationSpace.test.ts` | `b65a57c13a9e07005c322ccef251894efd39d87cd7d041e6d3df8ae684211cb5` |
+| `U` | `apps/web/src/lib/onboarding/neutralPreparationSpace.ts` | `ce4fe27ff3ef68eeff8ceb7137ac4d8cd9a4c12907141cf4be2df8d28fb675ff` |
+| `M` | `apps/web/src/lib/price/productionBuildFence.test.ts` | `90d7da2491d6e1fc07dbd18867fdcce02431d2a479b91aa422a5fe8e3d99e637` |
+| `M` | `apps/web/src/types/database.types.ts` | `f9f76352bf06de2e9135c3c871feff98f7e838d237505d3fcfe1af2bc1e4fe1d` |
+| `M` | `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md` | `6f5e477cdec9443aa54221506077edd844da3058adb17e8d0979fc65a5e5fabe` |
+| `M` | `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md` | `998a33c61587f3b5cd71e4f8bae058e01d47fd483fd45eacee8dc8ffdcebeb41` |
+| `M` | `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md` | `b8cb07976fdb0acc28be4e43e4d68f33a55c62d07448fa60c0b7e3f1eefdb72e` |
+| `M` | `packages/shared/package.json` | `0c2be4c7d342b3696e0697547ea16e3042de05920784086658edca0c618a21bc` |
+| `U` | `packages/shared/src/contracts/amoraBudgetPayerPresentation.d.mts` | `09a129811487fe11dafa7e458bebc32851d57196d86f3703ba62660a277cc73f` |
+| `U` | `packages/shared/src/contracts/amoraBudgetPayerPresentation.mjs` | `d12d11d817621c334ceea68c8d8bae6e3a83929b5160ba49ab6622624f7d7878` |
+| `U` | `packages/shared/src/contracts/amoraConsumerState.d.mts` | `3b15088b0ed3b5abe544140ac722cc53c3030dcbd26dd94cb18b4446afbc1684` |
+| `U` | `packages/shared/src/contracts/amoraConsumerState.mjs` | `2547c80e07540379f29d0f50d732a34d762fbfa24e54c55a671fb86dc9c5407a` |
+| `U` | `packages/shared/src/contracts/amoraPlanningFoundation.d.mts` | `3221e6cca3ce65db34bbd05c3df456615471db465c8082899e5e441cc4ed9944` |
+| `U` | `packages/shared/src/contracts/amoraPlanningFoundation.mjs` | `891644381354cb1c13a136993fc3cbb0882e8f92edb73dbc0d8e56d9483d301b` |
+| `M` | `packages/shared/src/contracts/amoraPreparationCoverage.d.mts` | `50269e6a3376308826dd2a11bb51b86307fd9554557179a196e2aea01193746d` |
+| `M` | `packages/shared/src/contracts/amoraPreparationCoverage.mjs` | `50315a09276bfe7e0b89b34baa98ce1db4daa9eb8c3594f7358af546b79e2e94` |
+| `M` | `packages/shared/src/index.ts` | `1488d4a4b4e258f6e75844f1a5ee9f40f830d42416d56b09e5e56fb6d475152a` |
+| `M` | `scripts/lib/supabase-successor-release-contract.mjs` | `39c72fe1d9bbd21675d929abca34f229ffeb63636b4b66608d579e5864b469b7` |
+| `M` | `scripts/tests/production-write-fence-finalizer.test.mjs` | `916175ca46ab07f964b175daf2a7de9dc73688b1ac43e00f1ac5ff89b761846b` |
+| `M` | `scripts/tests/successor-release-evidence-contract.test.mjs` | `f51e2f4e0a6ded6fac6bceec2789079d01c1167ab40df733800159029743d9c8` |
+| `M` | `scripts/tests/supabase-production-release.test.mjs` | `0ff8bccd3d98ba362b31e8fe3fc2f23508f4bbf3b7403022dcb43954c0b5345f` |
+| `M` | `scripts/tests/supabase-release-fence.test.mjs` | `b98ed24d9dceacd1aa4a79791e0e4eac57f084c1926dcc9798da09d081471b35` |
+| `U` | `supabase/migrations/20260816180000_amora_neutral_preparation_space.sql` | `ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867` |
+| `M` | `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json` | `1796d88ccf126add4739230870fbf8a2fd5e0e55f8a0b2ce19c25cb9af7d5404` |
+| `M` | `supabase/release-manifests/vendor-disclosure-v2-20260718.json` | `6d31bf0bbd210f2b24df8393a376819251862fcd9b0b31793ad2dfe6193b4e59` |
 
-### 제외: 무소유 HOLD
+### HOLD — candidate 제외
 
-- `apps/web/src/constants/decisionMap/types.ts`
-- `apps/web/src/constants/decisionMap/venue.ts`
+| 상태 | path | canonical LF SHA-256 |
+|---|---|---|
+| `HOLD` | `apps/web/src/constants/decisionMap/types.ts` | `92320c4407503526418f6312207210ef42708eceaf7469cc62a6ef2a868da97f` |
+| `HOLD` | `apps/web/src/constants/decisionMap/venue.ts` | `4c9bd68acb84dde7b74eb72a13ab835d61f75dd638800cf90e13f21fef414b40` |
 
-### 제외: 비제품 임시 산출물
+두 파일은 현재 active vertical과 owner가 없고 guide freeze 밖의 decision-map 확장이므로 import 여부와 무관하게 조용히 포함하지 않는다. 별도 제품 결정·AMR·RED 전에는 편집하지 않는다.
+
+### tmp — candidate 제외
+
+아래 36개는 PDF 검토 이미지와 red-team patch 산출물이다. 제품 코드·릴리스 입력이 아니며 사용자 승인 없이 삭제하지 않는다.
 
 - `tmp/pdfs/wedding-guide-review/contact-01-06.png`
 - `tmp/pdfs/wedding-guide-review/contact-07-12.png`
@@ -2162,3 +2179,173 @@ Wave 3·4 구현
 - `tmp/redteam-chat.diff`
 
 <!-- AMORA:CANDIDATE-FREEZE:END -->
+<!-- AMORA:CANDIDATE-FREEZE-V2:BEGIN -->
+
+## 24. EX-002 current union candidate manifest — `CURRENT / VALID AT CAPTURE`
+
+이 블록은 기준 HEAD `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` 위의 2026-08-18 local dirty snapshot을 고정한다. active candidate만 검토·향후 commit 후보이며, `HOLD`와 `tmp/`는 candidate·commit·deploy에서 제외한다. 파일·상태·hash가 하나라도 바뀌면 EX-001부터 다시 실행한다.
+
+| 항목 | 고정 값 |
+|---|---|
+| 기준 HEAD | `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` |
+| git snapshot | `140 = M 62 + U 78` |
+| active candidate | `102 = M 62 + U 40` |
+| 제외 | `HOLD 2 + tmp 36` |
+| content hash | strict UTF-8 decode 후 CRLF/CR을 LF로 정규화한 SHA-256 lowercase |
+| plan self-hash | Section 23과 Section 24의 BEGIN~END 블록을 각각 두 marker만 남기도록 정규화한 뒤 같은 LF SHA-256 적용 |
+| candidate set digest | `ef2424d01e04fb37333d9489b6e294405f2f359dced9b39e07d5402fe21ed2fb` |
+
+### 24.1 Active candidate 102
+
+| 상태 | 경로 | canonical LF SHA-256 |
+|---|---|---|
+| `M` | `apps/mobile/.env.example` | `8dc4b9c83d67f82dc4455ea2b7226942864f204cd2812ca26c2fdbed095ac84f` |
+| `M` | `apps/mobile/app/(tabs)/chat.tsx` | `b25924efb3534002732027799af1b69d86ec54652e7356d57093c78f0703688d` |
+| `M` | `apps/mobile/app/(tabs)/profile.tsx` | `741dcbf5a2ee12062c7f10e097465c7fc4bbb3515886ff2fdb01b298d5418e00` |
+| `M` | `apps/mobile/app/budget/index.tsx` | `a2e0b4947fa9c44d05b2f30b8748ff9785c19205b8491ce5dbf741e2be473625` |
+| `M` | `apps/mobile/app/onboarding/index.tsx` | `04e8fefac89ad6ba73dff1ea94bc5c4263127e96ebc3d6295349b5a37adcab5b` |
+| `M` | `apps/mobile/app/schedule/index.tsx` | `1fb3da2129993806c10b47a9e7494ef3a565852acd657fc15168058d04991b53` |
+| `M` | `apps/mobile/app/settings/index.tsx` | `d87964ff4854a35db8923b0234a01166f974d8d9dc2473ec366d3fd0b6ed096c` |
+| `M` | `apps/mobile/src/__tests__/amoraChatReceipts.test.mjs` | `56820d658ae0209ee100611102bd93c6a9ab48de1c5e52a7004ea2935400932b` |
+| `M` | `apps/mobile/src/__tests__/amoraChatSharedConfirmation.test.mjs` | `acd6e1351aee72773118db0dadb0615be2571927830d584edcbfb44fe90f218b` |
+| `U` | `apps/mobile/src/__tests__/amoraConsumerState.test.mjs` | `977f9942666fd27a2b7372158e75d6390d7dfa855b8a394521396c0271e05b21` |
+| `M` | `apps/mobile/src/__tests__/amoraEntryPlan.test.mjs` | `e399e687e9e2ccf6322e22cf3507b680735221e62dc1552ae975ae9ba2252804` |
+| `M` | `apps/mobile/src/__tests__/amoraMediationRequest.test.mjs` | `f095fa7d374349b34a4e552e9f73dfcb39cf639c7696cdf095019ea15ec4af98` |
+| `U` | `apps/mobile/src/__tests__/amoraPreparationCatchUp.test.mjs` | `b0b78cc77d9c72cc535aa5b78b4a0cf68a4f4bc842d8fbc45b2abe6bff79b75d` |
+| `M` | `apps/mobile/src/__tests__/chatStream.test.mjs` | `d580a75ef9035d39f9810296b9c1bb654635faffb1978c640bf4d73f026f8617` |
+| `U` | `apps/mobile/src/__tests__/neutralBudgetPayerPresentation.test.mjs` | `381dd32c779763a282fa87c771d04696d7eaab23d3bf368f83519207e66e6f2b` |
+| `U` | `apps/mobile/src/__tests__/neutralMemberPresentation.test.mjs` | `4acd31d1035c25d04e754d3c3691a4416c2cd3fc072f7850f445829b6708bf53` |
+| `M` | `apps/mobile/src/__tests__/onboardingActorFence.test.mjs` | `2e4ec4fc8f050caa7b0dc23894bb0338050db44f605a0003e1900ca4c8e90d09` |
+| `M` | `apps/mobile/src/__tests__/onboardingFirstValue.test.mjs` | `410a07ba05c08d99c5889c9c80b0cdfc5b17c61568cd451b7bfac80a2e546bcf` |
+| `U` | `apps/mobile/src/__tests__/planningFoundationDraftHandoff.test.mjs` | `1169608830937929cfb84771492d9bb015c5a346f5dcf7c239ec6ec5fb8bbd67` |
+| `U` | `apps/mobile/src/__tests__/planningFoundationFirstValue.test.mjs` | `f83b5eda44034b758540d2ef6a070545544e56efa68c2f28067e13465f7edf37` |
+| `U` | `apps/mobile/src/__tests__/preparationCatchUpDraft.test.mjs` | `2acdeb1dff2b48045c56aaed83962277d43d599b8e82f5480761ac292fa2a305` |
+| `M` | `apps/mobile/src/__tests__/preparationMap.test.mjs` | `9a24d93b69a09295fa3e3f346b550fb9592ef266577333bd5ccb4d9c3d4379ca` |
+| `U` | `apps/mobile/src/__tests__/preparationTopicCatchUpRecords.test.mjs` | `23fc870fb6165394599f1f977f8624c14abd543e812cca37546ce939853d317c` |
+| `M` | `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs` | `e6da43ce9f47b066c329a83b9547ffb5410636559754e713a7dc35d5b5a201df` |
+| `M` | `apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs` | `c42807fe619402830240ed2a9ae1f74d456752185bf65547956a923e00e1f2e7` |
+| `M` | `apps/mobile/src/__tests__/preparationTopicView.test.mjs` | `1ea9cf36f67635422d283c19710e1d72944239990a68250af05916087d963541` |
+| `U` | `apps/mobile/src/components/onboarding/AmoraPreparationCatchUp.tsx` | `bcbedb1c77a5df6894255a5a875b1a94d3dc197ce1df13b125d9e35541132d11` |
+| `M` | `apps/mobile/src/components/planning/PreparationTopicSummary.tsx` | `ed4aafa8521e5dfa4db08ae93e85d54e24711986ae5613cdee34434689fc88dd` |
+| `M` | `apps/mobile/src/lib/amoraEntryPlan.d.mts` | `5092516304d5cde66ef8b7c06ddc449f2c41894541ec3b02ed76a40d10358c55` |
+| `M` | `apps/mobile/src/lib/amoraEntryPlan.mjs` | `9979b333bb21319ca3c884cb9591bf42970ca2f25b3abf08397247f9cf2cc230` |
+| `M` | `apps/mobile/src/lib/amoraMediationRequest.d.mts` | `5ff16dd51834b02abdba7d779703ce22636eaf77702aa8d53009e6fe31ff3376` |
+| `M` | `apps/mobile/src/lib/amoraMediationRequest.mjs` | `3c10059edb9fb0b6365e3726ac788e61e9622411fb7eea9077c79aeb16c6ab0f` |
+| `U` | `apps/mobile/src/lib/neutralBudgetPayerPresentation.d.mts` | `34912212c5e88367973280077e3aadf60fb37bcc2d9145dbea910398e9a18901` |
+| `U` | `apps/mobile/src/lib/neutralBudgetPayerPresentation.mjs` | `3b0c1969e8fc63bec4ebc5f8ffb4e7a3fad50bccd9d1906116ac07b42a4d9980` |
+| `U` | `apps/mobile/src/lib/neutralMemberPresentation.d.mts` | `a9908b7461c4defb24be6756eb7347a9f3d05912e69a90fce9bec8cda503f4fc` |
+| `U` | `apps/mobile/src/lib/neutralMemberPresentation.mjs` | `23f935240ff8c7f0a220181c3fddfdb39837840e35a63fbc2081c8bc51dc015a` |
+| `M` | `apps/mobile/src/lib/onboardingFirstValue.d.mts` | `b54a89b7f0c759582932c14ca61414370020a7e8187232a734030c4ff1ebab11` |
+| `M` | `apps/mobile/src/lib/onboardingFirstValue.mjs` | `331cf6f66f32d0d57e438899f0204e25763799043c74aa6025621b82e92d69b7` |
+| `U` | `apps/mobile/src/lib/planningFoundationDraftHandoff.d.mts` | `a9e986b794aa022e3893994cbe115762df4e42bbf1b42897489634e51228b958` |
+| `U` | `apps/mobile/src/lib/planningFoundationDraftHandoff.mjs` | `da5a1404b8e543d7b20f6ab2e57b7ed7fb74e947dd5277394b17b283ea8c7a6c` |
+| `U` | `apps/mobile/src/lib/planningFoundationDraftHandoff.ts` | `1e6241c43080feade8334f103317a595005cb42a790167e5dc5c416d937d2bbd` |
+| `U` | `apps/mobile/src/lib/preparationCatchUpDraft.d.mts` | `2bd14f2833c702b2e6f5b6f0bdab8a9ee0f897b0ba6f705ac4341fcbce237153` |
+| `U` | `apps/mobile/src/lib/preparationCatchUpDraft.mjs` | `d662f7bb2ae79c0fc1c26ba434b239416a0932a74aec2706a9b47e5718c20362` |
+| `U` | `apps/mobile/src/lib/preparationCatchUpDraft.ts` | `0a1d1cec5d34a62df19b61b520922c2c71cddb423a2f33e72906407ade816b94` |
+| `U` | `apps/mobile/src/lib/preparationTopicCatchUpRecords.d.mts` | `d2d93a5489256268477d675a24f4a02fab4e71c4796c553d6ef0a97492625634` |
+| `U` | `apps/mobile/src/lib/preparationTopicCatchUpRecords.mjs` | `f18fb5d48e3acc9d504e29de3abae856590bfb028744d3ec7239f9e224878497` |
+| `M` | `apps/mobile/src/lib/preparationTopicPresentation.d.mts` | `62ab6b32ed122c5bb64aedca7b7be2365c756e11a1e32fb634f95f5038d84c58` |
+| `M` | `apps/mobile/src/lib/preparationTopicPresentation.mjs` | `0b881b785c8ece078b2684e822a01bb407a9873767d7fd6086a4370076aaec70` |
+| `M` | `apps/web/.env.example` | `923d0315f5f9c431fde8f6427237c93e70ab524494337229393c4d4bcb2ba769` |
+| `U` | `apps/web/src/app/(app)/money/page.neutral-presentation.test.ts` | `79f212f1f965b174984d0e0e259c7969a630806d0c163dabef3fd8c4535999ea` |
+| `M` | `apps/web/src/app/(app)/money/page.tsx` | `92cb7440ab669f8fd0cfa1862677ea998a61c0d6603b579f95dccb710208e441` |
+| `M` | `apps/web/src/app/(auth)/onboarding/page.tsx` | `e718c05d34a6d71a786e581bbacf54fd32ea5f7c1ab81c5cd670c459e8cf2e43` |
+| `U` | `apps/web/src/app/api/amora/preparation-catch-up/route.test.ts` | `d6773d534b8d60222305380218a806c4678280096126872c3ebcca351b07705c` |
+| `U` | `apps/web/src/app/api/amora/preparation-catch-up/route.ts` | `ffd8d68906b7863ce0d84983f96d9f8078d31cbe83c3da08665201d8682c735f` |
+| `M` | `apps/web/src/app/api/auth/me/route.ts` | `18fe5d93d14d4365f79c808427bc5de7bd965ce4c7f57f701826354d0a5dec66` |
+| `M` | `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts` | `9ada7a81ab9cdfe32add8f59478b1521c1045f9f13e0557d22cba734d0486737` |
+| `M` | `apps/web/src/app/api/chat/route.ts` | `7c970e8553f9ff538d7513243af1d9e4f7a7ad93118e6a6fb80e503acbaf29ec` |
+| `M` | `apps/web/src/app/api/onboarding/__tests__/route.test.ts` | `e20725c1bddb8a97beac7fac87cca9b826807cc924f86d41a380dc10a1f42197` |
+| `M` | `apps/web/src/app/api/onboarding/route.ts` | `e811509fb11953096c7057aa3724792b37f6b3e7bd2183e849fd5f92c53d8bb6` |
+| `M` | `apps/web/src/components/app/budget/BudgetContent.tsx` | `43d0cbe2ff175316839871695c55d688f2a57b019bb360b6b706db71cfbeb058` |
+| `M` | `apps/web/src/components/app/budget/__tests__/budgetReliability.test.ts` | `1fdadbb1825217f2d42eaa3332cd1d8b44b544d03fdeff0196faed1ea26dfc48` |
+| `U` | `apps/web/src/components/onboarding/NeutralPreparationStart.test.tsx` | `07d18b9b205ce18933152c9866dc1e08d89e902c16ea1336793a75000115b832` |
+| `U` | `apps/web/src/components/onboarding/NeutralPreparationStart.tsx` | `3df9ece492cdf40119537c5a1d39616656f2fd60d7240c8306aef9f06f1291f0` |
+| `M` | `apps/web/src/components/onboarding/__tests__/onboardingReliability.test.ts` | `b7cb8a012ecd521bf5815a23405c30801dc56cd2bae1d97eab00438e67851214` |
+| `U` | `apps/web/src/lib/amora/__tests__/amoraPreparationCatchUpMigration.test.ts` | `08644c162e340b72a832ee6fbe3356c9488b77ca8122e20c50f1684448942ebc` |
+| `M` | `apps/web/src/lib/care/__tests__/amoraPreparationCoverage.test.ts` | `78c2b6fbfcf8e9a9cd0d3a39ed4946d918ed0704447f04921a787880d43d5078` |
+| `M` | `apps/web/src/lib/community/__tests__/initialFeed.test.ts` | `02eed0dae2e70d1865f830e27462a252704d81fea4b7dd4b88b26940d5296492` |
+| `M` | `apps/web/src/lib/community/authorProfiles.ts` | `3492f05895984592999c18a54ae147ea81c2fcbc0213ffd3bdaa6d6357254d3a` |
+| `U` | `apps/web/src/lib/couples/__tests__/amoraNeutralPreparationSpaceMigration.test.ts` | `a2e38df517e44c8547d8c75758aa4e45258952fcc946d980357e05a98d21cb0b` |
+| `M` | `apps/web/src/lib/couples/__tests__/membershipRpc.test.ts` | `f841a1be558330c6364e863cc85cd86bc4a3e5335305986de8759e2bfb47826c` |
+| `M` | `apps/web/src/lib/couples/membershipRpc.ts` | `4e7aac2286b5d02a7e73db28155a64ab7006b433f8815b2381c9fdd8dea60f3f` |
+| `U` | `apps/web/src/lib/onboarding/neutralPreparationSpace.test.ts` | `b65a57c13a9e07005c322ccef251894efd39d87cd7d041e6d3df8ae684211cb5` |
+| `U` | `apps/web/src/lib/onboarding/neutralPreparationSpace.ts` | `ce4fe27ff3ef68eeff8ceb7137ac4d8cd9a4c12907141cf4be2df8d28fb675ff` |
+| `M` | `apps/web/src/lib/price/productionBuildFence.test.ts` | `5a2699c7d64511306caad0d1a49dde45df9c182da125570f25c331a9ce65c087` |
+| `M` | `apps/web/src/types/database.types.ts` | `f9f76352bf06de2e9135c3c871feff98f7e838d237505d3fcfe1af2bc1e4fe1d` |
+| `M` | `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md` | `38ee26a6b8e5b091fb8ac69334e6c1f093f0b928ae0ab24e7bab04e01b935ca7` |
+| `M` | `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md` | `998a33c61587f3b5cd71e4f8bae058e01d47fd483fd45eacee8dc8ffdcebeb41` |
+| `M` | `docs/README.md` | `e4df22c9f4f136cd300dca7c8f734ad01b93c5b99c6390a37dded0a827cb502a` |
+| `M` | `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md` | `ce73d1d4d35f8c830a967d6608b93060a2574fc89e8ee98df76c51b52f40a33d` |
+| `M` | `packages/shared/package.json` | `9de15be633a7b868187af385b449875a3095bf2e54e317010cdc51b08b92cdff` |
+| `U` | `packages/shared/src/contracts/amoraBudgetPayerPresentation.d.mts` | `09a129811487fe11dafa7e458bebc32851d57196d86f3703ba62660a277cc73f` |
+| `U` | `packages/shared/src/contracts/amoraBudgetPayerPresentation.mjs` | `d12d11d817621c334ceea68c8d8bae6e3a83929b5160ba49ab6622624f7d7878` |
+| `U` | `packages/shared/src/contracts/amoraConsumerState.d.mts` | `3b15088b0ed3b5abe544140ac722cc53c3030dcbd26dd94cb18b4446afbc1684` |
+| `U` | `packages/shared/src/contracts/amoraConsumerState.mjs` | `2547c80e07540379f29d0f50d732a34d762fbfa24e54c55a671fb86dc9c5407a` |
+| `U` | `packages/shared/src/contracts/amoraPlanningFoundation.d.mts` | `9045f561b59a2a79cfc996d56f9c7c2a8ecd6753dea09210ac49afb0b60b5482` |
+| `U` | `packages/shared/src/contracts/amoraPlanningFoundation.mjs` | `21778ea6050a6c0c3d6e533f7f2fb32e64fddc4cc8195932fd71c39cd5e564a5` |
+| `U` | `packages/shared/src/contracts/amoraPreparationCatchUp.d.mts` | `adb289289d788d0f85852c168935603455178873494c33071df1489d7a7dbb80` |
+| `U` | `packages/shared/src/contracts/amoraPreparationCatchUp.mjs` | `f38415048b094dc91532046e66a91856523e7e3509f0f95f6a18ed9b33acc32f` |
+| `M` | `packages/shared/src/contracts/amoraPreparationCoverage.d.mts` | `50269e6a3376308826dd2a11bb51b86307fd9554557179a196e2aea01193746d` |
+| `M` | `packages/shared/src/contracts/amoraPreparationCoverage.mjs` | `50315a09276bfe7e0b89b34baa98ce1db4daa9eb8c3594f7358af546b79e2e94` |
+| `M` | `packages/shared/src/contracts/amoraPreparationTopic.d.mts` | `735fce23c9f4782b56cea5df16085ee35e75714ca3717476b15ce28b157b26a3` |
+| `M` | `packages/shared/src/contracts/amoraPreparationTopic.mjs` | `890867d280bc07881e6e6a87085756e683196a7067ad244b5752527bb00e304e` |
+| `M` | `packages/shared/src/index.ts` | `5ee3aac8df33d8c1a73e24927755664f9a6502fc814547724518f662f3251ab8` |
+| `M` | `scripts/lib/supabase-successor-release-contract.mjs` | `6033430120e2792c54e0a86c884a7c80f68d6c36cefcd8c26d978aa705193a9a` |
+| `M` | `scripts/tests/production-write-fence-finalizer.test.mjs` | `e0f834ec3658d213ce5ce0bf992e8b9e21a9b03d9ff677429177bec383e560eb` |
+| `M` | `scripts/tests/successor-release-evidence-contract.test.mjs` | `29a4549ceb313fbae105a64ce6235d9b1ca93d063a613b0c6d933965447154f0` |
+| `M` | `scripts/tests/supabase-production-release.test.mjs` | `26ab25d08f859dbcc644728576282da057f23481da0f1f90ab660cb88402980d` |
+| `M` | `scripts/tests/supabase-release-fence.test.mjs` | `ce5254527eb8392d60627b9d17d5c760288825936e9442fd2a7666ec7b857aea` |
+| `U` | `supabase/migrations/20260816180000_amora_neutral_preparation_space.sql` | `ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867` |
+| `U` | `supabase/migrations/20260816190000_amora_preparation_catch_up.sql` | `637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce` |
+| `M` | `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json` | `b1e484d6c930d6c8e1fbc5730650e3818017efa929d30c3bfa1fd0f5cf1845a1` |
+| `M` | `supabase/release-manifests/vendor-disclosure-v2-20260718.json` | `81791d29546cf040281a4b780fc2048c9bfeaece51d3c106e86029e78eea8d05` |
+
+### 24.2 HOLD 2 — candidate 제외
+
+| 상태 | 경로 | canonical LF SHA-256 |
+|---|---|---|
+| `U` | `apps/web/src/constants/decisionMap/types.ts` | `92320c4407503526418f6312207210ef42708eceaf7469cc62a6ef2a868da97f` |
+| `U` | `apps/web/src/constants/decisionMap/venue.ts` | `4c9bd68acb84dde7b74eb72a13ab835d61f75dd638800cf90e13f21fef414b40` |
+
+### 24.3 비제품 tmp 36 — candidate 제외
+
+- `tmp/pdfs/wedding-guide-review/contact-01-06.png`
+- `tmp/pdfs/wedding-guide-review/contact-07-12.png`
+- `tmp/pdfs/wedding-guide-review/contact-13-18.png`
+- `tmp/pdfs/wedding-guide-review/contact-19-24.png`
+- `tmp/pdfs/wedding-guide-review/contact-25-30.png`
+- `tmp/pdfs/wedding-guide-review/page-01.png`
+- `tmp/pdfs/wedding-guide-review/page-02.png`
+- `tmp/pdfs/wedding-guide-review/page-03.png`
+- `tmp/pdfs/wedding-guide-review/page-04.png`
+- `tmp/pdfs/wedding-guide-review/page-05.png`
+- `tmp/pdfs/wedding-guide-review/page-06.png`
+- `tmp/pdfs/wedding-guide-review/page-07.png`
+- `tmp/pdfs/wedding-guide-review/page-08.png`
+- `tmp/pdfs/wedding-guide-review/page-09.png`
+- `tmp/pdfs/wedding-guide-review/page-10.png`
+- `tmp/pdfs/wedding-guide-review/page-11.png`
+- `tmp/pdfs/wedding-guide-review/page-12.png`
+- `tmp/pdfs/wedding-guide-review/page-13.png`
+- `tmp/pdfs/wedding-guide-review/page-14.png`
+- `tmp/pdfs/wedding-guide-review/page-15.png`
+- `tmp/pdfs/wedding-guide-review/page-16.png`
+- `tmp/pdfs/wedding-guide-review/page-17.png`
+- `tmp/pdfs/wedding-guide-review/page-18.png`
+- `tmp/pdfs/wedding-guide-review/page-19.png`
+- `tmp/pdfs/wedding-guide-review/page-20.png`
+- `tmp/pdfs/wedding-guide-review/page-21.png`
+- `tmp/pdfs/wedding-guide-review/page-22.png`
+- `tmp/pdfs/wedding-guide-review/page-23.png`
+- `tmp/pdfs/wedding-guide-review/page-24.png`
+- `tmp/pdfs/wedding-guide-review/page-25.png`
+- `tmp/pdfs/wedding-guide-review/page-26.png`
+- `tmp/pdfs/wedding-guide-review/page-27.png`
+- `tmp/pdfs/wedding-guide-review/page-28.png`
+- `tmp/pdfs/wedding-guide-review/page-29.png`
+- `tmp/pdfs/wedding-guide-review/page-30.png`
+- `tmp/redteam-chat.diff`
+
+<!-- AMORA:CANDIDATE-FREEZE-V2:END -->

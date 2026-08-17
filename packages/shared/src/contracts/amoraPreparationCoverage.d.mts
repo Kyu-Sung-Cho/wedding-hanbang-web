@@ -13,6 +13,12 @@ export type AmoraPreparationJourneyAxisKey =
   | "post_wedding";
 
 export type AmoraPreparationCoverageStatus = "connected" | "partial" | "gap";
+export type AmoraPreparationCoverageGapDisposition = "now" | "known_gap" | "parked";
+export type AmoraPreparationCoverageSurfaceOwner =
+  | "onboarding_and_amora"
+  | "preparation_map"
+  | "preparation_topic"
+  | "none";
 
 export interface AmoraPreparationCoverageChecklistTopic {
   topicKey: string;
@@ -31,6 +37,8 @@ export interface AmoraPreparationCoverageAxis {
 export interface AmoraPreparationCoverageGap {
   gapKey: string;
   label: string;
+  disposition: AmoraPreparationCoverageGapDisposition;
+  surfaceOwner: AmoraPreparationCoverageSurfaceOwner;
   axisKeys: readonly AmoraPreparationJourneyAxisKey[];
   reason: string;
   requiredSourceKinds: readonly string[];

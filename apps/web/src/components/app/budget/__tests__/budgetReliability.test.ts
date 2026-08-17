@@ -12,6 +12,10 @@ const mobileBudgetSource = readFileSync(
   resolve(process.cwd(), "../mobile/app/budget/index.tsx"),
   "utf8",
 );
+const neutralBudgetPayerPresentationSource = readFileSync(
+  resolve(process.cwd(), "../../packages/shared/src/contracts/amoraBudgetPayerPresentation.mjs"),
+  "utf8",
+);
 const dashboardSource = readFileSync(
   resolve(process.cwd(), "src/app/(app)/dashboard/page.tsx"),
   "utf8",
@@ -80,10 +84,15 @@ describe("예산 계산의 소비자 신뢰 경계", () => {
   });
 
   it("모바일 분담 이름은 축약어 대신 처음 보는 사람도 이해할 수 있게 쓴다", () => {
-    expect(mobileBudgetSource).toContain('label: "예비 신부 가족"');
-    expect(mobileBudgetSource).toContain('label: "예비 신랑 가족"');
-    expect(mobileBudgetSource).not.toContain('label: "신부측"');
-    expect(mobileBudgetSource).not.toContain('label: "신랑측"');
+    expect(webBudgetSource).toContain("resolveBudgetPayerOptions");
+    expect(webBudgetSource).toContain("member_model_version");
+    expect(mobileBudgetSource).toContain("resolveBudgetPayerOptions");
+    expect(neutralBudgetPayerPresentationSource).toContain('label: "예비 신부 가족"');
+    expect(neutralBudgetPayerPresentationSource).toContain('label: "예비 신랑 가족"');
+    expect(neutralBudgetPayerPresentationSource).toContain('label: "내 가족"');
+    expect(neutralBudgetPayerPresentationSource).toContain('label: "파트너 가족"');
+    expect(neutralBudgetPayerPresentationSource).not.toContain('label: "신부측"');
+    expect(neutralBudgetPayerPresentationSource).not.toContain('label: "신랑측"');
   });
 
   it("핵심 예산 화면에 은퇴한 예약 관리나 설명 없는 업계 용어를 남기지 않는다", () => {

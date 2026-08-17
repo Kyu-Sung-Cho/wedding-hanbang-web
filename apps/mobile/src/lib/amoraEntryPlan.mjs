@@ -95,6 +95,84 @@ export function resolveAmoraChatEntry(value) {
   return entry === "first_use" ? "first_use" : null;
 }
 
+const PLANNING_FOUNDATION_ENTRY_STAGES = new Set([
+  "starting",
+  "already_preparing",
+  "unknown",
+  "later",
+]);
+
+export function resolvePlanningFoundationEntryStage(value) {
+  const stage = Array.isArray(value)
+    ? value.length === 1
+      ? value[0]
+      : null
+    : value;
+  return PLANNING_FOUNDATION_ENTRY_STAGES.has(stage) ? stage : null;
+}
+
+export function buildPlanningFoundationPrivateDraft(value) {
+  const stage = resolvePlanningFoundationEntryStage(value);
+  if (stage === "starting") {
+    return [
+      "결혼 준비를 이제 시작해요.",
+      "아직 확정된 준비 기록으로 저장하지 말고, 정한 것과 아직 모르는 것을 하나씩 나눠 주세요.",
+      "그다음 지금 할 한 가지와 완료 기준을 함께 정리해 주세요.",
+    ].join("\n");
+  }
+  if (stage === "already_preparing") {
+    return [
+      "이미 결혼 준비를 하고 있어요.",
+      "제가 확실히 준비했다고 말한 것만 최대 세 가지 확인하고, 나머지는 완료로 추정하지 말아 주세요.",
+      "중복 질문을 줄인 뒤 지금 할 한 가지와 완료 기준을 함께 정리해 주세요.",
+    ].join("\n");
+  }
+  if (stage === "unknown") {
+    return [
+      "아직 결혼 준비 상태를 잘 모르겠어요.",
+      "모르는 것을 틀린 답으로 보지 말고, 정한 것과 아직 모르는 것을 하나씩 나눠 주세요.",
+      "그다음 지금 할 한 가지와 완료 기준을 함께 정리해 주세요.",
+    ].join("\n");
+  }
+  return null;
+}
+
+export function getAmoraParticipantPresentation({
+  memberModelVersion,
+  senderType,
+  viewerRole,
+  userName,
+  partnerName,
+}) {
+  if (
+    (memberModelVersion !== 1 && memberModelVersion !== 2)
+    || (senderType !== "bride" && senderType !== "groom")
+    || (viewerRole !== "bride" && viewerRole !== "groom")
+  ) return null;
+  const normalizedUserName = normalizeEntryText(userName, 80) ?? "사용자";
+  const normalizedPartnerName = normalizeEntryText(partnerName, 80);
+  const isMe = senderType === viewerRole;
+
+  if (memberModelVersion === 2) {
+    return Object.freeze({
+      avatarLabel: isMe ? "나" : "짝",
+      senderLabel: isMe
+        ? normalizedUserName
+        : normalizedPartnerName ?? "파트너",
+      tone: isMe ? "self" : "partner_neutral",
+    });
+  }
+
+  const roleLabel = senderType === "bride" ? "신부" : "신랑";
+  return Object.freeze({
+    avatarLabel: roleLabel,
+    senderLabel: isMe
+      ? normalizedUserName
+      : normalizedPartnerName ?? roleLabel,
+    tone: isMe ? "self" : senderType,
+  });
+}
+
 export function resolveAmoraFirstUseSessionResetScope({
   entry,
   activeScope,

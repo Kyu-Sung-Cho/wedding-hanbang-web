@@ -62,7 +62,11 @@ import {
   buildVerifiedChecklistDeepLinkFocusTarget,
   type VerifiedChecklistDeepLink,
 } from "@/lib/scheduleChecklistNavigation.mjs";
-import { buildPreparationTopicPresentation } from "@/lib/preparationTopicPresentation.mjs";
+import {
+  buildPreparationTopicPresentation,
+  type PreparationTopicPayerPresentationContext,
+} from "@/lib/preparationTopicPresentation.mjs";
+import { resolveBudgetPayerOptions } from "@/lib/neutralBudgetPayerPresentation.mjs";
 import {
   buildPreparationTopicAmoraHandoff,
   buildPreparationTopicPersonalization,
@@ -75,6 +79,7 @@ import {
   loadPreparationTopicBudgetDecisions,
   type PreparationTopicBudgetDecisionVerification,
 } from "@/lib/preparationTopicBudgetDecisions.mjs";
+import { loadPreparationTopicCatchUpRecords } from "@/lib/preparationTopicCatchUpRecords.mjs";
 import { loadPreparationTopicMessageReferences } from "@/lib/preparationTopicMessageRefs.mjs";
 import { loadPreparationTopicVendorBookings } from "@/lib/preparationTopicVendorBookings.mjs";
 import { stagePrivateChatHandoff } from "@/lib/companionChatHandoff.mjs";
@@ -167,6 +172,8 @@ const PREPARATION_BUDGET_CATEGORY_KEYS = Object.freeze(
 const PREPARATION_DECISION_RECEIPT_LIMIT = 80;
 const PREPARATION_BUDGET_DECISION_RECEIPT_LIMIT = 80;
 const PREPARATION_VENDOR_BOOKING_DECISION_LIMIT = 80;
+const NEUTRAL_PREPARATION_SPACE_ENABLED =
+  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 
 function canonicalScheduleCategoryKey(value: string): string {
   if (!value) return "";
@@ -279,6 +286,51 @@ function createEventId(): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function buildSchedulePayerPresentationContext({
+  ownerId,
+  profileRole,
+  preparationSpace,
+}: {
+  ownerId: string;
+  profileRole: unknown;
+  preparationSpace: unknown;
+}): PreparationTopicPayerPresentationContext | null {
+  const viewerRole: "bride" | "groom" | null = profileRole === "bride" || profileRole === "groom"
+    ? profileRole
+    : null;
+  if (!NEUTRAL_PREPARATION_SPACE_ENABLED) {
+    return { memberModelVersion: 1, viewerRole };
+  }
+  if (!isRecord(preparationSpace)) return null;
+
+  const memberModelVersion = preparationSpace.member_model_version;
+  const expectedOwnerId = viewerRole === "bride"
+    ? preparationSpace.bride_id
+    : viewerRole === "groom"
+      ? preparationSpace.groom_id
+      : null;
+  if (
+    (memberModelVersion !== 1 && memberModelVersion !== 2)
+    || expectedOwnerId !== ownerId
+  ) return null;
+
+  const context: PreparationTopicPayerPresentationContext = {
+    memberModelVersion,
+    viewerRole,
+  };
+  return resolveBudgetPayerOptions(context) ? context : null;
+}
+
+function isSamePayerPresentationContext(
+  left: PreparationTopicPayerPresentationContext | null,
+  right: PreparationTopicPayerPresentationContext | null,
+): boolean {
+  return left !== null
+    && right !== null
+    && left.memberModelVersion === right.memberModelVersion
+    && left.viewerRole === right.viewerRole;
 }
 
 function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
@@ -449,6 +501,12 @@ export default function ScheduleScreen() {
   const [topicBudgetDecisionReadState, setTopicBudgetDecisionReadState] = useState<
     "loaded" | "partial" | "unavailable"
   >("loaded");
+  const [topicCatchUpDecisionReceipts, setTopicCatchUpDecisionReceipts] = useState<
+    readonly unknown[]
+  >([]);
+  const [topicCatchUpReadState, setTopicCatchUpReadState] = useState<
+    "loaded" | "partial" | "unavailable"
+  >("loaded");
   const [topicMessageReferences, setTopicMessageReferences] = useState<
     readonly AmoraPreparationTopicMessageRefCollectionItem[]
   >([]);
@@ -467,6 +525,9 @@ export default function ScheduleScreen() {
   const [topicCurrentCoupleMemberIds, setTopicCurrentCoupleMemberIds] = useState<
     readonly string[]
   >([]);
+  const [topicPayerPresentationContext, setTopicPayerPresentationContext] = useState<
+    PreparationTopicPayerPresentationContext | null
+  >(null);
   const [topicVendorBookingDecisionReceipts, setTopicVendorBookingDecisionReceipts] = useState<
     readonly unknown[]
   >([]);
@@ -512,6 +573,9 @@ export default function ScheduleScreen() {
   const scheduleSessionFenceRef = useRef(createScheduleSessionFence()).current;
   const scheduleLoadSequenceRef = useRef(0);
   const verifiedScheduleIdentityRef = useRef<ScheduleIdentitySnapshot | null>(null);
+  const verifiedPayerPresentationContextRef = useRef<
+    PreparationTopicPayerPresentationContext | null
+  >(null);
   const approvalLoadSequenceRef = useRef(0);
   const approvalActionSequenceRef = useRef(0);
   const approvalBusyRef = useRef<number | null>(null);
@@ -620,6 +684,8 @@ export default function ScheduleScreen() {
           budgetDecisionReceipts: topicBudgetDecisionReceipts,
           budgetDecisionVerifications: topicBudgetDecisionVerifications,
           budgetDecisionReadState: topicBudgetDecisionReadState,
+          catchUpDecisionReceipts: topicCatchUpDecisionReceipts,
+          catchUpReadState: topicCatchUpReadState,
           currentCoupleMemberIds: topicCurrentCoupleMemberIds,
           vendorBookingDecisionReceipts: topicVendorBookingDecisionReceipts,
           vendorBookings: topicVendorBookings,
@@ -640,6 +706,8 @@ export default function ScheduleScreen() {
       topicBudgetDecisionReadState,
       topicBudgetDecisionReceipts,
       topicBudgetDecisionVerifications,
+      topicCatchUpDecisionReceipts,
+      topicCatchUpReadState,
       topicDecisionNowIso,
       topicDecisionReadState,
       topicCurrentCoupleMemberIds,
@@ -669,6 +737,7 @@ export default function ScheduleScreen() {
   const clearIdentityBoundState = useCallback((nextProfileId: string | null) => {
     approvalIdentityRef.current = null;
     verifiedScheduleIdentityRef.current = null;
+    verifiedPayerPresentationContextRef.current = null;
     approvalLoadSequenceRef.current += 1;
     approvalActionSequenceRef.current += 1;
     approvalBusyRef.current = null;
@@ -687,6 +756,8 @@ export default function ScheduleScreen() {
     setTopicBudgetDecisionReceipts([]);
     setTopicBudgetDecisionVerifications([]);
     setTopicBudgetDecisionReadState("loaded");
+    setTopicCatchUpDecisionReceipts([]);
+    setTopicCatchUpReadState("loaded");
     setTopicMessageReferences([]);
     setTopicMessageReferenceReadState("loaded");
     setTopicOwnerContext({
@@ -699,6 +770,7 @@ export default function ScheduleScreen() {
       confirmedCriterion: null,
     });
     setTopicCurrentCoupleMemberIds([]);
+    setTopicPayerPresentationContext(null);
     setTopicVendorBookingDecisionReceipts([]);
     setTopicVendorBookings([]);
     setTopicVendorBookingReadState("loaded");
@@ -831,7 +903,7 @@ export default function ScheduleScreen() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("couple_id")
+        .select("couple_id, role")
         .eq("id", user.id)
         .single();
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
@@ -849,11 +921,20 @@ export default function ScheduleScreen() {
         return null;
       }
 
-      const { data: currentRoster, error: currentRosterError } = await supabase
-        .from("couples")
-        .select("id, bride_id, groom_id")
-        .eq("id", profile.couple_id)
-        .single();
+      const currentRosterResult = NEUTRAL_PREPARATION_SPACE_ENABLED
+        ? await supabase
+            .from("couples")
+            .select(
+              "id, bride_id, groom_id, member_model_version" as "id, bride_id, groom_id",
+            )
+            .eq("id", profile.couple_id)
+            .single()
+        : await supabase
+            .from("couples")
+            .select("id, bride_id, groom_id")
+            .eq("id", profile.couple_id)
+            .single();
+      const { data: currentRoster, error: currentRosterError } = currentRosterResult;
       if (scheduleLoadSequenceRef.current !== loadSequence) return null;
 
       const currentIdentitySnapshot = buildScheduleIdentitySnapshot({
@@ -861,9 +942,15 @@ export default function ScheduleScreen() {
         coupleId: profile.couple_id,
         roster: currentRoster,
       });
+      const nextPayerPresentationContext = buildSchedulePayerPresentationContext({
+        ownerId: user.id,
+        profileRole: profile.role,
+        preparationSpace: currentRoster,
+      });
       if (
         currentRosterError
         || !currentIdentitySnapshot
+        || !nextPayerPresentationContext
       ) {
         scheduleSessionFenceRef.clearCouple(user.id);
         clearIdentityBoundState(user.id);
@@ -876,18 +963,22 @@ export default function ScheduleScreen() {
         clearIdentityBoundState(user.id);
       }
       verifiedScheduleIdentityRef.current = currentIdentitySnapshot;
+      verifiedPayerPresentationContextRef.current = nextPayerPresentationContext;
+      setTopicPayerPresentationContext(nextPayerPresentationContext);
       setProfileId(identity.ownerId);
       setCoupleId(identity.coupleId);
       approvalIdentityRef.current = identity;
       const topicMessageRefIdentity = identity;
       const topicPersonalizationIdentity = identity;
       const topicBudgetDecisionIdentity = identity;
+      const topicCatchUpIdentity = identity;
       const topicVendorBookingIdentity = identity;
       const topicCompletedVendorBookingIdentity = identity;
       const topicMessageRefSessionToken = scheduleSessionFenceRef.capture();
       const topicOwnerContextSessionToken = scheduleSessionFenceRef.capture();
       const topicCoupleContextSessionToken = scheduleSessionFenceRef.capture();
       const topicBudgetDecisionSessionToken = scheduleSessionFenceRef.capture();
+      const topicCatchUpSessionToken = scheduleSessionFenceRef.capture();
       const topicVendorBookingSessionToken = scheduleSessionFenceRef.capture();
       const topicCompletedVendorBookingSessionToken = scheduleSessionFenceRef.capture();
       if (
@@ -895,6 +986,7 @@ export default function ScheduleScreen() {
         || !topicOwnerContextSessionToken
         || !topicCoupleContextSessionToken
         || !topicBudgetDecisionSessionToken
+        || !topicCatchUpSessionToken
         || !topicVendorBookingSessionToken
         || !topicCompletedVendorBookingSessionToken
       ) {
@@ -948,6 +1040,39 @@ export default function ScheduleScreen() {
           scheduleLoadSequenceRef.current === loadSequence
           && scheduleSessionFenceRef.isCurrent(topicMessageRefSessionToken)
         ),
+      }).then((value) => ({ ok: true as const, value }))
+        .catch(() => ({ ok: false as const, value: null }));
+
+      const topicCatchUpResultPromise = loadPreparationTopicCatchUpRecords({
+        ownerId: topicCatchUpIdentity.ownerId,
+        coupleId: topicCatchUpIdentity.coupleId,
+        isCurrent: () => (
+          scheduleLoadSequenceRef.current === loadSequence
+          && scheduleSessionFenceRef.isCurrent(topicCatchUpSessionToken)
+        ),
+        readDecisionRows: async ({ coupleId: exactCoupleId, limit, signal }) => {
+          const { data, error } = await supabase
+            .from("decision_nodes")
+            .select(
+              "id, couple_id, category, decision_type, title, chosen_value, options_considered, reasoning, confidence, stage_tag, decided_at, source, source_ref_id, source_message_id, memory_key, source_actor_role, user_confirmed_at, metadata, visibility, superseded_at, superseded_by, created_at, updated_at",
+            )
+            .eq("couple_id", exactCoupleId)
+            .eq("category", "preparation_catch_up")
+            .eq("source", "onboarding")
+            .is("source_message_id", null)
+            .is("memory_key", null)
+            .in("source_actor_role", ["bride", "groom"])
+            .not("source_ref_id", "is", null)
+            .not("user_confirmed_at", "is", null)
+            .is("superseded_at", null)
+            .is("superseded_by", null)
+            .contains("metadata", { hook: "amora_preparation_catch_up_v1" })
+            .order("decided_at", { ascending: false })
+            .limit(limit)
+            .abortSignal(signal);
+          if (error) throw error;
+          return data ?? [];
+        },
       }).then((value) => ({ ok: true as const, value }))
         .catch(() => ({ ok: false as const, value: null }));
 
@@ -1349,6 +1474,28 @@ export default function ScheduleScreen() {
               confirmedCriterion: null,
             });
       });
+      void topicCatchUpResultPromise.then((topicCatchUpResult) => {
+        const activeIdentity = approvalIdentityRef.current;
+        if (
+          scheduleLoadSequenceRef.current !== loadSequence
+          || !scheduleSessionFenceRef.isCurrent(topicCatchUpSessionToken)
+          || topicCatchUpSessionToken.ownerId !== topicCatchUpIdentity.ownerId
+          || topicCatchUpSessionToken.coupleId !== topicCatchUpIdentity.coupleId
+          || activeIdentity?.ownerId !== topicCatchUpIdentity.ownerId
+          || activeIdentity?.coupleId !== topicCatchUpIdentity.coupleId
+        ) return;
+        if (!topicCatchUpResult.ok) {
+          setTopicCatchUpDecisionReceipts([]);
+          setTopicCatchUpReadState("unavailable");
+          return;
+        }
+        setTopicCatchUpDecisionReceipts(
+          topicCatchUpResult.value.catchUpDecisionReceipts,
+        );
+        setTopicCatchUpReadState(
+          topicCatchUpResult.value.partial ? "partial" : "loaded",
+        );
+      });
       void topicBudgetDecisionResultPromise.then((topicBudgetDecisionResult) => {
         const activeIdentity = approvalIdentityRef.current;
         if (
@@ -1449,6 +1596,8 @@ export default function ScheduleScreen() {
       setTopicBudgetDecisionReceipts([]);
       setTopicBudgetDecisionVerifications([]);
       setTopicBudgetDecisionReadState("unavailable");
+      setTopicCatchUpDecisionReceipts([]);
+      setTopicCatchUpReadState("unavailable");
       setTopicMessageReferences([]);
       setTopicMessageReferenceReadState("unavailable");
       setTopicOwnerContext({
@@ -1461,6 +1610,8 @@ export default function ScheduleScreen() {
         confirmedCriterion: null,
       });
       setTopicCurrentCoupleMemberIds([]);
+      verifiedPayerPresentationContextRef.current = null;
+      setTopicPayerPresentationContext(null);
       setTopicVendorBookingDecisionReceipts([]);
       setTopicVendorBookings([]);
       setTopicVendorBookingReadState("unavailable");
@@ -1639,7 +1790,7 @@ export default function ScheduleScreen() {
       try {
         const { data: currentProfile, error: currentProfileError } = await supabase
           .from("profiles")
-          .select("couple_id")
+          .select("couple_id, role")
           .eq("id", subscribedOwnerId)
           .single();
         if (
@@ -1654,11 +1805,20 @@ export default function ScheduleScreen() {
           return;
         }
 
-        const { data: currentRoster, error: currentRosterError } = await supabase
-          .from("couples")
-          .select("id, bride_id, groom_id")
-          .eq("id", subscribedCoupleId)
-          .single();
+        const currentRosterResult = NEUTRAL_PREPARATION_SPACE_ENABLED
+          ? await supabase
+              .from("couples")
+              .select(
+                "id, bride_id, groom_id, member_model_version" as "id, bride_id, groom_id",
+              )
+              .eq("id", subscribedCoupleId)
+              .single()
+          : await supabase
+              .from("couples")
+              .select("id, bride_id, groom_id")
+              .eq("id", subscribedCoupleId)
+              .single();
+        const { data: currentRoster, error: currentRosterError } = currentRosterResult;
         if (
           !active
           || !scheduleSessionFenceRef.isCurrent(subscribedSessionToken)
@@ -1669,9 +1829,18 @@ export default function ScheduleScreen() {
           coupleId: subscribedCoupleId,
           roster: currentRoster,
         });
+        const nextPayerPresentationContext = buildSchedulePayerPresentationContext({
+          ownerId: subscribedOwnerId,
+          profileRole: currentProfile.role,
+          preparationSpace: currentRoster,
+        });
         if (
           currentRosterError
           || !nextIdentitySnapshot
+          || !isSamePayerPresentationContext(
+            verifiedPayerPresentationContextRef.current,
+            nextPayerPresentationContext,
+          )
           || !isSameScheduleIdentitySnapshot(
             verifiedScheduleIdentityRef.current,
             nextIdentitySnapshot,
@@ -2957,7 +3126,11 @@ export default function ScheduleScreen() {
             const stats = getCategoryStats(cat.key);
             const expanded = expandedKey === cat.key;
             const topicView = preparationTopicViews.get(cat.key) ?? null;
-            const topicPresentation = buildPreparationTopicPresentation(topicView);
+            const topicPresentation = buildPreparationTopicPresentation(
+              topicView,
+              undefined,
+              topicPayerPresentationContext,
+            );
             const topicPersonalizationSection = buildPreparationTopicPersonalization({
               ownerContext: topicOwnerContext,
               coupleContext: topicCoupleContext,
@@ -3026,6 +3199,7 @@ export default function ScheduleScreen() {
                   <View style={styles.itemList}>
                     <PreparationTopicSummary
                       view={topicView}
+                      payerPresentationContext={topicPayerPresentationContext}
                       personalizationSection={topicPersonalizationSection}
                       amoraHandoff={topicAmoraHandoff}
                       messageReferenceRead={{

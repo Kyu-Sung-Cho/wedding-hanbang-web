@@ -1,3 +1,5 @@
+import { parseAmoraPreparationCatchUpDraftSubmission } from "@hanbang/shared/amora-preparation-catch-up";
+
 export function getOnboardingCoupleStepActions() {
   return {
     primary: {
@@ -48,6 +50,66 @@ export function buildOnboardingSubmissionPayload(input, mode = "detailed") {
         budgetTendency: input.budgetTendency,
         guestCount: input.guestCount,
       },
+    },
+  };
+}
+
+const NEUTRAL_PREPARATION_STAGES = new Set([
+  "starting",
+  "already_preparing",
+  "unknown",
+  "later",
+]);
+const COUPLE_INVITE_CODE_PATTERN = /^WH-[A-Z0-9]{6,12}$/u;
+
+export function buildNeutralPreparationSpaceSubmissionPayload({
+  coupleAction,
+  inviteCode,
+  preparationCatchUp,
+}) {
+  if (coupleAction !== "create" && coupleAction !== "join") {
+    throw new Error("Unsupported neutral preparation space action");
+  }
+  const normalizedInviteCode = typeof inviteCode === "string"
+    ? inviteCode.trim().toUpperCase()
+    : "";
+  if (
+    coupleAction === "join"
+    && !COUPLE_INVITE_CODE_PATTERN.test(normalizedInviteCode)
+  ) {
+    throw new Error("Invalid neutral preparation space invite code");
+  }
+  const parsedCatchUp = preparationCatchUp === undefined
+    ? null
+    : parseAmoraPreparationCatchUpDraftSubmission(preparationCatchUp);
+  if (preparationCatchUp !== undefined && parsedCatchUp === null) {
+    throw new Error("Invalid preparation catch-up");
+  }
+
+  return {
+    membershipMode: "neutral_preparation_space",
+    coupleAction,
+    ...(coupleAction === "join"
+      ? { partnerInviteCode: normalizedInviteCode }
+      : {}),
+    weddingDate: null,
+    venue: null,
+    totalBudget: null,
+    progress: {},
+    ...(parsedCatchUp === null ? {} : { preparationCatchUp: parsedCatchUp }),
+  };
+}
+
+export function resolveNeutralPreparationSpaceCompletion({ foundationStage }) {
+  if (!NEUTRAL_PREPARATION_STAGES.has(foundationStage)) {
+    throw new Error("Unsupported planning foundation stage");
+  }
+  return {
+    kind: "route",
+    pathname: "/(tabs)/chat",
+    params: {
+      entry: "first_use",
+      foundationStage,
     },
   };
 }

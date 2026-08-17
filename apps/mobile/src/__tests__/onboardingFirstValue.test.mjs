@@ -4,8 +4,10 @@ import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 
 import {
+  buildNeutralPreparationSpaceSubmissionPayload,
   buildOnboardingSubmissionPayload,
   getOnboardingCoupleStepActions,
+  resolveNeutralPreparationSpaceCompletion,
   resolveOnboardingCompletion,
 } from "../lib/onboardingFirstValue.mjs";
 
@@ -161,4 +163,183 @@ test("quick start promises the immediate private Amora entry, not another setup 
 
 test("press events never become a submission mode", () => {
   assert.doesNotMatch(onboardingSource, /onPress=\{handleSubmit\}/);
+});
+
+test("neutral first value creates a preparation space without role or optional facts", () => {
+  const createPayload = buildNeutralPreparationSpaceSubmissionPayload({
+    coupleAction: "create",
+    inviteCode: "",
+  });
+
+  assert.deepEqual(createPayload, {
+    membershipMode: "neutral_preparation_space",
+    coupleAction: "create",
+    weddingDate: null,
+    venue: null,
+    totalBudget: null,
+    progress: {},
+  });
+  assert.equal(Object.hasOwn(createPayload, "role"), false);
+
+  assert.deepEqual(buildNeutralPreparationSpaceSubmissionPayload({
+    coupleAction: "join",
+    inviteCode: "WH-ABC123",
+  }), {
+    membershipMode: "neutral_preparation_space",
+    coupleAction: "join",
+    partnerInviteCode: "WH-ABC123",
+    weddingDate: null,
+    venue: null,
+    totalBudget: null,
+    progress: {},
+  });
+});
+
+test("already-preparing onboarding submits only the explicit bounded catch-up preview", () => {
+  const preparationCatchUp = {
+    version: 1,
+    requestId: "30000000-0000-4000-8000-000000000001",
+    items: [
+      { topicKey: "venue", state: "completed", scope: "owner_private" },
+    ],
+  };
+  assert.deepEqual(buildNeutralPreparationSpaceSubmissionPayload({
+    coupleAction: "create",
+    inviteCode: "",
+    preparationCatchUp,
+  }), {
+    membershipMode: "neutral_preparation_space",
+    coupleAction: "create",
+    weddingDate: null,
+    venue: null,
+    totalBudget: null,
+    progress: {},
+    preparationCatchUp,
+  });
+  assert.throws(() => buildNeutralPreparationSpaceSubmissionPayload({
+    coupleAction: "create",
+    inviteCode: "",
+    preparationCatchUp: { ...preparationCatchUp, importedFrom: "messenger" },
+  }), /Invalid preparation catch-up/);
+});
+
+test("neutral first value routes the self report only into an explicit private draft", () => {
+  assert.deepEqual(resolveNeutralPreparationSpaceCompletion({
+    foundationStage: "already_preparing",
+  }), {
+    kind: "route",
+    pathname: "/(tabs)/chat",
+    params: {
+      entry: "first_use",
+      foundationStage: "already_preparing",
+    },
+  });
+
+  assert.throws(
+    () => resolveNeutralPreparationSpaceCompletion({ foundationStage: "completed" }),
+    /Unsupported planning foundation stage/,
+  );
+});
+
+test("the neutral first-value surface is flag gated and never asks for a role", () => {
+  assert.match(
+    onboardingSource,
+    /EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED/,
+  );
+  assert.match(
+    onboardingSource,
+    /resolvePlanningFoundationFirstValue/,
+  );
+  assert.match(
+    onboardingSource,
+    /buildNeutralPreparationSpaceSubmissionPayload/,
+  );
+  assert.match(
+    onboardingSource,
+    /resolveNeutralPreparationSpaceCompletion/,
+  );
+  assert.match(
+    onboardingSource,
+    /neutralFirstValueEnabled[\s\S]{0,120}NeutralPlanningFoundation/,
+  );
+});
+
+test("neutral onboarding durably stages only the owner-bound self report before opening chat", () => {
+  assert.match(onboardingSource, /stagePlanningFoundationDraftHandoff/u);
+  const successStart = onboardingSource.indexOf("const data = await res.json()");
+  const navigationEnd = onboardingSource.indexOf("router.replace(completion.pathname)", successStart);
+  assert.ok(successStart > 0 && navigationEnd > successStart);
+  const success = onboardingSource.slice(successStart, navigationEnd);
+  assert.match(
+    success,
+    /mode === "neutral_first_value"[\s\S]*await stagePlanningFoundationDraftHandoff\(\{[\s\S]*ownerUserId: expectedActorUserId,[\s\S]*coupleId: data\.coupleId,[\s\S]*stage: requestedFoundationStage!/u,
+  );
+  assert.ok(
+    success.indexOf("stagePlanningFoundationDraftHandoff")
+      < success.indexOf(
+        "router.replace({",
+        success.indexOf("stagePlanningFoundationDraftHandoff"),
+      ),
+  );
+});
+
+test("already-preparing catch-up previews once, reuses the request, and waits for a canonical receipt", () => {
+  assert.match(onboardingSource, /AmoraPreparationCatchUp/u);
+  assert.match(onboardingSource, /buildAmoraPreparationCatchUpPreview/u);
+  assert.match(onboardingSource, /validateAmoraPreparationCatchUpReceipt/u);
+  assert.match(onboardingSource, /const requestId = catchUpRequestId \?\? Crypto\.randomUUID\(\)/u);
+  assert.match(onboardingSource, /setCatchUpRequestId\(requestId\)/u);
+  assert.match(
+    onboardingSource,
+    /const catchUpSubmission:[\s\S]{0,220}requestId: catchUpRequestId[\s\S]{0,720}handleSubmit\("neutral_first_value", foundationStage, catchUpSubmission\)/u,
+  );
+  assert.match(
+    onboardingSource,
+    /validateAmoraPreparationCatchUpReceipt\([\s\S]{0,320}data\.coupleId[\s\S]{0,220}catchUpSubmission\.requestId/u,
+  );
+  assert.match(
+    onboardingSource,
+    /validatedCatchUpReceipt\.ok[\s\S]{0,260}setCatchUpReceipt\(validatedCatchUpReceipt\.value\)[\s\S]{0,200}return;/u,
+  );
+  assert.match(onboardingSource, /pathname: "\/schedule"/u);
+  assert.match(onboardingSource, /catchUpReceiptId: catchUpReceipt\.receiptId/u);
+  assert.match(onboardingSource, /category: catchUpReceipt\.items\[0\]\?\.topicKey/u);
+});
+
+test("catch-up skip keeps the existing private first-value handoff", () => {
+  assert.match(
+    onboardingSource,
+    /onSkip=\{onSkipCatchUp\}[\s\S]*onSkipCatchUp=\{\(\) => void handleCatchUpSkip\(\)\}/u,
+  );
+  assert.match(
+    onboardingSource,
+    /if \(mode === "neutral_first_value" && catchUpSubmission === undefined\)[\s\S]{0,240}stagePlanningFoundationDraftHandoff/u,
+  );
+});
+
+test("catch-up drafts restore by owner and are durably locked before network submission", () => {
+  assert.match(onboardingSource, /readPreparationCatchUpDraft\(\{ ownerUserId: user\.id \}\)/u);
+  const confirmStart = onboardingSource.indexOf("async function handleCatchUpConfirm()");
+  const confirmEnd = onboardingSource.indexOf("async function handleCatchUpSkip()", confirmStart);
+  const confirmHandler = onboardingSource.slice(confirmStart, confirmEnd);
+  const durableLock = confirmHandler.indexOf("await persistCatchUpDraft({");
+  const localLock = confirmHandler.indexOf("setCatchUpRequestLocked(true)");
+  const networkSubmit = confirmHandler.indexOf(
+    'handleSubmit("neutral_first_value", foundationStage, catchUpSubmission)',
+  );
+  assert.ok(confirmStart > 0 && confirmEnd > confirmStart);
+  assert.ok(durableLock >= 0 && durableLock < localLock && localLock < networkSubmit);
+  assert.match(confirmHandler, /requestLocked: true/u);
+  assert.match(
+    onboardingSource,
+    /setCatchUpReceipt\(validatedCatchUpReceipt\.value\)[\s\S]{0,180}clearPreparationCatchUpDraft/u,
+  );
+});
+
+test("a concurrent canonical journey bypasses reconstruction without inventing a receipt", () => {
+  assert.match(onboardingSource, /parseAmoraPreparationCatchUpCanonicalExisting/u);
+  assert.match(
+    onboardingSource,
+    /const canonicalExisting = parseAmoraPreparationCatchUpCanonicalExisting\([\s\S]{0,180}data\.preparationCatchUp[\s\S]{0,240}pathname: "\/schedule"[\s\S]{0,120}catchUpSource: "canonical_existing"/u,
+  );
 });

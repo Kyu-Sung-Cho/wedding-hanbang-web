@@ -39,11 +39,16 @@ import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 import { createLatestSettingsLoadGate } from "@/lib/weddingSettings";
+import { resolvePreparationMemberPresentation } from "@/lib/neutralMemberPresentation.mjs";
+
+const NEUTRAL_PREPARATION_SPACE_ENABLED =
+  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 
 interface ProfileData {
   name: string | null;
   email: string | null;
   role: string | null;
+  memberModelVersion: 1 | 2 | null;
   weddingDate: string | null;
   dday: number | null;
   coupleId: string | null;
@@ -123,6 +128,9 @@ export default function ProfileScreen() {
 
     let weddingDate: string | null = null;
     let partnerName: string | null = null;
+    let memberModelVersion: 1 | 2 | null = data?.couple_id
+      ? NEUTRAL_PREPARATION_SPACE_ENABLED ? null : 1
+      : null;
 
     if (data?.couple_id) {
       // 결혼일
@@ -141,6 +149,23 @@ export default function ProfileScreen() {
         .neq("id", user.id);
       if (partners?.[0]) {
         partnerName = partners[0].name ?? null;
+      }
+
+      if (NEUTRAL_PREPARATION_SPACE_ENABLED) {
+        const { data: preparationSpace, error: preparationSpaceError } = await supabase
+          .from("couples")
+          .select("member_model_version" as "bride_id")
+          .eq("id", data.couple_id)
+          .maybeSingle();
+        const rawMemberModelVersion = (
+          preparationSpace as unknown as Record<string, unknown> | null
+        )?.member_model_version;
+        if (
+          !preparationSpaceError
+          && (rawMemberModelVersion === 1 || rawMemberModelVersion === 2)
+        ) {
+          memberModelVersion = rawMemberModelVersion;
+        }
       }
     }
 
@@ -184,6 +209,7 @@ export default function ProfileScreen() {
       name: data?.name ?? null,
       email: user.email ?? null,
       role: data?.role ?? null,
+      memberModelVersion,
       weddingDate,
       dday: calcDday(weddingDate),
       coupleId: data?.couple_id ?? null,
@@ -267,12 +293,12 @@ export default function ProfileScreen() {
     ]);
   }
 
-  const roleLabel =
-    profile?.role === "bride"
-      ? "신부"
-      : profile?.role === "groom"
-        ? "신랑"
-        : null;
+  const memberPresentation = resolvePreparationMemberPresentation({
+    memberModelVersion: profile?.memberModelVersion ?? null,
+    compatibilityRole: profile?.role === "bride" || profile?.role === "groom"
+      ? profile.role
+      : null,
+  });
   const initial = profile?.name?.charAt(0) ?? "?";
 
   const appVersion =
@@ -301,9 +327,9 @@ export default function ProfileScreen() {
                 <Text style={styles.name}>
                   {profile?.name ?? "게스트"}
                 </Text>
-                {roleLabel && (
+                {memberPresentation && (
                   <View style={styles.roleBadge}>
-                    <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+                    <Text style={styles.roleBadgeText}>{memberPresentation.valueLabel}</Text>
                   </View>
                 )}
               </View>

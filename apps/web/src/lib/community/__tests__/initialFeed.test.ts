@@ -77,7 +77,17 @@ const mocks = vi.hoisted(() => {
   };
   profileRolesQuery.select.mockReturnValue(profileRolesQuery);
   profileRolesQuery.in.mockResolvedValue({
-    data: [{ id: "author-1", role: "bride" }],
+    data: [{ id: "author-1", role: "bride", couple_id: null }],
+    error: null,
+  });
+
+  const coupleModelsQuery = {
+    select: vi.fn(),
+    in: vi.fn(),
+  };
+  coupleModelsQuery.select.mockReturnValue(coupleModelsQuery);
+  coupleModelsQuery.in.mockResolvedValue({
+    data: [],
     error: null,
   });
 
@@ -94,6 +104,7 @@ const mocks = vi.hoisted(() => {
     rpc: vi.fn(),
     from: vi.fn((table: string) => {
       if (table === "profiles") return profileRolesQuery;
+      if (table === "couples") return coupleModelsQuery;
       throw new Error(`Unexpected admin table ${table}`);
     }),
   };
@@ -105,6 +116,7 @@ const mocks = vi.hoisted(() => {
     profilesQuery,
     pollsQuery,
     profileRolesQuery,
+    coupleModelsQuery,
     supabase,
     adminSupabase,
     serviceRpc: adminSupabase.rpc,
@@ -122,8 +134,14 @@ vi.mock("@/lib/supabase/admin", () => ({
 describe("getInitialCommunityFeed", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     mocks.pollsQuery.in.mockResolvedValue({ data: [], error: null });
     mocks.serviceRpc.mockResolvedValue({ data: null, error: null });
+    mocks.profileRolesQuery.in.mockResolvedValue({
+      data: [{ id: "author-1", role: "bride", couple_id: null }],
+      error: null,
+    });
+    mocks.coupleModelsQuery.in.mockResolvedValue({ data: [], error: null });
   });
 
   it("lists posts through the same public visibility/select rule that detail pages can read", async () => {
@@ -141,6 +159,25 @@ describe("getInitialCommunityFeed", () => {
     expect(feed.posts[0]?.author.role).toBe("bride");
     expect(feed.posts[0]?.author.wedding_year).toBeNull();
     expect(feed.posts[0]?.author.wedding_month).toBeNull();
+  });
+
+  it("never publishes a neutral preparation member's compatibility role", async () => {
+    vi.stubEnv("AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED", "true");
+    mocks.profileRolesQuery.in.mockResolvedValue({
+      data: [{ id: "author-1", role: "bride", couple_id: "couple-v2" }],
+      error: null,
+    });
+    mocks.coupleModelsQuery.in.mockResolvedValue({
+      data: [{ id: "couple-v2", member_model_version: 2 }],
+      error: null,
+    });
+
+    const feed = await getInitialCommunityFeed(1);
+
+    expect(feed.posts[0]?.author.role).toBeNull();
+    expect(mocks.profileRolesQuery.select).toHaveBeenCalledWith("id, role, couple_id");
+    expect(mocks.coupleModelsQuery.select).toHaveBeenCalledWith("id, member_model_version");
+    expect(mocks.coupleModelsQuery.in).toHaveBeenCalledWith("id", ["couple-v2"]);
   });
 
   it("loads public poll counters through the anonymous actor projection", async () => {

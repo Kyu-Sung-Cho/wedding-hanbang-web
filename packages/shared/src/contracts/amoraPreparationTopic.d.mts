@@ -55,9 +55,21 @@ export type AmoraPreparationTopicDetail = Readonly<{
     appliedRevision: number;
     scope: "couple_shared";
   }>[];
+  userReportedCatchUpRecords: readonly Readonly<{
+    decisionId: string;
+    receiptId: string;
+    state: "completed" | "in_progress" | "unknown" | "not_applicable";
+    scope: "owner_private" | "couple_shared";
+    confirmedAt: string;
+    evidence: "user_reported";
+    checklistCompletionChanged: false;
+    vendorConfirmationStatus: "unconfirmed";
+    paymentEvidence: false;
+  }>[];
   linkedDecisionIds: readonly string[];
   decisionReadState: "loaded" | "partial" | "unavailable";
   budgetDecisionReadState: "loaded" | "partial" | "unavailable";
+  catchUpReadState: "loaded" | "partial" | "unavailable";
   currentVendorBookingRecords: readonly Readonly<{
     bookingId: string;
     decisionId: string;
@@ -132,6 +144,8 @@ export declare function buildAmoraPreparationTopicView(input: Readonly<{
   currentJourneyRevision?: number;
   scheduleDecisionReceipts?: readonly unknown[];
   decisionReadState?: "loaded" | "partial" | "unavailable";
+  catchUpDecisionReceipts?: readonly unknown[];
+  catchUpReadState?: "loaded" | "partial" | "unavailable";
   budgetDecisionReceipts?: readonly unknown[];
   budgetDecisionVerifications?: readonly Readonly<{
     requestId: string;

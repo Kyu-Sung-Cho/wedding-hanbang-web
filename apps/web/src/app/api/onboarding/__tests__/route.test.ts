@@ -150,6 +150,7 @@ function setupClients(
     ) => {
       void parameters;
       return functionName === "join_couple_server"
+          || functionName === "join_neutral_preparation_space_server"
         ? serverJoinRpc ?? { data: serverJoinMembershipData, error: null }
         : adminRpc;
     }),
@@ -188,6 +189,7 @@ const createSuccess = {
 describe("/api/onboarding POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED;
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = `sb_secret_${"a".repeat(40)}`;
   });
@@ -219,6 +221,305 @@ describe("/api/onboarding POST", () => {
     expect(response.status).toBe(413);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(createClientFromRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps the legacy onboarding mutation role-gated while neutral preparation spaces are disabled", async () => {
+    const { authClient, admin } = setupClients({}, createSuccess);
+
+    const response = await POST(onboardingRequest({ coupleAction: "create" }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "유효하지 않은 역할입니다." });
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before membership access when neutral preparation spaces are disabled", async () => {
+    const { authClient, admin } = setupClients({}, createSuccess);
+
+    const response = await POST(onboardingRequest({
+      membershipMode: "neutral_preparation_space",
+      coupleAction: "create",
+    }));
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "중립 준비 공간을 아직 사용할 수 없습니다.",
+      code: "NEUTRAL_PREPARATION_SPACE_UNAVAILABLE",
+    });
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it("creates a roleless neutral preparation space only behind the explicit capability", async () => {
+    process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = "true";
+    const neutralCreate = {
+      success: true,
+      created: true,
+      idempotent: false,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+    };
+    const { authClient, admin, fromCalls } = setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          { single: { data: { id: "user-1", couple_id: coupleId }, error: null } },
+        ],
+        wedding_journeys: [
+          { maybeSingle: { data: null, error: null } },
+          {
+            single: {
+              data: { id: "journey-1", progress: {}, state_revision: 0 },
+              error: null,
+            },
+          },
+        ],
+      },
+      neutralCreate,
+    );
+
+    const response = await POST(onboardingRequest({
+      membershipMode: "neutral_preparation_space",
+      coupleAction: "create",
+      progress: {},
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      coupleId,
+      inviteCode: "WH-ABC123",
+      created: true,
+      idempotent: false,
+    });
+    expect(authClient.rpc).toHaveBeenCalledWith(
+      "create_neutral_preparation_space_for_current_user",
+      {},
+    );
+    expect(admin.rpc).not.toHaveBeenCalledWith(
+      "join_couple_server",
+      expect.anything(),
+    );
+    expect(fromCalls).not.toContain("couples");
+    expect(recordDecision).not.toHaveBeenCalled();
+  });
+
+  it("finalizes the approved catch-up before completing neutral onboarding", async () => {
+    process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = "true";
+    const requestId = "30000000-0000-4000-8000-000000000001";
+    const receipt = {
+      version: 1,
+      status: "applied",
+      receiptId: "40000000-0000-4000-8000-000000000001",
+      coupleId,
+      requestId,
+      sourceJourneyRevision: 0,
+      confirmedAt: "2026-08-18T00:10:00.000Z",
+      reused: false,
+      items: [{
+        decisionId: "50000000-0000-4000-8000-000000000001",
+        topicKey: "venue",
+        state: "completed",
+        scope: "owner_private",
+        source: "user_reported",
+      }],
+      boundaries: {
+        checklistCompletionChanged: false,
+        vendorConfirmation: "unconfirmed",
+        paymentEvidence: false,
+      },
+      next: { kind: "recalculate_current_state", route: "/schedule" },
+    };
+    const neutralCreate = {
+      success: true,
+      created: true,
+      idempotent: false,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+    };
+    const { admin } = setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          { single: { data: { id: "user-1", couple_id: coupleId }, error: null } },
+        ],
+        wedding_journeys: [
+          { maybeSingle: { data: null, error: null } },
+          {
+            single: {
+              data: { id: "journey-1", progress: {}, state_revision: 0 },
+              error: null,
+            },
+          },
+        ],
+        amora_privacy_context_epochs: [
+          { single: { data: { epoch: 7 }, error: null } },
+        ],
+      },
+      neutralCreate,
+      { data: receipt, error: null },
+    );
+
+    const response = await POST(onboardingRequest({
+      membershipMode: "neutral_preparation_space",
+      coupleAction: "create",
+      progress: {},
+      preparationCatchUp: {
+        version: 1,
+        requestId,
+        items: [{ topicKey: "venue", state: "completed", scope: "owner_private" }],
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      coupleId,
+      preparationCatchUp: receipt,
+    });
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "finalize_amora_preparation_catch_up_v1",
+      {
+        p_couple_id: coupleId,
+        p_actor_user_id: "11111111-1111-4111-8111-111111111111",
+        p_request_id: requestId,
+        p_expected_privacy_epoch: 7,
+        p_items: [{ topicKey: "venue", state: "completed", scope: "owner_private" }],
+      },
+    );
+  });
+
+  it("completes onboarding and continues the canonical journey when catch-up is no longer eligible", async () => {
+    process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = "true";
+    const requestId = "30000000-0000-4000-8000-000000000001";
+    const profileCompletion = vi.fn();
+    const neutralCreate = {
+      success: true,
+      created: true,
+      idempotent: false,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+    };
+    setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          {
+            onUpdate: profileCompletion,
+            single: { data: { id: "user-1", couple_id: coupleId }, error: null },
+          },
+        ],
+        wedding_journeys: [
+          { maybeSingle: { data: null, error: null } },
+          {
+            single: {
+              data: { id: "journey-1", progress: {}, state_revision: 0 },
+              error: null,
+            },
+          },
+        ],
+        amora_privacy_context_epochs: [
+          { single: { data: { epoch: 7 }, error: null } },
+        ],
+      },
+      neutralCreate,
+      { data: null, error: { code: "23514", message: "canonical exists" } },
+    );
+
+    const response = await POST(onboardingRequest({
+      membershipMode: "neutral_preparation_space",
+      coupleAction: "create",
+      progress: {},
+      preparationCatchUp: {
+        version: 1,
+        requestId,
+        items: [{ topicKey: "venue", state: "completed", scope: "owner_private" }],
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      coupleId,
+      preparationCatchUp: {
+        version: 1,
+        status: "canonical_existing",
+        next: { kind: "continue_canonical", route: "/schedule" },
+      },
+    });
+    expect(profileCompletion).toHaveBeenCalledWith(expect.objectContaining({ onboarding_completed: true }));
+  });
+
+  it("joins a neutral preparation space without accepting a client-selected role", async () => {
+    process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = "true";
+    const neutralJoin = {
+      success: true,
+      joined: true,
+      idempotent: false,
+      actor_user_id: "11111111-1111-4111-8111-111111111111",
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+    };
+    const { authClient, admin } = setupClients(
+      {
+        profiles: [
+          { maybeSingle: { data: { id: "user-1" }, error: null } },
+          { single: { data: { id: "user-1", couple_id: coupleId }, error: null } },
+        ],
+        wedding_journeys: [
+          { maybeSingle: { data: null, error: null } },
+          {
+            single: {
+              data: { id: "journey-1", progress: {}, state_revision: 0 },
+              error: null,
+            },
+          },
+        ],
+      },
+      neutralJoin,
+      undefined,
+      { data: neutralJoin, error: null },
+    );
+
+    const response = await POST(onboardingRequest({
+      membershipMode: "neutral_preparation_space",
+      coupleAction: "join",
+      partnerInviteCode: "wh-abc123",
+      progress: {},
+    }));
+
+    expect(response.status).toBe(200);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "join_neutral_preparation_space_server",
+      {
+        p_actor_user_id: "11111111-1111-4111-8111-111111111111",
+        p_invite_code: "WH-ABC123",
+      },
+    );
+  });
+
+  it("rejects role smuggling on the neutral preparation-space path", async () => {
+    process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED = "true";
+    const { authClient, admin } = setupClients({}, createSuccess);
+
+    const response = await POST(onboardingRequest({
+      membershipMode: "neutral_preparation_space",
+      coupleAction: "create",
+      role: "bride",
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "중립 준비 공간에는 역할을 보내지 않습니다.",
+    });
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).not.toHaveBeenCalled();
   });
 
   it("uses the persistent fail-closed join limiter before membership or route admin access", async () => {

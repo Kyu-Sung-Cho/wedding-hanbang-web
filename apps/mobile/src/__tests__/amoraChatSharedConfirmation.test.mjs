@@ -174,7 +174,15 @@ test("the first shared send pauses for one accurate accessible confirmation", ()
   assert.match(sourceText, /useRef<AmoraSharedSendAcknowledgementSession \| null>\(null\)/u);
   assert.match(
     ownerBoundSessionLoads,
-    /^const \[\s*sharedSendAcknowledged,\s*dismissedOfferKeys,\s*deviceSafetyHold,\s*\] = await Promise\.all\(\[\s*loadAmoraSharedSendAcknowledgement\(\s*user\.id,\s*profile\.couple_id,?\s*\)\.catch\(\(\) => false\),\s*loadAmoraMediationOfferDismissals\(user\.id, profile\.couple_id\)\.catch\(\(\) => \[\]\),\s*hasPrivateMediationSafetyHold\(\{\s*ownerUserId: user\.id,\s*coupleId: profile\.couple_id,\s*\}\),\s*\]\);\s*$/u,
+    /loadAmoraSharedSendAcknowledgement\(\s*user\.id,\s*profile\.couple_id,?\s*\)\.catch\(\(\) => false\)/u,
+  );
+  assert.match(
+    ownerBoundSessionLoads,
+    /loadAmoraMediationOfferDismissals\(user\.id, profile\.couple_id\)\.catch\(\(\) => \[\]\)/u,
+  );
+  assert.match(
+    ownerBoundSessionLoads,
+    /hasPrivateMediationSafetyHold\(\{\s*ownerUserId: user\.id,\s*coupleId: profile\.couple_id,\s*\}\)/u,
   );
   assert.match(
     loadSession,

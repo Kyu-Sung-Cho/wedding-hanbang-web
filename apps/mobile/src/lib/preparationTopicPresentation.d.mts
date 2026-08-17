@@ -26,6 +26,20 @@ export type PreparationTopicPresentation = Readonly<{
     }>[];
     notice: string | null;
   }> | null;
+  catchUpSection: Readonly<{
+    title: "직접 알려준 현재 상태";
+    items: readonly Readonly<{
+      key: "user-reported-catch-up";
+      title:
+        | "완료했다고 알려준 기록"
+        | "진행 중이라고 알려준 기록"
+        | "아직 모른다고 남긴 기록"
+        | "해당 없다고 알려준 기록";
+      meta: string;
+      accessibilityLabel: string;
+    }>[];
+    notice: string | null;
+  }> | null;
   bookingDecisionSection: Readonly<{
     title: "방문·상담 후보 기록";
     items: readonly Readonly<{
@@ -101,6 +115,11 @@ export type PreparationTopicPresentation = Readonly<{
   }> | null;
 }>;
 
+export type PreparationTopicPayerPresentationContext = Readonly<{
+  memberModelVersion: 1 | 2 | null;
+  viewerRole: "bride" | "groom" | null;
+}>;
+
 export declare function buildPreparationTopicPresentation(
   view: AmoraPreparationTopicDetail | null,
   messageReferenceRead?: Readonly<{
@@ -118,4 +137,5 @@ export declare function buildPreparationTopicPresentation(
       canOpenOriginal: true;
     }>[];
   }>,
+  payerPresentationContext?: PreparationTopicPayerPresentationContext | null,
 ): PreparationTopicPresentation | null;

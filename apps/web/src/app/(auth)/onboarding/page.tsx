@@ -6,12 +6,18 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 import Logo from "@/components/ui/Logo";
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import RoleSelection from "@/components/onboarding/RoleSelection";
+import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
+import {
+  buildNeutralPreparationSpaceSubmission,
+  parseNeutralPreparationSpaceCapability,
+  resolveNeutralPreparationSpaceRedirect,
+} from "@/lib/onboarding/neutralPreparationSpace";
 import { copyOwnerBoundInviteCode } from "@/lib/couples/settingsInviteActorFence";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -69,6 +75,8 @@ export default function OnboardingPage() {
   const [ownerVerification, setOwnerVerification] = useState<
     "checking" | "ready" | "error"
   >("checking");
+  const [neutralPreparationSpaceEnabled, setNeutralPreparationSpaceEnabled] =
+    useState(false);
   const formOwnerUserIdRef = useRef<string | null>(null);
   const inviteCodeResultRef = useRef<OwnerBoundInviteCode | null>(null);
   const ownerCheckGenerationRef = useRef(0);
@@ -94,6 +102,7 @@ export default function OnboardingPage() {
     clearOwnerBoundInviteResult();
     setPendingPlanNotice("");
     setDeferredProgressNotice("");
+    setNeutralPreparationSpaceEnabled(false);
   }, [clearOwnerBoundInviteResult]);
 
   const reconcileOnboardingOwner = useCallback(async () => {
@@ -128,6 +137,9 @@ export default function OnboardingPage() {
         clearAccountOwnedOnboardingState();
       }
       useOnboardingStore.getState().bindOwner(ownerUserId);
+      setNeutralPreparationSpaceEnabled(
+        parseNeutralPreparationSpaceCapability(data.capabilities),
+      );
       formOwnerUserIdRef.current = ownerUserId;
       setFormOwnerUserId(ownerUserId);
       setError("");
@@ -273,7 +285,9 @@ export default function OnboardingPage() {
     })}`;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (
+    neutralCoupleAction?: "create" | "join",
+  ) => {
     const expectedActorUserId = formOwnerUserIdRef.current;
     if (!expectedActorUserId) {
       setError("계정을 확인하지 못했어요. 다시 로그인한 뒤 이어가 주세요.");
@@ -289,32 +303,34 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const progress: Record<string, unknown> = {};
-      store.progressChecklist.forEach((item) => {
-        // 입력한 실제 지출만 원 단위로 저장한다. 계획 예산은 사용자가 예산
-        // 화면에서 별도로 입력하며, 실제 지출을 예산으로 추정하지 않는다.
-        const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
-        progress[item.key] = costInWon
-          ? { status: item.status, spent: costInWon }
-          : { status: item.status };
-      });
+      let requestBody: Record<string, unknown>;
+      if (neutralCoupleAction) {
+        if (!neutralPreparationSpaceEnabled) {
+          throw new Error("NEUTRAL_PREPARATION_SPACE_NOT_ENABLED");
+        }
+        requestBody = buildNeutralPreparationSpaceSubmission({
+          coupleAction: neutralCoupleAction,
+          partnerInviteCode: store.partnerInviteCode,
+        });
+      } else {
+        const progress: Record<string, unknown> = {};
+        store.progressChecklist.forEach((item) => {
+          // 입력한 실제 지출만 원 단위로 저장한다. 계획 예산은 사용자가 예산
+          // 화면에서 별도로 입력하며, 실제 지출을 예산으로 추정하지 않는다.
+          const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
+          progress[item.key] = costInWon
+            ? { status: item.status, spent: costInWon }
+            : { status: item.status };
+        });
 
-      // 결혼식 선호도 저장
-      progress.__preferences = {
-        weddingStyle: store.preferences.weddingStyle,
-        priorities: store.preferences.priorities,
-        budgetTendency: store.preferences.budgetTendency,
-        guestCount: store.preferences.guestCount,
-      };
-
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
-          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
-        },
-        body: JSON.stringify({
+        // 결혼식 선호도 저장
+        progress.__preferences = {
+          weddingStyle: store.preferences.weddingStyle,
+          priorities: store.preferences.priorities,
+          budgetTendency: store.preferences.budgetTendency,
+          guestCount: store.preferences.guestCount,
+        };
+        requestBody = {
           role: store.role,
           coupleAction: store.coupleAction,
           partnerInviteCode:
@@ -326,7 +342,17 @@ export default function OnboardingPage() {
             ? { amount: store.approximateBudget, unit: "won" }
             : null,
           progress,
-        }),
+        };
+      }
+
+      const res = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [HANBANG_MUTATION_CONTRACT_VERSION_HEADER]: HANBANG_MUTATION_CONTRACT_VERSION,
+          [HANBANG_EXPECTED_ACTOR_USER_ID_HEADER]: expectedActorUserId,
+        },
+        body: JSON.stringify(requestBody),
       });
 
       const ownerResponse = await fetch("/api/auth/me", { cache: "no-store" });
@@ -354,6 +380,14 @@ export default function OnboardingPage() {
 
       // 온보딩 완료 쿠키 설정
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+
+      if (neutralCoupleAction) {
+        window.location.href = resolveNeutralPreparationSpaceRedirect({
+          search: window.location.search,
+          origin: window.location.origin,
+        });
+        return;
+      }
 
       if (typeof data.inviteCode === "string") {
         const ownerBoundInviteCode = {
@@ -390,9 +424,14 @@ export default function OnboardingPage() {
           window.location.origin,
         );
       }
-    } catch {
+    } catch (submitError) {
       if (formOwnerUserIdRef.current !== expectedActorUserId) return;
-      setError("오류가 발생했습니다. 다시 시도해주세요.");
+      setError(
+        submitError instanceof Error
+          && submitError.message === "INVALID_NEUTRAL_PREPARATION_INVITE_CODE"
+          ? "초대 코드 형식을 다시 확인해 주세요."
+          : "오류가 발생했습니다. 다시 시도해주세요.",
+      );
     } finally {
       if (submissionGenerationRef.current === submissionGeneration) {
         setLoading(false);
@@ -540,11 +579,31 @@ export default function OnboardingPage() {
           <p className="text-[13px] text-taupe-400 mt-2">결혼 준비 시작하기</p>
         </div>
 
-        {/* 스텝 인디케이터 */}
-        <StepIndicator currentStep={store.currentStep} />
+        {/* 중립 준비공간은 첫 가치를 막는 역할·상세정보 스텝을 건너뛴다. */}
+        {!neutralPreparationSpaceEnabled && (
+          <StepIndicator currentStep={store.currentStep} />
+        )}
 
         {/* 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+          {neutralPreparationSpaceEnabled ? (
+            <NeutralPreparationStart
+              coupleAction={store.coupleAction === "join" ? "join" : null}
+              partnerCode={store.partnerInviteCode}
+              loading={loading}
+              onCreate={() => {
+                store.setCoupleAction("create");
+                void handleSubmit("create");
+              }}
+              onSelectJoin={() => {
+                setError("");
+                store.setCoupleAction("join");
+              }}
+              onPartnerCodeChange={store.setPartnerInviteCode}
+              onJoin={() => void handleSubmit("join")}
+            />
+          ) : (
+          <>
           <AnimatePresence mode="wait">
             <motion.div
               key={store.currentStep}
@@ -604,11 +663,6 @@ export default function OnboardingPage() {
             </motion.div>
           </AnimatePresence>
 
-          {/* 에러 */}
-          {error && (
-            <p className="text-[12px] text-rose-600 text-center mt-4">{error}</p>
-          )}
-
           {/* 버튼 */}
           <div className="flex gap-3 mt-6">
             {store.currentStep > 1 && (
@@ -650,7 +704,7 @@ export default function OnboardingPage() {
             ) : (
               <div className="flex-1 flex flex-col gap-2">
                 <button
-                  onClick={handleSubmit}
+                  onClick={() => void handleSubmit()}
                   disabled={loading}
                   className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-50"
                 >
@@ -666,6 +720,14 @@ export default function OnboardingPage() {
               </div>
             )}
           </div>
+          </>
+          )}
+
+          {/* 에러 */}
+          {error && (
+            <p className="text-[12px] text-rose-600 text-center mt-4">{error}</p>
+          )}
+
         </div>
       </div>
 

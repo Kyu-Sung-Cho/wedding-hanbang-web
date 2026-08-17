@@ -8,6 +8,7 @@ import {
   Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
 } from "lucide-react";
+import { resolveBudgetPayerOptions } from "@hanbang/shared/amora-budget-payer-presentation";
 
 const RELATIONS: Relation[] = ["친구", "직장동료", "가족", "친척", "은사", "이웃", "기타"];
 const METHODS: { key: MoneyMethod; label: string }[] = [
@@ -17,7 +18,7 @@ const METHODS: { key: MoneyMethod; label: string }[] = [
 ];
 
 export default function MoneyPage() {
-  const { couple } = useAuthStore();
+  const { user, profile, couple, isDemo } = useAuthStore();
   const { moneyList, moneyLoading, loadMoney, addMoney, updateMoney, deleteMoney } = useMoneyStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -26,6 +27,43 @@ export default function MoneyPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const viewerRole = profile?.role === "bride" || profile?.role === "groom"
+    ? profile.role
+    : null;
+  const sideOptions = (() => {
+    const memberModelVersion = isDemo
+      ? 1
+      : couple?.member_model_version === 1 || couple?.member_model_version === 2
+        ? couple.member_model_version
+        : null;
+    if (
+      memberModelVersion === 2
+      && (
+        !viewerRole
+        || !user?.id
+        || (viewerRole === "bride" && couple?.bride_id !== user.id)
+        || (viewerRole === "groom" && couple?.groom_id !== user.id)
+      )
+    ) {
+      return [];
+    }
+    const payerOptions = resolveBudgetPayerOptions({
+      memberModelVersion,
+      viewerRole,
+    });
+    if (!payerOptions) return [];
+    const brideLabel = payerOptions.find((option) => option.value === "bride_parents")?.label;
+    const groomLabel = payerOptions.find((option) => option.value === "groom_parents")?.label;
+    if (!brideLabel || !groomLabel) return [];
+    return [
+      { value: "groom" as const, label: groomLabel },
+      { value: "bride" as const, label: brideLabel },
+    ];
+  })();
+  const sideLabel = (side: Side) => (
+    sideOptions.find((option) => option.value === side)?.label ?? "구분 확인 필요"
+  );
 
   // 폼 상태
   const [form, setForm] = useState({
@@ -71,7 +109,7 @@ export default function MoneyPage() {
     setForm({
       guest_name: "",
       amount: "",
-      side: "groom",
+      side: viewerRole ?? "groom",
       relation: "",
       method: "cash",
       memo: "",
@@ -142,9 +180,9 @@ export default function MoneyPage() {
 
   // CSV 다운로드
   const handleExportCSV = () => {
-    const header = "이름,금액,신랑/신부,관계,수단,메모,날짜\n";
+    const header = "이름,금액,가족 구분,관계,수단,메모,날짜\n";
     const rows = moneyList.map((m) =>
-      [m.guest_name, m.amount, m.side === "groom" ? "신랑" : m.side === "bride" ? "신부" : "공통", m.relation ?? "", m.method, m.memo ?? "", m.received_at].join(",")
+      [m.guest_name, m.amount, sideLabel(m.side), m.relation ?? "", m.method, m.memo ?? "", m.received_at].join(",")
     ).join("\n");
     const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -168,7 +206,7 @@ export default function MoneyPage() {
         <div className="flex gap-2">
           <button
             onClick={handleExportCSV}
-            disabled={moneyList.length === 0}
+            disabled={moneyList.length === 0 || sideOptions.length === 0}
             aria-label="축의금 CSV 다운로드"
             className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[0_4px_14px_0_rgba(121,82,82,0.08)] disabled:opacity-30 transition-all"
           >
@@ -177,6 +215,7 @@ export default function MoneyPage() {
           </button>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
+            disabled={sideOptions.length === 0}
             aria-label="축의금 추가 폼 열기"
             className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
           >
@@ -210,9 +249,19 @@ export default function MoneyPage() {
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
-          <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">신랑 / 신부</p>
-          <p className="text-sm text-[#504444] mt-1">신랑 <span className="font-medium text-[#1A1A1F]">{formatMoney(stats.groomTotal)}</span></p>
-          <p className="text-sm text-[#795252] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
+          <p className="text-sm text-[#B5ADA3] font-medium uppercase tracking-[0.12em] mb-2">가족 구분</p>
+          {sideOptions.length === 0 ? (
+            <p role="status" className="text-sm leading-6 text-[#504444]">현재 계정의 구분을 다시 확인해 주세요.</p>
+          ) : (
+            sideOptions.map((option) => (
+              <p key={option.value} className="mt-1 text-sm text-[#504444]">
+                {option.label}{" "}
+                <span className="font-medium text-[#1A1A1F]">
+                  {formatMoney(option.value === "groom" ? stats.groomTotal : stats.brideTotal)}
+                </span>
+              </p>
+            ))
+          )}
         </div>
       </div>
 
@@ -243,15 +292,15 @@ export default function MoneyPage() {
               className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
             />
             <div className="flex gap-2">
-              {(["groom", "bride"] as Side[]).map((s) => (
+              {sideOptions.map((option) => (
                 <button
-                  key={s}
-                  onClick={() => setForm({ ...form, side: s })}
+                  key={option.value}
+                  onClick={() => setForm({ ...form, side: option.value })}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    form.side === s ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[#504444]"
+                    form.side === option.value ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[#504444]"
                   }`}
                 >
-                  {s === "groom" ? "예비 신랑 가족" : "예비 신부 가족"}
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -297,7 +346,7 @@ export default function MoneyPage() {
           ) : null}
           <button
             onClick={handleSubmit}
-            disabled={!form.guest_name.trim() || !form.amount}
+            disabled={!form.guest_name.trim() || !form.amount || sideOptions.length === 0}
             aria-label={editId ? "축의금 수정 저장" : "축의금 추가 저장"}
             className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
@@ -320,7 +369,10 @@ export default function MoneyPage() {
           />
         </div>
         <div className="flex gap-1">
-          {([["all", "전체"], ["groom", "신랑"], ["bride", "신부"]] as [Side | "all", string][]).map(([key, label]) => (
+          {([
+            { value: "all" as const, label: "전체" },
+            ...sideOptions,
+          ]).map(({ value: key, label }) => (
             <button
               key={key}
               onClick={() => setFilterSide(key)}
