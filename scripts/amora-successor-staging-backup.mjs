@@ -277,10 +277,11 @@ async function* snapshotLines(client, plan) {
   yield { kind: "footer", tableCount: plan.tables.length, rowCount: totalRows };
 }
 
-function powershell(args, input = null) {
+function powershell(args, input = null, taskEnvironment = {}) {
   const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", ...args], {
     input,
     encoding: null,
+    env: { ...process.env, ...taskEnvironment },
     maxBuffer: 1024 * 1024,
     windowsHide: true,
   });
@@ -290,13 +291,21 @@ function powershell(args, input = null) {
 
 function secureDirectories(commonScript, root, partial) {
   const command = [
-    ". $args[0]",
-    "foreach ($path in @($args[1], $args[2])) {",
+    "$ErrorActionPreference = 'Stop'",
+    ". $env:HB_AMORA_STAGING_BACKUP_COMMON_PATH",
+    "foreach ($path in @($env:HB_AMORA_STAGING_BACKUP_ROOT, $env:HB_AMORA_STAGING_BACKUP_PARTIAL)) {",
     "  [IO.Directory]::CreateDirectory($path) | Out-Null",
     "  Set-HBAM2PrivateDirectoryAcl -Path $path",
     "}",
-  ].join("; ");
-  powershell(["-Command", command, commonScript, root, partial]);
+  ].join("\n");
+  powershell(["-Command", command], null, {
+    HB_AMORA_STAGING_BACKUP_COMMON_PATH: commonScript,
+    HB_AMORA_STAGING_BACKUP_ROOT: root,
+    HB_AMORA_STAGING_BACKUP_PARTIAL: partial,
+  });
+  if (!existsSync(root) || !existsSync(partial)) {
+    fail("private backup directories were not created");
+  }
 }
 
 function dpapiProtect(key, entropy) {
