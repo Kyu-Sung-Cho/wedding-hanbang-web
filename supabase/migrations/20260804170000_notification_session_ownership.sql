@@ -5,6 +5,8 @@
 -- Legacy profiles.push_token values are deliberately retired because
 -- they cannot prove either installation or session ownership.
 
+BEGIN;
+
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 
@@ -631,3 +633,5 @@ BEGIN
   END IF;
 END;
 $notification_session_ownership_contract$;
+
+COMMIT;

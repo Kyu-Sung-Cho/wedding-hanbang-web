@@ -303,7 +303,7 @@
     },
     {
       "file": "20260804170000_notification_session_ownership.sql",
-      "sha256": "9dd0955b7144cee0d8174e29731027088accff9ea70e0406de335cb26310b302"
+      "sha256": "3d4d6b78e4dbbac83244b05ea4930cf3d98e91d425b6450e615c30d97f77751c"
     },
     {
       "file": "20260804180000_community_viewer_controls.sql",

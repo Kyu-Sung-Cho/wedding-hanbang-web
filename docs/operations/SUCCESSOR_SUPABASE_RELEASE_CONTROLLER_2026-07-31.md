@@ -331,7 +331,7 @@ automatic rerun.
 | `20260804140000_community_responder_supply_foundation.sql` | `82ae239c80cd19ab246280d5fd2005eb5815631e833c4816b855f1a5abc136d1` | `AMR-C10` | `parked_product_surface` | `always_on` | `hosted:parked-acl` |
 | `20260804150000_community_comment_service_write_boundary.sql` | `e06b8ee5c9e74c2f5c9ad2881cd0939fcab66f4fd02cbaaefdfa6effd50aa5a1` | `AMR-C10` | `integrity_hardening` | `always_on` | `hosted:integrity-postcheck` |
 | `20260804160000_community_poll_set_intent.sql` | `9cc8af04fa086ef34d8650bd50f1c6612338de094594b5b0f3628bef32771a07` | `AMR-C10` | `parked_product_surface` | `always_on` | `hosted:parked-acl` |
-| `20260804170000_notification_session_ownership.sql` | `9dd0955b7144cee0d8174e29731027088accff9ea70e0406de335cb26310b302` | `AMR-L15` | `integrity_hardening` | `always_on` | `hosted:integrity-postcheck` |
+| `20260804170000_notification_session_ownership.sql` | `3d4d6b78e4dbbac83244b05ea4930cf3d98e91d425b6450e615c30d97f77751c` | `AMR-L15` | `integrity_hardening` | `always_on` | `hosted:integrity-postcheck` |
 | `20260804180000_community_viewer_controls.sql` | `bbf8c4208ce48280d35b55087696072d1435678eee728f48a0e70c16ebb89b97` | `AMR-C10` | `integrity_hardening` | `always_on` | `hosted:privacy-rls` |
 | `20260804185000_notification_delivery_outbox.sql` | `d58f91f3ccc4fc9965e60d8de876187a95ad797aaf5773374b8a175d37abe1a2` | `AMR-L15` | `unrelated_feature_off` | `COMMUNITY_REPLY_PUSH_DELIVERY_ENABLED=false` | `hosted:feature-off` |
 | `20260804190000_community_decision_thread_vertical.sql` | `7f7e9288a6333b7358af6b02f189c9f1d6df885e34962764f3b6a2b387351a55` | `AMR-C10` | `parked_product_surface` | `always_on` | `hosted:parked-acl` |

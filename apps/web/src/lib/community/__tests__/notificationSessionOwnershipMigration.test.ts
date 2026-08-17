@@ -133,6 +133,28 @@ async function release(db: PGlite, installationId: string, token: string) {
 }
 
 describe("mobile push notification session ownership migration", () => {
+  it("wraps SET LOCAL, table locking, and the full ownership upgrade in one explicit transaction", () => {
+    const normalizedMigration = migration.replace(/\r\n/gu, "\n").trim();
+    const beginIndex = normalizedMigration.indexOf("\nBEGIN;\n");
+    const lockTimeoutIndex = normalizedMigration.indexOf(
+      "SET LOCAL lock_timeout = '5s';",
+    );
+    const tableLockIndex = normalizedMigration.indexOf(
+      "LOCK TABLE public.profiles IN SHARE ROW EXCLUSIVE MODE;",
+    );
+    const contractIndex = normalizedMigration.lastIndexOf(
+      "$notification_session_ownership_contract$;",
+    );
+    const commitIndex = normalizedMigration.lastIndexOf("\nCOMMIT;");
+
+    expect(beginIndex).toBeGreaterThanOrEqual(0);
+    expect(lockTimeoutIndex).toBeGreaterThan(beginIndex);
+    expect(tableLockIndex).toBeGreaterThan(lockTimeoutIndex);
+    expect(contractIndex).toBeGreaterThan(tableLockIndex);
+    expect(commitIndex).toBeGreaterThan(contractIndex);
+    expect(normalizedMigration.slice(commitIndex)).toBe("\nCOMMIT;");
+  });
+
   it("atomically upgrades one same-session legacy binding to one durable delivery target", async () => {
     const db = await createDatabase();
     try {
