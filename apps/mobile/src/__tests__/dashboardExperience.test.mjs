@@ -616,6 +616,22 @@ test("a task saved for today outranks a heuristic checklist timing", () => {
   assert.doesNotMatch(focus.description, /기본 확인 시점/);
 });
 
+test("home does not present checklist completion as overall wedding progress", () => {
+  const homeSource = readFileSync(fileURLToPath(new URL(
+    "../components/dashboard/WeddingHomeExperience.tsx",
+    import.meta.url,
+  )), "utf8");
+  const dashboardSource = readFileSync(fileURLToPath(new URL(
+    "../../app/(tabs)/dashboard.tsx",
+    import.meta.url,
+  )), "utf8");
+
+  assert.doesNotMatch(homeSource, /data\.progressPercent|준비 진행|contextProgressTrack/u);
+  assert.doesNotMatch(dashboardSource, /calculateChecklistProgress|progressPercent/u);
+  assert.match(homeSource, /buildPreparationHomeStatusModel/u);
+  assert.match(homeSource, /preparationStatus\.boundaryLabel/u);
+});
+
 test("a task saved for today becomes the focus when nothing is urgent", () => {
   const focus = buildDashboardFocus({
     ...emptyInput,

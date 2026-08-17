@@ -7,6 +7,13 @@ const SUMMARY_DEFINITIONS = Object.freeze([
   { key: "not_applicable", field: "notApplicableTopics", label: "하지 않기로 함", tone: "muted" },
 ]);
 
+const HOME_STATUS_DEFINITIONS = Object.freeze([
+  { key: "in_progress", fields: ["inProgressTopics"], label: "진행 중", tone: "active" },
+  { key: "needs_attention", fields: ["needsReviewTopics", "notStartedTopics"], label: "확인 필요", tone: "warning" },
+  { key: "unknown", fields: ["unknownTopics"], label: "아직 모름", tone: "neutral" },
+  { key: "completed", fields: ["completedTopics"], label: "완료", tone: "success" },
+]);
+
 const REASON_LABELS = Object.freeze({
   continue_saved_progress: "저장한 진행 상태부터 이어서 볼게요.",
   basic_check_window: "결혼식 날짜 기준의 기본 확인 시점이 가까워요.",
@@ -37,6 +44,49 @@ function getRowTone(topic) {
     return "warning";
   }
   return topic.state === "in_progress" ? "active" : "neutral";
+}
+
+export function buildPreparationHomeStatusModel(overview) {
+  if (
+    !overview
+    || overview.version !== 1
+    || !overview.summary
+  ) return null;
+
+  const requiredFields = [
+    "totalTopics",
+    "unknownTopics",
+    "notStartedTopics",
+    "inProgressTopics",
+    "completedTopics",
+    "notApplicableTopics",
+    "needsReviewTopics",
+  ];
+  if (requiredFields.some((field) => (
+    !Number.isSafeInteger(overview.summary[field])
+    || overview.summary[field] < 0
+  ))) return null;
+
+  const items = HOME_STATUS_DEFINITIONS.map((definition) => Object.freeze({
+    key: definition.key,
+    label: definition.label,
+    count: definition.fields.reduce(
+      (total, field) => total + overview.summary[field],
+      0,
+    ),
+    tone: definition.tone,
+  }));
+  const representedTopics = items.reduce((total, item) => total + item.count, 0);
+  if (
+    representedTopics + overview.summary.notApplicableTopics
+    !== overview.summary.totalTopics
+  ) return null;
+
+  return Object.freeze({
+    label: "준비 상태",
+    boundaryLabel: "저장한 준비 기록 기준",
+    items: Object.freeze(items),
+  });
 }
 
 export function buildPreparationHomeSectionModel(overview) {

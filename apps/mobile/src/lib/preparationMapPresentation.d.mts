@@ -35,6 +35,21 @@ export interface PreparationHomeSectionModel {
   }>;
 }
 
+export interface PreparationHomeStatusModel {
+  label: "준비 상태";
+  boundaryLabel: "저장한 준비 기록 기준";
+  items: readonly Readonly<{
+    key: "in_progress" | "needs_attention" | "unknown" | "completed";
+    label: "진행 중" | "확인 필요" | "아직 모름" | "완료";
+    count: number;
+    tone: "active" | "warning" | "neutral" | "success";
+  }>[];
+}
+
+export function buildPreparationHomeStatusModel(
+  overview: Readonly<AmoraPreparationOverview> | null | undefined,
+): Readonly<PreparationHomeStatusModel> | null;
+
 export function buildPreparationHomeSectionModel(
   overview: Readonly<AmoraPreparationOverview> | null | undefined,
 ): Readonly<PreparationHomeSectionModel> | null;

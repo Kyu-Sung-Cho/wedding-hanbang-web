@@ -10,7 +10,6 @@ import { apiFetchForExpectedUser } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT,
-  calculateChecklistProgress,
   formatLocalDateKey,
   selectDashboardOpenAction,
   type DashboardOpenAction,
@@ -640,7 +639,6 @@ export default function DashboardScreen() {
           weddingDate: null,
           totalBudget: 0,
           progress: {},
-          progressPercent: 0,
           preparationOverview: null,
           todayTasks: [],
           dday: null,
@@ -711,10 +709,6 @@ export default function DashboardScreen() {
 
       const progress =
         (journey.progress as Record<string, unknown> | null) ?? {};
-      const progressPercent = calculateChecklistProgress(
-        progress,
-        CATEGORY_CHECKLISTS,
-      );
       const todayKey = formatLocalDateKey();
       const events = Array.isArray(progress.__events)
         ? progress.__events
@@ -741,7 +735,6 @@ export default function DashboardScreen() {
         weddingDate,
         totalBudget: journey.total_budget ?? 0,
         progress,
-        progressPercent,
         preparationOverview,
         todayTasks,
         dday,

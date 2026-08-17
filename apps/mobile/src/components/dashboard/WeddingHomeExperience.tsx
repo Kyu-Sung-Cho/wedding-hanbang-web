@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -46,7 +45,10 @@ import {
 } from "@/lib/dashboardExperience.mjs";
 import { stageCompanionChatHandoff } from "@/lib/companionChatHandoff.mjs";
 import { buildChecklistDeepLinkParams } from "@/lib/scheduleChecklistNavigation.mjs";
-import { buildPreparationHomeSectionModel } from "@/lib/preparationMapPresentation.mjs";
+import {
+  buildPreparationHomeSectionModel,
+  buildPreparationHomeStatusModel,
+} from "@/lib/preparationMapPresentation.mjs";
 import type { AmoraPersonalizationPreferences } from "@/lib/amoraPersonalization.mjs";
 import type { AmoraCoreCriterion } from "@hanbang/shared/amora-core-criterion";
 import type { AmoraCoupleCriterionResponse } from "@hanbang/shared/amora-couple-criterion";
@@ -63,7 +65,6 @@ export interface WeddingHomeData {
   coupleId: string | null;
   name: string | null;
   weddingDate: string | null;
-  progressPercent: number;
   preparationOverview: Readonly<AmoraPreparationOverview> | null;
   todayTasks: DashboardTodayTask[];
   dday: number | null;
@@ -313,25 +314,11 @@ export default function WeddingHomeExperience({
   onRefresh,
   renderTodayOneCare,
 }: WeddingHomeExperienceProps) {
-  const progressAnim = useRef(new Animated.Value(0)).current;
   const [whySheetVisible, setWhySheetVisible] = useState(false);
 
   useEffect(() => {
     setWhySheetVisible(false);
   }, [data?.ownerUserId, data?.coupleId]);
-
-  useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: data?.progressPercent ?? 0,
-      duration: 420,
-      useNativeDriver: false,
-    }).start();
-  }, [data?.progressPercent, progressAnim]);
-
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ["0%", "100%"],
-  });
 
   const focus = useMemo(() => {
     if (!data) return null;
@@ -353,6 +340,10 @@ export default function WeddingHomeExperience({
 
   const preparationSection = useMemo(
     () => buildPreparationHomeSectionModel(data?.preparationOverview),
+    [data?.preparationOverview],
+  );
+  const preparationStatus = useMemo(
+    () => buildPreparationHomeStatusModel(data?.preparationOverview),
     [data?.preparationOverview],
   );
 
@@ -597,19 +588,63 @@ export default function WeddingHomeExperience({
                   {formatWeddingDate(data.weddingDate)}
                 </Text>
               </View>
-              <View style={styles.progressContext}>
-                <View style={styles.contextProgressHeader}>
-                  <Text style={styles.contextProgressLabel}>준비 진행</Text>
-                  <Text style={styles.contextProgressValue}>
-                    {data.progressPercent}%
-                  </Text>
-                </View>
-                <View style={styles.contextProgressTrack}>
-                  <Animated.View
-                    style={[styles.contextProgressFill, { width: progressWidth }]}
-                  />
-                </View>
+            </View>
+            <View
+              style={styles.contextStatus}
+              accessible
+              accessibilityLabel={preparationStatus
+                ? `${preparationStatus.boundaryLabel}. ${preparationStatus.items
+                    .map((item) => `${item.label} ${item.count}개`)
+                    .join(", ")}`
+                : "준비 상태를 아직 확인하지 못했어요"}
+            >
+              <View style={styles.contextStatusHeader}>
+                <Text style={styles.contextStatusTitle}>
+                  {preparationStatus?.label ?? "준비 상태"}
+                </Text>
+                <Text style={styles.contextStatusBoundary}>
+                  {preparationStatus?.boundaryLabel ?? "아직 확인 전"}
+                </Text>
               </View>
+              {preparationStatus ? (
+                <View style={styles.contextStatusGrid}>
+                  {[0, 2].map((startIndex) => (
+                    <View key={startIndex} style={styles.contextStatusRow}>
+                      {preparationStatus.items
+                        .slice(startIndex, startIndex + 2)
+                        .map((item) => {
+                          const visual = PREPARATION_SUMMARY_COLORS[item.tone];
+                          return (
+                            <View
+                              key={item.key}
+                              style={[
+                                styles.contextStatusItem,
+                                { backgroundColor: visual.background },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.contextStatusItemLabel,
+                                  { color: visual.text },
+                                ]}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.contextStatusItemCount,
+                                  { color: visual.text },
+                                ]}
+                              >
+                                {item.count}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
             <Text style={styles.contextMomentCopy}>
               {getWeddingMomentMessage(data.dday)}
@@ -625,35 +660,6 @@ export default function WeddingHomeExperience({
               <Text style={styles.preparationDescription}>
                 {preparationSection.description}
               </Text>
-              <View
-                style={styles.preparationSummary}
-                accessibilityRole="summary"
-                accessibilityLabel={preparationSection.summaryItems
-                  .map((item) => `${item.label} ${item.count}개`)
-                  .join(", ")}
-              >
-                {preparationSection.summaryItems.map((item) => {
-                  const visual = PREPARATION_SUMMARY_COLORS[item.tone];
-                  return (
-                    <View
-                      key={item.key}
-                      style={[
-                        styles.preparationSummaryItem,
-                        { backgroundColor: visual.background },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.preparationSummaryLabel,
-                          { color: visual.text },
-                        ]}
-                      >
-                        {item.label} {item.count}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
               {preparationSection.rows.length > 0 ? (
                 <View style={styles.simpleList}>
                   {preparationSection.rows.map((topic, index) => (
@@ -1158,38 +1164,60 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
   },
-  progressContext: {
-    width: 132,
-    paddingBottom: spacing[1],
+  contextStatus: {
+    marginTop: spacing[4],
   },
-  contextProgressHeader: {
+  contextStatusHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing[2],
+    flexWrap: "wrap",
+    gap: spacing[1],
   },
-  contextProgressLabel: {
-    fontSize: 11,
-    lineHeight: 17,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-  },
-  contextProgressValue: {
-    fontSize: 13,
-    lineHeight: 19,
-    fontFamily: "NotoSansKR_700Bold",
+  contextStatusTitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_600SemiBold",
     color: colors.noir[800],
   },
-  contextProgressTrack: {
-    height: 5,
-    overflow: "hidden",
-    borderRadius: radius.full,
-    backgroundColor: colors.ivory[200],
+  contextStatusBoundary: {
+    flexShrink: 1,
+    fontSize: 10,
+    lineHeight: 16,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    textAlign: "right",
   },
-  contextProgressFill: {
-    height: "100%",
-    borderRadius: radius.full,
-    backgroundColor: colors.rose[500],
+  contextStatusGrid: {
+    marginTop: spacing[2],
+    gap: spacing[2],
+  },
+  contextStatusRow: {
+    flexDirection: "row",
+    gap: spacing[2],
+  },
+  contextStatusItem: {
+    minHeight: 38,
+    minWidth: 0,
+    flex: 1,
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing[2],
+    borderRadius: radius.lg,
+  },
+  contextStatusItemLabel: {
+    flexShrink: 1,
+    fontSize: 11,
+    lineHeight: 17,
+    fontFamily: "NotoSansKR_500Medium",
+  },
+  contextStatusItemCount: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_700Bold",
   },
   contextMomentCopy: {
     marginTop: spacing[3],
@@ -1223,24 +1251,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
-  },
-  preparationSummary: {
-    marginTop: spacing[3],
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing[2],
-  },
-  preparationSummaryItem: {
-    minHeight: 30,
-    paddingHorizontal: spacing[3],
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.full,
-  },
-  preparationSummaryLabel: {
-    fontSize: 11,
-    lineHeight: 17,
-    fontFamily: "NotoSansKR_600SemiBold",
   },
   todayOneSection: {
     marginTop: spacing[5],
