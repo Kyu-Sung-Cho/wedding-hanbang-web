@@ -278,7 +278,7 @@ async function* snapshotLines(client, plan) {
 }
 
 function powershell(args, input = null, taskEnvironment = {}) {
-  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", ...args], {
+  const result = spawnSync("pwsh.exe", ["-NoProfile", "-NonInteractive", ...args], {
     input,
     encoding: null,
     env: { ...process.env, ...taskEnvironment },
