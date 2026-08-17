@@ -1964,7 +1964,10 @@ test("home-to-chat handoff is private, never auto-sent, and cannot overwrite ano
   );
   assert.match(chatSource, /!userRole/);
   assert.match(chatSource, /!coupleId/);
-  assert.match(chatSource, /updateAmoraChatLaneRecord\(current, "private_ai", handoff\.prompt\)/);
+  assert.match(
+    chatSource,
+    /updateAmoraChatLaneRecord\(\s*inputByLaneRef\.current,\s*"private_ai",\s*handoff\.prompt/,
+  );
   assert.match(chatSource, /setActiveScope\("private"\)/);
   assert.match(chatSource, /setTarget\("ai"\)/);
   assert.doesNotMatch(chatSource, /parseCompanionChatHandoff[\s\S]{0,800}handleSend\(/);

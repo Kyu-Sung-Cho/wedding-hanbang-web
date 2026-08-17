@@ -372,7 +372,13 @@ test("one failed owner-private resource is partial instead of being mistaken for
 
 test("topic continuation creates a private composer draft without auto-applying preparation changes", () => {
   const handoff = buildPreparationTopicAmoraHandoff({
+    topicKey: "meeting",
     topicLabel: "부모님 첫 만남",
+    journeyRevision: 7,
+    actionRef: {
+      id: "act_meeting_next_step",
+      revision: 3,
+    },
     statusLabel: "준비 중",
     progressLabel: "6개 중 2개 확인",
     nextAction: {
@@ -395,6 +401,15 @@ test("topic continuation creates a private composer draft without auto-applying 
   assert.match(handoff.prompt, /가족들이 편안한 자리를 우선해요/);
   assert.match(handoff.prompt, /서버에서 현재 우리 기준이 확인되면/);
   assert.match(handoff.prompt, /내가 확인하기 전에는 어떤 기록도 바꾸거나 상대에게 공유하지 마/);
+  assert.deepEqual(handoff.preparationTopic, {
+    topicKey: "meeting",
+    topicLabel: "부모님 첫 만남",
+    journeyRevision: 7,
+    actionRef: {
+      id: "act_meeting_next_step",
+      revision: 3,
+    },
+  });
   assert.doesNotMatch(JSON.stringify(handoff), /ownerUserId|coupleId|decisionId/);
 });
 
@@ -405,7 +420,7 @@ test("the topic summary renders truth scopes and stages only an explicit Amora d
   assert.match(summarySource, /personalizationSection\.notices\.map/);
   assert.match(
     summarySource,
-    /<ActionRow[\s\S]{0,300}amoraHandoff\.title[\s\S]{0,300}onContinueWithAmora\?\.\(amoraHandoff\.prompt\)/,
+    /<ActionRow[\s\S]{0,300}amoraHandoff\.title[\s\S]{0,300}onContinueWithAmora\?\.\(amoraHandoff\)/,
   );
   assert.doesNotMatch(
     summarySource,

@@ -1,5 +1,6 @@
 import { buildAmoraHomeDraft } from "./amoraEntryPlan.mjs";
 import { validateAmoraScheduleCareFollowUpBinding } from "@hanbang/shared/amora-schedule-care-follow-up";
+import { parsePreparationTopicChatHandoffBinding } from "./preparationTopicChatRoundTrip.mjs";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -99,6 +100,7 @@ export function stagePrivateChatHandoff({
   coupleId,
   prompt,
   scheduleCareFollowUp,
+  preparationTopic,
 }) {
   const normalizedHandoffId = normalizeUuid(handoffId);
   const normalizedOwnerUserId = normalizeUuid(ownerUserId);
@@ -107,12 +109,17 @@ export function stagePrivateChatHandoff({
   const scheduleBindingValidation = scheduleCareFollowUp === undefined
     ? null
     : validateAmoraScheduleCareFollowUpBinding(scheduleCareFollowUp);
+  const preparationTopicBinding = preparationTopic === undefined
+    ? null
+    : parsePreparationTopicChatHandoffBinding(preparationTopic);
   if (
     !normalizedHandoffId
     || !normalizedOwnerUserId
     || !normalizedCoupleId
     || !normalizedPrompt
     || (scheduleBindingValidation !== null && !scheduleBindingValidation.ok)
+    || (preparationTopic !== undefined && !preparationTopicBinding)
+    || (scheduleBindingValidation?.ok && preparationTopicBinding)
   ) {
     pendingHandoff = null;
     return null;
@@ -127,6 +134,7 @@ export function stagePrivateChatHandoff({
     ...(scheduleBindingValidation?.ok
       ? { scheduleCareFollowUp: scheduleBindingValidation.value }
       : {}),
+    ...(preparationTopicBinding ? { preparationTopic: preparationTopicBinding } : {}),
   };
   return normalizedHandoffId;
 }
@@ -202,6 +210,9 @@ export function consumeCompanionChatHandoff(
     prompt: handoff.prompt,
     ...(handoff.scheduleCareFollowUp
       ? { scheduleCareFollowUp: handoff.scheduleCareFollowUp }
+      : {}),
+    ...(handoff.preparationTopic
+      ? { preparationTopic: handoff.preparationTopic }
       : {}),
   };
 }

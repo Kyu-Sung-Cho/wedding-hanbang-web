@@ -1,5 +1,6 @@
 import type { DashboardCompanionBrief } from "./dashboardExperience.mjs";
 import type { AmoraScheduleCareFollowUpBinding } from "@hanbang/shared/amora-schedule-care-follow-up";
+import type { PreparationTopicChatHandoffBinding } from "./preparationTopicChatRoundTrip.mjs";
 
 export function stagePrivateChatHandoff(input: {
   handoffId: string;
@@ -7,6 +8,7 @@ export function stagePrivateChatHandoff(input: {
   coupleId: string;
   prompt: string;
   scheduleCareFollowUp?: AmoraScheduleCareFollowUpBinding;
+  preparationTopic?: PreparationTopicChatHandoffBinding;
 }): string | null;
 
 export function readPrivateChatHandoffPromptFromUrl(
@@ -28,4 +30,5 @@ export function consumeCompanionChatHandoff(
 ): {
   prompt: string;
   scheduleCareFollowUp?: AmoraScheduleCareFollowUpBinding;
+  preparationTopic?: PreparationTopicChatHandoffBinding;
 } | null;

@@ -237,7 +237,7 @@ export default function PreparationTopicSummary({
   amoraHandoff?: PreparationTopicAmoraHandoff | null;
   onOpenBudget?: (categoryKey: string) => void;
   onOpenSavedConversation?: (topicMessageRefId: string) => void;
-  onContinueWithAmora?: (prompt: string) => void;
+  onContinueWithAmora?: (handoff: PreparationTopicAmoraHandoff) => void;
 }) {
   const [expandedSavedConversations, setExpandedSavedConversations] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState(false);
@@ -521,7 +521,7 @@ export default function PreparationTopicSummary({
         <ActionRow
           title={amoraHandoff.title}
           description={amoraHandoff.description}
-          onPress={() => onContinueWithAmora?.(amoraHandoff.prompt)}
+          onPress={() => onContinueWithAmora?.(amoraHandoff)}
           disabled={!onContinueWithAmora}
         />
       ) : null}

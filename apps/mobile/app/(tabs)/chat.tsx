@@ -73,7 +73,7 @@ import { PlaceCards } from "@/components/chat/PlaceCards";
 import AmoraStarterCard from "@/components/chat/AmoraStarterCard";
 import AmoraPersonalizationSheet from "@/components/chat/AmoraPersonalizationSheet";
 import AmoraFirstUseActionCard from "@/components/chat/AmoraFirstUseActionCard";
-import { AppText, EmptyState, IconBadge, PrimaryButton, StatusPill } from "@/components/ui/AppUI";
+import { ActionRow, AppText, EmptyState, IconBadge, PrimaryButton, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 import AmoraMediationConsentModal from "@/components/chat/AmoraMediationConsentModal";
 import {
@@ -83,6 +83,15 @@ import {
   parseAmoraMediationDismissalRecord,
 } from "@/lib/amoraMediationRequest.mjs";
 import { consumeCompanionChatHandoff } from "@/lib/companionChatHandoff.mjs";
+import {
+  buildPreparationTopicChatReturnDestination,
+  createPreparationTopicChatComposerBinding,
+  createPreparationTopicChatReturnReceipt,
+  reconcilePreparationTopicChatComposerBinding,
+  resolvePreparationTopicChatBindingForSend,
+  type PreparationTopicChatComposerBinding,
+  type PreparationTopicChatReturnReceipt,
+} from "@/lib/preparationTopicChatRoundTrip.mjs";
 import {
   createScheduleCareFollowUpComposerBinding,
   createScheduleCareFollowUpOperationGuard,
@@ -477,6 +486,7 @@ type FirstUseComposerNotice =
   | "composer_occupied"
   | "draft_changed"
   | "private_composer_occupied";
+type PreparationTopicHandoffNotice = "composer_occupied" | "draft_changed";
 type ChatApiMessage = Pick<ChatMessage, "role" | "content">;
 
 interface ChatRequestBase {
@@ -519,6 +529,7 @@ interface AiDraft {
   amoraSourceMessageId?: string;
   firstUseSourceMessageId?: string;
   scheduleCareFollowUp?: AmoraScheduleCareFollowUpBinding;
+  preparationTopic?: PreparationTopicChatComposerBinding;
 }
 
 interface AiMessageIngestExpected {
@@ -576,6 +587,7 @@ interface AiRequest {
   sessionGeneration: number;
   mediationSafetyEpoch?: number;
   scheduleCareFollowUp?: AmoraScheduleCareFollowUpBinding;
+  preparationTopic?: PreparationTopicChatComposerBinding;
 }
 
 type ChatSendOperationStopReason = "user" | "session" | "superseded" | "safety" | null;
@@ -2752,6 +2764,10 @@ export default function ChatScreen() {
   const [topicMessageFocusState, setTopicMessageFocusState] =
     useState<TopicMessageFocusState>(null);
   const [topicMessageFocusRetryVersion, setTopicMessageFocusRetryVersion] = useState(0);
+  const [preparationTopicReturnReceipt, setPreparationTopicReturnReceipt] =
+    useState<PreparationTopicChatReturnReceipt | null>(null);
+  const [preparationTopicHandoffNotice, setPreparationTopicHandoffNotice] =
+    useState<PreparationTopicHandoffNotice | null>(null);
   // Fail closed until the exact owner/couple SecureStore fence is read. This
   // state gates mediation only; ordinary chat and care remain available.
   const [hasDevicePrivateMediationSafetyHold, setHasDevicePrivateMediationSafetyHold] =
@@ -2775,6 +2791,8 @@ export default function ChatScreen() {
     useRef(createScheduleCareFollowUpOperationGuard());
   const scheduleCareFollowUpComposerBindingRef =
     useRef<ScheduleCareFollowUpComposerBinding | null>(null);
+  const preparationTopicChatComposerBindingRef =
+    useRef<PreparationTopicChatComposerBinding | null>(null);
   // 공동 승인은 "누가 눌렀는가"가 동의의 주체다. 핸들러가 이 값을 동기적으로 읽어
   // 요청에 실으면, 요청이 나가는 사이 계정이 바뀌어도 fence가 불일치를 잡는다.
   const sessionUserIdRef = useRef<string | null>(null);
@@ -3122,6 +3140,7 @@ export default function ChatScreen() {
     }
     firstUseComposerBindingRef.current = null;
     scheduleCareFollowUpComposerBindingRef.current = null;
+    preparationTopicChatComposerBindingRef.current = null;
     consumedScheduleCareEntryRef.current = null;
     setFirstUsePromotionPendingMessageId(null);
     setFirstUsePromotionUiState(null);
@@ -3142,6 +3161,8 @@ export default function ChatScreen() {
     setResolvedTopicMessageFocus(null);
     setTopicMessageFocusState(null);
     setTopicMessageFocusRetryVersion(0);
+    setPreparationTopicReturnReceipt(null);
+    setPreparationTopicHandoffNotice(null);
   }, []);
 
   useEffect(() => {
@@ -3220,11 +3241,29 @@ export default function ChatScreen() {
       if (handoff?.scheduleCareFollowUp) setScheduleCareFollowUpEntryStatus("unavailable");
       return;
     }
-    setInputByLane((current) => (
-      current.private_ai.trim()
-        ? current
-        : updateAmoraChatLaneRecord(current, "private_ai", handoff.prompt)
-    ));
+    if (inputByLaneRef.current.private_ai.trim()) {
+      if (handoff.preparationTopic) setPreparationTopicHandoffNotice("composer_occupied");
+      return;
+    }
+    const preparationTopicBinding = handoff.preparationTopic
+      ? createPreparationTopicChatComposerBinding({
+          preparationTopic: handoff.preparationTopic,
+          ownerUserId: userId,
+          coupleId,
+          prompt: handoff.prompt,
+        })
+      : null;
+    if (handoff.preparationTopic && !preparationTopicBinding) return;
+    preparationTopicChatComposerBindingRef.current = preparationTopicBinding;
+    setPreparationTopicReturnReceipt(null);
+    setPreparationTopicHandoffNotice(null);
+    const nextDrafts = updateAmoraChatLaneRecord(
+      inputByLaneRef.current,
+      "private_ai",
+      handoff.prompt,
+    );
+    inputByLaneRef.current = nextDrafts;
+    setInputByLane(nextDrafts);
     setActiveScope("private");
     setTarget("ai");
   }, [
@@ -4490,6 +4529,30 @@ export default function ChatScreen() {
     operation.phase = "stream";
     if (persistedAiRequestKeysRef.current.has(request.serverRequestKey)) {
       setLaneFailure(request.lane, null);
+      if (request.preparationTopic) {
+        const persistedAnswer = messagesRef.current.find((message) => (
+          !message.id.startsWith("temp_")
+          && message.couple_id === request.body.coupleId
+          && message.sender_type === "ai"
+          && message.visibility === request.body.visibility
+          && messageRequestKey(message) === request.serverRequestKey
+        ));
+        const receipt = persistedAnswer
+          ? createPreparationTopicChatReturnReceipt({
+              binding: request.preparationTopic,
+              ownerUserId: request.expectedActorUserId,
+              coupleId: request.body.coupleId,
+              lane: request.lane,
+              visibility: request.body.visibility,
+              requestText:
+                request.body.messages[request.body.messages.length - 1]?.content ?? "",
+              responseText: persistedAnswer.content,
+              serverMessageId: persistedAnswer.id,
+              serverRequestKey: request.serverRequestKey,
+            })
+          : null;
+        if (receipt) setPreparationTopicReturnReceipt(receipt);
+      }
       return;
     }
     setLaneFailure(request.lane, null);
@@ -4589,6 +4652,20 @@ export default function ChatScreen() {
               },
             }
           : crisisBoundCompletion;
+        const preparationTopicReceipt = request.preparationTopic
+          ? createPreparationTopicChatReturnReceipt({
+              binding: request.preparationTopic,
+              ownerUserId: request.expectedActorUserId,
+              coupleId: request.body.coupleId,
+              lane: request.lane,
+              visibility: request.body.visibility,
+              requestText:
+                request.body.messages[request.body.messages.length - 1]?.content ?? "",
+              responseText: completedUpdate.text,
+              serverMessageId: completion.metadata?.serverMessageId,
+              serverRequestKey: request.serverRequestKey,
+            })
+          : null;
         setMessages((previous) => reconcileMobileAmoraCrisisRecovery(
           reconcileChatStreamUpdate(
             previous,
@@ -4600,6 +4677,9 @@ export default function ChatScreen() {
           request.body.coupleId,
           userRole,
         ));
+        if (preparationTopicReceipt) {
+          setPreparationTopicReturnReceipt(preparationTopicReceipt);
+        }
         scrollToLatest(true);
       }
     } catch (error) {
@@ -4807,6 +4887,12 @@ export default function ChatScreen() {
         scheduleCareFollowUpComposerBindingRef.current = null;
         setScheduleCareFollowUpEntryStatus(null);
       }
+      if (
+        draft.preparationTopic
+        && preparationTopicChatComposerBindingRef.current === draft.preparationTopic
+      ) {
+        preparationTopicChatComposerBindingRef.current = null;
+      }
       const effectiveLane = aiLaneForVisibility(effectiveVisibility);
       setLaneFailure(draftLane, null);
       if (effectiveLane !== draftLane) setLaneFailure(effectiveLane, null);
@@ -4853,6 +4939,11 @@ export default function ChatScreen() {
         typeof canonicalUserMessage.metadata?.confirmed_amora_action_id === "string"
           ? canonicalUserMessage.metadata.confirmed_amora_action_id
           : undefined;
+      const canonicalPreparationTopic = draft.preparationTopic
+        && effectiveVisibility !== "shared"
+        && canonicalUserMessage.content === draft.preparationTopic.prompt
+        ? draft.preparationTopic
+        : undefined;
       const request: AiRequest = {
         expectedActorUserId: draft.userId,
         tempId: `temp_${draft.clientRequestId}`,
@@ -4861,6 +4952,9 @@ export default function ChatScreen() {
         sessionGeneration: draft.sessionGeneration,
         ...(draft.scheduleCareFollowUp
           ? { scheduleCareFollowUp: draft.scheduleCareFollowUp }
+          : {}),
+        ...(canonicalPreparationTopic
+          ? { preparationTopic: canonicalPreparationTopic }
           : {}),
         body: {
           messages: [
@@ -5367,6 +5461,17 @@ export default function ChatScreen() {
     router.push("/(tabs)/dashboard");
   }
 
+  function handlePreparationTopicReturn() {
+    if (!preparationTopicReturnReceipt || !userId || !coupleId) return;
+    const destination = buildPreparationTopicChatReturnDestination(
+      preparationTopicReturnReceipt,
+      { ownerUserId: userId, coupleId },
+    );
+    setPreparationTopicReturnReceipt(null);
+    if (!destination) return;
+    router.push(destination);
+  }
+
   async function handleSend() {
     const text = input.trim();
     const activeVisibility = chatVisibilityForScope(activeScope, userRole);
@@ -5445,6 +5550,20 @@ export default function ChatScreen() {
     });
     const effectiveVisibility = crisisPreflight.effectiveVisibility;
     const effectiveLane = aiLaneForVisibility(effectiveVisibility);
+    const preparationTopic = target === "ai"
+      && crisisPreflight.disposition === "continue"
+      && activeLane === "private_ai"
+      && effectiveVisibility !== "shared"
+      ? resolvePreparationTopicChatBindingForSend(
+          preparationTopicChatComposerBindingRef.current,
+          {
+            ownerUserId: userId,
+            coupleId,
+            lane: activeLane,
+            privateText: text,
+          },
+        )
+      : null;
     const safetySessionGeneration = chatSessionGenerationRef.current.current();
     if (crisisPreflight.disposition === "local_safety_hold") {
       const safetyHoldWasLocked = safetyHoldLockRef.current;
@@ -5634,6 +5753,8 @@ export default function ChatScreen() {
       : null;
     const operation = beginChatSendOperation(sessionGeneration);
     try {
+      setPreparationTopicReturnReceipt(null);
+      setPreparationTopicHandoffNotice(null);
       setLaneFailure(activeLane, null);
       if (effectiveLane !== activeLane) setLaneFailure(effectiveLane, null);
       setColdStartAiRecoveryByLane((current) => (
@@ -5682,6 +5803,7 @@ export default function ChatScreen() {
         sessionGeneration,
         ...(firstUseSourceMessageId ? { firstUseSourceMessageId } : {}),
         ...(scheduleCareFollowUp ? { scheduleCareFollowUp } : {}),
+        ...(preparationTopic ? { preparationTopic } : {}),
       }, false, operation);
     } finally {
       finishChatSendOperation(operation);
@@ -5805,6 +5927,20 @@ export default function ChatScreen() {
   function handleInputChange(value: string) {
     if (!activeLane || pendingIngestReconciliation) return;
     safetyHoldLockRef.current = false;
+    if (activeLane === "private_ai" && preparationTopicChatComposerBindingRef.current) {
+      const binding = preparationTopicChatComposerBindingRef.current;
+      const retainedBinding = reconcilePreparationTopicChatComposerBinding(
+          binding,
+          {
+            ownerUserId: userId,
+            coupleId,
+            lane: activeLane,
+            privateText: value,
+          },
+        );
+      preparationTopicChatComposerBindingRef.current = retainedBinding;
+      if (!retainedBinding) setPreparationTopicHandoffNotice("draft_changed");
+    }
     if (activeLane === "shared_ai") {
       const binding = firstUseComposerBindingRef.current;
       const retainedBinding = binding
@@ -8030,6 +8166,27 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {preparationTopicReturnReceipt && activeScope === "private" && (
+          <View style={st.preparationTopicReturn}>
+            <ActionRow
+              title="이 준비 주제로 돌아가기"
+              description={`${preparationTopicReturnReceipt.preparationTopic.topicLabel} 화면에서 다음 행동을 이어가요. 이번 상담만으로 준비 기록은 바뀌지 않았어요.`}
+              onPress={handlePreparationTopicReturn}
+              disabled={streaming}
+            />
+          </View>
+        )}
+
+        {preparationTopicHandoffNotice && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText} accessibilityRole="alert">
+              {preparationTopicHandoffNotice === "composer_occupied"
+                ? "나만 상담에 작성 중인 내용이 있어 준비 주제 질문을 덮어쓰지 않았어요. 먼저 보내거나 비운 뒤 준비 화면에서 다시 눌러 주세요."
+                : "질문을 수정해 일반 나만 상담으로 이어가요. 답변 뒤에는 원래 준비 주제 복귀 버튼을 표시하지 않아요."}
+            </Text>
+          </View>
+        )}
+
         {stagedFirstUseSourceMessageId && (
           <View
             style={st.firstUseComposerStage}
@@ -8336,6 +8493,7 @@ export default function ChatScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  preparationTopicReturn: { paddingHorizontal: spacing[4], paddingVertical: spacing[2] },
   topicMessageSaveModal: { flex: 1, backgroundColor: colors.bg },
   topicMessageSaveHeader: { minHeight: 60, paddingLeft: spacing[5], paddingRight: spacing[2], flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   topicMessageSaveClose: { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: radius.full },

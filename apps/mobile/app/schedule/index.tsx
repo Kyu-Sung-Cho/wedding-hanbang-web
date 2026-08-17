@@ -73,6 +73,7 @@ import {
   loadPreparationTopicCoupleContext,
   loadPreparationTopicOwnerContext,
   type PreparationTopicCoupleContext,
+  type PreparationTopicAmoraHandoff,
   type PreparationTopicOwnerContext,
 } from "@/lib/preparationTopicPersonalization.mjs";
 import {
@@ -1683,7 +1684,7 @@ export default function ScheduleScreen() {
     scheduleSessionFenceRef,
   ]);
 
-  const openPreparationTopicAmora = useCallback((prompt: string) => {
+  const openPreparationTopicAmora = useCallback((handoff: PreparationTopicAmoraHandoff) => {
     const sessionToken = scheduleSessionFenceRef.capture();
     const identity = approvalIdentityRef.current;
     if (
@@ -1697,7 +1698,8 @@ export default function ScheduleScreen() {
       handoffId: Crypto.randomUUID(),
       ownerUserId: identity.ownerId,
       coupleId: identity.coupleId,
-      prompt,
+      prompt: handoff.prompt,
+      preparationTopic: handoff.preparationTopic,
     });
     if (!companionHandoff || !scheduleSessionFenceRef.isCurrent(sessionToken)) {
       Alert.alert("아모라 연결을 준비하지 못했어요", "잠시 후 다시 시도해 주세요.");
@@ -3181,8 +3183,17 @@ export default function ScheduleScreen() {
               appliedEffects: null,
             });
             const topicAmoraHandoff = topicPresentation?.nextAction
+              && topicJourneyRevision !== null
               ? buildPreparationTopicAmoraHandoff({
+                  topicKey: cat.key,
                   topicLabel: cat.label,
+                  journeyRevision: topicJourneyRevision,
+                  actionRef: topicView?.nextAction?.sourceRef?.kind === "amora_action"
+                    ? {
+                        id: topicView.nextAction.sourceRef.id,
+                        revision: topicView.nextAction.sourceRef.revision,
+                      }
+                    : null,
                   statusLabel: topicPresentation.statusLabel,
                   progressLabel: topicPresentation.progressLabel,
                   nextAction: {

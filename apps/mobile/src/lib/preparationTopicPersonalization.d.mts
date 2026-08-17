@@ -91,10 +91,17 @@ export type PreparationTopicAmoraHandoff = Readonly<{
   title: "아모라와 이 준비 이어보기";
   description: "현재 상태와 기준을 가져가서 질문 한 가지부터 시작해요.";
   prompt: string;
+  preparationTopic: import("./preparationTopicChatRoundTrip.mjs").PreparationTopicChatHandoffBinding;
 }>;
 
 export function buildPreparationTopicAmoraHandoff(input: Readonly<{
+  topicKey: string;
   topicLabel: string;
+  journeyRevision: number;
+  actionRef: Readonly<{
+    id: string;
+    revision: number | null;
+  }> | null;
   statusLabel: string;
   progressLabel: string;
   nextAction: Readonly<{

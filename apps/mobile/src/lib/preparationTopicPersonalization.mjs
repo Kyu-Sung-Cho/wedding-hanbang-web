@@ -7,6 +7,7 @@ import { parseAmoraCoupleCriterionResponse } from "@hanbang/shared/amora-couple-
 import { parseAmoraPersonalizationEnvelope } from "./amoraPersonalization.mjs";
 import { buildAmoraHomeDraft } from "./amoraEntryPlan.mjs";
 import { buildAmoraHomePersonalization } from "./amoraPersonalizationSettings.mjs";
+import { parsePreparationTopicChatHandoffBinding } from "./preparationTopicChatRoundTrip.mjs";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -213,7 +214,10 @@ export async function loadPreparationTopicCoupleContext({
 export function buildPreparationTopicAmoraHandoff(value) {
   if (
     !hasExactKeys(value, [
+      "topicKey",
       "topicLabel",
+      "journeyRevision",
+      "actionRef",
       "statusLabel",
       "progressLabel",
       "nextAction",
@@ -249,6 +253,13 @@ export function buildPreparationTopicAmoraHandoff(value) {
     || !completionCriterion
     || (value.privateCriterion !== null && privateCriterion !== value.privateCriterion)
   ) return null;
+  const preparationTopic = parsePreparationTopicChatHandoffBinding({
+    topicKey: value.topicKey,
+    topicLabel,
+    journeyRevision: value.journeyRevision,
+    actionRef: value.actionRef,
+  });
+  if (!preparationTopic) return null;
 
   const prompt = buildAmoraHomeDraft({
     intent: "focus",
@@ -265,6 +276,7 @@ export function buildPreparationTopicAmoraHandoff(value) {
     title: "아모라와 이 준비 이어보기",
     description: "현재 상태와 기준을 가져가서 질문 한 가지부터 시작해요.",
     prompt,
+    preparationTopic,
   });
 }
 
