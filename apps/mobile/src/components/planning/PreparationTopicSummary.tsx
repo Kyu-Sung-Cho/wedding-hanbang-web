@@ -5,7 +5,10 @@ import type { AmoraPreparationTopicDetail } from "@hanbang/shared/amora-preparat
 
 import { ActionRow, AppText, StatusPill } from "@/components/ui/AppUI";
 import { buildPreparationTopicPresentation } from "@/lib/preparationTopicPresentation.mjs";
-import type { PreparationTopicPayerPresentationContext } from "@/lib/preparationTopicPresentation.mjs";
+import type {
+  PreparationTopicPayerPresentationContext,
+  PreparationTopicPresentation,
+} from "@/lib/preparationTopicPresentation.mjs";
 import type {
   PreparationTopicAmoraHandoff,
   PreparationTopicPersonalizationSection,
@@ -35,103 +38,13 @@ function GuideBulletSection({
   );
 }
 
-export default function PreparationTopicSummary({
-  view,
-  messageReferenceRead,
-  payerPresentationContext,
-  personalizationSection,
-  amoraHandoff,
-  onOpenBudget,
-  onOpenSavedConversation,
-  onContinueWithAmora,
+function SupportingRecordSections({
+  presentation,
 }: {
-  view: AmoraPreparationTopicDetail | null;
-  messageReferenceRead?: NonNullable<
-    Parameters<typeof buildPreparationTopicPresentation>[1]
-  >;
-  payerPresentationContext?: PreparationTopicPayerPresentationContext | null;
-  personalizationSection?: PreparationTopicPersonalizationSection | null;
-  amoraHandoff?: PreparationTopicAmoraHandoff | null;
-  onOpenBudget?: (categoryKey: string) => void;
-  onOpenSavedConversation?: (topicMessageRefId: string) => void;
-  onContinueWithAmora?: (prompt: string) => void;
+  presentation: PreparationTopicPresentation;
 }) {
-  const [expandedSavedConversations, setExpandedSavedConversations] = useState(false);
-  const [expandedGuide, setExpandedGuide] = useState(false);
-  useEffect(() => {
-    setExpandedSavedConversations(false);
-    setExpandedGuide(false);
-  }, [view?.topicKey, view?.guideModules?.[0]?.moduleId]);
-
-  const presentation = buildPreparationTopicPresentation(
-    view,
-    messageReferenceRead,
-    payerPresentationContext,
-  );
-  if (!presentation) return null;
-  const budgetAction = presentation.budgetAction;
-  const guideSection = presentation.guideSection;
-  const savedConversationSection = presentation.savedConversationSection;
-  const visibleSavedConversations = savedConversationSection?.items.slice(
-    0,
-    expandedSavedConversations
-      ? savedConversationSection.items.length
-      : savedConversationSection.initialVisibleCount,
-  ) ?? [];
-
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <AppText variant="eyebrow">우리 준비 상태</AppText>
-          <AppText variant="caption" style={styles.progressText}>
-            {presentation.progressLabel}
-          </AppText>
-        </View>
-        <StatusPill
-          label={presentation.statusLabel}
-          tone={presentation.statusTone}
-        />
-      </View>
-
-      {personalizationSection ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">
-            {personalizationSection.title}
-          </Text>
-          {personalizationSection.items.map((item) => (
-            <View
-              key={item.key}
-              style={styles.personalizationRow}
-              accessible
-              accessibilityLabel={item.accessibilityLabel}
-            >
-              <View style={styles.personalizationCopy}>
-                <AppText variant="bodyStrong">{item.title}</AppText>
-                <AppText variant="caption" style={styles.personalizationDetail}>
-                  {item.detail}
-                </AppText>
-              </View>
-              <AppText variant="caption" style={styles.personalizationScope}>
-                {item.scopeLabel}
-              </AppText>
-            </View>
-          ))}
-          {personalizationSection.notices.map((notice) => (
-            <View key={notice} accessibilityRole="alert">
-              <AppText variant="caption" style={styles.personalizationNotice}>
-                {notice}
-              </AppText>
-            </View>
-          ))}
-          {personalizationSection.note ? (
-            <AppText variant="caption" style={styles.personalizationNote}>
-              {personalizationSection.note}
-            </AppText>
-          ) : null}
-        </View>
-      ) : null}
-
+    <>
       {presentation.confirmedScheduleSection ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
@@ -301,6 +214,126 @@ export default function PreparationTopicSummary({
           ) : null}
         </View>
       ) : null}
+    </>
+  );
+}
+
+export default function PreparationTopicSummary({
+  view,
+  messageReferenceRead,
+  payerPresentationContext,
+  personalizationSection,
+  amoraHandoff,
+  onOpenBudget,
+  onOpenSavedConversation,
+  onContinueWithAmora,
+}: {
+  view: AmoraPreparationTopicDetail | null;
+  messageReferenceRead?: NonNullable<
+    Parameters<typeof buildPreparationTopicPresentation>[1]
+  >;
+  payerPresentationContext?: PreparationTopicPayerPresentationContext | null;
+  personalizationSection?: PreparationTopicPersonalizationSection | null;
+  amoraHandoff?: PreparationTopicAmoraHandoff | null;
+  onOpenBudget?: (categoryKey: string) => void;
+  onOpenSavedConversation?: (topicMessageRefId: string) => void;
+  onContinueWithAmora?: (prompt: string) => void;
+}) {
+  const [expandedSavedConversations, setExpandedSavedConversations] = useState(false);
+  const [expandedGuide, setExpandedGuide] = useState(false);
+  useEffect(() => {
+    setExpandedSavedConversations(false);
+    setExpandedGuide(false);
+  }, [view?.topicKey, view?.guideModules?.[0]?.moduleId]);
+
+  const presentation = buildPreparationTopicPresentation(
+    view,
+    messageReferenceRead,
+    payerPresentationContext,
+  );
+  if (!presentation) return null;
+  const budgetAction = presentation.budgetAction;
+  const guideSection = presentation.guideSection;
+  const savedConversationSection = presentation.savedConversationSection;
+  const visibleSavedConversations = savedConversationSection?.items.slice(
+    0,
+    expandedSavedConversations
+      ? savedConversationSection.items.length
+      : savedConversationSection.initialVisibleCount,
+  ) ?? [];
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.headerCopy}>
+          <AppText variant="eyebrow">우리 준비 상태</AppText>
+          <AppText variant="caption" style={styles.progressText}>
+            {presentation.progressLabel}
+          </AppText>
+        </View>
+        <StatusPill
+          label={presentation.statusLabel}
+          tone={presentation.statusTone}
+        />
+      </View>
+
+      {presentation.nextAction ? (
+        <View style={styles.nextAction} accessibilityRole="summary">
+          <AppText variant="eyebrow">{presentation.nextAction.eyebrow}</AppText>
+          <AppText variant="bodyStrong">{presentation.nextAction.title}</AppText>
+          <AppText variant="caption" style={styles.nextActionReason}>
+            {presentation.nextAction.reason}
+          </AppText>
+          <AppText variant="caption" style={styles.completionCriterion}>
+            끝나는 기준 · {presentation.nextAction.completionCriterion}
+          </AppText>
+          {presentation.actionReadNotice ? (
+            <View accessibilityRole="alert" style={styles.actionReadNotice}>
+              <AppText variant="caption" style={styles.actionReadNoticeText}>
+                {presentation.actionReadNotice}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {personalizationSection ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            {personalizationSection.title}
+          </Text>
+          {personalizationSection.items.map((item) => (
+            <View
+              key={item.key}
+              style={styles.personalizationRow}
+              accessible
+              accessibilityLabel={item.accessibilityLabel}
+            >
+              <View style={styles.personalizationCopy}>
+                <AppText variant="bodyStrong">{item.title}</AppText>
+                <AppText variant="caption" style={styles.personalizationDetail}>
+                  {item.detail}
+                </AppText>
+              </View>
+              <AppText variant="caption" style={styles.personalizationScope}>
+                {item.scopeLabel}
+              </AppText>
+            </View>
+          ))}
+          {personalizationSection.notices.map((notice) => (
+            <View key={notice} accessibilityRole="alert">
+              <AppText variant="caption" style={styles.personalizationNotice}>
+                {notice}
+              </AppText>
+            </View>
+          ))}
+          {personalizationSection.note ? (
+            <AppText variant="caption" style={styles.personalizationNote}>
+              {personalizationSection.note}
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
 
       {presentation.evidenceLines.length > 0 ? (
         <View style={styles.section}>
@@ -320,50 +353,6 @@ export default function PreparationTopicSummary({
         <AppText variant="caption" style={styles.remainingText}>
           {presentation.remainingLabel}
         </AppText>
-      ) : null}
-
-      {budgetAction ? (
-        budgetAction.canOpen ? (
-          <ActionRow
-            title={budgetAction.title}
-            description={budgetAction.description ?? undefined}
-            onPress={() => onOpenBudget?.(budgetAction.categoryKey)}
-            disabled={!onOpenBudget}
-          />
-        ) : (
-          <View style={styles.planNotice} accessibilityRole="alert">
-            <AppText variant="bodyStrong">
-              {budgetAction.title}
-            </AppText>
-            {budgetAction.description ? (
-              <AppText variant="caption" style={styles.planNoticeText}>
-                {budgetAction.description}
-              </AppText>
-            ) : null}
-          </View>
-        )
-      ) : null}
-
-      {presentation.nextAction ? (
-        <View style={styles.nextAction}>
-          <AppText variant="eyebrow">{presentation.nextAction.eyebrow}</AppText>
-          <AppText variant="bodyStrong">{presentation.nextAction.title}</AppText>
-          <AppText variant="caption" style={styles.nextActionReason}>
-            {presentation.nextAction.reason}
-          </AppText>
-          <AppText variant="caption" style={styles.completionCriterion}>
-            끝나는 기준 · {presentation.nextAction.completionCriterion}
-          </AppText>
-        </View>
-      ) : null}
-
-      {amoraHandoff ? (
-        <ActionRow
-          title={amoraHandoff.title}
-          description={amoraHandoff.description}
-          onPress={() => onContinueWithAmora?.(amoraHandoff.prompt)}
-          disabled={!onContinueWithAmora}
-        />
       ) : null}
 
       {guideSection ? (
@@ -503,6 +492,39 @@ export default function PreparationTopicSummary({
           ) : null}
         </View>
       ) : null}
+
+      <SupportingRecordSections presentation={presentation} />
+
+      {budgetAction ? (
+        budgetAction.canOpen ? (
+          <ActionRow
+            title={budgetAction.title}
+            description={budgetAction.description ?? undefined}
+            onPress={() => onOpenBudget?.(budgetAction.categoryKey)}
+            disabled={!onOpenBudget}
+          />
+        ) : (
+          <View style={styles.planNotice} accessibilityRole="alert">
+            <AppText variant="bodyStrong">
+              {budgetAction.title}
+            </AppText>
+            {budgetAction.description ? (
+              <AppText variant="caption" style={styles.planNoticeText}>
+                {budgetAction.description}
+              </AppText>
+            ) : null}
+          </View>
+        )
+      ) : null}
+
+      {amoraHandoff ? (
+        <ActionRow
+          title={amoraHandoff.title}
+          description={amoraHandoff.description}
+          onPress={() => onContinueWithAmora?.(amoraHandoff.prompt)}
+          disabled={!onContinueWithAmora}
+        />
+      ) : null}
     </View>
   );
 }
@@ -641,15 +663,27 @@ const styles = StyleSheet.create({
   },
   nextAction: {
     gap: spacing[1],
-    paddingTop: spacing[3],
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[4],
+    borderLeftWidth: 3,
+    borderLeftColor: colors.rose[500],
+    borderRadius: radius.lg,
+    backgroundColor: colors.ivory[100],
   },
   nextActionReason: {
     color: colors.textSecondary,
   },
   completionCriterion: {
     color: colors.sage[500],
+  },
+  actionReadNotice: {
+    marginTop: spacing[2],
+    paddingTop: spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  actionReadNoticeText: {
+    color: colors.textSecondary,
   },
   guideSection: {
     gap: spacing[3],

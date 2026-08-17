@@ -318,6 +318,60 @@ test("the reviewed guide stays collapsed between the next action and saved conve
   assert.match(summarySource, /guideToggle:\s*\{[\s\S]{0,120}minHeight:\s*48/);
 });
 
+test("the topic summary leads with one grounded action before context, guidance, records, and Amora handoff", () => {
+  const statusStart = summarySource.indexOf("<View style={styles.header}>");
+  const nextActionStart = summarySource.indexOf("{presentation.nextAction ?");
+  const personalizationStart = summarySource.indexOf("{personalizationSection ?");
+  const evidenceStart = summarySource.indexOf("{presentation.evidenceLines.length > 0 ?");
+  const remainingStart = summarySource.indexOf("{presentation.remainingLabel ?");
+  const guideStart = summarySource.indexOf("{guideSection ?");
+  const savedConversationStart = summarySource.indexOf("{savedConversationSection ?");
+  const supportingRecordsStart = summarySource.indexOf(
+    "<SupportingRecordSections presentation={presentation} />",
+  );
+  const budgetActionStart = summarySource.indexOf("{budgetAction ?");
+  const handoffStart = summarySource.indexOf("{amoraHandoff ?");
+
+  for (const position of [
+    statusStart,
+    nextActionStart,
+    personalizationStart,
+    evidenceStart,
+    remainingStart,
+    guideStart,
+    savedConversationStart,
+    supportingRecordsStart,
+    budgetActionStart,
+    handoffStart,
+  ]) assert.ok(position >= 0);
+
+  assert.ok(statusStart < nextActionStart);
+  assert.ok(nextActionStart < personalizationStart);
+  assert.ok(personalizationStart < evidenceStart);
+  assert.ok(evidenceStart < remainingStart);
+  assert.ok(remainingStart < guideStart);
+  assert.ok(guideStart < savedConversationStart);
+  assert.ok(savedConversationStart < supportingRecordsStart);
+  assert.ok(supportingRecordsStart < budgetActionStart);
+  assert.ok(budgetActionStart < handoffStart);
+
+  const actionBlock = summarySource.slice(nextActionStart, personalizationStart);
+  assert.match(actionBlock, /presentation\.nextAction\.reason/);
+  assert.match(actionBlock, /presentation\.nextAction\.completionCriterion/);
+  assert.match(actionBlock, /presentation\.actionReadNotice/);
+
+  const recordsHelperStart = summarySource.indexOf("function SupportingRecordSections");
+  const summaryStart = summarySource.indexOf("export default function PreparationTopicSummary");
+  const recordsHelper = summarySource.slice(recordsHelperStart, summaryStart);
+  for (const marker of [
+    "presentation.confirmedScheduleSection",
+    "presentation.confirmedBudgetSection",
+    "presentation.catchUpSection",
+    "presentation.completedBookingOutcomeSection",
+    "presentation.bookingDecisionSection",
+  ]) assert.match(recordsHelper, new RegExp(marker.replaceAll(".", "\\."), "u"));
+});
+
 test("the schedule loads identity-bound references and passes only an opaque ref into existing chat", () => {
   assert.match(scheduleSource, /loadPreparationTopicMessageReferences\(\{/);
   assert.match(scheduleSource, /apiFetchForExpectedUser\([\s\S]{0,40}topicMessageRefIdentity\.ownerId/);
