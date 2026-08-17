@@ -114,12 +114,14 @@ export function parseSupabaseTemporaryDatabaseCredentials(script, expectedProjec
   const user = exactExport(script, "PGUSER");
   const password = exactExport(script, "PGPASSWORD");
   const database = exactExport(script, "PGDATABASE");
+  const roleMatches = script.match(/^\s+--role "postgres" \\\s*$/gm) ?? [];
   if (!/^[a-z0-9-]+\.pooler\.supabase\.com$/.test(host)
       || !["5432", "6543"].includes(portText)
       || user !== `cli_login_postgres.${expectedProjectRef}`
       || !/^[!-~]{20,256}$/.test(password)
       || /["'`\\]/.test(password)
-      || database !== "postgres") {
+      || database !== "postgres"
+      || roleMatches.length !== 1) {
     invalid("temporary database credentials failed the staging destination fence");
   }
   return Object.freeze({

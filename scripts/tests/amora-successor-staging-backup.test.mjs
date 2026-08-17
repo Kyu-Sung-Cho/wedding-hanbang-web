@@ -104,7 +104,10 @@ test("temporary database credentials are parsed in memory and fenced to the stag
 export PGPORT="5432"
 export PGUSER="cli_login_postgres.${STAGING_REF}"
 export PGPASSWORD="temporary-password-123456789"
-export PGDATABASE="postgres"`;
+export PGDATABASE="postgres"
+pg_dump \\
+    --data-only \\
+    --role "postgres" \\`;
   const credentials = parseSupabaseTemporaryDatabaseCredentials(script, STAGING_REF);
   assert.equal(credentials.host, "aws-1-ap-northeast-2.pooler.supabase.com");
   assert.equal(credentials.user, `cli_login_postgres.${STAGING_REF}`);
@@ -120,6 +123,10 @@ export PGDATABASE="postgres"`;
   ));
   assert.throws(() => parseSupabaseTemporaryDatabaseCredentials(
     script.replace("temporary-password-123456789", "bad password"),
+    STAGING_REF,
+  ));
+  assert.throws(() => parseSupabaseTemporaryDatabaseCredentials(
+    script.replace('    --role "postgres" \\', ""),
     STAGING_REF,
   ));
 });

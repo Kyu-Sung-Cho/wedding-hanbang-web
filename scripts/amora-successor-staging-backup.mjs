@@ -193,6 +193,7 @@ function quoteIdentifier(value) {
 
 async function readSnapshotPlan(client, args, git, ledger) {
   await client.query("begin transaction isolation level repeatable read read only");
+  await client.query("set local role postgres");
   await client.query("set local statement_timeout = '60s'");
   await client.query("set local lock_timeout = '5s'");
   const inventoryResult = await client.query(`
