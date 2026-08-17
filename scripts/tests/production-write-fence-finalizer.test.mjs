@@ -1375,7 +1375,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 103-migration successor keeps finalization blocked through the preparation catch-up tail", async () => {
+test("the current 104-migration successor keeps finalization blocked through the signup-profile trigger tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1383,9 +1383,9 @@ test("the current 103-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 103);
+  assert.equal(manifest.expandMigrations.length, 104);
   assert.deepEqual(
-    manifest.expandMigrations.slice(-5),
+    manifest.expandMigrations.slice(-6),
     [
       {
         file: "20260816150000_amora_provider_backed_add_action_application.sql",
@@ -1406,6 +1406,10 @@ test("the current 103-migration successor keeps finalization blocked through the
       {
         file: "20260816190000_amora_preparation_catch_up.sql",
         sha256: "637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce",
+      },
+      {
+        file: "20260818100000_restore_signup_profile_trigger.sql",
+        sha256: "16fa1a4af7832c69e937faeaff7f88115699e377e1445f9c4cdc524b86f4a53a",
       },
     ],
   );

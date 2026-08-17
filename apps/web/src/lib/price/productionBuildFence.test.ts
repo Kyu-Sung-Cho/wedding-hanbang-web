@@ -309,6 +309,7 @@ async function createControllerReadyFixture(): Promise<Fixture> {
         booking_outcome_provenance_v1_actor_time_contract_count: 1,
         preparation_catch_up_rpc_acl_count: 1,
         preparation_catch_up_private_actor_binding_contract_count: 1,
+        signup_profile_trigger_contract_count: 1,
         neutral_preparation_space_rpc_acl_count: 2,
         neutral_preparation_space_member_model_contract_count: 1,
         couple_plan_change_auth_user_fk_count: 4,
