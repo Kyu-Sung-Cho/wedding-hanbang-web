@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.14 — SAVED CONVERSATION ROUND TRIP LOCAL + STAGING BACKEND VERIFIED`
+> 계획 버전: `v1.15 — OPTIONAL EVIDENCE ISOLATION LOCAL VERIFIED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `a4cb8d9a6cc35fb0d6869e4a5056bc06e09811ce`
+> 검증 기준 코드 HEAD: `911b5e168f2696d7d5a8a443b6c031876ee04ded`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 106개 · Production 관찰 적용 32개 · Production 기준 pending 74개 · tail `20260818120000`
 >
-> 현재 작업 상태: `HT-006` 제품 vertical commit/push 완료 · `STG-004` 중 중요 상담 저장 하위 경계는 synthetic 3계정 staging probe 완료 · 승인된 격리 staging은 ledger 221/head `20260818120000`까지 적용 · Preview/Production/EAS 미배포
+> 현재 작업 상태: `HT-007` 제품 vertical commit/push 완료 · `STG-004` 중 중요 상담 저장 하위 경계는 synthetic 3계정 staging probe 완료 · 승인된 격리 staging은 ledger 221/head `20260818120000`까지 적용 · Preview/Production/EAS 미배포
 >
-> 현재 작업 스냅샷: 코드 후보 `a4cb8d9a`가 원격 RC 브랜치와 일치 · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 코드 후보 `911b5e16`이 원격 RC 브랜치와 일치 · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `HT-007 / AMR-T14 READY` — 준비 주제의 optional evidence lane 하나가 실패해도 다른 근거와 core 상태를 보존하고 partial/unavailable을 빈 성공과 구분 |
-| 최근 완료 제품 vertical | `HT-006 / AMR-T13 VERIFIED (LOCAL)` — 중요한 상담을 주제에 명시 저장·해제하고 opaque ref로 exact 원문을 복구하며 삭제·권한 상실은 재시도 가능한 네트워크 오류와 분리 |
-| 다음 소비자 vertical | `HT-007` optional evidence state를 한 identity snapshot에서 합성한 뒤 `HT-009` 우리 준비 노트로 진행 |
+| 현재 작업 | `HT-009 / AMR-M03 READY` — 아모라 헤더의 `준비 노트`에서 중요한 상담·검증된 기준·지원되는 영수증을 scope·topic·type으로 찾고 exact 원문과 현재 행동으로 복귀 |
+| 최근 완료 제품 vertical | `HT-007 / AMR-T14 VERIFIED (LOCAL)` — optional evidence lane 하나가 unavailable이어도 개인화된 현재 행동과 다른 확정 근거를 보존하고 해당 lane만 명시적으로 표시 |
+| 다음 소비자 vertical | `HT-009`를 pure projection/search 계약 → identity-fenced read → 화면·원문/행동 복귀 순으로 세로 분할 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | HT-001 단일 행동 → HT-002 진행 진실 → HT-003/004 주제 위계·관련성 → HT-005/006 왕복 → HT-007 partial state → HT-009 우리 준비 노트 → EX-009 재동결 → Preview/internal E2E |
@@ -131,11 +131,11 @@
 
 | package | primary AMR | workflow | deps | 코드 | 검증 | 배포 | 사용자 검증 | snapshot·증거 | 다음 행동 | 갱신 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 코드 후보 HEAD `a4cb8d9a`; tracked HT-006 commit/push 완료, HOLD 2·tmp 36은 제외 | 새 제품·migration 경로 발생 시 즉시 재실행 | 2026-08-18 |
+| `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 코드 후보 HEAD `911b5e16`; tracked HT-007 commit/push 완료, HOLD 2·tmp 36은 제외 | 새 제품·migration 경로 발생 시 즉시 재실행 | 2026-08-18 |
 | `EX-002` | `AMR-AUDIT02` | `TODO` | EX-001 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | Section 24는 HT-001 이전 snapshot의 역사 증거. current HEAD allowlist/hash는 EX-009에서 재동결 필요 | Wave 3/4 종료 뒤 current candidate manifest 재생성 | 2026-08-18 |
 | `EX-003` | `AMR-AUDIT03` | `TODO` | EX-002 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | HT-001이 `schedule/index.tsx` hunk를 변경해 기존 mixed-hotspot ledger를 무효화 | EX-009에서 current hunk ownership 재생성 | 2026-08-18 |
 | `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 106/Production prefix 32/pending 74/tail 181200, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
-| `EX-005` | `AMR-REG01` | `TODO` | EX-003/004 | `COMMITTED` | `FOCUSED` | `LOCAL` | `NOT-RUN` | HT-006 snapshot에서 saved-conversation/topic-chat focused 45/45, mobile 1092/1092, mobile typecheck, full lint, node syntax, diff-check PASS. root/web/release 전체 재실행은 EX-009로 이관 | Wave 3/4 종료 뒤 동일 snapshot 전체 gate | 2026-08-18 |
+| `EX-005` | `AMR-REG01` | `TODO` | EX-003/004 | `COMMITTED` | `FOCUSED` | `LOCAL` | `NOT-RUN` | HT-007 snapshot에서 topic view/presentation/screen focused 93/93, mobile 1093/1093, mobile typecheck, targeted lint, diff-check PASS. root/web/release 전체 재실행은 EX-009로 이관 | Wave 3/4 종료 뒤 동일 snapshot 전체 gate | 2026-08-18 |
 | `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
 | `EX-008` | `AMR-C10` | `BLOCKED` | EX-006 | — | `NONE` | — | `NOT-RUN` | 전체 여정 matrix 미완성 | covered/not-applicable/known gap/parked 감사 | 2026-08-17 |
 | `FV-000` | `AMR-F10` | `VERIFIED` | EX-006/008 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | compatibility C0 문서 + 161800 roleless RPC/member-model migration; PGlite 4/4 | hosted migration·rollback rehearsal 전 feature flag OFF | 2026-08-17 |
@@ -160,6 +160,7 @@
 | `HT-004` | `AMR-T11` | `VERIFIED` | HT-003 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `7d2c5376`; 전역 표현 설정과 미연결 내·우리 기준은 topic evidence 0건. exact topic·current criterion·`question|candidate|constraint|action` applied effect가 일치할 때만 truth scope와 함께 표시하며 mismatch/extra/stale는 fail-closed. focused 103/103, mobile 1086/1086, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS | 실제 source-relevance adapter는 JRN-002, 실기기 이해도는 HT-008에서 검증 | 2026-08-18 |
 | `HT-005` | `AMR-T12` | `VERIFIED` | HT-003/004 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `4e334648`; explicit tap만 private unsent draft를 열고 exact owner/couple/topic/journey/action을 in-memory로 묶음. draft 편집·identity/lane 변경은 binding을 폐기하고, canonical persisted private assistant ID+request key가 확인된 뒤에만 write-free `/checklist` 복귀 CTA를 표시. 공개 계약 5/5, focused 222/222, mobile 1091/1091, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS | 실기기에서 occupied composer·편집·느린 응답·강제종료·복귀 포커스를 검증 | 2026-08-18 |
 | `HT-006` | `AMR-T13` | `VERIFIED` | STG-004/HT-005 | `COMMITTED` | `MULTI-ACCOUNT` | `LOCAL/STAGING/BLOCKED` | `NOT-RUN` | backend `c27da3d7`, mobile `a4cb8d9a`. exact save/remove CAS와 오래된 원문 merge, owner/private·couple/shared scope, opaque ref navigation, identity fence, partial read, terminal unavailable/inaccessible와 transient retry를 분리. focused 45/45, mobile 1092/1092, typecheck/full lint/node syntax/diff-check PASS; staging 3계정 probe residue 0 | 실기기에서 오래된 원문 포커스·삭제 후 unavailable·오프라인 retry·뒤로가기를 확인 | 2026-08-18 |
+| `HT-007` | `AMR-T14` | `VERIFIED` | HT-003/006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `911b5e16`; 저장 대화 lane unavailable fixture에서 개인화된 current action과 확인 일정 근거를 그대로 보존하고 저장 대화 section만 explicit unavailable로 표시. topic focused 93/93, mobile 1093/1093, typecheck, targeted lint, diff-check PASS | 실기기에서 mixed loaded/partial/unavailable 조합과 스크린리더 읽기 순서를 확인 | 2026-08-18 |
 
 운영 규칙:
 
@@ -1158,9 +1159,9 @@ freeze 전에 다음 중 하나를 선택한다.
 - [x] `AMR-H11` 홈 상단의 큰 전체 퍼센트를 제거하고 `진행 중·확인 필요·아직 모름·완료` 상태 요약으로 대체한다. 체크 퍼센트는 체크 도구 안의 보조 정보로만 둔다. 로컬 자동 검증 완료, 실제 기기 접근성은 `AMR-T15`에서 별도 확인한다.
 - [x] `AMR-H12` 홈의 한 가지와 준비 주제의 한 가지가 같은 정본·revision을 사용한다. 로컬 자동 검증 완료, 실제 기기 왕복은 `AMR-T15`에서 별도 확인한다.
 - [x] `AMR-T11` 주제 화면의 `우리 상황` 개인화 vertical을 C3/C4까지 닫는다. HT-003에서 행동 우선 위계를, HT-004에서 표현 개인화·미연결 기준의 action/rank/source 불변과 exact topic effect gate를 로컬 자동 검증했다. 실제 source-relevance adapter·실기기 검증은 JRN-002/HT-008에서 별도 진행한다.
-- [ ] `AMR-T12` `아모라와 이 준비 이어보기`가 private draft를 만들고 사용자가 전송해야 시작되게 한다.
-- [ ] `AMR-T13` 아모라 답변을 주제에 저장하고 정확한 원문으로 돌아오는 왕복을 검증한다.
-- [ ] `AMR-T14` partial/unavailable/stale/identity change 상태를 소비자가 구분하게 한다.
+- [x] `AMR-T12` `아모라와 이 준비 이어보기`가 private unsent draft를 만들고 사용자가 전송해야 시작되며, 실제 저장 답변 뒤 exact 주제로 복귀하게 한다. 로컬 자동 검증 완료, 느린 응답·강제 종료 실기기는 별도 확인한다.
+- [x] `AMR-T13` 아모라 답변을 명시적으로 주제에 저장·해제하고 opaque ref로 정확한 원문에 돌아오며, 삭제·권한 상실과 일시 실패를 구분한다. 로컬 자동 검증과 저장 backend의 synthetic 3계정 staging probe 완료, 실기기 왕복은 별도 확인한다.
+- [x] `AMR-T14` optional evidence lane의 partial/unavailable이 core 행동이나 다른 검증 근거를 지우지 않으며 해당 lane에서만 구분되게 한다. 로컬 자동 검증 완료, mixed-state 실기기 접근성은 `AMR-T15`에서 별도 확인한다.
 - [ ] `AMR-T15` 글자 확대·작은 화면·VoiceOver/TalkBack에서 순서와 포커스를 확인한다.
 - [ ] `AMR-M03` 아모라 안의 `우리 준비 노트`에서 주제를 기억하지 못해도 중요한 대화·검증된 기준·지원되는 영수증을 scope·topic·type으로 찾고 원문과 현재 행동으로 돌아오게 한다.
 - [ ] `AMR-V01` 광고·업체 공개 정보·다른 사용자 경험·아모라 제안·canonical 저장을 source type, 상업 관계, 확인일, 한계로 구분한다.
@@ -1998,6 +1999,7 @@ Wave 3·4 구현
 | 2026-08-18 | AMR-T12 | 준비 주제의 exact 맥락을 나만 상담의 unsent draft로 넘기고, 실제 저장된 아모라 답변이 있을 때만 같은 주제로 복귀 | commit `4e334648` · 공개 계약 5/5 · focused 222/222 · mobile 1091/1091 · typecheck/lint/export PASS · 실기기/사용자 관찰/Production 없음 |
 | 2026-08-18 | AMR-M02/REL14 | 중요 상담 저장의 PostgREST 40001 무한 재시도를 PT409로 교정하고 synthetic 3계정 staging에서 저장·조회·원문·해제·동시 재생·ACL을 검증 | backend commit `c27da3d7` · migration `c3e26959...9358` · release 239/239+fence · staging receipt `cea5bc51...fa86` · residue 0 · Production write 0 · STG-004 나머지 경계 미실행 |
 | 2026-08-18 | AMR-T13 | 저장한 중요 상담을 opaque ref로 exact 원문에 복구하고 삭제·권한 상실은 terminal 안내, 일시 read 실패만 재시도로 분리 | mobile commit `a4cb8d9a` · focused 45/45 · mobile 1092/1092 · typecheck/full lint/node syntax/diff-check PASS · 실기기/사용자 관찰/Preview/Production 없음 |
+| 2026-08-18 | AMR-T14 | 저장 대화 lane을 불러오지 못해도 개인화된 현재 행동과 다른 확인 근거는 유지하고, 실패한 lane만 unavailable로 표시 | commit `911b5e16` · topic focused 93/93 · mobile 1093/1093 · mobile typecheck · targeted lint · diff-check PASS · 실기기/사용자 관찰/Preview/Production 없음 |
 
 ---
 
@@ -2009,10 +2011,10 @@ Wave 3·4 구현
 |---|---|---|
 | 소비자 가치 | `PLAN GO` | 첫 가치와 write 분리, 관련 개인화 paired fixture, 홈 퍼센트 제거, `우리 준비 노트`를 NEXT/Wave 3에 명시 |
 | UX·접근성 | `PLAN GO` | 준비 노트 정보 위계·상태·privacy·검색·exact 원문·한 손·200%·screen reader 계약 |
-| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP + HOME/TOPIC TRUTH + RELEVANCE + TOPIC/CHAT/SAVED-CONVERSATION ROUND TRIPS LOCAL; MESSAGE-REF BACKEND HOSTED VERIFIED` | F10~18·U01·F20과 HT-001~006은 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up·home→topic exact action·과장 없는 홈 상태·행동 우선 주제 위계·개인화 관련성 gate·private 상담 복귀·중요 상담 exact 원문 복구까지 연결됨. source adapter·2기기 UI·접근성·live provider·실사용 관찰은 남음 |
+| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP + HOME/TOPIC TRUTH + RELEVANCE + TOPIC/CHAT/SAVED-CONVERSATION ROUND TRIPS + OPTIONAL-EVIDENCE ISOLATION LOCAL; MESSAGE-REF BACKEND HOSTED VERIFIED` | F10~18·U01·F20과 HT-001~007은 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up·home→topic exact action·과장 없는 홈 상태·행동 우선 주제 위계·개인화 관련성 gate·private 상담 복귀·중요 상담 exact 원문 복구·optional lane 격리까지 연결됨. source adapter·2기기 UI·접근성·live provider·실사용 관찰은 남음 |
 | Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging ordered apply, neutral 2계정 경로, message-ref 3계정 공격/동시성 경로는 통과. 별도 restore, first-use/provider apply/161700/Storage 전체 probe, Preview/internal, evidence 5종은 미완료이며 `deployment_blocked` 유지 |
 
-`HT-006 / AMR-T13`까지 로컬 자동화로 완료했고, `STG-004 / AMR-REL14`에서는 중요 상담 저장 하위 경계만 hosted 검증했다. Production 관찰 시점 기준 74개 ordered suffix를 exact hash·순서로 고정했고, 승인된 staging ref `rgxdizztidbgwnsbadml`은 ledger 221/head `20260818120000`이다. commit `c27da3d7`에서 intentional conflict를 PostgREST 재시도 대상 40001이 아닌 PT409로 바꾸고, synthetic 3계정으로 owner/partner/outsider privacy, shared/private 저장·목록·원문, authenticated RPC/table 차단, concurrent exact replay, 해제, stale revision, cleanup residue 0을 확인했다. commit `a4cb8d9a`에서는 삭제·권한 상실을 terminal 안내로, 일시 read 실패만 재시도로 분리했다. 홈→주제 exact 행동, 정본 상태, 행동 우선 위계, 관련성 있는 개인화, private 상담 복귀는 HT-001~005에 그대로 유지된다. 별도 restore·STG-004의 first-use/provider apply/161700/Storage·2기기 UI·200%/스크린리더·live provider·실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
+`HT-007 / AMR-T14`까지 로컬 자동화로 완료했고, `STG-004 / AMR-REL14`에서는 중요 상담 저장 하위 경계만 hosted 검증했다. Production 관찰 시점 기준 74개 ordered suffix를 exact hash·순서로 고정했고, 승인된 staging ref `rgxdizztidbgwnsbadml`은 ledger 221/head `20260818120000`이다. commit `c27da3d7`에서 intentional conflict를 PostgREST 재시도 대상 40001이 아닌 PT409로 바꾸고, synthetic 3계정으로 owner/partner/outsider privacy, shared/private 저장·목록·원문, authenticated RPC/table 차단, concurrent exact replay, 해제, stale revision, cleanup residue 0을 확인했다. commit `a4cb8d9a`에서는 삭제·권한 상실을 terminal 안내로, 일시 read 실패만 재시도로 분리했고, commit `911b5e16`에서는 그 lane이 unavailable이어도 개인화된 현재 행동과 다른 확인 근거가 보존되는 통합 계약을 고정했다. 홈→주제 exact 행동, 정본 상태, 행동 우선 위계, 관련성 있는 개인화, private 상담 복귀는 HT-001~005에 그대로 유지된다. 별도 restore·STG-004의 first-use/provider apply/161700/Storage·2기기 UI·200%/스크린리더·live provider·실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
 
 <!-- AMORA:HUNK-LEDGER:BEGIN -->
 
