@@ -27,6 +27,16 @@ BEGIN
          AND tgname = 'trg_enforce_couple_roster_epoch'
          AND NOT tgisinternal
          AND tgenabled <> 'D'
+     )
+     OR NOT EXISTS (
+       SELECT 1
+       FROM pg_catalog.pg_trigger
+       WHERE tgrelid = 'public.couples'::regclass
+         AND tgname = 'trg_current_couple_row_integrity'
+         AND NOT tgisinternal
+         AND tgenabled <> 'D'
+         AND tgdeferrable
+         AND tginitdeferred
      ) THEN
     RAISE EXCEPTION 'COUPLE_INVITE_HARDENING_PRECONDITION_INVALID';
   END IF;
@@ -79,6 +89,12 @@ WHERE invite_code IS NOT NULL
     OR invite_code_expires_at IS NULL
     OR invite_code_expires_at <= invite_code_issued_at
   );
+
+-- The current-couple privacy fence owns an initially-deferred constraint
+-- trigger on this table. Flush the invite-only UPDATE events before the later
+-- ALTER TABLE; otherwise PostgreSQL correctly refuses the DDL with SQLSTATE
+-- 55006 while those trigger events are pending.
+SET CONSTRAINTS trg_current_couple_row_integrity IMMEDIATE;
 
 CREATE OR REPLACE FUNCTION public.manage_couple_invite_lifecycle()
 RETURNS trigger

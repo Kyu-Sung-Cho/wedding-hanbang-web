@@ -343,7 +343,7 @@ automatic rerun.
 | `20260806090000_amora_preparation_status.sql` | `1947a237019126e7e262e75b03b9129b70e559e6733e948616923f3c6496339f` | `AMR-T01` | `active_dependency` | `always_on` | `hosted:first-value` |
 | `20260807090000_amora_mediation_send_gate.sql` | `27b4292cff613b727727bacc16e2600e8bb7df588cc367d87ecac77725506a82` | `AMR-P03` | `integrity_hardening` | `always_on` | `hosted:privacy-rls` |
 | `20260811230000_amora_provider_egress_grant.sql` | `e030763d1da01e4f514b2cd1581eb63b439ad3a3aaecc89e89d64bf10147c674` | `AMR-D14` | `active_dependency` | `always_on` | `hosted:provider-egress` |
-| `20260812030000_couple_invite_replay_hardening.sql` | `0037ba639289fecc12f935c7eeee57a3f3bfc173516b67d67b951d82cf411a19` | `AMR-F15` | `active_dependency` | `always_on` | `hosted:first-value` |
+| `20260812030000_couple_invite_replay_hardening.sql` | `f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a` | `AMR-F15` | `active_dependency` | `always_on` | `hosted:first-value` |
 | `20260812090000_amora_server_only_chat_ingest.sql` | `98abb0e90f9a38546f4bb0d61b42bd196deb4805f9fc7a024cae24733bab7ade` | `AMR-D14` | `active_dependency` | `always_on` | `hosted:mutation-replay` |
 | `20260812100000_amora_today_one_decision_follow_up.sql` | `65affa3d0fb9d9d2c29e5681b93deadfb079acd0f6b6e37aa3f33a3f99b5ab4e` | `AMR-L13` | `unrelated_feature_off` | `AMORA_TODAY_ONE_ENABLED=false` | `hosted:feature-off` |
 | `20260812120000_vendor_inquiry_handoff.sql` | `4d1e290e828ef958e92dd038dc3ef2d33dd37e20241dc83768f391c50329cd89` | `AMR-D11` | `parked_product_surface` | `always_on` | `hosted:parked-acl` |

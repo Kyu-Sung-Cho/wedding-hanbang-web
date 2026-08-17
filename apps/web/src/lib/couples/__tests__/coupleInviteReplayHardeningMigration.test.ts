@@ -137,6 +137,18 @@ async function createDatabase() {
       ('${RATE_ACTOR}', NULL, 'groom'),
       ('${WEAK_OWNER}', '${WEAK_CODE_COUPLE}', 'bride'),
       ('${WEAK_JOINER}', NULL, 'groom');
+
+    CREATE FUNCTION public.enforce_current_couple_membership_integrity()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      RETURN NULL;
+    END
+    $$;
+    CREATE CONSTRAINT TRIGGER trg_current_couple_row_integrity
+      AFTER INSERT OR UPDATE OR DELETE ON public.couples
+      DEFERRABLE INITIALLY DEFERRED
+      FOR EACH ROW
+      EXECUTE FUNCTION public.enforce_current_couple_membership_integrity();
   `);
   await db.exec(phaseAMigration);
   return db;
@@ -612,6 +624,7 @@ describe("couple invite replay hardening rollout", () => {
       SET invite_code_issued_at = now() - interval '8 days',
           invite_code_expires_at = now() - interval '1 second'
       WHERE id = '${COUPLE_B}';
+      SET CONSTRAINTS trg_current_couple_row_integrity IMMEDIATE;
       ALTER TABLE public.couples ENABLE TRIGGER trg_manage_couple_invite_lifecycle;
     `);
     const expired = await db.query<{ result: Record<string, unknown> }>(`

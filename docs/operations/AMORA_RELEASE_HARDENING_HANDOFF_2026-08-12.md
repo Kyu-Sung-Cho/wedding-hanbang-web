@@ -615,7 +615,7 @@ LF 정규화 SHA-256:
 | migration | SHA-256 |
 |---|---|
 | provider egress | `e030763d1da01e4f514b2cd1581eb63b439ad3a3aaecc89e89d64bf10147c674` |
-| invite replay | `0037ba639289fecc12f935c7eeee57a3f3bfc173516b67d67b951d82cf411a19` |
+| invite replay | `f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a` |
 | server-only ingest | `98abb0e90f9a38546f4bb0d61b42bd196deb4805f9fc7a024cae24733bab7ade` |
 | explicit decision follow-up | `65affa3d0fb9d9d2c29e5681b93deadfb079acd0f6b6e37aa3f33a3f99b5ab4e` |
 | vendor inquiry handoff | `4d1e290e828ef958e92dd038dc3ef2d33dd37e20241dc83768f391c50329cd89` |

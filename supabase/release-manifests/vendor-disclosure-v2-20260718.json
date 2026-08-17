@@ -351,7 +351,7 @@
     },
     {
       "file": "20260812030000_couple_invite_replay_hardening.sql",
-      "sha256": "0037ba639289fecc12f935c7eeee57a3f3bfc173516b67d67b951d82cf411a19"
+      "sha256": "f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a"
     },
     {
       "file": "20260812090000_amora_server_only_chat_ingest.sql",
