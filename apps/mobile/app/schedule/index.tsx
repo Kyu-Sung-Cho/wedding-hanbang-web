@@ -3175,8 +3175,10 @@ export default function ScheduleScreen() {
               topicPayerPresentationContext,
             );
             const topicPersonalizationSection = buildPreparationTopicPersonalization({
+              topicKey: cat.key,
               ownerContext: topicOwnerContext,
               coupleContext: topicCoupleContext,
+              appliedEffects: null,
             });
             const topicAmoraHandoff = topicPresentation?.nextAction
               ? buildPreparationTopicAmoraHandoff({

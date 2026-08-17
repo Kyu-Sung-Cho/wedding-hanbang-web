@@ -10,6 +10,7 @@ import { buildAmoraHomePersonalization } from "./amoraPersonalizationSettings.mj
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const TOPIC_KEY_PATTERN = /^[a-z][a-z0-9_]{1,39}$/u;
 const DEFAULT_READ_TIMEOUT_MS = 10_000;
 const READ_STATES = Object.freeze([
   "loading",
@@ -17,6 +18,12 @@ const READ_STATES = Object.freeze([
   "partial",
   "unavailable",
 ]);
+const TOPIC_EFFECT_LABELS = Object.freeze({
+  question: "이 주제의 확인 질문에 연결됨",
+  candidate: "이 주제의 후보 비교에 연결됨",
+  constraint: "이 주제의 선택 조건에 연결됨",
+  action: "이 주제의 다음 행동에 연결됨",
+});
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -271,10 +278,10 @@ function parseOwnerContext(value) {
     )
   ) return null;
 
-  const personalized = value.preferences === null
-    ? null
-    : buildAmoraHomePersonalization(value.preferences, "focus");
-  if (value.preferences !== null && !personalized) return null;
+  if (
+    value.preferences !== null
+    && !buildAmoraHomePersonalization(value.preferences, "focus")
+  ) return null;
 
   const coreCriterion = value.coreCriterion === null
     ? null
@@ -283,7 +290,6 @@ function parseOwnerContext(value) {
 
   return Object.freeze({
     readState: value.readState,
-    personalizationLabel: personalized?.label ?? null,
     coreCriterion,
   });
 }
@@ -323,44 +329,77 @@ function freezeItem(key, title, detail, scopeLabel) {
   });
 }
 
+function parseAppliedEffect(value, expectedTopicKey) {
+  if (value === null) return null;
+  if (
+    !hasExactKeys(value, ["topicKey", "criterion", "affects"])
+    || value.topicKey !== expectedTopicKey
+    || !Object.hasOwn(TOPIC_EFFECT_LABELS, value.affects)
+  ) return undefined;
+
+  const criterion = normalizeAmoraCoreCriterionText(value.criterion);
+  if (criterion !== value.criterion) return undefined;
+  return Object.freeze({
+    criterion,
+    effectLabel: TOPIC_EFFECT_LABELS[value.affects],
+  });
+}
+
 export function buildPreparationTopicPersonalization({
+  topicKey,
   ownerContext,
   coupleContext,
+  appliedEffects,
 }) {
+  if (
+    typeof topicKey !== "string"
+    || !TOPIC_KEY_PATTERN.test(topicKey)
+  ) return null;
   const owner = parseOwnerContext(ownerContext);
   const couple = parseCoupleContext(coupleContext);
   if (!owner || !couple) return null;
+  if (appliedEffects === null) return null;
+  if (!hasExactKeys(appliedEffects, ["ownerCriterion", "coupleCriterion"])) {
+    return null;
+  }
+
+  const ownerEffect = parseAppliedEffect(
+    appliedEffects.ownerCriterion,
+    topicKey,
+  );
+  const coupleEffect = parseAppliedEffect(
+    appliedEffects.coupleCriterion,
+    topicKey,
+  );
+  if (ownerEffect === undefined || coupleEffect === undefined) return null;
 
   const items = [];
-  if (owner.personalizationLabel) {
-    const detail = owner.personalizationLabel.replace(/^내 방식:\s*/u, "");
-    items.push(freezeItem("owner-style", "내 방식", detail, "나만 보기"));
-  }
-  if (owner.coreCriterion) {
+  const notices = [];
+  if (ownerEffect && owner.coreCriterion) {
+    if (ownerEffect.criterion !== owner.coreCriterion) return null;
     items.push(freezeItem(
       "owner-criterion",
       "내 기준",
-      owner.coreCriterion,
+      `${owner.coreCriterion} · ${ownerEffect.effectLabel}`,
       "나만 보기",
     ));
+  } else if (ownerEffect && ["partial", "unavailable"].includes(owner.readState)) {
+    notices.push("이 주제에 연결된 내 기준을 지금 확인하지 못했어요.");
+  } else if (ownerEffect) {
+    return null;
   }
-  if (couple.confirmedCriterion) {
+  if (coupleEffect && couple.confirmedCriterion) {
+    if (coupleEffect.criterion !== couple.confirmedCriterion) return null;
     items.push(freezeItem(
       "couple-criterion",
       "우리 기준",
-      couple.confirmedCriterion,
+      `${couple.confirmedCriterion} · ${coupleEffect.effectLabel}`,
       "둘이 확인",
     ));
-  }
-
-  const notices = [];
-  if (owner.readState === "partial") {
-    notices.push("내 설정 일부를 지금 확인하지 못했어요.");
-  } else if (owner.readState === "unavailable") {
-    notices.push("내 설정을 지금 확인하지 못했어요.");
-  }
-  if (couple.readState === "unavailable") {
-    notices.push("둘이 확인한 기준을 지금 확인하지 못했어요.");
+  } else if (coupleEffect && couple.readState === "unavailable") {
+    notices.push("이 주제에 연결된 우리 기준을 지금 확인하지 못했어요.");
+  } else if (coupleEffect) {
+    return null;
   }
 
   if (items.length === 0 && notices.length === 0) return null;
@@ -370,7 +409,7 @@ export function buildPreparationTopicPersonalization({
     items: Object.freeze(items),
     notices: Object.freeze(notices),
     note: items.length > 0
-      ? "아모라는 이 주제로 이야기할 때 위 기준을 참고해요. 다음 행동 순서는 저장된 체크리스트와 일정 기준이에요."
+      ? "현재 주제의 질문·후보·조건·행동에 실제 연결된 기준만 보여줘요."
       : null,
   });
 }

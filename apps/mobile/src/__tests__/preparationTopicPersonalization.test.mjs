@@ -33,6 +33,7 @@ const preferences = Object.freeze({
 
 test("confirmed private and couple context becomes one compact truth-scoped section", () => {
   const section = buildPreparationTopicPersonalization({
+    topicKey: "venue",
     ownerContext: {
       readState: "loaded",
       preferences,
@@ -42,46 +43,168 @@ test("confirmed private and couple context becomes one compact truth-scoped sect
       readState: "loaded",
       confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
     },
+    appliedEffects: {
+      ownerCriterion: {
+        topicKey: "venue",
+        criterion: "가족들이 편안한 자리를 우선해요",
+        affects: "candidate",
+      },
+      coupleCriterion: {
+        topicKey: "venue",
+        criterion: "무리하지 않는 예산 안에서 결정해요",
+        affects: "constraint",
+      },
+    },
   });
 
   assert.deepEqual(section, {
     title: "우리 상황",
     items: [
       {
-        key: "owner-style",
-        title: "내 방식",
-        detail: "추천 한 가지부터 · 필요한 만큼 · 중요한 건 함께",
-        scopeLabel: "나만 보기",
-        accessibilityLabel:
-          "내 방식, 추천 한 가지부터, 필요한 만큼, 중요한 건 함께, 나만 보기",
-      },
-      {
         key: "owner-criterion",
         title: "내 기준",
-        detail: "가족들이 편안한 자리를 우선해요",
+        detail: "가족들이 편안한 자리를 우선해요 · 이 주제의 후보 비교에 연결됨",
         scopeLabel: "나만 보기",
         accessibilityLabel:
-          "내 기준, 가족들이 편안한 자리를 우선해요, 나만 보기",
+          "내 기준, 가족들이 편안한 자리를 우선해요, 이 주제의 후보 비교에 연결됨, 나만 보기",
       },
       {
         key: "couple-criterion",
         title: "우리 기준",
-        detail: "무리하지 않는 예산 안에서 결정해요",
+        detail: "무리하지 않는 예산 안에서 결정해요 · 이 주제의 선택 조건에 연결됨",
         scopeLabel: "둘이 확인",
         accessibilityLabel:
-          "우리 기준, 무리하지 않는 예산 안에서 결정해요, 둘이 확인",
+          "우리 기준, 무리하지 않는 예산 안에서 결정해요, 이 주제의 선택 조건에 연결됨, 둘이 확인",
       },
     ],
     notices: [],
     note:
-      "아모라는 이 주제로 이야기할 때 위 기준을 참고해요. 다음 행동 순서는 저장된 체크리스트와 일정 기준이에요.",
+      "현재 주제의 질문·후보·조건·행동에 실제 연결된 기준만 보여줘요.",
   });
 
   assert.doesNotMatch(JSON.stringify(section), /decisionId|criterionId|ownerUserId|coupleId/);
 });
 
-test("loaded empty context stays quiet while read failures remain visible", () => {
+test("expression preferences and unbound criteria never become topic evidence or change its source order", () => {
+  const ownerContext = {
+    readState: "loaded",
+    preferences,
+    coreCriterion: "가족들이 편안한 자리를 우선해요",
+  };
+  const coupleContext = {
+    readState: "loaded",
+    confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
+  };
+
+  const first = buildPreparationTopicPersonalization({
+    topicKey: "venue",
+    ownerContext,
+    coupleContext,
+    appliedEffects: null,
+  });
+  const expressionOnlyChange = buildPreparationTopicPersonalization({
+    topicKey: "venue",
+    ownerContext: {
+      ...ownerContext,
+      preferences: {
+        ...preferences,
+        decisionStart: "ask_first",
+        answerDetail: "brief",
+        toneStyle: "warm_supportive",
+      },
+    },
+    coupleContext,
+    appliedEffects: null,
+  });
+
+  assert.equal(first, null);
+  assert.equal(expressionOnlyChange, null);
+  const presentationStart = scheduleSource.indexOf(
+    "const topicPresentation = buildPreparationTopicPresentation",
+  );
+  const personalizationStart = scheduleSource.indexOf(
+    "const topicPersonalizationSection = buildPreparationTopicPersonalization",
+  );
+  assert.ok(presentationStart >= 0 && personalizationStart > presentationStart);
+  assert.doesNotMatch(
+    scheduleSource.slice(presentationStart, personalizationStart),
+    /topicOwnerContext|topicCoupleContext|preferences|coreCriterion/,
+  );
+  assert.match(
+    scheduleSource,
+    /buildPreparationTopicPersonalization\(\{[\s\S]{0,160}topicKey:\s*cat\.key[\s\S]{0,160}appliedEffects:\s*null/,
+  );
+});
+
+test("a topic criterion effect must match the same topic and exact current criterion", () => {
+  const ownerContext = {
+    readState: "loaded",
+    preferences,
+    coreCriterion: "가족들이 편안한 자리를 우선해요",
+  };
+  const coupleContext = {
+    readState: "loaded",
+    confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
+  };
+  const build = (ownerCriterion) => buildPreparationTopicPersonalization({
+    topicKey: "venue",
+    ownerContext,
+    coupleContext,
+    appliedEffects: {
+      ownerCriterion,
+      coupleCriterion: null,
+    },
+  });
+
+  assert.equal(build({
+    topicKey: "studio",
+    criterion: ownerContext.coreCriterion,
+    affects: "candidate",
+  }), null);
+  assert.equal(build({
+    topicKey: "venue",
+    criterion: "이전 내 기준",
+    affects: "candidate",
+  }), null);
+  assert.equal(build({
+    topicKey: "venue",
+    criterion: ownerContext.coreCriterion,
+    affects: "ranking",
+  }), null);
+  assert.equal(build({
+    topicKey: "venue",
+    criterion: ownerContext.coreCriterion,
+    affects: "candidate",
+    extra: true,
+  }), null);
+
+  assert.deepEqual(buildPreparationTopicPersonalization({
+    topicKey: "venue",
+    ownerContext: {
+      readState: "unavailable",
+      preferences: null,
+      coreCriterion: null,
+    },
+    coupleContext,
+    appliedEffects: {
+      ownerCriterion: {
+        topicKey: "venue",
+        criterion: ownerContext.coreCriterion,
+        affects: "candidate",
+      },
+      coupleCriterion: null,
+    },
+  }), {
+    title: "우리 상황",
+    items: [],
+    notices: ["이 주제에 연결된 내 기준을 지금 확인하지 못했어요."],
+    note: null,
+  });
+});
+
+test("unbound contexts stay quiet even when their reads are unavailable", () => {
   const empty = buildPreparationTopicPersonalization({
+    topicKey: "venue",
     ownerContext: {
       readState: "loaded",
       preferences: null,
@@ -91,10 +214,12 @@ test("loaded empty context stays quiet while read failures remain visible", () =
       readState: "loaded",
       confirmedCriterion: null,
     },
+    appliedEffects: null,
   });
   assert.equal(empty, null);
 
   const unavailable = buildPreparationTopicPersonalization({
+    topicKey: "venue",
     ownerContext: {
       readState: "unavailable",
       preferences: null,
@@ -104,18 +229,12 @@ test("loaded empty context stays quiet while read failures remain visible", () =
       readState: "unavailable",
       confirmedCriterion: null,
     },
+    appliedEffects: null,
   });
-  assert.deepEqual(unavailable, {
-    title: "우리 상황",
-    items: [],
-    notices: [
-      "내 설정을 지금 확인하지 못했어요.",
-      "둘이 확인한 기준을 지금 확인하지 못했어요.",
-    ],
-    note: null,
-  });
+  assert.equal(unavailable, null);
 
   assert.equal(buildPreparationTopicPersonalization({
+    topicKey: "venue",
     ownerContext: {
       readState: "loading",
       preferences: null,
@@ -125,6 +244,7 @@ test("loaded empty context stays quiet while read failures remain visible", () =
       readState: "loading",
       confirmedCriterion: null,
     },
+    appliedEffects: null,
   }), null);
 });
 
@@ -339,6 +459,7 @@ test("the schedule screen reads private and couple context separately and opens 
 
 test("unavailable or loading lanes cannot smuggle stale private or couple values into the screen", () => {
   assert.equal(buildPreparationTopicPersonalization({
+    topicKey: "venue",
     ownerContext: {
       readState: "unavailable",
       preferences,
@@ -348,9 +469,11 @@ test("unavailable or loading lanes cannot smuggle stale private or couple values
       readState: "loaded",
       confirmedCriterion: null,
     },
+    appliedEffects: null,
   }), null);
 
   assert.equal(buildPreparationTopicPersonalization({
+    topicKey: "venue",
     ownerContext: {
       readState: "loaded",
       preferences: null,
@@ -360,5 +483,6 @@ test("unavailable or loading lanes cannot smuggle stale private or couple values
       readState: "loading",
       confirmedCriterion: "이전 커플의 기준",
     },
+    appliedEffects: null,
   }), null);
 });

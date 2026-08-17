@@ -20,8 +20,8 @@ export interface PreparationTopicCoupleContext {
 export type PreparationTopicPersonalizationSection = Readonly<{
   title: "우리 상황";
   items: readonly Readonly<{
-    key: "owner-style" | "owner-criterion" | "couple-criterion";
-    title: "내 방식" | "내 기준" | "우리 기준";
+    key: "owner-criterion" | "couple-criterion";
+    title: "내 기준" | "우리 기준";
     detail: string;
     scopeLabel: "나만 보기" | "둘이 확인";
     accessibilityLabel: string;
@@ -30,9 +30,20 @@ export type PreparationTopicPersonalizationSection = Readonly<{
   note: string | null;
 }>;
 
+export type PreparationTopicAppliedCriterionEffect = Readonly<{
+  topicKey: string;
+  criterion: string;
+  affects: "question" | "candidate" | "constraint" | "action";
+}>;
+
 export function buildPreparationTopicPersonalization(input: Readonly<{
+  topicKey: string;
   ownerContext: PreparationTopicOwnerContext;
   coupleContext: PreparationTopicCoupleContext;
+  appliedEffects: Readonly<{
+    ownerCriterion: PreparationTopicAppliedCriterionEffect | null;
+    coupleCriterion: PreparationTopicAppliedCriterionEffect | null;
+  }> | null;
 }>): PreparationTopicPersonalizationSection | null;
 
 export type PreparationTopicPersonalizationErrorCode =
