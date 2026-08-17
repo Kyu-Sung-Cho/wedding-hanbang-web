@@ -7866,8 +7866,24 @@ export default function ChatScreen() {
         </View>
       </Modal>
       <View style={st.header}>
-        <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>AI 결혼 준비 동반자</Text></View></View>
+        <View style={st.headerLeft}>
+          <View style={st.headerLogo}>
+            <Sparkles size={16} color={colors.gold.DEFAULT} />
+          </View>
+          <View style={st.headerBrandText}>
+            <Text style={st.headerTitle} numberOfLines={1}>아모라</Text>
+            <Text style={st.headerSub} numberOfLines={1}>AI 결혼 준비 동반자</Text>
+          </View>
+        </View>
         <View style={st.headerActions}>
+          <Pressable
+            style={({ pressed }) => [st.headerNotes, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push("/amora-notes" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="우리 준비 노트 열기"
+          >
+            <Text style={st.headerNotesText}>준비 노트</Text>
+          </Pressable>
           {!isP && userId && initialLoaded ? (
             <Pressable
               style={({ pressed }) => [st.headerPersonalize, pressed && { opacity: 0.7 }]}
@@ -8525,8 +8541,11 @@ const st = StyleSheet.create({
   sharedConfirmCancel: { minHeight: 42, marginTop: 2, alignItems: "center", justifyContent: "center" },
   sharedConfirmCancelText: { fontSize: 13, color: colors.textTertiary },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLeft: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 },
+  headerBrandText: { flex: 1, minWidth: 0 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerNotes: { minHeight: 44, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.ivory[100] },
+  headerNotesText: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   headerPersonalize: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: colors.ivory[100] },
   headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },

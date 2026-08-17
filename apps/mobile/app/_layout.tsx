@@ -144,6 +144,7 @@ function RootLayout() {
             <Stack.Screen name="quote-check" options={{ headerShown: false }} />
             <Stack.Screen name="webview" options={{ headerShown: false }} />
             <Stack.Screen name="community" options={{ headerShown: false }} />
+            <Stack.Screen name="amora-notes" options={{ headerShown: false }} />
           </Stack>
         </SafeAreaProvider>
       </ErrorBoundary>
