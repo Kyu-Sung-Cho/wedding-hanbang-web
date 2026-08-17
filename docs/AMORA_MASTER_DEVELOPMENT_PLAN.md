@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.7 — ADVANCED-USER CATCH-UP LOCAL C2 VERIFIED`
+> 계획 버전: `v1.8 — ISOLATED STAGING JOIN CONTRACT VERIFIED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 기준 HEAD: `b3f8a712866b0023bae6efa662f3d40ed8eb13c3`
+> 검증 기준 코드 HEAD: `6b4add7469e193f060d73431a99bce0a40c5d4a1`
 >
-> 현재 릴리스 상태: `deployment_blocked` · manifest 103개 · 관찰된 적용 32개 · 로컬 pending 71개 · tail `20260816190000`
+> 현재 릴리스 상태: `deployment_blocked` · manifest 105개 · Production 관찰 적용 32개 · Production 기준 pending 73개 · tail `20260818110000`
 >
-> 현재 작업 상태: worktree dirty · 미커밋 · hosted DB/현재 Preview/Production/EAS 미배포
+> 현재 작업 상태: 제품·migration 후보 commit/push 완료 · 승인된 격리 staging은 ledger 220/head `20260818110000`까지 적용 · Preview/Production/EAS 미배포
 >
-> 현재 작업 스냅샷: 이전 86-path union RC는 기준 HEAD에 commit/push됨 · 그 위 dirty delta 140경로 = tracked 수정 62 + untracked 78 = active candidate 102 + 무소유 `decisionMap` HOLD 2 + 임시 산출물 36 · `origin/main`은 `b58a329d` · 현재 RC 원격 브랜치는 기준 HEAD와 동일
+> 현재 작업 스냅샷: 코드 후보 `6b4add74`가 원격 RC 브랜치와 일치 · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -22,13 +22,13 @@
 
 | 항목 | 현재 값 |
 |---|---|
-| 작업 모드 | `LOCAL PRODUCT VERTICAL` — 한 번에 첫 가치 흐름 하나만 구현 |
-| 현재 작업 | `STG-002 / AMR-REL12 IN_PROGRESS` — 승인된 격리 staging 연결·원장 read·71개 exact ordered dry-run 통과. 실제 apply 전 exact candidate commit/clean-worktree fence 진행 중 |
+| 작업 모드 | `ISOLATED STAGING + PRODUCT VERTICAL` — 한 번에 증거 경계 하나만 닫음 |
+| 현재 작업 | `STG-003 / AMR-REL13 IN_PROGRESS` — pre-apply 암호화 백업과 exact apply는 완료. 별도 restore·전체 ACL/RLS/finalizer 증거는 아직 없음 |
 | 최근 완료 제품 vertical | `FV-014 / AMR-F20 VERIFIED (LOCAL C2)` — 최대 3항목 preview·명시 승인·원자 receipt·주제 화면의 사용자 보고 기록까지 연결 |
-| 다음 소비자 vertical | `STG-001~007` 격리 staging 전체 ordered suffix 검증. Production ref·실사용자 데이터 사용 금지 |
+| 다음 소비자 vertical | 같은 후보의 Preview/internal 첫 세션에서 최소 질문→개인화 한 행동→승인→영수증→홈 복귀를 실제 기기로 검증. 그 전 staging privacy/atomic probe를 닫음 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
-| 실행 순서 | first-value local C2 → consumer-state composer → advanced-user catch-up → exact-SHA 재동결 → 격리 staging 전체 ordered suffix → 2계정·기기 E2E |
+| 실행 순서 | first-value local C2 → consumer-state composer → advanced-user catch-up → exact-SHA 재동결 → 격리 staging apply·probe → Preview/internal 2계정·2기기 E2E |
 | Production | `NO-GO` |
 
 문서를 처음 읽을 때는 `1. 아이디얼 아모라 → 3. 표준 준비 루프 → 4. 화면 계약 → 8. 현재 구현 상태 → 9. 실행 순서 → 17. 실행 백로그` 순서로 본다.
@@ -131,17 +131,17 @@
 
 | package | primary AMR | workflow | deps | 코드 | 검증 | 배포 | 사용자 검증 | snapshot·증거 | 다음 행동 | 갱신 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | — | `DIRECT` | — | `NOT-RUN` | HEAD `b3f8a712`; dirty delta 140 = 62 tracked + 78 untracked = active candidate 102 + HOLD 2 + tmp 36 | snapshot 변경 시 즉시 재실행 | 2026-08-18 |
-| `EX-002` | `AMR-AUDIT02` | `VERIFIED` | EX-001 | — | `DIRECT` | — | `NOT-RUN` | Section 24에 current active 102 = M62+U40, HOLD 2, tmp 36의 canonical LF path/hash와 set digest 고정 | 파일·hash·상태가 바뀌면 즉시 무효화 | 2026-08-18 |
+| `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 코드 후보 HEAD `6b4add74`; tracked 제품 후보 commit/push 완료, HOLD 2·tmp 36은 제외 | 새 제품·migration 경로 발생 시 즉시 재실행 | 2026-08-18 |
+| `EX-002` | `AMR-AUDIT02` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | Section 24는 commit 전 102-path allowlist의 역사 증거로 보존; 실제 current 경계는 commit `6b4add74`와 HOLD 2·tmp 36 제외 규칙 | 새 active diff가 생기면 새 manifest 생성 | 2026-08-18 |
 | `EX-003` | `AMR-AUDIT03` | `VERIFIED` | EX-002 | — | `DIRECT` | — | `NOT-RUN` | Section 22: chat/schedule/web chat route/route test의 모든 current new-side changed line을 F15/F16/F20 primary seam에 단일 배정 | 네 파일 hunk/hash 변경 시 즉시 무효화 | 2026-08-18 |
-| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | — | `DIRECT` | — | `NOT-RUN` | master/controller가 HEAD `b3f8a712`, 103/32/71/tail 161900, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
+| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 105/Production prefix 32/pending 73/tail 181100, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
 | `EX-005` | `AMR-REG01` | `VERIFIED` | EX-003/004 | — | `AUTOMATED` | — | `NOT-RUN` | root repo+mobile 및 web 699/701 files GREEN 뒤 test-only 2 files 75/75 재실행; mobile 1074/1074, release 220/220, root typecheck 4/4, lint 0 errors(기존 warning 1), web/mobile build, diff-check PASS | 제품·manifest·후보 파일 변경 시 즉시 상태 하향 | 2026-08-18 |
 | `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
 | `EX-008` | `AMR-C10` | `BLOCKED` | EX-006 | — | `NONE` | — | `NOT-RUN` | 전체 여정 matrix 미완성 | covered/not-applicable/known gap/parked 감사 | 2026-08-17 |
 | `FV-000` | `AMR-F10` | `VERIFIED` | EX-006/008 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | compatibility C0 문서 + 161800 roleless RPC/member-model migration; PGlite 4/4 | hosted migration·rollback rehearsal 전 feature flag OFF | 2026-08-17 |
 | `FV-001` | `AMR-F11` | `VERIFIED` | FV-000 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | legacy role/couple 선행 조건과 neutral flag 경계를 onboarding contract로 고정 | 기기에서 legacy/neutral 양쪽 확인 | 2026-08-17 |
 | `FV-002` | `AMR-F12` | `VERIFIED` | FV-001 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | planning-foundation starting/already-preparing/unknown/later dependency와 partial fail-closed fixture | 실제 사용자 이해 관찰 전 과장 금지 | 2026-08-17 |
-| `FV-003` | `AMR-F15` | `VERIFIED` | FV-000/002 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | roleless create/join, web/mobile neutral entry, AI·profile·settings·mediation·community member labels, budget/money relative family labels; backend 434/434 + targeted web 108/108 + types PASS | hosted·구버전 차단·2계정 필요 | 2026-08-17 |
+| `FV-003` | `AMR-F15` | `VERIFIED` | FV-000/002 | `COMMITTED` | `MULTI-ACCOUNT` | `STAGING/BLOCKED` | `NOT-RUN` | staging synthetic 2계정에서 create/replay·가입 전 상호 격리·authenticated join 차단·service join·가입 후 상호 조회·cleanup 전부 통과, residue 0 | 2기기 UI·구버전 10자 invite 차단/복구는 별도 검증 | 2026-08-18 |
 | `FV-004` | `AMR-F13` | `VERIFIED` | FV-002/003 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 한 질문, 명시 선택, 모르겠어요·나중에, no-hidden-write 화면 계약 | 작은 화면·200%·스크린리더 필요 | 2026-08-17 |
 | `FV-005` | `AMR-F14` | `VERIFIED` | FV-002/004 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 첫 행동·이유·완료 기준·사용 정보·수정 경로를 한 결과 상태에 표시 | 실기기 시각·이해도 관찰 필요 | 2026-08-17 |
 | `FV-006` | `AMR-T03/F17` | `VERIFIED` | FV-005 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | exact owner/couple private composer, empty-lane only, explicit send, auto-send·DB write 없음 | live provider/기기 왕복 필요 | 2026-08-17 |
@@ -150,8 +150,9 @@
 | `FV-011` | `AMR-U01` | `VERIFIED` | FV-010/EX-002~005 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer 13/13, 독립 상태축 10,368조합, mobile 1046/1046, root typecheck·lint, web/mobile build PASS | 화면별 source-relevance adapter는 JRN-002에서 별도 연결; 실기기 FV-012 | 2026-08-17 |
 | `FV-014` | `AMR-F20` | `VERIFIED` | FV-002/003/007/011 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | empty/canonical-existing guard, 최대 3항목 preview·승인, 161900 원자 receipt, private actor binding, secure restart draft, 주제의 사용자 보고 projection; mobile 1074/1074·release 220/220 | EX-007 재동결 뒤 hosted·2계정·실기기 검증 | 2026-08-18 |
 | `EX-007` | `AMR-REG01` | `VERIFIED` | FV-001~012/FV-014/015 | — | `AUTOMATED` | — | `NOT-RUN` | current 102-path manifest·four-hotspot hunk ledger·161900 SHA·product/release/type/lint/build 증거를 같은 local candidate로 재고정 | Section 24 hash 또는 hunk 변화 시 EX-001부터 재실행 | 2026-08-18 |
-| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `DOC-CONTRACT` | `AUTOMATED` | — | `NOT-RUN` | 71개 suffix의 exact file/hash/order와 primary AMR·4 disposition·runtime flag·hosted probe를 운영 정본에 고정; contract 37/37 | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
-| `STG-002` | `AMR-REL12` | `IN_PROGRESS` | STG-001 | `LOCAL-DIRTY` | `AUTOMATED-PREFLIGHT` | `HOSTED-STAGING-READ` | `NOT-RUN` | approved staging `rgxdizztidbgwnsbadml` `ACTIVE_HEALTHY`; linked ledger 147/head `20260727090000`; `db push --dry-run --include-all`이 classified suffix 71개와 exact order 일치. Production write 0 | 102-path candidate를 exact commit으로 고정하고 clean worktree에서 staging ref fence 후 실제 ordered apply | 2026-08-18 |
+| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 105개, Production 관찰 prefix 32개, ordered pending 73개와 tail 181100을 exact hash로 고정; release 235/235+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
+| `STG-002` | `AMR-REL12` | `VERIFIED` | STG-001 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | staging ledger 220/head 181100; commit `6b4add74`; pre-apply backup manifest `dc9bcf...5042`; dry-run 181100 단일 파일; apply 후 table 211/inventory `b6c287...6384`; 2계정 probe `11b574...fb5`, residue 0. Production write 0 | STG-003 별도 restore와 STG-004 전체 privacy/atomic probe | 2026-08-18 |
+| `STG-003` | `AMR-REL13` | `IN_PROGRESS` | STG-002 | `COMMITTED` | `FOCUSED` | `HOSTED-STAGING` | `NOT-RUN` | pre-apply encrypted logical backup 251,601 rows, plaintext disk write false. 별도 restore target 증거는 없음 | 승인된 별도 restore project/credential 확보 후 exact restore·표본 비교 | 2026-08-18 |
 
 운영 규칙:
 
@@ -978,21 +979,21 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-C01 | 6개 독립 여정 공백의 공통 topic adapter | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 현재 19개 체크 카테고리 밖 상태 모델 없음 |
 | AMR-Q01 | 실제 고객·실기기·2계정·2기기 검증 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 코드 테스트만으로 소비자 이해와 신뢰를 증명할 수 없음 |
 | AMR-REL01 | 현재 로컬 후보의 hosted staging | `PARTIAL` | `AUTOMATED` | `BLOCKED` | `NOT-RUN` | local release contract는 있으나 5개 evidence class missing |
-| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | pending 71·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
+| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | Production 기준 pending 73·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
 
 ### 8.4 전달·릴리스 현실
 
-- 현재 HEAD와 RC 원격 브랜치는 `b3f8a712`로 일치하지만 `origin/main`은 `b58a329d`다.
+- staging 검증 기준 코드 HEAD와 RC 원격 브랜치는 `6b4add74`로 일치한다. `origin/main` 병합·Production 승격은 하지 않았다.
 - Vercel의 READY Preview는 이전 `b4d4051b` 소스를 기준으로 하며, 현재 dirty tranche와 모바일 binary를 포함하지 않는다.
-- release manifest는 103개, 관찰된 successor 적용 prefix는 32개, pending은 71개, tail은 `20260816190000`이다.
-- hosted staging, backup, hosted restore, Storage, finalizer evidence는 모두 missing이며 상태는 `deployment_blocked`다.
+- release manifest는 105개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 73개, tail은 `20260818110000`이다. 격리 staging은 별도로 220개/head `20260818110000`까지 적용했다.
+- 격리 staging apply와 로컬 암호화 backup receipt는 존재하지만 Production release manifest의 5개 승격 evidence class(hosted staging·backup·hosted restore·Storage·finalizer)는 아직 모두 `missing`이다. 별도 restore와 최종 candidate binding 전에는 이 로컬 receipt를 승격 증거로 복사하지 않는다.
 - headerless Phase-A actor traffic, legacy direct password·10자 invite·direct chat writer fleet drain, provider runtime/grant canary의 fresh 운영 증거도 없다.
-- 현재 first-value·neutral personalization delta의 직접 증거는 neutral migration 4/4, backend route/onboarding/membership 434/434, web neutral focused 108/108, `corepack pnpm test` root 324/324·mobile 1033/1033·web 699 files/7482 tests, root typecheck·lint(오류 0, 기존 경고 1)·web/mobile production build, diff-check, Supabase release 218/218+fence PASS다. 전체 test 뒤 money 화면의 React Compiler lint 1건을 구조만 단순화했고 현재 코드에서 관련 money/budget 12/12·web typecheck·전체 lint·전체 build를 다시 통과했다. 실기기·2계정·hosted 증거는 없다.
+- first-value·neutral personalization의 로컬 자동 증거는 기존 full/focused gate를 유지한다. 이번 hosted 증거로 staging synthetic 2계정의 neutral create/replay, 가입 전 privacy, 비인가 join 차단, service join, 가입 후 상호 조회, cleanup(residue 0)을 추가했다. 이는 API 수준 다중 계정 검증이며 2기기 UI·접근성·실사용자 관찰을 대신하지 않는다.
 - 따라서 `COMMITTED`와 `LOCAL-DIRTY`는 소스 상태일 뿐 현재 소비자 제공 상태가 아니다.
 
 ### 8.5 committed baseline과 현재 dirty delta
 
-이전 86-path union candidate는 `b3f8a712`로 commit/push되었다. 현재 그 위 dirty delta는 118개이며 active first-value·neutral personalization·release·truth-doc candidate 80개, 무소유 `decisionMap` prototype 2개, 파생 임시 산출물 36개로 나뉜다. 아래 표는 committed baseline의 tranche 구성을 보존한 역사이며, 현재 80개 delta의 새 exact manifest는 현 local vertical 종료 뒤 다시 만든다. `decisionMap` 2개는 계속 `HOLD/EXCLUDE`한다.
+이전 86-path union candidate는 `b3f8a712`로 commit/push되었다. 2026-08-17 당시 그 위 dirty delta는 118개였고 active first-value·neutral personalization·release·truth-doc candidate 80개, 무소유 `decisionMap` prototype 2개, 파생 임시 산출물 36개로 나뉘었다. 아래 표는 그 시점의 tranche 구성을 보존한 역사다. `decisionMap` 2개는 현재도 `HOLD/EXCLUDE`한다.
 
 | # | tranche | 경로 수 | primary AMR | 핵심 경계 | disposition |
 |---:|---|---:|---|---|---|
@@ -1041,7 +1042,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 - `START_HERE.md`와 `docs/README.md`의 `f8851f74`·2026-08-12 handoff는 역사 snapshot으로 명시했다.
 - 현재 실행 기준은 이 문서와 실제 Git·tests·migration manifest로 바꿨다.
-- 현재 기준은 HEAD `b3f8a712`, manifest 103, applied prefix 32, pending 71, tail 161900이다.
+- 현재 release 기준은 검증 코드 HEAD `6b4add74`, manifest 105, Production 관찰 prefix 32, Production 기준 pending 73, tail 181100이다. 격리 staging ledger는 220/head 181100이다.
 - 날짜별 product summary의 95~98 migration 숫자는 역사 기록으로만 유지한다.
 - `amoraEntryPlan.d.mts`, `dashboardExperience.d.mts`, `scheduleSessionFence.d.mts`는 LF→CRLF 경고가 있으나 현재 diff-check 오류는 아니다.
 
@@ -1124,10 +1125,10 @@ freeze 전에 다음 중 하나를 선택한다.
 
 ### 단계 C. ordered suffix Hosted staging, product claim은 active vertical만
 
-목표: DB migration 역사를 골라 적용하거나 속이지 않는다. 71개 pending ordered suffix 전체를 migration별 owner·flag·probe와 함께 격리 staging에서 검증하되, 소비자 완료 주장은 단계 B의 active vertical로만 제한한다. Production 배포가 아니다.
+목표: DB migration 역사를 골라 적용하거나 속이지 않는다. Production 관찰 시점 이후 73개 ordered suffix 전체를 migration별 owner·flag·probe와 함께 격리 staging에서 검증하되, 소비자 완료 주장은 단계 B의 active vertical로만 제한한다. Production 배포가 아니다.
 
-- [x] `AMR-REL11` 71개 suffix의 모든 migration을 `active dependency / integrity hardening / unrelated feature-off / parked product surface`로 분류하고 exact hash·owner·probe를 기록한다. — operations contract 37/37
-- [ ] `AMR-REL12` 격리 hosted staging에 ordered suffix 전체를 적용한다. selective history·가짜 baseline·중간 tail을 만들지 않는다.
+- [x] `AMR-REL11` 73개 suffix의 모든 migration을 `active dependency / integrity hardening / unrelated feature-off / parked product surface`로 분류하고 exact hash·owner·probe를 기록한다. — release contract 235/235+fence
+- [x] `AMR-REL12` 격리 hosted staging에 ordered suffix 전체와 후속 무결성 migration 181000/181100을 exact order로 적용한다. — staging 220/head 181100, pre-apply encrypted backup, 단일 dry-run/apply, Production write 0
 - [ ] `AMR-REL13` 현재 remote backup과 별도 restore 프로젝트 복구를 검증한다.
 - [ ] `AMR-REL14` active RPC와 message-ref RLS/ACL/PostgREST schema cache를 확인한다.
 - [ ] `AMR-REL15` first-use proposal/apply와 exact retry의 provider 0회·AI log 0회·canonical receipt를 확인한다.
@@ -1265,7 +1266,7 @@ Wave 3·4와 `JRN-001~005` 코드로 관찰 테스트를 실행하기 전에 `EX
 4. [x] `AMR-AUDIT03` mixed hotspot의 hunk/function 소유 ledger가 FV-011 뒤에도 동일함을 재검증
 5. [x] `AMR-DOC01` stale handoff current 문구와 release 숫자 drift를 교정
 6. [x] `AMR-REG01` 현재 first-value delta의 root full test/build까지 재실행하고 네 축 상태를 재고정
-7. [x] `AMR-GIT01` 이전 86-path union RC를 `b3f8a712`로 commit/push; 현재 delta는 미커밋
+7. [x] `AMR-GIT01` union RC와 후속 first-value/integrity 변경을 commit/push; 현재 staging 검증 기준 코드 HEAD는 `6b4add74`
 8. [ ] `AMR-C10` 초보자 전체 여정 coverage matrix를 read-only로 동결
 9. [x] `AMR-F10` solo preparation-space compatibility data/RLS/migration/rollback C0와 161800 local 구현
 10. [x] `AMR-F11~15` 첫 10분 최소 질문→개인화 행동→private draft 공개 행동을 C2 자동 검증
@@ -1608,7 +1609,7 @@ workflow status: TODO
 | `EX-001` inventory snapshot | 반복 gate | 없음 | `git status`, master plan | snapshot 변경 시 이전 freeze를 current로 오인 | 현재 delta 140 = active candidate 102 + unowned HOLD 2 + tmp 36, HEAD/count 고정 |
 | `EX-002` candidate allowlist | 0.5일 | EX-001 | tranche manifest | guide/booking/tmp/decisionMap 포함 여부가 암묵적 | guide 5개 freeze, 161700 integrity IN·booking UI PARKED, tmp·decisionMap 제외, exact path/hash, 삭제 없음 |
 | `EX-003` mixed-file hunk ledger | 1일 | EX-002 | chat.tsx, schedule/index.tsx, route.ts, route test | path만으로 여러 AMR 완료 주장 가능 | 함수/hunk→AMR→테스트→risk가 전부 매핑 |
-| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | HEAD·103/32/71/161900을 current로, 과거값 historical로 표기 |
+| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·105/Production 32·pending 73/tail 181100·staging 220/head 181100을 current로, 과거값 historical로 표기 |
 | `EX-005` freeze regression | 완료 | EX-003/004 | shared/web/mobile/release 명령 | 이전 focused 수치만 존재 | 같은 freeze에서 focused→type/lint→full/build PASS, 변경 시 상태 하향 |
 | `EX-006` commit plan | 완료 | EX-005 | exact candidate manifest·staged index | review 단위가 불명확 | mixed hotspot 포함 union RC 1개, staged 86·HOLD/tmp 0·hash mismatch 0 |
 | `EX-008` whole-journey coverage inventory | 1일 | EX-006 | checklist·manners·planning gaps·product contract | 초보자 전체 누락을 설명하는 matrix 없음 | 모든 단계 covered/not-applicable/known gap/parked, 사용자 화면 소유자·근거 표시 |
@@ -1640,8 +1641,8 @@ Hard stop: 새 dirty path, migration hash 변화, 무소유 hunk, 테스트 수�
 
 | ID | 크기 | 의존성 | 변경 seam | 첫 RED/증거 | 완료 기준 |
 |---|---:|---|---|---|---|
-| `STG-001` ordered suffix classification | 0.5일 | EX-007 | migration dependency graph | 71개 suffix 안 active·parked·unrelated scope 혼재 | 모든 migration owner·flag·probe·product disposition과 exact hash 고정 |
-| `STG-002` isolated ordered apply | 1일 | STG-001 | hosted staging full suffix | `controller_ready=false`, evidence missing | 71개 exact hash·order 적용, selective history 없음, Production ref 금지 |
+| `STG-001` ordered suffix classification | 0.5일 | EX-007 | migration dependency graph | 73개 suffix 안 active·parked·unrelated scope 혼재 | 모든 migration owner·flag·probe·product disposition과 exact hash 고정 |
+| `STG-002` isolated ordered apply | 1일 | STG-001 | hosted staging full suffix | `controller_ready=false`, evidence missing | 73개 exact hash·order 적용, selective history 없음, Production ref 금지 |
 | `STG-003` backup/restore | 1.5일 | STG-002 | backup + separate restore | 복구 영수증 없음 | backup 생성, 별도 restore, 데이터/ACL 표본 검증 |
 | `STG-004` suffix privacy/atomic probes | 1.5~2일 | STG-002 | 모든 included RLS/ACL/RPC/PostgREST | anon/auth/service 공격·동시 확인 미실행 | message refs·first-use·provider apply·161700·Storage 경계, leak/duplicate 0 |
 | `STG-005` live-provider boundary | 1일 | STG-004 | provider+API+DB | mock/source contract만 존재 | AI가 필요한 첫 답은 로그, exact proposal/apply는 provider·AI log 0 |
@@ -1880,7 +1881,7 @@ AI는 DB를 직접 쓰지 않는다. 서버가 이미 canonical 결과를 아는
 ### Gate S0 — immutable candidate
 
 - 하나의 commit/hash와 hunk ownership ledger
-- 71개 pending ordered suffix 전체의 migration owner·product disposition·flag·probe·SHA 고정
+- Production 관찰 시점 기준 73개 pending ordered suffix 전체의 migration owner·product disposition·flag·probe·SHA 고정
 - `tmp/` 및 무관 산출물 제외
 - focused→type/lint→full test/build를 같은 commit에서 실행
 - 새 migration 또는 unowned hunk 발견 시 S0부터 다시 시작
@@ -1982,6 +1983,7 @@ Wave 3·4 구현
 | 2026-08-17 | AMR-AUDIT02~03/REG01 | 현재 118-path dirty snapshot을 active 80·HOLD 2·tmp 36으로 재분리하고 active path/LF SHA·mixed hunk 소유·자동 회귀 증거를 같은 living plan에 재동결 | Section 22/23 CURRENT · active 80=M58+U22 · HOLD/tmp candidate 제외 · product tests/type/lint/build PASS · commit/deploy 없음 |
 | 2026-08-17 | AMR-U01/AUDIT02~03/REG01 | 독립 상태축의 공통 consumer-state composer와 UI-facing contract를 구현하고 새 3경로를 포함한 후보를 재동결 | focused 13/13·10,368축 matrix·mobile 1046/1046·root typecheck/lint(오류 0, 기존 경고 1)·web/mobile build PASS · active 83/HOLD 2/tmp 36 · 실기기/hosted/commit/deploy 없음 |
 | 2026-08-18 | AMR-F20/REL14 | 이미 준비 중 사용자의 최대 3항목 상태를 외부 자동 import 없이 preview·명시 승인하고, 161900 단일 트랜잭션 receipt·secure restart·주제의 별도 사용자보고 기록으로 연결 | catch-up contract 10/10 · migration 6/6 · web onboarding/API 72/72 · mobile 1074/1074 · release 220/220+fence · shared/web/mobile typecheck · mobile lint · hosted/기기/2계정/commit/deploy 없음 |
+| 2026-08-18 | AMR-F10/F15/REL12 | 실 hosted 2계정 probe에서 발견한 Auth→profile trigger 부재와 one-time invite `NOT NULL` drift를 181000/181100 successor로 복구하고 격리 staging에서 재검증 | 코드 HEAD `6b4add74` · release 235/235+fence · encrypted backup 251,601 rows/plaintext 0 · staging 220/head 181100 · create/replay/privacy/join/read/cleanup 전부 true · residue 0 · Production write 0 |
 
 ---
 
@@ -1993,10 +1995,10 @@ Wave 3·4 구현
 |---|---|---|
 | 소비자 가치 | `PLAN GO` | 첫 가치와 write 분리, 관련 개인화 paired fixture, 홈 퍼센트 제거, `우리 준비 노트`를 NEXT/Wave 3에 명시 |
 | UX·접근성 | `PLAN GO` | 준비 노트 정보 위계·상태·privacy·검색·exact 원문·한 손·200%·screen reader 계약 |
-| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP LOCAL C2 VERIFIED` | F10~18·U01·F20은 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up까지 연결됨. 현재 102-path active delta는 미커밋이며 EX-007 재동결·실기기·2계정·hosted 검증 전 |
-| Hosted·Production | `NO-GO` | 71 migration pending, evidence 5종 missing, `deployment_blocked`; S0~S3와 별도 승인 필수 |
+| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP LOCAL C2; NEUTRAL JOIN HOSTED API VERIFIED` | F10~18·U01·F20은 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up까지 연결됨. neutral create/join은 격리 staging 2계정 API에서 통과했지만 2기기 UI·접근성·live provider·실사용 관찰은 남음 |
+| Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging ordered apply와 한 2계정 경로는 통과. 별도 restore, 전체 RLS/ACL/finalizer/Storage, Preview/internal, evidence 5종은 미완료이며 `deployment_blocked` 유지 |
 
-`EX-007 / AMR-REG01`과 `STG-001 / AMR-REL11`까지 완료했다. 71개 ordered suffix는 exact hash·owner·flag·probe·product disposition으로 고정됐다. 승인된 staging ref `rgxdizztidbgwnsbadml`은 management API에서 `ACTIVE_HEALTHY`이고, 원격 migration ledger는 147개/head `20260727090000`이다. staging link에서 실행한 read-only `db push --dry-run --include-all`은 분류표와 같은 71개를 같은 순서로 반환했다. 실제 apply 전 102-path candidate를 exact commit으로 고정하고 clean-worktree/ref fence를 통과시킨다. Production에는 쓰지 않는다. `FV-014 / AMR-F20`은 local C2이고, 실기기·2계정·hosted 검증 전에는 소비자 완료나 배포 완료로 올리지 않는다. Production은 계속 `NO-GO`다.
+`STG-002 / AMR-REL12`까지 완료했다. Production 관찰 시점 기준 73개 ordered suffix와 후속 무결성 복구를 exact hash·순서로 고정했고, 승인된 staging ref `rgxdizztidbgwnsbadml`은 ledger 220/head `20260818110000`이다. commit `6b4add74`에서 pre-apply encrypted backup을 검증한 뒤 181100 단일 dry-run/apply를 수행했으며, synthetic 2계정 neutral create/join probe가 전부 통과하고 residue는 0이었다. 이 증거는 API 경로 한 개에 한정된다. 별도 restore·전체 privacy/atomic probe·2기기 UI·live provider·실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
 
 <!-- AMORA:HUNK-LEDGER:BEGIN -->
 
@@ -2181,9 +2183,9 @@ Wave 3·4 구현
 <!-- AMORA:CANDIDATE-FREEZE:END -->
 <!-- AMORA:CANDIDATE-FREEZE-V2:BEGIN -->
 
-## 24. EX-002 current union candidate manifest — `CURRENT / VALID AT CAPTURE`
+## 24. EX-002 union candidate manifest — `HISTORICAL / VALID AT CAPTURE`
 
-이 블록은 기준 HEAD `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` 위의 2026-08-18 local dirty snapshot을 고정한다. active candidate만 검토·향후 commit 후보이며, `HOLD`와 `tmp/`는 candidate·commit·deploy에서 제외한다. 파일·상태·hash가 하나라도 바뀌면 EX-001부터 다시 실행한다.
+이 블록은 기준 HEAD `b3f8a712866b0023bae6efa662f3d40ed8eb13c3` 위의 2026-08-18 local dirty snapshot을 고정한 역사 증거다. 당시 active candidate는 이후 commit/push되었고, 현재 후보 상태로 재사용하지 않는다. `HOLD`와 `tmp/`를 candidate·commit·deploy에서 제외하는 규칙만 계속 유효하다.
 
 | 항목 | 고정 값 |
 |---|---|
