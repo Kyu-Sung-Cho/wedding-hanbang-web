@@ -337,11 +337,13 @@ function dpapiProtect(key, entropy) {
     "$memory=[IO.MemoryStream]::new()",
     "$stream.CopyTo($memory)",
     "$raw=$memory.ToArray()",
-    "$entropy=[Convert]::FromBase64String($args[0])",
+    "$entropy=[Convert]::FromBase64String($env:HB_AMORA_STAGING_BACKUP_ENTROPY)",
     "$protected=[Security.Cryptography.ProtectedData]::Protect($raw,$entropy,[Security.Cryptography.DataProtectionScope]::CurrentUser)",
     "[Console]::OpenStandardOutput().Write($protected,0,$protected.Length)",
   ].join("; ");
-  return powershell(["-Command", command, entropy.toString("base64")], key);
+  return powershell(["-Command", command], key, {
+    HB_AMORA_STAGING_BACKUP_ENTROPY: entropy.toString("base64"),
+  });
 }
 
 function dpapiUnprotect(protectedKey, entropy) {
@@ -351,11 +353,13 @@ function dpapiUnprotect(protectedKey, entropy) {
     "$memory=[IO.MemoryStream]::new()",
     "$stream.CopyTo($memory)",
     "$protected=$memory.ToArray()",
-    "$entropy=[Convert]::FromBase64String($args[0])",
+    "$entropy=[Convert]::FromBase64String($env:HB_AMORA_STAGING_BACKUP_ENTROPY)",
     "$raw=[Security.Cryptography.ProtectedData]::Unprotect($protected,$entropy,[Security.Cryptography.DataProtectionScope]::CurrentUser)",
     "[Console]::OpenStandardOutput().Write($raw,0,$raw.Length)",
   ].join("; ");
-  return powershell(["-Command", command, entropy.toString("base64")], protectedKey);
+  return powershell(["-Command", command], protectedKey, {
+    HB_AMORA_STAGING_BACKUP_ENTROPY: entropy.toString("base64"),
+  });
 }
 
 function utcDirectoryStamp(date) {
