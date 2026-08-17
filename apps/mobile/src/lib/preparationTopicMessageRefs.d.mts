@@ -37,6 +37,13 @@ export declare class PreparationTopicMessageRefError extends Error {
   constructor(code: PreparationTopicMessageRefErrorCode);
 }
 
+export declare function getPreparationTopicMessageReferenceFocusPresentation(
+  error: unknown,
+): Readonly<{
+  message: string;
+  canRetry: boolean;
+}>;
+
 export interface PreparationTopicMessageRefApiResponse {
   ok: boolean;
   status: number;

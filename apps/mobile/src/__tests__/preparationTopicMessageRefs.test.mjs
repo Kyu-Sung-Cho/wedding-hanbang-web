@@ -11,6 +11,7 @@ import {
   mutatePreparationTopicMessageReference,
   resolvePreparationTopicMessageReference,
   isPreparationTopicMessageSaveEligible,
+  getPreparationTopicMessageReferenceFocusPresentation,
 } from "../lib/preparationTopicMessageRefs.mjs";
 import {
   buildPreparationTopicPresentation,
@@ -497,6 +498,36 @@ test("strict resolver loads an old exact pair and merges the canonical sender an
   ]);
 });
 
+test("an unavailable or inaccessible saved original is terminal while a transient read can retry", () => {
+  assert.deepEqual(
+    getPreparationTopicMessageReferenceFocusPresentation(
+      new PreparationTopicMessageRefError("source_unavailable"),
+    ),
+    {
+      message: "저장한 대화 원문이 삭제되었거나 더 이상 열 수 없어요.",
+      canRetry: false,
+    },
+  );
+  assert.deepEqual(
+    getPreparationTopicMessageReferenceFocusPresentation(
+      new PreparationTopicMessageRefError("source_inaccessible"),
+    ),
+    {
+      message: "이 저장한 대화는 현재 계정에서 볼 수 없어요. 계정과 공개 범위를 확인해 주세요.",
+      canRetry: false,
+    },
+  );
+  assert.deepEqual(
+    getPreparationTopicMessageReferenceFocusPresentation(
+      new PreparationTopicMessageRefError("read_failed"),
+    ),
+    {
+      message: "저장한 대화 원문을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.",
+      canRetry: true,
+    },
+  );
+});
+
 test("chat exposes an explicit topic picker only for eligible or strictly resolved AI answers", () => {
   assert.match(chatSource, /isPreparationTopicMessageSaveEligible\(item,/);
   assert.match(chatSource, /resolvedTopicMessageFocus\?\.targetMessageId === item\.id/);
@@ -537,7 +568,8 @@ test("chat resolves opaque old-message focus with a visible retry and no latest-
   assert.match(chatSource, /onScrollToIndexFailed/);
   assert.match(chatSource, /AccessibilityInfo\.announceForAccessibility\("저장한 원문으로 이동했어요"\)/);
   assert.match(chatSource, />\s*저장한 원문\s*</);
-  assert.match(chatSource, /저장한 대화 원문을 불러오지 못했어요/);
+  assert.match(chatSource, /getPreparationTopicMessageReferenceFocusPresentation\(error\)/);
+  assert.match(chatSource, /topicMessageFocusState\.canRetry\s*&&/);
   assert.match(chatSource, /원문 다시 불러오기/);
   assert.match(chatSource, /if \(topicMessageRefIdParam\) return;/);
 });

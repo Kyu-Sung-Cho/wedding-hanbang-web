@@ -153,6 +153,7 @@ import { apiFetchForExpectedUser } from "@/lib/api";
 import { getQuoteAnalysisMessagePresentation } from "@hanbang/shared/quote-analysis-presentation";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
+  getPreparationTopicMessageReferenceFocusPresentation,
   isPreparationTopicMessageSaveEligible,
   loadPreparationTopicMessageReferenceState,
   loadPreparationTopicMessageReferences,
@@ -446,20 +447,8 @@ interface ResolvedTopicMessageFocus {
 type TopicMessageFocusState =
   | { status: "loading"; refId: string }
   | { status: "ready"; refId: string; targetMessageId: string }
-  | { status: "error"; refId: string; message: string }
+  | { status: "error"; refId: string; message: string; canRetry: boolean }
   | null;
-
-function getTopicMessageFocusErrorCopy(error: unknown): string {
-  if (error instanceof PreparationTopicMessageRefError) {
-    if (error.code === "source_inaccessible") {
-      return "이 저장한 대화는 현재 계정에서 볼 수 없어요. 계정과 공개 범위를 확인해 주세요.";
-    }
-    if (error.code === "source_unavailable" || error.code === "invalid_request") {
-      return "저장한 대화 원문이 삭제되었거나 더 이상 열 수 없어요.";
-    }
-  }
-  return "저장한 대화 원문을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
-}
 
 function isMediationSafetyFenceMessage(
   message: ChatMessage,
@@ -4140,6 +4129,7 @@ export default function ChatScreen() {
           status: "error",
           refId: topicMessageRefIdParam,
           message: "계정이나 커플 연결이 바뀌어 저장한 대화를 열지 않았어요.",
+          canRetry: false,
         });
         return;
       }
@@ -4168,10 +4158,11 @@ export default function ChatScreen() {
       if (!isCurrentContext()) return;
       topicMessageFocusTargetRef.current = null;
       setResolvedTopicMessageFocus(null);
+      const presentation = getPreparationTopicMessageReferenceFocusPresentation(error);
       setTopicMessageFocusState({
         status: "error",
         refId: topicMessageRefIdParam,
-        message: getTopicMessageFocusErrorCopy(error),
+        ...presentation,
       });
     });
   }, [
@@ -8063,6 +8054,7 @@ export default function ChatScreen() {
                   status: "error",
                   refId: topicMessageFocusState.refId,
                   message: "저장한 대화 원문 위치를 찾지 못했어요. 다시 불러와 주세요.",
+                  canRetry: true,
                 });
                 return;
               }
@@ -8148,21 +8140,23 @@ export default function ChatScreen() {
             <Text style={st.failureText} accessibilityRole="alert">
               {topicMessageFocusState.message}
             </Text>
-            <Pressable
-              style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
-              onPress={() => {
-                consumedTopicMessageFocusRef.current = null;
-                setTopicMessageFocusState({
-                  status: "loading",
-                  refId: topicMessageFocusState.refId,
-                });
-                setTopicMessageFocusRetryVersion((version) => version + 1);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="저장한 대화 원문 다시 불러오기"
-            >
-              <Text style={st.retryText}>원문 다시 불러오기</Text>
-            </Pressable>
+            {topicMessageFocusState.canRetry && (
+              <Pressable
+                style={({ pressed }) => [st.retryBtn, pressed && { opacity: 0.72 }]}
+                onPress={() => {
+                  consumedTopicMessageFocusRef.current = null;
+                  setTopicMessageFocusState({
+                    status: "loading",
+                    refId: topicMessageFocusState.refId,
+                  });
+                  setTopicMessageFocusRetryVersion((version) => version + 1);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="저장한 대화 원문 다시 불러오기"
+              >
+                <Text style={st.retryText}>원문 다시 불러오기</Text>
+              </Pressable>
+            )}
           </View>
         )}
 

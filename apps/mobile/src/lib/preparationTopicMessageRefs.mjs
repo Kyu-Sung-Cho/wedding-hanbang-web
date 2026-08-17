@@ -79,6 +79,27 @@ export class PreparationTopicMessageRefError extends Error {
   }
 }
 
+export function getPreparationTopicMessageReferenceFocusPresentation(error) {
+  if (error instanceof PreparationTopicMessageRefError) {
+    if (error.code === "source_inaccessible") {
+      return Object.freeze({
+        message: "이 저장한 대화는 현재 계정에서 볼 수 없어요. 계정과 공개 범위를 확인해 주세요.",
+        canRetry: false,
+      });
+    }
+    if (error.code === "source_unavailable" || error.code === "invalid_request") {
+      return Object.freeze({
+        message: "저장한 대화 원문이 삭제되었거나 더 이상 열 수 없어요.",
+        canRetry: false,
+      });
+    }
+  }
+  return Object.freeze({
+    message: "저장한 대화 원문을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.",
+    canRetry: true,
+  });
+}
+
 function assertCurrent(isCurrent) {
   if (typeof isCurrent !== "function" || !isCurrent()) {
     throw new PreparationTopicMessageRefError("stale_context");
