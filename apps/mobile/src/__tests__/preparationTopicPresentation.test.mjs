@@ -556,6 +556,73 @@ test("current shared schedule receipts become a compact read-only confirmation s
   );
 });
 
+test("one unavailable optional evidence lane preserves the current action and other verified evidence", () => {
+  const view = {
+    version: 1,
+    topicKey: "meeting",
+    label: "부모님 첫 만남",
+    applicability: "applicable",
+    status: "in_progress",
+    progress: { completed: 1, total: 2, percent: 50 },
+    facts: [{
+      key: "checklist:meeting_01",
+      label: "두 가족이 만날 목적 정하기 완료",
+      source: "saved_checklist",
+    }],
+    unknowns: [{
+      key: "checklist:meeting_02",
+      label: "참석자와 가능한 날짜 확인하기",
+      source: "unfinished_checklist",
+    }],
+    nextAction: {
+      title: "참석자와 가능한 날짜 확인하기",
+      reason: "우리 준비 기록에서 아직 끝내지 않은 첫 항목이에요.",
+      completionCriterion: "참석자와 가능한 날짜를 적으면 끝나요.",
+      source: "saved_checklist",
+    },
+    guideModules: [],
+    relatedMessageRefs: [],
+    linkedScheduleIds: ["meeting-event"],
+    linkedBudgetCategoryKeys: [],
+    linkedActionIds: [],
+    confirmedScheduleDecisions: [{
+      id: "50000000-0000-4000-8000-000000000011",
+      eventId: "meeting-event",
+      title: "일정 추가 · 양가 부모님 첫 만남",
+      date: "2026-09-05",
+      confirmedAt: "2026-08-15T09:00:00.000Z",
+      scope: "couple_shared",
+    }],
+    linkedDecisionIds: ["50000000-0000-4000-8000-000000000011"],
+    decisionReadState: "loaded",
+    actionReadState: "loaded",
+    conflicts: [],
+  };
+  const baseline = buildPreparationTopicPresentation(view, {
+    state: "loaded",
+    references: [],
+  });
+  const withUnavailableSavedConversation = buildPreparationTopicPresentation(view, {
+    state: "unavailable",
+    references: [],
+  });
+
+  assert.deepEqual(
+    withUnavailableSavedConversation?.nextAction,
+    baseline?.nextAction,
+  );
+  assert.deepEqual(
+    withUnavailableSavedConversation?.confirmedScheduleSection,
+    baseline?.confirmedScheduleSection,
+  );
+  assert.deepEqual(withUnavailableSavedConversation?.savedConversationSection, {
+    title: "아모라와 저장한 대화",
+    items: [],
+    initialVisibleCount: 2,
+    notice: "저장한 대화를 지금 불러오지 못했어요. 새로고침해서 다시 확인해 주세요.",
+  });
+});
+
 test("confirmed budget history shows one scope-accurate non-payment row without leaking receipt details", () => {
   const decisionId = "50000000-0000-4000-8000-000000000071";
   const hiddenRequestId = "60000000-0000-4000-8000-000000000071";
