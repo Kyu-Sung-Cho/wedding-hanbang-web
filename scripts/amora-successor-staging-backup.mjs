@@ -290,12 +290,33 @@ function powershell(args, input = null, taskEnvironment = {}) {
 }
 
 function secureDirectories(commonScript, root, partial) {
+  const userSid = powershell([
+    "-Command",
+    "[Console]::Write([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)",
+  ]).toString("utf8").trim();
+  if (!/^S-(?:\d+-)+\d+$/.test(userSid)) {
+    fail("current Windows user SID is malformed");
+  }
+  for (const path of [root, partial]) {
+    const result = spawnSync("icacls.exe", [
+      path,
+      "/inheritance:r",
+      "/grant:r",
+      `*${userSid}:(OI)(CI)F`,
+      "*S-1-5-18:(OI)(CI)F",
+      "*S-1-5-32-544:(OI)(CI)F",
+    ], {
+      encoding: null,
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    });
+    if (result.status !== 0) fail("Windows private-backup ACL update failed");
+  }
   const command = [
     "$ErrorActionPreference = 'Stop'",
     ". $env:HB_AMORA_STAGING_BACKUP_COMMON_PATH",
     "foreach ($path in @($env:HB_AMORA_STAGING_BACKUP_ROOT, $env:HB_AMORA_STAGING_BACKUP_PARTIAL)) {",
-    "  [IO.Directory]::CreateDirectory($path) | Out-Null",
-    "  Set-HBAM2PrivateDirectoryAcl -Path $path",
+    "  Assert-HBAM2PrivateDirectoryAcl -Path $path",
     "}",
   ].join("\n");
   powershell(["-Command", command], null, {
@@ -401,6 +422,7 @@ async function main() {
     const finalDirectory = join(root, `${utcDirectoryStamp(capturedAt)}-${backupSetId}`);
     if (existsSync(partial) || existsSync(finalDirectory)) fail("backup destination already exists");
     await mkdir(root, { recursive: true });
+    await mkdir(partial, { recursive: false });
     const commonScript = join(repoRoot, "scripts", "amora-db-backup-common.ps1");
     secureDirectories(commonScript, root, partial);
 
