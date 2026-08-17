@@ -8,6 +8,7 @@ import { gunzipSync } from "node:zlib";
 
 import {
   assertSuccessorStagingBackupPlan,
+  assertSupabaseRootCertificate,
   createEncryptedBackupFile,
   createEncryptedBackupStream,
   parseSupabaseTemporaryDatabaseCredentials,
@@ -18,6 +19,18 @@ import {
 const STAGING_REF = "rgxdizztidbgwnsbadml";
 const PRODUCTION_REF = "slrtobkksjmxgzatjyqb";
 const COMMIT = "b2b5c4a64e304135d3dcf88bcec868502744f20d";
+
+test("staging database TLS uses the exact pinned Supabase root certificate", async () => {
+  const certificate = await readFile(new URL("../certs/supabase-prod-ca-2021.crt", import.meta.url));
+  assert.match(assertSupabaseRootCertificate(certificate), /^-----BEGIN CERTIFICATE-----/);
+  assert.match(
+    assertSupabaseRootCertificate(Buffer.from(certificate.toString("utf8").replace(/\n/g, "\r\n"), "utf8")),
+    /^-----BEGIN CERTIFICATE-----/,
+  );
+  const tampered = Buffer.from(certificate);
+  tampered[tampered.length - 2] ^= 1;
+  assert.throws(() => assertSupabaseRootCertificate(tampered));
+});
 
 function validPlan(overrides = {}) {
   return {

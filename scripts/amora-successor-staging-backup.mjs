@@ -24,6 +24,7 @@ import pg from "pg";
 
 import {
   assertSuccessorStagingBackupPlan,
+  assertSupabaseRootCertificate,
   createEncryptedBackupFile,
   parseSupabaseTemporaryDatabaseCredentials,
   verifyEncryptedBackupFile,
@@ -318,10 +319,13 @@ async function main() {
     trackedWorktreeClean: runGit(repoRoot, ["status", "--porcelain", "--untracked-files=no"]) === "",
   });
   const cli = await resolveSupabaseCli(repoRoot);
+  const ca = assertSupabaseRootCertificate(await readFile(
+    join(repoRoot, "scripts", "certs", "supabase-prod-ca-2021.crt"),
+  ));
   let credentials = temporaryCredentials(cli, repoRoot, args.projectRef);
   const client = new Client({
     ...credentials,
-    ssl: { rejectUnauthorized: true },
+    ssl: { ca, rejectUnauthorized: true },
     connectionTimeoutMillis: 15_000,
     query_timeout: 65_000,
     application_name: "amora-successor-staging-backup-v1",

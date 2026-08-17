@@ -3,6 +3,7 @@ import {
   createDecipheriv,
   createHash,
   randomBytes,
+  X509Certificate,
 } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { unlink } from "node:fs/promises";
@@ -23,6 +24,8 @@ const BACKUP_ALGORITHM = "aes-256-gcm+gzip+ndjson-v1";
 const MAX_TEST_PLAINTEXT_BYTES = 16 * 1024 * 1024;
 const MAX_STREAM_LINE_BYTES = 16 * 1024 * 1024;
 const SHA256 = /^[0-9a-f]{64}$/;
+const SUPABASE_ROOT_CERTIFICATE_SHA256 = "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7";
+const SUPABASE_ROOT_CERTIFICATE_FINGERPRINT256 = "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
 
 function invalid(message) {
   throw new Error(`AMORA_SUCCESSOR_STAGING_BACKUP_INVALID: ${message}`);
@@ -39,6 +42,34 @@ function exactExport(script, name) {
   const matches = [...script.matchAll(new RegExp(`^export ${name}="([^"]+)"$`, "gm"))];
   if (matches.length !== 1) invalid("temporary database credential envelope is malformed");
   return matches[0][1];
+}
+
+export function assertSupabaseRootCertificate(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > 4096) {
+    invalid("Supabase root certificate bytes do not match the pinned public certificate");
+  }
+  const text = bytes.toString("utf8");
+  if (!Buffer.from(text, "utf8").equals(bytes)
+      || /\r(?!\n)/.test(text)
+      || createHash("sha256").update(text.replace(/\r\n/g, "\n"), "utf8").digest("hex")
+        !== SUPABASE_ROOT_CERTIFICATE_SHA256) {
+    invalid("Supabase root certificate bytes do not match the pinned public certificate");
+  }
+  let certificate;
+  try {
+    certificate = new X509Certificate(bytes);
+  } catch {
+    invalid("Supabase root certificate is malformed");
+  }
+  if (certificate.ca !== true
+      || certificate.fingerprint256 !== SUPABASE_ROOT_CERTIFICATE_FINGERPRINT256
+      || certificate.subject !== certificate.issuer
+      || certificate.subject !== "C=US\nST=Delware\nL=New Castle\nO=Supabase Inc\nCN=Supabase Root 2021 CA"
+      || certificate.validFrom !== "Apr 28 10:56:53 2021 GMT"
+      || certificate.validTo !== "Apr 26 10:56:53 2031 GMT") {
+    invalid("Supabase root certificate identity is not the pinned CA");
+  }
+  return text;
 }
 
 export function parseSupabaseTemporaryDatabaseCredentials(script, expectedProjectRef) {
