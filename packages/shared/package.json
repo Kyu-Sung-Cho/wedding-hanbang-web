@@ -33,6 +33,7 @@
     "./amora-preparation-topic": "./src/contracts/amoraPreparationTopic.mjs",
     "./amora-preparation-topic-message-ref": "./src/contracts/amoraPreparationTopicMessageRef.mjs",
     "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs",
+    "./amora-journey-truth-audit": "./src/contracts/amoraJourneyTruthAudit.mjs",
     "./amora-source-disclosure": "./src/contracts/amoraSourceDisclosure.mjs",
     "./amora-planning-foundation": "./src/contracts/amoraPlanningFoundation.mjs",
     "./amora-budget-payer-presentation": "./src/contracts/amoraBudgetPayerPresentation.mjs",

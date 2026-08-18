@@ -14,6 +14,7 @@ export * from "./contracts/amoraPreparationGuide.mjs";
 export * from "./contracts/amoraPreparationTopic.mjs";
 export * from "./contracts/amoraPreparationTopicMessageRef.mjs";
 export * from "./contracts/amoraPreparationCoverage.mjs";
+export * from "./contracts/amoraJourneyTruthAudit.mjs";
 export * from "./contracts/amoraSourceDisclosure.mjs";
 export * from "./contracts/amoraPlanningFoundation.mjs";
 export * from "./contracts/amoraBudgetPayerPresentation.mjs";
