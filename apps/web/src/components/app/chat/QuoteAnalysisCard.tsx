@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { buildCanonicalQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
-import type { AmoraQuoteCategory, AmoraQuoteRegion } from "@/lib/amora/quoteCheck";
+import {
+  parseAmoraAvailableMarketPriceReference,
+  type AmoraAvailableMarketPriceReference,
+  type AmoraQuoteCategory,
+  type AmoraQuoteRegion,
+} from "@/lib/amora/quoteCheck";
 
 interface QuoteAnalysisCardProps {
   result: ToolExecutionResult;
@@ -59,62 +64,16 @@ interface MissingItem {
   disguise: string;
 }
 
-interface CurrentMarketEvidence {
-  medianManwon: number;
-  comparatorLabel: string;
-  observationCount: number;
-  vendorCount: number;
-  sourcePeriod: string;
-  sourceUrl: string;
-  calculation: string;
-  comparisonBasis: string;
-  limitation: string;
-}
-
 function readCurrentMarketEvidence(
   data: Record<string, unknown>,
-): CurrentMarketEvidence | null {
-  const medianManwon = data.marketMedian;
-  const comparatorLabel = data.marketComparatorLabel;
-  const evidence = data.marketEvidence;
-  if (
-    typeof medianManwon !== "number"
-    || !Number.isFinite(medianManwon)
-    || medianManwon <= 0
-    || typeof comparatorLabel !== "string"
-    || comparatorLabel.length === 0
-    || !evidence
-    || typeof evidence !== "object"
-    || Array.isArray(evidence)
-  ) return null;
-
-  const value = evidence as Record<string, unknown>;
-  if (
-    value.status !== "available"
-    || value.source !== "한국소비자원 참가격"
-    || typeof value.sourceUrl !== "string"
-    || !value.sourceUrl.startsWith("https://price.go.kr/")
-    || typeof value.sourcePeriod !== "string"
-    || typeof value.calculation !== "string"
-    || typeof value.comparisonBasis !== "string"
-    || typeof value.limitation !== "string"
-    || !Number.isInteger(value.observationCount)
-    || !Number.isInteger(value.vendorCount)
-    || (value.observationCount as number) < 3
-    || (value.vendorCount as number) < 3
-  ) return null;
-
-  return {
-    medianManwon,
-    comparatorLabel,
-    observationCount: value.observationCount as number,
-    vendorCount: value.vendorCount as number,
-    sourcePeriod: value.sourcePeriod,
-    sourceUrl: value.sourceUrl,
-    calculation: value.calculation,
-    comparisonBasis: value.comparisonBasis,
-    limitation: value.limitation,
-  };
+): Readonly<AmoraAvailableMarketPriceReference> | null {
+  return parseAmoraAvailableMarketPriceReference({
+    category: data.category,
+    marketMedianManwon: data.marketMedian,
+    marketComparatorLabel: data.marketComparatorLabel,
+    marketEvidence: data.marketEvidence,
+    asOfDate: new Date().toISOString().slice(0, 10),
+  });
 }
 
 export default function QuoteAnalysisCard({ result, onSend, disabled }: QuoteAnalysisCardProps) {
@@ -424,7 +383,16 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
               {marketEvidence.comparatorLabel}
             </p>
             <p className="text-xs leading-relaxed text-[#635B51]">
-              {marketEvidence.sourcePeriod} · 공시 {marketEvidence.observationCount}건 · 업체·대행사 {marketEvidence.vendorCount}곳
+              {marketEvidence.officialReference.sourceDisclosure.badgeLabel} · {marketEvidence.officialReference.sourceDisclosure.checkedAtLabel}
+            </p>
+            <p className="text-xs leading-relaxed text-[#635B51]">
+              {marketEvidence.sourcePeriod} · 지역 · {marketEvidence.officialReference.regionLabel}
+            </p>
+            <p className="text-xs leading-relaxed text-[#635B51]">
+              적용 범위 · {marketEvidence.officialReference.applicabilityScopeLabel}
+            </p>
+            <p className="text-xs leading-relaxed text-[#635B51]">
+              공시 {marketEvidence.observationCount}건 · 업체·대행사 {marketEvidence.vendorCount}곳
             </p>
             <p className="text-xs leading-relaxed text-[#635B51]">
               {marketEvidence.calculation}. {marketEvidence.comparisonBasis}.
@@ -433,12 +401,12 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
               {marketEvidence.limitation}
             </p>
             <a
-              href={marketEvidence.sourceUrl}
+              href={marketEvidence.officialReference.sourceUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex min-h-11 items-center text-xs font-semibold text-[#8F6662] underline underline-offset-2"
             >
-              한국소비자원 참가격 원문 보기
+              {marketEvidence.officialReference.sourceName} 원문 보기
             </a>
           </div>
         ) : (

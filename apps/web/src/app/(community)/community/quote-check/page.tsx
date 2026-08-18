@@ -18,6 +18,7 @@ import {
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
   getQuoteCheckItems,
+  parseAmoraAvailableMarketPriceReference,
   type AmoraQuoteCategory,
   type AmoraQuoteCheckResult,
 } from "@/lib/amora/quoteCheck";
@@ -317,6 +318,14 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
   const style = INTENSITY_STYLES[intensity];
   const Icon = style.icon;
   const [copied, setCopied] = useState(false);
+  const currentMarketReference = parseAmoraAvailableMarketPriceReference({
+    category: result.category,
+    marketMedianManwon: result.marketMedianManwon,
+    marketComparatorLabel: result.marketComparatorLabel,
+    marketEvidence: result.marketEvidence,
+    asOfDate: new Date().toISOString().slice(0, 10),
+  });
+  const officialReference = currentMarketReference?.officialReference ?? null;
 
   // 확인 필요 항목 중 계약 전 확인 순서가 앞선 것부터 공유/포스트에 노출한다.
   const topMissing = useMemo(() => {
@@ -415,10 +424,10 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
           label="점검한 견적"
           value={AMORA_QUOTE_CATEGORY_LABELS[result.category]}
         />
-        {result.marketMedianManwon > 0 ? (
+        {currentMarketReference ? (
           <ResultMetric
-            label={`${result.marketComparatorLabel} (참고)`}
-            value={formatManwon(result.marketMedianManwon)}
+            label={`${currentMarketReference.comparatorLabel} (참고)`}
+            value={formatManwon(currentMarketReference.medianManwon)}
           />
         ) : (
           <div className="rounded-lg bg-white p-4">
@@ -440,29 +449,35 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
         이 결과는 가격이나 계약을 평가하지 않고, 사용자가 고른 항목 상태만 정리합니다.
       </p>
 
-      {result.marketEvidence.status === "available" ? (
+      {currentMarketReference && officialReference ? (
         <div className="mt-4 rounded-lg border border-[#e5d8ca] bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-[#9d6f36]">공시 참고값의 근거</p>
               <p className="mt-1 text-sm font-semibold text-[#263832]">
-                {result.marketEvidence.sourcePeriod} · {result.marketEvidence.regionLabel} · {result.marketEvidence.categoryLabel}
+                {officialReference.sourceDisclosure.badgeLabel} · {officialReference.sourceDisclosure.checkedAtLabel}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#635b51]">
+                {officialReference.sourcePeriodLabel} · 지역 · {officialReference.regionLabel}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#635b51]">
+                적용 범위 · {officialReference.applicabilityScopeLabel}
               </p>
             </div>
             <a
-              href={result.marketEvidence.sourceUrl}
+              href={officialReference.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex min-h-10 items-center rounded-full border border-[#e5d8ca] px-3 text-xs font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4"
             >
-              참가격 원문 보기
+              {officialReference.sourceName} 원문 보기
             </a>
           </div>
           <p className="mt-3 text-xs leading-5 text-[#635b51]">
-            공시 {result.marketEvidence.observationCount}건 · 업체·대행사 {result.marketEvidence.vendorCount}곳 · {result.marketEvidence.calculation}
+            공시 {currentMarketReference.observationCount}건 · 업체·대행사 {currentMarketReference.vendorCount}곳 · {currentMarketReference.calculation}
           </p>
           <p className="mt-1 text-xs leading-5 text-[#928980]">
-            {result.marketEvidence.comparisonBasis}. {result.marketEvidence.limitation}
+            {currentMarketReference.comparisonBasis}. {currentMarketReference.limitation}
           </p>
         </div>
       ) : null}

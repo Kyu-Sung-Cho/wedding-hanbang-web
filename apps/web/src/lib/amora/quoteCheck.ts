@@ -5,9 +5,17 @@ import {
   type PriceCategory,
 } from "@/lib/price/catalog";
 import {
+  DISCLOSURE_REFERENCE_ID,
   DISCLOSURE_SOURCE_URL,
+  DISCLOSURE_SOURCE_CHECKED_AT,
   disclosureRoundLabel,
 } from "@/lib/price/period";
+import {
+  buildAmoraOfficialReferenceScope,
+  parseAmoraOfficialReferenceScope,
+  type AmoraOfficialReferenceRegionScope,
+  type AmoraOfficialReferenceScope,
+} from "@hanbang/shared/amora-official-reference-scope";
 
 export type AmoraQuoteCategory = "sdm_package" | "studio" | "dress" | "makeup";
 export type AmoraQuoteRegion = "seoul" | "gyeonggi" | "busan" | "daegu" | "other";
@@ -78,13 +86,30 @@ export type AmoraMarketPriceEvidence = {
   calculation: string;
   comparisonBasis: string;
   limitation: string;
-  unavailableReason?: "catalog_not_loaded" | "category_not_comparable" | "insufficient_sample";
+  officialReference: Readonly<AmoraOfficialReferenceScope> | null;
+  unavailableReason?:
+    | "catalog_not_loaded"
+    | "category_not_comparable"
+    | "insufficient_sample"
+    | "reference_scope_invalid";
 };
 
 export type AmoraMarketPriceBenchmark = {
   medianManwon: number;
   comparatorLabel: string;
   evidence: AmoraMarketPriceEvidence;
+};
+
+export type AmoraAvailableMarketPriceReference = {
+  medianManwon: number;
+  comparatorLabel: string;
+  observationCount: number;
+  vendorCount: number;
+  sourcePeriod: string;
+  calculation: string;
+  comparisonBasis: string;
+  limitation: string;
+  officialReference: Readonly<AmoraOfficialReferenceScope>;
 };
 
 export const AMORA_QUOTE_CATEGORY_LABELS: Record<AmoraQuoteCategory, string> = {
@@ -116,8 +141,131 @@ const EXCLUDED_CHECKLIST_ITEM_IDS = new Set([
   "makeup_corsage",
 ]);
 
+const MARKET_COMPARISON_BASIS =
+  "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음";
+const MARKET_AVAILABLE_LIMITATION =
+  "공시 기본가 하한의 참고 중간값이며 옵션·계약 조건·시점에 따른 실제 결제액과 견적 적정성을 뜻하지 않습니다.";
+const AVAILABLE_MARKET_REFERENCE_INPUT_KEYS = Object.freeze([
+  "category",
+  "marketMedianManwon",
+  "marketComparatorLabel",
+  "marketEvidence",
+  "asOfDate",
+]);
+const AVAILABLE_MARKET_EVIDENCE_KEYS = Object.freeze([
+  "status",
+  "observationCount",
+  "vendorCount",
+  "source",
+  "sourceUrl",
+  "sourcePeriod",
+  "categoryLabel",
+  "regionLabel",
+  "calculation",
+  "comparisonBasis",
+  "limitation",
+  "officialReference",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length
+    && actual.every((key, index) => key === expected[index]);
+}
+
+export function parseAmoraAvailableMarketPriceReference(
+  input: unknown,
+): Readonly<AmoraAvailableMarketPriceReference> | null {
+  if (!isRecord(input) || !hasExactKeys(input, AVAILABLE_MARKET_REFERENCE_INPUT_KEYS)) {
+    return null;
+  }
+  if (
+    typeof input.category !== "string"
+    || !Object.prototype.hasOwnProperty.call(AMORA_QUOTE_CATEGORY_LABELS, input.category)
+    || input.category === "sdm_package"
+    || !Number.isSafeInteger(input.marketMedianManwon)
+    || (input.marketMedianManwon as number) <= 0
+    || typeof input.marketComparatorLabel !== "string"
+    || !isRecord(input.marketEvidence)
+    || !hasExactKeys(input.marketEvidence, AVAILABLE_MARKET_EVIDENCE_KEYS)
+  ) return null;
+
+  const evidence = input.marketEvidence;
+  const officialReference = parseAmoraOfficialReferenceScope(
+    evidence.officialReference,
+    input.asOfDate,
+  );
+  if (!officialReference || officialReference.applicabilityKey !== input.category) return null;
+
+  const observationCount = evidence.observationCount;
+  const vendorCount = evidence.vendorCount;
+  if (
+    evidence.status !== "available"
+    || !Number.isSafeInteger(observationCount)
+    || !Number.isSafeInteger(vendorCount)
+    || (observationCount as number) < 3
+    || (vendorCount as number) < 3
+    || (vendorCount as number) > (observationCount as number)
+  ) return null;
+
+  const expectedComparator =
+    `${officialReference.regionLabel} ${AMORA_QUOTE_CATEGORY_LABELS[input.category as AmoraQuoteCategory]} 공시 기본가 하한 중간값 (${observationCount as number}건)`;
+  const expectedCalculation =
+    `비교 가능한 업체·대행사별 공시 기본가 하한 ${observationCount as number}건의 중간값`;
+  if (
+    input.marketComparatorLabel !== expectedComparator
+    || evidence.source !== officialReference.sourceName
+    || evidence.sourceUrl !== officialReference.sourceUrl
+    || evidence.sourcePeriod !== officialReference.sourcePeriodLabel
+    || evidence.categoryLabel !== AMORA_QUOTE_CATEGORY_LABELS[input.category as AmoraQuoteCategory]
+    || evidence.regionLabel !== officialReference.regionLabel
+    || evidence.calculation !== expectedCalculation
+    || evidence.comparisonBasis !== MARKET_COMPARISON_BASIS
+    || evidence.limitation !== MARKET_AVAILABLE_LIMITATION
+  ) return null;
+
+  return Object.freeze({
+    medianManwon: input.marketMedianManwon as number,
+    comparatorLabel: input.marketComparatorLabel,
+    observationCount: observationCount as number,
+    vendorCount: vendorCount as number,
+    sourcePeriod: evidence.sourcePeriod,
+    calculation: evidence.calculation,
+    comparisonBasis: evidence.comparisonBasis,
+    limitation: evidence.limitation,
+    officialReference,
+  });
+}
+
 function regionToScope(region: AmoraQuoteRegion): AmoraQuoteScope {
   return region === "seoul" || region === "gyeonggi" ? "seoul" : "national";
+}
+
+function toOfficialReferenceRegionScope(
+  region: AmoraQuoteRegion | "national",
+): AmoraOfficialReferenceRegionScope {
+  if (region === "gyeonggi") return "gyeonggi_incheon";
+  if (region === "other") return "other_regions";
+  return region;
+}
+
+function buildQuoteOfficialReference(
+  category: AmoraQuoteCategory,
+  region: AmoraQuoteRegion | "national",
+): Readonly<AmoraOfficialReferenceScope> | null {
+  if (category === "sdm_package") return null;
+  return buildAmoraOfficialReferenceScope({
+    version: 1,
+    referenceId: DISCLOSURE_REFERENCE_ID,
+    regionScope: toOfficialReferenceRegionScope(region),
+    applicabilityKey: category,
+    asOfDate: DISCLOSURE_SOURCE_CHECKED_AT,
+  });
 }
 
 function getRelevantCosts(category: AmoraQuoteCategory): HiddenCostItem[] {
@@ -147,6 +295,7 @@ export function getAmoraMarketPriceBenchmark(
 ): AmoraMarketPriceBenchmark {
   const categoryLabel = AMORA_QUOTE_CATEGORY_LABELS[category];
   const regionLabel = region === "national" ? "전국" : AMORA_QUOTE_REGION_LABELS[region];
+  const officialReference = buildQuoteOfficialReference(category, region);
   const unavailable = (
     unavailableReason: AmoraMarketPriceEvidence["unavailableReason"],
     observationCount = 0,
@@ -164,8 +313,9 @@ export function getAmoraMarketPriceBenchmark(
       categoryLabel,
       regionLabel,
       calculation: "비교 가능한 공시 기본가 하한의 중간값",
-      comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
+      comparisonBasis: MARKET_COMPARISON_BASIS,
       limitation: "개별 계약의 구성·옵션·시점이 달라 견적의 적정성이나 최종 결제액을 판정할 수 없습니다.",
+      officialReference,
       unavailableReason,
     },
   });
@@ -217,6 +367,9 @@ export function getAmoraMarketPriceBenchmark(
   if (observations.length < 3 || vendorCount < 3) {
     return unavailable("insufficient_sample", observations.length, vendorCount);
   }
+  if (!officialReference) {
+    return unavailable("reference_scope_invalid", observations.length, vendorCount);
+  }
 
   const sorted = observations.map(({ minimumKrw }) => minimumKrw).sort((left, right) => left - right);
   const middle = Math.floor(sorted.length / 2);
@@ -239,8 +392,9 @@ export function getAmoraMarketPriceBenchmark(
       categoryLabel,
       regionLabel,
       calculation,
-      comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
-      limitation: "공시 기본가 하한의 참고 중간값이며 옵션·계약 조건·시점에 따른 실제 결제액과 견적 적정성을 뜻하지 않습니다.",
+      comparisonBasis: MARKET_COMPARISON_BASIS,
+      limitation: MARKET_AVAILABLE_LIMITATION,
+      officialReference,
     },
   };
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DISCLOSURE_REFERENCE_ID,
   DISCLOSURE_ROUND,
+  DISCLOSURE_SOURCE_CHECKED_AT,
   disclosureRoundLabel,
   displaySourceLabel,
   formatDisclosurePeriod,
@@ -27,7 +29,9 @@ describe("formatDisclosurePeriod", () => {
  */
 describe("disclosureRoundLabel", () => {
   it("확인된 공시 라운드를 쓴다 — 스냅샷 이름이 아니다", () => {
+    expect(DISCLOSURE_REFERENCE_ID).toBe("kca_wedding_service_price_2025_11");
     expect(DISCLOSURE_ROUND).toBe("2025-11");
+    expect(DISCLOSURE_SOURCE_CHECKED_AT).toBe("2026-07-27");
     expect(disclosureRoundLabel()).toBe("2025년 11월");
   });
 

@@ -104,13 +104,39 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
         observationCount: 3,
         vendorCount: 3,
         source: "한국소비자원 참가격",
-        sourceUrl: "https://price.go.kr/tprice/portal/wedding/main.do",
+        sourceUrl: "https://price.go.kr/tprice/portal/board/boardInfoMgr.do?boardTypeCode=0090000122",
         sourcePeriod: "2025년 11월",
         categoryLabel: "사진 촬영",
         regionLabel: "서울",
         calculation: "비교 가능한 업체·대행사별 공시 기본가 하한 3건의 중간값",
-        comparisonBasis: "price_min_krw만 비교",
-        limitation: "옵션·계약 조건·실제 결제액과 견적 적정성을 뜻하지 않습니다.",
+        comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
+        limitation: "공시 기본가 하한의 참고 중간값이며 옵션·계약 조건·시점에 따른 실제 결제액과 견적 적정성을 뜻하지 않습니다.",
+        officialReference: {
+          version: 1,
+          referenceId: "kca_wedding_service_price_2025_11",
+          sourceDisclosure: {
+            version: 1,
+            sourceType: "official_reference",
+            commercialRelationship: "none",
+            checkedAt: "2026-07-27",
+            badgeLabel: "공식 자료",
+            statusLabel: "참고 정보",
+            commercialRelationshipLabel: "표시된 상업 관계 없음",
+            checkedAtLabel: "2026.07.27 확인",
+            limitation: "표시된 확인일과 적용 범위 기준이에요. 중요한 내용은 최신 원문을 다시 확인해야 해요.",
+            stateEffect: "none",
+            rankingPolicy: "disclosure_only",
+          },
+          sourceName: "한국소비자원 참가격",
+          sourceUrl: "https://price.go.kr/tprice/portal/board/boardInfoMgr.do?boardTypeCode=0090000122",
+          sourcePeriod: "2025-11",
+          sourcePeriodLabel: "2025년 11월",
+          regionScope: "seoul",
+          regionLabel: "서울",
+          applicabilityKey: "studio",
+          applicabilityScopeLabel: "사진 촬영 공시 기본가 하한 참고",
+          referenceEffect: "context_only",
+        },
       },
       missingItems: [],
       includedItems: [],
@@ -119,10 +145,14 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
     expect(html).toContain("공시 기본가 하한 참고값");
     expect(html).toContain("200만");
     expect(html).toContain("2025년 11월");
+    expect(html).toContain("공식 자료");
+    expect(html).toContain("2026.07.27 확인");
+    expect(html).toContain("지역 · 서울");
+    expect(html).toContain("적용 범위 · 사진 촬영 공시 기본가 하한 참고");
     expect(html).toContain("공시 3건");
     expect(html).toContain("업체·대행사 3곳");
-    expect(html).toContain("price_min_krw만 비교");
-    expect(html).toContain("옵션·계약 조건·실제 결제액과 견적 적정성을 뜻하지 않습니다.");
+    expect(html).toContain("price_min_krw만 사용");
+    expect(html).toContain("실제 결제액과 견적 적정성을 뜻하지 않습니다.");
     expect(html).toContain("https://price.go.kr/");
     expect(html).not.toContain("공식 평균");
     expect(html).not.toContain("결혼 비용 시세");
@@ -134,6 +164,35 @@ describe("QuoteAnalysisCard retired static price compatibility", () => {
       category: "studio",
       marketMedian: 200,
       marketEvidence: { status: "available", observationCount: 1 },
+      missingItems: [],
+      includedItems: [],
+    });
+
+    expect(html).toContain("별도 확인");
+    expect(html).not.toContain("200만");
+    expect(html).not.toContain("공시 기본가 하한 참고값");
+  });
+
+  it("fails closed when persisted official source scope is missing or tampered", () => {
+    const html = render({
+      quotePrice: 250,
+      category: "studio",
+      marketMedian: 200,
+      marketComparatorLabel: "서울 사진 촬영 공시 기본가 하한 중간값 (3건)",
+      marketEvidence: {
+        status: "available",
+        observationCount: 3,
+        vendorCount: 3,
+        source: "한국소비자원 참가격",
+        sourceUrl: "https://price.go.kr/tprice/portal/board/boardInfoMgr.do?boardTypeCode=0090000122",
+        sourcePeriod: "2025년 11월",
+        categoryLabel: "사진 촬영",
+        regionLabel: "서울",
+        calculation: "중간값",
+        comparisonBasis: "공시 기본가 하한",
+        limitation: "견적 적정성을 뜻하지 않습니다.",
+        officialReference: { referenceId: "kca_wedding_service_price_2025_11" },
+      },
       missingItems: [],
       includedItems: [],
     });

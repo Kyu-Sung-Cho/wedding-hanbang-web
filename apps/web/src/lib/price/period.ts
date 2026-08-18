@@ -5,6 +5,12 @@ const DISCLOSURE_DISCLAIMER =
 export const DISCLOSURE_SOURCE_URL =
   "https://price.go.kr/tprice/portal/board/boardInfoMgr.do?boardTypeCode=0090000122";
 
+/** 현재 공시 원문·라운드·확인일을 함께 식별하는 버전 고정 reference ID. */
+export const DISCLOSURE_REFERENCE_ID = "kca_wedding_service_price_2025_11" as const;
+
+/** 소유자가 참가격 게시판 원문과 현재 라운드를 직접 대조한 날. */
+export const DISCLOSURE_SOURCE_CHECKED_AT = "2026-07-27" as const;
+
 /**
  * 소비자에게 보이는 **공시 기준 시점**.
  *

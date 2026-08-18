@@ -17,6 +17,7 @@ export * from "./contracts/amoraPreparationTopicMessageRef.mjs";
 export * from "./contracts/amoraPreparationCoverage.mjs";
 export * from "./contracts/amoraJourneyTruthAudit.mjs";
 export * from "./contracts/amoraSourceDisclosure.mjs";
+export * from "./contracts/amoraOfficialReferenceScope.mjs";
 export * from "./contracts/amoraPlanningFoundation.mjs";
 export * from "./contracts/amoraBudgetPayerPresentation.mjs";
 export * from "./contracts/amoraConsumerState.mjs";

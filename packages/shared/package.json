@@ -36,6 +36,7 @@
     "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs",
     "./amora-journey-truth-audit": "./src/contracts/amoraJourneyTruthAudit.mjs",
     "./amora-source-disclosure": "./src/contracts/amoraSourceDisclosure.mjs",
+    "./amora-official-reference-scope": "./src/contracts/amoraOfficialReferenceScope.mjs",
     "./amora-planning-foundation": "./src/contracts/amoraPlanningFoundation.mjs",
     "./amora-budget-payer-presentation": "./src/contracts/amoraBudgetPayerPresentation.mjs",
     "./amora-consumer-state": "./src/contracts/amoraConsumerState.mjs",

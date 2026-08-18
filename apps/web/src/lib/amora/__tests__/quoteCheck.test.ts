@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { analyzeAmoraQuoteCheck, getQuoteCheckItems } from "../quoteCheck";
+import {
+  analyzeAmoraQuoteCheck,
+  getQuoteCheckItems,
+  parseAmoraAvailableMarketPriceReference,
+} from "../quoteCheck";
 import type { AmoraQuoteCategory, AmoraQuoteRegion } from "../quoteCheck";
 import type { PriceCatalog, PriceOffer, PriceVendor } from "@/lib/price/catalog";
 
@@ -101,7 +105,71 @@ describe("런타임 공시가 경계", () => {
       comparisonBasis: "공시 행의 price_min_krw만 사용하며 기본 구성·옵션·부가세 조건을 합산하거나 보정하지 않음",
     });
     expect(result.marketEvidence.sourceUrl).toMatch(/^https:\/\/price\.go\.kr\//u);
+    expect(result.marketEvidence.officialReference).toMatchObject({
+      referenceId: "kca_wedding_service_price_2025_11",
+      sourceName: "한국소비자원 참가격",
+      sourcePeriod: "2025-11",
+      sourcePeriodLabel: "2025년 11월",
+      regionScope: "seoul",
+      regionLabel: "서울",
+      applicabilityKey: "studio",
+      applicabilityScopeLabel: "사진 촬영 공시 기본가 하한 참고",
+      referenceEffect: "context_only",
+      sourceDisclosure: {
+        sourceType: "official_reference",
+        checkedAt: "2026-07-27",
+        checkedAtLabel: "2026.07.27 확인",
+        rankingPolicy: "disclosure_only",
+      },
+    });
     expect(JSON.stringify(result.marketEvidence)).not.toContain("2026Q3");
+  });
+
+  it("표시 직전에도 공식 근거와 공시 계산 문구를 함께 재검증한다", () => {
+    const result = analyzeAmoraQuoteCheck({
+      category: "studio",
+      region: "seoul",
+      quotePriceManwon: 250,
+      includedItemIds: [],
+    }, publicCatalog([
+      { id: "one", regionCode: "seoul_gangnam3", minimumKrw: 1_000_000 },
+      { id: "two", regionCode: "seoul_etc", minimumKrw: 2_000_000 },
+      { id: "three", regionCode: "seoul_etc", minimumKrw: 3_000_000 },
+    ]));
+    const input = {
+      category: result.category,
+      marketMedianManwon: result.marketMedianManwon,
+      marketComparatorLabel: result.marketComparatorLabel,
+      marketEvidence: result.marketEvidence,
+      asOfDate: "2026-08-18",
+    };
+
+    expect(parseAmoraAvailableMarketPriceReference(input)).toMatchObject({
+      medianManwon: 200,
+      comparatorLabel: "서울 사진 촬영 공시 기본가 하한 중간값 (3건)",
+      observationCount: 3,
+      vendorCount: 3,
+      officialReference: {
+        referenceId: "kca_wedding_service_price_2025_11",
+      },
+    });
+
+    const evidence = result.marketEvidence;
+    for (const marketEvidence of [
+      { ...evidence, sourceUrl: "https://example.com" },
+      { ...evidence, sourcePeriod: "2026년 3분기" },
+      { ...evidence, regionLabel: "전국" },
+      { ...evidence, categoryLabel: "전체 결혼 비용" },
+      { ...evidence, calculation: "공식 평균" },
+      { ...evidence, comparisonBasis: "가격 적정성" },
+      { ...evidence, officialReference: null },
+    ]) {
+      expect(parseAmoraAvailableMarketPriceReference({ ...input, marketEvidence })).toBeNull();
+    }
+    expect(parseAmoraAvailableMarketPriceReference({
+      ...input,
+      marketComparatorLabel: "공식 평균 가격",
+    })).toBeNull();
   });
 
   it("소스에 고정한 중위가로 가격을 판정하지 않는다", () => {
