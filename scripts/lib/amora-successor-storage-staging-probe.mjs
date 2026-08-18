@@ -9,6 +9,8 @@ const SHA256 = /^[a-f0-9]{64}$/u;
 const RUN_NONCE = /^[a-f0-9]{32}$/u;
 const POLICY_EXPRESSION_SHA256 =
   "7b9e967897a69bdc226f09e02a240db1ca64f0caeb58244912445ff0f5032482";
+const PRODUCTION_STORAGE_FENCE_SOURCE_SHA256 =
+  "2d68394af998108f9f35441e53d3ec1dfcde0f5f450e736aa78bd55efae50316";
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
 const UNSIGNED_BUCKETS = Object.freeze([
@@ -104,6 +106,59 @@ WITH expected_buckets(id, is_public, file_size_limit, allowed_mime_types) AS (
     ) = 1 AS storage_policy_contract_verified,
     max(expression_sha256) AS storage_policy_expression_sha256
   FROM actual_policies
+), production_fence_function AS (
+  SELECT
+    count(*) = 1
+      AND pg_catalog.bool_and(
+        function_record.prokind = 'f'
+        AND function_record.prosecdef
+        AND function_record.provolatile = 's'
+        AND pg_catalog.pg_get_userbyid(function_record.proowner) = 'postgres'
+        AND function_record.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']::text[]
+        AND pg_catalog.has_function_privilege(
+          'authenticated', function_record.oid, 'EXECUTE'
+        )
+        AND NOT pg_catalog.has_function_privilege('anon', function_record.oid, 'EXECUTE')
+        AND NOT pg_catalog.has_function_privilege(
+          'service_role', function_record.oid, 'EXECUTE'
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM pg_catalog.aclexplode(COALESCE(
+            function_record.proacl,
+            pg_catalog.acldefault('f', function_record.proowner)
+          )) AS acl_entry
+          WHERE acl_entry.grantee = 0
+            AND acl_entry.privilege_type = 'EXECUTE'
+        )
+        AND pg_catalog.encode(extensions.digest(lower(pg_catalog.regexp_replace(
+          function_record.prosrc, E'\\s+', '', 'g'
+        )), 'sha256'), 'hex') = '${PRODUCTION_STORAGE_FENCE_SOURCE_SHA256}'
+      ) AS production_storage_fence_function_verified
+  FROM pg_catalog.pg_proc AS function_record
+  WHERE function_record.oid = pg_catalog.to_regprocedure(
+    'public.production_storage_writes_allowed()'
+  )
+), production_fence_state AS (
+  SELECT NOT (
+    EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_trigger AS trigger_record
+      WHERE trigger_record.tgname = 'trg_production_write_fence_20260717'
+        AND NOT trigger_record.tgisinternal
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_event_trigger AS event_trigger_record
+      WHERE event_trigger_record.evtname = 'evt_production_write_fence_20260717'
+    )
+    OR pg_catalog.to_regprocedure(
+      'public.production_write_fence_guard_20260717()'
+    ) IS NOT NULL
+    OR pg_catalog.to_regprocedure(
+      'public.production_write_fence_attach_20260717()'
+    ) IS NOT NULL
+  ) AS production_storage_writes_allowed
 ), object_rows AS (
   SELECT
     object.bucket_id,
@@ -166,7 +221,8 @@ SELECT
   policy_contract.storage_insert_policy_count,
   policy_contract.storage_policy_contract_verified,
   policy_contract.storage_policy_expression_sha256,
-  public.production_storage_writes_allowed() AS production_storage_writes_allowed,
+  production_fence_function.production_storage_fence_function_verified,
+  production_fence_state.production_storage_writes_allowed,
   object_inventory.total_object_count,
   object_inventory.object_inventory_sha256,
   nonce_residue.exact_nonce_auth_user_count,
@@ -176,6 +232,8 @@ SELECT
 FROM relation_contract
 CROSS JOIN bucket_contract
 CROSS JOIN policy_contract
+CROSS JOIN production_fence_function
+CROSS JOIN production_fence_state
 CROSS JOIN object_inventory
 CROSS JOIN nonce_residue
 `.trim();
@@ -316,6 +374,7 @@ function normalizeInventoryRow(row) {
     && row.storage_insert_policy_count === 1
     && row.storage_policy_contract_verified === true
     && row.storage_policy_expression_sha256 === POLICY_EXPRESSION_SHA256
+    && row.production_storage_fence_function_verified === true
     && row.production_storage_writes_allowed === false
     && counters.every((value) => Number.isSafeInteger(value) && value >= 0)
     && SHA256.test(row.object_inventory_sha256 ?? "")
@@ -338,6 +397,8 @@ function normalizeInventoryRow(row) {
     storagePolicyCount: row.storage_policy_count,
     storageInsertPolicyCount: row.storage_insert_policy_count,
     storagePolicyExpressionSha256: row.storage_policy_expression_sha256,
+    productionStorageFenceFunctionVerified:
+      row.production_storage_fence_function_verified,
     productionStorageWritesAllowed: row.production_storage_writes_allowed,
     totalObjectCount: row.total_object_count,
     objectInventorySha256: row.object_inventory_sha256,
@@ -809,6 +870,7 @@ function assertNormalizedInventory(inventory) {
       || inventory.storagePolicyCount !== 1
       || inventory.storageInsertPolicyCount !== 1
       || inventory.storagePolicyExpressionSha256 !== POLICY_EXPRESSION_SHA256
+      || inventory.productionStorageFenceFunctionVerified !== true
       || inventory.productionStorageWritesAllowed !== false
       || !Number.isSafeInteger(inventory.totalObjectCount) || inventory.totalObjectCount < 0
       || !SHA256.test(inventory.objectInventorySha256 ?? "")
@@ -831,7 +893,11 @@ function stableSemantics(baseline, finalInventory) {
     && baseline.retiredGuestbookPrivateBucketCount
       === finalInventory.retiredGuestbookPrivateBucketCount
     && baseline.storagePolicyCount === finalInventory.storagePolicyCount
-    && baseline.storageInsertPolicyCount === finalInventory.storageInsertPolicyCount;
+    && baseline.storageInsertPolicyCount === finalInventory.storageInsertPolicyCount
+    && baseline.productionStorageFenceFunctionVerified
+      === finalInventory.productionStorageFenceFunctionVerified
+    && baseline.productionStorageWritesAllowed
+      === finalInventory.productionStorageWritesAllowed;
 }
 
 function probePaths(user, runNonce) {

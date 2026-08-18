@@ -38,6 +38,7 @@ function inventoryRow(overrides = {}) {
     storage_insert_policy_count: 1,
     storage_policy_contract_verified: true,
     storage_policy_expression_sha256: POLICY_SHA256,
+    production_storage_fence_function_verified: true,
     production_storage_writes_allowed: false,
     total_object_count: 49,
     object_inventory_sha256: BASELINE_OBJECT_SHA256,
@@ -61,6 +62,7 @@ function normalizedInventory(overrides = {}) {
     storagePolicyCount: 1,
     storageInsertPolicyCount: 1,
     storagePolicyExpressionSha256: POLICY_SHA256,
+    productionStorageFenceFunctionVerified: true,
     productionStorageWritesAllowed: false,
     totalObjectCount: 49,
     objectInventorySha256: BASELINE_OBJECT_SHA256,
@@ -238,6 +240,14 @@ test("the public inventory SQL pins the hosted owner, RLS shape, eleven exact bu
   assert.match(STORAGE_STAGING_INVENTORY_SQL, /guestbook-images[^\n]+false/iu);
   assert.match(STORAGE_STAGING_INVENTORY_SQL, /guestbook-uploads[^\n]+false/iu);
   assert.match(STORAGE_STAGING_INVENTORY_SQL, new RegExp(POLICY_SHA256, "u"));
+  assert.match(
+    STORAGE_STAGING_INVENTORY_SQL,
+    /2d68394af998108f9f35441e53d3ec1dfcde0f5f450e736aa78bd55efae50316/iu,
+  );
+  assert.doesNotMatch(
+    STORAGE_STAGING_INVENTORY_SQL,
+    /public\.production_storage_writes_allowed\s*\(\s*\)\s+AS production_storage_writes_allowed/iu,
+  );
 });
 
 test("the read-only inventory call uses only the fixed Management host, a bounded request, and a strict result shape", async () => {
@@ -328,6 +338,7 @@ test("inventory inspection fails closed on every owner, RLS, bucket, policy, fen
     ["storage_insert_policy_count", 0],
     ["storage_policy_contract_verified", false],
     ["storage_policy_expression_sha256", "e".repeat(64)],
+    ["production_storage_fence_function_verified", false],
     ["production_storage_writes_allowed", true],
     ["exact_nonce_auth_user_count", 1],
     ["exact_nonce_profile_count", 1],
