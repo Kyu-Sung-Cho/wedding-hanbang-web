@@ -4,6 +4,32 @@ import { isAbsolute, resolve } from "node:path";
 const PROJECT_REF = /^[a-z0-9]{20}$/;
 const GIT_COMMIT = /^[a-f0-9]{40}$/;
 const CRITERION_CONFIRMATION_CONTENT = "좋아요. 제안한 변경을 적용해 주세요.";
+const FIRST_USE_ACTION_INPUT = Object.freeze({
+  action: "예식 시기 후보 두 개 적기",
+  reason: "먼저 범위를 줄이면 장소를 찾기 쉬워져요.",
+  completionCriterion: "가능한 시기 두 개를 적으면 끝나요.",
+});
+const FIRST_USE_ADD_ACTION_INPUT = Object.freeze({
+  title: FIRST_USE_ACTION_INPUT.action,
+  description: `이유: ${FIRST_USE_ACTION_INPUT.reason} 완료 기준: ${FIRST_USE_ACTION_INPUT.completionCriterion}`,
+  category_key: "general",
+  priority: "medium",
+  source: "chat",
+});
+const FIRST_USE_PRIVATE_ONLY_MARKER = "비공개 배경은 공유 결과에 나오면 안 돼요.";
+const FIRST_USE_PRIVATE_CONTENT = [
+  FIRST_USE_PRIVATE_ONLY_MARKER,
+  `지금 할 한 가지: ${FIRST_USE_ACTION_INPUT.action}`,
+  `이유: ${FIRST_USE_ACTION_INPUT.reason}`,
+  `완료 기준: ${FIRST_USE_ACTION_INPUT.completionCriterion}`,
+].join("\n");
+const FIRST_USE_SHARED_CONTENT = [
+  "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.",
+  `지금 할 한 가지: ${FIRST_USE_ACTION_INPUT.action}`,
+  `이유: ${FIRST_USE_ACTION_INPUT.reason}`,
+  `완료 기준: ${FIRST_USE_ACTION_INPUT.completionCriterion}`,
+  "저장 전에는 확인 카드만 보여줘.",
+].join("\n");
 
 export class AmoraSuccessorStagingProbeError extends Error {
   constructor(code, message) {
@@ -59,6 +85,10 @@ function deriveConfirmedActionRequestId(confirmationMessageId, pendingActionId) 
   return uuidFromDigest(
     `amora-confirmed-action-request\0${confirmationMessageId}\0${pendingActionId}`,
   );
+}
+
+function sha256Text(value) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 async function readBoundedJson(response, code, maxBytes = 256 * 1024) {
@@ -485,6 +515,142 @@ export function readHostedCriterionActionResidue({
   })();
 }
 
+const FIRST_USE_ACTION_RESIDUE_SQL = `
+SELECT
+  (SELECT count(*)::integer FROM public.profiles AS row
+   WHERE row.id = ANY($1::uuid[])) AS profiles,
+  (SELECT count(*)::integer FROM public.couples AS row
+   WHERE row.id = ANY($2::uuid[])) AS couples,
+  (SELECT count(*)::integer FROM public.wedding_journeys AS row
+   WHERE row.couple_id = ANY($2::uuid[])) AS journeys,
+  (SELECT count(*)::integer FROM public.chat_messages AS row
+   WHERE row.id = ANY($3::uuid[])
+      OR row.sender_id = ANY($1::uuid[])
+      OR row.couple_id = ANY($2::uuid[])) AS chat_messages,
+  (SELECT count(*)::integer FROM public.amora_chat_request_claims AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.user_id = ANY($1::uuid[])
+      OR row.user_message_id = ANY($3::uuid[])
+      OR row.message_id = ANY($3::uuid[])) AS chat_claims,
+  (SELECT count(*)::integer FROM public.amora_first_use_action_promotions AS row
+   WHERE row.id = ANY($4::uuid[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.owner_user_id = ANY($1::uuid[])
+      OR row.source_private_message_id = ANY($3::uuid[])
+      OR row.shared_user_message_id = ANY($3::uuid[])) AS promotions,
+  (SELECT count(*)::integer FROM public.amora_first_use_action_proposal_bindings AS row
+   WHERE row.promotion_id = ANY($4::uuid[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.proposal_message_id = ANY($3::uuid[])
+      OR row.shared_user_message_id = ANY($3::uuid[])) AS proposal_bindings,
+  (SELECT count(*)::integer FROM public.amora_actions AS row
+   WHERE row.id = ANY($5::text[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.created_by = ANY($1::uuid[])
+      OR row.first_use_promotion_id = ANY($4::uuid[])) AS actions,
+  (SELECT count(*)::integer FROM public.amora_tool_executions AS row
+   WHERE row.couple_id = ANY($2::uuid[])) AS executions,
+  (SELECT count(*)::integer FROM public.amora_shared_action_application_claims AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.source_message_id = ANY($3::uuid[])
+      OR row.confirmation_message_id = ANY($3::uuid[])) AS application_claims,
+  (SELECT count(*)::integer FROM public.ai_interactions_log AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.user_id = ANY($1::uuid[])
+      OR row.message_id = ANY($3::uuid[])) AS provider_receipts
+`;
+
+export function readHostedFirstUseActionResidue({
+  projectRef,
+  productionProjectRef,
+  managementToken,
+  userIds,
+  coupleIds,
+  messageIds,
+  promotionIds,
+  actionIds,
+  fetchImpl = fetch,
+}) {
+  if (!PROJECT_REF.test(projectRef) || !PROJECT_REF.test(productionProjectRef)) {
+    fail("PROJECT_REF_INVALID", "Project refs must be exact 20-character refs");
+  }
+  if (projectRef === productionProjectRef) {
+    fail("PRODUCTION_TARGET_FORBIDDEN", "The Amora probe is staging-only");
+  }
+  if (typeof managementToken !== "string" || managementToken.length < 20 || /[\r\n]/u.test(managementToken)) {
+    fail("MANAGEMENT_TOKEN_INVALID", "A valid Management API token is required");
+  }
+  for (const values of [userIds, coupleIds, messageIds, promotionIds]) {
+    if (
+      !Array.isArray(values)
+      || values.length < 1
+      || values.length > 20
+      || !values.every(isUuid)
+      || new Set(values).size !== values.length
+    ) {
+      fail("FIRST_USE_RESIDUE_INPUT_INVALID", "First-use residue identities must be bounded unique UUID arrays");
+    }
+  }
+  if (
+    !Array.isArray(actionIds)
+    || actionIds.length < 1
+    || actionIds.length > 10
+    || !actionIds.every((value) => typeof value === "string" && value.length >= 1 && value.length <= 120)
+    || new Set(actionIds).size !== actionIds.length
+  ) {
+    fail("FIRST_USE_RESIDUE_INPUT_INVALID", "First-use residue action IDs must be bounded and unique");
+  }
+
+  return (async () => {
+    let response;
+    try {
+      response = await fetchImpl(
+        `https://api.supabase.com/v1/projects/${projectRef}/database/query/read-only`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${managementToken}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: FIRST_USE_ACTION_RESIDUE_SQL,
+            parameters: [userIds, coupleIds, messageIds, promotionIds, actionIds],
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+    } catch {
+      fail("FIRST_USE_RESIDUE_UNAVAILABLE", "Hosted first-use residue request failed");
+    }
+    const body = await readBoundedJson(response, "FIRST_USE_RESIDUE_UNAVAILABLE");
+    const row = response.status === 201 && Array.isArray(body) && body.length === 1
+      ? body[0]
+      : null;
+    const keyMap = {
+      profiles: "profiles",
+      couples: "couples",
+      journeys: "journeys",
+      chatMessages: "chat_messages",
+      chatClaims: "chat_claims",
+      promotions: "promotions",
+      proposalBindings: "proposal_bindings",
+      actions: "actions",
+      executions: "executions",
+      applicationClaims: "application_claims",
+      providerReceipts: "provider_receipts",
+    };
+    const result = Object.fromEntries(
+      Object.entries(keyMap).map(([outputKey, rowKey]) => [outputKey, row?.[rowKey]]),
+    );
+    if (!Object.values(result).every((value) => Number.isSafeInteger(value) && value >= 0)) {
+      fail("FIRST_USE_RESIDUE_INVALID", "Hosted first-use residue was not canonical");
+    }
+    return Object.freeze(result);
+  })();
+}
+
 export function createSupabaseStagingTransport({
   projectRef,
   anonKey,
@@ -493,6 +659,7 @@ export function createSupabaseStagingTransport({
   runNonce = `${Date.now()}-${randomBytes(6).toString("hex")}`,
   messageRefResidueReader = null,
   criterionActionResidueReader = null,
+  firstUseActionResidueReader = null,
 }) {
   const baseUrl = `https://${projectRef}.supabase.co`;
   let userSequence = 0;
@@ -1057,6 +1224,586 @@ export function createSupabaseStagingTransport({
         fail("MESSAGE_REF_RESIDUE_READER_MISSING", "A fixed read-only residue reader is required");
       }
       return messageRefResidueReader(input);
+    },
+
+    async prepareFirstUsePrivateSource({ owner, partner, coupleId }) {
+      if (
+        !isUuid(owner?.id)
+        || typeof owner?.accessToken !== "string"
+        || owner.accessToken.length < 8
+        || !isUuid(partner?.id)
+        || owner.id === partner.id
+        || !isUuid(coupleId)
+      ) {
+        fail("FIRST_USE_SOURCE_SCOPE_INVALID", "First-use source scope was not canonical");
+      }
+      const profileQuery = new URLSearchParams({
+        select: "id,couple_id,role",
+        id: `eq.${owner.id}`,
+        couple_id: `eq.${coupleId}`,
+      });
+      const coupleQuery = new URLSearchParams({
+        select: "id,bride_id,groom_id",
+        id: `eq.${coupleId}`,
+      });
+      const journeyQuery = new URLSearchParams({
+        select: "couple_id,state_revision",
+        couple_id: `eq.${coupleId}`,
+      });
+      const criterionQuery = new URLSearchParams({
+        select: "id",
+        couple_id: `eq.${coupleId}`,
+        category: "eq.preference",
+        decision_type: "eq.decided",
+        visibility: "eq.shared",
+        source: "eq.manual",
+        source_actor_role: "is.null",
+        order: "user_confirmed_at.desc.nullslast,created_at.desc,id.desc",
+        limit: "1",
+      });
+      const [profileResponse, coupleResponse, journeyResponse, criterionResponse] = await Promise.all([
+        adminCall(`/rest/v1/profiles?${profileQuery}`),
+        adminCall(`/rest/v1/couples?${coupleQuery}`),
+        adminCall(`/rest/v1/wedding_journeys?${journeyQuery}`),
+        adminCall(`/rest/v1/decision_nodes?${criterionQuery}`),
+      ]);
+      const profile = Array.isArray(profileResponse.body) && profileResponse.body.length === 1
+        ? profileResponse.body[0]
+        : null;
+      const couple = Array.isArray(coupleResponse.body) && coupleResponse.body.length === 1
+        ? coupleResponse.body[0]
+        : null;
+      let journey = Array.isArray(journeyResponse.body) && journeyResponse.body.length === 1
+        ? journeyResponse.body[0]
+        : null;
+      const expectedRole = couple?.bride_id === owner.id && couple?.groom_id === partner.id
+        ? "bride"
+        : couple?.groom_id === owner.id && couple?.bride_id === partner.id
+          ? "groom"
+          : null;
+      if (
+        profile?.id !== owner.id
+        || profile?.couple_id !== coupleId
+        || profile?.role !== expectedRole
+        || couple?.id !== coupleId
+        || !isUuid(couple?.bride_id)
+        || !isUuid(couple?.groom_id)
+        || !Array.isArray(criterionResponse.body)
+        || criterionResponse.body.length !== 0
+      ) {
+        fail("FIRST_USE_SOURCE_ROSTER_INVALID", "First-use source roster was not neutral and canonical");
+      }
+      if (journey === null && Array.isArray(journeyResponse.body) && journeyResponse.body.length === 0) {
+        const insertedJourney = await adminCall("/rest/v1/wedding_journeys", {
+          method: "POST",
+          body: {
+            couple_id: coupleId,
+            wedding_date: null,
+            venue: null,
+            total_budget: 0,
+            progress: {},
+          },
+        });
+        if (insertedJourney.status !== 201) {
+          fail("FIRST_USE_SOURCE_JOURNEY_BOOTSTRAP_INVALID", "Neutral first-use journey was not created");
+        }
+        const canonicalJourney = await adminCall(`/rest/v1/wedding_journeys?${journeyQuery}`);
+        journey = Array.isArray(canonicalJourney.body) && canonicalJourney.body.length === 1
+          ? canonicalJourney.body[0]
+          : null;
+      }
+      if (
+        journey?.couple_id !== coupleId
+        || !Number.isSafeInteger(journey?.state_revision)
+        || journey.state_revision < 0
+      ) {
+        fail("FIRST_USE_SOURCE_JOURNEY_INVALID", "First-use source journey was not canonical");
+      }
+      const privateVisibility = `${expectedRole}_private`;
+      const privacyResponse = await userCall(
+        owner,
+        "/rest/v1/rpc/get_own_amora_privacy_epoch",
+        {
+          method: "POST",
+          body: { p_couple_id: coupleId, p_visibility: privateVisibility },
+        },
+      );
+      const privacyEpoch = privacyResponse.body;
+      if (!Number.isSafeInteger(privacyEpoch) || privacyEpoch < 1) {
+        fail("FIRST_USE_SOURCE_PRIVACY_INVALID", "First-use source privacy epoch was not canonical");
+      }
+
+      const sourceUserMessageId = randomUUID();
+      const sourcePrivateMessageId = randomUUID();
+      const sourceVisibleRequestId = randomUUID();
+      const sourceRequestKey = `chat:${owner.id}:${sourceVisibleRequestId}`;
+      const rosterFingerprint = createHash("md5")
+        .update(`${couple.bride_id}:${couple.groom_id}`, "utf8")
+        .digest("hex");
+      const sourceContentDigest = sha256Text(FIRST_USE_PRIVATE_CONTENT);
+      const sharedContentDigest = sha256Text(FIRST_USE_SHARED_CONTENT);
+      const actionIdentity = deriveToolIdentity(
+        "add_amora_action",
+        FIRST_USE_ADD_ACTION_INPUT,
+      );
+      const sourceSeal = {
+        version: 1,
+        sourceContentDigest,
+        journeyRevision: journey.state_revision,
+        privacyEpoch,
+        rosterFingerprint,
+        criterionDecisionId: null,
+        canonicalActionInput: FIRST_USE_ACTION_INPUT,
+        actionDigest: actionIdentity.inputDigest,
+        sharedContentDigest,
+      };
+      const insertedSourceUser = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: sourceUserMessageId,
+          couple_id: coupleId,
+          sender_id: owner.id,
+          sender_type: expectedRole,
+          sender_role: null,
+          role: "user",
+          content: "예식 시기부터 어떻게 좁힐지 나만 먼저 정리하고 싶어요.",
+          metadata: {
+            client_request_id: sourceVisibleRequestId,
+            amora_ingest_contract_version: 2,
+            ai_response_requested: true,
+            provider_attachment_state: "none",
+            provider_attachment_count: 0,
+          },
+          visibility: privateVisibility,
+          stage_tag: null,
+          specialist_type: null,
+        },
+      });
+      if (insertedSourceUser.status !== 201) {
+        fail("FIRST_USE_SOURCE_USER_INSERT_INVALID", "First-use private user message was not inserted");
+      }
+      const sourceClaim = await adminCall("/rest/v1/rpc/claim_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: coupleId,
+          p_request_key: sourceRequestKey,
+          p_user_id: owner.id,
+          p_visibility: privateVisibility,
+          p_user_message_id: sourceUserMessageId,
+        },
+      });
+      if (
+        sourceClaim.body?.action !== "acquired"
+        || !Number.isSafeInteger(sourceClaim.body?.attempt_count)
+        || sourceClaim.body.attempt_count < 1
+      ) {
+        fail("FIRST_USE_SOURCE_CLAIM_INVALID", "First-use private request was not claimed");
+      }
+      const insertedSourceAssistant = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: sourcePrivateMessageId,
+          couple_id: coupleId,
+          sender_id: null,
+          sender_type: "ai",
+          sender_role: null,
+          role: "assistant",
+          content: FIRST_USE_PRIVATE_CONTENT,
+          metadata: {
+            client_request_id: sourceRequestKey,
+            in_reply_to_user_message_id: sourceUserMessageId,
+            question_scope: "W0_wedding_core",
+            memory_eligible: false,
+            memory_enqueue_requested: false,
+            amora_wedding_context_revision: journey.state_revision,
+            amora_first_use_grounding: {
+              version: 1,
+              sourceRevision: journey.state_revision,
+              confirmed: [],
+              unknowns: [{
+                key: "current_progress",
+                label: "이미 마친 준비와 아직 남은 준비",
+              }],
+            },
+            amora_first_use_action_promotion_v1: sourceSeal,
+          },
+          visibility: privateVisibility,
+          stage_tag: null,
+          specialist_type: "general",
+        },
+      });
+      if (insertedSourceAssistant.status !== 201) {
+        fail("FIRST_USE_SOURCE_ASSISTANT_INSERT_INVALID", "First-use private assistant message was not inserted");
+      }
+      const completedSource = await adminCall("/rest/v1/rpc/complete_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: coupleId,
+          p_request_key: sourceRequestKey,
+          p_user_id: owner.id,
+          p_message_id: sourcePrivateMessageId,
+        },
+      });
+      if (completedSource.body !== true) {
+        fail("FIRST_USE_SOURCE_COMPLETE_INVALID", "First-use private request was not completed");
+      }
+      const insertedProviderReceipt = await adminCall("/rest/v1/ai_interactions_log", {
+        method: "POST",
+        body: {
+          id: randomUUID(),
+          user_id: owner.id,
+          couple_id: coupleId,
+          interaction_type: "amora_director",
+          success: true,
+          model: "hosted-probe-synthetic",
+          metadata: { hosted_probe_fixture: true },
+          amora_request_key: sourceRequestKey,
+          amora_call_index: 1,
+          amora_call_source: "durable",
+          amora_call_phase: "final_no_tool",
+          amora_claim_token: randomUUID(),
+          amora_cost_status: "settled",
+          amora_reserved_cost_microusd: 0,
+          amora_actual_cost_microusd: 0,
+          amora_receipt_updated_at: new Date().toISOString(),
+        },
+      });
+      if (insertedProviderReceipt.status !== 201) {
+        fail("FIRST_USE_SOURCE_RECEIPT_INVALID", "First-use synthetic provider receipt was not inserted");
+      }
+      return Object.freeze({
+        coupleId,
+        ownerUserId: owner.id,
+        sourceUserMessageId,
+        sourcePrivateMessageId,
+        sourceRequestKey,
+        privateVisibility,
+        privateContent: FIRST_USE_PRIVATE_CONTENT,
+        privateOnlyMarker: FIRST_USE_PRIVATE_ONLY_MARKER,
+        canonicalActionInput: FIRST_USE_ACTION_INPUT,
+        canonicalAddActionInput: FIRST_USE_ADD_ACTION_INPUT,
+        canonicalSharedText: FIRST_USE_SHARED_CONTENT,
+        sourceContentDigest,
+        actionDigest: actionIdentity.inputDigest,
+        sharedContentDigest,
+        privacyEpoch,
+        journeyRevision: journey.state_revision,
+        providerReceiptCount: 1,
+        messageIds: Object.freeze([sourceUserMessageId, sourcePrivateMessageId]),
+      });
+    },
+
+    async attemptFirstUseFinalizerAsAuthenticated(owner, source) {
+      if (!isUuid(owner?.id) || !isUuid(source?.coupleId)) {
+        fail("FIRST_USE_AUTHENTICATED_PROBE_INVALID", "Authenticated first-use probe was not canonical");
+      }
+      const requestId = randomUUID();
+      const response = await userCall(
+        owner,
+        "/rest/v1/rpc/finalize_amora_first_use_action_proposal_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: source.coupleId,
+            p_owner_user_id: owner.id,
+            p_shared_user_message_id: randomUUID(),
+            p_chat_request_key: `chat:${owner.id}:${requestId}`,
+            p_chat_claim_attempt_count: 1,
+            p_expected_privacy_epoch: source.privacyEpoch,
+          },
+          allowDenied: true,
+        },
+      );
+      return Object.freeze({ denied: !response.ok });
+    },
+
+    async ingestFirstUsePromotion(source) {
+      if (
+        !isUuid(source?.coupleId)
+        || !isUuid(source?.ownerUserId)
+        || !isUuid(source?.sourcePrivateMessageId)
+        || typeof source?.canonicalSharedText !== "string"
+        || source.canonicalSharedText.length < 1
+        || typeof source?.sourceContentDigest !== "string"
+        || !/^[a-f0-9]{64}$/u.test(source.sourceContentDigest)
+        || typeof source?.actionDigest !== "string"
+        || !/^[a-f0-9]{64}$/u.test(source.actionDigest)
+        || typeof source?.sharedContentDigest !== "string"
+        || !/^[a-f0-9]{64}$/u.test(source.sharedContentDigest)
+        || source?.canonicalActionInput === null
+        || typeof source?.canonicalActionInput !== "object"
+        || Array.isArray(source.canonicalActionInput)
+      ) {
+        fail("FIRST_USE_PROMOTION_INPUT_INVALID", "First-use promotion input was not canonical");
+      }
+      const clientRequestId = randomUUID();
+      const response = await adminCall(
+        "/rest/v1/rpc/ingest_amora_first_use_action_promotion_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: source.coupleId,
+            p_owner_user_id: source.ownerUserId,
+            p_source_private_message_id: source.sourcePrivateMessageId,
+            p_client_request_id: clientRequestId,
+            p_content: source.canonicalSharedText,
+            p_source_content_digest: source.sourceContentDigest,
+            p_canonical_action_input: source.canonicalActionInput,
+            p_action_digest: source.actionDigest,
+            p_shared_content_digest: source.sharedContentDigest,
+          },
+        },
+      );
+      if (
+        response.body?.version !== 1
+        || !isUuid(response.body?.promotionId)
+        || !isUuid(response.body?.sharedMessageId)
+        || typeof response.body?.reused !== "boolean"
+      ) {
+        fail("FIRST_USE_PROMOTION_RESPONSE_INVALID", "First-use promotion response was not canonical");
+      }
+      return Object.freeze({ ...response.body, clientRequestId });
+    },
+
+    async claimFirstUseProposal({ owner, source, promotion }) {
+      if (
+        !isUuid(owner?.id)
+        || owner.id !== source?.ownerUserId
+        || !isUuid(source?.coupleId)
+        || !isUuid(promotion?.sharedMessageId)
+      ) {
+        fail("FIRST_USE_PROPOSAL_CLAIM_INPUT_INVALID", "First-use proposal claim input was not canonical");
+      }
+      const requestKey = `chat:${owner.id}:${randomUUID()}`;
+      const response = await adminCall("/rest/v1/rpc/claim_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: source.coupleId,
+          p_request_key: requestKey,
+          p_user_id: owner.id,
+          p_visibility: "shared",
+          p_user_message_id: promotion.sharedMessageId,
+        },
+      });
+      if (
+        response.body?.action !== "acquired"
+        || !Number.isSafeInteger(response.body?.attempt_count)
+        || response.body.attempt_count < 1
+      ) {
+        fail("FIRST_USE_PROPOSAL_CLAIM_INVALID", "First-use proposal request was not claimed");
+      }
+      return Object.freeze({
+        requestKey,
+        attemptCount: response.body.attempt_count,
+      });
+    },
+
+    async finalizeFirstUseProposal({ owner, source, promotion, requestKey, attemptCount }) {
+      if (
+        !isUuid(owner?.id)
+        || !isUuid(source?.coupleId)
+        || !isUuid(promotion?.sharedMessageId)
+        || typeof requestKey !== "string"
+        || !Number.isSafeInteger(attemptCount)
+        || !Number.isSafeInteger(source?.privacyEpoch)
+      ) {
+        fail("FIRST_USE_PROPOSAL_FINALIZER_INPUT_INVALID", "First-use proposal finalizer input was not canonical");
+      }
+      const response = await adminCall(
+        "/rest/v1/rpc/finalize_amora_first_use_action_proposal_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: source.coupleId,
+            p_owner_user_id: owner.id,
+            p_shared_user_message_id: promotion.sharedMessageId,
+            p_chat_request_key: requestKey,
+            p_chat_claim_attempt_count: attemptCount,
+            p_expected_privacy_epoch: source.privacyEpoch,
+          },
+        },
+      );
+      return response.body;
+    },
+
+    async prepareFirstUseApplication({ owner, source, promotion, proposal }) {
+      if (
+        !isUuid(owner?.id)
+        || owner.id !== source?.ownerUserId
+        || !isUuid(source?.coupleId)
+        || !isUuid(promotion?.promotionId)
+        || !isUuid(proposal?.messageId)
+        || !isUuid(proposal?.pendingActionId)
+      ) {
+        fail("FIRST_USE_APPLICATION_INPUT_INVALID", "First-use application input was not canonical");
+      }
+      const lease = await adminCall(
+        "/rest/v1/rpc/claim_amora_shared_action_application",
+        {
+          method: "POST",
+          body: {
+            p_action_id: proposal.pendingActionId,
+            p_couple_id: source.coupleId,
+            p_source_message_id: proposal.messageId,
+            p_user_id: owner.id,
+          },
+        },
+      );
+      if (lease.body?.applicationGranted !== true) {
+        fail("FIRST_USE_APPLICATION_LEASE_INVALID", "First-use action application was not granted");
+      }
+      const confirmationMessageId = randomUUID();
+      const visibleRequestId = randomUUID();
+      const confirmation = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: confirmationMessageId,
+          couple_id: source.coupleId,
+          sender_id: owner.id,
+          sender_type: source.privateVisibility === "groom_private" ? "groom" : "bride",
+          sender_role: null,
+          role: "user",
+          content: CRITERION_CONFIRMATION_CONTENT,
+          metadata: {
+            client_request_id: visibleRequestId,
+            confirmed_amora_action_id: proposal.pendingActionId,
+            amora_ingest_contract_version: 2,
+            ai_response_requested: true,
+            provider_attachment_state: "none",
+            provider_attachment_count: 0,
+          },
+          visibility: "shared",
+          stage_tag: null,
+          specialist_type: null,
+        },
+      });
+      if (confirmation.status !== 201) {
+        fail("FIRST_USE_CONFIRMATION_INSERT_INVALID", "First-use confirmation was not inserted");
+      }
+      const applicationRequestId = deriveConfirmedActionRequestId(
+        confirmationMessageId,
+        proposal.pendingActionId,
+      );
+      const requestKey = `chat:${owner.id}:${applicationRequestId}`;
+      const claim = await adminCall("/rest/v1/rpc/claim_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: source.coupleId,
+          p_request_key: requestKey,
+          p_user_id: owner.id,
+          p_visibility: "shared",
+          p_user_message_id: confirmationMessageId,
+        },
+      });
+      if (
+        claim.body?.action !== "acquired"
+        || !Number.isSafeInteger(claim.body?.attempt_count)
+        || claim.body.attempt_count < 1
+      ) {
+        fail("FIRST_USE_APPLICATION_CLAIM_INVALID", "First-use application request was not claimed");
+      }
+      return Object.freeze({
+        confirmationMessageId,
+        requestKey,
+        attemptCount: claim.body.attempt_count,
+        expectedPrivacyEpoch: source.privacyEpoch,
+        messageIds: Object.freeze([confirmationMessageId]),
+      });
+    },
+
+    async finalizeFirstUseApplication({
+      owner,
+      source,
+      proposal,
+      confirmationMessageId,
+      requestKey,
+      attemptCount,
+      expectedPrivacyEpoch,
+    }) {
+      if (
+        !isUuid(owner?.id)
+        || !isUuid(source?.coupleId)
+        || !isUuid(proposal?.messageId)
+        || !isUuid(confirmationMessageId)
+        || typeof requestKey !== "string"
+        || !Number.isSafeInteger(attemptCount)
+        || !Number.isSafeInteger(expectedPrivacyEpoch)
+      ) {
+        fail("FIRST_USE_APPLICATION_FINALIZER_INPUT_INVALID", "First-use application finalizer input was not canonical");
+      }
+      const response = await adminCall(
+        "/rest/v1/rpc/finalize_amora_first_use_action_application_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: source.coupleId,
+            p_actor_user_id: owner.id,
+            p_source_proposal_message_id: proposal.messageId,
+            p_confirmation_message_id: confirmationMessageId,
+            p_chat_request_key: requestKey,
+            p_chat_claim_attempt_count: attemptCount,
+            p_expected_privacy_epoch: expectedPrivacyEpoch,
+          },
+        },
+      );
+      return response.body;
+    },
+
+    async readFirstUseMessageAsUser(user, messageId) {
+      if (!isUuid(user?.id) || !isUuid(messageId)) {
+        fail("FIRST_USE_MESSAGE_READ_INPUT_INVALID", "First-use message read input was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "id,visibility,content,metadata",
+        id: `eq.${messageId}`,
+        limit: "2",
+      });
+      const response = await userCall(user, `/rest/v1/chat_messages?${query}`);
+      if (!Array.isArray(response.body) || response.body.length > 1) {
+        fail("FIRST_USE_MESSAGE_READ_INVALID", "First-use message read was not bounded");
+      }
+      return response.body;
+    },
+
+    async readFirstUseAction(actionId) {
+      if (typeof actionId !== "string" || actionId.length < 1 || actionId.length > 120) {
+        fail("FIRST_USE_ACTION_READ_INPUT_INVALID", "First-use action ID was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "id,status,first_use_promotion_id",
+        id: `eq.${actionId}`,
+        limit: "2",
+      });
+      const response = await adminCall(`/rest/v1/amora_actions?${query}`);
+      if (!Array.isArray(response.body) || response.body.length > 1) {
+        fail("FIRST_USE_ACTION_READ_INVALID", "First-use action read was not bounded");
+      }
+      return response.body;
+    },
+
+    async readFirstUseProviderReceiptCount({ coupleId, userId }) {
+      if (!isUuid(coupleId) || !isUuid(userId)) {
+        fail("FIRST_USE_PROVIDER_COUNT_INPUT_INVALID", "First-use provider count scope was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "id",
+        couple_id: `eq.${coupleId}`,
+        user_id: `eq.${userId}`,
+        "metadata->>hosted_probe_fixture": "eq.true",
+        limit: "4",
+      });
+      const response = await adminCall(`/rest/v1/ai_interactions_log?${query}`);
+      if (!Array.isArray(response.body) || response.body.length > 3) {
+        fail("FIRST_USE_PROVIDER_COUNT_INVALID", "First-use provider receipt count was not bounded");
+      }
+      return response.body.length;
+    },
+
+    async readFirstUseActionResidue(input) {
+      if (typeof firstUseActionResidueReader !== "function") {
+        fail("FIRST_USE_RESIDUE_READER_MISSING", "A fixed first-use residue reader is required");
+      }
+      return firstUseActionResidueReader(input);
     },
 
     async createConfirmedCoupleCriterion({
@@ -2727,6 +3474,339 @@ export async function runCriterionActionContextScenario({ transport }) {
   return Object.freeze({
     scenario: "criterion_action_context_two_account_v1",
     providerEvidence: "synthetic_fixture_no_live_provider_call",
+    syntheticUserCount: users.length,
+    checks: Object.freeze({ ...checks }),
+    residue: Object.freeze({ ...residue }),
+  });
+}
+
+function parseFirstUseProposalResult(rows, replayed) {
+  if (!Array.isArray(rows) || rows.length !== 1) return null;
+  const row = rows[0];
+  const metadata = row?.message_metadata;
+  const pending = metadata?.pending_amora_action;
+  if (
+    row?.outcome !== (replayed ? "replayed" : "persisted")
+    || row?.message_reused !== replayed
+    || !isUuid(row?.message_id)
+    || row?.message_visibility !== "shared"
+    || typeof row?.message_content !== "string"
+    || row.message_content.length < 1
+    || metadata?.response_origin !== "server_authoritative_first_use_promotion"
+    || metadata?.provider_call_count !== 0
+    || !isUuid(metadata?.amora_first_use_promotion_id)
+    || pending?.version !== 2
+    || !isUuid(pending?.actionId)
+    || pending?.tool !== "add_amora_action"
+  ) return null;
+  return Object.freeze({
+    messageId: row.message_id,
+    promotionId: metadata.amora_first_use_promotion_id,
+    pendingActionId: pending.actionId,
+    confirmation: row.message_content,
+  });
+}
+
+function parseFirstUseApplicationResult(rows, replayed) {
+  if (!Array.isArray(rows) || rows.length !== 1) return null;
+  const row = rows[0];
+  const metadata = row?.message_metadata;
+  const action = row?.tool_result?.toolOutput?.action;
+  if (
+    row?.outcome !== (replayed ? "replayed" : "persisted")
+    || row?.message_reused !== replayed
+    || !isUuid(row?.message_id)
+    || row?.message_visibility !== "shared"
+    || typeof row?.message_content !== "string"
+    || row.message_content.length < 1
+    || metadata?.response_origin
+      !== "server_authoritative_first_use_action_application"
+    || metadata?.provider_call_count !== 0
+    || !isUuid(metadata?.amora_first_use_promotion_id)
+    || row?.tool_result?.toolName !== "add_amora_action"
+    || row?.tool_result?.success !== true
+    || typeof action?.id !== "string"
+    || action.id.length < 1
+    || action?.status !== "open"
+  ) return null;
+  return Object.freeze({
+    messageId: row.message_id,
+    promotionId: metadata.amora_first_use_promotion_id,
+    actionId: action.id,
+  });
+}
+
+function exactVisibleSharedMessage(rows, messageId) {
+  return Array.isArray(rows)
+    && rows.length === 1
+    && rows[0]?.id === messageId
+    && rows[0]?.visibility === "shared";
+}
+
+export async function runFirstUseDeterministicActionScenario({ transport }) {
+  if (!transport || typeof transport !== "object") {
+    fail("TRANSPORT_INVALID", "A hosted staging transport is required");
+  }
+  const checks = {
+    ownerSpace: false,
+    partnerJoin: false,
+    privateSourceOwnerVisible: false,
+    privateSourcePartnerHidden: false,
+    authenticatedFinalizerDenied: false,
+    promotionCreated: false,
+    deterministicProposal: false,
+    proposalExactReplay: false,
+    sharedProposalVisible: false,
+    deterministicApplication: false,
+    applicationExactReplay: false,
+    sharedReceiptVisible: false,
+    privateContentNotShared: false,
+    actionPersisted: false,
+    providerBoundary: false,
+    cleanup: false,
+  };
+  const users = [];
+  const coupleIds = [];
+  const promotionIds = [];
+  const actionIds = [];
+  const messageIds = [];
+  let primaryError = null;
+
+  try {
+    const owner = await transport.createSyntheticUser("owner");
+    const partner = await transport.createSyntheticUser("partner");
+    users.push(owner, partner);
+    requireScenario(
+      users.every((user) => isUuid(user?.id) && typeof user?.accessToken === "string")
+        && owner.id !== partner.id,
+      "FIRST_USE_SYNTHETIC_USERS_INVALID",
+      "First-use probe users were not canonical",
+    );
+    const ownerSpace = await transport.createNeutralPreparationSpace(owner);
+    checks.ownerSpace = isCreatedPreparationSpace(ownerSpace);
+    requireScenario(checks.ownerSpace, "FIRST_USE_OWNER_SPACE_INVALID", "Owner preparation space was not canonical");
+    coupleIds.push(ownerSpace.couple_id);
+    const joined = await transport.joinNeutralPreparationSpaceServer(
+      partner.id,
+      ownerSpace.invite_code,
+    );
+    checks.partnerJoin = isJoinedPreparationSpace(joined, ownerSpace.couple_id);
+    requireScenario(checks.partnerJoin, "FIRST_USE_PARTNER_JOIN_INVALID", "Partner did not join the owner space canonically");
+
+    const source = await transport.prepareFirstUsePrivateSource({
+      owner,
+      partner,
+      coupleId: ownerSpace.couple_id,
+    });
+    requireScenario(
+      source?.coupleId === ownerSpace.couple_id
+        && isUuid(source?.sourcePrivateMessageId)
+        && typeof source?.privateContent === "string"
+        && source.privateContent.length > 0
+        && typeof source?.privateOnlyMarker === "string"
+        && source.privateOnlyMarker.length > 0
+        && typeof source?.canonicalSharedText === "string"
+        && source.canonicalSharedText.length > 0
+        && Number.isSafeInteger(source?.privacyEpoch)
+        && source.privacyEpoch >= 1
+        && Number.isSafeInteger(source?.journeyRevision)
+        && source.journeyRevision >= 0,
+      "FIRST_USE_PRIVATE_SOURCE_INVALID",
+      "First-use private source was not canonical",
+    );
+    messageIds.push(...(source.messageIds ?? [source.sourcePrivateMessageId]));
+    const [ownerPrivateRows, partnerPrivateRows] = await Promise.all([
+      transport.readFirstUseMessageAsUser(owner, source.sourcePrivateMessageId),
+      transport.readFirstUseMessageAsUser(partner, source.sourcePrivateMessageId),
+    ]);
+    checks.privateSourceOwnerVisible = Array.isArray(ownerPrivateRows)
+      && ownerPrivateRows.length === 1
+      && ownerPrivateRows[0]?.id === source.sourcePrivateMessageId
+      && typeof ownerPrivateRows[0]?.visibility === "string"
+      && ownerPrivateRows[0].visibility.endsWith("_private");
+    checks.privateSourcePartnerHidden = Array.isArray(partnerPrivateRows)
+      && partnerPrivateRows.length === 0;
+    requireScenario(checks.privateSourceOwnerVisible, "FIRST_USE_OWNER_PRIVATE_READ_INVALID", "Owner could not read the private source");
+    requireScenario(checks.privateSourcePartnerHidden, "FIRST_USE_PARTNER_PRIVATE_READ_ALLOWED", "Partner could read the private source");
+
+    const denied = await transport.attemptFirstUseFinalizerAsAuthenticated(owner, source);
+    checks.authenticatedFinalizerDenied = denied?.denied === true;
+    requireScenario(checks.authenticatedFinalizerDenied, "FIRST_USE_AUTHENTICATED_FINALIZER_ALLOWED", "Authenticated client could call a service-only first-use finalizer");
+
+    const providerReceiptCountBefore = await transport.readFirstUseProviderReceiptCount({
+      coupleId: ownerSpace.couple_id,
+      userId: owner.id,
+    });
+    const promotion = await transport.ingestFirstUsePromotion(source);
+    checks.promotionCreated = promotion?.version === 1
+      && isUuid(promotion?.promotionId)
+      && isUuid(promotion?.sharedMessageId)
+      && promotion?.reused === false;
+    requireScenario(checks.promotionCreated, "FIRST_USE_PROMOTION_INVALID", "First-use promotion was not created canonically");
+    promotionIds.push(promotion.promotionId);
+    messageIds.push(promotion.sharedMessageId);
+
+    const proposalClaim = await transport.claimFirstUseProposal({
+      owner,
+      source,
+      promotion,
+    });
+    requireScenario(
+      typeof proposalClaim?.requestKey === "string"
+        && Number.isSafeInteger(proposalClaim?.attemptCount)
+        && proposalClaim.attemptCount >= 1,
+      "FIRST_USE_PROPOSAL_CLAIM_INVALID",
+      "First-use proposal request was not claimed",
+    );
+    const proposalRows = await transport.finalizeFirstUseProposal({
+      owner,
+      source,
+      promotion,
+      ...proposalClaim,
+    });
+    const proposal = parseFirstUseProposalResult(proposalRows, false);
+    checks.deterministicProposal = proposal?.promotionId === promotion.promotionId;
+    requireScenario(checks.deterministicProposal, "FIRST_USE_PROPOSAL_INVALID", "Provider-free first-use proposal was not canonical");
+    messageIds.push(proposal.messageId);
+    const replayedProposal = parseFirstUseProposalResult(
+      await transport.finalizeFirstUseProposal({
+        owner,
+        source,
+        promotion,
+        ...proposalClaim,
+      }),
+      true,
+    );
+    checks.proposalExactReplay = replayedProposal?.messageId === proposal.messageId
+      && replayedProposal?.pendingActionId === proposal.pendingActionId;
+    requireScenario(checks.proposalExactReplay, "FIRST_USE_PROPOSAL_REPLAY_INVALID", "First-use proposal retry did not reuse the exact result");
+    const [ownerProposalRows, partnerProposalRows] = await Promise.all([
+      transport.readFirstUseMessageAsUser(owner, proposal.messageId),
+      transport.readFirstUseMessageAsUser(partner, proposal.messageId),
+    ]);
+    checks.sharedProposalVisible = exactVisibleSharedMessage(ownerProposalRows, proposal.messageId)
+      && exactVisibleSharedMessage(partnerProposalRows, proposal.messageId);
+    requireScenario(checks.sharedProposalVisible, "FIRST_USE_SHARED_PROPOSAL_HIDDEN", "Shared proposal was not visible to both members");
+
+    const applicationFixture = await transport.prepareFirstUseApplication({
+      owner,
+      source,
+      promotion,
+      proposal,
+    });
+    requireScenario(
+      isUuid(applicationFixture?.confirmationMessageId)
+        && typeof applicationFixture?.requestKey === "string"
+        && Number.isSafeInteger(applicationFixture?.attemptCount)
+        && applicationFixture.attemptCount >= 1,
+      "FIRST_USE_APPLICATION_FIXTURE_INVALID",
+      "First-use application fixture was not canonical",
+    );
+    messageIds.push(...(applicationFixture.messageIds ?? [applicationFixture.confirmationMessageId]));
+    const applicationRows = await transport.finalizeFirstUseApplication({
+      owner,
+      source,
+      promotion,
+      proposal,
+      ...applicationFixture,
+    });
+    const application = parseFirstUseApplicationResult(applicationRows, false);
+    checks.deterministicApplication = application?.promotionId === promotion.promotionId;
+    requireScenario(checks.deterministicApplication, "FIRST_USE_APPLICATION_INVALID", "Provider-free first-use application was not canonical");
+    actionIds.push(application.actionId);
+    messageIds.push(application.messageId);
+    const replayedApplication = parseFirstUseApplicationResult(
+      await transport.finalizeFirstUseApplication({
+        owner,
+        source,
+        promotion,
+        proposal,
+        ...applicationFixture,
+      }),
+      true,
+    );
+    checks.applicationExactReplay = replayedApplication?.messageId === application.messageId
+      && replayedApplication?.actionId === application.actionId;
+    requireScenario(checks.applicationExactReplay, "FIRST_USE_APPLICATION_REPLAY_INVALID", "First-use application retry did not reuse the exact result");
+
+    const [partnerReceiptRows, partnerSharedSourceRows] = await Promise.all([
+      transport.readFirstUseMessageAsUser(partner, application.messageId),
+      Promise.all([
+        transport.readFirstUseMessageAsUser(partner, promotion.sharedMessageId),
+        transport.readFirstUseMessageAsUser(partner, proposal.messageId),
+      ]),
+    ]);
+    checks.sharedReceiptVisible = exactVisibleSharedMessage(
+      partnerReceiptRows,
+      application.messageId,
+    );
+    requireScenario(checks.sharedReceiptVisible, "FIRST_USE_SHARED_RECEIPT_HIDDEN", "Shared application receipt was not visible to the partner");
+    checks.privateContentNotShared = !JSON.stringify([
+      ...partnerReceiptRows,
+      ...partnerSharedSourceRows.flat(),
+    ]).includes(source.privateOnlyMarker);
+    requireScenario(checks.privateContentNotShared, "FIRST_USE_PRIVATE_CONTENT_SHARED", "Private source content leaked into shared rows");
+
+    const actionRows = await transport.readFirstUseAction(application.actionId);
+    checks.actionPersisted = Array.isArray(actionRows)
+      && actionRows.length === 1
+      && actionRows[0]?.id === application.actionId
+      && actionRows[0]?.status === "open"
+      && actionRows[0]?.first_use_promotion_id === promotion.promotionId;
+    requireScenario(checks.actionPersisted, "FIRST_USE_ACTION_NOT_PERSISTED", "First-use action was not bound to the promotion");
+    const providerReceiptCountAfter = await transport.readFirstUseProviderReceiptCount({
+      coupleId: ownerSpace.couple_id,
+      userId: owner.id,
+    });
+    checks.providerBoundary = providerReceiptCountBefore === 1
+      && providerReceiptCountAfter === providerReceiptCountBefore;
+    requireScenario(checks.providerBoundary, "FIRST_USE_PROVIDER_BOUNDARY_INVALID", "Proposal or application created an AI provider receipt");
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    for (const user of [...users].reverse()) {
+      try { await transport.resetMembership(user); } catch { /* Auth deletion is final. */ }
+    }
+    for (const user of [...users].reverse()) {
+      try { await transport.deleteSyntheticUser(user.id); } catch (error) { primaryError ??= error; }
+    }
+  }
+
+  let residue = {
+    profiles: Number.NaN,
+    couples: Number.NaN,
+    journeys: Number.NaN,
+    chatMessages: Number.NaN,
+    chatClaims: Number.NaN,
+    promotions: Number.NaN,
+    proposalBindings: Number.NaN,
+    actions: Number.NaN,
+    executions: Number.NaN,
+    applicationClaims: Number.NaN,
+    providerReceipts: Number.NaN,
+  };
+  try {
+    residue = await transport.readFirstUseActionResidue({
+      userIds: users.map(({ id }) => id),
+      coupleIds,
+      promotionIds,
+      actionIds,
+      messageIds,
+    });
+    checks.cleanup = Object.values(residue).every((count) => count === 0);
+  } catch (error) {
+    primaryError ??= error;
+  }
+  if (!checks.cleanup) {
+    primaryError ??= new AmoraSuccessorStagingProbeError(
+      "FIRST_USE_SYNTHETIC_RESIDUE_PRESENT",
+      "First-use staging probe left synthetic rows behind",
+    );
+  }
+  if (primaryError) throw primaryError;
+  return Object.freeze({
+    scenario: "first_use_deterministic_action_two_account_v1",
+    providerEvidence: "synthetic_private_source_receipt_no_live_provider_call",
     syntheticUserCount: users.length,
     checks: Object.freeze({ ...checks }),
     residue: Object.freeze({ ...residue }),
