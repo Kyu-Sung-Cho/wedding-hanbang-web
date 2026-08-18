@@ -8,10 +8,12 @@ import {
   AmoraSuccessorStagingProbeError,
   createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedBookingOutcomeResidue,
   readHostedCriterionActionResidue,
   readHostedFirstUseActionResidue,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  runBookingOutcomeProvenanceScenario,
   runCriterionActionContextScenario,
   runFirstUseDeterministicActionScenario,
   runMediationPrivateDraftScenario,
@@ -863,6 +865,109 @@ test("two users prove private first-use advice becomes one provider-free shared 
   const serialized = JSON.stringify(result);
   for (const secret of [owner.id, partner.id, coupleId, privateMarker]) {
     assert.equal(serialized.includes(secret), false);
+  }
+});
+
+test("one synthetic user proves booking outcome actor and time provenance with exact replay", async () => {
+  const owner = { id: "10000000-0000-4000-8000-000000000081", accessToken: "booking-owner-token" };
+  const coupleId = "20000000-0000-4000-8000-000000000081";
+  const vendorId = "30000000-0000-4000-8000-000000000081";
+  const bookingId = "40000000-0000-4000-8000-000000000081";
+  const decisionId = "50000000-0000-4000-8000-000000000081";
+  const confirmedAt = "2026-08-18T11:00:00.000Z";
+  let completionCount = 0;
+  const transport = {
+    async createSyntheticUser() { return owner; },
+    async createNeutralPreparationSpace() {
+      return {
+        success: true,
+        created: true,
+        couple_id: coupleId,
+        invite_code: "WH-BOOKING001",
+        member_model_version: 2,
+      };
+    },
+    async prepareBookingOutcomeFixture() {
+      return { vendorId, bookingId };
+    },
+    async attemptBookingOutcomeAsAuthenticated() { return { denied: true }; },
+    async completeBookingOutcome() {
+      completionCount += 1;
+      return {
+        decisionId,
+        completionEvidence: "user_reported",
+        vendorDeliveryStatus: "not_sent",
+        vendorConfirmationStatus: "unconfirmed",
+      };
+    },
+    async readBookingOutcomeState() {
+      return {
+        bookingStatus: "completed",
+        actualAmount: 650000,
+        contractedAmount: 500000,
+        decisionId,
+        decisionType: "completed",
+        decisionVisibility: "shared",
+        sourceActorRole: "bride",
+        actorProfileId: owner.id,
+        completionEvidence: "user_reported",
+        vendorDeliveryStatus: "not_sent",
+        vendorConfirmationStatus: "unconfirmed",
+        provenanceVersion: 1,
+        payloadDigest: "a".repeat(64),
+        createdAt: "2026-08-18T10:59:59.999Z",
+        confirmedAt,
+        decidedAt: confirmedAt,
+        updatedAt: "2026-08-18T11:00:00.001Z",
+        completedDecisionCount: 1,
+        consideringActive: 0,
+        consideringSuperseded: 1,
+        authorizationCount: 0,
+      };
+    },
+    async readBookingOutcomeDecisionAsUser() {
+      return [{ id: decisionId, source: "vendor_booking", decision_type: "completed", visibility: "shared" }];
+    },
+    async deleteBookingOutcomeFixture() {},
+    async resetMembership() {},
+    async deleteSyntheticUser() {},
+    async readBookingOutcomeResidue() {
+      return {
+        profiles: 0,
+        couples: 0,
+        journeys: 0,
+        vendors: 0,
+        timeslots: 0,
+        bookings: 0,
+        reviews: 0,
+        decisions: 0,
+        intentAuthorizations: 0,
+        outcomeAuthorizations: 0,
+        projectionJobs: 0,
+      };
+    },
+  };
+
+  const result = await runBookingOutcomeProvenanceScenario({ transport });
+
+  assert.equal(completionCount, 2);
+  assert.deepEqual(result.checks, {
+    ownerSpace: true,
+    fixtureCreated: true,
+    authenticatedCompletionDenied: true,
+    outcomeRecorded: true,
+    actorBound: true,
+    timestampsCanonical: true,
+    intentSuperseded: true,
+    exactReplay: true,
+    sharedDecisionVisible: true,
+    noAuthorizationResidue: true,
+    cleanup: true,
+  });
+  assert.ok(Object.values(result.residue).every((count) => count === 0));
+  const serialized = JSON.stringify(result);
+  for (const privateId of [owner.id, coupleId, vendorId, bookingId, decisionId]) {
+    assert.equal(serialized.includes(privateId), false);
   }
 });
 
@@ -1730,6 +1835,162 @@ test("the staging transport reads first-use privacy, action, provider count, and
   });
 });
 
+test("the staging transport creates, completes, replays, reads, and removes a synthetic booking outcome", async () => {
+  const owner = {
+    id: "10000000-0000-4000-8000-000000000083",
+    accessToken: "booking-transport-token",
+  };
+  const coupleId = "20000000-0000-4000-8000-000000000083";
+  const bookingId = "30000000-0000-4000-8000-000000000083";
+  const decisionId = "40000000-0000-4000-8000-000000000083";
+  const confirmedAt = "2026-08-18T12:00:00.000Z";
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const value = String(url);
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    calls.push({ url: value, init, body });
+    if (value.endsWith("/rest/v1/vendors") && init.method === "POST") {
+      return new Response(null, { status: 201 });
+    }
+    if (value.endsWith("/rest/v1/vendor_timeslots") && init.method === "POST") {
+      return new Response(null, { status: 201 });
+    }
+    if (value.endsWith("/rest/v1/rpc/create_amora_booking_intent_atomic")) {
+      return new Response(JSON.stringify(bookingId), { status: 200 });
+    }
+    if (value.endsWith("/rest/v1/rpc/complete_amora_booking_outcome_atomic")
+        && init.headers.Authorization === `Bearer ${owner.accessToken}`) {
+      return new Response(JSON.stringify({ code: "42501" }), { status: 403 });
+    }
+    if (value.endsWith("/rest/v1/rpc/complete_amora_booking_outcome_atomic")) {
+      return new Response(JSON.stringify({
+        decisionId,
+        completionEvidence: "user_reported",
+        vendorDeliveryStatus: "not_sent",
+        vendorConfirmationStatus: "unconfirmed",
+      }), { status: 200 });
+    }
+    if (value.includes("/rest/v1/vendor_bookings?") && init.method !== "DELETE") {
+      return new Response(JSON.stringify([{
+        id: bookingId,
+        status: "completed",
+        actual_amount: 650000,
+        contracted_amount: 500000,
+      }]), { status: 200 });
+    }
+    if (value.includes("/rest/v1/decision_nodes?") && init.method !== "DELETE") {
+      if (init.headers.Authorization === `Bearer ${owner.accessToken}`) {
+        return new Response(JSON.stringify([{
+          id: decisionId,
+          source: "vendor_booking",
+          decision_type: "completed",
+          visibility: "shared",
+        }]), { status: 200 });
+      }
+      return new Response(JSON.stringify([{
+        id: "50000000-0000-4000-8000-000000000083",
+        decision_type: "considering",
+        visibility: "shared",
+        source: "vendor_booking",
+        superseded_at: confirmedAt,
+      }, {
+        id: decisionId,
+        decision_type: "completed",
+        visibility: "shared",
+        source: "vendor_booking",
+        source_actor_role: "bride",
+        created_at: "2026-08-18T11:59:59.999Z",
+        user_confirmed_at: confirmedAt,
+        decided_at: confirmedAt,
+        updated_at: "2026-08-18T12:00:00.001Z",
+        chosen_value: {
+          completion_evidence: "user_reported",
+          vendor_delivery_status: "not_sent",
+          vendor_confirmation_status: "unconfirmed",
+        },
+        metadata: {
+          actor_profile_id: owner.id,
+          outcome_provenance_version: 1,
+          outcome_payload_digest: "b".repeat(64),
+          completion_evidence: "user_reported",
+          vendor_delivery_status: "not_sent",
+          vendor_confirmation_status: "unconfirmed",
+        },
+        superseded_at: null,
+      }]), { status: 200 });
+    }
+    if (value.includes("/rest/v1/booking_outcome_write_authorizations?")) {
+      return new Response("[]", { status: 200 });
+    }
+    if (init.method === "DELETE") return new Response(null, { status: 204 });
+    return new Response("[]", { status: 200 });
+  };
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl,
+    runNonce: "booking-outcome-contract",
+  });
+
+  const fixture = await transport.prepareBookingOutcomeFixture({ owner, coupleId });
+  assert.equal(fixture.bookingId, bookingId);
+  assert.match(fixture.vendorId, /^[0-9a-f-]{36}$/u);
+  assert.equal((await transport.attemptBookingOutcomeAsAuthenticated(owner, fixture)).denied, true);
+  const completed = await transport.completeBookingOutcome({ owner, fixture });
+  assert.equal(completed.decisionId, decisionId);
+  const state = await transport.readBookingOutcomeState({ fixture, decisionId });
+  assert.deepEqual(state, {
+    bookingStatus: "completed",
+    actualAmount: 650000,
+    contractedAmount: 500000,
+    decisionId,
+    decisionType: "completed",
+    decisionVisibility: "shared",
+    sourceActorRole: "bride",
+    actorProfileId: owner.id,
+    completionEvidence: "user_reported",
+    vendorDeliveryStatus: "not_sent",
+    vendorConfirmationStatus: "unconfirmed",
+    provenanceVersion: 1,
+    payloadDigest: "b".repeat(64),
+    createdAt: "2026-08-18T11:59:59.999Z",
+    confirmedAt,
+    decidedAt: confirmedAt,
+    updatedAt: "2026-08-18T12:00:00.001Z",
+    completedDecisionCount: 1,
+    consideringActive: 0,
+    consideringSuperseded: 1,
+    authorizationCount: 0,
+  });
+  assert.equal((await transport.readBookingOutcomeDecisionAsUser(owner, decisionId))[0].id, decisionId);
+  await transport.deleteBookingOutcomeFixture({ ...fixture, decisionId });
+
+  const vendorInsert = calls.find(({ url, init }) => url.endsWith("/rest/v1/vendors") && init.method === "POST");
+  assert.equal(vendorInsert.body.owner_id, owner.id);
+  assert.equal(vendorInsert.body.category, "studio");
+  assert.equal(vendorInsert.body.status, "approved");
+  const intentCall = calls.find(({ url }) => url.endsWith("/rest/v1/rpc/create_amora_booking_intent_atomic"));
+  assert.equal(intentCall.body.p_couple_id, coupleId);
+  assert.equal(intentCall.body.p_actor_profile_id, owner.id);
+  assert.equal(intentCall.body.p_vendor_id, fixture.vendorId);
+  assert.equal(intentCall.body.p_contact_phone, "");
+  const serviceCompletion = calls.find(({ url, init }) =>
+    url.endsWith("/rest/v1/rpc/complete_amora_booking_outcome_atomic")
+      && init.headers.Authorization === "Bearer service-role-key-value");
+  assert.deepEqual(serviceCompletion.body, {
+    p_booking_id: bookingId,
+    p_customer_id: owner.id,
+    p_actual_amount: 650000,
+    p_contracted_amount: 500000,
+    p_rating: 5,
+    p_review: "아모라 격리 staging 사용자 완료 기록",
+    p_share_public_review: false,
+  });
+  assert.ok(calls.some(({ url, init }) => url.includes("/decision_nodes?") && init.method === "DELETE"));
+  assert.ok(calls.some(({ url, init }) => url.includes("/vendors?") && init.method === "DELETE"));
+});
+
 test("the hosted probe binds its receipt to the exact applied migration ledger", async () => {
   const ledger = await readHostedMigrationLedger({
     projectRef: STAGING_REF,
@@ -1944,20 +2205,99 @@ test("the fixed first-use residue query covers private promotion, proposal, acti
   );
 });
 
-test("the hosted receipt runs membership, notes, mediation, criterion, and first-use scenarios", () => {
+test("the fixed booking outcome residue query covers provenance, capabilities, projection, and catalog fixtures", async () => {
+  const requests = [];
+  const userIds = ["10000000-0000-4000-8000-000000000085"];
+  const coupleIds = ["20000000-0000-4000-8000-000000000085"];
+  const vendorIds = ["30000000-0000-4000-8000-000000000085"];
+  const bookingIds = ["40000000-0000-4000-8000-000000000085"];
+  const decisionIds = ["50000000-0000-4000-8000-000000000085"];
+  const residue = await readHostedBookingOutcomeResidue({
+    projectRef: STAGING_REF,
+    productionProjectRef: PRODUCTION_REF,
+    managementToken: "management-token-that-is-long-enough",
+    userIds,
+    coupleIds,
+    vendorIds,
+    bookingIds,
+    decisionIds,
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify([{
+        profiles: 0,
+        couples: 0,
+        journeys: 0,
+        vendors: 0,
+        timeslots: 0,
+        bookings: 0,
+        reviews: 0,
+        decisions: 0,
+        intent_authorizations: 0,
+        outcome_authorizations: 0,
+        projection_jobs: 0,
+      }]), { status: 201 });
+    },
+  });
+
+  assert.deepEqual(residue, {
+    profiles: 0,
+    couples: 0,
+    journeys: 0,
+    vendors: 0,
+    timeslots: 0,
+    bookings: 0,
+    reviews: 0,
+    decisions: 0,
+    intentAuthorizations: 0,
+    outcomeAuthorizations: 0,
+    projectionJobs: 0,
+  });
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].init.body).parameters, [
+    userIds,
+    coupleIds,
+    vendorIds,
+    bookingIds,
+    decisionIds,
+  ]);
+  const query = JSON.parse(requests[0].init.body).query;
+  assert.match(query, /booking_intent_write_authorizations/);
+  assert.match(query, /booking_outcome_write_authorizations/);
+  assert.match(query, /booking_projection_jobs/);
+  assert.match(query, /vendor_reviews/);
+  assert.throws(
+    () => readHostedBookingOutcomeResidue({
+      projectRef: PRODUCTION_REF,
+      productionProjectRef: PRODUCTION_REF,
+      managementToken: "management-token-that-is-long-enough",
+      userIds,
+      coupleIds,
+      vendorIds,
+      bookingIds,
+      decisionIds,
+    }),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "PRODUCTION_TARGET_FORBIDDEN",
+  );
+});
+
+test("the hosted receipt runs membership, notes, mediation, criterion, first-use, and booking provenance scenarios", () => {
   assert.match(cliSource, /runNeutralPreparationSpaceScenario/);
   assert.match(cliSource, /runPreparationTopicMessageRefScenario/);
   assert.match(cliSource, /runMediationPrivateDraftScenario/);
   assert.match(cliSource, /runCriterionActionContextScenario/);
   assert.match(cliSource, /runFirstUseDeterministicActionScenario/);
+  assert.match(cliSource, /runBookingOutcomeProvenanceScenario/);
   assert.match(cliSource, /readHostedMessageRefResidue/);
   assert.match(cliSource, /readHostedCriterionActionResidue/);
   assert.match(cliSource, /readHostedFirstUseActionResidue/);
-  assert.match(cliSource, /receiptVersion:\s*6/);
-  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-mediation-criterion-and-first-use"/);
+  assert.match(cliSource, /readHostedBookingOutcomeResidue/);
+  assert.match(cliSource, /receiptVersion:\s*7/);
+  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-mediation-criterion-first-use-and-booking-provenance"/);
   assert.match(cliSource, /neutralPreparationSpace/);
   assert.match(cliSource, /preparationTopicMessageRefs/);
   assert.match(cliSource, /mediationPrivateDraft/);
   assert.match(cliSource, /criterionActionContext/);
   assert.match(cliSource, /firstUseDeterministicAction/);
+  assert.match(cliSource, /bookingOutcomeProvenance/);
 });

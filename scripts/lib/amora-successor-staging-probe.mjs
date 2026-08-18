@@ -651,6 +651,127 @@ export function readHostedFirstUseActionResidue({
   })();
 }
 
+const BOOKING_OUTCOME_RESIDUE_SQL = `
+SELECT
+  (SELECT count(*)::integer FROM public.profiles AS row
+   WHERE row.id = ANY($1::uuid[])) AS profiles,
+  (SELECT count(*)::integer FROM public.couples AS row
+   WHERE row.id = ANY($2::uuid[])) AS couples,
+  (SELECT count(*)::integer FROM public.wedding_journeys AS row
+   WHERE row.couple_id = ANY($2::uuid[])) AS journeys,
+  (SELECT count(*)::integer FROM public.vendors AS row
+   WHERE row.id = ANY($3::uuid[])
+      OR row.owner_id = ANY($1::uuid[])) AS vendors,
+  (SELECT count(*)::integer FROM public.vendor_timeslots AS row
+   WHERE row.vendor_id = ANY($3::uuid[])) AS timeslots,
+  (SELECT count(*)::integer FROM public.vendor_bookings AS row
+   WHERE row.id = ANY($4::uuid[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.vendor_id = ANY($3::uuid[])
+      OR row.intent_created_by_profile_id = ANY($1::uuid[])) AS bookings,
+  (SELECT count(*)::integer FROM public.vendor_reviews AS row
+   WHERE row.booking_id = ANY($4::uuid[])
+      OR row.vendor_id = ANY($3::uuid[])
+      OR row.customer_id = ANY($1::uuid[])) AS reviews,
+  (SELECT count(*)::integer FROM public.decision_nodes AS row
+   WHERE row.id = ANY($5::uuid[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.source_ref_id = ANY($4::uuid[])) AS decisions,
+  (SELECT count(*)::integer FROM public.booking_intent_write_authorizations AS row
+   WHERE row.booking_id = ANY($4::uuid[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.vendor_id = ANY($3::uuid[])
+      OR row.actor_profile_id = ANY($1::uuid[])) AS intent_authorizations,
+  (SELECT count(*)::integer FROM public.booking_outcome_write_authorizations AS row
+   WHERE row.booking_id = ANY($4::uuid[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.actor_profile_id = ANY($1::uuid[])) AS outcome_authorizations,
+  (SELECT count(*)::integer FROM public.booking_projection_jobs AS row
+   WHERE row.booking_id = ANY($4::uuid[])) AS projection_jobs
+`;
+
+export function readHostedBookingOutcomeResidue({
+  projectRef,
+  productionProjectRef,
+  managementToken,
+  userIds,
+  coupleIds,
+  vendorIds,
+  bookingIds,
+  decisionIds,
+  fetchImpl = fetch,
+}) {
+  if (!PROJECT_REF.test(projectRef) || !PROJECT_REF.test(productionProjectRef)) {
+    fail("PROJECT_REF_INVALID", "Project refs must be exact 20-character refs");
+  }
+  if (projectRef === productionProjectRef) {
+    fail("PRODUCTION_TARGET_FORBIDDEN", "The Amora probe is staging-only");
+  }
+  if (typeof managementToken !== "string" || managementToken.length < 20 || /[\r\n]/u.test(managementToken)) {
+    fail("MANAGEMENT_TOKEN_INVALID", "A valid Management API token is required");
+  }
+  for (const values of [userIds, coupleIds, vendorIds, bookingIds, decisionIds]) {
+    if (
+      !Array.isArray(values)
+      || values.length < 1
+      || values.length > 10
+      || !values.every(isUuid)
+      || new Set(values).size !== values.length
+    ) {
+      fail("BOOKING_OUTCOME_RESIDUE_INPUT_INVALID", "Booking outcome residue identities must be bounded unique UUID arrays");
+    }
+  }
+
+  return (async () => {
+    let response;
+    try {
+      response = await fetchImpl(
+        `https://api.supabase.com/v1/projects/${projectRef}/database/query/read-only`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${managementToken}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: BOOKING_OUTCOME_RESIDUE_SQL,
+            parameters: [userIds, coupleIds, vendorIds, bookingIds, decisionIds],
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+    } catch {
+      fail("BOOKING_OUTCOME_RESIDUE_UNAVAILABLE", "Hosted booking outcome residue request failed");
+    }
+    const body = await readBoundedJson(response, "BOOKING_OUTCOME_RESIDUE_UNAVAILABLE");
+    const row = response.status === 201 && Array.isArray(body) && body.length === 1
+      ? body[0]
+      : null;
+    const keyMap = {
+      profiles: "profiles",
+      couples: "couples",
+      journeys: "journeys",
+      vendors: "vendors",
+      timeslots: "timeslots",
+      bookings: "bookings",
+      reviews: "reviews",
+      decisions: "decisions",
+      intentAuthorizations: "intent_authorizations",
+      outcomeAuthorizations: "outcome_authorizations",
+      projectionJobs: "projection_jobs",
+    };
+    const result = Object.fromEntries(
+      Object.entries(keyMap).map(([outputKey, rowKey]) => [outputKey, row?.[rowKey]]),
+    );
+    if (!Object.values(result).every((value) => Number.isSafeInteger(value) && value >= 0)) {
+      fail("BOOKING_OUTCOME_RESIDUE_INVALID", "Hosted booking outcome residue was not canonical");
+    }
+    return Object.freeze(result);
+  })();
+}
+
 export function createSupabaseStagingTransport({
   projectRef,
   anonKey,
@@ -660,6 +781,7 @@ export function createSupabaseStagingTransport({
   messageRefResidueReader = null,
   criterionActionResidueReader = null,
   firstUseActionResidueReader = null,
+  bookingOutcomeResidueReader = null,
 }) {
   const baseUrl = `https://${projectRef}.supabase.co`;
   let userSequence = 0;
@@ -1804,6 +1926,245 @@ export function createSupabaseStagingTransport({
         fail("FIRST_USE_RESIDUE_READER_MISSING", "A fixed first-use residue reader is required");
       }
       return firstUseActionResidueReader(input);
+    },
+
+    async prepareBookingOutcomeFixture({ owner, coupleId }) {
+      if (!isUuid(owner?.id) || !isUuid(coupleId)) {
+        fail("BOOKING_OUTCOME_FIXTURE_INPUT_INVALID", "Booking outcome fixture identity was not canonical");
+      }
+      const vendorId = randomUUID();
+      const bookingDate = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      const day = (new Date(`${bookingDate}T12:00:00.000Z`).getUTCDay() + 6) % 7;
+      const slug = `amora-stg-booking-${sha256Text(`${runNonce}:${vendorId}`).slice(0, 20)}`;
+      try {
+        await adminCall("/rest/v1/vendors", {
+          method: "POST",
+          body: {
+            id: vendorId,
+            owner_id: owner.id,
+            name: "Amora staging booking probe",
+            category: "studio",
+            region: "서울",
+            location: "서울",
+            address: "",
+            phone: "",
+            owner_name: "Amora staging",
+            email: null,
+            description: "Synthetic hosted integrity probe; never consumer-visible.",
+            price_range: "",
+            price_min: 0,
+            price_max: 0,
+            status: "approved",
+            business_number: "",
+            slug,
+            enrichment_status: "skip",
+            attributes: {},
+          },
+        });
+        await adminCall("/rest/v1/vendor_timeslots", {
+          method: "POST",
+          body: {
+            vendor_id: vendorId,
+            day,
+            hour: 10,
+            available: true,
+            max_bookings: 1,
+          },
+        });
+        const created = await adminCall(
+          "/rest/v1/rpc/create_amora_booking_intent_atomic",
+          {
+            method: "POST",
+            body: {
+              p_vendor_id: vendorId,
+              p_couple_id: coupleId,
+              p_actor_profile_id: owner.id,
+              p_booking_date: bookingDate,
+              p_booking_time: "10:00",
+              p_product_id: null,
+              p_staff_id: null,
+              p_booking_type: "consultation",
+              p_bride_name: "",
+              p_groom_name: "",
+              p_contact_phone: "",
+              p_memo: "amora staging provenance probe",
+            },
+          },
+        );
+        if (!isUuid(created.body)) {
+          fail("BOOKING_OUTCOME_FIXTURE_INSERT_INVALID", "Synthetic booking intent was not returned");
+        }
+        return Object.freeze({
+          ownerId: owner.id,
+          coupleId,
+          vendorId,
+          bookingId: created.body,
+          bookingDate,
+        });
+      } catch (error) {
+        try {
+          await adminCall(`/rest/v1/vendors?id=eq.${encodeURIComponent(vendorId)}`, { method: "DELETE" });
+        } catch {
+          // Preserve the primary fixture error; the fixed residue read is authoritative.
+        }
+        throw error;
+      }
+    },
+
+    async attemptBookingOutcomeAsAuthenticated(owner, fixture) {
+      if (!isUuid(owner?.id) || !isUuid(fixture?.bookingId)) {
+        fail("BOOKING_OUTCOME_INPUT_INVALID", "Booking outcome attempt input was not canonical");
+      }
+      const response = await userCall(
+        owner,
+        "/rest/v1/rpc/complete_amora_booking_outcome_atomic",
+        {
+          method: "POST",
+          allowDenied: true,
+          body: {
+            p_booking_id: fixture.bookingId,
+            p_customer_id: owner.id,
+            p_actual_amount: 650000,
+            p_contracted_amount: 500000,
+            p_rating: 5,
+            p_review: "아모라 격리 staging 사용자 완료 기록",
+            p_share_public_review: false,
+          },
+        },
+      );
+      return { denied: !response.ok && [401, 403, 404].includes(response.status) };
+    },
+
+    async completeBookingOutcome({ owner, fixture }) {
+      if (!isUuid(owner?.id) || !isUuid(fixture?.bookingId)) {
+        fail("BOOKING_OUTCOME_INPUT_INVALID", "Booking outcome input was not canonical");
+      }
+      const response = await adminCall(
+        "/rest/v1/rpc/complete_amora_booking_outcome_atomic",
+        {
+          method: "POST",
+          body: {
+            p_booking_id: fixture.bookingId,
+            p_customer_id: owner.id,
+            p_actual_amount: 650000,
+            p_contracted_amount: 500000,
+            p_rating: 5,
+            p_review: "아모라 격리 staging 사용자 완료 기록",
+            p_share_public_review: false,
+          },
+        },
+      );
+      return response.body;
+    },
+
+    async readBookingOutcomeState({ fixture, decisionId }) {
+      if (!isUuid(fixture?.bookingId) || !isUuid(fixture?.coupleId) || !isUuid(decisionId)) {
+        fail("BOOKING_OUTCOME_READ_INPUT_INVALID", "Booking outcome read input was not canonical");
+      }
+      const bookingQuery = new URLSearchParams({
+        select: "id,status,actual_amount,contracted_amount",
+        id: `eq.${fixture.bookingId}`,
+        couple_id: `eq.${fixture.coupleId}`,
+      });
+      const decisionQuery = new URLSearchParams({
+        select: "id,decision_type,visibility,source,source_actor_role,user_confirmed_at,decided_at,created_at,updated_at,chosen_value,metadata,superseded_at",
+        couple_id: `eq.${fixture.coupleId}`,
+        source: "eq.vendor_booking",
+        source_ref_id: `eq.${fixture.bookingId}`,
+      });
+      const authorizationQuery = new URLSearchParams({
+        select: "authorization_id",
+        booking_id: `eq.${fixture.bookingId}`,
+      });
+      const [bookingResponse, decisionResponse, authorizationResponse] = await Promise.all([
+        adminCall(`/rest/v1/vendor_bookings?${bookingQuery}`),
+        adminCall(`/rest/v1/decision_nodes?${decisionQuery}`),
+        adminCall(`/rest/v1/booking_outcome_write_authorizations?${authorizationQuery}`),
+      ]);
+      const bookings = bookingResponse.body;
+      const decisions = decisionResponse.body;
+      const authorizations = authorizationResponse.body;
+      if (!Array.isArray(bookings) || bookings.length !== 1
+          || !Array.isArray(decisions) || !Array.isArray(authorizations)) {
+        fail("BOOKING_OUTCOME_READ_INVALID", "Booking outcome state was not bounded");
+      }
+      const completedRows = decisions.filter((row) => row?.decision_type === "completed");
+      const completed = completedRows.find((row) => row?.id === decisionId);
+      const considering = decisions.filter((row) => row?.decision_type === "considering");
+      if (completedRows.length !== 1 || !completed) {
+        fail("BOOKING_OUTCOME_READ_INVALID", "Booking outcome decision was not unique");
+      }
+      if (
+        completed.source !== "vendor_booking"
+        || completed.chosen_value?.completion_evidence !== "user_reported"
+        || completed.chosen_value?.vendor_delivery_status !== "not_sent"
+        || completed.chosen_value?.vendor_confirmation_status !== "unconfirmed"
+        || completed.metadata?.completion_evidence !== completed.chosen_value.completion_evidence
+        || completed.metadata?.vendor_delivery_status !== completed.chosen_value.vendor_delivery_status
+        || completed.metadata?.vendor_confirmation_status !== completed.chosen_value.vendor_confirmation_status
+      ) {
+        fail("BOOKING_OUTCOME_READ_INVALID", "Booking outcome receipt evidence was not canonical");
+      }
+      return Object.freeze({
+        bookingStatus: bookings[0]?.status,
+        actualAmount: bookings[0]?.actual_amount,
+        contractedAmount: bookings[0]?.contracted_amount,
+        decisionId: completed.id,
+        decisionType: completed.decision_type,
+        decisionVisibility: completed.visibility,
+        sourceActorRole: completed.source_actor_role,
+        actorProfileId: completed.metadata?.actor_profile_id,
+        completionEvidence: completed.metadata?.completion_evidence,
+        vendorDeliveryStatus: completed.metadata?.vendor_delivery_status,
+        vendorConfirmationStatus: completed.metadata?.vendor_confirmation_status,
+        provenanceVersion: completed.metadata?.outcome_provenance_version,
+        payloadDigest: completed.metadata?.outcome_payload_digest,
+        createdAt: completed.created_at,
+        confirmedAt: completed.user_confirmed_at,
+        decidedAt: completed.decided_at,
+        updatedAt: completed.updated_at,
+        completedDecisionCount: completedRows.length,
+        consideringActive: considering.filter((row) => row?.superseded_at === null).length,
+        consideringSuperseded: considering.filter((row) => typeof row?.superseded_at === "string").length,
+        authorizationCount: authorizations.length,
+      });
+    },
+
+    async readBookingOutcomeDecisionAsUser(user, decisionId) {
+      if (!isUuid(user?.id) || !isUuid(decisionId)) {
+        fail("BOOKING_OUTCOME_READ_INPUT_INVALID", "Booking outcome decision input was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "id,source,decision_type,visibility",
+        id: `eq.${decisionId}`,
+      });
+      const response = await userCall(user, `/rest/v1/decision_nodes?${query}`);
+      return response.body;
+    },
+
+    async deleteBookingOutcomeFixture(fixture) {
+      if (!isUuid(fixture?.vendorId) || !isUuid(fixture?.bookingId)) {
+        fail("BOOKING_OUTCOME_CLEANUP_INPUT_INVALID", "Booking outcome cleanup input was not canonical");
+      }
+      const bookingFilter = `booking_id=eq.${encodeURIComponent(fixture.bookingId)}`;
+      const sourceFilter = `source_ref_id=eq.${encodeURIComponent(fixture.bookingId)}`;
+      await adminCall(`/rest/v1/decision_nodes?${sourceFilter}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/vendor_reviews?${bookingFilter}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/booking_projection_jobs?${bookingFilter}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/booking_intent_write_authorizations?${bookingFilter}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/booking_outcome_write_authorizations?${bookingFilter}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/vendor_bookings?id=eq.${encodeURIComponent(fixture.bookingId)}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/vendor_timeslots?vendor_id=eq.${encodeURIComponent(fixture.vendorId)}`, { method: "DELETE" });
+      await adminCall(`/rest/v1/vendors?id=eq.${encodeURIComponent(fixture.vendorId)}`, { method: "DELETE" });
+    },
+
+    async readBookingOutcomeResidue(input) {
+      if (typeof bookingOutcomeResidueReader !== "function") {
+        fail("BOOKING_OUTCOME_RESIDUE_READER_MISSING", "A fixed booking outcome residue reader is required");
+      }
+      return bookingOutcomeResidueReader(input);
     },
 
     async createConfirmedCoupleCriterion({
@@ -3807,6 +4168,202 @@ export async function runFirstUseDeterministicActionScenario({ transport }) {
   return Object.freeze({
     scenario: "first_use_deterministic_action_two_account_v1",
     providerEvidence: "synthetic_private_source_receipt_no_live_provider_call",
+    syntheticUserCount: users.length,
+    checks: Object.freeze({ ...checks }),
+    residue: Object.freeze({ ...residue }),
+  });
+}
+
+function isCanonicalBookingOutcomeResult(result, decisionId) {
+  return result !== null
+    && typeof result === "object"
+    && result.decisionId === decisionId
+    && result.completionEvidence === "user_reported"
+    && result.vendorDeliveryStatus === "not_sent"
+    && result.vendorConfirmationStatus === "unconfirmed";
+}
+
+function isCanonicalBookingOutcomeState(state, { ownerId, decisionId }) {
+  if (state === null || typeof state !== "object") return false;
+  const confirmedAt = Date.parse(state.confirmedAt);
+  const decidedAt = Date.parse(state.decidedAt);
+  const createdAt = Date.parse(state.createdAt);
+  const updatedAt = Date.parse(state.updatedAt);
+  return state.bookingStatus === "completed"
+    && state.actualAmount === 650000
+    && state.contractedAmount === 500000
+    && state.decisionId === decisionId
+    && state.decisionType === "completed"
+    && state.decisionVisibility === "shared"
+    && ["bride", "groom"].includes(state.sourceActorRole)
+    && state.actorProfileId === ownerId
+    && state.completionEvidence === "user_reported"
+    && state.vendorDeliveryStatus === "not_sent"
+    && state.vendorConfirmationStatus === "unconfirmed"
+    && state.provenanceVersion === 1
+    && typeof state.payloadDigest === "string"
+    && /^[a-f0-9]{64}$/u.test(state.payloadDigest)
+    && Number.isFinite(createdAt)
+    && Number.isFinite(confirmedAt)
+    && createdAt <= confirmedAt
+    && confirmedAt === decidedAt
+    && decidedAt <= updatedAt
+    && state.completedDecisionCount === 1
+    && state.consideringActive === 0
+    && state.consideringSuperseded === 1
+    && state.authorizationCount === 0;
+}
+
+export async function runBookingOutcomeProvenanceScenario({ transport }) {
+  if (!transport || typeof transport !== "object") {
+    fail("TRANSPORT_INVALID", "A hosted staging transport is required");
+  }
+  const checks = {
+    ownerSpace: false,
+    fixtureCreated: false,
+    authenticatedCompletionDenied: false,
+    outcomeRecorded: false,
+    actorBound: false,
+    timestampsCanonical: false,
+    intentSuperseded: false,
+    exactReplay: false,
+    sharedDecisionVisible: false,
+    noAuthorizationResidue: false,
+    cleanup: false,
+  };
+  const users = [];
+  const coupleIds = [];
+  const vendorIds = [];
+  const bookingIds = [];
+  const decisionIds = [];
+  let fixture = null;
+  let primaryError = null;
+
+  try {
+    const owner = await transport.createSyntheticUser("owner");
+    users.push(owner);
+    requireScenario(
+      isUuid(owner?.id) && typeof owner?.accessToken === "string",
+      "BOOKING_OUTCOME_SYNTHETIC_USER_INVALID",
+      "Booking outcome probe user was not canonical",
+    );
+    const ownerSpace = await transport.createNeutralPreparationSpace(owner);
+    checks.ownerSpace = isCreatedPreparationSpace(ownerSpace);
+    requireScenario(checks.ownerSpace, "BOOKING_OUTCOME_OWNER_SPACE_INVALID", "Owner preparation space was not canonical");
+    coupleIds.push(ownerSpace.couple_id);
+
+    fixture = await transport.prepareBookingOutcomeFixture({
+      owner,
+      coupleId: ownerSpace.couple_id,
+    });
+    checks.fixtureCreated = isUuid(fixture?.vendorId) && isUuid(fixture?.bookingId);
+    requireScenario(checks.fixtureCreated, "BOOKING_OUTCOME_FIXTURE_INVALID", "Booking outcome fixture was not canonical");
+    vendorIds.push(fixture.vendorId);
+    bookingIds.push(fixture.bookingId);
+
+    const denied = await transport.attemptBookingOutcomeAsAuthenticated(owner, fixture);
+    checks.authenticatedCompletionDenied = denied?.denied === true;
+    requireScenario(
+      checks.authenticatedCompletionDenied,
+      "BOOKING_OUTCOME_AUTHENTICATED_RPC_ALLOWED",
+      "Authenticated client reached the service-only booking outcome RPC",
+    );
+
+    const first = await transport.completeBookingOutcome({ owner, fixture });
+    requireScenario(isUuid(first?.decisionId), "BOOKING_OUTCOME_RESULT_INVALID", "Booking outcome did not return a decision id");
+    decisionIds.push(first.decisionId);
+    fixture = Object.freeze({ ...fixture, decisionId: first.decisionId });
+    checks.outcomeRecorded = isCanonicalBookingOutcomeResult(first, first.decisionId);
+    requireScenario(checks.outcomeRecorded, "BOOKING_OUTCOME_RESULT_INVALID", "Booking outcome result was not canonical");
+
+    const firstState = await transport.readBookingOutcomeState({ fixture, decisionId: first.decisionId });
+    const canonicalState = isCanonicalBookingOutcomeState(firstState, {
+      ownerId: owner.id,
+      decisionId: first.decisionId,
+    });
+    checks.actorBound = canonicalState
+      && firstState.actorProfileId === owner.id
+      && ["bride", "groom"].includes(firstState.sourceActorRole);
+    checks.timestampsCanonical = canonicalState
+      && firstState.confirmedAt === firstState.decidedAt
+      && Date.parse(firstState.decidedAt) <= Date.parse(firstState.updatedAt);
+    checks.intentSuperseded = canonicalState
+      && firstState.consideringActive === 0
+      && firstState.consideringSuperseded === 1;
+    checks.noAuthorizationResidue = canonicalState && firstState.authorizationCount === 0;
+    requireScenario(checks.actorBound, "BOOKING_OUTCOME_ACTOR_INVALID", "Booking outcome actor provenance was not canonical");
+    requireScenario(checks.timestampsCanonical, "BOOKING_OUTCOME_TIME_INVALID", "Booking outcome timestamps were not canonical");
+    requireScenario(checks.intentSuperseded, "BOOKING_OUTCOME_INTENT_NOT_SUPERSEDED", "Booking intent was not superseded exactly once");
+    requireScenario(checks.noAuthorizationResidue, "BOOKING_OUTCOME_AUTHORIZATION_RESIDUE", "Booking outcome authorization residue remained");
+
+    const replay = await transport.completeBookingOutcome({ owner, fixture });
+    const replayState = await transport.readBookingOutcomeState({ fixture, decisionId: first.decisionId });
+    checks.exactReplay = isCanonicalBookingOutcomeResult(replay, first.decisionId)
+      && isCanonicalBookingOutcomeState(replayState, {
+        ownerId: owner.id,
+        decisionId: first.decisionId,
+      })
+      && replayState.confirmedAt === firstState.confirmedAt
+      && replayState.decidedAt === firstState.decidedAt
+      && replayState.payloadDigest === firstState.payloadDigest;
+    requireScenario(checks.exactReplay, "BOOKING_OUTCOME_REPLAY_INVALID", "Exact booking outcome retry changed its provenance");
+
+    const visible = await transport.readBookingOutcomeDecisionAsUser(owner, first.decisionId);
+    checks.sharedDecisionVisible = Array.isArray(visible)
+      && visible.length === 1
+      && visible[0]?.id === first.decisionId
+      && visible[0]?.source === "vendor_booking"
+      && visible[0]?.decision_type === "completed"
+      && visible[0]?.visibility === "shared";
+    requireScenario(checks.sharedDecisionVisible, "BOOKING_OUTCOME_SHARED_DECISION_HIDDEN", "Owner could not read the shared booking outcome receipt");
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    if (fixture) {
+      try { await transport.deleteBookingOutcomeFixture(fixture); } catch (error) { primaryError ??= error; }
+    }
+    for (const user of [...users].reverse()) {
+      try { await transport.resetMembership(user); } catch { /* Auth deletion is final. */ }
+    }
+    for (const user of [...users].reverse()) {
+      try { await transport.deleteSyntheticUser(user.id); } catch (error) { primaryError ??= error; }
+    }
+  }
+
+  let residue = {
+    profiles: Number.NaN,
+    couples: Number.NaN,
+    journeys: Number.NaN,
+    vendors: Number.NaN,
+    timeslots: Number.NaN,
+    bookings: Number.NaN,
+    reviews: Number.NaN,
+    decisions: Number.NaN,
+    intentAuthorizations: Number.NaN,
+    outcomeAuthorizations: Number.NaN,
+    projectionJobs: Number.NaN,
+  };
+  try {
+    residue = await transport.readBookingOutcomeResidue({
+      userIds: users.map(({ id }) => id),
+      coupleIds,
+      vendorIds,
+      bookingIds,
+      decisionIds,
+    });
+    checks.cleanup = Object.values(residue).every((count) => count === 0);
+  } catch (error) {
+    primaryError ??= error;
+  }
+  if (!checks.cleanup) {
+    primaryError ??= new AmoraSuccessorStagingProbeError(
+      "BOOKING_OUTCOME_SYNTHETIC_RESIDUE_PRESENT",
+      "Booking outcome staging probe left synthetic rows behind",
+    );
+  }
+  if (primaryError) throw primaryError;
+  return Object.freeze({
+    scenario: "booking_outcome_provenance_solo_v1",
     syntheticUserCount: users.length,
     checks: Object.freeze({ ...checks }),
     residue: Object.freeze({ ...residue }),
