@@ -1061,7 +1061,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 - `START_HERE.md`와 `docs/README.md`의 `f8851f74`·2026-08-12 handoff는 역사 snapshot으로 명시했다.
 - 현재 실행 기준은 이 문서와 실제 Git·tests·migration manifest로 바꿨다.
-- 현재 release 기준은 검증 코드 HEAD `b8fdfe94`, manifest 107, Production 관찰 prefix 32, Production 기준 pending 75, tail 181300이다. 격리 staging ledger는 221/head 181200이다.
+- 현재 release 기준은 제품 코드 snapshot `15e59d3a`, manifest 107, Production 관찰 prefix 32, Production 기준 pending 75, tail 181300이다. 격리 staging ledger는 221/head 181200이다.
 - 날짜별 product summary의 95~98 migration 숫자는 역사 기록으로만 유지한다.
 - `amoraEntryPlan.d.mts`, `dashboardExperience.d.mts`, `scheduleSessionFence.d.mts`는 LF→CRLF 경고가 있으나 현재 diff-check 오류는 아니다.
 
@@ -1073,7 +1073,7 @@ freeze 전에 다음 중 하나를 선택한다.
 | home | Amora hero·정본 한 가지·이유와 `진행 중·확인 필요·아직 모름·완료` 4상태를 표시 | 실제 기기·200%·screen reader에서 상태와 한 행동의 이해도는 아직 미검증 | HT-001/002/008 |
 | topic | 상태→한 행동→이유/완료 기준→개인 맥락·근거→미정→가이드→저장 대화→확인 기록→예산 도구→아모라 handoff 순 | 개인 맥락이 현재 주제·행동과 실제 관련된 source인지 paired gate가 아직 미완료 | HT-003/004 |
 | personalization | 전역 표현 설정과 미연결 기준은 topic evidence에서 제외하고 exact topic effect만 허용 | 실제 current action/criterion binding을 만드는 source-relevance adapter와 실기기 이해도는 미완료 | HT-004,JRN-002,HT-008 |
-| important records | 주제별 저장 대화·exact 원문 복귀는 있으나 global entry/search/filter가 없음 | 주제를 기억하지 못하면 중요한 상담과 현재 행동을 한눈에 회수할 수 없음 | HT-009 |
+| important records | 아모라 헤더의 `우리 준비 노트`에서 저장 대화·내 기준·우리 기준·검증된 적용 영수증·현재 일정 결정을 범위·유형·주제·질문/답변으로 검색하고 exact 원문·홈 행동·일정으로 복귀 | 실기기·2계정에서 privacy 표식, 검색·더 보기·뒤로가기, stale 제거와 partial 이해도는 아직 미검증 | HT-009/008 |
 | chat | first-use·scope·approval·receipt 기반은 강함 | 8,517줄 오케스트레이터에 lane·recovery가 집중 | EX-003, FV-006/007 |
 | schedule/topic | identity·realtime·evidence·focus·UI가 4,044줄에 집중 | optional lane mixed-state와 변경 회귀 위험 | EX-003, HT-007 |
 | web chat API | actor/privacy/claim/provider/finalizer가 5,469줄 route에 집중 | provider보다 상태 전이 결합이 병목 | EX-003, DX-003 |
@@ -2024,10 +2024,10 @@ Wave 3·4 구현
 |---|---|---|
 | 소비자 가치 | `PLAN GO` | 첫 가치와 write 분리, 관련 개인화 paired fixture, 홈 퍼센트 제거, `우리 준비 노트`를 NEXT/Wave 3에 명시 |
 | UX·접근성 | `PLAN GO` | 준비 노트 정보 위계·상태·privacy·검색·exact 원문·한 손·200%·screen reader 계약 |
-| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP + HOME/TOPIC TRUTH + RELEVANCE + TOPIC/CHAT/SAVED-CONVERSATION ROUND TRIPS + OPTIONAL-EVIDENCE ISOLATION LOCAL; MESSAGE-REF BACKEND HOSTED VERIFIED` | F10~18·U01·F20과 HT-001~007은 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up·home→topic exact action·과장 없는 홈 상태·행동 우선 주제 위계·개인화 관련성 gate·private 상담 복귀·중요 상담 exact 원문 복구·optional lane 격리까지 연결됨. source adapter·2기기 UI·접근성·live provider·실사용 관찰은 남음 |
+| 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP + HOME/TOPIC TRUTH + RELEVANCE + TOPIC/CHAT/NOTES ROUND TRIPS + OPTIONAL-EVIDENCE ISOLATION LOCAL; MESSAGE-REF BACKEND HOSTED VERIFIED` | F10~18·U01·F20과 HT-001~007·009는 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up·home→topic exact action·과장 없는 홈 상태·행동 우선 주제 위계·개인화 관련성 gate·private 상담 복귀·중요 상담 exact 원문 복구·검증된 적용/일정 영수증 검색·optional lane 격리까지 연결됨. 실제 source-relevance adapter·2기기 UI·접근성·live provider·실사용 관찰은 남음 |
 | Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging ordered apply, neutral 2계정 경로, message-ref 3계정 공격/동시성 경로는 통과. 별도 restore, first-use/provider apply/161700/Storage 전체 probe, Preview/internal, evidence 5종은 미완료이며 `deployment_blocked` 유지 |
 
-`HT-007 / AMR-T14`까지 로컬 자동화로 완료했고, `HT-009 / AMR-M03`은 core 화면과 질문·답변 검색/cursor까지 commit `b8fdfe94`로 구현했다. `STG-004 / AMR-REL14`에서는 중요 상담 저장 하위 경계만 hosted 검증했다. Production 관찰 시점 기준 75개 ordered suffix를 exact hash·순서로 고정했고, 승인된 staging ref `rgxdizztidbgwnsbadml`은 아직 ledger 221/head `20260818120000`이다. commit `c27da3d7`에서 intentional conflict를 PostgREST 재시도 대상 40001이 아닌 PT409로 바꾸고, synthetic 3계정으로 owner/partner/outsider privacy, shared/private 저장·목록·원문, authenticated RPC/table 차단, concurrent exact replay, 해제, stale revision, cleanup residue 0을 확인했다. commit `b8fdfe94`에서는 service-only 질문·답변 검색, snapshot cursor, cursor 반복·snapshot 변경·wrong identity fail-closed와 기존 결과 보존을 로컬 검증했다. 홈→주제 exact 행동, 정본 상태, 행동 우선 위계, 관련성 있는 개인화, private 상담 복귀는 HT-001~005에 그대로 유지된다. canonical receipt adapter, 별도 restore, 181300 hosted 적용, STG-004의 first-use/provider apply/161700/Storage, 2기기 UI, 200%/스크린리더, live provider, 실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
+`HT-007 / AMR-T14`까지와 `HT-009 / AMR-M03`의 로컬 코드 vertical을 완료했다. HT-009는 commit `b8fdfe94`의 service-only 질문·답변 검색/snapshot cursor, `ef0d5dd4`의 strict first-use/provider-backed 적용 영수증, `15e59d3a`의 current schedule decision 영수증으로 나뉜다. 마지막 slice는 mobile 1119/1119, 관련 web 48/48, shared/web/mobile typecheck, web/mobile lint, Expo iOS/Android/Web export와 전체 pre-push 8/8을 통과했다. `STG-004 / AMR-REL14`에서는 중요 상담 저장 하위 경계만 hosted 검증했다. Production 관찰 시점 기준 75개 ordered suffix를 exact hash·순서로 고정했고, 승인된 staging ref `rgxdizztidbgwnsbadml`은 아직 ledger 221/head `20260818120000`이다. commit `c27da3d7`에서 intentional conflict를 PostgREST 재시도 대상 40001이 아닌 PT409로 바꾸고, synthetic 3계정으로 owner/partner/outsider privacy, shared/private 저장·목록·원문, authenticated RPC/table 차단, concurrent exact replay, 해제, stale revision, cleanup residue 0을 확인했다. 별도 restore, 181300 hosted 적용, STG-004의 first-use/provider apply/161700/Storage, 2기기 UI, 200%/스크린리더, live provider, 실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
 
 <!-- AMORA:HUNK-LEDGER:BEGIN -->
 
