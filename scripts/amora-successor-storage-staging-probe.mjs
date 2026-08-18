@@ -1,18 +1,8 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import {
-  dirname,
-  isAbsolute,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import {
   loadSupabaseProjectApiKeys,
@@ -20,10 +10,14 @@ import {
 } from "./lib/amora-successor-staging-probe.mjs";
 import {
   AmoraSuccessorStorageStagingProbeError,
+  assertAmoraSuccessorStorageHostedMutationPlatform,
   createSupabaseStorageStagingTransport,
   inspectAmoraSuccessorStorageInventory,
+  recoverAmoraSuccessorStorageStagingProbe,
+  runAmoraSuccessorStorageDiscovery,
   runAmoraSuccessorStorageStagingProbe,
   storageProbeReceiptSha256,
+  validateAmoraSuccessorStorageDiscoveryConfig,
   validateAmoraSuccessorStorageStagingProbeConfig,
 } from "./lib/amora-successor-storage-staging-probe.mjs";
 
@@ -54,6 +48,34 @@ function exactInteger(...names) {
     );
   }
   return Number(raw);
+}
+
+function optional(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+  }
+  return undefined;
+}
+
+function recoveryRequested() {
+  const value = optional("AMORA_STAGING_STORAGE_PROBE_RECOVER");
+  if (value === undefined || value === "0") return false;
+  if (value === "1") return true;
+  throw new AmoraSuccessorStorageStagingProbeError(
+    "RECOVERY_MODE_INVALID",
+    "Storage recovery mode must be exactly 0 or 1",
+  );
+}
+
+function commandMode() {
+  const args = process.argv.slice(2);
+  if (args.length === 0) return "probe";
+  if (args.length === 1 && args[0] === "--inventory-only") return "inventory-only";
+  throw new AmoraSuccessorStorageStagingProbeError(
+    "CLI_ARGUMENT_INVALID",
+    "Storage staging probe accepts only --inventory-only or no arguments",
+  );
 }
 
 function runGit(args, { quiet = false } = {}) {
@@ -103,12 +125,8 @@ function assertExactPushedCommit(expectedCommit) {
   }
 }
 
-function outsideRepo(candidate) {
-  const path = relative(REPO_ROOT, candidate);
-  return path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path);
-}
-
 async function main() {
+  const mode = commandMode();
   const approval = JSON.parse(readFileSync(APPROVAL_CONTRACT, "utf8"));
   if (approval?.approved !== true
       || approval?.status !== "approved_for_hosted_rls_probe") {
@@ -117,6 +135,41 @@ async function main() {
       "Repository staging approval is not active",
     );
   }
+
+  if (mode === "inventory-only") {
+    if (recoveryRequested()) {
+      throw new AmoraSuccessorStorageStagingProbeError(
+        "DISCOVERY_MODE_CONFLICT",
+        "Read-only Storage discovery cannot run in recovery mode",
+      );
+    }
+    const discoveryReceiptRaw = optional(
+      "AMORA_STAGING_STORAGE_DISCOVERY_RECEIPT_OUT",
+    );
+    const discoveryConfig = validateAmoraSuccessorStorageDiscoveryConfig({
+      projectRef: required("AMORA_STAGING_PROJECT_REF"),
+      productionProjectRef: required("SUPABASE_PRODUCTION_PROJECT_REF"),
+      approvedProjectRef: approval.projectRef,
+      managementToken: required("SUPABASE_ACCESS_TOKEN"),
+      expectedCommit: required(
+        "AMORA_STAGING_STORAGE_DISCOVERY_EXPECTED_COMMIT",
+        "AMORA_STAGING_STORAGE_PROBE_EXPECTED_COMMIT",
+        "AMORA_STAGING_PROBE_EXPECTED_COMMIT",
+      ),
+      ...(discoveryReceiptRaw === undefined ? {} : {
+        repoRoot: REPO_ROOT,
+        receiptOut: discoveryReceiptRaw,
+      }),
+    });
+    assertExactPushedCommit(discoveryConfig.expectedCommit);
+    const result = await runAmoraSuccessorStorageDiscovery({
+      config: discoveryConfig,
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+
+  assertAmoraSuccessorStorageHostedMutationPlatform();
 
   const expectedMigrationCount = exactInteger(
     "AMORA_STAGING_STORAGE_PROBE_EXPECTED_MIGRATION_COUNT",
@@ -148,17 +201,16 @@ async function main() {
       "AMORA_STAGING_STORAGE_PROBE_RECEIPT_OUT",
       "AMORA_STAGING_PROBE_RECEIPT_OUT",
     ),
+    recoveryJournalOut: optional(
+      "AMORA_STAGING_STORAGE_PROBE_RECOVERY_JOURNAL_OUT",
+      "AMORA_STAGING_PROBE_RECOVERY_JOURNAL_OUT",
+    ),
     expectedMigrationCount,
     expectedMigrationHead,
     gitOrigin: EXPECTED_ORIGIN,
   });
-  if (!outsideRepo(config.receiptOut)) {
-    throw new AmoraSuccessorStorageStagingProbeError(
-      "RECEIPT_INSIDE_REPOSITORY",
-      "Storage staging receipts must be written outside the repository",
-    );
-  }
   assertExactPushedCommit(config.expectedCommit);
+  const shouldRecover = recoveryRequested();
 
   const [ledger, keys] = await Promise.all([
     readHostedMigrationLedger({
@@ -192,21 +244,29 @@ async function main() {
       userId,
       coupleId,
     });
-  const writeReceipt = async (receipt) => {
-    const text = `${JSON.stringify(receipt, null, 2)}\n`;
-    mkdirSync(dirname(config.receiptOut), { recursive: true });
-    writeFileSync(config.receiptOut, text, {
-      encoding: "utf8",
-      flag: "wx",
-      mode: 0o600,
+  if (shouldRecover) {
+    const recovery = await recoverAmoraSuccessorStorageStagingProbe({
+      config: runtimeConfig,
+      transport,
+      inspectInventory,
     });
-  };
+    process.stdout.write(`${JSON.stringify({
+      ok: true,
+      status: recovery.status,
+      projectRef: recovery.projectRef,
+      gitCommit: recovery.gitCommit,
+      identityMarker: recovery.identityMarker,
+      residue: recovery.residue,
+      productionVerified: recovery.productionVerified,
+      productionMutations: recovery.productionMutations,
+    }, null, 2)}\n`);
+    return;
+  }
 
   const receipt = await runAmoraSuccessorStorageStagingProbe({
     config: runtimeConfig,
     transport,
     inspectInventory,
-    writeReceipt,
   });
   process.stdout.write(`${JSON.stringify({
     ok: true,
