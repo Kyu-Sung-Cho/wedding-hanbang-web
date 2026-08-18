@@ -433,6 +433,7 @@ async function buildFixture(secondQuote?: string): Promise<{
     root_dir: path.join(stateDir, "raw"),
     state_dir: stateDir,
     scanned_at: now,
+    skipped_sources: [],
     units: [{
       unit_id: UNIT_ID,
       display_name: "샘플대행사A.xlsx",
@@ -1785,6 +1786,7 @@ test("strict local score accepts only converter-certified DOCX business-header f
     root_dir: rawRoot,
     state_dir: stateDir,
     scanned_at: new Date(0).toISOString(),
+    skipped_sources: [],
     units: [{
       unit_id: unitId,
       display_name: "shared.docx",

@@ -39,12 +39,13 @@ corepack pnpm ingest load --snapshot 2026Q3
 ## 변환 안전 규칙
 
 - 지원 형식은 XLSX, DOCX, HWP, PDF, PNG이다. 변환 전에 개별 원본 50MB 상한을 검사한다.
+- **CSV·XLS·DOC·HWPX·JPG는 원본 형식으로 지원하지 않는다.** 예전에는 이런 파일이 scan에서 아무 기록 없이 사라져 대행사 하나가 통째로 빠져도 알 수 없었다. 이제는 `manifest.skipped_sources`에 남기고 `status`가 개수와 확장자를 보여준다. 변환 가능한 파일이 하나도 없는 업체 폴더는 unit이 생기지 않으므로 `unit_id: null`(= 이 업체는 파이프라인에 존재하지 않음)로 기록한다. 같은 stem의 변환 가능한 파일이 있으면 그 unit에 `unsupported_source_file:` notice로 붙는다. 이 파일들을 반영하려면 XLSX나 PDF로 저장한 뒤 scan부터 다시 실행한다. `.DS_Store`, `Thumbs.db`, `desktop.ini`, `._*`는 업체 자료가 아니므로 세지 않는다.
 - XLSX는 병합 셀을 좌상단 값으로 풀고 `시트명!A1: 값` 좌표 line과 sheet markdown table을 함께 기록한다. DrawingML text box는 `XLSX_DRAWING <part>#text-box-N`, worksheet 수식은 `XLSX_FORMULA [sheet=...;cell=...;part=...#cell-...]` locator로 보존한다. 수식은 XML 원문만 읽고 계산하거나 외부 함수를 실행하지 않으며, 캐시 결과는 기존 canonical 셀을 가리키기만 해 금액을 중복 기록하지 않는다. drawing part 1,000개·text node 10,000개, formula 10,000개·개별 8,192자·합계 200,000자 상한을 적용하고 malformed/shared/array 수식은 fail-closed한다. archive 전체는 최대 10,000 entries, 개별 uncompressed 50MB, 합계 250MB이고, workbook은 최대 100 sheets, sheet range 250,000 cells, non-empty 100,000 cells, merge 10,000개, 전체 직렬화 텍스트 300,000자다. `xl/media/`는 표의 희박함과 무관하게 최대 100개, 개별 10MB, 합계 50MB를 적용하고 지원 이미지 전부를 별도 vision 증거로 보존한다.
 - DOCX는 ZIP entry 2,048개, 압축 해제 합계 32MB, 압축비 200배를 넘으면 변환하지 않는다. 본문 텍스트와 `word/media/`의 지원 이미지를 함께 꺼내며 embedded media는 최대 100개, 개별 10MB, 합계 32MB 제한과 실제 바이트·해시 검증을 적용한다.
 - XLSX/DOCX embedded media는 PNG/JPG/JPEG/WebP/GIF만 자동 vision 증거로 인정한다. EMF/WMF 등 미지원 형식은 조용히 버리지 않고 현재 converter·source fingerprint·오류 코드에 묶인 실패로 기록하며, 원본에서 PNG/JPEG로 변환한 뒤 scan부터 다시 실행한다.
 - PDF는 200페이지·추출 텍스트 600,000자 상한을 둔다. 텍스트 양과 관계없이 모든 페이지를 `pdftoppm` 180dpi PNG로 만들며, 페이지당 20MB·전체 100MB·실행 120초·stderr 16KiB 한도를 적용한다. rasterizer가 없거나 실패하면 unit을 수동 변환 상태로 남긴다. Windows에서는 깊은 content-addressed 최종 경로를 Poppler에 직접 넘기지 않고 같은 `.converted/` 볼륨의 짧은 임시 경로에서 렌더링·검사한 뒤 원자적으로 게시한다. PATH 탐색이 불안정한 환경은 검증된 실행 파일을 `INGEST_PDFTOPPM_PATH` 절대경로로 지정할 수 있다.
 - 이미지 추출 요청은 이미지당 20MB, 요청당 원본 합계 40MB, base64 payload 50MiB, 한 요청 5장, unit당 최대 20회로 제한한다. 파일 확인과 실제 읽기 사이에 크기나 경로가 바뀌면 중단한다.
-- HWP는 자동 해석하지 않는다. 같은 디렉터리·동일 stem의 PDF가 있을 때만 그 PDF를 대체본으로 인정한다. HWP와 다른 형식이 섞여 있어도 대체 PDF가 없는 HWP가 하나라도 있으면 unit 전체를 `needs_manual_conversion`으로 막는다. 대체 PDF가 있어도 HWP와 PDF 양쪽의 원본 provenance와 Storage object를 보존한다.
+- HWP는 로컬 추출기(`hwp-extract.ts`, HWP5 CFB + zlib)로 자동 변환한다. 한컴오피스 설치는 필요 없다. 2026-08-08까지는 "자동 해석하지 않는다"였고 그 정책 때문에 공시 8유닛이 통째로 빠져 있었다. 같은 디렉터리·동일 stem의 PDF가 있으면 그 PDF를 대체본으로 쓰고 HWP는 다시 변환하지 않는다. 읽지 못하는 HWP(암호·배포제한·손상·HWP5 아님)와 본문이 통째로 스캔 이미지인 HWP만 `needs_manual_conversion`으로 남으며, 이때도 같은 unit의 정상 파일은 계속 변환된다. 어느 경로든 승인은 사람이 한다(`bulk_approval_eligible: false`). 대체 PDF가 있어도 HWP와 PDF 양쪽의 원본 provenance와 Storage object를 보존한다.
 - 지원되지 않는 지역 폴더는 `unknown_region` 오류로 막으며 vendor 생성까지 진행하지 않는다. scan과 extract는 심볼릭 링크까지 실제 경로로 해석해 raw/artifact root 밖 파일을 읽지 않는다.
 
 ## 로컬 전용 추출과 비용 0원 보장

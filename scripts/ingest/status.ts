@@ -49,6 +49,9 @@ export interface IngestStatus {
   durable_local_extraction_cost_usd: 0;
   historical_validation_issues: number;
   current_validation_issues: number;
+  skipped_source_files: number;
+  skipped_uncovered_source_files: number;
+  skipped_source_files_by_extension: Record<string, number>;
   failed_unit_details: Array<{
     unit_id: string;
     error_codes: string[];
@@ -367,6 +370,13 @@ function contentSafeFailureCodes(notices: string[]): string[] {
   return [...codes].sort();
 }
 
+function formatExtensionBreakdown(byExtension: Record<string, number>): string {
+  const entries = Object.entries(byExtension)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  if (entries.length === 0) return "none";
+  return entries.map(([extension, count]) => `${extension || "(none)"}=${count}`).join(", ");
+}
+
 export function formatIngestStatus(status: IngestStatus): string {
   const stageWidth = Math.max("Stage".length, ...STAGE_ORDER.map((stage) => stage.length));
   const lines = [
@@ -396,6 +406,11 @@ export function formatIngestStatus(status: IngestStatus): string {
     `Current local pending-load eligible units: ${status.current_local_review_load_eligible_units}`,
     `Local deterministic extraction tokens: ${status.historical_local_extraction_input_tokens} input / ${status.historical_local_extraction_output_tokens} output`,
     `Local deterministic extraction cost (USD): ${status.durable_local_extraction_cost_usd.toFixed(6)}`,
+    // Extensions only. A raw path carries the vendor name, and this table is
+    // meant to be pasteable into a handoff document.
+    `Unsupported source files: ${status.skipped_source_files}`
+      + ` (${formatExtensionBreakdown(status.skipped_source_files_by_extension)})`,
+    `Unsupported source files with no unit: ${status.skipped_uncovered_source_files}`,
   ];
   if (status.failed_unit_details.length > 0) {
     lines.push(
@@ -533,6 +548,15 @@ export async function getIngestStatus(options: StatusOptions): Promise<IngestSta
       .reduce((sum, unit) => sum + (unit.validation?.issue_count ?? 0), 0),
     current_validation_issues: currentValidatedUnits
       .reduce((sum, unit) => sum + (unit.validation?.issue_count ?? 0), 0),
+    skipped_source_files: manifest.skipped_sources.length,
+    skipped_uncovered_source_files: manifest.skipped_sources
+      .filter((source) => source.unit_id === null)
+      .length,
+    skipped_source_files_by_extension: manifest.skipped_sources
+      .reduce<Record<string, number>>((counts, source) => {
+        counts[source.ext] = (counts[source.ext] ?? 0) + 1;
+        return counts;
+      }, {}),
     failed_unit_details: manifest.units
       .filter((unit) => unit.stage === "error")
       .map((unit) => ({

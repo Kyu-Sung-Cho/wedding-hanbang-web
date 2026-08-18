@@ -45,6 +45,7 @@ async function localLoadFixture(): Promise<{ rootDir: string; stateDir: string }
     root_dir: rootDir,
     state_dir: stateDir,
     scanned_at: new Date(0).toISOString(),
+    skipped_sources: [],
     units: [{
       unit_id: unitId,
       display_name: "sample.xlsx",

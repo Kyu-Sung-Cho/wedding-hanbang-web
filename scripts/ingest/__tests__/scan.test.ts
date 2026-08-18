@@ -5,7 +5,12 @@ import path from "node:path";
 import test from "node:test";
 
 import { writeJsonFile } from "../io.js";
-import { SCANNER_PARSER_VERSION, regionCodeFromDirectory, scanSources } from "../scan.js";
+import {
+  SCANNER_PARSER_VERSION,
+  SKIPPED_SOURCE_NOTICE_PREFIX,
+  regionCodeFromDirectory,
+  scanSources,
+} from "../scan.js";
 
 test("scan groups a vendor folder into one unit and trusts the region folder", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-scan-"));
@@ -523,4 +528,157 @@ test("scan clears its duplicate block after the extra immutable path is removed"
   assert.equal(resolved.units.length, 1);
   assert.equal(resolved.units[0].stage, "scanned");
   assert.doesNotMatch(resolved.units[0].notices.join("\n"), /duplicate_source_content/u);
+});
+
+test("scan reports an unreadable sibling source file instead of dropping it silently", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-unsupported-sibling-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const vendorDir = path.join(rootDir, "결혼준비대행서비스", "강남", "샘플가나웨딩");
+  await mkdir(vendorDir, { recursive: true });
+  await writeFile(path.join(vendorDir, "제휴업체_가격표.xlsx"), "dummy-xlsx");
+  await writeFile(path.join(vendorDir, "제휴업체_위약금.csv"), "업체명,위약금\n샘플스튜디오,계약금 전액");
+
+  const manifest = await scanSources({ rootDir, stateDir });
+
+  assert.equal(manifest.units.length, 1);
+  const unit = manifest.units[0];
+  assert.equal(unit.source_files.length, 1, "only the xlsx is a convertible source");
+  assert.match(
+    unit.notices.join("\n"),
+    new RegExp(`${SKIPPED_SOURCE_NOTICE_PREFIX}.*제휴업체_위약금\\.csv`, "u"),
+    "the dropped 위약금 file must stay visible on the unit that lost it",
+  );
+
+  const skipped = manifest.skipped_sources;
+  assert.equal(skipped.length, 1);
+  assert.equal(skipped[0].ext, "csv");
+  assert.equal(skipped[0].unit_id, unit.unit_id, "a covered file is attributed to its unit");
+  assert.match(skipped[0].path, /제휴업체_위약금\.csv$/u);
+});
+
+test("scan keeps a vendor visible when every one of its files is an unsupported format", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-unsupported-only-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "강남");
+  const csvOnlyVendor = path.join(regionDir, "샘플다라웨딩");
+  const jpgOnlyVendor = path.join(regionDir, "샘플사아웨딩");
+  await mkdir(csvOnlyVendor, { recursive: true });
+  await mkdir(jpgOnlyVendor, { recursive: true });
+  // A convertible unit has to exist, otherwise scan refuses the whole raw root.
+  await writeFile(path.join(regionDir, "샘플기준웨딩.xlsx"), "dummy-xlsx");
+  await writeFile(path.join(csvOnlyVendor, "제휴업체.csv"), "업체명,가격\n샘플드레스,1500000");
+  await writeFile(path.join(jpgOnlyVendor, "가격표.jpg"), "dummy-jpeg-bytes");
+  await writeFile(path.join(regionDir, "샘플마바웨딩.csv"), "업체명,가격\n샘플메이크업,300000");
+
+  const manifest = await scanSources({ rootDir, stateDir });
+
+  assert.equal(manifest.units.length, 1, "unsupported-only vendors produce no convertible unit");
+  const uncovered = manifest.skipped_sources.filter((entry) => entry.unit_id === null);
+  assert.equal(
+    uncovered.length,
+    3,
+    "every vendor with no convertible file must still be recorded as uncovered",
+  );
+  assert.deepEqual(
+    uncovered.map((entry) => entry.ext).sort(),
+    ["csv", "csv", "jpg"],
+  );
+  assert.ok(
+    uncovered.some((entry) => /샘플다라웨딩\/제휴업체\.csv$/u.test(entry.path)),
+    "a vendor folder holding only unsupported files must not disappear",
+  );
+  assert.ok(
+    uncovered.some((entry) => /샘플마바웨딩\.csv$/u.test(entry.path)),
+    "a region-level unsupported file must not disappear",
+  );
+});
+
+test("scan attributes a region-level unsupported file to the unit that shares its stem", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-unsupported-stem-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "강남");
+  await mkdir(regionDir, { recursive: true });
+  await writeFile(path.join(regionDir, "샘플가나웨딩.xlsx"), "dummy-xlsx");
+  await writeFile(path.join(regionDir, "샘플가나웨딩.csv"), "업체명,위약금\n샘플,전액");
+  await writeFile(path.join(regionDir, "샘플홀로웨딩.csv"), "업체명,가격\n샘플,1000");
+
+  const manifest = await scanSources({ rootDir, stateDir });
+
+  assert.equal(manifest.units.length, 1);
+  const unit = manifest.units[0];
+  assert.equal(unit.parsed.raw_name, "샘플가나웨딩");
+
+  const covered = manifest.skipped_sources.filter((entry) => entry.unit_id !== null);
+  assert.equal(covered.length, 1, "the same-stem CSV belongs to its vendor, not to a phantom one");
+  assert.equal(covered[0].unit_id, unit.unit_id);
+  assert.match(covered[0].path, /샘플가나웨딩\.csv$/u);
+
+  const uncovered = manifest.skipped_sources.filter((entry) => entry.unit_id === null);
+  assert.equal(uncovered.length, 1);
+  assert.match(uncovered[0].path, /샘플홀로웨딩\.csv$/u);
+});
+
+test("scan does not report operating-system metadata files as lost vendor data", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-os-metadata-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const vendorDir = path.join(rootDir, "결혼준비대행서비스", "강남", "샘플오에스웨딩");
+  await mkdir(vendorDir, { recursive: true });
+  await writeFile(path.join(vendorDir, "가격표.xlsx"), "dummy-xlsx");
+  await writeFile(path.join(vendorDir, ".DS_Store"), "mac-metadata");
+  await writeFile(path.join(vendorDir, "Thumbs.db"), "windows-metadata");
+  await writeFile(path.join(vendorDir, "._가격표.xlsx"), "apple-double");
+
+  const manifest = await scanSources({ rootDir, stateDir });
+
+  assert.equal(manifest.units.length, 1);
+  assert.deepEqual(manifest.skipped_sources, [], "OS metadata is not vendor data");
+  assert.doesNotMatch(manifest.units[0].notices.join("\n"), /unsupported_source_file/u);
+});
+
+test("scan keeps the unsupported-source notice across a rescan that reuses downstream state", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-unsupported-rescan-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const vendorDir = path.join(rootDir, "결혼준비대행서비스", "강남", "샘플재검사웨딩");
+  await mkdir(vendorDir, { recursive: true });
+  await writeFile(path.join(vendorDir, "가격표.xlsx"), "dummy-xlsx");
+  await writeFile(path.join(vendorDir, "위약금.csv"), "업체명,위약금\n샘플,전액");
+
+  const first = await scanSources({ rootDir, stateDir });
+  first.units[0].stage = "converted";
+  await writeJsonFile(path.join(stateDir, "manifest.json"), first);
+
+  const second = await scanSources({ rootDir, stateDir });
+
+  assert.equal(second.units[0].stage, "converted", "an unsupported sibling does not invalidate conversion");
+  assert.match(
+    second.units[0].notices.join("\n"),
+    new RegExp(`${SKIPPED_SOURCE_NOTICE_PREFIX}.*위약금\\.csv`, "u"),
+    "the notice must survive the reuse path that copies previous notices",
+  );
+  assert.equal(second.skipped_sources.length, 1);
 });

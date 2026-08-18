@@ -469,3 +469,36 @@ test("status identifies failed units with content-safe codes only", async (t) =>
   ]);
   assert.doesNotMatch(formatIngestStatus(duplicateStatus), /hidden paths/u);
 });
+
+test("status counts unsupported source files without leaking vendor names or paths", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-status-skipped-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "agency", "jeju");
+  const uncoveredVendorDir = path.join(regionDir, "실제대행사이름");
+  await mkdir(uncoveredVendorDir, { recursive: true });
+  await writeFile(path.join(regionDir, "sample-vendor.docx"), "generated source fixture");
+  await writeFile(path.join(regionDir, "sample-vendor.csv"), "업체명,위약금\n샘플,전액");
+  await writeFile(path.join(uncoveredVendorDir, "제휴업체.csv"), "업체명,가격\n샘플,1000");
+  await writeFile(path.join(uncoveredVendorDir, "가격표.jpg"), "dummy-jpeg");
+
+  await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+
+  const status = await getIngestStatus({ stateDir });
+  assert.equal(status.skipped_source_files, 3);
+  assert.equal(
+    status.skipped_uncovered_source_files,
+    2,
+    "the vendor folder with no convertible file must be counted as uncovered",
+  );
+  assert.deepEqual(status.skipped_source_files_by_extension, { csv: 2, jpg: 1 });
+
+  const table = formatIngestStatus(status);
+  assert.match(table, /Unsupported source files: 3/u);
+  assert.match(table, /csv=2/u);
+  assert.doesNotMatch(table, /실제대행사이름|제휴업체|가격표/u);
+});
