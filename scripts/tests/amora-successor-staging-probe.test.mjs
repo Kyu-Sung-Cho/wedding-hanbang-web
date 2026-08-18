@@ -1994,6 +1994,42 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
   assert.ok(calls.some(({ url, init }) => url.includes("/vendors?") && init.method === "DELETE"));
 });
 
+test("booking outcome cleanup finishes through the canonical tables when capability relations are not exposed", async () => {
+  const vendorId = "30000000-0000-4000-8000-000000000084";
+  const bookingId = "40000000-0000-4000-8000-000000000084";
+  const deleted = [];
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl: async (url, init = {}) => {
+      const value = String(url);
+      if (
+        value.includes("/booking_projection_jobs?")
+        || value.includes("/booking_intent_write_authorizations?")
+        || value.includes("/booking_outcome_write_authorizations?")
+      ) {
+        return new Response(JSON.stringify({ code: "42P01" }), { status: 404 });
+      }
+      if (init.method === "DELETE") {
+        deleted.push(value);
+        return new Response(null, { status: 204 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+    runNonce: "booking-cleanup-contract",
+  });
+
+  await transport.deleteBookingOutcomeFixture({ vendorId, bookingId });
+
+  assert.equal(deleted.length, 5);
+  assert.ok(deleted.some((url) => url.includes("/decision_nodes?")));
+  assert.ok(deleted.some((url) => url.includes("/vendor_reviews?")));
+  assert.ok(deleted.some((url) => url.includes("/vendor_bookings?")));
+  assert.ok(deleted.some((url) => url.includes("/vendor_timeslots?")));
+  assert.ok(deleted.some((url) => url.includes("/vendors?")));
+});
+
 test("the hosted probe binds its receipt to the exact applied migration ledger", async () => {
   const ledger = await readHostedMigrationLedger({
     projectRef: STAGING_REF,

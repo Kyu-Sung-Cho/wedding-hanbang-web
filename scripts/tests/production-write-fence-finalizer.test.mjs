@@ -1375,7 +1375,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 110-migration successor keeps finalization blocked through the shared-action receipt-trigger tail", async () => {
+test("the current 111-migration successor keeps finalization blocked through the vendor-review trigger tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1383,9 +1383,9 @@ test("the current 110-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 110);
+  assert.equal(manifest.expandMigrations.length, 111);
   assert.deepEqual(
-    manifest.expandMigrations.slice(-12),
+    manifest.expandMigrations.slice(-13),
     [
       {
         file: "20260816150000_amora_provider_backed_add_action_application.sql",
@@ -1434,6 +1434,10 @@ test("the current 110-migration successor keeps finalization blocked through the
       {
         file: "20260818160000_amora_shared_action_receipt_trigger.sql",
         sha256: "4046e4d2affd765d04bb002fd7a20e144a2f92e714e1aacf50d2adb47a5d5198",
+      },
+      {
+        file: "20260818170000_amora_vendor_review_trigger_search_path.sql",
+        sha256: "c797af2aa813ae8628bae6361a2ec60564104f2cd21626c5526f048eb906a84a",
       },
     ],
   );

@@ -2151,9 +2151,6 @@ export function createSupabaseStagingTransport({
       const sourceFilter = `source_ref_id=eq.${encodeURIComponent(fixture.bookingId)}`;
       await adminCall(`/rest/v1/decision_nodes?${sourceFilter}`, { method: "DELETE" });
       await adminCall(`/rest/v1/vendor_reviews?${bookingFilter}`, { method: "DELETE" });
-      await adminCall(`/rest/v1/booking_projection_jobs?${bookingFilter}`, { method: "DELETE" });
-      await adminCall(`/rest/v1/booking_intent_write_authorizations?${bookingFilter}`, { method: "DELETE" });
-      await adminCall(`/rest/v1/booking_outcome_write_authorizations?${bookingFilter}`, { method: "DELETE" });
       await adminCall(`/rest/v1/vendor_bookings?id=eq.${encodeURIComponent(fixture.bookingId)}`, { method: "DELETE" });
       await adminCall(`/rest/v1/vendor_timeslots?vendor_id=eq.${encodeURIComponent(fixture.vendorId)}`, { method: "DELETE" });
       await adminCall(`/rest/v1/vendors?id=eq.${encodeURIComponent(fixture.vendorId)}`, { method: "DELETE" });
