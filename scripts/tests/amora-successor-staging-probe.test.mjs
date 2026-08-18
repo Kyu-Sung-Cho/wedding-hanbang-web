@@ -1192,6 +1192,11 @@ test("the staging transport derives criterion action applications through canoni
     .filter(({ url, init }) => url.endsWith("/rest/v1/chat_messages") && init.method === "POST")
     .map(({ body }) => body)
     .find(({ sender_type: senderType }) => senderType === "ai");
+  const insertedChatMessages = calls
+    .filter(({ url, init }) => url.endsWith("/rest/v1/chat_messages") && init.method === "POST")
+    .map(({ body }) => body);
+  assert.equal(insertedChatMessages.length, 3);
+  assert.ok(insertedChatMessages.every((body) => !("created_at" in body)));
   assert.equal(sourceProposal.metadata.amora_couple_criterion_decision_id, decisionId);
   assert.equal(sourceProposal.metadata.amora_add_action_proposal_origin_v1, "ordinary_provider");
   assert.equal(sourceProposal.metadata.amora_first_use_grounding, undefined);

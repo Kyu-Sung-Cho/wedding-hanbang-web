@@ -1312,7 +1312,6 @@ export function createSupabaseStagingTransport({
           visibility: "shared",
           stage_tag: null,
           specialist_type: null,
-          created_at: new Date(issuedAt - 1_000).toISOString(),
         },
       });
       if (insertedSourceUser.status !== 201) {
@@ -1356,7 +1355,6 @@ export function createSupabaseStagingTransport({
           visibility: "shared",
           stage_tag: null,
           specialist_type: "general",
-          created_at: new Date(issuedAt).toISOString(),
         },
       });
       if (insertedSourceProposal.status !== 201) {
@@ -1434,7 +1432,6 @@ export function createSupabaseStagingTransport({
           visibility: "shared",
           stage_tag: null,
           specialist_type: null,
-          created_at: new Date(issuedAt + 1_000).toISOString(),
         },
       });
       if (insertedConfirmation.status !== 201) {
