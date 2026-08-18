@@ -1963,15 +1963,14 @@ export function createSupabaseStagingTransport({
             attributes: {},
           },
         });
-        await adminCall("/rest/v1/vendor_timeslots", {
-          method: "POST",
-          body: {
-            vendor_id: vendorId,
-            day,
-            hour: 10,
-            available: true,
-            max_bookings: 1,
-          },
+        const timeslotQuery = new URLSearchParams({
+          vendor_id: `eq.${vendorId}`,
+          day: `eq.${day}`,
+          hour: "eq.10",
+        });
+        await adminCall(`/rest/v1/vendor_timeslots?${timeslotQuery}`, {
+          method: "PATCH",
+          body: { available: true, max_bookings: 1 },
         });
         const created = await adminCall(
           "/rest/v1/rpc/create_amora_booking_intent_atomic",

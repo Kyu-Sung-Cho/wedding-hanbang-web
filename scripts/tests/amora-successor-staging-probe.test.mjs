@@ -1852,8 +1852,8 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
     if (value.endsWith("/rest/v1/vendors") && init.method === "POST") {
       return new Response(null, { status: 201 });
     }
-    if (value.endsWith("/rest/v1/vendor_timeslots") && init.method === "POST") {
-      return new Response(null, { status: 201 });
+    if (value.includes("/rest/v1/vendor_timeslots?") && init.method === "PATCH") {
+      return new Response(null, { status: 204 });
     }
     if (value.endsWith("/rest/v1/rpc/create_amora_booking_intent_atomic")) {
       return new Response(JSON.stringify(bookingId), { status: 200 });
@@ -1970,6 +1970,9 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
   assert.equal(vendorInsert.body.owner_id, owner.id);
   assert.equal(vendorInsert.body.category, "studio");
   assert.equal(vendorInsert.body.status, "approved");
+  const slotUpdate = calls.find(({ url, init }) => url.includes("/rest/v1/vendor_timeslots?") && init.method === "PATCH");
+  assert.equal(slotUpdate.body.available, true);
+  assert.equal(slotUpdate.body.max_bookings, 1);
   const intentCall = calls.find(({ url }) => url.endsWith("/rest/v1/rpc/create_amora_booking_intent_atomic"));
   assert.equal(intentCall.body.p_couple_id, coupleId);
   assert.equal(intentCall.body.p_actor_profile_id, owner.id);
