@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.18 — MEMORY EXPORT LOCAL VERIFIED`
+> 계획 버전: `v1.20 — LISTEN-ONLY LANE LOCAL/AUTOMATED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `f453fb01dcf68b55f5c0784645cd75e00abce899`
+> 검증 기준 코드 HEAD: `2f6dd0e3eac8b6a7d84bf83048e7b07e64a23642`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 107개 · Production 관찰 적용 32개 · Production 기준 pending 75개 · tail `20260818130000`
 >
-> 현재 작업 상태: `HT-009`의 저장 대화·기준·적용·일정 영수증 검색은 원격 브랜치와 로컬 자동 검증까지 완료했지만 실기기/2계정은 실행 도구 부재로 미완료 · Vercel Preview는 READY이나 SSO로 QA 접근 차단 · GitHub Actions 7개 실패는 코드 실행 전 account billing/spending-limit 차단 · `HT-010` 장기 기억은 기본 OFF·비소급·공유 전원 동의·민감정보 차단·철회·수정·삭제 경계를 재확인했고, shared+본인 private 기억만 내보내는 API·웹·모바일 수직을 로컬 자동 검증함 · 실기기·2계정·hosted 삭제/무효화/내보내기 E2E와 Production/EAS 배포는 미실행
+> 현재 작업 상태: `HT-009`의 저장 대화·기준·적용·일정 영수증 검색, `HT-010`의 shared+본인 private 기억 내보내기, `CARE-001`의 명시적 경청 lane은 원격 브랜치와 로컬 자동 검증까지 완료했지만 실기기·2계정·hosted E2E는 실행 환경 부재로 BLOCKED · 다음 소비자 수직은 `CARE-002` 요청형 중재이며, 기존 구현을 먼저 정본·privacy·same-version dual-confirmation 기준으로 감사한 뒤 공개 RED 하나씩 보강함 · Production/EAS 배포는 미실행
 >
-> 현재 작업 스냅샷: 제품 코드 commit `f453fb01` · 계획 기록 commit `c1cd5105` 원격 브랜치 포함 확인 · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 제품 코드 commit `2f6dd0e3` 원격 브랜치 포함 확인 · 직전 기억 내보내기 제품/계획/푸시 증거 `f453fb01`/`c1cd5105`/`f9dac6e1` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `HT-010 / AMR-M04 IN_PROGRESS` — 사용자 기억 내보내기 수직은 로컬 자동 검증했고, 실기기·2계정·hosted에서 철회·삭제·roster 무효화·내보내기 E2E를 닫아야 함 |
-| 최근 완료 제품 vertical | `HT-010 MEMORY EXPORT SLICE VERIFIED (LOCAL/AUTOMATED)` — 현재 계정의 shared+본인 private 아모라 기억만 범위별 JSON으로 내보내고 상대 private·채팅 원문·일정·예산·숨은 프로필은 제외 |
-| 다음 소비자 vertical | `HT-010 MEMORY OWNERSHIP E2E` — runtime OFF 상태의 기존 기억 내보내기·철회·수정·삭제와 roster 변경 즉시 무효화를 실기기·2계정·격리 hosted에서 검증. 실행 환경 확보 전에는 BLOCKED |
+| 현재 작업 | `CARE-002 / AMR-MED01 READY FOR AUDIT` — 사용자가 명시적으로 요청한 중재만 별도 범위에서 시작하고, 양쪽 private 비공개·same-version dual confirmation·unsafe card 차단을 기존 코드와 공개 계약에서 먼저 대조 |
+| 최근 완료 제품 vertical | `CARE-001 LISTEN-ONLY LANE VERIFIED (LOCAL/AUTOMATED)` — 한 턴의 명시 선택을 durable user/assistant marker와 결박하고 tool·domain/decision write·장기 기억 read/enqueue·suggestion을 0으로 유지하면서 현재 공개 범위의 대화와 AI 감사 로그는 사실대로 보존 |
+| 다음 소비자 vertical | `CARE-002 REQUESTED MEDIATION E2E` — exact request→별도 scope→양쪽 private 비노출→동일 버전 이중 확인→안전한 shared 결과 또는 fail-closed 복귀를 한 수직으로 검증 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | HT-001 단일 행동 → HT-002 진행 진실 → HT-003/004 주제 위계·관련성 → HT-005/006 왕복 → HT-007 partial state → HT-009 우리 준비 노트 → EX-009 재동결 → Preview/internal E2E |
@@ -162,7 +162,8 @@
 | `HT-006` | `AMR-T13` | `VERIFIED` | STG-004/HT-005 | `COMMITTED` | `MULTI-ACCOUNT` | `LOCAL/STAGING/BLOCKED` | `NOT-RUN` | backend `c27da3d7`, mobile `a4cb8d9a`. exact save/remove CAS와 오래된 원문 merge, owner/private·couple/shared scope, opaque ref navigation, identity fence, partial read, terminal unavailable/inaccessible와 transient retry를 분리. focused 45/45, mobile 1092/1092, typecheck/full lint/node syntax/diff-check PASS; staging 3계정 probe residue 0 | 실기기에서 오래된 원문 포커스·삭제 후 unavailable·오프라인 retry·뒤로가기를 확인 | 2026-08-18 |
 | `HT-007` | `AMR-T14` | `VERIFIED` | HT-003/006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `911b5e16`; 저장 대화 lane unavailable fixture에서 개인화된 current action과 확인 일정 근거를 그대로 보존하고 저장 대화 section만 explicit unavailable로 표시. topic focused 93/93, mobile 1093/1093, typecheck, targeted lint, diff-check PASS | 실기기에서 mixed loaded/partial/unavailable 조합과 스크린리더 읽기 순서를 확인 | 2026-08-18 |
 | `HT-009` | `AMR-M03` | `BLOCKED` | FV-011,HT-001/003/004/006/007 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commits `b8fdfe94`, `ef0d5dd4`, `15e59d3a`; 저장 대화·내 기준·우리 기준, strict first-use/provider-backed `add_amora_action` 적용 영수증, current `schedule/scheduled` 결정 영수증을 각각 정본 재검증 뒤 결합. 일정 lane은 event별 최신 raw 후보 손상 시 older fallback 없이 partial, query token·snapshot·journey revision cursor, 최종 owner/couple/privacy fence를 적용. mobile focused 26/26·full 1119/1119, web 관련 48/48, shared/web/mobile typecheck, web/mobile lint, node syntax, Expo iOS/Android/Web export, diff-check PASS. 실기기 도구 부재·Preview SSO·GitHub Billing 차단 | 접근 가능한 Preview/internal build와 실기기·2계정 환경을 확보하면 범위·stale 제거·부분 장애·검색·더 보기·읽기 전용 일정 복귀를 확인 | 2026-08-18 |
-| `HT-010` | `AMR-M04` | `IN_PROGRESS` | HT-009 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `f453fb01`, plan commit `c1cd5105` 원격 포함 확인; runtime flag default-off, 동의 이전 source 차단, shared current-member 전원 동의, roster 변경 무효화, 결정적 민감정보 차단, 철회·수정·삭제 경계를 재확인. `GET ?export=memory`가 현재 owner의 shared+본인 private 기억만 versioned JSON으로 내보내며 상대 private·profile reasoning·source ID·채팅·일정·예산을 제외. 501행 이상은 partial export 대신 409. web memory 120/120, mobile focused 9/9·full 1120/1120, web/mobile typecheck·full lint, web/mobile build, diff-check, pre-push 8/8 PASS | 접근 가능한 실기기·2계정·격리 hosted에서 철회·삭제·roster 무효화·export E2E. 환경 확보 전 사용자/hosted 완료 체크 금지 | 2026-08-18 |
+| `HT-010` | `AMR-M04` | `BLOCKED` | HT-009 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `f453fb01`, plan commit `c1cd5105` 원격 포함 확인; runtime flag default-off, 동의 이전 source 차단, shared current-member 전원 동의, roster 변경 무효화, 결정적 민감정보 차단, 철회·수정·삭제 경계를 재확인. `GET ?export=memory`가 현재 owner의 shared+본인 private 기억만 versioned JSON으로 내보내며 상대 private·profile reasoning·source ID·채팅·일정·예산을 제외. 501행 이상은 partial export 대신 409. web memory 120/120, mobile focused 9/9·full 1120/1120, web/mobile typecheck·full lint, web/mobile build, diff-check, pre-push 8/8 PASS | 접근 가능한 실기기·2계정·격리 hosted에서 철회·삭제·roster 무효화·export E2E. 환경 확보 전 사용자/hosted 완료 체크 금지 | 2026-08-18 |
+| `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
 
 `HT-009` search slice는 commit `b8fdfe94`로 닫았다. 기존 v1 list 응답은 유지하고 notes 전용 opt-in read만 추가했으며, `20260818130000` SHA-256은 `022707a3...f9d4`로 고정했다. 다음 canonical receipt adapter slice는 편집 전에 별도 exact allowlist와 source truth contract를 이 ledger에 먼저 추가한다.
 
@@ -177,6 +178,8 @@
 `HT-009`의 추가 사용자 검증은 현재 외부 차단이다. 이 개발 환경에는 `adb`, Android emulator, `eas`, `vercel`, `supabase` CLI가 없어 실기기·2계정·EAS를 실행하지 못했다. PR #105의 Vercel Preview는 READY지만 요청이 Vercel SSO로 302 전환되어 비로그인 QA가 불가능하다. GitHub Actions run `32089183407`의 7개 실패는 step과 runner가 시작되기 전 `recent account payments have failed or your spending limit needs to be increased` annotation으로 종료됐다. 따라서 코드 실패로 분류하거나 HT-009 사용자 검증을 완료 처리하지 않고 `LOCAL/AUTOMATED`, 사용자 검증 `NOT-RUN`을 유지한다.
 
 `HT-010 / 사용자 기억 내보내기`의 exact allowlist는 다음 7경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/web/src/app/api/amora/memory/route.ts`, `apps/web/src/app/api/amora/memory/__tests__/route.test.ts`, `apps/web/src/app/(app)/settings/amora-memory/page.tsx`, `apps/web/src/app/(app)/settings/amora-memory/page.sensitive-memory-copy.test.ts`, `apps/mobile/app/settings/amora-memory.tsx`, `apps/mobile/src/__tests__/amoraMemorySettings.test.mjs`. source truth는 현재 인증 owner와 exact couple roster에서 허용된 `shared + own role-private` visibility의 active automatic `decision_nodes`다. export는 visibility별 설정·동의 수와 정리된 기억만 포함하고 member/user/couple ID, 상대 role-private, 숨은 profile projection, 채팅 원문, 일정·예산, 새 AI 요약을 포함하지 않는다. runtime flag가 꺼져도 기존 기억의 조회·내보내기·삭제·철회는 허용하지만 새 동의·enqueue는 계속 차단한다. DB write·migration·새 화면·새 navigation은 금지한다. 첫 공개 RED는 `GET /api/amora/memory?export=memory`가 표준 조회 응답 대신 versioned scope-separated export와 attachment/no-store header를 반환하고 상대 private 식별자·데이터를 포함하지 않는다는 행동이다.
+
+`CARE-001 / 명시적 경청 lane`의 exact allowlist는 다음 9경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/web/src/app/api/chat/messages/route.ts`, `apps/web/src/app/api/chat/messages/route.test.ts`, `apps/web/src/app/api/chat/route.ts`, `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts`, `apps/web/src/lib/ai/amoraPromptComposer.ts`, `apps/web/src/lib/ai/__tests__/prompts.test.ts`, `apps/mobile/app/(tabs)/chat.tsx`, `apps/mobile/src/__tests__/chatStream.test.mjs`. 소비자 결과는 AI 대화 lane에서 사용자가 한 턴의 `그냥 들어줘`를 명시적으로 선택하면 아모라가 안전 신호를 제외하고 조언·체크리스트·행동 카드·변경 제안으로 몰지 않는 것이다. canonical source truth는 ingest된 durable user row의 `metadata.interaction_mode='listen_only'`이며 `/api/chat` body와 exact 일치해야 한다. 응답에도 같은 marker를 남겨 exact retry·cold start에서 모드를 보존한다. 이 모드에서도 사용자·assistant 대화 원문은 현재 `나만 상담/함께 대화` 범위에 저장되고 provider 호출은 `ai_interactions_log`에 기록한다. 대신 provider tool schema 0, tool/domain/decision write 0, pending action 0, dissatisfaction auto-write 0, stored context·장기 기억 read/enqueue 0, suggestion chip 0을 강제한다. W2/W5 safety 경계는 이 모드보다 우선한다. partner lane, mediation, initial greeting, confirmed action, first-use/schedule-care binding, attachment·혼합 실행 요청과 결합하지 않으며 한 턴 성공 뒤 선택을 해제한다. 첫 공개 RED는 ingest route가 exact mode를 user row metadata에 저장·재생하고, `/api/chat`이 그 durable marker와 결박된 턴에서 provider tools 없이 응답하되 memory/domain write가 없고 assistant marker·감사 로그를 남기는 행동이다. DB migration·새 장기기억·자동 모드 추론·기존 대화 백필은 금지한다.
 
 운영 규칙:
 
@@ -997,7 +1000,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제·내보내기 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commit `f453fb01`; default-off·비소급·전원 동의·결정적 필터·철회/수정/삭제와 범위 분리 내보내기까지 로컬 검증. 실기기·2계정·hosted 삭제/roster 무효화 E2E 전 auxiliary memory 활성화·Production 완료 금지 |
 | AMR-U01 | 독립 상태축의 공통 화면 합성 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer·UI-facing contract·10,368 혼합 fixture 완료; 화면별 adapter·실기기 검증은 JRN-002/FV-012 소유 |
 | AMR-V01 | 광고·업체 공개 정보·경험·아모라 제안의 출처 disclosure | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 위험·카피 원칙은 있으나 surface 공통 source badge·상업 관계·확인일 계약과 관찰 gate가 미완성 |
-| AMR-E01 | 해결·저장 없이 듣고 정리하는 명시적 경청 lane | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 일반 chat no-tool 응답은 가능하나 사용자 선택·no-write 종료 계약이 한 흐름으로 고정되지 않음 |
+| AMR-E01 | 해결·행동·기억 저장 없이 듣는 명시적 경청 lane | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commit `2f6dd0e3`; one-turn 선택·durable marker·retry/cold start·W2/W5 우선, 대화 원문·AI 감사 로그 보존과 tool/domain/decision/memory write 0을 자동 검증. 실기기·2계정·hosted E2E 전 사용자 완료·Production 완료 금지 |
 | AMR-L01 | 앱 안의 체계적 선제 리드 정책 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 홈 한 가지는 있으나 stale/quiet/re-entry 정책 전체가 한 계약으로 검증되지 않음 |
 | AMR-L02 | 사용자 통제형 외부 알림 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 동의·빈도·조용한 시간·deep link·철회 계약 필요 |
 | AMR-C01 | 6개 독립 여정 공백의 공통 topic adapter | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 현재 19개 체크 카테고리 밖 상태 모델 없음 |
@@ -1993,6 +1996,7 @@ Wave 3·4 구현
 
 | 날짜 | 작업 ID | 변경 | 증거/상태 |
 |---|---|---|---|
+| 2026-08-18 | AMR-E01 | AI 대화에서 사용자가 한 턴의 `그냥 들어줘`를 명시하면 조언·행동·기억 저장으로 몰지 않고 듣는 응답만 생성하되, 현재 공개 범위의 대화 저장과 AI 감사 로그는 유지하는 lane 추가 | product `2f6dd0e3` 원격 포함 · web ingest+prompt 155/155 · route 363/363 · mobile chat 97/97·full 1123/1123 · web/mobile typecheck·full lint·build/export · diff-check · pre-push 8/8 PASS · 실기기/2계정/hosted/Production 미실행 |
 | 2026-08-18 | AMR-M04 | 장기 기억의 기본 OFF·비소급·공유 전원 동의·민감정보 차단·철회/수정/삭제 경계를 재감사하고, 현재 owner가 볼 수 있는 shared+본인 private 아모라 기억만 API·웹·모바일에서 JSON으로 내보내는 수직 추가 | product `f453fb01`·plan `c1cd5105` 원격 포함 확인 · TDD RED→GREEN · web memory 120/120 · mobile focused 9/9·full 1120/1120 · web/mobile typecheck·full lint·build · diff-check·pre-push 8/8 PASS · 실기기/2계정/hosted/Production 미실행 |
 | 2026-08-17 | AMR-PLAN01 | 아이디얼 아모라, 현재 구현, 소비자 세로 흐름, 4축 상태, 단계별 개발, 리스크, 테스트, 배포를 통합하고 저장소 진입점에 연결 | 구조·표·공백 검증 통과 · 제품 코드/배포 변경 없음 |
 | 2026-08-17 | AMR-PLAN02 | 제품·소비자·엔지니어링 적대 검수로 화면 위계, advanced-user catch-up, 상태 합성, 연구 gate, ordered suffix, 기억·선제 리드 안전, WBS 의존·소유를 최종 교정 | 독립 product/consumer/engineering review GO · Production은 S0~S3 전 NO-GO · 제품 코드/commit/deploy 변경 없음 |
