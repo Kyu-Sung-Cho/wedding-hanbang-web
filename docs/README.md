@@ -49,7 +49,8 @@
    - 공시 production build:
      `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
    - 대행사 원본 적재·기존 업체 대조 조사
-     (**원본 부재로 적재 미실행, 업체 행 생성 0건**):
+     (**공시 릴리스는 2026-07-23 완료·`/price` 라이브 · 원본 54곳 중 40곳 반영 ·
+     업체 행 생성 0건**):
      `docs/operations/AGENCY_VENDOR_INGEST_RECONCILIATION_2026-08-18.md`
    - WeddingCode: `docs/wedding-code/README.md`
 6. 변경 영역의 실제 코드·테스트·최신 migration
