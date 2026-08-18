@@ -547,6 +547,28 @@ export function createSupabaseStagingTransport({
       return { denied: !response.ok && [401, 403, 404].includes(response.status) };
     },
 
+    async callPreparationNotesRpcAsAuthenticated(user, input) {
+      const response = await userCall(
+        user,
+        "/rest/v1/rpc/list_amora_preparation_notes_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: input.coupleId,
+            p_recipient_user_id: input.recipientUserId,
+            p_expected_privacy_epoch: input.expectedPrivacyEpoch,
+            p_query: input.query,
+            p_snapshot_at: null,
+            p_cursor_saved_at: null,
+            p_cursor_ref_id: null,
+            p_limit: 24,
+          },
+          allowDenied: true,
+        },
+      );
+      return { denied: !response.ok && [401, 403, 404].includes(response.status) };
+    },
+
     async readMessageRefTableAsAuthenticated(user) {
       const query = new URLSearchParams({ select: "id", limit: "1" });
       const response = await userCall(
@@ -587,6 +609,26 @@ export function createSupabaseStagingTransport({
             p_recipient_user_id: input.recipientUserId,
             p_expected_privacy_epoch: input.expectedPrivacyEpoch,
             p_limit: 80,
+          },
+          allowDenied: true,
+        },
+      );
+    },
+
+    async listPreparationNotesAsService(input) {
+      return adminCall(
+        "/rest/v1/rpc/list_amora_preparation_notes_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: input.coupleId,
+            p_recipient_user_id: input.recipientUserId,
+            p_expected_privacy_epoch: input.expectedPrivacyEpoch,
+            p_query: input.query,
+            p_snapshot_at: null,
+            p_cursor_saved_at: null,
+            p_cursor_ref_id: null,
+            p_limit: 24,
           },
           allowDenied: true,
         },
@@ -890,6 +932,33 @@ function exactListedReferences(response, expected) {
   ));
 }
 
+function exactPreparationNotes(response, expected) {
+  const value = response?.body;
+  if (
+    response?.ok !== true
+    || response?.status !== 200
+    || value?.version !== 1
+    || value?.state !== "ready"
+    || value?.recipientUserId !== expected.recipientUserId
+    || value?.coupleId !== expected.coupleId
+    || value?.partial !== false
+    || value?.nextBoundary !== null
+    || typeof value?.snapshotAt !== "string"
+    || !Array.isArray(value?.entries)
+    || value.entries.length !== expected.entries.length
+  ) return false;
+  return expected.entries.every((expectedEntry) => value.entries.some((entry) => (
+    entry?.refId === expectedEntry.refId
+    && entry?.topicKey === expectedEntry.topicKey
+    && entry?.messageId === expectedEntry.messageId
+    && entry?.audience === expectedEntry.audience
+    && entry?.questionExcerpt === expectedEntry.questionExcerpt
+    && entry?.answerExcerpt === expectedEntry.answerExcerpt
+    && entry?.canRemove === true
+    && entry?.canOpenOriginal === true
+  )));
+}
+
 function isExactResolvedReference(response, expected) {
   const value = response?.body;
   return response?.ok === true
@@ -921,11 +990,15 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
     outsiderSpace: false,
     authenticatedRpcDenied: false,
     authenticatedTableDenied: false,
+    authenticatedNotesRpcDenied: false,
     sharedConcurrentReplay: false,
     privateSave: false,
     ownerList: false,
     partnerListPrivacy: false,
     outsiderIsolation: false,
+    ownerNotesSearch: false,
+    partnerNotesPrivacy: false,
+    outsiderNotesIsolation: false,
     sharedResolve: false,
     privateResolve: false,
     partnerPrivateDenied: false,
@@ -1009,6 +1082,18 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
     const authenticatedTable = await transport.readMessageRefTableAsAuthenticated(owner);
     checks.authenticatedTableDenied = authenticatedTable?.denied === true;
     requireScenario(checks.authenticatedTableDenied, "MESSAGE_REF_TABLE_ACL_BYPASS", "Authenticated client read the private message-ref table");
+    const authenticatedNotes = await transport.callPreparationNotesRpcAsAuthenticated(owner, {
+      coupleId: ownerSpace.couple_id,
+      recipientUserId: owner.id,
+      expectedPrivacyEpoch: privacyEpoch,
+      query: "",
+    });
+    checks.authenticatedNotesRpcDenied = authenticatedNotes?.denied === true;
+    requireScenario(
+      checks.authenticatedNotesRpcDenied,
+      "PREPARATION_NOTES_RPC_ACL_BYPASS",
+      "Authenticated client reached the service-only preparation-notes RPC",
+    );
 
     const sharedRequestId = randomUUID();
     const sharedInput = {
@@ -1105,6 +1190,83 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
     requireScenario(checks.ownerList, "MESSAGE_REF_OWNER_LIST_INVALID", "Owner list did not contain exact shared and private refs");
     requireScenario(checks.partnerListPrivacy, "MESSAGE_REF_PARTNER_LIST_LEAK", "Partner list did not expose only the shared ref");
     requireScenario(checks.outsiderIsolation, "MESSAGE_REF_OUTSIDER_LEAK", "Outsider accessed another couple's refs");
+
+    const [
+      ownerNotes,
+      ownerPrivateSearch,
+      partnerNotes,
+      partnerPrivateSearch,
+      outsiderNotes,
+    ] = await Promise.all([
+      transport.listPreparationNotesAsService({
+        coupleId: ownerSpace.couple_id,
+        recipientUserId: owner.id,
+        expectedPrivacyEpoch: privacyEpoch,
+        query: "",
+      }),
+      transport.listPreparationNotesAsService({
+        coupleId: ownerSpace.couple_id,
+        recipientUserId: owner.id,
+        expectedPrivacyEpoch: privacyEpoch,
+        query: "예산",
+      }),
+      transport.listPreparationNotesAsService({
+        coupleId: ownerSpace.couple_id,
+        recipientUserId: partner.id,
+        expectedPrivacyEpoch: privacyEpoch,
+        query: "",
+      }),
+      transport.listPreparationNotesAsService({
+        coupleId: ownerSpace.couple_id,
+        recipientUserId: partner.id,
+        expectedPrivacyEpoch: privacyEpoch,
+        query: "예산",
+      }),
+      transport.listPreparationNotesAsService({
+        coupleId: ownerSpace.couple_id,
+        recipientUserId: outsider.id,
+        expectedPrivacyEpoch: privacyEpoch,
+        query: "",
+      }),
+    ]);
+    const sharedNote = {
+      refId: sharedRefId,
+      topicKey: "meeting",
+      messageId: fixtures.sharedAnswerId,
+      audience: "couple_shared",
+      questionExcerpt: fixtures.sharedQuestion,
+      answerExcerpt: fixtures.sharedAnswer,
+    };
+    const privateNote = {
+      refId: privateRefId,
+      topicKey: "housing",
+      messageId: fixtures.privateAnswerId,
+      audience: "owner_private",
+      questionExcerpt: fixtures.privateQuestion,
+      answerExcerpt: fixtures.privateAnswer,
+    };
+    checks.ownerNotesSearch = exactPreparationNotes(ownerNotes, {
+      recipientUserId: owner.id,
+      coupleId: ownerSpace.couple_id,
+      entries: [sharedNote, privateNote],
+    }) && exactPreparationNotes(ownerPrivateSearch, {
+      recipientUserId: owner.id,
+      coupleId: ownerSpace.couple_id,
+      entries: [privateNote],
+    });
+    checks.partnerNotesPrivacy = exactPreparationNotes(partnerNotes, {
+      recipientUserId: partner.id,
+      coupleId: ownerSpace.couple_id,
+      entries: [sharedNote],
+    }) && exactPreparationNotes(partnerPrivateSearch, {
+      recipientUserId: partner.id,
+      coupleId: ownerSpace.couple_id,
+      entries: [],
+    });
+    checks.outsiderNotesIsolation = outsiderNotes?.ok === false;
+    requireScenario(checks.ownerNotesSearch, "PREPARATION_NOTES_OWNER_INVALID", "Owner notes did not include exact shared and private entries");
+    requireScenario(checks.partnerNotesPrivacy, "PREPARATION_NOTES_PARTNER_LEAK", "Partner notes exposed owner-private content or missed shared content");
+    requireScenario(checks.outsiderNotesIsolation, "PREPARATION_NOTES_OUTSIDER_LEAK", "Outsider accessed another couple's preparation notes");
 
     const [sharedResolved, privateResolved, partnerPrivate] = await Promise.all([
       transport.resolveMessageRefAsService({

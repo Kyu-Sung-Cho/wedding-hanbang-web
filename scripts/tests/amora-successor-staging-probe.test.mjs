@@ -244,6 +244,9 @@ test("three synthetic users prove saved conversation sharing, private isolation,
     async callMessageRefRpcAsAuthenticated() {
       return { denied: true };
     },
+    async callPreparationNotesRpcAsAuthenticated() {
+      return { denied: true };
+    },
     async readMessageRefTableAsAuthenticated() {
       return { denied: true };
     },
@@ -321,6 +324,54 @@ test("three synthetic users prove saved conversation sharing, private isolation,
         },
       };
     },
+    async listPreparationNotesAsService({ recipientUserId, coupleId, query }) {
+      if (coupleId !== ownerCoupleId || recipientUserId === users[2].id) {
+        return { ok: false, status: 404, body: {} };
+      }
+      const sharedEntry = {
+        refId: sharedRefId,
+        topicKey: "meeting",
+        messageId: sharedAnswerId,
+        audience: "couple_shared",
+        revision: 1,
+        savedAt: "2026-08-18T01:00:02.000Z",
+        sourceCreatedAt: "2026-08-18T01:00:01.000Z",
+        questionExcerpt: sharedQuestion,
+        answerExcerpt: sharedAnswer,
+        canRemove: true,
+        canOpenOriginal: true,
+      };
+      const privateEntry = {
+        refId: privateRefId,
+        topicKey: "housing",
+        messageId: privateAnswerId,
+        audience: "owner_private",
+        revision: 1,
+        savedAt: "2026-08-18T01:00:04.000Z",
+        sourceCreatedAt: "2026-08-18T01:00:03.000Z",
+        questionExcerpt: privateQuestion,
+        answerExcerpt: privateAnswer,
+        canRemove: true,
+        canOpenOriginal: true,
+      };
+      const entries = query === "예산"
+        ? (recipientUserId === users[0].id ? [privateEntry] : [])
+        : (recipientUserId === users[0].id ? [privateEntry, sharedEntry] : [sharedEntry]);
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          version: 1,
+          state: "ready",
+          recipientUserId,
+          coupleId,
+          snapshotAt: "2026-08-18T01:00:05.000Z",
+          entries,
+          nextBoundary: null,
+          partial: false,
+        },
+      };
+    },
     async resolveMessageRefAsService({ recipientUserId, refId }) {
       if ((refId === privateRefId && recipientUserId !== users[0].id)
           || (refId === sharedRefId && removed)) {
@@ -377,11 +428,15 @@ test("three synthetic users prove saved conversation sharing, private isolation,
     outsiderSpace: true,
     authenticatedRpcDenied: true,
     authenticatedTableDenied: true,
+    authenticatedNotesRpcDenied: true,
     sharedConcurrentReplay: true,
     privateSave: true,
     ownerList: true,
     partnerListPrivacy: true,
     outsiderIsolation: true,
+    ownerNotesSearch: true,
+    partnerNotesPrivacy: true,
+    outsiderNotesIsolation: true,
     sharedResolve: true,
     privateResolve: true,
     partnerPrivateDenied: true,
@@ -465,6 +520,22 @@ test("the staging transport binds message-ref fixtures and RPCs to service versu
       }
       return new Response(JSON.stringify({ request: body }), { status: 200 });
     }
+    if (String(url).endsWith("/rest/v1/rpc/list_amora_preparation_notes_v1")) {
+      const body = JSON.parse(init.body);
+      if (init.headers.Authorization === `Bearer ${owner.accessToken}`) {
+        return new Response(JSON.stringify({ code: "42501" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({
+        version: 1,
+        state: "ready",
+        recipientUserId: body.p_recipient_user_id,
+        coupleId: body.p_couple_id,
+        snapshotAt: "2026-08-18T01:00:05.000Z",
+        entries: [],
+        nextBoundary: null,
+        partial: false,
+      }), { status: 200 });
+    }
     if (String(url).includes("/rest/v1/chat_messages?") && init.method === "DELETE") {
       return new Response(null, { status: 204 });
     }
@@ -502,6 +573,19 @@ test("the staging transport binds message-ref fixtures and RPCs to service versu
   assert.deepEqual(await transport.readMessageRefTableAsAuthenticated(owner), {
     denied: true,
   });
+  assert.deepEqual(await transport.callPreparationNotesRpcAsAuthenticated(owner, {
+    coupleId,
+    recipientUserId: owner.id,
+    expectedPrivacyEpoch: 7,
+    query: "예산",
+  }), { denied: true });
+  const serviceNotes = await transport.listPreparationNotesAsService({
+    coupleId,
+    recipientUserId: owner.id,
+    expectedPrivacyEpoch: 7,
+    query: "예산",
+  });
+  assert.equal(serviceNotes.ok, true);
   const serviceMutation = await transport.setMessageRefAsService({
     coupleId,
     actorUserId: owner.id,
@@ -544,6 +628,23 @@ test("the staging transport binds message-ref fixtures and RPCs to service versu
   ));
   assert.ok(authenticatedRpcCall);
   assert.ok(serviceRpcCall);
+  const notesCalls = calls.filter(({ url }) => (
+    url.endsWith("/rest/v1/rpc/list_amora_preparation_notes_v1")
+  ));
+  assert.equal(notesCalls.length, 2);
+  assert.equal(notesCalls[0].init.headers.Authorization, `Bearer ${owner.accessToken}`);
+  assert.equal(notesCalls[1].init.headers.Authorization, "Bearer service-role-key-value");
+  const notesBody = JSON.parse(notesCalls[1].init.body);
+  assert.deepEqual(notesBody, {
+    p_couple_id: coupleId,
+    p_recipient_user_id: owner.id,
+    p_expected_privacy_epoch: 7,
+    p_query: "예산",
+    p_snapshot_at: null,
+    p_cursor_saved_at: null,
+    p_cursor_ref_id: null,
+    p_limit: 24,
+  });
 });
 
 test("the hosted probe binds its receipt to the exact applied migration ledger", async () => {
@@ -613,12 +714,12 @@ test("the fixed read-only residue query counts protected message refs without ex
   );
 });
 
-test("the hosted receipt runs both neutral membership and message-ref privacy scenarios", () => {
+test("the hosted receipt runs neutral membership, saved-message, and preparation-notes privacy scenarios", () => {
   assert.match(cliSource, /runNeutralPreparationSpaceScenario/);
   assert.match(cliSource, /runPreparationTopicMessageRefScenario/);
   assert.match(cliSource, /readHostedMessageRefResidue/);
-  assert.match(cliSource, /receiptVersion:\s*2/);
-  assert.match(cliSource, /scope:\s*"neutral-space-and-preparation-topic-message-refs"/);
+  assert.match(cliSource, /receiptVersion:\s*3/);
+  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-and-preparation-notes"/);
   assert.match(cliSource, /neutralPreparationSpace/);
   assert.match(cliSource, /preparationTopicMessageRefs/);
 });

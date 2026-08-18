@@ -161,9 +161,9 @@ async function main() {
     }),
   });
   const receipt = {
-    receiptVersion: 2,
+    receiptVersion: 3,
     kind: "amora-successor-hosted-staging-probe",
-    scope: "neutral-space-and-preparation-topic-message-refs",
+    scope: "neutral-space-message-refs-and-preparation-notes",
     projectRef: config.projectRef,
     gitCommit,
     migrationLedger: ledger,
