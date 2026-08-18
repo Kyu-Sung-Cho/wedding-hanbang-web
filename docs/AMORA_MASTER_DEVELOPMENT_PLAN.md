@@ -137,7 +137,7 @@
 | `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 107/Production prefix 32/pending 75/tail 181300, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
 | `EX-005` | `AMR-REG01` | `TODO` | EX-003/004 | `COMMITTED` | `FOCUSED` | `LOCAL` | `NOT-RUN` | HT-007 snapshot에서 topic view/presentation/screen focused 93/93, mobile 1093/1093, mobile typecheck, targeted lint, diff-check PASS. root/web/release 전체 재실행은 EX-009로 이관 | Wave 3/4 종료 뒤 동일 snapshot 전체 gate | 2026-08-18 |
 | `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
-| `EX-008` | `AMR-C10` | `BLOCKED` | EX-006 | — | `NONE` | — | `NOT-RUN` | 전체 여정 matrix 미완성 | covered/not-applicable/known gap/parked 감사 | 2026-08-17 |
+| `EX-008` | `AMR-C10` | `VERIFIED` | EX-006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `052f33e5`; 19개 canonical topic·10개 journey axis·7개 explicit gap, duplicate/missing/unmapped/malformed fail-closed와 전 topic의 `explicit_not_applicable_supported`를 read-only contract로 고정. focused 6/6, shared/web typecheck PASS | 실제 사용자 화면에서 known gap·parked가 완료처럼 보이지 않는지는 JRN-001/HT-012에서 확인 | 2026-08-18 |
 | `FV-000` | `AMR-F10` | `VERIFIED` | EX-006/008 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | compatibility C0 문서 + 161800 roleless RPC/member-model migration; PGlite 4/4 | hosted migration·rollback rehearsal 전 feature flag OFF | 2026-08-17 |
 | `FV-001` | `AMR-F11` | `VERIFIED` | FV-000 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | legacy role/couple 선행 조건과 neutral flag 경계를 onboarding contract로 고정 | 기기에서 legacy/neutral 양쪽 확인 | 2026-08-17 |
 | `FV-002` | `AMR-F12` | `VERIFIED` | FV-001 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | planning-foundation starting/already-preparing/unknown/later dependency와 partial fail-closed fixture | 실제 사용자 이해 관찰 전 과장 금지 | 2026-08-17 |
@@ -150,7 +150,7 @@
 | `FV-011` | `AMR-U01` | `VERIFIED` | FV-010/EX-002~005 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer 13/13, 독립 상태축 10,368조합, mobile 1046/1046, root typecheck·lint, web/mobile build PASS | 화면별 source-relevance adapter는 JRN-002에서 별도 연결; 실기기 FV-012 | 2026-08-17 |
 | `FV-014` | `AMR-F20` | `VERIFIED` | FV-002/003/007/011 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | empty/canonical-existing guard, 최대 3항목 preview·승인, 161900 원자 receipt, private actor binding, secure restart draft, 주제의 사용자 보고 projection; mobile 1074/1074·release 220/220 | EX-007 재동결 뒤 hosted·2계정·실기기 검증 | 2026-08-18 |
 | `EX-007` | `AMR-REG01` | `TODO` | FV-001~012/FV-014/015 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | HT-001 이후 과거 102-path freeze는 current candidate 증거가 아님 | final consumer vertical 뒤 EX-009 current freeze로 대체 | 2026-08-18 |
-| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 107개, Production 관찰 prefix 32개, ordered pending 75개와 tail 181300을 exact hash로 고정; release 241/241+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
+| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 108개, Production 관찰 prefix 32개, ordered pending 76개와 tail 181400을 exact hash로 고정; release 243/243+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
 | `STG-002` | `AMR-REL12` | `VERIFIED` | STG-001 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | staging ledger 220/head 181100; commit `6b4add74`; pre-apply backup manifest `dc9bcf...5042`; dry-run 181100 단일 파일; apply 후 table 211/inventory `b6c287...6384`; 2계정 probe `11b574...fb5`, residue 0. Production write 0 | STG-003 별도 restore와 STG-004 전체 privacy/atomic probe | 2026-08-18 |
 | `STG-003` | `AMR-REL13` | `BLOCKED` | STG-002 | `COMMITTED` | `FOCUSED` | `HOSTED-STAGING` | `NOT-RUN` | pre-apply encrypted logical backup 251,601 rows, plaintext disk write false. 별도 restore target 증거는 없음 | 승인된 별도 restore project/credential 확보 후 exact restore·표본 비교 | 2026-08-18 |
 | `STG-004` | `AMR-REL14` | `READY` | STG-002 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | commit `c27da3d7`; staging 221/head 181200. 중요 상담 저장은 owner/partner/outsider, shared/private list·resolve, authenticated RPC/table 차단, concurrent exact replay, remove, stale PT409, cleanup residue 0 통과. receipt `cea5bc51...fa86`. first-use·provider apply·161700·Storage는 미실행 | 제품 후보 재동결 뒤 남은 네 하위 경계를 별도 probe하고 STG-004 전체 evidence를 봉인 | 2026-08-18 |
@@ -187,6 +187,8 @@
 `CARE-002 / 요청형 중재 E2E`의 두 번째 private-draft/share slice exact allowlist는 다음 경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/mediationProvenance.mjs`, `packages/shared/src/contracts/mediationProvenance.d.mts`, `apps/web/src/app/api/chat/route.ts`, `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts`, `apps/web/src/app/api/amora/mediation/draft/route.ts`, `apps/web/src/app/api/amora/mediation/draft/route.test.ts`, `apps/web/src/types/database.types.ts`, `apps/web/src/stores/chatStore.ts`, `apps/web/src/stores/__tests__/chatStore.test.ts`, `apps/web/src/components/app/chat/ChatContent.tsx`, `apps/web/src/components/app/chat/ChatSidePanel.tsx`, `apps/web/src/components/app/chat/ChatBubble.tsx`, `apps/web/src/components/app/chat/MediationCard.tsx`, `apps/web/src/components/app/chat/MediationConsentDialog.tsx`, `apps/web/src/components/app/chat/MediationConsentDialog.test.tsx`, `apps/web/src/components/app/chat/__tests__/MediationCardContract.test.ts`, `apps/web/src/components/app/chat/MediationEntryContract.test.ts`, `apps/mobile/src/lib/amoraMediationRequest.mjs`, `apps/mobile/src/lib/amoraMediationRequest.d.mts`, `apps/mobile/src/lib/amoraMediation.ts`, `apps/mobile/src/__tests__/amoraMediationRequest.test.mjs`, `apps/mobile/src/__tests__/amoraMediation.test.mjs`, `apps/mobile/src/components/chat/AmoraMediationCard.tsx`, `apps/mobile/src/components/chat/AmoraMediationConsentModal.tsx`, `apps/mobile/app/(tabs)/chat.tsx`, `supabase/migrations/20260818140000_amora_mediation_private_draft_boundary.sql`, `apps/web/src/lib/ai/__tests__/mediationPrivateDraftBoundaryMigration.test.ts`, `supabase/release-manifests/vendor-disclosure-v2-20260718.json`, `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json`, `scripts/lib/supabase-successor-release-contract.mjs`, `scripts/tests/successor-release-evidence-contract.test.mjs`, `scripts/tests/supabase-production-release.test.mjs`, `scripts/tests/supabase-release-fence.test.mjs`, `scripts/tests/production-write-fence-finalizer.test.mjs`, `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`. 소비자 결과는 요청자가 적은 요약과 AI가 만든 초안을 먼저 요청자 자신의 private lane에만 저장해 검토하게 하고, 화면에 `나만 보는 조율 초안`과 `아직 상대방에게 보이지 않음`을 명시한 뒤, 요청자의 별도 `함께 보내고 내 확인 남기기`에서만 서버 고정 공유 카드와 requester acceptance를 한 트랜잭션으로 만든다는 것이다. 앱/API는 기존 service-role-only `share_amora_mediation_draft`·`discard_amora_mediation_draft` 경계를 호출하되 caller가 couple·visibility·공유 본문·acceptance 내용을 정하지 못한다. 서버는 current actor role·roster fingerprint·draft owner·sendable state를 다시 검증하고, shared 카드에는 private AI 산문을 복사하지 않는다. legacy/malformed/roster-changed draft, 다른 사용자의 private lane, W2/W5 hold, 실패·재시도는 fail-closed이며 exact retry는 같은 shared message만 재사용한다. release contract는 `20260818140000`의 exact hash와 hosted private-draft trigger 증거 없이는 계속 `deployment_blocked`여야 한다. 첫 공개 RED는 구버전 client가 `visibility='shared'`로 요청해도 durable assistant가 actor-private + strict draft marker로 저장되고 shared message는 0개이며, 명시적 share API 성공 뒤에만 canonical shared message 1개와 requester acceptance가 생기는 행동이다. 이 slice에서는 자동 중재 감지, 상대 private 조회, 숨은 요약, 장기 기억, 일반 chat 재설계, Production 배포를 금지한다.
 
 전체 web regression에서 새 hosted evidence 필드 때문에 controller-ready fixture가 RED가 된 `apps/web/src/lib/price/productionBuildFence.test.ts`는 이 slice의 release fixture-only 추가 allowlist다. 제품 범위나 Production 권한을 넓히지 않는다.
+
+`EX-008 / AMR-C10` coverage reconciliation의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraPreparationCoverage.mjs`, `packages/shared/src/contracts/amoraPreparationCoverage.d.mts`, `apps/web/src/lib/care/__tests__/amoraPreparationCoverage.test.ts` 네 경로다. 기존 19개 canonical checklist topic·10개 journey axis·7개 explicit gap을 재사용하고, 각 연결 주제가 기존 preparation-map의 명시적 `not_applicable` 상태를 지원한다는 read-only capability만 결과에 봉인한다. 새 화면·write·AI·DB·guide·업체 거래 범위는 추가하지 않는다.
 
 운영 규칙:
 
@@ -1121,7 +1123,7 @@ freeze 전에 다음 중 하나를 선택한다.
 - [x] `AMR-REG01` mobile/shared/web/release 관련 전체 회귀를 현재 freeze에서 다시 실행했다.
 - [x] `AMR-DOC01` 실행 정본과 진입 문서의 current/history 경계, release 숫자, migration tail drift를 정리한다.
 - [x] `AMR-GIT01` mixed hotspot과 상호 의존 migration을 분리 복사하지 않고 exact candidate 86개를 union RC 1개로 review·commit하는 경계를 고정했다.
-- [ ] `AMR-C10` 현재 전체 결혼 여정을 read-only matrix로 감사해 covered·not-applicable·known gap·parked를 구분한다.
+- [x] `AMR-C10` 현재 전체 결혼 여정을 read-only matrix로 감사해 connected·explicit not-applicable support·known gap·parked를 구분한다.
 
 완료 기준:
 
@@ -1253,7 +1255,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 `contract_record_safety`의 read-only coverage는 사용자 보호 항목으로 감사하되, `contract_transaction_execution`, booking/업체 거래, 취소·환불·법률 판단은 이 자동 순서에 포함하지 않는다. 별도 제품 범위 재승인 전까지 `PARKED`다.
 
-- [ ] `AMR-C10` 가입 전 준비 기반부터 결혼 후 마감까지 전체 여정 matrix를 만들고 각 항목을 `covered / explicit not-applicable / known gap / parked` 중 하나로 분류한다.
+- [x] `AMR-C10` 가입 전 준비 기반부터 결혼 후 마감까지 전체 여정 matrix를 만들고 각 항목을 `connected / explicit not-applicable support / known gap / parked` 중 하나로 분류한다.
 - [ ] `AMR-C11` 각 주제의 사용자 문제·상태·결정·실행·완료 증거가 독립적인지 감사한다.
 - [ ] `AMR-C12` 공통 topic contract를 재사용하고 주제별 UI를 복제하지 않는다.
 - [ ] `AMR-C13` 공식 근거가 필요한 내용은 출처·확인일·지역·적용 범위를 기록한다.
@@ -1301,7 +1303,7 @@ Wave 3·4와 `JRN-001~005` 코드로 관찰 테스트를 실행하기 전에 `EX
 5. [x] `AMR-DOC01` stale handoff current 문구와 release 숫자 drift를 교정
 6. [x] `AMR-REG01` 현재 first-value delta의 root full test/build까지 재실행하고 네 축 상태를 재고정
 7. [x] `AMR-GIT01` union RC와 후속 first-value/integrity 변경을 commit/push; 현재 staging 검증 기준 코드 HEAD는 `6b4add74`
-8. [ ] `AMR-C10` 초보자 전체 여정 coverage matrix를 read-only로 동결
+8. [x] `AMR-C10` 초보자 전체 여정 coverage matrix를 read-only로 동결
 9. [x] `AMR-F10` solo preparation-space compatibility data/RLS/migration/rollback C0와 161800 local 구현
 10. [x] `AMR-F11~15` 첫 10분 최소 질문→개인화 행동→private draft 공개 행동을 C2 자동 검증
 11. [x] `AMR-F16~18` 첫 제안→승인→영수증→홈·결과 후속과 owner/couple-bound 재진입을 로컬 자동 검증
