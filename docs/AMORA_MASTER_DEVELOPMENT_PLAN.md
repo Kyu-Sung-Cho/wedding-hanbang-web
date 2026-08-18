@@ -2,7 +2,7 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.33 — MEDIATION PRIVATE DRAFT HOSTED VERIFIED`
+> 계획 버전: `v1.34 — CRITERION ACTION CONTEXT HOSTED VERIFIED`
 >
 > 마지막 갱신: 2026-08-18
 >
@@ -10,11 +10,11 @@
 >
 > 내부 Android 빌드 후보 HEAD: `989aa3d56a45718acbe98ce5015c84f84cf3303d` · tree `a07bdaa3ef0dc265c5709656a9ed8c38420ce8a3`
 >
-> 현재 릴리스 상태: `deployment_blocked` · manifest 109개 · Production 관찰 적용 32개 · Production 기준 pending 77개 · tail `20260818150000`
+> 현재 릴리스 상태: `deployment_blocked` · manifest 110개 · Production 관찰 적용 32개 · Production 기준 pending 78개 · tail `20260818160000`
 >
-> 현재 작업 상태: 격리 staging에 `20260818130000`~`20260818150000` 세 migration을 pre-apply 암호화 backup 뒤 적용했고 ledger 224개/head `20260818150000`, pending 0을 확인했다. commit `d22d5774`의 hosted 3계정 준비 노트 privacy probe와 commit `4903fe01`의 hosted 2계정 중재 private-draft probe가 모두 residue 0으로 통과했다. 중재는 owner-only 초안, 직접 shared insert·authenticated RPC·wrong actor 차단, requester의 canonical share와 exact replay까지 확인했다. requester acceptance·UI/기기 흐름과 criterion action-context positive path 등 STG-004 나머지 경계는 아직 미검증이다. Android internal build는 설치 가능하지만 실제 기기 검증은 계속 `BLOCKED`다.
+> 현재 작업 상태: 격리 staging은 pre-apply 암호화 backup 뒤 `20260818160000`까지 적용해 ledger 225개/head `20260818160000`, pending 0이다. commit `1a9ae569`의 hosted 2계정 criterion-action probe는 current shared criterion의 원문 없는 action-context 봉인, exact replay·불변성, criterion 변경 시 거짓 context 생략과 action 성공 보존, residue 0을 확인했다. 이 probe는 synthetic provider receipt를 사용했으며 live provider나 앱 UI 증거는 아니다. 준비 노트 privacy와 중재 private→shared 경계도 앞선 hosted probe에서 통과했다. first-use deterministic apply, requester acceptance·UI/기기, 161700, Storage 등 STG-004 나머지는 미검증이고 Android 실제 기기 검증도 계속 `BLOCKED`다.
 >
-> 현재 작업 스냅샷: hosted mediation probe commit `4903fe01db8fd9ce56fb34521f1f775d2eb247d0` · hosted notes probe commit `d22d5774` · Android internal build commit `989aa3d5` · `3b623e18` EX-009 checkpoint는 역사 증거 · HOLD 2 + tmp 36 제외 · Production write 0
+> 현재 작업 스냅샷: hosted criterion probe commit `1a9ae569ba41bd41f5ed632d275d427de04879fb` · receipt `d9a31e40...ba7f` · pre-181600 backup commit `6945bfff`, manifest `ec5a6c92...268` · hosted mediation `4903fe01` · hosted notes `d22d5774` · Android internal build `989aa3d5` · `3b623e18` EX-009 checkpoint는 역사 증거 · HOLD 2 + tmp 36 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `STG-004 IN_PROGRESS` — 181300 준비 노트와 181400 중재 private→shared DB 경계는 hosted verified; 181500 criterion action-context를 다음 단일 probe로 진행 |
-| 최근 완료 제품 vertical | `MEDIATION PRIVATE DRAFT HOSTED PRIVACY` — 2계정 owner-only draft, direct/auth/wrong-actor deny, canonical share, same-id replay, cleanup residue 0 |
-| 다음 소비자 vertical | `STG-004 CRITERION ACTION CONTEXT` — current shared criterion이 ordinary provider의 exact categorized action 승인에 실제 결박된 경우에만 원문 없는 context receipt가 생기는지 검증 |
+| 현재 작업 | `STG-004 IN_PROGRESS` — 준비 노트 privacy, 중재 private→shared, current criterion→ordinary add-action exact 적용은 hosted verified; first-use deterministic proposal/application을 다음 단일 probe로 진행 |
+| 최근 완료 제품 vertical | `CRITERION ACTION CONTEXT HOSTED` — 2계정 current criterion만 원문 없는 action context로 봉인, exact replay·불변성·변경 후 거짓 주장 방지, action 성공 보존, cleanup residue 0 |
+| 다음 소비자 vertical | `STG-004 FIRST-USE DETERMINISTIC APPLY` — 첫 개인 상담에서 만든 검증된 shared proposal이 provider 0회 exact 승인·원자 receipt·동일 retry로 끝나는지 hosted에서 검증 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | STG-004 남은 경계 → FV-012/FV-015(기기 확보 즉시) → STG-005~007 → FV-013 → DX-001~004 → LD-001~003/006 → EX-009 최종 재동결 → STG-008 → REL-201 → HT-011/LD-005 관찰 → REL-202 |
@@ -134,7 +134,7 @@
 | `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 코드 후보 HEAD `b8fdfe94`; HT-009 core+search 23경로만 exact staging/commit, HOLD 2·tmp 36은 제외 | receipt adapter 경로 생성 전 allowlist를 이 ledger에 먼저 추가 | 2026-08-18 |
 | `EX-002` | `AMR-AUDIT02` | `TODO` | EX-001 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | Section 24는 HT-001 이전 snapshot의 역사 증거. current HEAD allowlist/hash는 EX-009에서 재동결 필요 | Wave 3/4 종료 뒤 current candidate manifest 재생성 | 2026-08-18 |
 | `EX-003` | `AMR-AUDIT03` | `TODO` | EX-002 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | HT-001이 `schedule/index.tsx` hunk를 변경해 기존 mixed-hotspot ledger를 무효화 | EX-009에서 current hunk ownership 재생성 | 2026-08-18 |
-| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 109/Production prefix 32/pending 77/tail 181500, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
+| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 110/Production prefix 32/pending 78/tail 181600, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
 | `EX-005` | `AMR-REG01` | `TODO` | EX-003/004 | `COMMITTED` | `FOCUSED` | `LOCAL` | `NOT-RUN` | HT-007 snapshot에서 topic view/presentation/screen focused 93/93, mobile 1093/1093, mobile typecheck, targeted lint, diff-check PASS. root/web/release 전체 재실행은 EX-009로 이관 | Wave 3/4 종료 뒤 동일 snapshot 전체 gate | 2026-08-18 |
 | `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
 | `EX-008` | `AMR-C10` | `VERIFIED` | EX-006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `052f33e5`; 19개 canonical topic·10개 journey axis·7개 explicit gap, duplicate/missing/unmapped/malformed fail-closed와 전 topic의 `explicit_not_applicable_supported`를 read-only contract로 고정. focused 6/6, shared/web typecheck PASS | 실제 사용자 화면에서 known gap·parked가 완료처럼 보이지 않는지는 JRN-001/HT-012에서 확인 | 2026-08-18 |
@@ -153,10 +153,10 @@
 | `FV-015` | `AMR-Q13` | `BLOCKED` | FV-010/011 | `COMMITTED` | `AUTOMATED` | `INTERNAL-PREVIEW` | `NOT-RUN` | FV-012와 같은 exact Android build를 복구 시험에 사용 가능. offline·slow network·token expiry·중단/복귀·wrong identity·중복 write는 아직 기기에서 미검증 | 실제 Android에서 네트워크 전환·강제종료·재로그인·재시도 matrix를 실행하고 중복 write/wrong identity 0을 기록 | 2026-08-18 |
 | `FV-014` | `AMR-F20` | `VERIFIED` | FV-002/003/007/011 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | empty/canonical-existing guard, 최대 3항목 preview·승인, 161900 원자 receipt, private actor binding, secure restart draft, 주제의 사용자 보고 projection; mobile 1074/1074·release 220/220 | EX-007 재동결 뒤 hosted·2계정·실기기 검증 | 2026-08-18 |
 | `EX-007` | `AMR-REG01` | `TODO` | FV-001~012/FV-014/015 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | HT-001 이후 과거 102-path freeze는 current candidate 증거가 아님 | final consumer vertical 뒤 EX-009 current freeze로 대체 | 2026-08-18 |
-| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 109개, Production 관찰 prefix 32개, ordered pending 77개와 tail 181500을 exact hash로 고정; release 245/245+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
+| `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 110개, Production 관찰 prefix 32개, ordered pending 78개와 tail 181600을 exact hash로 고정; release 254/254+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
 | `STG-002` | `AMR-REL12` | `VERIFIED` | STG-001 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | staging ledger 220/head 181100; commit `6b4add74`; pre-apply backup manifest `dc9bcf...5042`; dry-run 181100 단일 파일; apply 후 table 211/inventory `b6c287...6384`; 2계정 probe `11b574...fb5`, residue 0. Production write 0 | STG-003 별도 restore와 STG-004 전체 privacy/atomic probe | 2026-08-18 |
 | `STG-003` | `AMR-REL13` | `BLOCKED` | STG-002 | `COMMITTED` | `FOCUSED` | `HOSTED-STAGING` | `NOT-RUN` | pre-apply encrypted logical backup 251,601 rows, plaintext disk write false. 별도 restore target 증거는 없음 | 승인된 별도 restore project/credential 확보 후 exact restore·표본 비교 | 2026-08-18 |
-| `STG-004` | `AMR-REL14` | `IN_PROGRESS` | STG-002 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | pre-apply backup commit `2cdf527a`, 251,601 rows, manifest `fca1cfe8...0153`, plaintext disk write 0. staging 224/head 181500/pending 0. commit `d22d5774`/receipt `df8149ab...0fd7`는 중요 상담 저장·181300 준비 노트 검색의 owner/partner/outsider privacy와 residue 0을 검증했다. commit `4903fe01`/receipt `fcf28595...ee29`는 181400 중재에서 requester-private 초안, direct shared insert·authenticated RPC·wrong actor 차단, canonical shared card, same-id replay, couple visibility, residue 0을 검증했다. requester acceptance·UI/기기 흐름, 181500 criterion positive path, first-use/provider apply, 161700, Storage는 미실행 | 181500 criterion action-context receipt를 별도 synthetic 수직으로 검증. 중재 requester acceptance·이중 확인·roster 변경·재연결은 실제 앱/기기 단계에서 계속 확인 | 2026-08-18 |
+| `STG-004` | `AMR-REL14` | `IN_PROGRESS` | STG-002 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | 181600 전 backup commit `6945bfff`, 251,601 rows, manifest `ec5a6c92...268`, plaintext disk write 0. staging 225/head 181600/pending 0. 준비 노트 commit `d22d5774`/receipt `df8149ab...0fd7`와 중재 commit `4903fe01`/receipt `fcf28595...ee29`는 각각 범위 privacy와 private→shared 경계를 검증했다. criterion probe commit `1a9ae569`/receipt `d9a31e40...ba7f`는 current criterion의 exact context 봉인, 원문 비복사, provider-backed exact apply/replay, context 불변, criterion 변경 후 거짓 context 생략·action 보존, 전 residue 0을 검증했다. synthetic provider receipt이며 live provider·UI 증거는 아니다. first-use deterministic apply, requester acceptance·UI/기기, 161700, Storage는 미실행 | first-use deterministic proposal/application을 별도 synthetic hosted 수직으로 검증. 중재 acceptance·이중 확인·roster 변경·재연결은 실제 앱/기기 단계에서 계속 확인 | 2026-08-18 |
 | `HT-001` | `AMR-H12` | `VERIFIED` | FV-009 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `2ae7bbab`; exact action ID/revision/couple-bound route, shared preferred selector, stale·변조·중복·nullable 회귀. mobile 1080/1080, shared/mobile typecheck, mobile lint/build, diff-check PASS | 실기기에서 home→topic same-action 접근성·복귀 확인 | 2026-08-18 |
 | `HT-002` | `AMR-H11` | `VERIFIED` | HT-001 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `08405399`; 큰 체크 퍼센트·중복 요약 제거, 정본 count reconciliation이 맞을 때만 4상태 표시. focused 85/85, mobile 1083/1083, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS; 390×844 web-export 시각 점검 | 실제 기기 작은 화면·200%·VoiceOver/TalkBack 확인 | 2026-08-18 |
 | `HT-003` | `AMR-T11` | `VERIFIED` | HT-001/002 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `f3f63c39`; 상태 다음에 한 행동·이유·완료 기준을 먼저 두고 개인 맥락·근거·미정·가이드·저장 대화·확인 기록·예산 도구·아모라 handoff를 순서대로 배치. 기존 data/write/navigation 계약 불변. topic focused 92/92, mobile 1084/1084, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS | 실제 기기 작은 화면·200%·VoiceOver/TalkBack에서 읽기·포커스 순서 확인 | 2026-08-18 |
@@ -1043,16 +1043,16 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-C01 | 6개 독립 여정 공백의 공통 topic adapter | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 현재 19개 체크 카테고리 밖 상태 모델 없음 |
 | AMR-Q01 | 실제 고객·실기기·2계정·2기기 검증 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 코드 테스트만으로 소비자 이해와 신뢰를 증명할 수 없음 |
 | AMR-REL01 | 현재 로컬 후보의 hosted staging | `PARTIAL` | `AUTOMATED` | `BLOCKED` | `NOT-RUN` | local release contract는 있으나 5개 evidence class missing |
-| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | Production 기준 pending 77·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
+| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | Production 기준 pending 78·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
 
 ### 8.4 전달·릴리스 현실
 
 - Vercel Preview는 후보 `3b623e18955eb53fb3c03c08d652536cf890e4af`로 성공했다. Android internal Preview는 후속 commit `989aa3d56a45718acbe98ce5015c84f84cf3303d`로 별도 성공했다. 서로 다른 commit이므로 둘을 하나의 final candidate evidence로 합치지 않는다. `origin/main` 병합·Production 승격은 하지 않았다.
 - GitHub Actions run `32112683361`은 코드 job을 한 단계도 시작하지 못하고 계정 결제/지출 한도 사유로 차단됐다. 로컬 pre-push 8/8이나 EAS build 성공을 GitHub CI 성공으로 바꾸어 말하지 않는다. internal mobile artifact는 생겼지만 실기기 사용자 검증은 없다.
-- release manifest는 109개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 77개, tail은 `20260818150000`이다. 격리 staging은 별도로 224개/head `20260818150000`까지 적용했고 dry-run pending 0을 확인했다.
+- release manifest는 110개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 78개, tail은 `20260818160000`이다. 격리 staging은 별도로 225개/head `20260818160000`까지 적용했고 dry-run pending 0을 확인했다.
 - 격리 staging apply와 로컬 암호화 backup receipt는 존재하지만 Production release manifest의 5개 승격 evidence class(hosted staging·backup·hosted restore·Storage·finalizer)는 아직 모두 `missing`이다. 별도 restore와 최종 candidate binding 전에는 이 로컬 receipt를 승격 증거로 복사하지 않는다.
 - headerless Phase-A actor traffic, legacy direct password·10자 invite·direct chat writer fleet drain, provider runtime/grant canary의 fresh 운영 증거도 없다.
-- first-value·neutral personalization의 로컬 자동 증거는 기존 full/focused gate를 유지한다. hosted 증거는 staging synthetic 계정으로 neutral create/replay·가입 privacy와 중요 상담/준비 노트 범위에 더해, 중재 private draft의 owner-only 조회·direct/auth/wrong-actor 차단·requester canonical share·same-id replay·cleanup residue 0까지 확인했다. 이는 API 수준 다중 계정 검증이며 requester acceptance, 2기기 UI·접근성·실사용자 관찰을 대신하지 않는다.
+- first-value·neutral personalization의 로컬 자동 증거는 기존 full/focused gate를 유지한다. hosted 증거는 staging synthetic 계정으로 neutral create/replay·가입 privacy, 중요 상담/준비 노트 범위, 중재 private draft의 owner-only 조회·direct/auth/wrong-actor 차단·requester canonical share·same-id replay에 더해 current criterion의 원문 없는 action-context 봉인과 provider-backed exact apply/replay까지 cleanup residue 0으로 확인했다. criterion probe는 synthetic provider receipt를 사용했으므로 live provider, requester acceptance, 2기기 UI·접근성·실사용자 관찰을 대신하지 않는다.
 - 따라서 `COMMITTED`와 `LOCAL-DIRTY`는 소스 상태일 뿐 현재 소비자 제공 상태가 아니다.
 
 ### 8.5 committed baseline과 현재 dirty delta
@@ -1106,7 +1106,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 - `START_HERE.md`와 `docs/README.md`의 `f8851f74`·2026-08-12 handoff는 역사 snapshot으로 명시했다.
 - 현재 실행 기준은 이 문서와 실제 Git·tests·migration manifest로 바꿨다.
-- 현재 release 기준은 제품 코드 snapshot `710f3d59`, manifest 109, Production 관찰 prefix 32, Production 기준 pending 77, tail 181500이다. 격리 staging ledger는 224/head 181500이며 probe code snapshot은 `4903fe01`이다.
+- 현재 release/probe 기준은 snapshot `1a9ae569`, manifest 110, Production 관찰 prefix 32, Production 기준 pending 78, tail 181600이다. 격리 staging ledger는 225/head 181600이며 criterion feature의 원 구현 snapshot은 `710f3d59`다.
 - 날짜별 product summary의 95~98 migration 숫자는 역사 기록으로만 유지한다.
 - `amoraEntryPlan.d.mts`, `dashboardExperience.d.mts`, `scheduleSessionFence.d.mts`는 LF→CRLF 경고가 있으나 현재 diff-check 오류는 아니다.
 
@@ -1673,7 +1673,7 @@ workflow status: TODO
 | `EX-001` inventory snapshot | 반복 gate | 없음 | `git status`, master plan | snapshot 변경 시 이전 freeze를 current로 오인 | 현재 delta 140 = active candidate 102 + unowned HOLD 2 + tmp 36, HEAD/count 고정 |
 | `EX-002` candidate allowlist | 0.5일 | EX-001 | tranche manifest | guide/booking/tmp/decisionMap 포함 여부가 암묵적 | guide 5개 freeze, 161700 integrity IN·booking UI PARKED, tmp·decisionMap 제외, exact path/hash, 삭제 없음 |
 | `EX-003` mixed-file hunk ledger | 1일 | EX-002 | chat.tsx, schedule/index.tsx, route.ts, route test | path만으로 여러 AMR 완료 주장 가능 | 함수/hunk→AMR→테스트→risk가 전부 매핑 |
-| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·109/Production 32·pending 77/tail 181500·staging 224/head 181500을 current로, 과거값 historical로 표기 |
+| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·110/Production 32·pending 78/tail 181600·staging 225/head 181600을 current로, 과거값 historical로 표기 |
 | `EX-005` freeze regression | 완료 | EX-003/004 | shared/web/mobile/release 명령 | 이전 focused 수치만 존재 | 같은 freeze에서 focused→type/lint→full/build PASS, 변경 시 상태 하향 |
 | `EX-006` commit plan | 완료 | EX-005 | exact candidate manifest·staged index | review 단위가 불명확 | mixed hotspot 포함 union RC 1개, staged 86·HOLD/tmp 0·hash mismatch 0 |
 | `EX-008` whole-journey coverage inventory | 1일 | EX-006 | checklist·manners·planning gaps·product contract | 초보자 전체 누락을 설명하는 matrix 없음 | 모든 단계 covered/not-applicable/known gap/parked, 사용자 화면 소유자·근거 표시 |
@@ -2063,6 +2063,7 @@ Wave 3·4 구현
 | 2026-08-18 | AMR-M03/REL11 | `우리 준비 노트`에 질문·답변 서버 검색, snapshot-bound cursor 더보기, 질문/답변 분리 표시와 identity fail-closed를 추가하고 service-only read RPC를 릴리스 계약에 고정 | commit `b8fdfe94` · focused 18/18 · mobile 1111/1111 · web/DB 46/46 · release 241/241+fence · migration `022707a3...f9d4` · manifest 107/Production 32/pending 75/tail 181300 · Production write 0 |
 | 2026-08-18 | AMR-M03/REL14 | 격리 staging에 181300~181500을 암호화 backup 뒤 적용하고 `우리 준비 노트` 검색의 owner shared+private, partner shared-only, outsider 차단, authenticated RPC deny, cleanup을 3계정으로 검증 | backup manifest `fca1cfe8...0153`, 251,601 rows, plaintext disk write 0 · staging 224/head 181500/pending 0 · probe commit `d22d5774`, receipt `df8149ab...0fd7`, residue 0 · Production write 0 · 181400/181500 positive-path probe는 다음 수직 |
 | 2026-08-18 | AMR-MED01/REL14 | 격리 staging에서 중재 AI 초안이 요청자 private lane에만 남고 명시적 서버 공유 뒤에만 canonical shared card가 생기는 경계를 2계정으로 검증 | probe commit `4903fe01` · receipt `fcf28595...ee29` · owner-only private/partner 0건 · direct shared insert/authenticated RPC/wrong actor deny · requester share/same-id replay/couple read · residue 0 · `p_accept=false`라 acceptance/UI·기기 완료는 미검증 · Production write 0 |
+| 2026-08-18 | AMR-T11/REL14 | hosted trigger가 canonical assistant action receipt를 사용자 confirmation으로 오인하던 결함과 probe의 client-clock 메시지 정렬 불안정을 고치고, current shared criterion→ordinary provider add-action exact 적용을 2계정 staging에서 검증 | migrations `181600` SHA `4046e4d2...5198` · pre-apply backup commit `6945bfff`, 251,601 rows, manifest `ec5a6c92...268`, plaintext disk 0 · staging 225/head 181600/pending 0 · probe commit `1a9ae569`, receipt `d9a31e40...ba7f` · current context seal/원문 비복사/exact replay/불변성/changed criterion false-claim 0/action 보존/residue 0 · synthetic provider receipt, live provider·UI·Production write 0 |
 | 2026-08-18 | AMR-V01 | canonical 준비 기록·아모라 제안·검수 가이드·업체 공개정보·다른 사용자 경험·광고/혜택의 권위를 공통 계약으로 구분하고 기존 홈 why·주제 guide·커뮤니티 trust·업체 상세에 표시 | product commit `58acac74` · common 14/14 · mobile focused 115/115·full 1133/1133 · web 관련 43/43 · shared/web/mobile typecheck · web/mobile scoped lint · node syntax·diff-check PASS · rank/route/CTA/write 불변 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C11 | 19개 canonical 준비 주제와 7개 known/parked gap의 문제·상태·결정·실행·완료 진실 소유자를 분리하고 보조 근거가 진행률·완료·추천 권한으로 승격되지 않게 고정 | product commit `28e50260` · RED export missing → GREEN · coverage+truth focused 15/15 · shared/web typecheck · scoped lint · node syntax·diff-check PASS · UI/DB/AI/write/rank 변경 없음 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C12 | 19개 준비 주제가 JRN-001 truth policy와 기존 공통 consumer-state composer 하나로 상태를 판정하고 presentation의 기존 카피·다음 행동을 유지하도록 연결 | product commit `62d1d5b3` · export/presentation RED → GREEN · relevant 93/93 · mobile 1139/1139 · web truth 15/15 · shared/mobile typecheck · scoped lint · node syntax·diff-check PASS · malformed optional evidence는 core 유지/label 제외 · UI/DB/AI/write/rank 변경 없음 |
@@ -2078,9 +2079,9 @@ Wave 3·4 구현
 | 소비자 가치 | `PLAN GO` | 첫 가치와 write 분리, 관련 개인화 paired fixture, 홈 퍼센트 제거, `우리 준비 노트`를 NEXT/Wave 3에 명시 |
 | UX·접근성 | `PLAN GO` | 준비 노트 정보 위계·상태·privacy·검색·exact 원문·한 손·200%·screen reader 계약 |
 | 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP + HOME/TOPIC TRUTH + RELEVANCE + TOPIC/CHAT/NOTES ROUND TRIPS + OPTIONAL-EVIDENCE ISOLATION LOCAL; MESSAGE-REF BACKEND HOSTED VERIFIED` | F10~18·U01·F20과 HT-001~007·009는 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up·home→topic exact action·과장 없는 홈 상태·행동 우선 주제 위계·개인화 관련성 gate·ordinary shared action의 current criterion receipt·private 상담 복귀·중요 상담 exact 원문 복구·검증된 적용/일정 영수증 검색·optional lane 격리까지 연결됨. owner-private·first-use·question/candidate/constraint source adapter, 2기기 UI·접근성·live provider·실사용 관찰은 남음 |
-| Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging 224/head 181500/pending 0. neutral 2계정, message-ref+preparation-notes 3계정, mediation private-draft→explicit shared 2계정 DB/API 경계는 통과. 별도 restore, mediation acceptance/UI, criterion positive path, first-use/provider apply/161700/Storage 전체 probe와 evidence 5종은 미완료이며 `deployment_blocked` 유지 |
+| Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging 225/head 181600/pending 0. neutral 2계정, message-ref+preparation-notes 3계정, mediation private-draft→explicit shared 2계정, current criterion→provider-backed exact action/replay DB/API 경계는 통과. 별도 restore, mediation acceptance/UI, first-use deterministic apply, 161700/Storage 전체 probe와 evidence 5종은 미완료이며 `deployment_blocked` 유지 |
 
-`HT-007 / AMR-T14`까지와 `HT-009 / AMR-M03`의 로컬 코드 vertical을 완료했다. HT-009는 commit `b8fdfe94`의 service-only 질문·답변 검색/snapshot cursor, `ef0d5dd4`의 strict first-use/provider-backed 적용 영수증, `15e59d3a`의 current schedule decision 영수증으로 나뉜다. 승인된 staging ref `rgxdizztidbgwnsbadml`은 pre-apply encrypted backup 뒤 ledger 224/head `20260818150000`, pending 0이다. commit `d22d5774`의 synthetic 3계정 probe는 저장 대화·181300 준비 노트의 scope privacy와 cleanup을 확인했고, commit `4903fe01`의 synthetic 2계정 probe는 181400 중재 private draft의 owner-only 조회, 우회 차단, canonical share, exact replay와 cleanup을 확인했다. 후자는 `p_accept=false`인 DB/API 경계 증거라 requester acceptance나 앱 UX 완료를 뜻하지 않는다. 별도 restore, 181500 criterion positive path, first-use/provider apply/161700/Storage, 2기기 UI, 200%/스크린리더, live provider, 실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
+`HT-007 / AMR-T14`까지와 `HT-009 / AMR-M03`의 로컬 코드 vertical을 완료했다. HT-009는 commit `b8fdfe94`의 service-only 질문·답변 검색/snapshot cursor, `ef0d5dd4`의 strict first-use/provider-backed 적용 영수증, `15e59d3a`의 current schedule decision 영수증으로 나뉜다. 승인된 staging ref `rgxdizztidbgwnsbadml`은 새 encrypted backup 뒤 ledger 225/head `20260818160000`, pending 0이다. commit `d22d5774`의 synthetic 3계정 probe는 저장 대화·181300 준비 노트의 scope privacy와 cleanup을, commit `4903fe01`의 synthetic 2계정 probe는 181400 중재 private draft의 owner-only 조회·우회 차단·canonical share·exact replay를 확인했다. commit `1a9ae569`의 criterion probe는 current shared criterion만 원문 없는 action context로 봉인하고 provider-backed exact apply/replay·불변성·criterion 변경 후 거짓 주장 방지·action 보존·cleanup을 확인했다. 이 경로는 synthetic provider receipt라 live provider나 앱 UX 완료를 뜻하지 않는다. 별도 restore, 중재 requester acceptance, first-use deterministic apply, 161700/Storage, 2기기 UI, 200%/스크린리더, live provider, 실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
 
 <!-- AMORA:HUNK-LEDGER:BEGIN -->
 
