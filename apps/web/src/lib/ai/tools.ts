@@ -937,90 +937,6 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
     },
   },
   {
-    name: "analyze_contract_readiness",
-    description:
-      "계약 전 확인 도우미입니다. 사용자가 계약서·견적서·메신저 조건·환불·계약 취소 비용·추가금·말로만 들은 약속·결혼식장 계약을 확인해달라고 할 때 사용합니다. 법률 판단을 확정하지 말고, 계약 전 문서로 남길 항목과 업체에 보낼 질문을 정리합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: ["venue", "sdm_package", "studio", "dress", "makeup", "snap", "other"],
-          description: "계약 카테고리. venue=결혼식장, sdm_package=사진 촬영·드레스·헤어·메이크업 묶음, snap=결혼식 날 사진·영상",
-        },
-        vendor_name: {
-          type: "string",
-          description: "업체명 (선택)",
-        },
-        contract_amount: {
-          type: "number",
-          description: "계약 총액 (만원 단위). 사용자가 원 단위로 말했어도 만원으로 환산해서 넣으세요.",
-        },
-        deposit_amount: {
-          type: "number",
-          description: "계약금/예약금 (만원 단위)",
-        },
-        has_written_contract: {
-          type: "boolean",
-          description: "계약서 또는 확정 견적서가 문서로 있는지",
-        },
-        uses_standard_contract: {
-          type: "boolean",
-          description: "표준계약서 또는 표준 약관 기반인지. 모르면 생략.",
-        },
-        included_items: {
-          type: "array",
-          items: { type: "string" },
-          description: "사용자가 문서/캡처에서 확인한 포함 항목. 추측 금지.",
-        },
-        checked_clauses: {
-          type: "array",
-          items: { type: "string" },
-          description: "이미 문서로 확인된 조항 id 또는 자연어 항목. 예: cancellation_refund, 보증 인원, 원본 제공",
-        },
-        missing_clauses: {
-          type: "array",
-          items: { type: "string" },
-          description: "사용자가 없다고 말한 조항 id 또는 자연어 항목",
-        },
-        evidence_types: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["quote", "contract", "deposit", "message_capture", "receipt", "schedule", "vendor_policy"],
-          },
-          description: "사용자가 갖고 있는 증빙 종류",
-        },
-        oral_promises: {
-          type: "array",
-          items: { type: "string" },
-          description: "상담 중 말로 들은 무료 제공/할인/서비스 약속. 문서화 여부 확인 대상.",
-        },
-        cancellation_policy: {
-          type: "string",
-          description: "취소/환불/위약금 관련 문구",
-        },
-        change_policy: {
-          type: "string",
-          description: "날짜/시간/인원/담당자 변경 관련 문구",
-        },
-        payment_schedule: {
-          type: "string",
-          description: "계약금·계약 뒤 남은 금액·결제일 관련 문구",
-        },
-        extra_fee_policy: {
-          type: "string",
-          description: "추가금/별도 비용/옵션 관련 문구",
-        },
-        memo: {
-          type: "string",
-          description: "문서나 캡처에서 읽힌 주요 내용 요약. 첨부 파일을 본 경우 핵심 문구를 여기에 넣으세요.",
-        },
-      },
-      required: ["category"],
-    },
-  },
-  {
     name: "simulate_guest_guarantee",
     description:
       "결혼식장 예상 참석 인원, 1인당 식사 금액, 계약상 최소 식사 인원 계산기입니다. 사용자가 참석 인원·식사 금액·계약상 최소 인원·최종 인원 전달 날짜·사용하지 못한 식사 비용을 묻거나 결혼식장 계약을 검토할 때 사용합니다. 사용자 입력만으로 계산하고 확인 질문을 정리합니다.",
@@ -1154,6 +1070,12 @@ export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
   // 웨딩업체를 걸러낸다. 남는 것은 상견례 식당 같은 일반 장소뿐이고, 그건
   // 예약·결제 없이 공개 검색 결과를 보여주는 것이다.
   // 자격증명이 없으면 라우트가 `isPlaceSearchConfigured()` 로 걸러 모델에게 주지 않는다.
+  // 계약 개입 금지 (파운더 결정, 2026-08-18). 계약서·약관 해석과 위험 등급
+  // 부여는 법률사무에 해당할 소지가 있고, 제품 계약 §9의 "판정 금지"와도
+  // 어긋난다. 스키마·실행기·등급 산출 모듈(contractShield)을 전부 삭제했고,
+  // 이 이름은 같은 도구가 다시 추가되더라도 모델에 닿지 못하게 막는 묘비다.
+  // 되살리려면 법무 검토가 선행되어야 하며, 상수만 고쳐 켜지 말 것.
+  "analyze_contract_readiness",
   "delete_category",
   "reset_category",
   "delete_schedule_event",

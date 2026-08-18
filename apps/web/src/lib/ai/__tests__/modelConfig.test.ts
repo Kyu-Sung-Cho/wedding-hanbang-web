@@ -70,11 +70,12 @@ describe("Amora GPT-5.6 model policy", () => {
       userText: "이번 주 준비할 일 알려줘",
       correctionCount: 0,
     })).toBe("fast");
+    // 계약 개입 금지(2026-08-18): 은퇴한 전문분야는 더 이상 승급 사유가 아니다.
     expect(chooseAmoraChatModelRole({
       specialistType: "contract_reviewer",
       userText: "이 계약 어때?",
       correctionCount: 0,
-    })).toBe("primary");
+    })).toBe("fast");
     expect(chooseAmoraChatModelRole({
       specialistType: "general",
       userText: "상대가 협박하고 있어",

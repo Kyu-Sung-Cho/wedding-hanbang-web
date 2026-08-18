@@ -1,29 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  executeAnalyzeContractReadiness,
-  executeSimulateGuestGuarantee,
-} from "../riskSupportTools";
+import { executeSimulateGuestGuarantee } from "../riskSupportTools";
 
 describe("riskSupportTools", () => {
-  it("keeps contract readiness tool output shape", () => {
-    const result = executeAnalyzeContractReadiness({
-      category: "venue",
-      vendor_name: "테스트홀",
-      contract_amount: 3000,
-      has_written_contract: true,
-      included_items: ["대관료", "식대"],
-      evidence_types: ["quote", "message_capture", "unknown"],
-    });
-
-    expect(result.toolName).toBe("analyze_contract_readiness");
-    expect(result.toolInput).toMatchObject({ category: "venue" });
-    expect(result.success).toBe(true);
-    expect(result.displayMessage).toBeTruthy();
-    expect(result.toolOutput).toMatchObject({
-      category: "venue",
-    });
-  });
-
   it("asks for an explicit no-show scenario instead of applying a hidden default", () => {
     const result = executeSimulateGuestGuarantee({
       estimated_guests: 180,
