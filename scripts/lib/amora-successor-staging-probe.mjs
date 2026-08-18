@@ -1207,13 +1207,18 @@ export function createSupabaseStagingTransport({
         profile?.id !== owner.id
         || profile?.couple_id !== coupleId
         || !["bride", "groom"].includes(profile?.role)
-        || (journey?.couple_id !== undefined && journey.couple_id !== coupleId)
+      ) {
+        fail("CRITERION_APPLICATION_PROFILE_INVALID", "Criterion application profile was not canonical");
+      }
+      if (
+        (journey?.couple_id !== undefined && journey.couple_id !== coupleId)
         || !Number.isSafeInteger(journey?.state_revision)
         || journey.state_revision < 0
-        || !Number.isSafeInteger(privacyEpoch)
-        || privacyEpoch < 1
       ) {
-        fail("CRITERION_APPLICATION_CONTEXT_INVALID", "Criterion application context was not canonical");
+        fail("CRITERION_APPLICATION_JOURNEY_INVALID", "Criterion application journey was not canonical");
+      }
+      if (!Number.isSafeInteger(privacyEpoch) || privacyEpoch < 1) {
+        fail("CRITERION_APPLICATION_PRIVACY_INVALID", "Criterion application privacy epoch was not canonical");
       }
 
       const issuedAt = Date.now();
