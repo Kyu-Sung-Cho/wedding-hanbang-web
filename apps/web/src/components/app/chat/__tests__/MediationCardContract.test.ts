@@ -107,7 +107,7 @@ describe("Amora mediation card wiring", () => {
     expect(container.textContent).not.toContain("먼저 사과하고 양보");
   });
 
-  it("keeps ordinary AI and safe mediation bodies visible", async () => {
+  it("keeps ordinary AI visible but withholds unverified mediation prose", async () => {
     const baseMessage: ChatMessage = {
       id: MESSAGE_ID,
       couple_id: "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
@@ -144,8 +144,9 @@ describe("Amora mediation card wiring", () => {
       }));
     });
 
-    expect(container.textContent).toContain(safeMediationBody);
-    expect(container.textContent).toContain("서로 조정 가능한 범위");
+    expect(container.textContent).not.toContain(safeMediationBody);
+    expect(container.textContent).not.toContain("서로 조정 가능한 범위");
+    expect(container.textContent).toContain("공개 범위를 확인하지 못해 내용을 숨겼어요");
     expect(container.textContent).not.toContain("원문을 표시하지 않았어요");
   });
 
@@ -172,18 +173,81 @@ describe("Amora mediation card wiring", () => {
   });
 
   it("labels the draft as the requester's account and leaves the partner's view unconfirmed", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => apiResponse({
+      accepted: false,
+      acceptedCount: 0,
+      requiredCount: 2,
+      completed: false,
+      partnerLinked: true,
+    })));
+
     await act(async () => {
       root.render(createElement(MediationCard, {
-        block: REQUESTER_SUMMARY_DRAFT,
+        block: CONFIRMABLE_BLOCK,
         messageId: MESSAGE_ID,
       }));
     });
+    await flushAsyncUpdates();
 
     expect(container.textContent).toContain("요청자가 전한 상황");
     expect(container.textContent).toContain("상대방에게 확인할 점");
     expect(container.textContent).toContain("상대방의 생각은 아직 확인되지 않았어요");
     expect(container.textContent).not.toContain("두 사람이 말한 내용");
     expect(container.textContent).not.toContain("두 분의 대화");
+  });
+
+  it("withholds requester text until the exact current proposal is authorized", async () => {
+    let resolveFetch: ((response: Response) => void) | null = null;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolvePromise) => {
+      resolveFetch = resolvePromise;
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(createElement(MediationCard, {
+        block: CONFIRMABLE_BLOCK,
+        messageId: MESSAGE_ID,
+      }));
+    });
+
+    expect(container.textContent).toContain("조율 초안의 공개 범위를 확인하는 중이에요");
+    expect(container.textContent).not.toContain(REQUESTER_SUMMARY_DRAFT.translation);
+    expect(container.textContent).not.toContain(REQUESTER_SUMMARY_DRAFT.resolution);
+
+    await act(async () => {
+      resolveFetch?.(apiResponse({
+        accepted: false,
+        acceptedCount: 0,
+        requiredCount: 2,
+        completed: false,
+        partnerLinked: true,
+      }));
+    });
+    await flushAsyncUpdates();
+
+    expect(container.textContent).toContain(REQUESTER_SUMMARY_DRAFT.translation);
+    expect(container.textContent).toContain(REQUESTER_SUMMARY_DRAFT.resolution);
+  });
+
+  it("keeps stale or unverifiable proposal text hidden after server rejection", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => apiResponse({
+      error: "선택안이 바뀌었어요. 최신 내용을 다시 확인해 주세요.",
+    }, 409)));
+
+    await act(async () => {
+      root.render(createElement(MediationCard, {
+        block: CONFIRMABLE_BLOCK,
+        messageId: MESSAGE_ID,
+      }));
+    });
+    await flushAsyncUpdates();
+
+    expect(container.textContent).toContain(
+      "현재 함께 준비하는 구성과 이 초안의 공개 범위를 확인하지 못해 내용을 숨겼어요",
+    );
+    expect(container.textContent).not.toContain(REQUESTER_SUMMARY_DRAFT.translation);
+    expect(container.textContent).not.toContain(REQUESTER_SUMMARY_DRAFT.resolution);
+    expect(container.textContent).toContain("다시 확인");
   });
 
   it("lets a waiting person refresh after their partner confirms", async () => {
@@ -322,7 +386,7 @@ describe("Amora mediation card wiring", () => {
     expect(container.textContent).toContain("이미 공동 결정으로 저장됐어요.");
   });
 
-  it("shows a malformed legacy draft without opening confirmation or the network", async () => {
+  it("withholds a malformed legacy draft without opening confirmation or the network", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -334,8 +398,8 @@ describe("Amora mediation card wiring", () => {
     });
     await flushAsyncUpdates();
 
-    expect(container.textContent).toContain("초안 내용은 계속 볼 수 있어요");
-    expect(container.textContent).toContain("확인 출처가 없는 이전 조율 초안이에요");
+    expect(container.textContent).not.toContain("초안 내용은 계속 볼 수 있어요");
+    expect(container.textContent).toContain("공개 범위를 확인하지 못해 내용을 숨겼어요");
     expect(container.textContent).not.toContain("요청자가 직접 적은 요약을 바탕으로");
     expect(container.textContent).not.toContain("이 선택안을 나는 확인했어요");
     expect(fetchMock).not.toHaveBeenCalled();

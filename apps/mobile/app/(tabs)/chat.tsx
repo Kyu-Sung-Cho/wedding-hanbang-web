@@ -7086,11 +7086,6 @@ export default function ChatScreen() {
     const isMe = item.sender_type === userRole;
     const isResolvedTopicSource =
       resolvedTopicMessageFocus?.targetMessageId === item.id;
-    const canSaveToPreparationTopic = isResolvedTopicSource
-      || isPreparationTopicMessageSaveEligible(item, {
-        coupleId: coupleId ?? "",
-        viewerRole: userRole,
-      });
     const isFocusedTopicOriginal = topicMessageFocusState?.status === "ready"
       && topicMessageFocusState.targetMessageId === item.id;
     const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
@@ -7118,6 +7113,12 @@ export default function ChatScreen() {
     const mediationBlock = isAi
       ? normalizeMediationBlock(item.metadata?.mediation)
       : null;
+    const canSaveToPreparationTopic = mediationBlock === null
+      && (isResolvedTopicSource
+        || isPreparationTopicMessageSaveEligible(item, {
+          coupleId: coupleId ?? "",
+          viewerRole: userRole,
+        }));
     const pendingActionCandidate = getPendingAmoraAction(item);
     const pendingAction = pendingActionCandidate
       && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
@@ -7266,7 +7267,7 @@ export default function ChatScreen() {
               저장한 원문
             </Text>
           )}
-          {shouldRenderBubble && mediationBlock?.renderSafetyFallback !== true && (
+          {shouldRenderBubble && mediationBlock === null && (
             isPinnedSafetyCard ? (
               <View
                 style={st.safetyCard}

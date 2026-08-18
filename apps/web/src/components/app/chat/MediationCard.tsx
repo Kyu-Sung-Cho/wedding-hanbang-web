@@ -18,7 +18,10 @@ import {
 } from "./mediationBlock";
 import {
   hasUnsafeStoredMediationRenderContent,
+  MEDIATION_DISCLOSURE_VERIFYING_COPY,
+  MEDIATION_DISCLOSURE_WITHHELD_COPY,
   MEDIATION_RENDER_SAFETY_FALLBACK,
+  resolveMediationDisclosureState,
 } from "@hanbang/shared/mediation-render-safety";
 
 export type { MediationBlock } from "./mediationBlock";
@@ -51,6 +54,16 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
     && expectedProposalVersion
     && expectedRosterFingerprint,
   );
+  const disclosureState = resolveMediationDisclosureState({
+    hasExactRevision: canConfirm,
+    verificationState: acceptance
+      ? "verified"
+      : loading
+        ? "verifying"
+        : statusError
+          ? "error"
+          : "idle",
+  });
 
   const refreshAcceptance = useCallback(async () => {
     if (
@@ -59,6 +72,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
       || !expectedProposalVersion
       || !expectedRosterFingerprint
     ) return;
+    setAcceptance(null);
     setLoading(true);
     setStatusError(null);
     try {
@@ -144,6 +158,36 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
         <p role="alert" className="text-sm leading-relaxed text-[#6D625B]">
           {MEDIATION_RENDER_SAFETY_FALLBACK}
         </p>
+      </section>
+    );
+  }
+
+  if (disclosureState !== "verified") {
+    const verifying = disclosureState === "verifying";
+    return (
+      <section
+        aria-label={verifying ? "조율 초안 공개 범위 확인 중" : "표시가 제한된 조율 초안"}
+        className="mt-3 overflow-hidden rounded-2xl border border-[#E2D3C8] bg-[#FFFDF9] px-4 py-4"
+      >
+        <p
+          role={verifying ? "status" : "alert"}
+          className="flex items-center justify-center gap-2 text-sm leading-relaxed text-[#6D625B]"
+        >
+          {verifying && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          {verifying
+            ? MEDIATION_DISCLOSURE_VERIFYING_COPY
+            : MEDIATION_DISCLOSURE_WITHHELD_COPY}
+        </p>
+        {!verifying && canConfirm && (
+          <button
+            type="button"
+            onClick={() => void refreshAcceptance()}
+            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-[#566A61] ring-1 ring-[#C9D2CC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#566A61]"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            다시 확인
+          </button>
+        )}
       </section>
     );
   }

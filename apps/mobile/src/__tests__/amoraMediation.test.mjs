@@ -7,7 +7,10 @@ import ts from "typescript";
 import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
 import {
   hasUnsafeStoredMediationRenderContent,
+  MEDIATION_DISCLOSURE_VERIFYING_COPY,
+  MEDIATION_DISCLOSURE_WITHHELD_COPY,
   MEDIATION_RENDER_SAFETY_FALLBACK,
+  resolveMediationDisclosureState,
 } from "@hanbang/shared/mediation-render-safety";
 
 const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
@@ -201,7 +204,7 @@ test("the native card independently replaces unsafe stored wording with a fixed 
   assert.match(MEDIATION_RENDER_SAFETY_FALLBACK, /원문을 표시하지 않았어요/);
 });
 
-test("native chat hides the stored AI body when mediation render safety falls back", () => {
+test("native chat hides every stored mediation AI body until its card is verified", () => {
   const renderMessageStart = chatSource.indexOf("function renderMessage");
   const renderMessageEnd = chatSource.indexOf("const isP =", renderMessageStart);
   assert.ok(renderMessageStart >= 0 && renderMessageEnd > renderMessageStart);
@@ -209,8 +212,39 @@ test("native chat hides the stored AI body when mediation render safety falls ba
 
   assert.match(
     renderMessage,
-    /shouldRenderBubble\s*&&\s*mediationBlock\?\.renderSafetyFallback\s*!==\s*true/,
+    /shouldRenderBubble\s*&&\s*mediationBlock\s*===\s*null/,
   );
+});
+
+test("native mediation text stays hidden until exact server verification succeeds", () => {
+  assert.equal(resolveMediationDisclosureState({
+    hasExactRevision: true,
+    verificationState: "idle",
+  }), "verifying");
+  assert.equal(resolveMediationDisclosureState({
+    hasExactRevision: true,
+    verificationState: "verifying",
+  }), "verifying");
+  assert.equal(resolveMediationDisclosureState({
+    hasExactRevision: true,
+    verificationState: "verified",
+  }), "verified");
+  assert.equal(resolveMediationDisclosureState({
+    hasExactRevision: true,
+    verificationState: "error",
+  }), "withheld");
+  assert.equal(resolveMediationDisclosureState({
+    hasExactRevision: false,
+    verificationState: "verified",
+  }), "withheld");
+  assert.equal(MEDIATION_DISCLOSURE_VERIFYING_COPY, "조율 초안의 공개 범위를 확인하는 중이에요.");
+  assert.match(MEDIATION_DISCLOSURE_WITHHELD_COPY, /내용을 숨겼어요/);
+
+  assert.match(chatSource, /shouldRenderBubble\s*&&\s*mediationBlock\s*===\s*null/);
+  assert.match(cardSource, /resolveMediationDisclosureState/);
+  assert.match(cardSource, /disclosureState\s*!==\s*"verified"/);
+  assert.equal(cardSource.includes("MEDIATION_DISCLOSURE_VERIFYING_COPY"), true);
+  assert.equal(cardSource.includes("MEDIATION_DISCLOSURE_WITHHELD_COPY"), true);
 });
 
 test("native normalization preserves the exact server proposal revision", () => {
@@ -409,14 +443,15 @@ test("an inconsistent server response fails closed instead of showing a false jo
   );
 });
 
-test("the native confirmation surface distinguishes loading, failure, waiting, and joint completion", () => {
+test("the native confirmation surface withholds before verification and distinguishes waiting from joint completion", () => {
   assert.match(cardSource, /getExpectedMediationRevision\(block\)/);
   assert.match(cardSource, /getMediationAcceptance\(messageId, exactRevision\)/);
   assert.match(cardSource, /acceptMediationResolution\(messageId, exactRevision\)/);
   assert.match(cardSource, /withdrawMediationAcceptance\(messageId, exactRevision\)/);
   assert.match(cardSource, /expectedProposalVersion[\s\S]*expectedRosterFingerprint[\s\S]*loadAttempt/s);
-  assert.match(cardSource, /확인 상태를 불러오는 중이에요/);
-  assert.match(cardSource, /확인 상태를 불러오지 못했어요/);
+  assert.match(cardSource, /resolveMediationDisclosureState/);
+  assert.match(cardSource, /disclosureState\s*!==\s*"verified"/);
+  assert.match(cardSource, /retryVerification/);
   assert.match(cardSource, /내가 확인했어요/);
   assert.match(cardSource, /상대방의 확인을 기다리고 있어요/);
   assert.match(cardSource, /두 분이 각각 확인해 공동 결정으로 저장했어요/);
@@ -455,9 +490,9 @@ test("the native card never claims Amora heard both partners", () => {
     );
   }
 
-  // 출처 표식이 있을 때만 "요청자" 문구를 쓴다 — 모르면 아는 척하지 않는다.
-  assert.match(cardSource, /requesterSummaryOnly/);
-  assert.match(cardSource, /확인 출처가 없는 이전 조율 초안/);
+  // 출처·현재 roster를 서버가 확인하지 못하면 legacy 본문을 참고용으로도 보여주지 않는다.
+  assert.match(cardSource, /MEDIATION_DISCLOSURE_WITHHELD_COPY/);
+  assert.doesNotMatch(cardSource, /내용은 참고만 하고/);
 });
 
 test("the mediation block keeps the provenance marker the copy depends on", () => {
@@ -505,11 +540,14 @@ test("the native card offers a 48px withdrawal action only through the incomplet
   assert.match(cardSource, /withdrawButton:\s*\{[^}]*minHeight:\s*(?:4[8-9]|[5-9]\d)/s);
 });
 
-test("a failed withdrawal keeps the accepted state and exposes an explicit 48px retry", () => {
-  assert.match(cardSource, /kind: "withdraw"/);
-  assert.match(cardSource, /기존 확인 상태는 그대로 유지했어요/);
-  assert.match(cardSource, /내 확인 취소 다시 시도/);
-  assert.match(cardSource, /accessibilityLabel=\{[^}]*내 확인 취소 다시 시도/s);
-  assert.match(cardSource, /actionError\.kind === "withdraw"[\s\S]*withdrawAcceptance\(\)/);
+test("a failed withdrawal withholds stale content and exposes an explicit 48px verification retry", () => {
+  const withdrawalStart = cardSource.indexOf("async function withdrawAcceptance");
+  const renderStart = cardSource.indexOf("if (renderSafetyFallback)", withdrawalStart);
+  assert.ok(withdrawalStart >= 0 && renderStart > withdrawalStart);
+  const withdrawal = cardSource.slice(withdrawalStart, renderStart);
+  assert.match(withdrawal, /catch[\s\S]*setAcceptance\(null\)[\s\S]*setLoadState\("error"\)/);
+  assert.doesNotMatch(cardSource, /기존 확인 상태는 그대로 유지했어요/);
+  assert.match(cardSource, /accessibilityLabel="조율 초안 공개 범위 다시 확인"/);
+  assert.match(cardSource, /onPress=\{retryVerification\}/);
   assert.match(cardSource, /retryButton:\s*\{[^}]*minHeight:\s*(?:4[8-9]|[5-9]\d)/s);
 });

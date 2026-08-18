@@ -530,7 +530,9 @@ export default function ChatBubble({
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
     const mediationBlock = normalizeMediationBlock(message.metadata?.mediation);
-    const suppressUnsafeMediationBody = mediationBlock?.renderSafetyFallback === true;
+    // 조율 산문과 구조화 초안은 같은 requester summary에서 나온다. 현재 roster와
+    // proposal revision을 카드가 서버로 확인하기 전에는 산문만 먼저 보여 주지 않는다.
+    const suppressMediationBody = mediationBlock !== null;
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
@@ -551,7 +553,7 @@ export default function ChatBubble({
               </span>
             )}
           </span>
-          {!suppressUnsafeMediationBody && (
+          {!suppressMediationBody && (
             <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
               aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
             }`}>
@@ -591,7 +593,7 @@ export default function ChatBubble({
               과잉). */}
           {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
               나중에 다시 볼 말은 최근 것만이 아니다. */}
-          {!aiIsPrivate && !suppressUnsafeMediationBody && (
+          {!aiIsPrivate && !suppressMediationBody && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <SaveNoteButton messageId={message.id} content={cleanText} />
               {isRecentAi && (

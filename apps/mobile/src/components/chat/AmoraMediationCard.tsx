@@ -18,7 +18,10 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import {
   hasUnsafeStoredMediationRenderContent,
+  MEDIATION_DISCLOSURE_VERIFYING_COPY,
+  MEDIATION_DISCLOSURE_WITHHELD_COPY,
   MEDIATION_RENDER_SAFETY_FALLBACK,
+  resolveMediationDisclosureState,
 } from "@hanbang/shared/mediation-render-safety";
 import {
   acceptMediationResolution,
@@ -33,10 +36,6 @@ import {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type AcceptanceLoadState = "idle" | "loading" | "ready" | "error";
-type AcceptanceActionError = {
-  kind: "accept" | "withdraw";
-  message: string;
-};
 
 export default function AmoraMediationCard({
   block,
@@ -50,7 +49,6 @@ export default function AmoraMediationCard({
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [accepting, setAccepting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
-  const [actionError, setActionError] = useState<AcceptanceActionError | null>(null);
   const expectedRevision = getExpectedMediationRevision(block);
   const renderSafetyFallback = block.renderSafetyFallback === true
     || hasUnsafeStoredMediationRenderContent(block);
@@ -63,6 +61,23 @@ export default function AmoraMediationCard({
     && expectedProposalVersion
     && expectedRosterFingerprint,
   );
+  const disclosureState = resolveMediationDisclosureState({
+    hasExactRevision: canConfirm,
+    verificationState: loadState === "ready" && acceptance
+      ? "verified"
+      : loadState === "loading"
+        ? "verifying"
+        : loadState === "error"
+          ? "error"
+          : "idle",
+  });
+
+  function retryVerification() {
+    if (!canConfirm) return;
+    setAcceptance(null);
+    setLoadState("loading");
+    setLoadAttempt((attempt) => attempt + 1);
+  }
 
   useEffect(() => {
     if (
@@ -78,7 +93,6 @@ export default function AmoraMediationCard({
 
     let active = true;
     setAcceptance(null);
-    setActionError(null);
     setLoadState("loading");
     const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
     getMediationAcceptance(messageId, exactRevision)
@@ -114,7 +128,6 @@ export default function AmoraMediationCard({
     ) return;
 
     setAccepting(true);
-    setActionError(null);
     try {
       const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
       const nextAcceptance = await acceptMediationResolution(messageId, exactRevision);
@@ -123,10 +136,8 @@ export default function AmoraMediationCard({
         partnerLinked: nextAcceptance.partnerLinked ?? acceptance?.partnerLinked,
       });
     } catch {
-      setActionError({
-        kind: "accept",
-        message: "확인을 저장하지 못했어요. 기존 상태는 바꾸지 않았어요.",
-      });
+      setAcceptance(null);
+      setLoadState("error");
     } finally {
       setAccepting(false);
     }
@@ -143,7 +154,6 @@ export default function AmoraMediationCard({
     ) return;
 
     setWithdrawing(true);
-    setActionError(null);
     try {
       const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
       const nextAcceptance = await withdrawMediationAcceptance(messageId, exactRevision);
@@ -152,10 +162,8 @@ export default function AmoraMediationCard({
         partnerLinked: nextAcceptance.partnerLinked ?? acceptance?.partnerLinked,
       });
     } catch {
-      setActionError({
-        kind: "withdraw",
-        message: "내 확인을 취소하지 못했어요. 기존 확인 상태는 그대로 유지했어요.",
-      });
+      setAcceptance(null);
+      setLoadState("error");
     } finally {
       setWithdrawing(false);
     }
@@ -175,16 +183,41 @@ export default function AmoraMediationCard({
     );
   }
 
-  // 이 카드에 담긴 말은 요청한 사람이 직접 쓴 요약뿐이다. 상대의 메시지는 서버가
-  // 모델에 보내지도 않는다. 그러니 아모라가 양쪽 이야기를 다 듣고 정리한 것처럼 쓰면
-  // 사실이 아니고, 그 카드를 읽는 상대는 아모라가 저쪽 편을 들었다고 이해한다.
-  // 웹 카드와 같은 문구를 쓴다 — 같은 사실을 두 화면이 다르게 말하면 안 된다.
-  const requesterSummaryOnly = block.requesterSummaryOnly === true;
+  if (disclosureState !== "verified") {
+    const verifying = disclosureState === "verifying";
+    const copy = verifying
+      ? MEDIATION_DISCLOSURE_VERIFYING_COPY
+      : MEDIATION_DISCLOSURE_WITHHELD_COPY;
+    return (
+      <View
+        style={styles.safetyFallback}
+        accessibilityRole={verifying ? undefined : "alert"}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={copy}
+      >
+        <View style={styles.statusRow}>
+          {verifying && <ActivityIndicator size="small" color={colors.noir[800]} />}
+          <Text style={styles.safetyFallbackText}>{copy}</Text>
+        </View>
+        {!verifying && canConfirm && (
+          <Pressable
+            style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
+            onPress={retryVerification}
+            accessibilityRole="button"
+            accessibilityLabel="조율 초안 공개 범위 다시 확인"
+          >
+            <RefreshCw size={16} color={colors.noir[800]} />
+            <Text style={styles.retryButtonText}>다시 확인하기</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
 
   const sections = [
     {
       key: "empathy",
-      title: requesterSummaryOnly ? "요청자가 전한 감정" : "전해진 감정",
+      title: "요청자가 전한 감정",
       Icon: Heart,
       color: "#8B6B24",
       backgroundColor: "#FEF9E8",
@@ -193,7 +226,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "translation",
-      title: requesterSummaryOnly ? "요청자가 전한 상황" : "상황 정리",
+      title: "요청자가 전한 상황",
       Icon: MessagesSquare,
       color: colors.noir[800],
       backgroundColor: "#F2F7F5",
@@ -202,7 +235,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "data",
-      title: requesterSummaryOnly ? "상대방에게 확인할 점" : "확인할 내용",
+      title: "상대방에게 확인할 점",
       Icon: BarChart3,
       color: colors.textSecondary,
       backgroundColor: colors.ivory[100],
@@ -225,20 +258,16 @@ export default function AmoraMediationCard({
   return (
     <View
       style={styles.container}
-      accessibilityLabel={requesterSummaryOnly
-        ? "요청자 요약 기반 조율 초안"
-        : "확인 출처가 없는 이전 조율 초안"}
+      accessibilityLabel="요청자 요약 기반 조율 초안"
     >
       <View style={styles.intro}>
         <Scale size={16} color={colors.noir[800]} />
         <View style={styles.introTextWrap}>
           <Text style={styles.introTitle}>
-            {requesterSummaryOnly ? "요청자 요약 기반 조율 초안" : "확인 출처가 없는 이전 조율 초안"}
+            요청자 요약 기반 조율 초안
           </Text>
           <Text style={styles.introCopy}>
-            {requesterSummaryOnly
-              ? "요청자가 직접 적은 요약을 바탕으로 만든 조율 초안이에요. 상대방의 생각은 아직 확인되지 않았어요."
-              : "확인 출처가 없는 이전 조율 초안이에요. 내용은 참고만 하고 새 공동 결정으로 확인하려면 조율 초안을 다시 요청해 주세요."}
+            요청자가 직접 적은 요약을 바탕으로 만든 조율 초안이에요. 상대방의 생각은 아직 확인되지 않았어요.
           </Text>
         </View>
       </View>
@@ -267,34 +296,6 @@ export default function AmoraMediationCard({
             한 사람의 확인만으로 공동 결정이 되지 않아요. 두 분이 각각 확인한 뒤에만 공동 결정으로 저장해요.
           </Text>
 
-          {loadState === "loading" && (
-            <View
-              style={styles.statusRow}
-              accessibilityLiveRegion="polite"
-              accessibilityLabel="확인 상태를 불러오는 중이에요"
-            >
-              <ActivityIndicator size="small" color={colors.noir[800]} />
-              <Text style={styles.loadingText}>확인 상태를 불러오는 중이에요</Text>
-            </View>
-          )}
-
-          {loadState === "error" && (
-            <View style={styles.errorBlock} accessibilityLiveRegion="polite">
-              <Text style={styles.errorText} accessibilityRole="alert">
-                확인 상태를 불러오지 못했어요. 상태 확인 전에는 버튼을 열지 않았어요.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
-                onPress={() => setLoadAttempt((attempt) => attempt + 1)}
-                accessibilityRole="button"
-                accessibilityLabel="확인 상태 다시 불러오기"
-              >
-                <RefreshCw size={16} color={colors.noir[800]} />
-                <Text style={styles.retryButtonText}>다시 확인하기</Text>
-              </Pressable>
-            </View>
-          )}
-
           {loadState === "ready" && acceptance?.completed && (
             <View style={styles.successStatus} accessibilityLiveRegion="polite">
               <Check size={18} color={colors.success} />
@@ -314,7 +315,7 @@ export default function AmoraMediationCard({
                   내가 확인했어요{"\n"}상대방의 확인을 기다리고 있어요
                 </Text>
               </View>
-              {canWithdrawMediationAcceptance(acceptance) && actionError?.kind !== "withdraw" && (
+              {canWithdrawMediationAcceptance(acceptance) && (
                 <Pressable
                   style={({ pressed }) => [
                     styles.withdrawButton,
@@ -335,7 +336,7 @@ export default function AmoraMediationCard({
               )}
               <Pressable
                 style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
-                onPress={() => setLoadAttempt((attempt) => attempt + 1)}
+                onPress={retryVerification}
                 accessibilityRole="button"
                 accessibilityLabel="상대방 확인 상태 새로고침"
               >
@@ -361,7 +362,6 @@ export default function AmoraMediationCard({
 
           {loadState === "ready"
             && canAcceptMediationResolution(acceptance)
-            && actionError?.kind !== "accept"
             && (
             <Pressable
               style={({ pressed }) => [
@@ -393,43 +393,6 @@ export default function AmoraMediationCard({
             <Text style={styles.progressText} accessibilityLiveRegion="polite">
               {acceptance.acceptedCount}/{acceptance.requiredCount}명 확인 · 두 분 모두 확인해야 공동 결정으로 저장돼요
             </Text>
-          )}
-
-          {actionError && (
-            <View style={styles.errorBlock} accessibilityLiveRegion="polite">
-              <Text style={styles.errorText} accessibilityRole="alert">
-                {actionError.message}
-              </Text>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.retryButton,
-                  pressed && styles.buttonPressed,
-                  (accepting || withdrawing) && styles.buttonDisabled,
-                ]}
-                onPress={() => {
-                  if (actionError.kind === "withdraw") void withdrawAcceptance();
-                  else void acceptResolution();
-                }}
-                disabled={accepting || withdrawing}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  actionError.kind === "withdraw"
-                    ? "내 확인 취소 다시 시도"
-                    : "확인 저장 다시 시도"
-                }
-                accessibilityState={{
-                  disabled: accepting || withdrawing,
-                  busy: accepting || withdrawing,
-                }}
-              >
-                <RefreshCw size={16} color={colors.noir[800]} />
-                <Text style={styles.retryButtonText}>
-                  {actionError.kind === "withdraw"
-                    ? "내 확인 취소 다시 시도"
-                    : "확인 저장 다시 시도"}
-                </Text>
-              </Pressable>
-            </View>
           )}
         </View>
       )}

@@ -183,14 +183,14 @@ test("an empty persisted assistant message still presents its canonical budget r
   }]);
 });
 
-test("the native message renderer suppresses unsafe mediation text without suppressing receipts", () => {
+test("the native message renderer suppresses unverified mediation prose without suppressing receipts", () => {
   const renderStart = sourceText.indexOf("function renderMessage");
   const renderEnd = sourceText.indexOf("const isP = activeScope", renderStart);
   assert.notEqual(renderStart, -1);
   assert.notEqual(renderEnd, -1);
   const renderMessage = sourceText.slice(renderStart, renderEnd);
   const bubbleGate = renderMessage.indexOf(
-    "{shouldRenderBubble && mediationBlock?.renderSafetyFallback !== true && (",
+    "{shouldRenderBubble && mediationBlock === null && (",
   );
   const receiptMount = renderMessage.indexOf("{receipts.map(");
 
@@ -198,9 +198,22 @@ test("the native message renderer suppresses unsafe mediation text without suppr
   assert.ok(receiptMount > bubbleGate);
   assert.match(
     renderMessage.slice(bubbleGate, receiptMount),
-    /shouldRenderBubble && mediationBlock\?\.renderSafetyFallback !== true/u,
+    /shouldRenderBubble && mediationBlock === null/u,
   );
   assert.match(renderMessage.slice(receiptMount), /<MobileToolReceiptCard/u);
+});
+
+test("the native message renderer never offers topic-save for a withheld mediation message", () => {
+  const renderStart = sourceText.indexOf("function renderMessage");
+  const renderEnd = sourceText.indexOf("const isP = activeScope", renderStart);
+  assert.notEqual(renderStart, -1);
+  assert.notEqual(renderEnd, -1);
+  const renderMessage = sourceText.slice(renderStart, renderEnd);
+
+  assert.match(
+    renderMessage,
+    /const canSaveToPreparationTopic = mediationBlock === null\s*&& \(isResolvedTopicSource/u,
+  );
 });
 
 test("a persisted schedule failure keeps the canonical failure receipt", () => {

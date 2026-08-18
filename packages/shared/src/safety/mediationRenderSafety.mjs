@@ -6,6 +6,22 @@
 export const MEDIATION_RENDER_SAFETY_FALLBACK =
   "이 조율 초안에는 한쪽을 판단하거나 일방적인 행동을 권하는 표현이 있어 원문을 표시하지 않았어요. 두 사람의 확인된 사실과 각자의 선택지를 바탕으로 새 조율 초안을 요청해 주세요.";
 
+export const MEDIATION_DISCLOSURE_VERIFYING_COPY =
+  "조율 초안의 공개 범위를 확인하는 중이에요.";
+
+export const MEDIATION_DISCLOSURE_WITHHELD_COPY =
+  "현재 함께 준비하는 구성과 이 초안의 공개 범위를 확인하지 못해 내용을 숨겼어요. 최신 상태를 다시 확인하거나 새 조율 초안을 요청해 주세요.";
+
+export function resolveMediationDisclosureState(input) {
+  if (input?.hasExactRevision !== true) return "withheld";
+  if (input?.verificationState === "verified") return "verified";
+  if (
+    input?.verificationState === "idle"
+    || input?.verificationState === "verifying"
+  ) return "verifying";
+  return "withheld";
+}
+
 const MEDIATION_FIELDS = ["empathy", "translation", "data", "resolution"];
 const PARTY = "(?:요청자|사용자|신랑|신부|예비\\s*신랑|예비\\s*신부|남편|아내|배우자|파트너|상대(?:방)?|[가-힣]{2,8}님|(?:^|[^가-힣])(?:너|당신)(?:는|은|가|이|의)?(?=$|[^가-힣]))";
 
