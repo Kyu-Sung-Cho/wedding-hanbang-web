@@ -157,9 +157,17 @@ expect(easConfig.build?.development?.environment === "development", "EAS develop
 expect(easConfig.build?.development?.developmentClient === true, "EAS development profile builds a dev client");
 expect(easConfig.build?.preview?.environment === "preview", "EAS preview profile uses preview environment");
 expect(easConfig.build?.preview?.distribution === "internal", "EAS preview profile is internal distribution");
+expect(
+  easConfig.build?.preview?.env?.SENTRY_DISABLE_AUTO_UPLOAD === "true",
+  "EAS preview profile disables Sentry source-map upload without weakening runtime error reporting",
+);
 expect(easConfig.build?.production?.environment === "production", "EAS production profile uses production environment");
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
+expect(
+  easConfig.build?.production?.env?.SENTRY_DISABLE_AUTO_UPLOAD === undefined,
+  "EAS production profile does not disable Sentry source-map upload",
+);
 expect(rootPackage.packageManager === "pnpm@11.7.0", "Root packageManager pins pnpm 11.7.0");
 expect(
   !mobileMetroConfig.includes('require("metro-cache")'),
