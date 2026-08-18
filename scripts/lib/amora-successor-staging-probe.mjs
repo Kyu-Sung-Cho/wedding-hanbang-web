@@ -125,9 +125,19 @@ async function requestSupabaseJson({
     } catch {
       // The caller receives a bounded path label, never the raw URL.
     }
+    const sqlState = typeof parsed?.code === "string" && /^[0-9A-Z]{5}$/u.test(parsed.code)
+      ? parsed.code
+      : null;
+    const reason = typeof parsed?.message === "string"
+      && /^AMORA_[A-Z0-9_]{1,112}$/u.test(parsed.message)
+      ? parsed.message
+      : null;
+    const diagnostic = sqlState === null
+      ? ""
+      : ` (SQLSTATE ${sqlState}${reason === null ? "" : `; ${reason}`})`;
     fail(
       "HOSTED_REQUEST_REJECTED",
-      `Hosted staging request to ${safePath} returned HTTP ${response.status}`,
+      `Hosted staging request to ${safePath} returned HTTP ${response.status}${diagnostic}`,
     );
   }
   return { status: response.status, ok: response.ok, body: parsed };

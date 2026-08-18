@@ -749,6 +749,32 @@ test("hosted request failures name only a redacted API path", async () => {
   );
 });
 
+test("hosted request failures expose only bounded SQL diagnostics", async () => {
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl: async () => new Response(JSON.stringify({
+      code: "23514",
+      message: "AMORA_PROVIDER_BACKED_ADD_ACTION_SOURCE_INVALID",
+      details: "private row detail",
+    }), { status: 400 }),
+  });
+  const user = {
+    id: "10000000-0000-4000-8000-000000000092",
+    accessToken: "private-user-token",
+  };
+
+  await assert.rejects(
+    () => transport.readProfile(user, user.id),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "HOSTED_REQUEST_REJECTED"
+      && error.message === "Hosted staging request to /rest/v1/profiles returned HTTP 400 (SQLSTATE 23514; AMORA_PROVIDER_BACKED_ADD_ACTION_SOURCE_INVALID)"
+      && !error.message.includes(user.id)
+      && !error.message.includes("private row detail"),
+  );
+});
+
 test("the staging transport binds message-ref fixtures and RPCs to service versus user credentials", async () => {
   const owner = {
     id: "10000000-0000-4000-8000-000000000021",
