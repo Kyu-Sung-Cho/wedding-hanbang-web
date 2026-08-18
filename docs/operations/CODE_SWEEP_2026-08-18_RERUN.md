@@ -422,7 +422,11 @@ UI는 웹 `apps/web/src/components/onboarding/CoupleLink.tsx`와 모바일
 | 결함 2 라우트 | 수정 전 RED 2건(스냅샷 덮어쓰기 발생 / 실패에도 200) → 수정 후 3/3 통과 |
 | `pnpm lint` | 통과 (2/2 태스크) |
 | `pnpm typecheck` | 통과 (4/4 패키지: shared, design-tokens, web, mobile) |
-| `pnpm test` | 아래 주의사항 참고 |
+| `pnpm test` | 통과 — web 633 파일 / 6283건 전부 통과, repo node 테스트 862건·276건 fail 0 (13m16s) |
+
+`pnpm test` 로그에 `amora action update failed: { code: 'XX000', ... }` 같은 줄이 보이는
+것은 실패가 아니라, 결함 2의 새 테스트가 **의도적으로** RPC 실패를 주입해 라우트가
+실패로 닫히는지 확인할 때 남는 서버 로그다.
 
 **환경 주의.** 루트의 `typecheck`·`test`는 내부에서 bare `pnpm`을 다시 호출한다. 이
 VM의 기본 PATH에서는 그 bare `pnpm`이 전역 10.33.3으로 해석돼
