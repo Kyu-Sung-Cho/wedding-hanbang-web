@@ -34,6 +34,9 @@ const bookingQuoteSpendSoftCancelSql = migration(
 const bookingOutcomeProvenanceSql = migration(
   "20260816170000_amora_booking_outcome_provenance.sql",
 );
+const decisionNodeUpdatedAtClockSql = migration(
+  "20260818180000_amora_decision_node_updated_at_clock.sql",
+);
 const budgetProgressIntegritySql = migration(
   "20260802200000_journey_budget_progress_integrity.sql",
 );
@@ -117,6 +120,13 @@ async function createDatabase(options: {
     $$;
     CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
       SELECT NULLIF(current_setting('request.jwt.claim.role', true), '')::text
+    $$;
+    CREATE FUNCTION public.update_updated_at_column()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      NEW.updated_at := now();
+      RETURN NEW;
+    END
     $$;
     CREATE TABLE public.couples (
       id uuid PRIMARY KEY,
@@ -266,6 +276,9 @@ async function createDatabase(options: {
       WHERE source = 'vendor_booking'
         AND decision_type = 'completed'
         AND source_ref_id IS NOT NULL;
+    CREATE TRIGGER set_decision_nodes_updated_at
+      BEFORE UPDATE ON public.decision_nodes
+      FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
     CREATE FUNCTION public.complete_vendor_booking_outcome(
       p_booking_id uuid,
       p_customer_id uuid,
@@ -313,7 +326,10 @@ async function createDatabase(options: {
         v_booking.id,
         now(),
         now(),
-        jsonb_build_object('origin', 'test_outcome_stub')
+        jsonb_build_object(
+          'origin', 'test_outcome_stub',
+          'hook', 'booking_outcome'
+        )
       )
       ON CONFLICT (couple_id, source_ref_id, source, decision_type)
         WHERE source = 'vendor_booking'
@@ -556,6 +572,7 @@ async function createDatabase(options: {
   await db.exec(manualScheduleSql);
   await db.exec(bookingQuoteSpendSoftCancelSql);
   await db.exec(bookingOutcomeProvenanceSql);
+  await db.exec(decisionNodeUpdatedAtClockSql);
   await db.exec(budgetProgressIntegritySql);
   return db;
 }
