@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.21 — MEDIATION DISCLOSURE PRIVACY LOCAL/AUTOMATED`
+> 계획 버전: `v1.22 — SOURCE AUTHORITY DISCLOSURE LOCAL/AUTOMATED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `a40364cd13992781533edbc9f53bd0e92c12fd4d`
+> 검증 기준 코드 HEAD: `58acac74e9daad99b0e2cfb02a6b04bc385878c8`
 >
-> 현재 릴리스 상태: `deployment_blocked` · manifest 107개 · Production 관찰 적용 32개 · Production 기준 pending 75개 · tail `20260818130000`
+> 현재 릴리스 상태: `deployment_blocked` · manifest 108개 · Production 관찰 적용 32개 · Production 기준 pending 76개 · tail `20260818140000`
 >
-> 현재 작업 상태: `HT-009`의 중요 대화 검색, `HT-010`의 shared+본인 private 기억 내보내기, `CARE-001`의 명시적 경청 lane은 로컬 자동 검증까지 완료했지만 실기기·2계정·hosted E2E는 환경 부재로 BLOCKED · `CARE-002` 요청형 중재는 exact message/proposal/roster 검증 전 본문·AI 산문·준비 저장을 숨기는 첫 privacy slice를 코드 commit `a40364cd`로 완료했고, same-version dual confirmation과 실제 2계정 비공개 검증은 계속 미완료 · Production/EAS 배포는 미실행
+> 현재 작업 상태: `HT-012 / AMR-V01`은 canonical 기록·아모라 제안·검수 가이드·업체 공개정보·사용자 경험·광고/혜택을 공통 계약과 기존 화면의 출처 badge로 구분하는 로컬 자동 검증을 완료했다. 추천 rank·route·write는 바꾸지 않았다. 실기기 접근성·사용자 이해도·2계정·Preview/Production 검증은 미실행이며, 다음 소비자 수직은 `JRN-001`의 여정 진실 감사다.
 >
-> 현재 작업 스냅샷: 제품 코드 commit `a40364cd` · 직전 경청 lane 제품/계획 commit `2f6dd0e3`/`c0ba43e0` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 제품 코드 commit `58acac74` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `CARE-002 / AMR-MED01 IN_PROGRESS` — 검증 전 조율 본문·AI 산문·준비 저장을 숨기는 privacy slice는 commit 완료. 다음은 same-version dual confirmation과 실 2계정 비공개·재시작 검증 |
+| 현재 작업 | `HT-012 / AMR-V01 VERIFIED (LOCAL/AUTOMATED)` — 이미 선택된 정보의 출처 권위·상업 관계·확인일·한계를 공통 badge로 구분하고 기존 추천 rank·route·write 불변을 검증 |
 | 최근 완료 제품 vertical | `CARE-001 LISTEN-ONLY LANE VERIFIED (LOCAL/AUTOMATED)` — 한 턴의 명시 선택을 durable user/assistant marker와 결박하고 tool·domain/decision write·장기 기억 read/enqueue·suggestion을 0으로 유지하면서 현재 공개 범위의 대화와 AI 감사 로그는 사실대로 보존 |
-| 다음 소비자 vertical | `CARE-002 REQUESTED MEDIATION E2E` — exact request→별도 scope→양쪽 private 비노출→동일 버전 이중 확인→안전한 shared 결과 또는 fail-closed 복귀를 한 수직으로 검증 |
+| 다음 소비자 vertical | `JRN-001 JOURNEY TRUTH AUDIT` — HT-012 로컬 동결 뒤 각 준비 주제의 문제·상태·결정·실행·완료 근거가 섞이지 않는지 소비자 흐름 기준으로 확인 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | HT-001 단일 행동 → HT-002 진행 진실 → HT-003/004 주제 위계·관련성 → HT-005/006 왕복 → HT-007 partial state → HT-009 우리 준비 노트 → EX-009 재동결 → Preview/internal E2E |
@@ -134,7 +134,7 @@
 | `EX-001` | `AMR-AUDIT01` | `VERIFIED` | — | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 코드 후보 HEAD `b8fdfe94`; HT-009 core+search 23경로만 exact staging/commit, HOLD 2·tmp 36은 제외 | receipt adapter 경로 생성 전 allowlist를 이 ledger에 먼저 추가 | 2026-08-18 |
 | `EX-002` | `AMR-AUDIT02` | `TODO` | EX-001 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | Section 24는 HT-001 이전 snapshot의 역사 증거. current HEAD allowlist/hash는 EX-009에서 재동결 필요 | Wave 3/4 종료 뒤 current candidate manifest 재생성 | 2026-08-18 |
 | `EX-003` | `AMR-AUDIT03` | `TODO` | EX-002 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | HT-001이 `schedule/index.tsx` hunk를 변경해 기존 mixed-hotspot ledger를 무효화 | EX-009에서 current hunk ownership 재생성 | 2026-08-18 |
-| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 107/Production prefix 32/pending 75/tail 181300, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
+| `EX-004` | `AMR-DOC01` | `VERIFIED` | EX-001 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | release controller가 manifest 108/Production prefix 32/pending 76/tail 181400, `deployment_blocked`와 일치 | source/release 숫자 변경 시 재검증 | 2026-08-18 |
 | `EX-005` | `AMR-REG01` | `TODO` | EX-003/004 | `COMMITTED` | `FOCUSED` | `LOCAL` | `NOT-RUN` | HT-007 snapshot에서 topic view/presentation/screen focused 93/93, mobile 1093/1093, mobile typecheck, targeted lint, diff-check PASS. root/web/release 전체 재실행은 EX-009로 이관 | Wave 3/4 종료 뒤 동일 snapshot 전체 gate | 2026-08-18 |
 | `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
 | `EX-008` | `AMR-C10` | `VERIFIED` | EX-006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `052f33e5`; 19개 canonical topic·10개 journey axis·7개 explicit gap, duplicate/missing/unmapped/malformed fail-closed와 전 topic의 `explicit_not_applicable_supported`를 read-only contract로 고정. focused 6/6, shared/web typecheck PASS | 실제 사용자 화면에서 known gap·parked가 완료처럼 보이지 않는지는 JRN-001/HT-012에서 확인 | 2026-08-18 |
@@ -163,8 +163,9 @@
 | `HT-007` | `AMR-T14` | `VERIFIED` | HT-003/006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `911b5e16`; 저장 대화 lane unavailable fixture에서 개인화된 current action과 확인 일정 근거를 그대로 보존하고 저장 대화 section만 explicit unavailable로 표시. topic focused 93/93, mobile 1093/1093, typecheck, targeted lint, diff-check PASS | 실기기에서 mixed loaded/partial/unavailable 조합과 스크린리더 읽기 순서를 확인 | 2026-08-18 |
 | `HT-009` | `AMR-M03` | `BLOCKED` | FV-011,HT-001/003/004/006/007 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commits `b8fdfe94`, `ef0d5dd4`, `15e59d3a`; 저장 대화·내 기준·우리 기준, strict first-use/provider-backed `add_amora_action` 적용 영수증, current `schedule/scheduled` 결정 영수증을 각각 정본 재검증 뒤 결합. 일정 lane은 event별 최신 raw 후보 손상 시 older fallback 없이 partial, query token·snapshot·journey revision cursor, 최종 owner/couple/privacy fence를 적용. mobile focused 26/26·full 1119/1119, web 관련 48/48, shared/web/mobile typecheck, web/mobile lint, node syntax, Expo iOS/Android/Web export, diff-check PASS. 실기기 도구 부재·Preview SSO·GitHub Billing 차단 | 접근 가능한 Preview/internal build와 실기기·2계정 환경을 확보하면 범위·stale 제거·부분 장애·검색·더 보기·읽기 전용 일정 복귀를 확인 | 2026-08-18 |
 | `HT-010` | `AMR-M04` | `BLOCKED` | HT-009 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `f453fb01`, plan commit `c1cd5105` 원격 포함 확인; runtime flag default-off, 동의 이전 source 차단, shared current-member 전원 동의, roster 변경 무효화, 결정적 민감정보 차단, 철회·수정·삭제 경계를 재확인. `GET ?export=memory`가 현재 owner의 shared+본인 private 기억만 versioned JSON으로 내보내며 상대 private·profile reasoning·source ID·채팅·일정·예산을 제외. 501행 이상은 partial export 대신 409. web memory 120/120, mobile focused 9/9·full 1120/1120, web/mobile typecheck·full lint, web/mobile build, diff-check, pre-push 8/8 PASS | 접근 가능한 실기기·2계정·격리 hosted에서 철회·삭제·roster 무효화·export E2E. 환경 확보 전 사용자/hosted 완료 체크 금지 | 2026-08-18 |
+| `HT-012` | `AMR-V01` | `VERIFIED` | HT-003/EX-008 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `58acac74`; 7개 source type·상업 관계·확인일·한계 exact contract와 persisted output 재검증을 홈 why·주제 guide·커뮤니티·업체 상세의 기존 블록에 연결했다. rank·route·CTA·write 불변. common contract 14/14, mobile focused 115/115·full 1133/1133, web 관련 43/43, shared/web/mobile typecheck, web/mobile scoped lint, node syntax, diff-check PASS | 실기기에서 작은 화면·200%·VoiceOver/TalkBack와 광고·제안·저장 기록 구분 이해도를 확인하고 JRN-001에서 주제별 source truth를 감사 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
-| `CARE-002` | `AMR-MED01` | `IN_PROGRESS` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. route 363/363, chatStore 165/165, mobile full 1130/1130, DB boundary 4/4, release 243/243+fence, shared/web/mobile typecheck, web/mobile lint, web build, Expo all-platform export PASS. web full은 7556/7559 후 새 evidence를 모르는 fixture 3개만 RED였고 fixture 보정 뒤 해당 10/10 PASS | 실제 2계정에서 private 비노출→명시적 공유→동일 shared id 재시도→이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. isolated hosted staging에서 trigger/RLS/RPC를 증명하기 전에는 `LOCAL/BLOCKED`, Production 완료 체크 금지 | 2026-08-18 |
+| `CARE-002` | `AMR-MED01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. route 363/363, chatStore 165/165, mobile full 1130/1130, DB boundary 4/4, release 243/243+fence, shared/web/mobile typecheck, web/mobile lint, web build, Expo all-platform export PASS. web full은 7556/7559 후 새 evidence를 모르는 fixture 3개만 RED였고 fixture 보정 뒤 해당 10/10 PASS | 실제 2계정에서 private 비노출→명시적 공유→동일 shared id 재시도→이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. isolated hosted staging에서 trigger/RLS/RPC를 증명하기 전에는 `LOCAL/BLOCKED`, Production 완료 체크 금지 | 2026-08-18 |
 
 `HT-009` search slice는 commit `b8fdfe94`로 닫았다. 기존 v1 list 응답은 유지하고 notes 전용 opt-in read만 추가했으며, `20260818130000` SHA-256은 `022707a3...f9d4`로 고정했다. 다음 canonical receipt adapter slice는 편집 전에 별도 exact allowlist와 source truth contract를 이 ledger에 먼저 추가한다.
 
@@ -189,6 +190,12 @@
 전체 web regression에서 새 hosted evidence 필드 때문에 controller-ready fixture가 RED가 된 `apps/web/src/lib/price/productionBuildFence.test.ts`는 이 slice의 release fixture-only 추가 allowlist다. 제품 범위나 Production 권한을 넓히지 않는다.
 
 `EX-008 / AMR-C10` coverage reconciliation의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraPreparationCoverage.mjs`, `packages/shared/src/contracts/amoraPreparationCoverage.d.mts`, `apps/web/src/lib/care/__tests__/amoraPreparationCoverage.test.ts` 네 경로다. 기존 19개 canonical checklist topic·10개 journey axis·7개 explicit gap을 재사용하고, 각 연결 주제가 기존 preparation-map의 명시적 `not_applicable` 상태를 지원한다는 read-only capability만 결과에 봉인한다. 새 화면·write·AI·DB·guide·업체 거래 범위는 추가하지 않는다.
+
+`HT-012 / AMR-V01` source disclosure 공통 계약 slice의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraSourceDisclosure.mjs`, `packages/shared/src/contracts/amoraSourceDisclosure.d.mts`, `packages/shared/package.json`, `packages/shared/src/index.ts`, `apps/web/src/lib/amora/__tests__/amoraSourceDisclosure.test.ts` 여섯 경로다. 이 slice는 이미 선택된 항목을 `확인·저장한 준비 기록`, `아모라 제안`, `검수 가이드`, `공식 자료`, `업체 공개정보`, `다른 사용자 경험`, `광고·혜택`으로 엄격히 구분하는 read-only presentation 계약만 만든다. source type별 상업 관계와 확인일 조합이 맞지 않거나 확인일이 미래·비실재 날짜이면 fail-closed한다. 결과에는 rank·score·action·write authority를 넣지 않으며 `rankingPolicy='disclosure_only'`를 고정한다. 새 추천, 순위 변경, AI 호출, DB write/migration, 업체 자격·품질·예약·가격 보장, 화면 재설계는 금지한다. 첫 공개 RED는 일곱 source type이 서로 다른 badge·한계·정본 효과를 반환하면서 output exact keyset에 rank/action이 없고, 모순된 관계·날짜·extra key는 모두 `null`인 행동이다.
+
+`HT-012 / AMR-V01` source adapter slice의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/mobile/src/lib/dashboardExperience.mjs`, `apps/mobile/src/lib/dashboardExperience.d.mts`, `apps/mobile/src/__tests__/dashboardExperience.test.mjs`, `apps/mobile/src/lib/preparationTopicPresentation.mjs`, `apps/mobile/src/lib/preparationTopicPresentation.d.mts`, `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs`, `apps/mobile/src/lib/communityTrust.mjs`, `apps/mobile/src/lib/communityTrust.d.mts`, `apps/mobile/src/__tests__/communityTrust.test.mjs`, `apps/web/src/lib/ai/tools/vendorTools.ts`, `apps/web/src/lib/ai/tools/__tests__/vendorOfficialRecommendation.test.ts` 열두 경로다. 홈 adapter는 이미 저장된 일정·행동·업체 내부 기록과 아직 승인 전인 setup/확인 제안을 구분하되 기존 focus·rank·route를 바꾸지 않는다. topic adapter는 exact reviewed guide의 reviewedAt을 source disclosure에 결박한다. community adapter는 member experience와 ad/sponsorship을 분리하고 기존 origin/ad disclosure를 덮어쓰지 않는다. vendor adapter는 public view를 실제로 성공 조회한 서버 날짜만 `업체 공개정보` 확인일로 봉인하며 legacy/unavailable 상세에는 붙이지 않는다. 화면 컴포넌트·navigation·write·DB·ranking 변경은 이 slice에서 금지한다.
+
+`HT-012 / AMR-V01` source presentation slice의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/mobile/src/components/common/AmoraSourceDisclosureView.tsx`, `apps/mobile/src/__tests__/sourceDisclosurePresentation.test.mjs`, `apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx`, `apps/mobile/src/components/dashboard/AmoraRecommendationWhySheet.tsx`, `apps/mobile/src/__tests__/dashboardExperience.test.mjs`, `apps/mobile/src/components/planning/PreparationTopicSummary.tsx`, `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs`, `apps/mobile/src/components/community/CommunityTrustBadges.tsx`, `apps/mobile/src/__tests__/communityTrustParityBoundary.test.mjs`, `apps/web/src/components/app/chat/VendorToolCard.tsx`, `apps/web/src/components/app/chat/VendorToolCard.test.tsx` 열두 경로다. Lazyweb UI route는 기존 화면 screenshot이 없으면 greenfield redesign으로 잘못 넓어진다고 반환했으므로 새 화면·카드·navigation을 만들지 않고 기존 fact/provenance/trust block의 inline badge/detail rhythm을 재사용한다. badge는 text와 accessibility label로 source type을 표시하고, detail에서 상업 관계·확인일·한계를 보여준다. old/malformed persisted vendor output은 정본 badge로 승격하지 않고 명시적 source-unavailable copy를 보인다. rank·route·CTA·action·section order·write는 바꾸지 않는다.
 
 운영 규칙:
 
@@ -1008,20 +1015,20 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-M03 | `우리 준비 노트`의 중요한 대화·검증된 기준·지원 영수증 검색과 재개 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 헤더 진입·scope/topic/type/질문/답변 검색·stable cursor·exact 원문·현재 행동 복귀까지 구현. 지원되는 canonical receipt adapter, 실기기·2계정 검증은 미완료 |
 | AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제·내보내기 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commit `f453fb01`; default-off·비소급·전원 동의·결정적 필터·철회/수정/삭제와 범위 분리 내보내기까지 로컬 검증. 실기기·2계정·hosted 삭제/roster 무효화 E2E 전 auxiliary memory 활성화·Production 완료 금지 |
 | AMR-U01 | 독립 상태축의 공통 화면 합성 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer·UI-facing contract·10,368 혼합 fixture 완료; 화면별 adapter·실기기 검증은 JRN-002/FV-012 소유 |
-| AMR-V01 | 광고·업체 공개 정보·경험·아모라 제안의 출처 disclosure | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 위험·카피 원칙은 있으나 surface 공통 source badge·상업 관계·확인일 계약과 관찰 gate가 미완성 |
+| AMR-V01 | 광고·업체 공개 정보·경험·아모라 제안의 출처 disclosure | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 공통 source type·상업 관계·확인일·한계 계약과 홈/topic/community/vendor 표시를 구현. 실기기 접근성·소비자 구분 이해도 관찰은 미완료 |
 | AMR-E01 | 해결·행동·기억 저장 없이 듣는 명시적 경청 lane | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commit `2f6dd0e3`; one-turn 선택·durable marker·retry/cold start·W2/W5 우선, 대화 원문·AI 감사 로그 보존과 tool/domain/decision/memory write 0을 자동 검증. 실기기·2계정·hosted E2E 전 사용자 완료·Production 완료 금지 |
 | AMR-L01 | 앱 안의 체계적 선제 리드 정책 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 홈 한 가지는 있으나 stale/quiet/re-entry 정책 전체가 한 계약으로 검증되지 않음 |
 | AMR-L02 | 사용자 통제형 외부 알림 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 동의·빈도·조용한 시간·deep link·철회 계약 필요 |
 | AMR-C01 | 6개 독립 여정 공백의 공통 topic adapter | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 현재 19개 체크 카테고리 밖 상태 모델 없음 |
 | AMR-Q01 | 실제 고객·실기기·2계정·2기기 검증 | `NOT-STARTED` | `NONE` | — | `NOT-RUN` | 코드 테스트만으로 소비자 이해와 신뢰를 증명할 수 없음 |
 | AMR-REL01 | 현재 로컬 후보의 hosted staging | `PARTIAL` | `AUTOMATED` | `BLOCKED` | `NOT-RUN` | local release contract는 있으나 5개 evidence class missing |
-| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | Production 기준 pending 75·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
+| AMR-REL02 | Production 배포 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | Production 기준 pending 76·evidence 5종·legacy fleet/actor/password/invite/direct-writer/provider canary 미해결 |
 
 ### 8.4 전달·릴리스 현실
 
 - staging 검증 기준 코드 HEAD와 RC 원격 브랜치는 `6b4add74`로 일치한다. `origin/main` 병합·Production 승격은 하지 않았다.
 - Vercel의 READY Preview는 이전 `b4d4051b` 소스를 기준으로 하며, 현재 dirty tranche와 모바일 binary를 포함하지 않는다.
-- release manifest는 107개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 75개, tail은 `20260818130000`이다. 격리 staging은 별도로 221개/head `20260818120000`까지 적용했다.
+- release manifest는 108개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 76개, tail은 `20260818140000`이다. 격리 staging은 별도로 221개/head `20260818120000`까지 적용했다.
 - 격리 staging apply와 로컬 암호화 backup receipt는 존재하지만 Production release manifest의 5개 승격 evidence class(hosted staging·backup·hosted restore·Storage·finalizer)는 아직 모두 `missing`이다. 별도 restore와 최종 candidate binding 전에는 이 로컬 receipt를 승격 증거로 복사하지 않는다.
 - headerless Phase-A actor traffic, legacy direct password·10자 invite·direct chat writer fleet drain, provider runtime/grant canary의 fresh 운영 증거도 없다.
 - first-value·neutral personalization의 로컬 자동 증거는 기존 full/focused gate를 유지한다. 이번 hosted 증거로 staging synthetic 2계정의 neutral create/replay, 가입 전 privacy, 비인가 join 차단, service join, 가입 후 상호 조회, cleanup(residue 0)을 추가했다. 이는 API 수준 다중 계정 검증이며 2기기 UI·접근성·실사용자 관찰을 대신하지 않는다.
@@ -1048,7 +1055,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | 13 | ordinary provider add-action exact apply | 5 | A02/D13~17 | positive seal·provider-free exact application | `KEEP+FINALIZE` 별도 tranche |
 | 14 | web chat execution mixed hotspot | 2 | A01/A02,D13~17 | request claim·privacy·finalizer·provider boundary | union review 또는 hunk ledger 필수 |
 | 15 | shared export plumbing | 2 | T01/G01/M02 | runtime exports·package boundary | 관련 tranche와 함께 `KEEP` |
-| 16 | release baseline·controller·manifest | 15 | REL11/REL14/REG01/DOC01 | 현재 successor 102 migration·32 prefix·70 suffix·evidence gate·production build fence fixture parity | SQL freeze 뒤 마지막 finalize |
+| 16 | release baseline·controller·manifest | 15 | REL11/REL14/REG01/DOC01 | 당시 successor 102 migration·32 prefix·70 suffix·evidence gate·production build fence fixture parity | SQL freeze 뒤 마지막 finalize |
 | 17 | unscoped decision-map prototype | 2 | `UNOWNED` | `apps/web/src/constants/decisionMap/types.ts`, `venue.ts`; importer·실재 contract test 없음 | `HOLD / EXCLUDE FROM CANDIDATE`; 삭제 금지, 별도 재승인 없이는 구현 금지 |
 
 파생 임시 산출물 36개는 제품 후보에서 제외한다.
@@ -1078,7 +1085,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 - `START_HERE.md`와 `docs/README.md`의 `f8851f74`·2026-08-12 handoff는 역사 snapshot으로 명시했다.
 - 현재 실행 기준은 이 문서와 실제 Git·tests·migration manifest로 바꿨다.
-- 현재 release 기준은 제품 코드 snapshot `15e59d3a`, manifest 107, Production 관찰 prefix 32, Production 기준 pending 75, tail 181300이다. 격리 staging ledger는 221/head 181200이다.
+- 현재 release 기준은 제품 코드 snapshot `58acac74`, manifest 108, Production 관찰 prefix 32, Production 기준 pending 76, tail 181400이다. 격리 staging ledger는 221/head 181200이다.
 - 날짜별 product summary의 95~98 migration 숫자는 역사 기록으로만 유지한다.
 - `amoraEntryPlan.d.mts`, `dashboardExperience.d.mts`, `scheduleSessionFence.d.mts`는 LF→CRLF 경고가 있으나 현재 diff-check 오류는 아니다.
 
@@ -1645,7 +1652,7 @@ workflow status: TODO
 | `EX-001` inventory snapshot | 반복 gate | 없음 | `git status`, master plan | snapshot 변경 시 이전 freeze를 current로 오인 | 현재 delta 140 = active candidate 102 + unowned HOLD 2 + tmp 36, HEAD/count 고정 |
 | `EX-002` candidate allowlist | 0.5일 | EX-001 | tranche manifest | guide/booking/tmp/decisionMap 포함 여부가 암묵적 | guide 5개 freeze, 161700 integrity IN·booking UI PARKED, tmp·decisionMap 제외, exact path/hash, 삭제 없음 |
 | `EX-003` mixed-file hunk ledger | 1일 | EX-002 | chat.tsx, schedule/index.tsx, route.ts, route test | path만으로 여러 AMR 완료 주장 가능 | 함수/hunk→AMR→테스트→risk가 전부 매핑 |
-| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·107/Production 32·pending 75/tail 181300·staging 221/head 181200을 current로, 과거값 historical로 표기 |
+| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·108/Production 32·pending 76/tail 181400·staging 221/head 181200을 current로, 과거값 historical로 표기 |
 | `EX-005` freeze regression | 완료 | EX-003/004 | shared/web/mobile/release 명령 | 이전 focused 수치만 존재 | 같은 freeze에서 focused→type/lint→full/build PASS, 변경 시 상태 하향 |
 | `EX-006` commit plan | 완료 | EX-005 | exact candidate manifest·staged index | review 단위가 불명확 | mixed hotspot 포함 union RC 1개, staged 86·HOLD/tmp 0·hash mismatch 0 |
 | `EX-008` whole-journey coverage inventory | 1일 | EX-006 | checklist·manners·planning gaps·product contract | 초보자 전체 누락을 설명하는 matrix 없음 | 모든 단계 covered/not-applicable/known gap/parked, 사용자 화면 소유자·근거 표시 |
@@ -2032,6 +2039,7 @@ Wave 3·4 구현
 | 2026-08-18 | AMR-T14 | 저장 대화 lane을 불러오지 못해도 개인화된 현재 행동과 다른 확인 근거는 유지하고, 실패한 lane만 unavailable로 표시 | commit `911b5e16` · topic focused 93/93 · mobile 1093/1093 · mobile typecheck · targeted lint · diff-check PASS · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-M03 | 아모라 헤더에서 `우리 준비 노트`를 열어 저장 대화·내 기준·우리 기준을 공개 범위·주제·유형으로 찾고 exact 원문과 동일 current action으로 복귀하는 core slice 구현 | commit `e6946264` · focused 14/14 · mobile 1107/1107 · mobile typecheck/full lint · Expo iOS/Android/Web export · source partial/unavailable·same-identity snapshot 보존 · 질문 검색/cursor/receipt adapter/실기기/2계정/Preview/Production 미완료 |
 | 2026-08-18 | AMR-M03/REL11 | `우리 준비 노트`에 질문·답변 서버 검색, snapshot-bound cursor 더보기, 질문/답변 분리 표시와 identity fail-closed를 추가하고 service-only read RPC를 릴리스 계약에 고정 | commit `b8fdfe94` · focused 18/18 · mobile 1111/1111 · web/DB 46/46 · release 241/241+fence · migration `022707a3...f9d4` · manifest 107/Production 32/pending 75/tail 181300 · Production write 0 |
+| 2026-08-18 | AMR-V01 | canonical 준비 기록·아모라 제안·검수 가이드·업체 공개정보·다른 사용자 경험·광고/혜택의 권위를 공통 계약으로 구분하고 기존 홈 why·주제 guide·커뮤니티 trust·업체 상세에 표시 | product commit `58acac74` · common 14/14 · mobile focused 115/115·full 1133/1133 · web 관련 43/43 · shared/web/mobile typecheck · web/mobile scoped lint · node syntax·diff-check PASS · rank/route/CTA/write 불변 · 실기기/사용자 관찰/Preview/Production 없음 |
 
 ---
 
