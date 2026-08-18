@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.30 — SAFE-001 LOCAL GATE / DEVICE EVIDENCE BLOCKED`
+> 계획 버전: `v1.31 — ANDROID INTERNAL BUILD READY / DEVICE EVIDENCE BLOCKED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 후보 HEAD: `3b623e18955eb53fb3c03c08d652536cf890e4af` · 제품 코드 HEAD `710f3d59`
+> 내부 Android 빌드 후보 HEAD: `989aa3d56a45718acbe98ce5015c84f84cf3303d` · tree `a07bdaa3ef0dc265c5709656a9ed8c38420ce8a3`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 109개 · Production 관찰 적용 32개 · Production 기준 pending 77개 · tail `20260818150000`
 >
-> 현재 작업 상태: 후보 `3b623e18`에서 `SAFE-001`의 W5/W2 자동화 경계를 재검증했다. 웹 7파일 1,089/1,089와 모바일 4파일 143/143이 통과했고 새 runtime 결함은 확인되지 않았다. W5는 provider·비용·도구·저장·기억보다 먼저 고정 경로로 끝나며, W2는 현재 발화·명시 첨부만 남기고 provider 도구·장기기억을 0으로 제한한다. 다만 이 PC에는 `adb`·Android emulator·Java가 없어 작은 화면·글자 확대·TalkBack·느린 네트워크·앱 복귀를 실제 기기에서 확인하지 못했으므로 `SAFE-001`은 `BLOCKED`이며 정식 EX-009 완료로 승격하지 않는다.
+> 현재 작업 상태: Android internal Preview build `7b99f8ad-a4dc-4dab-8cbb-5ad98275c903`가 commit `989aa3d5`에서 `FINISHED`되어 설치용 APK를 만들었다. build profile은 `preview`, distribution은 `INTERNAL`, app build version은 `5`다. mobile release readiness 107/107과 Expo iOS/Android/Web export는 통과했다. 이는 설치 가능한 후보 확보 증거이며 작은 화면·글자 확대·TalkBack·느린 네트워크·중단/복귀·2계정 확인 증거가 아니다. 따라서 `FV-012`, `FV-015`, `SAFE-001`은 계속 `BLOCKED`이고 정식 `EX-009` 완료로 승격하지 않는다.
 >
-> 현재 작업 스냅샷: 후보 commit `3b623e18` · tree `e9f70b60761236d2458984bbf5379c9ef07b67a7` · 이전 union `b3f8a712` 이후 `235 = A89 + M146` · HOLD 2 + tmp 36 제외 · Production write 0
+> 현재 작업 스냅샷: internal build commit `989aa3d5` · tree `a07bdaa3ef0dc265c5709656a9ed8c38420ce8a3` · `3b623e18` EX-009 checkpoint는 후속 mobile 변경 때문에 역사 증거로 강등 · HOLD 2 + tmp 36 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `FV-012 / FV-015 DEVICE EVIDENCE BLOCKED` — EAS 계정은 연결됐지만 현재 PC에 로컬 Android 기기 도구가 없어 internal Preview 빌드와 실제 기기 matrix를 분리 준비 |
-| 최근 완료 제품 vertical | `SAFE-001 LOCAL AUTOMATION` — W5 provider/write/memory 0, W2 최소 context·provider tool/memory 0을 승인·중재·경청 경로까지 재검증; 실기기 완료 주장은 금지 |
-| 다음 소비자 vertical | `FV-012/FV-015 ACTUAL DEVICE` — exact 후보의 internal Android Preview를 만들고 작은 화면·200%·TalkBack·느린 네트워크·중단/복귀를 확인 |
+| 현재 작업 | `FV-012 / FV-015 DEVICE EVIDENCE BLOCKED` — Android internal Preview APK는 확보했지만 현재 PC에 `adb`·emulator·Java와 연결된 실제 기기가 없어 device matrix는 미실행 |
+| 최근 완료 제품 vertical | `ANDROID INTERNAL BUILD CANDIDATE` — build `7b99f8ad…`가 commit `989aa3d5`에서 FINISHED; preview에서 Sentry source-map upload만 비활성화하고 runtime reporting·Production 설정은 유지 |
+| 다음 소비자 vertical | `FV-012/FV-015 ACTUAL DEVICE` — 해당 APK를 실제 Android 기기에 설치해 작은 화면·200%·TalkBack·느린 네트워크·중단/복귀를 확인 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | FV-012/FV-015 → STG-004~007 → FV-013 → DX-001~004 → LD-001~003/006 → EX-009 최종 재동결 → STG-008 → REL-201 → HT-011/LD-005 관찰 → REL-202 |
@@ -138,7 +138,7 @@
 | `EX-005` | `AMR-REG01` | `TODO` | EX-003/004 | `COMMITTED` | `FOCUSED` | `LOCAL` | `NOT-RUN` | HT-007 snapshot에서 topic view/presentation/screen focused 93/93, mobile 1093/1093, mobile typecheck, targeted lint, diff-check PASS. root/web/release 전체 재실행은 EX-009로 이관 | Wave 3/4 종료 뒤 동일 snapshot 전체 gate | 2026-08-18 |
 | `EX-006` | `AMR-GIT01` | `VERIFIED` | EX-005 | `COMMITTED` | `DIRECT` | `LOCAL` | `NOT-RUN` | 이전 union RC `b3f8a712 feat: integrate amora preparation journey candidate`가 원격 RC 브랜치와 일치 | 현재 delta에는 재사용하지 않음 | 2026-08-17 |
 | `EX-008` | `AMR-C10` | `VERIFIED` | EX-006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `052f33e5`; 19개 canonical topic·10개 journey axis·7개 explicit gap, duplicate/missing/unmapped/malformed fail-closed와 전 topic의 `explicit_not_applicable_supported`를 read-only contract로 고정. focused 6/6, shared/web typecheck PASS | 실제 사용자 화면에서 known gap·parked가 완료처럼 보이지 않는지는 JRN-001/HT-012에서 확인 | 2026-08-18 |
-| `EX-009` | `AMR-REG01` | `IN_PROGRESS` | JRN-005,HT-001~010/012,DX-001~004,LD-001~003/006,CARE-001/002,SAFE-001 | `CHECKPOINT-COMMITTED` | `AUTOMATED` | `PREVIEW/BLOCKED` | `NOT-RUN` | 후보 `3b623e18`, tree `e9f70b60...b67a7`, 이전 union 이후 235=A89+M146, migration delta 10, hotspot 4개 owner 전부 결박. freeze test 5/5, 같은 후보 pre-push 8/8, Preview PASS. GitHub Actions는 코드 실패가 아니라 account billing으로 job 시작 전 차단 | SAFE-001과 미완료 DX/LD를 닫은 뒤 같은 형식으로 최종 재생성. 실기기·2계정·hosted final candidate·Production은 미실행 | 2026-08-18 |
+| `EX-009` | `AMR-REG01` | `IN_PROGRESS` | JRN-005,HT-001~010/012,DX-001~004,LD-001~003/006,CARE-001/002,SAFE-001 | `CHECKPOINT-STALE` | `AUTOMATED` | `PREVIEW/INTERNAL/BLOCKED` | `NOT-RUN` | `3b623e18` checkpoint는 후속 commits `9a7901a0`, `989aa3d5` 때문에 역사 증거로 강등. Android internal build `7b99f8ad…`는 commit `989aa3d5`에서 FINISHED했지만 새 full candidate freeze가 아님. GitHub Actions는 코드 job 시작 전 account billing으로 차단 | FV-012/FV-015 실제 기기와 남은 DX/LD를 닫은 뒤 current HEAD의 allowlist·hotspot·migration SHA·전체 gate를 새로 생성. 2계정·hosted final candidate·Production은 미실행 | 2026-08-18 |
 | `FV-000` | `AMR-F10` | `VERIFIED` | EX-006/008 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | compatibility C0 문서 + 161800 roleless RPC/member-model migration; PGlite 4/4 | hosted migration·rollback rehearsal 전 feature flag OFF | 2026-08-17 |
 | `FV-001` | `AMR-F11` | `VERIFIED` | FV-000 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | legacy role/couple 선행 조건과 neutral flag 경계를 onboarding contract로 고정 | 기기에서 legacy/neutral 양쪽 확인 | 2026-08-17 |
 | `FV-002` | `AMR-F12` | `VERIFIED` | FV-001 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | planning-foundation starting/already-preparing/unknown/later dependency와 partial fail-closed fixture | 실제 사용자 이해 관찰 전 과장 금지 | 2026-08-17 |
@@ -149,6 +149,8 @@
 | `FV-007~009` | `AMR-F17~18` | `VERIFIED` | FV-006 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 한 personalized first action이 proposal→explicit apply→canonical receipt→same home action으로 이어지고 완료·막힘·변경·모름 후속을 보존; receipt 16/16·follow-up 33/33 | 실기기·2계정·live provider 검증 | 2026-08-17 |
 | `FV-010` | `AMR-F16` | `VERIFIED` | FV-006~009 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | device-only owner/couple stage handoff, 24h TTL, same-owner reload 복구, private-message 존재·account/couple switch 시 폐기, cold-start canonical receipt replay | 강제 종료·재로그인·저장소 차단 실기기 matrix | 2026-08-17 |
 | `FV-011` | `AMR-U01` | `VERIFIED` | FV-010/EX-002~005 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer 13/13, 독립 상태축 10,368조합, mobile 1046/1046, root typecheck·lint, web/mobile build PASS | 화면별 source-relevance adapter는 JRN-002에서 별도 연결; 실기기 FV-012 | 2026-08-17 |
+| `FV-012` | `AMR-Q12` | `BLOCKED` | FV-011 | `COMMITTED` | `AUTOMATED` | `INTERNAL-PREVIEW` | `NOT-RUN` | mobile readiness 107/107, Expo iOS/Android/Web export PASS. Android build `7b99f8ad…`, commit `989aa3d5`, build version 5, status FINISHED. 설치 가능한 APK 생성은 접근성 실기기 통과와 다름 | 실제 Android에서 작은 화면·200% 글자·TalkBack·포커스·입력 가림·첫 가치 흐름을 사람이 확인 | 2026-08-18 |
+| `FV-015` | `AMR-Q13` | `BLOCKED` | FV-010/011 | `COMMITTED` | `AUTOMATED` | `INTERNAL-PREVIEW` | `NOT-RUN` | FV-012와 같은 exact Android build를 복구 시험에 사용 가능. offline·slow network·token expiry·중단/복귀·wrong identity·중복 write는 아직 기기에서 미검증 | 실제 Android에서 네트워크 전환·강제종료·재로그인·재시도 matrix를 실행하고 중복 write/wrong identity 0을 기록 | 2026-08-18 |
 | `FV-014` | `AMR-F20` | `VERIFIED` | FV-002/003/007/011 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | empty/canonical-existing guard, 최대 3항목 preview·승인, 161900 원자 receipt, private actor binding, secure restart draft, 주제의 사용자 보고 projection; mobile 1074/1074·release 220/220 | EX-007 재동결 뒤 hosted·2계정·실기기 검증 | 2026-08-18 |
 | `EX-007` | `AMR-REG01` | `TODO` | FV-001~012/FV-014/015 | `COMMITTED` | `STALE` | `LOCAL` | `NOT-RUN` | HT-001 이후 과거 102-path freeze는 current candidate 증거가 아님 | final consumer vertical 뒤 EX-009 current freeze로 대체 | 2026-08-18 |
 | `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 109개, Production 관찰 prefix 32개, ordered pending 77개와 tail 181500을 exact hash로 고정; release 245/245+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
@@ -172,7 +174,7 @@
 | `JRN-005` | `AMR-C15` | `VERIFIED` | JRN-004 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `2863aff6`; shared-scope 확인 뒤 canonical journey CAS로 제외·재포함. 체크 기록 보존, 분모 제외와 원상 복구, neutral copy, malformed snapshot/no-op/foreign topic 차단, one in-flight, owner/couple session fence, stale/active request 분리. related 99/99, map/dashboard matrix 99/99, mobile full 1147/1147, shared/mobile typecheck, targeted lint, diff-check PASS | EX-009에서 current candidate allowlist·mixed-file hunk·전체 gate를 같은 hash로 재동결. 실기기·2계정·사용자 이해도는 REL-201 exact build에서 검증 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
 | `CARE-002` | `AMR-MED01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. route 363/363, chatStore 165/165, mobile full 1130/1130, DB boundary 4/4, release 243/243+fence, shared/web/mobile typecheck, web/mobile lint, web build, Expo all-platform export PASS. web full은 7556/7559 후 새 evidence를 모르는 fixture 3개만 RED였고 fixture 보정 뒤 해당 10/10 PASS | 실제 2계정에서 private 비노출→명시적 공유→동일 shared id 재시도→이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. isolated hosted staging에서 trigger/RLS/RPC를 증명하기 전에는 `LOCAL/BLOCKED`, Production 완료 체크 금지 | 2026-08-18 |
-| `SAFE-001` | `AMR-S01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 후보 `3b623e18`에서 별도 runtime 수정 없이 기존 경계를 재감사. web ingest·route·classifier·prompt·memory·mediation 7파일 1,089/1,089, mobile safety·consumer-state·mediation 4파일 143/143 PASS. W5는 rate limit·attachment·provider·cost·tool·durable user write·memory보다 먼저 고정 응답으로 종료하고, W2는 sender-private/minimized context·provider tools 0·memory enqueue 0을 유지한다. 승인된 기존 mutation과 혼합된 W2는 mutation authorization을 별도로 지키되 현재 질문 provider tools·memory는 0이다 | internal Preview exact build에서 작은 화면·200%·TalkBack·느린 네트워크·복귀·중재/경청/승인 override copy를 확인하고 STG-004 privacy probe와 결박. 현재 PC에는 `adb`·emulator·Java가 없어 자동화만으로 완료 체크 금지 | 2026-08-18 |
+| `SAFE-001` | `AMR-S01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `INTERNAL-PREVIEW/BLOCKED` | `NOT-RUN` | web ingest·route·classifier·prompt·memory·mediation 7파일 1,089/1,089, mobile safety·consumer-state·mediation 4파일 143/143 PASS. W5 provider/write/memory 0과 W2 최소 context·provider tool/memory 0 경계를 유지한다. Android build `7b99f8ad…`는 설치 가능하지만 safety UI의 실제 접근성·복구를 검증한 증거가 아니다 | 같은 build에서 작은 화면·200%·TalkBack·느린 네트워크·복귀·중재/경청/승인 override copy를 확인하고 STG-004 privacy probe와 결박. 자동화만으로 완료 체크 금지 | 2026-08-18 |
 
 `JRN-004 / journey fixture matrix`의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/mobile/src/__tests__/amoraJourneyFixtureMatrix.test.mjs` 두 경로다. 정상·해당 없음·계획 변경·부분 조회의 19개 canonical topic 상태와, valid·unknown reference·구버전 round·누락 지역/범위의 공식 근거를 table fixture로 검증한다. 이 단계에서 production runtime·UI·AI·DB·rank·write를 수정하지 않으며, 기존 계약이 fixture를 통과하면 test-only로 닫는다.
 
@@ -190,7 +192,7 @@
 
 `HT-009 / 일정 결정 영수증 adapter`의 로컬 코드 snapshot은 commit `15e59d3a`다. 모바일 focused 26/26·전체 1119/1119, 웹 관련 48/48, shared/web/mobile typecheck, web/mobile lint, 변경 mjs 문법 검사와 Expo iOS/Android/Web export를 통과했다. 이 commit은 Production·Preview·EAS·hosted DB에 배포하지 않았으며, 실기기와 2계정 확인 전에는 HT-009를 사용자 검증 완료로 체크하지 않는다.
 
-`HT-009`의 추가 사용자 검증은 현재 외부 차단이다. 이 개발 환경에는 `adb`, Android emulator, `eas`, `vercel`, `supabase` CLI가 없어 실기기·2계정·EAS를 실행하지 못했다. PR #105의 Vercel Preview는 READY지만 요청이 Vercel SSO로 302 전환되어 비로그인 QA가 불가능하다. GitHub Actions run `32089183407`의 7개 실패는 step과 runner가 시작되기 전 `recent account payments have failed or your spending limit needs to be increased` annotation으로 종료됐다. 따라서 코드 실패로 분류하거나 HT-009 사용자 검증을 완료 처리하지 않고 `LOCAL/AUTOMATED`, 사용자 검증 `NOT-RUN`을 유지한다.
+`HT-009`의 당시 사용자 검증은 외부 차단이었다. 이후 EAS 계정 연결과 Android internal build 생성에는 성공했지만, 이 개발 환경에는 여전히 `adb`, Android emulator, Java와 연결된 실제 기기가 없어 실기기·2계정 검증을 실행하지 못했다. PR #105의 Vercel Preview는 READY지만 요청이 Vercel SSO로 302 전환되어 비로그인 QA가 불가능하다. GitHub Actions run `32089183407`의 7개 실패는 step과 runner가 시작되기 전 `recent account payments have failed or your spending limit needs to be increased` annotation으로 종료됐다. 따라서 코드 실패로 분류하거나 HT-009 사용자 검증을 완료 처리하지 않고 `LOCAL/AUTOMATED`, 사용자 검증 `NOT-RUN`을 유지한다.
 
 `HT-010 / 사용자 기억 내보내기`의 exact allowlist는 다음 7경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/web/src/app/api/amora/memory/route.ts`, `apps/web/src/app/api/amora/memory/__tests__/route.test.ts`, `apps/web/src/app/(app)/settings/amora-memory/page.tsx`, `apps/web/src/app/(app)/settings/amora-memory/page.sensitive-memory-copy.test.ts`, `apps/mobile/app/settings/amora-memory.tsx`, `apps/mobile/src/__tests__/amoraMemorySettings.test.mjs`. source truth는 현재 인증 owner와 exact couple roster에서 허용된 `shared + own role-private` visibility의 active automatic `decision_nodes`다. export는 visibility별 설정·동의 수와 정리된 기억만 포함하고 member/user/couple ID, 상대 role-private, 숨은 profile projection, 채팅 원문, 일정·예산, 새 AI 요약을 포함하지 않는다. runtime flag가 꺼져도 기존 기억의 조회·내보내기·삭제·철회는 허용하지만 새 동의·enqueue는 계속 차단한다. DB write·migration·새 화면·새 navigation은 금지한다. 첫 공개 RED는 `GET /api/amora/memory?export=memory`가 표준 조회 응답 대신 versioned scope-separated export와 attachment/no-store header를 반환하고 상대 private 식별자·데이터를 포함하지 않는다는 행동이다.
 
@@ -1045,8 +1047,8 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 
 ### 8.4 전달·릴리스 현실
 
-- 현재 원격 RC 브랜치와 Vercel Preview는 후보 `3b623e18955eb53fb3c03c08d652536cf890e4af`로 일치한다. `origin/main` 병합·Production 승격은 하지 않았다.
-- Vercel Preview 배포는 성공했지만 GitHub Actions run `32112683361`은 코드 job을 한 단계도 시작하지 못하고 계정 결제/지출 한도 사유로 차단됐다. 로컬 pre-push 8/8을 GitHub CI 성공으로 바꾸어 말하지 않는다. internal mobile·실기기 증거도 없다.
+- Vercel Preview는 후보 `3b623e18955eb53fb3c03c08d652536cf890e4af`로 성공했다. Android internal Preview는 후속 commit `989aa3d56a45718acbe98ce5015c84f84cf3303d`로 별도 성공했다. 서로 다른 commit이므로 둘을 하나의 final candidate evidence로 합치지 않는다. `origin/main` 병합·Production 승격은 하지 않았다.
+- GitHub Actions run `32112683361`은 코드 job을 한 단계도 시작하지 못하고 계정 결제/지출 한도 사유로 차단됐다. 로컬 pre-push 8/8이나 EAS build 성공을 GitHub CI 성공으로 바꾸어 말하지 않는다. internal mobile artifact는 생겼지만 실기기 사용자 검증은 없다.
 - release manifest는 109개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 77개, tail은 `20260818150000`이다. 격리 staging은 별도로 221개/head `20260818120000`까지 적용했다.
 - 격리 staging apply와 로컬 암호화 backup receipt는 존재하지만 Production release manifest의 5개 승격 evidence class(hosted staging·backup·hosted restore·Storage·finalizer)는 아직 모두 `missing`이다. 별도 restore와 최종 candidate binding 전에는 이 로컬 receipt를 승격 증거로 복사하지 않는다.
 - headerless Phase-A actor traffic, legacy direct password·10자 invite·direct chat writer fleet drain, provider runtime/grant canary의 fresh 운영 증거도 없다.
@@ -2430,9 +2432,9 @@ Wave 3·4 구현
 
 <!-- AMORA:CANDIDATE-FREEZE-V2:END -->
 
-## 25. EX-009 current candidate checkpoint — `CURRENT / FORMAL FREEZE INCOMPLETE`
+## 25. EX-009 candidate checkpoint — `HISTORICAL / STALE`
 
-이 체크포인트는 **현재 구현을 잃지 않고 정확히 재현하기 위한 로컬 후보 증거**다. 정식 EX-009 완료나 Production 승인이 아니다. Section 17의 미완료 선행 package가 남아 있으므로 제품 작업이 더해지면 이 증거를 새 후보에서 다시 생성한다.
+이 체크포인트는 당시 구현을 잃지 않고 정확히 재현하기 위한 로컬 후보 증거다. 후속 commits `9a7901a0`, `989aa3d5`가 더해졌으므로 현재 후보 증거로 재사용하지 않는다. 정식 EX-009 완료나 Production 승인이 아니며, Section 17의 미완료 선행 package를 닫은 뒤 새 HEAD에서 다시 생성해야 한다.
 
 | 항목 | 현재 증거 |
 |---|---|
@@ -2451,3 +2453,20 @@ Wave 3·4 구현
 기계 판독 정본은 `docs/operations/evidence/amora-final-candidate-freeze-20260818.json`이고 검증기는 `scripts/tests/amora-final-candidate-freeze.test.mjs`다. 검증기는 후보 commit/tree, 235개 path/status/blob allowlist, 10개 migration SHA, release fail-closed 상태, 네 hotspot의 변경 commit owner, 제외 범위와 외부 gate의 과장 없는 상태를 확인한다.
 
 정식 EX-009 완료 조건은 그대로다. `SAFE-001`, `DX-001~004`, `LD-001~003/006` 등 Section 17의 선행 package를 실제로 닫고, 그 뒤의 새 HEAD에서 이 체크포인트를 다시 생성해 focused→type/lint→full/build를 같은 snapshot으로 재실행해야 한다.
+
+## 26. Android internal Preview build receipt — `FINISHED / DEVICE QA NOT-RUN`
+
+| 항목 | 확인된 값 |
+|---|---|
+| build ID | `7b99f8ad-a4dc-4dab-8cbb-5ad98275c903` |
+| Expo build page | `https://expo.dev/accounts/hanbang/projects/wedding-hanbang/builds/7b99f8ad-a4dc-4dab-8cbb-5ad98275c903` |
+| git commit | `989aa3d56a45718acbe98ce5015c84f84cf3303d` |
+| git tree | `a07bdaa3ef0dc265c5709656a9ed8c38420ce8a3` |
+| profile / distribution | `preview` / `INTERNAL` |
+| platform / build version | `ANDROID` / `5` |
+| status | `FINISHED` · 2026-08-18T08:44:39.900Z |
+| 사전 검증 | mobile release readiness 107/107 · mobile typecheck PASS · Expo iOS/Android/Web export PASS |
+| preview-only 보정 | `SENTRY_DISABLE_AUTO_UPLOAD=true`; runtime reporting과 Production source-map upload 요구는 유지 |
+| 하지 않은 일 | APK 실제 설치·작동, 작은 화면, 200% 글자, TalkBack, offline/slow network, 중단/복귀, token expiry, 2계정/2기기, hosted final-candidate 결박, Production |
+
+첫 EAS 시도 `5cef8bfc-c399-4d46-aa03-35ab85d77f9d`는 preview environment에 Sentry org/slug가 없어 source-map upload 단계에서 실패했다. 제품 runtime이나 앱 compile 실패로 숨기지 않고, 공식 Sentry Gradle 경계가 지원하는 preview-only auto-upload disable을 `eas.json`에 명시했다. 두 번째 build에서 해당 경계를 적용해 APK 생성까지 완료했다. 이 영수증은 `FV-012/FV-015`의 실행 입력일 뿐 완료 증거가 아니다.
