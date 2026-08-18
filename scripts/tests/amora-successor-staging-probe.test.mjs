@@ -8,6 +8,7 @@ import {
   AmoraSuccessorStagingProbeError,
   createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedBookingOutcomeAuthorizationCount,
   readHostedBookingOutcomeResidue,
   readHostedCriterionActionResidue,
   readHostedFirstUseActionResidue,
@@ -1845,6 +1846,7 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
   const decisionId = "40000000-0000-4000-8000-000000000083";
   const confirmedAt = "2026-08-18T12:00:00.000Z";
   const calls = [];
+  let authorizationReadInput = null;
   const fetchImpl = async (url, init = {}) => {
     const value = String(url);
     const body = init.body ? JSON.parse(init.body) : undefined;
@@ -1919,9 +1921,6 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
         superseded_at: null,
       }]), { status: 200 });
     }
-    if (value.includes("/rest/v1/booking_outcome_write_authorizations?")) {
-      return new Response("[]", { status: 200 });
-    }
     if (init.method === "DELETE") return new Response(null, { status: 204 });
     return new Response("[]", { status: 200 });
   };
@@ -1931,6 +1930,10 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
     serviceRoleKey: "service-role-key-value",
     fetchImpl,
     runNonce: "booking-outcome-contract",
+    bookingOutcomeAuthorizationCountReader: async (input) => {
+      authorizationReadInput = input;
+      return 0;
+    },
   });
 
   const fixture = await transport.prepareBookingOutcomeFixture({ owner, coupleId });
@@ -1992,6 +1995,15 @@ test("the staging transport creates, completes, replays, reads, and removes a sy
   });
   assert.ok(calls.some(({ url, init }) => url.includes("/decision_nodes?") && init.method === "DELETE"));
   assert.ok(calls.some(({ url, init }) => url.includes("/vendors?") && init.method === "DELETE"));
+  assert.deepEqual(authorizationReadInput, {
+    bookingId,
+    coupleId,
+    actorProfileId: owner.id,
+  });
+  assert.equal(
+    calls.some(({ url }) => url.includes("/booking_outcome_write_authorizations?")),
+    false,
+  );
 });
 
 test("booking outcome cleanup finishes through the canonical tables when capability relations are not exposed", async () => {
@@ -2238,6 +2250,44 @@ test("the fixed first-use residue query covers private promotion, proposal, acti
       messageIds,
       promotionIds,
       actionIds,
+    }),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "PRODUCTION_TARGET_FORBIDDEN",
+  );
+});
+
+test("the booking outcome probe reads transient authorization residue through the fixed management boundary", async () => {
+  const requests = [];
+  const bookingId = "40000000-0000-4000-8000-000000000086";
+  const coupleId = "20000000-0000-4000-8000-000000000086";
+  const actorProfileId = "10000000-0000-4000-8000-000000000086";
+  const count = await readHostedBookingOutcomeAuthorizationCount({
+    projectRef: STAGING_REF,
+    productionProjectRef: PRODUCTION_REF,
+    managementToken: "management-token-that-is-long-enough",
+    bookingId,
+    coupleId,
+    actorProfileId,
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify([{ authorization_count: 0 }]), { status: 201 });
+    },
+  });
+
+  assert.equal(count, 0);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/database\/query\/read-only$/u);
+  const body = JSON.parse(requests[0].init.body);
+  assert.deepEqual(body.parameters, [bookingId, coupleId, actorProfileId]);
+  assert.match(body.query, /booking_outcome_write_authorizations/u);
+  await assert.rejects(
+    readHostedBookingOutcomeAuthorizationCount({
+      projectRef: PRODUCTION_REF,
+      productionProjectRef: PRODUCTION_REF,
+      managementToken: "management-token-that-is-long-enough",
+      bookingId,
+      coupleId,
+      actorProfileId,
     }),
     (error) => error instanceof AmoraSuccessorStagingProbeError
       && error.code === "PRODUCTION_TARGET_FORBIDDEN",

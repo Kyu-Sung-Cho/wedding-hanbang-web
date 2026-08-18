@@ -690,6 +690,68 @@ SELECT
    WHERE row.booking_id = ANY($4::uuid[])) AS projection_jobs
 `;
 
+const BOOKING_OUTCOME_AUTHORIZATION_COUNT_SQL = `
+SELECT count(*)::integer AS authorization_count
+FROM public.booking_outcome_write_authorizations AS row
+WHERE row.booking_id = $1::uuid
+  AND row.couple_id = $2::uuid
+  AND row.actor_profile_id = $3::uuid
+`;
+
+export async function readHostedBookingOutcomeAuthorizationCount({
+  projectRef,
+  productionProjectRef,
+  managementToken,
+  bookingId,
+  coupleId,
+  actorProfileId,
+  fetchImpl = fetch,
+}) {
+  if (!PROJECT_REF.test(projectRef) || !PROJECT_REF.test(productionProjectRef)) {
+    fail("PROJECT_REF_INVALID", "Project refs must be exact 20-character refs");
+  }
+  if (projectRef === productionProjectRef) {
+    fail("PRODUCTION_TARGET_FORBIDDEN", "The Amora probe is staging-only");
+  }
+  if (typeof managementToken !== "string" || managementToken.length < 20 || /[\r\n]/u.test(managementToken)) {
+    fail("MANAGEMENT_TOKEN_INVALID", "A valid Management API token is required");
+  }
+  if (![bookingId, coupleId, actorProfileId].every(isUuid)) {
+    fail("BOOKING_OUTCOME_AUTHORIZATION_INPUT_INVALID", "Booking outcome authorization identity was not canonical");
+  }
+
+  let response;
+  try {
+    response = await fetchImpl(
+      `https://api.supabase.com/v1/projects/${projectRef}/database/query/read-only`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${managementToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: BOOKING_OUTCOME_AUTHORIZATION_COUNT_SQL,
+          parameters: [bookingId, coupleId, actorProfileId],
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+  } catch {
+    fail("BOOKING_OUTCOME_AUTHORIZATION_UNAVAILABLE", "Hosted booking outcome authorization read failed");
+  }
+  const body = await readBoundedJson(response, "BOOKING_OUTCOME_AUTHORIZATION_UNAVAILABLE");
+  const count = response.status === 201 && Array.isArray(body) && body.length === 1
+    ? body[0]?.authorization_count
+    : null;
+  if (!Number.isSafeInteger(count) || count < 0) {
+    fail("BOOKING_OUTCOME_AUTHORIZATION_INVALID", "Hosted booking outcome authorization count was not canonical");
+  }
+  return count;
+}
+
 export function readHostedBookingOutcomeResidue({
   projectRef,
   productionProjectRef,
@@ -781,6 +843,7 @@ export function createSupabaseStagingTransport({
   messageRefResidueReader = null,
   criterionActionResidueReader = null,
   firstUseActionResidueReader = null,
+  bookingOutcomeAuthorizationCountReader = null,
   bookingOutcomeResidueReader = null,
 }) {
   const baseUrl = `https://${projectRef}.supabase.co`;
@@ -2073,20 +2136,24 @@ export function createSupabaseStagingTransport({
         source: "eq.vendor_booking",
         source_ref_id: `eq.${fixture.bookingId}`,
       });
-      const authorizationQuery = new URLSearchParams({
-        select: "authorization_id",
-        booking_id: `eq.${fixture.bookingId}`,
-      });
-      const [bookingResponse, decisionResponse, authorizationResponse] = await Promise.all([
+      if (typeof bookingOutcomeAuthorizationCountReader !== "function") {
+        fail("BOOKING_OUTCOME_AUTHORIZATION_READER_MISSING", "A fixed booking outcome authorization reader is required");
+      }
+      const [bookingResponse, decisionResponse, authorizationCount] = await Promise.all([
         adminCall(`/rest/v1/vendor_bookings?${bookingQuery}`),
         adminCall(`/rest/v1/decision_nodes?${decisionQuery}`),
-        adminCall(`/rest/v1/booking_outcome_write_authorizations?${authorizationQuery}`),
+        bookingOutcomeAuthorizationCountReader({
+          bookingId: fixture.bookingId,
+          coupleId: fixture.coupleId,
+          actorProfileId: fixture.ownerId,
+        }),
       ]);
       const bookings = bookingResponse.body;
       const decisions = decisionResponse.body;
-      const authorizations = authorizationResponse.body;
       if (!Array.isArray(bookings) || bookings.length !== 1
-          || !Array.isArray(decisions) || !Array.isArray(authorizations)) {
+          || !Array.isArray(decisions)
+          || !Number.isSafeInteger(authorizationCount)
+          || authorizationCount < 0) {
         fail("BOOKING_OUTCOME_READ_INVALID", "Booking outcome state was not bounded");
       }
       const completedRows = decisions.filter((row) => row?.decision_type === "completed");
@@ -2127,7 +2194,7 @@ export function createSupabaseStagingTransport({
         completedDecisionCount: completedRows.length,
         consideringActive: considering.filter((row) => row?.superseded_at === null).length,
         consideringSuperseded: considering.filter((row) => typeof row?.superseded_at === "string").length,
-        authorizationCount: authorizations.length,
+        authorizationCount,
       });
     },
 

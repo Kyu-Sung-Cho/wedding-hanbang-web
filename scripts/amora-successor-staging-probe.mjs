@@ -17,6 +17,7 @@ import {
   AmoraSuccessorStagingProbeError,
   createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedBookingOutcomeAuthorizationCount,
   readHostedBookingOutcomeResidue,
   readHostedCriterionActionResidue,
   readHostedFirstUseActionResidue,
@@ -212,6 +213,12 @@ async function main() {
       anonKey: keys.anonKey,
       serviceRoleKey: keys.serviceRoleKey,
       bookingOutcomeResidueReader: (input) => readHostedBookingOutcomeResidue({
+        projectRef: config.projectRef,
+        productionProjectRef: config.productionProjectRef,
+        managementToken: config.managementToken,
+        ...input,
+      }),
+      bookingOutcomeAuthorizationCountReader: (input) => readHostedBookingOutcomeAuthorizationCount({
         projectRef: config.projectRef,
         productionProjectRef: config.productionProjectRef,
         managementToken: config.managementToken,
