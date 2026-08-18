@@ -1052,8 +1052,8 @@ test("the staging transport derives criterion action applications through canoni
     if (request.url.includes("/rest/v1/wedding_journeys?")) {
       return new Response(JSON.stringify([{ couple_id: coupleId, state_revision: 7 }]), { status: 200 });
     }
-    if (request.url.includes("/rest/v1/amora_privacy_context_epochs?")) {
-      return new Response(JSON.stringify([{ couple_id: coupleId, epoch: 11 }]), { status: 200 });
+    if (request.url.endsWith("/rest/v1/rpc/get_own_amora_privacy_epoch")) {
+      return new Response("11", { status: 200 });
     }
     if (request.url.endsWith("/rest/v1/rpc/propose_amora_couple_core_criterion_v1")) {
       return new Response(JSON.stringify({
@@ -1149,7 +1149,11 @@ test("the staging transport derives criterion action applications through canoni
     actionId: "act_criterion_probe",
   })).denied, true);
 
-  assert.ok(calls.every(({ init }) => init.headers.Authorization === "Bearer service-role-key-value"));
+  const privacyCall = calls.find(({ url }) => url.endsWith("/rest/v1/rpc/get_own_amora_privacy_epoch"));
+  assert.equal(privacyCall.init.headers.Authorization, `Bearer ${owner.accessToken}`);
+  assert.ok(calls
+    .filter((call) => call !== privacyCall)
+    .every(({ init }) => init.headers.Authorization === "Bearer service-role-key-value"));
   const sourceProposal = calls
     .filter(({ url, init }) => url.endsWith("/rest/v1/chat_messages") && init.method === "POST")
     .map(({ body }) => body)

@@ -794,6 +794,8 @@ export function createSupabaseStagingTransport({
         : null;
       if (
         !isUuid(owner?.id)
+        || typeof owner?.accessToken !== "string"
+        || owner.accessToken.length < 8
         || !isUuid(coupleId)
         || profile?.id !== owner.id
         || profile?.couple_id !== coupleId
@@ -1186,14 +1188,13 @@ export function createSupabaseStagingTransport({
         select: "couple_id,state_revision",
         couple_id: `eq.${coupleId}`,
       });
-      const privacyQuery = new URLSearchParams({
-        select: "couple_id,epoch",
-        couple_id: `eq.${coupleId}`,
-      });
       const [profileResponse, journeyResponse, privacyResponse] = await Promise.all([
         adminCall(`/rest/v1/profiles?${profileQuery}`),
         adminCall(`/rest/v1/wedding_journeys?${journeyQuery}`),
-        adminCall(`/rest/v1/amora_privacy_context_epochs?${privacyQuery}`),
+        userCall(owner, "/rest/v1/rpc/get_own_amora_privacy_epoch", {
+          method: "POST",
+          body: { p_couple_id: coupleId, p_visibility: "shared" },
+        }),
       ]);
       const profile = Array.isArray(profileResponse.body) && profileResponse.body.length === 1
         ? profileResponse.body[0]
@@ -1201,9 +1202,7 @@ export function createSupabaseStagingTransport({
       const journey = Array.isArray(journeyResponse.body) && journeyResponse.body.length === 1
         ? journeyResponse.body[0]
         : null;
-      const privacy = Array.isArray(privacyResponse.body) && privacyResponse.body.length === 1
-        ? privacyResponse.body[0]
-        : null;
+      const privacyEpoch = privacyResponse.body;
       if (
         profile?.id !== owner.id
         || profile?.couple_id !== coupleId
@@ -1211,9 +1210,8 @@ export function createSupabaseStagingTransport({
         || (journey?.couple_id !== undefined && journey.couple_id !== coupleId)
         || !Number.isSafeInteger(journey?.state_revision)
         || journey.state_revision < 0
-        || (privacy?.couple_id !== undefined && privacy.couple_id !== coupleId)
-        || !Number.isSafeInteger(privacy?.epoch)
-        || privacy.epoch < 1
+        || !Number.isSafeInteger(privacyEpoch)
+        || privacyEpoch < 1
       ) {
         fail("CRITERION_APPLICATION_CONTEXT_INVALID", "Criterion application context was not canonical");
       }
@@ -1436,7 +1434,7 @@ export function createSupabaseStagingTransport({
         journeyRevision: journey.state_revision,
         applicationRequestKey,
         attemptCount: applicationClaim.body.attempt_count,
-        expectedPrivacyEpoch: privacy.epoch,
+        expectedPrivacyEpoch: privacyEpoch,
         messageIds: Object.freeze([sourceUserId, sourceProposalId, confirmationId]),
       });
     },
