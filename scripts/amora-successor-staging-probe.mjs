@@ -19,6 +19,7 @@ import {
   loadSupabaseProjectApiKeys,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  runMediationPrivateDraftScenario,
   runNeutralPreparationSpaceScenario,
   runPreparationTopicMessageRefScenario,
   validateAmoraSuccessorStagingProbeConfig,
@@ -160,10 +161,23 @@ async function main() {
       }),
     }),
   });
+  const mediationPrivateDraft = await runMediationPrivateDraftScenario({
+    transport: createSupabaseStagingTransport({
+      projectRef: config.projectRef,
+      anonKey: keys.anonKey,
+      serviceRoleKey: keys.serviceRoleKey,
+      messageRefResidueReader: (input) => readHostedMessageRefResidue({
+        projectRef: config.projectRef,
+        productionProjectRef: config.productionProjectRef,
+        managementToken: config.managementToken,
+        ...input,
+      }),
+    }),
+  });
   const receipt = {
-    receiptVersion: 3,
+    receiptVersion: 4,
     kind: "amora-successor-hosted-staging-probe",
-    scope: "neutral-space-message-refs-and-preparation-notes",
+    scope: "neutral-space-message-refs-notes-and-mediation",
     projectRef: config.projectRef,
     gitCommit,
     migrationLedger: ledger,
@@ -172,6 +186,7 @@ async function main() {
     result: {
       neutralPreparationSpace,
       preparationTopicMessageRefs,
+      mediationPrivateDraft,
     },
   };
   const text = canonicalReceiptText(receipt);
@@ -188,10 +203,12 @@ async function main() {
     checks: {
       neutralPreparationSpace: receipt.result.neutralPreparationSpace.checks,
       preparationTopicMessageRefs: receipt.result.preparationTopicMessageRefs.checks,
+      mediationPrivateDraft: receipt.result.mediationPrivateDraft.checks,
     },
     residue: {
       neutralPreparationSpace: receipt.result.neutralPreparationSpace.residue,
       preparationTopicMessageRefs: receipt.result.preparationTopicMessageRefs.residue,
+      mediationPrivateDraft: receipt.result.mediationPrivateDraft.residue,
     },
     receiptPath: config.receiptOut,
     receiptSha256,

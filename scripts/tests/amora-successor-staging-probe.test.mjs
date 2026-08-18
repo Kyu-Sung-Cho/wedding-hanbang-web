@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { URL, fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ import {
   loadSupabaseProjectApiKeys,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  runMediationPrivateDraftScenario,
   runNeutralPreparationSpaceScenario,
   runPreparationTopicMessageRefScenario,
   validateAmoraSuccessorStagingProbeConfig,
@@ -463,6 +465,95 @@ test("three synthetic users prove saved conversation sharing, private isolation,
   ]) assert.equal(serialized.includes(secret), false);
 });
 
+test("two synthetic users prove mediation stays private until the requester explicitly shares one canonical card", async () => {
+  const owner = { id: "10000000-0000-4000-8000-000000000041", accessToken: "owner-token" };
+  const partner = { id: "10000000-0000-4000-8000-000000000042", accessToken: "partner-token" };
+  const coupleId = "20000000-0000-4000-8000-000000000041";
+  const draftId = "30000000-0000-4000-8000-000000000041";
+  const sharedId = "40000000-0000-4000-8000-000000000041";
+  const directId = "50000000-0000-4000-8000-000000000041";
+  const users = [owner, partner];
+  let userIndex = 0;
+  let shared = false;
+  const deletedUsers = [];
+  const transport = {
+    async createSyntheticUser() { return users[userIndex++]; },
+    async createNeutralPreparationSpace() {
+      return {
+        success: true,
+        created: true,
+        couple_id: coupleId,
+        invite_code: "WH-MEDIATION001",
+        member_model_version: 2,
+      };
+    },
+    async joinNeutralPreparationSpaceServer() {
+      return { success: true, joined: true, couple_id: coupleId, member_model_version: 2 };
+    },
+    async createMediationDraftFixture() {
+      return { draftId, privateVisibility: "bride_private" };
+    },
+    async attemptDirectSharedMediation() { return { denied: true, messageId: directId }; },
+    async callShareMediationAsAuthenticated() { return { denied: true }; },
+    async shareMediationAsService({ userId }) {
+      if (userId === partner.id) return { ok: false, status: 403, body: {} };
+      const reused = shared;
+      shared = true;
+      return {
+        ok: true,
+        status: 200,
+        body: { shared_message_id: sharedId, reused, acceptance: null },
+      };
+    },
+    async readMediationMessageAsUser(user, messageId) {
+      if (messageId === draftId && user.id !== owner.id) return [];
+      if (messageId === sharedId && !shared) return [];
+      return [{
+        id: messageId,
+        visibility: messageId === draftId ? "bride_private" : "shared",
+        content: messageId === draftId
+          ? "private outer prose"
+          : "요청하신 분이 초안을 읽고 이 카드를 보냈어요.",
+        metadata: messageId === draftId
+          ? { mediation_draft_state: shared ? "sent" : "draft", mediation_shared_message_id: shared ? sharedId : null }
+          : { mediation_source_draft_id: draftId, mediation_share_origin: "requester_sent" },
+      }];
+    },
+    async deleteMediationFixtures() {},
+    async resetMembership() {},
+    async deleteSyntheticUser(userId) { deletedUsers.push(userId); },
+    async readMessageRefResidue() {
+      return { profiles: 0, couples: 0, chatMessages: 0, messageRefs: 0 };
+    },
+  };
+
+  const result = await runMediationPrivateDraftScenario({ transport });
+
+  assert.deepEqual(result.checks, {
+    ownerSpace: true,
+    partnerJoin: true,
+    privateBeforeShare: true,
+    directSharedInsertDenied: true,
+    authenticatedShareDenied: true,
+    wrongActorShareDenied: true,
+    canonicalShare: true,
+    exactReplay: true,
+    sharedVisibleToCouple: true,
+    cleanup: true,
+  });
+  assert.deepEqual(result.residue, {
+    profiles: 0,
+    couples: 0,
+    chatMessages: 0,
+    messageRefs: 0,
+  });
+  assert.deepEqual(deletedUsers.sort(), users.map(({ id }) => id).sort());
+  assert.equal(JSON.stringify(result).includes(owner.id), false);
+  assert.equal(JSON.stringify(result).includes(partner.id), false);
+  assert.equal(JSON.stringify(result).includes(draftId), false);
+  assert.equal(JSON.stringify(result).includes(sharedId), false);
+});
+
 test("the staging transport obtains both legacy API roles without exposing unrelated keys", async () => {
   const requests = [];
   const keys = await loadSupabaseProjectApiKeys({
@@ -647,6 +738,127 @@ test("the staging transport binds message-ref fixtures and RPCs to service versu
   });
 });
 
+test("the staging transport binds mediation drafts, sharing, reads, and cleanup to exact credentials", async () => {
+  const owner = {
+    id: "10000000-0000-4000-8000-000000000051",
+    accessToken: "mediation-owner-token",
+  };
+  const partnerId = "10000000-0000-4000-8000-000000000052";
+  const coupleId = "20000000-0000-4000-8000-000000000051";
+  const sharedId = "40000000-0000-4000-8000-000000000051";
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    const request = { url: String(url), init };
+    calls.push(request);
+    if (request.url.includes("/rest/v1/profiles?")) {
+      return new Response(JSON.stringify([{
+        id: owner.id,
+        couple_id: coupleId,
+        role: "bride",
+      }]), { status: 200 });
+    }
+    if (request.url.includes("/rest/v1/couples?")) {
+      return new Response(JSON.stringify([{
+        id: coupleId,
+        bride_id: owner.id,
+        groom_id: partnerId,
+      }]), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/chat_messages") && init.method === "POST") {
+      const body = JSON.parse(init.body);
+      if (body.visibility === "shared") {
+        return new Response(JSON.stringify({ code: "23514" }), { status: 400 });
+      }
+      return new Response(null, { status: 201 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/share_amora_mediation_draft")) {
+      if (init.headers.Authorization === `Bearer ${owner.accessToken}`) {
+        return new Response(JSON.stringify({ code: "42501" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({
+        shared_message_id: sharedId,
+        reused: false,
+        acceptance: null,
+      }), { status: 200 });
+    }
+    if (request.url.includes("/rest/v1/chat_messages?") && init.method === "GET") {
+      return new Response("[]", { status: 200 });
+    }
+    if (request.url.includes("/rest/v1/chat_messages?") && init.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+    return new Response("[]", { status: 200 });
+  };
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl,
+    runNonce: "mediation-contract",
+  });
+
+  const fixture = await transport.createMediationDraftFixture({ owner, coupleId });
+  assert.equal(fixture.privateVisibility, "bride_private");
+  const direct = await transport.attemptDirectSharedMediation({ coupleId });
+  assert.equal(direct.denied, true);
+  assert.deepEqual(await transport.callShareMediationAsAuthenticated(owner, {
+    draftId: fixture.draftId,
+    userId: owner.id,
+  }), { denied: true });
+  const shared = await transport.shareMediationAsService({
+    draftId: fixture.draftId,
+    userId: owner.id,
+    accept: false,
+  });
+  assert.equal(shared.body.shared_message_id, sharedId);
+  assert.deepEqual(await transport.readMediationMessageAsUser(owner, sharedId), []);
+  await transport.deleteMediationFixtures([fixture.draftId, direct.messageId, sharedId]);
+
+  const fixtureInsert = calls.find(({ url, init }) => (
+    url.endsWith("/rest/v1/chat_messages")
+      && init.method === "POST"
+      && JSON.parse(init.body).visibility === "bride_private"
+  ));
+  assert.ok(fixtureInsert);
+  assert.equal(fixtureInsert.init.headers.Authorization, "Bearer service-role-key-value");
+  const draft = JSON.parse(fixtureInsert.init.body);
+  assert.equal(draft.sender_id, null);
+  assert.equal(draft.sender_type, "ai");
+  assert.equal(draft.role, "assistant");
+  assert.deepEqual(Object.keys(draft.metadata.mediation).sort(), [
+    "data", "empathy", "evidenceScope", "origin", "resolution", "schemaVersion", "translation",
+  ].sort());
+  assert.equal(
+    draft.metadata.mediation_draft_roster_fingerprint,
+    createHash("md5").update(`${owner.id}:${partnerId}`, "utf8").digest("hex"),
+  );
+
+  const directInsert = calls.find(({ url, init }) => (
+    url.endsWith("/rest/v1/chat_messages")
+      && init.method === "POST"
+      && JSON.parse(init.body).visibility === "shared"
+  ));
+  assert.ok(directInsert);
+  assert.equal(directInsert.init.headers.Authorization, "Bearer service-role-key-value");
+  assert.equal(JSON.parse(directInsert.init.body).metadata.mediation_share_origin, "requester_sent");
+
+  const shareCalls = calls.filter(({ url }) => (
+    url.endsWith("/rest/v1/rpc/share_amora_mediation_draft")
+  ));
+  assert.equal(shareCalls.length, 2);
+  assert.equal(shareCalls[0].init.headers.Authorization, `Bearer ${owner.accessToken}`);
+  assert.equal(shareCalls[1].init.headers.Authorization, "Bearer service-role-key-value");
+  assert.deepEqual(JSON.parse(shareCalls[1].init.body), {
+    p_draft_message_id: fixture.draftId,
+    p_user_id: owner.id,
+    p_accept: false,
+  });
+  const readCall = calls.find(({ url, init }) => (
+    url.includes("/rest/v1/chat_messages?") && init.method === "GET"
+  ));
+  assert.equal(readCall.init.headers.Authorization, `Bearer ${owner.accessToken}`);
+});
+
 test("the hosted probe binds its receipt to the exact applied migration ledger", async () => {
   const ledger = await readHostedMigrationLedger({
     projectRef: STAGING_REF,
@@ -714,12 +926,14 @@ test("the fixed read-only residue query counts protected message refs without ex
   );
 });
 
-test("the hosted receipt runs neutral membership, saved-message, and preparation-notes privacy scenarios", () => {
+test("the hosted receipt runs membership, saved-message, notes, and mediation privacy scenarios", () => {
   assert.match(cliSource, /runNeutralPreparationSpaceScenario/);
   assert.match(cliSource, /runPreparationTopicMessageRefScenario/);
+  assert.match(cliSource, /runMediationPrivateDraftScenario/);
   assert.match(cliSource, /readHostedMessageRefResidue/);
-  assert.match(cliSource, /receiptVersion:\s*3/);
-  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-and-preparation-notes"/);
+  assert.match(cliSource, /receiptVersion:\s*4/);
+  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-and-mediation"/);
   assert.match(cliSource, /neutralPreparationSpace/);
   assert.match(cliSource, /preparationTopicMessageRefs/);
+  assert.match(cliSource, /mediationPrivateDraft/);
 });

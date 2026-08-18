@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 
 const PROJECT_REF = /^[a-z0-9]{20}$/;
@@ -407,6 +407,191 @@ export function createSupabaseStagingTransport({
         },
       );
       return response.body;
+    },
+
+    async createMediationDraftFixture({ owner, coupleId }) {
+      if (!isUuid(owner?.id) || !isUuid(coupleId)) {
+        fail("MEDIATION_FIXTURE_SCOPE_INVALID", "Mediation fixture scope was not canonical");
+      }
+      const profileQuery = new URLSearchParams({
+        select: "id,couple_id,role",
+        id: `eq.${owner.id}`,
+        couple_id: `eq.${coupleId}`,
+      });
+      const coupleQuery = new URLSearchParams({
+        select: "id,bride_id,groom_id",
+        id: `eq.${coupleId}`,
+      });
+      const [profileResponse, coupleResponse] = await Promise.all([
+        adminCall(`/rest/v1/profiles?${profileQuery}`),
+        adminCall(`/rest/v1/couples?${coupleQuery}`),
+      ]);
+      const profile = Array.isArray(profileResponse.body) && profileResponse.body.length === 1
+        ? profileResponse.body[0]
+        : null;
+      const couple = Array.isArray(coupleResponse.body) && coupleResponse.body.length === 1
+        ? coupleResponse.body[0]
+        : null;
+      const expectedRole = couple?.bride_id === owner.id && couple?.groom_id !== owner.id
+        ? "bride"
+        : couple?.groom_id === owner.id && couple?.bride_id !== owner.id
+          ? "groom"
+          : null;
+      if (
+        profile?.id !== owner.id
+        || profile?.couple_id !== coupleId
+        || profile?.role !== expectedRole
+        || couple?.id !== coupleId
+        || (couple.bride_id !== null && !isUuid(couple.bride_id))
+        || (couple.groom_id !== null && !isUuid(couple.groom_id))
+      ) {
+        fail("MEDIATION_FIXTURE_OWNER_INVALID", "Mediation fixture owner was not roster-bound");
+      }
+
+      const draftId = randomUUID();
+      const privateVisibility = `${expectedRole}_private`;
+      const rosterFingerprint = createHash("md5")
+        .update(`${couple.bride_id ?? "-"}:${couple.groom_id ?? "-"}`, "utf8")
+        .digest("hex");
+      const inserted = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: draftId,
+          couple_id: coupleId,
+          sender_id: null,
+          sender_type: "ai",
+          role: "assistant",
+          content: "private outer prose",
+          metadata: {
+            question_scope: "W1_wedding_adjacent",
+            memory_eligible: false,
+            mediation_draft_state: "draft",
+            mediation_draft_sendable: true,
+            mediation_draft_roster_fingerprint: rosterFingerprint,
+            mediation: {
+              empathy: "요청한 분의 걱정을 먼저 정리했어요.",
+              translation: "상대에게 전할 핵심을 비난 없이 풀었어요.",
+              data: "이 내용은 요청한 분이 제공한 설명만 바탕으로 해요.",
+              resolution: "서로 가능한 선택을 차분히 확인해요.",
+              origin: "user_requested",
+              evidenceScope: "requester_summary_only",
+              schemaVersion: 2,
+            },
+          },
+          visibility: privateVisibility,
+        },
+      });
+      if (inserted.status !== 201) {
+        fail("MEDIATION_FIXTURE_INSERT_INVALID", "Private mediation fixture was not inserted");
+      }
+      return Object.freeze({ draftId, privateVisibility });
+    },
+
+    async attemptDirectSharedMediation({ coupleId }) {
+      if (!isUuid(coupleId)) {
+        fail("MEDIATION_DIRECT_SCOPE_INVALID", "Direct mediation scope was not canonical");
+      }
+      const messageId = randomUUID();
+      const response = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: messageId,
+          couple_id: coupleId,
+          sender_id: null,
+          sender_type: "ai",
+          role: "assistant",
+          content: "요청하신 분이 초안을 읽고 이 카드를 보냈어요.",
+          metadata: {
+            mediation: {
+              empathy: "근거 없는 직접 공유 시도예요.",
+              translation: "비공개 초안 연결이 없어요.",
+              data: "경계 검증용 합성 행이에요.",
+              resolution: "이 행은 저장되면 안 돼요.",
+              origin: "user_requested",
+              evidenceScope: "requester_summary_only",
+              schemaVersion: 2,
+            },
+            mediation_share_origin: "requester_sent",
+            question_scope: "W1_wedding_adjacent",
+            memory_eligible: false,
+          },
+          visibility: "shared",
+        },
+        allowDenied: true,
+      });
+      return Object.freeze({ denied: !response.ok, messageId });
+    },
+
+    async callShareMediationAsAuthenticated(user, { draftId, userId }) {
+      if (!isUuid(draftId) || !isUuid(userId) || !isUuid(user?.id)) {
+        fail("MEDIATION_SHARE_INPUT_INVALID", "Authenticated mediation share input was not canonical");
+      }
+      const response = await userCall(
+        user,
+        "/rest/v1/rpc/share_amora_mediation_draft",
+        {
+          method: "POST",
+          body: {
+            p_draft_message_id: draftId,
+            p_user_id: userId,
+            p_accept: false,
+          },
+          allowDenied: true,
+        },
+      );
+      return Object.freeze({ denied: !response.ok });
+    },
+
+    async shareMediationAsService({ draftId, userId, accept }) {
+      if (!isUuid(draftId) || !isUuid(userId) || typeof accept !== "boolean") {
+        fail("MEDIATION_SHARE_INPUT_INVALID", "Service mediation share input was not canonical");
+      }
+      return adminCall(
+        "/rest/v1/rpc/share_amora_mediation_draft",
+        {
+          method: "POST",
+          body: {
+            p_draft_message_id: draftId,
+            p_user_id: userId,
+            p_accept: accept,
+          },
+          allowDenied: true,
+        },
+      );
+    },
+
+    async readMediationMessageAsUser(user, messageId) {
+      if (!isUuid(user?.id) || !isUuid(messageId)) {
+        fail("MEDIATION_READ_INPUT_INVALID", "Mediation message read input was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "id,visibility,content,metadata",
+        id: `eq.${messageId}`,
+      });
+      const response = await userCall(user, `/rest/v1/chat_messages?${query}`);
+      if (!Array.isArray(response.body) || response.body.length > 1) {
+        fail("MEDIATION_READ_INVALID", "Mediation message read was not bounded");
+      }
+      return response.body;
+    },
+
+    async deleteMediationFixtures(messageIds) {
+      if (
+        !Array.isArray(messageIds)
+        || messageIds.length < 1
+        || messageIds.length > 3
+        || !messageIds.every(isUuid)
+        || new Set(messageIds).size !== messageIds.length
+      ) {
+        fail("MEDIATION_FIXTURE_DELETE_INVALID", "Mediation fixture deletion was not exact");
+      }
+      const query = new URLSearchParams({ id: `in.(${messageIds.join(",")})` });
+      const response = await adminCall(`/rest/v1/chat_messages?${query}`, {
+        method: "DELETE",
+      });
+      if (response.status !== 204) {
+        fail("MEDIATION_FIXTURE_DELETE_FAILED", "Mediation fixture deletion failed");
+      }
     },
 
     async createPreparationTopicMessageFixtures({ owner, coupleId }) {
@@ -1420,6 +1605,210 @@ export async function runPreparationTopicMessageRefScenario({ transport }) {
 
   return Object.freeze({
     scenario: "preparation_topic_message_refs_three_account_v1",
+    syntheticUserCount: users.length,
+    checks: Object.freeze({ ...checks }),
+    residue: Object.freeze({ ...residue }),
+  });
+}
+
+function exactMediationMessage(rows, expected) {
+  if (!Array.isArray(rows) || rows.length !== 1) return false;
+  const row = rows[0];
+  if (row?.id !== expected.id
+      || row?.visibility !== expected.visibility
+      || row?.content !== expected.content
+      || row?.metadata === null
+      || typeof row?.metadata !== "object"
+      || Array.isArray(row.metadata)) return false;
+  if (expected.visibility === "shared") {
+    return row.metadata.mediation_source_draft_id === expected.draftId
+      && row.metadata.mediation_share_origin === "requester_sent";
+  }
+  return row.metadata.mediation_draft_state === expected.draftState
+    && (row.metadata.mediation_shared_message_id ?? null) === expected.sharedId;
+}
+
+export async function runMediationPrivateDraftScenario({ transport }) {
+  if (!transport || typeof transport !== "object") {
+    fail("TRANSPORT_INVALID", "A hosted staging transport is required");
+  }
+  const checks = {
+    ownerSpace: false,
+    partnerJoin: false,
+    privateBeforeShare: false,
+    directSharedInsertDenied: false,
+    authenticatedShareDenied: false,
+    wrongActorShareDenied: false,
+    canonicalShare: false,
+    exactReplay: false,
+    sharedVisibleToCouple: false,
+    cleanup: false,
+  };
+  const users = [];
+  const coupleIds = [];
+  const messageIds = [];
+  let primaryError = null;
+
+  try {
+    const owner = await transport.createSyntheticUser("owner");
+    const partner = await transport.createSyntheticUser("partner");
+    users.push(owner, partner);
+    requireScenario(
+      users.every((user) => isUuid(user?.id) && typeof user?.accessToken === "string")
+        && owner.id !== partner.id,
+      "MEDIATION_SYNTHETIC_USERS_INVALID",
+      "Mediation probe users were not canonical",
+    );
+    const ownerSpace = await transport.createNeutralPreparationSpace(owner);
+    checks.ownerSpace = isCreatedPreparationSpace(ownerSpace);
+    requireScenario(checks.ownerSpace, "MEDIATION_OWNER_SPACE_INVALID", "Owner preparation space was not canonical");
+    coupleIds.push(ownerSpace.couple_id);
+    const joined = await transport.joinNeutralPreparationSpaceServer(
+      partner.id,
+      ownerSpace.invite_code,
+    );
+    checks.partnerJoin = isJoinedPreparationSpace(joined, ownerSpace.couple_id);
+    requireScenario(checks.partnerJoin, "MEDIATION_PARTNER_JOIN_INVALID", "Partner did not join the owner space canonically");
+
+    const fixture = await transport.createMediationDraftFixture({
+      owner,
+      coupleId: ownerSpace.couple_id,
+    });
+    requireScenario(
+      isUuid(fixture?.draftId)
+        && ["bride_private", "groom_private"].includes(fixture?.privateVisibility),
+      "MEDIATION_DRAFT_FIXTURE_INVALID",
+      "Private mediation draft fixture was not canonical",
+    );
+    messageIds.push(fixture.draftId);
+    const [ownerDraftBefore, partnerDraftBefore] = await Promise.all([
+      transport.readMediationMessageAsUser(owner, fixture.draftId),
+      transport.readMediationMessageAsUser(partner, fixture.draftId),
+    ]);
+    checks.privateBeforeShare = exactMediationMessage(ownerDraftBefore, {
+      id: fixture.draftId,
+      visibility: fixture.privateVisibility,
+      content: "private outer prose",
+      draftState: "draft",
+      sharedId: null,
+    }) && Array.isArray(partnerDraftBefore) && partnerDraftBefore.length === 0;
+    requireScenario(checks.privateBeforeShare, "MEDIATION_PRIVATE_DRAFT_LEAK", "Private mediation draft was not owner-only before share");
+
+    const direct = await transport.attemptDirectSharedMediation({
+      coupleId: ownerSpace.couple_id,
+    });
+    requireScenario(isUuid(direct?.messageId), "MEDIATION_DIRECT_ATTEMPT_INVALID", "Direct mediation attempt did not expose a bounded synthetic id");
+    messageIds.push(direct.messageId);
+    checks.directSharedInsertDenied = direct.denied === true;
+    requireScenario(checks.directSharedInsertDenied, "MEDIATION_DIRECT_SHARED_INSERT_ALLOWED", "Direct shared mediation insert bypassed the private-draft boundary");
+
+    const authenticatedShare = await transport.callShareMediationAsAuthenticated(owner, {
+      draftId: fixture.draftId,
+      userId: owner.id,
+    });
+    checks.authenticatedShareDenied = authenticatedShare?.denied === true;
+    requireScenario(checks.authenticatedShareDenied, "MEDIATION_SHARE_RPC_ACL_BYPASS", "Authenticated client reached the service-only mediation share RPC");
+
+    const wrongActor = await transport.shareMediationAsService({
+      draftId: fixture.draftId,
+      userId: partner.id,
+      accept: false,
+    });
+    checks.wrongActorShareDenied = wrongActor?.ok === false;
+    requireScenario(checks.wrongActorShareDenied, "MEDIATION_WRONG_ACTOR_SHARE_ALLOWED", "Partner shared the requester's private draft");
+
+    const shared = await transport.shareMediationAsService({
+      draftId: fixture.draftId,
+      userId: owner.id,
+      accept: false,
+    });
+    const sharedId = shared?.body?.shared_message_id ?? null;
+    checks.canonicalShare = shared?.ok === true
+      && shared?.status === 200
+      && isUuid(sharedId)
+      && shared.body?.reused === false
+      && shared.body?.acceptance === null;
+    requireScenario(checks.canonicalShare, "MEDIATION_CANONICAL_SHARE_INVALID", "Requester share did not create one canonical shared card");
+    messageIds.push(sharedId);
+
+    const replay = await transport.shareMediationAsService({
+      draftId: fixture.draftId,
+      userId: owner.id,
+      accept: false,
+    });
+    checks.exactReplay = replay?.ok === true
+      && replay?.status === 200
+      && replay?.body?.shared_message_id === sharedId
+      && replay?.body?.reused === true;
+    requireScenario(checks.exactReplay, "MEDIATION_SHARE_REPLAY_INVALID", "Exact mediation retry did not reuse the same shared card");
+
+    const [ownerShared, partnerShared, ownerDraftAfter] = await Promise.all([
+      transport.readMediationMessageAsUser(owner, sharedId),
+      transport.readMediationMessageAsUser(partner, sharedId),
+      transport.readMediationMessageAsUser(owner, fixture.draftId),
+    ]);
+    const sharedExpectation = {
+      id: sharedId,
+      visibility: "shared",
+      content: "요청하신 분이 초안을 읽고 이 카드를 보냈어요.",
+      draftId: fixture.draftId,
+    };
+    checks.sharedVisibleToCouple = exactMediationMessage(ownerShared, sharedExpectation)
+      && exactMediationMessage(partnerShared, sharedExpectation)
+      && exactMediationMessage(ownerDraftAfter, {
+        id: fixture.draftId,
+        visibility: fixture.privateVisibility,
+        content: "private outer prose",
+        draftState: "sent",
+        sharedId,
+      });
+    requireScenario(checks.sharedVisibleToCouple, "MEDIATION_SHARED_CARD_INVALID", "Shared mediation card or sent-draft binding was not canonical");
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    if (messageIds.length > 0) {
+      try {
+        await transport.deleteMediationFixtures(messageIds);
+      } catch (error) {
+        primaryError ??= error;
+      }
+    }
+    for (const user of [...users].reverse()) {
+      try { await transport.resetMembership(user); } catch { /* Auth deletion is final. */ }
+    }
+    for (const user of [...users].reverse()) {
+      try { await transport.deleteSyntheticUser(user.id); } catch (error) { primaryError ??= error; }
+    }
+  }
+
+  let residue = {
+    profiles: Number.NaN,
+    couples: Number.NaN,
+    chatMessages: Number.NaN,
+    messageRefs: Number.NaN,
+  };
+  try {
+    residue = await transport.readMessageRefResidue({
+      userIds: users.map(({ id }) => id),
+      coupleIds,
+      messageIds,
+    });
+    checks.cleanup = residue?.profiles === 0
+      && residue?.couples === 0
+      && residue?.chatMessages === 0
+      && residue?.messageRefs === 0;
+  } catch (error) {
+    primaryError ??= error;
+  }
+  if (!checks.cleanup) {
+    primaryError ??= new AmoraSuccessorStagingProbeError(
+      "MEDIATION_SYNTHETIC_RESIDUE_PRESENT",
+      "Mediation staging probe left synthetic rows behind",
+    );
+  }
+  if (primaryError) throw primaryError;
+  return Object.freeze({
+    scenario: "mediation_private_draft_two_account_v1",
     syntheticUserCount: users.length,
     checks: Object.freeze({ ...checks }),
     residue: Object.freeze({ ...residue }),
