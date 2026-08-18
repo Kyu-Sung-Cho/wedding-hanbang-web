@@ -140,6 +140,7 @@ export function auditAmoraPreparationCoverage({ checklistTopics }) {
     return [Object.freeze({
       topicKey: topic.key,
       label: topic.label,
+      applicability: "explicit_not_applicable_supported",
       axisKeys: Object.freeze([...CHECKLIST_TOPIC_AXES[topic.key]]),
     })];
   });

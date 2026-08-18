@@ -23,6 +23,7 @@ export type AmoraPreparationCoverageSurfaceOwner =
 export interface AmoraPreparationCoverageChecklistTopic {
   topicKey: string;
   label: string;
+  applicability: "explicit_not_applicable_supported";
   axisKeys: readonly AmoraPreparationJourneyAxisKey[];
 }
 

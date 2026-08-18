@@ -52,6 +52,11 @@ describe("Amora preparation coverage audit", () => {
       CURRENT_CHECKLIST_TOPIC_KEYS,
     );
     expect(result.connectedChecklistTopics).toHaveLength(19);
+    expect(
+      result.connectedChecklistTopics.every(
+        (topic) => topic.applicability === "explicit_not_applicable_supported",
+      ),
+    ).toBe(true);
     expect(result.connectedChecklistTopics.some((topic) => topic.topicKey === "reserve")).toBe(false);
     expect(result.axes.map((axis) => axis.axisKey)).toEqual(FULL_JOURNEY_AXIS_KEYS);
     expect(result.gaps.map((gap) => ({
