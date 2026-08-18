@@ -235,15 +235,29 @@ export function parseUnitName(
   };
 }
 
+/**
+ * The extension is captured from the real file name, never re-derived from a
+ * portable path later. Windows and POSIX disagree about path separators, and
+ * this record has to read the same on both.
+ */
+interface UnsupportedFile {
+  absolutePath: string;
+  ext: string;
+}
+
 interface CollectedFiles {
   supported: string[];
-  unsupported: string[];
+  unsupported: UnsupportedFile[];
+}
+
+function sourceExtensionOf(fileName: string): string {
+  return path.extname(fileName).slice(1).toLocaleLowerCase("en-US");
 }
 
 async function collectSupportedFiles(targetPath: string): Promise<CollectedFiles> {
   const entries = await readdir(targetPath, { withFileTypes: true });
   const supported: string[] = [];
-  const unsupported: string[] = [];
+  const unsupported: UnsupportedFile[] = [];
   for (const entry of entries) {
     const entryPath = path.join(targetPath, entry.name);
     if (entry.isDirectory()) {
@@ -253,9 +267,11 @@ async function collectSupportedFiles(targetPath: string): Promise<CollectedFiles
       continue;
     }
     if (!entry.isFile()) continue;
-    const extension = path.extname(entry.name).slice(1).toLocaleLowerCase("en-US");
+    const extension = sourceExtensionOf(entry.name);
     if (supportedExtensions.has(extension)) supported.push(entryPath);
-    else if (!isOperatingSystemMetadataFile(entry.name)) unsupported.push(entryPath);
+    else if (!isOperatingSystemMetadataFile(entry.name)) {
+      unsupported.push({ absolutePath: entryPath, ext: extension });
+    }
   }
   const byPortablePath = (left: string, right: string): number => deterministicTextCompare(
     toPortableRelativePath(targetPath, left),
@@ -263,7 +279,7 @@ async function collectSupportedFiles(targetPath: string): Promise<CollectedFiles
   );
   return {
     supported: supported.sort(byPortablePath),
-    unsupported: unsupported.sort(byPortablePath),
+    unsupported: unsupported.sort((left, right) => byPortablePath(left.absolutePath, right.absolutePath)),
   };
 }
 
@@ -308,7 +324,7 @@ async function scanKindRoot(
     const regionPath = path.join(kindRoot, regionEntry.name);
     const entries = await readdir(regionPath, { withFileTypes: true });
     const groupedFilePaths = new Map<string, string[]>();
-    const unsupportedFilePaths = new Map<string, string[]>();
+    const unsupportedFilePaths = new Map<string, UnsupportedFile[]>();
     const candidates: Array<{ name: string; isDirectory(): boolean }> = [];
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -316,7 +332,7 @@ async function scanKindRoot(
         continue;
       }
       if (!entry.isFile()) continue;
-      const extension = path.extname(entry.name).slice(1).toLocaleLowerCase("en-US");
+      const extension = sourceExtensionOf(entry.name);
       if (!supportedExtensions.has(extension)) {
         // Group by stem like convertible files do: `업체.csv` next to
         // `업체.xlsx` belongs to that vendor, while a lone `업체.csv` is an
@@ -325,9 +341,12 @@ async function scanKindRoot(
           const unsupportedStem = path.basename(entry.name, path.extname(entry.name));
           const unsupportedKey = unsupportedStem.normalize("NFKC").toLocaleLowerCase("ko-KR");
           const existingUnsupported = unsupportedFilePaths.get(unsupportedKey);
-          const unsupportedPath = path.join(regionPath, entry.name);
-          if (existingUnsupported) existingUnsupported.push(unsupportedPath);
-          else unsupportedFilePaths.set(unsupportedKey, [unsupportedPath]);
+          const unsupportedFile = {
+            absolutePath: path.join(regionPath, entry.name),
+            ext: extension,
+          };
+          if (existingUnsupported) existingUnsupported.push(unsupportedFile);
+          else unsupportedFilePaths.set(unsupportedKey, [unsupportedFile]);
         }
         continue;
       }
@@ -353,18 +372,15 @@ async function scanKindRoot(
         };
       if (!candidate.isDirectory()) unsupportedFilePaths.delete(groupKey);
       const sourcePaths = collected.supported;
-      const unsupportedPaths = collected.unsupported.map(
-        (unsupportedPath) => toPortableRelativePath(rootDir, unsupportedPath),
-      );
+      const unsupportedFiles = collected.unsupported.map((unsupported) => ({
+        path: toPortableRelativePath(rootDir, unsupported.absolutePath),
+        ext: unsupported.ext,
+      }));
       if (sourcePaths.length === 0) {
         // The whole vendor folder is unreadable. It still has to stay on the
         // record; otherwise it exists only in the download folder.
-        for (const unsupportedPath of unsupportedPaths) {
-          skipped.push({
-            path: unsupportedPath,
-            ext: path.extname(unsupportedPath).slice(1).toLocaleLowerCase("en-US"),
-            unit_id: null,
-          });
+        for (const unsupported of unsupportedFiles) {
+          skipped.push({ ...unsupported, unit_id: null });
         }
         continue;
       }
@@ -387,13 +403,9 @@ async function scanKindRoot(
         notices.push("unknown_region: unsupported first-level region directory; manual mapping is required before conversion.");
       }
       const unitId = sha256Text(unitRelativePath);
-      for (const unsupportedPath of unsupportedPaths) {
-        skipped.push({
-          path: unsupportedPath,
-          ext: path.extname(unsupportedPath).slice(1).toLocaleLowerCase("en-US"),
-          unit_id: unitId,
-        });
-        notices.push(`${SKIPPED_SOURCE_NOTICE_PREFIX} ${unsupportedPath}`);
+      for (const unsupported of unsupportedFiles) {
+        skipped.push({ ...unsupported, unit_id: unitId });
+        notices.push(`${SKIPPED_SOURCE_NOTICE_PREFIX} ${unsupported.path}`);
       }
       units.push({
         unit_id: unitId,
@@ -407,11 +419,11 @@ async function scanKindRoot(
     }
     // Whatever no unit claimed is a vendor that exists only in the download
     // folder. It gets no unit, so the manifest entry is its only record.
-    for (const unclaimedPaths of unsupportedFilePaths.values()) {
-      for (const unclaimedPath of unclaimedPaths) {
+    for (const unclaimedFiles of unsupportedFilePaths.values()) {
+      for (const unclaimed of unclaimedFiles) {
         skipped.push({
-          path: toPortableRelativePath(rootDir, unclaimedPath),
-          ext: path.extname(unclaimedPath).slice(1).toLocaleLowerCase("en-US"),
+          path: toPortableRelativePath(rootDir, unclaimed.absolutePath),
+          ext: unclaimed.ext,
           unit_id: null,
         });
       }
@@ -486,7 +498,24 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
     .sort((left, right) => deterministicTextCompare(left.path, right.path));
   markDuplicateCompleteSourceSets(scannedUnits);
   if (scannedUnits.length === 0) {
-    throw new Error("No supported source files were found. Check the raw root and its agency/hall directories.");
+    // This is the one path that never reaches the manifest, so the message has
+    // to carry the evidence itself. "폴더가 비었나?" and "형식이 전부 CSV인가?"
+    // are different problems and the operator cannot tell them apart otherwise.
+    const seen = skippedSources.reduce<Record<string, number>>((counts, source) => {
+      counts[source.ext || "(확장자 없음)"] = (counts[source.ext || "(확장자 없음)"] ?? 0) + 1;
+      return counts;
+    }, {});
+    const breakdown = Object.entries(seen)
+      .sort(([left], [right]) => deterministicTextCompare(left, right))
+      .map(([extension, count]) => `${extension}=${count}`)
+      .join(", ");
+    throw new Error(
+      skippedSources.length === 0
+        ? "No supported source files were found. Check the raw root and its agency/hall directories."
+        : `No supported source files were found, but ${skippedSources.length} unsupported file(s) were seen (${breakdown}). `
+          + `지원 형식은 ${SUPPORTED_SOURCE_EXTENSIONS.join(", ")}입니다. `
+          + "해당 파일을 XLSX 또는 PDF로 저장한 뒤 scan을 다시 실행하세요.",
+    );
   }
 
   let existingManifest: IngestManifest | null = null;

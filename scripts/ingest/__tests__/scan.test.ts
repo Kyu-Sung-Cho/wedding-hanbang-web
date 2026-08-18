@@ -655,6 +655,35 @@ test("scan does not report operating-system metadata files as lost vendor data",
   assert.doesNotMatch(manifest.units[0].notices.join("\n"), /unsupported_source_file/u);
 });
 
+test("scan names the unsupported formats when a raw root has nothing convertible", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-all-unsupported-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "강남");
+  await mkdir(regionDir, { recursive: true });
+  await writeFile(path.join(regionDir, "샘플가나웨딩.csv"), "업체명,가격\n샘플,1000");
+  await writeFile(path.join(regionDir, "샘플다라웨딩.csv"), "업체명,가격\n샘플,2000");
+  await writeFile(path.join(regionDir, "샘플가격표.jpg"), "dummy-jpeg");
+
+  // The manifest is never written on this path, so the error itself has to say
+  // what was seen. "빈 폴더"와 "전부 CSV"는 다른 문제다.
+  await assert.rejects(
+    () => scanSources({ rootDir, stateDir }),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /3 unsupported file/u);
+      assert.match(message, /csv=2/u);
+      assert.match(message, /jpg=1/u);
+      assert.match(message, /xlsx/u, "the message must name the formats that do work");
+      return true;
+    },
+  );
+});
+
 test("scan keeps the unsupported-source notice across a rescan that reuses downstream state", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-unsupported-rescan-"));
   const stateDir = `${rootDir}-state`;
