@@ -4251,7 +4251,10 @@ function inspectCanonicalBookingOutcomeState(state, { ownerId, decisionId }) {
     return Object.freeze({
       receiptCanonical: false,
       actorBound: false,
-      timestampsCanonical: false,
+      timestampFieldsPresent: false,
+      createdBeforeConfirmation: false,
+      confirmationMatchesDecision: false,
+      updatedAfterDecision: false,
       intentSuperseded: false,
       noAuthorizationResidue: false,
     });
@@ -4276,13 +4279,19 @@ function inspectCanonicalBookingOutcomeState(state, { ownerId, decisionId }) {
     && state.completedDecisionCount === 1,
     actorBound: ["bride", "groom"].includes(state.sourceActorRole)
       && state.actorProfileId === ownerId,
-    timestampsCanonical: Number.isFinite(createdAt)
-    && Number.isFinite(confirmedAt)
-    && Number.isFinite(decidedAt)
-    && Number.isFinite(updatedAt)
-    && createdAt <= confirmedAt
-    && confirmedAt === decidedAt
-    && decidedAt <= updatedAt,
+    timestampFieldsPresent: Number.isFinite(createdAt)
+      && Number.isFinite(confirmedAt)
+      && Number.isFinite(decidedAt)
+      && Number.isFinite(updatedAt),
+    createdBeforeConfirmation: Number.isFinite(createdAt)
+      && Number.isFinite(confirmedAt)
+      && createdAt <= confirmedAt,
+    confirmationMatchesDecision: Number.isFinite(confirmedAt)
+      && Number.isFinite(decidedAt)
+      && confirmedAt === decidedAt,
+    updatedAfterDecision: Number.isFinite(decidedAt)
+      && Number.isFinite(updatedAt)
+      && decidedAt <= updatedAt,
     intentSuperseded: state.consideringActive === 0
       && state.consideringSuperseded === 1,
     noAuthorizationResidue: state.authorizationCount === 0,
@@ -4362,11 +4371,17 @@ export async function runBookingOutcomeProvenanceScenario({ transport }) {
       decisionId: first.decisionId,
     });
     checks.actorBound = stateChecks.actorBound;
-    checks.timestampsCanonical = stateChecks.timestampsCanonical;
+    checks.timestampsCanonical = stateChecks.timestampFieldsPresent
+      && stateChecks.createdBeforeConfirmation
+      && stateChecks.confirmationMatchesDecision
+      && stateChecks.updatedAfterDecision;
     checks.intentSuperseded = stateChecks.intentSuperseded;
     checks.noAuthorizationResidue = stateChecks.noAuthorizationResidue;
     requireScenario(checks.actorBound, "BOOKING_OUTCOME_ACTOR_INVALID", "Booking outcome actor provenance was not canonical");
-    requireScenario(checks.timestampsCanonical, "BOOKING_OUTCOME_TIME_INVALID", "Booking outcome timestamps were not canonical");
+    requireScenario(stateChecks.timestampFieldsPresent, "BOOKING_OUTCOME_TIME_MISSING", "Booking outcome timestamps were not all present");
+    requireScenario(stateChecks.createdBeforeConfirmation, "BOOKING_OUTCOME_CREATED_AFTER_CONFIRMATION", "Booking outcome was confirmed before its decision row existed");
+    requireScenario(stateChecks.confirmationMatchesDecision, "BOOKING_OUTCOME_CONFIRMATION_TIME_MISMATCH", "Booking outcome confirmation and decision times differed");
+    requireScenario(stateChecks.updatedAfterDecision, "BOOKING_OUTCOME_UPDATED_BEFORE_DECISION", "Booking outcome update preceded its decision time");
     requireScenario(checks.intentSuperseded, "BOOKING_OUTCOME_INTENT_NOT_SUPERSEDED", "Booking intent was not superseded exactly once");
     requireScenario(checks.noAuthorizationResidue, "BOOKING_OUTCOME_AUTHORIZATION_RESIDUE", "Booking outcome authorization residue remained");
     requireScenario(stateChecks.receiptCanonical, "BOOKING_OUTCOME_STATE_INVALID", "Booking outcome receipt state was not canonical");
