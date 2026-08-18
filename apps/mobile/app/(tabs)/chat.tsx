@@ -392,6 +392,7 @@ interface QuoteCheckHandoff {
 
 interface ChatMessageMetadata {
   target?: string;
+  interaction_mode?: "listen_only";
   client_request_id?: string;
   partner_recipient_id?: string;
   client_visible_request_id?: string;
@@ -485,6 +486,7 @@ interface ChatRequestBase {
   clientRequestId: string;
   visibility: ChatMessageVisibility;
   confirmedActionId?: string;
+  conversationMode?: "listen_only";
 }
 
 type ChatRequestBody =
@@ -511,6 +513,7 @@ interface AiDraft {
   requestedVisibility: ChatMessageVisibility;
   visibility: ChatMessageVisibility;
   providerAttachmentCount: number;
+  interactionMode?: "listen_only";
   durableUserMessageId?: string;
   recoveredProviderAttachmentState?: "none" | "discarded_by_safety_policy";
   sessionGeneration: number;
@@ -529,6 +532,7 @@ interface AiMessageIngestExpected {
   clientRequestId: string;
   target: MessageTarget;
   providerAttachmentCount: number;
+  interactionMode?: "listen_only";
   partnerRecipientId?: string;
   confirmedActionId?: string;
   firstUseSourceMessageId?: string;
@@ -727,6 +731,7 @@ interface ColdStartAiRecovery {
   visibility: ChatMessageVisibility;
   providerAttachmentState: ProviderAttachmentState | "unknown";
   providerAttachmentCount: number | null;
+  interactionMode?: "listen_only";
   scheduleCareFollowUp?: AmoraScheduleCareFollowUpBinding;
 }
 
@@ -787,6 +792,12 @@ function findColdStartAiRecovery(
   if (latestLaneRow?.id !== candidate.id) return null;
 
   const metadata = candidate.metadata;
+  const interactionMode = metadata.interaction_mode === undefined
+    ? null
+    : metadata.interaction_mode === "listen_only"
+      ? "listen_only" as const
+      : undefined;
+  if (interactionMode === undefined) return null;
   const scheduleCareFollowUp = readScheduleCareFollowUpBindingFromMetadata(metadata);
   if (
     metadata.amora_schedule_care_follow_up_v1 !== undefined
@@ -858,6 +869,14 @@ function findColdStartAiRecovery(
     )
     ? "resumable"
     : "reattach_required";
+  if (
+    interactionMode === "listen_only"
+    && (
+      disposition !== "resumable"
+      || providerAttachmentState !== "none"
+      || scheduleCareFollowUp !== null
+    )
+  ) return null;
 
   return {
     disposition,
@@ -868,6 +887,7 @@ function findColdStartAiRecovery(
     visibility: candidate.visibility,
     providerAttachmentState,
     providerAttachmentCount,
+    ...(interactionMode ? { interactionMode } : {}),
     ...(scheduleCareFollowUp ? { scheduleCareFollowUp } : {}),
   };
 }
@@ -1280,6 +1300,9 @@ function parseAiMessageIngestResult(
       && message.metadata.ai_response_requested === (expectedTarget === "ai")
       && message.metadata.provider_attachment_state === canonicalProviderAttachmentState
       && message.metadata.provider_attachment_count === canonicalProviderAttachmentCount;
+    const interactionModeMatches = expected.interactionMode === "listen_only"
+      ? message?.metadata?.interaction_mode === "listen_only"
+      : message?.metadata?.interaction_mode === undefined;
     const safetyContractMatches = value.safetyPrivacyRedirected === true
       ? effectiveVisibility === ownPrivateVisibility
         && safetyResolution === "non_immediate_safety"
@@ -1294,6 +1317,7 @@ function parseAiMessageIngestResult(
       && firstUsePromotionReceiptMatches
       && scheduleCareFollowUpReceiptMatches
       && ingestContractMatches
+      && interactionModeMatches
       && targetMatches
       && effectiveVisibility !== null
       && persistedVisibilityMatchesTarget
@@ -2104,6 +2128,9 @@ async function requestAiMessageIngest(
         ...("scheduleCareFollowUp" in draft && draft.scheduleCareFollowUp
           ? { scheduleCareFollowUp: draft.scheduleCareFollowUp }
           : {}),
+        ...("interactionMode" in draft && draft.interactionMode
+          ? { interactionMode: draft.interactionMode }
+          : {}),
       }),
       signal: controller.signal,
     });
@@ -2148,6 +2175,9 @@ async function requestAiMessageIngest(
       : {}),
     ...("scheduleCareFollowUp" in draft && draft.scheduleCareFollowUp
       ? { scheduleCareFollowUp: draft.scheduleCareFollowUp }
+      : {}),
+    ...("interactionMode" in draft && draft.interactionMode
+      ? { interactionMode: draft.interactionMode }
       : {}),
   }, parseRetryAfterMs(response.headers.get("Retry-After")));
 }
@@ -2661,6 +2691,7 @@ export default function ChatScreen() {
   const [chatSessionRetryVersion, setChatSessionRetryVersion] = useState(0);
   const [personalizationVisible, setPersonalizationVisible] = useState(false);
   const [target, setTarget] = useState<MessageTarget>("ai");
+  const [listenOnlySelected, setListenOnlySelected] = useState(false);
   const [activeScope, setActiveScope] = useState<ChatScope>("shared");
   const activeScopeRef = useRef<ChatScope>("shared");
   const firstUseEntryRef = useRef(firstUseEntry);
@@ -3104,6 +3135,7 @@ export default function ChatScreen() {
     setInitialLoadError(null);
     setPersonalizationVisible(false);
     setTarget("ai");
+    setListenOnlySelected(false);
     activeScopeRef.current = nextScope;
     setActiveScope(nextScope);
     setInputByLane(createEmptyAmoraChatLaneRecord(() => ""));
@@ -4288,6 +4320,9 @@ export default function ChatScreen() {
       requestedBinding: draft.scheduleCareFollowUp ?? null,
       messageMetadata: metadata,
     });
+    const interactionModeMatches = draft.interactionMode === "listen_only"
+      ? metadata?.interaction_mode === "listen_only"
+      : metadata?.interaction_mode === undefined;
     const clientRequestMatches = draft.firstUseSourceMessageId
       ? isPersistedFirstUseSourceMessageId(metadata?.client_request_id)
       : metadata?.client_request_id === draft.clientRequestId;
@@ -4312,6 +4347,7 @@ export default function ChatScreen() {
       || !confirmedActionMatches
       || !firstUsePromotionReceiptMatches
       || !scheduleCareFollowUpReceiptMatches
+      || !interactionModeMatches
       || !ingestContractMatches
     ) return null;
     if (draft.durableUserMessageId) {
@@ -4866,6 +4902,9 @@ export default function ChatScreen() {
       if (!durableMessage) throw new Error("AI user message was not persisted");
       const effectiveVisibility = durableMessage.visibility;
       const canonicalUserMessage = durableMessage;
+      if (draft.interactionMode === "listen_only") {
+        setListenOnlySelected(false);
+      }
       if (
         draft.firstUseSourceMessageId
         && firstUseComposerBindingRef.current?.sourceMessageId
@@ -4930,6 +4969,10 @@ export default function ChatScreen() {
         typeof canonicalUserMessage.metadata?.confirmed_amora_action_id === "string"
           ? canonicalUserMessage.metadata.confirmed_amora_action_id
           : undefined;
+      const canonicalInteractionMode =
+        canonicalUserMessage.metadata?.interaction_mode === "listen_only"
+          ? "listen_only" as const
+          : undefined;
       const canonicalPreparationTopic = draft.preparationTopic
         && effectiveVisibility !== "shared"
         && canonicalUserMessage.content === draft.preparationTopic.prompt
@@ -4959,6 +5002,9 @@ export default function ChatScreen() {
           visibility: effectiveVisibility,
           ...(canonicalConfirmedActionId
             ? { confirmedActionId: canonicalConfirmedActionId }
+            : {}),
+          ...(canonicalInteractionMode
+            ? { conversationMode: canonicalInteractionMode }
             : {}),
         },
       };
@@ -5320,6 +5366,9 @@ export default function ChatScreen() {
       durableUserMessageId: recovery.userMessageId,
       recoveredProviderAttachmentState: recovery.providerAttachmentState,
       sessionGeneration,
+      ...(recovery.interactionMode
+        ? { interactionMode: recovery.interactionMode }
+        : {}),
       ...(recovery.scheduleCareFollowUp
         ? { scheduleCareFollowUp: recovery.scheduleCareFollowUp }
         : {}),
@@ -5555,6 +5604,25 @@ export default function ChatScreen() {
           },
         )
       : null;
+    const interactionMode = listenOnlySelected
+      && crisisPreflight.disposition === "continue"
+      && target === "ai"
+      && boundFirstUseSourceMessageId === null
+      && activeScheduleCareComposerBinding === null
+      && preparationTopic === null
+        ? "listen_only" as const
+        : undefined;
+    if (
+      listenOnlySelected
+      && crisisPreflight.disposition === "continue"
+      && interactionMode === undefined
+    ) {
+      setListenOnlySelected(false);
+      return;
+    }
+    if (listenOnlySelected && crisisPreflight.disposition !== "continue") {
+      setListenOnlySelected(false);
+    }
     const safetySessionGeneration = chatSessionGenerationRef.current.current();
     if (crisisPreflight.disposition === "local_safety_hold") {
       const safetyHoldWasLocked = safetyHoldLockRef.current;
@@ -5792,6 +5860,7 @@ export default function ChatScreen() {
         visibility: effectiveVisibility,
         providerAttachmentCount: 0,
         sessionGeneration,
+        ...(interactionMode ? { interactionMode: "listen_only" as const } : {}),
         ...(firstUseSourceMessageId ? { firstUseSourceMessageId } : {}),
         ...(scheduleCareFollowUp ? { scheduleCareFollowUp } : {}),
         ...(preparationTopic ? { preparationTopic } : {}),
@@ -5904,6 +5973,7 @@ export default function ChatScreen() {
       }
     }
     setPendingSharedSendConfirmation(null);
+    setListenOnlySelected(false);
     setActiveScope("private");
     setTarget("ai");
   }
@@ -6063,12 +6133,14 @@ export default function ChatScreen() {
       || (nextTarget === "partner" && !hasLinkedPartner)
     ) return;
     safetyHoldLockRef.current = false;
+    if (nextTarget !== target) setListenOnlySelected(false);
     setTarget(nextTarget);
   }
 
   function handleAiSuggestion(value: string) {
     if (streaming || sendingRef.current || pendingIngestReconciliation) return;
     safetyHoldLockRef.current = false;
+    setListenOnlySelected(false);
     const lane: Exclude<AmoraChatLane, "shared_partner"> = activeScope === "private"
       ? "private_ai"
       : "shared_ai";
@@ -6341,6 +6413,7 @@ export default function ChatScreen() {
       nextScope,
       userRole,
     );
+    if (nextSelection.scope !== activeScope) setListenOnlySelected(false);
     activeScopeRef.current = nextSelection.scope;
     setActiveScope(nextSelection.scope);
     setTarget(nextSelection.target);
@@ -7510,8 +7583,18 @@ export default function ChatScreen() {
           coupleId: pendingSharedSendConfirmation.coupleId,
           sharedText: pendingSharedSendConfirmation.text,
         },
-      )
+    )
     : null;
+  const listenOnlyAvailable = !isP
+    && target === "ai"
+    && stagedFirstUseSourceMessageId === null
+    && firstUseComposerBindingRef.current === null
+    && scheduleCareFollowUpComposerBindingRef.current === null
+    && preparationTopicChatComposerBindingRef.current === null
+    && !hasActiveW5SafetyCard
+    && !hasVisibleSharedMediationSafetyCard
+    && !hasLocalPrivateMediationSafetyHold
+    && !hasDevicePrivateMediationSafetyHold;
   const needsOnboarding = initialLoaded && userId !== null && coupleId === null;
   const topicMessageDialogSource = topicMessageSaveDialog
     ? messages.find((message) => message.id === topicMessageSaveDialog.sourceMessageId) ?? null
@@ -8458,6 +8541,40 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {listenOnlyAvailable && (
+          <View style={st.listenOnlyBar}>
+            <Pressable
+              style={({ pressed }) => [
+                st.listenOnlyButton,
+                listenOnlySelected && st.listenOnlyButtonSelected,
+                pressed && { opacity: 0.76 },
+              ]}
+              onPress={() => setListenOnlySelected((selected) => !selected)}
+              disabled={streaming || pendingIngestReconciliation}
+              accessibilityRole="checkbox"
+              accessibilityLabel="그냥 들어줘"
+              accessibilityHint="이번 한 번만 해결책이나 준비 기록 제안 없이 아모라가 이야기를 듣습니다"
+              accessibilityState={{
+                checked: listenOnlySelected,
+                disabled: streaming || pendingIngestReconciliation,
+              }}
+            >
+              <View style={[
+                st.listenOnlyCheck,
+                listenOnlySelected && st.listenOnlyCheckSelected,
+              ]}>
+                {listenOnlySelected && <Check size={12} color="#FFFFFF" />}
+              </View>
+              <Text style={st.listenOnlyLabel}>그냥 들어줘</Text>
+            </Pressable>
+            {listenOnlySelected && (
+              <Text style={st.listenOnlyCopy} accessibilityLiveRegion="polite">
+                대화는 현재 공개 범위에 저장돼요. 준비 기록·아모라 기억은 바꾸지 않아요.
+              </Text>
+            )}
+          </View>
+        )}
+
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
           <TextInput ref={chatInputRef} style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming && !pendingIngestReconciliation} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
@@ -8679,6 +8796,13 @@ const st = StyleSheet.create({
   retryBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.noir[800] },
   retryText: { fontSize: 14, fontWeight: "600", color: colors.surface },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  listenOnlyBar: { paddingHorizontal: spacing[4], paddingTop: spacing[2], paddingBottom: spacing[1], gap: spacing[1], borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  listenOnlyButton: { minHeight: 40, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing[2], paddingHorizontal: spacing[3], borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.ivory[100] },
+  listenOnlyButtonSelected: { borderColor: colors.sage[500], backgroundColor: colors.sage.pale },
+  listenOnlyCheck: { width: 18, height: 18, alignItems: "center", justifyContent: "center", borderRadius: 9, borderWidth: 1, borderColor: colors.taupe[400], backgroundColor: colors.surface },
+  listenOnlyCheckSelected: { borderColor: colors.sage[500], backgroundColor: colors.sage[500] },
+  listenOnlyLabel: { fontSize: 13, lineHeight: 19, fontWeight: "600", color: colors.noir[800] },
+  listenOnlyCopy: { paddingHorizontal: spacing[1], fontSize: 12, lineHeight: 18, color: colors.textSecondary },
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },
   firstUseComposerSendButton: { width: 48, height: 48 },

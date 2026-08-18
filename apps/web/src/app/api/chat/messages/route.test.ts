@@ -552,6 +552,122 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
     });
   });
 
+  it("binds an explicit one-turn listen-only mode to the canonical AI user row", async () => {
+    const metadata = {
+      client_request_id: REQUEST_ID,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      interaction_mode: "listen_only",
+    };
+    const admin = mockPostAdmin({
+      insertData: canonicalUserRow({
+        content: "해결책보다 지금은 그냥 내 이야기를 들어줬으면 해.",
+        metadata,
+      }),
+    });
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "해결책보다 지금은 그냥 내 이야기를 들어줬으면 해.",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      providerAttachmentCount: 0,
+      interactionMode: "listen_only",
+    }, {
+      Authorization: "Bearer mobile-access-token",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    }));
+
+    expect(response.status).toBe(201);
+    expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({
+      couple_id: COUPLE_ID,
+      sender_id: USER_ID,
+      content: "해결책보다 지금은 그냥 내 이야기를 들어줬으면 해.",
+      visibility: "shared",
+      metadata,
+    }));
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: "persisted",
+      reused: false,
+      message: { metadata },
+    });
+  });
+
+  it.each([
+    ["partner target", { target: "partner" }],
+    ["confirmed action", { confirmedActionId: ACTION_ID }],
+    [
+      "provider attachment",
+      {
+        providerAttachmentCount: 1,
+        providerAttachmentManifest: [{
+          mediaType: "image/webp",
+          byteLength: 5,
+          sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        }],
+      },
+    ],
+  ] as const)("rejects listen-only with a %s before durable work", async (_label, overrides) => {
+    const admin = mockPostAdmin();
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "해결책 말고 그냥 들어줘.",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      providerAttachmentCount: 0,
+      interactionMode: "listen_only",
+      ...overrides,
+    }, {
+      Authorization: "Bearer mobile-access-token",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    }));
+
+    expect(response.status).toBe(400);
+    expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reused canonical row whose listen-only marker is missing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const admin = mockPostAdmin({
+      insertData: canonicalUserRow({
+        content: "해결책 말고 그냥 들어줘.",
+        metadata: {
+          client_request_id: REQUEST_ID,
+          amora_ingest_contract_version: 1,
+          ai_response_requested: true,
+          provider_attachment_state: "none",
+          provider_attachment_count: 0,
+        },
+      }),
+    });
+
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID,
+      content: "해결책 말고 그냥 들어줘.",
+      clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared",
+      providerAttachmentCount: 0,
+      interactionMode: "listen_only",
+    }, {
+      Authorization: "Bearer mobile-access-token",
+      "X-Amora-Ingest-Contract-Version": "2",
+      "X-Amora-Expected-Actor-User-Id": USER_ID,
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_PERSISTENCE_UNKNOWN",
+      retryPolicy: "same_request",
+    });
+    expect(admin.insert).toHaveBeenCalledTimes(1);
+  });
+
   it("revalidates and persists one exact current D+1 binding only in the owner's private AI lane", async () => {
     vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
       disposition: "continue",

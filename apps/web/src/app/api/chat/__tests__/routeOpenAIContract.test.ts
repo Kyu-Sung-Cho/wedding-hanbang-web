@@ -1884,6 +1884,137 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     ]);
   });
 
+  it("keeps an explicitly bound listen-only turn conversational while disabling tools, planning writes, memory, and suggestion chips", async () => {
+    const userText = "지금은 해결책 말고 그냥 내 이야기를 들어줘.";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: userText,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+        interaction_mode: "listen_only",
+      },
+    };
+    mocks.extractSuggestions.mockReturnValue({
+      cleanText: "그랬군요. 지금 가장 마음에 남는 지점부터 천천히 말해도 돼요.",
+      suggestions: ["예산 계획 세우기"],
+    });
+    providerAfterPreGeneration(providerResult({
+      fullText: [
+        "그랬군요. 지금 가장 마음에 남는 지점부터 천천히 말해도 돼요.",
+        "[suggestions]",
+        "예산 계획 세우기",
+        "[/suggestions]",
+      ].join("\n"),
+      usage: { input_tokens: 9, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: userText }],
+      conversationMode: "listen_only",
+    }));
+    const body = await response.text();
+
+    expect(response.status, body).toBe(200);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalled();
+    expect(mocks.provider.mock.calls[0]?.[0]).toMatchObject({ tools: [] });
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
+      "interaction_mode: listen_only",
+    );
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      interaction_mode: "listen_only",
+      memory_eligible: false,
+      memory_enqueue_requested: false,
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("suggestions");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+    expect(body).not.toContain('"type":"suggestions"');
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      interactionType: "chat_turn",
+      metadata: expect.objectContaining({ interaction_mode: "listen_only" }),
+    }));
+  });
+
+  it("rejects listen-only when the canonical user row is missing its exact mode marker", async () => {
+    const response = await POST(request({
+      messages: [{ role: "user", content: "그냥 들어줘." }],
+      conversationMode: "listen_only",
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "USER_MESSAGE_INTERACTION_MODE_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
+  it("withholds a listen-only replay whose persisted assistant marker is missing", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "그냥 들어줘.",
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+        interaction_mode: "listen_only",
+      },
+    };
+    mocks.findPersisted.mockResolvedValue(persisted("이미 저장된 답변"));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "그냥 들어줘." }],
+      conversationMode: "listen_only",
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHAT_REPLAY_INTERACTION_MODE_MISMATCH",
+      retryPolicy: "new_message",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
+  it("lets the deterministic W5 safety boundary override an exact listen-only turn", async () => {
+    const disclosure = "지금 죽\u200B고 싶어요";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: disclosure,
+      metadata: {
+        client_request_id: REQUEST_ID,
+        amora_ingest_contract_version: 1,
+        ai_response_requested: true,
+        provider_attachment_state: "none",
+        provider_attachment_count: 0,
+        interaction_mode: "listen_only",
+      },
+    };
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: disclosure }],
+      conversationMode: "listen_only",
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("자살예방상담전화 109");
+    expect(body).toContain('"question_scope":"W5_safety_override"');
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
   it("allows only the cryptographically signed demo to omit browser fetch metadata", async () => {
     mocks.authenticatedUser = null;
     mocks.signedDemo = true;

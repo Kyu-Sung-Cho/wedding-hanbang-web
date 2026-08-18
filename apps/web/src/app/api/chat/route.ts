@@ -762,6 +762,7 @@ export async function POST(request: Request) {
     userMessageId: bodyUserMessageId,
     confirmedActionId: bodyConfirmedActionId,
     requestKind: bodyRequestKind,
+    conversationMode: bodyConversationMode,
     visibility: bodyVisibility,
   } = body;
   const isDemo =
@@ -846,6 +847,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "요청 종류가 올바르지 않습니다." }, { status: 400 });
   }
   if (
+    bodyConversationMode !== undefined
+    && bodyConversationMode !== "listen_only"
+  ) {
+    return NextResponse.json(
+      { error: "대화 모드가 올바르지 않습니다.", code: "INVALID_CONVERSATION_MODE" },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  if (
     bodyRequestKind === "mediation" &&
     (typeof conflictContext !== "string" ||
       conflictContext.trim().length < 4 ||
@@ -885,9 +895,34 @@ export async function POST(request: Request) {
       : bodyRequestKind === "mediation"
         ? "mediation"
         : "chat";
+  const interactionMode = bodyConversationMode === "listen_only"
+    ? "listen_only" as const
+    : "planning" as const;
+  const isListenOnly = interactionMode === "listen_only";
   const requestedVisibility: "shared" | "bride_private" | "groom_private" =
     bodyVisibility === "bride_private" || bodyVisibility === "groom_private" ? bodyVisibility : "shared";
   let visibility: "shared" | "bride_private" | "groom_private" = requestedVisibility;
+
+  if (
+    isListenOnly
+    && (
+      isDemo
+      || requestKind !== "chat"
+      || typeof bodyUserMessageId !== "string"
+      || bodyConfirmedActionId !== undefined
+      || !Array.isArray(attachmentInput)
+      || attachmentInput.length > 0
+      || conflictContext !== undefined
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: "그냥 들어줘 모드는 저장된 아모라 대화 한 턴에서만 사용할 수 있어요.",
+        code: "LISTEN_ONLY_REQUEST_INVALID",
+      },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
   const userProfile = isDemo
@@ -964,12 +999,31 @@ export async function POST(request: Request) {
     message: PersistedAiMessage,
     expectedReplayPrivacyEpoch: number,
   ): Promise<Response> => {
-    const memoryReconciliation = await reconcilePersistedAmoraMemoryEnqueue({
-      coupleId,
-      userId: actorId,
-      expectedVisibility: visibility,
-      message,
-    });
+    const persistedMetadata = isRecord(message.metadata) ? message.metadata : null;
+    const persistedInteractionMode = persistedMetadata?.interaction_mode;
+    if (
+      isListenOnly
+        ? persistedInteractionMode !== "listen_only"
+        : persistedInteractionMode !== undefined
+    ) {
+      return NextResponse.json(
+        {
+          error: "저장된 답변의 대화 모드를 안전하게 확인하지 못했어요.",
+          code: "CHAT_REPLAY_INTERACTION_MODE_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const memoryReconciliation = isListenOnly
+      ? { status: "not_eligible" as const }
+      : await reconcilePersistedAmoraMemoryEnqueue({
+          coupleId,
+          userId: actorId,
+          expectedVisibility: visibility,
+          message,
+        });
     if (memoryReconciliation.status === "retry_required") {
       console.error("[chat] persisted memory enqueue retry required", {
         requestCorrelationId,
@@ -1015,7 +1069,10 @@ export async function POST(request: Request) {
     if (currentReplayPrivacyEpoch !== expectedReplayPrivacyEpoch) {
       throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED");
     }
-    return replayPersistedMessage(message, requestKind === "mediation");
+    return replayPersistedMessage(
+      message,
+      requestKind === "mediation" || isListenOnly,
+    );
   };
   const demoSessionToken = isDemo
     ? getCookieValue(request.headers.get("cookie"), "demo_session")
@@ -1096,6 +1153,22 @@ export async function POST(request: Request) {
     const canonicalMetadata = isRecord(trustedCanonicalScopeUserRow.metadata)
       ? trustedCanonicalScopeUserRow.metadata
       : null;
+    const canonicalInteractionMode = canonicalMetadata?.interaction_mode;
+    if (
+      isListenOnly
+        ? canonicalInteractionMode !== "listen_only"
+        : canonicalInteractionMode !== undefined
+    ) {
+      return NextResponse.json(
+        {
+          error: "저장된 메시지의 대화 모드가 현재 요청과 일치하지 않습니다.",
+          code: "USER_MESSAGE_INTERACTION_MODE_MISMATCH",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     const rawScheduleCareFollowUp =
       canonicalMetadata?.[AMORA_SCHEDULE_CARE_FOLLOW_UP_METADATA_KEY];
     if (rawScheduleCareFollowUp !== undefined) {
@@ -1815,6 +1888,7 @@ export async function POST(request: Request) {
   const shouldAttemptBoundedContinuity =
     !isDemo
     && requestKind === "chat"
+    && !isListenOnly
     && resolvedScheduleCareFollowUp === null
     && bodyConfirmedActionId === undefined
     && typeof bodyUserMessageId === "string"
@@ -1830,7 +1904,8 @@ export async function POST(request: Request) {
   const skipsIrrelevantProviderContextReads =
     bodyConfirmedActionId === undefined
     && (
-      resolvedScheduleCareFollowUp !== null
+      isListenOnly
+      || resolvedScheduleCareFollowUp !== null
       || requestKind === "initial_greeting"
       || requestKind === "mediation"
       || shouldAttemptBoundedContinuity
@@ -3758,7 +3833,8 @@ export async function POST(request: Request) {
         })
       : null;
   const allowsLongTermMemoryForTurn =
-    questionScope.allowsLongTermMemory
+    !isListenOnly
+    && questionScope.allowsLongTermMemory
     && resolvedScheduleCareFollowUp === null
     && quoteAnalysisSelection.status === "absent";
   const memoryEnqueueRequested =
@@ -3767,6 +3843,7 @@ export async function POST(request: Request) {
     && isAuxiliaryMemoryRuntimeEnabled();
   const allowsStoredProviderContext =
     requestKind === "chat"
+    && !isListenOnly
     && resolvedScheduleCareFollowUp === null
     && (
       questionScope.scope === "W0_wedding_core"
@@ -3796,6 +3873,7 @@ export async function POST(request: Request) {
     && questionScope.scope === "W2_high_risk_adjacent";
   const allowsCurrentAttachmentContext =
     requestKind === "chat"
+    && !isListenOnly
     && (
       questionScope.scope === "W0_wedding_core"
       || questionScope.scope === "W1_wedding_adjacent"
@@ -3828,6 +3906,7 @@ export async function POST(request: Request) {
   if (
     !isDemo
     && requestKind === "chat"
+    && !isListenOnly
     && questionScope.allowsLongTermMemory
     && dissatisfaction?.detected
   ) {
@@ -3926,7 +4005,7 @@ export async function POST(request: Request) {
   // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
   // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
   // 재설계 이후 운영에서 변경 실행 0건.)
-  const availableTools = resolvedScheduleCareFollowUp
+  const availableTools = resolvedScheduleCareFollowUp || isListenOnly
     ? []
     : filterAmoraToolsByQuestionScope(
         visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name)),
@@ -3940,25 +4019,27 @@ export async function POST(request: Request) {
       .map((tool) => tool.name),
   );
   const selectedPendingProposalTools =
-    scheduleCareSharedActionDraft.status === "valid"
-      ? selectAmoraScheduleCareSharedActionProposalTools(
-          PENDING_ACTION_TOOLS,
-          scheduleCareSharedActionDraft,
-        )
-      : scheduleCareSharedActionDraft.status === "invalid"
-        ? []
-        : selectAmoraPendingProposalTools({
-            availableTools: PENDING_ACTION_TOOLS,
-            userText: lastUserText,
-            specialistType,
-            attachmentKind,
-            // Relative dates on a confirmed important-moment declaration are
-            // resolved in KST and server-bound before provider output is
-            // accepted. The user still sees the exact date in the approval
-            // card before any shared write.
-            now: new Date(),
-            firstUseActionBinding: firstUsePromotionBinding,
-          });
+    isListenOnly
+      ? []
+      : scheduleCareSharedActionDraft.status === "valid"
+        ? selectAmoraScheduleCareSharedActionProposalTools(
+            PENDING_ACTION_TOOLS,
+            scheduleCareSharedActionDraft,
+          )
+        : scheduleCareSharedActionDraft.status === "invalid"
+          ? []
+          : selectAmoraPendingProposalTools({
+              availableTools: PENDING_ACTION_TOOLS,
+              userText: lastUserText,
+              specialistType,
+              attachmentKind,
+              // Relative dates on a confirmed important-moment declaration are
+              // resolved in KST and server-bound before provider output is
+              // accepted. The user still sees the exact date in the approval
+              // card before any shared write.
+              now: new Date(),
+              firstUseActionBinding: firstUsePromotionBinding,
+            });
   const pendingProposalTools =
     !isDemo
     && requestKind === "chat"
@@ -4031,6 +4112,7 @@ export async function POST(request: Request) {
     + buildAmoraSystemPrompt(promptContext, {
       specialist: specialistType,
       requestKind,
+      interactionMode,
       persistenceMode: isDemo ? "demo" : "durable",
       enabledToolNames: enabledTools.map((tool) => tool.name),
       actionContract,
@@ -4118,6 +4200,7 @@ export async function POST(request: Request) {
     || requestKind === "mediation"
     || requiresW4AttachmentReuploadGuidance
     || boundedContinuity !== null
+    || isListenOnly
     // Replies built from stored couple context stay hidden until the database
     // atomically validates the exact privacy epoch and commits the message.
     || allowsStoredProviderContext
@@ -4319,6 +4402,7 @@ export async function POST(request: Request) {
           // dedicated confirm flow, so dropping all provider chips is the
           // smallest fail-closed contract and does not remove user content.
           const suggestions = requestKind === "mediation"
+            || isListenOnly
             || resolvedScheduleCareFollowUp !== null
               ? []
               : extractedSuggestions;
@@ -4398,6 +4482,7 @@ export async function POST(request: Request) {
           const firstUsePromotionSourceSeal =
             !isDemo
             && requestKind === "chat"
+            && !isListenOnly
             && visibility !== "shared"
             && resolvedScheduleCareFollowUp === null
             && canonicalJourneyStateRevision !== null
@@ -4443,8 +4528,12 @@ export async function POST(request: Request) {
             question_scope: questionScope.scope,
             memory_eligible: allowsLongTermMemoryForTurn,
             memory_enqueue_requested: memoryEnqueueRequested,
+            ...(isListenOnly
+              ? { interaction_mode: "listen_only" }
+              : {}),
             ...(canonicalJourneyStateRevision !== null
               && requestKind === "chat"
+              && !isListenOnly
               && resolvedScheduleCareFollowUp === null
               && (
                 questionScope.scope === "W0_wedding_core"
@@ -4823,7 +4912,7 @@ export async function POST(request: Request) {
             await assertStoredContextTerminalReleasePrivacyEpochCurrent();
             if (insertResult.reused) {
               send({ type: "text_clear" });
-              const storedSuggestions = requestKind === "mediation"
+              const storedSuggestions = requestKind === "mediation" || isListenOnly
                 ? []
                 : getStoredSuggestions(insertResult);
               if (storedSuggestions.length > 0) {
@@ -4854,7 +4943,10 @@ export async function POST(request: Request) {
             send({
               type: "done",
               fullContent: insertResult.content ?? persistenceSafeText,
-              metadata: getDoneMetadata(insertResult, requestKind === "mediation"),
+              metadata: getDoneMetadata(
+                insertResult,
+                requestKind === "mediation" || isListenOnly,
+              ),
             });
 
             if (insertResult.reused) {
@@ -4882,6 +4974,9 @@ export async function POST(request: Request) {
                 visibility,
                 stage_tag: stageTag,
                 question_scope: questionScope.scope,
+                ...(isListenOnly
+                  ? { interaction_mode: "listen_only" }
+                  : {}),
                 ...(boundedContinuity
                   ? { context_mode: boundedContinuity.mode }
                   : {}),
@@ -5293,7 +5388,7 @@ export async function POST(request: Request) {
         await assertStoredContextTerminalReleasePrivacyEpochCurrent();
         if (insertResult2.reused) {
           send({ type: "text_clear" });
-          const storedSuggestions = requestKind === "mediation"
+          const storedSuggestions = requestKind === "mediation" || isListenOnly
             ? []
             : getStoredSuggestions(insertResult2);
           if (storedSuggestions.length > 0) {
@@ -5321,7 +5416,10 @@ export async function POST(request: Request) {
         send({
           type: "done",
           fullContent: insertResult2.content ?? finalPersistenceSafeText,
-          metadata: getDoneMetadata(insertResult2, requestKind === "mediation"),
+          metadata: getDoneMetadata(
+            insertResult2,
+            requestKind === "mediation" || isListenOnly,
+          ),
         });
 
         if (insertResult2.reused) {
@@ -5349,6 +5447,9 @@ export async function POST(request: Request) {
             visibility,
             stage_tag: stageTag,
             question_scope: questionScope.scope,
+            ...(isListenOnly
+              ? { interaction_mode: "listen_only" }
+              : {}),
             ...(boundedContinuity
               ? { context_mode: boundedContinuity.mode }
               : {}),
@@ -5450,6 +5551,9 @@ export async function POST(request: Request) {
             visibility,
             stage_tag: stageTag,
             question_scope: questionScope.scope,
+            ...(isListenOnly
+              ? { interaction_mode: "listen_only" }
+              : {}),
             ...(boundedContinuity
               ? { context_mode: boundedContinuity.mode }
               : {}),

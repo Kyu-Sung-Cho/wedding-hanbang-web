@@ -204,6 +204,37 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).not.toContain("진짜 가치관이 노출됩니다");
   });
 
+  it("gives an explicit listen-only turn no stored context, tools, action contract, or planning pressure", () => {
+    const context = {
+      ...baseContext,
+      bookings: [],
+      brideName: "PRIVATE_LISTEN_SENTINEL",
+      venue: "PRIVATE_VENUE_SENTINEL",
+      chatSummaries: ["PRIVATE_HISTORY_SENTINEL"],
+    };
+    const prompt = buildAmoraSystemPrompt(context, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      interactionMode: "listen_only",
+      enabledToolNames: [],
+      currentUserText: "지금은 그냥 들어줘",
+    });
+
+    expect(prompt).toContain("interaction_mode: listen_only");
+    expect(prompt).toContain("해결책·체크리스트·행동·저장 제안을 먼저 꺼내지 마세요");
+    expect(prompt).toContain("사용자가 요청할 때만 planning 대화로 돌아가세요");
+    expect(prompt).not.toContain("PRIVATE_LISTEN_SENTINEL");
+    expect(prompt).not.toContain("PRIVATE_VENUE_SENTINEL");
+    expect(prompt).not.toContain("PRIVATE_HISTORY_SENTINEL");
+    expect(prompt).not.toContain("AMORA_DECISION_DEPTH");
+    expect(() => buildAmoraSystemPrompt(context, {
+      requestKind: "chat",
+      persistenceMode: "durable",
+      interactionMode: "listen_only",
+      enabledToolNames: ["add_amora_action"],
+    })).toThrow("listen_only cannot include tools or an action contract");
+  });
+
   it("reasserts the relational turn guard after specialist expertise", () => {
     const generalAddon = getSpecialistPromptAddon("general");
     const assembledPrompt = buildAmoraSystemPrompt(

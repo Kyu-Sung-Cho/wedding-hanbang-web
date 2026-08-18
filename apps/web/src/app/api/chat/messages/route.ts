@@ -69,6 +69,7 @@ const POST_BODY_KEYS = new Set([
   "providerAttachmentManifest",
   "firstUseSourceMessageId",
   "scheduleCareFollowUp",
+  "interactionMode",
 ]);
 const CHAT_USER_ROW_SELECT = [
   "id",
@@ -92,6 +93,7 @@ const PRIVATE_NO_STORE_HEADERS = {
 type ChatVisibility = "shared" | "bride_private" | "groom_private";
 type CoupleRole = "bride" | "groom";
 type DeliveryTarget = "ai" | "partner";
+type InteractionMode = "listen_only";
 type ProviderAttachmentState =
   | "none"
   | "present"
@@ -119,6 +121,7 @@ type ExpectedUserRow = {
   providerAttachmentManifest: ProviderAttachmentManifestEntry[] | null;
   aiResponseRequested: boolean | null;
   scheduleCareFollowUpMetadata: AmoraScheduleCareFollowUpPrivateMetadata | null;
+  interactionMode: InteractionMode | null;
 };
 
 function postJson(body: unknown, status = 200) {
@@ -266,6 +269,13 @@ function isBoundCanonicalUserRow(
   const metadata = row.metadata;
   if (
     metadata.client_request_id !== expected.clientRequestId
+  ) {
+    return false;
+  }
+  if (
+    expected.interactionMode === null
+      ? metadata.interaction_mode !== undefined
+      : metadata.interaction_mode !== expected.interactionMode
   ) {
     return false;
   }
@@ -647,6 +657,12 @@ export async function POST(request: Request) {
         : rawScheduleCareFollowUp.ok
           ? rawScheduleCareFollowUp.value
           : undefined;
+    const interactionMode: InteractionMode | null | undefined =
+      body.interactionMode === undefined
+        ? null
+        : body.interactionMode === "listen_only"
+          ? "listen_only"
+          : undefined;
     const target: DeliveryTarget = body.target === undefined || body.target === "ai"
       ? "ai"
       : body.target === "partner"
@@ -658,6 +674,7 @@ export async function POST(request: Request) {
       || !requestedVisibility
       || firstUseSourceMessageId === undefined
       || scheduleCareFollowUp === undefined
+      || interactionMode === undefined
       || (body.target !== undefined && body.target !== "ai" && body.target !== "partner")
       || !isValidMessageContent(body.content)
     ) {
@@ -711,7 +728,7 @@ export async function POST(request: Request) {
         );
       }
     }
-    if ((firstUseSourceMessageId || scheduleCareFollowUp) && isLegacyActorContract) {
+    if ((firstUseSourceMessageId || scheduleCareFollowUp || interactionMode) && isLegacyActorContract) {
       return postJson(
         {
           error: "이 안내를 안전하게 확인하려면 앱을 업데이트해 주세요.",
@@ -755,6 +772,25 @@ export async function POST(request: Request) {
       return postJson({
         error: "이 일정 안부는 현재 계정의 나만 상담에서 다시 시작해 주세요.",
         code: "SCHEDULE_CARE_FOLLOW_UP_REQUEST_INVALID",
+      }, 400);
+    }
+    const listenOnlyHasNoImagePaths = body.imagePaths === undefined
+      || (Array.isArray(body.imagePaths) && body.imagePaths.length === 0);
+    if (
+      interactionMode === "listen_only"
+      && (
+        target !== "ai"
+        || firstUseSourceMessageId !== null
+        || scheduleCareFollowUp !== null
+        || body.confirmedActionId !== undefined
+        || !listenOnlyHasNoImagePaths
+        || body.providerAttachmentCount !== 0
+        || body.providerAttachmentManifest !== undefined
+      )
+    ) {
+      return postJson({
+        error: "그냥 들어줘 모드는 첨부나 실행 요청 없이 아모라 대화로 보내 주세요.",
+        code: "LISTEN_ONLY_REQUEST_INVALID",
       }, 400);
     }
 
@@ -895,6 +931,7 @@ export async function POST(request: Request) {
         providerAttachmentManifest: null,
         aiResponseRequested: true,
         scheduleCareFollowUpMetadata,
+        interactionMode: null,
       };
       let existing: unknown = null;
       let existingError: unknown = null;
@@ -1341,6 +1378,7 @@ export async function POST(request: Request) {
               scheduleCareFollowUpMetadata,
           }
         : {}),
+      ...(interactionMode ? { interaction_mode: interactionMode } : {}),
     };
     const expected: ExpectedUserRow = {
       coupleId,
@@ -1360,6 +1398,7 @@ export async function POST(request: Request) {
       providerAttachmentManifest,
       aiResponseRequested,
       scheduleCareFollowUpMetadata,
+      interactionMode,
     };
     const insertPayload = {
       couple_id: coupleId,

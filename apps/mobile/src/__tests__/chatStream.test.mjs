@@ -1075,6 +1075,59 @@ test("AI message ingest accepts a canonical W0/W1 persisted row", () => {
   );
 });
 
+test("listen-only ingest accepts only the exact canonical mode marker", () => {
+  const { parseAiMessageIngestResult } = loadAiMessageIngestContract();
+  const expected = {
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    userId: "22222222-2222-4222-8222-222222222222",
+    senderType: "bride",
+    text: "해결책 말고 그냥 들어줘.",
+    clientRequestId: "33333333-3333-4333-8333-333333333333",
+    target: "ai",
+    providerAttachmentCount: 0,
+    interactionMode: "listen_only",
+  };
+  const message = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: expected.coupleId,
+    sender_id: expected.userId,
+    role: "user",
+    sender_type: expected.senderType,
+    content: expected.text,
+    metadata: {
+      client_request_id: expected.clientRequestId,
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      interaction_mode: "listen_only",
+    },
+    created_at: "2026-08-18T00:00:00.000Z",
+    visibility: "shared",
+  };
+
+  assert.equal(parseAiMessageIngestResult(201, {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    safetyResolution: null,
+    message,
+  }, expected).message.id, message.id);
+
+  assert.throws(() => parseAiMessageIngestResult(201, {
+    outcome: "persisted",
+    reused: false,
+    effectiveVisibility: "shared",
+    safetyPrivacyRedirected: false,
+    safetyResolution: null,
+    message: {
+      ...message,
+      metadata: { ...message.metadata, interaction_mode: undefined },
+    },
+  }, expected));
+});
+
 test("partner message ingest binds the canonical row to the exact target and recipient", () => {
   const { AiMessageIngestError, parseAiMessageIngestResult } = loadAiMessageIngestContract();
   const expected = {
@@ -2418,6 +2471,50 @@ test("cold-start offers a click-only resume for the latest unanswered v1 text re
   );
 });
 
+test("cold-start preserves an exact listen-only turn and rejects a malformed mode", () => {
+  const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
+  const userMessage = {
+    id: "44444444-4444-4444-8444-444444444444",
+    couple_id: "11111111-1111-4111-8111-111111111111",
+    sender_id: "22222222-2222-4222-8222-222222222222",
+    role: "user",
+    sender_type: "bride",
+    content: "해결책 말고 그냥 들어줘.",
+    metadata: {
+      client_request_id: "33333333-3333-4333-8333-333333333333",
+      amora_ingest_contract_version: 1,
+      ai_response_requested: true,
+      provider_attachment_state: "none",
+      provider_attachment_count: 0,
+      interaction_mode: "listen_only",
+    },
+    created_at: "2026-08-18T00:00:00.000Z",
+    visibility: "shared",
+  };
+  const context = {
+    coupleId: userMessage.couple_id,
+    userId: userMessage.sender_id,
+    senderType: "bride",
+    visibility: "shared",
+  };
+
+  assert.deepEqual(findColdStartAiRecovery([userMessage], context), {
+    disposition: "resumable",
+    lane: "shared_ai",
+    userMessageId: userMessage.id,
+    clientRequestId: userMessage.metadata.client_request_id,
+    content: userMessage.content,
+    visibility: "shared",
+    providerAttachmentState: "none",
+    providerAttachmentCount: 0,
+    interactionMode: "listen_only",
+  });
+  assert.equal(findColdStartAiRecovery([{
+    ...userMessage,
+    metadata: { ...userMessage.metadata, interaction_mode: "listen" },
+  }], context), null);
+});
+
 test("cold-start can resume a v1 request whose attachments were discarded by safety policy", () => {
   const { findColdStartAiRecovery } = loadColdStartAiRecoveryContract();
   const userMessage = {
@@ -3089,6 +3186,36 @@ test("mobile posts both AI and partner user rows through the Bearer ingest bound
   assert.match(partnerSend, /await requestAiMessageIngest\(\s*draft,\s*operation\.controller\.signal/u);
   assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
   assert.doesNotMatch(partnerSend, /streamAiRequest|requestChatStream/);
+});
+
+test("mobile binds one explicit listen-only turn through ingest, stream, retry, and truthful UI copy", () => {
+  const ingestRequest = sourceBetween(
+    "async function requestAiMessageIngest",
+    "async function requestChatStream",
+  );
+  const aiSend = sourceBetween(
+    "async function sendAiDraft",
+    "async function handleOpenMediationRequest",
+  );
+  const sendHandler = sourceBetween(
+    "async function handleSend",
+    "async function handleConfirmSharedSend",
+  );
+  const retryHandler = sourceBetween(
+    "async function handleRetry",
+    "function handleRegenerateFirstUseAction",
+  );
+
+  assert.match(ingestRequest, /interactionMode: draft\.interactionMode/u);
+  assert.match(aiSend, /conversationMode: canonicalInteractionMode/u);
+  assert.match(sendHandler, /interactionMode: "listen_only"/u);
+  assert.match(retryHandler, /sendAiDraft\(failure\.draft, true, operation\)/u);
+  assert.match(sourceText, />그냥 들어줘<\/Text>/u);
+  assert.match(
+    sourceText,
+    /대화는 현재 공개 범위에 저장돼요\. 준비 기록·아모라 기억은 바꾸지 않아요\./u,
+  );
+  assert.match(sourceText, /setListenOnlySelected\(false\)/u);
 });
 
 test("partner ingest exposes retry only for safe same-request failures", () => {
