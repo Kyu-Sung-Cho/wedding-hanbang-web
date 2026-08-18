@@ -89,6 +89,7 @@ export async function GET(request: Request) {
     if (!auth.ok) return auth.response;
     const { supabase, context } = auth;
     const admin = createAdminClient();
+    const exportRequested = new URL(request.url).searchParams.get("export") === "memory";
     const [settingsResult, memoriesResult, profileNodesResult, consentsResult, coupleResult] = await Promise.all([
       supabase
         .from("amora_memory_settings")
@@ -102,7 +103,7 @@ export async function GET(request: Request) {
         .in("visibility", context.allowedVisibilities)
         .is("superseded_at", null)
         .order("updated_at", { ascending: false })
-        .limit(200),
+        .limit(exportRequested ? 501 : 200),
       supabase
         .from("decision_nodes")
         .select("id, couple_id, visibility, memory_key, title, chosen_value, reasoning, confidence, source_message_id, source_actor_role, superseded_at, metadata, created_at, updated_at, source_message:chat_messages!decision_nodes_source_message_id_fkey(id, couple_id, visibility, sender_id, sender_type, role, metadata)")
@@ -131,6 +132,12 @@ export async function GET(request: Request) {
         couple: coupleResult.error?.code,
       });
       return NextResponse.json({ error: "기억을 불러오지 못했어요." }, { status: 503 });
+    }
+    if (exportRequested && (memoriesResult.data?.length ?? 0) >= 501) {
+      return NextResponse.json(
+        { error: "내보내기 범위가 너무 커요. 기억을 정리한 뒤 다시 시도해주세요." },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } },
+      );
     }
     const members = [...new Set(
       [coupleResult.data?.bride_id, coupleResult.data?.groom_id]
@@ -187,6 +194,7 @@ export async function GET(request: Request) {
     const projectedProfiles = toAmoraProfileApiRows(profileProjection.profiles);
     const memories = (memoriesResult.data ?? [])
       .filter(isAutomaticMemory)
+      .filter((row) => context.allowedVisibilities.includes(row.visibility as AmoraMemoryVisibility))
       .map((row) => ({
         id: row.id,
         visibility: row.visibility,
@@ -203,6 +211,41 @@ export async function GET(request: Request) {
         sourceMessageId: row.source_message_id,
         updatedAt: row.updated_at,
       }));
+    if (exportRequested) {
+      const exportedAt = new Date().toISOString();
+      const scopes = settings.map((setting) => ({
+        visibility: setting.visibility,
+        enabled: setting.enabled,
+        consentedByMe: setting.consentedByMe,
+        consentedCount: setting.consentedCount,
+        requiredCount: setting.requiredCount,
+        memories: memories
+          .filter((memory) => memory.visibility === setting.visibility)
+          .map((memory) => ({
+            id: memory.id,
+            kind: memory.kind,
+            title: memory.title,
+            value: memory.value,
+            userConfirmedAt: memory.userConfirmedAt,
+            userCorrected: memory.userCorrected,
+            updatedAt: memory.updatedAt,
+          })),
+      }));
+      return NextResponse.json(
+        {
+          schemaVersion: "amora-memory-export.v1",
+          exportedAt,
+          includes: "amora_memory_only",
+          scopes,
+        },
+        {
+          headers: {
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": `attachment; filename="amora-memory-${exportedAt.slice(0, 10)}.json"`,
+          },
+        },
+      );
+    }
     return NextResponse.json(
       {
         runtimeEnabled: isAuxiliaryMemoryRuntimeEnabled(),

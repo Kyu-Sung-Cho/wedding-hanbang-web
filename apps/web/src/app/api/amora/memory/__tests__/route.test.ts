@@ -93,6 +93,7 @@ function mockRequestClient(memoryOverrides: Record<string, unknown> = {}) {
 }
 
 function mockGetClients(options: {
+  memoryRows?: unknown[];
   profileError?: { code: string } | null;
   profileRowCount?: number;
   sharedEnabled?: boolean;
@@ -148,7 +149,9 @@ function mockGetClients(options: {
     }
     if (table === "decision_nodes") {
       return selectableQuery([], (selection) =>
-        selection.includes("source_message:chat_messages") ? projectedRows : [],
+        selection.includes("source_message:chat_messages")
+          ? projectedRows
+          : options.memoryRows ?? [],
       (selection) =>
         selection.includes("source_message:chat_messages")
           ? options.profileError ?? null
@@ -381,5 +384,141 @@ describe("/api/amora/memory GET profile projection", () => {
     expect(response.status).toBe(200);
     expect(body.profiles).toEqual([]);
     expect(JSON.stringify(body)).not.toContain("LEGACY_PROFILE_MUST_NOT_LEAK");
+  });
+
+  it("exports only the current member's shared and own-private Amora memories while runtime generation is off", async () => {
+    vi.stubEnv("AMORA_AUXILIARY_MEMORY_ENABLED", "false");
+    mockGetClients({
+      memoryRows: [
+        {
+          id: "20000000-0000-4000-8000-000000000011",
+          visibility: "shared",
+          memory_key: "venue:preferred_area",
+          category: "venue",
+          decision_type: "considering",
+          title: "선호 지역",
+          chosen_value: { value: "강남" },
+          reasoning: "공유 근거는 내보내지 않음",
+          confidence: 0.91,
+          source_message_id: "30000000-0000-4000-8000-000000000011",
+          user_confirmed_at: null,
+          metadata: { extracted_by: "amora", memory_kind: "preference" },
+          created_at: "2026-08-17T00:00:00.000Z",
+          updated_at: "2026-08-18T00:00:00.000Z",
+        },
+        {
+          id: "20000000-0000-4000-8000-000000000012",
+          visibility: "bride_private",
+          memory_key: "budget:priority",
+          category: "budget",
+          decision_type: "decided",
+          title: "예산 우선순위",
+          chosen_value: { value: "식사" },
+          reasoning: null,
+          confidence: 1,
+          source_message_id: "30000000-0000-4000-8000-000000000012",
+          user_confirmed_at: "2026-08-18T00:00:00.000Z",
+          metadata: { extracted_by: "amora", memory_kind: "decision", user_corrected: true },
+          created_at: "2026-08-17T00:00:00.000Z",
+          updated_at: "2026-08-18T01:00:00.000Z",
+        },
+        {
+          id: "20000000-0000-4000-8000-000000000013",
+          visibility: "groom_private",
+          memory_key: "private:forbidden",
+          category: "private",
+          decision_type: "decided",
+          title: "상대 비공개",
+          chosen_value: { value: "PARTNER_PRIVATE_MUST_NOT_EXPORT" },
+          reasoning: null,
+          confidence: 1,
+          source_message_id: null,
+          user_confirmed_at: null,
+          metadata: { extracted_by: "amora", memory_kind: "fact" },
+          created_at: "2026-08-17T00:00:00.000Z",
+          updated_at: "2026-08-18T02:00:00.000Z",
+        },
+      ],
+    });
+
+    const response = await GET(new Request("http://localhost/api/amora/memory?export=memory"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="amora-memory-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    expect(body.schemaVersion).toBe("amora-memory-export.v1");
+    expect(body.includes).toBe("amora_memory_only");
+    expect(new Date(body.exportedAt).toISOString()).toBe(body.exportedAt);
+    expect(body.scopes).toEqual([
+      {
+        visibility: "shared",
+        enabled: true,
+        consentedByMe: true,
+        consentedCount: 2,
+        requiredCount: 2,
+        memories: [{
+          id: "20000000-0000-4000-8000-000000000011",
+          kind: "preference",
+          title: "선호 지역",
+          value: "강남",
+          userConfirmedAt: null,
+          userCorrected: false,
+          updatedAt: "2026-08-18T00:00:00.000Z",
+        }],
+      },
+      {
+        visibility: "bride_private",
+        enabled: false,
+        consentedByMe: false,
+        consentedCount: 0,
+        requiredCount: 1,
+        memories: [{
+          id: "20000000-0000-4000-8000-000000000012",
+          kind: "decision",
+          title: "예산 우선순위",
+          value: "식사",
+          userConfirmedAt: "2026-08-18T00:00:00.000Z",
+          userCorrected: true,
+          updatedAt: "2026-08-18T01:00:00.000Z",
+        }],
+      },
+    ]);
+    expect(JSON.stringify(body)).not.toContain("PARTNER_PRIVATE_MUST_NOT_EXPORT");
+    expect(JSON.stringify(body)).not.toContain("LEGACY_PROFILE_MUST_NOT_LEAK");
+    expect(JSON.stringify(body)).not.toContain("공유 근거는 내보내지 않음");
+    expect(body).not.toHaveProperty("profiles");
+    expect(body).not.toHaveProperty("runtimeEnabled");
+  });
+
+  it("refuses to label a capped memory export as complete", async () => {
+    mockGetClients({
+      memoryRows: Array.from({ length: 501 }, (_, index) => ({
+        id: `memory-${index}`,
+        visibility: "shared",
+        memory_key: `topic:item_${index}`,
+        category: "topic",
+        decision_type: "considering",
+        title: `기억 ${index}`,
+        chosen_value: { value: `값 ${index}` },
+        reasoning: null,
+        confidence: 0.9,
+        source_message_id: null,
+        user_confirmed_at: null,
+        metadata: { extracted_by: "amora", memory_kind: "fact" },
+        created_at: "2026-08-17T00:00:00.000Z",
+        updated_at: "2026-08-18T00:00:00.000Z",
+      })),
+    });
+
+    const response = await GET(new Request("http://localhost/api/amora/memory?export=memory"));
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("content-disposition")).toBeNull();
+    expect(body.error).toContain("내보내기 범위가 너무 커요");
+    expect(body).not.toHaveProperty("scopes");
   });
 });

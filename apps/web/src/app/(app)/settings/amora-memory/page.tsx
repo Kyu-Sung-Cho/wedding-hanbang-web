@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BrainCircuit,
   Check,
+  Download,
   Eye,
   EyeOff,
   Loader2,
@@ -221,6 +222,32 @@ export default function AmoraMemorySettingsPage() {
     }
   }
 
+  async function exportMemories() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/amora/memory?export=memory", { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json() as { error?: string };
+        throw new Error(payload.error ?? "기억을 내보내지 못했어요.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `amora-memory-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "기억을 내보내지 못했어요.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
       <div className="mb-7 flex items-center gap-3">
@@ -297,7 +324,7 @@ export default function AmoraMemorySettingsPage() {
         <>
           {data && !data.runtimeEnabled && (
             <p role="status" className="mb-4 rounded-xl border border-[#E2D3C8] bg-[#FBF8F2] px-4 py-3 text-sm leading-relaxed text-[#36534E]">
-              기억 엔진을 운영 환경에 안전하게 연결하는 중이에요. 지금은 기존 기억을 확인·수정·삭제할 수 있고, 새로 켜기는 최종 점검 후 열려요.
+              기억 엔진을 운영 환경에 안전하게 연결하는 중이에요. 지금은 기존 기억을 확인·수정·내보내기·삭제할 수 있고, 새로 켜기는 최종 점검 후 열려요.
             </p>
           )}
           <section className="mb-5 rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
@@ -431,6 +458,27 @@ export default function AmoraMemorySettingsPage() {
                 })}
               </div>
             )}
+          </section>
+
+          <section className="mt-5 flex flex-col gap-4 rounded-2xl border border-[#E8DDD3] bg-[#fffdfb] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Download className="h-4 w-4 text-[#795252]" />
+                <h2 className="font-medium text-[#1A1A1F]">아모라 기억 내보내기</h2>
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-[#6F6660]">
+                현재 계정에서 볼 수 있는 아모라 기억만 JSON으로 내려받아요. 채팅 원문·일정·예산은 포함하지 않아요.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={busy || !data}
+              onClick={() => void exportMemories()}
+              className="inline-flex min-h-11 flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-[#F7F1E8] px-4 text-sm font-medium text-[#795252] hover:bg-[#EFE3D8] disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              내보내기
+            </button>
           </section>
         </>
       )}

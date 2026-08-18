@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.16 — AMORA NOTES CORE SLICE LOCAL VERIFIED`
+> 계획 버전: `v1.18 — MEMORY EXPORT LOCAL VERIFIED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `e694626484eb224b5de3f7ad4ccf863972c6a25e`
+> 검증 기준 코드 HEAD: `07c53f24db71b7c08d751f8d51efafb2a55b907d`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 107개 · Production 관찰 적용 32개 · Production 기준 pending 75개 · tail `20260818130000`
 >
-> 현재 작업 상태: `HT-009` 핵심 화면·projection·identity-fenced 6-lane read, 질문·답변 서버 검색·snapshot cursor pagination, strict `add_amora_action` 적용 영수증을 원격 브랜치까지 완료 · 현재 여정과 exact 결박된 일정 결정 영수증 adapter는 로컬 검증 완료 · 실기기/2계정 검증은 미완료 · `STG-004`의 중요 상담 저장 하위 경계는 synthetic 3계정 staging probe 완료 · Preview/Production/EAS 미배포
+> 현재 작업 상태: `HT-009`의 저장 대화·기준·적용·일정 영수증 검색은 원격 브랜치와 로컬 자동 검증까지 완료했지만 실기기/2계정은 실행 도구 부재로 미완료 · Vercel Preview는 READY이나 SSO로 QA 접근 차단 · GitHub Actions 7개 실패는 코드 실행 전 account billing/spending-limit 차단 · `HT-010` 장기 기억은 기본 OFF·비소급·공유 전원 동의·민감정보 차단·철회·수정·삭제 경계를 재확인했고, shared+본인 private 기억만 내보내는 API·웹·모바일 수직을 로컬 자동 검증함 · 실기기·2계정·hosted 삭제/무효화/내보내기 E2E와 Production/EAS 배포는 미실행
 >
-> 현재 작업 스냅샷: 제품 코드 후보 `15e59d3a` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 기준 HEAD `07c53f24` 위 HT-010 내보내기 7경로 로컬 후보 · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `HT-009 / AMR-M03 IN_PROGRESS` — 저장 대화·내 기준·우리 기준·실제 반영·확인한 일정의 정본 검색까지 코드 완료. 실기기와 2계정에서 범위·검색·복귀·partial 상태를 확인하는 단계 |
-| 최근 완료 제품 vertical | `HT-009 SCHEDULE DECISION SLICE VERIFIED (LOCAL)` — shared/current-couple `schedule/scheduled` 영수증만 현재 journey event와 exact 대조해 `확인한 결정`으로 검색·페이지 이동·읽기 전용 일정 복귀 |
-| 다음 소비자 vertical | 새 기능을 추가하지 않고 `HT-009` 실기기·2계정 검증. owner/private와 couple/shared 분리, 일정 변경 후 stale 제거, 한 lane 장애 시 partial, 검색·더 보기·뒤로가기를 확인 |
+| 현재 작업 | `HT-010 / AMR-M04 IN_PROGRESS` — 사용자 기억 내보내기 수직은 로컬 자동 검증했고, 실기기·2계정·hosted에서 철회·삭제·roster 무효화·내보내기 E2E를 닫아야 함 |
+| 최근 완료 제품 vertical | `HT-010 MEMORY EXPORT SLICE VERIFIED (LOCAL/AUTOMATED)` — 현재 계정의 shared+본인 private 아모라 기억만 범위별 JSON으로 내보내고 상대 private·채팅 원문·일정·예산·숨은 프로필은 제외 |
+| 다음 소비자 vertical | `HT-010 MEMORY OWNERSHIP E2E` — runtime OFF 상태의 기존 기억 내보내기·철회·수정·삭제와 roster 변경 즉시 무효화를 실기기·2계정·격리 hosted에서 검증. 실행 환경 확보 전에는 BLOCKED |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | HT-001 단일 행동 → HT-002 진행 진실 → HT-003/004 주제 위계·관련성 → HT-005/006 왕복 → HT-007 partial state → HT-009 우리 준비 노트 → EX-009 재동결 → Preview/internal E2E |
@@ -161,7 +161,8 @@
 | `HT-005` | `AMR-T12` | `VERIFIED` | HT-003/004 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `4e334648`; explicit tap만 private unsent draft를 열고 exact owner/couple/topic/journey/action을 in-memory로 묶음. draft 편집·identity/lane 변경은 binding을 폐기하고, canonical persisted private assistant ID+request key가 확인된 뒤에만 write-free `/checklist` 복귀 CTA를 표시. 공개 계약 5/5, focused 222/222, mobile 1091/1091, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS | 실기기에서 occupied composer·편집·느린 응답·강제종료·복귀 포커스를 검증 | 2026-08-18 |
 | `HT-006` | `AMR-T13` | `VERIFIED` | STG-004/HT-005 | `COMMITTED` | `MULTI-ACCOUNT` | `LOCAL/STAGING/BLOCKED` | `NOT-RUN` | backend `c27da3d7`, mobile `a4cb8d9a`. exact save/remove CAS와 오래된 원문 merge, owner/private·couple/shared scope, opaque ref navigation, identity fence, partial read, terminal unavailable/inaccessible와 transient retry를 분리. focused 45/45, mobile 1092/1092, typecheck/full lint/node syntax/diff-check PASS; staging 3계정 probe residue 0 | 실기기에서 오래된 원문 포커스·삭제 후 unavailable·오프라인 retry·뒤로가기를 확인 | 2026-08-18 |
 | `HT-007` | `AMR-T14` | `VERIFIED` | HT-003/006 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `911b5e16`; 저장 대화 lane unavailable fixture에서 개인화된 current action과 확인 일정 근거를 그대로 보존하고 저장 대화 section만 explicit unavailable로 표시. topic focused 93/93, mobile 1093/1093, typecheck, targeted lint, diff-check PASS | 실기기에서 mixed loaded/partial/unavailable 조합과 스크린리더 읽기 순서를 확인 | 2026-08-18 |
-| `HT-009` | `AMR-M03` | `IN_PROGRESS` | FV-011,HT-001/003/004/006/007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commits `b8fdfe94`, `ef0d5dd4`, `15e59d3a`; 저장 대화·내 기준·우리 기준, strict first-use/provider-backed `add_amora_action` 적용 영수증, current `schedule/scheduled` 결정 영수증을 각각 정본 재검증 뒤 결합. 일정 lane은 event별 최신 raw 후보 손상 시 older fallback 없이 partial, query token·snapshot·journey revision cursor, 최종 owner/couple/privacy fence를 적용. mobile focused 26/26·full 1119/1119, web 관련 48/48, shared/web/mobile typecheck, web/mobile lint, node syntax, Expo iOS/Android/Web export, diff-check PASS | 실기기·2계정에서 범위·stale 제거·부분 장애·검색·더 보기·읽기 전용 일정 복귀를 확인한 뒤 HT-009 사용자 검증 상태를 갱신 | 2026-08-18 |
+| `HT-009` | `AMR-M03` | `BLOCKED` | FV-011,HT-001/003/004/006/007 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commits `b8fdfe94`, `ef0d5dd4`, `15e59d3a`; 저장 대화·내 기준·우리 기준, strict first-use/provider-backed `add_amora_action` 적용 영수증, current `schedule/scheduled` 결정 영수증을 각각 정본 재검증 뒤 결합. 일정 lane은 event별 최신 raw 후보 손상 시 older fallback 없이 partial, query token·snapshot·journey revision cursor, 최종 owner/couple/privacy fence를 적용. mobile focused 26/26·full 1119/1119, web 관련 48/48, shared/web/mobile typecheck, web/mobile lint, node syntax, Expo iOS/Android/Web export, diff-check PASS. 실기기 도구 부재·Preview SSO·GitHub Billing 차단 | 접근 가능한 Preview/internal build와 실기기·2계정 환경을 확보하면 범위·stale 제거·부분 장애·검색·더 보기·읽기 전용 일정 복귀를 확인 | 2026-08-18 |
+| `HT-010` | `AMR-M04` | `IN_PROGRESS` | HT-009 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | runtime flag default-off, 동의 이전 source 차단, shared current-member 전원 동의, roster 변경 무효화, 결정적 민감정보 차단, 철회·수정·삭제 경계를 재확인. `GET ?export=memory`가 현재 owner의 shared+본인 private 기억만 versioned JSON으로 내보내며 상대 private·profile reasoning·source ID·채팅·일정·예산을 제외. 501행 이상은 partial export 대신 409. web memory 120/120, mobile focused 9/9·full 1120/1120, web/mobile typecheck·full lint, web/mobile build, diff-check PASS | exact 7경로를 commit/push한 뒤 접근 가능한 실기기·2계정·격리 hosted에서 철회·삭제·roster 무효화·export E2E. 환경 확보 전 사용자/hosted 완료 체크 금지 | 2026-08-18 |
 
 `HT-009` search slice는 commit `b8fdfe94`로 닫았다. 기존 v1 list 응답은 유지하고 notes 전용 opt-in read만 추가했으며, `20260818130000` SHA-256은 `022707a3...f9d4`로 고정했다. 다음 canonical receipt adapter slice는 편집 전에 별도 exact allowlist와 source truth contract를 이 ledger에 먼저 추가한다.
 
@@ -172,6 +173,10 @@
 `HT-009 / 일정 결정 영수증 adapter`의 exact allowlist는 다음 17경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraPreparationTopic.mjs`, `packages/shared/src/contracts/amoraPreparationTopic.d.mts`, `packages/shared/src/contracts/amoraPreparationTopicMessageRef.mjs`, `packages/shared/src/contracts/amoraPreparationTopicMessageRef.d.mts`, `apps/web/src/lib/amora/preparationScheduleDecisionReceipt.ts`, `apps/web/src/lib/amora/__tests__/preparationScheduleDecisionReceipt.test.ts`, `apps/web/src/app/api/amora/preparation-topic-message-refs/route.ts`, `apps/web/src/app/api/amora/preparation-topic-message-refs/route.test.ts`, `apps/mobile/src/lib/amoraPreparationNotesLoader.mjs`, `apps/mobile/src/lib/amoraPreparationNotesLoader.d.mts`, `apps/mobile/src/lib/amoraPreparationNotes.mjs`, `apps/mobile/src/lib/amoraPreparationNotes.d.mts`, `apps/mobile/src/__tests__/amoraPreparationNotesLoader.test.mjs`, `apps/mobile/src/__tests__/amoraPreparationNotes.test.mjs`, `apps/mobile/src/__tests__/amoraPreparationNotesScreenContract.test.mjs`, `apps/mobile/app/amora-notes.tsx`. source truth는 shared/current-couple `decision_nodes` 중 `source='schedule'`, `decision_type='scheduled'`, user-confirmed, unsuperseded이며 현재 `wedding_journeys.progress.__events`와 exact snapshot·revision·origin 결박을 통과한 행만 허용한다. event별 최신 raw 후보가 손상되면 older fallback 없이 partial로 내리고, generic/manual/AI/legacy/private decision, 자동 수정, 새 write·migration은 금지한다. 검색과 cursor는 동일 snapshot·journey revision을 유지하고 최종 응답 전 owner/couple/privacy를 다시 확인한다.
 
 `HT-009 / 일정 결정 영수증 adapter`의 로컬 코드 snapshot은 commit `15e59d3a`다. 모바일 focused 26/26·전체 1119/1119, 웹 관련 48/48, shared/web/mobile typecheck, web/mobile lint, 변경 mjs 문법 검사와 Expo iOS/Android/Web export를 통과했다. 이 commit은 Production·Preview·EAS·hosted DB에 배포하지 않았으며, 실기기와 2계정 확인 전에는 HT-009를 사용자 검증 완료로 체크하지 않는다.
+
+`HT-009`의 추가 사용자 검증은 현재 외부 차단이다. 이 개발 환경에는 `adb`, Android emulator, `eas`, `vercel`, `supabase` CLI가 없어 실기기·2계정·EAS를 실행하지 못했다. PR #105의 Vercel Preview는 READY지만 요청이 Vercel SSO로 302 전환되어 비로그인 QA가 불가능하다. GitHub Actions run `32089183407`의 7개 실패는 step과 runner가 시작되기 전 `recent account payments have failed or your spending limit needs to be increased` annotation으로 종료됐다. 따라서 코드 실패로 분류하거나 HT-009 사용자 검증을 완료 처리하지 않고 `LOCAL/AUTOMATED`, 사용자 검증 `NOT-RUN`을 유지한다.
+
+`HT-010 / 사용자 기억 내보내기`의 exact allowlist는 다음 7경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/web/src/app/api/amora/memory/route.ts`, `apps/web/src/app/api/amora/memory/__tests__/route.test.ts`, `apps/web/src/app/(app)/settings/amora-memory/page.tsx`, `apps/web/src/app/(app)/settings/amora-memory/page.sensitive-memory-copy.test.ts`, `apps/mobile/app/settings/amora-memory.tsx`, `apps/mobile/src/__tests__/amoraMemorySettings.test.mjs`. source truth는 현재 인증 owner와 exact couple roster에서 허용된 `shared + own role-private` visibility의 active automatic `decision_nodes`다. export는 visibility별 설정·동의 수와 정리된 기억만 포함하고 member/user/couple ID, 상대 role-private, 숨은 profile projection, 채팅 원문, 일정·예산, 새 AI 요약을 포함하지 않는다. runtime flag가 꺼져도 기존 기억의 조회·내보내기·삭제·철회는 허용하지만 새 동의·enqueue는 계속 차단한다. DB write·migration·새 화면·새 navigation은 금지한다. 첫 공개 RED는 `GET /api/amora/memory?export=memory`가 표준 조회 응답 대신 versioned scope-separated export와 attachment/no-store header를 반환하고 상대 private 식별자·데이터를 포함하지 않는다는 행동이다.
 
 운영 규칙:
 
@@ -989,7 +994,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-H03 | 전체 준비를 의미로 보여 주는 진행 상태 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 홈 상단 큰 퍼센트를 상태 요약으로 교체하고 체크 퍼센트는 체크 도구 내부로 제한해야 함 |
 | AMR-T04 | 일정 이외 일반 결정의 안전한 주제 연결 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 예산·일부 booking receipt만 연결, 일반 decision 전체는 읽을 수 없음 |
 | AMR-M03 | `우리 준비 노트`의 중요한 대화·검증된 기준·지원 영수증 검색과 재개 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | 헤더 진입·scope/topic/type/질문/답변 검색·stable cursor·exact 원문·현재 행동 복귀까지 구현. 지원되는 canonical receipt adapter, 실기기·2계정 검증은 미완료 |
-| AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제 | `NOT-STARTED` | `NONE` | `BLOCKED` | `NOT-RUN` | default-off·비소급·전원 동의·결정적 필터 gate 전 auxiliary memory 활성화 금지 |
+| AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제·내보내기 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | default-off·비소급·전원 동의·결정적 필터·철회/수정/삭제와 범위 분리 내보내기까지 로컬 검증. 실기기·2계정·hosted 삭제/roster 무효화 E2E 전 auxiliary memory 활성화·Production 완료 금지 |
 | AMR-U01 | 독립 상태축의 공통 화면 합성 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | strict pure composer·UI-facing contract·10,368 혼합 fixture 완료; 화면별 adapter·실기기 검증은 JRN-002/FV-012 소유 |
 | AMR-V01 | 광고·업체 공개 정보·경험·아모라 제안의 출처 disclosure | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 위험·카피 원칙은 있으나 surface 공통 source badge·상업 관계·확인일 계약과 관찰 gate가 미완성 |
 | AMR-E01 | 해결·저장 없이 듣고 정리하는 명시적 경청 lane | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 일반 chat no-tool 응답은 가능하나 사용자 선택·no-write 종료 계약이 한 흐름으로 고정되지 않음 |
@@ -1988,6 +1993,7 @@ Wave 3·4 구현
 
 | 날짜 | 작업 ID | 변경 | 증거/상태 |
 |---|---|---|---|
+| 2026-08-18 | AMR-M04 | 장기 기억의 기본 OFF·비소급·공유 전원 동의·민감정보 차단·철회/수정/삭제 경계를 재감사하고, 현재 owner가 볼 수 있는 shared+본인 private 아모라 기억만 API·웹·모바일에서 JSON으로 내보내는 수직 추가 | TDD RED→GREEN · web memory 120/120 · mobile focused 9/9·full 1120/1120 · web/mobile typecheck·full lint·build · diff-check PASS · 실기기/2계정/hosted/Production 미실행 |
 | 2026-08-17 | AMR-PLAN01 | 아이디얼 아모라, 현재 구현, 소비자 세로 흐름, 4축 상태, 단계별 개발, 리스크, 테스트, 배포를 통합하고 저장소 진입점에 연결 | 구조·표·공백 검증 통과 · 제품 코드/배포 변경 없음 |
 | 2026-08-17 | AMR-PLAN02 | 제품·소비자·엔지니어링 적대 검수로 화면 위계, advanced-user catch-up, 상태 합성, 연구 gate, ordered suffix, 기억·선제 리드 안전, WBS 의존·소유를 최종 교정 | 독립 product/consumer/engineering review GO · Production은 S0~S3 전 NO-GO · 제품 코드/commit/deploy 변경 없음 |
 | 2026-08-17 | AMR-PLAN03 | `우리 준비 노트` 화면·상태·privacy·원문 회수 계약, first-value/write 분리, 증거 기반 단일 ledger, orphan AMR package, 최종 re-freeze→internal→pilot→Production 의존을 추가하고 123-path drift를 반영 | 소비자·UX·실행 독립 검수 반영 · 제품 구현은 EX-001~003 전 NO-GO · Production NO-GO |

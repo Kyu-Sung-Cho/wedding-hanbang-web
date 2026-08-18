@@ -4,6 +4,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   TextInput,
@@ -14,6 +15,7 @@ import { router } from "expo-router";
 import {
   BrainCircuit,
   Check,
+  Download,
   Lock,
   Pencil,
   ShieldCheck,
@@ -62,6 +64,28 @@ type MemoryResponse = {
   runtimeEnabled: boolean;
   settings: MemorySetting[];
   memories: MemoryItem[];
+};
+
+type MemoryExportResponse = {
+  schemaVersion: "amora-memory-export.v1";
+  exportedAt: string;
+  includes: "amora_memory_only";
+  scopes: Array<{
+    visibility: Visibility;
+    enabled: boolean;
+    consentedByMe: boolean;
+    consentedCount: number;
+    requiredCount: number;
+    memories: Array<{
+      id: string;
+      kind: string;
+      title: string | null;
+      value: unknown;
+      userConfirmedAt: string | null;
+      userCorrected: boolean;
+      updatedAt: string;
+    }>;
+  }>;
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -235,6 +259,42 @@ export default function AmoraMemoryScreen() {
     }
   }
 
+  async function exportMemories() {
+    if (busy) return;
+    const sequence = loadSequenceRef.current;
+    const token = sessionFenceRef.capture();
+    if (!token) {
+      Alert.alert("내보내지 못했어요", "계정을 확인하고 있어요. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = await apiJsonForExpectedUser<MemoryExportResponse>(
+        token.ownerId,
+        "/api/amora/memory?export=memory",
+      );
+      if (!(await isLoadCommitCurrent(sequence, token))) return;
+      if (
+        payload.schemaVersion !== "amora-memory-export.v1"
+        || payload.includes !== "amora_memory_only"
+        || !Array.isArray(payload.scopes)
+      ) {
+        throw new Error("내보낼 기억 형식을 확인하지 못했어요.");
+      }
+      await Share.share({
+        title: "아모라 기억",
+        message: JSON.stringify(payload, null, 2),
+      });
+    } catch (exportError) {
+      Alert.alert(
+        "내보내지 못했어요",
+        exportError instanceof Error ? exportError.message : "다시 시도해주세요.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openEditor(memory: MemoryItem) {
     setEditing(memory);
     setEditTitle(memory.title ?? "");
@@ -343,7 +403,7 @@ export default function AmoraMemoryScreen() {
         {!data?.runtimeEnabled ? (
           <Surface tone="ivory" style={styles.noticeCard}>
             <AppText variant="caption" style={styles.noticeText}>
-              새 기억 연결은 최종 운영 점검 중이에요. 기존 기억의 확인·수정·삭제는 지금도 가능해요.
+              새 기억 연결은 최종 운영 점검 중이에요. 기존 기억의 확인·수정·내보내기·삭제는 지금도 가능해요.
             </AppText>
           </Surface>
         ) : null}
@@ -473,6 +533,27 @@ export default function AmoraMemoryScreen() {
           </View>
         )}
 
+        <Surface style={styles.exportCard}>
+          <View style={styles.exportCopy}>
+            <View style={styles.exportTitleRow}>
+              <Download size={17} color={colors.rose[600]} />
+              <AppText variant="bodyStrong">아모라 기억 내보내기</AppText>
+            </View>
+            <AppText variant="caption" style={styles.settingDescription}>
+              현재 계정에서 볼 수 있는 아모라 기억만 JSON으로 내보내요. 채팅 원문·일정·예산은 포함하지 않아요.
+            </AppText>
+          </View>
+          <Pressable
+            onPress={() => void exportMemories()}
+            disabled={busy || !data}
+            style={styles.exportButton}
+            accessibilityRole="button"
+            accessibilityLabel="아모라 기억 내보내기"
+          >
+            <AppText variant="caption" style={styles.exportButtonText}>내보내기</AppText>
+          </Pressable>
+        </Surface>
+
         <View style={styles.privacyNote}>
           <ShieldCheck size={16} color={colors.success} />
           <AppText variant="caption" style={styles.flex}>
@@ -575,6 +656,17 @@ const styles = StyleSheet.create({
   memoryValue: { marginTop: spacing[1], color: colors.textSecondary },
   memoryActions: { marginTop: spacing[3], flexDirection: "row", justifyContent: "flex-end", gap: spacing[2] },
   iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.full },
+  exportCard: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
+  exportCopy: { flex: 1 },
+  exportTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
+  exportButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing[3],
+    backgroundColor: colors.ivory[100],
+  },
+  exportButtonText: { color: colors.rose[600], fontFamily: "NotoSansKR_600SemiBold" },
   privacyNote: { flexDirection: "row", alignItems: "center", gap: spacing[2], paddingHorizontal: spacing[2] },
   modalBackdrop: {
     flex: 1,

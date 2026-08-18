@@ -24,6 +24,21 @@ test("mobile memory deletion and full reset require explicit confirmation", () =
   assert.match(memorySource, /action: "clear_scope"/);
 });
 
+test("mobile exports only the server-sanitized Amora memory payload after the owner and couple fence stays current", () => {
+  assert.match(memorySource, /import \{[\s\S]*?Share,[\s\S]*?\} from "react-native"/u);
+  assert.match(
+    memorySource,
+    /apiJsonForExpectedUser<MemoryExportResponse>\([\s\S]*?token\.ownerId,[\s\S]*?"\/api\/amora\/memory\?export=memory"/u,
+  );
+  assert.match(
+    memorySource,
+    /const sequence = loadSequenceRef\.current;[\s\S]*?await apiJsonForExpectedUser<MemoryExportResponse>[\s\S]*?await isLoadCommitCurrent\(sequence, token\)[\s\S]*?Share\.share/u,
+  );
+  assert.match(memorySource, /현재 계정에서 볼 수 있는 아모라 기억만 JSON으로 내보내요\./u);
+  assert.match(memorySource, /채팅 원문·일정·예산은 포함하지 않아요\./u);
+  assert.doesNotMatch(memorySource, /expo-file-system|WebView|Linking\.openURL/u);
+});
+
 test("native settings hides proactive-care opt-in while preserving legacy opt-out", () => {
   assert.doesNotMatch(settingsSource, /care_notifications_enabled: value/);
   assert.doesNotMatch(settingsSource, /care_notifications_enabled: true/);
