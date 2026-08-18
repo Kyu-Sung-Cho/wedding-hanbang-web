@@ -312,6 +312,7 @@ async function createControllerReadyFixture(): Promise<Fixture> {
         preparation_notes_read_rpc_acl_count: 1,
         mediation_private_draft_boundary_trigger_count: 1,
         topic_criterion_action_context_trigger_count: 1,
+        shared_action_receipt_trigger_contract_count: 1,
         signup_profile_trigger_contract_count: 1,
         couple_invite_nullable_contract_count: 1,
         neutral_preparation_space_rpc_acl_count: 2,
