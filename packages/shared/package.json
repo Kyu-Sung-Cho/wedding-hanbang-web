@@ -31,6 +31,7 @@
     "./amora-preparation-map": "./src/contracts/amoraPreparationMap.mjs",
     "./amora-preparation-guide": "./src/contracts/amoraPreparationGuide.mjs",
     "./amora-preparation-topic": "./src/contracts/amoraPreparationTopic.mjs",
+    "./amora-preparation-topic-consumer-state": "./src/contracts/amoraPreparationTopicConsumerState.mjs",
     "./amora-preparation-topic-message-ref": "./src/contracts/amoraPreparationTopicMessageRef.mjs",
     "./amora-preparation-coverage": "./src/contracts/amoraPreparationCoverage.mjs",
     "./amora-journey-truth-audit": "./src/contracts/amoraJourneyTruthAudit.mjs",

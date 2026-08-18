@@ -1,4 +1,5 @@
 import { validateAmoraPreparationGuideModule } from "@hanbang/shared/amora-preparation-guide";
+import { buildAmoraPreparationTopicConsumerState } from "@hanbang/shared/amora-preparation-topic-consumer-state";
 import { buildAmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
 import { resolveBudgetPayerOptions } from "./neutralBudgetPayerPresentation.mjs";
 
@@ -621,16 +622,16 @@ export function buildPreparationTopicPresentation(
     || !Array.isArray(view.linkedActionIds)
   ) return null;
 
-  const isUnknown = view.applicability === "unknown" && view.status === "not_started";
-  const isReadyToStart = view.applicability === "applicable" && view.status === "not_started";
-  const isExploring = view.applicability === "applicable" && view.status === "exploring";
-  const isInProgress = view.applicability === "applicable" && view.status === "in_progress";
-  const isExcluded = view.applicability === "not_applicable" && view.status === "not_started";
-  const needsDecision = (
-    view.applicability === "applicable"
-    || view.applicability === "not_applicable"
-  ) && view.status === "decision_needed";
-  const isCompleted = view.applicability === "applicable" && view.status === "completed";
+  const topicConsumerState = buildAmoraPreparationTopicConsumerState(view);
+  if (!topicConsumerState) return null;
+  const primaryState = topicConsumerState.consumerState.primaryState;
+  const isUnknown = primaryState === "applicability_unknown";
+  const isReadyToStart = primaryState === "ready";
+  const isExploring = primaryState === "in_progress" && view.status === "exploring";
+  const isInProgress = primaryState === "in_progress" && view.status === "in_progress";
+  const isExcluded = primaryState === "not_applicable";
+  const needsDecision = primaryState === "conflict";
+  const isCompleted = primaryState === "completed";
   const connectedPlanCount = view.linkedScheduleIds.length + view.linkedActionIds.length;
   const closesTopic = isExcluded || isCompleted;
   if (

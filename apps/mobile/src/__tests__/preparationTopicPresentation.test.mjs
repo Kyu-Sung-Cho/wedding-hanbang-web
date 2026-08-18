@@ -10,11 +10,23 @@ const summarySource = await readFile(
   new URL("../components/planning/PreparationTopicSummary.tsx", import.meta.url),
   "utf8",
 );
+const presentationSource = await readFile(
+  new URL("../lib/preparationTopicPresentation.mjs", import.meta.url),
+  "utf8",
+);
 
 test("the topic guide renders its common reviewed-source disclosure inside the existing provenance block", () => {
   assert.match(summarySource, /AmoraSourceDisclosureView/);
   assert.match(summarySource, /disclosure=\{guideSection\.sourceDisclosure\}/);
   assert.match(summarySource, /showDetails/);
+});
+
+test("topic presentation delegates primary state validation to the shared consumer-state adapter", () => {
+  assert.match(presentationSource, /buildAmoraPreparationTopicConsumerState/);
+  assert.doesNotMatch(
+    presentationSource,
+    /const isUnknown = view\.applicability|const isCompleted = view\.applicability/u,
+  );
 });
 
 function withoutPlanFields(presentation) {
@@ -457,8 +469,12 @@ test("a guide is rendered only while its exact unfinished item and topic state r
   };
   assert.ok(buildPreparationTopicPresentation(baseView)?.guideSection);
 
+  assert.equal(
+    buildPreparationTopicPresentation({ ...baseView, topicKey: undefined }),
+    null,
+  );
+
   const staleViews = [
-    { ...baseView, topicKey: undefined },
     { ...baseView, unknowns: [] },
     { ...baseView, unknowns: [{
       key: "checklist:meeting_02",

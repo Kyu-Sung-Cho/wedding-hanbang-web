@@ -57,6 +57,10 @@ export type AmoraJourneyTruthAudit = Readonly<{
   isComplete: false;
 }>;
 
+export function getAmoraJourneyTruthTopicPolicy(
+  topicKey: unknown,
+): AmoraJourneyTruthTopicPolicy | null;
+
 export function buildAmoraJourneyTruthAudit(
   coverage: unknown | Readonly<AmoraPreparationCoverageAudit>,
 ): AmoraJourneyTruthAudit | null;

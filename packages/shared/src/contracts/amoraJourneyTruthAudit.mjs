@@ -122,6 +122,16 @@ const FAILURE_UI = Object.freeze({
   empty: "empty_only_when_all_required_reads_loaded",
 });
 
+export function getAmoraJourneyTruthTopicPolicy(topicKey) {
+  if (typeof topicKey !== "string" || !TOPIC_KEYS.includes(topicKey)) return null;
+  return Object.freeze({
+    topicKey,
+    truthOwners: TRUTH_OWNERS,
+    evidenceEffects: EVIDENCE_EFFECTS,
+    failureUi: FAILURE_UI,
+  });
+}
+
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -224,12 +234,9 @@ function isCanonicalCoverage(coverage) {
 export function buildAmoraJourneyTruthAudit(coverage) {
   if (!isCanonicalCoverage(coverage)) return null;
 
-  const topicPolicies = coverage.connectedChecklistTopics.map((topic) => Object.freeze({
-    topicKey: topic.topicKey,
-    truthOwners: TRUTH_OWNERS,
-    evidenceEffects: EVIDENCE_EFFECTS,
-    failureUi: FAILURE_UI,
-  }));
+  const topicPolicies = coverage.connectedChecklistTopics.map((topic) => (
+    getAmoraJourneyTruthTopicPolicy(topic.topicKey)
+  ));
   const gapPolicies = coverage.gaps.map((gap) => {
     const policy = GAP_POLICIES[gap.gapKey];
     return Object.freeze({
