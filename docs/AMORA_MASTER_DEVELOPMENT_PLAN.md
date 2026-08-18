@@ -2,7 +2,7 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.31 — ANDROID INTERNAL BUILD READY / DEVICE EVIDENCE BLOCKED`
+> 계획 버전: `v1.32 — PREPARATION NOTES HOSTED PRIVACY VERIFIED`
 >
 > 마지막 갱신: 2026-08-18
 >
@@ -12,9 +12,9 @@
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 109개 · Production 관찰 적용 32개 · Production 기준 pending 77개 · tail `20260818150000`
 >
-> 현재 작업 상태: Android internal Preview build `7b99f8ad-a4dc-4dab-8cbb-5ad98275c903`가 commit `989aa3d5`에서 `FINISHED`되어 설치용 APK를 만들었다. build profile은 `preview`, distribution은 `INTERNAL`, app build version은 `5`다. mobile release readiness 107/107과 Expo iOS/Android/Web export는 통과했다. 이는 설치 가능한 후보 확보 증거이며 작은 화면·글자 확대·TalkBack·느린 네트워크·중단/복귀·2계정 확인 증거가 아니다. 따라서 `FV-012`, `FV-015`, `SAFE-001`은 계속 `BLOCKED`이고 정식 `EX-009` 완료로 승격하지 않는다.
+> 현재 작업 상태: 격리 staging에 `20260818130000`~`20260818150000` 세 migration을 pre-apply 암호화 backup 뒤 적용했고 ledger 224개/head `20260818150000`, pending 0을 확인했다. commit `d22d5774`의 hosted 3계정 probe에서 준비 노트 검색의 service-role ACL, owner shared+private, partner shared-only, outsider 차단과 전체 residue 0이 통과했다. 중재 private-draft trigger와 criterion action-context positive path 등 STG-004 나머지 경계는 아직 미검증이다. Android internal build는 설치 가능하지만 실제 기기 검증은 계속 `BLOCKED`다.
 >
-> 현재 작업 스냅샷: internal build commit `989aa3d5` · tree `a07bdaa3ef0dc265c5709656a9ed8c38420ce8a3` · `3b623e18` EX-009 checkpoint는 후속 mobile 변경 때문에 역사 증거로 강등 · HOLD 2 + tmp 36 제외 · Production write 0
+> 현재 작업 스냅샷: hosted notes probe commit `d22d5774eca13e9f164bb13adecb8db85824233e` · Android internal build commit `989aa3d5` · `3b623e18` EX-009 checkpoint는 역사 증거 · HOLD 2 + tmp 36 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,12 +23,12 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `FV-012 / FV-015 DEVICE EVIDENCE BLOCKED` — Android internal Preview APK는 확보했지만 현재 PC에 `adb`·emulator·Java와 연결된 실제 기기가 없어 device matrix는 미실행 |
-| 최근 완료 제품 vertical | `ANDROID INTERNAL BUILD CANDIDATE` — build `7b99f8ad…`가 commit `989aa3d5`에서 FINISHED; preview에서 Sentry source-map upload만 비활성화하고 runtime reporting·Production 설정은 유지 |
-| 다음 소비자 vertical | `FV-012/FV-015 ACTUAL DEVICE` — 해당 APK를 실제 Android 기기에 설치해 작은 화면·200%·TalkBack·느린 네트워크·중단/복귀를 확인 |
+| 현재 작업 | `STG-004 IN_PROGRESS` — 181300 준비 노트 privacy는 hosted verified; 181400 중재 private→shared 경계를 다음 단일 probe로 진행 |
+| 최근 완료 제품 vertical | `PREPARATION NOTES HOSTED PRIVACY` — 3계정 owner/partner/outsider, auth RPC deny, shared/private 검색 범위, concurrent ref replay, cleanup residue 0 |
+| 다음 소비자 vertical | `STG-004 MEDIATION PRIVATE DRAFT` — requester-private draft만 명시적 share RPC로 canonical shared card가 되며 직접 shared insert·wrong actor·retry 변조가 차단되는지 검증 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
-| 실행 순서 | FV-012/FV-015 → STG-004~007 → FV-013 → DX-001~004 → LD-001~003/006 → EX-009 최종 재동결 → STG-008 → REL-201 → HT-011/LD-005 관찰 → REL-202 |
+| 실행 순서 | STG-004 남은 경계 → FV-012/FV-015(기기 확보 즉시) → STG-005~007 → FV-013 → DX-001~004 → LD-001~003/006 → EX-009 최종 재동결 → STG-008 → REL-201 → HT-011/LD-005 관찰 → REL-202 |
 | Production | `NO-GO` |
 
 문서를 처음 읽을 때는 `1. 아이디얼 아모라 → 3. 표준 준비 루프 → 4. 화면 계약 → 8. 현재 구현 상태 → 9. 실행 순서 → 17. 실행 백로그` 순서로 본다.
@@ -156,7 +156,7 @@
 | `STG-001` | `AMR-REL11` | `VERIFIED` | EX-007 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | manifest 109개, Production 관찰 prefix 32개, ordered pending 77개와 tail 181500을 exact hash로 고정; release 245/245+fence PASS | migration/hash/classification 변화 시 재실행 | 2026-08-18 |
 | `STG-002` | `AMR-REL12` | `VERIFIED` | STG-001 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | staging ledger 220/head 181100; commit `6b4add74`; pre-apply backup manifest `dc9bcf...5042`; dry-run 181100 단일 파일; apply 후 table 211/inventory `b6c287...6384`; 2계정 probe `11b574...fb5`, residue 0. Production write 0 | STG-003 별도 restore와 STG-004 전체 privacy/atomic probe | 2026-08-18 |
 | `STG-003` | `AMR-REL13` | `BLOCKED` | STG-002 | `COMMITTED` | `FOCUSED` | `HOSTED-STAGING` | `NOT-RUN` | pre-apply encrypted logical backup 251,601 rows, plaintext disk write false. 별도 restore target 증거는 없음 | 승인된 별도 restore project/credential 확보 후 exact restore·표본 비교 | 2026-08-18 |
-| `STG-004` | `AMR-REL14` | `READY` | STG-002 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | commit `c27da3d7`; staging 221/head 181200. 중요 상담 저장은 owner/partner/outsider, shared/private list·resolve, authenticated RPC/table 차단, concurrent exact replay, remove, stale PT409, cleanup residue 0 통과. receipt `cea5bc51...fa86`. first-use·provider apply·161700·Storage는 미실행 | 제품 후보 재동결 뒤 남은 네 하위 경계를 별도 probe하고 STG-004 전체 evidence를 봉인 | 2026-08-18 |
+| `STG-004` | `AMR-REL14` | `IN_PROGRESS` | STG-002 | `COMMITTED` | `MULTI-ACCOUNT` | `HOSTED-STAGING` | `NOT-RUN` | pre-apply backup commit `2cdf527a`, 251,601 rows, manifest `fca1cfe8...0153`, plaintext disk write 0. staging 224/head 181500/pending 0. commit `d22d5774` probe는 중요 상담 저장과 181300 준비 노트 검색을 owner/partner/outsider·auth deny·private redaction·cleanup residue 0으로 검증, receipt `df8149ab...0fd7`. 181400 mediation, 181500 criterion positive path, first-use/provider apply, 161700, Storage는 미실행 | 181400 private draft→explicit shared atomic path를 synthetic 2계정으로 검증하고, 다음 181500 criterion receipt를 별도 수직으로 진행 | 2026-08-18 |
 | `HT-001` | `AMR-H12` | `VERIFIED` | FV-009 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `2ae7bbab`; exact action ID/revision/couple-bound route, shared preferred selector, stale·변조·중복·nullable 회귀. mobile 1080/1080, shared/mobile typecheck, mobile lint/build, diff-check PASS | 실기기에서 home→topic same-action 접근성·복귀 확인 | 2026-08-18 |
 | `HT-002` | `AMR-H11` | `VERIFIED` | HT-001 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `08405399`; 큰 체크 퍼센트·중복 요약 제거, 정본 count reconciliation이 맞을 때만 4상태 표시. focused 85/85, mobile 1083/1083, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS; 390×844 web-export 시각 점검 | 실제 기기 작은 화면·200%·VoiceOver/TalkBack 확인 | 2026-08-18 |
 | `HT-003` | `AMR-T11` | `VERIFIED` | HT-001/002 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | commit `f3f63c39`; 상태 다음에 한 행동·이유·완료 기준을 먼저 두고 개인 맥락·근거·미정·가이드·저장 대화·확인 기록·예산 도구·아모라 handoff를 순서대로 배치. 기존 data/write/navigation 계약 불변. topic focused 92/92, mobile 1084/1084, typecheck, target/full lint, Expo iOS/Android/Web export, diff-check PASS | 실제 기기 작은 화면·200%·VoiceOver/TalkBack에서 읽기·포커스 순서 확인 | 2026-08-18 |
@@ -1049,7 +1049,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 
 - Vercel Preview는 후보 `3b623e18955eb53fb3c03c08d652536cf890e4af`로 성공했다. Android internal Preview는 후속 commit `989aa3d56a45718acbe98ce5015c84f84cf3303d`로 별도 성공했다. 서로 다른 commit이므로 둘을 하나의 final candidate evidence로 합치지 않는다. `origin/main` 병합·Production 승격은 하지 않았다.
 - GitHub Actions run `32112683361`은 코드 job을 한 단계도 시작하지 못하고 계정 결제/지출 한도 사유로 차단됐다. 로컬 pre-push 8/8이나 EAS build 성공을 GitHub CI 성공으로 바꾸어 말하지 않는다. internal mobile artifact는 생겼지만 실기기 사용자 검증은 없다.
-- release manifest는 109개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 77개, tail은 `20260818150000`이다. 격리 staging은 별도로 221개/head `20260818120000`까지 적용했다.
+- release manifest는 109개, Production에서 마지막으로 관찰한 successor 적용 prefix는 32개, 그 기준 pending은 77개, tail은 `20260818150000`이다. 격리 staging은 별도로 224개/head `20260818150000`까지 적용했고 dry-run pending 0을 확인했다.
 - 격리 staging apply와 로컬 암호화 backup receipt는 존재하지만 Production release manifest의 5개 승격 evidence class(hosted staging·backup·hosted restore·Storage·finalizer)는 아직 모두 `missing`이다. 별도 restore와 최종 candidate binding 전에는 이 로컬 receipt를 승격 증거로 복사하지 않는다.
 - headerless Phase-A actor traffic, legacy direct password·10자 invite·direct chat writer fleet drain, provider runtime/grant canary의 fresh 운영 증거도 없다.
 - first-value·neutral personalization의 로컬 자동 증거는 기존 full/focused gate를 유지한다. 이번 hosted 증거로 staging synthetic 2계정의 neutral create/replay, 가입 전 privacy, 비인가 join 차단, service join, 가입 후 상호 조회, cleanup(residue 0)을 추가했다. 이는 API 수준 다중 계정 검증이며 2기기 UI·접근성·실사용자 관찰을 대신하지 않는다.
@@ -1673,7 +1673,7 @@ workflow status: TODO
 | `EX-001` inventory snapshot | 반복 gate | 없음 | `git status`, master plan | snapshot 변경 시 이전 freeze를 current로 오인 | 현재 delta 140 = active candidate 102 + unowned HOLD 2 + tmp 36, HEAD/count 고정 |
 | `EX-002` candidate allowlist | 0.5일 | EX-001 | tranche manifest | guide/booking/tmp/decisionMap 포함 여부가 암묵적 | guide 5개 freeze, 161700 integrity IN·booking UI PARKED, tmp·decisionMap 제외, exact path/hash, 삭제 없음 |
 | `EX-003` mixed-file hunk ledger | 1일 | EX-002 | chat.tsx, schedule/index.tsx, route.ts, route test | path만으로 여러 AMR 완료 주장 가능 | 함수/hunk→AMR→테스트→risk가 전부 매핑 |
-| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·109/Production 32·pending 77/tail 181500·staging 221/head 181200을 current로, 과거값 historical로 표기 |
+| `EX-004` truth-doc drift | 0.5일 | EX-001 | START_HERE, docs README, 운영 controller | old handoff가 current처럼 읽힘 | 검증 코드 HEAD·109/Production 32·pending 77/tail 181500·staging 224/head 181500을 current로, 과거값 historical로 표기 |
 | `EX-005` freeze regression | 완료 | EX-003/004 | shared/web/mobile/release 명령 | 이전 focused 수치만 존재 | 같은 freeze에서 focused→type/lint→full/build PASS, 변경 시 상태 하향 |
 | `EX-006` commit plan | 완료 | EX-005 | exact candidate manifest·staged index | review 단위가 불명확 | mixed hotspot 포함 union RC 1개, staged 86·HOLD/tmp 0·hash mismatch 0 |
 | `EX-008` whole-journey coverage inventory | 1일 | EX-006 | checklist·manners·planning gaps·product contract | 초보자 전체 누락을 설명하는 matrix 없음 | 모든 단계 covered/not-applicable/known gap/parked, 사용자 화면 소유자·근거 표시 |
@@ -2061,6 +2061,7 @@ Wave 3·4 구현
 | 2026-08-18 | AMR-T14 | 저장 대화 lane을 불러오지 못해도 개인화된 현재 행동과 다른 확인 근거는 유지하고, 실패한 lane만 unavailable로 표시 | commit `911b5e16` · topic focused 93/93 · mobile 1093/1093 · mobile typecheck · targeted lint · diff-check PASS · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-M03 | 아모라 헤더에서 `우리 준비 노트`를 열어 저장 대화·내 기준·우리 기준을 공개 범위·주제·유형으로 찾고 exact 원문과 동일 current action으로 복귀하는 core slice 구현 | commit `e6946264` · focused 14/14 · mobile 1107/1107 · mobile typecheck/full lint · Expo iOS/Android/Web export · source partial/unavailable·same-identity snapshot 보존 · 질문 검색/cursor/receipt adapter/실기기/2계정/Preview/Production 미완료 |
 | 2026-08-18 | AMR-M03/REL11 | `우리 준비 노트`에 질문·답변 서버 검색, snapshot-bound cursor 더보기, 질문/답변 분리 표시와 identity fail-closed를 추가하고 service-only read RPC를 릴리스 계약에 고정 | commit `b8fdfe94` · focused 18/18 · mobile 1111/1111 · web/DB 46/46 · release 241/241+fence · migration `022707a3...f9d4` · manifest 107/Production 32/pending 75/tail 181300 · Production write 0 |
+| 2026-08-18 | AMR-M03/REL14 | 격리 staging에 181300~181500을 암호화 backup 뒤 적용하고 `우리 준비 노트` 검색의 owner shared+private, partner shared-only, outsider 차단, authenticated RPC deny, cleanup을 3계정으로 검증 | backup manifest `fca1cfe8...0153`, 251,601 rows, plaintext disk write 0 · staging 224/head 181500/pending 0 · probe commit `d22d5774`, receipt `df8149ab...0fd7`, residue 0 · Production write 0 · 181400/181500 positive-path probe는 다음 수직 |
 | 2026-08-18 | AMR-V01 | canonical 준비 기록·아모라 제안·검수 가이드·업체 공개정보·다른 사용자 경험·광고/혜택의 권위를 공통 계약으로 구분하고 기존 홈 why·주제 guide·커뮤니티 trust·업체 상세에 표시 | product commit `58acac74` · common 14/14 · mobile focused 115/115·full 1133/1133 · web 관련 43/43 · shared/web/mobile typecheck · web/mobile scoped lint · node syntax·diff-check PASS · rank/route/CTA/write 불변 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C11 | 19개 canonical 준비 주제와 7개 known/parked gap의 문제·상태·결정·실행·완료 진실 소유자를 분리하고 보조 근거가 진행률·완료·추천 권한으로 승격되지 않게 고정 | product commit `28e50260` · RED export missing → GREEN · coverage+truth focused 15/15 · shared/web typecheck · scoped lint · node syntax·diff-check PASS · UI/DB/AI/write/rank 변경 없음 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C12 | 19개 준비 주제가 JRN-001 truth policy와 기존 공통 consumer-state composer 하나로 상태를 판정하고 presentation의 기존 카피·다음 행동을 유지하도록 연결 | product commit `62d1d5b3` · export/presentation RED → GREEN · relevant 93/93 · mobile 1139/1139 · web truth 15/15 · shared/mobile typecheck · scoped lint · node syntax·diff-check PASS · malformed optional evidence는 core 유지/label 제외 · UI/DB/AI/write/rank 변경 없음 |
@@ -2076,9 +2077,9 @@ Wave 3·4 구현
 | 소비자 가치 | `PLAN GO` | 첫 가치와 write 분리, 관련 개인화 paired fixture, 홈 퍼센트 제거, `우리 준비 노트`를 NEXT/Wave 3에 명시 |
 | UX·접근성 | `PLAN GO` | 준비 노트 정보 위계·상태·privacy·검색·exact 원문·한 손·200%·screen reader 계약 |
 | 기술 실행 | `FIRST VALUE + CONSUMER STATE + CATCH-UP + HOME/TOPIC TRUTH + RELEVANCE + TOPIC/CHAT/NOTES ROUND TRIPS + OPTIONAL-EVIDENCE ISOLATION LOCAL; MESSAGE-REF BACKEND HOSTED VERIFIED` | F10~18·U01·F20과 HT-001~007·009는 local automated이며 neutral entry·first action lifecycle·상태 우선순위·advanced-user catch-up·home→topic exact action·과장 없는 홈 상태·행동 우선 주제 위계·개인화 관련성 gate·ordinary shared action의 current criterion receipt·private 상담 복귀·중요 상담 exact 원문 복구·검증된 적용/일정 영수증 검색·optional lane 격리까지 연결됨. owner-private·first-use·question/candidate/constraint source adapter, 2기기 UI·접근성·live provider·실사용 관찰은 남음 |
-| Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging ordered apply, neutral 2계정 경로, message-ref 3계정 공격/동시성 경로는 통과. 별도 restore, first-use/provider apply/161700/Storage 전체 probe, Preview/internal, evidence 5종은 미완료이며 `deployment_blocked` 유지 |
+| Hosted·Production | `STAGING PARTIAL / PRODUCTION NO-GO` | staging 224/head 181500/pending 0. neutral 2계정과 message-ref+preparation-notes 3계정 privacy/검색/동시성은 통과. 별도 restore, mediation/criterion positive path, first-use/provider apply/161700/Storage 전체 probe와 evidence 5종은 미완료이며 `deployment_blocked` 유지 |
 
-`HT-007 / AMR-T14`까지와 `HT-009 / AMR-M03`의 로컬 코드 vertical을 완료했다. HT-009는 commit `b8fdfe94`의 service-only 질문·답변 검색/snapshot cursor, `ef0d5dd4`의 strict first-use/provider-backed 적용 영수증, `15e59d3a`의 current schedule decision 영수증으로 나뉜다. 마지막 slice는 mobile 1119/1119, 관련 web 48/48, shared/web/mobile typecheck, web/mobile lint, Expo iOS/Android/Web export와 전체 pre-push 8/8을 통과했다. `STG-004 / AMR-REL14`에서는 중요 상담 저장 하위 경계만 hosted 검증했다. Production 관찰 시점 기준 75개 ordered suffix를 exact hash·순서로 고정했고, 승인된 staging ref `rgxdizztidbgwnsbadml`은 아직 ledger 221/head `20260818120000`이다. commit `c27da3d7`에서 intentional conflict를 PostgREST 재시도 대상 40001이 아닌 PT409로 바꾸고, synthetic 3계정으로 owner/partner/outsider privacy, shared/private 저장·목록·원문, authenticated RPC/table 차단, concurrent exact replay, 해제, stale revision, cleanup residue 0을 확인했다. 별도 restore, 181300 hosted 적용, STG-004의 first-use/provider apply/161700/Storage, 2기기 UI, 200%/스크린리더, live provider, 실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
+`HT-007 / AMR-T14`까지와 `HT-009 / AMR-M03`의 로컬 코드 vertical을 완료했다. HT-009는 commit `b8fdfe94`의 service-only 질문·답변 검색/snapshot cursor, `ef0d5dd4`의 strict first-use/provider-backed 적용 영수증, `15e59d3a`의 current schedule decision 영수증으로 나뉜다. 승인된 staging ref `rgxdizztidbgwnsbadml`은 pre-apply encrypted backup 뒤 ledger 224/head `20260818150000`, pending 0이다. commit `d22d5774`의 synthetic 3계정 probe는 기존 저장·목록·원문·동시 replay·해제·stale revision에 더해 181300 service-only 검색에서 owner의 shared+private, partner의 shared-only, outsider/authenticated 직접 호출 차단과 cleanup residue 0을 확인했다. 별도 restore, 181400 mediation, 181500 criterion positive path, first-use/provider apply/161700/Storage, 2기기 UI, 200%/스크린리더, live provider, 실사용자 관찰은 남아 있다. Production에는 쓰지 않았고 계속 `NO-GO`다.
 
 <!-- AMORA:HUNK-LEDGER:BEGIN -->
 
