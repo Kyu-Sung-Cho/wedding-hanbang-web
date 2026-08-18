@@ -1567,7 +1567,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.rose[500],
-    letterSpacing: 1.2,
+    letterSpacing: 0,
     marginBottom: 12,
   },
   foundationTitle: {
