@@ -19,6 +19,16 @@ export type VerifiedSupabaseServiceDestination = {
 const PROJECT_REF = /^[a-z0-9]{20}$/;
 const OPAQUE_SECRET = /^sb_secret_[A-Za-z0-9_-]{24,}$/;
 
+// Repository-owned production identity, mirroring scripts/ingest/destination.ts
+// and scripts/lib/supabase-service-destination.mjs. Runtime environment
+// variables may add checks, but they may never redefine this pin: the env that
+// chooses the destination also supplies SUPABASE_PRODUCTION_PROJECT_REF, so a
+// local-shaped env that misstates it would otherwise demote a real production
+// destination to one that needs no write confirmation.
+export const REPOSITORY_PRODUCTION_PROJECT_REFS: readonly string[] = Object.freeze([
+  "slrtobkksjmxgzatjyqb",
+]);
+
 export class SupabaseDestinationError extends Error {
   readonly code: string;
 
@@ -141,7 +151,9 @@ export function verifySupabaseServiceDestination(
   }
 
   const keyKind = validateServiceRoleKey(input.serviceRoleKey, expectedProjectRef, actualUrl.origin);
-  if (expectedProjectRef === productionProjectRef && input.access !== "read") {
+  const targetsProduction = expectedProjectRef === productionProjectRef
+    || REPOSITORY_PRODUCTION_PROJECT_REFS.includes(expectedProjectRef);
+  if (targetsProduction && input.access !== "read") {
     const expectedConfirmation = `${input.access === "runtime" ? "RUNTIME_WRITE" : "OPERATOR_WRITE"}:${expectedProjectRef}`;
     if (input.productionWriteConfirmation !== expectedConfirmation) {
       blocked(

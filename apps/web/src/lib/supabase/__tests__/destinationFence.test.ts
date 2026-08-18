@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  REPOSITORY_PRODUCTION_PROJECT_REFS,
   SupabaseDestinationError,
   verifySupabaseServiceDestination,
 } from "../destinationFence";
@@ -8,6 +9,8 @@ import {
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const OTHER_REF = "zyxwvutsrqponmlkjihg";
 const URL = `https://${PROJECT_REF}.supabase.co`;
+const PRODUCTION_REF = REPOSITORY_PRODUCTION_PROJECT_REFS[0]!;
+const PRODUCTION_URL = `https://${PRODUCTION_REF}.supabase.co`;
 
 function jwt(payload: Record<string, unknown>): string {
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
@@ -82,6 +85,59 @@ describe("verifySupabaseServiceDestination", () => {
       productionProjectRef: PROJECT_REF,
       access: "read",
     }))).toMatchObject({ projectRef: PROJECT_REF });
+  });
+
+  // 이 fence의 "여기가 운영인가" 판정이 SUPABASE_PRODUCTION_PROJECT_REF 하나에만
+  // 걸려 있었다. 그 값은 목적지를 정하는 env가 함께 정하므로, 로컬 모양의 env가
+  // 운영 ref를 잘못 적어두면 목적지는 진짜 운영인데 fence는 "운영이 아니다"로
+  // 읽고 확인 문자열 없이 service-role 쓰기를 통과시켰다.
+  describe("repository-pinned production identity", () => {
+    function productionDestinationInput(overrides: Record<string, unknown> = {}) {
+      return validInput({
+        url: PRODUCTION_URL,
+        expectedUrl: PRODUCTION_URL,
+        expectedProjectRef: PRODUCTION_REF,
+        serviceRoleKey: jwt({
+          iss: "supabase",
+          ref: PRODUCTION_REF,
+          role: "service_role",
+          aud: "authenticated",
+        }),
+        // 목적지는 운영이지만, env는 운영을 다른 프로젝트라고 주장한다.
+        productionProjectRef: OTHER_REF,
+        ...overrides,
+      });
+    }
+
+    it("refuses an unconfirmed write when env misstates which project is production", () => {
+      expect(() => verifySupabaseServiceDestination(productionDestinationInput())).toThrowError(
+        expect.objectContaining({ code: "PRODUCTION_WRITE_CONFIRMATION_REQUIRED" }),
+      );
+
+      expect(() => verifySupabaseServiceDestination(productionDestinationInput({
+        access: "operator-write",
+      }))).toThrowError(
+        expect.objectContaining({ code: "PRODUCTION_WRITE_CONFIRMATION_REQUIRED" }),
+      );
+    });
+
+    it("accepts the pinned production destination once the scoped confirmation is present", () => {
+      expect(verifySupabaseServiceDestination(productionDestinationInput({
+        productionWriteConfirmation: `RUNTIME_WRITE:${PRODUCTION_REF}`,
+      }))).toMatchObject({ projectRef: PRODUCTION_REF, url: PRODUCTION_URL });
+    });
+
+    it("still allows an explicitly read-only client against the pinned production project", () => {
+      expect(verifySupabaseServiceDestination(productionDestinationInput({
+        access: "read",
+      }))).toMatchObject({ projectRef: PRODUCTION_REF });
+    });
+
+    it("keeps non-production destinations free of the production confirmation", () => {
+      expect(verifySupabaseServiceDestination(validInput())).toMatchObject({
+        projectRef: PROJECT_REF,
+      });
+    });
   });
 
   it("never includes the service-role secret in an error", () => {
