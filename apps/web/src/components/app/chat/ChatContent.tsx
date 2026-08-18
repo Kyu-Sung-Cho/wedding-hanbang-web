@@ -1884,6 +1884,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       }
       setMediationConsentContext(null);
       setMessageTarget("ai");
+      if (!isDemo) setActiveTab("private");
       await requestStructuredMediation({
         coupleId,
         senderRole: profile.role,
@@ -1904,6 +1905,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       mediationPersistentSafetyHold,
       localPrivateMediationSafetyEpoch,
       dismissMediationOffer,
+      isDemo,
       journey,
       mediationConsentContext,
       profile,
@@ -2830,6 +2832,27 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     currentUserRole={profile?.role}
                     isRecentAi={recentAiIds.has(msg.id)}
                     onNegativeFeedback={markCommunityFallbackAvailable}
+                    onMediationDraftShared={(draftMessageId, sharedMessageId) => {
+                      useChatStore.setState((state) => ({
+                        messages: state.messages.map((message) => message.id === draftMessageId
+                          ? {
+                              ...message,
+                              metadata: {
+                                ...(message.metadata ?? {}),
+                                mediation_draft_state: "sent",
+                                mediation_shared_message_id: sharedMessageId,
+                              },
+                            }
+                          : message),
+                      }));
+                      if (coupleId) void loadMessages(coupleId);
+                    }}
+                    onMediationDraftDiscarded={(draftMessageId) => {
+                      useChatStore.setState((state) => ({
+                        messages: state.messages.filter((message) => message.id !== draftMessageId),
+                      }));
+                    }}
+                    onOpenSharedMediation={() => setActiveTab("shared")}
                   />
                 )}
                 {pendingAction && (

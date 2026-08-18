@@ -34,7 +34,7 @@ test("the consent sheet accepts only text the requester types into that sheet", 
   assert.match(source, /normalizeAmoraMediationSummary\(summary\)/);
   assert.match(source, /maxLength=\{600\}/);
   assert.match(source, /onConfirm\(normalized\.summary\)/);
-  assert.match(source, /함께 대화에 표시되어 상대가 볼 수 있어요/);
+  assert.match(source, /초안은 먼저 나만 보고, 직접 보내기 전에는 상대에게 보이지 않아요/);
   assert.doesNotMatch(source, /messages\s*:/);
   assert.doesNotMatch(source, /conversation|history|rawMessages/);
 });
@@ -58,10 +58,22 @@ test("mediation request contains only the requester's explicit summary", () => {
     clientRequestId: "22222222-2222-4222-8222-222222222222",
     requestKind: "mediation",
     conflictContext: "예산 상한선을 두고 의견이 달라요.",
-    visibility: "shared",
+    visibility: "bride_private",
   });
   assert.equal("userMessageId" in body, false);
   assert.equal(JSON.stringify(body).includes("rawMessages"), false);
+});
+
+test("mediation draft lane is derived from the initiating member role", () => {
+  const groom = buildAmoraMediationRequestBody({
+    summary: "일정 우선순위를 함께 정하고 싶어요.",
+    senderRole: "groom",
+    senderName: "민수",
+    coupleId: "11111111-1111-4111-8111-111111111111",
+    clientRequestId: "22222222-2222-4222-8222-222222222222",
+  });
+
+  assert.equal(groom.visibility, "groom_private");
 });
 
 test("neutral preparation spaces label the requester without exposing compatibility roles", () => {
@@ -104,6 +116,8 @@ test("mobile mediation checks safety and the initiating account before any share
     handler,
     /externalSafetySignal:\s*hasMediationSafetySignal\(normalized\.summary\)/,
   );
+  assert.match(handler, /lane:\s*"private_ai"/);
+  assert.match(handler, /setActiveScope\("private"\)/);
   assert.match(handler, /requestKind:\s*"mediation"/);
   assert.match(handler, /conflictContext:/);
   assert.match(source, /<AmoraMediationConsentModal/);

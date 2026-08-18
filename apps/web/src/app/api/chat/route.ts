@@ -952,7 +952,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "체험 상담은 공유 모드만 사용할 수 있습니다." }, { status: 400 });
   }
 
-  if (requestedVisibility !== "shared") {
+  if (!isDemo && requestKind === "mediation") {
+    const role = userProfile?.role;
+    if (role !== "bride" && role !== "groom") {
+      return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
+    }
+    const actorPrivateVisibility = role === "groom"
+      ? "groom_private" as const
+      : "bride_private" as const;
+    if (
+      requestedVisibility !== "shared"
+      && requestedVisibility !== actorPrivateVisibility
+    ) {
+      return NextResponse.json({ error: "비공개 채팅 권한이 없습니다." }, { status: 403 });
+    }
+    // A mediation request is only a private review draft at this boundary.
+    // Sharing is a separate authenticated mutation after the requester sees
+    // the exact draft. Old clients may still send `shared`; never trust that
+    // field to disclose the assistant response.
+    visibility = actorPrivateVisibility;
+  } else if (requestedVisibility !== "shared") {
     const role = userProfile?.role;
     if (role !== "bride" && role !== "groom") {
       return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
@@ -1306,20 +1325,6 @@ export async function POST(request: Request) {
         status: durableSafetyFenceConfirmed ? 422 : 503,
         headers: { "Cache-Control": "no-store" },
       },
-    );
-  }
-
-  // The actor/private-lane and deterministic safety checks above keep their
-  // existing precedence. A non-safety mediation draft, however, is jointly
-  // actionable only on the shared lane; reject it before replay, claims,
-  // persistence, rate limiting, or any provider egress.
-  if (requestKind === "mediation" && requestedVisibility !== "shared") {
-    return NextResponse.json(
-      {
-        error: "커플 중재는 공유 대화에서만 시작할 수 있어요.",
-        code: "MEDIATION_SHARED_VISIBILITY_REQUIRED",
-      },
-      { status: 422, headers: { "Cache-Control": "no-store" } },
     );
   }
 
@@ -2222,6 +2227,7 @@ export async function POST(request: Request) {
     ? ["shared"] as const
     : ["shared", visibility] as const;
   let initialPrivacyContextSnapshot: AmoraPrivacyContextSnapshot | null = null;
+  let mediationDraftPrivacyContextSnapshot: AmoraPrivacyContextSnapshot | null = null;
   let initialPrivacyEpoch: number | null = null;
   if (!isDemo) {
     try {
@@ -2232,6 +2238,16 @@ export async function POST(request: Request) {
           supabase,
         );
         initialPrivacyEpoch = initialPrivacyContextSnapshot.privacyEpoch;
+      } else if (requestKind === "mediation") {
+        // Mediation still skips memories, summaries, and personalization
+        // inputs. It only needs the authenticated actor/roster snapshot that
+        // seals the private draft against a later membership change.
+        mediationDraftPrivacyContextSnapshot = await getAmoraPrivacyContextSnapshot(
+          dataCoupleId,
+          [visibility],
+          supabase,
+        );
+        initialPrivacyEpoch = mediationDraftPrivacyContextSnapshot.privacyEpoch;
       } else {
         // Current-input-only scopes deliberately skip all auxiliary context,
         // but their durable response still needs an actor/roster epoch fence.
@@ -2289,6 +2305,19 @@ export async function POST(request: Request) {
         initialPrivacyContextSnapshot,
         currentSnapshot,
         requestedMemoryVisibilities,
+      );
+      return;
+    }
+    if (mediationDraftPrivacyContextSnapshot) {
+      const currentSnapshot = await getAmoraPrivacyContextSnapshot(
+        dataCoupleId,
+        [visibility],
+        supabase,
+      );
+      assertAmoraPrivacyContextSnapshotCurrent(
+        mediationDraftPrivacyContextSnapshot,
+        currentSnapshot,
+        [visibility],
       );
       return;
     }
@@ -4528,6 +4557,17 @@ export async function POST(request: Request) {
             question_scope: questionScope.scope,
             memory_eligible: allowsLongTermMemoryForTurn,
             memory_enqueue_requested: memoryEnqueueRequested,
+            ...(requestKind === "mediation"
+              && !isDemo
+              && mediation !== null
+              && mediationDraftPrivacyContextSnapshot !== null
+              ? {
+                  mediation_draft_state: "draft",
+                  mediation_draft_sendable: true,
+                  mediation_draft_roster_fingerprint:
+                    mediationDraftPrivacyContextSnapshot.rosterFingerprint,
+                }
+              : {}),
             ...(isListenOnly
               ? { interaction_mode: "listen_only" }
               : {}),

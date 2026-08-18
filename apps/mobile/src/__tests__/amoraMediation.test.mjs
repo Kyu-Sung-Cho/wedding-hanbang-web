@@ -4,7 +4,10 @@ import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
 // 앱과 웹이 같은 판정을 쓰는지 확인하려면 테스트도 그 실물을 써야 한다.
-import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
+import {
+  isRequesterSummaryMediationProvenance,
+  readAmoraPrivateMediationDraftMetadata,
+} from "@hanbang/shared/mediation-provenance";
 import {
   hasUnsafeStoredMediationRenderContent,
   MEDIATION_DISCLOSURE_VERIFYING_COPY,
@@ -23,6 +26,47 @@ const EXPECTED_REVISION = {
   expectedRosterFingerprint: "0123456789abcdef0123456789abcdef",
 };
 
+test("private mediation draft metadata is strict, owner-only, and revision-bound", () => {
+  const metadata = {
+    question_scope: "W1_wedding_adjacent",
+    memory_eligible: false,
+    mediation_draft_state: "draft",
+    mediation_draft_sendable: true,
+    mediation_draft_roster_fingerprint: "a".repeat(32),
+    mediation: {
+      empathy: "요청자가 답답함을 느꼈다고 전했어요.",
+      translation: "요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+      data: "상대방의 생각은 아직 확인되지 않았어요.",
+      resolution: "서로 가능한 상한을 하나씩 확인해요.",
+      origin: "user_requested",
+      evidenceScope: "requester_summary_only",
+      schemaVersion: 2,
+    },
+  };
+
+  assert.deepEqual(
+    readAmoraPrivateMediationDraftMetadata(metadata, "bride_private"),
+    {
+      state: "draft",
+      rosterFingerprint: "a".repeat(32),
+      sharedMessageId: null,
+    },
+  );
+  assert.equal(readAmoraPrivateMediationDraftMetadata(metadata, "shared"), null);
+  assert.equal(readAmoraPrivateMediationDraftMetadata({
+    ...metadata,
+    memory_eligible: true,
+  }, "bride_private"), null);
+  assert.equal(readAmoraPrivateMediationDraftMetadata({
+    ...metadata,
+    mediation: { ...metadata.mediation, resolution: "" },
+  }, "bride_private"), null);
+  assert.equal(readAmoraPrivateMediationDraftMetadata({
+    ...metadata,
+    mediation_draft_roster_fingerprint: "wrong",
+  }, "bride_private"), null);
+});
+
 test("a persisted AI mediation message exposes its structured proposal in the native chat", () => {
   assert.equal(existsSync(cardPath), true, "native mediation card is missing");
   assert.match(chatSource, /mediation\?: unknown/);
@@ -32,12 +76,31 @@ test("a persisted AI mediation message exposes its structured proposal in the na
   assert.doesNotMatch(cardSource, /WebView|Linking\.openURL/);
 });
 
+test("native chat keeps a strict mediation draft private until an explicit share action", () => {
+  assert.match(chatSource, /readAmoraPrivateMediationDraftMetadata/);
+  assert.match(
+    chatSource,
+    /const privateMediationDraft = isAi[\s\S]*readAmoraPrivateMediationDraftMetadata\(item\.metadata, item\.visibility\)/,
+  );
+  assert.match(
+    chatSource,
+    /<AmoraMediationCard[\s\S]*privateDraft=\{privateMediationDraft\}[\s\S]*onDraftShared=/,
+  );
+  assert.match(cardSource, /나만 보는 조율 초안/);
+  assert.match(cardSource, /직접 보내기 전에는 상대방에게 보이지 않아요/);
+  assert.match(cardSource, /함께 보내고 내 확인 남기기/);
+  assert.match(cardSource, /초안 버리기/);
+  assert.match(cardSource, /shareMediationDraft\(messageId\)/);
+  assert.match(cardSource, /discardMediationDraft\(messageId\)/);
+  assert.match(cardSource, /minHeight:\s*48/);
+});
+
 test("native realtime replaces an updated proposal and removes newly hidden messages", () => {
   assert.match(chatSource, /event:\s*"UPDATE"[\s\S]*table:\s*"chat_messages"/);
   assert.match(chatSource, /const updated = chatMessageFromRealtimeRow\(payload\.new\)/);
   assert.match(chatSource, /!canViewerSeeChatMessage\(updated, viewerRole\)[\s\S]*filter\(\(message\) => message\.id !== updatedId\)/);
   assert.match(chatSource, /map\(\(message\) => message\.id === updated\.id \? updated : message\)/);
-  assert.match(chatSource, /key=\{`\$\{item\.id\}:\$\{mediationBlock\.proposalVersion \?\? "draft"\}:\$\{mediationBlock\.rosterFingerprint \?\? "unknown-roster"\}`\}/);
+  assert.match(chatSource, /key=\{`\$\{item\.id\}:\$\{privateMediationDraft\?\.state \?\? mediationBlock\.proposalVersion \?\? "draft"\}:\$\{privateMediationDraft\?\.sharedMessageId \?\? mediationBlock\.rosterFingerprint \?\? "unknown-roster"\}`\}/);
 });
 
 function loadAcceptanceClient(apiJson) {
@@ -76,6 +139,12 @@ function loadAcceptanceClient(apiJson) {
       canAcceptMediationResolution: typeof canAcceptMediationResolution === "function"
         ? canAcceptMediationResolution
         : undefined,
+      shareMediationDraft: typeof shareMediationDraft === "function"
+        ? shareMediationDraft
+        : undefined,
+      discardMediationDraft: typeof discardMediationDraft === "function"
+        ? discardMediationDraft
+        : undefined,
       getExpectedMediationRevision: typeof getExpectedMediationRevision === "function"
         ? getExpectedMediationRevision
         : undefined,
@@ -87,6 +156,49 @@ function loadAcceptanceClient(apiJson) {
     hasUnsafeStoredMediationRenderContent,
   );
 }
+
+test("sharing and discarding a private draft use only its opaque message id", async () => {
+  const calls = [];
+  const apiJson = async (path, options) => {
+    calls.push({ path, options });
+    return options.method === "POST"
+      ? {
+          sharedMessageId: "1474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+          reused: false,
+        }
+      : { discarded: true };
+  };
+  const { shareMediationDraft, discardMediationDraft } = loadAcceptanceClient(apiJson);
+  const draftId = "2474c6f2-29c6-4c77-8d91-d3347eef4c3f";
+
+  assert.deepEqual(await shareMediationDraft(draftId), {
+    sharedMessageId: "1474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+    reused: false,
+  });
+  assert.deepEqual(await discardMediationDraft(draftId), { discarded: true });
+  assert.deepEqual(calls, [
+    {
+      path: "/api/amora/mediation/draft",
+      options: { method: "POST", body: JSON.stringify({ messageId: draftId }) },
+    },
+    {
+      path: "/api/amora/mediation/draft",
+      options: { method: "DELETE", body: JSON.stringify({ messageId: draftId }) },
+    },
+  ]);
+});
+
+test("a malformed draft mutation receipt fails closed", async () => {
+  const { shareMediationDraft, discardMediationDraft } = loadAcceptanceClient(async (_path, options) => (
+    options.method === "POST"
+      ? { sharedMessageId: "wrong", reused: false }
+      : { discarded: "yes" }
+  ));
+  const draftId = "2474c6f2-29c6-4c77-8d91-d3347eef4c3f";
+
+  await assert.rejects(() => shareMediationDraft(draftId), /응답이 올바르지/);
+  await assert.rejects(() => discardMediationDraft(draftId), /응답이 올바르지/);
+});
 
 test("opening a confirmable proposal loads the authenticated acceptance state", async () => {
   assert.equal(existsSync(clientPath), true, "mediation acceptance client is missing");

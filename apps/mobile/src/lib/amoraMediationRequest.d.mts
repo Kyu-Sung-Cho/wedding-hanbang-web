@@ -22,7 +22,7 @@ export interface AmoraMediationRequestBody {
   clientRequestId: string;
   requestKind: "mediation";
   conflictContext: string;
-  visibility: "shared";
+  visibility: "bride_private" | "groom_private";
 }
 
 export function buildAmoraMediationRequestBody(

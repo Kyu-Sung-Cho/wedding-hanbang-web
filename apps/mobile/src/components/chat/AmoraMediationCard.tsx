@@ -10,6 +10,7 @@ import {
   BarChart3,
   Check,
   Heart,
+  Lock,
   MessagesSquare,
   RefreshCw,
   Scale,
@@ -27,12 +28,15 @@ import {
   acceptMediationResolution,
   canAcceptMediationResolution,
   canWithdrawMediationAcceptance,
+  discardMediationDraft,
   getExpectedMediationRevision,
   getMediationAcceptance,
+  shareMediationDraft,
   withdrawMediationAcceptance,
   type MediationBlock,
   type MediationAcceptanceState,
 } from "@/lib/amoraMediation";
+import type { AmoraPrivateMediationDraftMetadata } from "@hanbang/shared/mediation-provenance";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type AcceptanceLoadState = "idle" | "loading" | "ready" | "error";
@@ -40,15 +44,25 @@ type AcceptanceLoadState = "idle" | "loading" | "ready" | "error";
 export default function AmoraMediationCard({
   block,
   messageId,
+  privateDraft = null,
+  onDraftShared,
+  onDraftDiscarded,
+  onOpenShared,
 }: {
   block: MediationBlock;
   messageId?: string;
+  privateDraft?: AmoraPrivateMediationDraftMetadata | null;
+  onDraftShared?: (draftMessageId: string, sharedMessageId: string) => void;
+  onDraftDiscarded?: (draftMessageId: string) => void;
+  onOpenShared?: () => void;
 }) {
   const [acceptance, setAcceptance] = useState<MediationAcceptanceState | null>(null);
   const [loadState, setLoadState] = useState<AcceptanceLoadState>("idle");
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [accepting, setAccepting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [draftMutation, setDraftMutation] = useState<"share" | "discard" | null>(null);
+  const [draftMutationError, setDraftMutationError] = useState<string | null>(null);
   const expectedRevision = getExpectedMediationRevision(block);
   const renderSafetyFallback = block.renderSafetyFallback === true
     || hasUnsafeStoredMediationRenderContent(block);
@@ -169,49 +183,37 @@ export default function AmoraMediationCard({
     }
   }
 
-  if (renderSafetyFallback) {
-    return (
-      <View
-        style={styles.safetyFallback}
-        accessibilityRole="alert"
-        accessibilityLabel={MEDIATION_RENDER_SAFETY_FALLBACK}
-      >
-        <Text style={styles.safetyFallbackText}>
-          {MEDIATION_RENDER_SAFETY_FALLBACK}
-        </Text>
-      </View>
-    );
+  async function sharePrivateDraft() {
+    if (!messageId || !privateDraft || draftMutation) return;
+    setDraftMutation("share");
+    setDraftMutationError(null);
+    try {
+      const result = await shareMediationDraft(messageId);
+      onDraftShared?.(messageId, result.sharedMessageId);
+    } catch {
+      setDraftMutationError(
+        "초안을 함께 보내지 못했어요. 연결 상태와 최신 초안을 확인한 뒤 다시 시도해 주세요.",
+      );
+    } finally {
+      setDraftMutation(null);
+    }
   }
 
-  if (disclosureState !== "verified") {
-    const verifying = disclosureState === "verifying";
-    const copy = verifying
-      ? MEDIATION_DISCLOSURE_VERIFYING_COPY
-      : MEDIATION_DISCLOSURE_WITHHELD_COPY;
-    return (
-      <View
-        style={styles.safetyFallback}
-        accessibilityRole={verifying ? undefined : "alert"}
-        accessibilityLiveRegion="polite"
-        accessibilityLabel={copy}
-      >
-        <View style={styles.statusRow}>
-          {verifying && <ActivityIndicator size="small" color={colors.noir[800]} />}
-          <Text style={styles.safetyFallbackText}>{copy}</Text>
-        </View>
-        {!verifying && canConfirm && (
-          <Pressable
-            style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
-            onPress={retryVerification}
-            accessibilityRole="button"
-            accessibilityLabel="조율 초안 공개 범위 다시 확인"
-          >
-            <RefreshCw size={16} color={colors.noir[800]} />
-            <Text style={styles.retryButtonText}>다시 확인하기</Text>
-          </Pressable>
-        )}
-      </View>
-    );
+  async function discardPrivateDraft() {
+    if (!messageId || !privateDraft || draftMutation) return;
+    setDraftMutation("discard");
+    setDraftMutationError(null);
+    try {
+      const result = await discardMediationDraft(messageId);
+      if (!result.discarded) throw new Error("draft_not_discarded");
+      onDraftDiscarded?.(messageId);
+    } catch {
+      setDraftMutationError(
+        "초안을 버리지 못했어요. 최신 상태를 확인한 뒤 다시 시도해 주세요.",
+      );
+    } finally {
+      setDraftMutation(null);
+    }
   }
 
   const sections = [
@@ -253,7 +255,148 @@ export default function AmoraMediationCard({
     },
   ].filter((section) => Boolean(section.text));
 
+  if (renderSafetyFallback) {
+    return (
+      <View
+        style={styles.safetyFallback}
+        accessibilityRole="alert"
+        accessibilityLabel={MEDIATION_RENDER_SAFETY_FALLBACK}
+      >
+        <Text style={styles.safetyFallbackText}>
+          {MEDIATION_RENDER_SAFETY_FALLBACK}
+        </Text>
+      </View>
+    );
+  }
+
   if (sections.length === 0) return null;
+
+  if (privateDraft) {
+    const sent = privateDraft.state === "sent";
+    return (
+      <View style={styles.container} accessibilityLabel="나만 보는 조율 초안">
+        <View style={[styles.intro, styles.privateIntro]}>
+          <Lock size={16} color={colors.noir[800]} />
+          <View style={styles.introTextWrap}>
+            <Text style={styles.introTitle}>나만 보는 조율 초안</Text>
+            <Text style={styles.introCopy}>
+              직접 보내기 전에는 상대방에게 보이지 않아요. 내용을 읽고 보내거나 버릴 수 있어요.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionList}>
+          {sections.map(({ key, title, Icon, color, backgroundColor, borderColor, text }) => (
+            <View key={key} style={[styles.section, { backgroundColor, borderColor }]}>
+              <View style={styles.sectionHeading}>
+                <View style={[styles.sectionIcon, { borderColor }]}>
+                  <Icon size={14} color={color} strokeWidth={2.4} />
+                </View>
+                <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
+              </View>
+              <Text style={styles.sectionText}>{text}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.privateControls}>
+          {sent ? (
+            <>
+              <View style={styles.successStatus} accessibilityLiveRegion="polite">
+                <Check size={18} color={colors.success} />
+                <Text style={styles.successText}>함께 보냈고 내 확인도 남겼어요</Text>
+              </View>
+              {onOpenShared && (
+                <Pressable
+                  style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
+                  onPress={onOpenShared}
+                  accessibilityRole="button"
+                  accessibilityLabel="함께 대화에서 조율 초안 보기"
+                >
+                  <Text style={styles.retryButtonText}>함께 대화에서 보기</Text>
+                </Pressable>
+              )}
+            </>
+          ) : (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.confirmButton,
+                  pressed && styles.buttonPressed,
+                  draftMutation !== null && styles.buttonDisabled,
+                ]}
+                onPress={() => void sharePrivateDraft()}
+                disabled={draftMutation !== null}
+                accessibilityRole="button"
+                accessibilityLabel="함께 보내고 내 확인 남기기"
+                accessibilityState={{ disabled: draftMutation !== null, busy: draftMutation === "share" }}
+              >
+                {draftMutation === "share"
+                  ? <ActivityIndicator size="small" color={colors.surface} />
+                  : <Users size={18} color={colors.surface} />}
+                <Text style={styles.confirmButtonText}>
+                  {draftMutation === "share" ? "함께 보내는 중이에요" : "함께 보내고 내 확인 남기기"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.discardButton,
+                  pressed && styles.buttonPressed,
+                  draftMutation !== null && styles.buttonDisabled,
+                ]}
+                onPress={() => void discardPrivateDraft()}
+                disabled={draftMutation !== null}
+                accessibilityRole="button"
+                accessibilityLabel="조율 초안 버리기"
+                accessibilityState={{ disabled: draftMutation !== null, busy: draftMutation === "discard" }}
+              >
+                {draftMutation === "discard" && <ActivityIndicator size="small" color={colors.danger} />}
+                <Text style={styles.discardButtonText}>
+                  {draftMutation === "discard" ? "초안을 버리는 중이에요" : "초안 버리기"}
+                </Text>
+              </Pressable>
+            </>
+          )}
+          {draftMutationError && (
+            <Text style={styles.errorText} accessibilityRole="alert">
+              {draftMutationError}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  if (disclosureState !== "verified") {
+    const verifying = disclosureState === "verifying";
+    const copy = verifying
+      ? MEDIATION_DISCLOSURE_VERIFYING_COPY
+      : MEDIATION_DISCLOSURE_WITHHELD_COPY;
+    return (
+      <View
+        style={styles.safetyFallback}
+        accessibilityRole={verifying ? undefined : "alert"}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={copy}
+      >
+        <View style={styles.statusRow}>
+          {verifying && <ActivityIndicator size="small" color={colors.noir[800]} />}
+          <Text style={styles.safetyFallbackText}>{copy}</Text>
+        </View>
+        {!verifying && canConfirm && (
+          <Pressable
+            style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
+            onPress={retryVerification}
+            accessibilityRole="button"
+            accessibilityLabel="조율 초안 공개 범위 다시 확인"
+          >
+            <RefreshCw size={16} color={colors.noir[800]} />
+            <Text style={styles.retryButtonText}>다시 확인하기</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
 
   return (
     <View
@@ -431,6 +574,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  privateIntro: {
+    backgroundColor: "#F2F6F1",
+    borderColor: colors.sage.pale,
+  },
   introTextWrap: {
     flex: 1,
     gap: 3,
@@ -487,6 +634,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.gold.light,
+    backgroundColor: colors.surface,
+  },
+  privateControls: {
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.sage.pale,
     backgroundColor: colors.surface,
   },
   confirmationTitle: {
@@ -605,6 +761,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.surface,
+  },
+  discardButton: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.rose.light,
+    backgroundColor: colors.surface,
+  },
+  discardButtonText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.danger,
   },
   progressText: {
     fontSize: 11,

@@ -43,6 +43,7 @@ import {
   hasUnresolvedPrivateMediationSafetyHold,
   hasMediationSafetySignal,
 } from "@hanbang/shared/mediation-offer";
+import { readAmoraPrivateMediationDraftMetadata } from "@hanbang/shared/mediation-provenance";
 import { supabase } from "@/lib/supabase";
 import {
   assertAmoraRequestActor,
@@ -397,6 +398,10 @@ interface ChatMessageMetadata {
   partner_recipient_id?: string;
   client_visible_request_id?: string;
   mediation?: unknown;
+  mediation_draft_state?: "draft" | "sent";
+  mediation_draft_sendable?: boolean;
+  mediation_draft_roster_fingerprint?: string;
+  mediation_shared_message_id?: string;
   pending_amora_action?: unknown;
   pending_amora_action_journey_revision?: unknown;
   pending_amora_action_impact_preview?: unknown;
@@ -5304,7 +5309,7 @@ export default function ChatScreen() {
       expectedActorUserId: requestOwner.userId,
       tempId: `temp_mediation_${clientRequestId}`,
       serverRequestKey: `chat:${requestOwner.userId}:${clientRequestId}`,
-      lane: "shared_ai",
+      lane: "private_ai",
       sessionGeneration: requestOwner.sessionGeneration,
       mediationSafetyEpoch: mediationSafetyEpochRef.current,
       body: {
@@ -5317,7 +5322,7 @@ export default function ChatScreen() {
     setMediationRequestPending(true);
     setMediationRequestError(null);
     setMediationRequestOwner(null);
-    setActiveScope("shared");
+    setActiveScope("private");
     setTarget("ai");
     try {
       await streamAiRequest(request, operation);
@@ -7113,6 +7118,9 @@ export default function ChatScreen() {
     const mediationBlock = isAi
       ? normalizeMediationBlock(item.metadata?.mediation)
       : null;
+    const privateMediationDraft = isAi
+      ? readAmoraPrivateMediationDraftMetadata(item.metadata, item.visibility)
+      : null;
     const canSaveToPreparationTopic = mediationBlock === null
       && (isResolvedTopicSource
         || isPreparationTopicMessageSaveEligible(item, {
@@ -7420,9 +7428,30 @@ export default function ChatScreen() {
           )}
           {mediationBlock && (
             <AmoraMediationCard
-              key={`${item.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
+              key={`${item.id}:${privateMediationDraft?.state ?? mediationBlock.proposalVersion ?? "draft"}:${privateMediationDraft?.sharedMessageId ?? mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
               block={mediationBlock}
               messageId={item.id}
+              privateDraft={privateMediationDraft}
+              onDraftShared={(draftMessageId, sharedMessageId) => {
+                setMessages((current) => current.map((message) => message.id === draftMessageId
+                  ? {
+                      ...message,
+                      metadata: {
+                        ...(message.metadata ?? {}),
+                        mediation_draft_state: "sent",
+                        mediation_shared_message_id: sharedMessageId,
+                      },
+                    }
+                  : message));
+              }}
+              onDraftDiscarded={(draftMessageId) => {
+                setMessages((current) => current.filter((message) => message.id !== draftMessageId));
+              }}
+              onOpenShared={() => {
+                activeScopeRef.current = "shared";
+                setActiveScope("shared");
+                setTarget("ai");
+              }}
             />
           )}
           {pendingAction && (

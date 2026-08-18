@@ -3209,7 +3209,7 @@ describe("useChatStore quota warning", () => {
         clientRequestId: firstPayload.clientRequestId,
         userMessageId: null,
         coupleId: request.coupleId,
-        visibility: "shared",
+        visibility: "bride_private",
         requestBody: firstBody,
         canRetry: true,
         unavailableReason: null,
@@ -3367,6 +3367,7 @@ describe("useChatStore quota warning", () => {
         id: "final-mediation-message",
         sender_role: "ai",
         content: "Final mediation draft",
+        visibility: "bride_private",
       }),
     ]));
     expect(useChatStore.getState().messages).not.toEqual(expect.arrayContaining([
@@ -3675,7 +3676,7 @@ describe("useChatStore quota warning", () => {
     expect(serialized).not.toContain("PRIVATE_RAW_SECRET");
     expect(requestBody).toMatchObject({
       requestKind: "mediation",
-      visibility: "shared",
+      visibility: "bride_private",
       conflictContext: "예산 상한선을 두고 의견이 달라요.",
       messages: [
         {

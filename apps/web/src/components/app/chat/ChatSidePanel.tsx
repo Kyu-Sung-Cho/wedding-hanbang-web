@@ -1156,6 +1156,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       }
       setMediationConsentContext(null);
       setMessageTarget("ai");
+      if (!isDemo) setActiveScope("private");
       await requestStructuredMediation({
         coupleId,
         senderRole,
@@ -1175,6 +1176,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       hasVisibleSharedSafetyCard,
       localPrivateMediationSafetyEpoch,
       dismissMediationOffer,
+      isDemo,
       journey,
       mediationConsentContext,
       mediationPersistentSafetyHold,
@@ -1575,6 +1577,27 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         isCurrentUser={isCurrentUser}
                         currentUserRole={profile?.role}
                         isRecentAi={recentAiIds.has(msg.id)}
+                        onMediationDraftShared={(draftMessageId, sharedMessageId) => {
+                          useChatStore.setState((state) => ({
+                            messages: state.messages.map((message) => message.id === draftMessageId
+                              ? {
+                                  ...message,
+                                  metadata: {
+                                    ...(message.metadata ?? {}),
+                                    mediation_draft_state: "sent",
+                                    mediation_shared_message_id: sharedMessageId,
+                                  },
+                                }
+                              : message),
+                          }));
+                          if (coupleId) void loadMessages(coupleId);
+                        }}
+                        onMediationDraftDiscarded={(draftMessageId) => {
+                          useChatStore.setState((state) => ({
+                            messages: state.messages.filter((message) => message.id !== draftMessageId),
+                          }));
+                        }}
+                        onOpenSharedMediation={() => setActiveScope("shared")}
                       />
                       {pendingAction && (
                         <PendingAmoraActionCard

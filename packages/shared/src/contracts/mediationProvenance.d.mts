@@ -5,3 +5,14 @@ export declare const AMORA_REQUESTER_SUMMARY_MEDIATION: {
 };
 
 export declare function isRequesterSummaryMediationProvenance(value: unknown): boolean;
+
+export interface AmoraPrivateMediationDraftMetadata {
+  state: "draft" | "sent";
+  rosterFingerprint: string;
+  sharedMessageId: string | null;
+}
+
+export declare function readAmoraPrivateMediationDraftMetadata(
+  metadata: unknown,
+  visibility: unknown,
+): AmoraPrivateMediationDraftMetadata | null;

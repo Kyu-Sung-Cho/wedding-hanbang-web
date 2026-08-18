@@ -31,6 +31,15 @@ export interface ExpectedMediationRevision {
   expectedRosterFingerprint: string;
 }
 
+export interface MediationDraftShareResult {
+  sharedMessageId: string;
+  reused: boolean;
+}
+
+export interface MediationDraftDiscardResult {
+  discarded: boolean;
+}
+
 const MAX_FIELD_LENGTH = 2_000;
 const MAX_RESOLUTION_LENGTH = 500;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -111,6 +120,56 @@ function requireExpectedMediationRevision(
     expectedProposalVersion: expectedProposalVersion.toLowerCase(),
     expectedRosterFingerprint,
   };
+}
+
+function requireMediationMessageId(messageId: unknown): string {
+  if (typeof messageId !== "string" || !UUID_PATTERN.test(messageId)) {
+    throw new Error("조율 초안 식별자가 올바르지 않습니다.");
+  }
+  return messageId.toLowerCase();
+}
+
+export async function shareMediationDraft(
+  messageId: string,
+): Promise<MediationDraftShareResult> {
+  const exactMessageId = requireMediationMessageId(messageId);
+  const payload = await apiJson<unknown>("/api/amora/mediation/draft", {
+    method: "POST",
+    body: JSON.stringify({ messageId: exactMessageId }),
+  });
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("조율 초안 공유 응답이 올바르지 않습니다.");
+  }
+  const candidate = payload as Record<string, unknown>;
+  if (
+    typeof candidate.sharedMessageId !== "string"
+    || !UUID_PATTERN.test(candidate.sharedMessageId)
+    || typeof candidate.reused !== "boolean"
+  ) {
+    throw new Error("조율 초안 공유 응답이 올바르지 않습니다.");
+  }
+  return {
+    sharedMessageId: candidate.sharedMessageId.toLowerCase(),
+    reused: candidate.reused,
+  };
+}
+
+export async function discardMediationDraft(
+  messageId: string,
+): Promise<MediationDraftDiscardResult> {
+  const exactMessageId = requireMediationMessageId(messageId);
+  const payload = await apiJson<unknown>("/api/amora/mediation/draft", {
+    method: "DELETE",
+    body: JSON.stringify({ messageId: exactMessageId }),
+  });
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("조율 초안 폐기 응답이 올바르지 않습니다.");
+  }
+  const discarded = (payload as Record<string, unknown>).discarded;
+  if (typeof discarded !== "boolean") {
+    throw new Error("조율 초안 폐기 응답이 올바르지 않습니다.");
+  }
+  return { discarded };
 }
 
 export function parseMediationAcceptanceState(value: unknown): MediationAcceptanceState {

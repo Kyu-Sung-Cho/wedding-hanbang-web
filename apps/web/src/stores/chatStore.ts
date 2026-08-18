@@ -3147,8 +3147,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       return;
     }
 
-    // 중재 요청의 답은 공유 레인에 저장된다. 그래서 안전 판정은 **보내기 전에**
-    // 끝나야 하고, 판정 갈래가 둘이면 둘 다 여기서 만나야 한다.
+    // The safety classifier evaluates the eventual partner-sharing intent,
+    // even though a normal response is first persisted in the requester's
+    // private review lane.
     const mediationSafetyPlan = planAmoraCrisisDelivery({
       userText: requesterSummary,
       requestedVisibility: "shared",
@@ -3208,12 +3209,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       return;
     }
 
+    // A stale demo cookie must never widen an authenticated user's mediation
+    // draft from their private lane into the shared couple lane. Auth state is
+    // the authoritative runtime identity boundary.
+    const isDemo = useAuthStore.getState().isDemo === true;
+    const mediationDraftVisibility: ChatMessage["visibility"] = isDemo
+      ? "shared"
+      : senderRole === "groom"
+        ? "groom_private"
+        : "bride_private";
+
     set({
       isStreaming: true,
       streamingContent: "",
       streamingToolResults: [],
       suggestions: [],
-      artifactVisibility: "shared",
+      artifactVisibility: mediationDraftVisibility,
       error: null,
       quotaRemaining: null,
       failedRequest: null,
@@ -3241,7 +3252,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         content: `[${roleLabel}] [MEDIATION_REQUEST] 내가 직접 작성한 조율 요청 요약: ${requesterSummary}`,
       }];
 
-      const isDemo = document.cookie.includes("demo_mode=true");
       const requestIntentKey = JSON.stringify({
         messages: mediationMessages,
         coupleId,
@@ -3251,7 +3261,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         isDemo,
         requestKind: "mediation",
         conflictContext: requesterSummary,
-        visibility: "shared",
+        visibility: mediationDraftVisibility,
       });
       const reusableSnapshot = retainedMediationRequest
         && isSameChatLifecycleBinding(retainedMediationRequest.lifecycleBinding, lifecycleBinding)
@@ -3276,7 +3286,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             clientRequestId,
             requestKind: "mediation",
             conflictContext: requesterSummary,
-            visibility: "shared",
+            visibility: mediationDraftVisibility,
           }),
         });
       })();
@@ -3286,7 +3296,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         userMessageId: null,
         coupleId,
         content: requesterSummary,
-        visibility: "shared",
+        visibility: mediationDraftVisibility,
         confirmedActionId: null,
         attachmentCount: 0,
         canRetry: true,
@@ -3416,8 +3426,13 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (fullContent) {
         const aiMetadata: ChatMessageMetadata = { ...(finalMetadata ?? {}) };
         delete aiMetadata.suggestions;
-        const isDemo = document.cookie.includes("demo_mode=true");
-        await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
+        await saveAiMessage(set, {
+          coupleId,
+          fullContent,
+          aiMetadata,
+          isDemo,
+          visibility: mediationDraftVisibility,
+        });
         if (!isCurrentMediationRequest()) return;
       }
       if (gotDone && retainedMediationRequest === mediationRequestSnapshot) {

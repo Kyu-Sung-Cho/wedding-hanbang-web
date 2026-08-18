@@ -15,6 +15,7 @@ import {
   type StoredChatFeedbackState,
 } from "@/lib/ai/chatFeedbackState";
 import { getVisibleQuoteAnalysisMessage } from "@/lib/ai/quoteAnalysisSelection";
+import { readAmoraPrivateMediationDraftMetadata } from "@hanbang/shared/mediation-provenance";
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -23,6 +24,9 @@ interface ChatBubbleProps {
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
   onNegativeFeedback?: (message: ChatMessage) => void;
+  onMediationDraftShared?: (draftMessageId: string, sharedMessageId: string) => void;
+  onMediationDraftDiscarded?: (draftMessageId: string) => void;
+  onOpenSharedMediation?: () => void;
 }
 
 // 이미 피드백한 메시지 ID를 로컬에 저장 (페이지 리로드 시에도 유지)
@@ -513,6 +517,9 @@ export default function ChatBubble({
   isCurrentUser,
   isRecentAi = false,
   onNegativeFeedback,
+  onMediationDraftShared,
+  onMediationDraftDiscarded,
+  onOpenSharedMediation,
 }: ChatBubbleProps) {
   const { sender_role, content, created_at } = message;
 
@@ -530,6 +537,10 @@ export default function ChatBubble({
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
     const mediationBlock = normalizeMediationBlock(message.metadata?.mediation);
+    const privateMediationDraft = readAmoraPrivateMediationDraftMetadata(
+      message.metadata,
+      message.visibility,
+    );
     // 조율 산문과 구조화 초안은 같은 requester summary에서 나온다. 현재 roster와
     // proposal revision을 카드가 서버로 확인하기 전에는 산문만 먼저 보여 주지 않는다.
     const suppressMediationBody = mediationBlock !== null;
@@ -582,6 +593,10 @@ export default function ChatBubble({
               key={`${message.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
               block={mediationBlock}
               messageId={message.id}
+              privateDraft={privateMediationDraft}
+              onDraftShared={onMediationDraftShared}
+              onDraftDiscarded={onMediationDraftDiscarded}
+              onOpenShared={onOpenSharedMediation}
             />
           )}
           <span className="text-sm text-[#B5ADA3] ml-1">

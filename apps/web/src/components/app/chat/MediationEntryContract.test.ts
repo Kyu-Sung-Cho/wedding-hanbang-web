@@ -19,6 +19,11 @@ describe("structured mediation entry contract", () => {
         "requestMediation: requestStructuredMediation",
       );
       expect(content).toContain("<MediationConsentDialog");
+      expect(content).toMatch(
+        fileName === "ChatContent.tsx"
+          ? /setActiveTab\("private"\)[\s\S]{0,240}await requestStructuredMediation\(\{/
+          : /setActiveScope\("private"\)[\s\S]{0,240}await requestStructuredMediation\(\{/,
+      );
       expect(content).toContain("await requestStructuredMediation({");
       expect(content).not.toContain(
         'handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`)',

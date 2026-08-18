@@ -28,6 +28,11 @@ const CONFIRMABLE_BLOCK = {
   proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
   rosterFingerprint: "0123456789abcdef0123456789abcdef",
 };
+const PRIVATE_DRAFT = {
+  state: "draft" as const,
+  rosterFingerprint: "0123456789abcdef0123456789abcdef",
+  sharedMessageId: null,
+};
 
 function apiResponse(payload: unknown, status = 200): Response {
   return {
@@ -51,6 +56,45 @@ describe("Amora mediation card wiring", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+  });
+
+  it("shows a private review draft before any explicit share and mutates by opaque id only", async () => {
+    const onDraftShared = vi.fn();
+    const fetchMock = vi.fn(async () => apiResponse({
+      sharedMessageId: "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+      reused: false,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(createElement(MediationCard, {
+        block: REQUESTER_SUMMARY_DRAFT,
+        messageId: MESSAGE_ID,
+        privateDraft: PRIVATE_DRAFT,
+        onDraftShared,
+      }));
+    });
+
+    expect(container.textContent).toContain("나만 보는 조율 초안");
+    expect(container.textContent).toContain("직접 보내기 전에는 상대방에게 보이지 않아요");
+    expect(container.textContent).toContain(REQUESTER_SUMMARY_DRAFT.translation);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const shareButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("함께 보내고 내 확인 남기기"));
+    expect(shareButton).toBeDefined();
+    await act(async () => shareButton?.click());
+    await flushAsyncUpdates();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/amora/mediation/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: MESSAGE_ID }),
+    });
+    expect(onDraftShared).toHaveBeenCalledWith(
+      MESSAGE_ID,
+      "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+    );
   });
 
   afterEach(async () => {
@@ -105,6 +149,37 @@ describe("Amora mediation card wiring", () => {
     expect(container.textContent).toContain("원문을 표시하지 않았어요");
     expect(container.textContent).not.toContain(unsafeBody);
     expect(container.textContent).not.toContain("먼저 사과하고 양보");
+  });
+
+  it("opens private draft controls only for a strict actor-private metadata envelope", async () => {
+    const message: ChatMessage = {
+      id: MESSAGE_ID,
+      couple_id: "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+      sender_id: null,
+      sender_role: "ai",
+      content: "이 AI 산문은 공유 카드에 복사되지 않아요.",
+      metadata: {
+        mediation: REQUESTER_SUMMARY_DRAFT,
+        question_scope: "W1_wedding_adjacent",
+        memory_eligible: false,
+        mediation_draft_state: "draft",
+        mediation_draft_sendable: true,
+        mediation_draft_roster_fingerprint: "0123456789abcdef0123456789abcdef",
+      },
+      visibility: "bride_private",
+      created_at: "2026-08-18T12:00:00.000Z",
+    };
+
+    await act(async () => {
+      root.render(createElement(ChatBubble, {
+        message,
+        isCurrentUser: false,
+      }));
+    });
+
+    expect(container.textContent).toContain("나만 보는 조율 초안");
+    expect(container.textContent).toContain("함께 보내고 내 확인 남기기");
+    expect(container.textContent).not.toContain(message.content);
   });
 
   it("keeps ordinary AI visible but withholds unverified mediation prose", async () => {

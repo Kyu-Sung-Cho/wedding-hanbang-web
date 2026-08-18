@@ -43,7 +43,7 @@ describe("MediationConsentDialog", () => {
       "두 사람이 각각 확인해야 공동 결정으로 남아요",
     );
     expect(container.textContent).toContain(
-      "생성된 초안은 함께 대화에 표시되어 상대방도 볼 수 있어요",
+      "생성된 초안은 먼저 나만 보고, 직접 보내기 전에는 상대방에게 보이지 않아요",
     );
   });
 

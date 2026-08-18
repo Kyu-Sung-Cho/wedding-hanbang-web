@@ -33,7 +33,7 @@ export function buildAmoraMediationRequestBody(input) {
     clientRequestId: input.clientRequestId,
     requestKind: "mediation",
     conflictContext: normalized.summary,
-    visibility: "shared",
+    visibility: input.senderRole === "groom" ? "groom_private" : "bride_private",
   };
 }
 

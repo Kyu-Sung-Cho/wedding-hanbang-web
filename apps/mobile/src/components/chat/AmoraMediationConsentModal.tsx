@@ -72,7 +72,7 @@ export default function AmoraMediationConsentModal({
               <Text style={styles.title}>아모라에게 조율 초안을 요청할까요?</Text>
               <Text style={styles.description}>
                 상대방에게 보낸 원문이나 나만의 상담은 가져오지 않아요. 내가 아래에 직접 적은 요약만 사용해요.
-                생성된 초안은 함께 대화에 표시되어 상대가 볼 수 있어요.
+                초안은 먼저 나만 보고, 직접 보내기 전에는 상대에게 보이지 않아요.
               </Text>
             </View>
             <Pressable

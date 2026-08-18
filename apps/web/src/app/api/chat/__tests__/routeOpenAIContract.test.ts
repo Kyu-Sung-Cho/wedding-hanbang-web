@@ -2378,38 +2378,60 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     { role: "bride", visibility: "bride_private" },
     { role: "groom", visibility: "groom_private" },
   ] as const)(
-    "rejects $visibility mediation before replay, durable work, or provider use",
+    "stores requested mediation as a reviewable $visibility draft before any shared message exists",
     async ({ role, visibility }) => {
       mocks.userProfile = {
         ...mocks.userProfile,
         role,
       };
 
+      const providerText = [
+        "요청자가 전한 내용을 바탕으로 정리했어요.",
+        "[mediation]",
+        "공감: 요청자가 답답함을 느꼈다고 전했어요.",
+        "통역: 요청자가 예산 기준을 먼저 정하고 싶다고 전했어요.",
+        "데이터: 상대방이 생각하는 예산 상한은 아직 확인되지 않았어요.",
+        "합의안: 두 사람이 각자 가능한 상한을 적어 비교해 보세요.",
+        "[/mediation]",
+      ].join("\n");
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: providerText,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      }));
+
       const response = await POST(request({
         requestKind: "mediation",
         userMessageId: undefined,
         conflictContext: "예산 상한선을 두고 의견이 달라요.",
-        visibility,
+        // Old clients used to request shared. The server must still derive the
+        // actor-private draft lane instead of trusting this field.
+        visibility: "shared",
       }));
 
-      expect(response.status).toBe(422);
-      await expect(response.json()).resolves.toEqual({
-        error: "커플 중재는 공유 대화에서만 시작할 수 있어요.",
-        code: "MEDIATION_SHARED_VISIBILITY_REQUIRED",
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(mocks.atomicFinalizations).toHaveLength(1);
+      expect(mocks.atomicFinalizations[0]).toMatchObject({
+        outcome: "persisted",
+        message: {
+          visibility,
+          metadata: {
+            memory_eligible: false,
+            mediation_draft_state: "draft",
+            mediation_draft_sendable: true,
+            mediation_draft_roster_fingerprint: "a".repeat(32),
+            mediation: {
+              origin: "user_requested",
+              evidenceScope: "requester_summary_only",
+              schemaVersion: 2,
+            },
+          },
+        },
       });
-      expect(response.headers.get("Cache-Control")).toBe("no-store");
-      expect(mocks.findPersisted).not.toHaveBeenCalled();
-      expect(mocks.reconcile).not.toHaveBeenCalled();
-      expect(mocks.rateLimit).not.toHaveBeenCalled();
-      expect(mocks.claim).not.toHaveBeenCalled();
-      expect(mocks.providerLedger).not.toHaveBeenCalled();
-      expect(mocks.provider).not.toHaveBeenCalled();
-      expect(mocks.atomicResponses).toHaveLength(0);
-      expect(mocks.persist).not.toHaveBeenCalled();
-      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.provider).toHaveBeenCalledTimes(1);
+      expect(mocks.getPrivacySnapshot).toHaveBeenCalled();
       expect(mocks.executeTool).not.toHaveBeenCalled();
       expect(mocks.enqueueMemory).not.toHaveBeenCalled();
-      expect(mocks.log).not.toHaveBeenCalled();
     },
   );
 
@@ -7884,15 +7906,18 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     currentUserText,
     overrides,
   }) => {
+    const needsMediationDraftPrivacySnapshot = overrides.requestKind === "mediation";
     if (currentUserText) {
       mocks.canonicalRows[0] = {
         ...mocks.canonicalRows[0],
         content: currentUserText,
       };
     }
-    mocks.getPrivacySnapshot.mockRejectedValue(
-      new Error("PRIVATE_SNAPSHOT_SENTINEL"),
-    );
+    if (!needsMediationDraftPrivacySnapshot) {
+      mocks.getPrivacySnapshot.mockRejectedValue(
+        new Error("PRIVATE_SNAPSHOT_SENTINEL"),
+      );
+    }
     mocks.journeyError = { code: "PGRST500", message: "JOURNEY_SENTINEL" };
     mocks.directoryError = { code: "PGRST500", message: "DIRECTORY_SENTINEL" };
     mocks.summariesError = { code: "PGRST500", message: "SUMMARY_SENTINEL" };
@@ -7913,7 +7938,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(response.status).toBe(200);
     await response.text();
 
-    expect(mocks.getPrivacySnapshot).not.toHaveBeenCalled();
+    if (needsMediationDraftPrivacySnapshot) {
+      expect(mocks.getPrivacySnapshot).toHaveBeenCalled();
+    } else {
+      expect(mocks.getPrivacySnapshot).not.toHaveBeenCalled();
+    }
     for (const table of [
       "wedding_journeys",
       "couple_profile_directory",

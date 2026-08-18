@@ -218,6 +218,11 @@ export interface ChatMessageMetadata {
   safety_contact_policy?: string;
   question_scope?: string;
   memory_eligible?: boolean;
+  /** Private mediation draft lifecycle; server-owned and roster-bound. */
+  mediation_draft_state?: "draft" | "sent";
+  mediation_draft_sendable?: boolean;
+  mediation_draft_roster_fingerprint?: string;
+  mediation_shared_message_id?: string;
   persistence_status?: string;
   pinned_safety_card?: boolean;
   /** Whether this safety delivery persisted the raw disclosure anywhere. */
