@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.23 — JOURNEY TRUTH OWNERSHIP LOCAL/AUTOMATED`
+> 계획 버전: `v1.24 — COMMON TOPIC STATE ADAPTER LOCAL/AUTOMATED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `28e50260bdbbaa853cf58558d451bbb847650aa4`
+> 검증 기준 코드 HEAD: `62d1d5b37d3fa22e5420154537f89fc9db4115fd`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 108개 · Production 관찰 적용 32개 · Production 기준 pending 76개 · tail `20260818140000`
 >
-> 현재 작업 상태: `JRN-001 / AMR-C11`은 19개 준비 주제와 7개 gap의 문제·상태·결정·실행·완료 진실 소유자를 commit `28e50260`의 공통 read-only 계약으로 고정했다. 실기기·사용자 이해도·2계정·Preview/Production 검증은 미실행이며 다음 소비자 수직은 `JRN-002` 공통 topic adapter다.
+> 현재 작업 상태: `JRN-002 / AMR-C12`는 JRN-001 truth policy와 기존 공통 consumer-state composer를 commit `62d1d5b3`으로 준비 주제 presentation에 연결했다. optional evidence 손상은 core topic을 숨기지 않고 해당 supporting label만 제외한다. 실기기·사용자 이해도·2계정·Preview/Production 검증은 미실행이며 다음 수직은 `JRN-003` source-date-region 계약이다.
 >
-> 현재 작업 스냅샷: 제품 코드 commit `28e50260` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 제품 코드 commit `62d1d5b3` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,9 +23,9 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `JRN-001 / AMR-C11 VERIFIED (LOCAL/AUTOMATED)` — 19개 주제와 7개 gap에서 문제·상태·결정·실행·완료 근거의 소유자와 failure UI 정책을 독립적으로 고정 |
+| 현재 작업 | `JRN-002 / AMR-C12 VERIFIED (LOCAL/AUTOMATED)` — JRN-001 truth policy와 공통 consumer-state composer를 준비 주제 presentation에 연결 |
 | 최근 완료 제품 vertical | `CARE-001 LISTEN-ONLY LANE VERIFIED (LOCAL/AUTOMATED)` — 한 턴의 명시 선택을 durable user/assistant marker와 결박하고 tool·domain/decision write·장기 기억 read/enqueue·suggestion을 0으로 유지하면서 현재 공개 범위의 대화와 AI 감사 로그는 사실대로 보존 |
-| 다음 소비자 vertical | `JRN-002 COMMON TOPIC ADAPTER` — JRN-001 truth owner를 현재 공통 topic composer에 연결하고 주제별 중복 state machine을 만들지 않음 |
+| 다음 소비자 vertical | `JRN-003 SOURCE-DATE-REGION CONTRACT` — 공식 근거가 필요한 내용은 source·확인일·지역·적용 범위가 없으면 fail-closed |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
 | 실행 순서 | HT-001 단일 행동 → HT-002 진행 진실 → HT-003/004 주제 위계·관련성 → HT-005/006 왕복 → HT-007 partial state → HT-009 우리 준비 노트 → EX-009 재동결 → Preview/internal E2E |
@@ -165,6 +165,7 @@
 | `HT-010` | `AMR-M04` | `BLOCKED` | HT-009 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `f453fb01`, plan commit `c1cd5105` 원격 포함 확인; runtime flag default-off, 동의 이전 source 차단, shared current-member 전원 동의, roster 변경 무효화, 결정적 민감정보 차단, 철회·수정·삭제 경계를 재확인. `GET ?export=memory`가 현재 owner의 shared+본인 private 기억만 versioned JSON으로 내보내며 상대 private·profile reasoning·source ID·채팅·일정·예산을 제외. 501행 이상은 partial export 대신 409. web memory 120/120, mobile focused 9/9·full 1120/1120, web/mobile typecheck·full lint, web/mobile build, diff-check, pre-push 8/8 PASS | 접근 가능한 실기기·2계정·격리 hosted에서 철회·삭제·roster 무효화·export E2E. 환경 확보 전 사용자/hosted 완료 체크 금지 | 2026-08-18 |
 | `HT-012` | `AMR-V01` | `VERIFIED` | HT-003/EX-008 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `58acac74`; 7개 source type·상업 관계·확인일·한계 exact contract와 persisted output 재검증을 홈 why·주제 guide·커뮤니티·업체 상세의 기존 블록에 연결했다. rank·route·CTA·write 불변. common contract 14/14, mobile focused 115/115·full 1133/1133, web 관련 43/43, shared/web/mobile typecheck, web/mobile scoped lint, node syntax, diff-check PASS | 실기기에서 작은 화면·200%·VoiceOver/TalkBack와 광고·제안·저장 기록 구분 이해도를 확인하고 JRN-001에서 주제별 source truth를 감사 | 2026-08-18 |
 | `JRN-001` | `AMR-C11` | `VERIFIED` | EX-008/HT-012 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `28e50260`; 19개 topic·7개 gap의 truth owner, evidence-only effect, partial/unavailable/conflict/applicability failure UI와 no-progress/no-completion/no-recommendation gap policy를 exact contract로 고정. 손상 coverage fail-closed. focused 15/15, shared/web typecheck, scoped lint, node syntax, diff-check PASS | JRN-002에서 기존 topic composer가 이 정책과 동일한 결과를 내는 adapter parity를 연결. 실기기/사용자 관찰은 후속 | 2026-08-18 |
+| `JRN-002` | `AMR-C12` | `VERIFIED` | JRN-001/FV-011 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `62d1d5b3`; 19개 topic resolver+공통 consumer-state adapter가 canonical 상태 조합을 한 번만 판정하고 presentation이 그 primary state를 사용한다. malformed optional evidence는 core를 유지한 채 label 기여만 차단. relevant 93/93, mobile full 1139/1139, web truth 15/15, shared/mobile typecheck, scoped lint, node syntax, diff-check PASS | JRN-003에서 공식 근거의 source/date/region/scope를 같은 fail-closed 방식으로 연결. 실기기/사용자 관찰은 후속 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
 | `CARE-002` | `AMR-MED01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. route 363/363, chatStore 165/165, mobile full 1130/1130, DB boundary 4/4, release 243/243+fence, shared/web/mobile typecheck, web/mobile lint, web build, Expo all-platform export PASS. web full은 7556/7559 후 새 evidence를 모르는 fixture 3개만 RED였고 fixture 보정 뒤 해당 10/10 PASS | 실제 2계정에서 private 비노출→명시적 공유→동일 shared id 재시도→이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. isolated hosted staging에서 trigger/RLS/RPC를 증명하기 전에는 `LOCAL/BLOCKED`, Production 완료 체크 금지 | 2026-08-18 |
 
@@ -199,6 +200,8 @@
 `HT-012 / AMR-V01` source presentation slice의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/mobile/src/components/common/AmoraSourceDisclosureView.tsx`, `apps/mobile/src/__tests__/sourceDisclosurePresentation.test.mjs`, `apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx`, `apps/mobile/src/components/dashboard/AmoraRecommendationWhySheet.tsx`, `apps/mobile/src/__tests__/dashboardExperience.test.mjs`, `apps/mobile/src/components/planning/PreparationTopicSummary.tsx`, `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs`, `apps/mobile/src/components/community/CommunityTrustBadges.tsx`, `apps/mobile/src/__tests__/communityTrustParityBoundary.test.mjs`, `apps/web/src/components/app/chat/VendorToolCard.tsx`, `apps/web/src/components/app/chat/VendorToolCard.test.tsx` 열두 경로다. Lazyweb UI route는 기존 화면 screenshot이 없으면 greenfield redesign으로 잘못 넓어진다고 반환했으므로 새 화면·카드·navigation을 만들지 않고 기존 fact/provenance/trust block의 inline badge/detail rhythm을 재사용한다. badge는 text와 accessibility label로 source type을 표시하고, detail에서 상업 관계·확인일·한계를 보여준다. old/malformed persisted vendor output은 정본 badge로 승격하지 않고 명시적 source-unavailable copy를 보인다. rank·route·CTA·action·section order·write는 바꾸지 않는다.
 
 `JRN-001 / AMR-C11` journey truth audit의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraJourneyTruthAudit.mjs`, `packages/shared/src/contracts/amoraJourneyTruthAudit.d.mts`, `packages/shared/package.json`, `packages/shared/src/index.ts`, `apps/web/src/lib/amora/__tests__/amoraJourneyTruthAudit.test.ts` 여섯 경로다. 소비자 결과는 모든 19개 canonical 준비 주제가 같은 진실 경계를 갖는 것이다: 문제 정의는 canonical checklist, 필요 여부·상태·진행률·완료는 저장한 checklist state, 결정은 검증된 receipt projection, 실행은 current schedule/shared action, 업체·금액·사용자보고 기록은 보조 근거만 소유한다. schedule·decision·user report·업체 기록은 checklist 완료나 결제·업체 확정을 대신하지 못하고, current open action만 terminal 완료를 `in_progress`로 낮출 수 있다. optional read의 partial/unavailable은 empty로 표현하지 않으며 conflict는 review로, applicability unknown은 확인 필요로 남긴다. 7개 coverage gap은 `now|known_gap|parked`와 surface owner를 보존하고 모두 진행률·완료·추천 권한이 없으며, parked는 행동 후보에서도 제외한다. 입력 coverage에 issue·누락·중복·unknown topic/gap·extra authority가 있으면 전체 audit을 fail-closed한다. 첫 공개 RED는 현재 `CATEGORY_CHECKLISTS` 기반 coverage가 19개 topic policy와 7개 gap policy를 exact keyset으로 만들고, 각 evidence lane의 허용 효과가 독립적이며, 손상된 coverage는 `null`인 행동이다. UI·navigation·DB·AI·write·ranking 변경과 새로운 준비 콘텐츠 추가는 금지한다.
+
+`JRN-002 / AMR-C12` common topic adapter의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraJourneyTruthAudit.mjs`, `packages/shared/src/contracts/amoraJourneyTruthAudit.d.mts`, `packages/shared/src/contracts/amoraPreparationTopicConsumerState.mjs`, `packages/shared/src/contracts/amoraPreparationTopicConsumerState.d.mts`, `packages/shared/package.json`, `packages/shared/src/index.ts`, `apps/mobile/src/lib/preparationTopicPresentation.mjs`, `apps/mobile/src/lib/preparationTopicPresentation.d.mts`, `apps/mobile/src/__tests__/preparationTopicConsumerState.test.mjs`, `apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs` 열한 경로다. adapter는 19개 canonical topic의 JRN-001 policy를 resolver로 가져오고, exact preparation-topic view를 기존 `composeAmoraConsumerState` 입력으로만 변환한다. `unknown/not_applicable/not_started/exploring/in_progress/decision_needed/completed` 조합은 각각 applicability review/not applicable/ready/in progress/conflict/canonical completed로 단 한 번 매핑한다. schedule·decision·catch-up·vendor·budget evidence는 supporting provenance/money boundary에만 반영하며 status·progress·completion을 승격하지 않는다. optional evidence read failure는 이미 검증된 core topic을 empty/unavailable primary state로 덮지 않는다. presentation은 adapter의 primary state로 유효 조합을 판정하고 기존 status copy·next action·section order를 유지한다. unknown topic, 불가능한 applicability/status, 손상 policy, malformed evidence는 fail-closed한다. 첫 공개 RED는 19개 topic이 동일 truth owner를 사용하고 canonical 상태 조합이 공통 consumer primary state로 변환되며, 보조 evidence를 추가해도 primary state/action eligibility가 바뀌지 않는 행동이다. 새 UI·navigation·DB·AI·write·rank·카피 변경은 금지한다.
 
 운영 규칙:
 
@@ -1267,7 +1270,7 @@ freeze 전에 다음 중 하나를 선택한다.
 
 - [x] `AMR-C10` 가입 전 준비 기반부터 결혼 후 마감까지 전체 여정 matrix를 만들고 각 항목을 `connected / explicit not-applicable support / known gap / parked` 중 하나로 분류한다.
 - [x] `AMR-C11` 각 주제의 사용자 문제·상태·결정·실행·완료 증거가 독립적인지 감사한다.
-- [ ] `AMR-C12` 공통 topic contract를 재사용하고 주제별 UI를 복제하지 않는다.
+- [x] `AMR-C12` 공통 topic contract를 재사용하고 주제별 UI를 복제하지 않는다.
 - [ ] `AMR-C13` 공식 근거가 필요한 내용은 출처·확인일·지역·적용 범위를 기록한다.
 - [ ] `AMR-C14` 대표 정상/배제/변경/부분 실패 fixture를 통과시킨다.
 - [ ] `AMR-C15` 실제 사용자에게 해당하지 않는 주제를 건너뛸 수 있게 한다.
@@ -2044,6 +2047,7 @@ Wave 3·4 구현
 | 2026-08-18 | AMR-M03/REL11 | `우리 준비 노트`에 질문·답변 서버 검색, snapshot-bound cursor 더보기, 질문/답변 분리 표시와 identity fail-closed를 추가하고 service-only read RPC를 릴리스 계약에 고정 | commit `b8fdfe94` · focused 18/18 · mobile 1111/1111 · web/DB 46/46 · release 241/241+fence · migration `022707a3...f9d4` · manifest 107/Production 32/pending 75/tail 181300 · Production write 0 |
 | 2026-08-18 | AMR-V01 | canonical 준비 기록·아모라 제안·검수 가이드·업체 공개정보·다른 사용자 경험·광고/혜택의 권위를 공통 계약으로 구분하고 기존 홈 why·주제 guide·커뮤니티 trust·업체 상세에 표시 | product commit `58acac74` · common 14/14 · mobile focused 115/115·full 1133/1133 · web 관련 43/43 · shared/web/mobile typecheck · web/mobile scoped lint · node syntax·diff-check PASS · rank/route/CTA/write 불변 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C11 | 19개 canonical 준비 주제와 7개 known/parked gap의 문제·상태·결정·실행·완료 진실 소유자를 분리하고 보조 근거가 진행률·완료·추천 권한으로 승격되지 않게 고정 | product commit `28e50260` · RED export missing → GREEN · coverage+truth focused 15/15 · shared/web typecheck · scoped lint · node syntax·diff-check PASS · UI/DB/AI/write/rank 변경 없음 · 실기기/사용자 관찰/Preview/Production 없음 |
+| 2026-08-18 | AMR-C12 | 19개 준비 주제가 JRN-001 truth policy와 기존 공통 consumer-state composer 하나로 상태를 판정하고 presentation의 기존 카피·다음 행동을 유지하도록 연결 | product commit `62d1d5b3` · export/presentation RED → GREEN · relevant 93/93 · mobile 1139/1139 · web truth 15/15 · shared/mobile typecheck · scoped lint · node syntax·diff-check PASS · malformed optional evidence는 core 유지/label 제외 · UI/DB/AI/write/rank 변경 없음 |
 
 ---
 
