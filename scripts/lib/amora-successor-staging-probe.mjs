@@ -349,6 +349,8 @@ SELECT
    WHERE row.id = ANY($1::uuid[])) AS profiles,
   (SELECT count(*)::integer FROM public.couples AS row
    WHERE row.id = ANY($2::uuid[])) AS couples,
+  (SELECT count(*)::integer FROM public.wedding_journeys AS row
+   WHERE row.couple_id = ANY($2::uuid[])) AS journeys,
   (SELECT count(*)::integer FROM public.chat_messages AS row
    WHERE row.id = ANY($3::uuid[])
       OR row.sender_id = ANY($1::uuid[])
@@ -452,6 +454,7 @@ export function readHostedCriterionActionResidue({
     const keyMap = {
       profiles: "profiles",
       couples: "couples",
+      journeys: "journeys",
       chatMessages: "chat_messages",
       chatClaims: "chat_claims",
       actions: "actions",
@@ -1199,7 +1202,7 @@ export function createSupabaseStagingTransport({
       const profile = Array.isArray(profileResponse.body) && profileResponse.body.length === 1
         ? profileResponse.body[0]
         : null;
-      const journey = Array.isArray(journeyResponse.body) && journeyResponse.body.length === 1
+      let journey = Array.isArray(journeyResponse.body) && journeyResponse.body.length === 1
         ? journeyResponse.body[0]
         : null;
       const privacyEpoch = privacyResponse.body;
@@ -1209,6 +1212,25 @@ export function createSupabaseStagingTransport({
         || !["bride", "groom"].includes(profile?.role)
       ) {
         fail("CRITERION_APPLICATION_PROFILE_INVALID", "Criterion application profile was not canonical");
+      }
+      if (journey === null && Array.isArray(journeyResponse.body) && journeyResponse.body.length === 0) {
+        const insertedJourney = await adminCall("/rest/v1/wedding_journeys", {
+          method: "POST",
+          body: {
+            couple_id: coupleId,
+            wedding_date: null,
+            venue: null,
+            total_budget: 0,
+            progress: {},
+          },
+        });
+        if (insertedJourney.status !== 201) {
+          fail("CRITERION_APPLICATION_JOURNEY_BOOTSTRAP_INVALID", "Neutral criterion journey was not created");
+        }
+        const canonicalJourney = await adminCall(`/rest/v1/wedding_journeys?${journeyQuery}`);
+        journey = Array.isArray(canonicalJourney.body) && canonicalJourney.body.length === 1
+          ? canonicalJourney.body[0]
+          : null;
       }
       if (
         (journey?.couple_id !== undefined && journey.couple_id !== coupleId)
@@ -2666,6 +2688,7 @@ export async function runCriterionActionContextScenario({ transport }) {
   let residue = {
     profiles: Number.NaN,
     couples: Number.NaN,
+    journeys: Number.NaN,
     chatMessages: Number.NaN,
     chatClaims: Number.NaN,
     actions: Number.NaN,

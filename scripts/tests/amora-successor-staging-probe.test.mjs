@@ -656,6 +656,7 @@ test("two synthetic users prove only the current shared criterion gains one immu
       return {
         profiles: 0,
         couples: 0,
+        journeys: 0,
         chatMessages: 0,
         chatClaims: 0,
         actions: 0,
@@ -1039,6 +1040,7 @@ test("the staging transport derives criterion action applications through canoni
   const decisionId = "70000000-0000-4000-8000-000000000071";
   const applicationMessageId = "90000000-0000-4000-8000-000000000071";
   const calls = [];
+  let journeyCreated = false;
   const fetchImpl = async (url, init) => {
     const request = { url: String(url), init, body: init.body ? JSON.parse(init.body) : null };
     calls.push(request);
@@ -1050,7 +1052,13 @@ test("the staging transport derives criterion action applications through canoni
       }]), { status: 200 });
     }
     if (request.url.includes("/rest/v1/wedding_journeys?")) {
-      return new Response(JSON.stringify([{ couple_id: coupleId, state_revision: 7 }]), { status: 200 });
+      return new Response(JSON.stringify(journeyCreated
+        ? [{ couple_id: coupleId, state_revision: 7 }]
+        : []), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/wedding_journeys") && init.method === "POST") {
+      journeyCreated = true;
+      return new Response(null, { status: 201 });
     }
     if (request.url.endsWith("/rest/v1/rpc/get_own_amora_privacy_epoch")) {
       return new Response("11", { status: 200 });
@@ -1256,6 +1264,7 @@ test("the fixed read-only residue query covers criterion decisions, actions, cla
       return new Response(JSON.stringify([{
         profiles: 0,
         couples: 0,
+        journeys: 0,
         chat_messages: 0,
         chat_claims: 0,
         actions: 0,
@@ -1272,6 +1281,7 @@ test("the fixed read-only residue query covers criterion decisions, actions, cla
   assert.deepEqual(residue, {
     profiles: 0,
     couples: 0,
+    journeys: 0,
     chatMessages: 0,
     chatClaims: 0,
     actions: 0,
