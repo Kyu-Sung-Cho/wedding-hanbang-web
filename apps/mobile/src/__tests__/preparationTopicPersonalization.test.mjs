@@ -8,11 +8,13 @@ import {
   buildPreparationTopicPersonalization,
   loadPreparationTopicCoupleContext,
   loadPreparationTopicOwnerContext,
+  selectPreparationTopicAppliedEffects,
 } from "../lib/preparationTopicPersonalization.mjs";
 
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
 const PARTNER_ID = "10000000-0000-4000-8000-000000000002";
 const COUPLE_ID = "30000000-0000-4000-8000-000000000001";
+const CRITERION_ID = "40000000-0000-4000-8000-000000000001";
 const summarySource = await readFile(
   new URL("../components/planning/PreparationTopicSummary.tsx", import.meta.url),
   "utf8",
@@ -41,6 +43,7 @@ test("confirmed private and couple context becomes one compact truth-scoped sect
     },
     coupleContext: {
       readState: "loaded",
+      confirmedCriterionId: CRITERION_ID,
       confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
     },
     appliedEffects: {
@@ -79,7 +82,7 @@ test("confirmed private and couple context becomes one compact truth-scoped sect
     ],
     notices: [],
     note:
-      "현재 주제의 질문·후보·조건·행동에 실제 연결된 기준만 보여줘요.",
+      "현재 주제의 질문·후보·조건·행동에 서버 기록으로 연결된 기준만 보여줘요.",
   });
 
   assert.doesNotMatch(JSON.stringify(section), /decisionId|criterionId|ownerUserId|coupleId/);
@@ -93,6 +96,7 @@ test("expression preferences and unbound criteria never become topic evidence or
   };
   const coupleContext = {
     readState: "loaded",
+    confirmedCriterionId: CRITERION_ID,
     confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
   };
 
@@ -125,15 +129,14 @@ test("expression preferences and unbound criteria never become topic evidence or
   const personalizationStart = scheduleSource.indexOf(
     "const topicPersonalizationSection = buildPreparationTopicPersonalization",
   );
+  const presentationEnd = scheduleSource.indexOf(");", presentationStart) + 2;
   assert.ok(presentationStart >= 0 && personalizationStart > presentationStart);
+  assert.ok(presentationEnd > presentationStart && presentationEnd < personalizationStart);
   assert.doesNotMatch(
-    scheduleSource.slice(presentationStart, personalizationStart),
+    scheduleSource.slice(presentationStart, presentationEnd),
     /topicOwnerContext|topicCoupleContext|preferences|coreCriterion/,
   );
-  assert.match(
-    scheduleSource,
-    /buildPreparationTopicPersonalization\(\{[\s\S]{0,160}topicKey:\s*cat\.key[\s\S]{0,160}appliedEffects:\s*null/,
-  );
+  assert.match(scheduleSource, /const topicAppliedEffects = selectPreparationTopicAppliedEffects/);
 });
 
 test("a topic criterion effect must match the same topic and exact current criterion", () => {
@@ -144,6 +147,7 @@ test("a topic criterion effect must match the same topic and exact current crite
   };
   const coupleContext = {
     readState: "loaded",
+    confirmedCriterionId: CRITERION_ID,
     confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
   };
   const build = (ownerCriterion) => buildPreparationTopicPersonalization({
@@ -212,6 +216,7 @@ test("unbound contexts stay quiet even when their reads are unavailable", () => 
     },
     coupleContext: {
       readState: "loaded",
+      confirmedCriterionId: null,
       confirmedCriterion: null,
     },
     appliedEffects: null,
@@ -227,6 +232,7 @@ test("unbound contexts stay quiet even when their reads are unavailable", () => 
     },
     coupleContext: {
       readState: "unavailable",
+      confirmedCriterionId: null,
       confirmedCriterion: null,
     },
     appliedEffects: null,
@@ -242,6 +248,7 @@ test("unbound contexts stay quiet even when their reads are unavailable", () => 
     },
     coupleContext: {
       readState: "loading",
+      confirmedCriterionId: null,
       confirmedCriterion: null,
     },
     appliedEffects: null,
@@ -314,7 +321,7 @@ test("couple lane exposes only the current confirmed criterion for the exact cou
           coupleId: COUPLE_ID,
           linked: true,
           current: {
-            decisionId: "40000000-0000-4000-8000-000000000001",
+            decisionId: CRITERION_ID,
             value: "무리하지 않는 예산 안에서 결정해요",
             confirmedAt: "2026-08-17T01:00:00.000Z",
           },
@@ -336,9 +343,85 @@ test("couple lane exposes only the current confirmed criterion for the exact cou
 
   assert.deepEqual(result, {
     readState: "loaded",
+    confirmedCriterionId: CRITERION_ID,
     confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
   });
-  assert.doesNotMatch(JSON.stringify(result), /확인 전인 제안|proposal|decisionId/);
+  assert.doesNotMatch(JSON.stringify(result), /확인 전인 제안|proposal/);
+});
+
+test("only an exact current criterion receipt on the selected action becomes topic personalization", () => {
+  const action = Object.freeze({
+    id: "act_venue_contract_check",
+    title: "예식장 계약서 특약 확인",
+    description: null,
+    dueDate: null,
+    priority: "medium",
+    source: "chat",
+    categoryKey: "venue",
+    sourceRevision: 1,
+    createdAt: "2026-08-17T01:00:00.000Z",
+    criterionContext: Object.freeze({
+      version: 1,
+      scope: "couple",
+      criterionDecisionId: CRITERION_ID,
+      topicKey: "venue",
+      affects: "action",
+      sourceMessageId: "50000000-0000-4000-8000-000000000001",
+      sourceJourneyRevision: 7,
+      actionRevision: 1,
+    }),
+  });
+  const coupleContext = {
+    readState: "loaded",
+    confirmedCriterionId: CRITERION_ID,
+    confirmedCriterion: "무리하지 않는 예산 안에서 결정해요",
+  };
+  const input = {
+    topicKey: "venue",
+    actionRef: { id: action.id, revision: 1 },
+    openActions: [action],
+    coupleContext,
+  };
+
+  const appliedEffects = selectPreparationTopicAppliedEffects(input);
+  assert.deepEqual(appliedEffects, {
+    ownerCriterion: null,
+    coupleCriterion: {
+      topicKey: "venue",
+      criterion: coupleContext.confirmedCriterion,
+      affects: "action",
+    },
+  });
+  const section = buildPreparationTopicPersonalization({
+    topicKey: "venue",
+    ownerContext: {
+      readState: "loaded",
+      preferences: null,
+      coreCriterion: null,
+    },
+    coupleContext,
+    appliedEffects,
+  });
+  assert.equal(
+    section?.items[0]?.detail,
+    "무리하지 않는 예산 안에서 결정해요 · 이 행동을 제안할 때 함께 전달됨",
+  );
+  assert.doesNotMatch(JSON.stringify(section), /40000000|50000000|decisionId|sourceMessageId/);
+  assert.equal(selectPreparationTopicAppliedEffects({
+    ...input,
+    actionRef: { id: action.id, revision: 2 },
+  }), null);
+  assert.equal(selectPreparationTopicAppliedEffects({
+    ...input,
+    coupleContext: {
+      ...coupleContext,
+      confirmedCriterionId: "40000000-0000-4000-8000-000000000099",
+    },
+  }), null);
+  assert.equal(selectPreparationTopicAppliedEffects({
+    ...input,
+    topicKey: "studio",
+  }), null);
 });
 
 test("one failed owner-private resource is partial instead of being mistaken for empty", async () => {
@@ -482,6 +565,7 @@ test("unavailable or loading lanes cannot smuggle stale private or couple values
     },
     coupleContext: {
       readState: "loaded",
+      confirmedCriterionId: null,
       confirmedCriterion: null,
     },
     appliedEffects: null,
@@ -496,6 +580,7 @@ test("unavailable or loading lanes cannot smuggle stale private or couple values
     },
     coupleContext: {
       readState: "loading",
+      confirmedCriterionId: CRITERION_ID,
       confirmedCriterion: "이전 커플의 기준",
     },
     appliedEffects: null,

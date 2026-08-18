@@ -14,6 +14,7 @@ export interface PreparationTopicOwnerContext {
 
 export interface PreparationTopicCoupleContext {
   readonly readState: Exclude<PreparationTopicContextReadState, "partial">;
+  readonly confirmedCriterionId: string | null;
   readonly confirmedCriterion: string | null;
 }
 
@@ -45,6 +46,16 @@ export function buildPreparationTopicPersonalization(input: Readonly<{
     coupleCriterion: PreparationTopicAppliedCriterionEffect | null;
   }> | null;
 }>): PreparationTopicPersonalizationSection | null;
+
+export function selectPreparationTopicAppliedEffects(input: Readonly<{
+  topicKey: string;
+  actionRef: Readonly<{ id: string; revision: number | null }> | null;
+  openActions: readonly import("./dashboardExperience.mjs").DashboardOpenAction[];
+  coupleContext: PreparationTopicCoupleContext;
+}>): Readonly<{
+  ownerCriterion: null;
+  coupleCriterion: PreparationTopicAppliedCriterionEffect;
+}> | null;
 
 export type PreparationTopicPersonalizationErrorCode =
   | "invalid_request"
@@ -84,6 +95,7 @@ export function loadPreparationTopicCoupleContext(input: Readonly<{
   timeoutMs?: number;
 }>): Promise<Readonly<{
   readState: "loaded";
+  confirmedCriterionId: string | null;
   confirmedCriterion: string | null;
 }>>;
 

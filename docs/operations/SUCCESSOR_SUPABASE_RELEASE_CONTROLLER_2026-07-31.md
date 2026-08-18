@@ -9,12 +9,12 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
-The ordered successor manifest now contains 108 migrations and ends at
-`20260818140000_amora_mediation_private_draft_boundary.sql`.
+The ordered successor manifest now contains 109 migrations and ends at
+`20260818150000_amora_topic_criterion_action_context.sql`.
 The normalized-LF current manifest SHA-256 is
-`1abb9e32470bcaee6a80b93558885cc096ed6f4a6d674ab32696629a8ef3a898`;
+`3eab2da0111235f4ba404a7ebaa7c5d6de0d4c0cd4c2594d25c26faf8bbe452a`;
 the terminal migration SHA-256 is
-`6aa23631c3457355d2c4203c4b245598b8c5b88690c20b7275d018c0bf5596c8`.
+`0018ec4033838f2f0bd09d7b141608e244f24149a502c8f3263eccfe72750f4b`.
 
 On 2026-08-15, a linked, read-only Production ledger audit observed:
 
@@ -23,9 +23,9 @@ On 2026-08-15, a linked, read-only Production ledger audit observed:
   ending at `20260727090000`;
 - no remote-only migration version exists.
 
-Against the current 108-migration repository manifest, that observed prefix
-leaves 76 local successor migrations pending, from `20260730100000` through
-`20260818140000`. This suffix count is derived from the updated local manifest;
+Against the current 109-migration repository manifest, that observed prefix
+leaves 77 local successor migrations pending, from `20260730100000` through
+`20260818150000`. This suffix count is derived from the updated local manifest;
 it is not a new 2026-08-16 Production ledger observation.
 
 This proves migration-version continuity only. The old remote ledger rows have
@@ -39,17 +39,17 @@ controller against this observed Production baseline.
 The repository now pins the observation boundary in
 `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json`
 (normalized-LF SHA-256
-`4b66925d0ee58b3eb7cbb4fc9c164fed5ed7cd4fd48a0f0e16aba6fad4a1a9f8`).
+`bd345ff7f8e5291b8c5d039b37133e48ae7e3dd56efc84b8e9aa3193ae92f9ba`).
 The successor manifest hash-pins that file. Static validation requires its 32
-applied migrations to be the exact file/hash prefix of the 108-migration
-manifest and its 76 pending migrations to be the exact suffix. Re-hashing a
+applied migrations to be the exact file/hash prefix of the 109-migration
+manifest and its 77 pending migrations to be the exact suffix. Re-hashing a
 semantically altered count, boundary, file, or migration hash is rejected.
 
 This baseline contract still does not authorize the current release controller
 to apply the suffix. The next controller tranche must consume the pinned
 historical prefix, use `20260727090000` as the effective pre-apply head, create
 a fresh current-remote backup contract that includes the schema effects of the
-32 applied migrations, and keep the remaining 76 migrations as the only
+32 applied migrations, and keep the remaining 77 migrations as the only
 ordered pending set. It must not rewrite Supabase migration history.
 
 The read-only check is reproducible with:
@@ -367,6 +367,7 @@ automatic rerun.
 | `20260818120000_amora_message_ref_http_conflicts.sql` | `c3e269594e956cc96cb19b3c282c5c1865178baa6b468c944831de8d9b389358` | `AMR-M02` | `active_dependency` | `always_on` | `hosted:privacy-rls` |
 | `20260818130000_amora_preparation_notes_read.sql` | `022707a3db67b6b7e7e06280011d210e184b2fd1d911947d416758a334a0f9d4` | `AMR-M03` | `active_dependency` | `always_on` | `hosted:privacy-rls` |
 | `20260818140000_amora_mediation_private_draft_boundary.sql` | `6aa23631c3457355d2c4203c4b245598b8c5b88690c20b7275d018c0bf5596c8` | `AMR-MED01` | `integrity_hardening` | `always_on` | `hosted:mediation-private-draft` |
+| `20260818150000_amora_topic_criterion_action_context.sql` | `0018ec4033838f2f0bd09d7b141608e244f24149a502c8f3263eccfe72750f4b` | `AMR-T11` | `active_dependency` | `always_on` | `hosted:topic-criterion-context` |
 
 <!-- AMORA:PENDING-SCOPE-CLASSIFICATION:END -->
 

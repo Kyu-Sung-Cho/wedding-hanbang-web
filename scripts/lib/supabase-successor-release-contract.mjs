@@ -919,6 +919,7 @@ function validateSuccessorControllerContract({
     && check.expectedEvidence.preparation_catch_up_private_actor_binding_contract_count === 1
     && check.expectedEvidence.preparation_notes_read_rpc_acl_count === 1
     && check.expectedEvidence.mediation_private_draft_boundary_trigger_count === 1
+    && check.expectedEvidence.topic_criterion_action_context_trigger_count === 1
     && check.expectedEvidence.signup_profile_trigger_contract_count === 1
     && check.expectedEvidence.couple_invite_nullable_contract_count === 1
     && check.expectedEvidence.couple_plan_change_auth_user_fk_count === 4
@@ -939,7 +940,7 @@ function validateSuccessorControllerContract({
       || !semanticPostcheck) {
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
-      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, preparation catch-up service-role RPC and private actor binding, mediation private-draft boundary trigger, signup profile trigger ownership/ACL, one-time invite nullable lifecycle, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
+      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, preparation catch-up service-role RPC and private actor binding, mediation private-draft and topic-criterion action-context triggers, signup profile trigger ownership/ACL, one-time invite nullable lifecycle, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
     );
   }
 

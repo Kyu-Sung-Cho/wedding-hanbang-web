@@ -79,6 +79,7 @@ import {
   buildPreparationTopicPersonalization,
   loadPreparationTopicCoupleContext,
   loadPreparationTopicOwnerContext,
+  selectPreparationTopicAppliedEffects,
   type PreparationTopicCoupleContext,
   type PreparationTopicAmoraHandoff,
   type PreparationTopicOwnerContext,
@@ -543,6 +544,7 @@ export default function ScheduleScreen() {
   });
   const [topicCoupleContext, setTopicCoupleContext] = useState<PreparationTopicCoupleContext>({
     readState: "loading",
+    confirmedCriterionId: null,
     confirmedCriterion: null,
   });
   const [topicCurrentCoupleMemberIds, setTopicCurrentCoupleMemberIds] = useState<
@@ -821,6 +823,7 @@ export default function ScheduleScreen() {
     });
     setTopicCoupleContext({
       readState: "loading",
+      confirmedCriterionId: null,
       confirmedCriterion: null,
     });
     setTopicCurrentCoupleMemberIds([]);
@@ -1055,6 +1058,7 @@ export default function ScheduleScreen() {
       });
       setTopicCoupleContext({
         readState: "loading",
+        confirmedCriterionId: null,
         confirmedCriterion: null,
       });
       const topicOwnerContextResultPromise = loadPreparationTopicOwnerContext({
@@ -1277,7 +1281,7 @@ export default function ScheduleScreen() {
         supabase
           .from("amora_actions")
           .select(
-            "id, couple_id, title, description, due_date, category_key, priority, source, status, follow_up_revision, created_at",
+            "id, couple_id, title, description, due_date, category_key, priority, source, status, follow_up_revision, metadata, created_at",
           )
           .eq("couple_id", identity.coupleId)
           .eq("status", "open")
@@ -1531,6 +1535,7 @@ export default function ScheduleScreen() {
           ? topicCoupleContextResult.value
           : {
               readState: "unavailable",
+              confirmedCriterionId: null,
               confirmedCriterion: null,
             });
       });
@@ -1667,6 +1672,7 @@ export default function ScheduleScreen() {
       });
       setTopicCoupleContext({
         readState: "unavailable",
+        confirmedCriterionId: null,
         confirmedCriterion: null,
       });
       setTopicCurrentCoupleMemberIds([]);
@@ -3269,11 +3275,23 @@ export default function ScheduleScreen() {
               undefined,
               topicPayerPresentationContext,
             );
+            const topicActionRef = topicView?.nextAction?.sourceRef?.kind === "amora_action"
+              ? {
+                  id: topicView.nextAction.sourceRef.id,
+                  revision: topicView.nextAction.sourceRef.revision,
+                }
+              : null;
+            const topicAppliedEffects = selectPreparationTopicAppliedEffects({
+              topicKey: cat.key,
+              actionRef: topicActionRef,
+              openActions: topicOpenActions,
+              coupleContext: topicCoupleContext,
+            });
             const topicPersonalizationSection = buildPreparationTopicPersonalization({
               topicKey: cat.key,
               ownerContext: topicOwnerContext,
               coupleContext: topicCoupleContext,
-              appliedEffects: null,
+              appliedEffects: topicAppliedEffects,
             });
             const applicabilityControl = buildPreparationTopicApplicabilityControl(topicView);
             const topicAmoraHandoff = topicPresentation?.nextAction
@@ -3282,12 +3300,7 @@ export default function ScheduleScreen() {
                   topicKey: cat.key,
                   topicLabel: cat.label,
                   journeyRevision: topicJourneyRevision,
-                  actionRef: topicView?.nextAction?.sourceRef?.kind === "amora_action"
-                    ? {
-                        id: topicView.nextAction.sourceRef.id,
-                        revision: topicView.nextAction.sourceRef.revision,
-                      }
-                    : null,
+                  actionRef: topicActionRef,
                   statusLabel: topicPresentation.statusLabel,
                   progressLabel: topicPresentation.progressLabel,
                   nextAction: {

@@ -12,6 +12,14 @@ const migrationPath = resolve(
   process.cwd(),
   "../../supabase/migrations/20260816150000_amora_provider_backed_add_action_application.sql",
 );
+const coupleCriterionMigrationPath = resolve(
+  process.cwd(),
+  "../../supabase/migrations/20260814140000_amora_couple_core_criterion.sql",
+);
+const topicCriterionContextMigrationPath = resolve(
+  process.cwd(),
+  "../../supabase/migrations/20260818150000_amora_topic_criterion_action_context.sql",
+);
 
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
 const GROOM_ID = "10000000-0000-4000-8000-000000000002";
@@ -24,6 +32,8 @@ const SOURCE_RECEIPT_TOKEN = "40000000-0000-4000-8000-000000000002";
 const SOURCE_REQUEST_ID = "50000000-0000-4000-8000-000000000001";
 const CONFIRMATION_REQUEST_ID = "50000000-0000-4000-8000-000000000002";
 const PENDING_ACTION_ID = "60000000-0000-4000-8000-000000000001";
+const COUPLE_CRITERION_DECISION_ID = "70000000-0000-4000-8000-000000000001";
+const COUPLE_CRITERION_VALUE = "무리하지 않는 예산 안에서 결정해요";
 const CONFIRMATION_CONTENT = "좋아요. 제안한 변경을 적용해 주세요.";
 const SOURCE_CONFIRMATION = [
   "다음 변경을 적용할까요?",
@@ -117,6 +127,27 @@ async function createDatabase() {
       epoch bigint NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    CREATE TABLE public.decision_nodes (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      couple_id uuid NOT NULL REFERENCES public.couples(id),
+      category text,
+      decision_type text,
+      title text,
+      chosen_value jsonb,
+      options_considered jsonb NOT NULL DEFAULT '[]'::jsonb,
+      reasoning text,
+      confidence numeric,
+      stage_tag text,
+      decided_at timestamptz,
+      source text,
+      source_ref_id uuid,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      visibility text NOT NULL,
+      source_actor_role text,
+      user_confirmed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
     CREATE TABLE public.chat_messages (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       couple_id uuid NOT NULL REFERENCES public.couples(id) ON DELETE CASCADE,
@@ -203,9 +234,9 @@ async function createDatabase() {
       updated_at timestamptz NOT NULL DEFAULT now(),
       completed_at timestamptz,
       dismissed_at timestamptz,
-      first_use_promotion_id uuid
+      first_use_promotion_id uuid,
+      follow_up_revision bigint NOT NULL DEFAULT 1
     );
-
     CREATE FUNCTION public.amora_shared_action_context(
       p_action_id uuid,
       p_couple_id uuid,
@@ -398,6 +429,25 @@ async function createDatabase() {
       IF v_execution.status = 'completed' THEN
         RETURN v_execution.result;
       END IF;
+      PERFORM set_config(
+        'hanbang.amora_shared_action_couple_id', p_couple_id::text, true
+      );
+      PERFORM set_config(
+        'hanbang.amora_shared_action_request_key', p_request_key, true
+      );
+      PERFORM set_config(
+        'hanbang.amora_shared_action_operation_key', p_operation_key, true
+      );
+      PERFORM set_config(
+        'hanbang.amora_shared_action_action_id',
+        v_execution.pending_action_id::text,
+        true
+      );
+      PERFORM set_config(
+        'hanbang.amora_shared_action_expected_revision',
+        v_execution.pending_action_journey_revision::text,
+        true
+      );
       INSERT INTO public.amora_actions(
         id, couple_id, title, description, due_date, category_key,
         priority, status, source, href, metadata, created_by
@@ -408,6 +458,11 @@ async function createDatabase() {
         v_action_input ->> 'priority', v_action_input ->> 'status',
         v_action_input ->> 'source', v_action_input ->> 'href', '{}'::jsonb, NULL
       ) RETURNING * INTO v_action;
+      PERFORM set_config('hanbang.amora_shared_action_couple_id', '', true);
+      PERFORM set_config('hanbang.amora_shared_action_request_key', '', true);
+      PERFORM set_config('hanbang.amora_shared_action_operation_key', '', true);
+      PERFORM set_config('hanbang.amora_shared_action_action_id', '', true);
+      PERFORM set_config('hanbang.amora_shared_action_expected_revision', '', true);
       v_effective_result := jsonb_set(
         p_result,
         ARRAY['toolOutput'],
@@ -458,9 +513,35 @@ async function createDatabase() {
     VALUES ('${COUPLE_ID}', 7);
     INSERT INTO public.amora_privacy_context_epochs(couple_id, epoch)
     VALUES ('${COUPLE_ID}', 11);
+    INSERT INTO public.decision_nodes(
+      id, couple_id, category, decision_type, title, chosen_value,
+      options_considered, reasoning, confidence, decided_at, source,
+      source_ref_id, metadata, visibility, source_actor_role,
+      user_confirmed_at, created_at, updated_at
+    ) VALUES (
+      '${COUPLE_CRITERION_DECISION_ID}', '${COUPLE_ID}',
+      'preference', 'decided', '우리 기준',
+      jsonb_build_object('value', '${COUPLE_CRITERION_VALUE}'),
+      '[]'::jsonb, '두 사람이 직접 확인한 기준', 1.00,
+      '2026-08-16T02:00:00.000Z', 'manual', gen_random_uuid(),
+      jsonb_build_object(
+        'criterion_contract', 'amora_couple_core_criterion_v1',
+        'criterion_version', 1,
+        'bride_user_id', '${BRIDE_ID}',
+        'groom_user_id', '${GROOM_ID}',
+        'acceptance_count', 2,
+        'explicit', true
+      ),
+      'shared', NULL, '2026-08-16T02:00:00.000Z',
+      '2026-08-16T02:00:00.000Z', '2026-08-16T02:00:00.000Z'
+    );
   `);
+  await db.exec(readFileSync(coupleCriterionMigrationPath, "utf8"));
   if (existsSync(migrationPath)) {
     await db.exec(readFileSync(migrationPath, "utf8"));
+  }
+  if (existsSync(topicCriterionContextMigrationPath)) {
+    await db.exec(readFileSync(topicCriterionContextMigrationPath, "utf8"));
   }
   return db;
 }
@@ -496,6 +577,7 @@ async function prepareApplication(db: PGlite) {
          'memory_eligible', false,
          'memory_enqueue_requested', false,
          'amora_wedding_context_revision', 7,
+         'amora_couple_criterion_decision_id', $9::uuid,
          'pending_amora_action', $8::jsonb,
          'pending_amora_action_journey_revision', 7,
          'amora_add_action_proposal_origin_v1', 'ordinary_provider'
@@ -509,6 +591,7 @@ async function prepareApplication(db: PGlite) {
     SOURCE_CONFIRMATION,
     sourceRequestKey,
     JSON.stringify(pendingAction),
+    COUPLE_CRITERION_DECISION_ID,
   ]);
   await db.query(`
     INSERT INTO public.amora_chat_request_claims(
@@ -741,6 +824,125 @@ async function readApplicationSideEffects(db: PGlite, requestKey: string) {
 }
 
 describe("provider-backed ordinary add-action application migration", () => {
+  it("seals the current couple criterion context on the exact categorized action", async () => {
+    const db = await createDatabase();
+    try {
+      await setServiceRole(db);
+      const prepared = await prepareApplication(db);
+      await finalizeApplication(db, prepared.applicationRequestKey);
+
+      const action = (await db.query<{
+        metadata: Record<string, unknown>;
+        follow_up_revision: number;
+      }>(`
+        SELECT metadata, follow_up_revision
+        FROM public.amora_actions
+      `)).rows[0]!;
+      expect(action.follow_up_revision).toBe(1);
+      expect(action.metadata).toEqual({
+        amora_topic_criterion_context_v1: {
+          version: 1,
+          scope: "couple",
+          criterionDecisionId: COUPLE_CRITERION_DECISION_ID,
+          topicKey: "venue",
+          affects: "action",
+          sourceMessageId: SOURCE_PROPOSAL_MESSAGE_ID,
+          sourceJourneyRevision: 7,
+          actionRevision: 1,
+        },
+      });
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("keeps the approved action but omits personalization when the criterion changed or disappeared", async () => {
+    for (const mutation of [
+      `INSERT INTO public.decision_nodes(
+         id, couple_id, category, decision_type, title, chosen_value,
+         reasoning, confidence, decided_at, source, source_ref_id, metadata,
+         visibility, source_actor_role, user_confirmed_at, created_at, updated_at
+       ) VALUES (
+         '70000000-0000-4000-8000-000000000099', '${COUPLE_ID}',
+         'preference', 'decided', '바뀐 우리 기준',
+         '{"value":"가까운 이동을 먼저 봐요"}'::jsonb,
+         '두 사람이 직접 확인한 새 기준', 1.00,
+         '2026-08-16T02:30:00.000Z', 'manual', gen_random_uuid(),
+         jsonb_build_object(
+           'criterion_contract', 'amora_couple_core_criterion_v1',
+           'criterion_version', 1,
+           'bride_user_id', '${BRIDE_ID}',
+           'groom_user_id', '${GROOM_ID}',
+           'acceptance_count', 2,
+           'explicit', true
+         ),
+         'shared', NULL, '2026-08-16T02:30:00.000Z',
+         '2026-08-16T02:30:00.000Z', '2026-08-16T02:30:00.000Z'
+       )`,
+      `DELETE FROM public.decision_nodes
+       WHERE id = '${COUPLE_CRITERION_DECISION_ID}'`,
+    ]) {
+      const db = await createDatabase();
+      try {
+        await setServiceRole(db);
+        const prepared = await prepareApplication(db);
+        await db.exec(mutation);
+        await finalizeApplication(db, prepared.applicationRequestKey);
+
+        const action = (await db.query<{ metadata: Record<string, unknown> }>(`
+          SELECT metadata FROM public.amora_actions
+        `)).rows[0]!;
+        expect(action.metadata).toEqual({});
+        expect(await readApplicationSideEffects(
+          db,
+          prepared.applicationRequestKey,
+        )).toMatchObject({
+          actions: 1,
+          executions: 1,
+          assistants: 1,
+          claim_status: "completed",
+        });
+      } finally {
+        await db.close();
+      }
+    }
+  });
+
+  it("rejects injected or rewritten topic criterion context receipts", async () => {
+    const db = await createDatabase();
+    try {
+      await setServiceRole(db);
+      await expect(db.exec(`
+        INSERT INTO public.amora_actions(
+          id, couple_id, title, category_key, metadata
+        ) VALUES (
+          'act_injected_context', '${COUPLE_ID}', '위조 행동', 'venue',
+          jsonb_build_object(
+            'amora_topic_criterion_context_v1',
+            jsonb_build_object('version', 1)
+          )
+        )
+      `)).rejects.toMatchObject({ code: "42501" });
+
+      const prepared = await prepareApplication(db);
+      await finalizeApplication(db, prepared.applicationRequestKey);
+      await expect(db.exec(`
+        UPDATE public.amora_actions
+        SET metadata = metadata - 'amora_topic_criterion_context_v1'
+      `)).rejects.toMatchObject({ code: "23514" });
+
+      const stored = await db.query<{ criterion_id: string | null }>(`
+        SELECT metadata #>>
+          '{amora_topic_criterion_context_v1,criterionDecisionId}'
+          AS criterion_id
+        FROM public.amora_actions
+      `);
+      expect(stored.rows[0]?.criterion_id).toBe(COUPLE_CRITERION_DECISION_ID);
+    } finally {
+      await db.close();
+    }
+  });
+
   it("atomically applies one sealed ordinary provider proposal without another provider receipt", async () => {
     const db = await createDatabase();
     try {
@@ -1505,6 +1707,75 @@ describe("provider-backed ordinary add-action application migration", () => {
       await db.close();
     }
   }, 30_000);
+
+  it("freezes the non-callable criterion context trigger boundary", async () => {
+    const db = await createDatabase();
+    try {
+      const contract = await db.query<{
+        owner_name: string;
+        security_definer: boolean;
+        config: string[];
+        definition: string;
+        anon_execute: boolean;
+        authenticated_execute: boolean;
+        service_execute: boolean;
+        trigger_count: number;
+      }>(`
+        SELECT pg_get_userbyid(procedure.proowner) AS owner_name,
+               procedure.prosecdef AS security_definer,
+               procedure.proconfig AS config,
+               pg_get_functiondef(procedure.oid) AS definition,
+               has_function_privilege('anon', procedure.oid, 'EXECUTE')
+                 AS anon_execute,
+               has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
+                 AS authenticated_execute,
+               has_function_privilege('service_role', procedure.oid, 'EXECUTE')
+                 AS service_execute,
+               (
+                 SELECT count(*)::integer
+                 FROM pg_trigger AS trigger
+                 WHERE trigger.tgrelid = 'public.amora_actions'::regclass
+                   AND trigger.tgname =
+                     'trg_seal_amora_topic_criterion_action_context_v1'
+                   AND NOT trigger.tgisinternal
+               ) AS trigger_count
+        FROM pg_proc AS procedure
+        WHERE procedure.oid =
+          'public.seal_amora_topic_criterion_action_context_v1()'::regprocedure
+      `);
+      expect(contract.rows).toHaveLength(1);
+      expect(contract.rows[0]).toMatchObject({
+        owner_name: "postgres",
+        security_definer: true,
+        config: [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s",
+          "statement_timeout=15s",
+        ],
+        anon_execute: false,
+        authenticated_execute: false,
+        service_execute: false,
+        trigger_count: 1,
+      });
+      const definition = contract.rows[0]!.definition.replace(/\s+/g, " ");
+      expect(definition).toContain(
+        "public.read_amora_couple_core_criterion_v1(",
+      );
+      expect(definition).toContain(
+        "AMORA_TOPIC_CRITERION_ACTION_CONTEXT_IMMUTABLE",
+      );
+      expect(definition).toContain(
+        "AMORA_TOPIC_CRITERION_ACTION_CONTEXT_INJECTION",
+      );
+      expect(definition).not.toContain("current,value");
+      expect(readFileSync(topicCriterionContextMigrationPath, "utf8"))
+        .toContain(
+          "FROM PUBLIC, anon, authenticated, service_role",
+        );
+    } finally {
+      await db.close();
+    }
+  });
 
   it("accepts only the immediate exact attachment-free confirmation", async () => {
     const cases: Array<{

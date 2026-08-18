@@ -27,6 +27,18 @@ const DASHBOARD_ACTION_CATEGORY_KEYS = new Set([
 export const DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT = 80;
 export const DASHBOARD_ACTION_DUE_SOON_DAYS = 7;
 const DASHBOARD_ACTION_PRIORITY_RANK = Object.freeze({ high: 0, medium: 1, low: 2 });
+const TOPIC_CRITERION_CONTEXT_KEY = "amora_topic_criterion_context_v1";
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(value, keys) {
+  if (!isRecord(value)) return false;
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === keys.length
+    && keys.every((key) => actualKeys.includes(key));
+}
 
 function isEmojiAdornment(character) {
   const codePoint = character?.codePointAt(0);
@@ -85,6 +97,49 @@ function formatDashboardDueDate(value) {
   return `마감일은 ${year}년 ${month}월 ${day}일이에요.`;
 }
 
+function parseDashboardActionCriterionContext(metadata, categoryKey, sourceRevision) {
+  if (!isRecord(metadata) || !Object.hasOwn(metadata, TOPIC_CRITERION_CONTEXT_KEY)) {
+    return null;
+  }
+  const value = metadata[TOPIC_CRITERION_CONTEXT_KEY];
+  if (
+    !hasExactKeys(value, [
+      "version",
+      "scope",
+      "criterionDecisionId",
+      "topicKey",
+      "affects",
+      "sourceMessageId",
+      "sourceJourneyRevision",
+      "actionRevision",
+    ])
+    || value.version !== 1
+    || value.scope !== "couple"
+    || typeof value.criterionDecisionId !== "string"
+    || !DASHBOARD_UUID_PATTERN.test(value.criterionDecisionId)
+    || value.topicKey !== categoryKey
+    || value.affects !== "action"
+    || typeof value.sourceMessageId !== "string"
+    || !DASHBOARD_UUID_PATTERN.test(value.sourceMessageId)
+    || !Number.isSafeInteger(value.sourceJourneyRevision)
+    || value.sourceJourneyRevision < 0
+    || !Number.isSafeInteger(value.actionRevision)
+    || value.actionRevision < 1
+    || value.actionRevision !== sourceRevision
+  ) return null;
+
+  return Object.freeze({
+    version: 1,
+    scope: "couple",
+    criterionDecisionId: value.criterionDecisionId.toLowerCase(),
+    topicKey: value.topicKey,
+    affects: "action",
+    sourceMessageId: value.sourceMessageId.toLowerCase(),
+    sourceJourneyRevision: value.sourceJourneyRevision,
+    actionRevision: value.actionRevision,
+  });
+}
+
 export function parseDashboardOpenAction(value, expectedCoupleId) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   if (typeof expectedCoupleId !== "string" || value.couple_id !== expectedCoupleId) return null;
@@ -127,6 +182,12 @@ export function parseDashboardOpenAction(value, expectedCoupleId) {
     || !createdAt
   ) return null;
 
+  const criterionContext = parseDashboardActionCriterionContext(
+    value.metadata,
+    categoryKey,
+    sourceRevision,
+  );
+
   return Object.freeze({
     id: value.id,
     title,
@@ -137,6 +198,7 @@ export function parseDashboardOpenAction(value, expectedCoupleId) {
     categoryKey,
     sourceRevision,
     createdAt,
+    criterionContext,
   });
 }
 

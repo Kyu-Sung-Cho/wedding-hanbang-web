@@ -33,6 +33,16 @@ export interface DashboardOpenAction {
   categoryKey: string | null;
   sourceRevision: number | null;
   createdAt: string;
+  criterionContext: Readonly<{
+    version: 1;
+    scope: "couple";
+    criterionDecisionId: string;
+    topicKey: string;
+    affects: "action";
+    sourceMessageId: string;
+    sourceJourneyRevision: number;
+    actionRevision: number;
+  }> | null;
 }
 
 export interface DashboardActionOutcomeFeedback {

@@ -955,6 +955,56 @@ test("home never promotes a completed, malformed, or other-couple action", () =>
   );
 });
 
+test("an action exposes only an exact immutable couple-criterion context receipt", () => {
+  const coupleId = "22222222-2222-4222-8222-222222222222";
+  const criterionDecisionId = "40000000-0000-4000-8000-000000000001";
+  const sourceMessageId = "50000000-0000-4000-8000-000000000001";
+  const base = {
+    id: "act_venue_contract_check",
+    couple_id: coupleId,
+    title: "예식장 계약서 특약 확인",
+    description: null,
+    due_date: null,
+    category_key: "venue",
+    priority: "medium",
+    source: "chat",
+    status: "open",
+    follow_up_revision: 1,
+    created_at: "2026-08-17T01:00:00.000Z",
+  };
+  const receipt = {
+    version: 1,
+    scope: "couple",
+    criterionDecisionId,
+    topicKey: "venue",
+    affects: "action",
+    sourceMessageId,
+    sourceJourneyRevision: 7,
+    actionRevision: 1,
+  };
+
+  assert.deepEqual(parseDashboardOpenAction({
+    ...base,
+    metadata: { amora_topic_criterion_context_v1: receipt },
+  }, coupleId)?.criterionContext, receipt);
+  assert.equal(parseDashboardOpenAction({
+    ...base,
+    metadata: {
+      amora_topic_criterion_context_v1: { ...receipt, actionRevision: 2 },
+    },
+  }, coupleId)?.criterionContext, null);
+  assert.equal(parseDashboardOpenAction({
+    ...base,
+    metadata: {
+      amora_topic_criterion_context_v1: { ...receipt, topicKey: "studio" },
+    },
+  }, coupleId)?.criterionContext, null);
+  assert.equal(parseDashboardOpenAction({
+    ...base,
+    metadata: { ordinary_metadata: true },
+  }, coupleId)?.criterionContext, null);
+});
+
 test("home selects the most time-sensitive confirmed action instead of the newest action", () => {
   const coupleId = "22222222-2222-4222-8222-222222222222";
   const base = {

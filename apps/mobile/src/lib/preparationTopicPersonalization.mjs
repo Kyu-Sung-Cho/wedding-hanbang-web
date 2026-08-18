@@ -23,7 +23,7 @@ const TOPIC_EFFECT_LABELS = Object.freeze({
   question: "이 주제의 확인 질문에 연결됨",
   candidate: "이 주제의 후보 비교에 연결됨",
   constraint: "이 주제의 선택 조건에 연결됨",
-  action: "이 주제의 다음 행동에 연결됨",
+  action: "이 행동을 제안할 때 함께 전달됨",
 });
 
 function isRecord(value) {
@@ -203,6 +203,7 @@ export async function loadPreparationTopicCoupleContext({
     }
     return Object.freeze({
       readState: "loaded",
+      confirmedCriterionId: result.value.current?.decisionId ?? null,
       confirmedCriterion: result.value.current?.value ?? null,
     });
   } finally {
@@ -308,12 +309,27 @@ function parseOwnerContext(value) {
 
 function parseCoupleContext(value) {
   if (
-    !hasExactKeys(value, ["readState", "confirmedCriterion"])
+    !hasExactKeys(value, [
+      "readState",
+      "confirmedCriterionId",
+      "confirmedCriterion",
+    ])
     || !isReadState(value.readState)
     || value.readState === "partial"
     || (
       (value.readState === "loading" || value.readState === "unavailable")
-      && value.confirmedCriterion !== null
+      && (
+        value.confirmedCriterionId !== null
+        || value.confirmedCriterion !== null
+      )
+    )
+    || (value.confirmedCriterionId === null) !== (value.confirmedCriterion === null)
+    || (
+      value.confirmedCriterionId !== null
+      && (
+        typeof value.confirmedCriterionId !== "string"
+        || !UUID_PATTERN.test(value.confirmedCriterionId)
+      )
     )
   ) return null;
 
@@ -327,7 +343,74 @@ function parseCoupleContext(value) {
 
   return Object.freeze({
     readState: value.readState,
+    confirmedCriterionId: value.confirmedCriterionId === null
+      ? null
+      : value.confirmedCriterionId.toLowerCase(),
     confirmedCriterion,
+  });
+}
+
+export function selectPreparationTopicAppliedEffects({
+  topicKey,
+  actionRef,
+  openActions,
+  coupleContext,
+}) {
+  const couple = parseCoupleContext(coupleContext);
+  if (
+    typeof topicKey !== "string"
+    || !TOPIC_KEY_PATTERN.test(topicKey)
+    || !couple
+    || couple.readState !== "loaded"
+    || couple.confirmedCriterionId === null
+    || couple.confirmedCriterion === null
+    || !isRecord(actionRef)
+    || !hasExactKeys(actionRef, ["id", "revision"])
+    || typeof actionRef.id !== "string"
+    || !Number.isSafeInteger(actionRef.revision)
+    || actionRef.revision < 1
+    || !Array.isArray(openActions)
+  ) return null;
+
+  const candidates = openActions.filter((action) => (
+    isRecord(action)
+    && action.id === actionRef.id
+    && action.sourceRevision === actionRef.revision
+  ));
+  if (candidates.length !== 1) return null;
+  const action = candidates[0];
+  const context = action.criterionContext;
+  if (
+    action.categoryKey !== topicKey
+    || !hasExactKeys(context, [
+      "version",
+      "scope",
+      "criterionDecisionId",
+      "topicKey",
+      "affects",
+      "sourceMessageId",
+      "sourceJourneyRevision",
+      "actionRevision",
+    ])
+    || context.version !== 1
+    || context.scope !== "couple"
+    || context.criterionDecisionId !== couple.confirmedCriterionId
+    || context.topicKey !== topicKey
+    || context.affects !== "action"
+    || typeof context.sourceMessageId !== "string"
+    || !UUID_PATTERN.test(context.sourceMessageId)
+    || !Number.isSafeInteger(context.sourceJourneyRevision)
+    || context.sourceJourneyRevision < 0
+    || context.actionRevision !== actionRef.revision
+  ) return null;
+
+  return Object.freeze({
+    ownerCriterion: null,
+    coupleCriterion: Object.freeze({
+      topicKey,
+      criterion: couple.confirmedCriterion,
+      affects: "action",
+    }),
   });
 }
 
@@ -421,7 +504,7 @@ export function buildPreparationTopicPersonalization({
     items: Object.freeze(items),
     notices: Object.freeze(notices),
     note: items.length > 0
-      ? "현재 주제의 질문·후보·조건·행동에 실제 연결된 기준만 보여줘요."
+      ? "현재 주제의 질문·후보·조건·행동에 서버 기록으로 연결된 기준만 보여줘요."
       : null,
   });
 }

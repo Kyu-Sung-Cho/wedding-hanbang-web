@@ -87,7 +87,17 @@ test("the topic screen loads exact shared actions and keeps read failures distin
   assert.match(scheduleSource, /\.eq\("couple_id", identity\.coupleId\)/);
   assert.match(scheduleSource, /\.eq\("status", "open"\)/);
   assert.match(scheduleSource, /\.limit\(DASHBOARD_OPEN_ACTION_CANDIDATE_LIMIT\)/);
+  assert.match(scheduleSource, /follow_up_revision, metadata, created_at/);
   assert.match(scheduleSource, /listDashboardOpenActions\([\s\S]{0,180}identity\.coupleId/);
+  assert.match(scheduleSource, /selectPreparationTopicAppliedEffects\(\{/);
+  assert.match(
+    scheduleSource,
+    /appliedEffects:\s*topicAppliedEffects/,
+  );
+  assert.doesNotMatch(
+    scheduleSource,
+    /buildPreparationTopicPersonalization\(\{[\s\S]{0,220}appliedEffects:\s*null/,
+  );
   assert.match(scheduleSource, /setTopicActionReadState\("unavailable"\)/);
   assert.match(scheduleSource, /저장된 공동 행동을 지금 확인하지 못했어요/);
 });
