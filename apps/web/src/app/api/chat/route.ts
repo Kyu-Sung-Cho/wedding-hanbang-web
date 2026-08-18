@@ -3978,11 +3978,12 @@ export async function POST(request: Request) {
     requestKind === "chat"
     && questionScope.scope === "W4_out_of_scope"
     && attachmentKind !== "none";
-  const specialistType = providerAttachmentKind === "document"
-    ? "contract_reviewer" as const
-    : allowsStoredProviderContext && stageTag !== null
-      ? routeSpecialist(lastUserText, stageTag)
-      : "general" as const;
+  // 2026-08-18: 문서를 올렸다는 사실만으로 계약 검토 전문분야로 넘어가지 않는다.
+  // 첨부에 필요한 도구(견적 확인·공시 시세)는 amoraToolPolicy가 첨부 종류로
+  // 직접 열어 주므로, 전문분야는 평소 라우팅을 그대로 따른다.
+  const specialistType = allowsStoredProviderContext && stageTag !== null
+    ? routeSpecialist(lastUserText, stageTag)
+    : "general" as const;
 
   // Private 모드 안내. v2의 bride/groom은 호환 슬롯이므로 prompt에 노출하지 않는다.
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"

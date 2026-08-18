@@ -237,11 +237,6 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
-  if (enabled.has("analyze_contract_readiness")) {
-    lines.push(
-      "- `analyze_contract_readiness`에는 문서에서 실제로 확인한 내용만 넣고, 법률 판단이나 계약 권고로 단정하지 마세요.",
-    );
-  }
 
   if (enabled.has("simulate_guest_guarantee")) {
     lines.push(

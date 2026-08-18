@@ -69,7 +69,6 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
       return <PlaceCards result={result} />;
     case "analyze_quote":
       return <QuoteAnalysisCard result={result} onSend={onSend} disabled={disabled} />;
-    case "analyze_contract_readiness":
     case "simulate_guest_guarantee":
       return <ProtectionToolCard result={result} />;
     default:

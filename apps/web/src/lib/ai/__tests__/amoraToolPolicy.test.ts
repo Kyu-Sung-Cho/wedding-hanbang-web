@@ -176,18 +176,20 @@ describe("selectAmoraTools", () => {
     expect(names("포토부스 예산 카테고리를 추가해줘")).not.toContain("apply_budget_plan");
   });
 
-  it("routes document review to contract tools without destructive booking tools", () => {
+  it("routes document review to quote tools without contract review or destructive booking tools", () => {
     const selected = selectAmoraTools({
       availableTools: BETA_SAFE_TOOLS,
       userText: "이 파일 검토해줘",
       specialistType: "general",
       attachmentKind: "document",
     }).map((tool) => tool.name);
+    // 견적서를 같이 보는 경로는 유지한다.
     expect(selected).toEqual(expect.arrayContaining([
-      "analyze_contract_readiness",
       "analyze_quote",
       "get_market_price",
     ]));
+    // 계약 개입 금지(2026-08-18): 문서를 올려도 계약 검토로 넘어가지 않는다.
+    expect(selected).not.toContain("analyze_contract_readiness");
     expect(selected).not.toContain("create_booking");
     expect(selected).not.toContain("cancel_booking");
     expect(selected).not.toContain("delete_schedule_event");

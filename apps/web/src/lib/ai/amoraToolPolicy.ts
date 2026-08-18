@@ -38,8 +38,9 @@ const SCHEDULE_WRITE_TOOLS = [
 const VENDOR_READ_TOOLS = [
   "get_market_price",
 ] as const;
-const CONTRACT_READ_TOOLS = [
-  "analyze_contract_readiness",
+// 계약 개입 금지(2026-08-18) 이후 남은 것은 "받은 견적서를 같이 본다"뿐이다.
+// 계약서 해석·위험 판정은 제거했고, 견적 확인은 판정 없이 확인 질문만 만든다.
+const DOCUMENT_ATTACHMENT_READ_TOOLS = [
   "analyze_quote",
   "get_market_price",
 ] as const;
@@ -58,7 +59,7 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   ...SCHEDULE_READ_TOOLS,
   ...SCHEDULE_WRITE_TOOLS,
   ...VENDOR_READ_TOOLS,
-  ...CONTRACT_READ_TOOLS,
+  ...DOCUMENT_ATTACHMENT_READ_TOOLS,
   ...ACTION_READ_TOOLS,
   ...ACTION_WRITE_TOOLS,
   "update_venue",
@@ -68,7 +69,6 @@ const BUDGET_INTENT = /예산|비용|금액|가격|견적|시세|돈|식대|지�
 const QUOTE_ANALYSIS_INTENT = /견적|quote/i;
 const SCHEDULE_INTENT = /일정|스케줄|날짜|예정일|결혼식|예식|본식|웨딩|체크리스트|할\s*일|준비\s*목록|schedule|date|task/i;
 const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|vendor|venue|booking/i;
-const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수료|contract|clause|refund/i;
 const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|remember|note|remind/i;
 const FIRST_USE_ACTION_DRAFT_INTRO =
   "나만 상담에서 정리한 이 한 가지를 둘이 볼 실행 카드로 제안해줘.";
@@ -544,15 +544,15 @@ export function selectAmoraTools({
   const hasScheduleIntent = SCHEDULE_INTENT.test(userText)
     || specialistType === "ceremony_coordinator";
   const hasVendorIntent = VENDOR_INTENT.test(userText);
-  const hasContractIntent = CONTRACT_INTENT.test(userText)
-    || specialistType === "contract_reviewer"
-    || attachmentKind === "document";
+  // 문서를 올렸다는 사실만으로 계약 검토로 넘어가지 않는다. 견적서를 같이
+  // 보는 경로만 남긴다 — 첨부가 없으면 견적 의도로만 열린다.
+  const hasDocumentAttachment = attachmentKind === "document";
   const hasActionIntent = ACTION_INTENT.test(userText);
   if (hasBudgetIntent) addAll(selected, BUDGET_READ_TOOLS);
   if (hasQuoteIntent) addAll(selected, QUOTE_READ_TOOLS);
   if (hasScheduleIntent) addAll(selected, SCHEDULE_READ_TOOLS);
   if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
-  if (hasContractIntent) addAll(selected, CONTRACT_READ_TOOLS);
+  if (hasDocumentAttachment) addAll(selected, DOCUMENT_ATTACHMENT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
   // Each mutation family requires current-turn, domain-specific language.
   // Assistant prose and generic approvals are never authority to write.
