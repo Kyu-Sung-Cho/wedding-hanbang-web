@@ -723,6 +723,31 @@ test("the staging transport obtains both legacy API roles without exposing unrel
   assert.equal(JSON.stringify(keys).includes("unused-publishable-key"), false);
 });
 
+test("hosted request failures name only a redacted API path", async () => {
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl: async () => new Response(JSON.stringify({ message: "secret backend detail" }), {
+      status: 403,
+    }),
+  });
+  const user = {
+    id: "10000000-0000-4000-8000-000000000091",
+    accessToken: "private-user-token",
+  };
+
+  await assert.rejects(
+    () => transport.readProfile(user, user.id),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "HOSTED_REQUEST_REJECTED"
+      && error.message === "Hosted staging request to /rest/v1/profiles returned HTTP 403"
+      && !error.message.includes(user.id)
+      && !error.message.includes(user.accessToken)
+      && !error.message.includes("secret backend detail"),
+  );
+});
+
 test("the staging transport binds message-ref fixtures and RPCs to service versus user credentials", async () => {
   const owner = {
     id: "10000000-0000-4000-8000-000000000021",

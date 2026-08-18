@@ -116,7 +116,19 @@ async function requestSupabaseJson({
     fail("HOSTED_RESPONSE_INVALID", "Hosted response was not valid JSON");
   }
   if (!response.ok && !allowDenied) {
-    fail("HOSTED_REQUEST_REJECTED", `Hosted staging request returned HTTP ${response.status}`);
+    let safePath = "/unknown";
+    try {
+      safePath = new URL(url).pathname.replace(
+        /\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?=\/|$)/giu,
+        "/:id",
+      );
+    } catch {
+      // The caller receives a bounded path label, never the raw URL.
+    }
+    fail(
+      "HOSTED_REQUEST_REJECTED",
+      `Hosted staging request to ${safePath} returned HTTP ${response.status}`,
+    );
   }
   return { status: response.status, ok: response.ok, body: parsed };
 }
