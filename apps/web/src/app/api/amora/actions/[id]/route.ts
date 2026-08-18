@@ -70,18 +70,17 @@ async function updateLegacyAmoraAction(
   const updated = nextActions.find((action) => action.id === actionId) ?? null;
   if (!updated) return null;
 
+  // 원자적 병합만 쓴다. 실패했을 때 이 요청이 읽어 둔 오래된 progress 전체로
+  // 폴백하면 그 사이 파트너가 저장한 예산·일정·체크리스트를 지운다. 게다가 예전
+  // 폴백은 error를 읽지 않아, 아무것도 저장되지 않았는데도 호출부가 성공으로
+  // 받았다. 같은 무효식은 lib/ai/tools/progressTools.ts 에서 이미 닫혀 있다.
   const { error: patchError } = await admin.rpc("apply_journey_progress_patch", {
     p_couple_id: coupleId,
     p_patch: { __amora_actions: nextActions },
     p_remove_keys: [],
   });
 
-  if (patchError) {
-    await admin
-      .from("wedding_journeys")
-      .update({ progress: nextProgress })
-      .eq("id", journey.id);
-  }
+  if (patchError) throw patchError;
 
   return updated;
 }
