@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 
 const PROJECT_REF = /^[a-z0-9]{20}$/;
 const GIT_COMMIT = /^[a-f0-9]{40}$/;
+const CRITERION_CONFIRMATION_CONTENT = "좋아요. 제안한 변경을 적용해 주세요.";
 
 export class AmoraSuccessorStagingProbeError extends Error {
   constructor(code, message) {
@@ -14,6 +15,50 @@ export class AmoraSuccessorStagingProbeError extends Error {
 
 function fail(code, message) {
   throw new AmoraSuccessorStagingProbeError(code, message);
+}
+
+function canonicalToolInput(value) {
+  if (value === null) return "null";
+  if (["string", "boolean"].includes(typeof value)) return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) fail("TOOL_INPUT_INVALID", "Tool input contained a non-finite number");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalToolInput(item ?? null)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalToolInput(item)}`)
+      .join(",")}}`;
+  }
+  fail("TOOL_INPUT_INVALID", "Tool input was not JSON-compatible");
+}
+
+function deriveToolIdentity(toolName, input) {
+  const canonicalInput = canonicalToolInput(input);
+  return Object.freeze({
+    inputDigest: createHash("sha256").update(canonicalInput, "utf8").digest("hex"),
+    operationKey: createHash("sha256")
+      .update(`${toolName}\n${canonicalInput}`, "utf8")
+      .digest("hex"),
+  });
+}
+
+function uuidFromDigest(prefix) {
+  const digest = createHash("sha256").update(prefix, "utf8").digest("hex").slice(0, 32).split("");
+  digest[12] = "5";
+  digest[16] = "8";
+  const value = digest.join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function deriveConfirmedActionRequestId(confirmationMessageId, pendingActionId) {
+  return uuidFromDigest(
+    `amora-confirmed-action-request\0${confirmationMessageId}\0${pendingActionId}`,
+  );
 }
 
 async function readBoundedJson(response, code, maxBytes = 256 * 1024) {
@@ -286,6 +331,135 @@ export function readHostedMessageRefResidue({
   })();
 }
 
+const CRITERION_ACTION_RESIDUE_SQL = `
+SELECT
+  (SELECT count(*)::integer FROM public.profiles AS row
+   WHERE row.id = ANY($1::uuid[])) AS profiles,
+  (SELECT count(*)::integer FROM public.couples AS row
+   WHERE row.id = ANY($2::uuid[])) AS couples,
+  (SELECT count(*)::integer FROM public.chat_messages AS row
+   WHERE row.id = ANY($3::uuid[])
+      OR row.sender_id = ANY($1::uuid[])
+      OR row.couple_id = ANY($2::uuid[])) AS chat_messages,
+  (SELECT count(*)::integer FROM public.amora_chat_request_claims AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.user_id = ANY($1::uuid[])
+      OR row.user_message_id = ANY($3::uuid[])
+      OR row.message_id = ANY($3::uuid[])) AS chat_claims,
+  (SELECT count(*)::integer FROM public.amora_actions AS row
+   WHERE row.id = ANY($4::text[])
+      OR row.couple_id = ANY($2::uuid[])
+      OR row.created_by = ANY($1::uuid[])) AS actions,
+  (SELECT count(*)::integer FROM public.amora_tool_executions AS row
+   WHERE row.couple_id = ANY($2::uuid[])) AS executions,
+  (SELECT count(*)::integer FROM public.amora_shared_action_application_claims AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.source_message_id = ANY($3::uuid[])
+      OR row.confirmation_message_id = ANY($3::uuid[])) AS application_claims,
+  (SELECT count(*)::integer FROM public.amora_couple_core_criterion_proposals AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.proposer_user_id = ANY($1::uuid[])) AS criterion_proposals,
+  (SELECT count(*)::integer FROM public.amora_couple_core_criterion_acceptances AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.user_id = ANY($1::uuid[])) AS criterion_acceptances,
+  (SELECT count(*)::integer FROM public.decision_nodes AS row
+   WHERE row.couple_id = ANY($2::uuid[])) AS decisions,
+  (SELECT count(*)::integer FROM public.ai_interactions_log AS row
+   WHERE row.couple_id = ANY($2::uuid[])
+      OR row.user_id = ANY($1::uuid[])
+      OR row.message_id = ANY($3::uuid[])) AS provider_receipts
+`;
+
+export function readHostedCriterionActionResidue({
+  projectRef,
+  productionProjectRef,
+  managementToken,
+  userIds,
+  coupleIds,
+  messageIds,
+  actionIds,
+  fetchImpl = fetch,
+}) {
+  if (!PROJECT_REF.test(projectRef) || !PROJECT_REF.test(productionProjectRef)) {
+    fail("PROJECT_REF_INVALID", "Project refs must be exact 20-character refs");
+  }
+  if (projectRef === productionProjectRef) {
+    fail("PRODUCTION_TARGET_FORBIDDEN", "The Amora probe is staging-only");
+  }
+  if (typeof managementToken !== "string" || managementToken.length < 20 || /[\r\n]/u.test(managementToken)) {
+    fail("MANAGEMENT_TOKEN_INVALID", "A valid Management API token is required");
+  }
+  for (const values of [userIds, coupleIds, messageIds]) {
+    if (
+      !Array.isArray(values)
+      || values.length < 1
+      || values.length > 20
+      || !values.every(isUuid)
+      || new Set(values).size !== values.length
+    ) {
+      fail("CRITERION_RESIDUE_INPUT_INVALID", "Criterion residue identities must be bounded unique UUID arrays");
+    }
+  }
+  if (
+    !Array.isArray(actionIds)
+    || actionIds.length < 1
+    || actionIds.length > 10
+    || !actionIds.every((value) => typeof value === "string" && value.length >= 1 && value.length <= 120)
+    || new Set(actionIds).size !== actionIds.length
+  ) {
+    fail("CRITERION_RESIDUE_INPUT_INVALID", "Criterion residue action IDs must be bounded and unique");
+  }
+
+  return (async () => {
+    let response;
+    try {
+      response = await fetchImpl(
+        `https://api.supabase.com/v1/projects/${projectRef}/database/query/read-only`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${managementToken}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: CRITERION_ACTION_RESIDUE_SQL,
+            parameters: [userIds, coupleIds, messageIds, actionIds],
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+    } catch {
+      fail("CRITERION_RESIDUE_UNAVAILABLE", "Hosted criterion-action residue request failed");
+    }
+    const body = await readBoundedJson(response, "CRITERION_RESIDUE_UNAVAILABLE");
+    const row = response.status === 201 && Array.isArray(body) && body.length === 1
+      ? body[0]
+      : null;
+    const keyMap = {
+      profiles: "profiles",
+      couples: "couples",
+      chatMessages: "chat_messages",
+      chatClaims: "chat_claims",
+      actions: "actions",
+      executions: "executions",
+      applicationClaims: "application_claims",
+      criterionProposals: "criterion_proposals",
+      criterionAcceptances: "criterion_acceptances",
+      decisions: "decisions",
+      providerReceipts: "provider_receipts",
+    };
+    const result = Object.fromEntries(
+      Object.entries(keyMap).map(([outputKey, rowKey]) => [outputKey, row?.[rowKey]]),
+    );
+    if (!Object.values(result).every((value) => Number.isSafeInteger(value) && value >= 0)) {
+      fail("CRITERION_RESIDUE_INVALID", "Hosted criterion-action residue was not canonical");
+    }
+    return Object.freeze(result);
+  })();
+}
+
 export function createSupabaseStagingTransport({
   projectRef,
   anonKey,
@@ -293,6 +467,7 @@ export function createSupabaseStagingTransport({
   fetchImpl = fetch,
   runNonce = `${Date.now()}-${randomBytes(6).toString("hex")}`,
   messageRefResidueReader = null,
+  criterionActionResidueReader = null,
 }) {
   const baseUrl = `https://${projectRef}.supabase.co`;
   let userSequence = 0;
@@ -855,6 +1030,465 @@ export function createSupabaseStagingTransport({
         fail("MESSAGE_REF_RESIDUE_READER_MISSING", "A fixed read-only residue reader is required");
       }
       return messageRefResidueReader(input);
+    },
+
+    async createConfirmedCoupleCriterion({
+      coupleId,
+      ownerId,
+      partnerId,
+      expectedCurrentDecisionId,
+      value,
+    }) {
+      if (
+        !isUuid(coupleId)
+        || !isUuid(ownerId)
+        || !isUuid(partnerId)
+        || ownerId === partnerId
+        || (expectedCurrentDecisionId !== null && !isUuid(expectedCurrentDecisionId))
+        || typeof value !== "string"
+        || value.length < 1
+        || value.length > 120
+        || value.trim() !== value
+      ) {
+        fail("CRITERION_CONFIRMATION_INPUT_INVALID", "Criterion confirmation input was not canonical");
+      }
+      const proposed = await adminCall(
+        "/rest/v1/rpc/propose_amora_couple_core_criterion_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: coupleId,
+            p_recipient_user_id: ownerId,
+            p_expected_current_decision_id: expectedCurrentDecisionId,
+            p_request_id: randomUUID(),
+            p_value: value,
+          },
+        },
+      );
+      const proposal = proposed.body?.proposal;
+      if (
+        proposed.body?.linked !== true
+        || proposed.body?.coupleId !== undefined && proposed.body.coupleId !== coupleId
+        || !isUuid(proposal?.id)
+        || proposal?.revision !== 1
+        || proposal?.value !== value
+        || (proposed.body?.current?.decisionId ?? null) !== expectedCurrentDecisionId
+      ) {
+        fail("CRITERION_PROPOSAL_INVALID", "Criterion proposal response was not canonical");
+      }
+      const accepted = await adminCall(
+        "/rest/v1/rpc/accept_amora_couple_core_criterion_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: coupleId,
+            p_recipient_user_id: partnerId,
+            p_proposal_id: proposal.id,
+            p_expected_revision: proposal.revision,
+            p_request_id: randomUUID(),
+          },
+        },
+      );
+      const read = await adminCall(
+        "/rest/v1/rpc/read_amora_couple_core_criterion_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: coupleId,
+            p_recipient_user_id: ownerId,
+          },
+        },
+      );
+      const acceptedCurrent = accepted.body?.current;
+      const readCurrent = read.body?.current;
+      if (
+        accepted.body?.linked !== true
+        || accepted.body?.proposal !== null
+        || !isUuid(acceptedCurrent?.decisionId)
+        || acceptedCurrent?.value !== value
+        || read.body?.linked !== true
+        || read.body?.proposal !== null
+        || readCurrent?.decisionId !== acceptedCurrent.decisionId
+        || readCurrent?.value !== value
+      ) {
+        fail("CRITERION_CONFIRMATION_INVALID", "Confirmed criterion did not round-trip canonically");
+      }
+      return Object.freeze({
+        linked: true,
+        decisionId: readCurrent.decisionId,
+        value,
+      });
+    },
+
+    async attemptInjectCriterionActionContext({ coupleId, criterionDecisionId }) {
+      if (!isUuid(coupleId) || !isUuid(criterionDecisionId)) {
+        fail("CRITERION_INJECTION_INPUT_INVALID", "Criterion injection input was not canonical");
+      }
+      const actionId = `act_probe_injected_${randomBytes(10).toString("hex")}`;
+      const response = await adminCall("/rest/v1/amora_actions", {
+        method: "POST",
+        body: {
+          id: actionId,
+          couple_id: coupleId,
+          title: "직접 주입되면 안 되는 행동",
+          category_key: "venue",
+          priority: "medium",
+          status: "open",
+          source: "chat",
+          href: "/wedding/lounge",
+          metadata: {
+            amora_topic_criterion_context_v1: {
+              version: 1,
+              scope: "couple",
+              criterionDecisionId,
+              topicKey: "venue",
+              affects: "action",
+              sourceMessageId: randomUUID(),
+              sourceJourneyRevision: 0,
+              actionRevision: 1,
+            },
+          },
+        },
+        allowDenied: true,
+      });
+      return Object.freeze({ denied: !response.ok, actionId });
+    },
+
+    async prepareCriterionActionApplication({ owner, coupleId, criterionDecisionId, sequence }) {
+      if (
+        !isUuid(owner?.id)
+        || !isUuid(coupleId)
+        || !isUuid(criterionDecisionId)
+        || !Number.isSafeInteger(sequence)
+        || sequence < 1
+        || sequence > 9
+      ) {
+        fail("CRITERION_APPLICATION_INPUT_INVALID", "Criterion application input was not canonical");
+      }
+      const profileQuery = new URLSearchParams({
+        select: "id,couple_id,role",
+        id: `eq.${owner.id}`,
+        couple_id: `eq.${coupleId}`,
+      });
+      const journeyQuery = new URLSearchParams({
+        select: "couple_id,state_revision",
+        couple_id: `eq.${coupleId}`,
+      });
+      const privacyQuery = new URLSearchParams({
+        select: "couple_id,epoch",
+        couple_id: `eq.${coupleId}`,
+      });
+      const [profileResponse, journeyResponse, privacyResponse] = await Promise.all([
+        adminCall(`/rest/v1/profiles?${profileQuery}`),
+        adminCall(`/rest/v1/wedding_journeys?${journeyQuery}`),
+        adminCall(`/rest/v1/amora_privacy_context_epochs?${privacyQuery}`),
+      ]);
+      const profile = Array.isArray(profileResponse.body) && profileResponse.body.length === 1
+        ? profileResponse.body[0]
+        : null;
+      const journey = Array.isArray(journeyResponse.body) && journeyResponse.body.length === 1
+        ? journeyResponse.body[0]
+        : null;
+      const privacy = Array.isArray(privacyResponse.body) && privacyResponse.body.length === 1
+        ? privacyResponse.body[0]
+        : null;
+      if (
+        profile?.id !== owner.id
+        || profile?.couple_id !== coupleId
+        || !["bride", "groom"].includes(profile?.role)
+        || (journey?.couple_id !== undefined && journey.couple_id !== coupleId)
+        || !Number.isSafeInteger(journey?.state_revision)
+        || journey.state_revision < 0
+        || (privacy?.couple_id !== undefined && privacy.couple_id !== coupleId)
+        || !Number.isSafeInteger(privacy?.epoch)
+        || privacy.epoch < 1
+      ) {
+        fail("CRITERION_APPLICATION_CONTEXT_INVALID", "Criterion application context was not canonical");
+      }
+
+      const issuedAt = Date.now();
+      const sourceUserId = randomUUID();
+      const sourceProposalId = randomUUID();
+      const confirmationId = randomUUID();
+      const sourceVisibleRequestId = randomUUID();
+      const confirmationVisibleRequestId = randomUUID();
+      const pendingActionId = randomUUID();
+      const sourceRequestKey = `chat:${owner.id}:${sourceVisibleRequestId}`;
+      const input = {
+        title: sequence === 1
+          ? "예식장 계약서 특약 다시 확인"
+          : "예식장 방문 동선 다시 확인",
+        description: sequence === 1
+          ? "취소 수수료와 보증 인원을 서면에서 다시 확인해요."
+          : "변경된 기준에 맞춰 이동 시간을 다시 확인해요.",
+        due_date: "2026-10-31",
+        category_key: "venue",
+      };
+      const identity = deriveToolIdentity("add_amora_action", input);
+      const proposalConfirmation = [
+        "다음 변경을 적용할까요?",
+        "- 변경: 아모라 행동 카드 추가",
+        `- 제목: ${input.title}`,
+        `- 설명: ${input.description}`,
+        `- 마감일: ${input.due_date}`,
+        "- 관련 준비 항목: 예식장",
+      ].join("\n");
+      const pendingAction = {
+        version: 2,
+        actionId: pendingActionId,
+        tool: "add_amora_action",
+        input,
+        inputDigest: identity.inputDigest,
+        operationKey: identity.operationKey,
+        confirmation: proposalConfirmation,
+        issuedAt,
+        expiresAt: issuedAt + 600_000,
+      };
+
+      const insertedSourceUser = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: sourceUserId,
+          couple_id: coupleId,
+          sender_id: owner.id,
+          sender_type: profile.role,
+          sender_role: null,
+          role: "user",
+          content: "예식장 준비에서 다음 확인 행동을 정리해줘",
+          metadata: {
+            client_request_id: sourceVisibleRequestId,
+            amora_ingest_contract_version: 2,
+            ai_response_requested: true,
+            provider_attachment_state: "none",
+            provider_attachment_count: 0,
+          },
+          visibility: "shared",
+          stage_tag: null,
+          specialist_type: null,
+          created_at: new Date(issuedAt - 1_000).toISOString(),
+        },
+      });
+      if (insertedSourceUser.status !== 201) {
+        fail("CRITERION_SOURCE_USER_INSERT_INVALID", "Criterion source user message was not inserted");
+      }
+      const sourceClaim = await adminCall("/rest/v1/rpc/claim_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: coupleId,
+          p_request_key: sourceRequestKey,
+          p_user_id: owner.id,
+          p_visibility: "shared",
+          p_user_message_id: sourceUserId,
+        },
+      });
+      if (sourceClaim.body?.action !== "acquired" || !Number.isSafeInteger(sourceClaim.body?.attempt_count)) {
+        fail("CRITERION_SOURCE_CLAIM_INVALID", "Criterion source request was not claimed");
+      }
+      const insertedSourceProposal = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: sourceProposalId,
+          couple_id: coupleId,
+          sender_id: null,
+          sender_type: "ai",
+          sender_role: null,
+          role: "assistant",
+          content: proposalConfirmation,
+          metadata: {
+            client_request_id: sourceRequestKey,
+            in_reply_to_user_message_id: sourceUserId,
+            question_scope: "W0_wedding_core",
+            memory_eligible: false,
+            memory_enqueue_requested: false,
+            amora_wedding_context_revision: journey.state_revision,
+            amora_couple_criterion_decision_id: criterionDecisionId,
+            pending_amora_action: pendingAction,
+            pending_amora_action_journey_revision: journey.state_revision,
+            amora_add_action_proposal_origin_v1: "ordinary_provider",
+          },
+          visibility: "shared",
+          stage_tag: null,
+          specialist_type: "general",
+          created_at: new Date(issuedAt).toISOString(),
+        },
+      });
+      if (insertedSourceProposal.status !== 201) {
+        fail("CRITERION_SOURCE_PROPOSAL_INSERT_INVALID", "Criterion source proposal was not inserted");
+      }
+      const completedSource = await adminCall("/rest/v1/rpc/complete_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: coupleId,
+          p_request_key: sourceRequestKey,
+          p_user_id: owner.id,
+          p_message_id: sourceProposalId,
+        },
+      });
+      if (completedSource.body !== true) {
+        fail("CRITERION_SOURCE_COMPLETE_INVALID", "Criterion source request was not completed");
+      }
+      const insertedProviderReceipt = await adminCall("/rest/v1/ai_interactions_log", {
+        method: "POST",
+        body: {
+          id: randomUUID(),
+          user_id: owner.id,
+          couple_id: coupleId,
+          interaction_type: "amora_director",
+          success: true,
+          model: "hosted-probe-synthetic",
+          metadata: { hosted_probe_fixture: true },
+          amora_request_key: sourceRequestKey,
+          amora_call_index: 1,
+          amora_call_source: "durable",
+          amora_call_phase: "tool_round",
+          amora_claim_token: randomUUID(),
+          amora_cost_status: "settled",
+          amora_reserved_cost_microusd: 0,
+          amora_actual_cost_microusd: 0,
+          amora_receipt_updated_at: new Date().toISOString(),
+        },
+      });
+      if (insertedProviderReceipt.status !== 201) {
+        fail("CRITERION_SOURCE_RECEIPT_INVALID", "Synthetic source receipt was not inserted");
+      }
+      const applicationLease = await adminCall(
+        "/rest/v1/rpc/claim_amora_shared_action_application",
+        {
+          method: "POST",
+          body: {
+            p_action_id: pendingActionId,
+            p_couple_id: coupleId,
+            p_source_message_id: sourceProposalId,
+            p_user_id: owner.id,
+          },
+        },
+      );
+      if (applicationLease.body?.applicationGranted !== true) {
+        fail("CRITERION_APPLICATION_LEASE_INVALID", "Criterion action application was not granted");
+      }
+      const insertedConfirmation = await adminCall("/rest/v1/chat_messages", {
+        method: "POST",
+        body: {
+          id: confirmationId,
+          couple_id: coupleId,
+          sender_id: owner.id,
+          sender_type: profile.role,
+          sender_role: null,
+          role: "user",
+          content: CRITERION_CONFIRMATION_CONTENT,
+          metadata: {
+            client_request_id: confirmationVisibleRequestId,
+            confirmed_amora_action_id: pendingActionId,
+            amora_ingest_contract_version: 2,
+            ai_response_requested: true,
+            provider_attachment_state: "none",
+            provider_attachment_count: 0,
+          },
+          visibility: "shared",
+          stage_tag: null,
+          specialist_type: null,
+          created_at: new Date(issuedAt + 1_000).toISOString(),
+        },
+      });
+      if (insertedConfirmation.status !== 201) {
+        fail("CRITERION_CONFIRMATION_INSERT_INVALID", "Criterion action confirmation was not inserted");
+      }
+      const applicationRequestId = deriveConfirmedActionRequestId(
+        confirmationId,
+        pendingActionId,
+      );
+      const applicationRequestKey = `chat:${owner.id}:${applicationRequestId}`;
+      const applicationClaim = await adminCall("/rest/v1/rpc/claim_amora_chat_request", {
+        method: "POST",
+        body: {
+          p_couple_id: coupleId,
+          p_request_key: applicationRequestKey,
+          p_user_id: owner.id,
+          p_visibility: "shared",
+          p_user_message_id: confirmationId,
+        },
+      });
+      if (
+        applicationClaim.body?.action !== "acquired"
+        || !Number.isSafeInteger(applicationClaim.body?.attempt_count)
+        || applicationClaim.body.attempt_count < 1
+      ) {
+        fail("CRITERION_APPLICATION_CLAIM_INVALID", "Criterion application request was not claimed");
+      }
+      return Object.freeze({
+        coupleId,
+        actorUserId: owner.id,
+        sourceProposalId,
+        confirmationId,
+        criterionDecisionId,
+        journeyRevision: journey.state_revision,
+        applicationRequestKey,
+        attemptCount: applicationClaim.body.attempt_count,
+        expectedPrivacyEpoch: privacy.epoch,
+        messageIds: Object.freeze([sourceUserId, sourceProposalId, confirmationId]),
+      });
+    },
+
+    async finalizeCriterionActionApplication(fixture) {
+      if (
+        !isUuid(fixture?.coupleId)
+        || !isUuid(fixture?.actorUserId)
+        || !isUuid(fixture?.sourceProposalId)
+        || !isUuid(fixture?.confirmationId)
+        || typeof fixture?.applicationRequestKey !== "string"
+        || !Number.isSafeInteger(fixture?.attemptCount)
+        || !Number.isSafeInteger(fixture?.expectedPrivacyEpoch)
+      ) {
+        fail("CRITERION_APPLICATION_FIXTURE_INVALID", "Criterion application fixture was not canonical");
+      }
+      const response = await adminCall(
+        "/rest/v1/rpc/finalize_amora_provider_backed_add_action_application_v1",
+        {
+          method: "POST",
+          body: {
+            p_couple_id: fixture.coupleId,
+            p_actor_user_id: fixture.actorUserId,
+            p_source_proposal_message_id: fixture.sourceProposalId,
+            p_confirmation_message_id: fixture.confirmationId,
+            p_chat_request_key: fixture.applicationRequestKey,
+            p_chat_claim_attempt_count: fixture.attemptCount,
+            p_expected_privacy_epoch: fixture.expectedPrivacyEpoch,
+          },
+        },
+      );
+      return response.body;
+    },
+
+    async readCriterionAction(actionId) {
+      if (typeof actionId !== "string" || actionId.length < 1 || actionId.length > 120) {
+        fail("CRITERION_ACTION_READ_INVALID", "Criterion action ID was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "id,category_key,follow_up_revision,status,metadata",
+        id: `eq.${actionId}`,
+      });
+      const response = await adminCall(`/rest/v1/amora_actions?${query}`);
+      return response.body;
+    },
+
+    async attemptRemoveCriterionActionContext({ actionId }) {
+      if (typeof actionId !== "string" || actionId.length < 1 || actionId.length > 120) {
+        fail("CRITERION_ACTION_PATCH_INVALID", "Criterion action ID was not canonical");
+      }
+      const query = new URLSearchParams({ id: `eq.${actionId}` });
+      const response = await adminCall(`/rest/v1/amora_actions?${query}`, {
+        method: "PATCH",
+        body: { metadata: {} },
+        allowDenied: true,
+      });
+      return Object.freeze({ denied: !response.ok });
+    },
+
+    async readCriterionActionResidue(input) {
+      if (typeof criterionActionResidueReader !== "function") {
+        fail("CRITERION_RESIDUE_READER_MISSING", "A fixed criterion-action residue reader is required");
+      }
+      return criterionActionResidueReader(input);
     },
 
     async resetMembership(user) {
@@ -1809,6 +2443,245 @@ export async function runMediationPrivateDraftScenario({ transport }) {
   if (primaryError) throw primaryError;
   return Object.freeze({
     scenario: "mediation_private_draft_two_account_v1",
+    syntheticUserCount: users.length,
+    checks: Object.freeze({ ...checks }),
+    residue: Object.freeze({ ...residue }),
+  });
+}
+
+function parseCriterionApplicationResult(rows, replayed) {
+  if (!Array.isArray(rows) || rows.length !== 1) return null;
+  const row = rows[0];
+  const action = row?.tool_result?.toolOutput?.action;
+  if (
+    row?.outcome !== (replayed ? "replayed" : "persisted")
+    || row?.message_reused !== replayed
+    || !isUuid(row?.message_id)
+    || row?.tool_result?.toolName !== "add_amora_action"
+    || row?.tool_result?.success !== true
+    || typeof action?.id !== "string"
+    || action.id.length < 1
+    || action?.status !== "open"
+  ) return null;
+  return Object.freeze({ actionId: action.id, messageId: row.message_id });
+}
+
+function exactCriterionAction(rows, expected) {
+  if (!Array.isArray(rows) || rows.length !== 1) return false;
+  const row = rows[0];
+  if (
+    row?.id !== expected.actionId
+    || row?.category_key !== "venue"
+    || row?.follow_up_revision !== 1
+    || row?.status !== "open"
+    || row?.metadata === null
+    || typeof row?.metadata !== "object"
+    || Array.isArray(row.metadata)
+  ) return false;
+  const keys = Object.keys(row.metadata);
+  if (expected.context === null) return keys.length === 0;
+  if (keys.length !== 1 || keys[0] !== "amora_topic_criterion_context_v1") return false;
+  const context = row.metadata.amora_topic_criterion_context_v1;
+  return context?.version === 1
+    && context?.scope === "couple"
+    && context?.criterionDecisionId === expected.context.criterionDecisionId
+    && context?.topicKey === "venue"
+    && context?.affects === "action"
+    && context?.sourceMessageId === expected.context.sourceMessageId
+    && context?.sourceJourneyRevision === expected.context.journeyRevision
+    && context?.actionRevision === 1
+    && Object.keys(context).length === 8;
+}
+
+export async function runCriterionActionContextScenario({ transport }) {
+  if (!transport || typeof transport !== "object") {
+    fail("TRANSPORT_INVALID", "A hosted staging transport is required");
+  }
+  const checks = {
+    ownerSpace: false,
+    partnerJoin: false,
+    firstCriterionConfirmed: false,
+    directInjectionDenied: false,
+    currentContextSealed: false,
+    criterionTextNotCopied: false,
+    exactReplay: false,
+    contextImmutable: false,
+    changedCriterionConfirmed: false,
+    staleContextOmittedWithoutUndoingAction: false,
+    cleanup: false,
+  };
+  const users = [];
+  const coupleIds = [];
+  const actionIds = [];
+  const messageIds = [];
+  const firstCriterionValue = "무리하지 않는 예산 안에서 결정해요";
+  const secondCriterionValue = "이동 시간을 먼저 봐요";
+  let primaryError = null;
+
+  try {
+    const owner = await transport.createSyntheticUser("owner");
+    const partner = await transport.createSyntheticUser("partner");
+    users.push(owner, partner);
+    requireScenario(
+      users.every((user) => isUuid(user?.id) && typeof user?.accessToken === "string")
+        && owner.id !== partner.id,
+      "CRITERION_SYNTHETIC_USERS_INVALID",
+      "Criterion probe users were not canonical",
+    );
+    const ownerSpace = await transport.createNeutralPreparationSpace(owner);
+    checks.ownerSpace = isCreatedPreparationSpace(ownerSpace);
+    requireScenario(checks.ownerSpace, "CRITERION_OWNER_SPACE_INVALID", "Owner preparation space was not canonical");
+    coupleIds.push(ownerSpace.couple_id);
+    const joined = await transport.joinNeutralPreparationSpaceServer(
+      partner.id,
+      ownerSpace.invite_code,
+    );
+    checks.partnerJoin = isJoinedPreparationSpace(joined, ownerSpace.couple_id);
+    requireScenario(checks.partnerJoin, "CRITERION_PARTNER_JOIN_INVALID", "Partner did not join the owner space canonically");
+
+    const firstCriterion = await transport.createConfirmedCoupleCriterion({
+      coupleId: ownerSpace.couple_id,
+      ownerId: owner.id,
+      partnerId: partner.id,
+      expectedCurrentDecisionId: null,
+      value: firstCriterionValue,
+    });
+    checks.firstCriterionConfirmed = firstCriterion?.linked === true
+      && isUuid(firstCriterion?.decisionId)
+      && firstCriterion?.value === firstCriterionValue;
+    requireScenario(checks.firstCriterionConfirmed, "CRITERION_FIRST_CONFIRMATION_INVALID", "First shared criterion was not canonical");
+
+    const injection = await transport.attemptInjectCriterionActionContext({
+      coupleId: ownerSpace.couple_id,
+      criterionDecisionId: firstCriterion.decisionId,
+    });
+    checks.directInjectionDenied = injection?.denied === true;
+    requireScenario(checks.directInjectionDenied, "CRITERION_CONTEXT_INJECTION_ALLOWED", "Direct criterion context injection was allowed");
+
+    const firstFixture = await transport.prepareCriterionActionApplication({
+      owner,
+      coupleId: ownerSpace.couple_id,
+      criterionDecisionId: firstCriterion.decisionId,
+      sequence: 1,
+    });
+    requireScenario(
+      isUuid(firstFixture?.sourceProposalId)
+        && firstFixture?.criterionDecisionId === firstCriterion.decisionId
+        && Number.isSafeInteger(firstFixture?.journeyRevision),
+      "CRITERION_APPLICATION_FIXTURE_INVALID",
+      "Current-criterion action fixture was not canonical",
+    );
+    messageIds.push(...(firstFixture.messageIds ?? []));
+    const firstRows = await transport.finalizeCriterionActionApplication(firstFixture);
+    const firstApplication = parseCriterionApplicationResult(firstRows, false);
+    requireScenario(firstApplication !== null, "CRITERION_APPLICATION_INVALID", "Current-criterion action was not applied canonically");
+    actionIds.push(firstApplication.actionId);
+    messageIds.push(firstApplication.messageId);
+    const firstActionRows = await transport.readCriterionAction(firstApplication.actionId);
+    checks.currentContextSealed = exactCriterionAction(firstActionRows, {
+      actionId: firstApplication.actionId,
+      context: {
+        criterionDecisionId: firstCriterion.decisionId,
+        sourceMessageId: firstFixture.sourceProposalId,
+        journeyRevision: firstFixture.journeyRevision,
+      },
+    });
+    requireScenario(checks.currentContextSealed, "CRITERION_CONTEXT_RECEIPT_INVALID", "Current shared criterion did not gain an exact action-context receipt");
+    checks.criterionTextNotCopied = !JSON.stringify(firstActionRows).includes(firstCriterionValue);
+    requireScenario(checks.criterionTextNotCopied, "CRITERION_TEXT_COPIED", "Criterion text was copied into the action receipt");
+
+    const replayRows = await transport.finalizeCriterionActionApplication(firstFixture);
+    const replay = parseCriterionApplicationResult(replayRows, true);
+    checks.exactReplay = replay?.actionId === firstApplication.actionId
+      && replay?.messageId === firstApplication.messageId;
+    requireScenario(checks.exactReplay, "CRITERION_APPLICATION_REPLAY_INVALID", "Exact criterion action retry did not reuse the same result");
+
+    const immutable = await transport.attemptRemoveCriterionActionContext({
+      actionId: firstApplication.actionId,
+    });
+    checks.contextImmutable = immutable?.denied === true;
+    requireScenario(checks.contextImmutable, "CRITERION_CONTEXT_MUTABLE", "Criterion action-context receipt was mutable");
+
+    const secondCriterion = await transport.createConfirmedCoupleCriterion({
+      coupleId: ownerSpace.couple_id,
+      ownerId: owner.id,
+      partnerId: partner.id,
+      expectedCurrentDecisionId: firstCriterion.decisionId,
+      value: secondCriterionValue,
+    });
+    checks.changedCriterionConfirmed = secondCriterion?.linked === true
+      && isUuid(secondCriterion?.decisionId)
+      && secondCriterion.decisionId !== firstCriterion.decisionId
+      && secondCriterion?.value === secondCriterionValue;
+    requireScenario(checks.changedCriterionConfirmed, "CRITERION_CHANGE_INVALID", "Changed shared criterion was not canonical");
+
+    const staleFixture = await transport.prepareCriterionActionApplication({
+      owner,
+      coupleId: ownerSpace.couple_id,
+      criterionDecisionId: firstCriterion.decisionId,
+      sequence: 2,
+    });
+    messageIds.push(...(staleFixture.messageIds ?? []));
+    const staleRows = await transport.finalizeCriterionActionApplication(staleFixture);
+    const staleApplication = parseCriterionApplicationResult(staleRows, false);
+    requireScenario(staleApplication !== null, "CRITERION_STALE_APPLICATION_INVALID", "Stale-context action did not finish canonically");
+    actionIds.push(staleApplication.actionId);
+    messageIds.push(staleApplication.messageId);
+    const staleActionRows = await transport.readCriterionAction(staleApplication.actionId);
+    checks.staleContextOmittedWithoutUndoingAction = exactCriterionAction(staleActionRows, {
+      actionId: staleApplication.actionId,
+      context: null,
+    });
+    requireScenario(
+      checks.staleContextOmittedWithoutUndoingAction,
+      "CRITERION_STALE_CONTEXT_FALSE_CLAIM",
+      "Changed criterion was falsely claimed or the approved action was lost",
+    );
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    for (const user of [...users].reverse()) {
+      try { await transport.resetMembership(user); } catch { /* Auth deletion is final. */ }
+    }
+    for (const user of [...users].reverse()) {
+      try { await transport.deleteSyntheticUser(user.id); } catch (error) { primaryError ??= error; }
+    }
+  }
+
+  let residue = {
+    profiles: Number.NaN,
+    couples: Number.NaN,
+    chatMessages: Number.NaN,
+    chatClaims: Number.NaN,
+    actions: Number.NaN,
+    executions: Number.NaN,
+    applicationClaims: Number.NaN,
+    criterionProposals: Number.NaN,
+    criterionAcceptances: Number.NaN,
+    decisions: Number.NaN,
+    providerReceipts: Number.NaN,
+  };
+  try {
+    residue = await transport.readCriterionActionResidue({
+      userIds: users.map(({ id }) => id),
+      coupleIds,
+      actionIds,
+      messageIds,
+    });
+    checks.cleanup = Object.values(residue).every((count) => count === 0);
+  } catch (error) {
+    primaryError ??= error;
+  }
+  if (!checks.cleanup) {
+    primaryError ??= new AmoraSuccessorStagingProbeError(
+      "CRITERION_SYNTHETIC_RESIDUE_PRESENT",
+      "Criterion action staging probe left synthetic rows behind",
+    );
+  }
+  if (primaryError) throw primaryError;
+  return Object.freeze({
+    scenario: "criterion_action_context_two_account_v1",
+    providerEvidence: "synthetic_fixture_no_live_provider_call",
     syntheticUserCount: users.length,
     checks: Object.freeze({ ...checks }),
     residue: Object.freeze({ ...residue }),

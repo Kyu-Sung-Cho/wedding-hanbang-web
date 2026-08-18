@@ -17,8 +17,10 @@ import {
   AmoraSuccessorStagingProbeError,
   createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedCriterionActionResidue,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  runCriterionActionContextScenario,
   runMediationPrivateDraftScenario,
   runNeutralPreparationSpaceScenario,
   runPreparationTopicMessageRefScenario,
@@ -174,10 +176,23 @@ async function main() {
       }),
     }),
   });
+  const criterionActionContext = await runCriterionActionContextScenario({
+    transport: createSupabaseStagingTransport({
+      projectRef: config.projectRef,
+      anonKey: keys.anonKey,
+      serviceRoleKey: keys.serviceRoleKey,
+      criterionActionResidueReader: (input) => readHostedCriterionActionResidue({
+        projectRef: config.projectRef,
+        productionProjectRef: config.productionProjectRef,
+        managementToken: config.managementToken,
+        ...input,
+      }),
+    }),
+  });
   const receipt = {
-    receiptVersion: 4,
+    receiptVersion: 5,
     kind: "amora-successor-hosted-staging-probe",
-    scope: "neutral-space-message-refs-notes-and-mediation",
+    scope: "neutral-space-message-refs-notes-mediation-and-criterion",
     projectRef: config.projectRef,
     gitCommit,
     migrationLedger: ledger,
@@ -187,6 +202,7 @@ async function main() {
       neutralPreparationSpace,
       preparationTopicMessageRefs,
       mediationPrivateDraft,
+      criterionActionContext,
     },
   };
   const text = canonicalReceiptText(receipt);
@@ -204,11 +220,13 @@ async function main() {
       neutralPreparationSpace: receipt.result.neutralPreparationSpace.checks,
       preparationTopicMessageRefs: receipt.result.preparationTopicMessageRefs.checks,
       mediationPrivateDraft: receipt.result.mediationPrivateDraft.checks,
+      criterionActionContext: receipt.result.criterionActionContext.checks,
     },
     residue: {
       neutralPreparationSpace: receipt.result.neutralPreparationSpace.residue,
       preparationTopicMessageRefs: receipt.result.preparationTopicMessageRefs.residue,
       mediationPrivateDraft: receipt.result.mediationPrivateDraft.residue,
+      criterionActionContext: receipt.result.criterionActionContext.residue,
     },
     receiptPath: config.receiptOut,
     receiptSha256,

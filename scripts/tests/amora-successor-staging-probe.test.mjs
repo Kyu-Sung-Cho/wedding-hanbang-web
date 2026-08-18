@@ -8,8 +8,10 @@ import {
   AmoraSuccessorStagingProbeError,
   createSupabaseStagingTransport,
   loadSupabaseProjectApiKeys,
+  readHostedCriterionActionResidue,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  runCriterionActionContextScenario,
   runMediationPrivateDraftScenario,
   runNeutralPreparationSpaceScenario,
   runPreparationTopicMessageRefScenario,
@@ -554,6 +556,148 @@ test("two synthetic users prove mediation stays private until the requester expl
   assert.equal(JSON.stringify(result).includes(sharedId), false);
 });
 
+test("two synthetic users prove only the current shared criterion gains one immutable action-context receipt", async () => {
+  const owner = { id: "10000000-0000-4000-8000-000000000061", accessToken: "owner-token" };
+  const partner = { id: "10000000-0000-4000-8000-000000000062", accessToken: "partner-token" };
+  const coupleId = "20000000-0000-4000-8000-000000000061";
+  const firstDecisionId = "70000000-0000-4000-8000-000000000061";
+  const secondDecisionId = "70000000-0000-4000-8000-000000000062";
+  const firstSourceId = "30000000-0000-4000-8000-000000000061";
+  const secondSourceId = "30000000-0000-4000-8000-000000000062";
+  const firstActionId = "act_first_context";
+  const secondActionId = "act_stale_context";
+  const users = [owner, partner];
+  let userIndex = 0;
+  let criterionCount = 0;
+  const finalizeCounts = new Map();
+  const transport = {
+    async createSyntheticUser() { return users[userIndex++]; },
+    async createNeutralPreparationSpace() {
+      return {
+        success: true,
+        created: true,
+        couple_id: coupleId,
+        invite_code: "WH-CRITERION001",
+        member_model_version: 2,
+      };
+    },
+    async joinNeutralPreparationSpaceServer() {
+      return { success: true, joined: true, couple_id: coupleId, member_model_version: 2 };
+    },
+    async createConfirmedCoupleCriterion({ value }) {
+      criterionCount += 1;
+      return {
+        linked: true,
+        decisionId: criterionCount === 1 ? firstDecisionId : secondDecisionId,
+        value,
+      };
+    },
+    async attemptInjectCriterionActionContext() { return { denied: true, actionId: "act_injected" }; },
+    async prepareCriterionActionApplication({ sequence, criterionDecisionId }) {
+      return {
+        sourceProposalId: sequence === 1 ? firstSourceId : secondSourceId,
+        criterionDecisionId,
+        journeyRevision: 7,
+        applicationRequestKey: `chat:${owner.id}:80000000-0000-4000-8000-00000000006${sequence}`,
+        attemptCount: 1,
+        expectedPrivacyEpoch: 11,
+      };
+    },
+    async finalizeCriterionActionApplication(fixture) {
+      const count = finalizeCounts.get(fixture.applicationRequestKey) ?? 0;
+      finalizeCounts.set(fixture.applicationRequestKey, count + 1);
+      const actionId = fixture.sourceProposalId === firstSourceId ? firstActionId : secondActionId;
+      return [{
+        outcome: count === 0 ? "persisted" : "replayed",
+        message_id: fixture.sourceProposalId === firstSourceId
+          ? "90000000-0000-4000-8000-000000000061"
+          : "90000000-0000-4000-8000-000000000062",
+        message_reused: count > 0,
+        tool_result: {
+          toolName: "add_amora_action",
+          toolOutput: { action: { id: actionId, status: "open" } },
+          success: true,
+        },
+      }];
+    },
+    async readCriterionAction(actionId) {
+      if (actionId === firstActionId) {
+        return [{
+          id: firstActionId,
+          category_key: "venue",
+          follow_up_revision: 1,
+          status: "open",
+          metadata: {
+            amora_topic_criterion_context_v1: {
+              version: 1,
+              scope: "couple",
+              criterionDecisionId: firstDecisionId,
+              topicKey: "venue",
+              affects: "action",
+              sourceMessageId: firstSourceId,
+              sourceJourneyRevision: 7,
+              actionRevision: 1,
+            },
+          },
+        }];
+      }
+      return [{
+        id: secondActionId,
+        category_key: "venue",
+        follow_up_revision: 1,
+        status: "open",
+        metadata: {},
+      }];
+    },
+    async attemptRemoveCriterionActionContext() { return { denied: true }; },
+    async resetMembership() {},
+    async deleteSyntheticUser() {},
+    async readCriterionActionResidue() {
+      return {
+        profiles: 0,
+        couples: 0,
+        chatMessages: 0,
+        chatClaims: 0,
+        actions: 0,
+        executions: 0,
+        applicationClaims: 0,
+        criterionProposals: 0,
+        criterionAcceptances: 0,
+        decisions: 0,
+        providerReceipts: 0,
+      };
+    },
+  };
+
+  const result = await runCriterionActionContextScenario({ transport });
+
+  assert.equal(result.providerEvidence, "synthetic_fixture_no_live_provider_call");
+  assert.deepEqual(result.checks, {
+    ownerSpace: true,
+    partnerJoin: true,
+    firstCriterionConfirmed: true,
+    directInjectionDenied: true,
+    currentContextSealed: true,
+    criterionTextNotCopied: true,
+    exactReplay: true,
+    contextImmutable: true,
+    changedCriterionConfirmed: true,
+    staleContextOmittedWithoutUndoingAction: true,
+    cleanup: true,
+  });
+  assert.ok(Object.values(result.residue).every((count) => count === 0));
+  const serialized = JSON.stringify(result);
+  for (const secret of [
+    owner.id,
+    partner.id,
+    coupleId,
+    firstDecisionId,
+    secondDecisionId,
+    "무리하지 않는 예산 안에서 결정해요",
+    "이동 시간을 먼저 봐요",
+  ]) assert.equal(serialized.includes(secret), false);
+});
+
 test("the staging transport obtains both legacy API roles without exposing unrelated keys", async () => {
   const requests = [];
   const keys = await loadSupabaseProjectApiKeys({
@@ -859,6 +1003,144 @@ test("the staging transport binds mediation drafts, sharing, reads, and cleanup 
   assert.equal(readCall.init.headers.Authorization, `Bearer ${owner.accessToken}`);
 });
 
+test("the staging transport derives criterion action applications through canonical service boundaries", async () => {
+  const owner = {
+    id: "10000000-0000-4000-8000-000000000071",
+    accessToken: "criterion-owner-token",
+  };
+  const partnerId = "10000000-0000-4000-8000-000000000072";
+  const coupleId = "20000000-0000-4000-8000-000000000071";
+  const proposalId = "60000000-0000-4000-8000-000000000071";
+  const decisionId = "70000000-0000-4000-8000-000000000071";
+  const applicationMessageId = "90000000-0000-4000-8000-000000000071";
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    const request = { url: String(url), init, body: init.body ? JSON.parse(init.body) : null };
+    calls.push(request);
+    if (request.url.includes("/rest/v1/profiles?")) {
+      return new Response(JSON.stringify([{
+        id: owner.id,
+        couple_id: coupleId,
+        role: "bride",
+      }]), { status: 200 });
+    }
+    if (request.url.includes("/rest/v1/wedding_journeys?")) {
+      return new Response(JSON.stringify([{ couple_id: coupleId, state_revision: 7 }]), { status: 200 });
+    }
+    if (request.url.includes("/rest/v1/amora_privacy_context_epochs?")) {
+      return new Response(JSON.stringify([{ couple_id: coupleId, epoch: 11 }]), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/propose_amora_couple_core_criterion_v1")) {
+      return new Response(JSON.stringify({
+        coupleId,
+        linked: true,
+        current: null,
+        proposal: {
+          id: proposalId,
+          value: "무리하지 않는 예산 안에서 결정해요",
+          revision: 1,
+        },
+      }), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/accept_amora_couple_core_criterion_v1")
+        || request.url.endsWith("/rest/v1/rpc/read_amora_couple_core_criterion_v1")) {
+      return new Response(JSON.stringify({
+        linked: true,
+        current: { decisionId, value: "무리하지 않는 예산 안에서 결정해요" },
+        proposal: null,
+      }), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/chat_messages") && init.method === "POST") {
+      return new Response(null, { status: 201 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/claim_amora_chat_request")) {
+      return new Response(JSON.stringify({ action: "acquired", attempt_count: 1 }), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/complete_amora_chat_request")) {
+      return new Response("true", { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/ai_interactions_log") && init.method === "POST") {
+      return new Response(null, { status: 201 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/claim_amora_shared_action_application")) {
+      return new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/rpc/finalize_amora_provider_backed_add_action_application_v1")) {
+      return new Response(JSON.stringify([{
+        outcome: "persisted",
+        message_id: applicationMessageId,
+        message_reused: false,
+        tool_result: {
+          toolName: "add_amora_action",
+          toolOutput: { action: { id: "act_criterion_probe", status: "open" } },
+          success: true,
+        },
+      }]), { status: 200 });
+    }
+    if (request.url.includes("/rest/v1/amora_actions?") && init.method === "GET") {
+      return new Response(JSON.stringify([{ id: "act_criterion_probe", metadata: {} }]), { status: 200 });
+    }
+    if (request.url.endsWith("/rest/v1/amora_actions") && init.method === "POST") {
+      return new Response(JSON.stringify({ code: "42501" }), { status: 400 });
+    }
+    if (request.url.includes("/rest/v1/amora_actions?") && init.method === "PATCH") {
+      return new Response(JSON.stringify({ code: "23514" }), { status: 400 });
+    }
+    return new Response("[]", { status: 200 });
+  };
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl,
+    runNonce: "criterion-contract",
+  });
+
+  const criterion = await transport.createConfirmedCoupleCriterion({
+    coupleId,
+    ownerId: owner.id,
+    partnerId,
+    expectedCurrentDecisionId: null,
+    value: "무리하지 않는 예산 안에서 결정해요",
+  });
+  assert.equal(criterion.decisionId, decisionId);
+  assert.equal((await transport.attemptInjectCriterionActionContext({
+    coupleId,
+    criterionDecisionId: decisionId,
+  })).denied, true);
+  const fixture = await transport.prepareCriterionActionApplication({
+    owner,
+    coupleId,
+    criterionDecisionId: decisionId,
+    sequence: 1,
+  });
+  const finalized = await transport.finalizeCriterionActionApplication(fixture);
+  assert.equal(finalized[0].message_id, applicationMessageId);
+  assert.deepEqual(await transport.readCriterionAction("act_criterion_probe"), [{
+    id: "act_criterion_probe",
+    metadata: {},
+  }]);
+  assert.equal((await transport.attemptRemoveCriterionActionContext({
+    actionId: "act_criterion_probe",
+  })).denied, true);
+
+  assert.ok(calls.every(({ init }) => init.headers.Authorization === "Bearer service-role-key-value"));
+  const sourceProposal = calls
+    .filter(({ url, init }) => url.endsWith("/rest/v1/chat_messages") && init.method === "POST")
+    .map(({ body }) => body)
+    .find(({ sender_type: senderType }) => senderType === "ai");
+  assert.equal(sourceProposal.metadata.amora_couple_criterion_decision_id, decisionId);
+  assert.equal(sourceProposal.metadata.amora_add_action_proposal_origin_v1, "ordinary_provider");
+  assert.equal(sourceProposal.metadata.amora_first_use_grounding, undefined);
+  assert.equal(JSON.stringify(sourceProposal.metadata).includes("무리하지 않는 예산 안에서 결정해요"), false);
+  assert.match(sourceProposal.metadata.pending_amora_action.inputDigest, /^[a-f0-9]{64}$/);
+  assert.match(sourceProposal.metadata.pending_amora_action.operationKey, /^[a-f0-9]{64}$/);
+  const providerReceipt = calls.find(({ url }) => url.endsWith("/rest/v1/ai_interactions_log"));
+  assert.equal(providerReceipt.body.amora_call_source, "durable");
+  assert.equal(providerReceipt.body.amora_cost_status, "settled");
+  assert.equal(providerReceipt.body.metadata.hosted_probe_fixture, true);
+});
+
 test("the hosted probe binds its receipt to the exact applied migration ledger", async () => {
   const ledger = await readHostedMigrationLedger({
     projectRef: STAGING_REF,
@@ -926,14 +1208,86 @@ test("the fixed read-only residue query counts protected message refs without ex
   );
 });
 
-test("the hosted receipt runs membership, saved-message, notes, and mediation privacy scenarios", () => {
+test("the fixed read-only residue query covers criterion decisions, actions, claims, and provider receipts", async () => {
+  const requests = [];
+  const userIds = ["10000000-0000-4000-8000-000000000081"];
+  const coupleIds = ["20000000-0000-4000-8000-000000000081"];
+  const messageIds = ["30000000-0000-4000-8000-000000000081"];
+  const actionIds = ["act_probe_criterion_081"];
+  const residue = await readHostedCriterionActionResidue({
+    projectRef: STAGING_REF,
+    productionProjectRef: PRODUCTION_REF,
+    managementToken: "management-token-that-is-long-enough",
+    userIds,
+    coupleIds,
+    messageIds,
+    actionIds,
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify([{
+        profiles: 0,
+        couples: 0,
+        chat_messages: 0,
+        chat_claims: 0,
+        actions: 0,
+        executions: 0,
+        application_claims: 0,
+        criterion_proposals: 0,
+        criterion_acceptances: 0,
+        decisions: 0,
+        provider_receipts: 0,
+      }]), { status: 201 });
+    },
+  });
+
+  assert.deepEqual(residue, {
+    profiles: 0,
+    couples: 0,
+    chatMessages: 0,
+    chatClaims: 0,
+    actions: 0,
+    executions: 0,
+    applicationClaims: 0,
+    criterionProposals: 0,
+    criterionAcceptances: 0,
+    decisions: 0,
+    providerReceipts: 0,
+  });
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].init.body).parameters, [
+    userIds,
+    coupleIds,
+    messageIds,
+    actionIds,
+  ]);
+  assert.match(JSON.parse(requests[0].init.body).query, /amora_couple_core_criterion_proposals/);
+  assert.match(JSON.parse(requests[0].init.body).query, /ai_interactions_log/);
+  assert.throws(
+    () => readHostedCriterionActionResidue({
+      projectRef: PRODUCTION_REF,
+      productionProjectRef: PRODUCTION_REF,
+      managementToken: "management-token-that-is-long-enough",
+      userIds,
+      coupleIds,
+      messageIds,
+      actionIds,
+    }),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "PRODUCTION_TARGET_FORBIDDEN",
+  );
+});
+
+test("the hosted receipt runs membership, notes, mediation, and criterion-action scenarios", () => {
   assert.match(cliSource, /runNeutralPreparationSpaceScenario/);
   assert.match(cliSource, /runPreparationTopicMessageRefScenario/);
   assert.match(cliSource, /runMediationPrivateDraftScenario/);
+  assert.match(cliSource, /runCriterionActionContextScenario/);
   assert.match(cliSource, /readHostedMessageRefResidue/);
-  assert.match(cliSource, /receiptVersion:\s*4/);
-  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-and-mediation"/);
+  assert.match(cliSource, /readHostedCriterionActionResidue/);
+  assert.match(cliSource, /receiptVersion:\s*5/);
+  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-mediation-and-criterion"/);
   assert.match(cliSource, /neutralPreparationSpace/);
   assert.match(cliSource, /preparationTopicMessageRefs/);
   assert.match(cliSource, /mediationPrivateDraft/);
+  assert.match(cliSource, /criterionActionContext/);
 });
