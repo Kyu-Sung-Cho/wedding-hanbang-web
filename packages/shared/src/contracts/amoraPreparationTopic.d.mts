@@ -2,6 +2,22 @@ import type { AmoraPreparationGuideModule } from "./amoraPreparationGuide.mjs";
 
 export declare const AMORA_PREPARATION_TOPIC_CONTRACT_VERSION: 1;
 
+export declare function readAmoraConfirmedScheduleDecisions(
+  topicKey: string,
+  expectedCoupleId: string,
+  currentJourneyRevision: number,
+  scheduleEvents: readonly unknown[],
+  scheduleDecisionReceipts: readonly unknown[],
+  nowIso: string,
+): readonly Readonly<{
+  id: string;
+  eventId: string;
+  title: string;
+  date: string;
+  confirmedAt: string;
+  scope: "couple_shared";
+}>[];
+
 export type AmoraPreparationTopicDetail = Readonly<{
   version: 1;
   topicKey: string;

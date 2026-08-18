@@ -1,11 +1,13 @@
 import {
   AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT,
   AMORA_PREPARATION_NOTES_PAGE_LIMIT,
+  AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT,
   AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT,
   isAmoraPreparationTopicMessageRefTopicKey,
   parseAmoraPreparationTopicMessageRefMutationRequest,
   validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
+  validateAmoraPreparationScheduleDecisionPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
   validateAmoraPreparationTopicMessageRefMutationResponse,
   validateAmoraPreparationTopicMessageRefStateResponse,
@@ -20,6 +22,8 @@ import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { buildPreparationActionReceiptPage } from "@/lib/amora/preparationActionReceipt";
+import { buildPreparationScheduleDecisionReceiptPage } from "@/lib/amora/preparationScheduleDecisionReceipt";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,6 +32,7 @@ const MAX_BODY_BYTES = 2_048;
 const MAX_NOTES_QUERY_CODE_POINTS = 120;
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const SCHEDULE_DECISION_CURSOR_RE = /^sd1\.[A-Za-z0-9_-]{16,512}$/u;
 const NOTES_QUERY_UNSAFE_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -180,6 +185,17 @@ type ReadQuery =
         appliedAt: string;
         receiptMessageId: string;
       } | null;
+    }
+  | {
+      mode: "schedule_decisions";
+      query: string;
+      limit: number;
+      cursor: {
+        snapshotAt: string;
+        currentJourneyRevision: number;
+        confirmedAt: string;
+        decisionId: string;
+      } | null;
     };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -292,6 +308,57 @@ function encodeActionReceiptCursor(input: {
   }), "utf8").toString("base64url")}`;
 }
 
+function decodeScheduleDecisionCursor(value: string | null, expectedQuery: string) {
+  if (value === null) return null;
+  if (!SCHEDULE_DECISION_CURSOR_RE.test(value)) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(value.slice(4), "base64url").toString("utf8"),
+    );
+    const currentJourneyRevision = isRecord(parsed)
+      ? parsed.currentJourneyRevision
+      : null;
+    if (
+      !isRecord(parsed)
+      || !hasExactKeys(parsed, [
+        "v",
+        "snapshotAt",
+        "currentJourneyRevision",
+        "confirmedAt",
+        "decisionId",
+        "query",
+      ])
+      || parsed.v !== 1
+      || !isIsoTime(parsed.snapshotAt)
+      || typeof currentJourneyRevision !== "number"
+      || !Number.isSafeInteger(currentJourneyRevision)
+      || currentJourneyRevision < 0
+      || !isIsoTime(parsed.confirmedAt)
+      || Date.parse(parsed.confirmedAt) > Date.parse(parsed.snapshotAt)
+      || !isUuid(parsed.decisionId)
+      || parsed.query !== expectedQuery
+    ) return undefined;
+    return {
+      snapshotAt: parsed.snapshotAt,
+      currentJourneyRevision,
+      confirmedAt: parsed.confirmedAt,
+      decisionId: parsed.decisionId.toLowerCase(),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function encodeScheduleDecisionCursor(input: {
+  snapshotAt: string;
+  currentJourneyRevision: number;
+  confirmedAt: string;
+  decisionId: string;
+  query: string;
+}) {
+  return `sd1.${Buffer.from(JSON.stringify({ v: 1, ...input }), "utf8").toString("base64url")}`;
+}
+
 function parseNotesBoundary(value: unknown, snapshotAt: string) {
   if (value === null) return null;
   if (
@@ -344,6 +411,31 @@ function isStrictlyOlderActionReceiptBoundary(
     );
 }
 
+function parseScheduleDecisionBoundary(value: unknown, snapshotAt: string) {
+  if (value === null) return null;
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, ["confirmedAt", "decisionId"])
+    || !isIsoTime(value.confirmedAt)
+    || Date.parse(value.confirmedAt) > Date.parse(snapshotAt)
+    || !isUuid(value.decisionId)
+  ) return undefined;
+  return {
+    confirmedAt: value.confirmedAt,
+    decisionId: value.decisionId.toLowerCase(),
+  };
+}
+
+function isStrictlyOlderScheduleDecisionBoundary(
+  next: { confirmedAt: string; decisionId: string },
+  current: { confirmedAt: string; decisionId: string },
+) {
+  const nextConfirmedAt = Date.parse(next.confirmedAt);
+  const currentConfirmedAt = Date.parse(current.confirmedAt);
+  return nextConfirmedAt < currentConfirmedAt
+    || (nextConfirmedAt === currentConfirmedAt && next.decisionId < current.decisionId);
+}
+
 function parseReadQuery(request: Request): ReadQuery | null {
   const searchParams = new URL(request.url).searchParams;
   const entries = [...searchParams.entries()];
@@ -389,6 +481,28 @@ function parseReadQuery(request: Request): ReadQuery | null {
     const cursor = decodeActionReceiptCursor(searchParams.get("cursor"), query);
     if (cursor === undefined) return null;
     return { mode: "action_receipts", query, limit, cursor };
+  }
+  if (searchParams.get("view") === "schedule-decisions") {
+    const allowedKeys = new Set(["view", "q", "cursor", "limit"]);
+    if (
+      entries.some(([key]) => !allowedKeys.has(key))
+      || [...allowedKeys].some((key) => searchParams.getAll(key).length > 1)
+    ) return null;
+    const query = normalizeNotesQuery(searchParams.get("q"));
+    const rawLimit = searchParams.get("limit");
+    const limit = rawLimit === null
+      ? AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT
+      : Number(rawLimit);
+    if (
+      query === null
+      || !Number.isSafeInteger(limit)
+      || limit < 1
+      || limit > AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT
+      || (rawLimit !== null && String(limit) !== rawLimit)
+    ) return null;
+    const cursor = decodeScheduleDecisionCursor(searchParams.get("cursor"), query);
+    if (cursor === undefined) return null;
+    return { mode: "schedule_decisions", query, limit, cursor };
   }
   if (
     entries.length !== 2
@@ -517,6 +631,77 @@ async function readActionReceiptPage(
     nowMs: Date.now(),
   });
   return built ? { snapshotAt, ...built } : null;
+}
+
+const PREPARATION_TOPIC_LABELS = Object.freeze(Object.fromEntries(
+  CATEGORY_CHECKLISTS.map((topic) => [topic.key, topic.label]),
+));
+
+async function readScheduleDecisionPage(
+  context: RequestContext,
+  query: Extract<ReadQuery, { mode: "schedule_decisions" }>,
+) {
+  const admin = createAdminClient();
+  const { data: journey, error: journeyError } = await admin
+    .from("wedding_journeys")
+    .select("progress, state_revision")
+    .eq("couple_id", context.coupleId)
+    .single();
+  if (
+    journeyError
+    || !isRecord(journey)
+    || !isRecord(journey.progress)
+    || !Array.isArray(journey.progress.__events)
+    || !Number.isSafeInteger(journey.state_revision)
+    || journey.state_revision < 0
+  ) return { kind: "unavailable" as const };
+  if (
+    query.cursor
+    && query.cursor.currentJourneyRevision !== journey.state_revision
+  ) return { kind: "context_changed" as const };
+
+  const snapshotAt = query.cursor?.snapshotAt ?? new Date().toISOString();
+  const scanLimit = 80;
+  const { data: decisionRows, error: decisionError } = await admin
+    .from("decision_nodes")
+    .select("id, couple_id, category, decision_type, title, chosen_value, source, source_ref_id, source_actor_role, user_confirmed_at, decided_at, metadata, visibility, superseded_at, memory_key")
+    .eq("couple_id", context.coupleId)
+    .eq("visibility", "shared")
+    .eq("source", "schedule")
+    .eq("decision_type", "scheduled")
+    .is("memory_key", null)
+    .is("superseded_at", null)
+    .not("user_confirmed_at", "is", null)
+    .in("source_actor_role", ["bride", "groom"])
+    .in("category", Object.keys(PREPARATION_TOPIC_LABELS))
+    .lte("user_confirmed_at", snapshotAt)
+    .order("decided_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(scanLimit + 1);
+  if (decisionError || !Array.isArray(decisionRows)) {
+    return { kind: "unavailable" as const };
+  }
+
+  const built = buildPreparationScheduleDecisionReceiptPage({
+    coupleId: context.coupleId,
+    recipientUserId: context.userId,
+    query: query.query,
+    snapshotAt,
+    currentJourneyRevision: journey.state_revision,
+    progress: journey.progress,
+    limit: query.limit,
+    scanLimit,
+    decisionRows,
+    topicLabels: PREPARATION_TOPIC_LABELS,
+    nowMs: Date.parse(snapshotAt),
+    cursorBoundary: query.cursor === null ? null : {
+      confirmedAt: query.cursor.confirmedAt,
+      decisionId: query.cursor.decisionId,
+    },
+  });
+  return built
+    ? { kind: "ready" as const, snapshotAt, currentJourneyRevision: journey.state_revision, ...built }
+    : { kind: "unavailable" as const };
 }
 
 export async function GET(request: Request) {
@@ -700,6 +885,75 @@ export async function GET(request: Request) {
       );
       if (!validated.ok) {
         console.error("[preparation-topic-message-refs] invalid action receipt response", {
+          reason: validated.reason,
+        });
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);
+      }
+      return response(validated.value);
+    }
+
+    if (query.mode === "schedule_decisions") {
+      const loadedPage = await readScheduleDecisionPage(context, query);
+      if (loadedPage.kind === "context_changed") {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTEXT_CHANGED" }, 409);
+      }
+      if (loadedPage.kind !== "ready") {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_UNAVAILABLE" }, 503);
+      }
+      const nextBoundary = parseScheduleDecisionBoundary(
+        loadedPage.nextBoundary,
+        loadedPage.snapshotAt,
+      );
+      const snapshotMatchesCursor = query.cursor === null
+        || loadedPage.snapshotAt === query.cursor.snapshotAt;
+      const nextBoundaryAdvances = query.cursor === null
+        || nextBoundary === null
+        || (
+          nextBoundary !== undefined
+          && isStrictlyOlderScheduleDecisionBoundary(nextBoundary, query.cursor)
+        );
+      if (
+        nextBoundary === undefined
+        || !snapshotMatchesCursor
+        || !nextBoundaryAdvances
+      ) {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);
+      }
+      const refreshed = await loadContext(request);
+      if (
+        !refreshed.ok
+        || refreshed.value.userId !== context.userId
+        || refreshed.value.coupleId !== context.coupleId
+        || refreshed.value.privacyEpoch !== context.privacyEpoch
+      ) {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTEXT_CHANGED" }, 409);
+      }
+      const page = {
+        version: 1,
+        state: "ready",
+        recipientUserId: context.userId,
+        coupleId: context.coupleId,
+        snapshotAt: loadedPage.snapshotAt,
+        currentJourneyRevision: loadedPage.currentJourneyRevision,
+        entries: loadedPage.entries,
+        nextCursor: nextBoundary === null
+          ? null
+          : encodeScheduleDecisionCursor({
+              snapshotAt: loadedPage.snapshotAt,
+              currentJourneyRevision: loadedPage.currentJourneyRevision,
+              confirmedAt: nextBoundary.confirmedAt,
+              decisionId: nextBoundary.decisionId,
+              query: query.query,
+            }),
+        partial: loadedPage.partial,
+      };
+      const validated = validateAmoraPreparationScheduleDecisionPageResponse(
+        page,
+        context.userId,
+        context.coupleId,
+      );
+      if (!validated.ok) {
+        console.error("[preparation-topic-message-refs] invalid schedule decision response", {
           reason: validated.reason,
         });
         return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);

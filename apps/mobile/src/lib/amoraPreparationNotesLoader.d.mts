@@ -1,3 +1,9 @@
+import type {
+  AmoraPreparationActionReceiptPageResponse,
+  AmoraPreparationNotesPageResponse,
+  AmoraPreparationScheduleDecisionPageResponse,
+} from "@hanbang/shared/amora-preparation-topic-message-ref";
+
 export type AmoraPreparationNotesLoadErrorCode =
   | "invalid_request"
   | "read_failed"
@@ -50,6 +56,24 @@ export declare function loadAmoraPreparationActionReceiptPage(options: Readonly<
   timeoutMs?: number;
 }>): Promise<AmoraPreparationActionReceiptPageResponse>;
 
+export declare function loadAmoraPreparationScheduleDecisionPage(options: Readonly<{
+  ownerId: string;
+  coupleId: string;
+  query: string;
+  cursor?: string | null;
+  apiFetch: (
+    path: string,
+    options: Readonly<{
+      method: "GET";
+      headers: Readonly<{ Accept: "application/json" }>;
+      signal: AbortSignal;
+    }>,
+  ) => Promise<Readonly<{ ok: boolean; json(): Promise<unknown> }>>;
+  isCurrent: () => boolean;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}>): Promise<AmoraPreparationScheduleDecisionPageResponse>;
+
 export type AmoraPreparationNotesReadState = "loaded" | "unavailable";
 
 export type AmoraPreparationNotesSources = Readonly<{
@@ -57,6 +81,8 @@ export type AmoraPreparationNotesSources = Readonly<{
   messageReferenceReadState: AmoraPreparationNotesReadState;
   actionReceiptCollection: unknown;
   actionReceiptReadState: AmoraPreparationNotesReadState;
+  scheduleDecisionCollection: unknown;
+  scheduleDecisionReadState: AmoraPreparationNotesReadState;
   ownerCriterionResponse: unknown;
   ownerCriterionReadState: AmoraPreparationNotesReadState;
   coupleCriterionResponse: unknown;

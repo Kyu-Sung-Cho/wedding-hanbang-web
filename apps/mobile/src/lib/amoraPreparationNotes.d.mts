@@ -1,3 +1,7 @@
+import type {
+  AmoraPreparationScheduleDecisionPageResponse,
+} from "@hanbang/shared/amora-preparation-topic-message-ref";
+
 export type AmoraPreparationNotesScope = "owner_private" | "couple_shared";
 export type AmoraPreparationNotesScopeFilter = "all" | AmoraPreparationNotesScope;
 export type AmoraPreparationNotesTopicFilter = "all" | string;
@@ -67,9 +71,26 @@ export type AmoraPreparationNotesAppliedReceiptRecord = Readonly<{
   openAction: Readonly<{ actionId: string }>;
 }>;
 
+export type AmoraPreparationNotesConfirmedDecisionRecord = Readonly<{
+  id: string;
+  type: "confirmed_decision";
+  typeLabel: "확인한 결정";
+  title: string;
+  excerpt: string;
+  topicKeys: readonly [string];
+  topicLabels: readonly [string];
+  scope: "couple_shared";
+  scopeLabel: "함께 보기";
+  savedAt: string;
+  sourceCreatedAt: string;
+  freshness: "current";
+  openSchedule: Readonly<{ eventId: string }>;
+}>;
+
 export type AmoraPreparationNotesRecord =
   | AmoraPreparationNotesSavedConversationRecord
   | AmoraPreparationNotesCriterionRecord
+  | AmoraPreparationNotesConfirmedDecisionRecord
   | AmoraPreparationNotesAppliedReceiptRecord;
 
 export type AmoraPreparationNotesView = Readonly<{
@@ -100,6 +121,9 @@ export declare function buildAmoraPreparationNotes(input: Readonly<{
   actionReceiptCollection?: unknown;
   actionReceiptPages?: readonly unknown[];
   actionReceiptReadState?: "loading" | "loaded" | "partial" | "unavailable";
+  scheduleDecisionCollection?: unknown;
+  scheduleDecisionPages?: readonly AmoraPreparationScheduleDecisionPageResponse[];
+  scheduleDecisionReadState?: "loading" | "loaded" | "partial" | "unavailable";
   ownerCriterionResponse?: unknown;
   ownerCriterionReadState?: "loading" | "loaded" | "partial" | "unavailable";
   coupleCriterionResponse?: unknown;

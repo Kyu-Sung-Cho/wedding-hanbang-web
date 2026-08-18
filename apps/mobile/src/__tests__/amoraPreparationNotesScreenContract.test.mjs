@@ -90,3 +90,16 @@ test("verified applied actions join search, pagination, and exact dashboard cont
   assert.match(notesSource, /hasMorePreparationRecords/u);
   assert.match(notesSource, /sources\.actionReceiptReadState === "unavailable"/u);
 });
+
+test("verified schedule decisions join search, pagination, and a read-only schedule return", () => {
+  assert.match(notesSource, /value: "confirmed_decision", label: "확인한 결정"/u);
+  assert.match(notesSource, /validateAmoraPreparationScheduleDecisionPageResponse/u);
+  assert.match(notesSource, /loadAmoraPreparationScheduleDecisionPage/u);
+  assert.match(notesSource, /scheduleDecisionPages/u);
+  assert.match(notesSource, /Promise\.all\(\[[\s\S]{0,1400}loadAmoraPreparationNotesMessagePage[\s\S]{0,1400}loadAmoraPreparationScheduleDecisionPage/u);
+  assert.match(notesSource, /record\.type === "confirmed_decision"[\s\S]{0,240}"일정에서 보기"/u);
+  assert.match(notesSource, /router\.push\("\/schedule"\)/u);
+  assert.match(notesSource, /hasMorePreparationRecords/u);
+  assert.match(notesSource, /sources\.scheduleDecisionReadState === "unavailable"/u);
+  assert.doesNotMatch(notesSource, /record\.type === "confirmed_decision"[\s\S]{0,400}openEditEventModal/u);
+});

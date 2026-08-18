@@ -6,12 +6,14 @@ import {
   loadAmoraPreparationActionReceiptPage,
   loadAmoraPreparationNotesMessagePage,
   loadAmoraPreparationNotesSources,
+  loadAmoraPreparationScheduleDecisionPage,
 } from "../lib/amoraPreparationNotesLoader.mjs";
 
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "20000000-0000-4000-8000-000000000002";
 const CURSOR = "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 const RECEIPT_CURSOR = "ap1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
+const DECISION_CURSOR = "sd1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 
 function notesPage(overrides = {}) {
   return {
@@ -48,6 +50,21 @@ function receiptPage(overrides = {}) {
   };
 }
 
+function decisionPage(overrides = {}) {
+  return {
+    version: 1,
+    state: "ready",
+    recipientUserId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    snapshotAt: "2026-08-18T08:00:00.000Z",
+    currentJourneyRevision: 8,
+    entries: [],
+    nextCursor: null,
+    partial: false,
+    ...overrides,
+  };
+}
+
 test("notes sources load independently under one exact owner/couple fence", async () => {
   const calls = [];
   const result = await loadAmoraPreparationNotesSources({
@@ -60,6 +77,9 @@ test("notes sources load independently under one exact owner/couple fence", asyn
       }
       if (path === "/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24") {
         return response(receiptPage());
+      }
+      if (path === "/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=24") {
+        return response(decisionPage());
       }
       if (path === "/api/amora/criterion") {
         return response({ kind: "owner-criterion" });
@@ -79,12 +99,15 @@ test("notes sources load independently under one exact owner/couple fence", asyn
     "/api/amora/criterion",
     "/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24",
     "/api/amora/preparation-topic-message-refs?view=notes&limit=24",
+    "/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=24",
   ]);
   assert.deepEqual(result, {
     messageReferenceCollection: { kind: "message-refs" },
     messageReferenceReadState: "loaded",
     actionReceiptCollection: receiptPage(),
     actionReceiptReadState: "loaded",
+    scheduleDecisionCollection: decisionPage(),
+    scheduleDecisionReadState: "loaded",
     ownerCriterionResponse: { kind: "owner-criterion" },
     ownerCriterionReadState: "loaded",
     coupleCriterionResponse: { kind: "couple-criterion" },
@@ -92,6 +115,28 @@ test("notes sources load independently under one exact owner/couple fence", asyn
     openActions: [{ id: "one-action" }],
     actionReadState: "loaded",
   });
+});
+
+test("one schedule-decision page keeps search, journey snapshot, and cursor server-bound", async () => {
+  const calls = [];
+  const page = decisionPage({ nextCursor: DECISION_CURSOR });
+  const loaded = await loadAmoraPreparationScheduleDecisionPage({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    query: "  상견례   일정  ",
+    cursor: DECISION_CURSOR,
+    apiFetch: async (path) => {
+      calls.push(path);
+      return response(page);
+    },
+    isCurrent: () => true,
+    timeoutMs: 100,
+  });
+
+  assert.deepEqual(loaded, page);
+  assert.deepEqual(calls, [
+    `/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=24&q=${encodeURIComponent("상견례 일정")}&cursor=${encodeURIComponent(DECISION_CURSOR)}`,
+  ]);
 });
 
 test("one action-receipt page keeps search and cursor server-bound", async () => {
@@ -167,6 +212,7 @@ test("one failed source is unavailable without discarding the other completed la
 
   assert.equal(result.messageReferenceReadState, "loaded");
   assert.equal(result.actionReceiptReadState, "loaded");
+  assert.equal(result.scheduleDecisionReadState, "loaded");
   assert.equal(result.ownerCriterionReadState, "unavailable");
   assert.equal(result.ownerCriterionResponse, null);
   assert.equal(result.coupleCriterionReadState, "loaded");
@@ -213,6 +259,7 @@ test("the shared deadline returns unavailable lanes instead of waiting on hung r
 
   assert.equal(result.messageReferenceReadState, "unavailable");
   assert.equal(result.actionReceiptReadState, "unavailable");
+  assert.equal(result.scheduleDecisionReadState, "unavailable");
   assert.equal(result.ownerCriterionReadState, "unavailable");
   assert.equal(result.coupleCriterionReadState, "unavailable");
   assert.equal(result.actionReadState, "unavailable");

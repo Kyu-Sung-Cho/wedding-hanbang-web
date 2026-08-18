@@ -11,6 +11,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { buildPreparationActionReceiptPage } from "@/lib/amora/preparationActionReceipt";
+import { buildPreparationScheduleDecisionReceiptPage } from "@/lib/amora/preparationScheduleDecisionReceipt";
 import { GET, PUT } from "./route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
@@ -25,6 +26,9 @@ vi.mock("@/utils/trustedMutation", () => ({
 vi.mock("@/lib/amora/preparationActionReceipt", () => ({
   buildPreparationActionReceiptPage: vi.fn(),
 }));
+vi.mock("@/lib/amora/preparationScheduleDecisionReceipt", () => ({
+  buildPreparationScheduleDecisionReceiptPage: vi.fn(),
+}));
 
 const RECIPIENT = "11111111-1111-4111-8111-111111111111";
 const PARTNER = "22222222-2222-4222-8222-222222222222";
@@ -36,6 +40,7 @@ const ACTION_ID = "a2000000-0000-4000-8000-000000000099";
 const SOURCE_MESSAGE = "a3000000-0000-4000-8000-000000000099";
 const RECEIPT_MESSAGE = "a4000000-0000-4000-8000-000000000099";
 const RECEIPT_REQUEST_KEY = `chat:${RECIPIENT}:a5000000-0000-4000-8000-000000000099`;
+const SCHEDULE_DECISION = "a6000000-0000-4000-8000-000000000099";
 
 const collection = {
   version: 1,
@@ -111,14 +116,16 @@ function adminQuery(data: unknown, error: unknown = null) {
     select: vi.fn(),
     eq: vi.fn(),
     is: vi.fn(),
+    not: vi.fn(),
     in: vi.fn(),
     lte: vi.fn(),
     or: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
+    single: vi.fn().mockResolvedValue({ data, error }),
     then: vi.fn((resolve) => Promise.resolve(resolve({ data, error }))),
   };
-  for (const method of ["select", "eq", "is", "in", "lte", "or", "order", "limit"] as const) {
+  for (const method of ["select", "eq", "is", "not", "in", "lte", "or", "order", "limit"] as const) {
     builder[method].mockReturnValue(builder);
   }
   return builder;
@@ -381,6 +388,86 @@ describe("/api/amora/preparation-topic-message-refs", () => {
     });
   });
 
+  it("reads only current-journey-bound schedule decisions and rechecks identity", async () => {
+    const journey = {
+      progress: {
+        __events: [{
+          id: "meeting-event",
+          date: "2026-09-05",
+          title: "양가 부모님 첫 만남",
+          categoryKey: "meeting",
+          status: "planned",
+        }],
+      },
+      state_revision: 8,
+    };
+    const decisionRows = [{
+      id: SCHEDULE_DECISION,
+      couple_id: COUPLE,
+      category: "meeting",
+      decision_type: "scheduled",
+      source: "schedule",
+      chosen_value: { eventId: "meeting-event" },
+      user_confirmed_at: "2026-08-17T07:00:00.000Z",
+      decided_at: "2026-08-17T07:01:00.000Z",
+    }];
+    const journeyBuilder = adminQuery(journey);
+    const decisionBuilder = adminQuery(decisionRows);
+    const from = vi.fn((table: string) => {
+      if (table === "wedding_journeys") return journeyBuilder;
+      if (table === "decision_nodes") return decisionBuilder;
+      return adminQuery(null, { code: "unexpected" });
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+    vi.mocked(buildPreparationScheduleDecisionReceiptPage).mockReturnValue({
+      entries: [{
+        decisionId: SCHEDULE_DECISION,
+        eventId: "meeting-event",
+        topicKey: "meeting",
+        title: "일정 추가 · 양가 부모님 첫 만남",
+        date: "2026-09-05",
+        confirmedAt: "2026-08-17T07:00:00.000Z",
+        scope: "couple_shared",
+        canOpenSchedule: true,
+      }],
+      nextBoundary: null,
+      partial: false,
+    });
+
+    const response = await GET(getRequest(
+      "?view=schedule-decisions&q=%EC%83%81%EA%B2%AC%EB%A1%80&limit=12",
+    ));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      version: 1,
+      state: "ready",
+      recipientUserId: RECIPIENT,
+      coupleId: COUPLE,
+      currentJourneyRevision: 8,
+      entries: [{ decisionId: SCHEDULE_DECISION, eventId: "meeting-event" }],
+      nextCursor: null,
+      partial: false,
+    });
+    expect(from).toHaveBeenCalledWith("wedding_journeys");
+    expect(from).toHaveBeenCalledWith("decision_nodes");
+    expect(decisionBuilder.eq).toHaveBeenCalledWith("visibility", "shared");
+    expect(decisionBuilder.eq).toHaveBeenCalledWith("source", "schedule");
+    expect(decisionBuilder.eq).toHaveBeenCalledWith("decision_type", "scheduled");
+    expect(buildPreparationScheduleDecisionReceiptPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coupleId: COUPLE,
+        recipientUserId: RECIPIENT,
+        query: "상견례",
+        currentJourneyRevision: 8,
+        progress: journey.progress,
+        decisionRows,
+        limit: 12,
+      }),
+    );
+    expect(vi.mocked(createClientFromRequest)).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects a notes cursor page that changes snapshot or fails to advance", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: notesRpcPage, error: null })
@@ -476,6 +563,9 @@ describe("/api/amora/preparation-topic-message-refs", () => {
     "?view=action-receipts&cursor=raw-timestamp",
     "?view=action-receipts&limit=25",
     "?view=action-receipts&unsupported=true",
+    "?view=schedule-decisions&cursor=raw-timestamp",
+    "?view=schedule-decisions&limit=25",
+    "?view=schedule-decisions&unsupported=true",
   ])("rejects an ambiguous or expanding query before auth: %s", async (suffix) => {
     const response = await GET(getRequest(suffix));
     expect(response.status).toBe(400);

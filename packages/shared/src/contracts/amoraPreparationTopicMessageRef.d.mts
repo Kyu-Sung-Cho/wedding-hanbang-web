@@ -2,6 +2,7 @@ export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTRACT_VERSION: 1;
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT: 80;
 export const AMORA_PREPARATION_NOTES_PAGE_LIMIT: 24;
 export const AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT: 24;
+export const AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT: 24;
 
 export type AmoraPreparationTopicMessageRefAudience =
   | "couple_shared"
@@ -72,6 +73,29 @@ export interface AmoraPreparationActionReceiptPageResponse {
   coupleId: string;
   snapshotAt: string;
   entries: AmoraPreparationActionReceiptPageEntry[];
+  nextCursor: string | null;
+  partial: boolean;
+}
+
+export interface AmoraPreparationScheduleDecisionPageEntry {
+  decisionId: string;
+  eventId: string;
+  topicKey: string;
+  title: string;
+  date: string;
+  confirmedAt: string;
+  scope: "couple_shared";
+  canOpenSchedule: true;
+}
+
+export interface AmoraPreparationScheduleDecisionPageResponse {
+  version: 1;
+  state: "ready";
+  recipientUserId: string;
+  coupleId: string;
+  snapshotAt: string;
+  currentJourneyRevision: number;
+  entries: AmoraPreparationScheduleDecisionPageEntry[];
   nextCursor: string | null;
   partial: boolean;
 }
@@ -175,6 +199,12 @@ export function validateAmoraPreparationActionReceiptPageResponse(
   expectedRecipientUserId: string,
   expectedCoupleId: string,
 ): AmoraPreparationTopicMessageRefValidation<AmoraPreparationActionReceiptPageResponse>;
+
+export function validateAmoraPreparationScheduleDecisionPageResponse(
+  value: unknown,
+  expectedRecipientUserId: string,
+  expectedCoupleId: string,
+): AmoraPreparationTopicMessageRefValidation<AmoraPreparationScheduleDecisionPageResponse>;
 
 export function validateAmoraPreparationTopicMessageRefStateResponse(
   value: unknown,

@@ -3,8 +3,10 @@
 import {
   AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT,
   AMORA_PREPARATION_NOTES_PAGE_LIMIT,
+  AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT,
   validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
+  validateAmoraPreparationScheduleDecisionPageResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -13,6 +15,7 @@ const MAX_TIMEOUT_MS = 60_000;
 const DEADLINE = Object.freeze({ kind: "deadline" });
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const SCHEDULE_DECISION_CURSOR_RE = /^sd1\.[A-Za-z0-9_-]{16,512}$/u;
 const UNSAFE_QUERY_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 export class AmoraPreparationNotesLoadError extends Error {
@@ -84,6 +87,13 @@ function notesPagePath(query, cursor) {
 
 function actionReceiptPagePath(query, cursor) {
   let path = `/api/amora/preparation-topic-message-refs?view=action-receipts&limit=${AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT}`;
+  if (query !== "") path += `&q=${encodeURIComponent(query)}`;
+  if (cursor !== null) path += `&cursor=${encodeURIComponent(cursor)}`;
+  return path;
+}
+
+function scheduleDecisionPagePath(query, cursor) {
+  let path = `/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=${AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT}`;
   if (query !== "") path += `&q=${encodeURIComponent(query)}`;
   if (cursor !== null) path += `&cursor=${encodeURIComponent(cursor)}`;
   return path;
@@ -252,6 +262,89 @@ export async function loadAmoraPreparationActionReceiptPage(options) {
   }
 }
 
+export async function loadAmoraPreparationScheduleDecisionPage(options) {
+  const {
+    ownerId,
+    coupleId,
+    query: rawQuery,
+    cursor = null,
+    apiFetch,
+    isCurrent,
+    signal,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = options ?? {};
+  const query = normalizeAmoraPreparationNotesQuery(rawQuery);
+  if (
+    typeof ownerId !== "string"
+    || !UUID_RE.test(ownerId)
+    || typeof coupleId !== "string"
+    || !UUID_RE.test(coupleId)
+    || query === null
+    || (cursor !== null && (
+      typeof cursor !== "string"
+      || !SCHEDULE_DECISION_CURSOR_RE.test(cursor)
+    ))
+    || typeof apiFetch !== "function"
+    || typeof isCurrent !== "function"
+    || (signal !== undefined && !isAbortSignal(signal))
+    || !Number.isSafeInteger(timeoutMs)
+    || timeoutMs < 1
+    || timeoutMs > MAX_TIMEOUT_MS
+  ) throw new AmoraPreparationNotesLoadError("invalid_request");
+
+  assertCurrent(isCurrent);
+  if (signal?.aborted) throw new AmoraPreparationNotesLoadError("cancelled");
+  const controller = new AbortController();
+  let cancelForCaller;
+  let timeoutHandle;
+  const deadline = new Promise((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      resolve(DEADLINE);
+    }, timeoutMs);
+  });
+  if (signal) {
+    cancelForCaller = () => controller.abort();
+    signal.addEventListener("abort", cancelForCaller, { once: true });
+  }
+
+  try {
+    const operation = Promise.resolve().then(async () => {
+      assertCurrent(isCurrent);
+      const response = await apiFetch(scheduleDecisionPagePath(query, cursor), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      assertCurrent(isCurrent);
+      const payload = await readPayload(response);
+      assertCurrent(isCurrent);
+      const validated = validateAmoraPreparationScheduleDecisionPageResponse(
+        payload,
+        ownerId,
+        coupleId,
+      );
+      if (!validated.ok) throw new AmoraPreparationNotesLoadError("read_failed");
+      return validated.value;
+    }).then(
+      (value) => ({ kind: "loaded", value }),
+      (error) => ({ kind: "error", error }),
+    );
+    const outcome = await Promise.race([operation, deadline]);
+    assertCurrent(isCurrent);
+    if (signal?.aborted) throw new AmoraPreparationNotesLoadError("cancelled");
+    if (outcome === DEADLINE) throw new AmoraPreparationNotesLoadError("timeout");
+    if (outcome.kind === "error") {
+      if (outcome.error instanceof AmoraPreparationNotesLoadError) throw outcome.error;
+      throw new AmoraPreparationNotesLoadError("read_failed");
+    }
+    return outcome.value;
+  } finally {
+    clearTimeout(timeoutHandle);
+    if (signal && cancelForCaller) signal.removeEventListener("abort", cancelForCaller);
+  }
+}
+
 export async function loadAmoraPreparationNotesSources(options) {
   const {
     ownerId,
@@ -311,12 +404,14 @@ export async function loadAmoraPreparationNotesSources(options) {
     const [
       messageReferences,
       actionReceipts,
+      scheduleDecisions,
       ownerCriterion,
       coupleCriterion,
       openActions,
     ] = await Promise.all([
       apiLane(`/api/amora/preparation-topic-message-refs?view=notes&limit=${AMORA_PREPARATION_NOTES_PAGE_LIMIT}`),
       apiLane(`/api/amora/preparation-topic-message-refs?view=action-receipts&limit=${AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT}`),
+      apiLane(`/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=${AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT}`),
       apiLane("/api/amora/criterion"),
       apiLane("/api/amora/couple-criterion"),
       lanePromise(async () => {
@@ -338,6 +433,8 @@ export async function loadAmoraPreparationNotesSources(options) {
       messageReferenceReadState: messageReferences.state,
       actionReceiptCollection: actionReceipts.value,
       actionReceiptReadState: actionReceipts.state,
+      scheduleDecisionCollection: scheduleDecisions.value,
+      scheduleDecisionReadState: scheduleDecisions.state,
       ownerCriterionResponse: ownerCriterion.value,
       ownerCriterionReadState: ownerCriterion.state,
       coupleCriterionResponse: coupleCriterion.value,

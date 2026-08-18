@@ -8,6 +8,7 @@ const COUPLE_ID = "20000000-0000-4000-8000-000000000002";
 const MESSAGE_ID = "30000000-0000-4000-8000-000000000003";
 const RECEIPT_MESSAGE_ID = "90000000-0000-4000-8000-000000000009";
 const ACTION_ID = "act_10000000000040008000000000000001_123456789012345678901234";
+const SCHEDULE_DECISION_ID = "a0000000-0000-4000-8000-00000000000a";
 
 function reference(overrides = {}) {
   return {
@@ -47,6 +48,130 @@ function actionReceiptPage(overrides = {}) {
     ...overrides,
   };
 }
+
+function scheduleDecisionPage(overrides = {}) {
+  return {
+    version: 1,
+    state: "ready",
+    recipientUserId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    snapshotAt: "2026-08-18T12:00:00.000Z",
+    currentJourneyRevision: 8,
+    entries: [{
+      decisionId: SCHEDULE_DECISION_ID,
+      eventId: "meeting-event",
+      topicKey: "meeting",
+      title: "일정 추가 · 양가 부모님 첫 만남",
+      date: "2026-09-05",
+      confirmedAt: "2026-08-18T10:30:00.000Z",
+      scope: "couple_shared",
+      canOpenSchedule: true,
+    }],
+    nextCursor: null,
+    partial: false,
+    ...overrides,
+  };
+}
+
+test("a current schedule receipt becomes one searchable confirmed-decision record", () => {
+  const result = buildAmoraPreparationNotes({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [
+      { key: "venue", label: "예식장" },
+      { key: "meeting", label: "상견례" },
+    ],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      references: [],
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    scheduleDecisionCollection: scheduleDecisionPage(),
+    scheduleDecisionReadState: "loaded",
+    query: "상견례 일정",
+    scopeFilter: "couple_shared",
+    topicFilter: "meeting",
+    typeFilter: "confirmed_decision",
+  });
+
+  assert.deepEqual(result.records, [{
+    id: `confirmed_decision:${SCHEDULE_DECISION_ID}`,
+    type: "confirmed_decision",
+    typeLabel: "확인한 결정",
+    title: "일정 추가 · 양가 부모님 첫 만남",
+    excerpt: "2026-09-05 일정에 반영됐어요.",
+    topicKeys: ["meeting"],
+    topicLabels: ["상견례"],
+    scope: "couple_shared",
+    scopeLabel: "함께 보기",
+    savedAt: "2026-08-18T10:30:00.000Z",
+    sourceCreatedAt: "2026-08-18T10:30:00.000Z",
+    freshness: "current",
+    openSchedule: { eventId: "meeting-event" },
+  }]);
+});
+
+test("schedule-decision pages require one journey snapshot and preserve partial verified results", () => {
+  const first = scheduleDecisionPage({
+    nextCursor: "sd1.eyJmaXJzdFBhZ2VCb3VuZGFyeSI6dHJ1ZX0",
+  });
+  const second = scheduleDecisionPage({
+    entries: [{
+      ...first.entries[0],
+      decisionId: "b0000000-0000-4000-8000-00000000000b",
+      eventId: "venue-event",
+      topicKey: "venue",
+      title: "일정 수정 · 예식장 최종 상담",
+      date: "2026-09-12",
+      confirmedAt: "2026-08-18T09:30:00.000Z",
+    }],
+    nextCursor: null,
+    partial: true,
+  });
+  const base = {
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [
+      { key: "venue", label: "예식장" },
+      { key: "meeting", label: "상견례" },
+    ],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      references: [],
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    scheduleDecisionCollection: first,
+    scheduleDecisionPages: [first, second],
+    scheduleDecisionReadState: "loaded",
+    query: "",
+    scopeFilter: "all",
+    topicFilter: "all",
+    typeFilter: "all",
+  };
+
+  const merged = buildAmoraPreparationNotes(base);
+  assert.equal(merged.state, "partial");
+  assert.deepEqual(merged.records.map((record) => record.id), [
+    `confirmed_decision:${SCHEDULE_DECISION_ID}`,
+    "confirmed_decision:b0000000-0000-4000-8000-00000000000b",
+  ]);
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    scheduleDecisionPages: [first, { ...second, currentJourneyRevision: 9 }],
+  }).state, "partial");
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    scheduleDecisionPages: [first, { ...second, entries: first.entries }],
+  }).state, "partial");
+});
 
 test("a server-authoritative application receipt becomes one searchable actual-application record", () => {
   const result = buildAmoraPreparationNotes({

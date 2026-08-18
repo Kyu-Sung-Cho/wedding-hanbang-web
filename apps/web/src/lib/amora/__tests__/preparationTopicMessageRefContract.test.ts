@@ -1,9 +1,11 @@
 import {
   AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT,
   AMORA_PREPARATION_NOTES_PAGE_LIMIT,
+  AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT,
   parseAmoraPreparationTopicMessageRefMutationRequest,
   validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
+  validateAmoraPreparationScheduleDecisionPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
   validateAmoraPreparationTopicMessageRefMutationResponse,
   validateAmoraPreparationTopicMessageRefResolveResponse,
@@ -17,6 +19,7 @@ const REF = "33333333-3333-4333-8333-333333333333";
 const MESSAGE = "44444444-4444-4444-8444-444444444444";
 const NOTES_CURSOR = "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 const RECEIPT_CURSOR = "ap1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
+const DECISION_CURSOR = "sd1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 
 describe("Amora preparation-topic message-reference contract", () => {
   it("accepts only an exact recipient-bound bounded collection", () => {
@@ -154,6 +157,52 @@ describe("Amora preparation-topic message-reference contract", () => {
       { ...payload, entries: [{ ...payload.entries[0], title: "hidden\u200Dtitle" }] },
     ]) {
       expect(validateAmoraPreparationActionReceiptPageResponse(
+        invalid,
+        RECIPIENT,
+        COUPLE,
+      ).ok).toBe(false);
+    }
+  });
+
+  it("accepts only a current-journey-bound canonical schedule-decision page", () => {
+    const payload = {
+      version: 1,
+      state: "ready",
+      recipientUserId: RECIPIENT,
+      coupleId: COUPLE,
+      snapshotAt: "2026-08-18T08:00:00.000Z",
+      currentJourneyRevision: 8,
+      entries: [{
+        decisionId: MESSAGE,
+        eventId: "meeting-event",
+        topicKey: "meeting",
+        title: "일정 추가 · 양가 부모님 첫 만남",
+        date: "2026-09-05",
+        confirmedAt: "2026-08-18T07:00:00.000Z",
+        scope: "couple_shared",
+        canOpenSchedule: true,
+      }],
+      nextCursor: DECISION_CURSOR,
+      partial: false,
+    };
+
+    expect(AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT).toBe(24);
+    expect(validateAmoraPreparationScheduleDecisionPageResponse(
+      payload,
+      RECIPIENT,
+      COUPLE,
+    )).toEqual({ ok: true, value: payload });
+
+    for (const invalid of [
+      { ...payload, currentJourneyRevision: -1 },
+      { ...payload, nextCursor: "2026-08-18T07:00:00.000Z" },
+      { ...payload, sourceRefId: REF },
+      { ...payload, entries: [{ ...payload.entries[0], scope: "owner_private" }] },
+      { ...payload, entries: [{ ...payload.entries[0], eventId: "unsafe/event" }] },
+      { ...payload, entries: [{ ...payload.entries[0], date: "2026-02-30" }] },
+      { ...payload, entries: [{ ...payload.entries[0], title: "hidden\u200Dtitle" }] },
+    ]) {
+      expect(validateAmoraPreparationScheduleDecisionPageResponse(
         invalid,
         RECIPIENT,
         COUPLE,

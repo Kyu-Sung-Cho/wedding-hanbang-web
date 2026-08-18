@@ -1,6 +1,7 @@
 import {
   validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
+  validateAmoraPreparationScheduleDecisionPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
 import { parseAmoraCoreCriterionResponse } from "@hanbang/shared/amora-core-criterion";
@@ -33,6 +34,14 @@ function normalizeQuery(value) {
 
 function searchableText(value) {
   return value.normalize("NFKC").toLocaleLowerCase("ko-KR");
+}
+
+function matchesSearchText(value, query) {
+  const searchable = searchableText(value);
+  return searchableText(query)
+    .split(/\s+/u)
+    .filter(Boolean)
+    .every((term) => searchable.includes(term));
 }
 
 function parseTopics(value) {
@@ -323,6 +332,119 @@ function buildActionReceiptRecords(entries, topics) {
   });
 }
 
+function sameScheduleDecisionEntry(left, right) {
+  return left.decisionId === right.decisionId
+    && left.eventId === right.eventId
+    && left.topicKey === right.topicKey
+    && left.title === right.title
+    && left.date === right.date
+    && left.confirmedAt === right.confirmedAt
+    && left.scope === right.scope
+    && left.canOpenSchedule === right.canOpenSchedule;
+}
+
+function sameScheduleDecisionPage(left, right) {
+  return left.version === right.version
+    && left.state === right.state
+    && left.recipientUserId === right.recipientUserId
+    && left.coupleId === right.coupleId
+    && left.snapshotAt === right.snapshotAt
+    && left.currentJourneyRevision === right.currentJourneyRevision
+    && left.nextCursor === right.nextCursor
+    && left.partial === right.partial
+    && left.entries.length === right.entries.length
+    && left.entries.every((entry, index) => (
+      sameScheduleDecisionEntry(entry, right.entries[index])
+    ));
+}
+
+function isStrictlyAfterScheduleDecision(previous, next) {
+  const previousConfirmedAt = Date.parse(previous.confirmedAt);
+  const nextConfirmedAt = Date.parse(next.confirmedAt);
+  return nextConfirmedAt < previousConfirmedAt
+    || (
+      nextConfirmedAt === previousConfirmedAt
+      && next.decisionId.toLowerCase() < previous.decisionId.toLowerCase()
+    );
+}
+
+function parseScheduleDecisionPages(input, firstPage) {
+  const rawPages = input.scheduleDecisionPages === undefined
+    ? [firstPage]
+    : input.scheduleDecisionPages;
+  if (!Array.isArray(rawPages) || rawPages.length < 1 || rawPages.length > 20) {
+    return null;
+  }
+  const pages = [];
+  for (const rawPage of rawPages) {
+    const parsed = validateAmoraPreparationScheduleDecisionPageResponse(
+      rawPage,
+      input.ownerId,
+      input.coupleId,
+    );
+    if (
+      !parsed.ok
+      || parsed.value.snapshotAt !== firstPage.snapshotAt
+      || parsed.value.currentJourneyRevision !== firstPage.currentJourneyRevision
+    ) return null;
+    pages.push(parsed.value);
+  }
+  if (!sameScheduleDecisionPage(pages[0], firstPage)) return null;
+
+  const entries = [];
+  const decisionIds = new Set();
+  const eventIds = new Set();
+  const nextCursors = new Set();
+  let previousEntry = null;
+  let partial = false;
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    const page = pages[pageIndex];
+    if (pageIndex < pages.length - 1 && page.nextCursor === null) return null;
+    if (page.nextCursor !== null) {
+      if (nextCursors.has(page.nextCursor)) return null;
+      nextCursors.add(page.nextCursor);
+    }
+    partial = partial || page.partial;
+    for (const entry of page.entries) {
+      const decisionId = entry.decisionId.toLowerCase();
+      if (
+        decisionIds.has(decisionId)
+        || eventIds.has(entry.eventId)
+        || (previousEntry && !isStrictlyAfterScheduleDecision(previousEntry, entry))
+      ) return null;
+      decisionIds.add(decisionId);
+      eventIds.add(entry.eventId);
+      entries.push(entry);
+      previousEntry = entry;
+    }
+  }
+  return { entries, partial };
+}
+
+function buildScheduleDecisionRecords(entries, topics) {
+  const records = [];
+  for (const entry of entries) {
+    const topicLabel = topics.get(entry.topicKey);
+    if (!topicLabel) return null;
+    records.push(Object.freeze({
+      id: `confirmed_decision:${entry.decisionId}`,
+      type: "confirmed_decision",
+      typeLabel: "확인한 결정",
+      title: entry.title,
+      excerpt: `${entry.date} 일정에 반영됐어요.`,
+      topicKeys: Object.freeze([entry.topicKey]),
+      topicLabels: Object.freeze([topicLabel]),
+      scope: "couple_shared",
+      scopeLabel: "함께 보기",
+      savedAt: entry.confirmedAt,
+      sourceCreatedAt: entry.confirmedAt,
+      freshness: "current",
+      openSchedule: Object.freeze({ eventId: entry.eventId }),
+    }));
+  }
+  return records;
+}
+
 function criterionRecord({ id, type, excerpt, scope, at, focus }) {
   return Object.freeze({
     id: `${type}:${id}`,
@@ -537,29 +659,64 @@ export function buildAmoraPreparationNotes(input) {
     }
   }
 
+  let scheduleDecisionRecords = [];
+  let scheduleDecisionsIncomplete = false;
+  let scheduleDecisionsLoading = false;
+  let scheduleDecisionSuccessfulSources = 0;
+  let scheduleDecisionCollectionPartial = false;
+  if (input.scheduleDecisionReadState !== undefined) {
+    if (!READ_STATES.has(input.scheduleDecisionReadState)) {
+      return emptyResult("read_error", query, scopeFilter, topicFilter, typeFilter);
+    }
+    if (
+      input.scheduleDecisionReadState === "loaded"
+      || input.scheduleDecisionReadState === "partial"
+    ) {
+      const firstPage = validateAmoraPreparationScheduleDecisionPageResponse(
+        input.scheduleDecisionCollection,
+        input.ownerId,
+        input.coupleId,
+      );
+      const parsedPages = firstPage.ok
+        ? parseScheduleDecisionPages(input, firstPage.value)
+        : null;
+      const built = parsedPages
+        ? buildScheduleDecisionRecords(parsedPages.entries, topics)
+        : null;
+      if (built) {
+        scheduleDecisionRecords = built;
+        scheduleDecisionSuccessfulSources = 1;
+        scheduleDecisionCollectionPartial = parsedPages.partial;
+      } else scheduleDecisionsIncomplete = true;
+    } else {
+      scheduleDecisionsIncomplete = true;
+      scheduleDecisionsLoading = input.scheduleDecisionReadState === "loading";
+    }
+  }
+
   const records = [
     ...savedConversationRecords,
     ...actionReceiptRecords,
+    ...scheduleDecisionRecords,
     ...criteria.records,
   ].sort((left, right) => (
     Date.parse(right.savedAt) - Date.parse(left.savedAt)
     || left.id.localeCompare(right.id)
   ));
 
-  const normalizedSearch = searchableText(query);
   const filteredRecords = records.filter((record) => (
     (scopeFilter === "all" || record.scope === scopeFilter)
     && (topicFilter === "all" || record.topicKeys.includes(topicFilter))
     && (typeFilter === "all" || record.type === typeFilter)
     && (
-      normalizedSearch.length === 0
-      || searchableText([
+      query.length === 0
+      || matchesSearchText([
         record.questionExcerpt ?? "",
         record.title ?? "",
         record.excerpt,
         record.typeLabel,
         ...record.topicLabels,
-      ].join(" ")).includes(normalizedSearch)
+      ].join(" "), query)
     )
   ));
 
@@ -569,11 +726,18 @@ export function buildAmoraPreparationNotes(input) {
     || actionReceiptsIncomplete
     || input.actionReceiptReadState === "partial"
     || actionReceiptCollectionPartial
+    || scheduleDecisionsIncomplete
+    || input.scheduleDecisionReadState === "partial"
+    || scheduleDecisionCollectionPartial
     || criteria.incomplete
     || continuingStory.incomplete;
-  const loading = messageReferencesLoading || actionReceiptsLoading || criteria.loading;
+  const loading = messageReferencesLoading
+    || actionReceiptsLoading
+    || scheduleDecisionsLoading
+    || criteria.loading;
   const successfulSources = messageReferenceSuccessfulSources
     + actionReceiptSuccessfulSources
+    + scheduleDecisionSuccessfulSources
     + criteria.successfulSources
     + continuingStory.successfulSources;
   const state = successfulSources === 0 && loading

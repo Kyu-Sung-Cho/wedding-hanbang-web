@@ -22,8 +22,10 @@ import { colors, radius, spacing } from "@hanbang/design-tokens";
 import {
   validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
+  validateAmoraPreparationScheduleDecisionPageResponse,
   type AmoraPreparationActionReceiptPageResponse,
   type AmoraPreparationNotesPageResponse,
+  type AmoraPreparationScheduleDecisionPageResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
 
 import {
@@ -48,6 +50,7 @@ import {
   loadAmoraPreparationActionReceiptPage,
   loadAmoraPreparationNotesMessagePage,
   loadAmoraPreparationNotesSources,
+  loadAmoraPreparationScheduleDecisionPage,
   normalizeAmoraPreparationNotesQuery,
   type AmoraPreparationNotesSources,
 } from "@/lib/amoraPreparationNotesLoader.mjs";
@@ -73,6 +76,7 @@ type NotesSnapshot = Readonly<{
   sources: AmoraPreparationNotesSources;
   messageReferencePages: readonly AmoraPreparationNotesPageResponse[];
   actionReceiptPages: readonly AmoraPreparationActionReceiptPageResponse[];
+  scheduleDecisionPages: readonly AmoraPreparationScheduleDecisionPageResponse[];
   appliedQuery: string;
 }>;
 
@@ -101,6 +105,7 @@ const TYPE_FILTERS: readonly Readonly<{
   Object.freeze({ value: "saved_conversation", label: "저장 대화" }),
   Object.freeze({ value: "owner_criterion", label: "내 기준" }),
   Object.freeze({ value: "couple_criterion", label: "우리 기준" }),
+  Object.freeze({ value: "confirmed_decision", label: "확인한 결정" }),
   Object.freeze({ value: "applied_receipt", label: "실제 반영" }),
 ]);
 
@@ -136,9 +141,23 @@ function formatSavedAt(value: string): string {
 function allSourcesUnavailable(sources: AmoraPreparationNotesSources): boolean {
   return sources.messageReferenceReadState === "unavailable"
     && sources.actionReceiptReadState === "unavailable"
+    && sources.scheduleDecisionReadState === "unavailable"
     && sources.ownerCriterionReadState === "unavailable"
     && sources.coupleCriterionReadState === "unavailable"
     && sources.actionReadState === "unavailable";
+}
+
+function initialScheduleDecisionPages(
+  sources: AmoraPreparationNotesSources,
+  identity: ScheduleIdentitySnapshot,
+): readonly AmoraPreparationScheduleDecisionPageResponse[] {
+  if (sources.scheduleDecisionReadState !== "loaded") return Object.freeze([]);
+  const parsed = validateAmoraPreparationScheduleDecisionPageResponse(
+    sources.scheduleDecisionCollection,
+    identity.ownerId,
+    identity.coupleId,
+  );
+  return parsed.ok ? Object.freeze([parsed.value]) : Object.freeze([]);
 }
 
 function initialActionReceiptPages(
@@ -207,10 +226,12 @@ function NotesRecordRow({
 }) {
   const topicLabel = record.topicLabels.length > 0
     ? record.topicLabels.join(" · ")
-    : record.type === "applied_receipt" ? "준비 행동" : "준비 기준";
+    : record.type === "applied_receipt" ? "준비 행동"
+      : record.type === "confirmed_decision" ? "확인한 일정" : "준비 기준";
   const destinationLabel = record.type === "saved_conversation"
     ? "원문 대화 보기"
-    : record.type === "applied_receipt" ? "홈에서 확인" : "기준 확인하기";
+    : record.type === "applied_receipt" ? "홈에서 확인"
+      : record.type === "confirmed_decision" ? "일정에서 보기" : "기준 확인하기";
   const accessibilityLabel = [
     record.typeLabel,
     record.type === "saved_conversation" ? record.questionExcerpt : undefined,
@@ -244,7 +265,7 @@ function NotesRecordRow({
       {record.type === "saved_conversation" && record.questionExcerpt ? (
         <AppText variant="eyebrow" style={styles.answerLabel}>아모라 답변</AppText>
       ) : null}
-      {record.type === "applied_receipt" ? (
+      {record.type === "applied_receipt" || record.type === "confirmed_decision" ? (
         <AppText variant="bodyStrong" style={styles.recordExcerpt} numberOfLines={2}>
           {record.title}
         </AppText>
@@ -351,6 +372,7 @@ export default function AmoraPreparationNotesScreen() {
       identityRef.current = finalIdentity;
       const messageReferencePages = initialMessageReferencePages(sources, finalIdentity);
       const actionReceiptPages = initialActionReceiptPages(sources, finalIdentity);
+      const scheduleDecisionPages = initialScheduleDecisionPages(sources, finalIdentity);
       const sourceProjection = buildAmoraPreparationNotes({
         ownerId: finalIdentity.ownerId,
         coupleId: finalIdentity.coupleId,
@@ -358,6 +380,7 @@ export default function AmoraPreparationNotesScreen() {
         ...sources,
         ...(messageReferencePages.length > 0 ? { messageReferencePages } : {}),
         ...(actionReceiptPages.length > 0 ? { actionReceiptPages } : {}),
+        ...(scheduleDecisionPages.length > 0 ? { scheduleDecisionPages } : {}),
         openActions: sources.openActions ?? undefined,
         todayYmd: formatLocalDateKey(),
         query: "",
@@ -382,6 +405,7 @@ export default function AmoraPreparationNotesScreen() {
         sources,
         messageReferencePages,
         actionReceiptPages,
+        scheduleDecisionPages,
         appliedQuery: "",
       });
       if (sourceProjection.state !== "read_error") {
@@ -477,7 +501,7 @@ export default function AmoraPreparationNotesScreen() {
             identityInvalid = isCurrent();
             throw new Error("AMORA_NOTES_SEARCH_IDENTITY_CHANGED");
           }
-          const [messagePage, actionReceiptPage] = await Promise.all([
+          const [messagePage, actionReceiptPage, scheduleDecisionPage] = await Promise.all([
             loadAmoraPreparationNotesMessagePage({
               ownerId: initialIdentity.ownerId,
               coupleId: initialIdentity.coupleId,
@@ -490,6 +514,17 @@ export default function AmoraPreparationNotesScreen() {
               signal: controller.signal,
             }),
             loadAmoraPreparationActionReceiptPage({
+              ownerId: initialIdentity.ownerId,
+              coupleId: initialIdentity.coupleId,
+              query: normalizedQuery,
+              cursor: null,
+              apiFetch: (path, options) => (
+                apiFetchForExpectedUser(initialIdentity.ownerId, path, options)
+              ),
+              isCurrent,
+              signal: controller.signal,
+            }),
+            loadAmoraPreparationScheduleDecisionPage({
               ownerId: initialIdentity.ownerId,
               coupleId: initialIdentity.coupleId,
               query: normalizedQuery,
@@ -517,12 +552,15 @@ export default function AmoraPreparationNotesScreen() {
             messageReferenceReadState: "loaded" as const,
             actionReceiptCollection: actionReceiptPage,
             actionReceiptReadState: "loaded" as const,
+            scheduleDecisionCollection: scheduleDecisionPage,
+            scheduleDecisionReadState: "loaded" as const,
           });
           const nextSnapshot = Object.freeze({
             identity: finalIdentity,
             sources: nextSources,
             messageReferencePages: Object.freeze([messagePage]),
             actionReceiptPages: Object.freeze([actionReceiptPage]),
+            scheduleDecisionPages: Object.freeze([scheduleDecisionPage]),
             appliedQuery: normalizedQuery,
           });
           const nextProjection = buildAmoraPreparationNotes({
@@ -532,6 +570,7 @@ export default function AmoraPreparationNotesScreen() {
             ...nextSources,
             messageReferencePages: nextSnapshot.messageReferencePages,
             actionReceiptPages: nextSnapshot.actionReceiptPages,
+            scheduleDecisionPages: nextSnapshot.scheduleDecisionPages,
             openActions: nextSources.openActions ?? undefined,
             todayYmd: formatLocalDateKey(),
             query: normalizedQuery,
@@ -589,6 +628,9 @@ export default function AmoraPreparationNotesScreen() {
       ...(snapshot.actionReceiptPages.length > 0
         ? { actionReceiptPages: snapshot.actionReceiptPages }
         : {}),
+      ...(snapshot.scheduleDecisionPages.length > 0
+        ? { scheduleDecisionPages: snapshot.scheduleDecisionPages }
+        : {}),
       openActions: snapshot.sources.openActions ?? undefined,
       todayYmd: formatLocalDateKey(),
       query: snapshot.appliedQuery,
@@ -604,7 +646,12 @@ export default function AmoraPreparationNotesScreen() {
   const lastActionReceiptPage = snapshot?.actionReceiptPages.at(-1) ?? null;
   const hasMoreActionReceipts = lastActionReceiptPage?.nextCursor !== null
     && lastActionReceiptPage?.nextCursor !== undefined;
-  const hasMorePreparationRecords = hasMoreMessageReferences || hasMoreActionReceipts;
+  const lastScheduleDecisionPage = snapshot?.scheduleDecisionPages.at(-1) ?? null;
+  const hasMoreScheduleDecisions = lastScheduleDecisionPage?.nextCursor !== null
+    && lastScheduleDecisionPage?.nextCursor !== undefined;
+  const hasMorePreparationRecords = hasMoreMessageReferences
+    || hasMoreActionReceipts
+    || hasMoreScheduleDecisions;
   const canLoadMorePreparationRecords = hasMorePreparationRecords
     && messagePageState === "idle"
     && normalizeAmoraPreparationNotesQuery(query) === snapshot?.appliedQuery;
@@ -620,10 +667,15 @@ export default function AmoraPreparationNotesScreen() {
     const currentSnapshot = snapshot;
     const currentLastPage = currentSnapshot?.messageReferencePages.at(-1) ?? null;
     const currentLastActionReceiptPage = currentSnapshot?.actionReceiptPages.at(-1) ?? null;
+    const currentLastScheduleDecisionPage = currentSnapshot?.scheduleDecisionPages.at(-1) ?? null;
     const normalizedQuery = normalizeAmoraPreparationNotesQuery(query);
     if (
       !currentSnapshot
-      || (!currentLastPage?.nextCursor && !currentLastActionReceiptPage?.nextCursor)
+      || (
+        !currentLastPage?.nextCursor
+        && !currentLastActionReceiptPage?.nextCursor
+        && !currentLastScheduleDecisionPage?.nextCursor
+      )
       || normalizedQuery === null
       || normalizedQuery !== currentSnapshot.appliedQuery
       || messagePageState !== "idle"
@@ -655,7 +707,7 @@ export default function AmoraPreparationNotesScreen() {
         identityInvalid = isCurrent();
         throw new Error("AMORA_NOTES_MORE_IDENTITY_CHANGED");
       }
-      const [messagePage, actionReceiptPage] = await Promise.all([
+      const [messagePage, actionReceiptPage, scheduleDecisionPage] = await Promise.all([
         currentLastPage?.nextCursor
           ? loadAmoraPreparationNotesMessagePage({
               ownerId: initialIdentity.ownerId,
@@ -682,6 +734,19 @@ export default function AmoraPreparationNotesScreen() {
               signal: controller.signal,
             })
           : Promise.resolve(null),
+        currentLastScheduleDecisionPage?.nextCursor
+          ? loadAmoraPreparationScheduleDecisionPage({
+              ownerId: initialIdentity.ownerId,
+              coupleId: initialIdentity.coupleId,
+              query: currentSnapshot.appliedQuery,
+              cursor: currentLastScheduleDecisionPage.nextCursor,
+              apiFetch: (path, options) => (
+                apiFetchForExpectedUser(initialIdentity.ownerId, path, options)
+              ),
+              isCurrent,
+              signal: controller.signal,
+            })
+          : Promise.resolve(null),
       ]);
       const finalIdentity = await readCurrentNotesIdentity();
       if (
@@ -694,6 +759,14 @@ export default function AmoraPreparationNotesScreen() {
         || (
           actionReceiptPage !== null
           && actionReceiptPage.snapshotAt !== currentLastActionReceiptPage?.snapshotAt
+        )
+        || (
+          scheduleDecisionPage !== null
+          && (
+            scheduleDecisionPage.snapshotAt !== currentLastScheduleDecisionPage?.snapshotAt
+            || scheduleDecisionPage.currentJourneyRevision
+              !== currentLastScheduleDecisionPage?.currentJourneyRevision
+          )
         )
         || !isSameScheduleIdentitySnapshot(initialIdentity, finalIdentity)
       ) {
@@ -712,11 +785,16 @@ export default function AmoraPreparationNotesScreen() {
         ...currentSnapshot.actionReceiptPages,
         ...(actionReceiptPage === null ? [] : [actionReceiptPage]),
       ]);
+      const nextScheduleDecisionPages = Object.freeze([
+        ...currentSnapshot.scheduleDecisionPages,
+        ...(scheduleDecisionPage === null ? [] : [scheduleDecisionPage]),
+      ]);
       const nextSnapshot = Object.freeze({
         ...currentSnapshot,
         identity: finalIdentity,
         messageReferencePages: nextPages,
         actionReceiptPages: nextActionReceiptPages,
+        scheduleDecisionPages: nextScheduleDecisionPages,
       });
       const nextProjection = buildAmoraPreparationNotes({
         ownerId: finalIdentity.ownerId,
@@ -725,6 +803,7 @@ export default function AmoraPreparationNotesScreen() {
         ...currentSnapshot.sources,
         messageReferencePages: nextPages,
         actionReceiptPages: nextActionReceiptPages,
+        scheduleDecisionPages: nextScheduleDecisionPages,
         openActions: currentSnapshot.sources.openActions ?? undefined,
         todayYmd: formatLocalDateKey(),
         query: currentSnapshot.appliedQuery,
@@ -787,6 +866,10 @@ export default function AmoraPreparationNotesScreen() {
       });
       return;
     }
+    if (record.type === "confirmed_decision") {
+      router.push("/schedule");
+      return;
+    }
     router.push({
       pathname: "/settings/amora-style",
       params: { focus: record.openSource.focus },
@@ -837,7 +920,7 @@ export default function AmoraPreparationNotesScreen() {
             흩어진 준비 이야기를 한눈에
           </AppText>
           <AppText variant="body" style={styles.introBody}>
-            저장한 상담, 지금 쓰는 기준, 실제로 준비에 반영한 행동을 모았어요.
+            저장한 상담, 지금 쓰는 기준, 확인한 일정과 실제로 반영한 행동을 모았어요.
           </AppText>
           <View style={styles.privacyLine}>
             <LockKeyhole size={15} color={colors.sage[500]} />

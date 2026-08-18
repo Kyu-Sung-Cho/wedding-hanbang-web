@@ -245,7 +245,7 @@ function hasExactScheduleSnapshot(left, right) {
   return JSON.stringify(stableJsonValue(left)) === JSON.stringify(stableJsonValue(right));
 }
 
-function readConfirmedScheduleDecisions(
+export function readAmoraConfirmedScheduleDecisions(
   topicKey,
   expectedCoupleId,
   currentJourneyRevision,
@@ -1535,7 +1535,7 @@ export function buildAmoraPreparationTopicView({
     ? decisionReadState
     : "unavailable";
   const linkedDecisions = normalizedDecisionReadState !== "unavailable"
-    ? readConfirmedScheduleDecisions(
+    ? readAmoraConfirmedScheduleDecisions(
         topicKey,
         expectedCoupleId,
         currentJourneyRevision,

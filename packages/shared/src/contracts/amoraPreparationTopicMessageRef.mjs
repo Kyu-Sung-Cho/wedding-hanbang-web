@@ -2,6 +2,7 @@ export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTRACT_VERSION = 1;
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT = 80;
 export const AMORA_PREPARATION_NOTES_PAGE_LIMIT = 24;
 export const AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT = 24;
+export const AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT = 24;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -32,6 +33,7 @@ const UNSAFE_MULTILINE_RE =
   /[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000B-\u001F\u007F-\u009F]/u;
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const SCHEDULE_DECISION_CURSOR_RE = /^sd1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_ID_RE = /^[0-9A-Za-z_-]{1,200}$/u;
 
 function isRecord(value) {
@@ -88,6 +90,19 @@ function isIsoTime(value) {
   return day >= 1
     && day <= daysInMonth[month - 1]
     && Number.isFinite(Date.parse(value));
+}
+
+function isCalendarDate(value) {
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day >= 1 && day <= daysInMonth[month - 1];
 }
 
 function isSafeRevision(value) {
@@ -355,6 +370,82 @@ export function validateAmoraPreparationActionReceiptPageResponse(
     }
     receiptIds.add(receiptId);
     actionIds.add(entry.actionId);
+  }
+  return { ok: true, value };
+}
+
+function isPreparationScheduleDecisionEntry(value, snapshotAt) {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "decisionId",
+      "eventId",
+      "topicKey",
+      "title",
+      "date",
+      "confirmedAt",
+      "scope",
+      "canOpenSchedule",
+    ])
+    && isUuid(value.decisionId)
+    && typeof value.eventId === "string"
+    && ACTION_ID_RE.test(value.eventId)
+    && TOPIC_KEYS.has(value.topicKey)
+    && isSafeExcerpt(value.title)
+    && Array.from(value.title).length <= 160
+    && isCalendarDate(value.date)
+    && isIsoTime(value.confirmedAt)
+    && Date.parse(value.confirmedAt) <= Date.parse(snapshotAt)
+    && value.scope === "couple_shared"
+    && value.canOpenSchedule === true;
+}
+
+export function validateAmoraPreparationScheduleDecisionPageResponse(
+  value,
+  expectedRecipientUserId,
+  expectedCoupleId,
+) {
+  const envelopeError = validateEnvelope(
+    value,
+    expectedRecipientUserId,
+    expectedCoupleId,
+  );
+  if (envelopeError) return envelopeError;
+  if (
+    !hasExactKeys(value, [
+      "version",
+      "state",
+      "recipientUserId",
+      "coupleId",
+      "snapshotAt",
+      "currentJourneyRevision",
+      "entries",
+      "nextCursor",
+      "partial",
+    ])
+    || value.state !== "ready"
+    || !isIsoTime(value.snapshotAt)
+    || !isSafeRevision(value.currentJourneyRevision)
+    || !Array.isArray(value.entries)
+    || value.entries.length > AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT
+    || value.entries.some((entry) => (
+      !isPreparationScheduleDecisionEntry(entry, value.snapshotAt)
+    ))
+    || (value.nextCursor !== null && (
+      typeof value.nextCursor !== "string"
+      || !SCHEDULE_DECISION_CURSOR_RE.test(value.nextCursor)
+    ))
+    || typeof value.partial !== "boolean"
+  ) return { ok: false, reason: "collection" };
+
+  const decisionIds = new Set();
+  const eventIds = new Set();
+  for (const entry of value.entries) {
+    const decisionId = entry.decisionId.toLowerCase();
+    if (decisionIds.has(decisionId) || eventIds.has(entry.eventId)) {
+      return { ok: false, reason: "collection" };
+    }
+    decisionIds.add(decisionId);
+    eventIds.add(entry.eventId);
   }
   return { ok: true, value };
 }
