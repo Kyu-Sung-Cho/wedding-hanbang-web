@@ -1,0 +1,1482 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-18T07:56:05.352Z",
+  "baselineCommit": "b3f8a712866b0023bae6efa662f3d40ed8eb13c3",
+  "candidateCommit": "3b623e18955eb53fb3c03c08d652536cf890e4af",
+  "candidateTree": "e9f70b60761236d2458984bbf5379c9ef07b67a7",
+  "candidateDelta": {
+    "pathCount": 235,
+    "addedCount": 89,
+    "modifiedCount": 146,
+    "deletedCount": 0,
+    "paths": [
+      {
+        "status": "M",
+        "path": "apps/mobile/.env.example",
+        "blobOid": "8b43a58bdcdfa977ddcac571ae73eaf5b07992b0"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/(tabs)/chat.tsx",
+        "blobOid": "99322ecfcb7b9abc1de9946880c6f7dde61f520c"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/(tabs)/dashboard.tsx",
+        "blobOid": "66257980e5febc96dfbb182fdcfcdddfddd2525d"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/(tabs)/profile.tsx",
+        "blobOid": "9bda067d384b99438a4f2029e9cb3c87fd6363a5"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/_layout.tsx",
+        "blobOid": "8817fdcd38266a585419b93874cbf43eb312e3c5"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/app/amora-notes.tsx",
+        "blobOid": "aec9cbc8b3aa27682073a227eb41ff5a025bcbf0"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/budget/index.tsx",
+        "blobOid": "8e6776796aef46505222cf0728bd8969b1b53170"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/onboarding/index.tsx",
+        "blobOid": "fe409eeb40bd79f7a5c7a7b1c6693a9794ee6c53"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/schedule/index.tsx",
+        "blobOid": "f95f12e556e1960e540051809db53671c2aa9519"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/settings/amora-memory.tsx",
+        "blobOid": "52e56b204efc2a0bf9ee77092d5c7b4c779b9622"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/app/settings/index.tsx",
+        "blobOid": "1d508277f1783e76ce0671aa8d12ef884d89375f"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/amoraChatReceipts.test.mjs",
+        "blobOid": "797f5a4d35d6ddf08d3817834e1d78872a540ca2"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/amoraChatSharedConfirmation.test.mjs",
+        "blobOid": "df3157bb3f98eb8819dac9aab36ce4e8ba1ad2c7"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/amoraConsumerState.test.mjs",
+        "blobOid": "40f9c18e49f33bb46880ead877efa3dd332ddf20"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/amoraEntryPlan.test.mjs",
+        "blobOid": "62b6895c5239dd4add77c059db8d63b1bd35a6cb"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/amoraJourneyFixtureMatrix.test.mjs",
+        "blobOid": "b5bcee183780c8803b7614ddcccd0083b6fd54aa"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/amoraMediation.test.mjs",
+        "blobOid": "42b1a2b315be4476c2d4c28ecaa588ad5d913e38"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/amoraMediationRequest.test.mjs",
+        "blobOid": "72a0ffdfd7153cdc47c46d536bea3132d581722e"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/amoraMemorySettings.test.mjs",
+        "blobOid": "777780fe085bdabfaddcba3b970ec775bc02e9bb"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/amoraPreparationCatchUp.test.mjs",
+        "blobOid": "fb889aae827960d5ea345f6bd50297abefede839"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/amoraPreparationNotes.test.mjs",
+        "blobOid": "90e2f7f4c8a749e82c1a61856abf5feb70a6d0a3"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/amoraPreparationNotesLoader.test.mjs",
+        "blobOid": "28b0fee35a3d14661531e50a23e43c253ed54155"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/amoraPreparationNotesScreenContract.test.mjs",
+        "blobOid": "30cad714a1a7c2f458fdd96de011cb9277f9b46a"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/chatStream.test.mjs",
+        "blobOid": "35ce63977593763b68d268e46700c829bd5f4aa9"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/communityTrust.test.mjs",
+        "blobOid": "e884153d3fcea182785f337ff0c852c2e441f1ce"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/communityTrustParityBoundary.test.mjs",
+        "blobOid": "ab079572609154f271802b6ac904685e4f3a0e34"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/dashboardExperience.test.mjs",
+        "blobOid": "2dc229abae12251e967ab5aadfe7ba35aeee43ff"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/neutralBudgetPayerPresentation.test.mjs",
+        "blobOid": "251e313a984b6fda5587cf5d241c6c8294281fd0"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/neutralMemberPresentation.test.mjs",
+        "blobOid": "0c5d30cfb4e57726805e0c1ab747f42b41e8d61c"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/onboardingActorFence.test.mjs",
+        "blobOid": "38f5bc95c981d22c0cf87de5736ad1c5eead2562"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/onboardingFirstValue.test.mjs",
+        "blobOid": "49fdd9085dfb30df59d6bc1984126daeb0ac43e4"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/planningFoundationDraftHandoff.test.mjs",
+        "blobOid": "29c9028407cd7da2a0dce2032e77ac47e7723daf"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/planningFoundationFirstValue.test.mjs",
+        "blobOid": "0d5873dcf7d5bb573406f30b009c9a3646fd8bcd"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/preparationCatchUpDraft.test.mjs",
+        "blobOid": "35e9ef80ff5951cdc456713de4436f9f526ab710"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationMap.test.mjs",
+        "blobOid": "47625cb835a3741fd8e16c0ef2f2974272f78885"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationMapPresentation.test.mjs",
+        "blobOid": "b45383e4d5ab5c0c0cc040cb8508c576c3ddb647"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/preparationTopicApplicability.test.mjs",
+        "blobOid": "18860e4a2af9012d56c817dd0dd51b0553bd4f02"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/preparationTopicCatchUpRecords.test.mjs",
+        "blobOid": "90d66f67d680009e717c68afdc22ebb4d889c349"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/preparationTopicChatRoundTrip.test.mjs",
+        "blobOid": "a6106b5de1981a633dc8f0e3a4f120ec3a51feda"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/preparationTopicConsumerState.test.mjs",
+        "blobOid": "26cc9a006b162c8027e129bc866adec13878dc31"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationTopicMessageRefs.test.mjs",
+        "blobOid": "56e2ae3991f15e2f9db734f00b630d43c648ba6b"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationTopicPersonalization.test.mjs",
+        "blobOid": "29bbb17299030bde41675aeab678c30ca83c5d54"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationTopicPresentation.test.mjs",
+        "blobOid": "d2462b374b11cf7e42e96bce1bf19bd042dd9804"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs",
+        "blobOid": "06c297f445dc90bfc1f7d581d41d3dda5030d823"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/preparationTopicView.test.mjs",
+        "blobOid": "4f6001f0cdcb07000583ae91727bd2e6e3bae102"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/scheduleChecklistNavigation.test.mjs",
+        "blobOid": "6a10a56afef69fb88b71ca9afa8d7b869e8e2e1f"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/__tests__/sourceDisclosurePresentation.test.mjs",
+        "blobOid": "9f6523b078ff31875df6149992fd846d49b5f64d"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/__tests__/todayOneCare.test.mjs",
+        "blobOid": "0a93e63349d593404393cdb298a011e917d66a9d"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/components/chat/AmoraMediationCard.tsx",
+        "blobOid": "47137479079e9ff9d4242acf046fc660ad0a4cae"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/components/chat/AmoraMediationConsentModal.tsx",
+        "blobOid": "468d1acfccfd397ee7de2773a583e08891ea4254"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/components/common/AmoraSourceDisclosureView.tsx",
+        "blobOid": "552c9a4635bcda20a30c0c51c83c7ec804488c02"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/components/community/CommunityTrustBadges.tsx",
+        "blobOid": "0a07854a629edcd46fafe9f57dc492bc6a1842cd"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/components/dashboard/AmoraRecommendationWhySheet.tsx",
+        "blobOid": "842879b00a8caf98f2950e7d0b9dfd56c370a66a"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/components/dashboard/WeddingHomeExperience.tsx",
+        "blobOid": "0fc4bbdf7add972512c98892d6ca49b0ed4ab74d"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/components/onboarding/AmoraPreparationCatchUp.tsx",
+        "blobOid": "da41bdb0e5d4f3005a676844f1e0b8388a5e0b79"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/components/planning/PreparationTopicSummary.tsx",
+        "blobOid": "c0e80082d60aab5bfe759d30fb8aa3d1ecd57b83"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/amoraEntryPlan.d.mts",
+        "blobOid": "080172edc41c1868c45dfc20dd2c8197fa66682f"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/amoraEntryPlan.mjs",
+        "blobOid": "e275d621e528fdd2b8c79176a37319cc0d707848"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/amoraMediation.ts",
+        "blobOid": "9041b173e14aad795a8e80fd32cfc7ab14d01956"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/amoraMediationRequest.d.mts",
+        "blobOid": "102a5e95f31c4e59cc2431b980dda1724b5764db"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/amoraMediationRequest.mjs",
+        "blobOid": "627054612813d84a4abf3e1b4c3be24d78892579"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/amoraPreparationNotes.d.mts",
+        "blobOid": "875e2db10511be77dc2ed6d50cff297a85f75cee"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/amoraPreparationNotes.mjs",
+        "blobOid": "0a48d97ee4d23a261139e744e6a2e0464001117f"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/amoraPreparationNotesLoader.d.mts",
+        "blobOid": "081a6a460315bed7d5b984aebbe5d786b0085f6e"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/amoraPreparationNotesLoader.mjs",
+        "blobOid": "d3c8b4071621a4b6a98b17ee349693ac0e3ea2cf"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/communityTrust.d.mts",
+        "blobOid": "9c05955f0253845340e91fa0261e5f5f254c8f34"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/communityTrust.mjs",
+        "blobOid": "15088943537e9eb993f49a22bdc2d0fc3b7455bc"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/companionChatHandoff.d.mts",
+        "blobOid": "02277c062c8fc18992b8684c908b2bb09a8b2249"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/companionChatHandoff.mjs",
+        "blobOid": "ecbfc8371745c74eb5c379aa1e2286857e8c8dbd"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/dashboardExperience.d.mts",
+        "blobOid": "015d3365d4380beb7b8670804f491d28821bcde5"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/dashboardExperience.mjs",
+        "blobOid": "ee9217e718662982b04bec0936c1adf3f79134df"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/neutralBudgetPayerPresentation.d.mts",
+        "blobOid": "b37f6306f511f4d154f7984dea752f24564a8f55"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/neutralBudgetPayerPresentation.mjs",
+        "blobOid": "f6d269bf6fc9e30d826889e369f5d20921b3e4bf"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/neutralMemberPresentation.d.mts",
+        "blobOid": "1c1613aafee190dfcc168bbb7e642ddbe5c8b04e"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/neutralMemberPresentation.mjs",
+        "blobOid": "2a61927728c1fd67e0cd132b9bf494e421a3191c"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/onboardingFirstValue.d.mts",
+        "blobOid": "2429d63f84db42903273eb7baf90c8103b6bd702"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/onboardingFirstValue.mjs",
+        "blobOid": "2f6572b9759631eb62884ff16fa8426d196e426c"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/planningFoundationDraftHandoff.d.mts",
+        "blobOid": "048906339abbfe3e01fa31cefe4539bbfa29102e"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/planningFoundationDraftHandoff.mjs",
+        "blobOid": "3d8aca10d56234f4db83f9325e1f40acec25c959"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/planningFoundationDraftHandoff.ts",
+        "blobOid": "83ae82e55e2a0b4689d1549d96274c20cacc4f22"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationCatchUpDraft.d.mts",
+        "blobOid": "cbc2cb8a23a1795335a1b46953b6ccef94088730"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationCatchUpDraft.mjs",
+        "blobOid": "24066289267927a65b65d1f79e741e30d57272ab"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationCatchUpDraft.ts",
+        "blobOid": "5211b13b63503d9ecc0b496cec2f39fa936d35a1"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationMapPresentation.d.mts",
+        "blobOid": "a3ff5a2aef5125e13a1cfe0d067336784d67760b"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationMapPresentation.mjs",
+        "blobOid": "2afa0f0539f4f3ebbca349f8939ed3d7bab84e2c"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationTopicApplicability.d.mts",
+        "blobOid": "f1804c4a66535dcdcacf1b37a77b1ec3a5f1fc1d"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationTopicApplicability.mjs",
+        "blobOid": "49608e8ec96050f63f2f7a4a54c4531a3d21fbd0"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationTopicCatchUpRecords.d.mts",
+        "blobOid": "b1ad9a11550d9404136f5a1a5b9c4c848b9978e1"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationTopicCatchUpRecords.mjs",
+        "blobOid": "34a61f6ce1fbb41ff5e199adedf0589a289c2e9b"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationTopicChatRoundTrip.d.mts",
+        "blobOid": "b6261ed6f84339831ab13ec7e1373f7dbbb5ec8d"
+      },
+      {
+        "status": "A",
+        "path": "apps/mobile/src/lib/preparationTopicChatRoundTrip.mjs",
+        "blobOid": "0b79051d0394dc8227378cc9c27a07a29bb62957"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationTopicMessageRefs.d.mts",
+        "blobOid": "24cf8af694583313465c49522ae96feff974f7ed"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationTopicMessageRefs.mjs",
+        "blobOid": "d0e45f30d0c440a5d2c25de4d35d88fbd9769b9b"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationTopicPersonalization.d.mts",
+        "blobOid": "45d633735290da9fae0a134f6b5f3cd782f4b288"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationTopicPersonalization.mjs",
+        "blobOid": "21fad493aa2625e500ba8f047a7acde31a5b02f5"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationTopicPresentation.d.mts",
+        "blobOid": "6bbcf347258aad7e5fb88edd4b07e2f5a41bb021"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/preparationTopicPresentation.mjs",
+        "blobOid": "d034f53b4c8aa1d6a016a5df0baa858e943b4954"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/scheduleChecklistNavigation.d.mts",
+        "blobOid": "81b8b90d091a87f72f0ff35e992c56e8c03c7e64"
+      },
+      {
+        "status": "M",
+        "path": "apps/mobile/src/lib/scheduleChecklistNavigation.mjs",
+        "blobOid": "5804208a4b653be9ecc5d16ce16c16b697319894"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/.env.example",
+        "blobOid": "d5de97c0ea442b1e80e898819d1d706ce129cfa4"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/app/(app)/money/page.neutral-presentation.test.ts",
+        "blobOid": "8fb9df042f2e96498cd71840a72121785240015f"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/(app)/money/page.tsx",
+        "blobOid": "8812fa415954f6016c6dbee98c57584c69d11db4"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/(app)/settings/amora-memory/page.sensitive-memory-copy.test.ts",
+        "blobOid": "b3f5df802d1a3b14781b8c85ea8fd5c57c87bca5"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/(app)/settings/amora-memory/page.tsx",
+        "blobOid": "ee8b62c3fe9dccd632be615569b8a55cb541a58f"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/(auth)/onboarding/page.tsx",
+        "blobOid": "25c5b3e16b1f63a5847fe8d320ce52c3d4fc9e9f"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/(community)/community/quote-check/page.tsx",
+        "blobOid": "05078c74d38bade1e977afc89ddcb9740bc9ce84"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/app/api/amora/mediation/draft/route.test.ts",
+        "blobOid": "0bf4ec74a9dc1c31e89604b613a9aad319f0e97e"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/app/api/amora/mediation/draft/route.ts",
+        "blobOid": "8ee846379db269fa3d5984db25772f43243432ae"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/amora/memory/__tests__/route.test.ts",
+        "blobOid": "3bc83228601901930152282e0d8bad3cca850b64"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/amora/memory/route.ts",
+        "blobOid": "461b2e44a115a6c62a8a0748c11e7f354801b7d2"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/app/api/amora/preparation-catch-up/route.test.ts",
+        "blobOid": "98443529f5805ed5271087b5e19c19b715b3c25b"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/app/api/amora/preparation-catch-up/route.ts",
+        "blobOid": "befa9b9002639d0c16d3edd08cb6e9677e8381b8"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/amora/preparation-topic-message-refs/[refId]/route.test.ts",
+        "blobOid": "83f32468fce04dec0dc8e8a7e02878a6b336f58e"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/amora/preparation-topic-message-refs/[refId]/route.ts",
+        "blobOid": "9313423515b9d6df306bdbc1e06ed29f3269a5cb"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/amora/preparation-topic-message-refs/route.test.ts",
+        "blobOid": "3e67ad9187820d6b7636f700ccfb9c319b69e66a"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/amora/preparation-topic-message-refs/route.ts",
+        "blobOid": "186fae594a8f85e128e7d586faeb48a9d42a95e5"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/auth/me/route.ts",
+        "blobOid": "6e65cebccd6863654eab1ca39e9436edc14aaa6b"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts",
+        "blobOid": "65c27c395e494709e2503342b79cd110af0e861b"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/chat/messages/route.test.ts",
+        "blobOid": "8d11326e152a69659cf50cf366e3687e15daa4aa"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/chat/messages/route.ts",
+        "blobOid": "c8ec642cc63ce78099c8c2ca1debe1682602dbea"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/chat/route.ts",
+        "blobOid": "33ab976703c6afc42b94f0e79d48384c829992f1"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/onboarding/__tests__/route.test.ts",
+        "blobOid": "bdafebfd5155fc6c8947b1e858227f8f3ffd7beb"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/app/api/onboarding/route.ts",
+        "blobOid": "bed3b01dfecf4e5dd9ffb00c7cc218053d95c372"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/budget/BudgetContent.tsx",
+        "blobOid": "145d22b4f46bbac4e7ff3d6a1eb23442aed68225"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/budget/__tests__/budgetReliability.test.ts",
+        "blobOid": "3ccd6fd2c1dfe2dea5372c2aba87c2e23a7c3d96"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/ChatBubble.tsx",
+        "blobOid": "facd9721f934d6c1e63ccde5d1a6bd2c2aa7ca9c"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/ChatContent.tsx",
+        "blobOid": "c58f3713d456a377311187cf1b03a77871c72de0"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/ChatSidePanel.tsx",
+        "blobOid": "5e2ecc1f081b9cec0cda2937a7cbd4639bb00650"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/MediationCard.tsx",
+        "blobOid": "c0faf9a0103ffa5e611d21adf1704f5ca889c7c8"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/MediationConsentDialog.test.tsx",
+        "blobOid": "a06d853aa9279b687d36c460c8533a066a4267d7"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/MediationConsentDialog.tsx",
+        "blobOid": "e10ca6e52f8bcb44270d33bf0cea83e14789a73c"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/MediationEntryContract.test.ts",
+        "blobOid": "33f9c9f600b01fc6d34a8ef49015488a9f8860fb"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/QuoteAnalysisCard.test.tsx",
+        "blobOid": "e06a7e29b7ebe5021593812623b7c71becf2de66"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/QuoteAnalysisCard.tsx",
+        "blobOid": "8f30ac93baa9aaa53f80f4b1ae37275cb1922e0b"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/VendorToolCard.test.tsx",
+        "blobOid": "aebc6a9686b447d8d3cca853576b17d5a095edcb"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/VendorToolCard.tsx",
+        "blobOid": "a77cc2f62d2acdfcb8985226d325f9d444da8e58"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/app/chat/__tests__/MediationCardContract.test.ts",
+        "blobOid": "4200f7d0acd0f488aba9a3f691f834e30c061be2"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/components/onboarding/NeutralPreparationStart.test.tsx",
+        "blobOid": "7342e78db37d5030d14120b704591ef2657bd968"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/components/onboarding/NeutralPreparationStart.tsx",
+        "blobOid": "48eedcd9fff596f66b01f63da2709d550222e43b"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/components/onboarding/__tests__/onboardingReliability.test.ts",
+        "blobOid": "93f9dc01ec885f96d08a0911ce3f95d9444099fa"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/ai/__tests__/amoraProviderBackedAddActionApplicationMigration.test.ts",
+        "blobOid": "9027415ea6c8b371b24b446b8abcef4b0ef89b41"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/ai/__tests__/mediationPrivateDraftBoundaryMigration.test.ts",
+        "blobOid": "92e44d8355f5a229dc0277d5cf710f17dcefe2eb"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/ai/__tests__/prompts.test.ts",
+        "blobOid": "2d03e363e09d712512379bbccc5d5786d434fe83"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/ai/amoraPromptComposer.ts",
+        "blobOid": "ef5df9e523c95958d0020c623efeb14af206f6ca"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/ai/tools/__tests__/vendorOfficialRecommendation.test.ts",
+        "blobOid": "af87b3ad25c7d509c8586a341c994a6d58846604"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/ai/tools/vendorTools.ts",
+        "blobOid": "e5a14589a91b4c88ddf488114e7ceaf147331884"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/__tests__/amoraJourneyTruthAudit.test.ts",
+        "blobOid": "8dd938624b30ef5fe23ede9bdfbf9e9dc2ca3023"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/__tests__/amoraOfficialReferenceScope.test.ts",
+        "blobOid": "39337bc6e4f37d4eb1bfbbd59d056f270a779560"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/__tests__/amoraPreparationCatchUpMigration.test.ts",
+        "blobOid": "9a7f484ae579c2b797e326ecad75c9892e8406e6"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/__tests__/amoraSourceDisclosure.test.ts",
+        "blobOid": "e9330351cd8453a0ed41fb1546ff01ecff7f21f9"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/__tests__/preparationActionReceipt.test.ts",
+        "blobOid": "6d0d6bf6988d2d74820a0b6ce921b490768dde19"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/__tests__/preparationScheduleDecisionReceipt.test.ts",
+        "blobOid": "0dc40a495e78a778191952fe427261b9c2ce7448"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/amora/__tests__/preparationTopicMessageRefContract.test.ts",
+        "blobOid": "cb71517c7f6e8a454ee399e1638097227ca0739a"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/amora/__tests__/preparationTopicMessageRefsMigration.test.ts",
+        "blobOid": "bda53c9951af6aaa4ce9875e2404bd439c5859e6"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/amora/__tests__/quoteCheck.test.ts",
+        "blobOid": "8aa2888450b18a0c0fb22b506f09710ca0c4c8dc"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/preparationActionReceipt.ts",
+        "blobOid": "f9279e91373e22f4cfb966abaf5d8ed5458cfe10"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/amora/preparationScheduleDecisionReceipt.ts",
+        "blobOid": "704e8040515431256bbbd65840daabf271731e93"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/amora/quoteCheck.ts",
+        "blobOid": "dbcb264f8ecf395e8e76dc41f9e64f81338c4542"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/auth/__tests__/signupProfileIntegrityMigration.test.ts",
+        "blobOid": "69ac69ee5f1933621bcfb37106212c7b668fd593"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/care/__tests__/amoraPreparationCoverage.test.ts",
+        "blobOid": "56255739b2362aa9eab2f03dc7bc998ef9a2eddd"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/community/__tests__/initialFeed.test.ts",
+        "blobOid": "77240a6ca9d3be879c56d5dab903a669e61a4997"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/community/__tests__/notificationSessionOwnershipMigration.test.ts",
+        "blobOid": "5a4a7c7bd4bea8b60b3fd209e449b7286e69d92b"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/community/authorProfiles.ts",
+        "blobOid": "2647f4ef895793a7fd2600341c3e01b32a195b60"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/couples/__tests__/amoraNeutralPreparationSpaceMigration.test.ts",
+        "blobOid": "e75e2238346bfda83422a0a7f4cc654524d4e635"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/couples/__tests__/coupleInviteReplayHardeningMigration.test.ts",
+        "blobOid": "f978c06b1f6e1bf33bfd4a194f6615f0fe24b18c"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/couples/__tests__/membershipRpc.test.ts",
+        "blobOid": "31ece14966cd701638d27c7ce46720811c3c5748"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/couples/membershipRpc.ts",
+        "blobOid": "e2261d1909bd7597bf6b3923e4788ca739716b06"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/onboarding/neutralPreparationSpace.test.ts",
+        "blobOid": "6bd2db3cdadd3713001d59e219f1dc9f9b22855f"
+      },
+      {
+        "status": "A",
+        "path": "apps/web/src/lib/onboarding/neutralPreparationSpace.ts",
+        "blobOid": "a26ed7db322d62ea3fbbbf5cd1237d456d8ccc32"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/price/period.test.ts",
+        "blobOid": "f0ddfd42c616e63c3a0c519041a5913fcb9458a6"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/price/period.ts",
+        "blobOid": "f9127ca056f4db0d6519a4b4600d6cce0232691f"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/price/productionBuildFence.test.ts",
+        "blobOid": "9bfcdeea2bb3988216e333b737a5d133003ec20d"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/lib/quoteCheck/publicResult.test.ts",
+        "blobOid": "6271f7c51ee1da6df2b90a574ca2b2444675ad4b"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/stores/__tests__/chatStore.test.ts",
+        "blobOid": "6e19579433e7855ff76cf91546bfcaea8293bb15"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/stores/chatStore.ts",
+        "blobOid": "e30934f2088a6cbe3a530c244b40f98f7e6aa2cb"
+      },
+      {
+        "status": "M",
+        "path": "apps/web/src/types/database.types.ts",
+        "blobOid": "2a2b8abdd5e523ba431225d3662f2eb53f26ae35"
+      },
+      {
+        "status": "M",
+        "path": "docs/AMORA_MASTER_DEVELOPMENT_PLAN.md",
+        "blobOid": "12821f041ac0c7d66f14bac822c231321aaa6217"
+      },
+      {
+        "status": "M",
+        "path": "docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md",
+        "blobOid": "fdca85aa1e549d94216d18c0cffa9d2bc850e72e"
+      },
+      {
+        "status": "M",
+        "path": "docs/README.md",
+        "blobOid": "734967bcf94972e7ff68975bc63275237fcd5145"
+      },
+      {
+        "status": "M",
+        "path": "docs/operations/AMORA_RELEASE_HARDENING_HANDOFF_2026-08-12.md",
+        "blobOid": "fee999498cc56c1f587ad332520274d07e1777de"
+      },
+      {
+        "status": "M",
+        "path": "docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md",
+        "blobOid": "493a6c8228d249ce8c8e36c40200f5babd00679b"
+      },
+      {
+        "status": "M",
+        "path": "package.json",
+        "blobOid": "8c40e242e19abc9ec5d02109cf0edf42a79a6c4d"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/package.json",
+        "blobOid": "a6364de22b4bf2e171dd5ab6bc2d18fe108ac310"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraBudgetPayerPresentation.d.mts",
+        "blobOid": "2cdab5c2c99317d0937401227c5ad2f84440aa49"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraBudgetPayerPresentation.mjs",
+        "blobOid": "6c7157f21b5501c9f3c94d9c38f45869ff2c8f43"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraConsumerState.d.mts",
+        "blobOid": "33a5bb0b69318b3605019f40838622f8c5268bd0"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraConsumerState.mjs",
+        "blobOid": "2dc42501cdb040d2f6fe3dd99de2cdfdd9f174e1"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraJourneyTruthAudit.d.mts",
+        "blobOid": "5ca05a157311460d2b3d5b4cb7736b9763911c0b"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraJourneyTruthAudit.mjs",
+        "blobOid": "f4ccd546d8dc16613599818b0bd615d26032d54e"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraOfficialReferenceScope.d.mts",
+        "blobOid": "e2edc9276a424d03cffdfe841dc65697ac434ce5"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraOfficialReferenceScope.mjs",
+        "blobOid": "b35f50ebc0fa5e0c9b802bd3e14119b855004917"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraPlanningFoundation.d.mts",
+        "blobOid": "962d2c37a3a6fd65dfd18730cc7570f1f69df5f3"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraPlanningFoundation.mjs",
+        "blobOid": "1d2e747b1097e96feb8f622dcae96e8af5103cd2"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraPreparationCatchUp.d.mts",
+        "blobOid": "317552eeedf5e62c6dee623f29e917754a6fab0f"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraPreparationCatchUp.mjs",
+        "blobOid": "8ce4fb5e04e8eeb467254a49a221fa83490e199d"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationCoverage.d.mts",
+        "blobOid": "5df0c6fd5633f2fe604204fdfcd89224325ba170"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationCoverage.mjs",
+        "blobOid": "f0908ddef9361d2aaea7400f334312dcf2b59f25"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationMap.mjs",
+        "blobOid": "1e8afbef393cb530789d33813fd0ccaecf5a861b"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationTopic.d.mts",
+        "blobOid": "d6597ca7edc2a8eb551ff241f1c3d9515b3a64c7"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationTopic.mjs",
+        "blobOid": "c1888aa51e4c93f73a4bd1af14b3fcf111a6e45a"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraPreparationTopicConsumerState.d.mts",
+        "blobOid": "971e04d1e3213b6184f1b4d7c0047c55c4701dec"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraPreparationTopicConsumerState.mjs",
+        "blobOid": "45af210ad54109b1d0a433877fac90ad0c15723f"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationTopicMessageRef.d.mts",
+        "blobOid": "1bfdbd31b2fb63d206b7ca3f417e4bc1f437db92"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/amoraPreparationTopicMessageRef.mjs",
+        "blobOid": "9f825ad1eaaf03ec8750df3729942a715415cd0b"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraSourceDisclosure.d.mts",
+        "blobOid": "354d785cec1c7c231919b6c8294fa617ccdb3c6e"
+      },
+      {
+        "status": "A",
+        "path": "packages/shared/src/contracts/amoraSourceDisclosure.mjs",
+        "blobOid": "7cfe8903f7eb37b06b216e88f582ca43eaac9e9c"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/mediationProvenance.d.mts",
+        "blobOid": "47b3268c06976874f8311363a789cee9b92df369"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/contracts/mediationProvenance.mjs",
+        "blobOid": "7caae866caae8ecf2348cd9791edec27316c9937"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/index.ts",
+        "blobOid": "e963a1cdde78f197be47343a9b0461cb71402c3a"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/safety/mediationRenderSafety.d.mts",
+        "blobOid": "6f7e802d290320c5958f6935c80c77061fb2a8e5"
+      },
+      {
+        "status": "M",
+        "path": "packages/shared/src/safety/mediationRenderSafety.mjs",
+        "blobOid": "eb5b277994cdbf1eab77e39fe238907fdadbf7e0"
+      },
+      {
+        "status": "A",
+        "path": "scripts/amora-successor-staging-backup.mjs",
+        "blobOid": "52356c89aa7164b67a72e69bce36caf95de85560"
+      },
+      {
+        "status": "A",
+        "path": "scripts/amora-successor-staging-probe.mjs",
+        "blobOid": "43329f2dfb003e0f57dec75474d79579793bf6cd"
+      },
+      {
+        "status": "A",
+        "path": "scripts/certs/supabase-prod-ca-2021.crt",
+        "blobOid": "3d693669b23c340c57a3457bdc8b6fefe1806cc5"
+      },
+      {
+        "status": "A",
+        "path": "scripts/lib/amora-successor-staging-backup.mjs",
+        "blobOid": "c45ee579d975ddd53a02afb4b63122eb0ff47aa4"
+      },
+      {
+        "status": "A",
+        "path": "scripts/lib/amora-successor-staging-probe.mjs",
+        "blobOid": "11d7d51d94fc5a03659d54245c5161ac64cf7be3"
+      },
+      {
+        "status": "M",
+        "path": "scripts/lib/supabase-successor-release-contract.mjs",
+        "blobOid": "03c8e756f8da322396596f75aaeb88397f92bde6"
+      },
+      {
+        "status": "A",
+        "path": "scripts/tests/amora-successor-staging-backup.test.mjs",
+        "blobOid": "4b8f9c7436986135f260072f87ebeb73d22314fe"
+      },
+      {
+        "status": "A",
+        "path": "scripts/tests/amora-successor-staging-probe.test.mjs",
+        "blobOid": "d722cb809712fb15f2ca2cfe6d43258d162b79ef"
+      },
+      {
+        "status": "M",
+        "path": "scripts/tests/production-write-fence-finalizer.test.mjs",
+        "blobOid": "84d88b1879a55b8abd55b127510c1e004207e91d"
+      },
+      {
+        "status": "M",
+        "path": "scripts/tests/successor-release-evidence-contract.test.mjs",
+        "blobOid": "52f4ec2986f6485fa8ca776a3b655ab8a279a33f"
+      },
+      {
+        "status": "M",
+        "path": "scripts/tests/supabase-production-release.test.mjs",
+        "blobOid": "e42d890b8ae12439de6eb3d7ed32229116ac8ab6"
+      },
+      {
+        "status": "M",
+        "path": "scripts/tests/supabase-release-fence.test.mjs",
+        "blobOid": "ecb074a0ca9b5a82235f45b7539739c4ddc9fdf3"
+      },
+      {
+        "status": "M",
+        "path": "supabase/migrations/20260804170000_notification_session_ownership.sql",
+        "blobOid": "be856aee8592711f0bf1cdb7a5bb0f3b47dd2d59"
+      },
+      {
+        "status": "M",
+        "path": "supabase/migrations/20260812030000_couple_invite_replay_hardening.sql",
+        "blobOid": "f85cb9ae71536941ca2206ac8f307accb9b9dca3"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260816180000_amora_neutral_preparation_space.sql",
+        "blobOid": "12a085a235d8d634fdba62709a701acbfa2d7d35"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260816190000_amora_preparation_catch_up.sql",
+        "blobOid": "deb2e1c4be7bc879c35c58554e11b0996188c7c7"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818100000_restore_signup_profile_trigger.sql",
+        "blobOid": "942e37f361caa0d34646237583ef67f6f8dfe37b"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818110000_restore_couple_invite_nullable_contract.sql",
+        "blobOid": "81921f2d732394a8fdcd48f925407f348451ca1c"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818120000_amora_message_ref_http_conflicts.sql",
+        "blobOid": "47d9bbc02979eda36f4d1a1f1e6027cdab43f58a"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818130000_amora_preparation_notes_read.sql",
+        "blobOid": "1489de17d551cd358f04fd0ea87e3542fea40beb"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818140000_amora_mediation_private_draft_boundary.sql",
+        "blobOid": "416672b386f06f8579e6d25087854eb2833e42fc"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818150000_amora_topic_criterion_action_context.sql",
+        "blobOid": "374cdae0f10c30075f4e18686c2a3c84cd243dda"
+      },
+      {
+        "status": "M",
+        "path": "supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json",
+        "blobOid": "0186405c17e69fa514eb26b9e16609d4fe13fc1f"
+      },
+      {
+        "status": "M",
+        "path": "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+        "blobOid": "8f3f59b3f9eaea7b6275837cf31c300b6562ed89"
+      }
+    ]
+  },
+  "excludedLocalPaths": {
+    "hold": [
+      "apps/web/src/constants/decisionMap/types.ts",
+      "apps/web/src/constants/decisionMap/venue.ts"
+    ],
+    "temporaryPrefix": "tmp/",
+    "observedTemporaryPathCount": 36,
+    "disposition": "EXCLUDED_NOT_DELETED"
+  },
+  "hotspotOwnership": [
+    {
+      "path": "apps/mobile/app/(tabs)/chat.tsx",
+      "owners": [
+        {
+          "commit": "2f6dd0e3eac8b6a7d84bf83048e7b07e64a23642",
+          "primaryAmr": "AMR-E01",
+          "subject": "feat: add explicit Amora listen-only turns",
+          "regression": [
+            "apps/mobile/src/__tests__/chatStream.test.mjs",
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        },
+        {
+          "commit": "4e3346484029273ca2f6385afc08f4f512df9b0f",
+          "primaryAmr": "AMR-T12",
+          "subject": "feat: return from Amora to preparation topics",
+          "regression": [
+            "apps/mobile/src/__tests__/preparationTopicChatRoundTrip.test.mjs",
+            "apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs"
+          ]
+        },
+        {
+          "commit": "98b090a2671059a54faff2be1f67515fd57c8873",
+          "primaryAmr": "AMR-MED01",
+          "subject": "feat: keep mediation drafts private until explicit share",
+          "regression": [
+            "apps/mobile/src/__tests__/amoraMediation.test.mjs",
+            "apps/web/src/app/api/amora/mediation/draft/route.test.ts",
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        },
+        {
+          "commit": "a40364cd13992781533edbc9f53bd0e92c12fd4d",
+          "primaryAmr": "AMR-MED01",
+          "subject": "fix: verify mediation scope before disclosure",
+          "regression": [
+            "apps/mobile/src/__tests__/amoraMediation.test.mjs",
+            "apps/web/src/components/app/chat/__tests__/MediationCardContract.test.ts"
+          ]
+        },
+        {
+          "commit": "a4cb8d9a947355da4cf93fadffa9ad360a8e45c9",
+          "primaryAmr": "AMR-T13",
+          "subject": "fix: distinguish terminal saved conversation errors",
+          "regression": [
+            "apps/mobile/src/__tests__/preparationTopicMessageRefs.test.mjs",
+            "apps/mobile/src/__tests__/chatStream.test.mjs"
+          ]
+        },
+        {
+          "commit": "b2b5c4a64e304135d3dcf88bcec868502744f20d",
+          "primaryAmr": "AMR-F15/F16",
+          "subject": "feat: finalize amora personalized first-value candidate",
+          "regression": [
+            "apps/mobile/src/__tests__/neutralMemberPresentation.test.mjs",
+            "apps/mobile/src/__tests__/planningFoundationDraftHandoff.test.mjs",
+            "apps/mobile/src/__tests__/chatStream.test.mjs"
+          ]
+        },
+        {
+          "commit": "e694626484eb224b5de3f7ad4ccf863972c6a25e",
+          "primaryAmr": "AMR-M03",
+          "subject": "feat: add privacy-scoped Amora preparation notes",
+          "regression": [
+            "apps/mobile/src/__tests__/amoraPreparationNotes.test.mjs",
+            "apps/mobile/src/__tests__/amoraPreparationNotesScreenContract.test.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "apps/mobile/app/schedule/index.tsx",
+      "owners": [
+        {
+          "commit": "2863aff637b7bfd85886d12ea5cb11da2e5cfc7d",
+          "primaryAmr": "AMR-C15",
+          "subject": "feat: add truthful topic applicability controls",
+          "regression": [
+            "apps/mobile/src/__tests__/preparationTopicApplicability.test.mjs",
+            "apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs"
+          ]
+        },
+        {
+          "commit": "2ae7bbabdd113342cc9d11c2b3e7e29a10158e1c",
+          "primaryAmr": "AMR-H12",
+          "subject": "feat: preserve amora priority action across topics",
+          "regression": [
+            "apps/mobile/src/__tests__/dashboardExperience.test.mjs",
+            "apps/mobile/src/__tests__/scheduleChecklistNavigation.test.mjs"
+          ]
+        },
+        {
+          "commit": "4e3346484029273ca2f6385afc08f4f512df9b0f",
+          "primaryAmr": "AMR-T12",
+          "subject": "feat: return from Amora to preparation topics",
+          "regression": [
+            "apps/mobile/src/__tests__/preparationTopicChatRoundTrip.test.mjs",
+            "apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs"
+          ]
+        },
+        {
+          "commit": "710f3d5962c7de0f432e10d311bf7916675e3954",
+          "primaryAmr": "AMR-T11",
+          "subject": "feat: bind confirmed criterion to topic actions",
+          "regression": [
+            "apps/mobile/src/__tests__/preparationTopicPersonalization.test.mjs",
+            "apps/web/src/lib/ai/__tests__/amoraProviderBackedAddActionApplicationMigration.test.ts"
+          ]
+        },
+        {
+          "commit": "7d2c5376eeb9364cd4f50327a266845fd8beadcf",
+          "primaryAmr": "AMR-T11",
+          "subject": "fix: gate preparation topic personalization",
+          "regression": [
+            "apps/mobile/src/__tests__/preparationTopicPersonalization.test.mjs",
+            "apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs"
+          ]
+        },
+        {
+          "commit": "b2b5c4a64e304135d3dcf88bcec868502744f20d",
+          "primaryAmr": "AMR-F15/F20",
+          "subject": "feat: finalize amora personalized first-value candidate",
+          "regression": [
+            "apps/mobile/src/__tests__/neutralBudgetPayerPresentation.test.mjs",
+            "apps/mobile/src/__tests__/preparationTopicCatchUpRecords.test.mjs",
+            "apps/mobile/src/__tests__/preparationTopicScreenContract.test.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts",
+      "owners": [
+        {
+          "commit": "2f6dd0e3eac8b6a7d84bf83048e7b07e64a23642",
+          "primaryAmr": "AMR-E01",
+          "subject": "feat: add explicit Amora listen-only turns",
+          "regression": [
+            "apps/mobile/src/__tests__/chatStream.test.mjs",
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        },
+        {
+          "commit": "98b090a2671059a54faff2be1f67515fd57c8873",
+          "primaryAmr": "AMR-MED01",
+          "subject": "feat: keep mediation drafts private until explicit share",
+          "regression": [
+            "apps/mobile/src/__tests__/amoraMediation.test.mjs",
+            "apps/web/src/app/api/amora/mediation/draft/route.test.ts",
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        },
+        {
+          "commit": "b2b5c4a64e304135d3dcf88bcec868502744f20d",
+          "primaryAmr": "AMR-F15",
+          "subject": "feat: finalize amora personalized first-value candidate",
+          "regression": [
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "apps/web/src/app/api/chat/route.ts",
+      "owners": [
+        {
+          "commit": "2f6dd0e3eac8b6a7d84bf83048e7b07e64a23642",
+          "primaryAmr": "AMR-E01",
+          "subject": "feat: add explicit Amora listen-only turns",
+          "regression": [
+            "apps/mobile/src/__tests__/chatStream.test.mjs",
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        },
+        {
+          "commit": "98b090a2671059a54faff2be1f67515fd57c8873",
+          "primaryAmr": "AMR-MED01",
+          "subject": "feat: keep mediation drafts private until explicit share",
+          "regression": [
+            "apps/mobile/src/__tests__/amoraMediation.test.mjs",
+            "apps/web/src/app/api/amora/mediation/draft/route.test.ts",
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        },
+        {
+          "commit": "b2b5c4a64e304135d3dcf88bcec868502744f20d",
+          "primaryAmr": "AMR-F15",
+          "subject": "feat: finalize amora personalized first-value candidate",
+          "regression": [
+            "apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts"
+          ]
+        }
+      ]
+    }
+  ],
+  "release": {
+    "manifestPath": "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+    "manifestSha256": "3eab2da0111235f4ba404a7ebaa7c5d6de0d4c0cd4c2594d25c26faf8bbe452a",
+    "manifestMigrationCount": 109,
+    "baselinePath": "supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json",
+    "baselineSha256": "bd345ff7f8e5291b8c5d039b37133e48ae7e3dd56efc84b8e9aa3193ae92f9ba",
+    "observedProductionAppliedCount": 32,
+    "observedProductionPendingCount": 77,
+    "tailMigration": "20260818150000",
+    "status": "deployment_blocked",
+    "migrationDelta": [
+      {
+        "status": "M",
+        "path": "supabase/migrations/20260804170000_notification_session_ownership.sql",
+        "blobOid": "be856aee8592711f0bf1cdb7a5bb0f3b47dd2d59",
+        "sha256": "3d4d6b78e4dbbac83244b05ea4930cf3d98e91d425b6450e615c30d97f77751c"
+      },
+      {
+        "status": "M",
+        "path": "supabase/migrations/20260812030000_couple_invite_replay_hardening.sql",
+        "blobOid": "f85cb9ae71536941ca2206ac8f307accb9b9dca3",
+        "sha256": "f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260816180000_amora_neutral_preparation_space.sql",
+        "blobOid": "12a085a235d8d634fdba62709a701acbfa2d7d35",
+        "sha256": "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260816190000_amora_preparation_catch_up.sql",
+        "blobOid": "deb2e1c4be7bc879c35c58554e11b0996188c7c7",
+        "sha256": "637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818100000_restore_signup_profile_trigger.sql",
+        "blobOid": "942e37f361caa0d34646237583ef67f6f8dfe37b",
+        "sha256": "16fa1a4af7832c69e937faeaff7f88115699e377e1445f9c4cdc524b86f4a53a"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818110000_restore_couple_invite_nullable_contract.sql",
+        "blobOid": "81921f2d732394a8fdcd48f925407f348451ca1c",
+        "sha256": "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818120000_amora_message_ref_http_conflicts.sql",
+        "blobOid": "47d9bbc02979eda36f4d1a1f1e6027cdab43f58a",
+        "sha256": "c3e269594e956cc96cb19b3c282c5c1865178baa6b468c944831de8d9b389358"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818130000_amora_preparation_notes_read.sql",
+        "blobOid": "1489de17d551cd358f04fd0ea87e3542fea40beb",
+        "sha256": "022707a3db67b6b7e7e06280011d210e184b2fd1d911947d416758a334a0f9d4"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818140000_amora_mediation_private_draft_boundary.sql",
+        "blobOid": "416672b386f06f8579e6d25087854eb2833e42fc",
+        "sha256": "6aa23631c3457355d2c4203c4b245598b8c5b88690c20b7275d018c0bf5596c8"
+      },
+      {
+        "status": "A",
+        "path": "supabase/migrations/20260818150000_amora_topic_criterion_action_context.sql",
+        "blobOid": "374cdae0f10c30075f4e18686c2a3c84cd243dda",
+        "sha256": "0018ec4033838f2f0bd09d7b141608e244f24149a502c8f3263eccfe72750f4b"
+      }
+    ]
+  },
+  "gateEvidence": {
+    "localPrePush": "PASS",
+    "localPrePushTasks": "8/8",
+    "localPrePushElapsed": "13m9s",
+    "preview": "PASS",
+    "previewCommit": "3b623e18955eb53fb3c03c08d652536cf890e4af",
+    "previewDeployment": "https://vercel.com/hanbang/wedding-hanbang-web/CDDAstHH3EsRPYJTJqG8fy929Kjd",
+    "githubActions": "BLOCKED_EXTERNAL_BILLING",
+    "githubActionsRun": "https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/actions/runs/32112683361",
+    "realDevice": "NOT_RUN",
+    "twoAccountTwoDevice": "NOT_RUN",
+    "finalCandidateHostedStaging": "NOT_RUN",
+    "production": "NO_GO"
+  }
+}
