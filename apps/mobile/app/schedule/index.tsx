@@ -66,6 +66,13 @@ import {
   buildPreparationTopicPresentation,
   type PreparationTopicPayerPresentationContext,
 } from "@/lib/preparationTopicPresentation.mjs";
+import {
+  buildPreparationTopicApplicabilityControl,
+  buildPreparationTopicApplicabilityMutation,
+  classifyPreparationTopicApplicabilityFailure,
+  type PreparationTopicApplicabilityControl,
+  type PreparationTopicApplicabilityIntent,
+} from "@/lib/preparationTopicApplicability.mjs";
 import { resolveBudgetPayerOptions } from "@/lib/neutralBudgetPayerPresentation.mjs";
 import {
   buildPreparationTopicAmoraHandoff,
@@ -477,6 +484,13 @@ function showActiveScheduleRequestAlert() {
   );
 }
 
+function showActivePreparationRequestAlert() {
+  Alert.alert(
+    "먼저 대기 중인 준비 변경 요청을 확인해 주세요",
+    "상대가 동의·거절하거나, 보낸 사람이 요청을 철회한 뒤 다시 바꿀 수 있어요.",
+  );
+}
+
 /* ───── main screen ───── */
 export default function ScheduleScreen() {
   const pathname = usePathname();
@@ -771,6 +785,8 @@ export default function ScheduleScreen() {
   const [formMomentType, setFormMomentType] = useState("");
   const [formMemo, setFormMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [applicabilitySavingKey, setApplicabilitySavingKey] = useState<string | null>(null);
+  const applicabilityMutationRef = useRef<string | null>(null);
 
   const clearIdentityBoundState = useCallback((nextProfileId: string | null) => {
     approvalIdentityRef.current = null;
@@ -834,6 +850,8 @@ export default function ScheduleScreen() {
     setApprovalBusy(null);
     setRefreshing(false);
     setSaving(false);
+    applicabilityMutationRef.current = null;
+    setApplicabilitySavingKey(null);
     setModalVisible(false);
     setEditingEventId(null);
     setFormTitle("");
@@ -2144,48 +2162,69 @@ export default function ScheduleScreen() {
     }
   }
 
-  async function toggleCategoryApplicability(categoryKey: string) {
-    const sessionToken = scheduleSessionFenceRef.capture();
-    if (!sessionToken || !scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+  function clearCategoryApplicabilityMutation(operationKey: string) {
+    if (applicabilityMutationRef.current !== operationKey) return;
+    applicabilityMutationRef.current = null;
+    setApplicabilitySavingKey(null);
+  }
+
+  async function submitCategoryApplicabilityChange(
+    categoryKey: string,
+    intent: PreparationTopicApplicabilityIntent,
+    sessionToken: ScheduleSessionToken,
+    operationKey: string,
+  ) {
+    if (
+      applicabilityMutationRef.current !== operationKey
+      || !scheduleSessionFenceRef.isCurrent(sessionToken)
+    ) {
+      clearCategoryApplicabilityMutation(operationKey);
+      return;
+    }
     try {
       const snapshot = await fetchScheduleMutationSnapshot(sessionToken.coupleId);
       if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
       const template = CATEGORY_CHECKLISTS.find((category) => category.key === categoryKey);
-      if (!template) throw new ScheduleMutationError("failed");
-      const existing = isRecord(snapshot.progress[categoryKey])
+      const savedTopic = Object.hasOwn(snapshot.progress, categoryKey)
         ? snapshot.progress[categoryKey]
-        : {};
-      const saved = Array.isArray(existing.checklist)
-        ? existing.checklist.filter(isRecord).map((item) => ({
-            id: typeof item.id === "string" ? item.id : "",
-            label: typeof item.label === "string" ? item.label : "이전 준비 항목",
-            done: item.done === true,
-          })).filter((item) => item.id.length > 0)
-        : [];
-      const checklist = mergePlanningChecklist(template.items, saved);
-      const wasSkipped = existing.status === "not_applicable";
-      const nextCategory = {
-        ...existing,
-        category: categoryKey,
-        status: wasSkipped ? calculatePlanningChecklistStatus(checklist) : "not_applicable",
-        checklist,
-      };
+        : undefined;
+      const mutation = buildPreparationTopicApplicabilityMutation({
+        expectedCoupleId: sessionToken.coupleId,
+        expectedRevision: snapshot.stateRevision,
+        intent,
+        topic: template,
+        savedTopic,
+      });
+      if (!mutation) throw new ScheduleMutationError("invalid_snapshot");
       const response = await apiFetchForExpectedUser(sessionToken.ownerId, "/api/journey", {
         method: "PATCH",
-        body: JSON.stringify({
-          expected_couple_id: sessionToken.coupleId,
-          expected_revision: snapshot.stateRevision,
-          progress_patch: { [categoryKey]: nextCategory },
-        }),
+        body: JSON.stringify(mutation.body),
       });
-      if (!response.ok) throw new ScheduleMutationError(response.status === 409 ? "stale" : "failed");
-      const outcome = parseScheduleMutationSubmission(await response.json());
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      const payload: unknown = await response.json().catch(() => null);
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+      if (!response.ok) {
+        throw new ScheduleMutationError(
+          classifyPreparationTopicApplicabilityFailure(response.status, payload),
+        );
+      }
+      let outcome: ScheduleMutationSubmission;
+      try {
+        outcome = parseScheduleMutationSubmission(payload);
+      } catch {
+        throw new ScheduleMutationError("failed");
+      }
+      if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
       rememberPendingApproval(outcome, sessionToken);
       Alert.alert(
-        outcome.status === "pending_partner" ? "파트너 확인을 요청했어요" : wasSkipped ? "준비 목록에 다시 넣었어요" : "준비 목록에서 제외했어요",
+        outcome.status === "pending_partner"
+          ? "파트너 확인을 요청했어요"
+          : intent === "reinclude"
+            ? "준비 목록에 다시 넣었어요"
+            : "준비 목록에서 제외했어요",
         outcome.status === "pending_partner"
           ? "파트너가 동의하면 상태에 반영돼요."
-          : wasSkipped
+          : intent === "reinclude"
             ? "이전에 체크한 내용은 그대로 남아 있어요."
             : "진행률과 마감 알림에서 빠져요. 언제든 되돌릴 수 있어요.",
       );
@@ -2193,14 +2232,68 @@ export default function ScheduleScreen() {
     } catch (error) {
       if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
       if (error instanceof ScheduleMutationError && error.code === "active_request") {
-        showActiveScheduleRequestAlert();
+        showActivePreparationRequestAlert();
+        const identity = approvalIdentityRef.current;
+        if (identity) await loadApprovalRequests(identity);
       } else if (error instanceof ScheduleMutationError && error.code === "stale") {
         Alert.alert("최신 상태를 다시 불러왔어요", "최신 내용에서 다시 선택해 주세요.");
       } else {
-        Alert.alert("오류", "체크리스트 상태를 저장하지 못했어요. 다시 시도해 주세요.");
+        Alert.alert(
+          error instanceof ScheduleMutationError && error.code === "invalid_snapshot"
+            ? "최신 준비 상태를 다시 확인해 주세요"
+            : "저장하지 못했어요",
+          error instanceof ScheduleMutationError && error.code === "invalid_snapshot"
+            ? "확인할 수 없는 준비 기록이 있어 변경하지 않았어요. 새로고침한 뒤 다시 시도해 주세요."
+            : "준비 목록 상태를 바꾸지 않았어요. 잠시 후 다시 시도해 주세요.",
+        );
       }
       await loadData();
+    } finally {
+      clearCategoryApplicabilityMutation(operationKey);
     }
+  }
+
+  function requestCategoryApplicabilityChange(
+    categoryKey: string,
+    control: PreparationTopicApplicabilityControl,
+  ) {
+    if (applicabilityMutationRef.current !== null) return;
+    const sessionToken = scheduleSessionFenceRef.capture();
+    if (!sessionToken || !scheduleSessionFenceRef.isCurrent(sessionToken)) return;
+    const operationKey = [
+      "applicability",
+      sessionToken.generation,
+      categoryKey,
+      control.intent,
+    ].join(":");
+    applicabilityMutationRef.current = operationKey;
+    setApplicabilitySavingKey(categoryKey);
+
+    Alert.alert(
+      control.confirmTitle,
+      control.confirmMessage,
+      [
+        {
+          text: "취소",
+          style: "cancel",
+          onPress: () => clearCategoryApplicabilityMutation(operationKey),
+        },
+        {
+          text: control.confirmActionLabel,
+          style: control.intent === "exclude" ? "destructive" : "default",
+          onPress: () => void submitCategoryApplicabilityChange(
+            categoryKey,
+            control.intent,
+            sessionToken,
+            operationKey,
+          ),
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => clearCategoryApplicabilityMutation(operationKey),
+      },
+    );
   }
 
   function getCategoryStats(key: string) {
@@ -3182,6 +3275,7 @@ export default function ScheduleScreen() {
               coupleContext: topicCoupleContext,
               appliedEffects: null,
             });
+            const applicabilityControl = buildPreparationTopicApplicabilityControl(topicView);
             const topicAmoraHandoff = topicPresentation?.nextAction
               && topicJourneyRevision !== null
               ? buildPreparationTopicAmoraHandoff({
@@ -3278,17 +3372,41 @@ export default function ScheduleScreen() {
                       }}
                       onContinueWithAmora={openPreparationTopicAmora}
                     />
-                    <Pressable
-                      style={styles.itemRow}
-                      onPress={() => void toggleCategoryApplicability(cat.key)}
-                      accessibilityRole="button"
-                      accessibilityLabel={stats.skipped ? `${cat.label} 다시 준비 목록에 넣기` : `${cat.label} 준비 목록에서 제외하기`}
-                    >
-                      <Ban size={22} color={colors.textTertiary} />
-                      <Text style={styles.itemLabel}>
-                        {stats.skipped ? "다시 준비 목록에 넣기" : "우리는 이건 안 해요"}
-                      </Text>
-                    </Pressable>
+                    {applicabilityControl ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.itemRow,
+                          applicabilitySavingKey !== null && styles.disabledButton,
+                          pressed && applicabilitySavingKey === null
+                            ? { transform: [{ scale: 0.98 }] }
+                            : null,
+                        ]}
+                        onPress={() => requestCategoryApplicabilityChange(
+                          cat.key,
+                          applicabilityControl,
+                        )}
+                        disabled={applicabilitySavingKey !== null}
+                        accessibilityRole="button"
+                        accessibilityLabel={applicabilityControl.accessibilityLabel}
+                        accessibilityState={{ disabled: applicabilitySavingKey !== null }}
+                      >
+                        {applicabilityControl.intent === "reinclude"
+                          ? <RotateCcw size={22} color={colors.textTertiary} />
+                          : <Ban size={22} color={colors.textTertiary} />
+                        }
+                        <View style={styles.applicabilityCopy}>
+                          <Text style={styles.applicabilityLabel}>
+                            {applicabilityControl.label}
+                          </Text>
+                          <Text style={styles.applicabilityDescription}>
+                            {applicabilityControl.description}
+                          </Text>
+                        </View>
+                        {applicabilitySavingKey === cat.key ? (
+                          <ActivityIndicator size="small" color={colors.rose[500]} />
+                        ) : null}
+                      </Pressable>
+                    ) : null}
                     {cat.items.map((item) => (
                       <Pressable
                         key={item.id}
@@ -3901,6 +4019,9 @@ const styles = StyleSheet.create({
   },
   itemLabel: { fontSize: 14, color: colors.noir[800], flex: 1 },
   itemDone: { textDecorationLine: "line-through", color: colors.textTertiary },
+  applicabilityCopy: { flex: 1, gap: 3 },
+  applicabilityLabel: { fontSize: 14, color: colors.noir[800], fontWeight: "600" },
+  applicabilityDescription: { fontSize: 12, lineHeight: 18, color: colors.textSecondary },
 
   // 전체 일정 목록
   allEventsSection: { marginTop: 8 },

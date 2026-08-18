@@ -114,9 +114,7 @@ function deriveTopicView(topic, safeProgress, attentionKeys) {
   const checklist = readSavedChecklist(topic, saved);
 
   if (explicitStatus === "not_applicable") {
-    const state = checklist.malformed || checklist.completedItems > 0
-      ? "needs_review"
-      : "not_applicable";
+    const state = checklist.malformed ? "needs_review" : "not_applicable";
     return Object.freeze({
       topicKey,
       label,

@@ -1304,7 +1304,7 @@ test("an excluded topic shows the couple's choice without a next-action card", (
     applicability: "not_applicable",
     status: "not_started",
     progress: { completed: 0, total: 0, percent: 0 },
-    facts: [{ key: "applicability", label: "우리에게는 하지 않기로 정했어요.", source: "saved_checklist" }],
+    facts: [{ key: "applicability", label: "준비 목록에서 제외한 기록이에요.", source: "saved_checklist" }],
     unknowns: [],
     nextAction: null,
     guideModules: [],
@@ -1318,9 +1318,9 @@ test("an excluded topic shows the couple's choice without a next-action card", (
   assert.deepEqual(withoutPlanFields(presentation), {
     statusLabel: "해당 없음",
     statusTone: "neutral",
-    progressLabel: "우리에게는 하지 않기로 정했어요.",
+    progressLabel: "준비 목록에서 제외한 기록이에요.",
     evidenceTitle: "확인된 준비",
-    evidenceLines: ["우리에게는 하지 않기로 정했어요."],
+    evidenceLines: ["준비 목록에서 제외한 기록이에요."],
     remainingLabel: null,
     nextAction: null,
   });
@@ -1454,7 +1454,7 @@ test("an excluded topic with a linked schedule is shown as a conflict, not hidde
     status: "decision_needed",
     progress: { completed: 0, total: 0, percent: 0 },
     facts: [
-      { key: "applicability", label: "우리에게는 하지 않기로 정했어요.", source: "saved_checklist" },
+      { key: "applicability", label: "준비 목록에서 제외한 기록이에요.", source: "saved_checklist" },
       { key: "schedule:meeting-event", label: "2026-08-20 · 양가 부모님 첫 만남", source: "linked_schedule" },
     ],
     unknowns: [],
@@ -1478,7 +1478,7 @@ test("an excluded topic with a linked schedule is shown as a conflict, not hidde
     progressLabel: "서로 다른 준비 기록을 먼저 확인해요.",
     evidenceTitle: "우리 계획과 확인된 준비",
     evidenceLines: [
-      "우리에게는 하지 않기로 정했어요.",
+      "준비 목록에서 제외한 기록이에요.",
       "2026-08-20 · 양가 부모님 첫 만남",
     ],
     remainingLabel: "확인할 기록 1개",

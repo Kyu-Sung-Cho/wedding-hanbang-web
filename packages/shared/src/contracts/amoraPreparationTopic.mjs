@@ -1688,7 +1688,7 @@ export function buildAmoraPreparationTopicView({
         facts: Object.freeze([
           Object.freeze({
             key: "applicability",
-            label: "우리에게는 하지 않기로 정했어요.",
+            label: "준비 목록에서 제외한 기록이에요.",
             source: "saved_checklist",
           }),
           ...linkedSchedules.map((event) => Object.freeze({
@@ -1738,7 +1738,7 @@ export function buildAmoraPreparationTopicView({
       progress: Object.freeze({ completed: 0, total: 0, percent: 0 }),
       facts: Object.freeze([Object.freeze({
         key: "applicability",
-        label: "우리에게는 하지 않기로 정했어요.",
+        label: "준비 목록에서 제외한 기록이에요.",
         source: "saved_checklist",
       })]),
       unknowns: EMPTY_LIST,

@@ -658,7 +658,7 @@ export function buildPreparationTopicPresentation(
     progressLabel: isCompleted
       ? `${view.progress.total}개 모두 확인했어요.`
       : isExcluded
-      ? "우리에게는 하지 않기로 정했어요."
+      ? "준비 목록에서 제외한 기록이에요."
       : needsDecision
         ? "서로 다른 준비 기록을 먼저 확인해요."
         : isUnknown

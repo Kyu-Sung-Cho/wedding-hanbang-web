@@ -45,6 +45,43 @@ test("the collapsed checklist header uses the truthful topic presentation instea
   );
 });
 
+test("topic applicability changes require an explicit shared-scope confirmation and stay fenced to one session", () => {
+  const applicabilityStart = scheduleSource.indexOf("async function submitCategoryApplicabilityChange");
+  const applicabilityEnd = scheduleSource.indexOf("function getCategoryStats", applicabilityStart);
+  const applicabilitySource = scheduleSource.slice(applicabilityStart, applicabilityEnd);
+  assert.ok(applicabilityStart >= 0 && applicabilityEnd > applicabilityStart);
+  assert.match(
+    scheduleSource,
+    /buildPreparationTopicApplicabilityControl[\s\S]{0,120}buildPreparationTopicApplicabilityMutation[\s\S]{0,120}classifyPreparationTopicApplicabilityFailure/,
+  );
+  assert.match(
+    scheduleSource,
+    /const applicabilityControl = buildPreparationTopicApplicabilityControl\(topicView\)/,
+  );
+  assert.match(
+    scheduleSource,
+    /Alert\.alert\(\s*control\.confirmTitle,\s*control\.confirmMessage,[\s\S]{0,500}control\.confirmActionLabel[\s\S]{0,300}submitCategoryApplicabilityChange/,
+  );
+  assert.match(scheduleSource, /applicabilityMutationRef\.current/);
+  assert.match(scheduleSource, /disabled=\{applicabilitySavingKey !== null\}/);
+  assert.match(
+    scheduleSource,
+    /buildPreparationTopicApplicabilityMutation\(\{[\s\S]{0,500}savedTopic,/,
+  );
+  assert.match(scheduleSource, /body: JSON\.stringify\(mutation\.body\)/);
+  assert.match(
+    scheduleSource,
+    /const payload: unknown = await response\.json\(\)\.catch\(\(\) => null\);[\s\S]{0,240}scheduleSessionFenceRef\.isCurrent\(sessionToken\)/,
+  );
+  assert.match(
+    scheduleSource,
+    /classifyPreparationTopicApplicabilityFailure\(response\.status, payload\)/,
+  );
+  assert.match(applicabilitySource, /showActivePreparationRequestAlert\(\)/);
+  assert.doesNotMatch(applicabilitySource, /showActiveScheduleRequestAlert\(\)/);
+  assert.doesNotMatch(scheduleSource, /우리는 이건 안 해요/);
+});
+
 test("the topic screen loads exact shared actions and keeps read failures distinct from an empty result", () => {
   assert.match(scheduleSource, /\.from\("amora_actions"\)/);
   assert.match(scheduleSource, /\.eq\("couple_id", identity\.coupleId\)/);
