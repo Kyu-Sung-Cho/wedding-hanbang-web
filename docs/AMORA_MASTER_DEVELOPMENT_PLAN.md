@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.24 — COMMON TOPIC STATE ADAPTER LOCAL/AUTOMATED`
+> 계획 버전: `v1.25 — OFFICIAL REFERENCE SCOPE LOCAL/AUTOMATED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `62d1d5b37d3fa22e5420154537f89fc9db4115fd`
+> 검증 기준 코드 HEAD: `203b30d4c1fc06a5d4a7050e89056e58edb9a85f`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 108개 · Production 관찰 적용 32개 · Production 기준 pending 76개 · tail `20260818140000`
 >
-> 현재 작업 상태: `JRN-002 / AMR-C12`는 JRN-001 truth policy와 기존 공통 consumer-state composer를 commit `62d1d5b3`으로 준비 주제 presentation에 연결했다. optional evidence 손상은 core topic을 숨기지 않고 해당 supporting label만 제외한다. 실기기·사용자 이해도·2계정·Preview/Production 검증은 미실행이며 다음 수직은 `JRN-003` source-date-region 계약이다.
+> 현재 작업 상태: `JRN-003 / AMR-C13`의 첫 공식 근거 수직을 commit `203b30d4`로 닫았다. 실제 숫자를 노출하는 한국소비자원 참가격 견적 근거는 versioned 정본 ID·원문·확인일·공시 기간·지역·적용 범위와 계산 문구가 모두 일치할 때만 표시되며, 손상·구버전 결과는 숫자를 숨기고 별도 확인으로 내린다. reviewed guide·업체 공개정보·커뮤니티 경험 분류와 rank·CTA·write는 불변이다. 다음 수직은 `JRN-004` 정상/배제/변경/부분 실패 fixture matrix다.
 >
-> 현재 작업 스냅샷: 제품 코드 commit `62d1d5b3` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 제품 코드 commit `203b30d4` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -166,10 +166,13 @@
 | `HT-012` | `AMR-V01` | `VERIFIED` | HT-003/EX-008 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `58acac74`; 7개 source type·상업 관계·확인일·한계 exact contract와 persisted output 재검증을 홈 why·주제 guide·커뮤니티·업체 상세의 기존 블록에 연결했다. rank·route·CTA·write 불변. common contract 14/14, mobile focused 115/115·full 1133/1133, web 관련 43/43, shared/web/mobile typecheck, web/mobile scoped lint, node syntax, diff-check PASS | 실기기에서 작은 화면·200%·VoiceOver/TalkBack와 광고·제안·저장 기록 구분 이해도를 확인하고 JRN-001에서 주제별 source truth를 감사 | 2026-08-18 |
 | `JRN-001` | `AMR-C11` | `VERIFIED` | EX-008/HT-012 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `28e50260`; 19개 topic·7개 gap의 truth owner, evidence-only effect, partial/unavailable/conflict/applicability failure UI와 no-progress/no-completion/no-recommendation gap policy를 exact contract로 고정. 손상 coverage fail-closed. focused 15/15, shared/web typecheck, scoped lint, node syntax, diff-check PASS | JRN-002에서 기존 topic composer가 이 정책과 동일한 결과를 내는 adapter parity를 연결. 실기기/사용자 관찰은 후속 | 2026-08-18 |
 | `JRN-002` | `AMR-C12` | `VERIFIED` | JRN-001/FV-011 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `62d1d5b3`; 19개 topic resolver+공통 consumer-state adapter가 canonical 상태 조합을 한 번만 판정하고 presentation이 그 primary state를 사용한다. malformed optional evidence는 core를 유지한 채 label 기여만 차단. relevant 93/93, mobile full 1139/1139, web truth 15/15, shared/mobile typecheck, scoped lint, node syntax, diff-check PASS | JRN-003에서 공식 근거의 source/date/region/scope를 같은 fail-closed 방식으로 연결. 실기기/사용자 관찰은 후속 | 2026-08-18 |
+| `JRN-003` | `AMR-C13` | `VERIFIED` | JRN-001/HT-012 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `203b30d4`; versioned `kca_wedding_service_price_2025_11`에서 원문·2026-07-27 확인일·2025-11 공시 기간·6개 지역 scope·3개 적용 범위를 파생한다. quote engine·채팅 카드·공개 결과가 동일 parser를 재사용하고 손상 source/scope/calculation은 숫자를 숨긴다. focused 69/69, shared/web typecheck, web full lint 0 errors(기존 warning 1), node syntax, diff-check PASS | JRN-004에서 정상/배제/변경/부분 실패를 topic·official reference 결합 table fixture로 고정. 실기기·사용자 이해도·Preview/Production 검증은 후속 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
 | `CARE-002` | `AMR-MED01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. route 363/363, chatStore 165/165, mobile full 1130/1130, DB boundary 4/4, release 243/243+fence, shared/web/mobile typecheck, web/mobile lint, web build, Expo all-platform export PASS. web full은 7556/7559 후 새 evidence를 모르는 fixture 3개만 RED였고 fixture 보정 뒤 해당 10/10 PASS | 실제 2계정에서 private 비노출→명시적 공유→동일 shared id 재시도→이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. isolated hosted staging에서 trigger/RLS/RPC를 증명하기 전에는 `LOCAL/BLOCKED`, Production 완료 체크 금지 | 2026-08-18 |
 
 `HT-009` search slice는 commit `b8fdfe94`로 닫았다. 기존 v1 list 응답은 유지하고 notes 전용 opt-in read만 추가했으며, `20260818130000` SHA-256은 `022707a3...f9d4`로 고정했다. 다음 canonical receipt adapter slice는 편집 전에 별도 exact allowlist와 source truth contract를 이 ledger에 먼저 추가한다.
+
+`JRN-003 / 공식 근거 source-date-region`의 exact allowlist는 다음 14경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraOfficialReferenceScope.mjs`, `packages/shared/src/contracts/amoraOfficialReferenceScope.d.mts`, `packages/shared/package.json`, `packages/shared/src/index.ts`, `apps/web/src/lib/amora/__tests__/amoraOfficialReferenceScope.test.ts`, `apps/web/src/lib/price/period.ts`, `apps/web/src/lib/price/period.test.ts`, `apps/web/src/lib/amora/quoteCheck.ts`, `apps/web/src/lib/amora/__tests__/quoteCheck.test.ts`, `apps/web/src/components/app/chat/QuoteAnalysisCard.tsx`, `apps/web/src/components/app/chat/QuoteAnalysisCard.test.tsx`, `apps/web/src/app/(community)/community/quote-check/page.tsx`, `apps/web/src/lib/quoteCheck/publicResult.test.ts`. source truth는 서버에 고정한 versioned `kca_wedding_service_price_2025_11`과 한국소비자원 참가격 원문 URL·2025-11 공시 라운드·2026-07-27 확인일이다. `studio/dress/makeup`과 exact 지역 scope만 허용하며, 임의 URL·자유 source 이름·미래 확인일·누락 지역·누락 적용 범위·손상 persisted output은 공식 참고값을 fail-closed로 숨긴다. 기존 reviewed guide/vendor/community 분류, 순위·추천·CTA·navigation·DB·AI·write는 바꾸지 않는다. 목록 밖 제품 파일이 필요하면 편집 전에 이 allowlist를 갱신한다.
 
 `HT-009 / 실제 반영 영수증 adapter`의 exact allowlist는 다음 17경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/contracts/amoraPreparationTopicMessageRef.mjs`, `packages/shared/src/contracts/amoraPreparationTopicMessageRef.d.mts`, `apps/web/src/lib/amora/__tests__/preparationTopicMessageRefContract.test.ts`, `apps/web/src/lib/amora/preparationActionReceipt.ts`, `apps/web/src/lib/amora/__tests__/preparationActionReceipt.test.ts`, `apps/web/src/app/api/amora/preparation-topic-message-refs/route.ts`, `apps/web/src/app/api/amora/preparation-topic-message-refs/route.test.ts`, `apps/web/src/lib/price/productionBuildFence.test.ts`, `apps/mobile/src/lib/amoraPreparationNotesLoader.mjs`, `apps/mobile/src/lib/amoraPreparationNotesLoader.d.mts`, `apps/mobile/src/lib/amoraPreparationNotes.mjs`, `apps/mobile/src/lib/amoraPreparationNotes.d.mts`, `apps/mobile/src/__tests__/amoraPreparationNotesLoader.test.mjs`, `apps/mobile/src/__tests__/amoraPreparationNotes.test.mjs`, `apps/mobile/src/__tests__/amoraPreparationNotesScreenContract.test.mjs`, `apps/mobile/app/amora-notes.tsx`. `productionBuildFence.test.ts`는 full-web·pre-push gate가 현재 `preparation_notes_read_rpc_acl_count`를 반영하도록 맞추는 fixture-only 유지보수이며 제품 범위를 넓히지 않는다. 구현 중 이 목록 밖 제품 파일이 필요하면 즉시 중단하고 allowlist를 먼저 갱신한다. source truth는 `server_authoritative_first_use_action_application`과 `server_authoritative_provider_backed_add_action_application` 두 shared assistant receipt만 허용하며, exact 원본 proposal·사용자 confirmation·completed `amora_tool_executions` snapshot·현재 owner/couple/privacy 재검증을 모두 통과해야 한다. generic `decision_nodes`, 일반 provider 문장, legacy/unsealed action, private message, AI 재요약, 자동 공유, 새 write·migration은 금지한다.
 
@@ -1271,7 +1274,7 @@ freeze 전에 다음 중 하나를 선택한다.
 - [x] `AMR-C10` 가입 전 준비 기반부터 결혼 후 마감까지 전체 여정 matrix를 만들고 각 항목을 `connected / explicit not-applicable support / known gap / parked` 중 하나로 분류한다.
 - [x] `AMR-C11` 각 주제의 사용자 문제·상태·결정·실행·완료 증거가 독립적인지 감사한다.
 - [x] `AMR-C12` 공통 topic contract를 재사용하고 주제별 UI를 복제하지 않는다.
-- [ ] `AMR-C13` 공식 근거가 필요한 내용은 출처·확인일·지역·적용 범위를 기록한다.
+- [x] `AMR-C13` 공식 근거가 필요한 내용은 출처·확인일·지역·적용 범위를 기록한다.
 - [ ] `AMR-C14` 대표 정상/배제/변경/부분 실패 fixture를 통과시킨다.
 - [ ] `AMR-C15` 실제 사용자에게 해당하지 않는 주제를 건너뛸 수 있게 한다.
 
