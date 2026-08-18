@@ -77,6 +77,35 @@ export interface AmoraPreparationActionReceiptPageResponse {
   partial: boolean;
 }
 
+export interface AmoraPreparationApprovedFirstAction {
+  action: string;
+  reason: string;
+  completionCriterion: string;
+}
+
+export interface AmoraPreparationActionReceiptV2PageEntry {
+  receiptMessageId: string;
+  actionId: string;
+  topicKey: string | null;
+  title: string;
+  displayMessage: string;
+  approvedFirstAction: AmoraPreparationApprovedFirstAction | null;
+  appliedAt: string;
+  scope: "couple_shared";
+  canOpenAction: true;
+}
+
+export interface AmoraPreparationActionReceiptV2PageResponse {
+  version: 2;
+  state: "ready";
+  recipientUserId: string;
+  coupleId: string;
+  snapshotAt: string;
+  entries: AmoraPreparationActionReceiptV2PageEntry[];
+  nextCursor: string | null;
+  partial: boolean;
+}
+
 export interface AmoraPreparationScheduleDecisionPageEntry {
   decisionId: string;
   eventId: string;
@@ -199,6 +228,12 @@ export function validateAmoraPreparationActionReceiptPageResponse(
   expectedRecipientUserId: string,
   expectedCoupleId: string,
 ): AmoraPreparationTopicMessageRefValidation<AmoraPreparationActionReceiptPageResponse>;
+
+export function validateAmoraPreparationActionReceiptV2PageResponse(
+  value: unknown,
+  expectedRecipientUserId: string,
+  expectedCoupleId: string,
+): AmoraPreparationTopicMessageRefValidation<AmoraPreparationActionReceiptV2PageResponse>;
 
 export function validateAmoraPreparationScheduleDecisionPageResponse(
   value: unknown,

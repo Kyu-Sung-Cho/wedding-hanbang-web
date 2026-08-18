@@ -6,6 +6,7 @@ import {
   isAmoraPreparationTopicMessageRefTopicKey,
   parseAmoraPreparationTopicMessageRefMutationRequest,
   validateAmoraPreparationActionReceiptPageResponse,
+  validateAmoraPreparationActionReceiptV2PageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationScheduleDecisionPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
@@ -32,11 +33,14 @@ const MAX_BODY_BYTES = 2_048;
 const MAX_NOTES_QUERY_CODE_POINTS = 120;
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_V2_CURSOR_RE = /^ap2\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_CONTRACT_VERSION_HEADER =
+  "X-Amora-Preparation-Action-Receipt-Contract-Version";
 const SCHEDULE_DECISION_CURSOR_RE = /^sd1\.[A-Za-z0-9_-]{16,512}$/u;
 const NOTES_QUERY_UNSAFE_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
-  Vary: "Origin, Sec-Fetch-Site, Authorization",
+  Vary: `Origin, Sec-Fetch-Site, Authorization, ${ACTION_RECEIPT_CONTRACT_VERSION_HEADER}`,
 };
 
 function response(body: unknown, status = 200) {
@@ -178,6 +182,7 @@ type ReadQuery =
     }
   | {
       mode: "action_receipts";
+      contractVersion: 1 | 2;
       query: string;
       limit: number;
       cursor: {
@@ -263,9 +268,16 @@ function encodeNotesCursor(input: {
   }), "utf8").toString("base64url")}`;
 }
 
-function decodeActionReceiptCursor(value: string | null, expectedQuery: string) {
+function decodeActionReceiptCursor(
+  value: string | null,
+  expectedQuery: string,
+  contractVersion: 1 | 2,
+) {
   if (value === null) return null;
-  if (!ACTION_RECEIPT_CURSOR_RE.test(value)) return undefined;
+  const cursorPattern = contractVersion === 2
+    ? ACTION_RECEIPT_V2_CURSOR_RE
+    : ACTION_RECEIPT_CURSOR_RE;
+  if (!cursorPattern.test(value)) return undefined;
   try {
     const parsed: unknown = JSON.parse(
       Buffer.from(value.slice(4), "base64url").toString("utf8"),
@@ -275,7 +287,7 @@ function decodeActionReceiptCursor(value: string | null, expectedQuery: string) 
       || !hasExactKeys(parsed, [
         "v", "snapshotAt", "appliedAt", "receiptMessageId", "query",
       ])
-      || parsed.v !== 1
+      || parsed.v !== contractVersion
       || !isIsoTime(parsed.snapshotAt)
       || !isIsoTime(parsed.appliedAt)
       || Date.parse(parsed.appliedAt) > Date.parse(parsed.snapshotAt)
@@ -294,13 +306,15 @@ function decodeActionReceiptCursor(value: string | null, expectedQuery: string) 
 }
 
 function encodeActionReceiptCursor(input: {
+  contractVersion: 1 | 2;
   snapshotAt: string;
   appliedAt: string;
   receiptMessageId: string;
   query: string;
 }) {
-  return `ap1.${Buffer.from(JSON.stringify({
-    v: 1,
+  const prefix = input.contractVersion === 2 ? "ap2" : "ap1";
+  return `${prefix}.${Buffer.from(JSON.stringify({
+    v: input.contractVersion,
     snapshotAt: input.snapshotAt,
     appliedAt: input.appliedAt,
     receiptMessageId: input.receiptMessageId,
@@ -436,7 +450,10 @@ function isStrictlyOlderScheduleDecisionBoundary(
     || (nextConfirmedAt === currentConfirmedAt && next.decisionId < current.decisionId);
 }
 
-function parseReadQuery(request: Request): ReadQuery | null {
+function parseReadQuery(
+  request: Request,
+  actionReceiptContractVersion: 1 | 2,
+): ReadQuery | null {
   const searchParams = new URL(request.url).searchParams;
   const entries = [...searchParams.entries()];
   if (entries.length === 0) return { mode: "list" };
@@ -478,9 +495,19 @@ function parseReadQuery(request: Request): ReadQuery | null {
       || limit > AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT
       || (rawLimit !== null && String(limit) !== rawLimit)
     ) return null;
-    const cursor = decodeActionReceiptCursor(searchParams.get("cursor"), query);
+    const cursor = decodeActionReceiptCursor(
+      searchParams.get("cursor"),
+      query,
+      actionReceiptContractVersion,
+    );
     if (cursor === undefined) return null;
-    return { mode: "action_receipts", query, limit, cursor };
+    return {
+      mode: "action_receipts",
+      contractVersion: actionReceiptContractVersion,
+      query,
+      limit,
+      cursor,
+    };
   }
   if (searchParams.get("view") === "schedule-decisions") {
     const allowedKeys = new Set(["view", "q", "cursor", "limit"]);
@@ -522,9 +549,47 @@ const ACTION_RECEIPT_ORIGINS = [
   "server_authoritative_first_use_action_application",
   "server_authoritative_provider_backed_add_action_application",
 ] as const;
+const ACTION_RECEIPT_BINDING_KEYS = [
+  "proposal_message_id",
+  "couple_id",
+  "action_id",
+  "promotion_id",
+  "proposal_journey_revision",
+] as const;
 
 function uniqueUuids(values: readonly unknown[]) {
   return [...new Set(values.filter(isUuid).map((value) => value.toLowerCase()))];
+}
+
+function parseActionReceiptBindingRows(
+  value: unknown,
+  coupleId: string,
+  requestedPromotionIds: readonly string[],
+): unknown[] | null {
+  if (!Array.isArray(value) || value.length > requestedPromotionIds.length) return null;
+  const requested = new Set(requestedPromotionIds);
+  const proposalIds = new Set<string>();
+  const promotionIds = new Set<string>();
+  const rows: Record<string, unknown>[] = [];
+  for (const row of value) {
+    if (
+      !isRecord(row)
+      || !hasExactKeys(row, ACTION_RECEIPT_BINDING_KEYS)
+      || !isUuid(row.proposal_message_id)
+      || row.couple_id !== coupleId
+      || !isUuid(row.action_id)
+      || !isUuid(row.promotion_id)
+      || !requested.has(row.promotion_id)
+      || !Number.isSafeInteger(row.proposal_journey_revision)
+      || (row.proposal_journey_revision as number) < 0
+      || proposalIds.has(row.proposal_message_id)
+      || promotionIds.has(row.promotion_id)
+    ) return null;
+    proposalIds.add(row.proposal_message_id);
+    promotionIds.add(row.promotion_id);
+    rows.push(row);
+  }
+  return rows;
 }
 
 async function readActionReceiptPage(
@@ -558,6 +623,7 @@ async function readActionReceiptPage(
   if (receiptError || !Array.isArray(rawReceipts)) return null;
 
   const receiptMetadata = rawReceipts
+    .slice(0, scanLimit)
     .map((row) => (isRecord(row) && isRecord(row.metadata) ? row.metadata : null))
     .filter((value): value is Record<string, unknown> => value !== null);
   const promotionIds = uniqueUuids(receiptMetadata.map(
@@ -575,13 +641,20 @@ async function readActionReceiptPage(
 
   let firstUseBindings: unknown[] = [];
   if (promotionIds.length > 0) {
-    const { data, error } = await admin
-      .from("amora_first_use_action_proposal_bindings")
-      .select("proposal_message_id, couple_id, action_id, promotion_id, proposal_journey_revision")
-      .eq("couple_id", context.coupleId)
-      .in("promotion_id", promotionIds);
-    if (error || !Array.isArray(data)) return null;
-    firstUseBindings = data;
+    const { data, error } = await admin.rpc(
+      "list_amora_preparation_action_receipt_bindings_v1",
+      {
+        p_couple_id: context.coupleId,
+        p_recipient_user_id: context.userId,
+        p_expected_privacy_epoch: context.privacyEpoch,
+        p_promotion_ids: promotionIds,
+      },
+    );
+    const parsedBindings = error
+      ? null
+      : parseActionReceiptBindingRows(data, context.coupleId, promotionIds);
+    if (parsedBindings === null) return null;
+    firstUseBindings = parsedBindings;
   }
   const firstUseSourceIds = uniqueUuids(firstUseBindings.map(
     (binding) => isRecord(binding) ? binding.proposal_message_id : null,
@@ -629,6 +702,7 @@ async function readActionReceiptPage(
     firstUseBindings,
     executions,
     nowMs: Date.now(),
+    contractVersion: query.contractVersion,
   });
   return built ? { snapshotAt, ...built } : null;
 }
@@ -709,7 +783,24 @@ export async function GET(request: Request) {
     if (!isTrustedMutationRequest(request)) {
       return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_ORIGIN_REJECTED" }, 403);
     }
-    const query = parseReadQuery(request);
+    const requestUrl = new URL(request.url);
+    const isActionReceiptView =
+      requestUrl.searchParams.get("view") === "action-receipts";
+    const rawActionReceiptContractVersion = request.headers.get(
+      ACTION_RECEIPT_CONTRACT_VERSION_HEADER,
+    );
+    if (
+      isActionReceiptView
+      && rawActionReceiptContractVersion !== null
+      && rawActionReceiptContractVersion !== "2"
+    ) {
+      return response({
+        code: "AMORA_PREPARATION_ACTION_RECEIPT_CONTRACT_UNSUPPORTED",
+      }, 426);
+    }
+    const actionReceiptContractVersion =
+      isActionReceiptView && rawActionReceiptContractVersion === "2" ? 2 : 1;
+    const query = parseReadQuery(request, actionReceiptContractVersion);
     if (!query) {
       return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_QUERY_INVALID" }, 400);
     }
@@ -863,13 +954,14 @@ export async function GET(request: Request) {
       const nextCursor = nextBoundary === null
         ? null
         : encodeActionReceiptCursor({
+            contractVersion: query.contractVersion,
             snapshotAt: loadedPage.snapshotAt,
             appliedAt: nextBoundary.appliedAt,
             receiptMessageId: nextBoundary.receiptMessageId,
             query: query.query,
           });
       const page = {
-        version: 1,
+        version: query.contractVersion,
         state: "ready",
         recipientUserId: context.userId,
         coupleId: context.coupleId,
@@ -878,11 +970,17 @@ export async function GET(request: Request) {
         nextCursor,
         partial: loadedPage.partial,
       };
-      const validated = validateAmoraPreparationActionReceiptPageResponse(
-        page,
-        context.userId,
-        context.coupleId,
-      );
+      const validated = query.contractVersion === 2
+        ? validateAmoraPreparationActionReceiptV2PageResponse(
+            page,
+            context.userId,
+            context.coupleId,
+          )
+        : validateAmoraPreparationActionReceiptPageResponse(
+            page,
+            context.userId,
+            context.coupleId,
+          );
       if (!validated.ok) {
         console.error("[preparation-topic-message-refs] invalid action receipt response", {
           reason: validated.reason,

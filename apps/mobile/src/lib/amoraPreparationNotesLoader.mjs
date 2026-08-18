@@ -4,7 +4,7 @@ import {
   AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT,
   AMORA_PREPARATION_NOTES_PAGE_LIMIT,
   AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT,
-  validateAmoraPreparationActionReceiptPageResponse,
+  validateAmoraPreparationActionReceiptV2PageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationScheduleDecisionPageResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
@@ -14,7 +14,11 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 60_000;
 const DEADLINE = Object.freeze({ kind: "deadline" });
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
-const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_CURSOR_RE = /^ap2\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_V2_HEADERS = Object.freeze({
+  Accept: "application/json",
+  "X-Amora-Preparation-Action-Receipt-Contract-Version": "2",
+});
 const SCHEDULE_DECISION_CURSOR_RE = /^sd1\.[A-Za-z0-9_-]{16,512}$/u;
 const UNSAFE_QUERY_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
@@ -230,13 +234,13 @@ export async function loadAmoraPreparationActionReceiptPage(options) {
       assertCurrent(isCurrent);
       const response = await apiFetch(actionReceiptPagePath(query, cursor), {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: ACTION_RECEIPT_V2_HEADERS,
         signal: controller.signal,
       });
       assertCurrent(isCurrent);
       const payload = await readPayload(response);
       assertCurrent(isCurrent);
-      const validated = validateAmoraPreparationActionReceiptPageResponse(
+      const validated = validateAmoraPreparationActionReceiptV2PageResponse(
         payload,
         ownerId,
         coupleId,
@@ -387,11 +391,11 @@ export async function loadAmoraPreparationNotesSources(options) {
     signal.addEventListener("abort", cancelForCaller, { once: true });
   }
 
-  const apiLane = (path) => lanePromise(async () => {
+  const apiLane = (path, headers = { Accept: "application/json" }) => lanePromise(async () => {
     assertCurrent(isCurrent);
     const response = await apiFetch(path, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers,
       signal: controller.signal,
     });
     assertCurrent(isCurrent);
@@ -410,7 +414,10 @@ export async function loadAmoraPreparationNotesSources(options) {
       openActions,
     ] = await Promise.all([
       apiLane(`/api/amora/preparation-topic-message-refs?view=notes&limit=${AMORA_PREPARATION_NOTES_PAGE_LIMIT}`),
-      apiLane(`/api/amora/preparation-topic-message-refs?view=action-receipts&limit=${AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT}`),
+      apiLane(
+        `/api/amora/preparation-topic-message-refs?view=action-receipts&limit=${AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT}`,
+        ACTION_RECEIPT_V2_HEADERS,
+      ),
       apiLane(`/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=${AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT}`),
       apiLane("/api/amora/criterion"),
       apiLane("/api/amora/couple-criterion"),

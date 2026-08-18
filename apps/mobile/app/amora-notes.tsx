@@ -20,10 +20,10 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import {
-  validateAmoraPreparationActionReceiptPageResponse,
+  validateAmoraPreparationActionReceiptV2PageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationScheduleDecisionPageResponse,
-  type AmoraPreparationActionReceiptPageResponse,
+  type AmoraPreparationActionReceiptV2PageResponse,
   type AmoraPreparationNotesPageResponse,
   type AmoraPreparationScheduleDecisionPageResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
@@ -75,7 +75,7 @@ type NotesSnapshot = Readonly<{
   identity: ScheduleIdentitySnapshot;
   sources: AmoraPreparationNotesSources;
   messageReferencePages: readonly AmoraPreparationNotesPageResponse[];
-  actionReceiptPages: readonly AmoraPreparationActionReceiptPageResponse[];
+  actionReceiptPages: readonly AmoraPreparationActionReceiptV2PageResponse[];
   scheduleDecisionPages: readonly AmoraPreparationScheduleDecisionPageResponse[];
   appliedQuery: string;
 }>;
@@ -163,9 +163,9 @@ function initialScheduleDecisionPages(
 function initialActionReceiptPages(
   sources: AmoraPreparationNotesSources,
   identity: ScheduleIdentitySnapshot,
-): readonly AmoraPreparationActionReceiptPageResponse[] {
+): readonly AmoraPreparationActionReceiptV2PageResponse[] {
   if (sources.actionReceiptReadState !== "loaded") return Object.freeze([]);
-  const parsed = validateAmoraPreparationActionReceiptPageResponse(
+  const parsed = validateAmoraPreparationActionReceiptV2PageResponse(
     sources.actionReceiptCollection,
     identity.ownerId,
     identity.coupleId,
@@ -232,14 +232,21 @@ function NotesRecordRow({
     ? "원문 대화 보기"
     : record.type === "applied_receipt" ? "홈에서 확인"
       : record.type === "confirmed_decision" ? "일정에서 보기" : "기준 확인하기";
+  const approvedFirstAction = record.type === "applied_receipt"
+    ? record.approvedFirstAction ?? null
+    : null;
   const accessibilityLabel = [
     record.typeLabel,
+    approvedFirstAction?.action,
+    approvedFirstAction ? `반영 당시 이유, ${approvedFirstAction.reason}` : undefined,
+    approvedFirstAction ? `완료 기준, ${approvedFirstAction.completionCriterion}` : undefined,
     record.type === "saved_conversation" ? record.questionExcerpt : undefined,
-    record.excerpt,
+    approvedFirstAction ? undefined : record.excerpt,
     topicLabel,
     record.scopeLabel,
+    formatSavedAt(record.savedAt),
     destinationLabel,
-  ].join(", ");
+  ].filter(Boolean).join(", ");
 
   return (
     <Pressable
@@ -265,16 +272,46 @@ function NotesRecordRow({
       {record.type === "saved_conversation" && record.questionExcerpt ? (
         <AppText variant="eyebrow" style={styles.answerLabel}>아모라 답변</AppText>
       ) : null}
-      {record.type === "applied_receipt" || record.type === "confirmed_decision" ? (
+      {record.type === "applied_receipt" ? (
+        <AppText variant="bodyStrong" style={styles.recordExcerpt}>
+          {approvedFirstAction?.action ?? record.title}
+        </AppText>
+      ) : record.type === "confirmed_decision" ? (
         <AppText variant="bodyStrong" style={styles.recordExcerpt} numberOfLines={2}>
           {record.title}
         </AppText>
       ) : null}
-      <AppText variant="bodyStrong" style={styles.recordExcerpt} numberOfLines={4}>
-        {record.excerpt}
-      </AppText>
+      {record.type === "applied_receipt" ? (
+        <AppText variant="body" style={styles.receiptMessage}>
+          {record.excerpt}
+        </AppText>
+      ) : (
+        <AppText variant="bodyStrong" style={styles.recordExcerpt} numberOfLines={4}>
+          {record.excerpt}
+        </AppText>
+      )}
+      {approvedFirstAction ? (
+        <View style={styles.approvedFirstActionBlock}>
+          <View style={styles.approvedFirstActionSection}>
+            <AppText variant="eyebrow" style={styles.approvedFirstActionLabel}>
+              반영 당시 이유
+            </AppText>
+            <AppText variant="body" style={styles.approvedFirstActionCopy}>
+              {approvedFirstAction.reason}
+            </AppText>
+          </View>
+          <View style={styles.approvedFirstActionSection}>
+            <AppText variant="eyebrow" style={styles.approvedFirstActionLabel}>
+              완료 기준
+            </AppText>
+            <AppText variant="body" style={styles.approvedFirstActionCopy}>
+              {approvedFirstAction.completionCriterion}
+            </AppText>
+          </View>
+        </View>
+      ) : null}
       <View style={styles.recordMetaLine}>
-        <AppText variant="caption" style={styles.recordMeta} numberOfLines={1}>
+        <AppText variant="caption" style={styles.recordMeta}>
           {topicLabel} · {formatSavedAt(record.savedAt)}
         </AppText>
         <View style={styles.recordLink}>
@@ -1217,7 +1254,15 @@ const styles = StyleSheet.create({
   questionExcerpt: { color: colors.textSecondary },
   answerLabel: { color: colors.rose[600], marginBottom: -spacing[2] },
   recordExcerpt: { color: colors.noir[800] },
-  recordMetaLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
+  receiptMessage: { color: colors.textSecondary },
+  approvedFirstActionBlock: {
+    gap: spacing[3],
+    paddingTop: spacing[1],
+  },
+  approvedFirstActionSection: { gap: spacing[1] },
+  approvedFirstActionLabel: { color: colors.rose[600] },
+  approvedFirstActionCopy: { color: colors.textSecondary },
+  recordMetaLine: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing[3] },
   recordMeta: { flex: 1, color: colors.textTertiary },
   recordLink: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing[1] },
   recordLinkText: { color: colors.noir[800], fontFamily: "NotoSansKR_600SemiBold" },

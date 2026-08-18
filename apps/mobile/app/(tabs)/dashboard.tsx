@@ -24,6 +24,7 @@ import { loadOwnerAmoraActionOutcomeFeedback } from "@/lib/amoraActionFeedback.m
 import { loadOwnerAmoraCoreCriterion } from "@/lib/amoraCoreCriterion.mjs";
 import { loadOwnerAmoraCoupleCriterion } from "@/lib/amoraCoupleCriterion.mjs";
 import ErrorRetry from "@/components/ErrorRetry";
+import { EmptyState, PrimaryButton } from "@/components/ui/AppUI";
 import AmoraActionFollowUpV2 from "@/components/dashboard/AmoraActionFollowUpV2";
 import AmoraMediationOutcomeFollowUp from "@/components/dashboard/AmoraMediationOutcomeFollowUp";
 import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
@@ -520,6 +521,7 @@ export default function DashboardScreen() {
   const [sessionRefreshVersion, setSessionRefreshVersion] = useState(0);
   const [error, setError] = useState(false);
   const [actionReceiptReadError, setActionReceiptReadError] = useState(false);
+  const [actionReceiptUnavailable, setActionReceiptUnavailable] = useState(false);
   const coupleIdRef = useRef<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const hasFocusedOnceRef = useRef(false);
@@ -557,6 +559,7 @@ export default function DashboardScreen() {
     setData(null);
     setError(false);
     setActionReceiptReadError(false);
+    setActionReceiptUnavailable(false);
     setRefreshing(false);
     setLoading(true);
   }, []);
@@ -655,6 +658,7 @@ export default function DashboardScreen() {
           coreCriterion: null,
         });
         setActionReceiptReadError(false);
+        setActionReceiptUnavailable(false);
         return;
       }
 
@@ -679,7 +683,14 @@ export default function DashboardScreen() {
           return;
         }
         consumedActionReceiptHandoffRef.current = actionReceiptHandoffParam;
+        if (receiptResolution.state === "rejected") {
+          setActionReceiptUnavailable(true);
+          setActionReceiptReadError(false);
+          setLoading(false);
+          return;
+        }
         if (receiptResolution.state === "focused") {
+          setActionReceiptUnavailable(false);
           receiptAction = receiptResolution.action;
           receiptActionId = receiptResolution.action.id;
         }
@@ -1080,6 +1091,22 @@ export default function DashboardScreen() {
             setLoading(true);
             void loadData();
           }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (actionReceiptUnavailable) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <EmptyState
+          title="이 행동은 지금 이어갈 수 없어요"
+          description="이미 완료되었거나 변경된 행동일 수 있어요. 다른 행동으로 바꾸지 않았으니 우리 준비 노트에서 기록을 다시 확인해 주세요."
+          action={(
+            <PrimaryButton onPress={() => router.replace("/amora-notes" as never)}>
+              우리 준비 노트로 돌아가기
+            </PrimaryButton>
+          )}
         />
       </SafeAreaView>
     );

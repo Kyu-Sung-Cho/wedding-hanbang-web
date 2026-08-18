@@ -1,5 +1,6 @@
 import {
   validateAmoraPreparationActionReceiptPageResponse,
+  validateAmoraPreparationActionReceiptV2PageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationScheduleDecisionPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
@@ -226,11 +227,24 @@ function parseMessageReferencePages(input, firstPage) {
 }
 
 function sameActionReceiptEntry(left, right) {
+  const leftApproved = left.approvedFirstAction;
+  const rightApproved = right.approvedFirstAction;
+  const sameApprovedFirstAction = leftApproved === rightApproved
+    || (
+      leftApproved !== null
+      && leftApproved !== undefined
+      && rightApproved !== null
+      && rightApproved !== undefined
+      && leftApproved.action === rightApproved.action
+      && leftApproved.reason === rightApproved.reason
+      && leftApproved.completionCriterion === rightApproved.completionCriterion
+    );
   return left.receiptMessageId === right.receiptMessageId
     && left.actionId === right.actionId
     && left.topicKey === right.topicKey
     && left.title === right.title
     && left.displayMessage === right.displayMessage
+    && sameApprovedFirstAction
     && left.appliedAt === right.appliedAt
     && left.scope === right.scope
     && left.canOpenAction === right.canOpenAction;
@@ -270,12 +284,19 @@ function parseActionReceiptPages(input, firstPage) {
 
   const pages = [];
   for (const rawPage of rawPages) {
-    const parsed = validateAmoraPreparationActionReceiptPageResponse(
-      rawPage,
-      input.ownerId,
-      input.coupleId,
-    );
+    const parsed = rawPage?.version === 2
+      ? validateAmoraPreparationActionReceiptV2PageResponse(
+          rawPage,
+          input.ownerId,
+          input.coupleId,
+        )
+      : validateAmoraPreparationActionReceiptPageResponse(
+          rawPage,
+          input.ownerId,
+          input.coupleId,
+        );
     if (!parsed.ok || parsed.value.snapshotAt !== firstPage.snapshotAt) return null;
+    if (parsed.value.version !== firstPage.version) return null;
     pages.push(parsed.value);
   }
   if (!sameActionReceiptPage(pages[0], firstPage)) return null;
@@ -320,6 +341,13 @@ function buildActionReceiptRecords(entries, topics) {
       typeLabel: "실제 반영",
       title: entry.title,
       excerpt: entry.displayMessage,
+      ...(entry.approvedFirstAction === undefined
+        ? {}
+        : {
+            approvedFirstAction: entry.approvedFirstAction === null
+              ? null
+              : Object.freeze({ ...entry.approvedFirstAction }),
+          }),
       topicKeys: Object.freeze(topicLabel === null ? [] : [entry.topicKey]),
       topicLabels: Object.freeze(topicLabel === null ? [] : [topicLabel]),
       scope: "couple_shared",
@@ -640,11 +668,17 @@ export function buildAmoraPreparationNotes(input) {
       input.actionReceiptReadState === "loaded"
       || input.actionReceiptReadState === "partial"
     ) {
-      const firstPage = validateAmoraPreparationActionReceiptPageResponse(
-        input.actionReceiptCollection,
-        input.ownerId,
-        input.coupleId,
-      );
+      const firstPage = input.actionReceiptCollection?.version === 2
+        ? validateAmoraPreparationActionReceiptV2PageResponse(
+            input.actionReceiptCollection,
+            input.ownerId,
+            input.coupleId,
+          )
+        : validateAmoraPreparationActionReceiptPageResponse(
+            input.actionReceiptCollection,
+            input.ownerId,
+            input.coupleId,
+          );
       const parsedPages = firstPage.ok
         ? parseActionReceiptPages(input, firstPage.value)
         : null;
@@ -714,6 +748,8 @@ export function buildAmoraPreparationNotes(input) {
         record.questionExcerpt ?? "",
         record.title ?? "",
         record.excerpt,
+        record.approvedFirstAction?.reason ?? "",
+        record.approvedFirstAction?.completionCriterion ?? "",
         record.typeLabel,
         ...record.topicLabels,
       ].join(" "), query)

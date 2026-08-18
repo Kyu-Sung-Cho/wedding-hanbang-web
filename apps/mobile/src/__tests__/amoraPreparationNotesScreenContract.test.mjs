@@ -77,7 +77,8 @@ test("question search and load-more keep the last verified snapshot until an exa
 
 test("verified applied actions join search, pagination, and exact dashboard continuation", () => {
   assert.match(notesSource, /value: "applied_receipt", label: "실제 반영"/u);
-  assert.match(notesSource, /validateAmoraPreparationActionReceiptPageResponse/u);
+  assert.match(notesSource, /validateAmoraPreparationActionReceiptV2PageResponse/u);
+  assert.match(notesSource, /AmoraPreparationActionReceiptV2PageResponse/u);
   assert.match(notesSource, /loadAmoraPreparationActionReceiptPage/u);
   assert.match(notesSource, /actionReceiptPages/u);
   assert.match(notesSource, /Promise\.all\(\[[\s\S]{0,800}loadAmoraPreparationNotesMessagePage[\s\S]{0,800}loadAmoraPreparationActionReceiptPage/u);
@@ -89,6 +90,48 @@ test("verified applied actions join search, pagination, and exact dashboard cont
   assert.match(notesSource, /record\.type === "applied_receipt"[\s\S]{0,200}"홈에서 확인"/u);
   assert.match(notesSource, /hasMorePreparationRecords/u);
   assert.match(notesSource, /sources\.actionReceiptReadState === "unavailable"/u);
+  assert.doesNotMatch(notesSource, /sourceMessageId|promotionId|privateGrounding/u);
+});
+
+test("approved first-use context stays structured, complete at large text, and ordered for assistive technology", () => {
+  const rowSource = notesSource.slice(
+    notesSource.indexOf("function NotesRecordRow"),
+    notesSource.indexOf("export default function AmoraPreparationNotesScreen"),
+  );
+  const accessibilitySource = rowSource.slice(
+    rowSource.indexOf("const accessibilityLabel = ["),
+    rowSource.indexOf("].filter(Boolean).join"),
+  );
+
+  assert.match(rowSource, /record\.approvedFirstAction/u);
+  assert.match(rowSource, />\s*반영 당시 이유\s*</u);
+  assert.match(rowSource, />\s*완료 기준\s*</u);
+  assert.match(rowSource, /approvedFirstAction\?\.action/u);
+  assert.match(rowSource, /approvedFirstAction\.reason/u);
+  assert.match(rowSource, /approvedFirstAction\.completionCriterion/u);
+  const accessibilityOrder = [
+    "record.typeLabel",
+    "approvedFirstAction?.action",
+    "반영 당시 이유",
+    "approvedFirstAction.reason",
+    "완료 기준",
+    "approvedFirstAction.completionCriterion",
+    "topicLabel",
+    "record.scopeLabel",
+    "formatSavedAt(record.savedAt)",
+    "destinationLabel",
+  ];
+  let previousIndex = -1;
+  for (const token of accessibilityOrder) {
+    const index = accessibilitySource.indexOf(token);
+    assert.ok(index > previousIndex, `${token} must follow the previous accessibility field`);
+    previousIndex = index;
+  }
+  assert.doesNotMatch(
+    rowSource,
+    /numberOfLines=\{\d+\}[\s\S]{0,180}approvedFirstAction\.(?:action|reason|completionCriterion)/u,
+  );
+  assert.doesNotMatch(rowSource, /style=\{styles\.recordMeta\} numberOfLines=\{1\}/u);
 });
 
 test("verified schedule decisions join search, pagination, and a read-only schedule return", () => {

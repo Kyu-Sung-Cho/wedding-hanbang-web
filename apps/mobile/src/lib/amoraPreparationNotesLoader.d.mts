@@ -1,5 +1,5 @@
 import type {
-  AmoraPreparationActionReceiptPageResponse,
+  AmoraPreparationActionReceiptV2PageResponse,
   AmoraPreparationNotesPageResponse,
   AmoraPreparationScheduleDecisionPageResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
@@ -47,14 +47,17 @@ export declare function loadAmoraPreparationActionReceiptPage(options: Readonly<
     path: string,
     options: Readonly<{
       method: "GET";
-      headers: Readonly<{ Accept: "application/json" }>;
+      headers: Readonly<{
+        Accept: "application/json";
+        "X-Amora-Preparation-Action-Receipt-Contract-Version": "2";
+      }>;
       signal: AbortSignal;
     }>,
   ) => Promise<Readonly<{ ok: boolean; json(): Promise<unknown> }>>;
   isCurrent: () => boolean;
   signal?: AbortSignal;
   timeoutMs?: number;
-}>): Promise<AmoraPreparationActionReceiptPageResponse>;
+}>): Promise<AmoraPreparationActionReceiptV2PageResponse>;
 
 export declare function loadAmoraPreparationScheduleDecisionPage(options: Readonly<{
   ownerId: string;
@@ -98,7 +101,10 @@ export declare function loadAmoraPreparationNotesSources(options: Readonly<{
     path: string,
     options: Readonly<{
       method: "GET";
-      headers: Readonly<{ Accept: "application/json" }>;
+      headers: Readonly<{
+        Accept: "application/json";
+        "X-Amora-Preparation-Action-Receipt-Contract-Version"?: "2";
+      }>;
       signal: AbortSignal;
     }>,
   ) => Promise<Readonly<{ ok: boolean; json(): Promise<unknown> }>>;
@@ -111,7 +117,3 @@ export declare function loadAmoraPreparationNotesSources(options: Readonly<{
   signal?: AbortSignal;
   timeoutMs?: number;
 }>): Promise<AmoraPreparationNotesSources>;
-import type {
-  AmoraPreparationActionReceiptPageResponse,
-  AmoraPreparationNotesPageResponse,
-} from "@hanbang/shared/amora-preparation-topic-message-ref";

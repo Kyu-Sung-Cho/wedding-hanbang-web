@@ -102,6 +102,7 @@ const ACTIVE_AMORA_SECURITY_MIGRATIONS = Object.freeze([
   "20260818160000_amora_shared_action_receipt_trigger.sql",
   "20260818170000_amora_vendor_review_trigger_search_path.sql",
   "20260818180000_amora_decision_node_updated_at_clock.sql",
+  "20260819100000_amora_preparation_action_receipt_binding_read.sql",
 ]);
 
 const GATED_COUPLE_INVITE_PHASE_B_MIGRATION =
@@ -211,6 +212,10 @@ const AMORA_DECISION_NODE_UPDATED_AT_CLOCK_MIGRATION = Object.freeze({
   file: "20260818180000_amora_decision_node_updated_at_clock.sql",
   sha256: "d633a58e209ba46cae83566e81f1c9e0b2750b1593be7e8e5406d1bf0ddba4e6",
 });
+const AMORA_PREPARATION_ACTION_RECEIPT_BINDING_READ_MIGRATION = Object.freeze({
+  file: "20260819100000_amora_preparation_action_receipt_binding_read.sql",
+  sha256: "5141c65448b0e454c7fc6545f3705c7342cd95685f3f5f9f30bcf4dff56e64a6",
+});
 
 const ACTIVE_AMORA_SECURITY_CREATED_TABLES = Object.freeze([
   "amora_action_follow_up_cards_v2",
@@ -312,7 +317,7 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.manifest.status, "deployment_blocked");
   assert.equal(result.remoteBaseline.observedRemoteHead, "20260727090000");
   assert.equal(result.remoteBaseline.appliedMigrations.length, 32);
-  assert.equal(result.pendingMigrations.length, 80);
+  assert.equal(result.pendingMigrations.length, 81);
   assert.equal(
     result.pendingMigrations.at(0)?.file,
     "20260730100000_retire_undisclosed_community_agents.sql",
@@ -653,62 +658,66 @@ test("preparation topic message references migration stays exact-hash pinned and
   });
 });
 
-test("decision-node updated-at clock repair is the terminal successor migration and remains deployment-blocked", () => {
+test("preparation-action receipt binding read is the terminal successor migration and remains deployment-blocked", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.equal(result.manifest.expandMigrations.length, 112);
+  assert.equal(result.manifest.expandMigrations.length, 113);
   assert.deepEqual(
     result.manifest.expandMigrations.at(-1),
-    AMORA_DECISION_NODE_UPDATED_AT_CLOCK_MIGRATION,
+    AMORA_PREPARATION_ACTION_RECEIPT_BINDING_READ_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-2),
-    AMORA_VENDOR_REVIEW_TRIGGER_SEARCH_PATH_MIGRATION,
+    AMORA_DECISION_NODE_UPDATED_AT_CLOCK_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-3),
-    AMORA_SHARED_ACTION_RECEIPT_TRIGGER_MIGRATION,
+    AMORA_VENDOR_REVIEW_TRIGGER_SEARCH_PATH_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-4),
-    AMORA_TOPIC_CRITERION_ACTION_CONTEXT_MIGRATION,
+    AMORA_SHARED_ACTION_RECEIPT_TRIGGER_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-5),
-    AMORA_MEDIATION_PRIVATE_DRAFT_BOUNDARY_MIGRATION,
+    AMORA_TOPIC_CRITERION_ACTION_CONTEXT_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-6),
-    AMORA_PREPARATION_NOTES_READ_MIGRATION,
+    AMORA_MEDIATION_PRIVATE_DRAFT_BOUNDARY_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-7),
-    AMORA_MESSAGE_REF_HTTP_CONFLICTS_MIGRATION,
+    AMORA_PREPARATION_NOTES_READ_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-8),
-    COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION,
+    AMORA_MESSAGE_REF_HTTP_CONFLICTS_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-9),
-    SIGNUP_PROFILE_TRIGGER_RESTORE_MIGRATION,
+    COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-10),
-    AMORA_PREPARATION_CATCH_UP_MIGRATION,
+    SIGNUP_PROFILE_TRIGGER_RESTORE_MIGRATION,
   );
   assert.deepEqual(
     result.manifest.expandMigrations.at(-11),
+    AMORA_PREPARATION_CATCH_UP_MIGRATION,
+  );
+  assert.deepEqual(
+    result.manifest.expandMigrations.at(-12),
     AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
   );
-  assert.equal(result.pendingMigrations.length, 80);
+  assert.equal(result.pendingMigrations.length, 81);
   assert.deepEqual(
     result.pendingMigrations.at(-1),
-    AMORA_DECISION_NODE_UPDATED_AT_CLOCK_MIGRATION,
+    AMORA_PREPARATION_ACTION_RECEIPT_BINDING_READ_MIGRATION,
   );
-  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 80);
+  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 81);
   assert.equal(
     result.remoteBaseline.contract.lastPendingSuccessor,
-    "20260818180000",
+    "20260819100000",
   );
   assert.equal(result.deploymentBlocked, true);
   assert.equal(result.manifest.status, "deployment_blocked");
@@ -908,7 +917,7 @@ test("atomic action href parity adds no backup table and postchecks private/publ
 
 test("preparation notes read is exact-hash pinned and service-role-only", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.deepEqual(result.manifest.expandMigrations.at(-6), AMORA_PREPARATION_NOTES_READ_MIGRATION);
+  assert.deepEqual(result.manifest.expandMigrations.at(-7), AMORA_PREPARATION_NOTES_READ_MIGRATION);
   const sql = readFileSync(
     join(REPO_ROOT, "supabase", "migrations", AMORA_PREPARATION_NOTES_READ_MIGRATION.file),
     "utf8",
@@ -923,7 +932,7 @@ test("preparation notes read is exact-hash pinned and service-role-only", () => 
 test("mediation private-draft boundary is exact-hash pinned and fail-closed", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-5),
+    result.manifest.expandMigrations.at(-6),
     AMORA_MEDIATION_PRIVATE_DRAFT_BOUNDARY_MIGRATION,
   );
   const sql = readFileSync(
@@ -947,7 +956,7 @@ test("mediation private-draft boundary is exact-hash pinned and fail-closed", ()
 test("topic criterion action context is exact-hash pinned and trigger-only", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-4),
+    result.manifest.expandMigrations.at(-5),
     AMORA_TOPIC_CRITERION_ACTION_CONTEXT_MIGRATION,
   );
   const sql = readFileSync(
@@ -973,7 +982,7 @@ test("topic criterion action context is exact-hash pinned and trigger-only", () 
 test("shared-action application receipts bypass only the canonical terminal trigger shape", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-3),
+    result.manifest.expandMigrations.at(-4),
     AMORA_SHARED_ACTION_RECEIPT_TRIGGER_MIGRATION,
   );
   const sql = readFileSync(
@@ -999,7 +1008,7 @@ test("shared-action application receipts bypass only the canonical terminal trig
 test("vendor-review rating projection is schema-bound and trigger-only", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-2),
+    result.manifest.expandMigrations.at(-3),
     AMORA_VENDOR_REVIEW_TRIGGER_SEARCH_PATH_MIGRATION,
   );
   const sql = readFileSync(
@@ -1023,7 +1032,7 @@ test("vendor-review rating projection is schema-bound and trigger-only", () => {
 test("decision-node booking outcomes use the clock trigger without widening ordinary updates", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-1),
+    result.manifest.expandMigrations.at(-2),
     AMORA_DECISION_NODE_UPDATED_AT_CLOCK_MIGRATION,
   );
   const sql = readFileSync(
@@ -1049,7 +1058,7 @@ test("decision-node booking outcomes use the clock trigger without widening ordi
 
 test("booking outcome provenance is exact-hash pinned and service-role-only", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.deepEqual(result.manifest.expandMigrations.at(-12), AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION);
+  assert.deepEqual(result.manifest.expandMigrations.at(-13), AMORA_BOOKING_OUTCOME_PROVENANCE_MIGRATION);
   assert.equal(result.deploymentBlocked, true);
   assert.deepEqual(result.manifest.deploymentEvidence, {
     hostedStaging: "missing",
@@ -1097,10 +1106,10 @@ test("booking outcome provenance is exact-hash pinned and service-role-only", ()
   assert.doesNotMatch(sql, /CREATE\s+TABLE/i);
 });
 
-test("neutral preparation space is the terminal exact-hash migration and keeps membership compatibility private", () => {
+test("neutral preparation space stays exact-hash pinned and keeps membership compatibility private", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-11),
+    result.manifest.expandMigrations.at(-12),
     AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
   );
   assert.equal(result.deploymentBlocked, true);
@@ -1128,7 +1137,7 @@ test("neutral preparation space is the terminal exact-hash migration and keeps m
 test("preparation catch-up pins service-only storage, finalizer ACL, and private actor binding", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-10),
+    result.manifest.expandMigrations.at(-11),
     AMORA_PREPARATION_CATCH_UP_MIGRATION,
   );
   assert.deepEqual(
@@ -1169,7 +1178,7 @@ test("preparation catch-up pins service-only storage, finalizer ACL, and private
 test("signup profile trigger restoration is exact-hash pinned and restores only the fail-closed trigger contract", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-9),
+    result.manifest.expandMigrations.at(-10),
     SIGNUP_PROFILE_TRIGGER_RESTORE_MIGRATION,
   );
   assert.deepEqual(
@@ -1203,7 +1212,7 @@ test("signup profile trigger restoration is exact-hash pinned and restores only 
 test("couple invite nullable restoration is exact-hash pinned and changes no row data", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
   assert.deepEqual(
-    result.manifest.expandMigrations.at(-8),
+    result.manifest.expandMigrations.at(-9),
     COUPLE_INVITE_NULLABLE_RESTORE_MIGRATION,
   );
   assert.deepEqual(
@@ -1672,6 +1681,7 @@ function readyStaticFixture({
         preparation_catch_up_rpc_acl_count: 1,
         preparation_catch_up_private_actor_binding_contract_count: 1,
         preparation_notes_read_rpc_acl_count: 1,
+        preparation_action_receipt_binding_read_rpc_acl_count: 1,
         mediation_private_draft_boundary_trigger_count: 1,
         topic_criterion_action_context_trigger_count: 1,
         shared_action_receipt_trigger_contract_count: 1,
@@ -1996,6 +2006,11 @@ test("controller_ready는 현재 remote baseline, exact migration set, postcheck
   );
   assert.equal(
     result.controllerManifest.postApplyChecks[0].expectedEvidence
+      .preparation_action_receipt_binding_read_rpc_acl_count,
+    1,
+  );
+  assert.equal(
+    result.controllerManifest.postApplyChecks[0].expectedEvidence
       .mediation_private_draft_boundary_trigger_count,
     1,
   );
@@ -2081,6 +2096,26 @@ test("preparation notes read ACL hosted postcheck가 없으면 controller_ready�
     }).root,
     "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
   );
+});
+
+test("preparation-action receipt binding-read ACL evidence is required and must equal one", () => {
+  for (const mutateEvidence of [
+    (evidence) => {
+      delete evidence.preparation_action_receipt_binding_read_rpc_acl_count;
+    },
+    (evidence) => {
+      evidence.preparation_action_receipt_binding_read_rpc_acl_count = 0;
+    },
+  ]) {
+    expectBlocked(
+      readyStaticFixture({
+        mutateContract(contract) {
+          mutateEvidence(contract.postApplyChecks[0].expectedEvidence);
+        },
+      }).root,
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+    );
+  }
 });
 
 test("mediation private-draft boundary hosted postcheck가 없으면 controller_ready가 되지 않는다", () => {

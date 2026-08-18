@@ -19,6 +19,12 @@ const PENDING_ACTION = "60000000-0000-4000-8000-000000000006";
 const VISIBLE_REQUEST = "70000000-0000-4000-8000-000000000007";
 const SOURCE_USER_MESSAGE = "80000000-0000-4000-8000-000000000008";
 const PROMOTION = "90000000-0000-4000-8000-000000000009";
+const FIRST_USE_ACTION = "예식장 후보 비교 기준 정리";
+const FIRST_USE_REASON = "장소를 보기 전에 두 사람의 공통 기준이 필요해요.";
+const FIRST_USE_COMPLETION_CRITERION =
+  "각자 꼭 지킬 기준을 하나씩 적으면 끝나요.";
+const FIRST_USE_DESCRIPTION =
+  `이유: ${FIRST_USE_REASON} 완료 기준: ${FIRST_USE_COMPLETION_CRITERION}`;
 
 function confirmationRequestUuid() {
   const hex = createHash("sha256")
@@ -38,11 +44,13 @@ function confirmationRequestUuid() {
   ].join("-");
 }
 
-function providerCandidate() {
+function providerCandidate(
+  description = "두 사람이 확인할 조건을 한 번 더 대조해요.",
+) {
   const issuedAt = Date.parse("2026-08-18T01:00:00.000Z");
   const input = {
     title: "예식장 계약 조건 다시 확인",
-    description: "두 사람이 확인할 조건을 한 번 더 대조해요.",
+    description,
     category_key: "venue",
     priority: "medium",
     source: "chat",
@@ -170,11 +178,11 @@ function providerCandidate() {
   };
 }
 
-function firstUseCandidate() {
+function firstUseCandidate(description = FIRST_USE_DESCRIPTION) {
   const issuedAt = Date.parse("2026-08-18T03:00:00.000Z");
   const input = {
-    title: "예식장 후보 비교 기준 정리",
-    description: "둘이 이야기할 첫 준비 행동을 정리해요.",
+    title: FIRST_USE_ACTION,
+    description,
     category_key: "general",
     priority: "medium",
     source: "chat",
@@ -327,6 +335,34 @@ function firstUseCandidate() {
   };
 }
 
+function actionReceiptPageInput(
+  candidate:
+    | ReturnType<typeof providerCandidate>
+    | ReturnType<typeof firstUseCandidate>,
+  query: string,
+  contractVersion?: 1 | 2,
+) {
+  return {
+    coupleId: COUPLE,
+    recipientUserId: ACTOR,
+    query,
+    snapshotAt: new Date(candidate.nowMs).toISOString(),
+    limit: 24,
+    scanLimit: 192,
+    receiptMessages: [candidate.receiptMessage],
+    sourceAndConfirmationMessages: [
+      candidate.sourceMessage,
+      candidate.confirmationMessage,
+    ],
+    firstUseBindings: candidate.firstUseBinding === null
+      ? []
+      : [candidate.firstUseBinding],
+    executions: [candidate.execution],
+    nowMs: candidate.nowMs,
+    ...(contractVersion === undefined ? {} : { contractVersion }),
+  };
+}
+
 describe("preparation action receipt", () => {
   it("builds a bounded searchable page and marks duplicate durable receipts partial", () => {
     const candidate = providerCandidate();
@@ -419,7 +455,7 @@ describe("preparation action receipt", () => {
       receiptMessageId: RECEIPT,
       actionId: candidate.execution.result.toolOutput.action.id,
       topicKey: null,
-      title: "예식장 후보 비교 기준 정리",
+      title: FIRST_USE_ACTION,
       displayMessage: candidate.receiptMessage.content,
       appliedAt: candidate.receiptMessage.created_at,
       scope: "couple_shared",
@@ -429,6 +465,85 @@ describe("preparation action receipt", () => {
     candidate.firstUseBinding.promotion_id =
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     expect(parsePreparationActionReceiptCandidate(candidate)).toBeNull();
+  });
+
+  it("opts into a searchable v2 approved first action without exposing provenance ids", () => {
+    const candidate = firstUseCandidate();
+    const expectedEntry = {
+      receiptMessageId: RECEIPT,
+      actionId: candidate.execution.result.toolOutput.action.id,
+      topicKey: null,
+      title: FIRST_USE_ACTION,
+      displayMessage: candidate.receiptMessage.content,
+      appliedAt: candidate.receiptMessage.created_at,
+      scope: "couple_shared",
+      canOpenAction: true,
+      approvedFirstAction: {
+        action: FIRST_USE_ACTION,
+        reason: FIRST_USE_REASON,
+        completionCriterion: FIRST_USE_COMPLETION_CRITERION,
+      },
+    };
+
+    for (const query of [FIRST_USE_REASON, FIRST_USE_COMPLETION_CRITERION]) {
+      expect(buildPreparationActionReceiptPage(
+        actionReceiptPageInput(candidate, query, 2),
+      )).toEqual({
+        entries: [expectedEntry],
+        nextBoundary: null,
+        partial: false,
+      });
+    }
+
+    const serialized = JSON.stringify(buildPreparationActionReceiptPage(
+      actionReceiptPageInput(candidate, "", 2),
+    ));
+    expect(serialized).not.toContain(SOURCE);
+    expect(serialized).not.toContain(SOURCE_USER_MESSAGE);
+    expect(serialized).not.toContain(PROMOTION);
+    expect(serialized).not.toContain("sourceMessageId");
+    expect(serialized).not.toContain("promotionId");
+  });
+
+  it("keeps every provider-backed description out of the v2 approved-first-action field", () => {
+    for (const description of [
+      "두 사람이 확인할 조건을 한 번 더 대조해요.",
+      FIRST_USE_DESCRIPTION,
+    ]) {
+      const candidate = providerCandidate(description);
+
+      expect(buildPreparationActionReceiptPage(
+        actionReceiptPageInput(candidate, "", 2),
+      )).toEqual({
+        entries: [{
+          receiptMessageId: RECEIPT,
+          actionId: (candidate.execution.result.toolOutput.action as Record<string, unknown>).id,
+          topicKey: "venue",
+          title: "예식장 계약 조건 다시 확인",
+          displayMessage: candidate.receiptMessage.content,
+          appliedAt: candidate.receiptMessage.created_at,
+          scope: "couple_shared",
+          canOpenAction: true,
+          approvedFirstAction: null,
+        }],
+        nextBoundary: null,
+        partial: false,
+      });
+    }
+
+    expect(buildPreparationActionReceiptPage(
+      actionReceiptPageInput(providerCandidate(FIRST_USE_DESCRIPTION), FIRST_USE_REASON, 2),
+    )).toEqual({ entries: [], nextBoundary: null, partial: false });
+  });
+
+  it("omits an ambiguous first-use canonical description and marks the v2 page partial", () => {
+    const candidate = firstUseCandidate(
+      "이유: 이유 안에 완료 기준: 표기가 있어 모호해요. 완료 기준: 실제 기준을 적으면 끝나요.",
+    );
+
+    expect(buildPreparationActionReceiptPage(
+      actionReceiptPageInput(candidate, "", 2),
+    )).toEqual({ entries: [], nextBoundary: null, partial: true });
   });
 
   it.each([

@@ -1,7 +1,7 @@
 # Successor Supabase release controller contract
 
 Date: 2026-07-31  
-Contract sync: 2026-08-18
+Contract sync: 2026-08-19
 Release: `vendor-disclosure-v2-20260718`  
 Current decision: **NO-GO**
 
@@ -9,12 +9,12 @@ Current decision: **NO-GO**
 
 `supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
 `deployment_blocked`. Its five deployment-evidence classes remain `missing`.
-The ordered successor manifest now contains 112 migrations and ends at
-`20260818180000_amora_decision_node_updated_at_clock.sql`.
+The ordered successor manifest now contains 113 migrations and ends at
+`20260819100000_amora_preparation_action_receipt_binding_read.sql`.
 The normalized-LF current manifest SHA-256 is
-`209c0e6d51022162b1a81d28183f9668f5d688c97de0062adb5fdc3f1077bedb`;
+`0799c19a6261844421c86ef8bef60b4ca7719770a472efa95474aa5610998890`;
 the terminal migration SHA-256 is
-`d633a58e209ba46cae83566e81f1c9e0b2750b1593be7e8e5406d1bf0ddba4e6`.
+`5141c65448b0e454c7fc6545f3705c7342cd95685f3f5f9f30bcf4dff56e64a6`.
 
 On 2026-08-15, a linked, read-only Production ledger audit observed:
 
@@ -23,9 +23,9 @@ On 2026-08-15, a linked, read-only Production ledger audit observed:
   ending at `20260727090000`;
 - no remote-only migration version exists.
 
-Against the current 112-migration repository manifest, that observed prefix
-leaves 80 local successor migrations pending, from `20260730100000` through
-`20260818180000`. This suffix count is derived from the updated local manifest;
+Against the current 113-migration repository manifest, that observed prefix
+leaves 81 local successor migrations pending, from `20260730100000` through
+`20260819100000`. This suffix count is derived from the updated local manifest;
 it is not a new 2026-08-16 Production ledger observation.
 
 This proves migration-version continuity only. The old remote ledger rows have
@@ -39,17 +39,17 @@ controller against this observed Production baseline.
 The repository now pins the observation boundary in
 `supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json`
 (normalized-LF SHA-256
-`d8f19a277df45108e75389aea28e783ce6046c5848ccab34b922ab0d21e116dc`).
+`2f10e5a9115d7d713dbc93ec0d58fb48c0cb8b03926be0786b02b7c605643760`).
 The successor manifest hash-pins that file. Static validation requires its 32
-applied migrations to be the exact file/hash prefix of the 112-migration
-manifest and its 80 pending migrations to be the exact suffix. Re-hashing a
+applied migrations to be the exact file/hash prefix of the 113-migration
+manifest and its 81 pending migrations to be the exact suffix. Re-hashing a
 semantically altered count, boundary, file, or migration hash is rejected.
 
 This baseline contract still does not authorize the current release controller
 to apply the suffix. The next controller tranche must consume the pinned
 historical prefix, use `20260727090000` as the effective pre-apply head, create
 a fresh current-remote backup contract that includes the schema effects of the
-32 applied migrations, and keep the remaining 80 migrations as the only
+32 applied migrations, and keep the remaining 81 migrations as the only
 ordered pending set. It must not rewrite Supabase migration history.
 
 The read-only check is reproducible with:
@@ -192,7 +192,7 @@ whitespace rules, with every retired fragment absent. Omitting any finalizer
 ACL, dispatcher ACL or href/whitespace postcondition evidence keeps the release
 blocked.
 
-The terminal neutral-preparation-space migration also creates no table. It adds
+The neutral-preparation-space migration also creates no table. It adds
 the constrained `couples.member_model_version` compatibility marker, a guarded
 one-way upgrade trigger, an authenticated create RPC, and a service-role-only
 join RPC. Hosted postchecks must prove both exact RPC ACLs and the live
@@ -206,6 +206,16 @@ vendor, contract, payment, or booking truth. Hosted postchecks must prove the
 finalizer ACL and the private decision policy's exact `actor_profile_id =
 auth.uid()` binding so a later occupant of the same compatibility role cannot
 inherit the earlier user's private report.
+
+The terminal preparation-action receipt binding-read migration creates no
+table and does not widen direct table access. It adds one Postgres-owned,
+security-definer read RPC for the server receipt projection while preserving
+the binding table's revoked `PUBLIC`, `anon`, `authenticated`, and
+`service_role` table privileges. Hosted postchecks must return
+`preparation_action_receipt_binding_read_rpc_acl_count=1` only when the exact
+RPC is executable by `service_role`, denied to client roles, and retains its
+fail-closed caller/context boundary. Missing or zero evidence keeps the
+successor release blocked.
 
 ## Postchecks, rollback and finalization
 
@@ -231,7 +241,8 @@ postcheck must return exactly one provider-backed add-action finalizer ACL
 contract, one private dispatcher ACL contract, one public dispatcher ACL
 contract, one href/whitespace parity contract, two neutral preparation-space RPC
 ACL contracts, one neutral member-model column/constraint/trigger contract, one
-preparation catch-up finalizer ACL contract, and one private actor-binding contract.
+preparation catch-up finalizer ACL contract, one private actor-binding contract,
+and one preparation-action receipt binding-read RPC ACL contract.
 Omitting any of these evidence fields prevents `controller_ready`.
 
 Database migration rollback is prohibited after an ambiguous or completed
@@ -371,6 +382,7 @@ automatic rerun.
 | `20260818160000_amora_shared_action_receipt_trigger.sql` | `4046e4d2affd765d04bb002fd7a20e144a2f92e714e1aacf50d2adb47a5d5198` | `AMR-D14` | `integrity_hardening` | `always_on` | `hosted:mutation-replay` |
 | `20260818170000_amora_vendor_review_trigger_search_path.sql` | `c797af2aa813ae8628bae6361a2ec60564104f2cd21626c5526f048eb906a84a` | `AMR-R02` | `integrity_hardening` | `always_on` | `hosted:booking-integrity` |
 | `20260818180000_amora_decision_node_updated_at_clock.sql` | `d633a58e209ba46cae83566e81f1c9e0b2750b1593be7e8e5406d1bf0ddba4e6` | `AMR-R02` | `integrity_hardening` | `always_on` | `hosted:booking-integrity` |
+| `20260819100000_amora_preparation_action_receipt_binding_read.sql` | `5141c65448b0e454c7fc6545f3705c7342cd95685f3f5f9f30bcf4dff56e64a6` | `AMR-M03` | `active_dependency` | `always_on` | `hosted:privacy-rls` |
 
 <!-- AMORA:PENDING-SCOPE-CLASSIFICATION:END -->
 

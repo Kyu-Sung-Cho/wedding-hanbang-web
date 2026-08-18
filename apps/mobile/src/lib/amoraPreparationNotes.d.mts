@@ -61,6 +61,11 @@ export type AmoraPreparationNotesAppliedReceiptRecord = Readonly<{
   typeLabel: "실제 반영";
   title: string;
   excerpt: string;
+  approvedFirstAction?: Readonly<{
+    action: string;
+    reason: string;
+    completionCriterion: string;
+  }> | null;
   topicKeys: readonly string[];
   topicLabels: readonly string[];
   scope: "couple_shared";

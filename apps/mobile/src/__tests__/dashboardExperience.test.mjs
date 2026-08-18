@@ -1467,6 +1467,26 @@ test("chat stages and dashboard resolves one owner-bound receipt before showing 
   assert.match(dashboardSource, /receiptActionId:\s*openAction\?\.id === receiptActionId/u);
 });
 
+test("a rejected exact receipt handoff never falls back to a different current action", () => {
+  const dashboardSource = readFileSync(fileURLToPath(new URL(
+    "../../app/(tabs)/dashboard.tsx",
+    import.meta.url,
+  )), "utf8");
+
+  assert.match(
+    dashboardSource,
+    /receiptResolution\.state === "rejected"[\s\S]{0,240}setActionReceiptUnavailable\(true\)[\s\S]{0,120}return/u,
+  );
+  assert.match(
+    dashboardSource,
+    /if \(actionReceiptUnavailable\)[\s\S]{0,700}이 행동은 지금 이어갈 수 없어요[\s\S]{0,700}router\.replace\("\/amora-notes" as never\)/u,
+  );
+  assert.match(
+    dashboardSource,
+    /receiptAction[\s\S]{0,180}\? Promise\.resolve\(receiptAction\)[\s\S]{0,180}: loadPreferredOpenAmoraAction/u,
+  );
+});
+
 test("dashboard reads a bounded open-action set and selects one inside the verified couple fence", () => {
   const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");

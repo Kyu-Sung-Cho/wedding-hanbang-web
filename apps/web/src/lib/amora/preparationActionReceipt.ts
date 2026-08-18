@@ -71,6 +71,11 @@ export type PreparationActionReceiptEntry = {
   appliedAt: string;
   scope: "couple_shared";
   canOpenAction: true;
+  approvedFirstAction?: {
+    action: string;
+    reason: string;
+    completionCriterion: string;
+  } | null;
 };
 
 export type PreparationActionReceiptCandidate = {
@@ -81,6 +86,7 @@ export type PreparationActionReceiptCandidate = {
   firstUseBinding: FirstUseBinding | null;
   execution: ToolExecution | null;
   nowMs: number;
+  contractVersion?: 1 | 2;
 };
 
 export type PreparationActionReceiptBoundary = {
@@ -268,6 +274,44 @@ function parseFirstUseBinding(
     && value.proposal_journey_revision === input.journeyRevision;
 }
 
+function parseApprovedFirstAction(
+  origin: unknown,
+  pendingAction: StoredAmoraPendingAction,
+  publicAction: Record<string, unknown>,
+) {
+  if (origin !== FIRST_USE_APPLICATION_ORIGIN) return null;
+  const title = pendingAction.input.title;
+  const description = pendingAction.input.description;
+  const prefix = "이유: ";
+  const separator = " 완료 기준: ";
+  if (
+    typeof title !== "string"
+    || title !== publicAction.title
+    || Array.from(title).length < 1
+    || Array.from(title).length > 120
+    || typeof description !== "string"
+    || !description.startsWith(prefix)
+  ) return undefined;
+  const separatorIndex = description.indexOf(separator, prefix.length);
+  if (
+    separatorIndex < 0
+    || separatorIndex !== description.lastIndexOf(separator)
+  ) return undefined;
+  const reason = description.slice(prefix.length, separatorIndex);
+  const completionCriterion = description.slice(separatorIndex + separator.length);
+  const isSafePart = (value: string) => value === value.trim()
+    && Array.from(value).length >= 1
+    && Array.from(value).length <= 220
+    && !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value);
+  if (
+    !isSafePart(reason)
+    || !isSafePart(completionCriterion)
+    || `${prefix}${reason}${separator}${completionCriterion}` !== description
+    || publicAction.description !== description
+  ) return undefined;
+  return { action: title, reason, completionCriterion };
+}
+
 export function parsePreparationActionReceiptCandidate(
   input: PreparationActionReceiptCandidate,
 ): PreparationActionReceiptEntry | null {
@@ -425,6 +469,10 @@ export function parsePreparationActionReceiptCandidate(
     && TOPIC_KEYS.has(action.categoryKey)
       ? action.categoryKey
       : null;
+  const approvedFirstAction = input.contractVersion === 2
+    ? parseApprovedFirstAction(origin, pendingAction, action)
+    : undefined;
+  if (input.contractVersion === 2 && approvedFirstAction === undefined) return null;
   return {
     receiptMessageId: input.receiptMessage.id.toLowerCase(),
     actionId: action.id,
@@ -434,6 +482,7 @@ export function parsePreparationActionReceiptCandidate(
     appliedAt: input.receiptMessage.created_at,
     scope: "couple_shared",
     canOpenAction: true,
+    ...(input.contractVersion === 2 ? { approvedFirstAction } : {}),
   };
 }
 
@@ -449,6 +498,7 @@ export function buildPreparationActionReceiptPage(input: {
   firstUseBindings: readonly unknown[];
   executions: readonly unknown[];
   nowMs: number;
+  contractVersion?: 1 | 2;
 }): {
   entries: PreparationActionReceiptEntry[];
   nextBoundary: PreparationActionReceiptBoundary | null;
@@ -472,6 +522,9 @@ export function buildPreparationActionReceiptPage(input: {
     || !Array.isArray(input.firstUseBindings)
     || !Array.isArray(input.executions)
     || !Number.isFinite(input.nowMs)
+    || (input.contractVersion !== undefined
+      && input.contractVersion !== 1
+      && input.contractVersion !== 2)
   ) return null;
 
   const messages = new Map<string, DbMessage>();
@@ -559,6 +612,7 @@ export function buildPreparationActionReceiptPage(input: {
       firstUseBinding: binding,
       execution: matchingExecutions.length === 1 ? matchingExecutions[0]! : null,
       nowMs: input.nowMs,
+      contractVersion: input.contractVersion ?? 1,
     });
     if (!parsed) {
       partial = true;
@@ -566,7 +620,7 @@ export function buildPreparationActionReceiptPage(input: {
     }
     if (
       normalizedQuery !== ""
-      && !`${parsed.title} ${parsed.displayMessage}`
+      && !`${parsed.title} ${parsed.displayMessage} ${parsed.approvedFirstAction?.reason ?? ""} ${parsed.approvedFirstAction?.completionCriterion ?? ""}`
         .normalize("NFKC")
         .toLocaleLowerCase("ko-KR")
         .includes(normalizedQuery)

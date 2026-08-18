@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Buffer } from "node:buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
@@ -39,8 +40,11 @@ const REQUEST_ID = "66666666-6666-4666-8666-666666666666";
 const ACTION_ID = "a2000000-0000-4000-8000-000000000099";
 const SOURCE_MESSAGE = "a3000000-0000-4000-8000-000000000099";
 const RECEIPT_MESSAGE = "a4000000-0000-4000-8000-000000000099";
+const PROMOTION_ID = "a4500000-0000-4000-8000-000000000099";
 const RECEIPT_REQUEST_KEY = `chat:${RECIPIENT}:a5000000-0000-4000-8000-000000000099`;
 const SCHEDULE_DECISION = "a6000000-0000-4000-8000-000000000099";
+const ACTION_RECEIPT_CONTRACT_VERSION_HEADER =
+  "X-Amora-Preparation-Action-Receipt-Contract-Version";
 
 const collection = {
   version: 1,
@@ -173,10 +177,14 @@ function headers(actor = RECIPIENT) {
   };
 }
 
-function getRequest(suffix = "", actor = RECIPIENT) {
+function getRequest(
+  suffix = "",
+  actor = RECIPIENT,
+  extraHeaders: Readonly<Record<string, string>> = {},
+) {
   return new Request(
     `http://localhost/api/amora/preparation-topic-message-refs${suffix}`,
-    { headers: headers(actor) },
+    { headers: { ...headers(actor), ...extraHeaders } },
   );
 }
 
@@ -360,6 +368,205 @@ describe("/api/amora/preparation-topic-message-refs", () => {
       }),
     );
     expect(vi.mocked(createClientFromRequest)).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads first-use bindings only through the current-context service projection RPC", async () => {
+    const receiptRows = [{
+      id: RECEIPT_MESSAGE,
+      couple_id: COUPLE,
+      sender_id: null,
+      sender_type: "ai",
+      sender_role: null,
+      role: "assistant",
+      content: '첫 행동을 준비에 반영했어요.',
+      metadata: {
+        client_request_id: RECEIPT_REQUEST_KEY,
+        in_reply_to_user_message_id: MESSAGE,
+        confirmed_amora_action_id: ACTION_ID,
+        amora_first_use_promotion_id: PROMOTION_ID,
+        response_origin: "server_authoritative_first_use_action_application",
+      },
+      visibility: "shared",
+      stage_tag: null,
+      specialist_type: "general",
+      created_at: "2026-08-17T07:00:00.000Z",
+    }];
+    const bindingRows = [{
+      proposal_message_id: SOURCE_MESSAGE,
+      couple_id: COUPLE,
+      action_id: ACTION_ID,
+      promotion_id: PROMOTION_ID,
+      proposal_journey_revision: 7,
+    }];
+    const receiptBuilder = adminQuery(receiptRows);
+    const sourceBuilder = adminQuery([{ id: SOURCE_MESSAGE }, { id: MESSAGE }]);
+    let chatReadCount = 0;
+    const from = vi.fn((table: string) => {
+      if (table === "chat_messages") {
+        chatReadCount += 1;
+        return chatReadCount === 1 ? receiptBuilder : sourceBuilder;
+      }
+      if (table === "amora_tool_executions") return adminQuery([]);
+      return adminQuery(null, { code: "unexpected_direct_table_read" });
+    });
+    const rpc = vi.fn().mockResolvedValue({ data: bindingRows, error: null });
+    vi.mocked(createAdminClient).mockReturnValue({ from, rpc } as never);
+    vi.mocked(buildPreparationActionReceiptPage).mockReturnValue({
+      entries: [],
+      nextBoundary: null,
+      partial: true,
+    });
+
+    const response = await GET(getRequest("?view=action-receipts&limit=12"));
+
+    expect(response.status).toBe(200);
+    expect(from).not.toHaveBeenCalledWith("amora_first_use_action_proposal_bindings");
+    expect(rpc).toHaveBeenCalledWith(
+      "list_amora_preparation_action_receipt_bindings_v1",
+      {
+        p_couple_id: COUPLE,
+        p_recipient_user_id: RECIPIENT,
+        p_expected_privacy_epoch: 7,
+        p_promotion_ids: [PROMOTION_ID],
+      },
+    );
+    expect(buildPreparationActionReceiptPage).toHaveBeenCalledWith(
+      expect.objectContaining({ firstUseBindings: bindingRows }),
+    );
+
+    chatReadCount = 0;
+    rpc.mockResolvedValueOnce({
+      data: [{ ...bindingRows[0], shared_user_message_id: MESSAGE }],
+      error: null,
+    });
+    vi.mocked(buildPreparationActionReceiptPage).mockClear();
+    const drifted = await GET(getRequest("?view=action-receipts&limit=12"));
+    expect(drifted.status).toBe(503);
+    expect(buildPreparationActionReceiptPage).not.toHaveBeenCalled();
+  });
+
+  it("opts into v2 by header and binds its opaque cursor to the v2 payload", async () => {
+    const from = vi.fn(() => adminQuery([]));
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+    const approvedFirstAction = {
+      action: "예식장 후보 비교 기준 정리",
+      reason: "장소를 보기 전에 두 사람의 공통 기준이 필요해요.",
+      completionCriterion: "각자 꼭 지킬 기준을 하나씩 적으면 끝나요.",
+    };
+    vi.mocked(buildPreparationActionReceiptPage)
+      .mockReturnValueOnce({
+        entries: [{
+          receiptMessageId: RECEIPT_MESSAGE,
+          actionId: "act_1234567890abcdef_1234567890abcdef12345678",
+          topicKey: "venue",
+          title: approvedFirstAction.action,
+          displayMessage: `"${approvedFirstAction.action}"를 아모라 행동 카드로 저장했어요.`,
+          appliedAt: "2026-08-17T07:00:00.000Z",
+          scope: "couple_shared",
+          canOpenAction: true,
+          approvedFirstAction,
+        }],
+        nextBoundary: {
+          appliedAt: "2026-08-17T07:00:00.000Z",
+          receiptMessageId: RECEIPT_MESSAGE,
+        },
+        partial: false,
+      } as never)
+      .mockReturnValueOnce({
+        entries: [],
+        nextBoundary: null,
+        partial: false,
+      });
+    const v2Headers = { [ACTION_RECEIPT_CONTRACT_VERSION_HEADER]: "2" };
+    const query = approvedFirstAction.reason;
+    const suffix = `?view=action-receipts&q=${encodeURIComponent(query)}&limit=12`;
+
+    const first = await GET(getRequest(suffix, RECIPIENT, v2Headers));
+    const firstPayload = await first.json();
+
+    expect(first.status).toBe(200);
+    expect(first.headers.get("vary")).toContain(
+      ACTION_RECEIPT_CONTRACT_VERSION_HEADER,
+    );
+    expect(firstPayload).toEqual({
+      version: 2,
+      state: "ready",
+      recipientUserId: RECIPIENT,
+      coupleId: COUPLE,
+      snapshotAt: expect.any(String),
+      entries: [{
+        receiptMessageId: RECEIPT_MESSAGE,
+        actionId: "act_1234567890abcdef_1234567890abcdef12345678",
+        topicKey: "venue",
+        title: approvedFirstAction.action,
+        displayMessage: `"${approvedFirstAction.action}"를 아모라 행동 카드로 저장했어요.`,
+        appliedAt: "2026-08-17T07:00:00.000Z",
+        scope: "couple_shared",
+        canOpenAction: true,
+        approvedFirstAction,
+      }],
+      nextCursor: expect.stringMatching(/^ap2\.[A-Za-z0-9_-]{16,512}$/u),
+      partial: false,
+    });
+    expect(JSON.stringify(firstPayload)).not.toContain("sourceMessageId");
+    expect(JSON.stringify(firstPayload)).not.toContain("promotionId");
+    const cursorPayload = JSON.parse(
+      Buffer.from(firstPayload.nextCursor.slice(4), "base64url").toString("utf8"),
+    );
+    expect(cursorPayload).toEqual({
+      v: 2,
+      snapshotAt: firstPayload.snapshotAt,
+      appliedAt: "2026-08-17T07:00:00.000Z",
+      receiptMessageId: RECEIPT_MESSAGE,
+      query,
+    });
+    expect(buildPreparationActionReceiptPage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ contractVersion: 2, query }),
+    );
+
+    const second = await GET(getRequest(
+      `${suffix}&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+      RECIPIENT,
+      v2Headers,
+    ));
+    expect(second.status).toBe(200);
+    await expect(second.json()).resolves.toMatchObject({
+      version: 2,
+      entries: [],
+      nextCursor: null,
+    });
+
+    expect((await GET(getRequest(
+      `${suffix}&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+    ))).status).toBe(400);
+    const legacyCursor = `ap1.${Buffer.from(JSON.stringify({
+      v: 1,
+      snapshotAt: firstPayload.snapshotAt,
+      appliedAt: "2026-08-17T07:00:00.000Z",
+      receiptMessageId: RECEIPT_MESSAGE,
+      query,
+    }), "utf8").toString("base64url")}`;
+    expect((await GET(getRequest(
+      `${suffix}&cursor=${encodeURIComponent(legacyCursor)}`,
+      RECIPIENT,
+      v2Headers,
+    ))).status).toBe(400);
+  });
+
+  it("rejects an unsupported action-receipt contract header with 426 before auth", async () => {
+    const response = await GET(getRequest(
+      "?view=action-receipts",
+      RECIPIENT,
+      { [ACTION_RECEIPT_CONTRACT_VERSION_HEADER]: "3" },
+    ));
+
+    expect(response.status).toBe(426);
+    await expect(response.json()).resolves.toEqual({
+      code: "AMORA_PREPARATION_ACTION_RECEIPT_CONTRACT_UNSUPPORTED",
+    });
+    expect(createClientFromRequest).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("rejects an action-receipt cursor page that repeats its boundary", async () => {

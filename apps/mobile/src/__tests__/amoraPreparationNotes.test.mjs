@@ -49,6 +49,34 @@ function actionReceiptPage(overrides = {}) {
   };
 }
 
+function explainedActionReceiptPage(overrides = {}) {
+  return {
+    version: 2,
+    state: "ready",
+    recipientUserId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    snapshotAt: "2026-08-18T12:00:00.000Z",
+    entries: [{
+      receiptMessageId: RECEIPT_MESSAGE_ID,
+      actionId: ACTION_ID,
+      topicKey: "venue",
+      title: "예식장 후보 세 곳에 같은 조건 묻기",
+      displayMessage: "예식장 후보 확인 행동을 준비에 반영했어요.",
+      approvedFirstAction: {
+        action: "예식장 후보 세 곳에 같은 조건 묻기",
+        reason: "같은 기준으로 물어봐야 후보별 조건을 빠뜨리지 않고 비교할 수 있어요.",
+        completionCriterion: "세 곳의 보증 인원과 식대 답변을 같은 표에 적으면 끝나요.",
+      },
+      appliedAt: "2026-08-18T11:00:00.000Z",
+      scope: "couple_shared",
+      canOpenAction: true,
+    }],
+    nextCursor: null,
+    partial: false,
+    ...overrides,
+  };
+}
+
 function scheduleDecisionPage(overrides = {}) {
   return {
     version: 1,
@@ -218,6 +246,52 @@ test("a server-authoritative application receipt becomes one searchable actual-a
       openAction: { actionId: ACTION_ID },
     }],
   });
+});
+
+test("an approved first-use explanation is searchable and returns to the exact shared action without private source data", () => {
+  const result = buildAmoraPreparationNotes({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [{ key: "venue", label: "예식장" }],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      references: [],
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    actionReceiptCollection: explainedActionReceiptPage(),
+    actionReceiptReadState: "loaded",
+    query: "보증 인원과 식대",
+    scopeFilter: "couple_shared",
+    topicFilter: "venue",
+    typeFilter: "applied_receipt",
+  });
+
+  assert.equal(result.state, "ready");
+  assert.deepEqual(result.records, [{
+    id: `applied_receipt:${RECEIPT_MESSAGE_ID}`,
+    type: "applied_receipt",
+    typeLabel: "실제 반영",
+    title: "예식장 후보 세 곳에 같은 조건 묻기",
+    excerpt: "예식장 후보 확인 행동을 준비에 반영했어요.",
+    approvedFirstAction: {
+      action: "예식장 후보 세 곳에 같은 조건 묻기",
+      reason: "같은 기준으로 물어봐야 후보별 조건을 빠뜨리지 않고 비교할 수 있어요.",
+      completionCriterion: "세 곳의 보증 인원과 식대 답변을 같은 표에 적으면 끝나요.",
+    },
+    topicKeys: ["venue"],
+    topicLabels: ["예식장"],
+    scope: "couple_shared",
+    scopeLabel: "함께 보기",
+    savedAt: "2026-08-18T11:00:00.000Z",
+    sourceCreatedAt: "2026-08-18T11:00:00.000Z",
+    freshness: "current",
+    openAction: { actionId: ACTION_ID },
+  }]);
+  assert.doesNotMatch(JSON.stringify(result), /sourceMessageId|promotionId|grounding|ownerUserId/u);
 });
 
 test("action-receipt cursor pages are snapshot-bound, ordered, unique, and preserve verified partial results", () => {

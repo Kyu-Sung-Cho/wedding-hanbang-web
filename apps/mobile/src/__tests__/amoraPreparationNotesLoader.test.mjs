@@ -12,7 +12,7 @@ import {
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "20000000-0000-4000-8000-000000000002";
 const CURSOR = "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
-const RECEIPT_CURSOR = "ap1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
+const RECEIPT_CURSOR = "ap2.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 const DECISION_CURSOR = "sd1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 
 function notesPage(overrides = {}) {
@@ -38,7 +38,7 @@ function response(body, ok = true) {
 
 function receiptPage(overrides = {}) {
   return {
-    version: 1,
+    version: 2,
     state: "ready",
     recipientUserId: OWNER_ID,
     coupleId: COUPLE_ID,
@@ -67,15 +67,17 @@ function decisionPage(overrides = {}) {
 
 test("notes sources load independently under one exact owner/couple fence", async () => {
   const calls = [];
+  const actionReceiptHeaders = [];
   const result = await loadAmoraPreparationNotesSources({
     ownerId: OWNER_ID,
     coupleId: COUPLE_ID,
-    apiFetch: async (path) => {
+    apiFetch: async (path, options) => {
       calls.push(path);
       if (path === "/api/amora/preparation-topic-message-refs?view=notes&limit=24") {
         return response({ kind: "message-refs" });
       }
       if (path === "/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24") {
+        actionReceiptHeaders.push(options.headers);
         return response(receiptPage());
       }
       if (path === "/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=24") {
@@ -101,6 +103,10 @@ test("notes sources load independently under one exact owner/couple fence", asyn
     "/api/amora/preparation-topic-message-refs?view=notes&limit=24",
     "/api/amora/preparation-topic-message-refs?view=schedule-decisions&limit=24",
   ]);
+  assert.deepEqual(actionReceiptHeaders, [{
+    Accept: "application/json",
+    "X-Amora-Preparation-Action-Receipt-Contract-Version": "2",
+  }]);
   assert.deepEqual(result, {
     messageReferenceCollection: { kind: "message-refs" },
     messageReferenceReadState: "loaded",
@@ -147,8 +153,8 @@ test("one action-receipt page keeps search and cursor server-bound", async () =>
     coupleId: COUPLE_ID,
     query: "  예식장   반영  ",
     cursor: RECEIPT_CURSOR,
-    apiFetch: async (path) => {
-      calls.push(path);
+    apiFetch: async (path, options) => {
+      calls.push({ path, headers: options.headers });
       return response(page);
     },
     isCurrent: () => true,
@@ -157,7 +163,13 @@ test("one action-receipt page keeps search and cursor server-bound", async () =>
 
   assert.deepEqual(loaded, page);
   assert.deepEqual(calls, [
-    `/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24&q=${encodeURIComponent("예식장 반영")}&cursor=${encodeURIComponent(RECEIPT_CURSOR)}`,
+    {
+      path: `/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24&q=${encodeURIComponent("예식장 반영")}&cursor=${encodeURIComponent(RECEIPT_CURSOR)}`,
+      headers: {
+        Accept: "application/json",
+        "X-Amora-Preparation-Action-Receipt-Contract-Version": "2",
+      },
+    },
   ]);
 });
 

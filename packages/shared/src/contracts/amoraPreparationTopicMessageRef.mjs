@@ -33,6 +33,7 @@ const UNSAFE_MULTILINE_RE =
   /[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000B-\u001F\u007F-\u009F]/u;
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_V2_CURSOR_RE = /^ap2\.[A-Za-z0-9_-]{16,512}$/u;
 const SCHEDULE_DECISION_CURSOR_RE = /^sd1\.[A-Za-z0-9_-]{16,512}$/u;
 const ACTION_ID_RE = /^[0-9A-Za-z_-]{1,200}$/u;
 
@@ -327,6 +328,41 @@ function isPreparationActionReceiptEntry(value, snapshotAt) {
     && value.canOpenAction === true;
 }
 
+function isApprovedFirstAction(value, expectedTitle) {
+  return value === null || (
+    isRecord(value)
+    && hasExactKeys(value, ["action", "reason", "completionCriterion"])
+    && value.action === expectedTitle
+    && isSafeExcerpt(value.action)
+    && Array.from(value.action).length <= 120
+    && isSafeExcerpt(value.reason)
+    && Array.from(value.reason).length <= 220
+    && isSafeExcerpt(value.completionCriterion)
+    && Array.from(value.completionCriterion).length <= 220
+  );
+}
+
+function isPreparationActionReceiptV2Entry(value, snapshotAt) {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, [
+      "receiptMessageId",
+      "actionId",
+      "topicKey",
+      "title",
+      "displayMessage",
+      "approvedFirstAction",
+      "appliedAt",
+      "scope",
+      "canOpenAction",
+    ])
+  ) return false;
+  const legacyShape = { ...value };
+  delete legacyShape.approvedFirstAction;
+  return isPreparationActionReceiptEntry(legacyShape, snapshotAt)
+    && isApprovedFirstAction(value.approvedFirstAction, value.title);
+}
+
 export function validateAmoraPreparationActionReceiptPageResponse(
   value,
   expectedRecipientUserId,
@@ -357,6 +393,55 @@ export function validateAmoraPreparationActionReceiptPageResponse(
     || (value.nextCursor !== null && (
       typeof value.nextCursor !== "string"
       || !ACTION_RECEIPT_CURSOR_RE.test(value.nextCursor)
+    ))
+    || typeof value.partial !== "boolean"
+  ) return { ok: false, reason: "collection" };
+
+  const receiptIds = new Set();
+  const actionIds = new Set();
+  for (const entry of value.entries) {
+    const receiptId = entry.receiptMessageId.toLowerCase();
+    if (receiptIds.has(receiptId) || actionIds.has(entry.actionId)) {
+      return { ok: false, reason: "collection" };
+    }
+    receiptIds.add(receiptId);
+    actionIds.add(entry.actionId);
+  }
+  return { ok: true, value };
+}
+
+export function validateAmoraPreparationActionReceiptV2PageResponse(
+  value,
+  expectedRecipientUserId,
+  expectedCoupleId,
+) {
+  if (!isUuid(expectedRecipientUserId) || !isUuid(expectedCoupleId) || !isRecord(value)) {
+    return { ok: false, reason: "invalid" };
+  }
+  if (value.version !== 2) return { ok: false, reason: "version" };
+  if (value.recipientUserId !== expectedRecipientUserId) {
+    return { ok: false, reason: "recipient" };
+  }
+  if (value.coupleId !== expectedCoupleId) return { ok: false, reason: "couple" };
+  if (
+    !hasExactKeys(value, [
+      "version",
+      "state",
+      "recipientUserId",
+      "coupleId",
+      "snapshotAt",
+      "entries",
+      "nextCursor",
+      "partial",
+    ])
+    || value.state !== "ready"
+    || !isIsoTime(value.snapshotAt)
+    || !Array.isArray(value.entries)
+    || value.entries.length > AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT
+    || value.entries.some((entry) => !isPreparationActionReceiptV2Entry(entry, value.snapshotAt))
+    || (value.nextCursor !== null && (
+      typeof value.nextCursor !== "string"
+      || !ACTION_RECEIPT_V2_CURSOR_RE.test(value.nextCursor)
     ))
     || typeof value.partial !== "boolean"
   ) return { ok: false, reason: "collection" };
