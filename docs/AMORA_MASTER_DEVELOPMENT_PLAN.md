@@ -2,7 +2,7 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.35 — FIRST-USE DETERMINISTIC ACTION HOSTED VERIFIED`
+> 계획 버전: `v1.36 — CONTRACT INTERVENTION RETIRED / BOOKING STAGING PREFLIGHT`
 >
 > 마지막 갱신: 2026-08-18
 >
@@ -10,11 +10,11 @@
 >
 > 내부 Android 빌드 후보 HEAD: `989aa3d56a45718acbe98ce5015c84f84cf3303d` · tree `a07bdaa3ef0dc265c5709656a9ed8c38420ce8a3`
 >
-> 현재 릴리스 상태: `deployment_blocked` · manifest 110개 · Production 관찰 적용 32개 · Production 기준 pending 78개 · tail `20260818160000`
+> 현재 릴리스 상태: `deployment_blocked` · manifest 111개 · Production 관찰 적용 32개 · Production 기준 pending 79개 · tail `20260818170000`
 >
-> 현재 작업 상태: 격리 staging은 pre-apply 암호화 backup 뒤 `20260818160000`까지 적용해 ledger 225개/head `20260818160000`, pending 0이다. commit `8fbb628e`의 hosted 2계정 first-use probe는 개인 상담 원문 owner-only, 검증된 shared proposal, provider 0회 deterministic proposal/application, exact retry의 동일 message/action 재사용, partner shared receipt 조회, private marker 비노출, residue 0을 확인했다. source AI는 synthetic settled provider receipt 1건으로만 구성했으며 live provider나 앱 UI 증거는 아니다. 준비 노트 privacy·중재 private→shared·current criterion action-context 경계도 앞선 hosted probe에서 통과했다. requester acceptance·UI/기기, 161700 booking integrity, Storage 등 STG-004 나머지는 미검증이고 Android 실제 기기 검증도 계속 `BLOCKED`다.
+> 현재 작업 상태: 격리 staging은 pre-apply 암호화 backup 뒤 `20260818160000`까지 적용해 ledger 225개/head `20260818160000`이며, local manifest의 `20260818170000` 한 파일이 pending이다. 기존 hosted first-use·준비 노트 privacy·중재 private→shared·current criterion action-context 경계는 통과했다. booking provenance probe의 로컬 public contract는 24/24지만, 181700 전 백업·apply·hosted 실행과 Storage는 아직 미검증이다. 최신 HEAD `9e9c7cda`는 계약 전문 도구·위험 등급·전문가 라우팅을 제거하고 견적 사실 확인만 남겼으며, W2 일반 답변과 실기기 이해도는 후속 안전 gate다. Android 실제 기기 검증도 계속 `BLOCKED`다.
 >
-> 현재 작업 스냅샷: hosted first-use probe commit `8fbb628ed88fbd07387141eaeacb18d973b30450` · receipt `a4c0917c...c8a2` · hosted criterion `1a9ae569` · pre-181600 backup commit `6945bfff`, manifest `ec5a6c92...268` · hosted mediation `4903fe01` · hosted notes `d22d5774` · Android internal build `989aa3d5` · `3b623e18` EX-009 checkpoint는 역사 증거 · HOLD 2 + tmp 36 제외 · Production write 0
+> 현재 제품 코드 스냅샷: `c84aa9cf907ee94cc90e763df7831112b262f39a` · booking integrity `50f6542a` · hosted first-use receipt `a4c0917c...c8a2` · staging 225/head 181600/pending 181700 · Android internal build `989aa3d5` · `3b623e18` EX-009 checkpoint는 역사 증거 · HOLD 2 + tmp 36 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -174,7 +174,7 @@
 | `JRN-005` | `AMR-C15` | `VERIFIED` | JRN-004 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `2863aff6`; shared-scope 확인 뒤 canonical journey CAS로 제외·재포함. 체크 기록 보존, 분모 제외와 원상 복구, neutral copy, malformed snapshot/no-op/foreign topic 차단, one in-flight, owner/couple session fence, stale/active request 분리. related 99/99, map/dashboard matrix 99/99, mobile full 1147/1147, shared/mobile typecheck, targeted lint, diff-check PASS | EX-009에서 current candidate allowlist·mixed-file hunk·전체 gate를 같은 hash로 재동결. 실기기·2계정·사용자 이해도는 REL-201 exact build에서 검증 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
 | `CARE-002` | `AMR-MED01` | `BLOCKED` | STG-004 | `COMMITTED` | `MULTI-ACCOUNT` | `LOCAL/HOSTED-STAGING/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. 로컬 자동 gate에 더해 commit `4903fe01`의 hosted API probe에서 owner-only 초안, partner 0건, direct/auth/wrong-actor deny, requester share, same shared ID replay, couple read, residue 0을 확인했다. 이 probe는 `p_accept=false`라 requester acceptance·이중 확인 UI 완료 증거가 아니다 | 실제 앱 2계정/2기기에서 requester acceptance→상대 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. API probe만으로 소비자 UI 완료나 Production 완료 체크 금지 | 2026-08-18 |
-| `SAFE-001` | `AMR-S01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `INTERNAL-PREVIEW/BLOCKED` | `NOT-RUN` | web ingest·route·classifier·prompt·memory·mediation 7파일 1,089/1,089, mobile safety·consumer-state·mediation 4파일 143/143 PASS. W5 provider/write/memory 0과 W2 최소 context·provider tool/memory 0 경계를 유지한다. Android build `7b99f8ad…`는 설치 가능하지만 safety UI의 실제 접근성·복구를 검증한 증거가 아니다 | 같은 build에서 작은 화면·200%·TalkBack·느린 네트워크·복귀·중재/경청/승인 override copy를 확인하고 STG-004 privacy probe와 결박. 자동화만으로 완료 체크 금지 | 2026-08-18 |
+| `SAFE-001` | `AMR-S01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `INTERNAL-PREVIEW/BLOCKED` | `NOT-RUN` | commit `9e9c7cda`가 계약 전문 도구·위험 등급·전문가 라우팅·전용 카드를 제거했고 `c84aa9cf`가 은퇴 이름·경고·181700 release fixture를 봉인했다. 견적 사실 확인은 유지한다. AI+production fence 184/184, route 363/363, release 265/265, web typecheck·scoped lint PASS. W2 일반 문서 답변은 확인된 사실·불확실성·전문가 질문 범위로만 남으며 법률 판단 완료를 뜻하지 않는다 | 같은 build에서 작은 화면·200%·TalkBack·느린 네트워크·복귀·W2/W5·중재/경청/승인 copy를 확인한다. 자동화만으로 완료 체크 금지 | 2026-08-18 |
 
 `JRN-004 / journey fixture matrix`의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/mobile/src/__tests__/amoraJourneyFixtureMatrix.test.mjs` 두 경로다. 정상·해당 없음·계획 변경·부분 조회의 19개 canonical topic 상태와, valid·unknown reference·구버전 round·누락 지역/범위의 공식 근거를 table fixture로 검증한다. 이 단계에서 production runtime·UI·AI·DB·rank·write를 수정하지 않으며, 기존 계약이 fixture를 통과하면 test-only로 닫는다.
 
@@ -999,7 +999,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-H02 | 왜 이 제안인가요 | `COMMITTED` | `AUTOMATED` | `LOCAL` (현재 후보) | `NOT-RUN` | 근거와 개인화 범위 disclosure · 이해도 QA 필요 |
 | AMR-O01 | 완료·막힘·변경·아직 모름 결과 | `COMMITTED` | `AUTOMATED` | `LOCAL` (현재 후보) | `NOT-RUN` | action outcome과 다음 도움 · live 실패·복구 E2E 필요 |
 | AMR-M01 | 홈의 19개 준비 지도 projection | `COMMITTED` | `AUTOMATED` | `LOCAL` (현재 후보) | `NOT-RUN` | preparation overview · 독립 여정 공백 연결 필요 |
-| AMR-S01 | W0~W5 scope와 deterministic crisis safety | `COMMITTED` | `AUTOMATED` | `LOCAL` (현재 후보) | `NOT-RUN` | shared classifier·client/server fixed safety · hosted/fleet/실기기 gate 필요 |
+| AMR-S01 | W0~W5 scope, deterministic crisis safety, 계약 전문 판정 비노출 | `COMMITTED` | `AUTOMATED` | `LOCAL` (현재 후보) | `NOT-RUN` | shared classifier·client/server fixed safety·계약 전문 도구/등급/라우팅 제거 · hosted/fleet/실기기 gate 필요 |
 | AMR-MED01 | 모바일 요청형 중재와 private safety hold | `COMMITTED` | `AUTOMATED` | `LOCAL` (현재 후보) | `NOT-RUN` | explicit requestKind·requester summary·W2/W5 fence · 2계정 관찰 필요 |
 
 ### 8.2 dirty worktree의 로컬 구현
@@ -1744,7 +1744,7 @@ Hard stop: 새 dirty path, migration hash 변화, 무소유 hunk, 테스트 수�
 | `LD-006` in-app proactive controls | 1.5일 | LD-001/002 | identity-bound settings + suggestion history | opt-in·day cap·snooze·mute·pause/off·shared reminder 제어가 policy 문장뿐 | 모든 control의 persisted writer/readback, owner/couple 전환 clear, 철회 즉시 적용, cross-account leak 0 |
 | `CARE-001` listen-only lane | 1일 | FV-006 | chat mode/scope UI | 모든 대화가 action/proposal로 수렴 | 명시적 경청 선택, no tool/write/memory, 사용자가 원할 때만 planning 전환 |
 | `CARE-002` requested mediation E2E | 1.5일 | STG-004 | mobile requestKind, mediation card, acceptance | 자동 감지·한쪽 요약·unsafe card 위험 | explicit request, separate scope, same-version dual confirmation, private non-disclosure |
-| `SAFE-001` W2/W5 override gate | 1일 | STG-004 | scope router, fixed safety, context minimizer | 승인·중재가 safety보다 먼저 갈 수 있음 | W5 provider/write/memory 0, W2 context 최소·도구/기억 0, device copy QA |
+| `SAFE-001` W2/W5 + 계약 전문 판정 비노출 gate | 1일 | STG-004 | scope router, fixed safety, context minimizer, retired contract intervention | 승인·중재가 safety보다 먼저 가거나 계약 문서에서 위험 등급·전문가 판정을 재도입할 수 있음 | W5 provider/write/memory 0, W2 context 최소·기억 0, 계약 전문 도구/등급/전문가 라우팅 0, 견적 사실 확인 유지, device copy QA |
 
 ### Wave 5 — 최종 후보·관찰·여정 확장·Production
 
@@ -2068,6 +2068,8 @@ Wave 3·4 구현
 | 2026-08-18 | AMR-V01 | canonical 준비 기록·아모라 제안·검수 가이드·업체 공개정보·다른 사용자 경험·광고/혜택의 권위를 공통 계약으로 구분하고 기존 홈 why·주제 guide·커뮤니티 trust·업체 상세에 표시 | product commit `58acac74` · common 14/14 · mobile focused 115/115·full 1133/1133 · web 관련 43/43 · shared/web/mobile typecheck · web/mobile scoped lint · node syntax·diff-check PASS · rank/route/CTA/write 불변 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C11 | 19개 canonical 준비 주제와 7개 known/parked gap의 문제·상태·결정·실행·완료 진실 소유자를 분리하고 보조 근거가 진행률·완료·추천 권한으로 승격되지 않게 고정 | product commit `28e50260` · RED export missing → GREEN · coverage+truth focused 15/15 · shared/web typecheck · scoped lint · node syntax·diff-check PASS · UI/DB/AI/write/rank 변경 없음 · 실기기/사용자 관찰/Preview/Production 없음 |
 | 2026-08-18 | AMR-C12 | 19개 준비 주제가 JRN-001 truth policy와 기존 공통 consumer-state composer 하나로 상태를 판정하고 presentation의 기존 카피·다음 행동을 유지하도록 연결 | product commit `62d1d5b3` · export/presentation RED → GREEN · relevant 93/93 · mobile 1139/1139 · web truth 15/15 · shared/mobile typecheck · scoped lint · node syntax·diff-check PASS · malformed optional evidence는 core 유지/label 제외 · UI/DB/AI/write/rank 변경 없음 |
+| 2026-08-18 | AMR-R02/REL14 | booking outcome의 canonical review projection이 hosted trigger search path에 의존하지 않도록 181700 successor와 probe/release 증거 계약을 고정 | commit `50f6542a` · migration tail `20260818170000` · staging 225/head 181600/pending 1 · local staging contract 24/24 · release 265/265 · production build fence 10/10 · pre-apply backup/apply/hosted probe/Storage/Production write 없음 |
+| 2026-08-18 | AMR-S01/REG01 | 계약 문서에서 전문 도구·위험 등급·전문가 라우팅·전용 카드가 개입하는 경로를 제거하고 견적 사실 확인과 일반 W2의 제한된 질문 지원만 보존 | product commit `9e9c7cda` · seal commit `c84aa9cf` · AI+production fence 184/184 · route 363/363 · release 265/265 · web typecheck·scoped lint·diff-check PASS · 법률 판단·실기기 이해도·Preview/Production 없음 |
 
 ---
 
