@@ -16,7 +16,7 @@ import {
   type PriceOption,
   type PriceVendor,
 } from "@/lib/price/catalog";
-import { priceRegionLabel } from "@/lib/price/labels";
+import { PRICE_CATEGORY_LABELS, priceRegionLabel } from "@/lib/price/labels";
 import { hasUnverifiedBranch } from "@/lib/price/vendorIdentity";
 import { VendorAvatar } from "./VendorAvatar";
 import { loadVendorOptions } from "./vendorOptionsClient";
@@ -237,6 +237,36 @@ export function PriceVendorCard({
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <VendorAvatar id={vendor.id} name={vendor.name} />
           <div className="flex min-w-0 flex-1 flex-col">
+            <div className="mb-1 flex flex-wrap items-center gap-1.5">
+              <span
+                data-card-category="true"
+                className="inline-flex shrink-0 rounded-full bg-[#8F6662]/10 px-2 py-0.5 text-[10px] font-bold text-[#8F6662]"
+              >
+                {PRICE_CATEGORY_LABELS[vendor.category]}
+              </span>
+              <span
+                role="group"
+                data-card-regions="true"
+                aria-label={`공시 지역: ${fullRegionLabel}`}
+                title={fullRegionLabel}
+                className="inline-flex min-w-0 max-w-full items-center gap-1"
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-flex min-w-0 max-w-full truncate rounded-full bg-[#36534E]/8 px-2 py-0.5 text-[10px] font-bold text-[#36534E]/85"
+                >
+                  {primaryRegionLabel}
+                </span>
+                {hiddenRegionCount > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex shrink-0 rounded-full bg-[#F5ECE4] px-2 py-0.5 text-[10px] font-bold text-[#8F6662]"
+                  >
+                    외 {hiddenRegionCount}곳
+                  </span>
+                ) : null}
+              </span>
+            </div>
             <Link
               href={detailHref}
               title={vendor.name}
@@ -250,30 +280,6 @@ export function PriceVendorCard({
             >
               {vendor.name}
             </Link>
-            {/* 병합된 업체는 여러 대행사 지역에서 닿는다 — 하나만 내세우면
-                "부산 대행사로도 되는데 서울로만 보이는" 오해가 생긴다. */}
-            <span
-              role="group"
-              data-card-regions="true"
-              aria-label={`공시 지역: ${fullRegionLabel}`}
-              title={fullRegionLabel}
-              className="mt-1 inline-flex min-w-0 max-w-full items-center gap-1"
-            >
-              <span
-                aria-hidden="true"
-                className="inline-flex min-w-0 max-w-full truncate rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/85"
-              >
-                {primaryRegionLabel}
-              </span>
-              {hiddenRegionCount > 0 ? (
-                <span
-                  aria-hidden="true"
-                  className="inline-flex shrink-0 rounded-full bg-[#F5ECE4] px-2 py-1 text-[11px] font-bold text-[#8F6662]"
-                >
-                  외 {hiddenRegionCount}곳
-                </span>
-              ) : null}
-            </span>
             <p
               data-card-alias="true"
               title={vendor.aliases.length > 0
