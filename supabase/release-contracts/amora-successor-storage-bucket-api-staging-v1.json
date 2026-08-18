@@ -1,0 +1,25 @@
+{
+  "contractVersion": 1,
+  "kind": "amora-successor-storage-bucket-api-staging-v1",
+  "scope": "staging-storage-bucket-api-s0-to-s1-only",
+  "status": "inactive_not_authorized",
+  "approved": false,
+  "projectRef": "rgxdizztidbgwnsbadml",
+  "productionProjectRef": "slrtobkksjmxgzatjyqb",
+  "authorizedModes": [],
+  "approvalEvidence": null,
+  "approvedAt": null,
+  "expiresAt": null,
+  "approvedGitCommit": null,
+  "approvedPlanSha256": null,
+  "targetBucketContractSha256": "dc029b4b56e4788c66a1d934403b9dcb1ab961d665fd0bd2c40bc4ae9aea1bc6",
+  "operationId": null,
+  "operationRootSha256": null,
+  "executionHostSha256": null,
+  "revokedAt": null,
+  "mutationAuthorization": {
+    "authorized": false,
+    "reason": "USER_MUTATION_APPROVAL_NOT_RECORDED"
+  },
+  "notice": "This inactive repository contract does not authorize any hosted mutation."
+}

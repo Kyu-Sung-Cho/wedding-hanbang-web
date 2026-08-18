@@ -186,6 +186,9 @@ jobs:
       - name: Test fail-closed release controllers (no hosted evidence)
         run: pnpm supabase:release:test
 
+      - name: Test Storage staging convergence operator (Linux, no hosted writes)
+        run: node --test ./scripts/tests/amora-successor-storage-staging-convergence.test.mjs
+
   production_readiness:
     name: "Production Readiness: BLOCKED (Hosted Evidence Required)"
     if: ${{ always() }}

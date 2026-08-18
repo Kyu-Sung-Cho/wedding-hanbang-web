@@ -18,12 +18,18 @@ const APPROVAL_CONTRACT = resolve(
   REPO_ROOT,
   "supabase/release-contracts/vendor-disclosure-hosted-staging-v2-20260718.json",
 );
+const BUCKET_API_APPROVAL_CONTRACT = resolve(
+  REPO_ROOT,
+  "supabase/release-contracts/amora-successor-storage-bucket-api-staging-v1.json",
+);
 const EXPECTED_ORIGIN = "https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git";
 const PINNED_TOOL_PATHS = Object.freeze([
   "scripts/amora-successor-storage-staging-convergence.mjs",
   "scripts/lib/amora-successor-storage-staging-convergence.mjs",
   "scripts/lib/amora-successor-storage-staging-probe.mjs",
+  "scripts/lib/supabase-service-destination.mjs",
   "scripts/tests/amora-successor-storage-staging-convergence.test.mjs",
+  "supabase/release-contracts/amora-successor-storage-bucket-api-staging-v1.json",
   "supabase/release-contracts/vendor-disclosure-hosted-staging-v2-20260718.json",
 ]);
 
@@ -42,7 +48,36 @@ function commandMode(argv) {
       "Storage convergence mutation has no repository-approved authorization contract",
     );
   }
+  if (argv.length === 1
+      && ["--apply-buckets", "--recover-buckets", "--compensate-buckets"]
+        .includes(argv[0])) {
+    return argv[0].slice(2);
+  }
   fail("STORAGE_CONVERGENCE_CLI_ARGUMENT_INVALID", "Storage convergence accepts only --plan");
+}
+
+async function assertBucketApiMutationApproval() {
+  let contract;
+  try {
+    contract = JSON.parse(await readFile(BUCKET_API_APPROVAL_CONTRACT, "utf8"));
+  } catch {
+    fail(
+      "STORAGE_BUCKET_API_MUTATION_APPROVAL_MISSING",
+      "Storage bucket API mutation approval contract is unavailable",
+    );
+  }
+  if (contract?.approved !== true
+      || contract?.status !== "approved_for_storage_bucket_api_staging_mutation"
+      || contract?.mutationAuthorization?.authorized !== true) {
+    fail(
+      "STORAGE_BUCKET_API_MUTATION_APPROVAL_MISSING",
+      "Storage bucket API mutation is not repository-approved",
+    );
+  }
+  fail(
+    "STORAGE_BUCKET_API_EXECUTION_NOT_ENABLED",
+    "Storage bucket API execution remains disabled until its durable operator is complete",
+  );
 }
 
 function required(name) {
@@ -249,7 +284,10 @@ async function reservePlanReceipt(receiptOut) {
 }
 
 async function main() {
-  commandMode(process.argv.slice(2));
+  const mode = commandMode(process.argv.slice(2));
+  if (mode !== "plan") {
+    await assertBucketApiMutationApproval();
+  }
   const approval = JSON.parse(await readFile(APPROVAL_CONTRACT, "utf8"));
   if (approval?.approved !== true
       || approval?.status !== "approved_for_hosted_rls_probe") {
