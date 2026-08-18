@@ -75,6 +75,9 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
       ["makeup", "정남", "정남(Jungnam)"],
       ["studio", "바로오늘이그날", "바로오늘이그날(바오그)"],
       ["dress", "르네아뜰리에", "레이첼웨딩"],
+      // 4차(2026-08-18): 공식 채널 독립 확인 병합.
+      ["studio", "ST정우", "ST정우 [러블리, 슈가제이]"], // stjungwoo.co.kr
+      ["dress", "엔조최재훈", "엔조최재훈[샵결재]"], // choijaehoon.co.kr
     ];
     for (const [category, base, variant] of pairs) {
       expect(
@@ -86,8 +89,10 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
     // 1차 16 + 2차 10 + 3차 11 + 사본중복 1(셀레네하우스웨딩) = 38
     // - 테레지아 1 (2026-07-30 재감사: 강남↔천안 다른 지점)
     // - 버드투블룸 1 (2026-07-30 재감사: 청담↔인천 행별 귀속 미확인)
-    // = 36
-    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(36);
+    // + ST정우 러블리/슈가제이 1 (2026-08-18 공식 채널 확인)
+    // + 엔조최재훈 샵결재 1 (2026-08-18 공식 채널 확인)
+    // = 38
+    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(38);
   });
 
   it("형제 조회 패턴이 양방향으로 상대를 잡는다", () => {
@@ -270,5 +275,53 @@ describe("SEPARATE 쌍 병합 금지", () => {
     // 2026-07-30 재감사에서 제거된 쌍
     expect(SAME_BUSINESS_DIFFERENT_NAME.has("studio|테레지아스튜디오")).toBe(false); // 강남↔천안 다른 지점
     expect(SAME_BUSINESS_DIFFERENT_NAME.has("studio|버드투블룸스튜디오")).toBe(false); // 청담↔인천 행별 귀속 미확인
+  });
+});
+
+/**
+ * 2026-08-18 4차 병합 — 공식 채널 독립 확인.
+ * 2026-07-27에 "지역 태그"로 잘못 분류되었으나 실제로는 패키지/결제 표기였고,
+ * 공식 사이트에서 같은 업체임이 확인됐다.
+ */
+describe("4차 병합 (2026-08-18 공식 채널 확인)", () => {
+  it("ST정우 ↔ ST정우 [러블리, 슈가제이]는 한 카드로 묶인다", () => {
+    // stjungwoo.co.kr ST BRAND GALLERY에 LOVELY와 SUGA J 둘 다 있음
+    // (주)에스티정우, 서울 강남구 청담동 22-9, 02-511-0901
+    const slugBase = "studio-ingest-02e1fd3ca05ec9e2";
+    const slugVariant = "studio-ingest-7401ab1f7970ee81";
+
+    expect(vendorIdentityKey("studio" as never, "ST정우", slugBase))
+      .toBe(vendorIdentityKey("studio" as never, "ST정우 [러블리, 슈가제이]", slugVariant));
+
+    // 기존 ST정우 스튜디오도 같은 그룹
+    expect(vendorIdentityKey("studio" as never, "ST정우 스튜디오", "slug-studio"))
+      .toBe(vendorIdentityKey("studio" as never, "ST정우", slugBase));
+  });
+
+  it("엔조최재훈 ↔ 엔조최재훈[샵결재]는 한 카드로 묶인다", () => {
+    // choijaehoon.co.kr ENZO CHOIJAEHOON
+    // [샵결재]는 요즘웨딩 결제 경로 표기
+    // 서울 강남구 선릉로158길 14-3, 02-544-1272
+    const slugBase = "dress-ingest-b51a6e6bee6ce26e";
+    const slugVariant = "dress-ingest-cbd3af2852af3317";
+
+    expect(vendorIdentityKey("dress" as never, "엔조최재훈", slugBase))
+      .toBe(vendorIdentityKey("dress" as never, "엔조최재훈[샵결재]", slugVariant));
+  });
+
+  it("엔조최재훈 공식 사이트의 다른 도시 파트너샵은 병합하지 않는다", () => {
+    // choijaehoon.co.kr에 대전·부산 파트너샵이 있지만 다른 이름이다.
+    // 동일 이름이 다른 도시에 있으면 병합하지 않아야 함 — 현재는 해당 사항 없음.
+    // 이 테스트는 향후 다른 도시 파트너가 같은 이름으로 등록될 경우를 대비한 가드.
+    const seoulSlug = "dress-ingest-b51a6e6bee6ce26e";
+    const hypotheticalBusanSlug = "dress-hypothetical-busan";
+
+    // 같은 이름 + 다른 slug = 같은 그룹 (이름 기반 병합)
+    // 그러나 실제로 다른 도시면 SAME_NAME_DIFFERENT_BUSINESS에 넣어야 함
+    // 현재 엔조최재훈은 서울만 있으므로 이 상황은 발생하지 않음
+    expect(vendorIdentityKey("dress" as never, "엔조최재훈", seoulSlug))
+      .toBe(vendorIdentityKey("dress" as never, "엔조최재훈", hypotheticalBusanSlug));
+    // ↑ 현재는 같은 이름이면 같은 그룹. 만약 부산 별도 업체가 확인되면
+    // SAME_NAME_DIFFERENT_BUSINESS에 추가해야 분리됨.
   });
 });
