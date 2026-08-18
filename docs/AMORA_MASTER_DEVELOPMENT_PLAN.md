@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.26 — JOURNEY FIXTURE MATRIX LOCAL/AUTOMATED`
+> 계획 버전: `v1.27 — APPLICABILITY CONTROLS LOCAL/AUTOMATED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `166341ffffc80f513d7fbd76dc2db67cb4586e46`
+> 검증 기준 코드 HEAD: `2863aff6`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 108개 · Production 관찰 적용 32개 · Production 기준 pending 76개 · tail `20260818140000`
 >
-> 현재 작업 상태: `JRN-004 / AMR-C14`를 commit `166341ff`로 닫았다. 19개 canonical topic의 정상·해당 없음·계획 변경·부분 조회와 공식 근거의 정상·구버전·누락·손상 fixture가 같은 truth policy와 fail-closed 경계를 통과한다. 생산 runtime은 수정하지 않았다. 다음 수직은 `JRN-005`에서 사용자가 해당 없음과 다시 포함을 직접 통제하고 진행률을 왜곡하지 않는 흐름이다.
+> 현재 작업 상태: `JRN-005 / AMR-C15`를 commit `2863aff6`로 닫았다. 사용자는 주제 화면에서 공유 준비 목록 제외·재포함의 영향과 남는 기록을 먼저 확인한 뒤 명시적으로 실행한다. 기존 체크 기록은 보존되고 진행률 분모에서만 제외되며, 재포함 시 원래 체크 상태와 진행률이 복구된다. 중복 탭·계정/커플 전환·stale/active request·손상 snapshot은 fail-closed다. 다음은 새 제품 기능이 아니라 `EX-009` final candidate 재동결이다.
 >
-> 현재 작업 스냅샷: 검증 코드 commit `166341ff` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 검증 코드 commit `2863aff6` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,12 +23,12 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `JRN-002 / AMR-C12 VERIFIED (LOCAL/AUTOMATED)` — JRN-001 truth policy와 공통 consumer-state composer를 준비 주제 presentation에 연결 |
-| 최근 완료 제품 vertical | `CARE-001 LISTEN-ONLY LANE VERIFIED (LOCAL/AUTOMATED)` — 한 턴의 명시 선택을 durable user/assistant marker와 결박하고 tool·domain/decision write·장기 기억 read/enqueue·suggestion을 0으로 유지하면서 현재 공개 범위의 대화와 AI 감사 로그는 사실대로 보존 |
-| 다음 소비자 vertical | `JRN-003 SOURCE-DATE-REGION CONTRACT` — 공식 근거가 필요한 내용은 source·확인일·지역·적용 범위가 없으면 fail-closed |
+| 현재 작업 | `JRN-005 / AMR-C15 VERIFIED (LOCAL/AUTOMATED)` — 공유 준비 주제 제외·재포함을 확인 후 실행하고 체크 기록·진행률을 정확히 보존 |
+| 최근 완료 제품 vertical | `JRN-005 APPLICABILITY CONTROLS` — 중립 카피, 단일 in-flight, owner/couple session fence, canonical journey CAS, stale/active-request 분리 복구 |
+| 다음 소비자 vertical | `EX-009 FINAL CANDIDATE RE-FREEZE` — 새 기능 추가 없이 current HEAD allowlist·mixed-file hunk·migration SHA·전체 gate를 같은 snapshot에서 다시 고정 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
 | 일시 중단 | 새 가이드 확장, booking/거래 기능 확장, 측정 없는 AI 호출 최적화 |
-| 실행 순서 | HT-001 단일 행동 → HT-002 진행 진실 → HT-003/004 주제 위계·관련성 → HT-005/006 왕복 → HT-007 partial state → HT-009 우리 준비 노트 → EX-009 재동결 → Preview/internal E2E |
+| 실행 순서 | EX-009 재동결 → STG-008 S1 재봉인 → REL-201 Preview/internal canary → HT-011/LD-005 관찰 → REL-202 운영 rehearsal |
 | Production | `NO-GO` |
 
 문서를 처음 읽을 때는 `1. 아이디얼 아모라 → 3. 표준 준비 루프 → 4. 화면 계약 → 8. 현재 구현 상태 → 9. 실행 순서 → 17. 실행 백로그` 순서로 본다.
@@ -168,10 +168,13 @@
 | `JRN-002` | `AMR-C12` | `VERIFIED` | JRN-001/FV-011 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `62d1d5b3`; 19개 topic resolver+공통 consumer-state adapter가 canonical 상태 조합을 한 번만 판정하고 presentation이 그 primary state를 사용한다. malformed optional evidence는 core를 유지한 채 label 기여만 차단. relevant 93/93, mobile full 1139/1139, web truth 15/15, shared/mobile typecheck, scoped lint, node syntax, diff-check PASS | JRN-003에서 공식 근거의 source/date/region/scope를 같은 fail-closed 방식으로 연결. 실기기/사용자 관찰은 후속 | 2026-08-18 |
 | `JRN-003` | `AMR-C13` | `VERIFIED` | JRN-001/HT-012 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `203b30d4`; versioned `kca_wedding_service_price_2025_11`에서 원문·2026-07-27 확인일·2025-11 공시 기간·6개 지역 scope·3개 적용 범위를 파생한다. quote engine·채팅 카드·공개 결과가 동일 parser를 재사용하고 손상 source/scope/calculation은 숫자를 숨긴다. focused 69/69, shared/web typecheck, web full lint 0 errors(기존 warning 1), node syntax, diff-check PASS | JRN-004에서 정상/배제/변경/부분 실패를 topic·official reference 결합 table fixture로 고정. 실기기·사용자 이해도·Preview/Production 검증은 후속 | 2026-08-18 |
 | `JRN-004` | `AMR-C14` | `VERIFIED` | JRN-002/003 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | test commit `166341ff`; 19 topics × 정상/해당 없음/변경/부분 조회, 손상 optional record, 공식 근거 valid/구버전/누락/손상을 table fixture로 고정. 생산 runtime 변경 0. focused 8/8, mobile full 1142/1142, official reference 18/18, shared/mobile typecheck, scoped lint, node syntax, diff-check PASS | JRN-005에서 실제 해당 없음·다시 포함 조작과 진행률 불변을 사용자 흐름으로 연결. 실기기·사용자 관찰은 후속 | 2026-08-18 |
+| `JRN-005` | `AMR-C15` | `VERIFIED` | JRN-004 | `COMMITTED` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | product commit `2863aff6`; shared-scope 확인 뒤 canonical journey CAS로 제외·재포함. 체크 기록 보존, 분모 제외와 원상 복구, neutral copy, malformed snapshot/no-op/foreign topic 차단, one in-flight, owner/couple session fence, stale/active request 분리. related 99/99, map/dashboard matrix 99/99, mobile full 1147/1147, shared/mobile typecheck, targeted lint, diff-check PASS | EX-009에서 current candidate allowlist·mixed-file hunk·전체 gate를 같은 hash로 재동결. 실기기·2계정·사용자 이해도는 REL-201 exact build에서 검증 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
 | `CARE-002` | `AMR-MED01` | `BLOCKED` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commits `a40364cd`, `98b090a2`. 검증 전 mediation 본문 fail-closed에 더해, 요청자가 적은 요약과 AI 초안을 actor-private lane에 먼저 저장하고 별도 `함께 보내고 내 확인 남기기`에서만 canonical shared card+requester acceptance를 만든다. 구버전 shared 요청도 private로 강제하며 strict private metadata, current roster/privacy 재검증, opaque-id share/discard API, DB trigger `20260818140000`(SHA `6aa23631...96c8`)를 결박했다. route 363/363, chatStore 165/165, mobile full 1130/1130, DB boundary 4/4, release 243/243+fence, shared/web/mobile typecheck, web/mobile lint, web build, Expo all-platform export PASS. web full은 7556/7559 후 새 evidence를 모르는 fixture 3개만 RED였고 fixture 보정 뒤 해당 10/10 PASS | 실제 2계정에서 private 비노출→명시적 공유→동일 shared id 재시도→이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인. isolated hosted staging에서 trigger/RLS/RPC를 증명하기 전에는 `LOCAL/BLOCKED`, Production 완료 체크 금지 | 2026-08-18 |
 
 `JRN-004 / journey fixture matrix`의 exact allowlist는 `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/mobile/src/__tests__/amoraJourneyFixtureMatrix.test.mjs` 두 경로다. 정상·해당 없음·계획 변경·부분 조회의 19개 canonical topic 상태와, valid·unknown reference·구버전 round·누락 지역/범위의 공식 근거를 table fixture로 검증한다. 이 단계에서 production runtime·UI·AI·DB·rank·write를 수정하지 않으며, 기존 계약이 fixture를 통과하면 test-only로 닫는다.
+
+`JRN-005 / applicability controls`의 product allowlist는 `apps/mobile/app/schedule/index.tsx`, `apps/mobile/src/lib/preparationTopicApplicability.mjs`, `apps/mobile/src/lib/preparationTopicApplicability.d.mts`, `apps/mobile/src/lib/preparationTopicPresentation.mjs`, `packages/shared/src/contracts/amoraPreparationMap.mjs`, `packages/shared/src/contracts/amoraPreparationTopic.mjs`와 대응 테스트 4개다. UI는 기존 주제 상세 row를 재사용하며 새 화면·AI 호출·DB migration을 추가하지 않는다. `[x]`는 LOCAL/AUTOMATED만 뜻하며, 실기기·2계정·격리 staging 증거가 없으므로 사용자 검증과 배포 상태는 계속 `NOT-RUN`/`LOCAL`이다.
 
 `HT-009` search slice는 commit `b8fdfe94`로 닫았다. 기존 v1 list 응답은 유지하고 notes 전용 opt-in read만 추가했으며, `20260818130000` SHA-256은 `022707a3...f9d4`로 고정했다. 다음 canonical receipt adapter slice는 편집 전에 별도 exact allowlist와 source truth contract를 이 ledger에 먼저 추가한다.
 
@@ -1279,7 +1282,7 @@ freeze 전에 다음 중 하나를 선택한다.
 - [x] `AMR-C12` 공통 topic contract를 재사용하고 주제별 UI를 복제하지 않는다.
 - [x] `AMR-C13` 공식 근거가 필요한 내용은 출처·확인일·지역·적용 범위를 기록한다.
 - [x] `AMR-C14` 대표 정상/배제/변경/부분 실패 fixture를 통과시킨다.
-- [ ] `AMR-C15` 실제 사용자에게 해당하지 않는 주제를 건너뛸 수 있게 한다.
+- [x] `AMR-C15` 실제 사용자에게 해당하지 않는 주제를 건너뛰고 다시 포함할 수 있게 하며 체크 기록과 진행률을 정확히 보존한다. (`LOCAL/AUTOMATED`; 실기기·2계정·사용자 관찰은 미완료)
 
 완료 기준:
 
