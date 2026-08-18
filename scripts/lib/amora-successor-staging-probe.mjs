@@ -4246,35 +4246,52 @@ function isCanonicalBookingOutcomeResult(result, decisionId) {
     && result.vendorConfirmationStatus === "unconfirmed";
 }
 
-function isCanonicalBookingOutcomeState(state, { ownerId, decisionId }) {
-  if (state === null || typeof state !== "object") return false;
+function inspectCanonicalBookingOutcomeState(state, { ownerId, decisionId }) {
+  if (state === null || typeof state !== "object") {
+    return Object.freeze({
+      receiptCanonical: false,
+      actorBound: false,
+      timestampsCanonical: false,
+      intentSuperseded: false,
+      noAuthorizationResidue: false,
+    });
+  }
   const confirmedAt = Date.parse(state.confirmedAt);
   const decidedAt = Date.parse(state.decidedAt);
   const createdAt = Date.parse(state.createdAt);
   const updatedAt = Date.parse(state.updatedAt);
-  return state.bookingStatus === "completed"
+  return Object.freeze({
+    receiptCanonical: state.bookingStatus === "completed"
     && state.actualAmount === 650000
     && state.contractedAmount === 500000
     && state.decisionId === decisionId
     && state.decisionType === "completed"
     && state.decisionVisibility === "shared"
-    && ["bride", "groom"].includes(state.sourceActorRole)
-    && state.actorProfileId === ownerId
     && state.completionEvidence === "user_reported"
     && state.vendorDeliveryStatus === "not_sent"
     && state.vendorConfirmationStatus === "unconfirmed"
     && state.provenanceVersion === 1
     && typeof state.payloadDigest === "string"
     && /^[a-f0-9]{64}$/u.test(state.payloadDigest)
-    && Number.isFinite(createdAt)
+    && state.completedDecisionCount === 1,
+    actorBound: ["bride", "groom"].includes(state.sourceActorRole)
+      && state.actorProfileId === ownerId,
+    timestampsCanonical: Number.isFinite(createdAt)
     && Number.isFinite(confirmedAt)
+    && Number.isFinite(decidedAt)
+    && Number.isFinite(updatedAt)
     && createdAt <= confirmedAt
     && confirmedAt === decidedAt
-    && decidedAt <= updatedAt
-    && state.completedDecisionCount === 1
-    && state.consideringActive === 0
-    && state.consideringSuperseded === 1
-    && state.authorizationCount === 0;
+    && decidedAt <= updatedAt,
+    intentSuperseded: state.consideringActive === 0
+      && state.consideringSuperseded === 1,
+    noAuthorizationResidue: state.authorizationCount === 0,
+  });
+}
+
+function isCanonicalBookingOutcomeState(state, identity) {
+  return Object.values(inspectCanonicalBookingOutcomeState(state, identity))
+    .every(Boolean);
 }
 
 export async function runBookingOutcomeProvenanceScenario({ transport }) {
@@ -4340,24 +4357,19 @@ export async function runBookingOutcomeProvenanceScenario({ transport }) {
     requireScenario(checks.outcomeRecorded, "BOOKING_OUTCOME_RESULT_INVALID", "Booking outcome result was not canonical");
 
     const firstState = await transport.readBookingOutcomeState({ fixture, decisionId: first.decisionId });
-    const canonicalState = isCanonicalBookingOutcomeState(firstState, {
+    const stateChecks = inspectCanonicalBookingOutcomeState(firstState, {
       ownerId: owner.id,
       decisionId: first.decisionId,
     });
-    checks.actorBound = canonicalState
-      && firstState.actorProfileId === owner.id
-      && ["bride", "groom"].includes(firstState.sourceActorRole);
-    checks.timestampsCanonical = canonicalState
-      && firstState.confirmedAt === firstState.decidedAt
-      && Date.parse(firstState.decidedAt) <= Date.parse(firstState.updatedAt);
-    checks.intentSuperseded = canonicalState
-      && firstState.consideringActive === 0
-      && firstState.consideringSuperseded === 1;
-    checks.noAuthorizationResidue = canonicalState && firstState.authorizationCount === 0;
+    checks.actorBound = stateChecks.actorBound;
+    checks.timestampsCanonical = stateChecks.timestampsCanonical;
+    checks.intentSuperseded = stateChecks.intentSuperseded;
+    checks.noAuthorizationResidue = stateChecks.noAuthorizationResidue;
     requireScenario(checks.actorBound, "BOOKING_OUTCOME_ACTOR_INVALID", "Booking outcome actor provenance was not canonical");
     requireScenario(checks.timestampsCanonical, "BOOKING_OUTCOME_TIME_INVALID", "Booking outcome timestamps were not canonical");
     requireScenario(checks.intentSuperseded, "BOOKING_OUTCOME_INTENT_NOT_SUPERSEDED", "Booking intent was not superseded exactly once");
     requireScenario(checks.noAuthorizationResidue, "BOOKING_OUTCOME_AUTHORIZATION_RESIDUE", "Booking outcome authorization residue remained");
+    requireScenario(stateChecks.receiptCanonical, "BOOKING_OUTCOME_STATE_INVALID", "Booking outcome receipt state was not canonical");
 
     const replay = await transport.completeBookingOutcome({ owner, fixture });
     const replayState = await transport.readBookingOutcomeState({ fixture, decisionId: first.decisionId });
