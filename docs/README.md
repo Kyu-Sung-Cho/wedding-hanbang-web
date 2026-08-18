@@ -48,6 +48,9 @@
    - 커뮤니티: `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
    - 공시 production build:
      `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
+   - 대행사 원본 적재·기존 업체 대조 조사
+     (**원본 부재로 적재 미실행, 업체 행 생성 0건**):
+     `docs/operations/AGENCY_VENDOR_INGEST_RECONCILIATION_2026-08-18.md`
    - WeddingCode: `docs/wedding-code/README.md`
 6. 변경 영역의 실제 코드·테스트·최신 migration
 7. `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`,
