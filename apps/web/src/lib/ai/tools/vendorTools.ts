@@ -8,6 +8,7 @@ import {
 } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern, isUuid } from "@/utils/requestValidation";
+import { buildAmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
 import { rankVendorRecommendations } from "@/lib/vendors/recommendation";
 import {
   loadRecommendationCandidates,
@@ -997,6 +998,14 @@ export async function executeGetVendorDetail(
     }
     const toolOfficialProfile = boundedVendorProfileForTool(officialProfile);
     const vendor = toolOfficialProfile.vendor;
+    const sourceCheckedAt = ymdInKst();
+    const sourceDisclosure = buildAmoraSourceDisclosure({
+      version: 1,
+      sourceType: "vendor_public_info",
+      commercialRelationship: "source_vendor",
+      checkedAt: sourceCheckedAt,
+      asOfDate: sourceCheckedAt,
+    });
     return {
       toolName: "get_vendor_detail",
       toolInput: input,
@@ -1005,6 +1014,7 @@ export async function executeGetVendorDetail(
         dataStatus: "available",
         vendorId: vendor.id,
         vendorName: vendor.name,
+        sourceDisclosure,
         category: vendor.category,
         location: vendor.region_code
           ? RECOMMENDATION_REGION_CODE_LABELS[vendor.region_code] ?? vendor.region_code

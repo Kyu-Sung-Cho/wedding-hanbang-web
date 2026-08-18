@@ -23,4 +23,12 @@ export type CommunityPostLoadFailure =
 export function parseCommunityPostTrust(value: unknown): CommunityPostTrust | null;
 export function parseCommunityCommentOrigin(value: unknown): CommunityContentOrigin | null;
 export function communityContentOriginLabel(origin: CommunityContentOrigin): string;
+export function buildCommunitySourceDisclosure(
+  value: Readonly<{
+    contentOrigin: CommunityContentOrigin;
+    adDisclosure: CommunityAdDisclosure;
+  }>,
+  asOfDate: string,
+): Readonly<AmoraSourceDisclosure> | null;
 export function communityPostLoadFailure(status: number): CommunityPostLoadFailure;
+import type { AmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";

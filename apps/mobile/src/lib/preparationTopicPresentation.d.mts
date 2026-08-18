@@ -1,5 +1,7 @@
 import type { AmoraPreparationTopicDetail } from "@hanbang/shared/amora-preparation-topic";
 
+import type { AmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
+
 export type PreparationTopicPresentation = Readonly<{
   statusLabel: string;
   statusTone: "neutral" | "rose" | "success" | "warning";
@@ -91,6 +93,7 @@ export type PreparationTopicPresentation = Readonly<{
       note?: string;
     }>[];
     completionEvidence: readonly string[];
+    sourceDisclosure: Readonly<AmoraSourceDisclosure>;
     provenance: Readonly<{
       sourceLabel: "웨딩한방 독립 작성 · 내부 편집 검토";
       reviewedLabel: string;

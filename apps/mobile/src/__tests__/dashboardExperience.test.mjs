@@ -1562,6 +1562,7 @@ test("recommendation disclosure separates grounded priority from private and sha
   });
   const disclosure = buildDashboardRecommendationDisclosure({
     focus,
+    asOfDate: "2026-08-18",
     personalizationLabel: "내 방식: 선택지 비교부터 · 핵심만",
     coreCriterionLabel: "내 기준: 둘이 편안한 일정",
     coupleCriterionLabel: "우리 기준: 감당 가능한 범위 먼저",
@@ -1570,6 +1571,9 @@ test("recommendation disclosure separates grounded priority from private and sha
   });
 
   assert.match(disclosure.prioritySource, /공동 준비 행동/);
+  assert.equal(disclosure.sourceDisclosure.sourceType, "canonical_record");
+  assert.equal(disclosure.sourceDisclosure.stateEffect, "already_recorded");
+  assert.equal(disclosure.sourceDisclosure.rankingPolicy, "disclosure_only");
   assert.equal(disclosure.priorityReason, focus.description);
   assert.deepEqual(
     disclosure.contextRows.map((row) => row.scope),
@@ -1644,6 +1648,7 @@ test("recommendation disclosure identifies every active action feedback result a
 test("recommendation disclosure never describes a failed criterion read as no criterion", () => {
   const disclosure = buildDashboardRecommendationDisclosure({
     focus: buildDashboardFocus(emptyInput),
+    asOfDate: "2026-08-18",
     personalizationLabel: null,
     coreCriterionLabel: null,
     coupleCriterionLabel: null,
@@ -1655,6 +1660,11 @@ test("recommendation disclosure never describes a failed criterion read as no cr
   assert.match(disclosure.contextRows[2].detail, /확인하지 못했어요/);
   assert.doesNotMatch(disclosure.contextRows[1].detail, /없어요/);
   assert.doesNotMatch(disclosure.contextRows[2].detail, /없어요/);
+  assert.equal(disclosure.sourceDisclosure.sourceType, "amora_proposal");
+  assert.equal(
+    disclosure.sourceDisclosure.stateEffect,
+    "requires_user_confirmation",
+  );
 });
 
 test("home exposes recommendation provenance and clears the sheet across identity changes", () => {
@@ -1680,6 +1690,8 @@ test("home exposes recommendation provenance and clears the sheet across identit
   assert.match(sheetSource, /minHeight:\s*48/);
   assert.match(sheetSource, /row\.scope === "커플 공유"/);
   assert.match(sheetSource, /추천 순서를 정한 준비 기록/);
+  assert.match(sheetSource, /AmoraSourceDisclosureView/);
+  assert.match(homeSource, /asOfDate:\s*formatLocalDateKey\(\)/);
   assert.match(sheetSource, /설명을 맞추기 위해 전달된 설정과 기준/);
   assert.doesNotMatch(sheetSource, /이번 답변에 사용한 기억/);
 });

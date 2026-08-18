@@ -18,6 +18,7 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import type { DashboardRecommendationDisclosure } from "@/lib/dashboardExperience.mjs";
+import { AmoraSourceDisclosureView } from "@/components/common/AmoraSourceDisclosureView";
 
 interface AmoraRecommendationWhySheetProps {
   visible: boolean;
@@ -94,6 +95,12 @@ export default function AmoraRecommendationWhySheet({
                 <Text style={styles.sectionTitle}>추천 순서를 정한 준비 기록</Text>
               </View>
               <View style={styles.factCard}>
+                {disclosure.sourceDisclosure ? (
+                  <AmoraSourceDisclosureView
+                    disclosure={disclosure.sourceDisclosure}
+                    showDetails
+                  />
+                ) : null}
                 <Text style={styles.factSource}>{disclosure.prioritySource}</Text>
                 <Text style={styles.factReason}>{disclosure.priorityReason}</Text>
               </View>

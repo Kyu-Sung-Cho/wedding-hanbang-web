@@ -29,6 +29,9 @@ test("feed and detail fail closed on missing trust metadata and render the same 
   }
 
   assert.match(badges, /작성 출처/);
+  assert.match(badges, /buildCommunitySourceDisclosure/);
+  assert.match(badges, /AmoraSourceDisclosureView/);
+  assert.match(badges, /showDetails=\{showDisclosureDetail\}/);
   assert.match(badges, /경제적 관계/);
   assert.match(badges, /운영 검토 중/);
   assert.match(badges, /해결됨/);

@@ -1,6 +1,7 @@
 export type DashboardUrgency = "overdue" | "soon" | "ontrack";
 
 import type { AmoraPersonalizationPreferences } from "./amoraPersonalization.mjs";
+import type { AmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
 
 export interface DashboardUrgentTask {
   categoryKey: string;
@@ -98,6 +99,7 @@ export interface DashboardRecommendationContextRow {
 }
 
 export interface DashboardRecommendationDisclosure {
+  sourceDisclosure: Readonly<AmoraSourceDisclosure> | null;
   prioritySource: string;
   priorityReason: string;
   contextRows: readonly DashboardRecommendationContextRow[];
@@ -211,6 +213,7 @@ export function applyDashboardActionOutcomeFeedback(input: {
 
 export function buildDashboardRecommendationDisclosure(input: {
   focus: DashboardFocus;
+  asOfDate?: string;
   personalizationLabel: string | null;
   coreCriterionLabel: string | null;
   coupleCriterionLabel: string | null;

@@ -1,6 +1,7 @@
 import { buildAmoraHomePersonalization } from "./amoraPersonalizationSettings.mjs";
 import { getAmoraCoupleCriterionView } from "./amoraCoupleCriterion.mjs";
 import { normalizeAmoraCoreCriterionText } from "@hanbang/shared/amora-core-criterion";
+import { buildAmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
 
 function pluralDay(days) {
   return `${Math.abs(days)}일`;
@@ -414,6 +415,7 @@ function recommendationContextDetail(value, effect) {
 
 export function buildDashboardRecommendationDisclosure({
   focus,
+  asOfDate,
   personalizationLabel,
   coreCriterionLabel,
   coupleCriterionLabel,
@@ -421,6 +423,15 @@ export function buildDashboardRecommendationDisclosure({
   coupleCriterionLoaded,
 }) {
   const focusKind = typeof focus?.kind === "string" ? focus.kind : "calm";
+  const sourceDisclosure = buildAmoraSourceDisclosure({
+    version: 1,
+    sourceType: ["action", "today", "booking"].includes(focusKind)
+      ? "canonical_record"
+      : "amora_proposal",
+    commercialRelationship: "none",
+    checkedAt: null,
+    asOfDate,
+  });
   const priorityReason = typeof focus?.description === "string"
     && focus.description.trim().length > 0
     ? focus.description
@@ -481,6 +492,7 @@ export function buildDashboardRecommendationDisclosure({
   ];
 
   return Object.freeze({
+    sourceDisclosure,
     prioritySource:
       DASHBOARD_RECOMMENDATION_SOURCES[focusKind]
       ?? DASHBOARD_RECOMMENDATION_SOURCES.calm,

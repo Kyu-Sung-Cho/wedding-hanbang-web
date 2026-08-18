@@ -1,4 +1,5 @@
 import { validateAmoraPreparationGuideModule } from "@hanbang/shared/amora-preparation-guide";
+import { buildAmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
 import { resolveBudgetPayerOptions } from "./neutralBudgetPayerPresentation.mjs";
 
 function isRecord(value) {
@@ -575,7 +576,14 @@ function buildGuideSection(view) {
   ));
   if (matchingUnknowns.length !== 1) return null;
   const reviewedDate = formatGuideReviewDate(guide.provenance.reviewedAt);
-  if (!reviewedDate) return null;
+  const sourceDisclosure = buildAmoraSourceDisclosure({
+    version: 1,
+    sourceType: "reviewed_guidance",
+    commercialRelationship: "none",
+    checkedAt: guide.provenance.reviewedAt,
+    asOfDate: guide.provenance.reviewDueAt,
+  });
+  if (!reviewedDate || !sourceDisclosure) return null;
   return Object.freeze({
     eyebrow: "아모라 가이드",
     moduleId: guide.moduleId,
@@ -585,6 +593,7 @@ function buildGuideSection(view) {
     exceptions: Object.freeze([...guide.exceptions]),
     dialogueLines: Object.freeze(guide.dialogueLines.map((line) => Object.freeze({ ...line }))),
     completionEvidence: Object.freeze([...guide.completionEvidence]),
+    sourceDisclosure,
     provenance: Object.freeze({
       sourceLabel: "웨딩한방 독립 작성 · 내부 편집 검토",
       reviewedLabel: `${reviewedDate} 검토`,

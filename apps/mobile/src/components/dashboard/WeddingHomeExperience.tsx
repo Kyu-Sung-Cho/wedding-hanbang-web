@@ -32,6 +32,7 @@ import {
   buildCompanionHomeBrief,
   buildDashboardFocus,
   buildDashboardRecommendationDisclosure,
+  formatLocalDateKey,
   getWeddingMomentMessage,
   resolveDashboardServiceRoute,
   type DashboardBookingOutcomeTask,
@@ -377,6 +378,7 @@ export default function WeddingHomeExperience({
     () => focus && companionBrief
       ? buildDashboardRecommendationDisclosure({
           focus,
+          asOfDate: formatLocalDateKey(),
           personalizationLabel: companionBrief.personalizationLabel,
           coreCriterionLabel: companionBrief.coreCriterionLabel,
           coupleCriterionLabel: companionBrief.coupleCriterionLabel,

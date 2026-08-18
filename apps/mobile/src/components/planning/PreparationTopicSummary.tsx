@@ -4,6 +4,7 @@ import { colors, radius, spacing } from "@hanbang/design-tokens";
 import type { AmoraPreparationTopicDetail } from "@hanbang/shared/amora-preparation-topic";
 
 import { ActionRow, AppText, StatusPill } from "@/components/ui/AppUI";
+import { AmoraSourceDisclosureView } from "@/components/common/AmoraSourceDisclosureView";
 import { buildPreparationTopicPresentation } from "@/lib/preparationTopicPresentation.mjs";
 import type {
   PreparationTopicPayerPresentationContext,
@@ -412,6 +413,10 @@ export default function PreparationTopicSummary({
                 items={guideSection.completionEvidence}
               />
               <View style={styles.guideProvenance}>
+                <AmoraSourceDisclosureView
+                  disclosure={guideSection.sourceDisclosure}
+                  showDetails
+                />
                 <AppText variant="caption" style={styles.guideProvenanceTitle}>
                   {guideSection.provenance.sourceLabel}
                 </AppText>

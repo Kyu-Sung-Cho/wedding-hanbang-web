@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildCommunitySourceDisclosure,
   communityContentOriginLabel,
   communityPostLoadFailure,
   parseCommunityCommentOrigin,
@@ -68,4 +69,27 @@ test("trust labels and load failures are semantic rather than color-only", () =>
   assert.equal(communityPostLoadFailure(401), "auth_required");
   assert.equal(communityPostLoadFailure(404), "unavailable");
   assert.equal(communityPostLoadFailure(503), "load_failed");
+});
+
+test("community experience and commercial posts map to different bounded source disclosures", () => {
+  assert.equal(buildCommunitySourceDisclosure({
+    contentOrigin: "member",
+    adDisclosure: "general",
+  }, "2026-08-18")?.sourceType, "community_experience");
+  assert.equal(buildCommunitySourceDisclosure({
+    contentOrigin: "member",
+    adDisclosure: "ad",
+  }, "2026-08-18")?.commercialRelationship, "paid_advertisement");
+  assert.equal(buildCommunitySourceDisclosure({
+    contentOrigin: "industry_professional",
+    adDisclosure: "sponsored",
+  }, "2026-08-18")?.commercialRelationship, "sponsored_benefit");
+  assert.equal(buildCommunitySourceDisclosure({
+    contentOrigin: "ai",
+    adDisclosure: "general",
+  }, "2026-08-18"), null);
+  assert.equal(buildCommunitySourceDisclosure({
+    contentOrigin: "operator",
+    adDisclosure: "general",
+  }, "not-a-date"), null);
 });

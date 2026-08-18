@@ -1,3 +1,5 @@
+import { buildAmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
+
 const CONTENT_ORIGINS = new Set([
   "member",
   "operator",
@@ -54,6 +56,41 @@ export function parseCommunityCommentOrigin(value) {
 
 export function communityContentOriginLabel(origin) {
   return CONTENT_ORIGIN_LABELS[origin] ?? CONTENT_ORIGIN_LABELS.legacy_unverified;
+}
+
+export function buildCommunitySourceDisclosure(value, asOfDate) {
+  if (!isRecord(value) || !CONTENT_ORIGINS.has(value.contentOrigin)) return null;
+  if (!AD_DISCLOSURES.has(value.adDisclosure)) return null;
+
+  if (value.adDisclosure === "ad") {
+    return buildAmoraSourceDisclosure({
+      version: 1,
+      sourceType: "sponsored_placement",
+      commercialRelationship: "paid_advertisement",
+      checkedAt: null,
+      asOfDate,
+    });
+  }
+  if (value.adDisclosure === "sponsored") {
+    return buildAmoraSourceDisclosure({
+      version: 1,
+      sourceType: "sponsored_placement",
+      commercialRelationship: "sponsored_benefit",
+      checkedAt: null,
+      asOfDate,
+    });
+  }
+  if (!["member", "industry_professional", "legacy_unverified"].includes(
+    value.contentOrigin,
+  )) return null;
+
+  return buildAmoraSourceDisclosure({
+    version: 1,
+    sourceType: "community_experience",
+    commercialRelationship: value.contentOrigin === "member" ? "none" : "unknown",
+    checkedAt: null,
+    asOfDate,
+  });
 }
 
 export function communityPostLoadFailure(status) {

@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
 import ProtectionToolCard, { PROTECTION_TOOL_NAMES } from "./ProtectionToolCard";
+import { parseAmoraSourceDisclosure } from "@hanbang/shared/amora-source-disclosure";
+import { ymdInKst } from "@/lib/utils/kstDate";
 
 // 업체 관련 tool 이름 집합
 export const VENDOR_TOOL_NAMES = new Set([
@@ -297,6 +299,7 @@ function VendorDetailCard({
   const output = result.toolOutput as {
     profilePolicy?: string;
     dataStatus?: string;
+    sourceDisclosure?: unknown;
     vendorId: string;
     vendorName: string;
     location?: string | null;
@@ -367,6 +370,9 @@ function VendorDetailCard({
   );
   const hasStaff = staff.length > 0;
   const isOfficial = output.profilePolicy === "official_disclosure_profile_v1";
+  const sourceDisclosure = isOfficial
+    ? parseAmoraSourceDisclosure(output.sourceDisclosure, ymdInKst())
+    : null;
   const officialPrices = output.officialProfile?.official_prices ?? [];
   const officialMoneyRange = (min: number | null, max: number | null) => {
     if (min === null && max === null) return "금액 별도 확인";
@@ -431,6 +437,38 @@ function VendorDetailCard({
                 </Link>
               )}
             </div>
+            {sourceDisclosure ? (
+              <div
+                className="mt-3 rounded-lg border border-[#CFE0D4] bg-white px-3.5 py-3"
+                aria-label={[
+                  sourceDisclosure.badgeLabel,
+                  sourceDisclosure.statusLabel,
+                  sourceDisclosure.commercialRelationshipLabel,
+                  sourceDisclosure.checkedAtLabel,
+                  sourceDisclosure.limitation,
+                ].filter(Boolean).join(", ")}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-[#EEF4F0] px-2.5 py-1 text-xs font-semibold text-[#36534E]">
+                    {sourceDisclosure.badgeLabel}
+                  </span>
+                  <span className="text-xs text-[#68726C]">
+                    {[sourceDisclosure.statusLabel, sourceDisclosure.checkedAtLabel]
+                      .filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-medium text-[#52615A]">
+                  {sourceDisclosure.commercialRelationshipLabel}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-[#68726C]">
+                  {sourceDisclosure.limitation}
+                </p>
+              </div>
+            ) : (
+              <p role="note" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                업체 공개정보의 출처 표시를 확인하지 못했어요. 전체 근거에서 다시 확인해 주세요.
+              </p>
+            )}
             {output.location && (
               <p className="mt-2 flex items-center gap-1 text-sm text-[#68726C]">
                 <MapPin className="h-4 w-4" />

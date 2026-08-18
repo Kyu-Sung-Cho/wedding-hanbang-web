@@ -11,6 +11,12 @@ const summarySource = await readFile(
   "utf8",
 );
 
+test("the topic guide renders its common reviewed-source disclosure inside the existing provenance block", () => {
+  assert.match(summarySource, /AmoraSourceDisclosureView/);
+  assert.match(summarySource, /disclosure=\{guideSection\.sourceDisclosure\}/);
+  assert.match(summarySource, /showDetails/);
+});
+
 function withoutPlanFields(presentation) {
   if (!presentation) return presentation;
   const rest = { ...presentation };
@@ -335,6 +341,19 @@ test("one validated guide becomes a compact truthful section without changing th
     exceptions: guide.exceptions,
     dialogueLines: guide.dialogueLines,
     completionEvidence: guide.completionEvidence,
+    sourceDisclosure: {
+      version: 1,
+      sourceType: "reviewed_guidance",
+      commercialRelationship: "none",
+      checkedAt: "2026-08-16",
+      badgeLabel: "검수 가이드",
+      statusLabel: "참고 정보",
+      commercialRelationshipLabel: "표시된 상업 관계 없음",
+      checkedAtLabel: "2026.08.16 검토",
+      limitation: "검토한 범위 안의 확인 절차예요. 업체별 최신 서면과 직접 대조해야 해요.",
+      stateEffect: "none",
+      rankingPolicy: "disclosure_only",
+    },
     provenance: {
       sourceLabel: "웨딩한방 독립 작성 · 내부 편집 검토",
       reviewedLabel: "2026년 8월 16일 검토",

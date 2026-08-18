@@ -14,6 +14,17 @@ function render(result: ToolExecutionResult) {
   return renderToStaticMarkup(<VendorToolCard result={result} />);
 }
 
+describe("VendorToolCard source disclosure", () => {
+  it("revalidates official public information and shows checked date, relationship, and limitation", () => {
+    expect(source).toContain("parseAmoraSourceDisclosure");
+    expect(source).toContain("업체 공개정보의 출처 표시를 확인하지 못했어요");
+    expect(source).toContain("sourceDisclosure.badgeLabel");
+    expect(source).toContain("sourceDisclosure.commercialRelationshipLabel");
+    expect(source).toContain("sourceDisclosure.checkedAtLabel");
+    expect(source).toContain("sourceDisclosure.limitation");
+  });
+});
+
 describe("VendorToolCard booking projection state", () => {
   it("scopes every booking-card cancellation prompt to the Amora record", () => {
     expect(source).toContain("아모라 예약 요청 기록을 취소로 표시해줘");

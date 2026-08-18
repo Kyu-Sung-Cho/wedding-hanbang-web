@@ -1,10 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
+  buildCommunitySourceDisclosure,
   communityContentOriginLabel,
   type CommunityAdDisclosure,
   type CommunityContentOrigin,
 } from "@/lib/communityTrust.mjs";
+import { AmoraSourceDisclosureView } from "@/components/common/AmoraSourceDisclosureView";
 
 type Props = {
   contentOrigin: CommunityContentOrigin;
@@ -13,11 +15,6 @@ type Props = {
   isResolved?: boolean;
   underReview?: boolean;
   showDisclosureDetail?: boolean;
-};
-
-const AD_LABELS: Record<Exclude<CommunityAdDisclosure, "general">, string> = {
-  sponsored: "협찬·혜택 있음",
-  ad: "광고",
 };
 
 export function CommunityTrustBadges({
@@ -29,7 +26,10 @@ export function CommunityTrustBadges({
   showDisclosureDetail = false,
 }: Props) {
   const originLabel = communityContentOriginLabel(contentOrigin);
-  const adLabel = adDisclosure === "general" ? null : AD_LABELS[adDisclosure];
+  const sourceDisclosure = buildCommunitySourceDisclosure({
+    contentOrigin,
+    adDisclosure,
+  }, new Date().toISOString().slice(0, 10));
 
   return (
     <View
@@ -37,17 +37,26 @@ export function CommunityTrustBadges({
       accessible
       accessibilityLabel={[
         `작성 출처 ${originLabel}`,
-        adLabel ? `경제적 관계 ${adLabel}` : "광고나 협찬 표시 없음",
+        sourceDisclosure
+          ? `경제적 관계 ${sourceDisclosure.commercialRelationshipLabel}`
+          : "광고나 협찬 표시 없음",
         underReview ? "운영 검토 중" : null,
         isResolved ? "질문자가 해결됨으로 표시" : null,
       ].filter(Boolean).join(", ")}
     >
-      <View style={[styles.badge, styles.originBadge]}>
-        <Text style={styles.originText}>{originLabel}</Text>
-      </View>
-      {adLabel ? (
-        <View style={[styles.badge, styles.adBadge]}>
-          <Text style={styles.adText}>{adLabel}</Text>
+      {sourceDisclosure ? (
+        <AmoraSourceDisclosureView
+          disclosure={sourceDisclosure}
+          showDetails={showDisclosureDetail}
+        />
+      ) : (
+        <View style={[styles.badge, styles.originBadge]}>
+          <Text style={styles.originText}>{originLabel}</Text>
+        </View>
+      )}
+      {sourceDisclosure && contentOrigin !== "member" ? (
+        <View style={[styles.badge, styles.originBadge]}>
+          <Text style={styles.originText}>{originLabel}</Text>
         </View>
       ) : null}
       {underReview ? (
@@ -60,7 +69,7 @@ export function CommunityTrustBadges({
           <Text style={styles.resolvedText}>해결됨</Text>
         </View>
       ) : null}
-      {showDisclosureDetail && adLabel && sponsorshipDetail?.trim() ? (
+      {showDisclosureDetail && sourceDisclosure && sponsorshipDetail?.trim() ? (
         <Text style={styles.disclosureDetail}>
           혜택 관계: {sponsorshipDetail.trim()}
         </Text>
@@ -90,15 +99,6 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     fontSize: 11,
     fontWeight: "600",
-  },
-  adBadge: {
-    backgroundColor: "rgba(234,179,8,0.10)",
-    borderColor: "rgba(202,138,4,0.35)",
-  },
-  adText: {
-    color: "#A16207",
-    fontSize: 11,
-    fontWeight: "700",
   },
   reviewBadge: {
     backgroundColor: "rgba(148,163,184,0.12)",
