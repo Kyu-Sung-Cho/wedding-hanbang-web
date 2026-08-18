@@ -3963,17 +3963,13 @@ export async function POST(request: Request) {
         ? "image" as const
         : "none" as const;
 
-  // D3: stage + specialist 계산. 문서는 텍스트의 모호한 표현보다 서버가
-  // 검증한 첨부 종류를 우선해 계약/견적 검토 경로로 일관되게 보낸다.
+  // D3: 저장된 웨딩 맥락이 허용된 요청에서만 stage + specialist를 계산한다.
   const weddingDateForStage = allowsStoredProviderContext
     ? resolvedWeddingContext.weddingDate
     : null;
   const stageTag = allowsStoredProviderContext
     ? determineStage(weddingDateForStage)
     : null;
-  const providerAttachmentKind = allowsCurrentAttachmentContext
-    ? attachmentKind
-    : "none" as const;
   const requiresW4AttachmentReuploadGuidance =
     requestKind === "chat"
     && questionScope.scope === "W4_out_of_scope"
@@ -5042,7 +5038,7 @@ export async function POST(request: Request) {
           const UI_RENDERED_TOOLS = new Set([
             "search_vendors", "recommend_vendors", "get_vendor_detail",
             "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
-            "analyze_quote", "analyze_contract_readiness", "simulate_guest_guarantee",
+            "analyze_quote", "simulate_guest_guarantee",
           ]);
 
           const toolResultInputs: ChatInputItem[] = [];
