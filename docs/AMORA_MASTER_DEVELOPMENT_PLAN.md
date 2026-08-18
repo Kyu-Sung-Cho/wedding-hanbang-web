@@ -2,19 +2,19 @@
 
 > 상태: `LIVING SOURCE OF TRUTH`
 >
-> 계획 버전: `v1.20 — LISTEN-ONLY LANE LOCAL/AUTOMATED`
+> 계획 버전: `v1.21 — MEDIATION DISCLOSURE PRIVACY LOCAL/AUTOMATED`
 >
 > 마지막 갱신: 2026-08-18
 >
 > 대상 브랜치: `codex/amora-release-hardening-20260811`
 >
-> 검증 기준 코드 HEAD: `2f6dd0e3eac8b6a7d84bf83048e7b07e64a23642`
+> 검증 기준 코드 HEAD: `a40364cd13992781533edbc9f53bd0e92c12fd4d`
 >
 > 현재 릴리스 상태: `deployment_blocked` · manifest 107개 · Production 관찰 적용 32개 · Production 기준 pending 75개 · tail `20260818130000`
 >
-> 현재 작업 상태: `HT-009`의 저장 대화·기준·적용·일정 영수증 검색, `HT-010`의 shared+본인 private 기억 내보내기, `CARE-001`의 명시적 경청 lane은 원격 브랜치와 로컬 자동 검증까지 완료했지만 실기기·2계정·hosted E2E는 실행 환경 부재로 BLOCKED · 다음 소비자 수직은 `CARE-002` 요청형 중재이며, 기존 구현을 먼저 정본·privacy·same-version dual-confirmation 기준으로 감사한 뒤 공개 RED 하나씩 보강함 · Production/EAS 배포는 미실행
+> 현재 작업 상태: `HT-009`의 중요 대화 검색, `HT-010`의 shared+본인 private 기억 내보내기, `CARE-001`의 명시적 경청 lane은 로컬 자동 검증까지 완료했지만 실기기·2계정·hosted E2E는 환경 부재로 BLOCKED · `CARE-002` 요청형 중재는 exact message/proposal/roster 검증 전 본문·AI 산문·준비 저장을 숨기는 첫 privacy slice를 코드 commit `a40364cd`로 완료했고, same-version dual confirmation과 실제 2계정 비공개 검증은 계속 미완료 · Production/EAS 배포는 미실행
 >
-> 현재 작업 스냅샷: 제품 코드 commit `2f6dd0e3` 원격 브랜치 포함 확인 · 직전 기억 내보내기 제품/계획/푸시 증거 `f453fb01`/`c1cd5105`/`f9dac6e1` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
+> 현재 작업 스냅샷: 제품 코드 commit `a40364cd` · 직전 경청 lane 제품/계획 commit `2f6dd0e3`/`c0ba43e0` · 제품 후보 밖 untracked는 무소유 `decisionMap` HOLD 2 + 임시 산출물 36뿐이며 commit·staging에서 제외 · Production write 0
 
 이 문서는 아모라 제품 개발의 **단일 실행 정본**이다. 제품 철학만 설명하는 문서도 아니고, 완료된 작업만 기록하는 일지도 아니다. 우리가 만들려는 최종 아모라, 현재 구현, 빠진 연결, 다음 개발 순서, 리스크, 테스트, 배포 상태를 한곳에서 계속 갱신한다.
 
@@ -23,7 +23,7 @@
 | 항목 | 현재 값 |
 |---|---|
 | 작업 모드 | `PRODUCT VERTICAL` — 외부 권한이 필요한 restore는 BLOCKED로 분리하고 한 번에 소비자 수직 하나만 닫음 |
-| 현재 작업 | `CARE-002 / AMR-MED01 READY FOR AUDIT` — 사용자가 명시적으로 요청한 중재만 별도 범위에서 시작하고, 양쪽 private 비공개·same-version dual confirmation·unsafe card 차단을 기존 코드와 공개 계약에서 먼저 대조 |
+| 현재 작업 | `CARE-002 / AMR-MED01 IN_PROGRESS` — 검증 전 조율 본문·AI 산문·준비 저장을 숨기는 privacy slice는 commit 완료. 다음은 same-version dual confirmation과 실 2계정 비공개·재시작 검증 |
 | 최근 완료 제품 vertical | `CARE-001 LISTEN-ONLY LANE VERIFIED (LOCAL/AUTOMATED)` — 한 턴의 명시 선택을 durable user/assistant marker와 결박하고 tool·domain/decision write·장기 기억 read/enqueue·suggestion을 0으로 유지하면서 현재 공개 범위의 대화와 AI 감사 로그는 사실대로 보존 |
 | 다음 소비자 vertical | `CARE-002 REQUESTED MEDIATION E2E` — exact request→별도 scope→양쪽 private 비노출→동일 버전 이중 확인→안전한 shared 결과 또는 fail-closed 복귀를 한 수직으로 검증 |
 | 동시에 진행 가능한 제품 vertical | 1개 |
@@ -164,6 +164,7 @@
 | `HT-009` | `AMR-M03` | `BLOCKED` | FV-011,HT-001/003/004/006/007 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commits `b8fdfe94`, `ef0d5dd4`, `15e59d3a`; 저장 대화·내 기준·우리 기준, strict first-use/provider-backed `add_amora_action` 적용 영수증, current `schedule/scheduled` 결정 영수증을 각각 정본 재검증 뒤 결합. 일정 lane은 event별 최신 raw 후보 손상 시 older fallback 없이 partial, query token·snapshot·journey revision cursor, 최종 owner/couple/privacy fence를 적용. mobile focused 26/26·full 1119/1119, web 관련 48/48, shared/web/mobile typecheck, web/mobile lint, node syntax, Expo iOS/Android/Web export, diff-check PASS. 실기기 도구 부재·Preview SSO·GitHub Billing 차단 | 접근 가능한 Preview/internal build와 실기기·2계정 환경을 확보하면 범위·stale 제거·부분 장애·검색·더 보기·읽기 전용 일정 복귀를 확인 | 2026-08-18 |
 | `HT-010` | `AMR-M04` | `BLOCKED` | HT-009 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `f453fb01`, plan commit `c1cd5105` 원격 포함 확인; runtime flag default-off, 동의 이전 source 차단, shared current-member 전원 동의, roster 변경 무효화, 결정적 민감정보 차단, 철회·수정·삭제 경계를 재확인. `GET ?export=memory`가 현재 owner의 shared+본인 private 기억만 versioned JSON으로 내보내며 상대 private·profile reasoning·source ID·채팅·일정·예산을 제외. 501행 이상은 partial export 대신 409. web memory 120/120, mobile focused 9/9·full 1120/1120, web/mobile typecheck·full lint, web/mobile build, diff-check, pre-push 8/8 PASS | 접근 가능한 실기기·2계정·격리 hosted에서 철회·삭제·roster 무효화·export E2E. 환경 확보 전 사용자/hosted 완료 체크 금지 | 2026-08-18 |
 | `CARE-001` | `AMR-E01` | `BLOCKED` | FV-006 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `2f6dd0e3` 원격 포함. one-turn `listen_only`을 durable user/assistant metadata와 exact binding하고 provider tool 0, domain/decision write 0, stored context·장기 기억 read/enqueue 0, suggestion 0, AI 감사 로그·현재 conversation visibility 보존, W2/W5 safety 우선을 검증. web ingest+prompt 155/155, route 363/363, mobile chat 97/97·full 1123/1123, web/mobile typecheck·full lint, web build, Expo iOS/Android/Web export, diff-check, pre-push 8/8 PASS | 실기기·2계정에서 shared/private 표시, retry·cold start·W5 override·planning 복귀를 확인. hosted/Production 완료 체크 금지 | 2026-08-18 |
+| `CARE-002` | `AMR-MED01` | `IN_PROGRESS` | STG-004 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `a40364cd`. 웹·모바일 모두 exact message id·proposal version·roster fingerprint의 authenticated acceptance read가 성공하기 전에는 requester summary·선택안·AI 산문을 숨기고, 오류·409·legacy/malformed는 고정 안내로 fail-closed. 모바일의 과거 저장 원문 우회에서도 `준비에 저장`을 숨김. web mediation UI 54/54, mobile 관련 56/56·full 1125/1125, shared/web/mobile typecheck, web targeted lint·mobile full lint, diff-check PASS | 실제 2계정에서 같은 proposal version의 이중 확인·철회·roster 변경·재시작/재연결·W2/W5 override를 확인하고 requester private 원문 비노출을 증명. hosted/Production 완료 체크 금지 | 2026-08-18 |
 
 `HT-009` search slice는 commit `b8fdfe94`로 닫았다. 기존 v1 list 응답은 유지하고 notes 전용 opt-in read만 추가했으며, `20260818130000` SHA-256은 `022707a3...f9d4`로 고정했다. 다음 canonical receipt adapter slice는 편집 전에 별도 exact allowlist와 source truth contract를 이 ledger에 먼저 추가한다.
 
@@ -180,6 +181,8 @@
 `HT-010 / 사용자 기억 내보내기`의 exact allowlist는 다음 7경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/web/src/app/api/amora/memory/route.ts`, `apps/web/src/app/api/amora/memory/__tests__/route.test.ts`, `apps/web/src/app/(app)/settings/amora-memory/page.tsx`, `apps/web/src/app/(app)/settings/amora-memory/page.sensitive-memory-copy.test.ts`, `apps/mobile/app/settings/amora-memory.tsx`, `apps/mobile/src/__tests__/amoraMemorySettings.test.mjs`. source truth는 현재 인증 owner와 exact couple roster에서 허용된 `shared + own role-private` visibility의 active automatic `decision_nodes`다. export는 visibility별 설정·동의 수와 정리된 기억만 포함하고 member/user/couple ID, 상대 role-private, 숨은 profile projection, 채팅 원문, 일정·예산, 새 AI 요약을 포함하지 않는다. runtime flag가 꺼져도 기존 기억의 조회·내보내기·삭제·철회는 허용하지만 새 동의·enqueue는 계속 차단한다. DB write·migration·새 화면·새 navigation은 금지한다. 첫 공개 RED는 `GET /api/amora/memory?export=memory`가 표준 조회 응답 대신 versioned scope-separated export와 attachment/no-store header를 반환하고 상대 private 식별자·데이터를 포함하지 않는다는 행동이다.
 
 `CARE-001 / 명시적 경청 lane`의 exact allowlist는 다음 9경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `apps/web/src/app/api/chat/messages/route.ts`, `apps/web/src/app/api/chat/messages/route.test.ts`, `apps/web/src/app/api/chat/route.ts`, `apps/web/src/app/api/chat/__tests__/routeOpenAIContract.test.ts`, `apps/web/src/lib/ai/amoraPromptComposer.ts`, `apps/web/src/lib/ai/__tests__/prompts.test.ts`, `apps/mobile/app/(tabs)/chat.tsx`, `apps/mobile/src/__tests__/chatStream.test.mjs`. 소비자 결과는 AI 대화 lane에서 사용자가 한 턴의 `그냥 들어줘`를 명시적으로 선택하면 아모라가 안전 신호를 제외하고 조언·체크리스트·행동 카드·변경 제안으로 몰지 않는 것이다. canonical source truth는 ingest된 durable user row의 `metadata.interaction_mode='listen_only'`이며 `/api/chat` body와 exact 일치해야 한다. 응답에도 같은 marker를 남겨 exact retry·cold start에서 모드를 보존한다. 이 모드에서도 사용자·assistant 대화 원문은 현재 `나만 상담/함께 대화` 범위에 저장되고 provider 호출은 `ai_interactions_log`에 기록한다. 대신 provider tool schema 0, tool/domain/decision write 0, pending action 0, dissatisfaction auto-write 0, stored context·장기 기억 read/enqueue 0, suggestion chip 0을 강제한다. W2/W5 safety 경계는 이 모드보다 우선한다. partner lane, mediation, initial greeting, confirmed action, first-use/schedule-care binding, attachment·혼합 실행 요청과 결합하지 않으며 한 턴 성공 뒤 선택을 해제한다. 첫 공개 RED는 ingest route가 exact mode를 user row metadata에 저장·재생하고, `/api/chat`이 그 durable marker와 결박된 턴에서 provider tools 없이 응답하되 memory/domain write가 없고 assistant marker·감사 로그를 남기는 행동이다. DB migration·새 장기기억·자동 모드 추론·기존 대화 백필은 금지한다.
+
+`CARE-002 / 요청형 중재 E2E`의 첫 privacy slice exact allowlist는 다음 10경로다: `docs/AMORA_MASTER_DEVELOPMENT_PLAN.md`, `packages/shared/src/safety/mediationRenderSafety.mjs`, `packages/shared/src/safety/mediationRenderSafety.d.mts`, `apps/mobile/app/(tabs)/chat.tsx`, `apps/mobile/src/components/chat/AmoraMediationCard.tsx`, `apps/mobile/src/__tests__/amoraMediation.test.mjs`, `apps/mobile/src/__tests__/amoraChatReceipts.test.mjs`, `apps/web/src/components/app/chat/ChatBubble.tsx`, `apps/web/src/components/app/chat/MediationCard.tsx`, `apps/web/src/components/app/chat/__tests__/MediationCardContract.test.ts`. source truth는 인증된 `/api/amora/mediation/accept`가 exact message id·proposal version·roster fingerprint를 현재 couple roster와 대조해 반환한 상태다. 모바일·웹 모두 이 검증이 성공하기 전에는 저장된 조율 본문과 AI 산문을 표시하지 않고, 검증 중에는 짧은 중립 상태만, 오류·roster 변경·legacy/malformed proposal에는 고정된 비공개 안내와 재시도만 표시한다. 공동 결정 write·기존 acceptance RPC·DB schema·navigation·AI prompt는 바꾸지 않는다. 첫 공개 RED는 confirmable proposal의 서버 검증 Promise가 끝나기 전과 409 실패 뒤에 requester summary·선택안·AI 산문 원문이 DOM에 존재하지 않고, 200 exact 상태 뒤에만 구조화 초안이 나타나는 행동이다.
 
 운영 규칙:
 
