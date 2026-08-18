@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { buildPreparationActionReceiptPage } from "@/lib/amora/preparationActionReceipt";
 import { GET, PUT } from "./route";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
@@ -21,6 +22,9 @@ vi.mock("@/utils/rateLimit", () => ({
 vi.mock("@/utils/trustedMutation", () => ({
   isTrustedMutationRequest: vi.fn(() => true),
 }));
+vi.mock("@/lib/amora/preparationActionReceipt", () => ({
+  buildPreparationActionReceiptPage: vi.fn(),
+}));
 
 const RECIPIENT = "11111111-1111-4111-8111-111111111111";
 const PARTNER = "22222222-2222-4222-8222-222222222222";
@@ -28,6 +32,10 @@ const COUPLE = "33333333-3333-4333-8333-333333333333";
 const REF = "44444444-4444-4444-8444-444444444444";
 const MESSAGE = "55555555-5555-4555-8555-555555555555";
 const REQUEST_ID = "66666666-6666-4666-8666-666666666666";
+const ACTION_ID = "a2000000-0000-4000-8000-000000000099";
+const SOURCE_MESSAGE = "a3000000-0000-4000-8000-000000000099";
+const RECEIPT_MESSAGE = "a4000000-0000-4000-8000-000000000099";
+const RECEIPT_REQUEST_KEY = `chat:${RECIPIENT}:a5000000-0000-4000-8000-000000000099`;
 
 const collection = {
   version: 1,
@@ -95,6 +103,24 @@ function query(data: unknown, error: unknown = null) {
   builder.select.mockReturnValue(builder);
   builder.eq.mockReturnValue(builder);
   builder.single.mockResolvedValue({ data, error });
+  return builder;
+}
+
+function adminQuery(data: unknown, error: unknown = null) {
+  const builder: Record<string, ReturnType<typeof vi.fn>> & PromiseLike<unknown> = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    is: vi.fn(),
+    in: vi.fn(),
+    lte: vi.fn(),
+    or: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    then: vi.fn((resolve) => Promise.resolve(resolve({ data, error }))),
+  };
+  for (const method of ["select", "eq", "is", "in", "lte", "or", "order", "limit"] as const) {
+    builder[method].mockReturnValue(builder);
+  }
   return builder;
 }
 
@@ -235,6 +261,126 @@ describe("/api/amora/preparation-topic-message-refs", () => {
     );
   });
 
+  it("reads only strictly verified server-authoritative action receipts and rechecks identity", async () => {
+    const receiptRows = [{
+      id: RECEIPT_MESSAGE,
+      couple_id: COUPLE,
+      sender_id: null,
+      sender_type: "ai",
+      sender_role: null,
+      role: "assistant",
+      content: '"예식장 계약 조건 다시 확인"을 아모라 행동 카드로 저장했어요.',
+      metadata: {
+        client_request_id: RECEIPT_REQUEST_KEY,
+        in_reply_to_user_message_id: MESSAGE,
+        confirmed_amora_action_id: ACTION_ID,
+        source_amora_action_message_id: SOURCE_MESSAGE,
+        response_origin: "server_authoritative_provider_backed_add_action_application",
+      },
+      visibility: "shared",
+      stage_tag: null,
+      specialist_type: "general",
+      created_at: "2026-08-17T07:00:00.000Z",
+    }];
+    const sourceRows = [
+      { id: SOURCE_MESSAGE },
+      { id: MESSAGE },
+    ];
+    const executionRows = [{
+      couple_id: COUPLE,
+      request_key: RECEIPT_REQUEST_KEY,
+      pending_action_id: ACTION_ID,
+    }];
+    const receiptBuilder = adminQuery(receiptRows);
+    const sourceBuilder = adminQuery(sourceRows);
+    let chatReadCount = 0;
+    const from = vi.fn((table: string) => {
+      if (table === "chat_messages") {
+        chatReadCount += 1;
+        return chatReadCount === 1 ? receiptBuilder : sourceBuilder;
+      }
+      if (table === "amora_tool_executions") return adminQuery(executionRows);
+      if (table === "amora_first_use_action_proposal_bindings") return adminQuery([]);
+      return adminQuery(null, { code: "unexpected" });
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+    vi.mocked(buildPreparationActionReceiptPage).mockReturnValue({
+      entries: [{
+        receiptMessageId: RECEIPT_MESSAGE,
+        actionId: "act_1234567890abcdef_1234567890abcdef12345678",
+        topicKey: "venue",
+        title: "예식장 계약 조건 다시 확인",
+        displayMessage: receiptRows[0].content,
+        appliedAt: receiptRows[0].created_at,
+        scope: "couple_shared",
+        canOpenAction: true,
+      }],
+      nextBoundary: null,
+      partial: false,
+    });
+
+    const response = await GET(getRequest(
+      "?view=action-receipts&q=%EC%98%88%EC%8B%9D%EC%9E%A5&limit=12",
+    ));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      version: 1,
+      state: "ready",
+      recipientUserId: RECIPIENT,
+      coupleId: COUPLE,
+      entries: [{ actionId: "act_1234567890abcdef_1234567890abcdef12345678" }],
+      nextCursor: null,
+      partial: false,
+    });
+    expect(from).toHaveBeenCalledWith("chat_messages");
+    expect(from).toHaveBeenCalledWith("amora_tool_executions");
+    expect(receiptBuilder.or).toHaveBeenCalledWith(
+      "metadata->>target.is.null,metadata->>target.neq.partner",
+    );
+    expect(sourceBuilder.or).toHaveBeenCalledWith(
+      "metadata->>target.is.null,metadata->>target.neq.partner",
+    );
+    expect(buildPreparationActionReceiptPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coupleId: COUPLE,
+        recipientUserId: RECIPIENT,
+        query: "예식장",
+        limit: 12,
+        receiptMessages: receiptRows,
+        sourceAndConfirmationMessages: sourceRows,
+        executions: executionRows,
+      }),
+    );
+    expect(vi.mocked(createClientFromRequest)).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an action-receipt cursor page that repeats its boundary", async () => {
+    const from = vi.fn(() => adminQuery([]));
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+    vi.mocked(buildPreparationActionReceiptPage).mockReturnValue({
+      entries: [],
+      nextBoundary: {
+        appliedAt: "2026-08-17T07:00:00.000Z",
+        receiptMessageId: RECEIPT_MESSAGE,
+      },
+      partial: false,
+    });
+
+    const first = await GET(getRequest("?view=action-receipts&limit=12"));
+    const firstPayload = await first.json();
+    expect(first.status).toBe(200);
+    expect(firstPayload.nextCursor).toMatch(/^ap1\.[A-Za-z0-9_-]{16,512}$/u);
+
+    const repeated = await GET(getRequest(
+      `?view=action-receipts&limit=12&cursor=${encodeURIComponent(firstPayload.nextCursor)}`,
+    ));
+    expect(repeated.status).toBe(503);
+    await expect(repeated.json()).resolves.toEqual({
+      code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE",
+    });
+  });
+
   it("rejects a notes cursor page that changes snapshot or fails to advance", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: notesRpcPage, error: null })
@@ -326,6 +472,10 @@ describe("/api/amora/preparation-topic-message-refs", () => {
     "?view=notes&cursor=raw-timestamp",
     "?view=notes&limit=25",
     "?view=notes&unsupported=true",
+    "?view=action-receipts&view=action-receipts",
+    "?view=action-receipts&cursor=raw-timestamp",
+    "?view=action-receipts&limit=25",
+    "?view=action-receipts&unsupported=true",
   ])("rejects an ambiguous or expanding query before auth: %s", async (suffix) => {
     const response = await GET(getRequest(suffix));
     expect(response.status).toBe(400);

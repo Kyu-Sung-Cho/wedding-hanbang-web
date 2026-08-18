@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   AmoraPreparationNotesLoadError,
+  loadAmoraPreparationActionReceiptPage,
   loadAmoraPreparationNotesMessagePage,
   loadAmoraPreparationNotesSources,
 } from "../lib/amoraPreparationNotesLoader.mjs";
@@ -10,6 +11,7 @@ import {
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "20000000-0000-4000-8000-000000000002";
 const CURSOR = "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
+const RECEIPT_CURSOR = "ap1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 
 function notesPage(overrides = {}) {
   return {
@@ -32,6 +34,20 @@ function response(body, ok = true) {
   };
 }
 
+function receiptPage(overrides = {}) {
+  return {
+    version: 1,
+    state: "ready",
+    recipientUserId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    snapshotAt: "2026-08-18T08:00:00.000Z",
+    entries: [],
+    nextCursor: null,
+    partial: false,
+    ...overrides,
+  };
+}
+
 test("notes sources load independently under one exact owner/couple fence", async () => {
   const calls = [];
   const result = await loadAmoraPreparationNotesSources({
@@ -41,6 +57,9 @@ test("notes sources load independently under one exact owner/couple fence", asyn
       calls.push(path);
       if (path === "/api/amora/preparation-topic-message-refs?view=notes&limit=24") {
         return response({ kind: "message-refs" });
+      }
+      if (path === "/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24") {
+        return response(receiptPage());
       }
       if (path === "/api/amora/criterion") {
         return response({ kind: "owner-criterion" });
@@ -58,11 +77,14 @@ test("notes sources load independently under one exact owner/couple fence", asyn
   assert.deepEqual(calls.sort(), [
     "/api/amora/couple-criterion",
     "/api/amora/criterion",
+    "/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24",
     "/api/amora/preparation-topic-message-refs?view=notes&limit=24",
   ]);
   assert.deepEqual(result, {
     messageReferenceCollection: { kind: "message-refs" },
     messageReferenceReadState: "loaded",
+    actionReceiptCollection: receiptPage(),
+    actionReceiptReadState: "loaded",
     ownerCriterionResponse: { kind: "owner-criterion" },
     ownerCriterionReadState: "loaded",
     coupleCriterionResponse: { kind: "couple-criterion" },
@@ -70,6 +92,28 @@ test("notes sources load independently under one exact owner/couple fence", asyn
     openActions: [{ id: "one-action" }],
     actionReadState: "loaded",
   });
+});
+
+test("one action-receipt page keeps search and cursor server-bound", async () => {
+  const calls = [];
+  const page = receiptPage({ nextCursor: RECEIPT_CURSOR });
+  const loaded = await loadAmoraPreparationActionReceiptPage({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    query: "  예식장   반영  ",
+    cursor: RECEIPT_CURSOR,
+    apiFetch: async (path) => {
+      calls.push(path);
+      return response(page);
+    },
+    isCurrent: () => true,
+    timeoutMs: 100,
+  });
+
+  assert.deepEqual(loaded, page);
+  assert.deepEqual(calls, [
+    `/api/amora/preparation-topic-message-refs?view=action-receipts&limit=24&q=${encodeURIComponent("예식장 반영")}&cursor=${encodeURIComponent(RECEIPT_CURSOR)}`,
+  ]);
 });
 
 test("one notes page normalizes the question search and keeps the cursor opaque", async () => {
@@ -122,6 +166,7 @@ test("one failed source is unavailable without discarding the other completed la
   });
 
   assert.equal(result.messageReferenceReadState, "loaded");
+  assert.equal(result.actionReceiptReadState, "loaded");
   assert.equal(result.ownerCriterionReadState, "unavailable");
   assert.equal(result.ownerCriterionResponse, null);
   assert.equal(result.coupleCriterionReadState, "loaded");
@@ -167,6 +212,7 @@ test("the shared deadline returns unavailable lanes instead of waiting on hung r
   });
 
   assert.equal(result.messageReferenceReadState, "unavailable");
+  assert.equal(result.actionReceiptReadState, "unavailable");
   assert.equal(result.ownerCriterionReadState, "unavailable");
   assert.equal(result.coupleCriterionReadState, "unavailable");
   assert.equal(result.actionReadState, "unavailable");

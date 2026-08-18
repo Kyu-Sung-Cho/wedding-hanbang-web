@@ -1,4 +1,5 @@
 import {
+  validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
@@ -215,6 +216,113 @@ function parseMessageReferencePages(input, firstPage) {
   return { entries, partial };
 }
 
+function sameActionReceiptEntry(left, right) {
+  return left.receiptMessageId === right.receiptMessageId
+    && left.actionId === right.actionId
+    && left.topicKey === right.topicKey
+    && left.title === right.title
+    && left.displayMessage === right.displayMessage
+    && left.appliedAt === right.appliedAt
+    && left.scope === right.scope
+    && left.canOpenAction === right.canOpenAction;
+}
+
+function sameActionReceiptPage(left, right) {
+  return left.version === right.version
+    && left.state === right.state
+    && left.recipientUserId === right.recipientUserId
+    && left.coupleId === right.coupleId
+    && left.snapshotAt === right.snapshotAt
+    && left.nextCursor === right.nextCursor
+    && left.partial === right.partial
+    && left.entries.length === right.entries.length
+    && left.entries.every((entry, index) => (
+      sameActionReceiptEntry(entry, right.entries[index])
+    ));
+}
+
+function isStrictlyAfterActionReceipt(previous, next) {
+  const previousAppliedAt = Date.parse(previous.appliedAt);
+  const nextAppliedAt = Date.parse(next.appliedAt);
+  return nextAppliedAt < previousAppliedAt
+    || (
+      nextAppliedAt === previousAppliedAt
+      && next.receiptMessageId.toLowerCase() < previous.receiptMessageId.toLowerCase()
+    );
+}
+
+function parseActionReceiptPages(input, firstPage) {
+  const rawPages = input.actionReceiptPages === undefined
+    ? [firstPage]
+    : input.actionReceiptPages;
+  if (!Array.isArray(rawPages) || rawPages.length < 1 || rawPages.length > 20) {
+    return null;
+  }
+
+  const pages = [];
+  for (const rawPage of rawPages) {
+    const parsed = validateAmoraPreparationActionReceiptPageResponse(
+      rawPage,
+      input.ownerId,
+      input.coupleId,
+    );
+    if (!parsed.ok || parsed.value.snapshotAt !== firstPage.snapshotAt) return null;
+    pages.push(parsed.value);
+  }
+  if (!sameActionReceiptPage(pages[0], firstPage)) return null;
+
+  const entries = [];
+  const receiptIds = new Set();
+  const actionIds = new Set();
+  const nextCursors = new Set();
+  let previousEntry = null;
+  let partial = false;
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    const page = pages[pageIndex];
+    if (pageIndex < pages.length - 1 && page.nextCursor === null) return null;
+    if (page.nextCursor !== null) {
+      if (nextCursors.has(page.nextCursor)) return null;
+      nextCursors.add(page.nextCursor);
+    }
+    partial = partial || page.partial;
+    for (const entry of page.entries) {
+      const receiptId = entry.receiptMessageId.toLowerCase();
+      const actionId = entry.actionId.toLowerCase();
+      if (
+        receiptIds.has(receiptId)
+        || actionIds.has(actionId)
+        || (previousEntry && !isStrictlyAfterActionReceipt(previousEntry, entry))
+      ) return null;
+      receiptIds.add(receiptId);
+      actionIds.add(actionId);
+      entries.push(entry);
+      previousEntry = entry;
+    }
+  }
+  return { entries, partial };
+}
+
+function buildActionReceiptRecords(entries, topics) {
+  return entries.map((entry) => {
+    const topicLabel = entry.topicKey === null ? null : topics.get(entry.topicKey) ?? null;
+    return Object.freeze({
+      id: `applied_receipt:${entry.receiptMessageId}`,
+      type: "applied_receipt",
+      typeLabel: "실제 반영",
+      title: entry.title,
+      excerpt: entry.displayMessage,
+      topicKeys: Object.freeze(topicLabel === null ? [] : [entry.topicKey]),
+      topicLabels: Object.freeze(topicLabel === null ? [] : [topicLabel]),
+      scope: "couple_shared",
+      scopeLabel: "함께 보기",
+      savedAt: entry.appliedAt,
+      sourceCreatedAt: entry.appliedAt,
+      freshness: "current",
+      openAction: Object.freeze({ actionId: entry.actionId }),
+    });
+  });
+}
+
 function criterionRecord({ id, type, excerpt, scope, at, focus }) {
   return Object.freeze({
     id: `${type}:${id}`,
@@ -396,7 +504,44 @@ export function buildAmoraPreparationNotes(input) {
     messageReferencesIncomplete = true;
     messageReferencesLoading = input.messageReferenceReadState === "loading";
   }
-  const records = [...savedConversationRecords, ...criteria.records].sort((left, right) => (
+
+  let actionReceiptRecords = [];
+  let actionReceiptsIncomplete = false;
+  let actionReceiptsLoading = false;
+  let actionReceiptSuccessfulSources = 0;
+  let actionReceiptCollectionPartial = false;
+  if (input.actionReceiptReadState !== undefined) {
+    if (!READ_STATES.has(input.actionReceiptReadState)) {
+      return emptyResult("read_error", query, scopeFilter, topicFilter, typeFilter);
+    }
+    if (
+      input.actionReceiptReadState === "loaded"
+      || input.actionReceiptReadState === "partial"
+    ) {
+      const firstPage = validateAmoraPreparationActionReceiptPageResponse(
+        input.actionReceiptCollection,
+        input.ownerId,
+        input.coupleId,
+      );
+      const parsedPages = firstPage.ok
+        ? parseActionReceiptPages(input, firstPage.value)
+        : null;
+      if (parsedPages) {
+        actionReceiptRecords = buildActionReceiptRecords(parsedPages.entries, topics);
+        actionReceiptSuccessfulSources = 1;
+        actionReceiptCollectionPartial = parsedPages.partial;
+      } else actionReceiptsIncomplete = true;
+    } else {
+      actionReceiptsIncomplete = true;
+      actionReceiptsLoading = input.actionReceiptReadState === "loading";
+    }
+  }
+
+  const records = [
+    ...savedConversationRecords,
+    ...actionReceiptRecords,
+    ...criteria.records,
+  ].sort((left, right) => (
     Date.parse(right.savedAt) - Date.parse(left.savedAt)
     || left.id.localeCompare(right.id)
   ));
@@ -410,6 +555,7 @@ export function buildAmoraPreparationNotes(input) {
       normalizedSearch.length === 0
       || searchableText([
         record.questionExcerpt ?? "",
+        record.title ?? "",
         record.excerpt,
         record.typeLabel,
         ...record.topicLabels,
@@ -420,10 +566,14 @@ export function buildAmoraPreparationNotes(input) {
   const incomplete = messageReferencesIncomplete
     || input.messageReferenceReadState === "partial"
     || collectionPartial
+    || actionReceiptsIncomplete
+    || input.actionReceiptReadState === "partial"
+    || actionReceiptCollectionPartial
     || criteria.incomplete
     || continuingStory.incomplete;
-  const loading = messageReferencesLoading || criteria.loading;
+  const loading = messageReferencesLoading || actionReceiptsLoading || criteria.loading;
   const successfulSources = messageReferenceSuccessfulSources
+    + actionReceiptSuccessfulSources
     + criteria.successfulSources
     + continuingStory.successfulSources;
   const state = successfulSources === 0 && loading

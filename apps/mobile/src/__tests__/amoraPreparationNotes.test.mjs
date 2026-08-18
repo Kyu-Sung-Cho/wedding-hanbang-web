@@ -6,6 +6,8 @@ import { buildAmoraPreparationNotes } from "../lib/amoraPreparationNotes.mjs";
 const OWNER_ID = "10000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "20000000-0000-4000-8000-000000000002";
 const MESSAGE_ID = "30000000-0000-4000-8000-000000000003";
+const RECEIPT_MESSAGE_ID = "90000000-0000-4000-8000-000000000009";
+const ACTION_ID = "act_10000000000040008000000000000001_123456789012345678901234";
 
 function reference(overrides = {}) {
   return {
@@ -22,6 +24,132 @@ function reference(overrides = {}) {
     ...overrides,
   };
 }
+
+function actionReceiptPage(overrides = {}) {
+  return {
+    version: 1,
+    state: "ready",
+    recipientUserId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    snapshotAt: "2026-08-18T12:00:00.000Z",
+    entries: [{
+      receiptMessageId: RECEIPT_MESSAGE_ID,
+      actionId: ACTION_ID,
+      topicKey: "venue",
+      title: "예식장 후보 세 곳에 같은 조건 묻기",
+      displayMessage: "예식장 후보 확인 행동을 준비에 반영했어요.",
+      appliedAt: "2026-08-18T11:00:00.000Z",
+      scope: "couple_shared",
+      canOpenAction: true,
+    }],
+    nextCursor: null,
+    partial: false,
+    ...overrides,
+  };
+}
+
+test("a server-authoritative application receipt becomes one searchable actual-application record", () => {
+  const result = buildAmoraPreparationNotes({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [{ key: "venue", label: "예식장" }],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      references: [],
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    actionReceiptCollection: actionReceiptPage(),
+    actionReceiptReadState: "loaded",
+    query: "예식장 후보",
+    scopeFilter: "couple_shared",
+    topicFilter: "venue",
+    typeFilter: "applied_receipt",
+  });
+
+  assert.deepEqual(result, {
+    state: "ready",
+    query: "예식장 후보",
+    scopeFilter: "couple_shared",
+    topicFilter: "venue",
+    typeFilter: "applied_receipt",
+    continuingStory: null,
+    records: [{
+      id: `applied_receipt:${RECEIPT_MESSAGE_ID}`,
+      type: "applied_receipt",
+      typeLabel: "실제 반영",
+      title: "예식장 후보 세 곳에 같은 조건 묻기",
+      excerpt: "예식장 후보 확인 행동을 준비에 반영했어요.",
+      topicKeys: ["venue"],
+      topicLabels: ["예식장"],
+      scope: "couple_shared",
+      scopeLabel: "함께 보기",
+      savedAt: "2026-08-18T11:00:00.000Z",
+      sourceCreatedAt: "2026-08-18T11:00:00.000Z",
+      freshness: "current",
+      openAction: { actionId: ACTION_ID },
+    }],
+  });
+});
+
+test("action-receipt cursor pages are snapshot-bound, ordered, unique, and preserve verified partial results", () => {
+  const first = actionReceiptPage({
+    nextCursor: "ap1.eyJmaXJzdFBhZ2VCb3VuZGFyeSI6dHJ1ZX0",
+  });
+  const secondEntry = {
+    ...first.entries[0],
+    receiptMessageId: "a0000000-0000-4000-8000-00000000000a",
+    actionId: "act_20000000000040008000000000000002_123456789012345678901234",
+    appliedAt: "2026-08-18T10:00:00.000Z",
+    title: "예식장 계약 조건 다시 확인하기",
+    displayMessage: "계약 조건 확인 행동을 준비에 반영했어요.",
+  };
+  const second = {
+    ...first,
+    entries: [secondEntry],
+    nextCursor: null,
+    partial: true,
+  };
+  const base = {
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [{ key: "venue", label: "예식장" }],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      references: [],
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    actionReceiptCollection: first,
+    actionReceiptPages: [first, second],
+    actionReceiptReadState: "loaded",
+    query: "",
+    scopeFilter: "all",
+    topicFilter: "all",
+    typeFilter: "all",
+  };
+
+  const merged = buildAmoraPreparationNotes(base);
+  assert.equal(merged.state, "partial");
+  assert.deepEqual(merged.records.map((record) => record.id), [
+    `applied_receipt:${RECEIPT_MESSAGE_ID}`,
+    "applied_receipt:a0000000-0000-4000-8000-00000000000a",
+  ]);
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    actionReceiptPages: [first, { ...second, snapshotAt: "2026-08-18T12:01:00.000Z" }],
+  }).state, "partial");
+  assert.equal(buildAmoraPreparationNotes({
+    ...base,
+    actionReceiptPages: [first, { ...second, entries: first.entries }],
+  }).state, "partial");
+});
 
 test("saved conversations become scope-labelled notes and the same source is grouped across topics", () => {
   const result = buildAmoraPreparationNotes({
@@ -577,6 +705,30 @@ test("one unavailable notes source preserves records from the other verified sou
   });
   assert.equal(withConversationOnly.state, "partial");
   assert.deepEqual(withConversationOnly.records.map((record) => record.type), [
+    "saved_conversation",
+  ]);
+
+  const withUnavailableReceipts = buildAmoraPreparationNotes({
+    ownerId: OWNER_ID,
+    coupleId: COUPLE_ID,
+    topics: [{ key: "venue", label: "예식장" }],
+    messageReferenceCollection: {
+      version: 1,
+      state: "ready",
+      recipientUserId: OWNER_ID,
+      coupleId: COUPLE_ID,
+      references: [reference()],
+      partial: false,
+    },
+    messageReferenceReadState: "loaded",
+    actionReceiptCollection: null,
+    actionReceiptReadState: "unavailable",
+    query: "",
+    scopeFilter: "all",
+    typeFilter: "all",
+  });
+  assert.equal(withUnavailableReceipts.state, "partial");
+  assert.deepEqual(withUnavailableReceipts.records.map((record) => record.type), [
     "saved_conversation",
   ]);
 });

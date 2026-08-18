@@ -51,9 +51,26 @@ export type AmoraPreparationNotesCriterionRecord = Readonly<{
   }>;
 }>;
 
+export type AmoraPreparationNotesAppliedReceiptRecord = Readonly<{
+  id: string;
+  type: "applied_receipt";
+  typeLabel: "실제 반영";
+  title: string;
+  excerpt: string;
+  topicKeys: readonly string[];
+  topicLabels: readonly string[];
+  scope: "couple_shared";
+  scopeLabel: "함께 보기";
+  savedAt: string;
+  sourceCreatedAt: string;
+  freshness: "current";
+  openAction: Readonly<{ actionId: string }>;
+}>;
+
 export type AmoraPreparationNotesRecord =
   | AmoraPreparationNotesSavedConversationRecord
-  | AmoraPreparationNotesCriterionRecord;
+  | AmoraPreparationNotesCriterionRecord
+  | AmoraPreparationNotesAppliedReceiptRecord;
 
 export type AmoraPreparationNotesView = Readonly<{
   state: AmoraPreparationNotesState;
@@ -80,6 +97,9 @@ export declare function buildAmoraPreparationNotes(input: Readonly<{
   messageReferenceCollection: unknown;
   messageReferencePages?: readonly unknown[];
   messageReferenceReadState: "loading" | "loaded" | "partial" | "unavailable";
+  actionReceiptCollection?: unknown;
+  actionReceiptPages?: readonly unknown[];
+  actionReceiptReadState?: "loading" | "loaded" | "partial" | "unavailable";
   ownerCriterionResponse?: unknown;
   ownerCriterionReadState?: "loading" | "loaded" | "partial" | "unavailable";
   coupleCriterionResponse?: unknown;

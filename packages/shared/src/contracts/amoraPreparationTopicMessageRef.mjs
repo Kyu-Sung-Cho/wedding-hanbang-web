@@ -1,6 +1,7 @@
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTRACT_VERSION = 1;
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT = 80;
 export const AMORA_PREPARATION_NOTES_PAGE_LIMIT = 24;
+export const AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT = 24;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -30,6 +31,8 @@ const UNSAFE_INLINE_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const UNSAFE_MULTILINE_RE =
   /[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000B-\u001F\u007F-\u009F]/u;
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_ID_RE = /^[0-9A-Za-z_-]{1,200}$/u;
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -280,6 +283,78 @@ export function validateAmoraPreparationNotesPageResponse(
     }
     refIds.add(refId);
     topicMessages.add(topicMessage);
+  }
+  return { ok: true, value };
+}
+
+function isPreparationActionReceiptEntry(value, snapshotAt) {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "receiptMessageId",
+      "actionId",
+      "topicKey",
+      "title",
+      "displayMessage",
+      "appliedAt",
+      "scope",
+      "canOpenAction",
+    ])
+    && isUuid(value.receiptMessageId)
+    && typeof value.actionId === "string"
+    && ACTION_ID_RE.test(value.actionId)
+    && (value.topicKey === null || TOPIC_KEYS.has(value.topicKey))
+    && isSafeExcerpt(value.title)
+    && Array.from(value.title).length <= 120
+    && isSafeExcerpt(value.displayMessage)
+    && isIsoTime(value.appliedAt)
+    && Date.parse(value.appliedAt) <= Date.parse(snapshotAt)
+    && value.scope === "couple_shared"
+    && value.canOpenAction === true;
+}
+
+export function validateAmoraPreparationActionReceiptPageResponse(
+  value,
+  expectedRecipientUserId,
+  expectedCoupleId,
+) {
+  const envelopeError = validateEnvelope(
+    value,
+    expectedRecipientUserId,
+    expectedCoupleId,
+  );
+  if (envelopeError) return envelopeError;
+  if (
+    !hasExactKeys(value, [
+      "version",
+      "state",
+      "recipientUserId",
+      "coupleId",
+      "snapshotAt",
+      "entries",
+      "nextCursor",
+      "partial",
+    ])
+    || value.state !== "ready"
+    || !isIsoTime(value.snapshotAt)
+    || !Array.isArray(value.entries)
+    || value.entries.length > AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT
+    || value.entries.some((entry) => !isPreparationActionReceiptEntry(entry, value.snapshotAt))
+    || (value.nextCursor !== null && (
+      typeof value.nextCursor !== "string"
+      || !ACTION_RECEIPT_CURSOR_RE.test(value.nextCursor)
+    ))
+    || typeof value.partial !== "boolean"
+  ) return { ok: false, reason: "collection" };
+
+  const receiptIds = new Set();
+  const actionIds = new Set();
+  for (const entry of value.entries) {
+    const receiptId = entry.receiptMessageId.toLowerCase();
+    if (receiptIds.has(receiptId) || actionIds.has(entry.actionId)) {
+      return { ok: false, reason: "collection" };
+    }
+    receiptIds.add(receiptId);
+    actionIds.add(entry.actionId);
   }
   return { ok: true, value };
 }

@@ -1,6 +1,7 @@
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTRACT_VERSION: 1;
 export const AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT: 80;
 export const AMORA_PREPARATION_NOTES_PAGE_LIMIT: 24;
+export const AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT: 24;
 
 export type AmoraPreparationTopicMessageRefAudience =
   | "couple_shared"
@@ -49,6 +50,28 @@ export interface AmoraPreparationNotesPageResponse {
   coupleId: string;
   snapshotAt: string;
   entries: AmoraPreparationNotesPageEntry[];
+  nextCursor: string | null;
+  partial: boolean;
+}
+
+export interface AmoraPreparationActionReceiptPageEntry {
+  receiptMessageId: string;
+  actionId: string;
+  topicKey: string | null;
+  title: string;
+  displayMessage: string;
+  appliedAt: string;
+  scope: "couple_shared";
+  canOpenAction: true;
+}
+
+export interface AmoraPreparationActionReceiptPageResponse {
+  version: 1;
+  state: "ready";
+  recipientUserId: string;
+  coupleId: string;
+  snapshotAt: string;
+  entries: AmoraPreparationActionReceiptPageEntry[];
   nextCursor: string | null;
   partial: boolean;
 }
@@ -146,6 +169,12 @@ export function validateAmoraPreparationNotesPageResponse(
   expectedRecipientUserId: string,
   expectedCoupleId: string,
 ): AmoraPreparationTopicMessageRefValidation<AmoraPreparationNotesPageResponse>;
+
+export function validateAmoraPreparationActionReceiptPageResponse(
+  value: unknown,
+  expectedRecipientUserId: string,
+  expectedCoupleId: string,
+): AmoraPreparationTopicMessageRefValidation<AmoraPreparationActionReceiptPageResponse>;
 
 export function validateAmoraPreparationTopicMessageRefStateResponse(
   value: unknown,

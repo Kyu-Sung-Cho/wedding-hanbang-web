@@ -1,6 +1,8 @@
 import {
+  AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT,
   AMORA_PREPARATION_NOTES_PAGE_LIMIT,
   parseAmoraPreparationTopicMessageRefMutationRequest,
+  validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
   validateAmoraPreparationTopicMessageRefMutationResponse,
@@ -14,6 +16,7 @@ const COUPLE = "22222222-2222-4222-8222-222222222222";
 const REF = "33333333-3333-4333-8333-333333333333";
 const MESSAGE = "44444444-4444-4444-8444-444444444444";
 const NOTES_CURSOR = "np1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
+const RECEIPT_CURSOR = "ap1.eyJzbmFwc2hvdEF0IjoiMjAyNi0wOC0xOFQwODowMDowMC4wMDBaIn0";
 
 describe("Amora preparation-topic message-reference contract", () => {
   it("accepts only an exact recipient-bound bounded collection", () => {
@@ -107,6 +110,50 @@ describe("Amora preparation-topic message-reference contract", () => {
       },
     ]) {
       expect(validateAmoraPreparationNotesPageResponse(
+        invalid,
+        RECIPIENT,
+        COUPLE,
+      ).ok).toBe(false);
+    }
+  });
+
+  it("accepts only a minimal couple-shared canonical action-receipt page", () => {
+    const payload = {
+      version: 1,
+      state: "ready",
+      recipientUserId: RECIPIENT,
+      coupleId: COUPLE,
+      snapshotAt: "2026-08-18T08:00:00.000Z",
+      entries: [{
+        receiptMessageId: MESSAGE,
+        actionId: "act_1234567890abcdef_1234567890abcdef12345678",
+        topicKey: "venue",
+        title: "예식장 계약 조건 다시 확인",
+        displayMessage: '"예식장 계약 조건 다시 확인"을 아모라 행동 카드로 저장했어요.',
+        appliedAt: "2026-08-18T07:00:00.000Z",
+        scope: "couple_shared",
+        canOpenAction: true,
+      }],
+      nextCursor: RECEIPT_CURSOR,
+      partial: false,
+    };
+
+    expect(AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT).toBe(24);
+    expect(validateAmoraPreparationActionReceiptPageResponse(
+      payload,
+      RECIPIENT,
+      COUPLE,
+    )).toEqual({ ok: true, value: payload });
+
+    for (const invalid of [
+      { ...payload, recipientUserId: "55555555-5555-4555-8555-555555555555" },
+      { ...payload, nextCursor: "2026-08-18T07:00:00.000Z" },
+      { ...payload, sourceMessageId: REF },
+      { ...payload, entries: [{ ...payload.entries[0], scope: "owner_private" }] },
+      { ...payload, entries: [{ ...payload.entries[0], actionId: "unsafe/action" }] },
+      { ...payload, entries: [{ ...payload.entries[0], title: "hidden\u200Dtitle" }] },
+    ]) {
+      expect(validateAmoraPreparationActionReceiptPageResponse(
         invalid,
         RECIPIENT,
         COUPLE,

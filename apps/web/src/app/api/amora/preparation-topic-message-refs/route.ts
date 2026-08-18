@@ -1,8 +1,10 @@
 import {
+  AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT,
   AMORA_PREPARATION_NOTES_PAGE_LIMIT,
   AMORA_PREPARATION_TOPIC_MESSAGE_REF_LIST_LIMIT,
   isAmoraPreparationTopicMessageRefTopicKey,
   parseAmoraPreparationTopicMessageRefMutationRequest,
+  validateAmoraPreparationActionReceiptPageResponse,
   validateAmoraPreparationNotesPageResponse,
   validateAmoraPreparationTopicMessageRefCollectionResponse,
   validateAmoraPreparationTopicMessageRefMutationResponse,
@@ -17,6 +19,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { buildPreparationActionReceiptPage } from "@/lib/amora/preparationActionReceipt";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -24,6 +27,7 @@ export const revalidate = 0;
 const MAX_BODY_BYTES = 2_048;
 const MAX_NOTES_QUERY_CODE_POINTS = 120;
 const NOTES_CURSOR_RE = /^np1\.[A-Za-z0-9_-]{16,512}$/u;
+const ACTION_RECEIPT_CURSOR_RE = /^ap1\.[A-Za-z0-9_-]{16,512}$/u;
 const NOTES_QUERY_UNSAFE_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -166,6 +170,16 @@ type ReadQuery =
         savedAt: string;
         refId: string;
       } | null;
+    }
+  | {
+      mode: "action_receipts";
+      query: string;
+      limit: number;
+      cursor: {
+        snapshotAt: string;
+        appliedAt: string;
+        receiptMessageId: string;
+      } | null;
     };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -233,6 +247,51 @@ function encodeNotesCursor(input: {
   }), "utf8").toString("base64url")}`;
 }
 
+function decodeActionReceiptCursor(value: string | null, expectedQuery: string) {
+  if (value === null) return null;
+  if (!ACTION_RECEIPT_CURSOR_RE.test(value)) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(value.slice(4), "base64url").toString("utf8"),
+    );
+    if (
+      !isRecord(parsed)
+      || !hasExactKeys(parsed, [
+        "v", "snapshotAt", "appliedAt", "receiptMessageId", "query",
+      ])
+      || parsed.v !== 1
+      || !isIsoTime(parsed.snapshotAt)
+      || !isIsoTime(parsed.appliedAt)
+      || Date.parse(parsed.appliedAt) > Date.parse(parsed.snapshotAt)
+      || Date.parse(parsed.snapshotAt) > Date.now() + 5_000
+      || !isUuid(parsed.receiptMessageId)
+      || parsed.query !== expectedQuery
+    ) return undefined;
+    return {
+      snapshotAt: parsed.snapshotAt,
+      appliedAt: parsed.appliedAt,
+      receiptMessageId: parsed.receiptMessageId.toLowerCase(),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function encodeActionReceiptCursor(input: {
+  snapshotAt: string;
+  appliedAt: string;
+  receiptMessageId: string;
+  query: string;
+}) {
+  return `ap1.${Buffer.from(JSON.stringify({
+    v: 1,
+    snapshotAt: input.snapshotAt,
+    appliedAt: input.appliedAt,
+    receiptMessageId: input.receiptMessageId,
+    query: input.query,
+  }), "utf8").toString("base64url")}`;
+}
+
 function parseNotesBoundary(value: unknown, snapshotAt: string) {
   if (value === null) return null;
   if (
@@ -255,6 +314,34 @@ function isStrictlyOlderNotesBoundary(
   const currentSavedAt = Date.parse(current.savedAt);
   return nextSavedAt < currentSavedAt
     || (nextSavedAt === currentSavedAt && next.refId < current.refId);
+}
+
+function parseActionReceiptBoundary(value: unknown, snapshotAt: string) {
+  if (value === null) return null;
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, ["appliedAt", "receiptMessageId"])
+    || !isIsoTime(value.appliedAt)
+    || Date.parse(value.appliedAt) > Date.parse(snapshotAt)
+    || !isUuid(value.receiptMessageId)
+  ) return undefined;
+  return {
+    appliedAt: value.appliedAt,
+    receiptMessageId: value.receiptMessageId.toLowerCase(),
+  };
+}
+
+function isStrictlyOlderActionReceiptBoundary(
+  next: { appliedAt: string; receiptMessageId: string },
+  current: { appliedAt: string; receiptMessageId: string },
+) {
+  const nextAppliedAt = Date.parse(next.appliedAt);
+  const currentAppliedAt = Date.parse(current.appliedAt);
+  return nextAppliedAt < currentAppliedAt
+    || (
+      nextAppliedAt === currentAppliedAt
+      && next.receiptMessageId < current.receiptMessageId
+    );
 }
 
 function parseReadQuery(request: Request): ReadQuery | null {
@@ -281,6 +368,28 @@ function parseReadQuery(request: Request): ReadQuery | null {
     if (cursor === undefined) return null;
     return { mode: "notes", query, limit, cursor };
   }
+  if (searchParams.get("view") === "action-receipts") {
+    const allowedKeys = new Set(["view", "q", "cursor", "limit"]);
+    if (
+      entries.some(([key]) => !allowedKeys.has(key))
+      || [...allowedKeys].some((key) => searchParams.getAll(key).length > 1)
+    ) return null;
+    const query = normalizeNotesQuery(searchParams.get("q"));
+    const rawLimit = searchParams.get("limit");
+    const limit = rawLimit === null
+      ? AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT
+      : Number(rawLimit);
+    if (
+      query === null
+      || !Number.isSafeInteger(limit)
+      || limit < 1
+      || limit > AMORA_PREPARATION_ACTION_RECEIPT_PAGE_LIMIT
+      || (rawLimit !== null && String(limit) !== rawLimit)
+    ) return null;
+    const cursor = decodeActionReceiptCursor(searchParams.get("cursor"), query);
+    if (cursor === undefined) return null;
+    return { mode: "action_receipts", query, limit, cursor };
+  }
   if (
     entries.length !== 2
     || searchParams.getAll("topicKey").length !== 1
@@ -293,6 +402,121 @@ function parseReadQuery(request: Request): ReadQuery | null {
     return null;
   }
   return { mode: "state", topicKey, messageId: messageId.toLowerCase() };
+}
+
+const ACTION_RECEIPT_ORIGINS = [
+  "server_authoritative_first_use_action_application",
+  "server_authoritative_provider_backed_add_action_application",
+] as const;
+
+function uniqueUuids(values: readonly unknown[]) {
+  return [...new Set(values.filter(isUuid).map((value) => value.toLowerCase()))];
+}
+
+async function readActionReceiptPage(
+  context: RequestContext,
+  query: Extract<ReadQuery, { mode: "action_receipts" }>,
+) {
+  const admin = createAdminClient();
+  const snapshotAt = query.cursor?.snapshotAt ?? new Date().toISOString();
+  const scanLimit = Math.min(query.limit * 8, 192);
+  let receiptQuery = admin
+    .from("chat_messages")
+    .select("id, couple_id, sender_id, sender_type, sender_role, role, content, metadata, visibility, stage_tag, specialist_type, created_at")
+    .eq("couple_id", context.coupleId)
+    .eq("visibility", "shared")
+    .eq("sender_type", "ai")
+    .eq("role", "assistant")
+    .is("sender_id", null)
+    .or("metadata->>target.is.null,metadata->>target.neq.partner")
+    .in("metadata->>response_origin", [...ACTION_RECEIPT_ORIGINS])
+    .lte("created_at", snapshotAt);
+  if (query.cursor) {
+    receiptQuery = receiptQuery.or([
+      `created_at.lt.${query.cursor.appliedAt}`,
+      `and(created_at.eq.${query.cursor.appliedAt},id.lt.${query.cursor.receiptMessageId})`,
+    ].join(","));
+  }
+  const { data: rawReceipts, error: receiptError } = await receiptQuery
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(scanLimit + 1);
+  if (receiptError || !Array.isArray(rawReceipts)) return null;
+
+  const receiptMetadata = rawReceipts
+    .map((row) => (isRecord(row) && isRecord(row.metadata) ? row.metadata : null))
+    .filter((value): value is Record<string, unknown> => value !== null);
+  const promotionIds = uniqueUuids(receiptMetadata.map(
+    (metadata) => metadata.amora_first_use_promotion_id,
+  ));
+  const confirmationIds = uniqueUuids(receiptMetadata.map(
+    (metadata) => metadata.in_reply_to_user_message_id,
+  ));
+  const providerSourceIds = uniqueUuids(receiptMetadata.map(
+    (metadata) => metadata.source_amora_action_message_id,
+  ));
+  const requestKeys = [...new Set(receiptMetadata
+    .map((metadata) => metadata.client_request_id)
+    .filter((value): value is string => typeof value === "string"))];
+
+  let firstUseBindings: unknown[] = [];
+  if (promotionIds.length > 0) {
+    const { data, error } = await admin
+      .from("amora_first_use_action_proposal_bindings")
+      .select("proposal_message_id, couple_id, action_id, promotion_id, proposal_journey_revision")
+      .eq("couple_id", context.coupleId)
+      .in("promotion_id", promotionIds);
+    if (error || !Array.isArray(data)) return null;
+    firstUseBindings = data;
+  }
+  const firstUseSourceIds = uniqueUuids(firstUseBindings.map(
+    (binding) => isRecord(binding) ? binding.proposal_message_id : null,
+  ));
+  const messageIds = uniqueUuids([
+    ...providerSourceIds,
+    ...firstUseSourceIds,
+    ...confirmationIds,
+  ]);
+
+  let sourceAndConfirmationMessages: unknown[] = [];
+  if (messageIds.length > 0) {
+    const { data, error } = await admin
+      .from("chat_messages")
+      .select("id, couple_id, sender_id, sender_type, sender_role, role, content, metadata, visibility, stage_tag, specialist_type, created_at")
+      .eq("couple_id", context.coupleId)
+      .in("id", messageIds)
+      .or("metadata->>target.is.null,metadata->>target.neq.partner");
+    if (error || !Array.isArray(data)) return null;
+    sourceAndConfirmationMessages = data;
+  }
+
+  let executions: unknown[] = [];
+  if (requestKeys.length > 0) {
+    const { data, error } = await admin
+      .from("amora_tool_executions")
+      .select("couple_id, request_key, operation_key, tool_name, input_digest, status, result, pending_action_id, pending_action_journey_revision")
+      .eq("couple_id", context.coupleId)
+      .eq("tool_name", "add_amora_action")
+      .eq("status", "completed")
+      .in("request_key", requestKeys);
+    if (error || !Array.isArray(data)) return null;
+    executions = data;
+  }
+
+  const built = buildPreparationActionReceiptPage({
+    coupleId: context.coupleId,
+    recipientUserId: context.userId,
+    query: query.query,
+    snapshotAt,
+    limit: query.limit,
+    scanLimit,
+    receiptMessages: rawReceipts,
+    sourceAndConfirmationMessages,
+    firstUseBindings,
+    executions,
+    nowMs: Date.now(),
+  });
+  return built ? { snapshotAt, ...built } : null;
 }
 
 export async function GET(request: Request) {
@@ -410,6 +634,72 @@ export async function GET(request: Request) {
       );
       if (!validated.ok) {
         console.error("[preparation-topic-message-refs] invalid notes response", {
+          reason: validated.reason,
+        });
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);
+      }
+      return response(validated.value);
+    }
+
+    if (query.mode === "action_receipts") {
+      const loadedPage = await readActionReceiptPage(context, query);
+      if (!loadedPage) {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_UNAVAILABLE" }, 503);
+      }
+      const nextBoundary = parseActionReceiptBoundary(
+        loadedPage.nextBoundary,
+        loadedPage.snapshotAt,
+      );
+      const snapshotMatchesCursor = query.cursor === null
+        || loadedPage.snapshotAt === query.cursor.snapshotAt;
+      const nextBoundaryAdvances = query.cursor === null
+        || nextBoundary === null
+        || (
+          nextBoundary !== undefined
+          && isStrictlyOlderActionReceiptBoundary(nextBoundary, query.cursor)
+        );
+      if (
+        !isIsoTime(loadedPage.snapshotAt)
+        || nextBoundary === undefined
+        || !snapshotMatchesCursor
+        || !nextBoundaryAdvances
+      ) {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);
+      }
+      const refreshed = await loadContext(request);
+      if (
+        !refreshed.ok
+        || refreshed.value.userId !== context.userId
+        || refreshed.value.coupleId !== context.coupleId
+        || refreshed.value.privacyEpoch !== context.privacyEpoch
+      ) {
+        return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_CONTEXT_CHANGED" }, 409);
+      }
+      const nextCursor = nextBoundary === null
+        ? null
+        : encodeActionReceiptCursor({
+            snapshotAt: loadedPage.snapshotAt,
+            appliedAt: nextBoundary.appliedAt,
+            receiptMessageId: nextBoundary.receiptMessageId,
+            query: query.query,
+          });
+      const page = {
+        version: 1,
+        state: "ready",
+        recipientUserId: context.userId,
+        coupleId: context.coupleId,
+        snapshotAt: loadedPage.snapshotAt,
+        entries: loadedPage.entries,
+        nextCursor,
+        partial: loadedPage.partial,
+      };
+      const validated = validateAmoraPreparationActionReceiptPageResponse(
+        page,
+        context.userId,
+        context.coupleId,
+      );
+      if (!validated.ok) {
+        console.error("[preparation-topic-message-refs] invalid action receipt response", {
           reason: validated.reason,
         });
         return response({ code: "AMORA_PREPARATION_TOPIC_MESSAGE_REF_INVALID_RESPONSE" }, 503);

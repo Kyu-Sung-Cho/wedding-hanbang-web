@@ -72,5 +72,21 @@ test("question search and load-more keep the last verified snapshot until an exa
   assert.match(notesSource, /새 검색을 확인하지 못해 이전 결과를 유지했어요/u);
   assert.match(notesSource, /다음 기록을 확인하지 못해 지금까지 확인한 기록을 유지했어요/u);
   assert.match(notesSource, /readCurrentNotesIdentity\(\)[\s\S]{0,500}isSameScheduleIdentitySnapshot/u);
-  assert.match(notesSource, /view\.state === "partial" \|\| hasMoreMessageReferences/u);
+  assert.match(notesSource, /view\.state === "partial" \|\| hasMorePreparationRecords/u);
+});
+
+test("verified applied actions join search, pagination, and exact dashboard continuation", () => {
+  assert.match(notesSource, /value: "applied_receipt", label: "실제 반영"/u);
+  assert.match(notesSource, /validateAmoraPreparationActionReceiptPageResponse/u);
+  assert.match(notesSource, /loadAmoraPreparationActionReceiptPage/u);
+  assert.match(notesSource, /actionReceiptPages/u);
+  assert.match(notesSource, /Promise\.all\(\[[\s\S]{0,800}loadAmoraPreparationNotesMessagePage[\s\S]{0,800}loadAmoraPreparationActionReceiptPage/u);
+  assert.match(notesSource, /stageActionReceiptHomeHandoff\(\{/u);
+  assert.match(notesSource, /ownerUserId: snapshot\.identity\.ownerId/u);
+  assert.match(notesSource, /actionId: record\.openAction\.actionId/u);
+  assert.match(notesSource, /pathname: "\/\(tabs\)\/dashboard"/u);
+  assert.match(notesSource, /params: \{ actionReceiptHandoff \}/u);
+  assert.match(notesSource, /record\.type === "applied_receipt"[\s\S]{0,200}"홈에서 확인"/u);
+  assert.match(notesSource, /hasMorePreparationRecords/u);
+  assert.match(notesSource, /sources\.actionReceiptReadState === "unavailable"/u);
 });

@@ -32,11 +32,31 @@ export declare function loadAmoraPreparationNotesMessagePage(options: Readonly<{
   timeoutMs?: number;
 }>): Promise<AmoraPreparationNotesPageResponse>;
 
+export declare function loadAmoraPreparationActionReceiptPage(options: Readonly<{
+  ownerId: string;
+  coupleId: string;
+  query: string;
+  cursor?: string | null;
+  apiFetch: (
+    path: string,
+    options: Readonly<{
+      method: "GET";
+      headers: Readonly<{ Accept: "application/json" }>;
+      signal: AbortSignal;
+    }>,
+  ) => Promise<Readonly<{ ok: boolean; json(): Promise<unknown> }>>;
+  isCurrent: () => boolean;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}>): Promise<AmoraPreparationActionReceiptPageResponse>;
+
 export type AmoraPreparationNotesReadState = "loaded" | "unavailable";
 
 export type AmoraPreparationNotesSources = Readonly<{
   messageReferenceCollection: unknown;
   messageReferenceReadState: AmoraPreparationNotesReadState;
+  actionReceiptCollection: unknown;
+  actionReceiptReadState: AmoraPreparationNotesReadState;
   ownerCriterionResponse: unknown;
   ownerCriterionReadState: AmoraPreparationNotesReadState;
   coupleCriterionResponse: unknown;
@@ -66,5 +86,6 @@ export declare function loadAmoraPreparationNotesSources(options: Readonly<{
   timeoutMs?: number;
 }>): Promise<AmoraPreparationNotesSources>;
 import type {
+  AmoraPreparationActionReceiptPageResponse,
   AmoraPreparationNotesPageResponse,
 } from "@hanbang/shared/amora-preparation-topic-message-ref";
