@@ -284,6 +284,146 @@ export async function readHostedMigrationLedger({
   return Object.freeze({ count: row.migration_count, head: row.migration_head });
 }
 
+const PREPARATION_ACTION_RECEIPT_BINDING_CONTRACT_SQL = `
+WITH target AS (
+  SELECT procedure.*,
+         language.lanname,
+         pg_catalog.pg_get_functiondef(procedure.oid) AS definition
+  FROM pg_catalog.pg_proc AS procedure
+  JOIN pg_catalog.pg_language AS language
+    ON language.oid = procedure.prolang
+  WHERE procedure.oid = pg_catalog.to_regprocedure(
+    'public.list_amora_preparation_action_receipt_bindings_v1(uuid,uuid,bigint,uuid[])'
+  )
+), unexpected_execute_acl AS (
+  SELECT 1
+  FROM target
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    COALESCE(target.proacl, pg_catalog.acldefault('f', target.proowner))
+  ) AS acl
+  LEFT JOIN pg_catalog.pg_roles AS grantee
+    ON grantee.oid = acl.grantee
+  LEFT JOIN pg_catalog.pg_roles AS grantor
+    ON grantor.oid = acl.grantor
+  WHERE acl.privilege_type = 'EXECUTE'
+    AND (
+      COALESCE(grantee.rolname, 'PUBLIC') NOT IN ('postgres', 'service_role')
+      OR (
+        grantee.rolname = 'service_role'
+        AND (acl.is_grantable OR grantor.rolname IS DISTINCT FROM 'postgres')
+      )
+    )
+)
+SELECT CASE WHEN EXISTS (
+  SELECT 1
+  FROM target
+  WHERE pg_catalog.pg_get_userbyid(target.proowner) = 'postgres'
+    AND target.prokind = 'f'
+    AND target.lanname = 'plpgsql'
+    AND target.prosecdef
+    AND target.provolatile = 'v'
+    AND target.proretset
+    AND target.pronargs = 4
+    AND target.proargnames = ARRAY[
+      'p_couple_id',
+      'p_recipient_user_id',
+      'p_expected_privacy_epoch',
+      'p_promotion_ids',
+      'proposal_message_id',
+      'couple_id',
+      'action_id',
+      'promotion_id',
+      'proposal_journey_revision'
+    ]::text[]
+    AND (
+      SELECT pg_catalog.array_agg(setting ORDER BY setting)
+      FROM pg_catalog.unnest(target.proconfig) AS configured(setting)
+    ) = ARRAY[
+      'lock_timeout=5s',
+      'search_path=pg_catalog, public',
+      'statement_timeout=15s'
+    ]::text[]
+    AND target.definition ~ 'amora_preparation_topic_message_ref_context_v1\\(\\s*p_couple_id,\\s*p_recipient_user_id,\\s*p_expected_privacy_epoch,\\s*false\\s*\\)'
+    AND NOT pg_catalog.has_function_privilege('anon', target.oid, 'EXECUTE')
+    AND NOT pg_catalog.has_function_privilege('authenticated', target.oid, 'EXECUTE')
+    AND pg_catalog.has_function_privilege('service_role', target.oid, 'EXECUTE')
+    AND NOT pg_catalog.has_table_privilege(
+      'anon',
+      'public.amora_first_use_action_proposal_bindings',
+      'SELECT'
+    )
+    AND NOT pg_catalog.has_table_privilege(
+      'authenticated',
+      'public.amora_first_use_action_proposal_bindings',
+      'SELECT'
+    )
+    AND NOT pg_catalog.has_table_privilege(
+      'service_role',
+      'public.amora_first_use_action_proposal_bindings',
+      'SELECT'
+    )
+) AND NOT EXISTS (
+  SELECT 1 FROM unexpected_execute_acl
+) THEN 1 ELSE 0 END::integer
+  AS preparation_action_receipt_binding_read_rpc_acl_count
+`;
+
+export async function readHostedPreparationActionReceiptBindingContract({
+  projectRef,
+  productionProjectRef,
+  managementToken,
+  fetchImpl = fetch,
+}) {
+  if (!PROJECT_REF.test(projectRef) || !PROJECT_REF.test(productionProjectRef)) {
+    fail("PROJECT_REF_INVALID", "Project refs must be exact 20-character refs");
+  }
+  if (projectRef === productionProjectRef) {
+    fail("PRODUCTION_TARGET_FORBIDDEN", "The binding-read contract probe is staging-only");
+  }
+  if (typeof managementToken !== "string" || managementToken.length < 20 || /[\r\n]/u.test(managementToken)) {
+    fail("MANAGEMENT_TOKEN_INVALID", "A valid Management API token is required");
+  }
+  let response;
+  try {
+    response = await fetchImpl(
+      `https://api.supabase.com/v1/projects/${projectRef}/database/query/read-only`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${managementToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: PREPARATION_ACTION_RECEIPT_BINDING_CONTRACT_SQL,
+          parameters: [],
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+  } catch {
+    fail("FIRST_USE_RECEIPT_BINDING_CONTRACT_UNAVAILABLE", "Hosted receipt-binding contract request failed");
+  }
+  const body = await readBoundedJson(
+    response,
+    "FIRST_USE_RECEIPT_BINDING_CONTRACT_UNAVAILABLE",
+  );
+  const row = Array.isArray(body) && body.length === 1 ? body[0] : null;
+  if (
+    response.status !== 201
+    || row?.preparation_action_receipt_binding_read_rpc_acl_count !== 1
+    || Object.keys(row).join(",")
+      !== "preparation_action_receipt_binding_read_rpc_acl_count"
+  ) {
+    fail("FIRST_USE_RECEIPT_BINDING_CONTRACT_DRIFT", "Hosted receipt-binding contract was not exact");
+  }
+  return Object.freeze({
+    preparationActionReceiptBindingReadRpcAclCount:
+      row.preparation_action_receipt_binding_read_rpc_acl_count,
+  });
+}
+
 const MESSAGE_REF_RESIDUE_SQL = `
 SELECT
   (
@@ -863,6 +1003,40 @@ export function createSupabaseStagingTransport({
     apiKey: anonKey,
     bearer: user.accessToken,
     ...options,
+  });
+  const anonCall = (path, options = {}) => call(path, {
+    apiKey: anonKey,
+    bearer: anonKey,
+    ...options,
+  });
+  const receiptBindingBody = (input) => {
+    const promotionIds = input?.promotionIds;
+    if (
+      !isUuid(input?.coupleId)
+      || !isUuid(input?.recipientUserId)
+      || !Number.isSafeInteger(input?.expectedPrivacyEpoch)
+      || input.expectedPrivacyEpoch < 1
+      || !Array.isArray(promotionIds)
+      || promotionIds.length < 1
+      || promotionIds.length > 192
+      || !promotionIds.every(isUuid)
+      || new Set(promotionIds).size !== promotionIds.length
+    ) {
+      fail("FIRST_USE_RECEIPT_BINDING_INPUT_INVALID", "First-use receipt binding input was not canonical");
+    }
+    return Object.freeze({
+      p_couple_id: input.coupleId,
+      p_recipient_user_id: input.recipientUserId,
+      p_expected_privacy_epoch: input.expectedPrivacyEpoch,
+      p_promotion_ids: Object.freeze([...promotionIds]),
+    });
+  };
+  const receiptBindingDenial = (response) => Object.freeze({
+    denied: response?.ok === false,
+    sqlState: typeof response?.body?.code === "string"
+      && /^[0-9A-Z]{5}$/u.test(response.body.code)
+      ? response.body.code
+      : null,
   });
 
   return Object.freeze({
@@ -1809,6 +1983,80 @@ export function createSupabaseStagingTransport({
         },
       );
       return response.body;
+    },
+
+    async listFirstUseReceiptBindingsAsService(input) {
+      const requestBody = receiptBindingBody(input);
+      const response = await adminCall(
+        "/rest/v1/rpc/list_amora_preparation_action_receipt_bindings_v1",
+        { method: "POST", body: requestBody },
+      );
+      if (!Array.isArray(response.body) || response.body.length > requestBody.p_promotion_ids.length) {
+        fail("FIRST_USE_RECEIPT_BINDING_RESPONSE_INVALID", "First-use receipt binding response was not bounded");
+      }
+      const allowedPromotionIds = new Set(requestBody.p_promotion_ids);
+      for (const row of response.body) {
+        if (
+          row === null
+          || typeof row !== "object"
+          || Array.isArray(row)
+          || Object.keys(row).sort().join(",")
+            !== "action_id,couple_id,promotion_id,proposal_journey_revision,proposal_message_id"
+          || !isUuid(row.proposal_message_id)
+          || row.couple_id !== requestBody.p_couple_id
+          || !isUuid(row.action_id)
+          || !allowedPromotionIds.has(row.promotion_id)
+          || !Number.isSafeInteger(row.proposal_journey_revision)
+          || row.proposal_journey_revision < 0
+        ) {
+          fail("FIRST_USE_RECEIPT_BINDING_RESPONSE_INVALID", "First-use receipt binding response was not canonical");
+        }
+      }
+      return Object.freeze(response.body.map((row) => Object.freeze({ ...row })));
+    },
+
+    async attemptListFirstUseReceiptBindingsAsAuthenticated(user, input) {
+      if (!isUuid(user?.id) || typeof user?.accessToken !== "string" || user.accessToken.length < 8) {
+        fail("FIRST_USE_RECEIPT_BINDING_ACTOR_INVALID", "First-use receipt binding actor was not canonical");
+      }
+      const response = await userCall(
+        user,
+        "/rest/v1/rpc/list_amora_preparation_action_receipt_bindings_v1",
+        { method: "POST", body: receiptBindingBody(input), allowDenied: true },
+      );
+      return receiptBindingDenial(response);
+    },
+
+    async attemptListFirstUseReceiptBindingsAsAnon(input) {
+      const response = await anonCall(
+        "/rest/v1/rpc/list_amora_preparation_action_receipt_bindings_v1",
+        { method: "POST", body: receiptBindingBody(input), allowDenied: true },
+      );
+      return receiptBindingDenial(response);
+    },
+
+    async attemptListFirstUseReceiptBindingsAsService(input) {
+      const response = await adminCall(
+        "/rest/v1/rpc/list_amora_preparation_action_receipt_bindings_v1",
+        { method: "POST", body: receiptBindingBody(input), allowDenied: true },
+      );
+      return receiptBindingDenial(response);
+    },
+
+    async attemptReadFirstUseProposalBindingsTableAsService(promotionId) {
+      if (!isUuid(promotionId)) {
+        fail("FIRST_USE_RECEIPT_BINDING_TABLE_INPUT_INVALID", "First-use proposal binding table input was not canonical");
+      }
+      const query = new URLSearchParams({
+        select: "proposal_message_id",
+        promotion_id: `eq.${promotionId}`,
+        limit: "1",
+      });
+      const response = await adminCall(
+        `/rest/v1/amora_first_use_action_proposal_bindings?${query}`,
+        { allowDenied: true },
+      );
+      return receiptBindingDenial(response);
     },
 
     async prepareFirstUseApplication({ owner, source, promotion, proposal }) {
@@ -3981,6 +4229,13 @@ export async function runFirstUseDeterministicActionScenario({ transport }) {
     deterministicProposal: false,
     proposalExactReplay: false,
     sharedProposalVisible: false,
+    bindingProjection: false,
+    bindingAuthenticatedDenied: false,
+    bindingAnonDenied: false,
+    bindingServiceTableDenied: false,
+    bindingWrongCoupleDenied: false,
+    bindingWrongRecipientDenied: false,
+    bindingStaleEpochDenied: false,
     deterministicApplication: false,
     applicationExactReplay: false,
     sharedReceiptVisible: false,
@@ -4111,6 +4366,68 @@ export async function runFirstUseDeterministicActionScenario({ transport }) {
     checks.sharedProposalVisible = exactVisibleSharedMessage(ownerProposalRows, proposal.messageId)
       && exactVisibleSharedMessage(partnerProposalRows, proposal.messageId);
     requireScenario(checks.sharedProposalVisible, "FIRST_USE_SHARED_PROPOSAL_HIDDEN", "Shared proposal was not visible to both members");
+
+    const bindingInput = Object.freeze({
+      coupleId: ownerSpace.couple_id,
+      recipientUserId: owner.id,
+      expectedPrivacyEpoch: source.privacyEpoch,
+      promotionIds: Object.freeze([promotion.promotionId]),
+    });
+    const bindingRows = await transport.listFirstUseReceiptBindingsAsService(bindingInput);
+    const binding = Array.isArray(bindingRows) && bindingRows.length === 1
+      ? bindingRows[0]
+      : null;
+    checks.bindingProjection = binding !== null
+      && Object.keys(binding).sort().join(",")
+        === "action_id,couple_id,promotion_id,proposal_journey_revision,proposal_message_id"
+      && binding.proposal_message_id === proposal.messageId
+      && binding.couple_id === ownerSpace.couple_id
+      && binding.action_id === proposal.pendingActionId
+      && binding.promotion_id === promotion.promotionId
+      && binding.proposal_journey_revision === source.journeyRevision;
+    requireScenario(
+      checks.bindingProjection,
+      "FIRST_USE_RECEIPT_BINDING_PROJECTION_INVALID",
+      "First-use receipt binding projection was not exact",
+    );
+    const [authenticatedBinding, anonBinding, directBindingTable] = await Promise.all([
+      transport.attemptListFirstUseReceiptBindingsAsAuthenticated(owner, bindingInput),
+      transport.attemptListFirstUseReceiptBindingsAsAnon(bindingInput),
+      transport.attemptReadFirstUseProposalBindingsTableAsService(promotion.promotionId),
+    ]);
+    checks.bindingAuthenticatedDenied = authenticatedBinding?.denied === true
+      && authenticatedBinding?.sqlState === "42501";
+    checks.bindingAnonDenied = anonBinding?.denied === true
+      && anonBinding?.sqlState === "42501";
+    checks.bindingServiceTableDenied = directBindingTable?.denied === true
+      && directBindingTable?.sqlState === "42501";
+    requireScenario(checks.bindingAuthenticatedDenied, "FIRST_USE_RECEIPT_BINDING_AUTHENTICATED_ALLOWED", "Authenticated client could execute the receipt-binding RPC");
+    requireScenario(checks.bindingAnonDenied, "FIRST_USE_RECEIPT_BINDING_ANON_ALLOWED", "Anonymous client could execute the receipt-binding RPC");
+    requireScenario(checks.bindingServiceTableDenied, "FIRST_USE_RECEIPT_BINDING_TABLE_READ_ALLOWED", "Service role could directly read the private proposal-binding table");
+
+    const [wrongCoupleBinding, wrongRecipientBinding, staleEpochBinding] = await Promise.all([
+      transport.attemptListFirstUseReceiptBindingsAsService({
+        ...bindingInput,
+        coupleId: randomUUID(),
+      }),
+      transport.attemptListFirstUseReceiptBindingsAsService({
+        ...bindingInput,
+        recipientUserId: randomUUID(),
+      }),
+      transport.attemptListFirstUseReceiptBindingsAsService({
+        ...bindingInput,
+        expectedPrivacyEpoch: source.privacyEpoch + 1,
+      }),
+    ]);
+    checks.bindingWrongCoupleDenied = wrongCoupleBinding?.denied === true
+      && wrongCoupleBinding?.sqlState === "P0002";
+    checks.bindingWrongRecipientDenied = wrongRecipientBinding?.denied === true
+      && wrongRecipientBinding?.sqlState === "P0002";
+    checks.bindingStaleEpochDenied = staleEpochBinding?.denied === true
+      && staleEpochBinding?.sqlState === "40001";
+    requireScenario(checks.bindingWrongCoupleDenied, "FIRST_USE_RECEIPT_BINDING_WRONG_COUPLE_ALLOWED", "Receipt-binding RPC accepted the wrong couple");
+    requireScenario(checks.bindingWrongRecipientDenied, "FIRST_USE_RECEIPT_BINDING_WRONG_RECIPIENT_ALLOWED", "Receipt-binding RPC accepted an outsider recipient");
+    requireScenario(checks.bindingStaleEpochDenied, "FIRST_USE_RECEIPT_BINDING_STALE_EPOCH_ALLOWED", "Receipt-binding RPC accepted a stale privacy epoch");
 
     const applicationFixture = await transport.prepareFirstUseApplication({
       owner,

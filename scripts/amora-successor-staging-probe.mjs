@@ -23,6 +23,7 @@ import {
   readHostedFirstUseActionResidue,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  readHostedPreparationActionReceiptBindingContract,
   runBookingOutcomeProvenanceScenario,
   runCriterionActionContextScenario,
   runFirstUseDeterministicActionScenario,
@@ -136,7 +137,7 @@ async function main() {
 
   const gitCommit = assertCommitBinding(config.expectedCommit);
   const startedAt = new Date().toISOString();
-  const [ledger, keys] = await Promise.all([
+  const [ledger, keys, preparationActionReceiptBindingContract] = await Promise.all([
     readHostedMigrationLedger({
       projectRef: config.projectRef,
       managementToken: config.managementToken,
@@ -145,6 +146,11 @@ async function main() {
     }),
     loadSupabaseProjectApiKeys({
       projectRef: config.projectRef,
+      managementToken: config.managementToken,
+    }),
+    readHostedPreparationActionReceiptBindingContract({
+      projectRef: config.projectRef,
+      productionProjectRef: config.productionProjectRef,
       managementToken: config.managementToken,
     }),
   ]);
@@ -227,9 +233,9 @@ async function main() {
     }),
   });
   const receipt = {
-    receiptVersion: 7,
+    receiptVersion: 8,
     kind: "amora-successor-hosted-staging-probe",
-    scope: "neutral-space-message-refs-notes-mediation-criterion-first-use-and-booking-provenance",
+    scope: "neutral-space-message-refs-notes-mediation-criterion-first-use-receipt-binding-and-booking-provenance",
     projectRef: config.projectRef,
     gitCommit,
     migrationLedger: ledger,
@@ -241,6 +247,7 @@ async function main() {
       mediationPrivateDraft,
       criterionActionContext,
       firstUseDeterministicAction,
+      preparationActionReceiptBindingContract,
       bookingOutcomeProvenance,
     },
   };
@@ -262,6 +269,10 @@ async function main() {
       criterionActionContext: receipt.result.criterionActionContext.checks,
       firstUseDeterministicAction: receipt.result.firstUseDeterministicAction.checks,
       bookingOutcomeProvenance: receipt.result.bookingOutcomeProvenance.checks,
+    },
+    contracts: {
+      preparationActionReceiptBinding:
+        receipt.result.preparationActionReceiptBindingContract,
     },
     residue: {
       neutralPreparationSpace: receipt.result.neutralPreparationSpace.residue,

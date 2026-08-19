@@ -14,6 +14,7 @@ import {
   readHostedFirstUseActionResidue,
   readHostedMessageRefResidue,
   readHostedMigrationLedger,
+  readHostedPreparationActionReceiptBindingContract,
   runBookingOutcomeProvenanceScenario,
   runCriterionActionContextScenario,
   runFirstUseDeterministicActionScenario,
@@ -791,6 +792,30 @@ test("two users prove private first-use advice becomes one provider-free shared 
         },
       }];
     },
+    async listFirstUseReceiptBindingsAsService() {
+      return [{
+        proposal_message_id: proposalMessageId,
+        couple_id: coupleId,
+        action_id: pendingActionId,
+        promotion_id: promotionId,
+        proposal_journey_revision: 7,
+      }];
+    },
+    async attemptListFirstUseReceiptBindingsAsAuthenticated() {
+      return { denied: true, sqlState: "42501" };
+    },
+    async attemptListFirstUseReceiptBindingsAsAnon() {
+      return { denied: true, sqlState: "42501" };
+    },
+    async attemptListFirstUseReceiptBindingsAsService(input) {
+      return {
+        denied: true,
+        sqlState: input.expectedPrivacyEpoch === 12 ? "40001" : "P0002",
+      };
+    },
+    async attemptReadFirstUseProposalBindingsTableAsService() {
+      return { denied: true, sqlState: "42501" };
+    },
     async prepareFirstUseApplication() {
       return {
         confirmationMessageId,
@@ -854,6 +879,13 @@ test("two users prove private first-use advice becomes one provider-free shared 
     deterministicProposal: true,
     proposalExactReplay: true,
     sharedProposalVisible: true,
+    bindingProjection: true,
+    bindingAuthenticatedDenied: true,
+    bindingAnonDenied: true,
+    bindingServiceTableDenied: true,
+    bindingWrongCoupleDenied: true,
+    bindingWrongRecipientDenied: true,
+    bindingStaleEpochDenied: true,
     deterministicApplication: true,
     applicationExactReplay: true,
     sharedReceiptVisible: true,
@@ -1755,6 +1787,106 @@ test("the staging transport promotes, proposes, and applies first-use actions th
   assert.equal(applicationCall.body.p_chat_claim_attempt_count, 2);
 });
 
+test("the staging transport proves the receipt-binding RPC boundary without exposing the private table", async () => {
+  const owner = {
+    id: "10000000-0000-4000-8000-000000000076",
+    accessToken: "owner-binding-token",
+  };
+  const coupleId = "20000000-0000-4000-8000-000000000076";
+  const promotionId = "30000000-0000-4000-8000-000000000076";
+  const proposalMessageId = "40000000-0000-4000-8000-000000000076";
+  const pendingActionId = "50000000-0000-4000-8000-000000000076";
+  const calls = [];
+  let malformedProjection = false;
+  const fetchImpl = async (url, init = {}) => {
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    calls.push({ url: String(url), init, body });
+    if (String(url).includes("/rest/v1/amora_first_use_action_proposal_bindings?")) {
+      return new Response(JSON.stringify({ code: "42501" }), { status: 403 });
+    }
+    if (String(url).endsWith("/rest/v1/rpc/list_amora_preparation_action_receipt_bindings_v1")) {
+      if (init.headers.Authorization === `Bearer ${owner.accessToken}`) {
+        return new Response(JSON.stringify({ code: "42501" }), { status: 403 });
+      }
+      if (init.headers.Authorization === "Bearer anon-key-value") {
+        return new Response(JSON.stringify({ code: "42501" }), { status: 401 });
+      }
+      if (body.p_couple_id !== coupleId || body.p_recipient_user_id !== owner.id) {
+        return new Response(JSON.stringify({ code: "P0002" }), { status: 400 });
+      }
+      if (body.p_expected_privacy_epoch !== 11) {
+        return new Response(JSON.stringify({ code: "40001" }), { status: 409 });
+      }
+      return new Response(JSON.stringify([{
+        proposal_message_id: proposalMessageId,
+        couple_id: coupleId,
+        action_id: pendingActionId,
+        promotion_id: promotionId,
+        proposal_journey_revision: 7,
+        ...(malformedProjection ? { private_source_id: "must-not-pass" } : {}),
+      }]), { status: 200 });
+    }
+    return new Response("[]", { status: 200 });
+  };
+  const transport = createSupabaseStagingTransport({
+    projectRef: STAGING_REF,
+    anonKey: "anon-key-value",
+    serviceRoleKey: "service-role-key-value",
+    fetchImpl,
+    runNonce: "first-use-binding-contract",
+  });
+  const input = {
+    coupleId,
+    recipientUserId: owner.id,
+    expectedPrivacyEpoch: 11,
+    promotionIds: [promotionId],
+  };
+
+  assert.deepEqual(await transport.listFirstUseReceiptBindingsAsService(input), [{
+    proposal_message_id: proposalMessageId,
+    couple_id: coupleId,
+    action_id: pendingActionId,
+    promotion_id: promotionId,
+    proposal_journey_revision: 7,
+  }]);
+  assert.deepEqual(
+    await transport.attemptListFirstUseReceiptBindingsAsAuthenticated(owner, input),
+    { denied: true, sqlState: "42501" },
+  );
+  assert.deepEqual(
+    await transport.attemptListFirstUseReceiptBindingsAsAnon(input),
+    { denied: true, sqlState: "42501" },
+  );
+  assert.deepEqual(
+    await transport.attemptListFirstUseReceiptBindingsAsService({ ...input, recipientUserId: pendingActionId }),
+    { denied: true, sqlState: "P0002" },
+  );
+  assert.deepEqual(
+    await transport.attemptListFirstUseReceiptBindingsAsService({ ...input, expectedPrivacyEpoch: 12 }),
+    { denied: true, sqlState: "40001" },
+  );
+  assert.deepEqual(
+    await transport.attemptReadFirstUseProposalBindingsTableAsService(promotionId),
+    { denied: true, sqlState: "42501" },
+  );
+
+  const serviceRpcCall = calls.find(({ url, init }) =>
+    url.endsWith("/rest/v1/rpc/list_amora_preparation_action_receipt_bindings_v1")
+      && init.headers.Authorization === "Bearer service-role-key-value");
+  assert.deepEqual(serviceRpcCall.body, {
+    p_couple_id: coupleId,
+    p_recipient_user_id: owner.id,
+    p_expected_privacy_epoch: 11,
+    p_promotion_ids: [promotionId],
+  });
+  malformedProjection = true;
+  await assert.rejects(
+    transport.listFirstUseReceiptBindingsAsService(input),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "FIRST_USE_RECEIPT_BINDING_RESPONSE_INVALID",
+  );
+});
+
 test("the staging transport reads first-use privacy, action, provider count, and residue through bounded roles", async () => {
   const user = {
     id: "10000000-0000-4000-8000-000000000077",
@@ -2055,6 +2187,74 @@ test("the hosted probe binds its receipt to the exact applied migration ledger",
   });
 
   assert.deepEqual(ledger, { count: 218, head: "20260816190000" });
+});
+
+test("the hosted probe verifies the exact preparation-action receipt binding RPC catalog boundary", async () => {
+  const requests = [];
+  const contract = await readHostedPreparationActionReceiptBindingContract({
+    projectRef: STAGING_REF,
+    productionProjectRef: PRODUCTION_REF,
+    managementToken: "management-token-that-is-long-enough",
+    fetchImpl: async (url, init) => {
+      requests.push({ url: String(url), init, body: JSON.parse(init.body) });
+      return new Response(JSON.stringify([{
+        preparation_action_receipt_binding_read_rpc_acl_count: 1,
+      }]), { status: 201, headers: { "content-type": "application/json" } });
+    },
+  });
+
+  assert.deepEqual(contract, {
+    preparationActionReceiptBindingReadRpcAclCount: 1,
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(
+    requests[0].url,
+    `https://api.supabase.com/v1/projects/${STAGING_REF}/database/query/read-only`,
+  );
+  assert.deepEqual(requests[0].body.parameters, []);
+  assert.match(requests[0].body.query, /list_amora_preparation_action_receipt_bindings_v1/);
+  assert.match(requests[0].body.query, /prosecdef/);
+  assert.match(requests[0].body.query, /search_path=pg_catalog, public/);
+  assert.match(requests[0].body.query, /lock_timeout=5s/);
+  assert.match(requests[0].body.query, /statement_timeout=15s/);
+  assert.match(requests[0].body.query, /has_function_privilege\('service_role'/);
+  assert.match(requests[0].body.query, /has_table_privilege\(\s*'service_role'/);
+  assert.match(requests[0].body.query, /amora_preparation_topic_message_ref_context_v1/);
+});
+
+test("the receipt-binding catalog probe fails closed on Production or hosted contract drift", async () => {
+  let requests = 0;
+  await assert.rejects(
+    readHostedPreparationActionReceiptBindingContract({
+      projectRef: PRODUCTION_REF,
+      productionProjectRef: PRODUCTION_REF,
+      managementToken: "management-token-that-is-long-enough",
+      fetchImpl: async () => {
+        requests += 1;
+        return new Response("[]", { status: 201 });
+      },
+    }),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "PRODUCTION_TARGET_FORBIDDEN",
+  );
+  assert.equal(requests, 0);
+
+  await assert.rejects(
+    readHostedPreparationActionReceiptBindingContract({
+      projectRef: STAGING_REF,
+      productionProjectRef: PRODUCTION_REF,
+      managementToken: "management-token-that-is-long-enough",
+      fetchImpl: async () => {
+        requests += 1;
+        return new Response(JSON.stringify([{
+          preparation_action_receipt_binding_read_rpc_acl_count: 0,
+        }]), { status: 201 });
+      },
+    }),
+    (error) => error instanceof AmoraSuccessorStagingProbeError
+      && error.code === "FIRST_USE_RECEIPT_BINDING_CONTRACT_DRIFT",
+  );
+  assert.equal(requests, 1);
 });
 
 test("the fixed read-only residue query counts protected message refs without exposing rows", async () => {
@@ -2380,13 +2580,15 @@ test("the hosted receipt runs membership, notes, mediation, criterion, first-use
   assert.match(cliSource, /readHostedMessageRefResidue/);
   assert.match(cliSource, /readHostedCriterionActionResidue/);
   assert.match(cliSource, /readHostedFirstUseActionResidue/);
+  assert.match(cliSource, /readHostedPreparationActionReceiptBindingContract/);
   assert.match(cliSource, /readHostedBookingOutcomeResidue/);
-  assert.match(cliSource, /receiptVersion:\s*7/);
-  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-mediation-criterion-first-use-and-booking-provenance"/);
+  assert.match(cliSource, /receiptVersion:\s*8/);
+  assert.match(cliSource, /scope:\s*"neutral-space-message-refs-notes-mediation-criterion-first-use-receipt-binding-and-booking-provenance"/);
   assert.match(cliSource, /neutralPreparationSpace/);
   assert.match(cliSource, /preparationTopicMessageRefs/);
   assert.match(cliSource, /mediationPrivateDraft/);
   assert.match(cliSource, /criterionActionContext/);
   assert.match(cliSource, /firstUseDeterministicAction/);
+  assert.match(cliSource, /preparationActionReceiptBindingContract/);
   assert.match(cliSource, /bookingOutcomeProvenance/);
 });
