@@ -295,6 +295,16 @@ WITH target AS (
   WHERE procedure.oid = pg_catalog.to_regprocedure(
     'public.list_amora_preparation_action_receipt_bindings_v1(uuid,uuid,bigint,uuid[])'
   )
+), context_target AS (
+  SELECT procedure.*,
+         language.lanname,
+         pg_catalog.pg_get_functiondef(procedure.oid) AS definition
+  FROM pg_catalog.pg_proc AS procedure
+  JOIN pg_catalog.pg_language AS language
+    ON language.oid = procedure.prolang
+  WHERE procedure.oid = pg_catalog.to_regprocedure(
+    'public.amora_preparation_topic_message_ref_context_v1(uuid,uuid,bigint,boolean)'
+  )
 ), unexpected_execute_acl AS (
   SELECT 1
   FROM target
@@ -312,6 +322,25 @@ WITH target AS (
         grantee.rolname = 'service_role'
         AND (acl.is_grantable OR grantor.rolname IS DISTINCT FROM 'postgres')
       )
+    )
+), unexpected_context_execute_acl AS (
+  SELECT 1
+  FROM context_target
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    COALESCE(
+      context_target.proacl,
+      pg_catalog.acldefault('f', context_target.proowner)
+    )
+  ) AS acl
+  LEFT JOIN pg_catalog.pg_roles AS grantee
+    ON grantee.oid = acl.grantee
+  LEFT JOIN pg_catalog.pg_roles AS grantor
+    ON grantor.oid = acl.grantor
+  WHERE acl.privilege_type = 'EXECUTE'
+    AND (
+      grantee.rolname IS DISTINCT FROM 'postgres'
+      OR acl.is_grantable
+      OR grantor.rolname IS DISTINCT FROM 'postgres'
     )
 )
 SELECT CASE WHEN EXISTS (
@@ -362,8 +391,48 @@ SELECT CASE WHEN EXISTS (
       'public.amora_first_use_action_proposal_bindings',
       'SELECT'
     )
+) AND EXISTS (
+  SELECT 1
+  FROM context_target
+  WHERE pg_catalog.pg_get_userbyid(context_target.proowner) = 'postgres'
+    AND context_target.prokind = 'f'
+    AND context_target.lanname = 'plpgsql'
+    AND context_target.prosecdef
+    AND context_target.provolatile = 'v'
+    AND NOT context_target.proretset
+    AND context_target.pronargs = 4
+    AND context_target.proargnames = ARRAY[
+      'p_couple_id',
+      'p_actor_user_id',
+      'p_expected_privacy_epoch',
+      'p_for_write'
+    ]::text[]
+    AND (
+      SELECT pg_catalog.array_agg(setting ORDER BY setting)
+      FROM pg_catalog.unnest(context_target.proconfig) AS configured(setting)
+    ) = ARRAY[
+      'lock_timeout=5s',
+      'search_path=pg_catalog, public',
+      'statement_timeout=15s'
+    ]::text[]
+    AND (
+      length(context_target.definition)
+        - length(replace(context_target.definition, 'ERRCODE = ''PT409''', ''))
+    ) / length('ERRCODE = ''PT409''') = 2
+    AND position('ERRCODE = ''40001''' IN context_target.definition) = 0
+    AND NOT pg_catalog.has_function_privilege(
+      'anon', context_target.oid, 'EXECUTE'
+    )
+    AND NOT pg_catalog.has_function_privilege(
+      'authenticated', context_target.oid, 'EXECUTE'
+    )
+    AND NOT pg_catalog.has_function_privilege(
+      'service_role', context_target.oid, 'EXECUTE'
+    )
 ) AND NOT EXISTS (
   SELECT 1 FROM unexpected_execute_acl
+) AND NOT EXISTS (
+  SELECT 1 FROM unexpected_context_execute_acl
 ) THEN 1 ELSE 0 END::integer
   AS preparation_action_receipt_binding_read_rpc_acl_count
 `;
@@ -733,7 +802,6 @@ export function readHostedFirstUseActionResidue({
   }
   if (
     !Array.isArray(actionIds)
-    || actionIds.length < 1
     || actionIds.length > 10
     || !actionIds.every((value) => typeof value === "string" && value.length >= 1 && value.length <= 120)
     || new Set(actionIds).size !== actionIds.length
@@ -4424,7 +4492,7 @@ export async function runFirstUseDeterministicActionScenario({ transport }) {
     checks.bindingWrongRecipientDenied = wrongRecipientBinding?.denied === true
       && wrongRecipientBinding?.sqlState === "P0002";
     checks.bindingStaleEpochDenied = staleEpochBinding?.denied === true
-      && staleEpochBinding?.sqlState === "40001";
+      && staleEpochBinding?.sqlState === "PT409";
     requireScenario(checks.bindingWrongCoupleDenied, "FIRST_USE_RECEIPT_BINDING_WRONG_COUPLE_ALLOWED", "Receipt-binding RPC accepted the wrong couple");
     requireScenario(checks.bindingWrongRecipientDenied, "FIRST_USE_RECEIPT_BINDING_WRONG_RECIPIENT_ALLOWED", "Receipt-binding RPC accepted an outsider recipient");
     requireScenario(checks.bindingStaleEpochDenied, "FIRST_USE_RECEIPT_BINDING_STALE_EPOCH_ALLOWED", "Receipt-binding RPC accepted a stale privacy epoch");

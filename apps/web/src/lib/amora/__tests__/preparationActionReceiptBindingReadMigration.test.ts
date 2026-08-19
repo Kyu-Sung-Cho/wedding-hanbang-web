@@ -19,6 +19,13 @@ const contextMigration = readFileSync(
   ),
   "utf8",
 );
+const contextConflictMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260818120000_amora_message_ref_http_conflicts.sql",
+  ),
+  "utf8",
+);
 
 const RPC_SIGNATURE =
   "public.list_amora_preparation_action_receipt_bindings_v1(uuid,uuid,bigint,uuid[])";
@@ -111,6 +118,7 @@ async function createDatabase() {
     GRANT EXECUTE ON FUNCTION auth.role() TO anon, authenticated, service_role;
   `);
   await db.exec(contextMigration);
+  await db.exec(contextConflictMigration);
   await db.exec(`
     CREATE TABLE public.amora_first_use_action_proposal_bindings (
       proposal_message_id uuid PRIMARY KEY,
@@ -229,7 +237,7 @@ describe("Amora preparation action-receipt binding read migration", () => {
         })).rejects.toMatchObject({ code: "P0002" });
         await expect(listBindings(db, {
           expectedPrivacyEpoch: 6,
-        })).rejects.toMatchObject({ code: "40001" });
+        })).rejects.toMatchObject({ code: "PT409" });
       } finally {
         await resetPersona(db).catch(() => undefined);
         await db.close();

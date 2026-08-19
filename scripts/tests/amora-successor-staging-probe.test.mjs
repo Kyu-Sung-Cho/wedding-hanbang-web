@@ -810,7 +810,7 @@ test("two users prove private first-use advice becomes one provider-free shared 
     async attemptListFirstUseReceiptBindingsAsService(input) {
       return {
         denied: true,
-        sqlState: input.expectedPrivacyEpoch === 12 ? "40001" : "P0002",
+        sqlState: input.expectedPrivacyEpoch === 12 ? "PT409" : "P0002",
       };
     },
     async attemptReadFirstUseProposalBindingsTableAsService() {
@@ -1815,7 +1815,7 @@ test("the staging transport proves the receipt-binding RPC boundary without expo
         return new Response(JSON.stringify({ code: "P0002" }), { status: 400 });
       }
       if (body.p_expected_privacy_epoch !== 11) {
-        return new Response(JSON.stringify({ code: "40001" }), { status: 409 });
+        return new Response(JSON.stringify({ code: "PT409" }), { status: 409 });
       }
       return new Response(JSON.stringify([{
         proposal_message_id: proposalMessageId,
@@ -1863,7 +1863,7 @@ test("the staging transport proves the receipt-binding RPC boundary without expo
   );
   assert.deepEqual(
     await transport.attemptListFirstUseReceiptBindingsAsService({ ...input, expectedPrivacyEpoch: 12 }),
-    { denied: true, sqlState: "40001" },
+    { denied: true, sqlState: "PT409" },
   );
   assert.deepEqual(
     await transport.attemptReadFirstUseProposalBindingsTableAsService(promotionId),
@@ -2220,6 +2220,8 @@ test("the hosted probe verifies the exact preparation-action receipt binding RPC
   assert.match(requests[0].body.query, /has_function_privilege\('service_role'/);
   assert.match(requests[0].body.query, /has_table_privilege\(\s*'service_role'/);
   assert.match(requests[0].body.query, /amora_preparation_topic_message_ref_context_v1/);
+  assert.match(requests[0].body.query, /context_target/);
+  assert.match(requests[0].body.query, /PT409/);
 });
 
 test("the receipt-binding catalog probe fails closed on Production or hosted contract drift", async () => {
@@ -2454,6 +2456,52 @@ test("the fixed first-use residue query covers private promotion, proposal, acti
     (error) => error instanceof AmoraSuccessorStagingProbeError
       && error.code === "PRODUCTION_TARGET_FORBIDDEN",
   );
+});
+
+test("the fixed first-use residue query still runs when failure happens before an action exists", async () => {
+  const requests = [];
+  const userIds = ["10000000-0000-4000-8000-000000000078"];
+  const coupleIds = ["20000000-0000-4000-8000-000000000078"];
+  const messageIds = ["30000000-0000-4000-8000-000000000078"];
+  const promotionIds = ["40000000-0000-4000-8000-000000000078"];
+  const actionIds = [];
+
+  const residue = await readHostedFirstUseActionResidue({
+    projectRef: STAGING_REF,
+    productionProjectRef: PRODUCTION_REF,
+    managementToken: "management-token-that-is-long-enough",
+    userIds,
+    coupleIds,
+    messageIds,
+    promotionIds,
+    actionIds,
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify([{
+        profiles: 0,
+        couples: 0,
+        journeys: 0,
+        chat_messages: 0,
+        chat_claims: 0,
+        promotions: 0,
+        proposal_bindings: 0,
+        actions: 0,
+        executions: 0,
+        application_claims: 0,
+        provider_receipts: 0,
+      }]), { status: 201 });
+    },
+  });
+
+  assert.ok(Object.values(residue).every((count) => count === 0));
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].init.body).parameters, [
+    userIds,
+    coupleIds,
+    messageIds,
+    promotionIds,
+    [],
+  ]);
 });
 
 test("the booking outcome probe reads transient authorization residue through the fixed management boundary", async () => {
