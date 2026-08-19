@@ -10,7 +10,8 @@
  *
  * 반대로 **대상 없는 이름을 남겨 두지도 않는다.** 리라이트만 있고 페이지가 없으면
  * `/wedding/<이름>`과 `/<이름>` 둘 다 404인데 링크는 살아 있는 것처럼 보인다.
- * (2026-07-26 가족 조율 페이지를 지운 뒤 `etiquette`가 그렇게 남아 있었다.)
+ * (2026-07-26 가족 조율 페이지를 지운 뒤 `etiquette`가 그렇게 남아 있었다 —
+ * 2026-08-19에 페이지를 되살려서 다시 목록에 넣었다.)
  */
 export const WEDDING_APP_ROUTES = [
   "lounge",
@@ -30,4 +31,8 @@ export const WEDDING_APP_ROUTES = [
   // 목록에 넣는 이유는 앱 안에서 `/wedding/manners`로 링크하기 위해서다 —
   // 리라이트가 없으면 사이드바·주차 카드의 링크가 그대로 404가 된다.
   "manners",
+  // 2026-08-19 복원한 레거시 예절 가이드 25파트. `(community)/etiquette`에 있고,
+  // layout.tsx의 canonical이 `/wedding/etiquette`라 이 리라이트가 있어야 정본 경로가
+  // 실제로 열린다.
+  "etiquette",
 ] as const;

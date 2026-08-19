@@ -33,7 +33,7 @@ import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import { mannersPartForCategory } from "@/lib/manners/categoryMap";
+import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -302,7 +302,9 @@ function OwnedCategoryChecklistModal({
   const { done, total } = getChecklistCounts(checklist);
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   const status = calculateStatus(checklist);
-  const relatedGuide = mannersPartForCategory(categoryKey);
+  // 출처 계약을 통과한 /manners를 먼저 쓰고, 없으면 레거시 25파트로 내려간다.
+  // 이 폴백으로 19개 카테고리가 전부 안내를 갖게 됐다(이전에는 10개).
+  const relatedGuide = guideLinkForCategory(categoryKey);
 
   return (
     <>
@@ -451,7 +453,7 @@ function OwnedCategoryChecklistModal({
           </div>
 
           <Link
-            {...weddingLinkProps(relatedGuide ? `/manners/${relatedGuide.slug}` : "/chat")}
+            {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
             className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">

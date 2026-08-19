@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowRight, BookOpen, CalendarHeart, ListChecks, Sparkle
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
-import { mannersPartForCategory } from "@/lib/manners/categoryMap";
+import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
@@ -57,7 +57,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
     // 알아둘 예절 — 가장 임박한 카테고리에 해당하는 파트가 있을 때만.
     // 없으면 null이고, 그 자리는 아래에서 가족 이야기 카드가 대신한다.
-    const mannersPart = mannersPartForCategory(imminent[0]?.key);
+    const mannersPart = guideLinkForCategory(imminent[0]?.key);
 
     // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
     const openActions = (actions ?? getAmoraActions(progressRecord))
@@ -136,11 +136,12 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         </div>
 
         {/* 알아둘 예절 — 임박한 카테고리에 맞는 파트가 있을 때만 그린다.
-            없으면 가족 이야기 카드로 돌아간다. 2026-07-17에 사라졌던 자리이고,
-            그때와 달리 지금 파트는 출처·확인일이 붙은 것만 있다. */}
+            없으면 가족 이야기 카드로 돌아간다. 2026-08-19에 레거시 25파트를 되살리면서
+            덮이는 카테고리가 10개 → 19개로 늘었다. 출처 계약을 통과한 `/manners`를
+            먼저 쓰고, 없을 때만 레거시로 내려간다(`guideLinkForCategory`). */}
         {data.mannersPart ? (
           <Link
-            {...weddingLinkProps(`/manners/${data.mannersPart.slug}`)}
+            {...weddingLinkProps(data.mannersPart.href)}
             className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">

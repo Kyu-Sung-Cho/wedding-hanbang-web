@@ -11,6 +11,8 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 
 const HEADER_LINKS = [
   { href: "/start-here", label: "지금 뭐부터?" },
+  { href: "/wedding/manners", label: "결혼 예절" },
+  { href: "/wedding/etiquette", label: "예절 25편" },
   { href: "/price", label: "공시 가격" },
   { href: "/demo", label: "아모라 체험" },
 ] as const;
