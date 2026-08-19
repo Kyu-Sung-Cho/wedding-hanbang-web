@@ -14,7 +14,7 @@ const baseNavItems = [
   { linkProps: weddingLinkProps("/budget"), legacyPath: "/budget", label: "예산" },
   // 예절 가이드는 이 네비를 쓰는 화면(`(community)/etiquette`)에 있으면서 정작
   // 여기 링크가 없었다 — 들어온 사람이 나갈 수는 있어도 찾아 들어올 수는 없었다.
-  { linkProps: weddingLinkProps("/etiquette"), legacyPath: "/etiquette", label: "결혼 예절" },
+  { linkProps: weddingLinkProps("/manners"), legacyPath: "/manners", label: "결혼 예절" },
   {
     linkProps: weddingLinkProps("/community?feed=all"),
     legacyPath: "/community",

@@ -84,11 +84,17 @@ describe("manners entry points", () => {
   });
 
   // 아직 파트가 없는 카테고리에 억지로 다른 파트를 붙이지 않는다.
-  it("returns null for categories the phase-1 parts do not cover", () => {
+  // 2026-08-19에 레거시 25편을 이관하면서 이 아홉 개가 채워졌다. 그 전에는 전부
+  // null이었고 모달 하단이 "아모라에게 물어보기"로 떨어졌다.
+  it("covers the nine categories that phase-1 could not", () => {
     for (const key of ["meeting", "ring", "hanbok", "yedan", "honeymoon", "houseware", "housing", "ham", "pyebaek"]) {
-      expect(mannersPartForCategory(key), `${key}는 아직 덮이지 않는다`).toBeNull();
+      expect(mannersPartForCategory(key), `${key}에 안내가 없다`).not.toBeNull();
     }
+  });
+
+  it("returns null instead of inventing a part", () => {
     expect(mannersPartForCategory(undefined)).toBeNull();
     expect(mannersPartForCategory("")).toBeNull();
+    expect(mannersPartForCategory("nope")).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ import { useChatStore } from "@/stores/chatStore";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
+import { MANNERS_PARTS } from "@/lib/manners/data";
 import {
   addStoredChatFeedback,
   parseStoredChatFeedback,
@@ -554,18 +554,19 @@ export default function ChatBubble({
             <div className="text-sm sm:text-[0.9375rem] text-[#1A1A1F] leading-relaxed break-words">
               {renderAiMarkdown(cleanText)}
             </div>
-            {/* 2026-08-19 — 코퍼스가 돌아와서 태그가 가리키는 챕터로 직접 보낸다.
-                그전에는 파싱만 하고 "가족 이야기 더 나누기"로 /chat에 되돌려 보냈다.
+            {/* 2026-08-19 — 태그가 가리키는 챕터로 직접 보낸다. 같은 날 레거시 25편을
+                `/manners` 스키마로 이관해서, 이제 태그는 `?part=N` 한 URL이 아니라
+                주제마다 고유한 `/manners/<slug>`로 떨어진다(`legacyNumber`로 대응).
                 존재하지 않는 번호는 카드를 그리지 않는다 — 죽은 링크보다 낫다. */}
             {partNumbers.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">
                 {partNumbers.map((num) => {
-                  const part = ETIQUETTE_PARTS.find((candidate) => candidate.number === num);
+                  const part = MANNERS_PARTS.find((candidate) => candidate.legacyNumber === num);
                   if (!part) return null;
                   return (
                     <Link
                       key={num}
-                      {...weddingLinkProps(`/etiquette?part=${num}`)}
+                      {...weddingLinkProps(`/manners/${part.slug}`)}
                       className="flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
                     >
                       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">

@@ -19,11 +19,18 @@ const SOURCE = path.join(here, "parts.json");
 const TARGET = path.join(repoRoot, "apps", "web", "src", "lib", "manners", "data.ts");
 
 // 카테고리 = 화면의 묶음이자 파트 출력 순서. slug는 parts.json에 실재해야 한다.
+//
+// 2026-08-19에 레거시 25편을 여기로 이관하면서 10편 → 25편이 됐다. 묶음은 **결혼 준비의
+// 시간 순서**를 따른다 — 예절 질문은 "지금 이 시점에 뭘 하지"에 붙어 있어서, 주제를
+// 가나다순이나 중요도순으로 늘어놓으면 사용자가 자기 자리를 못 찾는다.
 const CATEGORIES = [
-  { label: "청첩장과 준비", slugs: ["invitation-sending", "cost-saving", "small-wedding"] },
-  { label: "결혼식 당일", slugs: ["wedding-day", "guest-manners", "photo-manners"] },
+  { label: "만나고 정하기", slugs: ["first-family-visit", "family-meeting", "planning-timeline", "planning-conflicts"] },
+  { label: "주고받는 것", slugs: ["gifts-and-traditions", "shared-home-items", "home-conversation", "cost-saving"] },
+  { label: "청첩장과 초대", slugs: ["invitation-sending", "small-wedding", "religious-weddings"] },
+  { label: "결혼식 당일", slugs: ["wedding-day", "guest-manners", "photo-manners", "traditional-greetings"] },
   { label: "마음을 전하는 법", slugs: ["gift-money", "congratulatory-speech", "return-gift"] },
-  { label: "식이 끝난 뒤", slugs: ["marriage-registration"] },
+  { label: "식이 끝난 뒤", slugs: ["marriage-registration", "post-honeymoon-thanks", "housewarming", "digital-manners"] },
+  { label: "결혼 뒤의 가족", slugs: ["family-address", "first-holiday", "family-events"] },
 ];
 
 const HEADER = `import type { MannersCategory, MannersPart } from "./types";
