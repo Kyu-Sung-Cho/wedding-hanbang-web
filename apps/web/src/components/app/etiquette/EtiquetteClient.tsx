@@ -104,6 +104,16 @@ export function parseContent(content: string): ParsedSection[] {
   return sections;
 }
 
+/**
+ * 읽는 표를 가려내는 제목 패턴.
+ *
+ * 2026-08-19에 코퍼스의 성별·강압 문구를 고치면서 "관계별 축의금 금액 가이드"가
+ * "관계별 축의금 참고 범위"가 됐고, 분류가 낱말 `가이드` 하나에 매달려 있던 탓에
+ * 그 표가 다시 체크박스 할 일로 떨어졌다. 문구를 다듬을 때마다 깨지지 않도록
+ * '읽는 것'을 가리키는 말을 넓게 잡는다.
+ */
+const REFERENCE_TITLE = /기본|원칙|분담|가이드|구성|분류|참고|범위|시세|평균/;
+
 function parseBlocks(body: string): ParsedBlock[] {
   const blocks: ParsedBlock[] = [];
   // Split by #### headers (subsection level)
@@ -138,10 +148,10 @@ function parseBlocks(body: string): ParsedBlock[] {
       type = "checklist";
     } else if (rawTitle.includes("순서") || rawTitle.includes("절차") || rawTitle.includes("하는 법")) {
       type = "steps";
-    } else if (rawTitle.includes("기본") || rawTitle.includes("원칙") || rawTitle.includes("분담") || rawTitle.includes("가이드") || rawTitle.includes("구성") || rawTitle.includes("분류")) {
-      // 예전에는 여기서 `checklist`를 줬다. 그 결과 "관계별 축의금 금액 가이드", "전통적
-      // 분담 기준", "여성/남성 하객 복장 가이드" 같은 **참고 표 8개**가 체크박스 할 일이
-      // 됐다. 읽을 것과 할 것을 구분한다.
+    } else if (REFERENCE_TITLE.test(rawTitle)) {
+      // 예전에는 여기서 `checklist`를 줬다. 그 결과 "관계별 축의금 금액", "전통적 분담
+      // 기준", "하객 복장" 같은 **참고 표 8개**가 체크박스 할 일이 됐다. 읽을 것과 할
+      // 것을 구분한다.
       type = "reference";
     }
 

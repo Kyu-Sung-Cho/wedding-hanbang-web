@@ -102,9 +102,7 @@ describe("restored etiquette guide", () => {
   // 렌더됐다. 참고 수치를 실행 지시로 승격시키는 사고라 다시 나면 안 된다.
   it("never renders reference tables as actionable checklists", () => {
     const renderer = source("src/components/app/etiquette/EtiquetteClient.tsx");
-    const branch = renderer.match(
-      /rawTitle\.includes\("기본"\)[\s\S]*?\n\s*type = "(\w+)";/,
-    );
+    const branch = renderer.match(/REFERENCE_TITLE\.test\(rawTitle\)[\s\S]*?\n\s*type = "(\w+)";/);
     expect(branch?.[1]).toBe("reference");
     // 참고 블록에는 체크·메모·일정 버튼이 붙지 않는다.
     expect(renderer).toContain('blockType === "reference"');

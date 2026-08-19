@@ -155,26 +155,17 @@ const ORDER = { typecheck: 0, lint: 1, check: 2, test: 3, build: 4 };
 const extraEnv = { TURBO_FORCE: "true" };
 
 /**
- * `qa:local`이 안 도는 저장소 수준 검사.
+ * 저장소 수준 검사(ingest 타입체크·`test:repo`·supabase 릴리스 fence)는 2026-08-19에
+ * `verify-local.mjs`의 `checks`로 옮겼다. GitHub Actions를 workflow_dispatch 전용으로
+ * 내리면서 그 세 검사가 CI에서만 돌던 상태를 없애야 했고, `qa:local`이 그걸 덮게 됐다.
  *
- * - **ingest 타입체크**: 루트 `typecheck`(`pnpm ingest:typecheck && turbo run typecheck`)의
- *   앞쪽 절반이다. `verify-local`의 검사들은 패키지별 `tsc`만 돌아서 `scripts/ingest/**`가
- *   빠진다. 이 줄을 빼면 ingest 코드는 **아무 데서도 타입체크되지 않는다**
- *   (`qa:local`도 안 돈다 — 실측으로 확인했다).
- * - **저장소 스크립트 테스트**: `scripts/tests/**` 25개 + ingest 테스트. 배포 펜스·인계 문서
- *   계약·훅 배선이 전부 여기 있다.
- *
- * 루트 `test`가 아니라 `test:repo`를 쓴다. `test`는 `turbo run test`를 포함해서
- * web·mobile vitest를 한 번 더 돌리는데, 그건 위 `checks`에 이미 들어 있다(4분 낭비).
+ * 그래서 여기서 다시 얹지 않는다 — 얹으면 같은 검사를 두 번 돌린다.
+ * 목록의 정본은 `verify-local.mjs` 한 곳이다.
  */
-const repositoryChecks = [
-  { kind: "typecheck", name: "ingest typecheck", args: ["pnpm", "ingest:typecheck"] },
-  { kind: "test", name: "repository scripts + ingest tests", args: ["pnpm", "test:repo"] },
-];
 
 // 느린 빌드를 뒤로 미뤄 실패를 빨리 본다. `kind`를 안 붙인 검사는 맨 뒤로 밀린다 —
 // 그래도 돌기는 하므로 검사가 조용히 사라지지는 않는다.
-const ordered = [...checks, ...repositoryChecks]
+const ordered = [...checks]
   .filter((check) => !(flags.has("--skip-build") && check.kind === "build"))
   .sort((a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9));
 
