@@ -36,10 +36,6 @@ const menuItems: SidebarMenuItem[] = [
   // 로그인 없이도 열리는 읽기 화면이지만 사이드바에 둔다 — 준비 중에 가장 자주
   // 막히는 것이 "이럴 땐 어떻게 하지"라서, 찾으러 나가지 않고 여기서 열리는 게 맞다.
   { legacyPath: "/manners", icon: BookOpen, label: "예절 가이드" },
-  // 2026-08-19 복원한 레거시 25파트. 위 "예절 가이드"(출처 계약을 통과한 10파트)와
-  // 다른 화면이라 이름을 분리한다 — 같은 이름이 둘이면 어느 쪽을 눌러야 하는지 알 수 없다.
-  // 25편은 상견례·예물·폐백·호칭·경조사까지 덮는 대신 출처 표기가 없다.
-  { legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드 25편" },
   { legacyPath: "/settings", icon: Settings, label: "설정" },
 ];
 
