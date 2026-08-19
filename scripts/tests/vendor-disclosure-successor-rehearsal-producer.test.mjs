@@ -255,23 +255,6 @@ async function fixture() {
       projectRef: STAGING_REF,
       gitCommit: COMMIT,
     },
-    postcheck: {
-      receiptVersion: 1,
-      kind: "successor-read-only-postcheck-result-v1",
-      release: RELEASE,
-      projectRef: STAGING_REF,
-      productionProjectRef: PRODUCTION_REF,
-      releaseCommit: COMMIT,
-      checkId: "successor-postcheck",
-      sqlFile,
-      sqlSha256: sha256(sqlText),
-      source: "supabase-management-read-only-query",
-      transactionReadOnly: true,
-      executedAt: "2026-08-19T05:19:00.000Z",
-      row: { verified: true, ...expectedEvidence },
-      productionMutationAttempted: false,
-      containsSecrets: false,
-    },
     backup: {
       receiptVersion: 2,
       kind: "successor-post-expand-backup-verification-v2",
@@ -389,7 +372,6 @@ test("producer CLI has side-effect-free help and one exact non-secret argument s
     argv: [
       `--expected-commit=${COMMIT}`,
       `--post-expand-backup-receipt=${join(privateRoot, "backup.json")}`,
-      `--postcheck-receipt=${join(privateRoot, "postcheck.json")}`,
       `--probe-receipt=${join(privateRoot, "probe.json")}`,
       `--receipt-root=${privateRoot}`,
       "--remote-ref=origin/codex/successor-rehearsal",
@@ -403,6 +385,7 @@ test("producer CLI has side-effect-free help and one exact non-secret argument s
   assert.equal(result.result.status, "captured");
   assert.equal(captured.expectedCommit, COMMIT);
   assert.equal(captured.receiptRoot, privateRoot);
+  assert.equal(Object.hasOwn(captured, "postcheckReceiptPath"), false);
   await assert.rejects(
     () => runSuccessorRehearsalProducerCli({ argv: ["--expected-commit=secret"] }),
     (error) => error?.code === "ARGUMENT_INVALID",
@@ -477,6 +460,9 @@ test("staging postcheck observation sends only the pinned read-only SQL and reda
   });
   assert.equal(captured.url.includes(PRODUCTION_REF), false);
   assert.equal(captured.url.includes(STAGING_REF), true);
+  assert.match(captured.url, /\/database\/query\/read-only$/);
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.body, JSON.stringify({ query: sqlText }));
   assert.equal(captured.options.headers.Authorization, `Bearer ${token}`);
   assert.equal(report.transactionReadOnly, true);
   assert.equal(report.productionMutationCommandCount, 0);
@@ -494,7 +480,6 @@ test("producer derives exact hosted/finalizer receipts and durable raw provenanc
       expectedCommit: COMMIT,
       remoteRef: "origin/codex/successor-rehearsal",
       probeReceiptPath: state.paths.probe,
-      postcheckReceiptPath: state.paths.postcheck,
       postExpandBackupReceiptPath: state.paths.backup,
       releaseLoader: async () => ({
         controllerReady: true,
@@ -525,10 +510,20 @@ test("producer derives exact hosted/finalizer receipts and durable raw provenanc
         };
         return execution(forward);
       },
-      runReadOnlyPostcheck: async (request) => postcheckObservation(request),
+      runReadOnlyPostcheck: async (request) => {
+        assert.deepEqual(request.expectedRow, {
+          verified: true,
+          ...state.controllerManifest.postApplyChecks[0].expectedEvidence,
+        });
+        return postcheckObservation(request);
+      },
       validateHostedConsumer: async (input) => {
         assert.equal(JSON.parse(input.stagingFeatureOffText).projectRef, STAGING_REF);
         assert.equal(JSON.parse(input.forwardFixText).outcome, "passed");
+        assert.equal(
+          JSON.parse(input.postcheckReceiptText).kind,
+          "successor-read-only-postcheck-result-v1",
+        );
         return { rawEvidenceSha256: "e".repeat(64), receiptSha256: "f".repeat(64) };
       },
       now: () => new Date("2026-08-19T05:25:01.000Z"),
@@ -542,6 +537,8 @@ test("producer derives exact hosted/finalizer receipts and durable raw provenanc
     const template = JSON.parse(await readFile(result.paths.templateContract, "utf8"));
     const canary = JSON.parse(await readFile(result.paths.canaryFence, "utf8"));
     const dry = JSON.parse(await readFile(result.paths.finalizerDry, "utf8"));
+    const postcheckReceipt = JSON.parse(await readFile(result.paths.postcheckReceipt, "utf8"));
+    const postcheckRaw = JSON.parse(await readFile(result.paths.postcheckRaw, "utf8"));
     const provenance = JSON.parse(await readFile(result.paths.provenance, "utf8"));
     assert.equal(stagingFeature.projectRef, STAGING_REF);
     assert.equal(finalizerFeature.projectRef, PRODUCTION_REF);
@@ -552,6 +549,28 @@ test("producer derives exact hosted/finalizer receipts and durable raw provenanc
     assert.equal(template.finalizationContractVersion, 2);
     assert.equal(template.renderEvidence.postExpandBackupSetId, BACKUP_SET);
     assert.equal(dry.mode, "render-only-no-database-execution");
+    assert.equal(postcheckReceipt.kind, "successor-read-only-postcheck-result-v1");
+    assert.deepEqual(Object.keys(postcheckReceipt).sort(), [
+      "checkId", "containsSecrets", "executedAt", "kind", "productionMutationAttempted",
+      "productionProjectRef", "projectRef", "receiptVersion", "release", "releaseCommit",
+      "row", "source", "sqlFile", "sqlSha256", "transactionReadOnly",
+    ].sort());
+    assert.equal(postcheckReceipt.executedAt, postcheckRaw.completedAt);
+    assert.deepEqual(postcheckReceipt.row, postcheckRaw.response.row);
+    assert.equal(provenance.artifacts.postcheckReceiptSha256, result.sha256.postcheckReceipt);
+    assert.equal(provenance.artifacts.postcheckRawSha256, result.sha256.postcheckRaw);
+    assert.equal(
+      provenance.scope.networkScope,
+      "approved-staging-management-read-only-and-loopback-only",
+    );
+    assert.equal(
+      provenance.scope.environment,
+      "approved-existing-staging-read-only-plus-isolated-rehearsal",
+    );
+    assert.equal(
+      provenance.scope.databaseScope,
+      "existing-hosted-staging-read-only-and-ephemeral-pglite",
+    );
     assert.equal(provenance.scope.productionMutationCommandCount, 0);
     assert.equal(provenance.scope.migrationRollbackCommandCount, 0);
     assert.match(provenance.scope.doesNotProve.join(" "), /Production/);
@@ -572,7 +591,6 @@ test("producer hard-fails false raw facts before writing any receipt", async () 
         expectedCommit: COMMIT,
         remoteRef: "origin/codex/successor-rehearsal",
         probeReceiptPath: state.paths.probe,
-        postcheckReceiptPath: state.paths.postcheck,
         postExpandBackupReceiptPath: state.paths.backup,
         releaseLoader: async () => ({
           controllerReady: true,
@@ -608,7 +626,6 @@ test("hosted consumer provenance validator recomputes command and artifact diges
       expectedCommit: COMMIT,
       remoteRef: "origin/codex/successor-rehearsal",
       probeReceiptPath: state.paths.probe,
-      postcheckReceiptPath: state.paths.postcheck,
       postExpandBackupReceiptPath: state.paths.backup,
       releaseLoader: async () => ({
         controllerReady: true,
@@ -650,7 +667,7 @@ test("hosted consumer provenance validator recomputes command and artifact diges
         readFile(result.paths.stagingFeatureOff),
         readFile(result.paths.forwardFix),
         readFile(state.paths.probe),
-        readFile(state.paths.postcheck),
+        readFile(result.paths.postcheckReceipt),
         readFile(join(
           state.repoRoot,
           "supabase/release-contracts/vendor-disclosure-hosted-staging-v2-20260718.json",
@@ -698,6 +715,16 @@ test("hosted consumer provenance validator recomputes command and artifact diges
         forwardFixValue: forgedForward,
       }),
       (error) => error?.code === "REHEARSAL_PROVENANCE_FORWARD_INVALID",
+    );
+    const forgedPostcheckProvenance = structuredClone(validationInput.provenanceValue);
+    forgedPostcheckProvenance.stagingPostcheck.completedAt =
+      "2026-08-19T05:19:02.000Z";
+    await assert.rejects(
+      () => validateSuccessorRehearsalProducerProvenance({
+        ...validationInput,
+        provenanceValue: forgedPostcheckProvenance,
+      }),
+      (error) => error?.code === "REHEARSAL_PROVENANCE_POSTCHECK_INVALID",
     );
   } finally {
     await rm(state.root, { recursive: true, force: true });

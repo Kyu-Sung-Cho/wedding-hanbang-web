@@ -25,7 +25,10 @@ test("staging database TLS uses the exact pinned Supabase root certificate", asy
   const certificate = await readFile(new URL("../certs/supabase-prod-ca-2021.crt", import.meta.url));
   assert.match(assertSupabaseRootCertificate(certificate), /^-----BEGIN CERTIFICATE-----/);
   assert.match(
-    assertSupabaseRootCertificate(Buffer.from(certificate.toString("utf8").replace(/\n/g, "\r\n"), "utf8")),
+    assertSupabaseRootCertificate(Buffer.from(
+      certificate.toString("utf8").replace(/\r\n?/g, "\n").replace(/\n/g, "\r\n"),
+      "utf8",
+    )),
     /^-----BEGIN CERTIFICATE-----/,
   );
   const tampered = Buffer.from(certificate);

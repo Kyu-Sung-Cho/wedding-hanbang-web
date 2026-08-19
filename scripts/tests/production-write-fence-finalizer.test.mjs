@@ -32,6 +32,9 @@ import {
   SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
 } from "../lib/supabase-successor-release-contract.mjs";
 import {
+  computeSuccessorReleaseCheckpointBindingSha256,
+} from "../lib/production-release-checkpoint-binding.mjs";
+import {
   buildHostedRestoreReceiptWithProvenance,
   buildLogicalDataDigestContractFromPayload,
   buildProductionCanaryReceiptWithProvenance,
@@ -1278,6 +1281,148 @@ test("successor outcome evidence summary binds all five private receipt and raw 
             : record),
       }),
     false,
+  );
+});
+
+test("successor finalizer recomputes the checkpoint binding while predecessor locks stay path-bound", () => {
+  const path = join(tmpdir(), "successor-checkpoint-outcome.json");
+  const outcomeReceiptPathSha256 = sha256Text(resolve(path));
+  const startedAt = "2026-08-19T12:20:00.000Z";
+  const preApplyRecords = ["backup", "finalizer", "hostedStaging", "storage"]
+    .map((name, index) => ({
+      name,
+      receiptSha256: String(index + 1).repeat(64),
+      rawEvidenceSha256: String(index + 5).repeat(64),
+      verifiedAt: "2026-08-19T12:10:00.000Z",
+      expiresAt: "2026-08-19T12:30:00.000Z",
+    }));
+  const recoveryRecord = {
+    name: "recoveryAssurance",
+    receiptSha256: "9".repeat(64),
+    rawEvidenceSha256: "a".repeat(64),
+    verifiedAt: "2026-08-19T12:21:00.000Z",
+    expiresAt: "2026-08-19T12:40:00.000Z",
+  };
+  const runtimeRecords = [...preApplyRecords, recoveryRecord]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const summarize = (records) => sha256Text(
+    `${records.map((record) => [
+      record.name,
+      record.receiptSha256,
+      record.rawEvidenceSha256,
+      record.verifiedAt,
+      record.expiresAt,
+    ].join(":")).join("\n")}\n`,
+  );
+  const preApplySuccessorRuntimeEvidenceSetSha256 = summarize(preApplyRecords);
+  const bindingComponents = {
+    version: 1,
+    release: "successor-release",
+    projectRef: PROJECT_REF,
+    expectedCommit: COMMIT,
+    outcomeReceiptPathSha256,
+    backupReceiptSha256: "b".repeat(64),
+    backupDirectoryPathSha256: "c".repeat(64),
+    backupArtifactSetSha256: "d".repeat(64),
+    backupSourceCapturedAt: "2026-08-19T12:00:00.000Z",
+    startedAt,
+    writeFenceEvidenceSha256: "e".repeat(64),
+    preApplySuccessorRuntimeEvidenceSetSha256,
+  };
+  const bindingSha256 =
+    computeSuccessorReleaseCheckpointBindingSha256(bindingComponents);
+  const manifest = {
+    status: "controller_ready",
+    release: bindingComponents.release,
+    projectRef: PROJECT_REF,
+    backupContract: {
+      supabaseCli: { version: "2.106.0", binarySha256: CLI_SHA },
+    },
+    postPushChecks: [],
+    postApplyChecks: [{
+      id: "successor-post-apply",
+      expectedEvidence: { successor_contract_count: 1 },
+    }],
+  };
+  const lock = {
+    version: 2,
+    release: manifest.release,
+    projectRef: PROJECT_REF,
+    releaseCommit: COMMIT,
+    outcomeReceiptPathSha256,
+    remoteReleaseLeaseOwnerId: OWNER,
+    startedAt,
+    rerunProhibitedUntilAdjudicated: true,
+    successorCheckpointBindingVersion: 1,
+    remoteReleaseLeaseCheckpointBindingSha256: bindingSha256,
+  };
+  const receipt = {
+    receiptVersion: 1,
+    status: "database_expand_verified_lease_held",
+    release: manifest.release,
+    projectRef: PROJECT_REF,
+    releaseCommit: COMMIT,
+    remoteRef: REMOTE_REF,
+    remoteReleaseLeaseOwnerId: OWNER,
+    remoteReleaseLeaseOutcomePathSha256: bindingSha256,
+    remoteReleaseLeaseCheckpointBindingSha256: bindingSha256,
+    remoteReleaseLeasePhase: "deployment-canary",
+    outcomeReceiptPathSha256,
+    successorCheckpointBindingVersion: 1,
+    backupReceiptSha256: bindingComponents.backupReceiptSha256,
+    backupDirectoryPathSha256: bindingComponents.backupDirectoryPathSha256,
+    backupArtifactSetSha256: bindingComponents.backupArtifactSetSha256,
+    backupSourceCapturedAt: bindingComponents.backupSourceCapturedAt,
+    writeFenceEvidenceSha256: bindingComponents.writeFenceEvidenceSha256,
+    preApplySuccessorRuntimeEvidenceSetSha256,
+    postPendingCount: 0,
+    postPushCheckIds: [],
+    postPushCheckCount: 0,
+    postPushCheckEvidence: [],
+    postApplyCheckIds: ["successor-post-apply"],
+    postApplyCheckCount: 1,
+    postApplyCheckEvidence: [{
+      id: "successor-post-apply",
+      evidence: { successor_contract_count: 1 },
+    }],
+    postconditionsPassed: 1,
+    startedAt,
+    completedAt: "2026-08-19T12:25:00.000Z",
+    successorReleaseAssurance: structuredClone(
+      SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+    ),
+    successorRuntimeEvidence: runtimeRecords,
+    successorRuntimeEvidenceSetSha256: summarize(runtimeRecords),
+    supabaseCliVersion: "2.106.0",
+    supabaseCliBinarySha256: CLI_SHA,
+    rerunProhibited: true,
+    containsSecrets: false,
+  };
+  const releaseLock = productionWriteFenceFinalizerTestHooks
+    .validateReleaseLock(lock, path, manifest, COMMIT);
+  assert.equal(
+    productionWriteFenceFinalizerTestHooks.validateOutcomeReceipt({
+      receipt,
+      sha256: "f".repeat(64),
+      path,
+      manifest,
+      expectedCommit: COMMIT,
+      remoteRef: REMOTE_REF,
+      releaseLock,
+    }).outcomePathSha256,
+    bindingSha256,
+  );
+  assert.throws(
+    () => productionWriteFenceFinalizerTestHooks.validateOutcomeReceipt({
+      receipt: { ...receipt, backupReceiptSha256: "0".repeat(64) },
+      sha256: "f".repeat(64),
+      path,
+      manifest,
+      expectedCommit: COMMIT,
+      remoteRef: REMOTE_REF,
+      releaseLock,
+    }),
+    (error) => error?.code === "RELEASE_OUTCOME_INVALID",
   );
 });
 

@@ -25,10 +25,12 @@ param(
 
   [string] $ReceiptPath,
 
-  [ValidateRange(1, 30)]
+  [ValidateRange(1, 5256000)]
   [int] $MaximumAgeMinutes = 30,
 
   [string] $NodeCli = 'node.exe',
+
+  [switch] $ReplayOnly,
 
   [switch] $Help
 )
@@ -51,6 +53,7 @@ function Show-Help {
   Write-Host 'Authenticates and decrypts the exact 60-table HBAM2 backup only in memory,'
   Write-Host 'recomputes source/schema/data contracts, and performs a PGlite JSONB round-trip.'
   Write-Host 'The exact logical verification receipt is created outside the repository.'
+  Write-Host '-ReplayOnly reruns every verification gate and emits JSON without writing a receipt.'
   Write-Host ''
   Write-Host '-Help performs no project, filesystem, Git, database, or runtime operation.'
 }
@@ -199,6 +202,9 @@ function Write-VDExactReceipt {
 
 if ($Help) { Show-Help; exit 0 }
 if ($env:OS -ne 'Windows_NT') { throw 'HBAM2 current-baseline verification requires Windows DPAPI.' }
+if (-not $ReplayOnly -and $MaximumAgeMinutes -gt 30) {
+  throw '-MaximumAgeMinutes above 30 is allowed only with -ReplayOnly.'
+}
 if ([string]::IsNullOrWhiteSpace($BackupDirectory) -or
     $ExpectedProjectRef -ne $script:VDCurrentBaselineProjectRef -or
     $ExpectedCommit -notmatch '^[a-f0-9]{40}$' -or
@@ -245,49 +251,47 @@ foreach ($file in $ExpectedFiles) {
   Assert-HBAM2PrivateFileAcl -Path $path
 }
 
-if (-not [IO.Path]::IsPathRooted($ReceiptPath)) {
-  throw '-ReceiptPath must be an absolute external path.'
-}
-$fullReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
-$expectedReceiptName = "$ExpectedBackupSetId-successor-logical-verification.json"
-if ([IO.Path]::GetDirectoryName($fullReceiptPath).TrimEnd('\') -ne
-      [IO.Path]::GetFullPath($rootInfo.Root).TrimEnd('\') -or
-    [IO.Path]::GetFileName($fullReceiptPath) -ne $expectedReceiptName -or
-    (Test-Path -LiteralPath $fullReceiptPath)) {
-  throw 'Receipt path must be a new exact-name file under the fixed private external root.'
+if ($ReplayOnly) {
+  if (-not [string]::IsNullOrWhiteSpace($ReceiptPath)) {
+    throw '-ReceiptPath must not be supplied with -ReplayOnly.'
+  }
+  $fullReceiptPath = $null
+} else {
+  if (-not [IO.Path]::IsPathRooted($ReceiptPath)) {
+    throw '-ReceiptPath must be an absolute external path.'
+  }
+  $fullReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
+  $expectedReceiptName = "$ExpectedBackupSetId-successor-logical-verification.json"
+  if ([IO.Path]::GetDirectoryName($fullReceiptPath).TrimEnd('\') -ne
+        [IO.Path]::GetFullPath($rootInfo.Root).TrimEnd('\') -or
+      [IO.Path]::GetFileName($fullReceiptPath) -ne $expectedReceiptName -or
+      (Test-Path -LiteralPath $fullReceiptPath)) {
+    throw 'Receipt path must be a new exact-name file under the fixed private external root.'
+  }
 }
 Assert-HBAM2PrivateDirectoryAcl -Path $rootInfo.Root
 
 $manifestBytes = Read-HBAM2BoundedFileBytes -Path (Join-Path $directory 'manifest.json') `
   -MaximumBytes $script:HBAM2MaximumManifestBytes
+$manifestJson = $null
 try {
   $actualManifestSha = (Get-HBAM2Sha256Hex -Bytes $manifestBytes).ToLowerInvariant()
   if ($actualManifestSha -ne $ExpectedManifestSha256) {
     throw 'Manifest SHA-256 differs from the external anchor.'
   }
-  try { $manifest = [Text.Encoding]::UTF8.GetString($manifestBytes) | ConvertFrom-Json }
+  try { $manifestJson = [Text.UTF8Encoding]::new($false, $true).GetString($manifestBytes) }
+  catch { throw 'Backup manifest is not valid UTF-8.' }
+  Assert-VDCurrentBaselineManifestJsonHasNoSecretMaterial -Json $manifestJson
+  try { $manifest = $manifestJson | ConvertFrom-Json }
   catch { throw 'Backup manifest is not valid JSON.' }
-} finally { [Array]::Clear($manifestBytes, 0, $manifestBytes.Length) }
-
-foreach ($field in @(
-  'status', 'format', 'format_version', 'backup_type', 'backup_set_id', 'release',
-  'backup_contract_id', 'backup_contract_version', 'created_at_utc',
-  'preflight_captured_at', 'inventory_before_captured_at', 'source_captured_at',
-  'inventory_after_captured_at', 'source_project_ref', 'source_project_ref_sha256',
-  'source_database_identity', 'source_database_identity_sha256', 'source_current_user',
-  'source_session_user', 'source_role_bypasses_rls', 'source_row_security',
-  'source_migration_head', 'source_migration_count', 'source_migration_versions_sha256',
-  'expected_tables', 'table_count', 'table_contract_sha256',
-  'inventory_contract_sha256', 'source_relation_contract_sha256',
-  'live_schema_contract_sha256', 'logical_data_contract_sha256',
-  'auth_schema_contract_sha256', 'auth_users_canonical_sha256',
-  'auth_users_contract_sha256', 'auth_users_row_count', 'git_commit',
-  'git_origin', 'git_remote_ref', 'implementation', 'supabase_cli', 'verifier_runtime',
-  'verifier', 'source_fence', 'consistency', 'plaintext_written_to_disk',
-  'contains_secrets', 'tables', 'artifacts'
-)) {
-  if (-not $manifest.PSObject.Properties[$field]) { throw "Manifest is missing $field." }
+  Assert-VDCurrentBaselineManifestHasNoSecretMaterial -Value $manifest
+  Assert-VDCurrentBaselineExactManifestShape -Manifest $manifest
+  Assert-VDCurrentBaselineManifestSafetyValues -Manifest $manifest
+} finally {
+  $manifestJson = $null
+  [Array]::Clear($manifestBytes, 0, $manifestBytes.Length)
 }
+
 if ([string]$manifest.status -ne 'complete' -or
     [string]$manifest.format -ne $script:HBAM2FormatName -or
     [int]$manifest.format_version -ne 2 -or
@@ -530,7 +534,9 @@ try {
   }
   Assert-VDCurrentBaselineLogicalReceipt -Receipt $receipt
   $receiptJson = $receipt | ConvertTo-Json -Depth 20 -Compress
-  Write-VDExactReceipt -Path $fullReceiptPath -Json $receiptJson
+  if (-not $ReplayOnly) {
+    Write-VDExactReceipt -Path $fullReceiptPath -Json $receiptJson
+  }
   Write-Output $receiptJson
 } finally {
   Close-HBAM2VerifierRuntimeFence -Fence $runtimeFence

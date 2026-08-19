@@ -39,6 +39,10 @@ import {
 } from "./production-windows-toolchain.mjs";
 import { productionDatabaseSystemIdentifier } from "./production-database-identity.mjs";
 import {
+  computeSuccessorReleaseCheckpointBindingSha256,
+  SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION,
+} from "./production-release-checkpoint-binding.mjs";
+import {
   ExternalGateProvenanceError,
   validateExternalDeploymentCanaryProvenanceFiles,
   validateExternalGateProvenanceFiles,
@@ -829,7 +833,8 @@ async function loadFinalizationManifest(repoRoot) {
 }
 
 function validateReleaseLock(lock, outcomePath, manifest, expectedCommit) {
-  if (!exactKeys(lock, [
+  const successorRelease = manifest.status === "controller_ready";
+  const expectedKeys = [
     "outcomeReceiptPathSha256",
     "projectRef",
     "release",
@@ -838,12 +843,25 @@ function validateReleaseLock(lock, outcomePath, manifest, expectedCommit) {
     "rerunProhibitedUntilAdjudicated",
     "startedAt",
     "version",
-  ])
+    ...(successorRelease
+      ? [
+        "remoteReleaseLeaseCheckpointBindingSha256",
+        "successorCheckpointBindingVersion",
+      ]
+      : []),
+  ];
+  if (!exactKeys(lock, expectedKeys)
       || lock.version !== 2
       || lock.release !== manifest.release
       || lock.projectRef !== manifest.projectRef
       || lock.releaseCommit !== expectedCommit
       || lock.outcomeReceiptPathSha256 !== textSha256(resolve(outcomePath))
+      || (successorRelease
+        && (lock.successorCheckpointBindingVersion
+            !== SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION
+          || !SHA256.test(
+            lock.remoteReleaseLeaseCheckpointBindingSha256 ?? "",
+          )))
       || !OWNER_UUID.test(lock.remoteReleaseLeaseOwnerId ?? "")
       || lock.rerunProhibitedUntilAdjudicated !== true
       || parseCanonicalInstant(lock.startedAt) === null) {
@@ -943,6 +961,30 @@ function validateOutcomeReceipt({
   remoteRef,
   releaseLock,
 }) {
+  const successorRelease = manifest.status === "controller_ready";
+  let successorCheckpointBindingSha256 = null;
+  if (successorRelease) {
+    try {
+      successorCheckpointBindingSha256 =
+        computeSuccessorReleaseCheckpointBindingSha256({
+          version: receipt.successorCheckpointBindingVersion,
+          release: receipt.release,
+          projectRef: receipt.projectRef,
+          expectedCommit: receipt.releaseCommit,
+          outcomeReceiptPathSha256: receipt.outcomeReceiptPathSha256,
+          backupReceiptSha256: receipt.backupReceiptSha256,
+          backupDirectoryPathSha256: receipt.backupDirectoryPathSha256,
+          backupArtifactSetSha256: receipt.backupArtifactSetSha256,
+          backupSourceCapturedAt: receipt.backupSourceCapturedAt,
+          startedAt: receipt.startedAt,
+          writeFenceEvidenceSha256: receipt.writeFenceEvidenceSha256,
+          preApplySuccessorRuntimeEvidenceSetSha256:
+            receipt.preApplySuccessorRuntimeEvidenceSetSha256,
+        });
+    } catch {
+      successorCheckpointBindingSha256 = null;
+    }
+  }
   if (receipt.receiptVersion !== 1
       || receipt.status !== "database_expand_verified_lease_held"
       || receipt.release !== manifest.release
@@ -950,15 +992,24 @@ function validateOutcomeReceipt({
       || receipt.releaseCommit !== expectedCommit
       || receipt.remoteRef !== remoteRef
       || receipt.remoteReleaseLeaseOwnerId !== releaseLock.remoteReleaseLeaseOwnerId
-      || receipt.remoteReleaseLeaseOutcomePathSha256
-        !== releaseLock.outcomeReceiptPathSha256
+      || (successorRelease
+        ? receipt.outcomeReceiptPathSha256
+              !== releaseLock.outcomeReceiptPathSha256
+          || receipt.remoteReleaseLeaseCheckpointBindingSha256
+              !== releaseLock.remoteReleaseLeaseCheckpointBindingSha256
+          || receipt.remoteReleaseLeaseOutcomePathSha256
+              !== releaseLock.remoteReleaseLeaseCheckpointBindingSha256
+          || successorCheckpointBindingSha256
+              !== releaseLock.remoteReleaseLeaseCheckpointBindingSha256
+        : receipt.remoteReleaseLeaseOutcomePathSha256
+            !== releaseLock.outcomeReceiptPathSha256)
       || receipt.remoteReleaseLeasePhase !== "deployment-canary"
       || receipt.postPendingCount !== 0
       || !validateOutcomeCheckEvidence(receipt, manifest, "postPush")
       || !validateOutcomeCheckEvidence(receipt, manifest, "postApply")
       || receipt.postconditionsPassed
         !== receipt.postPushCheckCount + receipt.postApplyCheckCount
-      || (manifest.status === "controller_ready"
+      || (successorRelease
         && !validateSuccessorRuntimeEvidenceSummary(receipt))
       || parseCanonicalInstant(receipt.completedAt) === null
       || receipt.supabaseCliVersion !== manifest.backupContract.supabaseCli.version
@@ -2806,6 +2857,8 @@ export const productionWriteFenceFinalizerTestHooks = Object.freeze({
   parseArgs,
   requiredCanaryChecks: REQUIRED_CANARY_CHECKS,
   textSha256,
+  validateOutcomeReceipt,
+  validateReleaseLock,
   validateSuccessorRuntimeEvidenceSummary,
   validateStatusSpecificArguments,
   validateSuccessorPostExpandBackupReceipt,

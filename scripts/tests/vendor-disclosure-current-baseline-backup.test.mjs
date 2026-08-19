@@ -16,6 +16,18 @@ const ROUNDTRIP = join(
   "apps/web/scripts/vendor-disclosure-db-current-baseline-roundtrip.mjs",
 );
 
+const IMPLEMENTATION_PATHS = Object.freeze([
+  "apps/web/package.json",
+  "apps/web/scripts/vendor-disclosure-db-current-baseline-roundtrip.mjs",
+  "package.json",
+  "pnpm-lock.yaml",
+  "scripts/amora-db-backup-common.ps1",
+  "scripts/provenance/amora-verifier-runtime.json",
+  "scripts/vendor-disclosure-db-current-baseline-common.ps1",
+  "scripts/vendor-disclosure-db-current-baseline.ps1",
+  "scripts/vendor-disclosure-db-current-baseline-verify.ps1",
+]);
+
 const EXPECTED_TABLES = Object.freeze([
   "account_deletion_jobs",
   "account_deletion_media_manifest",
@@ -78,6 +90,146 @@ const EXPECTED_TABLES = Object.freeze([
   "wedding_journeys",
   "wishlists",
 ]);
+
+function createManifestFixture() {
+  const digest = "a".repeat(64);
+  const upperDigest = digest.toUpperCase();
+  const version = "2.106.0";
+  const platform = "windows-x64";
+  const invocation = `node_modules/.pnpm/@supabase+cli-${platform}@${version}/node_modules/@supabase/cli-${platform}/bin/supabase.exe`;
+  const cliFiles = [
+    "node_modules/.bin/supabase.CMD",
+    `node_modules/.pnpm/supabase@${version}/node_modules/supabase/package.json`,
+    `node_modules/.pnpm/supabase@${version}/node_modules/supabase/dist/supabase.js`,
+    `node_modules/.pnpm/@supabase+cli-${platform}@${version}/node_modules/@supabase/cli-${platform}/package.json`,
+    invocation,
+  ];
+  const artifact = (name) => ({
+    backup_set_id: "11111111-1111-4111-8111-111111111111",
+    artifact: `${name}.hbam2`,
+    key: `${name}.key.dpapi`,
+    plaintext_sha256: upperDigest,
+    encrypted_sha256: upperDigest,
+    key_sha256: upperDigest,
+    plaintext_bytes: 128,
+    encrypted_bytes: 222,
+  });
+  return {
+    status: "complete",
+    format: "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser",
+    format_version: 2,
+    backup_type: "vendor-disclosure-successor-current-production-logical-snapshot",
+    backup_set_id: "11111111-1111-4111-8111-111111111111",
+    release: "fixture-release",
+    backup_contract_id: "pre-fixture-release-current-remote-backup",
+    backup_contract_version: 2,
+    created_at_utc: "2026-08-19T00:04:00.0000000+00:00",
+    preflight_captured_at: "2026-08-19T00:00:00.0000000+00:00",
+    inventory_before_captured_at: "2026-08-19T00:01:00.0000000+00:00",
+    source_captured_at: "2026-08-19T00:02:00.0000000+00:00",
+    inventory_after_captured_at: "2026-08-19T00:03:00.0000000+00:00",
+    source_project_ref: "slrtobkksjmxgzatjyqb",
+    source_project_ref_sha256: digest,
+    source_database_identity: {
+      system_identifier: "1234567890123456789",
+      database_name: "postgres",
+      database_oid: "16384",
+      server_version_num: "170004",
+    },
+    source_database_identity_sha256: digest,
+    source_current_user: "postgres",
+    source_session_user: "postgres",
+    source_role_bypasses_rls: true,
+    source_row_security: "off",
+    source_migration_head: "20260727090000",
+    source_migration_count: 147,
+    source_migration_versions_sha256: digest,
+    expected_tables: [...EXPECTED_TABLES],
+    table_count: 60,
+    table_contract_sha256: digest,
+    inventory_contract_sha256: digest,
+    source_relation_contract_sha256: digest,
+    live_schema_contract_sha256: digest,
+    logical_data_contract_sha256: digest,
+    auth_schema_contract_sha256: digest,
+    auth_users_canonical_sha256: digest,
+    auth_users_contract_sha256: digest,
+    auth_users_row_count: 0,
+    git_commit: "b".repeat(40),
+    git_origin: "https://github.com/example/repo.git",
+    git_remote_ref: "origin/fixture-release",
+    implementation: {
+      git_commit: "b".repeat(40),
+      files: Object.fromEntries(IMPLEMENTATION_PATHS.map((path) => [path, digest])),
+      git_blobs: Object.fromEntries(IMPLEMENTATION_PATHS.map((path) => [path, digest])),
+    },
+    supabase_cli: {
+      mode: "repo-local-pnpm-direct-binary",
+      version,
+      platform,
+      invocation_relative_path: invocation,
+      files: Object.fromEntries(cliFiles.map((path) => [path, upperDigest])),
+    },
+    verifier_runtime: {
+      format_version: 1,
+      node: {
+        absolute_path: "C:\\Program Files\\nodejs\\node.exe",
+        version: "v24.15.0",
+        bytes: 91694408,
+        sha256: upperDigest,
+      },
+      pglite: {
+        version: "0.5.4",
+        package_relative_path: "node_modules/.pnpm/@electric-sql+pglite@0.5.4/node_modules/@electric-sql/pglite",
+        entry_relative_path: "dist/index.js",
+        file_count: 301,
+        total_bytes: 25403132,
+        tree_sha256: upperDigest,
+      },
+    },
+    verifier: {
+      file: "scripts/vendor-disclosure-db-current-baseline-verify.ps1",
+      sha256: digest,
+    },
+    source_fence: "exact-linked-production-ref-plus-clean-pushed-commit-plus-pinned-cli",
+    consistency: "logical-data-single-statement-schema-before-after-fenced",
+    query_timeout_seconds: 120,
+    plaintext_written_to_disk: false,
+    contains_secrets: false,
+    key_scope: "Windows DPAPI CurrentUser on the creating computer",
+    preflight: {
+      estimated_total_bytes: 0,
+      estimated_total_rows: 0,
+    },
+    tables: Object.fromEntries(EXPECTED_TABLES.map((table) => [table, 0])),
+    artifacts: {
+      schema_inventory: artifact("schema-inventory.json"),
+      logical_data: artifact("logical-data.json"),
+    },
+  };
+}
+
+function runManifestContractProbe(value, transformRawJson = (raw) => raw) {
+  const json = transformRawJson(JSON.stringify(value));
+  const encoded = Buffer.from(json).toString("base64");
+  const escapedCommon = COMMON.replaceAll("'", "''");
+  const probe = `
+$ErrorActionPreference = 'Stop'
+. '${escapedCommon}'
+$json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}'))
+Assert-VDCurrentBaselineManifestJsonHasNoSecretMaterial -Json $json
+$manifest = $json | ConvertFrom-Json
+Assert-VDCurrentBaselineManifestHasNoSecretMaterial -Value $manifest
+Assert-VDCurrentBaselineExactManifestShape -Manifest $manifest
+Assert-VDCurrentBaselineManifestSafetyValues -Manifest $manifest
+Write-Output 'PASS'
+`;
+  return spawnSync(
+    "powershell.exe",
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", probe],
+    { encoding: "utf8", windowsHide: true },
+  );
+}
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -146,6 +298,9 @@ test("pins the exact current Production database contract", async () => {
     "VerifiedAtUtc",
     "Verifier",
   ]);
+  const manifestKeys = parseQuotedBlock(source, "VDCurrentBaselineManifestKeys");
+  assert.equal(manifestKeys.length, 51);
+  assert.deepEqual(manifestKeys, Object.keys(createManifestFixture()).sort());
 });
 
 test("capture is external, read-only, encrypted in memory, and commit-bound", async () => {
@@ -275,7 +430,209 @@ test("verifier authenticates both artifacts and emits the exact successor receip
   assert.match(source, /AuthSchemaContractSha256 = \$authSchemaSha/);
   assert.match(source, /AuthUsersCanonicalSha256 = \$authUsersCanonicalSha/);
   assert.match(source, /AuthUsersContractSha256 = \$authUsersContractSha/);
+  assert.match(source, /\[switch\]\s*\$ReplayOnly/);
+  assert.match(source, /if \(\$ReplayOnly\)[\s\S]*ReceiptPath[\s\S]*must not be supplied/i);
+  assert.match(source, /if \(-not \$ReplayOnly\) \{\s*Write-VDExactReceipt/);
+  const rawScanIndex = source.indexOf("Assert-VDCurrentBaselineManifestJsonHasNoSecretMaterial");
+  const parsedScanIndex = source.indexOf("Assert-VDCurrentBaselineManifestHasNoSecretMaterial");
+  const shapeIndex = source.indexOf("Assert-VDCurrentBaselineExactManifestShape");
+  const safetyIndex = source.indexOf("Assert-VDCurrentBaselineManifestSafetyValues");
+  const containsSecretsClaimIndex = source.indexOf("[bool]$manifest.contains_secrets");
+  assert.ok(rawScanIndex > 0);
+  assert.ok(parsedScanIndex > rawScanIndex);
+  assert.ok(shapeIndex > parsedScanIndex);
+  assert.ok(safetyIndex > shapeIndex);
+  assert.ok(containsSecretsClaimIndex > safetyIndex);
   assert.doesNotMatch(source, /db query|--linked|api\.supabase\.com/i);
+});
+
+test("current-baseline manifest rejects a top-level service_role_key", () => {
+  const manifest = createManifestFixture();
+  manifest.service_role_key = "not-even-a-real-secret";
+  const result = runManifestContractProbe(manifest);
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /Manifest contains secret-like material\./);
+  assert.doesNotMatch(result.stderr, /not recognized|CommandNotFoundException/i);
+});
+
+test("current-baseline manifest accepts only the exact non-secret fixture schema", () => {
+  const manifest = createManifestFixture();
+  assert.equal(Object.keys(manifest).length, 51);
+  const result = runManifestContractProbe(manifest);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "PASS");
+});
+
+test("current-baseline manifest rejects a harmless extra top-level key", () => {
+  const manifest = createManifestFixture();
+  manifest.unexpected = true;
+  const result = runManifestContractProbe(manifest);
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /Manifest schema is not exact\./);
+});
+
+test("current-baseline raw JSON scan rejects an overwritten secret value", () => {
+  const manifest = createManifestFixture();
+  const secret = "sb_secret_abcdefghijklmnopqrstuvwxyz123456";
+  const result = runManifestContractProbe(
+    manifest,
+    (raw) => raw.replace(
+      '"source_current_user":"postgres"',
+      `"source_current_user":"${secret}","source_current_user":"postgres"`,
+    ),
+  );
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /Manifest contains secret-like material\./);
+});
+
+test("current-baseline manifest recursively rejects an escaped nested secret key", () => {
+  const manifest = createManifestFixture();
+  manifest.preflight.service_role_key = "not-even-a-real-secret";
+  const result = runManifestContractProbe(
+    manifest,
+    (raw) => raw.replace('"service_role_key"', '"service\\u005frole\\u005fkey"'),
+  );
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /Manifest contains secret-like material\./);
+  assert.doesNotMatch(result.stderr, /not recognized|CommandNotFoundException/i);
+});
+
+test("current-baseline manifest rejects generic nested secret-like keys", () => {
+  const manifest = createManifestFixture();
+  manifest.preflight.session_token = "redacted";
+  const result = runManifestContractProbe(manifest);
+  assert.notEqual(result.status, 0, result.stdout);
+  assert.match(result.stderr, /Manifest contains secret-like material\./);
+});
+
+test("current-baseline manifest requires all 51 top-level keys", () => {
+  const baseline = createManifestFixture();
+  assert.equal(Object.keys(baseline).length, 51);
+  for (const field of ["key_scope", "preflight", "query_timeout_seconds"]) {
+    const manifest = structuredClone(baseline);
+    delete manifest[field];
+    const result = runManifestContractProbe(manifest);
+    assert.notEqual(result.status, 0, `${field} was accepted`);
+    assert.match(result.stderr, /Manifest schema is not exact\./, field);
+    assert.doesNotMatch(result.stderr, /not recognized|CommandNotFoundException/i, field);
+  }
+});
+
+test("current-baseline manifest enforces key scope, preflight, and query timeout values", () => {
+  const cases = [
+    ["key scope", (value) => { value.key_scope = "portable plaintext key"; }],
+    ["query timeout below range", (value) => { value.query_timeout_seconds = 29; }],
+    ["query timeout above range", (value) => { value.query_timeout_seconds = 601; }],
+    ["query timeout type", (value) => { value.query_timeout_seconds = "150"; }],
+    ["preflight bytes below range", (value) => { value.preflight.estimated_total_bytes = -1; }],
+    ["preflight bytes above range", (value) => { value.preflight.estimated_total_bytes = 268435457; }],
+    ["preflight bytes type", (value) => { value.preflight.estimated_total_bytes = "0"; }],
+    ["preflight rows below range", (value) => { value.preflight.estimated_total_rows = -1; }],
+    ["preflight rows above range", (value) => { value.preflight.estimated_total_rows = 500001; }],
+    ["preflight rows type", (value) => { value.preflight.estimated_total_rows = "0"; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const manifest = createManifestFixture();
+    mutate(manifest);
+    const result = runManifestContractProbe(manifest);
+    assert.notEqual(result.status, 0, `${label} was accepted`);
+    assert.match(result.stderr, /Manifest safety values are invalid\./, label);
+    assert.doesNotMatch(result.stderr, /not recognized|CommandNotFoundException/i, label);
+  }
+});
+
+test("current-baseline key scope is compared case-sensitively", () => {
+  // PowerShell's -ne is case-insensitive, so the fixed DPAPI contract string
+  // has to be compared with -cne or any case variant is accepted as exact.
+  const cases = [
+    "WINDOWS DPAPI CURRENTUSER ON THE CREATING COMPUTER",
+    "windows dpapi currentuser on the creating computer",
+    "Windows Dpapi CurrentUser On The Creating Computer",
+  ];
+  for (const variant of cases) {
+    const manifest = createManifestFixture();
+    manifest.key_scope = variant;
+    const result = runManifestContractProbe(manifest);
+    assert.notEqual(result.status, 0, `${variant} was accepted`);
+    assert.match(result.stderr, /Manifest safety values are invalid\./, variant);
+    assert.doesNotMatch(result.stderr, /not recognized|CommandNotFoundException/i, variant);
+  }
+});
+
+test("current-baseline manifest rejects a null in any nested object slot", () => {
+  const cases = [
+    ["source database identity", (value) => { value.source_database_identity = null; }],
+    ["implementation", (value) => { value.implementation = null; }],
+    ["verifier runtime", (value) => { value.verifier_runtime = null; }],
+    ["preflight", (value) => { value.preflight = null; }],
+    ["artifacts", (value) => { value.artifacts = null; }],
+    ["logical artifact", (value) => { value.artifacts.logical_data = null; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const manifest = createManifestFixture();
+    mutate(manifest);
+    const result = runManifestContractProbe(manifest);
+    assert.notEqual(result.status, 0, `${label} was accepted`);
+    // The null must surface as the schema verdict, not as a parameter-binding
+    // failure from a Mandatory parameter that refuses null before the check.
+    assert.match(result.stderr, /Manifest schema is not exact\./, label);
+    assert.doesNotMatch(result.stderr, /ParameterArgumentValidationErrorNullNotAllowed/i, label);
+    assert.doesNotMatch(result.stderr, /not recognized|CommandNotFoundException/i, label);
+  }
+});
+
+test("current-baseline manifest rejects extra keys in every nested schema", () => {
+  const cases = [
+    ["source database identity", (value) => { value.source_database_identity.unexpected = true; }],
+    ["implementation", (value) => { value.implementation.unexpected = true; }],
+    ["implementation files", (value) => { value.implementation.files.unexpected = "a".repeat(64); }],
+    ["implementation git blobs", (value) => { value.implementation.git_blobs.unexpected = "a".repeat(64); }],
+    ["Supabase CLI", (value) => { value.supabase_cli.unexpected = true; }],
+    ["Supabase CLI files", (value) => { value.supabase_cli.files.unexpected = "A".repeat(64); }],
+    ["verifier runtime", (value) => { value.verifier_runtime.unexpected = true; }],
+    ["Node runtime", (value) => { value.verifier_runtime.node.unexpected = true; }],
+    ["PGlite runtime", (value) => { value.verifier_runtime.pglite.unexpected = true; }],
+    ["verifier", (value) => { value.verifier.unexpected = true; }],
+    ["preflight", (value) => { value.preflight.unexpected = true; }],
+    ["table counts", (value) => { value.tables.unexpected = 0; }],
+    ["artifacts", (value) => { value.artifacts.unexpected = {}; }],
+    ["logical artifact", (value) => { value.artifacts.logical_data.unexpected = true; }],
+    ["inventory artifact", (value) => { value.artifacts.schema_inventory.unexpected = true; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const manifest = createManifestFixture();
+    mutate(manifest);
+    const result = runManifestContractProbe(manifest);
+    assert.notEqual(result.status, 0, `${label} extra key was accepted`);
+    assert.match(result.stderr, /Manifest schema is not exact\./, label);
+  }
+});
+
+test("current-baseline manifest rejects missing keys in every nested schema", () => {
+  const cases = [
+    ["source database identity", (value) => { delete value.source_database_identity.database_oid; }],
+    ["implementation", (value) => { delete value.implementation.git_commit; }],
+    ["implementation files", (value) => { delete value.implementation.files[IMPLEMENTATION_PATHS[0]]; }],
+    ["implementation git blobs", (value) => { delete value.implementation.git_blobs[IMPLEMENTATION_PATHS[0]]; }],
+    ["Supabase CLI", (value) => { delete value.supabase_cli.mode; }],
+    ["Supabase CLI files", (value) => { delete value.supabase_cli.files["node_modules/.bin/supabase.CMD"]; }],
+    ["verifier runtime", (value) => { delete value.verifier_runtime.format_version; }],
+    ["Node runtime", (value) => { delete value.verifier_runtime.node.bytes; }],
+    ["PGlite runtime", (value) => { delete value.verifier_runtime.pglite.file_count; }],
+    ["verifier", (value) => { delete value.verifier.file; }],
+    ["preflight", (value) => { delete value.preflight.estimated_total_rows; }],
+    ["table counts", (value) => { delete value.tables[EXPECTED_TABLES[0]]; }],
+    ["artifacts", (value) => { delete value.artifacts.logical_data; }],
+    ["logical artifact", (value) => { delete value.artifacts.logical_data.key; }],
+    ["inventory artifact", (value) => { delete value.artifacts.schema_inventory.key; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const manifest = createManifestFixture();
+    mutate(manifest);
+    const result = runManifestContractProbe(manifest);
+    assert.notEqual(result.status, 0, `${label} missing key was accepted`);
+    assert.match(result.stderr, /Manifest schema is not exact\./, label);
+  }
 });
 
 test("PGlite verifier pins the same exact 60-table allowlist", async () => {

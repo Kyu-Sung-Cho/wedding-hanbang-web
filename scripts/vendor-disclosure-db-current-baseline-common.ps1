@@ -115,6 +115,239 @@ $script:VDCurrentBaselineLogicalReceiptKeys = @(
   'VerifiedAtUtc',
   'Verifier'
 )
+$script:VDCurrentBaselineManifestKeys = @(
+  'artifacts',
+  'auth_schema_contract_sha256',
+  'auth_users_canonical_sha256',
+  'auth_users_contract_sha256',
+  'auth_users_row_count',
+  'backup_contract_id',
+  'backup_contract_version',
+  'backup_set_id',
+  'backup_type',
+  'consistency',
+  'contains_secrets',
+  'created_at_utc',
+  'expected_tables',
+  'format',
+  'format_version',
+  'git_commit',
+  'git_origin',
+  'git_remote_ref',
+  'implementation',
+  'inventory_after_captured_at',
+  'inventory_before_captured_at',
+  'inventory_contract_sha256',
+  'key_scope',
+  'live_schema_contract_sha256',
+  'logical_data_contract_sha256',
+  'plaintext_written_to_disk',
+  'preflight',
+  'preflight_captured_at',
+  'query_timeout_seconds',
+  'release',
+  'source_captured_at',
+  'source_current_user',
+  'source_database_identity',
+  'source_database_identity_sha256',
+  'source_fence',
+  'source_migration_count',
+  'source_migration_head',
+  'source_migration_versions_sha256',
+  'source_project_ref',
+  'source_project_ref_sha256',
+  'source_relation_contract_sha256',
+  'source_role_bypasses_rls',
+  'source_row_security',
+  'source_session_user',
+  'status',
+  'supabase_cli',
+  'table_contract_sha256',
+  'table_count',
+  'tables',
+  'verifier',
+  'verifier_runtime'
+)
+
+function Assert-VDCurrentBaselineExactObjectKeys {
+  param(
+    # AllowNull keeps a JSON null in a nested-object slot inside this function,
+    # where it fails as a schema error, instead of failing at parameter binding.
+    [Parameter(Mandatory = $true)] [AllowNull()] $Value,
+    [Parameter(Mandatory = $true)] [string[]] $ExpectedKeys
+  )
+
+  if ($null -eq $Value -or $Value -is [Array] -or
+      ($Value -isnot [Collections.IDictionary] -and
+        $Value -isnot [Management.Automation.PSCustomObject])) {
+    throw 'Manifest schema is not exact.'
+  }
+  $actual = @(Get-HBAM2ObjectPropertyNames -Value $Value | Sort-Object -CaseSensitive)
+  $expected = @($ExpectedKeys | Sort-Object -CaseSensitive)
+  if ($actual.Count -ne $expected.Count -or
+      @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual -CaseSensitive).Count -ne 0) {
+    throw 'Manifest schema is not exact.'
+  }
+}
+
+function Assert-VDCurrentBaselineExactManifestShape {
+  param([Parameter(Mandatory = $true)] $Manifest)
+
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest -ExpectedKeys $script:VDCurrentBaselineManifestKeys
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.source_database_identity `
+    -ExpectedKeys @('database_name', 'database_oid', 'server_version_num', 'system_identifier')
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.implementation -ExpectedKeys @('files', 'git_blobs', 'git_commit')
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.implementation.files `
+    -ExpectedKeys $script:VDCurrentBaselineImplementationPaths
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.implementation.git_blobs `
+    -ExpectedKeys $script:VDCurrentBaselineImplementationPaths
+
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.supabase_cli `
+    -ExpectedKeys @('files', 'invocation_relative_path', 'mode', 'platform', 'version')
+  $cliVersion = [string]$Manifest.supabase_cli.version
+  $cliPlatform = [string]$Manifest.supabase_cli.platform
+  if ($cliVersion -notmatch '^\d+\.\d+\.\d+$' -or
+      $cliPlatform -notmatch '^windows-(?:x64|arm64)$') {
+    throw 'Manifest schema is not exact.'
+  }
+  $cliPackage = "@supabase/cli-$cliPlatform"
+  $cliPackageRoot = "node_modules/.pnpm/@supabase+cli-$cliPlatform@$cliVersion/node_modules/$cliPackage"
+  $expectedCliFiles = @(
+    'node_modules/.bin/supabase.CMD',
+    "node_modules/.pnpm/supabase@$cliVersion/node_modules/supabase/package.json",
+    "node_modules/.pnpm/supabase@$cliVersion/node_modules/supabase/dist/supabase.js",
+    "$cliPackageRoot/package.json",
+    "$cliPackageRoot/bin/supabase.exe"
+  )
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.supabase_cli.files -ExpectedKeys $expectedCliFiles
+  if ([string]$Manifest.supabase_cli.invocation_relative_path -ne $expectedCliFiles[-1]) {
+    throw 'Manifest schema is not exact.'
+  }
+
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.verifier_runtime -ExpectedKeys @('format_version', 'node', 'pglite')
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.verifier_runtime.node `
+    -ExpectedKeys @('absolute_path', 'bytes', 'sha256', 'version')
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.verifier_runtime.pglite `
+    -ExpectedKeys @(
+      'entry_relative_path', 'file_count', 'package_relative_path',
+      'total_bytes', 'tree_sha256', 'version'
+    )
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.verifier -ExpectedKeys @('file', 'sha256')
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.preflight -ExpectedKeys @('estimated_total_bytes', 'estimated_total_rows')
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.tables -ExpectedKeys $script:VDCurrentBaselineExpectedTables
+  Assert-VDCurrentBaselineExactObjectKeys `
+    -Value $Manifest.artifacts -ExpectedKeys @('logical_data', 'schema_inventory')
+  $artifactKeys = @(
+    'artifact', 'backup_set_id', 'encrypted_bytes', 'encrypted_sha256',
+    'key', 'key_sha256', 'plaintext_bytes', 'plaintext_sha256'
+  )
+  foreach ($artifact in @($Manifest.artifacts.logical_data, $Manifest.artifacts.schema_inventory)) {
+    Assert-VDCurrentBaselineExactObjectKeys -Value $artifact -ExpectedKeys $artifactKeys
+  }
+}
+
+function Test-VDCurrentBaselineJsonInteger {
+  param($Value)
+
+  return $Value -is [int] -or $Value -is [long]
+}
+
+function Assert-VDCurrentBaselineManifestSafetyValues {
+  param([Parameter(Mandatory = $true)] $Manifest)
+
+  if ([string]$Manifest.key_scope -cne 'Windows DPAPI CurrentUser on the creating computer' -or
+      -not (Test-VDCurrentBaselineJsonInteger -Value $Manifest.query_timeout_seconds) -or
+      [int64]$Manifest.query_timeout_seconds -lt 30 -or
+      [int64]$Manifest.query_timeout_seconds -gt 600 -or
+      -not (Test-VDCurrentBaselineJsonInteger -Value $Manifest.preflight.estimated_total_bytes) -or
+      [int64]$Manifest.preflight.estimated_total_bytes -lt 0 -or
+      [int64]$Manifest.preflight.estimated_total_bytes -gt 268435456 -or
+      -not (Test-VDCurrentBaselineJsonInteger -Value $Manifest.preflight.estimated_total_rows) -or
+      [int64]$Manifest.preflight.estimated_total_rows -lt 0 -or
+      [int64]$Manifest.preflight.estimated_total_rows -gt 500000) {
+    throw 'Manifest safety values are invalid.'
+  }
+}
+
+function Test-VDCurrentBaselineSecretKeyName {
+  param([Parameter(Mandatory = $true)] [string] $Name)
+
+  if ([string]::Equals($Name, 'contains_secrets', [StringComparison]::Ordinal)) {
+    return $false
+  }
+  return $Name -match '(?i)(?:password|secret|token|api[_-]?key|authorization|credential|private[_-]?key|service[_-]?role|database[_-]?(?:url|password)|connection[_-]?(?:string|uri))'
+}
+
+function Assert-VDCurrentBaselineManifestJsonHasNoSecretMaterial {
+  param([Parameter(Mandatory = $true)] [string] $Json)
+
+  $secretValuePattern = '(?i)(?:postgres(?:ql)?://|\bBearer\s+[A-Za-z0-9._~+/-]{16,}|\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.|\bsk-(?:ant-|proj-|live-|test-)?[A-Za-z0-9_-]{16,}|\bsb_(?:secret|publishable)_[A-Za-z0-9_-]{12,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bgh[pousr]_[A-Za-z0-9]{20,}|SUPABASE_SERVICE_ROLE_KEY)'
+  foreach ($match in [Regex]::Matches($Json, '"(?<key>(?:\\.|[^"\\])*)"\s*:')) {
+    if (Test-VDCurrentBaselineSecretKeyName -Name ([string]$match.Groups['key'].Value)) {
+      throw 'Manifest contains secret-like material.'
+    }
+  }
+  if ($Json -match $secretValuePattern) { throw 'Manifest contains secret-like material.' }
+}
+
+function Test-VDCurrentBaselineSecretMaterial {
+  param(
+    $Value,
+    [int] $Depth = 0
+  )
+
+  if ($Depth -gt 100) { return $true }
+  if ($null -eq $Value) { return $false }
+  $secretValuePattern = '(?i)(?:postgres(?:ql)?://|\bBearer\s+[A-Za-z0-9._~+/-]{16,}|\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.|\bsk-(?:ant-|proj-|live-|test-)?[A-Za-z0-9_-]{16,}|\bsb_(?:secret|publishable)_[A-Za-z0-9_-]{12,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bgh[pousr]_[A-Za-z0-9]{20,}|SUPABASE_SERVICE_ROLE_KEY)'
+  if ($Value -is [string]) { return $Value -match $secretValuePattern }
+  if ($Value -is [Collections.IDictionary]) {
+    foreach ($key in @($Value.Keys)) {
+      if ((Test-VDCurrentBaselineSecretKeyName -Name ([string]$key)) -or
+          (Test-VDCurrentBaselineSecretMaterial -Value $Value[$key] -Depth ($Depth + 1))) {
+        return $true
+      }
+    }
+    return $false
+  }
+  if ($Value -is [Array] -or $Value -is [Collections.IList]) {
+    foreach ($item in $Value) {
+      if (Test-VDCurrentBaselineSecretMaterial -Value $item -Depth ($Depth + 1)) {
+        return $true
+      }
+    }
+    return $false
+  }
+  if ($Value -is [Management.Automation.PSCustomObject]) {
+    foreach ($property in @($Value.PSObject.Properties)) {
+      if ((Test-VDCurrentBaselineSecretKeyName -Name ([string]$property.Name)) -or
+          (Test-VDCurrentBaselineSecretMaterial -Value $property.Value -Depth ($Depth + 1))) {
+        return $true
+      }
+    }
+  }
+  return $false
+}
+
+function Assert-VDCurrentBaselineManifestHasNoSecretMaterial {
+  param([Parameter(Mandatory = $true)] $Value)
+
+  if (Test-VDCurrentBaselineSecretMaterial -Value $Value) {
+    throw 'Manifest contains secret-like material.'
+  }
+}
 
 function Get-VDCurrentBaselineUtf8Sha256Lower {
   param([Parameter(Mandatory = $true)] [string] $Value)

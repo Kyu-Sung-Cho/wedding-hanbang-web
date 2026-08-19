@@ -22,43 +22,109 @@ import {
   runProductionDatabaseFenceObservation,
   runSupabaseAuthenticatedSessionObservation,
 } from "./lib/production-external-gate-provenance.mjs";
+import {
+  SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+  SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
+  SuccessorReleaseContractError,
+  validateSuccessorNoAdditionalCostReleaseAssurance,
+  validateSuccessorReleaseContract,
+  validateSuccessorRuntimeEvidence,
+} from "./lib/supabase-successor-release-contract.mjs";
 
-const MANIFEST_RELATIVE_PATH =
+const PREDECESSOR_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/amora-engine-v2-20260716.json";
 const COMMIT = /^[a-f0-9]{40}$/;
+const SHA256 = /^[a-f0-9]{64}$/;
 const UPPER_SHA256 = /^[A-F0-9]{64}$/;
 const PROJECT_REF = /^[a-z0-9]{20}$/;
+const BACKUP_SET_ID =
+  /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const PROVIDER_RESTORE_JOB_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{7,127}$/;
 const COMMON_ARGUMENTS = new Set(["--mode", "--expected-commit"]);
+const VERCEL_ARGUMENTS = new Set([
+  "--deployment-id",
+  "--raw-out",
+  "--receipt-out",
+]);
+const HOSTED_RESTORE_ARGUMENTS = new Set([
+  "--backup-receipt",
+  "--target-project-ref",
+  "--target-project-name",
+  "--provider-restore-job-id",
+  "--restore-completed-at",
+  "--psql",
+  "--project-raw-out",
+  "--database-raw-out",
+  "--receipt-out",
+]);
+const CANARY_SHARED_ARGUMENTS = new Set([
+  "--deployment-receipt",
+  "--release-outcome",
+  "--backup-receipt",
+  "--browser-executable",
+  "--psql",
+  "--raw-out",
+  "--vercel-server-errors-raw-out",
+  "--receipt-out",
+]);
+const PREDECESSOR_CANARY_ARGUMENTS = new Set([
+  ...CANARY_SHARED_ARGUMENTS,
+  "--hosted-restore-receipt",
+]);
+const SUCCESSOR_CANARY_ARGUMENTS = new Set([
+  ...CANARY_SHARED_ARGUMENTS,
+  "--recovery-assurance-receipt",
+]);
 const MODE_ARGUMENTS = Object.freeze({
-  vercel: new Set([
-    "--deployment-id",
-    "--raw-out",
-    "--receipt-out",
-  ]),
-  "hosted-restore": new Set([
-    "--backup-receipt",
-    "--target-project-ref",
-    "--target-project-name",
-    "--provider-restore-job-id",
-    "--restore-completed-at",
-    "--psql",
-    "--project-raw-out",
-    "--database-raw-out",
-    "--receipt-out",
-  ]),
+  vercel: VERCEL_ARGUMENTS,
+  "hosted-restore": HOSTED_RESTORE_ARGUMENTS,
   canary: new Set([
-    "--deployment-receipt",
-    "--release-outcome",
-    "--backup-receipt",
+    ...CANARY_SHARED_ARGUMENTS,
     "--hosted-restore-receipt",
-    "--browser-executable",
-    "--psql",
-    "--raw-out",
-    "--vercel-server-errors-raw-out",
-    "--receipt-out",
+    "--recovery-assurance-receipt",
   ]),
 });
+const SUCCESSOR_BACKUP_CHECK_KEYS = Object.freeze([
+  "authDataDigestsVerified",
+  "encryptedArtifactsVerified",
+  "exactTableContractVerified",
+  "liveSchemaDigestVerified",
+  "logicalDataDigestsVerified",
+  "plaintextWrittenToDisk",
+  "storageDataDigestsVerified",
+]);
+const SUCCESSOR_BACKUP_RECEIPT_KEYS = Object.freeze([
+  "authSchemaContractSha256",
+  "authUsersContractSha256",
+  "backupContractId",
+  "backupContractVersion",
+  "backupManifestSha256",
+  "backupSetId",
+  "capturedAt",
+  "checks",
+  "containsSecrets",
+  "expectedMigrationHead",
+  "expectedTableContractSha256",
+  "expectedTableCount",
+  "expectedTables",
+  "kind",
+  "liveSchemaContractSha256",
+  "logicalDataContractSha256",
+  "migrationVersionsSha256",
+  "projectRef",
+  "receiptVersion",
+  "release",
+  "releaseCommit",
+  "sourceDatabaseOid",
+  "sourceDatabaseSystemIdentifier",
+  "storageMetadataContractSha256",
+  "storageObjectInventorySha256",
+  "verifiedAt",
+]);
+const SUCCESSOR_RUNTIME_EVIDENCE_NAMES = Object.freeze(
+  Object.keys(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).sort(),
+);
 
 export class ExternalGateCollectorCliError extends Error {
   constructor(code, message) {
@@ -82,6 +148,20 @@ function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+function exactKeys(value, keys) {
+  return value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && JSON.stringify(Object.keys(value).sort())
+      === JSON.stringify([...keys].sort());
+}
+
+function exactArray(value, expected) {
+  return Array.isArray(value)
+    && value.length === expected.length
+    && value.every((entry, index) => entry === expected[index]);
+}
+
 function parseCanonicalInstant(value) {
   if (typeof value !== "string"
       || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
@@ -96,7 +176,11 @@ function parseCanonicalInstant(value) {
 
 function parseArguments(argv) {
   if (argv.length === 1 && argv[0] === "--help") return { help: true };
-  const options = {};
+  // A plain object literal routes `--__proto__=...` through the
+  // Object.prototype setter, where the assignment is a silent no-op and the
+  // name never appears in Object.keys - which would let a secret-bearing
+  // argument slip past the exact-argument-set gate below.
+  const options = Object.create(null);
   for (const argument of argv) {
     const separator = argument.indexOf("=");
     if (separator < 3) blocked("ARGUMENT_INVALID", "arguments require --name=value");
@@ -108,17 +192,53 @@ function parseArguments(argv) {
     options[name] = value;
   }
   const mode = options["--mode"];
-  const allowed = MODE_ARGUMENTS[mode];
+  const allowed = Object.hasOwn(MODE_ARGUMENTS, mode ?? "")
+    ? MODE_ARGUMENTS[mode]
+    : null;
   if (!allowed) blocked("MODE_INVALID", "mode must be vercel, hosted-restore or canary");
-  const expected = new Set([...COMMON_ARGUMENTS, ...allowed]);
-  if (Object.keys(options).some((name) => !expected.has(name))
-      || [...expected].some((name) => !options[name])) {
+  const known = new Set([...COMMON_ARGUMENTS, ...allowed]);
+  if (Object.keys(options).some((name) => !known.has(name))
+      || [...COMMON_ARGUMENTS].some((name) => !options[name])) {
+    blocked("ARGUMENT_INVALID", "mode requires its exact non-secret argument set");
+  }
+  if (mode === "canary") {
+    const recoveryProofCount = [
+      "--hosted-restore-receipt",
+      "--recovery-assurance-receipt",
+    ].filter((name) => options[name]).length;
+    if ([...CANARY_SHARED_ARGUMENTS].some((name) => !options[name])
+        || recoveryProofCount !== 1) {
+      blocked("ARGUMENT_INVALID", "canary requires exactly one status-specific recovery proof");
+    }
+  } else if ([...allowed].some((name) => !options[name])) {
     blocked("ARGUMENT_INVALID", "mode requires its exact non-secret argument set");
   }
   if (!COMMIT.test(options["--expected-commit"])) {
     blocked("EXPECTED_COMMIT_INVALID", "expected commit must be lowercase 40-hex");
   }
   return { help: false, mode, options };
+}
+
+function validateStatusSpecificArguments(parsed, successorController) {
+  if (successorController && parsed.mode === "hosted-restore") {
+    blocked(
+      "SUCCESSOR_HOSTED_RESTORE_FORBIDDEN",
+      "controller-ready successor uses no-cost recovery assurance, not hosted restore",
+    );
+  }
+  const modeArguments = parsed.mode === "canary"
+    ? successorController
+      ? SUCCESSOR_CANARY_ARGUMENTS
+      : PREDECESSOR_CANARY_ARGUMENTS
+    : MODE_ARGUMENTS[parsed.mode];
+  const expected = new Set([...COMMON_ARGUMENTS, ...modeArguments]);
+  if (Object.keys(parsed.options).some((name) => !expected.has(name))
+      || [...expected].some((name) => !parsed.options[name])) {
+    blocked(
+      "ARGUMENT_INVALID",
+      "mode arguments do not match the selected release status",
+    );
+  }
 }
 
 async function readInputReceipt(path, repoRoot, label) {
@@ -194,8 +314,59 @@ function requireEnvironment(environment, names) {
   return values;
 }
 
-async function loadManifest(repoRoot) {
-  const path = resolve(repoRoot, MANIFEST_RELATIVE_PATH);
+async function loadManifest(
+  repoRoot,
+  { validateSuccessorContract = validateSuccessorReleaseContract } = {},
+) {
+  const successorPath = resolve(
+    repoRoot,
+    SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  );
+  const successorMetadata = await lstat(successorPath).catch(() => null);
+  if (successorMetadata) {
+    if (!successorMetadata.isFile() || successorMetadata.isSymbolicLink()) {
+      blocked(
+        "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+        "successor manifest must be one regular repository file",
+      );
+    }
+    let successor;
+    try {
+      successor = validateSuccessorContract({ repoRoot });
+    } catch (error) {
+      if (error instanceof SuccessorReleaseContractError) {
+        blocked(
+          "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+          `successor release contract failed: ${error.code}`,
+        );
+      }
+      throw error;
+    }
+    if (successor.deploymentBlocked || !successor.controllerManifest) {
+      blocked(
+        "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+        "successor release is deployment-blocked and cannot collect external evidence",
+      );
+    }
+    try {
+      validateAmoraExtendedReleaseContracts(successor.controllerManifest);
+    } catch {
+      blocked(
+        "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+        "successor controller extended release contract is invalid",
+      );
+    }
+    if (!PROJECT_REF.test(successor.controllerManifest.projectRef ?? "")) {
+      blocked("MANIFEST_INVALID", "release manifest project ref is invalid");
+    }
+    return {
+      manifest: successor.controllerManifest,
+      sourceManifest: successor.manifest,
+      successorController: true,
+    };
+  }
+
+  const path = resolve(repoRoot, PREDECESSOR_MANIFEST_RELATIVE_PATH);
   let manifest;
   try {
     manifest = JSON.parse(await readFile(path, "utf8"));
@@ -206,7 +377,11 @@ async function loadManifest(repoRoot) {
   if (!PROJECT_REF.test(manifest.projectRef ?? "")) {
     blocked("MANIFEST_INVALID", "release manifest project ref is invalid");
   }
-  return manifest;
+  return {
+    manifest,
+    sourceManifest: manifest,
+    successorController: false,
+  };
 }
 
 function validateBackupBinding(receipt, expectedCommit) {
@@ -222,6 +397,224 @@ function validateBackupBinding(receipt, expectedCommit) {
     blocked("BACKUP_RECEIPT_INVALID", "backup receipt is not bound to the release");
   }
   return receipt;
+}
+
+function validateSuccessorBackupBinding({
+  receipt,
+  sourceManifest,
+  controllerManifest,
+  expectedCommit,
+  now,
+}) {
+  const contract = controllerManifest.postExpandBackupContract;
+  const capturedAt = parseCanonicalInstant(receipt?.capturedAt);
+  const verifiedAt = parseCanonicalInstant(receipt?.verifiedAt);
+  const nowValue = now();
+  const nowMs = nowValue instanceof Date ? nowValue.getTime() : Number.NaN;
+  const hashes = [
+    receipt?.backupManifestSha256,
+    receipt?.liveSchemaContractSha256,
+    receipt?.logicalDataContractSha256,
+    receipt?.authSchemaContractSha256,
+    receipt?.authUsersContractSha256,
+    receipt?.storageMetadataContractSha256,
+    receipt?.storageObjectInventorySha256,
+  ];
+  if (!exactKeys(receipt, SUCCESSOR_BACKUP_RECEIPT_KEYS)
+      || receipt.receiptVersion !== 2
+      || receipt.kind !== "successor-post-expand-backup-verification-v2"
+      || receipt.release !== sourceManifest.release
+      || receipt.projectRef !== sourceManifest.projectRef
+      || receipt.releaseCommit !== expectedCommit
+      || receipt.backupContractId !== contract?.id
+      || receipt.backupContractVersion !== 2
+      || contract?.version !== 2
+      || !BACKUP_SET_ID.test(receipt.backupSetId ?? "")
+      || hashes.some((value) => !SHA256.test(value ?? ""))
+      || !/^[1-9]\d{0,9}$/.test(receipt.sourceDatabaseOid ?? "")
+      || !/^\d{10,32}$/.test(receipt.sourceDatabaseSystemIdentifier ?? "")
+      || receipt.expectedMigrationHead !== contract.expectedReleaseMigrationHead
+      || receipt.migrationVersionsSha256
+        !== contract.expectedReleaseMigrationContractSha256
+      || receipt.expectedTableCount !== contract.expectedTableCount
+      || !exactArray(receipt.expectedTables, contract.expectedTables)
+      || receipt.expectedTableContractSha256
+        !== contract.expectedTableContractSha256
+      || !exactKeys(receipt.checks, SUCCESSOR_BACKUP_CHECK_KEYS)
+      || SUCCESSOR_BACKUP_CHECK_KEYS.some((key) => (
+        key === "plaintextWrittenToDisk"
+          ? receipt.checks[key] !== false
+          : receipt.checks[key] !== true
+      ))
+      || receipt.containsSecrets !== false
+      || capturedAt === null
+      || verifiedAt === null
+      || !Number.isFinite(nowMs)
+      || verifiedAt < capturedAt
+      || verifiedAt > nowMs + 60_000
+      || nowMs - verifiedAt > contract.maximumAgeMinutes * 60_000) {
+    blocked(
+      "BACKUP_RECEIPT_INVALID",
+      "successor post-expand backup receipt is stale, mismatched or non-canonical",
+    );
+  }
+  return receipt;
+}
+
+function validateSuccessorOutcomeBinding({
+  outcome,
+  sourceManifest,
+  expectedCommit,
+  recovery,
+}) {
+  const records = outcome?.successorRuntimeEvidence;
+  let assuranceValid = true;
+  try {
+    validateSuccessorNoAdditionalCostReleaseAssurance(
+      outcome?.successorReleaseAssurance,
+    );
+  } catch {
+    assuranceValid = false;
+  }
+  if (outcome?.release !== sourceManifest.release
+      || outcome?.projectRef !== sourceManifest.projectRef
+      || outcome?.releaseCommit !== expectedCommit
+      || !assuranceValid
+      || !Array.isArray(records)
+      || records.length !== SUCCESSOR_RUNTIME_EVIDENCE_NAMES.length) {
+    blocked(
+      "CANARY_INPUT_RECEIPT_INVALID",
+      "release outcome does not retain the exact successor runtime evidence set",
+    );
+  }
+  for (const [index, name] of SUCCESSOR_RUNTIME_EVIDENCE_NAMES.entries()) {
+    const record = records[index];
+    if (!exactKeys(record, [
+      "expiresAt",
+      "name",
+      "rawEvidenceSha256",
+      "receiptSha256",
+      "verifiedAt",
+    ])
+        || record.name !== name
+        || !SHA256.test(record.receiptSha256 ?? "")
+        || !SHA256.test(record.rawEvidenceSha256 ?? "")
+        || !Number.isFinite(Date.parse(record.verifiedAt ?? ""))
+        || !Number.isFinite(Date.parse(record.expiresAt ?? ""))) {
+      blocked(
+        "CANARY_INPUT_RECEIPT_INVALID",
+        "release outcome successor runtime record is malformed or reordered",
+      );
+    }
+  }
+  const expectedSetSha256 = sha256(
+    `${records.map((record) => [
+      record.name,
+      record.receiptSha256,
+      record.rawEvidenceSha256,
+      record.verifiedAt,
+      record.expiresAt,
+    ].join(":")).join("\n")}\n`,
+  );
+  const recoveryRecord = records.find(
+    (record) => record.name === "recoveryAssurance",
+  );
+  const backupRecord = records.find((record) => record.name === "backup");
+  const hostedStagingRecord = records.find(
+    (record) => record.name === "hostedStaging",
+  );
+  const observations = recovery.observations;
+  if (outcome.successorRuntimeEvidenceSetSha256 !== expectedSetSha256
+      || recoveryRecord.receiptSha256 !== recovery.receiptSha256
+      || recoveryRecord.rawEvidenceSha256 !== recovery.rawEvidenceSha256
+      || recoveryRecord.verifiedAt !== recovery.verifiedAt
+      || recoveryRecord.expiresAt !== recovery.expiresAt
+      || observations.preApplyBackupReceiptSha256
+        !== backupRecord.receiptSha256
+      || observations.preApplyBackupRawEvidenceSha256
+        !== backupRecord.rawEvidenceSha256
+      || observations.hostedStagingReceiptSha256
+        !== hostedStagingRecord.receiptSha256
+      || observations.hostedStagingRawEvidenceSha256
+        !== hostedStagingRecord.rawEvidenceSha256
+      || JSON.stringify(recovery.releaseAssurance)
+        !== JSON.stringify(SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE)) {
+    blocked(
+      "CANARY_INPUT_RECEIPT_INVALID",
+      "release outcome hashes differ from live no-cost recovery assurance",
+    );
+  }
+}
+
+function validateSuccessorRecoveryBinding({
+  repoRoot,
+  recoveryReceiptPath,
+  recoveryReceiptSha256,
+  sourceManifest,
+  controllerManifest,
+  expectedCommit,
+  outcome,
+  backupReceipt,
+  backupReceiptSha256,
+  now,
+  runtimeEvidenceValidator,
+}) {
+  const contract = sourceManifest.deploymentEvidence?.recoveryAssurance;
+  if (resolve(recoveryReceiptPath)
+        !== resolve(dirname(recoveryReceiptPath), contract?.receiptFileName ?? "invalid")) {
+    blocked(
+      "CANARY_INPUT_RECEIPT_INVALID",
+      "recovery-assurance path does not match the successor runtime contract",
+    );
+  }
+  let runtime;
+  try {
+    runtime = runtimeEvidenceValidator({
+      repoRoot,
+      receiptRoot: dirname(recoveryReceiptPath),
+      manifest: sourceManifest,
+      controllerManifest,
+      expectedCommit,
+      phase: "post-expand",
+      now,
+    });
+  } catch (error) {
+    if (error instanceof SuccessorReleaseContractError) {
+      blocked(
+        "CANARY_INPUT_RECEIPT_INVALID",
+        `recovery assurance failed live revalidation: ${error.code}`,
+      );
+    }
+    throw error;
+  }
+  const recovery = runtime?.recoveryAssurance;
+  const observations = recovery?.observations;
+  if (resolve(recovery?.receiptPath ?? "invalid")
+        !== resolve(recoveryReceiptPath)
+      || recovery.receiptSha256 !== recoveryReceiptSha256
+      || observations?.postExpandBackupContractId
+        !== controllerManifest.postExpandBackupContract.id
+      || observations?.postExpandBackupReceiptSha256 !== backupReceiptSha256
+      || observations?.postExpandBackupManifestSha256
+        !== backupReceipt.backupManifestSha256
+      || observations?.postExpandLiveSchemaContractSha256
+        !== backupReceipt.liveSchemaContractSha256
+      || observations?.postExpandLogicalDataContractSha256
+        !== backupReceipt.logicalDataContractSha256
+      || observations?.postExpandEncryptedArtifactsVerified !== true
+      || observations?.postExpandPGliteJsonbRoundTripVerified !== true) {
+    blocked(
+      "CANARY_INPUT_RECEIPT_INVALID",
+      "recovery assurance does not bind the exact post-expand encrypted backup",
+    );
+  }
+  validateSuccessorOutcomeBinding({
+    outcome,
+    sourceManifest,
+    expectedCommit,
+    recovery,
+  });
+  return recovery;
 }
 
 async function collectVercelMode({ repoRoot, manifest, options, environment }) {
@@ -312,7 +705,17 @@ async function collectHostedRestoreMode({
   });
 }
 
-async function collectCanaryMode({ repoRoot, manifest, options, environment }) {
+async function collectCanaryMode({
+  repoRoot,
+  manifest,
+  sourceManifest,
+  successorController,
+  options,
+  environment,
+  now,
+  runtimeEvidenceValidator,
+  collectCanaryEvidence,
+}) {
   const credentials = requireEnvironment(environment, [
     "VERCEL_TOKEN",
     "HANBANG_CANARY_SUPABASE_ANON_KEY",
@@ -340,26 +743,61 @@ async function collectCanaryMode({ repoRoot, manifest, options, environment }) {
     repoRoot,
     "post-expand backup receipt",
   );
-  const hostedData = await readInputReceipt(
-    options["--hosted-restore-receipt"],
-    repoRoot,
-    "hosted restore receipt",
-  );
-  validateBackupBinding(
-    backupData.receipt,
-    options["--expected-commit"],
-  );
+  const expectedCommit = options["--expected-commit"];
   const deployment = deploymentData.receipt;
-  if (deployment.release !== manifest.release
-      || deployment.projectRef !== manifest.projectRef
-      || deployment.releaseCommit !== options["--expected-commit"]
+  if (deployment.release !== sourceManifest.release
+      || deployment.projectRef !== sourceManifest.projectRef
+      || deployment.releaseCommit !== expectedCommit
       || deployment.readyState !== "READY"
-      || hostedData.receipt.releaseCommit !== options["--expected-commit"]
-      || outcomeData.receipt.releaseCommit !== options["--expected-commit"]) {
+      || outcomeData.receipt.releaseCommit !== expectedCommit) {
     blocked("CANARY_INPUT_RECEIPT_INVALID", "canary inputs are cross-bound or stale");
   }
+  let recoveryBinding;
+  if (successorController) {
+    const recoveryData = await readInputReceipt(
+      options["--recovery-assurance-receipt"],
+      repoRoot,
+      "recovery assurance receipt",
+    );
+    validateSuccessorBackupBinding({
+      receipt: backupData.receipt,
+      sourceManifest,
+      controllerManifest: manifest,
+      expectedCommit,
+      now,
+    });
+    validateSuccessorRecoveryBinding({
+      repoRoot,
+      recoveryReceiptPath: options["--recovery-assurance-receipt"],
+      recoveryReceiptSha256: recoveryData.sha256,
+      sourceManifest,
+      controllerManifest: manifest,
+      expectedCommit,
+      outcome: outcomeData.receipt,
+      backupReceipt: backupData.receipt,
+      backupReceiptSha256: backupData.sha256,
+      now,
+      runtimeEvidenceValidator,
+    });
+    recoveryBinding = {
+      recoveryAssuranceReceiptSha256: recoveryData.sha256,
+    };
+  } else {
+    const hostedData = await readInputReceipt(
+      options["--hosted-restore-receipt"],
+      repoRoot,
+      "hosted restore receipt",
+    );
+    validateBackupBinding(backupData.receipt, expectedCommit);
+    if (hostedData.receipt.releaseCommit !== expectedCommit) {
+      blocked("CANARY_INPUT_RECEIPT_INVALID", "canary inputs are cross-bound or stale");
+    }
+    recoveryBinding = {
+      postExpandHostedRestoreReceiptSha256: hostedData.sha256,
+    };
+  }
   const external = manifest.finalizationContract.externalEvidence;
-  return await collectProductionCanaryEvidence({
+  return await collectCanaryEvidence({
     repoRoot,
     rawEvidencePath: options["--raw-out"],
     vercelServerErrorRawEvidencePath:
@@ -367,22 +805,23 @@ async function collectCanaryMode({ repoRoot, manifest, options, environment }) {
     receiptPath: options["--receipt-out"],
     deploymentReceipt: deployment,
     expectedHost: external.canary.productionHost,
-    expectedCommit: options["--expected-commit"],
+    expectedCommit,
     observationWindowSeconds: external.canary.observationWindowSeconds,
     canaryMaximumAgeMinutes:
       manifest.finalizationContract.canaryMaximumAgeMinutes,
+    now,
     baseReceipt: {
       receiptVersion: 1,
       kind: "production-write-fenced-canary",
-      release: manifest.release,
-      projectRef: manifest.projectRef,
-      releaseCommit: options["--expected-commit"],
+      release: sourceManifest.release,
+      projectRef: sourceManifest.projectRef,
+      releaseCommit: expectedCommit,
       deploymentId: deployment.deploymentId,
       deploymentUrlSha256: deployment.deploymentUrlSha256,
       deploymentReceiptSha256: deploymentData.sha256,
       releaseOutcomeReceiptSha256: outcomeData.sha256,
       postExpandBackupReceiptSha256: backupData.sha256,
-      postExpandHostedRestoreReceiptSha256: hostedData.sha256,
+      ...recoveryBinding,
       containsSecrets: false,
     },
     browserRunner: (context) => runPlaywrightPublicCanaryObservation({
@@ -421,16 +860,26 @@ export async function runExternalGateCollectorCli({
   repoRoot: requestedRepoRoot,
   argv = [],
   environment = process.env,
+  now = () => new Date(),
+  validateSuccessorContract = validateSuccessorReleaseContract,
+  runtimeEvidenceValidator = validateSuccessorRuntimeEvidence,
+  collectCanaryEvidence = collectProductionCanaryEvidence,
 } = {}) {
   const parsed = parseArguments(argv);
   if (parsed.help) return { help: true };
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
-  const manifest = await loadManifest(repoRoot);
+  const loaded = await loadManifest(repoRoot, { validateSuccessorContract });
+  validateStatusSpecificArguments(parsed, loaded.successorController);
   const context = {
     repoRoot,
-    manifest,
+    manifest: loaded.manifest,
+    sourceManifest: loaded.sourceManifest,
+    successorController: loaded.successorController,
     options: parsed.options,
     environment,
+    now,
+    runtimeEvidenceValidator,
+    collectCanaryEvidence,
   };
   if (parsed.mode === "vercel") return await collectVercelMode(context);
   if (parsed.mode === "hosted-restore") {

@@ -1,8 +1,11 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, existsSync } from "node:fs";
+import { constants as fsConstants, existsSync } from "node:fs";
 import {
+  chmod,
+  copyFile,
   lstat,
+  mkdtemp,
   open,
   readFile,
   readdir,
@@ -10,6 +13,7 @@ import {
   rename,
   rm,
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { validateCompletedStorageDrainEvidence } from "./storage-signed-upload-drain-evidence.mjs";
@@ -26,6 +30,10 @@ import {
 } from "./production-windows-toolchain.mjs";
 import { productionDatabaseSystemIdentifier } from "./production-database-identity.mjs";
 import {
+  computeSuccessorReleaseCheckpointBindingSha256,
+  SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION,
+} from "./production-release-checkpoint-binding.mjs";
+import {
   SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
   SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
@@ -39,6 +47,8 @@ const MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/amora-engine-v2-20260716.json";
 const MAX_RECEIPT_BYTES = 64 * 1024;
 const MAX_BACKUP_MANIFEST_BYTES = 256 * 1024;
+const MAX_ENCRYPTED_BACKUP_ARTIFACT_BYTES = 16 * 1024 * 1024 * 1024;
+const MAX_PROTECTED_BACKUP_KEY_BYTES = 1024 * 1024;
 const MAX_BACKUP_AGE_MINUTES = 30;
 const MAX_BACKUP_RESUME_AGE_MINUTES = 5_256_000;
 const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
@@ -47,6 +57,8 @@ const UPPER_SHA256 = /^[A-F0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const PROJECT_REF = /^[a-z0-9]{20}$/;
 const BACKUP_SET_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+const CURRENT_REMOTE_BACKUP_VERIFICATION_KIND =
+  "vendor-disclosure-successor-current-baseline-backup-verification-v1";
 const RELEASE_LEASE_OWNER = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const MIGRATION_FILE = /^(\d{14})_[a-z0-9][a-z0-9_.-]*\.sql$/;
 const SAFE_ID = /^[a-z][a-z0-9-]{2,63}$/;
@@ -58,6 +70,13 @@ const SUCCESSOR_STORAGE_OPERATION_JSON_FILES = new Set([
 const SUCCESSOR_STORAGE_RECOVERY_JSON_FILES = new Set([
   "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json",
   "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json",
+]);
+const CURRENT_REMOTE_BACKUP_ARTIFACT_FILES = Object.freeze([
+  "logical-data.json.hbam2",
+  "logical-data.json.key.dpapi",
+  "manifest.json",
+  "schema-inventory.json.hbam2",
+  "schema-inventory.json.key.dpapi",
 ]);
 const GITHUB_HTTPS_ORIGIN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\.git$/;
 const BASELINE_CONTRACT_ID = "pre-amora-current-remote-14-table-baseline";
@@ -219,13 +238,17 @@ async function defaultRunCommand(
 }
 
 export const productionReleaseControllerTestHooks = Object.freeze({
+  computeSuccessorReleaseCheckpointBindingSha256,
   defaultRunCommand,
   mergeSuccessorRuntimeEvidence,
   validateBackupReceipt,
+  validateAwaitingOutcomeReceipt,
   validatePinnedReleaseArtifacts,
   validateRetainedPreApplyRuntimeEvidence,
   validateHostedRestoreEvidence,
   selectReleaseManifest,
+  runDatabasePushWithBackupArtifactFence,
+  pinBackupArtifactSnapshot,
 });
 
 function parseArgs(argv) {
@@ -233,6 +256,7 @@ function parseArgs(argv) {
     "--expected-commit",
     "--remote-ref",
     "--backup-receipt",
+    "--backup-directory",
     "--backup-source-repo",
     "--receipt-out",
     "--confirm-production",
@@ -458,12 +482,15 @@ function assertReadOnlySqlEnvelope(sql, phase = "post") {
   }
 }
 
-async function readBoundedJson(path, label) {
+async function readBoundedJson(path, label, maximumBytes = MAX_RECEIPT_BYTES) {
   const before = await lstat(path).catch(() => null);
   if (!before?.isFile() || before.isSymbolicLink()) {
     blocked("RECEIPT_INVALID", `${label} must be a non-symlink regular file`);
   }
-  if (before.size <= 1 || before.size > MAX_RECEIPT_BYTES) {
+  if (!Number.isSafeInteger(maximumBytes)
+      || maximumBytes < 2
+      || before.size <= 1
+      || before.size > maximumBytes) {
     blocked("RECEIPT_INVALID", `${label} has an invalid byte size`);
   }
   const sameFile = (left, right) => left.dev === right.dev
@@ -481,7 +508,7 @@ async function readBoundedJson(path, label) {
         || !sameFile(before, opened) || !sameFile(opened, linked)) {
       blocked("RECEIPT_INVALID", `${label} changed while it was opened`);
     }
-    const buffer = Buffer.alloc(MAX_RECEIPT_BYTES + 1);
+    const buffer = Buffer.alloc(maximumBytes + 1);
     let offset = 0;
     while (offset < buffer.length) {
       const { bytesRead } = await handle.read(
@@ -494,7 +521,7 @@ async function readBoundedJson(path, label) {
       offset += bytesRead;
     }
     const after = await handle.stat();
-    if (offset <= 1 || offset > MAX_RECEIPT_BYTES || offset !== opened.size
+    if (offset <= 1 || offset > maximumBytes || offset !== opened.size
         || !sameFile(opened, after)) {
       blocked("RECEIPT_INVALID", `${label} changed while it was read`);
     }
@@ -533,6 +560,16 @@ function containsSecretLikeField(value) {
   return Object.entries(value).some(([key, nested]) =>
     /(?:password|secret|token|api[_-]?key|authorization|credential)/i.test(key)
     || containsSecretLikeField(nested));
+}
+
+function containsSecretLikeValue(value) {
+  if (typeof value === "string") {
+    return /(?:\bBearer\s+[A-Za-z0-9._~+\/-]{8,}|\b(?:sk|re|sbp)_[A-Za-z0-9_-]{8,}|postgres(?:ql)?:\/\/[^\s:@]+:[^\s@]+@)/i
+      .test(value);
+  }
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(containsSecretLikeValue);
+  return Object.values(value).some(containsSecretLikeValue);
 }
 
 async function loadReadOnlyChecks({
@@ -1227,9 +1264,12 @@ async function validateBackupReceipt({
   path,
   repoRoot,
   backupSourceRepo,
+  backupDirectory,
   backupContract,
   expectedCommit,
   projectRef,
+  release,
+  remoteRef,
   runCommand,
   maximumAgeMinutes = MAX_BACKUP_AGE_MINUTES,
 }) {
@@ -1245,7 +1285,11 @@ async function validateBackupReceipt({
       throw error;
     }
   }
-  if (!isAbsolute(path) || !isAbsolute(backupSourceRepo)) {
+  const currentRemoteContract = backupContract.version === 2
+    && backupContract.format === "hbam2-encrypted-current-user";
+  if (!isAbsolute(path)
+      || !isAbsolute(backupSourceRepo)
+      || (currentRemoteContract && !isAbsolute(backupDirectory ?? ""))) {
     blocked("BACKUP_PATH_INVALID", "backup receipt and backup source repo paths must be absolute");
   }
   if (inside(repoRoot, path) || inside(backupSourceRepo, path)) {
@@ -1270,88 +1314,114 @@ async function validateBackupReceipt({
     );
   }
   const receipt = await readBoundedJson(path, "backup verification receipt");
-  if (containsSecretLikeField(receipt)) {
+  const backupReceiptSha256 = boundedJsonSha256(
+    receipt,
+    "backup verification receipt",
+  ).toLowerCase();
+  const receiptForSecretScan = currentRemoteContract ? { ...receipt } : receipt;
+  if (currentRemoteContract) delete receiptForSecretScan.ContainsSecrets;
+  if (containsSecretLikeField(receiptForSecretScan)) {
     blocked("BACKUP_RECEIPT_SECRET_FIELD", "backup verification receipt contains a forbidden secret-like field");
   }
   const boundedCount = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000_000;
-  const currentRemoteContract = backupContract.version === 2
-    && backupContract.format === "hbam2-encrypted-current-user";
   const currentRemoteReceiptKeys = [
-    "AgeSeconds",
-    "BackupDirectory",
+    "AuthSchemaContractSha256",
+    "AuthUsersCanonicalSha256",
+    "AuthUsersContractSha256",
+    "BackupContractId",
+    "BackupContractVersion",
     "BackupSetId",
-    "CreatedAtUtc",
-    "ExternalForeignKeysSkipped",
-    "ForeignKeysChecked",
+    "ContainsSecrets",
+    "EncryptedArtifacts",
+    "EncryptedArtifactsVerified",
+    "ExpectedTables",
     "GitCommit",
-    "InventoryCapturedAt",
-    "InventoryContractSha256",
+    "GitOrigin",
+    "InventorySha256",
+    "Kind",
     "LiveSchemaContractSha256",
     "LogicalDataContractSha256",
     "ManifestSha256",
-    "NodeSha256",
-    "NodeVersion",
     "PGliteJsonbRoundTripVerified",
-    "PGliteTreeSha256",
-    "PGliteVersion",
     "PlaintextWrittenToDisk",
-    "PrimaryConstraintsChecked",
+    "ProjectRef",
+    "ReceiptVersion",
+    "Release",
     "SourceCanonicalDigestsVerified",
     "SourceCapturedAt",
-    "SourceRelationContractSha256",
-    "SupabaseCliBinarySha256",
-    "SupabaseCliVersion",
+    "SourceMigrationCount",
+    "SourceMigrationHead",
+    "SupabaseCli",
+    "TableContractSha256",
     "TableCount",
-    "TotalRows",
     "Verified",
+    "VerifiedAtUtc",
+    "Verifier",
   ];
-  const createdAtMs = Date.parse(receipt.CreatedAtUtc ?? "");
   const sourceCapturedAtMs = Date.parse(receipt.SourceCapturedAt ?? "");
-  const inventoryCapturedAtMs = Date.parse(receipt.InventoryCapturedAt ?? "");
-  const currentAgeSeconds = Number.isFinite(createdAtMs)
-    ? Math.floor((Date.now() - createdAtMs) / 1_000)
+  const verifiedAtMs = Date.parse(receipt.VerifiedAtUtc ?? "");
+  const currentAgeSeconds = Number.isFinite(sourceCapturedAtMs)
+    ? Math.floor((Date.now() - sourceCapturedAtMs) / 1_000)
     : Number.NaN;
   if (currentRemoteContract && (
     !hasExactKeys(receipt, currentRemoteReceiptKeys)
+    || receipt.ReceiptVersion !== 1
+    || receipt.Kind !== CURRENT_REMOTE_BACKUP_VERIFICATION_KIND
     || receipt.Verified !== backupContract.requiredReceiptValues.Verified
+    || receipt.Release !== release
+    || receipt.ProjectRef !== projectRef
+    || receipt.GitOrigin !== backupContract.expectedOrigin
+    || receipt.BackupContractId !== backupContract.id
+    || receipt.BackupContractVersion !== backupContract.version
     || receipt.SourceCanonicalDigestsVerified
       !== backupContract.requiredReceiptValues.SourceCanonicalDigestsVerified
     || receipt.PGliteJsonbRoundTripVerified
       !== backupContract.requiredReceiptValues.PGliteJsonbRoundTripVerified
     || receipt.PlaintextWrittenToDisk
       !== backupContract.requiredReceiptValues.PlaintextWrittenToDisk
-    || !isAbsolute(receipt.BackupDirectory ?? "")
+    || receipt.EncryptedArtifactsVerified !== true
+    || receipt.ContainsSecrets !== false
     || !BACKUP_SET_ID.test(receipt.BackupSetId ?? "")
-    || !UPPER_SHA256.test(receipt.ManifestSha256 ?? "")
-    || !UPPER_SHA256.test(receipt.InventoryContractSha256 ?? "")
-    || !UPPER_SHA256.test(receipt.SourceRelationContractSha256 ?? "")
-    || !UPPER_SHA256.test(receipt.LiveSchemaContractSha256 ?? "")
-    || !UPPER_SHA256.test(receipt.LogicalDataContractSha256 ?? "")
+    || !SHA256.test(receipt.ManifestSha256 ?? "")
+    || !SHA256.test(receipt.InventorySha256 ?? "")
+    || !SHA256.test(receipt.LiveSchemaContractSha256 ?? "")
+    || !SHA256.test(receipt.LogicalDataContractSha256 ?? "")
+    || !SHA256.test(receipt.AuthSchemaContractSha256 ?? "")
+    || !SHA256.test(receipt.AuthUsersCanonicalSha256 ?? "")
+    || !SHA256.test(receipt.AuthUsersContractSha256 ?? "")
     || receipt.GitCommit !== expectedCommit
-    || receipt.SupabaseCliVersion !== backupContract.supabaseCli.version
-    || receipt.SupabaseCliBinarySha256
-      !== backupContract.supabaseCli.binarySha256
-    || !/^v\d+\.\d+\.\d+$/.test(receipt.NodeVersion ?? "")
-    || !UPPER_SHA256.test(receipt.NodeSha256 ?? "")
-    || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(receipt.PGliteVersion ?? "")
-    || !UPPER_SHA256.test(receipt.PGliteTreeSha256 ?? "")
+    || receipt.SourceMigrationHead !== backupContract.expectedMigrationHead
+    || !Number.isSafeInteger(receipt.SourceMigrationCount)
+    || receipt.SourceMigrationCount < 1
+    || receipt.TableContractSha256 !== backupContract.expectedTableContractSha256
+    || !Array.isArray(receipt.ExpectedTables)
+    || receipt.ExpectedTables.length !== backupContract.expectedTables.length
+    || receipt.ExpectedTables.some(
+      (table, index) => table !== backupContract.expectedTables[index],
+    )
+    || !hasExactKeys(receipt.EncryptedArtifacts, [
+      "LogicalDataCiphertextSha256",
+      "LogicalDataProtectedKeySha256",
+      "SchemaInventoryCiphertextSha256",
+      "SchemaInventoryProtectedKeySha256",
+    ])
+    || Object.values(receipt.EncryptedArtifacts ?? {}).some(
+      (digest) => !SHA256.test(digest ?? ""),
+    )
+    || !hasExactKeys(receipt.SupabaseCli, ["BinarySha256", "Version"])
+    || receipt.SupabaseCli.Version !== backupContract.supabaseCli.version
+    || receipt.SupabaseCli.BinarySha256 !== backupContract.supabaseCli.binarySha256
+    || !hasExactKeys(receipt.Verifier, ["File", "Sha256"])
+    || receipt.Verifier.File !== backupContract.verifier.file
+    || receipt.Verifier.Sha256 !== backupContract.verifier.sha256
     || !Number.isFinite(sourceCapturedAtMs)
-    || !Number.isFinite(inventoryCapturedAtMs)
-    || !Number.isFinite(createdAtMs)
-    || sourceCapturedAtMs > inventoryCapturedAtMs
-    || inventoryCapturedAtMs > createdAtMs
+    || !Number.isFinite(verifiedAtMs)
+    || sourceCapturedAtMs > verifiedAtMs
+    || verifiedAtMs > Date.now() + 60_000
     || !Number.isFinite(currentAgeSeconds)
     || currentAgeSeconds < -60
     || currentAgeSeconds > maximumAgeMinutes * 60
-    || !Number.isFinite(receipt.AgeSeconds)
-    || receipt.AgeSeconds < 0
-    || receipt.AgeSeconds > maximumAgeMinutes * 60
-    || receipt.AgeSeconds > currentAgeSeconds + 60
     || receipt.TableCount !== backupContract.expectedTableCount
-    || !boundedCount(receipt.TotalRows)
-    || !boundedCount(receipt.PrimaryConstraintsChecked)
-    || !boundedCount(receipt.ForeignKeysChecked)
-    || !boundedCount(receipt.ExternalForeignKeysSkipped)
   )) {
     blocked(
       "BACKUP_RECEIPT_INVALID",
@@ -1385,41 +1455,39 @@ async function validateBackupReceipt({
     blocked("BACKUP_RECEIPT_INVALID", "backup receipt does not prove all required verification gates");
   }
 
+  let currentRemoteManifest = null;
+  let canonicalBackupDirectory = null;
   if (currentRemoteContract) {
-    const backupDirectory = await realpath(receipt.BackupDirectory).catch(() => null);
-    const backupDirectoryMetadata = await lstat(receipt.BackupDirectory).catch(() => null);
-    if (!backupDirectory
+    canonicalBackupDirectory = await realpath(backupDirectory).catch(() => null);
+    const backupDirectoryMetadata = await lstat(backupDirectory).catch(() => null);
+    if (!canonicalBackupDirectory
         || !backupDirectoryMetadata?.isDirectory()
         || backupDirectoryMetadata.isSymbolicLink()
-        || inside(repoRoot, backupDirectory)
-        || inside(backupSourceRepo, backupDirectory)) {
+        || inside(repoRoot, canonicalBackupDirectory)
+        || inside(backupSourceRepo, canonicalBackupDirectory)
+        || dirname(canonicalBackupDirectory) !== dirname(canonicalReceipt)
+        || !/^\d{8}-\d{6}$/.test(basename(canonicalBackupDirectory))
+        || basename(canonicalReceipt)
+          !== `${receipt.BackupSetId}-successor-logical-verification.json`) {
       blocked(
         "BACKUP_ARTIFACT_INVALID",
-        "current-remote backup directory must be a private non-symlink directory outside Git",
+        "current-remote backup directory and receipt must be exact private siblings outside Git",
       );
     }
-    const expectedEntries = [
-      "logical-data.json.hbam2",
-      "logical-data.json.key.dpapi",
-      "manifest.json",
-      "schema-inventory.json.hbam2",
-      "schema-inventory.json.key.dpapi",
-    ];
-    const entries = await readdir(backupDirectory, { withFileTypes: true })
+    const entries = await readdir(canonicalBackupDirectory, { withFileTypes: true })
       .catch(() => []);
     const entryNames = entries.map((entry) => entry.name).sort();
-    if (entryNames.length !== expectedEntries.length
-        || entryNames.some((entry, index) => entry !== expectedEntries[index])
+    if (entryNames.length !== CURRENT_REMOTE_BACKUP_ARTIFACT_FILES.length
+        || entryNames.some(
+          (entry, index) => entry !== CURRENT_REMOTE_BACKUP_ARTIFACT_FILES[index],
+        )
         || entries.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
       blocked(
         "BACKUP_ARTIFACT_INVALID",
         "current-remote backup directory does not contain the exact encrypted artifact set",
       );
     }
-    const privateManifestPath = join(backupDirectory, "manifest.json");
-    if (await rawFileSha256(privateManifestPath) !== receipt.ManifestSha256) {
-      blocked("BACKUP_ARTIFACT_INVALID", "private backup manifest hash differs from its receipt");
-    }
+    const privateManifestPath = join(canonicalBackupDirectory, "manifest.json");
     const privateManifestMetadata = await lstat(privateManifestPath).catch(() => null);
     if (!privateManifestMetadata?.isFile()
         || privateManifestMetadata.isSymbolicLink()
@@ -1429,7 +1497,15 @@ async function validateBackupReceipt({
     const privateManifest = await readBoundedJson(
       privateManifestPath,
       "private current-remote backup manifest",
+      MAX_BACKUP_MANIFEST_BYTES,
     );
+    if (boundedJsonSha256(
+      privateManifest,
+      "private current-remote backup manifest",
+    ).toLowerCase() !== receipt.ManifestSha256) {
+      blocked("BACKUP_ARTIFACT_INVALID", "private backup manifest hash differs from its receipt");
+    }
+    currentRemoteManifest = privateManifest;
     const tableNames = privateManifest.tables
       && typeof privateManifest.tables === "object"
       && !Array.isArray(privateManifest.tables)
@@ -1440,25 +1516,47 @@ async function validateBackupReceipt({
           !== "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser"
         || privateManifest.format_version !== 2
         || privateManifest.status !== "complete"
+        || privateManifest.backup_type
+          !== "vendor-disclosure-successor-current-production-logical-snapshot"
         || privateManifest.backup_set_id !== receipt.BackupSetId
-        || privateManifest.created_at_utc !== receipt.CreatedAtUtc
+        || privateManifest.release !== release
+        || privateManifest.backup_contract_id !== backupContract.id
+        || privateManifest.backup_contract_version !== backupContract.version
         || privateManifest.source_captured_at !== receipt.SourceCapturedAt
-        || privateManifest.inventory_captured_at !== receipt.InventoryCapturedAt
         || privateManifest.inventory_contract_sha256
-          !== receipt.InventoryContractSha256
-        || privateManifest.source_relation_contract_sha256
-          !== receipt.SourceRelationContractSha256
+          !== receipt.InventorySha256
         || privateManifest.live_schema_contract_sha256
           !== receipt.LiveSchemaContractSha256
         || privateManifest.logical_data_contract_sha256
           !== receipt.LogicalDataContractSha256
+        || privateManifest.auth_schema_contract_sha256
+          !== receipt.AuthSchemaContractSha256
+        || privateManifest.auth_users_canonical_sha256
+          !== receipt.AuthUsersCanonicalSha256
+        || privateManifest.auth_users_contract_sha256
+          !== receipt.AuthUsersContractSha256
         || privateManifest.source_project_ref !== projectRef
+        || privateManifest.source_migration_head !== receipt.SourceMigrationHead
+        || privateManifest.source_migration_count !== receipt.SourceMigrationCount
+        || privateManifest.table_count !== receipt.TableCount
+        || privateManifest.table_contract_sha256 !== receipt.TableContractSha256
+        || !Array.isArray(privateManifest.expected_tables)
+        || privateManifest.expected_tables.length !== receipt.ExpectedTables.length
+        || privateManifest.expected_tables.some(
+          (table, index) => table !== receipt.ExpectedTables[index],
+        )
+        || privateManifest.git_commit !== expectedCommit
+        || privateManifest.git_origin !== backupContract.expectedOrigin
+        || privateManifest.git_remote_ref !== remoteRef
         || privateManifest.implementation?.git_commit !== expectedCommit
         || privateManifest.supabase_cli?.version !== backupContract.supabaseCli.version
         || typeof cliRelativePath !== "string"
         || privateManifest.supabase_cli?.files?.[cliRelativePath]
           !== backupContract.supabaseCli.binarySha256
+        || privateManifest.verifier?.file !== backupContract.verifier.file
+        || privateManifest.verifier?.sha256 !== backupContract.verifier.sha256
         || privateManifest.plaintext_written_to_disk !== false
+        || privateManifest.contains_secrets !== false
         || tableNames.length !== backupContract.expectedTables.length
         || tableNames.some(
           (table, index) => table !== backupContract.expectedTables[index],
@@ -1539,27 +1637,49 @@ async function validateBackupReceipt({
     }
   }
   const verifier = resolve(backupSourceRepo, backupContract.verifier.file);
+  const verifierArguments = [
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    verifier,
+    "-BackupDirectory",
+    currentRemoteContract ? canonicalBackupDirectory : receipt.BackupDirectory,
+    "-ExpectedProjectRef",
+    projectRef,
+    "-ExpectedBackupSetId",
+    receipt.BackupSetId,
+    "-ExpectedManifestSha256",
+    receipt.ManifestSha256,
+    "-MaximumAgeMinutes",
+    String(maximumAgeMinutes),
+  ];
+  if (currentRemoteContract) {
+    verifierArguments.push(
+      "-ExpectedCommit",
+      expectedCommit,
+      "-ExpectedGitOrigin",
+      backupContract.expectedOrigin,
+      "-RemoteRef",
+      remoteRef,
+      "-Release",
+      release,
+      "-BackupContractId",
+      backupContract.id,
+      "-BackupContractVersion",
+      String(backupContract.version),
+      "-ExpectedSupabaseCliVersion",
+      backupContract.supabaseCli.version,
+      "-ExpectedSupabaseCliBinarySha256",
+      backupContract.supabaseCli.binarySha256,
+      "-ReplayOnly",
+    );
+  }
   const verification = await requireCommandSuccess(
     runCommand,
     powershell,
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      verifier,
-      "-BackupDirectory",
-      receipt.BackupDirectory,
-      "-ExpectedProjectRef",
-      projectRef,
-      "-ExpectedBackupSetId",
-      receipt.BackupSetId,
-      "-ExpectedManifestSha256",
-      receipt.ManifestSha256,
-      "-MaximumAgeMinutes",
-      String(maximumAgeMinutes),
-    ],
+    verifierArguments,
     { cwd: backupSourceRepo },
     "BACKUP_REVERIFY_FAILED",
   );
@@ -1591,15 +1711,17 @@ async function validateBackupReceipt({
     "PlaintextWrittenToDisk",
   ];
   if (currentRemoteContract) {
-    const immutableKeys = currentRemoteReceiptKeys.filter((key) => key !== "AgeSeconds");
-    const freshAge = fresh?.AgeSeconds;
+    const immutableKeys = currentRemoteReceiptKeys.filter(
+      (key) => key !== "VerifiedAtUtc",
+    );
+    const freshVerifiedAtMs = Date.parse(fresh?.VerifiedAtUtc ?? "");
     if (!hasExactKeys(fresh, currentRemoteReceiptKeys)
-        || immutableKeys.some((field) => fresh[field] !== receipt[field])
-        || !Number.isFinite(freshAge)
-        || freshAge < Math.max(0, receipt.AgeSeconds - 1)
-        || freshAge > maximumAgeMinutes * 60
-        || freshAge < currentAgeSeconds - 60
-        || freshAge > currentAgeSeconds + 10 * 60) {
+        || immutableKeys.some(
+          (field) => JSON.stringify(fresh[field]) !== JSON.stringify(receipt[field]),
+        )
+        || !Number.isFinite(freshVerifiedAtMs)
+        || freshVerifiedAtMs < verifiedAtMs
+        || freshVerifiedAtMs > Date.now() + 60_000) {
       blocked(
         "BACKUP_REVERIFY_MISMATCH",
         "fresh current-remote backup verification differs from the supplied receipt",
@@ -1610,12 +1732,24 @@ async function validateBackupReceipt({
       || matchedFields.some((field) => fresh[field] !== receipt[field])) {
     blocked("BACKUP_REVERIFY_MISMATCH", "fresh backup verification does not match the supplied receipt");
   }
+  const backupArtifactSnapshot = currentRemoteContract
+    ? await captureBackupArtifactSnapshot(canonicalBackupDirectory)
+    : null;
   return {
     ...receipt,
     ...(currentRemoteContract
       ? {
+        BackupDirectory: canonicalBackupDirectory,
+        CreatedAtUtc: currentRemoteManifest.created_at_utc,
+        InventoryCapturedAt: currentRemoteManifest.inventory_after_captured_at,
         SchemaContractSha256: receipt.LiveSchemaContractSha256,
-        SourceRelationContractSha256: receipt.LogicalDataContractSha256,
+        SourceRelationContractSha256:
+          currentRemoteManifest.source_relation_contract_sha256,
+        BackupReceiptSha256: backupReceiptSha256,
+        BackupDirectoryPathSha256:
+          backupArtifactSnapshot.directoryPathSha256,
+        BackupArtifactSetSha256: backupArtifactSnapshot.setSha256,
+        BackupArtifactSnapshot: backupArtifactSnapshot,
       }
       : {}),
     SupabaseCliVersion: backupContract.supabaseCli.version,
@@ -2123,7 +2257,8 @@ async function validateReleaseLock({
     }
     throw error;
   });
-  if (!hasExactKeys(lock, [
+  const successorRelease = manifest.status === "controller_ready";
+  const exactKeys = [
     "outcomeReceiptPathSha256",
     "projectRef",
     "release",
@@ -2132,12 +2267,25 @@ async function validateReleaseLock({
     "rerunProhibitedUntilAdjudicated",
     "startedAt",
     "version",
-  ])
+    ...(successorRelease
+      ? [
+        "remoteReleaseLeaseCheckpointBindingSha256",
+        "successorCheckpointBindingVersion",
+      ]
+      : []),
+  ];
+  if (!hasExactKeys(lock, exactKeys)
       || lock.version !== 2
       || lock.release !== manifest.release
       || lock.projectRef !== manifest.projectRef
       || lock.releaseCommit !== expectedCommit
       || lock.outcomeReceiptPathSha256 !== textSha256(resolve(outcomeReceiptPath))
+      || (successorRelease
+        && (lock.successorCheckpointBindingVersion
+            !== SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION
+          || !SHA256.test(
+            lock.remoteReleaseLeaseCheckpointBindingSha256 ?? "",
+          )))
       || !RELEASE_LEASE_OWNER.test(lock.remoteReleaseLeaseOwnerId ?? "")
       || lock.rerunProhibitedUntilAdjudicated !== true
       || !Number.isFinite(Date.parse(lock.startedAt ?? ""))) {
@@ -2145,6 +2293,79 @@ async function validateReleaseLock({
   }
   return lock;
 }
+
+const AWAITING_OUTCOME_COMMON_KEYS = Object.freeze([
+  "backupContractId",
+  "backupContractVersion",
+  "backupEphemeralRebuildContract",
+  "backupExcludedEphemeralTables",
+  "backupExpectedTableCount",
+  "backupGitCommit",
+  "backupManifestSha256",
+  "backupSetId",
+  "backupVerifierSha256",
+  "containsSecrets",
+  "forwardOnlySecurityCheckEvidence",
+  "forwardOnlySecurityOperationCount",
+  "forwardOnlySecurityOperationIds",
+  "lastUpdatedAt",
+  "migrations",
+  "operatorAction",
+  "pendingManualOperationCount",
+  "pendingManualOperationIds",
+  "postPendingCount",
+  "postRemoteLedgerCount",
+  "postRemoteLedgerSha256",
+  "preApplyCheckCount",
+  "preApplyCheckEvidence",
+  "preApplyCheckIds",
+  "preRemoteLedgerCount",
+  "preRemoteLedgerSha256",
+  "projectRef",
+  "receiptVersion",
+  "release",
+  "releaseCommit",
+  "remoteRef",
+  "remoteReleaseLeaseOutcomePathSha256",
+  "remoteReleaseLeaseOwnerId",
+  "remoteReleaseLeasePhase",
+  "rerunProhibited",
+  "rollbackArtifactIds",
+  "sourceOrigin",
+  "startedAt",
+  "status",
+  "supabaseCliBinarySha256",
+  "supabaseCliVersion",
+  "verifiedManualOperationCount",
+  "verifiedManualOperationIds",
+  "writeFenceEvidenceControlCount",
+  "writeFenceEvidenceOperationIds",
+  "writeFenceEvidenceSha256",
+  "writeFenceEvidenceVerifiedAt",
+]);
+
+const AWAITING_OUTCOME_PREDECESSOR_KEYS = Object.freeze([
+  ...AWAITING_OUTCOME_COMMON_KEYS,
+  "hostedRestoreEvidenceCheckCount",
+  "hostedRestoreEvidenceSha256",
+  "hostedRestoreEvidenceVerifiedAt",
+  "hostedRestoreTargetProjectRef",
+]);
+
+const AWAITING_OUTCOME_SUCCESSOR_KEYS = Object.freeze([
+  ...AWAITING_OUTCOME_COMMON_KEYS,
+  "backupArtifactSetSha256",
+  "backupDirectoryPathSha256",
+  "backupReceiptSha256",
+  "backupSourceCapturedAt",
+  "outcomeReceiptPathSha256",
+  "preApplySuccessorRuntimeEvidenceSetSha256",
+  "remoteReleaseLeaseCheckpointBindingSha256",
+  "successorCheckpointBindingVersion",
+  "successorReleaseAssurance",
+  "successorRuntimeEvidence",
+  "successorRuntimeEvidenceSetSha256",
+]);
 
 async function validateAwaitingOutcomeReceipt({
   path,
@@ -2175,6 +2396,7 @@ async function validateAwaitingOutcomeReceipt({
   delete receiptForSecretScan.containsSecrets;
   const successorRelease = manifest.status === "controller_ready";
   let successorReleaseAssuranceValid = !successorRelease;
+  let successorCheckpointBindingSha256 = null;
   if (successorRelease) {
     try {
       validateSuccessorNoAdditionalCostReleaseAssurance(
@@ -2184,8 +2406,35 @@ async function validateAwaitingOutcomeReceipt({
     } catch {
       successorReleaseAssuranceValid = false;
     }
+    try {
+      successorCheckpointBindingSha256 =
+        computeSuccessorReleaseCheckpointBindingSha256({
+          version: receipt.successorCheckpointBindingVersion,
+          release: receipt.release,
+          projectRef: receipt.projectRef,
+          expectedCommit: receipt.releaseCommit,
+          outcomeReceiptPathSha256: receipt.outcomeReceiptPathSha256,
+          backupReceiptSha256: receipt.backupReceiptSha256,
+          backupDirectoryPathSha256: receipt.backupDirectoryPathSha256,
+          backupArtifactSetSha256: receipt.backupArtifactSetSha256,
+          backupSourceCapturedAt: receipt.backupSourceCapturedAt,
+          startedAt: receipt.startedAt,
+          writeFenceEvidenceSha256: receipt.writeFenceEvidenceSha256,
+          preApplySuccessorRuntimeEvidenceSetSha256:
+            receipt.preApplySuccessorRuntimeEvidenceSetSha256,
+        });
+    } catch {
+      successorCheckpointBindingSha256 = null;
+    }
   }
-  if (containsSecretLikeField(receiptForSecretScan)
+  if (!hasExactKeys(
+    receipt,
+    successorRelease
+      ? AWAITING_OUTCOME_SUCCESSOR_KEYS
+      : AWAITING_OUTCOME_PREDECESSOR_KEYS,
+  )
+      || containsSecretLikeField(receiptForSecretScan)
+      || containsSecretLikeValue(receiptForSecretScan)
       || !successorReleaseAssuranceValid
       || (!successorRelease && receipt.successorReleaseAssurance !== undefined)
       || receipt.receiptVersion !== 1
@@ -2198,6 +2447,22 @@ async function validateAwaitingOutcomeReceipt({
       || receipt.backupSetId !== backupReceipt.BackupSetId
       || receipt.backupManifestSha256 !== backupReceipt.ManifestSha256
       || receipt.backupGitCommit !== backupReceipt.GitCommit
+      || (successorRelease
+        && (receipt.successorCheckpointBindingVersion
+            !== SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION
+          || receipt.outcomeReceiptPathSha256 !== textSha256(resolve(path))
+          || receipt.backupReceiptSha256 !== backupReceipt.BackupReceiptSha256
+          || receipt.backupDirectoryPathSha256
+            !== backupReceipt.BackupDirectoryPathSha256
+          || receipt.backupArtifactSetSha256
+            !== backupReceipt.BackupArtifactSetSha256
+          || receipt.backupSourceCapturedAt !== backupReceipt.SourceCapturedAt
+          || receipt.preApplySuccessorRuntimeEvidenceSetSha256
+            !== receipt.successorRuntimeEvidenceSetSha256
+          || receipt.remoteReleaseLeaseCheckpointBindingSha256
+            !== successorCheckpointBindingSha256
+          || receipt.remoteReleaseLeaseOutcomePathSha256
+            !== successorCheckpointBindingSha256))
       || receipt.backupContractId !== manifest.backupContract.id
       || receipt.backupContractVersion !== manifest.backupContract.version
       || !arraysEqual(receipt.verifiedManualOperationIds, preOperationIds)
@@ -2332,14 +2597,352 @@ async function validatePostPushEvidenceReceipt({
   };
 }
 
-async function rawFileSha256(path) {
-  return await new Promise((resolveHash, rejectHash) => {
+function sameFileIdentity(left, right) {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.size === right.size
+    && left.mtimeMs === right.mtimeMs
+    && left.ctimeMs === right.ctimeMs;
+}
+
+async function readStableFileFingerprint(path, {
+  label,
+  maximumBytes,
+  errorCode,
+}) {
+  const before = await lstat(path).catch(() => null);
+  if (!before?.isFile()
+      || before.isSymbolicLink()
+      || !Number.isSafeInteger(before.size)
+      || before.size < 1
+      || before.size > maximumBytes) {
+    blocked(errorCode, `${label} is missing, unsafe or outside its byte bound`);
+  }
+  let handle;
+  try {
+    handle = await open(path, "r");
+    const opened = await handle.stat();
+    const linked = await lstat(path).catch(() => null);
+    if (!opened.isFile()
+        || !linked?.isFile()
+        || linked.isSymbolicLink()
+        || !sameFileIdentity(before, opened)
+        || !sameFileIdentity(opened, linked)) {
+      blocked(errorCode, `${label} changed while it was opened`);
+    }
     const hash = createHash("sha256");
-    const stream = createReadStream(path);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("error", rejectHash);
-    stream.on("end", () => resolveHash(hash.digest("hex").toUpperCase()));
+    const buffer = Buffer.alloc(1024 * 1024);
+    let offset = 0;
+    while (offset < opened.size) {
+      const requested = Math.min(buffer.length, opened.size - offset);
+      const { bytesRead } = await handle.read(buffer, 0, requested, offset);
+      if (bytesRead < 1) {
+        blocked(errorCode, `${label} ended before its verified byte size`);
+      }
+      hash.update(buffer.subarray(0, bytesRead));
+      offset += bytesRead;
+    }
+    const after = await handle.stat();
+    const linkedAfter = await lstat(path).catch(() => null);
+    if (offset !== opened.size
+        || !linkedAfter?.isFile()
+        || linkedAfter.isSymbolicLink()
+        || !sameFileIdentity(opened, after)
+        || !sameFileIdentity(after, linkedAfter)) {
+      blocked(errorCode, `${label} changed while it was hashed`);
+    }
+    return Object.freeze({
+      dev: String(after.dev),
+      ino: String(after.ino),
+      size: after.size,
+      mtimeMs: after.mtimeMs,
+      ctimeMs: after.ctimeMs,
+      sha256: hash.digest("hex"),
+    });
+  } catch (error) {
+    if (error instanceof ReleaseBlockedError) throw error;
+    blocked(errorCode, `${label} could not be read from one stable file identity`);
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
+
+function maximumBackupArtifactBytes(name) {
+  if (name === "manifest.json") return MAX_BACKUP_MANIFEST_BYTES;
+  if (name.endsWith(".key.dpapi")) return MAX_PROTECTED_BACKUP_KEY_BYTES;
+  return MAX_ENCRYPTED_BACKUP_ARTIFACT_BYTES;
+}
+
+async function captureBackupArtifactSnapshot(
+  directory,
+  errorCode = "BACKUP_ARTIFACT_INVALID",
+) {
+  const canonicalDirectory = await realpath(directory).catch(() => null);
+  const metadata = await lstat(directory).catch(() => null);
+  if (!canonicalDirectory
+      || !metadata?.isDirectory()
+      || metadata.isSymbolicLink()) {
+    blocked(errorCode, "current-remote backup directory is missing or unsafe");
+  }
+  const entries = await readdir(canonicalDirectory, { withFileTypes: true })
+    .catch(() => []);
+  const entryNames = entries.map((entry) => entry.name).sort();
+  if (entryNames.length !== CURRENT_REMOTE_BACKUP_ARTIFACT_FILES.length
+      || entryNames.some(
+        (name, index) => name !== CURRENT_REMOTE_BACKUP_ARTIFACT_FILES[index],
+      )
+      || entries.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
+    blocked(errorCode, "current-remote backup artifact set changed");
+  }
+  const fingerprints = [];
+  for (const name of CURRENT_REMOTE_BACKUP_ARTIFACT_FILES) {
+    const path = join(canonicalDirectory, name);
+    const canonicalPath = await realpath(path).catch(() => null);
+    if (canonicalPath !== path) {
+      blocked(errorCode, `current-remote backup artifact ${name} is not canonical`);
+    }
+    const fingerprint = await readStableFileFingerprint(path, {
+      label: `current-remote backup artifact ${name}`,
+      maximumBytes: maximumBackupArtifactBytes(name),
+      errorCode,
+    });
+    fingerprints.push(Object.freeze({ name, ...fingerprint }));
+  }
+  const directoryPathSha256 = textSha256(canonicalDirectory);
+  const setSha256 = textSha256(`${[
+    "hanbang-current-remote-backup-artifact-set-v1",
+    `directoryPathSha256:${directoryPathSha256}`,
+    ...fingerprints.map((entry) => [
+      entry.name,
+      entry.dev,
+      entry.ino,
+      entry.size,
+      entry.mtimeMs,
+      entry.ctimeMs,
+      entry.sha256,
+    ].join(":")),
+    "",
+  ].join("\n")}`);
+  return Object.freeze({
+    version: 1,
+    directory: canonicalDirectory,
+    directoryPathSha256,
+    entries: Object.freeze(fingerprints),
+    setSha256,
   });
+}
+
+async function assertBackupArtifactSnapshot(snapshot) {
+  if (!snapshot || snapshot.version !== 1) return;
+  const current = await captureBackupArtifactSnapshot(
+    snapshot.directory,
+    "BACKUP_ARTIFACT_CHANGED",
+  );
+  if (JSON.stringify(current) !== JSON.stringify(snapshot)) {
+    blocked(
+      "BACKUP_ARTIFACT_CHANGED",
+      "the replayed current-remote backup artifact identity changed before or during db push",
+    );
+  }
+}
+
+/**
+ * libuv maps `UV_FS_O_EXLOCK` to `CreateFileW` with `dwShareMode = 0` on
+ * Windows and to `O_EXLOCK` on the BSD family. Node does not surface the
+ * constant on Windows, so the numeric libuv value is used directly.
+ */
+const UV_FS_O_EXLOCK = 0x10000000;
+/** One immediate attempt, then bounded backoff totalling about 3 seconds. */
+const PIN_ATTEMPT_DELAYS_MS = Object.freeze([100, 200, 400, 800, 1600, 0]);
+
+function mandatoryExclusiveOpenFlags() {
+  // Only Windows gives a genuinely mandatory pin: libuv maps UV_FS_O_EXLOCK to
+  // CreateFileW with dwShareMode = 0, so the kernel refuses every other
+  // writer, unlink and rename. The BSD/macOS O_EXLOCK is an advisory flock -
+  // it does not stop a writer that never asks for a lock, and it does not stop
+  // unlink or rename at all - so it must not be reported as identity-pinning.
+  return process.platform === "win32"
+    ? fsConstants.O_RDONLY | UV_FS_O_EXLOCK
+    : null;
+}
+
+async function readFingerprintFromHandle(handle, label, expectedSize, errorCode) {
+  const opened = await handle.stat();
+  if (!opened.isFile() || opened.size !== expectedSize) {
+    blocked(errorCode, `${label} changed while it was pinned for db push`);
+  }
+  const hash = createHash("sha256");
+  const buffer = Buffer.alloc(1024 * 1024);
+  let offset = 0;
+  while (offset < opened.size) {
+    const requested = Math.min(buffer.length, opened.size - offset);
+    const { bytesRead } = await handle.read(buffer, 0, requested, offset);
+    if (bytesRead < 1) {
+      blocked(errorCode, `${label} ended before its pinned byte size`);
+    }
+    hash.update(buffer.subarray(0, bytesRead));
+    offset += bytesRead;
+  }
+  const after = await handle.stat();
+  return Object.freeze({
+    dev: String(after.dev),
+    ino: String(after.ino),
+    size: after.size,
+    mtimeMs: after.mtimeMs,
+    ctimeMs: after.ctimeMs,
+    sha256: hash.digest("hex"),
+  });
+}
+
+/**
+ * Compare-before/compare-after cannot see a replacement that is undone before
+ * `supabase db push` returns, so the verified artifacts are pinned for the whole
+ * push instead of merely observed around it. Windows and the BSD family get a
+ * deny-write/deny-delete handle; elsewhere the equally binding fallback is a
+ * private, content-verified immutable copy that the push cannot reach.
+ */
+async function pinBackupArtifactSnapshot(
+  snapshot,
+  errorCode = "BACKUP_ARTIFACT_UNPINNABLE",
+) {
+  if (!snapshot || snapshot.version !== 1) return null;
+  const pins = [];
+  const closeHandles = async () => {
+    for (const pin of pins) await pin.handle.close().catch(() => {});
+  };
+  const flags = mandatoryExclusiveOpenFlags();
+  if (flags !== null) {
+    // A deny-all-sharing open fails with EBUSY while ANY other handle is open,
+    // including a benign one from a virus scanner, the search indexer or a file
+    // sync client. Those are transient, so a single attempt would turn this
+    // into a flaky hard abort at the last step before the production push.
+    let failure = null;
+    for (let attempt = 0; attempt < PIN_ATTEMPT_DELAYS_MS.length; attempt += 1) {
+      failure = null;
+      for (const entry of snapshot.entries) {
+        const path = join(snapshot.directory, entry.name);
+        try {
+          pins.push({ entry, path, handle: await open(path, flags) });
+        } catch (error) {
+          failure = { name: entry.name, code: error?.code ?? "UNKNOWN" };
+          break;
+        }
+      }
+      if (!failure) break;
+      await closeHandles();
+      pins.length = 0;
+      const delay = PIN_ATTEMPT_DELAYS_MS[attempt];
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    if (failure) {
+      await closeHandles();
+      blocked(
+        errorCode,
+        `the verified current-remote backup artifacts could not be held against concurrent writes for db push: ${failure.name} failed with ${failure.code}`,
+      );
+    }
+    return Object.freeze({
+      mode: "mandatory-exclusive-handles",
+      identityPinned: true,
+      pins: Object.freeze(pins),
+      release: closeHandles,
+    });
+  }
+  let directory = null;
+  try {
+    directory = await mkdtemp(join(tmpdir(), "hanbang-backup-pin-"));
+    await chmod(directory, 0o700);
+    for (const entry of snapshot.entries) {
+      const target = join(directory, entry.name);
+      await copyFile(
+        join(snapshot.directory, entry.name),
+        target,
+        fsConstants.COPYFILE_EXCL,
+      );
+      pins.push({ entry, path: target, handle: await open(target, "r") });
+    }
+  } catch {
+    await closeHandles();
+    if (directory) await rm(directory, { recursive: true, force: true });
+    blocked(
+      errorCode,
+      "the verified current-remote backup artifacts could not be copied into an immutable pin for db push",
+    );
+  }
+  return Object.freeze({
+    mode: "verified-immutable-copy",
+    identityPinned: false,
+    pins: Object.freeze(pins),
+    directory,
+    release: async () => {
+      await closeHandles();
+      // Runs from a `finally`; a cleanup failure must never replace the error
+      // that is already propagating out of the push.
+      await rm(directory, { recursive: true, force: true }).catch(() => {});
+    },
+  });
+}
+
+async function assertPinnedBackupArtifactContent(
+  pinned,
+  errorCode = "BACKUP_ARTIFACT_CHANGED",
+) {
+  if (!pinned) return;
+  for (const pin of pinned.pins) {
+    const label = `current-remote backup artifact ${pin.entry.name}`;
+    const actual = await readFingerprintFromHandle(
+      pin.handle,
+      label,
+      pin.entry.size,
+      errorCode,
+    );
+    // A copy keeps the bytes, not the inode, so only identity-pinned handles
+    // can be held to the recorded dev/ino/timestamps.
+    const compared = pinned.identityPinned
+      ? ["dev", "ino", "size", "mtimeMs", "ctimeMs", "sha256"]
+      : ["size", "sha256"];
+    if (compared.some((key) => actual[key] !== pin.entry[key])) {
+      blocked(
+        errorCode,
+        "the pinned current-remote backup artifact identity changed during db push",
+      );
+    }
+  }
+}
+
+async function runDatabasePushWithBackupArtifactFence({
+  backupArtifactSnapshot,
+  runCommand,
+  command,
+  args,
+  options,
+  beforeCommand = () => {},
+  pinArtifacts = pinBackupArtifactSnapshot,
+}) {
+  await assertBackupArtifactSnapshot(backupArtifactSnapshot);
+  const pinned = await pinArtifacts(backupArtifactSnapshot);
+  let result;
+  try {
+    // Closes the gap between the path-based check above and the pin itself:
+    // the bytes now held open must still be the verified bytes.
+    await assertPinnedBackupArtifactContent(pinned);
+    await beforeCommand();
+    result = await runCommand(command, args, options);
+    await assertPinnedBackupArtifactContent(pinned);
+  } finally {
+    await pinned?.release();
+  }
+  await assertBackupArtifactSnapshot(backupArtifactSnapshot);
+  return result;
+}
+
+async function rawFileSha256(path) {
+  const fingerprint = await readStableFileFingerprint(path, {
+    label: "Supabase CLI binary",
+    maximumBytes: 1024 * 1024 * 1024,
+    errorCode: "SUPABASE_CLI_PROVENANCE_MISMATCH",
+  });
+  return fingerprint.sha256.toUpperCase();
 }
 
 function cliPackageCandidates() {
@@ -2512,6 +3115,9 @@ async function runPostPushResume({
     manifest,
     expectedCommit: options.expectedCommit,
   });
+  const remoteReleaseLeaseBindingSha256 = successorRelease
+    ? releaseLock.remoteReleaseLeaseCheckpointBindingSha256
+    : releaseLock.outcomeReceiptPathSha256;
   const resumeLeasePath = `${lockPath}.resume`;
   const resumeLease = await open(resumeLeasePath, "wx", 0o600).catch(() => null);
   if (!resumeLease) {
@@ -2525,6 +3131,12 @@ async function runPostPushResume({
       releaseCommit: options.expectedCommit,
       remoteReleaseLeaseOwnerId: releaseLock.remoteReleaseLeaseOwnerId,
       outcomeReceiptPathSha256: releaseLock.outcomeReceiptPathSha256,
+      ...(successorRelease
+        ? {
+          remoteReleaseLeaseCheckpointBindingSha256:
+            remoteReleaseLeaseBindingSha256,
+        }
+        : {}),
       processId: process.pid,
       resumedAt: now().toISOString(),
     })}\n`, "utf8");
@@ -2534,9 +3146,12 @@ async function runPostPushResume({
       path: options.backupReceipt,
       repoRoot,
       backupSourceRepo: options.backupSourceRepo,
+      backupDirectory: options.backupDirectory,
       backupContract: manifest.backupContract,
       expectedCommit: options.expectedCommit,
       projectRef: manifest.projectRef,
+      release: manifest.release,
+      remoteRef: options.remoteRef,
       runCommand,
       maximumAgeMinutes: MAX_BACKUP_RESUME_AGE_MINUTES,
     });
@@ -2573,8 +3188,16 @@ async function runPostPushResume({
           !== writeFenceEvidence.verifiedAt
         || awaitingOutcome.receipt.remoteReleaseLeaseOwnerId
           !== releaseLock.remoteReleaseLeaseOwnerId
-        || awaitingOutcome.receipt.remoteReleaseLeaseOutcomePathSha256
-          !== releaseLock.outcomeReceiptPathSha256
+        || (successorRelease
+          ? awaitingOutcome.receipt.outcomeReceiptPathSha256
+              !== releaseLock.outcomeReceiptPathSha256
+            || awaitingOutcome.receipt
+              .remoteReleaseLeaseCheckpointBindingSha256
+                !== remoteReleaseLeaseBindingSha256
+            || awaitingOutcome.receipt.remoteReleaseLeaseOutcomePathSha256
+                !== remoteReleaseLeaseBindingSha256
+          : awaitingOutcome.receipt.remoteReleaseLeaseOutcomePathSha256
+              !== releaseLock.outcomeReceiptPathSha256)
         || awaitingOutcome.receipt.remoteReleaseLeasePhase !== "awaiting-post-push") {
       blocked(
         "AWAITING_OUTCOME_INVALID",
@@ -2613,7 +3236,7 @@ async function runPostPushResume({
         manifest,
         expectedCommit: options.expectedCommit,
         ownerId: releaseLock.remoteReleaseLeaseOwnerId,
-        outcomePathSha256: releaseLock.outcomeReceiptPathSha256,
+        outcomePathSha256: remoteReleaseLeaseBindingSha256,
         runCommand,
         supabaseCli,
         assertLinkedRef,
@@ -2630,7 +3253,7 @@ async function runPostPushResume({
         manifest,
         expectedCommit: options.expectedCommit,
         ownerId: releaseLock.remoteReleaseLeaseOwnerId,
-        outcomePathSha256: releaseLock.outcomeReceiptPathSha256,
+        outcomePathSha256: remoteReleaseLeaseBindingSha256,
         runCommand,
         supabaseCli,
         assertLinkedRef,
@@ -2758,7 +3381,7 @@ async function runPostPushResume({
         manifest,
         expectedCommit: options.expectedCommit,
         ownerId: releaseLock.remoteReleaseLeaseOwnerId,
-        outcomePathSha256: releaseLock.outcomeReceiptPathSha256,
+        outcomePathSha256: remoteReleaseLeaseBindingSha256,
         runCommand,
         supabaseCli,
         assertLinkedRef,
@@ -2771,7 +3394,7 @@ async function runPostPushResume({
       manifest,
       expectedCommit: options.expectedCommit,
       ownerId: releaseLock.remoteReleaseLeaseOwnerId,
-      outcomePathSha256: releaseLock.outcomeReceiptPathSha256,
+      outcomePathSha256: remoteReleaseLeaseBindingSha256,
       runCommand,
       supabaseCli,
       assertLinkedRef,
@@ -2850,6 +3473,18 @@ export async function runProductionRelease({
   if (options.confirmProduction !== confirmation) {
     blocked("PRODUCTION_CONFIRMATION_MISMATCH", "production confirmation does not match project, release and commit");
   }
+  if (successorRelease && !options.backupDirectory) {
+    blocked(
+      "ARGUMENT_REQUIRED",
+      "--backup-directory is required for the successor current-remote backup",
+    );
+  }
+  if (!successorRelease && options.backupDirectory) {
+    blocked(
+      "ARGUMENT_INVALID",
+      "--backup-directory is accepted only by the successor current-remote backup contract",
+    );
+  }
   const refreshSuccessorRuntimeEvidence = (phase = "pre-apply") => {
     if (!selection.successor) return null;
     try {
@@ -2872,7 +3507,9 @@ export async function runProductionRelease({
       throw error;
     }
   };
-  let successorRuntimeEvidence = refreshSuccessorRuntimeEvidence("pre-apply");
+  let successorRuntimeEvidence = options.resumePostPush
+    ? null
+    : refreshSuccessorRuntimeEvidence("pre-apply");
   if (options.apply || options.resumePostPush) {
     if (!isAbsolute(options.receiptOut) || inside(repoRoot, options.receiptOut)) {
       blocked("RECEIPT_PATH_INVALID", "--receipt-out must be an absolute JSON path outside the Git repository");
@@ -2942,33 +3579,25 @@ export async function runProductionRelease({
   const outcomeReceiptPathSha256 = options.apply
     ? textSha256(resolve(options.receiptOut))
     : null;
+  const releaseStartedAt = options.apply ? now().toISOString() : null;
+  let remoteReleaseLeaseBindingSha256 = outcomeReceiptPathSha256;
+  let checkpointPreApplySuccessorRuntimeEvidenceSetSha256 = null;
   let remoteReleaseLeaseClaimed = false;
   let remoteReleaseLeaseClaimAttempted = false;
   let remoteLeaseSupabaseCli = null;
   let remoteLeaseLinkedRefFence = null;
   try {
-    if (lock) {
-      await lock.writeFile(`${JSON.stringify({
-        version: 2,
-        release: manifest.release,
-        projectRef: manifest.projectRef,
-        releaseCommit: options.expectedCommit,
-        outcomeReceiptPathSha256,
-        remoteReleaseLeaseOwnerId,
-        startedAt: now().toISOString(),
-        rerunProhibitedUntilAdjudicated: true,
-      })}\n`, "utf8");
-      await lock.sync();
-    }
-
     const assertLinkedRef = await createLinkedRefFence(repoRoot, manifest.projectRef);
     const backupReceipt = await validateBackupReceipt({
       path: options.backupReceipt,
       repoRoot,
       backupSourceRepo: options.backupSourceRepo,
+      backupDirectory: options.backupDirectory,
       backupContract: manifest.backupContract,
       expectedCommit: options.expectedCommit,
       projectRef: manifest.projectRef,
+      release: manifest.release,
+      remoteRef: options.remoteRef,
       runCommand,
     });
     const hostedRestoreEvidence = successorRelease
@@ -2995,6 +3624,53 @@ export async function runProductionRelease({
 
     if (options.apply) {
       successorRuntimeEvidence = refreshSuccessorRuntimeEvidence("pre-apply");
+      if (successorRelease) {
+        checkpointPreApplySuccessorRuntimeEvidenceSetSha256 =
+          successorRuntimeEvidence?.sha256 ?? null;
+        try {
+          remoteReleaseLeaseBindingSha256 =
+            computeSuccessorReleaseCheckpointBindingSha256({
+              version: SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION,
+              release: manifest.release,
+              projectRef: manifest.projectRef,
+              expectedCommit: options.expectedCommit,
+              outcomeReceiptPathSha256,
+              backupReceiptSha256: backupReceipt.BackupReceiptSha256,
+              backupDirectoryPathSha256:
+                backupReceipt.BackupDirectoryPathSha256,
+              backupArtifactSetSha256: backupReceipt.BackupArtifactSetSha256,
+              backupSourceCapturedAt: backupReceipt.SourceCapturedAt,
+              startedAt: releaseStartedAt,
+              writeFenceEvidenceSha256: writeFenceEvidence.sha256,
+              preApplySuccessorRuntimeEvidenceSetSha256:
+                checkpointPreApplySuccessorRuntimeEvidenceSetSha256,
+            });
+        } catch {
+          blocked(
+            "SUCCESSOR_CHECKPOINT_BINDING_INVALID",
+            "the successor release did not start within 30 minutes of the exact retained backup and proof set",
+          );
+        }
+      }
+      await lock.writeFile(`${JSON.stringify({
+        version: 2,
+        release: manifest.release,
+        projectRef: manifest.projectRef,
+        releaseCommit: options.expectedCommit,
+        outcomeReceiptPathSha256,
+        remoteReleaseLeaseOwnerId,
+        startedAt: releaseStartedAt,
+        rerunProhibitedUntilAdjudicated: true,
+        ...(successorRelease
+          ? {
+            successorCheckpointBindingVersion:
+              SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION,
+            remoteReleaseLeaseCheckpointBindingSha256:
+              remoteReleaseLeaseBindingSha256,
+          }
+          : {}),
+      })}\n`, "utf8");
+      await lock.sync();
       remoteReleaseLeaseClaimAttempted = true;
       preserveLock = true;
       try {
@@ -3005,7 +3681,7 @@ export async function runProductionRelease({
           manifest,
           expectedCommit: options.expectedCommit,
           ownerId: remoteReleaseLeaseOwnerId,
-          outcomePathSha256: outcomeReceiptPathSha256,
+          outcomePathSha256: remoteReleaseLeaseBindingSha256,
           runCommand,
           supabaseCli,
           assertLinkedRef,
@@ -3027,7 +3703,7 @@ export async function runProductionRelease({
         manifest,
         expectedCommit: options.expectedCommit,
         ownerId: remoteReleaseLeaseOwnerId,
-        outcomePathSha256: outcomeReceiptPathSha256,
+        outcomePathSha256: remoteReleaseLeaseBindingSha256,
         runCommand,
         supabaseCli,
         assertLinkedRef,
@@ -3118,6 +3794,15 @@ export async function runProductionRelease({
     });
     await assertLinkedRef();
     successorRuntimeEvidence = refreshSuccessorRuntimeEvidence("pre-apply");
+    if (options.apply
+        && successorRelease
+        && successorRuntimeEvidence.sha256
+          !== checkpointPreApplySuccessorRuntimeEvidenceSetSha256) {
+      blocked(
+        "SUCCESSOR_CHECKPOINT_EVIDENCE_CHANGED",
+        "the successor pre-apply evidence set changed after the remote lease was claimed",
+      );
+    }
 
     if (options.checkOnly) {
       return {
@@ -3170,7 +3855,7 @@ export async function runProductionRelease({
       };
     }
 
-    const startedAt = now().toISOString();
+    const startedAt = releaseStartedAt;
     const baseReceipt = {
       receiptVersion: 1,
       release: manifest.release,
@@ -3178,7 +3863,8 @@ export async function runProductionRelease({
       releaseCommit: options.expectedCommit,
       remoteRef: options.remoteRef,
       remoteReleaseLeaseOwnerId,
-      remoteReleaseLeaseOutcomePathSha256: outcomeReceiptPathSha256,
+      remoteReleaseLeaseOutcomePathSha256:
+        remoteReleaseLeaseBindingSha256,
       remoteReleaseLeasePhase: "claimed",
       migrations: expectedMigrations,
       backupSetId: backupReceipt.BackupSetId,
@@ -3202,6 +3888,18 @@ export async function runProductionRelease({
       writeFenceEvidenceControlCount: writeFenceEvidence.controlCount,
       ...(successorRelease
         ? {
+          successorCheckpointBindingVersion:
+            SUCCESSOR_RELEASE_CHECKPOINT_BINDING_VERSION,
+          outcomeReceiptPathSha256,
+          remoteReleaseLeaseCheckpointBindingSha256:
+            remoteReleaseLeaseBindingSha256,
+          backupReceiptSha256: backupReceipt.BackupReceiptSha256,
+          backupDirectoryPathSha256:
+            backupReceipt.BackupDirectoryPathSha256,
+          backupArtifactSetSha256: backupReceipt.BackupArtifactSetSha256,
+          backupSourceCapturedAt: backupReceipt.SourceCapturedAt,
+          preApplySuccessorRuntimeEvidenceSetSha256:
+            checkpointPreApplySuccessorRuntimeEvidenceSetSha256,
           successorReleaseAssurance:
             SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
         }
@@ -3237,13 +3935,17 @@ export async function runProductionRelease({
     };
     await writeReceipt(options.receiptOut, baseReceipt, { exclusive: true });
     receiptStarted = true;
-    pushStarted = true;
-    preserveLock = true;
-    const push = await runCommand(
-      supabaseCli,
-      ["db", "push", "--linked", "--yes", "--agent", "no", "--workdir", repoRoot],
-      { cwd: repoRoot },
-    );
+    const push = await runDatabasePushWithBackupArtifactFence({
+      backupArtifactSnapshot: backupReceipt.BackupArtifactSnapshot,
+      runCommand,
+      command: supabaseCli,
+      args: ["db", "push", "--linked", "--yes", "--agent", "no", "--workdir", repoRoot],
+      options: { cwd: repoRoot },
+      beforeCommand: () => {
+        pushStarted = true;
+        preserveLock = true;
+      },
+    });
     if (push?.error || push?.signal || push?.timedOut
         || push?.status !== 0 || push?.outputTruncated) {
       await writeReceipt(options.receiptOut, {
@@ -3304,7 +4006,7 @@ export async function runProductionRelease({
         manifest,
         expectedCommit: options.expectedCommit,
         ownerId: remoteReleaseLeaseOwnerId,
-        outcomePathSha256: outcomeReceiptPathSha256,
+        outcomePathSha256: remoteReleaseLeaseBindingSha256,
         runCommand,
         supabaseCli,
         assertLinkedRef,
@@ -3316,7 +4018,7 @@ export async function runProductionRelease({
         manifest,
         expectedCommit: options.expectedCommit,
         ownerId: remoteReleaseLeaseOwnerId,
-        outcomePathSha256: outcomeReceiptPathSha256,
+        outcomePathSha256: remoteReleaseLeaseBindingSha256,
         runCommand,
         supabaseCli,
         assertLinkedRef,
@@ -3361,7 +4063,7 @@ export async function runProductionRelease({
       manifest,
       expectedCommit: options.expectedCommit,
       ownerId: remoteReleaseLeaseOwnerId,
-      outcomePathSha256: outcomeReceiptPathSha256,
+      outcomePathSha256: remoteReleaseLeaseBindingSha256,
       runCommand,
       supabaseCli,
       assertLinkedRef,
@@ -3373,7 +4075,7 @@ export async function runProductionRelease({
       manifest,
       expectedCommit: options.expectedCommit,
       ownerId: remoteReleaseLeaseOwnerId,
-      outcomePathSha256: outcomeReceiptPathSha256,
+      outcomePathSha256: remoteReleaseLeaseBindingSha256,
       runCommand,
       supabaseCli,
       assertLinkedRef,
@@ -3408,7 +4110,7 @@ export async function runProductionRelease({
           manifest,
           expectedCommit: options.expectedCommit,
           ownerId: remoteReleaseLeaseOwnerId,
-          outcomePathSha256: outcomeReceiptPathSha256,
+          outcomePathSha256: remoteReleaseLeaseBindingSha256,
           runCommand,
           supabaseCli: remoteLeaseSupabaseCli,
           assertLinkedRef: remoteLeaseLinkedRefFence,
@@ -3420,7 +4122,7 @@ export async function runProductionRelease({
           manifest,
           expectedCommit: options.expectedCommit,
           ownerId: remoteReleaseLeaseOwnerId,
-          outcomePathSha256: outcomeReceiptPathSha256,
+          outcomePathSha256: remoteReleaseLeaseBindingSha256,
           runCommand,
           supabaseCli: remoteLeaseSupabaseCli,
           assertLinkedRef: remoteLeaseLinkedRefFence,
@@ -3434,6 +4136,13 @@ export async function runProductionRelease({
       }
     } else if (!pushStarted && remoteReleaseLeaseClaimAttempted) {
       preserveLock = true;
+    }
+    if (!pushStarted
+        && receiptStarted
+        && !remoteReleaseLeaseClaimed
+        && !remoteReleaseLeaseClaimAttempted) {
+      await rm(options.receiptOut, { force: true }).catch(() => {});
+      receiptStarted = false;
     }
     if (pushStarted) preserveLock = true;
     if (pushStarted && receiptStarted && error instanceof ReleaseBlockedError

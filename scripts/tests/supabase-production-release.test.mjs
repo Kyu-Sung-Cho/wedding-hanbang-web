@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  open,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -72,6 +81,21 @@ function sha256(content) {
   return createHash("sha256")
     .update(content.replace(/\r\n?/g, "\n"), "utf8")
     .digest("hex");
+}
+
+function canonicalJsonSha256(value) {
+  const canonicalJson = (candidate) => {
+    if (candidate === null || typeof candidate !== "object") {
+      return JSON.stringify(candidate);
+    }
+    if (Array.isArray(candidate)) {
+      return `[${candidate.map(canonicalJson).join(",")}]`;
+    }
+    return `{${Object.keys(candidate).sort().map(
+      (key) => `${JSON.stringify(key)}:${canonicalJson(candidate[key])}`,
+    ).join(",")}}`;
+  };
+  return sha256(`${canonicalJson(value)}\n`);
 }
 
 function queryFileFromCall(call) {
@@ -714,6 +738,76 @@ ROLLBACK;
   return { contract, successor };
 }
 
+async function writeSuccessorPreApplyBackupRuntimeEvidence({
+  fixture,
+  ready,
+  capturedAt,
+}) {
+  const evidenceContract = ready.successor.deploymentEvidence.backup;
+  const migrationVersions = ready.successor.expandMigrations.map(
+    (entry) => entry.file.slice(0, 14),
+  );
+  const postApplyCheckIds = ready.contract.postApplyChecks.map(
+    (check) => check.id,
+  );
+  const rawText = `${JSON.stringify({
+    evidenceVersion: 1,
+    kind: "successor-pre-apply-backup-test-provenance",
+  })}\n`;
+  const expiresAt = new Date(
+    capturedAt.getTime() + evidenceContract.maximumAgeMinutes * 60_000,
+  );
+  const receipt = {
+    receiptVersion: 1,
+    kind: evidenceContract.kind,
+    release: ready.successor.release,
+    projectRef: ready.successor.projectRef,
+    releaseCommit: RELEASE_COMMIT,
+    requiredRemoteHead: ready.successor.requiredRemoteHead,
+    expectedMigrationHead: migrationVersions.at(-1),
+    migrationCount: migrationVersions.length,
+    migrationVersionsSha256: sha256(`${migrationVersions.join("\n")}\n`),
+    postApplyCheckIds,
+    postApplyChecksSha256: sha256(`${postApplyCheckIds.join("\n")}\n`),
+    rollbackContractSha256: canonicalJsonSha256(
+      ready.contract.rollbackContract,
+    ),
+    capturedAt: capturedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    checks: Object.fromEntries(
+      evidenceContract.requiredChecks.map((check) => [check, true]),
+    ),
+    observations: {
+      backupContractId: ready.contract.backupContract.id,
+      backupContractVersion: ready.contract.backupContract.version,
+      expectedMigrationHead: ready.contract.backupContract.expectedMigrationHead,
+      expectedTableContractSha256:
+        ready.contract.backupContract.expectedTableContractSha256,
+      expectedTableCount: ready.contract.backupContract.expectedTableCount,
+      providerPhysicalBackupStatus:
+        ready.contract.backupContract.providerPhysicalBackup.requiredStatus,
+      restoreCandidateAvailable: true,
+    },
+    rawProvenance: {
+      fileName: evidenceContract.rawEvidenceFileName,
+      sha256: sha256(rawText),
+      source: evidenceContract.rawEvidenceSource,
+      capturedAt: capturedAt.toISOString(),
+    },
+    containsSecrets: false,
+  };
+  await writeFile(
+    join(fixture.receiptRoot, evidenceContract.receiptFileName),
+    `${JSON.stringify(receipt, null, 2)}\n`,
+    "utf8",
+  );
+  await writeFile(
+    join(fixture.receiptRoot, evidenceContract.rawEvidenceFileName),
+    rawText,
+    "utf8",
+  );
+}
+
 async function createFixture({ withPostPushOperation = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "amora-production-release-"));
   const receiptRoot = await mkdtemp(join(tmpdir(), "amora-production-receipt-"));
@@ -1287,6 +1381,7 @@ test("production release controller refuses a deployment-blocked successor befor
           `--expected-commit=${RELEASE_COMMIT}`,
           "--remote-ref=origin/release",
           `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-directory=${fixture.receiptRoot}`,
           `--backup-source-repo=${fixture.backupSourceRepo}`,
           `--confirm-production=CHECK:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
         ],
@@ -1366,31 +1461,56 @@ test("successor backup validation requires the exact current-remote table set an
       await write(fixture.backupSourceRepo, pin.file, text);
     }
 
-    const backupDirectory = join(fixture.receiptRoot, "successor-private-backup");
+    const backupDirectory = join(fixture.receiptRoot, "20260819-120000");
     await mkdir(backupDirectory, { recursive: true });
     const createdAt = new Date(Date.now() - 2 * 60_000).toISOString();
     const inventoryCapturedAt =
       new Date(Date.parse(createdAt) - 30_000).toISOString();
     const sourceCapturedAt =
       new Date(Date.parse(createdAt) - 60_000).toISOString();
-    const inventoryContractSha256 = "D".repeat(64);
-    const sourceRelationContractSha256 = "E".repeat(64);
-    const liveSchemaContractSha256 = "F".repeat(64);
-    const logicalDataContractSha256 = "A".repeat(64);
+    const verifiedAtUtc = new Date(Date.now() - 30_000).toISOString();
+    const inventoryContractSha256 = "d".repeat(64);
+    const sourceRelationContractSha256 = "e".repeat(64);
+    const liveSchemaContractSha256 = "f".repeat(64);
+    const logicalDataContractSha256 = "a".repeat(64);
+    const authSchemaContractSha256 = "1".repeat(64);
+    const authUsersCanonicalSha256 = "2".repeat(64);
+    const authUsersContractSha256 = "3".repeat(64);
+    const encryptedArtifacts = {
+      LogicalDataCiphertextSha256: "4".repeat(64),
+      LogicalDataProtectedKeySha256: "5".repeat(64),
+      SchemaInventoryCiphertextSha256: "6".repeat(64),
+      SchemaInventoryProtectedKeySha256: "7".repeat(64),
+    };
     const cliRelativePath = "node_modules/@supabase/cli/bin/supabase.exe";
     const privateManifest = {
       format: "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser",
       format_version: 2,
       status: "complete",
+      backup_type: "vendor-disclosure-successor-current-production-logical-snapshot",
       backup_set_id: BACKUP_SET_ID,
+      release: "vendor-disclosure-v2-20260718",
+      backup_contract_id: backupContract.id,
+      backup_contract_version: backupContract.version,
       created_at_utc: createdAt,
       source_captured_at: sourceCapturedAt,
-      inventory_captured_at: inventoryCapturedAt,
+      inventory_after_captured_at: inventoryCapturedAt,
       inventory_contract_sha256: inventoryContractSha256,
       source_relation_contract_sha256: sourceRelationContractSha256,
       live_schema_contract_sha256: liveSchemaContractSha256,
       logical_data_contract_sha256: logicalDataContractSha256,
+      auth_schema_contract_sha256: authSchemaContractSha256,
+      auth_users_canonical_sha256: authUsersCanonicalSha256,
+      auth_users_contract_sha256: authUsersContractSha256,
       source_project_ref: PROJECT_REF,
+      source_migration_head: backupContract.expectedMigrationHead,
+      source_migration_count: 147,
+      expected_tables: backupContract.expectedTables,
+      table_count: backupContract.expectedTableCount,
+      table_contract_sha256: backupContract.expectedTableContractSha256,
+      git_commit: RELEASE_COMMIT,
+      git_origin: backupContract.expectedOrigin,
+      git_remote_ref: "origin/release",
       implementation: { git_commit: RELEASE_COMMIT },
       supabase_cli: {
         version: backupContract.supabaseCli.version,
@@ -1399,7 +1519,12 @@ test("successor backup validation requires the exact current-remote table set an
           [cliRelativePath]: backupContract.supabaseCli.binarySha256,
         },
       },
+      verifier: {
+        file: backupContract.verifier.file,
+        sha256: backupContract.verifier.sha256,
+      },
       plaintext_written_to_disk: false,
+      contains_secrets: false,
       tables: Object.fromEntries(
         backupContract.expectedTables.map((table) => [table, { row_count: 0 }]),
       ),
@@ -1418,41 +1543,53 @@ test("successor backup validation requires the exact current-remote table set an
       await writeFile(join(backupDirectory, file), `${file}\n`, "utf8");
     }
     const receipt = {
-      AgeSeconds: 120,
-      BackupDirectory: backupDirectory,
-      BackupSetId: BACKUP_SET_ID,
-      CreatedAtUtc: createdAt,
-      ExternalForeignKeysSkipped: 0,
-      ForeignKeysChecked: 12,
+      ReceiptVersion: 1,
+      Kind: "vendor-disclosure-successor-current-baseline-backup-verification-v1",
+      Verified: true,
+      Release: "vendor-disclosure-v2-20260718",
+      ProjectRef: PROJECT_REF,
       GitCommit: RELEASE_COMMIT,
-      InventoryCapturedAt: inventoryCapturedAt,
-      InventoryContractSha256: inventoryContractSha256,
+      GitOrigin: backupContract.expectedOrigin,
+      BackupContractId: backupContract.id,
+      BackupContractVersion: backupContract.version,
+      BackupSetId: BACKUP_SET_ID,
+      ManifestSha256: (await rawFileSha256(
+        join(backupDirectory, "manifest.json"),
+      )).toLowerCase(),
+      SourceCapturedAt: sourceCapturedAt,
+      VerifiedAtUtc: verifiedAtUtc,
+      SourceMigrationHead: backupContract.expectedMigrationHead,
+      SourceMigrationCount: 147,
+      TableCount: backupContract.expectedTableCount,
+      ExpectedTables: backupContract.expectedTables,
+      TableContractSha256: backupContract.expectedTableContractSha256,
+      InventorySha256: inventoryContractSha256,
       LiveSchemaContractSha256: liveSchemaContractSha256,
       LogicalDataContractSha256: logicalDataContractSha256,
-      ManifestSha256: await rawFileSha256(
-        join(backupDirectory, "manifest.json"),
-      ),
-      NodeSha256: "B".repeat(64),
-      NodeVersion: "v24.4.1",
-      PGliteJsonbRoundTripVerified: true,
-      PGliteTreeSha256: "C".repeat(64),
-      PGliteVersion: "0.3.8",
-      PlaintextWrittenToDisk: false,
-      PrimaryConstraintsChecked: 24,
+      AuthSchemaContractSha256: authSchemaContractSha256,
+      AuthUsersCanonicalSha256: authUsersCanonicalSha256,
+      AuthUsersContractSha256: authUsersContractSha256,
+      EncryptedArtifacts: encryptedArtifacts,
+      SupabaseCli: {
+        Version: backupContract.supabaseCli.version,
+        BinarySha256: backupContract.supabaseCli.binarySha256,
+      },
+      Verifier: {
+        File: backupContract.verifier.file,
+        Sha256: backupContract.verifier.sha256,
+      },
+      EncryptedArtifactsVerified: true,
       SourceCanonicalDigestsVerified: true,
-      SourceCapturedAt: sourceCapturedAt,
-      SourceRelationContractSha256: sourceRelationContractSha256,
-      SupabaseCliBinarySha256: backupContract.supabaseCli.binarySha256,
-      SupabaseCliVersion: backupContract.supabaseCli.version,
-      TableCount: backupContract.expectedTableCount,
-      TotalRows: 42,
-      Verified: true,
+      PGliteJsonbRoundTripVerified: true,
+      PlaintextWrittenToDisk: false,
+      ContainsSecrets: false,
     };
     const receiptPath = join(
       fixture.receiptRoot,
-      "successor-backup-verification.json",
+      `${BACKUP_SET_ID}-successor-logical-verification.json`,
     );
     await writeFile(receiptPath, JSON.stringify(receipt), "utf8");
+    let replayArgs;
     const runCommand = async (command, args, options) => {
       if (command === "git" && options.cwd === fixture.backupSourceRepo) {
         if (args[0] === "status") {
@@ -1471,13 +1608,12 @@ test("successor backup validation requires the exact current-remote table set an
       }
       if (command.toLowerCase().includes("powershell")
           || command.toLowerCase().endsWith("pwsh")) {
+        replayArgs = args;
         return {
           status: 0,
           stdout: JSON.stringify({
             ...receipt,
-            AgeSeconds: Math.floor(
-              (Date.now() - Date.parse(createdAt)) / 1_000,
-            ),
+            VerifiedAtUtc: new Date().toISOString(),
           }),
           stderr: "",
         };
@@ -1485,21 +1621,45 @@ test("successor backup validation requires the exact current-remote table set an
       throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
     };
 
-    const verified =
-      await productionReleaseControllerTestHooks.validateBackupReceipt({
+    const validationArgs = {
         path: receiptPath,
         repoRoot: fixture.root,
         backupSourceRepo: fixture.backupSourceRepo,
+        backupDirectory,
         backupContract,
         expectedCommit: RELEASE_COMMIT,
         projectRef: PROJECT_REF,
+        release: "vendor-disclosure-v2-20260718",
+        remoteRef: "origin/release",
         runCommand,
-      });
+      };
+    const verified =
+      await productionReleaseControllerTestHooks.validateBackupReceipt(
+        validationArgs,
+      );
     assert.equal(verified.TableCount, backupContract.expectedTableCount);
     assert.equal(
       verified.SchemaContractSha256,
       receipt.LiveSchemaContractSha256,
     );
+    const replayValue = (name) => replayArgs[replayArgs.indexOf(name) + 1];
+    assert.equal(replayValue("-BackupDirectory"), backupDirectory);
+    assert.equal(replayValue("-ExpectedCommit"), RELEASE_COMMIT);
+    assert.equal(replayValue("-ExpectedGitOrigin"), backupContract.expectedOrigin);
+    assert.equal(replayValue("-RemoteRef"), "origin/release");
+    assert.equal(replayValue("-Release"), "vendor-disclosure-v2-20260718");
+    assert.equal(replayValue("-BackupContractId"), backupContract.id);
+    assert.equal(replayValue("-BackupContractVersion"), String(backupContract.version));
+    assert.equal(
+      replayValue("-ExpectedSupabaseCliVersion"),
+      backupContract.supabaseCli.version,
+    );
+    assert.equal(
+      replayValue("-ExpectedSupabaseCliBinarySha256"),
+      backupContract.supabaseCli.binarySha256,
+    );
+    assert.equal(replayArgs.includes("-ReplayOnly"), true);
+    assert.equal(replayArgs.includes("-ReceiptPath"), false);
 
     await write(
       fixture.backupSourceRepo,
@@ -1507,15 +1667,7 @@ test("successor backup validation requires the exact current-remote table set an
       "# tampered current-Production baseline capture\n",
     );
     await assert.rejects(
-      productionReleaseControllerTestHooks.validateBackupReceipt({
-        path: receiptPath,
-        repoRoot: fixture.root,
-        backupSourceRepo: fixture.backupSourceRepo,
-        backupContract,
-        expectedCommit: RELEASE_COMMIT,
-        projectRef: PROJECT_REF,
-        runCommand,
-      }),
+      productionReleaseControllerTestHooks.validateBackupReceipt(validationArgs),
       (error) => error?.code === "BACKUP_IMPLEMENTATION_HASH_MISMATCH",
     );
     await write(
@@ -1530,15 +1682,7 @@ test("successor backup validation requires the exact current-remote table set an
         "# tampered current-Production backup dependency\n",
       );
       await assert.rejects(
-        productionReleaseControllerTestHooks.validateBackupReceipt({
-          path: receiptPath,
-          repoRoot: fixture.root,
-          backupSourceRepo: fixture.backupSourceRepo,
-          backupContract,
-          expectedCommit: RELEASE_COMMIT,
-          projectRef: PROJECT_REF,
-          runCommand,
-        }),
+        productionReleaseControllerTestHooks.validateBackupReceipt(validationArgs),
         (error) => error?.code === "BACKUP_IMPLEMENTATION_HASH_MISMATCH",
       );
       await write(
@@ -1548,21 +1692,214 @@ test("successor backup validation requires the exact current-remote table set an
       );
     }
 
+    assert.equal(verified.BackupArtifactSnapshot.entries.length, 5);
+    assert.match(verified.BackupArtifactSetSha256, /^[a-f0-9]{64}$/);
+    const logicalArtifactPath = join(
+      backupDirectory,
+      "logical-data.json.hbam2",
+    );
+    const originalLogicalArtifactPath = `${logicalArtifactPath}.original`;
+    const logicalArtifactBytes = await readFile(logicalArtifactPath);
+    await rename(logicalArtifactPath, originalLogicalArtifactPath);
+    await writeFile(logicalArtifactPath, logicalArtifactBytes);
+    let replacementPushCalled = false;
+    await assert.rejects(
+      productionReleaseControllerTestHooks.runDatabasePushWithBackupArtifactFence({
+        backupArtifactSnapshot: verified.BackupArtifactSnapshot,
+        runCommand: async () => {
+          replacementPushCalled = true;
+          return { status: 0, stdout: "", stderr: "" };
+        },
+        command: "fixture-supabase",
+        args: ["db", "push", "--linked", "--yes"],
+        options: { cwd: fixture.root },
+      }),
+      (error) => error?.code === "BACKUP_ARTIFACT_CHANGED",
+    );
+    assert.equal(replacementPushCalled, false);
+    await rm(logicalArtifactPath);
+    await rename(originalLogicalArtifactPath, logicalArtifactPath);
+
+    const refreshed =
+      await productionReleaseControllerTestHooks.validateBackupReceipt(
+        validationArgs,
+      );
+    await rm(logicalArtifactPath);
+    let deletionPushCalled = false;
+    await assert.rejects(
+      productionReleaseControllerTestHooks.runDatabasePushWithBackupArtifactFence({
+        backupArtifactSnapshot: refreshed.BackupArtifactSnapshot,
+        runCommand: async () => {
+          deletionPushCalled = true;
+          return { status: 0, stdout: "", stderr: "" };
+        },
+        command: "fixture-supabase",
+        args: ["db", "push", "--linked", "--yes"],
+        options: { cwd: fixture.root },
+      }),
+      (error) => error?.code === "BACKUP_ARTIFACT_CHANGED",
+    );
+    assert.equal(deletionPushCalled, false);
+    await writeFile(logicalArtifactPath, logicalArtifactBytes);
+
+    // Comparing fingerprints before and after the push cannot see a
+    // replacement that is undone before `supabase db push` returns: an
+    // in-place overwrite restores the inode and the bytes, and the residual
+    // timestamp evidence is settable. The fence must therefore hold the
+    // verified artifacts for the whole push instead of only observing them.
+    const midPushVerified =
+      await productionReleaseControllerTestHooks.validateBackupReceipt(
+        validationArgs,
+      );
+    const pinProbe =
+      await productionReleaseControllerTestHooks.pinBackupArtifactSnapshot(
+        midPushVerified.BackupArtifactSnapshot,
+      );
+    const identityPinned = pinProbe.identityPinned;
+    assert.equal(
+      pinProbe.mode,
+      identityPinned
+        ? "mandatory-exclusive-handles"
+        : "verified-immutable-copy",
+    );
+    await pinProbe.release();
+    if (process.platform === "win32") {
+      assert.equal(identityPinned, true);
+    }
+
+    const swappedArtifactPath = `${logicalArtifactPath}.swap`;
+    const tamperOutcomes = [];
+    let midPushCalled = false;
+    let midPushResult = null;
+    let midPushError = null;
+    const attackDuringPush = async () => {
+      midPushCalled = true;
+      const attempts = [
+        ["overwrite-in-place", async () => {
+          const handle = await open(logicalArtifactPath, "r+");
+          try {
+            await handle.write(Buffer.from("tampered mid-push payload"), 0, 25, 0);
+          } finally {
+            await handle.close();
+          }
+        }],
+        ["rename-away", async () => rename(logicalArtifactPath, swappedArtifactPath)],
+        ["delete", async () => rm(logicalArtifactPath)],
+      ];
+      for (const [name, attempt] of attempts) {
+        try {
+          await attempt();
+          tamperOutcomes.push({ name, outcome: "landed" });
+        } catch (error) {
+          tamperOutcomes.push({ name, outcome: "denied", code: error?.code });
+        }
+      }
+      // Put the exact original bytes back before returning, which is what
+      // hides a mid-flight swap from a pure before/after comparison.
+      if (tamperOutcomes.some((entry) => entry.outcome === "landed")) {
+        await rm(swappedArtifactPath, { force: true });
+        await writeFile(logicalArtifactPath, logicalArtifactBytes);
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    };
+    try {
+      midPushResult =
+        await productionReleaseControllerTestHooks
+          .runDatabasePushWithBackupArtifactFence({
+            backupArtifactSnapshot: midPushVerified.BackupArtifactSnapshot,
+            runCommand: attackDuringPush,
+            command: "fixture-supabase",
+            args: ["db", "push", "--linked", "--yes"],
+            options: { cwd: fixture.root },
+          });
+    } catch (error) {
+      midPushError = error;
+    }
+    assert.equal(midPushCalled, true);
+    if (identityPinned) {
+      // A deny-write/deny-delete handle held until the push returns makes the
+      // swap impossible rather than merely detectable.
+      assert.deepEqual(
+        tamperOutcomes.map((entry) => entry.outcome),
+        ["denied", "denied", "denied"],
+        `mid-push tamper was not prevented: ${JSON.stringify(tamperOutcomes)}`,
+      );
+      assert.equal(midPushError, null);
+      assert.equal(midPushResult.status, 0);
+    } else {
+      // Without mandatory sharing control the live path can still be swapped,
+      // so a landed swap must never be accepted as a successful push.
+      assert.equal(midPushError?.code, "BACKUP_ARTIFACT_CHANGED");
+    }
+    await rm(swappedArtifactPath, { force: true });
+    assert.deepEqual(await readFile(logicalArtifactPath), logicalArtifactBytes);
+
+    if (identityPinned) {
+      // A deny-all-sharing open fails with EBUSY while any other handle is
+      // open, including a benign scanner or indexer handle. Those are
+      // transient, so the pin must ride them out rather than hard-aborting
+      // the release at the last step before the push.
+      const bystander = await open(logicalArtifactPath, "r");
+      const bystanderReleased = new Promise((resolve) => {
+        setTimeout(() => { bystander.close().then(resolve, resolve); }, 250);
+      });
+      const transientPin =
+        await productionReleaseControllerTestHooks.pinBackupArtifactSnapshot(
+          midPushVerified.BackupArtifactSnapshot,
+        );
+      await bystanderReleased;
+      assert.equal(transientPin.mode, "mandatory-exclusive-handles");
+      await transientPin.release();
+
+      // A handle that never goes away must still fail closed, and the operator
+      // needs the artifact name and the OS error code to tell a sharing
+      // violation apart from a missing or replaced artifact.
+      const permanent = await open(logicalArtifactPath, "r");
+      try {
+        await assert.rejects(
+          productionReleaseControllerTestHooks.pinBackupArtifactSnapshot(
+            midPushVerified.BackupArtifactSnapshot,
+          ),
+          (error) => error?.code === "BACKUP_ARTIFACT_UNPINNABLE"
+            && error.message.includes("logical-data.json.hbam2")
+            && /failed with [A-Z]/.test(error.message),
+        );
+      } finally {
+        await permanent.close();
+      }
+    }
+
+    // Pinning happens before the push starts, so an unpinnable backup can
+    // never leave a half-run production push behind.
+    let unpinnablePushCalled = false;
+    await assert.rejects(
+      productionReleaseControllerTestHooks
+        .runDatabasePushWithBackupArtifactFence({
+          backupArtifactSnapshot: midPushVerified.BackupArtifactSnapshot,
+          runCommand: async () => {
+            unpinnablePushCalled = true;
+            return { status: 0, stdout: "", stderr: "" };
+          },
+          command: "fixture-supabase",
+          args: ["db", "push", "--linked", "--yes"],
+          options: { cwd: fixture.root },
+          pinArtifacts: async () => {
+            const error = new Error("pin unavailable");
+            error.code = "BACKUP_ARTIFACT_UNPINNABLE";
+            throw error;
+          },
+        }),
+      (error) => error?.code === "BACKUP_ARTIFACT_UNPINNABLE",
+    );
+    assert.equal(unpinnablePushCalled, false);
+
     await writeFile(
       receiptPath,
       JSON.stringify({ ...receipt, TableCount: 14 }),
       "utf8",
     );
     await assert.rejects(
-      productionReleaseControllerTestHooks.validateBackupReceipt({
-        path: receiptPath,
-        repoRoot: fixture.root,
-        backupSourceRepo: fixture.backupSourceRepo,
-        backupContract,
-        expectedCommit: RELEASE_COMMIT,
-        projectRef: PROJECT_REF,
-        runCommand,
-      }),
+      productionReleaseControllerTestHooks.validateBackupReceipt(validationArgs),
       (error) => error?.code === "BACKUP_RECEIPT_INVALID",
     );
   } finally {
@@ -1656,6 +1993,37 @@ test("controller-ready successor derives production confirmation from the succes
   }
 });
 
+test("controller-ready successor requires the explicit current-remote backup directory", async () => {
+  const fixture = await createFixture();
+  let commandCalled = false;
+  try {
+    const ready = await addControllerReadySuccessorRelease(fixture);
+    await assert.rejects(
+      runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--check-only",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--confirm-production=CHECK:${ready.successor.projectRef}:${ready.successor.release}:${RELEASE_COMMIT}`,
+        ],
+        runCommand: async () => {
+          commandCalled = true;
+          return { status: 1, stdout: "", stderr: "" };
+        },
+      }),
+      (error) => error?.code === "ARGUMENT_REQUIRED"
+        && error.message.includes("--backup-directory"),
+    );
+    assert.equal(commandCalled, false);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
 test("controller-ready successor cannot enter Git or Supabase gates without all four pre-apply private receipts", async () => {
   const fixture = await createFixture();
   let commandCalled = false;
@@ -1669,6 +2037,7 @@ test("controller-ready successor cannot enter Git or Supabase gates without all 
           `--expected-commit=${RELEASE_COMMIT}`,
           "--remote-ref=origin/release",
           `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-directory=${fixture.receiptRoot}`,
           `--backup-source-repo=${fixture.backupSourceRepo}`,
           `--confirm-production=CHECK:${ready.successor.projectRef}:${ready.successor.release}:${RELEASE_COMMIT}`,
         ],
@@ -1750,6 +2119,269 @@ test("post-expand resume preserves four pre-apply proofs and adds exact no-cost 
     }),
     (error) => error?.code === "AWAITING_OUTCOME_INVALID",
   );
+});
+
+test("successor checkpoint binding covers the original fresh backup, artifact set and retained proofs", () => {
+  const startedAt = "2026-08-19T12:20:00.000Z";
+  const components = {
+    version: 1,
+    release: "vendor-disclosure-v2-20260718",
+    projectRef: PROJECT_REF,
+    expectedCommit: RELEASE_COMMIT,
+    outcomeReceiptPathSha256: "1".repeat(64),
+    backupReceiptSha256: "2".repeat(64),
+    backupDirectoryPathSha256: "3".repeat(64),
+    backupArtifactSetSha256: "4".repeat(64),
+    backupSourceCapturedAt: "2026-08-19T12:00:00.000Z",
+    startedAt,
+    writeFenceEvidenceSha256: "5".repeat(64),
+    preApplySuccessorRuntimeEvidenceSetSha256: "6".repeat(64),
+  };
+  const digest =
+    productionReleaseControllerTestHooks.computeSuccessorReleaseCheckpointBindingSha256(
+      components,
+    );
+  assert.match(digest, /^[a-f0-9]{64}$/);
+  assert.doesNotThrow(
+    () => productionReleaseControllerTestHooks
+      .computeSuccessorReleaseCheckpointBindingSha256({
+        ...components,
+        backupSourceCapturedAt: "2026-08-19T12:00:00.0000000+00:00",
+      }),
+  );
+  for (const [field, replacement] of [
+    ["outcomeReceiptPathSha256", "7".repeat(64)],
+    ["backupReceiptSha256", "7".repeat(64)],
+    ["backupDirectoryPathSha256", "7".repeat(64)],
+    ["backupArtifactSetSha256", "7".repeat(64)],
+    ["backupSourceCapturedAt", "2026-08-19T12:00:01.000Z"],
+    ["writeFenceEvidenceSha256", "7".repeat(64)],
+    ["preApplySuccessorRuntimeEvidenceSetSha256", "7".repeat(64)],
+  ]) {
+    assert.notEqual(
+      productionReleaseControllerTestHooks
+        .computeSuccessorReleaseCheckpointBindingSha256({
+          ...components,
+          [field]: replacement,
+        }),
+      digest,
+      field,
+    );
+  }
+  assert.throws(
+    () => productionReleaseControllerTestHooks
+      .computeSuccessorReleaseCheckpointBindingSha256({
+        ...components,
+        backupSourceCapturedAt: "2026-08-19T11:49:59.000Z",
+      }),
+    /30 minutes/i,
+  );
+});
+
+test("the real successor awaiting schema recomputes its lease binding and original 30-minute backup window", async () => {
+  const receiptRoot = await mkdtemp(join(tmpdir(), "successor-awaiting-schema-"));
+  const path = join(receiptRoot, "outcome.json");
+  try {
+    const startedAt = "2026-08-19T12:20:00.000Z";
+    const sourceCapturedAt = "2026-08-19T12:00:00.000Z";
+    const runtimeRecords = ["backup", "finalizer", "hostedStaging", "storage"]
+      .map((name, index) => ({
+        name,
+        receiptSha256: String(index + 1).repeat(64),
+        rawEvidenceSha256: String(index + 5).repeat(64),
+        verifiedAt: "2026-08-19T12:10:00.000Z",
+        expiresAt: "2026-08-19T12:30:00.000Z",
+      }));
+    const runtimeSetSha256 = sha256(
+      `${runtimeRecords.map((record) => [
+        record.name,
+        record.receiptSha256,
+        record.rawEvidenceSha256,
+        record.verifiedAt,
+        record.expiresAt,
+      ].join(":")).join("\n")}\n`,
+    );
+    const backupReceipt = {
+      BackupSetId: BACKUP_SET_ID,
+      ManifestSha256: "a".repeat(64),
+      GitCommit: RELEASE_COMMIT,
+      SourceCapturedAt: sourceCapturedAt,
+      BackupReceiptSha256: "b".repeat(64),
+      BackupDirectoryPathSha256: "c".repeat(64),
+      BackupArtifactSetSha256: "d".repeat(64),
+    };
+    const manifest = {
+      status: "controller_ready",
+      release: "vendor-disclosure-v2-20260718",
+      projectRef: PROJECT_REF,
+      backupContract: { id: "successor-backup-v2", version: 2 },
+      manualPlatformOperations: [],
+      forwardOnlySecurityOperations: [],
+    };
+    const outcomeReceiptPathSha256 = sha256(resolve(path));
+    const writeFenceEvidenceSha256 = "E".repeat(64);
+    const bindingSha256 = productionReleaseControllerTestHooks
+      .computeSuccessorReleaseCheckpointBindingSha256({
+        version: 1,
+        release: manifest.release,
+        projectRef: PROJECT_REF,
+        expectedCommit: RELEASE_COMMIT,
+        outcomeReceiptPathSha256,
+        backupReceiptSha256: backupReceipt.BackupReceiptSha256,
+        backupDirectoryPathSha256:
+          backupReceipt.BackupDirectoryPathSha256,
+        backupArtifactSetSha256: backupReceipt.BackupArtifactSetSha256,
+        backupSourceCapturedAt: sourceCapturedAt,
+        startedAt,
+        writeFenceEvidenceSha256,
+        preApplySuccessorRuntimeEvidenceSetSha256: runtimeSetSha256,
+      });
+    const receipt = {
+      receiptVersion: 1,
+      release: manifest.release,
+      projectRef: PROJECT_REF,
+      releaseCommit: RELEASE_COMMIT,
+      remoteRef: "origin/release",
+      remoteReleaseLeaseOwnerId: "12345678-1234-4234-8234-123456789abc",
+      remoteReleaseLeaseOutcomePathSha256: bindingSha256,
+      remoteReleaseLeasePhase: "awaiting-post-push",
+      migrations: [],
+      backupSetId: backupReceipt.BackupSetId,
+      backupManifestSha256: backupReceipt.ManifestSha256,
+      backupGitCommit: backupReceipt.GitCommit,
+      backupContractId: manifest.backupContract.id,
+      backupContractVersion: manifest.backupContract.version,
+      backupExpectedTableCount: 60,
+      backupExcludedEphemeralTables: [],
+      backupEphemeralRebuildContract: "exact-fixture-contract",
+      backupVerifierSha256: "e".repeat(64),
+      sourceOrigin: EXPECTED_ORIGIN,
+      verifiedManualOperationIds: [],
+      verifiedManualOperationCount: 0,
+      pendingManualOperationIds: [],
+      pendingManualOperationCount: 0,
+      rollbackArtifactIds: [],
+      writeFenceEvidenceSha256,
+      writeFenceEvidenceVerifiedAt: "2026-08-19T12:15:00.000Z",
+      writeFenceEvidenceOperationIds: [],
+      writeFenceEvidenceControlCount: 3,
+      successorCheckpointBindingVersion: 1,
+      outcomeReceiptPathSha256,
+      remoteReleaseLeaseCheckpointBindingSha256: bindingSha256,
+      backupReceiptSha256: backupReceipt.BackupReceiptSha256,
+      backupDirectoryPathSha256: backupReceipt.BackupDirectoryPathSha256,
+      backupArtifactSetSha256: backupReceipt.BackupArtifactSetSha256,
+      backupSourceCapturedAt: sourceCapturedAt,
+      preApplySuccessorRuntimeEvidenceSetSha256: runtimeSetSha256,
+      successorReleaseAssurance: structuredClone(
+        SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+      ),
+      supabaseCliVersion: CLI_VERSION,
+      supabaseCliBinarySha256: CLI_BINARY_SHA,
+      preRemoteLedgerCount: 1,
+      preRemoteLedgerSha256: "f".repeat(64),
+      preApplyCheckIds: [],
+      preApplyCheckCount: 0,
+      preApplyCheckEvidence: [],
+      forwardOnlySecurityOperationIds: [],
+      forwardOnlySecurityOperationCount: 0,
+      forwardOnlySecurityCheckEvidence: [],
+      startedAt,
+      status: "awaiting_manual_post_push_operations",
+      rerunProhibited: true,
+      containsSecrets: false,
+      successorRuntimeEvidence: runtimeRecords,
+      successorRuntimeEvidenceSetSha256: runtimeSetSha256,
+      lastUpdatedAt: "2026-08-19T12:21:00.000Z",
+      postPendingCount: 0,
+      postRemoteLedgerCount: 2,
+      postRemoteLedgerSha256: "1".repeat(64),
+      operatorAction: "Retain the exact checkpoint and resume once.",
+    };
+    await writeFile(path, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+    const validated = await productionReleaseControllerTestHooks
+      .validateAwaitingOutcomeReceipt({
+        path,
+        manifest,
+        expectedCommit: RELEASE_COMMIT,
+        remoteRef: "origin/release",
+        expectedMigrations: [],
+        backupReceipt,
+      });
+    assert.equal(
+      validated.receipt.remoteReleaseLeaseCheckpointBindingSha256,
+      bindingSha256,
+    );
+
+    await writeFile(path, `${JSON.stringify({
+      ...receipt,
+      backupSourceCapturedAt: "2026-08-19T11:49:59.000Z",
+    }, null, 2)}\n`, "utf8");
+    await assert.rejects(
+      productionReleaseControllerTestHooks.validateAwaitingOutcomeReceipt({
+        path,
+        manifest,
+        expectedCommit: RELEASE_COMMIT,
+        remoteRef: "origin/release",
+        expectedMigrations: [],
+        backupReceipt: {
+          ...backupReceipt,
+          SourceCapturedAt: "2026-08-19T11:49:59.000Z",
+        },
+      }),
+      (error) => error?.code === "AWAITING_OUTCOME_INVALID",
+    );
+  } finally {
+    await rm(receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("successor resume enters retained-checkpoint validation with 31-minute-old pre-apply evidence", async () => {
+  const fixture = await createFixture({ withPostPushOperation: true });
+  const resumeNow = new Date(Math.floor(Date.now() / 1_000) * 1_000);
+  const capturedAt = new Date(resumeNow.getTime() - 31 * 60_000);
+  const calls = [];
+  try {
+    const ready = await addControllerReadySuccessorRelease(fixture);
+    await writeSuccessorPreApplyBackupRuntimeEvidence({
+      fixture,
+      ready,
+      capturedAt,
+    });
+
+    await assert.rejects(
+      runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--resume-post-push",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-directory=${fixture.receiptRoot}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--receipt-out=${fixture.outcomeReceiptPath}`,
+          `--confirm-production=RESUME:${ready.successor.projectRef}:${ready.successor.release}:${RELEASE_COMMIT}`,
+        ],
+        runCommand: successfulRunner(fixture, {
+          onCall: (command, args) => calls.push([command, ...args]),
+        }),
+        now: () => resumeNow,
+      }),
+      (error) => error?.code === "RESUME_LOCK_INVALID",
+    );
+    assert.equal(
+      calls.some((call) => call[0] === process.execPath
+        && String(call[1]).endsWith("supabase-release-fence.mjs")),
+      true,
+    );
+    assert.equal(
+      calls.some((call) => String(call[0]).toLowerCase().includes("powershell")),
+      false,
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
 });
 
 function successfulRunner(
@@ -2573,6 +3205,93 @@ test("a post-push platform operation creates an awaiting checkpoint and resumes 
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
     await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("resume rejects added, missing or secret-bearing awaiting outcome fields before any database action", async () => {
+  const attacks = [
+    {
+      name: "added field",
+      mutate(receipt) {
+        receipt.unexpectedCheckpointField = true;
+      },
+    },
+    {
+      name: "missing field",
+      mutate(receipt) {
+        delete receipt.backupVerifierSha256;
+      },
+    },
+    {
+      name: "secret-bearing allowed field",
+      mutate(receipt) {
+        receipt.operatorAction = "Bearer fixture-credential-value";
+      },
+    },
+  ];
+  for (const attack of attacks) {
+    const fixture = await createFixture({ withPostPushOperation: true });
+    const resumeCalls = [];
+    try {
+      await runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--apply",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--receipt-out=${fixture.outcomeReceiptPath}`,
+          `--confirm-production=APPLY:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
+        ],
+        runCommand: successfulRunner(fixture),
+      });
+      const outcome = JSON.parse(await readFile(
+        fixture.outcomeReceiptPath,
+        "utf8",
+      ));
+      attack.mutate(outcome);
+      await writeFile(
+        fixture.outcomeReceiptPath,
+        `${JSON.stringify(outcome, null, 2)}\n`,
+        "utf8",
+      );
+      await writePostPushEvidence(fixture);
+
+      await assert.rejects(
+        runProductionRelease({
+          repoRoot: fixture.root,
+          argv: [
+            "--resume-post-push",
+            `--expected-commit=${RELEASE_COMMIT}`,
+            "--remote-ref=origin/release",
+            `--backup-receipt=${fixture.backupReceiptPath}`,
+            `--backup-source-repo=${fixture.backupSourceRepo}`,
+            `--receipt-out=${fixture.outcomeReceiptPath}`,
+            `--confirm-production=RESUME:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
+          ],
+          runCommand: successfulRunner(fixture, {
+            databaseAlreadyPushed: true,
+            onCall: (command, args) => resumeCalls.push([command, ...args]),
+          }),
+        }),
+        (error) => error?.code === "AWAITING_OUTCOME_INVALID",
+        attack.name,
+      );
+      assert.equal(
+        resumeCalls.some((call) => call[1] === "db"),
+        false,
+        attack.name,
+      );
+      assert.equal(
+        resumeCalls.some((call) => call.includes("--yes")),
+        false,
+        attack.name,
+      );
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+      await rm(fixture.receiptRoot, { recursive: true, force: true });
+    }
   }
 });
 

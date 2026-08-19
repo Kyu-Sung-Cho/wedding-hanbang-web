@@ -44,6 +44,44 @@ test("collector rejects secret command-line arguments before filesystem or netwo
   );
 });
 
+test("a prototype-named argument cannot slip past the exact argument set", async () => {
+  // A plain object accumulator routes `--__proto__=...` through the
+  // Object.prototype setter: the assignment is a silent no-op and the name
+  // never reaches Object.keys, so the exact-argument-set gate would pass.
+  await assert.rejects(
+    runExternalGateCollectorCli({
+      repoRoot: "Z:\path-that-must-not-be-read",
+      argv: [
+        "--mode=vercel",
+        `--expected-commit=${"a".repeat(40)}`,
+        "--deployment-id=dpl_1234567890abcdefghijklmn",
+        "--raw-out=C:\outside\raw.json",
+        "--receipt-out=C:\outside\receipt.json",
+        "__proto__=must-never-be-accepted",
+      ],
+      environment: {},
+    }),
+    (error) => error instanceof ExternalGateCollectorCliError
+      && error.code === "ARGUMENT_INVALID"
+      && !error.message.includes("must-never-be-accepted"),
+  );
+});
+
+test("an inherited object member can never be accepted as a collector mode", async () => {
+  for (const mode of ["constructor", "toString", "__proto__", "valueOf"]) {
+    await assert.rejects(
+      runExternalGateCollectorCli({
+        repoRoot: "Z:\path-that-must-not-be-read",
+        argv: [`--mode=${mode}`, `--expected-commit=${"a".repeat(40)}`],
+        environment: {},
+      }),
+      (error) => error instanceof ExternalGateCollectorCliError
+        && error.code === "MODE_INVALID",
+      `mode ${mode} must be refused as an unknown mode`,
+    );
+  }
+});
+
 test("collector requires credentials from environment without echoing values", async (t) => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "hanbang-gate-cli-"));
   t.after(async () => rm(fixtureRoot, { recursive: true, force: true }));

@@ -61,6 +61,8 @@ const OUTPUT_SUFFIX = Object.freeze({
   canaryFence: "finalizer-canary-rehearsal.json",
   finalizerFeatureOff: "finalizer-feature-off-rehearsal.json",
   finalizerDry: "finalizer-dry-rehearsal.json",
+  postcheckReceipt: "successor-read-only-postcheck-result.json",
+  postcheckRaw: "successor-read-only-postcheck-raw.json",
   provenance: "successor-rehearsal-provenance.json",
 });
 const WORKER_REPORT_KEYS = Object.freeze([
@@ -376,12 +378,27 @@ async function approvedStagingProjectRef(repoRoot, manifest) {
   return { projectRef: value.projectRef, sha256: sha256(bytes) };
 }
 
+function requiredPostcheckContract(controllerManifest) {
+  const checks = controllerManifest?.postApplyChecks;
+  const check = Array.isArray(checks) && checks.length === 1 ? checks[0] : null;
+  if (!exactKeys(check, ["expectedEvidence", "file", "id", "sha256", "type"])
+      || check.type !== "read-only-sql"
+      || typeof check.id !== "string" || check.id.length < 1
+      || typeof check.file !== "string" || check.file.length < 1 || check.file.includes("\\")
+      || !SHA256.test(check.sha256 ?? "")
+      || check.expectedEvidence === null
+      || typeof check.expectedEvidence !== "object"
+      || Array.isArray(check.expectedEvidence)
+      || Object.hasOwn(check.expectedEvidence, "verified")) {
+    blocked("REHEARSAL_POSTCHECK_INVALID");
+  }
+  return check;
+}
+
 function validatePostcheck(input, { manifest, controllerManifest, expectedCommit, stagingRef }) {
   const value = input.value;
-  const check = controllerManifest.postApplyChecks?.find(
-    (entry) => entry?.id === value?.checkId,
-  );
-  if (!check || controllerManifest.postApplyChecks.length !== 1
+  const check = requiredPostcheckContract(controllerManifest);
+  if (value?.checkId !== check.id
       || value?.receiptVersion !== 1
       || value?.kind !== "successor-read-only-postcheck-result-v1"
       || value?.release !== manifest.release
@@ -402,6 +419,42 @@ function validatePostcheck(input, { manifest, controllerManifest, expectedCommit
     blocked("REHEARSAL_POSTCHECK_INVALID");
   }
   return check;
+}
+
+function buildPostcheckReceipt({
+  observation,
+  manifest,
+  controllerManifest,
+  expectedCommit,
+  stagingRef,
+}) {
+  const check = requiredPostcheckContract(controllerManifest);
+  const value = {
+    receiptVersion: 1,
+    kind: "successor-read-only-postcheck-result-v1",
+    release: manifest.release,
+    projectRef: stagingRef,
+    productionProjectRef: manifest.projectRef,
+    releaseCommit: expectedCommit,
+    checkId: check.id,
+    sqlFile: check.file,
+    sqlSha256: check.sha256,
+    source: "supabase-management-read-only-query",
+    transactionReadOnly: true,
+    executedAt: observation?.completedAt,
+    row: observation?.response?.row,
+    productionMutationAttempted: false,
+    containsSecrets: false,
+  };
+  validatePostcheck({ value }, {
+    manifest,
+    controllerManifest,
+    expectedCommit,
+    stagingRef,
+  });
+  instant(value.executedAt, "REHEARSAL_POSTCHECK_INVALID");
+  if (containsSecretMaterial(value)) blocked("REHEARSAL_POSTCHECK_INVALID");
+  return Object.freeze(value);
 }
 
 async function validatePostcheckSql(repoRoot, check) {
@@ -826,10 +879,14 @@ async function validateStagingPostcheckProvenance({
   }
   const startedAt = instant(value.startedAt, "REHEARSAL_PROVENANCE_POSTCHECK_INVALID");
   const completedAt = instant(value.completedAt, "REHEARSAL_PROVENANCE_POSTCHECK_INVALID");
+  const executedAt = instant(
+    postcheckValue?.executedAt,
+    "REHEARSAL_PROVENANCE_POSTCHECK_INVALID",
+  );
   const check = controllerManifest.postApplyChecks?.find(
     (entry) => entry?.id === postcheckValue.checkId,
   );
-  if (!check || completedAt < startedAt
+  if (!check || completedAt < startedAt || executedAt !== completedAt
       || value.sqlSha256 !== check.sha256
       || !exactKeys(value.request, ["bodySha256", "method", "path"])
       || value.request.method !== "POST"
@@ -1068,11 +1125,13 @@ export async function validateSuccessorRehearsalProducerProvenance({
   if (!exactKeys(value.artifacts, [
     "canaryFenceReceiptSha256", "finalizerDryRehearsalSha256",
     "finalizerFeatureOffReceiptSha256", "forwardFixReceiptSha256",
-    "ownerLeaseReceiptSha256", "stagingFeatureOffReceiptSha256",
-    "templateContractReceiptSha256",
+    "ownerLeaseReceiptSha256", "postcheckRawSha256", "postcheckReceiptSha256",
+    "stagingFeatureOffReceiptSha256", "templateContractReceiptSha256",
   ])
       || value.artifacts.stagingFeatureOffReceiptSha256 !== featureSha
       || value.artifacts.forwardFixReceiptSha256 !== sha256(forwardFixBytes)
+      || value.artifacts.postcheckReceiptSha256 !== sha256(postcheckBytes)
+      || value.artifacts.postcheckRawSha256 !== sha256(jsonText(value.stagingPostcheck))
       || Object.values(value.artifacts).some((digest) => !SHA256.test(digest ?? ""))) {
     blocked("REHEARSAL_PROVENANCE_ARTIFACT_INVALID");
   }
@@ -1088,9 +1147,12 @@ export async function validateSuccessorRehearsalProducerProvenance({
     "databaseScope", "doesNotProve", "environment", "migrationRollbackCommandCount",
     "networkScope", "productionMutationCommandCount", "proves",
   ])
-      || value.scope.environment !== "isolated-non-production-rehearsal"
-      || value.scope.networkScope !== "loopback-only"
-      || value.scope.databaseScope !== "ephemeral-pglite"
+      || value.scope.environment
+        !== "approved-existing-staging-read-only-plus-isolated-rehearsal"
+      || value.scope.networkScope
+        !== "approved-staging-management-read-only-and-loopback-only"
+      || value.scope.databaseScope
+        !== "existing-hosted-staging-read-only-and-ephemeral-pglite"
       || value.scope.productionMutationCommandCount !== 0
       || value.scope.migrationRollbackCommandCount !== 0
       || !Array.isArray(value.scope.proves) || value.scope.proves.length < 1
@@ -1287,7 +1349,7 @@ async function defaultHostedConsumerValidator({
   expectedCommit,
   remoteRef,
   probeReceiptPath,
-  postcheckReceiptPath,
+  postcheckReceiptText,
   stagingFeatureOffText,
   forwardFixText,
   provenanceText,
@@ -1305,11 +1367,13 @@ async function defaultHostedConsumerValidator({
   ]));
   const featurePath = join(inputRoot, rollbackFileName);
   const forwardPath = join(inputRoot, "forward-fix-rehearsal.json");
+  const postcheckPath = join(inputRoot, "successor-read-only-postcheck-result.json");
   const provenancePath = join(inputRoot, "successor-rehearsal-provenance.json");
   try {
     await writeDurableExclusiveReceiptSet({ files: [
       { path: featurePath, text: stagingFeatureOffText },
       { path: forwardPath, text: forwardFixText },
+      { path: postcheckPath, text: postcheckReceiptText },
       { path: provenancePath, text: provenanceText },
     ] });
     const result = await emitVendorDisclosureSuccessorHostedStagingEvidence({
@@ -1318,7 +1382,7 @@ async function defaultHostedConsumerValidator({
       expectedCommit,
       remoteRef,
       probeReceiptPath,
-      postcheckReceiptPath,
+      postcheckReceiptPath: postcheckPath,
       featureOffReceiptPath: featurePath,
       rollbackRehearsalReceiptPath: forwardPath,
       rehearsalProvenancePath: provenancePath,
@@ -1345,7 +1409,6 @@ export async function produceSuccessorRehearsalReceipts({
   expectedCommit,
   remoteRef,
   probeReceiptPath,
-  postcheckReceiptPath,
   postExpandBackupReceiptPath,
   now = () => new Date(),
   observationWindowSeconds = 300,
@@ -1367,7 +1430,7 @@ export async function produceSuccessorRehearsalReceipts({
       || typeof runWorker !== "function" || typeof validateHostedConsumer !== "function"
       || typeof runReadOnlyPostcheck !== "function"
       || typeof durableWriter !== "function"
-      || ![probeReceiptPath, postcheckReceiptPath, postExpandBackupReceiptPath].every(
+      || ![probeReceiptPath, postExpandBackupReceiptPath].every(
         (path) => typeof path === "string" && isAbsolute(path),
       )) {
     blocked("REHEARSAL_ARGUMENT_INVALID");
@@ -1383,11 +1446,10 @@ export async function produceSuccessorRehearsalReceipts({
     (path) => lstat(path).catch(() => null),
   ))).some(Boolean)) blocked("REHEARSAL_OUTPUT_COLLISION");
 
-  const [gitState, probe, postcheck, backupInput, templateBytes] =
+  const [gitState, probe, backupInput, templateBytes] =
     await Promise.all([
       inspectGitCandidate({ repoRoot: root, expectedCommit, remoteRef }),
       readOutsideJson(probeReceiptPath, root, "REHEARSAL_PROBE_INVALID"),
-      readOutsideJson(postcheckReceiptPath, root, "REHEARSAL_POSTCHECK_INVALID"),
       readOutsideJson(
         postExpandBackupReceiptPath,
         root,
@@ -1407,27 +1469,40 @@ export async function produceSuccessorRehearsalReceipts({
   validateProbeIdentity(probe, {
     manifest: context.manifest, expectedCommit, stagingRef: staging.projectRef,
   });
-  const postcheckContract = validatePostcheck(postcheck, {
-    manifest: context.manifest,
-    controllerManifest: context.controllerManifest,
-    expectedCommit,
-    stagingRef: staging.projectRef,
-  });
+  const postcheckContract = requiredPostcheckContract(context.controllerManifest);
   const postcheckSqlText = await validatePostcheckSql(root, postcheckContract);
   const stagingPostcheck = await runReadOnlyPostcheck({
     stagingProjectRef: staging.projectRef,
     productionProjectRef: context.manifest.projectRef,
     sqlText: postcheckSqlText,
     sqlSha256: postcheckContract.sha256,
-    expectedRow: postcheck.value.row,
+    expectedRow: {
+      verified: true,
+      ...postcheckContract.expectedEvidence,
+    },
     environment,
     fetchImpl,
     now,
   });
+  const postcheckValue = buildPostcheckReceipt({
+    observation: stagingPostcheck,
+    manifest: context.manifest,
+    controllerManifest: context.controllerManifest,
+    expectedCommit,
+    stagingRef: staging.projectRef,
+  });
+  const postcheckText = jsonText(postcheckValue);
+  const postcheckRawText = jsonText(stagingPostcheck);
+  const postcheck = Object.freeze({
+    value: postcheckValue,
+    bytes: Buffer.from(postcheckText, "utf8"),
+    sha256: sha256(postcheckText),
+    path: outputs.postcheckReceipt,
+  });
   await validateStagingPostcheckProvenance({
     value: stagingPostcheck,
     repoRoot: root,
-    postcheckValue: postcheck.value,
+    postcheckValue,
     manifest: context.manifest,
     controllerManifest: context.controllerManifest,
     stagingProjectRef: staging.projectRef,
@@ -1755,18 +1830,21 @@ export async function produceSuccessorRehearsalReceipts({
       canaryFenceReceiptSha256: sha256(canaryFenceText),
       finalizerFeatureOffReceiptSha256: sha256(finalizerFeatureOffText),
       finalizerDryRehearsalSha256: sha256(finalizerDryText),
+      postcheckReceiptSha256: sha256(postcheckText),
+      postcheckRawSha256: sha256(postcheckRawText),
     },
     consumerValidation: {
       finalizerRawEvidenceSha256: sha256(finalizerEvidence.rawText),
       finalizerReceiptSha256: sha256(jsonText(finalizerEvidence.receipt)),
     },
     scope: {
-      environment: "isolated-non-production-rehearsal",
-      networkScope: "loopback-only",
-      databaseScope: "ephemeral-pglite",
+      environment: "approved-existing-staging-read-only-plus-isolated-rehearsal",
+      networkScope: "approved-staging-management-read-only-and-loopback-only",
+      databaseScope: "existing-hosted-staging-read-only-and-ephemeral-pglite",
       productionMutationCommandCount: 0,
       migrationRollbackCommandCount: 0,
       proves: [
+        "the approved existing Staging project returned the exact pinned read-only postcheck row",
         "current hosted-staging receipt schemas accept the staged feature-off and forward-fix receipts",
         "current finalizer receipt schemas accept exact-owner, canary, template, feature-off and render-only receipts",
         "the isolated worker held configured feature flags and write fences for the required 300-second window",
@@ -1790,7 +1868,7 @@ export async function produceSuccessorRehearsalReceipts({
     expectedCommit,
     remoteRef,
     probeReceiptPath: probe.path,
-    postcheckReceiptPath: postcheck.path,
+    postcheckReceiptText: postcheckText,
     stagingFeatureOffText,
     forwardFixText,
     provenanceText,
@@ -1810,10 +1888,12 @@ export async function produceSuccessorRehearsalReceipts({
     canaryFence: canaryFenceText,
     finalizerFeatureOff: finalizerFeatureOffText,
     finalizerDry: finalizerDryText,
+    postcheckReceipt: postcheckText,
+    postcheckRaw: postcheckRawText,
     provenance: provenanceText,
   };
   if (Object.entries(texts).some(([name, text]) => (
-    Buffer.byteLength(text, "utf8") > (name === "provenance"
+    Buffer.byteLength(text, "utf8") > (["postcheckRaw", "provenance"].includes(name)
       ? MAX_INPUT_BYTES
       : MAX_RECEIPT_BYTES)
   ))) blocked("REHEARSAL_OUTPUT_SET_INVALID");

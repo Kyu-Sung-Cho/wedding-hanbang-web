@@ -16,7 +16,6 @@ import {
 const ARGUMENTS = Object.freeze([
   "--expected-commit",
   "--post-expand-backup-receipt",
-  "--postcheck-receipt",
   "--probe-receipt",
   "--receipt-root",
   "--remote-ref",
@@ -97,7 +96,6 @@ export async function runSuccessorRehearsalProducerCli({
       expectedCommit: values["--expected-commit"],
       remoteRef: values["--remote-ref"],
       probeReceiptPath: values["--probe-receipt"],
-      postcheckReceiptPath: values["--postcheck-receipt"],
       postExpandBackupReceiptPath: values["--post-expand-backup-receipt"],
       inspectGitCandidate,
     }),
@@ -108,8 +106,9 @@ function usage() {
   return [
     "Produce exact successor hosted-staging and finalizer rehearsal input receipts.",
     "This runs an isolated PGlite/loopback-browser rehearsal for 300 seconds.",
-    "It performs no remote command, Production mutation, or migration rollback.",
-    "All input and output receipts must be absolute private paths outside Git.",
+    "It also runs the pinned SQL through the approved existing Staging read-only Management endpoint.",
+    "It performs no remote write, Production mutation, or migration rollback.",
+    "All input receipt paths and the output root must be absolute private paths outside Git.",
   ].join("\n");
 }
 
