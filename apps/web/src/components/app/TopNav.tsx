@@ -21,6 +21,7 @@ const pageTitles: Record<string, string> = {
   "/favorites": "즐겨찾기",
   "/settings": "설정",
   "/money": "축의금 관리",
+  "/etiquette": "예절 가이드 25편",
 };
 
 const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
