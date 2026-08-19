@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
-import { mergePlanningChecklist } from "@hanbang/shared/utils";
+import { mergePlanningChecklist, stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 
 /**
  * 2026-08-19에 계약금 앞 확인 항목 9개를 넣으면서 템플릿이 132 → 141개가 됐다.
@@ -54,5 +54,55 @@ describe("항목 추가가 기존 체크 기록을 건드리지 않는다", () =
     for (const id of NEW_IDS) {
       expect(ids, `${id}가 템플릿에 없다`).toContain(id);
     }
+  });
+});
+
+/**
+ * `note`는 템플릿이 소유한 제품 문구다. 사용자 행에는 들어가지 않아야 한다 —
+ * 들어가면 문구를 고친 뒤에도 옛 문장 사본이 DB에 남고, 사용자 데이터와 제품 카피가
+ * 섞인다. 저장 모양은 note를 들이기 전과 정확히 같아야 한다.
+ */
+describe("항목 안내 문구는 사용자 데이터가 아니다", () => {
+  const withNotes = CATEGORY_CHECKLISTS.flatMap((c) => c.items).filter((i) => i.note);
+
+  it("실제로 안내가 붙은 항목이 있다", () => {
+    expect(withNotes.length).toBeGreaterThan(0);
+  });
+
+  it("저장 payload에는 안내가 실리지 않는다", () => {
+    for (const category of CATEGORY_CHECKLISTS) {
+      const merged = mergePlanningChecklist(category.items, undefined);
+      const stored = stripPlanningChecklistNotes(merged);
+
+      expect(stored.some((item) => "note" in item), `${category.key}`).toBe(false);
+      expect(stored.map((i) => i.id)).toEqual(merged.map((i) => i.id));
+      expect(stored.map((i) => i.done)).toEqual(merged.map((i) => i.done));
+    }
+  });
+
+  it("안내 없이 저장된 기록을 다시 읽으면 템플릿 문구가 되살아난다", () => {
+    for (const category of CATEGORY_CHECKLISTS) {
+      const saved = stripPlanningChecklistNotes(
+        category.items.map((item) => ({ ...item, done: true })),
+      );
+      const merged = mergePlanningChecklist(category.items, saved);
+
+      for (const item of category.items) {
+        const back = merged.find((m) => m.id === item.id);
+        expect(back?.note, `${category.key}/${item.id}`).toBe(item.note);
+        expect(back?.done).toBe(true);
+      }
+    }
+  });
+
+  it("문구가 바뀌어도 저장된 옛 문장이 화면을 이기지 않는다", () => {
+    const target = withNotes[0];
+    const category = CATEGORY_CHECKLISTS.find((c) => c.items.some((i) => i.id === target.id))!;
+    const stale = category.items.map((item) =>
+      item.id === target.id ? { ...item, note: "예전에 저장된 옛 문장이에요.", done: true } : { ...item },
+    );
+
+    const merged = mergePlanningChecklist(category.items, stale);
+    expect(merged.find((m) => m.id === target.id)?.note).toBe(target.note);
   });
 });

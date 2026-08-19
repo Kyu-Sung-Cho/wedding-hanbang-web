@@ -2,6 +2,27 @@ export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  /**
+   * 이 항목을 할 때 놓치기 쉬운 한 가지. 없으면 안 그린다.
+   *
+   * label은 **무엇을 할지**만 말한다. 그래서 "샘플 확인" 같은 항목은 열어도 무슨 샘플을
+   * 뭘 보고 판단하는지 알 수 없었다. 이 자리는 그 한 칸을 메운다.
+   *
+   * 규칙 세 가지 —
+   *   1. 금액·기간 수치와 법령명을 넣지 않는다. 업체·계약마다 다르고 틀리면 그게 사고다.
+   *      "얼마"가 아니라 **무엇을 물어야 하는지**를 쓴다.
+   *   2. label을 다시 말하지 않는다. 반복은 정보량이 0이다.
+   *   3. **사실을 주장하면 근거가 필요하고, 물어볼 것을 알려주면 필요 없다.**
+   *      "철회 기간은 며칠입니다"는 틀리면 사고라 예절 안내 25편
+   *      (`apps/web/src/lib/manners/data.ts`)에 근거를 둔다. "철회 기간을 계약서에
+   *      적어달라고 하세요"는 애초에 참·거짓이 없고, 쓸모없을 수는 있어도 틀릴 수는
+   *      없다. 그래서 이 자리는 대부분 **무엇을 물어야 하는지**로 채운다.
+   *      근거도 없고 물어볼 것도 아닌 단정만 비워 둔다.
+   *
+   * 진행 상태와 무관하다. 이 문구를 고쳐도 사용자의 완료 기록은 `id`로만 저장되므로
+   * 영향이 없다.
+   */
+  note?: string;
 }
 
 /**
@@ -76,11 +97,31 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "venue_01", label: "원하는 결혼식장 형태 정하기", done: false },
       { id: "venue_02", label: "비교할 장소 후보 정리", done: false },
       { id: "venue_03", label: "장소 방문 날짜 예약하고 직접 확인", done: false },
-      { id: "venue_04", label: "하객 식사 메뉴와 1인당 금액 확인", done: false },
+      {
+        id: "venue_04",
+        label: "하객 식사 메뉴와 1인당 금액 확인",
+        done: false,
+        note: "주류와 음료, 아이 식사가 식대에 포함인지 별도인지 항목으로 나눠 받아보세요.",
+      },
       { id: "venue_05", label: "결혼식 시간대 정하기", done: false },
-      { id: "venue_06", label: "취소·변경 때 내거나 돌려받는 금액 확인", done: false },
-      { id: "venue_09", label: "하객이 적어도 식사비를 내야 하는 최소 인원 확인", done: false },
-      { id: "venue_07", label: "계약금 납부 및 계약서 보관", done: false },
+      {
+        id: "venue_06",
+        label: "취소·변경 때 내거나 돌려받는 금액 확인",
+        done: false,
+        note: "돌려받을 때 무엇을 빼는지, 그 항목과 금액을 계약 전에 서면으로 받아두세요.",
+      },
+      {
+        id: "venue_09",
+        label: "하객이 적어도 식사비를 내야 하는 최소 인원 확인",
+        done: false,
+        note: "인원을 낮출 수 있는지, 낮추면 대관료가 올라가는 구조인지 함께 물어보세요.",
+      },
+      {
+        id: "venue_07",
+        label: "계약금 납부 및 계약서 보관",
+        done: false,
+        note: "상담에서 말로 들은 조건도 계약서에 문장으로 옮겨 적혔는지 보고 서명하세요.",
+      },
       { id: "venue_08", label: "대기실·주차장·사진 촬영 공간 확인", done: false },
     ],
   },
@@ -99,9 +140,19 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "studio_03", label: "업체가 실제로 찍은 사진과 이용 후기 확인", done: false },
       { id: "studio_04", label: "받는 사진 수와 보정해 주는 사진 수 확인", done: false },
       { id: "studio_05", label: "촬영 일정 확정", done: false },
-      { id: "studio_09", label: "촬영 취소나 날짜 변경 때 돌려받는 금액 확인", done: false },
+      {
+        id: "studio_09",
+        label: "촬영 취소나 날짜 변경 때 돌려받는 금액 확인",
+        done: false,
+        note: "패키지로 묶여 있어도 제휴업체마다 위약금 기준이 다르니 업체별로 받아보세요.",
+      },
       { id: "studio_10", label: "완성 사진 받는 날짜와 늦어질 때 어떻게 되는지 확인", done: false },
-      { id: "studio_06", label: "계약 및 계약금 납부", done: false },
+      {
+        id: "studio_06",
+        label: "계약 및 계약금 납부",
+        done: false,
+        note: "박람회장처럼 사업장 밖에서 맺는 계약은 철회 규정이 다르니, 기간과 방법을 계약서에 적어달라고 하세요.",
+      },
       { id: "studio_07", label: "원하는 사진 분위기와 입을 옷 협의", done: false },
       { id: "studio_08", label: "보정해 준 사진 확인하고 받을 사진 선택", done: false },
     ],
@@ -137,7 +188,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "makeup_03", label: "업체가 실제로 한 작업과 이용 후기 확인", done: false },
       { id: "makeup_04", label: "결혼식 전에 미리 받아볼 날짜 예약", done: false },
       { id: "makeup_05", label: "미리 받아보고 사진으로 남겨 확인", done: false },
-      { id: "makeup_06", label: "수정 사항 전달", done: false },
+      {
+        id: "makeup_06",
+        label: "수정 사항 전달",
+        done: false,
+        note: "감정이 올라오는 순간은 예고 없이 오니 번지지 않는 눈 화장으로 요청해 두세요.",
+      },
       { id: "makeup_07", label: "결혼식 날 헤어·메이크업 최종 확인", done: false },
       { id: "makeup_08", label: "부모님 헤어·메이크업이 필요한지 확인", done: false },
     ],
@@ -155,9 +211,24 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "ring_03", label: "완성된 반지를 파는 매장과 직접 만들어 주는 매장 비교", done: false },
       { id: "ring_04", label: "후보 매장 방문하고 가격·조건 비교", done: false },
       { id: "ring_05", label: "디자인 및 사이즈 확정", done: false },
-      { id: "ring_09", label: "만들기 시작한 뒤 취소가 되는지 확인", done: false },
-      { id: "ring_10", label: "사이즈를 고치거나 다시 만들 때 드는 비용 확인", done: false },
-      { id: "ring_06", label: "주문 및 계약금 납부", done: false },
+      {
+        id: "ring_09",
+        label: "만들기 시작한 뒤 취소가 되는지 확인",
+        done: false,
+        note: "각인이나 사이즈 조정이 들어가면 취소가 막히는 시점이 앞당겨지는지 함께 물어보세요.",
+      },
+      {
+        id: "ring_10",
+        label: "사이즈를 고치거나 다시 만들 때 드는 비용 확인",
+        done: false,
+        note: "사후 수리를 어디까지 해주는지 보증서에 적혀 있는지 사러 가기 전에 확인하세요.",
+      },
+      {
+        id: "ring_06",
+        label: "주문 및 계약금 납부",
+        done: false,
+        note: "완성된 반지를 받는 날짜를 결혼식보다 넉넉히 앞으로 잡아 주문서에 적어두세요.",
+      },
       { id: "ring_07", label: "반지 안쪽에 새길 문구 정하기 (필요한 경우)", done: false },
       { id: "ring_08", label: "최종 수령 및 확인", done: false },
     ],
@@ -243,10 +314,30 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "housing_01", label: "신혼집을 보증금으로 빌릴지, 살지, 매달 임대료를 낼지 정하기", done: false },
       { id: "housing_02", label: "지역 및 예산 범위 확정", done: false },
       { id: "housing_03", label: "부동산 방문 및 매물 탐색", done: false },
-      { id: "housing_04", label: "대출이 필요하다면 금융기관에서 조건 확인", done: false },
-      { id: "housing_08", label: "대출이 나오지 않으면 계약을 되돌릴 수 있는지 확인", done: false },
-      { id: "housing_09", label: "계약 기간을 못 채우고 나갈 때 보증금 조건 확인", done: false },
-      { id: "housing_05", label: "계약 및 계약금 납부", done: false },
+      {
+        id: "housing_04",
+        label: "대출이 필요하다면 금융기관에서 조건 확인",
+        done: false,
+        note: "누구 이름으로 받을지에 따라 상환과 세금이 달라지니 명의를 먼저 정하고 가세요.",
+      },
+      {
+        id: "housing_08",
+        label: "대출이 나오지 않으면 계약을 되돌릴 수 있는지 확인",
+        done: false,
+        note: "말로 듣는 데서 끝내지 말고 그 조건을 계약서 특약란에 적어달라고 요청하세요.",
+      },
+      {
+        id: "housing_09",
+        label: "계약 기간을 못 채우고 나갈 때 보증금 조건 확인",
+        done: false,
+        note: "새로 들어올 사람을 구하는 일과 중개 수수료를 누가 맡는지까지 함께 물어보세요.",
+      },
+      {
+        id: "housing_05",
+        label: "계약 및 계약금 납부",
+        done: false,
+        note: "계약서에 입주일을 적기 전에 결혼식 날짜와 어긋나지 않는지 다시 맞춰보세요.",
+      },
       { id: "housing_06", label: "집 수리·벽지·바닥 공사가 필요한지 결정", done: false },
       { id: "housing_07", label: "입주 청소 및 이사 일정 확정", done: false },
     ],
@@ -263,10 +354,25 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     items: [
       { id: "invitation_01", label: "종이·모바일 초대장 중 필요한 형태 정하기", done: false },
       { id: "invitation_02", label: "초대장 디자인 초안 선택", done: false },
-      { id: "invitation_03", label: "문구 및 정보 작성", done: false },
+      {
+        id: "invitation_03",
+        label: "문구 및 정보 작성",
+        done: false,
+        note: "계좌번호를 넣을지 말지는 인쇄·배포 전에 두 사람과 두 집안이 함께 정해 두세요.",
+      },
       { id: "invitation_04", label: "하객 명단 정리 및 수량 확정", done: false },
-      { id: "invitation_05", label: "초대장 주문·제작", done: false },
-      { id: "invitation_06", label: "수령 및 오류 확인", done: false },
+      {
+        id: "invitation_05",
+        label: "초대장 주문·제작",
+        done: false,
+        note: "인쇄를 넘기기 전에 준비에 관여하지 않은 사람에게 교정을 한 번 맡기세요.",
+      },
+      {
+        id: "invitation_06",
+        label: "수령 및 오류 확인",
+        done: false,
+        note: "받자마자 날짜와 요일은 달력으로 대조하고, 성함은 소리 내어 한 글자씩 읽어 보세요.",
+      },
       { id: "invitation_07", label: "초대장 보낼 날짜 정하고 발송", done: false },
     ],
   },
@@ -284,7 +390,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "snap_04", label: "자연스러운 장면과 연출 장면의 비중 협의", done: false },
       { id: "snap_08", label: "촬영을 맡은 사람이 못 올 때 대신할 사람 확인", done: false },
       { id: "snap_09", label: "결혼식 날짜가 바뀔 때 촬영도 옮길 수 있는지 확인", done: false },
-      { id: "snap_05", label: "계약 및 계약금 납부", done: false },
+      {
+        id: "snap_05",
+        label: "계약 및 계약금 납부",
+        done: false,
+        note: "촬영본을 업체가 홍보에 쓸 수 있는지, 쓰기 전에 알려줄지 계약서에 적어두세요.",
+      },
       { id: "snap_06", label: "당일 촬영 동선 사전 협의", done: false },
       { id: "snap_07", label: "보정해 준 사진과 영상을 받는 날짜 확인", done: false },
     ],
@@ -332,9 +443,19 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "gift_01", label: "하객 선물 전체 예산 정하기", done: false },
       { id: "gift_02", label: "선물 종류 정하기", done: false },
       { id: "gift_03", label: "선물 업체와 가격 비교", done: false },
-      { id: "gift_04", label: "샘플 확인", done: false },
+      {
+        id: "gift_04",
+        label: "샘플 확인",
+        done: false,
+        note: "하객이 하루 끝에 쥐고 돌아갈 물건이니 한 손에 들리는 크기와 무게인지 직접 들어 보세요.",
+      },
       { id: "gift_05", label: "최종 하객 수량 기준 주문", done: false },
-      { id: "gift_06", label: "포장 상태 확인", done: false },
+      {
+        id: "gift_06",
+        label: "포장 상태 확인",
+        done: false,
+        note: "선물이 식품이라면 겉포장에 적힌 소비기한과 보관 온도까지 함께 살펴 두세요.",
+      },
       { id: "gift_07", label: "결혼식장에 도착할 날짜와 장소 확인", done: false },
     ],
   },
@@ -347,7 +468,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     ddayDeadline: 14,
     items: [
       { id: "mc_01", label: "결혼식 진행을 맡을 사람 정하기", done: false },
-      { id: "mc_02", label: "전문 진행자를 이용한다면 계약 조건 확인", done: false },
+      {
+        id: "mc_02",
+        label: "전문 진행자를 이용한다면 계약 조건 확인",
+        done: false,
+        note: "진행자가 못 오게 됐을 때 대신 올 사람이 있는지 계약 전에 확인해 두세요.",
+      },
       { id: "mc_03", label: "축하 노래를 부탁할 사람과 곡 정하기", done: false },
       { id: "mc_04", label: "축하 공연이나 별도 행사가 필요한지 정하기", done: false },
       { id: "mc_05", label: "결혼식 진행 순서를 맡은 사람에게 전달", done: false },
@@ -382,7 +508,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "pyebaek_02", label: "진행한다면 음식 업체와 품목 정하기", done: false },
       { id: "pyebaek_03", label: "전통 인사에 쓸 음식 주문", done: false },
       { id: "pyebaek_04", label: "결혼식장 안에 진행할 장소가 있는지 확인", done: false },
-      { id: "pyebaek_05", label: "진행 순서를 미리 확인", done: false },
+      {
+        id: "pyebaek_05",
+        label: "진행 순서를 미리 확인",
+        done: false,
+        note: "절 순서와 횟수는 집안마다 달라서, 맞히려 하기보다 인사를 받으실 어른께 직접 여쭤보세요.",
+      },
       { id: "pyebaek_06", label: "입을 한복과 신발 확인", done: false },
     ],
   },

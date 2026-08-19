@@ -8,6 +8,8 @@ export interface PlanningChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  /** 템플릿이 소유하는 한 줄 안내. 저장 전에 `stripPlanningChecklistNotes`로 떼어 낸다. */
+  note?: string;
 }
 
 export interface PlanningChecklistProgress {
@@ -54,6 +56,24 @@ export function mergePlanningChecklist<T extends PlanningChecklistItem>(
     }
   }
   return merged;
+}
+
+/**
+ * 저장 직전에 `note`를 떼어 낸다. `mergePlanningChecklist`의 반대편이다.
+ *
+ * `note`는 제품 문구지 사용자 데이터가 아니다. 그대로 저장하면 사용자 행마다 문구가
+ * 복제되고, 나중에 문구를 고쳐도 저장된 값은 옛 문장인 채로 남는다. 읽을 때 템플릿이
+ * 덮으므로 화면은 맞지만 DB에는 계속 어긋난 사본이 쌓인다. 저장에 필요한 건 `id`와
+ * `done`뿐이라, 이 필드가 없던 때와 똑같은 모양으로 되돌려 보낸다.
+ */
+export function stripPlanningChecklistNotes<T extends PlanningChecklistItem>(
+  checklist: readonly T[],
+): T[] {
+  return checklist.map((item) => {
+    if (item.note === undefined) return { ...item };
+    const { note: _note, ...rest } = item;
+    return rest as T;
+  });
 }
 
 export function calculatePlanningChecklistStatus(
