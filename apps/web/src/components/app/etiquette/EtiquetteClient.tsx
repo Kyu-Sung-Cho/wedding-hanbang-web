@@ -893,7 +893,8 @@ function EtiquettePageInner() {
 
   // 일정 저장
   const handleSaveSchedule = useCallback(async (date: string, memo: string) => {
-    if (!journey?.progress || !schedulePopover) return;
+    const expectedOwnerId = user?.id;
+    if (!journey?.progress || !schedulePopover || !expectedOwnerId) return;
     const progress = journey.progress as unknown as Record<string, unknown>;
     const sourceKey = getEtiquetteScheduleSourceKey(part.number, schedulePopover.itemId);
     const trimmedMemo = memo.trim();
@@ -915,10 +916,18 @@ function EtiquettePageInner() {
         sourceKey,
       }).newProgress;
 
-    await updateJourney({ progress: newProgress as typeof journey.progress });
+    const result = await updateJourney(
+      { progress: newProgress as typeof journey.progress },
+      expectedOwnerId,
+    );
+    if (useAuthStore.getState().user?.id !== expectedOwnerId) return;
     setSchedulePopover(null);
-    setToast(schedulePopover.eventId ? "일정을 수정했습니다" : "일정에 추가되었습니다");
-  }, [journey, updateJourney, schedulePopover, part.number]);
+    setToast(result.status === "pending_partner"
+      ? "상대방에게 일정 확인을 요청했어요"
+      : schedulePopover.eventId
+        ? "일정을 수정했습니다"
+        : "일정에 추가되었습니다");
+  }, [journey, updateJourney, schedulePopover, part.number, user?.id]);
 
   // 토스트 자동 닫기
   useEffect(() => {
