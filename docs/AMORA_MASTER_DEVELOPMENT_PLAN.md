@@ -1045,7 +1045,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-F16 | 중단·재로그인 복구 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | device-only exact owner/couple stage handoff, 24h TTL, private message·account/couple 변경 시 폐기, cold-start canonical receipt replay를 검증. 강제 종료·재로그인 실기기 matrix 미검증 |
 | AMR-F17~18 | 승인·영수증·홈 복귀·결과 후속 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | proposal→명시 승인→canonical receipt→같은 홈 행동 및 완료·막힘·변경·모름 후속을 자동 검증. neutral 첫 세션의 실기기·2계정·live-provider E2E는 없음 |
 | AMR-F20 | 이미 준비 중 사용자의 catch-up | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 외부 자동 import 없이 최대 3항목 preview·명시 승인·161900 원자 영수증·secure restart·주제 사용자보고 projection 구현; hosted·2계정·실기기 미검증 |
-| AMR-H03 | 전체 준비를 의미로 보여 주는 진행 상태 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | `/checklist`에 19개 주제·4개 비선형 묶음 read-only 지도와 상호배타 상세 목록 구현. 부분 범위·추천 근거·날짜 미입력 경계를 명시하고 전체 퍼센트·잠금·레벨을 제거. mobile 1156/1156·typecheck·lint·all-platform export PASS; 실기기·사용자 이해도·독립 여정 공백은 미검증 |
+| AMR-H03 | 전체 준비를 의미로 보여 주는 진행 상태 | `COMMITTED` | `AUTOMATED` | `VERCEL-PREVIEW/INTERNAL-BLOCKED` | `NOT-RUN` | product commit `89ec695c`; pushed candidate `9d4b9feb`. `/checklist`에 19개 주제·4개 비선형 묶음 read-only 지도와 상호배타 상세 목록 구현. 부분 범위·추천 근거·날짜 미입력 경계를 명시하고 전체 퍼센트·잠금·레벨을 제거. mobile 1156/1156·typecheck·lint·all-platform export, pushed pre-push web 7649/7649, Vercel Preview Ready. 모바일 실기기·사용자 이해도·독립 여정 공백·Production은 미검증 |
 | AMR-T04 | 일정 이외 일반 결정의 안전한 주제 연결 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 예산·일부 booking receipt만 연결, 일반 decision 전체는 읽을 수 없음 |
 | AMR-M03 | `우리 준비 노트`의 중요한 대화·검증된 기준·지원 영수증 검색과 재개 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `c4a5e19d`; 헤더 진입·scope/topic/type/질문/답변 검색·stable cursor·exact 원문, 승인 당시 행동·이유·완료 기준 표시와 exact current action 복귀를 로컬 검증. hosted RPC·실기기·2계정 검증은 미완료 |
 | AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제·내보내기 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commit `f453fb01`; default-off·비소급·전원 동의·결정적 필터·철회/수정/삭제와 범위 분리 내보내기까지 로컬 검증. 실기기·2계정·hosted 삭제/roster 무효화 E2E 전 auxiliary memory 활성화·Production 완료 금지 |
@@ -2500,7 +2500,7 @@ Wave 3·4 구현
 
 첫 EAS 시도 `5cef8bfc-c399-4d46-aa03-35ab85d77f9d`는 preview environment에 Sentry org/slug가 없어 source-map upload 단계에서 실패했다. 제품 runtime이나 앱 compile 실패로 숨기지 않고, 공식 Sentry Gradle 경계가 지원하는 preview-only auto-upload disable을 `eas.json`에 명시했다. 두 번째 build에서 해당 경계를 적용해 APK 생성까지 완료했다. 이 영수증은 `FV-012/FV-015`의 실행 입력일 뿐 완료 증거가 아니다.
 
-## 27. AMR-H03 준비 지도 첫 로컬 수직 — `LOCAL-GREEN / UNCOMMITTED / DEVICE QA NOT-RUN`
+## 27. AMR-H03 준비 지도 첫 수직 — `COMMITTED / GITHUB-PUSHED / VERCEL-PREVIEW-READY / DEVICE QA NOT-RUN`
 
 2026-08-19 구현은 게임의 위치감을 빌리되 결혼 준비를 점수·잠금·직선 단계로 바꾸지 않는 범위로 고정했다. [Lazyweb 설계 근거](https://www.lazyweb.com/agentic-search/fe4ddb71-0a82-419b-9314-8e0addea8fcc)는 교육 앱의 방향감과 프로젝트 앱의 병렬 상태를 결합하는 안을 선택했고, 실제 구현은 현재 정본의 read-only projection만 사용한다.
 
@@ -2517,6 +2517,8 @@ Wave 3·4 구현
 - [x] 48px 조작 영역, 장식 레일 접근성 제외, 챕터 heading, 1.5배 이상 글자 또는 360px 미만에서 단일열 전환을 코드 계약으로 고정
 - [x] focused 18/18, mobile 전체 1156/1156, TypeScript, 변경 파일 ESLint, Android·iOS·Web Expo export PASS
 - [x] 독립 제품·시각 red-team 최종 P0 0건/P1 0건 GO
+- [x] product commit `89ec695c`를 candidate HEAD `9d4b9feb`에 포함해 GitHub PR #105 branch로 push
+- [x] push 전 저장소 gate에서 web 715 files·7649/7649 tests PASS, Vercel Preview deployment `Fqgjm5nY8eMitw2ihyoDrfjJR7M9` Ready
 
 남은 체크:
 
@@ -2535,4 +2537,4 @@ Wave 3·4 구현
 - `apps/mobile/src/__tests__/preparationMapPresentation.test.mjs`
 - `apps/mobile/src/__tests__/preparationJourneyMapScreenContract.test.mjs`
 
-이 receipt는 로컬 코드·자동 검증 완료를 뜻한다. 커밋·Preview·내부 배포·Production 배포·실사용자 검증 완료를 뜻하지 않는다.
+이 receipt는 로컬 코드·자동 검증, GitHub branch push, 웹/API Vercel Preview 빌드 완료를 뜻한다. 준비 지도 본체는 `apps/mobile` 코드이므로 Vercel Preview만으로 모바일 사용자에게 전달되지 않는다. 새 Android/iOS internal build·실기기·2계정·Production·실사용자 검증 완료를 뜻하지 않는다.
