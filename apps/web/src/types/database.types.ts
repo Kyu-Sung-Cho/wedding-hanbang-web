@@ -79,6 +79,13 @@ export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  /**
+   * 항목을 열었을 때 붙는 한 줄 안내. **템플릿이 소유하고 DB에는 저장하지 않는다.**
+   * 저장 직전에 떼어 내므로(`CategoryChecklistModal`의 `forStorage`) 사용자 행의 모양은
+   * 이 필드가 없던 때와 같고, 문구를 고치면 다음 화면부터 바로 반영된다.
+   * 문구 규칙은 `@hanbang/shared` `ChecklistItem.note`의 주석이 정본이다.
+   */
+  note?: string;
 }
 
 export type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";

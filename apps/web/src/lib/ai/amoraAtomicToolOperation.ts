@@ -20,6 +20,7 @@ import {
 } from "@/lib/ai/tools/planningConstants";
 import type { ScheduleEvent } from "@/types/database.types";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { calculateStatus, mergeChecklist } from "@/utils/checklist";
 import { isValidScheduleYmd } from "@/utils/scheduleEvents";
@@ -780,7 +781,10 @@ function buildChecklistOperation(
     ...(existing ?? {}),
     category,
     status: newStatus,
-    checklist: updated,
+    // DB는 항목을 {id, label, done} 정확히 그 세 키로만 받는다(20260716112000 마이그레이션의
+    // AMORA_ATOMIC_CHECKLIST_ITEM_INVALID). 템플릿이 들고 있는 note를 그대로 보내면 쓰기가
+    // 거절되므로 저장 직전에 뗀다.
+    checklist: stripPlanningChecklistNotes(updated),
   };
   if (isRecord(existing) && valuesEqual(existing, value)) {
     return noOpFailure(

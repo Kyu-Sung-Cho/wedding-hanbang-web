@@ -116,7 +116,7 @@ export default function ChecklistContent() {
       const checklist = mergeChecklist(template.items, saved?.checklist, status);
       const counts = getChecklistCounts(checklist);
       const aliases = CATEGORY_SEARCH_ALIASES[template.key]?.join(" ") ?? "";
-      const searchable = `${template.label} ${aliases} ${template.tip} ${checklist.map((item) => item.label).join(" ")}`
+      const searchable = `${template.label} ${aliases} ${template.tip} ${checklist.map((item) => `${item.label} ${item.note ?? ""}`).join(" ")}`
         .toLocaleLowerCase("ko-KR");
       return { template, status, counts, guide: mannersPartForCategory(template.key), searchable };
     }).filter(({ status, searchable }) =>
