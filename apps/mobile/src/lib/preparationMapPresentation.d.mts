@@ -46,9 +46,54 @@ export interface PreparationHomeStatusModel {
   }>[];
 }
 
+export type PreparationJourneyTone =
+  | "active"
+  | "success"
+  | "warning"
+  | "neutral"
+  | "muted";
+
+export interface PreparationJourneyNodeModel {
+  topicKey: string;
+  title: string;
+  state: "unknown" | "needs_review" | "not_applicable" | "not_started" | "in_progress" | "completed";
+  stateLabel: "확인 전" | "확인 필요" | "해당 없음" | "준비 전" | "준비 중" | "완료";
+  tone: PreparationJourneyTone;
+  symbol: "?" | "!" | "—" | "○" | "◐" | "✓";
+  isFocus: boolean;
+  focusReasonLabel: string | null;
+  accessibilityLabel: string;
+}
+
+export interface PreparationJourneyMapModel {
+  description: "저장한 기록에서 이번에 볼 준비를 모았어요.";
+  boundaryLabel: "저장한 준비 기록 기준";
+  coverageNotice: string | null;
+  viewOptions: readonly Readonly<{
+    key: "map" | "details";
+    label: "지도" | "상세 목록";
+  }>[];
+  focus: Readonly<{
+    title: "이번에 볼 준비" | "필요한 주제부터 보기";
+    description: string;
+    nodes: readonly Readonly<PreparationJourneyNodeModel>[];
+  }>;
+  chapters: readonly Readonly<{
+    key: "agreements" | "vendors" | "life_and_family" | "ceremony_details" | "other";
+    title: string;
+    description: string;
+    hasFocus: boolean;
+    nodes: readonly Readonly<PreparationJourneyNodeModel>[];
+  }>[];
+}
+
 export function buildPreparationHomeStatusModel(
   overview: Readonly<AmoraPreparationOverview> | null | undefined,
 ): Readonly<PreparationHomeStatusModel> | null;
+
+export function buildPreparationJourneyMapModel(
+  overview: Readonly<AmoraPreparationOverview> | null | undefined,
+): Readonly<PreparationJourneyMapModel> | null;
 
 export function buildPreparationHomeSectionModel(
   overview: Readonly<AmoraPreparationOverview> | null | undefined,

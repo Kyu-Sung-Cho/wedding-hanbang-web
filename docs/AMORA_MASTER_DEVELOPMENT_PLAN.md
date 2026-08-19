@@ -622,6 +622,8 @@ handoff 또는 last action 수신
 - 진행률 하나로 사실·결정·실행을 섞지 않는다.
 - 정본 일부를 읽지 못하면 빈 성공이 아니라 `일부 확인하지 못함`을 보여 준다.
 - 사용자가 하지 않기로 한 선택 사항을 미완료로 압박하지 않는다.
+- 2026-08-19 로컬 후보는 기존 `/checklist`에 연결된 19개 주제를 4개 비선형 묶음으로 보여 주는 첫 read-only 지도다. `지도/상세 목록`은 상호배타이며, 기존 상세 체크 화면을 두 번째 정본으로 복제하지 않는다.
+- 이 첫 지도는 전체 결혼 여정 완성이 아니다. coverage가 partial이면 예식 당일·결혼 후 등 아직 연결되지 않은 범위를 본문으로 고지하고, 6개 독립 여정 adapter가 닫히기 전에는 전체 준비 완료나 전체 위치로 표현하지 않는다.
 
 ### 4.3 준비 주제 화면
 
@@ -1043,7 +1045,7 @@ booking 후보·결과는 이번 핵심 rank의 일반 후보가 아니다. 해�
 | AMR-F16 | 중단·재로그인 복구 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | device-only exact owner/couple stage handoff, 24h TTL, private message·account/couple 변경 시 폐기, cold-start canonical receipt replay를 검증. 강제 종료·재로그인 실기기 matrix 미검증 |
 | AMR-F17~18 | 승인·영수증·홈 복귀·결과 후속 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | proposal→명시 승인→canonical receipt→같은 홈 행동 및 완료·막힘·변경·모름 후속을 자동 검증. neutral 첫 세션의 실기기·2계정·live-provider E2E는 없음 |
 | AMR-F20 | 이미 준비 중 사용자의 catch-up | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | 외부 자동 import 없이 최대 3항목 preview·명시 승인·161900 원자 영수증·secure restart·주제 사용자보고 projection 구현; hosted·2계정·실기기 미검증 |
-| AMR-H03 | 전체 준비를 의미로 보여 주는 진행 상태 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 홈 상단 큰 퍼센트를 상태 요약으로 교체하고 체크 퍼센트는 체크 도구 내부로 제한해야 함 |
+| AMR-H03 | 전체 준비를 의미로 보여 주는 진행 상태 | `LOCAL-DIRTY` | `AUTOMATED` | `LOCAL` | `NOT-RUN` | `/checklist`에 19개 주제·4개 비선형 묶음 read-only 지도와 상호배타 상세 목록 구현. 부분 범위·추천 근거·날짜 미입력 경계를 명시하고 전체 퍼센트·잠금·레벨을 제거. mobile 1156/1156·typecheck·lint·all-platform export PASS; 실기기·사용자 이해도·독립 여정 공백은 미검증 |
 | AMR-T04 | 일정 이외 일반 결정의 안전한 주제 연결 | `PARTIAL` | `FOCUSED` | `LOCAL` | `NOT-RUN` | 예산·일부 booking receipt만 연결, 일반 decision 전체는 읽을 수 없음 |
 | AMR-M03 | `우리 준비 노트`의 중요한 대화·검증된 기준·지원 영수증 검색과 재개 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | product commit `c4a5e19d`; 헤더 진입·scope/topic/type/질문/답변 검색·stable cursor·exact 원문, 승인 당시 행동·이유·완료 기준 표시와 exact current action 복귀를 로컬 검증. hosted RPC·실기기·2계정 검증은 미완료 |
 | AMR-M04 | 장기 기억 동의·민감정보 필터·철회·삭제·내보내기 | `COMMITTED` | `AUTOMATED` | `LOCAL/BLOCKED` | `NOT-RUN` | commit `f453fb01`; default-off·비소급·전원 동의·결정적 필터·철회/수정/삭제와 범위 분리 내보내기까지 로컬 검증. 실기기·2계정·hosted 삭제/roster 무효화 E2E 전 auxiliary memory 활성화·Production 완료 금지 |
@@ -2497,3 +2499,40 @@ Wave 3·4 구현
 | 하지 않은 일 | APK 실제 설치·작동, 작은 화면, 200% 글자, TalkBack, offline/slow network, 중단/복귀, token expiry, 2계정/2기기, hosted final-candidate 결박, Production |
 
 첫 EAS 시도 `5cef8bfc-c399-4d46-aa03-35ab85d77f9d`는 preview environment에 Sentry org/slug가 없어 source-map upload 단계에서 실패했다. 제품 runtime이나 앱 compile 실패로 숨기지 않고, 공식 Sentry Gradle 경계가 지원하는 preview-only auto-upload disable을 `eas.json`에 명시했다. 두 번째 build에서 해당 경계를 적용해 APK 생성까지 완료했다. 이 영수증은 `FV-012/FV-015`의 실행 입력일 뿐 완료 증거가 아니다.
+
+## 27. AMR-H03 준비 지도 첫 로컬 수직 — `LOCAL-GREEN / UNCOMMITTED / DEVICE QA NOT-RUN`
+
+2026-08-19 구현은 게임의 위치감을 빌리되 결혼 준비를 점수·잠금·직선 단계로 바꾸지 않는 범위로 고정했다. [Lazyweb 설계 근거](https://www.lazyweb.com/agentic-search/fe4ddb71-0a82-419b-9314-8e0addea8fcc)는 교육 앱의 방향감과 프로젝트 앱의 병렬 상태를 결합하는 안을 선택했고, 실제 구현은 현재 정본의 read-only projection만 사용한다.
+
+완료 체크:
+
+- [x] 기존 `preparationProgress`와 19개 체크 주제를 그대로 읽고 새 DB·AI 추론·상태 writer를 만들지 않음
+- [x] `먼저 맞출 것 / 주요 선택과 예약 / 생활과 가족 준비 / 예식 전 세부 준비` 4개 묶음으로 표시하되 번호·잠금·필수 선행 순서를 제거
+- [x] `확인 전 / 확인 필요 / 해당 없음 / 준비 전 / 준비 중 / 완료`를 색뿐 아니라 문구·심벌·접근성 이름으로 표시
+- [x] 최대 3개의 `이번에 볼 준비`에 canonical attention reason을 함께 표시하고, 예식일 미입력 시 날짜 기반 근거를 노출하지 않음
+- [x] partial coverage에서 아직 연결되지 않은 예식 당일·결혼 후 범위를 본문으로 고지
+- [x] `지도 / 상세 목록`을 상호배타로 구성해 동일한 19개 목록의 연속 중복을 제거
+- [x] 지도 노드 선택 시 같은 `/checklist`를 push하지 않고, exact 검증된 주제를 내부에서 펼치고 스크롤·접근성 포커스 이동
+- [x] 전체 퍼센트·XP·레벨·순위·스트릭·파트너 비교를 지도에서 사용하지 않음
+- [x] 48px 조작 영역, 장식 레일 접근성 제외, 챕터 heading, 1.5배 이상 글자 또는 360px 미만에서 단일열 전환을 코드 계약으로 고정
+- [x] focused 18/18, mobile 전체 1156/1156, TypeScript, 변경 파일 ESLint, Android·iOS·Web Expo export PASS
+- [x] 독립 제품·시각 red-team 최종 P0 0건/P1 0건 GO
+
+남은 체크:
+
+- [ ] 실제 Android/iOS 320~360px·글자 200%·TalkBack/VoiceOver·reduced motion 확인
+- [ ] 느린 네트워크·offline·부분 조회·계정/커플 전환에서 지도 상태와 접근성 포커스 실기기 확인
+- [ ] 6개 독립 여정 공백을 canonical topic adapter로 연결하기 전 전체 결혼 여정 완성 주장 금지
+- [ ] 실제 예비부부가 5초 안에 `이번에 볼 준비 / 아직 모르는 것 / 해당 없음`을 오해 없이 설명하는지 관찰
+- [ ] Preview/internal candidate hash에 결박한 뒤 제한 rollout과 kill switch 검증
+
+구현 파일:
+
+- `apps/mobile/app/schedule/index.tsx`
+- `apps/mobile/src/components/planning/PreparationJourneyMap.tsx`
+- `apps/mobile/src/lib/preparationMapPresentation.mjs`
+- `apps/mobile/src/lib/preparationMapPresentation.d.mts`
+- `apps/mobile/src/__tests__/preparationMapPresentation.test.mjs`
+- `apps/mobile/src/__tests__/preparationJourneyMapScreenContract.test.mjs`
+
+이 receipt는 로컬 코드·자동 검증 완료를 뜻한다. 커밋·Preview·내부 배포·Production 배포·실사용자 검증 완료를 뜻하지 않는다.

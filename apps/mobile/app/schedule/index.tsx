@@ -13,6 +13,7 @@ import {
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { buildAmoraPreparationOverview } from "@hanbang/shared/amora-preparation-map";
 import {
   buildAmoraPreparationTopicView,
   getCanonicalCategoryKeyForMoment,
@@ -99,7 +100,11 @@ import {
   type DashboardOpenAction,
 } from "@/lib/dashboardExperience.mjs";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import PreparationJourneyMap, {
+  type PreparationJourneyViewMode,
+} from "@/components/planning/PreparationJourneyMap";
 import PreparationTopicSummary from "@/components/planning/PreparationTopicSummary";
+import { buildPreparationJourneyMapModel } from "@/lib/preparationMapPresentation.mjs";
 import {
   AppHeader,
   AppText,
@@ -505,6 +510,9 @@ export default function ScheduleScreen() {
     actionRevision?: string;
   }>();
   const checklistOnly = pathname.startsWith("/checklist");
+  const [journeyViewMode, setJourneyViewMode] = useState<PreparationJourneyViewMode>(
+    checklistOnly && requestedCategoryKey ? "details" : "map",
+  );
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
   const [preparationProgress, setPreparationProgress] = useState<Record<string, unknown>>({});
@@ -2871,6 +2879,35 @@ export default function ScheduleScreen() {
     setExpandedKey(expandedKey === key ? null : key);
   }
 
+  const handleJourneyMapTopicPress = useCallback((topicKey: string) => {
+    const selection = buildVerifiedChecklistDeepLink({
+      checklistOnly,
+      requestedCategoryKey: topicKey,
+      availableCategoryKeys: categories.map((category) => category.key),
+      verifiedIdentity: profileId && coupleId
+        ? { ownerId: profileId, coupleId }
+        : null,
+    });
+    if (!selection) {
+      Alert.alert("준비를 열지 못했어요", "준비 기록을 다시 불러온 뒤 시도해 주세요.");
+      return;
+    }
+
+    cancelPendingChecklistDeepLinkFocus();
+    handledChecklistDeepLinkRef.current = selection.handledKey;
+    focusedChecklistDeepLinkRef.current = null;
+    pendingChecklistDeepLinkRef.current = selection;
+    setPendingChecklistDeepLinkHandledKey(selection.handledKey);
+    setExpandedKey(selection.categoryKey);
+    setJourneyViewMode("details");
+  }, [
+    cancelPendingChecklistDeepLinkFocus,
+    categories,
+    checklistOnly,
+    coupleId,
+    profileId,
+  ]);
+
   /* ── 임박 일정 (7일 이내) ── */
   const next7Days = getUpcomingDays(7);
   const activeEvents = events.filter((event) => !isCancelledScheduleEvent(event));
@@ -2891,6 +2928,16 @@ export default function ScheduleScreen() {
   const dday = calcDday(weddingDate);
   const weeklyActions = getWeeklyActions(dday);
   const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;
+  const preparationOverview = checklistOnly && !scheduleDataError
+    ? buildAmoraPreparationOverview({
+        topics: CATEGORY_CHECKLISTS,
+        progress: preparationProgress,
+        attentionTopicKeys: dday === null
+          ? []
+          : weeklyActions.map((action) => action.categoryKey),
+      })
+    : null;
+  const journeyMapModel = buildPreparationJourneyMapModel(preparationOverview);
 
   // 진행바 width 보간
   const progressWidth = progressAnim.interpolate({
@@ -2909,8 +2956,8 @@ export default function ScheduleScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AppHeader
-        title={checklistOnly ? "웨딩 체크리스트" : "일정"}
-        subtitle={checklistOnly ? "부모님 첫 만남부터 신혼집까지 하나씩 확인해요" : "두 사람의 날짜와 약속을 관리해요"}
+        title={checklistOnly ? "준비 지도" : "일정"}
+        subtitle={checklistOnly ? undefined : "두 사람의 날짜와 약속을 관리해요"}
         onBack={() => router.back()}
         right={!checklistOnly ? (
           <Pressable
@@ -3005,7 +3052,43 @@ export default function ScheduleScreen() {
           </Surface>
         ) : null}
 
-        <Surface tone="noir" style={styles.opsCard}>
+        {checklistOnly && journeyMapModel ? (
+          <PreparationJourneyMap
+            model={journeyMapModel}
+            viewMode={journeyViewMode}
+            onViewModeChange={setJourneyViewMode}
+            onOpenTopic={handleJourneyMapTopicPress}
+          />
+        ) : null}
+
+        {checklistOnly && !journeyMapModel && !scheduleDataError ? (
+          <Surface style={styles.approvalSection}>
+            <View accessibilityRole="alert" style={styles.approvalErrorCopy}>
+              <AlertTriangle size={18} color={colors.warning} />
+              <AppText variant="caption" style={styles.approvalErrorText}>
+                준비 기록이 서로 맞지 않아 지도를 임의로 만들지 않았어요. 다시 불러와 확인해 주세요.
+              </AppText>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="준비 지도 다시 불러오기"
+              onPress={() => void loadData()}
+              style={styles.approvalRetry}
+            >
+              <Text style={styles.approvalRetryText}>다시 불러오기</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="준비 상세 목록 보기"
+              onPress={() => setJourneyViewMode("details")}
+              style={styles.approvalRetry}
+            >
+              <Text style={styles.approvalRetryText}>상세 목록 보기</Text>
+            </Pressable>
+          </Surface>
+        ) : null}
+
+        {!checklistOnly ? <Surface tone="noir" style={styles.opsCard}>
           <View style={styles.opsTop}>
             <View>
               <AppText variant="caption" style={styles.opsLabel}>
@@ -3042,7 +3125,7 @@ export default function ScheduleScreen() {
           >
             <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
           </View>
-        </Surface>
+        </Surface> : null}
 
         {(approvalLoading || approvalError || approvalRequests.length > 0) && (
           <Surface style={styles.approvalSection}>
@@ -3264,8 +3347,18 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* 카테고리 체크리스트 — 웹 상수 기반, 항상 20개 카테고리 표시 */}
-        {!scheduleDataError && (
+        {checklistOnly && journeyViewMode === "details" && !scheduleDataError ? (
+          <View style={styles.detailSectionHeader}>
+            <AppText variant="eyebrow">PREPARATION DETAILS</AppText>
+            <AppText variant="title">준비 자세히 보기</AppText>
+            <AppText variant="caption" style={styles.detailSectionDescription}>
+              지도에서 고른 준비를 펼쳐 현재 상태, 근거와 다음 행동을 확인해요.
+            </AppText>
+          </View>
+        ) : null}
+
+        {/* 카테고리 체크리스트 — 공유 상수 기반, 현재 연결된 19개 주제를 표시 */}
+        {!scheduleDataError && (!checklistOnly || journeyViewMode === "details") && (
           categories.map((cat) => {
             const stats = getCategoryStats(cat.key);
             const expanded = expandedKey === cat.key;
@@ -3973,6 +4066,8 @@ const styles = StyleSheet.create({
   eventCatText: { fontSize: 10, color: colors.textSecondary },
 
   // 카테고리 체크리스트
+  detailSectionHeader: { gap: 4, paddingTop: 8 },
+  detailSectionDescription: { color: colors.textTertiary },
   empty: { alignItems: "center", paddingTop: 60 },
   emptyIconWrap: {
     width: 80,

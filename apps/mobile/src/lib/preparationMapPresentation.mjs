@@ -22,6 +22,171 @@ const REASON_LABELS = Object.freeze({
   resolve_conflict: "저장된 상태가 서로 달라 한 번 확인이 필요해요.",
 });
 
+const JOURNEY_CHAPTER_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    key: "agreements",
+    title: "먼저 맞출 것",
+    description: "두 사람과 가족이 큰 방향을 맞추는 준비예요.",
+    topicKeys: Object.freeze(["meeting", "venue"]),
+  }),
+  Object.freeze({
+    key: "vendors",
+    title: "주요 선택과 예약",
+    description: "비교하고 확인할 업체와 상품을 모았어요.",
+    topicKeys: Object.freeze(["studio", "dress", "makeup", "ring"]),
+  }),
+  Object.freeze({
+    key: "life_and_family",
+    title: "생활과 가족 준비",
+    description: "신혼생활과 가족 사이에서 맞출 준비예요.",
+    topicKeys: Object.freeze(["hanbok", "yedan", "honeymoon", "houseware", "housing"]),
+  }),
+  Object.freeze({
+    key: "ceremony_details",
+    title: "예식 전 세부 준비",
+    description: "당일이 편안하도록 미리 정리할 준비예요.",
+    topicKeys: Object.freeze([
+      "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
+    ]),
+  }),
+]);
+
+const JOURNEY_STATE_DEFINITIONS = Object.freeze({
+  unknown: Object.freeze({ label: "확인 전", tone: "neutral", symbol: "?" }),
+  needs_review: Object.freeze({ label: "확인 필요", tone: "warning", symbol: "!" }),
+  not_applicable: Object.freeze({ label: "해당 없음", tone: "muted", symbol: "—" }),
+  not_started: Object.freeze({ label: "준비 전", tone: "neutral", symbol: "○" }),
+  in_progress: Object.freeze({ label: "준비 중", tone: "active", symbol: "◐" }),
+  completed: Object.freeze({ label: "완료", tone: "success", symbol: "✓" }),
+});
+
+function buildJourneyNode(topic, focusTopicKeys) {
+  const stateDefinition = JOURNEY_STATE_DEFINITIONS[topic?.state];
+  if (
+    !stateDefinition
+    || typeof topic?.topicKey !== "string"
+    || topic.topicKey.length === 0
+    || typeof topic?.label !== "string"
+    || topic.label.length === 0
+  ) return null;
+
+  const isFocus = focusTopicKeys.has(topic.topicKey);
+  const focusReasonLabel = isFocus
+    ? REASON_LABELS[topic.attentionReason] ?? null
+    : null;
+  if (isFocus && !focusReasonLabel) return null;
+  return Object.freeze({
+    topicKey: topic.topicKey,
+    title: topic.label,
+    state: topic.state,
+    stateLabel: stateDefinition.label,
+    tone: stateDefinition.tone,
+    symbol: stateDefinition.symbol,
+    isFocus,
+    focusReasonLabel,
+    accessibilityLabel: `${topic.label}, ${stateDefinition.label}${
+      isFocus ? `, 이번에 볼 준비, ${focusReasonLabel}` : ""
+    }`,
+  });
+}
+
+export function buildPreparationJourneyMapModel(overview) {
+  if (
+    !overview
+    || overview.version !== 1
+    || !overview.coverage
+    || !Array.isArray(overview.topics)
+    || !Array.isArray(overview.attentionTopics)
+    || overview.coverage.stage === "invalid"
+  ) return null;
+
+  const topicByKey = new Map();
+  for (const topic of overview.topics) {
+    if (
+      typeof topic?.topicKey !== "string"
+      || topic.topicKey.length === 0
+      || topicByKey.has(topic.topicKey)
+    ) return null;
+    topicByKey.set(topic.topicKey, topic);
+  }
+
+  const focusTopicKeys = new Set();
+  for (const topic of overview.attentionTopics.slice(0, 3)) {
+    const canonicalTopic = topicByKey.get(topic?.topicKey);
+    if (
+      typeof topic?.topicKey !== "string"
+      || !canonicalTopic
+      || topic.state === "completed"
+      || topic.state === "not_applicable"
+      || canonicalTopic.attentionReason !== topic.attentionReason
+      || !REASON_LABELS[topic.attentionReason]
+    ) return null;
+    focusTopicKeys.add(topic.topicKey);
+  }
+
+  const assignedTopicKeys = new Set();
+  const chapters = JOURNEY_CHAPTER_DEFINITIONS.map((chapter) => {
+    const nodes = chapter.topicKeys
+      .map((topicKey) => topicByKey.get(topicKey))
+      .filter(Boolean)
+      .map((topic) => buildJourneyNode(topic, focusTopicKeys));
+    if (nodes.some((node) => node === null)) return null;
+    for (const node of nodes) assignedTopicKeys.add(node.topicKey);
+    return Object.freeze({
+      key: chapter.key,
+      title: chapter.title,
+      description: chapter.description,
+      hasFocus: nodes.some((node) => node.isFocus),
+      nodes: Object.freeze(nodes),
+    });
+  });
+  if (chapters.some((chapter) => chapter === null)) return null;
+
+  const ungroupedTopics = overview.topics.filter(
+    (topic) => !assignedTopicKeys.has(topic.topicKey),
+  );
+  if (ungroupedTopics.length > 0) {
+    const nodes = ungroupedTopics.map((topic) => buildJourneyNode(topic, focusTopicKeys));
+    if (nodes.some((node) => node === null)) return null;
+    chapters.push(Object.freeze({
+      key: "other",
+      title: "그 밖의 준비",
+      description: "현재 연결된 다른 준비를 모았어요.",
+      hasFocus: nodes.some((node) => node.isFocus),
+      nodes: Object.freeze(nodes),
+    }));
+  }
+
+  const nodesByKey = new Map(
+    chapters.flatMap((chapter) => chapter.nodes).map((node) => [node.topicKey, node]),
+  );
+  if (nodesByKey.size !== overview.topics.length) return null;
+  const focusNodes = overview.attentionTopics
+    .slice(0, 3)
+    .map((topic) => nodesByKey.get(topic.topicKey));
+  if (focusNodes.some((node) => !node)) return null;
+
+  return Object.freeze({
+    description: "저장한 기록에서 이번에 볼 준비를 모았어요.",
+    boundaryLabel: "저장한 준비 기록 기준",
+    coverageNotice: overview.coverage.stage === "partial"
+      ? "현재 체크리스트에 연결된 준비만 보여요. 예식 당일과 결혼 후처럼 아직 연결되지 않은 준비는 포함되지 않아요."
+      : null,
+    viewOptions: Object.freeze([
+      Object.freeze({ key: "map", label: "지도" }),
+      Object.freeze({ key: "details", label: "상세 목록" }),
+    ]),
+    focus: Object.freeze({
+      title: focusNodes.length > 0 ? "이번에 볼 준비" : "필요한 주제부터 보기",
+      description: focusNodes.length > 0
+        ? "저장한 상태와 기본 확인 시점을 기준으로 골랐어요. 각 이유를 함께 확인해 주세요."
+        : "모든 준비를 잠그지 않았어요. 필요한 주제부터 편하게 확인해요.",
+      nodes: Object.freeze(focusNodes),
+    }),
+    chapters: Object.freeze(chapters),
+  });
+}
+
 function getStatusLabel(topic) {
   switch (topic.state) {
     case "in_progress":

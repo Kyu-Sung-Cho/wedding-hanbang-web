@@ -5,6 +5,7 @@ import { buildAmoraPreparationOverview } from "@hanbang/shared/amora-preparation
 import {
   buildPreparationHomeSectionModel,
   buildPreparationHomeStatusModel,
+  buildPreparationJourneyMapModel,
 } from "../lib/preparationMapPresentation.mjs";
 
 const topics = [
@@ -19,6 +20,132 @@ const topics = [
     items: [{ id: "venue_01" }],
   },
 ];
+
+const journeyTopics = [
+  "meeting", "venue",
+  "studio", "dress", "makeup", "ring",
+  "hanbok", "yedan", "honeymoon", "houseware", "housing",
+  "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
+].map((key) => ({
+  key,
+  label: `주제 ${key}`,
+  items: key === "meeting"
+    ? [{ id: "meeting_01" }, { id: "meeting_02" }]
+    : [{ id: `${key}_01` }],
+}));
+
+test("the journey map groups every saved topic once and pins only canonical attention topics", () => {
+  const overview = buildAmoraPreparationOverview({
+    topics: journeyTopics,
+    progress: {
+      meeting: {
+        status: "in_progress",
+        checklist: [
+          { id: "meeting_01", done: true },
+          { id: "meeting_02", done: false },
+        ],
+      },
+      studio: {
+        status: "completed",
+        checklist: [{ id: "studio_01", done: true }],
+      },
+      honeymoon: { status: "not_applicable" },
+      invitation: {
+        status: "completed",
+        checklist: [{ id: "invitation_01", done: false }],
+      },
+    },
+    attentionTopicKeys: ["venue"],
+  });
+
+  const model = buildPreparationJourneyMapModel(overview);
+
+  assert.equal(model.description, "저장한 기록에서 이번에 볼 준비를 모았어요.");
+  assert.equal(model.boundaryLabel, "저장한 준비 기록 기준");
+  assert.equal(
+    model.coverageNotice,
+    "현재 체크리스트에 연결된 준비만 보여요. 예식 당일과 결혼 후처럼 아직 연결되지 않은 준비는 포함되지 않아요.",
+  );
+  assert.deepEqual(model.viewOptions, [
+    { key: "map", label: "지도" },
+    { key: "details", label: "상세 목록" },
+  ]);
+  assert.deepEqual(
+    model.chapters.map((chapter) => ({
+      key: chapter.key,
+      topicKeys: chapter.nodes.map((node) => node.topicKey),
+    })),
+    [
+      { key: "agreements", topicKeys: ["meeting", "venue"] },
+      { key: "vendors", topicKeys: ["studio", "dress", "makeup", "ring"] },
+      { key: "life_and_family", topicKeys: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
+      { key: "ceremony_details", topicKeys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
+    ],
+  );
+  assert.deepEqual(
+    model.focus.nodes.map((node) => ({
+      topicKey: node.topicKey,
+      focusReasonLabel: node.focusReasonLabel,
+    })),
+    [
+      {
+        topicKey: "invitation",
+        focusReasonLabel: "저장된 상태가 서로 달라 한 번 확인이 필요해요.",
+      },
+      {
+        topicKey: "meeting",
+        focusReasonLabel: "저장한 진행 상태부터 이어서 볼게요.",
+      },
+      {
+        topicKey: "venue",
+        focusReasonLabel: "결혼식 날짜 기준의 기본 확인 시점이 가까워요.",
+      },
+    ],
+  );
+  assert.equal(model.focus.title, "이번에 볼 준비");
+  assert.deepEqual(
+    model.chapters.flatMap((chapter) => chapter.nodes)
+      .filter((node) => node.isFocus)
+      .map((node) => node.topicKey),
+    ["meeting", "venue", "invitation"],
+  );
+  assert.equal(model.chapters[0].nodes[0].stateLabel, "준비 중");
+  assert.equal(model.chapters[1].nodes[0].stateLabel, "완료");
+  assert.equal(model.chapters[2].nodes[2].stateLabel, "해당 없음");
+  assert.equal(model.chapters[3].nodes[0].stateLabel, "확인 필요");
+  assert.doesNotMatch(JSON.stringify(model), /percent|progressbar|전체 진행률/u);
+});
+
+test("the journey map withholds a focus whose reason cannot be proven", () => {
+  const overview = buildAmoraPreparationOverview({
+    topics: journeyTopics,
+    progress: {},
+    attentionTopicKeys: ["venue"],
+  });
+  const malformed = {
+    ...overview,
+    attentionTopics: overview.attentionTopics.map((topic, index) => (
+      index === 0 ? { ...topic, attentionReason: null } : topic
+    )),
+  };
+
+  assert.equal(buildPreparationJourneyMapModel(malformed), null);
+});
+
+test("a customer without a wedding date never receives a date-window explanation", () => {
+  const overview = buildAmoraPreparationOverview({
+    topics: journeyTopics,
+    progress: {},
+    attentionTopicKeys: [],
+  });
+  const model = buildPreparationJourneyMapModel(overview);
+
+  assert.ok(model);
+  assert.equal(
+    model.focus.nodes.some((node) => node.focusReasonLabel.includes("날짜 기준")),
+    false,
+  );
+});
 
 test("home explains a personal preparation snapshot and deep-links each exact topic", () => {
   const overview = buildAmoraPreparationOverview({
