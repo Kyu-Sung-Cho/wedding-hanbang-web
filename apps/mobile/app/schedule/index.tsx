@@ -16,6 +16,7 @@ import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
   mergePlanningChecklist,
+  stripPlanningChecklistNotes,
   summarizePlanningChecklist,
   type PlanningChecklistStatus,
 } from "@hanbang/shared/utils";
@@ -794,7 +795,8 @@ export default function ScheduleScreen() {
         ...(existing ?? {}),
         category: categoryKey,
         status,
-        checklist: updatedChecklist,
+        // 항목 안내(note)는 템플릿이 소유한 제품 문구다. 사용자 행에 복제하지 않는다.
+        checklist: stripPlanningChecklistNotes(updatedChecklist),
       };
 
       const res = await apiFetchForExpectedUser(
@@ -898,7 +900,7 @@ export default function ScheduleScreen() {
         ...existing,
         category: categoryKey,
         status: wasSkipped ? calculatePlanningChecklistStatus(checklist) : "not_applicable",
-        checklist,
+        checklist: stripPlanningChecklistNotes(checklist),
       };
       const response = await apiFetchForExpectedUser(sessionToken.ownerId, "/api/journey", {
         method: "PATCH",
