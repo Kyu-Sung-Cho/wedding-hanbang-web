@@ -321,33 +321,49 @@ function OwnedScheduleContent({
       if (!journey || !pendingChecklistSchedule) return;
       if (data.date && blockUnsafeEventMutation()) return;
 
-      let nextProgress = progress as unknown as Record<string, unknown>;
+      // 일정과 체크를 **한 번에** 보내면 DB가 통째로 거절한다.
+      // `__events`가 바뀐 저장은 아모라 수동 일정 공정성 검사를 타는데, 그 검사는 같은
+      // 저장에 `__events` 밖의 변경이 섞여 있으면 AMORA_MANUAL_SCHEDULE_MIXED_DELTA_DENIED로
+      // 막는다(20260802140000 마이그레이션). 그래서 일정 → 체크 두 번에 나눠 보낸다.
+      // 순서가 중요하다 — 일정이 실패하면 체크도 하지 않아야 화면과 저장이 어긋나지 않는다.
+      try {
+        if (data.date) {
+          const upserted = upsertCategoryEvent(
+            progress as unknown as Record<string, unknown>,
+            {
+              date: data.date,
+              title: pendingChecklistSchedule.categoryLabel,
+              memo:
+                sanitizeUserFacingScheduleMemo(data.memo)?.trim()
+                || pendingChecklistSchedule.itemLabel,
+              categoryKey: pendingChecklistSchedule.categoryKey,
+            },
+            pendingChecklistSchedule.categoryLabel
+          );
+          await saveJourney({
+            progress: upserted.newProgress as unknown as Record<string, ProgressItem>,
+          });
+        }
 
-      if (data.date) {
-        const upserted = upsertCategoryEvent(
-          nextProgress,
-          {
-            date: data.date,
-            title: pendingChecklistSchedule.categoryLabel,
-            memo:
-              sanitizeUserFacingScheduleMemo(data.memo)?.trim()
-              || pendingChecklistSchedule.itemLabel,
-            categoryKey: pendingChecklistSchedule.categoryKey,
-          },
-          pendingChecklistSchedule.categoryLabel
-        );
-        nextProgress = upserted.newProgress;
+        // 첫 저장이 그대로 반영됐다면 스토어의 progress는 이미 `__events`를 담고 있다.
+        // 낡은 `progress`로 두 번째 패치를 만들면 방금 넣은 일정을 되돌리는 변경이 섞여
+        // 같은 이유로 다시 거절당한다. 상대 확인 대기로 끝났다면 스토어는 그대로이므로,
+        // 어느 쪽이든 최신값에서 다시 만드는 것이 맞다.
+        const latestProgress = (useAuthStore.getState().journey?.progress
+          ?? progress) as unknown as Record<string, unknown>;
+
+        await saveJourney({
+          progress: buildChecklistProgress(
+            latestProgress,
+            pendingChecklistSchedule.categoryKey,
+            pendingChecklistSchedule.itemId,
+            true
+          ) as unknown as Record<string, ProgressItem>,
+        });
+        setPendingChecklistSchedule(null);
+      } catch {
+        // saveJourney가 이미 오류 문구를 세팅했다. 창을 닫지 않아 다시 시도할 수 있다.
       }
-
-      nextProgress = buildChecklistProgress(
-        nextProgress,
-        pendingChecklistSchedule.categoryKey,
-        pendingChecklistSchedule.itemId,
-        true
-      );
-
-      await saveJourney({ progress: nextProgress as unknown as Record<string, ProgressItem> });
-      setPendingChecklistSchedule(null);
     },
     [
       blockUnsafeEventMutation,
@@ -852,6 +868,7 @@ function OwnedScheduleContent({
           onClose={() => setPendingChecklistSchedule(null)}
           onComplete={completeChecklistWithSchedule}
           scheduleMutationBlockReason={eventMutationBlockReason}
+          saveError={journeyError}
         />
 
         {/* 이벤트 추가/수정 모달 */}
@@ -879,11 +896,14 @@ export function ChecklistSchedulePrompt({
   onClose,
   onComplete,
   scheduleMutationBlockReason,
+  saveError,
 }: {
   pending: PendingChecklistSchedule | null;
   onClose: () => void;
   onComplete: (data: { date?: string; memo?: string }) => Promise<void>;
   scheduleMutationBlockReason?: string | null;
+  /** 저장 실패 문구. 창 밖 배너는 이 오버레이에 가려 보이지 않으므로 여기서도 보여준다. */
+  saveError?: string;
 }) {
   const [date, setDate] = useState("");
   const [memo, setMemo] = useState("");
@@ -979,12 +999,12 @@ export function ChecklistSchedulePrompt({
               이미 등록된 {pending.categoryLabel} 일정이 있어요. 저장하면 새로 만들지 않고 기존 일정 날짜를 바꿉니다.
             </p>
           )}
-          {scheduleMutationBlockReason && (
+          {(scheduleMutationBlockReason || saveError) && (
             <p
               role="alert"
               className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
             >
-              {scheduleMutationBlockReason}
+              {scheduleMutationBlockReason ?? saveError}
             </p>
           )}
         </div>
