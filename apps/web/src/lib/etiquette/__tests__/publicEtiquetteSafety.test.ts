@@ -64,11 +64,37 @@ describe("restored etiquette guide", () => {
     expect((corpus.match(/^ {4}number: \d+,$/gm) ?? []).length).toBe(25);
   });
 
-  // 이 코퍼스는 금액 61건 중 출처가 1건뿐이다. 사람이 "관행이구나" 하고 읽는 것과,
-  // 아모라가 근거로 인용해 사실처럼 파는 것은 다른 문제다. AI 배선만은 계속 막는다.
-  it("keeps the unsourced corpus out of the Amora prompt", () => {
-    expect(source("src/lib/ai/prompts.ts")).not.toContain("예절 관련 답변 시 `[etiquette:번호]`");
-    expect(source("src/lib/ai/prompts.ts")).not.toContain("etiquetteData");
+  // 2026-08-19 파운더 결정으로 아모라 배선을 열었다. 다만 이 코퍼스는 금액 61건 중
+  // 출처가 1건뿐이라, 아모라가 **읽을 곳으로 안내하는 것**과 **근거로 인용하는 것**은
+  // 계속 구분해야 한다. 프롬프트가 그 구분을 잃으면 무출처 수치가 사실로 나간다.
+  it("lets Amora link the guide but never cite it as a source", () => {
+    const prompt = source("src/lib/ai/prompts.ts");
+
+    // 배선은 열려 있다.
+    expect(prompt).toContain("[etiquette:번호]");
+    expect(prompt).toContain("## 예절 가이드 링크");
+
+    // 그리고 그 태그가 근거가 아니라는 것을 프롬프트가 직접 말한다.
+    expect(prompt).toContain("'더 읽을 곳'이지 '근거'가 아닙니다");
+    expect(prompt).toContain("금액·기간·법률 수치를 이 가이드에서 가져와 말하지 마세요");
+
+    // 프롬프트가 코퍼스를 통째로 읽어들이지는 않는다 — 번호표만 쓴다.
+    expect(prompt).not.toContain("etiquetteData");
+    expect(prompt).not.toContain("ETIQUETTE_PARTS");
+  });
+
+  // 태그가 가리키는 번호는 실제 파트여야 한다. 프롬프트의 번호표와 코퍼스가 어긋나면
+  // 아모라가 존재하지 않는 챕터를 권하고 화면은 카드를 못 그린다.
+  it("keeps the prompt part index in sync with the corpus", () => {
+    const prompt = source("src/lib/ai/prompts.ts");
+    const table = prompt.slice(prompt.indexOf("**번호표:**"));
+    const promptNumbers = [...table.matchAll(/(\d+):/g)].map((match) => Number(match[1]));
+    const corpusNumbers = [
+      ...source("src/constants/etiquetteData.ts").matchAll(/^ {4}number: (\d+),$/gm),
+    ].map((match) => Number(match[1]));
+
+    expect(promptNumbers.length).toBe(25);
+    expect(promptNumbers.sort((a, b) => a - b)).toEqual(corpusNumbers.sort((a, b) => a - b));
   });
 
   // 2026-08-19 회귀 가드. 파서가 제목에 "가이드·분담·기준"이 들어가면 무조건 checklist를
