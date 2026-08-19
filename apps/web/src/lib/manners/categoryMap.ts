@@ -38,10 +38,31 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
 
 export const MAPPED_MANNERS_CATEGORY_KEYS = Object.keys(CATEGORY_MANNERS_SLUG);
 
+/**
+ * 파트 → 그 파트가 여는 대표 카테고리.
+ *
+ * 한 파트를 여러 카테고리가 가리킬 때, 호출부는 그냥 첫 번째를 집었다. 그 "첫 번째"가
+ * 객체 리터럴의 선언 순서였던 탓에 **「폐백 예절」이 '한복' 체크리스트를 열었다** —
+ * `hanbok`이 `pyebaek`보다 위에 적혀 있었기 때문이다(2026-08-19 실측).
+ *
+ * 순서를 바꿔 고치면 다음에 키를 한 줄 추가할 때 같은 사고가 반복된다. 그래서 대표를
+ * 여기서 이름으로 못 박는다. 여기 없는 파트는 종전대로 첫 번째를 쓴다.
+ */
+const PRIMARY_CATEGORY_FOR_PART: Readonly<Record<string, string>> = {
+  "traditional-greetings": "pyebaek",
+  "gifts-and-traditions": "yedan",
+  "wedding-day": "venue",
+  "photo-manners": "studio",
+};
+
 export function categoryKeysForMannersPart(slug: string): string[] {
-  return Object.entries(CATEGORY_MANNERS_SLUG)
+  const keys = Object.entries(CATEGORY_MANNERS_SLUG)
     .filter(([, mappedSlug]) => mappedSlug === slug)
     .map(([categoryKey]) => categoryKey);
+
+  const primary = PRIMARY_CATEGORY_FOR_PART[slug];
+  if (!primary || !keys.includes(primary)) return keys;
+  return [primary, ...keys.filter((key) => key !== primary)];
 }
 
 /**

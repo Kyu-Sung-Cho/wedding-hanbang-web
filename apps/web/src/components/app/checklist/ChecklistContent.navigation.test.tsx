@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, type AnchorHTMLAttributes } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -112,5 +114,42 @@ describe("ChecklistContent category deep links", () => {
     expect(
       container.querySelector('button[aria-label="결혼식장 체크리스트 열기"]'),
     ).toBeNull();
+  });
+});
+
+/**
+ * 2026-08-19 — 검색창이 스스로 제시한 예시가 0건을 냈다. placeholder는 "계약 취소"였는데
+ * 그 연속 문자열은 저장소에서 placeholder 자신이 유일했다. 앱이 시킨 대로 치면 빈 화면이
+ * 나온다. 예시어는 실제로 결과가 나오는 말이어야 한다.
+ */
+describe("검색 예시어가 실제로 결과를 낸다", () => {
+  it("placeholder에 적힌 말이 항목이나 tip에 실재한다", async () => {
+    const { CATEGORY_CHECKLISTS } = await import("@hanbang/shared/constants");
+    const source = readFileSync(
+      resolve(process.cwd(), "src/components/app/checklist/ChecklistContent.tsx"),
+      "utf8",
+    );
+
+    // 실제 검색 대상은 라벨·tip·항목에 **별칭**까지 더한 문자열이다(:118-119).
+    // 건초더미를 그와 똑같이 만들지 않으면 이 테스트가 거짓 실패를 낸다.
+    const aliasStart = source.indexOf("CATEGORY_SEARCH_ALIASES");
+    const aliasBlock = source.slice(aliasStart, source.indexOf("};", aliasStart));
+    const aliases = [...aliasBlock.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+
+    const haystack = [
+      ...CATEGORY_CHECKLISTS.flatMap((category) => [
+        category.label,
+        category.tip,
+        ...category.items.map((item) => item.label),
+      ]),
+      ...aliases,
+    ].join("\n");
+
+    const placeholder = source.match(/placeholder="예: ([^"]+)"/)?.[1];
+    expect(placeholder, "검색 placeholder를 찾지 못했다").toBeTruthy();
+
+    for (const term of placeholder!.split(",").map((t) => t.trim())) {
+      expect(haystack.includes(term), `검색 예시 "${term}"가 0건을 낸다`).toBe(true);
+    }
   });
 });
