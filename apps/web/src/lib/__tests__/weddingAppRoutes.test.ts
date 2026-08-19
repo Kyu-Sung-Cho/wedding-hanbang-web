@@ -67,7 +67,8 @@ describe("wedding app route rewrites", () => {
     // 오판의 원인이 된 두 경로를 명시적으로 고정한다.
     expect(hasPage("onboarding")).toBe(true); // (auth)/onboarding
     expect(hasPage("market-prices")).toBe(true); // (community)/market-prices
-    // 그리고 실제로 지운 페이지는 계속 없는 것으로 나와야 한다.
-    expect(hasPage("etiquette")).toBe(false);
+    // 2026-08-19에 되살렸다. 이전에는 리라이트만 남고 페이지가 없어 링크가 전부
+    // 404였고, 그래서 여기서 `false`를 고정하고 있었다.
+    expect(hasPage("etiquette")).toBe(true); // (community)/etiquette
   });
 });
