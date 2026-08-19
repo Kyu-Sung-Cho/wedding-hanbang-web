@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import {
   findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
@@ -383,6 +384,9 @@ export default function TimelineView({
                                     type="button"
                                     role="checkbox"
                                     aria-checked={item.done}
+                                    // 이름은 할 일, 설명은 안내. 섞으면 항목마다 두 문장을 읽는다.
+                                    aria-labelledby={`tl-${cat.key}-${item.id}-label`}
+                                    aria-describedby={item.note ? `tl-${cat.key}-${item.id}-note` : undefined}
                                     aria-disabled={data.excluded}
                                     disabled={data.excluded || togglingItem === item.id}
                                     key={item.id}
@@ -406,15 +410,16 @@ export default function TimelineView({
                                         <div className="h-5 w-5 rounded-full border-2 border-[#B5ADA3] transition-colors hover:border-[#36534E]" />
                                       )}
                                     </div>
-                                    <span
-                                      className={`text-[14px] leading-snug ${
+                                    <ChecklistItemText
+                                      item={item}
+                                      idPrefix={`tl-${cat.key}-${item.id}`}
+                                      compact
+                                      labelClassName={`text-[14px] leading-snug ${
                                         item.done
                                           ? "text-[#B5ADA3] line-through"
                                           : "text-[#504444]"
                                       }`}
-                                    >
-                                      {item.label}
-                                    </span>
+                                    />
                                   </button>
                                 ))}
                               </div>

@@ -35,6 +35,7 @@ import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
+import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -364,24 +365,13 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   note를 체크박스 이름에 섞으면 스크린 리더가 항목마다 두 문장을 읽는다.
                   이름은 label로 못박고 note는 설명(aria-describedby)으로 넘긴다.
                 */}
-                <span className="flex-1">
-                  <span
-                    id={`${titleId}-${item.id}-label`}
-                    className={`block text-[17px] leading-snug ${
-                      item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  {item.note && (
-                    <span
-                      id={`${titleId}-${item.id}-note`}
-                      className="mt-1 block text-[15px] leading-[1.55] text-[#8A7F79]"
-                    >
-                      {item.note}
-                    </span>
-                  )}
-                </span>
+                <ChecklistItemText
+                  item={item}
+                  idPrefix={`${titleId}-${item.id}`}
+                  labelClassName={`text-[17px] leading-snug ${
+                    item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
+                  }`}
+                />
               </button>
             ))}
           </div>
