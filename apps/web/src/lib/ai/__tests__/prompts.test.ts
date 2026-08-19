@@ -214,10 +214,21 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).toContain("결혼반지·가족 선물");
     expect(prompt).toContain("비용을 정할 때 먼저 보는 것: 원하는 결과 우선");
     expect(prompt).toContain("예상 인원: 50~99명");
-    expect(prompt).not.toContain("프리미엄 (최고 퀄리티 선호)");
-    expect(prompt).not.toContain("50~100명");
-    expect(prompt).not.toContain("스몰웨딩");
     expect(prompt).not.toContain("사용자 성향 프로필");
+
+    // 이 단언이 지키는 것은 "설정값이 원시 라벨로 새지 않는가"다. 전체 프롬프트에서
+    // 낱말을 찾으면 무관한 대목까지 걸린다 — 2026-08-19에 예절 챕터 번호표의
+    // `23:스몰웨딩`이 그렇게 걸렸다. 검사 범위를 그 블록으로 좁혀 의도만 남긴다.
+    const preferenceBlock = prompt.slice(
+      prompt.indexOf("## 사용자가 설정한 준비 참고값"),
+    );
+    const blockEnd = preferenceBlock.indexOf("\n## ", 1);
+    const preferenceSection =
+      blockEnd === -1 ? preferenceBlock : preferenceBlock.slice(0, blockEnd);
+
+    expect(preferenceSection).not.toContain("프리미엄 (최고 퀄리티 선호)");
+    expect(preferenceSection).not.toContain("50~100명");
+    expect(preferenceSection).not.toContain("스몰웨딩");
   });
 
   it("applies only the signed-in user's confirmed help style without turning it into a trait", () => {
