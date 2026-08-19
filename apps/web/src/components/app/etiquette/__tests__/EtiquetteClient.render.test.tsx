@@ -73,7 +73,7 @@ const actionButtons = () => container.querySelectorAll("button[title]").length;
 describe("BlockRenderer", () => {
   // 버그 1 — 참고 표는 읽는 것이지 완료하는 것이 아니다.
   it("renders the money guide as reference, with no checkbox or action buttons", async () => {
-    const block = blockByTitle(9, "관계별 축의금 금액 가이드");
+    const block = blockByTitle(9, "관계별 축의금 참고 범위");
     expect(block.type).toBe("reference");
 
     await renderBlock(block);
@@ -129,15 +129,35 @@ describe("BlockRenderer", () => {
     expect(container.textContent).not.toContain("| 항목 |");
   });
 
-  // 버그 2 — 대사의 (X)/(O) 편집 표기가 화면 언어로 바뀐다.
-  it("converts editorial (X)/(O) markers into avoid/prefer styling", async () => {
-    const part13 = ETIQUETTE_PARTS.find((p) => p.number === 13)!;
-    const dialogue = parseContent(part13.content)
-      .flatMap((section) => section.blocks)
-      .find((b) => b.items.some((item) => item.type === "dialogue-text" && item.text.includes("(X)")));
-    expect(dialogue, "(X) 표기가 든 대사 블록을 찾지 못했다").toBeTruthy();
+  // 코퍼스에서 편집 표기를 걷어냈는지 확인한다. 2026-08-19 문구 정리로 P13의
+  // `(X)/(O)`가 사라졌다 — 사용자가 복사해 쓰는 대사에 교정 기호가 섞이면 안 된다.
+  it("no longer ships editorial (X)/(O) markers in dialogue", async () => {
+    const leaked = ETIQUETTE_PARTS.flatMap((part) =>
+      parseContent(part.content)
+        .flatMap((section) => section.blocks)
+        .flatMap((block) => block.items)
+        .filter((item) => item.type === "dialogue-text" && /\((X|O)\)/.test(item.text))
+        .map((item) => item.text),
+    );
+    expect(leaked).toEqual([]);
+  });
 
-    await renderBlock(dialogue!);
+  // 렌더러의 (X)/(O) 처리 능력 자체는 유지한다 — 코퍼스가 다시 그 표기를 쓰더라도
+  // 사용자가 교정 기호를 그대로 읽는 일은 없어야 한다.
+  it("converts editorial (X)/(O) markers into avoid/prefer styling", async () => {
+    const dialogue: ParsedBlock = {
+      type: "dialogue",
+      title: "테스트 대사",
+      items: [
+        { type: "dialogue-speaker", text: "혼주에게 인사" },
+        {
+          type: "dialogue-text",
+          text: "와주셔서 감사합니다 (X) → 이건 혼주가 하는 말\n귀한 자리에 초대해 주셔서 감사합니다. (O)",
+        },
+      ],
+    };
+
+    await renderBlock(dialogue);
 
     expect(container.textContent).toContain("피할 표현");
     expect(container.textContent).toContain("권하는 표현");

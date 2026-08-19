@@ -39,7 +39,7 @@ describe("etiquette corpus parser", () => {
 
     const references = ALL_BLOCKS.filter(({ block }) => block.type === "reference");
     expect(references.length).toBe(8);
-    expect(references.map(({ block }) => block.title)).toContain("관계별 축의금 금액 가이드 (2025년 기준)");
+    expect(references.map(({ block }) => block.title ?? "").some((t) => t.includes("관계별 축의금 참고 범위"))).toBe(true);
     expect(references.map(({ block }) => block.title)).toContain("전통적 분담 기준");
   });
 
