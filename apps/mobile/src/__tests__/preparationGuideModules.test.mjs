@@ -15,6 +15,16 @@ const canonicalChecklistSource = await readFile(
   "utf8",
 );
 
+// Read the id -> label pairing structurally. A substring match against one
+// source line breaks whenever an entry is reformatted onto several lines,
+// which is a formatting change rather than a change to the labels the guide
+// triggers are aligned with.
+const canonicalChecklistLabels = new Map(
+  [...canonicalChecklistSource.matchAll(
+    /id:\s*"([a-z]+_\d+)"\s*,\s*label:\s*"([^"]*)"/g,
+  )].map((match) => [match[1], match[2]]),
+);
+
 const applicableInput = (overrides = {}) => ({
   topicKey: "venue",
   applicability: "applicable",
@@ -829,7 +839,11 @@ test("all guide triggers stay aligned with the current canonical checklist label
   };
   for (const [topicKey, triggerItems] of Object.entries(triggerFixtures)) {
     for (const [id, label] of triggerItems) {
-      assert.ok(canonicalChecklistSource.includes(`{ id: "${id}", label: "${label}"`));
+      assert.equal(
+        canonicalChecklistLabels.get(id),
+        label,
+        `${id} is no longer the canonical checklist label the guide trigger expects`,
+      );
     }
     const modules = buildAmoraPreparationGuideModules({
       topicKey,
