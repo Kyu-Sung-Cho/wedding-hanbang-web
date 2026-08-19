@@ -4,25 +4,36 @@ import { MANNERS_PARTS } from "./data";
  * 웨딩 준비 카테고리 → 예절 안내 파트.
  *
  * 2026-07-17 `84b54e9f`가 지운 `CATEGORY_ETIQUETTE_MAP`(카테고리 → 파트 번호)의
- * 자리를 대신한다. 그때는 25파트가 있어 19개 카테고리를 전부 덮었지만 지금은
- * 1단계 10파트뿐이라 **덮이는 카테고리가 10개다.** 나머지 9개는 여기 넣지 않는다 —
- * 없는 파트를 억지로 이어 붙이면 "임박한 준비에 맞는 안내"라는 카드의 약속이 깨진다.
+ * 자리를 대신한다. 한동안 10파트뿐이라 19개 카테고리 중 10개만 덮였고, 나머지 9개는
+ * 모달 하단이 "아모라에게 물어보기"로 떨어졌다.
  *
- * 덮이지 않는 카테고리(2단계 집필 대상): meeting(첫인사·상견례),
- * ring·yedan·ham(예물·예단·함), hanbok·pyebaek(폐백), honeymoon(신혼여행 후 인사),
- * houseware(혼수), housing(신혼집).
+ * 2026-08-19에 레거시 25편을 이 스키마로 이관하면서 **19개 전부 덮인다.** 비어 있던
+ * 9개가 각각 이렇게 채워졌다 — meeting→상견례, ring·yedan·ham→예물·예단·함,
+ * hanbok·pyebaek→폐백, honeymoon→신혼여행 후 인사, houseware→혼수, housing→신혼집.
+ *
+ * 여전히 없는 파트를 억지로 이어 붙이지는 않는다. 매핑이 없으면 `null`을 돌려주고
+ * 호출부가 카드를 안 그린다 — 죽은 링크보다 낫다.
  */
 const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
+  meeting: "family-meeting",
   venue: "wedding-day",
   studio: "photo-manners",
   dress: "wedding-day",
   makeup: "wedding-day",
+  ring: "gifts-and-traditions",
+  hanbok: "traditional-greetings",
+  yedan: "gifts-and-traditions",
+  honeymoon: "post-honeymoon-thanks",
+  houseware: "shared-home-items",
+  housing: "home-conversation",
   invitation: "invitation-sending",
   snap: "photo-manners",
   shoes: "wedding-day",
   bouquet: "wedding-day",
   gift: "return-gift",
   mc: "congratulatory-speech",
+  ham: "gifts-and-traditions",
+  pyebaek: "traditional-greetings",
 };
 
 export const MAPPED_MANNERS_CATEGORY_KEYS = Object.keys(CATEGORY_MANNERS_SLUG);
