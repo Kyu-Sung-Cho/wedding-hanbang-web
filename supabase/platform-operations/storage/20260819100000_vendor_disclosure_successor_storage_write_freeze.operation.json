@@ -1,0 +1,82 @@
+{
+  "contractVersion": 1,
+  "operationId": "vendor-disclosure-successor-storage-write-freeze-v1",
+  "phase": "pre-backup",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "transition": {
+    "from": {
+      "bucketCount": 12,
+      "policyCount": 23
+    },
+    "to": {
+      "bucketCount": 12,
+      "policyCount": 5,
+      "mutationPolicyCount": 0
+    }
+  },
+  "requiredStorageObjectMutationCount": 0,
+  "requiredExistingObjectPreservation": "exact-id-path-and-row-inventory-hash",
+  "removedPolicySemanticIdentities": [
+    "Authenticated users can upload chat image",
+    "Authenticated users can upload chat images",
+    "chat-image couple folder delete",
+    "chat-image couple folder update",
+    "chat-image couple folder write",
+    "chat-image own uploader folder write pf46ue_0",
+    "community-images own folder delete",
+    "community-images own folder update",
+    "community-images own folder write",
+    "community-videos own folder delete",
+    "community-videos own folder update",
+    "community-videos own folder write",
+    "disclosure_evidence_client_delete_fence",
+    "disclosure_evidence_client_insert_fence",
+    "disclosure_evidence_client_update_fence",
+    "업체: 본인 이미지 삭제",
+    "업체: 본인 이미지 업로드",
+    "업체: 사업자등록증 업로드"
+  ],
+  "remainingPolicySemanticIdentities": [
+    "Anyone can view chat image",
+    "Anyone can view chat images",
+    "disclosure_evidence_client_select_fence",
+    "공개: 업체 이미지 조회",
+    "서비스: 사업자등록증 조회"
+  ],
+  "execution": {
+    "policyMutation": {
+      "channel": "supabase-dashboard-storage-policies",
+      "exactAction": "remove-only-the-18-pinned-policy-semantic-identities"
+    },
+    "bucketMutation": {
+      "channel": "none",
+      "exactAction": "no-bucket-control-plane-change"
+    },
+    "directSqlMutationAllowed": false,
+    "storageObjectApiMutationAllowed": false
+  },
+  "verifiers": {
+    "baseline": {
+      "file": "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_baseline_inventory.sql",
+      "sha256": "bae25c185e6bc5c6e36064b9cad1f4012ccb450e08da02d34b7488274a255915"
+    },
+    "postcondition": {
+      "file": "supabase/platform-operations/storage/20260819101000_vendor_disclosure_successor_storage_frozen_verify.sql",
+      "sha256": "eba1a72e0d196249f07ebaf54aeab49ebbbeabde879bc8bd6afce997ec4aa831"
+    }
+  },
+  "releaseCheck": {
+    "id": "vendor-disclosure-successor-storage-frozen",
+    "file": "supabase/release-checks/vendor-disclosure-successor-storage-frozen.sql",
+    "sha256": "e2f3c31a309209a22834dfabf566ab80f71a4663e3d8cd085696a4b0136c3b89",
+    "expectedEvidence": {
+      "successor_storage_frozen_verified_count": 1
+    }
+  },
+  "forbiddenPredecessorArtifacts": [
+    "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+    "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql",
+    "storage-global-write-freeze-20260716108000",
+    "community-upload-service-fence-20260716108000"
+  ]
+}

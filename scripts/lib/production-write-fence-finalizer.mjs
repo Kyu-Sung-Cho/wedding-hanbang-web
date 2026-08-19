@@ -26,9 +26,12 @@ import {
   validateAmoraExtendedReleaseContracts,
 } from "./amora-release-extended-contracts.mjs";
 import {
+  SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
   SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   SuccessorReleaseContractError,
+  validateSuccessorNoAdditionalCostReleaseAssurance,
   validateSuccessorReleaseContract,
+  validateSuccessorRuntimeEvidence,
 } from "./supabase-successor-release-contract.mjs";
 import {
   ProductionToolchainError,
@@ -37,18 +40,29 @@ import {
 import { productionDatabaseSystemIdentifier } from "./production-database-identity.mjs";
 import {
   ExternalGateProvenanceError,
+  validateExternalDeploymentCanaryProvenanceFiles,
   validateExternalGateProvenanceFiles,
 } from "./production-external-gate-provenance.mjs";
+import {
+  reverifyVendorDisclosureSuccessorStorageOriginalBytesFiles,
+} from "./vendor-disclosure-successor-storage-evidence-provenance.mjs";
 
 const PREDECESSOR_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/amora-engine-v2-20260716.json";
 const FINALIZER_SQL_RELATIVE_PATH =
   "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql";
+const SUCCESSOR_FINALIZER_OPERATION_ID =
+  "production-write-fence-successor-finalize-20260819122000";
+const SUCCESSOR_FINALIZER_SQL_RELATIVE_PATH =
+  "supabase/platform-operations/security/20260819122000_production_write_fence_successor_finalize.sql";
 const RELEASE_LOCK_RELATIVE_PATH =
   "supabase/.temp/amora-production-release.lock";
 const MAX_RECEIPT_BYTES = 64 * 1024;
 const MAX_BACKUP_MANIFEST_BYTES = 256 * 1024;
+const MAX_SUCCESSOR_BACKUP_ARTIFACT_BYTES = 32 * 1024 * 1024 + 1024;
+const MAX_SUCCESSOR_BACKUP_KEY_BYTES = 64 * 1024;
 const DEFAULT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000;
+const MAX_FINALIZER_SQL_CHARACTERS = 28 * 1024;
 const COMMIT = /^[a-f0-9]{40}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const UPPER_SHA256 = /^[A-F0-9]{64}$/;
@@ -81,8 +95,8 @@ const REQUIRED_CANARY_CHECKS = Object.freeze([
 const SUCCESSOR_RUNTIME_EVIDENCE_NAMES = Object.freeze([
   "backup",
   "finalizer",
-  "hostedRestore",
   "hostedStaging",
+  "recoveryAssurance",
   "storage",
 ]);
 const TEMPLATE_TOKENS = Object.freeze({
@@ -103,8 +117,6 @@ const TEMPLATE_TOKENS = Object.freeze({
     "__HB_FINALIZER_POST_EXPAND_BACKUP_RECEIPT_SHA256__",
   postExpandBackupReverificationSha256:
     "__HB_FINALIZER_POST_EXPAND_BACKUP_REVERIFICATION_SHA256__",
-  postExpandHostedRestoreReceiptSha256:
-    "__HB_FINALIZER_POST_EXPAND_HOSTED_RESTORE_RECEIPT_SHA256__",
   postExpandBackupSetId: "__HB_FINALIZER_POST_EXPAND_BACKUP_SET_ID__",
   postExpandBackupManifestSha256:
     "__HB_FINALIZER_POST_EXPAND_BACKUP_MANIFEST_SHA256__",
@@ -117,6 +129,10 @@ const TEMPLATE_TOKENS = Object.freeze({
   postExpandLogicalDataContractSha256:
     "__HB_FINALIZER_POST_EXPAND_LOGICAL_DATA_CONTRACT_SHA256__",
 });
+const PREDECESSOR_HOSTED_RESTORE_TEMPLATE_TOKEN =
+  "__HB_FINALIZER_POST_EXPAND_HOSTED_RESTORE_RECEIPT_SHA256__";
+const SUCCESSOR_RECOVERY_ASSURANCE_TEMPLATE_TOKEN =
+  "__HB_FINALIZER_RECOVERY_ASSURANCE_RECEIPT_SHA256__";
 
 export class ProductionWriteFenceFinalizerError extends Error {
   constructor(code, message) {
@@ -263,11 +279,86 @@ async function rawFileSha256(path, { upper = false } = {}) {
   return upper ? digest.toUpperCase() : digest;
 }
 
+function sameStableFile(left, right) {
+  const inodeMatches = !Number.isSafeInteger(left.ino)
+    || left.ino === 0
+    || (left.ino === right.ino && left.dev === right.dev);
+  return inodeMatches
+    && left.size === right.size
+    && left.mtimeMs === right.mtimeMs
+    && left.ctimeMs === right.ctimeMs;
+}
+
+async function readStableArtifactDigest(path, label, maximumBytes) {
+  const before = await lstat(path).catch(() => null);
+  const canonical = await realpath(path).catch(() => null);
+  if (!before?.isFile()
+      || before.isSymbolicLink()
+      || before.size < 1
+      || before.size > maximumBytes
+      || !canonical) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+      `${label} is missing, linked, empty, or oversized`,
+    );
+  }
+  let handle;
+  const hash = createHash("sha256");
+  let opened;
+  let offset = 0;
+  try {
+    handle = await open(canonical, "r");
+    opened = await handle.stat();
+    if (!opened.isFile() || !sameStableFile(before, opened)) {
+      blocked(
+        "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+        `${label} changed while it was opened`,
+      );
+    }
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
+    try {
+      while (offset < opened.size) {
+        const { bytesRead } = await handle.read(
+          buffer,
+          0,
+          Math.min(buffer.length, opened.size - offset),
+          offset,
+        );
+        if (bytesRead < 1) break;
+        hash.update(buffer.subarray(0, bytesRead));
+        offset += bytesRead;
+      }
+    } finally {
+      buffer.fill(0);
+    }
+    const after = await handle.stat();
+    const linked = await lstat(path).catch(() => null);
+    const afterCanonical = await realpath(path).catch(() => null);
+    if (offset !== opened.size
+        || !sameStableFile(opened, after)
+        || !linked?.isFile()
+        || linked.isSymbolicLink()
+        || !sameStableFile(after, linked)
+        || afterCanonical !== canonical) {
+      blocked(
+        "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+        `${label} changed while it was hashed`,
+      );
+    }
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+  return Object.freeze({
+    bytes: offset,
+    sha256: hash.digest("hex"),
+  });
+}
+
 function containsSecretLikeField(value) {
   if (!value || typeof value !== "object") return false;
   if (Array.isArray(value)) return value.some(containsSecretLikeField);
   return Object.entries(value).some(([key, nested]) =>
-    (!/^(?:containsSecrets|containsSensitiveValues)$/.test(key)
+    (!/^(?:containsSecrets|containsSensitiveValues|contains_secrets|plaintext_written_to_disk)$/.test(key)
       && /(?:password|secret|token|api[_-]?key|authorization|credential)/i.test(key))
     || containsSecretLikeField(nested));
 }
@@ -487,8 +578,11 @@ function parseArgs(argv) {
     "--remote-ref",
     "--release-outcome",
     "--deployment-receipt",
+    "--post-expand-backup-directory",
     "--post-expand-backup-receipt",
     "--post-expand-hosted-restore-receipt",
+    "--recovery-assurance-receipt",
+    "--storage-original-bytes-backup-receipt",
     "--canary-receipt",
     "--receipt-out",
     "--confirm-production",
@@ -505,7 +599,14 @@ function parseArgs(argv) {
     if (!value) blocked("ARGUMENT_INVALID", `${name} must not be empty`);
     result[key] = value;
   }
-  for (const name of allowed) {
+  for (const name of [...allowed].filter(
+    (value) => ![
+      "--post-expand-backup-directory",
+      "--post-expand-hosted-restore-receipt",
+      "--recovery-assurance-receipt",
+      "--storage-original-bytes-backup-receipt",
+    ].includes(value),
+  )) {
     const key = name.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
     if (!result[key]) blocked("ARGUMENT_REQUIRED", `${name} is required`);
   }
@@ -521,6 +622,65 @@ function parseArgs(argv) {
   return result;
 }
 
+function validateStatusSpecificArguments(options, successorController) {
+  const hasSuccessorBackupDirectory =
+    typeof options.postExpandBackupDirectory === "string"
+    && options.postExpandBackupDirectory.length > 0;
+  if (successorController && !hasSuccessorBackupDirectory) {
+    blocked(
+      "ARGUMENT_REQUIRED",
+      "successor finalization requires --post-expand-backup-directory",
+    );
+  }
+  if (successorController
+      && typeof options.recoveryAssuranceReceipt !== "string") {
+    blocked(
+      "ARGUMENT_REQUIRED",
+      "successor finalization requires --recovery-assurance-receipt",
+    );
+  }
+  if (successorController
+      && typeof options.storageOriginalBytesBackupReceipt !== "string") {
+    blocked(
+      "ARGUMENT_REQUIRED",
+      "successor finalization requires --storage-original-bytes-backup-receipt",
+    );
+  }
+  if (successorController
+      && options.postExpandHostedRestoreReceipt !== undefined) {
+    blocked(
+      "ARGUMENT_UNKNOWN",
+      "paid hosted-restore evidence is forbidden for successor finalization",
+    );
+  }
+  if (!successorController && hasSuccessorBackupDirectory) {
+    blocked(
+      "ARGUMENT_UNKNOWN",
+      "successor-only backup directory is forbidden for predecessor finalization",
+    );
+  }
+  if (!successorController
+      && typeof options.postExpandHostedRestoreReceipt !== "string") {
+    blocked(
+      "ARGUMENT_REQUIRED",
+      "predecessor finalization requires --post-expand-hosted-restore-receipt",
+    );
+  }
+  if (!successorController && options.recoveryAssuranceReceipt !== undefined) {
+    blocked(
+      "ARGUMENT_UNKNOWN",
+      "successor-only recovery assurance is forbidden for predecessor finalization",
+    );
+  }
+  if (!successorController
+      && options.storageOriginalBytesBackupReceipt !== undefined) {
+    blocked(
+      "ARGUMENT_UNKNOWN",
+      "successor-only Storage original-byte proof is forbidden for predecessor finalization",
+    );
+  }
+}
+
 async function loadFinalizationManifest(repoRoot) {
   const successorPath = join(
     repoRoot,
@@ -528,6 +688,7 @@ async function loadFinalizationManifest(repoRoot) {
   );
   const successorMetadata = await lstat(successorPath).catch(() => null);
   let selectedManifest = null;
+  let successorReleaseManifest = null;
   let manifestRelativePath = PREDECESSOR_MANIFEST_RELATIVE_PATH;
   if (successorMetadata) {
     if (!successorMetadata.isFile() || successorMetadata.isSymbolicLink()) {
@@ -555,6 +716,7 @@ async function loadFinalizationManifest(repoRoot) {
       );
     }
     selectedManifest = successor.controllerManifest;
+    successorReleaseManifest = successor.manifest;
     manifestRelativePath = successor.manifest.controllerContract.file;
   }
 
@@ -583,6 +745,13 @@ async function loadFinalizationManifest(repoRoot) {
   }
   const contract = extendedContracts.finalizationContract;
   const operation = contract?.operation;
+  const successorController = manifest.status === "controller_ready";
+  const expectedOperationId = successorController
+    ? SUCCESSOR_FINALIZER_OPERATION_ID
+    : "production-write-fence-finalize-20260717121000";
+  const expectedOperationFile = successorController
+    ? SUCCESSOR_FINALIZER_SQL_RELATIVE_PATH
+    : FINALIZER_SQL_RELATIVE_PATH;
   if (!PROJECT_REF.test(manifest.projectRef ?? "")
       || !RELEASE_ID.test(manifest.release ?? "")
       || !GITHUB_HTTPS_ORIGIN.test(manifest.backupContract?.expectedOrigin ?? "")
@@ -606,8 +775,8 @@ async function loadFinalizationManifest(repoRoot) {
       || JSON.stringify(contract.requiredCanaryChecks)
         !== JSON.stringify(REQUIRED_CANARY_CHECKS)
       || !exactKeys(operation, ["id", "file", "sha256"])
-      || operation.id !== "production-write-fence-finalize-20260717121000"
-      || operation.file !== FINALIZER_SQL_RELATIVE_PATH
+      || operation.id !== expectedOperationId
+      || operation.file !== expectedOperationFile
       || !SHA256.test(operation.sha256 ?? "")
       || !/^\d+\.\d+\.\d+$/.test(manifest.backupContract?.supabaseCli?.version ?? "")
       || !UPPER_SHA256.test(manifest.backupContract?.supabaseCli?.binarySha256 ?? "")) {
@@ -625,10 +794,14 @@ async function loadFinalizationManifest(repoRoot) {
   if (canonicalTextSha256(sql) !== operation.sha256) {
     blocked("FINALIZER_SQL_HASH_MISMATCH", "finalizer SQL differs from its manifest pin");
   }
-  for (const [label, artifact] of Object.entries({
+  const postExpandBackupArtifacts = {
     capture: extendedContracts.postExpandBackupContract.capture,
     verifier: extendedContracts.postExpandBackupContract.verifier,
-  })) {
+    ...(extendedContracts.postExpandBackupContract.common
+      ? { common: extendedContracts.postExpandBackupContract.common }
+      : {}),
+  };
+  for (const [label, artifact] of Object.entries(postExpandBackupArtifacts)) {
     const artifactPath = join(repoRoot, artifact.file);
     const artifactMetadata = await lstat(artifactPath).catch(() => null);
     if (!artifactMetadata?.isFile() || artifactMetadata.isSymbolicLink()) {
@@ -647,6 +820,7 @@ async function loadFinalizationManifest(repoRoot) {
   }
   return {
     manifest,
+    successorReleaseManifest,
     contract,
     operation,
     postExpandBackupContract: extendedContracts.postExpandBackupContract,
@@ -708,15 +882,28 @@ function validateOutcomeCheckEvidence(receipt, manifest, phase) {
 function validateSuccessorRuntimeEvidenceSummary(receipt) {
   const records = receipt.successorRuntimeEvidence;
   const startedAt = parseCanonicalInstant(receipt.startedAt);
-  if (!Array.isArray(records)
+  const completedAt = parseCanonicalInstant(receipt.completedAt);
+  let releaseAssuranceValid = true;
+  try {
+    validateSuccessorNoAdditionalCostReleaseAssurance(
+      receipt.successorReleaseAssurance,
+    );
+  } catch {
+    releaseAssuranceValid = false;
+  }
+  if (!releaseAssuranceValid
+      || !Array.isArray(records)
       || records.length !== SUCCESSOR_RUNTIME_EVIDENCE_NAMES.length
       || startedAt === null
+      || completedAt === null
+      || startedAt > completedAt
       || !SHA256.test(receipt.successorRuntimeEvidenceSetSha256 ?? "")) {
     return false;
   }
   for (const [index, record] of records.entries()) {
     const verifiedAt = parseUtcInstant(record?.verifiedAt);
     const expiresAt = parseUtcInstant(record?.expiresAt);
+    const isPostExpandAssurance = record?.name === "recoveryAssurance";
     if (!exactKeys(record, [
       "expiresAt",
       "name",
@@ -729,8 +916,9 @@ function validateSuccessorRuntimeEvidenceSummary(receipt) {
         || !SHA256.test(record.rawEvidenceSha256 ?? "")
         || verifiedAt === null
         || expiresAt === null
-        || verifiedAt > startedAt
-        || expiresAt <= startedAt) {
+        || (isPostExpandAssurance
+          ? verifiedAt < startedAt || verifiedAt > completedAt || expiresAt <= completedAt
+          : verifiedAt > startedAt || expiresAt <= startedAt)) {
       return false;
     }
   }
@@ -1039,6 +1227,320 @@ async function validatePostExpandBackupReceipt({
   };
 }
 
+const SUCCESSOR_BACKUP_RECEIPT_KEYS = Object.freeze([
+  "authSchemaContractSha256",
+  "authUsersContractSha256",
+  "backupContractId",
+  "backupContractVersion",
+  "backupManifestSha256",
+  "backupSetId",
+  "capturedAt",
+  "checks",
+  "containsSecrets",
+  "expectedMigrationHead",
+  "expectedTableContractSha256",
+  "expectedTableCount",
+  "expectedTables",
+  "kind",
+  "liveSchemaContractSha256",
+  "logicalDataContractSha256",
+  "migrationVersionsSha256",
+  "projectRef",
+  "receiptVersion",
+  "release",
+  "releaseCommit",
+  "sourceDatabaseOid",
+  "sourceDatabaseSystemIdentifier",
+  "storageMetadataContractSha256",
+  "storageObjectInventorySha256",
+  "verifiedAt",
+]);
+const SUCCESSOR_BACKUP_CHECK_KEYS = Object.freeze([
+  "authDataDigestsVerified",
+  "encryptedArtifactsVerified",
+  "exactTableContractVerified",
+  "liveSchemaDigestVerified",
+  "logicalDataDigestsVerified",
+  "plaintextWrittenToDisk",
+  "storageDataDigestsVerified",
+]);
+const SUCCESSOR_BACKUP_FILES = Object.freeze([
+  "logical-data.json.hbam2",
+  "logical-data.json.key.dpapi",
+  "manifest.json",
+  "schema-inventory.json.hbam2",
+  "schema-inventory.json.key.dpapi",
+]);
+
+async function validateSuccessorPostExpandBackupReceipt({
+  receipt,
+  sha256,
+  backupDirectory,
+  repoRoot,
+  sourceManifest,
+  controllerManifest,
+  contract,
+  expectedCommit,
+  remoteRef,
+  nowMs,
+}) {
+  const capturedAtMs = parseCanonicalInstant(receipt?.capturedAt);
+  const verifiedAtMs = parseCanonicalInstant(receipt?.verifiedAt);
+  if (!exactKeys(receipt, SUCCESSOR_BACKUP_RECEIPT_KEYS)
+      || receipt.receiptVersion !== 2
+      || receipt.kind !== "successor-post-expand-backup-verification-v2"
+      || receipt.release !== sourceManifest?.release
+      || receipt.projectRef !== sourceManifest?.projectRef
+      || receipt.releaseCommit !== expectedCommit
+      || receipt.backupContractId !== contract?.id
+      || receipt.backupContractVersion !== 2
+      || contract?.version !== 2
+      || !CANONICAL_UUID.test(receipt.backupSetId ?? "")
+      || !SHA256.test(receipt.backupManifestSha256 ?? "")
+      || !/^[1-9]\d{0,9}$/.test(receipt.sourceDatabaseOid ?? "")
+      || !/^\d{10,32}$/.test(receipt.sourceDatabaseSystemIdentifier ?? "")
+      || receipt.expectedMigrationHead !== contract.expectedReleaseMigrationHead
+      || receipt.migrationVersionsSha256
+        !== contract.expectedReleaseMigrationContractSha256
+      || receipt.expectedTableCount !== 139
+      || receipt.expectedTableCount !== contract.expectedTableCount
+      || !exactArray(receipt.expectedTables, contract.expectedTables)
+      || receipt.expectedTableContractSha256
+        !== contract.expectedTableContractSha256
+      || ![
+        receipt.liveSchemaContractSha256,
+        receipt.logicalDataContractSha256,
+        receipt.authSchemaContractSha256,
+        receipt.authUsersContractSha256,
+        receipt.storageMetadataContractSha256,
+        receipt.storageObjectInventorySha256,
+      ].every((value) => SHA256.test(value ?? ""))
+      || !exactKeys(receipt.checks, SUCCESSOR_BACKUP_CHECK_KEYS)
+      || SUCCESSOR_BACKUP_CHECK_KEYS.some((key) => (
+        key === "plaintextWrittenToDisk"
+          ? receipt.checks[key] !== false
+          : receipt.checks[key] !== true
+      ))
+      || receipt.containsSecrets !== false
+      || capturedAtMs === null
+      || verifiedAtMs === null
+      || verifiedAtMs < capturedAtMs
+      || verifiedAtMs > nowMs + 60_000
+      || nowMs - verifiedAtMs > contract.maximumAgeMinutes * 60_000
+      || !SHA256.test(sha256 ?? "")) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_RECEIPT_INVALID",
+      "successor post-expand backup receipt is not the exact fresh 139-table v2 verification",
+    );
+  }
+  if (!isAbsolute(backupDirectory ?? "") || inside(repoRoot, backupDirectory)) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_DIRECTORY_INVALID",
+      "successor post-expand backup directory must be absolute and outside Git",
+    );
+  }
+  const directoryMetadata = await lstat(backupDirectory).catch(() => null);
+  const directoryRealPath = await realpath(backupDirectory).catch(() => null);
+  if (!directoryMetadata?.isDirectory()
+      || directoryMetadata.isSymbolicLink()
+      || !directoryRealPath
+      || inside(repoRoot, directoryRealPath)
+      || !/^post-expand-\d{8}-\d{6}-[a-f0-9]{32}$/.test(
+        basename(directoryRealPath),
+      )) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_DIRECTORY_INVALID",
+      "successor post-expand backup directory is missing, linked, or misnamed",
+    );
+  }
+  const entries = await readdir(directoryRealPath, { withFileTypes: true })
+    .catch(() => []);
+  const entryNames = entries.map((entry) => entry.name).sort();
+  if (!exactArray(entryNames, SUCCESSOR_BACKUP_FILES)
+      || entries.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+      "successor post-expand backup directory does not contain exactly five regular artifacts",
+    );
+  }
+  const manifestPath = join(directoryRealPath, "manifest.json");
+  const manifestData = await readBoundedJsonFileWithLimit(
+    manifestPath,
+    "successor post-expand backup manifest",
+    MAX_BACKUP_MANIFEST_BYTES,
+  );
+  const backupManifest = manifestData.receipt;
+  if (manifestData.sha256 !== receipt.backupManifestSha256) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+      "successor post-expand backup manifest differs from its v2 receipt",
+    );
+  }
+  const sourceIdentity = backupManifest.source_database_identity;
+  const cliPath = backupManifest.supabase_cli?.invocation_relative_path;
+  const tableNames = backupManifest.tables
+    && typeof backupManifest.tables === "object"
+    && !Array.isArray(backupManifest.tables)
+    ? Object.keys(backupManifest.tables)
+    : [];
+  if (containsSecretLikeField(backupManifest)
+      || backupManifest.status !== "complete"
+      || backupManifest.format
+        !== "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser"
+      || backupManifest.format_version !== 2
+      || backupManifest.backup_type
+        !== "vendor-disclosure-successor-post-expand-logical-snapshot-v2"
+      || backupManifest.backup_set_id !== receipt.backupSetId
+      || backupManifest.release !== sourceManifest.release
+      || backupManifest.backup_contract_id !== contract.id
+      || backupManifest.backup_contract_version !== 2
+      || parseUtcInstant(backupManifest.created_at_utc) === null
+      || backupManifest.source_captured_at !== receipt.capturedAt
+      || backupManifest.source_project_ref !== sourceManifest.projectRef
+      || sourceIdentity?.database_oid !== receipt.sourceDatabaseOid
+      || sourceIdentity?.system_identifier
+        !== receipt.sourceDatabaseSystemIdentifier
+      || backupManifest.source_migration_head !== "20260819100000"
+      || backupManifest.source_migration_count !== 228
+      || backupManifest.release_migration_count
+        !== contract.expectedReleaseMigrationVersions.length
+      || backupManifest.release_migration_versions_sha256
+        !== contract.expectedReleaseMigrationContractSha256
+      || backupManifest.table_count !== contract.expectedTableCount
+      || !exactArray(backupManifest.expected_tables, contract.expectedTables)
+      || !exactArray(tableNames, contract.expectedTables)
+      || backupManifest.table_contract_sha256
+        !== receipt.expectedTableContractSha256
+      || backupManifest.live_schema_contract_sha256
+        !== receipt.liveSchemaContractSha256
+      || backupManifest.logical_data_contract_sha256
+        !== receipt.logicalDataContractSha256
+      || backupManifest.auth_schema_contract_sha256
+        !== receipt.authSchemaContractSha256
+      || backupManifest.auth_users_contract_sha256
+        !== receipt.authUsersContractSha256
+      || backupManifest.storage_metadata_contract_sha256
+        !== receipt.storageMetadataContractSha256
+      || backupManifest.storage_object_inventory_sha256
+        !== receipt.storageObjectInventorySha256
+      || backupManifest.git_commit !== expectedCommit
+      || backupManifest.git_origin
+        !== controllerManifest.backupContract.expectedOrigin
+      || backupManifest.git_remote_ref !== remoteRef
+      || backupManifest.plaintext_written_to_disk !== false
+      || backupManifest.contains_secrets !== false
+      || backupManifest.supabase_cli?.version
+        !== controllerManifest.backupContract.supabaseCli.version
+      || typeof cliPath !== "string"
+      || String(backupManifest.supabase_cli?.files?.[cliPath] ?? "")
+        .toUpperCase()
+        !== controllerManifest.backupContract.supabaseCli.binarySha256) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+      "successor post-expand backup manifest does not bind the exact source, candidate, tables, migrations, and digests",
+    );
+  }
+  if (!exactKeys(backupManifest.artifacts, ["logical_data", "schema_inventory"])) {
+    blocked(
+      "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+      "successor post-expand manifest artifact contract is not exact",
+    );
+  }
+  const artifactContracts = [
+    [
+      "logical_data",
+      "logical-data.json.hbam2",
+      "logical-data.json.key.dpapi",
+    ],
+    [
+      "schema_inventory",
+      "schema-inventory.json.hbam2",
+      "schema-inventory.json.key.dpapi",
+    ],
+  ];
+  const reopenEvidence = [];
+  for (const [name, artifactFile, keyFile] of artifactContracts) {
+    const artifact = backupManifest.artifacts[name];
+    if (!exactKeys(artifact, [
+      "artifact",
+      "backup_set_id",
+      "encrypted_bytes",
+      "encrypted_sha256",
+      "key",
+      "key_sha256",
+      "plaintext_bytes",
+      "plaintext_sha256",
+    ])
+        || artifact.backup_set_id !== receipt.backupSetId
+        || artifact.artifact !== artifactFile
+        || artifact.key !== keyFile
+        || !SHA256.test(artifact.plaintext_sha256 ?? "")
+        || !SHA256.test(artifact.encrypted_sha256 ?? "")
+        || !SHA256.test(artifact.key_sha256 ?? "")
+        || !safeNonnegativeInteger(
+          artifact.plaintext_bytes,
+          MAX_SUCCESSOR_BACKUP_ARTIFACT_BYTES,
+        )
+        || artifact.plaintext_bytes < 1
+        || !safeNonnegativeInteger(
+          artifact.encrypted_bytes,
+          MAX_SUCCESSOR_BACKUP_ARTIFACT_BYTES,
+        )
+        || artifact.encrypted_bytes < 1) {
+      blocked(
+        "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+        `successor ${name} encrypted artifact contract is malformed`,
+      );
+    }
+    const [artifactDigest, keyDigest] = await Promise.all([
+      readStableArtifactDigest(
+        join(directoryRealPath, artifactFile),
+        `${name} encrypted artifact`,
+        MAX_SUCCESSOR_BACKUP_ARTIFACT_BYTES,
+      ),
+      readStableArtifactDigest(
+        join(directoryRealPath, keyFile),
+        `${name} DPAPI key`,
+        MAX_SUCCESSOR_BACKUP_KEY_BYTES,
+      ),
+    ]);
+    if (artifactDigest.sha256 !== artifact.encrypted_sha256
+        || artifactDigest.bytes !== artifact.encrypted_bytes
+        || keyDigest.sha256 !== artifact.key_sha256) {
+      blocked(
+        "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+        `successor ${name} encrypted artifact changed after verification`,
+      );
+    }
+    reopenEvidence.push(
+      `${name}:${artifactDigest.sha256}:${artifactDigest.bytes}:${keyDigest.sha256}:${keyDigest.bytes}`,
+    );
+  }
+  const artifactReverificationSha256 = textSha256(
+    `${[
+      "successor-post-expand-backup-artifact-reopen-v1",
+      sha256,
+      manifestData.sha256,
+      ...reopenEvidence,
+    ].join("\n")}\n`,
+  );
+  return {
+    sha256,
+    backupSetId: receipt.backupSetId,
+    manifestSha256: receipt.backupManifestSha256,
+    liveSchemaContractSha256: receipt.liveSchemaContractSha256,
+    logicalDataContractSha256: receipt.logicalDataContractSha256,
+    createdAt: receipt.capturedAt,
+    createdAtMs: capturedAtMs,
+    verifiedAt: receipt.verifiedAt,
+    verifiedAtMs,
+    tableCount: receipt.expectedTableCount,
+    releaseMigrationCount: contract.expectedReleaseMigrationVersions.length,
+    artifactReverificationSha256,
+    receiptPathSha256: null,
+  };
+}
+
 async function reverifyPostExpandBackupReceipt({
   receipt,
   repoRoot,
@@ -1238,6 +1740,167 @@ function validatePostExpandHostedRestoreReceipt({
   };
 }
 
+async function validateSuccessorRecoveryAssuranceEvidence({
+  repoRoot,
+  receiptRoot,
+  recoveryReceiptPath,
+  recoveryReceiptSha256,
+  sourceManifest,
+  controllerManifest,
+  expectedCommit,
+  outcomeReceipt,
+  postExpandBackup,
+  postExpandBackupReceiptSha256,
+  now,
+  validateRuntimeEvidence = validateSuccessorRuntimeEvidence,
+  storageOriginalBytesBackupReceiptPath,
+  reverifyStorageOriginalBytes =
+    reverifyVendorDisclosureSuccessorStorageOriginalBytesFiles,
+}) {
+  const contract = sourceManifest?.deploymentEvidence?.recoveryAssurance;
+  if (resolve(recoveryReceiptPath)
+        !== resolve(receiptRoot, contract?.receiptFileName ?? "invalid")
+      || !SHA256.test(recoveryReceiptSha256 ?? "")) {
+    blocked(
+      "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+      "recovery-assurance receipt path does not match the exact private runtime contract",
+    );
+  }
+  let runtime;
+  try {
+    runtime = validateRuntimeEvidence({
+      repoRoot,
+      receiptRoot,
+      manifest: sourceManifest,
+      controllerManifest,
+      expectedCommit,
+      phase: "complete",
+      now,
+    });
+  } catch (error) {
+    if (error instanceof SuccessorReleaseContractError) {
+      blocked(
+        "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+        `no-cost recovery evidence failed live revalidation: ${error.code}`,
+      );
+    }
+    throw error;
+  }
+  const runtimeNames = Object.keys(runtime).sort();
+  if (!exactArray(runtimeNames, SUCCESSOR_RUNTIME_EVIDENCE_NAMES)) {
+    blocked(
+      "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+      "live runtime evidence does not contain the exact no-cost five-record set",
+    );
+  }
+  const storageProvenance = runtime.storage?.storageProvenance;
+  let storageFiles;
+  try {
+    if (!storageProvenance) throw new Error("missing Storage provenance");
+    storageFiles = await reverifyStorageOriginalBytes({
+      repoRoot,
+      receiptPath: storageOriginalBytesBackupReceiptPath,
+      provenance: storageProvenance,
+      manifest: sourceManifest,
+      expectedCommit,
+    });
+  } catch {
+    blocked(
+      "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+      "Storage original-byte receipt, private manifest, or encrypted archive failed live hash revalidation",
+    );
+  }
+  const outcomeRecords = outcomeReceipt?.successorRuntimeEvidence;
+  if (!Array.isArray(outcomeRecords)
+      || outcomeRecords.length !== runtimeNames.length) {
+    blocked(
+      "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+      "release outcome does not retain the live no-cost evidence set",
+    );
+  }
+  for (const [index, name] of runtimeNames.entries()) {
+    const live = runtime[name];
+    const retained = outcomeRecords[index];
+    if (retained?.name !== name
+        || retained.receiptSha256 !== live.receiptSha256
+        || retained.rawEvidenceSha256 !== live.rawEvidenceSha256
+        || retained.verifiedAt !== live.verifiedAt
+        || retained.expiresAt !== live.expiresAt) {
+      blocked(
+        "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+        "release outcome runtime hashes differ from the safely reopened evidence files",
+      );
+    }
+  }
+  const liveSetSha256 = textSha256(
+    `${outcomeRecords.map((record) => [
+      record.name,
+      record.receiptSha256,
+      record.rawEvidenceSha256,
+      record.verifiedAt,
+      record.expiresAt,
+    ].join(":")).join("\n")}\n`,
+  );
+  const recovery = runtime.recoveryAssurance;
+  const observations = recovery?.observations;
+  let releaseAssurance;
+  try {
+    releaseAssurance = validateSuccessorNoAdditionalCostReleaseAssurance(
+      recovery?.releaseAssurance,
+    );
+    validateSuccessorNoAdditionalCostReleaseAssurance(
+      outcomeReceipt?.successorReleaseAssurance,
+    );
+  } catch {
+    blocked(
+      "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+      "successor evidence must disclose that no hosted restore was performed or claimed",
+    );
+  }
+  if (liveSetSha256 !== outcomeReceipt.successorRuntimeEvidenceSetSha256
+      || recovery.receiptSha256 !== recoveryReceiptSha256
+      || observations?.backupContractId !== controllerManifest.backupContract.id
+      || observations?.postExpandBackupContractId
+        !== controllerManifest.postExpandBackupContract.id
+      || observations?.postExpandBackupReceiptSha256
+        !== postExpandBackupReceiptSha256
+      || observations?.postExpandBackupManifestSha256
+        !== postExpandBackup.manifestSha256
+      || observations?.postExpandBackupReverificationSha256
+        !== postExpandBackup.artifactReverificationSha256
+      || observations?.postExpandLiveSchemaContractSha256
+        !== postExpandBackup.liveSchemaContractSha256
+      || observations?.postExpandLogicalDataContractSha256
+        !== postExpandBackup.logicalDataContractSha256
+      || observations?.postExpandEncryptedArtifactsVerified !== true
+      || observations?.postExpandPGliteJsonbRoundTripVerified !== true
+      || observations?.providerPhysicalBackupStatus
+        !== controllerManifest.backupContract.providerPhysicalBackup.requiredStatus
+      || JSON.stringify(releaseAssurance)
+        !== JSON.stringify(SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE)
+      || JSON.stringify(outcomeReceipt.successorReleaseAssurance)
+        !== JSON.stringify(SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE)) {
+    blocked(
+      "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+      "recovery assurance does not bind the retained Staging/backup proofs and live post-expand encrypted artifacts",
+    );
+  }
+  return {
+    sha256: recoveryReceiptSha256,
+    rawSha256: recovery.rawEvidenceSha256,
+    verifiedAt: recovery.verifiedAt,
+    verifiedAtMs: parseUtcInstant(recovery.verifiedAt),
+    releaseAssurance,
+    observations,
+    storageOriginalBytesBackupReceiptSha256: storageFiles.receiptSha256,
+    storageOriginalBytesPrivateRawSha256: storageFiles.privateRawSha256,
+    storageEncryptedBackupArtifactSha256:
+      storageFiles.encryptedBackupArtifactSha256,
+    storageOriginalBytesManifestSha256:
+      storageFiles.originalBytesManifestSha256,
+  };
+}
+
 function validateCanaryReceipt({
   receipt,
   sha256,
@@ -1246,9 +1909,13 @@ function validateCanaryReceipt({
   outcome,
   deployment,
   postExpandBackup,
-  postExpandHostedRestore,
+  postExpandRecoveryProof,
   nowMs,
 }) {
+  const successorController = manifest.status === "controller_ready";
+  const recoveryProofReceiptKey = successorController
+    ? "recoveryAssuranceReceiptSha256"
+    : "postExpandHostedRestoreReceiptSha256";
   const keys = [
     "receiptVersion",
     "kind",
@@ -1260,7 +1927,7 @@ function validateCanaryReceipt({
     "deploymentReceiptSha256",
     "releaseOutcomeReceiptSha256",
     "postExpandBackupReceiptSha256",
-    "postExpandHostedRestoreReceiptSha256",
+    recoveryProofReceiptKey,
     "observationStartedAt",
     "verifiedAt",
     "expiresAt",
@@ -1285,14 +1952,13 @@ function validateCanaryReceipt({
       || receipt.deploymentReceiptSha256 !== deployment.sha256
       || receipt.releaseOutcomeReceiptSha256 !== outcome.sha256
       || receipt.postExpandBackupReceiptSha256 !== postExpandBackup.sha256
-      || receipt.postExpandHostedRestoreReceiptSha256
-        !== postExpandHostedRestore.sha256
+      || receipt[recoveryProofReceiptKey] !== postExpandRecoveryProof.sha256
       || observationStartedAt === null
       || verifiedAt === null
       || expiresAt === null
       || observationStartedAt < deployment.readyAt
       || observationStartedAt < parseCanonicalInstant(outcome.completedAt)
-      || observationStartedAt < postExpandHostedRestore.verifiedAtMs
+      || observationStartedAt < postExpandRecoveryProof.verifiedAtMs
       || verifiedAt < observationStartedAt
       || !Number.isSafeInteger(receipt.observationWindowSeconds)
       || receipt.observationWindowSeconds < 300
@@ -1326,6 +1992,15 @@ export function renderProductionWriteFenceFinalizerSql(
       AMORA_RELEASE_MIGRATION_CONTRACT_SHA256,
   },
 ) {
+  const usesRecoveryAssurance =
+    evidence.recoveryAssuranceReceiptSha256 !== undefined;
+  if (usesRecoveryAssurance
+        === (evidence.postExpandHostedRestoreReceiptSha256 !== undefined)) {
+    blocked(
+      "FINALIZER_EVIDENCE_INVALID",
+      "finalizer evidence must bind exactly one status-specific recovery proof",
+    );
+  }
   const patterns = {
     projectRef: PROJECT_REF,
     databaseSystemIdentifier: /^\d{10,32}$/,
@@ -1340,13 +2015,18 @@ export function renderProductionWriteFenceFinalizerSql(
     canaryReceiptSha256: SHA256,
     postExpandBackupReceiptSha256: SHA256,
     postExpandBackupReverificationSha256: SHA256,
-    postExpandHostedRestoreReceiptSha256: SHA256,
+    ...(usesRecoveryAssurance
+      ? { recoveryAssuranceReceiptSha256: SHA256 }
+      : { postExpandHostedRestoreReceiptSha256: SHA256 }),
     postExpandBackupSetId: CANONICAL_UUID,
-    postExpandBackupManifestSha256: UPPER_SHA256,
+    postExpandBackupManifestSha256:
+      usesRecoveryAssurance ? SHA256 : UPPER_SHA256,
     postExpandTableContractSha256: SHA256,
     postExpandMigrationContractSha256: SHA256,
-    postExpandLiveSchemaContractSha256: UPPER_SHA256,
-    postExpandLogicalDataContractSha256: UPPER_SHA256,
+    postExpandLiveSchemaContractSha256:
+      usesRecoveryAssurance ? SHA256 : UPPER_SHA256,
+    postExpandLogicalDataContractSha256:
+      usesRecoveryAssurance ? SHA256 : UPPER_SHA256,
   };
   for (const [key, pattern] of Object.entries(patterns)) {
     if (!pattern.test(evidence[key] ?? "")) {
@@ -1367,7 +2047,19 @@ export function renderProductionWriteFenceFinalizerSql(
     );
   }
   let rendered = template.replace(/\r\n?/g, "\n");
-  for (const [key, token] of Object.entries(TEMPLATE_TOKENS)) {
+  const statusSpecificTokens = usesRecoveryAssurance
+    ? {
+      recoveryAssuranceReceiptSha256:
+        SUCCESSOR_RECOVERY_ASSURANCE_TEMPLATE_TOKEN,
+    }
+    : {
+      postExpandHostedRestoreReceiptSha256:
+        PREDECESSOR_HOSTED_RESTORE_TEMPLATE_TOKEN,
+    };
+  for (const [key, token] of Object.entries({
+    ...TEMPLATE_TOKENS,
+    ...statusSpecificTokens,
+  })) {
     const count = rendered.split(token).length - 1;
     if (count !== 1) {
       blocked("FINALIZER_TEMPLATE_INVALID", `finalizer template token count is not exact: ${key}`);
@@ -1559,19 +2251,25 @@ export async function runProductionWriteFenceFinalizer({
   assertSafeExecutionEnvironment(process.env);
   const {
     manifest,
+    successorReleaseManifest,
     contract: finalizationContract,
     operation,
     postExpandBackupContract,
     sql,
   } = await loadFinalizationManifest(repoRoot);
+  const successorController = manifest.status === "controller_ready";
+  validateStatusSpecificArguments(options, successorController);
 
   const canonicalRepoRoot = await realpath(repoRoot);
   const canonicalReceiptPaths = [];
+  const recoveryProofReceiptPath = successorController
+    ? options.recoveryAssuranceReceipt
+    : options.postExpandHostedRestoreReceipt;
   for (const path of [
     options.releaseOutcome,
     options.deploymentReceipt,
     options.postExpandBackupReceipt,
-    options.postExpandHostedRestoreReceipt,
+    recoveryProofReceiptPath,
     options.canaryReceipt,
     options.receiptOut,
   ]) {
@@ -1656,28 +2354,58 @@ export async function runProductionWriteFenceFinalizer({
     "post-expand backup receipt",
     repoRoot,
   );
-  const postExpandBackup = await validatePostExpandBackupReceipt({
-    ...postExpandBackupData,
-    path: options.postExpandBackupReceipt,
-    repoRoot,
-    manifest,
-    contract: postExpandBackupContract,
-    expectedCommit: options.expectedCommit,
-    nowMs,
-  });
-  const postExpandHostedRestoreData = await readBoundedReceipt(
-    options.postExpandHostedRestoreReceipt,
-    "post-expand hosted restore receipt",
+  const postExpandBackup = successorController
+    ? await validateSuccessorPostExpandBackupReceipt({
+      ...postExpandBackupData,
+      backupDirectory: options.postExpandBackupDirectory,
+      repoRoot,
+      sourceManifest: successorReleaseManifest,
+      controllerManifest: manifest,
+      contract: postExpandBackupContract,
+      expectedCommit: options.expectedCommit,
+      remoteRef: options.remoteRef,
+      nowMs,
+    })
+    : await validatePostExpandBackupReceipt({
+      ...postExpandBackupData,
+      path: options.postExpandBackupReceipt,
+      repoRoot,
+      manifest,
+      contract: postExpandBackupContract,
+      expectedCommit: options.expectedCommit,
+      nowMs,
+    });
+  const recoveryProofData = await readBoundedReceipt(
+    recoveryProofReceiptPath,
+    successorController
+      ? "successor no-cost recovery-assurance receipt"
+      : "post-expand hosted restore receipt",
     repoRoot,
   );
-  const postExpandHostedRestore = validatePostExpandHostedRestoreReceipt({
-    ...postExpandHostedRestoreData,
-    manifest,
-    contract: postExpandBackupContract,
-    expectedCommit: options.expectedCommit,
-    backup: postExpandBackup,
-    nowMs,
-  });
+  const postExpandRecoveryProof = successorController
+    ? await validateSuccessorRecoveryAssuranceEvidence({
+      repoRoot,
+      receiptRoot: dirname(options.postExpandBackupReceipt),
+      recoveryReceiptPath: recoveryProofReceiptPath,
+      recoveryReceiptSha256: recoveryProofData.sha256,
+      sourceManifest: successorReleaseManifest,
+      controllerManifest: manifest,
+      expectedCommit: options.expectedCommit,
+      outcomeReceipt: outcomeData.receipt,
+      postExpandBackup,
+      postExpandBackupReceiptSha256: postExpandBackupData.sha256,
+      storageOriginalBytesBackupReceiptPath:
+        options.storageOriginalBytesBackupReceipt,
+      now,
+    })
+    : validatePostExpandHostedRestoreReceipt({
+      ...recoveryProofData,
+      manifest,
+      contract: postExpandBackupContract,
+      expectedCommit: options.expectedCommit,
+      backup: postExpandBackup,
+      nowMs,
+    });
   const canaryData = await readBoundedReceipt(
     options.canaryReceipt,
     "canary receipt",
@@ -1690,40 +2418,55 @@ export async function runProductionWriteFenceFinalizer({
     outcome,
     deployment,
     postExpandBackup,
-    postExpandHostedRestore,
+    postExpandRecoveryProof,
     nowMs,
   });
   let externalGateProvenance;
   try {
-    externalGateProvenance = await validateExternalGateProvenanceFiles({
-      deploymentReceipt: deploymentData.receipt,
-      deploymentReceiptPath: options.deploymentReceipt,
-      hostedRestoreReceipt: postExpandHostedRestoreData.receipt,
-      hostedRestoreReceiptPath: options.postExpandHostedRestoreReceipt,
-      canaryReceipt: canaryData.receipt,
-      canaryReceiptPath: options.canaryReceipt,
-      expected: {
-        releaseCommit: options.expectedCommit,
-        vercelTeamId: finalizationContract.externalEvidence.vercel.teamId,
-        vercelProjectId:
-          finalizationContract.externalEvidence.vercel.projectId,
-        productionHost:
-          finalizationContract.externalEvidence.vercel.productionHost,
-        expectedTables: postExpandBackupContract.expectedTables,
-        expectedMigrationVersions:
-          postExpandBackupContract.expectedReleaseMigrationVersions,
-        requiredCanaryChecks: finalizationContract.requiredCanaryChecks,
-        databaseSystemIdentifier: productionDatabaseSystemIdentifier(
-          manifest.projectRef,
-          { allowTest: runCommand !== defaultRunCommand },
-        ),
-      },
-    });
+    const expectedExternal = {
+      releaseCommit: options.expectedCommit,
+      vercelTeamId: finalizationContract.externalEvidence.vercel.teamId,
+      vercelProjectId:
+        finalizationContract.externalEvidence.vercel.projectId,
+      productionHost:
+        finalizationContract.externalEvidence.vercel.productionHost,
+      expectedTables: postExpandBackupContract.expectedTables,
+      expectedMigrationVersions:
+        postExpandBackupContract.expectedReleaseMigrationVersions,
+      requiredCanaryChecks: finalizationContract.requiredCanaryChecks,
+      databaseSystemIdentifier: productionDatabaseSystemIdentifier(
+        manifest.projectRef,
+        { allowTest: runCommand !== defaultRunCommand },
+      ),
+    };
+    if (successorController) {
+      externalGateProvenance = {
+        ...await validateExternalDeploymentCanaryProvenanceFiles({
+          deploymentReceipt: deploymentData.receipt,
+          deploymentReceiptPath: options.deploymentReceipt,
+          canaryReceipt: canaryData.receipt,
+          canaryReceiptPath: options.canaryReceipt,
+          expected: expectedExternal,
+        }),
+        successorRecoveryAssuranceRawEvidenceSha256:
+          postExpandRecoveryProof.rawSha256,
+      };
+    } else {
+      externalGateProvenance = await validateExternalGateProvenanceFiles({
+        deploymentReceipt: deploymentData.receipt,
+        deploymentReceiptPath: options.deploymentReceipt,
+        hostedRestoreReceipt: recoveryProofData.receipt,
+        hostedRestoreReceiptPath: recoveryProofReceiptPath,
+        canaryReceipt: canaryData.receipt,
+        canaryReceiptPath: options.canaryReceipt,
+        expected: expectedExternal,
+      });
+    }
   } catch (error) {
     if (error instanceof ExternalGateProvenanceError) {
       blocked(
         "EXTERNAL_GATE_PROVENANCE_INVALID",
-        `external deployment, restore or canary evidence failed: ${error.code}`,
+        `external deployment, recovery or canary evidence failed: ${error.code}`,
       );
     }
     throw error;
@@ -1750,14 +2493,40 @@ export async function runProductionWriteFenceFinalizer({
     remoteRef: options.remoteRef,
     runCommand,
   });
-  const postExpandBackupReverification = await reverifyPostExpandBackupReceipt({
-    receipt: postExpandBackupData.receipt,
-    repoRoot,
-    manifest,
-    contract: postExpandBackupContract,
-    runCommand,
-    nowMs,
-  });
+  let postExpandBackupReverification;
+  if (successorController) {
+    const reopened = await validateSuccessorPostExpandBackupReceipt({
+      ...postExpandBackupData,
+      backupDirectory: options.postExpandBackupDirectory,
+      repoRoot,
+      sourceManifest: successorReleaseManifest,
+      controllerManifest: manifest,
+      contract: postExpandBackupContract,
+      expectedCommit: options.expectedCommit,
+      remoteRef: options.remoteRef,
+      nowMs,
+    });
+    if (reopened.artifactReverificationSha256
+          !== postExpandBackup.artifactReverificationSha256) {
+      blocked(
+        "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+        "successor backup artifact evidence changed between validation and finalization",
+      );
+    }
+    postExpandBackupReverification = {
+      sha256: reopened.artifactReverificationSha256,
+      ageSeconds: Math.max(0, (nowMs - reopened.verifiedAtMs) / 1_000),
+    };
+  } else {
+    postExpandBackupReverification = await reverifyPostExpandBackupReceipt({
+      receipt: postExpandBackupData.receipt,
+      repoRoot,
+      manifest,
+      contract: postExpandBackupContract,
+      runCommand,
+      nowMs,
+    });
+  }
   const assertLinkedRef = await createLinkedRefFence(repoRoot, manifest.projectRef);
   const supabaseCli = await resolveSupabaseCli(repoRoot, manifest, outcomeData.receipt);
   const renderedSql = renderProductionWriteFenceFinalizerSql(sql, {
@@ -1780,7 +2549,14 @@ export async function runProductionWriteFenceFinalizer({
     postExpandBackupReceiptSha256: postExpandBackup.sha256,
     postExpandBackupReverificationSha256:
       postExpandBackupReverification.sha256,
-    postExpandHostedRestoreReceiptSha256: postExpandHostedRestore.sha256,
+    ...(successorController
+      ? {
+        recoveryAssuranceReceiptSha256: postExpandRecoveryProof.sha256,
+      }
+      : {
+        postExpandHostedRestoreReceiptSha256:
+          postExpandRecoveryProof.sha256,
+      }),
     postExpandBackupSetId: postExpandBackup.backupSetId,
     postExpandBackupManifestSha256: postExpandBackup.manifestSha256,
     postExpandTableContractSha256:
@@ -1799,7 +2575,7 @@ export async function runProductionWriteFenceFinalizer({
   }
   let queryStarted = false;
   let finalizerLockClosed = false;
-  if (renderedSql.length > 28_000) {
+  if (renderedSql.length > MAX_FINALIZER_SQL_CHARACTERS) {
     blocked(
       "FINALIZER_SQL_TOO_LARGE",
       "rendered finalizer SQL exceeds the bounded direct-argument envelope",
@@ -1817,7 +2593,23 @@ export async function runProductionWriteFenceFinalizer({
       postExpandBackupReceiptSha256: postExpandBackup.sha256,
       postExpandBackupReverificationSha256:
         postExpandBackupReverification.sha256,
-      postExpandHostedRestoreReceiptSha256: postExpandHostedRestore.sha256,
+      ...(successorController
+        ? {
+          recoveryAssuranceReceiptSha256:
+            postExpandRecoveryProof.sha256,
+          storageEncryptedBackupArtifactSha256:
+            postExpandRecoveryProof.storageEncryptedBackupArtifactSha256,
+          storageOriginalBytesBackupReceiptSha256:
+            postExpandRecoveryProof.storageOriginalBytesBackupReceiptSha256,
+          storageOriginalBytesManifestSha256:
+            postExpandRecoveryProof.storageOriginalBytesManifestSha256,
+          storageOriginalBytesPrivateRawSha256:
+            postExpandRecoveryProof.storageOriginalBytesPrivateRawSha256,
+        }
+        : {
+          postExpandHostedRestoreReceiptSha256:
+            postExpandRecoveryProof.sha256,
+        }),
       externalGateProvenance,
       canaryReceiptSha256: canary.sha256,
       finalizerReceiptPathSha256: textSha256(resolve(options.receiptOut)),
@@ -1845,7 +2637,31 @@ export async function runProductionWriteFenceFinalizer({
         postExpandBackupReverification.sha256,
       postExpandBackupReverifiedAgeSeconds:
         postExpandBackupReverification.ageSeconds,
-      postExpandHostedRestoreReceiptSha256: postExpandHostedRestore.sha256,
+      ...(successorController
+        ? {
+          recoveryAssuranceReceiptSha256:
+            postExpandRecoveryProof.sha256,
+          recoveryAssuranceVerifiedAt:
+            postExpandRecoveryProof.verifiedAt,
+          storageEncryptedBackupArtifactSha256:
+            postExpandRecoveryProof.storageEncryptedBackupArtifactSha256,
+          storageOriginalBytesBackupReceiptSha256:
+            postExpandRecoveryProof.storageOriginalBytesBackupReceiptSha256,
+          storageOriginalBytesManifestSha256:
+            postExpandRecoveryProof.storageOriginalBytesManifestSha256,
+          storageOriginalBytesPrivateRawSha256:
+            postExpandRecoveryProof.storageOriginalBytesPrivateRawSha256,
+          successorReleaseAssurance:
+            postExpandRecoveryProof.releaseAssurance,
+        }
+        : {
+          postExpandHostedRestoreReceiptSha256:
+            postExpandRecoveryProof.sha256,
+          postExpandHostedRestoreTargetProjectRef:
+            postExpandRecoveryProof.targetProjectRef,
+          postExpandHostedRestoreVerifiedAt:
+            postExpandRecoveryProof.verifiedAt,
+        }),
       postExpandBackupSetId: postExpandBackup.backupSetId,
       postExpandBackupManifestSha256: postExpandBackup.manifestSha256,
       postExpandTableContractSha256:
@@ -1857,9 +2673,6 @@ export async function runProductionWriteFenceFinalizer({
       postExpandLogicalDataContractSha256:
         postExpandBackup.logicalDataContractSha256,
       externalGateProvenance,
-      postExpandHostedRestoreTargetProjectRef:
-        postExpandHostedRestore.targetProjectRef,
-      postExpandHostedRestoreVerifiedAt: postExpandHostedRestore.verifiedAt,
       canaryReceiptSha256: canary.sha256,
       canaryVerifiedAt: canary.verifiedAt,
       canaryExpiresAt: canary.expiresAt,
@@ -1918,8 +2731,15 @@ export async function runProductionWriteFenceFinalizer({
       post_expand_backup_receipt_sha256: postExpandBackup.sha256,
       post_expand_backup_reverification_sha256:
         postExpandBackupReverification.sha256,
-      post_expand_hosted_restore_receipt_sha256:
-        postExpandHostedRestore.sha256,
+      ...(successorController
+        ? {
+          recovery_assurance_receipt_sha256:
+            postExpandRecoveryProof.sha256,
+        }
+        : {
+          post_expand_hosted_restore_receipt_sha256:
+            postExpandRecoveryProof.sha256,
+        }),
       post_expand_backup_set_id: postExpandBackup.backupSetId,
       post_expand_backup_manifest_sha256: postExpandBackup.manifestSha256,
       post_expand_table_contract_sha256:
@@ -1983,7 +2803,11 @@ export const productionWriteFenceFinalizerTestHooks = Object.freeze({
   compactFinalizerSql,
   defaultRunCommand,
   loadFinalizationManifest,
+  parseArgs,
   requiredCanaryChecks: REQUIRED_CANARY_CHECKS,
   textSha256,
   validateSuccessorRuntimeEvidenceSummary,
+  validateStatusSpecificArguments,
+  validateSuccessorPostExpandBackupReceipt,
+  validateSuccessorRecoveryAssuranceEvidence,
 });

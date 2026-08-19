@@ -7,9 +7,17 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  SUCCESSOR_NO_ADDITIONAL_COST_RECOVERY_CONTRACT,
+  SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
   validateSuccessorReleaseContract,
 } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
+import {
+  FINALIZER_REQUIRED_CANARY_CHECKS,
+  HOSTED_RESTORE_REQUIRED_CHECKS,
+  POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
+  SUCCESSOR_FINALIZER_EXTERNAL_EVIDENCE_CONTRACT,
+} from "../../../../../scripts/lib/amora-release-extended-contracts.mjs";
 import {
   attachSuccessorRemoteBaselineFixture,
   SUCCESSOR_REMOTE_BASELINE_FIXTURE_PATH,
@@ -168,6 +176,11 @@ function staticRuntimeEvidenceContracts(
           rawEvidenceSource: requirement.rawEvidenceSource,
           maximumAgeMinutes: requirement.maximumAgeMinutes,
           requiredChecks: [...requirement.requiredChecks],
+          ...(name === "recoveryAssurance" ? {
+            releaseAssurance: structuredClone(
+              SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+            ),
+          } : {}),
         }];
       },
     ),
@@ -177,7 +190,42 @@ function staticRuntimeEvidenceContracts(
 async function createControllerReadyFixture(): Promise<Fixture> {
   const fixture = await createBlockedFixture();
   const baselineTables = ["profiles"];
+  const postExpandTables = [...baselineTables, "vendor_alias_proposals"].sort();
   const baselineTablesSha256 = sha256(`${baselineTables.join("\n")}\n`);
+  const postExpandTablesSha256 = sha256(`${postExpandTables.join("\n")}\n`);
+  const sourceRepoRoot = resolve(process.cwd(), "../..");
+  const successorArtifactFiles = [
+    "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_baseline_inventory.sql",
+    "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json",
+    "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.operation.json",
+    "supabase/platform-operations/storage/20260819101000_vendor_disclosure_successor_storage_frozen_verify.sql",
+    "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json",
+    "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+    "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_target_verify.sql",
+    "supabase/release-checks/vendor-disclosure-successor-storage-frozen.sql",
+    "supabase/release-checks/vendor-disclosure-successor-storage-target.sql",
+    "supabase/release-checks/20260819121500_production_successor_live_schema_contract_verify.sql",
+    "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_apply.sql",
+    "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_rollback.sql",
+    "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
+    "supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql",
+    "supabase/platform-operations/security/20260717120000_production_write_fence_rollback.sql",
+    "supabase/release-checks/vendor-disclosure-successor-post.sql",
+  ];
+  const successorArtifactSha256: Record<string, string> = {};
+  const successorArtifactContents: Record<string, string> = {};
+  for (const relativePath of successorArtifactFiles) {
+    const content = await readFile(
+      join(sourceRepoRoot, ...relativePath.split("/")),
+      "utf8",
+    );
+    const targetPath = join(fixture.repoRoot, ...relativePath.split("/"));
+    await mkdir(join(targetPath, ".."), { recursive: true });
+    await writeFile(targetPath, content, "utf8");
+    successorArtifactContents[relativePath] = content;
+    successorArtifactSha256[relativePath] = sha256(content);
+  }
+
   const predecessor = {
     release: "amora-engine-v2-20260716",
     projectRef: PROJECT_REF,
@@ -202,15 +250,15 @@ async function createControllerReadyFixture(): Promise<Fixture> {
       ephemeralRebuildContract: "not-required",
       expectedOrigin: "supabase-production",
       providerPhysicalBackup: {
-        maximumAgeHours: 24,
+        maximumAgeHours: 26,
         requirePhysicalBackup: true,
         requiredStatus: "COMPLETED",
-        restoreCapability: "different-project",
+        restoreCapability: "completed-physical-backup",
       },
       hostedRestoreEvidence: {
         maximumAgeMinutes: 1_440,
         receiptFileName: "predecessor-hosted-restore.json",
-        requiredChecks: ["differentProjectVerified"],
+        requiredChecks: [...HOSTED_RESTORE_REQUIRED_CHECKS],
         requiredTargetIsolation: "different-supabase-project",
       },
       supabaseCli: {
@@ -219,8 +267,26 @@ async function createControllerReadyFixture(): Promise<Fixture> {
       },
     },
     postExpandBackupContract: {
+      id: "post-predecessor-backup",
+      version: 1,
+      phase: "post-push-pre-deployment-canary",
+      verificationReceiptFileName: "predecessor-post-expand-backup.json",
+      maximumAgeMinutes: 1_440,
+      expectedTableCount: baselineTables.length,
       expectedTables: baselineTables,
       expectedTableContractSha256: baselineTablesSha256,
+      expectedReleaseMigrationBaselineHead: PREDECESSOR_MIGRATION.slice(0, 14),
+      expectedReleaseMigrationHead: PREDECESSOR_MIGRATION.slice(0, 14),
+      expectedReleaseMigrationVersions: [PREDECESSOR_MIGRATION.slice(0, 14)],
+      expectedReleaseMigrationContractSha256:
+        sha256(`${PREDECESSOR_MIGRATION.slice(0, 14)}\n`),
+      expectedCommitBinding: "release-expected-commit",
+      requiredLedgerEvidence:
+        "live-remote-ledger-and-encrypted-backup-contract",
+      capture: {
+        file: "scripts/predecessor-db-backup.ps1",
+        sha256: "a".repeat(64),
+      },
       verifier: {
         file: "scripts/vendor-disclosure-db-verify-backup.ps1",
         sha256: "b".repeat(64),
@@ -231,10 +297,20 @@ async function createControllerReadyFixture(): Promise<Fixture> {
         SourceCanonicalDigestsVerified: true,
         Verified: true,
       },
+      hostedRestoreEvidence: {
+        maximumAgeMinutes: 1_440,
+        receiptFileName: "predecessor-post-expand-hosted-restore.json",
+        requiredChecks: [...POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS],
+        requiredTargetIsolation: "different-supabase-project",
+      },
     },
     finalizationContract: {
       id: "production-write-fence-exact-owner-finalizer",
+      version: 1,
       requiredLeasePhase: "deployment-canary",
+      canaryMaximumAgeMinutes: 15,
+      deploymentMaximumAgeMinutes: 1_440,
+      requiredCanaryChecks: [...FINALIZER_REQUIRED_CANARY_CHECKS],
       confirmationIncludesCanarySha256: true,
     },
     requiredDocuments: ["docs/release-controller.md"],
@@ -250,6 +326,16 @@ async function createControllerReadyFixture(): Promise<Fixture> {
   const releaseVersions = fixture.manifest.expandMigrations.map(
     (entry) => entry.file.slice(0, 14),
   );
+  const currentBaselineCapture = "# fixture current-Production baseline capture\n";
+  const currentBaselineCommon = "# fixture current-Production baseline common\n";
+  const sharedBackupCommon = "# fixture shared HBAM2 backup common\n";
+  const currentBaselineVerifier = "# fixture current-Production baseline verifier\n";
+  const successorCommon = "# fixture successor backup common\n";
+  const successorCapture = "# fixture successor backup capture\n";
+  const successorVerifier = "# fixture successor backup verifier\n";
+  const successorFinalizer = "BEGIN;\nselect 'successor finalizer';\nCOMMIT;\n";
+  const successorPostCheckPath =
+    "supabase/release-checks/vendor-disclosure-successor-post.sql";
   const rollbackContract = {
     version: 1,
     strategy: "forward-fix-feature-off",
@@ -286,13 +372,63 @@ async function createControllerReadyFixture(): Promise<Fixture> {
     release: fixture.manifest.release,
     projectRef: fixture.manifest.projectRef,
     historicalEffectAudit: predecessor.historicalEffectAudit,
-    preApplyChecks: predecessor.preApplyChecks,
-    postPushChecks: predecessor.postPushChecks,
+    recoveryAssuranceContract: structuredClone(
+      SUCCESSOR_NO_ADDITIONAL_COST_RECOVERY_CONTRACT,
+    ),
+    preApplyChecks: [
+      {
+        id: "public-database-write-fence-pre",
+        type: "read-only-sql",
+        file: "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
+        sha256: successorArtifactSha256[
+          "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql"
+        ],
+        expectedEvidence: {
+          production_write_fence_verified_count: 1,
+        },
+      },
+      {
+        id: "production-successor-live-schema-contract-verify-20260819121500",
+        type: "read-only-sql",
+        file: "supabase/release-checks/20260819121500_production_successor_live_schema_contract_verify.sql",
+        sha256: successorArtifactSha256[
+          "supabase/release-checks/20260819121500_production_successor_live_schema_contract_verify.sql"
+        ],
+        expectedEvidence: {
+          production_successor_live_schema_contract_verify_count: 1,
+        },
+      },
+      {
+        id: "vendor-disclosure-successor-storage-frozen",
+        type: "read-only-sql",
+        file: "supabase/release-checks/vendor-disclosure-successor-storage-frozen.sql",
+        sha256: successorArtifactSha256[
+          "supabase/release-checks/vendor-disclosure-successor-storage-frozen.sql"
+        ],
+        expectedEvidence: {
+          successor_storage_frozen_verified_count: 1,
+        },
+      },
+    ],
+    postPushChecks: [{
+      id: "vendor-disclosure-successor-storage-target",
+      type: "read-only-sql",
+      file: "supabase/release-checks/vendor-disclosure-successor-storage-target.sql",
+      sha256: successorArtifactSha256[
+        "supabase/release-checks/vendor-disclosure-successor-storage-target.sql"
+      ],
+      expectedEvidence: {
+        successor_storage_target_verified_count: 1,
+      },
+    }],
     postApplyChecks: [{
       id: "vendor-disclosure-successor-postcheck",
+      type: "read-only-sql",
+      file: successorPostCheckPath,
+      sha256: successorArtifactSha256[successorPostCheckPath],
       expectedEvidence: {
         account_deletion_auth_fk_contract_count: 1,
-        chat_partner_recipient_insert_policy_count: 1,
+        chat_server_only_ingest_boundary_count: 1,
         chat_partner_recipient_select_policy_count: 1,
         chat_partner_recipient_trigger_count: 1,
         conversation_segment_active_index_count: 3,
@@ -329,18 +465,96 @@ async function createControllerReadyFixture(): Promise<Fixture> {
         chat_feedback_auth_delete_fk_count: 1,
         payment_ledger_fk_contract_count: 3,
         successor_created_table_count: 0,
-        successor_feature_flags_off_count: 13,
         successor_migration_head_count: 1,
         wedding_court_auth_delete_fk_count: 1,
       },
     }],
     forwardOnlySecurityOperations: [],
-    manualPlatformOperations: predecessor.manualPlatformOperations,
-    rollbackArtifacts: predecessor.rollbackArtifacts,
+    manualPlatformOperations: [
+      {
+        id: "production-write-fence-20260717120000",
+        phase: "pre-backup",
+        verificationCheckId: "public-database-write-fence-pre",
+        file: "supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql"
+        ],
+      },
+      {
+        id: "production-successor-live-schema-contract-20260819121500",
+        phase: "pre-backup",
+        verificationCheckId:
+          "production-successor-live-schema-contract-verify-20260819121500",
+        file: "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_apply.sql",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_apply.sql"
+        ],
+      },
+      {
+        id: "vendor-disclosure-successor-storage-write-freeze-v1",
+        phase: "pre-backup",
+        verificationCheckId: "vendor-disclosure-successor-storage-frozen",
+        file: "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.operation.json",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.operation.json"
+        ],
+      },
+      {
+        id: "vendor-disclosure-successor-storage-final-convergence-v1",
+        phase: "post-push-pre-deploy",
+        verificationCheckId: "vendor-disclosure-successor-storage-target",
+        file: "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json"
+        ],
+      },
+    ],
+    rollbackArtifacts: [
+      {
+        id: "production-write-fence-rollback-20260717120000",
+        forOperationId: "production-write-fence-20260717120000",
+        file: "supabase/platform-operations/security/20260717120000_production_write_fence_rollback.sql",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/security/20260717120000_production_write_fence_rollback.sql"
+        ],
+      },
+      {
+        id: "production-successor-schema-contract-rollback-20260819121500",
+        forOperationId:
+          "production-successor-live-schema-contract-20260819121500",
+        file: "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_rollback.sql",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_rollback.sql"
+        ],
+      },
+      {
+        id: "successor-storage-freeze-forward-recovery-v1",
+        forOperationId: "vendor-disclosure-successor-storage-write-freeze-v1",
+        file: "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json"
+        ],
+      },
+      {
+        id: "successor-storage-final-compensation-v1",
+        forOperationId:
+          "vendor-disclosure-successor-storage-final-convergence-v1",
+        file: "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json",
+        sha256: successorArtifactSha256[
+          "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json"
+        ],
+      },
+    ],
     manualControlEvidence: {
-      ...predecessor.manualControlEvidence,
       receiptFileName:
         `${fixture.manifest.release}-production-write-fence.json`,
+      storageDrainReceiptFileName:
+        `${fixture.manifest.release}-storage-drain.json`,
+      postPushReceiptFileName: `${fixture.manifest.release}-post-push.json`,
+      maximumAgeMinutes: 30,
+      signedUploadTokenTtlMinutes: 120,
+      signedUploadGraceMinutes: 10,
+      storageStabilityWindowMinutes: 5,
     },
     backupContract: {
       id:
@@ -357,46 +571,89 @@ async function createControllerReadyFixture(): Promise<Fixture> {
         predecessor.backupContract.ephemeralRebuildContract,
       expectedCommitBinding: "release-expected-commit",
       expectedOrigin: predecessor.backupContract.expectedOrigin,
-      verifier: predecessor.postExpandBackupContract.verifier,
+      capture: {
+        file: "scripts/vendor-disclosure-db-current-baseline.ps1",
+        sha256: sha256(currentBaselineCapture),
+      },
+      dependencies: [
+        {
+          file: "scripts/vendor-disclosure-db-current-baseline-common.ps1",
+          sha256: sha256(currentBaselineCommon),
+        },
+        {
+          file: "scripts/amora-db-backup-common.ps1",
+          sha256: sha256(sharedBackupCommon),
+        },
+      ],
+      verifier: {
+        file: "scripts/vendor-disclosure-db-current-baseline-verify.ps1",
+        sha256: sha256(currentBaselineVerifier),
+      },
       providerPhysicalBackup:
         predecessor.backupContract.providerPhysicalBackup,
-      hostedRestoreEvidence: {
-        ...predecessor.backupContract.hostedRestoreEvidence,
-        receiptFileName:
-          `${fixture.manifest.release}-hosted-restore-evidence.json`,
-      },
       supabaseCli: predecessor.backupContract.supabaseCli,
       requiredReceiptValues:
         predecessor.postExpandBackupContract.requiredReceiptValues,
     },
     postExpandBackupContract: {
+      ...predecessor.postExpandBackupContract,
       id: `post-${fixture.manifest.release}-backup`,
       version: 2,
-      expectedTableCount: baselineTables.length,
-      expectedTables: baselineTables,
-      expectedTableContractSha256: baselineTablesSha256,
+      verificationReceiptFileName:
+        `${fixture.manifest.release}-post-expand-backup-verification.json`,
+      expectedTableCount: postExpandTables.length,
+      expectedTables: postExpandTables,
+      expectedTableContractSha256: postExpandTablesSha256,
       expectedReleaseMigrationBaselineHead:
         fixture.manifest.requiredRemoteHead,
       expectedReleaseMigrationHead: releaseVersions.at(-1),
       expectedReleaseMigrationVersions: releaseVersions,
       expectedReleaseMigrationContractSha256:
         sha256(`${releaseVersions.join("\n")}\n`),
+      common: {
+        file: "scripts/vendor-disclosure-db-backup-common.ps1",
+        sha256: sha256(successorCommon),
+      },
       capture: {
         file: "scripts/vendor-disclosure-db-backup.ps1",
-        sha256: "c".repeat(64),
+        sha256: sha256(successorCapture),
       },
       verifier: {
         file: "scripts/vendor-disclosure-db-verify-backup.ps1",
-        sha256: "d".repeat(64),
+        sha256: sha256(successorVerifier),
+      },
+      recoveryAssurance: {
+        receiptFileName:
+          `${fixture.manifest.release}-recovery-assurance-evidence.json`,
+        maximumAgeMinutes:
+          SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS
+            .recoveryAssurance.maximumAgeMinutes,
+        requiredChecks: [...SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS
+          .recoveryAssurance.requiredChecks],
+        releaseAssurance: structuredClone(
+          SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+        ),
       },
     },
     finalizationContract: {
       ...predecessor.finalizationContract,
       version: 2,
+      externalEvidence: structuredClone(
+        SUCCESSOR_FINALIZER_EXTERNAL_EVIDENCE_CONTRACT,
+      ),
+      operation: {
+        id: "production-write-fence-successor-finalize-20260819122000",
+        file: "supabase/platform-operations/security/20260819122000_production_write_fence_successor_finalize.sql",
+        sha256: sha256(successorFinalizer),
+      },
     },
     rollbackContract,
     requiredDocuments: predecessor.requiredDocuments,
   };
+  Reflect.deleteProperty(
+    controllerContract.postExpandBackupContract,
+    "hostedRestoreEvidence",
+  );
   const controllerContractText = json(controllerContract);
   const controllerContractRelativePath =
     "supabase/release-contracts/vendor-disclosure-production-controller-v1.json";
@@ -406,6 +663,29 @@ async function createControllerReadyFixture(): Promise<Fixture> {
   );
   await mkdir(join(controllerContractPath, ".."), { recursive: true });
   await writeFile(controllerContractPath, controllerContractText, "utf8");
+  const fixtureArtifacts: Record<string, string> = {
+    "scripts/vendor-disclosure-db-current-baseline.ps1":
+      currentBaselineCapture,
+    "scripts/vendor-disclosure-db-current-baseline-common.ps1":
+      currentBaselineCommon,
+    "scripts/amora-db-backup-common.ps1": sharedBackupCommon,
+    "scripts/vendor-disclosure-db-current-baseline-verify.ps1":
+      currentBaselineVerifier,
+    "scripts/vendor-disclosure-db-backup-common.ps1": successorCommon,
+    "scripts/vendor-disclosure-db-backup.ps1": successorCapture,
+    "scripts/vendor-disclosure-db-verify-backup.ps1": successorVerifier,
+    "supabase/platform-operations/security/20260819122000_production_write_fence_successor_finalize.sql":
+      successorFinalizer,
+  };
+  for (const [relativePath, content] of Object.entries(fixtureArtifacts)) {
+    const targetPath = join(fixture.repoRoot, ...relativePath.split("/"));
+    await mkdir(join(targetPath, ".."), { recursive: true });
+    await writeFile(targetPath, content, "utf8");
+  }
+
+  expect(successorArtifactContents[successorPostCheckPath]).toContain(
+    "BEGIN TRANSACTION READ ONLY",
+  );
 
   fixture.manifest.status = "controller_ready";
   fixture.manifest.deploymentEvidence =

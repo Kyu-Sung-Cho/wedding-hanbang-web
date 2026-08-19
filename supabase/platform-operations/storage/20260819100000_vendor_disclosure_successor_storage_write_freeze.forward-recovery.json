@@ -1,0 +1,20 @@
+{
+  "contractVersion": 1,
+  "operationId": "vendor-disclosure-successor-storage-write-freeze-v1",
+  "recoveryId": "vendor-disclosure-successor-storage-write-freeze-forward-recovery-v1",
+  "strategy": "forward-fix-only-keep-production-fail-closed",
+  "directSqlMutationAllowed": false,
+  "requiredStorageObjectMutationCount": 0,
+  "automaticPolicyRecreationAllowed": false,
+  "steps": [
+    "keep-database-web-auth-and-storage-write-fences-held",
+    "capture-new-read-only-12-bucket-and-policy-inventory",
+    "require-new-exact-owner-approved-dashboard-forward-fix-contract",
+    "rerun-frozen-read-only-verifier-and-two-stable-object-inventories",
+    "produce-new-encrypted-original-object-bytes-backup-before-continuation"
+  ],
+  "forbiddenPredecessorArtifacts": [
+    "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+    "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql"
+  ]
+}

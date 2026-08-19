@@ -1,0 +1,25 @@
+{
+  "contractVersion": 1,
+  "operationId": "vendor-disclosure-successor-storage-final-convergence-v1",
+  "recoveryId": "vendor-disclosure-successor-storage-final-convergence-compensation-v1",
+  "strategy": "bounded-storage-api-compensation-and-dashboard-forward-fix",
+  "directSqlMutationAllowed": false,
+  "requiredStorageObjectMutationCount": 0,
+  "automaticPolicyRecreationAllowed": false,
+  "bucketCompensation": {
+    "community-media-staging": "deleteBucket-only-if-read-only-inventory-proves-created-by-this-run-and-empty",
+    "guestbook-images": "updateBucket-to-exact-preflight-config-only-if-object-inventory-unchanged",
+    "guestbook-uploads": "updateBucket-to-exact-preflight-config-only-if-object-inventory-unchanged"
+  },
+  "steps": [
+    "hold-all-production-write-fences",
+    "reopen-durable-preflight-and-action-journal",
+    "apply-only-safe-supported-storage-api-compensation",
+    "use-new-owner-approved-dashboard-policy-forward-fix",
+    "rerun-read-only-contract-and-object-preservation-verifiers"
+  ],
+  "forbiddenPredecessorArtifacts": [
+    "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+    "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql"
+  ]
+}

@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile, realpath, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { lstat, open, readFile, realpath, unlink } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const MANIFEST_PATH = "supabase/release-manifests/amora-engine-v2-20260716.json";
-const STORAGE_FREEZE_OPERATION_ID = "storage-global-write-freeze-20260716108000";
+const PREDECESSOR_STORAGE_FREEZE_OPERATION_ID =
+  "storage-global-write-freeze-20260716108000";
 const MAX_JSON_BYTES = 64 * 1024;
 const COMMIT = /^[a-f0-9]{40}$/;
 const PROJECT_REF = /^[a-z0-9]{20}$/;
@@ -293,10 +294,15 @@ export function getStorageDrainReceiptPaths(receiptDirectory, finalFileName) {
 
 function validateManifest(manifest) {
   const evidence = manifest?.manualControlEvidence;
-  const operation = Array.isArray(manifest?.manualPlatformOperations)
-    ? manifest.manualPlatformOperations.find(
-      (entry) => entry?.id === STORAGE_FREEZE_OPERATION_ID,
-    )
+  const storageFreezeOperations = Array.isArray(manifest?.manualPlatformOperations)
+    ? manifest.manualPlatformOperations.filter((entry) =>
+      entry?.id === PREDECESSOR_STORAGE_FREEZE_OPERATION_ID
+      || (entry?.phase === "pre-backup"
+        && /^vendor-disclosure-successor-storage-(?:write-)?freeze-[a-z0-9-]+$/u
+          .test(entry?.id ?? "")))
+    : [];
+  const operation = storageFreezeOperations.length === 1
+    ? storageFreezeOperations[0]
     : null;
   if (!PROJECT_REF.test(manifest?.projectRef ?? "")
       || !/^[a-z0-9][a-z0-9-]{2,80}$/.test(manifest?.release ?? "")
@@ -674,13 +680,30 @@ export async function validateCompletedStorageDrainEvidence({
 }
 
 async function writeExclusiveJson(path, value) {
+  let handle;
   try {
-    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-      mode: 0o600,
-    });
+    handle = await open(path, "wx", 0o600);
+    await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await handle.sync();
+    const [handleStat, pathStat] = await Promise.all([handle.stat(), lstat(path)]);
+    if (!handleStat.isFile() || !pathStat.isFile() || pathStat.isSymbolicLink()
+        || handleStat.dev !== pathStat.dev || handleStat.ino !== pathStat.ino
+        || (process.platform !== "win32" && (handleStat.mode & 0o077) !== 0)) {
+      fail("STORAGE_DRAIN_OUTPUT_FAILED");
+    }
+    await handle.close();
+    handle = null;
+    if (process.platform !== "win32") {
+      const parent = await open(dirname(path), "r");
+      try {
+        await parent.sync();
+      } finally {
+        await parent.close();
+      }
+    }
   } catch {
+    await handle?.close().catch(() => {});
+    await unlink(path).catch(() => {});
     fail("STORAGE_DRAIN_OUTPUT_FAILED");
   }
 }
@@ -694,6 +717,7 @@ export async function captureStorageSignedUploadDrainEvidence({
   env = process.env,
   fetchImpl = globalThis.fetch,
   now = () => new Date(),
+  releaseManifest,
 }) {
   const absoluteRepoRoot = resolve(repoRoot);
   if (!COMMIT.test(expectedCommit ?? "")
@@ -714,7 +738,7 @@ export async function captureStorageSignedUploadDrainEvidence({
   if (typeof token !== "string" || token.length < 20) {
     fail("STORAGE_DRAIN_AUTH_TOKEN_REQUIRED");
   }
-  const manifest = await readBoundedJson(
+  const manifest = releaseManifest ?? await readBoundedJson(
     resolve(absoluteRepoRoot, MANIFEST_PATH),
     "STORAGE_DRAIN_MANIFEST_INVALID",
   );

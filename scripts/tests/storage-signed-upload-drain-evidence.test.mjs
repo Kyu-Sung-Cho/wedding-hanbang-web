@@ -140,6 +140,29 @@ test("captures immutable database-clock drain stages after 130m plus 5m stabilit
   assert.equal(persisted.stage, "verified");
 });
 
+test("captures against an explicitly supplied successor manifest without reading the predecessor path", async () => {
+  const f = await fixture();
+  const successor = structuredClone(f.manifest);
+  successor.release = "vendor-disclosure-successor-test";
+  successor.manualPlatformOperations[0].id =
+    "vendor-disclosure-successor-storage-write-freeze-v1";
+  const result = await captureStorageSignedUploadDrainEvidence({
+    repoRoot: f.root,
+    expectedCommit: COMMIT,
+    receiptDirectory: f.receipts,
+    siteUrl: "https://hanbang.example",
+    stage: "start",
+    releaseManifest: successor,
+    env: { SUPABASE_ACCESS_TOKEN: "x".repeat(24) },
+    fetchImpl: async (url) => controlResponse(url) ?? response(
+      "2026-07-17T00:00:00.000Z",
+    ),
+    now: () => new Date("2026-07-17T00:00:00.000Z"),
+  });
+  assert.equal(result.release, successor.release);
+  assert.equal(result.operation.operationId, successor.manualPlatformOperations[0].id);
+});
+
 test("fails closed before signed URL expiry plus grace", async () => {
   const f = await fixture();
   const observations = [

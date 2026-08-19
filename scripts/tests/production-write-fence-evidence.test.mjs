@@ -254,6 +254,11 @@ async function createFixture() {
   return {
     repoRoot,
     receiptRoot,
+    manifest,
+    manifestPath: join(
+      repoRoot,
+      "supabase/release-manifests/amora-engine-v2-20260716.json",
+    ),
     backupReceiptPath,
     receiptOut: join(receiptRoot, manifest.manualControlEvidence.receiptFileName),
   };
@@ -265,6 +270,42 @@ function response(status, body, headers = {}) {
     headers: { "Content-Type": "application/json", ...headers },
   });
 }
+
+test("uses an explicitly supplied controller manifest after the predecessor file is unavailable", async () => {
+  const fixture = await createFixture();
+  try {
+    await rm(fixture.manifestPath);
+    const result = await captureProductionWriteFenceEvidence({
+      repoRoot: fixture.repoRoot,
+      expectedCommit: COMMIT,
+      backupReceiptPath: fixture.backupReceiptPath,
+      receiptOut: fixture.receiptOut,
+      siteUrl: "https://hanbang.ai",
+      releaseManifest: fixture.manifest,
+      env: { SUPABASE_ACCESS_TOKEN: "x".repeat(24) },
+      now: () => NOW,
+      fetchImpl: async (url) => String(url).endsWith("/database/backups")
+        ? response(200, {
+          backups: [{
+            is_physical_backup: true,
+            status: "COMPLETED",
+            inserted_at: "2026-07-17T02:00:00.000Z",
+          }],
+          physical_backup_data: { latest_physical_backup_date_unix: 1784253600 },
+        })
+        : String(url).startsWith("https://api.supabase.com/")
+          ? response(200, { disable_signup: true })
+          : response(503, { error: "production_write_fence_enabled" }, {
+            "Cache-Control": "no-store",
+            "X-Hanbang-Deployment-Commit": COMMIT,
+          }),
+    });
+    assert.equal(result.release, fixture.manifest.release);
+  } finally {
+    await rm(fixture.repoRoot, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
 
 test("captures only exact read-only Auth and side-effect-free deployed-web evidence", async () => {
   const fixture = await createFixture();

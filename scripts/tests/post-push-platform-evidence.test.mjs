@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 
-import { capturePostPushPlatformEvidence } from "../lib/post-push-platform-evidence.mjs";
+import {
+  capturePostPushPlatformEvidence,
+  postPushPlatformEvidenceTestHooks,
+} from "../lib/post-push-platform-evidence.mjs";
 
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const COMMIT = "a".repeat(40);
@@ -14,6 +17,21 @@ const MANIFEST_SHA = "B".repeat(64);
 const OPERATION_ID = "strict-chat-storage-finalize";
 const OPERATION_SQL = "select 'post-push operation';\n";
 const OPERATION_SHA = createHash("sha256").update(OPERATION_SQL).digest("hex");
+
+test("successor post-push evidence accepts only the exact pinned Storage operation JSON", () => {
+  assert.equal(postPushPlatformEvidenceTestHooks.validOperationFile({
+    id: "vendor-disclosure-successor-storage-final-convergence-v1",
+    file: "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+  }, true), true);
+  assert.equal(postPushPlatformEvidenceTestHooks.validOperationFile({
+    id: "vendor-disclosure-successor-storage-final-convergence-v1",
+    file: "supabase/platform-operations/storage/unpinned.operation.json",
+  }, true), false);
+  assert.equal(postPushPlatformEvidenceTestHooks.validOperationFile({
+    id: "unexpected-operation",
+    file: "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+  }, true), false);
+});
 
 async function write(root, path, content) {
   const target = join(root, path);

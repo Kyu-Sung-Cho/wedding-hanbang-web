@@ -29,6 +29,9 @@ import {
   POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
 } from "../lib/amora-release-extended-contracts.mjs";
 import {
+  SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+} from "../lib/supabase-successor-release-contract.mjs";
+import {
   buildHostedRestoreReceiptWithProvenance,
   buildLogicalDataDigestContractFromPayload,
   buildProductionCanaryReceiptWithProvenance,
@@ -83,6 +86,10 @@ const sourceRepoRoot = resolve(import.meta.dirname, "../..");
 const sourceSql = join(
   sourceRepoRoot,
   "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql",
+);
+const successorSourceSql = join(
+  sourceRepoRoot,
+  "supabase/platform-operations/security/20260819122000_production_write_fence_successor_finalize.sql",
 );
 
 function sha256Text(value) {
@@ -1158,19 +1165,74 @@ test("renderer rejects injection and any missing or duplicated template token", 
   );
 });
 
+test("successor renderer binds recovery assurance and lowercase live backup digests without a hosted-restore claim", async () => {
+  const template = await readFile(successorSourceSql, "utf8");
+  const postExpandBackupContract = {
+    expectedTableContractSha256:
+      "ddf672a17f28e99fd20646a3376cee696430b8b599e10979f6d2c7fd23e5482f",
+    expectedReleaseMigrationContractSha256:
+      "807cacbc3a0df7f488908c3cd619879d389dd277bda37f97032d06fb960a44bf",
+  };
+  const evidence = {
+    projectRef: PROJECT_REF,
+    databaseSystemIdentifier: "7000000000000000001",
+    release: RELEASE,
+    releaseCommit: COMMIT,
+    leaseOwnerId: OWNER,
+    outcomePathSha256: OUTCOME_PATH_SHA,
+    outcomeReceiptSha256: "c".repeat(64),
+    deploymentId: DEPLOYMENT_ID,
+    deploymentUrlSha256: "d".repeat(64),
+    deploymentReceiptSha256: "e".repeat(64),
+    canaryReceiptSha256: "f".repeat(64),
+    postExpandBackupReceiptSha256: "1".repeat(64),
+    postExpandBackupReverificationSha256: "2".repeat(64),
+    recoveryAssuranceReceiptSha256: "3".repeat(64),
+    postExpandBackupSetId: BACKUP_SET_ID,
+    postExpandBackupManifestSha256: "a".repeat(64),
+    postExpandTableContractSha256:
+      postExpandBackupContract.expectedTableContractSha256,
+    postExpandMigrationContractSha256:
+      postExpandBackupContract.expectedReleaseMigrationContractSha256,
+    postExpandLiveSchemaContractSha256: "b".repeat(64),
+    postExpandLogicalDataContractSha256: "c".repeat(64),
+    canaryVerifiedAt: "2026-07-17T03:15:00.000Z",
+    canaryExpiresAt: "2026-07-17T03:30:00.000Z",
+  };
+  const rendered = renderProductionWriteFenceFinalizerSql(
+    template,
+    evidence,
+    postExpandBackupContract,
+  );
+  assert.match(rendered, /recovery_assurance_receipt_sha256/gu);
+  assert.doesNotMatch(rendered, /hosted_restore/gu);
+  assert.throws(
+    () => renderProductionWriteFenceFinalizerSql(template, {
+      ...evidence,
+      postExpandHostedRestoreReceiptSha256: "4".repeat(64),
+    }, postExpandBackupContract),
+    (error) => error instanceof ProductionWriteFenceFinalizerError
+      && error.code === "FINALIZER_EVIDENCE_INVALID",
+  );
+});
+
 test("successor outcome evidence summary binds all five private receipt and raw hashes", () => {
   const records = [
     "backup",
     "finalizer",
-    "hostedRestore",
     "hostedStaging",
+    "recoveryAssurance",
     "storage",
   ].map((name, index) => ({
     name,
     receiptSha256: ["1", "2", "3", "4", "5"][index].repeat(64),
     rawEvidenceSha256: ["6", "7", "8", "9", "a"][index].repeat(64),
-    verifiedAt: "2026-07-31T00:00:00Z",
-    expiresAt: "2026-07-31T00:30:00Z",
+    verifiedAt: name === "recoveryAssurance"
+      ? "2026-07-31T00:10:00Z"
+      : "2026-07-31T00:00:00Z",
+    expiresAt: name === "recoveryAssurance"
+      ? "2026-07-31T00:30:00Z"
+      : "2026-07-31T00:06:00Z",
   }));
   const successorRuntimeEvidenceSetSha256 = sha256Text(
     `${records.map((record) => [
@@ -1183,6 +1245,10 @@ test("successor outcome evidence summary binds all five private receipt and raw 
   );
   const receipt = {
     startedAt: "2026-07-31T00:05:00.000Z",
+    completedAt: "2026-07-31T00:15:00.000Z",
+    successorReleaseAssurance: structuredClone(
+      SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+    ),
     successorRuntimeEvidence: records,
     successorRuntimeEvidenceSetSha256,
   };
@@ -1212,6 +1278,406 @@ test("successor outcome evidence summary binds all five private receipt and raw 
             : record),
       }),
     false,
+  );
+});
+
+test("successor finalizer revalidates the complete no-cost evidence set and cross-binds the live post-expand backup", async () => {
+  const receiptRoot = await mkdtemp(
+    join(tmpdir(), "successor-finalizer-recovery-assurance-"),
+  );
+  const recoveryFileName = `${RELEASE}-recovery-assurance-evidence.json`;
+  const recoveryReceiptPath = join(receiptRoot, recoveryFileName);
+  const names = [
+    "backup",
+    "finalizer",
+    "hostedStaging",
+    "recoveryAssurance",
+    "storage",
+  ];
+  const records = Object.fromEntries(names.map((name, index) => [name, {
+    receiptPath: name === "recoveryAssurance"
+      ? recoveryReceiptPath
+      : join(receiptRoot, `${name}.json`),
+    receiptSha256: String(index + 1).repeat(64),
+    rawEvidenceSha256: ["6", "7", "8", "9", "a"][index].repeat(64),
+    verifiedAt: name === "recoveryAssurance"
+      ? "2026-07-17T03:10:00.000Z"
+      : "2026-07-17T02:50:00.000Z",
+    expiresAt: name === "recoveryAssurance"
+      ? "2026-07-17T03:40:00.000Z"
+      : "2026-07-17T03:20:00.000Z",
+  }]));
+  const backupReceiptSha256 = "b".repeat(64);
+  const backupManifestSha256 = "c".repeat(64);
+  const artifactReverificationSha256 = "d".repeat(64);
+  const liveSchemaContractSha256 = "e".repeat(64);
+  const logicalDataContractSha256 = "f".repeat(64);
+  records.recoveryAssurance.releaseAssurance = structuredClone(
+    SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+  );
+  records.recoveryAssurance.observations = {
+    backupContractId: "pre-successor-backup",
+    postExpandBackupContractId: "post-successor-backup",
+    postExpandBackupReceiptSha256: backupReceiptSha256,
+    postExpandBackupManifestSha256: backupManifestSha256,
+    postExpandBackupReverificationSha256: artifactReverificationSha256,
+    postExpandLiveSchemaContractSha256: liveSchemaContractSha256,
+    postExpandLogicalDataContractSha256: logicalDataContractSha256,
+    postExpandEncryptedArtifactsVerified: true,
+    postExpandPGliteJsonbRoundTripVerified: true,
+    providerPhysicalBackupStatus: "COMPLETED",
+  };
+  records.storage.storageProvenance = {
+    originalBytesBackupReceiptFileName: "storage-original-bytes.json",
+    originalBytesBackupReceiptSha256: "1".repeat(64),
+  };
+  const retained = names.map((name) => ({
+    name,
+    receiptSha256: records[name].receiptSha256,
+    rawEvidenceSha256: records[name].rawEvidenceSha256,
+    verifiedAt: records[name].verifiedAt,
+    expiresAt: records[name].expiresAt,
+  }));
+  const outcomeReceipt = {
+    successorRuntimeEvidence: retained,
+    successorRuntimeEvidenceSetSha256: sha256Text(
+      `${retained.map((record) => [
+        record.name,
+        record.receiptSha256,
+        record.rawEvidenceSha256,
+        record.verifiedAt,
+        record.expiresAt,
+      ].join(":")).join("\n")}\n`,
+    ),
+    successorReleaseAssurance: structuredClone(
+      SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+    ),
+  };
+  const input = {
+    repoRoot: resolve(receiptRoot, "repo"),
+    receiptRoot,
+    recoveryReceiptPath,
+    recoveryReceiptSha256: records.recoveryAssurance.receiptSha256,
+    sourceManifest: {
+      deploymentEvidence: {
+        recoveryAssurance: { receiptFileName: recoveryFileName },
+      },
+    },
+    controllerManifest: {
+      backupContract: {
+        id: "pre-successor-backup",
+        providerPhysicalBackup: { requiredStatus: "COMPLETED" },
+      },
+      postExpandBackupContract: { id: "post-successor-backup" },
+    },
+    expectedCommit: COMMIT,
+    outcomeReceipt,
+    postExpandBackup: {
+      manifestSha256: backupManifestSha256,
+      artifactReverificationSha256,
+      liveSchemaContractSha256,
+      logicalDataContractSha256,
+    },
+    postExpandBackupReceiptSha256: backupReceiptSha256,
+    storageOriginalBytesBackupReceiptPath:
+      join(receiptRoot, "storage-original-bytes.json"),
+    now: () => NOW,
+  };
+  const storageFiles = {
+    receiptSha256: "1".repeat(64),
+    privateRawSha256: "2".repeat(64),
+    encryptedBackupArtifactSha256: "3".repeat(64),
+    originalBytesManifestSha256: "4".repeat(64),
+  };
+  let validationCalls = 0;
+  try {
+    const result = await productionWriteFenceFinalizerTestHooks
+      .validateSuccessorRecoveryAssuranceEvidence({
+        ...input,
+        validateRuntimeEvidence: (request) => {
+          validationCalls += 1;
+          assert.equal(request.phase, "complete");
+          assert.equal(request.receiptRoot, receiptRoot);
+          return records;
+        },
+        reverifyStorageOriginalBytes: async () => storageFiles,
+      });
+    assert.equal(validationCalls, 1);
+    assert.equal(result.sha256, records.recoveryAssurance.receiptSha256);
+    assert.equal(result.rawSha256, records.recoveryAssurance.rawEvidenceSha256);
+    assert.equal(result.releaseAssurance.hostedRestorePerformed, false);
+
+    await assert.rejects(
+      productionWriteFenceFinalizerTestHooks
+        .validateSuccessorRecoveryAssuranceEvidence({
+          ...input,
+          validateRuntimeEvidence: () => ({
+            ...records,
+            recoveryAssurance: {
+              ...records.recoveryAssurance,
+              observations: {
+                ...records.recoveryAssurance.observations,
+                postExpandBackupReceiptSha256: "0".repeat(64),
+              },
+            },
+          }),
+          reverifyStorageOriginalBytes: async () => storageFiles,
+        }),
+      (error) => error instanceof ProductionWriteFenceFinalizerError
+        && error.code === "SUCCESSOR_RECOVERY_ASSURANCE_INVALID",
+    );
+  } finally {
+    await rm(receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("successor finalizer reopens and hashes the exact five encrypted 139-table backup artifacts before no-cost recovery provenance", async () => {
+  const root = await mkdtemp(join(tmpdir(), "successor-finalizer-backup-"));
+  const backupDirectory = join(
+    root,
+    "post-expand-20260819-000000-12345678123442348234123456789abc",
+  );
+  const backupSetId = "22345678-1234-4234-8234-123456789abc";
+  const tables = Array.from({ length: 139 }, (_, index) =>
+    `table_${String(index).padStart(3, "0")}`);
+  const versions = Array.from({ length: 113 }, (_, index) =>
+    String(20260718120000 + index));
+  const digests = {
+    liveSchemaContractSha256: "1".repeat(64),
+    logicalDataContractSha256: "2".repeat(64),
+    authSchemaContractSha256: "3".repeat(64),
+    authUsersContractSha256: "4".repeat(64),
+    storageMetadataContractSha256: "5".repeat(64),
+    storageObjectInventorySha256: "6".repeat(64),
+  };
+  const artifactSpecs = {
+    schema_inventory: {
+      artifact: "schema-inventory.json.hbam2",
+      key: "schema-inventory.json.key.dpapi",
+    },
+    logical_data: {
+      artifact: "logical-data.json.hbam2",
+      key: "logical-data.json.key.dpapi",
+    },
+  };
+  try {
+    await mkdir(backupDirectory);
+    for (const [index, spec] of Object.values(artifactSpecs).entries()) {
+      await writeFile(join(backupDirectory, spec.artifact), `cipher-${index}\n`, "utf8");
+      await writeFile(join(backupDirectory, spec.key), `key-${index}\n`, "utf8");
+    }
+    const artifacts = {};
+    for (const [name, spec] of Object.entries(artifactSpecs)) {
+      const artifactBytes = await readFile(join(backupDirectory, spec.artifact));
+      const keyBytes = await readFile(join(backupDirectory, spec.key));
+      artifacts[name] = {
+        backup_set_id: backupSetId,
+        artifact: spec.artifact,
+        key: spec.key,
+        plaintext_sha256: "7".repeat(64),
+        encrypted_sha256: createHash("sha256").update(artifactBytes).digest("hex"),
+        key_sha256: createHash("sha256").update(keyBytes).digest("hex"),
+        plaintext_bytes: 10,
+        encrypted_bytes: artifactBytes.length,
+      };
+    }
+    const contract = {
+      id: "post-test-release-backup",
+      version: 2,
+      maximumAgeMinutes: 1_440,
+      expectedTableCount: tables.length,
+      expectedTables: tables,
+      expectedTableContractSha256: sha256Text(`${tables.join("\n")}\n`),
+      expectedReleaseMigrationHead: versions.at(-1),
+      expectedReleaseMigrationVersions: versions,
+      expectedReleaseMigrationContractSha256:
+        sha256Text(`${versions.join("\n")}\n`),
+    };
+    const backupManifest = {
+      status: "complete",
+      format: "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser",
+      format_version: 2,
+      backup_type: "vendor-disclosure-successor-post-expand-logical-snapshot-v2",
+      backup_set_id: backupSetId,
+      release: RELEASE,
+      backup_contract_id: contract.id,
+      backup_contract_version: 2,
+      created_at_utc: "2026-07-17T03:05:00.000Z",
+      source_captured_at: "2026-07-17T03:00:00.000Z",
+      source_project_ref: PROJECT_REF,
+      source_database_identity: {
+        database_oid: "16384",
+        system_identifier: DATABASE_SYSTEM_IDENTIFIER,
+      },
+      source_migration_head: "20260819100000",
+      source_migration_count: 228,
+      release_migration_count: versions.length,
+      release_migration_versions_sha256:
+        contract.expectedReleaseMigrationContractSha256,
+      expected_tables: tables,
+      table_count: tables.length,
+      table_contract_sha256: contract.expectedTableContractSha256,
+      live_schema_contract_sha256: digests.liveSchemaContractSha256,
+      logical_data_contract_sha256: digests.logicalDataContractSha256,
+      auth_schema_contract_sha256: digests.authSchemaContractSha256,
+      auth_users_contract_sha256: digests.authUsersContractSha256,
+      storage_metadata_contract_sha256: digests.storageMetadataContractSha256,
+      storage_object_inventory_sha256: digests.storageObjectInventorySha256,
+      git_commit: COMMIT,
+      git_origin: ORIGIN,
+      git_remote_ref: REMOTE_REF,
+      supabase_cli: {
+        version: "2.106.0",
+        invocation_relative_path: "bin/supabase.exe",
+        files: { "bin/supabase.exe": CLI_SHA },
+      },
+      plaintext_written_to_disk: false,
+      contains_secrets: false,
+      tables: Object.fromEntries(tables.map((name) => [name, 0])),
+      artifacts,
+    };
+    const manifestPath = join(backupDirectory, "manifest.json");
+    await writeJson(manifestPath, backupManifest);
+    const receipt = {
+      receiptVersion: 2,
+      kind: "successor-post-expand-backup-verification-v2",
+      release: RELEASE,
+      projectRef: PROJECT_REF,
+      releaseCommit: COMMIT,
+      backupContractId: contract.id,
+      backupContractVersion: 2,
+      backupSetId,
+      backupManifestSha256: await sha256File(manifestPath),
+      sourceDatabaseOid: "16384",
+      sourceDatabaseSystemIdentifier: DATABASE_SYSTEM_IDENTIFIER,
+      expectedMigrationHead: versions.at(-1),
+      migrationVersionsSha256: contract.expectedReleaseMigrationContractSha256,
+      expectedTableCount: tables.length,
+      expectedTables: tables,
+      expectedTableContractSha256: contract.expectedTableContractSha256,
+      ...digests,
+      capturedAt: "2026-07-17T03:00:00.000Z",
+      verifiedAt: "2026-07-17T03:10:00.000Z",
+      checks: {
+        authDataDigestsVerified: true,
+        encryptedArtifactsVerified: true,
+        exactTableContractVerified: true,
+        liveSchemaDigestVerified: true,
+        logicalDataDigestsVerified: true,
+        plaintextWrittenToDisk: false,
+        storageDataDigestsVerified: true,
+      },
+      containsSecrets: false,
+    };
+    const verified = await productionWriteFenceFinalizerTestHooks
+      .validateSuccessorPostExpandBackupReceipt({
+        receipt,
+        sha256: "8".repeat(64),
+        backupDirectory,
+        repoRoot: sourceRepoRoot,
+        sourceManifest: { release: RELEASE, projectRef: PROJECT_REF },
+        controllerManifest: {
+          backupContract: {
+            expectedOrigin: ORIGIN,
+            supabaseCli: { version: "2.106.0", binarySha256: CLI_SHA },
+          },
+        },
+        contract,
+        expectedCommit: COMMIT,
+        remoteRef: REMOTE_REF,
+        nowMs: Date.parse("2026-07-17T03:20:00.000Z"),
+      });
+    assert.equal(verified.backupSetId, backupSetId);
+    assert.equal(verified.tableCount, 139);
+    assert.equal(verified.releaseMigrationCount, 113);
+    assert.equal(verified.liveSchemaContractSha256,
+      digests.liveSchemaContractSha256);
+
+    await writeFile(
+      join(backupDirectory, artifactSpecs.logical_data.artifact),
+      "tampered\n",
+      "utf8",
+    );
+    await assert.rejects(
+      () => productionWriteFenceFinalizerTestHooks
+        .validateSuccessorPostExpandBackupReceipt({
+          receipt,
+          sha256: "8".repeat(64),
+          backupDirectory,
+          repoRoot: sourceRepoRoot,
+          sourceManifest: { release: RELEASE, projectRef: PROJECT_REF },
+          controllerManifest: {
+            backupContract: {
+              expectedOrigin: ORIGIN,
+              supabaseCli: { version: "2.106.0", binarySha256: CLI_SHA },
+            },
+          },
+          contract,
+          expectedCommit: COMMIT,
+          remoteRef: REMOTE_REF,
+          nowMs: Date.parse("2026-07-17T03:20:00.000Z"),
+        }),
+      (error) => error instanceof ProductionWriteFenceFinalizerError
+        && error.code === "SUCCESSOR_POST_EXPAND_BACKUP_ARTIFACT_INVALID",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("finalizer CLI arguments are exact by predecessor versus successor status", () => {
+  const sharedArgv = [
+    `--expected-commit=${COMMIT}`,
+    `--remote-ref=${REMOTE_REF}`,
+    "--release-outcome=C:\\private\\outcome.json",
+    "--deployment-receipt=C:\\private\\deployment.json",
+    "--post-expand-backup-receipt=C:\\private\\backup.json",
+    "--post-expand-hosted-restore-receipt=C:\\private\\restore.json",
+    "--canary-receipt=C:\\private\\canary.json",
+    "--receipt-out=C:\\private\\final.json",
+    "--confirm-production=FINALIZE:fixture",
+  ];
+  const predecessorArgs = productionWriteFenceFinalizerTestHooks.parseArgs(
+    sharedArgv,
+  );
+  assert.doesNotThrow(() => productionWriteFenceFinalizerTestHooks
+    .validateStatusSpecificArguments(predecessorArgs, false));
+  assert.throws(
+    () => productionWriteFenceFinalizerTestHooks
+      .validateStatusSpecificArguments(predecessorArgs, true),
+    (error) => error instanceof ProductionWriteFenceFinalizerError
+      && error.code === "ARGUMENT_REQUIRED",
+  );
+  assert.throws(
+    () => productionWriteFenceFinalizerTestHooks
+      .validateStatusSpecificArguments({
+        ...predecessorArgs,
+        postExpandBackupDirectory:
+          "C:\\private\\post-expand-20260819-000000-12345678123442348234123456789abc",
+        recoveryAssuranceReceipt: "C:\\private\\recovery.json",
+        storageOriginalBytesBackupReceipt:
+          "C:\\private\\storage-original-bytes.json",
+      }, true),
+    (error) => error instanceof ProductionWriteFenceFinalizerError
+      && error.code === "ARGUMENT_UNKNOWN",
+  );
+  const successorArgs = productionWriteFenceFinalizerTestHooks.parseArgs([
+    ...sharedArgv.filter(
+      (argument) => !argument.startsWith(
+        "--post-expand-hosted-restore-receipt=",
+      ),
+    ),
+    "--recovery-assurance-receipt=C:\\private\\recovery.json",
+    "--storage-original-bytes-backup-receipt=C:\\private\\storage-original-bytes.json",
+    "--post-expand-backup-directory=C:\\private\\post-expand-20260819-000000-12345678123442348234123456789abc",
+  ]);
+  assert.doesNotThrow(() => productionWriteFenceFinalizerTestHooks
+    .validateStatusSpecificArguments(successorArgs, true));
+  assert.throws(
+    () => productionWriteFenceFinalizerTestHooks
+      .validateStatusSpecificArguments(successorArgs, false),
+    (error) => error instanceof ProductionWriteFenceFinalizerError
+      && error.code === "ARGUMENT_UNKNOWN",
   );
 });
 

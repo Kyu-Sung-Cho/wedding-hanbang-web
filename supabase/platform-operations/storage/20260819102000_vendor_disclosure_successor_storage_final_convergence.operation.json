@@ -1,0 +1,97 @@
+{
+  "contractVersion": 1,
+  "operationId": "vendor-disclosure-successor-storage-final-convergence-v1",
+  "phase": "post-push-pre-deploy",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "transition": {
+    "from": {
+      "bucketCount": 12,
+      "policyCount": 5,
+      "mutationPolicyCount": 0
+    },
+    "to": {
+      "bucketCount": 13,
+      "policyCount": 5
+    }
+  },
+  "requiredStorageObjectMutationCount": 0,
+  "requiredExistingObjectPreservation": "exact-id-path-and-row-inventory-hash",
+  "bucketActions": [
+    {
+      "action": "createBucket",
+      "bucketId": "community-media-staging",
+      "public": false,
+      "fileSizeLimit": 6291456,
+      "allowedMimeTypes": [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp"
+      ]
+    },
+    {
+      "action": "updateBucket",
+      "bucketId": "guestbook-images",
+      "public": false
+    },
+    {
+      "action": "updateBucket",
+      "bucketId": "guestbook-uploads",
+      "public": false,
+      "fileSizeLimit": 5242880,
+      "allowedMimeTypes": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif"
+      ]
+    }
+  ],
+  "targetPolicySemanticIdentities": [
+    "chat-image-strict-insert",
+    "disclosure_evidence_client_delete_fence",
+    "disclosure_evidence_client_insert_fence",
+    "disclosure_evidence_client_select_fence",
+    "disclosure_evidence_client_update_fence"
+  ],
+  "execution": {
+    "bucketMutation": {
+      "channel": "supabase-storage-api",
+      "allowedMethods": [
+        "createBucket",
+        "updateBucket"
+      ]
+    },
+    "policyMutation": {
+      "channel": "supabase-dashboard-storage-policies",
+      "exactAction": "preserve-disclosure-select-remove-four-legacy-selects-add-three-disclosure-mutations-and-one-chat-insert"
+    },
+    "directSqlMutationAllowed": false,
+    "storageObjectApiMutationAllowed": false
+  },
+  "verifiers": {
+    "precondition": {
+      "file": "supabase/platform-operations/storage/20260819101000_vendor_disclosure_successor_storage_frozen_verify.sql",
+      "sha256": "eba1a72e0d196249f07ebaf54aeab49ebbbeabde879bc8bd6afce997ec4aa831"
+    },
+    "postcondition": {
+      "file": "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_target_verify.sql",
+      "sha256": "51a5c1871caf104440f396c0ef4118fe873955381ccbf7591db00853d034930d"
+    }
+  },
+  "releaseCheck": {
+    "id": "vendor-disclosure-successor-storage-target",
+    "file": "supabase/release-checks/vendor-disclosure-successor-storage-target.sql",
+    "sha256": "bb5238d293d533a79d5eb46789ec79dd898c1882164dc02ba5ac45dadf2a754e",
+    "expectedEvidence": {
+      "successor_storage_target_verified_count": 1
+    }
+  },
+  "forbiddenPredecessorArtifacts": [
+    "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+    "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql",
+    "storage-global-write-freeze-20260716108000",
+    "community-upload-service-fence-20260716108000"
+  ]
+}

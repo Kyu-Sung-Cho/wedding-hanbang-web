@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 
+import {
+  SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+  SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
+} from "./supabase-successor-release-contract.mjs";
+
 const SHA256 = /^[a-f0-9]{64}$/;
 
 export const AMORA_POST_EXPAND_TABLES = Object.freeze([
@@ -139,6 +144,23 @@ export const FINALIZER_EXTERNAL_EVIDENCE_CONTRACT = Object.freeze({
   }),
 });
 
+export const SUCCESSOR_FINALIZER_EXTERNAL_EVIDENCE_CONTRACT = Object.freeze({
+  version: 2,
+  rawEvidenceStorage: "outside-git-receipt-sibling-files",
+  vercel: FINALIZER_EXTERNAL_EVIDENCE_CONTRACT.vercel,
+  recoveryAssurance: Object.freeze({
+    runtimeEvidenceKind:
+      SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS.recoveryAssurance.kind,
+    runtimeRawEvidenceSource:
+      SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS.recoveryAssurance
+        .rawEvidenceSource,
+    requiredChecks:
+      SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS.recoveryAssurance.requiredChecks,
+    releaseAssurance: SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+  }),
+  canary: FINALIZER_EXTERNAL_EVIDENCE_CONTRACT.canary,
+});
+
 export const FORWARD_ONLY_OPERATION_ID =
   "ai-log-retention-exact-acl-20260717141000";
 export const SUPERSEDED_FORWARD_OPERATION_ID =
@@ -184,32 +206,51 @@ function exactArray(value, expected) {
     && value.every((entry, index) => entry === expected[index]);
 }
 
-function validateFinalizerExternalEvidenceContract(value) {
-  const expected = FINALIZER_EXTERNAL_EVIDENCE_CONTRACT;
+function exactDeep(value, expected) {
+  if (value === null || expected === null
+      || typeof value !== "object" || typeof expected !== "object") {
+    return value === expected;
+  }
+  if (Array.isArray(value) || Array.isArray(expected)) {
+    return Array.isArray(value)
+      && Array.isArray(expected)
+      && value.length === expected.length
+      && value.every((entry, index) => exactDeep(entry, expected[index]));
+  }
+  return exactKeys(value, Object.keys(expected))
+    && Object.keys(expected).every(
+      (key) => exactDeep(value[key], expected[key]),
+    );
+}
+
+function validateFinalizerExternalEvidenceContract(
+  value,
+  expected = FINALIZER_EXTERNAL_EVIDENCE_CONTRACT,
+) {
+  const recoveryKey = expected.version === 2
+    ? "recoveryAssurance"
+    : "hostedRestore";
   if (!exactKeys(value, [
     "version",
     "rawEvidenceStorage",
     "vercel",
-    "hostedRestore",
+    recoveryKey,
     "canary",
   ])
       || value.version !== expected.version
       || value.rawEvidenceStorage !== expected.rawEvidenceStorage
       || !exactKeys(value.vercel, Object.keys(expected.vercel))
-      || !exactKeys(value.hostedRestore, Object.keys(expected.hostedRestore))
+      || !exactDeep(value[recoveryKey], expected[recoveryKey])
       || !exactKeys(value.canary, Object.keys(expected.canary))
       || Object.keys(expected.vercel).some(
         (key) => value.vercel[key] !== expected.vercel[key],
-      )
-      || Object.keys(expected.hostedRestore).some(
-        (key) => value.hostedRestore[key] !== expected.hostedRestore[key],
       )
       || Object.keys(expected.canary).some(
         (key) => value.canary[key] !== expected.canary[key],
       )) {
     invalid(
       "FINALIZER_EXTERNAL_EVIDENCE_CONTRACT_INVALID",
-      "external deployment, hosted restore and canary evidence targets must be exact",
+      "external deployment, recovery assurance and canary evidence targets must be exact",
     );
   }
   return value;
@@ -433,9 +474,14 @@ function validateSuccessorForwardOnlySecurityOperations(manifest) {
 
 function validateSuccessorPostExpandBackupContract(manifest) {
   const contract = manifest.postExpandBackupContract;
-  const versions = Array.isArray(manifest.expandMigrations)
-    ? manifest.expandMigrations.map((entry) => entry?.file?.slice(0, 14))
+  const baselineMigrations = Array.isArray(manifest.remoteBaselineMigrations)
+    ? manifest.remoteBaselineMigrations
     : [];
+  const pendingMigrations = Array.isArray(manifest.expandMigrations)
+    ? manifest.expandMigrations
+    : [];
+  const versions = [...baselineMigrations, ...pendingMigrations]
+    .map((entry) => entry?.file?.slice(0, 14));
   const expectedHead = versions.at(-1);
   const tables = contract?.expectedTables;
   const tablesValid = Array.isArray(tables)
@@ -461,9 +507,10 @@ function validateSuccessorPostExpandBackupContract(manifest) {
     "expectedCommitBinding",
     "requiredLedgerEvidence",
     "requiredReceiptValues",
+    "common",
     "capture",
     "verifier",
-    "hostedRestoreEvidence",
+    "recoveryAssurance",
   ])
       || contract.id !== `post-${manifest.release}-backup`
       || contract.version !== 2
@@ -491,32 +538,38 @@ function validateSuccessorPostExpandBackupContract(manifest) {
       || contract.requiredReceiptValues.SourceCanonicalDigestsVerified !== true
       || contract.requiredReceiptValues.PGliteJsonbRoundTripVerified !== true
       || contract.requiredReceiptValues.PlaintextWrittenToDisk !== false
+      || !exactKeys(contract.common, ["file", "sha256"])
+      || contract.common.file !== "scripts/vendor-disclosure-db-backup-common.ps1"
+      || !SHA256.test(contract.common.sha256 ?? "")
       || !exactKeys(contract.capture, ["file", "sha256"])
-      || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(contract.capture.file ?? "")
-      || contract.capture.file === "scripts/amora-db-backup.ps1"
+      || contract.capture.file !== "scripts/vendor-disclosure-db-backup.ps1"
       || !SHA256.test(contract.capture.sha256 ?? "")
       || !exactKeys(contract.verifier, ["file", "sha256"])
-      || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(contract.verifier.file ?? "")
-      || contract.verifier.file === "scripts/amora-db-verify-backup.ps1"
+      || contract.verifier.file !== "scripts/vendor-disclosure-db-verify-backup.ps1"
       || !SHA256.test(contract.verifier.sha256 ?? "")
-      || !exactKeys(contract.hostedRestoreEvidence, [
+      || !exactKeys(contract.recoveryAssurance, [
         "receiptFileName",
         "maximumAgeMinutes",
-        "requiredTargetIsolation",
         "requiredChecks",
+        "releaseAssurance",
       ])
-      || contract.hostedRestoreEvidence.receiptFileName
-        !== `${manifest.release}-post-expand-hosted-restore-evidence.json`
-      || contract.hostedRestoreEvidence.maximumAgeMinutes !== 1_440
-      || contract.hostedRestoreEvidence.requiredTargetIsolation
-        !== "different-supabase-project"
+      || contract.recoveryAssurance.receiptFileName
+        !== `${manifest.release}-recovery-assurance-evidence.json`
+      || contract.recoveryAssurance.maximumAgeMinutes
+        !== SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS
+          .recoveryAssurance.maximumAgeMinutes
       || !exactArray(
-        contract.hostedRestoreEvidence.requiredChecks,
-        POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
+        contract.recoveryAssurance.requiredChecks,
+        SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS
+          .recoveryAssurance.requiredChecks,
+      )
+      || !exactDeep(
+        contract.recoveryAssurance.releaseAssurance,
+        SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
       )) {
     invalid(
       "POST_EXPAND_BACKUP_CONTRACT_INVALID",
-      "successor post-expand backup must pin its exact tables, manifest migrations and isolated restore",
+      "successor post-expand backup must pin exact encrypted/PGlite verification and no-cost recovery assurance",
     );
   }
   return contract;
@@ -539,15 +592,18 @@ function validateSuccessorFinalizationContract(manifest) {
       || contract.version !== 2
       || !exactKeys(contract.operation, ["id", "file", "sha256"])
       || contract.operation.id
-        !== "production-write-fence-finalize-20260717121000"
+        !== "production-write-fence-successor-finalize-20260819122000"
       || contract.operation.file
-        !== "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql"
+        !== "supabase/platform-operations/security/20260819122000_production_write_fence_successor_finalize.sql"
       || !SHA256.test(contract.operation.sha256 ?? "")
       || contract.requiredLeasePhase !== "deployment-canary"
       || contract.canaryMaximumAgeMinutes !== 15
       || contract.deploymentMaximumAgeMinutes !== 1_440
       || !exactArray(contract.requiredCanaryChecks, FINALIZER_REQUIRED_CANARY_CHECKS)
-      || validateFinalizerExternalEvidenceContract(contract.externalEvidence)
+      || validateFinalizerExternalEvidenceContract(
+        contract.externalEvidence,
+        SUCCESSOR_FINALIZER_EXTERNAL_EVIDENCE_CONTRACT,
+      )
         !== contract.externalEvidence
       || contract.confirmationIncludesCanarySha256 !== true) {
     invalid(

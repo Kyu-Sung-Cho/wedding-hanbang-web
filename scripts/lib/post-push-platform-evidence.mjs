@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
-const MANIFEST_PATH = "supabase/release-manifests/amora-engine-v2-20260716.json";
+import {
+  validateSuccessorReleaseContract,
+} from "./supabase-successor-release-contract.mjs";
+
+const PREDECESSOR_MANIFEST_PATH =
+  "supabase/release-manifests/amora-engine-v2-20260716.json";
+const SUCCESSOR_MANIFEST_PATH =
+  "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
 const MAX_JSON_BYTES = 64 * 1024;
 const COMMIT = /^[a-f0-9]{40}$/;
 const PROJECT_REF = /^[a-z0-9]{20}$/;
@@ -45,6 +52,42 @@ function canonicalTextHash(content) {
   return createHash("sha256")
     .update(content.replace(/\r\n?/g, "\n"), "utf8")
     .digest("hex");
+}
+
+function validOperationFile(operation, successor) {
+  if (successor) {
+    return operation?.id === "vendor-disclosure-successor-storage-final-convergence-v1"
+      && operation?.file
+        === "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json";
+  }
+  return /^supabase\/platform-operations\/(?:security|storage)\/[a-z0-9][a-z0-9_.-]*\.sql$/.test(
+    operation?.file ?? "",
+  );
+}
+
+async function loadReleaseManifest(repoRoot) {
+  const successorPath = resolve(repoRoot, SUCCESSOR_MANIFEST_PATH);
+  const successorMetadata = await lstat(successorPath).catch(() => null);
+  if (successorMetadata !== null) {
+    if (!successorMetadata.isFile() || successorMetadata.isSymbolicLink()) {
+      fail("POST_PUSH_EVIDENCE_MANIFEST_INVALID");
+    }
+    try {
+      const validated = validateSuccessorReleaseContract({ repoRoot });
+      if (!validated.controllerReady) fail("POST_PUSH_EVIDENCE_MANIFEST_INVALID");
+      return { manifest: validated.controllerManifest, successor: true };
+    } catch (error) {
+      if (error instanceof PostPushEvidenceError) throw error;
+      fail("POST_PUSH_EVIDENCE_MANIFEST_INVALID");
+    }
+  }
+  return {
+    manifest: await readBoundedJson(
+      resolve(repoRoot, PREDECESSOR_MANIFEST_PATH),
+      "POST_PUSH_EVIDENCE_MANIFEST_INVALID",
+    ),
+    successor: false,
+  };
 }
 
 async function rawFileSha256(path) {
@@ -107,10 +150,7 @@ export async function capturePostPushPlatformEvidence({
     fail("POST_PUSH_EVIDENCE_AUTH_TOKEN_REQUIRED");
   }
   const productionUrl = validateSiteUrl(siteUrl);
-  const manifest = await readBoundedJson(
-    resolve(absoluteRepoRoot, MANIFEST_PATH),
-    "POST_PUSH_EVIDENCE_MANIFEST_INVALID",
-  );
+  const { manifest, successor } = await loadReleaseManifest(absoluteRepoRoot);
   const operations = Array.isArray(manifest.manualPlatformOperations)
     ? manifest.manualPlatformOperations.filter(
       (operation) => operation?.phase === "post-push-pre-deploy",
@@ -149,9 +189,7 @@ export async function capturePostPushPlatformEvidence({
     if (!SAFE_ID.test(operation?.id ?? "")
         || !SAFE_ID.test(operation?.verificationCheckId ?? "")
         || typeof operation.file !== "string"
-        || !/^supabase\/platform-operations\/(?:security|storage)\/[a-z0-9][a-z0-9_.-]*\.sql$/.test(
-          operation.file,
-        )
+        || !validOperationFile(operation, successor)
         || !LOWER_SHA256.test(operation.sha256 ?? "")) {
       fail("POST_PUSH_EVIDENCE_MANIFEST_INVALID");
     }
@@ -296,3 +334,7 @@ export async function capturePostPushPlatformEvidence({
     containsSensitiveValues: false,
   };
 }
+
+export const postPushPlatformEvidenceTestHooks = Object.freeze({
+  validOperationFile,
+});

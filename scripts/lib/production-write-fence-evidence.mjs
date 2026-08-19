@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile, writeFile } from "node:fs/promises";
+import { lstat, open, readFile, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { validateCompletedStorageDrainEvidence } from "./storage-signed-upload-drain-evidence.mjs";
@@ -85,6 +85,7 @@ export async function captureProductionWriteFenceEvidence({
   env = process.env,
   fetchImpl = globalThis.fetch,
   now = () => new Date(),
+  releaseManifest,
 }) {
   const absoluteRepoRoot = resolve(repoRoot);
   if (!COMMIT.test(expectedCommit ?? "")
@@ -99,7 +100,7 @@ export async function captureProductionWriteFenceEvidence({
     fail("WRITE_FENCE_EVIDENCE_AUTH_TOKEN_REQUIRED");
   }
   const productionUrl = validateSiteUrl(siteUrl);
-  const manifest = await readBoundedJson(
+  const manifest = releaseManifest ?? await readBoundedJson(
     resolve(absoluteRepoRoot, MANIFEST_PATH),
     "WRITE_FENCE_EVIDENCE_MANIFEST_INVALID",
   );
@@ -390,13 +391,33 @@ export async function captureProductionWriteFenceEvidence({
     forwardOnlySecurityOperations,
     containsSensitiveValues: false,
   };
+  let outputHandle;
   try {
-    await writeFile(receiptOut, `${JSON.stringify(receipt, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-      mode: 0o600,
-    });
+    outputHandle = await open(receiptOut, "wx", 0o600);
+    await outputHandle.writeFile(`${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+    await outputHandle.sync();
+    const [handleStat, pathStat] = await Promise.all([
+      outputHandle.stat(),
+      lstat(receiptOut),
+    ]);
+    if (!handleStat.isFile() || !pathStat.isFile() || pathStat.isSymbolicLink()
+        || handleStat.dev !== pathStat.dev || handleStat.ino !== pathStat.ino
+        || (process.platform !== "win32" && (handleStat.mode & 0o077) !== 0)) {
+      fail("WRITE_FENCE_EVIDENCE_OUTPUT_FAILED");
+    }
+    await outputHandle.close();
+    outputHandle = null;
+    if (process.platform !== "win32") {
+      const parent = await open(dirname(receiptOut), "r");
+      try {
+        await parent.sync();
+      } finally {
+        await parent.close();
+      }
+    }
   } catch {
+    await outputHandle?.close().catch(() => {});
+    await unlink(receiptOut).catch(() => {});
     fail("WRITE_FENCE_EVIDENCE_OUTPUT_FAILED");
   }
 

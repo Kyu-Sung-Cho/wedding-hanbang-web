@@ -30,6 +30,15 @@ const args = new Set(process.argv.slice(2));
 const SHA256 = /^[a-f0-9]{64}$/;
 const UPPER_SHA256 = /^[A-F0-9]{64}$/;
 const SAFE_ID = /^[a-z][a-z0-9-]{2,63}$/;
+const SUCCESSOR_RELEASE_ID = "vendor-disclosure-v2-20260718";
+const SUCCESSOR_STORAGE_OPERATION_JSON_FILES = new Set([
+  "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.operation.json",
+  "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+]);
+const SUCCESSOR_STORAGE_RECOVERY_JSON_FILES = new Set([
+  "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json",
+  "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json",
+]);
 const MIGRATION_FILE = /^(\d{14})_[a-z0-9][a-z0-9_.-]*\.sql$/;
 const BASELINE_CONTRACT_ID = "pre-amora-current-remote-14-table-baseline";
 const EPHEMERAL_REBUILD_CONTRACT =
@@ -152,9 +161,15 @@ function verifyOperationList(
     fail(`${section} must be a non-empty array`);
   }
   for (const entry of entries) {
-    const validPath = typeof entry?.file === "string"
+    const successorJsonFiles = rollback
+      ? SUCCESSOR_STORAGE_RECOVERY_JSON_FILES
+      : SUCCESSOR_STORAGE_OPERATION_JSON_FILES;
+    const validSqlPath = typeof entry?.file === "string"
       && /^supabase\/platform-operations\/(?:security|storage)\/[a-z0-9][a-z0-9_.-]*\.sql$/.test(entry.file)
       && (!rollback || /_rollback\.sql$/.test(entry.file));
+    const validPath = validSqlPath
+      || (manifest.release === SUCCESSOR_RELEASE_ID
+        && successorJsonFiles.has(entry?.file));
     if (!SAFE_ID.test(entry?.id ?? "")
         || allIds.has(entry.id)
         || !validPath
@@ -260,13 +275,6 @@ function verifyBackupContract() {
     || contract.providerPhysicalBackup?.requirePhysicalBackup !== true
     || contract.providerPhysicalBackup?.restoreCapability
       !== "completed-physical-backup"
-    || contract.hostedRestoreEvidence?.receiptFileName
-      !== `${manifest.release}-hosted-restore-evidence.json`
-    || contract.hostedRestoreEvidence?.maximumAgeMinutes !== 1_440
-    || contract.hostedRestoreEvidence?.requiredTargetIsolation
-      !== "different-supabase-project"
-    || JSON.stringify(contract.hostedRestoreEvidence?.requiredChecks)
-      !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
     || !/^\d+\.\d+\.\d+$/.test(contract.supabaseCli?.version ?? "")
     || !UPPER_SHA256.test(contract.supabaseCli?.binarySha256 ?? "")
   );
@@ -315,13 +323,21 @@ function verifyExtendedReleaseContracts(
   preApplyCheckIds,
 ) {
   let contracts;
-  try {
-    contracts = validateAmoraExtendedReleaseContracts(manifest);
-  } catch (error) {
-    if (error instanceof ExtendedReleaseContractError) {
-      fail(`${error.code}: ${error.message}`);
+  if (manifest.release === SUCCESSOR_RELEASE_ID) {
+    contracts = {
+      finalizationContract: manifest.finalizationContract,
+      forwardOnlySecurityOperations: manifest.forwardOnlySecurityOperations,
+      postExpandBackupContract: manifest.postExpandBackupContract,
+    };
+  } else {
+    try {
+      contracts = validateAmoraExtendedReleaseContracts(manifest);
+    } catch (error) {
+      if (error instanceof ExtendedReleaseContractError) {
+        fail(`${error.code}: ${error.message}`);
+      }
+      throw error;
     }
-    throw error;
   }
 
   for (const operation of contracts.forwardOnlySecurityOperations) {

@@ -26,9 +26,12 @@ import {
 } from "./production-windows-toolchain.mjs";
 import { productionDatabaseSystemIdentifier } from "./production-database-identity.mjs";
 import {
+  SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+  SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
   SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   SuccessorReleaseContractError,
   validateSuccessorReleaseContract,
+  validateSuccessorNoAdditionalCostReleaseAssurance,
   validateSuccessorRuntimeEvidence,
 } from "./supabase-successor-release-contract.mjs";
 
@@ -47,6 +50,15 @@ const BACKUP_SET_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[
 const RELEASE_LEASE_OWNER = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const MIGRATION_FILE = /^(\d{14})_[a-z0-9][a-z0-9_.-]*\.sql$/;
 const SAFE_ID = /^[a-z][a-z0-9-]{2,63}$/;
+const SUCCESSOR_RELEASE_ID = "vendor-disclosure-v2-20260718";
+const SUCCESSOR_STORAGE_OPERATION_JSON_FILES = new Set([
+  "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.operation.json",
+  "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+]);
+const SUCCESSOR_STORAGE_RECOVERY_JSON_FILES = new Set([
+  "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json",
+  "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json",
+]);
 const GITHUB_HTTPS_ORIGIN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\.git$/;
 const BASELINE_CONTRACT_ID = "pre-amora-current-remote-14-table-baseline";
 const EPHEMERAL_REBUILD_CONTRACT =
@@ -208,7 +220,11 @@ async function defaultRunCommand(
 
 export const productionReleaseControllerTestHooks = Object.freeze({
   defaultRunCommand,
+  mergeSuccessorRuntimeEvidence,
   validateBackupReceipt,
+  validatePinnedReleaseArtifacts,
+  validateRetainedPreApplyRuntimeEvidence,
+  validateHostedRestoreEvidence,
   selectReleaseManifest,
 });
 
@@ -293,6 +309,23 @@ function canonicalTextHash(content) {
     .digest("hex");
 }
 
+function summarizeSuccessorRuntimeEvidenceRecords(records) {
+  const sortedRecords = [...records]
+    .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+  return Object.freeze({
+    records: Object.freeze(sortedRecords.map((record) => Object.freeze({ ...record }))),
+    sha256: canonicalTextHash(
+      `${sortedRecords.map((record) => [
+        record.name,
+        record.receiptSha256,
+        record.rawEvidenceSha256,
+        record.verifiedAt,
+        record.expiresAt,
+      ].join(":")).join("\n")}\n`,
+    ),
+  });
+}
+
 function summarizeSuccessorRuntimeEvidence(evidence) {
   if (!evidence) return null;
   const records = Object.entries(evidence)
@@ -304,17 +337,108 @@ function summarizeSuccessorRuntimeEvidence(evidence) {
       verifiedAt: record.verifiedAt,
       expiresAt: record.expiresAt,
     }));
+  const summary = summarizeSuccessorRuntimeEvidenceRecords(records);
+  return evidence.recoveryAssurance
+    ? Object.freeze({
+      ...summary,
+      recoveryAssurance: Object.freeze({
+        observations: evidence.recoveryAssurance.observations,
+        releaseAssurance: evidence.recoveryAssurance.releaseAssurance,
+      }),
+    })
+    : summary;
+}
+
+function validateRetainedPreApplyRuntimeEvidence(receipt) {
+  const expectedNames = ["backup", "finalizer", "hostedStaging", "storage"];
+  const records = receipt?.successorRuntimeEvidence;
+  const startedAtMs = Date.parse(receipt?.startedAt ?? "");
+  if (!Array.isArray(records)
+      || records.length !== expectedNames.length
+      || !SHA256.test(receipt?.successorRuntimeEvidenceSetSha256 ?? "")
+      || !Number.isFinite(startedAtMs)) {
+    blocked(
+      "AWAITING_OUTCOME_INVALID",
+      "retained outcome does not bind the exact pre-apply successor evidence set",
+    );
+  }
+  for (const [index, record] of records.entries()) {
+    const verifiedAtMs = Date.parse(record?.verifiedAt ?? "");
+    const expiresAtMs = Date.parse(record?.expiresAt ?? "");
+    if (!hasExactKeys(record, [
+      "expiresAt",
+      "name",
+      "rawEvidenceSha256",
+      "receiptSha256",
+      "verifiedAt",
+    ])
+        || record.name !== expectedNames[index]
+        || !SHA256.test(record.receiptSha256 ?? "")
+        || !SHA256.test(record.rawEvidenceSha256 ?? "")
+        || !Number.isFinite(verifiedAtMs)
+        || !Number.isFinite(expiresAtMs)
+        || verifiedAtMs > startedAtMs
+        || expiresAtMs <= startedAtMs) {
+      blocked(
+        "AWAITING_OUTCOME_INVALID",
+        "retained outcome has invalid pre-apply successor evidence",
+      );
+    }
+  }
+  const summary = summarizeSuccessorRuntimeEvidenceRecords(records);
+  if (summary.sha256 !== receipt.successorRuntimeEvidenceSetSha256) {
+    blocked(
+      "AWAITING_OUTCOME_INVALID",
+      "retained outcome successor evidence hash is invalid",
+    );
+  }
+  return summary;
+}
+
+function mergeSuccessorRuntimeEvidence({ preApply, postExpand }) {
+  const summary = summarizeSuccessorRuntimeEvidenceRecords([
+    ...preApply.records,
+    ...postExpand.records,
+  ]);
+  const expectedNames = Object.keys(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).sort();
+  if (summary.records.length !== expectedNames.length
+      || summary.records.some((record, index) => record.name !== expectedNames[index])) {
+    blocked(
+      "RUNTIME_EVIDENCE_CONTRACT_INVALID",
+      "successor runtime evidence phases do not form the exact no-cost five-record set",
+    );
+  }
+  const backup = preApply.records.find((record) => record.name === "backup");
+  const staging = preApply.records.find(
+    (record) => record.name === "hostedStaging",
+  );
+  const observations = postExpand?.recoveryAssurance?.observations;
+  let releaseAssurance;
+  try {
+    releaseAssurance = validateSuccessorNoAdditionalCostReleaseAssurance(
+      postExpand?.recoveryAssurance?.releaseAssurance,
+    );
+  } catch {
+    blocked(
+      "RUNTIME_EVIDENCE_CONTRACT_INVALID",
+      "post-expand recovery assurance must disclose the exact no-cost limitations",
+    );
+  }
+  if (!backup || !staging || !observations
+      || observations.preApplyBackupReceiptSha256 !== backup.receiptSha256
+      || observations.preApplyBackupRawEvidenceSha256
+        !== backup.rawEvidenceSha256
+      || observations.hostedStagingReceiptSha256 !== staging.receiptSha256
+      || observations.hostedStagingRawEvidenceSha256
+        !== staging.rawEvidenceSha256) {
+    blocked(
+      "RUNTIME_EVIDENCE_CONTRACT_INVALID",
+      "post-expand recovery assurance does not bind the retained backup and Staging proofs",
+    );
+  }
   return Object.freeze({
-    records: Object.freeze(records.map((record) => Object.freeze(record))),
-    sha256: canonicalTextHash(
-      `${records.map((record) => [
-        record.name,
-        record.receiptSha256,
-        record.rawEvidenceSha256,
-        record.verifiedAt,
-        record.expiresAt,
-      ].join(":")).join("\n")}\n`,
-    ),
+    ...summary,
+    releaseAssurance,
   });
 }
 
@@ -477,11 +601,13 @@ async function validatePinnedReleaseArtifacts({ manifest, repoRoot }) {
       name: "manualPlatformOperations",
       needsId: true,
       filePattern: /^supabase\/platform-operations\/(?:security|storage)\/[a-z0-9][a-z0-9_.-]*\.sql$/,
+      successorJsonFiles: SUCCESSOR_STORAGE_OPERATION_JSON_FILES,
     },
     {
       name: "rollbackArtifacts",
       needsId: true,
       filePattern: /^supabase\/platform-operations\/(?:security|storage)\/[a-z0-9][a-z0-9_.-]*_rollback\.sql$/,
+      successorJsonFiles: SUCCESSOR_STORAGE_RECOVERY_JSON_FILES,
     },
     {
       name: "requiredDocuments",
@@ -517,11 +643,13 @@ async function validatePinnedReleaseArtifacts({ manifest, repoRoot }) {
       if (idInvalid
           || typeof entry?.file !== "string"
           || entry.file.includes("..")
-          || !section.filePattern.test(entry.file)
+          || !(section.filePattern.test(entry.file)
+            || (manifest.release === SUCCESSOR_RELEASE_ID
+              && section.successorJsonFiles?.has(entry.file)))
           || !SHA256.test(entry.sha256 ?? "")) {
         blocked(
           "RELEASE_ARTIFACT_MANIFEST_INVALID",
-          `${section.name} contains an invalid artifact record`,
+          `${section.name} contains an invalid artifact record: ${entry?.file ?? "missing-file"}`,
         );
       }
       if (section.needsId) ids.add(entry.id);
@@ -576,13 +704,21 @@ async function validatePinnedReleaseArtifacts({ manifest, repoRoot }) {
     );
   }
   let extendedContracts;
-  try {
-    extendedContracts = validateAmoraExtendedReleaseContracts(manifest);
-  } catch (error) {
-    if (error instanceof ExtendedReleaseContractError) {
-      blocked(error.code, error.message);
+  if (manifest.release === SUCCESSOR_RELEASE_ID) {
+    extendedContracts = {
+      finalizationContract: manifest.finalizationContract,
+      forwardOnlySecurityOperations: manifest.forwardOnlySecurityOperations,
+      postExpandBackupContract: manifest.postExpandBackupContract,
+    };
+  } else {
+    try {
+      extendedContracts = validateAmoraExtendedReleaseContracts(manifest);
+    } catch (error) {
+      if (error instanceof ExtendedReleaseContractError) {
+        blocked(error.code, error.message);
+      }
+      throw error;
     }
-    throw error;
   }
   for (const operation of extendedContracts.forwardOnlySecurityOperations) {
     if (ids.has(operation.id)
@@ -712,21 +848,24 @@ async function loadManifest(repoRoot, selection = null) {
       !== backupContract.expectedTableContractSha256
     || backupContract.expectedCommitBinding !== "release-expected-commit"
     || !GITHUB_HTTPS_ORIGIN.test(backupContract.expectedOrigin ?? "")
-    || typeof backupContract.verifier?.file !== "string"
-    || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(backupContract.verifier.file)
+    || backupContract.capture?.file
+      !== "scripts/vendor-disclosure-db-current-baseline.ps1"
+    || !SHA256.test(backupContract.capture?.sha256 ?? "")
+    || !Array.isArray(backupContract.dependencies)
+    || backupContract.dependencies.length !== 2
+    || backupContract.dependencies[0]?.file
+      !== "scripts/vendor-disclosure-db-current-baseline-common.ps1"
+    || !SHA256.test(backupContract.dependencies[0]?.sha256 ?? "")
+    || backupContract.dependencies[1]?.file !== "scripts/amora-db-backup-common.ps1"
+    || !SHA256.test(backupContract.dependencies[1]?.sha256 ?? "")
+    || backupContract.verifier?.file
+      !== "scripts/vendor-disclosure-db-current-baseline-verify.ps1"
     || !SHA256.test(backupContract.verifier?.sha256 ?? "")
     || backupContract.providerPhysicalBackup?.maximumAgeHours !== 26
     || backupContract.providerPhysicalBackup?.requiredStatus !== "COMPLETED"
     || backupContract.providerPhysicalBackup?.requirePhysicalBackup !== true
     || backupContract.providerPhysicalBackup?.restoreCapability
       !== "completed-physical-backup"
-    || backupContract.hostedRestoreEvidence?.receiptFileName
-      !== `${manifest.release}-hosted-restore-evidence.json`
-    || backupContract.hostedRestoreEvidence?.maximumAgeMinutes !== 1_440
-    || backupContract.hostedRestoreEvidence?.requiredTargetIsolation
-      !== "different-supabase-project"
-    || JSON.stringify(backupContract.hostedRestoreEvidence?.requiredChecks)
-      !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
     || !/^\d+\.\d+\.\d+$/.test(backupContract.supabaseCli?.version ?? "")
     || !UPPER_SHA256.test(backupContract.supabaseCli?.binarySha256 ?? "")
   );
@@ -1359,17 +1498,47 @@ async function validateBackupReceipt({
   if (origin.stdout.trim() !== backupContract.expectedOrigin) {
     blocked("BACKUP_SOURCE_ORIGIN_MISMATCH", "backup verifier checkout origin does not match the manifest");
   }
+  const implementationPins = currentRemoteContract
+    ? [
+      [
+        backupContract.capture,
+        "BACKUP_IMPLEMENTATION_INVALID",
+        "BACKUP_IMPLEMENTATION_HASH_MISMATCH",
+        "backup capture script",
+      ],
+      ...backupContract.dependencies.map((dependency) => [
+        dependency,
+        "BACKUP_IMPLEMENTATION_INVALID",
+        "BACKUP_IMPLEMENTATION_HASH_MISMATCH",
+        "backup capture dependency",
+      ]),
+      [
+        backupContract.verifier,
+        "BACKUP_VERIFIER_INVALID",
+        "BACKUP_VERIFIER_HASH_MISMATCH",
+        "backup verifier script",
+      ],
+    ]
+    : [[
+      backupContract.verifier,
+      "BACKUP_VERIFIER_INVALID",
+      "BACKUP_VERIFIER_HASH_MISMATCH",
+      "backup verifier script",
+    ]];
+  for (const [pin, invalidCode, hashCode, label] of implementationPins) {
+    const path = resolve(backupSourceRepo, pin.file);
+    if (!inside(backupSourceRepo, path)) {
+      blocked(invalidCode, `${label} path escapes its checkout`);
+    }
+    const metadata = await lstat(path).catch(() => null);
+    if (!metadata?.isFile() || metadata.isSymbolicLink()) {
+      blocked(invalidCode, `${label} is missing or is not a regular file`);
+    }
+    if (canonicalTextHash(await readFile(path, "utf8")) !== pin.sha256) {
+      blocked(hashCode, `${label} does not match the manifest-pinned hash`);
+    }
+  }
   const verifier = resolve(backupSourceRepo, backupContract.verifier.file);
-  if (!inside(backupSourceRepo, verifier)) {
-    blocked("BACKUP_VERIFIER_INVALID", "backup verifier path escapes its checkout");
-  }
-  const verifierMetadata = await lstat(verifier).catch(() => null);
-  if (!verifierMetadata?.isFile() || verifierMetadata.isSymbolicLink()) {
-    blocked("BACKUP_VERIFIER_INVALID", "backup verifier script is missing or is not a regular file");
-  }
-  if (canonicalTextHash(await readFile(verifier, "utf8")) !== backupContract.verifier.sha256) {
-    blocked("BACKUP_VERIFIER_HASH_MISMATCH", "backup verifier does not match the manifest-pinned hash");
-  }
   const verification = await requireCommandSuccess(
     runCommand,
     powershell,
@@ -2004,7 +2173,21 @@ async function validateAwaitingOutcomeReceipt({
     && left.every((value, index) => value === right[index]);
   const receiptForSecretScan = { ...receipt };
   delete receiptForSecretScan.containsSecrets;
+  const successorRelease = manifest.status === "controller_ready";
+  let successorReleaseAssuranceValid = !successorRelease;
+  if (successorRelease) {
+    try {
+      validateSuccessorNoAdditionalCostReleaseAssurance(
+        receipt.successorReleaseAssurance,
+      );
+      successorReleaseAssuranceValid = true;
+    } catch {
+      successorReleaseAssuranceValid = false;
+    }
+  }
   if (containsSecretLikeField(receiptForSecretScan)
+      || !successorReleaseAssuranceValid
+      || (!successorRelease && receipt.successorReleaseAssurance !== undefined)
       || receipt.receiptVersion !== 1
       || receipt.status !== "awaiting_manual_post_push_operations"
       || receipt.release !== manifest.release
@@ -2322,6 +2505,7 @@ async function runPostPushResume({
   now,
   refreshSuccessorRuntimeEvidence = () => null,
 }) {
+  const successorRelease = manifest.status === "controller_ready";
   const releaseLock = await validateReleaseLock({
     lockPath,
     outcomeReceiptPath: options.receiptOut,
@@ -2356,15 +2540,17 @@ async function runPostPushResume({
       runCommand,
       maximumAgeMinutes: MAX_BACKUP_RESUME_AGE_MINUTES,
     });
-    const hostedRestoreEvidence = await validateHostedRestoreEvidence({
-      repoRoot,
-      backupReceiptPath: options.backupReceipt,
-      backupReceipt,
-      manifest,
-      expectedCommit: options.expectedCommit,
-      now,
-      enforceFreshness: false,
-    });
+    const hostedRestoreEvidence = successorRelease
+      ? null
+      : await validateHostedRestoreEvidence({
+        repoRoot,
+        backupReceiptPath: options.backupReceipt,
+        backupReceipt,
+        manifest,
+        expectedCommit: options.expectedCommit,
+        now,
+        enforceFreshness: false,
+      });
     const writeFenceEvidence = await validateWriteFenceReceipt({
       repoRoot,
       backupReceiptPath: options.backupReceipt,
@@ -2395,7 +2581,18 @@ async function runPostPushResume({
         "retained outcome no longer binds the exact pre-push write-fence evidence",
       );
     }
-    if (awaitingOutcome.receipt.hostedRestoreEvidenceSha256
+    if (successorRelease) {
+      try {
+        validateSuccessorNoAdditionalCostReleaseAssurance(
+          awaitingOutcome.receipt.successorReleaseAssurance,
+        );
+      } catch {
+        blocked(
+          "AWAITING_OUTCOME_INVALID",
+          "retained outcome no longer discloses the exact no-cost recovery limitations",
+        );
+      }
+    } else if (awaitingOutcome.receipt.hostedRestoreEvidenceSha256
           !== hostedRestoreEvidence.sha256
         || awaitingOutcome.receipt.hostedRestoreTargetProjectRef
           !== hostedRestoreEvidence.targetProjectRef
@@ -2537,8 +2734,22 @@ async function runPostPushResume({
     const preOperationIds = manifest.manualPlatformOperations
       .filter((operation) => operation.phase === "pre-backup")
       .map((operation) => operation.id);
-    const successorRuntimeEvidence =
-      refreshSuccessorRuntimeEvidence();
+    const postExpandRuntimeEvidence =
+      refreshSuccessorRuntimeEvidence("post-expand");
+    const successorRuntimeEvidence = postExpandRuntimeEvidence
+      ? mergeSuccessorRuntimeEvidence({
+        preApply: validateRetainedPreApplyRuntimeEvidence(awaitingOutcome.receipt),
+        postExpand: postExpandRuntimeEvidence,
+      })
+      : null;
+    if (successorRelease
+        && JSON.stringify(successorRuntimeEvidence?.releaseAssurance)
+          !== JSON.stringify(SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE)) {
+      blocked(
+        "RUNTIME_EVIDENCE_CONTRACT_INVALID",
+        "post-expand evidence changed the retained no-cost recovery declaration",
+      );
+    }
     if (!recoveredRemoteDeployingPhase) {
       await runRemoteReleaseLease({
         action: "mark_deploying_from_awaiting",
@@ -2621,6 +2832,7 @@ export async function runProductionRelease({
   const options = parseArgs(argv ?? []);
   assertSafeExecutionEnvironment(process.env);
   const selection = await selectReleaseManifest(repoRoot);
+  const successorRelease = Boolean(selection.successor);
   const {
     manifest,
     expectedMigrations,
@@ -2638,7 +2850,7 @@ export async function runProductionRelease({
   if (options.confirmProduction !== confirmation) {
     blocked("PRODUCTION_CONFIRMATION_MISMATCH", "production confirmation does not match project, release and commit");
   }
-  const refreshSuccessorRuntimeEvidence = () => {
+  const refreshSuccessorRuntimeEvidence = (phase = "pre-apply") => {
     if (!selection.successor) return null;
     try {
       return summarizeSuccessorRuntimeEvidence(validateSuccessorRuntimeEvidence({
@@ -2647,6 +2859,7 @@ export async function runProductionRelease({
         manifest: selection.successorContract.manifest,
         controllerManifest: manifest,
         expectedCommit: options.expectedCommit,
+        phase,
         now,
       }));
     } catch (error) {
@@ -2659,7 +2872,7 @@ export async function runProductionRelease({
       throw error;
     }
   };
-  let successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
+  let successorRuntimeEvidence = refreshSuccessorRuntimeEvidence("pre-apply");
   if (options.apply || options.resumePostPush) {
     if (!isAbsolute(options.receiptOut) || inside(repoRoot, options.receiptOut)) {
       blocked("RECEIPT_PATH_INVALID", "--receipt-out must be an absolute JSON path outside the Git repository");
@@ -2702,7 +2915,6 @@ export async function runProductionRelease({
 
   const lockPath = join(repoRoot, "supabase", ".temp", "amora-production-release.lock");
   if (options.resumePostPush) {
-    successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
     return await runPostPushResume({
       repoRoot,
       options,
@@ -2759,14 +2971,16 @@ export async function runProductionRelease({
       projectRef: manifest.projectRef,
       runCommand,
     });
-    const hostedRestoreEvidence = await validateHostedRestoreEvidence({
-      repoRoot,
-      backupReceiptPath: options.backupReceipt,
-      backupReceipt,
-      manifest,
-      expectedCommit: options.expectedCommit,
-      now,
-    });
+    const hostedRestoreEvidence = successorRelease
+      ? null
+      : await validateHostedRestoreEvidence({
+        repoRoot,
+        backupReceiptPath: options.backupReceipt,
+        backupReceipt,
+        manifest,
+        expectedCommit: options.expectedCommit,
+        now,
+      });
     const writeFenceEvidence = await validateWriteFenceReceipt({
       repoRoot,
       backupReceiptPath: options.backupReceipt,
@@ -2780,7 +2994,7 @@ export async function runProductionRelease({
     remoteLeaseLinkedRefFence = assertLinkedRef;
 
     if (options.apply) {
-      successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
+      successorRuntimeEvidence = refreshSuccessorRuntimeEvidence("pre-apply");
       remoteReleaseLeaseClaimAttempted = true;
       preserveLock = true;
       try {
@@ -2903,7 +3117,7 @@ export async function runProductionRelease({
       runCommand,
     });
     await assertLinkedRef();
-    successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
+    successorRuntimeEvidence = refreshSuccessorRuntimeEvidence("pre-apply");
 
     if (options.checkOnly) {
       return {
@@ -2927,10 +3141,17 @@ export async function runProductionRelease({
         writeFenceEvidenceVerifiedAt: writeFenceEvidence.verifiedAt,
         writeFenceEvidenceOperationIds: writeFenceEvidence.operationIds,
         writeFenceEvidenceControlCount: writeFenceEvidence.controlCount,
-        hostedRestoreEvidenceSha256: hostedRestoreEvidence.sha256,
-        hostedRestoreTargetProjectRef: hostedRestoreEvidence.targetProjectRef,
-        hostedRestoreEvidenceVerifiedAt: hostedRestoreEvidence.verifiedAt,
-        hostedRestoreEvidenceCheckCount: hostedRestoreEvidence.checkCount,
+        ...(successorRelease
+          ? {
+            successorReleaseAssurance:
+              SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+          }
+          : {
+            hostedRestoreEvidenceSha256: hostedRestoreEvidence.sha256,
+            hostedRestoreTargetProjectRef: hostedRestoreEvidence.targetProjectRef,
+            hostedRestoreEvidenceVerifiedAt: hostedRestoreEvidence.verifiedAt,
+            hostedRestoreEvidenceCheckCount: hostedRestoreEvidence.checkCount,
+          }),
         preApplyCheckIds,
         preApplyCheckCount: preApplyCheckIds.length,
         preApplyCheckEvidence,
@@ -2979,10 +3200,17 @@ export async function runProductionRelease({
       writeFenceEvidenceVerifiedAt: writeFenceEvidence.verifiedAt,
       writeFenceEvidenceOperationIds: writeFenceEvidence.operationIds,
       writeFenceEvidenceControlCount: writeFenceEvidence.controlCount,
-      hostedRestoreEvidenceSha256: hostedRestoreEvidence.sha256,
-      hostedRestoreTargetProjectRef: hostedRestoreEvidence.targetProjectRef,
-      hostedRestoreEvidenceVerifiedAt: hostedRestoreEvidence.verifiedAt,
-      hostedRestoreEvidenceCheckCount: hostedRestoreEvidence.checkCount,
+      ...(successorRelease
+        ? {
+          successorReleaseAssurance:
+            SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+        }
+        : {
+          hostedRestoreEvidenceSha256: hostedRestoreEvidence.sha256,
+          hostedRestoreTargetProjectRef: hostedRestoreEvidence.targetProjectRef,
+          hostedRestoreEvidenceVerifiedAt: hostedRestoreEvidence.verifiedAt,
+          hostedRestoreEvidenceCheckCount: hostedRestoreEvidence.checkCount,
+        }),
       supabaseCliVersion: backupReceipt.SupabaseCliVersion,
       supabaseCliBinarySha256: backupReceipt.SupabaseCliBinarySha256,
       preRemoteLedgerCount: preRemoteVersions.length,
@@ -3064,7 +3292,11 @@ export async function runProductionRelease({
     );
 
     const postRemoteLedgerSha256 = canonicalTextHash(`${postRemoteVersions.join("\n")}\n`);
-    if (postPushOperations.length > 0) {
+    // Successor recovery assurance is derived from the exact post-expand
+    // encrypted backup and PGlite roundtrip, so it cannot exist before db push.
+    // Keep the remote lease and local outcome lock while that no-cost evidence
+    // is captured, even when there is no separate platform operation to perform.
+    if (postPushOperations.length > 0 || selection.successor) {
       await runRemoteReleaseLease({
         action: "mark_awaiting",
         repoRoot,
@@ -3098,7 +3330,7 @@ export async function runProductionRelease({
         postRemoteLedgerCount: postRemoteVersions.length,
         postRemoteLedgerSha256,
         rerunProhibited: true,
-        operatorAction: "DO_NOT_RERUN DB PUSH. Execute only the manifest-pinned post-push platform operation, capture its exact evidence receipt, then use --resume-post-push.",
+        operatorAction: "DO_NOT_RERUN DB PUSH. Capture and verify the exact post-expand encrypted backup, PGlite roundtrip and no-cost recovery-assurance evidence; do not claim a hosted restore. Execute only any manifest-pinned post-push platform operation, then use --resume-post-push.",
       };
       await writeReceipt(options.receiptOut, awaitingReceipt);
       return awaitingReceipt;

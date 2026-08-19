@@ -2595,7 +2595,7 @@ export async function collectProductionCanaryEvidence({
   return receipt;
 }
 
-async function readSiblingRawEvidence({
+export async function readSiblingRawEvidence({
   receiptPath,
   fileName,
   expectedSha256,
@@ -2652,11 +2652,9 @@ async function readSiblingRawEvidence({
   return buffer.toString("utf8");
 }
 
-export async function validateExternalGateProvenanceFiles({
+async function validateExternalDeploymentCanaryProvenanceCore({
   deploymentReceipt,
   deploymentReceiptPath,
-  hostedRestoreReceipt,
-  hostedRestoreReceiptPath,
   canaryReceipt,
   canaryReceiptPath,
   expected,
@@ -2677,23 +2675,6 @@ export async function validateExternalGateProvenanceFiles({
       projectId: expected.vercelProjectId,
       productionHost: expected.productionHost,
     },
-  });
-  const projectRawText = await readSiblingRawEvidence({
-    receiptPath: hostedRestoreReceiptPath,
-    fileName: hostedRestoreReceipt.provenance?.projectApiRawEvidenceFileName,
-    expectedSha256:
-      hostedRestoreReceipt.provenance?.projectApiRawEvidenceSha256,
-    maximumBytes: MAX_PROVIDER_RAW_BYTES,
-    code: "HOSTED_RESTORE_PROJECT_EVIDENCE_FILE_INVALID",
-  });
-  const databaseProbeRawText = await readSiblingRawEvidence({
-    receiptPath: hostedRestoreReceiptPath,
-    fileName:
-      hostedRestoreReceipt.provenance?.databaseProbeRawEvidenceFileName,
-    expectedSha256:
-      hostedRestoreReceipt.provenance?.databaseProbeRawEvidenceSha256,
-    maximumBytes: MAX_PROBE_RAW_BYTES,
-    code: "HOSTED_RESTORE_DB_PROBE_FILE_INVALID",
   });
   const canaryRawText = await readSiblingRawEvidence({
     receiptPath: canaryReceiptPath,
@@ -2736,6 +2717,56 @@ export async function validateExternalGateProvenanceFiles({
       vercelServerErrorRawText,
     },
   });
+  return {
+    canary,
+    deployment,
+    summary: {
+      deploymentRawEvidenceSha256: deployment.rawSha256,
+      canaryRawHttpObservationsSha256: canary.rawSha256,
+      canaryVercelServerErrorRawEvidenceSha256:
+        externalGateSha256(vercelServerErrorRawText),
+    },
+  };
+}
+
+export async function validateExternalDeploymentCanaryProvenanceFiles(input) {
+  const result = await validateExternalDeploymentCanaryProvenanceCore(input);
+  return result.summary;
+}
+
+export async function validateExternalGateProvenanceFiles({
+  deploymentReceipt,
+  deploymentReceiptPath,
+  hostedRestoreReceipt,
+  hostedRestoreReceiptPath,
+  canaryReceipt,
+  canaryReceiptPath,
+  expected,
+}) {
+  const core = await validateExternalDeploymentCanaryProvenanceCore({
+    deploymentReceipt,
+    deploymentReceiptPath,
+    canaryReceipt,
+    canaryReceiptPath,
+    expected,
+  });
+  const projectRawText = await readSiblingRawEvidence({
+    receiptPath: hostedRestoreReceiptPath,
+    fileName: hostedRestoreReceipt.provenance?.projectApiRawEvidenceFileName,
+    expectedSha256:
+      hostedRestoreReceipt.provenance?.projectApiRawEvidenceSha256,
+    maximumBytes: MAX_PROVIDER_RAW_BYTES,
+    code: "HOSTED_RESTORE_PROJECT_EVIDENCE_FILE_INVALID",
+  });
+  const databaseProbeRawText = await readSiblingRawEvidence({
+    receiptPath: hostedRestoreReceiptPath,
+    fileName:
+      hostedRestoreReceipt.provenance?.databaseProbeRawEvidenceFileName,
+    expectedSha256:
+      hostedRestoreReceipt.provenance?.databaseProbeRawEvidenceSha256,
+    maximumBytes: MAX_PROBE_RAW_BYTES,
+    code: "HOSTED_RESTORE_DB_PROBE_FILE_INVALID",
+  });
   const hostedRestore = validateHostedRestoreReceiptProvenance({
     receipt: hostedRestoreReceipt,
     projectRawText,
@@ -2744,17 +2775,19 @@ export async function validateExternalGateProvenanceFiles({
       expectedTables: expected.expectedTables,
       expectedMigrationVersions: expected.expectedMigrationVersions,
       sourceDatabaseSystemIdentifier:
-        canary.raw.databaseFence.databaseSystemIdentifier,
+        core.canary.raw.databaseFence.databaseSystemIdentifier,
     },
   });
   return {
-    deploymentRawEvidenceSha256: deployment.rawSha256,
+    deploymentRawEvidenceSha256:
+      core.summary.deploymentRawEvidenceSha256,
     hostedRestoreProjectRawEvidenceSha256:
       hostedRestoreReceipt.provenance.projectApiRawEvidenceSha256,
     hostedRestoreDatabaseProbeRawEvidenceSha256: hostedRestore.rawSha256,
-    canaryRawHttpObservationsSha256: canary.rawSha256,
+    canaryRawHttpObservationsSha256:
+      core.summary.canaryRawHttpObservationsSha256,
     canaryVercelServerErrorRawEvidenceSha256:
-      externalGateSha256(vercelServerErrorRawText),
+      core.summary.canaryVercelServerErrorRawEvidenceSha256,
   };
 }
 

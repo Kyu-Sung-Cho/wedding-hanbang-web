@@ -3,15 +3,18 @@
 Date: 2026-07-31  
 Contract sync: 2026-08-19
 Release: `vendor-disclosure-v2-20260718`  
-Current decision: **NO-GO**
+Current decision: **NO-GO until the two-commit activation and runtime evidence gates below pass**
 
 ## Current state
 
-`supabase/release-manifests/vendor-disclosure-v2-20260718.json` remains
-`deployment_blocked`. Its five deployment-evidence classes remain `missing`.
+The release starts with
+`supabase/release-manifests/vendor-disclosure-v2-20260718.json` in
+`deployment_blocked`. Its five deployment-evidence classes remain `missing`
+until the reviewed tooling commit is pushed and the separate activation commit
+is generated. Do not hand-edit this transition.
 The ordered successor manifest now contains 113 migrations and ends at
 `20260819100000_amora_preparation_action_receipt_binding_read.sql`.
-The normalized-LF current manifest SHA-256 is
+The normalized-LF pre-activation manifest SHA-256 is
 `0799c19a6261844421c86ef8bef60b4ca7719770a472efa95474aa5610998890`;
 the terminal migration SHA-256 is
 `5141c65448b0e454c7fc6545f3705c7342cd95685f3f5f9f30bcf4dff56e64a6`.
@@ -30,8 +33,8 @@ it is not a new 2026-08-16 Production ledger observation.
 
 This proves migration-version continuity only. The old remote ledger rows have
 no stored SQL statements, so it does not prove byte-for-byte equality of the
-already-applied SQL. It is not hosted staging, backup, restore, storage, or
-finalizer evidence. No migration repair, database push, or Production write was
+already-applied SQL. It is not hosted staging, backup, recovery-assurance,
+storage, or finalizer evidence. No migration repair, database push, or Production write was
 performed. The existing manifest still names `20260716117000` as the required
 remote head and therefore cannot be used as-is by the current release
 controller against this observed Production baseline.
@@ -62,10 +65,13 @@ It validates the linked project, rejects remote-only versions and successor
 gaps, and emits only bounded counts and boundary versions. It performs only
 `supabase migration list --linked`.
 
-The work described here adds a fail-closed successor path to the Supabase
-release controller, static/remote fence and exact-owner finalizer. It does not
-change the manifest to `controller_ready`, create hosted evidence, run a remote
-mutation, write production data or authorize a web deployment.
+The work described here adds a fail-closed, no-additional-cost successor path
+to the Supabase release controller, static/remote fence and exact-owner
+finalizer. The tooling commit alone does not change the manifest to
+`controller_ready`, create hosted evidence, run a remote mutation, write
+Production data or authorize a web deployment. The release uses only the
+existing Production and existing Staging projects; it must not create a new
+project or paid branch.
 
 The manifest is the only source of the successor migration set. The controller
 and `supabase-release-fence.mjs --remote` must derive all of these values at
@@ -99,29 +105,43 @@ manual operations and rollbacks, exact-owner finalizer v2, required documents
 and a forward-fix-only feature-off rollback. A partial third state and the old
 `evidence_pinned` state are invalid.
 
+The activation boundary is always two separate pushed commits:
+
+1. Commit and push the reviewed tooling while the source manifest remains
+   `deployment_blocked` and the controller JSON is absent.
+2. From that exact clean checkout, require `HEAD == @{upstream}` and
+   `HEAD == git ls-remote origin <tracked branch>`, then run
+   `node scripts/generate-vendor-disclosure-successor-controller.mjs --check`.
+3. Run the same generator with `--write`. Review only the generated controller
+   JSON and ready-manifest transition, then commit and push them as a distinct
+   activation commit.
+4. Generate every private runtime receipt against the second, clean pushed
+   commit. A receipt bound to the first tooling commit cannot activate or
+   finalize the release.
+
 Changing the manifest status is necessary but not sufficient. On every
 successor controller invocation, all five structured receipts and their raw
 provenance files must exist as one private sibling set outside Git:
 
 | Evidence class | Required meaning | Maximum age |
 | --- | --- | ---: |
-| backup | verified encrypted database backup, exact baseline tables, provider physical backup and restore candidate | 30 minutes |
+| backup | verified encrypted database backup, exact baseline tables, fresh provider physical-backup availability and local recovery artifacts | 30 minutes |
 | storage | database/storage write fences, drained signed uploads, stable object inventory and original-byte backup | 30 minutes |
 | hosted staging | exact migration set, pre/postconditions, read-only postchecks, rollback rehearsal and feature flags off | 24 hours |
-| hosted restore | destructive restore to a different project, exact tables/data digests, Auth/Storage and read-only postchecks | 24 hours |
+| recovery assurance | re-opened pre/post encrypted backups plus exact Staging evidence, with `additionalProjectCreated=false`, `hostedRestorePerformed=false`, `restoreValidationClaimed=false` and `additionalMonthlyCostUsd=0` | 30 minutes |
 | finalizer | exact-owner lease, successor contract rendering, canary fence, feature-off rollback and finalizer rehearsal | 24 hours |
 
 Every structured receipt has an exact schema. It binds the release, project,
 expected commit, predecessor head, successor head/count/version digest,
 post-apply check IDs/digest and canonical feature-off rollback digest. Every
 required semantic check must be `true`. Class-specific observations must also
-match the selected backup/table contract, isolated restore project, exact
-staging migration digest, storage drain windows, or finalizer v2 and its exact
-feature-off controls. Extra fields, `{ "verified": true }`, Git-relative
+match the selected backup/table contract, re-opened local recovery artifacts,
+exact staging migration digest, storage drain windows, or finalizer v2 and its
+exact feature-off controls. Extra fields, `{ "verified": true }`, Git-relative
 evidence, stale timestamps, commit drift, a missing raw file or a raw SHA-256
 mismatch fail closed.
 
-## Backup and restore boundaries
+## Backup and recovery-assurance boundaries
 
 The predecessor's 14-table pre-Amora backup is not a valid successor baseline.
 The successor pre-apply backup contract is version 2
@@ -147,8 +167,10 @@ altered private manifest is a hard NO-GO.
 
 The post-expand backup is a separate version-2 contract. It binds the current
 successor manifest's complete ordered migration version set, final migration
-head, exact resulting table set, new capture/verifier artifacts and a
-different-project hosted restore. Reusing the predecessor
+head, exact resulting table set, new capture/verifier artifacts and the
+no-cost recovery-assurance receipt. That receipt reopens and cross-checks the
+encrypted artifacts but explicitly does not claim that a restore was run.
+Reusing the predecessor
 `post-amora-engine-v2-27-table-backup` contract as the successor post-expand
 contract is forbidden.
 
@@ -163,7 +185,7 @@ It also includes the ID-only
 `amora_memory_enqueue_repair_candidates` transactional outbox, its ID-only
 `amora_memory_enqueue_repair_dead_letters` terminal audit, and the
 `amora_privacy_context_epochs` commit-fence table; omitting any of these tables
-from post-expand backup/restore evidence is a hard failure.
+from post-expand backup/recovery-assurance evidence is a hard failure.
 Existing account-deletion tables remain inherited from the predecessor
 post-expand baseline. `chat_messages` and `chat_summaries` remain existing
 baseline tables, so their new nullable `segment_id` columns and scope foreign
@@ -275,19 +297,23 @@ release.
 
 The exact-owner finalizer selects the same successor controller contract. It
 must not use the predecessor's fixed table or migration digests. SQL rendering,
-backup/restore validation, external provenance and final database evidence all
-use the selected successor post-expand contract's dynamic table and migration
-digests. A blocked successor manifest prevents finalization.
+backup/recovery-assurance validation, external provenance and final database
+evidence all use the selected successor post-expand contract's dynamic table
+and migration digests. A blocked successor manifest prevents finalization.
 
 The successful sequence is:
 
-1. exact commit/origin/clean-worktree and linked-project fences;
-2. fresh five-receipt private evidence set;
-3. exact current-remote backup and fresh verifier replay;
-4. isolated hosted restore and live write-fence evidence;
+1. push the blocked-manifest tooling commit, then generate, review and push the
+   separate controller-ready activation commit as specified above;
+2. exact activation-commit/origin/clean-worktree and linked-project fences;
+3. fresh pre-apply backup, finalizer rehearsal, hosted-Staging and Storage
+   private evidence;
+4. exact current-remote encrypted backup, fresh verifier replay and live
+   write-fence evidence;
 5. exact pending/ledger and read-only preconditions;
 6. one forward push, followed by exact clean ledger and successor postchecks;
-7. exact post-expand backup and different-project restore;
+7. exact post-expand encrypted backup and no-cost recovery assurance, without
+   a new project, hosted restore or restore-validation claim;
 8. deployment/canary evidence while the lease and write fences remain held;
 9. dynamic exact-owner finalization.
 

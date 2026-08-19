@@ -20,6 +20,10 @@ import {
 } from "node:path";
 
 import { validateSuccessorRemoteBaselineContract } from "./supabase-successor-remote-baseline.mjs";
+import {
+  SUCCESSOR_STORAGE_OBSERVATION_KEYS,
+  validateVendorDisclosureSuccessorStorageEvidenceProvenance,
+} from "./vendor-disclosure-successor-storage-evidence-provenance.mjs";
 
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
@@ -31,6 +35,13 @@ const SAFE_RELEASE_ID = /^[a-z][a-z0-9-]{2,80}$/;
 const SAFE_PROJECT_REF = /^[a-z0-9][a-z0-9-]{3,62}$/;
 const MIGRATION_FILE = /^(\d{14})_[a-z0-9][a-z0-9_.-]*\.sql$/;
 const DEPLOYMENT_EVIDENCE_KEYS = [
+  "backup",
+  "finalizer",
+  "hostedStaging",
+  "recoveryAssurance",
+  "storage",
+];
+const LEGACY_BLOCKED_DEPLOYMENT_EVIDENCE_KEYS = [
   "backup",
   "finalizer",
   "hostedRestore",
@@ -59,6 +70,56 @@ const MAX_RUNTIME_RECEIPT_BYTES = 64 * 1024;
 const MAX_PRIVATE_RAW_EVIDENCE_BYTES = 4 * 1024 * 1024;
 const SAFE_RECEIPT_FILE = /^[a-z0-9][a-z0-9_.-]{2,160}\.json$/;
 
+const NO_ADDITIONAL_COST_LIMITATIONS = Object.freeze([
+  "no hosted Supabase restore rehearsal was performed",
+  "provider physical backup availability does not prove a successful restore",
+  "encrypted logical/PGlite roundtrip does not prove a hosted Supabase restore",
+  "Staging verification does not prove Production backup restorability",
+]);
+
+export const SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE = Object.freeze({
+  additionalMonthlyCostUsd: 0,
+  additionalProjectCreated: false,
+  hostedRestorePerformed: false,
+  restoreValidationClaimed: false,
+  limitations: NO_ADDITIONAL_COST_LIMITATIONS,
+});
+
+export const SUCCESSOR_NO_ADDITIONAL_COST_RECOVERY_CONTRACT = Object.freeze({
+  contractVersion: 1,
+  kind: "successor-no-additional-cost-recovery-assurance-v1",
+  releaseAssurance: SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
+  requiredRuntimeEvidenceNames: Object.freeze([
+    "backup",
+    "finalizer",
+    "hostedStaging",
+    "storage",
+  ]),
+  requiredPostExpandChecks: Object.freeze([
+    "encryptedArtifactsVerified",
+    "pgliteJsonbRoundTripVerified",
+  ]),
+});
+
+export function validateSuccessorNoAdditionalCostReleaseAssurance(value) {
+  const expected = SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE;
+  if (!exactKeys(value, Object.keys(expected))
+      || value.hostedRestorePerformed !== false
+      || value.additionalProjectCreated !== false
+      || value.additionalMonthlyCostUsd !== 0
+      || value.restoreValidationClaimed !== false
+      || !exactArray(value.limitations, expected.limitations)) {
+    invalid(
+      "NO_ADDITIONAL_COST_ASSURANCE_INVALID",
+      "successor recovery assurance must disclose that no hosted restore validation occurred",
+    );
+  }
+  return Object.freeze({
+    ...expected,
+    limitations: Object.freeze([...expected.limitations]),
+  });
+}
+
 export const SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS = Object.freeze({
   backup: Object.freeze({
     kind: "successor-release-backup-evidence-v1",
@@ -84,18 +145,18 @@ export const SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS = Object.freeze({
       "finalizerRehearsalPassed",
     ]),
   }),
-  hostedRestore: Object.freeze({
-    kind: "successor-release-hosted-restore-evidence-v1",
-    maximumAgeMinutes: 1_440,
-    rawEvidenceSource: "different-project-destructive-restore",
+  recoveryAssurance: Object.freeze({
+    kind: "successor-release-recovery-assurance-v1",
+    maximumAgeMinutes: 30,
+    rawEvidenceSource: "existing-staging-and-encrypted-backup-assurance",
     requiredChecks: Object.freeze([
-      "differentProjectVerified",
-      "destructiveRestoreCompleted",
-      "exactTableContractVerified",
-      "logicalDataDigestsVerified",
-      "authAndStorageRestoredVerified",
-      "readOnlyPostchecksPassed",
+      "providerPhysicalBackupFresh",
+      "encryptedLogicalBackupVerified",
+      "postExpandEncryptedBackupVerified",
+      "stagingExactMigrationSetVerified",
+      "restoreNotClaimed",
     ]),
+    releaseAssurance: SUCCESSOR_NO_ADDITIONAL_COST_RELEASE_ASSURANCE,
   }),
   hostedStaging: Object.freeze({
     kind: "successor-release-hosted-staging-evidence-v1",
@@ -122,6 +183,17 @@ export const SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS = Object.freeze({
       "storageOriginalBytesBackedUp",
     ]),
   }),
+});
+
+const SUCCESSOR_RUNTIME_EVIDENCE_PHASES = Object.freeze({
+  complete: Object.freeze(Object.keys(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).sort()),
+  "post-expand": Object.freeze(["recoveryAssurance"]),
+  "pre-apply": Object.freeze([
+    "backup",
+    "finalizer",
+    "hostedStaging",
+    "storage",
+  ]),
 });
 
 export class SuccessorReleaseContractError extends Error {
@@ -219,19 +291,32 @@ function readBoundedRegularBytes(path, label, maximumBytes) {
 
 function validateRuntimeEvidenceContract(manifest, name, contract) {
   const requirement = SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS[name];
+  const contractKeys = [
+    "kind",
+    "maximumAgeMinutes",
+    "rawEvidenceFileName",
+    "rawEvidenceSource",
+    "receiptFileName",
+    "requiredChecks",
+    ...(name === "recoveryAssurance" ? ["releaseAssurance"] : []),
+  ];
   if (!requirement
-      || !exactKeys(contract, [
-        "kind",
-        "maximumAgeMinutes",
-        "rawEvidenceFileName",
-        "rawEvidenceSource",
-        "receiptFileName",
-        "requiredChecks",
-      ])
+      || !exactKeys(contract, contractKeys)
       || contract.kind !== requirement.kind
       || contract.maximumAgeMinutes !== requirement.maximumAgeMinutes
       || contract.rawEvidenceSource !== requirement.rawEvidenceSource
       || !exactArray(contract.requiredChecks, requirement.requiredChecks)
+      || (name === "recoveryAssurance"
+        && (() => {
+          try {
+            validateSuccessorNoAdditionalCostReleaseAssurance(
+              contract.releaseAssurance,
+            );
+            return false;
+          } catch {
+            return true;
+          }
+        })())
       || !SAFE_RECEIPT_FILE.test(contract.receiptFileName ?? "")
       || !SAFE_RECEIPT_FILE.test(contract.rawEvidenceFileName ?? "")
       || basename(contract.receiptFileName) !== contract.receiptFileName
@@ -270,6 +355,7 @@ function validateRuntimeEvidenceObservations({
   expected,
 }) {
   const backup = controllerManifest.backupContract;
+  const postExpandBackup = controllerManifest.postExpandBackupContract;
   const rollback = controllerManifest.rollbackContract;
   const manualControl = controllerManifest.manualControlEvidence;
   const finalization = controllerManifest.finalizationContract;
@@ -285,7 +371,7 @@ function validateRuntimeEvidenceObservations({
     ])
       && observations.backupContractId === backup?.id
       && observations.backupContractVersion === backup?.version
-      && observations.expectedMigrationHead === manifest.requiredRemoteHead
+      && observations.expectedMigrationHead === backup?.expectedMigrationHead
       && observations.expectedTableCount === backup?.expectedTableCount
       && observations.expectedTableContractSha256
         === backup?.expectedTableContractSha256
@@ -293,24 +379,40 @@ function validateRuntimeEvidenceObservations({
         === backup?.providerPhysicalBackup?.requiredStatus
       && observations.restoreCandidateAvailable === true;
   }
-  if (name === "hostedRestore") {
+  if (name === "recoveryAssurance") {
     return exactKeys(observations, [
       "backupContractId",
-      "expectedTableContractSha256",
-      "expectedTableCount",
-      "sourceProjectRef",
-      "targetIsolation",
-      "targetProjectRef",
+      "hostedStagingRawEvidenceSha256",
+      "hostedStagingReceiptSha256",
+      "postExpandBackupContractId",
+      "postExpandBackupManifestSha256",
+      "postExpandBackupReceiptSha256",
+      "postExpandBackupReverificationSha256",
+      "postExpandEncryptedArtifactsVerified",
+      "postExpandLiveSchemaContractSha256",
+      "postExpandLogicalDataContractSha256",
+      "postExpandPGliteJsonbRoundTripVerified",
+      "preApplyBackupRawEvidenceSha256",
+      "preApplyBackupReceiptSha256",
+      "providerPhysicalBackupStatus",
     ])
       && observations.backupContractId === backup?.id
-      && observations.expectedTableCount === backup?.expectedTableCount
-      && observations.expectedTableContractSha256
-        === backup?.expectedTableContractSha256
-      && observations.sourceProjectRef === manifest.projectRef
-      && /^[a-z0-9]{20}$/.test(observations.targetProjectRef ?? "")
-      && observations.targetProjectRef !== manifest.projectRef
-      && observations.targetIsolation
-        === backup?.hostedRestoreEvidence?.requiredTargetIsolation;
+      && observations.postExpandBackupContractId === postExpandBackup?.id
+      && observations.providerPhysicalBackupStatus
+        === backup?.providerPhysicalBackup?.requiredStatus
+      && observations.postExpandEncryptedArtifactsVerified === true
+      && observations.postExpandPGliteJsonbRoundTripVerified === true
+      && [
+        "hostedStagingRawEvidenceSha256",
+        "hostedStagingReceiptSha256",
+        "postExpandBackupManifestSha256",
+        "postExpandBackupReceiptSha256",
+        "postExpandBackupReverificationSha256",
+        "postExpandLiveSchemaContractSha256",
+        "postExpandLogicalDataContractSha256",
+        "preApplyBackupRawEvidenceSha256",
+        "preApplyBackupReceiptSha256",
+      ].every((key) => SHA256.test(observations[key] ?? ""));
   }
   if (name === "hostedStaging") {
     return exactKeys(observations, [
@@ -328,13 +430,7 @@ function validateRuntimeEvidenceObservations({
       && observations.rollbackStrategy === rollback?.strategy;
   }
   if (name === "storage") {
-    return exactKeys(observations, [
-      "requiredMutationPolicyCount",
-      "signedUploadGraceMinutes",
-      "signedUploadTokenTtlMinutes",
-      "storageStabilityWindowMinutes",
-      "writeFenceReceiptFileName",
-    ])
+    return exactKeys(observations, SUCCESSOR_STORAGE_OBSERVATION_KEYS)
       && observations.requiredMutationPolicyCount === 0
       && observations.signedUploadGraceMinutes
         === manualControl?.signedUploadGraceMinutes
@@ -370,8 +466,9 @@ function validateRuntimeEvidenceObservations({
 }
 
 /**
- * Validate the five private, fresh evidence receipts required before a
- * successor controller can enter check/apply mode.
+ * Validate the private, fresh evidence receipts required for one release
+ * phase. Pre-apply intentionally excludes the post-expand restore receipt,
+ * which cannot exist until the exact Production suffix has been applied.
  *
  * The manifest pins schemas and filenames only. Actual receipts and their raw
  * provenance must remain together outside Git, which avoids the impossible
@@ -384,6 +481,7 @@ export function validateSuccessorRuntimeEvidence({
   manifest,
   controllerManifest,
   expectedCommit,
+  phase = "complete",
   now = () => new Date(),
 }) {
   const root = resolve(repoRoot);
@@ -409,8 +507,12 @@ export function validateSuccessorRuntimeEvidence({
       || !/^\d{14}$/.test(manifest?.requiredRemoteHead ?? "")) {
     invalid("RUNTIME_EVIDENCE_CONTRACT_INVALID", "successor runtime contract identity is invalid");
   }
-  const evidenceNames = Object.keys(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).sort();
-  if (!exactKeys(manifest.deploymentEvidence, evidenceNames)) {
+  const allEvidenceNames = Object.keys(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).sort();
+  const evidenceNames = SUCCESSOR_RUNTIME_EVIDENCE_PHASES[phase];
+  if (!evidenceNames) {
+    invalid("RUNTIME_EVIDENCE_CONTRACT_INVALID", "successor runtime evidence phase is invalid");
+  }
+  if (!exactKeys(manifest.deploymentEvidence, allEvidenceNames)) {
     invalid("DEPLOYMENT_EVIDENCE_INVALID", "successor must pin exactly five runtime evidence contracts");
   }
   const versions = runtimeEvidenceVersions(manifest);
@@ -483,6 +585,7 @@ export function validateSuccessorRuntimeEvidence({
       "releaseCommit",
       "requiredRemoteHead",
       "rollbackContractSha256",
+      ...(name === "recoveryAssurance" ? ["releaseAssurance"] : []),
     ];
     const capturedAtMs = ISO_TIMESTAMP.test(receipt?.capturedAt ?? "")
       ? Date.parse(receipt.capturedAt)
@@ -513,6 +616,18 @@ export function validateSuccessorRuntimeEvidence({
         || receipt.postApplyChecksSha256 !== expected.postApplyChecksSha256
         || receipt.rollbackContractSha256 !== expected.rollbackContractSha256
         || receipt.containsSecrets !== false
+        || (name === "recoveryAssurance"
+          && (() => {
+            try {
+              validateSuccessorNoAdditionalCostReleaseAssurance(
+                receipt.releaseAssurance,
+              );
+              return canonicalJsonSha256(receipt.releaseAssurance)
+                !== canonicalJsonSha256(contract.releaseAssurance);
+            } catch {
+              return true;
+            }
+          })())
         || !checksValid
         || !observationsValid
         || !exactKeys(receipt.rawProvenance, [
@@ -549,6 +664,26 @@ export function validateSuccessorRuntimeEvidence({
         `${name} private raw provenance differs from its structured receipt`,
       );
     }
+    let storageProvenance;
+    if (name === "storage") {
+      let raw;
+      try {
+        raw = JSON.parse(rawBytes.toString("utf8"));
+        storageProvenance =
+          validateVendorDisclosureSuccessorStorageEvidenceProvenance({
+            receipt,
+            raw,
+            manifest,
+            controllerManifest,
+            expectedCommit,
+          });
+      } catch {
+        invalid(
+          "RUNTIME_EVIDENCE_RAW_INVALID",
+          "storage private raw provenance does not bind the exact original-byte archive",
+        );
+      }
+    }
     result[name] = Object.freeze({
       receiptPath,
       receiptSha256: createHash("sha256").update(receiptBytes).digest("hex"),
@@ -556,7 +691,32 @@ export function validateSuccessorRuntimeEvidence({
       rawEvidenceSha256: rawSha256,
       verifiedAt: receipt.capturedAt,
       expiresAt: receipt.expiresAt,
+      ...(storageProvenance ? { storageProvenance } : {}),
+      ...(name === "recoveryAssurance" ? {
+        observations: Object.freeze({ ...receipt.observations }),
+        releaseAssurance:
+          validateSuccessorNoAdditionalCostReleaseAssurance(
+            receipt.releaseAssurance,
+          ),
+      } : {}),
     });
+  }
+  const recovery = result.recoveryAssurance;
+  if (recovery && result.backup && result.hostedStaging) {
+    const bindings = recovery.observations;
+    if (bindings.preApplyBackupReceiptSha256
+          !== result.backup.receiptSha256
+        || bindings.preApplyBackupRawEvidenceSha256
+          !== result.backup.rawEvidenceSha256
+        || bindings.hostedStagingReceiptSha256
+          !== result.hostedStaging.receiptSha256
+        || bindings.hostedStagingRawEvidenceSha256
+          !== result.hostedStaging.rawEvidenceSha256) {
+      invalid(
+        "RUNTIME_EVIDENCE_CROSS_BINDING_INVALID",
+        "recovery assurance does not bind the exact backup and hosted Staging evidence",
+      );
+    }
   }
   return Object.freeze(result);
 }
@@ -665,7 +825,7 @@ function verifyPinnedManifestChain({
 /**
  * 매니페스트가 어느 상태인지 판정하고, 그 상태의 규칙을 전부 강제한다.
  *
- *   deployment_blocked — 증거 5종이 전부 "missing"이어야 한다(오늘까지의 유일한 상태).
+ *   deployment_blocked — 기존 차단 매니페스트의 증거 5종이 전부 "missing"이어야 한다.
  *   controller_ready   — Git에는 receipt 스키마와 controller contract만 고정하고,
  *                        실제 증거와 raw provenance는 실행 때 저장소 밖에서 검증한다.
  *
@@ -677,18 +837,18 @@ function validateDeploymentBlock(repoRoot, manifest) {
   const keys = evidence && typeof evidence === "object" && !Array.isArray(evidence)
     ? Object.keys(evidence).sort()
     : [];
-  if (JSON.stringify(keys) !== JSON.stringify(DEPLOYMENT_EVIDENCE_KEYS)) {
-    invalid(
-      "DEPLOYMENT_EVIDENCE_INVALID",
-      "successor must list exactly the five hosted evidence classes",
-    );
-  }
-
   if (manifest.status === BLOCKED_STATUS) {
+    if (JSON.stringify(keys)
+          !== JSON.stringify(LEGACY_BLOCKED_DEPLOYMENT_EVIDENCE_KEYS)) {
+      invalid(
+        "DEPLOYMENT_EVIDENCE_INVALID",
+        "deployment-blocked successor must retain its exact legacy missing-evidence shape",
+      );
+    }
     if (keys.some((key) => evidence[key] !== "missing")) {
       invalid(
         "DEPLOYMENT_EVIDENCE_INVALID",
-        "deployment-blocked successor must explicitly mark every hosted evidence class missing",
+        "deployment-blocked successor must explicitly mark every legacy evidence class missing",
       );
     }
     return { released: false, releaseCommit: null };
@@ -698,6 +858,12 @@ function validateDeploymentBlock(repoRoot, manifest) {
     invalid(
       "DEPLOYMENT_STATUS_INVALID",
       `successor status must be ${BLOCKED_STATUS} or ${READY_STATUS}`,
+    );
+  }
+  if (JSON.stringify(keys) !== JSON.stringify(DEPLOYMENT_EVIDENCE_KEYS)) {
+    invalid(
+      "DEPLOYMENT_EVIDENCE_INVALID",
+      "controller-ready successor must list exactly the five no-cost runtime evidence classes",
     );
   }
   const evidenceFileNames = new Set();
@@ -731,6 +897,7 @@ const CONTROLLER_CONTRACT_KEYS = [
   "finalizationContract",
   "forwardOnlySecurityOperations",
   "historicalEffectAudit",
+  "recoveryAssuranceContract",
   "manualControlEvidence",
   "manualPlatformOperations",
   "postApplyChecks",
@@ -743,6 +910,35 @@ const CONTROLLER_CONTRACT_KEYS = [
   "rollbackArtifacts",
   "rollbackContract",
 ].sort();
+
+function validateRecoveryAssuranceControllerContract(value) {
+  const expected = SUCCESSOR_NO_ADDITIONAL_COST_RECOVERY_CONTRACT;
+  let assuranceValid = true;
+  try {
+    validateSuccessorNoAdditionalCostReleaseAssurance(
+      value?.releaseAssurance,
+    );
+  } catch {
+    assuranceValid = false;
+  }
+  if (!exactKeys(value, Object.keys(expected))
+      || value.contractVersion !== expected.contractVersion
+      || value.kind !== expected.kind
+      || !exactArray(
+        value.requiredRuntimeEvidenceNames,
+        expected.requiredRuntimeEvidenceNames,
+      )
+      || !exactArray(
+        value.requiredPostExpandChecks,
+        expected.requiredPostExpandChecks,
+      )
+      || !assuranceValid) {
+    invalid(
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+      "successor must pin the exact no-additional-cost recovery assurance",
+    );
+  }
+}
 
 const REQUIRED_ROLLBACK_CONTROLS = Object.freeze({
   AMORA_AUXILIARY_MEMORY_ENABLED: "false",
@@ -766,6 +962,93 @@ const REQUIRED_ROLLBACK_CHECKS = Object.freeze([
   "webWriteFenceEnabled",
   "chatPartnerRecipientBoundaryHeld",
   "conversationSegmentScopeBoundaryHeld",
+]);
+
+const SUCCESSOR_STORAGE_OPERATION_SPECS = Object.freeze([
+  Object.freeze({
+    id: "vendor-disclosure-successor-storage-write-freeze-v1",
+    phase: "pre-backup",
+    verificationCheckId: "vendor-disclosure-successor-storage-frozen",
+    file: "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.operation.json",
+    contractSha256: "200f5e2904baab4d9a0cd39b595b988de6d68a644247281110e84f600bdbef1e",
+    recovery: Object.freeze({
+      id: "successor-storage-freeze-forward-recovery-v1",
+      file: "supabase/platform-operations/storage/20260819100000_vendor_disclosure_successor_storage_write_freeze.forward-recovery.json",
+      contractSha256: "f4990bde81effcb057f231ccd2fd5b6057ba174a44edf9417e009ea5f731af74",
+    }),
+  }),
+  Object.freeze({
+    id: "vendor-disclosure-successor-storage-final-convergence-v1",
+    phase: "post-push-pre-deploy",
+    verificationCheckId: "vendor-disclosure-successor-storage-target",
+    file: "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.operation.json",
+    contractSha256: "3f35a8a8bee63ae6f38c8eee3139e29c3284ac7542d43772e0443d585ceb26f6",
+    recovery: Object.freeze({
+      id: "successor-storage-final-compensation-v1",
+      file: "supabase/platform-operations/storage/20260819102000_vendor_disclosure_successor_storage_final_convergence.compensation.json",
+      contractSha256: "8dea5a304c6c6be9e90be8ceea0c0640382d8323ec313dfc6dda17f319493bf4",
+    }),
+  }),
+]);
+
+const SUCCESSOR_LIVE_SCHEMA_SECURITY_SPEC = Object.freeze({
+  check: Object.freeze({
+    id: "production-successor-live-schema-contract-verify-20260819121500",
+    type: "read-only-sql",
+    file: "supabase/release-checks/20260819121500_production_successor_live_schema_contract_verify.sql",
+    sha256: "63e2d25dea8d8d424597d07f035e733bbc90da773ddf29e991574bd0241f09a7",
+    expectedEvidence: Object.freeze({
+      production_successor_live_schema_contract_verify_count: 1,
+    }),
+  }),
+  operation: Object.freeze({
+    id: "production-successor-live-schema-contract-20260819121500",
+    phase: "pre-backup",
+    verificationCheckId:
+      "production-successor-live-schema-contract-verify-20260819121500",
+    file: "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_apply.sql",
+    sha256: "80efc2771711e831860bc7b9a1507c0d0cc93342ab743f7d6f29d899b95cde66",
+  }),
+  rollback: Object.freeze({
+    id: "production-successor-schema-contract-rollback-20260819121500",
+    forOperationId:
+      "production-successor-live-schema-contract-20260819121500",
+    file: "supabase/platform-operations/security/20260819121500_production_successor_live_schema_contract_rollback.sql",
+    sha256: "49c595ff3449958be290fa8a2da15b4b7e043d82d56b9673690b8396c6eb1526",
+  }),
+});
+
+const SUCCESSOR_DATABASE_WRITE_FENCE_SPEC = Object.freeze({
+  check: Object.freeze({
+    id: "public-database-write-fence-pre",
+    type: "read-only-sql",
+    file: "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
+    sha256: "412511d61f110df8a6b87a5eafcf40ce95c77851438c1e06e31b119f5d0c4a6c",
+    expectedEvidence: Object.freeze({
+      production_write_fence_verified_count: 1,
+    }),
+  }),
+  operation: Object.freeze({
+    id: "production-write-fence-20260717120000",
+    phase: "pre-backup",
+    verificationCheckId: "public-database-write-fence-pre",
+    file: "supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql",
+    sha256: "a5166152091dd8a71f33ce6271a92fc2276993036ae0a8649d7840ba6de6e284",
+  }),
+  rollback: Object.freeze({
+    id: "production-write-fence-rollback-20260717120000",
+    forOperationId: "production-write-fence-20260717120000",
+    file: "supabase/platform-operations/security/20260717120000_production_write_fence_rollback.sql",
+    sha256: "bef0340b5296bfa64eae077121653090552e891a4f151aa248f72673c4f50b5d",
+  }),
+});
+
+const FORBIDDEN_PREDECESSOR_STORAGE_ARTIFACTS = Object.freeze([
+  "storage-global-write-freeze-20260716108000",
+  "community-upload-storage-finalize-20260716108000",
+  "community-upload-service-fence-20260716108000",
+  "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+  "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql",
 ]);
 
 function exactTextListSha256(values) {
@@ -834,6 +1117,210 @@ function validateRollbackContract(manifest, rollback) {
   }
 }
 
+function parsePinnedContractJson(repoRoot, pin, label, expectedDirectory) {
+  const { text } = readPinnedRegularFile(repoRoot, pin, label, expectedDirectory);
+  try {
+    return JSON.parse(text);
+  } catch {
+    invalid("SUCCESSOR_CONTROLLER_CONTRACT_INVALID", `${label} is not JSON`);
+  }
+}
+
+function validateSuccessorLiveSchemaSecurityContract({ repoRoot, contract }) {
+  const spec = SUCCESSOR_LIVE_SCHEMA_SECURITY_SPEC;
+  const check = contract.preApplyChecks.find((entry) => entry?.id === spec.check.id);
+  const operation = contract.manualPlatformOperations.find(
+    (entry) => entry?.id === spec.operation.id,
+  );
+  const rollback = contract.rollbackArtifacts.find(
+    (entry) => entry?.forOperationId === spec.operation.id,
+  );
+  if (canonicalJsonSha256(check) !== canonicalJsonSha256(spec.check)
+      || canonicalJsonSha256(operation) !== canonicalJsonSha256(spec.operation)
+      || canonicalJsonSha256(rollback) !== canonicalJsonSha256(spec.rollback)) {
+    invalid(
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+      "successor live-schema helper, release check and rollback must remain exact",
+    );
+  }
+  readPinnedRegularFile(
+    repoRoot,
+    check,
+    "successor live-schema verification check",
+    join(repoRoot, "supabase", "release-checks"),
+  );
+  for (const [label, artifact] of [
+    ["apply", operation],
+    ["rollback", rollback],
+  ]) {
+    readPinnedRegularFile(
+      repoRoot,
+      artifact,
+      `successor live-schema ${label}`,
+      join(repoRoot, "supabase", "platform-operations", "security"),
+    );
+  }
+}
+
+function validateSuccessorDatabaseWriteFenceContract({ repoRoot, contract }) {
+  const spec = SUCCESSOR_DATABASE_WRITE_FENCE_SPEC;
+  const check = contract.preApplyChecks.find((entry) => entry?.id === spec.check.id);
+  const operation = contract.manualPlatformOperations.find(
+    (entry) => entry?.id === spec.operation.id,
+  );
+  const rollback = contract.rollbackArtifacts.find(
+    (entry) => entry?.forOperationId === spec.operation.id,
+  );
+  if (canonicalJsonSha256(check) !== canonicalJsonSha256(spec.check)
+      || canonicalJsonSha256(operation) !== canonicalJsonSha256(spec.operation)
+      || canonicalJsonSha256(rollback) !== canonicalJsonSha256(spec.rollback)) {
+    invalid(
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+      "successor Production database write fence must remain exact",
+    );
+  }
+  readPinnedRegularFile(
+    repoRoot,
+    check,
+    "successor Production database write-fence check",
+    join(repoRoot, "supabase", "release-checks"),
+  );
+  for (const [label, artifact] of [
+    ["apply", operation],
+    ["rollback", rollback],
+  ]) {
+    readPinnedRegularFile(
+      repoRoot,
+      artifact,
+      `successor Production database write-fence ${label}`,
+      join(repoRoot, "supabase", "platform-operations", "security"),
+    );
+  }
+}
+
+function validateSuccessorStoragePlatformContracts({ repoRoot, manifest, contract }) {
+  const storageDirectory = join(
+    repoRoot,
+    "supabase",
+    "platform-operations",
+    "storage",
+  );
+  const releaseChecksDirectory = join(repoRoot, "supabase", "release-checks");
+  const manualOperations = contract.manualPlatformOperations;
+  const rollbackArtifacts = contract.rollbackArtifacts;
+  const allArtifactTokens = [...manualOperations, ...rollbackArtifacts]
+    .flatMap((entry) => [entry?.id, entry?.file]);
+  if (FORBIDDEN_PREDECESSOR_STORAGE_ARTIFACTS.some(
+    (token) => allArtifactTokens.includes(token),
+  )) {
+    invalid(
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+      "successor Storage operations must not reuse predecessor Storage mutation artifacts",
+    );
+  }
+
+  const allChecks = [
+    ...contract.preApplyChecks,
+    ...contract.postPushChecks,
+  ];
+  for (const spec of SUCCESSOR_STORAGE_OPERATION_SPECS) {
+    const operation = manualOperations.find((entry) => entry?.id === spec.id);
+    const recovery = rollbackArtifacts.find(
+      (entry) => entry?.forOperationId === spec.id,
+    );
+    if (!exactKeys(operation, [
+      "file",
+      "id",
+      "phase",
+      "sha256",
+      "verificationCheckId",
+    ])
+        || operation.phase !== spec.phase
+        || operation.verificationCheckId !== spec.verificationCheckId
+        || operation.file !== spec.file
+        || !exactKeys(recovery, ["file", "forOperationId", "id", "sha256"])
+        || recovery.id !== spec.recovery.id
+        || recovery.file !== spec.recovery.file) {
+      invalid(
+        "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+        "successor Storage operations and recovery artifacts must be exact",
+      );
+    }
+
+    const operationContract = parsePinnedContractJson(
+      repoRoot,
+      operation,
+      `${spec.id} operation contract`,
+      storageDirectory,
+    );
+    const recoveryContract = parsePinnedContractJson(
+      repoRoot,
+      recovery,
+      `${spec.id} recovery contract`,
+      storageDirectory,
+    );
+    if (operationContract.projectRef !== manifest.projectRef
+        || canonicalJsonSha256(operationContract) !== spec.contractSha256
+        || canonicalJsonSha256(recoveryContract) !== spec.recovery.contractSha256) {
+      invalid(
+        "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+        "successor Storage state transitions, object preservation and recovery must remain exact",
+      );
+    }
+
+    const releaseCheck = operationContract.releaseCheck;
+    const controllerCheck = allChecks.find(
+      (entry) => entry?.id === spec.verificationCheckId,
+    );
+    if (canonicalJsonSha256(controllerCheck) !== canonicalJsonSha256({
+      ...releaseCheck,
+      type: "read-only-sql",
+    })) {
+      invalid(
+        "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+        "successor Storage operation must bind its exact typed release check",
+      );
+    }
+    readPinnedRegularFile(
+      repoRoot,
+      releaseCheck,
+      `${spec.id} release check`,
+      releaseChecksDirectory,
+    );
+    for (const [name, verifier] of Object.entries(operationContract.verifiers)) {
+      readPinnedRegularFile(
+        repoRoot,
+        verifier,
+        `${spec.id} ${name} verifier`,
+        storageDirectory,
+      );
+    }
+  }
+
+  const successorOperationIds = new Set(
+    SUCCESSOR_STORAGE_OPERATION_SPECS.map((entry) => entry.id),
+  );
+  const successorStorageFiles = manualOperations.filter(
+    (entry) => typeof entry?.file === "string"
+      && entry.file.startsWith("supabase/platform-operations/storage/"),
+  );
+  const successorStorageRollbackFiles = rollbackArtifacts.filter(
+    (entry) => typeof entry?.file === "string"
+      && entry.file.startsWith("supabase/platform-operations/storage/"),
+  );
+  if (successorStorageFiles.length !== SUCCESSOR_STORAGE_OPERATION_SPECS.length
+      || successorStorageFiles.some((entry) => !successorOperationIds.has(entry.id))
+      || successorStorageRollbackFiles.length !== SUCCESSOR_STORAGE_OPERATION_SPECS.length
+      || successorStorageRollbackFiles.some(
+        (entry) => !successorOperationIds.has(entry.forOperationId),
+      )) {
+    invalid(
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+      "successor Storage operation set must contain exactly freeze and final convergence",
+    );
+  }
+}
+
 function validateSuccessorControllerContract({
   repoRoot,
   manifest,
@@ -863,6 +1350,9 @@ function validateSuccessorControllerContract({
   } catch {
     invalid("SUCCESSOR_CONTROLLER_CONTRACT_INVALID", "successor controller contract is not JSON");
   }
+  validateRecoveryAssuranceControllerContract(
+    contract?.recoveryAssuranceContract,
+  );
   if (!exactKeys(contract, CONTROLLER_CONTRACT_KEYS)
       || contract.contractVersion !== 1
       || contract.release !== manifest.release
@@ -898,7 +1388,7 @@ function validateSuccessorControllerContract({
     check?.expectedEvidence?.successor_created_table_count
       === createdPublicTables.length
     && check.expectedEvidence.account_deletion_auth_fk_contract_count === 1
-    && check.expectedEvidence.chat_partner_recipient_insert_policy_count === 1
+    && check.expectedEvidence.chat_server_only_ingest_boundary_count === 1
     && check.expectedEvidence.chat_partner_recipient_select_policy_count === 1
     && check.expectedEvidence.chat_partner_recipient_trigger_count === 1
     && check.expectedEvidence.conversation_segment_active_index_count === 3
@@ -932,8 +1422,6 @@ function validateSuccessorControllerContract({
     && check.expectedEvidence.couple_plan_change_write_boundary_trigger_count === 1
     && check.expectedEvidence.couple_plan_change_display_guard_count === 1
     && check.expectedEvidence.couple_plan_change_idempotency_index_count === 1
-    && check.expectedEvidence.successor_feature_flags_off_count
-      === Object.keys(REQUIRED_ROLLBACK_CONTROLS).length
     && check.expectedEvidence.wedding_court_auth_delete_fk_count === 1
     && check.expectedEvidence.chat_feedback_auth_delete_fk_count === 1
     && check.expectedEvidence.payment_ledger_fk_contract_count === 3
@@ -944,7 +1432,7 @@ function validateSuccessorControllerContract({
       || !semanticPostcheck) {
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
-      "successor must pin exact release tables, partner-recipient delivery policies/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, preparation catch-up service-role RPC and private actor binding, preparation-action receipt binding-read service-role RPC ACL, mediation private-draft, topic-criterion action-context, shared-action receipt, vendor-review search-path, and conditional decision-node updated-at clock trigger contracts, signup profile trigger ownership/ACL, one-time invite nullable lifecycle, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, feature-off controls and migration head",
+      "successor must pin exact release tables, server-only chat ingestion plus partner-recipient selection/trigger, conversation-segment FK/index/RLS/RPC boundaries, deterministic first-use and provider-backed application service-role RPC ACLs, atomic-action dispatcher ACL/parity boundaries, booking-outcome provenance service-role ACL and v1 actor-time contract, preparation catch-up service-role RPC and private actor binding, preparation-action receipt binding-read service-role RPC ACL, mediation private-draft, topic-criterion action-context, shared-action receipt, vendor-review search-path, and conditional decision-node updated-at clock trigger contracts, signup profile trigger ownership/ACL, one-time invite nullable lifecycle, account-deletion, plan-change, wedding-court and chat-feedback Auth FKs, payment-ledger FKs, terminal events, journey write fences, display/idempotency guards, and migration head",
     );
   }
 
@@ -961,6 +1449,8 @@ function validateSuccessorControllerContract({
   ])].sort();
   const backup = contract.backupContract;
   if (!exactKeys(backup, [
+    "capture",
+    "dependencies",
     "ephemeralRebuildContract",
     "excludedEphemeralTables",
     "expectedCommitBinding",
@@ -970,7 +1460,6 @@ function validateSuccessorControllerContract({
     "expectedTableCount",
     "expectedTables",
     "format",
-    "hostedRestoreEvidence",
     "id",
     "providerPhysicalBackup",
     "requiredReceiptValues",
@@ -1000,7 +1489,22 @@ function validateSuccessorControllerContract({
         !== predecessorBackup?.ephemeralRebuildContract
       || backup.expectedCommitBinding !== "release-expected-commit"
       || backup.expectedOrigin !== predecessorBackup?.expectedOrigin
+      || !exactKeys(backup.capture, ["file", "sha256"])
+      || backup.capture.file !== "scripts/vendor-disclosure-db-current-baseline.ps1"
+      || !SHA256.test(backup.capture.sha256 ?? "")
+      || !Array.isArray(backup.dependencies)
+      || backup.dependencies.length !== 2
+      || !exactKeys(backup.dependencies[0], ["file", "sha256"])
+      || backup.dependencies[0].file
+        !== "scripts/vendor-disclosure-db-current-baseline-common.ps1"
+      || !SHA256.test(backup.dependencies[0].sha256 ?? "")
+      || !exactKeys(backup.dependencies[1], ["file", "sha256"])
+      || backup.dependencies[1].file !== "scripts/amora-db-backup-common.ps1"
+      || !SHA256.test(backup.dependencies[1].sha256 ?? "")
       || !exactKeys(backup.verifier, ["file", "sha256"])
+      || backup.verifier.file
+        !== "scripts/vendor-disclosure-db-current-baseline-verify.ps1"
+      || !SHA256.test(backup.verifier.sha256 ?? "")
       || (remoteBaseline.appliedMigrations.length > 0
         && backup.verifier.file === predecessorPostExpand?.verifier?.file)
       || !exactKeys(backup.providerPhysicalBackup, [
@@ -1017,22 +1521,6 @@ function validateSuccessorControllerContract({
         !== predecessorBackup?.providerPhysicalBackup?.requiredStatus
       || backup.providerPhysicalBackup.restoreCapability
         !== predecessorBackup?.providerPhysicalBackup?.restoreCapability
-      || !exactKeys(backup.hostedRestoreEvidence, [
-        "maximumAgeMinutes",
-        "receiptFileName",
-        "requiredChecks",
-        "requiredTargetIsolation",
-      ])
-      || backup.hostedRestoreEvidence.receiptFileName
-        !== `${manifest.release}-hosted-restore-evidence.json`
-      || backup.hostedRestoreEvidence.maximumAgeMinutes
-        !== predecessorBackup?.hostedRestoreEvidence?.maximumAgeMinutes
-      || backup.hostedRestoreEvidence.requiredTargetIsolation
-        !== predecessorBackup?.hostedRestoreEvidence?.requiredTargetIsolation
-      || !exactArray(
-        backup.hostedRestoreEvidence.requiredChecks,
-        predecessorBackup?.hostedRestoreEvidence?.requiredChecks ?? [],
-      )
       || !exactKeys(backup.supabaseCli, ["binarySha256", "version"])
       || backup.supabaseCli.binarySha256
         !== predecessorBackup?.supabaseCli?.binarySha256
@@ -1050,6 +1538,20 @@ function validateSuccessorControllerContract({
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
       "successor pre-apply backup must match the exact current remote predecessor baseline",
+    );
+  }
+
+  for (const [label, artifact] of [
+    ["capture", backup.capture],
+    ["direct dependency", backup.dependencies[0]],
+    ["transitive dependency", backup.dependencies[1]],
+    ["verifier", backup.verifier],
+  ]) {
+    readPinnedRegularFile(
+      repoRoot,
+      artifact,
+      `successor pre-apply backup ${label}`,
+      join(repoRoot, "scripts"),
     );
   }
 
@@ -1074,10 +1576,13 @@ function validateSuccessorControllerContract({
       || !createdPublicTables.every(
         (table) => postExpand.expectedTables.includes(table),
       )
-      || postExpand.capture?.file === "scripts/amora-db-backup.ps1"
-      || postExpand.verifier?.file === "scripts/amora-db-verify-backup.ps1"
-      || typeof postExpand.capture?.file !== "string"
-      || typeof postExpand.verifier?.file !== "string"
+      || !exactKeys(postExpand.common, ["file", "sha256"])
+      || postExpand.common.file !== "scripts/vendor-disclosure-db-backup-common.ps1"
+      || !exactKeys(postExpand.capture, ["file", "sha256"])
+      || postExpand.capture.file !== "scripts/vendor-disclosure-db-backup.ps1"
+      || !exactKeys(postExpand.verifier, ["file", "sha256"])
+      || postExpand.verifier.file !== "scripts/vendor-disclosure-db-verify-backup.ps1"
+      || !SHA256.test(postExpand.common.sha256 ?? "")
       || !SHA256.test(postExpand.capture?.sha256 ?? "")
       || !SHA256.test(postExpand.verifier?.sha256 ?? "")) {
     invalid(
@@ -1086,14 +1591,80 @@ function validateSuccessorControllerContract({
     );
   }
 
+  for (const [label, artifact] of Object.entries({
+    common: postExpand.common,
+    capture: postExpand.capture,
+    verifier: postExpand.verifier,
+  })) {
+    readPinnedRegularFile(
+      repoRoot,
+      artifact,
+      `successor post-expand backup ${label}`,
+      join(repoRoot, "scripts"),
+    );
+  }
+
   if (contract.finalizationContract?.version !== 2
       || contract.finalizationContract?.id
         !== "production-write-fence-exact-owner-finalizer"
+      || !exactKeys(contract.finalizationContract?.operation, ["id", "file", "sha256"])
+      || contract.finalizationContract.operation.id
+        !== "production-write-fence-successor-finalize-20260819122000"
+      || contract.finalizationContract.operation.file
+        !== "supabase/platform-operations/security/20260819122000_production_write_fence_successor_finalize.sql"
       || contract.finalizationContract?.requiredLeasePhase !== "deployment-canary"
       || contract.finalizationContract?.confirmationIncludesCanarySha256 !== true) {
     invalid(
       "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
       "successor finalizer must use the dynamic exact-owner v2 contract",
+    );
+  }
+  readPinnedRegularFile(
+    repoRoot,
+    contract.finalizationContract.operation,
+    "successor finalizer",
+    join(repoRoot, "supabase", "platform-operations", "security"),
+  );
+  validateSuccessorDatabaseWriteFenceContract({ repoRoot, contract });
+  validateSuccessorLiveSchemaSecurityContract({ repoRoot, contract });
+  validateSuccessorStoragePlatformContracts({ repoRoot, manifest, contract });
+  const exactControllerIds = [
+    [
+      contract.preApplyChecks,
+      [
+        SUCCESSOR_DATABASE_WRITE_FENCE_SPEC.check.id,
+        SUCCESSOR_LIVE_SCHEMA_SECURITY_SPEC.check.id,
+        "vendor-disclosure-successor-storage-frozen",
+      ],
+    ],
+    [contract.postPushChecks, ["vendor-disclosure-successor-storage-target"]],
+    [contract.postApplyChecks, ["vendor-disclosure-successor-postcheck"]],
+    [
+      contract.manualPlatformOperations,
+      [
+        SUCCESSOR_DATABASE_WRITE_FENCE_SPEC.operation.id,
+        SUCCESSOR_LIVE_SCHEMA_SECURITY_SPEC.operation.id,
+        "vendor-disclosure-successor-storage-write-freeze-v1",
+        "vendor-disclosure-successor-storage-final-convergence-v1",
+      ],
+    ],
+    [
+      contract.rollbackArtifacts,
+      [
+        SUCCESSOR_DATABASE_WRITE_FENCE_SPEC.rollback.id,
+        SUCCESSOR_LIVE_SCHEMA_SECURITY_SPEC.rollback.id,
+        "successor-storage-freeze-forward-recovery-v1",
+        "successor-storage-final-compensation-v1",
+      ],
+    ],
+  ];
+  if (exactControllerIds.some(([entries, expectedIds]) =>
+    !exactArray(entries.map((entry) => entry?.id), expectedIds))
+      || canonicalJsonSha256(contract.requiredDocuments)
+        !== canonicalJsonSha256(predecessorManifest.requiredDocuments)) {
+    invalid(
+      "SUCCESSOR_CONTROLLER_CONTRACT_INVALID",
+      "successor checks, operations, recoveries and required documents must be exact",
     );
   }
   validateRollbackContract(manifest, contract.rollbackContract);
