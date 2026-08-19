@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatBubble from "./ChatBubble";
-import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
+import { MANNERS_PARTS } from "@/lib/manners/data";
 import type { ChatMessage } from "@/types/database.types";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -15,6 +15,9 @@ vi.mock("@/stores/chatStore", () => ({
 
 /**
  * 아모라가 붙이는 `[etiquette:N]` 태그 → 읽기 카드.
+ *
+ * 2026-08-19에 25편을 `/manners/<slug>`로 이관하면서, 태그는 `?part=N` 한 URL이 아니라
+ * 주제마다 고유한 주소로 떨어진다. 대응은 `legacyNumber`가 잇는다.
  *
  * 2026-08-19 이전에는 태그를 파싱해 놓고도 "가족 이야기 더 나누기"라는 문구로 `/chat`에
  * 되돌려 보냈다(코퍼스가 지워져 있어서). 코퍼스가 돌아왔으니 태그가 가리키는 챕터로
@@ -40,7 +43,7 @@ const render = async (content: string) => {
 
 const guideLinks = () =>
   [...container.querySelectorAll("a")].filter((a) =>
-    (a.getAttribute("href") ?? "").includes("/etiquette"),
+    (a.getAttribute("href") ?? "").includes("/manners/"),
   );
 
 beforeEach(() => {
@@ -60,9 +63,9 @@ describe("ChatBubble etiquette tags", () => {
 
     const links = guideLinks();
     expect(links).toHaveLength(1);
-    expect(links[0].getAttribute("href")).toContain("part=2");
 
-    const part2 = ETIQUETTE_PARTS.find((part) => part.number === 2)!;
+    const part2 = MANNERS_PARTS.find((part) => part.legacyNumber === 2)!;
+    expect(links[0].getAttribute("href")).toContain(`/manners/${part2.slug}`);
     expect(links[0].textContent).toContain(part2.title);
     expect(links[0].textContent).toContain(part2.subtitle);
   });
@@ -87,6 +90,6 @@ describe("ChatBubble etiquette tags", () => {
   it("no longer falls back to the generic family-talk card", async () => {
     await render("폐백은 생략하는 집도 많아요. [etiquette:7]");
     expect(container.textContent).not.toContain("가족 이야기 더 나누기");
-    expect(guideLinks()[0]?.getAttribute("href")).toContain("part=7");
+    expect(guideLinks()[0]?.getAttribute("href")).toContain("/manners/");
   });
 });

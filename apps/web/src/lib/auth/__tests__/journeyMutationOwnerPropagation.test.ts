@@ -8,7 +8,6 @@ const productionMutationClients = [
   "src/app/(app)/settings/page.tsx",
   "src/components/app/budget/BudgetContent.tsx",
   "src/components/app/chat/ActionCard.tsx",
-  "src/components/app/etiquette/EtiquetteClient.tsx",
   "src/components/app/schedule/CategoryChecklistModal.tsx",
   "src/components/app/schedule/ScheduleContent.tsx",
 ] as const;

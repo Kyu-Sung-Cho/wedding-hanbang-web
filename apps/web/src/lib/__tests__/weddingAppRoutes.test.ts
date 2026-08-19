@@ -67,8 +67,8 @@ describe("wedding app route rewrites", () => {
     // 오판의 원인이 된 두 경로를 명시적으로 고정한다.
     expect(hasPage("onboarding")).toBe(true); // (auth)/onboarding
     expect(hasPage("market-prices")).toBe(true); // (community)/market-prices
-    // 2026-08-19에 되살렸다. 이전에는 리라이트만 남고 페이지가 없어 링크가 전부
-    // 404였고, 그래서 여기서 `false`를 고정하고 있었다.
-    expect(hasPage("etiquette")).toBe(true); // (community)/etiquette
+    // 2026-08-19에 잠시 되살렸다가 25편을 manners로 이관하면서 다시 지웠다. 지금은
+    // next.config의 리다이렉트가 `/wedding/etiquette`를 `/wedding/manners`로 넘긴다.
+    expect(hasPage("etiquette")).toBe(false);
   });
 });

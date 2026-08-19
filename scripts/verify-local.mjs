@@ -85,6 +85,28 @@ export const checks = [
     name: "design tokens typecheck",
     args: ["pnpm", "--filter", "@hanbang/design-tokens", "typecheck"],
   },
+
+  // 2026-08-19에 GitHub Actions를 workflow_dispatch 전용으로 내리면서, CI만 돌던
+  // 세 검사를 여기로 옮겼다. 옮기지 않으면 릴리스 fence·공시 정합성·적재 스크립트가
+  // 아무 데서도 검사되지 않는 상태가 된다.
+  //
+  // `test:repo`가 `test:ingest`와 supabase 릴리스 테스트를 이미 포함하므로 그 둘은
+  // 따로 넣지 않는다.
+  {
+    kind: "typecheck",
+    name: "ingest typecheck",
+    args: ["pnpm", "ingest:typecheck"],
+  },
+  {
+    kind: "test",
+    name: "repository tests",
+    args: ["pnpm", "test:repo"],
+  },
+  {
+    kind: "check",
+    name: "supabase release fence",
+    args: ["pnpm", "supabase:release:fence"],
+  },
 ];
 
 /** 검사 하나를 돌리고 실패 사유를 돌려준다. 통과면 `null`. */

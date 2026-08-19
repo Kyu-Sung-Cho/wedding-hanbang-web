@@ -8,7 +8,7 @@ import { useChatStore } from "@/stores/chatStore";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
+import { MANNERS_PARTS } from "@/lib/manners/data";
 import {
   addStoredChatFeedback,
   parseStoredChatFeedback,
@@ -572,17 +572,18 @@ export default function ChatBubble({
               <div className="text-sm sm:text-[0.9375rem] text-[#1A1A1F] leading-relaxed break-words">
                 {renderAiMarkdown(cleanText)}
               </div>
-              {/* 태그가 가리키는 복원된 예절 챕터로 직접 보낸다. 존재하지 않는
-                  번호는 그리지 않아 죽은 링크를 만들지 않는다. */}
+              {/* 태그가 가리키는 챕터로 직접 보낸다. 레거시 25편은 `/manners`
+                  스키마로 이관됐으므로 `legacyNumber`로 고유 slug를 찾는다.
+                  존재하지 않는 번호는 그리지 않아 죽은 링크를 만들지 않는다. */}
               {partNumbers.length > 0 && (
                 <div className="mt-3 flex flex-col gap-2">
                   {partNumbers.map((num) => {
-                    const part = ETIQUETTE_PARTS.find((candidate) => candidate.number === num);
+                    const part = MANNERS_PARTS.find((candidate) => candidate.legacyNumber === num);
                     if (!part) return null;
                     return (
                       <Link
                         key={num}
-                        {...weddingLinkProps(`/etiquette?part=${num}`)}
+                        {...weddingLinkProps(`/manners/${part.slug}`)}
                         className="flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
                       >
                         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">

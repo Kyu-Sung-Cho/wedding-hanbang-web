@@ -8,7 +8,11 @@ import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 
 import { WEDDING_APP_ROUTES } from "../../../../weddingAppRoutes";
 import { MANNERS_PARTS } from "../data";
-import { MAPPED_MANNERS_CATEGORY_KEYS, mannersPartForCategory } from "../categoryMap";
+import {
+  MAPPED_MANNERS_CATEGORY_KEYS,
+  categoryKeysForMannersPart,
+  mannersPartForCategory,
+} from "../categoryMap";
 
 /**
  * 예절 안내는 2026-08-11까지 **아무 데서도 링크되지 않는 화면**이었다. 10파트를
@@ -84,11 +88,42 @@ describe("manners entry points", () => {
   });
 
   // 아직 파트가 없는 카테고리에 억지로 다른 파트를 붙이지 않는다.
-  it("returns null for categories the phase-1 parts do not cover", () => {
+  // 2026-08-19에 레거시 25편을 이관하면서 이 아홉 개가 채워졌다. 그 전에는 전부
+  // null이었고 모달 하단이 "아모라에게 물어보기"로 떨어졌다.
+  it("covers the nine categories that phase-1 could not", () => {
     for (const key of ["meeting", "ring", "hanbok", "yedan", "honeymoon", "houseware", "housing", "ham", "pyebaek"]) {
-      expect(mannersPartForCategory(key), `${key}는 아직 덮이지 않는다`).toBeNull();
+      expect(mannersPartForCategory(key), `${key}에 안내가 없다`).not.toBeNull();
     }
+  });
+
+  it("returns null instead of inventing a part", () => {
     expect(mannersPartForCategory(undefined)).toBeNull();
     expect(mannersPartForCategory("")).toBeNull();
+    expect(mannersPartForCategory("nope")).toBeNull();
+  });
+});
+
+/**
+ * 2026-08-19 실측 사고: 「폐백 예절」을 다 읽고 버튼을 누르면 '한복' 체크리스트가 열렸다.
+ * 한 파트를 여러 카테고리가 가리킬 때 호출부가 `categoryKeys[0]`을 쓰는데, 그 첫 번째가
+ * 객체 리터럴 선언 순서였기 때문이다. 순서에 기대면 키를 한 줄 추가할 때 또 깨진다.
+ */
+describe("파트가 여는 체크리스트가 그 글의 주제와 맞는다", () => {
+  const EXPECTED: Record<string, string> = {
+    "traditional-greetings": "pyebaek",
+    "gifts-and-traditions": "yedan",
+    "wedding-day": "venue",
+    "photo-manners": "studio",
+  };
+
+  it("다대일 매핑에서 대표 카테고리가 주제와 일치한다", () => {
+    for (const [slug, expected] of Object.entries(EXPECTED)) {
+      expect(categoryKeysForMannersPart(slug)[0], `${slug}의 대표 카테고리`).toBe(expected);
+    }
+  });
+
+  it("대표를 지정해도 나머지 카테고리를 잃지 않는다", () => {
+    expect(categoryKeysForMannersPart("traditional-greetings").sort()).toEqual(["hanbok", "pyebaek"]);
+    expect(categoryKeysForMannersPart("wedding-day")).toHaveLength(5);
   });
 });

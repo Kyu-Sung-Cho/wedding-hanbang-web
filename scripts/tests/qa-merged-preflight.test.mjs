@@ -212,21 +212,27 @@ test("ingest 타입체크가 포함돼 있다", async () => {
     path.join(repoRoot, "scripts", "qa-merged.mjs"),
     "utf8",
   );
-  assert.match(source, /"ingest:typecheck"/, "ingest 타입체크가 빠지면 그 코드는 아무도 안 본다");
-
   const pkg = JSON.parse(
     (await import("node:fs")).readFileSync(path.join(repoRoot, "package.json"), "utf8"),
   );
   assert.ok(pkg.scripts["ingest:typecheck"], "부를 대상 스크립트가 있어야 한다");
-  // verify-local이 커버한다고 착각하지 않도록 전제를 못 박는다.
+
+  // 2026-08-19에 소유권이 옮겨졌다. GitHub Actions를 workflow_dispatch 전용으로 내리면서
+  // CI에서만 돌던 저장소 수준 검사를 `verify-local`로 가져왔고, 그래서 `qa:local`이
+  // 이제 이걸 덮는다. qa:merged는 verify-local의 목록을 그대로 쓰므로 따로 얹지 않는다.
   const verify = (await import("node:fs")).readFileSync(
     path.join(repoRoot, "scripts", "verify-local.mjs"),
     "utf8",
   );
+  assert.match(verify, /"ingest:typecheck"/, "ingest 타입체크가 빠지면 그 코드는 아무도 안 본다");
+  assert.match(verify, /"test:repo"/, "저장소 스크립트 테스트가 빠지면 배포 펜스가 검사되지 않는다");
+  assert.match(verify, /"supabase:release:fence"/, "릴리스 펜스는 어디선가 반드시 돌아야 한다");
+
+  // 두 곳이 같은 검사를 돌리면 qa:merged가 그만큼 느려지고, 목록이 조용히 어긋난다.
   assert.doesNotMatch(
-    verify,
-    /ingest/,
-    "verify-local이 ingest를 커버하게 되면 qa:merged의 중복 실행을 정리해야 한다",
+    source,
+    /"ingest:typecheck"|"test:repo"/,
+    "verify-local이 이미 덮는다 — qa:merged에서 다시 얹지 말 것",
   );
 });
 
@@ -234,14 +240,13 @@ test("ingest 타입체크가 포함돼 있다", async () => {
 test("느린 빌드가 마지막으로 밀린다", async () => {
   const fs = await import("node:fs");
   const source = fs.readFileSync(path.join(repoRoot, "scripts", "qa-merged.mjs"), "utf8");
-  // 저장소 검사가 정렬 밖에 있으면 빌드 뒤로 밀려 실패를 늦게 본다.
-  assert.ok(
-    source.includes("[...checks, ...repositoryChecks]"),
-    "저장소 검사가 verify-local 검사와 같은 배열에서 정렬돼야 한다",
-  );
+  // 2026-08-19부터 저장소 검사도 verify-local의 `checks` 안에 있다. 별도 배열을 합치는
+  // 대신 그 하나를 정렬하면 되고, 정렬 밖으로 새는 검사가 없어야 한다는 요구는 같다.
   const sortAt = source.indexOf(".sort(");
-  const mergeAt = source.indexOf("[...checks, ...repositoryChecks]");
-  assert.ok(mergeAt >= 0 && sortAt > mergeAt, "합친 뒤에 정렬해야 한다");
+  const mergeAt = source.indexOf("[...checks]");
+  assert.ok(mergeAt >= 0, "verify-local의 검사 목록을 그대로 써야 한다");
+  assert.ok(sortAt > mergeAt, "목록을 만든 뒤에 정렬해야 한다");
+  assert.doesNotMatch(source, /repositoryChecks/, "정렬 밖에서 도는 별도 검사 배열이 없어야 한다");
 
   const ORDER = { typecheck: 0, lint: 1, check: 2, test: 3, build: 4 };
   const verify = await import(new URL("../verify-local.mjs", import.meta.url).href);

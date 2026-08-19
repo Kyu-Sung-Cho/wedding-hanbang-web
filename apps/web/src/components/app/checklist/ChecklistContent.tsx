@@ -170,7 +170,7 @@ export default function ChecklistContent() {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="예: 상견례, 계약 취소, 청첩장"
+            placeholder="예: 상견례, 취소, 보증금"
             className="h-11 w-full rounded-full border border-[#dcd4c3] bg-white pl-11 pr-4 text-[14px] text-[#071629] outline-none transition focus:border-[#9d6f36] focus:ring-2 focus:ring-[#c9a96e]/20"
           />
         </label>

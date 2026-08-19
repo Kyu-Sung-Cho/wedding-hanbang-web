@@ -1,9 +1,25 @@
 name: CI
 
+# 2026-08-19 — 자동 실행을 껐다. 지우지 않고 트리거만 내린 이유는 아래 두 가지다.
+#
+# 1. **지금 이 저장소에서 Actions가 실제로 돌지 않는다.** 최근 CI 런 60개가 전부
+#    러너를 배정받지 못하고(runner_name 비어 있음) 스텝 0으로 2~4초 만에 실패한다.
+#    같은 날 Dependabot Updates는 러너를 받아 5스텝을 정상 수행하고 성공한다 —
+#    Dependabot은 프라이빗 저장소에서도 무료라 과금 대상이 아니다. 즉 설정·워크플로·
+#    코드 문제가 아니라 **Actions 사용 분 소진**이다. 그 상태로 두면 모든 PR이
+#    빨간 체크를 달고, 그 빨강이 코드 문제로 오진된다.
+# 2. **여기서만 돌던 검사를 로컬로 옮겼다.** `scripts/verify-local.mjs`에
+#    `ingest typecheck` · `repository tests`(= test:repo, ingest·supabase 릴리스
+#    테스트 포함) · `supabase release fence`를 추가했다. 이제 `pnpm qa:local` 하나가
+#    이 워크플로와 같은 범위를 덮는다. push는 `.githooks/pre-push`가 계속 막는다.
+#
+# 되살리려면: 결제를 복구한 뒤 아래 `workflow_dispatch`를 지우고 원래 트리거를 넣는다.
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request: {}
 on:
-  push:
-    branches: [main]
-  pull_request: {}
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

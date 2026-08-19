@@ -128,7 +128,7 @@ describe("Amora mediation card wiring", () => {
       couple_id: "2474c6f2-29c6-4c77-8d91-d3347eef4c3f",
       sender_id: null,
       sender_role: "ai",
-      content: unsafeBody,
+      content: `${unsafeBody} [etiquette:2]`,
       metadata: {
         mediation: {
           translation: unsafeBody,
@@ -149,6 +149,8 @@ describe("Amora mediation card wiring", () => {
     expect(container.textContent).toContain("원문을 표시하지 않았어요");
     expect(container.textContent).not.toContain(unsafeBody);
     expect(container.textContent).not.toContain("먼저 사과하고 양보");
+    expect(container.querySelector('a[href*="/manners/"]')).toBeNull();
+    expect(container.querySelector('button[title="나중에 다시 보기"]')).toBeNull();
   });
 
   it("opens private draft controls only for a strict actor-private metadata envelope", async () => {

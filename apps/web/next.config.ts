@@ -87,6 +87,24 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      // 레거시 예절 가이드 → 예절 안내.
+      //
+      // 2026-08-19에 `/etiquette` 25편을 `/manners/<slug>`로 이관했다. 옛 주소는
+      // `?part=N` 쿼리로 25편을 한 URL에 담고 있었는데, 그 형태로는 검색에 주제별로
+      // 잡히지 않는다. 이제 주제마다 고유 주소를 갖는다.
+      //
+      // 개별 파트로 정확히 보내려면 쿼리를 slug로 옮겨야 하지만, 옛 주소가 색인된
+      // 적이 없어(사이트맵 0건) 목록으로 보내는 편이 단순하고 안전하다.
+      {
+        source: "/etiquette",
+        destination: "/wedding/manners",
+        permanent: true,
+      },
+      {
+        source: "/wedding/etiquette",
+        destination: "/wedding/manners",
+        permanent: true,
+      },
       // 루트는 **서비스를 설명하는 랜딩**으로 보낸다(2026-07-29).
       // 그전에는 커뮤니티 피드로 바로 떨어졌는데, 피드는 이 서비스를 이미 아는
       // 사람에게나 쓸모 있는 화면이라 첫 방문자는 "여기가 뭐 하는 곳인지" 알 수

@@ -119,8 +119,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
                       }`}
                     >
                       {category.deadlineDaysLeft < 0
-                        ? `${Math.abs(category.deadlineDaysLeft)}일 지남`
-                        : `${category.deadlineDaysLeft}일 남음`}
+                        ? `기본 확인 시점에서 ${Math.abs(category.deadlineDaysLeft)}일 지남`
+                        : `기본 확인 시점까지 ${category.deadlineDaysLeft}일`}
                     </span>
                   </Link>
                 </li>
