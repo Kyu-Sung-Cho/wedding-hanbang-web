@@ -105,7 +105,7 @@ export default function UpcomingTab() {
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
                     {item.deadlineDaysLeft <= 0
-                      ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
+                      ? `기본 확인 시점에서 ${Math.abs(item.deadlineDaysLeft)}일 지남`
                       : `D-${item.deadlineDaysLeft}`}
                   </span>
                 </div>
