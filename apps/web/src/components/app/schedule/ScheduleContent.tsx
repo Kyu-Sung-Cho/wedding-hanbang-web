@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -98,7 +99,9 @@ function buildChecklistProgress(
       ...(existing ?? { category: categoryKey }),
       category: categoryKey,
       status: newStatus,
-      checklist: updated,
+      // DB는 {id, label, done} 세 키만 받는다. 템플릿의 note를 그대로 보내면
+      // 쓰기가 거절되므로(AMORA_ATOMIC_CHECKLIST_ITEM_INVALID) 저장 직전에 뗀다.
+      checklist: stripPlanningChecklistNotes(updated),
     },
   };
 }

@@ -31,6 +31,7 @@ import {
 import Link from "next/link";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
+import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
@@ -164,7 +165,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           ...(existing ?? { category: categoryKey }),
           category: categoryKey,
           status: newStatus,
-          checklist: updated,
+          checklist: stripPlanningChecklistNotes(updated),
         },
       };
 
@@ -211,7 +212,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             ...(existing ?? { category: categoryKey }),
             category: categoryKey,
             status: nextStatus,
-            checklist,
+            checklist: stripPlanningChecklistNotes(checklist),
           },
         } as Record<string, ProgressItem>,
       });
@@ -339,6 +340,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 type="button"
                 role="checkbox"
                 aria-checked={item.done}
+                aria-labelledby={`${titleId}-${item.id}-label`}
+                aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                 disabled={saving || isNotApplicable}
                 key={item.id}
                 onClick={() => toggleItem(item.id)}
@@ -353,14 +356,31 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                     <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover:border-[#795252] transition-colors" />
                   )}
                 </div>
-                <span
-                  className={`text-[17px] leading-snug flex-1 ${
-                    item.done
-                      ? "text-[#B5ADA3] line-through"
-                      : "text-[#504444]"
-                  }`}
-                >
-                  {item.label}
+                {/*
+                  항목이 무엇을 할지(label)와 그 일에서 놓치기 쉬운 것(note)을 함께 보인다.
+                  note가 없는 항목이 대부분이라 있을 때만 그린다 — 빈 줄을 만들지 않는다.
+                  완료한 항목에서도 note는 지우지 않는다. 체크를 되돌릴지 판단할 때 필요하다.
+
+                  note를 체크박스 이름에 섞으면 스크린 리더가 항목마다 두 문장을 읽는다.
+                  이름은 label로 못박고 note는 설명(aria-describedby)으로 넘긴다.
+                */}
+                <span className="flex-1">
+                  <span
+                    id={`${titleId}-${item.id}-label`}
+                    className={`block text-[17px] leading-snug ${
+                      item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                  {item.note && (
+                    <span
+                      id={`${titleId}-${item.id}-note`}
+                      className="mt-1 block text-[15px] leading-[1.55] text-[#8A7F79]"
+                    >
+                      {item.note}
+                    </span>
+                  )}
                 </span>
               </button>
             ))}

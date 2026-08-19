@@ -1,4 +1,5 @@
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
+import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { mergeChecklist, calculateStatus } from "@/utils/checklist";
@@ -398,7 +399,8 @@ export async function executeToggleChecklistItem(
   await patchJourneyProgress(ctx, {
     [category]: {
       ...(existing ?? { category }),
-      category, status: newStatus, checklist: updated,
+      // DB는 {id, label, done} 세 키만 받는다. 템플릿의 note를 떼고 보낸다.
+      category, status: newStatus, checklist: stripPlanningChecklistNotes(updated),
     },
   });
 
