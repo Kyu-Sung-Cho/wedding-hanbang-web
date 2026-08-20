@@ -212,6 +212,59 @@ describe("community post resolution state", () => {
     expect(response.headers.get("vary")).toBe("Authorization, Cookie");
   });
 
+  /**
+   * 로그아웃 방문자에게 getUser()는 항상 세션 없음 오류를 낸다. 그것을 그대로
+   * 503으로 바꾸면 공개 글 상세가 비로그인 사용자 전원에게 닫힌다.
+   */
+  function missingSessionClient() {
+    return {
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { name: "AuthSessionMissingError", message: "Auth session missing!" },
+        })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: null,
+              error: { code: "PGRST116", message: "not found" },
+            })),
+          })),
+        })),
+      })),
+    };
+  }
+
+  it("does not close public post detail for a visitor who presented no credential", async () => {
+    mocks.createClientFromRequest.mockResolvedValue(missingSessionClient());
+
+    const response = await GET(
+      new Request(`http://localhost/api/community/posts/${POST_ID}`) as never,
+      { params: Promise.resolve({ id: POST_ID }) },
+    );
+
+    expect(response.status).not.toBe(503);
+    expect(response.status).toBe(404);
+  });
+
+  it("still fails closed when a presented credential cannot be verified", async () => {
+    mocks.createClientFromRequest.mockResolvedValue(missingSessionClient());
+
+    const response = await GET(
+      new Request(`http://localhost/api/community/posts/${POST_ID}`, {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=broken" },
+      }) as never,
+      { params: Promise.resolve({ id: POST_ID }) },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "게시글 접근 권한을 확인하지 못했습니다.",
+    });
+  });
+
   it("loads poll counters only through the actor projection after the viewer boundary", async () => {
     const viewerRpc = vi.fn(() => {
       throw new Error("viewer-scoped client must not expose the block oracle");
