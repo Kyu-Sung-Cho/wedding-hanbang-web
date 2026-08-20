@@ -67,6 +67,8 @@ export default function VendorTagPicker({
   const [selectedVendors, setSelectedVendors] = useState<VendorTagInfo[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // 검색이 실패했는데 "검색 결과가 없습니다"를 띄우면 없는 것으로 읽힌다.
+  const [searchFailed, setSearchFailed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -122,9 +124,13 @@ export default function VendorTagPicker({
         ? data
         : data.vendors ?? [];
       setResults(list.map(toVendorTagInfo).filter((v): v is VendorTagInfo => v !== null));
+      setSearchFailed(false);
       setIsOpen(true);
     } catch {
+      // 조용히 비우면 사용자는 "그런 업체가 없다"고 읽는다.
       setResults([]);
+      setSearchFailed(true);
+      setIsOpen(true);
     } finally {
       setLoading(false);
     }
@@ -224,6 +230,10 @@ export default function VendorTagPicker({
               {loading ? (
                 <div className="px-4 py-3 text-sm text-[#B5ADA3]">
                   검색 중...
+                </div>
+              ) : searchFailed ? (
+                <div className="px-4 py-3 text-sm text-[#B5ADA3]">
+                  업체 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
                 </div>
               ) : results.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-[#B5ADA3]">
