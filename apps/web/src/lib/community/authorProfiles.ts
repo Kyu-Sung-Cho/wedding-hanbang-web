@@ -44,56 +44,19 @@ export async function getCommunityAuthorMap(
 
   let roleMap: Record<string, UserRole | null> = {};
   try {
-    const admin = createAdminClient();
-    const { data: profiles, error: profileError } = await admin
+    const { data: profiles, error: profileError } = await createAdminClient()
       .from("profiles")
-      .select("id, role, couple_id")
+      .select("id, role")
       .in("id", uniqueAuthorIds);
 
     if (profileError) {
       console.error("[community.authors] profile role lookup failed:", profileError);
     } else {
-      // 중립 준비 공간의 작성자는 role을 고른 적이 없다. 그 슬롯값으로 아바타를
-      // 그리면 본인이 고르지도 않은 성별이 남에게 보인다. 여기 한 곳에서 null로
-      // 만들면 웹·모바일의 모든 아바타 표면이 함께 해결된다.
-      const coupleIds = Array.from(
-        new Set(
-          (profiles ?? [])
-            .map((profile) => profile.couple_id as string | null)
-            .filter((id): id is string => typeof id === "string"),
-        ),
-      );
-      const neutralCoupleIds = new Set<string>();
-      if (coupleIds.length > 0) {
-        // 컬럼이 없는 DB에서는 조회가 실패한다. 그 상태에선 중립 커플이 존재할
-        // 수 없으므로 아무도 중립이 아니다 — 커뮤니티를 죽이지 않는다.
-        const { data: couples, error: coupleError } = await admin
-          .from("couples")
-          .select("id, member_model_version")
-          .in("id", coupleIds);
-        if (coupleError) {
-          console.warn(
-            "[community.authors] member_model_version 미적용 — 전원 기존 방식으로 본다",
-            coupleError.code,
-          );
-        } else {
-          for (const couple of couples ?? []) {
-            if ((couple as { member_model_version?: unknown }).member_model_version === 2) {
-              neutralCoupleIds.add(couple.id as string);
-            }
-          }
-        }
-      }
-
       roleMap = Object.fromEntries(
-        (profiles ?? []).map((profile) => {
-          const coupleId = profile.couple_id as string | null;
-          const isNeutral = coupleId !== null && neutralCoupleIds.has(coupleId);
-          return [
-            profile.id as string,
-            isNeutral || !isUserRole(profile.role) ? null : profile.role,
-          ];
-        })
+        (profiles ?? []).map((profile) => [
+          profile.id as string,
+          isUserRole(profile.role) ? profile.role : null,
+        ])
       );
     }
   } catch (error) {

@@ -485,12 +485,7 @@ export default function SettingsPage() {
 
   const userName = profile?.name ?? "사용자";
   const userEmail = user?.email ?? profile?.email ?? "";
-  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
-  // 빈 문자열 폴백은 role이 null일 때만 발동하므로 여기서는 죽은 코드다.
-  const usesNeutralMembers = couple?.member_model_version === 2;
-  const userRole = usesNeutralMembers
-    ? ""
-    : profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
+  const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
@@ -505,9 +500,7 @@ export default function SettingsPage() {
   const venueStr = venue && venue.trim().length > 0 ? venue : "미정";
 
   const partnerName = partner?.name;
-  const partnerRole = usesNeutralMembers
-    ? ""
-    : partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
+  const partnerRole = partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
 
   return (
     <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">

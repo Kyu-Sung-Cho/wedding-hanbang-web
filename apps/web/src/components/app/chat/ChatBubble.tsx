@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck, User } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
@@ -19,8 +19,7 @@ import {
 interface ChatBubbleProps {
   message: ChatMessage;
   isCurrentUser: boolean;
-  /** 상대방 메시지에 띄울 이름. 성별 슬롯이 아니라 사람을 가리킨다. */
-  senderName?: string | null;
+  currentUserRole?: "bride" | "groom" | null;
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
   onNegativeFeedback?: (message: ChatMessage) => void;
@@ -510,7 +509,6 @@ function stripSelectionTags(text: string): string {
 export default function ChatBubble({
   message,
   isCurrentUser,
-  senderName = null,
   isRecentAi = false,
   onNegativeFeedback,
 }: ChatBubbleProps) {
@@ -618,21 +616,21 @@ export default function ChatBubble({
   }
 
   // 사용자 메시지 (내 메시지 = 오른쪽, 상대방 = 왼쪽)
-  // 라벨은 성별 슬롯(bride/groom)이 아니라 사람 이름으로 만든다. 사용자는 역할을
-  // 고른 적이 없을 수 있고, 골랐더라도 자기 대화에 성별이 붙기를 요청한 적은 없다.
-  // sender_id가 null인 과거 메시지에 현재 파트너 이름을 붙이면 오귀속이므로,
-  // 이름은 호출부에서 sender_id를 대조해 넘겨준 경우에만 쓴다.
-  const senderLabel = senderName ?? (message.sender_id ? "파트너" : "이전 참여자");
+  const isBride = sender_role === "bride";
+  const roleLabel = isBride ? "신부" : "신랑";
 
-  // 색은 성별이 아니라 "나 vs 상대" 축으로 가른다. 이전 신부 색(#C4967E)은 흰 글자
-  // 대비 2.62:1로 WCAG AA 미달이었다 — 중립화가 접근성 수정을 겸한다.
-  const myBubbleBg = "bg-[#795252]";
-  const partnerBubbleBg = "bg-[#F6F3F2]";
-  const partnerBubbleBorder = "border-[#E8DDD3]";
+  // 버블 색상
+  const myBubbleBg = isBride ? "bg-[#C4967E]" : "bg-[#3B5998]";
+  const partnerBubbleBg = isBride ? "bg-[#F5E6DF]" : "bg-[#E8EDF5]";
+  const partnerBubbleBorder = isBride
+    ? "border-[#E8D5CD]"
+    : "border-[#D4DCE8]";
 
-  // 상대 아바타. 아모라 아바타(from-[#C4967E] to-[#C9A96E])와 색이 겹치지 않는다.
-  const avatarBg = "bg-gradient-to-br from-[#795252] to-[#946a6a]";
-  const badgeBg = "bg-[#795252]/12 text-[#795252]";
+  // 아바타 색상
+  const avatarBg = isBride
+    ? "bg-gradient-to-br from-[#C4967E] to-[#E8C4B8]"
+    : "bg-gradient-to-br from-[#3B5998] to-[#6B8CCE]";
+  const badgeBg = isBride ? "bg-[#C4967E]/20 text-[#9A6B62]" : "bg-[#3B5998]/20 text-[#3B5998]";
 
   // 사용자 메시지에서 선택 태그 숨김
   const displayContent = stripSelectionTags(content);
@@ -690,22 +688,21 @@ export default function ChatBubble({
         {isPartnerMsg ? (
           <Heart className="w-5 h-5 text-white" />
         ) : (
-          senderName ? (
-            <span className="text-white text-base font-bold">
-              {senderName.slice(0, 2)}
-            </span>
-          ) : (
-            <User className="w-5 h-5 text-white" />
-          )
+          <span className="text-white text-base font-bold">
+            {roleLabel.charAt(0)}
+          </span>
         )}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
+          <span className="text-base font-medium text-[#928980]">
+            {message.sender_id ? "" : roleLabel}
+          </span>
           <span
             className={`text-sm px-2 py-0.5 rounded-full font-medium ${isPartnerMsg ? "bg-pink-100 text-pink-500" : badgeBg}`}
           >
-            {isPartnerMsg ? `${senderLabel} → 나에게` : senderLabel}
+            {isPartnerMsg ? `${roleLabel} → 나에게` : roleLabel}
           </span>
         </div>
         <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
