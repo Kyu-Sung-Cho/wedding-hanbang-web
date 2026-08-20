@@ -330,6 +330,79 @@ describe("Amora question-scope ceiling", () => {
     expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
   });
 
+  it.each([
+    "지금 뭐부터 해야 해?",
+    "D-90인데 늦은 거야?",
+    "이 견적 800만원인데 괜찮은 거야?",
+    "예산 초과했는데 어디서 줄여?",
+  ])("routes a real preparation utterance into W0 instead of a clarification: %s", (userText) => {
+    // 이 넷은 어휘 목록에 없다는 이유만으로 W4였다. W4는 도구 0개 + 저장 커플 문맥
+    // 삭제 + "이 요청이 결혼 준비의 어떤 결정과 연결되는지" 되묻기다. 결혼 준비 앱의
+    // 아모라 대화에서 가장 흔한 첫 질문에 그 답을 돌려주고 있었다.
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+      confidence: "high",
+      needsClarification: false,
+    });
+  });
+
+  it.each([
+    "남편은 무관심하고 나만 다 하고 있어",
+    "아내가 요즘 나한테 말을 안 해",
+    "시어머니가 나를 싫어해",
+    "시댁에서 전화가 자꾸 와",
+    "처가에 뭐라고 말해야 할지 모르겠어",
+  ])("answers a one-sided relationship account but never stores it: %s", (userText) => {
+    // 두 실패가 모두 비싸다. W4로 떨어뜨리면 감정을 털어놓은 사람에게 "이 요청이 결혼
+    // 준비의 어떤 결정과 연결되는지" 되묻는다. 반대로 장기 기억에 넣으면 커플이 함께
+    // 쓰는 제품에 **한쪽의 관계 불만이 기록으로 쌓인다.**
+    //
+    // 그래서 답은 하되 기억은 끈다. 새 형태가 아니다 — 중재 요청이 이미 같은 이유로
+    // W1 + 기억 off를 쓴다("한쪽 당사자의 요약이지 둘이 확정한 사실이 아니다").
+    const classification = classifyAmoraQuestionScope({ userText });
+
+    expect(classification.scope).toBe("W1_wedding_adjacent");
+    expect(classification.allowsLongTermMemory).toBe(false);
+    expect(classification.needsClarification).toBe(false);
+    // 저장 문맥은 읽을 수 있어야 "할 일이 한쪽에 몰려 있네요"가 가능하다.
+    expect(
+      filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification).map((tool) => tool.name),
+    ).toContain("get_wedding_info");
+  });
+
+  it.each([
+    "상견례에서 시어머니가 예단 얘기를 꺼냈어",
+    "남편이랑 웨딩홀 보러 가기로 했어",
+    "남편이랑 뭐부터 해야 할지 모르겠어",
+  ])("still gives a preparation question full wedding authority: %s", (userText) => {
+    // 배우자·시가를 가리킨다고 해서 준비 질문까지 기억에서 빠지면 안 된다. 같은 문장에
+    // 웨딩 신호가 있으면 위쪽 경로에서 먼저 W0로 잡힌다.
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
+    });
+  });
+
+  it.each([
+    "회사 일 뭐부터 해야 해?",
+    "이사 준비 뭐부터 해야 해?",
+    "시험 공부 뭐부터 시작할까?",
+    "인테리어 견적 800만원인데 괜찮아?",
+    "여행 예산 초과했는데 어디서 줄여?",
+    "병원 예약 늦었어",
+    "이직 준비가 늦은 건가?",
+  ])("does not let the new preparation vocabulary borrow wedding authority: %s", (userText) => {
+    // 이 반례는 **새로 넣은 어휘를 깨려고** 따로 만든 것이다. 기존 오탐 코퍼스는 이
+    // 낱말들을 아무도 노리지 않으므로, 거기서 오탐 0이 나와도 아무것도 증명하지 않는다
+    // (이 파일 위쪽 폭력 어휘에서 이미 같은 실수를 했다).
+    //
+    // 맨 앞 EXPLICIT_NON_WEDDING_STATE_PATTERN은 `회사`+`예산|일정` 조합을 요구하므로
+    // "회사 일 뭐부터 해야 해?"를 막지 못한다. NON_WEDDING_DOMAIN_HINT_PATTERN이 없으면
+    // 이 줄들이 전부 W0가 된다.
+    expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
+  });
+
   it("accepts generic state nouns only when the current message carries a wedding signal", () => {
     for (const userText of [
       "웨딩 예산을 정리해줘",
