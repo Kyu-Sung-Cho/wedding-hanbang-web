@@ -35,6 +35,7 @@ import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
+import { noteSourceLink } from "@/lib/etiquette/noteSources";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
@@ -337,6 +338,9 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAF8]">
           <div className="flex flex-col gap-1">
             {checklist.map((item) => (
+              // 근거 링크는 체크박스 **밖**에 둔다. 버튼 안에 링크를 넣으면 잘못된
+              // 마크업이고, 누를 때 무엇이 실행될지도 애매해진다.
+              <div key={item.id} className="flex flex-col">
               <button
                 type="button"
                 role="checkbox"
@@ -344,7 +348,6 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 aria-labelledby={`${titleId}-${item.id}-label`}
                 aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                 disabled={saving || isNotApplicable}
-                key={item.id}
                 onClick={() => toggleItem(item.id)}
                 className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
               >
@@ -373,6 +376,20 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   }`}
                 />
               </button>
+              {(() => {
+                const source = noteSourceLink(item.id);
+                if (!source) return null;
+                return (
+                  <Link
+                    {...weddingLinkProps(source.href)}
+                    className="ml-9 mb-1 inline-flex w-fit items-center gap-1 rounded text-[13px] leading-[1.5] text-[#7A6A57] underline decoration-[#D9CBB4] underline-offset-4 hover:text-[#5A4D3E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50"
+                  >
+                    근거 · {source.partTitle}
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Link>
+                );
+              })()}
+              </div>
             ))}
           </div>
         </div>

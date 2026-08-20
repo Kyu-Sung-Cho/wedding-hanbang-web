@@ -74,7 +74,13 @@ describe("항목 안내 문구는 사용자 데이터가 아니다", () => {
       const merged = mergePlanningChecklist(category.items, undefined);
       const stored = stripPlanningChecklistNotes(merged);
 
-      expect(stored.some((item) => "note" in item), `${category.key}`).toBe(false);
+      // DB는 항목을 {id, label, done} **정확히 세 키로만** 받는다. 하나라도 더 실리면
+      // 쓰기가 거절된다(20260716112000의 AMORA_ATOMIC_CHECKLIST_ITEM_INVALID).
+      expect(stored.some((item) => "note" in item), `${category.key}: note`).toBe(false);
+      expect(
+        stored.flatMap((item) => Object.keys(item)).filter((key) => !["id", "label", "done"].includes(key)),
+        `${category.key}: 여분 키`,
+      ).toEqual([]);
       expect(stored.map((i) => i.id)).toEqual(merged.map((i) => i.id));
       expect(stored.map((i) => i.done)).toEqual(merged.map((i) => i.done));
     }
