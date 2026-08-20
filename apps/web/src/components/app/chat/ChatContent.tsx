@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink } from "lucide-react";
+import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink, User } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -431,7 +431,7 @@ function getCommunityAskCue(
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
-  const { profile, couple, journey, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
+  const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     !isDemo && Boolean(profile?.id),
   );
@@ -2674,7 +2674,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <ChatBubble
                     message={msg}
                     isCurrentUser={isCurrentUser}
-                    currentUserRole={profile?.role}
+                    senderName={
+                      msg.sender_id && msg.sender_id === partner?.id
+                        ? partner.name
+                        : null
+                    }
                     isRecentAi={recentAiIds.has(msg.id)}
                     onNegativeFeedback={markCommunityFallbackAvailable}
                   />
@@ -2749,15 +2753,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
         {/* 파트너 typing 인디케이터 — 본인이 streaming 중이 아닐 때만 (중복 방지) */}
         {activeTab === "shared" && !isStreaming && partnerTypingActive && presence.partnerTyping && (() => {
-          const isBride = presence.partnerTyping.sender_role === "bride";
-          const avatarBg = isBride
-            ? "bg-gradient-to-br from-[#C4967E] to-[#E8C4B8]"
-            : "bg-gradient-to-br from-[#3B5998] to-[#6B8CCE]";
-          const label = isBride ? "신부" : "신랑";
+          // 타이핑 중인 사람이 실제로 현재 파트너일 때만 이름을 쓴다. presence는
+          // 이전 참여자 이벤트를 실어 올 수 있어 id 대조 없이 이름을 붙이면 오귀속이다.
+          const typingIsPartner =
+            Boolean(partner?.id) && presence.partnerTyping.user_id === partner?.id;
+          const label = typingIsPartner ? (partner?.name ?? "파트너") : "파트너";
           return (
             <div className="animate-fade-in flex items-center gap-2 px-3">
-              <div className={`flex-shrink-0 w-9 h-9 rounded-full ${avatarBg} flex items-center justify-center text-white text-base font-bold shadow-sm`}>
-                {label.charAt(0)}
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white shadow-sm">
+                <User className="w-4 h-4" />
               </div>
               <div className="bg-white border border-black/[0.06] rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
                 <span className="text-[13px] text-[#928980]">{label} 입력 중</span>
@@ -2903,7 +2907,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 </h3>
                 <p className="text-sm text-[#504444] leading-relaxed">
                   {partnerTypingActive
-                    ? `상대방(${presence.partnerTyping?.sender_role === "bride" ? "신부" : "신랑"})이 지금 입력하고 있어요. 같이 보내면 진행 중인 흐름이 꼬일 수 있어요.`
+                    ? `${partner?.name ?? "상대방"}이 지금 입력하고 있어요. 같이 보내면 진행 중인 흐름이 꼬일 수 있어요.`
                     : "아모라가 방금 보낸 메시지에 답변하고 있어요. 지금 새 메시지를 보내면 진행 중인 답변이 중단될 수 있어요."}
                 </p>
               </div>
