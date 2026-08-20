@@ -3767,6 +3767,58 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     },
   );
 
+  it("되묻기에 답하면 확인 카드까지 나온다 — 고리가 실제로 끝난다", async () => {
+    // 도구가 돌아온 것만으로는 부족하다. 사용자가 **끝낼 수 있어야** 고친 것이다.
+    // 이 턴에서 확인 카드가 나오고, 다음 요청에서 그 카드를 확인하면 서버가
+    // 실행한다(그 뒷단은 기존 confirmedActionId 경로 그대로).
+    seedClarificationExchange({ ...SCHEDULE_CLARIFICATION, currentText: "응 넣어줘" });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-10-17","title":"드레스 투어"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응 넣어줘" }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).not.toContain("[pending_action]");
+    expect(mocks.atomicResponses[0]?.metadata?.pending_amora_action)
+      .toMatchObject({
+        tool: "add_schedule_event",
+        input: { date: "2026-10-17", title: "드레스 투어" },
+      });
+    // 카드가 나왔을 뿐 아직 아무것도 저장되지 않았다. 확인은 여전히 사용자 몫이다.
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("연속성이 없으면 같은 답변이 카드도 못 만들고 조용히 사라진다(고리 재현)", async () => {
+    // 대조군. 직전 턴이 관계 진술(W1)이면 범위가 W0으로 오르지 않아 제안 도구가
+    // 비고, 모델이 똑같은 표식을 내도 서버가 버린다. 표식만 지워진 빈 답이
+    // 남는 것이 "오류 없이 조용히 아무것도 안 한다"의 정체다.
+    seedClarificationExchange({
+      priorText: "남편은 무관심하고 나만 다 하고 있어",
+      assistantText: "어떤 부분이 가장 힘드신지 알려주세요.",
+      currentText: "응 넣어줘",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText:
+        '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-10-17","title":"드레스 투어"}}[/pending_action]',
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응 넣어줘" }],
+    }));
+    await response.text();
+
+    expect(mocks.atomicResponses[0]?.metadata?.pending_amora_action)
+      .toBeUndefined();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it("되살아난 도구가 저장된 결혼 문맥과 함께 온다", async () => {
     // 범위만 W0으로 올리고 저장 문맥 읽기를 건너뛰면, 도구는 살아났는데 예산도
     // 예식장도 비어 있는 상태로 답하게 된다. 되묻기에 답한 사람에게는 그것도
