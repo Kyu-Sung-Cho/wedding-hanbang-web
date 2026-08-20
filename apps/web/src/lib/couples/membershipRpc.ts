@@ -68,11 +68,18 @@ export const JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC =
 export const COUPLE_INVITE_EXPAND_REQUIRED_CODE =
   "COUPLE_INVITE_EXPAND_REQUIRED";
 
-export function isJoinCoupleServerRpcMissing(error: unknown): boolean {
+/**
+ * RPC 함수 자체가 없을 때(마이그레이션 미적용) 나는 오류인가.
+ * 일시 장애와 구분해야 한다 — 재시도를 권하면 영원히 실패한다.
+ */
+export function isMembershipRpcMissing(error: unknown): boolean {
   if (!error || typeof error !== "object" || Array.isArray(error)) return false;
   const code = (error as { code?: unknown }).code;
   return code === "PGRST202" || code === "42883";
 }
+
+/** @deprecated isMembershipRpcMissing 를 쓴다. 이름이 좁아 호출부가 안 생겼다. */
+export const isJoinCoupleServerRpcMissing = isMembershipRpcMissing;
 
 export async function joinCoupleThroughServerRpc(
   client: MembershipRpcClient,

@@ -176,6 +176,13 @@ export default function OnboardingPage() {
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
       if (neutralCoupleAction) {
+        // 새로 만든 경우 초대 코드를 보여준다. 안 보여주면 상대를 부르려고
+        // 설정 화면을 뒤져야 한다 — 함께 준비하는 게 이 제품의 요지인데.
+        if (neutralCoupleAction === "create" && typeof data.inviteCode === "string") {
+          setInviteCodeResult(data.inviteCode);
+          setShowInviteModal(true);
+          return;
+        }
         window.location.href = resolveNeutralPreparationSpaceRedirect({
           search: window.location.search,
           origin: window.location.origin,
@@ -552,10 +559,17 @@ export default function OnboardingPage() {
 
               <button
                 onClick={() => {
-                  window.location.href = getAuthRedirectPath(
-                    window.location.search,
-                    window.location.origin,
-                  );
+                  // 중립 경로는 아모라를 첫 화면으로 삼는다 — 온보딩에서 아무것도
+                  // 묻지 않았으니 대화가 곧 시작점이다.
+                  window.location.href = neutralPreparationSpaceEnabled
+                    ? resolveNeutralPreparationSpaceRedirect({
+                        search: window.location.search,
+                        origin: window.location.origin,
+                      })
+                    : getAuthRedirectPath(
+                        window.location.search,
+                        window.location.origin,
+                      );
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >

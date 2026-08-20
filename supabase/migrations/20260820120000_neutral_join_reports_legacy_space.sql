@@ -133,10 +133,14 @@ BEGIN
     END;
   END IF;
 
-  v_result := public.join_couple_server(
+  -- join_couple_server 는 core 를 그대로 넘기는 얇은 래퍼인데, 20260820130000 이
+  -- 거기에 "v2 공간에는 역할로 합류 불가" 가드를 건다. 중립 합류가 그 가드에
+  -- 걸리지 않도록 core 를 직접 부른다 — 호출 경로 'server' 는 동일하다.
+  v_result := public.join_couple_invite_core(
     p_actor_user_id,
     v_code,
-    v_internal_role
+    v_internal_role,
+    'server'
   );
 
   IF COALESCE(v_result ->> 'success', 'false') <> 'true' THEN
