@@ -9671,6 +9671,36 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     errorSpy.mockRestore();
   });
 
+  it("never reports a provider egress denial as an input-length problem", async () => {
+    // 외부 호출 게이트가 토큰 계수 중에 거부하면 requestStage가 "input_count"로
+    // 도착한다. 그것을 입력 분량 문제로 표시하면 두 번 거짓말이 된다 — 원인도
+    // 틀리고, 다시 시도하면 풀린다는 것도 틀리다(설정을 바꾸기 전엔 영원히 실패).
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.provider.mockRejectedValueOnce(Object.assign(
+      new Error("SECRET_EGRESS_GRANT_DETAILS"),
+      {
+        providerCode: "AMORA_PROVIDER_EGRESS_DENIED",
+        requestStage: "input_count",
+        category: "auth_config",
+      },
+    ));
+
+    const response = await POST(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"code":"AMORA_PROVIDER_UNAVAILABLE"');
+    expect(body).not.toContain("AMORA_INPUT_COUNT_UNAVAILABLE");
+    expect(body).not.toContain("입력 분량");
+    expect(body).toContain("입력하신 내용 때문이 아니");
+    // 같은 요청을 다시 보내도 풀리지 않으므로 재시도를 권하지 않는다.
+    expect(body).toContain('"retryable":false');
+    expect(body).toContain('"retryPolicy":"new_message"');
+    expect(body).not.toContain("SECRET_EGRESS_GRANT_DETAILS");
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   it("distinguishes an input-count service failure from oversized input", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.provider.mockRejectedValueOnce(Object.assign(

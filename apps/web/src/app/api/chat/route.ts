@@ -327,7 +327,10 @@ function isMissingChatImageObjectError(error: unknown): boolean {
 }
 
 function getAmoraInputStreamError(error: unknown): {
-  code: "AMORA_INPUT_TOO_LARGE" | "AMORA_INPUT_COUNT_UNAVAILABLE";
+  code:
+    | "AMORA_INPUT_TOO_LARGE"
+    | "AMORA_INPUT_COUNT_UNAVAILABLE"
+    | "AMORA_PROVIDER_UNAVAILABLE";
   message: string;
 } | null {
   if (!isRecord(error)) return null;
@@ -335,6 +338,16 @@ function getAmoraInputStreamError(error: unknown): {
     return {
       code: "AMORA_INPUT_TOO_LARGE",
       message: "대화나 첨부파일 내용이 너무 길어요. 첨부파일을 줄이거나 새 대화에서 다시 시도해주세요.",
+    };
+  }
+  // 외부 호출 게이트는 거부된 단계를 그대로 실어 보낸다. 토큰을 세는 중에
+  // 거부되면 requestStage가 "input_count"로 도착하지만, 이것은 입력 길이가
+  // 아니라 권한·설정 상태이고 같은 요청을 다시 보낸다고 풀리지 않는다.
+  // 입력 분량 문제로 표시하면 사용자가 자기 글을 줄여 가며 무한히 재시도한다.
+  if (error.providerCode === "AMORA_PROVIDER_EGRESS_DENIED") {
+    return {
+      code: "AMORA_PROVIDER_UNAVAILABLE",
+      message: "아모라가 지금 답할 수 없어요. 입력하신 내용 때문이 아니니 이 대화는 그대로 두고 잠시 뒤에 다시 열어 주세요.",
     };
   }
   if (error.requestStage === "input_count") {
@@ -5526,6 +5539,7 @@ export async function POST(request: Request) {
             !paidProviderBoundaryReached
             && !toolExecutionCompleted
             && inputStreamError?.code !== "AMORA_INPUT_TOO_LARGE"
+            && inputStreamError?.code !== "AMORA_PROVIDER_UNAVAILABLE"
           )
         );
         console.error("채팅 API 에러:", errMsg);
@@ -5549,7 +5563,9 @@ export async function POST(request: Request) {
           message: memoryEnqueueError
             ? "답변은 저장됐지만 장기 기억 반영을 확인하지 못했어요. 같은 요청으로 다시 시도해주세요."
             : !exactRetryAllowed
-              ? inputStreamError?.code === "AMORA_INPUT_TOO_LARGE"
+              ? inputStreamError
+                && (inputStreamError.code === "AMORA_INPUT_TOO_LARGE"
+                  || inputStreamError.code === "AMORA_PROVIDER_UNAVAILABLE")
                 ? inputStreamError.message
                 : privacyContextErrorCode
                   ? "개인정보 설정이 변경되었거나 안전하게 확인되지 않았어요. 최신 설정에서 새 메시지로 다시 보내주세요."

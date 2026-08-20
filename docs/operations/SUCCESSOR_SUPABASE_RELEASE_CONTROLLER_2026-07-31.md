@@ -315,10 +315,50 @@ The successful sequence is:
 7. exact post-expand encrypted backup and no-cost recovery assurance, without
    a new project, hosted restore or restore-validation claim;
 8. deployment/canary evidence while the lease and write fences remain held;
-9. dynamic exact-owner finalization.
+9. dynamic exact-owner finalization;
+10. enable the Amora provider egress switch, then confirm Amora actually answers.
 
 Any ambiguity after a write retains the lease/receipt and prohibits an
 automatic rerun.
+
+## Step 10 — the Amora provider egress switch is off after this release
+
+`supabase/migrations/20260811230000_amora_provider_egress_grant.sql` seeds
+`public.amora_provider_runtime_control` with `enabled = false` and
+`reason = 'migration_default_off'`. That default is deliberate: no provider
+egress happens until an operator turns it on. The consequence is that **the
+moment this release lands, Amora stops answering for every user**, and most of
+this release's user-visible work runs through Amora.
+
+Nothing else in this procedure turns it on, and nothing catches it:
+
+- it is not in `preApplyChecks`, `postApplyChecks` or `postPushChecks`;
+- it is not in `manualPlatformOperations`;
+- it is not in `finalizationContract.requiredCanaryChecks`, so **the canary
+  passes with Amora dead**. The thirteen canary checks cover login/logout,
+  public and authenticated reads, 5xx, console, latency, signup, the database
+  fence and the storage helper — none of them send a message to Amora.
+
+After finalization succeeds and the write fence is released, run:
+
+```
+POST <project>/rest/v1/rpc/set_amora_provider_runtime_control
+  { "p_enabled": true, "p_expected_version": <current>, "p_reason": "<release_id>" }
+```
+
+The RPC requires the `service_role` key and refuses any other caller
+(`AMORA_PROVIDER_EGRESS_SERVICE_ROLE_REQUIRED`). It is optimistic-locked on
+`p_expected_version`, and returns `{ changed, enabled, version }`. Direct table
+writes are revoked for every role, so this RPC is the only path.
+
+Then confirm by hand that Amora answers a real message in production. Until
+that confirmation exists, the release is not complete, whatever the canary and
+finalizer receipts say.
+
+Open follow-up: `requiredCanaryChecks` should grow a check that Amora answers,
+so this cannot depend on an operator remembering. That changes a hash-pinned
+contract constant and its exact-array validator, so it is deliberately left as
+a separate decision rather than bundled into the release candidate.
 
 <!-- AMORA:PENDING-SCOPE-CLASSIFICATION:BEGIN -->
 
