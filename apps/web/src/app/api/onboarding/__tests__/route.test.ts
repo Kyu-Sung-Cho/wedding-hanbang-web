@@ -250,6 +250,9 @@ describe("/api/onboarding POST", () => {
 
   it.each([
     { __events: [] },
+    { __stage: "wat" },
+    { __stage: "" },
+    { __stage: { value: "venue_booked" } },
     { unknown_category: { status: "not_started" } },
     { venue: { status: "done" } },
     { venue: { status: "completed", spent: 1_000_000_001 } },
@@ -376,6 +379,7 @@ describe("/api/onboarding POST", () => {
         totalBudget: 30_000_000,
         progress: {
           venue: { status: "completed", spent: 2_000_000 },
+          __stage: "venue_booked",
           __preferences: {
             weddingStyle: "minimal",
             priorities: ["venue"],
@@ -428,6 +432,7 @@ describe("/api/onboarding POST", () => {
         total_budget: 30_000_000,
         progress_patch: {
           venue: { status: "completed", spent: 2_000_000 },
+          __stage: "venue_booked",
           __preferences: {
             weddingStyle: "minimal",
             priorities: ["venue"],

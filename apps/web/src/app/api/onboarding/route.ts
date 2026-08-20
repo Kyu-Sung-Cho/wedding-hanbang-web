@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import {
+  isPreparationStageValue,
+  PREPARATION_STAGE_PROGRESS_KEY,
   WEDDING_BUDGET_TENDENCY_OPTIONS,
   WEDDING_GUEST_COUNT_OPTIONS,
   WEDDING_PRIORITY_OPTIONS,
@@ -230,6 +232,15 @@ function parseOnboardingProgress(
   const normalized: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
     if (key === "__events") return null;
+    // 준비 단계 — 온보딩에서 한 줄로 받는 자기 신고. 19개 카테고리와 같은 JSONB에
+    // 살지만 카테고리가 아니므로 `__` 접두 예약 키를 쓴다. 체크리스트 완료율이나
+    // 예산 어디에도 들어가지 않는다.
+    if (key === PREPARATION_STAGE_PROGRESS_KEY) {
+      if (item === null) continue;
+      if (!isPreparationStageValue(item)) return null;
+      normalized[PREPARATION_STAGE_PROGRESS_KEY] = item;
+      continue;
+    }
     if (key === "__preferences") {
       const preferences = parsePreferences(item);
       if (!preferences) return null;

@@ -13,6 +13,11 @@ interface CoupleLinkProps {
   onSelectAction: (action: "create" | "join") => void;
   partnerCode: string;
   onPartnerCodeChange: (code: string) => void;
+  /**
+   * 초대 링크를 눌러서 들어와 코드가 미리 채워졌을 때 보여줄 한 줄.
+   * 없으면 아무것도 그리지 않는다 — 직접 친 사람에게는 설명할 것이 없다.
+   */
+  prefilledNotice?: string;
 }
 
 export default function CoupleLink({
@@ -20,6 +25,7 @@ export default function CoupleLink({
   onSelectAction,
   partnerCode,
   onPartnerCodeChange,
+  prefilledNotice,
 }: CoupleLinkProps) {
   const [codeError, setCodeError] = useState("");
 
@@ -112,6 +118,9 @@ export default function CoupleLink({
             maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
             className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[16px] text-noir-800 text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 placeholder:tracking-[0.2em]"
           />
+          {prefilledNotice && !codeError && (
+            <p className="text-[12px] text-taupe-400 text-center">{prefilledNotice}</p>
+          )}
           {codeError && (
             <p className="text-[12px] text-rose-600 text-center">{codeError}</p>
           )}
