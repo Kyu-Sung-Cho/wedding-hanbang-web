@@ -83,6 +83,13 @@ export type AmoraProfileProjectionContext = {
   coupleId: string;
   memberIds: Record<AmoraMemoryActorRole, string | null>;
   allowedVisibilities: readonly AmoraMemoryVisibility[];
+  /**
+   * 중립 준비 공간이면 슬롯(bride/groom)을 라벨로 쓰지 않는다. 이 경우 라벨은
+   * 관점에 의존하므로 viewerUserId 가 함께 있어야 한다 — 없으면 누가 봐도 같은
+   * 중립 라벨을 쓴다(액터 구분은 유지되지만 "나/상대"는 알 수 없다).
+   */
+  neutralMemberPresentation?: boolean;
+  viewerUserId?: string | null;
 };
 
 export type AmoraProfileProjectionResult = {
@@ -256,17 +263,38 @@ function projectionField(node: ValidProjectionNode): ProjectionField | null {
   return null;
 }
 
-function actorLabel(actor: AmoraMemoryActorRole): string {
-  return actor === "bride" ? "신부" : "신랑";
+function actorLabel(
+  actor: AmoraMemoryActorRole,
+  context: AmoraProfileProjectionContext,
+): string {
+  if (context.neutralMemberPresentation !== true) {
+    return actor === "bride" ? "신부" : "신랑";
+  }
+  // 액터 구분은 유지해야 한다 — 한 사람의 말을 두 사람의 합의로 넓히지 않기
+  // 위해서다. 그래서 "중립"으로 뭉개지 않고 관점으로 가른다.
+  const viewerId = context.viewerUserId ?? null;
+  if (viewerId !== null) {
+    const actorId = context.memberIds[actor];
+    if (actorId !== null) {
+      return actorId === viewerId ? "본인" : "상대";
+    }
+  }
+  // 관점을 모르면 누가 봐도 같은 안정된 이름을 쓴다. 슬롯 이름을 노출하지
+  // 않으면서 두 사람을 구분한다.
+  return actor === "bride" ? "구성원 1" : "구성원 2";
 }
 
-function contributionText(node: ValidProjectionNode): string {
-  return `${actorLabel(node.sourceActorRole)} 명시 · ${node.memoryKey} = ${node.value}`;
+function contributionText(
+  node: ValidProjectionNode,
+  context: AmoraProfileProjectionContext,
+): string {
+  return `${actorLabel(node.sourceActorRole, context)} 명시 · ${node.memoryKey} = ${node.value}`;
 }
 
 function projectVisibility(
   visibility: AmoraMemoryVisibility,
   nodes: readonly ValidProjectionNode[],
+  context: AmoraProfileProjectionContext,
 ): ProjectedAmoraProfile | null {
   const byActorAndKey = new Map<string, ValidProjectionNode>();
   for (const node of nodes) {
@@ -306,7 +334,7 @@ function projectVisibility(
   const fieldText = (field: ProjectionField) => {
     const values = contributions
       .filter((item) => item.field === field)
-      .map((item) => contributionText(item.node));
+      .map((item) => contributionText(item.node, context));
     if (values.length === 0) return null;
     const joined = values.join(" / ");
     return joined.length <= AMORA_PROFILE_FIELD_MAX_CHARS
@@ -353,7 +381,7 @@ export function projectAmoraProfiles(
   const allowed = new Set(context.allowedVisibilities);
   const profiles = VISIBILITY_ORDER
     .filter((visibility) => allowed.has(visibility))
-    .map((visibility) => projectVisibility(visibility, validNodes))
+    .map((visibility) => projectVisibility(visibility, validNodes, context))
     .filter((profile): profile is ProjectedAmoraProfile => profile !== null);
   return { profiles, rejectedReason: null };
 }

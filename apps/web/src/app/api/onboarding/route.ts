@@ -9,7 +9,10 @@ import {
 
 import { determineStage } from "@/lib/ai/stage-router";
 import {
+  isMembershipRpcMissing,
+  joinNeutralPreparationSpaceThroughServerRpc,
   parseMembershipRpcResponse,
+  parseNeutralMembershipRpcResponse,
   type CoupleRole,
   type MembershipAction,
 } from "@/lib/couples/membershipRpc";
@@ -813,6 +816,7 @@ export async function POST(request: Request) {
 
     const {
       role: rawRole,
+      membershipMode: rawMembershipMode,
       coupleAction: rawCoupleAction,
       partnerInviteCode,
       weddingDate: rawWeddingDate,
@@ -822,10 +826,34 @@ export async function POST(request: Request) {
       progress,
     } = body;
 
-    if (rawRole !== "bride" && rawRole !== "groom") {
+    // 중립 준비 공간: 역할을 묻지 않고 시작한다. 내부 슬롯 배정은 DB 함수가 하고,
+    // 앱은 그 값을 정체성으로 취급하지 않는다.
+    if (
+      rawMembershipMode !== undefined
+      && rawMembershipMode !== "neutral_preparation_space"
+    ) {
+      return privateResponse({ error: "유효하지 않은 준비 공간 방식입니다." }, 400);
+    }
+    const neutralPreparationSpace =
+      rawMembershipMode === "neutral_preparation_space";
+    if (
+      neutralPreparationSpace
+      && process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED !== "true"
+    ) {
+      return privateResponse({
+        error: "중립 준비 공간을 아직 사용할 수 없습니다.",
+        code: "NEUTRAL_PREPARATION_SPACE_UNAVAILABLE",
+      }, 404);
+    }
+    if (neutralPreparationSpace && rawRole !== undefined && rawRole !== null) {
+      return privateResponse({ error: "중립 준비 공간에는 역할을 보내지 않습니다." }, 400);
+    }
+    if (!neutralPreparationSpace && rawRole !== "bride" && rawRole !== "groom") {
       return privateResponse({ error: "유효하지 않은 역할입니다." }, 400);
     }
-    const role: CoupleRole = rawRole;
+    const role: CoupleRole | null = neutralPreparationSpace
+      ? null
+      : (rawRole as CoupleRole);
 
     if (rawCoupleAction !== "create" && rawCoupleAction !== "join") {
       return privateResponse({ error: "유효하지 않은 커플 연결 방식입니다." }, 400);
@@ -908,23 +936,44 @@ export async function POST(request: Request) {
     const admin = getAdmin();
     await ensureProfileExists(admin, user);
 
-    const rpcResponse =
-      coupleAction === "create"
-        ? await supabase.rpc("create_couple_for_current_user", { p_role: role })
+    const rpcResponse = neutralPreparationSpace
+      ? coupleAction === "create"
+        ? await supabase.rpc("create_neutral_preparation_space_for_current_user", {})
+        : await joinNeutralPreparationSpaceThroughServerRpc(admin, {
+            actorUserId: user.id,
+            inviteCode: normalizedInviteCode!,
+          })
+      : coupleAction === "create"
+        ? await supabase.rpc("create_couple_for_current_user", { p_role: role! })
         : await supabase.rpc("join_couple", {
             p_invite_code: normalizedInviteCode,
-            p_role: role,
+            p_role: role!,
           });
 
     if (rpcResponse.error) {
       console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
+      // 함수 자체가 없으면(=마이그레이션 미적용) "잠시 후 다시" 는 거짓말이다.
+      // 몇 번을 눌러도 안 되고, 사용자는 자기가 뭘 잘못한 줄 안다.
+      if (isMembershipRpcMissing(rpcResponse.error)) {
+        return privateResponse(
+          {
+            error: neutralPreparationSpace
+              ? "새 방식 준비 공간을 아직 사용할 수 없어요. 잠시 뒤 다시 열립니다."
+              : "커플 연결 기능을 일시적으로 사용할 수 없어요.",
+            code: "MEMBERSHIP_RPC_UNAVAILABLE",
+          },
+          503,
+        );
+      }
       return privateResponse(
         { error: "커플 연결을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
         500,
       );
     }
 
-    const membership = parseMembershipRpcResponse(rpcResponse.data, role, coupleAction);
+    const membership = neutralPreparationSpace
+      ? parseNeutralMembershipRpcResponse(rpcResponse.data, coupleAction)
+      : parseMembershipRpcResponse(rpcResponse.data, role!, coupleAction);
     if (!membership.ok) {
       console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
       return privateResponse({ error: membership.message }, membership.status);
@@ -968,7 +1017,13 @@ export async function POST(request: Request) {
       void (async () => {
         try {
           const stageTag = determineStage(weddingDate);
-          const baseMeta = { hook: "onboarding", role, coupleAction };
+          const baseMeta = neutralPreparationSpace
+            ? {
+                hook: "onboarding",
+                membershipMode: "neutral_preparation_space",
+                coupleAction,
+              }
+            : { hook: "onboarding", role, coupleAction };
 
           if (weddingDate && shouldRecordFullPlan) {
             await recordDecision({

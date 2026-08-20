@@ -2,6 +2,10 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePreparationStatus } from "@hanbang/shared";
 import {
+  PARTNER_TARGET_SUFFIX,
+  speakerLabelFor,
+} from "@/lib/ai/speakerLabels";
+import {
   buildMultimodalContent,
   buildToolResultInput,
   chatWithToolsStream,
@@ -1860,10 +1864,67 @@ export async function POST(request: Request) {
     allowClientContext: isDemo,
   });
 
+  // 중립 준비 공간에서 bride/groom은 저장 슬롯일 뿐 사용자 정체성이 아니다.
+  // 그 값을 그대로 라벨로 쓰면 아모라가 고르지도 않은 성별로 사용자를 부른다.
+  // 플래그가 꺼져 있으면 컬럼을 조회하지 않는다 — 마이그레이션 전에 배포돼도
+  // 42703으로 채팅이 죽지 않게 한다.
+  let memberModelVersion: 1 | 2 = 1;
+  if (
+    !isDemo
+    && process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true"
+  ) {
+    const memberModelResult = await supabase
+      .from("couples")
+      .select("member_model_version")
+      .eq("id", dataCoupleId)
+      .maybeSingle();
+
+    // 컬럼이 아직 없다(=마이그레이션 미적용)면 중립 커플이 존재할 수 없다.
+    // 그 상태에서 v1로 읽는 것은 추측이 아니라 사실이다. 이걸 503으로 만들면
+    // 플래그를 켜는 순간 기존 커플까지 채팅이 통째로 멈춘다.
+    const schemaNotReady = memberModelResult.error !== null
+      && ["42703", "PGRST202", "PGRST204"].includes(
+        String((memberModelResult.error as { code?: unknown }).code ?? ""),
+      );
+
+    if (schemaNotReady) {
+      console.warn(
+        "[chat] member_model_version 미적용 — v1로 처리한다",
+        memberModelResult.error?.code,
+      );
+    } else {
+      const rawMemberModelVersion = isRecord(memberModelResult.data)
+        ? memberModelResult.data.member_model_version
+        : null;
+      if (
+        memberModelResult.error
+        || (rawMemberModelVersion !== 1 && rawMemberModelVersion !== 2)
+      ) {
+        // 여기는 일시 장애다. 잘못 추측하면 중립 사용자에게 성별이 찍히므로
+        // 추측하지 않고 멈춘다.
+        console.error("[chat] member model lookup failed", memberModelResult.error);
+        await releaseClaimBeforeStream("AMORA_MEMBER_MODEL_UNAVAILABLE");
+        return NextResponse.json(
+          {
+            error: "현재 준비 공간의 구성 방식을 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+            code: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+          },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      memberModelVersion = rawMemberModelVersion;
+    }
+  }
+  const usesNeutralMemberPresentation = memberModelVersion === 2;
+
   // 프로필에서 신부/신랑 이름 추출
   const profiles = profilesResult.data ?? [];
-  const brideName = profiles.find((p) => p.role === "bride")?.name ?? null;
-  const groomName = profiles.find((p) => p.role === "groom")?.name ?? null;
+  const brideName = usesNeutralMemberPresentation
+    ? null
+    : profiles.find((p) => p.role === "bride")?.name ?? null;
+  const groomName = usesNeutralMemberPresentation
+    ? null
+    : profiles.find((p) => p.role === "groom")?.name ?? null;
   const memberIds = {
     bride: profiles.find((profile) => profile.role === "bride")?.id ?? null,
     groom: profiles.find((profile) => profile.role === "groom")?.id ?? null,
@@ -2172,8 +2233,14 @@ export async function POST(request: Request) {
     if (row.sender_type === "ai" || row.role === "assistant") {
       return { role: "assistant" as const, content: row.content, id: row.id };
     }
-    const roleLabel = row.sender_type === "bride" ? "신부" : "신랑";
-    const targetLabel = row.metadata?.target === "partner" ? "→상대방" : "";
+    const roleLabel = speakerLabelFor({
+      neutral: usesNeutralMemberPresentation,
+      isSelf: row.sender_id === actorId,
+      senderType: row.sender_type,
+    });
+    const targetLabel = row.metadata?.target === "partner"
+      ? PARTNER_TARGET_SUFFIX
+      : "";
     return {
       role: "user" as const,
       content: `[${roleLabel}${targetLabel}] ${row.content}`,
@@ -2191,8 +2258,11 @@ export async function POST(request: Request) {
   let lastUserText: string;
 
   if (requestKind === "initial_greeting") {
-    const roleLabel =
-      userProfile.role === "groom"
+    // 중립 준비 공간에서는 내부 슬롯이 bride로 배정되므로 role을 그대로 쓰면
+    // 아모라가 고르지도 않은 성별로 사용자를 부른다. 슬롯은 라벨이 아니다.
+    const roleLabel = usesNeutralMemberPresentation
+      ? "사용자"
+      : userProfile.role === "groom"
         ? "신랑"
         : userProfile.role === "bride"
           ? "신부"
@@ -2203,8 +2273,11 @@ export async function POST(request: Request) {
       { role: "user", content: `[${roleLabel}] ${lastUserText}` },
     ];
   } else if (requestKind === "mediation") {
-    const roleLabel =
-      userProfile.role === "groom"
+    // 중립 준비 공간에서는 내부 슬롯이 bride로 배정되므로 role을 그대로 쓰면
+    // 아모라가 고르지도 않은 성별로 사용자를 부른다. 슬롯은 라벨이 아니다.
+    const roleLabel = usesNeutralMemberPresentation
+      ? "사용자"
+      : userProfile.role === "groom"
         ? "신랑"
         : userProfile.role === "bride"
           ? "신부"
@@ -2500,10 +2573,10 @@ export async function POST(request: Request) {
       ? routeSpecialist(lastUserText, stageTag)
       : "general" as const;
 
-  // Private 모드 안내 (신부/신랑이 단독으로 아모라에게 털어놓는 채팅)
+  // Private 모드 안내 (한 사람이 단독으로 아모라에게 털어놓는 채팅)
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
     ? (allowsStoredProviderContext
-      ? `[PRIVATE_MODE] 이 메시지는 ${visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n`
+      ? `[PRIVATE_MODE] 이 메시지는 ${usesNeutralMemberPresentation ? "이 사용자" : visibility === "bride_private" ? "신부" : "신랑"} 분이 **상대방 모르게** 아모라에게만 털어놓는 비공개 대화입니다.\n`
       : "[PRIVATE_MODE] 이 메시지는 사용자의 개인 비공개 대화입니다.\n") +
       `- 상대방을 비난하거나 편드는 발언 금지. 객관적·공감적으로.\n` +
       `- 이 대화 내용은 절대 상대방의 채팅(shared/상대방의 private)에서 언급·인용하지 마세요. 시스템이 격리하지만 아모라도 의식적으로 분리.\n` +
@@ -2602,6 +2675,8 @@ export async function POST(request: Request) {
     ),
     brideName,
     groomName,
+    // 프롬프트의 접두어 규칙이 런타임과 같은 문자열을 쓰게 한다.
+    neutralMemberPresentation: usesNeutralMemberPresentation,
     senderName: safeSenderName,
     // Legacy booking rows are outside the current web MVP and are not sent
     // to the model merely because they still exist in the database.

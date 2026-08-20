@@ -10,7 +10,7 @@ describe("BetaForm role support boundary", () => {
     );
 
     expect(html).toContain(
-      "현재 베타 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요.",
+      "지금은 한 공간에서 두 사람이 함께 준비하는 구성부터 지원해요.",
     );
     expect(html).toContain(
       "다양한 커플 형태도 개인정보와 대화 기록을 안전하게 지킬 수 있는 구조로 준비하고 있어요.",
