@@ -10,6 +10,10 @@ const PROFILE_AUTH_COLUMNS =
   "id, name, role, couple_id, onboarding_completed, onboarding_step, is_admin, care_notifications_enabled, care_notifications_consented_at, created_at, updated_at";
 const COUPLE_AUTH_COLUMNS =
   "id, bride_id, groom_id, membership_sealed_at, created_at, updated_at";
+// member_model_version 은 20260816180000 에서 생긴다. 미적용 DB에서 이 컬럼을
+// 같이 select 하면 42703 으로 커플 조회 전체가 죽으므로 따로 읽고, 실패하면
+// v1 로 본다 — 그 상태에서는 중립 커플이 존재할 수 없다.
+const COUPLE_MEMBER_MODEL_COLUMN = "member_model_version";
 
 const JOURNEY_AUTH_COLUMNS =
   "id, couple_id, wedding_date, venue, total_budget, progress, state_revision, created_at, updated_at";
@@ -125,9 +129,21 @@ export async function GET(request: Request) {
       if (coupleErr) _debug.coupleSelectError = coupleErr.message;
 
       if (coupleData) {
+        const { data: memberModelData } = await supabase
+          .from("couples")
+          .select(COUPLE_MEMBER_MODEL_COLUMN)
+          .eq("id", profile.couple_id)
+          .maybeSingle();
+        const memberModelVersion =
+          memberModelData !== null
+          && typeof memberModelData === "object"
+          && (memberModelData as Record<string, unknown>).member_model_version === 2
+            ? 2
+            : 1;
+
         // Invite codes are fetched only through /api/couple/code, which also
         // enforces the current roster phase before revealing them.
-        couple = { ...coupleData, invite_code: null };
+        couple = { ...coupleData, invite_code: null, member_model_version: memberModelVersion };
 
         // 파트너 정보
         const partnerId =

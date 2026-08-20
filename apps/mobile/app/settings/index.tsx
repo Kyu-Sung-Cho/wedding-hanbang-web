@@ -95,6 +95,7 @@ export default function SettingsScreen() {
 
   // 파트너 관리
   const [partnerName, setPartnerName] = useState<string | null>(null);
+  const [usesNeutralMembers, setUsesNeutralMembers] = useState(false);
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
@@ -140,6 +141,7 @@ export default function SettingsScreen() {
 
         let nextPartnerName: string | null = null;
         let nextCoupleConnection = resolveCoupleConnectionState(null);
+        let nextUsesNeutralMembers = false;
 
         // 파트너 정보 로드
         if (profile?.couple_id) {
@@ -151,6 +153,15 @@ export default function SettingsScreen() {
               .select("name")
               .eq("couple_id", profile.couple_id)
               .neq("id", user.id);
+
+            // 컬럼이 없는 DB에서는 조회가 실패한다. 그 상태에선 중립 커플이
+            // 존재할 수 없으므로 기존(v1)으로 본다.
+            const { data: memberModel } = await supabase
+              .from("couples")
+              .select("member_model_version")
+              .eq("id", profile.couple_id)
+              .maybeSingle();
+            nextUsesNeutralMembers = memberModel?.member_model_version === 2;
 
             partnerPresent = Boolean(partners && partners.length > 0);
             if (partners && partners.length > 0) {
@@ -176,6 +187,7 @@ export default function SettingsScreen() {
         if (loadToken.isCurrent()) {
           setPartnerName(nextPartnerName);
           setCoupleConnection(nextCoupleConnection);
+          setUsesNeutralMembers(nextUsesNeutralMembers);
           setLegacyCareConsentActive(hasActiveCareConsent(profile));
           setData(loadedData);
           setInitialData(loadedData);
@@ -541,8 +553,11 @@ export default function SettingsScreen() {
     );
   }
 
-  const roleLabel =
-    data?.role === "bride"
+  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
+  // "-"로 바꾸면 "설정 안 함"으로 읽히므로 필드 자체를 감춘다.
+  const roleLabel = usesNeutralMembers
+    ? null
+    : data?.role === "bride"
       ? "신부"
       : data?.role === "groom"
         ? "신랑"
@@ -629,14 +644,18 @@ export default function SettingsScreen() {
             <Text style={styles.fieldHint}>게시글, 댓글, 동기방에서 표시돼요</Text>
           </View>
 
-          <View style={styles.divider} />
+          {roleLabel !== null && (
+            <>
+              <View style={styles.divider} />
 
-          <View style={styles.field}>
-            <Text style={styles.label}>역할</Text>
-            <View style={styles.readOnlyField}>
-              <Text style={styles.readOnlyText}>{roleLabel}</Text>
-            </View>
-          </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>역할</Text>
+                <View style={styles.readOnlyField}>
+                  <Text style={styles.readOnlyText}>{roleLabel}</Text>
+                </View>
+              </View>
+            </>
+          )}
         </Surface>
 
         {/* 섹션 2: 결혼 정보 */}

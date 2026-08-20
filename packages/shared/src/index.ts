@@ -15,3 +15,4 @@ export * from "./contracts/decisionPacket";
 export * from "./contracts/commandLease";
 export * from "./contracts/preparationStatus";
 export * from "./contracts/coupleInviteCode";
+export * from "./contracts/neutralPreparationSpace";

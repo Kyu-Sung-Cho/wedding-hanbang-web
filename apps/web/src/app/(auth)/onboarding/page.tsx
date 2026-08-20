@@ -32,6 +32,11 @@ export default function OnboardingPage() {
   // 서버가 플래그를 판정해 capabilities로 내려준다 — 클라이언트가 정하지 않는다.
   const [neutralPreparationSpaceEnabled, setNeutralPreparationSpaceEnabled] =
     useState(false);
+  // 판정이 끝나기 전에는 어느 쪽도 그리지 않는다. 기본값 false로 그려버리면
+  // 첫 페인트에 역할 선택(👰 신부 / 🤵 신랑)이 번쩍이고, /api/auth/me 가
+  // 실패하면 그 화면이 영구가 된다 — 플래그가 켜져 있어도.
+  const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
+  const [capabilitiesFailed, setCapabilitiesFailed] = useState(false);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -46,6 +51,7 @@ export default function OnboardingPage() {
         setNeutralPreparationSpaceEnabled(
           parseNeutralPreparationSpaceCapability(data.capabilities),
         );
+        setCapabilitiesResolved(true);
         if (!data.profile) {
           return; // 프로필 없으면 온보딩 진행
         }
@@ -57,7 +63,9 @@ export default function OnboardingPage() {
           );
         }
       } catch {
-        // 에러 시 온보딩 계속 진행
+        // 판정 실패를 "역할을 물어봐도 된다"로 읽지 않는다. 사용자에게 다시
+        // 시도할 길을 주고, 그 전까지는 아무것도 그리지 않는다.
+        setCapabilitiesFailed(true);
       }
     };
     checkProfile();
@@ -263,14 +271,35 @@ export default function OnboardingPage() {
         </div>
 
         {/* 중립 준비 공간은 첫 가치를 막는 역할·상세 스텝을 건너뛴다. */}
-        {!neutralPreparationSpaceEnabled && (
+        {capabilitiesResolved && !neutralPreparationSpaceEnabled && (
           <StepIndicator currentStep={store.currentStep} />
         )}
 
         {/* 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
-          {neutralPreparationSpaceEnabled ? (
+          {capabilitiesFailed ? (
+            <div className="py-10 text-center" role="alert">
+              <p className="text-[15px] text-[#1A1A1F]">
+                준비 화면을 불러오지 못했어요.
+              </p>
+              <p className="mt-2 text-[13px] text-taupe-400">
+                연결을 확인하고 다시 시도해 주세요.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-5 min-h-11 rounded-xl bg-[#795252] px-5 text-sm font-medium text-white"
+              >
+                다시 시도
+              </button>
+            </div>
+          ) : !capabilitiesResolved ? (
+            <div className="py-16 text-center" aria-busy="true">
+              <p className="text-[13px] text-taupe-400">불러오는 중…</p>
+            </div>
+          ) : neutralPreparationSpaceEnabled ? (
             <NeutralPreparationStart
+              error={error}
               coupleAction={store.coupleAction === "join" ? "join" : null}
               partnerCode={store.partnerInviteCode}
               loading={loading}
