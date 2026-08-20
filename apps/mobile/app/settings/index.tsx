@@ -39,6 +39,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
 import {
+  describeCoupleInviteWindow,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
 } from "@hanbang/shared";
@@ -65,6 +66,8 @@ type CoupleCodeResponse = {
   inviteCode?: unknown;
   isFullyLinked?: unknown;
   isMembershipSealed?: unknown;
+  inviteCodeExpiresAt?: unknown;
+  inviteCodeReissued?: unknown;
 };
 
 export default function SettingsScreen() {
@@ -563,6 +566,7 @@ export default function SettingsScreen() {
         ? "신랑"
         : data?.role ?? "-";
   const phase = coupleConnection.phase;
+  const inviteWindowNotice = describeCoupleInviteWindow(coupleConnection);
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -818,27 +822,29 @@ export default function SettingsScreen() {
                 <View style={styles.field}>
                   <Text style={styles.label}>커플 초대 코드</Text>
                   <View style={styles.codeRow}>
-                    <View style={styles.codeBox}>
-                      <Text style={styles.codeText}>{coupleConnection.inviteCode}</Text>
-                    </View>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.copyBtn,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                      onPress={copyInviteCode}
-                      disabled={!coupleConnection.canInvite}
-                      accessibilityRole="button"
-                      accessibilityLabel="커플 초대 코드 복사"
-                    >
-                      {codeCopied ? (
-                        <Check size={16} color={colors.rose[500]} />
-                      ) : (
-                        <Copy size={16} color={colors.rose[500]} />
+                      <View style={styles.codeBox}>
+                        <Text style={styles.codeText}>{coupleConnection.inviteCode}</Text>
+                      </View>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.copyBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                        onPress={copyInviteCode}
+                        disabled={!coupleConnection.canInvite}
+                        accessibilityRole="button"
+                        accessibilityLabel="커플 초대 코드 복사"
+                      >
+                        {codeCopied ? (
+                          <Check size={16} color={colors.rose[500]} />
+                        ) : (
+                          <Copy size={16} color={colors.rose[500]} />
                       )}
                     </Pressable>
                   </View>
-                  <Text style={styles.fieldHint}>이 코드를 파트너에게 공유해 주세요</Text>
+                  <Text style={styles.fieldHint}>
+                    {inviteWindowNotice?.message ?? "이 코드를 파트너에게 공유해 주세요"}
+                  </Text>
                 </View>
               ) : phase === "linked" ? (
                 <View style={styles.connectionNotice}>

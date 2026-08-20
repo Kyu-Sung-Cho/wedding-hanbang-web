@@ -116,6 +116,7 @@ const LEGACY_ERROR_CODES: Record<string, string> = {
   "Unauthenticated.": "UNAUTHENTICATED",
   "Invalid role.": "INVALID_ROLE",
   "Invalid invite code.": "INVALID_INVITE_CODE",
+  "Invite code expired.": "INVITE_CODE_EXPIRED",
   "Profile not found.": "PROFILE_NOT_FOUND",
   "Account membership is inconsistent.": "MEMBERSHIP_INCONSISTENT",
   "This account is already linked to another couple.": "ALREADY_LINKED_TO_ANOTHER_COUPLE",
@@ -130,6 +131,13 @@ const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
   INVALID_INVITE_CODE: {
     status: 404,
     message: "초대 코드가 올바르지 않습니다. 코드를 다시 확인해주세요.",
+  },
+  // 만료를 "코드가 틀렸다"로 말하면 사람은 자기 오타를 의심하며 같은 코드를 다시
+  // 친다 — 몇 번을 쳐도 되지 않고, 10분 10회 제한까지 걸린다. 할 일이 다르므로
+  // 다르게 말한다. (supabase/migrations/20260820150000)
+  INVITE_CODE_EXPIRED: {
+    status: 410,
+    message: "이 초대 코드는 만료됐어요. 파트너에게 새 코드를 받아 다시 입력해 주세요.",
   },
   INVITE_CODE_EXHAUSTED: {
     status: 503,
@@ -215,6 +223,10 @@ const NEUTRAL_ERROR_RESPONSES: Record<string, { status: number; message: string 
   INVALID_INVITE_CODE: {
     status: 404,
     message: "초대 코드를 찾지 못했어요. 코드를 다시 확인해 주세요.",
+  },
+  INVITE_CODE_EXPIRED: {
+    status: 410,
+    message: "이 초대 코드는 만료됐어요. 코드를 만든 분에게 새 코드를 요청해 주세요.",
   },
   ALREADY_LINKED: {
     status: 409,

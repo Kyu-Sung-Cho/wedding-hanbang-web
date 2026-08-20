@@ -194,12 +194,21 @@ async function compareAndSwapInviteCode(
   return (data as CoupleRecord | null) ?? null;
 }
 
-function activeCodeResponse(couple: CoupleRecord) {
+/**
+ * `reissued` 는 **이번 요청이 실제로 코드를 갈아끼웠을 때만** 참이다.
+ * 저장된 타임스탬프로 "예전에 바뀐 적 있나"를 추측하지 않는다 -
+ * 20260812030000:81-91 은 invite_code 를 그대로 둔 채 invite_code_issued_at 만
+ * 찍은 행도 만들었고, 그걸 재발급으로 읽으면 코드가 바뀐 적 없는 사람에게
+ * "예전 코드는 더 이상 쓸 수 없다"는 거짓말을 하게 된다.
+ */
+function activeCodeResponse(couple: CoupleRecord, reissued = false) {
   if (couple.membership_sealed_at) {
     return {
       inviteCode: null,
       isFullyLinked: isFullyLinked(couple),
       isMembershipSealed: true,
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
     };
   }
   if (!validateInviteCode(couple.invite_code)) {
@@ -213,6 +222,8 @@ function activeCodeResponse(couple: CoupleRecord) {
     inviteCode: couple.invite_code,
     isFullyLinked: isFullyLinked(couple),
     isMembershipSealed: false,
+    inviteCodeExpiresAt: couple.invite_code_expires_at ?? null,
+    inviteCodeReissued: reissued,
   };
 }
 
@@ -268,7 +279,9 @@ export async function GET(request: Request) {
       if (!isMember(updated, authData.user.id)) {
         throw new CoupleCodeError(409, "커플 연결 상태가 변경됐어요.", "UPDATE_MEMBERSHIP_CHANGED");
       }
-      return NextResponse.json(activeCodeResponse(updated));
+      // 만료된 코드를 갈아끼운 경우에만 "다시 보내라"고 말한다. 코드가 아예
+      // 없어서 처음 발급한 경우는 보낸 적도 없으니 할 말이 아니다.
+      return NextResponse.json(activeCodeResponse(updated, expired));
     }
 
     // Another join or code request won the compare-and-swap. Re-read the
@@ -326,7 +339,7 @@ export async function POST(request: Request) {
       if (!isMember(updated, authData.user.id) || updated.invite_code !== generatedCode) {
         throw new CoupleCodeError(409, "커플 연결 상태가 변경됐어요.", "UPDATE_STATE_MISMATCH");
       }
-      return NextResponse.json({ inviteCode: generatedCode });
+      return NextResponse.json(activeCodeResponse(updated, true));
     }
 
     const canonical = await loadCoupleById(admin, coupleId, authData.user.id);
@@ -344,7 +357,7 @@ export async function POST(request: Request) {
         "REGENERATION_UNRESOLVED_RACE",
       );
     }
-    return NextResponse.json({ inviteCode: canonical.invite_code });
+    return NextResponse.json(activeCodeResponse(canonical));
   } catch (error) {
     return handleError(error, "POST");
   }
