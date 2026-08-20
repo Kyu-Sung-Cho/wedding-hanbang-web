@@ -203,7 +203,18 @@ test("amora is never introduced as a planner on any active mobile screen", () =>
   // 웹에는 같은 금지가 amoraVoiceReach.test.ts:28에 이미 있었는데 모바일은 그 테스트
   // 밖이라, 채팅 헤더가 "AI 웨딩 플래너"인 채로 계속 배포되고 있었다.
   const published = ACTIVE_PRODUCT_SOURCES.join("\n");
-  for (const banned of ["웨딩 플래너", "웨딩플래너", "AI 플래너"]) {
+  // 영문 표기도 막는다. 한글만 막아뒀더니 라운지 전폭 카드의 eyebrow가
+  // "AI WEDDING PLANNER"인 채로 이 가드를 그대로 지나갔다 — 대문자 장식 문구라
+  // 눈에도 덜 띄고, 사용자에게는 똑같이 보이는 자리다.
+  for (const banned of [
+    "웨딩 플래너",
+    "웨딩플래너",
+    "AI 플래너",
+    "WEDDING PLANNER",
+    "Wedding Planner",
+    "wedding planner",
+    "AI PLANNER",
+  ]) {
     assert.ok(
       !published.includes(banned),
       `아모라를 "${banned}"로 소개하는 문구가 남아 있습니다`,

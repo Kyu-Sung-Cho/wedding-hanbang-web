@@ -493,31 +493,6 @@ export default function WeddingHomeExperience({
             </Pressable>
           ) : null}
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.amoraCard,
-              pressed && styles.heroPressed,
-            ]}
-            // 라운지의 전폭 카드에서 왔다는 맥락을 들고 간다. FAB·첫 도착 CTA·탭과 목적지가
-            // 같아도, 대화가 열렸을 때 놓이는 첫 문장이 서로 달라야 문이 네 개인 값을 한다.
-            onPress={() => router.push("/(tabs)/chat?entry=lounge_card")}
-            accessibilityRole="button"
-            accessibilityLabel="아모라에게 결혼 준비 상담하기"
-          >
-            <View style={styles.amoraIcon}>
-              <Sparkles size={22} color={colors.gold.light} />
-            </View>
-            <View style={styles.amoraCopy}>
-              <AppText variant="eyebrow" style={styles.amoraEyebrow}>
-                AI WEDDING PLANNER
-              </AppText>
-              <Text style={styles.amoraTitle}>막막한 순간은 아모라에게</Text>
-              <Text style={styles.amoraDescription}>
-                일정과 예산을 보고, 두 사람이 다음에 확인할 일을 함께 정리해요.
-              </Text>
-            </View>
-            <MessageCircleHeart size={22} color={colors.rose.light} />
-          </Pressable>
 
           <View style={styles.trustPromise}>
             <View style={styles.trustIcon}>
@@ -894,44 +869,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
-  },
-  amoraCard: {
-    minHeight: 140,
-    marginTop: spacing[6],
-    padding: spacing[5],
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing[4],
-    borderRadius: radius["3xl"],
-    backgroundColor: colors.noir[900],
-  },
-  amoraIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.noir.soft,
-  },
-  amoraCopy: {
-    flex: 1,
-  },
-  amoraEyebrow: {
-    color: colors.rose.light,
-    marginBottom: spacing[1],
-  },
-  amoraTitle: {
-    fontSize: 17,
-    lineHeight: 24,
-    fontFamily: "NotoSansKR_700Bold",
-    color: colors.surface,
-  },
-  amoraDescription: {
-    marginTop: spacing[1],
-    fontSize: 12,
-    lineHeight: 19,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.gold.light,
   },
   trustPromise: {
     marginTop: spacing[5],

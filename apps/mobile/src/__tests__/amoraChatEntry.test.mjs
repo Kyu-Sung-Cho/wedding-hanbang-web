@@ -104,7 +104,9 @@ test("an entry the app does not know leaves the composer empty", () => {
 test("the doors into Amora no longer open the same empty screen", () => {
   const doors = new Map([
     ["FAB", loungeSource],
-    ["라운지 카드", homeExperienceSource],
+    // 상시 전폭 카드는 지웠다. 여기 남은 것은 "오늘 확인할 게 없다"고 말한 뒤의 CTA다 —
+    // 조건이 붙은 문이라 FAB과 같은 자리에 늘 함께 있지 않는다.
+    ["히어로 CTA", homeExperienceSource],
     ["첫 도착 CTA", arrivalSource],
   ]);
 
@@ -124,7 +126,9 @@ test("the doors into Amora no longer open the same empty screen", () => {
   }
   // 문이 여럿인데 같은 것을 들고 가면, 문을 여러 개 둔 값을 하나도 못 한다.
   assert.equal(new Set(used).size, used.length, "두 문이 같은 맥락을 들고 갑니다");
-  assert.ok(used.length >= 4);
+  // 상시로 겹치던 전폭 카드를 지운 뒤의 수다. 늘어나는 건 괜찮지만, 늘릴 때마다
+  // 그 문이 무엇을 다르게 들고 가는지 답할 수 있어야 한다.
+  assert.ok(used.length >= 3);
 
   // 파라미터 없는 예전 push가 남아 있으면 그 문은 다시 같은 빈 화면으로 떨어진다.
   for (const [name, source] of doors) {
