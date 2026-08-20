@@ -16,6 +16,9 @@ export const colors = {
   rose: {
     500: "#A77B74",
     600: "#8F6662",
+    // rose-600의 눌림·hover 단계. 상호작용 상태 색이 없어 랜딩이 이 값을 직접 써 왔다.
+    // 웹 globals.css에만 있던 값을 2026-08-20에 여기로 올렸다.
+    700: "#7D5753",
     light: "#D2B4AA",
     pale: "#EADDD8",
     glow: "rgba(167, 123, 116, 0.16)",
@@ -27,6 +30,9 @@ export const colors = {
     100: "#F7F1E8",
     200: "#EFE4D7",
     warm: "#F6EFE5",
+    // ivory-200과 rose-pale 사이의 따뜻한 표면. 섹션 배경·칩 배경으로 쓰인다.
+    // 웹 globals.css에만 있던 값을 2026-08-20에 여기로 올렸다.
+    blush: "#F3E9DD",
     deep: "#E8DCCB",
   },
 
@@ -67,6 +73,9 @@ export const colors = {
   success: "#6D806E",
   warning: "#B89785",
   danger: "#D95F5F",
+  // danger의 진한 단계(웹 --danger-700). `danger`를 객체로 바꾸면 모바일 59곳이
+  // 한 번에 깨지므로 형제 키로 둔다.
+  dangerDeep: "#9F3535",
   info: "#36534E",
 
   // Ad disclosure badges

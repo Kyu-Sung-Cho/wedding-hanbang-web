@@ -9,6 +9,8 @@
     "build": "node ../../scripts/build-web-safely.mjs",
     "start": "npx next start",
     "lint": "eslint",
+    "tokens:sync": "tsx ./scripts/sync-design-token-css.mjs",
+    "tokens:check": "tsx ./scripts/sync-design-token-css.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo"
