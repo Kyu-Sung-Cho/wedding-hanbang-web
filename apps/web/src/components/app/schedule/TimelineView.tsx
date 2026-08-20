@@ -23,6 +23,7 @@ import {
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
+import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource";
 import {
   findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
@@ -380,6 +381,9 @@ export default function TimelineView({
                                   </p>
                                 )}
                                 {data.merged.map((item) => (
+                                  // 근거 링크는 체크박스 **밖**에 둔다. 버튼 안에 링크를
+                                  // 넣으면 잘못된 마크업이고 누를 때 무엇이 실행될지 애매하다.
+                                  <div key={item.id} className="flex flex-col">
                                   <button
                                     type="button"
                                     role="checkbox"
@@ -389,7 +393,6 @@ export default function TimelineView({
                                     aria-describedby={item.note ? `tl-${cat.key}-${item.id}-note` : undefined}
                                     aria-disabled={data.excluded}
                                     disabled={data.excluded || togglingItem === item.id}
-                                    key={item.id}
                                     onClick={() =>
                                       handleToggle(cat.key, item)
                                     }
@@ -421,6 +424,8 @@ export default function TimelineView({
                                       }`}
                                     />
                                   </button>
+                                  <ChecklistItemSource itemId={item.id} indentClassName="ml-[30px]" />
+                                  </div>
                                 ))}
                               </div>
                             </div>

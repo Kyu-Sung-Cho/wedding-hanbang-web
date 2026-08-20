@@ -35,7 +35,7 @@ import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
-import { noteSourceLink } from "@/lib/etiquette/noteSources";
+import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
@@ -376,19 +376,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   }`}
                 />
               </button>
-              {(() => {
-                const source = noteSourceLink(item.id);
-                if (!source) return null;
-                return (
-                  <Link
-                    {...weddingLinkProps(source.href)}
-                    className="ml-9 mb-1 inline-flex w-fit items-center gap-1 rounded text-[13px] leading-[1.5] text-[#7A6A57] underline decoration-[#D9CBB4] underline-offset-4 hover:text-[#5A4D3E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50"
-                  >
-                    근거 · {source.partTitle}
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Link>
-                );
-              })()}
+              <ChecklistItemSource itemId={item.id} />
               </div>
             ))}
           </div>

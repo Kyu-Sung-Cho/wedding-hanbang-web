@@ -76,6 +76,16 @@ describe("항목을 그리는 화면은 안내도 그린다", () => {
     expect(bare, "항목만 그리고 안내는 빠뜨린 화면").toEqual([]);
   });
 
+  it("그린다고 적힌 화면은 근거 링크도 함께 단다", () => {
+    // 안내만 보여 주고 "왜?"에 답할 길을 안 주면 반쪽이다. 근거 링크는 체크박스 밖에
+    // 있어야 해서 컴포넌트가 따로다 — 그래서 따로 확인한다.
+    const missing = Object.entries(SURFACES)
+      .filter(([, { role }]) => role === "draws")
+      .filter(([file]) => !readFileSync(resolve(process.cwd(), file), "utf8").includes("ChecklistItemSource"))
+      .map(([file]) => file);
+    expect(missing, "안내는 그리는데 근거로 갈 길이 없는 화면").toEqual([]);
+  });
+
   it("그리지 않는다고 적힌 파일이 몰래 항목을 그리지 않는다", () => {
     const sneaky = Object.entries(SURFACES)
       .filter(([, { role }]) => role !== "draws")
