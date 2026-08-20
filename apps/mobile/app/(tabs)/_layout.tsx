@@ -199,12 +199,14 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
+        name="lounge"
         options={{
-          title: "홈",
+          // 탭에는 짧게 "라운지", 읽어주는 이름과 화면 제목은 "웨딩 라운지".
+          // 같은 이름의 줄임말일 뿐, 이전처럼 화면마다 다른 이름을 쓰지 않는다.
+          title: "라운지",
           href: protectedTabHref,
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-          tabBarAccessibilityLabel: "홈",
+          tabBarAccessibilityLabel: "웨딩 라운지",
         }}
       />
       <Tabs.Screen

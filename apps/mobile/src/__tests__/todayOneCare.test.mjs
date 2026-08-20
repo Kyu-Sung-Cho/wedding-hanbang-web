@@ -145,7 +145,7 @@ test("mobile surfaces use authenticated API, owner validation, in-app-only copy,
     readFile(resolve(HERE, "../components/dashboard/TodayOneCareCard.tsx"), "utf8"),
     readFile(resolve(HERE, "../lib/todayOneCare.mjs"), "utf8"),
     readFile(resolve(HERE, "../components/settings/TodayOnePreferenceControl.tsx"), "utf8"),
-    readFile(resolve(HERE, "../../app/(tabs)/dashboard.tsx"), "utf8"),
+    readFile(resolve(HERE, "../../app/(tabs)/lounge.tsx"), "utf8"),
     readFile(resolve(HERE, "../components/dashboard/WeddingHomeExperience.tsx"), "utf8"),
     readFile(resolve(HERE, "../../app/settings/index.tsx"), "utf8"),
   ]);

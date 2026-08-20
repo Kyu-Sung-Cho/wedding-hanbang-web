@@ -11,6 +11,16 @@ import {
   getWeddingMomentMessage,
 } from "../lib/dashboardExperience.mjs";
 
+/** expo-router 경로가 가리키는 파일. 없으면 null. */
+function resolveRoute(route) {
+  const base = `../../app${route}`;
+  for (const candidate of [`${base}.tsx`, `${base}/index.tsx`]) {
+    const path = fileURLToPath(new URL(candidate, import.meta.url));
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
 const emptyInput = {
   weddingDate: "2027-05-15",
   todayTasks: [],
@@ -25,8 +35,39 @@ test("a missing wedding date becomes the first useful setup action", () => {
   });
 
   assert.equal(focus.kind, "setup");
-  assert.equal(focus.route, "/onboarding");
+  // 온보딩으로 보내면 안 된다. 이미 마친 사람에게 역할과 커플 연결을 처음부터 다시 묻는
+  // 화면이라, 역할을 처음과 다르게 고르면 서버가 커플 구성이 어긋났다고 돌려주고 사람은
+  // "고객 지원에 문의해주세요"에서 끝난다. 결혼 정보는 설정 화면에 이미 편집 필드로 있다.
+  assert.equal(focus.route, "/settings");
+  assert.notEqual(focus.route, "/onboarding");
   assert.match(focus.title, /결혼식 날짜/);
+});
+
+test("the date fix lands on a screen that can actually edit the wedding date", () => {
+  const focus = buildDashboardFocus({ ...emptyInput, weddingDate: null });
+
+  // 목적지 화면이 실재하고, 그 화면에 결혼 예정일 입력이 실제로 있어야 한다.
+  // 없는 화면이나 못 고치는 화면으로 보내는 것은 버튼이 없는 것보다 나쁘다.
+  const screen = resolveRoute(focus.route);
+  assert.ok(screen, `${focus.route}에 해당하는 화면이 없습니다`);
+  const source = readFileSync(screen, "utf8");
+  assert.match(source, /결혼 예정일/);
+  assert.match(source, /updateField\("weddingDate", v\)/);
+
+  // 라운지 화면이 그 경로를 실제로 열 수 있어야 한다 — switch에 case가 없으면 버튼이
+  // 아무 일도 하지 않는다.
+  const homeExperience = readFileSync(
+    fileURLToPath(new URL("../components/dashboard/WeddingHomeExperience.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(
+    homeExperience.includes(`case "${focus.route}":`),
+    `라운지 화면에 ${focus.route} case가 없습니다`,
+  );
+  assert.ok(
+    homeExperience.includes(`router.push("${focus.route}")`),
+    `라운지 화면이 ${focus.route}를 열지 않습니다`,
+  );
 });
 
 test("an overdue preparation item takes priority over lower-risk work", () => {
@@ -173,7 +214,7 @@ test("login returns through the shared onboarding gate before opening home", () 
   const source = readFileSync(fileURLToPath(loginUrl), "utf8");
 
   assert.equal(
-    source.includes('router.replace("/(tabs)/dashboard")'),
+    source.includes('router.replace("/(tabs)/lounge")'),
     false,
   );
   assert.ok(

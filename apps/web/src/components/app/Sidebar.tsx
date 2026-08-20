@@ -28,7 +28,7 @@ type SidebarMenuItem = {
 
 const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/chat", icon: MessageCircle, label: "아모라", tutorialTarget: "service-nav-amora" },
-  { legacyPath: "/lounge", icon: LayoutDashboard, label: "오늘 할 일", tutorialTarget: "service-nav-lounge" },
+  { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정" },
   { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },
