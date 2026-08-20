@@ -340,6 +340,30 @@
     {
       "file": "20260807090000_amora_mediation_send_gate.sql",
       "sha256": "27b4292cff613b727727bacc16e2600e8bb7df588cc367d87ecac77725506a82"
+    },
+    {
+      "file": "20260812030000_couple_invite_replay_hardening.sql",
+      "sha256": "f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a"
+    },
+    {
+      "file": "20260816180000_amora_neutral_preparation_space.sql",
+      "sha256": "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867"
+    },
+    {
+      "file": "20260818110000_restore_couple_invite_nullable_contract.sql",
+      "sha256": "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324"
+    },
+    {
+      "file": "20260820120000_neutral_join_reports_legacy_space.sql",
+      "sha256": "8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80"
+    },
+    {
+      "file": "20260820130000_legacy_join_blocks_neutral_space.sql",
+      "sha256": "6e0668148b9773f27b00b30b59b36d221ed876056b23f636bb9608ab8db6e3c0"
+    },
+    {
+      "file": "20260820140000_neutral_schedule_assignee_label.sql",
+      "sha256": "457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23"
     }
   ],
   "deploymentEvidence": {
