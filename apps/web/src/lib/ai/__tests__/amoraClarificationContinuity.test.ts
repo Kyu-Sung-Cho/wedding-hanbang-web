@@ -4,6 +4,7 @@ import {
   filterAmoraToolsByQuestionScope,
 } from "@/lib/ai/amoraQuestionScope";
 import {
+  AMORA_CLARIFICATION_ANSWER_MAX_CHARS,
   isAmoraClarificationAnswerShaped,
   resolveAmoraWeddingClarificationContinuity,
   type AmoraClarificationContinuityRow,
@@ -27,6 +28,7 @@ type RowOverrides = {
   inReplyTo?: string;
   assistantSenderId?: string | null;
   assistantTarget?: string;
+  assistantPendingAction?: unknown;
 };
 
 function buildRows(overrides: RowOverrides): Row[] {
@@ -57,6 +59,9 @@ function buildRows(overrides: RowOverrides): Row[] {
         memory_eligible: true,
         ...(overrides.assistantTarget
           ? { target: overrides.assistantTarget }
+          : {}),
+        ...(overrides.assistantPendingAction !== undefined
+          ? { pending_amora_action: overrides.assistantPendingAction }
           : {}),
       },
       visibility,
@@ -289,13 +294,56 @@ describe("구조: 연결이 증명되지 않으면 이어지지 않는다", () =
     ).toBeNull();
   });
 
-  it("아모라가 아무것도 묻지 않았으면 이어지지 않는다", () => {
+  // 아모라 쪽 문장의 **어형**은 판정에 쓰지 않는다. 어떤 어미로 되물어도
+  // 이어져야 한다 — 목록에 없는 어미 하나가 고리를 되살리는 것이 이 결함의
+  // 원래 모습이었다. 실측 두 건과, 정규식을 짰다면 놓쳤을 형태들을 함께 본다.
+  it.each([
+    "2026년으로 넣을까요, 2027년으로 넣을까요?",
+    "이 금액이 사진 촬영만인지 묶음인지 알려주세요.",
+    "연도를 알려주시면 바로 넣을게요",
+    "둘 중 어느 쪽인지 콕 집어주시면 돼요",
+    "아직 연도를 못 정했어요",
+    "10월 17일 오후 2시 드레스 투어 일정을 넣었어요.",
+  ])("아모라가 어떤 어미로 말했든 이어진다: %s", (assistantText) => {
+    expect(resolve({ assistantText, currentText: "응 넣어줘" })).not.toBeNull();
+  });
+
+  // 확인 카드가 이미 떠 있으면 산문 "응, 해줘"는 확인이 아니다. 확인은 서버가
+  // 발급한 action_id를 실어 보내는 것뿐이고, 그래야 사용자가 보고 누른 것과
+  // 서버가 실행하는 것이 같다. 이 관문이 없으면 카드를 우회해 도구가 열린다.
+  it("이미 확인 카드를 낸 턴에는 이어지지 않는다", () => {
     expect(
       resolve({
-        assistantText: "10월 17일 오후 2시 드레스 투어 일정을 넣었어요.",
+        assistantText: "요청 내용을 확인해볼게요.",
+        assistantPendingAction: {
+          version: 2,
+          actionId: "11111111-1111-4111-8111-111111111111",
+          tool: "update_budget",
+          input: { total_budget: 40_000_000 },
+        },
         currentText: "응 넣어줘",
       }),
     ).toBeNull();
+  });
+
+  // 설명·지목·선택형 되짚기는 이미 bounded continuity의 context-only 계약이
+  // 맡는다. 한 문장을 두 계약이 다투면 어느 쪽이 이기는지 아무도 모르게 된다.
+  // 물음표가 없어 물음표 관문에도 안 걸리는 형태들로 확인한다.
+  it.each([
+    "그거",
+    "아까 말한 거",
+    "첫 번째가 좋아",
+    "무슨 뜻이야",
+  ])("설명·지목형 되짚기는 도구 경로로 넘어오지 않는다: %s", (currentText) => {
+    expect(isAmoraClarificationAnswerShaped(currentText), currentText).toBe(false);
+    expect(resolve({ currentText }), currentText).toBeNull();
+  });
+
+  it("답이 길면 되묻기에 대한 답으로 보지 않는다", () => {
+    const long = `사진 촬영만 할게요. ${"그리고 덧붙이자면 ".repeat(40)}`;
+    expect(long.length).toBeGreaterThan(AMORA_CLARIFICATION_ANSWER_MAX_CHARS);
+    expect(isAmoraClarificationAnswerShaped(long)).toBe(false);
+    expect(resolve({ currentText: long })).toBeNull();
   });
 
   it("되묻기가 두 번 연속되면 두 번째 답은 이어지지 않는다(한 홉 경계)", () => {
