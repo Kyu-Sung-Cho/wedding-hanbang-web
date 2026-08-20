@@ -43,6 +43,12 @@ import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
+import {
+  getActiveCategories,
+  getChecklistProgress,
+  getProgressSummary,
+  getStatus,
+} from "@/app/(app)/lounge/progressSummary";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
@@ -160,12 +166,6 @@ function formatFullDate(value: string | null | undefined) {
   });
 }
 
-function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
-  const status = progress[key]?.status;
-  if (status === "completed" || status === "in_progress" || status === "not_started") return status;
-  return "not_started";
-}
-
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
     if (key.startsWith("__")) return sum;
@@ -175,35 +175,6 @@ function getSpent(progress: Record<string, ProgressItem>) {
     const next = sum + amount;
     return Number.isSafeInteger(next) ? next : sum;
   }, 0);
-}
-
-function getChecklistProgress(progress: Record<string, ProgressItem>, key: string) {
-  const template = CATEGORY_CHECKLISTS.find((category) => category.key === key);
-  const saved = progress[key]?.checklist;
-  const status = getStatus(progress, key);
-  if (!template) return { done: status === "completed" ? 1 : 0, total: 1 };
-  const merged = mergeChecklist(template.items, saved, status);
-  return getChecklistCounts(merged);
-}
-
-function getProgressSummary(progress: Record<string, ProgressItem>) {
-  return CATEGORY_CHECKLISTS.reduce(
-    (acc, category) => {
-      const status = getStatus(progress, category.key);
-      // "해당 없음"으로 끈 항목은 진행률 분모에서 빠진다 —
-      // 함·폐백·예단을 생략한 커플이 영원히 미완료로 남지 않게.
-      if (status === "not_applicable") {
-        acc.not_applicable += 1;
-        return acc;
-      }
-      const counts = getChecklistProgress(progress, category.key);
-      acc[status] += 1;
-      acc.done += counts.done;
-      acc.total += counts.total;
-      return acc;
-    },
-    { completed: 0, in_progress: 0, not_started: 0, not_applicable: 0, done: 0, total: 0 }
-  );
 }
 
 function getDdayLabel(dday: number | null) {
@@ -281,24 +252,6 @@ function buildPriorities(plan: ReturnType<typeof buildAmoraLifecyclePlan>, actio
     seen.add(key);
     return true;
   }).slice(0, 3);
-}
-
-function getActiveCategories(progress: Record<string, ProgressItem>, dday: number | null) {
-  return CATEGORY_CHECKLISTS.map((category) => {
-    const counts = getChecklistProgress(progress, category.key);
-    const status = getStatus(progress, category.key);
-    const percent = counts.total > 0 ? Math.round((counts.done / counts.total) * 100) : 0;
-    const daysUntilDeadline = dday === null ? null : dday - category.ddayDeadline;
-    return { category, counts, status, percent, daysUntilDeadline };
-  })
-    .filter((item) => item.status !== "completed")
-    .sort((a, b) => {
-      if (a.status !== b.status) return a.status === "in_progress" ? -1 : b.status === "in_progress" ? 1 : 0;
-      const aDeadline = a.daysUntilDeadline ?? 9999;
-      const bDeadline = b.daysUntilDeadline ?? 9999;
-      return aDeadline - bDeadline;
-    })
-    .slice(0, 6);
 }
 
 function buildDemoSavedPosts(): PostWithAuthor[] {

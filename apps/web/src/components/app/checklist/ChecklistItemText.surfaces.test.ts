@@ -28,7 +28,7 @@ const SURFACES: Record<string, { role: Role; why: string }> = {
   "src/components/app/chat/panel/ChecklistTab.tsx": { role: "draws", why: "아모라 옆 정보 패널의 기본 탭" },
 
   "src/app/(app)/dashboard/page.tsx": { role: "counts", why: "개수만 쓴다" },
-  "src/app/(app)/lounge/page.tsx": { role: "counts", why: "진행률 계산에만 쓴다" },
+  "src/app/(app)/lounge/progressSummary.ts": { role: "counts", why: "라운지 진행률 계산 — 화면이 아니라 계산부다" },
   "src/components/app/checklist/ChecklistContent.tsx": { role: "counts", why: "분야 카드의 개수와 검색 색인에만 쓴다 — 항목은 모달이 그린다" },
   "src/utils/checklist.ts": { role: "counts", why: "병합·집계 함수 자체" },
   "src/utils/imminentChecklist.ts": { role: "counts", why: "임박 분야 계산" },
