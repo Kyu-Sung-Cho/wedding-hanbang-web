@@ -40,6 +40,16 @@ export const DESTINATION_ENV_KEYS = Object.freeze([
 export const PRODUCTION_OPT_IN_ENV_KEY = "HANBANG_DEV_ALLOW_PRODUCTION_SUPABASE";
 
 /**
+ * 값이 .env 파일이 아니라 셸/명령줄에서 왔다는 표시.
+ *
+ * 이 구분이 왜 중요한가: next.config 안에서 가드가 돌 때는 Next 가 이미 `.env.local` 을
+ * process.env 에 부어 놓은 뒤다(실측 확인). 그때 process.env 만 보고 옵트인을 인정하면
+ * `.env.local` 한 줄로 영구 옵트인이 되어 "그 실행에만"이라는 성질이 사라진다.
+ * 그래서 파일이 준 값과 **같은 값**인 process.env 키는 파일 출처로 계속 센다.
+ */
+export const SHELL_ENV_SOURCE = "명령줄/셸 환경변수";
+
+/**
  * 코드에 박힌 운영 프로젝트 목록. env 로 덮을 수 없다는 점이 핵심이다 —
  * `.env.local` 이 스스로를 "운영이 아니다"라고 주장해도 여기서 걸린다.
  */
@@ -127,8 +137,11 @@ export function resolveDevServerEnvironment({
   }
   for (const [key, value] of Object.entries(processEnv)) {
     if (value === undefined) continue;
+    // 파일이 준 값과 글자까지 같으면 파일 출처로 남긴다. Next 가 이미 부어 놓은
+    // `.env.local` 값을 "명령줄에서 왔다"고 잘못 세지 않기 위해서다.
+    const echoesFile = env[key] === value && sources[key] !== undefined;
     env[key] = value;
-    sources[key] = "명령줄/셸 환경변수";
+    if (!echoesFile) sources[key] = SHELL_ENV_SOURCE;
   }
   return { env, sources };
 }
@@ -149,11 +162,7 @@ export function resolveDevServerPort({ argv = [], env = {} } = {}) {
   return "3000";
 }
 
-export function evaluateDevServerDestination({
-  env = {},
-  sources = {},
-  processEnv = process.env,
-} = {}) {
+export function evaluateDevServerDestination({ env = {}, sources = {} } = {}) {
   const productionProjectRefs = new Set(KNOWN_PRODUCTION_PROJECT_REFS);
   const declaredProductionRef = projectRefFromDestinationValue(env.SUPABASE_PRODUCTION_PROJECT_REF);
   if (declaredProductionRef) productionProjectRefs.add(declaredProductionRef);
@@ -178,12 +187,13 @@ export function evaluateDevServerDestination({
           projectRefFromDestinationValue(env[key]) === projectRef ? sources[key] : null,
         ).find(Boolean) ?? null);
 
-  // 옵트인은 process.env 에서만 읽는다. 해석된 env 를 쓰면 `.env.local` 한 줄로
-  // 영구 옵트인이 되어 "그 실행에만"이라는 성질이 사라진다.
-  const optInValue = String(processEnv[PRODUCTION_OPT_IN_ENV_KEY] ?? "").trim();
+  // 옵트인은 셸/명령줄에서 온 값만 인정한다. `.env` 파일이 준 값은 — 그것이 Next 를
+  // 거쳐 process.env 에 올라와 있더라도 — 옵트인으로 세지 않는다.
   const optInSource = sources[PRODUCTION_OPT_IN_ENV_KEY] ?? null;
+  const optInFromShell = optInSource === SHELL_ENV_SOURCE;
+  const optInValue = optInFromShell ? String(env[PRODUCTION_OPT_IN_ENV_KEY] ?? "").trim() : "";
   const optInFromFileOnly =
-    !optInValue && optInSource !== null && optInSource !== "명령줄/셸 환경변수" ? optInSource : null;
+    !optInFromShell && optInSource !== null ? optInSource : null;
 
   const base = {
     projectRef,
@@ -318,17 +328,27 @@ export function formatDestinationBanner(evaluation, { port } = {}) {
 }
 
 /**
- * 런처에서 쓰는 진입점. 운영을 가리키면 던지고, 아니면 배너 문자열을 돌려준다.
+ * 런처와 next.config 펜스가 공유하는 진입점.
+ * 운영을 가리키면 던지고, 아니면 배너 문자열을 돌려준다.
+ *
+ * @param {{
+ *   appRoot: string,
+ *   argv?: readonly string[],
+ *   processEnv?: Record<string, string | undefined>,
+ *   readEnvFile?: (filePath: string) => string | null | undefined,
+ * }} options
  */
 export function assertDevServerDestination({
   appRoot,
   argv = [],
   processEnv = process.env,
   readEnvFile,
-} = {}) {
+}) {
   const { env, sources } = resolveDevServerEnvironment({ appRoot, processEnv, readEnvFile });
+  // 런처에서는 포트가 `-p 3200` 인자로 오고, next.config 안에서는 argv 가 비어 있는 대신
+  // Next 가 확정한 포트를 PORT 에 넣어 준다(실측 확인). 두 경로 모두 실제 포트를 얻는다.
   const port = resolveDevServerPort({ argv, env: processEnv });
-  const evaluation = evaluateDevServerDestination({ env, sources, processEnv });
+  const evaluation = evaluateDevServerDestination({ env, sources });
 
   if (!evaluation.allowed) {
     throw new DevServerDestinationError(

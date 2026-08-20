@@ -1,13 +1,18 @@
 import type { NextConfig } from "next";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertDevServerDestinationFence } from "./devServerDestinationFence";
 import { assertPreviewStubDeployment } from "./previewStubConfig";
 import { assertVendorDisclosureProductionBuild } from "./vendorDisclosureProductionBuildFence";
 import { WEDDING_APP_ROUTES } from "./weddingAppRoutes";
 
 assertPreviewStubDeployment();
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const appRoot = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(appRoot, "../..");
+
+// `npx next dev` 로 런처를 건너뛰어도 운영 Supabase 로는 뜨지 못한다.
+assertDevServerDestinationFence({ appRoot });
 
 assertVendorDisclosureProductionBuild({ repoRoot });
 

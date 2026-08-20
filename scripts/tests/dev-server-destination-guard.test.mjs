@@ -53,7 +53,7 @@ function evaluateWith(files, processEnv = {}) {
     processEnv,
     readEnvFile: (filePath) => files[path.basename(filePath)] ?? null,
   });
-  return evaluateDevServerDestination({ env, sources, processEnv });
+  return evaluateDevServerDestination({ env, sources });
 }
 
 test("운영 프로젝트 목록은 코드에 박혀 있고 env 로 지울 수 없다", () => {
@@ -217,6 +217,50 @@ test("옵트인이 .env 파일에만 적혀 있으면 무시하고 거부한다"
   assert.match(refusal, /무시했습니다/);
 });
 
+test("Next 가 .env.local 옵트인을 process.env 에 부어 놓아도 인정하지 않는다", () => {
+  // next.config 안에서 가드가 돌 때 Next 는 이미 `.env.local` 을 process.env 에 부어 둔다
+  // (2026-08-20 실측). 그때 process.env 만 보면 파일 한 줄이 영구 옵트인이 된다.
+  const optInLine = `${PRODUCTION_OPT_IN_ENV_KEY}=${PRODUCTION_REF}`;
+  const evaluation = evaluateWith(
+    { ".env.local": `${ACCIDENT_ENV_LOCAL}
+${optInLine}` },
+    {
+      // Next 가 부어 놓은 모양 그대로: 파일과 값이 같다.
+      [PRODUCTION_OPT_IN_ENV_KEY]: PRODUCTION_REF,
+      NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_REF}.supabase.co`,
+      SUPABASE_EXPECTED_URL: `https://${PRODUCTION_REF}.supabase.co`,
+      SUPABASE_EXPECTED_PROJECT_REF: PRODUCTION_REF,
+    },
+  );
+
+  assert.equal(evaluation.allowed, false);
+  assert.equal(evaluation.code, "PRODUCTION_BLOCKED");
+  assert.equal(evaluation.optInValue, null);
+  assert.equal(evaluation.optInFromFileOnly, "apps/web/.env.local");
+});
+
+test("파일에 다른 값이 있어도 셸에서 준 옵트인은 인정한다", () => {
+  const evaluation = evaluateWith(
+    { ".env.local": `${ACCIDENT_ENV_LOCAL}
+${PRODUCTION_OPT_IN_ENV_KEY}=stale-value` },
+    { [PRODUCTION_OPT_IN_ENV_KEY]: PRODUCTION_REF },
+  );
+
+  assert.equal(evaluation.allowed, true);
+  assert.equal(evaluation.code, "PRODUCTION_OPT_IN");
+});
+
+test("목적지 값도 파일과 같은 값이면 출처를 파일로 센다", () => {
+  // 배너의 "<- 어디서 왔나"가 next.config 경로에서 전부 '명령줄'로 찍히면
+  // 어느 파일을 고쳐야 하는지 알 수 없게 된다.
+  const evaluation = evaluateWith(
+    { ".env.local": STAGING_ENV_LOCAL },
+    { NEXT_PUBLIC_SUPABASE_URL: `https://${STAGING_REF}.supabase.co` },
+  );
+
+  assert.equal(evaluation.projectRefSource, "apps/web/.env.local");
+});
+
 test("옵트인 값이 붙으려는 운영 ref 와 다르면 거부한다", () => {
   for (const wrong of ["true", "1", "yes", STAGING_REF, "slrtobkksjmxgzatjyq"]) {
     const evaluation = evaluateWith(
@@ -319,6 +363,45 @@ test("런처를 운영 목적지로 실행하면 Next 를 띄우지 않고 종�
   assert.match(result.stderr, new RegExp(PRODUCTION_REF));
   assert.match(result.stderr, /3200/);
   assert.doesNotMatch(result.stdout ?? "", /Ready in/);
+});
+
+test("런처를 건너뛰고 next dev 를 직접 쳐도 운영 목적지면 뜨지 못한다", () => {
+  // 런처(`pnpm dev`)만 막으면 `npx next dev` 로 그대로 우회된다.
+  // 이건 next.config 의 devServerDestinationFence 가 잡아야 한다.
+  const nextCli = path.join(appRoot, "node_modules/next/dist/bin/next");
+  assert.ok(
+    statSync(nextCli).isFile(),
+    "next 바이너리가 없다 — 이 테스트는 의존성 설치 후에만 의미가 있다",
+  );
+
+  const env = { ...process.env };
+  delete env[PRODUCTION_OPT_IN_ENV_KEY];
+  delete env.PORT;
+  env.NEXT_PUBLIC_SUPABASE_URL = `https://${PRODUCTION_REF}.supabase.co`;
+  env.SUPABASE_EXPECTED_URL = `https://${PRODUCTION_REF}.supabase.co`;
+  env.SUPABASE_EXPECTED_PROJECT_REF = PRODUCTION_REF;
+  // 이 테스트를 깨뜨려보는 사람이 진짜 운영 dev 서버를 띄우면 안 된다.
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "invalid-anon-key-for-test";
+  env.SUPABASE_SERVICE_ROLE_KEY = "";
+
+  const result = spawnSync(process.execPath, [nextCli, "dev", "-p", "3989"], {
+    cwd: appRoot,
+    env,
+    encoding: "utf8",
+    timeout: 120_000,
+  });
+
+  // 타임아웃으로 죽은 것은 "막았다"가 아니다 — dev 서버가 떠서 살아 있었다는 뜻이다.
+  assert.equal(result.error, undefined, "next dev 가 스스로 끝나지 않았다 = 막지 못했다");
+  assert.ok(
+    typeof result.status === "number" && result.status !== 0,
+    `next dev 가 종료코드 ${result.status} 로 끝났다`,
+  );
+
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  assert.match(output, /dev 서버 기동을 거부했습니다/);
+  assert.match(output, new RegExp(PRODUCTION_REF));
+  assert.match(output, /3989/);
 });
 
 test("가드는 dev 서버가 실제로 쓰는 apps/web 의 env 파일들을 읽는다", () => {
