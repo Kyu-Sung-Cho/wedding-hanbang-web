@@ -71,10 +71,15 @@ describe("항목 안내의 근거", () => {
 
   it("근거가 없는 안내는 무엇을 물어보라는 말이다", () => {
     // 참·거짓이 없는 문장에는 댈 근거도 없다. 그런 것만 비어 있어야 한다.
+    //
+    // 처음에는 "물어보세요|요청하세요|확인해 두세요|여쭤"처럼 **어미를 나열**했더니
+    // "확인하세요."로 끝나는 멀쩡한 안내가 걸렸다. 같은 뜻인데 활용이 달랐을 뿐이다.
+    // 그래서 어미가 아니라 **동사**로 본다 — 무엇을 묻거나 알아보라는 말인가.
+    const ASKS = /물어|여쭤|확인|알아보|요청/;
     const withSource = new Set(noteSourceItemIds());
     for (const { item } of noted) {
       if (withSource.has(item.id)) continue;
-      expect(item.note, `${item.id}는 근거 없이 단정한다`).toMatch(/물어보세요|요청하세요|확인해 두세요|여쭤/);
+      expect(item.note, `${item.id}는 근거 없이 단정한다`).toMatch(ASKS);
     }
   });
 });
