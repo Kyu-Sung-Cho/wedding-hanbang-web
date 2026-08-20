@@ -7,6 +7,7 @@ import {
   analyticsSafeSearchParams,
   isAnalyticsSuppressedLocation,
   isAnalyticsSuppressedPath,
+  stripAnalyticsUrlFragments,
 } from "../analyticsPrivacy";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +21,11 @@ describe("zero-I/O research analytics boundary", () => {
     expect(isAnalyticsSuppressedPath("/wedding-code")).toBe(true);
     expect(isAnalyticsSuppressedPath("/wedding-code/result")).toBe(true);
     expect(isAnalyticsSuppressedPath("/wedding-code-copy")).toBe(false);
+    // 초대 코드는 커플 공간 열쇠라 '#' 뒤에 싣는다. 페이지뷰 이벤트는 URL 전체를
+    // 제3자에게 보내므로, 이 경로가 목록에서 빠지면 그 설계가 한 줄에 무너진다.
+    expect(isAnalyticsSuppressedPath("/invite")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/invite/")).toBe(true);
+    expect(isAnalyticsSuppressedPath("/invitation")).toBe(false);
     expect(isAnalyticsSuppressedPath(null)).toBe(false);
   });
 
@@ -98,5 +104,75 @@ describe("zero-I/O research analytics boundary", () => {
     expect(chatStore).toContain('if (process.env.NODE_ENV === "production") return;');
     expect(chatStore).not.toMatch(/console\.error/);
     expect(chatStore).not.toContain("res.status, errText");
+  });
+});
+
+describe("전송되는 URL에서 프래그먼트를 잘라낸다", () => {
+  it("커플 초대 코드가 URL 속성에 실려 나가지 않는다", () => {
+    // posthog-js는 capture_pageleave가 켜져 있으면 $current_url에 location.href를
+    // 스스로 넣는다. 억제 목록은 경로만 보므로, 프래그먼트를 달고 다른 경로로 넘어간
+    // 순간 커플 공간 열쇠가 그대로 제3자에게 간다.
+    const capture = stripAnalyticsUrlFragments({
+      event: "$pageleave",
+      properties: {
+        $current_url: "https://hanbang.ai/login?redirect=%2Fwedding%2Fonboarding#WH-A3F91B2C7D40",
+        $pathname: "/login",
+      },
+    });
+
+    expect(capture.properties.$current_url).toBe(
+      "https://hanbang.ai/login?redirect=%2Fwedding%2Fonboarding",
+    );
+    // 경로와 쿼리는 그대로 남는다 — /login은 가입 퍼널의 핵심이라 지표를 잃으면 안 된다.
+    expect(capture.properties.$pathname).toBe("/login");
+  });
+
+  it("경로만 있는 값에서도 잘라낸다", () => {
+    const capture = stripAnalyticsUrlFragments({
+      properties: { $current_url: "/wedding/onboarding#WH-A3F91B2C7D40" },
+    });
+    expect(capture.properties.$current_url).toBe("/wedding/onboarding");
+  });
+
+  it("한 겹 안쪽에 실린 첫 방문 주소에서도 잘라낸다", () => {
+    // posthog는 첫 방문 주소를 $set_once 안에 실어 보낸다. 겉만 훑으면 거기 남는다.
+    const capture = stripAnalyticsUrlFragments({
+      properties: {
+        $set_once: {
+          $initial_current_url: "https://hanbang.ai/invite#WH-A3F91B2C7D40",
+        },
+      },
+    });
+
+    expect(capture.properties.$set_once).toEqual({
+      $initial_current_url: "https://hanbang.ai/invite",
+    });
+  });
+
+  it("주소가 아닌 값은 건드리지 않는다", () => {
+    // 사람이 쓴 글의 '#'을 잘라내면 그건 다른 데이터를 망가뜨리는 일이다.
+    const properties = { note: "해시태그 #웨딩 준비", count: 3 };
+    const capture = stripAnalyticsUrlFragments({ properties });
+    expect(capture.properties).toEqual(properties);
+    // 바뀐 것이 없으면 원본을 그대로 돌려준다.
+    expect(capture.properties).toBe(properties);
+  });
+
+  it("이벤트가 없거나 속성이 없어도 그대로 통과한다", () => {
+    expect(stripAnalyticsUrlFragments(null)).toBeNull();
+    expect(stripAnalyticsUrlFragments({})).toEqual({});
+  });
+
+  it("초기화 코드가 이 가드를 실제로 물려 있다", () => {
+    const analyticsClient = readFileSync(path.join(srcRoot, "lib/analytics.ts"), "utf8");
+    expect(analyticsClient).toContain("stripAnalyticsUrlFragments(capture)");
+    expect(analyticsClient).toContain("capture_pageleave: true");
+    // /login을 억제 목록에 넣는 방식은 쓰지 않는다 — 가입 퍼널 지표를 통째로 잃는다.
+    const privacy = readFileSync(path.join(srcRoot, "lib/analyticsPrivacy.ts"), "utf8");
+    const suppressed = privacy.slice(
+      privacy.indexOf("ANALYTICS_SUPPRESSED_PATH_PREFIXES"),
+      privacy.indexOf("] as const;"),
+    );
+    expect(suppressed).not.toContain("/login");
   });
 });
