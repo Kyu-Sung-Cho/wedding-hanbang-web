@@ -3656,6 +3656,252 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     )).toEqual(new Set(["conversation_segments", "chat_messages"]));
   });
 
+  // 되묻기 고리. 아모라가 한 번 되물으면 그 대화에서 빠져나올 수 없었다 —
+  // 짧은 답은 그 문장만 보면 W4라 도구가 0개가 되고, 확인 카드조차 낼 수 없어
+  // 아모라가 또 되물었다(2026-08-20 스테이징 실측). 아래는 라우트 전체 배선을
+  // 본다. 모듈 단위 테스트는 배선을 증명하지 못한다.
+  function seedClarificationExchange({
+    currentText,
+    priorText,
+    assistantText,
+    assistantScope = "W0_wedding_core",
+    segmentId = "60000000-0000-4000-8000-000000000001",
+    visibility = "shared",
+  }: {
+    currentText: string;
+    priorText: string;
+    assistantText: string;
+    assistantScope?: string;
+    segmentId?: string;
+    visibility?: string;
+  }) {
+    const priorId = "30000000-0000-4000-8000-000000000010";
+    mocks.activeSegment = { id: segmentId, status: "active" };
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility,
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: assistantText,
+        metadata: {
+          in_reply_to_user_message_id: priorId,
+          question_scope: assistantScope,
+          memory_eligible: true,
+        },
+        visibility,
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: priorId,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: priorText,
+        metadata: null,
+        visibility,
+        segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+  }
+
+  const SCHEDULE_CLARIFICATION = {
+    priorText: "10월 17일 오후 2시에 드레스 투어 일정 넣어줘",
+    assistantText:
+      "2026년 10월 17일 오후 2시로 넣을까요, 2027년 10월 17일 오후 2시로 넣을까요?",
+  } as const;
+
+  it.each([
+    "응 넣어줘",
+    "네",
+    "그렇게 해줘",
+    "2026년으로 넣어줘",
+  ])(
+    "되묻기 직후의 짧은 답이 도구와 확인 카드 자격을 되찾는다: %s",
+    async (currentText) => {
+      seedClarificationExchange({ ...SCHEDULE_CLARIFICATION, currentText });
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: "2026년 10월 17일 오후 2시로 넣을게요.",
+        usage: { input_tokens: 10, output_tokens: 8 },
+      }));
+
+      const response = await POST(request({
+        messages: [{ role: "user", content: currentText }],
+      }));
+      await response.text();
+
+      expect(response.status).toBe(200);
+      const providerArgs = mocks.provider.mock.calls[0]?.[0];
+      expect(providerArgs?.systemPrompt).toContain(
+        "question_scope: W0_wedding_core",
+      );
+      // 고리를 끊는 것은 이 두 줄이다. 도구가 살아 있고, 확인 카드를 낼 수 있다.
+      expect(providerArgs?.tools?.length ?? 0).toBeGreaterThan(0);
+      expect(providerArgs?.systemPrompt).toContain("[서버 발급 후속 확인 계약]");
+      expect(providerArgs?.systemPrompt).toContain("add_schedule_event");
+      // 아모라가 던진 질문이 모델에 실제로 전달되어야 답을 해석할 수 있다.
+      // 사용자 행에는 화자 접두어가 붙으므로 본문 포함으로 확인한다.
+      const providerInput = (providerArgs?.input ?? []) as ReadonlyArray<{
+        role: string;
+        content: string;
+      }>;
+      const inputRoles = providerInput.map((turn) => turn.role);
+      const inputContents = providerInput.map((turn) => turn.content);
+      expect(inputRoles).toEqual(["user", "assistant", "user"]);
+      expect(inputContents[0]).toContain(SCHEDULE_CLARIFICATION.priorText);
+      expect(inputContents[1]).toBe(SCHEDULE_CLARIFICATION.assistantText);
+      expect(inputContents[2]).toContain(currentText);
+    },
+  );
+
+  it("되살아난 도구가 저장된 결혼 문맥과 함께 온다", async () => {
+    // 범위만 W0으로 올리고 저장 문맥 읽기를 건너뛰면, 도구는 살아났는데 예산도
+    // 예식장도 비어 있는 상태로 답하게 된다. 되묻기에 답한 사람에게는 그것도
+    // 여전히 고리다.
+    seedClarificationExchange({ ...SCHEDULE_CLARIFICATION, currentText: "응 넣어줘" });
+    mocks.journeyRow = {
+      progress: {},
+      total_budget: 50_000_000,
+      wedding_date: "2026-10-17",
+      venue: "테스트그랜드홀",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "2026년 10월 17일 오후 2시로 넣을게요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응 넣어줘" }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("테스트그랜드홀");
+    expect(providerArgs?.systemPrompt).toContain("\"budget\":50000000");
+  });
+
+  it("물음표 없이 끝난 되묻기의 답도 예산 도구를 되찾는다", async () => {
+    seedClarificationExchange({
+      priorText: "스튜디오 예산 300만원으로 잡아줘",
+      assistantText:
+        "이 금액이 사진 촬영만인지, 드레스·헤어·메이크업까지 포함한 묶음인지 알려주세요.",
+      currentText: "사진 촬영만",
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "사진 촬영만 300만원으로 잡을게요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "사진 촬영만" }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W0_wedding_core",
+    );
+    expect(providerArgs?.systemPrompt).toContain("[서버 발급 후속 확인 계약]");
+    expect(providerArgs?.systemPrompt).toContain("update_budget");
+  });
+
+  it.each([
+    {
+      label: "직전 사용자 발화가 위기",
+      priorText: "결혼 준비고 뭐고 그냥 죽고 싶어",
+      assistantText: "지금 많이 힘드신 것 같아요. 어떤 상황인지 알려주세요.",
+      assistantScope: "W5_safety_override",
+    },
+    {
+      label: "직전 사용자 발화가 폭력 서술",
+      priorText: "예산 얘기하다가 남편이 저를 때렸어요",
+      assistantText: "지금 안전한 곳에 계신가요?",
+      assistantScope: "W2_high_risk_adjacent",
+    },
+    {
+      // 직전 사용자 발화만 W1이다. 서버 기록은 W0이므로 **직전 발화 재판정만이**
+      // 이 턴을 막을 수 있다. 두 관문을 함께 걸어두면 서로를 가려 한쪽이 사라져도
+      // 아무 테스트도 빨개지지 않는다.
+      label: "직전 사용자 발화가 관계 진술(재판정만이 막는다)",
+      priorText: "남편은 무관심하고 나만 다 하고 있어",
+      assistantText: "어떤 부분이 가장 힘드신지 알려주세요.",
+      assistantScope: "W0_wedding_core",
+    },
+    {
+      // 반대로 직전 사용자 발화는 멀쩡한 W0이고 서버 기록만 W3이다.
+      // 이 턴은 **기록된 question_scope 확인만이** 막는다.
+      // W1을 고른 이유가 있다. W2·W3·W5는 상위 `selectAmoraTrustedHistoryRows`가
+      // 먼저 잘라내므로 이 관문이 사라져도 아무도 모른다. W1은 상위가 통과시키는
+      // 값이라, 여기서 막는 것은 되묻기 연속성 자신의 확인뿐이다.
+      label: "서버가 W0으로 기록하지 않은 턴(기록 확인만이 막는다)",
+      priorText: "10월 17일 오후 2시에 드레스 투어 일정 넣어줘",
+      assistantText: "어느 쪽으로 잡아드릴까요?",
+      assistantScope: "W1_wedding_adjacent",
+    },
+  ])(
+    "안전·관계 맥락의 되묻기 뒤에는 짧은 확인이 도구를 얻지 못한다: $label",
+    async ({ priorText, assistantText, assistantScope }) => {
+      seedClarificationExchange({
+        priorText,
+        assistantText,
+        assistantScope,
+        currentText: "응 넣어줘",
+      });
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: "무엇을 도와드릴까요?",
+        usage: { input_tokens: 10, output_tokens: 3 },
+      }));
+
+      const response = await POST(request({
+        messages: [{ role: "user", content: "응 넣어줘" }],
+      }));
+      await response.text();
+
+      const providerArgs = mocks.provider.mock.calls[0]?.[0];
+      expect(providerArgs?.systemPrompt).not.toContain(
+        "question_scope: W0_wedding_core",
+      );
+      expect(providerArgs?.tools ?? []).toEqual([]);
+      expect(providerArgs?.systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+    },
+  );
+
+  it("현재 발화가 새 고위험 질문을 들고 오면 연속성이 무효가 된다", async () => {
+    const currentText = "응 넣어줘 그리고 계약금 환불되는지 알려줘";
+    seedClarificationExchange({ ...SCHEDULE_CLARIFICATION, currentText });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "확인된 사실만 정리해 드릴게요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain(
+      "question_scope: W2_high_risk_adjacent",
+    );
+    expect(providerArgs?.tools ?? []).toEqual([]);
+  });
+
   it("keeps an exact linked follow-up inside the requester's private visibility", async () => {
     const currentText = "왜?";
     const priorText = "드레스 예산 안에서 두 선택지를 비교해줘";

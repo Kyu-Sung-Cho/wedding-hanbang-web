@@ -39,6 +39,20 @@ export interface ClassifyAmoraQuestionScopeInput {
   userText: string;
   requestKind?: "chat" | "initial_greeting" | "mediation";
   hasApprovedWeddingAction?: boolean;
+  /**
+   * 서버가 `resolveAmoraWeddingClarificationContinuity`로 증명한 경우에만 참이다.
+   * 아모라가 W0 턴에서 **되물은 직후**의 짧은 답이라는 뜻이며, 그 증명은
+   * 직전 사용자 발화의 재판정과 서버가 기록한 assistant `question_scope`에서 온다.
+   *
+   * 이 플래그 없이는 되묻기 고리에서 빠져나올 수 없었다. "일정 넣어줘" →
+   * (아모라가 연도를 되묻는다) → "응 넣어줘"가 그 문장만으로는 W4로 떨어져
+   * 도구가 0개가 되고, 확인 카드조차 낼 수 없어 아모라가 또 되물었다.
+   *
+   * `hasApprovedWeddingAction`과 같은 자리에서 처리한다. 그 위의 안전·고위험·
+   * 범위 밖 판정이 모두 먼저 끝난 뒤라야 하기 때문이다 — 현재 발화가 새로
+   * 들고 온 의료·법률·금융·안전 신호는 어떤 연속성으로도 세탁되지 않는다.
+   */
+  hasWeddingClarificationContinuity?: boolean;
 }
 
 const NON_WEDDING_INVESTMENT_PATTERN =
@@ -155,6 +169,7 @@ export function classifyAmoraQuestionScope({
   userText,
   requestKind = "chat",
   hasApprovedWeddingAction = false,
+  hasWeddingClarificationContinuity = false,
 }: ClassifyAmoraQuestionScopeInput): AmoraQuestionScopeClassification {
   const normalizedText = normalizeAmoraSafetyText(userText);
   const structuredSafetyAssessment = assessAmoraSafetyText(normalizedText);
@@ -273,7 +288,9 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (hasApprovedWeddingAction) {
+  // 서버가 검증한 승인 액션, 그리고 서버가 증명한 되묻기 직후의 답.
+  // 둘 다 위의 안전·고위험·범위 밖 관문을 이미 통과한 뒤에만 여기에 닿는다.
+  if (hasApprovedWeddingAction || hasWeddingClarificationContinuity) {
     return {
       scope: "W0_wedding_core",
       allowsLongTermMemory: true,

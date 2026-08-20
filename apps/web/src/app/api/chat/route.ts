@@ -102,6 +102,10 @@ import {
   buildAmoraBoundedContinuity,
   canAttemptAmoraBoundedContinuity,
 } from "@/lib/ai/amoraBoundedContinuity";
+import {
+  isAmoraClarificationAnswerShaped,
+  resolveAmoraWeddingClarificationContinuity,
+} from "@/lib/ai/amoraClarificationContinuity";
 import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
@@ -1202,6 +1206,18 @@ export async function POST(request: Request) {
       : trustedCanonicalScopeUserRow && earlyCrisisUserText !== null
         ? classifyAmoraQuestionScope({ userText: earlyCrisisUserText })
         : null;
+  // 아모라가 되물은 직후의 짧은 답일 수 있는가. 현재 발화만 보는 값싼 판정이고
+  // 아무 권한도 주지 않는다 — 저장된 결혼 문맥 읽기를 건너뛸지만 정한다.
+  // 실제 판정은 행이 도착한 뒤 `resolveAmoraWeddingClarificationContinuity`가 한다.
+  //
+  // 대화 행을 따로 더 읽지는 않는다. 이 조건이 참이면 아래 skip이 꺼져 라우트가
+  // **평소의 전체 문맥 질의**를 그대로 쓰고, 되묻기 판정에 필요한 직전 한 턴은
+  // 그 안에 이미 들어 있다. bounded continuity의 3행 창(그리고 그 앞의 활성 구간
+  // 증명 질의)은 건드리지 않는다 — 그 경로는 context-only 계약을 그대로 유지한다.
+  const isClarificationAnswerShaped =
+    requestKind === "chat"
+    && earlyCrisisUserText !== null
+    && isAmoraClarificationAnswerShaped(earlyCrisisUserText);
   const shouldAttemptBoundedContinuity =
     !isDemo
     && requestKind === "chat"
@@ -1216,8 +1232,14 @@ export async function POST(request: Request) {
     : null;
   let shouldLoadBoundedContinuity = false;
   let boundedContinuitySegmentId: string | null = null;
+  // 되묻기 직후일 수 있는 턴에서는 저장된 결혼 문맥 읽기를 건너뛰지 않는다.
+  // 건너뛰면 연속성이 성립해도 저니·프로필·결정 이력이 비어 있어 도구가 되살아난
+  // 자리에서 아무것도 답하지 못한다. 연속성이 성립하지 않으면 범위는 그대로 W4라
+  // `allowsStoredProviderContext`가 false로 남고, 읽어둔 문맥은 provider 경계를
+  // 넘지 않은 채 버려진다.
   const skipsIrrelevantProviderContextReads =
     bodyConfirmedActionId === undefined
+    && !isClarificationAnswerShaped
     && (
       requestKind === "initial_greeting"
       || requestKind === "mediation"
@@ -2435,15 +2457,41 @@ export async function POST(request: Request) {
   // 짧은 후속 말은 범위를 승격하지 않는다. 바로 앞의 정확히 연결된
   // 대화 1회만 별도 context-only 계약으로 전달하며, 권한은 현재 발화와
   // 서버가 검증한 confirmedActionId에서만 얻는다.
+  // 되묻기 직후의 답인지는 서버가 증명한다. 저장된 행에서만 읽고, 직전 사용자
+  // 발화를 다시 판정하고, 아모라 행에 서버가 기록해 둔 question_scope를 본다.
+  // 하나라도 어긋나면 null이 되어 지금까지의 (더 닫힌) 경로가 그대로 남는다.
+  const weddingClarificationContinuity =
+    !isDemo
+    && requestKind === "chat"
+    && isDurableUserMessageBound
+    && !approvedPendingAction
+    && typeof bodyUserMessageId === "string"
+    && isClarificationAnswerShaped
+      ? resolveAmoraWeddingClarificationContinuity({
+          trustedOldestFirstRows: selectAmoraTrustedHistoryRows({
+            oldestFirstRows: canonicalRows,
+            currentUserMessageId: bodyUserMessageId,
+            visibility,
+          }),
+          currentUserMessageId: bodyUserMessageId,
+          currentUserText: lastUserText,
+        })
+      : null;
   const questionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
+    hasWeddingClarificationContinuity: Boolean(weddingClarificationContinuity),
   });
+  // 한 문장이 두 연속성에 모두 걸릴 수 있다("네", "그렇게 해줘"). 그때는 되묻기
+  // 연속성이 이긴다 — 범위가 W0이면 provider 입력은 이미 신뢰 이력 전체를 쓰므로
+  // 여기서 만든 3턴 묶음은 쓰이지도 않고, 남겨두면 `linked_context_only`(도구 금지)
+  // 라벨과 되살아난 도구가 정면으로 부딪혀 프롬프트 조립이 예외를 던진다.
   const boundedContinuity =
     !isDemo
     && requestKind === "chat"
     && isDurableUserMessageBound
+    && !weddingClarificationContinuity
     && typeof bodyUserMessageId === "string"
     && shouldLoadBoundedContinuity
       ? buildAmoraBoundedContinuity({
@@ -2591,9 +2639,17 @@ export async function POST(request: Request) {
     isDurableUserMessageBound,
     tools: BETA_SAFE_TOOLS,
   });
+  // 범위를 되살려도 도구 선택이 현재 발화만 보면 고리는 그대로 남는다.
+  // `selectAmoraTools`/`selectAmoraPendingProposalTools`는 어휘로 의도를 고르는데
+  // "응 넣어줘"에는 일정도 예산도 없다. 연속성이 증명된 턴에서만 직전 W0 발화를
+  // 앞에 붙여 같은 의도를 다시 읽게 한다. 그 문장은 자기 턴에서 이미 W0로 판정돼
+  // 같은 도구를 받았으므로 여기서 새로 열리는 권한은 없다.
+  const toolIntentText = weddingClarificationContinuity
+    ? `${weddingClarificationContinuity.priorUserText}\n${lastUserText}`
+    : lastUserText;
   const policySelectedTools = selectAmoraTools({
     availableTools: candidateTools,
-    userText: lastUserText,
+    userText: toolIntentText,
     specialistType,
     attachmentKind,
   });
@@ -2641,7 +2697,7 @@ export async function POST(request: Request) {
       ? filterAmoraToolsByQuestionScope(
           selectAmoraPendingProposalTools({
             availableTools: PENDING_ACTION_TOOLS,
-            userText: lastUserText,
+            userText: toolIntentText,
             specialistType,
             attachmentKind,
           }).filter(
