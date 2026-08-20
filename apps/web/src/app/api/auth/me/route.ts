@@ -10,8 +10,13 @@ const PROFILE_AUTH_COLUMNS =
   "id, name, role, couple_id, onboarding_completed, onboarding_step, is_admin, care_notifications_enabled, care_notifications_consented_at, created_at, updated_at";
 const COUPLE_AUTH_COLUMNS =
   "id, bride_id, groom_id, membership_sealed_at, created_at, updated_at";
+
 const JOURNEY_AUTH_COLUMNS =
   "id, couple_id, wedding_date, venue, total_budget, progress, state_revision, created_at, updated_at";
+
+function isNeutralPreparationSpaceEnabled(): boolean {
+  return process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
+}
 
 export async function GET(request: Request) {
   try {
@@ -19,6 +24,8 @@ export async function GET(request: Request) {
     const includeDebug = process.env.NODE_ENV !== "production";
     const isGuestProbe = new URL(request.url).searchParams.get("guest_probe") === "1";
     const isDemoRequest = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
+    const neutralPreparationSpace = isNeutralPreparationSpaceEnabled();
+    const capabilities = { neutralPreparationSpace };
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -96,6 +103,7 @@ export async function GET(request: Request) {
       return NextResponse.json(
         {
           user: { id: user.id, email: user.email },
+          capabilities,
           ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
         },
         { headers: PRIVATE_NO_STORE_HEADERS },
@@ -193,6 +201,7 @@ export async function GET(request: Request) {
         couple,
         partner,
         journey,
+        capabilities,
         ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
       },
       { headers: PRIVATE_NO_STORE_HEADERS },

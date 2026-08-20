@@ -1860,10 +1860,53 @@ export async function POST(request: Request) {
     allowClientContext: isDemo,
   });
 
+  // 중립 준비 공간에서 bride/groom은 저장 슬롯일 뿐 사용자 정체성이 아니다.
+  // 그 값을 그대로 라벨로 쓰면 아모라가 고르지도 않은 성별로 사용자를 부른다.
+  // 플래그가 꺼져 있으면 컬럼을 조회하지 않는다 — 마이그레이션 전에 배포돼도
+  // 42703으로 채팅이 죽지 않게 한다.
+  let memberModelVersion: 1 | 2 = 1;
+  if (
+    !isDemo
+    && process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true"
+  ) {
+    try {
+      const memberModelResult = await supabase
+        .from("couples")
+        .select("member_model_version")
+        .eq("id", dataCoupleId)
+        .maybeSingle();
+      const rawMemberModelVersion = isRecord(memberModelResult.data)
+        ? memberModelResult.data.member_model_version
+        : null;
+      if (
+        memberModelResult.error
+        || (rawMemberModelVersion !== 1 && rawMemberModelVersion !== 2)
+      ) {
+        throw new Error("invalid member model result");
+      }
+      memberModelVersion = rawMemberModelVersion;
+    } catch (error) {
+      console.error("[chat] member model lookup failed", error);
+      await releaseClaimBeforeStream("AMORA_MEMBER_MODEL_UNAVAILABLE");
+      return NextResponse.json(
+        {
+          error: "현재 준비 공간의 구성 방식을 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+          code: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+  const usesNeutralMemberPresentation = memberModelVersion === 2;
+
   // 프로필에서 신부/신랑 이름 추출
   const profiles = profilesResult.data ?? [];
-  const brideName = profiles.find((p) => p.role === "bride")?.name ?? null;
-  const groomName = profiles.find((p) => p.role === "groom")?.name ?? null;
+  const brideName = usesNeutralMemberPresentation
+    ? null
+    : profiles.find((p) => p.role === "bride")?.name ?? null;
+  const groomName = usesNeutralMemberPresentation
+    ? null
+    : profiles.find((p) => p.role === "groom")?.name ?? null;
   const memberIds = {
     bride: profiles.find((profile) => profile.role === "bride")?.id ?? null,
     groom: profiles.find((profile) => profile.role === "groom")?.id ?? null,
@@ -2172,7 +2215,9 @@ export async function POST(request: Request) {
     if (row.sender_type === "ai" || row.role === "assistant") {
       return { role: "assistant" as const, content: row.content, id: row.id };
     }
-    const roleLabel = row.sender_type === "bride" ? "신부" : "신랑";
+    const roleLabel = usesNeutralMemberPresentation
+      ? row.sender_id === actorId ? "사용자" : "파트너"
+      : row.sender_type === "bride" ? "신부" : "신랑";
     const targetLabel = row.metadata?.target === "partner" ? "→상대방" : "";
     return {
       role: "user" as const,
