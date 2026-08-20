@@ -1,7 +1,4 @@
-// 온보딩 화면.
-// 중립 준비 공간이 켜지면 한 화면(역할·예식일·예산·스타일을 묻지 않음),
-// 꺼져 있으면 기존 5단계(역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 완료).
-// 판정은 서버가 /api/auth/me 의 capabilities 로 내려준다.
+// 온보딩 화면 — 5단계 (역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 완료)
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
@@ -30,8 +27,6 @@ import {
   describeCoupleInviteCodeProblem,
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
-  buildNeutralPreparationSpaceSubmission,
-  parseNeutralPreparationSpaceCapability,
 } from "@hanbang/shared";
 
 type Role = "bride" | "groom";
@@ -174,13 +169,6 @@ export default function OnboardingScreen() {
   const [budget, setBudget] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState("");
-  // 서버가 판정한다 — 앱이 자기 환경변수로 정하지 않는다.
-  const [neutralEnabled, setNeutralEnabled] = useState(false);
-  // 판정 전에는 어느 쪽도 그리지 않는다. 기본값으로 그리면 첫 프레임에 역할
-  // 카드(신부/신랑)가 뜨고, 판정이 실패하면 그 화면이 영구가 된다.
-  const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
-  const [capabilitiesFailed, setCapabilitiesFailed] = useState(false);
-  const [capabilityReloadKey, setCapabilityReloadKey] = useState(0);
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
   // 아직 다 치지 않은 상태를 틀렸다고 하지 않는다 — 타이핑 중에 빨간 글씨가 뜨면
   // 사람은 자기가 잘못한 줄 안다. 파트너 코드는 붙여넣는 경우가 많아 길이가 한 번에 찬다.
@@ -226,27 +214,6 @@ export default function OnboardingScreen() {
     });
   }, [contentOpacity, contentSlide]);
 
-  // 서버가 중립 준비 공간을 열어줬는지 확인한다. 못 읽으면 기존 5단계로 둔다 —
-  // 판정 실패를 "켜짐"으로 읽으면 마이그레이션 전 기기에서 온보딩이 죽는다.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await apiFetch("/api/auth/me");
-        if (!res.ok) throw new Error(`auth/me ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) {
-          setNeutralEnabled(parseNeutralPreparationSpaceCapability(data?.capabilities));
-          setCapabilitiesResolved(true);
-        }
-      } catch {
-        // 판정 실패를 "역할을 물어봐도 된다"로 읽지 않는다.
-        if (!cancelled) setCapabilitiesFailed(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [capabilityReloadKey]);
-
   function handleRolePress(r: Role) {
     setRole(r);
     const anim = r === "bride" ? brideScale : groomScale;
@@ -259,10 +226,6 @@ export default function OnboardingScreen() {
   }
 
   function canNext(): boolean {
-    if (neutralEnabled) {
-      // 중립 경로는 한 화면이다. 초대 코드로 합류할 때만 코드가 필요하다.
-      return coupleAction === "create" || isCoupleInviteCode(inviteCode);
-    }
     switch (step) {
       case 1: return role !== null;
       case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
@@ -273,7 +236,7 @@ export default function OnboardingScreen() {
   }
 
   async function handleSubmit() {
-    if (!neutralEnabled && budgetEvaluation.status === "invalid") {
+    if (budgetEvaluation.status === "invalid") {
       Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
       return;
     }
@@ -290,24 +253,17 @@ export default function OnboardingScreen() {
         },
       };
 
-      const body = neutralEnabled
-        ? buildNeutralPreparationSpaceSubmission({
-            coupleAction,
-            partnerInviteCode: inviteCode,
-          })
-        : {
-            role,
-            coupleAction,
-            partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
-            weddingDate: weddingDateUndecided ? null : weddingDate || null,
-            venue: venue || null,
-            totalBudget: budgetEvaluation.requestBudget,
-            progress,
-          };
-
       const res = await apiFetch("/api/onboarding", {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          role,
+          coupleAction,
+          partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
+          weddingDate: weddingDateUndecided ? null : weddingDate || null,
+          venue: venue || null,
+          totalBudget: budgetEvaluation.requestBudget,
+          progress,
+        }),
       });
 
       const data = await res.json();
@@ -330,10 +286,6 @@ export default function OnboardingScreen() {
   }
 
   function handleNext() {
-    if (neutralEnabled && step === 1) {
-      handleSubmit();
-      return;
-    }
     if (step === 4) {
       handleSubmit();
     } else if (step === 5) {
@@ -349,9 +301,7 @@ export default function OnboardingScreen() {
     }
   }
 
-  const nextDisabled = (!capabilitiesResolved && step === 1)
-    || (!canNext() && step < 5)
-    || submitting;
+  const nextDisabled = (!canNext() && step < 5) || submitting;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -364,16 +314,14 @@ export default function OnboardingScreen() {
               <ArrowLeft size={24} color={colors.noir[800]} />
             </Pressable>
           ) : <View style={{ width: 24 }} />}
-          <Text style={styles.stepText}>{neutralEnabled ? "" : `${step}/${totalSteps}`}</Text>
+          <Text style={styles.stepText}>{step}/{totalSteps}</Text>
           <View style={{ width: 24 }} />
         </View>
 
-        {/* 진행 바 — 한 화면이면 5단계 진행 표시가 거짓말이 된다 */}
-        {!neutralEnabled && (
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${(step / totalSteps) * 100}%` }]} />
-          </View>
-        )}
+        {/* 진행 바 */}
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${(step / totalSteps) * 100}%` }]} />
+        </View>
 
         {/* 애니메이션 래퍼 */}
         <Animated.View
@@ -382,98 +330,8 @@ export default function OnboardingScreen() {
             transform: [{ translateY: contentSlide }],
           }}
         >
-          {/* Step 1(중립): 역할을 묻지 않고 한 화면에서 시작 */}
-          {!capabilitiesResolved && step === 1 && (
-            <View style={styles.stepContent}>
-              {capabilitiesFailed ? (
-                <>
-                  <Text style={styles.stepTitle}>불러오지 못했어요</Text>
-                  <Text style={styles.stepDesc}>
-                    연결을 확인하고 다시 시도해 주세요.
-                  </Text>
-                  <Pressable
-                    style={styles.roleCard}
-                    accessibilityRole="button"
-                    accessibilityLabel="다시 시도"
-                    onPress={() => {
-                      setCapabilitiesFailed(false);
-                      setCapabilityReloadKey((n) => n + 1);
-                    }}
-                  >
-                    <Text style={styles.roleLabel}>다시 시도</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <ActivityIndicator color={colors.noir[800]} />
-              )}
-            </View>
-          )}
-
-          {capabilitiesResolved && step === 1 && neutralEnabled && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>반가워요!</Text>
-              <Text style={[styles.stepDesc, styles.roleStepDesc]}>
-                역할을 정하지 않아도 시작할 수 있어요
-              </Text>
-
-              <View style={styles.roleSupportNotice}>
-                <Text style={styles.roleSupportText}>
-                  예식일·장소·예산은 나중에 각 화면에서 언제든 넣을 수 있어요.
-                </Text>
-              </View>
-
-              <Pressable
-                style={[styles.roleCard, coupleAction === "create" && styles.roleCardActive]}
-                accessibilityRole="button"
-                accessibilityLabel="아모라와 지금 시작하기"
-                accessibilityState={{ selected: coupleAction === "create" }}
-                onPress={() => setCoupleAction("create")}
-              >
-                <View style={[styles.roleIconCircle, coupleAction === "create" && styles.roleIconCircleActive]}>
-                  <Sparkles size={28} color={coupleAction === "create" ? colors.rose[500] : colors.taupe[400]} />
-                </View>
-                <Text style={[styles.roleLabel, coupleAction === "create" && styles.roleLabelActive]}>
-                  아모라와 지금 시작하기
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.roleCard, coupleAction === "join" && styles.roleCardActive]}
-                accessibilityRole="button"
-                accessibilityLabel="초대 코드로 함께 시작하기"
-                accessibilityState={{ selected: coupleAction === "join" }}
-                onPress={() => setCoupleAction("join")}
-              >
-                <View style={[styles.roleIconCircle, coupleAction === "join" && styles.roleIconCircleActive]}>
-                  <Heart size={28} color={coupleAction === "join" ? colors.rose[500] : colors.taupe[400]} />
-                </View>
-                <Text style={[styles.roleLabel, coupleAction === "join" && styles.roleLabelActive]}>
-                  초대 코드로 함께 시작하기
-                </Text>
-              </Pressable>
-
-              {coupleAction === "join" && (
-                <View>
-                  <TextInput
-                    style={styles.input}
-                    value={inviteCode}
-                    onChangeText={(text) => setInviteCode(normalizeCoupleInviteCode(text))}
-                    placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
-                    placeholderTextColor={colors.taupe[400]}
-                    maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
-                    autoCapitalize="characters"
-                    accessibilityLabel="파트너 초대 코드"
-                  />
-                  {inviteCodeProblem ? (
-                    <Text style={styles.inviteCodeProblem}>{inviteCodeProblem}</Text>
-                  ) : null}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Step 1(기존): 역할 */}
-          {capabilitiesResolved && step === 1 && !neutralEnabled && (
+          {/* Step 1: 역할 */}
+          {step === 1 && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>반가워요!</Text>
               <Text style={[styles.stepDesc, styles.roleStepDesc]}>결혼 준비에서의 역할을 알려주세요</Text>
@@ -761,7 +619,7 @@ export default function OnboardingScreen() {
           onPress={handleNext}
           disabled={nextDisabled}
           accessibilityRole="button"
-          accessibilityLabel={neutralEnabled ? "시작하기" : step === 4 ? "온보딩 시작하기" : step === 5 ? "대시보드로 이동" : "다음 단계"}
+          accessibilityLabel={step === 4 ? "온보딩 시작하기" : step === 5 ? "대시보드로 이동" : "다음 단계"}
           accessibilityState={{ disabled: nextDisabled, busy: submitting }}
         >
           {submitting ? (
@@ -769,9 +627,9 @@ export default function OnboardingScreen() {
           ) : (
             <>
               <Text style={styles.nextText}>
-                {neutralEnabled || step === 4 ? "시작하기" : step === 5 ? "대시보드로 이동" : "다음"}
+                {step === 4 ? "시작하기" : step === 5 ? "대시보드로 이동" : "다음"}
               </Text>
-              {!neutralEnabled && step < 5 && <ArrowRight size={20} color="#FFF" />}
+              {step < 5 && <ArrowRight size={20} color="#FFF" />}
             </>
           )}
         </Pressable>

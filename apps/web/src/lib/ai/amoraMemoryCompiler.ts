@@ -276,28 +276,9 @@ const RESPONSE_SCHEMA: Record<string, unknown> = {
   },
 };
 
-/**
- * 액터 라벨. 중립 준비 공간에서는 슬롯을 라벨로 쓰지 않는다 — 사용자가 고른 적
- * 없는 성별이 모델 입력과 요약문에 박힌다. 다만 두 사람을 구분하는 것 자체는
- * 유지해야 한다(한 사람의 말을 두 사람의 합의로 넓히지 않기 위해).
- */
-function memoryActorLabel(
-  actor: "bride" | "groom",
-  neutral: boolean,
-): string {
-  if (!neutral) return actor === "bride" ? "신부" : "신랑";
-  return actor === "bride" ? "구성원 1" : "구성원 2";
-}
-
-function formatUserMessage(
-  message: MemoryCompilerMessage,
-  neutral: boolean,
-): string {
+function formatUserMessage(message: MemoryCompilerMessage): string {
   const content = message.content.trim().slice(0, MAX_SOURCE_MESSAGE_CHARS);
-  const actorLabel = memoryActorLabel(
-    message.sourceActorRole === "bride" ? "bride" : "groom",
-    neutral,
-  );
+  const actorLabel = message.sourceActorRole === "bride" ? "신부" : "신랑";
   const topics = (message.trustedMomentMemoryKeys ?? [])
     .filter((key) => MEMORY_KEY_PATTERN.test(key))
     .slice(0, MAX_TRUSTED_MOMENT_KEYS);
@@ -341,9 +322,7 @@ export type PreparedAmoraMemoryBatch = {
 
 export function prepareAmoraMemoryBatch(
   messages: readonly MemoryCompilerMessage[],
-  options: { neutralMemberPresentation?: boolean } = {},
 ): PreparedAmoraMemoryBatch {
-  const neutral = options.neutralMemberPresentation === true;
   // Cursor progression is chronological. Never keep a suffix or slice the
   // joined text: both would advance past source messages the model never saw.
   const bounded = messages.slice(0, MAX_MESSAGES);
@@ -367,7 +346,7 @@ export function prepareAmoraMemoryBatch(
         const line = formatUserMessage({
           ...message,
           trustedMomentMemoryKeys: pendingMomentMemoryKeys,
-        }, neutral);
+        });
         const nextLength = inputLength + (lines.length > 0 ? 1 : 0) + line.length;
         if (nextLength > AMORA_MEMORY_MAX_INPUT_CHARS) {
           // Keep the trusted care envelope and its first eligible reply on the
@@ -413,15 +392,11 @@ export function isFactualAmoraMemorySummary(row: {
 
 export function buildDeterministicAmoraMemorySummary(
   memories: readonly CompiledAmoraMemory[],
-  options: { neutralMemberPresentation?: boolean } = {},
 ): string | null {
   const lines: string[] = [];
   let summaryLength = 0;
   for (const memory of memories) {
-    const actorLabel = memoryActorLabel(
-      memory.sourceActorRole === "bride" ? "bride" : "groom",
-      options.neutralMemberPresentation === true,
-    );
+    const actorLabel = memory.sourceActorRole === "bride" ? "신부" : "신랑";
     const line = `- ${actorLabel} · ${memory.title}: ${memory.value}`;
     const nextLength = summaryLength + (lines.length > 0 ? 1 : 0) + line.length;
     if (nextLength > MAX_SUMMARY_CHARS) break;

@@ -41,8 +41,6 @@ import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
 interface ProfileData {
-  /** 중립 준비 공간이면 role은 저장 슬롯이지 사용자가 고른 값이 아니다. */
-  usesNeutralMembers?: boolean;
   name: string | null;
   email: string | null;
   role: string | null;
@@ -108,7 +106,6 @@ export default function ProfileScreen() {
 
     let weddingDate: string | null = null;
     let partnerName: string | null = null;
-    let usesNeutralMembers = false;
 
     if (data?.couple_id) {
       // 결혼일
@@ -128,15 +125,6 @@ export default function ProfileScreen() {
       if (partners?.[0]) {
         partnerName = partners[0].name ?? null;
       }
-
-      // 컬럼이 아직 없는 DB에서는 조회가 실패한다. 그 상태에서는 중립 커플이
-      // 존재할 수 없으므로 기존(v1)으로 본다 — 화면 전체를 죽이지 않는다.
-      const { data: memberModel } = await supabase
-        .from("couples")
-        .select("member_model_version")
-        .eq("id", data.couple_id)
-        .maybeSingle();
-      usesNeutralMembers = memberModel?.member_model_version === 2;
     }
 
     // 커뮤니티 활동 통계
@@ -174,7 +162,6 @@ export default function ProfileScreen() {
       dday: calcDday(weddingDate),
       coupleId: data?.couple_id ?? null,
       partnerName,
-      usesNeutralMembers,
     });
   }, []);
 
@@ -225,11 +212,8 @@ export default function ProfileScreen() {
     ]);
   }
 
-  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
-  // 값을 중립어로 바꾸는 게 아니라 배지 자체를 렌더하지 않는다.
-  const roleLabel = profile?.usesNeutralMembers
-    ? null
-    : profile?.role === "bride"
+  const roleLabel =
+    profile?.role === "bride"
       ? "신부"
       : profile?.role === "groom"
         ? "신랑"

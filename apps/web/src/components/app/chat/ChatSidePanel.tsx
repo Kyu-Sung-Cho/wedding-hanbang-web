@@ -80,7 +80,7 @@ interface ChatComposerDraft {
 
 export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const router = useRouter();
-  const { profile, couple, journey, partner, isDemo } = useAuthStore();
+  const { profile, couple, journey, isDemo } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     isOpen && !isDemo && Boolean(profile?.id),
   );
@@ -1404,11 +1404,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       <ChatBubble
                         message={msg}
                         isCurrentUser={isCurrentUser}
-                        senderName={
-                          msg.sender_id && msg.sender_id === partner?.id
-                            ? partner.name
-                            : null
-                        }
+                        currentUserRole={profile?.role}
                         isRecentAi={recentAiIds.has(msg.id)}
                       />
                       {pendingAction && (

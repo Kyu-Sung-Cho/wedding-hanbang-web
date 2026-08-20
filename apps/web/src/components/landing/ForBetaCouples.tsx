@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import SectionLabel from "./SectionLabel";
-import { PUBLIC_COUPLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
+import { BETA_COUPLE_ROLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
 const BENEFITS = [
   "운영 검증을 마친 기능부터 먼저 사용",
@@ -17,7 +17,7 @@ const BENEFITS = [
 
 const CONDITIONS = [
   "현재 결혼을 준비 중인 본인",
-  ...PUBLIC_COUPLE_SUPPORT_NOTICES,
+  ...BETA_COUPLE_ROLE_SUPPORT_NOTICES,
   "사용 중 발견한 불편이나 오류를 전달할 수 있는 분",
 ];
 

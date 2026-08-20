@@ -1,5 +1,5 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
-// 색은 성별이 아니라 나/상대/AI 축으로 가른다. 라벨은 이름을 쓴다.
+// 신부=분홍(#F5E6DF), 신랑=파랑(#E8EDF5), AI=noir
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock, RotateCcw, User, Users } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import type {
   BudgetImpactPreview,
@@ -3499,9 +3499,7 @@ export default function ChatScreen() {
     const isMe = item.sender_type === userRole;
     const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
     const isPartnerMsg = item.metadata?.target === "partner";
-    // userRole이 아직 null이면 isMe가 false로 떨어져 내 메시지도 왼쪽으로 온다.
-    // 그 상태에서 상대 이름을 붙이면 오귀속이므로 sender_id로 한 겹 더 막는다.
-    const isSelfMessage = Boolean(userId) && item.sender_id === userId;
+    const isBride = item.sender_type === "bride";
     const placeResults = (item.metadata?.toolResults ?? []).filter(
       (result) => result.toolName === "search_nearby_places",
     );
@@ -3584,14 +3582,14 @@ export default function ChatScreen() {
         ? "이 공동 변경을 확인하고 바로 반영"
         : "이 공동 변경을 확인"
       : "확인한 내용을 이대로 적용";
-    const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : colors.ivory.warm;
+    const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
-          <View style={[st.avatar, isAi ? st.avatarAi : st.avatarPerson]}>
-            {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <User size={12} color={colors.noir[800]} />}
+          <View style={[st.avatar, isAi ? st.avatarAi : isBride ? st.avatarBride : st.avatarGroom]}>
+            {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <Text style={st.avatarLetter}>{isBride ? "신부" : "신랑"}</Text>}
           </View>
         )}
         <View style={[
@@ -3600,7 +3598,7 @@ export default function ChatScreen() {
           (mediationBlock || pendingAction) && st.mediationMessageBody,
           hasPlaceResults && st.placeMessageBody,
         ]}>
-          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isSelfMessage ? userName : partnerName ?? "파트너"}{isPartnerMsg ? " ♥" : ""}</Text>}
+          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
           {shouldRenderBubble && (
             isPinnedSafetyCard ? (
               <View
@@ -3617,7 +3615,7 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{item.content}</Text>
               </View>
             ) : (
-              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
                 {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
               </View>
             )
@@ -3979,7 +3977,9 @@ const st = StyleSheet.create({
   placeMessageBody: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarAi: { backgroundColor: colors.noir[800] },
-  avatarPerson: { backgroundColor: colors.ivory.warm },
+  avatarBride: { backgroundColor: "#F5E6DF" },
+  avatarGroom: { backgroundColor: "#E8EDF5" },
+  avatarLetter: { fontSize: 8, fontWeight: "700", color: colors.noir[800] },
   senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleRight: { borderBottomRightRadius: 4 },

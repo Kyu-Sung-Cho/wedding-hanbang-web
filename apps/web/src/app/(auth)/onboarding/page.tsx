@@ -10,14 +10,8 @@ import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
-import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
-import {
-  buildNeutralPreparationSpaceSubmission,
-  parseNeutralPreparationSpaceCapability,
-  resolveNeutralPreparationSpaceRedirect,
-} from "@/lib/onboarding/neutralPreparationSpace";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -28,15 +22,6 @@ export default function OnboardingPage() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
   const [deferredProgressNotice, setDeferredProgressNotice] = useState("");
-  // 중립 준비 공간이 켜지면 역할·상세 스텝을 건너뛰고 한 화면에서 시작한다.
-  // 서버가 플래그를 판정해 capabilities로 내려준다 — 클라이언트가 정하지 않는다.
-  const [neutralPreparationSpaceEnabled, setNeutralPreparationSpaceEnabled] =
-    useState(false);
-  // 판정이 끝나기 전에는 어느 쪽도 그리지 않는다. 기본값 false로 그려버리면
-  // 첫 페인트에 역할 선택(👰 신부 / 🤵 신랑)이 번쩍이고, /api/auth/me 가
-  // 실패하면 그 화면이 영구가 된다 — 플래그가 켜져 있어도.
-  const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
-  const [capabilitiesFailed, setCapabilitiesFailed] = useState(false);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -48,10 +33,6 @@ export default function OnboardingPage() {
           return;
         }
         const data = await res.json();
-        setNeutralPreparationSpaceEnabled(
-          parseNeutralPreparationSpaceCapability(data.capabilities),
-        );
-        setCapabilitiesResolved(true);
         if (!data.profile) {
           return; // 프로필 없으면 온보딩 진행
         }
@@ -63,9 +44,7 @@ export default function OnboardingPage() {
           );
         }
       } catch {
-        // 판정 실패를 "역할을 물어봐도 된다"로 읽지 않는다. 사용자에게 다시
-        // 시도할 길을 주고, 그 전까지는 아무것도 그리지 않는다.
-        setCapabilitiesFailed(true);
+        // 에러 시 온보딩 계속 진행
       }
     };
     checkProfile();
@@ -109,42 +88,33 @@ export default function OnboardingPage() {
     })}`;
   };
 
-  // neutralCoupleAction이 있으면 중립 준비 공간 경로다 — 역할·예식일·예산·스타일을
-  // 묻지 않고 바로 시작한다. 나머지는 각자 필요한 화면에서 채운다.
-  const handleSubmit = async (neutralCoupleAction?: "create" | "join") => {
+  const handleSubmit = async () => {
     setLoading(true);
     setError("");
 
     try {
-      let requestBody: Record<string, unknown>;
-      if (neutralCoupleAction) {
-        if (!neutralPreparationSpaceEnabled) {
-          throw new Error("NEUTRAL_PREPARATION_SPACE_NOT_ENABLED");
-        }
-        requestBody = buildNeutralPreparationSpaceSubmission({
-          coupleAction: neutralCoupleAction,
-          partnerInviteCode: store.partnerInviteCode,
-        });
-      } else {
-        const progress: Record<string, unknown> = {};
-        store.progressChecklist.forEach((item) => {
-          // 입력한 실제 지출만 원 단위로 저장한다. 계획 예산은 사용자가 예산
-          // 화면에서 별도로 입력하며, 실제 지출을 예산으로 추정하지 않는다.
-          const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
-          progress[item.key] = costInWon
-            ? { status: item.status, spent: costInWon }
-            : { status: item.status };
-        });
+      const progress: Record<string, unknown> = {};
+      store.progressChecklist.forEach((item) => {
+        // 입력한 실제 지출만 원 단위로 저장한다. 계획 예산은 사용자가 예산
+        // 화면에서 별도로 입력하며, 실제 지출을 예산으로 추정하지 않는다.
+        const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
+        progress[item.key] = costInWon
+          ? { status: item.status, spent: costInWon }
+          : { status: item.status };
+      });
 
-        // 결혼식 선호도 저장
-        progress.__preferences = {
-          weddingStyle: store.preferences.weddingStyle,
-          priorities: store.preferences.priorities,
-          budgetTendency: store.preferences.budgetTendency,
-          guestCount: store.preferences.guestCount,
-        };
+      // 결혼식 선호도 저장
+      progress.__preferences = {
+        weddingStyle: store.preferences.weddingStyle,
+        priorities: store.preferences.priorities,
+        budgetTendency: store.preferences.budgetTendency,
+        guestCount: store.preferences.guestCount,
+      };
 
-        requestBody = {
+      const res = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           role: store.role,
           coupleAction: store.coupleAction,
           partnerInviteCode:
@@ -156,13 +126,7 @@ export default function OnboardingPage() {
             ? { amount: store.approximateBudget, unit: "won" }
             : null,
           progress,
-        };
-      }
-
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        }),
       });
 
       const data = await res.json();
@@ -174,21 +138,6 @@ export default function OnboardingPage() {
 
       // 온보딩 완료 쿠키 설정
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-
-      if (neutralCoupleAction) {
-        // 새로 만든 경우 초대 코드를 보여준다. 안 보여주면 상대를 부르려고
-        // 설정 화면을 뒤져야 한다 — 함께 준비하는 게 이 제품의 요지인데.
-        if (neutralCoupleAction === "create" && typeof data.inviteCode === "string") {
-          setInviteCodeResult(data.inviteCode);
-          setShowInviteModal(true);
-          return;
-        }
-        window.location.href = resolveNeutralPreparationSpaceRedirect({
-          search: window.location.search,
-          origin: window.location.origin,
-        });
-        return;
-      }
 
       if (typeof data.inviteCode === "string") {
         setInviteCodeResult(data.inviteCode);
@@ -220,13 +169,8 @@ export default function OnboardingPage() {
           window.location.origin,
         );
       }
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          && submitError.message === "INVALID_NEUTRAL_PREPARATION_INVITE_CODE"
-          ? "초대 코드 형식을 다시 확인해 주세요."
-          : "오류가 발생했습니다. 다시 시도해주세요.",
-      );
+    } catch {
+      setError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setLoading(false);
     }
@@ -277,52 +221,11 @@ export default function OnboardingPage() {
           <p className="text-[13px] text-taupe-400 mt-2">결혼 준비 시작하기</p>
         </div>
 
-        {/* 중립 준비 공간은 첫 가치를 막는 역할·상세 스텝을 건너뛴다. */}
-        {capabilitiesResolved && !neutralPreparationSpaceEnabled && (
-          <StepIndicator currentStep={store.currentStep} />
-        )}
+        {/* 스텝 인디케이터 */}
+        <StepIndicator currentStep={store.currentStep} />
 
         {/* 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
-          {capabilitiesFailed ? (
-            <div className="py-10 text-center" role="alert">
-              <p className="text-[15px] text-[#1A1A1F]">
-                준비 화면을 불러오지 못했어요.
-              </p>
-              <p className="mt-2 text-[13px] text-taupe-400">
-                연결을 확인하고 다시 시도해 주세요.
-              </p>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="mt-5 min-h-11 rounded-xl bg-[#795252] px-5 text-sm font-medium text-white"
-              >
-                다시 시도
-              </button>
-            </div>
-          ) : !capabilitiesResolved ? (
-            <div className="py-16 text-center" aria-busy="true">
-              <p className="text-[13px] text-taupe-400">불러오는 중…</p>
-            </div>
-          ) : neutralPreparationSpaceEnabled ? (
-            <NeutralPreparationStart
-              error={error}
-              coupleAction={store.coupleAction === "join" ? "join" : null}
-              partnerCode={store.partnerInviteCode}
-              loading={loading}
-              onCreate={() => {
-                store.setCoupleAction("create");
-                void handleSubmit("create");
-              }}
-              onSelectJoin={() => {
-                setError("");
-                store.setCoupleAction("join");
-              }}
-              onPartnerCodeChange={store.setPartnerInviteCode}
-              onJoin={() => void handleSubmit("join")}
-            />
-          ) : (
-          <>
           <AnimatePresence mode="wait">
             <motion.div
               key={store.currentStep}
@@ -428,7 +331,7 @@ export default function OnboardingPage() {
             ) : (
               <div className="flex-1 flex flex-col gap-2">
                 <button
-                  onClick={() => void handleSubmit()}
+                  onClick={handleSubmit}
                   disabled={loading}
                   className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-50"
                 >
@@ -444,8 +347,6 @@ export default function OnboardingPage() {
               </div>
             )}
           </div>
-          </>
-          )}
         </div>
       </div>
 
@@ -559,17 +460,10 @@ export default function OnboardingPage() {
 
               <button
                 onClick={() => {
-                  // 중립 경로는 아모라를 첫 화면으로 삼는다 — 온보딩에서 아무것도
-                  // 묻지 않았으니 대화가 곧 시작점이다.
-                  window.location.href = neutralPreparationSpaceEnabled
-                    ? resolveNeutralPreparationSpaceRedirect({
-                        search: window.location.search,
-                        origin: window.location.origin,
-                      })
-                    : getAuthRedirectPath(
-                        window.location.search,
-                        window.location.origin,
-                      );
+                  window.location.href = getAuthRedirectPath(
+                    window.location.search,
+                    window.location.origin,
+                  );
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >

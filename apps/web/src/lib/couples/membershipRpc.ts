@@ -10,15 +10,6 @@ type MembershipRpcSuccess = {
   role: CoupleRole;
 };
 
-type NeutralMembershipRpcSuccess = {
-  ok: true;
-  coupleId: string;
-  inviteCode: string;
-  changed: boolean;
-  idempotent: boolean;
-  memberModelVersion: 2;
-};
-
 type MembershipRpcFailure = {
   ok: false;
   status: number;
@@ -27,9 +18,6 @@ type MembershipRpcFailure = {
 };
 
 export type MembershipRpcOutcome = MembershipRpcSuccess | MembershipRpcFailure;
-export type NeutralMembershipRpcOutcome =
-  | NeutralMembershipRpcSuccess
-  | MembershipRpcFailure;
 
 type MembershipRpcPayload = {
   success?: unknown;
@@ -41,73 +29,7 @@ type MembershipRpcPayload = {
   joined?: unknown;
   idempotent?: unknown;
   role?: unknown;
-  actor_user_id?: unknown;
-  member_model_version?: unknown;
 };
-
-type MembershipRpcTransportError = {
-  code?: string;
-  message?: string;
-} | null;
-
-export type MembershipRpcTransportResponse = {
-  data: unknown;
-  error: MembershipRpcTransportError;
-};
-
-type MembershipRpcClient = {
-  rpc: (
-    functionName: string,
-    parameters: Record<string, unknown>,
-  ) => PromiseLike<MembershipRpcTransportResponse>;
-};
-
-export const JOIN_COUPLE_SERVER_RPC = "join_couple_server";
-export const JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC =
-  "join_neutral_preparation_space_server";
-export const COUPLE_INVITE_EXPAND_REQUIRED_CODE =
-  "COUPLE_INVITE_EXPAND_REQUIRED";
-
-/**
- * RPC 함수 자체가 없을 때(마이그레이션 미적용) 나는 오류인가.
- * 일시 장애와 구분해야 한다 — 재시도를 권하면 영원히 실패한다.
- */
-export function isMembershipRpcMissing(error: unknown): boolean {
-  if (!error || typeof error !== "object" || Array.isArray(error)) return false;
-  const code = (error as { code?: unknown }).code;
-  return code === "PGRST202" || code === "42883";
-}
-
-/** @deprecated isMembershipRpcMissing 를 쓴다. 이름이 좁아 호출부가 안 생겼다. */
-export const isJoinCoupleServerRpcMissing = isMembershipRpcMissing;
-
-export async function joinCoupleThroughServerRpc(
-  client: MembershipRpcClient,
-  input: {
-    actorUserId: string;
-    inviteCode: string;
-    role: CoupleRole;
-  },
-): Promise<MembershipRpcTransportResponse> {
-  return client.rpc(JOIN_COUPLE_SERVER_RPC, {
-    p_actor_user_id: input.actorUserId,
-    p_invite_code: input.inviteCode,
-    p_role: input.role,
-  });
-}
-
-export async function joinNeutralPreparationSpaceThroughServerRpc(
-  client: MembershipRpcClient,
-  input: {
-    actorUserId: string;
-    inviteCode: string;
-  },
-): Promise<MembershipRpcTransportResponse> {
-  return client.rpc(JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC, {
-    p_actor_user_id: input.actorUserId,
-    p_invite_code: input.inviteCode,
-  });
-}
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -179,61 +101,7 @@ const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
     status: 409,
     message: "커플 연결 상태가 변경되었습니다. 다시 시도해주세요.",
   },
-  ROLE_MISMATCH: {
-    status: 409,
-    message: "파트너가 만든 커플과 반대 역할을 선택해 주세요.",
-  },
-  RATE_LIMITED: {
-    status: 429,
-    message: "초대 코드 확인을 너무 많이 시도했어요. 잠시 후 다시 시도해 주세요.",
-  },
 };
-
-// 중립 경로 전용 문구. 위 ERROR_RESPONSES 를 그대로 쓰면 역할을 고른 적 없는
-// 사용자에게 "이미 신부 역할이 연결되어 있습니다" 같은 말이 나간다. 그래서
-// 표를 공유하지 않고, 모르는 코드도 성별 표로 흘려보내지 않는다.
-const NEUTRAL_ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
-  // 코드가 틀린 게 아니다 — 사용자가 할 일이 다르므로 다르게 말한다.
-  LEGACY_PREPARATION_SPACE: {
-    status: 409,
-    message:
-      "이 초대 코드는 역할을 고르는 기존 방식으로 만들어진 공간이에요. 코드를 만든 분에게 새 코드를 요청해 주세요.",
-  },
-  INVALID_INVITE_CODE: {
-    status: 404,
-    message: "초대 코드를 찾지 못했어요. 코드를 다시 확인해 주세요.",
-  },
-  ALREADY_LINKED: {
-    status: 409,
-    message: "이미 다른 준비 공간에 연결된 계정이에요.",
-  },
-  SLOT_ALREADY_LINKED: {
-    status: 409,
-    message: "이 준비 공간은 이미 두 사람이 연결되어 있어요.",
-  },
-  MEMBERSHIP_CONFLICT: {
-    status: 409,
-    message: "연결 상태가 방금 바뀌었어요. 다시 시도해 주세요.",
-  },
-  RATE_LIMITED: {
-    status: 429,
-    message: "초대 코드 확인을 너무 많이 시도했어요. 잠시 후 다시 시도해 주세요.",
-  },
-};
-
-function neutralFailureFor(errorCode: string): MembershipRpcFailure {
-  const normalizedCode = errorCode.trim().toUpperCase();
-  const response = NEUTRAL_ERROR_RESPONSES[normalizedCode];
-  if (response) {
-    return { ok: false, errorCode: normalizedCode, ...response };
-  }
-  return {
-    ok: false,
-    status: 500,
-    message: "준비 공간 연결을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.",
-    errorCode: normalizedCode || "INVALID_RPC_RESPONSE",
-  };
-}
 
 function failureFor(errorCode: string): MembershipRpcFailure {
   const normalizedCode = errorCode.trim().toUpperCase();
@@ -260,7 +128,6 @@ export function parseMembershipRpcResponse(
   value: unknown,
   expectedRole: CoupleRole,
   action: MembershipAction,
-  expectedActorUserId?: string,
 ): MembershipRpcOutcome {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return failureFor("INVALID_RPC_RESPONSE");
@@ -289,11 +156,7 @@ export function parseMembershipRpcResponse(
     typeof changed !== "boolean" ||
     typeof payload.idempotent !== "boolean" ||
     payload.idempotent === changed ||
-    payload.role !== expectedRole ||
-    (
-      expectedActorUserId !== undefined
-      && payload.actor_user_id !== expectedActorUserId
-    )
+    payload.role !== expectedRole
   ) {
     return failureFor("INVALID_RPC_RESPONSE");
   }
@@ -305,75 +168,5 @@ export function parseMembershipRpcResponse(
     changed,
     idempotent: payload.idempotent,
     role: expectedRole,
-  };
-}
-
-export function parseNeutralMembershipRpcResponse(
-  value: unknown,
-  action: MembershipAction,
-  expectedActorUserId?: string,
-): NeutralMembershipRpcOutcome {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return neutralFailureFor("INVALID_RPC_RESPONSE");
-  }
-
-  const payload = value as MembershipRpcPayload;
-  const errorCode =
-    typeof payload.error_code === "string" && payload.error_code.trim()
-      ? payload.error_code.trim()
-      : typeof payload.error === "string" && payload.error.trim()
-        ? LEGACY_ERROR_CODES[payload.error.trim()] ?? "UNKNOWN_RPC_ERROR"
-        : null;
-  if (errorCode) return neutralFailureFor(errorCode);
-
-  const expectedKeys = action === "create"
-    ? [
-        "couple_id",
-        "created",
-        "idempotent",
-        "invite_code",
-        "member_model_version",
-        "success",
-      ]
-    : [
-        "actor_user_id",
-        "couple_id",
-        "idempotent",
-        "invite_code",
-        "joined",
-        "member_model_version",
-        "success",
-      ];
-  const actualKeys = Object.keys(value as Record<string, unknown>).sort();
-  const changed = action === "create" ? payload.created : payload.joined;
-
-  if (
-    actualKeys.length !== expectedKeys.length
-    || actualKeys.some((key, index) => key !== expectedKeys[index])
-    || payload.success !== true
-    || typeof payload.couple_id !== "string"
-    || !UUID_PATTERN.test(payload.couple_id)
-    || typeof payload.invite_code !== "string"
-    || !/^WH-[A-Z0-9]{6,12}$/.test(payload.invite_code)
-    || typeof changed !== "boolean"
-    || typeof payload.idempotent !== "boolean"
-    || payload.idempotent === changed
-    || payload.member_model_version !== 2
-    || Object.hasOwn(payload, "role")
-    || (
-      expectedActorUserId !== undefined
-      && payload.actor_user_id !== expectedActorUserId
-    )
-  ) {
-    return neutralFailureFor("INVALID_RPC_RESPONSE");
-  }
-
-  return {
-    ok: true,
-    coupleId: payload.couple_id,
-    inviteCode: payload.invite_code,
-    changed,
-    idempotent: payload.idempotent,
-    memberModelVersion: 2,
   };
 }
