@@ -3819,6 +3819,82 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
+  it("사이에 낀 안전 턴이 라우트에서도 연속성을 끊는다", async () => {
+    // 모듈 테스트만으로는 부족하다. 감사에서 지적된 대로 라우트가 실제로
+    // 넘기는 행 모양(전체 창)에서 끊기는지 봐야 한다. 예전에는 신뢰 필터가
+    // 폭력 서술을 **지워서** 웨딩 쌍이 답변과 붙어 보였고, 안전 질문에 답한
+    // "응"이 W0 + 기억 ON + 도구 전부를 받았다.
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    const me = "00000000-0000-4000-8000-000000000001";
+    mocks.activeSegment = { id: segmentId, status: "active" };
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: me, sender_type: "bride", role: "user",
+        content: "응", metadata: null, visibility: "shared",
+        segment_id: segmentId, created_at: "2026-07-15T00:04:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000012",
+        sender_id: null, sender_type: "ai", role: "assistant",
+        content: "지금 안전한 곳에 계신가요?",
+        metadata: {
+          in_reply_to_user_message_id: "30000000-0000-4000-8000-000000000011",
+          question_scope: "W2_high_risk_adjacent",
+          memory_eligible: false,
+        },
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:03:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000011",
+        sender_id: me, sender_type: "bride", role: "user",
+        content: "남편이 어제 저를 때렸어요", metadata: null,
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null, sender_type: "ai", role: "assistant",
+        content: "2026년으로 넣을까요, 2027년으로 넣을까요?",
+        metadata: {
+          in_reply_to_user_message_id: "30000000-0000-4000-8000-000000000009",
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000009",
+        sender_id: me, sender_type: "bride", role: "user",
+        content: "10월 17일 오후 2시에 드레스 투어 일정 넣어줘",
+        metadata: null, visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "무엇을 도와드릴까요?",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: "응" }],
+    }));
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).not.toContain(
+      "question_scope: W0_wedding_core",
+    );
+    expect(providerArgs?.tools ?? []).toEqual([]);
+    expect(providerArgs?.systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      memory_eligible: false,
+    });
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it("되살아난 도구가 저장된 결혼 문맥과 함께 온다", async () => {
     // 범위만 W0으로 올리고 저장 문맥 읽기를 건너뛰면, 도구는 살아났는데 예산도
     // 예식장도 비어 있는 상태로 답하게 된다. 되묻기에 답한 사람에게는 그것도
