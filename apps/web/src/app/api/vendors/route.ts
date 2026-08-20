@@ -81,14 +81,19 @@ export async function GET(req: Request) {
     // 각 업체의 상품 수 가져오기
     const vendorIds = (vendorRows ?? []).map((v) => v.id);
 
-    const { data: productRows } = vendorIds.length > 0
+    // 상품 조회 실패를 버리면 "등록된 상품 없음"과 구분되지 않는다.
+    const { data: productRows, error: productError } = vendorIds.length > 0
       ? await admin
           .from("vendor_products")
           .select(PUBLIC_VENDOR_PRODUCT_COLUMNS)
           .in("vendor_id", vendorIds)
           .eq("is_active", true)
           .order("sort_order")
-      : { data: [] };
+      : { data: [], error: null };
+
+    if (productError) {
+      console.error("vendor products lookup failed:", productError.message);
+    }
 
     const vendors = (vendorRows ?? []).map((row) => {
       const vendorProducts = (productRows ?? [])

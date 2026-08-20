@@ -21,11 +21,26 @@ export const dynamic = "force-dynamic";
 // 결과를 60초 단위로 공유 캐시해 첫 화면 대기를 없앤다 — 새 글은 최대 1분
 // 늦게 보이지만, 목록 아래 무한스크롤과 작성 후 이동은 모두 클라이언트
 // 경로라 글쓴이 본인은 즉시 확인할 수 있다.
-const loadSharedInitialFeed = unstable_cache(
+const cachedInitialFeed = unstable_cache(
   () => getInitialCommunityFeed(10),
   ["community-initial-feed-v1"],
   { revalidate: 60, tags: ["community-initial-feed"] },
 );
+
+/**
+ * `getInitialCommunityFeed`는 읽기 실패도 빈 피드로 돌려준다. 그 값이 공유 캐시에
+ * 박히면 일시적 장애가 "커뮤니티에 글이 없음"으로 굳는다 — 무효화하는 코드가 이
+ * 저장소에 없어서 스스로 풀리지도 않는다.
+ *
+ * 그래서 빈 결과는 캐시를 믿지 않고 한 번 더 직접 읽는다. 진짜로 0건이면 두 번째
+ * 읽기도 0건이라 결과가 같고, 장애였다면 회복된 순간 바로 정상으로 돌아온다.
+ * 추가 조회는 피드가 비어 있을 때만 일어난다.
+ */
+const loadSharedInitialFeed = async () => {
+  const cached = await cachedInitialFeed();
+  if (cached.posts.length > 0) return cached;
+  return getInitialCommunityFeed(10);
+};
 
 // 공시는 분기마다 갱신된다. 매 방문마다 수천 행을 다시 훑을 이유가 없어 하루
 // 단위로 공유 캐시한다 — /price 허브의 revalidate와 같은 주기다.
