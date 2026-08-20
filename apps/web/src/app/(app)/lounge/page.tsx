@@ -27,6 +27,11 @@ import {
   Wallet,
 } from "lucide-react";
 import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
+import FirstRunLoungeTutorial from "@/components/app/FirstRunLoungeTutorial";
+import LoungeFirstArrival, {
+  buildLoungeFirstArrival,
+  LoungeFirstArrivalEmptyNote,
+} from "@/components/app/LoungeFirstArrival";
 import WeeklyCard from "@/components/app/WeeklyCard";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
@@ -47,6 +52,7 @@ import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 
 type Status = ProgressItem["status"];
 
@@ -81,12 +87,9 @@ interface CohortState {
   digest: CohortDigest | null;
 }
 
-const STATUS_LABEL: Record<Status, string> = {
-  not_started: "예정",
-  in_progress: "진행 중",
-  completed: "완료",
-  not_applicable: "해당 없음",
-};
+// 상태 이름은 @hanbang/shared가 정본이다. 여기 따로 적어 두면 온보딩에서 "안 해요"를
+// 고른 항목이 라운지에서 "해당 없음"으로 보인다 — 사용자는 자기가 고른 것과 다른 것을 본다.
+const STATUS_LABEL: Record<Status, string> = PREPARATION_PROGRESS_STATUS_LABELS;
 
 const STATUS_TONE: Record<Status, string> = {
   not_started: "border-[#eadfc9] bg-white text-[#5d6879]",
@@ -359,7 +362,7 @@ function buildDemoSavedPosts(): PostWithAuthor[] {
 }
 
 export default function LoungePage() {
-  const { user, partner, journey, isDemo } = useAuthStore();
+  const { user, partner, profile, journey, isDemo } = useAuthStore();
   const userId = user?.id ?? null;
   const [savedPosts, setSavedPosts] = useState<PostWithAuthor[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
@@ -402,6 +405,31 @@ export default function LoungePage() {
   const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
   const budgetWidth = Math.min(100, Math.max(0, budgetPercent));
   const progressPercent = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;
+  // 첫 도착 카드 — 온보딩만 끝나고 아직 아무것도 쌓이지 않은 라운지에서만 뜬다.
+  // 판정은 아래 값들(체크·카테고리 상태·예산·일정)에서 매번 다시 계산하므로
+  // 커플이 무언가 남기는 순간 저절로 사라진다. 따로 플래그를 두지 않는 이유다.
+  const firstArrival = useMemo(
+    () =>
+      buildLoungeFirstArrival({
+        onboardingCompleted: profile?.onboarding_completed === true,
+        weddingDate: journey?.wedding_date,
+        progress,
+        totalBudget,
+        spentBudget,
+        checkedItemCount: summary.done,
+        partnerLinked: Boolean(partner),
+        now: Date.now(),
+      }),
+    [
+      journey?.wedding_date,
+      partner,
+      profile?.onboarding_completed,
+      progress,
+      spentBudget,
+      summary.done,
+      totalBudget,
+    ],
+  );
   const companionCopy = getDashboardCompanionCopy(Boolean(partner));
   const partnerLabel = partner?.name
     ? `${partner.name}님과 같은 계획을 보고 있어요`
@@ -577,6 +605,11 @@ export default function LoungePage() {
 
   return (
     <div className="space-y-5 text-[#061a34]">
+      {/* 첫 도착 안내는 라운지에서만 뜬다 — 앵커가 여기 있고, 여기가 착지 화면이다. */}
+      <FirstRunLoungeTutorial />
+      {/* 파트너 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이
+          겹치면 어느 쪽이 지금 할 일인지 흐려진다. 합류 안내를 닫으면 다시 나온다. */}
+      {firstArrival && !showJoinedHandoff && <LoungeFirstArrival view={firstArrival} />}
       {showJoinedHandoff && (
         <section
           data-testid="joined-plan-handoff"
@@ -693,11 +726,18 @@ export default function LoungePage() {
               value={partner ? "함께 준비" : "혼자 준비"}
               note={partnerLabel}
               icon={<Users className="h-4 w-4" />}
+              // 초대 안내는 아직 혼자인 사람에게만 짚는다. 이미 연결된 사람에게
+              // 앵커가 없으면 그 단계(optional)는 투어가 조용히 건너뛴다.
+              tutorialTarget={partner ? undefined : "lounge-invite"}
             />
           </div>
         </div>
 
-        <div className="rounded-[22px] border border-[#29433e] bg-[#36534E] p-5 text-white shadow-[0_16px_38px_rgba(54,83,78,0.16)] md:p-6">
+        {/* 첫 실행 투어의 "여기부터 보시면 돼요" — 오늘 챙길 것 하나가 올라오는 자리다. */}
+        <div
+          data-tutorial-target="lounge-focus"
+          className="rounded-[22px] border border-[#29433e] bg-[#36534E] p-5 text-white shadow-[0_16px_38px_rgba(54,83,78,0.16)] md:p-6"
+        >
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[12px] font-semibold text-[#ecd7a4]">아모라 브리핑</p>
@@ -734,7 +774,15 @@ export default function LoungePage() {
 
       <WeeklyCard weddingDate={journey?.wedding_date} totalBudget={totalBudget} progress={progress} actions={openActions} />
 
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+      {/* 왜 아직 비어 있는지를 빈 위젯 바로 위에서 말한다. 설명 없는 빈 화면은
+          "고장 났나?"로 읽힌다. */}
+      {firstArrival && <LoungeFirstArrivalEmptyNote view={firstArrival} />}
+
+      {/* 체크리스트·예산·일정이 한자리에 있는 구역 — 투어의 "준비는 여기서 이어가요". */}
+      <section
+        data-tutorial-target="lounge-tools"
+        className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+      >
         <div className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -817,14 +865,20 @@ function MetricTile({
   value,
   note,
   icon,
+  tutorialTarget,
 }: {
   label: string;
   value: string;
   note: string;
   icon: ReactNode;
+  /** 첫 실행 투어가 이 타일을 짚어야 할 때만 준다. */
+  tutorialTarget?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-3.5">
+    <div
+      data-tutorial-target={tutorialTarget}
+      className="min-w-0 rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-3.5"
+    >
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-semibold text-[#9d6f36]">{label}</p>
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E]">{icon}</span>

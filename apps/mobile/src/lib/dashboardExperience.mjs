@@ -105,6 +105,10 @@ export function buildDashboardFocus({
   bookingOutcomeTasks,
 }) {
   if (!weddingDate) {
+    // 날짜 한 줄을 고치러 온보딩 6단계를 다시 걷게 하지 않는다. 온보딩은 역할과 커플 연결을
+    // 처음부터 다시 묻는 화면이라, 역할을 처음과 다르게 고르면 서버가 커플 구성이 어긋났다고
+    // 돌려주고 사람은 "고객 지원에 문의해주세요"에서 끝난다. 결혼 정보는 설정 화면에 이미
+    // 편집 가능한 필드로 있다.
     return {
       kind: "setup",
       eyebrow: "첫 번째 준비",
@@ -112,7 +116,7 @@ export function buildDashboardFocus({
       description:
         "날짜를 저장하면 두 사람의 일정에 맞춰 오늘 할 일과 준비 순서를 정리해 드려요.",
       ctaLabel: "결혼식 날짜 설정",
-      route: "/onboarding",
+      route: "/settings",
     };
   }
 

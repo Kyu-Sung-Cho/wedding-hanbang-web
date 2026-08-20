@@ -34,7 +34,12 @@ import {
   type DashboardTodayTask,
   type DashboardUrgentTask,
 } from "@/lib/dashboardExperience.mjs";
+import { LOUNGE_CONTENT_BOTTOM_PADDING } from "@/lib/firstRunTutorial";
 import { AppText, SectionHeader, StatusPill, appShadow } from "@/components/ui/AppUI";
+import {
+  FirstRunAnchor,
+  useFirstRunAnchorScroller,
+} from "@/components/lounge/FirstRunAnchors";
 
 interface PartnerActivity {
   partnerName: string;
@@ -58,6 +63,14 @@ interface WeddingHomeExperienceProps {
   refreshing: boolean;
   onRefresh: () => void;
   todayOneCare?: ReactNode;
+  /**
+   * 첫 도착 카드들(확인했어요 · 다음 걸음 · 초대). 두 사람이 만든 데이터가 아직 없을
+   * 때만 라운지가 넣어준다. 이 화면은 언제 보일지 판단하지 않는다 — 판단이 두 곳에
+   * 있으면 한쪽만 고쳐진다.
+   */
+  firstArrival?: ReactNode;
+  /** 왜 아직 비어 있는지 한 줄. 빈 준비 도구 격자 바로 위에 붙는다. */
+  emptyNote?: ReactNode;
 }
 
 const SERVICE_ICONS = {
@@ -123,8 +136,8 @@ function getFocusPill(focus: DashboardFocus): {
 
 function openFocus(focus: DashboardFocus) {
   switch (focus.route) {
-    case "/onboarding":
-      router.push("/onboarding");
+    case "/settings":
+      router.push("/settings");
       return;
     case "/schedule":
       router.push("/schedule");
@@ -139,7 +152,9 @@ function openFocus(focus: DashboardFocus) {
       });
       return;
     case "/(tabs)/chat":
-      router.push("/(tabs)/chat");
+      // 히어로 카드에서 온 사람은 "오늘 확인 항목이 없다"는 말을 방금 읽은 사람이다.
+      // 그 맥락을 들고 가야 대화가 다른 문들과 같은 자리에서 시작하지 않는다.
+      router.push("/(tabs)/chat?entry=lounge_focus_calm");
   }
 }
 
@@ -212,8 +227,21 @@ export default function WeddingHomeExperience({
   refreshing,
   onRefresh,
   todayOneCare,
+  firstArrival,
+  emptyNote,
 }: WeddingHomeExperienceProps) {
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
+  const registerFirstRunScroller = useFirstRunAnchorScroller();
+
+  // 첫 실행 안내가 화면 아래 요소를 짚어야 할 때 이 스크롤을 빌려 쓴다. 안내가 없는
+  // 화면에서는 등록만 되고 아무도 부르지 않는다.
+  useEffect(() => {
+    registerFirstRunScroller((y) => {
+      scrollRef.current?.scrollTo({ y, animated: true });
+    });
+    return () => registerFirstRunScroller(null);
+  }, [registerFirstRunScroller]);
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -252,6 +280,7 @@ export default function WeddingHomeExperience({
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.scroll}
       contentContainerStyle={styles.content}
       refreshControl={
@@ -282,6 +311,11 @@ export default function WeddingHomeExperience({
             </View>
           </View>
 
+          {/* 첫 도착 카드들. 스크롤 콘텐츠의 직속 자식이어야 안내가 자리를 제대로 잰다. */}
+          {firstArrival}
+
+          {/* 첫 실행 안내의 "여기부터 보시면 돼요"가 가리키는 곳. */}
+          <FirstRunAnchor id="lounge-focus">
           <Pressable
             style={({ pressed }) => [
               styles.hero,
@@ -338,16 +372,19 @@ export default function WeddingHomeExperience({
               <ArrowRight size={17} color={colors.noir[900]} />
             </View>
           </Pressable>
+          </FirstRunAnchor>
 
           {todayOneCare ? (
             <View style={styles.todayOneSection}>{todayOneCare}</View>
           ) : null}
 
-          <View style={styles.section}>
+          {/* 첫 실행 안내의 "준비는 여기서 이어가요"가 가리키는 곳. */}
+          <FirstRunAnchor id="lounge-tools" style={styles.section}>
             <SectionHeader
               eyebrow="WEDDING TOOLS"
               title="준비의 모든 순간"
             />
+            {emptyNote}
             <View style={styles.serviceGrid}>
               {HOME_SERVICES.map((service) => {
                 const Icon = SERVICE_ICONS[service.key];
@@ -386,7 +423,7 @@ export default function WeddingHomeExperience({
                 );
               })}
             </View>
-          </View>
+          </FirstRunAnchor>
 
           {secondaryUrgentTasks.length > 0 ? (
             <View style={styles.section}>
@@ -461,7 +498,9 @@ export default function WeddingHomeExperience({
               styles.amoraCard,
               pressed && styles.heroPressed,
             ]}
-            onPress={() => router.push("/(tabs)/chat")}
+            // 라운지의 전폭 카드에서 왔다는 맥락을 들고 간다. FAB·첫 도착 CTA·탭과 목적지가
+            // 같아도, 대화가 열렸을 때 놓이는 첫 문장이 서로 달라야 문이 네 개인 값을 한다.
+            onPress={() => router.push("/(tabs)/chat?entry=lounge_card")}
             accessibilityRole="button"
             accessibilityLabel="아모라에게 결혼 준비 상담하기"
           >
@@ -527,7 +566,9 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing[5],
     paddingTop: spacing[4],
-    paddingBottom: 128,
+    // 마지막 카드가 아모라 버튼이나 말풍선 뒤로 숨지 않도록, 그 둘이 실제로 차지하는 높이에서
+    // 셈한다. 리터럴로 두면 버튼이 커지거나 말풍선이 붙을 때 조용히 어긋난다.
+    paddingBottom: LOUNGE_CONTENT_BOTTOM_PADDING,
   },
   intro: {
     minHeight: 58,
