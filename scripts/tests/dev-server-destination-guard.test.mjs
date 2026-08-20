@@ -302,12 +302,16 @@ test("런처를 운영 목적지로 실행하면 Next 를 띄우지 않고 종�
   env.SUPABASE_EXPECTED_URL = `https://${PRODUCTION_REF}.supabase.co`;
   env.SUPABASE_EXPECTED_PROJECT_REF = PRODUCTION_REF;
   env.PORT = "3200";
+  // 이 테스트를 깨뜨려보는 사람(가드를 지우고 돌려보는 사람)이 진짜 운영 dev 서버를
+  // 띄우게 되면 안 된다. 자격증명은 못 쓰는 값으로 덮어 둔다.
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "invalid-anon-key-for-test";
+  env.SUPABASE_SERVICE_ROLE_KEY = "";
 
   const result = spawnSync(process.execPath, [launcher], {
     cwd: repoRoot,
     env,
     encoding: "utf8",
-    timeout: 60_000,
+    timeout: 20_000,
   });
 
   assert.equal(result.status, 1);
