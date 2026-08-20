@@ -20,6 +20,16 @@ import { describe, expect, it } from "vitest";
  *
  * 랜딩 자체는 그대로다. sitemap과 canonical이 처음부터 `/landing`을 가리키므로
  * 검색 유입은 루트가 아니라 랜딩으로 들어온다 — 그 사실도 함께 고정한다.
+ *
+ * ## page.tsx는 폴백이지 정본이 아니다
+ *
+ * 실제 판정은 **미들웨어**(`lib/supabase/middleware.ts`의 `redirectAppDoor`)가 한다.
+ * 거기서 해야 진짜 307이 나가기 때문이다 — 서버 컴포넌트의 `redirect()`는 세션을
+ * 물어보는 사이 스트리밍이 시작돼서 `200 + HTML`로 나가고, 리다이렉트가 클라이언트로
+ * 밀린다. 그 동작은 `lib/supabase/middleware.test.ts`가 상태 코드로 지킨다.
+ *
+ * 아래 page.tsx 단언들은 **미들웨어가 돌지 않는 환경**(Supabase 설정 누락 등)의 폴백을
+ * 지킨다. 중복으로 보인다는 이유로 지우면, 그 환경에서 루트가 다시 폴백 문서가 된다.
  */
 
 const WEB_ROOT = process.cwd();
