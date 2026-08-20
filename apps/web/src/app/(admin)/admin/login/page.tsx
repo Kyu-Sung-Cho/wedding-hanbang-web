@@ -363,11 +363,13 @@ export default function AdminLoginPage() {
 
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-6 mt-6">
+          {/* 루트는 이제 로그인으로 가는 문이라, `/`로 두면 바로 옆 "고객 로그인"과
+              같은 곳에 떨어진다. 서비스를 설명하는 화면은 `/landing`이다. */}
           <Link
-            href="/"
+            href="/landing"
             className="text-[13px] text-white/40 hover:text-white/70 transition-colors"
           >
-            &larr; 홈으로
+            &larr; 서비스 소개로
           </Link>
           <span className="text-white/10">|</span>
           <Link

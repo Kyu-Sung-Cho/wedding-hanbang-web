@@ -86,6 +86,14 @@ describe("루트는 앱의 문이다", () => {
       expect(source).toContain('href="/landing"');
     }
   });
+
+  it("어드민 로그인의 '홈으로'가 바로 옆 '고객 로그인'과 같은 곳에 떨어지지 않는다", () => {
+    // 루트가 로그인으로 가는 문이 되면서, 그 화면의 두 링크가 같은 목적지가 됐다.
+    // 관리자가 서비스를 확인하러 누르는 링크는 설명이 있는 `/landing`이어야 한다.
+    const source = read("src/app/(admin)/admin/login/page.tsx");
+    expect(source).not.toContain('href="/"');
+    expect(source).toContain('href="/landing"');
+  });
 });
 
 describe("첫 화면이 된 로그인의 호칭", () => {

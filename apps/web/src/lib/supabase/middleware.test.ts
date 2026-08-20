@@ -145,10 +145,11 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
   });
 
   it("위조 가능한 체험 표식만으로 라운지에 보내지 않는다", async () => {
-    // 체험의 진짜 자격은 서명된 `demo_session`이고, 미들웨어는 그 서명을 검증할 수
-    // 없다(Edge에 node:crypto가 없다). 표식만 믿고 라운지로 보내면 **만료된 체험
-    // 쿠키를 든 사람이 라운지에 갔다가 다시 로그인으로 튕기고**, 그 튕김이 클라이언트
-    // 에서 일어나 UTM까지 사라진다.
+    // `demo_mode`는 위조 가능한 표식이고, 체험의 진짜 자격은 서명된 `demo_session`이다
+    // (`lib/demoSession.ts`). 표식만 믿고 라운지로 보내면 **만료된 체험 쿠키를 든 사람이
+    // 라운지에 갔다가 다시 로그인으로 튕기고**, 그 튕김이 클라이언트에서 일어나 UTM까지
+    // 사라진다. 서명 검증이 불가능해서가 아니라 목적지를 바꾸지 않기로 한 결정이다 —
+    // 자세한 이유는 `middleware.ts`의 `redirectAppDoor` 주석에 있다.
     const request = new NextRequest("https://hanbang.ai/?utm_source=kakao");
     request.cookies.set("demo_mode", "true");
 
