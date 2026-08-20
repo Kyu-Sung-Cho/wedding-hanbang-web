@@ -29,7 +29,9 @@ DECLARE
   v_name text;
 BEGIN
   IF p_assignee IS NULL OR p_assignee = 'null'::jsonb THEN
-    RETURN '확인 필요';
+    -- 원본(20260802140000:646)과 동일해야 한다. 담당자 미지정은 정상 상태이고,
+    -- 아래 EXCEPTION 폴백의 '확인 필요'와 구별되어야 한다.
+    RETURN '미정';
   END IF;
   IF p_assignee ->> 'kind' = 'couple' THEN
     RETURN '함께';

@@ -187,6 +187,12 @@ const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
     status: 429,
     message: "초대 코드 확인을 너무 많이 시도했어요. 잠시 후 다시 시도해 주세요.",
   },
+  // 구버전 앱이 역할을 골라 중립 공간에 합류하려 할 때 DB(20260820130000)가 내는 코드.
+  NEUTRAL_PREPARATION_SPACE: {
+    status: 409,
+    message:
+      "이 준비 공간은 역할을 고르지 않는 방식이에요. 앱을 최신으로 업데이트한 뒤 다시 시도해 주세요.",
+  },
 };
 
 // 중립 경로 전용 문구. 위 ERROR_RESPONSES 를 그대로 쓰면 역할을 고른 적 없는
@@ -194,6 +200,13 @@ const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
 // 표를 공유하지 않고, 모르는 코드도 성별 표로 흘려보내지 않는다.
 const NEUTRAL_ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
   // 코드가 틀린 게 아니다 — 사용자가 할 일이 다르므로 다르게 말한다.
+  // 20260820130000 이 내는 코드. 매핑이 없으면 failureFor 폴백으로 500
+  // "커플 연결을 완료하지 못했습니다"가 나가 사용자가 이유를 모른다.
+  NEUTRAL_PREPARATION_SPACE: {
+    status: 409,
+    message:
+      "이 준비 공간은 역할을 고르지 않는 방식이에요. 앱을 최신으로 업데이트한 뒤 다시 시도해 주세요.",
+  },
   LEGACY_PREPARATION_SPACE: {
     status: 409,
     message:
