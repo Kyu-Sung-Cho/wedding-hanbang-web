@@ -4,6 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getInitialCommunityFeed: vi.fn(),
   getUser: vi.fn(),
+  cookieHeader: { value: null as string | null },
+}));
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(
+    mocks.cookieHeader.value ? { cookie: mocks.cookieHeader.value } : {},
+  ),
 }));
 
 vi.mock("@/lib/community/initialFeed", () => ({
@@ -38,6 +45,7 @@ describe("CommunityFeedPage preview stub", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.clearAllMocks();
+    mocks.cookieHeader.value = null;
   });
 
   it("does not attempt a server Supabase feed query", async () => {
@@ -90,7 +98,33 @@ describe("CommunityFeedPage preview stub", () => {
     expect(mocks.getInitialCommunityFeed).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * 로그아웃 방문자에게 getUser()는 늘 "세션 없음" 오류를 낸다. 그것까지 확인
+   * 실패로 읽으면 비로그인 첫 화면이 영구히 "최근 글 0개"가 된다.
+   */
+  it("serves the shared public feed to a visitor who presented no credential", async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: null },
+      error: { name: "AuthSessionMissingError", message: "Auth session missing!" },
+    });
+    mocks.getInitialCommunityFeed.mockResolvedValue({
+      posts: [{ title: "anonymous visitor public title" }],
+      total: 1,
+      hasMore: false,
+      fetchedAt: "2026-08-20T00:00:00.000Z",
+    });
+
+    const element = await CommunityFeedPage({
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("anonymous visitor public title");
+    expect(mocks.getInitialCommunityFeed).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed when server authentication cannot confirm the viewer", async () => {
+    mocks.cookieHeader.value = "sb-slrtobkksjmxgzatjyqb-auth-token=broken";
     mocks.getUser.mockResolvedValue({
       data: { user: null },
       error: { message: "auth unavailable" },

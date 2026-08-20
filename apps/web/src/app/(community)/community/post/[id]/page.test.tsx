@@ -24,11 +24,18 @@ const mocks = vi.hoisted(() => ({
   serverUserId: null as string | null,
   serverAuthError: null as { message: string } | null,
   viewerPostVisible: true,
+  cookieHeader: { value: null as string | null },
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.routerPush }),
   notFound: mocks.notFound,
+}));
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(
+    mocks.cookieHeader.value ? { cookie: mocks.cookieHeader.value } : {},
+  ),
 }));
 
 vi.mock("@/lib/community/publicPostDetail", () => ({
@@ -292,6 +299,7 @@ describe("public post server rendering", () => {
     mocks.serverUserId = null;
     mocks.serverAuthError = null;
     mocks.viewerPostVisible = true;
+    mocks.cookieHeader.value = null;
   });
 
   it("puts the public title, body, and database-backed origin in the server HTML", async () => {
@@ -372,7 +380,35 @@ describe("public post server rendering", () => {
     expect(mocks.getPublicCommunityPostDetail).not.toHaveBeenCalled();
   });
 
+  /**
+   * 로그아웃 방문자에게 getUser()는 늘 "세션 없음" 오류다. 그것까지 확인 실패로
+   * 읽으면 익명 상세 로더가 한 번도 실행되지 않아 서버가 본문 없는 빈 화면을
+   * 내려준다 — 링크 미리보기와 크롤러에는 제목조차 남지 않는다.
+   */
+  it("serves the anonymous detail to a visitor who presented no credential", async () => {
+    mocks.serverAuthError = {
+      name: "AuthSessionMissingError",
+      message: "Auth session missing!",
+    } as never;
+    mocks.post = null;
+    mocks.getPublicCommunityPostDetail.mockResolvedValue(
+      question({
+        title: "anonymous visitor receives the detail",
+        content: "anonymous visitor body",
+      }),
+    );
+
+    const element = await PostDetailPage({
+      params: Promise.resolve({ id: "post-1" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("anonymous visitor receives the detail");
+    expect(mocks.getPublicCommunityPostDetail).toHaveBeenCalledWith("post-1");
+  });
+
   it("does not use the anonymous detail loader while authentication is uncertain", async () => {
+    mocks.cookieHeader.value = "sb-slrtobkksjmxgzatjyqb-auth-token=broken";
     mocks.serverAuthError = { message: "auth unavailable" };
     mocks.post = null;
     mocks.getPublicCommunityPostDetail.mockResolvedValue(
