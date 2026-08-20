@@ -19,6 +19,7 @@ import {
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 import { formatWon } from "@/lib/formatWon";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 
 interface ActionCardProps {
   result: ToolExecutionResult;
@@ -125,11 +126,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   ...PLANNING_CATEGORY_LABELS,
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  not_started: "예정",
-  in_progress: "진행 중",
-  completed: "완료",
-};
+// not_applicable 자리가 없어서, 온보딩에서 "안 해요"로 표시한 항목이 여기서는
+// 원시 키 그대로 노출될 수 있었다(435행의 `?? status` 폴백). 정본을 쓰면 상태가
+// 하나 늘어도 그 자리가 자동으로 생긴다.
+const STATUS_LABELS: Record<string, string> = PREPARATION_PROGRESS_STATUS_LABELS;
 
 const INTERNAL_ID_FAILURE_COPY: Record<string, string> = {
   update_schedule_event:
