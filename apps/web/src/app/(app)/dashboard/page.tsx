@@ -227,6 +227,7 @@ export default function DashboardPage() {
     ownerUserId: string;
     value: string;
   } | null>(null);
+  const [inviteCodeError, setInviteCodeError] = useState(false);
   const [copied, setCopied] = useState(false);
   const joinedHandoffVisible = useSyncExternalStore(
     subscribeJoinedDashboardMarker,
@@ -314,13 +315,17 @@ export default function DashboardPage() {
             ownerUserId: expectedActorUserId,
             value: data.inviteCode,
           });
+          setInviteCodeError(false);
         } else {
           setInviteCodeState((current) =>
             current?.ownerUserId === expectedActorUserId ? null : current,
           );
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // 카드째 사라지면 파트너를 초대할 방법이 화면에서 없어진다.
+        setInviteCodeError(true);
+      });
     return () => controller.abort();
   }, [couple, inviteCodeState, isDemo, partner, user?.id]);
 
@@ -536,7 +541,7 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-      {couple && !partner && inviteCode && (
+      {couple && !partner && (inviteCode || inviteCodeError) && (
         <section className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -547,14 +552,20 @@ export default function DashboardPage() {
                 함께 보고 싶을 때 이 코드를 공유하면 같은 예산과 일정, 할 일을 볼 수 있어요.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={copyCode}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
-            >
-              <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </button>
+            {inviteCode ? (
+              <button
+                type="button"
+                onClick={copyCode}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+              >
+                <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </button>
+            ) : (
+              <p className="text-[13px] font-medium text-[#9d6f36]">
+                초대 코드를 불러오지 못했어요. 새로고침하면 다시 시도해요.
+              </p>
+            )}
           </div>
         </section>
       )}

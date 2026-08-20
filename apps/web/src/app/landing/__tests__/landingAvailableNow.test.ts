@@ -160,4 +160,31 @@ describe("landing available-now section", () => {
       expect(copyOnly, `검증되지 않은 주장 "${word}"`).not.toContain(word);
     }
   });
+
+  /**
+   * 카피가 "아래 넷"이라고 하는데 카드가 다섯 장이면 랜딩이 첫 화면부터 세는 법을
+   * 틀린다(2026-08-20 실측). 위의 `>= 4` 검사는 개수가 늘어도 통과하므로 수량어를
+   * 잡지 못한다. 개수와 문구를 한 곳에 묶는다.
+   */
+  it("수량어가 실제 카드 수와 일치한다", () => {
+    const count = [...availableNowBlock.matchAll(/id:\s*"[^"]+"/gu)].length;
+    const numberWord = ["", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱"][count];
+
+    expect(numberWord, `카드 ${count}장에 대응하는 수량어가 없다`).toBeTruthy();
+
+    const copy = [
+      content.match(/body:\s*"([^"]*계정 없이 지금 열려[^"]*)"/u)?.[1] ?? "",
+      content.match(/"([^"]*로그인·결제를 요구하지 않아요[^"]*)"/u)?.[1] ?? "",
+    ].join("\n");
+
+    expect(copy, "availableNow 카피를 찾지 못했다").not.toBe("\n");
+
+    const wrongWords = ["하나", "둘", "셋", "넷", "다섯", "여섯", "일곱"].filter(
+      (word) => word !== numberWord && copy.includes(word),
+    );
+    expect(wrongWords, `카드는 ${count}장인데 카피가 "${wrongWords.join(", ")}"라고 한다`)
+      .toEqual([]);
+    expect(copy, `카드 ${count}장이면 "${numberWord}"이라고 써야 한다`)
+      .toContain(numberWord);
+  });
 });

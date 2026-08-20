@@ -69,7 +69,11 @@ function readSavedChecklist(savedTopic, templateItems) {
     done: savedById.get(templateItem.id)?.done === true,
   }));
   for (const item of savedById.values()) {
-    if (!templateById.has(item.id)) checklist.push({ ...item });
+    // 저장에만 남아 있던 항목도 {id, label, done} 세 키로만 되돌린다.
+    // 통째로 복사하면 예전에 저장된 note 같은 필드가 그대로 다시 실린다.
+    if (!templateById.has(item.id)) {
+      checklist.push({ id: item.id, label: item.label, done: item.done === true });
+    }
   }
   return checklist;
 }

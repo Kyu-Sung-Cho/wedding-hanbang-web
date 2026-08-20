@@ -13,6 +13,18 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
+const AUTH_TOKEN_COOKIE = /(?:^|;\s*)sb-[^=]*auth-token(?:\.\d+)?=/u;
+
+/**
+ * 서버 컴포넌트에는 Request가 없다. 그쪽에서는 `headers()`로 얻은 cookie 문자열을
+ * 그대로 넘겨 같은 기준을 쓴다.
+ */
+export function cookieHeaderHasAuthCredential(
+  cookieHeader: string | null | undefined,
+): boolean {
+  return AUTH_TOKEN_COOKIE.test(cookieHeader ?? "");
+}
+
 /**
  * A public read may receive Supabase's missing-session error from a real guest.
  * Only a request that actually presented auth material should be treated as a
@@ -20,8 +32,7 @@ export function isUuid(value: unknown): value is string {
  */
 export function hasPresentedAuthCredential(request: Request): boolean {
   if (request.headers.has("authorization")) return true;
-  const cookie = request.headers.get("cookie") ?? "";
-  return /(?:^|;\s*)sb-[^=]*auth-token(?:\.\d+)?=/u.test(cookie);
+  return cookieHeaderHasAuthCredential(request.headers.get("cookie"));
 }
 
 export function isBodyTooLarge(request: Request, maxBytes: number): boolean {

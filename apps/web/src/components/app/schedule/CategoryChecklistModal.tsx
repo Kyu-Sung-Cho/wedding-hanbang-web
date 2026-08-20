@@ -35,6 +35,8 @@ import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
+import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource";
+import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -399,6 +401,9 @@ function OwnedCategoryChecklistModal({
         <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAF8]">
           <div className="flex flex-col gap-1">
             {checklist.map((item) => (
+              // 근거 링크는 체크박스 **밖**에 둔다. 버튼 안에 링크를 넣으면 잘못된
+              // 마크업이고, 누를 때 무엇이 실행될지도 애매해진다.
+              <div key={item.id} className="flex flex-col">
               <button
                 type="button"
                 role="checkbox"
@@ -406,7 +411,6 @@ function OwnedCategoryChecklistModal({
                 aria-labelledby={`${titleId}-${item.id}-label`}
                 aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                 disabled={saving || isNotApplicable}
-                key={item.id}
                 onClick={() => toggleItem(item.id)}
                 className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
               >
@@ -427,25 +431,16 @@ function OwnedCategoryChecklistModal({
                   note를 체크박스 이름에 섞으면 스크린 리더가 항목마다 두 문장을 읽는다.
                   이름은 label로 못박고 note는 설명(aria-describedby)으로 넘긴다.
                 */}
-                <span className="flex-1">
-                  <span
-                    id={`${titleId}-${item.id}-label`}
-                    className={`block text-[17px] leading-snug ${
-                      item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  {item.note && (
-                    <span
-                      id={`${titleId}-${item.id}-note`}
-                      className="mt-1 block text-[15px] leading-[1.55] text-[#8A7F79]"
-                    >
-                      {item.note}
-                    </span>
-                  )}
-                </span>
+                <ChecklistItemText
+                  item={item}
+                  idPrefix={`${titleId}-${item.id}`}
+                  labelClassName={`text-[17px] leading-snug ${
+                    item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
+                  }`}
+                />
               </button>
+              <ChecklistItemSource itemId={item.id} />
+              </div>
             ))}
           </div>
         </div>

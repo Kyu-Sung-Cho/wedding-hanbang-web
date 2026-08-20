@@ -8,6 +8,8 @@ import {
   ChevronRight, Circle,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
+import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
+import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource";
 import { mergeChecklist, getChecklistCounts, summarizePlanningChecklist } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, ChecklistItem } from "@/types/database.types";
@@ -130,21 +132,24 @@ export default function ChecklistTab() {
             >
               <div className="ml-[26px] pl-3.5 border-l border-black/[0.04] py-1">
                 {cat.checklist.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 py-1.5">
-                    {item.done ? (
-                      <CheckCircle2 className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
-                    ) : (
-                      <Circle className="w-5 h-5 text-taupe-400 flex-shrink-0" />
-                    )}
-                    <span
-                      className={`text-sm leading-tight ${
-                        item.done
-                          ? "text-taupe-400 line-through"
-                          : "text-noir-800"
-                      }`}
-                    >
-                      {item.label}
-                    </span>
+                  <div key={item.id} className="py-1.5">
+                    <div className="flex items-start gap-2">
+                      {item.done ? (
+                        <CheckCircle2 className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-taupe-400 flex-shrink-0" />
+                      )}
+                      <ChecklistItemText
+                        item={item}
+                        compact
+                        labelClassName={`text-sm leading-tight ${
+                          item.done
+                            ? "text-taupe-400 line-through"
+                            : "text-noir-800"
+                        }`}
+                      />
+                    </div>
+                    <ChecklistItemSource itemId={item.id} indentClassName="ml-7 mt-0.5" />
                   </div>
                 ))}
               </div>

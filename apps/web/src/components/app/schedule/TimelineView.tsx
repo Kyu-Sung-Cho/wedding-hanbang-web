@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
+import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource";
 import {
   findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
@@ -379,13 +381,18 @@ export default function TimelineView({
                                   </p>
                                 )}
                                 {data.merged.map((item) => (
+                                  // 근거 링크는 체크박스 **밖**에 둔다. 버튼 안에 링크를
+                                  // 넣으면 잘못된 마크업이고 누를 때 무엇이 실행될지 애매하다.
+                                  <div key={item.id} className="flex flex-col">
                                   <button
                                     type="button"
                                     role="checkbox"
                                     aria-checked={item.done}
+                                    // 이름은 할 일, 설명은 안내. 섞으면 항목마다 두 문장을 읽는다.
+                                    aria-labelledby={`tl-${cat.key}-${item.id}-label`}
+                                    aria-describedby={item.note ? `tl-${cat.key}-${item.id}-note` : undefined}
                                     aria-disabled={data.excluded}
                                     disabled={data.excluded || togglingItem === item.id}
-                                    key={item.id}
                                     onClick={() =>
                                       handleToggle(cat.key, item)
                                     }
@@ -406,16 +413,19 @@ export default function TimelineView({
                                         <div className="h-5 w-5 rounded-full border-2 border-[#B5ADA3] transition-colors hover:border-[#36534E]" />
                                       )}
                                     </div>
-                                    <span
-                                      className={`text-[14px] leading-snug ${
+                                    <ChecklistItemText
+                                      item={item}
+                                      idPrefix={`tl-${cat.key}-${item.id}`}
+                                      compact
+                                      labelClassName={`text-[14px] leading-snug ${
                                         item.done
                                           ? "text-[#B5ADA3] line-through"
                                           : "text-[#504444]"
                                       }`}
-                                    >
-                                      {item.label}
-                                    </span>
+                                    />
                                   </button>
+                                  <ChecklistItemSource itemId={item.id} indentClassName="ml-[30px]" />
+                                  </div>
                                 ))}
                               </div>
                             </div>

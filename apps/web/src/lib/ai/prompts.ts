@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
@@ -295,6 +296,27 @@ export type WeddingPlannerPromptContext = {
   }>;
 };
 
+/**
+ * 준비 항목에 붙어 있는 확인 포인트를 아모라에게 넘긴다.
+ *
+ * 체크리스트 항목은 화면에서 한 줄 안내(`note`)를 달고 있는데, 아모라는 지금까지
+ * `할일: 3/9완료` 같은 **개수만** 봤다. 그래서 "예식장 계약할 때 뭐 확인해?"라고 물으면
+ * 같은 제품 안에 답이 있는데도 일반론으로 답했다.
+ *
+ * 템플릿에서 만들므로 사용자 진행 상태와 무관하고 모든 사용자에게 같다 — 사용자 데이터가
+ * 아니라 제품 지식이다. `note`는 저장되지 않으므로(저장 직전에 떼어 낸다) 사용자 행에서는
+ * 읽을 수 없고 여기서만 온다.
+ */
+const CHECKLIST_CHECK_POINTS = CATEGORY_CHECKLISTS
+  .map((category) => {
+    const withNotes = category.items.filter((item) => item.note);
+    if (withNotes.length === 0) return null;
+    const lines = withNotes.map((item) => `  · ${item.label} → ${item.note}`).join("\n");
+    return [`- ${category.label}`, lines].join("\n");
+  })
+  .filter((line): line is string => line !== null)
+  .join("\n");
+
 export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptContext) {
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${promptData(context.weddingDate, 40)}`
@@ -408,6 +430,24 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       return `  - ${parts.join(" | ")}`;
     })
     .join("\n");
+
+  // 항목마다 놓치기 쉬운 것 — 사용자 진행 상태와 무관한 제품 지식이라 항상 같다.
+  const checkPointsSection = CHECKLIST_CHECK_POINTS
+    ? `
+
+## 준비 항목에서 확인할 것
+
+아래는 준비 체크리스트 항목에 붙어 있는 확인 포인트입니다. 사용자가 그 준비를 물으면
+**이 문장을 근거로** 답하세요. 화면에서 사용자가 보는 문장과 같은 것이라, 여기서 답하면
+앱과 대화가 같은 말을 하게 됩니다.
+
+${CHECKLIST_CHECK_POINTS}
+
+- 여기 없는 항목의 확인 포인트를 지어내지 마세요. 대신 무엇을 물어보면 되는지만 제안하세요.
+- 이건 흔한 관행 안내이지 계약 판정이 아닙니다. 조항이 유리한지 불리한지, 정상인지 아닌지
+  판정하지 마세요.
+- 금액·기간 수치나 법령 이름을 붙이지 마세요. 업체·계약마다 다르고 틀리면 그게 사고입니다.`
+    : "";
 
   // 총 지출 + 배정 예산 계산
   let totalSpent = 0;
@@ -861,7 +901,7 @@ ${preparationInstruction}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${coupleCriterionSection}${coreCriterionSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
+${categoryStatus}${checkPointsSection}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${coupleCriterionSection}${coreCriterionSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
 
 ## 아모라의 사고방식
 

@@ -307,6 +307,9 @@ function CommunityLandingViewer({
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchTotal, setSearchTotal] = useState(0);
+  // 검색이 실패했는데 결과를 0으로 세팅하면 화면이 "그런 글은 없어요"라고 단정한다.
+  // 못 불러온 것과 없는 것은 다르다.
+  const [searchError, setSearchError] = useState<string | null>(null);
   const observerRef = useRef<HTMLDivElement>(null);
 
   const isSearching = searchQuery.trim().length > 0;
@@ -365,6 +368,7 @@ function CommunityLandingViewer({
 
     const controller = new AbortController();
     setSearchLoading(true);
+    setSearchError(null);
     setSearchPage(1);
 
     const params = new URLSearchParams({
@@ -379,12 +383,14 @@ function CommunityLandingViewer({
     })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
+        setSearchError(null);
         setSearchResults(data.posts ?? []);
         setSearchHasMore(data.hasMore ?? false);
         setSearchTotal(data.total ?? 0);
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
+        setSearchError("검색 결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
         setSearchResults([]);
         setSearchHasMore(false);
         setSearchTotal(0);
@@ -411,7 +417,9 @@ function CommunityLandingViewer({
         setSearchHasMore(data.hasMore ?? false);
         setSearchPage(nextPage);
       })
-      .catch(() => {})
+      .catch(() => {
+        setSearchError("결과를 더 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      })
       .finally(() => setSearchLoading(false));
   }, [isSearching, searchHasMore, searchLoading, searchPage, searchQuery, selectedCategory]);
 
@@ -534,7 +542,7 @@ function CommunityLandingViewer({
       fullFeedHref={fullFeedHref}
       searchQuery={searchQuery}
       isLoading={isSearching ? searchLoading : isPreviewFeed ? isLoading && displayedPosts.length === 0 : isLoading}
-      errorMessage={isSearching ? null : errorMessage}
+      errorMessage={isSearching ? searchError : errorMessage}
       clearError={clearError}
       feedFirst={showFullFeed || showLandingIntro}
     />
@@ -1564,7 +1572,9 @@ function LatestPosts({
             <PostSkeleton key={index} />
           ))}
         </div>
-      ) : posts.length === 0 ? (
+      ) : posts.length === 0 && !errorMessage ? (
+        // 오류일 때는 빈 상태 카드를 그리지 않는다 — "찾지 못했어요"는 사실 주장이라
+        // 못 불러온 것을 없는 것으로 바꿔 말하게 된다. 위의 오류 배너만 남긴다.
         isSearching ? (
           <div className="rounded-[16px] border border-[#d8c7ad] bg-[#fffdf7] px-5 py-8 text-center sm:px-8">
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4f1] text-[#36534E]">

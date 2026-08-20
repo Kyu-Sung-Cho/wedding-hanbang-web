@@ -33,7 +33,19 @@ const STATUS_VALUES = ["open", "done", "dismissed"] as const;
 const PRIORITY_VALUES = ["high", "medium", "low"] as const;
 const SOURCE_VALUES = ["chat", "quote", "schedule", "budget", "guardrail", "manual"] as const;
 
-async function getCoupleIdForUser(admin: ReturnType<typeof createAdminClient>, userId: string) {
+/**
+ * 조회 실패와 "커플이 아직 없음"을 같은 null로 뭉개면, 준비 도구가 DB 장애를
+ * **"할 일 0건"**으로 보여준다. 사용자는 챙길 게 없다고 믿고 화면을 닫는다.
+ * 둘을 반환값에서 가른다.
+ */
+type CoupleLookup =
+  | { ok: true; coupleId: string | null }
+  | { ok: false };
+
+async function getCoupleIdForUser(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<CoupleLookup> {
   const { data: profile, error } = await admin
     .from("profiles")
     .select("couple_id")
@@ -42,9 +54,21 @@ async function getCoupleIdForUser(admin: ReturnType<typeof createAdminClient>, u
 
   if (error) {
     console.error("amora actions profile read failed:", error.message);
+    return { ok: false };
   }
 
-  return typeof profile?.couple_id === "string" ? profile.couple_id : null;
+  return {
+    ok: true,
+    coupleId: typeof profile?.couple_id === "string" ? profile.couple_id : null,
+  };
+}
+
+/** 응답 객체는 한 번만 소비되므로 요청마다 새로 만든다. */
+function coupleLookupFailed() {
+  return NextResponse.json(
+    { error: "준비 상황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요." },
+    { status: 503 },
+  );
 }
 
 async function getLegacyActions(admin: ReturnType<typeof createAdminClient>, coupleId: string) {
@@ -81,7 +105,11 @@ export async function GET(request: Request) {
     }
 
     const admin = createAdminClient();
-    const coupleId = await getCoupleIdForUser(admin, user.id);
+    const lookup = await getCoupleIdForUser(admin, user.id);
+    if (!lookup.ok) {
+      return coupleLookupFailed();
+    }
+    const coupleId = lookup.coupleId;
     if (!coupleId) {
       return NextResponse.json({ actions: [], count: 0, open_count: 0 });
     }
@@ -155,7 +183,11 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const coupleId = await getCoupleIdForUser(admin, user.id);
+    const lookup = await getCoupleIdForUser(admin, user.id);
+    if (!lookup.ok) {
+      return coupleLookupFailed();
+    }
+    const coupleId = lookup.coupleId;
     if (!coupleId) {
       return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
     }

@@ -25,7 +25,12 @@ import {
   isCommunityMediaPublishingEnabled,
 } from "@/lib/community/mediaPublishingGate";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import { isRecord, isUuid, readBoundedUtf8Text } from "@/utils/requestValidation";
+import {
+  hasPresentedAuthCredential,
+  isRecord,
+  isUuid,
+  readBoundedUtf8Text,
+} from "@/utils/requestValidation";
 import type {
   AdDisclosure,
   PollWithOptions,
@@ -219,7 +224,10 @@ async function getPostResponse(
       error: viewerError,
     } = await supabase.auth.getUser();
 
-    if (viewerError) {
+    // 로그아웃 방문자에게는 getUser()가 항상 에러다. 자격 증명을 실제로 제시한
+    // 요청만 503으로 닫는다 — 목록 라우트와 같은 기준. 그러지 않으면 공개 글
+    // 상세가 비로그인 사용자 전원에게 503이 된다.
+    if (viewerError && hasPresentedAuthCredential(req)) {
       return NextResponse.json(
         { error: "게시글 접근 권한을 확인하지 못했습니다." },
         { status: 503 },

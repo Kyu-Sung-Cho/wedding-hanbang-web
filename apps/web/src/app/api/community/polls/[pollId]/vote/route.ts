@@ -6,7 +6,7 @@ import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import { getCommunityPollActorProjection } from "@/lib/community/pollProjection";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
-import { isRecord, isUuid } from "@/utils/requestValidation";
+import { hasPresentedAuthCredential, isRecord, isUuid } from "@/utils/requestValidation";
 
 function getServiceClient() {
   return createAdminClient();
@@ -79,7 +79,9 @@ async function getPollResponse(
       data: { user },
       error: viewerError,
     } = await supabase.auth.getUser();
-    if (viewerError) {
+    // 읽기 경로다. 로그아웃 방문자는 getUser()가 늘 에러이므로, 자격 증명을
+    // 제시한 요청만 503으로 닫는다.
+    if (viewerError && hasPresentedAuthCredential(req)) {
       return NextResponse.json(
         { error: "투표를 불러올 수 없습니다." },
         { status: 503 },

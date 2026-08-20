@@ -100,7 +100,7 @@ import {
   listDashboardOpenActions,
   type DashboardOpenAction,
 } from "@/lib/dashboardExperience.mjs";
-import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { CATEGORY_CHECKLISTS, type ChecklistItem } from "@/constants/checklists";
 import PreparationJourneyMap, {
   type PreparationJourneyViewMode,
 } from "@/components/planning/PreparationJourneyMap";
@@ -116,11 +116,9 @@ import {
 } from "@/components/ui/AppUI";
 
 /* ───── types ───── */
-interface ChecklistItem {
-  id: string;
-  label: string;
-  done: boolean;
-}
+// 항목 타입은 공유 템플릿의 것을 그대로 쓴다. 예전에는 여기에 복사본을 두었는데,
+// 공유 쪽에 `note`(놓치기 쉬운 것 한 줄)가 생겼을 때 이 사본만 뒤처져 화면에 그릴 수
+// 없었다. 같은 것을 두 벌 적어두면 반드시 한쪽이 낡는다.
 
 interface Category {
   key: string;
@@ -3526,15 +3524,23 @@ export default function ScheduleScreen() {
                         disabled={stats.skipped}
                         accessibilityRole="checkbox"
                         accessibilityLabel={item.label}
+                        // 안내는 이름이 아니라 힌트로 읽힌다. 이름에 붙이면 항목마다
+                        // 두 문장을 이어 읽는다(웹의 aria-describedby와 같은 취지).
+                        accessibilityHint={item.note}
                         accessibilityState={{ checked: item.done, disabled: stats.skipped }}
                       >
                         {item.done
                           ? <CheckCircle2 size={22} color={colors.rose[500]} />
                           : <Circle size={22} color={colors.taupe[400]} />
                         }
-                        <Text style={[styles.itemLabel, item.done && styles.itemDone]}>
-                          {item.label}
-                        </Text>
+                        <View style={styles.itemTextColumn}>
+                          <Text style={[styles.itemLabel, item.done && styles.itemDone]}>
+                            {item.label}
+                          </Text>
+                          {item.note ? (
+                            <Text style={styles.itemNote}>{item.note}</Text>
+                          ) : null}
+                        </View>
                       </Pressable>
                     ))}
                   </View>
@@ -4122,16 +4128,20 @@ const styles = StyleSheet.create({
   itemList: { marginTop: 16, gap: 14 },
   itemRow: {
     flexDirection: "row",
-    alignItems: "center",
+    // 안내가 붙으면 두 줄이 되므로 아이콘을 첫 줄에 맞춘다.
+    alignItems: "flex-start",
     gap: 12,
     minHeight: 44,
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
-  itemLabel: { fontSize: 14, color: colors.noir[800], flex: 1 },
+  itemTextColumn: { flex: 1 },
+  itemLabel: { fontSize: 14, color: colors.noir[800] },
   itemDone: { textDecorationLine: "line-through", color: colors.textTertiary },
   applicabilityCopy: { flex: 1, gap: 3 },
   applicabilityLabel: { fontSize: 14, color: colors.noir[800], fontWeight: "600" },
   applicabilityDescription: { fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  // 할 일 밑에 붙는 "놓치기 쉬운 것" 한 줄. label보다 한 단계 흐리게.
+  itemNote: { marginTop: 3, fontSize: 13, lineHeight: 19, color: colors.textTertiary },
 
   // 전체 일정 목록
   allEventsSection: { marginTop: 8 },

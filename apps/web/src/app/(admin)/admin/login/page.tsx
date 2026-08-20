@@ -83,7 +83,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+      document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
       document.cookie = "admin_role=true; path=/; max-age=2592000";
       window.location.href = "/admin";
     } catch {
@@ -138,7 +138,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+      document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
       document.cookie = "admin_role=true; path=/; max-age=2592000";
       window.location.href = "/admin";
     } catch {
