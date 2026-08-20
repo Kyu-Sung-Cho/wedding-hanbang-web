@@ -355,10 +355,30 @@ Then confirm by hand that Amora answers a real message in production. Until
 that confirmation exists, the release is not complete, whatever the canary and
 finalizer receipts say.
 
-Open follow-up: `requiredCanaryChecks` should grow a check that Amora answers,
-so this cannot depend on an operator remembering. That changes a hash-pinned
-contract constant and its exact-array validator, so it is deliberately left as
-a separate decision rather than bundled into the release candidate.
+### Why the canary cannot cover this
+
+The obvious fix — grow `requiredCanaryChecks` so the canary verifies Amora
+answers — does not work, and it is worth writing down so nobody spends a day
+rediscovering it.
+
+The canary runs while the production write fence is held. That fence installs
+a `BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE` statement trigger on **every
+table in the `public` schema**
+(`supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql`,
+the `relkind IN ('r','p')` loop). An Amora turn writes `chat_messages`, so an
+Amora turn cannot succeed while the fence is up. A canary check for it would
+fail by construction, not because Amora is broken.
+
+So the switch cannot be verified before the fence is released, and the fence is
+released by the finalizer, which is the last step. **Nothing in this procedure
+runs after the fence comes down.** That is the actual gap: the release has no
+post-fence verification phase at all, for this or anything else.
+
+Closing it properly means adding such a phase — a stage that runs after
+finalization, re-enables provider egress, and proves Amora answers before the
+release is called complete. That is new machinery, not a constant edit, and it
+is deliberately out of scope for this release candidate. Until it exists,
+step 10 is a human step and the release is not complete without it.
 
 <!-- AMORA:PENDING-SCOPE-CLASSIFICATION:BEGIN -->
 
