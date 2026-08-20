@@ -121,6 +121,26 @@
   /* Platinum */
   --platinum: #E6DDD2;
   /* @generated:design-tokens root end */
+
+  /* @generated:design-tokens roles start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  /* 역할 — 누를 수 있는 것 (기본값은 제품 정체인 유칼립투스) */
+  --hb-primary: #36534E;
+  --hb-primary-hover: #2B423E;
+  --hb-on-primary: #FFFFFF;
+
+  /* 역할 — 초점 */
+  --hb-focus-ring: #36534E;
+
+  /* 역할 — 표면과 경계 */
+  --hb-surface-raised: #FFFFFF;
+  --hb-surface-hover: #F6EFE5;
+  --hb-hairline: #E5D8CA;
+
+  /* 역할 — 글자 */
+  --hb-text-strong: #263832;
+  --hb-text-body: #5F5B52;
+  --hb-text-muted: #7D7166;
+  /* @generated:design-tokens roles end */
 }
 
 @theme inline {

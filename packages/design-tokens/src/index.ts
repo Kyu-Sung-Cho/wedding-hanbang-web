@@ -6,6 +6,7 @@ export { radius } from "./radius";
 export {
   WEB_ROOT_COLOR_VARS,
   WEB_THEME_COLOR_VARS,
+  WEB_SEMANTIC_ROLE_VARS,
   webCssManagedStart,
   webCssManagedEnd,
   renderWebCssColorVars,

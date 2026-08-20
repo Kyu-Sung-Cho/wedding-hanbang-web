@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   WEB_ROOT_COLOR_VARS,
+  WEB_SEMANTIC_ROLE_VARS,
   WEB_THEME_COLOR_VARS,
   renderWebCssColorVars,
   webCssManagedEnd,
@@ -26,6 +27,9 @@ const GLOBALS = path.join(HERE, "..", "src", "app", "globals.css");
 
 const REGIONS = [
   { region: "root", vars: WEB_ROOT_COLOR_VARS, prefix: "" },
+  // 역할 변수도 :root에 산다. 브랜드 색과 섞이지 않게 구간을 나눈다 —
+  // 브랜드 색은 "무슨 색인가", 역할 변수는 "무슨 일을 하는가"다.
+  { region: "roles", vars: WEB_SEMANTIC_ROLE_VARS, prefix: "hb-" },
   { region: "theme", vars: WEB_THEME_COLOR_VARS, prefix: "color-" },
 ];
 

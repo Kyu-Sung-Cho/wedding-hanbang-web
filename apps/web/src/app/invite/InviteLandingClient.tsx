@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Button from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import {
@@ -103,12 +103,9 @@ export default function InviteLandingClient() {
             링크가 중간에 잘렸을 수 있어요. 파트너가 보낸 메시지에서 링크 전체를
             다시 눌러보시거나, 코드를 직접 입력해 주세요.
           </p>
-          <Link
-            href={ONBOARDING_PATH}
-            className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
-          >
+          <Button variant="primary" fullWidth href={ONBOARDING_PATH} className="mt-6">
             코드 직접 입력하기
-          </Link>
+          </Button>
         </div>
       </main>
     );
@@ -135,34 +132,28 @@ export default function InviteLandingClient() {
           <p className="mt-1 break-all font-mono text-[20px] font-semibold tracking-[0.04em] text-[#2b3a36]">
             {code}
           </p>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full border border-[#d8cdb8] bg-white px-4 text-[13px] font-semibold text-[#7a6a4c] transition-colors hover:bg-[#fdf8ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
-          >
+          <Button variant="secondary" size="sm" onClick={handleCopy} className="mt-3">
             {copied ? "복사했어요" : "코드 복사"}
-          </button>
+          </Button>
         </div>
 
         <div className="mt-6 flex flex-col gap-2.5">
           {appLink ? (
-            <a
-              href={appLink}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
-            >
+            <Button variant="primary" fullWidth href={appLink}>
               앱에서 열기
-            </a>
+            </Button>
           ) : null}
-          <Link
+          <Button
+            variant="secondary"
+            fullWidth
             // 눌렀을 때는 보관에 넣고 깨끗한 주소로 간다. 이 href는 그게 안 될 때
             // (저장소가 막혔거나 새 탭으로 열었을 때)만 쓰이는 대비책이다.
             href={`${ONBOARDING_PATH}#${code}`}
             onClick={handleContinueOnWeb}
             data-testid="invite-continue-on-web"
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#C7D1C2] bg-[#F7FAF5] px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#eef4ea] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
           >
             웹에서 계속하기
-          </Link>
+          </Button>
         </div>
 
         <p className="mt-5 text-[12px] leading-5 text-[#8b857c]">

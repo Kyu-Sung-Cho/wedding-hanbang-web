@@ -115,11 +115,58 @@ export const WEB_THEME_COLOR_VARS: readonly WebCssColorVar[] = [
 ];
 
 /**
+ * **역할(role) 변수.** 위의 `WEB_ROOT_COLOR_VARS`가 "이 색은 무엇인가"(rose-600)라면,
+ * 이쪽은 "이 색은 무슨 일을 하는가"(누를 수 있는 것의 바탕)를 말한다.
+ *
+ * ## 왜 필요한가 — globals.css의 `!important` 96개가 여기서 나왔다
+ *
+ * 컴포넌트들이 색 리터럴을 직접 들고 있어서, 로그인 후 화면을 유칼립투스로 맞추려면
+ * `[class~="bg-rose-500"] { background: ... !important }` 처럼 **리터럴을 힘으로 덮는**
+ * 수밖에 없었다. 역할 변수가 있으면 그럴 필요가 없다 — 컴포넌트는 역할만 말하고,
+ * 컨텍스트가 값을 정한다. 브리지는 시맨틱 토큰의 대용품이었다.
+ *
+ * ## 기본값이 유칼립투스인 이유
+ *
+ * 브리지가 존재하는 목적 자체가 "제품 표면을 유칼립투스로 강제"하는 것이다. 즉 제품의
+ * 기본 정체는 유칼립투스이고 **랜딩이 예외**다. 그래서 `:root`에 유칼립투스를 두고,
+ * 랜딩의 로즈는 지금처럼 자기 클래스를 유지한다. 이 순서라야 프리미티브를 채택해도
+ * 화면이 안 바뀐다.
+ *
+ * 나중에 "랜딩도 제품과 같은 색으로" 또는 그 반대 결정이 나오면, 그 컨텍스트에서
+ * 이 변수만 재정의하면 된다. 컨텍스트별 재정의가 실제로 동작하는 것은 확인했다 —
+ * 같은 유틸리티 클래스가 `.hanbang-service-theme` 안팎에서 다른 색을 낸다.
+ */
+export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
+  {
+    name: "primary",
+    value: colors.noir[800],
+    section: "역할 — 누를 수 있는 것 (기본값은 제품 정체인 유칼립투스)",
+  },
+  { name: "primary-hover", value: colors.noir.pressed },
+  { name: "on-primary", value: colors.surface },
+
+  { name: "focus-ring", value: colors.noir[800], section: "역할 — 초점" },
+
+  {
+    name: "surface-raised",
+    value: colors.surface,
+    section: "역할 — 표면과 경계",
+  },
+  { name: "surface-hover", value: colors.ivory.warm },
+  { name: "hairline", value: colors.border },
+
+  { name: "text-strong", value: colors.textPrimary, section: "역할 — 글자" },
+  { name: "text-body", value: colors.textSecondary },
+  { name: "text-muted", value: colors.textTertiary },
+];
+
+/**
  * 관리 구간의 표시. 스크립트와 테스트가 같은 문자열을 본다.
  *
- * 구간이 둘인 이유는 `:root`와 `@theme inline`의 키 집합이 다르기 때문이다(위 주석 참고).
+ * `root`/`theme`은 `:root`와 `@theme inline`의 브랜드 색이고(키 집합이 다르다, 위 참고),
+ * `roles`는 `:root`의 역할 변수다.
  */
-export type WebCssRegion = "root" | "theme";
+export type WebCssRegion = "root" | "theme" | "roles";
 
 export function webCssManagedStart(region: WebCssRegion): string {
   return "/* @generated:design-tokens " + region

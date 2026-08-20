@@ -9,6 +9,10 @@ export const colors = {
     800: "#36534E",
     soft: "#4E6A62",
     charcoal: "#5E665F",
+    // noir-800의 눌림·hover 단계. globals.css의 테마 블록에만 --hb-navy-soft 로
+    // 있던 값을 2026-08-20에 여기로 올렸다. hover 값이 코드 안에서 4종으로
+    // 갈려 있는데(#2B423E·#243832·#2d4642·#29423E) 그중 가장 많이 쓰인 것이다.
+    pressed: "#2B423E",
   },
 
   // Accent — Dusty Mauve
