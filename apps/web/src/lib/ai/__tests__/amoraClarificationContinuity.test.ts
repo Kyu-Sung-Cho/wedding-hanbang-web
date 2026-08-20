@@ -80,10 +80,49 @@ function buildRows(overrides: RowOverrides): Row[] {
 
 function resolve(overrides: RowOverrides) {
   return resolveAmoraWeddingClarificationContinuity({
-    trustedOldestFirstRows: buildRows(overrides),
+    rawOldestFirstRows: buildRows(overrides),
+    requesterUserId: USER_ID,
     currentUserMessageId: CURRENT_ID,
     currentUserText: overrides.currentText,
   });
+}
+
+/** 임의의 행 배열을 그대로 넘긴다(사이에 낀 턴을 만들 때 쓴다). */
+function resolveRaw(rows: Row[], currentText: string, currentId = CURRENT_ID) {
+  return resolveAmoraWeddingClarificationContinuity({
+    rawOldestFirstRows: rows,
+    requesterUserId: USER_ID,
+    currentUserMessageId: currentId,
+    currentUserText: currentText,
+  });
+}
+
+const MID_USER_ID = "55555555-5555-4555-8555-555555555555";
+function userRow(id: string, content: string, senderId = USER_ID): Row {
+  return {
+    id,
+    sender_id: senderId,
+    sender_type: "bride",
+    role: "user",
+    content,
+    metadata: null,
+    visibility: "shared",
+  };
+}
+function aiRow(id: string, content: string, replyTo: string, scope: string): Row {
+  return {
+    id,
+    sender_id: null,
+    sender_type: "ai",
+    role: "assistant",
+    content,
+    metadata: {
+      in_reply_to_user_message_id: replyTo,
+      question_scope: scope,
+      memory_eligible: scope === "W0_wedding_core",
+    },
+    visibility: "shared",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +272,67 @@ describe("안전: 짧은 확인이 위기·고위험 경계를 넘지 못한다"
 });
 
 // ---------------------------------------------------------------------------
+// 사이에 낀 턴은 **벽**이어야 한다. 지워진 자리는 구멍이 된다.
+//
+// 이 블록은 실제로 있었던 결함을 고정한다. 처음에는 이 판정에
+// `selectAmoraTrustedHistoryRows`의 결과를 넘겼는데, 그 함수는 "모델에 보여줘도
+// 되는가"를 묻는 읽기 필터라 W2·W5 턴을 **목록에서 지운다**. 그래서 폭력 서술이
+// 사이에 끼어도 연속성이 끊기지 않고, 오래된 웨딩 쌍이 답변과 붙어 보였다.
+// 안전 질문에 답한 "응"이 W0 + 기억 ON + 도구 24/24를 받았다.
+// ---------------------------------------------------------------------------
+describe("사이에 낀 턴이 연속성을 끊는다", () => {
+  const WEDDING_PAIR = [
+    userRow("m1", "10월 17일 오후 2시에 드레스 투어 일정 넣어줘"),
+    aiRow("m2", "2026년으로 넣을까요, 2027년으로 넣을까요?", "m1", "W0_wedding_core"),
+  ];
+
+  it.each([
+    ["폭력 서술 + 아모라의 안전 질문", [
+      userRow("m3", "남편이 어제 저를 때렸어요"),
+      aiRow("m4", "지금 안전한 곳에 계신가요?", "m3", "W2_high_risk_adjacent"),
+    ]],
+    ["위기 발화(운영에서는 응답이 저장되지 않아 홀로 남는다)", [
+      userRow("m3", "그냥 다 그만두고 죽고 싶어"),
+    ]],
+    ["고위험 영역 질문", [
+      userRow("m3", "계약금 환불되는지 알려줘"),
+      aiRow("m4", "확인된 사실만 정리해 드릴게요.", "m3", "W2_high_risk_adjacent"),
+    ]],
+    ["범위 밖 대화", [
+      userRow("m3", "삼성전자 주식 사도 돼?"),
+      aiRow("m4", "그건 제가 다룰 수 없어요.", "m3", "W4_out_of_scope"),
+    ]],
+  ])("%s 이 사이에 있으면 이어지지 않는다", (_label, middle) => {
+    const rows = [...WEDDING_PAIR, ...middle, userRow("cur", "응")];
+    expect(resolveRaw(rows, "응", "cur")).toBeNull();
+  });
+
+  it("한 홉만 이어진다 — 승인된 턴이 다음 턴의 근거가 되지 않는다", () => {
+    const rows = [
+      ...WEDDING_PAIR,
+      userRow("m3", "응"),
+      aiRow("m4", "2026년으로 넣을게요.", "m3", "W0_wedding_core"),
+      userRow("cur", "응"),
+    ];
+    expect(resolveRaw(rows, "응", "cur")).toBeNull();
+  });
+
+  it("상대의 웨딩 요청을 빌려 쓰지 못한다", () => {
+    const rows = [
+      userRow("m1", "10월 17일 오후 2시에 드레스 투어 일정 넣어줘", MID_USER_ID),
+      aiRow("m2", "2026년으로 넣을까요, 2027년으로 넣을까요?", "m1", "W0_wedding_core"),
+      userRow("cur", "응"),
+    ];
+    expect(resolveRaw(rows, "응", "cur")).toBeNull();
+  });
+
+  it("사이에 아무것도 없으면 정상적으로 이어진다(대조군)", () => {
+    const rows = [...WEDDING_PAIR, userRow("cur", "응")];
+    expect(resolveRaw(rows, "응", "cur")).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 구조 무결성. 세탁 경로를 하나씩 막았는지.
 // ---------------------------------------------------------------------------
 describe("구조: 연결이 증명되지 않으면 이어지지 않는다", () => {
@@ -267,7 +367,8 @@ describe("구조: 연결이 증명되지 않으면 이어지지 않는다", () =
   it("현재 행이 이번 요청에 묶인 행이 아니면 거부한다", () => {
     expect(
       resolveAmoraWeddingClarificationContinuity({
-        trustedOldestFirstRows: buildRows({ currentText: "응 넣어줘" }),
+        rawOldestFirstRows: buildRows({ currentText: "응 넣어줘" }),
+        requesterUserId: USER_ID,
         currentUserMessageId: PRIOR_ID,
         currentUserText: "응 넣어줘",
       }),
@@ -277,7 +378,8 @@ describe("구조: 연결이 증명되지 않으면 이어지지 않는다", () =
   it("저장된 현재 행 본문이 이번 요청 본문과 다르면 거부한다", () => {
     expect(
       resolveAmoraWeddingClarificationContinuity({
-        trustedOldestFirstRows: buildRows({ currentText: "응 넣어줘" }),
+        rawOldestFirstRows: buildRows({ currentText: "응 넣어줘" }),
+        requesterUserId: USER_ID,
         currentUserMessageId: CURRENT_ID,
         currentUserText: "예산 지워줘",
       }),
@@ -287,7 +389,8 @@ describe("구조: 연결이 증명되지 않으면 이어지지 않는다", () =
   it("행이 세 개보다 적으면 거부한다", () => {
     expect(
       resolveAmoraWeddingClarificationContinuity({
-        trustedOldestFirstRows: buildRows({ currentText: "응 넣어줘" }).slice(1),
+        rawOldestFirstRows: buildRows({ currentText: "응 넣어줘" }).slice(1),
+        requesterUserId: USER_ID,
         currentUserMessageId: CURRENT_ID,
         currentUserText: "응 넣어줘",
       }),

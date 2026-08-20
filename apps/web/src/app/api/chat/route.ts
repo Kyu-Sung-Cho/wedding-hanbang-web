@@ -2468,11 +2468,13 @@ export async function POST(request: Request) {
     && typeof bodyUserMessageId === "string"
     && isClarificationAnswerShaped
       ? resolveAmoraWeddingClarificationContinuity({
-          trustedOldestFirstRows: selectAmoraTrustedHistoryRows({
-            oldestFirstRows: canonicalRows,
-            currentUserMessageId: bodyUserMessageId,
-            visibility,
-          }),
+          // **거르지 않은** 행을 넘긴다. 여기에 신뢰 필터를 통과시킨 목록을
+          // 넘겼던 것이 이 기능 최악의 결함이었다 — 그 필터는 W2·W5 턴을
+          // 지우므로, 폭력·위기 발화가 사이에 끼어도 연속성이 끊기는 대신
+          // 오래된 웨딩 쌍이 답변과 붙어 보였다. 사이에 무엇이 있든 모양이
+          // 어긋나면 거부되도록 원본 행을 그대로 준다.
+          rawOldestFirstRows: canonicalRows,
+          requesterUserId: actorId,
           currentUserMessageId: bodyUserMessageId,
           currentUserText: lastUserText,
         })

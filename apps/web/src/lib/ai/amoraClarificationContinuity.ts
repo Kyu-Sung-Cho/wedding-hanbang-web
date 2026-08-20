@@ -111,10 +111,15 @@ export type ResolveAmoraWeddingClarificationContinuityInput<
   T extends AmoraClarificationContinuityRow,
 > = {
   /**
-   * `selectAmoraTrustedHistoryRows`가 이미 걸러낸 행들, 오래된 것부터.
-   * 마지막 세 개가 [직전 사용자, 아모라, 현재 사용자]여야 한다.
+   * **거르지 않은** 대화 행들, 오래된 것부터. 마지막 세 개가 정확히
+   * [직전 사용자, 아모라, 현재 사용자]여야 한다.
+   *
+   * 여기에 신뢰 필터를 통과시킨 목록을 넘기면 안 된다. 그건 이 결함의
+   * 원인이었다 — 아래 주석 참고.
    */
-  trustedOldestFirstRows: readonly T[];
+  rawOldestFirstRows: readonly T[];
+  /** 요청자 본인의 user id. 상대의 발화를 빌려 쓰지 못하게 한다. */
+  requesterUserId: string;
   currentUserMessageId: string;
   currentUserText: string;
 };
@@ -133,18 +138,35 @@ export type ResolveAmoraWeddingClarificationContinuityInput<
 export function resolveAmoraWeddingClarificationContinuity<
   T extends AmoraClarificationContinuityRow,
 >({
-  trustedOldestFirstRows,
+  rawOldestFirstRows,
+  requesterUserId,
   currentUserMessageId,
   currentUserText,
 }: ResolveAmoraWeddingClarificationContinuityInput<
   T
 >): AmoraWeddingClarificationContinuity | null {
   if (!isAmoraClarificationAnswerShaped(currentUserText)) return null;
-  if (trustedOldestFirstRows.length < 3) return null;
+  if (rawOldestFirstRows.length < 3) return null;
 
-  const current = trustedOldestFirstRows[trustedOldestFirstRows.length - 1];
-  const assistant = trustedOldestFirstRows[trustedOldestFirstRows.length - 2];
-  const priorUser = trustedOldestFirstRows[trustedOldestFirstRows.length - 3];
+  // **거르지 않은 마지막 세 행.** 처음에는 여기에
+  // `selectAmoraTrustedHistoryRows`의 결과를 넘겼는데, 그게 이 파일 최악의
+  // 결함이었다. 그 함수는 "모델에 보여줘도 되는가"를 묻는 **읽기 필터**라
+  // W2·W5 턴을 목록에서 **지운다**. 지워진 자리는 벽이 아니라 구멍이 된다 —
+  // 오래된 웨딩 쌍이 답변과 붙어 보이게 만든다.
+  //
+  // 실측(2026-08-20): [웨딩 요청 / 아모라 되묻기 / "남편이 어제 저를 때렸어요"
+  // / 아모라의 안전 질문 / "응"] 에서 필터는 가운데 두 행을 지워 [웨딩 요청,
+  // 되묻기, "응"]을 돌려줬고, **안전 질문에 답한 "응"이 W0 + 기억 ON + 도구
+  // 24/24**를 받았다. 폭력 서술과 안전 응답은 모델 입력에 들어가지도 않았다.
+  //
+  // 그래서 이제 거르지 않은 행을 받고, 사이에 무엇이 있든 **모양이 어긋나면
+  // 거부**한다. 신뢰 판정은 아래에서 이 세 행에 직접 다시 한다.
+  // 같은 이유로 형제 계약(`buildAmoraBoundedContinuity`)도 주석에 이렇게
+  // 적어 두었다: "그 행들의 존재는 연속성을 끊어야지, 필터링 뒤에 인접해
+  // 보이게 만들면 안 된다."
+  const current = rawOldestFirstRows[rawOldestFirstRows.length - 1];
+  const assistant = rawOldestFirstRows[rawOldestFirstRows.length - 2];
+  const priorUser = rawOldestFirstRows[rawOldestFirstRows.length - 3];
   if (!current || !assistant || !priorUser) return null;
   if (
     typeof current.id !== "string"
@@ -160,8 +182,10 @@ export function resolveAmoraWeddingClarificationContinuity<
     current.id !== currentUserMessageId
     || current.role !== "user"
     || current.sender_type === "ai"
+    || current.sender_id !== requesterUserId
     || typeof current.content !== "string"
     || current.content !== currentUserText
+    || (isRecord(current.metadata) && current.metadata.target === "partner")
   ) {
     return null;
   }
@@ -196,9 +220,13 @@ export function resolveAmoraWeddingClarificationContinuity<
   // 돌려봤더니 21개가 전부 통과했다 — 깨뜨려도 아무도 모르는 방어선은 방어선이
   // 아니라 다음 사람을 속이는 주석이다. 안전 경계는 바로 위 W0 판정 한 줄이
   // 지고 있고, 그 줄을 지우면 위기 코퍼스 테스트가 즉시 빨개진다.
+  // 공유 대화에서는 상대의 발화도 보인다. 상대가 낸 웨딩 요청을 빌려
+  // 내 짧은 확인이 W0를 받으면 안 된다.
   if (
     priorUser.role !== "user"
     || priorUser.sender_type === "ai"
+    || priorUser.sender_id !== requesterUserId
+    || (isRecord(priorUser.metadata) && priorUser.metadata.target === "partner")
     || typeof priorUser.content !== "string"
     || classifyAmoraQuestionScope({ userText: priorUser.content }).scope
       !== "W0_wedding_core"
