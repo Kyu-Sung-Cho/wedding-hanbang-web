@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAmoraQuestionScopeInstruction,
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
 } from "@/lib/ai/amoraQuestionScope";
@@ -418,6 +419,45 @@ describe("Amora question-scope ceiling", () => {
       expect(classification.scope).toBe("W0_wedding_core");
       expect(classification.allowsLongTermMemory).toBe(true);
     }
+  });
+
+  it("answers an unclear turn like a person instead of demanding it prove its scope", () => {
+    // 어휘 목록을 아무리 늘려도 목록에 없는 말은 계속 나온다. 그때마다 나가는 문장이
+    // 이 갈래다. 여기서 무슨 태도를 취하느냐가 어휘 하나보다 크다.
+    //
+    // 이 갈래는 서버가 판단을 못 한 경우지 사용자가 잘못 말한 경우가 아니다.
+    const classification = classifyAmoraQuestionScope({ userText: "이거 어떻게 하면 돼?" });
+    expect(classification).toMatchObject({
+      scope: "W4_out_of_scope",
+      needsClarification: true,
+    });
+
+    const instruction = buildAmoraQuestionScopeInstruction(classification);
+
+    expect(instruction).toContain("먼저 사람처럼 반응하세요");
+    expect(instruction).toContain("그것부터 짧게 알아주고");
+    // 답 자체를 막던 문구와 판정형 되물음 지시가 돌아오면 안 된다.
+    expect(instruction).not.toContain("본문 답이나 실행을 시작하지 말고");
+    expect(instruction).not.toContain("이 요청이 결혼 준비의 어떤 결정과 연결되는지");
+
+    // 태도만 바꾼다. 열지 않는 것은 그대로다 — 이 셋이 빠지면 따뜻한 대신 위험해진다.
+    expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
+    expect(instruction).toContain("확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고");
+    expect(instruction).toContain("저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요");
+  });
+
+  it("keeps the high-confidence out-of-scope branch on its existing boundary wording", () => {
+    // 코딩·주식처럼 확신을 갖고 범위 밖이라고 판정한 갈래는 다른 문제다. 되묻는 게
+    // 아니라 범위를 알리는 자리이므로 이번 변경에서 건드리지 않았다.
+    const classification = classifyAmoraQuestionScope({
+      userText: "청첩장 웹사이트 TypeScript 코드를 대신 작성해줘",
+    });
+    expect(classification.needsClarification).toBe(false);
+
+    const instruction = buildAmoraQuestionScopeInstruction(classification);
+
+    expect(instruction).toContain("아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요");
+    expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
   });
 
   it("fails closed with one clarification boundary when the wedding connection is ambiguous", () => {
