@@ -48,7 +48,9 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
     // 표시가 사라지면 sync가 **던지므로** 위 테스트도 함께 깨진다. 다만 그때 나오는
     // 메시지가 "어긋남"이라 원인을 잘못 짚기 쉬워서, 여기서 따로 이름을 붙여둔다.
     const current = readFileSync(GLOBALS, "utf8");
-    for (const region of ["root", "theme"]) {
+    // `roles`가 빠져 있었다(2026-08-20 적대 검토). 구간 표시가 사라지면 sync가 던지긴
+    // 하지만, 목록에 없으면 "이 구간이 관리 대상이다"라는 사실 자체가 기록되지 않는다.
+    for (const region of ["root", "roles", "theme"]) {
       expect(current, `${region} 구간 시작 표시가 없습니다`).toContain(
         `@generated:design-tokens ${region} start`,
       );
@@ -66,5 +68,12 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
     expect(current).toContain(`--color-rose-700: ${colors.rose[700]};`);
     expect(current).toContain(`--color-ivory-blush: ${colors.ivory.blush};`);
     expect(current).toContain(`--danger-700: ${colors.dangerDeep};`);
+
+    // 역할 변수도 같은 사각지대에 있었다 — 생성기가 토큰을 안 읽고 상수를 뱉어도
+    // 위 두 테스트는 통과한다. Button이 실제로 쓰는 값들을 여기서 못 박는다.
+    expect(current).toContain(`--hb-primary: ${colors.noir[800]};`);
+    expect(current).toContain(`--hb-primary-hover: ${colors.noir.pressed};`);
+    expect(current).toContain(`--hb-hairline: ${colors.border};`);
+    expect(current).toContain(`--hb-text-muted: ${colors.textTertiary};`);
   });
 });

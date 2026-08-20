@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 /**
  * 웹의 첫 공유 UI 프리미티브.
@@ -86,12 +86,20 @@ type Content =
 type AsButton = Common
   & Content
   & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children">
-  & { href?: never };
+  & { href?: never; ref?: Ref<HTMLButtonElement> };
 
 type AsLink = Common
   & Content
   & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "className" | "children" | "href">
-  & { href: string; disabled?: never };
+  & {
+    href: string;
+    ref?: Ref<HTMLAnchorElement>;
+    // 링크는 `disabled` 될 수 없다. `loading`도 마찬가지다 — 링크 분기는 그것을 읽을
+    // 방법이 없어서, 받아만 놓고 아무 일도 안 하면 호출자가 중복 클릭을 막았다고
+    // 믿게 된다. 타입에서 막는 편이 정직하다.
+    disabled?: never;
+    loading?: never;
+  };
 
 export type ButtonProps = AsButton | AsLink;
 
@@ -135,24 +143,30 @@ export default function Button(props: ButtonProps) {
 
   if (href !== undefined) {
     const anchorProps = rest as AnchorHTMLAttributes<HTMLAnchorElement>;
+    // 호출자가 준 접근명이 이긴다. `label`은 아이콘 변형의 기본값일 뿐이다.
+    // 이 순서를 뒤집으면(스프레드 뒤에 aria-label을 두면) 호출자가 준 값이
+    // undefined로 덮여 **접근명이 통째로 사라진다.** 실제로 그렇게 만들었다가
+    // 2026-08-20 적대 검토에서 잡혔다.
+    const accessibleName = anchorProps["aria-label"] ?? label;
 
     // `hanbang://` 같은 스킴이나 외부 주소는 `next/link`가 가로채면 이동이 안 된다.
     if (!isInternalHref(href)) {
       return (
-        <a href={href} {...anchorProps} className={classes} aria-label={label}>
+        <a {...anchorProps} href={href} className={classes} aria-label={accessibleName}>
           {children}
         </a>
       );
     }
 
     return (
-      <Link href={href} {...anchorProps} className={classes} aria-label={label}>
+      <Link {...anchorProps} href={href} className={classes} aria-label={accessibleName}>
         {children}
       </Link>
     );
   }
 
   const buttonProps = rest as ButtonHTMLAttributes<HTMLButtonElement>;
+  const accessibleName = buttonProps["aria-label"] ?? label;
 
   return (
     <button
@@ -160,8 +174,9 @@ export default function Button(props: ButtonProps) {
       type="button"
       {...buttonProps}
       className={classes}
-      aria-label={label}
-      aria-busy={loading || undefined}
+      aria-label={accessibleName}
+      // `loading`이면 무조건 바쁘다고 말하되, 호출자가 직접 건 값도 지우지 않는다.
+      aria-busy={loading || buttonProps["aria-busy"] || undefined}
       disabled={loading || buttonProps.disabled}
     >
       {children}

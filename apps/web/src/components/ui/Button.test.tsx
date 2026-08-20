@@ -101,6 +101,30 @@ describe("Button 계약", () => {
     expect(anchor?.getAttribute("data-next-link")).toBeNull();
   });
 
+  it("호출자가 준 aria-label을 지우지 않는다", async () => {
+    // 2026-08-20 적대 검토가 잡은 블로커. `aria-label={label}`이 스프레드 **뒤에**
+    // 있어서, 호출자가 준 aria-label을 undefined로 덮어썼다. React는 undefined 속성을
+    // 빼므로 접근명이 통째로 사라진다 — 접근성을 고치겠다고 만든 컴포넌트가
+    // 접근명을 **가지고 있던** 버튼 122개를 통과시키는 순간 잃게 만들 뻔했다.
+    await render(<Button aria-label="닫기">×</Button>);
+    expect(container.querySelector("button")?.getAttribute("aria-label")).toBe("닫기");
+
+    await render(<Button href="/wedding/onboarding" aria-label="온보딩으로">계속</Button>);
+    expect(container.querySelector("a")?.getAttribute("aria-label")).toBe("온보딩으로");
+
+    await render(<Button href="hanbang://invite#WH-DEMO24" aria-label="앱으로">열기</Button>);
+    expect(container.querySelector("a")?.getAttribute("aria-label")).toBe("앱으로");
+  });
+
+  it("클릭 핸들러가 실제로 불린다", async () => {
+    // 계약 테스트가 onClick 전달을 안 봐서, 스프레드를 없애도 초록불이었다.
+    const onClick = vi.fn();
+    await render(<Button onClick={onClick}>확인</Button>);
+    await act(async () => {
+      container.querySelector("button")?.click();
+    });
+    expect(onClick).toHaveBeenCalledOnce();
+  });
   it("링크에 넘긴 부가 속성이 사라지지 않는다", async () => {
     // /invite의 "웹에서 계속하기"는 onClick으로 코드를 보관하고 data-testid로 테스트된다.
     const onClick = vi.fn();

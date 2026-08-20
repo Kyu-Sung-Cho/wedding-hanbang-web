@@ -25,8 +25,32 @@ import { describe, expect, it } from "vitest";
  *
  * ## 줄었을 때
  *
- * 축하한다. `BASELINE`을 새 숫자로 낮춰라. 낮추지 않으면 다음 사람이 다시 늘릴 여지가
- * 그만큼 생긴다.
+ * `BASELINE`을 새 숫자로 낮춰라. 낮추지 않으면 다음 사람이 다시 늘릴 여지가 그만큼 생긴다.
+ *
+ * **다만 줄었다고 실패시키지는 않는다.** 처음에는 하한(`>= BASELINE`)도 걸었는데,
+ * 그러면 래칫이 아니라 **701 고정핀**이 된다 — 버튼을 지우기만 해도 빌드가 깨지고,
+ * 각자 버튼을 줄인 두 브랜치를 합치면 양쪽 다 초록이었는데 main이 빨개진다.
+ * 낮추는 것은 사람이 리뷰에서 챙길 일이지 빌드를 세울 일이 아니다.
+ * (2026-08-20 적대 검토 지적. 하한을 건 것은 내 설계 실수였다.)
+ *
+ * ## 세는 방식 — 주석과 문자열도 함께 센다 (일부러)
+ *
+ * 적대 검토가 "주석 안의 `<button`도 세니 마이그레이션 메모 한 줄이 빌드를 세운다"고
+ * 지적했다. 맞는 지적이라 주석·문자열을 지우고 세도록 고쳐봤다. **그랬더니 더 틀렸다.**
+ *
+ * 정규식으로 문자열을 지우면 JSX 텍스트 안의 작은따옴표가 문자열을 열어버려 그 뒤 코드를
+ * 통째로 삼킨다. 실측:
+ *
+ *   app/(auth)/login/page.tsx                       11개 → 0개
+ *   app/(community)/community/post/write/page.tsx   19개 → 0개
+ *   app/(community)/community/cohort/[id]/page.tsx  27개 → 5개
+ *   전체                                           701개 → 606개
+ *
+ * 로그인 화면에 버튼이 0개일 리 없다. 즉 "정확해 보이는" 606은 쓰레기다.
+ *
+ * 래칫은 절대값이 아니라 **방향**을 지키는 장치다. 세는 방법이 일정하기만 하면 늘었는지는
+ * 정확히 알 수 있다. 그래서 단순 문자열 검색을 유지한다 — 주석까지 세는 것은 알려진
+ * 오차이고, 주석 한 줄로 카운트가 흔들리는 것은 그 오차를 감수하는 값이다.
  */
 
 /**
@@ -57,7 +81,7 @@ function collect(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-function countRawButtons(): { total: number; byFile: Array<[string, number]> } {
+function scan(): { total: number; byFile: Array<[string, number]> } {
   const byFile: Array<[string, number]> = [];
   let total = 0;
 
@@ -73,6 +97,14 @@ function countRawButtons(): { total: number; byFile: Array<[string, number]> } {
   }
 
   return { total, byFile: byFile.sort((a, b) => b[1] - a[1]) };
+}
+
+/** 소스 트리 전수 스캔은 한 번이면 된다 — 테스트마다 다시 읽으면 그만큼 느려진다. */
+let cached: ReturnType<typeof scan> | null = null;
+
+function countRawButtons(): ReturnType<typeof scan> {
+  cached ??= scan();
+  return cached;
 }
 
 describe("손으로 만든 버튼은 늘지 않는다", () => {
@@ -94,13 +126,18 @@ describe("손으로 만든 버튼은 늘지 않는다", () => {
     ).toBeLessThanOrEqual(BASELINE);
   });
 
-  it("줄었으면 기준치를 낮추라고 알려준다", () => {
+  it("줄었으면 알려주되 빌드를 세우지는 않는다", () => {
     const { total } = countRawButtons();
 
-    // 줄어든 것을 방치하면 다음 사람이 그만큼 다시 늘릴 수 있다.
-    expect(
-      total,
-      `raw <button>이 ${total}개로 줄었습니다. 이 파일의 BASELINE을 ${total}로 낮추세요.`,
-    ).toBeGreaterThanOrEqual(BASELINE);
+    if (total < BASELINE) {
+      // 실패시키지 않는 이유는 위 독블록 "줄었을 때" 참고. 하한을 걸면 래칫이 아니라
+      // 고정핀이 되어, 버튼을 지우기만 해도 빌드가 깨진다.
+      console.warn(
+        `[ratchet] raw <button>이 ${total}개로 줄었습니다(기준 ${BASELINE}). `
+          + `rawButtonRatchet.test.ts의 BASELINE을 ${total}로 낮춰주세요.`,
+      );
+    }
+
+    expect(total).toBeLessThanOrEqual(BASELINE);
   });
 });
