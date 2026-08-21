@@ -83,6 +83,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     comments,
     commentsPostId,
     commentsLoading,
+    errorMessage,
     fetchComments,
     createComment,
     updateComment,
@@ -291,6 +292,19 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               </div>
             </div>
           ))}
+        </div>
+      ) : treeComments.length === 0 && errorMessage ? (
+        // 못 불러온 것을 "아직 없다"고 말하면 사용자가 같은 질문을 다시 올린다.
+        <div className="text-center py-8">
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#B5ADA3]" />
+          <p className="text-base text-[#878680]">답변을 불러오지 못했어요.</p>
+          <button
+            type="button"
+            onClick={() => fetchComments(postId)}
+            className="mt-3 inline-flex min-h-9 items-center rounded-full border border-[#F0EFED] px-4 text-sm font-semibold text-[#1A1A1F]"
+          >
+            다시 불러오기
+          </button>
         </div>
       ) : treeComments.length === 0 ? (
         <div className="text-center py-8">

@@ -34,6 +34,11 @@ import type { PlanningCategoryKey } from "./weddingPlanning";
  * 중/완료"로 물을 대상이 아니다.
  */
 export const PREPARATION_PROGRESS_CATEGORY_KEYS = [
+  // `greeting`과 맨 아래 `registration`은 main의 #135("체크리스트가 빠뜨린 절차를
+  // 채운다")가 추가한 것이다. 병합할 때 이 목록에 옮기지 않으면 **온보딩 화면에서만
+  // 두 항목이 조용히 사라진다** — 서버는 21개를 알고 화면은 19개를 그리는 상태가 된다.
+  // 이 파일이 정본인 이유가 정확히 그것이라, 카테고리가 늘면 여기부터 고친다.
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -53,6 +58,7 @@ export const PREPARATION_PROGRESS_CATEGORY_KEYS = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ] as const satisfies readonly PlanningCategoryKey[];
 
 export type PreparationProgressCategoryKey =

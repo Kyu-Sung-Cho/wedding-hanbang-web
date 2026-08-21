@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  FileText,
   Users, Building2, Camera, Shirt, Palette, Gem, Flower2, Plane, Home, Key,
   Mail, Gift, Wallet, Video, Package, Sparkles, Flower, Heart, Mic, Box,
 } from "lucide-react";
@@ -10,6 +11,7 @@ import type { ProgressItem } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  FileText,
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
   Flower2, Plane, Home, Key, Mail, Gift, Wallet,
   Sparkles, Flower, Heart, Mic, Box,

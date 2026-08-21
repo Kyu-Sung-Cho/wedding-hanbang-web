@@ -33,6 +33,11 @@ export interface Couple {
   groom_id: string | null;
   /** 첫 2인 roster가 성립한 시각. 값이 있으면 빈 슬롯에 새 멤버를 초대할 수 없다. */
   membership_sealed_at: string | null;
+  /**
+   * 2면 중립 준비 공간이다 — bride/groom은 저장 슬롯일 뿐 사용자가 고른 역할이
+   * 아니므로 화면에 역할로 표시하지 않는다. 컬럼이 없는 DB에서는 1로 본다.
+   */
+  member_model_version?: 1 | 2;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +82,13 @@ export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  /**
+   * 항목을 열었을 때 붙는 한 줄 안내. **템플릿이 소유하고 DB에는 저장하지 않는다.**
+   * 저장 직전에 떼어 내므로(`CategoryChecklistModal`의 `forStorage`) 사용자 행의 모양은
+   * 이 필드가 없던 때와 같고, 문구를 고치면 다음 화면부터 바로 반영된다.
+   * 문구 규칙은 `@hanbang/shared` `ChecklistItem.note`의 주석이 정본이다.
+   */
+  note?: string;
 }
 
 export type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";

@@ -31,7 +31,11 @@ const onboardingSource = read("../../app/onboarding/index.tsx");
 function readStringArrayConstant(source, name) {
   const match = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(source);
   assert.ok(match, `${name} 배열을 찾지 못했습니다`);
-  return [...match[1].matchAll(/"([^"]+)"/g)].map(([, value]) => value);
+  // 주석을 먼저 걷어낸다. 배열 안에 설명 주석이 있고 그 안에 따옴표가 들어가면
+  // (예: 어느 PR이 왜 추가했는지 인용) 그 글자가 배열 항목으로 세어진다 —
+  // 실제로 2026-08-21에 21개가 22개로 세어져 이 테스트가 엉뚱하게 실패했다.
+  const withoutComments = match[1].replace(/\/\/[^\n]*/g, "");
+  return [...withoutComments.matchAll(/"([^"]+)"/g)].map(([, value]) => value);
 }
 
 const canonicalCategoryKeys = readStringArrayConstant(
@@ -64,8 +68,12 @@ test("the keys the app can send are exactly the keys the server accepts", () => 
   assert.doesNotMatch(listSource, /PLANNING_CATEGORY_LABELS/);
   assert.doesNotMatch(listSource, /Object\.hasOwn/);
 
-  assert.equal(canonicalCategoryKeys.length, 19);
-  assert.equal(new Set(canonicalCategoryKeys).size, 19);
+  // 21개다. 처음에는 19개였는데 main의 #135("체크리스트가 빠뜨린 절차를 채운다")가
+  // greeting·registration 을 추가했다. 병합할 때 이 정본 목록에 옮기지 않았으면
+  // 서버는 21개를 알고 화면은 19개를 그리는 상태가 됐을 것이다 — 이 테스트가 막는
+  // 사고가 정확히 그것이라, 숫자를 갱신하는 것이 여기서 할 일이다.
+  assert.equal(canonicalCategoryKeys.length, 21);
+  assert.equal(new Set(canonicalCategoryKeys).size, 21);
   // 예비비는 준비 항목이 아니라 예산의 남은 자리다 — 서버 허용 집합에도 없다.
   assert.ok(!canonicalCategoryKeys.includes("reserve"));
 });

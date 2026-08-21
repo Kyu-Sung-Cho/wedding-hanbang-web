@@ -68,6 +68,7 @@ function couple(
     bride_id: string | null;
     groom_id: string | null;
     membership_sealed_at: string | null;
+    invite_code_expires_at: string | null;
   }> = {},
 ) {
   return {
@@ -75,6 +76,8 @@ function couple(
     bride_id: USER_ID,
     groom_id: null,
     membership_sealed_at: null,
+    // 기본은 넉넉히 남은 코드. 만료 케이스는 테스트에서 명시적으로 넣는다.
+    invite_code_expires_at: new Date(Date.now() + 6 * 86400000).toISOString(),
     ...overrides,
   };
 }
@@ -147,6 +150,8 @@ describe("/api/couple/code roster epoch fence", () => {
       inviteCode: null,
       isFullyLinked: true,
       isMembershipSealed: true,
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
     });
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(updates).toEqual([]);
@@ -228,10 +233,11 @@ describe("/api/couple/code roster epoch fence", () => {
     const response = await GET(request("GET"));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       inviteCode: "WH-NEW123",
       isFullyLinked: false,
       isMembershipSealed: false,
+      inviteCodeReissued: false,
     });
     expect(updates).toHaveLength(1);
     expect(filters).toContainEqual(["is", "membership_sealed_at", null]);
@@ -255,9 +261,178 @@ describe("/api/couple/code roster epoch fence", () => {
     const response = await POST(request("POST"));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ inviteCode: "WH-NEW123" });
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-NEW123",
+      // 직접 재발급을 눌렀으면 이미 보낸 코드는 죽었다 — 다시 보내라고 말해야 한다.
+      inviteCodeReissued: true,
+    });
     expect(filters).toContainEqual(["is", "membership_sealed_at", null]);
     expect(filters).toContainEqual(["eq", "invite_code", "WH-OLD123"]);
+  });
+
+  // 20260812030000 이 모든 살아있는 코드에 7일 창을 박았다. 운영 기준 19개가
+  // 2026-08-27 에 한꺼번에 만료된다. 앱이 이걸 안 보면 화면엔 코드가 보이는데
+  // 상대는 "초대 코드가 올바르지 않습니다"를 받는다 — 파트너 연결은 이 제품에서
+  // 가장 크게 새는 구간이라 조용히 죽으면 안 된다.
+  it("만료된 코드는 조용히 새 코드로 갈아끼운다", async () => {
+    const expiredCode = "WH-EXPIRED001";
+    const { filters } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: expiredCode,
+              invite_code_expires_at: new Date(Date.now() - 1000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+        { maybeSingle: { data: couple({ invite_code: "WH-FRESH0001" }), error: null } },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ inviteCode: "WH-FRESH0001" });
+    // 만료된 기존 코드를 기대값으로 CAS 해야 한다 — null 로 하면 아무것도 안 바뀐다
+    expect(filters).toContainEqual(["eq", "invite_code", expiredCode]);
+  });
+
+  it("아직 안 만료된 코드는 괜히 회전시키지 않는다", async () => {
+    const { fromCalls } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: "WH-STILLGOOD",
+              invite_code_expires_at: new Date(Date.now() + 86400000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ inviteCode: "WH-STILLGOOD" });
+    // 멀쩡한 코드를 회전시키면 상대가 이미 받은 코드가 죽는다
+    expect(fromCalls.filter((name) => name === "couples")).toHaveLength(1);
+  });
+
+  it("만료 컬럼이 없는 DB 에서도 커플 카드가 죽지 않는다", async () => {
+    // 앱이 마이그레이션보다 먼저 나가는 일은 이 저장소에서 실제로 있었다.
+    const { fromCalls } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        { single: { data: null, error: { code: "42703", message: "column does not exist" } } },
+        // 폴백은 좁은 컬럼만 돌려준다 — 없는 컬럼이 값으로 돌아올 리 없다.
+        {
+          single: {
+            data: {
+              invite_code: "WH-LEGACYOK1",
+              bride_id: USER_ID,
+              groom_id: null,
+              membership_sealed_at: null,
+            },
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-LEGACYOK1",
+      // 모르는 것을 "안 바뀌었다"거나 "언제까지"라고 지어내지 않는다.
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
+    });
+    expect(fromCalls.filter((name) => name === "couples").length).toBeGreaterThanOrEqual(2);
+  });
+
+  // 조용히 갈아끼우는 것만으로는 부족하다. 초대한 쪽이 이미 문자로 보낸 코드가
+  // 죽은 줄 모르면 새 코드를 다시 보내지 않고, 상대는 계속 실패한다.
+  it("자동 회전 뒤에는 '코드가 새로 발급됐다'를 함께 알린다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: "WH-EXPIRED001",
+              invite_code_expires_at: new Date(Date.now() - 1000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+        {
+          maybeSingle: {
+            data: couple({
+              invite_code: "WH-FRESH0001",
+              invite_code_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-FRESH0001",
+      inviteCodeReissued: true,
+    });
+  });
+
+  // 20260812030000:81-91 은 invite_code 를 그대로 둔 채 invite_code_issued_at 만
+  // 찍은 행도 만들었다. 그걸 재발급으로 읽으면, 코드가 바뀐 적 없는 사람에게
+  // "예전 코드는 더 이상 쓸 수 없다"는 거짓말을 하게 된다.
+  it("바뀐 적 없는 코드에 재발급 딱지를 붙이지 않는다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [{
+        single: {
+          data: couple({
+            invite_code: "WH-UNCHANGED1",
+            invite_code_expires_at: new Date(Date.now() + 86400000).toISOString(),
+          }),
+          error: null,
+        },
+      }],
+    });
+
+    const response = await GET(request("GET"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-UNCHANGED1",
+      inviteCodeReissued: false,
+    });
+  });
+
+  // 코드가 아예 없어서 처음 발급하는 경우는 보낸 적도 없으니 할 말이 아니다.
+  it("처음 발급하는 코드는 재발급이 아니다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [
+        { single: { data: couple({ invite_code: null }), error: null } },
+        { maybeSingle: { data: couple({ invite_code: "WH-FIRST00001" }), error: null } },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-FIRST00001",
+      inviteCodeReissued: false,
+    });
   });
 
   it("checks profile and couple lookup errors before privileged writes", async () => {
@@ -314,6 +489,8 @@ describe("/api/couple/code roster epoch fence", () => {
       inviteCode: null,
       isFullyLinked: true,
       isMembershipSealed: true,
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
     });
     expect(admin.rpc).toHaveBeenCalledTimes(1);
   });

@@ -60,19 +60,33 @@ describe("예절 안내는 한 벌이다", () => {
     expect(config).toContain('destination: "/wedding/manners"');
   });
 
-  // 모바일은 예전에 `https://hanbang.ai/etiquette`를 웹뷰로 열다가 라우트가 지워진 뒤
-  // 404를 계속 띄웠다. 링크는 사람이 의도해서 정본 경로로 다시 넣어야 한다.
-  it("모바일에 옛 예절 주소가 남아 있지 않다", () => {
+  /**
+   * 모바일은 예전에 `https://hanbang.ai/etiquette`를 웹뷰로 열다가, 그 라우트가 지워진 뒤
+   * 404를 계속 띄웠다. 그래서 한동안 이 검사는 모바일 소스에서 `etiquette`라는 **단어**를
+   * 통째로 금지했다.
+   *
+   * 2026-08-20에 안내가 복구되면서 사람이 의도해서 링크를 다시 넣었다 — 그게 원래 이
+   * 검사가 요구하던 일이다. 그런데 앱 안의 라우트 이름이 `/etiquette`라 단어 금지에
+   * 걸렸다. 위험한 것은 이름이 아니라 **죽은 목적지**이므로, 목적지를 본다.
+   */
+  it("모바일이 죽은 예절 주소를 열지 않는다", () => {
     const mobileRoot = resolve(webRoot, "..", "mobile");
-    const offenders = [
+    const mobileSources = [
       ...sourceFiles(resolve(mobileRoot, "app")),
       ...sourceFiles(resolve(mobileRoot, "src")),
-    ]
-      .filter((file) => !file.includes("__tests__"))
-      .filter((file) => /etiquette/i.test(stripComments(readFileSync(file, "utf8"))))
-      .map((file) => relative(mobileRoot, file));
+    ].filter((file) => !file.includes("__tests__"));
 
-    expect(offenders, `모바일에 옛 예절 참조가 남았다: ${offenders.join(", ")}`).toEqual([]);
+    // 사이트 주소 뒤에 바로 /etiquette를 붙이는 것 — 이것이 404였던 그 주소다.
+    const DEAD_DESTINATION = /(hanbang\.ai|\$\{SITE\}|SITE_URL)\/etiquette/;
+    const offenders = mobileSources
+      .filter((file) => DEAD_DESTINATION.test(stripComments(readFileSync(file, "utf8"))))
+      .map((file) => relative(mobileRoot, file));
+    expect(offenders, `모바일이 지워진 주소를 연다: ${offenders.join(", ")}`).toEqual([]);
+
+    // 그리고 문은 열려 있어야 한다. 앱에서 안내로 갈 길이 아예 없으면 그것대로 문제다.
+    const entry = mobileSources
+      .filter((file) => /\/wedding\/manners/.test(readFileSync(file, "utf8")));
+    expect(entry.length, "앱에서 예절 안내로 가는 화면이 없다").toBeGreaterThan(0);
   });
 
   // 아모라는 이 안내를 **읽을 곳으로 가리키기만** 한다. 이관 후에도 출처 없는 표가

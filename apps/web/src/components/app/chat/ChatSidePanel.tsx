@@ -91,7 +91,7 @@ export default function ChatSidePanel({
   firstHello = null,
 }: ChatSidePanelProps) {
   const router = useRouter();
-  const { profile, couple, journey, isDemo } = useAuthStore();
+  const { profile, couple, journey, partner, isDemo } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     isOpen && !isDemo && Boolean(profile?.id),
   );
@@ -1400,7 +1400,6 @@ export default function ChatSidePanel({
                   <ChatBubble
                     message={firstHelloMessage}
                     isCurrentUser={false}
-                    currentUserRole={profile?.role}
                   />
                 </div>
               )}
@@ -1446,7 +1445,11 @@ export default function ChatSidePanel({
                       <ChatBubble
                         message={msg}
                         isCurrentUser={isCurrentUser}
-                        currentUserRole={profile?.role}
+                        senderName={
+                          msg.sender_id && msg.sender_id === partner?.id
+                            ? partner.name
+                            : null
+                        }
                         isRecentAi={recentAiIds.has(msg.id)}
                       />
                       {pendingAction && (

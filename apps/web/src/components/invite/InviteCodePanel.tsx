@@ -46,6 +46,17 @@ type InviteCodePanelProps = {
   code: string | null | undefined;
   /** modal = 온보딩 완료 모달(가운데 정렬·큰 코드), settings = 설정 카드(좌측 정렬). */
   variant?: InviteCodePanelVariant;
+  /**
+   * 이 코드의 기한에 대해 화면이 해야 할 말. `describeCoupleInviteWindow(...)`가 만든다.
+   *
+   * **코드를 보내는 그 화면이 기한을 말해야 한다.** 이 패널이 설정 화면의 인라인 코드
+   * 표시를 대체하면서 만료 안내를 통째로 지울 뻔했다(2026-08-21 병합). 안내를 만든
+   * #136은 "8월 27일에 초대 코드 19개가 조용히 죽는 것을 막는다"였다 — 안내가 사라지면
+   * 그 코드들이 경고 없이 죽는다.
+   *
+   * `tone`이 `"active"`면 담담하게, 그 외(임박·만료)에는 눈에 띄게 적는다.
+   */
+  notice?: { message: string; tone: string } | null;
   className?: string;
 };
 
@@ -131,6 +142,7 @@ async function copyText(value: string): Promise<boolean> {
 export default function InviteCodePanel({
   code,
   variant = "settings",
+  notice = null,
   className = "",
 }: InviteCodePanelProps) {
   // 서버 스냅샷은 null이다. 렌더 중에 그냥 window를 읽으면 서버가 그린 첫 HTML과
@@ -205,6 +217,17 @@ export default function InviteCodePanel({
         >
           {usableCode}
         </p>
+        {notice && (
+          <p
+            className={
+              notice.tone === "active"
+                ? "mt-2 text-sm text-[#928980]"
+                : "mt-2 text-sm font-medium text-[#795252]"
+            }
+          >
+            {notice.message}
+          </p>
+        )}
 
         <div className={`mt-3 flex flex-wrap gap-2 ${styles.actionRow}`}>
           <button

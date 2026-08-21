@@ -18,14 +18,25 @@ import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import { consumePendingCoupleInviteCode } from "@/lib/couples/pendingInvite";
 import { buildOnboardingProgress } from "@/lib/onboarding/buildOnboardingProgress";
+import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
+import { describeInviteDeadline } from "@hanbang/shared";
+import {
+  buildNeutralPreparationPrefill,
+  buildNeutralPreparationSpaceSubmission,
+  parseNeutralPreparationSpaceCapability,
+  resolveNeutralPreparationSpaceRedirect,
+} from "@/lib/onboarding/neutralPreparationSpace";
+import type { WeddingPriorityValue } from "@hanbang/shared";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [inviteCodeResult, setInviteCodeResult] = useState("");
+  // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
+  const [inviteDeadline, setInviteDeadline] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
   const [deferredProgressNotice, setDeferredProgressNotice] = useState("");
@@ -78,6 +89,18 @@ export default function OnboardingPage() {
       );
     }
   }, []);
+  // 중립 준비 공간이 켜지면 역할·상세 스텝을 건너뛰고 한 화면에서 시작한다.
+  // 서버가 플래그를 판정해 capabilities로 내려준다 — 클라이언트가 정하지 않는다.
+  const [neutralPreparationSpaceEnabled, setNeutralPreparationSpaceEnabled] =
+    useState(false);
+  // 판정이 끝나기 전에는 어느 쪽도 그리지 않는다. 기본값 false로 그려버리면
+  // 첫 페인트에 역할 선택(👰 신부 / 🤵 신랑)이 번쩍이고, /api/auth/me 가
+  // 실패하면 그 화면이 영구가 된다 — 플래그가 켜져 있어도.
+  const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
+  const [capabilitiesFailed, setCapabilitiesFailed] = useState(false);
+  // 중립 경로 전용 입력. 예식일은 스토어의 weddingDate 를 그대로 재사용하고,
+  // 관심사는 저장이 아니라 첫 대화 초안을 만드는 데 쓴다.
+  const [neutralFocus, setNeutralFocus] = useState<WeddingPriorityValue | null>(null);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -89,6 +112,10 @@ export default function OnboardingPage() {
           return;
         }
         const data = await res.json();
+        setNeutralPreparationSpaceEnabled(
+          parseNeutralPreparationSpaceCapability(data.capabilities),
+        );
+        setCapabilitiesResolved(true);
         if (!data.profile) {
           return; // 프로필 없으면 온보딩 진행
         }
@@ -100,7 +127,9 @@ export default function OnboardingPage() {
           );
         }
       } catch {
-        // 에러 시 온보딩 계속 진행
+        // 판정 실패를 "역할을 물어봐도 된다"로 읽지 않는다. 사용자에게 다시
+        // 시도할 길을 주고, 그 전까지는 아무것도 그리지 않는다.
+        setCapabilitiesFailed(true);
       }
     };
     checkProfile();
@@ -171,25 +200,44 @@ export default function OnboardingPage() {
    * 온 사람의 세션 값이 덮어쓴다. 합류는 스텝 2에서 바로 제출되므로 그 값은 사용자가
    * 화면에서 본 적도 없는 값이다 — 단계도 항목도 싣지 않는다.
    */
+  /**
+   * 인자가 문자열이면 중립 준비 공간 경로다(main #138). 객체면 기존 6단계 경로의
+   * 옵션이다. 두 경로가 같은 화면 파일 안에서 플래그로 갈리므로 제출 함수도 하나다.
+   */
   const handleSubmit = async (
-    { includeChecklist = true }: { includeChecklist?: boolean } = {},
+    arg?: "create" | "join" | { includeChecklist?: boolean },
   ) => {
+    const neutralCoupleAction = typeof arg === "string" ? arg : undefined;
+    const includeChecklist =
+      typeof arg === "object" && arg !== null ? arg.includeChecklist !== false : true;
     setLoading(true);
     setError("");
 
     try {
-      const isJoiningPartner = store.coupleAction === "join";
-      const progress = buildOnboardingProgress({
-        preferences: store.preferences,
-        preparationStage: isJoiningPartner ? null : store.preparationStage,
-        checklist: store.progressChecklist,
-        includeChecklist: includeChecklist && !isJoiningPartner,
-      });
+      let requestBody: Record<string, unknown>;
+      if (neutralCoupleAction) {
+        if (!neutralPreparationSpaceEnabled) {
+          throw new Error("NEUTRAL_PREPARATION_SPACE_NOT_ENABLED");
+        }
+        requestBody = buildNeutralPreparationSpaceSubmission({
+          coupleAction: neutralCoupleAction,
+          partnerInviteCode: store.partnerInviteCode,
+          weddingDate: store.weddingDate,
+          focusPriority: neutralFocus,
+        });
+      } else {
+        // 기존 경로의 progress 조립은 이 브랜치가 공유 계약으로 옮겼다. main 쪽은
+        // 화면 안에서 직접 조립하는데, 그러면 카테고리가 늘어난 날 화면과 서버가
+        // 갈린다(#135가 greeting·registration을 추가한 것이 그 예다).
+        const isJoiningPartner = store.coupleAction === "join";
+        const progress = buildOnboardingProgress({
+          preferences: store.preferences,
+          preparationStage: isJoiningPartner ? null : store.preparationStage,
+          checklist: store.progressChecklist,
+          includeChecklist: includeChecklist && !isJoiningPartner,
+        });
 
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        requestBody = {
           role: store.role,
           coupleAction: store.coupleAction,
           partnerInviteCode:
@@ -201,7 +249,13 @@ export default function OnboardingPage() {
             ? { amount: store.approximateBudget, unit: "won" }
             : null,
           progress,
-        }),
+        };
+      }
+
+      const res = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
 
       const data = await res.json();
@@ -214,8 +268,31 @@ export default function OnboardingPage() {
       // 온보딩 완료 쿠키 설정
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
+      if (neutralCoupleAction) {
+        // 새로 만든 경우 초대 코드를 보여준다. 안 보여주면 상대를 부르려고
+        // 설정 화면을 뒤져야 한다 — 함께 준비하는 게 이 제품의 요지인데.
+        if (neutralCoupleAction === "create" && typeof data.inviteCode === "string") {
+          setInviteCodeResult(data.inviteCode);
+          void loadInviteDeadline();
+          setShowInviteModal(true);
+          return;
+        }
+        window.location.href = resolveNeutralPreparationSpaceRedirect({
+          search: window.location.search,
+          origin: window.location.origin,
+          prefill: buildNeutralPreparationPrefill({
+            weddingDate: typeof data.journey?.wedding_date === "string"
+              ? data.journey.wedding_date
+              : null,
+            focusPriority: neutralFocus,
+          }),
+        });
+        return;
+      }
+
       if (typeof data.inviteCode === "string") {
         setInviteCodeResult(data.inviteCode);
+        void loadInviteDeadline();
       }
 
       const isPendingPartner =
@@ -244,8 +321,13 @@ export default function OnboardingPage() {
           window.location.origin,
         );
       }
-    } catch {
-      setError("오류가 발생했습니다. 다시 시도해주세요.");
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          && submitError.message === "INVALID_NEUTRAL_PREPARATION_INVITE_CODE"
+          ? "초대 코드 형식을 다시 확인해 주세요."
+          : "오류가 발생했습니다. 다시 시도해주세요.",
+      );
     } finally {
       setLoading(false);
     }
@@ -256,6 +338,30 @@ export default function OnboardingPage() {
     // 사용자가 말한 적 없는 내용이다.
     await handleSubmit({ includeChecklist: false });
   };
+
+  /**
+   * 기한은 /api/couple/code 에서 읽는다. 온보딩 라우트는 couples 를 직접 만지지
+   * 않는 경계를 지켜야 해서(그 경계는 테스트로 고정돼 있다) 여기서 따로 묻는다.
+   * 못 읽으면 아무 말도 하지 않는다 — 없는 기한을 지어내지 않고, 코드 표시를
+   * 막지도 않는다.
+   */
+  const loadInviteDeadline = async () => {
+    try {
+      const res = await fetch("/api/couple/code");
+      if (!res.ok) return;
+      const payload: unknown = await res.json().catch(() => null);
+      const expiresAt = typeof payload === "object" && payload !== null
+        ? (payload as { inviteCodeExpiresAt?: unknown }).inviteCodeExpiresAt
+        : null;
+      setInviteDeadline(describeInviteDeadline(expiresAt));
+    } catch {
+      // 조용히 넘어간다.
+    }
+  };
+
+  // main의 handleCopyCode 는 여기서 지웠다. 이 화면의 코드 표시가
+  // InviteCodePanel 로 바뀌면서 복사·링크·QR·문구를 패널이 직접 하고,
+  // 화면에는 그 함수를 부르는 자리가 하나도 남지 않았다(참조 0건).
 
   const continueAfterPendingPlan = () => {
     setPendingPlanNotice("");
@@ -281,9 +387,56 @@ export default function OnboardingPage() {
 
         {/* 스텝 인디케이터 */}
         <StepIndicator currentStep={store.currentStep} coupleAction={store.coupleAction} />
+        {/* 중립 준비 공간은 첫 가치를 막는 역할·상세 스텝을 건너뛴다. */}
+        {capabilitiesResolved && !neutralPreparationSpaceEnabled && (
+          <StepIndicator currentStep={store.currentStep} />
+        )}
 
         {/* 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+          {capabilitiesFailed ? (
+            <div className="py-10 text-center" role="alert">
+              <p className="text-[15px] text-[#1A1A1F]">
+                준비 화면을 불러오지 못했어요.
+              </p>
+              <p className="mt-2 text-[13px] text-taupe-400">
+                연결을 확인하고 다시 시도해 주세요.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-5 min-h-11 rounded-xl bg-[#795252] px-5 text-sm font-medium text-white"
+              >
+                다시 시도
+              </button>
+            </div>
+          ) : !capabilitiesResolved ? (
+            <div className="py-16 text-center" aria-busy="true">
+              <p className="text-[13px] text-taupe-400">불러오는 중…</p>
+            </div>
+          ) : neutralPreparationSpaceEnabled ? (
+            <NeutralPreparationStart
+              error={error}
+              coupleAction={store.coupleAction === "join" ? "join" : null}
+              partnerCode={store.partnerInviteCode}
+              loading={loading}
+              onCreate={() => {
+                store.setCoupleAction("create");
+                void handleSubmit("create");
+              }}
+              onSelectJoin={() => {
+                setError("");
+                store.setCoupleAction("join");
+              }}
+              onPartnerCodeChange={store.setPartnerInviteCode}
+              onJoin={() => void handleSubmit("join")}
+              weddingDate={store.weddingDate ?? ""}
+              onWeddingDateChange={store.setWeddingDate}
+              focusPriority={neutralFocus}
+              onFocusPriorityChange={setNeutralFocus}
+            />
+          ) : (
+          <>
           <AnimatePresence mode="wait">
             <motion.div
               key={store.currentStep === 5 ? `5-${stagePhase}` : store.currentStep}
@@ -428,7 +581,7 @@ export default function OnboardingPage() {
             ) : (
               <div className="flex-1 flex flex-col gap-2">
                 <button
-                  onClick={() => handleSubmit()}
+                  onClick={() => void handleSubmit()}
                   disabled={loading}
                   className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-50"
                 >
@@ -444,6 +597,8 @@ export default function OnboardingPage() {
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
 
@@ -540,18 +695,35 @@ export default function OnboardingPage() {
 
               {/* 코드 표시·복사·QR·공유 문구는 설정 화면과 같은 패널을 쓴다.
                   두 화면이 각자 복사 로직을 갖고 있으면 한쪽만 고쳐진다. */}
+              {/* 기한은 코드를 보내는 이 자리에서 말한다(#136). 패널로 바꾸면서
+                  `inviteDeadline`을 계산만 하고 화면에 쓰지 않아 안내가 사라졌었다 —
+                  그러면 실사용 코드가 경고 없이 만료된다. */}
               <InviteCodePanel
                 code={inviteCodeResult}
                 variant="modal"
+                notice={
+                  inviteDeadline ? { message: inviteDeadline, tone: "active" } : null
+                }
                 className="mb-5"
               />
 
               <button
                 onClick={() => {
-                  window.location.href = getAuthRedirectPath(
-                    window.location.search,
-                    window.location.origin,
-                  );
+                  // 중립 경로는 아모라를 첫 화면으로 삼는다 — 온보딩에서 아무것도
+                  // 묻지 않았으니 대화가 곧 시작점이다.
+                  window.location.href = neutralPreparationSpaceEnabled
+                    ? resolveNeutralPreparationSpaceRedirect({
+                        search: window.location.search,
+                        origin: window.location.origin,
+                        prefill: buildNeutralPreparationPrefill({
+                          weddingDate: store.weddingDate || null,
+                          focusPriority: neutralFocus,
+                        }),
+                      })
+                    : getAuthRedirectPath(
+                        window.location.search,
+                        window.location.origin,
+                      );
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >

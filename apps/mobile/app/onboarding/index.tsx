@@ -1,8 +1,11 @@
-// 온보딩 화면 — 6단계 (역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 준비 현황 → 완료)
+// 온보딩 화면.
+// 중립 준비 공간이 켜지면 한 화면(역할·예식일·예산·스타일을 묻지 않음),
+// 꺼져 있으면 6단계(역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 준비 현황 → 완료).
+// 판정은 서버가 /api/auth/me 의 capabilities 로 내려준다 — 앱이 정하지 않는다.
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Animated, Easing,
+  Alert, ActivityIndicator, Animated, Easing, Platform,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -60,6 +63,9 @@ import {
   type PreparationProgressCategoryKey,
   type PreparationProgressStatus,
   type PreparationStageValue,
+  buildNeutralPreparationSpaceSubmission,
+  describeInviteDeadline,
+  parseNeutralPreparationSpaceCapability,
 } from "@hanbang/shared";
 
 type Role = "bride" | "groom";
@@ -209,6 +215,17 @@ export default function OnboardingScreen() {
   // 초대 링크를 눌러서 들어왔는지. 코드가 이미 채워져 있는 이유를 화면이 말해줘야
   // 한다 — 안 그러면 자기가 친 적 없는 글자가 입력칸에 있는 것으로 보인다.
   const [inviteCodeFromLink, setInviteCodeFromLink] = useState(false);
+  // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
+  const [resultDeadline, setResultDeadline] = useState<string | null>(null);
+  // 서버가 판정한다 — 앱이 자기 환경변수로 정하지 않는다.
+  const [neutralEnabled, setNeutralEnabled] = useState(false);
+  // 판정 전에는 어느 쪽도 그리지 않는다. 기본값으로 그리면 첫 프레임에 역할
+  // 카드(신부/신랑)가 뜨고, 판정이 실패하면 그 화면이 영구가 된다.
+  const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
+  const [capabilitiesFailed, setCapabilitiesFailed] = useState(false);
+  const [capabilityReloadKey, setCapabilityReloadKey] = useState(0);
+  // 중립 경로에서 받는 유일한 선택 입력. 저장보다 첫 대화를 여는 게 목적이다.
+  const [neutralFocus, setNeutralFocus] = useState<WeddingPriorityValue | null>(null);
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
   // 날짜는 제출 전에 이 화면에서 판정한다 — 예전에는 자유 텍스트를 그대로 보내고
   // 마지막 화면에서 400을 받았는데, 그때는 무엇이 틀렸는지 볼 자리가 없었다.
@@ -440,6 +457,27 @@ export default function OnboardingScreen() {
     });
   }, [contentOpacity, contentSlide]);
 
+  // 서버가 중립 준비 공간을 열어줬는지 확인한다. 못 읽으면 기존 5단계로 둔다 —
+  // 판정 실패를 "켜짐"으로 읽으면 마이그레이션 전 기기에서 온보딩이 죽는다.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (!res.ok) throw new Error(`auth/me ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setNeutralEnabled(parseNeutralPreparationSpaceCapability(data?.capabilities));
+          setCapabilitiesResolved(true);
+        }
+      } catch {
+        // 판정 실패를 "역할을 물어봐도 된다"로 읽지 않는다.
+        if (!cancelled) setCapabilitiesFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [capabilityReloadKey]);
+
   function handleRolePress(r: Role) {
     setRole(r);
     const anim = r === "bride" ? brideScale : groomScale;
@@ -452,6 +490,10 @@ export default function OnboardingScreen() {
   }
 
   function canNext(): boolean {
+    if (neutralEnabled) {
+      // 중립 경로는 한 화면이다. 초대 코드로 합류할 때만 코드가 필요하다.
+      return coupleAction === "create" || isCoupleInviteCode(inviteCode);
+    }
     switch (step) {
       case 1: return role !== null;
       case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
@@ -472,7 +514,8 @@ export default function OnboardingScreen() {
    * `buildOnboardingProgressPayload`가 커플 공유 데이터를 덮는 경로를 한 곳에서 막는다.
    */
   async function handleSubmit(saveCategories: boolean) {
-    if (budgetEvaluation.status === "invalid") {
+    // 중립 경로는 예산을 묻지 않는다 — 물어보지 않은 값을 검사하면 통과할 수 없다.
+    if (!neutralEnabled && budgetEvaluation.status === "invalid") {
       Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
       return;
     }
@@ -495,17 +538,48 @@ export default function OnboardingScreen() {
         categoryStatuses: saveCategories ? categoryStatuses : null,
       });
 
+      const body = neutralEnabled
+        ? buildNeutralPreparationSpaceSubmission({
+            coupleAction,
+            partnerInviteCode: inviteCode,
+            weddingDate: weddingDateUndecided ? null : weddingDate || null,
+            focusPriority: neutralFocus,
+          })
+        : {
+            role,
+            coupleAction,
+            partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
+            weddingDate: weddingDateUndecided ? null : weddingDate || null,
+            venue: venue || null,
+            totalBudget: budgetEvaluation.requestBudget,
+            progress,
+          };
+
       const res = await apiFetch("/api/onboarding", {
         method: "POST",
-        body: JSON.stringify({
-          role,
-          coupleAction,
-          partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
-          weddingDate: weddingDateUndecided ? null : weddingDateEvaluation.requestDate,
-          venue: venue || null,
-          totalBudget: budgetEvaluation.requestBudget,
-          progress,
-        }),
+        body: JSON.stringify(
+          neutralEnabled
+            ? buildNeutralPreparationSpaceSubmission({
+                coupleAction,
+                partnerInviteCode: inviteCode,
+                weddingDate: weddingDateUndecided
+                  ? null
+                  : weddingDateEvaluation.requestDate,
+                focusPriority: neutralFocus,
+              })
+            : {
+                role,
+                coupleAction,
+                partnerInviteCode:
+                  coupleAction === "join" ? inviteCode : undefined,
+                weddingDate: weddingDateUndecided
+                  ? null
+                  : weddingDateEvaluation.requestDate,
+                venue: venue || null,
+                totalBudget: budgetEvaluation.requestBudget,
+                progress,
+              },
+        ),
       });
 
       const data = await res.json();
@@ -521,8 +595,25 @@ export default function OnboardingScreen() {
         void clearOnboardingDraft(AsyncStorage);
         if (data.inviteCode && coupleAction === "create") {
           setResultCode(data.inviteCode);
+          void (async () => {
+            // 기한은 /api/couple/code 에서 읽는다 — 온보딩 라우트는 couples 를
+            // 직접 만지지 않는 경계를 지킨다. 못 읽으면 아무 말도 하지 않는다.
+            try {
+              const codeRes = await apiFetch("/api/couple/code");
+              if (!codeRes.ok) return;
+              const codePayload = (await codeRes.json().catch(() => null)) as
+                | { inviteCodeExpiresAt?: unknown }
+                | null;
+              setResultDeadline(describeInviteDeadline(codePayload?.inviteCodeExpiresAt));
+            } catch {
+              // 조용히 넘어간다.
+            }
+          })();
           animateStepTransition(DONE_STEP);
         } else {
+          // main 쪽은 여기서 `/(tabs)/dashboard` 로 보내는데 이 브랜치에는 그 라우트가
+          // 없다(웨딩 라운지로 이름과 파일이 바뀌었다). 그대로 뒀으면 중립 경로를 켠
+          // 순간 신규 사용자가 존재하지 않는 화면으로 갔다.
           router.replace("/(tabs)/lounge");
         }
       };
@@ -565,6 +656,12 @@ export default function OnboardingScreen() {
   }
 
   function handleNext() {
+    // 중립 준비 공간은 화면이 하나다. 첫 화면의 CTA가 곧 제출이고, 19항목은 묻지
+    // 않으므로 저장할 카테고리도 없다.
+    if (neutralEnabled && step === 1) {
+      void handleSubmit(false);
+      return;
+    }
     if (step === DONE_STEP) {
       router.replace("/(tabs)/lounge");
       return;
@@ -601,7 +698,9 @@ export default function OnboardingScreen() {
     }
   }
 
-  const nextDisabled = (!canNext() && step < DONE_STEP) || submitting;
+  const nextDisabled = (!capabilitiesResolved && step === 1)
+    || (!canNext() && step < DONE_STEP)
+    || submitting;
   // 하단 CTA가 저장 버튼이 되는 자리. 준비 현황은 19항목 화면(국면 B)에서만이고,
   // 그 화면을 걷지 않는 사람은 마지막 입력 화면이 곧 저장 지점이다.
   const submitsOnNext = step === ONBOARDING_PREPARATION_STEP
@@ -619,14 +718,23 @@ export default function OnboardingScreen() {
               <ArrowLeft size={24} color={colors.noir[800]} />
             </Pressable>
           ) : <View style={{ width: 24 }} />}
-          <Text style={styles.stepText}>{stepPosition}/{totalSteps}</Text>
+          <Text style={styles.stepText}>
+            {neutralEnabled ? "" : `${stepPosition}/${totalSteps}`}
+          </Text>
           <View style={{ width: 24 }} />
         </View>
 
-        {/* 진행 바 */}
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(stepPosition / totalSteps) * 100}%` }]} />
-        </View>
+        {/* 진행 바 — 한 화면이면 여러 단계 진행 표시가 거짓말이 된다 */}
+        {!neutralEnabled && (
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${(stepPosition / totalSteps) * 100}%` },
+              ]}
+            />
+          </View>
+        )}
 
         {/* 애니메이션 래퍼 */}
         <Animated.View
@@ -635,8 +743,144 @@ export default function OnboardingScreen() {
             transform: [{ translateY: contentSlide }],
           }}
         >
-          {/* Step 1: 역할 */}
-          {step === 1 && (
+          {/* Step 1(중립): 역할을 묻지 않고 한 화면에서 시작 */}
+          {!capabilitiesResolved && step === 1 && (
+            <View style={styles.stepContent}>
+              {capabilitiesFailed ? (
+                <>
+                  <Text style={styles.stepTitle}>불러오지 못했어요</Text>
+                  <Text style={styles.stepDesc}>
+                    연결을 확인하고 다시 시도해 주세요.
+                  </Text>
+                  <Pressable
+                    style={styles.roleCard}
+                    accessibilityRole="button"
+                    accessibilityLabel="다시 시도"
+                    onPress={() => {
+                      setCapabilitiesFailed(false);
+                      setCapabilityReloadKey((n) => n + 1);
+                    }}
+                  >
+                    <Text style={styles.roleLabel}>다시 시도</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <ActivityIndicator color={colors.noir[800]} />
+              )}
+            </View>
+          )}
+
+          {capabilitiesResolved && step === 1 && neutralEnabled && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>반가워요!</Text>
+              <Text style={[styles.stepDesc, styles.roleStepDesc]}>
+                역할을 정하지 않아도 시작할 수 있어요
+              </Text>
+
+              <View style={styles.roleSupportNotice}>
+                <Text style={styles.roleSupportText}>
+                  지금 아는 것만 알려주세요. 장소·예산은 나중에 채워도 돼요.
+                </Text>
+              </View>
+
+              {/* 예식일 — 아모라가 대신 받아낼 수 없는 유일한 값이라 여기서 묻는다.
+                  비워 두고 시작해도 막지 않는다. */}
+              <Text style={styles.fieldLabel}>결혼식 날짜, 정하셨어요?</Text>
+              <TextInput
+                style={styles.input}
+                value={weddingDate}
+                onChangeText={setWeddingDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.taupe[400]}
+                keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+                maxLength={10}
+                accessibilityLabel="결혼식 날짜"
+              />
+              <Text style={styles.fieldHint}>
+                아직이면 비워 두세요. 나중에 언제든 바꿀 수 있어요.
+              </Text>
+
+              {/* 지금 신경 쓰이는 것 — 첫 대화를 여는 게 목적이다. */}
+              <Text style={styles.fieldLabel}>
+                지금 제일 신경 쓰이는 건 뭐예요? (선택)
+              </Text>
+              <View style={styles.neutralFocusRow}>
+                {WEDDING_PRIORITY_OPTIONS.map((option) => {
+                  const selected = neutralFocus === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      style={[styles.neutralFocusChip, selected && styles.neutralFocusChipActive]}
+                      accessibilityRole="button"
+                      accessibilityLabel={option.label}
+                      accessibilityState={{ selected }}
+                      onPress={() => setNeutralFocus(selected ? null : option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.neutralFocusChipText,
+                          selected && styles.neutralFocusChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Pressable
+                style={[styles.roleCard, coupleAction === "create" && styles.roleCardActive]}
+                accessibilityRole="button"
+                accessibilityLabel="아모라와 지금 시작하기"
+                accessibilityState={{ selected: coupleAction === "create" }}
+                onPress={() => setCoupleAction("create")}
+              >
+                <View style={[styles.roleIconCircle, coupleAction === "create" && styles.roleIconCircleActive]}>
+                  <Sparkles size={28} color={coupleAction === "create" ? colors.rose[500] : colors.taupe[400]} />
+                </View>
+                <Text style={[styles.roleLabel, coupleAction === "create" && styles.roleLabelActive]}>
+                  아모라와 지금 시작하기
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.roleCard, coupleAction === "join" && styles.roleCardActive]}
+                accessibilityRole="button"
+                accessibilityLabel="초대 코드로 함께 시작하기"
+                accessibilityState={{ selected: coupleAction === "join" }}
+                onPress={() => setCoupleAction("join")}
+              >
+                <View style={[styles.roleIconCircle, coupleAction === "join" && styles.roleIconCircleActive]}>
+                  <Heart size={28} color={coupleAction === "join" ? colors.rose[500] : colors.taupe[400]} />
+                </View>
+                <Text style={[styles.roleLabel, coupleAction === "join" && styles.roleLabelActive]}>
+                  초대 코드로 함께 시작하기
+                </Text>
+              </Pressable>
+
+              {coupleAction === "join" && (
+                <View>
+                  <TextInput
+                    style={styles.input}
+                    value={inviteCode}
+                    onChangeText={(text) => setInviteCode(normalizeCoupleInviteCode(text))}
+                    placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
+                    placeholderTextColor={colors.taupe[400]}
+                    maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
+                    autoCapitalize="characters"
+                    accessibilityLabel="파트너 초대 코드"
+                  />
+                  {inviteCodeProblem ? (
+                    <Text style={styles.inviteCodeProblem}>{inviteCodeProblem}</Text>
+                  ) : null}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Step 1(기존): 역할 */}
+          {capabilitiesResolved && step === 1 && !neutralEnabled && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>반가워요!</Text>
               <Text style={[styles.stepDesc, styles.roleStepDesc]}>결혼 준비에서의 역할을 알려주세요</Text>
@@ -975,6 +1219,10 @@ export default function OnboardingScreen() {
                 onCopy={copyResultCode}
                 style={styles.doneInviteCard}
               />
+              {/* 기한은 코드를 보내는 이 자리에서 말한다(#136). 서버가 모르면 침묵한다. */}
+              {resultDeadline ? (
+                <Text style={styles.codeHint}>{resultDeadline}</Text>
+              ) : null}
             </View>
           )}
         </Animated.View>
@@ -989,13 +1237,15 @@ export default function OnboardingScreen() {
           disabled={nextDisabled}
           accessibilityRole="button"
           accessibilityLabel={
-            step === DONE_STEP
-              ? "웨딩 라운지로 이동"
-              : step === ONBOARDING_PREPARATION_STEP && stagePhase === "detail"
-                ? "준비 현황 저장하고 시작하기"
-                : submitsOnNext
-                  ? "저장하고 시작하기"
-                  : "다음 단계"
+            neutralEnabled
+              ? "시작하기"
+              : step === DONE_STEP
+                ? "웨딩 라운지로 이동"
+                : step === ONBOARDING_PREPARATION_STEP && stagePhase === "detail"
+                  ? "준비 현황 저장하고 시작하기"
+                  : submitsOnNext
+                    ? "저장하고 시작하기"
+                    : "다음 단계"
           }
           accessibilityState={{ disabled: nextDisabled, busy: submitting }}
         >
@@ -1004,13 +1254,17 @@ export default function OnboardingScreen() {
           ) : (
             <>
               <Text style={styles.nextText}>
-                {step === DONE_STEP
-                  ? "웨딩 라운지로 이동"
-                  : submitsOnNext
-                    ? "저장하고 시작하기"
-                    : "다음"}
+                {neutralEnabled
+                  ? "시작하기"
+                  : step === DONE_STEP
+                    ? "웨딩 라운지로 이동"
+                    : submitsOnNext
+                      ? "저장하고 시작하기"
+                      : "다음"}
               </Text>
-              {step < DONE_STEP && <ArrowRight size={20} color="#FFF" />}
+              {!neutralEnabled && step < DONE_STEP && (
+                <ArrowRight size={20} color="#FFF" />
+              )}
             </>
           )}
         </Pressable>
@@ -1101,6 +1355,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  neutralFocusRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  neutralFocusChip: {
+    minHeight: 44,
+    justifyContent: "center",
+    flexBasis: "48%",
+    flexGrow: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  neutralFocusChipActive: { borderColor: colors.rose[500], backgroundColor: colors.ivory.warm },
+  neutralFocusChipText: { fontSize: 13, lineHeight: 18, color: colors.taupe[400] },
+  neutralFocusChipTextActive: { color: colors.noir[800], fontWeight: "600" },
   roleSupportText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
@@ -1493,6 +1763,12 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   skipBtn: { alignItems: "center", paddingVertical: 8 },
+  // 완료 화면의 기한 한 줄(#136)이 쓰는 스타일. 병합 중 유실됐다가 되살렸다.
+  codeHint: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+  },
   skipText: {
     fontSize: 14,
     fontFamily: "NotoSansKR_400Regular",

@@ -31,6 +31,7 @@ import {
   ThumbsUp,
   Info,
   Ban,
+  BookOpen,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
@@ -40,6 +41,8 @@ import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
 interface ProfileData {
+  /** 중립 준비 공간이면 role은 저장 슬롯이지 사용자가 고른 값이 아니다. */
+  usesNeutralMembers?: boolean;
   name: string | null;
   email: string | null;
   role: string | null;
@@ -105,6 +108,7 @@ export default function ProfileScreen() {
 
     let weddingDate: string | null = null;
     let partnerName: string | null = null;
+    let usesNeutralMembers = false;
 
     if (data?.couple_id) {
       // 결혼일
@@ -124,6 +128,15 @@ export default function ProfileScreen() {
       if (partners?.[0]) {
         partnerName = partners[0].name ?? null;
       }
+
+      // 컬럼이 아직 없는 DB에서는 조회가 실패한다. 그 상태에서는 중립 커플이
+      // 존재할 수 없으므로 기존(v1)으로 본다 — 화면 전체를 죽이지 않는다.
+      const { data: memberModel } = await supabase
+        .from("couples")
+        .select("member_model_version")
+        .eq("id", data.couple_id)
+        .maybeSingle();
+      usesNeutralMembers = memberModel?.member_model_version === 2;
     }
 
     // 커뮤니티 활동 통계
@@ -161,6 +174,7 @@ export default function ProfileScreen() {
       dday: calcDday(weddingDate),
       coupleId: data?.couple_id ?? null,
       partnerName,
+      usesNeutralMembers,
     });
   }, []);
 
@@ -211,8 +225,11 @@ export default function ProfileScreen() {
     ]);
   }
 
-  const roleLabel =
-    profile?.role === "bride"
+  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
+  // 값을 중립어로 바꾸는 게 아니라 배지 자체를 렌더하지 않는다.
+  const roleLabel = profile?.usesNeutralMembers
+    ? null
+    : profile?.role === "bride"
       ? "신부"
       : profile?.role === "groom"
         ? "신랑"
@@ -330,12 +347,17 @@ export default function ProfileScreen() {
               icon={Store}
               label="공시가·위약금 보기"
               onPress={() => router.push({ pathname: "/market-prices" })}
+            />
+            {/* 2026-07-26에 이 메뉴를 지웠던 이유는 "그 페이지가 제거돼 404 웹뷰를
+                열고 있어서"였다. 안내 25편이 /wedding/manners로 복구되면서 그 전제가
+                사라져 다시 넣는다. 앱에서는 아직 웹 화면을 웹뷰로 연다 — 본문이
+                apps/web에만 있어 네이티브로 그리려면 데이터부터 옮겨야 한다. */}
+            <MenuItem
+              icon={BookOpen}
+              label="결혼 예절 안내"
+              onPress={() => router.push({ pathname: "/etiquette" as const })}
               isLast
             />
-            {/* "예절 가이드"(→ hanbang.ai/etiquette)는 지웠다. 그 페이지는 2026-07-26에
-                제거됐고(가족·지역마다 답이 달라 일반 안내보다 아모라가 상황을 듣고
-                정리하는 쪽이 맞다는 판단), 메뉴만 남아 404 웹뷰를 열고 있었다.
-                같은 주제는 아모라 채팅 탭에서 다룬다. */}
           </View>
 
           {/* 커뮤니티 메뉴 */}

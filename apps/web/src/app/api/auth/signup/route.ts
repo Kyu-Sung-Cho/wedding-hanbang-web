@@ -242,7 +242,10 @@ export async function POST(request: Request) {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const safeName = escapeHtml(name);
 
-    await resend.emails.send({
+    // Resend는 발송 실패를 예외가 아니라 반환값으로 준다. 결과를 버리면
+    // 메일이 안 갔는데도 "인증 이메일을 발송했습니다"라고 답하게 되고,
+    // 사용자는 오지 않는 메일을 기다린다.
+    const sendResult = await resend.emails.send({
       from: "웨딩한방 <noreply@hanbang.ai>",
       to: email,
       subject: "웨딩한방 이메일 인증을 완료해주세요",
@@ -279,6 +282,17 @@ export async function POST(request: Request) {
         </div>
       `,
     });
+
+    if (sendResult.error || !sendResult.data?.id) {
+      console.error("Signup verification email send failed:", sendResult.error);
+      return NextResponse.json(
+        {
+          error:
+            "인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
+        },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
   } catch (err) {

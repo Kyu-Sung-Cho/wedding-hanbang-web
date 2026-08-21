@@ -217,8 +217,12 @@ describe("StartHereClient first visit", () => {
     );
   });
 
-  it("fills the 301–360 day boundary with one clearly labeled upcoming item", async () => {
-    window.history.replaceState({}, "", "/start-here#date=2027-07-01");
+  // 2026-08-21에 「배우자 부모님께 첫인사」가 D-390에서 시작하는 첫 분야가 되면서 이 경계가
+  // 옮겨졌다. 예전에는 D-334에서 시작한 분야가 둘뿐이라 남는 자리를 다음 것으로 채웠는데,
+  // 이제 그 자리에서는 셋이 이미 시작해 채울 자리가 없다. 검사가 보는 것은 날짜가 아니라
+  // "시작한 것이 셋보다 적으면 다음 것을 이름 붙여 채운다"이고, 그 창이 D-361~390이다.
+  it("fills the 361–390 day boundary with clearly labeled upcoming items", async () => {
+    window.history.replaceState({}, "", "/start-here#date=2027-08-11");
     await act(async () => {
       root.render(<StartHereClient />);
     });
@@ -228,9 +232,9 @@ describe("StartHereClient first visit", () => {
 
     const priorityItems = container.querySelectorAll("#start-result-panel ol > li");
     expect(priorityItems).toHaveLength(3);
+    expect(container.textContent).toContain("배우자 부모님께 첫인사");
     expect(container.textContent).toContain("부모님 첫 만남");
     expect(container.textContent).toContain("결혼식장");
-    expect(container.textContent).toContain("웨딩 사진 촬영");
     expect(container.textContent).toContain("다음 기본 확인 시작까지");
     expect(container.textContent).toContain("지금은 기준만 미리 맞춰봐도 돼요");
   });

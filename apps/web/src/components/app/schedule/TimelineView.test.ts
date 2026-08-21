@@ -8,13 +8,13 @@ describe("일정 단계 구간", () => {
     const phases = buildPhases();
 
     expect(phases.map((phase) => phase.dday)).toEqual([
-      "D-360 ~ D-300",
+      "D-390 ~ D-300",
       "D-270 ~ D-240",
       "D-180 ~ D-120",
       "D-90 ~ D-60",
     ]);
     expect(phases.map((phase) => phase.period)).toEqual([
-      "약 12~10개월 전",
+      "약 13~10개월 전",
       "약 9~8개월 전",
       "약 6~4개월 전",
       "약 3~2개월 전",

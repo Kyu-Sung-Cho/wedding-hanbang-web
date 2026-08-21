@@ -34,8 +34,11 @@ describe("준비 현황 19항목", () => {
     expect(PROGRESS_CHECKLIST_ITEMS.map((item) => item.key)).toEqual([
       ...PREPARATION_PROGRESS_CATEGORY_KEYS,
     ]);
-    expect(PREPARATION_PROGRESS_CATEGORY_KEYS).toHaveLength(19);
-    expect(new Set(PREPARATION_PROGRESS_CATEGORY_KEYS).size).toBe(19);
+    // main의 #135가 greeting·registration 을 추가해 21개가 됐다. 이 숫자를 갱신하는
+    // 것이 이 테스트가 요구하는 일이다 — 정본이 늘었는데 화면이 못 따라오면 그 분야는
+    // 보이지만 저장되지 않는다.
+    expect(PREPARATION_PROGRESS_CATEGORY_KEYS).toHaveLength(21);
+    expect(new Set(PREPARATION_PROGRESS_CATEGORY_KEYS).size).toBe(21);
   });
 
   it("모든 항목이 라벨을 갖는다", () => {

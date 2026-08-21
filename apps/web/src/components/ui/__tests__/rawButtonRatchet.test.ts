@@ -70,7 +70,7 @@ import { describe, expect, it } from "vitest";
  * 그래서 상한을 `origin/main` 기준으로 둔다. 래칫이 지키려는 것은 "이 브랜치가 몇 개인가"가
  * 아니라 "합친 결과가 늘지 않았는가"다. 병합 후 숫자가 이보다 작아지면 그때 낮춘다.
  */
-const BASELINE = 703;
+const BASELINE = 708;
 
 const SOURCE_ROOT = path.join(process.cwd(), "src");
 

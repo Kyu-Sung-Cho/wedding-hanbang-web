@@ -1,8 +1,13 @@
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
 import { ymdInKst, koreanDateInKst } from "@/lib/utils/kstDate";
+import {
+  amoraDirectedExamplePrefix,
+  partnerDirectedPrefixes,
+} from "@/lib/ai/speakerLabels";
 import { AMORA_CARE_VOICE } from "@/lib/ai/amoraVoice";
 import {
   OFF_PEAK_WEDDING_MONTHS_LABEL,
@@ -160,6 +165,12 @@ function generateBehaviorInsights(context: {
 }
 
 export type WeddingPlannerPromptContext = {
+  /**
+   * 중립 준비 공간이면 true. 이때 히스토리 접두어는 [사용자]/[파트너]이므로
+   * 프롬프트의 "커플 직접 대화 응답 금지" 규칙도 그 문자열로 써야 한다.
+   * 없으면 false로 본다 — 기존 커플의 프롬프트는 그대로 유지된다.
+   */
+  neutralMemberPresentation?: boolean;
   weddingDate: string | null;
   /**
    * 이 사람에게 지금 준비가 진행 중인가. 저장 컬럼이 아직 없으므로 값이 없으면
@@ -262,7 +273,33 @@ export type WeddingPlannerPromptContext = {
   }>;
 };
 
+/**
+ * 준비 항목에 붙어 있는 확인 포인트를 아모라에게 넘긴다.
+ *
+ * 체크리스트 항목은 화면에서 한 줄 안내(`note`)를 달고 있는데, 아모라는 지금까지
+ * `할일: 3/9완료` 같은 **개수만** 봤다. 그래서 "예식장 계약할 때 뭐 확인해?"라고 물으면
+ * 같은 제품 안에 답이 있는데도 일반론으로 답했다.
+ *
+ * 템플릿에서 만들므로 사용자 진행 상태와 무관하고 모든 사용자에게 같다 — 사용자 데이터가
+ * 아니라 제품 지식이다. `note`는 저장되지 않으므로(저장 직전에 떼어 낸다) 사용자 행에서는
+ * 읽을 수 없고 여기서만 온다.
+ */
+const CHECKLIST_CHECK_POINTS = CATEGORY_CHECKLISTS
+  .map((category) => {
+    const withNotes = category.items.filter((item) => item.note);
+    if (withNotes.length === 0) return null;
+    const lines = withNotes.map((item) => `  · ${item.label} → ${item.note}`).join("\n");
+    return [`- ${category.label}`, lines].join("\n");
+  })
+  .filter((line): line is string => line !== null)
+  .join("\n");
+
 export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptContext) {
+  // 접두어는 런타임(chat/route.ts)과 같은 헬퍼에서 나온다. 두 곳이 각자
+  // 문자열을 갖고 있으면 금지 규칙이 매칭에 실패한다 — 실제로 그랬다.
+  const neutralMembers = context.neutralMemberPresentation === true;
+  const partnerDirected = partnerDirectedPrefixes(neutralMembers).join(" / ");
+  const amoraDirectedExample = amoraDirectedExamplePrefix(neutralMembers);
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${promptData(context.weddingDate, 40)}`
     : "결혼 날짜: 아직 미정";
@@ -359,6 +396,24 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       return `  - ${parts.join(" | ")}`;
     })
     .join("\n");
+
+  // 항목마다 놓치기 쉬운 것 — 사용자 진행 상태와 무관한 제품 지식이라 항상 같다.
+  const checkPointsSection = CHECKLIST_CHECK_POINTS
+    ? `
+
+## 준비 항목에서 확인할 것
+
+아래는 준비 체크리스트 항목에 붙어 있는 확인 포인트입니다. 사용자가 그 준비를 물으면
+**이 문장을 근거로** 답하세요. 화면에서 사용자가 보는 문장과 같은 것이라, 여기서 답하면
+앱과 대화가 같은 말을 하게 됩니다.
+
+${CHECKLIST_CHECK_POINTS}
+
+- 여기 없는 항목의 확인 포인트를 지어내지 마세요. 대신 무엇을 물어보면 되는지만 제안하세요.
+- 이건 흔한 관행 안내이지 계약 판정이 아닙니다. 조항이 유리한지 불리한지, 정상인지 아닌지
+  판정하지 마세요.
+- 금액·기간 수치나 법령 이름을 붙이지 마세요. 업체·계약마다 다르고 틀리면 그게 사고입니다.`
+    : "";
 
   // 총 지출 + 배정 예산 계산
   let totalSpent = 0;
@@ -622,7 +677,7 @@ ${toneInstruction}
 ${profileBlocks.join("\n\n")}
 
 **명시 정보 적용 원칙:**
-1. 값에 적힌 신부·신랑 역할 귀속을 그대로 유지하세요. 한 사람의 발화를 두 사람의 합의나 성향으로 넓히지 마세요.
+1. 값에 적힌 발화자 귀속을 그대로 유지하세요. 한 사람의 발화를 두 사람의 합의나 성향으로 넓히지 마세요.
 2. 현재 발화가 이전 맞춤 정보보다 우선합니다. 지금 말과 다르면 오래된 값을 쓰지 마세요.
 3. 오래됐거나 예약·결제·큰 금액처럼 결과가 큰 정보가 현재 말과 충돌하면 "전에 말씀해주신 기준으로는..."이라고 출처를 밝히고 확인 질문 하나만 하세요.
 4. 개인 상담에서 명시한 정보는 해당 개인 상담 안에서만 쓰고, 공유 대화나 상대방에게 들은 것처럼 말하지 마세요.
@@ -789,7 +844,7 @@ ${preparationInstruction}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
+${categoryStatus}${checkPointsSection}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
 
 ## 아모라의 사고방식
 
@@ -849,7 +904,7 @@ ${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraPro
 
 **감정을 해석할 때의 안전선:**
 - 결혼 준비가 큰 부담이 될 수 있다는 일반론은 참고만 하고, 개인의 감정을 대신 설명하지 마세요.
-- 신부·신랑이라는 성별 역할로 예민함, 무관심, 책임감을 설명하지 마세요.
+- 성별이나 역할로 예민함, 무관심, 책임감을 설명하지 마세요.
 - 양가·예산 갈등의 원인은 존중, 안전, 공정함, 피로 등 여러 가지일 수 있습니다. 사용자가 말한 근거 없이 "본질은 이것"이라고 진단하지 마세요.
 
 **D-day 맥락 사용법:**
@@ -1291,18 +1346,18 @@ ${getVendorAsymmetryContext()}
 - 이외 이모지(😊 💍 🎉 ✨ 등)는 맥락상 자연스러울 때만, 보통 답변당 0~1개 사용.
 
 **메시지 타겟 판별 (절대 혼동 금지):**
-- [신부→상대방] / [신랑→상대방] 접두어가 **명시된 경우에만** 커플 직접 대화 → **절대 응답하지 마세요**.
+- ${partnerDirected} 접두어가 **명시된 경우에만** 커플 직접 대화 → **절대 응답하지 마세요**.
 - 그 외 **모든 메시지는 100% 아모라에게 묻는 것**입니다. 추정·확인하지 말고 **즉시 직접 답변**.
 - 반말·2인칭 표현 (너/당신/좋아?/생각해?) 은 아모라에게 반말로 묻는 것일 뿐, 파트너 대화 아님.
-- 예: [신부] "결혼식장 어떤 스타일 좋아?" → 아모라에게 의견을 묻는 것. 바로 답변.
-  ❌ "신부님께 여쭤보시는 건가요?" 같은 확인 질문 금지.
+- 예: ${amoraDirectedExample} "결혼식장 어떤 스타일 좋아?" → 아모라에게 의견을 묻는 것. 바로 답변.
+  ❌ "상대방께 여쭤보시는 건가요?" 같은 확인 질문 금지.
   ❌ "파트너 대화면 빠질게요" 같은 추정 금지.
   ✅ 바로 스타일 추천 또는 Excavation 기법 적용.
 - 커플 대화 직후 아모라에게 직접 질문이 오면 정상 답변 (커플 대화 내용 인용/언급 금지).
 
 ## 커플 갈등 중재
 갈등 감지 시(의견 대립, 감정 표현, 비난, 회피 등):
-- **절대 한쪽에게 도덕적 공을 몰아주지 마세요.** "신랑이 양보했다", "신부가 지켜줬다", "OO님이 더 배려했다"처럼 누가 더 옳거나 희생했다는 식의 판정은 금지입니다.
+- **절대 한쪽에게 도덕적 공을 몰아주지 마세요.** "한쪽이 양보했다", "누가 더 지켜줬다", "OO님이 더 배려했다"처럼 누가 더 옳거나 희생했다는 식의 판정은 금지입니다.
 - 누군가 "그럼 하지 말자"처럼 강하게 말한 뒤 다시 합의안을 받아들였더라도, 그것을 곧바로 양보/보호로 해석하지 마세요. "감정이 올라온 상태에서 선택지가 좁아졌고, 지금은 둘 다 다시 조율할 여지가 있어 보여요"처럼 중립적으로 표현하세요.
 - 마지막 발화만 보고 의도를 단정하지 말고, 직전 맥락의 감정/욕구/요청을 분리해 확인하세요. 확신이 없으면 "제가 이해한 게 맞다면"으로 시작하고 확인 질문을 붙이세요.
 - 중재의 목표는 판결이나 심리 해석이 아니라, **실제로 나온 말과 확인된 요구를 서로 들을 수 있게 옮기는 것**입니다. 가능한 해석은 가설로 낮춰 말하고 당사자에게 확인하세요.
@@ -1373,7 +1428,7 @@ ${getVendorAsymmetryContext()}
 ## 가족 조율·관습 질문
 
 - 결혼 준비 방식은 가족·지역·문화·종교마다 다르며 누구에게나 적용되는 하나의 정답이 없다고 먼저 전제하세요.
-- 신부 측·신랑 측의 역할, 복장, 방문 순서, 비용 부담을 성별 규칙이나 의무처럼 단정하지 마세요.
+- 양가의 역할, 복장, 방문 순서, 비용 부담을 성별 규칙이나 의무처럼 단정하지 마세요.
 - 결혼 축하금·두 가족에게 드릴 선물 금액을 보편적 기준처럼 제시하지 말고, 당사자의 관계와 가족의 기대를 직접 확인하도록 도우세요.
 - 세금·대출·휴가·법률·계약 효력은 최신 공식 원문과 적용 조건을 확인하지 못하면 수치나 결론을 말하지 마세요.
 
@@ -1384,7 +1439,7 @@ ${getVendorAsymmetryContext()}
 **태그는 '더 읽을 곳'이지 '근거'가 아닙니다.** 이 가이드에는 출처 표기가 없습니다 — 금액·기간·법률 수치를 이 가이드에서 가져와 말하지 마세요. 위 규칙(수치·법률은 공식 원문을 확인하지 못하면 말하지 않는다)이 그대로 우선합니다. 사용자가 "가이드에 얼마라고 나왔더라"라고 물으면, 그 숫자는 관행을 적어둔 것이고 확인된 기준이 아니라고 말한 뒤 두 사람 상황을 물어보세요.
 
 **비슷한 항목 구분:**
-- \`1:첫인사\` = 본인이 **혼자** 상대방 부모님 댁 방문. "여자친구 부모님 첫 인사" / "시부모님 처음 뵙는다" → **1번**.
+- \`1:첫인사\` = 본인이 **혼자** 상대방 부모님 댁 방문. "상대방 부모님 첫 인사" / "상대방 부모님을 처음 뵙는다" → **1번**.
 - \`2:상견례\` = **양가 부모님끼리 처음 만나는 자리**. 한쪽 부모님만 뵙는 자리가 아닙니다.
 - \`5:본식당일\` vs \`21:타임라인\` — 5는 당일 예절, 21은 D-day 시간표.
 - \`6:신혼여행후인사\` = 다녀온 직후의 양가·친지 인사. 여행 자체 매너가 아닙니다.

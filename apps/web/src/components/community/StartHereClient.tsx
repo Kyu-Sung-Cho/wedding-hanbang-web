@@ -61,6 +61,8 @@ function buildUndatedAmoraPrefill(preset: Preset): string {
 }
 
 function beforeLabel(days: number): string {
+  // 결혼식 뒤까지 이어지는 분야가 있다. 음수를 그대로 넣으면 "-30일 전"이 된다.
+  if (days <= 0) return "예식 뒤";
   if (days < 30) return `${days}일 전`;
   return `${Math.round(days / 30)}개월 전`;
 }

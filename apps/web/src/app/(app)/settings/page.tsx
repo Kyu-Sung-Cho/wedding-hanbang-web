@@ -38,6 +38,7 @@ import { CONTACT } from "@/lib/constants/contact";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import {
+  describeCoupleInviteWindow,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
   WEDDING_BUDGET_TENDENCY_OPTIONS,
@@ -136,6 +137,8 @@ export default function SettingsPage() {
         inviteCode: couple.invite_code ?? "WH-DEMO01",
         isFullyLinked: Boolean(couple.bride_id && couple.groom_id),
         isMembershipSealed: Boolean(couple.membership_sealed_at),
+        inviteCodeExpiresAt: null,
+        inviteCodeReissued: false,
       }, context));
       return;
     }
@@ -167,6 +170,7 @@ export default function SettingsPage() {
 
   const phase = coupleConnection.phase;
   const coupleCode = coupleConnection.inviteCode;
+  const inviteWindowNotice = describeCoupleInviteWindow(coupleConnection);
   const hasLegacyCareConsent =
     profile?.care_notifications_enabled === true &&
     typeof profile.care_notifications_consented_at === "string" &&
@@ -201,14 +205,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/couple/code", { method: "POST" });
       const payload: unknown = await res.json().catch(() => null);
       if (res.ok) {
-        const inviteCode = typeof payload === "object" && payload !== null
-          ? (payload as { inviteCode?: unknown }).inviteCode
-          : null;
-        setCoupleConnection(resolveCoupleConnectionState({
-          inviteCode,
-          isFullyLinked: false,
-          isMembershipSealed: false,
-        }));
+        setCoupleConnection(resolveCoupleConnectionState(payload));
       } else {
         // A join can win the race after this screen loaded. Remove the old
         // code immediately and let the next canonical GET reveal the phase.
@@ -475,7 +472,12 @@ export default function SettingsPage() {
 
   const userName = profile?.name ?? "사용자";
   const userEmail = user?.email ?? profile?.email ?? "";
-  const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
+  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
+  // 빈 문자열 폴백은 role이 null일 때만 발동하므로 여기서는 죽은 코드다.
+  const usesNeutralMembers = couple?.member_model_version === 2;
+  const userRole = usesNeutralMembers
+    ? ""
+    : profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
@@ -490,7 +492,9 @@ export default function SettingsPage() {
   const venueStr = venue && venue.trim().length > 0 ? venue : "미정";
 
   const partnerName = partner?.name;
-  const partnerRole = partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
+  const partnerRole = usesNeutralMembers
+    ? ""
+    : partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
 
   return (
     <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
@@ -826,7 +830,14 @@ export default function SettingsPage() {
               패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
           {phase === "awaiting_partner" && coupleCode && (
             <div className="mb-3">
-              <InviteCodePanel code={coupleCode} variant="settings" />
+              {/* 코드를 보내는 그 화면이 기한을 말해야 한다. main의 #136이 넣은
+                  만료 안내를 패널 안으로 옮겨 붙인다 — 패널로 바꾸면서 그 문구를
+                  통째로 지우면 실사용 코드가 경고 없이 죽는다. */}
+              <InviteCodePanel
+                code={coupleCode}
+                variant="settings"
+                notice={inviteWindowNotice}
+              />
               <button
                 onClick={handleRegenerateCode}
                 disabled={regenerating || !coupleConnection.canInvite}

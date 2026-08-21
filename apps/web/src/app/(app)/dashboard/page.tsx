@@ -45,6 +45,11 @@ import {
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
 import { weddingPath } from "@/lib/weddingPaths";
+import {
+  describeCoupleInviteWindow,
+  resolveCoupleConnectionState,
+  type CoupleInviteWindowNotice,
+} from "@hanbang/shared";
 import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
@@ -199,6 +204,10 @@ function getSpent(progress: Record<string, ProgressItem>) {
 export default function DashboardPage() {
   const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
+  const [inviteCodeError, setInviteCodeError] = useState(false);
+  // 코드가 방금 갈아끼워졌으면 "다시 보내라"를 여기서도 말해야 한다 — 라운지가
+  // 코드를 복사하는 화면이기도 하다.
+  const [inviteNotice, setInviteNotice] = useState<CoupleInviteWindowNotice | null>(null);
   const [copied, setCopied] = useState(false);
   const joinedHandoffVisible = useSyncExternalStore(
     subscribeJoinedDashboardMarker,
@@ -258,10 +267,16 @@ export default function DashboardPage() {
     if (!couple || partner || inviteCode || isDemo) return;
     fetch("/api/couple/code")
       .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((data: { inviteCode?: string }) => {
-        if (data.inviteCode) setInviteCode(data.inviteCode);
+      .then((data: unknown) => {
+        const connection = resolveCoupleConnectionState(data);
+        if (connection.inviteCode) setInviteCode(connection.inviteCode);
+        setInviteNotice(describeCoupleInviteWindow(connection));
+        setInviteCodeError(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        // 카드째 사라지면 파트너를 초대할 방법이 화면에서 없어진다.
+        setInviteCodeError(true);
+      });
   }, [couple, inviteCode, isDemo, partner]);
 
   // 모멘트 루프 — 라운지 진입 시 아모라가 챙길 게 있는지 확인 (fire-and-forget, 발화는 채팅 shared로 들어옴)
@@ -437,7 +452,7 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-      {couple && !partner && inviteCode && (
+      {couple && !partner && (inviteCode || inviteCodeError) && (
         <section className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -447,15 +462,32 @@ export default function DashboardPage() {
               <p className="mt-1 text-[13px] font-medium text-[#5d6879]">
                 함께 보고 싶을 때 이 코드를 공유하면 같은 예산과 일정, 할 일을 볼 수 있어요.
               </p>
+              {inviteNotice && (
+                <p
+                  className={
+                    inviteNotice.tone === "active"
+                      ? "mt-1 text-[13px] font-medium text-[#5d6879]"
+                      : "mt-1 text-[13px] font-semibold text-[#9d6f36]"
+                  }
+                >
+                  {inviteNotice.message}
+                </p>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={copyCode}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
-            >
-              <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </button>
+            {inviteCode ? (
+              <button
+                type="button"
+                onClick={copyCode}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+              >
+                <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </button>
+            ) : (
+              <p className="text-[13px] font-medium text-[#9d6f36]">
+                초대 코드를 불러오지 못했어요. 새로고침하면 다시 시도해요.
+              </p>
+            )}
           </div>
         </section>
       )}

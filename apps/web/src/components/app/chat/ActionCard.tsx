@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
@@ -557,7 +558,8 @@ function ScheduleMiniCard() {
       const result = await updateJourney({
         progress: {
           ...progress,
-          [catKey]: { ...existing, checklist: newChecklist, status: newStatus },
+          // DB는 {id, label, done} 세 키만 받는다. 템플릿의 note를 떼고 보낸다.
+          [catKey]: { ...existing, checklist: stripPlanningChecklistNotes(newChecklist), status: newStatus },
         },
       });
       if (result.status === "pending_partner") {

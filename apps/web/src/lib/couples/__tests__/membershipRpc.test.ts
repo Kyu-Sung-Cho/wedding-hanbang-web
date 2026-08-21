@@ -1,10 +1,72 @@
 import { describe, expect, it } from "vitest";
 
-import { parseMembershipRpcResponse } from "../membershipRpc";
+import {
+  JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC,
+  JOIN_COUPLE_SERVER_RPC,
+  joinCoupleThroughServerRpc,
+  joinNeutralPreparationSpaceThroughServerRpc,
+  parseMembershipRpcResponse,
+  parseNeutralMembershipRpcResponse,
+} from "../membershipRpc";
 
 const coupleId = "12345678-1234-4234-9234-123456789abc";
 
 describe("parseMembershipRpcResponse", () => {
+  it("accepts only roleless version-2 preparation-space receipts", async () => {
+    const actorUserId = "00000000-0000-4000-8000-000000000001";
+    expect(parseNeutralMembershipRpcResponse({
+      success: true,
+      joined: true,
+      idempotent: false,
+      actor_user_id: actorUserId,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+    }, "join", actorUserId)).toEqual({
+      ok: true,
+      coupleId,
+      inviteCode: "WH-ABC123",
+      changed: true,
+      idempotent: false,
+      memberModelVersion: 2,
+    });
+
+    expect(parseNeutralMembershipRpcResponse({
+      success: true,
+      joined: true,
+      idempotent: false,
+      actor_user_id: actorUserId,
+      couple_id: coupleId,
+      invite_code: "WH-ABC123",
+      member_model_version: 2,
+      role: "groom",
+    }, "join", actorUserId)).toMatchObject({
+      ok: false,
+      errorCode: "INVALID_RPC_RESPONSE",
+    });
+
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const expected = { data: null, error: null };
+    await expect(joinNeutralPreparationSpaceThroughServerRpc({
+      rpc: async (name, args) => {
+        calls.push({ name, args });
+        return expected;
+      },
+    }, {
+      actorUserId,
+      inviteCode: "WH-ABC123",
+    })).resolves.toBe(expected);
+    expect(JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC)
+      .toBe("join_neutral_preparation_space_server");
+    expect(calls).toEqual([{
+      name: "join_neutral_preparation_space_server",
+      args: {
+        p_actor_user_id: actorUserId,
+        p_invite_code: "WH-ABC123",
+      },
+    }]);
+  });
+
   it("accepts a fresh create result", () => {
     expect(
       parseMembershipRpcResponse(
@@ -63,6 +125,70 @@ describe("parseMembershipRpcResponse", () => {
     expect(result).toMatchObject({ ok: true, changed: true, idempotent: false });
   });
 
+  it("requires the server RPC success receipt to echo the verified actor", () => {
+    const actorUserId = "00000000-0000-4000-8000-000000000001";
+    const accepted = parseMembershipRpcResponse(
+      {
+        success: true,
+        joined: true,
+        idempotent: false,
+        actor_user_id: actorUserId,
+        couple_id: coupleId,
+        invite_code: "WH-ABC123",
+        role: "bride",
+      },
+      "bride",
+      "join",
+      actorUserId,
+    );
+    expect(accepted).toMatchObject({ ok: true, changed: true });
+
+    const mismatched = parseMembershipRpcResponse(
+      {
+        success: true,
+        joined: true,
+        idempotent: false,
+        actor_user_id: "00000000-0000-4000-8000-000000000099",
+        couple_id: coupleId,
+        invite_code: "WH-ABC123",
+        role: "bride",
+      },
+      "bride",
+      "join",
+      actorUserId,
+    );
+    expect(mismatched).toMatchObject({
+      ok: false,
+      errorCode: "INVALID_RPC_RESPONSE",
+    });
+  });
+
+  it("uses only the actor-bound service RPC and never falls back to legacy", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const expected = { data: null, error: { code: "PGRST202", message: "missing" } };
+    const admin = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        return expected;
+      },
+    };
+
+    await expect(joinCoupleThroughServerRpc(admin, {
+      actorUserId: "00000000-0000-4000-8000-000000000001",
+      inviteCode: "WH-ABC123",
+      role: "groom",
+    })).resolves.toBe(expected);
+    expect(JOIN_COUPLE_SERVER_RPC).toBe("join_couple_server");
+    expect(calls).toEqual([{
+      name: "join_couple_server",
+      args: {
+        p_actor_user_id: "00000000-0000-4000-8000-000000000001",
+        p_invite_code: "WH-ABC123",
+        p_role: "groom",
+      },
+    }]);
+  });
+
   it("maps stable error codes without exposing database text", () => {
     const result = parseMembershipRpcResponse(
       {
@@ -94,6 +220,66 @@ describe("parseMembershipRpcResponse", () => {
       status: 404,
       errorCode: "INVALID_INVITE_CODE",
     });
+  });
+
+  // 만료를 "코드가 올바르지 않습니다"로 옮기면, 사람은 자기 오타를 의심하며 같은
+  // 코드를 다시 친다. 두 경로 모두 만료를 만료라고 말해야 한다.
+  it("만료된 초대 코드를 오타와 다른 말로 옮긴다", () => {
+    const result = parseMembershipRpcResponse(
+      {
+        success: false,
+        joined: false,
+        idempotent: false,
+        error_code: "INVITE_CODE_EXPIRED",
+        error: "Invite code expired.",
+      },
+      "groom",
+      "join",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 410,
+      message: "이 초대 코드는 만료됐어요. 파트너에게 새 코드를 받아 다시 입력해 주세요.",
+      errorCode: "INVITE_CODE_EXPIRED",
+    });
+    expect((result as { message: string }).message).not.toContain("올바르지 않");
+  });
+
+  it("중립 경로도 만료를 만료라고 말한다", () => {
+    const result = parseNeutralMembershipRpcResponse(
+      {
+        success: false,
+        joined: false,
+        idempotent: false,
+        error_code: "INVITE_CODE_EXPIRED",
+        error: "Invite code expired.",
+      },
+      "join",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 410,
+      message: "이 초대 코드는 만료됐어요. 코드를 만든 분에게 새 코드를 요청해 주세요.",
+      errorCode: "INVITE_CODE_EXPIRED",
+    });
+  });
+
+  it("error_code 없이 레거시 문자열만 와도 만료로 읽는다", () => {
+    expect(parseMembershipRpcResponse(
+      { success: false, error: "Invite code expired." },
+      "groom",
+      "join",
+    )).toMatchObject({ ok: false, status: 410, errorCode: "INVITE_CODE_EXPIRED" });
+  });
+
+  it("존재하지 않는 코드는 여전히 404 INVALID_INVITE_CODE 다", () => {
+    expect(parseMembershipRpcResponse(
+      { success: false, error_code: "INVALID_INVITE_CODE" },
+      "groom",
+      "join",
+    )).toMatchObject({ ok: false, status: 404, errorCode: "INVALID_INVITE_CODE" });
   });
 
   it("maps invite-code exhaustion to a retryable service failure", () => {

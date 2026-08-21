@@ -8,7 +8,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { shouldShowBetaCounter } from "@/constants/beta";
 import { readStoredUtm } from "@/utils/utm";
-import { BETA_COUPLE_ROLE_SUPPORT_COPY } from "@/constants/coupleRoleSupport";
+import { PUBLIC_COUPLE_SUPPORT_COPY } from "@/constants/coupleRoleSupport";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -206,8 +206,8 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
             id="beta-role-support-note"
             className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/50"
           >
-            <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.current}</p>
-            <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.planned}</p>
+            <p>{PUBLIC_COUPLE_SUPPORT_COPY.current}</p>
+            <p>{PUBLIC_COUPLE_SUPPORT_COPY.planned}</p>
           </div>
         </fieldset>
 

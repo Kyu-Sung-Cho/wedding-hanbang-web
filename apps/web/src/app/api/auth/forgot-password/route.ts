@@ -98,7 +98,9 @@ export async function POST(request: Request) {
     const resetLink = data.properties.action_link;
     const resend = new Resend(process.env.RESEND_API_KEY);
 
-    await resend.emails.send({
+    // 여기서는 계정 존재 여부가 새지 않도록 응답을 바꾸지 않는다. 다만 발송
+    // 실패를 흔적 없이 삼키면 "메일이 안 와요" 문의를 추적할 방법이 없어진다.
+    const sendResult = await resend.emails.send({
       from: "웨딩한방 <noreply@hanbang.ai>",
       to: email,
       subject: "웨딩한방 비밀번호 재설정",
@@ -134,6 +136,10 @@ export async function POST(request: Request) {
         </div>
       `,
     });
+
+    if (sendResult.error || !sendResult.data?.id) {
+      console.error("Password reset email send failed:", sendResult.error);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

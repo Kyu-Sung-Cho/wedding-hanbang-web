@@ -4283,3 +4283,56 @@ describe("Amora manual schedule fairness migration", () => {
     }
   });
 });
+
+/**
+ * 2026-08-19. 일정 화면에서 항목을 체크하면서 날짜를 넣으면 저장이 **통째로 실패**했다.
+ * 클라이언트가 `__events`(일정)와 카테고리 키(체크)를 한 번의 저장에 같이 실었기 때문이다.
+ * 화면은 오류를 모달 뒤에 그려서 아무 말도 안 하는 것처럼 보였다.
+ *
+ * 여기서 막는 것은 재발이다 — 이 계약이 살아 있는 한 클라이언트는 두 번에 나눠 보내야 한다.
+ * 반대로 누군가 "간단하니까" 하고 DB 쪽 검사를 푸는 것도 이 테스트가 잡는다.
+ */
+describe("일정과 체크리스트를 한 번에 저장할 수 없다", () => {
+  it("섞어 보내면 거절하고, 나눠 보내면 둘 다 통과한다", async () => {
+    const mixed = await createDatabase();
+    await setServiceRole(mixed);
+    await expect(
+      submit(mixed, {
+        surface: "/schedule",
+        changes: {
+          progress_patch: {
+            __events: [event("event-1")],
+            venue: {
+              category: "venue",
+              status: "in_progress",
+              checklist: [{ id: "venue_01", label: "원하는 결혼식장 형태 정하기", done: true }],
+            },
+          },
+        },
+      }),
+    ).rejects.toThrow(/AMORA_MANUAL_SCHEDULE_MIXED_DELTA_DENIED/);
+
+    // 나눠 보내면 각각은 통과한다 — 클라이언트가 택해야 하는 경로다.
+    const onlyEvents = await createDatabase();
+    await setServiceRole(onlyEvents);
+    expect((await submit(onlyEvents, { surface: "/schedule" })).status)
+      .toBe("pending_partner");
+
+    const onlyChecklist = await createDatabase();
+    await setServiceRole(onlyChecklist);
+    expect(
+      (await submit(onlyChecklist, {
+        surface: "/schedule",
+        changes: {
+          progress_patch: {
+            venue: {
+              category: "venue",
+              status: "in_progress",
+              checklist: [{ id: "venue_01", label: "원하는 결혼식장 형태 정하기", done: true }],
+            },
+          },
+        },
+      })).status,
+    ).toBe("applied");
+  }, 120000);
+});

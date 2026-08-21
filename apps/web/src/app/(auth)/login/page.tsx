@@ -257,7 +257,7 @@ export default function LoginPage() {
               .single();
 
             if (profile?.onboarding_completed) {
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
+              document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
               window.location.href = getPostLoginRedirectPath(
                 window.location.search,
                 window.location.origin,
