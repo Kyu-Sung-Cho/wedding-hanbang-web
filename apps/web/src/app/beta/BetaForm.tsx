@@ -12,20 +12,29 @@ import { PUBLIC_COUPLE_SUPPORT_COPY } from "@/constants/coupleRoleSupport";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
+/**
+ * 예식일 선택 범위. 2026년 6~12월로 못 박혀 있어서 2027년 예식을 준비하는
+ * 사람은 날짜를 넣을 수조차 없었다. 서버는 유효한 ISO 날짜면 다 받는다.
+ */
+function isoDaysFromToday(days: number): string {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + days);
+  const offsetMs = base.getTimezoneOffset() * 60_000;
+  return new Date(base.getTime() - offsetMs).toISOString().slice(0, 10);
+}
+
 interface BetaFormProps {
   current: number;
   total: number;
   progress: number;
 }
 
-type Role = "bride" | "groom" | "";
-
 export default function BetaForm({ current, total, progress }: BetaFormProps) {
   const showCounter = shouldShowBetaCounter(current);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [weddingDate, setWeddingDate] = useState("");
-  const [role, setRole] = useState<Role>("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +46,6 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
     setError(null);
     if (!email || !email.includes("@")) {
       setError("유효한 이메일을 입력해주세요.");
-      return;
-    }
-    if (!role) {
-      setError("신부 또는 신랑을 선택해주세요.");
       return;
     }
     if (TURNSTILE_ENABLED && !turnstileToken) {
@@ -64,7 +69,6 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           email,
           name: name || undefined,
           weddingDate: weddingDate || undefined,
-          role: role || undefined,
           message: message || undefined,
           isBetaCandidate: true,
           turnstileToken,
@@ -96,7 +100,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           신청 <em className="not-italic text-rose-light">접수 완료</em>
         </h2>
         <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
-          감사합니다. 신청 내용을 확인한 뒤 참여 가능 여부와 제공 범위를 이메일로 안내드릴게요.
+          감사합니다. 등록하신 주소로 접수 확인 메일을 보냈어요. 새 소식이 생기면 이 주소로 알려드릴게요.
           <br />
           <span className="text-white/60">{email}</span>
         </p>
@@ -177,50 +181,27 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
-        <fieldset className="block" aria-describedby="beta-role-support-note">
-          <legend className="text-[11px] tracking-[0.2em] text-white/60 mb-2.5 block font-medium">
-            역할<span className="text-rose-light ml-1">*</span>
-          </legend>
-          <div className="flex gap-3">
-            {([
-              { value: "bride" as const, label: "신부" },
-              { value: "groom" as const, label: "신랑" },
-            ]).map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRole(opt.value)}
-                disabled={submitting}
-                aria-pressed={role === opt.value}
-                className={`flex-1 py-3 text-sm font-medium rounded-xl border transition-colors ${
-                  role === opt.value
-                    ? "bg-rose-light/20 border-rose-light text-white"
-                    : "border-white/15 text-white/60 hover:border-white/30 hover:text-white/80"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div
-            id="beta-role-support-note"
-            className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/50"
-          >
-            <p>{PUBLIC_COUPLE_SUPPORT_COPY.current}</p>
-            <p>{PUBLIC_COUPLE_SUPPORT_COPY.planned}</p>
-          </div>
-        </fieldset>
+        {/* 역할(신부/신랑)은 묻지 않는다 — 중립 준비 공간이 켜진 뒤로
+            온보딩도 묻지 않으므로, 여기서만 묻는 것은 제품과 어긋난다.
+            남는 사실은 "한 공간에 두 사람"이라는 정원 제한뿐이다. */}
+        <div
+          id="beta-role-support-note"
+          className="space-y-1 text-[11px] leading-relaxed text-white/50"
+        >
+          <p>{PUBLIC_COUPLE_SUPPORT_COPY.current}</p>
+          <p>{PUBLIC_COUPLE_SUPPORT_COPY.planned}</p>
+        </div>
 
         <Field label="예식 예정일">
           <DatePickerPopover
             value={weddingDate}
             onChange={setWeddingDate}
-            min="2026-06-01"
-            max="2026-12-31"
+            min={isoDaysFromToday(0)}
+            max={isoDaysFromToday(365 * 3)}
             disabled={submitting}
             placeholder="날짜 선택"
           />
-          <p className="text-[11px] text-white/40 mt-1.5">2026년 6~12월 (미정이면 비워두셔도 됩니다)</p>
+          <p className="text-[11px] text-white/40 mt-1.5">아직 못 정했으면 비워두셔도 됩니다</p>
         </Field>
 
         <Field label="한 줄 메시지">
