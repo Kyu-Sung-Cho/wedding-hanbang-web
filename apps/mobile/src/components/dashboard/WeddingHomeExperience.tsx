@@ -15,10 +15,8 @@ import {
   CalendarDays,
   FileCheck2,
   Heart,
-  MessageCircleHeart,
   ReceiptText,
   ShieldCheck,
-  Sparkles,
   UsersRound,
   WalletCards,
 } from "lucide-react-native";
