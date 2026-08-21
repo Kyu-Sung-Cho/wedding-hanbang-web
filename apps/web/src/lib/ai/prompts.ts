@@ -979,26 +979,9 @@ ${categoryStatus}${checkPointsSection}${bookingsSection}${scheduleSection}${summ
 
 | 영어 키 | 한글 라벨 |
 |---|---|
-| venue | ${CATEGORY_LABELS.venue} |
-| studio | ${CATEGORY_LABELS.studio} |
-| dress | ${CATEGORY_LABELS.dress} |
-| makeup | ${CATEGORY_LABELS.makeup} |
-| ring | ${CATEGORY_LABELS.ring} |
-| hanbok | ${CATEGORY_LABELS.hanbok} |
-| yedan | ${CATEGORY_LABELS.yedan} |
-| honeymoon | ${CATEGORY_LABELS.honeymoon} |
-| houseware | ${CATEGORY_LABELS.houseware} |
-| housing | ${CATEGORY_LABELS.housing} |
-| invitation | ${CATEGORY_LABELS.invitation} |
-| snap | ${CATEGORY_LABELS.snap} |
-| shoes | ${CATEGORY_LABELS.shoes} |
-| bouquet | ${CATEGORY_LABELS.bouquet} |
-| gift | ${CATEGORY_LABELS.gift} |
-| mc | ${CATEGORY_LABELS.mc} |
-| ham | ${CATEGORY_LABELS.ham} |
-| pyebaek | ${CATEGORY_LABELS.pyebaek} |
-| reserve | ${CATEGORY_LABELS.reserve} |
-| meeting | ${CATEGORY_LABELS.meeting} |
+${Object.entries(CATEGORY_LABELS)
+  .map(([key, label]) => `| ${key} | ${label} |`)
+  .join("\n")}
 
 ❌ 잘못된 출력: "venue 1200", "사진이 중요하니 평균보다 25% 추가"
 ✅ 올바른 출력: "결혼식장 1,200만원 (사용자가 입력한 견적)"

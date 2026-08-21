@@ -79,12 +79,22 @@ interface BuildAmoraLifecyclePlanInput {
   now?: Date;
 }
 
+/**
+ * 어느 분야가 어느 시기에 드는지는 사람이 정한다 — 여기만은 유도할 수 없다.
+ *
+ * 다만 **빠지는 분야가 없어야 한다.** 어느 단계에도 안 들어간 분야는 아모라의 진행
+ * 계산에서 통째로 사라지는데 화면에는 아무 표시도 안 난다. 2026-08-21에 분야를 둘
+ * 늘렸을 때 실제로 그렇게 됐다. `lifecycle.test.ts`가 빠짐없음을 검사한다.
+ */
 const PHASES = [
-  { id: "foundation", label: "기초 결정", keys: ["meeting", "venue"] },
+  { id: "foundation", label: "기초 결정", keys: ["greeting", "meeting", "venue"] },
   { id: "core", label: "핵심 계약", keys: ["studio", "dress", "makeup", "ring"] },
   { id: "life", label: "생활 준비", keys: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
-  { id: "final", label: "결혼식 마무리", keys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
+  { id: "final", label: "결혼식 마무리", keys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek", "registration"] },
 ];
+
+/** 검사가 쓴다 — 어느 단계에도 안 들어간 분야가 있으면 안 된다. */
+export const LIFECYCLE_PHASE_KEYS = PHASES.flatMap((phase) => phase.keys);
 
 const STAGE_COPY: Record<AmoraLifecycleStage, { label: string; summary: string }> = {
   setup: {
