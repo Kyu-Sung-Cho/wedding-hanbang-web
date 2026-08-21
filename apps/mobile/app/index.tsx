@@ -4,16 +4,20 @@ import { Redirect } from "expo-router";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import {
+  resolveRootDestination,
+  rootGateNeedsProfile,
+  type RootDestination,
+} from "@/lib/rootDestination";
 import { PrimaryButton } from "@/components/ui/AppUI";
 import { resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { verifyMobileWebRuntime } from "@/lib/mobileWebRuntime";
 
-type Destination = "login" | "onboarding" | "dashboard";
 type GateStatus = "loading" | "ready" | "error" | "mismatch";
 
 export default function Index() {
   const [status, setStatus] = useState<GateStatus>("loading");
-  const [dest, setDest] = useState<Destination>("login");
+  const [dest, setDest] = useState<RootDestination>("login");
   const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
@@ -48,8 +52,15 @@ export default function Index() {
         if (sessionError) throw sessionError;
         if (!active) return;
 
-        if (!session) {
-          setDest("login");
+        // 목적지 판정은 rootDestination.ts 의 순수 함수가 한다. 순서가 계약인
+        // 자리(동의 관문이 프로필 조회보다 앞)를 화면 안에 두면 테스트로
+        // 고정할 방법이 없다 — 모바일에는 화면 렌더 테스트가 없다.
+        //
+        // 세션이 없거나 동의 기록이 없으면 프로필을 **읽지 않는다.** 어차피
+        // 로그인/동의 화면으로 가고, 그 조회가 실패하면 관문에 닿기도 전에
+        // 오류 화면으로 새어 나간다.
+        if (!rootGateNeedsProfile(session)) {
+          setDest(resolveRootDestination({ session, profile: null }));
           setStatus("ready");
           return;
         }
@@ -62,11 +73,7 @@ export default function Index() {
         if (profileError) throw profileError;
         if (!active) return;
 
-        if (!profile || !profile.onboarding_completed) {
-          setDest("onboarding");
-        } else {
-          setDest("dashboard");
-        }
+        setDest(resolveRootDestination({ session, profile }));
       } catch {
         if (active) {
           setStatus("error");
@@ -127,6 +134,8 @@ export default function Index() {
   switch (dest) {
     case "login":
       return <Redirect href="/(auth)/login" />;
+    case "consent":
+      return <Redirect href="/(auth)/consent" />;
     case "onboarding":
       return <Redirect href="/onboarding" />;
     case "dashboard":
