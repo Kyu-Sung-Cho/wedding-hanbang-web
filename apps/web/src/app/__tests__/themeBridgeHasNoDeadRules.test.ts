@@ -134,8 +134,15 @@ describe("테마 브리지", () => {
     expect(sources.length).toBeGreaterThan(80);
     expect(reachableDirs.size).toBeGreaterThan(2);
     expect(bridgeTargets.length).toBeGreaterThan(50);
-    // 브리지가 겨냥하는 클래스 중 확실히 쓰이는 것 하나로 카운터 자체를 검증한다.
-    expect(countFixed("text-[#1A1A1F]")).toBeGreaterThan(200);
+
+    // 카나리아는 **마이그레이션과 무관한 문자열**이어야 한다.
+    //
+    // 처음에는 `text-[#1A1A1F]`가 200회 넘게 나오는지로 카운터를 검증했다. 그런데 그
+    // 클래스는 `migrate-bridge-classes.mjs`의 치환 대상 1순위다 — 같은 세션이 만든 두
+    // 도구가 서로를 무너뜨린다. 코드모드를 범위 전체에 돌리면 233 → 20으로 떨어지고,
+    // 실패 메시지가 "측정기가 살아 있다"라서 원인을 마이그레이션이 아니라 측정 장치에서
+    // 찾게 만든다. 그래서 브리지가 겨냥하지 않는 문자열로 바꿨다.
+    expect(countFixed("className=")).toBeGreaterThan(200);
   });
 
   it("겨냥하는 클래스가 전부 소스에 실제로 쓰인다", () => {
