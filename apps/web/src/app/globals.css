@@ -79,6 +79,7 @@
   --font-cormorant-garamond: var(--font-paperlogy);
   --font-plus-jakarta-sans: var(--font-paperlogy);
 
+  /* @generated:design-tokens root start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
   /* Primary - Eucalyptus Ink */
   --noir-800: #36534E;
   --noir-900: #243832;
@@ -119,9 +120,31 @@
 
   /* Platinum */
   --platinum: #E6DDD2;
+  /* @generated:design-tokens root end */
+
+  /* @generated:design-tokens roles start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  /* 역할 — 누를 수 있는 것 (기본값은 제품 정체인 유칼립투스) */
+  --hb-primary: #36534E;
+  --hb-primary-hover: #2B423E;
+  --hb-on-primary: #FFFFFF;
+
+  /* 역할 — 초점 */
+  --hb-focus-ring: #36534E;
+
+  /* 역할 — 표면과 경계 */
+  --hb-surface-raised: #FFFFFF;
+  --hb-surface-hover: #F6EFE5;
+  --hb-hairline: #E5D8CA;
+
+  /* 역할 — 글자 */
+  --hb-text-strong: #263832;
+  --hb-text-body: #5F5B52;
+  --hb-text-muted: #7D7166;
+  /* @generated:design-tokens roles end */
 }
 
 @theme inline {
+  /* @generated:design-tokens theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
   /* Colors */
   --color-noir-800: #36534E;
   --color-noir-900: #243832;
@@ -130,8 +153,6 @@
 
   --color-rose-500: #A77B74;
   --color-rose-600: #8F6662;
-  /* rose-600의 눌림·hover 단계. 시스템에 상호작용 상태 색이 없어 랜딩이 이 값을
-   * 직접 써 왔다(9곳). 손으로 어둡게 만든 값이 흩어지지 않도록 토큰으로 고정한다. */
   --color-rose-700: #7D5753;
   --color-rose-light: #D2B4AA;
   --color-rose-pale: #EADDD8;
@@ -140,8 +161,6 @@
   --color-ivory-100: #F7F1E8;
   --color-ivory-200: #EFE4D7;
   --color-ivory-warm: #F6EFE5;
-  /* ivory-200과 rose-pale 사이의 따뜻한 표면. 랜딩이 섹션 배경·칩 배경으로
-   * 7곳에서 써 왔다. 같은 이유로 토큰화한다. */
   --color-ivory-blush: #F3E9DD;
   --color-ivory-deep: #E8DCCB;
   --color-surface-low: #F1E8DA;
@@ -160,6 +179,7 @@
   --color-gold-light: #E2D3C8;
 
   --color-platinum: #E6DDD2;
+  /* @generated:design-tokens theme end */
 
   /* Elevation — 두 단계만 쓴다.
    * raised   : 지면 위에 얹힌 표면(카드·폼 패널)
@@ -623,16 +643,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: var(--hb-gold-deep) !important;
 }
 
-.hanbang-service-theme [class~="text-[#795252]/50"],
-.hanbang-service-theme [class~="text-[#946a6a]/50"],
-.hanbang-service-theme [class~="text-rose-500/50"] {
+.hanbang-service-theme [class~="text-[#795252]/50"] {
   color: rgba(54, 83, 78, 0.55) !important;
 }
 
 .hanbang-service-theme [class~="text-[#1b1c1c]"],
 .hanbang-service-theme [class~="text-[#1A1A1F]"],
-.hanbang-service-theme [class~="text-noir-800"],
-.hanbang-service-theme [class~="text-charcoal"] {
+.hanbang-service-theme [class~="text-noir-800"] {
   color: var(--hb-text) !important;
 }
 
@@ -658,18 +675,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   background-color: var(--hb-navy) !important;
 }
 
-.hanbang-service-theme [class~="hover:bg-[#946a6a]"]:hover,
-.hanbang-service-theme [class~="hover:bg-rose-600"]:hover {
+.hanbang-service-theme [class~="hover:bg-[#946a6a]"]:hover {
   background-color: var(--hb-navy-soft) !important;
 }
 
 .hanbang-service-theme [class~="bg-[#795252]/5"],
 .hanbang-service-theme [class~="bg-[#795252]/10"],
-.hanbang-service-theme [class~="bg-[#795252]/15"],
-.hanbang-service-theme [class~="bg-rose-500/10"],
-.hanbang-service-theme [class~="bg-rose-500/20"],
-.hanbang-service-theme [class~="bg-[#D99C9C]/10"],
-.hanbang-service-theme [class~="bg-[#D99C9C]/20"] {
+.hanbang-service-theme [class~="bg-[#795252]/15"] {
   background-color: rgba(54, 83, 78, 0.10) !important;
 }
 
@@ -685,8 +697,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="hover:bg-[#795252]/5"]:hover,
 .hanbang-service-theme [class~="hover:bg-[#795252]/10"]:hover,
 .hanbang-service-theme [class~="hover:bg-[#EDE7E5]"]:hover,
-.hanbang-service-theme [class~="hover:bg-[#EDE8E5]"]:hover,
-.hanbang-service-theme [class~="hover:bg-ivory-200"]:hover {
+.hanbang-service-theme [class~="hover:bg-[#EDE8E5]"]:hover {
   background-color: #f3e9df !important;
 }
 
@@ -700,39 +711,30 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 .hanbang-service-theme [class~="border-[#795252]"],
 .hanbang-service-theme [class~="border-[#795252]/20"],
-.hanbang-service-theme [class~="border-[#795252]/30"],
-.hanbang-service-theme [class~="border-[#795252]/40"],
-.hanbang-service-theme [class~="border-rose-500"],
-.hanbang-service-theme [class~="border-rose-500/30"],
-.hanbang-service-theme [class~="border-platinum"] {
+.hanbang-service-theme [class~="border-[#795252]/40"] {
   border-color: var(--hb-line) !important;
 }
 
-.hanbang-service-theme [class~="hover:border-[#795252]"]:hover,
-.hanbang-service-theme [class~="hover:border-rose-500/30"]:hover {
+.hanbang-service-theme [class~="hover:border-[#795252]"]:hover {
   border-color: var(--hb-gold) !important;
 }
 
 .hanbang-service-theme [class~="ring-[#795252]/10"],
 .hanbang-service-theme [class~="ring-[#795252]/20"],
-.hanbang-service-theme [class~="ring-[#795252]/30"],
-.hanbang-service-theme [class~="ring-rose-500/20"] {
+.hanbang-service-theme [class~="ring-[#795252]/30"] {
   --tw-ring-color: rgba(54, 83, 78, 0.24) !important;
 }
 
 .hanbang-service-theme [class~="focus:ring-[#795252]/10"]:focus,
-.hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus,
-.hanbang-service-theme [class~="focus:ring-rose-500"]:focus {
+.hanbang-service-theme [class~="focus:ring-[#795252]/30"]:focus {
   --tw-ring-color: rgba(54, 83, 78, 0.30) !important;
 }
 
-.hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
-.hanbang-service-theme [class~="focus:border-rose-500"]:focus {
+.hanbang-service-theme [class~="focus:border-[#795252]"]:focus {
   border-color: var(--hb-gold) !important;
 }
 
-.hanbang-service-theme [class~="accent-[#795252]"],
-.hanbang-service-theme [class~="accent-rose-500"] {
+.hanbang-service-theme [class~="accent-[#795252]"] {
   accent-color: var(--hb-gold) !important;
 }
 
@@ -744,13 +746,9 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 .hanbang-service-theme [class~="to-[#946a6a]"],
-.hanbang-service-theme [class~="to-[#D99C9C]"],
-.hanbang-service-theme [class~="to-[#E8B4B4]"],
-.hanbang-service-theme [class~="to-rose-600"] {
+.hanbang-service-theme [class~="to-[#E8B4B4]"] {
   --tw-gradient-to: var(--hb-navy-soft) !important;
 }
-
-.hanbang-service-theme [class~="via-[#C9A96E]"],
 .hanbang-service-theme [class~="to-[#C9A96E]"],
 .hanbang-service-theme [class~="to-gold"] {
   --tw-gradient-to: var(--hb-gold) !important;
@@ -758,8 +756,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 .hanbang-service-theme [class~="shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"],
 .hanbang-service-theme [class~="shadow-[0_4px_14px_rgba(121,82,82,0.2)]"],
-.hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"],
-.hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.25)]"] {
+.hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"] {
   box-shadow: 0 14px 34px rgba(38, 56, 50, 0.14) !important;
 }
 
@@ -855,13 +852,11 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#061a34]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#071629]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#102a4d]"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#071629]"] {
   color: var(--hb-text) !important;
 }
 
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:text-[#071629]"]:hover,
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="group-hover:text-[#071629]"]:is(:where(.group):hover *) {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:text-[#071629]"]:hover {
   color: var(--hb-text) !important;
 }
 
@@ -873,7 +868,6 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#b68a3a]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#c9a96e]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#9d6f36]"] {
   color: var(--hb-gold-deep) !important;
 }
@@ -882,23 +876,12 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: #ffffff !important;
 }
 
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/30"] {
-  color: rgba(54, 83, 78, 0.30) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/40"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="text-[#C9A96E]/45"] {
-  color: rgba(54, 83, 78, 0.42) !important;
-}
-
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#071629]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#102a4d]"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#071629]"] {
   background-color: var(--hb-navy) !important;
 }
 
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fffdf7]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fbf8ee]"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#fffdf7]"] {
   background-color: var(--hb-ivory) !important;
 }
 
@@ -917,14 +900,8 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/5"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/10"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/12"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/15"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/20"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#C9A96E]/15"] {
   background-color: rgba(54, 83, 78, 0.12) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/10"] {
-  background-color: rgba(54, 83, 78, 0.10) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/35"],
@@ -932,78 +909,26 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   background-color: rgba(54, 83, 78, 0.40) !important;
 }
 
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="bg-[#061a34]/82"] {
-  background-color: rgba(54, 83, 78, 0.84) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:bg-[#061a34]"]:hover,
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:bg-[#102a4d]"]:hover,
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="hover:from-[#102a4d]"]:hover {
-  background-color: var(--hb-navy-soft) !important;
-  --tw-gradient-from: var(--hb-navy-soft) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#061a34]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#071629]"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#061a34]"] {
   border-color: var(--hb-navy) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#eadfc9]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8c7ad]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8bb86]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#f2eadc]"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8bb86]"] {
   border-color: var(--hb-line) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#C9A96E]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#C9A96E]/10"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#C9A96E]/30"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-l-[#C9A96E]"] {
+:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#C9A96E]/30"] {
   border-color: var(--hb-gold) !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="fill-[#C9A96E]"] {
   fill: var(--hb-gold) !important;
 }
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#061a34]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#071629]"] {
-  --tw-gradient-from: var(--hb-navy) !important;
-  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#C9A96E]"] {
-  --tw-gradient-from: var(--hb-gold) !important;
-  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#0d2b52]"],
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#2A2A30]"] {
-  --tw-gradient-to: var(--hb-navy-soft) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="via-[#C9A96E]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#C9A96E]"] {
   --tw-gradient-to: var(--hb-gold) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#C9A96E]/20"] {
-  --tw-gradient-from: rgba(54, 83, 78, 0.20) !important;
-  --tw-gradient-to: rgba(54, 83, 78, 0) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="from-[#102a4d]/20"] {
-  --tw-gradient-from: rgba(78, 106, 98, 0.20) !important;
-  --tw-gradient-to: rgba(78, 106, 98, 0) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#102a4d]/5"] {
-  --tw-gradient-to: rgba(78, 106, 98, 0.05) !important;
 }
 
 .hanbang-community-theme .community-post-content img,

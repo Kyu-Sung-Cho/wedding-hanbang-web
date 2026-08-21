@@ -63,7 +63,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       {isOpen && <div className="fixed inset-0 z-40 bg-[#061a34]/35 backdrop-blur-sm md:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[16rem] flex-col border-r border-[#eadfc9] bg-[#fffdf7] shadow-[0_14px_38px_rgba(8,22,38,0.06)] transition-transform duration-300 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-[16rem] flex-col border-r border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[0_14px_38px_rgba(8,22,38,0.06)] transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -74,7 +74,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#eadfc9] text-[#5d6879] md:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-body)] md:hidden"
             aria-label="메뉴 닫기"
           >
             <X className="h-5 w-5" />
@@ -107,21 +107,21 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         <div className="px-3 pb-4">
-          <div className="rounded-[16px] border border-[#eadfc9] bg-white p-4">
+          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#061a34] text-[14px] font-semibold text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[14px] font-semibold text-white">
                 {userInitial}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-[14px] font-semibold text-[#071629]">{userName}</p>
-                <p className="mt-0.5 truncate text-[12px] font-medium text-[#7a8290]">{weddingDateStr}</p>
+                <p className="truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">{userName}</p>
+                <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--hb-text-body)]">{weddingDateStr}</p>
               </div>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void signOut()}
-            className="mt-2 flex w-full items-center gap-2 rounded-[14px] border border-[#eadfc9] bg-white px-4 py-3 text-[13px] font-semibold text-[#5d6879] hover:text-[#9d6f36]"
+            className="mt-2 flex w-full items-center gap-2 rounded-[14px] border border-[var(--hb-hairline)] bg-white px-4 py-3 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[#9d6f36]"
           >
             <LogOut className="h-4 w-4" />
             로그아웃

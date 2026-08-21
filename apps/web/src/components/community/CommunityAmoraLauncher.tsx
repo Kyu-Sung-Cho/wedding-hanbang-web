@@ -85,7 +85,7 @@ export default function CommunityAmoraLauncher() {
         <button
           type="button"
           onClick={handleOpenAmora}
-          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[#d8c7ad] bg-[#fffdf7] text-[#36534E] shadow-[0_12px_30px_rgba(54,83,78,0.16)] transition-transform hover:-translate-y-0.5 hover:bg-[#f7f1e8] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] text-[#36534E] shadow-[0_12px_30px_rgba(54,83,78,0.16)] transition-transform hover:-translate-y-0.5 hover:bg-[#f7f1e8] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
           // 투어 타겟(landing-amora)은 2026-07-29에 랜딩의 아모라 블록으로 옮겼다.
@@ -102,7 +102,7 @@ export default function CommunityAmoraLauncher() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#071629]/35 px-4 backdrop-blur-sm">
           <div
             ref={loginPromptRef}
-            className="w-full max-w-[420px] rounded-[22px] border border-[#eadfc9] bg-[#fffdf7] p-5 shadow-[0_24px_70px_rgba(8,22,38,0.18)]"
+            className="w-full max-w-[420px] rounded-[22px] border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] p-5 shadow-[0_24px_70px_rgba(8,22,38,0.18)]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="community-amora-login-title"
@@ -115,8 +115,8 @@ export default function CommunityAmoraLauncher() {
                   <Sparkles className="h-5 w-5" />
                 </span>
                 <div>
-                  <p className="text-[12px] font-semibold text-[#9d6f36]">아모라 상담</p>
-                  <h2 id="community-amora-login-title" className="font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">
+                  <p className="text-[12px] font-semibold text-[var(--hb-primary)]">아모라 상담</p>
+                  <h2 id="community-amora-login-title" className="font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">
                     로그인 후 이용할 수 있어요.
                   </h2>
                 </div>
@@ -124,14 +124,14 @@ export default function CommunityAmoraLauncher() {
               <button
                 type="button"
                 onClick={() => setLoginPromptOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#7a8290] transition-colors hover:bg-white hover:text-[#071629]"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[#071629]"
                 aria-label="닫기"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p id="community-amora-login-description" className="mt-4 text-[14px] font-medium leading-[1.75] text-[#5d6879]">
+            <p id="community-amora-login-description" className="mt-4 text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">
               커뮤니티 글은 누구나 볼 수 있지만, 아모라 상담은 내 결혼식 날짜와 준비 정보를 바탕으로 답해야 해서 로그인이 필요해요.
             </p>
 
@@ -147,7 +147,7 @@ export default function CommunityAmoraLauncher() {
               <button
                 type="button"
                 onClick={() => setLoginPromptOpen(false)}
-                className="inline-flex items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#fff8ec]"
+                className="inline-flex items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#fff8ec]"
               >
                 계속 둘러보기
               </button>
