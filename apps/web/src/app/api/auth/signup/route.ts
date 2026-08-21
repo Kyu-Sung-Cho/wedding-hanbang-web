@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { parseSignupConsent } from "@hanbang/shared";
+import { buildSignupConsentRecord, parseSignupConsent } from "@hanbang/shared";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   checkRateLimitPersistent,
@@ -216,15 +216,12 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
+        // 무엇에, 어느 판에, 언제 동의했는지 남긴다. 동의를 받았다는 주장만
+        // 있고 기록이 없으면 받지 않은 것과 같다. 기록의 모양은 공유 계약이
+        // 만든다 — /api/auth/consent(소셜 경로)와 갈라지면 안 된다.
         data: {
           name,
-          marketing_agreed: consent.marketingAgreed,
-          // 무엇에, 어느 판에, 언제 동의했는지 남긴다. 동의를 받았다는
-          // 주장만 있고 기록이 없으면 받지 않은 것과 같다.
-          terms_agreed: true,
-          privacy_agreed: true,
-          consent_policy_version: consent.consentPolicyVersion,
-          consent_agreed_at: new Date().toISOString(),
+          ...buildSignupConsentRecord(consent, new Date().toISOString()),
         },
         redirectTo: buildOAuthCallbackUrl(callbackSearch, siteUrl),
       },

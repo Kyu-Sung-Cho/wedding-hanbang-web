@@ -90,14 +90,17 @@ describe("필수 동의 없이는 계정을 만들지 않는다", () => {
     );
   });
 
-  it("무엇에·어느 판에·언제 동의했는지 남긴다", () => {
-    for (const field of [
-      "terms_agreed",
-      "privacy_agreed",
-      "consent_policy_version",
-      "consent_agreed_at",
-    ]) {
-      expect(source, field).toContain(field);
+  it("동의 기록을 손으로 만들지 않고 공유 빌더를 쓴다", () => {
+    // 기록의 모양(terms_agreed·privacy_agreed·consent_policy_version·
+    // consent_agreed_at)은 packages/shared 의 buildSignupConsentRecord 가
+    // 만든다. 소셜 경로(/api/auth/consent)도 같은 빌더를 쓰므로, 두 경로가
+    // 갈라지면 관문이 저장된 동의를 못 읽는다.
+    //
+    // 실제 저장 값은 signupConsentBoundary.test.ts 가 라우트를 **실행해서**
+    // 확인한다. 여기서는 손으로 지은 기록이 끼어들지 않는지만 본다.
+    expect(source).toContain("buildSignupConsentRecord(consent,");
+    for (const handwritten of ["terms_agreed:", "privacy_agreed:", "consent_agreed_at:"]) {
+      expect(source, `${handwritten} 를 손으로 짓고 있다`).not.toContain(handwritten);
     }
   });
 });

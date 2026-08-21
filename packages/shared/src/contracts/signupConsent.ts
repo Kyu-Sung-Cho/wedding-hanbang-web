@@ -90,6 +90,50 @@ export function buildSignupConsentSubmission(
   };
 }
 
+/** 계정에 남기는 동의 기록. 이 모양을 한 곳에서만 만든다. */
+export type SignupConsentRecord = Readonly<{
+  terms_agreed: true;
+  privacy_agreed: true;
+  marketing_agreed: boolean;
+  consent_policy_version: string;
+  consent_agreed_at: string;
+}>;
+
+export function buildSignupConsentRecord(
+  submission: SignupConsentSubmission,
+  agreedAtIso: string,
+): SignupConsentRecord {
+  return {
+    terms_agreed: true,
+    privacy_agreed: true,
+    marketing_agreed: submission.marketingAgreed,
+    consent_policy_version: submission.consentPolicyVersion,
+    consent_agreed_at: agreedAtIso,
+  };
+}
+
+/**
+ * 이 계정에 필수 동의 기록이 남아 있는가.
+ *
+ * 이메일 가입은 /api/auth/signup 이 기록하지만, **소셜 로그인은 Supabase 가
+ * 계정을 직접 만들기 때문에 아무 기록도 남지 않는다.** 로그인 탭에서 카카오·
+ * Google·Apple 로 처음 들어온 사람이 정확히 그 경우다 — 동의 화면을 본 적도
+ * 없고 기록도 없다. 그 계정을 제품에 들여보내기 전에 여기서 판정한다.
+ *
+ * 판 번호는 보지 않는다. 문서를 고칠 때마다 전원을 다시 막으면 그건 제품
+ * 결정이지 이 함수가 혼자 정할 일이 아니다. 기록의 **존재**만 본다.
+ */
+export function hasRecordedSignupConsent(metadata: unknown): boolean {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+  const record = metadata as Record<string, unknown>;
+  return record.terms_agreed === true && record.privacy_agreed === true;
+}
+
+/** 동의 기록이 없는 계정을 보내는 곳. 웹 전용 경로다. */
+export const SIGNUP_CONSENT_PATH = "/consent";
+
 /**
  * 서버가 요청 본문을 읽는 자리. 클라이언트 판정을 믿지 않고 다시 본다.
  * 필수 동의가 없으면 null 이고, 호출부는 계정을 만들지 않는다.

@@ -6,7 +6,9 @@ import {
   EMPTY_SIGNUP_CONSENT,
   SIGNUP_CONSENT_ITEMS,
   SIGNUP_CONSENT_POLICY_VERSION,
+  buildSignupConsentRecord,
   buildSignupConsentSubmission,
+  hasRecordedSignupConsent,
   isSignupConsentAll,
   isSignupConsentComplete,
   parseSignupConsent,
@@ -94,6 +96,68 @@ describe("가입 동의 계약", () => {
         ).toBe(SIGNUP_CONSENT_POLICY_VERSION);
       });
     }
+  });
+
+  // 소셜 로그인은 Supabase 가 계정을 직접 만들어서 가입 라우트를 지나지 않는다.
+  // 그 계정을 제품에 들여보내기 전에 이 판정으로 막는다.
+  describe("계정에 동의 기록이 있는가", () => {
+    it("둘 다 true 일 때만 기록으로 친다", () => {
+      expect(hasRecordedSignupConsent({ terms_agreed: true, privacy_agreed: true }))
+        .toBe(true);
+      for (const metadata of [
+        {},
+        { terms_agreed: true },
+        { privacy_agreed: true },
+        { terms_agreed: true, privacy_agreed: false },
+        { marketing_agreed: true },
+        // 소셜 로그인이 채워 놓는 값들만으로는 동의가 아니다.
+        { name: "소셜 사용자", avatar_url: "https://example.test/a.png" },
+      ]) {
+        expect(hasRecordedSignupConsent(metadata), JSON.stringify(metadata)).toBe(false);
+      }
+    });
+
+    it("문자열이나 숫자를 동의로 치지 않는다", () => {
+      expect(hasRecordedSignupConsent({ terms_agreed: "true", privacy_agreed: "true" }))
+        .toBe(false);
+      expect(hasRecordedSignupConsent({ terms_agreed: 1, privacy_agreed: 1 })).toBe(false);
+    });
+
+    it("메타데이터가 없거나 이상한 모양이면 기록 없음이다", () => {
+      for (const value of [null, undefined, "yes", 1, [], [{ terms_agreed: true }]]) {
+        expect(hasRecordedSignupConsent(value), String(value)).toBe(false);
+      }
+    });
+
+    it("판 번호가 옛것이어도 기록은 기록이다", () => {
+      // 문서를 고칠 때마다 전원을 다시 막는 것은 제품 결정이지 이 함수가
+      // 혼자 정할 일이 아니다.
+      expect(hasRecordedSignupConsent({
+        terms_agreed: true,
+        privacy_agreed: true,
+        consent_policy_version: "1900-01-01",
+      })).toBe(true);
+    });
+  });
+
+  describe("계정에 남기는 기록의 모양", () => {
+    it("가입 경로와 소셜 경로가 같은 모양을 남긴다", () => {
+      const submission = buildSignupConsentSubmission({
+        terms: true, privacy: true, marketing: true,
+      });
+      const record = buildSignupConsentRecord(submission, "2026-08-21T00:00:00.000Z");
+
+      expect(record).toEqual({
+        terms_agreed: true,
+        privacy_agreed: true,
+        marketing_agreed: true,
+        consent_policy_version: SIGNUP_CONSENT_POLICY_VERSION,
+        consent_agreed_at: "2026-08-21T00:00:00.000Z",
+      });
+      // 만든 기록은 곧바로 "기록 있음"으로 읽혀야 한다. 두 함수가 갈라지면
+      // 동의를 저장하고도 관문이 계속 막는다.
+      expect(hasRecordedSignupConsent(record)).toBe(true);
+    });
   });
 
   describe("서버가 요청 본문을 읽을 때", () => {
