@@ -562,6 +562,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "집을 구하는 값만 세지 말고 이사와 집을 손보는 데 드는 돈까지 예산에 넣을지 먼저 이야기해 보세요.",
       },
+      {
+        id: "housing_12",
+        label: "신혼집 자금을 누가 얼마나 낼지 합의",
+        done: false,
+        note: "두 집안에서 보태 주시는 돈이 있다면 그냥 주시는 것인지 나중에 갚는 것인지까지 함께 확인해 두세요.",
+      },
       { id: "housing_03", label: "부동산 방문 및 매물 탐색", done: false },
       {
         id: "housing_04",
