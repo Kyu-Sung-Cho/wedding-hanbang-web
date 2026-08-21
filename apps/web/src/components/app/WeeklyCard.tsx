@@ -15,7 +15,13 @@ import type { ProgressItem } from "@/types/database.types";
 /**
  * 주차 카드 — 라운지 최상단의 "이번 주 한 장".
  * 보유 데이터의 정적 조합(LLM 비용 0): 할 일 3 + 가족 조율 원칙 + 견적 확인 + 아모라 한 줄.
- * 원칙: 제로 지식 유저에게 132개 체크리스트를 보여주지 않는다 — 이번 주 것만.
+ * 원칙: 제로 지식 유저에게 체크리스트 전체를 보여주지 않는다 — 지금 볼 것만.
+ *
+ * 고르는 기준은 `getImminentCategories`이고 그 창은 **기본 확인 시점까지 60일**이다.
+ * 일정 화면의 임박 목록과 같은 헬퍼를 쓴다. 그래서 화면 문구도 "이번 주"가 아니라
+ * "곧 확인할"이라고 쓴다 — 60일 뒤 항목을 이번 주 할 일이라고 부르면, 바로 옆에
+ * 붙는 "기본 확인 시점까지 55일"과 어긋난다. 창을 정말 이번 주로 좁히는 것은
+ * 카드가 자주 비게 되는 제품 결정이라 여기서 하지 않았다.
  */
 
 interface WeeklyCardProps {
@@ -49,7 +55,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         ? plan.primaryAction.href
         : null;
 
-    // 이번 주 할 일 3 — 마감 임박 카테고리
+    // 곧 확인할 분야 3 — 기본 확인 시점이 가까운 것
     const events = getEvents(progressRecord).filter(
       (event) => getScheduleEventStatus(event) !== "cancelled",
     );
@@ -94,11 +100,11 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {/* 이번 주 할 일 */}
+        {/* 곧 확인할 분야 */}
         <div className="rounded-[14px] border border-[#f0e9da] p-3.5">
           <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
             <ListChecks className="h-3.5 w-3.5" />
-            이번 주 할 일
+            곧 확인할 분야
           </p>
           {data.imminent.length > 0 ? (
             <ul className="space-y-1.5">
@@ -129,8 +135,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           ) : (
             <p className="text-[13px] font-medium leading-[1.5] text-[#928980]">
               {weddingDate
-                ? "현재 저장된 일정 기준으로 이번 주 마감 항목은 확인되지 않았어요. 등록하지 않은 일정은 포함되지 않아요."
-                : "결혼식 날짜를 입력하면 이번 주 할 일을 골라드려요."}
+                ? "현재 저장된 일정 기준으로 곧 확인할 항목은 없어요. 등록하지 않은 일정은 포함되지 않아요."
+                : "결혼식 날짜를 입력하면 곧 확인할 분야를 골라드려요."}
             </p>
           )}
         </div>
