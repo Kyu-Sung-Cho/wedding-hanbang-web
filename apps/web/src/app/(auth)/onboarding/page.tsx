@@ -14,10 +14,12 @@ import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationS
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
 import {
+  buildNeutralPreparationPrefill,
   buildNeutralPreparationSpaceSubmission,
   parseNeutralPreparationSpaceCapability,
   resolveNeutralPreparationSpaceRedirect,
 } from "@/lib/onboarding/neutralPreparationSpace";
+import type { WeddingPriorityValue } from "@hanbang/shared";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -37,6 +39,9 @@ export default function OnboardingPage() {
   // 실패하면 그 화면이 영구가 된다 — 플래그가 켜져 있어도.
   const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
   const [capabilitiesFailed, setCapabilitiesFailed] = useState(false);
+  // 중립 경로 전용 입력. 예식일은 스토어의 weddingDate 를 그대로 재사용하고,
+  // 관심사는 저장이 아니라 첫 대화 초안을 만드는 데 쓴다.
+  const [neutralFocus, setNeutralFocus] = useState<WeddingPriorityValue | null>(null);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -109,8 +114,9 @@ export default function OnboardingPage() {
     })}`;
   };
 
-  // neutralCoupleAction이 있으면 중립 준비 공간 경로다 — 역할·예식일·예산·스타일을
-  // 묻지 않고 바로 시작한다. 나머지는 각자 필요한 화면에서 채운다.
+  // neutralCoupleAction이 있으면 중립 준비 공간 경로다 — 역할·장소·예산·스타일은
+  // 묻지 않는다. 예식일만 받는데, 아모라가 대신 받아낼 수 없는 유일한 값이기
+  // 때문이다(첫 인사는 저장 정보를 못 꺼내고, 도구 게이트가 자족 확정문만 통과).
   const handleSubmit = async (neutralCoupleAction?: "create" | "join") => {
     setLoading(true);
     setError("");
@@ -124,6 +130,8 @@ export default function OnboardingPage() {
         requestBody = buildNeutralPreparationSpaceSubmission({
           coupleAction: neutralCoupleAction,
           partnerInviteCode: store.partnerInviteCode,
+          weddingDate: store.weddingDate,
+          focusPriority: neutralFocus,
         });
       } else {
         const progress: Record<string, unknown> = {};
@@ -186,6 +194,12 @@ export default function OnboardingPage() {
         window.location.href = resolveNeutralPreparationSpaceRedirect({
           search: window.location.search,
           origin: window.location.origin,
+          prefill: buildNeutralPreparationPrefill({
+            weddingDate: typeof data.journey?.wedding_date === "string"
+              ? data.journey.wedding_date
+              : null,
+            focusPriority: neutralFocus,
+          }),
         });
         return;
       }
@@ -320,6 +334,10 @@ export default function OnboardingPage() {
               }}
               onPartnerCodeChange={store.setPartnerInviteCode}
               onJoin={() => void handleSubmit("join")}
+              weddingDate={store.weddingDate ?? ""}
+              onWeddingDateChange={store.setWeddingDate}
+              focusPriority={neutralFocus}
+              onFocusPriorityChange={setNeutralFocus}
             />
           ) : (
           <>
@@ -565,6 +583,10 @@ export default function OnboardingPage() {
                     ? resolveNeutralPreparationSpaceRedirect({
                         search: window.location.search,
                         origin: window.location.origin,
+                        prefill: buildNeutralPreparationPrefill({
+                          weddingDate: store.weddingDate || null,
+                          focusPriority: neutralFocus,
+                        }),
                       })
                     : getAuthRedirectPath(
                         window.location.search,
