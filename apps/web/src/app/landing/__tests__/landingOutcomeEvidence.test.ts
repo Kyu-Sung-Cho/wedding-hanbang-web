@@ -41,7 +41,7 @@ const content = withoutComments(readFileSync(
 describe("landing product outcome evidence", () => {
   it("shows how separate proposals reach the three preparation records", () => {
     expect(landing).toContain("<PreparationResult />");
-    expect(content).toContain("계정 베타에서 이어지는 정리 방식");
+    expect(content).toContain("계정을 만들면 이어지는 정리 방식");
     expect(content).toContain("필요한 변경을 하나씩 제안하고, 확인받아요.");
     expect(content).toContain("예산·할 일·일정 중 한 번에 한 가지 변경을 제안하고");
     expect(content).not.toContain("말에서 세 가지 초안을 찾고");
@@ -77,8 +77,8 @@ describe("landing product outcome evidence", () => {
     expect(privacy).toContain("파트너 화면에는 표시하지 않음");
     expect(privacy).toContain('href="/privacy"');
     // 2026-08-06: 로그인 없는 체험 언급을 내렸다(파운더 결정: 한도 예정).
-    // 남은 계약은 "계정 베타에서 분리할 수 있다"는 경계 자체다.
-    expect(privacy).toContain("계정 베타 기능이 제공되면 함께 관리할 준비와 파트너에게 보이지 않을 상담을 분리할 수 있어요");
+    // 남은 계약은 "계정에서 분리할 수 있다"는 경계 자체다.
+    expect(privacy).toContain("계정을 만들면 함께 관리할 준비와 파트너에게 보이지 않을 상담을 분리할 수 있어요");
     expect(privacy, "되돌린 방향의 체험 잔재").not.toContain("로그인 없는 체험");
   });
 
@@ -118,7 +118,7 @@ describe("landing product outcome evidence", () => {
       .toContain("확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요");
     // 중복이 슬그머니 돌아오면 여기서 걸린다.
     expect(content, "걷어낸 중복 단계가 되살아났다").not.toContain("무엇이 바뀌는지 먼저 봐요.");
-    expect(continuity).toContain("계정 베타에서는 준비 기록에 반영될 변경을 먼저 확인할 수 있어요.");
+    expect(continuity).toContain("계정에서는 준비 기록에 반영될 변경을 먼저 확인할 수 있어요.");
     expect(continuity, "되돌린 방향의 체험 잔재").not.toContain("체험 대화");
   });
 

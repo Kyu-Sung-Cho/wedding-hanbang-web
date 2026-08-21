@@ -27,7 +27,7 @@ export default function SharedPrivateSection() {
             </h2>
           </div>
           <p className={`max-w-[34rem] ${sectionLede} text-[#4E6A62] lg:pb-1`}>
-            계정 베타 기능이 제공되면 함께 관리할 준비와 파트너에게 보이지 않을 상담을 분리할 수 있어요.
+            계정을 만들면 함께 관리할 준비와 파트너에게 보이지 않을 상담을 분리할 수 있어요.
            
           </p>
         </div>

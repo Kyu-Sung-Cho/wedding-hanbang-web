@@ -123,10 +123,11 @@ describe("landing two-sided trust contract", () => {
     // 2026-08-06 파운더 결정: 로그인 없는 아모라 이용에 한도를 걸 예정이라
     // 랜딩은 아모라를 로그인 필요로 안내한다. CTA를 누르기 전에 알 수 있어야 한다.
     expect(content).toContain("아모라는 결혼식 날짜와 준비 상황을 바탕으로 답해야 해서 로그인이 필요해요");
-    expect(content).toContain("계정 베타의 제공 기능·이용 기간·무료 상담 한도");
+    expect(content).toContain("아모라 상담에는 무료 한도가 있어요");
     expect(content).toContain("추가 이용 방법과 비용은 아직 정해지지 않았으며");
-    expect(content).toContain("신청만으로 결제되지 않아요");
-    expect(content).toContain("계정 베타가 제공되면");
+    // "신청"은 /beta 승인 대기열을 가리키던 말이다. 가입이 열린 뒤로는 신청이 없다.
+    expect(content).toContain("가입만으로 결제되지 않아요");
+    expect(content).toContain("계정을 만들면");
     expect(content).toContain("한 번에 한 가지 변경을 제안하면, 확인한 변경만 반영해요");
     expect(content).not.toContain("웨딩한방은 무료");
     expect(content).not.toContain("평생 무료");

@@ -135,7 +135,7 @@ export default function PreparationResult() {
 
           <p className="flex items-start gap-2 border-t border-[#243832]/10 py-5 text-[14px] font-medium leading-[1.7] text-[#36534E]">
             <Check className="mt-1 h-4 w-4 shrink-0 text-[#8F6662]" aria-hidden="true" />
-            계정 베타 기능 예시예요. 한 번의 확인에는 한 가지 변경만 포함돼요.
+            계정 기능 예시예요. 한 번의 확인에는 한 가지 변경만 포함돼요.
           </p>
         </div>
 

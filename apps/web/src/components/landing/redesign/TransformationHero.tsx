@@ -280,7 +280,7 @@ export default function TransformationHero() {
               <p className="mt-2 text-[12px] leading-5 text-white/72">
                 아모라와 대화하려면 로그인이 필요해요. 질문을 보내면 AI 처리·대화 저장 정책이 적용돼요.
               </p>
-              {/* 계정 베타의 경계는 지우지 않되, 첫 행동을 가리지 않도록
+              {/* 계정에서 달라지는 것을 지우지 않되, 첫 행동을 가리지 않도록
                   CTA 아래에 둔다. 로그인 없는 첫 순서에는 적용되지 않는 조건이다. */}
               <p className="mt-1 text-[12px] leading-5 text-white/72">
                 {landingContent.hero.betaBoundary}
